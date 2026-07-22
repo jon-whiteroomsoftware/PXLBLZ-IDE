@@ -40,6 +40,7 @@ import { buildShowCompositionFreezeCases } from '@/engine/showCompositionFreeze'
 import { projectFlatShowToCompositionV1 } from '@/engine/showCompositionModel'
 import * as showModel from '@/engine/showModel'
 import { DEFAULT_SHOW_TRAILS_RETENTION } from '@/engine/showPreviousRgbFeedback'
+import { projectShowLayoutIntervals } from '@/engine/showLayoutIntervals'
 
 function changeCommittedNumber(label: string, value: string): void {
   const input = screen.getByLabelText(label)
@@ -189,6 +190,69 @@ describe('ShowEditor (#318)', () => {
     unmount()
     render(<ShowEditor showId={show.id} unifiedTimeline />)
     expect(screen.getByRole('img', { name: 'Collapsed zone main timeline' })).toBeInTheDocument()
+  })
+
+  it('inserts and appends sequential Zone Layout intervals from the unified toolbar (#582)', async () => {
+    const user = userEvent.setup()
+    const show = addShowRoutingLayout(createDefaultShow('show-layout-authoring', 'Layout authoring', 1000), 'Alternate')
+    setPersonalContentProvider(memoryProvider([show]))
+    useShowStore.setState({ shows: [show], activeShowId: show.id, showsLoaded: true })
+    useShowTransportStore.setState({ showId: show.id, positionMs: 10_000 })
+
+    render(<ShowEditor showId={show.id} unifiedTimeline />)
+
+    await user.click(screen.getByRole('button', { name: 'Layout interval actions' }))
+    let dialog = screen.getByRole('dialog', { name: 'Layout interval actions' })
+    await user.selectOptions(within(dialog).getByRole('combobox', { name: 'Layout definition' }), show.routingLayouts[1].id)
+    const duration = within(dialog).getByRole('spinbutton', { name: 'Layout interval duration in seconds' })
+    await user.clear(duration)
+    await user.type(duration, '3')
+    await user.click(within(dialog).getByRole('button', { name: 'Insert here' }))
+
+    await waitFor(() => {
+      const saved = useShowStore.getState().shows[0]
+      expect(projectShowLayoutIntervals(saved).map((interval) => [interval.layoutId, interval.durationMs])).toEqual([
+        ['layout-1', 10_000],
+        [show.routingLayouts[1].id, 3_000],
+        ['layout-1', 52_000],
+      ])
+    })
+
+    await user.click(screen.getByRole('button', { name: 'Layout interval actions' }))
+    dialog = screen.getByRole('dialog', { name: 'Layout interval actions' })
+    await user.click(within(dialog).getByRole('button', { name: 'Append' }))
+    await waitFor(() => {
+      const intervals = projectShowLayoutIntervals(useShowStore.getState().shows[0])
+      expect(intervals[intervals.length - 1]).toMatchObject({ layoutId: show.routingLayouts[1].id, durationMs: 3_000 })
+    })
+  })
+
+  it('duplicates a Layout occurrence and makes one reused occurrence independent (#582)', async () => {
+    const user = userEvent.setup()
+    const show = createDefaultShow('show-layout-reuse', 'Layout reuse', 1000)
+    setPersonalContentProvider(memoryProvider([show]))
+    useShowStore.setState({ shows: [show], activeShowId: show.id, showsLoaded: true })
+
+    render(<ShowEditor showId={show.id} unifiedTimeline />)
+    await user.click(screen.getByRole('button', { name: 'Layout interval actions' }))
+    let dialog = screen.getByRole('dialog', { name: 'Layout interval actions' })
+    await user.click(within(dialog).getByRole('button', { name: 'Duplicate Layout' }))
+
+    await waitFor(() => expect(projectShowLayoutIntervals(useShowStore.getState().shows[0])).toHaveLength(2))
+    const savedScenes = useShowStore.getState().shows[0].composition?.scenes ?? []
+    expect(savedScenes[savedScenes.length - 1]?.zones[0].main).toEqual([])
+
+    await user.click(screen.getByRole('button', { name: 'Layout interval actions' }))
+    dialog = screen.getByRole('dialog', { name: 'Layout interval actions' })
+    expect(within(dialog).getByText(/Separate this occurrence from 1 other use/)).toBeInTheDocument()
+    await user.click(within(dialog).getByRole('button', { name: /Make this Layout unique/i }))
+
+    await waitFor(() => {
+      const saved = useShowStore.getState().shows[0]
+      expect(saved.routingLayouts).toHaveLength(2)
+      const intervals = projectShowLayoutIntervals(saved)
+      expect(intervals[0].layoutId).not.toBe(intervals[1].layoutId)
+    })
   })
 
   it('renders durable composition Clips on the unified global timeline (#580)', () => {

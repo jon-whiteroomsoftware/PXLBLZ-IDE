@@ -182,6 +182,14 @@ import type {
 import { DEFAULT_SHOW_TRAILS_RETENTION, normalizeShowOutputEffects } from '@/engine/showPreviousRgbFeedback'
 import { normalizeShowClipTransform } from '@/engine/showClipTransform'
 import { validateShowLogicalRouting, type ShowLogicalRouting } from '@/engine/showLogicalRouting'
+import {
+  appendShowLayoutInterval,
+  duplicateShowLayoutInterval,
+  insertShowLayoutInterval,
+  makeShowLayoutIntervalUnique,
+  projectShowLayoutIntervals,
+  type ShowLayoutInterval,
+} from '@/engine/showLayoutIntervals'
 
 const field =
   'h-7 rounded border border-zinc-700 bg-zinc-900 px-2 text-xs text-zinc-200 outline-none focus:border-live/70'
@@ -250,6 +258,12 @@ function findCompositionClipOwner(
     }
   }
   return null
+}
+
+function layoutIntervalAtTime(intervals: ShowLayoutInterval[], timeMs: number): ShowLayoutInterval | null {
+  if (intervals.length === 0) return null
+  return intervals.find((interval) => timeMs >= interval.startMs && timeMs < interval.endMs)
+    ?? (timeMs >= intervals[intervals.length - 1].endMs ? intervals[intervals.length - 1] : intervals[0])
 }
 
 function findTimelineClipOwner(
@@ -1343,6 +1357,38 @@ export function ShowEditor({
                   })
                   return true
                 }}
+                onAppendLayoutInterval={async (layoutId, durationMs) => {
+                  if (!timelineComposition) return false
+                  const basis = { ...activeShow, composition: timelineComposition }
+                  const next = appendShowLayoutInterval(basis, { layoutId, durationMs })
+                  if (next === basis) return false
+                  await updateShow(activeShow.id, next)
+                  return true
+                }}
+                onInsertLayoutInterval={async (layoutId, durationMs, atMs) => {
+                  if (!timelineComposition) return false
+                  const basis = { ...activeShow, composition: timelineComposition }
+                  const next = insertShowLayoutInterval(basis, { layoutId, durationMs, atMs })
+                  if (next === basis) return false
+                  await updateShow(activeShow.id, next)
+                  return true
+                }}
+                onDuplicateLayoutInterval={async (intervalId, withContent) => {
+                  if (!timelineComposition) return false
+                  const basis = { ...activeShow, composition: timelineComposition }
+                  const next = duplicateShowLayoutInterval(basis, intervalId, { withContent })
+                  if (next === basis) return false
+                  await updateShow(activeShow.id, next)
+                  return true
+                }}
+                onMakeLayoutIntervalUnique={async (intervalId) => {
+                  if (!timelineComposition) return false
+                  const basis = { ...activeShow, composition: timelineComposition }
+                  const next = makeShowLayoutIntervalUnique(basis, intervalId)
+                  if (next === basis) return false
+                  await updateShow(activeShow.id, next)
+                  return true
+                }}
                 onOpenScene={(sceneId) => {
                   const scope = resolveShowSceneEditorScope(activeShow, {
                     sceneId,
@@ -2291,6 +2337,10 @@ function SceneStrip({
   onSplitCompositionClip,
   onDuplicateCompositionClip,
   onResizeCompositionClip,
+  onAppendLayoutInterval,
+  onInsertLayoutInterval,
+  onDuplicateLayoutInterval,
+  onMakeLayoutIntervalUnique,
   onOpenScene,
   onAddScene,
   onAddZone,
@@ -2328,6 +2378,10 @@ function SceneStrip({
     globalStartMs: number,
     durationMs: number,
   ) => Promise<boolean>
+  onAppendLayoutInterval: (layoutId: string, durationMs: number) => Promise<boolean>
+  onInsertLayoutInterval: (layoutId: string, durationMs: number, atMs: number) => Promise<boolean>
+  onDuplicateLayoutInterval: (intervalId: string, withContent: boolean) => Promise<boolean>
+  onMakeLayoutIntervalUnique: (intervalId: string) => Promise<boolean>
   onOpenScene: (sceneId: string) => void
   onAddScene: () => void
   onAddZone: () => void
@@ -2341,6 +2395,7 @@ function SceneStrip({
   const unifiedTimelineWorkspace = unifiedTimeline
   const strip = projectShowStrip(show)
   const timeline = projectShowTimeline(show)
+  const layoutIntervals = useMemo(() => projectShowLayoutIntervals(show), [show])
   const unifiedCompositionTimeline = useMemo(() => (
     unifiedTimelineWorkspace && timelineComposition
       ? projectShowUnifiedTimeline(show, timelineComposition)
@@ -2375,6 +2430,11 @@ function SceneStrip({
   const [dropTargetKey, setDropTargetKey] = useState<string | null>(null)
   const [superDetailOwner, setSuperDetailOwner] = useState<{ sceneId: string; anchor: HTMLElement } | null>(null)
   const [addClipOpen, setAddClipOpen] = useState(false)
+  const [layoutActionsOpen, setLayoutActionsOpen] = useState(false)
+  const [layoutActionTimeMs, setLayoutActionTimeMs] = useState(0)
+  const [layoutActionLayoutId, setLayoutActionLayoutId] = useState(show.routingLayouts[0]?.id ?? '')
+  const [layoutActionDurationSeconds, setLayoutActionDurationSeconds] = useState(5)
+  const [layoutActionError, setLayoutActionError] = useState<string | null>(null)
   const [addClipTimeMs, setAddClipTimeMs] = useState(0)
   const [addClipPatternKey, setAddClipPatternKey] = useState<string | null>(() => {
     const first = patternOptions[0]
@@ -2407,6 +2467,19 @@ function SceneStrip({
   const addClipPattern = patternOptions.find((option) => (
     `${option.ref.kind}:${option.ref.id}` === addClipPatternKey
   )) ?? patternOptions[0]
+  const layoutActionInterval = layoutIntervalAtTime(layoutIntervals, layoutActionTimeMs)
+  const layoutActionDurationMs = Math.round(layoutActionDurationSeconds * 1000)
+  const layoutActionDurationValid = Number.isFinite(layoutActionDurationMs) && layoutActionDurationMs >= 1
+  const layoutActionUseCount = layoutActionInterval
+    ? layoutIntervals.filter((interval) => interval.layoutId === layoutActionInterval.layoutId).length
+    : 0
+  const runLayoutAction = (action: () => Promise<boolean>) => {
+    setLayoutActionError(null)
+    void action().then((changed) => {
+      if (changed) setLayoutActionsOpen(false)
+      else setLayoutActionError('That operation is not available at this time. Move the playhead outside a Transition and leave enough room to split occupied Clips.')
+    })
+  }
   let viewport = storedViewport
   if (viewport.totalMs !== fittedViewport.totalMs) {
     const zoom = viewport.totalMs / viewport.durationMs
@@ -2736,7 +2809,11 @@ function SceneStrip({
   return (
     <div
       className="select-none border-b border-seam bg-[#060608] px-2 py-2.5 shadow-[inset_0_6px_14px_-8px_rgba(0,0,0,0.9),inset_0_-6px_14px_-10px_rgba(0,0,0,0.9)] [&_input]:select-text [&_textarea]:select-text"
-      onClick={onDismiss}
+      onClick={() => {
+        onDismiss()
+        setAddClipOpen(false)
+        setLayoutActionsOpen(false)
+      }}
     >
       <div
         data-testid="show-timeline-toolbar"
@@ -2779,6 +2856,28 @@ function SceneStrip({
               >
                 <MapIcon size={12} aria-hidden />
                 Zones
+              </Button>
+              <Button
+                size="xs"
+                variant="ghost"
+                aria-label="Layout interval actions"
+                aria-expanded={layoutActionsOpen}
+                title="Append, insert, duplicate, or separate a Zone Layout interval"
+                className={layoutActionsOpen
+                  ? 'bg-live/10 px-1.5 text-[11px] text-live hover:bg-live/15'
+                  : 'bg-transparent px-1.5 text-[11px] text-zinc-400 hover:bg-zinc-800/60 hover:text-zinc-100'}
+                onClick={() => {
+                  const transport = useShowTransportStore.getState()
+                  const timeMs = transport.showId === show.id ? transport.positionMs : 0
+                  const interval = layoutIntervalAtTime(layoutIntervals, timeMs)
+                  setLayoutActionTimeMs(timeMs)
+                  setLayoutActionLayoutId(interval?.layoutId ?? show.routingLayouts[0]?.id ?? '')
+                  setLayoutActionError(null)
+                  setLayoutActionsOpen((open) => !open)
+                }}
+              >
+                <Grid2X2 size={12} aria-hidden />
+                Layout
               </Button>
               <Button
                 size="xs"
@@ -2859,6 +2958,84 @@ function SceneStrip({
                       Add Clip
                     </Button>
                   </div>
+                </div>
+              )}
+              {layoutActionsOpen && (
+                <div
+                  role="dialog"
+                  aria-label="Layout interval actions"
+                  className="absolute right-0 top-full z-50 mt-1 w-72 rounded border border-zinc-700 bg-zinc-950 p-2.5 text-[12px] text-zinc-300 shadow-2xl"
+                  onClick={(event) => event.stopPropagation()}
+                >
+                  <div className="mb-2 flex items-start justify-between gap-3">
+                    <div className="min-w-0">
+                      <div className="text-[11px] uppercase tracking-[0.1em] text-zinc-500">Current interval</div>
+                      <div className="truncate text-[13px] font-medium text-zinc-100">{layoutActionInterval?.layoutName ?? 'No Layout'}</div>
+                    </div>
+                    <span className="shrink-0 font-mono text-[11px] tabular-nums text-zinc-500">{formatShowTime(layoutActionTimeMs)}</span>
+                  </div>
+                  <label className="grid grid-cols-[72px_1fr] items-center gap-2 py-1">
+                    <span className="text-zinc-500">Use Layout</span>
+                    <select
+                      aria-label="Layout definition"
+                      className="h-7 min-w-0 rounded border border-zinc-700 bg-zinc-900 px-2 text-[12px] text-zinc-200 outline-none focus:border-live/70"
+                      value={layoutActionLayoutId}
+                      onChange={(event) => setLayoutActionLayoutId(event.target.value)}
+                    >
+                      {show.routingLayouts.map((layout) => <option key={layout.id} value={layout.id}>{layout.name}</option>)}
+                    </select>
+                  </label>
+                  <div className="grid grid-cols-[72px_1fr] items-center gap-2 py-1">
+                    <span className="text-zinc-500">Duration</span>
+                    <UiNumberField
+                      label="Layout interval duration"
+                      ariaLabel="Layout interval duration in seconds"
+                      hideLabel
+                      variant="editor"
+                      value={layoutActionDurationSeconds}
+                      min={0.001}
+                      step={0.001}
+                      suffix="s"
+                      onChange={setLayoutActionDurationSeconds}
+                    />
+                  </div>
+                  <div className="mt-2 grid grid-cols-2 gap-1.5">
+                    <Button
+                      size="sm"
+                      variant="secondary"
+                      disabled={!layoutActionDurationValid || !layoutActionLayoutId}
+                      onClick={() => runLayoutAction(() => onAppendLayoutInterval(layoutActionLayoutId, layoutActionDurationMs))}
+                    >Append</Button>
+                    <Button
+                      size="sm"
+                      variant="secondary"
+                      disabled={!layoutActionDurationValid || !layoutActionLayoutId}
+                      onClick={() => runLayoutAction(() => onInsertLayoutInterval(layoutActionLayoutId, layoutActionDurationMs, layoutActionTimeMs))}
+                    >Insert here</Button>
+                    <Button
+                      size="sm"
+                      variant="ghost"
+                      disabled={!layoutActionInterval}
+                      onClick={() => layoutActionInterval && runLayoutAction(() => onDuplicateLayoutInterval(layoutActionInterval.id, false))}
+                    >Duplicate Layout</Button>
+                    <Button
+                      size="sm"
+                      variant="ghost"
+                      disabled={!layoutActionInterval}
+                      onClick={() => layoutActionInterval && runLayoutAction(() => onDuplicateLayoutInterval(layoutActionInterval.id, true))}
+                    >Duplicate + Clips</Button>
+                  </div>
+                  {layoutActionInterval && layoutActionUseCount > 1 && (
+                    <button
+                      type="button"
+                      className="mt-2 w-full rounded border border-zinc-800 px-2 py-1.5 text-left text-[11px] text-zinc-400 hover:border-zinc-700 hover:bg-zinc-900 hover:text-zinc-100"
+                      onClick={() => runLayoutAction(() => onMakeLayoutIntervalUnique(layoutActionInterval.id))}
+                    >
+                      <strong className="font-medium text-zinc-200">Make this Layout unique</strong>
+                      <span className="mt-0.5 block text-zinc-600">Separate this occurrence from {layoutActionUseCount - 1} other {layoutActionUseCount === 2 ? 'use' : 'uses'}.</span>
+                    </button>
+                  )}
+                  {layoutActionError && <p role="alert" className="mt-2 text-[11px] leading-4 text-amber-200/80">{layoutActionError}</p>}
                 </div>
               )}
               {zonesOpen && (
@@ -2996,6 +3173,7 @@ function SceneStrip({
           snapEnabled={snapEnabled}
           structuralTimesMs={structuralTimesMs}
           getVisibleWidth={() => Math.max(1, (scrollRef.current?.clientWidth ?? 812) - 212)}
+          layoutIntervals={layoutIntervals}
         />
         <TimelinePlayhead
           show={show}
@@ -3302,6 +3480,13 @@ function SceneStrip({
                   className="absolute inset-y-0 w-px bg-violet-300/70"
                   style={{ left: `${beat.displayX * 100}%` }}
                 />)}
+                <LayoutZoneIntervalOverlay
+                  intervals={layoutIntervals}
+                  zoneId={row.zoneId}
+                  zoneName={row.zoneName}
+                  durationMs={timeline.durationMs}
+                  compact
+                />
               </div>
             ) : unifiedZone ? unifiedZone.layers.map((layer, layerIndex) => (
               <div
@@ -3360,6 +3545,13 @@ function SceneStrip({
                   setDropTargetKey(null)
                 }}
               >
+                <LayoutZoneIntervalOverlay
+                  intervals={layoutIntervals}
+                  zoneId={row.zoneId}
+                  zoneName={row.zoneName}
+                  durationMs={timeline.durationMs}
+                  showLabels={layerIndex === 0}
+                />
                 {layer.clips.map((clip) => {
                   const totalMs = Math.max(1, unifiedCompositionTimeline?.durationMs ?? timeline.durationMs)
                   const preview = resizePreview?.clipId === clip.id ? resizePreview : clip
@@ -3929,6 +4121,51 @@ function TimelineNavigator({
   )
 }
 
+function LayoutZoneIntervalOverlay({
+  intervals,
+  zoneId,
+  zoneName,
+  durationMs,
+  compact = false,
+  showLabels = false,
+}: {
+  intervals: ShowLayoutInterval[]
+  zoneId: string
+  zoneName: string
+  durationMs: number
+  compact?: boolean
+  showLabels?: boolean
+}) {
+  const totalMs = Math.max(1, durationMs)
+  return <>
+    {intervals.map((interval) => {
+      const left = interval.startMs / totalMs * 100
+      const width = interval.durationMs / totalMs * 100
+      const active = interval.zoneIds.includes(zoneId)
+      if (!active) {
+        return <i
+          key={interval.id}
+          aria-hidden
+          data-inactive-layout-zone={`${interval.id}:${zoneId}`}
+          className="pointer-events-none absolute inset-y-0 z-20 border-x border-zinc-900/90 bg-[#050507]/95"
+          style={{ left: `${left}%`, width: `${width}%` }}
+        />
+      }
+      if (!showLabels && !compact) return null
+      return <span
+        key={interval.id}
+        aria-hidden
+        className={compact
+          ? 'pointer-events-none absolute top-0 z-[21] max-w-full truncate px-1 text-[10px] leading-3 text-zinc-500'
+          : 'pointer-events-none absolute top-0.5 z-[21] max-w-full truncate rounded-sm bg-black/45 px-1 text-[11px] leading-4 text-zinc-400 shadow-sm'}
+        style={{ left: `calc(${left}% + 2px)`, maxWidth: `calc(${width}% - 4px)` }}
+      >
+        {interval.layoutName} · {zoneName}
+      </span>
+    })}
+  </>
+}
+
 function TimelineRuler({
   show,
   gridColumn,
@@ -3937,6 +4174,7 @@ function TimelineRuler({
   snapEnabled,
   structuralTimesMs,
   getVisibleWidth,
+  layoutIntervals,
 }: {
   show: ShowRecord
   gridColumn: string
@@ -3945,6 +4183,7 @@ function TimelineRuler({
   snapEnabled: boolean
   structuralTimesMs: number[]
   getVisibleWidth: () => number
+  layoutIntervals: ShowLayoutInterval[]
 }) {
   const durationMs = showLoopDurationMs(show)
   const positionMs = useShowTransportStore((state) => state.showId === show.id ? state.positionMs : 0)
@@ -3993,6 +4232,23 @@ function TimelineRuler({
         backgroundImage: 'repeating-linear-gradient(90deg, rgba(113,113,122,.2) 0 1px, transparent 1px 20px)',
       }}
     >
+      {layoutIntervals.map((interval, index) => {
+        const visibleStart = Math.max(interval.startMs, viewport.startMs)
+        const visibleEnd = Math.min(interval.endMs, viewport.startMs + viewport.durationMs)
+        if (visibleEnd <= visibleStart) return null
+        const left = (visibleStart - viewport.startMs) / viewport.durationMs * 100
+        const width = (visibleEnd - visibleStart) / viewport.durationMs * 100
+        return (
+          <span
+            key={interval.id}
+            aria-hidden
+            className="pointer-events-none absolute bottom-0 z-[1] h-[13px] overflow-hidden border-l border-live/45 bg-live/[0.035] px-1 text-[11px] leading-[13px] text-zinc-400"
+            style={{ left: `${left}%`, width: `${width}%` }}
+          >
+            {index > 0 && <span className="mr-1 text-live/70">◆</span>}{interval.layoutName}
+          </span>
+        )
+      })}
       {ticks.map((tick) => (
         <span
           key={tick.position}

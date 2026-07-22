@@ -1,0 +1,152 @@
+import { describe, expect, it } from 'vitest'
+import {
+  addShowRoutingLayout,
+  createDefaultShow,
+  showRecordToCompileRecipe,
+} from './showModel'
+import {
+  appendShowLayoutInterval,
+  duplicateShowLayoutInterval,
+  insertShowLayoutInterval,
+  makeShowLayoutIntervalUnique,
+  projectShowLayoutIntervals,
+} from './showLayoutIntervals'
+import type { ShowCompositionV1, ShowRecord } from './personalContentRecords'
+
+function showWithComposition(): ShowRecord {
+  const show = createDefaultShow('show-layouts', 'Layout intervals', 1)
+  const sourceCell = show.cells[0]
+  const composition: ShowCompositionV1 = {
+    version: 1,
+    patternInstances: [{
+      id: 'instance-1',
+      pattern: { ...sourceCell.pattern },
+      patternName: sourceCell.patternName,
+      time: { timeScale: 1, timeOffsetMs: 0 },
+    }],
+    scenes: [{
+      sceneId: show.scenes[0].id,
+      zones: [{
+        zoneId: show.zones[0].id,
+        main: [{
+          id: 'placement-1',
+          instanceId: 'instance-1',
+          startMs: 0,
+          durationMs: show.scenes[0].durationMs,
+          view: { brightness: 1, phase: 0, mirror: false },
+        }],
+        overlays: [],
+      }],
+    }],
+  }
+  return {
+    ...show,
+    scenes: [{ ...show.scenes[0], durationMs: 30_000 }],
+    cells: [{ ...sourceCell, sceneId: show.scenes[0].id, sceneSpan: 1 }],
+    transitions: [],
+    composition,
+  }
+}
+
+describe('Show Layout intervals', () => {
+  it('projects explicit same-Layout boundaries as separate occurrences', () => {
+    const show = appendShowLayoutInterval(showWithComposition(), {
+      durationMs: 5_000,
+      layoutId: 'layout-1',
+    })
+
+    expect(projectShowLayoutIntervals(show).map((interval) => ({
+      layoutId: interval.layoutId,
+      durationMs: interval.durationMs,
+      sceneIds: interval.sceneIds,
+    }))).toEqual([
+      { layoutId: 'layout-1', durationMs: 30_000, sceneIds: ['scene-1'] },
+      { layoutId: 'layout-1', durationMs: 5_000, sceneIds: ['scene-2'] },
+    ])
+    expect(show.transitions).toContainEqual(expect.objectContaining({
+      afterSceneId: 'scene-1',
+      kind: 'routing',
+      layoutId: 'layout-1',
+      durationMs: 0,
+    }))
+  })
+
+  it('inserts inside occupied content by splitting placements and resuming the prior Layout', () => {
+    const base = addShowRoutingLayout(showWithComposition(), 'Alternate')
+    const alternateId = base.routingLayouts[1].id
+    const show = insertShowLayoutInterval(base, {
+      atMs: 10_000,
+      durationMs: 5_000,
+      layoutId: alternateId,
+    })
+
+    expect(show.scenes.map((scene) => scene.durationMs)).toEqual([10_000, 5_000, 20_000])
+    expect(projectShowLayoutIntervals(show).map((interval) => [interval.layoutId, interval.durationMs])).toEqual([
+      ['layout-1', 10_000],
+      [alternateId, 5_000],
+      ['layout-1', 20_000],
+    ])
+    const [left, inserted, right] = show.composition!.scenes
+    expect(left.zones[0].main[0]).toMatchObject({ instanceId: 'instance-1', durationMs: 10_000 })
+    expect(inserted.zones[0].main).toEqual([])
+    expect(right.zones[0].main[0]).toMatchObject({ instanceId: 'instance-1', startMs: 0, durationMs: 20_000 })
+    expect(right.zones[0].main[0].id).not.toBe(left.zones[0].main[0].id)
+  })
+
+  it('duplicates either an empty occurrence or its complete choreography', () => {
+    const base = showWithComposition()
+    const source = projectShowLayoutIntervals(base)[0]
+    const empty = duplicateShowLayoutInterval(base, source.id, { withContent: false })
+    const copied = duplicateShowLayoutInterval(base, source.id, { withContent: true })
+
+    expect(empty.scenes).toHaveLength(2)
+    expect(empty.composition!.scenes[1].zones[0].main).toEqual([])
+    expect(copied.scenes).toHaveLength(2)
+    expect(copied.composition!.scenes[1].zones[0].main).toHaveLength(1)
+    expect(copied.composition!.scenes[1].zones[0].main[0]).toMatchObject({
+      startMs: 0,
+      durationMs: 30_000,
+    })
+    expect(copied.composition!.scenes[1].zones[0].main[0].id).not.toBe('placement-1')
+    expect(copied.composition!.scenes[1].zones[0].main[0].instanceId).not.toBe('instance-1')
+    expect(copied.composition!.patternInstances).toHaveLength(2)
+  })
+
+  it('makes one reused occurrence independent by cloning its Layout and Zone identities', () => {
+    const duplicated = duplicateShowLayoutInterval(
+      showWithComposition(),
+      'layout-occurrence-scene-1',
+      { withContent: true },
+    )
+    const second = projectShowLayoutIntervals(duplicated)[1]
+    const unique = makeShowLayoutIntervalUnique(duplicated, second.id)
+    const intervals = projectShowLayoutIntervals(unique)
+
+    expect(unique.routingLayouts).toHaveLength(2)
+    expect(intervals[0].layoutId).toBe('layout-1')
+    expect(intervals[1].layoutId).toBe(unique.routingLayouts[1].id)
+    expect(unique.routingLayouts[1].zones[0].zoneId).not.toBe(unique.routingLayouts[0].zones[0].zoneId)
+    expect(unique.composition!.scenes[0].zones[0].zoneId).toBe(unique.routingLayouts[0].zones[0].zoneId)
+    expect(unique.composition!.scenes[1].zones[0].zoneId).toBe(unique.routingLayouts[1].zones[0].zoneId)
+  })
+
+  it('lowers explicit Layout occurrences through the existing routed compiler contract', () => {
+    const base = addShowRoutingLayout(showWithComposition(), 'Alternate')
+    const alternateId = base.routingLayouts[1].id
+    const show = insertShowLayoutInterval(base, {
+      atMs: 10_000,
+      durationMs: 5_000,
+      layoutId: alternateId,
+    })
+    const recipe = showRecordToCompileRecipe(show, {
+      byCellId: { 'cell-1': 'export function render(index) { return index }' },
+      byPatternInstanceId: { 'instance-1': 'export function render(index) { return index }' },
+    })
+
+    expect(recipe.routingSwitches).toEqual([
+      expect.objectContaining({ atMs: 10_000, layoutId: alternateId, durationMs: 0 }),
+      expect.objectContaining({ atMs: 15_000, layoutId: 'layout-1', durationMs: 0 }),
+    ])
+    expect(recipe.routedSceneSequence?.scenes.map((scene) => scene.holdMs)).toEqual([10_000, 5_000, 20_000])
+  })
+})
