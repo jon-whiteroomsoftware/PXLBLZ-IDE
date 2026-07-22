@@ -588,6 +588,10 @@ alignment guide.
   value across the inserted interval; later keys shift by the inserted duration.
 - Insert Time is unavailable inside a Transition because a Transition is an
   indivisible time object.
+- Insert Time is unavailable when it would cross a value-changing nonlinear
+  Property segment between keyframes. The author must add a keyframe at the
+  playhead or change that segment to Linear; the editor never silently reshapes
+  an authored curve.
 - An instance used only by shifted downstream content moves its clock origin
   with that content. An instance spanning the insertion point continues through
   the new gap.
@@ -732,6 +736,9 @@ into its miniature Layer summaries instead of hiding their event times.
 - The compiler may skip Pattern pixel evaluation outside a Viewport only when it
   proves that doing so preserves renderer state. Stateful or unknown renderers
   retain calls when required for correctness.
+- Clip Viewports require 2D Show output. If a Stage change would compile the
+  Show as 1D, compilation fails with a clear incompatibility instead of silently
+  ignoring an enabled Viewport.
 
 ### 9. Compositing and Effects
 

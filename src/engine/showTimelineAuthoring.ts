@@ -1,4 +1,5 @@
 import { normalizeShowComposition, validateShowComposition } from './showCompositionModel'
+import { normalizePersistedShowEasing } from './showEasing'
 import { projectShowTimeline, showLoopDurationMs } from './showModel'
 import { evaluateShowPropertyTrack } from './showPropertyAnimation'
 import { projectShowUnifiedTimeline } from './showUnifiedTimelineProjection'
@@ -12,7 +13,7 @@ import type {
 
 export type ShowTimeInsertionPlan =
   | { enabled: true; code: 'ready'; sceneId: string; localTimeMs: number; crossingPlacementIds: string[] }
-  | { enabled: false; code: 'invalid-time' | 'invalid-duration' | 'transition' | 'missing-composition'; reason: string }
+  | { enabled: false; code: 'invalid-time' | 'invalid-duration' | 'transition' | 'missing-composition' | 'nonlinear-property-animation'; reason: string }
 
 export function planShowTimeInsertion(
   show: ShowRecord,
@@ -45,6 +46,13 @@ export function planShowTimeInsertion(
   if (!range) return { enabled: false, code: 'invalid-time', reason: 'Choose a time inside the Show.' }
   const localTimeMs = Math.round(atMs - range.startMs)
   const scene = show.composition.scenes.find((candidate) => candidate.sceneId === range.sceneId)
+  if ((scene?.propertyTracks ?? []).some((track) => nonlinearSegmentCrosses(track, localTimeMs))) {
+    return {
+      enabled: false,
+      code: 'nonlinear-property-animation',
+      reason: 'Add a keyframe at the playhead or change the crossing segment to Linear before inserting time.',
+    }
+  }
   const crossingPlacementIds = scene
     ? scene.zones.flatMap((zone) => [
         ...zone.main,
@@ -55,6 +63,16 @@ export function planShowTimeInsertion(
       )).map((placement) => placement.id).sort()
     : []
   return { enabled: true, code: 'ready', sceneId: range.sceneId, localTimeMs, crossingPlacementIds }
+}
+
+function nonlinearSegmentCrosses(track: ShowPropertyAnimationTrack, atMs: number): boolean {
+  const keyframes = [...track.keyframes].sort((left, right) => left.timeMs - right.timeMs || left.id.localeCompare(right.id))
+  return keyframes.slice(0, -1).some((left, index) => {
+    const right = keyframes[index + 1]
+    if (left.timeMs >= atMs || right.timeMs <= atMs) return false
+    if (Math.abs(right.value - left.value) <= 0.000001) return false
+    return normalizePersistedShowEasing(left.easing).curve !== 'linear'
+  })
 }
 
 export function insertShowTime(

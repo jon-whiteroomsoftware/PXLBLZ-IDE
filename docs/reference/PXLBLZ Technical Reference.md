@@ -1205,7 +1205,10 @@ changes, and global Insert Time. Insert Time extends the containing internal
 Scene partition, splits every crossing placement without changing its shared
 Pattern instance, shifts later placements and Markers, and inserts a held
 interval into crossing Property animation. It refuses insertion inside either
-legacy Scene Transitions or Layer Transitions. Show End continues to synchronize
+legacy Scene Transitions or Layer Transitions. It also refuses a value-changing
+nonlinear Property segment crossed between keyframes; the author must add a
+keyframe at the insertion point or change that segment to Linear so the edit
+cannot silently reshape the curve. Show End continues to synchronize
 the final internal Scene duration until Scene compatibility lowering is removed;
 ordinary shortening clamps to the last authored placement or keyframe and never
 deletes later Markers.
@@ -1501,8 +1504,10 @@ revealing lower layers without changing Pattern evaluation or its transformed
 coordinate field. X, Y, Width, and Height may use Scene-local Property tracks;
 enablement remains discrete. Direct-sink and opaque-stack optimizations are
 disabled whenever an enabled Viewport would make their coverage assumptions
-false. Neutral missing Viewports remain byte-compact and legacy Shows project as
-disabled full-Zone rectangles.
+false. An enabled Viewport requires 2D Show output; compilation fails explicitly
+if a later Stage change would otherwise make the Viewport disappear in 1D.
+Neutral missing Viewports remain byte-compact and legacy Shows project as disabled
+full-Zone rectangles.
 
 The shipped property lanes are structural scene projections, not arbitrary
 keyframe tracks. A destination clip or scene owns its target; the incoming

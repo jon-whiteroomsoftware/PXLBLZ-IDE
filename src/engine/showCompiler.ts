@@ -2216,6 +2216,14 @@ export function compileShow(
     : routeMode || routingLayouts
       ? memberOutputDimension
       : 1
+  if (
+    routedOutputDimension === 1
+    && expandedRecipe.routedSceneSequence?.scenes.some((scene) => (
+      scene.placements.some((placement) => placement.viewport?.enabled)
+    ))
+  ) {
+    throw new Error('Clip Viewports require 2D Show output.')
+  }
   const hasLogicalRouting = routingLayouts?.some((layout) => layout.logical) ?? false
   const hasSoftSplit = routingLayouts?.some((layout) => layout.logical?.kind === 'soft-split') ?? false
   const hasBlendedSoftSplit = routingLayouts?.some((layout) => (

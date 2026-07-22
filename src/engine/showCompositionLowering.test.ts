@@ -185,6 +185,48 @@ describe('Show composition compiler lowering (#488)', () => {
     ]))
   })
 
+  it('defensively rejects Fade and Motion transitions over unrelated spanning content', () => {
+    const show = fixture()
+    show.composition!.scenes[0].zones[0].overlays = [{
+      id: 'overlay-layer',
+      name: 'Overlay',
+      placements: [{
+        id: 'overlay-through-transition',
+        instanceId: 'instance-a',
+        startMs: 0,
+        durationMs: 8_000,
+        opacity: 1,
+        view: { mirror: false, phase: 0, brightness: 1 },
+      }],
+    }]
+
+    for (const transition of [
+      {
+        id: 'fade-a-b',
+        fromPlacementId: 'placement-a-1',
+        toPlacementId: 'placement-b',
+        kind: 'fade-color' as const,
+        durationMs: 1_000,
+        easing: { curve: 'linear' as const },
+        color: '#000000',
+      },
+      {
+        id: 'motion-a-b',
+        fromPlacementId: 'placement-a-1',
+        toPlacementId: 'placement-b',
+        kind: 'motion' as const,
+        motionVariant: 'cover' as const,
+        durationMs: 1_000,
+        easing: { curve: 'linear' as const },
+      },
+    ]) {
+      show.composition!.transitions = [transition]
+      expect(() => lowerShowCompositionForCompile(show, lookup(show))).toThrow(
+        'Fade and Motion Layer transitions cannot pass over an unrelated Clip.',
+      )
+    }
+  })
+
   it('blocks a Layer transition when unrelated content changes inside its interval', () => {
     const show = fixture()
     show.composition!.scenes[0].zones[0].overlays = [{

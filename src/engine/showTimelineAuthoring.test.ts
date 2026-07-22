@@ -167,4 +167,24 @@ describe('Show timeline authoring', () => {
       reason: 'Insert Time is unavailable inside a Transition.',
     })
   })
+
+  it('refuses Insert Time through a nonlinear Property animation segment', () => {
+    const show = showWithComposition()
+    const firstScene = show.composition!.scenes[0]
+    const placement = firstScene.zones[0].main[0]
+    firstScene.propertyTracks = [{
+      id: 'brightness-track',
+      target: { kind: 'placement-view', placementId: placement.id, property: 'brightness' },
+      keyframes: [
+        { id: 'start', timeMs: 1_000, value: 0, easing: { curve: 'sine', direction: 'in-out' } },
+        { id: 'end', timeMs: 9_000, value: 1, easing: { curve: 'linear' } },
+      ],
+    }]
+
+    expect(planShowTimeInsertion(show, 5_000, 2_000)).toEqual({
+      enabled: false,
+      code: 'nonlinear-property-animation',
+      reason: 'Add a keyframe at the playhead or change the crossing segment to Linear before inserting time.',
+    })
+  })
 })

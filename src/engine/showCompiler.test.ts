@@ -371,6 +371,35 @@ export function render(index) { rgb(ticks, 0, 0) }
     expect(pixel()).toEqual([1, 0, 0])
   })
 
+  it('rejects an enabled Clip Viewport when routed output is 1D (#585)', () => {
+    const zones = [{ id: 'main', name: 'main', ranges: [{ start: 0, end: 3 }] }]
+
+    expect(() => compileShow({
+      clips: [{ id: 'blue', source: 'export function render(index) { rgb(0, 0, 1) }' }],
+      zones,
+      routingLayouts: [{ id: 'default', name: 'Default', zones }],
+      routedSceneSequence: {
+        scenes: [
+          {
+            holdMs: 1_000,
+            placements: [{
+              placementId: 'blue-placement',
+              zoneName: 'main',
+              clipId: 'blue',
+              viewport: { enabled: true, x: 0, y: 0, width: 0.5, height: 1 },
+            }],
+            transitionOut: { kind: 'cut', durationMs: 0 },
+          },
+          {
+            holdMs: 1_000,
+            placements: [{ placementId: 'blue-again', zoneName: 'main', clipId: 'blue' }],
+          },
+        ],
+      },
+      loopDurationMs: 2_000,
+    }, {})).toThrow('Clip Viewports require 2D Show output.')
+  })
+
   it('animates a Clip Viewport boundary without changing the Pattern coordinate field (#585)', () => {
     const zones = [{ id: 'main', name: 'main', ranges: [{ start: 0, end: 3 }] }]
     const artifact = compileShow({
