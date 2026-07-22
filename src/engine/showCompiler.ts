@@ -6311,7 +6311,9 @@ function routedPlacementCanSkipEvaluation(
 }
 
 function routedSceneStackNeedsWrapper(stack: ResolvedRoutedScenePlacement[]): boolean {
-  return stack.length > 1 || stack.some((placement) => Boolean(placement.placementId))
+  return stack.length > 1 || stack.some((placement) => (
+    Boolean(placement.placementId) || placement.viewport?.enabled
+  ))
 }
 
 function routedSceneStackPrefix(sceneIndex: number, zoneName: string): string {

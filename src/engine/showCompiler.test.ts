@@ -371,6 +371,37 @@ export function render(index) { rgb(ticks, 0, 0) }
     expect(pixel()).toEqual([1, 0, 0])
   })
 
+  it('preserves a flat Clip Viewport through a routed Scene crossfade (#585)', () => {
+    const zones = [{ id: 'main', name: 'main', ranges: [{ start: 0, end: 3 }] }]
+    const viewport = { enabled: true as const, x: 0, y: 0, width: 0.5, height: 1 }
+    const artifact = compileShow({
+      clips: [
+        { id: 'red', source: 'export function render2D(index, x, y) { rgb(1, 0, 0) }' },
+        { id: 'blue', source: 'export function render2D(index, x, y) { rgb(0, 0, 1) }' },
+      ],
+      zones,
+      routingLayouts: [{ id: 'default', name: 'Default', zones }],
+      routedSceneSequence: {
+        scenes: [
+          {
+            holdMs: 1_000,
+            placements: [{ zoneName: 'main', clipId: 'red', viewport }],
+            transitionOut: { kind: 'crossfade', durationMs: 1_000, crossfadePolicy: 'live-live' },
+          },
+          { holdMs: 1_000, placements: [{ zoneName: 'main', clipId: 'blue', viewport }] },
+        ],
+      },
+      loopDurationMs: 3_000,
+    }, {})
+    const { handle, pixel } = loadShow(artifact.code, artifact.metadata, 4)
+
+    handle.beforeRender(1_500)
+    handle.render2D(0, 0, 0)
+    expect(pixel()).toEqual([0.5, 0, 0.5])
+    handle.render2D(1, 1, 0)
+    expect(pixel()).toEqual([0, 0, 0])
+  })
+
   it('rejects an enabled Clip Viewport when routed output is 1D (#585)', () => {
     const zones = [{ id: 'main', name: 'main', ranges: [{ start: 0, end: 3 }] }]
 
