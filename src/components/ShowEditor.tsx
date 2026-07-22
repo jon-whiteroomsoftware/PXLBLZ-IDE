@@ -142,6 +142,25 @@ import {
   showLayerTransitionsConnectedToClip,
 } from '@/engine/showLayerTransitionAuthoring'
 import {
+  completeShowGroupSelection,
+  createShowGroupFromSelection,
+  deleteShowGroupOccurrence,
+  duplicateShowGroupOccurrence,
+  makeShowGroupOccurrenceUnique,
+  projectShowGroupRuntimePatternInstances,
+  translateShowGroupOccurrence,
+  ungroupShowGroupOccurrence,
+  updateShowGroupOccurrencePlacement,
+  validateShowGroups,
+  validateShowGroupSelection,
+  type ShowGroupSelection,
+} from '@/engine/showGroupModel'
+import {
+  projectShowGroupClipInspector,
+  updateShowGroupClipInspector,
+  type ShowGroupClipOwner,
+} from '@/engine/showGroupClipInspectorModel'
+import {
   addShowTimelineMarker,
   insertShowTime,
   moveShowTimelineMarker,
@@ -197,6 +216,8 @@ import type {
   ShowCell,
   ShowClipTransform,
   ShowCompositionV1,
+  ShowGroupDefinition,
+  ShowGroupOccurrence,
   ShowLayerTransition,
   ShowRecord,
   ShowPropertyAnimationTarget,
@@ -241,6 +262,9 @@ type ShowSelection =
   | { kind: 'transition'; transitionId: string }
   | { kind: 'zone'; zoneId: string }
   | { kind: 'routing-switch'; afterSceneId: string }
+  | { kind: 'group'; occurrenceId: string }
+  | { kind: 'group-clip'; occurrenceId: string; placementId: string }
+  | { kind: 'multi'; groupSelection: ShowGroupSelection }
   | { kind: 'show' }
 
 function showSelectionKey(selection: ShowSelection): string {
@@ -250,6 +274,9 @@ function showSelectionKey(selection: ShowSelection): string {
   if (selection.kind === 'transition') return `transition:${selection.transitionId}`
   if (selection.kind === 'zone') return `zone:${selection.zoneId}`
   if (selection.kind === 'routing-switch') return `routing:${selection.afterSceneId}`
+  if (selection.kind === 'group') return `group:${selection.occurrenceId}`
+  if (selection.kind === 'group-clip') return `group-clip:${selection.occurrenceId}:${selection.placementId}`
+  if (selection.kind === 'multi') return 'multi'
   return 'show'
 }
 
@@ -609,6 +636,7 @@ export function ShowEditor({
   const pushGeneratedArtifact = useControllerStore((state) => state.pushGeneratedArtifact)
   const clearPushResult = useControllerStore((state) => state.clearPushResult)
   const [selection, setSelection] = useState<ShowSelection>({ kind: 'show' })
+  const [isolatedGroupOccurrenceId, setIsolatedGroupOccurrenceId] = useState<string | null>(null)
   const [generatedOpen, setGeneratedOpen] = useState(false)
   const [showSendMode, setShowSendMode] = useState<SendMode>('run')
   const [pendingSendMode, setPendingSendMode] = useState<SendMode | null>(null)
@@ -619,6 +647,7 @@ export function ShowEditor({
   const [detailPanelOpen, setDetailPanelOpen] = useState(false)
   const [detailAnchor, setDetailAnchor] = useState<HTMLElement | null>(null)
   const [effectPaletteOwner, setEffectPaletteOwner] = useState<ShowClipInspectorOwner | null>(null)
+  const [groupEffectPaletteOwner, setGroupEffectPaletteOwner] = useState<ShowGroupClipOwner | null>(null)
   const [transitionPaletteId, setTransitionPaletteId] = useState<string | null>(null)
   const [layerTransitionTarget, setLayerTransitionTarget] = useState<ShowLayerTransitionTarget | null>(null)
   const [sceneEditorScope, setSceneEditorScope] = useState<ShowSceneEditorScope | null>(null)
@@ -628,6 +657,7 @@ export function ShowEditor({
   const closeDetailPanel = useCallback((restoreFocus = false) => {
     const previousAnchor = detailAnchor
     setEffectPaletteOwner(null)
+    setGroupEffectPaletteOwner(null)
     setTransitionPaletteId(null)
     setLayerTransitionTarget(null)
     setDetailPanelOpen(false)
@@ -652,6 +682,10 @@ export function ShowEditor({
       window.setTimeout(() => setDetailAnchor(findShowSelectionAnchor(next)), 0)
     }
   }, [closeDetailPanel, detailPanelOpen, selection])
+  const selectGroupCandidates = useCallback((groupSelection: ShowGroupSelection) => {
+    closeDetailPanel()
+    setSelection({ kind: 'multi', groupSelection })
+  }, [closeDetailPanel])
   const openShowProperties = useCallback((anchor: HTMLElement) => {
     setGeneratedOpen(false)
     selectTimeline({ kind: 'show' }, anchor)
@@ -663,10 +697,12 @@ export function ShowEditor({
     setDetailPanelOpen(false)
     setDetailAnchor(null)
     setEffectPaletteOwner(null)
+    setGroupEffectPaletteOwner(null)
     setTransitionPaletteId(null)
     setLayerTransitionTarget(null)
     setCompositionClipPendingDelete(null)
     setSceneEditorScope(null)
+    setIsolatedGroupOccurrenceId(null)
   }, [showId])
   useEffect(() => {
     const handleHistoryShortcut = (event: KeyboardEvent) => {
@@ -740,6 +776,15 @@ export function ShowEditor({
       void removeClip(activeShow.id, targetSelection.clipId)
       return true
     }
+    if (targetSelection.kind === 'group') {
+      if (!activeShow.composition?.groupOccurrences?.some((occurrence) => occurrence.id === targetSelection.occurrenceId)) return false
+      const composition = deleteShowGroupOccurrence(activeShow.composition, targetSelection.occurrenceId)
+      if (composition === activeShow.composition) return false
+      closeDetailPanel()
+      setSelection({ kind: 'show' })
+      void updateShow(activeShow.id, { ...activeShow, composition, updatedAt: Date.now() })
+      return true
+    }
     if (targetSelection.kind === 'zone') {
       if (activeShow.zones.length <= 1 || !activeShow.zones.some((zone) => zone.id === targetSelection.zoneId)) return false
       closeDetailPanel()
@@ -761,9 +806,16 @@ export function ShowEditor({
   }, [requestDeleteSelection, selection])
   useEffect(() => {
     const handleEscape = (event: KeyboardEvent) => {
-      if (event.key !== 'Escape' || effectPaletteOwner !== null || transitionPaletteId !== null) return
-      if (!detailPanelOpen && !sceneEditorScope) return
+      if (event.key !== 'Escape' || effectPaletteOwner !== null || groupEffectPaletteOwner !== null || transitionPaletteId !== null) return
+      if (!detailPanelOpen && !sceneEditorScope && !isolatedGroupOccurrenceId) return
       event.preventDefault()
+      if (isolatedGroupOccurrenceId) {
+        closeDetailPanel()
+        setIsolatedGroupOccurrenceId(null)
+        setSelection({ kind: 'group', occurrenceId: isolatedGroupOccurrenceId })
+        window.setTimeout(() => timelineWorkspaceRef.current?.focus(), 0)
+        return
+      }
       if (detailPanelOpen) {
         closeDetailPanel(true)
         return
@@ -773,7 +825,7 @@ export function ShowEditor({
     }
     document.addEventListener('keydown', handleEscape)
     return () => document.removeEventListener('keydown', handleEscape)
-  }, [closeDetailPanel, detailPanelOpen, effectPaletteOwner, sceneEditorScope, transitionPaletteId])
+  }, [closeDetailPanel, detailPanelOpen, effectPaletteOwner, groupEffectPaletteOwner, isolatedGroupOccurrenceId, sceneEditorScope, transitionPaletteId])
   useEffect(() => {
     if (!detailPanelOpen) return
     const handleOutsidePointerDown = (event: PointerEvent) => {
@@ -837,7 +889,12 @@ export function ShowEditor({
       return [cell.id, []]
     }
   })), [activeShow, userPatterns]) as Record<string, AutomatablePatternControl[]>
-  const patternControlsByInstanceId = useMemo(() => Object.fromEntries((activeShow?.composition?.patternInstances ?? []).map((instance) => {
+  const patternControlsByInstanceId = useMemo(() => Object.fromEntries((activeShow?.composition
+    ? [
+        ...activeShow.composition.patternInstances,
+        ...projectShowGroupRuntimePatternInstances(activeShow.composition),
+      ]
+    : []).map((instance) => {
     try {
       return [instance.id, discoverAutomatablePatternControls(sourceForShowPatternRef(instance.pattern, userPatterns), {})]
     } catch {
@@ -870,14 +927,34 @@ export function ShowEditor({
       return null
     }
   }, [activeShow, stageDimension, userPatterns])
+  useEffect(() => {
+    if (!isolatedGroupOccurrenceId) return
+    const occurrence = timelineComposition?.groupOccurrences
+      ?.find((candidate) => candidate.id === isolatedGroupOccurrenceId)
+    const definition = timelineComposition?.groupDefinitions
+      ?.find((candidate) => candidate.id === occurrence?.definitionId)
+    if (occurrence && definition) return
+    const timeout = window.setTimeout(() => {
+      closeDetailPanel()
+      setIsolatedGroupOccurrenceId(null)
+      setSelection({ kind: 'show' })
+    }, 0)
+    return () => window.clearTimeout(timeout)
+  }, [closeDetailPanel, isolatedGroupOccurrenceId, timelineComposition])
   const selectedCompositionClipOwner = selection.kind === 'clip' && !selectedClip
     ? findCompositionClipOwner(timelineComposition, selection.clipId)
+    : null
+  const selectedGroupClipOwner: ShowGroupClipOwner | null = selection.kind === 'group-clip'
+    ? { occurrenceId: selection.occurrenceId, placementId: selection.placementId }
     : null
   const inspectorShow = activeShow && timelineComposition && !activeShow.composition
     ? { ...activeShow, composition: timelineComposition }
     : activeShow
   const effectPaletteValue = inspectorShow && effectPaletteOwner
     ? projectShowClipInspector(inspectorShow, effectPaletteOwner)
+    : null
+  const groupEffectPaletteValue = inspectorShow && groupEffectPaletteOwner
+    ? projectShowGroupClipInspector(inspectorShow, groupEffectPaletteOwner)
     : null
   const layerTransitionPlan = activeShow && timelineComposition && layerTransitionTarget
     ? planShowLayerTransitionInsertion(activeShow, timelineComposition, {
@@ -892,6 +969,12 @@ export function ShowEditor({
     if (!activeShow || !inspectorShow) return Promise.resolve()
     const next = updateShowClipInspector(inspectorShow, owner, patch)
     return next !== inspectorShow ? Promise.resolve(updateShow(activeShow.id, next)) : Promise.resolve()
+  }
+  const commitGroupClipInspectorPatch = (owner: ShowGroupClipOwner, patch: ShowClipInspectorPatch) => {
+    if (!activeShow) return Promise.resolve()
+    const next = updateShowGroupClipInspector(activeShow, owner, patch)
+    if (next === activeShow || !next.composition || validateShowGroups(next, next.composition).length > 0) return Promise.resolve()
+    return Promise.resolve(updateShow(activeShow.id, next))
   }
   const sceneEditorDetail = resolvedSceneEditorScope && compositionProjection
     ? projectShowSceneEditorScope(compositionProjection, resolvedSceneEditorScope)
@@ -1308,7 +1391,34 @@ export function ShowEditor({
                 compositionProjection={compositionProjection}
                 patternControlsByCellId={patternControlsByCellId}
                 selection={selection}
+                isolatedGroupOccurrenceId={isolatedGroupOccurrenceId}
                 onSelect={selectTimeline}
+                onEnterGroupIsolation={(occurrenceId, placementId, anchor) => {
+                  closeDetailPanel()
+                  setIsolatedGroupOccurrenceId(occurrenceId)
+                  selectTimeline({ kind: 'group-clip', occurrenceId, placementId }, anchor)
+                }}
+                onExitGroupIsolation={() => {
+                  closeDetailPanel()
+                  if (isolatedGroupOccurrenceId) setSelection({ kind: 'group', occurrenceId: isolatedGroupOccurrenceId })
+                  setIsolatedGroupOccurrenceId(null)
+                }}
+                onSelectGroupCandidates={selectGroupCandidates}
+                onCreateGroup={async (groupSelection) => {
+                  if (!timelineComposition) return null
+                  const definitionId = newPersonalContentId()
+                  const occurrenceId = newPersonalContentId()
+                  const composition = createShowGroupFromSelection(timelineComposition, {
+                    selection: groupSelection,
+                    definitionId,
+                    occurrenceId,
+                    name: 'Group',
+                  })
+                  if (composition === timelineComposition || validateShowGroups(activeShow, composition).length > 0) return null
+                  await updateShow(activeShow.id, { ...activeShow, composition, updatedAt: Date.now() })
+                  selectTimeline({ kind: 'group', occurrenceId })
+                  return occurrenceId
+                }}
                 onDismiss={closeDetailPanel}
                 patternOptions={patternOptions}
                 onAddClipAtPlayhead={async ({ zoneId, globalTimeMs, pattern, patternName }) => {
@@ -1849,6 +1959,7 @@ export function ShowEditor({
                   selection={selection}
                   selectedClip={selectedClip}
                   selectedCompositionClipOwner={selectedCompositionClipOwner}
+                  selectedGroupClipOwner={selectedGroupClipOwner}
                   transformEnabled={stageDimension === 2}
                   patternOptions={patternOptions}
                   patternControlsByCellId={patternControlsByCellId}
@@ -1895,8 +2006,10 @@ export function ShowEditor({
                   onRequestRemoveScene={setScenePendingDelete}
                   onUpdateAdaptations={(cell, changes) => void updateCellAdaptations(activeShow.id, cell.id, changes)}
                   onUpdateClipInspector={commitClipInspectorPatch}
+                  onUpdateGroupClipInspector={commitGroupClipInspectorPatch}
                   onOpenEffects={(cell) => setEffectPaletteOwner({ kind: 'global', cellId: cell.id })}
                   onOpenCompositionEffects={setEffectPaletteOwner}
+                  onOpenGroupEffects={setGroupEffectPaletteOwner}
                   onMakeCompositionPatternIndependent={(owner) => {
                     if (!timelineComposition) return
                     const timelineOwner = showTimelineOwnerForInspector(owner)
@@ -1950,6 +2063,53 @@ export function ShowEditor({
                     closeDetailPanel()
                     void updateShow(activeShow.id, { ...activeShow, composition, updatedAt: Date.now() })
                   }}
+                  onDuplicateGroup={(occurrenceId) => {
+                    if (!activeShow.composition) return
+                    const occurrence = activeShow.composition.groupOccurrences?.find((candidate) => candidate.id === occurrenceId)
+                    const definition = activeShow.composition.groupDefinitions?.find((candidate) => candidate.id === occurrence?.definitionId)
+                    if (!occurrence || !definition) return
+                    const durationMs = Math.max(0, ...definition.placements.map((placement) => placement.startMs + placement.durationMs))
+                    const newOccurrenceId = newPersonalContentId()
+                    const composition = duplicateShowGroupOccurrence(activeShow.composition, {
+                      occurrenceId,
+                      newOccurrenceId,
+                      startMs: occurrence.startMs + durationMs,
+                    })
+                    if (validateShowGroups(activeShow, composition).length > 0) return
+                    void updateShow(activeShow.id, { ...activeShow, composition, updatedAt: Date.now() })
+                      .then(() => selectTimeline({ kind: 'group', occurrenceId: newOccurrenceId }))
+                  }}
+                  onMakeGroupUnique={(occurrenceId) => {
+                    if (!activeShow.composition) return
+                    const composition = makeShowGroupOccurrenceUnique(activeShow.composition, {
+                      occurrenceId,
+                      newDefinitionId: newPersonalContentId(),
+                    })
+                    if (composition === activeShow.composition) return
+                    void updateShow(activeShow.id, { ...activeShow, composition, updatedAt: Date.now() })
+                  }}
+                  onTranslateGroup={(occurrenceId, translationX, translationY) => {
+                    if (!activeShow.composition) return
+                    const composition = translateShowGroupOccurrence(activeShow.composition, { occurrenceId, translationX, translationY })
+                    if (composition === activeShow.composition) return
+                    void updateShow(activeShow.id, { ...activeShow, composition, updatedAt: Date.now() })
+                  }}
+                  onUpdateGroupPlacement={(occurrenceId, patch) => {
+                    if (!activeShow.composition) return
+                    const composition = updateShowGroupOccurrencePlacement(activeShow.composition, { occurrenceId, ...patch })
+                    if (composition === activeShow.composition || validateShowGroups(activeShow, composition).length > 0) return
+                    void updateShow(activeShow.id, { ...activeShow, composition, updatedAt: Date.now() })
+                  }}
+                  onDeleteGroup={(occurrenceId) => {
+                    requestDeleteSelection({ kind: 'group', occurrenceId })
+                  }}
+                  onUngroup={(occurrenceId) => {
+                    if (!activeShow.composition) return
+                    const composition = ungroupShowGroupOccurrence(activeShow.composition, occurrenceId)
+                    if (composition === activeShow.composition) return
+                    closeDetailPanel()
+                    void updateShow(activeShow.id, { ...activeShow, composition, updatedAt: Date.now() })
+                  }}
                   onUpdateControlTarget={(cell, exportName, value) => void updateCellControlTarget(activeShow.id, cell.id, exportName, value)}
                   onUpdateRestartOnEntry={(cell, restartOnEntry) => void updateCellRestartOnEntry(activeShow.id, cell.id, restartOnEntry)}
                   onExtend={(cell, sceneSpan) => void extendCell(activeShow.id, cell.id, sceneSpan)}
@@ -1994,6 +2154,25 @@ export function ShowEditor({
                 })
               }}
               onClose={() => setEffectPaletteOwner(null)}
+            />
+          )}
+          {groupEffectPaletteOwner && groupEffectPaletteValue && (
+            <ShowEffectPalette
+              clip={groupEffectPaletteValue}
+              stageDimensions={(stageDimension ?? 2) as 1 | 2 | 3}
+              onApply={(application) => {
+                if (application.target === 'placement-mirror') {
+                  void commitGroupClipInspectorPatch(groupEffectPaletteOwner, { view: { mirror: application.mirror } })
+                  return
+                }
+                const effect = application.effect
+                void commitGroupClipInspectorPatch(groupEffectPaletteOwner, {
+                  effects: [...groupEffectPaletteValue.effects, effect],
+                }).then(() => {
+                  window.setTimeout(() => document.querySelector<HTMLElement>(`[data-show-effect-id="${effect.id}"]`)?.focus(), 0)
+                })
+              }}
+              onClose={() => setGroupEffectPaletteOwner(null)}
             />
           )}
           {transitionPaletteId && activeShow.transitions?.some((transition) => transition.id === transitionPaletteId && transition.kind !== 'routing') && (
@@ -2322,6 +2501,7 @@ function ShowTimelineCommands({
   readOnly,
   selection,
   onSelect,
+  onCreateGroup,
   onSplitCompositionClip,
   onDuplicateCompositionClip,
   snapEnabled,
@@ -2333,6 +2513,7 @@ function ShowTimelineCommands({
   readOnly: boolean
   selection: ShowSelection
   onSelect: (selection: ShowSelection, anchor?: HTMLElement | null) => void
+  onCreateGroup: (selection: ShowGroupSelection) => Promise<string | null>
   onSplitCompositionClip: (owner: ShowTimelineClipOwner, globalTimeMs: number) => Promise<string | null>
   onDuplicateCompositionClip: (owner: ShowTimelineClipOwner) => Promise<string | null>
   snapEnabled: boolean
@@ -2347,8 +2528,13 @@ function ShowTimelineCommands({
   const redoShow = useShowStore((state) => state.redoShow)
   const history = useShowStore((state) => state.showHistories[show.id])
   const legacySplitCapability = showSplitCapability(show, positionMs)
+  const groupPlan = composition && selection.kind === 'multi'
+    ? validateShowGroupSelection(composition, selection.groupSelection)
+    : { enabled: false as const, code: 'empty' as const, reason: 'Select two or more Clips to make a Group.' }
   const splitReasonId = `show-split-reason-${show.id}`
   const [splitReasonOpen, setSplitReasonOpen] = useState(false)
+  const groupReasonId = `show-group-reason-${show.id}`
+  const [groupReasonOpen, setGroupReasonOpen] = useState(false)
   const compositionOwner = selection.kind === 'clip'
     ? findTimelineClipOwner(composition, selection.clipId)
     : null
@@ -2497,6 +2683,40 @@ function ShowTimelineCommands({
         <Copy size={12} aria-hidden />
         <span className="timeline-command-label">Clone</span>
       </Button>
+      <span className="relative inline-flex">
+        <Button
+          size="xs"
+          variant="ghost"
+          aria-label="Make Group from selection"
+          title={groupPlan.enabled ? 'Keep the selected choreography together and make it reusable' : groupPlan.reason}
+          disabled={readOnly}
+          aria-disabled={!groupPlan.enabled || undefined}
+          aria-describedby={!groupPlan.enabled && groupReasonOpen ? groupReasonId : undefined}
+          className={`bg-zinc-800/70 text-[10px] text-zinc-400 ${groupPlan.enabled ? '' : 'cursor-not-allowed opacity-50'}`}
+          onFocus={() => {
+            if (!groupPlan.enabled) setGroupReasonOpen(true)
+          }}
+          onBlur={() => setGroupReasonOpen(false)}
+          onClick={() => {
+            if (groupPlan.enabled) void onCreateGroup(groupPlan)
+            else setGroupReasonOpen(true)
+          }}
+        >
+          <Layers3 size={12} aria-hidden />
+          <span className="timeline-command-label">Group</span>
+        </Button>
+        {!groupPlan.enabled && groupReasonOpen && (
+          <span
+            id={groupReasonId}
+            role="status"
+            aria-label="Group unavailable"
+            aria-live="polite"
+            className="absolute right-0 top-[calc(100%+5px)] z-40 w-48 rounded border border-amber-400/30 bg-zinc-950 px-2 py-1.5 text-left text-[9px] leading-3 text-amber-200 shadow-lg"
+          >
+            {groupPlan.reason}
+          </span>
+        )}
+      </span>
     </div>
   )
 }
@@ -2598,7 +2818,12 @@ function SceneStrip({
   compositionProjection,
   patternControlsByCellId,
   selection,
+  isolatedGroupOccurrenceId,
   onSelect,
+  onEnterGroupIsolation,
+  onExitGroupIsolation,
+  onSelectGroupCandidates,
+  onCreateGroup,
   onDismiss,
   patternOptions,
   onAddClipAtPlayhead,
@@ -2634,7 +2859,12 @@ function SceneStrip({
   compositionProjection: FlatShowCompositionProjection | null
   patternControlsByCellId: Record<string, AutomatablePatternControl[]>
   selection: ShowSelection
+  isolatedGroupOccurrenceId: string | null
   onSelect: (selection: ShowSelection, anchor?: HTMLElement | null) => void
+  onEnterGroupIsolation: (occurrenceId: string, placementId: string, anchor: HTMLElement) => void
+  onExitGroupIsolation: () => void
+  onSelectGroupCandidates: (selection: ShowGroupSelection) => void
+  onCreateGroup: (selection: ShowGroupSelection) => Promise<string | null>
   onDismiss: () => void
   patternOptions: ShowPatternOption[]
   onAddClipAtPlayhead: (input: {
@@ -2685,6 +2915,10 @@ function SceneStrip({
       ? projectShowUnifiedTimeline(show, timelineComposition)
       : null
   ), [show, timelineComposition, unifiedTimelineWorkspace])
+  const isolatedGroupOccurrence = timelineComposition?.groupOccurrences
+    ?.find((occurrence) => occurrence.id === isolatedGroupOccurrenceId) ?? null
+  const isolatedGroupDefinition = timelineComposition?.groupDefinitions
+    ?.find((definition) => definition.id === isolatedGroupOccurrence?.definitionId) ?? null
   const fittedViewport = fitShowTimelineViewport(timeline.durationMs)
   const [storedViewport, setViewport] = useState<ShowTimelineViewport>(fittedViewport)
   const snapEnabled = useShowEditorSessionStore((state) => state.snapEnabled)
@@ -2716,6 +2950,7 @@ function SceneStrip({
     durationMs: number
   } | null>(null)
   const [dropTargetKey, setDropTargetKey] = useState<string | null>(null)
+  const [marquee, setMarquee] = useState<{ left: number; top: number; width: number; height: number } | null>(null)
   const [superDetailOwner, setSuperDetailOwner] = useState<{ sceneId: string; anchor: HTMLElement } | null>(null)
   const [addClipOpen, setAddClipOpen] = useState(false)
   const [insertTimeOpen, setInsertTimeOpen] = useState(false)
@@ -2750,6 +2985,64 @@ function SceneStrip({
     insertTimeAtMs,
     insertTimeDurationMs,
   )
+
+  const beginGroupMarquee = (event: ReactPointerEvent<HTMLDivElement>) => {
+    if (readOnly || !timelineComposition || isolatedGroupOccurrenceId || event.button !== 0) return
+    const target = event.target
+    if (target instanceof Element && target.closest('button, input, select, textarea, [role="slider"], [data-show-layer-junction]')) return
+    const grid = event.currentTarget
+    const gridRect = grid.getBoundingClientRect()
+    const startX = Math.max(0, Math.min(gridRect.width, event.clientX - gridRect.left))
+    const startY = Math.max(0, Math.min(gridRect.height, event.clientY - gridRect.top))
+    let currentX = startX
+    let currentY = startY
+    const render = () => setMarquee({
+      left: Math.min(startX, currentX),
+      top: Math.min(startY, currentY),
+      width: Math.abs(currentX - startX),
+      height: Math.abs(currentY - startY),
+    })
+    const move = (pointer: PointerEvent) => {
+      currentX = Math.max(0, Math.min(gridRect.width, pointer.clientX - gridRect.left))
+      currentY = Math.max(0, Math.min(gridRect.height, pointer.clientY - gridRect.top))
+      render()
+    }
+    const finish = () => {
+      window.removeEventListener('pointermove', move)
+      window.removeEventListener('pointerup', finish)
+      window.removeEventListener('pointercancel', cancel)
+      const selectionRect = {
+        left: gridRect.left + Math.min(startX, currentX),
+        right: gridRect.left + Math.max(startX, currentX),
+        top: gridRect.top + Math.min(startY, currentY),
+        bottom: gridRect.top + Math.max(startY, currentY),
+      }
+      const placementIds = [...grid.querySelectorAll<HTMLElement>('[data-show-composition-clip="true"]:not([data-show-group-occurrence])')]
+        .filter((element) => {
+          const rect = element.getBoundingClientRect()
+          return rect.right >= selectionRect.left
+            && rect.left <= selectionRect.right
+            && rect.bottom >= selectionRect.top
+            && rect.top <= selectionRect.bottom
+        })
+        .map((element) => element.dataset.showSelectionKey?.replace(/^clip:/, ''))
+        .filter((id): id is string => Boolean(id))
+      setMarquee(null)
+      if (placementIds.length > 0) {
+        onSelectGroupCandidates(completeShowGroupSelection(timelineComposition, placementIds))
+      }
+    }
+    const cancel = () => {
+      window.removeEventListener('pointermove', move)
+      window.removeEventListener('pointerup', finish)
+      window.removeEventListener('pointercancel', cancel)
+      setMarquee(null)
+    }
+    render()
+    window.addEventListener('pointermove', move)
+    window.addEventListener('pointerup', finish)
+    window.addEventListener('pointercancel', cancel)
+  }
   const hasMultipleZones = show.zones.length > 1
   const showFullZoneHeaders = !unifiedTimelineWorkspace || zonesOpen
   const showMicroZonePicker = unifiedTimelineWorkspace && hasMultipleZones && !zonesOpen
@@ -3449,6 +3742,7 @@ function SceneStrip({
             readOnly={readOnly}
             selection={selection}
             onSelect={onSelect}
+            onCreateGroup={onCreateGroup}
             onSplitCompositionClip={onSplitCompositionClip}
             onDuplicateCompositionClip={onDuplicateCompositionClip}
             snapEnabled={snapEnabled}
@@ -3457,6 +3751,25 @@ function SceneStrip({
           />
         </div>
       </div>
+      {isolatedGroupOccurrence && isolatedGroupDefinition && (
+        <div
+          role="status"
+          aria-label={`Group isolation: ${isolatedGroupDefinition.name}`}
+          data-show-group-isolation={isolatedGroupOccurrence.id}
+          className="flex h-7 items-center gap-2 border-x border-b border-cyan-400/20 bg-cyan-400/[0.055] px-2 text-[10px] text-cyan-100/85"
+        >
+          <Layers3 size={12} aria-hidden className="text-cyan-300/80" />
+          <span>Editing <strong className="font-medium text-cyan-100">{isolatedGroupDefinition.name}</strong></span>
+          <span className="text-zinc-600">Linked definition · outside content is protected</span>
+          <button
+            type="button"
+            className="ml-auto rounded px-1.5 py-0.5 text-zinc-500 hover:bg-zinc-800 hover:text-zinc-200"
+            onClick={onExitGroupIsolation}
+          >
+            Exit <kbd className="ml-1 text-[8px] text-zinc-600">Esc</kbd>
+          </button>
+        </div>
+      )}
       <div
         ref={scrollRef}
         data-testid="show-timeline-scroll-region"
@@ -3473,6 +3786,38 @@ function SceneStrip({
         <div
           data-testid="show-timeline-grid"
           className="relative grid gap-y-2"
+          onPointerDownCapture={(event) => {
+            if (!isolatedGroupOccurrenceId) return
+            const target = event.target
+            const groupId = target instanceof Element
+              ? target.closest<HTMLElement>('[data-show-group-occurrence]')?.dataset.showGroupOccurrence
+              : undefined
+            if (groupId === isolatedGroupOccurrenceId) return
+            event.preventDefault()
+            event.stopPropagation()
+          }}
+          onPointerDown={beginGroupMarquee}
+          onClickCapture={(event) => {
+            if (!isolatedGroupOccurrenceId) return
+            const target = event.target
+            const groupId = target instanceof Element
+              ? target.closest<HTMLElement>('[data-show-group-occurrence]')?.dataset.showGroupOccurrence
+              : undefined
+            if (groupId === isolatedGroupOccurrenceId) return
+            event.preventDefault()
+            event.stopPropagation()
+          }}
+          onDoubleClickCapture={(event) => {
+            if (!isolatedGroupOccurrenceId) return
+            const target = event.target
+            const groupId = target instanceof Element
+              ? target.closest<HTMLElement>('[data-show-group-occurrence]')?.dataset.showGroupOccurrence
+              : undefined
+            if (groupId === isolatedGroupOccurrenceId) return
+            event.preventDefault()
+            event.stopPropagation()
+            onExitGroupIsolation()
+          }}
           style={{
             width: timelineWidth,
             minWidth: 692,
@@ -3480,6 +3825,13 @@ function SceneStrip({
             gridTemplateRows: rows.join(' '),
           }}
         >
+        {marquee && (
+          <div
+            aria-hidden
+            className="pointer-events-none absolute z-50 border border-live/80 bg-live/10 shadow-[0_0_0_1px_rgba(255,255,255,0.08)]"
+            style={marquee}
+          />
+        )}
         {(showFullZoneHeaders || showMicroZonePicker) && <div className="sticky left-0 z-30 self-end border-b border-zinc-800 bg-[#060608] px-1 pb-2 text-[9.5px] uppercase tracking-[0.12em] text-structural">
           {showMicroZonePicker ? <MapIcon size={12} aria-label="Zone picker" /> : unifiedTimelineWorkspace ? 'Zones' : 'zones ↓'}
         </div>}
@@ -3965,17 +4317,36 @@ function SceneStrip({
                   const preview = resizePreview?.clipId === clip.id ? resizePreview : clip
                   const left = preview.startMs / totalMs * 100
                   const width = preview.durationMs / totalMs * 100
+                  const group = clip.groupOccurrenceId
+                    ? unifiedZone.groups.find((candidate) => candidate.id === clip.groupOccurrenceId)
+                    : null
+                  const groupPlacementId = group && clip.id.startsWith(`${group.id}:`)
+                    ? clip.id.slice(group.id.length + 1)
+                    : null
+                  const insideIsolatedGroup = Boolean(group && group.id === isolatedGroupOccurrenceId)
+                  const outsideIsolation = Boolean(isolatedGroupOccurrenceId && !insideIsolatedGroup)
+                  const selected = group
+                    ? selection.kind === 'group' && selection.occurrenceId === group.id
+                      || selection.kind === 'group-clip'
+                        && selection.occurrenceId === group.id
+                        && selection.placementId === groupPlacementId
+                    : selection.kind === 'clip' && selection.clipId === clip.id
+                      || selection.kind === 'multi' && selection.groupSelection.placementIds.includes(clip.id)
                   return (
                     <button
                       key={clip.id}
                       type="button"
-                      aria-label={`Select ${clip.patternName}`}
+                      aria-label={insideIsolatedGroup ? `Select Group Clip ${clip.patternName}` : group ? `Select Group ${group.name}` : `Select ${clip.patternName}`}
+                      aria-disabled={outsideIsolation || undefined}
                       data-show-timeline-focus
-                      data-show-selection-key={`clip:${clip.id}`}
+                      data-show-selection-key={insideIsolatedGroup && groupPlacementId
+                        ? `group-clip:${group!.id}:${groupPlacementId}`
+                        : group ? `group:${group.id}` : `clip:${clip.id}`}
                       data-show-composition-clip="true"
-                      draggable={!readOnly}
+                      data-show-group-occurrence={group?.id}
+                      draggable={!readOnly && !group}
                       onDragStart={(event) => {
-                        if (readOnly) return
+                        if (readOnly || group) return
                         event.stopPropagation()
                         const rect = event.currentTarget.getBoundingClientRect()
                         const fraction = Math.min(1, Math.max(0, (event.clientX - rect.left) / Math.max(1, rect.width)))
@@ -4012,14 +4383,46 @@ function SceneStrip({
                       }}
                       onClick={(event) => {
                         event.stopPropagation()
-                        onSelect({ kind: 'clip', clipId: clip.id }, event.currentTarget)
+                        if (group && groupPlacementId && event.detail >= 2 && !readOnly) {
+                          onEnterGroupIsolation(group.id, groupPlacementId, event.currentTarget)
+                          return
+                        }
+                        if (!group && event.shiftKey && timelineComposition) {
+                          if (selection.kind === 'multi') {
+                            const placementIds = new Set(selection.groupSelection.placementIds)
+                            if (placementIds.has(clip.id)) placementIds.delete(clip.id)
+                            else placementIds.add(clip.id)
+                            onSelectGroupCandidates({
+                              placementIds: [...placementIds].sort((leftId, rightId) => leftId.localeCompare(rightId)),
+                              transitionIds: selection.groupSelection.transitionIds,
+                            })
+                            return
+                          }
+                          const seeds = selection.kind === 'clip'
+                            ? [selection.clipId, clip.id]
+                            : [clip.id]
+                          onSelectGroupCandidates(completeShowGroupSelection(timelineComposition, seeds))
+                          return
+                        }
+                        onSelect(group
+                          ? insideIsolatedGroup && groupPlacementId
+                            ? { kind: 'group-clip', occurrenceId: group.id, placementId: groupPlacementId }
+                            : { kind: 'group', occurrenceId: group.id }
+                          : { kind: 'clip', clipId: clip.id }, event.currentTarget)
+                      }}
+                      onDoubleClick={(event) => {
+                        if (!group || !groupPlacementId || readOnly) return
+                        event.stopPropagation()
+                        onEnterGroupIsolation(group.id, groupPlacementId, event.currentTarget)
                       }}
                       className={[
                         clipBase,
                         'group absolute inset-y-0 min-h-0 py-0.5',
-                        draggingCompositionClip?.clipId === clip.id
+                        outsideIsolation
+                          ? 'pointer-events-none opacity-25 saturate-50'
+                          : draggingCompositionClip?.clipId === clip.id
                           ? 'opacity-45'
-                          : selection.kind === 'clip' && selection.clipId === clip.id
+                          : selected
                           ? 'text-zinc-100 shadow-[0_0_0_1.5px_var(--color-live),0_8px_18px_-10px_rgba(0,0,0,0.9)]'
                           : 'text-zinc-300 hover:text-zinc-100',
                       ].join(' ')}
@@ -4041,7 +4444,7 @@ function SceneStrip({
                           FX {clip.effectKinds.length}
                         </span>
                       )}
-                      {!readOnly && (
+                      {!readOnly && !group && (
                         <>
                           <span
                             role="separator"
@@ -4049,7 +4452,7 @@ function SceneStrip({
                             aria-label={`Resize ${clip.patternName} start`}
                             className={[
                               'absolute inset-y-0 left-0 z-20 w-1 cursor-ew-resize bg-live/70 transition-opacity',
-                              selection.kind === 'clip' && selection.clipId === clip.id ? 'opacity-100' : 'opacity-0 group-hover:opacity-70',
+                              selected ? 'opacity-100' : 'opacity-0 group-hover:opacity-70',
                             ].join(' ')}
                             onClick={(event) => event.stopPropagation()}
                             onPointerDown={(event) => beginCompositionResize(clip, 'start', event)}
@@ -4060,7 +4463,7 @@ function SceneStrip({
                             aria-label={`Resize ${clip.patternName} end`}
                             className={[
                               'absolute inset-y-0 right-0 z-20 w-1 cursor-ew-resize bg-live/70 transition-opacity',
-                              selection.kind === 'clip' && selection.clipId === clip.id ? 'opacity-100' : 'opacity-0 group-hover:opacity-70',
+                              selected ? 'opacity-100' : 'opacity-0 group-hover:opacity-70',
                             ].join(' ')}
                             onClick={(event) => event.stopPropagation()}
                             onPointerDown={(event) => beginCompositionResize(clip, 'end', event)}
@@ -4074,6 +4477,26 @@ function SceneStrip({
                   const leftClip = layer.clips.find((clip) => clip.id === junction.leftClipId)
                   const rightClip = layer.clips.find((clip) => clip.id === junction.rightClipId)
                   if (!leftClip || !rightClip) return null
+                  const internalGroupId = leftClip.groupOccurrenceId
+                    && leftClip.groupOccurrenceId === rightClip.groupOccurrenceId
+                    ? leftClip.groupOccurrenceId
+                    : null
+                  const internalGroup = internalGroupId
+                    ? unifiedZone.groups.find((candidate) => candidate.id === internalGroupId)
+                    : null
+                  const internalGroupPlacementId = internalGroup
+                    && leftClip.id.startsWith(`${internalGroup.id}:`)
+                    ? leftClip.id.slice(internalGroup.id.length + 1)
+                    : null
+                  const insideIsolatedGroup = Boolean(internalGroup && internalGroup.id === isolatedGroupOccurrenceId)
+                  const outsideIsolation = Boolean(isolatedGroupOccurrenceId && !insideIsolatedGroup)
+                  const selectInternalGroup = (anchor: HTMLElement) => {
+                    if (!internalGroup) return false
+                    onSelect(insideIsolatedGroup && internalGroupPlacementId
+                      ? { kind: 'group-clip', occurrenceId: internalGroup.id, placementId: internalGroupPlacementId }
+                      : { kind: 'group', occurrenceId: internalGroup.id }, anchor)
+                    return true
+                  }
                   const totalMs = Math.max(1, unifiedCompositionTimeline?.durationMs ?? timeline.durationMs)
                   if (junction.kind !== 'cut') {
                     const width = Math.max(junction.durationMs / totalMs * 100, 0.35)
@@ -4085,13 +4508,16 @@ function SceneStrip({
                         title={`${junction.kind} - ${junction.durationMs / 1_000}s`}
                         data-show-timeline-focus
                         data-show-layer-junction={junction.id}
-                        className="absolute inset-y-1 z-20 min-w-4 overflow-hidden rounded-[3px] border border-amber-400/45 bg-amber-400/15 px-1 text-[10px] font-medium uppercase text-amber-200 outline-none hover:border-amber-300 hover:bg-amber-400/25 focus-visible:ring-1 focus-visible:ring-amber-300"
+                        data-show-group-occurrence={internalGroup?.id}
+                        aria-disabled={outsideIsolation || undefined}
+                        className={`absolute inset-y-1 z-20 min-w-4 overflow-hidden rounded-[3px] border border-amber-400/45 bg-amber-400/15 px-1 text-[10px] font-medium uppercase text-amber-200 outline-none hover:border-amber-300 hover:bg-amber-400/25 focus-visible:ring-1 focus-visible:ring-amber-300 ${outsideIsolation ? 'pointer-events-none opacity-25' : ''}`}
                         style={{
                           left: `${junction.startMs / totalMs * 100}%`,
                           width: `${width}%`,
                         }}
                         onClick={(event) => {
                           event.stopPropagation()
+                          if (selectInternalGroup(event.currentTarget)) return
                           onDismiss()
                           onOpenLayerTransition({
                             junction,
@@ -4113,10 +4539,13 @@ function SceneStrip({
                       title="Cut - click to choose a Transition"
                       data-show-timeline-focus
                       data-show-layer-junction={junction.id}
-                      className="group/cut absolute inset-y-0 z-30 w-4 -translate-x-1/2 bg-transparent outline-none"
+                      data-show-group-occurrence={internalGroup?.id}
+                      aria-disabled={outsideIsolation || undefined}
+                      className={`group/cut absolute inset-y-0 z-30 w-4 -translate-x-1/2 bg-transparent outline-none ${outsideIsolation ? 'pointer-events-none opacity-25' : ''}`}
                       style={{ left: `${junction.startMs / totalMs * 100}%` }}
                       onClick={(event) => {
                         event.stopPropagation()
+                        if (selectInternalGroup(event.currentTarget)) return
                         onDismiss()
                         onOpenLayerTransition({
                           junction,
@@ -5493,7 +5922,7 @@ function InspectorPanel({
   actions,
   children,
 }: {
-  family: 'Scene' | 'Clip' | 'Transition' | 'Zone' | 'Show'
+  family: 'Scene' | 'Clip' | 'Group' | 'Transition' | 'Zone' | 'Show'
   title: string
   heading?: string
   headingMeta?: string
@@ -5506,6 +5935,7 @@ function InspectorPanel({
   const accent = {
     Scene: 'border-amber-400/35 bg-amber-400/10 text-amber-300',
     Clip: 'border-cyan-400/35 bg-cyan-400/10 text-cyan-300',
+    Group: 'border-emerald-400/35 bg-emerald-400/10 text-emerald-300',
     Transition: 'border-violet-400/35 bg-violet-400/10 text-violet-300',
     Zone: 'border-sky-400/35 bg-sky-400/10 text-sky-300',
     Show: 'border-zinc-600 bg-zinc-800/80 text-amber-300',
@@ -5542,6 +5972,7 @@ function ContextualInspector({
   selection,
   selectedClip,
   selectedCompositionClipOwner,
+  selectedGroupClipOwner,
   transformEnabled,
   patternOptions,
   patternControlsByCellId,
@@ -5564,11 +5995,19 @@ function ContextualInspector({
   onRequestRemoveScene,
   onUpdateAdaptations,
   onUpdateClipInspector,
+  onUpdateGroupClipInspector,
   onOpenEffects,
   onOpenCompositionEffects,
+  onOpenGroupEffects,
   onMakeCompositionPatternIndependent,
   onRejoinCompositionPattern,
   onRemoveCompositionClip,
+  onDuplicateGroup,
+  onMakeGroupUnique,
+  onTranslateGroup,
+  onUpdateGroupPlacement,
+  onDeleteGroup,
+  onUngroup,
   onUpdateControlTarget,
   onUpdateRestartOnEntry,
   onExtend,
@@ -5590,6 +6029,7 @@ function ContextualInspector({
   selection: ShowSelection
   selectedClip: ShowCell | null
   selectedCompositionClipOwner: ShowClipInspectorOwner | null
+  selectedGroupClipOwner: ShowGroupClipOwner | null
   transformEnabled: boolean
   patternOptions: ShowPatternOption[]
   patternControlsByCellId: Record<string, AutomatablePatternControl[]>
@@ -5612,11 +6052,19 @@ function ContextualInspector({
   onRequestRemoveScene: (scene: ShowScene) => void
   onUpdateAdaptations: (cell: ShowCell, changes: Partial<ShowCell['adaptations']>) => void
   onUpdateClipInspector: (owner: ShowClipInspectorOwner, patch: ShowClipInspectorPatch) => void
+  onUpdateGroupClipInspector: (owner: ShowGroupClipOwner, patch: ShowClipInspectorPatch) => void
   onOpenEffects: (cell: ShowCell) => void
   onOpenCompositionEffects: (owner: ShowClipInspectorOwner) => void
+  onOpenGroupEffects: (owner: ShowGroupClipOwner) => void
   onMakeCompositionPatternIndependent: (owner: ShowClipInspectorOwner) => void
   onRejoinCompositionPattern: (owner: ShowClipInspectorOwner, targetInstanceId: string) => void
   onRemoveCompositionClip: (owner: ShowClipInspectorOwner) => void
+  onDuplicateGroup: (occurrenceId: string) => void
+  onMakeGroupUnique: (occurrenceId: string) => void
+  onTranslateGroup: (occurrenceId: string, translationX: number, translationY: number) => void
+  onUpdateGroupPlacement: (occurrenceId: string, patch: { startMs?: number; baseLayer?: number }) => void
+  onDeleteGroup: (occurrenceId: string) => void
+  onUngroup: (occurrenceId: string) => void
   onUpdateControlTarget: (cell: ShowCell, exportName: string, value: number | undefined) => void
   onUpdateRestartOnEntry: (cell: ShowCell, restartOnEntry: boolean) => void
   onExtend: (cell: ShowCell, sceneSpan: number) => void
@@ -5636,6 +6084,51 @@ function ContextualInspector({
   onRemoveRoutingLayout: (layoutId: string) => void
   onUpdateRoutingSwitch: (afterSceneId: string, layoutId: string | null) => void
 }) {
+  if (selection.kind === 'group-clip' && selectedGroupClipOwner) {
+    const value = projectShowGroupClipInspector(compositionShow, selectedGroupClipOwner)
+    if (value) {
+      return (
+        <CompositionClipInspector
+          value={value}
+          patternOptions={patternOptions}
+          patternControls={value.instanceId
+            ? patternControlsByInstanceId[`${selectedGroupClipOwner.occurrenceId}:${value.instanceId}`] ?? []
+            : []}
+          transformEnabled={transformEnabled}
+          compiledCost={compiledCost}
+          instanceOwnership={null}
+          onPatch={(patch) => onUpdateGroupClipInspector(selectedGroupClipOwner, patch)}
+          onPatternCommit={onPatternCommit}
+          onOpenEffects={() => onOpenGroupEffects(selectedGroupClipOwner)}
+          onMakePatternIndependent={() => {}}
+          onRejoinPattern={() => {}}
+        />
+      )
+    }
+  }
+
+  if (selection.kind === 'group') {
+    const occurrence = show.composition?.groupOccurrences?.find((candidate) => candidate.id === selection.occurrenceId)
+    const definition = show.composition?.groupDefinitions?.find((candidate) => candidate.id === occurrence?.definitionId)
+    if (occurrence && definition) {
+      const linkedOccurrenceCount = show.composition?.groupOccurrences
+        ?.filter((candidate) => candidate.definitionId === definition.id).length ?? 1
+      return (
+        <GroupInspector
+          definition={definition}
+          occurrence={occurrence}
+          linkedOccurrenceCount={linkedOccurrenceCount}
+          onDuplicate={() => onDuplicateGroup(occurrence.id)}
+          onMakeUnique={() => onMakeGroupUnique(occurrence.id)}
+          onTranslate={(translationX, translationY) => onTranslateGroup(occurrence.id, translationX, translationY)}
+          onPlace={(patch) => onUpdateGroupPlacement(occurrence.id, patch)}
+          onDelete={() => onDeleteGroup(occurrence.id)}
+          onUngroup={() => onUngroup(occurrence.id)}
+        />
+      )
+    }
+  }
+
   if (selection.kind === 'empty-slot') {
     const zone = show.zones.find((candidate) => candidate.id === selection.zoneId)
     const scene = show.scenes.find((candidate) => candidate.id === selection.sceneId)
@@ -6040,6 +6533,83 @@ function formatSceneDurationSeconds(milliseconds: number): string {
   return Number((milliseconds / 1000).toFixed(3)).toString()
 }
 
+function GroupInspector({
+  definition,
+  occurrence,
+  linkedOccurrenceCount,
+  onDuplicate,
+  onMakeUnique,
+  onTranslate,
+  onPlace,
+  onDelete,
+  onUngroup,
+}: {
+  definition: ShowGroupDefinition
+  occurrence: ShowGroupOccurrence
+  linkedOccurrenceCount: number
+  onDuplicate: () => void
+  onMakeUnique: () => void
+  onTranslate: (translationX: number, translationY: number) => void
+  onPlace: (patch: { startMs?: number; baseLayer?: number }) => void
+  onDelete: () => void
+  onUngroup: () => void
+}) {
+  return (
+    <InspectorPanel
+      family="Group"
+      heading={definition.name}
+      headingMeta={linkedOccurrenceCount > 1 ? `${linkedOccurrenceCount} linked occurrences` : 'One occurrence'}
+      title={`${definition.placements.length} Clips across ${new Set(definition.placements.map((placement) => placement.layerOffset)).size} Layers`}
+      icon={<Layers3 size={13} aria-hidden />}
+      actions={(
+        <Button size="icon-xs" variant="ghost" aria-label={`Delete Group ${definition.name}`} className="text-zinc-500 hover:bg-red-950/30 hover:text-red-300" onClick={onDelete}>
+          <Trash2 size={12} aria-hidden />
+        </Button>
+      )}
+    >
+      <div className="grid gap-2 sm:grid-cols-4">
+        <NumberField
+          label="Start seconds"
+          value={occurrence.startMs / 1_000}
+          min={0}
+          step={0.001}
+          onChange={(startSeconds) => onPlace({ startMs: Math.round(startSeconds * 1_000) })}
+        />
+        <NumberField
+          label="Base Layer"
+          value={occurrence.baseLayer}
+          min={0}
+          step={1}
+          onChange={(baseLayer) => onPlace({ baseLayer: Math.round(baseLayer) })}
+        />
+        <NumberField
+          label="X offset"
+          value={occurrence.translationX}
+          step={0.01}
+          onChange={(translationX) => onTranslate(translationX, occurrence.translationY)}
+        />
+        <NumberField
+          label="Y offset"
+          value={occurrence.translationY}
+          step={0.01}
+          onChange={(translationY) => onTranslate(occurrence.translationX, translationY)}
+        />
+      </div>
+      <div className="mt-2 flex flex-wrap items-center gap-1 border-t border-zinc-800/80 pt-2">
+        <Button size="xs" variant="ghost" aria-label="Duplicate Group occurrence" onClick={onDuplicate}>
+          <Copy size={12} aria-hidden /> Duplicate
+        </Button>
+        <Button size="xs" variant="ghost" aria-label="Make Group unique" disabled={linkedOccurrenceCount < 2} onClick={onMakeUnique}>
+          <WandSparkles size={12} aria-hidden /> Make Unique
+        </Button>
+        <Button size="xs" variant="ghost" aria-label="Ungroup occurrence" onClick={onUngroup}>
+          <Layers3 size={12} aria-hidden /> Ungroup
+        </Button>
+      </div>
+    </InspectorPanel>
+  )
+}
+
 function CompositionClipInspector({
   value,
   patternOptions,
@@ -6065,7 +6635,7 @@ function CompositionClipInspector({
   onOpenEffects: () => void
   onMakePatternIndependent: () => void
   onRejoinPattern: (targetInstanceId: string) => void
-  onRemove: () => void
+  onRemove?: () => void
 }) {
   return (
     <InspectorPanel
@@ -6074,7 +6644,7 @@ function CompositionClipInspector({
       headingMeta={value.scope === 'scene-overlay' ? 'Overlay Layer' : 'Main Layer'}
       title="Pattern Clip"
       icon={<Grid2X2 size={13} aria-hidden />}
-      actions={(
+      actions={onRemove ? (
         <Button
           size="icon-xs"
           variant="ghost"
@@ -6085,7 +6655,7 @@ function CompositionClipInspector({
         >
           <Trash2 size={12} aria-hidden />
         </Button>
-      )}
+      ) : undefined}
     >
       <ShowClipEntityDetail
         value={value}

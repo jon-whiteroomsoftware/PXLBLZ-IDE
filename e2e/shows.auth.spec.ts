@@ -1249,12 +1249,124 @@ test.describe('authenticated Show authoring', () => {
     await page.getByRole('button', { name: 'View code' }).first().click()
     await expect(page.getByText('Generated pattern - Untitled Show')).toBeVisible()
   })
+
+  test('groups a marquee, edits linked choreography, makes one occurrence unique, and undoes (#587)', async ({ page }) => {
+    const id = `playwright-group-${Date.now()}`
+    const show = {
+      ...legacyShowFixture(id, 'Group browser flow', [{ start: 0, end: 59 }]),
+      outputContract: {
+        version: 1 as const,
+        kind: 'installation' as const,
+        outputMapId: null,
+        pixelCount: 60,
+        resolution: 'fixed' as const,
+      },
+      composition: {
+        version: 1,
+        executionModel: 'deterministic-loop' as const,
+        patternInstances: [
+          {
+            id: 'instance-main', pattern: { kind: 'stock' as const, id: 'TestPattern1D' }, patternName: 'Main pulse',
+            time: { timeScale: 1, timeOffsetMs: 0 },
+          },
+          {
+            id: 'instance-overlay', pattern: { kind: 'stock' as const, id: 'CometLoom' }, patternName: 'Overlay pulse',
+            time: { timeScale: 1, timeOffsetMs: 0 },
+          },
+        ],
+        scenes: [
+          {
+            sceneId: 'scene-1',
+            zones: [{
+              zoneId: 'zone-1',
+              main: [{
+                id: 'clip-main', instanceId: 'instance-main', startMs: 0, durationMs: 5_000,
+                view: { mirror: false, phase: 0, brightness: 1 },
+              }],
+              overlays: [{
+                id: 'overlay-1', name: 'Overlay 1',
+                placements: [{
+                  id: 'clip-overlay', instanceId: 'instance-overlay', startMs: 0, durationMs: 5_000, opacity: 1,
+                  view: { mirror: false, phase: 0, brightness: 1 },
+                }],
+              }],
+            }],
+          },
+          { sceneId: 'scene-2', zones: [{ zoneId: 'zone-1', main: [], overlays: [] }] },
+        ],
+      },
+    }
+    const response = await page.context().request.post('/api/shows', { data: show })
+    expect(response.ok(), await response.text()).toBe(true)
+    const listed = await page.context().request.get('/api/shows')
+    expect(listed.ok(), await listed.text()).toBe(true)
+
+    await page.setViewportSize({ width: 1440, height: 900 })
+    await page.goto(`studio/shows/${id}`)
+    const main = page.getByRole('button', { name: 'Select Main pulse' })
+    const overlay = page.getByRole('button', { name: 'Select Overlay pulse' })
+    const [mainBounds, overlayBounds, gridBounds] = await Promise.all([
+      main.boundingBox(),
+      overlay.boundingBox(),
+      page.getByTestId('show-timeline-grid').boundingBox(),
+    ])
+    expect(mainBounds).not.toBeNull()
+    expect(overlayBounds).not.toBeNull()
+    expect(gridBounds).not.toBeNull()
+    const clips = [mainBounds!, overlayBounds!]
+    await page.mouse.move(
+      Math.min(gridBounds!.x + gridBounds!.width - 2, Math.max(...clips.map((bounds) => bounds.x + bounds.width)) + 8),
+      Math.max(gridBounds!.y + 2, Math.min(...clips.map((bounds) => bounds.y)) - 4),
+    )
+    await page.mouse.down()
+    await page.mouse.move(
+      Math.max(gridBounds!.x + 2, Math.min(...clips.map((bounds) => bounds.x)) - 4),
+      Math.min(gridBounds!.y + gridBounds!.height - 2, Math.max(...clips.map((bounds) => bounds.y + bounds.height)) + 4),
+      { steps: 5 },
+    )
+    await page.mouse.up()
+
+    const groupCommand = page.getByRole('button', { name: 'Make Group from selection' })
+    await expect(groupCommand).not.toHaveAttribute('aria-disabled', 'true')
+    await groupCommand.click()
+    await expect(page.getByRole('button', { name: 'Select Group Group' })).toHaveCount(2)
+
+    await page.getByRole('button', { name: 'Duplicate Group occurrence' }).click()
+    await expect(page.getByRole('button', { name: 'Select Group Group' })).toHaveCount(4)
+    await expect(page.getByRole('region', { name: 'Group properties' })).toContainText('2 linked occurrences')
+
+    await page.keyboard.press('Escape')
+    await page.getByRole('button', { name: 'Select Group Group' }).last().dblclick()
+    await expect(page.getByRole('status', { name: 'Group isolation: Group' })).toBeVisible()
+    await page.getByRole('button', { name: 'Select Group Clip Main pulse' }).click()
+    await page.getByRole('spinbutton', { name: 'Duration seconds' }).fill('4')
+    await page.getByRole('spinbutton', { name: 'Duration seconds' }).press('Enter')
+    await waitForCurrentShow(page, (saved) => (
+      saved.composition?.groupDefinitions?.length === 1
+      && saved.composition.groupDefinitions[0].placements.some((placement) => placement.durationMs === 4_000)
+      && saved.composition.groupOccurrences?.length === 2
+    ))
+
+    await page.keyboard.press('Escape')
+    await expect(page.getByRole('status', { name: 'Group isolation: Group' })).toHaveCount(0)
+    await page.getByRole('button', { name: 'Select Group Group' }).last().click()
+    await page.getByRole('button', { name: 'Make Group unique' }).click()
+    await waitForCurrentShow(page, (saved) => saved.composition?.groupDefinitions?.length === 2)
+
+    await page.getByRole('button', { name: 'Undo Show edit' }).click()
+    await waitForCurrentShow(page, (saved) => saved.composition?.groupDefinitions?.length === 1)
+  })
 })
 
 type PersistedShow = {
   id: string
   composition?: {
     version: number
+    groupDefinitions?: Array<{
+      id: string
+      placements: Array<{ id: string; durationMs: number }>
+    }>
+    groupOccurrences?: Array<{ id: string; definitionId: string }>
     scenes: Array<{
       propertyTracks?: Array<{
         target: { kind: string; property?: string }

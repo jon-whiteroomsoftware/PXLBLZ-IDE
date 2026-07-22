@@ -97,6 +97,60 @@ describe('Show composition compiler lowering (#488)', () => {
     expect(lowerShowCompositionForCompile(show, sources)).toEqual({ show, lookup: sources })
   })
 
+  it('materializes linked Group occurrences into ordinary compiler cells with occurrence-local instances (#587)', () => {
+    const show = fixture()
+    show.composition = {
+      version: 1,
+      executionModel: 'deterministic-loop',
+      patternInstances: [],
+      scenes: [{
+        sceneId: 'scene-1',
+        zones: [{ zoneId: 'zone-1', main: [], overlays: [] }],
+      }],
+      groupDefinitions: [{
+        id: 'phrase',
+        name: 'Phrase',
+        patternInstances: [{
+          id: 'inside-instance',
+          pattern: { kind: 'stock', id: 'TestPattern1D' },
+          patternName: 'TestPattern1D',
+          time: { timeScale: 1, timeOffsetMs: 0 },
+        }],
+        placements: [{
+          id: 'inside-clip',
+          instanceId: 'inside-instance',
+          layerOffset: 0,
+          startMs: 0,
+          durationMs: 1_000,
+          opacity: 1,
+          view: { mirror: false, phase: 0, brightness: 1 },
+        }],
+      }],
+      groupOccurrences: [
+        { id: 'use-a', definitionId: 'phrase', sceneId: 'scene-1', zoneId: 'zone-1', startMs: 1_000, baseLayer: 0, translationX: 0, translationY: 0 },
+        { id: 'use-b', definitionId: 'phrase', sceneId: 'scene-1', zoneId: 'zone-1', startMs: 4_000, baseLayer: 0, translationX: 0, translationY: 0 },
+      ],
+    }
+    const sources = {
+      ...lookup(show),
+      byPatternInstanceId: {
+        'use-a:inside-instance': SOURCE_A,
+        'use-b:inside-instance': SOURCE_A,
+      },
+    }
+
+    const lowered = lowerShowCompositionForCompile(show, sources)
+
+    expect(lowered.show.cells.map((cell) => cell.id)).toEqual([
+      'use-a:inside-clip@scene-1--local-1000-2000',
+      'use-b:inside-clip@scene-1--local-4000-5000',
+    ])
+    expect(Object.values(lowered.lookup.instanceIdByCellId ?? {})).toEqual([
+      'use-a:inside-instance',
+      'use-b:inside-instance',
+    ])
+  })
+
   it('expands local Main boundaries into deterministic cut Scenes while preserving gaps', () => {
     const show = fixture()
     const lowered = lowerShowCompositionForCompile(show, lookup(show))

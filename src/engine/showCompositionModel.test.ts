@@ -208,6 +208,102 @@ describe('Show composition v1 Main schedule (#488)', () => {
     expect(normalizeShowComposition(show, normalized)).toEqual(normalized)
   })
 
+  it('preserves, orders, and validates durable Group definitions and occurrences (#587)', () => {
+    const { show, composition } = fixture()
+    const grouped: ShowCompositionV1 = {
+      ...composition,
+      groupDefinitions: [
+        {
+          id: 'group-z',
+          name: 'Z phrase',
+          patternInstances: [structuredClone(composition.patternInstances[0])],
+          placements: [{
+            ...composition.scenes[0].zones[0].main[0],
+            id: 'inside-z',
+            instanceId: 'instance-a',
+            layerOffset: 0,
+            startMs: 0,
+            opacity: 1,
+          }],
+        },
+        {
+          id: 'group-a',
+          name: 'A phrase',
+          patternInstances: [{ ...structuredClone(composition.patternInstances[1]), id: 'inside-instance' }],
+          placements: [{
+            ...composition.scenes[0].zones[0].main[0],
+            id: 'inside-a',
+            instanceId: 'inside-instance',
+            layerOffset: 0,
+            startMs: 0,
+            opacity: 1,
+          }],
+        },
+      ],
+      groupOccurrences: [
+        { id: 'use-z', definitionId: 'group-z', sceneId: 'scene-1', zoneId: 'zone-1', startMs: 8_000, baseLayer: 1, translationX: 0, translationY: 0 },
+        { id: 'use-a', definitionId: 'group-a', sceneId: 'scene-1', zoneId: 'zone-1', startMs: 10_000, baseLayer: 1, translationX: 0, translationY: 0 },
+      ],
+    }
+
+    const normalized = normalizeShowComposition(show, grouped)
+
+    expect(normalized.groupDefinitions?.map((definition) => definition.id)).toEqual(['group-a', 'group-z'])
+    expect(normalized.groupOccurrences?.map((occurrence) => occurrence.id)).toEqual(['use-a', 'use-z'])
+    expect(normalizeShowComposition(show, normalized)).toEqual(normalized)
+
+    normalized.groupOccurrences![0].definitionId = 'missing-definition'
+    expect(validateShowComposition(show, normalized)).toContainEqual(expect.objectContaining({
+      path: 'groupOccurrences[0].definitionId',
+      code: 'missing-definition',
+    }))
+  })
+
+  it('applies ordinary instance, placement, and Property-track validation inside Groups (#587)', () => {
+    const { show, composition } = fixture()
+    composition.groupDefinitions = [{
+      id: 'invalid-group',
+      name: 'Invalid Group',
+      patternInstances: [{
+        id: 'inside-instance',
+        pattern: { kind: 'stock', id: 'TestPattern1D' },
+        patternName: 'Inside',
+        time: { timeScale: Number.POSITIVE_INFINITY, timeOffsetMs: 0 },
+      }],
+      placements: [{
+        id: 'inside-placement',
+        instanceId: 'inside-instance',
+        layerOffset: 0,
+        startMs: 0,
+        durationMs: 1_000,
+        opacity: 2,
+        view: { mirror: false, phase: 0, brightness: 1 },
+      }],
+      propertyTracks: ['a', 'b'].map((suffix) => ({
+        id: `opacity-${suffix}`,
+        target: { kind: 'placement-opacity' as const, placementId: 'inside-placement' },
+        keyframes: [{
+          id: `opacity-${suffix}-a`, timeMs: 0, value: 2,
+          easing: { curve: 'bogus' } as never,
+        }, {
+          id: `opacity-${suffix}-b`, timeMs: 500, value: 0.5,
+          easing: { curve: 'linear' as const },
+        }],
+      })),
+    }]
+    composition.groupOccurrences = [{
+      id: 'invalid-use', definitionId: 'invalid-group', sceneId: 'scene-1', zoneId: 'zone-1',
+      startMs: 0, baseLayer: 1, translationX: 0, translationY: 0,
+    }]
+
+    expect(validateShowComposition(show, composition)).toEqual(expect.arrayContaining([
+      expect.objectContaining({ code: 'not-finite' }),
+      expect.objectContaining({ code: 'out-of-bounds' }),
+      expect.objectContaining({ code: 'invalid-easing' }),
+      expect.objectContaining({ code: 'duplicate-target' }),
+    ]))
+  })
+
   it('returns field-addressed validation issues for missing owners, bad bounds, and overlap', () => {
     const { show, composition } = fixture()
     const invalid: ShowCompositionV1 = {

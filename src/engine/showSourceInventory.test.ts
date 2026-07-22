@@ -3,9 +3,11 @@ import { compileShowForPreview } from './showPreviewArtifact'
 import {
   buildDeliveredShowSourceInventory,
   buildShowArtifactInventoryModel,
+  describeShowArtifactPatterns,
   type DeliveredShowSourceInventory,
 } from './showSourceInventory'
 import { STOCK_SHOWS } from '@/pixelblaze/stock/shows'
+import { createDefaultShow } from './showModel'
 
 describe('Show source inventory', () => {
   it('adds exact delivery provenance without changing generated chunk attribution (#545)', () => {
@@ -84,5 +86,47 @@ describe('Show source inventory', () => {
     expect(bytesByCategory['score-data']).toBeGreaterThan(0)
     expect(bytesByCategory['effects-transitions']).toBeGreaterThan(0)
     expect(inventory.chunks.reduce((sum, chunk) => sum + chunk.bytes, 0)).toBe(inventory.totalBytes)
+  })
+
+  it('attributes occurrence-local Group Pattern machines to their authored Pattern (#587)', () => {
+    const show = createDefaultShow('group-inventory', 'Group inventory', 1)
+    show.composition = {
+      version: 1,
+      patternInstances: [],
+      scenes: [{ sceneId: 'scene-1', zones: [{ zoneId: 'zone-1', main: [], overlays: [] }] }],
+      groupDefinitions: [{
+        id: 'phrase',
+        name: 'Phrase',
+        patternInstances: [{
+          id: 'inside', pattern: { kind: 'stock', id: 'Rings' }, patternName: 'Rings',
+          time: { timeScale: 1, timeOffsetMs: 0 },
+        }],
+        placements: [{
+          id: 'clip', instanceId: 'inside', layerOffset: 0, startMs: 0, durationMs: 1_000,
+          opacity: 1, view: { mirror: false, phase: 0, brightness: 1 },
+        }],
+      }],
+      groupOccurrences: [{
+        id: 'use', definitionId: 'phrase', sceneId: 'scene-1', zoneId: 'zone-1',
+        startMs: 0, baseLayer: 0, translationX: 0, translationY: 0,
+      }],
+    }
+    const inventory: DeliveredShowSourceInventory = {
+      totalBytes: 100,
+      generatedSourceBytes: 100,
+      provenanceBytes: 0,
+      chunks: [{
+        id: 'pattern-use', category: 'pattern', label: 'Rings', ownerId: 'use:inside',
+        bytes: 100, startByte: 0, endByte: 100,
+      }],
+    }
+
+    expect(describeShowArtifactPatterns(show, inventory)).toEqual([{
+      key: 'stock:Rings',
+      name: 'Rings',
+      ownerIds: ['use:inside'],
+      logicalInstanceCount: 1,
+      authoredReferenceCount: 1,
+    }])
   })
 })

@@ -520,6 +520,36 @@ export interface ShowLayerTransition extends Omit<
   kind: Exclude<ShowTransitionKind, 'cut'>
 }
 
+/** One definition-local Clip. Time and layer are relative to its Group occurrence. */
+export interface ShowGroupPlacement extends ShowOverlayPlacement {
+  /** Zero is the occurrence's base Layer; positive values move upward. */
+  layerOffset: number
+}
+
+/** Zone-agnostic reusable choreography. Group definitions cannot contain Groups. */
+export interface ShowGroupDefinition {
+  id: string
+  name: string
+  patternInstances: ShowPatternInstance[]
+  placements: ShowGroupPlacement[]
+  transitions?: ShowLayerTransition[]
+  /** Definition-local time and owner ids. */
+  propertyTracks?: ShowPropertyAnimationTrack[]
+}
+
+/** One Zone- and Layout-interval-local use of a Group definition. */
+export interface ShowGroupOccurrence {
+  id: string
+  definitionId: string
+  sceneId: string
+  zoneId: string
+  startMs: number
+  /** Zero is Main; positive values count overlay Layers upward from Main. */
+  baseLayer: number
+  translationX: number
+  translationY: number
+}
+
 /**
  * Additive Scene-composition sidecar. Version 1 carries mutually exclusive
  * Main schedules, manually ordered overlay layers, typed Scene-local property
@@ -537,6 +567,10 @@ export interface ShowCompositionV1 {
   markers?: ShowTimelineMarker[]
   /** Non-Cut transitions; endpoint-owned Cuts remain implicit and lossless. */
   transitions?: ShowLayerTransition[]
+  /** Reusable choreography definitions, omitted when the Show has no Groups. */
+  groupDefinitions?: ShowGroupDefinition[]
+  /** Zone- and Layout-interval-local placements of Group definitions. */
+  groupOccurrences?: ShowGroupOccurrence[]
 }
 
 export interface ShowRecord {

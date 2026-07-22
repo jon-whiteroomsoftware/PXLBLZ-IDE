@@ -9,6 +9,7 @@ import type {
   ShowScene,
 } from './personalContentRecords'
 import { normalizeShowComposition, validateShowComposition } from './showCompositionModel'
+import { materializeShowGroupOccurrences } from './showGroupModel'
 import type { ShowCompileRecipeSourceLookup } from './showModel'
 
 export interface LoweredShowComposition {
@@ -26,7 +27,13 @@ export function lowerShowCompositionForCompile(
   lookup: ShowCompileRecipeSourceLookup,
 ): LoweredShowComposition {
   if (!show.composition) return { show, lookup }
-  const composition = normalizeShowComposition(show, show.composition)
+  const authoredComposition = normalizeShowComposition(show, show.composition)
+  const authoredIssues = validateShowComposition(show, authoredComposition)
+  if (authoredIssues.length > 0) {
+    const issue = authoredIssues[0]
+    throw new Error(`Show composition ${issue.path}: ${issue.message}`)
+  }
+  const composition = normalizeShowComposition(show, materializeShowGroupOccurrences(authoredComposition))
   const issues = validateShowComposition(show, composition)
   if (issues.length > 0) {
     const issue = issues[0]

@@ -107,6 +107,46 @@ describe('compileShowForPreview temporal adaptations (#379)', () => {
     expect(compiled.artifact?.expandedCode).toContain('__pxlblz_show_c0_rgb(0.25')
   })
 
+  it('resolves Group definition Patterns for every linked occurrence (#587)', () => {
+    const show = createDefaultShow('show-group-preview', 'Group preview', 1)
+    const source = 'export function render(index) { rgb(0.2, 0.4, 0.8) }'
+    const patterns = [{ id: 'group-pattern', name: 'Group Pattern', src: source, controls: {}, updatedAt: 1 }]
+    show.composition = {
+      version: 1,
+      executionModel: 'deterministic-loop',
+      patternInstances: [],
+      scenes: [{ sceneId: 'scene-1', zones: [{ zoneId: 'zone-1', main: [], overlays: [] }] }],
+      groupDefinitions: [{
+        id: 'phrase',
+        name: 'Phrase',
+        patternInstances: [{
+          id: 'inside-instance',
+          pattern: { kind: 'user', id: 'group-pattern' },
+          patternName: 'Group Pattern',
+          time: { timeScale: 1, timeOffsetMs: 0 },
+        }],
+        placements: [{
+          id: 'inside-clip', instanceId: 'inside-instance', layerOffset: 0,
+          startMs: 0, durationMs: 1_000, opacity: 1,
+          view: { mirror: false, phase: 0, brightness: 1 },
+        }],
+      }],
+      groupOccurrences: [
+        { id: 'use-a', definitionId: 'phrase', sceneId: 'scene-1', zoneId: 'zone-1', startMs: 0, baseLayer: 0, translationX: 0, translationY: 0 },
+        { id: 'use-b', definitionId: 'phrase', sceneId: 'scene-1', zoneId: 'zone-1', startMs: 2_000, baseLayer: 0, translationX: 0, translationY: 0 },
+      ],
+    }
+
+    const compiled = compileShowForPreview(show, patterns, undefined, {})
+
+    expect(compiled.error).toBeNull()
+    expect(compiled.artifact?.summary.clips.map((clip) => clip.id).filter((id) => id !== '__pxlblz_empty-routed')).toEqual([
+      'use-a:inside-instance',
+      'use-b:inside-instance',
+    ])
+    expect(compiled.artifact?.expandedCode).toContain('__pxlblz_show_c0_rgb(0.2')
+  })
+
   it('seeks deterministically across local Cut boundaries and explicit empty gaps (#488)', () => {
     const show = createDefaultShow('show-composition-seek', 'Composition seek', 1)
     const patterns = [

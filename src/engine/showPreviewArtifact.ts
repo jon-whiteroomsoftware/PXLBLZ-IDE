@@ -8,6 +8,7 @@ import { DEMO_AUTHORS, DEMOS } from '@/pixelblaze/stock/patterns'
 import { LIBRARIES } from '@/pixelblaze/libs'
 import { SHOW_MAX_OUTPUT_PIXELS } from './showVmResourceLedger'
 import { extractPatternAuthors, normalizePatternAuthors, PXLBLZ_AUTHOR, type ShowArtifactAttribution, type ShowPatternAttribution } from './patternAttribution'
+import { projectShowGroupRuntimePatternInstances } from './showGroupModel'
 
 export interface CompiledShowState {
   artifact: GeneratedShowArtifact | null
@@ -32,11 +33,17 @@ export function compileShowForPreview(
   options: ShowCompilationOptions = {},
 ): CompiledShowState {
   try {
+    const compositionInstances = show.composition
+      ? [
+          ...show.composition.patternInstances,
+          ...projectShowGroupRuntimePatternInstances(show.composition),
+        ]
+      : []
     const byCellId = Object.fromEntries(
       show.cells.map((cell) => [cell.id, sourceForShowCell(cell, userPatterns)]),
     )
     const byPatternInstanceId = Object.fromEntries(
-      (show.composition?.patternInstances ?? []).map((instance) => [
+      compositionInstances.map((instance) => [
         instance.id,
         sourceForShowPatternRef(instance.pattern, userPatterns),
       ]),
@@ -78,7 +85,12 @@ export function compileShowForArtifact(
         patternName: cell.patternName,
         source: sourceForShowCell(cell, userPatterns),
       })),
-      ...(show.composition?.patternInstances ?? []).map((instance) => ({
+      ...(show.composition
+        ? [
+            ...show.composition.patternInstances,
+            ...projectShowGroupRuntimePatternInstances(show.composition),
+          ]
+        : []).map((instance) => ({
         cellId: instance.id,
         patternName: instance.patternName,
         source: sourceForShowPatternRef(instance.pattern, userPatterns),
@@ -123,6 +135,9 @@ export function buildShowArtifactAttribution(
   }
   for (const cell of show.cells) add(cell.pattern, cell.patternName)
   for (const instance of show.composition?.patternInstances ?? []) add(instance.pattern, instance.patternName)
+  for (const definition of show.composition?.groupDefinitions ?? []) {
+    for (const instance of definition.patternInstances) add(instance.pattern, instance.patternName)
+  }
   return {
     by: [PXLBLZ_AUTHOR],
     patterns: [...patterns.values()],

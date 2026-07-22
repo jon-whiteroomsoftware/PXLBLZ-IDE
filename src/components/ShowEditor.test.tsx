@@ -440,6 +440,200 @@ describe('ShowEditor (#318)', () => {
     expect(within(timeline).getByRole('button', { name: 'Select Composition-only Rings' })).toBeInTheDocument()
   })
 
+  it('selects a linked Group occurrence and exposes its structural actions (#587)', async () => {
+    const user = userEvent.setup()
+    const show = createDefaultShow('show-group-workspace', 'Group workspace', 1000)
+    const zoneId = show.zones[0].id
+    show.composition = {
+      version: 1,
+      executionModel: 'deterministic-loop',
+      patternInstances: [],
+      scenes: show.scenes.map((scene) => ({
+        sceneId: scene.id,
+        zones: [{ zoneId, main: [], overlays: [] }],
+      })),
+      groupDefinitions: [{
+        id: 'phrase',
+        name: 'Pulse phrase',
+        patternInstances: [{
+          id: 'inside-instance', pattern: { kind: 'stock', id: 'Murmuration' }, patternName: 'Murmuration',
+          time: { timeScale: 1, timeOffsetMs: 0 },
+        }],
+        placements: [{
+          id: 'inside-clip', instanceId: 'inside-instance', layerOffset: 0,
+          startMs: 0, durationMs: 1_000, opacity: 1,
+          view: { mirror: false, phase: 0, brightness: 1 },
+        }],
+      }],
+      groupOccurrences: [{
+        id: 'phrase-use', definitionId: 'phrase', sceneId: show.scenes[0].id, zoneId,
+        startMs: 1_000, baseLayer: 0, translationX: 0, translationY: 0,
+      }],
+    }
+    setPersonalContentProvider(memoryProvider([show]))
+    useShowStore.setState({ shows: [show], activeShowId: show.id, showsLoaded: true })
+
+    render(<ShowEditor showId={show.id} unifiedTimeline />)
+
+    await user.click(screen.getByRole('button', { name: 'Select Group Pulse phrase' }))
+    const panel = screen.getByRole('dialog', { name: 'Entity Detail Panel' })
+    expect(panel).toHaveAttribute('data-owner-key', 'group:phrase-use')
+    expect(within(panel).getByText('Pulse phrase')).toBeInTheDocument()
+    expect(within(panel).getByRole('button', { name: 'Duplicate Group occurrence' })).toBeInTheDocument()
+    expect(within(panel).getByRole('button', { name: 'Make Group unique' })).toBeInTheDocument()
+    expect(within(panel).getByRole('button', { name: 'Ungroup occurrence' })).toBeInTheDocument()
+    expect(within(panel).getByRole('button', { name: 'Delete Group Pulse phrase' })).toBeInTheDocument()
+    expect(within(panel).getByLabelText('Start seconds')).toBeInTheDocument()
+    expect(within(panel).getByLabelText('Base Layer')).toBeInTheDocument()
+  })
+
+  it('isolates a Group modelessly, edits its linked definition, and exits with Escape (#587)', async () => {
+    const user = userEvent.setup()
+    const show = createDefaultShow('show-group-isolation', 'Group isolation', 1000)
+    const zoneId = show.zones[0].id
+    const sceneId = show.scenes[0].id
+    show.composition = {
+      version: 1,
+      executionModel: 'deterministic-loop',
+      patternInstances: [{
+        id: 'outside-instance', pattern: { ...show.cells[0].pattern }, patternName: 'Outside',
+        time: { timeScale: 1, timeOffsetMs: 0 },
+      }],
+      scenes: show.scenes.map((scene, index) => ({
+        sceneId: scene.id,
+        zones: [{
+          zoneId,
+          main: index === 0 ? [{
+            id: 'outside-clip', instanceId: 'outside-instance', startMs: 4_000, durationMs: 1_000,
+            view: { mirror: false, phase: 0, brightness: 1 },
+          }] : [],
+          overlays: [],
+        }],
+      })),
+      groupDefinitions: [{
+        id: 'phrase',
+        name: 'Pulse phrase',
+        patternInstances: [{
+          id: 'inside-instance', pattern: { kind: 'stock', id: 'Murmuration' }, patternName: 'Murmuration',
+          time: { timeScale: 1, timeOffsetMs: 0 },
+        }],
+        placements: [{
+          id: 'inside-clip', instanceId: 'inside-instance', layerOffset: 0,
+          startMs: 0, durationMs: 1_000, opacity: 1,
+          view: { mirror: false, phase: 0, brightness: 1 },
+        }],
+      }],
+      groupOccurrences: [
+        { id: 'phrase-use-a', definitionId: 'phrase', sceneId, zoneId, startMs: 0, baseLayer: 0, translationX: 0, translationY: 0 },
+        { id: 'phrase-use-b', definitionId: 'phrase', sceneId, zoneId, startMs: 2_000, baseLayer: 0, translationX: 0, translationY: 0 },
+      ],
+    }
+    setPersonalContentProvider(memoryProvider([show]))
+    useShowStore.setState({ shows: [show], activeShowId: show.id, showsLoaded: true })
+
+    render(<ShowEditor showId={show.id} unifiedTimeline />)
+
+    const groupChildren = screen.getAllByRole('button', { name: 'Select Group Pulse phrase' })
+    fireEvent.doubleClick(groupChildren[0])
+
+    expect(screen.getByRole('status', { name: 'Group isolation: Pulse phrase' })).toHaveTextContent('Editing Pulse phrase')
+    expect(screen.getByRole('button', { name: 'Select Outside' })).toHaveAttribute('aria-disabled', 'true')
+    const panel = screen.getByRole('dialog', { name: 'Entity Detail Panel' })
+    expect(panel).toHaveAttribute('data-owner-key', 'group-clip:phrase-use-a:inside-clip')
+    expect(within(panel).getByLabelText('Pattern automation targets')).toBeInTheDocument()
+    changeCommittedNumber('Duration seconds', '1.5')
+    await waitFor(() => {
+      expect(useShowStore.getState().shows[0].composition?.groupDefinitions?.[0].placements[0].durationMs).toBe(1_500)
+    })
+
+    await user.keyboard('{Escape}')
+    expect(screen.queryByRole('status', { name: 'Group isolation: Pulse phrase' })).not.toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Select Outside' })).not.toHaveAttribute('aria-disabled')
+
+    fireEvent.doubleClick(screen.getAllByRole('button', { name: 'Select Group Pulse phrase' })[0])
+    expect(screen.getByRole('status', { name: 'Group isolation: Pulse phrase' })).toBeInTheDocument()
+    act(() => useShowStore.setState((state) => ({
+      shows: state.shows.map((candidate) => candidate.id === show.id
+        ? {
+            ...candidate,
+            composition: candidate.composition
+              ? { ...candidate.composition, groupDefinitions: undefined, groupOccurrences: undefined }
+              : undefined,
+          }
+        : candidate),
+    })))
+    await waitFor(() => {
+      expect(screen.queryByRole('status', { name: 'Group isolation: Pulse phrase' })).not.toBeInTheDocument()
+      expect(screen.getByRole('button', { name: 'Select Outside' })).not.toHaveAttribute('aria-disabled')
+      expect(screen.queryByRole('dialog', { name: 'Entity Detail Panel' })).not.toBeInTheDocument()
+    })
+  })
+
+  it('refines a multi-Clip selection and creates one reusable Group (#587)', async () => {
+    const user = userEvent.setup()
+    const show = createDefaultShow('show-create-group', 'Create Group', 1000)
+    const zoneId = show.zones[0].id
+    show.composition = {
+      version: 1,
+      executionModel: 'deterministic-loop',
+      patternInstances: [{
+        id: 'shared', pattern: { ...show.cells[0].pattern }, patternName: 'Rings',
+        time: { timeScale: 1, timeOffsetMs: 0 },
+      }],
+      scenes: show.scenes.map((scene, index) => ({
+        sceneId: scene.id,
+        zones: [{
+          zoneId,
+          main: index === 0 ? [
+            { id: 'left', instanceId: 'shared', startMs: 0, durationMs: 1_000, view: { mirror: false, phase: 0, brightness: 1 } },
+            { id: 'right', instanceId: 'shared', startMs: 1_250, durationMs: 1_000, view: { mirror: false, phase: 0, brightness: 1 } },
+          ] : [],
+          overlays: [],
+        }],
+      })),
+      transitions: [{
+        id: 'left-right-transition',
+        fromPlacementId: 'left',
+        toPlacementId: 'right',
+        kind: 'crossfade',
+        durationMs: 250,
+        easing: { curve: 'linear' },
+        crossfadePolicy: 'live-live',
+      }],
+    }
+    setPersonalContentProvider(memoryProvider([show]))
+    useShowStore.setState({ shows: [show], activeShowId: show.id, showsLoaded: true })
+
+    render(<ShowEditor showId={show.id} unifiedTimeline />)
+
+    const clips = screen.getAllByRole('button', { name: 'Select Rings' })
+    await user.click(clips[0])
+    await user.keyboard('{Shift>}')
+    await user.click(clips[1])
+    await user.keyboard('{/Shift}')
+    const group = screen.getByRole('button', { name: 'Make Group from selection' })
+    expect(group).not.toHaveAttribute('aria-disabled')
+    await user.keyboard('{Shift>}')
+    await user.click(clips[1])
+    await user.keyboard('{/Shift}')
+    expect(group).toHaveAttribute('aria-disabled', 'true')
+    await user.click(group)
+    expect(screen.getByRole('status', { name: 'Group unavailable' })).toHaveTextContent('complete non-Cut Transition chain')
+    await user.keyboard('{Shift>}')
+    await user.click(clips[1])
+    await user.keyboard('{/Shift}')
+    expect(group).not.toHaveAttribute('aria-disabled')
+    await user.click(group)
+
+    await waitFor(() => {
+      const composition = useShowStore.getState().shows[0].composition!
+      expect(composition.groupDefinitions).toHaveLength(1)
+      expect(composition.groupOccurrences).toHaveLength(1)
+      expect(composition.scenes[0].zones[0].main).toEqual([])
+    })
+    expect(screen.getAllByRole('button', { name: 'Select Group Group' })).toHaveLength(2)
+  })
+
   it('opens the Transition palette from a Cut and inserts literal duration (#583)', async () => {
     const user = userEvent.setup()
     const show = createDefaultShow('show-cut-junction', 'Cut junction', 1000)
@@ -1617,6 +1811,7 @@ describe('ShowEditor (#318)', () => {
       'Fit timeline to Show',
       'Split at playhead',
       'Clone selection',
+      'Make Group from selection',
     ])
     expect(within(commands).getByRole('button', { name: 'Clone selection' })).toBeDisabled()
     expect(screen.getByTestId('show-timeline-grid').style.gridTemplateRows).toContain('44px')

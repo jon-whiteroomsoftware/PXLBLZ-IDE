@@ -4,6 +4,7 @@ import type {
   ShowSourceInventoryChunk,
 } from './showCompiler'
 import type { ShowRecord } from './personalContentRecords'
+import { materializeShowGroupOccurrences } from './showGroupModel'
 
 export type DeliveredShowSourceInventoryCategory = ShowSourceInventoryCategory | 'provenance'
 
@@ -195,8 +196,9 @@ export function describeShowArtifactPatterns(
   show: ShowRecord,
   inventory: DeliveredShowSourceInventory,
 ): ShowArtifactInventoryPattern[] {
-  const logical = show.composition
-    ? show.composition.patternInstances.map((instance) => ({
+  const composition = show.composition ? materializeShowGroupOccurrences(show.composition) : null
+  const logical = composition
+    ? composition.patternInstances.map((instance) => ({
         id: instance.id,
         key: `${instance.pattern.kind}:${instance.pattern.id}`,
         name: instance.patternName,
@@ -211,8 +213,8 @@ export function describeShowArtifactPatterns(
     chunk.category === 'pattern' && chunk.ownerId ? [chunk.ownerId] : []
   )))]
   const authoredReferencesByLogicalId = new Map<string, number>()
-  if (show.composition) {
-    for (const scene of show.composition.scenes) {
+  if (composition) {
+    for (const scene of composition.scenes) {
       for (const zone of scene.zones) {
         for (const placement of zone.main) {
           authoredReferencesByLogicalId.set(placement.instanceId, (authoredReferencesByLogicalId.get(placement.instanceId) ?? 0) + 1)

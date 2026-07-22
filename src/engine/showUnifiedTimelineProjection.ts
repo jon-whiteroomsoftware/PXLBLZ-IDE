@@ -7,6 +7,7 @@ import type {
   ShowTransitionKind,
 } from './personalContentRecords'
 import { projectShowTimeline } from './showModel'
+import { materializeShowGroupOccurrences } from './showGroupModel'
 
 export interface ShowUnifiedTimelineClipProjection {
   id: string
@@ -24,7 +25,22 @@ export interface ShowUnifiedTimelineClipProjection {
   durationMs: number
   opacity: number
   effectKinds: string[]
+  groupOccurrenceId?: string
   diagnostics: string[]
+}
+
+export interface ShowUnifiedTimelineGroupProjection {
+  id: string
+  definitionId: string
+  name: string
+  sceneId: string
+  zoneId: string
+  startMs: number
+  endMs: number
+  durationMs: number
+  topLayerIndex: number
+  bottomLayerIndex: number
+  linkedOccurrenceCount: number
 }
 
 export interface ShowUnifiedTimelineLayerProjection {
@@ -51,6 +67,7 @@ export interface ShowUnifiedTimelineZoneProjection {
   name: string
   color: string
   layers: ShowUnifiedTimelineLayerProjection[]
+  groups: ShowUnifiedTimelineGroupProjection[]
 }
 
 export interface ShowUnifiedTimelineProjection {
@@ -68,12 +85,17 @@ export function projectShowUnifiedTimeline(
 ): ShowUnifiedTimelineProjection {
   const timeline = projectShowTimeline(show)
   const sceneRangeById = new Map(timeline.scenes.map((scene) => [scene.sceneId, scene]))
-  const instanceById = new Map(composition.patternInstances.map((instance) => [instance.id, instance]))
+  const projectedComposition = materializeShowGroupOccurrences(composition)
+  const instanceById = new Map(projectedComposition.patternInstances.map((instance) => [instance.id, instance]))
+  const groupByPlacementId = new Map((composition.groupOccurrences ?? []).flatMap((occurrence) => {
+    const definition = composition.groupDefinitions?.find((candidate) => candidate.id === occurrence.definitionId)
+    return (definition?.placements ?? []).map((placement) => [`${occurrence.id}:${placement.id}`, occurrence.id] as const)
+  }))
 
   return {
     durationMs: timeline.durationMs,
     zones: show.zones.map((zone) => {
-      const maximumOverlayCount = composition.scenes.reduce((maximum, sceneComposition) => {
+      const maximumOverlayCount = projectedComposition.scenes.reduce((maximum, sceneComposition) => {
         const zoneComposition = sceneComposition.zones.find((candidate) => candidate.zoneId === zone.id)
         return Math.max(maximum, zoneComposition?.overlays.length ?? 0)
       }, 0)
@@ -83,7 +105,7 @@ export function projectShowUnifiedTimeline(
           id: `${zone.id}:overlay:${layerIndex}`,
           kind: 'overlay',
           layerIndex,
-          clips: composition.scenes.flatMap((sceneComposition) => {
+          clips: projectedComposition.scenes.flatMap((sceneComposition) => {
             const range = sceneRangeById.get(sceneComposition.sceneId)
             const zoneComposition = sceneComposition.zones.find((candidate) => candidate.zoneId === zone.id)
             const layer = zoneComposition?.overlays[layerIndex]
@@ -97,16 +119,17 @@ export function projectShowUnifiedTimeline(
               kind: 'overlay',
               sceneStartMs: range.startMs,
               instanceById,
+              groupByPlacementId,
             }))
           }).sort((a, b) => a.startMs - b.startMs || a.id.localeCompare(b.id)),
-          transitions: composition.transitions ?? [],
+          transitions: projectedComposition.transitions ?? [],
         }),
       )
       const mainLayer = projectLayer({
         id: `${zone.id}:main`,
         kind: 'main',
         layerIndex: maximumOverlayCount,
-        clips: composition.scenes.flatMap((sceneComposition) => {
+        clips: projectedComposition.scenes.flatMap((sceneComposition) => {
           const range = sceneRangeById.get(sceneComposition.sceneId)
           const zoneComposition = sceneComposition.zones.find((candidate) => candidate.zoneId === zone.id)
           if (!range || !zoneComposition) return []
@@ -119,15 +142,40 @@ export function projectShowUnifiedTimeline(
             kind: 'main',
             sceneStartMs: range.startMs,
             instanceById,
+            groupByPlacementId,
           }))
         }).sort((a, b) => a.startMs - b.startMs || a.id.localeCompare(b.id)),
-        transitions: composition.transitions ?? [],
+        transitions: projectedComposition.transitions ?? [],
       })
       return {
         id: zone.id,
         name: zone.name,
         color: zone.color ?? '#38bdf8',
         layers: [...overlayLayers, mainLayer],
+        groups: (composition.groupOccurrences ?? []).flatMap((occurrence) => {
+          if (occurrence.zoneId !== zone.id) return []
+          const definition = composition.groupDefinitions?.find((candidate) => candidate.id === occurrence.definitionId)
+          const sceneRange = sceneRangeById.get(occurrence.sceneId)
+          if (!definition || !sceneRange || definition.placements.length === 0) return []
+          const durationMs = Math.max(...definition.placements.map((placement) => placement.startMs + placement.durationMs))
+          const minimumLayer = occurrence.baseLayer + Math.min(...definition.placements.map((placement) => placement.layerOffset))
+          const maximumLayer = occurrence.baseLayer + Math.max(...definition.placements.map((placement) => placement.layerOffset))
+          const startMs = sceneRange.startMs + occurrence.startMs
+          return [{
+            id: occurrence.id,
+            definitionId: definition.id,
+            name: definition.name,
+            sceneId: occurrence.sceneId,
+            zoneId: occurrence.zoneId,
+            startMs,
+            endMs: startMs + durationMs,
+            durationMs,
+            topLayerIndex: maximumOverlayCount - maximumLayer,
+            bottomLayerIndex: maximumOverlayCount - minimumLayer,
+            linkedOccurrenceCount: (composition.groupOccurrences ?? [])
+              .filter((candidate) => candidate.definitionId === definition.id).length,
+          }]
+        }).sort((left, right) => left.startMs - right.startMs || left.id.localeCompare(right.id)),
       }
     }),
   }
@@ -184,6 +232,7 @@ function projectPlacement(input: {
   kind: 'main' | 'overlay'
   sceneStartMs: number
   instanceById: Map<string, ShowCompositionV1['patternInstances'][number]>
+  groupByPlacementId: Map<string, string>
 }): ShowUnifiedTimelineClipProjection {
   const instance = input.instanceById.get(input.placement.instanceId)
   const startMs = input.sceneStartMs + input.placement.startMs
@@ -203,6 +252,9 @@ function projectPlacement(input: {
     durationMs: input.placement.durationMs,
     opacity: input.kind === 'overlay' ? (input.placement as ShowOverlayPlacement).opacity : 1,
     effectKinds: (input.placement.effects ?? []).map((effect) => effect.kind),
+    ...(input.groupByPlacementId.get(input.placement.id)
+      ? { groupOccurrenceId: input.groupByPlacementId.get(input.placement.id) }
+      : {}),
     diagnostics: instance ? [] : [`Pattern instance "${input.placement.instanceId}" is missing.`],
   }
 }

@@ -17,11 +17,17 @@ import type {
 } from './personalContentRecords'
 import { compactShowClipTransform } from './showClipTransform'
 import { compactShowClipViewport } from './showClipViewport'
+import {
+  materializeShowGroupOccurrences,
+  validateShowGroups,
+  type ShowGroupValidationCode,
+} from './showGroupModel'
 
 export type ShowCompositionValidationCode =
   | 'duplicate-id'
   | 'missing-scene'
   | 'missing-zone'
+  | 'missing-definition'
   | 'missing-instance'
   | 'missing-placement'
   | 'not-finite'
@@ -30,6 +36,7 @@ export type ShowCompositionValidationCode =
   | 'overlap'
   | 'cross-layer'
   | 'invalid-transition'
+  | ShowGroupValidationCode
   | ShowPropertyAnimationValidationCode
 
 export interface ShowCompositionValidationIssue {
@@ -146,6 +153,36 @@ export function normalizeShowComposition(
     ...(composition.transitions
       ? { transitions: cloneJson(composition.transitions).sort((a, b) => a.id.localeCompare(b.id)) }
       : {}),
+    ...(composition.groupDefinitions?.length
+      ? {
+          groupDefinitions: cloneJson(composition.groupDefinitions)
+            .sort((left, right) => left.id.localeCompare(right.id))
+            .map((definition) => ({
+              ...definition,
+              patternInstances: definition.patternInstances
+                .sort((left, right) => left.id.localeCompare(right.id)),
+              placements: definition.placements
+                .map(normalizePlacementAppearance)
+                .sort((left, right) => (
+                  left.layerOffset - right.layerOffset
+                  || left.startMs - right.startMs
+                  || left.id.localeCompare(right.id)
+                )),
+              ...(definition.transitions
+                ? { transitions: definition.transitions.sort((left, right) => left.id.localeCompare(right.id)) }
+                : {}),
+              ...(definition.propertyTracks
+                ? { propertyTracks: normalizeShowPropertyTracks(definition.propertyTracks) }
+                : {}),
+            })),
+        }
+      : {}),
+    ...(composition.groupOccurrences?.length
+      ? {
+          groupOccurrences: cloneJson(composition.groupOccurrences)
+            .sort((left, right) => left.id.localeCompare(right.id)),
+        }
+      : {}),
     scenes: cloneJson(composition.scenes)
       .sort((a, b) => ownerOrder(sceneOrder, a.sceneId) - ownerOrder(sceneOrder, b.sceneId) || a.sceneId.localeCompare(b.sceneId))
        .map((scene) => ({
@@ -198,6 +235,8 @@ export function validateShowComposition(
     endMs: number
   }>()
   const layerIds = new Set<string>()
+
+  issues.push(...validateShowGroups(show, composition))
 
   if (composition.durationMs !== undefined) {
     validateFiniteInteger(issues, 'durationMs', composition.durationMs)
@@ -355,6 +394,10 @@ export function validateShowComposition(
     }
   }
   issues.push(...validateShowPropertyTracks(show, composition))
+  if ((composition.groupDefinitions?.length ?? 0) > 0 || (composition.groupOccurrences?.length ?? 0) > 0) {
+    const materialized = materializeShowGroupOccurrences(composition)
+    issues.push(...validateShowComposition(show, materialized))
+  }
   return issues
 }
 

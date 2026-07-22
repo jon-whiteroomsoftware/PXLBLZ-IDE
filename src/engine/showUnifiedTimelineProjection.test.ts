@@ -219,4 +219,57 @@ describe('unified Show timeline projection (#580)', () => {
       }),
     ])
   })
+
+  it('projects Group shells and their materialized child Clips on the ordinary timeline (#587)', () => {
+    const show = createDefaultShow('show-group-projection', 'Group projection', 1_000)
+    const sceneId = show.scenes[0].id
+    const zoneId = show.zones[0].id
+    const composition: ShowCompositionV1 = {
+      version: 1,
+      patternInstances: [],
+      scenes: [{ sceneId, zones: [{ zoneId, main: [], overlays: [] }] }],
+      groupDefinitions: [{
+        id: 'phrase',
+        name: 'Pulse phrase',
+        patternInstances: [{
+          id: 'inside-instance',
+          pattern: { kind: 'stock', id: 'Rings' },
+          patternName: 'Rings',
+          time: { timeScale: 1, timeOffsetMs: 0 },
+        }],
+        placements: [
+          {
+            id: 'main-child', instanceId: 'inside-instance', layerOffset: 0,
+            startMs: 0, durationMs: 1_000, opacity: 1,
+            view: { mirror: false, phase: 0, brightness: 1 },
+          },
+          {
+            id: 'overlay-child', instanceId: 'inside-instance', layerOffset: 1,
+            startMs: 500, durationMs: 1_000, opacity: 0.75,
+            view: { mirror: false, phase: 0, brightness: 1 },
+          },
+        ],
+      }],
+      groupOccurrences: [{
+        id: 'phrase-use', definitionId: 'phrase', sceneId, zoneId,
+        startMs: 2_000, baseLayer: 0, translationX: 0, translationY: 0,
+      }],
+    }
+
+    const projection = projectShowUnifiedTimeline(show, composition)
+
+    expect(projection.zones[0].groups).toEqual([expect.objectContaining({
+      id: 'phrase-use',
+      definitionId: 'phrase',
+      name: 'Pulse phrase',
+      startMs: 2_000,
+      endMs: 3_500,
+      bottomLayerIndex: 1,
+      topLayerIndex: 0,
+    })])
+    expect(projection.zones[0].layers.flatMap((layer) => layer.clips)).toEqual(expect.arrayContaining([
+      expect.objectContaining({ id: 'phrase-use:main-child', groupOccurrenceId: 'phrase-use' }),
+      expect.objectContaining({ id: 'phrase-use:overlay-child', groupOccurrenceId: 'phrase-use' }),
+    ]))
+  })
 })
