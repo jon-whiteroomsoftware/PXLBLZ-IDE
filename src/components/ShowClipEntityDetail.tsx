@@ -56,7 +56,12 @@ export function ShowClipEntityDetail({
   const hasAuthoredPatternControls = Object.values(controlTargets ?? {}).some((target) => target !== undefined)
   const [patternTrayOpen, setPatternTrayOpen] = useState(hasAuthoredPatternControls)
   const [advancedTrayOpen, setAdvancedTrayOpen] = useState(
-    advancedDefaultOpen || value.view.mirror || value.view.phase !== 0 || value.evaluationPolicy !== 'live',
+    advancedDefaultOpen
+      || value.view.mirror
+      || value.view.phase !== 0
+      || value.evaluationPolicy !== 'live'
+      || value.presentation.mode !== 'live'
+      || value.blink !== undefined,
   )
 
   return (
@@ -313,6 +318,110 @@ export function ShowClipEntityDetail({
                   <col />
                 </colgroup>
                 <tbody className="divide-y divide-zinc-900">
+                  {value.scope !== 'global' && <>
+                    <tr>
+                      <td aria-hidden />
+                      <th scope="row" className="py-1 pr-3 font-normal text-zinc-300">Presentation</th>
+                      <td colSpan={2} className="py-1">
+                        <select
+                          aria-label="Clip presentation"
+                          value={value.presentation.mode}
+                          disabled={readOnly}
+                          onChange={(event) => {
+                            const mode = event.target.value
+                            onPatch({ presentation: mode === 'freeze'
+                              ? { mode: 'freeze' }
+                              : mode === 'strobe'
+                                ? { mode: 'strobe', cadenceMs: 1_000 }
+                                : { mode: 'live' } })
+                          }}
+                          className="h-6 w-full max-w-44 border-0 border-b border-zinc-800 bg-transparent px-1 text-[10px] text-zinc-200 outline-none focus:border-cyan-400/60 disabled:opacity-60"
+                        >
+                          <option value="live">Live</option>
+                          <option value="freeze">Freeze</option>
+                          <option value="strobe">Strobe</option>
+                        </select>
+                      </td>
+                    </tr>
+                    {value.presentation.mode === 'strobe' && <tr>
+                      <td aria-hidden />
+                      <th scope="row" className="py-1 pr-3 font-normal text-zinc-300">Strobe cadence</th>
+                      <td className="py-1">
+                        <ShowInspectorNumberField
+                          label="Strobe cadence seconds"
+                          hideLabel
+                          align="left"
+                          value={value.presentation.cadenceMs / 1_000}
+                          min={0.016}
+                          max={60}
+                          step={0.05}
+                          suffix="s"
+                          compact
+                          disabled={readOnly}
+                          onChange={(seconds) => onPatch({
+                            presentation: { mode: 'strobe', cadenceMs: Math.round(seconds * 1_000) },
+                          })}
+                        />
+                      </td>
+                      <td className="py-1 pl-1 text-[9px] text-zinc-600">capture and hold</td>
+                    </tr>}
+                    <tr>
+                      <td aria-hidden />
+                      <th scope="row" className="py-1 pr-3 font-normal text-zinc-300">Blink output</th>
+                      <td colSpan={2} className="py-1">
+                        <label className="flex items-center gap-1.5 text-[10px] text-zinc-400">
+                          <input
+                            type="checkbox"
+                            aria-label="Blink Clip output"
+                            checked={value.blink !== undefined}
+                            disabled={readOnly}
+                            className="h-3 w-3 accent-cyan-400"
+                            onChange={(event) => onPatch({
+                              blink: event.target.checked ? { rateHz: 2, duty: 0.5, phase: 0 } : null,
+                            })}
+                          />
+                          Gate this Clip on and off
+                        </label>
+                      </td>
+                    </tr>
+                    {value.blink && <tr>
+                      <td aria-hidden />
+                      <th scope="row" className="py-1 pr-3 font-normal text-zinc-300">Blink timing</th>
+                      <td colSpan={2} className="grid grid-cols-3 gap-1.5 py-1">
+                        <ShowInspectorNumberField
+                          label="Blink rate Hz"
+                          value={value.blink.rateHz}
+                          min={0.01}
+                          max={60}
+                          step={0.1}
+                          suffix="Hz"
+                          compact
+                          disabled={readOnly}
+                          onChange={(rateHz) => onPatch({ blink: { ...value.blink!, rateHz } })}
+                        />
+                        <ShowInspectorNumberField
+                          label="Blink duty"
+                          value={value.blink.duty}
+                          min={0}
+                          max={1}
+                          step={0.01}
+                          compact
+                          disabled={readOnly}
+                          onChange={(duty) => onPatch({ blink: { ...value.blink!, duty } })}
+                        />
+                        <ShowInspectorNumberField
+                          label="Blink phase"
+                          value={value.blink.phase}
+                          min={0}
+                          max={1}
+                          step={0.01}
+                          compact
+                          disabled={readOnly}
+                          onChange={(phase) => onPatch({ blink: { ...value.blink!, phase } })}
+                        />
+                      </td>
+                    </tr>}
+                  </>}
                   <tr>
                     <td aria-hidden />
                     <th scope="row" className="py-1 pr-3 font-normal text-zinc-300">Mirror clip</th>

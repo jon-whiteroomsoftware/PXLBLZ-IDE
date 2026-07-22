@@ -1853,8 +1853,13 @@ export function showRecordToCompileRecipe(
   show = normalizeShowTransitionState(show)
   const outputEffects = normalizeShowOutputEffects(show.outputEffects)
   if (show.composition) {
+    const deterministicLoopReset = show.composition.executionModel === 'deterministic-loop'
     const lowered = lowerShowCompositionForCompile(show, lookup)
-    return { ...showRecordToCompileRecipe(lowered.show, lowered.lookup), outputEffects }
+    return {
+      ...showRecordToCompileRecipe(lowered.show, lowered.lookup),
+      ...(deterministicLoopReset ? { deterministicLoopReset: true } : {}),
+      outputEffects,
+    }
   }
   if (lookup.compositionLayerByCellId && Object.keys(lookup.compositionLayerByCellId).length > 0) {
     return { ...showRecordToRoutedSceneSequenceRecipe(show, lookup), outputEffects }
@@ -2516,6 +2521,8 @@ function showRecordToRoutedSceneSequenceRecipe(
                 ...(cell.transform ? { transform: structuredClone(cell.transform) } : {}),
                 ...(cell.viewport ? { viewport: structuredClone(cell.viewport) } : {}),
                 ...(cell.effects ? { effects: normalizeShowClipEffects(cell.effects) } : {}),
+                ...(cell.presentation ? { presentation: structuredClone(cell.presentation) } : {}),
+                ...(cell.blink ? { blink: structuredClone(cell.blink) } : {}),
               }
             })
           }),

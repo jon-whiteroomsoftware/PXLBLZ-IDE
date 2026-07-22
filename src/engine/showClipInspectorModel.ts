@@ -18,6 +18,8 @@ import {
 } from './showModel'
 import type {
   ShowCell,
+  ShowClipBlink,
+  ShowClipPresentation,
   ShowClipTransform,
   ShowClipViewport,
   ShowClipEffect,
@@ -68,6 +70,8 @@ export interface ShowClipInspectorValue {
   pattern: ShowPatternRef
   patternName: string
   evaluationPolicy: ShowClipEvaluationPolicy
+  presentation: ShowClipPresentation
+  blink?: ShowClipBlink
   simulation: ShowClipInspectorSimulation
   view: ShowPlacementView
   transform: ShowClipTransform
@@ -86,6 +90,8 @@ export interface ShowClipInspectorValue {
 export interface ShowClipInspectorPatch {
   pattern?: { ref: ShowPatternRef; name: string }
   evaluationPolicy?: ShowClipEvaluationPolicy
+  presentation?: ShowClipPresentation
+  blink?: ShowClipBlink | null
   simulation?: Partial<ShowClipInspectorSimulation>
   view?: Partial<ShowPlacementView>
   transform?: Partial<ShowClipTransform>
@@ -142,6 +148,8 @@ export function projectShowClipInspector(
     pattern: { ...instance.pattern },
     patternName: instance.patternName,
     evaluationPolicy: normalizeEvaluationPolicy(instance.evaluationPolicy),
+    presentation: normalizePresentation(placement.presentation),
+    ...(placement.blink ? { blink: normalizeBlink(placement.blink) } : {}),
     simulation: {
       ...cloneSimulation(instance),
       ...(instance.controlTargets ? { controlTargets: { ...instance.controlTargets } } : {}),
@@ -189,13 +197,15 @@ export function updateShowClipInspector(
       ),
     }))
   }
-  if (patch.view || patch.transform || patch.viewport || patch.effects) {
+  if (patch.view || patch.transform || patch.viewport || patch.effects || patch.presentation || patch.blink !== undefined) {
     composition = mapPlacement(composition, owner, (placement) => ({
       ...placement,
       ...(patch.view ? { view: normalizeView({ ...placement.view, ...patch.view }) } : {}),
       ...(patch.transform ? { transform: compactShowClipTransform({ ...placement.transform, ...patch.transform }) } : {}),
       ...(patch.viewport ? { viewport: compactShowClipViewport({ ...placement.viewport, ...patch.viewport }) } : {}),
       ...(patch.effects ? { effects: normalizeShowClipEffects(patch.effects) } : {}),
+      ...(patch.presentation ? compactPresentation(patch.presentation) : {}),
+      ...(patch.blink === null ? { blink: undefined } : patch.blink ? { blink: normalizeBlink(patch.blink) } : {}),
     }))
   }
   if (patch.local) {
@@ -227,6 +237,8 @@ function projectGlobalClip(cell: ShowCell, owner: Extract<ShowClipInspectorOwner
     pattern: { ...cell.pattern },
     patternName: cell.patternName,
     evaluationPolicy: normalizeEvaluationPolicy(cell.evaluationPolicy),
+    presentation: normalizePresentation(cell.presentation),
+    ...(cell.blink ? { blink: normalizeBlink(cell.blink) } : {}),
     simulation: {
       timeScale: cell.adaptations.timeScale,
       timeOffsetMs: cell.adaptations.timeOffsetMs ?? 0,
@@ -254,6 +266,19 @@ function updateGlobalClip(show: ShowRecord, cellId: string, patch: ShowClipInspe
       ...next,
       cells: next.cells.map((cell) => cell.id === cellId
         ? { ...cell, evaluationPolicy: normalizeEvaluationPolicy(patch.evaluationPolicy) }
+        : cell),
+      updatedAt: Math.max(Date.now(), next.updatedAt + 1),
+    }
+  }
+  if (patch.presentation || patch.blink !== undefined) {
+    next = {
+      ...next,
+      cells: next.cells.map((cell) => cell.id === cellId
+        ? {
+            ...cell,
+            ...(patch.presentation ? compactPresentation(patch.presentation) : {}),
+            ...(patch.blink === null ? { blink: undefined } : patch.blink ? { blink: normalizeBlink(patch.blink) } : {}),
+          }
         : cell),
       updatedAt: Math.max(Date.now(), next.updatedAt + 1),
     }
@@ -408,6 +433,27 @@ export function normalizeShowClipEvaluationPolicy(
 }
 
 const normalizeEvaluationPolicy = normalizeShowClipEvaluationPolicy
+
+function normalizePresentation(presentation: ShowClipPresentation | undefined): ShowClipPresentation {
+  if (presentation?.mode === 'freeze') return { mode: 'freeze' }
+  if (presentation?.mode === 'strobe') {
+    return { mode: 'strobe', cadenceMs: Math.round(clamp(presentation.cadenceMs, 16, 60_000)) }
+  }
+  return { mode: 'live' }
+}
+
+function compactPresentation(presentation: ShowClipPresentation): Pick<ShowCell, 'presentation'> {
+  const normalized = normalizePresentation(presentation)
+  return normalized.mode === 'live' ? { presentation: undefined } : { presentation: normalized }
+}
+
+function normalizeBlink(blink: ShowClipBlink): ShowClipBlink {
+  return {
+    rateHz: clamp(blink.rateHz, 0.01, 60),
+    duty: clamp01(blink.duty),
+    phase: clamp01(blink.phase),
+  }
+}
 
 function clamp01(value: number): number {
   return clamp(value, 0, 1)

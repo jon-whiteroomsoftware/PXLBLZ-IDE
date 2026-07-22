@@ -235,7 +235,23 @@ export function splitShowClipAtGlobalTime(
 export function duplicateShowClipAfter(
   show: ShowRecord,
   composition: ShowCompositionV1,
+  input: { owner: ShowTimelineClipOwner; newPlacementId: string; newInstanceId: string },
+): ShowCompositionV1 {
+  return duplicateShowClip(show, composition, input)
+}
+
+export function duplicateLinkedShowClipAfter(
+  show: ShowRecord,
+  composition: ShowCompositionV1,
   input: { owner: ShowTimelineClipOwner; newPlacementId: string },
+): ShowCompositionV1 {
+  return duplicateShowClip(show, composition, { ...input, newInstanceId: null })
+}
+
+function duplicateShowClip(
+  show: ShowRecord,
+  composition: ShowCompositionV1,
+  input: { owner: ShowTimelineClipOwner; newPlacementId: string; newInstanceId: string | null },
 ): ShowCompositionV1 {
   const draft = structuredClone(composition)
   const scene = draft.scenes.find((candidate) => candidate.sceneId === input.owner.sceneId)
@@ -250,8 +266,16 @@ export function duplicateShowClipAfter(
   }
   const source = placements?.find((placement) => placement.id === input.owner.placementId)
   if (!placements || !source) return composition
+  const sourceInstance = draft.patternInstances.find((instance) => instance.id === source.instanceId)
+  if (!sourceInstance || (input.newInstanceId && draft.patternInstances.some((instance) => instance.id === input.newInstanceId))) return composition
+  if (input.newInstanceId) draft.patternInstances.push({ ...structuredClone(sourceInstance), id: input.newInstanceId })
   const startMs = source.startMs + source.durationMs
-  placements.push({ ...structuredClone(source), id: input.newPlacementId, startMs })
+  placements.push({
+    ...structuredClone(source),
+    id: input.newPlacementId,
+    instanceId: input.newInstanceId ?? source.instanceId,
+    startMs,
+  })
 
   const sourceTracks = (scene.propertyTracks ?? []).filter((track) => (
     'placementId' in track.target && track.target.placementId === input.owner.placementId
@@ -268,8 +292,190 @@ export function duplicateShowClipAfter(
   }))
   if (copies.length > 0) scene.propertyTracks = [...(scene.propertyTracks ?? []), ...copies]
 
+  const sourceInstanceTracks = input.newInstanceId
+    ? (scene.propertyTracks ?? []).filter((track) => (
+        'instanceId' in track.target && track.target.instanceId === source.instanceId
+      ))
+    : []
+  const instanceCopies = sourceInstanceTracks.map((track) => ({
+    ...structuredClone(track),
+    id: `${track.id}-${input.newInstanceId!}`,
+    target: { ...track.target, instanceId: input.newInstanceId! },
+    keyframes: track.keyframes.map((keyframe) => ({
+      ...structuredClone(keyframe),
+      id: `${keyframe.id}-${input.newInstanceId!}`,
+      timeMs: keyframe.timeMs + source.durationMs,
+    })),
+  }))
+  if (instanceCopies.length > 0) scene.propertyTracks = [...(scene.propertyTracks ?? []), ...instanceCopies]
+
   if (validateShowComposition(show, draft).length > 0) return composition
   return normalizeShowComposition(show, draft)
+}
+
+export function makeShowClipPatternIndependent(
+  composition: ShowCompositionV1,
+  input: { owner: ShowTimelineClipOwner; newInstanceId: string },
+): ShowCompositionV1 {
+  const draft = structuredClone(composition)
+  if (draft.patternInstances.some((instance) => instance.id === input.newInstanceId)) return composition
+  const placement = findTimelinePlacement(draft, input.owner)
+  if (!placement) return composition
+  const sourceInstance = draft.patternInstances.find((instance) => instance.id === placement.instanceId)
+  if (!sourceInstance) return composition
+
+  draft.patternInstances.push({ ...structuredClone(sourceInstance), id: input.newInstanceId })
+  placement.instanceId = input.newInstanceId
+  cloneTimelineInstanceTracks(draft, input.owner.sceneId, sourceInstance.id, input.newInstanceId, 0)
+  draft.patternInstances.sort((left, right) => left.id.localeCompare(right.id))
+  return draft
+}
+
+export type ShowClipPatternRejoinPlan =
+  | {
+      enabled: true
+      code: 'ready'
+      sourceInstanceId: string
+      targetInstanceId: string
+      targetUseCount: number
+      discardsSourceState: boolean
+    }
+  | {
+      enabled: false
+      code: 'missing-owner' | 'missing-target' | 'already-shared' | 'incompatible-target'
+      reason: string
+    }
+
+export interface ShowClipPatternInstanceOwnership {
+  instanceId: string
+  useCount: number
+  compatibleTargets: Array<{
+    instanceId: string
+    patternName: string
+    useCount: number
+  }>
+}
+
+export function projectShowClipPatternInstanceOwnership(
+  composition: ShowCompositionV1,
+  owner: ShowTimelineClipOwner,
+): ShowClipPatternInstanceOwnership | null {
+  const placement = findTimelinePlacement(composition, owner)
+  if (!placement) return null
+  const instance = composition.patternInstances.find((candidate) => candidate.id === placement.instanceId)
+  if (!instance) return null
+  return {
+    instanceId: instance.id,
+    useCount: showPatternInstanceUseCount(composition, instance.id),
+    compatibleTargets: composition.patternInstances.flatMap((candidate) => {
+      if (
+        candidate.id === instance.id
+        || candidate.pattern.kind !== instance.pattern.kind
+        || candidate.pattern.id !== instance.pattern.id
+      ) return []
+      return [{
+        instanceId: candidate.id,
+        patternName: candidate.patternName,
+        useCount: showPatternInstanceUseCount(composition, candidate.id),
+      }]
+    }),
+  }
+}
+
+export function planShowClipPatternRejoin(
+  composition: ShowCompositionV1,
+  input: { owner: ShowTimelineClipOwner; targetInstanceId: string },
+): ShowClipPatternRejoinPlan {
+  const placement = findTimelinePlacement(composition, input.owner)
+  if (!placement) return { enabled: false, code: 'missing-owner', reason: 'The selected Clip no longer exists.' }
+  if (placement.instanceId === input.targetInstanceId) {
+    return { enabled: false, code: 'already-shared', reason: 'This Clip already uses that Pattern instance.' }
+  }
+  const source = composition.patternInstances.find((instance) => instance.id === placement.instanceId)
+  const target = composition.patternInstances.find((instance) => instance.id === input.targetInstanceId)
+  if (!source || !target) {
+    return { enabled: false, code: 'missing-target', reason: 'Choose an existing Pattern instance.' }
+  }
+  if (source.pattern.kind !== target.pattern.kind || source.pattern.id !== target.pattern.id) {
+    return { enabled: false, code: 'incompatible-target', reason: 'Choose an instance of the same Pattern.' }
+  }
+  return {
+    enabled: true,
+    code: 'ready',
+    sourceInstanceId: source.id,
+    targetInstanceId: target.id,
+    targetUseCount: showPatternInstanceUseCount(composition, target.id),
+    discardsSourceState: showPatternInstanceUseCount(composition, source.id) === 1,
+  }
+}
+
+export function rejoinShowClipPatternInstance(
+  composition: ShowCompositionV1,
+  input: { owner: ShowTimelineClipOwner; targetInstanceId: string },
+): ShowCompositionV1 {
+  const plan = planShowClipPatternRejoin(composition, input)
+  if (!plan.enabled) return composition
+  const draft = structuredClone(composition)
+  const placement = findTimelinePlacement(draft, input.owner)
+  if (!placement) return composition
+  placement.instanceId = plan.targetInstanceId
+  if (plan.discardsSourceState) {
+    draft.patternInstances = draft.patternInstances.filter((instance) => instance.id !== plan.sourceInstanceId)
+    for (const scene of draft.scenes) {
+      scene.propertyTracks = scene.propertyTracks?.filter((track) => (
+        !('instanceId' in track.target) || track.target.instanceId !== plan.sourceInstanceId
+      ))
+      if (scene.propertyTracks?.length === 0) delete scene.propertyTracks
+    }
+  }
+  return draft
+}
+
+function showPatternInstanceUseCount(composition: ShowCompositionV1, instanceId: string): number {
+  return composition.scenes.reduce((count, scene) => count + scene.zones.reduce((zoneCount, zone) => (
+    zoneCount
+    + zone.main.filter((placement) => placement.instanceId === instanceId).length
+    + zone.overlays.reduce((layerCount, layer) => (
+      layerCount + layer.placements.filter((placement) => placement.instanceId === instanceId).length
+    ), 0)
+  ), 0), 0)
+}
+
+function findTimelinePlacement(
+  composition: ShowCompositionV1,
+  owner: ShowTimelineClipOwner,
+): ShowMainPlacement | ShowOverlayPlacement | undefined {
+  const zone = composition.scenes.find((scene) => scene.sceneId === owner.sceneId)?.zones
+    .find((candidate) => candidate.zoneId === owner.zoneId)
+  return owner.kind === 'main'
+    ? zone?.main.find((placement) => placement.id === owner.placementId)
+    : zone?.overlays.find((layer) => layer.id === owner.layerId)?.placements
+      .find((placement) => placement.id === owner.placementId)
+}
+
+function cloneTimelineInstanceTracks(
+  composition: ShowCompositionV1,
+  sceneId: string,
+  sourceInstanceId: string,
+  targetInstanceId: string,
+  offsetMs: number,
+): void {
+  const scene = composition.scenes.find((candidate) => candidate.sceneId === sceneId)
+  if (!scene?.propertyTracks) return
+  const copies = scene.propertyTracks.flatMap((track) => {
+    if (!('instanceId' in track.target) || track.target.instanceId !== sourceInstanceId) return []
+    return [{
+      ...structuredClone(track),
+      id: `${track.id}-${targetInstanceId}`,
+      target: { ...track.target, instanceId: targetInstanceId },
+      keyframes: track.keyframes.map((keyframe) => ({
+        ...structuredClone(keyframe),
+        id: `${keyframe.id}-${targetInstanceId}`,
+        timeMs: keyframe.timeMs + offsetMs,
+      })),
+    }]
+  })
+  scene.propertyTracks.push(...copies)
 }
 
 export function resizeShowClipAtGlobalTime(

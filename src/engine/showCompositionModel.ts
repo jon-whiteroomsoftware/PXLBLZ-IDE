@@ -128,6 +128,9 @@ export function normalizeShowComposition(
   const zoneOrder = new Map(show.zones.map((zone, index) => [zone.id, index]))
   return {
     version: 1,
+    ...(composition.executionModel === 'deterministic-loop'
+      ? { executionModel: 'deterministic-loop' as const }
+      : {}),
     ...(Number.isInteger(composition.durationMs) && (composition.durationMs ?? 0) > 0
       ? { durationMs: composition.durationMs }
       : {}),

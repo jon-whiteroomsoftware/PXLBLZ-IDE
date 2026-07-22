@@ -3,9 +3,14 @@ import { addShowZone, createDefaultShow } from './showModel'
 import {
   addShowOverlayLayerAcrossTimeline,
   addShowMainClipAtGlobalTime,
+  duplicateLinkedShowClipAfter,
   duplicateShowClipAfter,
+  makeShowClipPatternIndependent,
   moveShowClipAtGlobalTime,
+  planShowClipPatternRejoin,
   planShowMainClipAtGlobalTime,
+  projectShowClipPatternInstanceOwnership,
+  rejoinShowClipPatternInstance,
   resizeShowClipAtGlobalTime,
   splitShowClipAtGlobalTime,
 } from './showTimelineClipAuthoring'
@@ -428,7 +433,7 @@ describe('global timeline Clip authoring (#580)', () => {
     ])
   })
 
-  it('duplicates a Clip immediately after itself with the same Pattern instance and property tracks', () => {
+  it('duplicates a Clip immediately after itself with an independent Pattern instance and copied property tracks', () => {
     const show = createDefaultShow('show-duplicate-clip', 'Duplicate clip', 1000)
     const composition = emptyComposition(show)
     composition.patternInstances.push(instance)
@@ -453,15 +458,235 @@ describe('global timeline Clip authoring (#580)', () => {
         kind: 'main', sceneId: show.scenes[0].id, zoneId: show.zones[0].id, placementId: 'placement-source',
       },
       newPlacementId: 'placement-copy',
+      newInstanceId: 'instance-copy',
+    })
+
+    expect(next.patternInstances).toEqual(expect.arrayContaining([
+      instance,
+      expect.objectContaining({ id: 'instance-copy', pattern: instance.pattern, time: instance.time }),
+    ]))
+    expect(next.scenes[0].zones[0].main[1]).toMatchObject({
+      id: 'placement-copy', instanceId: 'instance-copy', startMs: 5_000, durationMs: 3_000,
+    })
+    expect(next.scenes[0].propertyTracks?.[1]).toMatchObject({
+      target: { placementId: 'placement-copy' },
+      keyframes: [{ timeMs: 5_000 }, { timeMs: 8_000 }],
+    })
+  })
+
+  it('copies instance-owned animation onto the independent duplicate', () => {
+    const show = createDefaultShow('show-duplicate-instance-track', 'Duplicate instance track', 1000)
+    const composition = emptyComposition(show)
+    composition.patternInstances.push(instance)
+    composition.scenes[0].zones[0].main.push({
+      id: 'placement-source',
+      instanceId: instance.id,
+      startMs: 2_000,
+      durationMs: 3_000,
+      view: { mirror: false, phase: 0, brightness: 1 },
+    })
+    composition.scenes[0].propertyTracks = [{
+      id: 'speed-source',
+      target: { kind: 'instance-time-scale', instanceId: instance.id },
+      keyframes: [
+        { id: 'speed-a', timeMs: 2_000, value: 1, easing: { curve: 'linear' } },
+        { id: 'speed-b', timeMs: 5_000, value: 2, easing: { curve: 'linear' } },
+      ],
+    }]
+
+    const next = duplicateShowClipAfter(show, composition, {
+      owner: {
+        kind: 'main', sceneId: show.scenes[0].id, zoneId: show.zones[0].id, placementId: 'placement-source',
+      },
+      newPlacementId: 'placement-copy',
+      newInstanceId: 'instance-copy',
+    })
+
+    expect(next.scenes[0].propertyTracks).toEqual(expect.arrayContaining([
+      expect.objectContaining({
+        target: { kind: 'instance-time-scale', instanceId: 'instance-copy' },
+        keyframes: [
+          expect.objectContaining({ timeMs: 5_000 }),
+          expect.objectContaining({ timeMs: 8_000 }),
+        ],
+      }),
+    ]))
+  })
+
+  it('duplicates a Clip Linked only through the explicit linked operation', () => {
+    const show = createDefaultShow('show-duplicate-linked', 'Duplicate linked', 1000)
+    const composition = emptyComposition(show)
+    composition.patternInstances.push(instance)
+    composition.scenes[0].zones[0].main.push({
+      id: 'placement-source',
+      instanceId: instance.id,
+      startMs: 2_000,
+      durationMs: 3_000,
+      view: { mirror: false, phase: 0, brightness: 1 },
+    })
+
+    const next = duplicateLinkedShowClipAfter(show, composition, {
+      owner: {
+        kind: 'main', sceneId: show.scenes[0].id, zoneId: show.zones[0].id, placementId: 'placement-source',
+      },
+      newPlacementId: 'placement-copy',
     })
 
     expect(next.patternInstances).toEqual([instance])
     expect(next.scenes[0].zones[0].main[1]).toMatchObject({
       id: 'placement-copy', instanceId: instance.id, startMs: 5_000, durationMs: 3_000,
     })
-    expect(next.scenes[0].propertyTracks?.[1]).toMatchObject({
-      target: { placementId: 'placement-copy' },
-      keyframes: [{ timeMs: 5_000 }, { timeMs: 8_000 }],
+  })
+
+  it('makes one overlay Clip Pattern-independent without changing its placement', () => {
+    const show = createDefaultShow('show-make-independent', 'Make independent', 1000)
+    const composition = emptyComposition(show)
+    composition.patternInstances.push(instance)
+    composition.scenes[0].zones[0].main.push({
+      id: 'placement-main',
+      instanceId: instance.id,
+      startMs: 0,
+      durationMs: 3_000,
+      view: { mirror: false, phase: 0, brightness: 1 },
+    })
+    composition.scenes[0].zones[0].overlays.push({
+      id: 'layer-1',
+      name: 'Layer 2',
+      placements: [{
+        id: 'placement-overlay',
+        instanceId: instance.id,
+        startMs: 4_000,
+        durationMs: 3_000,
+        opacity: 0.75,
+        view: { mirror: true, phase: 0.2, brightness: 0.8 },
+      }],
+    })
+
+    const next = makeShowClipPatternIndependent(composition, {
+      owner: {
+        kind: 'overlay',
+        sceneId: show.scenes[0].id,
+        zoneId: show.zones[0].id,
+        layerId: 'layer-1',
+        placementId: 'placement-overlay',
+      },
+      newInstanceId: 'instance-independent',
+    })
+
+    expect(next.patternInstances).toHaveLength(2)
+    expect(next.scenes[0].zones[0].main[0].instanceId).toBe(instance.id)
+    expect(next.scenes[0].zones[0].overlays[0].placements[0]).toMatchObject({
+      id: 'placement-overlay',
+      instanceId: 'instance-independent',
+      startMs: 4_000,
+      durationMs: 3_000,
+      opacity: 0.75,
+      view: { mirror: true, phase: 0.2, brightness: 0.8 },
+    })
+  })
+
+  it('plans and rejoins a compatible shared Pattern instance without guessing the target', () => {
+    const show = createDefaultShow('show-rejoin-instance', 'Rejoin instance', 1000)
+    const composition = emptyComposition(show)
+    composition.patternInstances.push(
+      instance,
+      { ...structuredClone(instance), id: 'instance-independent', time: { timeScale: 0.5, timeOffsetMs: 2_000 } },
+    )
+    composition.scenes[0].zones[0].main.push({
+      id: 'placement-main',
+      instanceId: instance.id,
+      startMs: 0,
+      durationMs: 3_000,
+      view: { mirror: false, phase: 0, brightness: 1 },
+    })
+    composition.scenes[0].zones[0].overlays.push({
+      id: 'layer-1',
+      name: 'Layer 2',
+      placements: [{
+        id: 'placement-overlay',
+        instanceId: 'instance-independent',
+        startMs: 4_000,
+        durationMs: 3_000,
+        opacity: 1,
+        view: { mirror: false, phase: 0, brightness: 1 },
+      }],
+    })
+    const owner = {
+      kind: 'overlay' as const,
+      sceneId: show.scenes[0].id,
+      zoneId: show.zones[0].id,
+      layerId: 'layer-1',
+      placementId: 'placement-overlay',
+    }
+
+    expect(planShowClipPatternRejoin(composition, { owner, targetInstanceId: instance.id })).toEqual({
+      enabled: true,
+      code: 'ready',
+      sourceInstanceId: 'instance-independent',
+      targetInstanceId: instance.id,
+      targetUseCount: 1,
+      discardsSourceState: true,
+    })
+
+    const next = rejoinShowClipPatternInstance(composition, { owner, targetInstanceId: instance.id })
+    expect(next.patternInstances).toEqual([instance])
+    expect(next.scenes[0].zones[0].overlays[0].placements[0].instanceId).toBe(instance.id)
+  })
+
+  it('projects Pattern-instance ownership and only compatible explicit rejoin targets', () => {
+    const show = createDefaultShow('show-instance-ownership', 'Instance ownership', 1000)
+    const composition = emptyComposition(show)
+    composition.patternInstances.push(
+      instance,
+      { ...structuredClone(instance), id: 'instance-independent' },
+      {
+        ...structuredClone(instance),
+        id: 'instance-other-pattern',
+        pattern: { kind: 'user', id: 'different-pattern' },
+        patternName: 'Different Pattern',
+      },
+    )
+    composition.scenes[0].zones[0].main.push({
+      id: 'placement-main',
+      instanceId: instance.id,
+      startMs: 0,
+      durationMs: 3_000,
+      view: { mirror: false, phase: 0, brightness: 1 },
+    })
+    composition.scenes[0].zones[0].overlays.push({
+      id: 'layer-1',
+      name: 'Layer 2',
+      placements: [{
+        id: 'placement-overlay',
+        instanceId: 'instance-independent',
+        startMs: 4_000,
+        durationMs: 3_000,
+        opacity: 1,
+        view: { mirror: false, phase: 0, brightness: 1 },
+      }, {
+        id: 'placement-other',
+        instanceId: 'instance-other-pattern',
+        startMs: 8_000,
+        durationMs: 2_000,
+        opacity: 1,
+        view: { mirror: false, phase: 0, brightness: 1 },
+      }],
+    })
+
+    expect(projectShowClipPatternInstanceOwnership(composition, {
+      kind: 'overlay',
+      sceneId: show.scenes[0].id,
+      zoneId: show.zones[0].id,
+      layerId: 'layer-1',
+      placementId: 'placement-overlay',
+    })).toEqual({
+      instanceId: 'instance-independent',
+      useCount: 1,
+      compatibleTargets: [{
+        instanceId: instance.id,
+        patternName: 'New Pattern',
+        useCount: 1,
+      }],
     })
   })
 

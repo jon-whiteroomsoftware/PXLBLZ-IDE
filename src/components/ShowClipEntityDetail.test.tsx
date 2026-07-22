@@ -19,6 +19,7 @@ function value(scope: ShowClipInspectorValue['scope']): ShowClipInspectorValue {
     pattern: { kind: 'stock', id: 'TestPattern1D' },
     patternName: 'TestPattern1D',
     evaluationPolicy: 'live',
+    presentation: { mode: 'live' },
     simulation: { timeScale: 1, timeOffsetMs: 0, controlTargets: { sliderSpeed: 0.4 } },
     view: { mirror: false, phase: 0.25, brightness: 0.8 },
     transform: { positionX: 0, positionY: 0, rotation: 0, scaleX: 1, scaleY: 1 },
@@ -94,6 +95,43 @@ describe('shared Clip Entity Detail sections (#498)', () => {
 
     fireEvent.click(screen.getByRole('checkbox', { name: 'Set Speed target' }))
     expect(onPatch).toHaveBeenCalledWith({ simulation: { controlTargets: undefined } })
+  })
+
+  it('keeps placement-owned Hue phase visible and editable in composition Clips (#586)', () => {
+    const onPatch = vi.fn()
+    render(<ShowClipEntityDetail {...commonProps('scene-main', onPatch)} />)
+
+    const phase = screen.getByRole('spinbutton', { name: 'Phase' })
+    expect(phase).toHaveValue(0.25)
+    fireEvent.change(phase, { target: { value: '0.5' } })
+    fireEvent.blur(phase)
+    expect(onPatch).toHaveBeenCalledWith({ view: { phase: 0.5 } })
+  })
+
+  it('labels and commits Live, Freeze, Strobe, and Blink as Clip presentation controls (#586)', () => {
+    const onPatch = vi.fn()
+    const props = commonProps('scene-main', onPatch)
+    const { rerender } = render(<ShowClipEntityDetail {...props} />)
+    fireEvent.click(screen.getByText('Advanced clip controls'))
+
+    const presentation = screen.getByRole('combobox', { name: 'Clip presentation' })
+    expect(Array.from(presentation.querySelectorAll('option')).map((option) => option.textContent)).toEqual([
+      'Live', 'Freeze', 'Strobe',
+    ])
+    fireEvent.change(presentation, { target: { value: 'strobe' } })
+    expect(onPatch).toHaveBeenCalledWith({ presentation: { mode: 'strobe', cadenceMs: 1_000 } })
+
+    rerender(<ShowClipEntityDetail
+      {...props}
+      value={{ ...props.value, presentation: { mode: 'strobe', cadenceMs: 1_000 } }}
+    />)
+    const cadence = screen.getByRole('spinbutton', { name: 'Strobe cadence seconds' })
+    fireEvent.change(cadence, { target: { value: '0.5' } })
+    fireEvent.blur(cadence)
+    expect(onPatch).toHaveBeenCalledWith({ presentation: { mode: 'strobe', cadenceMs: 500 } })
+
+    fireEvent.click(screen.getByRole('checkbox', { name: 'Blink Clip output' }))
+    expect(onPatch).toHaveBeenCalledWith({ blink: { rateHz: 2, duty: 0.5, phase: 0 } })
   })
 
   it('authors the first-class Transform in placement units while displaying rotation in degrees (#529)', () => {

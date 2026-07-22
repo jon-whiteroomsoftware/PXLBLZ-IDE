@@ -160,6 +160,28 @@ describe('shared Clip inspector owner model (#498)', () => {
     }
   })
 
+  it('keeps Freeze, Strobe, and Blink on the placement while Stutter stays on the Pattern instance (#586)', () => {
+    const show = fixture()
+    const updated = updateShowClipInspector(show, overlayOwner(show), {
+      presentation: { mode: 'strobe', cadenceMs: 750 },
+      blink: { rateHz: 2, duty: 0.4, phase: 0.1 },
+      simulation: { steppedClock: { stepMs: 250 } },
+    })
+
+    expect(projectShowClipInspector(updated, overlayOwner(updated))).toMatchObject({
+      presentation: { mode: 'strobe', cadenceMs: 750 },
+      blink: { rateHz: 2, duty: 0.4, phase: 0.1 },
+      simulation: { steppedClock: { stepMs: 250 } },
+    })
+    expect(updated.composition?.patternInstances.find((instance) => instance.id === 'instance-overlay')).toMatchObject({
+      time: { steppedClock: { stepMs: 250 } },
+    })
+    expect(updated.composition?.scenes[0].zones[0].overlays[0].placements[0]).toMatchObject({
+      presentation: { mode: 'strobe', cadenceMs: 750 },
+      blink: { rateHz: 2, duty: 0.4, phase: 0.1 },
+    })
+  })
+
   it('projects a neutral canonical Transform and persists one through every Clip owner', () => {
     for (const ownerFor of [globalOwner, mainOwner, overlayOwner]) {
       const show = fixture()

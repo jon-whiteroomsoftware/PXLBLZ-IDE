@@ -20,6 +20,7 @@ import { ShowSceneSuperDetail, ShowSceneXray } from '@/components/ShowSceneReadO
 import { ShowSceneZoneEditor } from '@/components/ShowSceneZoneEditor'
 import { ShowEffectPalette } from '@/components/ShowEffectsAuthoring'
 import { ShowClipEntityDetail } from '@/components/ShowClipEntityDetail'
+import { ShowPatternInstanceControls } from '@/components/ShowPatternInstanceControls'
 import { ShowTransitionPalette, ShowTransitionParameters } from '@/components/ShowTransitionAuthoring'
 import { ShowLayerTransitionPalette } from '@/components/ShowLayerTransitionPalette'
 import { ShowLayerTransitionEditor } from '@/components/ShowLayerTransitionEditor'
@@ -122,7 +123,10 @@ import {
   addShowOverlayLayerAcrossTimeline,
   addShowMainClipAtGlobalTime,
   duplicateShowClipAfter,
+  makeShowClipPatternIndependent,
   planShowMainClipAtGlobalTime,
+  projectShowClipPatternInstanceOwnership,
+  rejoinShowClipPatternInstance,
   splitShowClipAtGlobalTime,
   type ShowTimelineClipMoveTarget,
   type ShowTimelineClipOwner,
@@ -775,7 +779,7 @@ export function ShowEditor({
     const handleOutsidePointerDown = (event: PointerEvent) => {
       const target = event.target
       if (!(target instanceof Element)) return
-      if (target.closest('[role="dialog"]')) return
+      if (target.closest('[role="dialog"], [role="alertdialog"]')) return
       if (target.closest(`[data-show-selection-key="${showSelectionKey(selection)}"]`)) return
       closeDetailPanel()
     }
@@ -855,10 +859,13 @@ export function ShowEditor({
     if (!activeShow) return null
     if (activeShow.composition) return activeShow.composition
     try {
-      return projectFlatShowToCompositionV1(activeShow, {
-        byCellId: Object.fromEntries(activeShow.cells.map((cell) => [cell.id, sourceForShowCell(cell, userPatterns)])),
-        stageDimension,
-      })
+      return {
+        ...projectFlatShowToCompositionV1(activeShow, {
+          byCellId: Object.fromEntries(activeShow.cells.map((cell) => [cell.id, sourceForShowCell(cell, userPatterns)])),
+          stageDimension,
+        }),
+        executionModel: 'deterministic-loop',
+      }
     } catch {
       return null
     }
@@ -1377,6 +1384,7 @@ export function ShowEditor({
                   const nextComposition = duplicateShowClipAfter(activeShow, timelineComposition, {
                     owner,
                     newPlacementId: placementId,
+                    newInstanceId: newPersonalContentId(),
                   })
                   if (nextComposition === timelineComposition) return null
                   await updateShow(activeShow.id, {
@@ -1559,7 +1567,11 @@ export function ShowEditor({
                     byCellId: Object.fromEntries(activeShow.cells.map((cell) => [cell.id, sourceForShowCell(cell, userPatterns)])),
                     stageDimension,
                   })
-                  void updateShow(activeShow.id, { ...activeShow, composition, updatedAt: Date.now() })
+                  void updateShow(activeShow.id, {
+                    ...activeShow,
+                    composition: { ...composition, executionModel: 'deterministic-loop' },
+                    updatedAt: Date.now(),
+                  })
                 }}
                 onAddMain={({ pattern, patternName, startMs, durationMs }) => {
                   const composition = activeShow.composition
@@ -1885,6 +1897,28 @@ export function ShowEditor({
                   onUpdateClipInspector={commitClipInspectorPatch}
                   onOpenEffects={(cell) => setEffectPaletteOwner({ kind: 'global', cellId: cell.id })}
                   onOpenCompositionEffects={setEffectPaletteOwner}
+                  onMakeCompositionPatternIndependent={(owner) => {
+                    if (!timelineComposition) return
+                    const timelineOwner = showTimelineOwnerForInspector(owner)
+                    if (!timelineOwner) return
+                    const composition = makeShowClipPatternIndependent(timelineComposition, {
+                      owner: timelineOwner,
+                      newInstanceId: newPersonalContentId(),
+                    })
+                    if (composition === timelineComposition) return
+                    void updateShow(activeShow.id, { ...activeShow, composition, updatedAt: Date.now() })
+                  }}
+                  onRejoinCompositionPattern={(owner, targetInstanceId) => {
+                    if (!timelineComposition) return
+                    const timelineOwner = showTimelineOwnerForInspector(owner)
+                    if (!timelineOwner) return
+                    const composition = rejoinShowClipPatternInstance(timelineComposition, {
+                      owner: timelineOwner,
+                      targetInstanceId,
+                    })
+                    if (composition === timelineComposition) return
+                    void updateShow(activeShow.id, { ...activeShow, composition, updatedAt: Date.now() })
+                  }}
                   onRemoveCompositionClip={(owner) => {
                     if (!timelineComposition) return
                     const timelineOwner: ShowTimelineClipOwner | null = owner.kind === 'scene-main'
@@ -5532,6 +5566,8 @@ function ContextualInspector({
   onUpdateClipInspector,
   onOpenEffects,
   onOpenCompositionEffects,
+  onMakeCompositionPatternIndependent,
+  onRejoinCompositionPattern,
   onRemoveCompositionClip,
   onUpdateControlTarget,
   onUpdateRestartOnEntry,
@@ -5578,6 +5614,8 @@ function ContextualInspector({
   onUpdateClipInspector: (owner: ShowClipInspectorOwner, patch: ShowClipInspectorPatch) => void
   onOpenEffects: (cell: ShowCell) => void
   onOpenCompositionEffects: (owner: ShowClipInspectorOwner) => void
+  onMakeCompositionPatternIndependent: (owner: ShowClipInspectorOwner) => void
+  onRejoinCompositionPattern: (owner: ShowClipInspectorOwner, targetInstanceId: string) => void
   onRemoveCompositionClip: (owner: ShowClipInspectorOwner) => void
   onUpdateControlTarget: (cell: ShowCell, exportName: string, value: number | undefined) => void
   onUpdateRestartOnEntry: (cell: ShowCell, restartOnEntry: boolean) => void
@@ -5634,6 +5672,10 @@ function ContextualInspector({
 
   if (selection.kind === 'clip' && selectedCompositionClipOwner) {
     const value = projectShowClipInspector(compositionShow, selectedCompositionClipOwner)
+    const timelineOwner = showTimelineOwnerForInspector(selectedCompositionClipOwner)
+    const instanceOwnership = compositionShow.composition && timelineOwner
+      ? projectShowClipPatternInstanceOwnership(compositionShow.composition, timelineOwner)
+      : null
     if (value) {
       return (
         <CompositionClipInspector
@@ -5642,9 +5684,12 @@ function ContextualInspector({
           patternControls={value.instanceId ? patternControlsByInstanceId[value.instanceId] ?? [] : []}
           transformEnabled={transformEnabled}
           compiledCost={compiledCost}
+          instanceOwnership={instanceOwnership}
           onPatch={(patch) => onUpdateClipInspector(selectedCompositionClipOwner, patch)}
           onPatternCommit={onPatternCommit}
           onOpenEffects={() => onOpenCompositionEffects(selectedCompositionClipOwner)}
+          onMakePatternIndependent={() => onMakeCompositionPatternIndependent(selectedCompositionClipOwner)}
+          onRejoinPattern={(targetInstanceId) => onRejoinCompositionPattern(selectedCompositionClipOwner, targetInstanceId)}
           onRemove={() => onRemoveCompositionClip(selectedCompositionClipOwner)}
         />
       )
@@ -5733,6 +5778,27 @@ function ContextualInspector({
       onRemoveRoutingLayout={onRemoveRoutingLayout}
     />
   )
+}
+
+function showTimelineOwnerForInspector(owner: ShowClipInspectorOwner): ShowTimelineClipOwner | null {
+  if (owner.kind === 'scene-main') {
+    return {
+      kind: 'main',
+      sceneId: owner.sceneId,
+      zoneId: owner.zoneId,
+      placementId: owner.placementId,
+    }
+  }
+  if (owner.kind === 'scene-overlay') {
+    return {
+      kind: 'overlay',
+      sceneId: owner.sceneId,
+      zoneId: owner.zoneId,
+      layerId: owner.layerId,
+      placementId: owner.placementId,
+    }
+  }
+  return null
 }
 
 function EmptyClipInspector({
@@ -5980,9 +6046,12 @@ function CompositionClipInspector({
   patternControls,
   transformEnabled,
   compiledCost,
+  instanceOwnership,
   onPatch,
   onPatternCommit,
   onOpenEffects,
+  onMakePatternIndependent,
+  onRejoinPattern,
   onRemove,
 }: {
   value: NonNullable<ReturnType<typeof projectShowClipInspector>>
@@ -5990,9 +6059,12 @@ function CompositionClipInspector({
   patternControls: AutomatablePatternControl[]
   transformEnabled: boolean
   compiledCost?: import('@/engine/showVisualToolkit').ShowCompiledCostMetadata
+  instanceOwnership: ReturnType<typeof projectShowClipPatternInstanceOwnership>
   onPatch: (patch: ShowClipInspectorPatch) => void
   onPatternCommit: () => void
   onOpenEffects: () => void
+  onMakePatternIndependent: () => void
+  onRejoinPattern: (targetInstanceId: string) => void
   onRemove: () => void
 }) {
   return (
@@ -6027,6 +6099,15 @@ function CompositionClipInspector({
         patternControls={patternControls}
         transformEnabled={transformEnabled}
         compiledCost={compiledCost}
+        structuralControls={instanceOwnership ? (
+          <ShowPatternInstanceControls
+            ownership={instanceOwnership}
+            steppedClock={value.simulation.steppedClock}
+            onMakeIndependent={onMakePatternIndependent}
+            onRejoin={onRejoinPattern}
+            onSteppedClockChange={(steppedClock) => onPatch({ simulation: { steppedClock } })}
+          />
+        ) : undefined}
         embedded
         onPatch={onPatch}
         onPatternCommit={onPatternCommit}

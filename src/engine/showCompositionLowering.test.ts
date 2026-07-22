@@ -290,6 +290,27 @@ describe('Show composition compiler lowering (#488)', () => {
     })
   })
 
+  it('keeps Freeze/Strobe/Blink placement-owned when one Pattern instance has multiple appearances (#586)', () => {
+    const show = fixture()
+    const first = show.composition!.scenes[0].zones[0].main[0]
+    first.presentation = { mode: 'freeze' }
+    first.blink = { rateHz: 2, duty: 0.5, phase: 0.25 }
+
+    const recipe = showRecordToCompileRecipe(show, lookup(show))
+    expect(recipe.clips.find((clip) => clip.id === 'instance-a')?.evaluationPolicy).toBeUndefined()
+    expect(recipe.routedSceneSequence?.scenes[0].placements[0]).toMatchObject({
+      placementId: 'placement-a-1',
+      clipId: 'instance-a',
+      presentation: { mode: 'freeze' },
+      blink: { rateHz: 2, duty: 0.5, phase: 0.25 },
+    })
+    expect(recipe.routedSceneSequence?.scenes[3].placements[0]).toMatchObject({
+      placementId: 'placement-a-2',
+      clipId: 'instance-a',
+    })
+    expect(recipe.routedSceneSequence?.scenes[3].placements[0].presentation).toBeUndefined()
+  })
+
   it('carries stable typed tracks and source-Scene offsets through derived local holds (#490)', () => {
     const show = fixture()
     show.composition!.scenes[0].propertyTracks = [{

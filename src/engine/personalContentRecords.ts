@@ -345,6 +345,17 @@ export interface ShowSteppedClock {
   stepMs: number
 }
 
+export type ShowClipPresentation =
+  | { mode: 'live' }
+  | { mode: 'freeze' }
+  | { mode: 'strobe'; cadenceMs: number }
+
+export interface ShowClipBlink {
+  rateHz: number
+  duty: number
+  phase: number
+}
+
 export type ShowPatternRef =
   | { kind: 'user'; id: string }
   | { kind: 'stock'; id: string }
@@ -366,6 +377,10 @@ export interface ShowCell {
   restartOnEntry?: boolean
   /** Evaluate continuously, freeze one complete entry frame, or refresh one quarter of pixels per frame. */
   evaluationPolicy?: ShowClipEvaluationPolicy
+  /** Placement-owned RGB presentation. Live is the default when omitted. */
+  presentation?: ShowClipPresentation
+  /** Placement-owned visibility gate; Pattern-instance time continues while hidden. */
+  blink?: ShowClipBlink
   /** Scene-owned 0..1 targets for public slider control functions. */
   controlTargets?: Record<string, number>
   /** Canonical placement transform, applied before optional ordered Effects. Missing is neutral. */
@@ -447,6 +462,10 @@ export interface ShowMainPlacement {
   startMs: number
   durationMs: number
   view: ShowPlacementView
+  /** Placement-owned RGB presentation. Live is the default when omitted. */
+  presentation?: ShowClipPresentation
+  /** Placement-owned visibility gate; Pattern-instance time continues while hidden. */
+  blink?: ShowClipBlink
   /** Canonical placement transform, applied before optional ordered Effects. Missing is neutral. */
   transform?: ShowClipTransform
   /** Preserved when disabled so later re-enable restores the authored frame. */
@@ -508,6 +527,8 @@ export interface ShowLayerTransition extends Omit<
  */
 export interface ShowCompositionV1 {
   version: 1
+  /** New timeline execution contract; absent preserves legacy compiled artifacts. */
+  executionModel?: 'deterministic-loop'
   patternInstances: ShowPatternInstance[]
   scenes: ShowSceneComposition[]
   /** Explicit deterministic loop boundary in absolute Show time. */

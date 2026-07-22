@@ -402,6 +402,399 @@ export function render(index) { rgb(ticks, 0, 0) }
     expect(pixel()).toEqual([0, 0, 0])
   })
 
+  it('freezes one placement while another placement of the same Pattern instance stays Live (#586)', () => {
+    const zones = [{ id: 'main', name: 'main', ranges: [{ start: 0, end: 3 }] }]
+    const artifact = compileShow({
+      clips: [{
+        id: 'shared',
+        source: 'export var clock = 0\nexport function beforeRender(delta) { clock = clock + delta / 1000 }\nexport function render2D(index, x, y) { rgb(clock, 0, 0) }',
+      }],
+      zones,
+      routingLayouts: [{ id: 'default', name: 'Default', zones }],
+      routedSceneSequence: {
+        scenes: [{
+          holdMs: 2_000,
+          placements: [{
+            placementId: 'frozen-left',
+            zoneName: 'main',
+            clipId: 'shared',
+            stackOrder: 0,
+            presentation: { mode: 'freeze' },
+            viewport: { enabled: true, x: 0, y: 0, width: 0.5, height: 1 },
+          }, {
+            placementId: 'live-right',
+            zoneName: 'main',
+            clipId: 'shared',
+            stackOrder: 1,
+            viewport: { enabled: true, x: 0.5, y: 0, width: 0.5, height: 1 },
+          }],
+          transitionOut: { kind: 'cut', durationMs: 0 },
+        }, {
+          holdMs: 2_000,
+          placements: [{ zoneName: 'main', clipId: 'shared' }],
+        }],
+      },
+      loopDurationMs: 4_000,
+    }, {})
+    expect(artifact.summary.specializations.freezeAtEntry.selectedSceneCount).toBe(1)
+    const { handle, pixel } = loadShow(artifact.code, artifact.metadata, 4)
+    const renderFrame = () => [
+      [0, 0], [1, 0], [0, 1], [1, 1],
+    ].map(([x, y], index) => {
+      handle.render2D(index, x, y)
+      return pixel()[0]
+    })
+
+    handle.beforeRender(100)
+    expect(renderFrame()).toEqual([0.1, 0.1, 0.1, 0.1])
+
+    handle.beforeRender(100)
+    expect(renderFrame()).toEqual([0.1, 0.2, 0.1, 0.2])
+  })
+
+  it('Strobe periodically captures a placement while the shared Pattern instance keeps advancing (#586)', () => {
+    const zones = [{ id: 'main', name: 'main', ranges: [{ start: 0, end: 3 }] }]
+    const artifact = compileShow({
+      clips: [{
+        id: 'shared',
+        source: 'export var clock = 0\nexport function beforeRender(delta) { clock = clock + delta / 1000 }\nexport function render2D(index, x, y) { rgb(clock, 0, 0) }',
+      }],
+      zones,
+      routingLayouts: [{ id: 'default', name: 'Default', zones }],
+      routedSceneSequence: {
+        scenes: [{
+          holdMs: 2_000,
+          placements: [{
+            placementId: 'strobed-left',
+            zoneName: 'main',
+            clipId: 'shared',
+            stackOrder: 0,
+            presentation: { mode: 'strobe', cadenceMs: 150 },
+            viewport: { enabled: true, x: 0, y: 0, width: 0.5, height: 1 },
+          }, {
+            placementId: 'live-right',
+            zoneName: 'main',
+            clipId: 'shared',
+            stackOrder: 1,
+            viewport: { enabled: true, x: 0.5, y: 0, width: 0.5, height: 1 },
+          }],
+          transitionOut: { kind: 'cut', durationMs: 0 },
+        }, { holdMs: 2_000, placements: [{ zoneName: 'main', clipId: 'shared' }] }],
+      },
+      loopDurationMs: 4_000,
+    }, {})
+    expect(artifact.summary.specializations.refresh.selectedSceneCount).toBe(1)
+    const { handle, pixel } = loadShow(artifact.code, artifact.metadata, 4)
+    const renderFrame = () => [
+      [0, 0], [1, 0], [0, 1], [1, 1],
+    ].map(([x, y], index) => {
+      handle.render2D(index, x, y)
+      return pixel()[0]
+    })
+
+    handle.beforeRender(100)
+    expect(renderFrame()).toEqual([0.1, 0.1, 0.1, 0.1])
+    handle.beforeRender(25)
+    expect(renderFrame()).toEqual([0.1, 0.125, 0.1, 0.125])
+    handle.beforeRender(50)
+    expect(renderFrame()).toEqual([0.175, 0.175, 0.175, 0.175])
+  })
+
+  it('Blink gates one placement without pausing its Pattern instance (#586)', () => {
+    const zones = [{ id: 'main', name: 'main', ranges: [{ start: 0, end: 3 }] }]
+    const artifact = compileShow({
+      clips: [{ id: 'red', source: 'export function render2D(index, x, y) { rgb(1, 0, 0) }' }],
+      zones,
+      routingLayouts: [{ id: 'default', name: 'Default', zones }],
+      routedSceneSequence: {
+        scenes: [{
+          holdMs: 1_000,
+          placements: [{
+            placementId: 'blinking',
+            zoneName: 'main',
+            clipId: 'red',
+            blink: { rateHz: 1, duty: 0.5, phase: 0 },
+          }],
+          transitionOut: { kind: 'cut', durationMs: 0 },
+        }, { holdMs: 1_000, placements: [{ zoneName: 'main', clipId: 'red' }] }],
+      },
+      loopDurationMs: 2_000,
+    }, {})
+    const { handle, pixel } = loadShow(artifact.code, artifact.metadata, 4)
+
+    handle.beforeRender(250)
+    handle.render2D(0, 0, 0)
+    expect(pixel()).toEqual([1, 0, 0])
+    handle.beforeRender(500)
+    handle.render2D(0, 0, 0)
+    expect(pixel()).toEqual([0, 0, 0])
+  })
+
+  it('starts a new Pattern instance at local zero and advances a shared instance through hidden gaps (#586)', () => {
+    const zones = [{ id: 'main', name: 'main', ranges: [{ start: 0, end: 0 }] }]
+    const source = `
+export var elapsed = 0
+export var renders = 0
+export function beforeRender(delta) { elapsed = elapsed + delta }
+export function render(index) { renders = renders + 1; rgb(elapsed, renders, 0) }
+`
+    const artifact = compileShow({
+      clips: [
+        { id: 'shared', source },
+        { id: 'gap', source: 'export function render(index) { rgb(0, 0, 0) }' },
+        { id: 'late', source },
+      ],
+      zones,
+      routingLayouts: [{ id: 'default', name: 'Default', zones }],
+      routedSceneSequence: {
+        scenes: [
+          { holdMs: 100, placements: [{ zoneName: 'main', clipId: 'shared' }], transitionOut: { kind: 'cut', durationMs: 0 } },
+          { holdMs: 100, placements: [{ zoneName: 'main', clipId: 'gap' }], transitionOut: { kind: 'cut', durationMs: 0 } },
+          { holdMs: 100, placements: [{ zoneName: 'main', clipId: 'shared' }, { zoneName: 'main', clipId: 'late', stackOrder: 1 }] },
+        ],
+      },
+      loopDurationMs: 300,
+      deterministicLoopReset: true,
+    }, {}, { patternSlotSharing: 'none' })
+    const { handle } = loadShow(artifact.code, artifact.metadata, 1)
+
+    handle.beforeRender(50)
+    handle.render(0)
+    handle.beforeRender(100)
+    handle.beforeRender(100)
+    handle.render(0)
+
+    expect(handle.getExports()).toMatchObject({
+      __pxlblz_show_c0_elapsed: 250,
+      __pxlblz_show_c0_renders: 2,
+      __pxlblz_show_c2_elapsed: 100,
+      __pxlblz_show_c2_renders: 1,
+    })
+  })
+
+  it('resets Pattern instance state and clock deterministically at the Show loop boundary (#586)', () => {
+    const zones = [{ id: 'main', name: 'main', ranges: [{ start: 0, end: 0 }] }]
+    const artifact = compileShow({
+      clips: [{
+        id: 'looping',
+        source: 'export var elapsed = 0\nexport var frames = 0\nexport function beforeRender(delta) { elapsed = elapsed + delta; frames = frames + 1 }\nexport function render(index) { rgb(elapsed, frames, 0) }',
+      }],
+      zones,
+      routingLayouts: [{ id: 'default', name: 'Default', zones }],
+      routedSceneSequence: { scenes: [
+        { holdMs: 50, placements: [{ zoneName: 'main', clipId: 'looping' }], transitionOut: { kind: 'cut', durationMs: 0 } },
+        { holdMs: 50, placements: [{ zoneName: 'main', clipId: 'looping' }] },
+      ] },
+      loopDurationMs: 100,
+      deterministicLoopReset: true,
+    }, {})
+    const { handle } = loadShow(artifact.code, artifact.metadata, 1)
+
+    handle.beforeRender(60)
+    expect(handle.getExports()).toMatchObject({ __pxlblz_show_c0_elapsed: 60, __pxlblz_show_c0_frames: 1 })
+    handle.beforeRender(60)
+
+    const exports = handle.getExports()
+    expect(exports.__pxlblz_show_elapsed_s).toBeCloseTo(0.02)
+    expect(exports.__pxlblz_show_c0_elapsed).toBeCloseTo(20)
+    expect(exports.__pxlblz_show_c0_elapsed_ms).toBeCloseTo(20)
+    expect(exports.__pxlblz_show_c0_frames).toBe(1)
+  })
+
+  it('captures an incoming Freeze placement from the beginning of its transition (#586)', () => {
+    const zones = [{ id: 'main', name: 'main', ranges: [{ start: 0, end: 3 }] }]
+    const artifact = compileShow({
+      clips: [
+        { id: 'outgoing', source: 'export function render2D(index, x, y) { rgb(0, 0, 0) }' },
+        {
+          id: 'incoming',
+          source: 'export var clock = 0\nexport function beforeRender(delta) { clock = clock + delta / 1000 }\nexport function render2D(index, x, y) { rgb(clock, 0, 0) }',
+        },
+      ],
+      zones,
+      routingLayouts: [{ id: 'default', name: 'Default', zones }],
+      routedSceneSequence: { scenes: [
+        {
+          holdMs: 1_000,
+          placements: [{ zoneName: 'main', clipId: 'outgoing' }],
+          transitionOut: { kind: 'crossfade', durationMs: 1_000, crossfadePolicy: 'live-live' },
+        },
+        {
+          holdMs: 1_000,
+          placements: [{
+            placementId: 'frozen-incoming',
+            zoneName: 'main',
+            clipId: 'incoming',
+            presentation: { mode: 'freeze' },
+          }],
+        },
+      ] },
+      loopDurationMs: 3_000,
+    }, {})
+    const { handle, pixel } = loadShow(artifact.code, artifact.metadata, 4)
+    const renderFrame = () => [0, 1, 2, 3].map((index) => {
+      handle.render2D(index, index % 2, Math.floor(index / 2))
+      return pixel()[0]
+    })
+
+    handle.beforeRender(1_100)
+    renderFrame()
+    handle.beforeRender(100)
+    const second = renderFrame()
+
+    expect(second.every((channel) => channel === second[0])).toBe(true)
+    expect(second[0]).toBeCloseTo(1.1 * 0.2)
+  })
+
+  it('does not let a scene-zero Freeze capture hijack later Freeze captures (#586)', () => {
+    const zones = [{ id: 'main', name: 'main', ranges: [{ start: 0, end: 3 }] }]
+    const clockSource = 'export var clock = 0\nexport function beforeRender(delta) { clock = clock + delta / 1000 }\nexport function render2D(index, x, y) { rgb(clock, 0, 0) }'
+    const artifact = compileShow({
+      clips: [
+        { id: 'first', source: clockSource },
+        { id: 'second', source: clockSource },
+      ],
+      zones,
+      routingLayouts: [{ id: 'default', name: 'Default', zones }],
+      routedSceneSequence: { scenes: [
+        {
+          holdMs: 500,
+          placements: [{
+            placementId: 'first-freeze',
+            zoneName: 'main',
+            clipId: 'first',
+            presentation: { mode: 'freeze' },
+          }],
+          transitionOut: { kind: 'cut', durationMs: 0 },
+        },
+        {
+          holdMs: 500,
+          placements: [{ zoneName: 'main', clipId: 'second' }],
+          transitionOut: { kind: 'crossfade', durationMs: 500, crossfadePolicy: 'live-live' },
+        },
+        {
+          holdMs: 500,
+          placements: [{
+            placementId: 'second-freeze',
+            zoneName: 'main',
+            clipId: 'second',
+            presentation: { mode: 'freeze' },
+          }],
+        },
+      ] },
+      loopDurationMs: 2_000,
+    }, {})
+    const { handle, pixel } = loadShow(artifact.code, artifact.metadata, 4)
+    const renderFrame = () => [0, 1, 2, 3].map((index) => {
+      handle.render2D(index, index % 2, Math.floor(index / 2))
+      return pixel()[0]
+    })
+
+    handle.beforeRender(1_600)
+    const first = renderFrame()
+    handle.beforeRender(100)
+    const second = renderFrame()
+
+    expect(first.every((channel) => channel === first[0])).toBe(true)
+    expect(second).toEqual(first)
+  })
+
+  it('keeps one Freeze capture across derived intervals for the same placement (#586)', () => {
+    const zones = [{ id: 'main', name: 'main', ranges: [{ start: 0, end: 3 }] }]
+    const artifact = compileShow({
+      clips: [{
+        id: 'shared',
+        source: 'export var clock = 0\nexport function beforeRender(delta) { clock = clock + delta / 1000 }\nexport function render2D(index, x, y) { rgb(clock, 0, 0) }',
+      }],
+      zones,
+      routingLayouts: [{ id: 'default', name: 'Default', zones }],
+      routedSceneSequence: { scenes: [
+        {
+          holdMs: 500,
+          placements: [{
+            placementId: 'continuous-freeze',
+            zoneName: 'main',
+            clipId: 'shared',
+            presentation: { mode: 'freeze' },
+          }],
+          transitionOut: { kind: 'cut', durationMs: 0 },
+        },
+        {
+          holdMs: 500,
+          placements: [{
+            placementId: 'continuous-freeze',
+            zoneName: 'main',
+            clipId: 'shared',
+            presentation: { mode: 'freeze' },
+          }],
+        },
+      ] },
+      loopDurationMs: 1_000,
+    }, {})
+    const { handle, pixel } = loadShow(artifact.code, artifact.metadata, 4)
+    const renderFrame = () => [0, 1, 2, 3].map((index) => {
+      handle.render2D(index, index % 2, Math.floor(index / 2))
+      return pixel()[0]
+    })
+
+    handle.beforeRender(100)
+    const entry = renderFrame()
+    handle.beforeRender(500)
+    const afterDerivedBoundary = renderFrame()
+
+    expect(afterDerivedBoundary).toEqual(entry)
+  })
+
+  it('does not intern Show-score stacks that differ only by Blink (#586)', () => {
+    const zones = [{ id: 'main', name: 'main', ranges: [{ start: 0, end: 3 }] }]
+    const placement = (brightness: number, blink = false) => ({
+      zoneName: 'main',
+      clipId: 'red',
+      brightness,
+      ...(blink ? { blink: { rateHz: 1, duty: 0.5, phase: 0 } } : {}),
+    })
+    const artifact = compileShow({
+      clips: [{ id: 'red', source: 'export function render2D(index, x, y) { rgb(1, 0, 0) }' }],
+      zones,
+      routingLayouts: [{ id: 'default', name: 'Default', zones, logical: { kind: 'single', zoneNames: ['main'] } }],
+      routedSceneSequence: { scenes: [
+        { holdMs: 100, placements: [placement(1)], transitionOut: { kind: 'crossfade', durationMs: 100, crossfadePolicy: 'live-live' } },
+        { holdMs: 100, placements: [placement(0.5)], transitionOut: { kind: 'crossfade', durationMs: 100, crossfadePolicy: 'live-live' } },
+        { holdMs: 100, placements: [placement(1, true)], transitionOut: { kind: 'crossfade', durationMs: 100, crossfadePolicy: 'live-live' } },
+        { holdMs: 100, placements: [placement(0.5)] },
+      ] },
+      loopDurationMs: 700,
+    }, {}, { showScoreSharing: 'force' })
+
+    expect(artifact.summary.specializations.showScore?.selected).toBe(false)
+  })
+
+  it('blocks authored Freeze or Strobe when exact capture cannot be honored (#586)', () => {
+    const zones = [{ id: 'main', name: 'main', ranges: [{ start: 0, end: 3 }] }]
+    const keyedFreeze = () => compileShow({
+      clips: [{ id: 'keyed', source: 'export function render2D(index, x, y) { rgb(1, 1, 1) }' }],
+      zones,
+      routingLayouts: [{ id: 'default', name: 'Default', zones }],
+      routedSceneSequence: { scenes: [
+        {
+          holdMs: 1_000,
+          placements: [{
+            placementId: 'keyed-freeze',
+            zoneName: 'main',
+            clipId: 'keyed',
+            presentation: { mode: 'freeze' },
+            effects: [{ id: 'black-key', kind: 'luma-key', target: 0, tolerance: 0.1, softness: 0.1 }],
+          }],
+          transitionOut: { kind: 'cut', durationMs: 0 },
+        },
+        { holdMs: 1_000, placements: [{ zoneName: 'main', clipId: 'keyed' }] },
+      ] },
+      loopDurationMs: 2_000,
+    }, {})
+
+    expect(keyedFreeze).toThrow(/Freeze.*cannot be compiled exactly/i)
+  })
+
   it('rejects an enabled Clip Viewport when routed output is 1D (#585)', () => {
     const zones = [{ id: 'main', name: 'main', ranges: [{ start: 0, end: 3 }] }]
 

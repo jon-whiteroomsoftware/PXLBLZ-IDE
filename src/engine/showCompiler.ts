@@ -9,6 +9,8 @@ import { emitFixedPoint } from './fxEmit'
 import { emitShowEasingExpression, showCubicBezierRuntimeSource, validateShowEasing } from './showEasing'
 import type {
   ShowClipEffect,
+  ShowClipBlink,
+  ShowClipPresentation,
   ShowClipTransform,
   ShowClipViewport,
   ShowCrossfadePolicy,
@@ -353,6 +355,10 @@ export interface ShowRoutedScenePlacementRecipe {
   transform?: ShowClipTransform
   viewport?: ShowClipViewport
   effects?: ShowClipEffect[]
+  /** Placement-owned held RGB presentation; omitted means Live. */
+  presentation?: ShowClipPresentation
+  /** Placement-owned visibility gate applied after held RGB and opacity. */
+  blink?: ShowClipBlink
 }
 
 export interface ShowRoutedScenePlacementRampRecipe {
@@ -415,6 +421,8 @@ export interface ShowRoutingSwitchRecipe {
 
 export interface ShowRecipe {
   clips: ShowClipRecipe[]
+  /** Opts the new timeline model into exact Pattern-state reset on Show wrap. */
+  deterministicLoopReset?: boolean
   crossfade?: ShowCrossfadeRecipe
   cut?: ShowCutRecipe
   adaptationRamp?: ShowAdaptationRampRecipe
@@ -910,6 +918,9 @@ interface CompiledFreezeAtEntry {
   candidate: ShowRenderTargetCandidate
   sceneIndex: number
   clipId: string
+  placementIndex: number
+  transitionInclusive: boolean
+  presentationOwnerKey: string
   member: CompiledMember
   pixelCount: number
 }
@@ -923,6 +934,9 @@ interface CompiledRefresh {
   candidate: ShowRenderTargetCandidate
   sceneIndex: number
   clipId: string
+  placementIndex: number
+  transitionInclusive: boolean
+  presentationOwnerKey: string
   cadenceMs: number
   member: CompiledMember
   pixelCount: number
@@ -1183,26 +1197,45 @@ function buildFreezeAtEntryCandidates(
   const memberById = new Map(members.map((member) => [member.id, member]))
   const result: CompiledFreezeAtEntry[] = []
   let cursor = 0
+  let precedingTransitionMs = 0
   sequence.scenes.forEach((scene, sceneIndex) => {
-    const start = cursor
-    const end = start + scene.holdMs
-    cursor = end + (scene.transitionOut?.kind === 'cut' ? 0 : scene.transitionOut?.durationMs ?? 0)
+    const holdStart = cursor
+    const outgoingTransitionMs = scene.transitionOut?.kind === 'cut' ? 0 : scene.transitionOut?.durationMs ?? 0
+    const incomingStart = Math.max(0, holdStart - precedingTransitionMs)
+    const holdEnd = holdStart + scene.holdMs
+    cursor = holdEnd + outgoingTransitionMs
+    precedingTransitionMs = outgoingTransitionMs
     if ((scene.propertyTracks?.length ?? 0) > 0) return
-    const clipIds = [...new Set(scene.placements.map((placement) => placement.clipId))]
-    for (const clipId of clipIds) {
+    for (const [placementIndex, placement] of scene.placements.entries()) {
+      const clipId = placement.clipId
       const member = memberById.get(clipId)
-      if (!member || member.evaluationPolicy !== 'freeze-at-entry' || memberHasContentKey(member)) continue
-      const placements = scene.placements.filter((placement) => placement.clipId === clipId)
-      if (placements.length !== 1 || placements[0].zoneName !== routeZoneName) continue
+      const placementHasContentKey = normalizeShowClipEffects(
+        showClipTransformEffects(placement.transform, placement.effects, true),
+      ).some((effect) => effect.kind === 'luma-key' || effect.kind === 'chroma-key')
+      const legacyMemberFreeze = member?.evaluationPolicy === 'freeze-at-entry'
+        && scene.placements.filter((candidate) => candidate.clipId === clipId).length === 1
+      const transitionInclusive = placement.presentation?.mode === 'freeze'
+      if (
+        !member
+        || (placement.presentation?.mode !== 'freeze' && !legacyMemberFreeze)
+        || memberHasContentKey(member)
+        || placementHasContentKey
+        || placement.zoneName !== routeZoneName
+      ) continue
       const renderOperationsPerPixel = Math.max(
         estimateShowPatternRenderOperations(member.resourceSource, 'render') ?? 0,
         estimateShowPatternRenderOperations(member.resourceSource, 'render2D') ?? 0,
         1,
       )
       const candidate: ShowRenderTargetCandidate = {
-        id: `freeze:routed:${sceneIndex}:${clipId}`,
+        id: `freeze:routed:${sceneIndex}:${placementIndex}:${clipId}`,
         kind: 'rgb-snapshot',
-        lifetime: { kind: 'scene', start, end, key: `freeze-scene-${sceneIndex}` },
+        lifetime: {
+          kind: 'scene',
+          start: transitionInclusive ? incomingStart : holdStart,
+          end: transitionInclusive ? cursor : holdEnd,
+          key: `freeze-scene-${sceneIndex}`,
+        },
         invalidatedBy: [
           'scene-exit',
           'clip-exit',
@@ -1219,7 +1252,18 @@ function buildFreezeAtEntryCandidates(
         expectedReuseCount: Math.max(1, Math.ceil(scene.holdMs / (1_000 / 30)) - 1),
         replayCost: pixelCount * 3,
       }
-      result.push({ candidate, sceneIndex, clipId, member, pixelCount })
+      result.push({
+        candidate,
+        sceneIndex,
+        clipId,
+        placementIndex,
+        transitionInclusive,
+        presentationOwnerKey: placement.presentation?.mode === 'freeze' && placement.placementId
+          ? placement.placementId
+          : `scene:${sceneIndex}:placement:${placementIndex}`,
+        member,
+        pixelCount,
+      })
     }
   })
   return result
@@ -1240,18 +1284,34 @@ function buildRefreshCandidates(
   const memberById = new Map(members.map((member) => [member.id, member]))
   const result: CompiledRefresh[] = []
   let cursor = 0
+  let precedingTransitionMs = 0
   sequence.scenes.forEach((scene, sceneIndex) => {
-    const start = cursor
-    const end = start + scene.holdMs
-    cursor = end + (scene.transitionOut?.kind === 'cut' ? 0 : scene.transitionOut?.durationMs ?? 0)
+    const holdStart = cursor
+    const outgoingTransitionMs = scene.transitionOut?.kind === 'cut' ? 0 : scene.transitionOut?.durationMs ?? 0
+    const incomingStart = Math.max(0, holdStart - precedingTransitionMs)
+    const holdEnd = holdStart + scene.holdMs
+    cursor = holdEnd + outgoingTransitionMs
+    precedingTransitionMs = outgoingTransitionMs
     if ((scene.propertyTracks?.length ?? 0) > 0) return
-    const clipIds = [...new Set(scene.placements.map((placement) => placement.clipId))]
-    for (const clipId of clipIds) {
+    for (const [placementIndex, placement] of scene.placements.entries()) {
+      const clipId = placement.clipId
       const member = memberById.get(clipId)
-      if (!member || member.evaluationPolicy !== 'refresh' || memberHasContentKey(member)) continue
-      const placements = scene.placements.filter((placement) => placement.clipId === clipId)
-      if (placements.length !== 1 || placements[0].zoneName !== routeZoneName) continue
-      const cadenceMs = member.refreshIntervalMs
+      const placementHasContentKey = normalizeShowClipEffects(
+        showClipTransformEffects(placement.transform, placement.effects, true),
+      ).some((effect) => effect.kind === 'luma-key' || effect.kind === 'chroma-key')
+      const legacyMemberRefresh = member?.evaluationPolicy === 'refresh'
+        && scene.placements.filter((candidate) => candidate.clipId === clipId).length === 1
+      const transitionInclusive = placement.presentation?.mode === 'strobe'
+      if (
+        !member
+        || (placement.presentation?.mode !== 'strobe' && !legacyMemberRefresh)
+        || memberHasContentKey(member)
+        || placementHasContentKey
+        || placement.zoneName !== routeZoneName
+      ) continue
+      const cadenceMs = placement.presentation?.mode === 'strobe'
+        ? placement.presentation.cadenceMs
+        : member.refreshIntervalMs
       const renderOperationsPerPixel = Math.max(
         estimateShowPatternRenderOperations(member.resourceSource, 'render') ?? 0,
         estimateShowPatternRenderOperations(member.resourceSource, 'render2D') ?? 0,
@@ -1260,9 +1320,14 @@ function buildRefreshCandidates(
       const expectedFrameCount = Math.max(1, Math.ceil(scene.holdMs / (1_000 / 30)))
       const expectedCaptureCount = Math.max(1, Math.ceil(scene.holdMs / cadenceMs))
       const candidate: ShowRenderTargetCandidate = {
-        id: `refresh:routed:${sceneIndex}:${clipId}`,
+        id: `refresh:routed:${sceneIndex}:${placementIndex}:${clipId}`,
         kind: 'rgb-snapshot',
-        lifetime: { kind: 'scene', start, end, key: `refresh-scene-${sceneIndex}` },
+        lifetime: {
+          kind: 'scene',
+          start: transitionInclusive ? incomingStart : holdStart,
+          end: transitionInclusive ? cursor : holdEnd,
+          key: `refresh-scene-${sceneIndex}`,
+        },
         invalidatedBy: [
           'refresh-cadence',
           'scene-exit',
@@ -1280,7 +1345,19 @@ function buildRefreshCandidates(
         expectedReuseCount: Math.max(1, expectedFrameCount - expectedCaptureCount),
         replayCost: pixelCount * 3,
       }
-      result.push({ candidate, sceneIndex, clipId, cadenceMs, member, pixelCount })
+      result.push({
+        candidate,
+        sceneIndex,
+        clipId,
+        placementIndex,
+        transitionInclusive,
+        presentationOwnerKey: placement.presentation?.mode === 'strobe' && placement.placementId
+          ? placement.placementId
+          : `scene:${sceneIndex}:placement:${placementIndex}`,
+        cadenceMs,
+        member,
+        pixelCount,
+      })
     }
   })
   return result
@@ -2288,6 +2365,32 @@ export function compileShow(
     members,
     renderTargetPixelCount,
   )
+  const requiredClipPresentationCandidates = new Map<string, 'Freeze' | 'Strobe'>()
+  expandedRecipe.routedSceneSequence?.scenes.forEach((scene, sceneIndex) => {
+    scene.placements.forEach((placement, placementIndex) => {
+      if (placement.presentation?.mode === 'freeze') {
+        requiredClipPresentationCandidates.set(
+          `freeze:routed:${sceneIndex}:${placementIndex}:${placement.clipId}`,
+          'Freeze',
+        )
+      } else if (placement.presentation?.mode === 'strobe') {
+        requiredClipPresentationCandidates.set(
+          `refresh:routed:${sceneIndex}:${placementIndex}:${placement.clipId}`,
+          'Strobe',
+        )
+      }
+    })
+  })
+  const availableClipPresentationCandidates = new Set([
+    ...freezeAtEntryCaptures.map((capture) => capture.candidate.id),
+    ...refreshCaptures.map((capture) => capture.candidate.id),
+  ])
+  for (const [candidateId, mode] of requiredClipPresentationCandidates) {
+    if (availableClipPresentationCandidates.has(candidateId)) continue
+    throw new Error(
+      `${mode} Clip presentation cannot be compiled exactly for ${candidateId}; this release requires one static, unkeyed placement in a single-zone routed Scene.`,
+    )
+  }
   const renderTargetCandidates = [
     ...buildShowRenderTargetCandidates(expandedRecipe, renderTargetPixelCount),
     ...[buildTrailsRenderTargetCandidate(expandedRecipe)].filter((candidate): candidate is ShowRenderTargetCandidate => Boolean(candidate)),
@@ -2306,6 +2409,13 @@ export function compileShow(
   const selectedRenderTargetCandidates = new Set(
     preliminaryRenderTargetPlan.assignments.map((assignment) => assignment.candidateId),
   )
+  for (const [candidateId, mode] of requiredClipPresentationCandidates) {
+    if (selectedRenderTargetCandidates.has(candidateId)) continue
+    const decision = preliminaryRenderTargetPlan.decisions.find((candidate) => candidate.candidateId === candidateId)
+    throw new Error(
+      `${mode} Clip presentation cannot be compiled exactly (${decision?.reason ?? 'render-target-unavailable'}): ${decision?.detail ?? 'the required RGB cache is unavailable'}.`,
+    )
+  }
   const trailsEffect = normalizeShowOutputEffects(expandedRecipe.outputEffects)
     .find((effect): effect is Extract<ShowOutputEffect, { kind: 'trails' }> => effect.kind === 'trails')
   const trailsSelected = Boolean(trailsEffect && selectedRenderTargetCandidates.has(TRAILS_CANDIDATE_ID))
@@ -2334,13 +2444,19 @@ export function compileShow(
   const freezeAtEntryByCandidate = new Map(
     freezeAtEntryCaptures.map((capture) => [capture.candidate.id, capture]),
   )
-  const selectedFreezeAtEntryCaptures = preliminaryRenderTargetPlan.assignments.flatMap((assignment, index) => {
+  const freezeOwnerTokenByKey = new Map<string, number>()
+  const selectedFreezeAtEntryCaptures = preliminaryRenderTargetPlan.assignments.flatMap((assignment) => {
     const capture = freezeAtEntryByCandidate.get(assignment.candidateId)
     if (!capture) return []
+    let ownerToken = freezeOwnerTokenByKey.get(capture.presentationOwnerKey)
+    if (ownerToken === undefined) {
+      ownerToken = freezeOwnerTokenByKey.size + 1
+      freezeOwnerTokenByKey.set(capture.presentationOwnerKey, ownerToken)
+    }
     return [{
       ...capture,
       renderTarget: planShowRenderTargetArena(renderTargetPixelCount, 'stage-rgb', assignment.planes),
-      ownerToken: index + 1,
+      ownerToken,
     } satisfies SelectedFreezeAtEntry]
   })
   for (const capture of selectedFreezeAtEntryCaptures) {
@@ -2350,13 +2466,19 @@ export function compileShow(
   const refreshByCandidate = new Map(
     refreshCaptures.map((capture) => [capture.candidate.id, capture]),
   )
-  const selectedRefreshCaptures = preliminaryRenderTargetPlan.assignments.flatMap((assignment, index) => {
+  const refreshOwnerTokenByKey = new Map<string, number>()
+  const selectedRefreshCaptures = preliminaryRenderTargetPlan.assignments.flatMap((assignment) => {
     const capture = refreshByCandidate.get(assignment.candidateId)
     if (!capture) return []
+    let ownerToken = refreshOwnerTokenByKey.get(capture.presentationOwnerKey)
+    if (ownerToken === undefined) {
+      ownerToken = refreshOwnerTokenByKey.size + 1
+      refreshOwnerTokenByKey.set(capture.presentationOwnerKey, ownerToken)
+    }
     return [{
       ...capture,
       renderTarget: planShowRenderTargetArena(renderTargetPixelCount, 'stage-rgb', assignment.planes),
-      ownerToken: index + 1,
+      ownerToken,
     } satisfies SelectedRefresh]
   })
   for (const capture of selectedRefreshCaptures) {
@@ -2472,6 +2594,7 @@ export function compileShow(
           directColorSinksEnabled: (options?.directColorSinks ?? true) && !trailsSelected,
           functionValuedSinkRebinding: options?.functionValuedSinkRebinding ?? false,
         },
+        deterministicLoopReset: expandedRecipe.deterministicLoopReset,
       })
       : null
   const emittedCode = routedSceneEmission
@@ -4062,6 +4185,7 @@ interface RoutedSceneSequenceEmissionOptions {
     directColorSinksEnabled?: boolean
     functionValuedSinkRebinding?: boolean
   }
+  deterministicLoopReset?: boolean
 }
 
 function emitRoutedSceneSequenceShowCode(
@@ -4098,9 +4222,16 @@ function emitRoutedSceneSequenceShowCode(
   const showScoreSharing = toggles.showScoreSharing ?? 'auto'
   const directColorSinksEnabled = toggles.directColorSinksEnabled ?? false
   const functionValuedSinkRebinding = toggles.functionValuedSinkRebinding ?? false
+  const deterministicLoopReset = emissionOptions.deterministicLoopReset ?? false
   if (layouts.length === 0) throw new Error('compileShow routed scene sequence requires a routing layout.')
   const layoutIndex = new Map(layouts.map((layout, index) => [layout.id, index]))
   const memberById = new Map(members.map((member) => [member.id, member]))
+  const freezeOwnerTokenByPlacement = new Map(freezeAtEntryCaptures.map((capture) => (
+    [`${capture.sceneIndex}:${capture.placementIndex}`, capture.ownerToken]
+  )))
+  const refreshOwnerTokenByPlacement = new Map(refreshCaptures.map((capture) => (
+    [`${capture.sceneIndex}:${capture.placementIndex}`, capture.ownerToken]
+  )))
   const physicalZonesByName = new Map(layouts.flatMap((layout) => layout.zones).map((zone) => [zone.name, zone]))
   const logicalZoneCount = Math.max(1, ...layouts.map((layout) => layout.logical?.zoneNames.length ?? 0))
   // #570: scene resolution and the hold/transition timeline come from the
@@ -4116,6 +4247,8 @@ function emitRoutedSceneSequenceShowCode(
         member: memberById.get(placement.clipId)!,
         consumerId: patternOutputConsumerId(sceneIndex, placementIndex),
         slotOwner: patternSlotRuntimePlan?.ownersByPlacement.get(patternSlotPlacementKey(sceneIndex, placementIndex)),
+        freezeOwnerToken: freezeOwnerTokenByPlacement.get(`${sceneIndex}:${placementIndex}`),
+        refreshOwnerToken: refreshOwnerTokenByPlacement.get(`${sceneIndex}:${placementIndex}`),
       })),
       transitionRamps: scene.transitionRamps?.map((ramp) => ({ ...ramp, member: memberById.get(ramp.clipId)! })),
     }),
@@ -4246,6 +4379,65 @@ function emitRoutedSceneSequenceShowCode(
   })()
   const exactCandidateEnabled = motionTransitionSharing !== 'none' && exactSharedMotionPlan !== null
   const familyKernelEnabled = exactCandidateEnabled && motionTransitionSharing !== 'structure'
+  const activeIntervalsByMember = new Map<CompiledMember, Array<{ startMs: number; endMs: number }>>()
+  const continuityWindowByMember = new Map<CompiledMember, { startMs: number; endMs: number }>()
+  for (const segment of segments) {
+    const activeScenes = segment.kind === 'transition'
+      ? [scenes[segment.sceneIndex], scenes[segment.sceneIndex + 1]]
+      : [scenes[segment.sceneIndex]]
+    for (const member of new Set(activeScenes.flatMap((scene) => scene.placements.map((placement) => placement.member)))) {
+      activeIntervalsByMember.set(member, [
+        ...(activeIntervalsByMember.get(member) ?? []),
+        { startMs: segment.startMs, endMs: segment.endMs },
+      ])
+    }
+  }
+  for (const [member, intervals] of activeIntervalsByMember) {
+    const merged: Array<{ startMs: number; endMs: number }> = []
+    for (const interval of intervals.sort((left, right) => left.startMs - right.startMs)) {
+      const previous = merged[merged.length - 1]
+      if (previous && interval.startMs <= previous.endMs) previous.endMs = Math.max(previous.endMs, interval.endMs)
+      else merged.push({ ...interval })
+    }
+    if (merged.length > 1) continuityWindowByMember.set(member, {
+      startMs: merged[0].startMs,
+      endMs: merged[merged.length - 1].endMs,
+    })
+  }
+  const continuityMembers = deterministicLoopReset ? [...continuityWindowByMember.keys()] : []
+  const continuityMemberSet = new Set(continuityMembers)
+  const advancedFlag = (member: CompiledMember) => `${member.prefix}_advanced_this_frame`
+  const loopResetLines = members.flatMap((member) => [
+    ...member.resetAssignments,
+    `${member.elapsedName} = ${member.adaptation.timeOffsetMs}`,
+    ...(member.usesTime ? [`${member.elapsedSecondsName} = ${member.adaptation.timeOffsetMs / 1_000}`] : []),
+    ...(member.adaptation.steppedClock
+      ? [`${member.prefix}_step_pending_ms = 0`, `${member.prefix}_step_pending_delta = 0`]
+      : []),
+    ...(member.slotOwnerCount > 1
+      ? [
+          `${member.prefix}_slot_owner = -1`,
+          ...Array.from({ length: member.slotOwnerCount }, (_, index) => `${member.prefix}_slot_initialized[${index}] = 0`),
+        ]
+      : []),
+  ])
+  const loopAdvancePrelude = deterministicLoopReset ? `var __pxlblz_show_loop_wrapped = __pxlblz_show_elapsed_s + delta / 1000 >= ${totalMs / 1_000}
+  __pxlblz_show_elapsed_s = (__pxlblz_show_elapsed_s + delta / 1000) % ${totalMs / 1_000}
+  if (__pxlblz_show_loop_wrapped) {
+${indentBlock(loopResetLines.join('\n'), 4)}
+    delta = __pxlblz_show_elapsed_s * 1000
+  }${continuityMembers.length > 0 ? `
+${continuityMembers.map((member) => `  ${advancedFlag(member)} = 0`).join('\n')}` : ''}`
+    : `__pxlblz_show_elapsed_s = (__pxlblz_show_elapsed_s + delta / 1000) % ${totalMs / 1_000}`
+  const hiddenContinuityFunction = continuityMembers.length > 0
+    ? `function __pxlblz_show_advance_hidden_instances(delta) {
+${continuityMembers.map((member) => {
+      const window = continuityWindowByMember.get(member)!
+      return `  if (!${advancedFlag(member)} && __pxlblz_show_elapsed_s >= ${window.startMs / 1_000} && __pxlblz_show_elapsed_s < ${window.endMs / 1_000}) ${member.prefix}_advance(delta)`
+    }).join('\n')}
+}`
+    : ''
+  const hiddenContinuityCall = continuityMembers.length > 0 ? '__pxlblz_show_advance_hidden_instances(delta)' : ''
   const sceneLocalTimeExpression = (sceneIndex: number) => {
     const scene = scenes[sceneIndex]
     const offset = scene.localTimeOffsetMs ?? 0
@@ -4322,7 +4514,8 @@ ${member.prefix}_mir_base_i = ${member.prefix}_adapt_mirror * (${member.pixelCou
             : ''}${propertyTrackAssignments
               ? `\n${propertyTrackAssignments}`
               : ''}
-${member.prefix}_advance(delta)`
+${member.prefix}_advance(delta)${continuityMemberSet.has(member) ? `
+${advancedFlag(member)} = 1` : ''}`
       return {
         member,
         code: code.split('\n').map((line) => line.trim()).filter(Boolean).join('\n'),
@@ -4395,6 +4588,8 @@ ${member.prefix}_advance(delta)`
         transform: placement.transform,
         viewport: placement.viewport,
         effects: placement.effects,
+        presentation: placement.presentation,
+        blink: placement.blink,
         contentKey: memberHasContentKey(placement.member),
       }))),
     })),
@@ -4865,7 +5060,9 @@ function __pxlblz_show_capture_transition_rgb(r, g, b) {
     ? [
         '__pxlblz_show_freeze_target = -1',
         ...freezeAtEntryCaptures.map((capture, index) => (
-          `${index === 0 ? 'if' : 'else if'} (__pxlblz_show_scene == ${capture.sceneIndex}${hasTransitions ? ' && __pxlblz_show_transition < 0' : ''}) __pxlblz_show_freeze_target = ${capture.ownerToken}`
+          `${index === 0 ? 'if' : 'else if'} (${hasTransitions && capture.transitionInclusive && capture.sceneIndex > 0
+            ? `__pxlblz_show_scene == ${capture.sceneIndex} || __pxlblz_show_transition == ${capture.sceneIndex - 1}`
+            : `__pxlblz_show_scene == ${capture.sceneIndex}${hasTransitions ? ' && __pxlblz_show_transition < 0' : ''}`}) __pxlblz_show_freeze_target = ${capture.ownerToken}`
         )),
         'if (__pxlblz_show_elapsed_s < __pxlblz_show_freeze_previous_elapsed || __pxlblz_show_freeze_target != __pxlblz_show_freeze_owner) {',
         '  __pxlblz_show_freeze_owner = __pxlblz_show_freeze_target',
@@ -4879,7 +5076,9 @@ function __pxlblz_show_capture_transition_rgb(r, g, b) {
         '__pxlblz_show_refresh_target = -1',
         '__pxlblz_show_refresh_cadence_s = 1',
         ...refreshCaptures.map((capture, index) => (
-          `${index === 0 ? 'if' : 'else if'} (__pxlblz_show_scene == ${capture.sceneIndex}${hasTransitions ? ' && __pxlblz_show_transition < 0' : ''}) { __pxlblz_show_refresh_target = ${capture.ownerToken}; __pxlblz_show_refresh_cadence_s = ${capture.cadenceMs / 1_000} }`
+          `${index === 0 ? 'if' : 'else if'} (${hasTransitions && capture.transitionInclusive && capture.sceneIndex > 0
+            ? `__pxlblz_show_scene == ${capture.sceneIndex} || __pxlblz_show_transition == ${capture.sceneIndex - 1}`
+            : `__pxlblz_show_scene == ${capture.sceneIndex}${hasTransitions ? ' && __pxlblz_show_transition < 0' : ''}`}) { __pxlblz_show_refresh_target = ${capture.ownerToken}; __pxlblz_show_refresh_cadence_s = ${capture.cadenceMs / 1_000} }`
         )),
         '__pxlblz_show_refresh_target_epoch = floor(__pxlblz_show_elapsed_s / __pxlblz_show_refresh_cadence_s)',
         'if (__pxlblz_show_elapsed_s < __pxlblz_show_refresh_previous_elapsed || __pxlblz_show_refresh_target != __pxlblz_show_refresh_owner || (__pxlblz_show_refresh_target >= 0 && __pxlblz_show_refresh_target_epoch != __pxlblz_show_refresh_epoch)) {',
@@ -4954,6 +5153,7 @@ function __pxlblz_show_capture_transition_rgb(r, g, b) {
       ? [
           'var __pxlblz_show_freeze_owner = -1',
           'var __pxlblz_show_freeze_target = -1',
+          'var __pxlblz_show_active_freeze_owner = -1',
           'var __pxlblz_show_freeze_ready = 0',
           'var __pxlblz_show_freeze_previous_elapsed = -1',
         ]
@@ -4962,6 +5162,7 @@ function __pxlblz_show_capture_transition_rgb(r, g, b) {
       ? [
           'var __pxlblz_show_refresh_owner = -1',
           'var __pxlblz_show_refresh_target = -1',
+          'var __pxlblz_show_active_refresh_owner = -1',
           'var __pxlblz_show_refresh_ready = 0',
           'var __pxlblz_show_refresh_epoch = -1',
           'var __pxlblz_show_refresh_target_epoch = -1',
@@ -5001,10 +5202,12 @@ function __pxlblz_show_capture_transition_rgb(r, g, b) {
       : []),
     ...(usesRouteLayout ? ['var __pxlblz_show_route_layout = 0'] : []),
     ...(propertyRamps ? [`var __pxlblz_show_route_split_position = ${clampNumber(propertyRamps.splitPosition.initial, 0, 1)}`] : []),
+    ...continuityMembers.map((member) => `var ${advancedFlag(member)} = 0`),
+    ...(hiddenContinuityFunction ? [hiddenContinuityFunction] : []),
     `export function beforeRender(delta) {
-  __pxlblz_show_elapsed_s = (__pxlblz_show_elapsed_s + delta / 1000) % ${totalMs / 1000}
+  ${loopAdvancePrelude}
 ${usesRouteLayout ? '  __pxlblz_show_route_layout = 0\n' : ''}
-${layoutSelectLines}${layoutSelectLines ? '\n' : ''}${propertyRamps ? `${emitRoutingPropertyAssignments(propertyRamps)}\n` : ''}  ${schedulerBranches}${coordinateTargetAssignments ? `\n${indentBlock(coordinateTargetAssignments, 2)}` : ''}${freezeLifecycle ? `\n${indentBlock(freezeLifecycle, 2)}` : ''}${refreshLifecycle ? `\n${indentBlock(refreshLifecycle, 2)}` : ''}${rollingRefreshLifecycle ? `\n${indentBlock(rollingRefreshLifecycle, 2)}` : ''}${patternOutputReuseGroups.length > 0 ? `\n${indentBlock(emitPatternOutputReusePrepass(patternOutputReuseGroups), 2)}` : ''}
+${layoutSelectLines}${layoutSelectLines ? '\n' : ''}${propertyRamps ? `${emitRoutingPropertyAssignments(propertyRamps)}\n` : ''}  ${schedulerBranches}${hiddenContinuityCall ? `\n  ${hiddenContinuityCall}` : ''}${coordinateTargetAssignments ? `\n${indentBlock(coordinateTargetAssignments, 2)}` : ''}${freezeLifecycle ? `\n${indentBlock(freezeLifecycle, 2)}` : ''}${refreshLifecycle ? `\n${indentBlock(refreshLifecycle, 2)}` : ''}${rollingRefreshLifecycle ? `\n${indentBlock(rollingRefreshLifecycle, 2)}` : ''}${patternOutputReuseGroups.length > 0 ? `\n${indentBlock(emitPatternOutputReusePrepass(patternOutputReuseGroups), 2)}` : ''}
 }`,
     `export function ${outputDimension === 2 ? 'render2D(index, x, y)' : 'render(index)'} {
   ${renderBody}
@@ -5156,18 +5359,21 @@ ${indentBlock(body, 2)}
       'var __pxlblz_show_score_from_stack = 0',
       'var __pxlblz_show_score_to_stack = 1',
       'var __pxlblz_show_score_kernel = -1',
+      ...continuityMembers.map((member) => `var ${advancedFlag(member)} = 0`),
+      ...(hiddenContinuityFunction ? [hiddenContinuityFunction] : []),
       ...(scoreUsesSnapshot
         ? ['var __pxlblz_show_score_snapshot_boundary = -1', 'var __pxlblz_show_snapshot_ready = 0']
         : []),
       `export function beforeRender(delta) {
-  __pxlblz_show_elapsed_s = (__pxlblz_show_elapsed_s + delta / 1000) % ${totalMs / 1000}
+  ${loopAdvancePrelude}
   var __pxlblz_show_score_position = __pxlblz_show_elapsed_s - ${firstBoundarySeconds}
   if (__pxlblz_show_score_position < 0) {
     __pxlblz_show_scene = 0
     __pxlblz_show_transition = -1
     __pxlblz_show_score_stack = ${scorePlan.stackPlanIndexByScene[0]}
     __pxlblz_show_score_setup_hold(delta)
-    return
+${hiddenContinuityCall ? `    ${hiddenContinuityCall}
+` : ''}    return
   }
   var __pxlblz_show_score_boundary = floor(__pxlblz_show_score_position / ${periodSeconds})
   if (__pxlblz_show_score_boundary >= ${scorePlan.boundaries.length}) {
@@ -5175,7 +5381,8 @@ ${indentBlock(body, 2)}
     __pxlblz_show_transition = -1
     __pxlblz_show_score_stack = ${lastStack}
     __pxlblz_show_score_setup_hold(delta)
-    return
+${hiddenContinuityCall ? `    ${hiddenContinuityCall}
+` : ''}    return
   }
   var __pxlblz_show_score_local = __pxlblz_show_score_position - __pxlblz_show_score_boundary * ${periodSeconds}
   var __pxlblz_show_score_offset = __pxlblz_show_score_boundary * 5
@@ -5200,7 +5407,8 @@ ${scoreUsesSnapshot ? `    if (__pxlblz_show_score_snapshot_boundary != __pxlblz
     __pxlblz_show_score_stack = __pxlblz_show_score_to_stack
     __pxlblz_show_score_setup_hold(delta)
   }
-}`,
+${hiddenContinuityCall ? `  ${hiddenContinuityCall}
+` : ''}}`,
       `export function render2D(index, x, y) {
   if (__pxlblz_show_transition >= 0) {
 ${indentBlock(transitionRender, 4)}
@@ -5302,6 +5510,8 @@ type ResolvedRoutedScenePlacement = ShowRoutedScenePlacementRecipe & {
   member: CompiledMember
   consumerId: string
   slotOwner?: CompiledPatternSlotOwner
+  freezeOwnerToken?: number
+  refreshOwnerToken?: number
 }
 type ResolvedRoutedScenePlacementRamp = ShowRoutedScenePlacementRampRecipe & { member: CompiledMember }
 
@@ -6716,6 +6926,7 @@ function routedPlacementIsOpaque(
   propertyTracks?: ShowPropertyAnimationTrack[],
 ): boolean {
   return !placement.viewport?.enabled
+    && (!placement.blink || placement.blink.duty >= 1)
     && !routedPlacementHasOpacityTrack(placement, propertyTracks)
     && clampNumber(placement.opacity ?? 1, 0, 1) === 1
 }
@@ -6782,8 +6993,9 @@ function routedPlacementStaticOpacity(
   propertyTracks?: ShowPropertyAnimationTrack[],
 ): number | null {
   return routedPlacementHasOpacityTrack(placement, propertyTracks)
+    || Boolean(placement.blink && placement.blink.duty > 0 && placement.blink.duty < 1)
     ? null
-    : clampNumber(placement.opacity ?? 1, 0, 1)
+    : clampNumber(placement.opacity ?? 1, 0, 1) * (placement.blink?.duty === 0 ? 0 : 1)
 }
 
 function routedStackHasEndpointOptimization(
@@ -6824,7 +7036,15 @@ function emitRoutedPlacementCapture(
           : {},
       )
     : null
-  const opacity = viewportMask ? `(${baseOpacity}) * (${viewportMask})` : baseOpacity
+  const maskedOpacity = viewportMask ? `(${baseOpacity}) * (${viewportMask})` : baseOpacity
+  const blinkGate = placement.blink
+    ? placement.blink.duty <= 0
+      ? '0'
+      : placement.blink.duty >= 1
+        ? '1'
+        : `(frac(__pxlblz_show_elapsed_s * ${clampNumber(placement.blink.rateHz, 0.01, 60)} + ${clampNumber(placement.blink.phase, 0, 1)}) < ${clampNumber(placement.blink.duty, 0, 1)})`
+    : null
+  const opacity = blinkGate ? `(${maskedOpacity}) * ${blinkGate}` : maskedOpacity
   const brightnessTrack = placementTracks.find((track) => (
     track.target.kind === 'placement-view' && track.target.property === 'brightness'
   ))
@@ -6858,6 +7078,12 @@ function emitRoutedPlacementCapture(
         placementTracks,
         localTimeExpression,
       )),
+      ...(member.freezeOwnerTokens.length > 0
+        ? [`__pxlblz_show_active_freeze_owner = ${placement.freezeOwnerToken ?? -1}`]
+        : []),
+      ...(member.refreshOwnerTokens.length > 0
+        ? [`__pxlblz_show_active_refresh_owner = ${placement.refreshOwnerToken ?? -1}`]
+        : []),
       capture,
     ],
     opacity,
@@ -7550,7 +7776,7 @@ function emitFreezeAtEntryReplay(member: CompiledMember, indexExpression: string
   const ownsCache = member.freezeOwnerTokens
     .map((token) => `__pxlblz_show_freeze_owner == ${token}`)
     .join(' || ')
-  return `  if (__pxlblz_show_freeze_ready && (${ownsCache})) {
+  return `  if (__pxlblz_show_freeze_ready && __pxlblz_show_active_freeze_owner == __pxlblz_show_freeze_owner && (${ownsCache})) {
     ${member.prefix}_r = ${emitShowRenderTargetRead(target, 'r', indexExpression)}
     ${member.prefix}_g = ${emitShowRenderTargetRead(target, 'g', indexExpression)}
     ${member.prefix}_b = ${emitShowRenderTargetRead(target, 'b', indexExpression)}${memberHasContentKey(member) ? `
@@ -7566,7 +7792,7 @@ function emitFreezeAtEntryCapture(member: CompiledMember, indexExpression: strin
   const ownsCache = member.freezeOwnerTokens
     .map((token) => `__pxlblz_show_freeze_owner == ${token}`)
     .join(' || ')
-  return `  if (!__pxlblz_show_freeze_ready && (${ownsCache})) {
+  return `  if (!__pxlblz_show_freeze_ready && __pxlblz_show_active_freeze_owner == __pxlblz_show_freeze_owner && (${ownsCache})) {
     ${emitShowRenderTargetWrite(target, 'r', indexExpression, `${member.prefix}_r`)}
     ${emitShowRenderTargetWrite(target, 'g', indexExpression, `${member.prefix}_g`)}
     ${emitShowRenderTargetWrite(target, 'b', indexExpression, `${member.prefix}_b`)}
@@ -7581,7 +7807,7 @@ function emitRefreshReplay(member: CompiledMember, indexExpression: string): str
   const ownsCache = member.refreshOwnerTokens
     .map((token) => `__pxlblz_show_refresh_owner == ${token}`)
     .join(' || ')
-  return `  if (__pxlblz_show_refresh_ready && (${ownsCache})) {
+  return `  if (__pxlblz_show_refresh_ready && __pxlblz_show_active_refresh_owner == __pxlblz_show_refresh_owner && (${ownsCache})) {
     ${member.prefix}_r = ${emitShowRenderTargetRead(target, 'r', indexExpression)}
     ${member.prefix}_g = ${emitShowRenderTargetRead(target, 'g', indexExpression)}
     ${member.prefix}_b = ${emitShowRenderTargetRead(target, 'b', indexExpression)}
@@ -7596,7 +7822,7 @@ function emitRefreshCapture(member: CompiledMember, indexExpression: string): st
   const ownsCache = member.refreshOwnerTokens
     .map((token) => `__pxlblz_show_refresh_owner == ${token}`)
     .join(' || ')
-  return `  if (!__pxlblz_show_refresh_ready && (${ownsCache})) {
+  return `  if (!__pxlblz_show_refresh_ready && __pxlblz_show_active_refresh_owner == __pxlblz_show_refresh_owner && (${ownsCache})) {
     ${emitShowRenderTargetWrite(target, 'r', indexExpression, `${member.prefix}_r`)}
     ${emitShowRenderTargetWrite(target, 'g', indexExpression, `${member.prefix}_g`)}
     ${emitShowRenderTargetWrite(target, 'b', indexExpression, `${member.prefix}_b`)}

@@ -371,11 +371,22 @@ The working grammar is compact:
 ## 14. Clips: time, adaptation, and Effects
 
 A clip references a personal or built-in Pattern and adapts it
-non-destructively. Each clip owns private time: **Continue** carries a
-Pattern instance across a boundary, **Restart** begins a fresh instance and
-clock. Animation controls include speed from `0×` to `4×`, start offset,
-smooth or stepped cadence, and a light shutter; clips may span adjacent zones
-as one canvas or repeat per zone with synchronized instances.
+non-destructively. The referenced **Pattern instance** owns private state, its
+clock, exported controls, Animation speed, time offset, and optional
+**Stutter** step. More than one Clip may share that instance, so a change to an
+instance-owned control changes every linked Clip. **Make Pattern Independent**
+clones those settings and local automation for the selected Clip;
+**Rejoin Shared Pattern** deliberately adopts another compatible instance.
+Splitting a Clip keeps the same instance and therefore preserves the visible
+motion through the cut.
+
+Presentation belongs to the Clip rather than the shared instance. **Live**
+shows the running Pattern, **Freeze** captures and holds the complete entry
+frame, and **Strobe** periodically captures and holds a new complete frame at
+the chosen cadence. **Blink** gates the Clip output at an authored rate, duty,
+and phase without pausing Pattern time. Stutter is different: it quantizes the
+shared Pattern clock, so every Clip linked to that instance observes the same
+stepped motion.
 
 Compatible 2D clips expose a canonical **Transform** group — position,
 rotation, scale, and a Mirror flip — followed by an ordered **Effect stack**
@@ -388,11 +399,12 @@ policies, and Color & output Effects including Luma key, Chroma key, and
 Vignette. Show-wide output Effects such as **Trails** live in Show
 properties and apply after the full composite.
 
-Clips can also trade liveness for cost: **Freeze at entry** captures one
-frame and replays it, and **Refresh** re-evaluates a quarter of the pixels
-per frame. Both are authored approximations with measured double-digit FPS
-wins on hardware; the exact envelopes and numbers live in **Show Rendering
-Optimization Results**.
+Clips can separately trade evaluation fidelity for cost: **Freeze at entry**
+captures one frame and replays it, and **Refresh** re-evaluates a quarter of
+the pixels per frame. These advanced policies keep the Pattern clock running
+and are independent of Live/Freeze/Strobe presentation. Both are authored
+approximations with measured double-digit FPS wins on hardware; the exact
+envelopes and numbers live in **Show Rendering Optimization Results**.
 
 ## 15. Transitions and Property animation
 

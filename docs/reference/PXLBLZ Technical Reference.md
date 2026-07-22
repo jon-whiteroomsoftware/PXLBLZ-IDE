@@ -1175,8 +1175,11 @@ Main
 placements and placements inside one overlay layer may leave gaps but cannot
 overlap; placements in different overlay layers may overlap. Exact numeric
 fields commit on blur or Enter. Normalized fields clamp to `0..1`. Split
-preserves the explicit Pattern-instance id; Restart creates a new instance and
-virtual time base.
+preserves the explicit Pattern-instance id. Make Pattern Independent clones the
+instance record and its Scene-local instance tracks for one placement. Rejoin
+Shared Pattern accepts only another instance of the same Pattern, repoints the
+placement, and removes the former instance plus its tracks when that placement
+was its final user.
 
 `ShowCompositionV1.transitions` persists only positive-duration, endpoint-owned
 Layer Transitions. Each record connects two consecutive placements on one Layer
@@ -1245,6 +1248,14 @@ including across gaps. Flat-cell property-transition starts remap to the first
 derived destination cell. Preview, fast replay, artifact generation, Controller
 output, and EPE export all consume this same lowering. Shows without authored
 composition bypass it.
+
+Newly materialized timeline compositions persist
+`executionModel: deterministic-loop`. The compiler resets each member's
+resettable private scalars, elapsed time, stepped-clock accumulator, and
+physical-slot ownership when Show time wraps at the explicit Show End, then
+advances through the wrapped remainder. Existing compositions without that
+flag retain their prior artifact contract. This opt-in keeps generated output,
+Fast replay, and successive Show loops on the same deterministic timeline.
 
 The #583 lowering uses the mature whole-stack boundary path for the supported
 Layer Transition catalogue. Fade and coordinate-moving Motion are excluded from
@@ -2231,6 +2242,30 @@ multiple Vignettes on one member, arena conflicts, and unprofitable candidates
 retain the exact inline emitter with a compile-summary reason. Map or Effect
 property changes rebuild the generated runtime, so a selected Show-lifetime
 field never survives a semantic invalidation.
+
+### Clip presentation and Pattern-instance time
+
+`ShowMainPlacement`, `ShowOverlayPlacement`, and compatibility `ShowCell`
+records may own `presentation` and `blink`. Missing presentation means Live.
+Freeze captures one complete RGB traversal at placement entry and replays it
+through that placement's connected Transition interval. Strobe uses the same
+placement-owned cache but starts a new complete capture after each authored
+cadence. Both policies keep the referenced Pattern instance advancing. Capture
+ownership follows the stable placement id across compiler-derived intervals,
+so an unrelated placement or property boundary cannot make Freeze recapture.
+
+Blink is a placement-owned output gate with rate, duty, and phase. The compiler
+applies it to the composed placement opacity after Pattern evaluation; a hidden
+interval therefore never pauses or restarts private Pattern time. Show-score
+stack identity includes both presentation and Blink, so otherwise identical
+stacks cannot be interned when their held-frame or output-gate behavior differs.
+
+`ShowPatternInstance.time.steppedClock` owns Stutter. The compiler accumulates
+real delta and advances that logical instance only in complete authored steps;
+all placements sharing the instance observe the same quantized clock. The
+attached Entity Detail panel projects shared-use count, compatible same-Pattern
+instances, Make Pattern Independent, Rejoin Shared Pattern, and the Stutter
+step without creating a second editor surface.
 
 ### Authored Freeze-at-entry and Rolling Refresh evaluation
 

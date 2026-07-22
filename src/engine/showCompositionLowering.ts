@@ -146,6 +146,8 @@ export function lowerShowCompositionForCompile(
             pattern: { ...instance.pattern },
             patternName: instance.patternName,
             evaluationPolicy: instance.evaluationPolicy,
+            ...(placement.presentation ? { presentation: structuredClone(placement.presentation) } : {}),
+            ...(placement.blink ? { blink: structuredClone(placement.blink) } : {}),
             adaptations: {
               mirror: placement.view.mirror,
               phase: placement.view.phase,

@@ -132,6 +132,21 @@ describe('ShowEditor (#318)', () => {
     expect(within(timeline).queryByRole('button', { name: /Select zone/i })).not.toBeInTheDocument()
   })
 
+  it('persists deterministic loop semantics when the unified Timeline first materializes a composition (#586)', async () => {
+    const user = userEvent.setup()
+    const show = createDefaultShow('show-deterministic-composition', 'Deterministic composition', 1000)
+    setPersonalContentProvider(memoryProvider([show]))
+    useShowStore.setState({ shows: [show], activeShowId: show.id, showsLoaded: true })
+
+    render(<ShowEditor showId={show.id} unifiedTimeline />)
+    await user.click(screen.getAllByRole('button', { name: 'Select TestPattern1D' })[0])
+    const brightness = screen.getByRole('spinbutton', { name: 'Brightness' })
+    fireEvent.change(brightness, { target: { value: '0.75' } })
+    fireEvent.blur(brightness)
+
+    await waitFor(() => expect(useShowStore.getState().shows[0].composition?.executionModel).toBe('deterministic-loop'))
+  })
+
   it('progressively reveals the existing Zone workspace without burdening a one-Zone Show (#581)', async () => {
     const user = userEvent.setup()
     const show = createDefaultShow('show-zone-disclosure', 'Zone disclosure', 1000)
@@ -842,7 +857,70 @@ describe('ShowEditor (#318)', () => {
     await waitFor(() => {
       const saved = useShowStore.getState().shows.find((candidate) => candidate.id === show.id)
       expect(saved?.composition?.scenes[0].zones[0].main).toHaveLength(3)
-      expect(saved?.composition?.patternInstances).toHaveLength(1)
+      expect(saved?.composition?.patternInstances).toHaveLength(2)
+      const instanceIds = saved?.composition?.scenes[0].zones[0].main.map((placement) => placement.instanceId)
+      expect(new Set(instanceIds).size).toBe(2)
+    })
+  })
+
+  it('makes a shared composition Clip independent and explicitly rejoins it (#586)', async () => {
+    const user = userEvent.setup()
+    const show = createDefaultShow('show-instance-controls', 'Pattern instance controls', 1000)
+    const zoneId = show.zones[0].id
+    show.composition = {
+      version: 1,
+      patternInstances: [{
+        id: 'instance-shared',
+        pattern: { ...show.cells[0].pattern },
+        patternName: 'Shared Rings',
+        time: { timeScale: 1, timeOffsetMs: 0 },
+      }],
+      scenes: show.scenes.map((scene, index) => ({
+        sceneId: scene.id,
+        zones: [{
+          zoneId,
+          main: index === 0 ? [{
+            id: 'placement-shared-a',
+            instanceId: 'instance-shared',
+            startMs: 2_000,
+            durationMs: 3_000,
+            view: { mirror: false, phase: 0, brightness: 1 },
+          }, {
+            id: 'placement-shared-b',
+            instanceId: 'instance-shared',
+            startMs: 5_000,
+            durationMs: 3_000,
+            view: { mirror: false, phase: 0, brightness: 1 },
+          }] : [],
+          overlays: [],
+        }],
+      })),
+    }
+    setPersonalContentProvider(memoryProvider([show]))
+    useShowStore.setState({ shows: [show], activeShowId: show.id, showsLoaded: true })
+    render(<ShowEditor showId={show.id} unifiedTimeline />)
+
+    await user.click(screen.getAllByRole('button', { name: 'Select Shared Rings' })[0])
+    await user.click(screen.getByText('Advanced clip controls'))
+    expect(screen.getByRole('group', { name: 'Pattern instance' })).toHaveTextContent('Shared by 2 Clips')
+    await user.click(screen.getByRole('button', { name: 'Make Pattern Independent' }))
+
+    await waitFor(() => {
+      const composition = useShowStore.getState().shows[0].composition!
+      expect(composition.patternInstances).toHaveLength(2)
+      expect(composition.scenes[0].zones[0].main[0].instanceId).not.toBe('instance-shared')
+    })
+    expect(screen.getByRole('group', { name: 'Pattern instance' })).toHaveTextContent('Independent')
+
+    await user.click(screen.getByRole('button', { name: 'Rejoin Shared Pattern' }))
+    await user.click(screen.getByRole('button', { name: 'Rejoin Pattern instance' }))
+    await waitFor(() => {
+      const composition = useShowStore.getState().shows[0].composition!
+      expect(composition.patternInstances).toHaveLength(1)
+      expect(composition.scenes[0].zones[0].main.map((placement) => placement.instanceId)).toEqual([
+        'instance-shared',
+        'instance-shared',
+      ])
     })
   })
 
