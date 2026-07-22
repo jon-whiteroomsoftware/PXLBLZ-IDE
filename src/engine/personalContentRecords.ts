@@ -461,6 +461,14 @@ export interface ShowSceneComposition {
   zones: ShowZoneComposition[]
 }
 
+/** A Show-owned alignment guide in absolute Show time. */
+export interface ShowTimelineMarker {
+  id: string
+  timeMs: number
+  name?: string
+  color?: string
+}
+
 /**
  * A visible, positive-duration transition between two consecutive placements
  * on one Layer. Cuts are derived from abutting placement endpoints and are not
@@ -484,6 +492,10 @@ export interface ShowCompositionV1 {
   version: 1
   patternInstances: ShowPatternInstance[]
   scenes: ShowSceneComposition[]
+  /** Explicit deterministic loop boundary in absolute Show time. */
+  durationMs?: number
+  /** Global guides; Markers may remain dormant beyond Show End. */
+  markers?: ShowTimelineMarker[]
   /** Non-Cut transitions; endpoint-owned Cuts remain implicit and lossless. */
   transitions?: ShowLayerTransition[]
 }

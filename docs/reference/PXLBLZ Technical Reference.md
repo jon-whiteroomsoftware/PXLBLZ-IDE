@@ -1195,6 +1195,21 @@ right half. Its transitive closure helper is the authority for future marquee
 and Group selection refinement, so a grouping selection cannot retain only one
 Transition endpoint.
 
+`ShowCompositionV1.durationMs` persists the explicit Show End, while
+`ShowCompositionV1.markers` persists sorted, Show-owned alignment guides with
+millisecond time, optional name, and optional color. Markers do not affect
+rendering or compilation and may remain dormant beyond Show End. Marker
+visibility and Marker snapping are editor-session preferences rather than Show
+content. `showTimelineAuthoring.ts` owns Marker edits, non-destructive Show End
+changes, and global Insert Time. Insert Time extends the containing internal
+Scene partition, splits every crossing placement without changing its shared
+Pattern instance, shifts later placements and Markers, and inserts a held
+interval into crossing Property animation. It refuses insertion inside either
+legacy Scene Transitions or Layer Transitions. Show End continues to synchronize
+the final internal Scene duration until Scene compatibility lowering is removed;
+ordinary shortening clamps to the last authored placement or keyframe and never
+deletes later Markers.
+
 Composition validation independently enforces consecutive endpoints. An
 unrelated Clip may either remain inactive or span the complete Transition
 interval; it may not start or stop inside that interval. That invariant guards

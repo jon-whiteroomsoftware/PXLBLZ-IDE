@@ -124,6 +124,16 @@ export function normalizeShowComposition(
   const zoneOrder = new Map(show.zones.map((zone, index) => [zone.id, index]))
   return {
     version: 1,
+    ...(Number.isInteger(composition.durationMs) && (composition.durationMs ?? 0) > 0
+      ? { durationMs: composition.durationMs }
+      : {}),
+    ...(composition.markers && composition.markers.length > 0
+      ? {
+          markers: cloneJson(composition.markers)
+            .filter((marker) => marker.id && Number.isInteger(marker.timeMs) && marker.timeMs >= 0)
+            .sort((a, b) => a.timeMs - b.timeMs || a.id.localeCompare(b.id)),
+        }
+      : {}),
     patternInstances: cloneJson(composition.patternInstances)
       .sort((a, b) => a.id.localeCompare(b.id)),
     ...(composition.transitions
@@ -179,6 +189,22 @@ export function validateShowComposition(
     endMs: number
   }>()
   const layerIds = new Set<string>()
+
+  if (composition.durationMs !== undefined) {
+    validateFiniteInteger(issues, 'durationMs', composition.durationMs)
+    if (composition.durationMs <= 0) {
+      addIssue(issues, 'durationMs', 'out-of-bounds', 'Show End must be positive.')
+    }
+  }
+
+  const markerIds = new Set<string>()
+  for (const [markerIndex, marker] of (composition.markers ?? []).entries()) {
+    const path = `markers[${markerIndex}]`
+    if (markerIds.has(marker.id)) addIssue(issues, `${path}.id`, 'duplicate-id', `Marker id "${marker.id}" is duplicated.`)
+    markerIds.add(marker.id)
+    validateFiniteInteger(issues, `${path}.timeMs`, marker.timeMs)
+    if (marker.timeMs < 0) addIssue(issues, `${path}.timeMs`, 'out-of-bounds', 'Marker time cannot be negative.')
+  }
 
   composition.patternInstances.forEach((instance, instanceIndex) => {
     const path = `patternInstances[${instanceIndex}]`

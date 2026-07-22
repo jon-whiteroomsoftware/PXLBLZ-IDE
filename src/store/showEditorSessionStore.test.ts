@@ -10,6 +10,8 @@ describe('showEditorSessionStore (#470)', () => {
     const current = {
       ...showEditorSessionInitialState,
       setSnapEnabled: () => {},
+      setMarkersVisible: () => {},
+      setMarkerSnapEnabled: () => {},
       setShowNoteOpen: () => {},
       setZoneWorkspaceOpen: () => {},
       setZoneCollapsed: () => {},
@@ -22,6 +24,10 @@ describe('showEditorSessionStore (#470)', () => {
       snapEnabled: false,
     })
     expect(mergePersistedShowEditorSession({}, current)).toMatchObject({ snapEnabled: true })
+    expect(mergePersistedShowEditorSession({ markersVisible: false, markerSnapEnabled: false }, current)).toMatchObject({
+      markersVisible: false,
+      markerSnapEnabled: false,
+    })
   })
 
   it('persists progressive Zone disclosure independently for each Show (#581)', () => {

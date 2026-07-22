@@ -5,6 +5,10 @@ import type { ShowPatternRef } from '../engine/personalContentRecords'
 export interface ShowEditorSessionState {
   snapEnabled: boolean
   setSnapEnabled: (enabled: boolean) => void
+  markersVisible: boolean
+  setMarkersVisible: (visible: boolean) => void
+  markerSnapEnabled: boolean
+  setMarkerSnapEnabled: (enabled: boolean) => void
   showNoteOpenById: Record<string, boolean>
   setShowNoteOpen: (showId: string, open: boolean) => void
   zoneWorkspaceOpenByShowId: Record<string, boolean>
@@ -32,6 +36,8 @@ export interface ShowEditorSessionState {
 
 export const showEditorSessionInitialState = {
   snapEnabled: true,
+  markersVisible: true,
+  markerSnapEnabled: true,
   showNoteOpenById: {} as Record<string, boolean>,
   zoneWorkspaceOpenByShowId: {} as Record<string, boolean>,
   collapsedZoneIdsByShowId: {} as Record<string, string[]>,
@@ -51,6 +57,8 @@ export function mergePersistedShowEditorSession(
 ): ShowEditorSessionState {
   const raw = persisted as Partial<Pick<ShowEditorSessionState,
     | 'snapEnabled'
+    | 'markersVisible'
+    | 'markerSnapEnabled'
     | 'showNoteOpenById'
     | 'zoneWorkspaceOpenByShowId'
     | 'collapsedZoneIdsByShowId'
@@ -75,6 +83,8 @@ export function mergePersistedShowEditorSession(
     ...current,
     ...showEditorSessionInitialState,
     snapEnabled: typeof raw?.snapEnabled === 'boolean' ? raw.snapEnabled : current.snapEnabled,
+    markersVisible: typeof raw?.markersVisible === 'boolean' ? raw.markersVisible : current.markersVisible,
+    markerSnapEnabled: typeof raw?.markerSnapEnabled === 'boolean' ? raw.markerSnapEnabled : current.markerSnapEnabled,
     showNoteOpenById: persistedShowNotes,
     zoneWorkspaceOpenByShowId: zoneWorkspaceOpenByShowId ?? current.zoneWorkspaceOpenByShowId,
     collapsedZoneIdsByShowId,
@@ -95,6 +105,8 @@ export const useShowEditorSessionStore = create<ShowEditorSessionState>()(
     (set) => ({
       ...showEditorSessionInitialState,
       setSnapEnabled: (snapEnabled) => set({ snapEnabled }),
+      setMarkersVisible: (markersVisible) => set({ markersVisible }),
+      setMarkerSnapEnabled: (markerSnapEnabled) => set({ markerSnapEnabled }),
       setShowNoteOpen: (showId, open) => set((state) => ({
         showNoteOpenById: { ...state.showNoteOpenById, [showId]: open },
       })),
@@ -143,6 +155,8 @@ export const useShowEditorSessionStore = create<ShowEditorSessionState>()(
       name: 'pxlblz-show-editor',
       partialize: (state) => ({
         snapEnabled: state.snapEnabled,
+        markersVisible: state.markersVisible,
+        markerSnapEnabled: state.markerSnapEnabled,
         showNoteOpenById: state.showNoteOpenById,
         zoneWorkspaceOpenByShowId: state.zoneWorkspaceOpenByShowId,
         collapsedZoneIdsByShowId: state.collapsedZoneIdsByShowId,

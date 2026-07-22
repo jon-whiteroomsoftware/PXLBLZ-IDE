@@ -227,6 +227,68 @@ describe('ShowEditor (#318)', () => {
     })
   })
 
+  it('keeps Insert Time visible and explains when the playhead is inside a Transition (#584)', async () => {
+    const user = userEvent.setup()
+    const show = createDefaultShow('show-insert-time-reason', 'Insert reason', 1000)
+    setPersonalContentProvider(memoryProvider([show]))
+    useShowStore.setState({ shows: [show], activeShowId: show.id, showsLoaded: true })
+    useShowTransportStore.setState({ showId: show.id, positionMs: 31_000 })
+
+    render(<ShowEditor showId={show.id} unifiedTimeline />)
+
+    await user.click(screen.getByRole('button', { name: 'Insert Time' }))
+    const dialog = screen.getByRole('dialog', { name: 'Insert Time' })
+    expect(within(dialog).getByText('Insert Time is unavailable inside a Transition.')).toBeInTheDocument()
+    expect(within(dialog).getByRole('button', { name: 'Insert' })).toBeDisabled()
+  })
+
+  it('creates a global Marker at the playhead from the ruler affordance (#584)', async () => {
+    const user = userEvent.setup()
+    const show = createDefaultShow('show-marker-create', 'Marker create', 1000)
+    setPersonalContentProvider(memoryProvider([show]))
+    useShowStore.setState({ shows: [show], activeShowId: show.id, showsLoaded: true })
+    useShowTransportStore.setState({ showId: show.id, positionMs: 4_023 })
+
+    render(<ShowEditor showId={show.id} unifiedTimeline />)
+
+    await user.click(screen.getByRole('button', { name: 'Add Marker at playhead' }))
+
+    await waitFor(() => expect(useShowStore.getState().shows[0].composition?.markers).toEqual([
+      expect.objectContaining({ timeMs: 4_023, name: 'Marker 1' }),
+    ]))
+    await user.click(screen.getByRole('button', { name: 'Marker 1 at 4.023 seconds' }))
+    const details = screen.getByRole('dialog', { name: 'Marker 1 details' })
+    const markerTime = within(details).getByRole('spinbutton', { name: 'Marker time in seconds' })
+    await user.clear(markerTime)
+    await user.type(markerTime, '4.125')
+    fireEvent.blur(markerTime)
+
+    await waitFor(() => expect(useShowStore.getState().shows[0].composition?.markers?.[0].timeMs).toBe(4_125))
+    expect(screen.getByRole('button', { name: 'Marker 1 at 4.125 seconds' })).toBeInTheDocument()
+
+    await user.click(screen.getByTestId('show-timeline-toolbar'))
+    expect(screen.queryByRole('dialog', { name: 'Marker 1 details' })).not.toBeInTheDocument()
+  })
+
+  it('edits Show End in decimal seconds and clamps rather than truncating content (#584)', async () => {
+    const user = userEvent.setup()
+    const show = createDefaultShow('show-end-edit', 'Show End', 1000)
+    setPersonalContentProvider(memoryProvider([show]))
+    useShowStore.setState({ shows: [show], activeShowId: show.id, showsLoaded: true })
+
+    render(<ShowEditor showId={show.id} unifiedTimeline />)
+
+    await user.click(screen.getByRole('button', { name: 'Show End at 62 seconds' }))
+    const details = screen.getByRole('dialog', { name: 'Show End details' })
+    const showEnd = within(details).getByRole('spinbutton', { name: 'Show End time in seconds' })
+    await user.clear(showEnd)
+    await user.type(showEnd, '65.5')
+    fireEvent.blur(showEnd)
+
+    await waitFor(() => expect(showModel.showLoopDurationMs(useShowStore.getState().shows[0])).toBe(65_500))
+    expect(screen.getByRole('button', { name: 'Show End at 65.5 seconds' })).toBeInTheDocument()
+  })
+
   it('duplicates a Layout occurrence and makes one reused occurrence independent (#582)', async () => {
     const user = userEvent.setup()
     const show = createDefaultShow('show-layout-reuse', 'Layout reuse', 1000)

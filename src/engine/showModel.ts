@@ -281,12 +281,16 @@ export function importedStageMapIdForController(
   return candidates[0]?.id ?? null
 }
 
-export function showLoopDurationMs(show: Pick<ShowRecord, 'scenes' | 'transitions'>): number {
-  return show.scenes.reduce((sum, scene) => (
+export function showLoopDurationMs(show: Pick<ShowRecord, 'scenes' | 'transitions' | 'composition'>): number {
+  const structuralDurationMs = show.scenes.reduce((sum, scene) => (
     sum
     + Math.max(0, scene.durationMs)
     + Math.max(0, showVisualTransitionAfter(show, scene.id)?.durationMs ?? 0)
   ), 0)
+  const explicitDurationMs = show.composition?.durationMs
+  return Number.isInteger(explicitDurationMs) && (explicitDurationMs ?? 0) > 0
+    ? Math.max(structuralDurationMs, explicitDurationMs!)
+    : structuralDurationMs
 }
 
 function showSceneHoldDurationMs(show: Pick<ShowRecord, 'scenes'>): number {

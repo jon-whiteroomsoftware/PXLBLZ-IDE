@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore, type CSSProperties, type PointerEvent as ReactPointerEvent, type SetStateAction } from 'react'
 import { createPortal } from 'react-dom'
-import { Activity, BookOpen, Check, ChevronDown, ChevronRight, Clapperboard, Clock3, Code2, Copy, Download, Eye, Grid2X2, Info, Layers3, Lightbulb, ListChecks, Lock, Magnet, Map as MapIcon, Maximize2, Pause, Play, Plus, Redo2, RotateCcw, RotateCw, Route, Scissors, Settings2, SkipBack, SlidersHorizontal, Trash2, Undo2, WandSparkles, X, Zap, ZoomIn, ZoomOut } from 'lucide-react'
+import { Activity, BookOpen, Check, ChevronDown, ChevronRight, Clapperboard, Clock3, Code2, Copy, Download, Eye, Flag, Grid2X2, Info, Layers3, Lightbulb, ListChecks, Lock, Magnet, Map as MapIcon, Maximize2, Pause, Play, Plus, Redo2, RotateCcw, RotateCw, Route, Scissors, Settings2, SkipBack, SlidersHorizontal, Trash2, Undo2, WandSparkles, X, Zap, ZoomIn, ZoomOut } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { NumberField as UiNumberField, type NumberFieldProps as UiNumberFieldProps } from '@/components/ui/number-field'
 import {
@@ -137,6 +137,15 @@ import {
   resetShowLayerTransitionToCut,
   showLayerTransitionsConnectedToClip,
 } from '@/engine/showLayerTransitionAuthoring'
+import {
+  addShowTimelineMarker,
+  insertShowTime,
+  moveShowTimelineMarker,
+  planShowTimeInsertion,
+  removeShowTimelineMarker,
+  setShowEndMs,
+  updateShowTimelineMarker,
+} from '@/engine/showTimelineAuthoring'
 import { buildShowEpeExport, type ShowEpeExport } from '@/engine/showEpeExport'
 import {
   buildDeliveredShowSourceInventory,
@@ -1393,6 +1402,68 @@ export function ShowEditor({
                   return true
                 }}
                 onOpenLayerTransition={setLayerTransitionTarget}
+                onInsertTime={async (atMs, durationMs) => {
+                  if (!timelineComposition) return false
+                  const basis = { ...activeShow, composition: timelineComposition }
+                  const plan = planShowTimeInsertion(basis, atMs, durationMs)
+                  if (!plan.enabled) return false
+                  const next = insertShowTime(basis, {
+                    atMs,
+                    durationMs,
+                    newPlacementIdBySourceId: Object.fromEntries(
+                      plan.crossingPlacementIds.map((placementId) => [placementId, newPersonalContentId()]),
+                    ),
+                  })
+                  if (next === basis) return false
+                  await updateShow(activeShow.id, next)
+                  return true
+                }}
+                onAddMarker={async (timeMs) => {
+                  if (!timelineComposition) return false
+                  const basis = { ...activeShow, composition: timelineComposition }
+                  const markerNumber = (timelineComposition.markers?.length ?? 0) + 1
+                  const next = addShowTimelineMarker(basis, {
+                    id: newPersonalContentId(),
+                    timeMs,
+                    name: `Marker ${markerNumber}`,
+                    color: '#f59e0b',
+                  })
+                  if (next === basis) return false
+                  await updateShow(activeShow.id, next)
+                  return true
+                }}
+                onMoveMarker={async (markerId, timeMs) => {
+                  if (!timelineComposition) return false
+                  const basis = { ...activeShow, composition: timelineComposition }
+                  const next = moveShowTimelineMarker(basis, markerId, timeMs)
+                  if (next === basis) return false
+                  await updateShow(activeShow.id, next)
+                  return true
+                }}
+                onUpdateMarker={async (markerId, patch) => {
+                  if (!timelineComposition) return false
+                  const basis = { ...activeShow, composition: timelineComposition }
+                  const next = updateShowTimelineMarker(basis, markerId, patch)
+                  if (next === basis) return false
+                  await updateShow(activeShow.id, next)
+                  return true
+                }}
+                onRemoveMarker={async (markerId) => {
+                  if (!timelineComposition) return false
+                  const basis = { ...activeShow, composition: timelineComposition }
+                  const next = removeShowTimelineMarker(basis, markerId)
+                  if (next === basis) return false
+                  await updateShow(activeShow.id, next)
+                  return true
+                }}
+                onSetShowEnd={async (durationMs) => {
+                  if (!timelineComposition) return false
+                  const basis = { ...activeShow, composition: timelineComposition }
+                  const next = setShowEndMs(basis, durationMs)
+                  if (next === basis) return false
+                  await updateShow(activeShow.id, next)
+                  return true
+                }}
                 onAppendLayoutInterval={async (layoutId, durationMs) => {
                   if (!timelineComposition) return false
                   const basis = { ...activeShow, composition: timelineComposition }
@@ -2503,6 +2574,12 @@ function SceneStrip({
   onDuplicateCompositionClip,
   onResizeCompositionClip,
   onOpenLayerTransition,
+  onInsertTime,
+  onAddMarker,
+  onMoveMarker,
+  onUpdateMarker,
+  onRemoveMarker,
+  onSetShowEnd,
   onAppendLayoutInterval,
   onInsertLayoutInterval,
   onDuplicateLayoutInterval,
@@ -2545,6 +2622,12 @@ function SceneStrip({
     durationMs: number,
   ) => Promise<boolean>
   onOpenLayerTransition: (target: ShowLayerTransitionTarget) => void
+  onInsertTime: (atMs: number, durationMs: number) => Promise<boolean>
+  onAddMarker: (timeMs: number) => Promise<boolean>
+  onMoveMarker: (markerId: string, timeMs: number) => Promise<boolean>
+  onUpdateMarker: (markerId: string, patch: Partial<Omit<NonNullable<ShowCompositionV1['markers']>[number], 'id'>>) => Promise<boolean>
+  onRemoveMarker: (markerId: string) => Promise<boolean>
+  onSetShowEnd: (durationMs: number) => Promise<boolean>
   onAppendLayoutInterval: (layoutId: string, durationMs: number) => Promise<boolean>
   onInsertLayoutInterval: (layoutId: string, durationMs: number, atMs: number) => Promise<boolean>
   onDuplicateLayoutInterval: (intervalId: string, withContent: boolean) => Promise<boolean>
@@ -2572,6 +2655,10 @@ function SceneStrip({
   const [storedViewport, setViewport] = useState<ShowTimelineViewport>(fittedViewport)
   const snapEnabled = useShowEditorSessionStore((state) => state.snapEnabled)
   const setSnapEnabled = useShowEditorSessionStore((state) => state.setSnapEnabled)
+  const markersVisible = useShowEditorSessionStore((state) => state.markersVisible)
+  const markerSnapEnabled = useShowEditorSessionStore((state) => state.markerSnapEnabled)
+  const setMarkersVisible = useShowEditorSessionStore((state) => state.setMarkersVisible)
+  const setMarkerSnapEnabled = useShowEditorSessionStore((state) => state.setMarkerSnapEnabled)
   const zonesOpen = useShowEditorSessionStore((state) => state.zoneWorkspaceOpenByShowId[show.id] ?? false)
   const collapsedZoneIds = useShowEditorSessionStore((state) => state.collapsedZoneIdsByShowId[show.id]) ?? EMPTY_ZONE_IDS
   const focusedZoneId = useShowEditorSessionStore((state) => state.focusedZoneIdByShowId[show.id] ?? null)
@@ -2597,6 +2684,9 @@ function SceneStrip({
   const [dropTargetKey, setDropTargetKey] = useState<string | null>(null)
   const [superDetailOwner, setSuperDetailOwner] = useState<{ sceneId: string; anchor: HTMLElement } | null>(null)
   const [addClipOpen, setAddClipOpen] = useState(false)
+  const [insertTimeOpen, setInsertTimeOpen] = useState(false)
+  const [insertTimeSeconds, setInsertTimeSeconds] = useState(1)
+  const [insertTimeAtMs, setInsertTimeAtMs] = useState(0)
   const [layoutActionsOpen, setLayoutActionsOpen] = useState(false)
   const [layoutActionTimeMs, setLayoutActionTimeMs] = useState(0)
   const [layoutActionLayoutId, setLayoutActionLayoutId] = useState(show.routingLayouts[0]?.id ?? '')
@@ -2620,6 +2710,12 @@ function SceneStrip({
   const layerTargetTimeMs = transport.showId === show.id ? transport.positionMs : 0
   const layerTargetZoneId = showLayoutZoneIdAtTime(show, layerTargetTimeMs, preferredAuthoringZoneId)
   const layerTargetZoneName = show.zones.find((zone) => zone.id === layerTargetZoneId)?.name ?? 'Zone'
+  const insertTimeDurationMs = Math.round(insertTimeSeconds * 1000)
+  const insertTimePlan = planShowTimeInsertion(
+    timelineComposition ? { ...show, composition: timelineComposition } : show,
+    insertTimeAtMs,
+    insertTimeDurationMs,
+  )
   const hasMultipleZones = show.zones.length > 1
   const showFullZoneHeaders = !unifiedTimelineWorkspace || zonesOpen
   const showMicroZonePicker = unifiedTimelineWorkspace && hasMultipleZones && !zonesOpen
@@ -2676,6 +2772,7 @@ function SceneStrip({
     ...(unifiedCompositionTimeline?.zones.flatMap((zone) => (
       zone.layers.flatMap((layer) => layer.clips.flatMap((clip) => [clip.startMs, clip.endMs]))
     )) ?? []),
+    ...(markerSnapEnabled ? (timelineComposition?.markers ?? []).map((marker) => marker.timeMs) : []),
   ])]
   const propertyLanesByZone = useMemo(() => {
     const sceneAnimationLanes = projectGlobalShowScenePropertyLanes(show)
@@ -2982,6 +3079,7 @@ function SceneStrip({
       onClick={() => {
         onDismiss()
         setAddClipOpen(false)
+        setInsertTimeOpen(false)
         setLayoutActionsOpen(false)
       }}
     >
@@ -3043,6 +3141,8 @@ function SceneStrip({
                   setLayoutActionTimeMs(timeMs)
                   setLayoutActionLayoutId(interval?.layoutId ?? show.routingLayouts[0]?.id ?? '')
                   setLayoutActionError(null)
+                  setAddClipOpen(false)
+                  setInsertTimeOpen(false)
                   setLayoutActionsOpen((open) => !open)
                 }}
               >
@@ -3070,6 +3170,46 @@ function SceneStrip({
               <Button
                 size="xs"
                 variant="ghost"
+                aria-label="Insert Time"
+                aria-expanded={insertTimeOpen}
+                title="Insert blank time at the playhead"
+                className="bg-transparent px-1.5 text-[11px] text-zinc-400 hover:bg-zinc-800/60 hover:text-zinc-100"
+                onClick={() => {
+                  const transport = useShowTransportStore.getState()
+                  setInsertTimeAtMs(transport.showId === show.id ? transport.positionMs : 0)
+                  setAddClipOpen(false)
+                  setLayoutActionsOpen(false)
+                  setInsertTimeOpen((open) => !open)
+                }}
+              >
+                <Clock3 size={12} aria-hidden />
+                Insert Time
+              </Button>
+              <Button
+                size="icon-xs"
+                variant="ghost"
+                aria-label={markersVisible ? 'Hide Markers' : 'Show Markers'}
+                aria-pressed={markersVisible}
+                title={markersVisible ? 'Hide Marker guides' : 'Show Marker guides'}
+                className={markersVisible ? 'text-amber-300' : 'text-zinc-600'}
+                onClick={() => setMarkersVisible(!markersVisible)}
+              >
+                <Eye size={12} aria-hidden />
+              </Button>
+              <Button
+                size="icon-xs"
+                variant="ghost"
+                aria-label="Snap to Markers"
+                aria-pressed={markerSnapEnabled}
+                title="Use Markers as snap targets"
+                className={markerSnapEnabled ? 'text-amber-300' : 'text-zinc-600'}
+                onClick={() => setMarkerSnapEnabled(!markerSnapEnabled)}
+              >
+                <Flag size={12} aria-hidden />
+              </Button>
+              <Button
+                size="xs"
+                variant="ghost"
                 aria-label="Add Clip at playhead"
                 title="Add a Pattern Clip at the playhead"
                 aria-expanded={addClipOpen}
@@ -3077,6 +3217,8 @@ function SceneStrip({
                 onClick={() => {
                   const transport = useShowTransportStore.getState()
                   setAddClipTimeMs(transport.showId === show.id ? transport.positionMs : 0)
+                  setInsertTimeOpen(false)
+                  setLayoutActionsOpen(false)
                   setAddClipOpen((open) => !open)
                 }}
               >
@@ -3130,6 +3272,47 @@ function SceneStrip({
                     >
                       Add Clip
                     </Button>
+                  </div>
+                </div>
+              )}
+              {insertTimeOpen && (
+                <div
+                  role="dialog"
+                  aria-label="Insert Time"
+                  className="absolute right-0 top-full z-50 mt-1 w-60 rounded border border-zinc-700 bg-zinc-950 p-2 shadow-2xl"
+                  onClick={(event) => event.stopPropagation()}
+                >
+                  <div className="mb-1.5 flex items-center justify-between text-[10px] uppercase tracking-[0.1em] text-zinc-500">
+                    <span>Insert Time</span>
+                    <span className="normal-case tabular-nums text-zinc-500">at {formatSecondsValue(insertTimeAtMs)}s</span>
+                  </div>
+                  <UiNumberField
+                    label="Time to insert"
+                    ariaLabel="Time to insert in seconds"
+                    hideLabel
+                    variant="editor"
+                    value={insertTimeSeconds}
+                    min={0.001}
+                    step={0.001}
+                    suffix="s"
+                    onChange={setInsertTimeSeconds}
+                  />
+                  {!insertTimePlan.enabled && (
+                    <p className="mt-1.5 text-[10px] leading-4 text-amber-200/80">{insertTimePlan.reason}</p>
+                  )}
+                  <div className="mt-2 flex justify-end gap-1">
+                    <Button size="xs" variant="ghost" onClick={() => setInsertTimeOpen(false)}>Cancel</Button>
+                    <Button
+                      size="xs"
+                      variant="secondary"
+                      disabled={!insertTimePlan.enabled}
+                      onClick={() => {
+                        if (!insertTimePlan.enabled) return
+                        void onInsertTime(insertTimeAtMs, insertTimeDurationMs).then((changed) => {
+                          if (changed) setInsertTimeOpen(false)
+                        })
+                      }}
+                    >Insert</Button>
                   </div>
                 </div>
               )}
@@ -3347,7 +3530,25 @@ function SceneStrip({
           structuralTimesMs={structuralTimesMs}
           getVisibleWidth={() => Math.max(1, (scrollRef.current?.clientWidth ?? 812) - 212)}
           layoutIntervals={layoutIntervals}
+          readOnly={readOnly}
+          onCreateMarker={onAddMarker}
         />
+        {unifiedTimelineWorkspace && timelineComposition && (
+          <TimelineMarkers
+            show={show}
+            markers={markersVisible ? timelineComposition.markers ?? [] : []}
+            gridColumn={`2 / ${columns.length}`}
+            gridRow={rulerRow}
+            rowSpan={totalContentRows + routingLaneRows + (xrayOpen ? 4 : 3)}
+            snapEnabled={snapEnabled}
+            structuralTimesMs={structuralTimesMs}
+            readOnly={readOnly}
+            onMoveMarker={onMoveMarker}
+            onUpdateMarker={onUpdateMarker}
+            onRemoveMarker={onRemoveMarker}
+            onSetShowEnd={onSetShowEnd}
+          />
+        )}
         <TimelinePlayhead
           show={show}
           gridColumn={`2 / ${columns.length}`}
@@ -4409,6 +4610,8 @@ function TimelineRuler({
   structuralTimesMs,
   getVisibleWidth,
   layoutIntervals,
+  readOnly,
+  onCreateMarker,
 }: {
   show: ShowRecord
   gridColumn: string
@@ -4418,6 +4621,8 @@ function TimelineRuler({
   structuralTimesMs: number[]
   getVisibleWidth: () => number
   layoutIntervals: ShowLayoutInterval[]
+  readOnly: boolean
+  onCreateMarker: (timeMs: number) => Promise<boolean>
 }) {
   const durationMs = showLoopDurationMs(show)
   const positionMs = useShowTransportStore((state) => state.showId === show.id ? state.positionMs : 0)
@@ -4425,6 +4630,8 @@ function TimelineRuler({
   const resumeAfterSeekRef = useRef(false)
   const keyboardHoldRef = useRef<{ key: 'ArrowLeft' | 'ArrowRight'; startedAt: number } | null>(null)
   const pointerScrubRef = useRef({ active: false, inverted: false })
+  const markerDragRef = useRef<{ pointerId: number; startX: number } | null>(null)
+  const suppressMarkerClickRef = useRef(false)
   const previewScrub = (targetMs: number, snap = false) => {
     const resolvedTimeMs = snap
       ? snapShowTimelineTime(targetMs, {
@@ -4466,6 +4673,47 @@ function TimelineRuler({
         backgroundImage: 'repeating-linear-gradient(90deg, rgba(113,113,122,.2) 0 1px, transparent 1px 20px)',
       }}
     >
+      {!readOnly && (
+        <button
+          type="button"
+          aria-label="Add Marker at playhead"
+          title="Click to add at the playhead, or drag onto the ruler"
+          className="absolute left-1 top-0.5 z-20 flex h-4 w-4 cursor-grab items-center justify-center rounded-sm text-amber-300/75 hover:bg-amber-300/10 hover:text-amber-200 focus-visible:outline focus-visible:outline-1 focus-visible:outline-amber-300"
+          onPointerDown={(event) => {
+            event.stopPropagation()
+            markerDragRef.current = { pointerId: event.pointerId, startX: event.clientX }
+            event.currentTarget.setPointerCapture?.(event.pointerId)
+          }}
+          onPointerUp={(event) => {
+            const drag = markerDragRef.current
+            markerDragRef.current = null
+            if (!drag || drag.pointerId !== event.pointerId || Math.abs(event.clientX - drag.startX) < 3) return
+            const rect = event.currentTarget.parentElement?.getBoundingClientRect()
+            if (!rect) return
+            const rawTimeMs = (event.clientX - rect.left) / Math.max(1, rect.width) * durationMs
+            const timeMs = snapEnabled !== event.altKey
+              ? snapShowTimelineTime(rawTimeMs, {
+                  visibleDurationMs: viewport.durationMs,
+                  visibleWidthPx: getVisibleWidth(),
+                  structuralTimesMs,
+                  maxTimeMs: durationMs,
+                }).timeMs
+              : Math.max(0, Math.min(durationMs, rawTimeMs))
+            suppressMarkerClickRef.current = true
+            void onCreateMarker(Math.round(timeMs))
+          }}
+          onPointerCancel={() => { markerDragRef.current = null }}
+          onClick={() => {
+            if (suppressMarkerClickRef.current) {
+              suppressMarkerClickRef.current = false
+              return
+            }
+            void onCreateMarker(positionMs)
+          }}
+        >
+          <Flag size={11} aria-hidden />
+        </button>
+      )}
       {layoutIntervals.map((interval, index) => {
         const { left, width } = showLayoutIntervalPercentBounds(interval, durationMs)
         return (
@@ -4542,6 +4790,226 @@ function TimelineRuler({
         }}
         className="show-playhead-range absolute inset-0 h-full w-full cursor-col-resize opacity-0 outline-none"
       />
+    </div>
+  )
+}
+
+function TimelineMarkers({
+  show,
+  markers,
+  gridColumn,
+  gridRow,
+  rowSpan,
+  snapEnabled,
+  structuralTimesMs,
+  readOnly,
+  onMoveMarker,
+  onUpdateMarker,
+  onRemoveMarker,
+  onSetShowEnd,
+}: {
+  show: ShowRecord
+  markers: NonNullable<ShowCompositionV1['markers']>
+  gridColumn: string
+  gridRow: number
+  rowSpan: number
+  snapEnabled: boolean
+  structuralTimesMs: number[]
+  readOnly: boolean
+  onMoveMarker: (markerId: string, timeMs: number) => Promise<boolean>
+  onUpdateMarker: (markerId: string, patch: Partial<Omit<NonNullable<ShowCompositionV1['markers']>[number], 'id'>>) => Promise<boolean>
+  onRemoveMarker: (markerId: string) => Promise<boolean>
+  onSetShowEnd: (durationMs: number) => Promise<boolean>
+}) {
+  const durationMs = showLoopDurationMs(show)
+  const [openMarkerId, setOpenMarkerId] = useState<string | null>(null)
+  const [showEndOpen, setShowEndOpen] = useState(false)
+  const markerPointerRef = useRef<{ markerId: string; pointerId: number; startX: number } | null>(null)
+  const showEndPointerRef = useRef<{ pointerId: number; startX: number } | null>(null)
+  useEffect(() => {
+    if (!openMarkerId && !showEndOpen) return
+    const closeDetails = (event: PointerEvent) => {
+      const target = event.target
+      if (target instanceof Element && target.closest('[data-show-timeline-marker-ui]')) return
+      setOpenMarkerId(null)
+      setShowEndOpen(false)
+    }
+    document.addEventListener('pointerdown', closeDetails)
+    return () => document.removeEventListener('pointerdown', closeDetails)
+  }, [openMarkerId, showEndOpen])
+  const resolvePointerTime = (event: ReactPointerEvent<HTMLElement>, allowBeyondEnd = false) => {
+    const rect = event.currentTarget.parentElement?.getBoundingClientRect()
+    if (!rect) return 0
+    const rawTimeMs = (event.clientX - rect.left) / Math.max(1, rect.width) * durationMs
+    const maxTimeMs = allowBeyondEnd ? durationMs * 2 : durationMs
+    return Math.round(snapEnabled !== event.altKey
+      ? snapShowTimelineTime(rawTimeMs, {
+          visibleDurationMs: durationMs,
+          visibleWidthPx: rect.width,
+          structuralTimesMs,
+          minTimeMs: allowBeyondEnd ? 1 : 0,
+          maxTimeMs,
+        }).timeMs
+      : Math.max(allowBeyondEnd ? 1 : 0, Math.min(maxTimeMs, rawTimeMs)))
+  }
+  return (
+    <div
+      aria-label="Timeline Markers and Show End"
+      className="pointer-events-none relative z-[25]"
+      style={{ gridColumn, gridRow: `${gridRow} / span ${rowSpan}` }}
+    >
+      {markers.filter((marker) => marker.timeMs <= durationMs).map((marker) => {
+        const left = marker.timeMs / Math.max(1, durationMs) * 100
+        return (
+          <div key={marker.id} className="contents">
+          <button
+            type="button"
+            data-show-timeline-marker-ui
+            aria-label={`${marker.name ?? 'Marker'} at ${formatSecondsValue(marker.timeMs)} seconds`}
+            title={`${marker.name ?? 'Marker'} · ${formatSecondsValue(marker.timeMs)}s`}
+            disabled={readOnly}
+            className="pointer-events-auto absolute inset-y-0 w-[5px] -translate-x-1/2 cursor-ew-resize touch-none disabled:cursor-default"
+            style={{ left: `${left}%`, color: marker.color ?? '#f59e0b' }}
+            onPointerDown={(event) => {
+              event.stopPropagation()
+              markerPointerRef.current = { markerId: marker.id, pointerId: event.pointerId, startX: event.clientX }
+              event.currentTarget.setPointerCapture?.(event.pointerId)
+            }}
+            onPointerUp={(event) => {
+              event.stopPropagation()
+              const pointer = markerPointerRef.current
+              markerPointerRef.current = null
+              if (!pointer || pointer.markerId !== marker.id || pointer.pointerId !== event.pointerId || Math.abs(event.clientX - pointer.startX) < 3) return
+              const timeMs = resolvePointerTime(event)
+              event.currentTarget.releasePointerCapture?.(event.pointerId)
+              void onMoveMarker(marker.id, timeMs)
+            }}
+            onClick={(event) => {
+              event.stopPropagation()
+              setShowEndOpen(false)
+              setOpenMarkerId((current) => current === marker.id ? null : marker.id)
+            }}
+          >
+            <span className="absolute inset-y-0 left-1/2 w-px -translate-x-1/2 bg-current opacity-45" />
+            <span className="absolute -left-[3px] top-0 h-0 w-0 border-x-[3px] border-t-[5px] border-x-transparent border-t-current" />
+          </button>
+          {openMarkerId === marker.id && (
+            <div
+              role="dialog"
+              data-show-timeline-marker-ui
+              aria-label={`${marker.name ?? 'Marker'} details`}
+              className="pointer-events-auto absolute top-2 z-50 w-52 rounded border border-amber-300/25 bg-zinc-950 p-2 text-left text-[11px] text-zinc-400 shadow-2xl"
+              style={{ left: `${left}%`, transform: left > 72 ? 'translateX(-100%)' : 'translateX(4px)' }}
+              onClick={(event) => event.stopPropagation()}
+            >
+              <div className="mb-2 flex items-center justify-between">
+                <strong className="font-medium text-zinc-200">Marker</strong>
+                <button type="button" aria-label="Close Marker details" className="text-zinc-600 hover:text-zinc-200" onClick={() => setOpenMarkerId(null)}><X size={12} /></button>
+              </div>
+              <label className="grid grid-cols-[44px_1fr] items-center gap-2 py-1">
+                <span>Name</span>
+                <input
+                  aria-label="Marker name"
+                  className="min-w-0 rounded border border-zinc-800 bg-zinc-900 px-1.5 py-1 text-zinc-200"
+                  defaultValue={marker.name ?? ''}
+                  onBlur={(event) => void onUpdateMarker(marker.id, { name: event.target.value.trim() || undefined })}
+                />
+              </label>
+              <label className="grid grid-cols-[44px_1fr] items-center gap-2 py-1">
+                <span>Time</span>
+                <span className="flex items-center gap-1">
+                  <input
+                    type="number"
+                    aria-label="Marker time in seconds"
+                    min={0}
+                    step={0.001}
+                    className="min-w-0 flex-1 rounded border border-zinc-800 bg-zinc-900 px-1.5 py-1 text-right tabular-nums text-zinc-200"
+                    defaultValue={formatSecondsValue(marker.timeMs)}
+                    onBlur={(event) => void onUpdateMarker(marker.id, { timeMs: Number(event.target.value) * 1000 })}
+                  />
+                  <span className="text-zinc-600">s</span>
+                </span>
+              </label>
+              <label className="grid grid-cols-[44px_1fr] items-center gap-2 py-1">
+                <span>Color</span>
+                <input
+                  type="color"
+                  aria-label="Marker color"
+                  className="h-6 w-8 rounded border border-zinc-800 bg-transparent"
+                  value={marker.color ?? '#f59e0b'}
+                  onChange={(event) => void onUpdateMarker(marker.id, { color: event.target.value })}
+                />
+              </label>
+              <button
+                type="button"
+                className="mt-2 flex items-center gap-1 text-red-400/80 hover:text-red-300"
+                onClick={() => {
+                  setOpenMarkerId(null)
+                  void onRemoveMarker(marker.id)
+                }}
+              ><Trash2 size={11} aria-hidden /> Remove Marker</button>
+            </div>
+          )}
+          </div>
+        )
+      })}
+      <button
+        type="button"
+        data-show-timeline-marker-ui
+        aria-label={`Show End at ${formatSecondsValue(durationMs)} seconds`}
+        title={`Show End · ${formatSecondsValue(durationMs)}s`}
+        disabled={readOnly}
+        className="pointer-events-auto absolute inset-y-0 right-0 w-[7px] translate-x-1/2 cursor-ew-resize touch-none text-red-400 disabled:cursor-default"
+        onPointerDown={(event) => {
+          event.stopPropagation()
+          showEndPointerRef.current = { pointerId: event.pointerId, startX: event.clientX }
+          event.currentTarget.setPointerCapture?.(event.pointerId)
+        }}
+        onPointerUp={(event) => {
+          event.stopPropagation()
+          const pointer = showEndPointerRef.current
+          showEndPointerRef.current = null
+          if (!pointer || pointer.pointerId !== event.pointerId || Math.abs(event.clientX - pointer.startX) < 3) return
+          const timeMs = resolvePointerTime(event, true)
+          event.currentTarget.releasePointerCapture?.(event.pointerId)
+          void onSetShowEnd(timeMs)
+        }}
+        onClick={(event) => {
+          event.stopPropagation()
+          setOpenMarkerId(null)
+          setShowEndOpen((open) => !open)
+        }}
+      >
+        <span className="absolute inset-y-0 left-1/2 w-px -translate-x-1/2 bg-current opacity-65" />
+        <span className="absolute -left-[2px] top-0 h-[6px] w-[6px] rotate-45 border-l border-t border-current bg-[#060608]" />
+      </button>
+      {showEndOpen && (
+        <div
+          role="dialog"
+          data-show-timeline-marker-ui
+          aria-label="Show End details"
+          className="pointer-events-auto absolute right-1 top-2 z-50 w-44 rounded border border-red-400/25 bg-zinc-950 p-2 text-[11px] text-zinc-400 shadow-2xl"
+          onClick={(event) => event.stopPropagation()}
+        >
+          <div className="mb-2 flex items-center justify-between">
+            <strong className="font-medium text-zinc-200">Show End</strong>
+            <button type="button" aria-label="Close Show End details" className="text-zinc-600 hover:text-zinc-200" onClick={() => setShowEndOpen(false)}><X size={12} /></button>
+          </div>
+          <label className="flex items-center gap-1">
+            <span className="w-10">Time</span>
+            <input
+              type="number"
+              aria-label="Show End time in seconds"
+              min={0.001}
+              step={0.001}
+              className="min-w-0 flex-1 rounded border border-zinc-800 bg-zinc-900 px-1.5 py-1 text-right tabular-nums text-zinc-200"
+              defaultValue={formatSecondsValue(durationMs)}
+              onBlur={(event) => void onSetShowEnd(Number(event.target.value) * 1000)}
+            />
+            <span className="text-zinc-600">s</span>
+          </label>
+        </div>
+      )}
     </div>
   )
 }
@@ -4651,6 +5119,10 @@ function TimelinePlayhead({
 function formatRulerTime(timeMs: number): string {
   const seconds = Math.round(timeMs / 1000)
   return seconds < 60 ? `${seconds}s` : `${Math.floor(seconds / 60)}:${String(seconds % 60).padStart(2, '0')}`
+}
+
+function formatSecondsValue(timeMs: number): string {
+  return Number((Math.max(0, timeMs) / 1000).toFixed(3)).toString()
 }
 
 function SceneColumnHeader({
