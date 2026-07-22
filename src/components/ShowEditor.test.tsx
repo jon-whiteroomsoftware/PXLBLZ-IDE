@@ -315,6 +315,11 @@ describe('ShowEditor (#318)', () => {
 
     await waitFor(() => expect(showModel.showLoopDurationMs(useShowStore.getState().shows[0])).toBe(65_500))
     expect(screen.getByRole('button', { name: 'Show End at 65.5 seconds' })).toBeInTheDocument()
+
+    await user.clear(showEnd)
+    fireEvent.blur(showEnd)
+    await waitFor(() => expect(showModel.showLoopDurationMs(useShowStore.getState().shows[0])).toBe(65_500))
+    expect(showEnd).toHaveValue(65.5)
   })
 
   it('duplicates a Layout occurrence and makes one reused occurrence independent (#582)', async () => {

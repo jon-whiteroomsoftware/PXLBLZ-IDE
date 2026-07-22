@@ -328,18 +328,26 @@ export function validateShowComposition(
       addIssue(issues, path, 'invalid-transition', 'A Layer transition must occupy the exact gap between its ordered Clip endpoints.')
     }
     if (fromOwner && toOwner) {
-      const unrelatedBoundaryInside = [...placementOwnerById.entries()].some(([placementId, owner]) => {
-        if (
+      const unrelatedOwners = [...placementOwnerById.entries()].flatMap(([placementId, owner]) => {
+        return (
           placementId === transition.fromPlacementId
           || placementId === transition.toPlacementId
           || owner.sceneId !== fromOwner.sceneId
-        ) return false
+        ) ? [] : [owner]
+      })
+      const unrelatedBoundaryInside = unrelatedOwners.some((owner) => {
         const overlapsOpenInterval = owner.endMs > fromOwner.endMs && owner.startMs < toOwner.startMs
         const spansCompleteInterval = owner.startMs < fromOwner.endMs && owner.endMs > toOwner.startMs
         return overlapsOpenInterval && !spansCompleteInterval
       })
       if (unrelatedBoundaryInside) {
         addIssue(issues, path, 'invalid-transition', 'An unrelated Clip cannot start or stop inside a Layer transition.')
+      }
+      const unrelatedSpansCompleteInterval = unrelatedOwners.some((owner) => (
+        owner.startMs < fromOwner.endMs && owner.endMs > toOwner.startMs
+      ))
+      if (unrelatedSpansCompleteInterval && (transition.kind === 'fade-color' || transition.kind === 'motion')) {
+        addIssue(issues, path, 'invalid-transition', 'Fade and Motion Layer transitions cannot pass over an unrelated Clip.')
       }
     }
   }

@@ -5015,7 +5015,15 @@ function TimelineMarkers({
               step={0.001}
               className="min-w-0 flex-1 rounded border border-zinc-800 bg-zinc-900 px-1.5 py-1 text-right tabular-nums text-zinc-200"
               defaultValue={formatSecondsValue(durationMs)}
-              onBlur={(event) => void onSetShowEnd(Number(event.target.value) * 1000)}
+              onBlur={(event) => {
+                const seconds = event.target.value.trim()
+                const parsed = Number(seconds)
+                if (!seconds || !Number.isFinite(parsed)) {
+                  event.target.value = formatSecondsValue(durationMs)
+                  return
+                }
+                void onSetShowEnd(parsed * 1000)
+              }}
             />
             <span className="text-zinc-600">s</span>
           </label>

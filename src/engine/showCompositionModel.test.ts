@@ -29,7 +29,7 @@ import {
   trimShowOverlayPlacement,
   validateShowComposition,
 } from './showCompositionModel'
-import type { ShowCompositionV1, ShowRecord } from './personalContentRecords'
+import type { ShowCompositionV1, ShowLayerTransition, ShowRecord } from './personalContentRecords'
 
 const SOURCE = 'export function render(index) { rgb(index / 60, 0.2, 0.4) }'
 
@@ -338,6 +338,50 @@ describe('Show composition v1 Main schedule (#488)', () => {
       code: 'invalid-transition',
       message: 'An unrelated Clip cannot start or stop inside a Layer transition.',
     }))
+  })
+
+  it('rejects Fade and Motion Layer transitions over an unrelated spanning Clip (#583)', () => {
+    const { show, composition } = fixture()
+    composition.scenes[0].zones[0].overlays = [{
+      id: 'overlay-layer',
+      name: 'Overlay',
+      placements: [{
+        ...composition.scenes[0].zones[0].main[0],
+        id: 'overlay-through-transition',
+        startMs: 3_500,
+        durationMs: 2_000,
+        opacity: 1,
+      }],
+    }]
+    const transitions: ShowLayerTransition[] = [
+      {
+        id: 'fade-a-b',
+        fromPlacementId: 'placement-a',
+        toPlacementId: 'placement-b',
+        kind: 'fade-color',
+        durationMs: 1_000,
+        easing: { curve: 'linear' },
+        color: '#000000',
+      },
+      {
+        id: 'motion-a-b',
+        fromPlacementId: 'placement-a',
+        toPlacementId: 'placement-b',
+        kind: 'motion',
+        motionVariant: 'cover',
+        durationMs: 1_000,
+        easing: { curve: 'linear' },
+      },
+    ]
+
+    for (const transition of transitions) {
+      composition.transitions = [transition]
+      expect(validateShowComposition(show, composition)).toContainEqual(expect.objectContaining({
+        path: 'transitions[0]',
+        code: 'invalid-transition',
+        message: 'Fade and Motion Layer transitions cannot pass over an unrelated Clip.',
+      }))
+    }
   })
 
   it('removes connected transitions from every direct placement and Layer delete path', () => {
