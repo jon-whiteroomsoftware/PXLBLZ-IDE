@@ -497,6 +497,9 @@ alignment guide.
 102. As an author, I want linked Pattern instances and linked Group or Layout
      definitions to look and behave differently, so that time synchronization,
      structural reuse, and snapping are never conflated.
+103. As an author, I want to append, insert, copy, or duplicate a Zone Layout
+     interval, so that changing topology is as direct and predictable as
+     inserting time.
 
 ## Implementation Decisions
 
@@ -654,6 +657,9 @@ unrelated property interpolation does not carry forward.
 - Ordinary Add and Duplicate create independent instances starting at zero when
   they first contribute.
 - Duplicate Linked or Use Same Instance explicitly reuses a Pattern instance.
+- Duplicate Linked is available beside ordinary Duplicate. Use Same Instance
+  opens an explicit compatible-instance chooser with names and use counts;
+  Rejoin Shared Pattern never guesses the intended instance.
 - Split preserves instance identity automatically because it must be a semantic
   no-op.
 - Make Independent gives one Clip a fresh instance while retaining all Clip
@@ -795,6 +801,10 @@ unrelated property interpolation does not carry forward.
   disappear or reset to Cut. The deletion never leaves a detached Transition.
 - Growth stops at unrelated same-layer content unless the author separately
   inserts time.
+- Clicking Cut always opens the Transition chooser. Its initial duration is the
+  smaller of the normal default and the free time after the connected right-hand
+  sequence. When no time is available, non-Cut choices remain visible but
+  disabled with a reason and an Insert Time action.
 - The current compact live Transition preview artwork should be reused in the
   Transition object and catalogue where practical.
 - Transitions are per Layer, not Stage-wide. Other Layers continue composing
@@ -869,6 +879,9 @@ unrelated property interpolation does not carry forward.
   Unique for the active occurrence.
 - Ungroup affects one occurrence and leaves other occurrences linked to their
   definition. Delete removes only the selected occurrence.
+- A collapsed Group occurrence uses one selectable segment on each occupied
+  Layer, joined by a shared visual connector. It never places one click-catching
+  rectangle over unrelated content on intermediate Layers.
 
 ### 13. Zone Layout intervals and progressive disclosure
 
@@ -880,9 +893,9 @@ unrelated property interpolation does not carry forward.
 - Nothing straddles a Zone Layout boundary. Clips, Transitions, and Group
   occurrences stop there. Continued Pattern state is expressed by a new Clip
   placement that explicitly shares the prior Pattern instance.
-- With one Zone and the Zone workspace collapsed, Zone UI disappears completely.
-- The Zones control expands the Zone workspace; it does not enable or disable
-  routing.
+- With one Zone and the Zone workspace collapsed, the Zone Map and picker
+  disappear completely. The Zones control remains available as the discovery
+  path and expands the Zone workspace; it does not enable or disable routing.
 - Expanding a one-Zone Show reveals the existing Full Stage Zone and Add Zone.
 - With more than one Zone, collapsing the workspace leaves a micro-thin Zone
   picker. Clicking an item selects the Zone displayed in focused mode.
@@ -923,6 +936,27 @@ unrelated property interpolation does not carry forward.
   Editing the named Layout catalogue explicitly edits the shared definition and
   keeps scope, use count, and affected occurrences visible. A distant offscreen
   occurrence never changes silently.
+- Append Layout Interval is the primary end-of-Show creation path. Insert Layout
+  Before or After is available at every existing Layout boundary.
+- Insert Layout Interval at Playhead uses global Insert Time semantics. It adds
+  the requested duration, splits every intersected Clip while preserving
+  Pattern-instance identity, shifts all later content, places the chosen Layout
+  in the new interval, and resumes the prior Layout afterward. It is unavailable
+  inside a Transition and applies the same Make Unique/Ungroup rule to an
+  intersected Group as Insert Time.
+- Inserting inside an occurrence therefore creates entry and exit boundaries;
+  appending at Show End creates only an entry boundary. The initial overhaul
+  does not reinterpret populated downstream choreography as a different Layout
+  from an arbitrary playhead.
+- Insert Blank Layout, Use Named Layout, Copy Previous Layout, and Duplicate
+  Layout Interval are variants of the same creation flow.
+- Editor presentation has one active Layout context: the selected entity's
+  occurrence when a selection exists, otherwise the playhead occurrence. The
+  Zone Map and micro picker follow this context; the Stage remains tied only to
+  the playhead.
+- Timeline height remains stable while panning horizontally. It may change only
+  through explicit expand, collapse, focus, or Layer operations and is based on
+  the tallest interval in the current display state.
 
 ### 14. Installation and Portable Zone behavior
 
@@ -992,6 +1026,10 @@ unrelated property interpolation does not carry forward.
   mandatory close-button hunt.
 - Click-away may dismiss an Entity Detail. A keyboard command toggles the detail
   for the selected or hovered entity.
+- A completed click opens Details. Pointer-down followed by a drag does not open
+  a new Detail. Any already open floating Details hide during direct timeline
+  manipulation, retain their state, and reappear anchored to their entities when
+  the gesture commits or cancels. Only the compact drag readout remains visible.
 - Several Entity Details should coexist when screen space permits so authors can
   compare Clips. They must not each consume a dialog-scale width.
 - Escape should have one predictable priority among active editing, Group

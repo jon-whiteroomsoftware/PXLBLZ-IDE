@@ -34,6 +34,7 @@ import { ShowTimelineDualModelPrototype } from '@/components/ShowTimelineDualMod
 import { ShowTimelineRoundTwoPrototype } from '@/components/ShowTimelineRoundTwoPrototype'
 import { ShowSemanticZoomPrototype } from '@/components/ShowSemanticZoomPrototype'
 import { ShowOverlayPlacementPrototype } from '@/components/ShowOverlayPlacementPrototype'
+import { ShowEditorOverhaulPrototype } from '@/components/ShowEditorOverhaulPrototype'
 import { ShowStagePreview } from '@/components/ShowStagePreview'
 import { ShowCreationFlow, type ShowCreationMapOption } from '@/components/ShowCreationFlow'
 import { useControllerStore } from '@/store/controllerStore'
@@ -287,6 +288,9 @@ export default function App() {
       return <ShowTimelineRoundTwoPrototype />
     }
     return <ShowTimelineDualModelPrototype />
+  }
+  if (import.meta.env.DEV && new URLSearchParams(window.location.search).get('prototype') === 'show-overhaul') {
+    return <ShowEditorOverhaulPrototype />
   }
   return <StudioApp />
 }

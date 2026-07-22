@@ -55,7 +55,7 @@ authoring pane has six vertical bands:
 +----------------------------------------------------------------+----------+
 | Show name                         output / compile / run / save |          |
 | [play] [A:start]  [======= Navigator window =======]  commands |  Stage   |
-| [Zones >]  (hidden completely in the one-Zone default)         | preview  |
+| [Zones >]  (toggle remains; map and picker are hidden)          | preview  |
 | 00:00        00:05        00:10       |marker|       Show End  | at the   |
 |----------------------------------------------------------------| playhead |
 | Layer 1  [Pattern A---------][cut][Pattern B------]             |          |
@@ -138,6 +138,9 @@ The author can immediately:
 No viewport, Pattern-instance, Zone, Group-definition, or compiler terminology
 appears until an operation needs it.
 
+The Zones toggle remains in the toolbar as the discovery path. Only the Zone
+Map, Zone headers, and picker disappear in the default one-Zone state.
+
 ## Toolbar, ruler, and Navigator
 
 The toolbar is organized by frequency rather than object type:
@@ -185,6 +188,41 @@ short reason.
 The menu previews the destination interval on hover. It never silently chooses
 a different Layer or overwrites a Clip.
 
+## Creating Zone Layout intervals
+
+Layout creation uses the same structural grammar as Insert Time. The primary
+entry points are:
+
+- **Append Layout Interval** at Show End;
+- **Insert Layout Before** and **Insert Layout After** in a Layout-boundary menu;
+  and
+- **Insert Layout Interval at Playhead** in the Insert menu and Zone Map.
+
+The first two paths are visually primary because they match the common workflow.
+Playhead insertion remains available anywhere legal, but it inserts duration; it
+does not reinterpret populated downstream choreography as a new topology.
+
+Inserting within an existing interval performs one atomic operation:
+
+1. ask for duration and Layout source;
+2. split every intersected Clip, retaining its Pattern instance;
+3. shift all later content exactly as Insert Time does;
+4. create an entry boundary and a return boundary;
+5. place the selected Layout in the new blank interval; and
+6. resume the previous Layout afterward.
+
+The operation is unavailable inside a Transition. An intersected linked Group
+requires Make Unique or Ungroup, using the same rule as Insert Time. Appending at
+Show End needs only the entry boundary.
+
+One creation surface offers four sources with stable language:
+
+- **Blank Layout**;
+- **Use named Layout** — shared topology, empty choreography;
+- **Copy previous Layout** — independent topology, empty choreography; and
+- **Duplicate interval** — shared topology, copied choreography, fresh Pattern
+  instances preserving internal sharing.
+
 ## Movement, resizing, and collision
 
 Horizontal dragging previews the exact time in a small readout. Candidate Clip
@@ -212,6 +250,13 @@ moves the complete sequence. The three basic boundary edits are literal:
 The editor does not initially offer a rolling edit that preserves total sequence
 length. Reset to Cut is the Transition deletion action.
 
+Clicking a Cut opens a compact Transition chooser using the existing SVG
+previews and a Duration field. The initial duration is the smaller of the normal
+default and the free interval after the connected right-hand sequence. If only
+`0.4s` is free, the field begins at `0.4s`. If no time is free, non-Cut choices
+remain visible but disabled with `No room after this sequence` and an **Insert
+Time…** action.
+
 ## Selection and structural actions
 
 Dragging from empty timeline space creates a marquee. Any visible intersection
@@ -234,16 +279,24 @@ No mixed-value property form appears.
 
 ## Compact Entity Details
 
-Selection opens one transient Entity Detail near the entity without covering its
-active handles. The panel uses the strong summary already present in current
-details, then dense field rows. Clicking away closes it. `I` toggles the detail
-for the selected entity or, when nothing is selected, the Clip currently under
-the pointer.
+A completed click selects an entity and opens one transient Entity Detail near
+it without covering active handles. Pointer-down followed by movement beyond the
+drag threshold selects for manipulation but does not open a new panel. The panel
+uses the strong summary already present in current details, then dense field
+rows. Clicking away closes it. `I` explicitly toggles the Detail for the selected
+entity or the Clip currently under the pointer; hover alone never opens anything.
 
 A pin keeps one Detail open while another selection opens a new transient one.
 This is the proposed mechanism for side-by-side comparison without letting every
 click accumulate panels. It should be validated; multiple unpinned panels are a
 reasonable fallback if pinning feels too procedural.
+
+During any direct timeline manipulation — move, resize, Transition adjustment,
+Group movement, or marquee selection — all floating Entity Details temporarily
+hide. Pinned and transient Details preserve their state and reappear anchored to
+their entities when the gesture commits or cancels. The timeline retains only a
+small readout for changing time, duration, Layer, or Zone. Hiding and restoration
+create no undo step and use no animation beyond an optional very short fade.
 
 The Clip Detail begins with:
 
@@ -263,6 +316,10 @@ not saved modes.
 The Pattern-instance section shows the instance name, first contribution time,
 clock policy, exported Controls, and `Used by N Clips`. **Make Independent** and
 **Rejoin Shared Pattern** include explanatory scope copy before committing.
+Ordinary **Duplicate** and **Duplicate Linked** sit together in the Clip context
+menu. **Use Same Instance…** opens a compatible-instance chooser with names,
+first contribution times, and use counts; it never guesses which instance the
+author means.
 
 Escape uses this priority:
 
@@ -287,6 +344,13 @@ may show several compact rows; closed rows retain a quiet keyframe summary in
 the Clip body or Layer. Hidden keyframes beyond a shortened Clip remain visible
 in the Detail as dormant values and reappear on the timeline when duration
 extends.
+
+A shared Pattern instance has no single Layer home. Selecting it projects its
+animation into Show time beneath each visible linked appearance. Each projection
+uses the linked-clock badge and the same instance name; editing any projection
+changes one underlying instance track. Gaps, time-rate changes, and Stutter use
+the instance's actual time mapping. Prototype 5 must test whether repeated
+projections clarify sharing or create too much visual duplication.
 
 ## Clip presentation: Live, Freeze, Strobe, Blink, and Stutter
 
@@ -313,6 +377,12 @@ definition name and one occurrence badge. Its external handles move the
 occurrence in time or translate it in X/Y; it has no initial Width, Height,
 Rotation, or Viewport controls.
 
+The shell is segmented by occupied Layer. Each segment follows the actual child
+footprint and the segments share a thin bracket/outline, one name, and one
+selection state. Empty intermediate Layers retain no click-catching overlay, so
+unrelated Clips remain directly selectable. Clicking any segment selects and
+moves the complete Group occurrence.
+
 Double-clicking enters Group isolation in place:
 
 - Group children regain ordinary Clip, Transition, and Layer handles;
@@ -337,12 +407,18 @@ Unique is the escape hatch.
 
 ### Progressive disclosure
 
-The **Zones** control toggles the Zone Map. In a one-Zone Show, closing it removes
-Zone UI completely. Once the active Layout contains several Zones, closing the
-full map leaves a micro-thin icon picker so the author can switch the Zone shown
-in focus mode.
+The **Zones** control always remains in the toolbar and toggles the Zone Map. In
+a one-Zone Show, closing it removes the map, headers, and picker completely. Once
+the active Layout contains several Zones, closing the full map leaves a
+micro-thin icon picker so the author can switch the Zone shown in focus mode.
 
-The Zone Map reflects the Layout occurrence at the playhead and shows:
+The editor has one active Layout context: the selected entity's interval when a
+selection exists, otherwise the playhead's interval. The Zone Map and micro
+picker reflect that editing context. The Stage remains tied exclusively to the
+playhead. Each Layout occurrence remembers its own focused Zone; entering an
+interval without a prior focus selects its first Zone.
+
+The Zone Map shows:
 
 - Layout name or `Unnamed layout`;
 - shared-definition use count when named;
@@ -369,9 +445,11 @@ RULER      00:00                00:12          00:20                 00:32
            [SE  L1  clips.....] |              | [Right L2 ...........]
 ```
 
-The enclosing timeline takes the tallest visible interval; a shorter interval
-does not invent phantom Layers. Independent Zone collapse, compact summaries,
-focus mode, and ordinary vertical scrolling control height.
+The enclosing timeline uses the tallest interval in the current display state;
+a shorter interval does not invent phantom Layers. Its height remains stable
+during horizontal pan and zoom. It changes only when the author explicitly
+expands, collapses, focuses, or adds/removes Layers. Independent Zone collapse,
+compact summaries, focus mode, and ordinary vertical scrolling control height.
 
 At every hard boundary the next Layout restates its Zone and Layer headers. When
 the interval begins left of the viewport, a translucent local header rail sticks
@@ -395,6 +473,9 @@ At a hard boundary, **New Layout interval** offers:
   choreography and fresh runtime instances.
 
 The last option is an operation, not a persistent Scene-like container.
+
+The interval label row is suppressed when the Show contains only one Layout
+occurrence. It appears as soon as topology changes over time.
 
 Editing a reused Layout occurrence presents two equally visible choices:
 `Make unique for this interval` and `Edit all N uses`. Opening the named Layout
@@ -460,6 +541,7 @@ field, menu, or Entity Detail control.
 | Tab / Shift+Tab | Next/previous Clip in deterministic time, Zone, Layer order; wraps |
 | Left / Right | Pan the timeline by one visible page |
 | I | Toggle Entity Detail for selection or hovered Clip |
+| Delete / Backspace | Delete the selection, with structural warnings where required |
 | Escape | Apply the priority described under Entity Details |
 | Platform Undo/Redo | Undo/redo one semantic edit |
 | Platform Cut/Copy/Paste | Standard structural clipboard behavior |
@@ -554,6 +636,40 @@ orientation and understand which local Zone stack they are editing when
 topology changes, the interval design needs revision before implementation. A
 failure there must not be papered over with more labels.
 
+### Prototype findings
+
+The throwaway prototype at `?prototype=show-overhaul` compares three changing-
+topology projections against the same `4 Zones -> 1 Zone -> 3 Zones` fixture:
+
+1. **Full stacks** is the recommended default. Every Zone remains visible, the
+   ruler and playhead stay continuous, and the author can compare choreography
+   across Layout boundaries without entering a sub-editor. The stable canvas
+   height leaves deliberate empty space below shorter intervals; in context,
+   that reads as available vertical capacity rather than missing content.
+2. **Per-Layout focus** is useful as an explicit focus mode, not as the default.
+   It substantially reduces height while preserving one full Zone stack per
+   Layout, but it hides simultaneous choreography in the other Zones.
+3. **Active interval** is too lossy as the default. Compact neighboring
+   summaries preserve topology awareness but prevent useful cross-boundary
+   comparison. Its compact summaries remain a useful ingredient for collapsed
+   or unfocused intervals.
+
+The prototype also validates these supporting decisions:
+
+- a one-Zone Show can omit Zone headers and Layout labels entirely;
+- the Stage can collapse into a shallow top band at narrow widths while the
+  timeline retains internal horizontal scrolling and creates no page overflow;
+- Entity Details can disappear during direct manipulation and restore afterward
+  without losing the author's working context;
+- a Cut can remain a tiny persistent junction while opening a Transition chooser
+  that shows the maximum duration currently available; and
+- insertion choices fit in one compact command surface when their downstream
+  effects are summarized before confirmation.
+
+The prototype is a structural artifact, not production code. Implementation may
+reuse its fixture and interaction vocabulary, but should rebuild the surface on
+the production Show model and existing design-system components.
+
 ## Review questions
 
 1. Does the interval-local sticky header preserve orientation when the start of
@@ -562,13 +678,20 @@ failure there must not be papered over with more labels.
    four-Zone interval, or does the empty canvas below it imply missing content?
 3. Does pinning provide the right compact multi-Detail behavior, or should every
    newly opened Detail remain independent until Escape closes all?
-4. Should a hard Layout boundary be draggable only through time that is empty on
-   both adjoining Layouts, or should its time remain numeric/command-only in the
-   first release?
+4. Should a hard Layout boundary remain numeric/command-only initially, or may it
+   be dragged through time that is empty in both adjoining Layouts?
 5. Does `I` feel right for Entity Detail toggle alongside Space, A, Tab, and the
    standard clipboard shortcuts?
 6. At what stack height should the editor recommend focus mode without switching
    automatically?
+7. Do repeated Show-time projections of one shared Pattern-instance animation
+   clarify sharing, or should only the active projection expand?
+8. Are segmented Group shells easy to select without obscuring unrelated Clips
+   on intermediate Layers?
+9. Should Details auto-open after a completed selection click, or only after `I`,
+   once users begin rapid structural editing?
+10. How should adjacent minimum-display-width Clips cluster without falsifying
+    their time positions or overlapping hit targets?
 
 These questions are suitable for the prototype. They do not reopen the PRD's
 settled ownership, time, Transition, Group, or Zone Layout contracts.
