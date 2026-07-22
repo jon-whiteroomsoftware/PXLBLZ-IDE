@@ -113,9 +113,12 @@ import {
 } from '@/engine/showTimelineViewport'
 import { projectShowUnifiedTimeline } from '@/engine/showUnifiedTimelineProjection'
 import {
+  addShowOverlayLayerAcrossTimeline,
   addShowMainClipAtGlobalTime,
+  duplicateShowClipAfter,
   moveShowClipAtGlobalTime,
   planShowMainClipAtGlobalTime,
+  splitShowClipAtGlobalTime,
   type ShowTimelineClipMoveTarget,
   type ShowTimelineClipOwner,
 } from '@/engine/showTimelineClipAuthoring'
@@ -242,6 +245,29 @@ function findCompositionClipOwner(
     }
   }
   return null
+}
+
+function findTimelineClipOwner(
+  composition: ShowCompositionV1 | null | undefined,
+  placementId: string,
+): ShowTimelineClipOwner | null {
+  const owner = findCompositionClipOwner(composition, placementId)
+  if (!owner) return null
+  if (owner.kind === 'global') return null
+  return owner.kind === 'scene-main'
+    ? {
+        kind: 'main',
+        sceneId: owner.sceneId,
+        zoneId: owner.zoneId,
+        placementId: owner.placementId,
+      }
+    : {
+        kind: 'overlay',
+        sceneId: owner.sceneId,
+        zoneId: owner.zoneId,
+        layerId: owner.layerId,
+        placementId: owner.placementId,
+      }
 }
 
 type ShowPatternOption = {
@@ -1239,6 +1265,54 @@ export function ShowEditor({
                   })
                   return true
                 }}
+                onAddCompositionLayer={async (zoneId) => {
+                  if (!timelineComposition) return false
+                  const nextComposition = addShowOverlayLayerAcrossTimeline(activeShow, timelineComposition, {
+                    zoneId,
+                    layers: timelineComposition.scenes.map((scene) => ({
+                      sceneId: scene.sceneId,
+                      layerId: newPersonalContentId(),
+                    })),
+                  })
+                  if (nextComposition === timelineComposition) return false
+                  await updateShow(activeShow.id, {
+                    ...activeShow,
+                    composition: nextComposition,
+                    updatedAt: Date.now(),
+                  })
+                  return true
+                }}
+                onSplitCompositionClip={async (owner, globalTimeMs) => {
+                  if (!timelineComposition) return null
+                  const placementId = newPersonalContentId()
+                  const nextComposition = splitShowClipAtGlobalTime(activeShow, timelineComposition, {
+                    owner,
+                    globalTimeMs,
+                    newPlacementId: placementId,
+                  })
+                  if (nextComposition === timelineComposition) return null
+                  await updateShow(activeShow.id, {
+                    ...activeShow,
+                    composition: nextComposition,
+                    updatedAt: Date.now(),
+                  })
+                  return placementId
+                }}
+                onDuplicateCompositionClip={async (owner) => {
+                  if (!timelineComposition) return null
+                  const placementId = newPersonalContentId()
+                  const nextComposition = duplicateShowClipAfter(activeShow, timelineComposition, {
+                    owner,
+                    newPlacementId: placementId,
+                  })
+                  if (nextComposition === timelineComposition) return null
+                  await updateShow(activeShow.id, {
+                    ...activeShow,
+                    composition: nextComposition,
+                    updatedAt: Date.now(),
+                  })
+                  return placementId
+                }}
                 onOpenScene={(sceneId) => {
                   const scope = resolveShowSceneEditorScope(activeShow, {
                     sceneId,
@@ -1897,17 +1971,23 @@ function ShowSceneTransportControls({
 
 function ShowTimelineCommands({
   show,
+  composition,
   readOnly,
   selection,
   onSelect,
+  onSplitCompositionClip,
+  onDuplicateCompositionClip,
   snapEnabled,
   onToggleSnap,
   onFit,
 }: {
   show: ShowRecord
+  composition: ShowCompositionV1 | null
   readOnly: boolean
   selection: ShowSelection
   onSelect: (selection: ShowSelection, anchor?: HTMLElement | null) => void
+  onSplitCompositionClip: (owner: ShowTimelineClipOwner, globalTimeMs: number) => Promise<string | null>
+  onDuplicateCompositionClip: (owner: ShowTimelineClipOwner) => Promise<string | null>
   snapEnabled: boolean
   onToggleSnap: () => void
   onFit: () => void
@@ -1919,13 +1999,51 @@ function ShowTimelineCommands({
   const undoShow = useShowStore((state) => state.undoShow)
   const redoShow = useShowStore((state) => state.redoShow)
   const history = useShowStore((state) => state.showHistories[show.id])
-  const splitCapability = showSplitCapability(show, positionMs)
+  const legacySplitCapability = showSplitCapability(show, positionMs)
   const splitReasonId = `show-split-reason-${show.id}`
   const [splitReasonOpen, setSplitReasonOpen] = useState(false)
-  const cloneCapability = showCloneCapability(show, selection)
+  const compositionOwner = selection.kind === 'clip'
+    ? findTimelineClipOwner(composition, selection.clipId)
+    : null
+  const compositionTimeline = useMemo(() => (
+    composition ? projectShowUnifiedTimeline(show, composition) : null
+  ), [composition, show])
+  const compositionClip = compositionOwner
+    ? compositionTimeline?.zones.flatMap((zone) => zone.layers.flatMap((layer) => layer.clips))
+      .find((clip) => clip.id === compositionOwner.placementId)
+    : null
+  const splitCapability = compositionOwner
+    ? compositionClip && positionMs > compositionClip.startMs && positionMs < compositionClip.endMs
+      ? { enabled: true, code: 'ready' as const, reason: `Split ${compositionClip.patternName} at the playhead` }
+      : { enabled: false, code: 'outside-clip' as const, reason: 'Place the playhead inside the selected Clip' }
+    : legacySplitCapability
+  const legacyCloneCapability = showCloneCapability(show, selection)
+  const compositionLayer = compositionClip
+    ? compositionTimeline?.zones.flatMap((zone) => zone.layers)
+      .find((layer) => layer.clips.some((clip) => clip.id === compositionClip.id))
+    : null
+  const compositionSceneRange = compositionClip
+    ? projectShowTimeline(show).scenes.find((scene) => scene.sceneId === compositionClip.sceneId)
+    : null
+  const duplicateEndMs = compositionClip ? compositionClip.endMs + compositionClip.durationMs : 0
+  const duplicateObstructed = Boolean(compositionClip && compositionLayer?.clips.some((clip) => (
+    clip.id !== compositionClip.id
+    && clip.startMs < duplicateEndMs
+    && clip.endMs > compositionClip.endMs
+  )))
+  const cloneCapability = compositionOwner
+    ? compositionClip && compositionSceneRange && duplicateEndMs <= compositionSceneRange.endMs && !duplicateObstructed
+      ? { enabled: true, reason: `Duplicate ${compositionClip.patternName} immediately after itself` }
+      : { enabled: false, reason: 'The selected Clip needs empty time after it on this Layer' }
+    : legacyCloneCapability
 
   const cloneSelection = async () => {
     if (!cloneCapability.enabled) return
+    if (compositionOwner) {
+      const copyId = await onDuplicateCompositionClip(compositionOwner)
+      if (copyId) onSelect({ kind: 'clip', clipId: copyId })
+      return
+    }
     if (selection.kind === 'scene') {
       const previousIds = new Set(show.scenes.map((scene) => scene.id))
       await duplicateScene(show.id, selection.sceneId)
@@ -1990,7 +2108,13 @@ function ShowTimelineCommands({
               return
             }
             if (usePreviewStore.getState().isRunning) usePreviewStore.getState().toggle()
-            void splitAtTime(show.id, positionMs)
+            if (compositionOwner) {
+              void onSplitCompositionClip(compositionOwner, positionMs).then((placementId) => {
+                if (placementId) onSelect({ kind: 'clip', clipId: placementId })
+              })
+            } else {
+              void splitAtTime(show.id, positionMs)
+            }
           }}
         >
           <Scissors size={12} aria-hidden />
@@ -2008,7 +2132,9 @@ function ShowTimelineCommands({
               ? 'Split needs 1.0 s on both sides'
               : splitCapability.code === 'nonlinear-property-animation'
                 ? 'Add a keyframe here or make this segment Linear before splitting'
-                : 'Split only works inside a Scene'}
+                : splitCapability.code === 'outside-clip'
+                  ? 'Place the playhead inside the selected Clip'
+                  : 'Split only works inside a Scene'}
           </span>
         )}
       </span>
@@ -2130,6 +2256,9 @@ function SceneStrip({
   patternOptions,
   onAddClipAtPlayhead,
   onMoveCompositionClip,
+  onAddCompositionLayer,
+  onSplitCompositionClip,
+  onDuplicateCompositionClip,
   onOpenScene,
   onAddScene,
   onAddZone,
@@ -2158,6 +2287,9 @@ function SceneStrip({
     owner: ShowTimelineClipOwner
     target: ShowTimelineClipMoveTarget
   }) => Promise<boolean>
+  onAddCompositionLayer: (zoneId: string) => Promise<boolean>
+  onSplitCompositionClip: (owner: ShowTimelineClipOwner, globalTimeMs: number) => Promise<string | null>
+  onDuplicateCompositionClip: (owner: ShowTimelineClipOwner) => Promise<string | null>
   onOpenScene: (sceneId: string) => void
   onAddScene: () => void
   onAddZone: () => void
@@ -2195,6 +2327,15 @@ function SceneStrip({
     return first ? `${first.ref.kind}:${first.ref.id}` : null
   })
   const addClipZoneId = show.zones[0]?.id ?? null
+  const selectedCompositionZoneId = selection.kind === 'zone'
+    ? selection.zoneId
+    : selection.kind === 'clip'
+      ? unifiedCompositionTimeline?.zones.find((zone) => (
+          zone.layers.some((layer) => layer.clips.some((clip) => clip.id === selection.clipId))
+        ))?.id
+      : null
+  const layerTargetZoneId = selectedCompositionZoneId ?? show.zones[0]?.id ?? null
+  const layerTargetZoneName = show.zones.find((zone) => zone.id === layerTargetZoneId)?.name ?? 'Zone'
   const addClipPlan = timelineComposition && addClipZoneId
     ? planShowMainClipAtGlobalTime(show, timelineComposition, {
         zoneId: addClipZoneId,
@@ -2491,6 +2632,21 @@ function SceneStrip({
               <Button
                 size="xs"
                 variant="ghost"
+                aria-label="Add Layer"
+                title={`Add a Layer to ${layerTargetZoneName}`}
+                disabled={!layerTargetZoneId}
+                className="bg-transparent px-1.5 text-[11px] text-zinc-400 hover:bg-zinc-800/60 hover:text-zinc-100"
+                onClick={() => {
+                  if (!layerTargetZoneId) return
+                  void onAddCompositionLayer(layerTargetZoneId)
+                }}
+              >
+                <Layers3 size={12} aria-hidden />
+                Layer
+              </Button>
+              <Button
+                size="xs"
+                variant="ghost"
                 aria-label="Add Clip at playhead"
                 title="Add a Pattern Clip at the playhead"
                 aria-expanded={addClipOpen}
@@ -2558,9 +2714,12 @@ function SceneStrip({
           )}
           <ShowTimelineCommands
             show={show}
+            composition={timelineComposition}
             readOnly={readOnly}
             selection={selection}
             onSelect={onSelect}
+            onSplitCompositionClip={onSplitCompositionClip}
+            onDuplicateCompositionClip={onDuplicateCompositionClip}
             snapEnabled={snapEnabled}
             onToggleSnap={() => setSnapEnabled(!snapEnabled)}
             onFit={() => updateViewport(fitShowTimelineViewport(timeline.durationMs))}

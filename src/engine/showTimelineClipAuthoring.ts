@@ -8,6 +8,8 @@ import type {
 import {
   addShowMainClip,
   normalizeShowComposition,
+  splitShowMainPlacement,
+  splitShowOverlayPlacement,
   validateShowComposition,
 } from './showCompositionModel'
 import { projectShowTimeline } from './showModel'
@@ -39,6 +41,28 @@ export type ShowTimelineClipOwner =
 export type ShowTimelineClipMoveTarget =
   | { kind: 'main'; zoneId: string; globalStartMs: number }
   | { kind: 'overlay'; zoneId: string; layerIndex: number; globalStartMs: number }
+
+export function addShowOverlayLayerAcrossTimeline(
+  show: ShowRecord,
+  composition: ShowCompositionV1,
+  input: { zoneId: string; layers: Array<{ sceneId: string; layerId: string }> },
+): ShowCompositionV1 {
+  const layerBySceneId = new Map(input.layers.map((layer) => [layer.sceneId, layer.layerId]))
+  if (layerBySceneId.size !== composition.scenes.length) return composition
+  const draft = structuredClone(composition)
+  const layerNumber = draft.scenes.reduce((maximum, scene) => {
+    const zone = scene.zones.find((candidate) => candidate.zoneId === input.zoneId)
+    return Math.max(maximum, zone?.overlays.length ?? 0)
+  }, 0) + 1
+  for (const scene of draft.scenes) {
+    const zone = scene.zones.find((candidate) => candidate.zoneId === input.zoneId)
+    const layerId = layerBySceneId.get(scene.sceneId)
+    if (!zone || !layerId) return composition
+    zone.overlays.unshift({ id: layerId, name: `Layer ${layerNumber}`, placements: [] })
+  }
+  if (validateShowComposition(show, draft).length > 0) return composition
+  return normalizeShowComposition(show, draft)
+}
 
 export function planShowMainClipAtGlobalTime(
   show: ShowRecord,
@@ -181,6 +205,68 @@ export function moveShowClipAtGlobalTime(
     if (sourceScene.propertyTracks.length === 0) delete sourceScene.propertyTracks
     targetScene.propertyTracks = [...(targetScene.propertyTracks ?? []), ...movedTracks]
   }
+
+  if (validateShowComposition(show, draft).length > 0) return composition
+  return normalizeShowComposition(show, draft)
+}
+
+export function splitShowClipAtGlobalTime(
+  show: ShowRecord,
+  composition: ShowCompositionV1,
+  input: { owner: ShowTimelineClipOwner; globalTimeMs: number; newPlacementId: string },
+): ShowCompositionV1 {
+  if (!Number.isFinite(input.globalTimeMs)) return composition
+  const range = projectShowTimeline(show).scenes.find((scene) => scene.sceneId === input.owner.sceneId)
+  if (!range) return composition
+  const atMs = Math.round(input.globalTimeMs - range.startMs)
+  return input.owner.kind === 'main'
+    ? splitShowMainPlacement(show, composition, {
+        ...input.owner,
+        atMs,
+        newPlacementId: input.newPlacementId,
+      })
+    : splitShowOverlayPlacement(show, composition, {
+        ...input.owner,
+        atMs,
+        newPlacementId: input.newPlacementId,
+      })
+}
+
+export function duplicateShowClipAfter(
+  show: ShowRecord,
+  composition: ShowCompositionV1,
+  input: { owner: ShowTimelineClipOwner; newPlacementId: string },
+): ShowCompositionV1 {
+  const draft = structuredClone(composition)
+  const scene = draft.scenes.find((candidate) => candidate.sceneId === input.owner.sceneId)
+  const zone = scene?.zones.find((candidate) => candidate.zoneId === input.owner.zoneId)
+  if (!scene || !zone) return composition
+  let placements: Array<ShowMainPlacement | ShowOverlayPlacement> | undefined
+  if (input.owner.kind === 'main') {
+    placements = zone.main
+  } else {
+    const layerId = input.owner.layerId
+    placements = zone.overlays.find((layer) => layer.id === layerId)?.placements
+  }
+  const source = placements?.find((placement) => placement.id === input.owner.placementId)
+  if (!placements || !source) return composition
+  const startMs = source.startMs + source.durationMs
+  placements.push({ ...structuredClone(source), id: input.newPlacementId, startMs })
+
+  const sourceTracks = (scene.propertyTracks ?? []).filter((track) => (
+    'placementId' in track.target && track.target.placementId === input.owner.placementId
+  ))
+  const copies = sourceTracks.map((track) => ({
+    ...structuredClone(track),
+    id: `${track.id}-${input.newPlacementId}`,
+    target: { ...track.target, placementId: input.newPlacementId },
+    keyframes: track.keyframes.map((keyframe) => ({
+      ...structuredClone(keyframe),
+      id: `${keyframe.id}-${input.newPlacementId}`,
+      timeMs: keyframe.timeMs + source.durationMs,
+    })),
+  }))
+  if (copies.length > 0) scene.propertyTracks = [...(scene.propertyTracks ?? []), ...copies]
 
   if (validateShowComposition(show, draft).length > 0) return composition
   return normalizeShowComposition(show, draft)

@@ -1,9 +1,12 @@
 import { describe, expect, it } from 'vitest'
 import { createDefaultShow } from './showModel'
 import {
+  addShowOverlayLayerAcrossTimeline,
   addShowMainClipAtGlobalTime,
+  duplicateShowClipAfter,
   moveShowClipAtGlobalTime,
   planShowMainClipAtGlobalTime,
+  splitShowClipAtGlobalTime,
 } from './showTimelineClipAuthoring'
 import type { ShowCompositionV1, ShowPatternInstance } from './personalContentRecords'
 
@@ -26,6 +29,25 @@ const instance: ShowPatternInstance = {
 }
 
 describe('global timeline Clip authoring (#580)', () => {
+  it('adds one visible overlay Layer across every internal Scene owner', () => {
+    const show = createDefaultShow('show-add-layer', 'Add layer', 1000)
+    const composition = emptyComposition(show)
+
+    const next = addShowOverlayLayerAcrossTimeline(show, composition, {
+      zoneId: show.zones[0].id,
+      layers: show.scenes.map((scene, index) => ({
+        sceneId: scene.id,
+        layerId: `layer-${index}`,
+      })),
+    })
+
+    expect(next).not.toBe(composition)
+    expect(next.scenes.map((scene) => scene.zones[0].overlays)).toEqual([
+      [{ id: 'layer-0', name: 'Layer 1', placements: [] }],
+      [{ id: 'layer-1', name: 'Layer 1', placements: [] }],
+    ])
+  })
+
   it('plans a five-second Clip from empty global time', () => {
     const show = createDefaultShow('show-add-global', 'Add global', 1000)
     const composition = emptyComposition(show)
@@ -334,6 +356,70 @@ describe('global timeline Clip authoring (#580)', () => {
         { id: 'key-a', timeMs: 2_500 },
         { id: 'key-b', timeMs: 4_000 },
       ],
+    })
+  })
+
+  it('splits a Clip at global time while preserving its shared Pattern instance', () => {
+    const show = createDefaultShow('show-split-clip', 'Split clip', 1000)
+    const composition = emptyComposition(show)
+    composition.patternInstances.push(instance)
+    composition.scenes[0].zones[0].main.push({
+      id: 'placement-left',
+      instanceId: instance.id,
+      startMs: 2_000,
+      durationMs: 6_000,
+      view: { mirror: false, phase: 0, brightness: 1 },
+    })
+
+    const next = splitShowClipAtGlobalTime(show, composition, {
+      owner: {
+        kind: 'main', sceneId: show.scenes[0].id, zoneId: show.zones[0].id, placementId: 'placement-left',
+      },
+      globalTimeMs: 5_000,
+      newPlacementId: 'placement-right',
+    })
+
+    expect(next.patternInstances).toEqual([instance])
+    expect(next.scenes[0].zones[0].main).toEqual([
+      expect.objectContaining({ id: 'placement-left', instanceId: instance.id, startMs: 2_000, durationMs: 3_000 }),
+      expect.objectContaining({ id: 'placement-right', instanceId: instance.id, startMs: 5_000, durationMs: 3_000 }),
+    ])
+  })
+
+  it('duplicates a Clip immediately after itself with the same Pattern instance and property tracks', () => {
+    const show = createDefaultShow('show-duplicate-clip', 'Duplicate clip', 1000)
+    const composition = emptyComposition(show)
+    composition.patternInstances.push(instance)
+    composition.scenes[0].zones[0].main.push({
+      id: 'placement-source',
+      instanceId: instance.id,
+      startMs: 2_000,
+      durationMs: 3_000,
+      view: { mirror: false, phase: 0, brightness: 1 },
+    })
+    composition.scenes[0].propertyTracks = [{
+      id: 'track-source',
+      target: { kind: 'placement-view', placementId: 'placement-source', property: 'brightness' },
+      keyframes: [
+        { id: 'key-source-a', timeMs: 2_000, value: 0, easing: { curve: 'linear' } },
+        { id: 'key-source-b', timeMs: 5_000, value: 1, easing: { curve: 'linear' } },
+      ],
+    }]
+
+    const next = duplicateShowClipAfter(show, composition, {
+      owner: {
+        kind: 'main', sceneId: show.scenes[0].id, zoneId: show.zones[0].id, placementId: 'placement-source',
+      },
+      newPlacementId: 'placement-copy',
+    })
+
+    expect(next.patternInstances).toEqual([instance])
+    expect(next.scenes[0].zones[0].main[1]).toMatchObject({
+      id: 'placement-copy', instanceId: instance.id, startMs: 5_000, durationMs: 3_000,
+    })
+    expect(next.scenes[0].propertyTracks?.[1]).toMatchObject({
+      target: { placementId: 'placement-copy' },
+      keyframes: [{ timeMs: 5_000 }, { timeMs: 8_000 }],
     })
   })
 })

@@ -272,6 +272,76 @@ describe('ShowEditor (#318)', () => {
     expect(screen.getByRole('dialog', { name: 'Entity Detail Panel' })).toBeInTheDocument()
   })
 
+  it('adds an explicit Layer to the selected Zone across the unified timeline (#580)', async () => {
+    const user = userEvent.setup()
+    const show = createDefaultShow('show-add-layer-ui', 'Add layer UI', 1000)
+    show.composition = {
+      version: 1,
+      patternInstances: [],
+      scenes: show.scenes.map((scene) => ({
+        sceneId: scene.id,
+        zones: show.zones.map((zone) => ({ zoneId: zone.id, main: [], overlays: [] })),
+      })),
+    }
+    setPersonalContentProvider(memoryProvider([show]))
+    useShowStore.setState({ shows: [show], activeShowId: show.id, showsLoaded: true })
+
+    render(<ShowEditor showId={show.id} unifiedTimeline />)
+    await user.click(screen.getByRole('button', { name: 'Add Layer' }))
+
+    await waitFor(() => {
+      const saved = useShowStore.getState().shows.find((candidate) => candidate.id === show.id)
+      expect(saved?.composition?.scenes.every((scene) => scene.zones[0].overlays.length === 1)).toBe(true)
+    })
+    expect(document.querySelectorAll('[data-show-layer-kind="overlay"]')).toHaveLength(1)
+  })
+
+  it('splits and duplicates the selected composition Clip from timeline commands (#580)', async () => {
+    const user = userEvent.setup()
+    const show = createDefaultShow('show-clip-commands', 'Clip commands', 1000)
+    const zoneId = show.zones[0].id
+    show.composition = {
+      version: 1,
+      patternInstances: [{
+        id: 'instance-command',
+        pattern: { ...show.cells[0].pattern },
+        patternName: 'Command Rings',
+        time: { timeScale: 1, timeOffsetMs: 0 },
+      }],
+      scenes: show.scenes.map((scene, index) => ({
+        sceneId: scene.id,
+        zones: [{
+          zoneId,
+          main: index === 0 ? [{
+            id: 'placement-command',
+            instanceId: 'instance-command',
+            startMs: 2_000,
+            durationMs: 3_000,
+            view: { mirror: false, phase: 0, brightness: 1 },
+          }] : [],
+          overlays: [],
+        }],
+      })),
+    }
+    setPersonalContentProvider(memoryProvider([show]))
+    useShowStore.setState({ shows: [show], activeShowId: show.id, showsLoaded: true })
+    render(<ShowEditor showId={show.id} unifiedTimeline />)
+    act(() => useShowTransportStore.getState().setPosition(show.id, 3_500))
+    await user.click(screen.getByRole('button', { name: 'Select Command Rings' }))
+    await user.click(screen.getByRole('button', { name: 'Split at playhead' }))
+
+    await waitFor(() => {
+      const saved = useShowStore.getState().shows.find((candidate) => candidate.id === show.id)
+      expect(saved?.composition?.scenes[0].zones[0].main).toHaveLength(2)
+    })
+    await user.click(screen.getByRole('button', { name: 'Clone selection' }))
+    await waitFor(() => {
+      const saved = useShowStore.getState().shows.find((candidate) => candidate.id === show.id)
+      expect(saved?.composition?.scenes[0].zones[0].main).toHaveLength(3)
+      expect(saved?.composition?.patternInstances).toHaveLength(1)
+    })
+  })
+
   it('authors Show-level Trails with a retention control and scrub disclosure (#537)', async () => {
     const user = userEvent.setup()
     const show = createDefaultShow('show-537-trails-ui', 'Trails UI', 1000)
