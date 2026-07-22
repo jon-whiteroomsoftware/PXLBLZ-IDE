@@ -9,9 +9,9 @@ import {
 } from './push-review'
 
 describe('cross-agent push review gate (#63)', () => {
-  it('uses Fable Medium with the ten-minute hard cap', () => {
+  it('uses Fable Medium with the fifteen-minute hard cap', () => {
     expect(FABLE_REVIEW_EFFORT).toBe('medium')
-    expect(REVIEW_TIMEOUT_MS).toBe(10 * 60 * 1_000)
+    expect(REVIEW_TIMEOUT_MS).toBe(15 * 60 * 1_000)
   })
 
   it('parses the exact ref updates supplied by Git pre-push', () => {

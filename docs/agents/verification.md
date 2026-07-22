@@ -18,7 +18,7 @@ than a Claude or Codex lifecycle hook, it runs for pushes initiated by either
 agent or from a terminal. `scripts/push-review.ts` reads Git's exact ref-update
 packet, sends the outgoing commit list and patch to Fable Medium through the
 installed Claude CLI, and requires structured pass/fail output. It fails closed
-on findings, malformed output, reviewer failure, or the ten-minute timeout. A
+on findings, malformed output, reviewer failure, or the fifteen-minute timeout. A
 blocked review is terminal: fix the finding or reviewer, then make a new push;
 never silently retry or bypass the gate.
 

@@ -4,7 +4,7 @@ import { pathToFileURL } from 'node:url'
 
 const ZERO_SHA = /^0+$/
 export const FABLE_REVIEW_EFFORT = 'medium' as const
-export const REVIEW_TIMEOUT_MS = 10 * 60 * 1_000
+export const REVIEW_TIMEOUT_MS = 15 * 60 * 1_000
 
 export interface PrePushUpdate {
   localRef: string
