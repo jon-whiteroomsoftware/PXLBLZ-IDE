@@ -146,7 +146,7 @@ describe('Show composition compiler lowering (#488)', () => {
     })
   })
 
-  it('blocks a Layer transition over unrelated active content until isolated render targets exist', () => {
+  it('lifts a Layer transition over unrelated content that spans its complete interval', () => {
     const show = fixture()
     show.composition!.scenes[0].zones[0].overlays = [{
       id: 'overlay-layer',
@@ -170,8 +170,47 @@ describe('Show composition compiler lowering (#488)', () => {
       crossfadePolicy: 'live-live',
     }]
 
+    const recipe = showRecordToCompileRecipe(show, lookup(show))
+
+    expect(recipe.routedSceneSequence?.scenes[0]).toMatchObject({
+      transitionOut: { kind: 'crossfade', durationMs: 1_000 },
+      placements: expect.arrayContaining([
+        expect.objectContaining({ placementId: 'placement-a-1', stackOrder: 0 }),
+        expect.objectContaining({ placementId: 'overlay-through-transition', stackOrder: 1 }),
+      ]),
+    })
+    expect(recipe.routedSceneSequence?.scenes[1].placements).toEqual(expect.arrayContaining([
+      expect.objectContaining({ placementId: 'placement-b', stackOrder: 0 }),
+      expect.objectContaining({ placementId: 'overlay-through-transition', stackOrder: 1 }),
+    ]))
+  })
+
+  it('blocks a Layer transition when unrelated content changes inside its interval', () => {
+    const show = fixture()
+    show.composition!.scenes[0].zones[0].overlays = [{
+      id: 'overlay-layer',
+      name: 'Overlay',
+      placements: [{
+        id: 'overlay-partial-transition',
+        instanceId: 'instance-a',
+        startMs: 3_500,
+        durationMs: 1_000,
+        opacity: 1,
+        view: { mirror: false, phase: 0, brightness: 1 },
+      }],
+    }]
+    show.composition!.transitions = [{
+      id: 'layer-transition-a-b',
+      fromPlacementId: 'placement-a-1',
+      toPlacementId: 'placement-b',
+      kind: 'crossfade',
+      durationMs: 1_000,
+      easing: { curve: 'linear' },
+      crossfadePolicy: 'live-live',
+    }]
+
     expect(() => lowerShowCompositionForCompile(show, lookup(show))).toThrow(
-      'A Layer transition requires every unrelated Layer to be inactive for its complete interval.',
+      'An unrelated Clip cannot start or stop inside a Layer transition.',
     )
   })
 

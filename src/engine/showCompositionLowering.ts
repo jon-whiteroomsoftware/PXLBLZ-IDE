@@ -239,15 +239,22 @@ function resolveLocalLayerTransitions(
     if (from.layerKey !== to.layerKey || from.endMs + transition.durationMs !== to.startMs) {
       throw new Error(`Layer transition "${transition.id}" must occupy the exact gap between consecutive Clips on one Layer.`)
     }
-    const unrelatedActive = [...placementById.entries()].some(([placementId, placement]) => (
-      placementId !== transition.fromPlacementId
-      && placementId !== transition.toPlacementId
-      && placement.sceneId === from.sceneId
-      && placement.endMs >= from.endMs
-      && placement.startMs <= to.startMs
-    ))
-    if (unrelatedActive) {
-      throw new Error(`Layer transition "${transition.id}" requires an isolated Layer render target because unrelated content is active.`)
+    // The Layer palette excludes Fade and coordinate-moving Motion. Its
+    // remaining selectors/blends distribute over a stack that is identical on
+    // both sides, so a fully spanning unrelated Clip needs no private RGB
+    // target. A boundary inside the interval would break that equivalence.
+    const unrelatedBoundaryInside = [...placementById.entries()].some(([placementId, placement]) => {
+      if (
+        placementId === transition.fromPlacementId
+        || placementId === transition.toPlacementId
+        || placement.sceneId !== from.sceneId
+      ) return false
+      const overlapsOpenInterval = placement.endMs > from.endMs && placement.startMs < to.startMs
+      const spansCompleteInterval = placement.startMs < from.endMs && placement.endMs > to.startMs
+      return overlapsOpenInterval && !spansCompleteInterval
+    })
+    if (unrelatedBoundaryInside) {
+      throw new Error(`Layer transition "${transition.id}": An unrelated Clip cannot start or stop inside a Layer transition.`)
     }
     const entries = result.get(from.sceneId) ?? []
     if (entries.some((entry) => from.endMs < entry.endMs && to.startMs > entry.startMs)) {

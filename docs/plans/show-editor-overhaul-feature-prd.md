@@ -835,15 +835,17 @@ into its miniature Layer summaries instead of hiding their event times.
 - The semantic baseline is live outgoing plus live incoming rendering through
   the Transition. A snapshot/live implementation is allowed only where compiler
   analysis proves identical observable behavior.
-- The per-Layer Transition compiler spike must define time segmentation,
-  mid-stack compositing, render-target lifetime, exact resource formulas, and
-  actionable cost disclosure before implementation is committed.
-- The first #583 review checkpoint may lower through the existing whole-stack
-  Transition path only when the transitioning Layer is the complete active
-  stack. When unrelated content is active, authoring stays disabled with an
-  explicit render-target-support reason. This is a compiler-safety boundary,
-  not the final per-Layer UX: independent Layer render targets remain required
-  before #583 can satisfy unrestricted mid-stack Transition composition.
+- The supported Layer Transition catalogue excludes Fade and coordinate-moving
+  Motion families. Its selectors and linear blends operate at the same output
+  coordinate, so a Clip that spans the complete Transition interval is
+  identical on both sides and can be lifted through the existing whole-stack
+  Transition path without changing the result. This avoids an unnecessary RGB
+  render target while unrelated Layers continue composing normally.
+- An unrelated Clip may not start or stop inside a Layer Transition. Such a
+  boundary would make the two endpoint stacks semantically different for a
+  reason the Layer Transition does not own. Coordinate-moving Motion and
+  simultaneous Layer Transitions remain deferred until their segmentation,
+  compositing, resource formulas, and cost disclosure are explicitly designed.
 
 ### 11. Selection and refinement
 

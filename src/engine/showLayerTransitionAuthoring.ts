@@ -67,6 +67,19 @@ export function planShowLayerTransitionInsertion(
   if (Number.isFinite(nextUnrelatedStartMs)) {
     maxDurationMs = Math.min(maxDurationMs, nextUnrelatedStartMs - cut.startMs - 1)
   }
+  if (unrelatedClips.some((clip) => clip.startMs === cut.startMs)) {
+    return {
+      enabled: false,
+      maxDurationMs: 0,
+      reason: 'An unrelated Clip starts at this Cut.',
+    }
+  }
+  const activeUnrelatedEndMs = unrelatedClips
+    .filter((clip) => clip.startMs < cut.startMs && clip.endMs > cut.startMs)
+    .reduce((nearest, clip) => Math.min(nearest, clip.endMs), Number.POSITIVE_INFINITY)
+  if (Number.isFinite(activeUnrelatedEndMs)) {
+    maxDurationMs = Math.min(maxDurationMs, activeUnrelatedEndMs - cut.startMs - 1)
+  }
   const movingTransitionIds = new Set((composition.transitions ?? []).filter((transition) => (
     chain.some((clip) => clip.id === transition.fromPlacementId)
   )).map((transition) => transition.id))
@@ -75,13 +88,6 @@ export function planShowLayerTransitionInsertion(
     .filter((junction) => junction.transition && !movingTransitionIds.has(junction.id))
   if (fixedIntervals.some((interval) => cut.startMs >= interval.startMs && cut.startMs < interval.endMs)) {
     return { enabled: false, maxDurationMs: 0, reason: 'Another Layer is already transitioning at this time.' }
-  }
-  if (unrelatedClips.some((clip) => clip.startMs <= cut.startMs && clip.endMs >= cut.startMs)) {
-    return {
-      enabled: false,
-      maxDurationMs: 0,
-      reason: 'Per-Layer Transitions over other active content need compiler render-target support.',
-    }
   }
   const nextFixedStart = fixedIntervals
     .filter((interval) => interval.startMs > cut.startMs)

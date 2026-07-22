@@ -862,6 +862,47 @@ export function render2D(index, x, y) { rgb(${channel === 'r' ? 1 : 0}, ${channe
     })
   })
 
+  it('keeps an unchanged routed Layer visually stable while the Layer below crossfades (#583)', () => {
+    const zones = [{ id: 'main', name: 'main', ranges: [{ start: 0, end: 3 }] }]
+    const artifact = compileShow({
+      clips: [
+        { id: 'red', source: 'export function render(index) { rgb(1, 0, 0) }' },
+        { id: 'green', source: 'export function render(index) { rgb(0, 1, 0) }' },
+        { id: 'blue', source: 'export function render(index) { rgb(0, 0, 1) }' },
+      ],
+      zones,
+      routingLayouts: [{ id: 'default', name: 'Default', zones }],
+      routedSceneSequence: {
+        scenes: [
+          {
+            holdMs: 1_000,
+            placements: [
+              { placementId: 'from', zoneName: 'main', clipId: 'red', stackOrder: 0 },
+              { placementId: 'stable', zoneName: 'main', clipId: 'blue', stackOrder: 1, opacity: 0.5 },
+            ],
+            transitionOut: { kind: 'crossfade', durationMs: 1_000 },
+          },
+          {
+            holdMs: 1_000,
+            placements: [
+              { placementId: 'to', zoneName: 'main', clipId: 'green', stackOrder: 0 },
+              { placementId: 'stable', zoneName: 'main', clipId: 'blue', stackOrder: 1, opacity: 0.5 },
+            ],
+          },
+        ],
+      },
+      loopDurationMs: 3_000,
+    }, {})
+    const { handle, pixel } = loadShow(artifact.code, artifact.metadata, 4)
+
+    handle.beforeRender(1_500)
+    handle.render(0)
+
+    expect(pixel()[0]).toBeCloseTo(0.25)
+    expect(pixel()[1]).toBeCloseTo(0.25)
+    expect(pixel()[2]).toBeCloseTo(0.5)
+  })
+
   it('advances a semantic Pattern instance once when two layers reference it (#489)', () => {
     const zones = [{ id: 'main', name: 'main', ranges: [{ start: 0, end: 3 }] }]
     const artifact = compileShow({

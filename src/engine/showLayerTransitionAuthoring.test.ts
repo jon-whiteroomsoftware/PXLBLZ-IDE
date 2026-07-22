@@ -219,7 +219,7 @@ describe('literal per-Layer Transition authoring (#583)', () => {
     })).toBe(composition)
   })
 
-  it('limits authoring to an isolated active stack until per-Layer render targets land', () => {
+  it('allows a Transition over a stable unrelated Clip and stops before its end boundary', () => {
     const { show, composition } = fixture()
     composition.scenes[0].zones[0].overlays = [{
       id: 'overlay-layer',
@@ -228,7 +228,7 @@ describe('literal per-Layer Transition authoring (#583)', () => {
         id: 'overlay-through-cut',
         instanceId: 'instance-a',
         startMs: 1_000,
-        durationMs: 4_000,
+        durationMs: 1_500,
         opacity: 1,
         view: { mirror: false, phase: 0, brightness: 1 },
       }],
@@ -238,9 +238,8 @@ describe('literal per-Layer Transition authoring (#583)', () => {
       fromPlacementId: 'clip-a',
       toPlacementId: 'clip-b',
     })).toEqual({
-      enabled: false,
-      maxDurationMs: 0,
-      reason: 'Per-Layer Transitions over other active content need compiler render-target support.',
+      enabled: true,
+      maxDurationMs: 499,
     })
   })
 

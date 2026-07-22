@@ -296,15 +296,18 @@ export function validateShowComposition(
       addIssue(issues, path, 'invalid-transition', 'A Layer transition must occupy the exact gap between its ordered Clip endpoints.')
     }
     if (fromOwner && toOwner) {
-      const unrelatedActive = [...placementOwnerById.entries()].some(([placementId, owner]) => (
-        placementId !== transition.fromPlacementId
-        && placementId !== transition.toPlacementId
-        && owner.sceneId === fromOwner.sceneId
-        && owner.endMs >= fromOwner.endMs
-        && owner.startMs <= toOwner.startMs
-      ))
-      if (unrelatedActive) {
-        addIssue(issues, path, 'invalid-transition', 'A Layer transition requires every unrelated Layer to be inactive for its complete interval.')
+      const unrelatedBoundaryInside = [...placementOwnerById.entries()].some(([placementId, owner]) => {
+        if (
+          placementId === transition.fromPlacementId
+          || placementId === transition.toPlacementId
+          || owner.sceneId !== fromOwner.sceneId
+        ) return false
+        const overlapsOpenInterval = owner.endMs > fromOwner.endMs && owner.startMs < toOwner.startMs
+        const spansCompleteInterval = owner.startMs < fromOwner.endMs && owner.endMs > toOwner.startMs
+        return overlapsOpenInterval && !spansCompleteInterval
+      })
+      if (unrelatedBoundaryInside) {
+        addIssue(issues, path, 'invalid-transition', 'An unrelated Clip cannot start or stop inside a Layer transition.')
       }
     }
   }

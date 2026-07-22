@@ -272,7 +272,7 @@ describe('Show composition v1 Main schedule (#488)', () => {
     ]))
   })
 
-  it('rejects non-consecutive endpoints and unrelated content active through a Layer transition', () => {
+  it('rejects non-consecutive endpoints but permits an unrelated Clip that spans the complete transition', () => {
     const { show, composition } = fixture()
     composition.scenes[0].zones[0].main.splice(1, 0, {
       ...composition.scenes[0].zones[0].main[0],
@@ -307,12 +307,37 @@ describe('Show composition v1 Main schedule (#488)', () => {
         code: 'invalid-transition',
         message: 'A Layer transition must connect consecutive Clips.',
       }),
-      expect.objectContaining({
-        path: 'transitions[0]',
-        code: 'invalid-transition',
-        message: 'A Layer transition requires every unrelated Layer to be inactive for its complete interval.',
-      }),
     ]))
+  })
+
+  it('rejects unrelated Clips that start or stop inside a Layer transition', () => {
+    const { show, composition } = fixture()
+    composition.scenes[0].zones[0].overlays = [{
+      id: 'overlay-layer',
+      name: 'Overlay',
+      placements: [{
+        ...composition.scenes[0].zones[0].main[0],
+        id: 'overlay-partial-transition',
+        startMs: 3_500,
+        durationMs: 1_000,
+        opacity: 1,
+      }],
+    }]
+    composition.transitions = [{
+      id: 'transition-a-b',
+      fromPlacementId: 'placement-a',
+      toPlacementId: 'placement-b',
+      kind: 'crossfade',
+      durationMs: 1_000,
+      easing: { curve: 'linear' },
+      crossfadePolicy: 'live-live',
+    }]
+
+    expect(validateShowComposition(show, composition)).toContainEqual(expect.objectContaining({
+      path: 'transitions[0]',
+      code: 'invalid-transition',
+      message: 'An unrelated Clip cannot start or stop inside a Layer transition.',
+    }))
   })
 
   it('removes connected transitions from every direct placement and Layer delete path', () => {

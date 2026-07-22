@@ -1195,11 +1195,13 @@ right half. Its transitive closure helper is the authority for future marquee
 and Group selection refinement, so a grouping selection cannot retain only one
 Transition endpoint.
 
-Composition validation independently enforces consecutive endpoints and a
-closed interval in which every unrelated Layer is inactive. That invariant
-guards every edit path, not only Transition controls: duplicate, trim, and move
-operations cannot create an unrenderable overlap, and direct placement or Layer
-deletion strips connected Transition records before persistence.
+Composition validation independently enforces consecutive endpoints. An
+unrelated Clip may either remain inactive or span the complete Transition
+interval; it may not start or stop inside that interval. That invariant guards
+every edit path, not only Transition controls: duplicate, trim, and move
+operations cannot introduce an unrelated boundary into the Transition, and
+direct placement or Layer deletion strips connected Transition records before
+persistence.
 
 `migrations/0016_show_composition.sql` adds one nullable `composition_json`
 column to the existing Show row. Save, load, undo, and redo serialize this
@@ -1225,15 +1227,16 @@ derived destination cell. Preview, fast replay, artifact generation, Controller
 output, and EPE export all consume this same lowering. Shows without authored
 composition bypass it.
 
-The first #583 compiler checkpoint lowers a Layer Transition through the mature
-whole-stack boundary path only when its Layer is the complete active stack.
-This preserves literal duration and live source activity without changing an
-unrelated Layer. Authoring reports an explicit render-target limitation when
-other content is active at that boundary, and lowering rejects a persisted
-record that bypasses the gate. Simultaneous Layer Transitions are likewise
-rejected. Independent mid-stack render targets remain required before the
-general per-Layer case can ship; the restricted checkpoint is deliberately not
-represented as equivalent.
+The #583 lowering uses the mature whole-stack boundary path for the supported
+Layer Transition catalogue. Fade and coordinate-moving Motion are excluded from
+that catalogue. Crossfade, Wipe, Dissolve, and Shape Reveal select or linearly
+blend sources at the same output coordinate. A spanning unrelated Layer is
+therefore identical in the outgoing and incoming stacks and distributes through
+the selection or blend without changing its pixels. This algebraic lifting is
+equivalent to transitioning the changed Layer and requires no additional RGB
+render target. Lowering rejects an unrelated Clip boundary inside the interval.
+Simultaneous Layer Transitions remain rejected pending explicit multi-transition
+segmentation and compositing.
 
 `showCompositionFreeze.ts` is the production-path release gate over that seam.
 Its Portable fixture measures 60,019 UTF-8 generated-source bytes. Comparing
