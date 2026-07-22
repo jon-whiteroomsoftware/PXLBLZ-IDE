@@ -193,6 +193,28 @@ describe('Scene-local property animation (#490)', () => {
     expect(propertyTargetKey(transformTrack.target)).toBe('placement-transform:placement-a:positionX')
   })
 
+  it('validates placement-owned Viewport targets with the same normalized bounds as static Viewports (#585)', () => {
+    const { show, composition } = fixture()
+    const viewportTrack = track({
+      target: { kind: 'placement-viewport', placementId: 'placement-a', property: 'width' },
+      keyframes: [
+        { id: 'viewport-a', timeMs: 0, value: 0.25, easing: { curve: 'linear' } },
+        { id: 'viewport-b', timeMs: 1_000, value: 1, easing: { curve: 'linear' } },
+      ],
+    })
+    expect(validateShowPropertyTracks(show, {
+      ...composition,
+      scenes: [{ ...composition.scenes[0], propertyTracks: [viewportTrack] }],
+    })).toEqual([])
+    expect(propertyTargetKey(viewportTrack.target)).toBe('placement-viewport:placement-a:width')
+
+    viewportTrack.keyframes[0].value = 0
+    expect(validateShowPropertyTracks(show, {
+      ...composition,
+      scenes: [{ ...composition.scenes[0], propertyTracks: [viewportTrack] }],
+    })).toEqual(expect.arrayContaining([expect.objectContaining({ code: 'out-of-bounds' })]))
+  })
+
   it('supports add-at-playhead, exact edit, move/delete, and previous/next navigation immutably', () => {
     const { show, composition } = fixture()
     const withTrack = addShowPropertyTrack(show, composition, 'scene-1', track())

@@ -190,6 +190,36 @@ describe('shared Clip inspector owner model (#498)', () => {
     }
   })
 
+  it('keeps Content placement separate from an optional preserved Clip Viewport (#585)', () => {
+    for (const ownerFor of [globalOwner, mainOwner, overlayOwner]) {
+      const show = fixture()
+      expect(projectShowClipInspector(show, ownerFor(show))).toMatchObject({
+        transform: { positionX: 0, positionY: 0, scaleX: 1, scaleY: 1, rotation: 0 },
+        viewport: { enabled: false, x: 0, y: 0, width: 1, height: 1 },
+      })
+
+      const enabled = updateShowClipInspector(show, ownerFor(show), {
+        transform: { positionX: 0.2, positionY: -0.1, scaleX: 1.4, scaleY: 0.8 },
+        viewport: { enabled: true, x: 0.1, y: 0.2, width: 0.6, height: 0.5 },
+      })
+      expect(projectShowClipInspector(enabled, ownerFor(enabled))).toMatchObject({
+        transform: { positionX: 0.2, positionY: -0.1, scaleX: 1.4, scaleY: 0.8 },
+        viewport: { enabled: true, x: 0.1, y: 0.2, width: 0.6, height: 0.5 },
+      })
+
+      const disabled = updateShowClipInspector(enabled, ownerFor(enabled), {
+        viewport: { enabled: false },
+      })
+      expect(projectShowClipInspector(disabled, ownerFor(disabled))?.viewport).toEqual({
+        enabled: false,
+        x: 0.1,
+        y: 0.2,
+        width: 0.6,
+        height: 0.5,
+      })
+    }
+  })
+
   it('commits Pattern, controls, Effects, and local overlay fields through its owner adapter', () => {
     const show = fixture()
     const item = buildShowToolkitPresentationCatalogue({ stageDimensions: 2 })

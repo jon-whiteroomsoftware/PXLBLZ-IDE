@@ -595,6 +595,8 @@ describe('ShowSceneZoneEditor (#487)', () => {
 
   it('reveals only authored property lanes and supports exact keyframe editing (#490)', () => {
     const { show, placement } = compositionFixture()
+    const authoredPlacement = show.composition!.scenes[0].zones[0].main.find((candidate) => candidate.id === placement.id)!
+    authoredPlacement.viewport = { enabled: true, x: 0, y: 0, width: 0.75, height: 1 }
     show.composition!.scenes[0].propertyTracks = [{
       id: 'brightness-track',
       target: { kind: 'placement-view', placementId: placement.id, property: 'brightness' },
@@ -630,7 +632,8 @@ describe('ShowSceneZoneEditor (#487)', () => {
     fireEvent.click(screen.getAllByRole('button', { name: 'Select TestPattern1D Main clip' })[0])
     expect(screen.getByLabelText('Property animation')).toBeInTheDocument()
     expect(screen.getAllByLabelText('Property sparkline')).toHaveLength(1)
-    expect(screen.getByRole('option', { name: 'Position X' })).toBeInTheDocument()
+    expect(screen.getByRole('option', { name: 'Content X' })).toBeInTheDocument()
+    expect(screen.getByRole('option', { name: 'Viewport Width' })).toBeInTheDocument()
 
     fireEvent.click(screen.getByRole('button', { name: 'Keyframe at 0 ms, value 1' }))
     expect(screen.getByRole('button', { name: 'Previous keyframe' })).toHaveAttribute('title', 'Previous keyframe')
@@ -680,6 +683,16 @@ describe('ShowSceneZoneEditor (#487)', () => {
     expect(onAddPropertyTrack).toHaveBeenCalledWith({
       target: { kind: 'placement-transform', placementId: placement.id, property: 'positionX' },
       initialValue: 0,
+      atMs: 0,
+    })
+
+    fireEvent.change(screen.getByRole('combobox', { name: 'Property to animate' }), {
+      target: { value: `placement-viewport:${placement.id}:width` },
+    })
+    fireEvent.click(screen.getByRole('button', { name: 'Animate selected property' }))
+    expect(onAddPropertyTrack).toHaveBeenCalledWith({
+      target: { kind: 'placement-viewport', placementId: placement.id, property: 'width' },
+      initialValue: 0.75,
       atMs: 0,
     })
   })

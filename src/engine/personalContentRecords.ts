@@ -186,6 +186,11 @@ export type ShowPropertyAnimationTarget =
       property: keyof ShowClipTransform
     }
   | {
+      kind: 'placement-viewport'
+      placementId: string
+      property: 'x' | 'y' | 'width' | 'height'
+    }
+  | {
       kind: 'placement-effect'
       placementId: string
       effectId: string
@@ -365,6 +370,8 @@ export interface ShowCell {
   controlTargets?: Record<string, number>
   /** Canonical placement transform, applied before optional ordered Effects. Missing is neutral. */
   transform?: ShowClipTransform
+  /** Preserved when disabled so later re-enable restores the authored frame. */
+  viewport?: ShowClipViewport
   /** Ordered single-source visual Effects. Affine operation order is significant. */
   effects?: ShowClipEffect[]
 }
@@ -425,6 +432,15 @@ export interface ShowClipTransform {
   scaleY: number
 }
 
+/** Optional placement-owned, axis-aligned clipping rectangle in normalized Zone coordinates. */
+export interface ShowClipViewport {
+  enabled: boolean
+  x: number
+  y: number
+  width: number
+  height: number
+}
+
 export interface ShowMainPlacement {
   id: string
   instanceId: string
@@ -433,6 +449,8 @@ export interface ShowMainPlacement {
   view: ShowPlacementView
   /** Canonical placement transform, applied before optional ordered Effects. Missing is neutral. */
   transform?: ShowClipTransform
+  /** Preserved when disabled so later re-enable restores the authored frame. */
+  viewport?: ShowClipViewport
   effects?: ShowClipEffect[]
 }
 

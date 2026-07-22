@@ -332,6 +332,92 @@ export function render(index) { rgb(ticks, 0, 0) }
     expect(artifact.expandedCode).not.toContain('__pxlblz_show_c0_r * (1)')
   })
 
+  it('clips one placement to its normalized Viewport and reveals the lower Layer (#585)', () => {
+    const zones = [{ id: 'main', name: 'main', ranges: [{ start: 0, end: 3 }] }]
+    const artifact = compileShow({
+      clips: [
+        { id: 'red', source: 'export function render2D(index, x, y) { rgb(1, 0, 0) }' },
+        { id: 'blue', source: 'export function render2D(index, x, y) { rgb(0, 0, 1) }' },
+      ],
+      zones,
+      routingLayouts: [{ id: 'default', name: 'Default', zones }],
+      routedSceneSequence: {
+        scenes: [{
+          holdMs: 1000,
+          placements: [
+            { zoneName: 'main', clipId: 'red', stackOrder: 0 },
+            {
+              placementId: 'blue-placement',
+              zoneName: 'main',
+              clipId: 'blue',
+              stackOrder: 1,
+              viewport: { enabled: true, x: 0, y: 0, width: 0.5, height: 1 },
+            },
+          ],
+          transitionOut: { kind: 'cut', durationMs: 0 },
+        }, {
+          holdMs: 1000,
+          placements: [{ zoneName: 'main', clipId: 'red' }],
+        }],
+      },
+      loopDurationMs: 2000,
+    }, {})
+    const { handle, pixel } = loadShow(artifact.code, artifact.metadata, 4)
+
+    handle.beforeRender(100)
+    handle.render2D(0, 0, 0)
+    expect(pixel()).toEqual([0, 0, 1])
+    handle.render2D(1, 1, 0)
+    expect(pixel()).toEqual([1, 0, 0])
+  })
+
+  it('animates a Clip Viewport boundary without changing the Pattern coordinate field (#585)', () => {
+    const zones = [{ id: 'main', name: 'main', ranges: [{ start: 0, end: 3 }] }]
+    const artifact = compileShow({
+      clips: [
+        { id: 'red', source: 'export function render2D(index, x, y) { rgb(1, 0, 0) }' },
+        { id: 'blue', source: 'export function render2D(index, x, y) { rgb(0, 0, 1) }' },
+      ],
+      zones,
+      routingLayouts: [{ id: 'default', name: 'Default', zones }],
+      routedSceneSequence: {
+        scenes: [{
+          holdMs: 1000,
+          placements: [
+            { zoneName: 'main', clipId: 'red', stackOrder: 0 },
+            {
+              placementId: 'blue-placement',
+              zoneName: 'main',
+              clipId: 'blue',
+              stackOrder: 1,
+              viewport: { enabled: true, x: 0, y: 0, width: 0.25, height: 1 },
+            },
+          ],
+          propertyTracks: [{
+            id: 'viewport-width',
+            target: { kind: 'placement-viewport', placementId: 'blue-placement', property: 'width' },
+            keyframes: [
+              { id: 'viewport-a', timeMs: 0, value: 0.25, easing: { curve: 'linear' } },
+              { id: 'viewport-b', timeMs: 1000, value: 0.75, easing: { curve: 'linear' } },
+            ],
+          }],
+          transitionOut: { kind: 'cut', durationMs: 0 },
+        }, {
+          holdMs: 1000,
+          placements: [{ zoneName: 'main', clipId: 'red' }],
+        }],
+      },
+      loopDurationMs: 2000,
+    }, {})
+    const { handle, pixel } = loadShow(artifact.code, artifact.metadata, 4)
+
+    handle.beforeRender(500)
+    handle.render2D(0, 0.4, 0)
+    expect(pixel()).toEqual([0, 0, 1])
+    handle.render2D(1, 0.6, 0)
+    expect(pixel()).toEqual([1, 0, 0])
+  })
+
   it('interns equivalent cut-only physical render plans across Scenes and Zones (#499)', () => {
     const zones = [
       { id: 'left', name: 'left', ranges: [{ start: 0, end: 1 }] },

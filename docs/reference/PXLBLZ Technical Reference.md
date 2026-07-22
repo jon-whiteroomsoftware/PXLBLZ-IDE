@@ -1285,7 +1285,8 @@ Pattern evaluations during that window.
 `showPropertyAnimation.ts` owns typed Scene-local Property animation. A track
 targets either Pattern-instance Animation speed/public slider state or one
 placement's brightness, phase, canonical Clip Transform, overlay opacity, or
-stable-id numeric Effect parameter. Placement-transform targets use the stable
+axis-aligned Clip Viewport geometry, or stable-id numeric Effect parameter.
+Placement-transform and placement-viewport targets use the stable
 placement id rather than an Effect id, so they remain valid while the Effect
 stack changes. Static values remain inline; only authored tracks persist.
 Validation rejects missing or mismatched owners, duplicate targets and ids, non-finite or
@@ -1483,6 +1484,24 @@ removed during normalization and compiles byte-identically to an absent one.
 Flat cells, composition placements, projection/lowering, split, trim, clone,
 undo/redo, persistence, and deletion all retain or remove the Transform with
 its placement; placement-owned animation tracks follow the same lifecycle.
+
+`showClipViewport.ts` owns the optional placement-local clipping rectangle.
+Missing or disabled Viewports leave the complete Zone visible; first enable
+defaults to X/Y `0` and Width/Height `1`, so progressive disclosure is a visual
+no-op. Disabled authored geometry is retained for later re-enable. The compact
+Clip inspector presents ordinary placement as X, Y, Width, Height, and Rotation,
+then qualifies separate Content and Viewport geometry only after enablement.
+Both rectangles use normalized Zone coordinates; Content rotation remains
+center-based while the Viewport stays axis-aligned.
+
+Lowering carries the Viewport with its placement. The routed compiler multiplies
+placement opacity by the Viewport's coordinate predicate after Pattern capture,
+revealing lower layers without changing Pattern evaluation or its transformed
+coordinate field. X, Y, Width, and Height may use Scene-local Property tracks;
+enablement remains discrete. Direct-sink and opaque-stack optimizations are
+disabled whenever an enabled Viewport would make their coverage assumptions
+false. Neutral missing Viewports remain byte-compact and legacy Shows project as
+disabled full-Zone rectangles.
 
 The shipped property lanes are structural scene projections, not arbitrary
 keyframe tracks. A destination clip or scene owns its target; the incoming

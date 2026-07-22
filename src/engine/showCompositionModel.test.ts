@@ -396,6 +396,13 @@ describe('Show composition v1 Main schedule (#488)', () => {
       scaleX: 1.5,
       scaleY: 0.75,
     }
+    composition.scenes[0].zones[0].main[0].viewport = {
+      enabled: true,
+      x: 0.1,
+      y: 0.2,
+      width: 0.6,
+      height: 0.5,
+    }
     const split = splitShowMainPlacement(show, composition, {
       sceneId: 'scene-1',
       zoneId: 'zone-1',
@@ -408,13 +415,16 @@ describe('Show composition v1 Main schedule (#488)', () => {
       {
         id: 'placement-a', instanceId: 'instance-a', startMs: 0, durationMs: 1_500,
         transform: { positionX: 0.25, positionY: -0.5, rotation: -0.125, scaleX: 1.5, scaleY: 0.75 },
+        viewport: { enabled: true, x: 0.1, y: 0.2, width: 0.6, height: 0.5 },
       },
       {
         id: 'placement-a-right', instanceId: 'instance-a', startMs: 1_500, durationMs: 2_500,
         transform: { positionX: 0.25, positionY: -0.5, rotation: -0.125, scaleX: 1.5, scaleY: 0.75 },
+        viewport: { enabled: true, x: 0.1, y: 0.2, width: 0.6, height: 0.5 },
       },
     ])
     expect(main[1].transform).not.toBe(main[0].transform)
+    expect(main[1].viewport).not.toBe(main[0].viewport)
 
     const restarted = restartShowMainPlacement(split, {
       sceneId: 'scene-1',

@@ -237,6 +237,7 @@ export function propertyTargetKey(target: ShowPropertyAnimationTarget): string {
   if (target.kind === 'placement-opacity') return `${target.kind}:${target.placementId}`
   if (target.kind === 'placement-view') return `${target.kind}:${target.placementId}:${target.property}`
   if (target.kind === 'placement-transform') return `${target.kind}:${target.placementId}:${target.property}`
+  if (target.kind === 'placement-viewport') return `${target.kind}:${target.placementId}:${target.property}`
   return `${target.kind}:${target.placementId}:${target.effectId}:${target.effectKind}:${target.parameterId}`
 }
 
@@ -284,6 +285,10 @@ function validateTarget(
   if (target.kind === 'placement-transform') {
     if (target.property === 'scaleX' || target.property === 'scaleY') return { min: 0.01, max: 8 }
     if (target.property === 'rotation') return { min: -8, max: 8 }
+    return { min: -4, max: 4 }
+  }
+  if (target.kind === 'placement-viewport') {
+    if (target.property === 'width' || target.property === 'height') return { min: 0.01, max: 8 }
     return { min: -4, max: 4 }
   }
   const effect = placement.effects?.find((candidate) => candidate.id === target.effectId)

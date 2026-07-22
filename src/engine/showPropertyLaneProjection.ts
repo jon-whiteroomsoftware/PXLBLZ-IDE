@@ -2,6 +2,7 @@ import { applyShowEasing } from './showEasing'
 import { projectShowTimeline, showCellAtSlot } from './showModel'
 import { showClipEffectParameterValue, showClipEffectParameters } from './showEffectAuthoring'
 import { normalizeShowClipTransform } from './showClipTransform'
+import { normalizeShowClipViewport } from './showClipViewport'
 import type {
   ShowCell,
   ShowMainPlacement,
@@ -440,6 +441,19 @@ function describeScenePropertyTrack(
     return [{
       zoneId: owner.zoneId,
       label: `${patternName} ${target.property}`,
+      valueKind: 'number',
+      defaultValue: value,
+      constraint,
+    }]
+  }
+  if (target.kind === 'placement-viewport') {
+    const value = normalizeShowClipViewport(owner.placement.viewport)[target.property]
+    const constraint = target.property === 'width' || target.property === 'height'
+      ? { min: 0.01, max: 8 }
+      : { min: -4, max: 4 }
+    return [{
+      zoneId: owner.zoneId,
+      label: `${patternName} viewport ${target.property}`,
       valueKind: 'number',
       defaultValue: value,
       constraint,

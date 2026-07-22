@@ -53,6 +53,7 @@ export interface ShowCompositionPlacementProjection {
     phase: number
     mirror: boolean
     transform?: ShowCell['transform']
+    viewport?: ShowCell['viewport']
     effects?: ShowClipEffect[]
   }
 }
@@ -179,6 +180,7 @@ export function projectFlatShowComposition(
           phase: cell.adaptations.phase,
           mirror: cell.adaptations.mirror,
           ...(cell.transform ? { transform: cloneJson(cell.transform) } : {}),
+          ...(cell.viewport ? { viewport: cloneJson(cell.viewport) } : {}),
           ...(cell.effects ? { effects: cloneJson(cell.effects) } : {}),
         },
       }

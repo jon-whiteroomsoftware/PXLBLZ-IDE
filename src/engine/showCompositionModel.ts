@@ -16,6 +16,7 @@ import type {
   ShowZoneComposition,
 } from './personalContentRecords'
 import { compactShowClipTransform } from './showClipTransform'
+import { compactShowClipViewport } from './showClipViewport'
 
 export type ShowCompositionValidationCode =
   | 'duplicate-id'
@@ -104,6 +105,9 @@ export function projectFlatShowToCompositionV1(
           ...(placement.appearance.transform
             ? { transform: cloneJson(placement.appearance.transform) }
             : {}),
+          ...(placement.appearance.viewport
+            ? { viewport: cloneJson(placement.appearance.viewport) }
+            : {}),
           ...(placement.appearance.effects
             ? { effects: cloneJson(placement.appearance.effects) }
           : {}),
@@ -151,12 +155,12 @@ export function normalizeShowComposition(
           .map((zone) => ({
             ...zone,
             main: zone.main
-              .map(normalizePlacementTransform)
+              .map(normalizePlacementAppearance)
               .sort((a, b) => a.startMs - b.startMs || a.id.localeCompare(b.id)),
             overlays: (zone.overlays ?? []).map((layer) => ({
               ...layer,
               placements: layer.placements
-                .map(normalizePlacementTransform)
+                .map(normalizePlacementAppearance)
                 .sort((a, b) => a.startMs - b.startMs || a.id.localeCompare(b.id)),
             })),
           })),
@@ -164,12 +168,14 @@ export function normalizeShowComposition(
   }
 }
 
-function normalizePlacementTransform<T extends ShowMainPlacement | ShowOverlayPlacement>(placement: T): T {
-  const { transform: authoredTransform, ...rest } = placement
+function normalizePlacementAppearance<T extends ShowMainPlacement | ShowOverlayPlacement>(placement: T): T {
+  const { transform: authoredTransform, viewport: authoredViewport, ...rest } = placement
   const transform = compactShowClipTransform(authoredTransform)
+  const viewport = compactShowClipViewport(authoredViewport)
   return {
     ...rest,
     ...(transform ? { transform } : {}),
+    ...(viewport ? { viewport } : {}),
   } as T
 }
 

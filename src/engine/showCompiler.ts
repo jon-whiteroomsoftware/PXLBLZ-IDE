@@ -10,6 +10,7 @@ import { emitShowEasingExpression, showCubicBezierRuntimeSource, validateShowEas
 import type {
   ShowClipEffect,
   ShowClipTransform,
+  ShowClipViewport,
   ShowCrossfadePolicy,
   ShowDissolveVariant,
   ShowMotionAddressPolicy,
@@ -34,6 +35,7 @@ import {
   showClipTransformEffects,
   showClipTransformEffectTarget,
 } from './showClipTransform'
+import { showClipViewportMaskExpression } from './showClipViewport'
 import { normalizeShowTransitionColor, showTransitionColorToRgb } from './showFadeThroughColor'
 import { showClipEffectPersistedField } from './showEffectAuthoring'
 import { emitShowPropertyTrackExpression } from './showPropertyAnimation'
@@ -349,6 +351,7 @@ export interface ShowRoutedScenePlacementRecipe {
   brightness?: number
   controlTargets?: Record<string, number>
   transform?: ShowClipTransform
+  viewport?: ShowClipViewport
   effects?: ShowClipEffect[]
 }
 
@@ -1676,6 +1679,7 @@ function buildPatternOutputReuseAnalysis(
           postCacheConsumerKey: JSON.stringify({
             opacity: clampNumber(placement.opacity ?? 1, 0, 1),
             stackOrder: placement.stackOrder ?? 0,
+            viewport: placement.viewport ?? null,
           }),
         }]
       })
@@ -3305,6 +3309,17 @@ function validateRecipe(recipe: ShowRecipe): void {
         if (!Number.isFinite(placement.opacity ?? 1) || (placement.opacity ?? 1) < 0 || (placement.opacity ?? 1) > 1) {
           throw new Error('compileShow routed Scene layer opacity must be between 0 and 1.')
         }
+        if (placement.viewport && (
+          typeof placement.viewport.enabled !== 'boolean'
+          || !Number.isFinite(placement.viewport.x)
+          || !Number.isFinite(placement.viewport.y)
+          || !Number.isFinite(placement.viewport.width)
+          || !Number.isFinite(placement.viewport.height)
+          || placement.viewport.width <= 0
+          || placement.viewport.height <= 0
+        )) {
+          throw new Error('compileShow Clip Viewport requires finite coordinates and positive size.')
+        }
       }
       validateRoutedScenePropertyTracks(recipe, scene)
       const isFinal = index === recipe.routedSceneSequence!.scenes.length - 1
@@ -4370,6 +4385,7 @@ ${member.prefix}_advance(delta)`
         opacity: placement.opacity,
         controlTargets: placement.controlTargets,
         transform: placement.transform,
+        viewport: placement.viewport,
         effects: placement.effects,
         contentKey: memberHasContentKey(placement.member),
       }))),
@@ -5618,6 +5634,9 @@ function emitSharedPhysicalSceneZoneStack(
     outputDimension,
     propertyTracks,
     localTimeExpression,
+    outputDimension === 2
+      ? { x: '__pxlblz_show_route_local_x', y: '__pxlblz_show_route_local_y' }
+      : undefined,
   )
   return [
     ...placements.map((placement) => `${placement.member.pixelCountName} = __pxlblz_show_route_pixelCount`),
@@ -6320,6 +6339,7 @@ function emitRoutedSceneStackWrapper(
     outputDimension,
     propertyTracks,
     localTimeExpression,
+    outputDimension === 2 ? { x: 'x', y: 'y' } : undefined,
   )
   const captureFunction = outputDimension === 2
     ? `function ${prefix}_renderCapture2D(index, x, y) {
@@ -6425,6 +6445,12 @@ function emitPhysicalSceneZoneStack(
     outputDimension,
     propertyTracks,
     localTimeExpression,
+    outputDimension === 2
+      ? {
+          x: `__pxlblz_show_scene_zone_${zoneIndex}_x`,
+          y: `__pxlblz_show_scene_zone_${zoneIndex}_y`,
+        }
+      : undefined,
   )
   return [
     `var ${local} = -1`,
@@ -6464,6 +6490,7 @@ function emitRoutedPlacementStackCapture(
   outputDimension: ShowOutputDimension,
   propertyTracks?: ShowPropertyAnimationTrack[],
   localTimeExpression?: string,
+  viewportCoordinates?: { x: string; y: string },
 ): string {
   const endpointOptimizationActive = routedStackHasEndpointOptimization(placements, propertyTracks)
   const contentKeySelection = routedContentKeyStackReason(placements, outputDimension, propertyTracks)
@@ -6474,6 +6501,7 @@ function emitRoutedPlacementStackCapture(
       target,
       propertyTracks,
       localTimeExpression,
+      viewportCoordinates,
     )
   }
   if (contentKeySelection === 'selected') {
@@ -6483,6 +6511,7 @@ function emitRoutedPlacementStackCapture(
       target,
       propertyTracks,
       localTimeExpression,
+      viewportCoordinates,
     )
   }
   return [
@@ -6495,6 +6524,7 @@ function emitRoutedPlacementStackCapture(
         capture(placement),
         propertyTracks,
         localTimeExpression,
+        viewportCoordinates,
       )
       const member = placement.member
       const staticOpacity = routedPlacementStaticOpacity(placement, propertyTracks)
@@ -6503,7 +6533,10 @@ function emitRoutedPlacementStackCapture(
           ? []
           : rendered.lines
       }
-      if (endpointOptimizationActive && staticOpacity === 1 && !memberHasContentKey(member)) {
+      if (endpointOptimizationActive
+        && staticOpacity === 1
+        && routedPlacementIsOpaque(placement, propertyTracks)
+        && !memberHasContentKey(member)) {
         return [
           ...rendered.lines,
           `${target}_r = ${member.prefix}_r`,
@@ -6573,11 +6606,12 @@ function emitTwoLayerContentKeyStack(
   target: string,
   propertyTracks?: ShowPropertyAnimationTrack[],
   localTimeExpression?: string,
+  viewportCoordinates?: { x: string; y: string },
 ): string {
   const lower = placements[0]
   const top = placements[1]
-  const topRendered = emitRoutedPlacementCapture(top, capture(top), propertyTracks, localTimeExpression)
-  const lowerRendered = emitRoutedPlacementCapture(lower, capture(lower), propertyTracks, localTimeExpression)
+  const topRendered = emitRoutedPlacementCapture(top, capture(top), propertyTracks, localTimeExpression, viewportCoordinates)
+  const lowerRendered = emitRoutedPlacementCapture(lower, capture(lower), propertyTracks, localTimeExpression, viewportCoordinates)
   const topAlpha = top.member.prefix + '_alpha'
   const lowerAlpha = memberHasContentKey(lower.member)
     ? `(${lowerRendered.opacity}) * ${lower.member.prefix}_alpha`
@@ -6605,6 +6639,7 @@ function emitCoverageDirectedPlacementStack(
   target: string,
   propertyTracks?: ShowPropertyAnimationTrack[],
   localTimeExpression?: string,
+  viewportCoordinates?: { x: string; y: string },
 ): string {
   const remaining = `${target}_remaining`
   const layers = [...placements].reverse().map((placement, index) => {
@@ -6613,6 +6648,7 @@ function emitCoverageDirectedPlacementStack(
       capture(placement),
       propertyTracks,
       localTimeExpression,
+      viewportCoordinates,
     )
     const member = placement.member
     const alpha = memberHasContentKey(member)
@@ -6658,7 +6694,8 @@ function routedPlacementIsOpaque(
   placement: ResolvedRoutedScenePlacement,
   propertyTracks?: ShowPropertyAnimationTrack[],
 ): boolean {
-  return !routedPlacementHasOpacityTrack(placement, propertyTracks)
+  return !placement.viewport?.enabled
+    && !routedPlacementHasOpacityTrack(placement, propertyTracks)
     && clampNumber(placement.opacity ?? 1, 0, 1) === 1
 }
 
@@ -6678,11 +6715,13 @@ function placementQualifiesForDirectSink(
 ): boolean {
   return (placement.effects ?? []).length === 0
     && !placement.transform
+    && !placement.viewport?.enabled
     && (placement.brightness ?? 1) === 1
     && (propertyTracks ?? []).every((track) => !(
       (track.target.kind === 'placement-view'
         || track.target.kind === 'placement-effect'
-        || track.target.kind === 'placement-transform')
+        || track.target.kind === 'placement-transform'
+        || track.target.kind === 'placement-viewport')
       && track.target.placementId === placement.placementId
     ))
 }
@@ -6741,14 +6780,30 @@ function emitRoutedPlacementCapture(
   capture: string,
   propertyTracks?: ShowPropertyAnimationTrack[],
   localTimeExpression?: string,
+  viewportCoordinates?: { x: string; y: string },
 ): { lines: string[]; opacity: string } {
   const placementTracks = (propertyTracks ?? []).filter((track) => (
     'placementId' in track.target && track.target.placementId === placement.placementId
   ))
   const opacityTrack = placementTracks.find((track) => track.target.kind === 'placement-opacity')
-  const opacity = opacityTrack && localTimeExpression
+  const baseOpacity = opacityTrack && localTimeExpression
     ? emitShowPropertyTrackExpression(opacityTrack, localTimeExpression)
     : String(clampNumber(placement.opacity ?? 1, 0, 1))
+  const viewportMask = viewportCoordinates
+    ? showClipViewportMaskExpression(
+        placement.viewport,
+        viewportCoordinates.x,
+        viewportCoordinates.y,
+        localTimeExpression
+          ? Object.fromEntries(placementTracks.flatMap((track) => (
+              track.target.kind === 'placement-viewport'
+                ? [[track.target.property, emitShowPropertyTrackExpression(track, localTimeExpression)]]
+                : []
+            )))
+          : {},
+      )
+    : null
+  const opacity = viewportMask ? `(${baseOpacity}) * (${viewportMask})` : baseOpacity
   const brightnessTrack = placementTracks.find((track) => (
     track.target.kind === 'placement-view' && track.target.property === 'brightness'
   ))
@@ -9873,4 +9928,3 @@ function buildShowSourceInventory(
   }
   return { totalBytes: byteCursor, chunks }
 }
-

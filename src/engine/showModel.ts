@@ -2511,6 +2511,7 @@ function showRecordToRoutedSceneSequenceRecipe(
                 mirror: cell.adaptations.mirror,
                 ...(cell.controlTargets ? { controlTargets: { ...cell.controlTargets } } : {}),
                 ...(cell.transform ? { transform: structuredClone(cell.transform) } : {}),
+                ...(cell.viewport ? { viewport: structuredClone(cell.viewport) } : {}),
                 ...(cell.effects ? { effects: normalizeShowClipEffects(cell.effects) } : {}),
               }
             })

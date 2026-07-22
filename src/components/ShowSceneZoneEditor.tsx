@@ -38,6 +38,7 @@ import { usePreviewStore } from '@/store/previewStore'
 import { projectShowClipInspector, type ShowClipInspectorOwner, type ShowClipInspectorPatch } from '@/engine/showClipInspectorModel'
 import type { AutomatablePatternControl } from '@/engine/showPatternControls'
 import { normalizeShowClipTransform } from '@/engine/showClipTransform'
+import { normalizeShowClipViewport } from '@/engine/showClipViewport'
 
 type OverlayClipDrag = {
   kind: 'overlay'
@@ -1255,6 +1256,8 @@ function buildShowAutomationOptions(
   transformEnabled = true,
 ): ShowAutomationOption[] {
   const transform = normalizeShowClipTransform(placement.transform)
+  const viewport = normalizeShowClipViewport(placement.viewport)
+  const contentPrefix = viewport.enabled ? 'Content ' : ''
   const options: ShowAutomationOption[] = [
     animationOption('Animation speed', { kind: 'instance-time-scale', instanceId: instance.id }, instance.time.timeScale, 0, 4, 0.01),
     ...Object.entries(instance.controlTargets ?? {}).map(([exportName, value]) => (
@@ -1263,8 +1266,8 @@ function buildShowAutomationOptions(
     animationOption('Brightness', { kind: 'placement-view', placementId: placement.id, property: 'brightness' }, placement.view.brightness, 0, 1, 0.01),
     animationOption('Phase', { kind: 'placement-view', placementId: placement.id, property: 'phase' }, placement.view.phase, 0, 1, 0.01),
     ...(transformEnabled ? [
-      animationOption('Position X', { kind: 'placement-transform', placementId: placement.id, property: 'positionX' }, transform.positionX, -4, 4, 0.01),
-      animationOption('Position Y', { kind: 'placement-transform', placementId: placement.id, property: 'positionY' }, transform.positionY, -4, 4, 0.01),
+      animationOption(`${contentPrefix}X`, { kind: 'placement-transform', placementId: placement.id, property: 'positionX' }, transform.positionX, -4, 4, 0.01),
+      animationOption(`${contentPrefix}Y`, { kind: 'placement-transform', placementId: placement.id, property: 'positionY' }, transform.positionY, -4, 4, 0.01),
       animationOption(
       'Rotation (degrees)',
       { kind: 'placement-transform', placementId: placement.id, property: 'rotation' },
@@ -1281,8 +1284,14 @@ function buildShowAutomationOptions(
         unit: 'degrees',
       },
       ),
-      animationOption('Scale X', { kind: 'placement-transform', placementId: placement.id, property: 'scaleX' }, transform.scaleX, 0.01, 8, 0.01),
-      animationOption('Scale Y', { kind: 'placement-transform', placementId: placement.id, property: 'scaleY' }, transform.scaleY, 0.01, 8, 0.01),
+      animationOption(`${contentPrefix}Width`, { kind: 'placement-transform', placementId: placement.id, property: 'scaleX' }, transform.scaleX, 0.01, 8, 0.01),
+      animationOption(`${contentPrefix}Height`, { kind: 'placement-transform', placementId: placement.id, property: 'scaleY' }, transform.scaleY, 0.01, 8, 0.01),
+    ] : []),
+    ...(viewport.enabled ? [
+      animationOption('Viewport X', { kind: 'placement-viewport', placementId: placement.id, property: 'x' }, viewport.x, -4, 4, 0.01),
+      animationOption('Viewport Y', { kind: 'placement-viewport', placementId: placement.id, property: 'y' }, viewport.y, -4, 4, 0.01),
+      animationOption('Viewport Width', { kind: 'placement-viewport', placementId: placement.id, property: 'width' }, viewport.width, 0.01, 8, 0.01),
+      animationOption('Viewport Height', { kind: 'placement-viewport', placementId: placement.id, property: 'height' }, viewport.height, 0.01, 8, 0.01),
     ] : []),
     ...('opacity' in placement
       ? [animationOption('Opacity', { kind: 'placement-opacity', placementId: placement.id }, placement.opacity, 0, 1, 0.01)]

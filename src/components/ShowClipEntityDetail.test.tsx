@@ -22,6 +22,7 @@ function value(scope: ShowClipInspectorValue['scope']): ShowClipInspectorValue {
     simulation: { timeScale: 1, timeOffsetMs: 0, controlTargets: { sliderSpeed: 0.4 } },
     view: { mirror: false, phase: 0.25, brightness: 0.8 },
     transform: { positionX: 0, positionY: 0, rotation: 0, scaleX: 1, scaleY: 1 },
+    viewport: { enabled: false, x: 0, y: 0, width: 1, height: 1 },
     effects: [],
     ...(scene ? {
       placementId: 'placement-1',
@@ -100,7 +101,7 @@ describe('shared Clip Entity Detail sections (#498)', () => {
     render(<ShowClipEntityDetail {...commonProps('scene-main', onPatch)} />)
 
     expect(screen.getByRole('group', { name: 'Clip Transform' })).toBeInTheDocument()
-    const positionX = screen.getByRole('spinbutton', { name: 'Position X' })
+    const positionX = screen.getByRole('spinbutton', { name: 'X' })
     fireEvent.change(positionX, { target: { value: '0.25' } })
     fireEvent.blur(positionX)
     expect(onPatch).toHaveBeenCalledWith({ transform: { positionX: 0.25 } })
@@ -109,6 +110,32 @@ describe('shared Clip Entity Detail sections (#498)', () => {
     fireEvent.change(rotation, { target: { value: '90' } })
     fireEvent.blur(rotation)
     expect(onPatch).toHaveBeenCalledWith({ transform: { rotation: 0.25 } })
+  })
+
+  it('progressively discloses preserved Content and Viewport geometry (#585)', () => {
+    const onPatch = vi.fn()
+    const props = commonProps('scene-main', onPatch)
+    const { rerender } = render(<ShowClipEntityDetail {...props} />)
+
+    expect(screen.getByRole('spinbutton', { name: 'X' })).toBeInTheDocument()
+    expect(screen.getByRole('spinbutton', { name: 'Width' })).toBeInTheDocument()
+    expect(screen.queryByRole('group', { name: 'Content geometry' })).not.toBeInTheDocument()
+    expect(screen.queryByRole('group', { name: 'Viewport geometry' })).not.toBeInTheDocument()
+
+    fireEvent.click(screen.getByRole('checkbox', { name: 'Enable Viewport' }))
+    expect(onPatch).toHaveBeenCalledWith({ viewport: { enabled: true } })
+
+    rerender(<ShowClipEntityDetail
+      {...props}
+      value={{ ...props.value, viewport: { enabled: true, x: 0, y: 0, width: 1, height: 1 } }}
+    />)
+    expect(screen.getByRole('group', { name: 'Content geometry' })).toBeInTheDocument()
+    expect(screen.getByRole('group', { name: 'Viewport geometry' })).toBeInTheDocument()
+
+    const viewportX = screen.getByRole('spinbutton', { name: 'Viewport X' })
+    fireEvent.change(viewportX, { target: { value: '0.25' } })
+    fireEvent.blur(viewportX)
+    expect(onPatch).toHaveBeenCalledWith({ viewport: { x: 0.25 } })
   })
 
   it('does not offer the 2D Transform group for an incompatible Stage (#529)', () => {

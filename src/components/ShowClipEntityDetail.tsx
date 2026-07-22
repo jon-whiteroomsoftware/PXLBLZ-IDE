@@ -175,58 +175,35 @@ export function ShowClipEntityDetail({
         )}
 
         {transformEnabled && <fieldset aria-label="Clip Transform" className="mt-2 min-w-0 border-t border-zinc-800/80 pt-1.5">
-          <legend className="pr-2 text-[9px] font-medium uppercase tracking-[0.12em] text-cyan-300/80">Transform</legend>
-          <div className="grid min-w-0 grid-cols-2 items-end gap-x-2 gap-y-1.5 sm:grid-cols-5">
-            <ShowInspectorNumberField
-              label="Position X"
-              value={value.transform.positionX}
-              min={-4}
-              max={4}
-              step={0.01}
+          <legend className="pr-2 text-[9px] font-medium uppercase tracking-[0.12em] text-cyan-300/80">Placement</legend>
+          <label className="mb-1.5 flex items-center gap-1.5 text-[9px] text-zinc-500">
+            <input
+              type="checkbox"
+              aria-label="Enable Viewport"
+              checked={value.viewport.enabled}
               disabled={readOnly}
-              onChange={(positionX) => onPatch({ transform: { positionX } })}
+              className="h-3 w-3 accent-cyan-400"
+              onChange={(event) => onPatch({ viewport: { enabled: event.target.checked } })}
             />
-            <ShowInspectorNumberField
-              label="Position Y"
-              value={value.transform.positionY}
-              min={-4}
-              max={4}
-              step={0.01}
-              disabled={readOnly}
-              onChange={(positionY) => onPatch({ transform: { positionY } })}
-            />
-            <ShowInspectorNumberField
-              label="Rotation"
-              ariaLabel="Rotation degrees"
-              value={value.transform.rotation * 360}
-              min={-2880}
-              max={2880}
-              step={1}
-              suffix="deg"
-              disabled={readOnly}
-              onChange={(degrees) => onPatch({ transform: { rotation: degrees / 360 } })}
-            />
-            <ShowInspectorNumberField
-              label="Scale X"
-              value={value.transform.scaleX}
-              min={0.01}
-              max={8}
-              step={0.01}
-              suffix="x"
-              disabled={readOnly}
-              onChange={(scaleX) => onPatch({ transform: { scaleX } })}
-            />
-            <ShowInspectorNumberField
-              label="Scale Y"
-              value={value.transform.scaleY}
-              min={0.01}
-              max={8}
-              step={0.01}
-              suffix="x"
-              disabled={readOnly}
-              onChange={(scaleY) => onPatch({ transform: { scaleY } })}
-            />
-          </div>
+            Enable Viewport
+          </label>
+          {value.viewport.enabled ? (
+            <div className="grid min-w-0 gap-2">
+              <fieldset aria-label="Content geometry" className="min-w-0">
+                <legend className="mb-1 text-[9px] uppercase tracking-[0.12em] text-zinc-600">Content</legend>
+                <ClipContentGeometry value={value} readOnly={readOnly} qualified onPatch={onPatch} />
+              </fieldset>
+              <fieldset aria-label="Viewport geometry" className="min-w-0 border-t border-zinc-800/70 pt-1.5">
+                <legend className="pr-2 text-[9px] uppercase tracking-[0.12em] text-zinc-600">Viewport</legend>
+                <div className="grid min-w-0 grid-cols-2 items-end gap-x-2 gap-y-1.5 sm:grid-cols-4">
+                  <ShowInspectorNumberField label="X" ariaLabel="Viewport X" value={value.viewport.x} min={-4} max={4} step={0.01} disabled={readOnly} onChange={(x) => onPatch({ viewport: { x } })} />
+                  <ShowInspectorNumberField label="Y" ariaLabel="Viewport Y" value={value.viewport.y} min={-4} max={4} step={0.01} disabled={readOnly} onChange={(y) => onPatch({ viewport: { y } })} />
+                  <ShowInspectorNumberField label="Width" ariaLabel="Viewport Width" value={value.viewport.width} min={0.01} max={8} step={0.01} disabled={readOnly} onChange={(width) => onPatch({ viewport: { width } })} />
+                  <ShowInspectorNumberField label="Height" ariaLabel="Viewport Height" value={value.viewport.height} min={0.01} max={8} step={0.01} disabled={readOnly} onChange={(height) => onPatch({ viewport: { height } })} />
+                </div>
+              </fieldset>
+            </div>
+          ) : <ClipContentGeometry value={value} readOnly={readOnly} onPatch={onPatch} />}
         </fieldset>}
 
         <ShowEffectStack
@@ -404,6 +381,27 @@ export function ShowClipEntityDetail({
       </div>
     </section>
   )
+}
+
+function ClipContentGeometry({
+  value,
+  readOnly,
+  qualified = false,
+  onPatch,
+}: {
+  value: ShowClipInspectorValue
+  readOnly: boolean
+  qualified?: boolean
+  onPatch: (patch: ShowClipInspectorPatch) => void
+}) {
+  const aria = (label: string) => qualified ? `Content ${label}` : label
+  return <div className="grid min-w-0 grid-cols-2 items-end gap-x-2 gap-y-1.5 sm:grid-cols-5">
+    <ShowInspectorNumberField label="X" ariaLabel={aria('X')} value={value.transform.positionX} min={-4} max={4} step={0.01} disabled={readOnly} onChange={(positionX) => onPatch({ transform: { positionX } })} />
+    <ShowInspectorNumberField label="Y" ariaLabel={aria('Y')} value={value.transform.positionY} min={-4} max={4} step={0.01} disabled={readOnly} onChange={(positionY) => onPatch({ transform: { positionY } })} />
+    <ShowInspectorNumberField label="Width" ariaLabel={aria('Width')} value={value.transform.scaleX} min={0.01} max={8} step={0.01} disabled={readOnly} onChange={(scaleX) => onPatch({ transform: { scaleX } })} />
+    <ShowInspectorNumberField label="Height" ariaLabel={aria('Height')} value={value.transform.scaleY} min={0.01} max={8} step={0.01} disabled={readOnly} onChange={(scaleY) => onPatch({ transform: { scaleY } })} />
+    <ShowInspectorNumberField label="Rotation" ariaLabel="Rotation degrees" value={value.transform.rotation * 360} min={-2880} max={2880} step={1} suffix="deg" disabled={readOnly} onChange={(degrees) => onPatch({ transform: { rotation: degrees / 360 } })} />
+  </div>
 }
 
 // The shared draft-buffered numeric field (#577). Re-exported under the

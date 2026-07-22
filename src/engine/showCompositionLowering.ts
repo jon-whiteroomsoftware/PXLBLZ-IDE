@@ -158,6 +158,7 @@ export function lowerShowCompositionForCompile(
             restartOnEntry: false,
             ...(instance.controlTargets ? { controlTargets: { ...instance.controlTargets } } : {}),
             ...(placement.transform ? { transform: structuredClone(placement.transform) } : {}),
+            ...(placement.viewport ? { viewport: structuredClone(placement.viewport) } : {}),
             ...(placement.effects ? { effects: structuredClone(placement.effects) } : {}),
           })
           byCellId[cellId] = source
