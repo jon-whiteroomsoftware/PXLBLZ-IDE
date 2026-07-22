@@ -9,7 +9,7 @@ import {
 } from './showVisualToolkit'
 import type { ShowToolkitPresentationItem } from './showVisualToolkitPresentation'
 
-type TransitionChanges = Partial<Omit<ShowBoundaryTransition, 'id' | 'afterSceneId'>>
+export type ShowTransitionChanges = Partial<Omit<ShowBoundaryTransition, 'id' | 'afterSceneId'>>
 
 export function showBoundaryTransitionPresentationKey(
   transition: Pick<ShowBoundaryTransition, 'kind' | 'wipeVariant' | 'dissolveVariant' | 'shape' | 'motionVariant'>,
@@ -30,6 +30,16 @@ export function replaceShowBoundaryTransition(
   presetId?: string,
 ): ShowRecord {
   if (item.kind !== 'transition') throw new Error(`${item.key} is not a Transition.`)
+  const changes = showTransitionChangesForPresentation(item, presetId)
+  return updateShowBoundaryTransition(show, transitionId, changes)
+}
+
+/** Resolve catalogue defaults and an optional preset without assuming an owner. */
+export function showTransitionChangesForPresentation(
+  item: ShowToolkitPresentationItem,
+  presetId?: string,
+): ShowTransitionChanges {
+  if (item.kind !== 'transition') throw new Error(`${item.key} is not a Transition.`)
   const family = getShowToolkitFamily('transition', item.familyId)
   const variant = family?.variants.find((candidate) => candidate.id === item.variantId)
   if (!family || !variant) throw new Error(`Unsupported Show Transition ${item.key}.`)
@@ -39,13 +49,12 @@ export function replaceShowBoundaryTransition(
     ...Object.fromEntries(parameters.map((parameter) => [parameter.id, parameter.defaultValue])),
     ...(preset?.values ?? {}),
   }
-  const changes: TransitionChanges = {
+  return {
     ...transitionIdentity(item.familyId, item.variantId),
     ...Object.fromEntries(Object.entries(values).map(([parameterId, value]) => (
       [parameterId, persistedParameterValue(parameterId, value)]
     ))),
-  } as TransitionChanges
-  return updateShowBoundaryTransition(show, transitionId, changes)
+  } as ShowTransitionChanges
 }
 
 export function showBoundaryTransitionParameters(
@@ -88,17 +97,17 @@ export function showBoundaryTransitionParameterChanges(
   item: ShowToolkitPresentationItem,
   parameterId: string,
   value: ShowToolkitParameterValue,
-): TransitionChanges | null {
+): ShowTransitionChanges | null {
   if (item.kind !== 'transition') return null
   const parameter = showBoundaryTransitionParameters(item, transition)
     .find((candidate) => candidate.id === parameterId)
   if (!parameter) return null
   return {
     [parameterId]: persistedParameterValue(parameterId, value),
-  } as TransitionChanges
+  } as ShowTransitionChanges
 }
 
-function transitionIdentity(familyId: string, variantId: string): TransitionChanges {
+function transitionIdentity(familyId: string, variantId: string): ShowTransitionChanges {
   if (familyId === 'blend') {
     return variantId === 'crossfade'
       ? { kind: 'crossfade', crossfadePolicy: 'snapshot-live' }

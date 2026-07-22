@@ -4,6 +4,116 @@ import { projectShowUnifiedTimeline } from './showUnifiedTimelineProjection'
 import type { ShowCompositionV1 } from './personalContentRecords'
 
 describe('unified Show timeline projection (#580)', () => {
+  it('projects every same-layer abutment as an explicit Cut junction (#583)', () => {
+    const show = createDefaultShow('show-cut-projection', 'Cut projection', 1_000)
+    const scene = show.scenes[0]
+    const zoneId = show.zones[0].id
+    const composition: ShowCompositionV1 = {
+      version: 1,
+      patternInstances: [{
+        id: 'instance-a',
+        pattern: { kind: 'stock', id: 'Rings' },
+        patternName: 'Rings',
+        time: { timeScale: 1, timeOffsetMs: 0 },
+      }],
+      scenes: [{
+        sceneId: scene.id,
+        zones: [{
+          zoneId,
+          main: [
+            {
+              id: 'clip-a',
+              instanceId: 'instance-a',
+              startMs: 1_000,
+              durationMs: 2_000,
+              view: { mirror: false, phase: 0, brightness: 1 },
+            },
+            {
+              id: 'clip-b',
+              instanceId: 'instance-a',
+              startMs: 3_000,
+              durationMs: 1_000,
+              view: { mirror: false, phase: 0, brightness: 1 },
+            },
+            {
+              id: 'clip-after-gap',
+              instanceId: 'instance-a',
+              startMs: 5_000,
+              durationMs: 1_000,
+              view: { mirror: false, phase: 0, brightness: 1 },
+            },
+          ],
+          overlays: [],
+        }],
+      }],
+    }
+
+    const main = projectShowUnifiedTimeline(show, composition).zones[0].layers[0]
+
+    expect(main.junctions).toEqual([{
+      id: 'cut:clip-a:clip-b',
+      kind: 'cut',
+      leftClipId: 'clip-a',
+      rightClipId: 'clip-b',
+      startMs: 3_000,
+      endMs: 3_000,
+      durationMs: 0,
+      transition: null,
+    }])
+  })
+
+  it('projects a durable non-Cut transition into its literal gap between Clips (#583)', () => {
+    const show = createDefaultShow('show-transition-projection', 'Transition projection', 1_000)
+    const scene = show.scenes[0]
+    const zoneId = show.zones[0].id
+    const placement = (id: string, startMs: number, durationMs: number) => ({
+      id,
+      instanceId: 'instance-a',
+      startMs,
+      durationMs,
+      view: { mirror: false, phase: 0, brightness: 1 },
+    })
+    const composition: ShowCompositionV1 = {
+      version: 1,
+      patternInstances: [{
+        id: 'instance-a',
+        pattern: { kind: 'stock', id: 'Rings' },
+        patternName: 'Rings',
+        time: { timeScale: 1, timeOffsetMs: 0 },
+      }],
+      transitions: [{
+        id: 'transition-a-b',
+        fromPlacementId: 'clip-a',
+        toPlacementId: 'clip-b',
+        kind: 'crossfade',
+        durationMs: 1_000,
+        easing: { curve: 'sine', direction: 'in-out' },
+        crossfadePolicy: 'live-live',
+      }],
+      scenes: [{
+        sceneId: scene.id,
+        zones: [{
+          zoneId,
+          main: [placement('clip-a', 1_000, 2_000), placement('clip-b', 4_000, 2_000)],
+          overlays: [],
+        }],
+      }],
+    }
+
+    expect(projectShowUnifiedTimeline(show, composition).zones[0].layers[0].junctions).toEqual([
+      expect.objectContaining({
+        id: 'transition-a-b',
+        kind: 'crossfade',
+        leftClipId: 'clip-a',
+        rightClipId: 'clip-b',
+        startMs: 3_000,
+        endMs: 4_000,
+        durationMs: 1_000,
+        transition: composition.transitions![0],
+      }),
+    ])
+  })
+
   it('projects internal Scene-local placements onto one global timeline', () => {
     const show = createDefaultShow('show-unified-projection', 'Unified projection', 1_000)
     const zoneId = show.zones[0].id

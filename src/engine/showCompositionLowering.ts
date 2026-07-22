@@ -1,6 +1,8 @@
 import type {
   ShowBoundaryTransition,
   ShowCell,
+  ShowCompositionV1,
+  ShowLayerTransition,
   ShowMainPlacement,
   ShowOverlayPlacement,
   ShowRecord,
@@ -43,9 +45,13 @@ export function lowerShowCompositionForCompile(
   const localTransitions: ShowBoundaryTransition[] = []
   const lastDerivedSceneId = new Map<string, string>()
   const derivedCellIdByFlatCellId = new Map<string, string>()
+  const layerTransitionsBySceneId = resolveLocalLayerTransitions(composition)
 
   for (const scene of show.scenes) {
     const sceneComposition = sceneCompositionById.get(scene.id)
+    const transitionByInterval = new Map((layerTransitionsBySceneId.get(scene.id) ?? []).map((entry) => (
+      [`${entry.startMs}:${entry.endMs}`, entry.transition]
+    )))
     const boundaries = new Set([0, scene.durationMs])
     for (const zone of sceneComposition?.zones ?? []) {
       for (const placement of zone.main) {
@@ -63,11 +69,15 @@ export function lowerShowCompositionForCompile(
     const intervals = ordered.slice(0, -1).map((startMs, index) => ({
       startMs,
       endMs: ordered[index + 1],
-    })).filter((interval) => interval.endMs > interval.startMs)
+    })).filter((interval) => (
+      interval.endMs > interval.startMs
+      && !transitionByInterval.has(`${interval.startMs}:${interval.endMs}`)
+    ))
 
     intervals.forEach((interval, intervalIndex) => {
       const isOnlyInterval = intervals.length === 1
       const isFinalInterval = intervalIndex === intervals.length - 1
+      const nextInterval = intervals[intervalIndex + 1]
       const activePlacementIds = new Set((sceneComposition?.zones ?? []).flatMap((zone) => [
         ...zone.main.filter((placement) => placementCovers(placement, interval.startMs)).map((placement) => placement.id),
         ...zone.overlays.flatMap((layer) => layer.placements
@@ -87,13 +97,16 @@ export function lowerShowCompositionForCompile(
         durationMs: interval.endMs - interval.startMs,
       })
       if (!isFinalInterval) {
-        localTransitions.push({
-          id: `transition-${sceneId}`,
-          afterSceneId: sceneId,
-          kind: 'cut',
-          durationMs: 0,
-          easing: { curve: 'linear' },
-        })
+        const layerTransition = transitionByInterval.get(`${interval.endMs}:${nextInterval.startMs}`)
+        localTransitions.push(layerTransition
+          ? layerTransitionAsBoundary(layerTransition, sceneId)
+          : {
+              id: `transition-${sceneId}`,
+              afterSceneId: sceneId,
+              kind: 'cut',
+              durationMs: 0,
+              easing: { curve: 'linear' },
+            })
       }
       if (activePropertyTracks.length) {
         compositionPropertyTracksBySceneId[sceneId] = {
@@ -185,6 +198,77 @@ export function lowerShowCompositionForCompile(
       compositionPropertyTracksBySceneId,
     },
   }
+}
+
+function resolveLocalLayerTransitions(
+  composition: ShowCompositionV1,
+): Map<string, Array<{ transition: ShowLayerTransition; startMs: number; endMs: number }>> {
+  const placementById = new Map<string, {
+    sceneId: string
+    layerKey: string
+    startMs: number
+    endMs: number
+  }>()
+  for (const scene of composition.scenes) {
+    for (const zone of scene.zones) {
+      zone.main.forEach((placement) => placementById.set(placement.id, {
+        sceneId: scene.sceneId,
+        layerKey: `${zone.zoneId}:main`,
+        startMs: placement.startMs,
+        endMs: placement.startMs + placement.durationMs,
+      }))
+      zone.overlays.forEach((layer, layerIndex) => layer.placements.forEach((placement) => {
+        placementById.set(placement.id, {
+          sceneId: scene.sceneId,
+          layerKey: `${zone.zoneId}:overlay:${layerIndex}`,
+          startMs: placement.startMs,
+          endMs: placement.startMs + placement.durationMs,
+        })
+      }))
+    }
+  }
+
+  const result = new Map<string, Array<{ transition: ShowLayerTransition; startMs: number; endMs: number }>>()
+  for (const transition of composition.transitions ?? []) {
+    const from = placementById.get(transition.fromPlacementId)
+    const to = placementById.get(transition.toPlacementId)
+    if (!from || !to) throw new Error(`Layer transition "${transition.id}" has a missing endpoint.`)
+    if (from.sceneId !== to.sceneId) {
+      throw new Error(`Layer transition "${transition.id}" cannot cross an internal layout boundary yet.`)
+    }
+    if (from.layerKey !== to.layerKey || from.endMs + transition.durationMs !== to.startMs) {
+      throw new Error(`Layer transition "${transition.id}" must occupy the exact gap between consecutive Clips on one Layer.`)
+    }
+    const unrelatedActive = [...placementById.entries()].some(([placementId, placement]) => (
+      placementId !== transition.fromPlacementId
+      && placementId !== transition.toPlacementId
+      && placement.sceneId === from.sceneId
+      && placement.endMs >= from.endMs
+      && placement.startMs <= to.startMs
+    ))
+    if (unrelatedActive) {
+      throw new Error(`Layer transition "${transition.id}" requires an isolated Layer render target because unrelated content is active.`)
+    }
+    const entries = result.get(from.sceneId) ?? []
+    if (entries.some((entry) => from.endMs < entry.endMs && to.startMs > entry.startMs)) {
+      throw new Error('Overlapping per-Layer transitions require independent render targets and are not supported yet.')
+    }
+    entries.push({ transition, startMs: from.endMs, endMs: to.startMs })
+    result.set(from.sceneId, entries)
+  }
+  return result
+}
+
+function layerTransitionAsBoundary(
+  transition: ShowLayerTransition,
+  afterSceneId: string,
+): ShowBoundaryTransition {
+  const {
+    fromPlacementId: _fromPlacementId,
+    toPlacementId: _toPlacementId,
+    ...boundary
+  } = transition
+  return { ...structuredClone(boundary), afterSceneId }
 }
 
 function placementCovers(placement: ShowMainPlacement, atMs: number): boolean {

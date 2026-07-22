@@ -1,8 +1,10 @@
 import type {
   ShowCompositionV1,
+  ShowLayerTransition,
   ShowMainPlacement,
   ShowOverlayPlacement,
   ShowRecord,
+  ShowTransitionKind,
 } from './personalContentRecords'
 import { projectShowTimeline } from './showModel'
 
@@ -30,6 +32,18 @@ export interface ShowUnifiedTimelineLayerProjection {
   kind: 'main' | 'overlay'
   layerIndex: number
   clips: ShowUnifiedTimelineClipProjection[]
+  junctions: ShowUnifiedTimelineJunctionProjection[]
+}
+
+export interface ShowUnifiedTimelineJunctionProjection {
+  id: string
+  kind: ShowTransitionKind
+  leftClipId: string
+  rightClipId: string
+  startMs: number
+  endMs: number
+  durationMs: number
+  transition: ShowLayerTransition | null
 }
 
 export interface ShowUnifiedTimelineZoneProjection {
@@ -65,7 +79,7 @@ export function projectShowUnifiedTimeline(
       }, 0)
       const overlayLayers: ShowUnifiedTimelineLayerProjection[] = Array.from(
         { length: maximumOverlayCount },
-        (_, layerIndex) => ({
+        (_, layerIndex) => projectLayer({
           id: `${zone.id}:overlay:${layerIndex}`,
           kind: 'overlay',
           layerIndex,
@@ -85,9 +99,10 @@ export function projectShowUnifiedTimeline(
               instanceById,
             }))
           }).sort((a, b) => a.startMs - b.startMs || a.id.localeCompare(b.id)),
+          transitions: composition.transitions ?? [],
         }),
       )
-      const mainLayer: ShowUnifiedTimelineLayerProjection = {
+      const mainLayer = projectLayer({
         id: `${zone.id}:main`,
         kind: 'main',
         layerIndex: maximumOverlayCount,
@@ -106,13 +121,56 @@ export function projectShowUnifiedTimeline(
             instanceById,
           }))
         }).sort((a, b) => a.startMs - b.startMs || a.id.localeCompare(b.id)),
-      }
+        transitions: composition.transitions ?? [],
+      })
       return {
         id: zone.id,
         name: zone.name,
         color: zone.color ?? '#38bdf8',
         layers: [...overlayLayers, mainLayer],
       }
+    }),
+  }
+}
+
+function projectLayer(
+  layer: Omit<ShowUnifiedTimelineLayerProjection, 'junctions'> & {
+    transitions: ShowLayerTransition[]
+  },
+): ShowUnifiedTimelineLayerProjection {
+  const { transitions, ...projection } = layer
+  return {
+    ...projection,
+    junctions: layer.clips.slice(0, -1).flatMap<ShowUnifiedTimelineJunctionProjection>((leftClip, index) => {
+      const rightClip = layer.clips[index + 1]
+      const transition = transitions.find((candidate) => (
+        candidate.fromPlacementId === leftClip.id
+        && candidate.toPlacementId === rightClip.id
+      ))
+      if (transition) {
+        if (leftClip.endMs + transition.durationMs !== rightClip.startMs) return []
+        return [{
+          id: transition.id,
+          kind: transition.kind,
+          leftClipId: leftClip.id,
+          rightClipId: rightClip.id,
+          startMs: leftClip.endMs,
+          endMs: rightClip.startMs,
+          durationMs: transition.durationMs,
+          transition,
+        }]
+      }
+      if (leftClip.endMs !== rightClip.startMs) return []
+      return [{
+        id: `cut:${leftClip.id}:${rightClip.id}`,
+        kind: 'cut' as const,
+        leftClipId: leftClip.id,
+        rightClipId: rightClip.id,
+        startMs: rightClip.startMs,
+        endMs: rightClip.startMs,
+        durationMs: 0,
+        transition: null,
+      }]
     }),
   }
 }

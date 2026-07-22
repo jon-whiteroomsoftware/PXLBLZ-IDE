@@ -22,10 +22,13 @@ export type ShowCompositionValidationCode =
   | 'missing-scene'
   | 'missing-zone'
   | 'missing-instance'
+  | 'missing-placement'
   | 'not-finite'
   | 'not-integer'
   | 'out-of-bounds'
   | 'overlap'
+  | 'cross-layer'
+  | 'invalid-transition'
   | ShowPropertyAnimationValidationCode
 
 export interface ShowCompositionValidationIssue {
@@ -123,6 +126,9 @@ export function normalizeShowComposition(
     version: 1,
     patternInstances: cloneJson(composition.patternInstances)
       .sort((a, b) => a.id.localeCompare(b.id)),
+    ...(composition.transitions
+      ? { transitions: cloneJson(composition.transitions).sort((a, b) => a.id.localeCompare(b.id)) }
+      : {}),
     scenes: cloneJson(composition.scenes)
       .sort((a, b) => ownerOrder(sceneOrder, a.sceneId) - ownerOrder(sceneOrder, b.sceneId) || a.sceneId.localeCompare(b.sceneId))
        .map((scene) => ({
@@ -166,6 +172,12 @@ export function validateShowComposition(
   const zoneIds = new Set(show.zones.map((zone) => zone.id))
   const instanceIds = new Set<string>()
   const placementIds = new Set<string>()
+  const placementOwnerById = new Map<string, {
+    layerKey: string
+    sceneId: string
+    startMs: number
+    endMs: number
+  }>()
   const layerIds = new Set<string>()
 
   composition.patternInstances.forEach((instance, instanceIndex) => {
@@ -191,6 +203,12 @@ export function validateShowComposition(
         const path = `${zonePath}.main[${placementIndex}]`
         if (placementIds.has(placement.id)) addIssue(issues, `${path}.id`, 'duplicate-id', `Placement id "${placement.id}" is duplicated.`)
         placementIds.add(placement.id)
+        placementOwnerById.set(placement.id, {
+          layerKey: `${scene.sceneId}:${zone.zoneId}:main`,
+          sceneId: scene.sceneId,
+          startMs: placement.startMs,
+          endMs: placement.startMs + placement.durationMs,
+        })
         if (!instanceIds.has(placement.instanceId)) {
           addIssue(issues, `${path}.instanceId`, 'missing-instance', `Pattern instance "${placement.instanceId}" does not exist.`)
         }
@@ -214,6 +232,12 @@ export function validateShowComposition(
           const path = `${layerPath}.placements[${placementIndex}]`
           if (placementIds.has(placement.id)) addIssue(issues, `${path}.id`, 'duplicate-id', `Placement id "${placement.id}" is duplicated.`)
           placementIds.add(placement.id)
+          placementOwnerById.set(placement.id, {
+            layerKey: `${scene.sceneId}:${zone.zoneId}:overlay:${layerIndex}`,
+            sceneId: scene.sceneId,
+            startMs: placement.startMs,
+            endMs: placement.startMs + placement.durationMs,
+          })
           if (!instanceIds.has(placement.instanceId)) {
             addIssue(issues, `${path}.instanceId`, 'missing-instance', `Pattern instance "${placement.instanceId}" does not exist.`)
           }
@@ -233,6 +257,57 @@ export function validateShowComposition(
       })
     })
   })
+  const transitionIds = new Set<string>()
+  for (const [transitionIndex, transition] of (composition.transitions ?? []).entries()) {
+    const path = `transitions[${transitionIndex}]`
+    if (transitionIds.has(transition.id)) {
+      addIssue(issues, `${path}.id`, 'duplicate-id', `Layer transition id "${transition.id}" is duplicated.`)
+    }
+    transitionIds.add(transition.id)
+    validateFiniteInteger(issues, `${path}.durationMs`, transition.durationMs)
+    if (transition.durationMs <= 0) {
+      addIssue(issues, `${path}.durationMs`, 'out-of-bounds', 'A non-Cut Layer transition must have positive duration.')
+    }
+    const fromOwner = placementOwnerById.get(transition.fromPlacementId)
+    const toOwner = placementOwnerById.get(transition.toPlacementId)
+    if (!fromOwner) {
+      addIssue(issues, `${path}.fromPlacementId`, 'missing-placement', `Placement "${transition.fromPlacementId}" does not exist.`)
+    }
+    if (!toOwner) {
+      addIssue(issues, `${path}.toPlacementId`, 'missing-placement', `Placement "${transition.toPlacementId}" does not exist.`)
+    }
+    if (fromOwner && toOwner && fromOwner.layerKey !== toOwner.layerKey) {
+      addIssue(issues, path, 'cross-layer', 'A Layer transition must connect placements on the same Layer.')
+    }
+    if (fromOwner && toOwner && fromOwner.layerKey === toOwner.layerKey) {
+      const orderedPlacementIds = [...placementOwnerById.entries()]
+        .filter(([, owner]) => owner.layerKey === fromOwner.layerKey)
+        .sort((left, right) => left[1].startMs - right[1].startMs || left[0].localeCompare(right[0]))
+        .map(([placementId]) => placementId)
+      const fromIndex = orderedPlacementIds.indexOf(transition.fromPlacementId)
+      if (fromIndex < 0 || orderedPlacementIds[fromIndex + 1] !== transition.toPlacementId) {
+        addIssue(issues, path, 'invalid-transition', 'A Layer transition must connect consecutive Clips.')
+      }
+    }
+    if (fromOwner && toOwner && (
+      fromOwner.sceneId !== toOwner.sceneId
+      || fromOwner.endMs + transition.durationMs !== toOwner.startMs
+    )) {
+      addIssue(issues, path, 'invalid-transition', 'A Layer transition must occupy the exact gap between its ordered Clip endpoints.')
+    }
+    if (fromOwner && toOwner) {
+      const unrelatedActive = [...placementOwnerById.entries()].some(([placementId, owner]) => (
+        placementId !== transition.fromPlacementId
+        && placementId !== transition.toPlacementId
+        && owner.sceneId === fromOwner.sceneId
+        && owner.endMs >= fromOwner.endMs
+        && owner.startMs <= toOwner.startMs
+      ))
+      if (unrelatedActive) {
+        addIssue(issues, path, 'invalid-transition', 'A Layer transition requires every unrelated Layer to be inactive for its complete interval.')
+      }
+    }
+  }
   issues.push(...validateShowPropertyTracks(show, composition))
   return issues
 }
@@ -302,6 +377,7 @@ export function deleteShowOverlayLayer(
   const deletedPlacementIds = new Set(layer.placements.map((placement) => placement.id))
   zone.overlays = zone.overlays.filter((layer) => layer.id !== input.layerId)
   removePlacementTracks(draft, input.sceneId, deletedPlacementIds)
+  removePlacementTransitions(draft, deletedPlacementIds)
   return draft
 }
 
@@ -389,6 +465,9 @@ export function splitShowOverlayPlacement(
     right.durationMs = endMs - input.atMs
     placement.durationMs = input.atMs - placement.startMs
     layer.placements.push(right)
+    draft.transitions?.forEach((transition) => {
+      if (transition.fromPlacementId === placement.id) transition.fromPlacementId = input.newPlacementId
+    })
     clonePlacementTracks(draft, input.sceneId, placement.id, input.newPlacementId)
     return true
   })
@@ -403,6 +482,7 @@ export function deleteShowOverlayPlacement(
   if (!layer?.placements.some((placement) => placement.id === input.placementId)) return composition
   layer.placements = layer.placements.filter((placement) => placement.id !== input.placementId)
   removePlacementTracks(draft, input.sceneId, new Set([input.placementId]))
+  removePlacementTransitions(draft, new Set([input.placementId]))
   return draft
 }
 
@@ -466,6 +546,9 @@ export function splitShowMainPlacement(
     right.durationMs = endMs - input.atMs
     placement.durationMs = input.atMs - placement.startMs
     zone.main.push(right)
+    draft.transitions?.forEach((transition) => {
+      if (transition.fromPlacementId === placement.id) transition.fromPlacementId = input.newPlacementId
+    })
     clonePlacementTracks(draft, input.sceneId, placement.id, input.newPlacementId)
     return true
   })
@@ -512,6 +595,7 @@ export function deleteShowMainPlacement(
   if (!zone || !zone.main.some((placement) => placement.id === input.placementId)) return composition
   zone.main = zone.main.filter((placement) => placement.id !== input.placementId)
   removePlacementTracks(draft, input.sceneId, new Set([input.placementId]))
+  removePlacementTransitions(draft, new Set([input.placementId]))
   return draft
 }
 
@@ -650,6 +734,17 @@ function removePlacementTracks(
     !('placementId' in track.target) || !placementIds.has(track.target.placementId)
   ))
   if (scene.propertyTracks.length === 0) delete scene.propertyTracks
+}
+
+function removePlacementTransitions(
+  composition: ShowCompositionV1,
+  placementIds: Set<string>,
+): void {
+  if (!composition.transitions) return
+  composition.transitions = composition.transitions.filter((transition) => (
+    !placementIds.has(transition.fromPlacementId)
+    && !placementIds.has(transition.toPlacementId)
+  ))
 }
 
 function allPropertyIds(composition: ShowCompositionV1): Set<string> {

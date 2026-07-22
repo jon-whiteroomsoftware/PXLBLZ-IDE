@@ -21,6 +21,8 @@ import { ShowSceneZoneEditor } from '@/components/ShowSceneZoneEditor'
 import { ShowEffectPalette } from '@/components/ShowEffectsAuthoring'
 import { ShowClipEntityDetail } from '@/components/ShowClipEntityDetail'
 import { ShowTransitionPalette, ShowTransitionParameters } from '@/components/ShowTransitionAuthoring'
+import { ShowLayerTransitionPalette } from '@/components/ShowLayerTransitionPalette'
+import { ShowLayerTransitionEditor } from '@/components/ShowLayerTransitionEditor'
 import { ShowTransitionXrayPictogram } from '@/components/ShowTransitionXrayPictogram'
 import { ShowArtifactInventoryPopover } from '@/components/ShowArtifactInventoryPopover'
 import { getControllerProvider } from '@/engine/controllerProviderRegistry'
@@ -114,18 +116,27 @@ import {
 import {
   projectShowUnifiedTimeline,
   type ShowUnifiedTimelineClipProjection,
+  type ShowUnifiedTimelineJunctionProjection,
 } from '@/engine/showUnifiedTimelineProjection'
 import {
   addShowOverlayLayerAcrossTimeline,
   addShowMainClipAtGlobalTime,
   duplicateShowClipAfter,
-  moveShowClipAtGlobalTime,
   planShowMainClipAtGlobalTime,
-  resizeShowClipAtGlobalTime,
   splitShowClipAtGlobalTime,
   type ShowTimelineClipMoveTarget,
   type ShowTimelineClipOwner,
 } from '@/engine/showTimelineClipAuthoring'
+import {
+  deleteShowClipWithLayerTransitions,
+  insertShowLayerTransition,
+  moveShowConnectedClipAtGlobalTime,
+  planShowLayerTransitionInsertion,
+  resizeShowLayerTransition,
+  resizeShowConnectedClipAtGlobalTime,
+  resetShowLayerTransitionToCut,
+  showLayerTransitionsConnectedToClip,
+} from '@/engine/showLayerTransitionAuthoring'
 import { buildShowEpeExport, type ShowEpeExport } from '@/engine/showEpeExport'
 import {
   buildDeliveredShowSourceInventory,
@@ -145,6 +156,7 @@ import { exportedDims } from '@/engine/exportedDims'
 import {
   showBoundaryTransitionParameterChanges,
   showBoundaryTransitionPresentationKey,
+  showTransitionChangesForPresentation,
 } from '@/engine/showTransitionAuthoring'
 import { buildShowToolkitPresentationCatalogue } from '@/engine/showVisualToolkitPresentation'
 import {
@@ -172,6 +184,7 @@ import type {
   ShowCell,
   ShowClipTransform,
   ShowCompositionV1,
+  ShowLayerTransition,
   ShowRecord,
   ShowPropertyAnimationTarget,
   ShowOutputEffect,
@@ -290,6 +303,13 @@ type ShowPatternOption = {
   label: string
   ref: ShowCell['pattern']
   group: PatternComboboxOption['group']
+}
+
+type ShowLayerTransitionTarget = {
+  junction: ShowUnifiedTimelineJunctionProjection
+  fromName: string
+  toName: string
+  anchor: HTMLElement
 }
 
 function ShowNoteTrigger({ note, open, onToggle }: {
@@ -581,11 +601,13 @@ export function ShowEditor({
   const [pendingSendMode, setPendingSendMode] = useState<SendMode | null>(null)
   const [preparingSave, setPreparingSave] = useState(false)
   const [scenePendingDelete, setScenePendingDelete] = useState<ShowScene | null>(null)
+  const [compositionClipPendingDelete, setCompositionClipPendingDelete] = useState<ShowTimelineClipOwner | null>(null)
   const [spatialZoneSelection, setSpatialZoneSelection] = useState<{ zoneId: string; layoutId: string } | null>(null)
   const [detailPanelOpen, setDetailPanelOpen] = useState(false)
   const [detailAnchor, setDetailAnchor] = useState<HTMLElement | null>(null)
   const [effectPaletteOwner, setEffectPaletteOwner] = useState<ShowClipInspectorOwner | null>(null)
   const [transitionPaletteId, setTransitionPaletteId] = useState<string | null>(null)
+  const [layerTransitionTarget, setLayerTransitionTarget] = useState<ShowLayerTransitionTarget | null>(null)
   const [sceneEditorScope, setSceneEditorScope] = useState<ShowSceneEditorScope | null>(null)
   const detailShowIdRef = useRef(showId)
   const timelineWorkspaceRef = useRef<HTMLElement>(null)
@@ -594,6 +616,7 @@ export function ShowEditor({
     const previousAnchor = detailAnchor
     setEffectPaletteOwner(null)
     setTransitionPaletteId(null)
+    setLayerTransitionTarget(null)
     setDetailPanelOpen(false)
     setDetailAnchor(null)
     if (restoreFocus) {
@@ -628,6 +651,8 @@ export function ShowEditor({
     setDetailAnchor(null)
     setEffectPaletteOwner(null)
     setTransitionPaletteId(null)
+    setLayerTransitionTarget(null)
+    setCompositionClipPendingDelete(null)
     setSceneEditorScope(null)
   }, [showId])
   useEffect(() => {
@@ -685,6 +710,10 @@ export function ShowEditor({
     if (targetSelection.kind === 'clip') {
       const compositionOwner = findTimelineClipOwner(activeShow.composition, targetSelection.clipId)
       if (compositionOwner && activeShow.composition) {
+        if (showLayerTransitionsConnectedToClip(activeShow.composition, targetSelection.clipId).length > 0) {
+          setCompositionClipPendingDelete(compositionOwner)
+          return true
+        }
         const composition = compositionOwner.kind === 'main'
           ? deleteShowMainPlacement(activeShow.composition, compositionOwner)
           : deleteShowOverlayPlacement(activeShow.composition, compositionOwner)
@@ -834,6 +863,15 @@ export function ShowEditor({
   const effectPaletteValue = inspectorShow && effectPaletteOwner
     ? projectShowClipInspector(inspectorShow, effectPaletteOwner)
     : null
+  const layerTransitionPlan = activeShow && timelineComposition && layerTransitionTarget
+    ? planShowLayerTransitionInsertion(activeShow, timelineComposition, {
+        fromPlacementId: layerTransitionTarget.junction.leftClipId,
+        toPlacementId: layerTransitionTarget.junction.rightClipId,
+      })
+    : null
+  const pendingConnectedTransitions = timelineComposition && compositionClipPendingDelete
+    ? showLayerTransitionsConnectedToClip(timelineComposition, compositionClipPendingDelete.placementId)
+    : []
   const commitClipInspectorPatch = (owner: ShowClipInspectorOwner, patch: ShowClipInspectorPatch) => {
     if (!activeShow || !inspectorShow) return Promise.resolve()
     const next = updateShowClipInspector(inspectorShow, owner, patch)
@@ -1282,7 +1320,7 @@ export function ShowEditor({
                 }}
                 onMoveCompositionClip={async ({ owner, target }) => {
                   if (!timelineComposition) return false
-                  const nextComposition = moveShowClipAtGlobalTime(activeShow, timelineComposition, { owner, target })
+                  const nextComposition = moveShowConnectedClipAtGlobalTime(activeShow, timelineComposition, { owner, target })
                   if (nextComposition === timelineComposition) return false
                   await updateShow(activeShow.id, {
                     ...activeShow,
@@ -1341,7 +1379,7 @@ export function ShowEditor({
                 }}
                 onResizeCompositionClip={async (owner, globalStartMs, durationMs) => {
                   if (!timelineComposition) return false
-                  const nextComposition = resizeShowClipAtGlobalTime(activeShow, timelineComposition, {
+                  const nextComposition = resizeShowConnectedClipAtGlobalTime(activeShow, timelineComposition, {
                     owner,
                     globalStartMs,
                     durationMs,
@@ -1354,6 +1392,7 @@ export function ShowEditor({
                   })
                   return true
                 }}
+                onOpenLayerTransition={setLayerTransitionTarget}
                 onAppendLayoutInterval={async (layoutId, durationMs) => {
                   if (!timelineComposition) return false
                   const basis = { ...activeShow, composition: timelineComposition }
@@ -1777,6 +1816,26 @@ export function ShowEditor({
                   onOpenCompositionEffects={setEffectPaletteOwner}
                   onRemoveCompositionClip={(owner) => {
                     if (!timelineComposition) return
+                    const timelineOwner: ShowTimelineClipOwner | null = owner.kind === 'scene-main'
+                      ? {
+                          kind: 'main',
+                          sceneId: owner.sceneId,
+                          zoneId: owner.zoneId,
+                          placementId: owner.placementId,
+                        }
+                      : owner.kind === 'scene-overlay'
+                        ? {
+                            kind: 'overlay',
+                            sceneId: owner.sceneId,
+                            zoneId: owner.zoneId,
+                            layerId: owner.layerId,
+                            placementId: owner.placementId,
+                          }
+                        : null
+                    if (timelineOwner && showLayerTransitionsConnectedToClip(timelineComposition, timelineOwner.placementId).length > 0) {
+                      setCompositionClipPendingDelete(timelineOwner)
+                      return
+                    }
                     const composition = owner.kind === 'scene-main'
                       ? deleteShowMainPlacement(timelineComposition, owner)
                       : owner.kind === 'scene-overlay'
@@ -1844,6 +1903,80 @@ export function ShowEditor({
               onClose={() => setTransitionPaletteId(null)}
             />
           )}
+          {layerTransitionTarget?.junction.kind === 'cut' && layerTransitionPlan && (
+            <ShowLayerTransitionPalette
+              stageDimensions={(stageDimension ?? 2) as 1 | 2 | 3}
+              maxDurationMs={layerTransitionPlan.maxDurationMs}
+              disabledReason={layerTransitionPlan.enabled ? undefined : layerTransitionPlan.reason}
+              fromName={layerTransitionTarget.fromName}
+              toName={layerTransitionTarget.toName}
+              onApply={(item, durationMs) => {
+                if (!timelineComposition || !layerTransitionPlan.enabled) return
+                const changes = showTransitionChangesForPresentation(item)
+                const { kind, durationMs: _catalogueDuration, ...parameters } = changes
+                if (!kind || kind === 'cut' || kind === 'routing') return
+                const transition: ShowLayerTransition = {
+                  ...parameters,
+                  id: newPersonalContentId(),
+                  fromPlacementId: layerTransitionTarget.junction.leftClipId,
+                  toPlacementId: layerTransitionTarget.junction.rightClipId,
+                  kind,
+                  durationMs: Math.min(durationMs, layerTransitionPlan.maxDurationMs),
+                  easing: changes.easing ?? { curve: 'linear' },
+                  ...(kind === 'crossfade' ? { crossfadePolicy: 'live-live' } : {}),
+                }
+                const nextComposition = insertShowLayerTransition(activeShow, timelineComposition, transition)
+                if (nextComposition === timelineComposition) return
+                setLayerTransitionTarget(null)
+                void updateShow(activeShow.id, {
+                  ...activeShow,
+                  composition: nextComposition,
+                  updatedAt: Date.now(),
+                })
+              }}
+              onClose={() => setLayerTransitionTarget(null)}
+            />
+          )}
+          {layerTransitionTarget?.junction.transition && (
+            <ShowLayerTransitionEditor
+              transition={layerTransitionTarget.junction.transition}
+              fromName={layerTransitionTarget.fromName}
+              toName={layerTransitionTarget.toName}
+              anchor={layerTransitionTarget.anchor}
+              onDurationChange={(durationMs) => {
+                if (!timelineComposition) return
+                const nextComposition = resizeShowLayerTransition(
+                  activeShow,
+                  timelineComposition,
+                  layerTransitionTarget.junction.id,
+                  durationMs,
+                )
+                if (nextComposition === timelineComposition) return
+                setLayerTransitionTarget(null)
+                void updateShow(activeShow.id, {
+                  ...activeShow,
+                  composition: nextComposition,
+                  updatedAt: Date.now(),
+                })
+              }}
+              onResetToCut={() => {
+                if (!timelineComposition) return
+                const nextComposition = resetShowLayerTransitionToCut(
+                  activeShow,
+                  timelineComposition,
+                  layerTransitionTarget.junction.id,
+                )
+                if (nextComposition === timelineComposition) return
+                setLayerTransitionTarget(null)
+                void updateShow(activeShow.id, {
+                  ...activeShow,
+                  composition: nextComposition,
+                  updatedAt: Date.now(),
+                })
+              }}
+              onClose={() => setLayerTransitionTarget(null)}
+            />
+          )}
           <AlertDialogRoot open={scenePendingDelete !== null} onOpenChange={(open) => { if (!open) setScenePendingDelete(null) }}>
             <AlertDialogContent>
               <AlertDialogTitle>Remove scene?</AlertDialogTitle>
@@ -1864,6 +1997,41 @@ export function ShowEditor({
                   }}
                 >
                   Remove
+                </AlertDialogAction>
+              </AlertDialogFooter>
+            </AlertDialogContent>
+          </AlertDialogRoot>
+          <AlertDialogRoot open={compositionClipPendingDelete !== null} onOpenChange={(open) => { if (!open) setCompositionClipPendingDelete(null) }}>
+            <AlertDialogContent>
+              <AlertDialogTitle>Remove connected Clip?</AlertDialogTitle>
+              <AlertDialogDescription>
+                Removing this Clip also removes {pendingConnectedTransitions.length === 1
+                  ? 'its connected Transition'
+                  : `${pendingConnectedTransitions.length} connected Transitions`}. Other Clip durations and positions stay unchanged.
+              </AlertDialogDescription>
+              <AlertDialogFooter>
+                <AlertDialogCancel>Cancel</AlertDialogCancel>
+                <AlertDialogAction
+                  onClick={() => {
+                    if (compositionClipPendingDelete && timelineComposition) {
+                      const nextComposition = deleteShowClipWithLayerTransitions(
+                        activeShow,
+                        timelineComposition,
+                        compositionClipPendingDelete,
+                      )
+                      if (nextComposition !== timelineComposition) {
+                        closeDetailPanel()
+                        void updateShow(activeShow.id, {
+                          ...activeShow,
+                          composition: nextComposition,
+                          updatedAt: Date.now(),
+                        })
+                      }
+                    }
+                    setCompositionClipPendingDelete(null)
+                  }}
+                >
+                  Remove Clip and Transition
                 </AlertDialogAction>
               </AlertDialogFooter>
             </AlertDialogContent>
@@ -2334,6 +2502,7 @@ function SceneStrip({
   onSplitCompositionClip,
   onDuplicateCompositionClip,
   onResizeCompositionClip,
+  onOpenLayerTransition,
   onAppendLayoutInterval,
   onInsertLayoutInterval,
   onDuplicateLayoutInterval,
@@ -2375,6 +2544,7 @@ function SceneStrip({
     globalStartMs: number,
     durationMs: number,
   ) => Promise<boolean>
+  onOpenLayerTransition: (target: ShowLayerTransitionTarget) => void
   onAppendLayoutInterval: (layoutId: string, durationMs: number) => Promise<boolean>
   onInsertLayoutInterval: (layoutId: string, durationMs: number, atMs: number) => Promise<boolean>
   onDuplicateLayoutInterval: (intervalId: string, withContent: boolean) => Promise<boolean>
@@ -3662,6 +3832,67 @@ function SceneStrip({
                           />
                         </>
                       )}
+                    </button>
+                  )
+                })}
+                {layer.junctions.map((junction) => {
+                  const leftClip = layer.clips.find((clip) => clip.id === junction.leftClipId)
+                  const rightClip = layer.clips.find((clip) => clip.id === junction.rightClipId)
+                  if (!leftClip || !rightClip) return null
+                  const totalMs = Math.max(1, unifiedCompositionTimeline?.durationMs ?? timeline.durationMs)
+                  if (junction.kind !== 'cut') {
+                    const width = Math.max(junction.durationMs / totalMs * 100, 0.35)
+                    return (
+                      <button
+                        key={junction.id}
+                        type="button"
+                        aria-label={`Edit ${junction.kind} Transition between ${leftClip.patternName} and ${rightClip.patternName}`}
+                        title={`${junction.kind} - ${junction.durationMs / 1_000}s`}
+                        data-show-timeline-focus
+                        data-show-layer-junction={junction.id}
+                        className="absolute inset-y-1 z-20 min-w-4 overflow-hidden rounded-[3px] border border-amber-400/45 bg-amber-400/15 px-1 text-[10px] font-medium uppercase text-amber-200 outline-none hover:border-amber-300 hover:bg-amber-400/25 focus-visible:ring-1 focus-visible:ring-amber-300"
+                        style={{
+                          left: `${junction.startMs / totalMs * 100}%`,
+                          width: `${width}%`,
+                        }}
+                        onClick={(event) => {
+                          event.stopPropagation()
+                          onDismiss()
+                          onOpenLayerTransition({
+                            junction,
+                            fromName: leftClip.patternName,
+                            toName: rightClip.patternName,
+                            anchor: event.currentTarget,
+                          })
+                        }}
+                      >
+                        {junction.kind === 'crossfade' ? 'xf' : junction.kind.slice(0, 2)}
+                      </button>
+                    )
+                  }
+                  return (
+                    <button
+                      key={junction.id}
+                      type="button"
+                      aria-label={`Edit Cut between ${leftClip.patternName} and ${rightClip.patternName}`}
+                      title="Cut - click to choose a Transition"
+                      data-show-timeline-focus
+                      data-show-layer-junction={junction.id}
+                      className="group/cut absolute inset-y-0 z-30 w-4 -translate-x-1/2 bg-transparent outline-none"
+                      style={{ left: `${junction.startMs / totalMs * 100}%` }}
+                      onClick={(event) => {
+                        event.stopPropagation()
+                        onDismiss()
+                        onOpenLayerTransition({
+                          junction,
+                          fromName: leftClip.patternName,
+                          toName: rightClip.patternName,
+                          anchor: event.currentTarget,
+                        })
+                      }}
+                    >
+                      <span aria-hidden className="absolute inset-y-1 left-1/2 w-px -translate-x-1/2 bg-zinc-500/80 transition-colors group-hover/cut:bg-amber-300 group-focus-visible/cut:bg-amber-300" />
+                      <span aria-hidden className="absolute left-1/2 top-1 size-2 -translate-x-1/2 rotate-45 rounded-[1px] border border-zinc-500 bg-[#0b0b0d] transition-colors group-hover/cut:border-amber-300 group-focus-visible/cut:border-amber-300" />
                     </button>
                   )
                 })}

@@ -307,6 +307,98 @@ describe('ShowEditor (#318)', () => {
     expect(within(timeline).getByRole('button', { name: 'Select Composition-only Rings' })).toBeInTheDocument()
   })
 
+  it('opens the Transition palette from a Cut and inserts literal duration (#583)', async () => {
+    const user = userEvent.setup()
+    const show = createDefaultShow('show-cut-junction', 'Cut junction', 1000)
+    const zoneId = show.zones[0].id
+    show.composition = {
+      version: 1,
+      patternInstances: [{
+        id: 'instance-cut',
+        pattern: { ...show.cells[0].pattern },
+        patternName: 'Cut source',
+        time: { timeScale: 1, timeOffsetMs: 0 },
+      }],
+      scenes: show.scenes.map((scene, index) => ({
+        sceneId: scene.id,
+        zones: [{
+          zoneId,
+          main: index === 0 ? [
+            {
+              id: 'clip-left',
+              instanceId: 'instance-cut',
+              startMs: 1_000,
+              durationMs: 2_000,
+              view: { mirror: false, phase: 0, brightness: 1 },
+            },
+            {
+              id: 'clip-right',
+              instanceId: 'instance-cut',
+              startMs: 3_000,
+              durationMs: 2_000,
+              view: { mirror: false, phase: 0, brightness: 1 },
+            },
+          ] : [],
+          overlays: [],
+        }],
+      })),
+    }
+    setPersonalContentProvider(memoryProvider([show]))
+    useShowStore.setState({ shows: [show], activeShowId: show.id, showsLoaded: true })
+
+    render(<ShowEditor showId={show.id} unifiedTimeline />)
+
+    await user.click(screen.getByRole('button', { name: 'Edit Cut between Cut source and Cut source' }))
+    const palette = screen.getByRole('dialog', { name: 'Choose Layer Transition' })
+    expect(within(palette).getByRole('spinbutton', { name: 'Transition duration in seconds' })).toHaveValue(2)
+    await user.click(within(palette).getByRole('button', { name: 'Use Crossfade Transition' }))
+
+    await waitFor(() => {
+      const saved = useShowStore.getState().shows[0].composition!
+      expect(saved.transitions).toEqual([
+        expect.objectContaining({
+          fromPlacementId: 'clip-left',
+          toPlacementId: 'clip-right',
+          kind: 'crossfade',
+          durationMs: 2_000,
+        }),
+      ])
+      expect(saved.scenes[0].zones[0].main.find((clip) => clip.id === 'clip-right')?.startMs).toBe(5_000)
+    })
+
+    await user.click(screen.getByRole('button', { name: 'Edit crossfade Transition between Cut source and Cut source' }))
+    expect(screen.getByRole('dialog', { name: 'Layer Transition Details' })).toBeInTheDocument()
+    changeCommittedNumber('Layer Transition duration in seconds', '1.5')
+    await waitFor(() => {
+      const saved = useShowStore.getState().shows[0].composition!
+      expect(saved.transitions?.[0].durationMs).toBe(1_500)
+      expect(saved.scenes[0].zones[0].main.find((clip) => clip.id === 'clip-right')?.startMs).toBe(4_500)
+    })
+
+    await user.click(screen.getByRole('button', { name: 'Edit crossfade Transition between Cut source and Cut source' }))
+    await user.click(screen.getByRole('button', { name: 'Reset to Cut' }))
+    await waitFor(() => {
+      const saved = useShowStore.getState().shows[0].composition!
+      expect(saved.transitions).toEqual([])
+      expect(saved.scenes[0].zones[0].main.find((clip) => clip.id === 'clip-right')?.startMs).toBe(3_000)
+    })
+    expect(screen.getByRole('button', { name: 'Edit Cut between Cut source and Cut source' })).toBeInTheDocument()
+
+    await user.click(screen.getByRole('button', { name: 'Edit Cut between Cut source and Cut source' }))
+    await user.click(within(screen.getByRole('dialog', { name: 'Choose Layer Transition' })).getByRole('button', { name: 'Use Crossfade Transition' }))
+    await waitFor(() => expect(useShowStore.getState().shows[0].composition?.transitions).toHaveLength(1))
+    await user.click(screen.getAllByRole('button', { name: 'Select Cut source' })[1])
+    fireEvent.keyDown(document, { key: 'Delete' })
+    const warning = screen.getByRole('alertdialog')
+    expect(within(warning).getByText(/also removes its connected Transition/)).toBeInTheDocument()
+    await user.click(within(warning).getByRole('button', { name: 'Remove Clip and Transition' }))
+    await waitFor(() => {
+      const saved = useShowStore.getState().shows[0].composition!
+      expect(saved.transitions).toEqual([])
+      expect(saved.scenes[0].zones[0].main.map((clip) => clip.id)).toEqual(['clip-left'])
+    })
+  })
+
   it('adds a Pattern Clip at the playhead and selects it (#580)', async () => {
     const user = userEvent.setup()
     const show = createDefaultShow('show-add-at-playhead', 'Add at playhead', 1000)

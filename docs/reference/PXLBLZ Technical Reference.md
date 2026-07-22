@@ -1178,6 +1178,29 @@ fields commit on blur or Enter. Normalized fields clamp to `0..1`. Split
 preserves the explicit Pattern-instance id; Restart creates a new instance and
 virtual time base.
 
+`ShowCompositionV1.transitions` persists only positive-duration, endpoint-owned
+Layer Transitions. Each record connects two consecutive placements on one Layer
+and its duration must equal their exact gap. A Cut is not stored:
+`showUnifiedTimelineProjection.ts` derives a stable zero-duration Cut junction
+where two same-Layer placements abut. The same projection replaces that Cut
+with the persisted Transition interval when a valid record occupies the gap.
+
+`showLayerTransitionAuthoring.ts` owns the corresponding editing algebra.
+Creating or growing a Transition shifts the right placement and every
+Transition-connected successor without changing any Clip duration; moving any
+connected Clip moves the complete rigid sequence. Reset removes the persisted
+record and closes the gap back to a derived Cut. Clip deletion removes directly
+connected Transitions, and split retargets an outgoing Transition to the new
+right half. Its transitive closure helper is the authority for future marquee
+and Group selection refinement, so a grouping selection cannot retain only one
+Transition endpoint.
+
+Composition validation independently enforces consecutive endpoints and a
+closed interval in which every unrelated Layer is inactive. That invariant
+guards every edit path, not only Transition controls: duplicate, trim, and move
+operations cannot create an unrenderable overlap, and direct placement or Layer
+deletion strips connected Transition records before persistence.
+
 `migrations/0016_show_composition.sql` adds one nullable `composition_json`
 column to the existing Show row. Save, load, undo, and redo serialize this
 versioned value without creating relational sub-entities. Returning to a flat
@@ -1201,6 +1224,16 @@ including across gaps. Flat-cell property-transition starts remap to the first
 derived destination cell. Preview, fast replay, artifact generation, Controller
 output, and EPE export all consume this same lowering. Shows without authored
 composition bypass it.
+
+The first #583 compiler checkpoint lowers a Layer Transition through the mature
+whole-stack boundary path only when its Layer is the complete active stack.
+This preserves literal duration and live source activity without changing an
+unrelated Layer. Authoring reports an explicit render-target limitation when
+other content is active at that boundary, and lowering rejects a persisted
+record that bypasses the gate. Simultaneous Layer Transitions are likewise
+rejected. Independent mid-stack render targets remain required before the
+general per-Layer case can ship; the restricted checkpoint is deliberately not
+represented as equivalent.
 
 `showCompositionFreeze.ts` is the production-path release gate over that seam.
 Its Portable fixture measures 60,019 UTF-8 generated-source bytes. Comparing

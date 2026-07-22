@@ -173,6 +173,41 @@ describe('Show composition v1 Main schedule (#488)', () => {
     expect(once.scenes[0].zones[0].main[1].startMs).toBe(5_000)
   })
 
+  it('preserves durable non-Cut Layer transitions in deterministic endpoint order (#583)', () => {
+    const { show, composition } = fixture()
+    const authored: ShowCompositionV1 = {
+      ...composition,
+      transitions: [
+        {
+          id: 'transition-z',
+          fromPlacementId: 'placement-a',
+          toPlacementId: 'placement-b',
+          kind: 'wipe',
+          durationMs: 1_000,
+          easing: { curve: 'linear' },
+          direction: 0.25,
+        },
+        {
+          id: 'transition-a',
+          fromPlacementId: 'placement-b',
+          toPlacementId: 'placement-a',
+          kind: 'crossfade',
+          durationMs: 500,
+          easing: { curve: 'sine', direction: 'in-out' },
+          crossfadePolicy: 'live-live',
+        },
+      ],
+    }
+
+    const normalized = normalizeShowComposition(show, authored)
+
+    expect(normalized.transitions?.map((transition) => transition.id)).toEqual([
+      'transition-a',
+      'transition-z',
+    ])
+    expect(normalizeShowComposition(show, normalized)).toEqual(normalized)
+  })
+
   it('returns field-addressed validation issues for missing owners, bad bounds, and overlap', () => {
     const { show, composition } = fixture()
     const invalid: ShowCompositionV1 = {
@@ -195,6 +230,136 @@ describe('Show composition v1 Main schedule (#488)', () => {
       expect.objectContaining({ path: 'scenes[0].zones[0].main[1].durationMs', code: 'out-of-bounds' }),
       expect.objectContaining({ path: 'scenes[0].zones[0].main[1].startMs', code: 'overlap' }),
     ]))
+  })
+
+  it('rejects malformed or cross-Layer transition endpoints (#583)', () => {
+    const { show, composition } = fixture()
+    composition.scenes[0].zones[0].overlays = [{
+      id: 'overlay-layer',
+      name: 'Overlay',
+      placements: [{
+        ...composition.scenes[0].zones[0].main[1],
+        id: 'overlay-placement',
+        opacity: 1,
+      }],
+    }]
+    const invalid = {
+      ...composition,
+      transitions: [
+        {
+          id: 'bad-duration',
+          fromPlacementId: 'placement-a',
+          toPlacementId: 'missing-placement',
+          kind: 'crossfade',
+          durationMs: 0,
+          easing: { curve: 'linear' },
+        },
+        {
+          id: 'cross-layer',
+          fromPlacementId: 'placement-a',
+          toPlacementId: 'overlay-placement',
+          kind: 'wipe',
+          durationMs: 1_000,
+          easing: { curve: 'linear' },
+        },
+      ],
+    } as ShowCompositionV1
+
+    expect(validateShowComposition(show, invalid)).toEqual(expect.arrayContaining([
+      expect.objectContaining({ path: 'transitions[0].durationMs', code: 'out-of-bounds' }),
+      expect.objectContaining({ path: 'transitions[0].toPlacementId', code: 'missing-placement' }),
+      expect.objectContaining({ path: 'transitions[1]', code: 'cross-layer' }),
+    ]))
+  })
+
+  it('rejects non-consecutive endpoints and unrelated content active through a Layer transition', () => {
+    const { show, composition } = fixture()
+    composition.scenes[0].zones[0].main.splice(1, 0, {
+      ...composition.scenes[0].zones[0].main[0],
+      id: 'placement-between',
+      startMs: 4_250,
+      durationMs: 250,
+    })
+    composition.scenes[0].zones[0].overlays = [{
+      id: 'overlay-layer',
+      name: 'Overlay',
+      placements: [{
+        ...composition.scenes[0].zones[0].main[0],
+        id: 'overlay-through-transition',
+        startMs: 3_500,
+        durationMs: 2_000,
+        opacity: 1,
+      }],
+    }]
+    composition.transitions = [{
+      id: 'transition-a-b',
+      fromPlacementId: 'placement-a',
+      toPlacementId: 'placement-b',
+      kind: 'crossfade',
+      durationMs: 1_000,
+      easing: { curve: 'linear' },
+      crossfadePolicy: 'live-live',
+    }]
+
+    expect(validateShowComposition(show, composition)).toEqual(expect.arrayContaining([
+      expect.objectContaining({
+        path: 'transitions[0]',
+        code: 'invalid-transition',
+        message: 'A Layer transition must connect consecutive Clips.',
+      }),
+      expect.objectContaining({
+        path: 'transitions[0]',
+        code: 'invalid-transition',
+        message: 'A Layer transition requires every unrelated Layer to be inactive for its complete interval.',
+      }),
+    ]))
+  })
+
+  it('removes connected transitions from every direct placement and Layer delete path', () => {
+    const { composition } = fixture()
+    composition.transitions = [{
+      id: 'main-transition',
+      fromPlacementId: 'placement-a',
+      toPlacementId: 'placement-b',
+      kind: 'crossfade',
+      durationMs: 1_000,
+      easing: { curve: 'linear' },
+      crossfadePolicy: 'live-live',
+    }]
+
+    expect(deleteShowMainPlacement(composition, {
+      sceneId: 'scene-1',
+      zoneId: 'zone-1',
+      placementId: 'placement-a',
+    }).transitions).toEqual([])
+
+    const overlayComposition = structuredClone(composition)
+    overlayComposition.transitions = [{
+      ...composition.transitions[0],
+      id: 'overlay-transition',
+      fromPlacementId: 'overlay-a',
+      toPlacementId: 'overlay-b',
+    }]
+    overlayComposition.scenes[0].zones[0].overlays = [{
+      id: 'overlay-layer',
+      name: 'Overlay',
+      placements: [
+        { ...composition.scenes[0].zones[0].main[0], id: 'overlay-a', opacity: 1 },
+        { ...composition.scenes[0].zones[0].main[1], id: 'overlay-b', opacity: 1 },
+      ],
+    }]
+
+    expect(deleteShowOverlayPlacement(overlayComposition, {
+      sceneId: 'scene-1',
+      zoneId: 'zone-1',
+      layerId: 'overlay-layer',
+      placementId: 'overlay-a',
+    }).transitions).toEqual([])
+    expect(deleteShowOverlayLayer(overlayComposition, {
+      sceneId: 'scene-1',
+      zoneId: 'zone-1',
+      layerId: 'overlay-layer',
+    }).transitions).toEqual([])
   })
 
   it('splits with Continue identity and can explicitly Restart with a fresh instance', () => {

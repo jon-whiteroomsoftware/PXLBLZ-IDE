@@ -462,14 +462,30 @@ export interface ShowSceneComposition {
 }
 
 /**
- * Additive Scene-composition sidecar. Version 1 initially carries only mutually
- * exclusive Main schedules, manually ordered overlay layers, and typed
- * Scene-local property animation tracks.
+ * A visible, positive-duration transition between two consecutive placements
+ * on one Layer. Cuts are derived from abutting placement endpoints and are not
+ * persisted.
+ */
+export interface ShowLayerTransition extends Omit<
+  ShowBoundaryTransition,
+  'afterSceneId' | 'kind' | 'layoutId' | 'routingDirection' | 'propertyTransitions'
+> {
+  fromPlacementId: string
+  toPlacementId: string
+  kind: Exclude<ShowTransitionKind, 'cut'>
+}
+
+/**
+ * Additive Scene-composition sidecar. Version 1 carries mutually exclusive
+ * Main schedules, manually ordered overlay layers, typed Scene-local property
+ * animation tracks, and endpoint-owned non-Cut Layer transitions.
  */
 export interface ShowCompositionV1 {
   version: 1
   patternInstances: ShowPatternInstance[]
   scenes: ShowSceneComposition[]
+  /** Non-Cut transitions; endpoint-owned Cuts remain implicit and lossless. */
+  transitions?: ShowLayerTransition[]
 }
 
 export interface ShowRecord {

@@ -838,6 +838,12 @@ into its miniature Layer summaries instead of hiding their event times.
 - The per-Layer Transition compiler spike must define time segmentation,
   mid-stack compositing, render-target lifetime, exact resource formulas, and
   actionable cost disclosure before implementation is committed.
+- The first #583 review checkpoint may lower through the existing whole-stack
+  Transition path only when the transitioning Layer is the complete active
+  stack. When unrelated content is active, authoring stays disabled with an
+  explicit render-target-support reason. This is a compiler-safety boundary,
+  not the final per-Layer UX: independent Layer render targets remain required
+  before #583 can satisfy unrestricted mid-stack Transition composition.
 
 ### 11. Selection and refinement
 

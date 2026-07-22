@@ -116,6 +116,65 @@ describe('Show composition compiler lowering (#488)', () => {
     ])
   })
 
+  it('lowers a literal Layer transition interval instead of compiling its gap as dead air (#583)', () => {
+    const show = fixture()
+    show.composition!.transitions = [{
+      id: 'layer-transition-a-b',
+      fromPlacementId: 'placement-a-1',
+      toPlacementId: 'placement-b',
+      kind: 'wipe',
+      durationMs: 1_000,
+      easing: { curve: 'sine', direction: 'in-out' },
+      wipeVariant: 'linear',
+      direction: 0,
+    }]
+
+    const lowered = lowerShowCompositionForCompile(show, lookup(show))
+
+    expect(lowered.show.scenes.map((scene) => scene.durationMs)).toEqual([
+      4_000, 3_000, 2_000, 20_000, 30_000,
+    ])
+    expect(lowered.show.transitions.map((transition) => [transition.kind, transition.durationMs])).toEqual([
+      ['wipe', 1_000],
+      ['cut', 0],
+      ['cut', 0],
+      ['crossfade', 2_000],
+    ])
+    expect(showRecordToCompileRecipe(show, lookup(show)).routedSceneSequence?.scenes[0].transitionOut).toMatchObject({
+      kind: 'wipe',
+      durationMs: 1_000,
+    })
+  })
+
+  it('blocks a Layer transition over unrelated active content until isolated render targets exist', () => {
+    const show = fixture()
+    show.composition!.scenes[0].zones[0].overlays = [{
+      id: 'overlay-layer',
+      name: 'Overlay',
+      placements: [{
+        id: 'overlay-through-transition',
+        instanceId: 'instance-a',
+        startMs: 0,
+        durationMs: 8_000,
+        opacity: 1,
+        view: { mirror: false, phase: 0, brightness: 1 },
+      }],
+    }]
+    show.composition!.transitions = [{
+      id: 'layer-transition-a-b',
+      fromPlacementId: 'placement-a-1',
+      toPlacementId: 'placement-b',
+      kind: 'crossfade',
+      durationMs: 1_000,
+      easing: { curve: 'linear' },
+      crossfadePolicy: 'live-live',
+    }]
+
+    expect(() => lowerShowCompositionForCompile(show, lookup(show))).toThrow(
+      'A Layer transition requires every unrelated Layer to be inactive for its complete interval.',
+    )
+  })
+
   it('compiles one member per explicit Pattern instance across cuts and gaps', () => {
     const show = fixture()
     const recipe = showRecordToCompileRecipe(show, lookup(show))
