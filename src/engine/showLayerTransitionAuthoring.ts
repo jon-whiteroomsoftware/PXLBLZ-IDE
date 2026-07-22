@@ -75,7 +75,7 @@ export function planShowLayerTransitionInsertion(
     }
   }
   const activeUnrelatedEndMs = unrelatedClips
-    .filter((clip) => clip.startMs < cut.startMs && clip.endMs > cut.startMs)
+    .filter((clip) => clip.startMs < cut.startMs && clip.endMs >= cut.startMs)
     .reduce((nearest, clip) => Math.min(nearest, clip.endMs), Number.POSITIVE_INFINITY)
   if (Number.isFinite(activeUnrelatedEndMs)) {
     maxDurationMs = Math.min(maxDurationMs, activeUnrelatedEndMs - cut.startMs - 1)

@@ -241,6 +241,16 @@ describe('literal per-Layer Transition authoring (#583)', () => {
       enabled: true,
       maxDurationMs: 499,
     })
+
+    composition.scenes[0].zones[0].overlays[0].placements[0].durationMs = 1_000
+    expect(planShowLayerTransitionInsertion(show, composition, {
+      fromPlacementId: 'clip-a',
+      toPlacementId: 'clip-b',
+    })).toEqual({
+      enabled: false,
+      maxDurationMs: 0,
+      reason: 'Move downstream content or extend the Show to make room.',
+    })
   })
 
   it('resets a Transition to Cut by removing its duration and preserving Clip durations', () => {

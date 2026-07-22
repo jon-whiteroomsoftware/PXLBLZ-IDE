@@ -1212,9 +1212,10 @@ deletes later Markers.
 
 Composition validation independently enforces consecutive endpoints. An
 unrelated Clip may either remain inactive or span the complete Transition
-interval; it may not start or stop inside that interval. That invariant guards
-every edit path, not only Transition controls: duplicate, trim, and move
-operations cannot introduce an unrelated boundary into the Transition, and
+interval; it may not start or stop at either endpoint or inside that interval.
+That invariant guards every edit path, not only Transition controls: duplicate,
+trim, and move operations cannot introduce an unrelated boundary into the
+Transition, and
 direct placement or Layer deletion strips connected Transition records before
 persistence.
 
@@ -1249,9 +1250,9 @@ blend sources at the same output coordinate. A spanning unrelated Layer is
 therefore identical in the outgoing and incoming stacks and distributes through
 the selection or blend without changing its pixels. This algebraic lifting is
 equivalent to transitioning the changed Layer and requires no additional RGB
-render target. Lowering rejects an unrelated Clip boundary inside the interval.
-Simultaneous Layer Transitions remain rejected pending explicit multi-transition
-segmentation and compositing.
+render target. Lowering rejects an unrelated Clip boundary at either endpoint
+or inside the interval. Simultaneous Layer Transitions remain rejected pending
+explicit multi-transition segmentation and compositing.
 
 `showCompositionFreeze.ts` is the production-path release gate over that seam.
 Its Portable fixture measures 60,019 UTF-8 generated-source bytes. Comparing

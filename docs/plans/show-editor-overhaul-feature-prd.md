@@ -841,11 +841,12 @@ into its miniature Layer summaries instead of hiding their event times.
   identical on both sides and can be lifted through the existing whole-stack
   Transition path without changing the result. This avoids an unnecessary RGB
   render target while unrelated Layers continue composing normally.
-- An unrelated Clip may not start or stop inside a Layer Transition. Such a
-  boundary would make the two endpoint stacks semantically different for a
-  reason the Layer Transition does not own. Coordinate-moving Motion and
-  simultaneous Layer Transitions remain deferred until their segmentation,
-  compositing, resource formulas, and cost disclosure are explicitly designed.
+- An unrelated Clip may not start or stop at either endpoint or inside a Layer
+  Transition. Such a boundary would make the two endpoint stacks semantically
+  different for a reason the Layer Transition does not own. Coordinate-moving
+  Motion and simultaneous Layer Transitions remain deferred until their
+  segmentation, compositing, resource formulas, and cost disclosure are
+  explicitly designed.
 
 ### 11. Selection and refinement
 

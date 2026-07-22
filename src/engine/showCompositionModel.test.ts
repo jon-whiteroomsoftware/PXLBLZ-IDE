@@ -336,8 +336,41 @@ describe('Show composition v1 Main schedule (#488)', () => {
     expect(validateShowComposition(show, composition)).toContainEqual(expect.objectContaining({
       path: 'transitions[0]',
       code: 'invalid-transition',
-      message: 'An unrelated Clip cannot start or stop inside a Layer transition.',
+      message: 'An unrelated Clip cannot start or stop at or inside a Layer transition.',
     }))
+  })
+
+  it('rejects unrelated Clips whose boundary touches a Layer transition endpoint (#583)', () => {
+    const { show, composition } = fixture()
+    composition.transitions = [{
+      id: 'transition-a-b',
+      fromPlacementId: 'placement-a',
+      toPlacementId: 'placement-b',
+      kind: 'crossfade',
+      durationMs: 1_000,
+      easing: { curve: 'linear' },
+      crossfadePolicy: 'live-live',
+    }]
+
+    for (const placement of [
+      { id: 'overlay-ending-at-transition', startMs: 3_000, durationMs: 1_000 },
+      { id: 'overlay-starting-after-transition', startMs: 5_000, durationMs: 1_000 },
+    ]) {
+      composition.scenes[0].zones[0].overlays = [{
+        id: 'overlay-layer',
+        name: 'Overlay',
+        placements: [{
+          ...composition.scenes[0].zones[0].main[0],
+          ...placement,
+          opacity: 1,
+        }],
+      }]
+      expect(validateShowComposition(show, composition)).toContainEqual(expect.objectContaining({
+        path: 'transitions[0]',
+        code: 'invalid-transition',
+        message: 'An unrelated Clip cannot start or stop at or inside a Layer transition.',
+      }))
+    }
   })
 
   it('rejects Fade and Motion Layer transitions over an unrelated spanning Clip (#583)', () => {

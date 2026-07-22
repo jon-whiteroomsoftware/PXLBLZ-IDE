@@ -1859,6 +1859,9 @@ export function showRecordToCompileRecipe(
   if (lookup.compositionLayerByCellId && Object.keys(lookup.compositionLayerByCellId).length > 0) {
     return { ...showRecordToRoutedSceneSequenceRecipe(show, lookup), outputEffects }
   }
+  if (show.cells.some((cell) => cell.viewport?.enabled)) {
+    return { ...showRecordToRoutedSceneSequenceRecipe(show, lookup), outputEffects }
+  }
   if (show.cells.some((cell) => cell.evaluationPolicy === 'freeze-at-entry' || cell.evaluationPolicy === 'rolling-refresh')) {
     return { ...showRecordToRoutedSceneSequenceRecipe(show, lookup), outputEffects }
   }

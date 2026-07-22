@@ -210,7 +210,7 @@ describe('Show composition compiler lowering (#488)', () => {
     }]
 
     expect(() => lowerShowCompositionForCompile(show, lookup(show))).toThrow(
-      'An unrelated Clip cannot start or stop inside a Layer transition.',
+      'An unrelated Clip cannot start or stop at or inside a Layer transition.',
     )
   })
 

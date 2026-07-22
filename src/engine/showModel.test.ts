@@ -103,6 +103,29 @@ describe('showModel (#318)', () => {
     })
   })
 
+  it('routes a single-Zone flat Show through the Viewport-capable compiler recipe (#585)', () => {
+    const base = createDefaultShow('show-585-single-zone-viewport', 'Single Zone viewport', 1)
+    const show: ShowRecord = {
+      ...base,
+      cells: base.cells.map((cell, index) => index === 0
+        ? { ...cell, viewport: { enabled: true, x: 0, y: 0, width: 0.5, height: 1 } }
+        : cell),
+    }
+
+    const recipe = showRecordToCompileRecipe(show, {
+      byCellId: Object.fromEntries(show.cells.map((cell) => [cell.id, DEMOS.TestPattern2D])),
+      stageDimension: 2,
+    })
+
+    expect(recipe.routedSceneSequence?.scenes[0].placements[0].viewport).toEqual({
+      enabled: true,
+      x: 0,
+      y: 0,
+      width: 0.5,
+      height: 1,
+    })
+  })
+
   it('threads normalized Show output Effects into every compile recipe (#537)', () => {
     const base = createDefaultShow('show-537-trails', 'Trails', 1)
     const show: ShowRecord = {

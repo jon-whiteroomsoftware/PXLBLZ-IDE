@@ -336,12 +336,12 @@ export function validateShowComposition(
         ) ? [] : [owner]
       })
       const unrelatedBoundaryInside = unrelatedOwners.some((owner) => {
-        const overlapsOpenInterval = owner.endMs > fromOwner.endMs && owner.startMs < toOwner.startMs
+        const touchesTransitionInterval = owner.endMs >= fromOwner.endMs && owner.startMs <= toOwner.startMs
         const spansCompleteInterval = owner.startMs < fromOwner.endMs && owner.endMs > toOwner.startMs
-        return overlapsOpenInterval && !spansCompleteInterval
+        return touchesTransitionInterval && !spansCompleteInterval
       })
       if (unrelatedBoundaryInside) {
-        addIssue(issues, path, 'invalid-transition', 'An unrelated Clip cannot start or stop inside a Layer transition.')
+        addIssue(issues, path, 'invalid-transition', 'An unrelated Clip cannot start or stop at or inside a Layer transition.')
       }
       const unrelatedSpansCompleteInterval = unrelatedOwners.some((owner) => (
         owner.startMs < fromOwner.endMs && owner.endMs > toOwner.startMs

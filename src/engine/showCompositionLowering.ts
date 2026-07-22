@@ -243,19 +243,19 @@ function resolveLocalLayerTransitions(
     // The Layer palette excludes Fade and coordinate-moving Motion. Its
     // remaining selectors/blends distribute over a stack that is identical on
     // both sides, so a fully spanning unrelated Clip needs no private RGB
-    // target. A boundary inside the interval would break that equivalence.
+    // target. A boundary at or inside the interval would break that equivalence.
     const unrelatedBoundaryInside = [...placementById.entries()].some(([placementId, placement]) => {
       if (
         placementId === transition.fromPlacementId
         || placementId === transition.toPlacementId
         || placement.sceneId !== from.sceneId
       ) return false
-      const overlapsOpenInterval = placement.endMs > from.endMs && placement.startMs < to.startMs
+      const touchesTransitionInterval = placement.endMs >= from.endMs && placement.startMs <= to.startMs
       const spansCompleteInterval = placement.startMs < from.endMs && placement.endMs > to.startMs
-      return overlapsOpenInterval && !spansCompleteInterval
+      return touchesTransitionInterval && !spansCompleteInterval
     })
     if (unrelatedBoundaryInside) {
-      throw new Error(`Layer transition "${transition.id}": An unrelated Clip cannot start or stop inside a Layer transition.`)
+      throw new Error(`Layer transition "${transition.id}": An unrelated Clip cannot start or stop at or inside a Layer transition.`)
     }
     const entries = result.get(from.sceneId) ?? []
     if (entries.some((entry) => from.endMs < entry.endMs && to.startMs > entry.startMs)) {
