@@ -1041,6 +1041,7 @@ function StudioApp() {
               ) : activeShow ? (
                 <ShowEditor
                   showId={activeShow.id}
+                  unifiedTimeline
                   showOverride={routedStockShowOverride}
                   builtInContext={routedStockShow ? {
                     track: routedStockShow.track,

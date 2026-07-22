@@ -438,6 +438,7 @@ export function ShowEditor({
   builtInContext,
   headerGuideTarget = null,
   headerActionsTarget = null,
+  unifiedTimeline = false,
 }: {
   showId: string
   showOverride?: ShowRecord
@@ -451,6 +452,8 @@ export function ShowEditor({
   }
   headerGuideTarget?: HTMLElement | null
   headerActionsTarget?: HTMLElement | null
+  /** Temporary migration seam while legacy Scene interaction tests are retired. */
+  unifiedTimeline?: boolean
 }) {
   const savedShow = useShowStore((state) => state.shows.find((item) => item.id === showId))
   const hasStockDraft = useShowStore((state) => Boolean(state.stockShowDrafts[showId]))
@@ -1127,6 +1130,7 @@ export function ShowEditor({
               <SceneStrip
                 key={activeShow.id}
                 show={activeShow}
+                unifiedTimeline={unifiedTimeline}
                 readOnly={readOnly}
                 transportActive={!resolvedSceneEditorScope}
                 compositionProjection={compositionProjection}
@@ -1998,6 +2002,7 @@ function ExportShowButton({
 
 function SceneStrip({
   show,
+  unifiedTimeline,
   readOnly,
   transportActive,
   compositionProjection,
@@ -2013,6 +2018,7 @@ function SceneStrip({
   onMoveClip,
 }: {
   show: ShowRecord
+  unifiedTimeline: boolean
   readOnly: boolean
   transportActive: boolean
   compositionProjection: FlatShowCompositionProjection | null
@@ -2027,6 +2033,9 @@ function SceneStrip({
   onUpdateScene: (sceneId: string, changes: Partial<Omit<ShowScene, 'id'>>) => void
   onMoveClip: (cellId: string, zoneId: string, sceneId: string) => void
 }) {
+  // Scene records remain an internal projection boundary until the compiler
+  // migration lands. The App opts into this workspace during that migration.
+  const unifiedTimelineWorkspace = unifiedTimeline
   const strip = projectShowStrip(show)
   const timeline = projectShowTimeline(show)
   const fittedViewport = fitShowTimelineViewport(timeline.durationMs)
@@ -2179,12 +2188,12 @@ function SceneStrip({
       return null
     }
   }, [compositionProjection, superDetailOwner])
-  const xrayOpen = xrayDetails.length > 0
-  const rulerRow = xrayOpen ? 3 : 2
+  const xrayOpen = !unifiedTimelineWorkspace && xrayDetails.length > 0
+  const rulerRow = unifiedTimelineWorkspace ? 1 : xrayOpen ? 3 : 2
   const transitionRow = rulerRow + 1
   const contentStartRow = transitionRow + 1
   const columns = [
-    '148px',
+    unifiedTimelineWorkspace && show.zones.length === 1 ? '0px' : '148px',
     ...show.scenes.flatMap((scene, index) => (
       index < show.scenes.length - 1
         ? [
@@ -2193,11 +2202,10 @@ function SceneStrip({
           ]
         : [`minmax(0, ${Math.max(1, scene.durationMs)}fr)`]
     )),
-    '64px',
+    ...(!unifiedTimelineWorkspace ? ['64px'] : []),
   ]
   const rows = [
-    'auto',
-    ...(xrayOpen ? ['36px'] : []),
+    ...(!unifiedTimelineWorkspace ? ['auto', ...(xrayOpen ? ['36px'] : [])] : []),
     '28px',
     '34px',
     ...(movingSplitLayout ? ['26px'] : []),
@@ -2292,41 +2300,20 @@ function SceneStrip({
         <div className="timeline-transport-cluster min-w-0 justify-self-start">
           {transportActive && <ShowTransportControls show={show} />}
         </div>
-        <div className="timeline-zoom-cluster flex min-w-0 items-center justify-center gap-1" role="group" aria-label="Timeline zoom controls">
-          <Button
-            size="icon-xs"
-            variant="ghost"
-            aria-label="Zoom timeline out"
-            title="Zoom timeline out"
-            className="rounded-none bg-transparent text-zinc-500 hover:bg-transparent hover:text-amber-300"
-            onClick={() => zoomAroundPlayhead(0.8)}
-          >
-            <ZoomOut size={14} aria-hidden />
-          </Button>
-          <input
-            type="range"
-            min={1}
-            max={12}
-            step={0.1}
-            value={Number(zoomLevel.toFixed(1))}
-            aria-label="Timeline zoom"
-            className="timeline-zoom-slider h-4 w-[clamp(64px,12vw,148px)] min-w-0 accent-amber-300"
-            onChange={(event) => setZoomLevel(Number(event.target.value))}
-          />
-          <Button
-            size="icon-xs"
-            variant="ghost"
-            aria-label="Zoom timeline in"
-            title="Zoom timeline in"
-            className="rounded-none bg-transparent text-zinc-500 hover:bg-transparent hover:text-amber-300"
-            onClick={() => zoomAroundPlayhead(1.25)}
-          >
-            <ZoomIn size={14} aria-hidden />
-          </Button>
-          <output className="w-9 text-right text-[10px] tabular-nums text-zinc-400" aria-live="off" aria-label="Timeline zoom level">
-            {zoomLevel.toFixed(1)}x
-          </output>
-        </div>
+        {unifiedTimelineWorkspace ? (
+          <TimelineNavigator viewport={viewport} onChange={updateViewport} compact />
+        ) : (
+          <div className="timeline-zoom-cluster flex min-w-0 items-center justify-center gap-1" role="group" aria-label="Timeline zoom controls">
+            <Button size="icon-xs" variant="ghost" aria-label="Zoom timeline out" title="Zoom timeline out" className="rounded-none bg-transparent text-zinc-500 hover:bg-transparent hover:text-amber-300" onClick={() => zoomAroundPlayhead(0.8)}>
+              <ZoomOut size={14} aria-hidden />
+            </Button>
+            <input type="range" min={1} max={12} step={0.1} value={Number(zoomLevel.toFixed(1))} aria-label="Timeline zoom" className="timeline-zoom-slider h-4 w-[clamp(64px,12vw,148px)] min-w-0 accent-amber-300" onChange={(event) => setZoomLevel(Number(event.target.value))} />
+            <Button size="icon-xs" variant="ghost" aria-label="Zoom timeline in" title="Zoom timeline in" className="rounded-none bg-transparent text-zinc-500 hover:bg-transparent hover:text-amber-300" onClick={() => zoomAroundPlayhead(1.25)}>
+              <ZoomIn size={14} aria-hidden />
+            </Button>
+            <output className="w-9 text-right text-[10px] tabular-nums text-zinc-400" aria-live="off" aria-label="Timeline zoom level">{zoomLevel.toFixed(1)}x</output>
+          </div>
+        )}
         <div className="timeline-command-cluster min-w-0 justify-self-end">
           <ShowTimelineCommands
             show={show}
@@ -2362,10 +2349,10 @@ function SceneStrip({
             gridTemplateRows: rows.join(' '),
           }}
         >
-        <div className="sticky left-0 z-30 self-end border-b border-zinc-800 bg-[#060608] px-1 pb-2 text-[9.5px] uppercase tracking-[0.12em] text-structural">
-          zones ↓
-        </div>
-        {show.scenes.map((scene) => (
+        {(!unifiedTimelineWorkspace || show.zones.length > 1) && <div className="sticky left-0 z-30 self-end border-b border-zinc-800 bg-[#060608] px-1 pb-2 text-[9.5px] uppercase tracking-[0.12em] text-structural">
+          {unifiedTimelineWorkspace ? 'Zones' : 'zones ↓'}
+        </div>}
+        {!unifiedTimelineWorkspace && show.scenes.map((scene) => (
           <SceneColumnHeader
             key={scene.id}
             scene={scene}
@@ -2601,7 +2588,7 @@ function SceneStrip({
         )}
         {strip.rows.map((row, rowIndex) => (
           <div key={row.zoneId} className="contents">
-            <button
+            {(!unifiedTimelineWorkspace || show.zones.length > 1) && <button
               type="button"
               aria-label={`Select zone ${row.zoneName}`}
               title={`Open ${row.zoneName} properties`}
@@ -2634,7 +2621,7 @@ function SceneStrip({
                   <Settings2 size={11} aria-hidden className="ml-auto shrink-0 text-zinc-400 opacity-0 transition-opacity group-hover:opacity-100 group-focus-visible:opacity-100" />
                 </span>
               </span>
-            </button>
+            </button>}
             {row.cells.map((cell, cellIndex) => {
               const patternControls = patternControlsByCellId[cell.id] ?? []
               const summary = projectGlobalShowClipSummary(
@@ -2803,7 +2790,7 @@ function SceneStrip({
             })}
           </div>
         ))}
-        {!readOnly && <button
+        {!readOnly && (!unifiedTimelineWorkspace || show.zones.length > 1) && <button
           type="button"
           aria-label="Add zone"
           onClick={(event) => {
@@ -2815,7 +2802,7 @@ function SceneStrip({
         >
           + zone
         </button>}
-        {!readOnly && <button
+        {!unifiedTimelineWorkspace && !readOnly && <button
           type="button"
           aria-label="Add scene"
           onClick={(event) => {
@@ -2829,7 +2816,7 @@ function SceneStrip({
         </button>}
         </div>
       </div>
-      <TimelineNavigator viewport={viewport} onChange={updateViewport} />
+      {!unifiedTimelineWorkspace && <TimelineNavigator viewport={viewport} onChange={updateViewport} />}
       {superDetail && superDetailOwner && (
         <ShowSceneSuperDetail
           detail={superDetail}
@@ -2858,9 +2845,11 @@ function isLegalClipMove(show: ShowRecord, cellId: string | null, zoneId: string
 function TimelineNavigator({
   viewport,
   onChange,
+  compact = false,
 }: {
   viewport: ShowTimelineViewport
   onChange: (viewport: ShowTimelineViewport) => void
+  compact?: boolean
 }) {
   const overviewRef = useRef<HTMLDivElement>(null)
   const dragRef = useRef<{ mode: 'pan' | 'start' | 'end'; x: number; viewport: ShowTimelineViewport } | null>(null)
@@ -2889,9 +2878,15 @@ function TimelineNavigator({
     return true
   }
   return (
-    <div className="mt-2 grid h-9 grid-cols-[148px_minmax(0,1fr)_64px] border-t border-zinc-800 bg-zinc-950/65" role="group" aria-label="Show navigator">
-      <div className="flex items-center px-2 text-[9px] uppercase tracking-[0.12em] text-zinc-600">Show navigator</div>
-      <div ref={overviewRef} className="relative my-2 overflow-hidden rounded-sm bg-zinc-900/80">
+    <div
+      className={compact
+        ? 'grid h-6 w-[clamp(120px,18vw,260px)] grid-cols-[minmax(0,1fr)_36px] bg-zinc-950/45'
+        : 'mt-2 grid h-9 grid-cols-[148px_minmax(0,1fr)_64px] border-t border-zinc-800 bg-zinc-950/65'}
+      role="group"
+      aria-label="Show navigator"
+    >
+      {!compact && <div className="flex items-center px-2 text-[9px] uppercase tracking-[0.12em] text-zinc-600">Show navigator</div>}
+      <div ref={overviewRef} className={compact ? 'relative my-1 overflow-hidden rounded-sm bg-zinc-900/80' : 'relative my-2 overflow-hidden rounded-sm bg-zinc-900/80'}>
         <div className="absolute inset-y-0 left-0 right-0 opacity-40" style={{ backgroundImage: 'repeating-linear-gradient(90deg, rgba(161,161,170,.35) 0 1px, transparent 1px 8%)' }} />
         <div
           role="slider"
@@ -2947,7 +2942,7 @@ function TimelineNavigator({
           }}
         />
       </div>
-      <div className="flex items-center justify-end px-2 text-[9px] tabular-nums text-zinc-600">{Math.round(viewport.totalMs / viewport.durationMs * 100)}%</div>
+      <div className="flex items-center justify-end px-1.5 text-[9px] tabular-nums text-zinc-600">{Math.round(viewport.totalMs / viewport.durationMs * 100)}%</div>
     </div>
   )
 }

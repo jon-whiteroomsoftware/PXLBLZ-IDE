@@ -113,6 +113,24 @@ beforeEach(() => {
 afterEach(() => resetControllerProvider())
 
 describe('ShowEditor (#318)', () => {
+  it('renders the production Show as one unified timeline workspace (#579)', () => {
+    const show = createDefaultShow('show-unified-workspace', 'Unified workspace', 1000)
+    useShowStore.setState({ shows: [show], activeShowId: show.id, showsLoaded: true })
+
+    render(<ShowEditor showId={show.id} unifiedTimeline />)
+
+    const timeline = screen.getByRole('region', { name: 'Show timeline' })
+    const toolbar = within(timeline).getByRole('toolbar', { name: 'Show timeline controls' })
+    expect(within(toolbar).getByRole('group', { name: 'Show navigator' })).toBeInTheDocument()
+    expect(within(timeline).getByRole('slider', { name: 'Show playhead' })).toBeInTheDocument()
+    expect(within(timeline).getAllByRole('button', { name: 'Select TestPattern1D' })).not.toHaveLength(0)
+    expect(within(timeline).queryByRole('button', { name: 'Add scene' })).not.toBeInTheDocument()
+    expect(within(timeline).queryByRole('button', { name: 'Edit Scene 1' })).not.toBeInTheDocument()
+    expect(within(timeline).queryByText('X-ray')).not.toBeInTheDocument()
+    expect(within(timeline).queryByRole('group', { name: 'Timeline zoom controls' })).not.toBeInTheDocument()
+    expect(within(timeline).queryByRole('button', { name: /Select zone/i })).not.toBeInTheDocument()
+  })
+
   it('authors Show-level Trails with a retention control and scrub disclosure (#537)', async () => {
     const user = userEvent.setup()
     const show = createDefaultShow('show-537-trails-ui', 'Trails UI', 1000)
