@@ -42,24 +42,25 @@ its editing grammar.
 ## Workspace anatomy
 
 The editor retains the current split between authoring and Stage preview. The
-authoring pane has six vertical bands:
+authoring pane has five vertical bands:
 
 1. Show header and delivery actions;
-2. compact transport, Navigator, and structural commands;
-3. optional Zone Map disclosure;
-4. sticky ruler and Marker shelf;
-5. continuous topology timeline; and
-6. modeless Entity Details floating close to their source.
+2. one grouped toolbar containing transport, Navigator, and structural commands;
+3. sticky ruler and Marker shelf;
+4. continuous topology timeline; and
+5. modeless Entity Details floating close to their source.
+
+The Zone Map opens over the workspace from the toolbar. It never inserts a
+permanent Active Layout strip or another vertical band.
 
 ```text
 +----------------------------------------------------------------+----------+
 | Show name                         output / compile / run / save |          |
-| [play] [A:start]  [======= Navigator window =======]  commands |  Stage   |
-| [Zones >]  (toggle remains; map and picker are hidden)          | preview  |
+| [play] [A:start] | [=== Navigator ===] fit | Zones  commands   |  Stage   |
 | 00:00        00:05        00:10       |marker|       Show End  | at the   |
 |----------------------------------------------------------------| playhead |
-| Layer 1  [Pattern A---------][cut][Pattern B------]             |          |
-|          (first Layer: boundary snapping on)                    | controls |
+|          [Pattern A---------][cut][Pattern B------]             |          |
+|          fx: glow      property: brightness sparkline           | controls |
 | + Layer                                                        |          |
 +----------------------------------------------------------------+----------+
 ```
@@ -71,9 +72,9 @@ turns the Stage into a second time scope.
 ### Recommended proportions
 
 - Keep the existing authoring/Stage split and its resize behavior.
-- Retain an approximately `128-136px` sticky timeline gutter; the current
-  prototypes already demonstrate that this width can hold compact Layer and Zone
-  identity without stealing the canvas.
+- Retain an approximately `128-136px` sticky timeline gutter where Zone identity
+  or disclosed detail labels require it. Unnamed Layer lanes do not consume the
+  gutter merely to restate their order.
 - Use roughly `28-32px` for an ordinary Layer row, `18-22px` for a collapsed
   property row, and `24-28px` for the ruler.
 - Keep the toolbar one row at normal desktop widths. Collapse labels before
@@ -90,7 +91,7 @@ Four relationships must never look interchangeable:
 
 | Relationship | Meaning | Proposed cue |
 | --- | --- | --- |
-| Boundary snapping | Optional alignment aid | magnet glyph on the Layer header; temporary snap line during drag |
+| Boundary snapping | Optional alignment aid | quiet magnet state for the selected/hovered Layer plus temporary snap line during drag |
 | Transition connection | Entities cannot separate | amber time-bearing Transition box and continuous connected outline |
 | Shared Pattern instance | Clips share clock, state, seed, and Controls | small linked-clock badge plus shared-instance name/use count |
 | Shared definition | Group or named Layout occurrences reuse structure | repeat/link badge with definition name and `N uses` scope copy |
@@ -139,17 +140,26 @@ No viewport, Pattern-instance, Zone, Group-definition, or compiler terminology
 appears until an operation needs it.
 
 The Zones toggle remains in the toolbar as the discovery path. Only the Zone
-Map, Zone headers, and picker disappear in the default one-Zone state.
+Map and redundant Zone headers disappear in the default one-Zone state.
 
 ## Toolbar, ruler, and Navigator
 
-The toolbar is organized by frequency rather than object type:
+The toolbar remains one row at normal desktop widths and reads as three
+clusters, not one run of boxed controls:
 
 ```text
-[Play/Pause] [A: Start]  [current / duration]
-       [----- complete Show ----[visible window]------]
-                       [Snap status] [Insert Time] [Add] [...]
+[Play/Pause] [A: Start] [current / duration]
+         | [----- complete Show ----[visible window]------] fit
+         | [Zones] [Snap] [Select] [Insert Layout] [Add] [...]
 ```
+
+Transport and time form the left cluster, the flexible Navigator and subtle Fit
+affordance form the viewport cluster, and structural commands form the right
+cluster. Alignment may resolve as left/center/right or as two outer groups after
+final rendering, but spacing and at most two quiet separators must express the
+three meanings. Labels disappear before controls wrap. The compact Zones button
+does not repeat the active Layout name; the timeline supplies that identity and
+the control's accessible label may include it.
 
 The Navigator replaces the zoom slider because it exposes more useful state in
 the same space. Its background is a quiet whole-Show occupancy summary. The
@@ -157,6 +167,11 @@ visible-range window can be dragged to pan or resized at either edge to zoom.
 Clicking outside recenters it; Fit restores the whole Show. It may show the
 playhead, Markers, Layout boundaries, and Show End without reproducing Layer
 detail.
+
+Fit is an icon-level affordance adjacent to the Navigator, not a primary boxed
+button. It changes only the viewport, showing `0` through Show End at the
+largest scale that fits; it never seeks the playhead and becomes inactive when
+the whole Show is already visible.
 
 The ruler is the top edge of editable time. Clicking seeks. Dragging seeks.
 Dragging a visible Marker seed/handle down from the ruler creates a Marker. The
@@ -330,8 +345,9 @@ Escape uses this priority:
 
 ## Property animation
 
-Animation rows open immediately beneath the entity or structural header that
-owns them. The row title states both property and owner, such as:
+Animation rows open immediately beneath the Clip-owned Layer lane or structural
+header that owns them. Empty Layers reserve no animation space. The row title
+states both property and owner when ownership is not already obvious, such as:
 
 - `Clip - Opacity`;
 - `Pattern instance - Speed`;
@@ -340,10 +356,14 @@ owns them. The row title states both property and owner, such as:
 - `Show - Trails retention`.
 
 This naming is essential: animation never changes ownership. A selected Clip
-may show several compact rows; closed rows retain a quiet keyframe summary in
-the Clip body or Layer. Hidden keyframes beyond a shortened Clip remain visible
-in the Detail as dormant values and reappear on the timeline when duration
-extends.
+may show several compact rows. One or two rows use comfortable sparkline height;
+additional rows compress progressively while preserving keyframe dots as the
+semantic anchors. Hovering, focusing, or selecting a compressed row may expand
+it temporarily, and a dense stack may show the most relevant rows plus an
+overflow disclosure. Closed rows retain a quiet keyframe summary in the Clip
+body or collapsed Zone miniature. Hidden keyframes beyond a shortened Clip
+remain visible in the Detail as dormant values and reappear on the timeline when
+duration extends.
 
 A shared Pattern instance has no single Layer home. Selecting it projects its
 animation into Show time beneath each visible linked appearance. Each projection
@@ -408,15 +428,15 @@ Unique is the escape hatch.
 ### Progressive disclosure
 
 The **Zones** control always remains in the toolbar and toggles the Zone Map. In
-a one-Zone Show, closing it removes the map, headers, and picker completely. Once
-the active Layout contains several Zones, closing the full map leaves a
-micro-thin icon picker so the author can switch the Zone shown in focus mode.
+a one-Zone Show, closing it removes the map and redundant Zone header completely.
+The Zone Map opens as an overlay and never adds a permanent Active Layout row.
+In a multi-Zone Layout, closing it leaves the complete timeline in place; each
+Zone header supplies its own collapse control.
 
 The editor has one active Layout context: the selected entity's interval when a
-selection exists, otherwise the playhead's interval. The Zone Map and micro
-picker reflect that editing context. The Stage remains tied exclusively to the
-playhead. Each Layout occurrence remembers its own focused Zone; entering an
-interval without a prior focus selects its first Zone.
+selection exists, otherwise the playhead's interval. The overlaid Zone Map
+reflects that editing context. The Stage remains tied exclusively to the
+playhead.
 
 The Zone Map shows:
 
@@ -427,7 +447,16 @@ The Zone Map shows:
 - Add Zone, Use Layout, Copy Previous, and Layout actions.
 
 An icon is optional. Wide states show icon plus full name, narrow states truncate
-the name, and the micro picker may show only the icon with an accessible label.
+the name, and the most compressed state may show only the icon with an
+accessible label.
+
+Each Zone collapses independently within each Layout occurrence. The collapsed
+state is a miniature time-accurate stack: every Layer becomes a thin lane, Clip
+spans retain their colors and exact boundaries, property animation reduces to
+curves and keyframe dots, and Effects and Transitions remain visible as compact
+events. These boundaries remain snapping targets. `Focus Zone` is merely a
+convenience command that expands one Zone and collapses its siblings; it does not
+create another editor mode. A one-Zone Layout offers no collapse control.
 
 ### Changing topology on one ruler
 
@@ -448,10 +477,11 @@ RULER      00:00                00:12          00:20                 00:32
 The enclosing timeline uses the tallest interval in the current display state;
 a shorter interval does not invent phantom Layers. Its height remains stable
 during horizontal pan and zoom. It changes only when the author explicitly
-expands, collapses, focuses, or adds/removes Layers. Independent Zone collapse,
-compact summaries, focus mode, and ordinary vertical scrolling control height.
+expands or collapses a Zone or adds/removes Layers. Independent Zone collapse,
+compact summaries, and ordinary vertical scrolling control height.
 
-At every hard boundary the next Layout restates its Zone and Layer headers. When
+At every hard boundary the next Layout restates its Zone headers and unnamed
+Layer lanes. When
 the interval begins left of the viewport, a translucent local header rail sticks
 to the timeline gutter until the next Layout pushes it away. This preserves
 identity without assigning fake duration to labels. The playhead line crosses
@@ -556,9 +586,10 @@ changing the model:
 
 1. toolbar labels collapse to icons with tooltips;
 2. the Navigator shortens but remains draggable;
-3. the Zone Map closes to the micro picker;
+3. the overlaid Zone Map closes without leaving another toolbar or picker;
 4. only one Entity Detail remains unpinned and is clamped inside the viewport;
-5. focused-Zone mode is recommended when all-Zone stacks become illegible; and
+5. independent Zone collapse remains available when all stacks become
+   illegible; and
 6. the Stage keeps its existing resizable boundary rather than moving into a
    modal preview.
 
@@ -638,25 +669,25 @@ failure there must not be papered over with more labels.
 
 ### Prototype findings
 
-The throwaway prototype at `?prototype=show-overhaul` compares three changing-
-topology projections against the same `4 Zones -> 1 Zone -> 3 Zones` fixture:
+The throwaway prototype at `?prototype=show-overhaul` tests one changing-
+topology model against the same `4 Zones -> 1 Zone -> 3 Zones` fixture. Every
+Zone remains part of the continuous timeline. Prototype presets merely establish
+different manual per-Zone collapse states; they are not product modes.
 
-1. **Full stacks** is the recommended default. Every Zone remains visible, the
-   ruler and playhead stay continuous, and the author can compare choreography
-   across Layout boundaries without entering a sub-editor. The stable canvas
-   height leaves deliberate empty space below shorter intervals; in context,
-   that reads as available vertical capacity rather than missing content.
-2. **Per-Layout focus** is useful as an explicit focus mode, not as the default.
-   It substantially reduces height while preserving one full Zone stack per
-   Layout, but it hides simultaneous choreography in the other Zones.
-3. **Active interval** is too lossy as the default. Compact neighboring
-   summaries preserve topology awareness but prevent useful cross-boundary
-   comparison. Its compact summaries remain a useful ingredient for collapsed
-   or unfocused intervals.
+Full stacks is the default structural model. Authors independently collapse any
+Zone they do not need to edit, and `Focus Zone` may apply a convenient set of
+those ordinary states. An earlier Active Interval treatment was rejected because
+it hid too much cross-boundary choreography. A separate per-Layout focus mode is
+unnecessary once collapse is selective.
 
 The prototype also validates these supporting decisions:
 
 - a one-Zone Show can omit Zone headers and Layout labels entirely;
+- transport, the flexible Navigator, a quiet Fit affordance, and structural
+  commands can share one grouped toolbar above the ruler;
+- unnamed Layer lanes need no permanent labels or object chrome;
+- Clip-owned Effects and property animation can appear as conditional nested
+  rails and compress into the collapsed Zone miniature;
 - the Stage can collapse into a shallow top band at narrow widths while the
   timeline retains internal horizontal scrolling and creates no page overflow;
 - Entity Details can disappear during direct manipulation and restore afterward
@@ -682,8 +713,8 @@ the production Show model and existing design-system components.
    be dragged through time that is empty in both adjoining Layouts?
 5. Does `I` feel right for Entity Detail toggle alongside Space, A, Tab, and the
    standard clipboard shortcuts?
-6. At what stack height should the editor recommend focus mode without switching
-   automatically?
+6. At what stack height should the editor suggest collapsing sibling Zones
+   without changing their state automatically?
 7. Do repeated Show-time projections of one shared Pattern-instance animation
    clarify sharing, or should only the active projection expand?
 8. Are segmented Group shells easy to select without obscuring unrelated Clips

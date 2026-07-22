@@ -204,8 +204,10 @@ space. Layer creation is explicit; dragging never silently creates one.
 
 The first Layer starts with boundary snapping enabled. Additional Layers start
 with snapping disabled. Authors may toggle snapping per Layer; snapping never
-creates structural attachment. A Layer owns order, optional name, snapping
-preference, and its Clips. Collapse and focus are editor presentation state.
+creates structural attachment. A Layer owns only order, snapping preference,
+and its Clips. Layers are unnamed organizing lanes; they do not own Effects,
+animation, or other presentation properties. Collapse is editor presentation
+state.
 
 ### Pattern instance
 
@@ -377,10 +379,11 @@ alignment guide.
     so that vertical movement is safe.
 46. As an author, I want all Zones under one ruler when expanded, so that
     cross-Zone timing remains explicit.
-47. As an author, I want one focused Zone when collapsed, so that multi-Zone
-    Shows do not require viewing every layer stack continuously.
-48. As an author, I want a thin Zone picker to remain when several Zones exist,
-    so that collapsed complexity never becomes invisible.
+47. As an author, I want to collapse Zones independently, so that I can edit one
+    or two Zone stacks without losing the timing context of the others.
+48. As an author, I want each collapsed Zone to retain a time-accurate miniature
+    of its Layers and events, so that collapsed complexity never becomes
+    invisible.
 49. As an author, I want to choose an optional Zone icon, so that a meaningful
     mnemonic survives when the Zone name no longer fits.
 50. As an Installation author, I want adding a Zone to transfer pixel ownership
@@ -508,8 +511,14 @@ alignment guide.
 - The saved authoring model will contain no Scene entity.
 - Scene headers, X-rays, Super Detail, Scene-local authoring, Scene navigation,
   and dedicated Scene Transition rows will be removed.
-- The center workspace will contain one toolbar, one compact Show Navigator, one
-  sticky ruler, and the editable Zone/layer stacks.
+- The center workspace will contain one toolbar with the compact Show Navigator
+  embedded inside it, one sticky ruler, and the editable Zone/Layer stacks. No
+  Active Layout strip or separate Navigator row consumes permanent height.
+- The toolbar has three semantic clusters: transport and time, viewport
+  navigation, and authoring commands. Responsive treatment may align these as
+  left/center/right groups or place the first two together, but must preserve one
+  row at normal desktop widths and must not present one undifferentiated run of
+  buttons.
 - The existing Stage remains mounted and shows the complete output at the
   current playhead in focused- and all-Zones modes.
 - Group isolation is the only scoped edit mode. It uses the same timeline,
@@ -528,6 +537,10 @@ alignment guide.
   the complete Show; its window depicts the visible timeline range.
 - Dragging the Navigator window pans. Dragging either edge changes the visible
   range. Clicking outside recenters. Fit shows the complete timeline.
+- Fit changes only the viewport: it sets the visible range from Show time zero
+  through Show End at the largest scale that fits. It never seeks or otherwise
+  changes the playhead. The Fit affordance is a quiet icon adjacent to the
+  Navigator and is disabled when the complete Show is already visible.
 - The Navigator may show Show End, playhead, Markers, and a quiet aggregate of
   Clip/Transition occupancy without reproducing the complete timeline.
 - Main-timeline wheel, trackpad, and keyboard zoom remain available.
@@ -641,7 +654,7 @@ Ownership does not change when a property is animated:
 | Zone Layout definition | Zone ids, order, names, icons, color, Installation ownership or Portable routing configuration | Structural; not keyframeable |
 | Zone Layout occurrence | Show interval, chosen definition, occurrence-owned routing values | Split Position may animate in occurrence-local time |
 | Zone | Identity and presentation metadata within a Layout definition | Not keyframeable |
-| Layer | Order, name, boundary-snapping setting, content | Not keyframeable |
+| Layer | Order, boundary-snapping setting, content | Not keyframeable |
 | Group definition | Child Clips, relative time/Layer offsets, Effects, animation, complete Transitions, internal Pattern-instance topology | Child properties retain their normal local time bases |
 | Group occurrence | Show start, Layout occurrence, Zone, base Layer, X/Y offset | X/Y may animate in occurrence-local time |
 | Clip | Start, duration, Zone, Layer, Content, Viewport, presentation, Effects | X/Y/Width/Height/Rotation, Viewport rectangle, Brightness, Opacity, Hue phase, and numeric Effect parameters animate in Clip-local time |
@@ -653,6 +666,15 @@ Mirror, Pattern reference, Effect add/remove/type/order, seeds, Layout topology,
 and Zone membership are discrete structural values and are not keyframeable in
 the initial overhaul. The old model in which an incoming Transition also owns
 unrelated property interpolation does not carry forward.
+
+Property animation is presented as Clip-owned, time-aligned detail rails nested
+beneath the owning Layer only when authored or explicitly disclosed. Empty
+Layers reserve no Effect or property rows. One or two animated properties may
+use comfortable sparkline height; additional lanes compress progressively while
+preserving keyframe dots as the semantic anchors. Selecting or hovering a dense
+lane may expand it temporarily, and an overflow disclosure may replace a stack
+that would otherwise dominate the timeline. A collapsed Zone folds these rails
+into its miniature Layer summaries instead of hiding their event times.
 
 - Ordinary Add and Duplicate create independent instances starting at zero when
   they first contribute.
@@ -897,25 +919,31 @@ unrelated property interpolation does not carry forward.
   disappear completely. The Zones control remains available as the discovery
   path and expands the Zone workspace; it does not enable or disable routing.
 - Expanding a one-Zone Show reveals the existing Full Stage Zone and Add Zone.
-- With more than one Zone, collapsing the workspace leaves a micro-thin Zone
-  picker. Clicking an item selects the Zone displayed in focused mode.
-- The focused timeline shows a subtle Zone icon and name. Identity never depends
-  on color alone.
-- Expanding a multi-Zone Layout interval restores its complete Zone editor and
-  all Zone Layer stacks under the shared ruler. Different intervals may have
-  different heights; vertical scrolling is valid.
-- Each Zone may also collapse to a compact summary of content and key events.
-  Focus mode shows one Zone's full stack and retains the micro-thin icon picker
-  for switching among the other Zones in that Layout occurrence.
+- The Zones control is compact and opens the current Layout's Zone Map as an
+  overlay instead of inserting a permanent row. The current Layout name remains
+  available in the timeline and the control's accessible label; it need not
+  occupy toolbar width.
+- A multi-Zone Layout normally shows every Zone stack under the shared ruler.
+  Each Zone has an independent manual collapse state. `Focus Zone` is a
+  convenience command that expands one Zone and collapses its siblings, not a
+  separate editor mode.
+- A one-Zone Layout has no collapse affordance and does not repeat a redundant
+  Zone header when the Layout header already supplies identity.
+- A collapsed Zone remains a time-accurate miniature timeline. It preserves one
+  thin lane per Layer, Clip spans and identifying colors, Transition and Effect
+  events, property-animation curves or keyframe dots, Markers, and snapping
+  targets. Text appears only where space permits; hover, focus, and accessible
+  labels expose suppressed identity and timing.
+- Different intervals may therefore have different explicit heights, and
+  ordinary vertical scrolling remains valid.
 - Expanding or collapsing preserves playhead, zoom, Navigator range, selection,
   and timeline scroll position.
 - The Stage always shows the complete all-Zone composite and may optionally
   highlight the focused Zone.
 - Every Zone has a required name and optional user-selected icon. A curated icon
   registry supplies stable choices; no upload or automatic guessing is needed.
-- Wide labels show icon plus full name; narrow labels truncate the name; the
-  micro picker shows the icon. Hover, focus, and accessible labels always expose
-  the full name.
+- Wide labels show icon plus full name and narrow labels may reduce to the icon.
+  Hover, focus, and accessible labels always expose the full name.
 - The Zone icon is presentation metadata and may appear in the picker, timeline
   header, expanded Zone list, Stage legend, and drag destination feedback.
 - New topology may begin ad hoc and unnamed. The author may later name its Layout
@@ -952,8 +980,8 @@ unrelated property interpolation does not carry forward.
   Layout Interval are variants of the same creation flow.
 - Editor presentation has one active Layout context: the selected entity's
   occurrence when a selection exists, otherwise the playhead occurrence. The
-  Zone Map and micro picker follow this context; the Stage remains tied only to
-  the playhead.
+  overlaid Zone Map follows this context without requiring an Active Layout
+  strip; the Stage remains tied only to the playhead.
 - Timeline height remains stable while panning horizontally. It may change only
   through explicit expand, collapse, focus, or Layer operations and is based on
   the tallest interval in the current display state.
@@ -1228,8 +1256,8 @@ tests and representative hardware/compiler fixtures.
 4. Viewport enablement and Content/Viewport edit-mode distinction.
 5. Marquee acquisition, live closure, refinement, and disabled Group reason.
 6. Group isolation dimming, editability, Escape, and undo.
-7. One-Zone hidden UI; one-Zone expanded editor; multi-Zone micro picker;
-   focused Zone; and all-Zones stacks.
+7. One-Zone hidden UI; overlaid Zone Map; independent multi-Zone collapse;
+   Focus Zone convenience command; and all-Zones stacks.
 8. Zone icon truncation, tooltip, keyboard label, and non-color identification.
 9. Compact Entity Detail click-away, keyboard toggle, multi-panel coexistence,
    and narrow-window behavior.
