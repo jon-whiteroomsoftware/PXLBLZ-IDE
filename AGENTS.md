@@ -105,6 +105,7 @@ npm run dev                 # only when the persistent server is absent
 npm run lint
 npm run test:staged         # staged/colocated tests plus high-risk invariants
 npm test                    # full Vitest suite
+npm run review:push         # Fable High review of origin/main..HEAD
 npm run build
 npm run test:e2e
 npm run check:playwright
@@ -116,9 +117,11 @@ npm run db:migrate:remote
 The pre-commit hook runs lint, colocated tests for staged code, and conservative
 invariant suites for compiler, persistence, resource-ledger, artifact-contract,
 and test-infrastructure changes. The pre-push hook owns the one comprehensive
-publication gate: the full Vitest suite followed by the Playwright smoke suite. Do
-not manually repeat the full suite immediately before a push unless diagnosing
-a failure. See `docs/agents/verification.md` for the gate model.
+publication gate: Fable High reviews the exact outgoing range, then the full
+Vitest suite and Playwright smoke suite run. The Git hook applies equally to
+Claude, Codex, and terminal pushes. Do not manually repeat the full suite
+immediately before a push unless diagnosing a failure. See
+`docs/agents/verification.md` for the gate model.
 
 Use TDD for behavior changes: fail, implement, refactor. Concentrate coverage
 on pure engine logic; keep component tests light and add Playwright coverage

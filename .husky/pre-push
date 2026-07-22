@@ -1,8 +1,8 @@
 #!/bin/sh
-# Run the full Vitest suite and E2E smoke test before any push to origin.
+# Run the shared Fable review plus full Vitest and E2E smoke tests before push.
 #
 # Why pre-push (not pre-commit): these are the comprehensive landing gates. The
 # pre-commit hook already runs focused tests and high-risk invariants, so paying
 # for every Vitest file again on each local commit only duplicates work.
-echo "▶ Running full Vitest and E2E smoke tests before push…"
-npm run test:full && npm run test:e2e
+echo "▶ Running cross-agent Fable review before push…"
+npm run review:push -- "$1" "$2" && npm run test:full && npm run test:e2e

@@ -27,6 +27,7 @@
     "test:e2e": "npm run check:node && playwright test",
     "test:e2e:auth-smoke": "npm run build && npm run db:migrate:local && playwright test e2e/authenticated-smoke.auth.spec.ts e2e/artifact-import.auth.spec.ts --config=playwright.auth.config.ts",
     "test:e2e:shows": "npm run build && npm run db:migrate:local && playwright test e2e/shows.auth.spec.ts --config=playwright.auth.config.ts",
+    "review:push": "npm run check:node && tsx scripts/push-review.ts",
     "pack:extension": "node scripts/pack-extension.mjs",
     "render": "npm run check:node && tsx scripts/render-pattern.ts",
     "harness": "tsx test/divergence-harness/harness.ts",

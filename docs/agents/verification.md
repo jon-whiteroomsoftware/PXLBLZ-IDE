@@ -1,9 +1,9 @@
 # Verification gates
 
 Local verification has two layers: commits get a fast, conservative signal;
-pushes get one comprehensive landing gate. This keeps routine feedback useful
-without weakening the invariant that every test passes before code leaves the
-machine.
+pushes get one comprehensive landing gate. The push gate combines an independent
+correctness review with the complete automated suite, so code does not leave the
+machine without both forms of evidence.
 
 ## Gate ownership
 
@@ -11,11 +11,25 @@ machine.
 | --- | --- | --- |
 | During development | `npx vitest run path/to/test.ts` | Keep the red-green-refactor loop focused. |
 | Before each commit | `npm run lint` and `npm run test:staged` | Run colocated tests for staged code plus explicitly mapped high-risk invariants. |
-| Before each push | `npm run test:full` and `npm run test:e2e` | Run every Vitest file once, then exercise the browser smoke flow. |
+| Before each push | `npm run review:push`, `npm run test:full`, and `npm run test:e2e` | Review the exact outgoing Git range with Fable High, run every Vitest file once, then exercise the browser smoke flow. |
 
-`npm test` remains the explicit full-suite command. The pre-push hook invokes
-the same full suite, so a separate full run immediately before pushing normally
-adds delay without adding coverage.
+The Husky `pre-push` hook owns all three steps. Because this is a Git hook rather
+than a Claude or Codex lifecycle hook, it runs for pushes initiated by either
+agent or from a terminal. `scripts/push-review.ts` reads Git's exact ref-update
+packet, sends the outgoing commit list and patch to Fable High through the
+installed Claude CLI, and requires structured pass/fail output. It fails closed
+on findings, malformed output, reviewer failure, or the ten-minute timeout. A
+blocked review is terminal: fix the finding or reviewer, then make a new push;
+never silently retry or bypass the gate.
+
+`npm run review:push` can exercise the reviewer directly; without Git pre-push
+input it reviews `origin/main..HEAD`. The review transmits the outgoing private
+diff to Anthropic under the developer's authenticated Claude session. The user
+has explicitly approved that behavior for this repository.
+
+`npm test` remains the explicit full-suite command. The pre-push hook invokes the
+same full suite, so a separate full run immediately before pushing normally adds
+delay without adding coverage.
 
 ## Staged-test selection
 
@@ -31,5 +45,6 @@ colocated test is not a sufficient safety net:
 - Pattern artifact production and stamping
 - Vitest configuration and staged-test infrastructure
 
-Documentation-only commits skip Vitest at pre-commit. The full pre-push gate is
-unchanged by the selection result and remains the final authority.
+Documentation-only commits skip Vitest at pre-commit. The full review-and-test
+pre-push gate is unchanged by the selection result and remains the final
+authority.
