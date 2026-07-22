@@ -418,6 +418,53 @@ export function render(index) { rgb(ticks, 0, 0) }
     expect(pixel()).toEqual([1, 0, 0])
   })
 
+  it('evaluates a Viewport mask after zone coordinates when Clip opacity is animated (#585)', () => {
+    const zones = [
+      { id: 'main', name: 'main', ranges: [{ start: 0, end: 0 }, { start: 2, end: 2 }] },
+      { id: 'other', name: 'other', ranges: [{ start: 1, end: 1 }, { start: 3, end: 3 }] },
+    ]
+    const artifact = compileShow({
+      clips: [{ id: 'blue', source: 'export function render2D(index, x, y) { rgb(0, 0, 1) }' }],
+      zones,
+      routingLayouts: [{ id: 'default', name: 'Default', zones }],
+      routedSceneSequence: {
+        scenes: [{
+          holdMs: 1000,
+          placements: [
+            {
+              placementId: 'blue-placement',
+              zoneName: 'main',
+              clipId: 'blue',
+              stackOrder: 0,
+              opacity: 1,
+              viewport: { enabled: true, x: 0, y: 0, width: 0.5, height: 1 },
+            },
+          ],
+          propertyTracks: [{
+            id: 'blue-opacity',
+            target: { kind: 'placement-opacity', placementId: 'blue-placement' },
+            keyframes: [
+              { id: 'opacity-a', timeMs: 0, value: 1, easing: { curve: 'linear' } },
+              { id: 'opacity-b', timeMs: 1000, value: 1, easing: { curve: 'linear' } },
+            ],
+          }],
+          transitionOut: { kind: 'cut', durationMs: 0 },
+        }, {
+          holdMs: 1000,
+          placements: [{ zoneName: 'main', clipId: 'blue' }],
+        }],
+      },
+      loopDurationMs: 2000,
+    }, {})
+    const { handle, pixel } = loadShow(artifact.code, artifact.metadata, 4)
+
+    handle.beforeRender(100)
+    handle.render2D(0, 0, 0)
+    expect(pixel()).toEqual([0, 0, 1])
+    handle.render2D(2, 1, 0)
+    expect(pixel()).toEqual([0, 0, 0])
+  })
+
   it('interns equivalent cut-only physical render plans across Scenes and Zones (#499)', () => {
     const zones = [
       { id: 'left', name: 'left', ranges: [{ start: 0, end: 1 }] },

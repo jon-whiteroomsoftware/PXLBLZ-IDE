@@ -74,6 +74,35 @@ describe('showModel (#318)', () => {
     expect(recipe.clips[0].transform).toEqual(show.cells[0].transform)
   })
 
+  it('keeps enabled Clip Viewports when an otherwise static routed Show is lowered (#585)', () => {
+    const withZone = addShowZone(createDefaultShow('show-585-static-viewport', 'Static viewport', 1), {
+      name: 'empty',
+      nominalPixelCount: 4,
+    })
+    const firstCell = withZone.cells[0]
+    const show: ShowRecord = {
+      ...withZone,
+      cells: withZone.cells.map((cell) => ({
+        ...cell,
+        pattern: firstCell.pattern,
+        patternName: firstCell.patternName,
+        viewport: { enabled: true, x: 0, y: 0, width: 0.5, height: 1 },
+      })),
+    }
+
+    const recipe = showRecordToCompileRecipe(show, {
+      byCellId: Object.fromEntries(show.cells.map((cell) => [cell.id, DEMOS.TestPattern1D])),
+    })
+
+    expect(recipe.routedSceneSequence?.scenes[0].placements[0].viewport).toEqual({
+      enabled: true,
+      x: 0,
+      y: 0,
+      width: 0.5,
+      height: 1,
+    })
+  })
+
   it('threads normalized Show output Effects into every compile recipe (#537)', () => {
     const base = createDefaultShow('show-537-trails', 'Trails', 1)
     const show: ShowRecord = {

@@ -6438,9 +6438,19 @@ function emitPhysicalSceneZoneStack(
       `}`,
     ].join('\n')
   }
+  const localCoordinates = outputDimension === 2
+    ? routedSceneZoneCoordinates(local, pixelCount, zoneIndex)
+    : undefined
   const capture = emitRoutedPlacementStackCapture(
     placements,
-    (placement) => routedSceneMemberCapture(placement.member, local, pixelCount, outputDimension, zoneIndex),
+    (placement) => routedSceneMemberCapture(
+      placement.member,
+      local,
+      pixelCount,
+      outputDimension,
+      zoneIndex,
+      localCoordinates,
+    ),
     `__pxlblz_show_stack_${zoneIndex}`,
     outputDimension,
     propertyTracks,
@@ -6456,6 +6466,7 @@ function emitPhysicalSceneZoneStack(
     `var ${local} = -1`,
     ...emitZoneLocalAssignments(zone, local),
     `if (${local} >= 0) {`,
+    ...(localCoordinates?.lines.map((line) => `  ${line}`) ?? []),
     ...placements.flatMap((placement) => (placement.member.binding?.uniformPixelCountBinding ? [] : [`  ${placement.member.pixelCountName} = ${pixelCount}`])),
     indentBlock(capture, 2),
     `  rgb(__pxlblz_show_stack_${zoneIndex}_r, __pxlblz_show_stack_${zoneIndex}_g, __pxlblz_show_stack_${zoneIndex}_b)`,
@@ -7078,15 +7089,36 @@ function routedSceneMemberCapture(
   pixelCount: number,
   outputDimension: 1 | 2,
   zoneIndex: number,
+  coordinates?: RoutedSceneZoneCoordinates,
 ): string {
   if (outputDimension === 1) return `${member.prefix}_renderCapture(${localIndex})`
+  const local = coordinates ?? routedSceneZoneCoordinates(localIndex, pixelCount, zoneIndex)
+  return `${coordinates ? '' : `${local.lines.join('\n')}\n`}${member.prefix}_renderCapture2D(${localIndex}, ${local.x}, ${local.y})`
+}
+
+interface RoutedSceneZoneCoordinates {
+  x: string
+  y: string
+  lines: string[]
+}
+
+function routedSceneZoneCoordinates(
+  localIndex: string,
+  pixelCount: number,
+  zoneIndex: number,
+): RoutedSceneZoneCoordinates {
   const width = Math.max(1, Math.ceil(Math.sqrt(pixelCount)))
   const height = Math.max(1, Math.ceil(pixelCount / width))
   const localX = `__pxlblz_show_scene_zone_${zoneIndex}_x`
   const localY = `__pxlblz_show_scene_zone_${zoneIndex}_y`
-  return `var ${localX} = ${width === 1 ? '0.5' : `(${localIndex} % ${width}) / ${width - 1}`}
-var ${localY} = ${height === 1 ? '0.5' : `floor(${localIndex} / ${width}) / ${height - 1}`}
-${member.prefix}_renderCapture2D(${localIndex}, ${localX}, ${localY})`
+  return {
+    x: localX,
+    y: localY,
+    lines: [
+      `var ${localX} = ${width === 1 ? '0.5' : `(${localIndex} % ${width}) / ${width - 1}`}`,
+      `var ${localY} = ${height === 1 ? '0.5' : `floor(${localIndex} / ${width}) / ${height - 1}`}`,
+    ],
+  }
 }
 
 function emitSceneControlTargets(member: CompiledMember, targets: Record<string, number> | undefined): string {

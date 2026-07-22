@@ -266,8 +266,36 @@ describe('ShowEditor (#318)', () => {
     await waitFor(() => expect(useShowStore.getState().shows[0].composition?.markers?.[0].timeMs).toBe(4_125))
     expect(screen.getByRole('button', { name: 'Marker 1 at 4.125 seconds' })).toBeInTheDocument()
 
+    await user.clear(markerTime)
+    fireEvent.blur(markerTime)
+    await waitFor(() => expect(useShowStore.getState().shows[0].composition?.markers?.[0].timeMs).toBe(4_125))
+    expect(markerTime).toHaveValue(4.125)
+
     await user.click(screen.getByTestId('show-timeline-toolbar'))
     expect(screen.queryByRole('dialog', { name: 'Marker 1 details' })).not.toBeInTheDocument()
+  })
+
+  it('drags a Marker against the timeline surface rather than its boxless wrapper (#584)', async () => {
+    const user = userEvent.setup()
+    const show = createDefaultShow('show-marker-drag', 'Marker drag', 1000)
+    setPersonalContentProvider(memoryProvider([show]))
+    useShowStore.setState({ shows: [show], activeShowId: show.id, showsLoaded: true })
+    useShowTransportStore.setState({ showId: show.id, positionMs: 10_000 })
+
+    render(<ShowEditor showId={show.id} unifiedTimeline />)
+
+    await user.click(screen.getByRole('button', { name: 'Add Marker at playhead' }))
+
+    const surface = screen.getByLabelText('Timeline Markers and Show End')
+    vi.spyOn(surface, 'getBoundingClientRect').mockReturnValue({
+      x: 100, y: 0, left: 100, top: 0, right: 720, bottom: 100, width: 620, height: 100,
+      toJSON: () => ({}),
+    })
+    const marker = screen.getByRole('button', { name: 'Marker 1 at 10 seconds' })
+    fireEvent.pointerDown(marker, { pointerId: 1, clientX: 200, altKey: true })
+    fireEvent.pointerUp(marker, { pointerId: 1, clientX: 410, altKey: true })
+
+    await waitFor(() => expect(useShowStore.getState().shows[0].composition?.markers?.[0].timeMs).toBe(31_000))
   })
 
   it('edits Show End in decimal seconds and clamps rather than truncating content (#584)', async () => {

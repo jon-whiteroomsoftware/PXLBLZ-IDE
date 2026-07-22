@@ -4838,7 +4838,9 @@ function TimelineMarkers({
     return () => document.removeEventListener('pointerdown', closeDetails)
   }, [openMarkerId, showEndOpen])
   const resolvePointerTime = (event: ReactPointerEvent<HTMLElement>, allowBeyondEnd = false) => {
-    const rect = event.currentTarget.parentElement?.getBoundingClientRect()
+    const rect = event.currentTarget
+      .closest('[data-show-timeline-marker-surface]')
+      ?.getBoundingClientRect()
     if (!rect) return 0
     const rawTimeMs = (event.clientX - rect.left) / Math.max(1, rect.width) * durationMs
     const maxTimeMs = allowBeyondEnd ? durationMs * 2 : durationMs
@@ -4855,6 +4857,7 @@ function TimelineMarkers({
   return (
     <div
       aria-label="Timeline Markers and Show End"
+      data-show-timeline-marker-surface
       className="pointer-events-none relative z-[25]"
       style={{ gridColumn, gridRow: `${gridRow} / span ${rowSpan}` }}
     >
@@ -4925,7 +4928,15 @@ function TimelineMarkers({
                     step={0.001}
                     className="min-w-0 flex-1 rounded border border-zinc-800 bg-zinc-900 px-1.5 py-1 text-right tabular-nums text-zinc-200"
                     defaultValue={formatSecondsValue(marker.timeMs)}
-                    onBlur={(event) => void onUpdateMarker(marker.id, { timeMs: Number(event.target.value) * 1000 })}
+                    onBlur={(event) => {
+                      const seconds = event.target.value.trim()
+                      const parsed = Number(seconds)
+                      if (!seconds || !Number.isFinite(parsed)) {
+                        event.target.value = formatSecondsValue(marker.timeMs)
+                        return
+                      }
+                      void onUpdateMarker(marker.id, { timeMs: parsed * 1000 })
+                    }}
                   />
                   <span className="text-zinc-600">s</span>
                 </span>

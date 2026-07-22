@@ -2535,7 +2535,13 @@ function showRecordToRoutedSceneSequenceRecipe(
   const hasAuthoredCachedEvaluation = [...clipById.values()].some((clip) => (
     clip.evaluationPolicy === 'freeze-at-entry' || clip.evaluationPolicy === 'rolling-refresh'
   ))
-  if (hasStaticPatternSchedule && !lookup.compositionLayerByCellId && !hasAuthoredCachedEvaluation) {
+  const hasEnabledViewport = normalized.cells.some((cell) => cell.viewport?.enabled)
+  if (
+    hasStaticPatternSchedule
+    && !lookup.compositionLayerByCellId
+    && !hasAuthoredCachedEvaluation
+    && !hasEnabledViewport
+  ) {
     return showRecordToStaticRoutedRecipe(normalized, lookup)
   }
 
