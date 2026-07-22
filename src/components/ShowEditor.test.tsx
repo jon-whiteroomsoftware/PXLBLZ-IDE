@@ -207,6 +207,71 @@ describe('ShowEditor (#318)', () => {
     expect(screen.queryByRole('dialog', { name: 'Entity Detail Panel' })).not.toBeInTheDocument()
   })
 
+  it('moves a composition Clip by dragging its unified Layer and restores Detail (#580)', async () => {
+    const user = userEvent.setup()
+    const show = createDefaultShow('show-drag-composition', 'Drag composition', 1000)
+    const zoneId = show.zones[0].id
+    show.composition = {
+      version: 1,
+      patternInstances: [{
+        id: 'instance-drag',
+        pattern: { ...show.cells[0].pattern },
+        patternName: 'Draggable Rings',
+        time: { timeScale: 1, timeOffsetMs: 0 },
+      }],
+      scenes: show.scenes.map((scene, index) => ({
+        sceneId: scene.id,
+        zones: [{
+          zoneId,
+          main: index === 0 ? [{
+            id: 'placement-drag',
+            instanceId: 'instance-drag',
+            startMs: 2_000,
+            durationMs: 4_000,
+            view: { mirror: false, phase: 0, brightness: 1 },
+          }] : [],
+          overlays: [],
+        }],
+      })),
+    }
+    setPersonalContentProvider(memoryProvider([show]))
+    useShowStore.setState({ shows: [show], activeShowId: show.id, showsLoaded: true })
+
+    render(<ShowEditor showId={show.id} unifiedTimeline />)
+    const clip = screen.getByRole('button', { name: 'Select Draggable Rings' })
+    const layer = document.querySelector<HTMLElement>('[data-show-layer-kind="main"]')!
+    Object.defineProperty(clip, 'getBoundingClientRect', {
+      value: () => ({ left: 20, right: 60, top: 0, bottom: 40, width: 40, height: 40, x: 20, y: 0, toJSON: () => ({}) }),
+    })
+    Object.defineProperty(layer, 'getBoundingClientRect', {
+      value: () => ({ left: 0, right: 620, top: 0, bottom: 40, width: 620, height: 40, x: 0, y: 0, toJSON: () => ({}) }),
+    })
+    await user.click(clip)
+    expect(screen.getByRole('dialog', { name: 'Entity Detail Panel' })).toBeInTheDocument()
+
+    const dataTransfer = { setData: () => {}, effectAllowed: 'none', dropEffect: 'none' }
+    const dragEvent = (type: string, clientX: number) => {
+      const event = new Event(type, { bubbles: true, cancelable: true })
+      Object.defineProperties(event, {
+        clientX: { value: clientX },
+        dataTransfer: { value: dataTransfer },
+      })
+      return event
+    }
+    fireEvent(clip, dragEvent('dragstart', 20))
+    expect(screen.queryByRole('dialog', { name: 'Entity Detail Panel' })).not.toBeInTheDocument()
+    fireEvent(layer, dragEvent('dragover', 100))
+    expect(layer).toHaveAttribute('data-drop-active', 'true')
+    fireEvent(layer, dragEvent('drop', 100))
+    fireEvent(clip, dragEvent('dragend', 100))
+
+    await waitFor(() => {
+      const saved = useShowStore.getState().shows.find((candidate) => candidate.id === show.id)
+      expect(saved?.composition?.scenes[0].zones[0].main[0].startMs).not.toBe(2_000)
+    })
+    expect(screen.getByRole('dialog', { name: 'Entity Detail Panel' })).toBeInTheDocument()
+  })
+
   it('authors Show-level Trails with a retention control and scrub disclosure (#537)', async () => {
     const user = userEvent.setup()
     const show = createDefaultShow('show-537-trails-ui', 'Trails UI', 1000)

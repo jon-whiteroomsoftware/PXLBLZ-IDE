@@ -1,9 +1,15 @@
 import type {
   ShowCompositionV1,
+  ShowMainPlacement,
+  ShowOverlayPlacement,
   ShowPatternInstance,
   ShowRecord,
 } from './personalContentRecords'
-import { addShowMainClip } from './showCompositionModel'
+import {
+  addShowMainClip,
+  normalizeShowComposition,
+  validateShowComposition,
+} from './showCompositionModel'
 import { projectShowTimeline } from './showModel'
 
 export type ShowMainClipAddPlan =
@@ -25,6 +31,14 @@ export interface ShowMainClipAddLocation {
   globalTimeMs: number
   defaultDurationMs?: number
 }
+
+export type ShowTimelineClipOwner =
+  | { kind: 'main'; sceneId: string; zoneId: string; placementId: string }
+  | { kind: 'overlay'; sceneId: string; zoneId: string; layerId: string; placementId: string }
+
+export type ShowTimelineClipMoveTarget =
+  | { kind: 'main'; zoneId: string; globalStartMs: number }
+  | { kind: 'overlay'; zoneId: string; layerIndex: number; globalStartMs: number }
 
 export function planShowMainClipAtGlobalTime(
   show: ShowRecord,
@@ -107,4 +121,67 @@ export function addShowMainClipAtGlobalTime(
       view: { mirror: false, phase: 0, brightness: 1 },
     },
   })
+}
+
+export function moveShowClipAtGlobalTime(
+  show: ShowRecord,
+  composition: ShowCompositionV1,
+  input: { owner: ShowTimelineClipOwner; target: ShowTimelineClipMoveTarget },
+): ShowCompositionV1 {
+  if (!Number.isFinite(input.target.globalStartMs)) return composition
+  const timeline = projectShowTimeline(show)
+  const range = timeline.scenes.find((scene) => (
+    input.target.globalStartMs >= scene.startMs && input.target.globalStartMs < scene.endMs
+  ))
+  if (!range) return composition
+  const startMs = Math.round(input.target.globalStartMs - range.startMs)
+  const draft = structuredClone(composition)
+  const sourceScene = draft.scenes.find((scene) => scene.sceneId === input.owner.sceneId)
+  const sourceZone = sourceScene?.zones.find((zone) => zone.zoneId === input.owner.zoneId)
+  const targetScene = draft.scenes.find((scene) => scene.sceneId === range.sceneId)
+  const targetZone = targetScene?.zones.find((zone) => zone.zoneId === input.target.zoneId)
+  if (!sourceScene || !sourceZone || !targetScene || !targetZone) return composition
+
+  let sourcePlacements: Array<ShowMainPlacement | ShowOverlayPlacement> | undefined
+  if (input.owner.kind === 'main') {
+    sourcePlacements = sourceZone.main
+  } else {
+    const sourceLayerId = input.owner.layerId
+    sourcePlacements = sourceZone.overlays.find((layer) => layer.id === sourceLayerId)?.placements
+  }
+  const sourceIndex = sourcePlacements?.findIndex((placement) => placement.id === input.owner.placementId) ?? -1
+  if (!sourcePlacements || sourceIndex < 0) return composition
+  const [sourcePlacement] = sourcePlacements.splice(sourceIndex, 1)
+  const sourceStartMs = sourcePlacement.startMs
+
+  if (input.target.kind === 'main') {
+    const { opacity: _opacity, ...mainPlacement } = sourcePlacement as typeof sourcePlacement & { opacity?: number }
+    targetZone.main.push({ ...mainPlacement, startMs })
+  } else {
+    const targetLayer = targetZone.overlays[input.target.layerIndex]
+    if (!targetLayer) return composition
+    targetLayer.placements.push({
+      ...sourcePlacement,
+      startMs,
+      opacity: 'opacity' in sourcePlacement ? sourcePlacement.opacity : 1,
+    })
+  }
+
+  const movedTracks = (sourceScene.propertyTracks ?? []).filter((track) => (
+    'placementId' in track.target && track.target.placementId === input.owner.placementId
+  ))
+  const offsetMs = startMs - sourceStartMs
+  movedTracks.forEach((track) => {
+    track.keyframes.forEach((keyframe) => {
+      keyframe.timeMs += offsetMs
+    })
+  })
+  if (sourceScene !== targetScene && movedTracks.length > 0) {
+    sourceScene.propertyTracks = (sourceScene.propertyTracks ?? []).filter((track) => !movedTracks.includes(track))
+    if (sourceScene.propertyTracks.length === 0) delete sourceScene.propertyTracks
+    targetScene.propertyTracks = [...(targetScene.propertyTracks ?? []), ...movedTracks]
+  }
+
+  if (validateShowComposition(show, draft).length > 0) return composition
+  return normalizeShowComposition(show, draft)
 }

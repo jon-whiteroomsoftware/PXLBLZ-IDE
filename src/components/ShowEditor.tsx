@@ -114,7 +114,10 @@ import {
 import { projectShowUnifiedTimeline } from '@/engine/showUnifiedTimelineProjection'
 import {
   addShowMainClipAtGlobalTime,
+  moveShowClipAtGlobalTime,
   planShowMainClipAtGlobalTime,
+  type ShowTimelineClipMoveTarget,
+  type ShowTimelineClipOwner,
 } from '@/engine/showTimelineClipAuthoring'
 import { buildShowEpeExport, type ShowEpeExport } from '@/engine/showEpeExport'
 import {
@@ -1225,6 +1228,17 @@ export function ShowEditor({
                   })
                   return placementId
                 }}
+                onMoveCompositionClip={async ({ owner, target }) => {
+                  if (!timelineComposition) return false
+                  const nextComposition = moveShowClipAtGlobalTime(activeShow, timelineComposition, { owner, target })
+                  if (nextComposition === timelineComposition) return false
+                  await updateShow(activeShow.id, {
+                    ...activeShow,
+                    composition: nextComposition,
+                    updatedAt: Date.now(),
+                  })
+                  return true
+                }}
                 onOpenScene={(sceneId) => {
                   const scope = resolveShowSceneEditorScope(activeShow, {
                     sceneId,
@@ -2115,6 +2129,7 @@ function SceneStrip({
   onDismiss,
   patternOptions,
   onAddClipAtPlayhead,
+  onMoveCompositionClip,
   onOpenScene,
   onAddScene,
   onAddZone,
@@ -2139,6 +2154,10 @@ function SceneStrip({
     pattern: ShowCell['pattern']
     patternName: string
   }) => Promise<string | null>
+  onMoveCompositionClip: (input: {
+    owner: ShowTimelineClipOwner
+    target: ShowTimelineClipMoveTarget
+  }) => Promise<boolean>
   onOpenScene: (sceneId: string) => void
   onAddScene: () => void
   onAddZone: () => void
@@ -2161,6 +2180,12 @@ function SceneStrip({
   const snapEnabled = useShowEditorSessionStore((state) => state.snapEnabled)
   const setSnapEnabled = useShowEditorSessionStore((state) => state.setSnapEnabled)
   const [draggingCellId, setDraggingCellId] = useState<string | null>(null)
+  const [draggingCompositionClip, setDraggingCompositionClip] = useState<{
+    clipId: string
+    owner: ShowTimelineClipOwner
+    grabOffsetMs: number
+  } | null>(null)
+  const draggingCompositionClipRef = useRef(draggingCompositionClip)
   const [dropTargetKey, setDropTargetKey] = useState<string | null>(null)
   const [superDetailOwner, setSuperDetailOwner] = useState<{ sceneId: string; anchor: HTMLElement } | null>(null)
   const [addClipOpen, setAddClipOpen] = useState(false)
@@ -2849,12 +2874,59 @@ function SceneStrip({
             {unifiedZone ? unifiedZone.layers.map((layer, layerIndex) => (
               <div
                 key={layer.id}
-                className="relative min-w-0 border-b border-zinc-900/80 bg-[#08080a]"
+                className={[
+                  'relative min-w-0 border-b border-zinc-900/80 bg-[#08080a] transition-colors',
+                  dropTargetKey === `composition:${layer.id}` ? 'bg-live/[0.07] ring-1 ring-inset ring-live/40' : '',
+                ].join(' ')}
                 style={{
                   gridColumn: `2 / ${columns.length + 1}`,
                   gridRow: rowStart(rowIndex) + contentStartRow + routingLaneRows + layerIndex,
                 }}
                 data-show-layer-kind={layer.kind}
+                data-show-layer-index={layer.layerIndex}
+                data-drop-active={dropTargetKey === `composition:${layer.id}` ? 'true' : undefined}
+                onDragEnter={(event) => {
+                  if (!draggingCompositionClipRef.current || readOnly) return
+                  event.preventDefault()
+                  setDropTargetKey(`composition:${layer.id}`)
+                }}
+                onDragOver={(event) => {
+                  if (!draggingCompositionClipRef.current || readOnly) return
+                  event.preventDefault()
+                  event.dataTransfer.dropEffect = 'move'
+                  setDropTargetKey(`composition:${layer.id}`)
+                }}
+                onDragLeave={(event) => {
+                  if (event.currentTarget.contains(event.relatedTarget as Node | null)) return
+                  setDropTargetKey((current) => current === `composition:${layer.id}` ? null : current)
+                }}
+                onDrop={(event) => {
+                  const draggedClip = draggingCompositionClipRef.current
+                  const compositionTimeline = unifiedCompositionTimeline
+                  if (!draggedClip || !compositionTimeline || readOnly) return
+                  event.preventDefault()
+                  const rect = event.currentTarget.getBoundingClientRect()
+                  const totalMs = Math.max(1, compositionTimeline.durationMs)
+                  const fraction = Math.min(1, Math.max(0, (event.clientX - rect.left) / Math.max(1, rect.width)))
+                  const candidateMs = fraction * totalMs - draggedClip.grabOffsetMs
+                  const clip = compositionTimeline.zones
+                    .flatMap((zone) => zone.layers.flatMap((candidate) => candidate.clips))
+                    .find((candidate) => candidate.id === draggedClip.clipId)
+                  const maxTimeMs = Math.max(0, totalMs - (clip?.durationMs ?? 0))
+                  const globalStartMs = snapEnabled !== event.altKey
+                    ? snapShowTimelineTime(candidateMs, {
+                        visibleDurationMs: viewport.durationMs,
+                        visibleWidthPx: Math.max(1, scrollRef.current?.clientWidth ?? rect.width),
+                        structuralTimesMs,
+                        maxTimeMs,
+                      }).timeMs
+                    : Math.max(0, Math.min(maxTimeMs, candidateMs))
+                  const target: ShowTimelineClipMoveTarget = layer.kind === 'main'
+                    ? { kind: 'main', zoneId: row.zoneId, globalStartMs }
+                    : { kind: 'overlay', zoneId: row.zoneId, layerIndex: layer.layerIndex, globalStartMs }
+                  void onMoveCompositionClip({ owner: draggedClip.owner, target })
+                  setDropTargetKey(null)
+                }}
               >
                 {layer.clips.map((clip) => {
                   const totalMs = Math.max(1, unifiedCompositionTimeline?.durationMs ?? timeline.durationMs)
@@ -2868,6 +2940,43 @@ function SceneStrip({
                       data-show-timeline-focus
                       data-show-selection-key={`clip:${clip.id}`}
                       data-show-composition-clip="true"
+                      draggable={!readOnly}
+                      onDragStart={(event) => {
+                        if (readOnly) return
+                        event.stopPropagation()
+                        const rect = event.currentTarget.getBoundingClientRect()
+                        const fraction = Math.min(1, Math.max(0, (event.clientX - rect.left) / Math.max(1, rect.width)))
+                        const owner: ShowTimelineClipOwner = clip.kind === 'main'
+                          ? {
+                              kind: 'main',
+                              sceneId: clip.sceneId,
+                              zoneId: clip.zoneId,
+                              placementId: clip.id,
+                            }
+                          : {
+                              kind: 'overlay',
+                              sceneId: clip.sceneId,
+                              zoneId: clip.zoneId,
+                              layerId: clip.layerId!,
+                              placementId: clip.id,
+                            }
+                        const dragState = {
+                          clipId: clip.id,
+                          owner,
+                          grabOffsetMs: fraction * clip.durationMs,
+                        }
+                        draggingCompositionClipRef.current = dragState
+                        setDraggingCompositionClip(dragState)
+                        onDismiss()
+                        event.dataTransfer.effectAllowed = 'move'
+                        event.dataTransfer.setData('application/x-pxlblz-show-placement', clip.id)
+                      }}
+                      onDragEnd={(event) => {
+                        draggingCompositionClipRef.current = null
+                        setDraggingCompositionClip(null)
+                        setDropTargetKey(null)
+                        onSelect({ kind: 'clip', clipId: clip.id }, event.currentTarget)
+                      }}
                       onClick={(event) => {
                         event.stopPropagation()
                         onSelect({ kind: 'clip', clipId: clip.id }, event.currentTarget)
@@ -2875,7 +2984,9 @@ function SceneStrip({
                       className={[
                         clipBase,
                         'absolute inset-y-0 min-h-0 py-0.5',
-                        selection.kind === 'clip' && selection.clipId === clip.id
+                        draggingCompositionClip?.clipId === clip.id
+                          ? 'opacity-45'
+                          : selection.kind === 'clip' && selection.clipId === clip.id
                           ? 'text-zinc-100 shadow-[0_0_0_1.5px_var(--color-live),0_8px_18px_-10px_rgba(0,0,0,0.9)]'
                           : 'text-zinc-300 hover:text-zinc-100',
                       ].join(' ')}
