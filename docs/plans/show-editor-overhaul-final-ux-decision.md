@@ -23,7 +23,7 @@ The editor remains one continuous near-black field. Time-bearing Show constructi
 
 Three surface levels and two separator strengths replace nested boxes. Clips, Transitions, floating tools, and overlays retain enclosure because they are objects. Toolbar actions, Layers, Zones, property rails, and Layout intervals use spacing, tinted bands, single-edge rules, and typography instead of four-sided containers.
 
-Clips use a stable neutral body with a restrained Pattern thumbnail or 3 px identity key. Pattern luminance must not determine whether a Clip is visible. A name scrim guarantees at least 4.5:1 contrast, targeting 7:1. Stage imagery remains vivid but is bounded so it cannot outrank the timeline.
+Clips use a stable neutral body with a restrained Pattern thumbnail or 3 px identity key. Pattern luminance must not determine whether a Clip is visible. A full-height gradient name scrim guarantees at least 4.5:1 contrast, targeting 7:1, while the name and badges remain transparent so the Clip reads as one lit object. Stage imagery remains vivid but is bounded so it cannot outrank the timeline.
 
 Use these starting dimensions:
 
@@ -31,8 +31,8 @@ Use these starting dimensions:
 - Layout, Zone, and Clip names: 13-14 px; never metadata size.
 - Controls: 12-13 px.
 - Metadata and ruler labels: 10-11 px, used sparsely.
-- Layer rows: 34-40 px.
-- Clip bodies: 26-32 px.
+- Layer rows: 36 px in the approved prototype.
+- Clip bodies: 30 px with a 3 px vertical inset.
 - Comfortable detail rails: 22-26 px; compress to 18-20 px only beyond two rails.
 - More than four visible rails: a `+N properties` disclosure into a bounded, internally scrolling well.
 - Collapsed Zones: 28-32 px, retaining the readable Zone name and time-accurate miniature.
@@ -60,7 +60,7 @@ Desktop retains a 320-400 px Stage column separated from the timeline by one div
 
 At mid-width, Stage narrows to 260-320 px and remains a column. It does not become a floating card. This avoids adding an occluding surface alongside Entity Details, the Zone Map, menus, and drag feedback.
 
-At narrow widths, Stage is removed before time or readable rows are compressed. A modeless Preview action opens an edge pane or overlay without changing preview time. Entity Details become a bottom sheet with tabs for other open panels, preserving horizontal time. The sheet remains modeless and may be dismissed or collapsed without losing panel associations.
+At narrow widths, Stage is removed before time or readable rows are compressed. A modeless Preview action opens an edge pane or overlay without changing preview time. Entity Details retain the same source-attached model and clamp inside the available viewport. The design does not introduce a bottom sheet or a second inspector mode.
 
 The toolbar never wraps. Its fixed order is transport/time, Navigator with adjacent Fit, authoring commands, and Preview when Stage is absent. Reduction proceeds as follows:
 
@@ -78,6 +78,8 @@ Play/Pause, compact time, a directly manipulable Navigator, Fit, selection, inse
 ### Floating tools and transient detail
 
 Entity Details use Candidate A's source-relative placement and collision sequence: prefer adjacent free space, flip before covering the source, pack panels into non-overlapping slots, then stagger if necessary. Panels retain source association when the entity scrolls offscreen.
+
+One unpinned Detail is transient. Pointer-down anywhere outside Entity Details closes all transient Details while retaining selection; clicking the selected Clip again is therefore a toggle. A pin preserves a Detail for comparison. Clip Details keep a compact applied-Effects stack, while Add Effect opens the large modeless catalogue temporarily and returns focus to the new Effect card after application.
 
 Drag start hides all Details panels. Successful drag completion recalculates anchors; cancelled drag restores original placements. Escape closes all Details and restores focus but does not clear selection.
 
@@ -161,7 +163,7 @@ The larger load-bearing assumption is that Show construction matters more often 
 
 ## Validation and next step
 
-Build one interactive visual-prototype slice using a dense fixture: three or more Layout intervals including short and one-Zone intervals, four Zones, three Layers per expanded Zone, mixed Cuts and Transitions, shared instances, Group reuse, several Markers, one Clip with eight animated properties, mixed collapse states, and three open Details panels.
+Build one interactive visual-prototype slice using a dense fixture: three or more Layout intervals including short and one-Zone intervals, four Zones, three Layers per expanded Zone, mixed Cuts and Transitions, shared instances, Group reuse, several Markers, one Clip with eight animated properties, mixed collapse states, and a pinned-plus-transient Details comparison.
 
 Render it continuously from 1440 px to the supported narrow floor and test:
 

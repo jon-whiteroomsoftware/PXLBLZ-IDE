@@ -75,8 +75,9 @@ turns the Stage into a second time scope.
 - Retain an approximately `128-136px` sticky timeline gutter where Zone identity
   or disclosed detail labels require it. Unnamed Layer lanes do not consume the
   gutter merely to restate their order.
-- Use roughly `28-32px` for an ordinary Layer row, `18-22px` for a collapsed
-  property row, and `24-28px` for the ruler.
+- Use `36px` for an ordinary Layer row with a `30px` Clip body, `18-22px` for a
+  collapsed property row, and `24-28px` for the ruler. The Layer keeps only a
+  `3px` vertical inset around the Clip.
 - Keep the toolbar one row at normal desktop widths. Collapse labels before
   controls and move secondary commands into an overflow menu before wrapping.
 - Target `280-340px` for a compact Entity Detail. A detail may grow vertically
@@ -97,9 +98,13 @@ Four relationships must never look interchangeable:
 | Shared definition | Group or named Layout occurrences reuse structure | repeat/link badge with definition name and `N uses` scope copy |
 
 Clip fill, selection ring, animation color, and transition color should remain
-familiar. Badges sit inside the Clip only when there is room; otherwise they move
-to the selected Entity Detail and an accessible tooltip. A minimum-width Clip
-keeps one selectable body and suppresses internal text before it falsifies time.
+familiar. A soft full-height gradient scrim belongs to the Clip lighting, not to
+the name element. Clip names and badges have transparent backgrounds with a
+subtle text or icon shadow; they must not appear as black labels pasted onto the
+lit body. Badges sit inside the Clip only when there is room; otherwise they move
+to the selected Entity Detail and an accessible tooltip. The chain glyph is
+labelled `Shared Pattern instance`. A minimum-width Clip keeps one selectable
+body and suppresses internal text before it falsifies time.
 
 ### Timeline entities
 
@@ -298,13 +303,16 @@ A completed click selects an entity and opens one transient Entity Detail near
 it without covering active handles. Pointer-down followed by movement beyond the
 drag threshold selects for manipulation but does not open a new panel. The panel
 uses the strong summary already present in current details, then dense field
-rows. Clicking away closes it. `I` explicitly toggles the Detail for the selected
-entity or the Clip currently under the pointer; hover alone never opens anything.
+rows. Pointer-down anywhere in the Show editor outside Entity Details dismisses
+all transient Details before the target action runs. Clicking the selected Clip
+again therefore closes its Detail; clicking another Clip closes the old Detail
+and opens the new one. Selection remains. `I` explicitly toggles the Detail for
+the selected entity or the Clip currently under the pointer; hover alone never
+opens anything.
 
 A pin keeps one Detail open while another selection opens a new transient one.
-This is the proposed mechanism for side-by-side comparison without letting every
-click accumulate panels. It should be validated; multiple unpinned panels are a
-reasonable fallback if pinning feels too procedural.
+This is the comparison mechanism; ordinary clicks never accumulate unpinned
+panels.
 
 During any direct timeline manipulation — move, resize, Transition adjustment,
 Group movement, or marquee selection — all floating Entity Details temporarily
@@ -322,6 +330,14 @@ X 0%   Y 0%          Width 100%          Height 100%   Rotation 0deg
 [Enable Clip Viewport]
 Effects >      Pattern controls >       Pattern instance >
 ```
+
+The Effects section remains visible as a compact applied stack. Each collapsed
+card shows the Effect name, meaningful non-default values, and animation or
+stepped-state summary. **Add Effect** opens the existing large, modeless Effects
+catalogue while Entity Details retain their state. Choosing an Effect closes the
+catalogue, adds it to the summary, and returns focus to that card. The catalogue
+is temporary choice UI; the compact stack is the durable explanation of what is
+already applied.
 
 Enabling Clip Viewport relabels the first spatial row **Content** and reveals a
 second **Viewport** X/Y/Width/Height row initialized to `0%, 0%, 100%, 100%`.

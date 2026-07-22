@@ -449,8 +449,9 @@ alignment guide.
     playhead, Markers, and content share one direct spatial relationship.
 80. As an author, I want compact modeless Entity Details, so that inspecting or
     editing a Clip does not obscure the timeline.
-81. As an author, I want several Entity Details open when space permits, so that
-    I can compare entities without repeatedly reopening panels.
+81. As an author, I want to pin one Entity Detail while opening a transient
+    Detail for another entity, so that comparison remains explicit and ordinary
+    clicks do not accumulate panels.
 82. As a keyboard user, I want fast transport, traversal, inspector, and undo
     commands, so that repeated authoring does not require pointer travel.
 83. As an author, I want optional Clip filmstrips, so that Pattern phase,
@@ -1052,14 +1053,21 @@ into its miniature Layer summaries instead of hiding their event times.
 - Entity Details should behave like compact toolbars rather than heavyweight
   dialogs: minimal chrome, smaller form controls, reduced whitespace, and no
   mandatory close-button hunt.
-- Click-away may dismiss an Entity Detail. A keyboard command toggles the detail
-  for the selected or hovered entity.
+- Pointer-down anywhere in the Show editor outside Entity Details closes every
+  transient Entity Detail before the target action runs. Selection remains. A
+  second click on the selected Clip therefore closes its open Detail; clicking
+  another Clip replaces the transient Detail. A keyboard command toggles the
+  detail for the selected or hovered entity.
 - A completed click opens Details. Pointer-down followed by a drag does not open
   a new Detail. Any already open floating Details hide during direct timeline
   manipulation, retain their state, and reappear anchored to their entities when
   the gesture commits or cancels. Only the compact drag readout remains visible.
-- Several Entity Details should coexist when screen space permits so authors can
-  compare Clips. They must not each consume a dialog-scale width.
+- A pinned Entity Detail may coexist with one transient Detail when screen space
+  permits so authors can compare Clips. Unpinned Details do not accumulate.
+  Details must not consume a dialog-scale width.
+- Clip Details preserve a compact summary of all applied Effects. Add Effect
+  opens the modeless Effects catalogue without discarding Detail state; applying
+  a choice closes the catalogue and focuses the new Effect summary card.
 - Escape should have one predictable priority among active editing, Group
   isolation, selection, and open details. “Close all open Entity Details” is a
   desired convenience but the exact priority order remains for interaction
@@ -1259,7 +1267,8 @@ tests and representative hardware/compiler fixtures.
 7. One-Zone hidden UI; overlaid Zone Map; independent multi-Zone collapse;
    Focus Zone convenience command; and all-Zones stacks.
 8. Zone icon truncation, tooltip, keyboard label, and non-color identification.
-9. Compact Entity Detail click-away, keyboard toggle, multi-panel coexistence,
+9. Compact Entity Detail global click-away, selected-Clip toggle, pinned
+   comparison, drag hide/restore, applied-Effects summary, catalogue handoff,
    and narrow-window behavior.
 10. Filmstrip priority, cancellation, stable layout, and reduced-motion behavior.
 11. Desktop and narrow-window timeline density.
