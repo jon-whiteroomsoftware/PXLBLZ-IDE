@@ -4826,6 +4826,8 @@ function TimelineMarkers({
   const [showEndOpen, setShowEndOpen] = useState(false)
   const markerPointerRef = useRef<{ markerId: string; pointerId: number; startX: number } | null>(null)
   const showEndPointerRef = useRef<{ pointerId: number; startX: number } | null>(null)
+  const suppressMarkerHandleClickRef = useRef(false)
+  const suppressShowEndClickRef = useRef(false)
   useEffect(() => {
     if (!openMarkerId && !showEndOpen) return
     const closeDetails = (event: PointerEvent) => {
@@ -4885,10 +4887,15 @@ function TimelineMarkers({
               if (!pointer || pointer.markerId !== marker.id || pointer.pointerId !== event.pointerId || Math.abs(event.clientX - pointer.startX) < 3) return
               const timeMs = resolvePointerTime(event)
               event.currentTarget.releasePointerCapture?.(event.pointerId)
+              suppressMarkerHandleClickRef.current = true
               void onMoveMarker(marker.id, timeMs)
             }}
             onClick={(event) => {
               event.stopPropagation()
+              if (suppressMarkerHandleClickRef.current) {
+                suppressMarkerHandleClickRef.current = false
+                return
+              }
               setShowEndOpen(false)
               setOpenMarkerId((current) => current === marker.id ? null : marker.id)
             }}
@@ -4983,10 +4990,15 @@ function TimelineMarkers({
           if (!pointer || pointer.pointerId !== event.pointerId || Math.abs(event.clientX - pointer.startX) < 3) return
           const timeMs = resolvePointerTime(event, true)
           event.currentTarget.releasePointerCapture?.(event.pointerId)
+          suppressShowEndClickRef.current = true
           void onSetShowEnd(timeMs)
         }}
         onClick={(event) => {
           event.stopPropagation()
+          if (suppressShowEndClickRef.current) {
+            suppressShowEndClickRef.current = false
+            return
+          }
           setOpenMarkerId(null)
           setShowEndOpen((open) => !open)
         }}

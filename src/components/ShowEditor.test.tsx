@@ -296,6 +296,8 @@ describe('ShowEditor (#318)', () => {
     fireEvent.pointerUp(marker, { pointerId: 1, clientX: 410, altKey: true })
 
     await waitFor(() => expect(useShowStore.getState().shows[0].composition?.markers?.[0].timeMs).toBe(31_000))
+    fireEvent.click(marker)
+    expect(screen.queryByRole('dialog', { name: 'Marker 1 details' })).not.toBeInTheDocument()
   })
 
   it('edits Show End in decimal seconds and clamps rather than truncating content (#584)', async () => {
@@ -320,6 +322,27 @@ describe('ShowEditor (#318)', () => {
     fireEvent.blur(showEnd)
     await waitFor(() => expect(showModel.showLoopDurationMs(useShowStore.getState().shows[0])).toBe(65_500))
     expect(showEnd).toHaveValue(65.5)
+  })
+
+  it('does not toggle Show End details after dragging its handle (#584)', async () => {
+    const show = createDefaultShow('show-end-drag', 'Show End drag', 1000)
+    setPersonalContentProvider(memoryProvider([show]))
+    useShowStore.setState({ shows: [show], activeShowId: show.id, showsLoaded: true })
+
+    render(<ShowEditor showId={show.id} unifiedTimeline />)
+
+    const surface = screen.getByLabelText('Timeline Markers and Show End')
+    vi.spyOn(surface, 'getBoundingClientRect').mockReturnValue({
+      x: 100, y: 0, left: 100, top: 0, right: 720, bottom: 100, width: 620, height: 100,
+      toJSON: () => ({}),
+    })
+    const showEnd = screen.getByRole('button', { name: 'Show End at 62 seconds' })
+    fireEvent.pointerDown(showEnd, { pointerId: 1, clientX: 720, altKey: true })
+    fireEvent.pointerUp(showEnd, { pointerId: 1, clientX: 780, altKey: true })
+
+    await waitFor(() => expect(showModel.showLoopDurationMs(useShowStore.getState().shows[0])).toBe(68_000))
+    fireEvent.click(showEnd)
+    expect(screen.queryByRole('dialog', { name: 'Show End details' })).not.toBeInTheDocument()
   })
 
   it('duplicates a Layout occurrence and makes one reused occurrence independent (#582)', async () => {

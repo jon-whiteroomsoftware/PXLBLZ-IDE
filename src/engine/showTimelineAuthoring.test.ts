@@ -161,5 +161,10 @@ describe('Show timeline authoring', () => {
       code: 'transition',
       reason: 'Insert Time is unavailable inside a Transition.',
     })
+    expect(planShowTimeInsertion(show, 32_000, 2_000)).toEqual({
+      enabled: false,
+      code: 'transition',
+      reason: 'Insert Time is unavailable inside a Transition.',
+    })
   })
 })

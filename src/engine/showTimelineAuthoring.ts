@@ -31,11 +31,11 @@ export function planShowTimeInsertion(
 
   const timeline = projectShowTimeline(show)
   const insideLegacyTransition = timeline.transitions.some((transition) => (
-    atMs >= transition.startMs && atMs < transition.endMs
+    atMs >= transition.startMs && atMs <= transition.endMs
   ))
   const insideLayerTransition = projectShowUnifiedTimeline(show, show.composition).zones
     .some((zone) => zone.layers.some((layer) => layer.junctions.some((junction) => (
-      junction.durationMs > 0 && atMs >= junction.startMs && atMs < junction.endMs
+      junction.durationMs > 0 && atMs >= junction.startMs && atMs <= junction.endMs
     ))))
   if (insideLegacyTransition || insideLayerTransition) {
     return { enabled: false, code: 'transition', reason: 'Insert Time is unavailable inside a Transition.' }
