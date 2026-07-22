@@ -188,6 +188,9 @@ import {
   insertShowLayoutInterval,
   makeShowLayoutIntervalUnique,
   projectShowLayoutIntervals,
+  showLayoutIntervalAtTime,
+  showLayoutIntervalPercentBounds,
+  showLayoutZoneIdAtTime,
   type ShowLayoutInterval,
 } from '@/engine/showLayoutIntervals'
 
@@ -258,12 +261,6 @@ function findCompositionClipOwner(
     }
   }
   return null
-}
-
-function layoutIntervalAtTime(intervals: ShowLayoutInterval[], timeMs: number): ShowLayoutInterval | null {
-  if (intervals.length === 0) return null
-  return intervals.find((interval) => timeMs >= interval.startMs && timeMs < interval.endMs)
-    ?? (timeMs >= intervals[intervals.length - 1].endMs ? intervals[intervals.length - 1] : intervals[0])
 }
 
 function findTimelineClipOwner(
@@ -2440,7 +2437,6 @@ function SceneStrip({
     const first = patternOptions[0]
     return first ? `${first.ref.kind}:${first.ref.id}` : null
   })
-  const addClipZoneId = show.zones[0]?.id ?? null
   const selectedCompositionZoneId = selection.kind === 'zone'
     ? selection.zoneId
     : selection.kind === 'clip'
@@ -2448,7 +2444,11 @@ function SceneStrip({
           zone.layers.some((layer) => layer.clips.some((clip) => clip.id === selection.clipId))
         ))?.id
       : null
-  const layerTargetZoneId = selectedCompositionZoneId ?? show.zones[0]?.id ?? null
+  const preferredAuthoringZoneId = selectedCompositionZoneId ?? focusedZoneId
+  const addClipZoneId = showLayoutZoneIdAtTime(show, addClipTimeMs, preferredAuthoringZoneId)
+  const transport = useShowTransportStore.getState()
+  const layerTargetTimeMs = transport.showId === show.id ? transport.positionMs : 0
+  const layerTargetZoneId = showLayoutZoneIdAtTime(show, layerTargetTimeMs, preferredAuthoringZoneId)
   const layerTargetZoneName = show.zones.find((zone) => zone.id === layerTargetZoneId)?.name ?? 'Zone'
   const hasMultipleZones = show.zones.length > 1
   const showFullZoneHeaders = !unifiedTimelineWorkspace || zonesOpen
@@ -2467,7 +2467,7 @@ function SceneStrip({
   const addClipPattern = patternOptions.find((option) => (
     `${option.ref.kind}:${option.ref.id}` === addClipPatternKey
   )) ?? patternOptions[0]
-  const layoutActionInterval = layoutIntervalAtTime(layoutIntervals, layoutActionTimeMs)
+  const layoutActionInterval = showLayoutIntervalAtTime(layoutIntervals, layoutActionTimeMs)
   const layoutActionDurationMs = Math.round(layoutActionDurationSeconds * 1000)
   const layoutActionDurationValid = Number.isFinite(layoutActionDurationMs) && layoutActionDurationMs >= 1
   const layoutActionUseCount = layoutActionInterval
@@ -2869,7 +2869,7 @@ function SceneStrip({
                 onClick={() => {
                   const transport = useShowTransportStore.getState()
                   const timeMs = transport.showId === show.id ? transport.positionMs : 0
-                  const interval = layoutIntervalAtTime(layoutIntervals, timeMs)
+                  const interval = showLayoutIntervalAtTime(layoutIntervals, timeMs)
                   setLayoutActionTimeMs(timeMs)
                   setLayoutActionLayoutId(interval?.layoutId ?? show.routingLayouts[0]?.id ?? '')
                   setLayoutActionError(null)
@@ -2887,8 +2887,11 @@ function SceneStrip({
                 disabled={!layerTargetZoneId}
                 className="bg-transparent px-1.5 text-[11px] text-zinc-400 hover:bg-zinc-800/60 hover:text-zinc-100"
                 onClick={() => {
-                  if (!layerTargetZoneId) return
-                  void onAddCompositionLayer(layerTargetZoneId)
+                  const currentTransport = useShowTransportStore.getState()
+                  const currentTimeMs = currentTransport.showId === show.id ? currentTransport.positionMs : 0
+                  const currentZoneId = showLayoutZoneIdAtTime(show, currentTimeMs, preferredAuthoringZoneId)
+                  if (!currentZoneId) return
+                  void onAddCompositionLayer(currentZoneId)
                 }}
               >
                 <Layers3 size={12} aria-hidden />
@@ -4233,15 +4236,12 @@ function TimelineRuler({
       }}
     >
       {layoutIntervals.map((interval, index) => {
-        const visibleStart = Math.max(interval.startMs, viewport.startMs)
-        const visibleEnd = Math.min(interval.endMs, viewport.startMs + viewport.durationMs)
-        if (visibleEnd <= visibleStart) return null
-        const left = (visibleStart - viewport.startMs) / viewport.durationMs * 100
-        const width = (visibleEnd - visibleStart) / viewport.durationMs * 100
+        const { left, width } = showLayoutIntervalPercentBounds(interval, durationMs)
         return (
           <span
             key={interval.id}
             aria-hidden
+            data-show-layout-interval={interval.id}
             className="pointer-events-none absolute bottom-0 z-[1] h-[13px] overflow-hidden border-l border-live/45 bg-live/[0.035] px-1 text-[11px] leading-[13px] text-zinc-400"
             style={{ left: `${left}%`, width: `${width}%` }}
           >

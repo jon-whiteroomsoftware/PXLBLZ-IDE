@@ -8,6 +8,8 @@ import type {
   ShowBoundaryTransition,
   ShowCell,
   ShowCompositionV1,
+  ShowPropertyTransition,
+  ShowPropertyTransitions,
   ShowRecord,
   ShowRoutingLayout,
   ShowSceneComposition,
@@ -56,14 +58,15 @@ export function projectShowLayoutIntervals(show: ShowRecord): ShowLayoutInterval
     const startsOccurrence = sceneIndex === 0
       || Boolean(showRoutingTransitionAfter(normalized, normalized.scenes[sceneIndex - 1].id))
     if (startsOccurrence || !previous) {
+      const startMs = previous?.endMs ?? sceneRange.startMs
       intervals.push({
         id: `layout-occurrence-${sceneRange.sceneId}`,
         layoutId: layout.id,
         layoutName: layout.name,
         zoneIds: layout.zones.map((zone) => zone.zoneId),
-        startMs: sceneRange.startMs,
+        startMs,
         endMs: sceneRange.endMs,
-        durationMs: sceneRange.endMs - sceneRange.startMs,
+        durationMs: sceneRange.endMs - startMs,
         sceneIds: [sceneRange.sceneId],
       })
     } else {
@@ -74,7 +77,49 @@ export function projectShowLayoutIntervals(show: ShowRecord): ShowLayoutInterval
     const outgoing = showRoutingTransitionAfter(normalized, sceneRange.sceneId)
     if (outgoing?.layoutId && layoutById.has(outgoing.layoutId)) activeLayoutId = outgoing.layoutId
   }
+  const last = intervals[intervals.length - 1]
+  if (last) {
+    last.endMs = timeline.durationMs
+    last.durationMs = last.endMs - last.startMs
+  }
   return intervals
+}
+
+/** Resolve the author-facing Layout occurrence that owns a Show instant. */
+export function showLayoutIntervalAtTime(
+  intervals: ShowLayoutInterval[],
+  timeMs: number,
+): ShowLayoutInterval | null {
+  if (intervals.length === 0 || !Number.isFinite(timeMs)) return null
+  return intervals.find((interval) => timeMs >= interval.startMs && timeMs < interval.endMs)
+    ?? [...intervals].reverse().find((interval) => timeMs >= interval.startMs)
+    ?? intervals[0]
+}
+
+/** Choose a valid authoring Zone from the Layout occurrence at this instant. */
+export function showLayoutZoneIdAtTime(
+  show: ShowRecord,
+  timeMs: number,
+  preferredZoneId?: string | null,
+): string | null {
+  const interval = showLayoutIntervalAtTime(projectShowLayoutIntervals(show), timeMs)
+  if (!interval) return null
+  if (preferredZoneId && interval.zoneIds.includes(preferredZoneId)) return preferredZoneId
+  return interval.zoneIds[0] ?? null
+}
+
+/** Place an occurrence on the full-width timeline canvas, independent of zoom. */
+export function showLayoutIntervalPercentBounds(
+  interval: Pick<ShowLayoutInterval, 'startMs' | 'endMs'>,
+  totalMs: number,
+): { left: number; width: number } {
+  if (!Number.isFinite(totalMs) || totalMs <= 0) return { left: 0, width: 0 }
+  const start = Math.min(totalMs, Math.max(0, interval.startMs))
+  const end = Math.min(totalMs, Math.max(start, interval.endMs))
+  return {
+    left: start / totalMs * 100,
+    width: (end - start) / totalMs * 100,
+  }
 }
 
 export function appendShowLayoutInterval(
@@ -235,6 +280,9 @@ function insertBlankIntervalAtSceneIndex(
     : show.composition
 
   let routingLayouts = show.routingLayouts
+  const outgoingBoundary = previousScene
+    ? cloneJson(show.transitions.filter((transition) => transition.afterSceneId === previousScene.id))
+    : []
   const transitions = cloneJson(show.transitions).filter((transition) => (
     !previousScene || transition.afterSceneId !== previousScene.id
   ))
@@ -245,7 +293,16 @@ function insertBlankIntervalAtSceneIndex(
     transitions.push(cutAfter(previousScene.id), routingAfter(previousScene.id, layoutId))
   }
   if (nextScene) {
-    transitions.push(cutAfter(sceneId), routingAfter(sceneId, nextLayoutId ?? previousLayoutId ?? layoutId))
+    const movedBoundary = outgoingBoundary.map((transition) => ({
+      ...transition,
+      id: uniqueId(usedIds, `${transition.id}-moved`),
+      afterSceneId: sceneId,
+    }))
+    transitions.push(...movedBoundary)
+    if (!movedBoundary.some((transition) => transition.kind !== 'routing')) transitions.push(cutAfter(sceneId))
+    if (!movedBoundary.some((transition) => transition.kind === 'routing')) {
+      transitions.push(routingAfter(sceneId, nextLayoutId ?? previousLayoutId ?? layoutId))
+    }
   }
 
   return normalizeShowTransitionState({
@@ -275,9 +332,11 @@ function duplicateIntervalWithContent(show: ShowRecord, interval: ShowLayoutInte
   })
   const scenes = [...show.scenes.slice(0, insertionIndex), ...duplicateScenes, ...show.scenes.slice(insertionIndex)]
 
+  const cellIdMap = new Map<string, string>()
   const duplicateCells = show.cells.flatMap((cell): ShowCell[] => {
     if (!sourceSceneIds.has(cell.sceneId)) return []
     const id = uniqueId(usedIds, `${cell.id}-copy`)
+    cellIdMap.set(cell.id, id)
     return [{ ...cloneJson(cell), id, sceneId: sceneIdMap.get(cell.sceneId)!, restartOnEntry: true }]
   })
   const cells = [...show.cells, ...duplicateCells]
@@ -297,6 +356,9 @@ function duplicateIntervalWithContent(show: ShowRecord, interval: ShowLayoutInte
       ...cloneJson(transition),
       id: uniqueId(usedIds, `${transition.id}-copy`),
       afterSceneId: sceneIdMap.get(transition.afterSceneId)!,
+      ...(transition.propertyTransitions
+        ? { propertyTransitions: remapPropertyTransitionCellIds(transition.propertyTransitions, cellIdMap) }
+        : {}),
     }]
   }))
   if (insertionIndex < show.scenes.length) {
@@ -304,6 +366,9 @@ function duplicateIntervalWithContent(show: ShowRecord, interval: ShowLayoutInte
       ...cloneJson(transition),
       id: uniqueId(usedIds, `${transition.id}-copy`),
       afterSceneId: duplicateLastId,
+      ...(transition.propertyTransitions
+        ? { propertyTransitions: remapPropertyTransitionCellIds(transition.propertyTransitions, cellIdMap) }
+        : {}),
     })))
   }
 
@@ -315,6 +380,40 @@ function duplicateIntervalWithContent(show: ShowRecord, interval: ShowLayoutInte
     ...(composition ? { composition } : {}),
     updatedAt: nextUpdatedAt(show),
   })
+}
+
+function remapPropertyTransitionCellIds(
+  transitions: ShowPropertyTransitions,
+  cellIdMap: Map<string, string>,
+): ShowPropertyTransitions {
+  const remap = (transition: ShowPropertyTransition): ShowPropertyTransition => ({
+    ...cloneJson(transition),
+    fromByCellId: Object.fromEntries(Object.entries(transition.fromByCellId).map(([cellId, value]) => (
+      [cellIdMap.get(cellId) ?? cellId, value]
+    ))),
+  })
+  return {
+    ...cloneJson(transitions),
+    ...(transitions.timeScale ? { timeScale: remap(transitions.timeScale) } : {}),
+    ...(transitions.brightness ? { brightness: remap(transitions.brightness) } : {}),
+    ...(transitions.controls ? {
+      controls: Object.fromEntries(Object.entries(transitions.controls).map(([name, transition]) => (
+        [name, remap(transition)]
+      ))),
+    } : {}),
+    ...(transitions.transform ? {
+      transform: Object.fromEntries(Object.entries(transitions.transform).map(([property, transition]) => (
+        [property, remap(transition)]
+      ))),
+    } : {}),
+    ...(transitions.effects ? {
+      effects: Object.fromEntries(Object.entries(transitions.effects).map(([effectId, parameters]) => (
+        [effectId, Object.fromEntries(Object.entries(parameters).map(([name, transition]) => (
+          [name, remap(transition)]
+        )))]
+      ))),
+    } : {}),
+  }
 }
 
 function duplicateCompositionScenes(

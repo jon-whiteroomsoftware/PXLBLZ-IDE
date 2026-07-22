@@ -242,6 +242,9 @@ describe('ShowEditor (#318)', () => {
     const savedScenes = useShowStore.getState().shows[0].composition?.scenes ?? []
     expect(savedScenes[savedScenes.length - 1]?.zones[0].main).toEqual([])
 
+    const reusedIntervals = projectShowLayoutIntervals(useShowStore.getState().shows[0])
+    act(() => useShowTransportStore.getState().setPosition(show.id, reusedIntervals[1].startMs + 1))
+
     await user.click(screen.getByRole('button', { name: 'Layout interval actions' }))
     dialog = screen.getByRole('dialog', { name: 'Layout interval actions' })
     expect(within(dialog).getByText(/Separate this occurrence from 1 other use/)).toBeInTheDocument()
@@ -252,6 +255,21 @@ describe('ShowEditor (#318)', () => {
       expect(saved.routingLayouts).toHaveLength(2)
       const intervals = projectShowLayoutIntervals(saved)
       expect(intervals[0].layoutId).not.toBe(intervals[1].layoutId)
+    })
+
+    const unique = useShowStore.getState().shows[0]
+    const uniqueInterval = projectShowLayoutIntervals(unique)[1]
+    act(() => useShowTransportStore.getState().setPosition(unique.id, uniqueInterval.startMs + 1))
+    await user.click(screen.getByRole('button', { name: 'Add Clip at playhead' }))
+    const addDialog = screen.getByRole('dialog', { name: 'Add Clip at playhead' })
+
+    await user.click(within(addDialog).getByRole('button', { name: 'Add Clip' }))
+
+    await waitFor(() => {
+      const saved = useShowStore.getState().shows[0]
+      const activeZoneId = projectShowLayoutIntervals(saved)[1].zoneIds[0]
+      const activeScene = saved.composition!.scenes.find((scene) => scene.sceneId === uniqueInterval.sceneIds[0])!
+      expect(activeScene.zones.find((zone) => zone.zoneId === activeZoneId)?.main).toHaveLength(1)
     })
   })
 
