@@ -142,6 +142,16 @@ export function insertShowTime(
   return { ...next, composition: normalized }
 }
 
+/** Final authored Clip boundary in global Show time. Groups are materialized by the projection. */
+export function showTimelineContentEndMs(show: ShowRecord): number {
+  if (!show.composition) return showLoopDurationMs(show)
+  return projectShowUnifiedTimeline(show, show.composition).zones.reduce((showEndMs, zone) => (
+    zone.layers.reduce((zoneEndMs, layer) => (
+      layer.clips.reduce((layerEndMs, clip) => Math.max(layerEndMs, clip.endMs), zoneEndMs)
+    ), showEndMs)
+  ), 1)
+}
+
 /** Set the deterministic loop boundary without truncating authored content. */
 export function setShowEndMs(show: ShowRecord, requestedDurationMs: number): ShowRecord {
   if (!show.composition || !Number.isFinite(requestedDurationMs) || show.scenes.length === 0) return show
@@ -152,22 +162,7 @@ export function setShowEndMs(show: ShowRecord, requestedDurationMs: number): Sho
   const finalComposition = show.composition.scenes.find((scene) => scene.sceneId === finalScene.id)
   if (!finalRange || !finalComposition) return show
 
-  let requiredLocalEndMs = 1
-  for (const zone of finalComposition.zones) {
-    for (const placement of zone.main) {
-      requiredLocalEndMs = Math.max(requiredLocalEndMs, placement.startMs + placement.durationMs)
-    }
-    for (const layer of zone.overlays) {
-      for (const placement of layer.placements) {
-        requiredLocalEndMs = Math.max(requiredLocalEndMs, placement.startMs + placement.durationMs)
-      }
-    }
-  }
-  for (const track of finalComposition.propertyTracks ?? []) {
-    for (const keyframe of track.keyframes) requiredLocalEndMs = Math.max(requiredLocalEndMs, keyframe.timeMs)
-  }
-
-  const durationMs = Math.max(finalRange.startMs + requiredLocalEndMs, requestedMs)
+  const durationMs = Math.max(showTimelineContentEndMs(show), requestedMs)
   const nextFinalDurationMs = durationMs - finalRange.startMs
   if (showLoopDurationMs(show) === durationMs && finalScene.durationMs === nextFinalDurationMs) return show
 

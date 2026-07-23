@@ -1,7 +1,9 @@
 import { describe, expect, it } from 'vitest'
-import { addShowZone, createDefaultShow } from './showModel'
+import { addShowZone, createDefaultShow, showLoopDurationMs } from './showModel'
+import { projectFlatShowToCompositionV1 } from './showCompositionModel'
 import {
   addShowClipAtGlobalTime,
+  addShowClipAtGlobalTimeExtendingShow,
   addShowOverlayLayerAcrossTimeline,
   addShowMainClipAtGlobalTime,
   duplicateLinkedShowClipAfter,
@@ -112,6 +114,38 @@ describe('global timeline Clip authoring (#580)', () => {
       localStartMs: 2_000,
       durationMs: 5_000,
     })
+  })
+
+  it('adds a Clip at Show End by extending the final interval', () => {
+    const show = createDefaultShow('show-add-at-end', 'Add at end', 1000)
+    const composition = projectFlatShowToCompositionV1(show, {
+      byCellId: Object.fromEntries(show.cells.map((cell) => [
+        cell.id,
+        'export function render(index) { rgb(0, 0, 0) }',
+      ])),
+    })
+    const basis = { ...show, composition }
+
+    expect(planShowClipAtGlobalTime(basis, composition, {
+      zoneId: show.zones[0].id,
+      globalTimeMs: 62_000,
+      target: { kind: 'main' },
+    })).toMatchObject({ enabled: true, localStartMs: 30_000, durationMs: 5_000 })
+
+    const next = addShowClipAtGlobalTimeExtendingShow(basis, composition, {
+      zoneId: show.zones[0].id,
+      globalTimeMs: 62_000,
+      target: { kind: 'main' },
+      instance,
+      placementId: 'placement-at-end',
+    })
+
+    expect(showLoopDurationMs(next)).toBe(67_000)
+    expect(next.composition?.scenes[1].zones[0].main).toContainEqual(expect.objectContaining({
+      id: 'placement-at-end',
+      startMs: 30_000,
+      durationMs: 5_000,
+    }))
   })
 
   it('fills a shorter empty gap without overwriting the next Clip', () => {

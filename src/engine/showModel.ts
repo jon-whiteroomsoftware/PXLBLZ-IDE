@@ -762,6 +762,7 @@ export function removeShowScene(show: ShowRecord, sceneId: string): ShowRecord {
 
 export function removeShowClip(show: ShowRecord, clipId: string): ShowRecord {
   if (!show.cells.some((cell) => cell.id === clipId)) return show
+  if (show.cells.length <= 1) return show
   const omitClipStart = <T extends { fromByCellId: Record<string, number> }>(transition: T): T => {
     const fromByCellId = { ...transition.fromByCellId }
     delete fromByCellId[clipId]

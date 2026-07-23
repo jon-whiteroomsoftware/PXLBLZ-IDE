@@ -14,7 +14,8 @@ import {
   validateShowComposition,
 } from './showCompositionModel'
 import { materializeShowGroupOccurrences } from './showGroupModel'
-import { projectShowTimeline } from './showModel'
+import { projectShowTimeline, showLoopDurationMs } from './showModel'
+import { setShowEndMs } from './showTimelineAuthoring'
 
 export type ShowClipAddPlan =
   | {
@@ -95,7 +96,8 @@ export function planShowClipAtGlobalTime(
 
   const globalTimeMs = Math.round(input.globalTimeMs)
   const timeline = projectShowTimeline(show)
-  if (globalTimeMs < 0 || globalTimeMs >= timeline.durationMs) {
+  const atShowEnd = globalTimeMs === timeline.durationMs
+  if (globalTimeMs < 0 || globalTimeMs > timeline.durationMs) {
     return { enabled: false, code: 'invalid-time', reason: 'Choose a time before Show End.' }
   }
 
@@ -105,9 +107,11 @@ export function planShowClipAtGlobalTime(
     return { enabled: false, code: 'transition', reason: 'A Clip cannot begin inside a Transition.' }
   }
 
-  const sceneRange = timeline.scenes.find((scene) => (
-    globalTimeMs >= scene.startMs && globalTimeMs < scene.endMs
-  ))
+  const sceneRange = atShowEnd
+    ? timeline.scenes[timeline.scenes.length - 1]
+    : timeline.scenes.find((scene) => (
+        globalTimeMs >= scene.startMs && globalTimeMs < scene.endMs
+      ))
   const sceneComposition = sceneRange
     ? composition.scenes.find((scene) => scene.sceneId === sceneRange.sceneId)
     : undefined
@@ -140,21 +144,47 @@ export function planShowClipAtGlobalTime(
     return { enabled: false, code: 'occupied', reason: 'The selected Layer already has a Clip at the playhead.' }
   }
 
+  const defaultDurationMs = Math.max(1, Math.round(input.defaultDurationMs ?? 5_000))
   const nextObstructionMs = placements
     .filter((placement) => placement.startMs > localStartMs)
-    .reduce((nearest, placement) => Math.min(nearest, placement.startMs), sceneRange.scene.durationMs)
+    .reduce(
+      (nearest, placement) => Math.min(nearest, placement.startMs),
+      atShowEnd ? localStartMs + defaultDurationMs : sceneRange.scene.durationMs,
+    )
   const availableMs = nextObstructionMs - localStartMs
   if (availableMs < 1) {
     return { enabled: false, code: 'no-space', reason: 'There is no empty time on the selected Layer.' }
   }
 
-  const defaultDurationMs = Math.max(1, Math.round(input.defaultDurationMs ?? 5_000))
   return {
     enabled: true,
     code: 'ready',
     sceneId: sceneRange.sceneId,
     localStartMs,
     durationMs: Math.min(defaultDurationMs, availableMs),
+  }
+}
+
+export function addShowClipAtGlobalTimeExtendingShow(
+  show: ShowRecord,
+  composition: ShowCompositionV1,
+  input: ShowClipAddLocation & {
+    instance: ShowPatternInstance
+    placementId: string
+  },
+): ShowRecord {
+  const plan = planShowClipAtGlobalTime(show, composition, input)
+  if (!plan.enabled) return show
+  const requiredShowEndMs = Math.round(input.globalTimeMs) + plan.durationMs
+  const basis = requiredShowEndMs > showLoopDurationMs(show)
+    ? setShowEndMs({ ...show, composition }, requiredShowEndMs)
+    : { ...show, composition }
+  const nextComposition = addShowClipAtGlobalTime(basis, basis.composition!, input)
+  if (nextComposition === basis.composition) return show
+  return {
+    ...basis,
+    composition: nextComposition,
+    updatedAt: Math.max(Date.now(), show.updatedAt + 1),
   }
 }
 

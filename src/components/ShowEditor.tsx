@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore, type CSSProperties, type PointerEvent as ReactPointerEvent, type SetStateAction } from 'react'
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, useSyncExternalStore, type CSSProperties, type MouseEvent as ReactMouseEvent, type PointerEvent as ReactPointerEvent, type ReactNode, type SetStateAction } from 'react'
 import { createPortal } from 'react-dom'
 import { Activity, BookOpen, Check, ChevronDown, ChevronRight, Clock3, Code2, Copy, Download, Eye, Flag, Grid2X2, Info, Layers3, Lightbulb, ListChecks, Lock, Magnet, Map as MapIcon, Maximize2, Pause, Play, Plus, Redo2, Repeat2, RotateCcw, RotateCw, Route, Scissors, Settings2, SkipBack, SlidersHorizontal, SplitSquareHorizontal, Trash2, Undo2, WandSparkles, X, Zap } from 'lucide-react'
 import { Button } from '@/components/ui/button'
@@ -28,6 +28,7 @@ import { getControllerProvider } from '@/engine/controllerProviderRegistry'
 import { makeProgramId } from '@/engine/bytecodePush'
 import { PatternDeploymentActions } from '@/components/PatternDeploymentActions'
 import { PatternCombobox, type PatternComboboxOption } from '@/components/PatternCombobox'
+import { showRecordClipCount } from '@/engine/showClipInvariant'
 import { requestControllerEntryOpen } from '@/components/controllerEntryEvents'
 import { PatternPushChoices } from '@/components/SendToController'
 import { PushConfirmPopover } from '@/components/PushConfirmPopover'
@@ -95,7 +96,7 @@ import {
 } from '@/engine/showTimelineKeyboard'
 import { claimStudioPreviewSpace } from '@/engine/keyboardShortcuts'
 import {
-  addShowClipAtGlobalTime,
+  addShowClipAtGlobalTimeExtendingShow,
   addShowOverlayLayerAcrossTimeline,
   duplicateShowClipAfter,
   makeShowClipPatternIndependent,
@@ -143,6 +144,7 @@ import {
   planShowTimeInsertion,
   removeShowTimelineMarker,
   setShowEndMs,
+  showTimelineContentEndMs,
   updateShowTimelineMarker,
 } from '@/engine/showTimelineAuthoring'
 import { buildShowEpeExport, type ShowEpeExport } from '@/engine/showEpeExport'
@@ -1445,7 +1447,10 @@ export function ShowEditor({
                   if (!timelineComposition) return null
                   const instanceId = newPersonalContentId()
                   const placementId = newPersonalContentId()
-                  const nextComposition = addShowClipAtGlobalTime(activeShow, timelineComposition, {
+                  const nextShow = addShowClipAtGlobalTimeExtendingShow(
+                    { ...activeShow, composition: timelineComposition },
+                    timelineComposition,
+                    {
                     zoneId,
                     globalTimeMs,
                     target,
@@ -1456,13 +1461,10 @@ export function ShowEditor({
                       time: { timeScale: 1, timeOffsetMs: 0 },
                     },
                     placementId,
-                  })
-                  if (nextComposition === timelineComposition) return null
-                  await updateShow(activeShow.id, {
-                    ...activeShow,
-                    composition: nextComposition,
-                    updatedAt: Date.now(),
-                  })
+                    },
+                  )
+                  if (nextShow.composition === timelineComposition) return null
+                  await updateShow(activeShow.id, nextShow)
                   return placementId
                 }}
                 onMoveCompositionClip={async ({ owner, target }) => {
@@ -2500,14 +2502,19 @@ function ShowTimelineWorkspace({
   onAddZone: () => void
   onUpdateZone: (zoneId: string, changes: Partial<ShowRecord['zones'][number]>) => void
 }) {
-  const strip = projectShowStrip(show)
-  const timeline = projectShowTimeline(show)
-  const layoutIntervals = useMemo(() => projectShowLayoutIntervals(show), [show])
+  const [showEndPreviewMs, setShowEndPreviewMs] = useState<number | null>(null)
+  const displayShow = useMemo(() => {
+    if (showEndPreviewMs === null || !timelineComposition) return show
+    return setShowEndMs({ ...show, composition: timelineComposition }, showEndPreviewMs)
+  }, [show, showEndPreviewMs, timelineComposition])
+  const strip = projectShowStrip(displayShow)
+  const timeline = projectShowTimeline(displayShow)
+  const layoutIntervals = useMemo(() => projectShowLayoutIntervals(displayShow), [displayShow])
   const unifiedCompositionTimeline = useMemo(() => (
     timelineComposition
-      ? projectShowUnifiedTimeline(show, timelineComposition)
+      ? projectShowUnifiedTimeline(displayShow, timelineComposition)
       : null
-  ), [show, timelineComposition])
+  ), [displayShow, timelineComposition])
   const traversalTargets = useMemo(() => (
     unifiedCompositionTimeline
       ? projectShowTimelineTraversalTargets(unifiedCompositionTimeline, isolatedGroupOccurrenceId)
@@ -2549,10 +2556,13 @@ function ShowTimelineWorkspace({
   const [dropTargetKey, setDropTargetKey] = useState<string | null>(null)
   const [marquee, setMarquee] = useState<{ left: number; top: number; width: number; height: number } | null>(null)
   const [addClipOpen, setAddClipOpen] = useState(false)
+  const [addClipPopoverAnchor, setAddClipPopoverAnchor] = useState<HTMLButtonElement | null>(null)
   const [insertTimeOpen, setInsertTimeOpen] = useState(false)
+  const [insertTimePopoverAnchor, setInsertTimePopoverAnchor] = useState<HTMLButtonElement | null>(null)
   const [insertTimeSeconds, setInsertTimeSeconds] = useState(1)
   const [insertTimeAtMs, setInsertTimeAtMs] = useState(0)
   const [layoutActionsOpen, setLayoutActionsOpen] = useState(false)
+  const [layoutActionsPopoverAnchor, setLayoutActionsPopoverAnchor] = useState<HTMLButtonElement | null>(null)
   const [layoutActionTimeMs, setLayoutActionTimeMs] = useState(0)
   const [layoutActionLayoutId, setLayoutActionLayoutId] = useState(show.routingLayouts[0]?.id ?? '')
   const [layoutActionDurationSeconds, setLayoutActionDurationSeconds] = useState(5)
@@ -2719,7 +2729,7 @@ function ShowTimelineWorkspace({
     ...(markerSnapEnabled ? (timelineComposition?.markers ?? []).map((marker) => marker.timeMs) : []),
   ])]
   const propertyLanesByZone = useMemo(() => {
-    const sceneAnimationLanes = projectGlobalShowScenePropertyLanes(show)
+    const sceneAnimationLanes = projectGlobalShowScenePropertyLanes(displayShow)
     const availableControls = Object.values(patternControlsByCellId).flat()
     const automatedControlNames = [...new Set([
       ...show.cells.flatMap((cell) => Object.keys(cell.controlTargets ?? {})),
@@ -2741,7 +2751,7 @@ function ShowTimelineWorkspace({
           selectsTransition: true,
           color: '#a78bfa',
           formatValue: formatTimeScale,
-          projection: projectGlobalShowPropertyLane(show, zone.id, { kind: 'timeScale' }),
+          projection: projectGlobalShowPropertyLane(displayShow, zone.id, { kind: 'timeScale' }),
         },
         {
           key: 'brightness',
@@ -2750,7 +2760,7 @@ function ShowTimelineWorkspace({
           selectsTransition: true,
           color: '#fbbf24',
           formatValue: formatBrightness,
-          projection: projectGlobalShowPropertyLane(show, zone.id, { kind: 'brightness' }),
+          projection: projectGlobalShowPropertyLane(displayShow, zone.id, { kind: 'brightness' }),
         },
         ...([
           ['positionX', 'position x', '#67e8f9'],
@@ -2769,7 +2779,7 @@ function ShowTimelineWorkspace({
             : property === 'scaleX' || property === 'scaleY'
               ? (value: number) => `${Number(value.toFixed(2))}x`
               : (value: number) => Number(value.toFixed(2)).toString(),
-          projection: projectGlobalShowPropertyLane(show, zone.id, { kind: 'transform', property }),
+          projection: projectGlobalShowPropertyLane(displayShow, zone.id, { kind: 'transform', property }),
         })),
         ...controlLanes.map((control) => ({
           key: `control:${control.exportName}`,
@@ -2778,7 +2788,7 @@ function ShowTimelineWorkspace({
           selectsTransition: true,
           color: '#22d3ee',
           formatValue: formatControlValue,
-          projection: projectGlobalShowPropertyLane(show, zone.id, {
+          projection: projectGlobalShowPropertyLane(displayShow, zone.id, {
             kind: 'control' as const,
             exportName: control.exportName,
             defaultValue: control.defaultValue,
@@ -2802,7 +2812,7 @@ function ShowTimelineWorkspace({
       ]
       return [zone.id, candidates.filter((candidate) => candidate.projection.timeVarying)] as const
     }))
-  }, [patternControlsByCellId, show])
+  }, [displayShow, patternControlsByCellId, show])
   const movingSplitLayout = show.routingLayouts.find((layout) => (
     layout.logical?.kind === 'split' || layout.logical?.kind === 'soft-split'
   ))
@@ -2826,11 +2836,11 @@ function ShowTimelineWorkspace({
   const timelineOverlayRowSpan = totalContentRows + routingLaneRows + 2
   const columns = [
     zonesOpen ? '148px' : hasMultipleZones ? '32px' : '0px',
-    ...show.scenes.flatMap((scene, index) => (
-      index < show.scenes.length - 1
+    ...displayShow.scenes.flatMap((scene, index) => (
+      index < displayShow.scenes.length - 1
         ? [
             `minmax(0, ${Math.max(1, scene.durationMs)}fr)`,
-            `minmax(0, ${Math.max(0.001, showVisualTransitionAfter(show, scene.id)?.durationMs ?? 0)}fr)`,
+            `minmax(0, ${Math.max(0.001, showVisualTransitionAfter(displayShow, scene.id)?.durationMs ?? 0)}fr)`,
           ]
         : [`minmax(0, ${Math.max(1, scene.durationMs)}fr)`]
     )),
@@ -3069,6 +3079,7 @@ function ShowTimelineWorkspace({
                 <span className="timeline-command-label">Zones</span>
               </Button>
               <Button
+                ref={setLayoutActionsPopoverAnchor}
                 size="xs"
                 variant="ghost"
                 aria-label="Layout interval actions"
@@ -3118,6 +3129,7 @@ function ShowTimelineWorkspace({
                 <span className="timeline-command-label">Layer</span>
               </Button>
               <Button
+                ref={setInsertTimePopoverAnchor}
                 size="xs"
                 variant="ghost"
                 aria-label="Insert Time"
@@ -3158,6 +3170,7 @@ function ShowTimelineWorkspace({
                 <Flag size={12} aria-hidden />
               </Button>
               <Button
+                ref={setAddClipPopoverAnchor}
                 size="xs"
                 variant="ghost"
                 aria-label="Add Clip at playhead"
@@ -3177,10 +3190,11 @@ function ShowTimelineWorkspace({
                 <ChevronDown size={9} aria-hidden className="text-zinc-500" />
               </Button>
               {addClipOpen && (
-                <div
-                  role="dialog"
-                  aria-label="Add Clip at playhead"
-                  className="absolute right-0 top-full z-50 mt-1 w-56 rounded border border-zinc-700 bg-zinc-950 p-2 shadow-2xl"
+                <ShowTimelineToolbarPopover
+                  anchor={addClipPopoverAnchor}
+                  widthPx={224}
+                  ariaLabel="Add Clip at playhead"
+                  className="w-56 rounded border border-zinc-700 bg-zinc-950 p-2 shadow-2xl"
                   onClick={(event) => event.stopPropagation()}
                 >
                   <div className="mb-1.5 flex items-center justify-between text-[9px] uppercase tracking-[0.1em] text-zinc-500">
@@ -3240,13 +3254,14 @@ function ShowTimelineWorkspace({
                       Add Clip
                     </Button>
                   </div>
-                </div>
+                </ShowTimelineToolbarPopover>
               )}
               {insertTimeOpen && (
-                <div
-                  role="dialog"
-                  aria-label="Insert Time"
-                  className="absolute right-0 top-full z-50 mt-1 w-60 rounded border border-zinc-700 bg-zinc-950 p-2 shadow-2xl"
+                <ShowTimelineToolbarPopover
+                  anchor={insertTimePopoverAnchor}
+                  widthPx={240}
+                  ariaLabel="Insert Time"
+                  className="w-60 rounded border border-zinc-700 bg-zinc-950 p-2 shadow-2xl"
                   onClick={(event) => event.stopPropagation()}
                 >
                   <div className="mb-1.5 flex items-center justify-between text-[10px] uppercase tracking-[0.1em] text-zinc-500">
@@ -3281,13 +3296,14 @@ function ShowTimelineWorkspace({
                       }}
                     >Insert</Button>
                   </div>
-                </div>
+                </ShowTimelineToolbarPopover>
               )}
               {layoutActionsOpen && (
-                <div
-                  role="dialog"
-                  aria-label="Layout interval actions"
-                  className="absolute right-0 top-full z-50 mt-1 w-72 rounded border border-zinc-700 bg-zinc-950 p-2.5 text-[12px] text-zinc-300 shadow-2xl"
+                <ShowTimelineToolbarPopover
+                  anchor={layoutActionsPopoverAnchor}
+                  widthPx={288}
+                  ariaLabel="Layout interval actions"
+                  className="w-72 rounded border border-zinc-700 bg-zinc-950 p-2.5 text-[12px] text-zinc-300 shadow-2xl"
                   onClick={(event) => event.stopPropagation()}
                 >
                   <div className="mb-2 flex items-start justify-between gap-3">
@@ -3359,7 +3375,7 @@ function ShowTimelineWorkspace({
                     </button>
                   )}
                   {layoutActionError && <p role="alert" className="mt-2 text-[11px] leading-4 text-amber-200/80">{layoutActionError}</p>}
-                </div>
+                </ShowTimelineToolbarPopover>
               )}
               {zonesOpen && (
                 <ZoneMapPopover
@@ -3491,7 +3507,7 @@ function ShowTimelineWorkspace({
           {showMicroZonePicker ? <MapIcon size={12} aria-hidden /> : 'Show time'}
         </div>}
         <TimelineRuler
-          show={show}
+          show={displayShow}
           gridColumn={`2 / ${timeGridEndLine}`}
           viewport={viewport}
           gridRow={rulerRow}
@@ -3504,7 +3520,9 @@ function ShowTimelineWorkspace({
         />
         {timelineComposition && (
           <TimelineMarkers
-            show={show}
+            show={displayShow}
+            minimumShowEndMs={showTimelineContentEndMs({ ...show, composition: timelineComposition })}
+            onPreviewShowEnd={setShowEndPreviewMs}
             markers={markersVisible ? timelineComposition.markers ?? [] : []}
             gridColumn={`2 / ${timeGridEndLine}`}
             gridRow={rulerRow}
@@ -3519,7 +3537,7 @@ function ShowTimelineWorkspace({
           />
         )}
         <TimelinePlayhead
-          show={show}
+          show={displayShow}
           gridColumn={`2 / ${timeGridEndLine}`}
           gridRow={rulerRow}
           rowSpan={timelineOverlayRowSpan}
@@ -4647,8 +4665,59 @@ function TimelineRuler({
   )
 }
 
+function ShowTimelineToolbarPopover({
+  anchor,
+  widthPx,
+  ariaLabel,
+  className,
+  children,
+  onClick,
+}: {
+  anchor: HTMLElement | null
+  widthPx: number
+  ariaLabel: string
+  className: string
+  children: ReactNode
+  onClick?: (event: ReactMouseEvent<HTMLDivElement>) => void
+}) {
+  const [position, setPosition] = useState({ left: 8, top: 8 })
+
+  useLayoutEffect(() => {
+    if (!anchor) return
+    const updatePosition = () => {
+      const rect = anchor.getBoundingClientRect()
+      setPosition({
+        left: Math.max(8, Math.min(rect.right - widthPx, window.innerWidth - widthPx - 8)),
+        top: rect.bottom + 4,
+      })
+    }
+    updatePosition()
+    window.addEventListener('resize', updatePosition)
+    window.addEventListener('scroll', updatePosition, true)
+    return () => {
+      window.removeEventListener('resize', updatePosition)
+      window.removeEventListener('scroll', updatePosition, true)
+    }
+  }, [anchor, widthPx])
+
+  if (!anchor || typeof document === 'undefined') return null
+  return createPortal(
+    <div
+      role="dialog"
+      aria-label={ariaLabel}
+      className={`fixed z-[80] ${className}`}
+      style={{ left: position.left, top: position.top }}
+      onClick={onClick}
+    >
+      {children}
+    </div>,
+    document.body,
+  )
+}
+
 function TimelineMarkers({
   show,
+  minimumShowEndMs,
   markers,
   gridColumn,
   gridRow,
@@ -4659,9 +4728,11 @@ function TimelineMarkers({
   onMoveMarker,
   onUpdateMarker,
   onRemoveMarker,
+  onPreviewShowEnd,
   onSetShowEnd,
 }: {
   show: ShowRecord
+  minimumShowEndMs: number
   markers: NonNullable<ShowCompositionV1['markers']>
   gridColumn: string
   gridRow: number
@@ -4672,13 +4743,20 @@ function TimelineMarkers({
   onMoveMarker: (markerId: string, timeMs: number) => Promise<boolean>
   onUpdateMarker: (markerId: string, patch: Partial<Omit<NonNullable<ShowCompositionV1['markers']>[number], 'id'>>) => Promise<boolean>
   onRemoveMarker: (markerId: string) => Promise<boolean>
+  onPreviewShowEnd: (durationMs: number | null) => void
   onSetShowEnd: (durationMs: number) => Promise<boolean>
 }) {
   const durationMs = showLoopDurationMs(show)
   const [openMarkerId, setOpenMarkerId] = useState<string | null>(null)
   const [showEndOpen, setShowEndOpen] = useState(false)
+  const [showEndDragging, setShowEndDragging] = useState(false)
   const markerPointerRef = useRef<{ markerId: string; pointerId: number; startX: number } | null>(null)
-  const showEndPointerRef = useRef<{ pointerId: number; startX: number } | null>(null)
+  const showEndPointerRef = useRef<{
+    pointerId: number
+    startX: number
+    startDurationMs: number
+    surfaceWidthPx: number
+  } | null>(null)
   const suppressMarkerHandleClickRef = useRef(false)
   const suppressShowEndClickRef = useRef(false)
   useEffect(() => {
@@ -4699,15 +4777,33 @@ function TimelineMarkers({
     if (!rect) return 0
     const rawTimeMs = (event.clientX - rect.left) / Math.max(1, rect.width) * durationMs
     const maxTimeMs = allowBeyondEnd ? durationMs * 2 : durationMs
+    const minTimeMs = allowBeyondEnd ? minimumShowEndMs : 0
     return Math.round(snapEnabled !== event.altKey
       ? snapShowTimelineTime(rawTimeMs, {
           visibleDurationMs: durationMs,
           visibleWidthPx: rect.width,
           structuralTimesMs,
-          minTimeMs: allowBeyondEnd ? 1 : 0,
+          minTimeMs,
           maxTimeMs,
         }).timeMs
-      : Math.max(allowBeyondEnd ? 1 : 0, Math.min(maxTimeMs, rawTimeMs)))
+      : Math.max(minTimeMs, Math.min(maxTimeMs, rawTimeMs)))
+  }
+  const resolveShowEndDragTime = (
+    event: ReactPointerEvent<HTMLElement>,
+    pointer: NonNullable<typeof showEndPointerRef.current>,
+  ) => {
+    const rawTimeMs = pointer.startDurationMs
+      + (event.clientX - pointer.startX) / Math.max(1, pointer.surfaceWidthPx) * pointer.startDurationMs
+    const maxTimeMs = Math.max(pointer.startDurationMs * 16, rawTimeMs, minimumShowEndMs)
+    return Math.round(snapEnabled !== event.altKey
+      ? snapShowTimelineTime(rawTimeMs, {
+          visibleDurationMs: pointer.startDurationMs,
+          visibleWidthPx: pointer.surfaceWidthPx,
+          structuralTimesMs,
+          minTimeMs: minimumShowEndMs,
+          maxTimeMs,
+        }).timeMs
+      : Math.max(minimumShowEndMs, rawTimeMs))
   }
   return (
     <div
@@ -4827,24 +4923,61 @@ function TimelineMarkers({
       <button
         type="button"
         data-show-timeline-marker-ui
+        data-show-end-dragging={showEndDragging ? 'true' : undefined}
         aria-label={`Show End at ${formatSecondsValue(durationMs)} seconds`}
         title={`Show End · ${formatSecondsValue(durationMs)}s`}
         disabled={readOnly}
-        className="pointer-events-auto absolute inset-y-0 right-0 w-3 cursor-ew-resize touch-none text-red-400 disabled:cursor-default"
+        className="pointer-events-auto absolute inset-y-0 right-0 z-10 w-3 cursor-ew-resize touch-none text-red-400 disabled:cursor-default"
         onPointerDown={(event) => {
           event.stopPropagation()
-          showEndPointerRef.current = { pointerId: event.pointerId, startX: event.clientX }
+          const rect = event.currentTarget
+            .closest('[data-show-timeline-marker-surface]')
+            ?.getBoundingClientRect()
+          showEndPointerRef.current = {
+            pointerId: event.pointerId,
+            startX: event.clientX,
+            startDurationMs: durationMs,
+            surfaceWidthPx: rect?.width ?? 1,
+          }
+          setShowEndDragging(true)
+          onPreviewShowEnd(durationMs)
           event.currentTarget.setPointerCapture?.(event.pointerId)
+        }}
+        onPointerMove={(event) => {
+          const pointer = showEndPointerRef.current
+          if (!pointer || pointer.pointerId !== event.pointerId) return
+          event.stopPropagation()
+          onPreviewShowEnd(resolveShowEndDragTime(event, pointer))
         }}
         onPointerUp={(event) => {
           event.stopPropagation()
           const pointer = showEndPointerRef.current
           showEndPointerRef.current = null
-          if (!pointer || pointer.pointerId !== event.pointerId || Math.abs(event.clientX - pointer.startX) < 3) return
-          const timeMs = resolvePointerTime(event, true)
           event.currentTarget.releasePointerCapture?.(event.pointerId)
+          if (!pointer || pointer.pointerId !== event.pointerId || Math.abs(event.clientX - pointer.startX) < 3) {
+            setShowEndDragging(false)
+            onPreviewShowEnd(null)
+            return
+          }
+          const timeMs = resolveShowEndDragTime(event, pointer)
           suppressShowEndClickRef.current = true
-          void onSetShowEnd(timeMs)
+          onPreviewShowEnd(timeMs)
+          void onSetShowEnd(timeMs).finally(() => {
+            setShowEndDragging(false)
+            onPreviewShowEnd(null)
+          })
+        }}
+        onPointerCancel={(event) => {
+          if (showEndPointerRef.current?.pointerId !== event.pointerId) return
+          showEndPointerRef.current = null
+          setShowEndDragging(false)
+          onPreviewShowEnd(null)
+        }}
+        onLostPointerCapture={(event) => {
+          if (showEndPointerRef.current?.pointerId !== event.pointerId) return
+          showEndPointerRef.current = null
+          setShowEndDragging(false)
+          onPreviewShowEnd(null)
         }}
         onClick={(event) => {
           event.stopPropagation()
@@ -5177,6 +5310,7 @@ function ContextualInspector({
   onUpdateRoutingLayout: (layoutId: string, changes: Partial<Omit<ShowRoutingLayout, 'id'>>) => void
   onRemoveRoutingLayout: (layoutId: string) => void
 }) {
+  const canRemoveClip = showRecordClipCount(compositionShow) > 1
   if (selection.kind === 'group-clip' && selectedGroupClipOwner) {
     const value = projectShowGroupClipInspector(compositionShow, selectedGroupClipOwner)
     if (value) {
@@ -5242,6 +5376,7 @@ function ContextualInspector({
           onOpenEffects={() => onOpenCompositionEffects(selectedCompositionClipOwner)}
           onMakePatternIndependent={() => onMakeCompositionPatternIndependent(selectedCompositionClipOwner)}
           onRejoinPattern={(targetInstanceId) => onRejoinCompositionPattern(selectedCompositionClipOwner, targetInstanceId)}
+          canRemove={canRemoveClip}
           onRemove={() => onRemoveCompositionClip(selectedCompositionClipOwner)}
         />
       )
@@ -5258,6 +5393,7 @@ function ContextualInspector({
         patternControls={patternControlsByCellId[selectedClip.id] ?? []}
         transformEnabled={transformEnabled}
         compiledCost={compiledCost}
+        canRemove={canRemoveClip}
         onUpdateClip={(patch) => onUpdateClipInspector({ kind: 'global', cellId: selectedClip.id }, patch)}
         onPatternCommit={onPatternCommit}
         onRemove={() => onRemoveClip(selectedClip)}
@@ -5432,6 +5568,7 @@ function CompositionClipInspector({
   onOpenEffects,
   onMakePatternIndependent,
   onRejoinPattern,
+  canRemove = true,
   onRemove,
 }: {
   value: NonNullable<ReturnType<typeof projectShowClipInspector>>
@@ -5445,6 +5582,7 @@ function CompositionClipInspector({
   onOpenEffects: () => void
   onMakePatternIndependent: () => void
   onRejoinPattern: (targetInstanceId: string) => void
+  canRemove?: boolean
   onRemove?: () => void
 }) {
   return (
@@ -5459,7 +5597,8 @@ function CompositionClipInspector({
           size="icon-xs"
           variant="ghost"
           aria-label={`Delete clip ${value.patternName}`}
-          title={`Delete ${value.patternName}`}
+          title={canRemove ? `Delete ${value.patternName}` : 'A Show must contain at least one Clip.'}
+          disabled={!canRemove}
           className="text-zinc-500 hover:bg-red-950/30 hover:text-red-300"
           onClick={onRemove}
         >
@@ -5504,6 +5643,7 @@ function ClipInspector({
   patternControls,
   transformEnabled,
   compiledCost,
+  canRemove,
   onUpdateClip,
   onPatternCommit,
   onRemove,
@@ -5520,6 +5660,7 @@ function ClipInspector({
   patternControls: AutomatablePatternControl[]
   transformEnabled: boolean
   compiledCost?: import('@/engine/showVisualToolkit').ShowCompiledCostMetadata
+  canRemove: boolean
   onUpdateClip: (patch: ShowClipInspectorPatch) => void
   onPatternCommit: () => void
   onRemove: () => void
@@ -5566,7 +5707,15 @@ function ClipInspector({
       summary={<ClipConfigurationSummary summary={summary} />}
       icon={<Grid2X2 size={13} aria-hidden />}
       actions={(
-        <Button size="icon-xs" variant="ghost" aria-label={`Delete clip ${cell.patternName}`} title={`Delete ${cell.patternName}`} className="text-zinc-500 hover:bg-red-950/30 hover:text-red-300" onClick={onRemove}>
+        <Button
+          size="icon-xs"
+          variant="ghost"
+          aria-label={`Delete clip ${cell.patternName}`}
+          title={canRemove ? `Delete ${cell.patternName}` : 'A Show must contain at least one Clip.'}
+          disabled={!canRemove}
+          className="text-zinc-500 hover:bg-red-950/30 hover:text-red-300"
+          onClick={onRemove}
+        >
           <Trash2 size={12} aria-hidden />
         </Button>
       )}

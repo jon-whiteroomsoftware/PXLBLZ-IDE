@@ -181,7 +181,7 @@ describe('Show Group model', () => {
     expect(updated.groupDefinitions).toBe(composition.groupDefinitions)
   })
 
-  it('deletes one occurrence and removes its definition only after the last use', () => {
+  it('deletes one occurrence but preserves the final remaining Group Clip content', () => {
     const { composition } = fixture()
     composition.groupOccurrences!.push(occurrence('group-use-2'))
 
@@ -190,8 +190,7 @@ describe('Show Group model', () => {
     expect(linked.groupDefinitions).toHaveLength(1)
 
     const last = deleteShowGroupOccurrence(linked, 'group-use-2')
-    expect(last.groupOccurrences).toBeUndefined()
-    expect(last.groupDefinitions).toBeUndefined()
+    expect(last).toBe(linked)
   })
 
   it('duplicates a linked occurrence but keeps runtime Pattern identities occurrence-local', () => {

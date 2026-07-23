@@ -35,6 +35,43 @@ test.describe('authenticated Show authoring', () => {
     expect(await page.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth)).toBeLessThanOrEqual(8)
   })
 
+  test('previews the fitted timeline continuously while dragging Show End (#592)', async ({ page }) => {
+    await page.setViewportSize({ width: 1440, height: 900 })
+    await page.goto('studio/shows/stock-show-101-clips-crossfade')
+
+    const showEnd = page.getByRole('button', { name: /Show End at/ })
+    const timelineGrid = page.getByTestId('show-timeline-grid')
+    await expect(showEnd).toBeVisible()
+    const showEndBounds = await showEnd.boundingBox()
+    expect(showEndBounds).not.toBeNull()
+    const initialLabel = await showEnd.getAttribute('aria-label')
+    const initialColumns = await timelineGrid.evaluate((element) => (
+      (element as HTMLElement).style.gridTemplateColumns
+    ))
+
+    await page.mouse.move(
+      showEndBounds!.x + showEndBounds!.width / 2,
+      showEndBounds!.y + showEndBounds!.height / 2,
+    )
+    await page.mouse.down()
+    await page.mouse.move(
+      showEndBounds!.x + showEndBounds!.width / 2 + 80,
+      showEndBounds!.y + showEndBounds!.height / 2,
+      { steps: 4 },
+    )
+
+    await expect(showEnd).toHaveAttribute('data-show-end-dragging', 'true')
+    await expect(showEnd).not.toHaveAttribute('aria-label', initialLabel!)
+    await expect.poll(async () => timelineGrid.evaluate((element) => (
+      (element as HTMLElement).style.gridTemplateColumns
+    ))).not.toBe(initialColumns)
+
+    const previewLabel = await showEnd.getAttribute('aria-label')
+    await page.mouse.up()
+    await expect(showEnd).not.toHaveAttribute('data-show-end-dragging', 'true')
+    await expect(showEnd).toHaveAttribute('aria-label', previewLabel!)
+  })
+
   test('renders compact truthful property sparklines at desktop and narrow widths (#483)', async ({ page }) => {
     const consoleErrors: string[] = []
     page.on('console', (message) => {

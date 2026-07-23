@@ -10,6 +10,7 @@ import type {
   ShowRecord,
   ShowZoneComposition,
 } from './personalContentRecords'
+import { showCompositionClipCount } from './showClipInvariant'
 
 export type ShowGroupValidationCode =
   | 'duplicate-id'
@@ -272,6 +273,8 @@ export function deleteShowGroupOccurrence(
 ): ShowCompositionV1 {
   const occurrence = composition.groupOccurrences?.find((candidate) => candidate.id === occurrenceId)
   if (!occurrence) return composition
+  const definition = composition.groupDefinitions?.find((candidate) => candidate.id === occurrence.definitionId)
+  if (showCompositionClipCount(composition) <= (definition?.placements.length ?? 0)) return composition
   const groupOccurrences = composition.groupOccurrences?.filter((candidate) => candidate.id !== occurrenceId) ?? []
   const groupDefinitions = groupOccurrences.some((candidate) => candidate.definitionId === occurrence.definitionId)
     ? composition.groupDefinitions

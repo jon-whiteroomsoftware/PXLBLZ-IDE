@@ -17,6 +17,7 @@ import type {
 } from './personalContentRecords'
 import { compactShowClipTransform } from './showClipTransform'
 import { compactShowClipViewport } from './showClipViewport'
+import { showCompositionClipCount } from './showClipInvariant'
 import {
   materializeShowGroupOccurrences,
   validateShowGroups,
@@ -528,6 +529,7 @@ export function deleteShowOverlayLayer(
   const zone = findZoneComposition(draft, input.sceneId, input.zoneId)
   const layer = zone?.overlays.find((candidate) => candidate.id === input.layerId)
   if (!zone || !layer) return composition
+  if (layer.placements.length > 0 && showCompositionClipCount(composition) <= layer.placements.length) return composition
   const deletedPlacementIds = new Set(layer.placements.map((placement) => placement.id))
   zone.overlays = zone.overlays.filter((layer) => layer.id !== input.layerId)
   removePlacementTracks(draft, input.sceneId, deletedPlacementIds)
@@ -634,6 +636,7 @@ export function deleteShowOverlayPlacement(
   const draft = cloneJson(composition)
   const layer = findOverlayLayer(draft, input)
   if (!layer?.placements.some((placement) => placement.id === input.placementId)) return composition
+  if (showCompositionClipCount(composition) <= 1) return composition
   layer.placements = layer.placements.filter((placement) => placement.id !== input.placementId)
   removePlacementTracks(draft, input.sceneId, new Set([input.placementId]))
   removePlacementTransitions(draft, new Set([input.placementId]))
@@ -747,6 +750,7 @@ export function deleteShowMainPlacement(
   const draft = cloneJson(composition)
   const zone = findZoneComposition(draft, input.sceneId, input.zoneId)
   if (!zone || !zone.main.some((placement) => placement.id === input.placementId)) return composition
+  if (showCompositionClipCount(composition) <= 1) return composition
   zone.main = zone.main.filter((placement) => placement.id !== input.placementId)
   removePlacementTracks(draft, input.sceneId, new Set([input.placementId]))
   removePlacementTransitions(draft, new Set([input.placementId]))

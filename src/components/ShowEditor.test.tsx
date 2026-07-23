@@ -7,6 +7,7 @@ import {
   addShowZone,
   createDefaultShow,
   createShowWithOutputContract,
+  removeShowClip,
   spanShowCellZones,
   updateShowCellAdaptations,
   updateShowCellPattern,
@@ -268,6 +269,8 @@ describe('ShowEditor (#318)', () => {
 
     await user.click(screen.getByRole('button', { name: 'Layout interval actions' }))
     let dialog = screen.getByRole('dialog', { name: 'Layout interval actions' })
+    expect(screen.getByTestId('show-timeline-toolbar')).not.toContainElement(dialog)
+    expect(dialog).toHaveClass('fixed')
     await user.selectOptions(within(dialog).getByRole('combobox', { name: 'Layout definition' }), show.routingLayouts[1].id)
     const duration = within(dialog).getByRole('spinbutton', { name: 'Layout interval duration in seconds' })
     await user.clear(duration)
@@ -403,10 +406,26 @@ describe('ShowEditor (#318)', () => {
     })
     const showEnd = screen.getByRole('button', { name: 'Show End at 62 seconds' })
     fireEvent.pointerDown(showEnd, { pointerId: 1, clientX: 720, altKey: true })
+    fireEvent.pointerMove(showEnd, { pointerId: 1, clientX: 780, altKey: true })
+
+    expect(showEnd).toHaveAttribute('data-show-end-dragging', 'true')
+    expect(screen.getByRole('button', { name: 'Show End at 68 seconds' })).toBeInTheDocument()
+    expect(screen.getByTestId('show-timeline-grid').style.gridTemplateColumns).toContain('36000fr')
+
     fireEvent.pointerUp(showEnd, { pointerId: 1, clientX: 780, altKey: true })
 
     await waitFor(() => expect(showModel.showLoopDurationMs(useShowStore.getState().shows[0])).toBe(68_000))
-    fireEvent.click(showEnd)
+    expect(showEnd).not.toHaveAttribute('data-show-end-dragging')
+    const resizedShowEnd = screen.getByRole('button', { name: 'Show End at 68 seconds' })
+    fireEvent.pointerDown(resizedShowEnd, { pointerId: 2, clientX: 720, altKey: true })
+    fireEvent.pointerMove(resizedShowEnd, { pointerId: 2, clientX: 500, altKey: true })
+
+    expect(screen.getByRole('button', { name: 'Show End at 62 seconds' })).toBeInTheDocument()
+    expect(screen.getByTestId('show-timeline-grid').style.gridTemplateColumns).toContain('30000fr')
+
+    fireEvent.pointerUp(resizedShowEnd, { pointerId: 2, clientX: 500, altKey: true })
+    await waitFor(() => expect(showModel.showLoopDurationMs(useShowStore.getState().shows[0])).toBe(62_000))
+    fireEvent.click(resizedShowEnd)
     expect(screen.queryByRole('dialog', { name: 'Show End details' })).not.toBeInTheDocument()
   })
 
@@ -1052,6 +1071,11 @@ describe('ShowEditor (#318)', () => {
         pattern: { ...show.cells[0].pattern },
         patternName: 'Disposable Rings',
         time: { timeScale: 1, timeOffsetMs: 0 },
+      }, {
+        id: 'instance-keeper-ui',
+        pattern: { ...show.cells[1].pattern },
+        patternName: 'Keeper',
+        time: { timeScale: 1, timeOffsetMs: 0 },
       }],
       scenes: show.scenes.map((scene, index) => ({
         sceneId: scene.id,
@@ -1063,7 +1087,13 @@ describe('ShowEditor (#318)', () => {
             startMs: 2_000,
             durationMs: 4_000,
             view: { mirror: false, phase: 0, brightness: 1 },
-          }] : [],
+          }] : [{
+            id: 'placement-keeper-ui',
+            instanceId: 'instance-keeper-ui',
+            startMs: 0,
+            durationMs: 4_000,
+            view: { mirror: false, phase: 0, brightness: 1 },
+          }],
           overlays: [],
         }],
       })),
@@ -1083,6 +1113,23 @@ describe('ShowEditor (#318)', () => {
     })
     expect(screen.queryByRole('button', { name: 'Select Disposable Rings' })).not.toBeInTheDocument()
     expect(screen.queryByRole('dialog', { name: 'Entity Detail Panel' })).not.toBeInTheDocument()
+  })
+
+  it('disables deletion when the selected Clip is the Show’s final Clip', async () => {
+    const user = userEvent.setup()
+    const show = removeShowClip(
+      createDefaultShow('show-protect-final-clip', 'Protect final Clip', 1000),
+      'cell-1',
+    )
+    setPersonalContentProvider(memoryProvider([show]))
+    useShowStore.setState({ shows: [show], activeShowId: show.id, showsLoaded: true })
+
+    render(<ShowEditor showId={show.id} />)
+    await user.click(screen.getByRole('button', { name: 'Select CometLoom' }))
+
+    const remove = screen.getByRole('button', { name: 'Delete clip CometLoom' })
+    expect(remove).toBeDisabled()
+    expect(remove).toHaveAttribute('title', 'A Show must contain at least one Clip.')
   })
 
   it('adds an explicit Layer to the selected Zone across the unified timeline (#580)', async () => {

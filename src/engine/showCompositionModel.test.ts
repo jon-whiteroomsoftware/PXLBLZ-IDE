@@ -88,6 +88,23 @@ function fixture(): { show: ShowRecord; composition: ShowCompositionV1 } {
 }
 
 describe('Show composition v1 Main schedule (#488)', () => {
+  it('does not delete the final remaining Clip', () => {
+    const { composition } = fixture()
+    const oneClip = deleteShowMainPlacement(composition, {
+      sceneId: 'scene-1',
+      zoneId: 'zone-1',
+      placementId: 'placement-a',
+    })
+
+    const rejected = deleteShowMainPlacement(oneClip, {
+      sceneId: 'scene-1',
+      zoneId: 'zone-1',
+      placementId: 'placement-b',
+    })
+
+    expect(rejected).toBe(oneClip)
+  })
+
   it('magnetically resolves horizontal moves and quantizes illegal overlaps', () => {
     const placement = { id: 'moving', instanceId: 'instance-a', startMs: 0, durationMs: 1_000, view: { mirror: false, phase: 0, brightness: 1 } }
     const occupied = [

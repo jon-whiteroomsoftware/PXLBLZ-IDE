@@ -90,7 +90,15 @@ import {
   resizeStudioLibraryWidth,
 } from '@/engine/studioChrome'
 
-function Splitter({ onDrag, className = '' }: { onDrag: (dx: number) => void; className?: string }) {
+function Splitter({
+  onDrag,
+  label,
+  className = '',
+}: {
+  onDrag: (dx: number) => void
+  label: string
+  className?: string
+}) {
   const lastX = useRef(0)
 
   const handleMouseDown = (e: React.MouseEvent) => {
@@ -113,6 +121,9 @@ function Splitter({ onDrag, className = '' }: { onDrag: (dx: number) => void; cl
 
   return (
     <div
+      role="separator"
+      aria-label={label}
+      aria-orientation="vertical"
       className={`w-1 shrink-0 bg-seam hover:bg-zinc-600 cursor-col-resize transition-colors select-none ${className}`}
       onMouseDown={handleMouseDown}
     />
@@ -903,11 +914,11 @@ function StudioApp() {
           {/* The live Controller dashboard moved out of this slot (#211): it now
               opens as a pinned popover anchored under its pill in the header. */}
         </aside>
-        {!libraryCollapsed && <Splitter onDrag={handleLeftDrag} />}
+        {!libraryCollapsed && <Splitter label="Resize library pane" onDrag={handleLeftDrag} />}
         <div
           data-testid={studioEntityKind === 'shows' ? 'show-workspace' : undefined}
           className={studioEntityKind === 'shows'
-            ? 'grid min-h-0 min-w-0 flex-1 grid-cols-[minmax(0,1fr)_clamp(320px,27vw,400px)] grid-rows-[auto_minmax(0,1fr)] max-[980px]:grid-cols-1'
+            ? 'show-workspace grid min-h-0 min-w-0 flex-1 grid-rows-[auto_minmax(0,1fr)] max-[980px]:grid-cols-1'
             : 'contents'}
         >
         <main
@@ -1119,15 +1130,21 @@ function StudioApp() {
             )}
           </div>
         </main>
-        <Splitter onDrag={handleRightDrag} className={studioEntityKind === 'shows' ? 'hidden' : ''} />
+        <Splitter
+          label="Resize preview pane"
+          onDrag={handleRightDrag}
+          className={studioEntityKind === 'shows'
+            ? 'col-start-2 row-start-2 h-full max-[980px]:hidden'
+            : ''}
+        />
         {/* The preview is an output/instrument surface (#150): no header strip — the
             canvas sits flush at the top and all controls live in the deck below it. */}
         <aside
           data-testid="preview-pane"
           className={studioEntityKind === 'shows'
-            ? 'col-start-2 row-start-2 flex min-h-0 min-w-0 flex-col border-l border-seam max-[980px]:hidden'
+            ? 'col-start-3 row-start-2 flex min-h-0 min-w-0 flex-col max-[980px]:hidden'
             : 'flex min-h-0 shrink-0 flex-col'}
-          style={studioEntityKind === 'shows' ? undefined : { width: rightWidth, minWidth: MIN_PREVIEW_WIDTH }}
+          style={{ width: rightWidth, minWidth: MIN_PREVIEW_WIDTH }}
         >
           {editorFlavor === 'mixin' ? (
             <MixinProvenancePane />

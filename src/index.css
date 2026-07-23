@@ -399,6 +399,18 @@
   container-type: inline-size;
 }
 
+/* The Show workspace uses the same draggable preview-pane width as the rest of
+   Studio, while retaining its shared header across both columns. */
+.show-workspace {
+  grid-template-columns: minmax(0, 1fr) 4px auto;
+}
+
+@media (max-width: 980px) {
+  .show-workspace {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
 /* Expanded learning material must not displace the authoring canvas when the
    center pane is squeezed by the library and Stage. Keep its one-line identity
    and disclosure control available while containing the explanatory body. */

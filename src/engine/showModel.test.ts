@@ -222,6 +222,13 @@ describe('showModel (#318)', () => {
     })).toBe(placed)
   })
 
+  it('does not remove the final remaining legacy Clip', () => {
+    const show = createDefaultShow('show-final-clip', 'Final Clip', 1)
+    const oneClip = removeShowClip(show, 'cell-1')
+
+    expect(removeShowClip(oneClip, 'cell-2')).toBe(oneClip)
+  })
+
   it('adds a Zone with empty timeline slots (#63)', () => {
     const base = createDefaultShow('show-63-zone', 'Empty Zone', 1)
 
