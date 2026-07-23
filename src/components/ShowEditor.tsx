@@ -168,7 +168,11 @@ import { bytesToBase64 } from '@/engine/RelayWebSocket'
 import { steppedClockRateHz, steppedClockStepMs } from '@/engine/steppedClock'
 import { showKeyboardSeekStepMs } from '@/engine/showKeyboardSeek'
 import { SHOW_EASING_OPTIONS, showEasingFromOptionId, showEasingOptionId } from '@/engine/showEasing'
-import { currentShowReferenceExample, type ShowReferenceGuide } from '@/engine/showReferenceShow'
+import {
+  applyShowReferencePattern,
+  currentShowReferenceExample,
+  type ShowReferenceGuide,
+} from '@/engine/showReferenceShow'
 import { exportedDims } from '@/engine/exportedDims'
 import {
   showBoundaryTransitionParameterChanges,
@@ -188,7 +192,11 @@ import { useControllerProfileStore } from '@/store/controllerProfileStore'
 import { resolveMap, STOCK_MAPS, useMapStore } from '@/store/mapStore'
 import { applyNormalizeMode } from '@/engine/maps'
 import { usePreviewStore } from '@/store/previewStore'
-import { useShowTransportStore } from '@/store/showTransportStore'
+import {
+  canAdvanceShowPlayback,
+  resolveShowPlaybackStep,
+  useShowTransportStore,
+} from '@/store/showTransportStore'
 import { usePatternStore } from '@/store/patternStore'
 import { useShowStore } from '@/store/showStore'
 import { useShowEditorSessionStore } from '@/store/showEditorSessionStore'
@@ -645,6 +653,47 @@ function ShowReferenceInstrument({
   )
 }
 
+interface ShowDeliverySnapshot {
+  show: ShowRecord
+  artifact: NonNullable<CompiledShowState['artifact']>
+  prepared: ReturnType<typeof prepareShowControllerArtifact>
+}
+
+interface ShowCompilationSnapshot {
+  show: ShowRecord
+  userMaps: MapRecord[]
+  artifact: NonNullable<CompiledShowState['artifact']>
+}
+
+function buildControllerCompatibilityContext(
+  profile: ControllerProfile | undefined,
+  maps: MapRecord[],
+) {
+  const pixelCount = profile?.lastKnownPixelCount
+  const fingerprint = profile?.mapFingerprints?.find((record) => (
+    pixelCount === undefined || record.devicePixelCount === pixelCount
+  )) ?? profile?.mapFingerprints?.[0]
+  const installedMap = fingerprint
+    ? [...STOCK_MAPS, ...maps].find((map) => map.id === fingerprint.mapId)
+    : undefined
+  const mapClass = installedMap
+    ? ('kind' in installedMap ? installedMap.kind : 'custom') as ArtifactMapClass
+    : undefined
+  return {
+    ...(pixelCount !== undefined ? { pixelCount } : {}),
+    ...(fingerprint
+      ? {
+          map: {
+            id: fingerprint.mapId,
+            name: fingerprint.mapName,
+            fingerprint: fingerprint.hash,
+            ...(mapClass ? { mapClass } : {}),
+          },
+        }
+      : {}),
+  }
+}
+
 export function ShowEditor({
   showId,
   showOverride,
@@ -652,6 +701,7 @@ export function ShowEditor({
   builtInContext,
   headerGuideTarget = null,
   headerActionsTarget = null,
+  transportClockActive = false,
   onOpenStagePreview,
 }: {
   showId: string
@@ -666,6 +716,7 @@ export function ShowEditor({
   }
   headerGuideTarget?: HTMLElement | null
   headerActionsTarget?: HTMLElement | null
+  transportClockActive?: boolean
   onOpenStagePreview?: (anchor: HTMLElement) => void
 }) {
   const savedShow = useShowStore((state) => state.shows.find((item) => item.id === showId))
@@ -706,9 +757,10 @@ export function ShowEditor({
   const clearPushResult = useControllerStore((state) => state.clearPushResult)
   const [selection, setSelection] = useState<ShowSelection>({ kind: 'show' })
   const [isolatedGroupOccurrenceId, setIsolatedGroupOccurrenceId] = useState<string | null>(null)
-  const [generatedOpen, setGeneratedOpen] = useState(false)
+  const [generatedSnapshot, setGeneratedSnapshot] = useState<ShowCompilationSnapshot | null>(null)
   const [showSendMode, setShowSendMode] = useState<SendMode>('run')
   const [pendingSendMode, setPendingSendMode] = useState<SendMode | null>(null)
+  const pendingDeliveryRef = useRef<ShowDeliverySnapshot | null>(null)
   const [preparingSave, setPreparingSave] = useState(false)
   const [compositionClipPendingDelete, setCompositionClipPendingDelete] = useState<ShowTimelineClipOwner | null>(null)
   const [spatialZoneSelection, setSpatialZoneSelection] = useState<{ zoneId: string; layoutId: string } | null>(null)
@@ -773,7 +825,7 @@ export function ShowEditor({
     }, 0)
   }, [detailPanelOpen, selection])
   const openShowProperties = useCallback((anchor: HTMLElement) => {
-    setGeneratedOpen(false)
+    setGeneratedSnapshot(null)
     selectTimeline({ kind: 'show' }, anchor)
   }, [selectTimeline])
   useEffect(() => {
@@ -1122,31 +1174,10 @@ export function ShowEditor({
   }, [activeShow, compiled.artifact, inspectableShowExport])
   const activeControllerMapDim = activeController?.mapDim ?? null
   const activeControllerFirmware = activeController?.firmwareVersion
-  const controllerCompatibilityContext = useMemo(() => {
-    const pixelCount = activeControllerProfile?.lastKnownPixelCount
-    const fingerprint = activeControllerProfile?.mapFingerprints?.find((record) => (
-      pixelCount === undefined || record.devicePixelCount === pixelCount
-    )) ?? activeControllerProfile?.mapFingerprints?.[0]
-    const installedMap = fingerprint
-      ? [...STOCK_MAPS, ...userMaps].find((map) => map.id === fingerprint.mapId)
-      : undefined
-    const mapClass = installedMap
-      ? ('kind' in installedMap ? installedMap.kind : 'custom') as ArtifactMapClass
-      : undefined
-    return {
-      ...(pixelCount !== undefined ? { pixelCount } : {}),
-      ...(fingerprint
-        ? {
-            map: {
-              id: fingerprint.mapId,
-              name: fingerprint.mapName,
-              fingerprint: fingerprint.hash,
-              ...(mapClass ? { mapClass } : {}),
-            },
-          }
-        : {}),
-    }
-  }, [activeControllerProfile, userMaps])
+  const controllerCompatibilityContext = useMemo(
+    () => buildControllerCompatibilityContext(activeControllerProfile, userMaps),
+    [activeControllerProfile, userMaps],
+  )
   const preparedControllerArtifact = useMemo(() => {
     if (compiled.artifactBlocker) {
       return { value: null, error: compiled.artifactBlocker }
@@ -1179,21 +1210,130 @@ export function ShowEditor({
       ? controllerPushResult.ok ? 'Sent to Controller' : controllerPushResult.message
       : null
 
+  const buildCurrentCompilationSnapshot = (): ShowCompilationSnapshot | null => {
+    const showState = useShowStore.getState()
+    const resolvedShow = showState.resolveEditableShow(showId)
+    const currentPatterns = usePatternStore.getState().userPatterns
+    let currentShow = resolvedShow ?? activeShow
+    const referencePattern = useShowEditorSessionStore.getState().referencePatternByShowId[showId]
+    const referenceSlots = builtInContext?.reference?.patternSlots
+    if (currentShow && referencePattern && referenceSlots) {
+      const patternName = referencePattern.kind === 'stock'
+        ? referencePattern.id
+        : currentPatterns.find((pattern) => pattern.id === referencePattern.id)?.name
+      if (patternName) {
+        currentShow = applyShowReferencePattern(currentShow, {
+          pattern: referencePattern,
+          patternName,
+          cellIds: referenceSlots.cellIds,
+          instanceIds: referenceSlots.instanceIds,
+        })
+      }
+    }
+    if (!currentShow) return null
+
+    const currentMaps = useMapStore.getState().userMaps
+    const currentProfiles = useControllerProfileStore.getState().profiles
+    const controllerState = useControllerStore.getState()
+    const currentActiveIp = controllerState.activeIp
+    const currentController = currentActiveIp ? controllerState.controllers[currentActiveIp] : undefined
+    const currentTargetProfile = currentShow.outputContract?.kind === 'portable-2d'
+      ? undefined
+      : currentShow.targetControllerProfileId
+        ? currentProfiles.find((profile) => profile.id === currentShow.targetControllerProfileId)
+        : currentProfiles[0]
+    const currentActiveProfile = currentProfiles.find((profile) => (
+      currentController?.deviceId
+        ? profile.deviceId === currentController.deviceId
+        : Boolean(currentActiveIp && profile.lastSeenIp === currentActiveIp)
+    )) ?? currentTargetProfile
+    const currentStageMap = currentShow.stageMapId
+      ? [...STOCK_MAPS, ...currentMaps].find((map) => map.id === currentShow.stageMapId)
+      : undefined
+    const currentCompiled = compileShowForArtifact(
+      currentShow,
+      currentPatterns,
+      resolveShowCompilationControllerZones(
+        currentShow,
+        Boolean(currentStageMap),
+        currentTargetProfile?.zones,
+      ),
+      {},
+      {
+        stageDimension: currentStageMap?.dim,
+        targetPixelCount: currentShow.outputContract?.kind === 'portable-2d'
+          ? currentActiveProfile?.lastKnownPixelCount
+          : undefined,
+      },
+    )
+    if (!currentCompiled.artifact || currentCompiled.artifactBlocker) return null
+    const currentPressure = assessShowCompilePressure({
+      artifactBytes: currentCompiled.artifact.summary.artifactBytes,
+      budgetBytes: currentCompiled.artifact.summary.measuredDeviceBudgetBytes,
+      worstInstantRenderersPerPixel: currentCompiled.artifact.summary.worstInstantRenderersPerPixel,
+    })
+    if (currentPressure.status === 'blocked') return null
+    return {
+      show: currentShow,
+      userMaps: currentMaps,
+      artifact: currentCompiled.artifact,
+    }
+  }
+
+  const buildCurrentDeliverySnapshot = (): ShowDeliverySnapshot | null => {
+    const compilation = buildCurrentCompilationSnapshot()
+    if (!compilation) return null
+    const currentProfiles = useControllerProfileStore.getState().profiles
+    const controllerState = useControllerStore.getState()
+    const currentActiveIp = controllerState.activeIp
+    const currentController = currentActiveIp ? controllerState.controllers[currentActiveIp] : undefined
+    const currentTargetProfile = compilation.show.outputContract?.kind === 'portable-2d'
+      ? undefined
+      : compilation.show.targetControllerProfileId
+        ? currentProfiles.find((profile) => profile.id === compilation.show.targetControllerProfileId)
+        : currentProfiles[0]
+    const currentActiveProfile = currentProfiles.find((profile) => (
+      currentController?.deviceId
+        ? profile.deviceId === currentController.deviceId
+        : Boolean(currentActiveIp && profile.lastSeenIp === currentActiveIp)
+    )) ?? currentTargetProfile
+    const currentExport = buildShowEpeExport(compilation.show, compilation.artifact.code, {
+      stampedAt: new Date(compilation.show.updatedAt),
+      userMaps: compilation.userMaps,
+      attribution: compilation.artifact.attribution,
+    })
+    try {
+      return {
+        show: compilation.show,
+        artifact: compilation.artifact,
+        prepared: prepareShowControllerArtifact(
+          currentExport.source,
+          currentController?.mapDim ?? null,
+          currentController?.firmwareVersion,
+          buildControllerCompatibilityContext(currentActiveProfile, compilation.userMaps),
+        ),
+      }
+    } catch {
+      return null
+    }
+  }
+
   useEffect(() => {
     if (!controllerPushResult) return
     const timeout = window.setTimeout(clearPushResult, 3500)
     return () => window.clearTimeout(timeout)
   }, [clearPushResult, controllerPushResult])
   const buildDownloadExport = async (): Promise<ShowEpeExport | null> => {
-    if (!activeShow || !compiled.artifact || compiled.artifactBlocker || compilePressure?.status === 'blocked') return null
-    const preview = await buildPreviewJpeg(compiled.artifact)
+    const compilation = buildCurrentCompilationSnapshot()
+    if (!compilation) return null
+    const preview = await buildPreviewJpeg(compilation.artifact)
     if (!preview) throw new Error('Could not render the EPE preview image')
-    return buildShowEpeExport(activeShow, compiled.artifact.code, {
+    return buildShowEpeExport(compilation.show, compilation.artifact.code, {
       id: makeProgramId(),
       preview: bytesToBase64(preview),
-      stampedAt: new Date(activeShow.updatedAt),
-      userMaps,
-      attribution: compiled.artifact.attribution,
+      stampedAt: new Date(compilation.show.updatedAt),
+      userMaps: compilation.userMaps,
+      attribution: compilation.artifact.attribution,
     })
   }
 
@@ -1237,31 +1377,35 @@ export function ShowEditor({
     }
   }
 
-  if (generatedOpen && compiled.artifact && !compiled.artifactBlocker) {
+  if (generatedSnapshot) {
+    const generatedExport = buildShowEpeExport(generatedSnapshot.show, generatedSnapshot.artifact.code, {
+      stampedAt: new Date(generatedSnapshot.show.updatedAt),
+      userMaps: generatedSnapshot.userMaps,
+      attribution: generatedSnapshot.artifact.attribution,
+    })
     return (
       <div className="flex h-full min-h-0 flex-col bg-zinc-950">
         <div className="flex h-9 shrink-0 items-center gap-2 border-b border-seam px-3 font-mono text-xs text-zinc-400">
           <Code2 size={14} aria-hidden />
-          <span className="flex-1 truncate text-zinc-200">Generated pattern - {activeShow.name}</span>
-          <ExportShowButton exported={showExport} buildExport={buildDownloadExport} />
+          <span className="flex-1 truncate text-zinc-200">Generated pattern - {generatedSnapshot.show.name}</span>
+          <ExportShowButton exported={generatedExport} buildExport={buildDownloadExport} />
           <Button
             size="xs"
             variant="ghost"
             className="bg-zinc-800/70 text-xs text-zinc-400 hover:bg-zinc-700/70 hover:text-zinc-300"
-            onClick={() => setGeneratedOpen(false)}
+            onClick={() => setGeneratedSnapshot(null)}
           >
             Back to show
           </Button>
         </div>
         <div className="min-h-0 flex-1">
-          <PixelblazeCodeEditor value={showExport?.source ?? compiled.artifact.code} readOnly />
+          <PixelblazeCodeEditor value={generatedExport.source} readOnly />
         </div>
       </div>
     )
   }
 
   const showArtifactId = `show:${activeShow.id}`
-  const activeShowName = activeShow.name
   const preparedSource = preparedControllerArtifact.value?.source ?? ''
   const alreadySent = (mode: SendMode) => isAlreadyPushed({
     mode,
@@ -1281,15 +1425,17 @@ export function ShowEditor({
   })
   const controllerName = activeController ? activeController.nickname || activeIp : null
 
-  async function sendShow(mode: SendMode) {
-    const prepared = preparedControllerArtifact.value
-    if (!prepared || !compiled.artifact) return
+  async function sendShow(mode: SendMode, requestedDelivery?: ShowDeliverySnapshot | null) {
+    const delivery = requestedDelivery ?? buildCurrentDeliverySnapshot()
+    if (!delivery) return
+    const prepared = delivery.prepared
     setPendingSendMode(null)
+    pendingDeliveryRef.current = null
     setShowSendMode(mode)
     setPreparingSave(mode === 'save')
     try {
       const previewImage = mode === 'save'
-        ? (await buildPreviewJpeg(compiled.artifact).catch(() => null)) ?? undefined
+        ? (await buildPreviewJpeg(delivery.artifact).catch(() => null)) ?? undefined
         : undefined
       trackEvent('send_to_controller', {
         mode,
@@ -1299,7 +1445,7 @@ export function ShowEditor({
       await pushGeneratedArtifact({
         artifactId: showArtifactId,
         source: prepared.source,
-        name: activeShowName,
+        name: delivery.show.name,
         persist: mode === 'save',
         artifactStamp: prepared.artifactStamp,
         previewImage,
@@ -1310,12 +1456,15 @@ export function ShowEditor({
   }
 
   function requestShowSend(mode: SendMode) {
+    const delivery = buildCurrentDeliverySnapshot()
+    if (!delivery) return
     setShowSendMode(mode)
-    if ((preparedControllerArtifact.value?.warnings.length ?? 0) > 0) {
+    if (delivery.prepared.warnings.length > 0) {
+      pendingDeliveryRef.current = delivery
       setPendingSendMode(mode)
       return
     }
-    void sendShow(mode)
+    void sendShow(mode, delivery)
   }
 
   const patternOptions = [
@@ -1419,7 +1568,10 @@ export function ShowEditor({
         title="View final generated code"
         className="bg-zinc-800/70 text-[11px] text-zinc-400 hover:bg-zinc-700/70 hover:text-zinc-300 disabled:opacity-40"
         disabled={!compiled.artifact || Boolean(compiled.artifactBlocker)}
-        onClick={() => setGeneratedOpen(true)}
+        onClick={() => {
+          const snapshot = buildCurrentCompilationSnapshot()
+          if (snapshot) setGeneratedSnapshot(snapshot)
+        }}
       >
         <Code2 size={13} aria-hidden />
         <span className="show-header-action-label">View code</span>
@@ -1427,7 +1579,10 @@ export function ShowEditor({
       <ExportShowButton exported={showExport} buildExport={buildDownloadExport} />
       <PushConfirmPopover
         open={pendingSendMode !== null}
-        onCancel={() => setPendingSendMode(null)}
+        onCancel={() => {
+          pendingDeliveryRef.current = null
+          setPendingSendMode(null)
+        }}
         title="Send Show"
         testId="show-preflight-dialog"
         anchor={(
@@ -1447,13 +1602,16 @@ export function ShowEditor({
         )}
       >
         <PatternPushChoices
-          warnings={preparedControllerArtifact.value?.warnings ?? []}
-          blocked={preparedControllerArtifact.value?.blocked ?? true}
+          warnings={pendingDeliveryRef.current?.prepared.warnings ?? preparedControllerArtifact.value?.warnings ?? []}
+          blocked={pendingDeliveryRef.current?.prepared.blocked ?? preparedControllerArtifact.value?.blocked ?? true}
           remedy={null}
-          onCancel={() => setPendingSendMode(null)}
+          onCancel={() => {
+            pendingDeliveryRef.current = null
+            setPendingSendMode(null)
+          }}
           confirmWithMap={async () => {}}
           confirmOnly={async () => {
-            if (pendingSendMode) await sendShow(pendingSendMode)
+            if (pendingSendMode) await sendShow(pendingSendMode, pendingDeliveryRef.current)
           }}
         />
       </PushConfirmPopover>
@@ -1514,6 +1672,7 @@ export function ShowEditor({
                 timelineComposition={timelineComposition}
                 readOnly={readOnly}
                 transportActive
+                transportClockActive={transportClockActive}
                 patternControlsByCellId={patternControlsByCellId}
                 selection={selection}
                 isolatedGroupOccurrenceId={isolatedGroupOccurrenceId}
@@ -2177,15 +2336,59 @@ export function ShowEditor({
   )
 }
 
-function ShowTransportControls({ show }: { show: ShowRecord }) {
+function ShowTransportControls({
+  show,
+  clockActive,
+}: {
+  show: ShowRecord
+  clockActive: boolean
+}) {
   const durationMs = showLoopDurationMs(show)
   const isRunning = usePreviewStore((state) => state.isRunning)
   const toggle = usePreviewStore((state) => state.toggle)
   const positionMs = useShowTransportStore((state) => state.showId === show.id ? state.positionMs : 0)
+  const seekStatus = useShowTransportStore((state) => state.showId === show.id ? state.seekStatus : 'idle')
+  const seekRequest = useShowTransportStore((state) => state.showId === show.id ? state.seekRequest : null)
 
   useEffect(() => {
     useShowTransportStore.getState().openShow(show.id, durationMs)
   }, [durationMs, show.id])
+
+  useEffect(() => {
+    if (!clockActive || seekStatus !== 'rebuilding' || !seekRequest) return
+    useShowTransportStore.getState().completeSeek(seekRequest.id, seekRequest.targetMs)
+  }, [clockActive, seekRequest, seekStatus])
+
+  useEffect(() => {
+    if (!clockActive || !canAdvanceShowPlayback(isRunning, seekStatus)) return
+    let frameId: number | null = null
+    let lastFrameAt: number | null = null
+    const tick = (now: number) => {
+      const transport = useShowTransportStore.getState()
+      if (!canAdvanceShowPlayback(usePreviewStore.getState().isRunning, transport.seekStatus)) return
+      const last = lastFrameAt ?? now
+      lastFrameAt = now
+      const deltaMs = Math.max(0, now - last) * usePreviewStore.getState().speed
+      const step = resolveShowPlaybackStep(
+        transport.positionMs,
+        deltaMs,
+        transport.playbackWindow,
+        durationMs,
+      )
+      if (step.kind === 'rewind') {
+        usePreviewStore.getState().setRunning(false)
+        transport.setPosition(show.id, step.targetMs)
+        frameId = null
+        return
+      }
+      transport.setPosition(show.id, step.targetMs)
+      frameId = requestAnimationFrame(tick)
+    }
+    frameId = requestAnimationFrame(tick)
+    return () => {
+      if (frameId !== null) cancelAnimationFrame(frameId)
+    }
+  }, [clockActive, durationMs, isRunning, seekStatus, show.id])
 
   useEffect(() => {
     const onKeyDown = (event: KeyboardEvent) => {
@@ -2550,6 +2753,7 @@ function ShowTimelineWorkspace({
   timelineComposition,
   readOnly,
   transportActive,
+  transportClockActive,
   patternControlsByCellId,
   selection,
   isolatedGroupOccurrenceId,
@@ -2586,6 +2790,7 @@ function ShowTimelineWorkspace({
   timelineComposition: ShowCompositionV1 | null
   readOnly: boolean
   transportActive: boolean
+  transportClockActive: boolean
   patternControlsByCellId: Record<string, AutomatablePatternControl[]>
   selection: ShowSelection
   isolatedGroupOccurrenceId: string | null
@@ -3176,7 +3381,7 @@ function ShowTimelineWorkspace({
         onClick={(event) => event.stopPropagation()}
       >
         <div className="timeline-transport-cluster min-w-0 shrink-0">
-          {transportActive && <ShowTransportControls show={show} />}
+          {transportActive && <ShowTransportControls show={show} clockActive={transportClockActive} />}
         </div>
         <div className="flex min-w-[128px] max-w-[292px] flex-[1_1_220px] shrink items-center gap-1 border-x border-zinc-800/80 px-2" role="group" aria-label="Timeline view controls">
             <TimelineNavigator viewport={viewport} onChange={updateViewport} compact />

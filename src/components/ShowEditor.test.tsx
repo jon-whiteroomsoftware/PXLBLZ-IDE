@@ -2367,6 +2367,56 @@ describe('ShowEditor (#318)', () => {
     }))
   })
 
+  it('compiles the current Pattern source when Run follows an urgent Show dependency update (#593)', async () => {
+    const show = createDefaultShow('show-send-current', 'Current source', 1000)
+    show.cells[0] = {
+      ...show.cells[0],
+      pattern: { kind: 'user', id: 'live-pattern' },
+      patternName: 'Live Pattern',
+    }
+    const oldPattern: PatternRecord = {
+      id: 'live-pattern',
+      name: 'Live Pattern',
+      src: 'export function render(index) { rgb(0.1234567, 0, 0) }',
+      controls: {},
+      updatedAt: 1,
+    }
+    const newPattern: PatternRecord = {
+      ...oldPattern,
+      src: 'export function render(index) { rgb(0.7654321, 0, 0) }',
+      updatedAt: 2,
+    }
+    const pushGeneratedArtifact = vi.fn().mockResolvedValue(undefined)
+    useShowStore.setState({ shows: [show], activeShowId: show.id, showsLoaded: true })
+    usePatternStore.setState({ userPatterns: [oldPattern], patternsLoaded: true })
+    useControllerStore.setState({
+      controllers: {
+        '10.0.0.5': {
+          ip: '10.0.0.5',
+          nickname: 'Bench PB',
+          phase: 'live',
+          mapDim: 1,
+          firmwareVersion: '3.67',
+        },
+      },
+      activeIp: '10.0.0.5',
+      pushGeneratedArtifact,
+    })
+    setControllerProvider(new ConnectedControllerProvider())
+
+    render(<ShowEditor showId={show.id} />)
+    const run = screen.getByRole('button', { name: 'Run on Bench PB' })
+    act(() => {
+      usePatternStore.setState({ userPatterns: [newPattern] })
+      fireEvent.click(run)
+    })
+
+    await waitFor(() => expect(pushGeneratedArtifact).toHaveBeenCalled())
+    const source = pushGeneratedArtifact.mock.calls[0][0].source as string
+    expect(source).toContain('0.7654321')
+    expect(source).not.toContain('0.1234567')
+  })
+
   it('confirms a Controller renderer adaptation before sending the adapted Show (#429)', async () => {
     const user = userEvent.setup()
     let show = createDefaultShow('show-adapt', 'Spatial Show', 1000)

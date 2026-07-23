@@ -1116,6 +1116,7 @@ function StudioApp() {
                   } : undefined}
                   headerGuideTarget={showHeaderGuideTarget}
                   headerActionsTarget={showHeaderActionsTarget}
+                  transportClockActive={narrowShowWorkspace && showStageOverlayShowId !== activeShow.id}
                   onOpenStagePreview={(anchor) => {
                     showStageReturnFocusRef.current = anchor
                     setShowStageOverlayShowId(activeShow.id)

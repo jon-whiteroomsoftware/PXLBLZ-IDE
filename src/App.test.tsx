@@ -28,6 +28,7 @@ import {
 import { createDefaultShow } from '@/engine/showModel'
 import { createPortableShowOutputContract } from '@/engine/showOutputContract'
 import { previewInitialState, usePreviewStore } from '@/store/previewStore'
+import { showTransportInitialState, useShowTransportStore } from '@/store/showTransportStore'
 import { showEditorSessionInitialState, useShowEditorSessionStore } from '@/store/showEditorSessionStore'
 import { STOCK_SHOWS } from '@/pixelblaze/stock/shows'
 
@@ -60,6 +61,7 @@ beforeEach(() => {
   useControllerProfileStore.setState(controllerProfileInitialState)
   useShowStore.setState(showInitialState)
   usePreviewStore.setState(previewInitialState)
+  useShowTransportStore.setState(showTransportInitialState)
   useShowEditorSessionStore.setState(showEditorSessionInitialState)
 })
 
@@ -373,6 +375,56 @@ describe('routing (#308)', () => {
     expect(screen.queryByRole('dialog', { name: 'Show Stage preview' })).not.toBeInTheDocument()
     expect(within(screen.getByTestId('preview-pane')).queryByLabelText('Show stage')).not.toBeInTheDocument()
     await waitFor(() => expect(previewStage).toHaveFocus())
+  })
+
+  it('advances narrow Show playback while the Stage preview is closed (#593)', async () => {
+    const user = userEvent.setup()
+    const callbacks = new Map<number, FrameRequestCallback>()
+    let nextFrameId = 1
+    vi.stubGlobal('requestAnimationFrame', (callback: FrameRequestCallback) => {
+      const id = nextFrameId++
+      callbacks.set(id, callback)
+      return id
+    })
+    vi.stubGlobal('cancelAnimationFrame', (id: number) => { callbacks.delete(id) })
+    vi.stubGlobal('innerWidth', 900)
+    const show = createDefaultShow('show-narrow-playback', 'Narrow playback', 1000)
+    window.history.replaceState(null, '', '/studio/shows/show-narrow-playback')
+    seedSignedInWorkspace()
+    useShowStore.setState({ shows: [show], showsLoaded: true, activeShowId: show.id })
+
+    render(<App />)
+
+    expect(screen.queryByRole('dialog', { name: 'Show Stage preview' })).not.toBeInTheDocument()
+    expect(within(screen.getByTestId('preview-pane')).queryByLabelText('Show stage')).not.toBeInTheDocument()
+    act(() => usePreviewStore.getState().setRunning(true))
+    await waitFor(() => expect(callbacks.size).toBeGreaterThan(0))
+
+    const runFrame = (timestamp: number) => {
+      const entries = [...callbacks.entries()]
+      const entry = entries[entries.length - 1]
+      expect(entry).toBeDefined()
+      callbacks.delete(entry![0])
+      act(() => entry![1](timestamp))
+    }
+    runFrame(0)
+    runFrame(20)
+
+    expect(usePreviewStore.getState().isRunning).toBe(true)
+    expect(useShowTransportStore.getState().positionMs).toBeGreaterThan(0)
+
+    await user.click(screen.getByRole('button', { name: 'Preview Stage' }))
+    const dialog = screen.getByRole('dialog', { name: 'Show Stage preview' })
+    act(() => usePreviewStore.getState().setRunning(true))
+    const positionBeforeClose = useShowTransportStore.getState().positionMs
+    callbacks.clear()
+    await user.click(within(dialog).getByRole('button', { name: 'Close Stage preview' }))
+    await waitFor(() => expect(callbacks.size).toBeGreaterThan(0))
+    runFrame(100)
+    runFrame(120)
+
+    expect(usePreviewStore.getState().isRunning).toBe(true)
+    expect(useShowTransportStore.getState().positionMs).toBeGreaterThan(positionBeforeClose)
   })
 
   it('gives the production Show one workspace owner for its header, timeline, and Stage (#592)', () => {
