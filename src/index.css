@@ -382,8 +382,8 @@
 }
 
 @container (max-width: 820px) {
-  .show-timeline-toolbar .timeline-zoom-slider {
-    width: 96px;
+  .show-timeline-toolbar .timeline-view-cluster {
+    flex-basis: 150px;
   }
 }
 
@@ -398,10 +398,17 @@
     display: none;
   }
 
-  .show-timeline-toolbar .timeline-zoom-slider {
-    width: 72px;
+  .show-timeline-toolbar .timeline-view-cluster {
+    min-width: 114px;
+    flex-basis: 114px;
   }
 
+  .show-timeline-toolbar .timeline-zoom-cluster {
+    min-width: 78px;
+  }
+}
+
+@container (max-width: 440px) {
   .show-timeline-toolbar .timeline-time-display {
     display: grid;
     min-width: 58px;
@@ -429,6 +436,15 @@
 
   .show-timeline-toolbar .timeline-time-separator {
     display: none;
+  }
+
+  .show-timeline-toolbar .timeline-view-cluster {
+    min-width: 102px;
+    flex-basis: 102px;
+  }
+
+  .show-timeline-toolbar .timeline-zoom-cluster {
+    min-width: 66px;
   }
 }
 

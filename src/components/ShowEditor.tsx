@@ -2430,7 +2430,7 @@ function ShowTransportControls({
         <SkipBack size={18} aria-hidden className="size-[18px]" />
       </Button>
       <output
-        className="timeline-time-display flex min-w-[118px] items-baseline gap-1 whitespace-nowrap text-xs tabular-nums"
+        className="timeline-time-display ml-1 flex min-w-[118px] items-baseline gap-0.5 whitespace-nowrap text-xs tabular-nums"
         aria-live="off"
         aria-label="Show time"
       >
@@ -3390,7 +3390,7 @@ function ShowTimelineWorkspace({
         aria-label="Show timeline controls"
         onClick={(event) => event.stopPropagation()}
       >
-        <div className="timeline-transport-cluster min-w-0 shrink-0">
+        <div className="timeline-transport-cluster mr-1 min-w-0 shrink-0">
           {transportActive && <ShowTransportControls show={show} />}
         </div>
         <div className="timeline-view-cluster flex min-w-[120px] max-w-[210px] flex-[0_1_180px] shrink items-center gap-1 border-l border-zinc-800/80 px-1" role="group" aria-label="Timeline view controls">

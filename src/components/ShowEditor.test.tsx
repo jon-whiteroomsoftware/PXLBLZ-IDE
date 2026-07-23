@@ -144,6 +144,8 @@ describe('ShowEditor (#318)', () => {
     const authoring = within(toolbar).getByRole('group', { name: 'Show authoring commands' })
 
     expect(transport).toHaveClass('gap-1')
+    expect(transport.parentElement).toHaveClass('mr-1')
+    expect(within(transport).getByLabelText('Show time')).toHaveClass('ml-1', 'gap-0.5')
     expect(within(view).getByRole('group', { name: 'Show navigator' })).toBeInTheDocument()
     expect(within(view).getByRole('button', { name: 'Fit timeline to Show' })).toBeDisabled()
     expect(view).toHaveClass('max-w-[210px]', 'flex-[0_1_180px]', 'gap-1')
