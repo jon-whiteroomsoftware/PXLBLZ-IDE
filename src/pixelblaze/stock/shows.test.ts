@@ -28,7 +28,7 @@ describe('stock Show curriculum (#363)', () => {
       ['103 Effects', 'learn', 100, 3],
       ['104 Portable Zones', 'learn', 100, 4],
       ['105 Built from Basics', 'learn', 100, 5],
-      ['201 Scene-local Cuts', 'learn', 200, 1],
+      ['201 Clip Sequencing and Cuts', 'learn', 200, 1],
       ['202 Layers and Local Animation', 'learn', 200, 2],
       ['203 Dynamic Zone Layouts', 'learn', 200, 3],
       ['204 Installation Mapping', 'learn', 200, 4],
@@ -44,6 +44,12 @@ describe('stock Show curriculum (#363)', () => {
       ['Redline Installation', 'showcases', null, 10],
     ])
     expect(STOCK_SHOWS.every((item) => item.show.id === item.id)).toBe(true)
+    expect(STOCK_SHOWS.every((item) => !/\bscenes?\b/i.test([
+      item.name,
+      item.note.purpose,
+      item.note.notice,
+      ...item.note.prompts,
+    ].join(' ')))).toBe(true)
     expect(new Set(STOCK_SHOWS.map((item) => `${item.collection}:${item.level}:${item.order}`)).size)
       .toBe(STOCK_SHOWS.length)
   })

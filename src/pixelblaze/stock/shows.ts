@@ -126,7 +126,7 @@ function learn101(): StockShow {
     purpose: 'Two Patterns become one timed composition. Each Clip owns what plays; the boundary between them owns how the picture changes.',
     notice: 'The Crossfade is a separate timeline entity, not a property hidden inside either Clip.',
     prompts: ['Shorten the Crossfade from 3.0 s to 1.0 s.', 'Replace Compass Rose with a Pattern that moves differently.'],
-    guideHeading: 'clips-scenes-and-boundaries',
+    guideHeading: 'clips-layers-and-boundaries',
     output: portableOutput(), zones, layouts: [singleLayout(zones)], scenes,
     transitions: [boundary('mandala', 'crossfade', 3_000, SINE_IN_OUT)],
   })
@@ -181,7 +181,7 @@ function learn103(): StockShow {
   return catalogue({
     id, title: 'Effects', track: 'portable', collection: 'learn', level: 100, order: 3,
     purpose: 'Effects transform a Clip after its Pattern renders. Reusing one known Pattern makes operation order and spatial change easier to see.',
-    notice: 'The Reference Scene and every effected Scene share the same Pattern.',
+    notice: 'The Reference Clip and every effected Clip share the same Pattern.',
     prompts: ['Swap the order of Translate and Scale.', 'Set Ripple amount to zero, then bring it back gradually.'],
     guideHeading: 'clip-effects',
     output: portableOutput(), zones, layouts: [singleLayout(zones)], scenes,
@@ -259,11 +259,11 @@ function learn201(): StockShow {
     ] }] }],
   }
   return catalogue({
-    id, title: 'Scene-local Cuts', track: 'portable', collection: 'learn', level: 200, order: 1,
-    purpose: 'A Scene can contain its own sequence of Main Clips. The global timeline stays simple while the Scene editor carries the internal beats.',
-    notice: 'The three local Clips are mutually exclusive and completely cover the Scene.',
+    id, title: 'Clip Sequencing and Cuts', track: 'portable', collection: 'learn', level: 200, order: 1,
+    purpose: 'A Layer can carry its own sequence of Clips. The unified timeline keeps every beat visible without introducing another editing scope.',
+    notice: 'The three Clips are mutually exclusive and completely cover the Layer interval.',
     prompts: ['Drag the second Cut one second earlier.', 'Change the final Clip to continue its clock instead of restarting.'],
-    guideHeading: 'scene-local-main-clips', output: portableOutput(), zones, layouts: [singleLayout(zones)], scenes, composition,
+    guideHeading: 'clip-sequencing-and-cuts', output: portableOutput(), zones, layouts: [singleLayout(zones)], scenes, composition,
   })
 }
 
@@ -293,10 +293,10 @@ function learn202(): StockShow {
   }
   return catalogue({
     id, title: 'Layers and Local Animation', track: 'portable', collection: 'learn', level: 200, order: 2,
-    purpose: 'Overlay layers let more than one Pattern contribute to a Scene. Local keyframes animate a typed property without creating more global Scenes.',
+    purpose: 'Layers let more than one Pattern contribute at the same time. Keyframes animate a typed property without creating extra Clips.',
     notice: 'The overlay exists only from 3-13 seconds, while its opacity controls how it enters and leaves that interval.',
     prompts: ['Raise the peak opacity from 0.72 to 1.0.', 'Drag the overlay into a new layer and compare the stacking order.'],
-    guideHeading: 'scene-layers-and-local-animation', output: portableOutput(), zones, layouts: [singleLayout(zones)], scenes, composition,
+    guideHeading: 'layers-and-property-animation', output: portableOutput(), zones, layouts: [singleLayout(zones)], scenes, composition,
   })
 }
 
@@ -711,8 +711,8 @@ function propertyAnimationReference(): StockShow {
   return catalogue({
     id, title: 'Property Animation', track: 'portable', collection: 'showcases', level: null, order: 7,
     purpose: 'Eight examples show where values can change over time: Pattern state, placement view, layering, Effect parameters, routing, and sample remapping.',
-    notice: 'The first six examples use Scene-local sparklines; Split position and Repeat scale use boundary-owned Property transitions.',
-    prompts: ['Open each Scene and compare the highlighted sparkline owner.', 'Change one midpoint value while leaving its endpoints fixed.'],
+    notice: 'The first six examples use Clip-owned sparklines; Split position and Repeat scale use boundary-owned Property transitions.',
+    prompts: ['Open each Clip and compare the highlighted sparkline owner.', 'Change one midpoint value while leaving its endpoints fixed.'],
     guideHeading: 'property-animation-reference', output: portableOutput(), zones,
     defaultOpen: true,
     layouts: [splitLayout('layout-property-split', 'Property split', zones, 'x')], scenes, transitions, composition,
@@ -724,7 +724,7 @@ function propertyAnimationReference(): StockShow {
       },
       examples: [
         ...properties.slice(0, 6).map(([sceneId, label]) => ({
-          id: sceneId, label, detail: 'Scene-local Property sparkline.', anchor: { kind: 'scene' as const, sceneId },
+          id: sceneId, label, detail: 'Clip-owned Property sparkline.', anchor: { kind: 'scene' as const, sceneId },
         })),
         { id: 'split-position', label: 'Split position', detail: 'Boundary-owned routing Property transition.', anchor: { kind: 'boundary', transitionId: 'transition-effect-parameter' } },
         { id: 'repeat-scale', label: 'Repeat scale', detail: 'Boundary-owned sample-remap Property transition.', anchor: { kind: 'boundary', transitionId: 'transition-split-position' } },

@@ -311,9 +311,9 @@ mismatches, because firmware silently ignores a mismatched map.
 
 # Part 4 — Shows
 
-A Show composes existing Patterns into choreography — scenes on a timeline,
-zones across an installation, transitions at the boundaries — and compiles
-all of it into **one ordinary Pixelblaze Pattern**. The source Patterns stay
+A Show composes existing Patterns into time-based choreography: Clips on
+Layers, Layers inside Zones, and Transitions between connected Clips. It
+compiles all of that into **one ordinary Pixelblaze Pattern**. The source Patterns stay
 reusable; the Show owns timing, routing, adaptation, and one permanent output
 contract. This part introduces each dimension of the Show editor; the deep
 treatments live in the [Visual Effects Guide](../guides/Visual effects guide.md)
@@ -336,24 +336,25 @@ pixels.
 
 ## 13. The timeline
 
-The canonical editor is one proportional, zoomable timeline of Pattern Clips.
+The canonical editor is one proportional timeline of Pattern Clips.
 Clips occupy exact Show time on explicit Layers; they may move horizontally,
 between existing Layers, or between Zones without exposing the internal Scene
 owners used by the saved composition and compiler. A shared ruler, playhead,
 transport, and Navigator stay visible above the editable Layer stacks. The
-transition lane and disclosed Property animation lanes remain aligned to that
-same time axis.
+per-Layer Transition junctions and disclosed Property animation lanes remain
+aligned to that same time axis.
 
 The working grammar is compact:
 
-- **Transport and keys.** Space plays and pauses, Left/Right Arrow seek one
-  second, Home rewinds. Click or drag the ruler to seek. Scrubbing rebuilds
+- **Transport and keys.** Space plays and pauses; A rewinds. Left/Right Arrow
+  pans one visible page, while Tab and Shift-Tab traverse timeline entities in
+  deterministic time order. Click or drag the ruler to seek. Scrubbing rebuilds
   exact deterministic Pattern state by replaying from Show start — there is no
   approximate seek.
-- **Zoom and Snap.** Fit, zoom controls, or Ctrl/Cmd-wheel change the
-  viewport without changing Show time. Snap magnetically aligns scrubbing and
-  edits to scene, clip, transition, and grid boundaries; Alt temporarily
-  reverses it.
+- **Navigator and Snap.** The compact Navigator pans or resizes the visible
+  range; Fit restores the complete Show, and Ctrl/Cmd-wheel zooms around the
+  playhead. Snap magnetically aligns scrubbing and edits to Clip, Transition,
+  Marker, and time-grid boundaries; Alt temporarily reverses it.
 - **Direct Clip edits.** **Add Clip** places a Pattern at the playhead when the
   target Layer has room. Dragging moves a Clip without overwriting another;
   selected Clip edges resize it. **Split** divides the selected Clip at the
@@ -361,9 +362,10 @@ The working grammar is compact:
   and Duration remain editable in decimal seconds. Unavailable commands stay
   focusable and explain why. Every commit is one session-scoped undo step
   (Cmd/Ctrl+Z).
-- **Selection and detail.** Selecting any entity — scene, clip, transition,
-  zone, routing switch — opens one floating **Entity Detail Panel** beside it
-  with that entity's exact editable fields.
+- **Selection and detail.** Selecting a Clip, Group, Transition, Zone, or the
+  Show opens a compact floating **Entity Detail Panel** beside its source with
+  that entity's exact editable fields. Clicking elsewhere closes transient
+  Details; one Detail may be pinned for comparison.
 - **Progressive structure.** **Layer** deliberately adds another compositing
   lane. **Zones** reveals the Zone Map only when routing structure is needed;
   a one-Zone Show otherwise spends the full width on its Clips.
@@ -432,7 +434,8 @@ envelopes and numbers live in **Show Rendering Optimization Results**.
 
 ## 15. Transitions and Property animation
 
-A transition is its own boundary object, not a property hidden on a scene. A
+A Transition is a visible, selectable junction between two connected Clips on
+one Layer, not a property hidden on either Clip. A
 searchable registry covers Blend, Fade, Wipe, Dissolve, Shape reveal, and
 Motion families; hovering a row previews it on the Stage at that boundary
 without saving. Each variant's Entity Detail exposes only its legal fields —
@@ -444,13 +447,13 @@ renderer per pixel, wipes route each pixel to one member, crossfades disclose
 their snapshot-versus-live policy, and feathered shape reveals evaluate both
 Patterns only inside the band.
 
-Property animation uses one shared model everywhere: the destination clip or
-scene owns the target value, and the incoming boundary owns start, duration,
-and easing. Animation speed, Brightness, Clip Transform, exported sliders,
-and routing split position all animate through the same system, drawn as
-compact sparklines beneath their zones. The Scene-local editor adds exact
-keyframes with Linear, Steps, Hold, Bezier, and Back easing for animation
-inside a scene rather than across boundaries.
+Property animation uses one shared model: the destination Clip or Show target
+owns its value, while the incoming boundary owns start, duration, and easing.
+Animation speed, Brightness, Clip Transform, exported sliders, and routing
+split position all use the same system and appear as compact sparklines beneath
+their Zones. Existing exact keyframe tracks continue to preview, compile, and
+split through the internal composition model without exposing a separate
+Scene-local authoring surface.
 
 ## 16. Zones and routing
 
@@ -464,7 +467,7 @@ Expanded Zones share the ruler and may collapse independently. A collapsed
 Zone remains a time-accurate miniature: one thin band per Layer retains Clip
 spans and property-event positions, and it remains a snapping and drag target.
 Focusing a Zone expands it and collapses its siblings. Collapse, focus, and
-Zone-workspace disclosure persist independently per Show.
+Zone-workspace disclosure persists independently per Show.
 
 The output contract determines what those Zones mean:
 
@@ -479,11 +482,12 @@ The output contract determines what those Zones mean:
   generated Pattern derives ownership from runtime coordinates, so the same
   rule holds on any compatible surface.
 
-A Show may own several named Zone Layouts and change them at boundaries,
-either as a cut or as a moving threshold that sweeps the installation while
-every Pattern clock continues. Scenes may also set a synchronized **Repeat
-scale** that tiles what Patterns sample without changing zone ownership or
-drawn positions.
+A Show may own several named Zone Layouts and reference them from explicit
+Layout intervals on the Timeline. A boundary may switch definitions as a Cut;
+Moving Split and Soft Split animate an owned position while every Pattern clock
+continues. A synchronized **Repeat scale** tiles what Patterns sample without
+changing Zone ownership or drawn positions and appears as an ordinary Property
+animation band on the unified Timeline.
 
 The right pane is the read-only **Stage**: the Show rendered over its output
 geometry (or honest generic strips when no map is saved), with the familiar

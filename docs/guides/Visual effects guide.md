@@ -2,7 +2,7 @@
 
 This guide explains how to animate and combine visual material in a Show.
 **Property animation** changes a saved number over time, an **Effect** changes
-one Clip, and a **Transition** moves from one Scene to the next. They share
+one Clip, and a **Transition** exchanges two adjacent Clips. They share
 parameters and timing controls, but they own different parts of the Show.
 Choosing the right class keeps the timeline readable and makes the compiled
 cost predictable.
@@ -13,7 +13,7 @@ track teaches fixed physical groups and coverage. Each example is read-only, so
 it can be inspected, played, exported, or sent without creating an undeletable
 personal record.
 
-![A production Show with three zones, compact property lanes, transitions, cost disclosure, and Stage coverage.](../screenshots/show-visual-toolkit-overview.png)
+![A production Show with five Zones, compact property bands, Transition junctions, cost disclosure, and Stage coverage.](../screenshots/show-visual-toolkit-overview.png)
 
 ## The ownership rule
 
@@ -23,39 +23,35 @@ Start by asking what the change belongs to.
 | --- | --- | --- | --- |
 | Property animation | One numeric property and its incoming change | A compact property lane and the owning Entity Detail Panel | A saved value should move from the previous target to the next target |
 | Effect | One clip and one visual source | The clip's **Effects** stack | The same source should be transformed, distorted, addressed, or recolored |
-| Transition | The boundary between two Scenes | The **Transitions** lane and the boundary's Entity Detail Panel | The outgoing and incoming sources must exchange ownership over time |
+| Transition | The junction between two Clips on one Layer | The junction affordance and its compact Details popover | The outgoing and incoming sources must exchange ownership over time |
 
 This ownership is literal. A clip carries its Effects when it moves or is
-cloned. A Scene boundary carries its Transition. The destination clip or Scene
-carries a Property animation's target value, while the incoming boundary carries
-the optional start, duration, and easing used to reach it.
+cloned. A Clip junction carries its Transition. The destination Clip carries a
+Property animation's target value, while the incoming junction carries the
+optional start, duration, and easing used to reach it.
 
-If a change belongs inside an existing Scene, open that Scene's local editor.
-Its Main lane carries mutually exclusive Clips, overlay lanes carry concurrent
-Clips, and typed property tracks carry local keyframes. Use a global **Split**
-when the change should remain visible and editable on the global timeline.
+The editor has one authoring scope. Each Zone owns a visible stack of Layers;
+Clips on one Layer are mutually exclusive, while Clips on different Layers can
+run concurrently. Use **Split** when a change must begin inside a Clip. The two
+resulting Clips preserve Pattern time at the split unless the user explicitly
+chooses an independent Pattern instance.
 
 ## Reading the timeline
 
-The global timeline shows structure first. Clips occupy zone rows, Transitions
-occupy their own boundary lane, and animated values appear as terse property
-lanes. A sparkline shows the useful shape of a value even when small differences
-would be invisible at literal scale. Its dots mark authored targets; edit exact
-values and times in Entity Details rather than treating the tiny marks as drag
-handles.
+The unified timeline shows structure first. Clips occupy Layer rows, Transition
+junctions sit between connected Clips, and animated values appear as compact
+property bands directly below their owner. A sparkline shows the useful shape of
+a value even when small differences would be invisible at literal scale. Its
+dots mark authored targets; edit exact values and times in Details rather than
+treating the tiny marks as drag handles.
 
-Open a Scene's **X-ray** to reveal its internal beats without changing timeline
-height. The magnifier opens **Super Detail**, a read-only wayfinding view with
-expanded boundary, placement, Effect, Property animation, and compiler facts.
-Use it to understand or align a dense Scene; ordinary authoring remains in the
-global timeline.
+Selecting a Show entity opens one modeless **Details** popover attached to it.
+Several popovers may remain open for comparison. Clicking an already-selected
+owner toggles its popover closed; clicking anywhere outside the open popovers
+closes them all. During a drag, popovers hide and then reopen at their owners so
+they never obscure placement.
 
-Selecting one Show entity opens one modeless **Entity Detail Panel** beside it.
-Selecting another entity transfers the panel, and selecting the same owner again
-closes it. This keeps values near the thing they describe without turning every
-timeline row into a permanent form.
-
-![The clip Entity Detail Panel groups one-source Effects by compiler stage and retains the surrounding timeline.](../screenshots/show-visual-toolkit-entity-detail.png)
+![The compact Clip Details popover groups one-source Effects by compiler stage while retaining the surrounding timeline.](../screenshots/show-visual-toolkit-entity-detail.png)
 
 ## Choosing an Effect
 
@@ -137,7 +133,7 @@ different ownership questions.
 | --- | --- | --- |
 | Clip **Opacity** Effect | One captured source is multiplied toward the black Show background | One clip should become dimmer or disappear without introducing another source |
 | **Fade > Through color** Transition | The outgoing source moves to a chosen color, then the incoming source moves out of that color | The boundary needs an intentional black, white, or custom-color beat |
-| **Shape reveal > Shrink outgoing** | A spatial mask selects outgoing versus incoming pixels as the authored shape contracts | The old Scene should disappear through a recognizable geometric aperture |
+| **Shape reveal > Shrink outgoing** | A spatial mask selects outgoing versus incoming pixels as the authored shape contracts | The outgoing Clip should disappear through a recognizable geometric aperture |
 | **Motion > Content shrink** | The outgoing content's coordinates scale toward an anchor while source ownership changes | The image itself should recede or collapse rather than merely being clipped by a shape |
 
 Opacity is therefore not a crossfade. Shape shrink is not content shrink. The
@@ -174,11 +170,12 @@ The stock catalogue uses small executable examples rather than an embedded
 tutorial system. Each Show note names the idea to notice and two safe changes to
 try; the sections below explain the corresponding mechanism.
 
-### Clips, Scenes, and boundaries
+### Clips, Layers, and boundaries
 
-A Clip chooses a Pattern and its values for a span of time. A Scene groups the
-Clips active during that span, while the boundary between Scenes owns the Cut,
-Crossfade, Wipe, or other Transition that exchanges them.
+A Clip chooses a Pattern and its values for a span of time. A Layer orders Clips
+that cannot overlap in time. The junction between adjacent Clips owns the Cut,
+Crossfade, Wipe, or other Transition that exchanges them; a Cut occupies no
+duration but remains selectable so it can be changed.
 
 ### Transitions and Clip values
 
@@ -204,17 +201,19 @@ Build an arc from a few legible decisions: establish structure, introduce one
 dominant change at a time, then release it. More active Zones do not require
 every Clip to change Pattern, Effect, value, and Transition simultaneously.
 
-### Scene-local Main Clips
+### Clip sequencing and cuts
 
-The Main lane is a mutually exclusive schedule inside one Scene. Its placements
-may touch but not overlap, which makes local Cuts predictable and guarantees one
-Main source at any instant the lane covers.
+One Layer is a mutually exclusive schedule. Its Clips may touch but not overlap,
+which makes Cuts predictable and guarantees at most one source from that Layer
+at any instant. Additional Layers add concurrent Clips without changing the
+timeline's editing model.
 
-### Scene layers and local animation
+### Layers and property animation
 
-Overlay lanes add concurrent Clips above Main. A placement's opacity and typed
-property tracks control how it contributes during its own local interval; the
-track cannot extend beyond the owning Scene.
+Higher Layers composite above lower Layers. A Clip's opacity and typed property
+tracks control how it contributes during its own interval. Hidden keyframes are
+preserved if a Clip is shortened, so lengthening it again restores the authored
+motion rather than destroying it.
 
 ### Dynamic Zone Layouts
 
@@ -277,7 +276,7 @@ source when comparing operations that can look similar on a black background.
 
 ### Wipe and mix Transition reference
 
-Blends, fades, Wipes, and Dissolves all exchange one Scene for another, but they
+Blends, fades, Wipes, and Dissolves all exchange one Clip for another, but they
 answer different questions. Blends mix complete rendered images; fades pass
 through a color; Wipes move a geometric selector; Dissolves distribute that
 selector across pixels or regions. The reference Show holds the Pattern pair
@@ -294,7 +293,7 @@ turning two independent choices into a combinatorial inventory.
 
 ### Motion Transition reference
 
-Motion Transitions move rendered Scene content rather than a selector edge.
+Motion Transitions move rendered Clip content rather than a selector edge.
 Cover, Reveal, and Push establish the directional models; Content grow and
 Content shrink establish anchored scaling; Zoom adds optional rotation. Four
 cardinal examples make directional ownership explicit while the inspector
@@ -303,7 +302,7 @@ retains continuous and diagonal values.
 ### Property animation reference
 
 Property animation changes a value while preserving the Pattern and surrounding
-choreography. Scene-local tracks animate Pattern speed, a public Pattern control,
+choreography. Clip-owned tracks animate Pattern speed, a public Pattern control,
 placement brightness and phase, overlay opacity, and an Effect parameter.
 Boundary-owned tracks animate the Zone split and sample repeat scale. Their
 sparklines identify the owner of each value on the timeline. **Try with Pattern**
@@ -332,8 +331,8 @@ color because that field is authored by the Transition itself.
 
 ## A practical authoring loop
 
-1. Build the Scene order and zone layout with Cuts.
-2. Use Split where a new target must begin inside a Scene.
+1. Build Clip order, Layers, and Zone Layout intervals with Cuts.
+2. Use Split where a new target must begin inside a Clip.
 3. Add clip Effects and set exact parameters in Entity Details.
 4. Add Property animation only where a value must change across a boundary.
 5. Replace important Cuts with Transitions and preview their real boundaries.

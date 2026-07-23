@@ -962,7 +962,6 @@ function StudioApp() {
                         : activeShow.outputContract?.kind === 'portable-2d'
                           ? 'Portable 2D'
                           : 'Legacy output'}
-                      {' · '}{activeShow.scenes.length} scenes
                     </span>
                   )}
                 </span>
@@ -1075,7 +1074,6 @@ function StudioApp() {
               ) : activeShow ? (
                 <ShowEditor
                   showId={activeShow.id}
-                  unifiedTimeline
                   showOverride={routedStockShowOverride}
                   builtInContext={routedStockShow ? {
                     track: routedStockShow.track,

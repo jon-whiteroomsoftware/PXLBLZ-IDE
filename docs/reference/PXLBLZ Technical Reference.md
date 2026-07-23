@@ -1000,39 +1000,21 @@ timing-incompatible. Invalid structures normalize safely to Linear, while the
 headless validator returns field-addressed `not-finite`, `not-integer`,
 `out-of-range`, or `invalid-option` issues for a later editor to present.
 
-The persisted record still uses the `cells` field and `ShowCell` type for
-compatibility with existing saved Shows. Product language and editor behavior
-call these entities clips.
+The persisted record retains `cells` and `ShowCell` only as a compatibility
+input for older saved Shows. Opening such a Show materializes
+`ShowCompositionV1`, whose Pattern instances, Main placements, overlay Layers,
+Groups, Markers, and Layer Transitions are the production authoring model.
+Internal Scene ids partition compatibility storage and compiler lowering; no
+production command creates or selects a Scene.
 
-A clip occupies a rectangular scene-by-zone footprint. `showCellAtSlot()` is
-the shared occupancy query for direct cells and slots covered by either span.
-Placement succeeds only in an empty slot. Growing a hold or zone span removes
-every intersecting clip across both axes; scene and zone removal shrink or
-re-anchor surviving spans so the record cannot retain overlapping or out-of-range
-geometry.
-
-Split is an atomic pure-model operation. It rejects transition windows and
-sub-one-second fragments, creates one boundary across zones, divides covering
-clips, deep-copies value objects, moves the original outgoing boundary to the
-new right scene, and defaults destination clips to Continue.
-`showSplitCapability()` projects the same rule into `ready`,
-`scene-edge-margin`, and `no-scene` states with actionable text. The timeline
-renders unavailable Split as an `aria-disabled` but focusable command; focus or
-activation discloses an anchored live status, so keyboard and pointer paths do
-not depend on native disabled-button tooltip behavior.
-
-`duplicateShowScene()` is the global-time Clone operation: it inserts one new
-stable Scene identity after the owner, deep-copies terminating clips, extends
-holds that cross the insertion, preserves the following boundary on the copy,
-and inserts a Cut after the original. `cloneShowCellAfter()` accepts a
-one-scene, one-zone owner. It reuses an empty following slot when available;
-otherwise it inserts a Scene through `duplicateShowScene()`, preserves unrelated
-cells and holds, and places only the selected Clip copy in the new slot. Both
-paths assign new clip and Effect identities and deep-copy nested editable
-values. `moveShowCellToSlot()` accepts the same simple owner, preserves its Zone,
-and commits only to an explicit empty Scene slot. Returning the input record is
-the common refusal contract for collision, span, ownership, and range
-violations.
+`showTimelineClipAuthoring.ts` performs Split, Duplicate, resize, and movement
+as atomic composition updates in global time. Split rejects a playhead outside
+the selected Clip or inside its connected Transition and leaves at least one
+millisecond on either side. Duplicate requires enough unobstructed time on the
+same Layer. Movement resolves the target Zone, Layer, Layout interval, and
+internal Scene owner without overwriting occupied time. Returning the input
+composition is the common refusal contract, and focusable commands disclose the
+specific refusal instead of depending on native disabled-button tooltips.
 
 `showSpatialSelection.ts` owns Installation spatial authoring as pure data
 operations. A normalized 2D drag rectangle returns enclosed map-point indexes;
@@ -1052,12 +1034,13 @@ and coverage before an explicit Save; Escape cancels without persistence.
 
 ## 20. Timeline editor and Stage preview
 
-`ShowEditor` renders one proportional grid for the ruler, transition lane,
-Zone/Layer stacks, direct composition Clips, disclosed property lanes, and
-playhead. Internal Scene columns still partition saved composition ownership
-and compiler input, but the unified workspace does not expose Scene headers or
-Scene-local navigation. A moving-split layout adds one Show-wide Split lane
-whose colored cells depict the authored ownership boundary.
+`ShowEditor` renders one proportional grid for the ruler, Zone/Layer stacks,
+direct composition Clips, per-Layer Transition junctions, disclosed property
+lanes, Markers, Show End, and playhead. Internal Scene columns still partition
+saved composition ownership and compiler input, but the production workspace
+has no Scene headers, X-ray, Super Detail, Scene-local editor, duplicate zoom
+surface, or dedicated Transition lane. A moving-split layout adds one Show-wide
+Split lane whose colored cells depict the authored ownership boundary.
 `showTimelineViewport.ts` owns Fit-to-16x zoom, playhead-anchored zoom, pan,
 Navigator thumb geometry, and
 range resizing. It also owns magnetic playhead snapping: structural Show
@@ -1101,56 +1084,22 @@ than producing flat lanes. Default-only global targets also return
 instead of reserving empty rows.
 
 `showClipSummary.ts` keeps the complete authored Clip facts independent of
-timeline density. Its timeline projection compares each fact's stable category
-and item identity with the preceding Clip in the same Zone. A new or changed
-value remains beside the category glyph; an unchanged continuation retains only
-the glyph. A gap between Clips resets the comparison. Multi-parameter Effect
-values carry a separate contracted timeline spelling while their full summary
-remains unchanged. Container queries can therefore yield the Pattern icon near
-square widths without deciding semantic continuity or deleting the Pattern
-name.
+timeline density. The compact Entity Detail summary groups those facts by
+stable category and item identity while the timeline Clip itself preserves the
+Pattern name plus a minimal Effect count. This prevents narrow Clips from
+turning configuration prose into a second visual lane.
 
-`ShowPropertySparkline` is the shared React renderer used by the global Show
-timeline, Scene X-ray, Super Detail, and the Scene-local editor. It draws into a
-ten-unit SVG ordinate and separates four-pixel beat marks from twelve-pixel
-pointer/keyboard hit targets. A selected global beat routes back to its owning
-Transition; a selected local beat routes to exact keyframe fields. Read-only
-consumers omit interactive buttons while keeping the same factual curve. The
-component has no animation loop and disables its small UI transitions under
-reduced motion.
+`ShowPropertySparkline` renders the compact Property lanes in the production
+Show timeline. It draws into a ten-unit SVG ordinate and separates four-pixel
+beat marks from twelve-pixel pointer/keyboard hit targets. A selected boundary
+beat routes back to its owning Transition. The component has no animation loop
+and disables its small UI transitions under reduced motion.
 
-`showCompositionProjection.ts` builds a lossless version-0 read sidecar from the
-normalized flat Show and its unchanged compile recipe. It separates runtime
-Pattern-instance summaries from Scene-owned full-duration base placements and
-retains the normalized flat record as the compatibility authority.
-`showSceneEditorScope.ts` narrows that sidecar to one resolved Scene x Zone,
-including the active routing layout, global/local bounds, actual incoming and
-outgoing boundaries, available zones, Main placements, ordered overlay layers,
-and diagnostics. A
-missing Scene closes the scope; a stale Zone falls back to the first occupied
-Zone and then the first Show Zone.
-
-`ShowSceneXray` owns no transient preview state. Only its explicit button toggles
-the parent `SceneStrip`'s single Super Detail owner; hover and focus cannot mount
-the portal. Timeline viewport changes clear that owner, and the modeless layer's
-Escape, close, and click-away paths share the same close operation.
-
-`ShowSceneZoneEditor` is the production authoring consumer of that scope.
-Super Detail's Open Scene command swaps the center timeline surface while the
-global `SceneStrip` remains mounted, preserving viewport and X-ray state. Only
-one transport control instance remains active, so document-level Space, arrow,
-and Home shortcuts cannot be handled twice. `ShowSceneTransportControls` sets
-an ephemeral playback window on `showTransportStore`, pauses on entry and exit,
-and maps its start command and keyboard seeks onto the selected Scene's global
-bounds. The local ruler previews playhead movement without rebuilding on every
-pointer pixel, then commits one deterministic seek when the drag ends.
-
-`ShowStagePreview` applies the same playback window to frame advancement. A
-frame that reaches the Scene end pauses preview, requests a deterministic seek
-to Scene start, and leaves playback stopped. Clearing the window on exit returns
-the store to ordinary whole-Show transport without allowing local playback to
-escape into the next Scene. The right Stage remains mounted throughout and
-continues to render final all-zone output.
+`showCompositionProjection.ts` remains a compatibility projection used while
+normalizing older flat Shows into the versioned composition model. The
+production editor immediately materializes `ShowCompositionV1` when needed and
+then authors through the framework-free timeline modules. No React surface
+consumes a Scene-scoped projection.
 
 Ordinary Show playback advances the Fast runtime once per browser animation
 frame and paints the returned packed buffer immediately. Stage masking owns one
@@ -1158,7 +1107,7 @@ precomputed pixel-to-zone plan. Complete coverage with no solo selection returns
 the source frame by identity; a solo or uncovered-pixel diagnostic reuses one
 fallback buffer. Pane resizing updates renderer geometry without reconstructing
 the replay runtime. Timeline position publication is consumed by narrow
-transport, ruler, playhead, and reference-instrument subscribers; `SceneStrip`
+transport, ruler, playhead, and reference-instrument subscribers; `ShowTimelineWorkspace`
 reads the latest position through an imperative store subscription so the whole
 timeline projection does not rerender every frame.
 
@@ -1358,15 +1307,11 @@ endpoint while a top-level Transition is running. Instance tracks apply once per
 advanced Pattern instance. Preview, deterministic Fast replay, artifact output,
 EPE export, and Controller output therefore consume the same emitted evaluator.
 
-`ShowSceneZoneEditor` reveals a shared compact sparkline only after its track is
-authored. Exact keyboard fields edit time, value, and easing; commands add at
-the playhead, move to the previous or next point, delete a point, or delete the
-track. Split and Restart clone affected placement- or instance-owned tracks
-under new stable targets, while deletion removes tracks whose owner no longer
-exists. `showSceneReadOnlyProjection.ts` resolves X-ray and Super Detail beats
-to the same real placement, Effect, public-control, Animation-speed, and
-Brightness targets; outgoing boundaries resolve their destination Scene rather
-than borrowing the current Scene's value.
+The unified timeline discloses a compact sparkline only when a property actually
+varies. Split and Restart preserve or clone affected placement- or
+instance-owned tracks under stable targets, while deletion removes tracks whose
+owner no longer exists. The compiler's Scene-local representation remains an
+internal storage and lowering detail rather than a second authoring surface.
 
 `showCompositionSplit.ts` partitions Scene-local Main and overlay placements,
 overlay-layer identities, placement targets, and Property tracks when the
@@ -1377,10 +1322,11 @@ nonlinear segment crossed between keyframes and reports the repair: add a
 keyframe at the playhead or change that segment to Linear. The operation never
 accepts silent curve drift.
 
-`showEditorSessionStore` retains three independent diagnostic flags outside the
-Show record: Zone outlines, selected-clip outline, and other-zone timing guides.
-Only Snap is included in the store's persisted subset, so all diagnostics and
-their selected Scene/Zone/placement focus reset with the application session.
+`showEditorSessionStore` retains Snap, Marker visibility and snapping, per-Show
+Zone-workspace disclosure, collapsed Zone ids, and focused Zone ids outside the
+Show record. It also keeps three session-only Stage diagnostic flags: Zone
+outlines, selected-clip outline, and other-zone timing guides. Diagnostic focus
+resets with the application session.
 `showStageDiagnostics.ts` projects the 2D Stage positions and `pixelZoneIds`
 into read-only Zone bounds. `ShowStagePreview` draws those bounds in SVG above
 the renderer canvas; it never masks, recolors, or otherwise mutates compiled
@@ -1388,25 +1334,16 @@ Show pixels. Other-zone timing boundaries render as non-interactive guides in
 the local rail. The 3D Stage continues to render normally without pretending a
 camera-independent 2D rectangle is a faithful spatial diagnostic.
 
-`showSceneReadOnlyProjection.ts` narrows that sidecar to one Scene's global and
-local bounds, boundary context, cut references, Effect activity, property beats,
-active zone placements, Continue relationships, and diagnostics. It does not
-synthesize local cuts, overlays, or keyframes that are absent from the saved
-model. `ShowSceneXray` renders that projection in one explicit 36-pixel grid
-row. `ShowSceneSuperDetail` portals the same read model to one modeless overlay,
-handles Escape and click-away dismissal, and exposes only navigation into the
-production local scope rather than inline authoring controls. Switching the
-disclosed Scene transfers an open overlay without changing Timeline height;
-ordinary zoom changes horizontal geometry only.
-
 The production timeline frame uses 40-pixel unified Clip rows and one compact
 toolbar. `ShowTransportControls` owns Play/Pause, Start, and the
-tenth-second current/total readout. The center group writes through
-`zoomShowTimelineViewport()` and anchors zoom to the playhead when visible or to
-the viewport center otherwise. `ShowTimelineCommands` owns Snap, Fit, Split,
-Clone, and compact session Undo/Redo. The adjacent direct-authoring cluster owns
-Zones, Layer, and Clip. Clone enablement is derived from the one selected
-owner. CSS container queries
+tenth-second current/total readout. The center group renders the compact
+Navigator and Fit action; Navigator dragging pans or resizes the visible range,
+while Ctrl/Cmd-wheel zooms through `zoomShowTimelineViewport()` around the
+playhead when visible or the viewport center otherwise. `ShowTimelineCommands`
+owns Snap, Split, Clone, Group, and compact session Undo/Redo. The adjacent
+direct-authoring cluster owns Zones, Layout intervals, Layer, Insert Time,
+Marker visibility/snapping, and Clip insertion. Clone enablement is derived
+from the one selected owner. CSS container queries
 remove command labels before they stack the time readout, so the toolbar adapts
 to the center-pane width rather than the outer browser alone.
 
@@ -1419,10 +1356,11 @@ normalized record and its prior history when the failed optimistic state is
 still current; a later queued full snapshot remains authoritative when editing
 has already advanced.
 
-Timeline clip buttons use native drag events only for simple owners. Empty slots
-become drop targets after the pure ownership and occupancy checks pass, show the
-magnetic destination before drop, and delegate the single transaction back to
-the store. Occupied slots and other zones never accept the drag.
+Timeline Clip buttons use native drag events for ungrouped composition owners.
+Existing Layers and collapsed Zone miniatures become drop targets after pure
+ownership, Layout-interval, and occupancy checks pass; they show the magnetic
+destination before delegating one transaction back to the timeline authoring
+module and store. Occupied time never accepts the drag.
 
 `App` owns one ephemeral `libraryCollapsed` flag above every Studio mode.
 `PatternList` always retains `ActivityStrip`; the active entity header exposes
@@ -1483,11 +1421,11 @@ labels clip at the preview boundary, and the authenticated account control can
 shrink and truncate its visible handle at narrow widths without losing its
 accessible name.
 
-Selection is UI-local and has one explicit open owner across Show setup, scene,
-clip, empty slot, transition, zone, and routing switch. `ShowEditor` records the
-owner key and its live Timeline element separately from the selected model
-entity. A second click on the same owner toggles the panel closed; another owner
-transfers it; Timeline-background click and Escape close it. Escape restores
+Selection is UI-local and has one explicit open owner across Show setup, Clip,
+Group, Transition, and Zone entities. `ShowEditor` records the owner key and its
+live Timeline element separately from the selected model entity. A second click
+on the same owner toggles the panel closed; another owner transfers it;
+Timeline-background click and Escape close transient Details. Escape restores
 focus to the live anchor. Removing an owner or changing Shows clears both the
 open owner and anchor.
 
@@ -1496,33 +1434,31 @@ open owner and anchor.
 without trapping focus or changing Timeline layout. The pure
 `showEntityDetailPlacement.ts` helper chooses above or below, clamps the panel
 to viewport margins, and keeps the stem aimed at the anchor. Resize, scrolling,
-and anchor/panel size changes recompute placement. An empty slot presents the
-same personal and built-in Pattern catalogue used by clip source replacement,
-then delegates placement and persistence through `showStore`. Other model
-mutations follow the same route; the React surface does not reproduce
-occupancy, split/transition/routing rules.
+and anchor/panel size changes recompute placement. New Clips enter through the
+toolbar's playhead-aware Pattern catalogue; Entity Details handle existing
+owners. Model mutations delegate through `showStore`; the React surface does
+not reproduce occupancy, split, Transition, or routing rules.
 
 `showClipInspectorModel.ts` is the framework-free owner boundary for Clip
-Entity Detail. A discriminated owner identifies a flat global cell, a
-Scene-local Main placement, or a Scene-local overlay placement. Projection
-normalizes all three into one value containing Pattern identity,
+Entity Detail. A discriminated owner identifies a compatibility flat cell, an
+internal Main placement, or an internal overlay placement. Projection
+normalizes those representations into one value containing Pattern identity,
 Pattern-instance simulation state, placement view, canonical Clip Transform,
 Effects, and optional local timing/layer data. The capability matrix determines
-which structural or local
+which structural or placement-local
 sections are legal. Pure update adapters translate normalized patches back to
 `ShowCell`, `ShowPatternInstance`, `ShowMainPlacement`, or
 `ShowOverlayPlacement` edits and enforce shared numeric bounds before the
 React surface requests one Show update.
 
-`ShowClipEntityDetail` renders the common Pattern chooser, Animation speed,
+`ShowClipEntityDetail` renders the Pattern chooser, Animation speed,
 Brightness, Clip Transform, Mirror, phase, public Pattern controls, Effect stack,
-and numeric field behavior. `ShowEditor` supplies global-only structure and
-clock controls; `ShowSceneZoneEditor` supplies local timing, overlay
-layer/Opacity, and local
-actions. Both Scene lanes use the same anchored `ShowEntityDetailPanel`; the
-sparkline/keyframe lanes remain in the Scene rail because they are temporal
-authoring surfaces rather than scalar Clip fields. Neither shared component
-imports a Show store or duplicates occupancy and ownership rules.
+and numeric field behavior. `ShowEditor` supplies placement timing, Layer,
+Opacity, structural actions, and clock controls through the same anchored
+`ShowEntityDetailPanel`. Sparklines remain aligned beneath the owning Zone
+because they are temporal projections rather than scalar Clip fields. The
+shared Detail components do not import a Show store or duplicate occupancy and
+ownership rules.
 
 `showClipTransform.ts` owns Clip Transform normalization, neutral-value
 compaction, and compiler lowering. The persisted record uses normalized
@@ -1639,9 +1575,10 @@ their native keyboard ownership.
 and contenteditable surfaces untouched. Buttons, links, selectors, sliders,
 menus, and entity-tree rows delegate Space to Preview transport. Tree rows use
 Enter for open/disclose so they cannot preempt the shared shortcut. The Show
-handler keeps the same guarded Space behavior as a local fallback and
-additionally accepts Left/Right and Home when the Show workspace or a marked
-timeline entity owns focus. Both handlers ignore an already prevented event, so
+handler keeps the same guarded Space behavior as a local fallback and adds A
+for Show start, Left/Right for one-page timeline pan, and Tab/Shift-Tab for
+deterministic entity traversal when the Show workspace or a marked timeline
+entity owns focus. Both handlers ignore an already prevented event, so
 one Space keydown can toggle only once regardless of listener order. Relative and zero
 commands clamp through `showTransportStore`, create ordinary deterministic seek
 requests, and pause/resume around reconstruction so the previous playback state

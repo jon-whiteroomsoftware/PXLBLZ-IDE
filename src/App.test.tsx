@@ -325,7 +325,8 @@ describe('routing (#308)', () => {
 
     const editorPane = screen.getByTestId('editor-pane')
     expect(within(editorPane).getAllByText('Simplest possible show').length).toBeGreaterThan(0)
-    expect(within(editorPane).getByTitle('Show output summary')).toHaveTextContent('Portable 2D · 2 scenes')
+    expect(within(editorPane).getByTitle('Show output summary')).toHaveTextContent('Portable 2D')
+    expect(within(editorPane).getByTitle('Show output summary')).not.toHaveTextContent(/scene/i)
     expect(within(editorPane).getByRole('button', { name: 'Show properties' }).querySelector('.show-header-action-label')).toHaveTextContent('Properties')
     expect(within(editorPane).getByRole('button', { name: 'View code' }).querySelector('.show-header-action-label')).toHaveTextContent('View code')
     expect(within(editorPane).getByRole('button', { name: 'Export Show as .epe' }).querySelector('.show-header-action-label')).toHaveTextContent('.epe')
