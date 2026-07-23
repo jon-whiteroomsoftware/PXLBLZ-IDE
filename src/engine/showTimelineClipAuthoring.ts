@@ -55,6 +55,145 @@ export type ShowTimelineClipMoveTarget =
   | { kind: 'main'; zoneId: string; globalStartMs: number }
   | { kind: 'overlay'; zoneId: string; layerIndex: number; globalStartMs: number }
 
+type LogicalClipSegment = {
+  sceneId: string
+  sceneStartMs: number
+  placement: ShowMainPlacement | ShowOverlayPlacement
+}
+
+function placementLogicalClipId(placement: ShowMainPlacement | ShowOverlayPlacement): string {
+  return placement.logicalClipId ?? placement.id
+}
+
+function logicalClipSegments(
+  show: ShowRecord,
+  composition: ShowCompositionV1,
+  owner: ShowTimelineClipOwner,
+): LogicalClipSegment[] {
+  const timeline = projectShowTimeline(show)
+  const sceneStartById = new Map(timeline.scenes.map((scene) => [scene.sceneId, scene.startMs]))
+  const rootId = owner.placementId
+  return composition.scenes.flatMap((scene) => {
+    const zone = scene.zones.find((candidate) => candidate.zoneId === owner.zoneId)
+    if (!zone) return []
+    const placements = owner.kind === 'main'
+      ? zone.main
+      : zone.overlays.flatMap((layer) => layer.placements)
+    return placements
+      .filter((placement) => placementLogicalClipId(placement) === rootId)
+      .map((placement) => ({
+        sceneId: scene.sceneId,
+        sceneStartMs: sceneStartById.get(scene.sceneId) ?? 0,
+        placement,
+      }))
+  }).sort((left, right) => (
+    left.sceneStartMs + left.placement.startMs
+    - (right.sceneStartMs + right.placement.startMs)
+  ))
+}
+
+function globalLogicalClipRange(segments: LogicalClipSegment[]): { startMs: number; endMs: number } | null {
+  if (segments.length === 0) return null
+  return {
+    startMs: segments[0].sceneStartMs + segments[0].placement.startMs,
+    endMs: Math.max(...segments.map((segment) => (
+      segment.sceneStartMs + segment.placement.startMs + segment.placement.durationMs
+    ))),
+  }
+}
+
+function globalSpanSceneSlices(
+  show: ShowRecord,
+  globalStartMs: number,
+  durationMs: number,
+): Array<{ sceneId: string; localStartMs: number; durationMs: number }> {
+  const globalEndMs = globalStartMs + durationMs
+  const slices = projectShowTimeline(show).scenes.flatMap((scene) => {
+    const startMs = Math.max(globalStartMs, scene.startMs)
+    const endMs = Math.min(globalEndMs, scene.endMs)
+    return endMs > startMs
+      ? [{
+          sceneId: scene.sceneId,
+          localStartMs: startMs - scene.startMs,
+          durationMs: endMs - startMs,
+        }]
+      : []
+  })
+  if (slices.length === 0) return []
+  const timeline = projectShowTimeline(show)
+  const firstRange = timeline.scenes.find((scene) => scene.sceneId === slices[0].sceneId)
+  const lastRange = timeline.scenes.find((scene) => scene.sceneId === slices[slices.length - 1].sceneId)
+  const firstGlobalStartMs = (firstRange?.startMs ?? 0) + slices[0].localStartMs
+  const lastGlobalEndMs = (lastRange?.startMs ?? 0)
+    + slices[slices.length - 1].localStartMs
+    + slices[slices.length - 1].durationMs
+  return firstGlobalStartMs === globalStartMs && lastGlobalEndMs === globalEndMs ? slices : []
+}
+
+function replaceLogicalClipGlobalSpan(
+  show: ShowRecord,
+  composition: ShowCompositionV1,
+  input: {
+    owner: ShowTimelineClipOwner
+    target: ShowClipAddTarget & { zoneId: string }
+    globalStartMs: number
+    durationMs: number
+  },
+): ShowCompositionV1 {
+  const segments = logicalClipSegments(show, composition, input.owner)
+  const base = segments.find((segment) => segment.placement.id === input.owner.placementId)?.placement
+    ?? segments[0]?.placement
+  if (!base) return composition
+  const slices = globalSpanSceneSlices(show, input.globalStartMs, input.durationMs)
+  if (slices.length === 0) return composition
+  const segmentIds = new Set(segments.map((segment) => segment.placement.id))
+  const hasPlacementTracks = composition.scenes.some((scene) => (
+    (scene.propertyTracks ?? []).some((track) => (
+      'placementId' in track.target && segmentIds.has(track.target.placementId)
+    ))
+  ))
+  if (hasPlacementTracks && (segments.length > 1 || slices.length > 1)) return composition
+
+  const rootId = input.owner.placementId
+  const draft = structuredClone(composition)
+  for (const scene of draft.scenes) {
+    for (const zone of scene.zones) {
+      zone.main = zone.main.filter((placement) => placementLogicalClipId(placement) !== rootId)
+      for (const layer of zone.overlays) {
+        layer.placements = layer.placements.filter((placement) => placementLogicalClipId(placement) !== rootId)
+      }
+    }
+  }
+
+  for (const [index, slice] of slices.entries()) {
+    const scene = draft.scenes.find((candidate) => candidate.sceneId === slice.sceneId)
+    const zone = scene?.zones.find((candidate) => candidate.zoneId === input.target.zoneId)
+    if (!scene || !zone) return composition
+    const id = index === 0 ? rootId : `${rootId}--span-${slice.sceneId}`
+    const placement = {
+      ...structuredClone(base),
+      id,
+      ...(index === 0 ? { logicalClipId: undefined } : { logicalClipId: rootId }),
+      startMs: Math.round(slice.localStartMs),
+      durationMs: Math.round(slice.durationMs),
+    }
+    if (input.target.kind === 'main') {
+      const { opacity: _opacity, ...mainPlacement } = placement as typeof placement & { opacity?: number }
+      zone.main.push(mainPlacement)
+    } else {
+      const layer = zone.overlays[input.target.layerIndex]
+      if (!layer) return composition
+      layer.placements.push({
+        ...placement,
+        opacity: 'opacity' in base && typeof base.opacity === 'number' ? base.opacity : 1,
+      } as ShowOverlayPlacement)
+    }
+  }
+
+  if (validateShowComposition(show, draft).length > 0) return composition
+  return normalizeShowComposition(show, draft)
+}
+
 export function addShowOverlayLayerAcrossTimeline(
   show: ShowRecord,
   composition: ShowCompositionV1,
@@ -266,6 +405,21 @@ export function moveShowClipAtGlobalTime(
   input: { owner: ShowTimelineClipOwner; target: ShowTimelineClipMoveTarget },
 ): ShowCompositionV1 {
   if (!Number.isFinite(input.target.globalStartMs)) return composition
+  const logicalSegments = logicalClipSegments(show, composition, input.owner)
+  const logicalRange = globalLogicalClipRange(logicalSegments)
+  if (!logicalRange) return composition
+  const logicalDurationMs = logicalRange.endMs - logicalRange.startMs
+  const targetSlices = globalSpanSceneSlices(show, input.target.globalStartMs, logicalDurationMs)
+  if (logicalSegments.length > 1 || targetSlices.length > 1) {
+    return replaceLogicalClipGlobalSpan(show, composition, {
+      owner: input.owner,
+      target: input.target.kind === 'main'
+        ? { kind: 'main', zoneId: input.target.zoneId }
+        : { kind: 'overlay', zoneId: input.target.zoneId, layerIndex: input.target.layerIndex },
+      globalStartMs: Math.round(input.target.globalStartMs),
+      durationMs: logicalDurationMs,
+    })
+  }
   const timeline = projectShowTimeline(show)
   const range = timeline.scenes.find((scene) => (
     input.target.globalStartMs >= scene.startMs && input.target.globalStartMs < scene.endMs
@@ -617,6 +771,25 @@ export function resizeShowClipAtGlobalTime(
   },
 ): ShowCompositionV1 {
   if (!Number.isFinite(input.globalStartMs) || !Number.isFinite(input.durationMs)) return composition
+  const logicalSegments = logicalClipSegments(show, composition, input.owner)
+  const targetSlices = globalSpanSceneSlices(show, input.globalStartMs, input.durationMs)
+  if (logicalSegments.length > 1 || targetSlices.length > 1 || targetSlices[0]?.sceneId !== input.owner.sceneId) {
+    const sourceScene = composition.scenes.find((scene) => scene.sceneId === input.owner.sceneId)
+    const sourceZone = sourceScene?.zones.find((zone) => zone.zoneId === input.owner.zoneId)
+    const sourceLayerId = input.owner.kind === 'overlay' ? input.owner.layerId : null
+    const layerIndex = sourceLayerId
+      ? sourceZone?.overlays.findIndex((layer) => layer.id === sourceLayerId)
+      : -1
+    if (input.owner.kind === 'overlay' && (layerIndex === undefined || layerIndex < 0)) return composition
+    return replaceLogicalClipGlobalSpan(show, composition, {
+      owner: input.owner,
+      target: input.owner.kind === 'main'
+        ? { kind: 'main', zoneId: input.owner.zoneId }
+        : { kind: 'overlay', zoneId: input.owner.zoneId, layerIndex: layerIndex! },
+      globalStartMs: Math.round(input.globalStartMs),
+      durationMs: Math.round(input.durationMs),
+    })
+  }
   const range = projectShowTimeline(show).scenes.find((scene) => scene.sceneId === input.owner.sceneId)
   if (!range) return composition
   const startMs = Math.round(input.globalStartMs - range.startMs)

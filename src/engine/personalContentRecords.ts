@@ -458,6 +458,11 @@ export interface ShowClipViewport {
 
 export interface ShowMainPlacement {
   id: string
+  /**
+   * Stable visible Clip id when one logical Clip is partitioned across hidden
+   * internal Scene owners. The first segment keeps that id directly.
+   */
+  logicalClipId?: string
   instanceId: string
   startMs: number
   durationMs: number

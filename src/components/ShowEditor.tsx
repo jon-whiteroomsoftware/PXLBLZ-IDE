@@ -92,6 +92,7 @@ import {
   projectShowUnifiedTimeline,
   type ShowUnifiedTimelineClipProjection,
   type ShowUnifiedTimelineJunctionProjection,
+  type ShowUnifiedTimelineLayerProjection,
 } from '@/engine/showUnifiedTimelineProjection'
 import {
   nextShowTimelineTraversalTarget,
@@ -394,6 +395,40 @@ type ShowLayerTransitionTarget = {
   toName: string
   anchor: HTMLElement
   groupOccurrenceId?: string
+}
+
+type TimelineMarkerFeedback =
+  | { kind: 'drag'; timeMs: number }
+  | { kind: 'confirmation'; timeMs: number }
+
+type ShowClipMovePreview = {
+  clipId: string
+  targetKey: string
+  startMs: number
+  durationMs: number
+  snapped: boolean
+  snapInverted: boolean
+}
+
+type ShowClipMovePlan = {
+  preview: ShowClipMovePreview
+  sourceComposition: ShowCompositionV1
+  composition: ShowCompositionV1
+  owner: ShowTimelineClipOwner
+  target: ShowTimelineClipMoveTarget
+}
+
+type ShowClipResizePreview = {
+  clipId: string
+  startMs: number
+  durationMs: number
+}
+
+type ShowClipResizePlan = {
+  preview: ShowClipResizePreview
+  sourceComposition: ShowCompositionV1
+  composition: ShowCompositionV1
+  owner: ShowTimelineClipOwner
 }
 
 function ShowNoteTrigger({ note, open, onToggle }: {
@@ -1773,9 +1808,11 @@ export function ShowEditor({
                   await updateShow(activeShow.id, nextShow)
                   return placementId
                 }}
-                onMoveCompositionClip={async ({ owner, target }) => {
+                onMoveCompositionClip={async ({ owner, target, sourceComposition, plannedComposition }) => {
                   if (!timelineComposition) return false
-                  const nextComposition = moveShowConnectedClipAtGlobalTime(activeShow, timelineComposition, { owner, target })
+                  if (sourceComposition && sourceComposition !== timelineComposition) return false
+                  const nextComposition = plannedComposition
+                    ?? moveShowConnectedClipAtGlobalTime(activeShow, timelineComposition, { owner, target })
                   if (nextComposition === timelineComposition) return false
                   await updateShow(activeShow.id, {
                     ...activeShow,
@@ -1833,13 +1870,21 @@ export function ShowEditor({
                   })
                   return placementId
                 }}
-                onResizeCompositionClip={async (owner, globalStartMs, durationMs) => {
+                onResizeCompositionClip={async ({
+                  owner,
+                  globalStartMs,
+                  durationMs,
+                  sourceComposition,
+                  plannedComposition,
+                }) => {
                   if (!timelineComposition) return false
-                  const nextComposition = resizeShowConnectedClipAtGlobalTime(activeShow, timelineComposition, {
-                    owner,
-                    globalStartMs,
-                    durationMs,
-                  })
+                  if (sourceComposition && sourceComposition !== timelineComposition) return false
+                  const nextComposition = plannedComposition
+                    ?? resizeShowConnectedClipAtGlobalTime(activeShow, timelineComposition, {
+                      owner,
+                      globalStartMs,
+                      durationMs,
+                    })
                   if (nextComposition === timelineComposition) return false
                   await updateShow(activeShow.id, {
                     ...activeShow,
@@ -2842,15 +2887,19 @@ function ShowTimelineWorkspace({
   onMoveCompositionClip: (input: {
     owner: ShowTimelineClipOwner
     target: ShowTimelineClipMoveTarget
+    sourceComposition?: ShowCompositionV1
+    plannedComposition?: ShowCompositionV1
   }) => Promise<boolean>
   onAddCompositionLayer: (zoneId: string) => Promise<boolean>
   onSplitCompositionClip: (owner: ShowTimelineClipOwner, globalTimeMs: number) => Promise<string | null>
   onDuplicateCompositionClip: (owner: ShowTimelineClipOwner) => Promise<string | null>
-  onResizeCompositionClip: (
+  onResizeCompositionClip: (input: {
     owner: ShowTimelineClipOwner,
     globalStartMs: number,
     durationMs: number,
-  ) => Promise<boolean>
+    sourceComposition?: ShowCompositionV1
+    plannedComposition?: ShowCompositionV1
+  }) => Promise<boolean>
   onOpenLayerTransition: (target: ShowLayerTransitionTarget) => void
   onInsertTime: (atMs: number, durationMs: number) => Promise<boolean>
   onAddMarker: (timeMs: number) => Promise<boolean>
@@ -2866,6 +2915,7 @@ function ShowTimelineWorkspace({
   onUpdateZone: (zoneId: string, changes: Partial<ShowRecord['zones'][number]>) => void
 }) {
   const [showEndPreviewMs, setShowEndPreviewMs] = useState<number | null>(null)
+  const [markerFeedback, setMarkerFeedback] = useState<TimelineMarkerFeedback | null>(null)
   const displayShow = useMemo(() => {
     if (showEndPreviewMs === null || !timelineComposition) return show
     return setShowEndMs({ ...show, composition: timelineComposition }, showEndPreviewMs)
@@ -2893,6 +2943,7 @@ function ShowTimelineWorkspace({
   const setSnapEnabled = useShowEditorSessionStore((state) => state.setSnapEnabled)
   const markersVisible = useShowEditorSessionStore((state) => state.markersVisible)
   const setMarkersVisible = useShowEditorSessionStore((state) => state.setMarkersVisible)
+  const markerSnapEnabled = useShowEditorSessionStore((state) => state.markerSnapEnabled)
   const setMarkerSnapEnabled = useShowEditorSessionStore((state) => state.setMarkerSnapEnabled)
   const zonesOpen = useShowEditorSessionStore((state) => state.zoneWorkspaceOpenByShowId[show.id] ?? false)
   const collapsedZoneIds = useShowEditorSessionStore((state) => state.collapsedZoneIdsByShowId[show.id]) ?? EMPTY_ZONE_IDS
@@ -2910,10 +2961,16 @@ function ShowTimelineWorkspace({
     grabOffsetMs: number
   } | null>(null)
   const draggingCompositionClipRef = useRef(draggingCompositionClip)
-  const [resizePreview, setResizePreview] = useState<{
-    clipId: string
-    startMs: number
-    durationMs: number
+  const [resizePreview, setResizePreview] = useState<ShowClipResizePreview | null>(null)
+  const resizePlanRef = useRef<ShowClipResizePlan | null>(null)
+  const suppressResizeClipClickRef = useRef<string | null>(null)
+  const [movePreview, setMovePreview] = useState<ShowClipMovePreview | null>(null)
+  const movePlanRef = useRef<ShowClipMovePlan | null>(null)
+  const activeMoveLayerRef = useRef<{
+    element: HTMLElement
+    layer: ShowUnifiedTimelineLayerProjection
+    zoneId: string
+    targetKey: string
   } | null>(null)
   const [dropTargetKey, setDropTargetKey] = useState<string | null>(null)
   const [marquee, setMarquee] = useState<{ left: number; top: number; width: number; height: number } | null>(null)
@@ -3061,7 +3118,10 @@ function ShowTimelineWorkspace({
       if (state.showId === show.id) positionMsRef.current = state.positionMs
     })
   }, [show.id])
-  const structuralTimesMs = [...new Set([
+  const markerTimesMs = markersVisible
+    ? (timelineComposition?.markers ?? []).map((marker) => marker.timeMs)
+    : []
+  const structuralTimesWithoutMarkersMs = [...new Set([
     0,
     timeline.durationMs,
     ...timeline.scenes.flatMap((scene) => [scene.startMs, scene.endMs]),
@@ -3071,8 +3131,179 @@ function ShowTimelineWorkspace({
     ...(unifiedCompositionTimeline?.zones.flatMap((zone) => (
       zone.layers.flatMap((layer) => layer.clips.flatMap((clip) => [clip.startMs, clip.endMs]))
     )) ?? []),
-    ...(markersVisible ? (timelineComposition?.markers ?? []).map((marker) => marker.timeMs) : []),
   ])]
+  const structuralTimesMs = [...new Set([
+    ...structuralTimesWithoutMarkersMs,
+    ...markerTimesMs,
+  ])]
+  const clipMarkerSnapEnabled = markersVisible && markerSnapEnabled
+  const snapClipBoundary = (
+    candidateMs: number,
+    options: {
+      altKey: boolean
+      visibleWidthPx: number
+      minTimeMs?: number
+      maxTimeMs: number
+    },
+  ) => {
+    const invert = Boolean(options.altKey)
+    const defaultEnabled = snapEnabled || clipMarkerSnapEnabled
+    const minTimeMs = options.minTimeMs ?? 0
+    const playheadTimesMs = [positionMsRef.current]
+      .filter((timeMs) => timeMs >= minTimeMs && timeMs <= options.maxTimeMs)
+    if (defaultEnabled === invert) {
+      return snapShowTimelineTime(candidateMs, {
+        visibleDurationMs: viewport.durationMs,
+        visibleWidthPx: options.visibleWidthPx,
+        structuralTimesMs: playheadTimesMs,
+        gridEnabled: false,
+        minTimeMs,
+        maxTimeMs: options.maxTimeMs,
+      })
+    }
+    const invertGlobalSnap = invert && !defaultEnabled
+    const activeStructuralTimesMs = [
+      ...playheadTimesMs,
+      ...(invertGlobalSnap
+        ? structuralTimesWithoutMarkersMs
+        : [
+          ...(snapEnabled ? structuralTimesWithoutMarkersMs : []),
+          ...(clipMarkerSnapEnabled ? markerTimesMs : []),
+        ]),
+    ]
+      .filter((timeMs) => timeMs >= minTimeMs && timeMs <= options.maxTimeMs)
+    return snapShowTimelineTime(candidateMs, {
+      visibleDurationMs: viewport.durationMs,
+      visibleWidthPx: options.visibleWidthPx,
+      structuralTimesMs: activeStructuralTimesMs,
+      gridEnabled: invertGlobalSnap || snapEnabled,
+      minTimeMs,
+      maxTimeMs: options.maxTimeMs,
+    })
+  }
+  const resolveClipMoveStart = (
+    candidateStartMs: number,
+    durationMs: number,
+    options: {
+      altKey: boolean
+      visibleWidthPx: number
+      totalMs: number
+    },
+  ) => {
+    const maxStartMs = Math.max(0, options.totalMs - durationMs)
+    const rawStartMs = Math.max(0, Math.min(maxStartMs, candidateStartMs))
+    const startSnap = snapClipBoundary(rawStartMs, {
+      altKey: options.altKey,
+      visibleWidthPx: options.visibleWidthPx,
+      maxTimeMs: maxStartMs,
+    })
+    const rawEndMs = rawStartMs + durationMs
+    const endSnap = snapClipBoundary(rawEndMs, {
+      altKey: options.altKey,
+      visibleWidthPx: options.visibleWidthPx,
+      minTimeMs: durationMs,
+      maxTimeMs: options.totalMs,
+    })
+    const startDeltaMs = startSnap.kind ? startSnap.timeMs - rawStartMs : Number.POSITIVE_INFINITY
+    const endDeltaMs = endSnap.kind ? endSnap.timeMs - rawEndMs : Number.POSITIVE_INFINITY
+    if (!Number.isFinite(startDeltaMs) && !Number.isFinite(endDeltaMs)) {
+      return { startMs: rawStartMs, snapped: false }
+    }
+    const resolvedStartMs = Math.abs(startDeltaMs) <= Math.abs(endDeltaMs)
+      ? startSnap.timeMs
+      : endSnap.timeMs - durationMs
+    return {
+      startMs: Math.max(0, Math.min(maxStartMs, resolvedStartMs)),
+      snapped: true,
+    }
+  }
+  const updateCompositionClipMovePreview = (input: {
+    clientX: number
+    altKey: boolean
+    element: HTMLElement
+    layer: ShowUnifiedTimelineLayerProjection
+    zoneId: string
+    targetKey: string
+    dataTransfer?: DataTransfer | null
+  }) => {
+    const draggedClip = draggingCompositionClipRef.current
+    const compositionTimeline = unifiedCompositionTimeline
+    if (!draggedClip || !compositionTimeline || readOnly) return
+    if (input.dataTransfer) input.dataTransfer.dropEffect = 'move'
+    setDropTargetKey(input.targetKey)
+    const rect = input.element.getBoundingClientRect()
+    const totalMs = Math.max(1, compositionTimeline.durationMs)
+    const fraction = (input.clientX - rect.left) / Math.max(1, rect.width)
+    const clip = compositionTimeline.zones
+      .flatMap((zone) => zone.layers.flatMap((candidate) => candidate.clips))
+      .find((candidate) => candidate.id === draggedClip.clipId)
+    if (!clip) return
+    const candidateMs = fraction * totalMs - draggedClip.grabOffsetMs
+    const visibleWidthPx = Math.max(1, scrollRef.current?.clientWidth ?? rect.width)
+    const maxStartMs = Math.max(0, totalMs - clip.durationMs)
+    const rawStartMs = Math.max(0, Math.min(maxStartMs, candidateMs))
+    const previousPreview = movePlanRef.current?.preview
+    const releaseThresholdMs = viewport.durationMs / visibleWidthPx * 16
+    const freshResolved = resolveClipMoveStart(candidateMs, clip.durationMs, {
+      altKey: input.altKey,
+      visibleWidthPx,
+      totalMs,
+    })
+    const retainPreviousSnap = previousPreview?.clipId === clip.id
+      && previousPreview.targetKey === input.targetKey
+      && previousPreview.snapped
+      && previousPreview.snapInverted === Boolean(input.altKey)
+      && !freshResolved.snapped
+      && Math.abs(rawStartMs - previousPreview.startMs) <= releaseThresholdMs
+    const resolved = retainPreviousSnap
+      ? { startMs: previousPreview.startMs, snapped: true }
+      : freshResolved
+    const target: ShowTimelineClipMoveTarget = input.layer.kind === 'main'
+      ? { kind: 'main', zoneId: input.zoneId, globalStartMs: resolved.startMs }
+      : {
+          kind: 'overlay',
+          zoneId: input.zoneId,
+          layerIndex: input.layer.layerIndex,
+          globalStartMs: resolved.startMs,
+        }
+    const plannedComposition = timelineComposition
+      ? moveShowConnectedClipAtGlobalTime(show, timelineComposition, {
+          owner: draggedClip.owner,
+          target,
+        })
+      : null
+    if (!timelineComposition || !plannedComposition || plannedComposition === timelineComposition) {
+      if (input.dataTransfer) input.dataTransfer.dropEffect = 'none'
+      movePlanRef.current = null
+      setMovePreview(null)
+      return
+    }
+    const plannedClip = projectShowUnifiedTimeline(show, plannedComposition).zones
+      .flatMap((zone) => zone.layers.flatMap((candidate) => candidate.clips))
+      .find((candidate) => candidate.id === clip.id)
+    if (!plannedClip) {
+      if (input.dataTransfer) input.dataTransfer.dropEffect = 'none'
+      movePlanRef.current = null
+      setMovePreview(null)
+      return
+    }
+    const nextPreview: ShowClipMovePreview = {
+      clipId: clip.id,
+      targetKey: input.targetKey,
+      startMs: plannedClip.startMs,
+      durationMs: plannedClip.durationMs,
+      snapped: resolved.snapped,
+      snapInverted: Boolean(input.altKey),
+    }
+    movePlanRef.current = {
+      preview: nextPreview,
+      sourceComposition: timelineComposition,
+      composition: plannedComposition,
+      owner: draggedClip.owner,
+      target,
+    }
+    setMovePreview(nextPreview)
+  }
   const propertyLanesByZone = useMemo(() => {
     const sceneAnimationLanes = projectGlobalShowScenePropertyLanes(displayShow)
     const availableControls = Object.values(patternControlsByCellId).flat()
@@ -3303,7 +3534,7 @@ function ShowTimelineWorkspace({
     edge: 'start' | 'end',
     event: ReactPointerEvent<HTMLSpanElement>,
   ) => {
-    if (readOnly) return
+    if (readOnly || !timelineComposition) return
     event.preventDefault()
     event.stopPropagation()
     const lane = event.currentTarget.closest<HTMLElement>('[data-show-layer-kind]')
@@ -3331,41 +3562,84 @@ function ShowTimelineWorkspace({
       const rawBoundaryMs = edge === 'start' ? clip.startMs + deltaMs : clip.endMs + deltaMs
       const minTimeMs = edge === 'start' ? 0 : clip.startMs + 1
       const maxTimeMs = edge === 'start' ? clip.endMs - 1 : totalMs
-      const boundaryMs = snapEnabled !== pointer.altKey
-        ? snapShowTimelineTime(rawBoundaryMs, {
-            visibleDurationMs: viewport.durationMs,
-            visibleWidthPx: Math.max(1, scrollRef.current?.clientWidth ?? rect.width),
-            structuralTimesMs,
-            minTimeMs,
-            maxTimeMs,
-          }).timeMs
-        : Math.max(minTimeMs, Math.min(maxTimeMs, rawBoundaryMs))
+      const boundaryMs = snapClipBoundary(rawBoundaryMs, {
+        altKey: pointer.altKey,
+        visibleWidthPx: Math.max(1, scrollRef.current?.clientWidth ?? rect.width),
+        minTimeMs,
+        maxTimeMs,
+      }).timeMs
       const startMs = edge === 'start' ? boundaryMs : clip.startMs
       const durationMs = edge === 'start' ? clip.endMs - boundaryMs : boundaryMs - clip.startMs
       return { startMs: Math.round(startMs), durationMs: Math.max(1, Math.round(durationMs)) }
     }
-    const move = (pointer: PointerEvent) => {
+    const plan = (pointer: PointerEvent): ShowClipResizePlan | null => {
       const next = resolve(pointer)
-      setResizePreview({ clipId: clip.id, ...next })
+      const composition = resizeShowConnectedClipAtGlobalTime(show, timelineComposition, {
+        owner,
+        globalStartMs: next.startMs,
+        durationMs: next.durationMs,
+      })
+      if (composition === timelineComposition) return null
+      const plannedClip = projectShowUnifiedTimeline(show, composition).zones
+        .flatMap((zone) => zone.layers.flatMap((layer) => layer.clips))
+        .find((candidate) => candidate.id === clip.id)
+      if (!plannedClip) return null
+      return {
+        preview: {
+          clipId: clip.id,
+          startMs: plannedClip.startMs,
+          durationMs: plannedClip.durationMs,
+        },
+        sourceComposition: timelineComposition,
+        composition,
+        owner,
+      }
+    }
+    const move = (pointer: PointerEvent) => {
+      const nextPlan = plan(pointer)
+      resizePlanRef.current = nextPlan
+      setResizePreview(nextPlan?.preview ?? null)
     }
     const finish = (pointer: PointerEvent) => {
       window.removeEventListener('pointermove', move)
       window.removeEventListener('pointerup', finish)
       window.removeEventListener('pointercancel', cancel)
-      const next = resolve(pointer)
-      setResizePreview(null)
-      onDirectManipulationChange(false)
-      // Selection and any open Details remain intact while the panel is
-      // temporarily suppressed during direct manipulation.
-      void onResizeCompositionClip(owner, next.startMs, next.durationMs)
+      const activePlan = resizePlanRef.current ?? plan(pointer)
+      suppressResizeClipClickRef.current = clip.id
+      window.setTimeout(() => {
+        if (suppressResizeClipClickRef.current === clip.id) suppressResizeClipClickRef.current = null
+      }, 0)
+      if (!activePlan) {
+        resizePlanRef.current = null
+        setResizePreview(null)
+        onDirectManipulationChange(false)
+        return
+      }
+      resizePlanRef.current = activePlan
+      setResizePreview(activePlan.preview)
+      // Selection and any open Details remain suppressed until the exact
+      // painted resize plan has committed.
+      void onResizeCompositionClip({
+        owner: activePlan.owner,
+        globalStartMs: activePlan.preview.startMs,
+        durationMs: activePlan.preview.durationMs,
+        sourceComposition: activePlan.sourceComposition,
+        plannedComposition: activePlan.composition,
+      }).finally(() => {
+        resizePlanRef.current = null
+        setResizePreview(null)
+        onDirectManipulationChange(false)
+      })
     }
     const cancel = () => {
       window.removeEventListener('pointermove', move)
       window.removeEventListener('pointerup', finish)
       window.removeEventListener('pointercancel', cancel)
+      resizePlanRef.current = null
       setResizePreview(null)
       onDirectManipulationChange(false)
     }
+    resizePlanRef.current = null
     setResizePreview({ clipId: clip.id, startMs: clip.startMs, durationMs: clip.durationMs })
     window.addEventListener('pointermove', move)
     window.addEventListener('pointerup', finish)
@@ -3791,6 +4065,7 @@ function ShowTimelineWorkspace({
             getVisibleWidth={() => Math.max(1, scrollRef.current?.clientWidth ?? 812)}
             getRulerBounds={() => timelineRulerRef.current?.getBoundingClientRect() ?? null}
             onCreateMarker={onAddMarker}
+            onMarkerFeedback={setMarkerFeedback}
           />
         )}
         <div
@@ -3888,6 +4163,7 @@ function ShowTimelineWorkspace({
             minimumShowEndMs={showTimelineContentEndMs({ ...show, composition: timelineComposition })}
             onPreviewShowEnd={setShowEndPreviewMs}
             markers={markersVisible ? timelineComposition.markers ?? [] : []}
+            markerFeedback={markerFeedback}
             gridColumn={`2 / ${timeGridEndLine}`}
             gridRow={rulerRow}
             rowSpan={timelineOverlayRowSpan}
@@ -4124,15 +4400,12 @@ function ShowTimelineWorkspace({
                     .flatMap((candidate) => candidate.layers.flatMap((layer) => layer.clips))
                     .find((candidate) => candidate.id === draggedClip.clipId)
                   const candidateMs = Math.min(1, Math.max(0, (event.clientX - rect.left) / Math.max(1, rect.width))) * totalMs - draggedClip.grabOffsetMs
-                  const maxTimeMs = Math.max(0, totalMs - (clip?.durationMs ?? 0))
-                  const globalStartMs = snapEnabled !== event.altKey
-                    ? snapShowTimelineTime(candidateMs, {
-                        visibleDurationMs: viewport.durationMs,
-                        visibleWidthPx: Math.max(1, scrollRef.current?.clientWidth ?? rect.width),
-                        structuralTimesMs,
-                        maxTimeMs,
-                      }).timeMs
-                    : Math.max(0, Math.min(maxTimeMs, candidateMs))
+                  const clipDurationMs = clip?.durationMs ?? 0
+                  const globalStartMs = resolveClipMoveStart(candidateMs, clipDurationMs, {
+                    altKey: event.altKey,
+                    visibleWidthPx: Math.max(1, scrollRef.current?.clientWidth ?? rect.width),
+                    totalMs,
+                  }).startMs
                   void onMoveCompositionClip({
                     owner: draggedClip.owner,
                     target: { kind: 'main', zoneId: row.zoneId, globalStartMs },
@@ -4194,44 +4467,73 @@ function ShowTimelineWorkspace({
                   setDropTargetKey(`composition:${layer.id}`)
                 }}
                 onDragOver={(event) => {
-                  if (!draggingCompositionClipRef.current || readOnly) return
-                  event.preventDefault()
-                  event.dataTransfer.dropEffect = 'move'
-                  setDropTargetKey(`composition:${layer.id}`)
-                }}
-                onDragLeave={(event) => {
-                  if (event.currentTarget.contains(event.relatedTarget as Node | null)) return
-                  setDropTargetKey((current) => current === `composition:${layer.id}` ? null : current)
-                }}
-                onDrop={(event) => {
                   const draggedClip = draggingCompositionClipRef.current
                   const compositionTimeline = unifiedCompositionTimeline
                   if (!draggedClip || !compositionTimeline || readOnly) return
                   event.preventDefault()
+                  const targetKey = `composition:${layer.id}`
+                  activeMoveLayerRef.current = {
+                    element: event.currentTarget,
+                    layer,
+                    zoneId: row.zoneId,
+                    targetKey,
+                  }
+                  updateCompositionClipMovePreview({
+                    clientX: event.clientX,
+                    altKey: event.altKey,
+                    element: event.currentTarget,
+                    layer,
+                    zoneId: row.zoneId,
+                    targetKey,
+                    dataTransfer: event.dataTransfer,
+                  })
+                }}
+                onDragLeave={(event) => {
+                  if (event.currentTarget.contains(event.relatedTarget as Node | null)) return
                   const rect = event.currentTarget.getBoundingClientRect()
-                  const totalMs = Math.max(1, compositionTimeline.durationMs)
-                  const fraction = Math.min(1, Math.max(0, (event.clientX - rect.left) / Math.max(1, rect.width)))
-                  const candidateMs = fraction * totalMs - draggedClip.grabOffsetMs
-                  const clip = compositionTimeline.zones
-                    .flatMap((zone) => zone.layers.flatMap((candidate) => candidate.clips))
-                    .find((candidate) => candidate.id === draggedClip.clipId)
-                  const maxTimeMs = Math.max(0, totalMs - (clip?.durationMs ?? 0))
-                  const globalStartMs = snapEnabled !== event.altKey
-                    ? snapShowTimelineTime(candidateMs, {
-                        visibleDurationMs: viewport.durationMs,
-                        visibleWidthPx: Math.max(1, scrollRef.current?.clientWidth ?? rect.width),
-                        structuralTimesMs,
-                        maxTimeMs,
-                      }).timeMs
-                    : Math.max(0, Math.min(maxTimeMs, candidateMs))
-                  const target: ShowTimelineClipMoveTarget = layer.kind === 'main'
-                    ? { kind: 'main', zoneId: row.zoneId, globalStartMs }
-                    : { kind: 'overlay', zoneId: row.zoneId, layerIndex: layer.layerIndex, globalStartMs }
-                  void onMoveCompositionClip({ owner: draggedClip.owner, target }).then((moved) => {
-                    if (moved) onReanchorDetails({ kind: 'clip', clipId: draggedClip.clipId })
-                  }).finally(() => {
+                  const visibleLeft = Math.max(
+                    rect.left,
+                    scrollRef.current?.getBoundingClientRect().left ?? rect.left,
+                  )
+                  if (event.clientX < visibleLeft) return
+                  setDropTargetKey((current) => current === `composition:${layer.id}` ? null : current)
+                  if (activeMoveLayerRef.current?.targetKey === `composition:${layer.id}`) {
+                    activeMoveLayerRef.current = null
+                  }
+                  if (movePlanRef.current?.preview.targetKey === `composition:${layer.id}`) {
+                    movePlanRef.current = null
+                    setMovePreview(null)
+                  }
+                }}
+                onDrop={(event) => {
+                  const draggedClip = draggingCompositionClipRef.current
+                  if (!draggedClip || readOnly) return
+                  event.preventDefault()
+                  const activePlan = movePlanRef.current
+                  const targetKey = `composition:${layer.id}`
+                  if (activePlan?.preview.clipId !== draggedClip.clipId || activePlan.preview.targetKey !== targetKey) {
+                    activeMoveLayerRef.current = null
                     draggingCompositionClipRef.current = null
                     setDraggingCompositionClip(null)
+                    movePlanRef.current = null
+                    setMovePreview(null)
+                    setDropTargetKey(null)
+                    onDirectManipulationChange(false)
+                    return
+                  }
+                  void onMoveCompositionClip({
+                    owner: activePlan.owner,
+                    target: activePlan.target,
+                    sourceComposition: activePlan.sourceComposition,
+                    plannedComposition: activePlan.composition,
+                  }).then((moved) => {
+                    if (moved) onReanchorDetails({ kind: 'clip', clipId: draggedClip.clipId })
+                  }).finally(() => {
+                    activeMoveLayerRef.current = null
+                    draggingCompositionClipRef.current = null
+                    setDraggingCompositionClip(null)
+                    movePlanRef.current = null
+                    setMovePreview(null)
                     onDirectManipulationChange(false)
                   })
                   setDropTargetKey(null)
@@ -4243,6 +4545,17 @@ function ShowTimelineWorkspace({
                   zoneName={row.zoneName}
                   durationMs={timeline.durationMs}
                 />
+                {movePreview?.targetKey === `composition:${layer.id}` && (
+                  <i
+                    aria-hidden
+                    data-testid="show-clip-move-preview"
+                    className="pointer-events-none absolute inset-y-1 z-[9] rounded-[5px] border border-amber-300/80 bg-amber-300/10 shadow-[0_0_0_1px_rgba(251,191,36,0.12)]"
+                    style={{
+                      left: `${movePreview.startMs / Math.max(1, unifiedCompositionTimeline?.durationMs ?? timeline.durationMs) * 100}%`,
+                      width: `${movePreview.durationMs / Math.max(1, unifiedCompositionTimeline?.durationMs ?? timeline.durationMs) * 100}%`,
+                    }}
+                  />
+                )}
                 {layer.clips.map((clip) => {
                   const totalMs = Math.max(1, unifiedCompositionTimeline?.durationMs ?? timeline.durationMs)
                   const preview = resizePreview?.clipId === clip.id ? resizePreview : clip
@@ -4301,19 +4614,43 @@ function ShowTimelineWorkspace({
                           owner,
                           grabOffsetMs: fraction * clip.durationMs,
                         }
+                        activeMoveLayerRef.current = null
                         draggingCompositionClipRef.current = dragState
                         setDraggingCompositionClip(dragState)
                         onDirectManipulationChange(true)
                         event.dataTransfer.effectAllowed = 'move'
                         event.dataTransfer.setData('application/x-pxlblz-show-placement', clip.id)
                       }}
+                      onDrag={(event) => {
+                        const activeLayer = activeMoveLayerRef.current
+                        if (!activeLayer || !draggingCompositionClipRef.current) return
+                        if (event.clientX === 0 && event.clientY === 0) return
+                        updateCompositionClipMovePreview({
+                          clientX: event.clientX,
+                          altKey: event.altKey,
+                          element: activeLayer.element,
+                          layer: activeLayer.layer,
+                          zoneId: activeLayer.zoneId,
+                          targetKey: activeLayer.targetKey,
+                          dataTransfer: event.dataTransfer,
+                        })
+                      }}
                       onDragEnd={() => {
+                        activeMoveLayerRef.current = null
                         draggingCompositionClipRef.current = null
                         setDraggingCompositionClip(null)
+                        movePlanRef.current = null
+                        setMovePreview(null)
                         setDropTargetKey(null)
                         onDirectManipulationChange(false)
                       }}
                       onClick={(event) => {
+                        if (suppressResizeClipClickRef.current === clip.id) {
+                          suppressResizeClipClickRef.current = null
+                          event.preventDefault()
+                          event.stopPropagation()
+                          return
+                        }
                         event.stopPropagation()
                         if (group && groupPlacementId && event.detail >= 2 && !readOnly) {
                           onEnterGroupIsolation(group.id, groupPlacementId, event.currentTarget)
@@ -4875,6 +5212,7 @@ function TimelineMarkerSource({
   getVisibleWidth,
   getRulerBounds,
   onCreateMarker,
+  onMarkerFeedback,
 }: {
   show: ShowRecord
   viewport: ShowTimelineViewport
@@ -4883,11 +5221,35 @@ function TimelineMarkerSource({
   getVisibleWidth: () => number
   getRulerBounds: () => DOMRect | null
   onCreateMarker: (timeMs: number) => Promise<boolean>
+  onMarkerFeedback: (feedback: TimelineMarkerFeedback | null) => void
 }) {
   const durationMs = showLoopDurationMs(show)
   const positionMs = useShowTransportStore((state) => state.showId === show.id ? state.positionMs : 0)
   const markerDragRef = useRef<{ pointerId: number; startX: number } | null>(null)
   const suppressMarkerClickRef = useRef(false)
+  const confirmationTimerRef = useRef<number | null>(null)
+  useEffect(() => () => {
+    if (confirmationTimerRef.current !== null) window.clearTimeout(confirmationTimerRef.current)
+  }, [])
+  const clearConfirmation = () => {
+    if (confirmationTimerRef.current !== null) {
+      window.clearTimeout(confirmationTimerRef.current)
+      confirmationTimerRef.current = null
+    }
+  }
+  const resolveDragTime = (clientX: number, altKey: boolean): number | null => {
+    const rect = getRulerBounds()
+    if (!rect || clientX < rect.left || clientX > rect.right) return null
+    const rawTimeMs = (clientX - rect.left) / Math.max(1, rect.width) * durationMs
+    return Math.round(snapEnabled !== altKey
+      ? snapShowTimelineTime(rawTimeMs, {
+          visibleDurationMs: viewport.durationMs,
+          visibleWidthPx: getVisibleWidth(),
+          structuralTimesMs,
+          maxTimeMs: durationMs,
+        }).timeMs
+      : Math.max(0, Math.min(durationMs, rawTimeMs)))
+  }
   return (
     <div
       data-show-marker-source-gutter
@@ -4897,37 +5259,49 @@ function TimelineMarkerSource({
         type="button"
         aria-label="Add Marker at playhead"
         title="Click to add at the playhead, or drag onto the ruler"
-        className="pointer-events-auto flex h-4 w-4 cursor-grab items-center justify-center rounded-sm text-amber-300/75 hover:bg-amber-300/10 hover:text-amber-200 focus-visible:outline focus-visible:outline-1 focus-visible:outline-amber-300"
+        className="pointer-events-auto flex h-4 w-4 cursor-ew-resize items-center justify-center rounded-sm text-amber-300/75 hover:bg-amber-300/10 hover:text-amber-200 focus-visible:outline focus-visible:outline-1 focus-visible:outline-amber-300"
         onPointerDown={(event) => {
           event.stopPropagation()
+          clearConfirmation()
+          onMarkerFeedback(null)
           markerDragRef.current = { pointerId: event.pointerId, startX: event.clientX }
           event.currentTarget.setPointerCapture?.(event.pointerId)
+        }}
+        onPointerMove={(event) => {
+          const drag = markerDragRef.current
+          if (!drag || drag.pointerId !== event.pointerId || Math.abs(event.clientX - drag.startX) < 3) return
+          const timeMs = resolveDragTime(event.clientX, event.altKey)
+          onMarkerFeedback(timeMs === null ? null : { kind: 'drag', timeMs })
         }}
         onPointerUp={(event) => {
           const drag = markerDragRef.current
           markerDragRef.current = null
           if (!drag || drag.pointerId !== event.pointerId || Math.abs(event.clientX - drag.startX) < 3) return
-          const rect = getRulerBounds()
-          if (!rect || event.clientX < rect.left || event.clientX > rect.right) return
-          const rawTimeMs = (event.clientX - rect.left) / Math.max(1, rect.width) * durationMs
-          const timeMs = snapEnabled !== event.altKey
-            ? snapShowTimelineTime(rawTimeMs, {
-                visibleDurationMs: viewport.durationMs,
-                visibleWidthPx: getVisibleWidth(),
-                structuralTimesMs,
-                maxTimeMs: durationMs,
-              }).timeMs
-            : Math.max(0, Math.min(durationMs, rawTimeMs))
           suppressMarkerClickRef.current = true
-          void onCreateMarker(Math.round(timeMs))
+          onMarkerFeedback(null)
+          event.currentTarget.releasePointerCapture?.(event.pointerId)
+          const timeMs = resolveDragTime(event.clientX, event.altKey)
+          if (timeMs !== null) void onCreateMarker(timeMs)
         }}
-        onPointerCancel={() => { markerDragRef.current = null }}
+        onPointerCancel={(event) => {
+          if (markerDragRef.current?.pointerId !== event.pointerId) return
+          markerDragRef.current = null
+          onMarkerFeedback(null)
+        }}
         onClick={() => {
           if (suppressMarkerClickRef.current) {
             suppressMarkerClickRef.current = false
             return
           }
-          void onCreateMarker(positionMs)
+          void onCreateMarker(positionMs).then((created) => {
+            if (!created) return
+            clearConfirmation()
+            onMarkerFeedback({ kind: 'confirmation', timeMs: positionMs })
+            confirmationTimerRef.current = window.setTimeout(() => {
+              confirmationTimerRef.current = null
+              onMarkerFeedback(null)
+            }, 1_100)
+          })
         }}
       >
         <Flag size={11} aria-hidden />
@@ -5193,6 +5567,7 @@ function TimelineEndHandlePortal({
   anchor,
   durationMs,
   dragging,
+  blocked,
   readOnly,
   onPointerDown,
   onPointerMove,
@@ -5204,6 +5579,7 @@ function TimelineEndHandlePortal({
   anchor: HTMLElement | null
   durationMs: number
   dragging: boolean
+  blocked: boolean
   readOnly: boolean
   onPointerDown: (event: ReactPointerEvent<HTMLButtonElement>) => void
   onPointerMove: (event: ReactPointerEvent<HTMLButtonElement>) => void
@@ -5218,7 +5594,7 @@ function TimelineEndHandlePortal({
     if (!anchor) return
     const updatePosition = () => {
       const rect = anchor.getBoundingClientRect()
-      setPosition({ left: rect.right - 2, top: rect.top - 2 })
+      setPosition({ left: rect.left + rect.width / 2, top: rect.top })
     }
     updatePosition()
     window.addEventListener('resize', updatePosition)
@@ -5235,10 +5611,11 @@ function TimelineEndHandlePortal({
       type="button"
       data-show-timeline-marker-ui
       data-show-end-dragging={dragging ? 'true' : undefined}
+      data-show-end-drag-blocked={dragging && blocked ? 'true' : undefined}
       aria-label={`Show End at ${formatSecondsValue(durationMs)} seconds`}
       title={`Show End · ${formatSecondsValue(durationMs)}s`}
       disabled={readOnly}
-      className="fixed z-[45] h-4 w-4 cursor-ew-resize touch-none text-red-400 disabled:cursor-default"
+      className={`fixed z-[45] h-4 w-4 -translate-x-1/2 -translate-y-1/2 touch-none text-red-400 disabled:cursor-default ${dragging && blocked ? 'cursor-not-allowed' : 'cursor-ew-resize'}`}
       style={position}
       onPointerDown={onPointerDown}
       onPointerMove={onPointerMove}
@@ -5249,7 +5626,7 @@ function TimelineEndHandlePortal({
     >
       <span
         data-testid="show-timeline-end-handle"
-        className="absolute left-1 top-1 h-[6px] w-[6px] rotate-45 border border-current bg-[#060608]"
+        className="absolute left-1/2 top-1/2 h-[5px] w-[5px] -translate-x-1/2 -translate-y-1/2 rotate-45 bg-current"
       />
     </button>,
     document.body,
@@ -5260,6 +5637,7 @@ function TimelineMarkers({
   show,
   minimumShowEndMs,
   markers,
+  markerFeedback,
   gridColumn,
   gridRow,
   rowSpan,
@@ -5275,6 +5653,7 @@ function TimelineMarkers({
   show: ShowRecord
   minimumShowEndMs: number
   markers: NonNullable<ShowCompositionV1['markers']>
+  markerFeedback: TimelineMarkerFeedback | null
   gridColumn: string
   gridRow: number
   rowSpan: number
@@ -5291,6 +5670,7 @@ function TimelineMarkers({
   const [openMarkerId, setOpenMarkerId] = useState<string | null>(null)
   const [showEndOpen, setShowEndOpen] = useState(false)
   const [showEndDragging, setShowEndDragging] = useState(false)
+  const [showEndDragBlocked, setShowEndDragBlocked] = useState(false)
   const [showEndAnchor, setShowEndAnchor] = useState<HTMLSpanElement | null>(null)
   const markerSurfaceRef = useRef<HTMLDivElement>(null)
   const markerPointerRef = useRef<{ markerId: string; pointerId: number; startX: number } | null>(null)
@@ -5331,14 +5711,14 @@ function TimelineMarkers({
         }).timeMs
       : Math.max(minTimeMs, Math.min(maxTimeMs, rawTimeMs)))
   }
-  const resolveShowEndDragTime = (
+  const resolveShowEndDrag = (
     event: ReactPointerEvent<HTMLElement>,
     pointer: NonNullable<typeof showEndPointerRef.current>,
   ) => {
     const rawTimeMs = pointer.startDurationMs
       + (event.clientX - pointer.startX) / Math.max(1, pointer.surfaceWidthPx) * pointer.startDurationMs
     const maxTimeMs = Math.max(pointer.startDurationMs * 16, rawTimeMs, minimumShowEndMs)
-    return Math.round(snapEnabled !== event.altKey
+    const timeMs = Math.round(snapEnabled !== event.altKey
       ? snapShowTimelineTime(rawTimeMs, {
           visibleDurationMs: pointer.startDurationMs,
           visibleWidthPx: pointer.surfaceWidthPx,
@@ -5347,6 +5727,7 @@ function TimelineMarkers({
           maxTimeMs,
         }).timeMs
       : Math.max(minimumShowEndMs, rawTimeMs))
+    return { timeMs, blocked: rawTimeMs < minimumShowEndMs }
   }
   const beginShowEndDrag = (event: ReactPointerEvent<HTMLElement>) => {
     event.stopPropagation()
@@ -5358,6 +5739,7 @@ function TimelineMarkers({
       surfaceWidthPx: rect?.width ?? 1,
     }
     setShowEndDragging(true)
+    setShowEndDragBlocked(false)
     onPreviewShowEnd(durationMs)
     event.currentTarget.setPointerCapture?.(event.pointerId)
   }
@@ -5365,7 +5747,9 @@ function TimelineMarkers({
     const pointer = showEndPointerRef.current
     if (!pointer || pointer.pointerId !== event.pointerId) return
     event.stopPropagation()
-    onPreviewShowEnd(resolveShowEndDragTime(event, pointer))
+    const resolved = resolveShowEndDrag(event, pointer)
+    setShowEndDragBlocked(resolved.blocked)
+    onPreviewShowEnd(resolved.timeMs)
   }
   const finishShowEndDrag = (event: ReactPointerEvent<HTMLElement>) => {
     event.stopPropagation()
@@ -5374,14 +5758,17 @@ function TimelineMarkers({
     event.currentTarget.releasePointerCapture?.(event.pointerId)
     if (!pointer || pointer.pointerId !== event.pointerId || Math.abs(event.clientX - pointer.startX) < 3) {
       setShowEndDragging(false)
+      setShowEndDragBlocked(false)
       onPreviewShowEnd(null)
       return
     }
-    const timeMs = resolveShowEndDragTime(event, pointer)
+    const { timeMs } = resolveShowEndDrag(event, pointer)
+    setShowEndDragBlocked(false)
     suppressShowEndClickRef.current = true
     onPreviewShowEnd(timeMs)
     void onSetShowEnd(timeMs).finally(() => {
       setShowEndDragging(false)
+      setShowEndDragBlocked(false)
       onPreviewShowEnd(null)
     })
   }
@@ -5389,6 +5776,7 @@ function TimelineMarkers({
     if (showEndPointerRef.current?.pointerId !== event.pointerId) return
     showEndPointerRef.current = null
     setShowEndDragging(false)
+    setShowEndDragBlocked(false)
     onPreviewShowEnd(null)
   }
   const toggleShowEndDetails = (event: ReactMouseEvent<HTMLElement>) => {
@@ -5408,17 +5796,50 @@ function TimelineMarkers({
       className="pointer-events-none relative z-[35]"
       style={{ gridColumn, gridRow: `${gridRow} / span ${rowSpan}` }}
     >
+      {markerFeedback?.kind === 'drag' && (
+        <div
+          aria-hidden
+          data-testid="show-timeline-marker-preview"
+          className="pointer-events-none absolute inset-y-0 z-20 w-[5px] -translate-x-1/2 text-amber-200/80"
+          style={{ left: `${markerFeedback.timeMs / Math.max(1, durationMs) * 100}%` }}
+        >
+          <span className="absolute inset-y-0 left-1/2 -translate-x-1/2 border-l border-dashed border-current opacity-55" />
+          <span className="absolute left-1/2 top-0 h-0 w-0 -translate-x-1/2 border-x-[3px] border-t-[5px] border-x-transparent border-t-current" />
+        </div>
+      )}
+      {markerFeedback?.kind === 'confirmation' && (() => {
+        const left = markerFeedback.timeMs / Math.max(1, durationMs) * 100
+        return (
+          <div
+            role="status"
+            aria-label="Marker added at playhead"
+            className="pointer-events-none absolute top-0 z-30 text-amber-200"
+            style={{ left: `${left}%` }}
+          >
+            <span className="absolute left-0 top-0 h-3 w-3 -translate-x-1/2 -translate-y-1 rounded-full border border-amber-200/80 bg-amber-300/20 shadow-[0_0_8px_rgba(251,191,36,0.65)]" />
+            <span className={`absolute top-1 whitespace-nowrap rounded border border-amber-300/25 bg-zinc-950/95 px-1.5 py-0.5 text-[9px] font-medium uppercase tracking-[0.08em] shadow-lg ${left > 82 ? 'right-2' : 'left-2'}`}>
+              Marker added
+            </span>
+          </div>
+        )
+      })()}
       {markers.filter((marker) => marker.timeMs <= durationMs).map((marker) => {
         const left = marker.timeMs / Math.max(1, durationMs) * 100
         return (
           <div key={marker.id} className="contents">
+          <span
+            aria-hidden
+            data-show-timeline-marker-stem
+            className="pointer-events-none absolute inset-y-0 left-1/2 -translate-x-1/2 border-l border-dashed border-current opacity-45"
+            style={{ left: `${left}%`, color: marker.color ?? '#f59e0b' }}
+          />
           <button
             type="button"
             data-show-timeline-marker-ui
             aria-label={`${marker.name ?? 'Marker'} at ${formatSecondsValue(marker.timeMs)} seconds`}
             title={`${marker.name ?? 'Marker'} · ${formatSecondsValue(marker.timeMs)}s`}
             disabled={readOnly}
-            className="pointer-events-auto absolute inset-y-0 w-[5px] -translate-x-1/2 cursor-ew-resize touch-none disabled:cursor-default"
+            className="pointer-events-auto absolute top-0 h-7 w-[5px] -translate-x-1/2 cursor-ew-resize touch-none disabled:cursor-default"
             style={{ left: `${left}%`, color: marker.color ?? '#f59e0b' }}
             onPointerDown={(event) => {
               event.stopPropagation()
@@ -5445,8 +5866,10 @@ function TimelineMarkers({
               setOpenMarkerId((current) => current === marker.id ? null : marker.id)
             }}
           >
-            <span className="absolute inset-y-0 left-1/2 w-px -translate-x-1/2 bg-current opacity-45" />
-            <span className="absolute -left-[3px] top-0 h-0 w-0 border-x-[3px] border-t-[5px] border-x-transparent border-t-current" />
+            <span
+              data-show-timeline-marker-head
+              className="absolute left-1/2 top-0 h-0 w-0 -translate-x-1/2 border-x-[3px] border-t-[5px] border-x-transparent border-t-current"
+            />
           </button>
           {openMarkerId === marker.id && (
             <div
@@ -5459,7 +5882,31 @@ function TimelineMarkers({
             >
               <div className="mb-2 flex items-center justify-between">
                 <strong className="font-medium text-zinc-200">Marker</strong>
-                <button type="button" aria-label="Close Marker details" className="text-zinc-600 hover:text-zinc-200" onClick={() => setOpenMarkerId(null)}><X size={12} /></button>
+                <span className="flex items-center gap-0.5">
+                  <Button
+                    size="icon-xs"
+                    variant="ghost"
+                    aria-label={`Delete ${marker.name ?? 'Marker'}`}
+                    title={`Delete ${marker.name ?? 'Marker'}`}
+                    className="text-zinc-500 hover:bg-red-950/30 hover:text-red-300"
+                    onClick={() => {
+                      setOpenMarkerId(null)
+                      void onRemoveMarker(marker.id)
+                    }}
+                  >
+                    <Trash2 size={12} aria-hidden />
+                  </Button>
+                  <Button
+                    size="icon-xs"
+                    variant="ghost"
+                    aria-label="Close Marker details"
+                    title="Close Marker details"
+                    className="text-zinc-600 hover:text-zinc-200"
+                    onClick={() => setOpenMarkerId(null)}
+                  >
+                    <X size={12} aria-hidden />
+                  </Button>
+                </span>
               </div>
               <label className="grid grid-cols-[44px_1fr] items-center gap-2 py-1">
                 <span>Name</span>
@@ -5503,14 +5950,6 @@ function TimelineMarkers({
                   onChange={(event) => void onUpdateMarker(marker.id, { color: event.target.value })}
                 />
               </label>
-              <button
-                type="button"
-                className="mt-2 flex items-center gap-1 text-red-400/80 hover:text-red-300"
-                onClick={() => {
-                  setOpenMarkerId(null)
-                  void onRemoveMarker(marker.id)
-                }}
-              ><Trash2 size={11} aria-hidden /> Remove Marker</button>
             </div>
           )}
           </div>
@@ -5519,12 +5958,14 @@ function TimelineMarkers({
       <span
         ref={setShowEndAnchor}
         aria-hidden
+        data-testid="show-timeline-end-anchor"
         className="pointer-events-none absolute inset-y-0 right-0 z-10 w-px bg-red-400 opacity-65"
       />
       <TimelineEndHandlePortal
         anchor={showEndAnchor}
         durationMs={durationMs}
         dragging={showEndDragging}
+        blocked={showEndDragBlocked}
         readOnly={readOnly}
         onPointerDown={beginShowEndDrag}
         onPointerMove={previewShowEndDrag}

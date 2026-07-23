@@ -266,7 +266,7 @@ describe('ShowEditor (#318)', () => {
     expect(markers).not.toContainElement(showEnd)
     expect(showEnd).toHaveClass('fixed', 'z-[45]')
     expect(showEnd).not.toHaveClass('translate-x-1/2')
-    expect(showEndHandle).toHaveClass('left-1', 'top-1', 'border')
+    expect(showEndHandle).toHaveClass('left-1/2', 'top-1/2', 'bg-current')
   })
 
   it('persists deterministic loop semantics when the unified Timeline first materializes a composition (#586)', async () => {
@@ -440,6 +440,148 @@ describe('ShowEditor (#318)', () => {
     expect(screen.queryByRole('dialog', { name: 'Marker 1 details' })).not.toBeInTheDocument()
   })
 
+  it('previews a new Marker while dragging it from the gutter onto the ruler', async () => {
+    const show = createDefaultShow('show-marker-drag-create', 'Marker drag create', 1000)
+    setPersonalContentProvider(memoryProvider([show]))
+    useShowStore.setState({ shows: [show], activeShowId: show.id, showsLoaded: true })
+
+    render(<ShowEditor showId={show.id} />)
+
+    const markerSource = screen.getByRole('button', { name: 'Add Marker at playhead' })
+    const ruler = screen.getByTestId('show-timeline-ruler')
+    vi.spyOn(ruler, 'getBoundingClientRect').mockReturnValue({
+      x: 100,
+      y: 0,
+      left: 100,
+      right: 720,
+      top: 0,
+      bottom: 24,
+      width: 620,
+      height: 24,
+      toJSON: () => ({}),
+    })
+
+    expect(markerSource).toHaveClass('cursor-ew-resize')
+    expect(markerSource).not.toHaveClass('cursor-grab')
+
+    fireEvent.pointerDown(markerSource, { pointerId: 11, clientX: 80, altKey: true })
+    fireEvent.pointerMove(markerSource, { pointerId: 11, clientX: 90, altKey: true })
+    expect(screen.queryByTestId('show-timeline-marker-preview')).not.toBeInTheDocument()
+
+    fireEvent.pointerMove(markerSource, { pointerId: 11, clientX: 410, altKey: true })
+    const preview = screen.getByTestId('show-timeline-marker-preview')
+    expect(preview).toHaveStyle({ left: '50%' })
+    expect(useShowStore.getState().shows[0].composition?.markers ?? []).toEqual([])
+
+    fireEvent.pointerUp(markerSource, { pointerId: 11, clientX: 410, altKey: true })
+    expect(screen.queryByTestId('show-timeline-marker-preview')).not.toBeInTheDocument()
+    await waitFor(() => expect(useShowStore.getState().shows[0].composition?.markers).toEqual([
+      expect.objectContaining({ timeMs: 31_000, name: 'Marker 1' }),
+    ]))
+  })
+
+  it('confirms a Marker created underneath the playhead without moving its insertion time', async () => {
+    const user = userEvent.setup()
+    const show = createDefaultShow('show-marker-click-confirmation', 'Marker click confirmation', 1000)
+    setPersonalContentProvider(memoryProvider([show]))
+    useShowStore.setState({ shows: [show], activeShowId: show.id, showsLoaded: true })
+    useShowTransportStore.setState({ showId: show.id, positionMs: 4_023 })
+
+    render(<ShowEditor showId={show.id} />)
+    await user.click(screen.getByRole('button', { name: 'Add Marker at playhead' }))
+
+    expect(await screen.findByRole('status', { name: 'Marker added at playhead' })).toHaveTextContent('Marker added')
+    expect(useShowStore.getState().shows[0].composition?.markers).toEqual([
+      expect.objectContaining({ timeMs: 4_023 }),
+    ])
+  })
+
+  it('centers Marker heads on quiet dashed stems', async () => {
+    const user = userEvent.setup()
+    const show = createDefaultShow('show-marker-visuals', 'Marker visuals', 1000)
+    setPersonalContentProvider(memoryProvider([show]))
+    useShowStore.setState({ shows: [show], activeShowId: show.id, showsLoaded: true })
+    useShowTransportStore.setState({ showId: show.id, positionMs: 10_000 })
+
+    render(<ShowEditor showId={show.id} />)
+    await user.click(screen.getByRole('button', { name: 'Add Marker at playhead' }))
+
+    const marker = await screen.findByRole('button', { name: 'Marker 1 at 10 seconds' })
+    const stem = screen.getByLabelText('Timeline Markers and Show End')
+      .querySelector<HTMLElement>('[data-show-timeline-marker-stem]')
+    const head = marker.querySelector('[data-show-timeline-marker-head]')
+    expect(marker).toHaveClass('top-0', 'h-7')
+    expect(marker).not.toHaveClass('inset-y-0')
+    expect(stem).toHaveClass('pointer-events-none', 'inset-y-0')
+    expect(marker).not.toContainElement(stem)
+    expect(stem).toHaveClass(
+      'left-1/2',
+      '-translate-x-1/2',
+      'border-l',
+      'border-dashed',
+      'border-current',
+    )
+    expect(stem).not.toHaveClass('w-px', 'bg-current')
+    expect(head).toHaveClass('left-1/2', '-translate-x-1/2')
+    expect(head).not.toHaveClass('-left-[3px]')
+  })
+
+  it('uses the standard compact delete action in the Marker dialog header', async () => {
+    const user = userEvent.setup()
+    const show = createDefaultShow('show-marker-delete-treatment', 'Marker delete treatment', 1000)
+    setPersonalContentProvider(memoryProvider([show]))
+    useShowStore.setState({ shows: [show], activeShowId: show.id, showsLoaded: true })
+    useShowTransportStore.setState({ showId: show.id, positionMs: 10_000 })
+
+    render(<ShowEditor showId={show.id} />)
+    await user.click(screen.getByRole('button', { name: 'Add Marker at playhead' }))
+    await user.click(screen.getByRole('button', { name: 'Marker 1 at 10 seconds' }))
+
+    const details = screen.getByRole('dialog', { name: 'Marker 1 details' })
+    const deleteMarker = within(details).getByRole('button', { name: 'Delete Marker 1' })
+    expect(deleteMarker).toHaveAttribute('data-size', 'icon-xs')
+    expect(deleteMarker).toHaveClass('text-zinc-500')
+    expect(deleteMarker.parentElement?.parentElement).toContainElement(within(details).getByText('Marker'))
+    expect(within(details).queryByText('Remove Marker')).not.toBeInTheDocument()
+  })
+
+  it('centers a solid Show End diamond on the timeline boundary', () => {
+    const show = createDefaultShow('show-end-visuals', 'Show End visuals', 1000)
+    useShowStore.setState({ shows: [show], activeShowId: show.id, showsLoaded: true })
+
+    render(<ShowEditor showId={show.id} />)
+
+    const anchor = screen.getByTestId('show-timeline-end-anchor')
+    vi.spyOn(anchor, 'getBoundingClientRect').mockReturnValue({
+      x: 620,
+      y: 40,
+      left: 620,
+      right: 621,
+      top: 40,
+      bottom: 200,
+      width: 1,
+      height: 160,
+      toJSON: () => ({}),
+    })
+    fireEvent(window, new Event('resize'))
+
+    const showEnd = screen.getByRole('button', { name: 'Show End at 62 seconds' })
+    const diamond = screen.getByTestId('show-timeline-end-handle')
+    expect(showEnd).toHaveStyle({ left: '620.5px', top: '40px' })
+    expect(showEnd).toHaveClass('-translate-x-1/2', '-translate-y-1/2')
+    expect(diamond).toHaveClass(
+      'left-1/2',
+      'top-1/2',
+      '-translate-x-1/2',
+      '-translate-y-1/2',
+      'h-[5px]',
+      'w-[5px]',
+      'rotate-45',
+      'bg-current',
+    )
+    expect(diamond).not.toHaveClass('border', 'bg-[#060608]')
+  })
+
   it('drags a Marker against the timeline surface rather than its boxless wrapper (#584)', async () => {
     const user = userEvent.setup()
     const show = createDefaultShow('show-marker-drag', 'Marker drag', 1000)
@@ -506,6 +648,8 @@ describe('ShowEditor (#318)', () => {
     fireEvent.pointerMove(showEnd, { pointerId: 1, clientX: 780, altKey: true })
 
     expect(showEnd).toHaveAttribute('data-show-end-dragging', 'true')
+    expect(showEnd).not.toHaveAttribute('data-show-end-drag-blocked')
+    expect(showEnd).toHaveClass('cursor-ew-resize')
     expect(screen.getByRole('button', { name: 'Show End at 68 seconds' })).toBeInTheDocument()
     expect(screen.getByTestId('show-timeline-grid').style.gridTemplateColumns).toContain('36000fr')
 
@@ -517,6 +661,9 @@ describe('ShowEditor (#318)', () => {
     fireEvent.pointerDown(resizedShowEnd, { pointerId: 2, clientX: 720, altKey: true })
     fireEvent.pointerMove(resizedShowEnd, { pointerId: 2, clientX: 500, altKey: true })
 
+    expect(resizedShowEnd).toHaveAttribute('data-show-end-drag-blocked', 'true')
+    expect(resizedShowEnd).toHaveClass('cursor-not-allowed')
+    expect(resizedShowEnd).not.toHaveClass('cursor-ew-resize')
     expect(screen.getByRole('button', { name: 'Show End at 62 seconds' })).toBeInTheDocument()
     expect(screen.getByTestId('show-timeline-grid').style.gridTemplateColumns).toContain('30000fr')
 
@@ -1247,6 +1394,7 @@ describe('ShowEditor (#318)', () => {
       const event = new Event(type, { bubbles: true, cancelable: true })
       Object.defineProperties(event, {
         clientX: { value: clientX },
+        altKey: { value: false },
         dataTransfer: { value: dataTransfer },
       })
       return event
@@ -1264,6 +1412,355 @@ describe('ShowEditor (#318)', () => {
     })
     expect(screen.getAllByRole('dialog', { name: 'Entity Detail Panel' })).toHaveLength(1)
     expect(screen.getByRole('dialog', { name: 'Entity Detail Panel' })).toHaveAttribute('data-pinned', 'true')
+  })
+
+  it('previews and snaps either Clip edge to a visible Marker while the global magnet is off', async () => {
+    const show = createDefaultShow('show-clip-marker-snap', 'Clip Marker snap', 1000)
+    const zoneId = show.zones[0].id
+    show.composition = {
+      version: 1,
+      patternInstances: [{
+        id: 'instance-marker-snap',
+        pattern: { ...show.cells[0].pattern },
+        patternName: 'Marker Magnet',
+        time: { timeScale: 1, timeOffsetMs: 0 },
+      }, {
+        id: 'instance-marker-obstruction',
+        pattern: { ...show.cells[1].pattern },
+        patternName: 'Marker Obstruction',
+        time: { timeScale: 1, timeOffsetMs: 0 },
+      }],
+      scenes: show.scenes.map((scene, index) => ({
+        sceneId: scene.id,
+        zones: [{
+          zoneId,
+          main: index === 0
+            ? [{
+                id: 'placement-marker-snap',
+                instanceId: 'instance-marker-snap',
+                startMs: 2_000,
+                durationMs: 4_000,
+                view: { mirror: false, phase: 0, brightness: 1 },
+              }, {
+                id: 'placement-marker-obstruction',
+                instanceId: 'instance-marker-obstruction',
+                startMs: 14_000,
+                durationMs: 4_000,
+                view: { mirror: false, phase: 0, brightness: 1 },
+              }]
+            : [],
+          overlays: [],
+        }],
+      })),
+      markers: [{ id: 'marker-snap-target', timeMs: 13_333, name: 'Snap target' }],
+    }
+    setPersonalContentProvider(memoryProvider([show]))
+    useShowStore.setState({ shows: [show], activeShowId: show.id, showsLoaded: true })
+    useShowEditorSessionStore.setState({
+      snapEnabled: false,
+      markersVisible: true,
+      markerSnapEnabled: true,
+    })
+
+    render(<ShowEditor showId={show.id} />)
+
+    expect(screen.getByRole('button', { name: 'Snap playhead' })).toHaveAttribute('aria-pressed', 'false')
+    expect(screen.getByRole('button', { name: 'Snap target at 13.333 seconds' })).toBeInTheDocument()
+
+    const clip = screen.getByRole('button', { name: 'Select Marker Magnet' })
+    const layer = document.querySelector<HTMLElement>('[data-show-layer-kind="main"]')!
+    Object.defineProperty(screen.getByTestId('show-timeline-scroll-region'), 'clientWidth', { value: 620 })
+    Object.defineProperty(clip, 'getBoundingClientRect', {
+      value: () => ({ left: 20, right: 60, top: 0, bottom: 40, width: 40, height: 40, x: 20, y: 0, toJSON: () => ({}) }),
+    })
+    Object.defineProperty(layer, 'getBoundingClientRect', {
+      value: () => ({ left: 0, right: 620, top: 0, bottom: 40, width: 620, height: 40, x: 0, y: 0, toJSON: () => ({}) }),
+    })
+    const dataTransfer = { setData: () => {}, effectAllowed: 'none', dropEffect: 'none' }
+    const dragEvent = (type: string, clientX: number) => {
+      const event = new Event(type, { bubbles: true, cancelable: true })
+      Object.defineProperties(event, {
+        clientX: { value: clientX },
+        altKey: { value: false },
+        dataTransfer: { value: dataTransfer },
+      })
+      return event
+    }
+
+    fireEvent(clip, dragEvent('dragstart', 20))
+    fireEvent(layer, dragEvent('dragover', 90))
+    const movePreview = screen.getByTestId('show-clip-move-preview')
+    expect(movePreview).toHaveStyle({
+      left: `${9_333 / 62_000 * 100}%`,
+      width: `${4_000 / 62_000 * 100}%`,
+    })
+
+    // A small final shake leaves the 10 px acquisition radius, but should not
+    // release the detent into the adjacent Clip before the browser can repaint.
+    fireEvent(layer, dragEvent('dragover', 104))
+    expect(screen.getByTestId('show-clip-move-preview')).toHaveStyle({
+      left: `${9_333 / 62_000 * 100}%`,
+    })
+    fireEvent(layer, dragEvent('drop', 104))
+    fireEvent(clip, dragEvent('dragend', 104))
+
+    await waitFor(() => {
+      const saved = useShowStore.getState().shows.find((candidate) => candidate.id === show.id)!
+      expect(saved.composition?.scenes[0].zones[0].main[0].startMs).toBe(9_333)
+    })
+  })
+
+  it('switches a short Clip detent from its end edge to its start edge at the same Marker', () => {
+    const show = createDefaultShow('show-short-clip-marker-snap', 'Short Clip Marker snap', 1000)
+    const zoneId = show.zones[0].id
+    show.composition = {
+      version: 1,
+      patternInstances: [{
+        id: 'instance-short-marker-snap',
+        pattern: { ...show.cells[0].pattern },
+        patternName: 'Short Marker Magnet',
+        time: { timeScale: 1, timeOffsetMs: 0 },
+      }],
+      scenes: show.scenes.map((scene, index) => ({
+        sceneId: scene.id,
+        zones: [{
+          zoneId,
+          main: index === 0
+            ? [{
+                id: 'placement-short-marker-snap',
+                instanceId: 'instance-short-marker-snap',
+                startMs: 2_000,
+                durationMs: 1_000,
+                view: { mirror: false, phase: 0, brightness: 1 },
+              }]
+            : [],
+          overlays: [],
+        }],
+      })),
+      markers: [{ id: 'marker-short-snap-target', timeMs: 29_000, name: 'Short snap target' }],
+    }
+    setPersonalContentProvider(memoryProvider([show]))
+    useShowStore.setState({ shows: [show], activeShowId: show.id, showsLoaded: true })
+    useShowEditorSessionStore.setState({
+      snapEnabled: false,
+      markersVisible: true,
+      markerSnapEnabled: true,
+    })
+
+    render(<ShowEditor showId={show.id} />)
+
+    const clip = screen.getByRole('button', { name: 'Select Short Marker Magnet' })
+    const layer = document.querySelector<HTMLElement>('[data-show-layer-kind="main"]')!
+    Object.defineProperty(screen.getByTestId('show-timeline-scroll-region'), 'clientWidth', { value: 620 })
+    Object.defineProperty(clip, 'getBoundingClientRect', {
+      value: () => ({ left: 20, right: 30, top: 0, bottom: 40, width: 10, height: 40, x: 20, y: 0, toJSON: () => ({}) }),
+    })
+    Object.defineProperty(layer, 'getBoundingClientRect', {
+      value: () => ({ left: 0, right: 620, top: 0, bottom: 40, width: 620, height: 40, x: 0, y: 0, toJSON: () => ({}) }),
+    })
+    const dataTransfer = { setData: () => {}, effectAllowed: 'none', dropEffect: 'none' }
+    const dragEvent = (type: string, clientX: number) => {
+      const event = new Event(type, { bubbles: true, cancelable: true })
+      Object.defineProperties(event, {
+        clientX: { value: clientX },
+        altKey: { value: false },
+        dataTransfer: { value: dataTransfer },
+      })
+      return event
+    }
+
+    fireEvent(clip, dragEvent('dragstart', 20))
+
+    // At 28.2 seconds, the Clip end is the nearer edge and snaps to 29.
+    fireEvent(layer, dragEvent('dragover', 282))
+    expect(screen.getByTestId('show-clip-move-preview')).toHaveStyle({
+      left: `${28_000 / 62_000 * 100}%`,
+    })
+
+    // The one-second Clip is narrower than the 16 px release radius. Its old
+    // end detent must not mask the newly acquired start-edge snap.
+    fireEvent(layer, dragEvent('dragover', 289))
+    expect(screen.getByTestId('show-clip-move-preview')).toHaveStyle({
+      left: `${29_000 / 62_000 * 100}%`,
+    })
+  })
+
+  it('only shows a Clip move outline for a position that can be committed', async () => {
+    const show = createDefaultShow('show-clip-valid-drop-preview', 'Valid Clip drop preview', 1000)
+    const zoneId = show.zones[0].id
+    show.composition = {
+      version: 1,
+      patternInstances: [{
+        id: 'instance-valid-drop-preview',
+        pattern: { ...show.cells[0].pattern },
+        patternName: 'Drop Contract',
+        time: { timeScale: 1, timeOffsetMs: 0 },
+      }, {
+        id: 'instance-drop-obstruction',
+        pattern: { ...show.cells[1].pattern },
+        patternName: 'Drop Obstruction',
+        time: { timeScale: 1, timeOffsetMs: 0 },
+      }],
+      scenes: show.scenes.map((scene, index) => ({
+        sceneId: scene.id,
+        zones: [{
+          zoneId,
+          main: index === 0
+            ? [{
+                id: 'placement-valid-drop-preview',
+                instanceId: 'instance-valid-drop-preview',
+                startMs: 2_000,
+                durationMs: 4_000,
+                view: { mirror: false, phase: 0, brightness: 1 },
+              }, {
+                id: 'placement-drop-obstruction',
+                instanceId: 'instance-drop-obstruction',
+                startMs: 8_000,
+                durationMs: 4_000,
+                view: { mirror: false, phase: 0, brightness: 1 },
+              }]
+            : [],
+          overlays: [],
+        }],
+      })),
+    }
+    setPersonalContentProvider(memoryProvider([show]))
+    useShowStore.setState({ shows: [show], activeShowId: show.id, showsLoaded: true })
+    useShowEditorSessionStore.setState({
+      snapEnabled: false,
+      markersVisible: false,
+      markerSnapEnabled: false,
+    })
+
+    render(<ShowEditor showId={show.id} />)
+
+    const clip = screen.getByRole('button', { name: 'Select Drop Contract' })
+    const layer = document.querySelector<HTMLElement>('[data-show-layer-kind="main"]')!
+    Object.defineProperty(screen.getByTestId('show-timeline-scroll-region'), 'clientWidth', { value: 620 })
+    Object.defineProperty(clip, 'getBoundingClientRect', {
+      value: () => ({ left: 20, right: 60, top: 0, bottom: 40, width: 40, height: 40, x: 20, y: 0, toJSON: () => ({}) }),
+    })
+    Object.defineProperty(layer, 'getBoundingClientRect', {
+      value: () => ({ left: 0, right: 620, top: 0, bottom: 40, width: 620, height: 40, x: 0, y: 0, toJSON: () => ({}) }),
+    })
+    const dataTransfer = { setData: () => {}, effectAllowed: 'none', dropEffect: 'none' }
+    const dragEvent = (type: string, clientX: number) => {
+      const event = new Event(type, { bubbles: true, cancelable: true })
+      Object.defineProperties(event, {
+        clientX: { value: clientX },
+        altKey: { value: false },
+        dataTransfer: { value: dataTransfer },
+      })
+      return event
+    }
+
+    fireEvent(clip, dragEvent('dragstart', 20))
+
+    // This pointer position would place the Clip at 5-9 seconds, overlapping
+    // the obstruction at 8-12 seconds. A geometric-only preview used to claim
+    // this invalid position even though the drop planner rejected it.
+    fireEvent(layer, dragEvent('dragover', 50))
+    expect(screen.queryByTestId('show-clip-move-preview')).not.toBeInTheDocument()
+
+    // Moving left produces a valid 3-7 second plan. Once its outline appears,
+    // dropping must commit that exact plan.
+    fireEvent(layer, dragEvent('dragover', 30))
+    expect(screen.getByTestId('show-clip-move-preview')).toHaveStyle({
+      left: `${3_000 / 62_000 * 100}%`,
+      width: `${4_000 / 62_000 * 100}%`,
+    })
+    fireEvent(layer, dragEvent('drop', 30))
+    fireEvent(clip, dragEvent('dragend', 30))
+
+    await waitFor(() => {
+      const saved = useShowStore.getState().shows.find((candidate) => candidate.id === show.id)!
+      expect(saved.composition?.scenes[0].zones[0].main[0].startMs).toBe(3_000)
+    })
+  })
+
+  it('keeps snapping a Clip while its drag pointer is left of the visible timeline', () => {
+    const show = createDefaultShow('show-clip-left-gutter-snap', 'Clip left gutter snap', 1000)
+    const zoneId = show.zones[0].id
+    show.composition = {
+      version: 1,
+      patternInstances: [{
+        id: 'instance-left-gutter-snap',
+        pattern: { ...show.cells[1].pattern },
+        patternName: 'Gutter Magnet',
+        time: { timeScale: 1, timeOffsetMs: 0 },
+      }],
+      scenes: show.scenes.map((scene, index) => ({
+        sceneId: scene.id,
+        zones: [{
+          zoneId,
+          main: index === 1 ? [{
+            id: 'placement-left-gutter-snap',
+            instanceId: 'instance-left-gutter-snap',
+            startMs: 0,
+            durationMs: 5_000,
+            view: { mirror: false, phase: 0, brightness: 1 },
+          }] : [],
+          overlays: [],
+        }],
+      })),
+      markers: [{
+        id: 'marker-left-gutter',
+        timeMs: 4_083,
+        name: 'Left gutter target',
+      }, {
+        id: 'marker-visible-edge',
+        timeMs: 6_000,
+        name: 'Visible edge target',
+      }],
+    }
+    setPersonalContentProvider(memoryProvider([show]))
+    useShowStore.setState({ shows: [show], activeShowId: show.id, showsLoaded: true })
+    useShowEditorSessionStore.setState({
+      snapEnabled: false,
+      markersVisible: true,
+      markerSnapEnabled: true,
+    })
+
+    render(<ShowEditor showId={show.id} />)
+
+    const clip = screen.getByRole('button', { name: 'Select Gutter Magnet' })
+    const layer = document.querySelector<HTMLElement>('[data-show-layer-kind="main"]')!
+    const scrollRegion = screen.getByTestId('show-timeline-scroll-region')
+    Object.defineProperty(scrollRegion, 'clientWidth', { value: 620 })
+    Object.defineProperty(scrollRegion, 'getBoundingClientRect', {
+      value: () => ({ left: 100, right: 720, top: 0, bottom: 400, width: 620, height: 400, x: 100, y: 0, toJSON: () => ({}) }),
+    })
+    Object.defineProperty(clip, 'getBoundingClientRect', {
+      value: () => ({ left: 370, right: 420, top: 0, bottom: 40, width: 50, height: 40, x: 370, y: 0, toJSON: () => ({}) }),
+    })
+    Object.defineProperty(layer, 'getBoundingClientRect', {
+      value: () => ({ left: 50, right: 670, top: 0, bottom: 40, width: 620, height: 40, x: 50, y: 0, toJSON: () => ({}) }),
+    })
+    const dataTransfer = { setData: () => {}, effectAllowed: 'none', dropEffect: 'none' }
+    const dragEvent = (type: string, clientX: number) => {
+      const event = new Event(type, { bubbles: true, cancelable: true })
+      Object.defineProperties(event, {
+        clientX: { value: clientX },
+        clientY: { value: 20 },
+        altKey: { value: false },
+        relatedTarget: { value: null },
+        dataTransfer: { value: dataTransfer },
+      })
+      return event
+    }
+
+    fireEvent(clip, dragEvent('dragstart', 370))
+    fireEvent(layer, dragEvent('dragover', 110))
+    expect(screen.getByTestId('show-clip-move-preview')).toHaveStyle({
+      left: `${6_000 / 62_000 * 100}%`,
+    })
+
+    fireEvent(layer, dragEvent('dragleave', 99))
+    fireEvent(clip, dragEvent('drag', 91))
+
+    expect(screen.getByTestId('show-clip-move-preview')).toHaveStyle({
+      left: `${4_083 / 62_000 * 100}%`,
+    })
   })
 
   it('moves a composition Clip into a newly added Layer', async () => {
@@ -1473,6 +1970,156 @@ describe('ShowEditor (#318)', () => {
       expect(saved?.composition?.scenes[0].zones[0].main[0].durationMs).toBe(8_000)
     })
     await waitFor(() => expect(screen.getByRole('dialog', { name: 'Entity Detail Panel' })).toBeInTheDocument())
+  })
+
+  it('snaps a Clip start resize across visible Markers without opening Details on release', async () => {
+    const show = createDefaultShow('show-resize-start-markers', 'Resize start to Markers', 1000)
+    const zoneId = show.zones[0].id
+    show.composition = {
+      version: 1,
+      patternInstances: [{
+        id: 'instance-resize-start-markers',
+        pattern: { ...show.cells[0].pattern },
+        patternName: 'Marker Trim',
+        time: { timeScale: 1, timeOffsetMs: 0 },
+      }],
+      scenes: show.scenes.map((scene, index) => ({
+        sceneId: scene.id,
+        zones: [{
+          zoneId,
+          main: index === 0 ? [{
+            id: 'placement-resize-start-markers',
+            instanceId: 'instance-resize-start-markers',
+            startMs: 8_000,
+            durationMs: 4_000,
+            view: { mirror: false, phase: 0, brightness: 1 },
+          }] : [],
+          overlays: [],
+        }],
+      })),
+      markers: [4_000, 5_000, 6_000, 7_000].map((timeMs) => ({
+        id: `marker-resize-${timeMs}`,
+        timeMs,
+        name: `Resize ${timeMs / 1_000}`,
+      })),
+    }
+    setPersonalContentProvider(memoryProvider([show]))
+    useShowStore.setState({ shows: [show], activeShowId: show.id, showsLoaded: true })
+    useShowEditorSessionStore.setState({
+      snapEnabled: false,
+      markersVisible: true,
+      markerSnapEnabled: true,
+    })
+
+    render(<ShowEditor showId={show.id} />)
+
+    const clip = screen.getByRole('button', { name: 'Select Marker Trim' })
+    const layer = document.querySelector<HTMLElement>('[data-show-layer-kind="main"]')!
+    Object.defineProperty(screen.getByTestId('show-timeline-scroll-region'), 'clientWidth', { value: 620 })
+    Object.defineProperty(layer, 'getBoundingClientRect', {
+      value: () => ({ left: 0, right: 620, top: 0, bottom: 40, width: 620, height: 40, x: 0, y: 0, toJSON: () => ({}) }),
+    })
+    const handle = screen.getByRole('separator', { name: 'Resize Marker Trim start' })
+
+    fireEvent.pointerDown(handle, { clientX: 80, pointerId: 1 })
+    fireEvent.pointerMove(window, { clientX: 60, pointerId: 1 })
+    expect(clip).toHaveStyle({
+      left: `${6_000 / 62_000 * 100}%`,
+      width: `${6_000 / 62_000 * 100}%`,
+    })
+    fireEvent.pointerMove(window, { clientX: 70, pointerId: 1 })
+    expect(clip).toHaveStyle({
+      left: `${7_000 / 62_000 * 100}%`,
+      width: `${5_000 / 62_000 * 100}%`,
+    })
+    // Commit the last painted valid preview even if pointer-up arrives after
+    // the browser's last delivered pointer-move sample.
+    fireEvent.pointerUp(window, { clientX: 81, pointerId: 1 })
+
+    // Native pointer release can synthesize this click on the Clip button
+    // because the pointer is no longer over the narrow resize handle.
+    fireEvent.click(clip)
+
+    await waitFor(() => {
+      const saved = useShowStore.getState().shows.find((candidate) => candidate.id === show.id)!
+      expect(saved.composition?.scenes[0].zones[0].main[0]).toMatchObject({
+        startMs: 7_000,
+        durationMs: 5_000,
+      })
+    })
+    expect(screen.queryByRole('dialog', { name: 'Entity Detail Panel' })).not.toBeInTheDocument()
+  })
+
+  it('always snaps a Clip edge to the playhead across a hidden Scene boundary', async () => {
+    const show = createDefaultShow('show-resize-playhead-snap', 'Resize to playhead', 1000)
+    const zoneId = show.zones[0].id
+    show.composition = {
+      version: 1,
+      patternInstances: [{
+        id: 'instance-resize-playhead',
+        pattern: { ...show.cells[1].pattern },
+        patternName: 'Playhead Trim',
+        time: { timeScale: 1, timeOffsetMs: 0 },
+      }],
+      scenes: show.scenes.map((scene, index) => ({
+        sceneId: scene.id,
+        zones: [{
+          zoneId,
+          main: index === 1 ? [{
+            id: 'placement-resize-playhead',
+            instanceId: 'instance-resize-playhead',
+            startMs: 0,
+            durationMs: 5_000,
+            view: { mirror: false, phase: 0, brightness: 1 },
+          }] : [],
+          overlays: [],
+        }],
+      })),
+    }
+    setPersonalContentProvider(memoryProvider([show]))
+    useShowStore.setState({ shows: [show], activeShowId: show.id, showsLoaded: true })
+    useShowTransportStore.setState({
+      showId: show.id,
+      durationMs: 62_000,
+      positionMs: 29_000,
+    })
+    useShowEditorSessionStore.setState({
+      snapEnabled: false,
+      markersVisible: false,
+      markerSnapEnabled: false,
+    })
+
+    render(<ShowEditor showId={show.id} />)
+
+    const clip = screen.getByRole('button', { name: 'Select Playhead Trim' })
+    const layer = document.querySelector<HTMLElement>('[data-show-layer-kind="main"]')!
+    Object.defineProperty(screen.getByTestId('show-timeline-scroll-region'), 'clientWidth', { value: 620 })
+    Object.defineProperty(layer, 'getBoundingClientRect', {
+      value: () => ({ left: 0, right: 620, top: 0, bottom: 40, width: 620, height: 40, x: 0, y: 0, toJSON: () => ({}) }),
+    })
+    const handle = screen.getByRole('separator', { name: 'Resize Playhead Trim start' })
+
+    fireEvent.pointerDown(handle, { clientX: 320, pointerId: 1 })
+    fireEvent.pointerMove(window, { clientX: 291, pointerId: 1 })
+    expect(clip).toHaveStyle({
+      left: `${29_000 / 62_000 * 100}%`,
+      width: `${8_000 / 62_000 * 100}%`,
+    })
+    fireEvent.pointerUp(window, { clientX: 291, pointerId: 1 })
+
+    await waitFor(() => {
+      const saved = useShowStore.getState().shows.find((candidate) => candidate.id === show.id)!
+      expect(saved.composition?.scenes[0].zones[0].main).toContainEqual(expect.objectContaining({
+        id: 'placement-resize-playhead',
+        startMs: 29_000,
+        durationMs: 1_000,
+      }))
+      expect(saved.composition?.scenes[1].zones[0].main).toContainEqual(expect.objectContaining({
+        logicalClipId: 'placement-resize-playhead',
+        startMs: 0,
+        durationMs: 5_000,
+      }))
+    })
   })
 
   it('deletes a selected composition Clip from the keyboard (#580)', async () => {

@@ -335,6 +335,42 @@ describe('EntityOrganizationTree', () => {
     expect(container.querySelector('[data-drop-cue]')).toBeNull()
   })
 
+  it('ignores a Show timeline Clip drag instead of presenting organization drop cues', () => {
+    const organization: EntityOrganizationV1 = {
+      version: 1,
+      nodes: [
+        { kind: 'entity', entityId: 'a' },
+        { kind: 'entity', entityId: 'b' },
+      ],
+      trash: [],
+      collapsedFolderIds: [],
+    }
+    const onOrganizationChange = vi.fn()
+    const { container } = render(
+      <EntityOrganizationTree
+        organization={organization}
+        items={[{ id: 'a', name: 'A' }, { id: 'b', name: 'B' }]}
+        activeEntityId={null}
+        query=""
+        noun="pattern"
+        onSelect={vi.fn()}
+        onRenameEntity={vi.fn()}
+        onOrganizationChange={onOrganizationChange}
+      />,
+    )
+    const timelineTransfer = {
+      types: ['application/x-pxlblz-show-placement'],
+      getData: vi.fn(() => 'placement-1'),
+    }
+    const target = screen.getByRole('treeitem', { name: /B/ })
+
+    fireEvent.dragOver(target, { clientY: 1, dataTransfer: timelineTransfer })
+    expect(container.querySelector('[data-drop-cue]')).toBeNull()
+
+    fireEvent.drop(target, { clientY: 1, dataTransfer: timelineTransfer })
+    expect(onOrganizationChange).not.toHaveBeenCalled()
+  })
+
   it('leaves a muted placeholder at the drag origin until the drag ends', () => {
     const organization: EntityOrganizationV1 = {
       version: 1,

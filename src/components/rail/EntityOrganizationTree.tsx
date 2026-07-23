@@ -379,12 +379,12 @@ function OrganizationTreeNode(props: {
         }}
         onDragEnd={props.onDragEnd}
         onDragOver={(event) => {
-          if (!props.editable) return
+          if (!props.editable || !props.draggedKey) return
           event.preventDefault()
           props.onDragOver({ key, placement: placement(event) })
         }}
         onDrop={(event) => {
-          if (!props.editable) return
+          if (!props.editable || !props.draggedKey) return
           event.preventDefault()
           event.stopPropagation()
           props.onDrop({ key, placement: placement(event) })

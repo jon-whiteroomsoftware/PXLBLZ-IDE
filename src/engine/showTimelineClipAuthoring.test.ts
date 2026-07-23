@@ -20,6 +20,7 @@ import {
   splitShowClipAtGlobalTime,
 } from './showTimelineClipAuthoring'
 import type { ShowCompositionV1, ShowPatternInstance } from './personalContentRecords'
+import { projectShowUnifiedTimeline } from './showUnifiedTimelineProjection'
 
 function emptyComposition(show: ReturnType<typeof createDefaultShow>): ShowCompositionV1 {
   return {
@@ -476,6 +477,54 @@ describe('global timeline Clip authoring (#580)', () => {
       view: { mirror: true, phase: 0.4, brightness: 0.6 },
       effects: [{ id: 'invert', kind: 'invert', amount: 1 }],
     })
+  })
+
+  it('partitions one visible Clip when a move straddles hidden internal Scene owners', () => {
+    const show = createDefaultShow('show-move-spanning-owner', 'Move spanning owner', 1000)
+    const composition = emptyComposition(show)
+    composition.patternInstances.push(instance)
+    composition.scenes[0].zones[0].main.push({
+      id: 'placement-spanning-move',
+      instanceId: instance.id,
+      startMs: 20_000,
+      durationMs: 5_000,
+      view: { mirror: false, phase: 0.25, brightness: 0.8 },
+    })
+
+    const next = moveShowClipAtGlobalTime(show, composition, {
+      owner: {
+        kind: 'main',
+        sceneId: show.scenes[0].id,
+        zoneId: show.zones[0].id,
+        placementId: 'placement-spanning-move',
+      },
+      target: {
+        kind: 'main',
+        zoneId: show.zones[0].id,
+        globalStartMs: 28_000,
+      },
+    })
+
+    expect(next).not.toBe(composition)
+    expect(next.scenes[0].zones[0].main).toContainEqual(expect.objectContaining({
+      id: 'placement-spanning-move',
+      startMs: 28_000,
+      durationMs: 2_000,
+    }))
+    expect(next.scenes[1].zones[0].main).toContainEqual(expect.objectContaining({
+      logicalClipId: 'placement-spanning-move',
+      startMs: 0,
+      durationMs: 1_000,
+    }))
+    const movedLayers = projectShowUnifiedTimeline(show, next).zones[0].layers
+    expect(movedLayers[movedLayers.length - 1]?.clips).toContainEqual(
+      expect.objectContaining({
+        id: 'placement-spanning-move',
+        startMs: 28_000,
+        durationMs: 5_000,
+        endMs: 33_000,
+      }),
+    )
   })
 
   it('moves a Clip vertically between Main and overlay Layers', () => {
@@ -1000,5 +1049,40 @@ describe('global timeline Clip authoring (#580)', () => {
     })
     expect(fromRight.scenes[0].zones[0].main[0]).toMatchObject({ startMs: 3_000, durationMs: 6_000 })
     expect(fromRight.scenes[0].propertyTracks?.[0].keyframes.map((keyframe) => keyframe.timeMs)).toEqual([3_500, 7_000])
+  })
+
+  it('partitions one visible Clip when its start resize crosses hidden Scene owners', () => {
+    const show = createDefaultShow('show-resize-spanning-owner', 'Resize spanning owner', 1000)
+    const composition = emptyComposition(show)
+    composition.patternInstances.push(instance)
+    composition.scenes[1].zones[0].main.push({
+      id: 'placement-spanning-resize',
+      instanceId: instance.id,
+      startMs: 3_000,
+      durationMs: 5_000,
+      view: { mirror: false, phase: 0, brightness: 1 },
+    })
+
+    const next = resizeShowClipAtGlobalTime(show, composition, {
+      owner: {
+        kind: 'main',
+        sceneId: show.scenes[1].id,
+        zoneId: show.zones[0].id,
+        placementId: 'placement-spanning-resize',
+      },
+      globalStartMs: 29_000,
+      durationMs: 11_000,
+    })
+
+    expect(next).not.toBe(composition)
+    const resizedLayers = projectShowUnifiedTimeline(show, next).zones[0].layers
+    expect(resizedLayers[resizedLayers.length - 1]?.clips).toContainEqual(
+      expect.objectContaining({
+        id: 'placement-spanning-resize',
+        startMs: 29_000,
+        durationMs: 11_000,
+        endMs: 40_000,
+      }),
+    )
   })
 })

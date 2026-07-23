@@ -77,4 +77,20 @@ describe('Show timeline viewport (#420)', () => {
       structuralTimesMs: [6_000, 30_000],
     })).toEqual({ timeMs: 11_500 })
   })
+
+  it('can snap to explicit boundaries without enabling the time grid', () => {
+    expect(snapShowTimelineTime(5_930, {
+      visibleDurationMs: 60_000,
+      visibleWidthPx: 600,
+      structuralTimesMs: [6_000],
+      gridEnabled: false,
+    })).toEqual({ timeMs: 6_000, kind: 'boundary' })
+
+    expect(snapShowTimelineTime(10_650, {
+      visibleDurationMs: 60_000,
+      visibleWidthPx: 600,
+      structuralTimesMs: [6_000],
+      gridEnabled: false,
+    })).toEqual({ timeMs: 10_650 })
+  })
 })

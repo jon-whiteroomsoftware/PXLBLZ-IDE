@@ -12,6 +12,8 @@ import { materializeShowGroupOccurrences } from './showGroupModel'
 
 export interface ShowUnifiedTimelineClipProjection {
   id: string
+  logicalClipId?: string
+  segmentIds?: string[]
   instanceId: string
   patternName: string
   compiled: boolean
@@ -117,7 +119,7 @@ export function projectShowUnifiedTimeline(
           id: `${zone.id}:overlay:${layerIndex}`,
           kind: 'overlay',
           layerIndex,
-          clips: projectedComposition.scenes.flatMap((sceneComposition) => {
+          clips: coalesceLogicalClips(projectedComposition.scenes.flatMap((sceneComposition) => {
             const range = sceneRangeById.get(sceneComposition.sceneId)
             const zoneComposition = sceneComposition.zones.find((candidate) => candidate.zoneId === zone.id)
             const layer = zoneComposition?.overlays[layerIndex]
@@ -133,7 +135,7 @@ export function projectShowUnifiedTimeline(
               instanceById,
               groupByPlacementId,
             }))
-          }).sort((a, b) => a.startMs - b.startMs || a.id.localeCompare(b.id)),
+          }).sort((a, b) => a.startMs - b.startMs || a.id.localeCompare(b.id))),
           transitions: projectedComposition.transitions ?? [],
           boundaryTransitions: timeline.boundaryTransitions,
           nextSceneIdById,
@@ -143,7 +145,7 @@ export function projectShowUnifiedTimeline(
         id: `${zone.id}:main`,
         kind: 'main',
         layerIndex: maximumOverlayCount,
-        clips: projectedComposition.scenes.flatMap((sceneComposition) => {
+        clips: coalesceLogicalClips(projectedComposition.scenes.flatMap((sceneComposition) => {
           const range = sceneRangeById.get(sceneComposition.sceneId)
           const zoneComposition = sceneComposition.zones.find((candidate) => candidate.zoneId === zone.id)
           if (!range || !zoneComposition) return []
@@ -158,7 +160,7 @@ export function projectShowUnifiedTimeline(
             instanceById,
             groupByPlacementId,
           }))
-        }).sort((a, b) => a.startMs - b.startMs || a.id.localeCompare(b.id)),
+        }).sort((a, b) => a.startMs - b.startMs || a.id.localeCompare(b.id))),
         transitions: projectedComposition.transitions ?? [],
         boundaryTransitions: timeline.boundaryTransitions,
         nextSceneIdById,
@@ -270,6 +272,30 @@ function projectLayer(
   }
 }
 
+function coalesceLogicalClips(
+  clips: ShowUnifiedTimelineClipProjection[],
+): ShowUnifiedTimelineClipProjection[] {
+  const groups = new Map<string, ShowUnifiedTimelineClipProjection[]>()
+  for (const clip of clips) {
+    const id = clip.logicalClipId ?? clip.id
+    groups.set(id, [...(groups.get(id) ?? []), clip])
+  }
+  return [...groups.entries()].map(([id, segments]) => {
+    const ordered = segments.sort((left, right) => left.startMs - right.startMs || left.id.localeCompare(right.id))
+    const first = ordered[0]
+    const endMs = Math.max(...ordered.map((segment) => segment.endMs))
+    return {
+      ...first,
+      id,
+      logicalClipId: id,
+      segmentIds: ordered.map((segment) => segment.id),
+      endMs,
+      durationMs: endMs - first.startMs,
+      diagnostics: [...new Set(ordered.flatMap((segment) => segment.diagnostics))],
+    }
+  }).sort((left, right) => left.startMs - right.startMs || left.id.localeCompare(right.id))
+}
+
 function projectPlacement(input: {
   placement: ShowMainPlacement | ShowOverlayPlacement
   sceneId: string
@@ -285,6 +311,7 @@ function projectPlacement(input: {
   const startMs = input.sceneStartMs + input.placement.startMs
   return {
     id: input.placement.id,
+    ...(input.placement.logicalClipId ? { logicalClipId: input.placement.logicalClipId } : {}),
     instanceId: input.placement.instanceId,
     patternName: instance?.patternName ?? 'Missing Pattern',
     compiled: Boolean(instance),

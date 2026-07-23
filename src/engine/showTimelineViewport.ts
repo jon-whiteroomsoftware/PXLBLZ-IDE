@@ -74,6 +74,7 @@ export interface ShowTimelineSnapOptions {
   visibleDurationMs: number
   visibleWidthPx: number
   structuralTimesMs: number[]
+  gridEnabled?: boolean
   minTimeMs?: number
   maxTimeMs?: number
 }
@@ -97,9 +98,11 @@ export function snapShowTimelineTime(
     .sort((left, right) => Math.abs(left - candidate) - Math.abs(right - candidate))[0]
   if (boundary !== undefined) return { timeMs: boundary, kind: 'boundary' }
 
-  const gridStepMs = showTimelineGridStepMs(options.visibleDurationMs, options.visibleWidthPx)
-  const gridTimeMs = clamp(Math.round(candidate / gridStepMs) * gridStepMs, min, max)
-  if (Math.abs(gridTimeMs - candidate) <= thresholdMs) return { timeMs: gridTimeMs, kind: 'grid' }
+  if (options.gridEnabled !== false) {
+    const gridStepMs = showTimelineGridStepMs(options.visibleDurationMs, options.visibleWidthPx)
+    const gridTimeMs = clamp(Math.round(candidate / gridStepMs) * gridStepMs, min, max)
+    if (Math.abs(gridTimeMs - candidate) <= thresholdMs) return { timeMs: gridTimeMs, kind: 'grid' }
+  }
   return { timeMs: candidate }
 }
 
