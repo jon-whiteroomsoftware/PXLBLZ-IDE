@@ -111,6 +111,7 @@ import {
   deleteShowClipWithLayerTransitions,
   insertShowLayerTransition,
   moveShowConnectedClipAtGlobalTime,
+  planShowGroupLayerTransitionInsertion,
   planShowLayerTransitionInsertion,
   resizeShowLayerTransition,
   resizeShowConnectedClipAtGlobalTime,
@@ -124,7 +125,6 @@ import {
   duplicateShowGroupOccurrence,
   insertShowGroupLayerTransition,
   makeShowGroupOccurrenceUnique,
-  planShowGroupLayerTransitionInsertion,
   projectShowGroupRuntimePatternInstances,
   resizeShowGroupLayerTransition,
   translateShowGroupOccurrence,
@@ -255,6 +255,21 @@ function sameShowSelection(left: ShowSelection, right: ShowSelection): boolean {
   return showSelectionKey(left) === showSelectionKey(right)
 }
 
+function showGroupOccurrenceExists(
+  show: ShowRecord,
+  composition: ShowCompositionV1 | null | undefined,
+  occurrenceId: string,
+): boolean {
+  const occurrence = composition?.groupOccurrences?.find((candidate) => candidate.id === occurrenceId)
+  if (!occurrence) return false
+  return show.scenes.some((scene) => scene.id === occurrence.sceneId)
+    && show.zones.some((zone) => zone.id === occurrence.zoneId)
+    && Boolean(composition?.scenes.some((scene) => (
+      scene.sceneId === occurrence.sceneId
+      && scene.zones.some((zone) => zone.zoneId === occurrence.zoneId)
+    )))
+}
+
 function showSelectionExists(
   show: ShowRecord,
   composition: ShowCompositionV1 | null | undefined,
@@ -270,9 +285,10 @@ function showSelectionExists(
   }
   if (selection.kind === 'zone') return show.zones.some((zone) => zone.id === selection.zoneId)
   if (selection.kind === 'group') {
-    return Boolean(composition?.groupOccurrences?.some((occurrence) => occurrence.id === selection.occurrenceId))
+    return showGroupOccurrenceExists(show, composition, selection.occurrenceId)
   }
   if (selection.kind === 'group-clip') {
+    if (!showGroupOccurrenceExists(show, composition, selection.occurrenceId)) return false
     const occurrence = composition?.groupOccurrences?.find((candidate) => candidate.id === selection.occurrenceId)
     const definition = composition?.groupDefinitions?.find((candidate) => candidate.id === occurrence?.definitionId)
     return Boolean(definition?.placements.some((placement) => placement.id === selection.placementId))

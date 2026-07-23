@@ -83,6 +83,12 @@ export async function createD1Show(
   record: ShowRecord,
   now = Math.floor(Date.now() / 1000),
 ): Promise<void> {
+  if (
+    record.composition != null
+    && (!isShowSceneArray(record.scenes) || !isShowZoneArray(record.zones))
+  ) {
+    throw unsupportedCompositionError()
+  }
   const composition = record.composition == null
     ? null
     : requireValidComposition(record, record.composition)
@@ -214,11 +220,11 @@ async function normalizeCompositionUpdate(
   if (!isCompositionV1Envelope(changes.composition)) throw unsupportedCompositionError()
   try {
     if (validateShowCompositionTimelineMetadata(changes.composition).length > 0) throw unsupportedCompositionError()
-    if (changes.scenes !== undefined && !Array.isArray(changes.scenes)) throw unsupportedCompositionError()
-    if (changes.zones !== undefined && !Array.isArray(changes.zones)) throw unsupportedCompositionError()
-    let scenes = changes.scenes
-    let zones = changes.zones
-    if (!Array.isArray(scenes) || !Array.isArray(zones)) {
+    if (changes.scenes !== undefined && !isShowSceneArray(changes.scenes)) throw unsupportedCompositionError()
+    if (changes.zones !== undefined && !isShowZoneArray(changes.zones)) throw unsupportedCompositionError()
+    let scenes: unknown = changes.scenes
+    let zones: unknown = changes.zones
+    if (scenes === undefined || zones === undefined) {
       const { results } = await db
         .prepare(`
           SELECT scenes_json, zones_json
@@ -229,9 +235,10 @@ async function normalizeCompositionUpdate(
         .all<Pick<D1ShowRow, 'scenes_json' | 'zones_json'>>()
       const stored = results[0]
       if (!stored) throw unsupportedCompositionError()
-      if (!Array.isArray(scenes)) scenes = parseJson(stored.scenes_json, [])
-      if (!Array.isArray(zones)) zones = parseJson(stored.zones_json, [])
+      if (scenes === undefined) scenes = parseJson<unknown>(stored.scenes_json, null)
+      if (zones === undefined) zones = parseJson<unknown>(stored.zones_json, null)
     }
+    if (!isShowSceneArray(scenes) || !isShowZoneArray(zones)) throw unsupportedCompositionError()
     return requireValidComposition({ scenes, zones }, changes.composition)
   } catch (error) {
     if (error instanceof PersonalStorageGuardError) throw error
@@ -245,6 +252,60 @@ function isCompositionV1Envelope(value: unknown): value is ShowCompositionV1 {
   return candidate.version === 1
     && Array.isArray(candidate.patternInstances)
     && Array.isArray(candidate.scenes)
+}
+
+function isShowSceneArray(value: unknown): value is ShowRecord['scenes'] {
+  return Array.isArray(value)
+    && value.length > 0
+    && value.every((scene) => (
+      isRecord(scene)
+      && isNonEmptyString(scene.id)
+      && typeof scene.name === 'string'
+      && Number.isInteger(scene.durationMs)
+      && Number(scene.durationMs) > 0
+      && (
+        scene.routingTargets === undefined
+        || (
+          isRecord(scene.routingTargets)
+          && (
+            scene.routingTargets.splitPosition === undefined
+            || Number.isFinite(scene.routingTargets.splitPosition)
+          )
+        )
+      )
+      && (
+        scene.sampleTargets === undefined
+        || (
+          isRecord(scene.sampleTargets)
+          && (
+            scene.sampleTargets.repeatScale === undefined
+            || Number.isFinite(scene.sampleTargets.repeatScale)
+          )
+        )
+      )
+    ))
+}
+
+function isShowZoneArray(value: unknown): value is ShowRecord['zones'] {
+  return Array.isArray(value)
+    && value.length > 0
+    && value.every((zone) => (
+      isRecord(zone)
+      && isNonEmptyString(zone.id)
+      && typeof zone.name === 'string'
+      && Number.isInteger(zone.nominalPixelCount)
+      && Number(zone.nominalPixelCount) > 0
+      && (zone.color === undefined || typeof zone.color === 'string')
+      && (zone.icon === undefined || typeof zone.icon === 'string')
+    ))
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return Boolean(value) && typeof value === 'object' && !Array.isArray(value)
+}
+
+function isNonEmptyString(value: unknown): value is string {
+  return typeof value === 'string' && value.length > 0
 }
 
 function unsupportedCompositionError(): PersonalStorageGuardError {

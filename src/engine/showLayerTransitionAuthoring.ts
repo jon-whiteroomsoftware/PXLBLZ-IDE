@@ -9,6 +9,7 @@ import {
   normalizeShowComposition,
   validateShowComposition,
 } from './showCompositionModel'
+import { materializeShowGroupOccurrences } from './showGroupModel'
 import {
   moveShowClipAtGlobalTime,
   resizeShowClipAtGlobalTime,
@@ -96,6 +97,40 @@ export function planShowLayerTransitionInsertion(
   return maxDurationMs > 0
     ? { enabled: true, maxDurationMs }
     : { enabled: false, maxDurationMs: 0, reason: 'Move downstream content or extend the Show to make room.' }
+}
+
+export function planShowGroupLayerTransitionInsertion(
+  show: ShowRecord,
+  composition: ShowCompositionV1,
+  input: { occurrenceId: string; fromPlacementId: string; toPlacementId: string },
+): ShowLayerTransitionInsertionPlan {
+  const occurrence = composition.groupOccurrences?.find((candidate) => candidate.id === input.occurrenceId)
+  if (!occurrence) {
+    return { enabled: false, maxDurationMs: 0, reason: 'This Group no longer exists.' }
+  }
+  const selectedPrefix = `${occurrence.id}:`
+  const fromPlacementId = input.fromPlacementId.startsWith(selectedPrefix)
+    ? input.fromPlacementId.slice(selectedPrefix.length)
+    : input.fromPlacementId
+  const toPlacementId = input.toPlacementId.startsWith(selectedPrefix)
+    ? input.toPlacementId.slice(selectedPrefix.length)
+    : input.toPlacementId
+  const materialized = materializeShowGroupOccurrences(composition)
+  let maxDurationMs = Number.POSITIVE_INFINITY
+  for (const linkedOccurrence of composition.groupOccurrences?.filter((candidate) => (
+    candidate.definitionId === occurrence.definitionId
+  )) ?? []) {
+    const prefix = `${linkedOccurrence.id}:`
+    const plan = planShowLayerTransitionInsertion(show, materialized, {
+      fromPlacementId: `${prefix}${fromPlacementId}`,
+      toPlacementId: `${prefix}${toPlacementId}`,
+    })
+    if (!plan.enabled) return plan
+    maxDurationMs = Math.min(maxDurationMs, plan.maxDurationMs)
+  }
+  return Number.isFinite(maxDurationMs)
+    ? { enabled: true, maxDurationMs }
+    : { enabled: false, maxDurationMs: 0, reason: 'This Group no longer exists.' }
 }
 
 /**

@@ -320,6 +320,56 @@ describe('D1 show persistence (#318)', () => {
     expect(calls).toEqual([])
   })
 
+  it('rejects structurally malformed Scene owner arrays before a composition PATCH write', async () => {
+    const show = createDefaultShow('show-1', 'Stored Show', 123)
+    const { db, calls } = fakeDb()
+
+    await expect(updateD1Show(db, 'github:123', show.id, {
+      scenes: [{ id: 'scene-1' }],
+      zones: show.zones,
+      composition: { version: 1, patternInstances: [], scenes: [] },
+      updatedAt: 456,
+    } as never)).rejects.toMatchObject({
+      code: 'unsupported_show_composition',
+      status: 400,
+    })
+
+    expect(calls).toEqual([])
+  })
+
+  it('rejects structurally malformed Zone owner arrays before a composition PATCH write', async () => {
+    const show = createDefaultShow('show-1', 'Stored Show', 123)
+    const { db, calls } = fakeDb()
+
+    await expect(updateD1Show(db, 'github:123', show.id, {
+      scenes: show.scenes,
+      zones: [{ id: 'zone-1' }],
+      composition: { version: 1, patternInstances: [], scenes: [] },
+      updatedAt: 456,
+    } as never)).rejects.toMatchObject({
+      code: 'unsupported_show_composition',
+      status: 400,
+    })
+
+    expect(calls).toEqual([])
+  })
+
+  it('rejects structurally malformed owner arrays before a composition create write', async () => {
+    const show = createDefaultShow('show-1', 'Stored Show', 123)
+    const { db, calls } = fakeDb()
+
+    await expect(createD1Show(db, 'github:123', {
+      ...show,
+      scenes: [{ id: 'scene-1' }],
+      composition: { version: 1, patternInstances: [], scenes: [] },
+    } as never, 100)).rejects.toMatchObject({
+      code: 'unsupported_show_composition',
+      status: 400,
+    })
+
+    expect(calls).toEqual([])
+  })
+
   it('updates Show output Effects as one serialized sidecar (#537)', async () => {
     const { db, calls } = fakeDb()
     const outputEffects = [{ id: 'trails', kind: 'trails' as const, retention: 0.75 }]

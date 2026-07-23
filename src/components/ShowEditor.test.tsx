@@ -8,6 +8,7 @@ import {
   createDefaultShow,
   createShowWithOutputContract,
   removeShowClip,
+  removeShowZone,
   spanShowCellZones,
   updateShowCellAdaptations,
   updateShowCellPattern,
@@ -661,6 +662,75 @@ describe('ShowEditor (#318)', () => {
     await waitFor(() => {
       expect(useShowStore.getState().shows[0].composition?.groupOccurrences?.map((occurrence) => occurrence.id))
         .toEqual(['phrase-use-b'])
+      expect(screen.queryByRole('dialog', { name: 'Entity Detail Panel' })).not.toBeInTheDocument()
+    })
+  })
+
+  it('closes a pinned Group child inspector when its owning Zone is removed', async () => {
+    const user = userEvent.setup()
+    const show = addShowZone(createDefaultShow('show-group-zone-removal', 'Group Zone removal', 1000), {
+      name: 'accent',
+      nominalPixelCount: 24,
+    })
+    const sceneId = show.scenes[0].id
+    const zoneId = show.zones[1].id
+    show.composition = {
+      version: 1,
+      patternInstances: [],
+      scenes: show.scenes.map((scene) => ({
+        sceneId: scene.id,
+        zones: show.zones.map((zone) => ({ zoneId: zone.id, main: [], overlays: [] })),
+      })),
+      groupDefinitions: [{
+        id: 'phrase',
+        name: 'Accent phrase',
+        patternInstances: [{
+          id: 'inside-instance',
+          pattern: { kind: 'stock', id: 'Murmuration' },
+          patternName: 'Murmuration',
+          time: { timeScale: 1, timeOffsetMs: 0 },
+        }],
+        placements: [{
+          id: 'inside-clip',
+          instanceId: 'inside-instance',
+          layerOffset: 0,
+          startMs: 0,
+          durationMs: 1_000,
+          opacity: 1,
+          view: { mirror: false, phase: 0, brightness: 1 },
+        }],
+      }],
+      groupOccurrences: [{
+        id: 'phrase-use',
+        definitionId: 'phrase',
+        sceneId,
+        zoneId,
+        startMs: 0,
+        baseLayer: 0,
+        translationX: 0,
+        translationY: 0,
+      }],
+    }
+    setPersonalContentProvider(memoryProvider([show]))
+    useShowStore.setState({ shows: [show], activeShowId: show.id, showsLoaded: true })
+
+    render(<ShowEditor showId={show.id} />)
+    fireEvent.doubleClick(screen.getByRole('button', { name: 'Select Group Accent phrase' }))
+    await user.click(screen.getByRole('button', { name: 'Pin Entity Detail Panel' }))
+    await user.click(within(screen.getByRole('status', { name: 'Group isolation: Accent phrase' }))
+      .getByRole('button', { name: /Exit/ }))
+
+    expect(screen.getByRole('dialog', { name: 'Entity Detail Panel' })).toHaveAttribute(
+      'data-owner-key',
+      'group-clip:phrase-use:inside-clip',
+    )
+    act(() => {
+      useShowStore.setState({
+        shows: [removeShowZone(useShowStore.getState().shows[0], zoneId)],
+      })
+    })
+
+    await waitFor(() => {
       expect(screen.queryByRole('dialog', { name: 'Entity Detail Panel' })).not.toBeInTheDocument()
     })
   })

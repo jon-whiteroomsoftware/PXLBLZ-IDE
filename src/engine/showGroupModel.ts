@@ -32,10 +32,6 @@ export interface ShowGroupValidationIssue {
   message: string
 }
 
-export type ShowGroupLayerTransitionInsertionPlan =
-  | { enabled: true; maxDurationMs: number }
-  | { enabled: false; maxDurationMs: 0; reason: string }
-
 export interface ShowGroupSelection {
   placementIds: string[]
   transitionIds: string[]
@@ -309,71 +305,12 @@ export function resizeShowGroupLayerTransition(
   return validateShowGroups(show, draft).length === 0 ? draft : composition
 }
 
-export function planShowGroupLayerTransitionInsertion(
-  show: Pick<ShowRecord, 'scenes' | 'zones'>,
-  composition: ShowCompositionV1,
-  input: { occurrenceId: string; fromPlacementId: string; toPlacementId: string },
-): ShowGroupLayerTransitionInsertionPlan {
-  const occurrence = composition.groupOccurrences?.find((candidate) => candidate.id === input.occurrenceId)
-  const definition = composition.groupDefinitions?.find((candidate) => candidate.id === occurrence?.definitionId)
-  if (!occurrence || !definition) {
-    return { enabled: false, maxDurationMs: 0, reason: 'This Group no longer exists.' }
-  }
-  const fromPlacementId = groupLocalId(occurrence.id, input.fromPlacementId)
-  const toPlacementId = groupLocalId(occurrence.id, input.toPlacementId)
-  const from = definition.placements.find((placement) => placement.id === fromPlacementId)
-  const to = definition.placements.find((placement) => placement.id === toPlacementId)
-  if (!from || !to || from.layerOffset !== to.layerOffset) {
-    return { enabled: false, maxDurationMs: 0, reason: 'Choose consecutive Clips on one Group Layer.' }
-  }
-  const ordered = definition.placements
-    .filter((placement) => placement.layerOffset === from.layerOffset)
-    .sort((left, right) => left.startMs - right.startMs || left.id.localeCompare(right.id))
-  const fromIndex = ordered.findIndex((placement) => placement.id === from.id)
-  if (
-    ordered[fromIndex + 1]?.id !== to.id
-    || from.startMs + from.durationMs !== to.startMs
-    || definition.transitions?.some((transition) => (
-      transition.fromPlacementId === from.id && transition.toPlacementId === to.id
-    ))
-  ) {
-    return { enabled: false, maxDurationMs: 0, reason: 'This Group junction is not a Cut.' }
-  }
-
-  const movedIds = connectedGroupPlacementIds(definition, to.id)
-  const lastEndMs = Math.max(...definition.placements
-    .filter((placement) => movedIds.has(placement.id))
-    .map((placement) => placement.startMs + placement.durationMs))
-  const obstructionStartMs = ordered
-    .filter((placement) => !movedIds.has(placement.id) && placement.startMs >= to.startMs)
-    .reduce((nearest, placement) => Math.min(nearest, placement.startMs), Number.POSITIVE_INFINITY)
-  const occurrenceRoomMs = (composition.groupOccurrences ?? [])
-    .filter((candidate) => candidate.definitionId === definition.id)
-    .reduce((available, candidate) => {
-      const sceneDurationMs = show.scenes.find((scene) => scene.id === candidate.sceneId)?.durationMs ?? 0
-      return Math.min(available, sceneDurationMs - candidate.startMs - lastEndMs)
-    }, Number.POSITIVE_INFINITY)
-  const maxDurationMs = Math.max(0, Math.floor(Math.min(
-    Number.isFinite(obstructionStartMs) ? obstructionStartMs - lastEndMs : Number.POSITIVE_INFINITY,
-    occurrenceRoomMs,
-  )))
-  return maxDurationMs > 0
-    ? { enabled: true, maxDurationMs }
-    : { enabled: false, maxDurationMs: 0, reason: 'Move downstream Group content or extend the Show to make room.' }
-}
-
 export function insertShowGroupLayerTransition(
   show: Pick<ShowRecord, 'scenes' | 'zones'>,
   composition: ShowCompositionV1,
   input: { occurrenceId: string; transition: ShowLayerTransition },
 ): ShowCompositionV1 {
   if (!Number.isInteger(input.transition.durationMs) || input.transition.durationMs <= 0) return composition
-  const plan = planShowGroupLayerTransitionInsertion(show, composition, {
-    occurrenceId: input.occurrenceId,
-    fromPlacementId: input.transition.fromPlacementId,
-    toPlacementId: input.transition.toPlacementId,
-  })
-  if (!plan.enabled || input.transition.durationMs > plan.maxDurationMs) return composition
   const occurrence = composition.groupOccurrences?.find((candidate) => candidate.id === input.occurrenceId)
   const definition = composition.groupDefinitions?.find((candidate) => candidate.id === occurrence?.definitionId)
   if (!occurrence || !definition || definition.transitions?.some((candidate) => candidate.id === input.transition.id)) {
@@ -381,6 +318,26 @@ export function insertShowGroupLayerTransition(
   }
   const fromPlacementId = groupLocalId(occurrence.id, input.transition.fromPlacementId)
   const toPlacementId = groupLocalId(occurrence.id, input.transition.toPlacementId)
+  const from = definition.placements.find((placement) => placement.id === fromPlacementId)
+  const to = definition.placements.find((placement) => placement.id === toPlacementId)
+  const ordered = from
+    ? definition.placements
+        .filter((placement) => placement.layerOffset === from.layerOffset)
+        .sort((left, right) => left.startMs - right.startMs || left.id.localeCompare(right.id))
+    : []
+  const fromIndex = ordered.findIndex((placement) => placement.id === fromPlacementId)
+  if (
+    !from
+    || !to
+    || from.layerOffset !== to.layerOffset
+    || ordered[fromIndex + 1]?.id !== toPlacementId
+    || from.startMs + from.durationMs !== to.startMs
+    || definition.transitions?.some((transition) => (
+      transition.fromPlacementId === fromPlacementId && transition.toPlacementId === toPlacementId
+    ))
+  ) {
+    return composition
+  }
   const draft = cloneJson(composition)
   const changedDefinition = draft.groupDefinitions?.find((candidate) => candidate.id === definition.id)
   if (!changedDefinition) return composition

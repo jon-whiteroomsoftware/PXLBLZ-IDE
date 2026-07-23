@@ -4,6 +4,7 @@ import {
   deleteShowClipWithLayerTransitions,
   insertShowLayerTransition,
   moveShowConnectedClipAtGlobalTime,
+  planShowGroupLayerTransitionInsertion,
   planShowLayerTransitionInsertion,
   resizeShowConnectedClipAtGlobalTime,
   resizeShowLayerTransition,
@@ -217,6 +218,80 @@ describe('literal per-Layer Transition authoring (#583)', () => {
       durationMs: 1_000,
       easing: { curve: 'linear' },
     })).toBe(composition)
+  })
+
+  it('refuses a Group Cut when another Layer starts a Clip at the same time', () => {
+    const { show, composition } = fixture()
+    composition.transitions = []
+    composition.scenes[0].zones[0].main = []
+    composition.scenes[0].zones[0].overlays = [{
+      id: 'overlay-layer',
+      name: 'Overlay',
+      placements: [{
+        id: 'unrelated-overlay',
+        instanceId: 'instance-a',
+        startMs: 1_000,
+        durationMs: 1_000,
+        opacity: 1,
+        view: { mirror: false, phase: 0, brightness: 1 },
+      }],
+    }]
+    composition.groupDefinitions = [{
+      id: 'group-definition',
+      name: 'Phrase',
+      patternInstances: [{
+        id: 'group-instance',
+        pattern: { kind: 'stock', id: 'Rings' },
+        patternName: 'Rings',
+        time: { timeScale: 1, timeOffsetMs: 0 },
+      }],
+      placements: [{
+        id: 'left',
+        instanceId: 'group-instance',
+        layerOffset: 0,
+        startMs: 0,
+        durationMs: 1_000,
+        opacity: 1,
+        view: { mirror: false, phase: 0, brightness: 1 },
+      }, {
+        id: 'right',
+        instanceId: 'group-instance',
+        layerOffset: 0,
+        startMs: 1_000,
+        durationMs: 1_000,
+        opacity: 1,
+        view: { mirror: false, phase: 0, brightness: 1 },
+      }],
+    }]
+    composition.groupOccurrences = [{
+      id: 'group-use-obstructed',
+      definitionId: 'group-definition',
+      sceneId: show.scenes[0].id,
+      zoneId: show.zones[0].id,
+      startMs: 0,
+      baseLayer: 0,
+      translationX: 0,
+      translationY: 0,
+    }, {
+      id: 'group-use-clear',
+      definitionId: 'group-definition',
+      sceneId: show.scenes[0].id,
+      zoneId: show.zones[0].id,
+      startMs: 3_000,
+      baseLayer: 0,
+      translationX: 0,
+      translationY: 0,
+    }]
+
+    expect(planShowGroupLayerTransitionInsertion(show, composition, {
+      occurrenceId: 'group-use-clear',
+      fromPlacementId: 'group-use-clear:left',
+      toPlacementId: 'group-use-clear:right',
+    })).toEqual({
+      enabled: false,
+      maxDurationMs: 0,
+      reason: 'An unrelated Clip starts at this Cut.',
+    })
   })
 
   it('allows a Transition over a stable unrelated Clip and stops before its end boundary', () => {
