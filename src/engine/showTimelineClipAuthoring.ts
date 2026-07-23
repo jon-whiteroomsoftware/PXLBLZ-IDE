@@ -179,6 +179,8 @@ function shiftSoleUseInstanceTracksAcrossScenes(
     instanceId: string
     sourceSceneIds: Set<string>
     offsetMs: number
+    targetStartMs: number
+    targetDurationMs: number
   },
 ): boolean {
   const timeline = projectShowTimeline(show)
@@ -192,69 +194,79 @@ function shiftSoleUseInstanceTracksAcrossScenes(
         ))
       : []
   ))
-  if (entries.length === 0 || input.offsetMs === 0) return true
-  const targetKeys = new Set<string>()
-  for (const { track } of entries) {
-    const targetKey = JSON.stringify(track.target)
-    if (targetKeys.has(targetKey)) return false
-    targetKeys.add(targetKey)
+  if (entries.length === 0) return true
+  const groups = new Map<string, typeof entries>()
+  for (const entry of entries) {
+    const targetKey = JSON.stringify(entry.track.target)
+    groups.set(targetKey, [...(groups.get(targetKey) ?? []), entry])
   }
-
+  const targetSlices = globalSpanSceneSlices(show, input.targetStartMs, input.targetDurationMs)
+  if (targetSlices.length === 0) return false
   const generated: Array<{ sceneId: string; track: ShowPropertyAnimationTrack }> = []
-  for (const { scene, track } of entries) {
-    const sourceRange = sceneRangeById.get(scene.sceneId)
-    if (!sourceRange || track.keyframes.length < 2) return false
-    const shiftedKeyframes = track.keyframes.map((keyframe) => ({
-      keyframe,
-      globalTimeMs: sourceRange.startMs + keyframe.timeMs + input.offsetMs,
-    }))
-    const firstGlobalMs = shiftedKeyframes[0].globalTimeMs
-    const lastGlobalMs = shiftedKeyframes[shiftedKeyframes.length - 1].globalTimeMs
-    const targetRanges = timeline.scenes.filter((range) => (
-      range.endMs > firstGlobalMs && range.startMs < lastGlobalMs
-    ))
-    if (targetRanges.length === 0) return false
-    if (targetRanges.length > 1 && track.keyframes.some((keyframe) => keyframe.easing.curve !== 'linear')) {
-      return false
-    }
-    const containsFirst = timeline.scenes.some((range) => (
-      firstGlobalMs >= range.startMs && firstGlobalMs <= range.endMs
-    ))
-    const containsLast = timeline.scenes.some((range) => (
-      lastGlobalMs >= range.startMs && lastGlobalMs <= range.endMs
-    ))
-    if (!containsFirst || !containsLast) return false
+  for (const groupedEntries of groups.values()) {
+    const baseTrack = groupedEntries[0].track
+    const sourcePoints = groupedEntries.flatMap(({ scene, track }) => {
+      const sourceRange = sceneRangeById.get(scene.sceneId)
+      if (!sourceRange || track.keyframes.length < 2) return []
+      return track.keyframes.map((keyframe) => ({
+        keyframe,
+        globalTimeMs: sourceRange.startMs + keyframe.timeMs,
+      }))
+    }).sort((left, right) => left.globalTimeMs - right.globalTimeMs || left.keyframe.id.localeCompare(right.keyframe.id))
+    if (sourcePoints.length < 2) return false
+    const nonlinear = sourcePoints.some((point) => point.keyframe.easing.curve !== 'linear')
+    if (nonlinear && (groupedEntries.length > 1 || targetSlices.length > 1)) return false
 
-    for (const range of targetRanges) {
-      const intervalStartMs = Math.max(firstGlobalMs, range.startMs)
-      const intervalEndMs = Math.min(lastGlobalMs, range.endMs)
-      if (intervalEndMs <= intervalStartMs) continue
+    const evaluateAtGlobalTime = (globalTimeMs: number): number => {
+      for (const { scene, track } of groupedEntries) {
+        const sourceRange = sceneRangeById.get(scene.sceneId)
+        if (!sourceRange) continue
+        const first = track.keyframes[0].timeMs + sourceRange.startMs
+        const last = track.keyframes[track.keyframes.length - 1].timeMs + sourceRange.startMs
+        if (globalTimeMs >= first && globalTimeMs <= last) {
+          return evaluateShowPropertyTrack(track, globalTimeMs - sourceRange.startMs)
+        }
+      }
+      if (globalTimeMs <= sourcePoints[0].globalTimeMs) return sourcePoints[0].keyframe.value
+      const lastPoint = sourcePoints[sourcePoints.length - 1]
+      if (globalTimeMs >= lastPoint.globalTimeMs) return lastPoint.keyframe.value
+      const rightIndex = sourcePoints.findIndex((point) => point.globalTimeMs > globalTimeMs)
+      const left = sourcePoints[rightIndex - 1]
+      const right = sourcePoints[rightIndex]
+      const progress = (globalTimeMs - left.globalTimeMs) / (right.globalTimeMs - left.globalTimeMs)
+      return left.keyframe.value + (right.keyframe.value - left.keyframe.value) * progress
+    }
+
+    for (const slice of targetSlices) {
+      const range = sceneRangeById.get(slice.sceneId)
+      if (!range) return false
+      const intervalStartMs = range.startMs + slice.localStartMs
+      const intervalEndMs = intervalStartMs + slice.durationMs
       const globalTimesMs = [...new Set([
         intervalStartMs,
-        ...shiftedKeyframes
-          .map((item) => item.globalTimeMs)
+        ...sourcePoints
+          .map((item) => item.globalTimeMs + input.offsetMs)
           .filter((timeMs) => timeMs > intervalStartMs && timeMs < intervalEndMs),
         intervalEndMs,
       ])].sort((left, right) => left - right)
       const keyframes = globalTimesMs.map((globalTimeMs, index) => {
-        const original = shiftedKeyframes.find((item) => item.globalTimeMs === globalTimeMs)?.keyframe
+        const original = sourcePoints.find((item) => (
+          item.globalTimeMs + input.offsetMs === globalTimeMs
+        ))?.keyframe
         return {
           ...(original ? structuredClone(original) : {
-            value: evaluateShowPropertyTrack(
-              track,
-              globalTimeMs - input.offsetMs - sourceRange.startMs,
-            ),
+            value: evaluateAtGlobalTime(globalTimeMs - input.offsetMs),
             easing: { curve: 'linear' as const },
           }),
-          id: `${original?.id ?? track.id}-move-${range.sceneId}-${index}`,
+          id: `${original?.id ?? baseTrack.id}-move-${range.sceneId}-${index}`,
           timeMs: Math.round(globalTimeMs - range.startMs),
         }
       })
       generated.push({
         sceneId: range.sceneId,
         track: {
-          ...structuredClone(track),
-          id: `${track.id}-move-${range.sceneId}`,
+          ...structuredClone(baseTrack),
+          id: `${baseTrack.id}-move-${range.sceneId}`,
           keyframes,
         },
       })
@@ -323,6 +335,8 @@ function replaceLogicalClipGlobalSpan(
       instanceId: base.instanceId,
       sourceSceneIds: new Set(segments.map((segment) => segment.sceneId)),
       offsetMs: input.globalStartMs - sourceRange.startMs,
+      targetStartMs: input.globalStartMs,
+      targetDurationMs: input.durationMs,
     })
   ) return composition
 

@@ -90,6 +90,8 @@ function clip(
 ) {
   return {
     id,
+    startPlacementId: id,
+    endPlacementId: id,
     instanceId: `${id}-instance`,
     patternName: id,
     compiled: true,

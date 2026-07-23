@@ -10,6 +10,7 @@ import {
   resizeShowLayerTransition,
   resetShowLayerTransitionToCut,
   showLayerTransitionConnectedClosure,
+  showLayerTransitionsConnectedToClip,
 } from './showLayerTransitionAuthoring'
 import type { ShowCompositionV1 } from './personalContentRecords'
 import { splitShowClipAtGlobalTime } from './showTimelineClipAuthoring'
@@ -135,6 +136,54 @@ describe('literal per-Layer Transition authoring (#583)', () => {
       fromPlacementId: 'clip-a',
       toPlacementId: 'clip-b',
     })).toEqual({ enabled: true, maxDurationMs: 1_000 })
+  })
+
+  it('authors a Transition from the physical ending segment of a logical Clip (#63)', () => {
+    const { show, composition } = fixture()
+    composition.transitions = []
+    composition.scenes[0].zones[0].main = [{
+      ...composition.scenes[0].zones[0].main[0],
+      id: 'clip-spanning',
+      startMs: 28_000,
+      durationMs: 2_000,
+    }]
+    composition.scenes.push({
+      sceneId: show.scenes[1].id,
+      zones: [{
+        zoneId: show.zones[0].id,
+        main: [{
+          ...composition.scenes[0].zones[0].main[0],
+          id: 'clip-spanning--span-scene-2',
+          logicalClipId: 'clip-spanning',
+          startMs: 0,
+          durationMs: 3_000,
+        }, {
+          ...composition.scenes[0].zones[0].main[0],
+          id: 'clip-next',
+          startMs: 3_000,
+          durationMs: 2_000,
+        }],
+        overlays: [],
+      }],
+    })
+
+    expect(planShowLayerTransitionInsertion(show, composition, {
+      fromPlacementId: 'clip-spanning--span-scene-2',
+      toPlacementId: 'clip-next',
+    })).toEqual({ enabled: true, maxDurationMs: 25_000 })
+
+    composition.transitions = [{
+      id: 'transition-spanning-next',
+      fromPlacementId: 'clip-spanning--span-scene-2',
+      toPlacementId: 'clip-next',
+      kind: 'crossfade',
+      durationMs: 1_000,
+      easing: { curve: 'linear' },
+      crossfadePolicy: 'live-live',
+    }]
+    expect(showLayerTransitionsConnectedToClip(composition, 'clip-spanning')).toEqual([
+      composition.transitions[0],
+    ])
   })
 
   it('refuses a chain shift that would move content into another Layer transition window', () => {
@@ -387,6 +436,70 @@ describe('literal per-Layer Transition authoring (#583)', () => {
       ['clip-b', 4_000],
       ['clip-c', 7_000],
       ['obstruction', 9_000],
+    ])
+  })
+
+  it('repartitions every segment when a transition-connected logical Clip moves (#63)', () => {
+    const { show, composition } = fixture()
+    composition.transitions = [{
+      id: 'transition-a-spanning',
+      fromPlacementId: 'clip-a',
+      toPlacementId: 'clip-spanning',
+      kind: 'crossfade',
+      durationMs: 1_000,
+      easing: { curve: 'linear' },
+      crossfadePolicy: 'live-live',
+    }]
+    composition.scenes[0].zones[0].main = [
+      {
+        ...composition.scenes[0].zones[0].main[0],
+        id: 'clip-a',
+        startMs: 25_000,
+        durationMs: 2_000,
+      },
+      {
+        ...composition.scenes[0].zones[0].main[1],
+        id: 'clip-spanning',
+        startMs: 28_000,
+        durationMs: 2_000,
+      },
+    ]
+    composition.scenes.push({
+      sceneId: show.scenes[1].id,
+      zones: [{
+        zoneId: show.zones[0].id,
+        main: [{
+          ...composition.scenes[0].zones[0].main[1],
+          id: 'clip-spanning--span-scene-2',
+          logicalClipId: 'clip-spanning',
+          startMs: 0,
+          durationMs: 3_000,
+        }],
+        overlays: [],
+      }],
+    })
+
+    const moved = moveShowConnectedClipAtGlobalTime(show, composition, {
+      owner: {
+        kind: 'main',
+        sceneId: show.scenes[0].id,
+        zoneId: show.zones[0].id,
+        placementId: 'clip-spanning',
+      },
+      target: { kind: 'main', zoneId: show.zones[0].id, globalStartMs: 27_000 },
+    })
+
+    expect(moved.scenes[0].zones[0].main).toEqual([
+      expect.objectContaining({ id: 'clip-a', startMs: 24_000, durationMs: 2_000 }),
+      expect.objectContaining({ id: 'clip-spanning', startMs: 27_000, durationMs: 3_000 }),
+    ])
+    expect(moved.scenes[1].zones[0].main).toEqual([
+      expect.objectContaining({
+        id: 'clip-spanning--span-scene-2',
+        logicalClipId: 'clip-spanning',
+        startMs: 0,
+        durationMs: 2_000,
+      }),
     ])
   })
 

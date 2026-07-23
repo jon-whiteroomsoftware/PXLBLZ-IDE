@@ -42,13 +42,13 @@ export function planShowLayerTransitionInsertion(
   }
   const cut = resolved.layer.junctions.find((junction) => (
     junction.kind === 'cut'
-    && junction.leftClipId === endpoints.fromPlacementId
-    && junction.rightClipId === endpoints.toPlacementId
+    && junction.fromPlacementId === endpoints.fromPlacementId
+    && junction.toPlacementId === endpoints.toPlacementId
   ))
   if (!cut) return { enabled: false, maxDurationMs: 0, reason: 'This junction is not a Cut.' }
   const unrelatedClips = projectShowUnifiedTimeline(show, composition).zones.flatMap((zone) => (
     zone.layers
-      .filter((layer) => !layer.clips.some((clip) => clip.id === endpoints.fromPlacementId))
+      .filter((layer) => !layer.clips.some((clip) => clipOwnsPlacementId(clip, endpoints.fromPlacementId)))
       .flatMap((layer) => layer.clips)
       .filter((clip) => clip.sceneId === fromOwner.sceneId)
   ))
@@ -81,7 +81,7 @@ export function planShowLayerTransitionInsertion(
     maxDurationMs = Math.min(maxDurationMs, activeUnrelatedEndMs - cut.startMs - 1)
   }
   const movingTransitionIds = new Set((composition.transitions ?? []).filter((transition) => (
-    chain.some((clip) => clip.id === transition.fromPlacementId)
+    chain.some((clip) => clipOwnsPlacementId(clip, transition.fromPlacementId))
   )).map((transition) => transition.id))
   const fixedIntervals = projectShowUnifiedTimeline(show, composition).zones
     .flatMap((zone) => zone.layers.flatMap((layer) => layer.junctions))
@@ -149,7 +149,7 @@ export function insertShowLayerTransition(
   const resolved = resolveEndpointLayer(show, composition, transition)!
   const chain = downstreamConnectedChain(resolved.layer, composition, resolved.toIndex)
 
-  const draft = shiftPlacementStarts(composition, chain.map((clip) => clip.id), transition.durationMs)
+  const draft = shiftTimelineClips(show, composition, chain, transition.durationMs)
   if (!draft) return composition
   draft.transitions = [...(draft.transitions ?? []), structuredClone(transition)]
   if (validateShowComposition(show, draft).length > 0 || hasConcurrentLayerTransitions(show, draft)) return composition
@@ -171,7 +171,7 @@ export function resetShowLayerTransitionToCut(
     ...structuredClone(composition),
     transitions: (composition.transitions ?? []).filter((candidate) => candidate.id !== transitionId),
   }
-  const changed = shiftPlacementStarts(withoutTransition, chain.map((clip) => clip.id), -transition.durationMs)
+  const changed = shiftTimelineClips(show, withoutTransition, chain, -transition.durationMs)
   if (!changed) return composition
   if (validateShowComposition(show, changed).length > 0) return composition
   return normalizeShowComposition(show, changed)
@@ -198,7 +198,7 @@ export function resizeShowLayerTransition(
     const availableMs = (obstruction?.startMs ?? projectShowUnifiedTimeline(show, composition).durationMs) - last.endMs
     if (deltaMs > availableMs) return composition
   }
-  const draft = shiftPlacementStarts(composition, chain.map((clip) => clip.id), deltaMs)
+  const draft = shiftTimelineClips(show, composition, chain, deltaMs)
   if (!draft) return composition
   const changedTransition = draft.transitions?.find((candidate) => candidate.id === transitionId)
   if (!changedTransition) return composition
@@ -232,8 +232,8 @@ export function moveShowConnectedClipAtGlobalTime(
   if (!sameLayer) {
     const draft = structuredClone(composition)
     const remainingTransitions = (draft.transitions ?? []).filter((transition) => (
-      transition.fromPlacementId !== selected.id
-      && transition.toPlacementId !== selected.id
+      !clipOwnsPlacementId(selected, transition.fromPlacementId)
+      && !clipOwnsPlacementId(selected, transition.toPlacementId)
     ))
     if (remainingTransitions.length > 0) draft.transitions = remainingTransitions
     else delete draft.transitions
@@ -244,10 +244,10 @@ export function moveShowConnectedClipAtGlobalTime(
   const selectedIndex = layer.clips.findIndex((clip) => clip.id === selected.id)
   let firstIndex = selectedIndex
   let lastIndex = selectedIndex
-  while (firstIndex > 0 && hasTransitionBetween(composition, layer.clips[firstIndex - 1].id, layer.clips[firstIndex].id)) {
+  while (firstIndex > 0 && hasTransitionBetween(composition, layer.clips[firstIndex - 1], layer.clips[firstIndex])) {
     firstIndex -= 1
   }
-  while (lastIndex < layer.clips.length - 1 && hasTransitionBetween(composition, layer.clips[lastIndex].id, layer.clips[lastIndex + 1].id)) {
+  while (lastIndex < layer.clips.length - 1 && hasTransitionBetween(composition, layer.clips[lastIndex], layer.clips[lastIndex + 1])) {
     lastIndex += 1
   }
   if (firstIndex === lastIndex) return moveShowClipAtGlobalTime(show, composition, input)
@@ -263,7 +263,7 @@ export function moveShowConnectedClipAtGlobalTime(
     return composition
   }
 
-  const changed = shiftPlacementStarts(composition, chain.map((clip) => clip.id), deltaMs)
+  const changed = shiftTimelineClips(show, composition, chain, deltaMs)
   if (!changed || validateShowComposition(show, changed).length > 0 || hasConcurrentLayerTransitions(show, changed)) return composition
   return normalizeShowComposition(show, changed)
 }
@@ -272,8 +272,10 @@ export function showLayerTransitionsConnectedToClip(
   composition: ShowCompositionV1,
   placementId: string,
 ): ShowLayerTransition[] {
+  const logicalPlacementIds = placementIdsForLogicalClip(composition, placementId)
   return (composition.transitions ?? []).filter((transition) => (
-    transition.fromPlacementId === placementId || transition.toPlacementId === placementId
+    logicalPlacementIds.has(transition.fromPlacementId)
+    || logicalPlacementIds.has(transition.toPlacementId)
   ))
 }
 
@@ -286,15 +288,31 @@ export function showLayerTransitionConnectedClosure(
   composition: ShowCompositionV1,
   placementIds: Iterable<string>,
 ): string[] {
-  const connected = new Set(placementIds)
+  const logicalIdByPlacementId = new Map<string, string>()
+  for (const scene of composition.scenes) {
+    for (const zone of scene.zones) {
+      for (const placement of zone.main) {
+        logicalIdByPlacementId.set(placement.id, placement.logicalClipId ?? placement.id)
+      }
+      for (const layer of zone.overlays) {
+        for (const placement of layer.placements) {
+          logicalIdByPlacementId.set(placement.id, placement.logicalClipId ?? placement.id)
+        }
+      }
+    }
+  }
+  const logicalId = (id: string) => logicalIdByPlacementId.get(id) ?? id
+  const connected = new Set([...placementIds].map(logicalId))
   let changed = true
   while (changed) {
     changed = false
     for (const transition of composition.transitions ?? []) {
-      if (!connected.has(transition.fromPlacementId) && !connected.has(transition.toPlacementId)) continue
+      const fromPlacementId = logicalId(transition.fromPlacementId)
+      const toPlacementId = logicalId(transition.toPlacementId)
+      if (!connected.has(fromPlacementId) && !connected.has(toPlacementId)) continue
       const before = connected.size
-      connected.add(transition.fromPlacementId)
-      connected.add(transition.toPlacementId)
+      connected.add(fromPlacementId)
+      connected.add(toPlacementId)
       changed ||= connected.size !== before
     }
   }
@@ -321,7 +339,9 @@ export function resizeShowConnectedClipAtGlobalTime(
   const startDeltaMs = nextStartMs - clip.startMs
   const endDeltaMs = nextEndMs - clip.endMs
 
-  const incoming = (composition.transitions ?? []).find((transition) => transition.toPlacementId === clip.id)
+  const incoming = (composition.transitions ?? []).find((transition) => (
+    transition.toPlacementId === clip.startPlacementId
+  ))
   if (incoming && startDeltaMs !== 0 && endDeltaMs === 0) {
     const resizedTransition = resizeShowLayerTransition(
       show,
@@ -334,7 +354,9 @@ export function resizeShowConnectedClipAtGlobalTime(
     return changed !== resizedTransition && !hasConcurrentLayerTransitions(show, changed) ? changed : composition
   }
 
-  const outgoing = (composition.transitions ?? []).find((transition) => transition.fromPlacementId === clip.id)
+  const outgoing = (composition.transitions ?? []).find((transition) => (
+    transition.fromPlacementId === clip.endPlacementId
+  ))
   if (outgoing && startDeltaMs === 0 && endDeltaMs !== 0) {
     const resolved = resolveEndpointLayer(show, composition, outgoing)
     if (!resolved) return composition
@@ -345,7 +367,7 @@ export function resizeShowConnectedClipAtGlobalTime(
       const availableMs = (obstruction?.startMs ?? projection.durationMs) - last.endMs
       if (endDeltaMs > availableMs) return composition
     }
-    const draft = shiftPlacementStarts(composition, chain.map((candidate) => candidate.id), endDeltaMs)
+    const draft = shiftTimelineClips(show, composition, chain, endDeltaMs)
     if (!draft) return composition
     const owner = findOwner(draft, clip.id)
     if (!owner) return composition
@@ -409,8 +431,11 @@ function resolveEndpointLayer(
   for (const zone of projectShowUnifiedTimeline(show, composition).zones) {
     for (const layer of zone.layers) {
       const fromIndex = layer.clips.findIndex((clip) => clip.id === transition.fromPlacementId)
-      const toIndex = layer.clips.findIndex((clip) => clip.id === transition.toPlacementId)
-      if (fromIndex >= 0 && toIndex >= 0) return { layer, fromIndex, toIndex }
+      const toIndex = layer.clips.findIndex((clip) => clipOwnsPlacementId(clip, transition.toPlacementId))
+      const resolvedFromIndex = fromIndex >= 0
+        ? fromIndex
+        : layer.clips.findIndex((clip) => clipOwnsPlacementId(clip, transition.fromPlacementId))
+      if (resolvedFromIndex >= 0 && toIndex >= 0) return { layer, fromIndex: resolvedFromIndex, toIndex }
     }
   }
   return null
@@ -425,7 +450,7 @@ function downstreamConnectedChain(
   for (let index = startIndex; index < layer.clips.length - 1; index += 1) {
     const current = layer.clips[index]
     const next = layer.clips[index + 1]
-    const connected = hasTransitionBetween(composition, current.id, next.id)
+    const connected = hasTransitionBetween(composition, current, next)
     if (!connected) break
     chain.push(next)
   }
@@ -434,48 +459,78 @@ function downstreamConnectedChain(
 
 function hasTransitionBetween(
   composition: ShowCompositionV1,
-  fromPlacementId: string,
-  toPlacementId: string,
+  fromClip: ShowUnifiedTimelineClipProjection,
+  toClip: ShowUnifiedTimelineClipProjection,
 ): boolean {
   return (composition.transitions ?? []).some((transition) => (
-    transition.fromPlacementId === fromPlacementId && transition.toPlacementId === toPlacementId
+    clipOwnsPlacementId(fromClip, transition.fromPlacementId)
+    && clipOwnsPlacementId(toClip, transition.toPlacementId)
   ))
 }
 
-function shiftPlacementStarts(
+function clipOwnsPlacementId(
+  clip: ShowUnifiedTimelineClipProjection,
+  placementId: string,
+): boolean {
+  return clip.id === placementId || clip.segmentIds?.includes(placementId) === true
+}
+
+function placementIdsForLogicalClip(
   composition: ShowCompositionV1,
-  placementIds: string[],
-  deltaMs: number,
-): ShowCompositionV1 | null {
-  const ids = new Set(placementIds)
-  const draft = structuredClone(composition)
-  let changedCount = 0
-  for (const scene of draft.scenes) {
-    const movedInScene = new Set<string>()
+  placementId: string,
+): Set<string> {
+  let logicalClipId = placementId
+  for (const scene of composition.scenes) {
     for (const zone of scene.zones) {
-      for (const placement of zone.main) {
-        if (!ids.has(placement.id)) continue
-        placement.startMs += deltaMs
-        movedInScene.add(placement.id)
-        changedCount += 1
-      }
-      for (const layer of zone.overlays) {
-        for (const placement of layer.placements) {
-          if (!ids.has(placement.id)) continue
-          placement.startMs += deltaMs
-          movedInScene.add(placement.id)
-          changedCount += 1
-        }
-      }
-    }
-    for (const track of scene.propertyTracks ?? []) {
-      if (!('placementId' in track.target) || !movedInScene.has(track.target.placementId)) continue
-      track.keyframes.forEach((keyframe) => {
-        keyframe.timeMs += deltaMs
-      })
+      const placement = [
+        ...zone.main,
+        ...zone.overlays.flatMap((layer) => layer.placements),
+      ].find((candidate) => candidate.id === placementId)
+      if (placement) logicalClipId = placement.logicalClipId ?? placement.id
     }
   }
-  return changedCount === ids.size ? draft : null
+  const ids = new Set<string>([logicalClipId])
+  for (const scene of composition.scenes) {
+    for (const zone of scene.zones) {
+      for (const placement of [
+        ...zone.main,
+        ...zone.overlays.flatMap((layer) => layer.placements),
+      ]) {
+        if ((placement.logicalClipId ?? placement.id) === logicalClipId) ids.add(placement.id)
+      }
+    }
+  }
+  return ids
+}
+
+function shiftTimelineClips(
+  show: ShowRecord,
+  composition: ShowCompositionV1,
+  clips: ShowUnifiedTimelineClipProjection[],
+  deltaMs: number,
+): ShowCompositionV1 | null {
+  const savedTransitions = structuredClone(composition.transitions)
+  const withoutTransitions = structuredClone(composition)
+  delete withoutTransitions.transitions
+  let draft = withoutTransitions
+  const ordered = deltaMs > 0 ? [...clips].reverse() : clips
+  for (const clip of ordered) {
+    const owner = findOwner(draft, clip.id)
+    if (!owner) return null
+    const target: ShowTimelineClipMoveTarget = clip.kind === 'main'
+      ? { kind: 'main', zoneId: clip.zoneId, globalStartMs: clip.startMs + deltaMs }
+      : {
+          kind: 'overlay',
+          zoneId: clip.zoneId,
+          layerIndex: clip.layerIndex,
+          globalStartMs: clip.startMs + deltaMs,
+        }
+    const moved = moveShowClipAtGlobalTime(show, draft, { owner, target })
+    if (moved === draft) return null
+    draft = moved
+  }
+  if (savedTransitions) draft.transitions = savedTransitions
+  return draft
 }
 
 function hasConcurrentLayerTransitions(

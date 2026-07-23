@@ -14,6 +14,8 @@ export interface ShowUnifiedTimelineClipProjection {
   id: string
   logicalClipId?: string
   segmentIds?: string[]
+  startPlacementId: string
+  endPlacementId: string
   instanceId: string
   patternName: string
   compiled: boolean
@@ -67,6 +69,8 @@ export interface ShowUnifiedTimelineJunctionProjection {
   kind: ShowTransitionKind
   leftClipId: string
   rightClipId: string
+  fromPlacementId: string
+  toPlacementId: string
   startMs: number
   endMs: number
   durationMs: number
@@ -211,9 +215,11 @@ function projectLayer(
     ...projection,
     junctions: layer.clips.slice(0, -1).flatMap<ShowUnifiedTimelineJunctionProjection>((leftClip, index) => {
       const rightClip = layer.clips[index + 1]
+      const fromPlacementId = leftClip.endPlacementId
+      const toPlacementId = rightClip.startPlacementId
       const transition = transitions.find((candidate) => (
-        candidate.fromPlacementId === leftClip.id
-        && candidate.toPlacementId === rightClip.id
+        candidate.fromPlacementId === fromPlacementId
+        && candidate.toPlacementId === toPlacementId
       ))
       if (transition) {
         if (leftClip.endMs + transition.durationMs !== rightClip.startMs) return []
@@ -222,6 +228,8 @@ function projectLayer(
           kind: transition.kind,
           leftClipId: leftClip.id,
           rightClipId: rightClip.id,
+          fromPlacementId,
+          toPlacementId,
           startMs: leftClip.endMs,
           endMs: rightClip.startMs,
           durationMs: transition.durationMs,
@@ -250,6 +258,8 @@ function projectLayer(
           kind: boundaryTransition.kind,
           leftClipId: leftClip.id,
           rightClipId: rightClip.id,
+          fromPlacementId,
+          toPlacementId,
           startMs: leftClip.endMs,
           endMs: rightClip.startMs,
           durationMs: boundaryTransition.durationMs,
@@ -263,6 +273,8 @@ function projectLayer(
         kind: 'cut' as const,
         leftClipId: leftClip.id,
         rightClipId: rightClip.id,
+        fromPlacementId,
+        toPlacementId,
         startMs: rightClip.startMs,
         endMs: rightClip.startMs,
         durationMs: 0,
@@ -289,6 +301,8 @@ function coalesceLogicalClips(
       id,
       logicalClipId: id,
       segmentIds: ordered.map((segment) => segment.id),
+      startPlacementId: ordered[0].id,
+      endPlacementId: ordered[ordered.length - 1].id,
       endMs,
       durationMs: endMs - first.startMs,
       diagnostics: [...new Set(ordered.flatMap((segment) => segment.diagnostics))],
@@ -311,6 +325,8 @@ function projectPlacement(input: {
   const startMs = input.sceneStartMs + input.placement.startMs
   return {
     id: input.placement.id,
+    startPlacementId: input.placement.id,
+    endPlacementId: input.placement.id,
     ...(input.placement.logicalClipId ? { logicalClipId: input.placement.logicalClipId } : {}),
     instanceId: input.placement.instanceId,
     patternName: instance?.patternName ?? 'Missing Pattern',

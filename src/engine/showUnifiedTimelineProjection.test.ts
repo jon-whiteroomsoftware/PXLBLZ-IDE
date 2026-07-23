@@ -55,6 +55,8 @@ describe('unified Show timeline projection (#580)', () => {
       kind: 'cut',
       leftClipId: 'clip-a',
       rightClipId: 'clip-b',
+      fromPlacementId: 'clip-a',
+      toPlacementId: 'clip-b',
       startMs: 3_000,
       endMs: 3_000,
       durationMs: 0,

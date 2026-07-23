@@ -1173,12 +1173,12 @@ export function ShowEditor({
     ? layerTransitionTarget.groupOccurrenceId
       ? planShowGroupLayerTransitionInsertion(activeShow, timelineComposition, {
           occurrenceId: layerTransitionTarget.groupOccurrenceId,
-          fromPlacementId: layerTransitionTarget.junction.leftClipId,
-          toPlacementId: layerTransitionTarget.junction.rightClipId,
+          fromPlacementId: layerTransitionTarget.junction.fromPlacementId,
+          toPlacementId: layerTransitionTarget.junction.toPlacementId,
         })
       : planShowLayerTransitionInsertion(activeShow, timelineComposition, {
-          fromPlacementId: layerTransitionTarget.junction.leftClipId,
-          toPlacementId: layerTransitionTarget.junction.rightClipId,
+          fromPlacementId: layerTransitionTarget.junction.fromPlacementId,
+          toPlacementId: layerTransitionTarget.junction.toPlacementId,
         })
     : null
   const pendingConnectedTransitions = timelineComposition && compositionClipPendingDelete
@@ -2297,8 +2297,8 @@ export function ShowEditor({
                 const transition: ShowLayerTransition = {
                   ...parameters,
                   id: newPersonalContentId(),
-                  fromPlacementId: layerTransitionTarget.junction.leftClipId,
-                  toPlacementId: layerTransitionTarget.junction.rightClipId,
+                  fromPlacementId: layerTransitionTarget.junction.fromPlacementId,
+                  toPlacementId: layerTransitionTarget.junction.toPlacementId,
                   kind,
                   durationMs: Math.min(durationMs, layerTransitionPlan.maxDurationMs),
                   easing: changes.easing ?? { curve: 'linear' },

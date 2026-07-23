@@ -775,6 +775,59 @@ describe('global timeline Clip authoring (#580)', () => {
     })
   })
 
+  it('moves a logical Clip again after its instance automation was partitioned by Scene (#63)', () => {
+    const show = createDefaultShow('show-move-spanning-instance-again', 'Move spanning instance again', 1000)
+    const composition = emptyComposition(show)
+    composition.patternInstances.push(instance)
+    composition.scenes[0].zones[0].main.push({
+      id: 'placement-move',
+      instanceId: instance.id,
+      startMs: 20_000,
+      durationMs: 5_000,
+      view: { mirror: false, phase: 0, brightness: 1 },
+    })
+    composition.scenes[0].propertyTracks = [{
+      id: 'track-speed',
+      target: { kind: 'instance-time-scale', instanceId: instance.id },
+      keyframes: [
+        { id: 'key-a', timeMs: 20_000, value: 1, easing: { curve: 'linear' } },
+        { id: 'key-b', timeMs: 25_000, value: 2, easing: { curve: 'linear' } },
+      ],
+    }]
+    const owner = {
+      kind: 'main' as const,
+      sceneId: show.scenes[0].id,
+      zoneId: show.zones[0].id,
+      placementId: 'placement-move',
+    }
+    const first = moveShowClipAtGlobalTime(show, composition, {
+      owner,
+      target: { kind: 'main', zoneId: show.zones[0].id, globalStartMs: 28_000 },
+    })
+
+    const second = moveShowClipAtGlobalTime(show, first, {
+      owner,
+      target: { kind: 'main', zoneId: show.zones[0].id, globalStartMs: 29_000 },
+    })
+
+    expect(second).not.toBe(first)
+    expect(second.scenes[0].zones[0].main[0]).toMatchObject({
+      id: 'placement-move',
+      startMs: 29_000,
+      durationMs: 1_000,
+    })
+    expect(second.scenes[1].zones[0].main[0]).toMatchObject({
+      logicalClipId: 'placement-move',
+      startMs: 0,
+      durationMs: 2_000,
+    })
+    expect(second.scenes[1].propertyTracks?.[0].keyframes).toEqual([
+      expect.objectContaining({ timeMs: 0, value: 1.6 }),
+      expect.objectContaining({ timeMs: 1_000, value: 1.8 }),
+      expect.objectContaining({ timeMs: 2_000, value: 2 }),
+    ])
+  })
+
   it('splits a Clip at global time while preserving its shared Pattern instance', () => {
     const show = createDefaultShow('show-split-clip', 'Split clip', 1000)
     const composition = emptyComposition(show)
