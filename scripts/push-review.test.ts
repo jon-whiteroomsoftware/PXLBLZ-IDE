@@ -5,6 +5,7 @@ import {
   GPT_REVIEW_MODEL,
   REVIEW_TIMEOUT_MS,
   buildCodexReviewArgs,
+  buildFableReviewArgs,
   buildReviewPrompt,
   parseClaudeReviewOutput,
   parseCodexReviewOutput,
@@ -18,6 +19,9 @@ describe('cross-agent push review gate (#63)', () => {
   it('uses Fable Medium with the fifteen-minute hard cap', () => {
     expect(FABLE_REVIEW_EFFORT).toBe('medium')
     expect(REVIEW_TIMEOUT_MS).toBe(15 * 60 * 1_000)
+    const args = buildFableReviewArgs()
+    expect(args).toContain('fable')
+    expect(args).not.toContain('opus')
   })
 
   it('falls back to GPT-5.6 High when Fable cannot return a review', () => {
@@ -40,6 +44,27 @@ describe('cross-agent push review gate (#63)', () => {
       review: fallbackReview,
       fallbackReason: 'Fable quota exhausted',
     })
+  })
+
+  it('announces the provider transition before GPT-5.6 High starts', () => {
+    const events: string[] = []
+    reviewWithFallback(
+      () => {
+        events.push('fable')
+        throw new Error('Fable timed out')
+      },
+      () => {
+        events.push('gpt')
+        return { decision: 'pass', summary: 'Fallback passed.', findings: [] }
+      },
+      (reason) => events.push(`fallback: ${reason}`),
+    )
+
+    expect(events).toEqual([
+      'fable',
+      'fallback: Fable timed out',
+      'gpt',
+    ])
   })
 
   it('keeps a valid Fable failure authoritative', () => {

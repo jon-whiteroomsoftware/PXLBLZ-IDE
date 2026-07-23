@@ -46,11 +46,13 @@ export interface PushReviewExecution {
 export function reviewWithFallback(
   runFable: () => PushReviewResult,
   runGpt: () => PushReviewResult,
+  onFallback: (reason: string) => void = () => {},
 ): PushReviewExecution {
   try {
     return { reviewer: 'Fable', review: runFable() }
   } catch (fableError) {
     const fallbackReason = errorMessage(fableError)
+    onFallback(fallbackReason)
     try {
       return {
         reviewer: 'GPT-5.6 High',
@@ -76,6 +78,24 @@ export function buildCodexReviewArgs(schemaPath: string, outputPath: string): st
     '--output-schema', schemaPath,
     '--output-last-message', outputPath,
     '-',
+  ]
+}
+
+export function buildFableReviewArgs(): string[] {
+  return [
+    '-p',
+    '--safe-mode',
+    '--model', 'fable',
+    '--effort', FABLE_REVIEW_EFFORT,
+    '--permission-mode', 'dontAsk',
+    '--no-session-persistence',
+    '--tools', 'Read,Grep,Glob',
+    '--allowedTools',
+    'Read',
+    'Grep',
+    'Glob',
+    '--output-format', 'json',
+    '--json-schema', REVIEW_SCHEMA,
   ]
 }
 
@@ -234,21 +254,7 @@ function buildReviewInput(ranges: PushReviewRange[]): string {
 }
 
 function runFableReview(reviewInput: string): PushReviewResult {
-  const result = spawnSync('claude', [
-    '-p',
-    '--safe-mode',
-    '--model', 'fable',
-    '--effort', FABLE_REVIEW_EFFORT,
-    '--permission-mode', 'dontAsk',
-    '--no-session-persistence',
-    '--tools', 'Read,Grep,Glob',
-    '--allowedTools',
-    'Read',
-    'Grep',
-    'Glob',
-    '--output-format', 'json',
-    '--json-schema', REVIEW_SCHEMA,
-  ], {
+  const result = spawnSync('claude', buildFableReviewArgs(), {
     cwd: process.cwd(),
     encoding: 'utf8',
     input: reviewInput,
@@ -320,10 +326,11 @@ function main(): void {
     const execution = reviewWithFallback(
       () => runFableReview(reviewInput),
       () => runGptReview(reviewInput),
+      (reason) => {
+        console.warn(`⚠ Fable unavailable: ${reason}`)
+        console.log('▶ GPT-5.6 High reviewing the same outgoing Git range...')
+      },
     )
-    if (execution.fallbackReason) {
-      console.warn(`⚠ Fable unavailable; falling back to GPT-5.6 High: ${execution.fallbackReason}`)
-    }
     printReview(execution.reviewer, execution.review)
     if (execution.review.decision === 'fail') {
       console.error('PUSH REVIEW GATE BLOCKED: fix the findings above before pushing. Do not retry or bypass this gate.')
