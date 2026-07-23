@@ -76,7 +76,6 @@ import {
 import {
   fitShowTimelineViewport,
   panShowTimelineViewport,
-  rangeThumbCenterOffsetPx,
   resizeShowTimelineViewport,
   showTimelineThumb,
   snapShowTimelineTime,
@@ -2563,6 +2562,7 @@ function ShowTimelineWorkspace({
   const [insertTimeAtMs, setInsertTimeAtMs] = useState(0)
   const [layoutActionsOpen, setLayoutActionsOpen] = useState(false)
   const [layoutActionsPopoverAnchor, setLayoutActionsPopoverAnchor] = useState<HTMLButtonElement | null>(null)
+  const [zonesPopoverAnchor, setZonesPopoverAnchor] = useState<HTMLButtonElement | null>(null)
   const [layoutActionTimeMs, setLayoutActionTimeMs] = useState(0)
   const [layoutActionLayoutId, setLayoutActionLayoutId] = useState(show.routingLayouts[0]?.id ?? '')
   const [layoutActionDurationSeconds, setLayoutActionDurationSeconds] = useState(5)
@@ -2709,6 +2709,7 @@ function ShowTimelineWorkspace({
     setViewport(viewport)
   }
   const scrollRef = useRef<HTMLDivElement>(null)
+  const timelineRulerRef = useRef<HTMLDivElement>(null)
   const initialTransport = useShowTransportStore.getState()
   const positionMsRef = useRef(initialTransport.showId === show.id ? initialTransport.positionMs : 0)
   useEffect(() => {
@@ -3065,6 +3066,7 @@ function ShowTimelineWorkspace({
           {!readOnly && (
             <>
               <Button
+                ref={setZonesPopoverAnchor}
                 size="xs"
                 variant="ghost"
                 aria-label={zonesOpen ? 'Close Zones' : 'Open Zones'}
@@ -3379,6 +3381,7 @@ function ShowTimelineWorkspace({
               )}
               {zonesOpen && (
                 <ZoneMapPopover
+                  anchor={zonesPopoverAnchor}
                   show={show}
                   collapsedZoneIds={collapsedZoneIdSet}
                   focusedZoneId={focusedZoneId}
@@ -3428,19 +3431,31 @@ function ShowTimelineWorkspace({
           </button>
         </div>
       )}
-      <div
-        ref={scrollRef}
-        data-testid="show-timeline-scroll-region"
-        className="scrollbar-hidden overflow-x-auto"
-        onScroll={(event) => {
-          const element = event.currentTarget
-          const maxScroll = Math.max(0, element.scrollWidth - element.clientWidth)
-          const maxStart = viewport.totalMs - viewport.durationMs
-          if (maxScroll > 0 && maxStart > 0) {
-            updateViewport((current) => panShowTimelineViewport(current, element.scrollLeft / maxScroll * maxStart))
-          }
-        }}
-      >
+      <div className="relative">
+        {!readOnly && (
+          <TimelineMarkerSource
+            show={displayShow}
+            viewport={viewport}
+            snapEnabled={snapEnabled}
+            structuralTimesMs={structuralTimesMs}
+            getVisibleWidth={() => Math.max(1, scrollRef.current?.clientWidth ?? 812)}
+            getRulerBounds={() => timelineRulerRef.current?.getBoundingClientRect() ?? null}
+            onCreateMarker={onAddMarker}
+          />
+        )}
+        <div
+          ref={scrollRef}
+          data-testid="show-timeline-scroll-region"
+          className="scrollbar-hidden overflow-x-auto"
+          onScroll={(event) => {
+            const element = event.currentTarget
+            const maxScroll = Math.max(0, element.scrollWidth - element.clientWidth)
+            const maxStart = viewport.totalMs - viewport.durationMs
+            if (maxScroll > 0 && maxStart > 0) {
+              updateViewport((current) => panShowTimelineViewport(current, element.scrollLeft / maxScroll * maxStart))
+            }
+          }}
+        >
         <div
           data-testid="show-timeline-grid"
           className="relative isolate grid gap-y-2"
@@ -3507,6 +3522,7 @@ function ShowTimelineWorkspace({
           {showMicroZonePicker ? <MapIcon size={12} aria-hidden /> : 'Show time'}
         </div>}
         <TimelineRuler
+          rulerRef={timelineRulerRef}
           show={displayShow}
           gridColumn={`2 / ${timeGridEndLine}`}
           viewport={viewport}
@@ -3515,8 +3531,6 @@ function ShowTimelineWorkspace({
           structuralTimesMs={structuralTimesMs}
           getVisibleWidth={() => Math.max(1, (scrollRef.current?.clientWidth ?? 812) - 212)}
           layoutIntervals={layoutIntervals}
-          readOnly={readOnly}
-          onCreateMarker={onAddMarker}
         />
         {timelineComposition && (
           <TimelineMarkers
@@ -3586,6 +3600,7 @@ function ShowTimelineWorkspace({
                     type="button"
                     aria-label={`Edit split position transition from ${scene.name}`}
                     data-show-timeline-focus
+                    data-show-selection-key={`transition:${transition.id}`}
                     className={descriptor ? 'border-t border-zinc-900/80 bg-sky-400/10 font-mono text-[9px] text-sky-200' : 'border-t border-zinc-900/80 font-mono text-[9px] text-zinc-700 hover:text-sky-300'}
                     style={{ gridColumn: 3 + sceneIndex * 2, gridRow: contentStartRow }}
                     onClick={(event) => {
@@ -3630,6 +3645,7 @@ function ShowTimelineWorkspace({
                   type="button"
                   aria-label={`Edit repeat scale transition from ${scene.name}`}
                   data-show-timeline-focus
+                  data-show-selection-key={`transition:${transition.id}`}
                   className={descriptor ? 'border-t border-zinc-900/80 bg-cyan-400/10 font-mono text-[9px] text-cyan-200' : 'border-t border-zinc-900/80 font-mono text-[9px] text-zinc-700 hover:text-cyan-300'}
                   style={{ gridColumn: 3 + sceneIndex * 2, gridRow: contentStartRow + (movingSplitLayout ? 1 : 0) }}
                   onClick={(event) => {
@@ -4101,6 +4117,9 @@ function ShowTimelineWorkspace({
                         aria-label={`Edit ${junction.kind} Transition between ${leftClip.patternName} and ${rightClip.patternName}`}
                         title={`${junction.kind} - ${junction.durationMs / 1_000}s`}
                         data-show-timeline-focus
+                        data-show-selection-key={junction.boundaryTransition
+                          ? `transition:${junction.boundaryTransition.id}`
+                          : undefined}
                         data-show-layer-junction={junction.id}
                         data-show-group-occurrence={internalGroup?.id}
                         aria-disabled={outsideIsolation || undefined}
@@ -4126,6 +4145,9 @@ function ShowTimelineWorkspace({
                       aria-label={`Edit Cut between ${leftClip.patternName} and ${rightClip.patternName}`}
                       title="Cut - click to choose a Transition"
                       data-show-timeline-focus
+                      data-show-selection-key={junction.boundaryTransition
+                        ? `transition:${junction.boundaryTransition.id}`
+                        : undefined}
                       data-show-layer-junction={junction.id}
                       data-show-group-occurrence={internalGroup?.id}
                       aria-disabled={outsideIsolation || undefined}
@@ -4167,6 +4189,9 @@ function ShowTimelineWorkspace({
                       color={lane.color}
                       selectedBeatId={selectedBeat}
                       formatValue={lane.formatValue}
+                      getBeatSelectionKey={lane.selectsTransition
+                        ? (beat) => beat.ownerId ? `transition:${beat.ownerId}` : undefined
+                        : undefined}
                       onSelectBeat={lane.selectsTransition
                         ? (beat, anchor) => {
                             if (!beat.ownerId) return
@@ -4183,6 +4208,7 @@ function ShowTimelineWorkspace({
           )
         })}
         </div>
+      </div>
       </div>
     </div>
   )
@@ -4207,6 +4233,7 @@ function ZoneGlyph({ icon, size = 12 }: { icon?: string; size?: number }) {
 }
 
 function ZoneMapPopover({
+  anchor,
   show,
   collapsedZoneIds,
   focusedZoneId,
@@ -4217,6 +4244,7 @@ function ZoneMapPopover({
   onFocusZone,
   onUpdateZone,
 }: {
+  anchor: HTMLElement | null
   show: ShowRecord
   collapsedZoneIds: Set<string>
   focusedZoneId: string | null
@@ -4228,10 +4256,11 @@ function ZoneMapPopover({
   onUpdateZone: (zoneId: string, changes: Partial<ShowRecord['zones'][number]>) => void
 }) {
   return (
-    <aside
-      role="dialog"
-      aria-label="Zone Map"
-      className="absolute right-0 top-full z-50 mt-1 w-[min(310px,calc(100vw-24px))] rounded border border-zinc-700 bg-[#0a0a0d]/[0.985] p-1.5 shadow-2xl backdrop-blur"
+    <ShowTimelineToolbarPopover
+      anchor={anchor}
+      widthPx={310}
+      ariaLabel="Zone Map"
+      className="w-[min(310px,calc(100vw-24px))] rounded border border-zinc-700 bg-[#0a0a0d]/[0.985] p-1.5 shadow-2xl backdrop-blur"
       onClick={(event) => event.stopPropagation()}
     >
       <header className="flex h-8 items-center gap-2 border-b border-zinc-800 px-1.5">
@@ -4316,7 +4345,7 @@ function ZoneMapPopover({
           Add Zone
         </button>
       )}
-    </aside>
+    </ShowTimelineToolbarPopover>
   )
 }
 
@@ -4468,7 +4497,77 @@ function LayoutZoneIntervalOverlay({
   </>
 }
 
+function TimelineMarkerSource({
+  show,
+  viewport,
+  snapEnabled,
+  structuralTimesMs,
+  getVisibleWidth,
+  getRulerBounds,
+  onCreateMarker,
+}: {
+  show: ShowRecord
+  viewport: ShowTimelineViewport
+  snapEnabled: boolean
+  structuralTimesMs: number[]
+  getVisibleWidth: () => number
+  getRulerBounds: () => DOMRect | null
+  onCreateMarker: (timeMs: number) => Promise<boolean>
+}) {
+  const durationMs = showLoopDurationMs(show)
+  const positionMs = useShowTransportStore((state) => state.showId === show.id ? state.positionMs : 0)
+  const markerDragRef = useRef<{ pointerId: number; startX: number } | null>(null)
+  const suppressMarkerClickRef = useRef(false)
+  return (
+    <div
+      data-show-marker-source-gutter
+      className="pointer-events-none absolute -left-[18px] top-0 z-40 flex h-7 w-4 items-start justify-center pt-1"
+    >
+      <button
+        type="button"
+        aria-label="Add Marker at playhead"
+        title="Click to add at the playhead, or drag onto the ruler"
+        className="pointer-events-auto flex h-4 w-4 cursor-grab items-center justify-center rounded-sm text-amber-300/75 hover:bg-amber-300/10 hover:text-amber-200 focus-visible:outline focus-visible:outline-1 focus-visible:outline-amber-300"
+        onPointerDown={(event) => {
+          event.stopPropagation()
+          markerDragRef.current = { pointerId: event.pointerId, startX: event.clientX }
+          event.currentTarget.setPointerCapture?.(event.pointerId)
+        }}
+        onPointerUp={(event) => {
+          const drag = markerDragRef.current
+          markerDragRef.current = null
+          if (!drag || drag.pointerId !== event.pointerId || Math.abs(event.clientX - drag.startX) < 3) return
+          const rect = getRulerBounds()
+          if (!rect || event.clientX < rect.left || event.clientX > rect.right) return
+          const rawTimeMs = (event.clientX - rect.left) / Math.max(1, rect.width) * durationMs
+          const timeMs = snapEnabled !== event.altKey
+            ? snapShowTimelineTime(rawTimeMs, {
+                visibleDurationMs: viewport.durationMs,
+                visibleWidthPx: getVisibleWidth(),
+                structuralTimesMs,
+                maxTimeMs: durationMs,
+              }).timeMs
+            : Math.max(0, Math.min(durationMs, rawTimeMs))
+          suppressMarkerClickRef.current = true
+          void onCreateMarker(Math.round(timeMs))
+        }}
+        onPointerCancel={() => { markerDragRef.current = null }}
+        onClick={() => {
+          if (suppressMarkerClickRef.current) {
+            suppressMarkerClickRef.current = false
+            return
+          }
+          void onCreateMarker(positionMs)
+        }}
+      >
+        <Flag size={11} aria-hidden />
+      </button>
+    </div>
+  )
+}
+
 function TimelineRuler({
+  rulerRef,
   show,
   gridColumn,
   gridRow,
@@ -4477,9 +4576,8 @@ function TimelineRuler({
   structuralTimesMs,
   getVisibleWidth,
   layoutIntervals,
-  readOnly,
-  onCreateMarker,
 }: {
+  rulerRef: { current: HTMLDivElement | null }
   show: ShowRecord
   gridColumn: string
   gridRow: number
@@ -4488,8 +4586,6 @@ function TimelineRuler({
   structuralTimesMs: number[]
   getVisibleWidth: () => number
   layoutIntervals: ShowLayoutInterval[]
-  readOnly: boolean
-  onCreateMarker: (timeMs: number) => Promise<boolean>
 }) {
   const durationMs = showLoopDurationMs(show)
   const positionMs = useShowTransportStore((state) => state.showId === show.id ? state.positionMs : 0)
@@ -4497,8 +4593,6 @@ function TimelineRuler({
   const resumeAfterSeekRef = useRef(false)
   const keyboardHoldRef = useRef<{ key: 'ArrowLeft' | 'ArrowRight'; startedAt: number } | null>(null)
   const pointerScrubRef = useRef({ active: false, inverted: false })
-  const markerDragRef = useRef<{ pointerId: number; startX: number } | null>(null)
-  const suppressMarkerClickRef = useRef(false)
   const previewScrub = (targetMs: number, snap = false) => {
     const resolvedTimeMs = snap
       ? snapShowTimelineTime(targetMs, {
@@ -4533,6 +4627,8 @@ function TimelineRuler({
   }))
   return (
     <div
+      ref={rulerRef}
+      data-testid="show-timeline-ruler"
       className="group/timeline-ruler relative overflow-hidden border-b border-zinc-800 bg-zinc-950/70 ring-1 ring-inset ring-transparent transition-colors hover:bg-zinc-900/70 hover:ring-zinc-700/70 focus-within:bg-zinc-900/70 focus-within:ring-live/25"
       style={{
         gridColumn,
@@ -4540,47 +4636,6 @@ function TimelineRuler({
         backgroundImage: 'repeating-linear-gradient(90deg, rgba(113,113,122,.2) 0 1px, transparent 1px 20px)',
       }}
     >
-      {!readOnly && (
-        <button
-          type="button"
-          aria-label="Add Marker at playhead"
-          title="Click to add at the playhead, or drag onto the ruler"
-          className="absolute left-1 top-0.5 z-20 flex h-4 w-4 cursor-grab items-center justify-center rounded-sm text-amber-300/75 hover:bg-amber-300/10 hover:text-amber-200 focus-visible:outline focus-visible:outline-1 focus-visible:outline-amber-300"
-          onPointerDown={(event) => {
-            event.stopPropagation()
-            markerDragRef.current = { pointerId: event.pointerId, startX: event.clientX }
-            event.currentTarget.setPointerCapture?.(event.pointerId)
-          }}
-          onPointerUp={(event) => {
-            const drag = markerDragRef.current
-            markerDragRef.current = null
-            if (!drag || drag.pointerId !== event.pointerId || Math.abs(event.clientX - drag.startX) < 3) return
-            const rect = event.currentTarget.parentElement?.getBoundingClientRect()
-            if (!rect) return
-            const rawTimeMs = (event.clientX - rect.left) / Math.max(1, rect.width) * durationMs
-            const timeMs = snapEnabled !== event.altKey
-              ? snapShowTimelineTime(rawTimeMs, {
-                  visibleDurationMs: viewport.durationMs,
-                  visibleWidthPx: getVisibleWidth(),
-                  structuralTimesMs,
-                  maxTimeMs: durationMs,
-                }).timeMs
-              : Math.max(0, Math.min(durationMs, rawTimeMs))
-            suppressMarkerClickRef.current = true
-            void onCreateMarker(Math.round(timeMs))
-          }}
-          onPointerCancel={() => { markerDragRef.current = null }}
-          onClick={() => {
-            if (suppressMarkerClickRef.current) {
-              suppressMarkerClickRef.current = false
-              return
-            }
-            void onCreateMarker(positionMs)
-          }}
-        >
-          <Flag size={11} aria-hidden />
-        </button>
-      )}
       {layoutIntervals.map((interval, index) => {
         const { left, width } = showLayoutIntervalPercentBounds(interval, durationMs)
         const soleZone = interval.zoneIds.length === 1
@@ -4592,7 +4647,7 @@ function TimelineRuler({
             key={interval.id}
             aria-hidden
             data-show-layout-interval={interval.id}
-            className="pointer-events-none absolute bottom-0 z-[1] h-[13px] overflow-hidden border-l border-live/45 bg-live/[0.035] px-1 text-[11px] leading-[13px] text-zinc-400"
+            className={`pointer-events-none absolute bottom-0 z-[1] h-[13px] overflow-hidden bg-live/[0.035] px-1 text-[11px] leading-[13px] text-zinc-400 ${index > 0 ? 'border-l border-live/45' : ''}`}
             style={{ left: `${left}%`, width: `${width}%` }}
           >
             {index > 0 && <span className="mr-1 text-live/70">◆</span>}{label}
@@ -4659,7 +4714,7 @@ function TimelineRuler({
           keyboardHoldRef.current = null
           commitScrub()
         }}
-        className="show-playhead-range absolute inset-0 h-full w-full cursor-col-resize opacity-0 outline-none"
+        className="show-playhead-range absolute -inset-x-2 inset-y-0 w-[calc(100%+16px)] cursor-col-resize opacity-0 outline-none"
       />
     </div>
   )
@@ -4715,6 +4770,113 @@ function ShowTimelineToolbarPopover({
   )
 }
 
+function TimelineEndHandlePortal({
+  anchor,
+  durationMs,
+  dragging,
+  readOnly,
+  onPointerDown,
+  onPointerMove,
+  onPointerUp,
+  onPointerCancel,
+  onLostPointerCapture,
+  onClick,
+}: {
+  anchor: HTMLElement | null
+  durationMs: number
+  dragging: boolean
+  readOnly: boolean
+  onPointerDown: (event: ReactPointerEvent<HTMLButtonElement>) => void
+  onPointerMove: (event: ReactPointerEvent<HTMLButtonElement>) => void
+  onPointerUp: (event: ReactPointerEvent<HTMLButtonElement>) => void
+  onPointerCancel: (event: ReactPointerEvent<HTMLButtonElement>) => void
+  onLostPointerCapture: (event: ReactPointerEvent<HTMLButtonElement>) => void
+  onClick: (event: ReactMouseEvent<HTMLButtonElement>) => void
+}) {
+  const [position, setPosition] = useState({ left: -100, top: -100 })
+
+  useLayoutEffect(() => {
+    if (!anchor) return
+    const updatePosition = () => {
+      const rect = anchor.getBoundingClientRect()
+      setPosition({ left: rect.right - 2, top: rect.top - 2 })
+    }
+    updatePosition()
+    window.addEventListener('resize', updatePosition)
+    window.addEventListener('scroll', updatePosition, true)
+    return () => {
+      window.removeEventListener('resize', updatePosition)
+      window.removeEventListener('scroll', updatePosition, true)
+    }
+  }, [anchor, durationMs])
+
+  if (!anchor || typeof document === 'undefined') return null
+  return createPortal(
+    <button
+      type="button"
+      data-show-timeline-marker-ui
+      data-show-end-dragging={dragging ? 'true' : undefined}
+      aria-label={`Show End at ${formatSecondsValue(durationMs)} seconds`}
+      title={`Show End · ${formatSecondsValue(durationMs)}s`}
+      disabled={readOnly}
+      className="fixed z-[45] h-4 w-4 cursor-ew-resize touch-none text-red-400 disabled:cursor-default"
+      style={position}
+      onPointerDown={onPointerDown}
+      onPointerMove={onPointerMove}
+      onPointerUp={onPointerUp}
+      onPointerCancel={onPointerCancel}
+      onLostPointerCapture={onLostPointerCapture}
+      onClick={onClick}
+    >
+      <span
+        data-testid="show-timeline-end-handle"
+        className="absolute left-1 top-1 h-[6px] w-[6px] rotate-45 border border-current bg-[#060608]"
+      />
+    </button>,
+    document.body,
+  )
+}
+
+function TimelinePlayheadCapPortal({
+  anchor,
+  visible,
+  rebuilding,
+  positionPercent,
+}: {
+  anchor: HTMLElement | null
+  visible: boolean
+  rebuilding: boolean
+  positionPercent: number
+}) {
+  const [position, setPosition] = useState({ left: -100, top: -100 })
+
+  useLayoutEffect(() => {
+    if (!anchor) return
+    const updatePosition = () => {
+      const rect = anchor.getBoundingClientRect()
+      setPosition({ left: rect.left + rect.width / 2 - 4, top: rect.top })
+    }
+    updatePosition()
+    window.addEventListener('resize', updatePosition)
+    window.addEventListener('scroll', updatePosition, true)
+    return () => {
+      window.removeEventListener('resize', updatePosition)
+      window.removeEventListener('scroll', updatePosition, true)
+    }
+  }, [anchor, positionPercent])
+
+  if (!anchor || !visible || typeof document === 'undefined') return null
+  return createPortal(
+    <span
+      data-testid="show-timeline-playhead-cap"
+      aria-hidden
+      className={`pointer-events-none fixed z-[45] h-0 w-0 border-x-[4px] border-t-[6px] border-x-transparent ${rebuilding ? 'border-t-amber-300' : 'border-t-live'}`}
+      style={position}
+    />,
+    document.body,
+  )
+}
+
 function TimelineMarkers({
   show,
   minimumShowEndMs,
@@ -4750,6 +4912,8 @@ function TimelineMarkers({
   const [openMarkerId, setOpenMarkerId] = useState<string | null>(null)
   const [showEndOpen, setShowEndOpen] = useState(false)
   const [showEndDragging, setShowEndDragging] = useState(false)
+  const [showEndAnchor, setShowEndAnchor] = useState<HTMLSpanElement | null>(null)
+  const markerSurfaceRef = useRef<HTMLDivElement>(null)
   const markerPointerRef = useRef<{ markerId: string; pointerId: number; startX: number } | null>(null)
   const showEndPointerRef = useRef<{
     pointerId: number
@@ -4805,8 +4969,61 @@ function TimelineMarkers({
         }).timeMs
       : Math.max(minimumShowEndMs, rawTimeMs))
   }
+  const beginShowEndDrag = (event: ReactPointerEvent<HTMLElement>) => {
+    event.stopPropagation()
+    const rect = markerSurfaceRef.current?.getBoundingClientRect()
+    showEndPointerRef.current = {
+      pointerId: event.pointerId,
+      startX: event.clientX,
+      startDurationMs: durationMs,
+      surfaceWidthPx: rect?.width ?? 1,
+    }
+    setShowEndDragging(true)
+    onPreviewShowEnd(durationMs)
+    event.currentTarget.setPointerCapture?.(event.pointerId)
+  }
+  const previewShowEndDrag = (event: ReactPointerEvent<HTMLElement>) => {
+    const pointer = showEndPointerRef.current
+    if (!pointer || pointer.pointerId !== event.pointerId) return
+    event.stopPropagation()
+    onPreviewShowEnd(resolveShowEndDragTime(event, pointer))
+  }
+  const finishShowEndDrag = (event: ReactPointerEvent<HTMLElement>) => {
+    event.stopPropagation()
+    const pointer = showEndPointerRef.current
+    showEndPointerRef.current = null
+    event.currentTarget.releasePointerCapture?.(event.pointerId)
+    if (!pointer || pointer.pointerId !== event.pointerId || Math.abs(event.clientX - pointer.startX) < 3) {
+      setShowEndDragging(false)
+      onPreviewShowEnd(null)
+      return
+    }
+    const timeMs = resolveShowEndDragTime(event, pointer)
+    suppressShowEndClickRef.current = true
+    onPreviewShowEnd(timeMs)
+    void onSetShowEnd(timeMs).finally(() => {
+      setShowEndDragging(false)
+      onPreviewShowEnd(null)
+    })
+  }
+  const cancelShowEndDrag = (event: ReactPointerEvent<HTMLElement>) => {
+    if (showEndPointerRef.current?.pointerId !== event.pointerId) return
+    showEndPointerRef.current = null
+    setShowEndDragging(false)
+    onPreviewShowEnd(null)
+  }
+  const toggleShowEndDetails = (event: ReactMouseEvent<HTMLElement>) => {
+    event.stopPropagation()
+    if (suppressShowEndClickRef.current) {
+      suppressShowEndClickRef.current = false
+      return
+    }
+    setOpenMarkerId(null)
+    setShowEndOpen((open) => !open)
+  }
   return (
     <div
+      ref={markerSurfaceRef}
       aria-label="Timeline Markers and Show End"
       data-show-timeline-marker-surface
       className="pointer-events-none relative z-[35]"
@@ -4920,81 +5137,23 @@ function TimelineMarkers({
           </div>
         )
       })}
-      <button
-        type="button"
-        data-show-timeline-marker-ui
-        data-show-end-dragging={showEndDragging ? 'true' : undefined}
-        aria-label={`Show End at ${formatSecondsValue(durationMs)} seconds`}
-        title={`Show End · ${formatSecondsValue(durationMs)}s`}
-        disabled={readOnly}
-        className="pointer-events-auto absolute inset-y-0 right-0 z-10 w-3 cursor-ew-resize touch-none text-red-400 disabled:cursor-default"
-        onPointerDown={(event) => {
-          event.stopPropagation()
-          const rect = event.currentTarget
-            .closest('[data-show-timeline-marker-surface]')
-            ?.getBoundingClientRect()
-          showEndPointerRef.current = {
-            pointerId: event.pointerId,
-            startX: event.clientX,
-            startDurationMs: durationMs,
-            surfaceWidthPx: rect?.width ?? 1,
-          }
-          setShowEndDragging(true)
-          onPreviewShowEnd(durationMs)
-          event.currentTarget.setPointerCapture?.(event.pointerId)
-        }}
-        onPointerMove={(event) => {
-          const pointer = showEndPointerRef.current
-          if (!pointer || pointer.pointerId !== event.pointerId) return
-          event.stopPropagation()
-          onPreviewShowEnd(resolveShowEndDragTime(event, pointer))
-        }}
-        onPointerUp={(event) => {
-          event.stopPropagation()
-          const pointer = showEndPointerRef.current
-          showEndPointerRef.current = null
-          event.currentTarget.releasePointerCapture?.(event.pointerId)
-          if (!pointer || pointer.pointerId !== event.pointerId || Math.abs(event.clientX - pointer.startX) < 3) {
-            setShowEndDragging(false)
-            onPreviewShowEnd(null)
-            return
-          }
-          const timeMs = resolveShowEndDragTime(event, pointer)
-          suppressShowEndClickRef.current = true
-          onPreviewShowEnd(timeMs)
-          void onSetShowEnd(timeMs).finally(() => {
-            setShowEndDragging(false)
-            onPreviewShowEnd(null)
-          })
-        }}
-        onPointerCancel={(event) => {
-          if (showEndPointerRef.current?.pointerId !== event.pointerId) return
-          showEndPointerRef.current = null
-          setShowEndDragging(false)
-          onPreviewShowEnd(null)
-        }}
-        onLostPointerCapture={(event) => {
-          if (showEndPointerRef.current?.pointerId !== event.pointerId) return
-          showEndPointerRef.current = null
-          setShowEndDragging(false)
-          onPreviewShowEnd(null)
-        }}
-        onClick={(event) => {
-          event.stopPropagation()
-          if (suppressShowEndClickRef.current) {
-            suppressShowEndClickRef.current = false
-            return
-          }
-          setOpenMarkerId(null)
-          setShowEndOpen((open) => !open)
-        }}
-      >
-        <span className="absolute inset-y-0 right-0 w-px bg-current opacity-65" />
-        <span
-          data-testid="show-timeline-end-handle"
-          className="absolute right-[2px] top-[2px] h-[6px] w-[6px] rotate-45 border border-current bg-[#060608]"
-        />
-      </button>
+      <span
+        ref={setShowEndAnchor}
+        aria-hidden
+        className="pointer-events-none absolute inset-y-0 right-0 z-10 w-px bg-red-400 opacity-65"
+      />
+      <TimelineEndHandlePortal
+        anchor={showEndAnchor}
+        durationMs={durationMs}
+        dragging={showEndDragging}
+        readOnly={readOnly}
+        onPointerDown={beginShowEndDrag}
+        onPointerMove={previewShowEndDrag}
+        onPointerUp={finishShowEndDrag}
+        onPointerCancel={cancelShowEndDrag}
+        onLostPointerCapture={cancelShowEndDrag}
+        onClick={toggleShowEndDetails}
+      />
       {showEndOpen && (
         <div
           role="dialog"
@@ -5059,16 +5218,14 @@ function TimelinePlayhead({
   const pendingSeekRef = useRef<{ showId: string; targetMs: number } | null>(null)
   const resumeAfterSeekRef = useRef(false)
   const activePointerRef = useRef<number | null>(null)
+  const [playheadCapAnchor, setPlayheadCapAnchor] = useState<HTMLSpanElement | null>(null)
   const left = durationMs > 0 ? Math.min(100, Math.max(0, positionMs / durationMs * 100)) : 0
   const visible = positionMs >= viewport.startMs && positionMs <= viewport.startMs + viewport.durationMs
-  const thumbCenterOffsetPx = rangeThumbCenterOffsetPx(left, 16)
   const previewPointerPosition = (event: ReactPointerEvent<HTMLSpanElement>) => {
     const track = event.currentTarget.parentElement
     if (!track) return
     const rect = track.getBoundingClientRect()
-    const thumbRadius = 8
-    const usableWidth = Math.max(1, rect.width - thumbRadius * 2)
-    const fraction = Math.min(1, Math.max(0, (event.clientX - rect.left - thumbRadius) / usableWidth))
+    const fraction = Math.min(1, Math.max(0, (event.clientX - rect.left) / Math.max(1, rect.width)))
     const targetMs = fraction * durationMs
     const resolvedTimeMs = snapEnabled !== event.altKey
       ? snapShowTimelineTime(targetMs, {
@@ -5108,7 +5265,7 @@ function TimelinePlayhead({
       <span
         data-testid="show-timeline-playhead-hit-target"
         className="pointer-events-auto absolute inset-y-0 w-[5px] -translate-x-1/2 cursor-col-resize touch-none"
-        style={{ left: `calc(${left}% + ${thumbCenterOffsetPx}px)` }}
+        style={{ left: `${left}%` }}
         onPointerDown={(event) => {
           event.stopPropagation()
           activePointerRef.current = event.pointerId
@@ -5128,13 +5285,18 @@ function TimelinePlayhead({
         onPointerCancel={commitPointerPosition}
       >
         <span
+          ref={setPlayheadCapAnchor}
           data-testid="show-timeline-playhead"
           className={`pointer-events-none absolute inset-y-0 left-1/2 w-px -translate-x-1/2 ${seekStatus === 'rebuilding' ? 'bg-amber-300' : 'bg-live'}`}
           style={{ boxShadow: '0 0 8px color-mix(in srgb, var(--color-live) 45%, transparent)' }}
-        >
-          <span className="absolute -left-[4px] top-0 h-0 w-0 border-x-[4px] border-t-[6px] border-x-transparent border-t-current" />
-        </span>
+        />
       </span>
+      <TimelinePlayheadCapPortal
+        anchor={playheadCapAnchor}
+        visible={visible}
+        rebuilding={seekStatus === 'rebuilding'}
+        positionPercent={left}
+      />
     </div>
   )
 }

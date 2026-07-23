@@ -10,6 +10,7 @@ export function ShowPropertySparkline({
   color = '#a78bfa',
   selectedBeatId = null,
   formatValue = defaultFormatValue,
+  getBeatSelectionKey,
   onSelectBeat,
   onMoveBeat,
   className = '',
@@ -19,6 +20,7 @@ export function ShowPropertySparkline({
   color?: string
   selectedBeatId?: string | null
   formatValue?: (value: number) => string
+  getBeatSelectionKey?: (beat: ShowPropertyLaneBeat) => string | undefined
   onSelectBeat?: (beat: ShowPropertyLaneBeat, anchor: HTMLButtonElement) => void
   onMoveBeat?: (beat: ShowPropertyLaneBeat, displayY: number) => void
   className?: string
@@ -64,6 +66,7 @@ export function ShowPropertySparkline({
             type="button"
             aria-label={label}
             title={label}
+            data-show-selection-key={getBeatSelectionKey?.(beat)}
             data-property-beat-kind={beat.kind}
             onClick={(event) => {
               event.stopPropagation()

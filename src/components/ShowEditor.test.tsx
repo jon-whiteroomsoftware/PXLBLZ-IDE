@@ -160,10 +160,13 @@ describe('ShowEditor (#318)', () => {
     const ruler = screen.getByRole('slider', { name: 'Show playhead' }).parentElement
     const markers = screen.getByLabelText('Timeline Markers and Show End')
     const playheadOverlay = screen.getByTestId('show-timeline-playhead-surface')
+    const playheadHitTarget = screen.getByTestId('show-timeline-playhead-hit-target')
+    const playheadCap = screen.getByTestId('show-timeline-playhead-cap')
     const grid = screen.getByTestId('show-timeline-grid')
     const scrollRegion = screen.getByTestId('show-timeline-scroll-region')
     const showEnd = screen.getByRole('button', { name: 'Show End at 62 seconds' })
     const showEndHandle = screen.getByTestId('show-timeline-end-handle')
+    const firstLayoutInterval = screen.getByTestId('show-timeline-ruler').querySelector('[data-show-layout-interval]')
 
     expect(clipTimeCanvas).not.toBeNull()
     expect(ruler).not.toBeNull()
@@ -176,10 +179,15 @@ describe('ShowEditor (#318)', () => {
     expect(scrollRegion).toHaveClass('scrollbar-hidden')
     expect(playheadOverlay).toHaveClass('z-30')
     expect(playheadOverlay.style.gridRowStart).toBe(ruler?.style.gridRowStart)
+    expect(playheadHitTarget).toHaveStyle({ left: '0%' })
+    expect(playheadOverlay).not.toContainElement(playheadCap)
+    expect(playheadCap).toHaveClass('fixed', 'z-[45]')
+    expect(firstLayoutInterval).not.toHaveClass('border-l')
     expect(markers).toHaveClass('z-[35]')
-    expect(showEnd).toHaveClass('right-0')
+    expect(markers).not.toContainElement(showEnd)
+    expect(showEnd).toHaveClass('fixed', 'z-[45]')
     expect(showEnd).not.toHaveClass('translate-x-1/2')
-    expect(showEndHandle).toHaveClass('right-[2px]', 'top-[2px]', 'border')
+    expect(showEndHandle).toHaveClass('left-1', 'top-1', 'border')
   })
 
   it('persists deterministic loop semantics when the unified Timeline first materializes a composition (#586)', async () => {
@@ -211,7 +219,9 @@ describe('ShowEditor (#318)', () => {
 
     await user.click(within(timeline).getByRole('button', { name: 'Open Zones' }))
 
-    const zoneMap = within(timeline).getByRole('dialog', { name: 'Zone Map' })
+    const zoneMap = screen.getByRole('dialog', { name: 'Zone Map' })
+    expect(timeline).not.toContainElement(zoneMap)
+    expect(zoneMap).toHaveClass('fixed', 'z-[80]')
     expect(within(zoneMap).getByText('main')).toBeInTheDocument()
     expect(within(zoneMap).getByRole('button', { name: 'Add Zone' })).toBeInTheDocument()
     expect(within(screen.getByTestId('show-timeline-grid')).getByRole('button', { name: 'Select zone main' })).toBeInTheDocument()
@@ -221,7 +231,7 @@ describe('ShowEditor (#318)', () => {
     await waitFor(() => expect(useShowStore.getState().shows[0].zones[0].icon).toBe('bolt'))
     await user.click(within(zoneMap).getByRole('button', { name: 'Add Zone' }))
     await waitFor(() => expect(useShowStore.getState().shows[0].zones).toHaveLength(2))
-    expect(within(timeline).getAllByRole('button', { name: /^Focus zone / })).toHaveLength(2)
+    expect(screen.getAllByRole('button', { name: /^Focus zone / })).toHaveLength(2)
   })
 
   it('collapses Zones independently and retains a micro Zone picker when the map closes (#581)', async () => {
@@ -237,7 +247,7 @@ describe('ShowEditor (#318)', () => {
 
     expect(within(timeline).getAllByRole('button', { name: /^Focus zone / })).toHaveLength(2)
     await user.click(within(timeline).getByRole('button', { name: 'Open Zones' }))
-    const zoneMap = within(timeline).getByRole('dialog', { name: 'Zone Map' })
+    const zoneMap = screen.getByRole('dialog', { name: 'Zone Map' })
     await user.click(within(zoneMap).getByRole('button', { name: 'Collapse zone main' }))
 
     expect(within(screen.getByTestId('show-timeline-grid')).getByRole('button', { name: 'Expand zone main' })).toBeInTheDocument()
@@ -319,7 +329,12 @@ describe('ShowEditor (#318)', () => {
 
     render(<ShowEditor showId={show.id} />)
 
-    await user.click(screen.getByRole('button', { name: 'Add Marker at playhead' }))
+    const markerSource = screen.getByRole('button', { name: 'Add Marker at playhead' })
+    expect(screen.getByTestId('show-timeline-ruler')).not.toContainElement(markerSource)
+    expect(screen.getByTestId('show-timeline-scroll-region')).not.toContainElement(markerSource)
+    expect(markerSource.parentElement).toHaveAttribute('data-show-marker-source-gutter')
+    expect(screen.getByTestId('show-timeline-grid').style.gridTemplateColumns).toMatch(/^0px /)
+    await user.click(markerSource)
 
     await waitFor(() => expect(useShowStore.getState().shows[0].composition?.markers).toEqual([
       expect.objectContaining({ timeMs: 4_023, name: 'Marker 1' }),
@@ -1355,6 +1370,8 @@ describe('ShowEditor (#318)', () => {
 
     await user.click(crossfade)
     expect(screen.getByRole('dialog', { name: 'Entity Detail Panel' })).toHaveTextContent('crossfade')
+    await user.click(crossfade)
+    expect(screen.queryByRole('dialog', { name: 'Entity Detail Panel' })).not.toBeInTheDocument()
   })
 
   it('opens a stock Show guide on first visit and fully collapses it per Show (#363)', async () => {
