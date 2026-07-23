@@ -359,20 +359,25 @@ function mapPlacement(
   owner: Exclude<ShowClipInspectorOwner, { kind: 'global' }>,
   update: <T extends ShowMainPlacement | ShowOverlayPlacement>(placement: T) => T,
 ): ShowCompositionV1 {
+  const resolved = resolveCompositionOwner(composition, owner)
+  if (!resolved) return composition
+  const logicalClipId = resolved.placement.logicalClipId ?? resolved.placement.id
+  const updateLogicalPlacement = <T extends ShowMainPlacement | ShowOverlayPlacement>(placement: T): T => (
+    (placement.logicalClipId ?? placement.id) === logicalClipId ? update(placement) : placement
+  )
   return {
     ...composition,
-    scenes: composition.scenes.map((scene) => scene.sceneId !== owner.sceneId ? scene : {
+    scenes: composition.scenes.map((scene) => ({
       ...scene,
-      zones: scene.zones.map((zone) => zone.zoneId !== owner.zoneId ? zone : owner.kind === 'scene-main'
-        ? { ...zone, main: zone.main.map((placement) => placement.id === owner.placementId ? update(placement) : placement) }
-        : {
-            ...zone,
-            overlays: zone.overlays.map((layer) => layer.id !== owner.layerId ? layer : {
-              ...layer,
-              placements: layer.placements.map((placement) => placement.id === owner.placementId ? update(placement) : placement),
-            }),
-          }),
-    }),
+      zones: scene.zones.map((zone) => ({
+        ...zone,
+        main: zone.main.map(updateLogicalPlacement),
+        overlays: zone.overlays.map((layer) => ({
+          ...layer,
+          placements: layer.placements.map(updateLogicalPlacement),
+        })),
+      })),
+    })),
   }
 }
 

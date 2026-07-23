@@ -2620,7 +2620,14 @@ function ShowTimelineCommands({
     && clip.endMs > compositionClip.endMs
   )))
   const cloneCapability = compositionOwner
-    ? compositionClip && compositionSceneRange && duplicateEndMs <= compositionSceneRange.endMs && !duplicateObstructed
+    ? compositionClip
+      && compositionSceneRange
+      && duplicateEndMs <= (
+        (compositionClip.segmentIds?.length ?? 0) > 1
+          ? projectShowTimeline(show).durationMs
+          : compositionSceneRange.endMs
+      )
+      && !duplicateObstructed
       ? { enabled: true, reason: `Duplicate ${compositionClip.patternName} immediately after itself` }
       : { enabled: false, reason: 'The selected Clip needs empty time after it on this Layer' }
     : legacyCloneCapability
@@ -2943,7 +2950,6 @@ function ShowTimelineWorkspace({
   const setSnapEnabled = useShowEditorSessionStore((state) => state.setSnapEnabled)
   const markersVisible = useShowEditorSessionStore((state) => state.markersVisible)
   const setMarkersVisible = useShowEditorSessionStore((state) => state.setMarkersVisible)
-  const markerSnapEnabled = useShowEditorSessionStore((state) => state.markerSnapEnabled)
   const setMarkerSnapEnabled = useShowEditorSessionStore((state) => state.setMarkerSnapEnabled)
   const zonesOpen = useShowEditorSessionStore((state) => state.zoneWorkspaceOpenByShowId[show.id] ?? false)
   const collapsedZoneIds = useShowEditorSessionStore((state) => state.collapsedZoneIdsByShowId[show.id]) ?? EMPTY_ZONE_IDS
@@ -3136,7 +3142,7 @@ function ShowTimelineWorkspace({
     ...structuralTimesWithoutMarkersMs,
     ...markerTimesMs,
   ])]
-  const clipMarkerSnapEnabled = markersVisible && markerSnapEnabled
+  const clipMarkerSnapEnabled = markersVisible
   const snapClipBoundary = (
     candidateMs: number,
     options: {

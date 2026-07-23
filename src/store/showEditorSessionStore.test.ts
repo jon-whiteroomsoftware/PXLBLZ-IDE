@@ -28,6 +28,14 @@ describe('showEditorSessionStore (#470)', () => {
       markersVisible: false,
       markerSnapEnabled: false,
     })
+    expect(mergePersistedShowEditorSession({ markersVisible: true, markerSnapEnabled: false }, current)).toMatchObject({
+      markersVisible: true,
+      markerSnapEnabled: true,
+    })
+    expect(mergePersistedShowEditorSession({ markersVisible: false, markerSnapEnabled: true }, current)).toMatchObject({
+      markersVisible: false,
+      markerSnapEnabled: false,
+    })
   })
 
   it('persists progressive Zone disclosure independently for each Show (#581)', () => {

@@ -56,6 +56,33 @@ function fixture(): ShowRecord {
   return { ...show, cells: [{ ...firstCell }], composition }
 }
 
+function logicalClipFixture(): ShowRecord {
+  const show = fixture()
+  const composition = structuredClone(show.composition!)
+  const source = composition.scenes[0].zones[0].overlays[0].placements[0]
+  source.startMs = show.scenes[0].durationMs - 1_000
+  source.durationMs = 1_000
+  composition.scenes.push({
+    sceneId: show.scenes[1].id,
+    zones: [{
+      zoneId: show.zones[0].id,
+      main: [],
+      overlays: [{
+        id: 'layer-front-continuation',
+        name: 'Front',
+        placements: [{
+          ...structuredClone(source),
+          id: 'placement-overlay--span-scene-2',
+          logicalClipId: 'placement-overlay',
+          startMs: 0,
+          durationMs: 2_000,
+        }],
+      }],
+    }],
+  })
+  return { ...show, composition }
+}
+
 const globalOwner = (show: ShowRecord): ShowClipInspectorOwner => ({
   kind: 'global',
   cellId: show.cells[0].id,
@@ -158,6 +185,35 @@ describe('shared Clip inspector owner model (#498)', () => {
         view: { mirror: true, phase: 0.6, brightness: 0.35 },
       })
     }
+  })
+
+  it('applies placement-owned inspector edits to every segment of one logical Clip (#63)', () => {
+    const show = logicalClipFixture()
+    const updated = updateShowClipInspector(show, overlayOwner(show), {
+      presentation: { mode: 'freeze' },
+      view: { brightness: 0.35 },
+      transform: { positionX: 0.2 },
+      effects: [{ id: 'brightness', kind: 'brightness', brightness: 0.5 }],
+    })
+
+    const placements = updated.composition!.scenes.flatMap((scene) => (
+      scene.zones[0].overlays.flatMap((layer) => layer.placements)
+    ))
+    expect(placements).toHaveLength(2)
+    expect(placements).toEqual([
+      expect.objectContaining({
+        presentation: { mode: 'freeze' },
+        view: expect.objectContaining({ brightness: 0.35 }),
+        transform: expect.objectContaining({ positionX: 0.2 }),
+        effects: [{ id: 'brightness', kind: 'brightness', brightness: 0.5 }],
+      }),
+      expect.objectContaining({
+        presentation: { mode: 'freeze' },
+        view: expect.objectContaining({ brightness: 0.35 }),
+        transform: expect.objectContaining({ positionX: 0.2 }),
+        effects: [{ id: 'brightness', kind: 'brightness', brightness: 0.5 }],
+      }),
+    ])
   })
 
   it('keeps Freeze, Strobe, and Blink on the placement while Stutter stays on the Pattern instance (#586)', () => {

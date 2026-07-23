@@ -724,6 +724,57 @@ describe('global timeline Clip authoring (#580)', () => {
     })
   })
 
+  it('partitions sole-use instance automation when a moved Clip spans hidden Scene owners (#63)', () => {
+    const show = createDefaultShow('show-move-spanning-instance-keyframes', 'Move spanning instance keyframes', 1000)
+    const composition = emptyComposition(show)
+    composition.patternInstances.push(instance)
+    composition.scenes[0].zones[0].main.push({
+      id: 'placement-move',
+      instanceId: instance.id,
+      startMs: 20_000,
+      durationMs: 5_000,
+      view: { mirror: false, phase: 0, brightness: 1 },
+    })
+    composition.scenes[0].propertyTracks = [{
+      id: 'track-speed',
+      target: { kind: 'instance-time-scale', instanceId: instance.id },
+      keyframes: [
+        { id: 'key-a', timeMs: 20_000, value: 1, easing: { curve: 'linear' } },
+        { id: 'key-b', timeMs: 25_000, value: 2, easing: { curve: 'linear' } },
+      ],
+    }]
+
+    const next = moveShowClipAtGlobalTime(show, composition, {
+      owner: {
+        kind: 'main',
+        sceneId: show.scenes[0].id,
+        zoneId: show.zones[0].id,
+        placementId: 'placement-move',
+      },
+      target: {
+        kind: 'main',
+        zoneId: show.zones[0].id,
+        globalStartMs: 28_000,
+      },
+    })
+
+    expect(next).not.toBe(composition)
+    expect(next.scenes[0].propertyTracks?.[0]).toMatchObject({
+      target: { kind: 'instance-time-scale', instanceId: instance.id },
+      keyframes: [
+        { timeMs: 28_000, value: 1 },
+        { timeMs: 30_000, value: 1.4 },
+      ],
+    })
+    expect(next.scenes[1].propertyTracks?.[0]).toMatchObject({
+      target: { kind: 'instance-time-scale', instanceId: instance.id },
+      keyframes: [
+        { timeMs: 0, value: 1.8 },
+        { timeMs: 1_000, value: 2 },
+      ],
+    })
+  })
+
   it('splits a Clip at global time while preserving its shared Pattern instance', () => {
     const show = createDefaultShow('show-split-clip', 'Split clip', 1000)
     const composition = emptyComposition(show)
@@ -749,6 +800,55 @@ describe('global timeline Clip authoring (#580)', () => {
       expect.objectContaining({ id: 'placement-left', instanceId: instance.id, startMs: 2_000, durationMs: 3_000 }),
       expect.objectContaining({ id: 'placement-right', instanceId: instance.id, startMs: 5_000, durationMs: 3_000 }),
     ])
+  })
+
+  it('splits one logical Clip on either side of a hidden Scene boundary (#63)', () => {
+    const show = createDefaultShow('show-split-spanning-clip', 'Split spanning clip', 1000)
+    const composition = emptyComposition(show)
+    composition.patternInstances.push(instance)
+    composition.scenes[0].zones[0].main.push({
+      id: 'placement-spanning',
+      instanceId: instance.id,
+      startMs: 28_000,
+      durationMs: 2_000,
+      view: { mirror: false, phase: 0, brightness: 1 },
+    })
+    composition.scenes[1].zones[0].main.push({
+      id: 'placement-spanning--span-scene-2',
+      logicalClipId: 'placement-spanning',
+      instanceId: instance.id,
+      startMs: 0,
+      durationMs: 3_000,
+      view: { mirror: false, phase: 0, brightness: 1 },
+    })
+
+    const next = splitShowClipAtGlobalTime(show, composition, {
+      owner: {
+        kind: 'main',
+        sceneId: show.scenes[0].id,
+        zoneId: show.zones[0].id,
+        placementId: 'placement-spanning',
+      },
+      globalTimeMs: 33_000,
+      newPlacementId: 'placement-right',
+    })
+
+    const clips = projectShowUnifiedTimeline(show, next).zones[0].layers
+      .flatMap((layer) => layer.clips)
+    expect(clips).toEqual(expect.arrayContaining([
+      expect.objectContaining({
+        id: 'placement-spanning',
+        startMs: 28_000,
+        durationMs: 5_000,
+        endMs: 33_000,
+      }),
+      expect.objectContaining({
+        id: 'placement-right',
+        startMs: 33_000,
+        durationMs: 2_000,
+        endMs: 35_000,
+      }),
+    ]))
   })
 
   it('duplicates a Clip immediately after itself with an independent Pattern instance and copied property tracks', () => {
@@ -790,6 +890,49 @@ describe('global timeline Clip authoring (#580)', () => {
       target: { placementId: 'placement-copy' },
       keyframes: [{ timeMs: 5_000 }, { timeMs: 8_000 }],
     })
+  })
+
+  it('duplicates the full duration of one logical Clip after its hidden Scene segments (#63)', () => {
+    const show = createDefaultShow('show-duplicate-spanning-clip', 'Duplicate spanning clip', 1000)
+    const composition = emptyComposition(show)
+    composition.patternInstances.push(instance)
+    composition.scenes[0].zones[0].main.push({
+      id: 'placement-spanning',
+      instanceId: instance.id,
+      startMs: 28_000,
+      durationMs: 2_000,
+      view: { mirror: false, phase: 0, brightness: 1 },
+    })
+    composition.scenes[1].zones[0].main.push({
+      id: 'placement-spanning--span-scene-2',
+      logicalClipId: 'placement-spanning',
+      instanceId: instance.id,
+      startMs: 0,
+      durationMs: 3_000,
+      view: { mirror: false, phase: 0, brightness: 1 },
+    })
+
+    const next = duplicateShowClipAfter(show, composition, {
+      owner: {
+        kind: 'main',
+        sceneId: show.scenes[0].id,
+        zoneId: show.zones[0].id,
+        placementId: 'placement-spanning',
+      },
+      newPlacementId: 'placement-copy',
+      newInstanceId: 'instance-copy',
+    })
+
+    expect(next.patternInstances).toContainEqual(expect.objectContaining({ id: 'instance-copy' }))
+    const clips = projectShowUnifiedTimeline(show, next).zones[0].layers
+      .flatMap((layer) => layer.clips)
+    expect(clips).toContainEqual(expect.objectContaining({
+      id: 'placement-copy',
+      instanceId: 'instance-copy',
+      startMs: 35_000,
+      durationMs: 7_000,
+      endMs: 42_000,
+    }))
   })
 
   it('copies instance-owned animation onto the independent duplicate', () => {
@@ -901,6 +1044,56 @@ describe('global timeline Clip authoring (#580)', () => {
       opacity: 0.75,
       view: { mirror: true, phase: 0.2, brightness: 0.8 },
     })
+  })
+
+  it('makes every segment of one logical Clip Pattern-independent with its Scene-local automation (#63)', () => {
+    const show = createDefaultShow('show-make-logical-independent', 'Make logical independent', 1000)
+    const composition = emptyComposition(show)
+    composition.patternInstances.push(instance)
+    composition.scenes[0].zones[0].main.push({
+      id: 'placement-spanning',
+      instanceId: instance.id,
+      startMs: 29_000,
+      durationMs: 1_000,
+      view: { mirror: false, phase: 0, brightness: 1 },
+    })
+    composition.scenes[1].zones[0].main.push({
+      id: 'placement-spanning--span-scene-2',
+      logicalClipId: 'placement-spanning',
+      instanceId: instance.id,
+      startMs: 0,
+      durationMs: 2_000,
+      view: { mirror: false, phase: 0, brightness: 1 },
+    })
+    composition.scenes[0].propertyTracks = [{
+      id: 'speed-first',
+      target: { kind: 'instance-time-scale', instanceId: instance.id },
+      keyframes: [{ id: 'speed-first-key', timeMs: 29_500, value: 2, easing: { curve: 'linear' } }],
+    }]
+    composition.scenes[1].propertyTracks = [{
+      id: 'speed-second',
+      target: { kind: 'instance-time-scale', instanceId: instance.id },
+      keyframes: [{ id: 'speed-second-key', timeMs: 500, value: 3, easing: { curve: 'linear' } }],
+    }]
+
+    const next = makeShowClipPatternIndependent(composition, {
+      owner: {
+        kind: 'main',
+        sceneId: show.scenes[0].id,
+        zoneId: show.zones[0].id,
+        placementId: 'placement-spanning',
+      },
+      newInstanceId: 'instance-independent',
+    })
+
+    expect(next.scenes[0].zones[0].main[0].instanceId).toBe('instance-independent')
+    expect(next.scenes[1].zones[0].main[0].instanceId).toBe('instance-independent')
+    expect(next.scenes[0].propertyTracks).toEqual(expect.arrayContaining([
+      expect.objectContaining({ target: { kind: 'instance-time-scale', instanceId: 'instance-independent' } }),
+    ]))
+    expect(next.scenes[1].propertyTracks).toEqual(expect.arrayContaining([
+      expect.objectContaining({ target: { kind: 'instance-time-scale', instanceId: 'instance-independent' } }),
+    ]))
   })
 
   it('plans and rejoins a compatible shared Pattern instance without guessing the target', () => {

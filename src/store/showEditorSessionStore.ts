@@ -79,12 +79,17 @@ export function mergePersistedShowEditorSession(
         return validZoneIds.length > 0 ? [[showId, validZoneIds]] : []
       }))
     : current.collapsedZoneIdsByShowId
+  const markersVisible = typeof raw?.markersVisible === 'boolean'
+    ? raw.markersVisible
+    : current.markersVisible
   return {
     ...current,
     ...showEditorSessionInitialState,
     snapEnabled: typeof raw?.snapEnabled === 'boolean' ? raw.snapEnabled : current.snapEnabled,
-    markersVisible: typeof raw?.markersVisible === 'boolean' ? raw.markersVisible : current.markersVisible,
-    markerSnapEnabled: typeof raw?.markerSnapEnabled === 'boolean' ? raw.markerSnapEnabled : current.markerSnapEnabled,
+    markersVisible,
+    // Marker visibility and Marker snapping are one user-facing preference.
+    // Normalize historical independently persisted values at hydration.
+    markerSnapEnabled: markersVisible,
     showNoteOpenById: persistedShowNotes,
     zoneWorkspaceOpenByShowId: zoneWorkspaceOpenByShowId ?? current.zoneWorkspaceOpenByShowId,
     collapsedZoneIdsByShowId,

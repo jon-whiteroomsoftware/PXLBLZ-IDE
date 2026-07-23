@@ -3,6 +3,7 @@ import type {
   ShowMainPlacement,
   ShowOverlayPlacement,
   ShowPatternInstance,
+  ShowPropertyAnimationTrack,
   ShowRecord,
 } from './personalContentRecords'
 import {
@@ -15,6 +16,7 @@ import {
 } from './showCompositionModel'
 import { materializeShowGroupOccurrences } from './showGroupModel'
 import { projectShowTimeline, showLoopDurationMs } from './showModel'
+import { evaluateShowPropertyTrack } from './showPropertyAnimation'
 import { setShowEndMs } from './showTimelineAuthoring'
 
 export type ShowClipAddPlan =
@@ -130,6 +132,147 @@ function globalSpanSceneSlices(
   return firstGlobalStartMs === globalStartMs && lastGlobalEndMs === globalEndMs ? slices : []
 }
 
+function appendLogicalClipGlobalSpan(
+  show: ShowRecord,
+  composition: ShowCompositionV1,
+  input: {
+    rootId: string
+    base: ShowMainPlacement | ShowOverlayPlacement
+    target: ShowClipAddTarget & { zoneId: string }
+    globalStartMs: number
+    durationMs: number
+  },
+): boolean {
+  const slices = globalSpanSceneSlices(show, input.globalStartMs, input.durationMs)
+  if (slices.length === 0) return false
+  for (const [index, slice] of slices.entries()) {
+    const scene = composition.scenes.find((candidate) => candidate.sceneId === slice.sceneId)
+    const zone = scene?.zones.find((candidate) => candidate.zoneId === input.target.zoneId)
+    if (!scene || !zone) return false
+    const id = index === 0 ? input.rootId : `${input.rootId}--span-${slice.sceneId}`
+    const placement = {
+      ...structuredClone(input.base),
+      id,
+      ...(index === 0 ? { logicalClipId: undefined } : { logicalClipId: input.rootId }),
+      startMs: Math.round(slice.localStartMs),
+      durationMs: Math.round(slice.durationMs),
+    }
+    if (input.target.kind === 'main') {
+      const { opacity: _opacity, ...mainPlacement } = placement as typeof placement & { opacity?: number }
+      zone.main.push(mainPlacement)
+    } else {
+      const layer = zone.overlays[input.target.layerIndex]
+      if (!layer) return false
+      layer.placements.push({
+        ...placement,
+        opacity: 'opacity' in input.base && typeof input.base.opacity === 'number' ? input.base.opacity : 1,
+      } as ShowOverlayPlacement)
+    }
+  }
+  return true
+}
+
+function shiftSoleUseInstanceTracksAcrossScenes(
+  show: ShowRecord,
+  composition: ShowCompositionV1,
+  input: {
+    instanceId: string
+    sourceSceneIds: Set<string>
+    offsetMs: number
+  },
+): boolean {
+  const timeline = projectShowTimeline(show)
+  const sceneRangeById = new Map(timeline.scenes.map((scene) => [scene.sceneId, scene]))
+  const entries = composition.scenes.flatMap((scene) => (
+    input.sourceSceneIds.has(scene.sceneId)
+      ? (scene.propertyTracks ?? []).flatMap((track) => (
+          'instanceId' in track.target && track.target.instanceId === input.instanceId
+            ? [{ scene, track }]
+            : []
+        ))
+      : []
+  ))
+  if (entries.length === 0 || input.offsetMs === 0) return true
+  const targetKeys = new Set<string>()
+  for (const { track } of entries) {
+    const targetKey = JSON.stringify(track.target)
+    if (targetKeys.has(targetKey)) return false
+    targetKeys.add(targetKey)
+  }
+
+  const generated: Array<{ sceneId: string; track: ShowPropertyAnimationTrack }> = []
+  for (const { scene, track } of entries) {
+    const sourceRange = sceneRangeById.get(scene.sceneId)
+    if (!sourceRange || track.keyframes.length < 2) return false
+    const shiftedKeyframes = track.keyframes.map((keyframe) => ({
+      keyframe,
+      globalTimeMs: sourceRange.startMs + keyframe.timeMs + input.offsetMs,
+    }))
+    const firstGlobalMs = shiftedKeyframes[0].globalTimeMs
+    const lastGlobalMs = shiftedKeyframes[shiftedKeyframes.length - 1].globalTimeMs
+    const targetRanges = timeline.scenes.filter((range) => (
+      range.endMs > firstGlobalMs && range.startMs < lastGlobalMs
+    ))
+    if (targetRanges.length === 0) return false
+    if (targetRanges.length > 1 && track.keyframes.some((keyframe) => keyframe.easing.curve !== 'linear')) {
+      return false
+    }
+    const containsFirst = timeline.scenes.some((range) => (
+      firstGlobalMs >= range.startMs && firstGlobalMs <= range.endMs
+    ))
+    const containsLast = timeline.scenes.some((range) => (
+      lastGlobalMs >= range.startMs && lastGlobalMs <= range.endMs
+    ))
+    if (!containsFirst || !containsLast) return false
+
+    for (const range of targetRanges) {
+      const intervalStartMs = Math.max(firstGlobalMs, range.startMs)
+      const intervalEndMs = Math.min(lastGlobalMs, range.endMs)
+      if (intervalEndMs <= intervalStartMs) continue
+      const globalTimesMs = [...new Set([
+        intervalStartMs,
+        ...shiftedKeyframes
+          .map((item) => item.globalTimeMs)
+          .filter((timeMs) => timeMs > intervalStartMs && timeMs < intervalEndMs),
+        intervalEndMs,
+      ])].sort((left, right) => left - right)
+      const keyframes = globalTimesMs.map((globalTimeMs, index) => {
+        const original = shiftedKeyframes.find((item) => item.globalTimeMs === globalTimeMs)?.keyframe
+        return {
+          ...(original ? structuredClone(original) : {
+            value: evaluateShowPropertyTrack(
+              track,
+              globalTimeMs - input.offsetMs - sourceRange.startMs,
+            ),
+            easing: { curve: 'linear' as const },
+          }),
+          id: `${original?.id ?? track.id}-move-${range.sceneId}-${index}`,
+          timeMs: Math.round(globalTimeMs - range.startMs),
+        }
+      })
+      generated.push({
+        sceneId: range.sceneId,
+        track: {
+          ...structuredClone(track),
+          id: `${track.id}-move-${range.sceneId}`,
+          keyframes,
+        },
+      })
+    }
+  }
+
+  for (const { scene, track } of entries) {
+    scene.propertyTracks = (scene.propertyTracks ?? []).filter((candidate) => candidate !== track)
+    if (scene.propertyTracks.length === 0) delete scene.propertyTracks
+  }
+  for (const item of generated) {
+    const scene = composition.scenes.find((candidate) => candidate.sceneId === item.sceneId)
+    if (!scene) return false
+    scene.propertyTracks = [...(scene.propertyTracks ?? []), item.track]
+  }
+  return true
+}
+
 function replaceLogicalClipGlobalSpan(
   show: ShowRecord,
   composition: ShowCompositionV1,
@@ -144,6 +287,8 @@ function replaceLogicalClipGlobalSpan(
   const base = segments.find((segment) => segment.placement.id === input.owner.placementId)?.placement
     ?? segments[0]?.placement
   if (!base) return composition
+  const sourceRange = globalLogicalClipRange(segments)
+  if (!sourceRange) return composition
   const slices = globalSpanSceneSlices(show, input.globalStartMs, input.durationMs)
   if (slices.length === 0) return composition
   const segmentIds = new Set(segments.map((segment) => segment.placement.id))
@@ -154,7 +299,7 @@ function replaceLogicalClipGlobalSpan(
   ))
   if (hasPlacementTracks && (segments.length > 1 || slices.length > 1)) return composition
 
-  const rootId = input.owner.placementId
+  const rootId = placementLogicalClipId(base)
   const draft = structuredClone(composition)
   for (const scene of draft.scenes) {
     for (const zone of scene.zones) {
@@ -165,30 +310,21 @@ function replaceLogicalClipGlobalSpan(
     }
   }
 
-  for (const [index, slice] of slices.entries()) {
-    const scene = draft.scenes.find((candidate) => candidate.sceneId === slice.sceneId)
-    const zone = scene?.zones.find((candidate) => candidate.zoneId === input.target.zoneId)
-    if (!scene || !zone) return composition
-    const id = index === 0 ? rootId : `${rootId}--span-${slice.sceneId}`
-    const placement = {
-      ...structuredClone(base),
-      id,
-      ...(index === 0 ? { logicalClipId: undefined } : { logicalClipId: rootId }),
-      startMs: Math.round(slice.localStartMs),
-      durationMs: Math.round(slice.durationMs),
-    }
-    if (input.target.kind === 'main') {
-      const { opacity: _opacity, ...mainPlacement } = placement as typeof placement & { opacity?: number }
-      zone.main.push(mainPlacement)
-    } else {
-      const layer = zone.overlays[input.target.layerIndex]
-      if (!layer) return composition
-      layer.placements.push({
-        ...placement,
-        opacity: 'opacity' in base && typeof base.opacity === 'number' ? base.opacity : 1,
-      } as ShowOverlayPlacement)
-    }
-  }
+  if (!appendLogicalClipGlobalSpan(show, draft, {
+    rootId,
+    base,
+    target: input.target,
+    globalStartMs: input.globalStartMs,
+    durationMs: input.durationMs,
+  })) return composition
+  if (
+    showPatternInstanceUseCount(composition, base.instanceId) === 1
+    && !shiftSoleUseInstanceTracksAcrossScenes(show, draft, {
+      instanceId: base.instanceId,
+      sourceSceneIds: new Set(segments.map((segment) => segment.sceneId)),
+      offsetMs: input.globalStartMs - sourceRange.startMs,
+    })
+  ) return composition
 
   if (validateShowComposition(show, draft).length > 0) return composition
   return normalizeShowComposition(show, draft)
@@ -499,6 +635,55 @@ export function splitShowClipAtGlobalTime(
   input: { owner: ShowTimelineClipOwner; globalTimeMs: number; newPlacementId: string },
 ): ShowCompositionV1 {
   if (!Number.isFinite(input.globalTimeMs)) return composition
+  const segments = logicalClipSegments(show, composition, input.owner)
+  const logicalRange = globalLogicalClipRange(segments)
+  if (segments.length > 1 && logicalRange) {
+    if (input.globalTimeMs <= logicalRange.startMs || input.globalTimeMs >= logicalRange.endMs) return composition
+    const segmentIds = new Set(segments.map((segment) => segment.placement.id))
+    const hasPlacementTracks = composition.scenes.some((scene) => (
+      (scene.propertyTracks ?? []).some((track) => (
+        'placementId' in track.target && segmentIds.has(track.target.placementId)
+      ))
+    ))
+    if (hasPlacementTracks) return composition
+    const base = segments[0].placement
+    const sourceScene = composition.scenes.find((scene) => scene.sceneId === input.owner.sceneId)
+    const sourceZone = sourceScene?.zones.find((zone) => zone.zoneId === input.owner.zoneId)
+    const sourceLayerId = input.owner.kind === 'overlay' ? input.owner.layerId : null
+    const layerIndex = sourceLayerId
+      ? sourceZone?.overlays.findIndex((layer) => layer.id === sourceLayerId)
+      : -1
+    if (input.owner.kind === 'overlay' && (layerIndex === undefined || layerIndex < 0)) return composition
+    const target: ShowClipAddTarget & { zoneId: string } = input.owner.kind === 'main'
+      ? { kind: 'main', zoneId: input.owner.zoneId }
+      : { kind: 'overlay', zoneId: input.owner.zoneId, layerIndex: layerIndex! }
+    const draft = structuredClone(composition)
+    const rootId = placementLogicalClipId(base)
+    for (const scene of draft.scenes) {
+      for (const zone of scene.zones) {
+        zone.main = zone.main.filter((placement) => placementLogicalClipId(placement) !== rootId)
+        for (const layer of zone.overlays) {
+          layer.placements = layer.placements.filter((placement) => placementLogicalClipId(placement) !== rootId)
+        }
+      }
+    }
+    if (!appendLogicalClipGlobalSpan(show, draft, {
+      rootId,
+      base,
+      target,
+      globalStartMs: logicalRange.startMs,
+      durationMs: input.globalTimeMs - logicalRange.startMs,
+    })) return composition
+    if (!appendLogicalClipGlobalSpan(show, draft, {
+      rootId: input.newPlacementId,
+      base,
+      target,
+      globalStartMs: input.globalTimeMs,
+      durationMs: logicalRange.endMs - input.globalTimeMs,
+    })) return composition
+    if (validateShowComposition(show, draft).length > 0) return composition
+    return normalizeShowComposition(show, draft)
+  }
   const range = projectShowTimeline(show).scenes.find((scene) => scene.sceneId === input.owner.sceneId)
   if (!range) return composition
   const atMs = Math.round(input.globalTimeMs - range.startMs)
@@ -536,6 +721,50 @@ function duplicateShowClip(
   composition: ShowCompositionV1,
   input: { owner: ShowTimelineClipOwner; newPlacementId: string; newInstanceId: string | null },
 ): ShowCompositionV1 {
+  const logicalSegments = logicalClipSegments(show, composition, input.owner)
+  const logicalRange = globalLogicalClipRange(logicalSegments)
+  if (logicalSegments.length > 1 && logicalRange) {
+    const base = logicalSegments[0].placement
+    const segmentIds = new Set(logicalSegments.map((segment) => segment.placement.id))
+    const hasUnsupportedTracks = composition.scenes.some((scene) => (
+      (scene.propertyTracks ?? []).some((track) => (
+        'placementId' in track.target
+          ? segmentIds.has(track.target.placementId)
+          : Boolean(input.newInstanceId && track.target.instanceId === base.instanceId)
+      ))
+    ))
+    if (hasUnsupportedTracks) return composition
+    const sourceInstance = composition.patternInstances.find((instance) => instance.id === base.instanceId)
+    if (!sourceInstance || (input.newInstanceId && composition.patternInstances.some((instance) => (
+      instance.id === input.newInstanceId
+    )))) return composition
+    const sourceScene = composition.scenes.find((scene) => scene.sceneId === input.owner.sceneId)
+    const sourceZone = sourceScene?.zones.find((zone) => zone.zoneId === input.owner.zoneId)
+    const sourceLayerId = input.owner.kind === 'overlay' ? input.owner.layerId : null
+    const layerIndex = sourceLayerId
+      ? sourceZone?.overlays.findIndex((layer) => layer.id === sourceLayerId)
+      : -1
+    if (input.owner.kind === 'overlay' && (layerIndex === undefined || layerIndex < 0)) return composition
+    const draft = structuredClone(composition)
+    if (input.newInstanceId) {
+      draft.patternInstances.push({ ...structuredClone(sourceInstance), id: input.newInstanceId })
+    }
+    const target: ShowClipAddTarget & { zoneId: string } = input.owner.kind === 'main'
+      ? { kind: 'main', zoneId: input.owner.zoneId }
+      : { kind: 'overlay', zoneId: input.owner.zoneId, layerIndex: layerIndex! }
+    if (!appendLogicalClipGlobalSpan(show, draft, {
+      rootId: input.newPlacementId,
+      base: {
+        ...structuredClone(base),
+        instanceId: input.newInstanceId ?? base.instanceId,
+      },
+      target,
+      globalStartMs: logicalRange.endMs,
+      durationMs: logicalRange.endMs - logicalRange.startMs,
+    })) return composition
+    if (validateShowComposition(show, draft).length > 0) return composition
+    return normalizeShowComposition(show, draft)
+  }
   const draft = structuredClone(composition)
   const scene = draft.scenes.find((candidate) => candidate.sceneId === input.owner.sceneId)
   const zone = scene?.zones.find((candidate) => candidate.zoneId === input.owner.zoneId)
@@ -602,14 +831,19 @@ export function makeShowClipPatternIndependent(
 ): ShowCompositionV1 {
   const draft = structuredClone(composition)
   if (draft.patternInstances.some((instance) => instance.id === input.newInstanceId)) return composition
-  const placement = findTimelinePlacement(draft, input.owner)
+  const placements = findTimelineLogicalPlacements(draft, input.owner)
+  const placement = placements[0]?.placement
   if (!placement) return composition
   const sourceInstance = draft.patternInstances.find((instance) => instance.id === placement.instanceId)
   if (!sourceInstance) return composition
 
   draft.patternInstances.push({ ...structuredClone(sourceInstance), id: input.newInstanceId })
-  placement.instanceId = input.newInstanceId
-  cloneTimelineInstanceTracks(draft, input.owner.sceneId, sourceInstance.id, input.newInstanceId, 0)
+  placements.forEach((segment) => {
+    segment.placement.instanceId = input.newInstanceId
+  })
+  for (const sceneId of new Set(placements.map((segment) => segment.sceneId))) {
+    cloneTimelineInstanceTracks(draft, sceneId, sourceInstance.id, input.newInstanceId, 0)
+  }
   draft.patternInstances.sort((left, right) => left.id.localeCompare(right.id))
   return draft
 }
@@ -699,9 +933,11 @@ export function rejoinShowClipPatternInstance(
   const plan = planShowClipPatternRejoin(composition, input)
   if (!plan.enabled) return composition
   const draft = structuredClone(composition)
-  const placement = findTimelinePlacement(draft, input.owner)
-  if (!placement) return composition
-  placement.instanceId = plan.targetInstanceId
+  const placements = findTimelineLogicalPlacements(draft, input.owner)
+  if (placements.length === 0) return composition
+  placements.forEach((segment) => {
+    segment.placement.instanceId = plan.targetInstanceId
+  })
   if (plan.discardsSourceState) {
     draft.patternInstances = draft.patternInstances.filter((instance) => instance.id !== plan.sourceInstanceId)
     for (const scene of draft.scenes) {
@@ -715,13 +951,37 @@ export function rejoinShowClipPatternInstance(
 }
 
 function showPatternInstanceUseCount(composition: ShowCompositionV1, instanceId: string): number {
-  return composition.scenes.reduce((count, scene) => count + scene.zones.reduce((zoneCount, zone) => (
-    zoneCount
-    + zone.main.filter((placement) => placement.instanceId === instanceId).length
-    + zone.overlays.reduce((layerCount, layer) => (
-      layerCount + layer.placements.filter((placement) => placement.instanceId === instanceId).length
-    ), 0)
-  ), 0), 0)
+  const logicalClipIds = new Set<string>()
+  for (const scene of composition.scenes) {
+    for (const zone of scene.zones) {
+      for (const placement of zone.main) {
+        if (placement.instanceId === instanceId) logicalClipIds.add(placementLogicalClipId(placement))
+      }
+      for (const layer of zone.overlays) {
+        for (const placement of layer.placements) {
+          if (placement.instanceId === instanceId) logicalClipIds.add(placementLogicalClipId(placement))
+        }
+      }
+    }
+  }
+  return logicalClipIds.size
+}
+
+function findTimelineLogicalPlacements(
+  composition: ShowCompositionV1,
+  owner: ShowTimelineClipOwner,
+): Array<{ sceneId: string; placement: ShowMainPlacement | ShowOverlayPlacement }> {
+  const source = findTimelinePlacement(composition, owner)
+  if (!source) return []
+  const logicalClipId = placementLogicalClipId(source)
+  return composition.scenes.flatMap((scene) => scene.zones.flatMap((zone) => [
+    ...zone.main.flatMap((placement) => (
+      placementLogicalClipId(placement) === logicalClipId ? [{ sceneId: scene.sceneId, placement }] : []
+    )),
+    ...zone.overlays.flatMap((layer) => layer.placements.flatMap((placement) => (
+      placementLogicalClipId(placement) === logicalClipId ? [{ sceneId: scene.sceneId, placement }] : []
+    ))),
+  ]))
 }
 
 function findTimelinePlacement(
