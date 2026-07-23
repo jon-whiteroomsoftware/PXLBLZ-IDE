@@ -8,10 +8,11 @@ Choosing the right class keeps the timeline readable and makes the compiled
 cost predictable.
 
 The fastest way to learn the system is to open **Shows > Built-in Shows** in
-Studio. The Portable track teaches normalized logical layouts; the Installation
-track teaches fixed physical groups and coverage. Each example is read-only, so
-it can be inspected, played, exported, or sent without creating an undeletable
-personal record.
+Studio. **Learn** builds the authoring model through numbered examples, while
+**Showcases** collects visual references and finished scores. Built-ins use the
+same editor as personal Shows, but their changes live only in an in-memory
+draft. Undo/Redo works normally; **Reset** or reload restores the shipped
+definition, and no personal record is created.
 
 ![A production Show with five Zones, compact property bands, Transition junctions, cost disclosure, and Stage coverage.](../screenshots/show-visual-toolkit-overview.png)
 

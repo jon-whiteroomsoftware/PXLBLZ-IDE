@@ -245,8 +245,8 @@ One generated transition body reused by boundaries that have the same visual-sta
 _Avoid_: Pattern-instance reuse; caching a rendered frame; assuming smaller source implies faster rendering.
 
 **Built-in Show**:
-A read-only Show example that ships with the IDE and opens through the same timeline, Stage, compiler, cost disclosure, generated-code view, EPE export, and Controller-send paths as a personal Show. Built-in Shows live in paired Portable and Installation learning tracks and never seed D1 or appear as undeletable personal records. Their catalogue metadata adds a lesson and description; their choreography remains an ordinary `ShowRecord` fixture.
-_Avoid_: stock Show in user-facing copy; implying a built-in example is a personal template record or a separate preview implementation.
+A session-editable Show example that ships with the IDE and opens through the same timeline, Stage, compiler, cost disclosure, generated-code view, EPE export, and Controller-send paths as a personal Show. The pristine choreography remains an ordinary `ShowRecord` fixture. The first edit creates an in-memory working copy with normal Undo/Redo; **Reset** or a page reload restores the fixture, and no edit seeds D1 or creates an undeletable personal record. Built-in Shows are organized as numbered **Learn** lessons and topical **Showcases**; catalogue-only metadata supplies their order, lesson copy, guide notes, and optional reference controls.
+_Avoid_: stock Show in user-facing copy; describing a Built-in Show as read-only; implying its session draft is a personal template record, durable content, or a separate preview implementation.
 
 **Property animation** (in a Show):
 A saved change in one numeric Clip, Effect, Pattern-instance, routing, or

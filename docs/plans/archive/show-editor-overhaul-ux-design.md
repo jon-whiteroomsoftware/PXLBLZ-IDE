@@ -1,9 +1,13 @@
 # Show Editor overhaul UX design
 
-Status: Proposed interaction design for review. This document translates the
+Status: completed and archived. This document supplied the interaction design
+for the unified editor implemented through issues #579-#589 and #592. It
+preserves design rationale and rejected alternatives; current behavior belongs
+in the Feature Guide and Technical Reference.
+
+The document translates the
 [Show Editor overhaul feature PRD](./show-editor-overhaul-feature-prd.md) into
-one coherent workspace. It does not authorize implementation or alter the
-current visual brand.
+one coherent workspace.
 
 ## Recommendation
 

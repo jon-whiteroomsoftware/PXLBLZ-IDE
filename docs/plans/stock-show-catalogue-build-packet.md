@@ -1,640 +1,522 @@
 # Stock Show catalogue build packet
 
-Status: revision required before publication. The production catalogue plumbing,
-Show-note disclosure, and initial fixtures are implemented, but the current
-Pattern choices and several showcase Shows did not pass human visual review.
-This packet preserves the intended teaching sequence and acceptance rules; its
-individual Show recipes are candidates, not an approved launch catalogue.
+Status: approved curriculum direction; fixture redesign and human review remain.
+The fifteen-lesson course below replaces the Scene-centric 13-Show packet. Issue
+#363 owns implementation and publication.
 
-Issue: #363
+The previous packet is preserved as
+[`archive/stock-show-catalogue-scene-editor-baseline.md`](archive/stock-show-catalogue-scene-editor-baseline.md).
+Its fixture timings, source casting, test evidence, and note style remain useful
+inputs, but its lesson sequence and user-facing Scene model are superseded.
 
 ## Outcome
 
-The launch catalogue should teach the smallest useful Show vocabulary, then
-demonstrate richer composition without turning the catalogue into an embedded
-tutorial system. The proposed ten curriculum Shows and three Effect showcases
-remain a useful coverage target, but each survives only if its rebuilt visual
-result earns a place in the catalogue.
+The Built-in Show catalogue should teach one idea at a time through short,
+editable examples, then demonstrate the larger visual range through separate
+reference Showcases and finished scores. More short Shows are preferable to
+fewer overloaded Shows: catalogue organization and search already absorb the
+navigation cost, while Pixelblaze artifact limits constrain one Show more than
+they constrain the number of Built-ins.
 
 The catalogue has three jobs:
 
-1. Teach the concepts required to make a useful Show.
-2. Demonstrate what the compiler and editor can do with believable content.
-3. Supply starting points that users can clone into their own work.
+1. teach the concepts required to author a useful Show;
+2. demonstrate what the editor and compiler can do with visually credible
+   content; and
+3. provide session-editable starting points that reset to a pristine Built-in.
 
-The companion **Visual Effects Guide** explains mechanics. A Show note
-orients the viewer, names the important thing to notice, suggests two small
-experiments, and links to the relevant guide heading. The Show itself remains
-the executable example.
+The companion **Visual Effects Guide** explains mechanics. Each lesson makes one
+mechanism concrete. A Show note supplies a short purpose, one **Notice**, exactly
+two **Try this** actions, and one guide handoff; it is orientation, not a second
+tutorial system.
 
-## Catalogue structure
+## Governing course rules
+
+### One lesson, one governing idea
+
+Each lesson introduces one ownership distinction or authoring mechanism. A
+supporting behavior may appear only when the learner already met it or when it
+is necessary to make the governing idea visible. A lesson should not debut a
+new Transition family, moving property, Zone topology, Effect stack, and busy
+source Pattern in the same passage.
+
+Most teaching Shows should run for 8-18 seconds and contain two to four passages.
+The 106, 302, and finished-score capstones may run for 20-30 seconds when the
+extra time creates an intelligible dramatic arc. Reference Showcases may be
+longer only when they remain useful as a lookup instrument; split a reference
+when a viewer must hold more than one question in mind.
+
+### The unified editor is the curriculum
+
+Authors work on one proportional timeline of direct Clips, Layers, Transitions,
+Groups, Zones, Zone Layout intervals, Markers, and Property animation. No lesson
+may tell the learner to open a Scene editor, inspect a Scene X-ray, or enter
+Scene-local scope. Internal Scene and composition terms may appear only in
+fixture implementation notes or tests where they name the persisted/compiler
+representation.
+
+Every lesson opens in the production editor. Built-in mutation creates a
+session-only draft; Undo/Redo, **Try this**, and Reset operate on that draft
+without creating or changing a personal D1 record. Reload and Reset restore the
+catalogue fixture.
+
+### Visual and editorial discipline
+
+- Use calm, recognizable source Patterns until the learner can identify the
+  mechanism without reading the note.
+- Let each passage establish, change, and settle. Correct output must not look
+  like an agitated rendering failure.
+- Keep one dominant visual change per passage. Secondary motion may establish
+  continuity but must not compete with the lesson.
+- Prefer one reusable diagnostic source when comparing Effects, presentation
+  modes, easing, or Property targets.
+- Explain ownership in positive terms: Clip, Pattern instance, Transition,
+  Group occurrence, Zone Layout, Show, and output contract.
+- Preserve Pattern attribution and use only Built-in Pattern references unless
+  the lesson explicitly teaches personal-content replacement through its
+  session draft.
+
+### Technical defaults
+
+- Portable lessons use a 2D reference map and validate at contrasting square and
+  wide resolutions. Their routing remains normalized and free of physical
+  ranges.
+- Installation lessons use a fixed map, exact pixel count, and complete
+  non-overlapping physical coverage.
+- The saved fixture uses whole-second landmarks where possible, while the model
+  stores milliseconds and supports sub-second editing.
+- Every Show compiles through the production artifact path, exports as an
+  importable EPE, and reports its real resource and renderer cost.
+- User-facing notes say **Clip**, **Layer**, **Transition**, **Zone**, and
+  **Zone Layout** even when fixture construction uses internal compatibility
+  Scenes.
+
+## Approved curriculum
 
 ```text
 Learn
   100 - Foundations
-    101 Clips and Crossfade
+    101 Clips, Cuts, and Blank Time
     102 Transitions and Values
-    103 Effects
-    104 Portable Zones
-    105 Built from Basics
+    103 Clip Transform
+    104 Effects and Ordering
+    105 Portable Zones
+    106 Built from Basics
+
   200 - Composition
-    201 Scene-local Cuts
-    202 Layers and Local Animation
-    203 Dynamic Zone Layouts
-    204 Installation Mapping
-    205 Installation Composition
-Showcases
-  Transform Effects
-  Distortion Effects
-  Color and Output Effects
+    201 Layers and Property Animation
+    202 Content and Clip Viewport
+    203 Pattern Instance Lifecycle
+    204 Presentation Modes
+    205 Groups and Linked Reuse
+    206 Changing Zone Layouts
+
+  300 - Output and Delivery
+    301 Installation Mapping
+    302 Installation Composition
+    303 Compile, Simplify, and Deliver
 ```
 
-This hierarchy assumes #426 supplies a recursive entity tree. Catalogue size is
-not a reason to omit useful examples. The same containment problem will occur
-in user libraries.
-
-## Shared fixture rules
-
-### Technical defaults
-
-- Foundation and portable composition Shows use a Portable 2D output contract,
-  the `plane` reference map, and 2,000 Preview pixels unless a packet says
-  otherwise.
-- Installation Shows use the fixed 160-pixel `sunflower-pucks-2d` map. Its
-  coordinate array is measured hardware geometry, not a scalable preview map.
-- Every Pattern reference is a stock reference. A stock Show must compile
-  without user-owned content.
-- Pattern speed is deliberately conservative. Start between `0.25` and `0.55`
-  unless the packet gives an exact control target.
-- Scene and placement times are authored in whole seconds in the packet and
-  stored as milliseconds in the model.
-- Boundary Transitions remain boundary-owned entities. Scene-local animation
-  stays in `composition.propertyTracks`.
-- Main placements never overlap. Overlay placements may overlap Main and other
-  overlay layers, but placements on the same overlay layer remain mutually
-  exclusive.
-- Showcase Scene boundaries use Cuts unless the subject is a numeric Effect
-  interpolation. Transform Effects uses a stable affine stack and one-source
-  parameter ramps; the Effect values, not a rendered-image blend, remain the
-  visible change under study.
-
-### Visual budget
-
-- Each passage gets one dominant visual change. A new Transition, a moving
-  property, a new Zone arrangement, and a busy source Pattern do not all debut
-  at the same instant.
-- Energy comes from rhythm, contrast, and progression. Do not obtain it by
-  simultaneously maximizing speed, distortion, color cycling, overlays, and
-  Zone motion.
-- Calm source Patterns establish structure. More detailed Patterns arrive only
-  after the viewer can identify what the Show is teaching.
-- A composition should still read when paused at an arbitrary frame.
-- The Stage must use enough Preview pixels to make edges and spatial effects
-  legible. Portable 2D fixtures therefore use 2,000 Preview pixels by default.
-
-### Show note shape
-
-Every note contains these fields:
-
-- curriculum or showcase label;
-- title;
-- two-sentence purpose;
-- one **Notice** statement;
-- exactly two **Try this** actions;
-- one guide target expressed as a document id plus heading slug.
-
-Tutorial Shows open their note on first visit. The viewer may collapse it and
-the choice persists per Show. Showcase notes default closed after the first
-showcase has been opened. Notes are metadata owned by the stock catalogue, not
-part of the compiled Pixelblaze artifact.
-
-### Human-review capture set
-
-Each Show needs four review captures before #363 is complete:
-
-1. Timeline at Fit with the note open.
-2. Timeline at Fit with the note closed.
-3. Stage at one representative hold frame.
-4. Stage during the most important Transition or animation.
-
-Also verify playback from start to finish, deterministic seek at each Scene
-boundary, Pause state, compiler success, artifact-size readout, and no console
-errors. Installation Shows additionally need a Zone-overlay capture proving
-their physical ranges.
+The 100 level teaches enough to create a satisfying Portable Show. The 200
+level explains simultaneous composition, spatial apertures, runtime identity,
+presentation, structural reuse, and changing topology. The 300 level introduces
+physical output and the publication boundary. No level assumes the learner
+completed every later lesson before authoring useful work.
 
 ## Learn 100: Foundations
 
-### 101 Clips and Crossfade
+### 101 Clips, Cuts, and Blank Time
 
-**Purpose.** Establish the minimum useful Show: two Clips arranged in time and
-one boundary-owned Crossfade. Nothing else competes for attention.
+**Governing idea.** A Clip directly occupies Show time on a Layer. A Cut is the
+selectable zero-duration junction between adjacent Clips, while blank time is
+valid and renders black.
 
-**Fixture**
+Use two quiet, visually distinct Patterns on one full-surface Zone. Give the
+timeline an intentional leading, middle, or tail gap and an explicit Show End.
+The ruler, playhead, transport, Split, move, resize, Snap, Marker, and Reset may
+appear as supporting tools, but no non-Cut Transition, Effect, additional Layer,
+or Zone may compete with direct timing.
 
-- Scene holds: 16 seconds; timeline duration: 19 seconds including the
-  Crossfade.
-- Zone Layout: one Zone, `Main`, covering the complete Portable output.
-- Scene `Water`, 0-8 seconds: `Caustics`, time scale `0.35`, controls
-  `speed=0.30`, `density=0.36`, `sharpness=0.30`, `tint=0.52`.
-- Scene `Mechanism`, 8-16 seconds: `ClockworkIris`, time scale `0.35`, controls
-  `speed=0.28`, `aperture=0.58`, `teeth=0.45`, `color=0.10`.
-- Boundary at 8 seconds: Crossfade, 3 seconds, sine in-out.
-- No Effects, property transitions, local composition, or routing changes.
+**Try this direction.** Split one Clip without changing the picture; move an edge
+to create or remove blank time.
 
-**Energy curve.** Slow organic drift becomes measured mechanical motion. The
-Crossfade is easy to see because the Patterns differ in geometry and palette
-without either being agitated.
-
-**Note copy**
-
-- Purpose: `Two Patterns become one timed composition. Each Clip owns what
-  plays; the boundary between them owns how the picture changes.`
-- Notice: `The Crossfade is a separate timeline entity, not a property hidden
-  inside either Clip.`
-- Try this: `Shorten the Crossfade from 3.0 s to 1.0 s.`
-- Try this: `Replace Clockwork Iris with a Pattern that moves differently.`
-- Guide: `show-visual-toolkit#clips-scenes-and-boundaries`.
-
-**Acceptance focus.** A new viewer can identify two Clips, their durations, and
-the Crossfade without opening a detail panel.
+**Acceptance focus.** A new learner can identify each Clip interval, the Cut,
+the gap, and Show End without opening Entity Details.
 
 ### 102 Transitions and Values
 
-**Purpose.** Add Transition variety and show that a destination Clip can have a
-different value from the Clip before it. This introduces value changes without
-opening the Scene editor.
+**Governing idea.** A Transition is a literal junction entity. The destination
+owns its target value; the incoming junction owns the explicit start, duration,
+and easing used to reach it.
 
-**Fixture**
+Use three calm Clips and at most two clearly different Transition families.
+Animate one legible property such as Brightness or Animation speed across one
+junction. Sparklines should explain the value change without requiring a second
+editing scope.
 
-- Duration: 21 seconds; three 7-second Scenes.
-- `Sweep`: `EasedSweep`, time scale `0.40`, brightness `0.70`.
-- `Compass`: `CompassRose`, time scale `0.32`, brightness `1.00`, controls
-  `speed=0.30`, `points=0.42`, `sweep=0.62`, `hue=0.58`.
-- `Bloom`: `TopographicBloom`, time scale `0.30`, brightness `0.82`, controls
-  `speed=0.28`, `layers=0.82`, `spacing=0.48`, `color=0.30`.
-- Sweep -> Compass: linear Wipe, left to right, 1.2 seconds, cubic in-out,
-  dithered edge. Brightness transitions from `0.70` to `1.00` over the same
-  boundary.
-- Compass -> Bloom: Fade through `#10131a`, 1.4 seconds, sine in-out. Time scale
-  transitions from `0.32` to `0.30`; the small change exists to make the
-  property lane visible without producing a speed lurch.
-- No Effects, Zones, or local composition.
+**Try this direction.** Shorten a Transition; change the destination value and
+compare its ramp.
 
-**Energy curve.** A simple sweep establishes direction, the compass adds crisp
-structure, and the bloom resolves into slower organic contours.
+**Acceptance focus.** The learner can point to the Transition, destination
+value, and Property ramp as three related but separately owned facts.
 
-**Note copy**
+### 103 Clip Transform
 
-- Purpose: `Boundaries can change the picture and interpolate Clip values at
-  the same time. This Show uses two Transition families and two compact value
-  ramps.`
-- Notice: `Brightness and speed belong to the destination Clip; the boundary
-  only describes how the old value reaches the new one.`
-- Try this: `Reverse the Wipe direction.`
-- Try this: `Change Bloom brightness to 0.45 and compare the ramp.`
-- Guide: `show-visual-toolkit#transitions-and-clip-values`.
+**Governing idea.** Clip Transform is canonical placement geometry, separate
+from the Pattern instance and separate from authored Effects.
 
-**Acceptance focus.** Sparkline lanes communicate the value changes without
-requiring the detail panel, and the two boundary styles remain visually
-distinct.
+Reuse one recognizable 2D Pattern across a small sequence that changes Position,
+Rotation, Scale, and Mirror one concept at a time. Preserve the Pattern clock so
+the same motion makes spatial changes easy to compare. Do not add Transform
+Effects or a Clip Viewport.
 
-### 103 Effects
+**Try this direction.** Center an off-axis Clip; rotate or mirror one placement
+without changing the source Pattern.
 
-**Purpose.** Demonstrate that Effects alter one Clip after its Pattern renders.
-The same diagnostic source stays in every Scene so the Effect is the only
-meaningful variable.
+**Acceptance focus.** The learner understands that Clip Transform moves sampled
+content without editing Pattern source or allocating another Pattern instance.
 
-**Fixture**
+### 104 Effects and Ordering
 
-- Duration: 24 seconds; four 6-second Scenes.
-- All Scenes use `TestPattern2D`, time scale `0.35`, brightness `0.90`.
-- `Reference`: no Effects.
-- `Frame`: Translate `x=0.12`, `y=-0.08`, then Scale `x=0.78`, `y=0.78`.
-- `Ripple`: Ripple `amount=0.32`, `frequency=4.0`, `phase=0.0`, centered at
-  `0.5, 0.5`.
-- `Color`: Hue `turns=0.18`, then Contrast `contrast=0.72`.
-- All boundaries: Cut.
+**Governing idea.** Effects form one ordered Clip-owned pipeline after Pattern
+rendering. Reordering operations may change the result.
 
-**Energy curve.** The breathing diagnostic Pattern supplies gentle motion;
-each Cut exposes one new class of post-render change.
+Use one known source and a short sequence covering a spatial Effect, a
+distortion, and a color/output Effect. Include one two-Effect stack whose order
+is visibly meaningful. Avoid Clip Transform changes, Layers, keys, or a moving
+Viewport so the Effect pipeline remains the only variable.
 
-**Note copy**
+**Try this direction.** Reorder the two-Effect stack; set one Effect to its
+neutral value and restore it.
 
-- Purpose: `Effects transform a Clip after its Pattern renders. Reusing one
-  known Pattern makes operation order and spatial change easier to see.`
-- Notice: `The Reference Scene and every effected Scene share the same Pattern.`
-- Try this: `Swap the order of Translate and Scale.`
-- Try this: `Set Ripple amount to zero, then bring it back gradually.`
-- Guide: `show-visual-toolkit#clip-effects`.
+**Acceptance focus.** The learner can distinguish the Pattern, the Clip, the
+ordered Effect stack, and the compiler's Transform/Distort/Address/Color stages.
 
-**Acceptance focus.** The Effect activity row names active Effects, empty Effect
-groups do not appear, and Test Pattern orientation remains recognizable.
+### 105 Portable Zones
 
-### 104 Portable Zones
+**Governing idea.** Portable Zones assign normalized Stage regions without
+depending on a particular LED count or wiring order.
 
-**Purpose.** Introduce two resolution-independent logical Zones and independent
-Pattern instances. Keep routing static so the viewer learns ownership before
-layout animation.
+Use two calm Patterns in a static, axis-aligned two-Zone layout. Each boundary
+must be visually obvious on both square and wide maps. Keep Pattern instances
+independent and omit Layout changes, Layers, and Effects.
 
-**Fixture**
+**Try this direction.** Move the split position; replace one Zone's Pattern.
 
-- Duration: 16 seconds; two 8-second Scenes.
-- Zone Layout `Side by side`: vertical Split at `0.50`.
-- Zones: `Left` and `Right`, each with nominal 1,000 Preview pixels.
-- `Separate`: Left `EasedSweep` at time scale `0.42`; Right `ClockworkIris` at
-  time scale `0.30`, `aperture=0.62`, `color=0.10`.
-- `Exchange`: Left `ClockworkIris` with the same targets; Right `EasedSweep`.
-- Boundary: Crossfade, 1.2 seconds, sine in-out.
-- No Effects or local composition.
+**Acceptance focus.** Zone ownership, Pattern identity, and map geometry remain
+separate and aligned across compatible resolutions.
 
-**Energy curve.** The first Scene makes independence obvious; the exchange
-proves that Zone identity and Pattern identity are separate.
+### 106 Built from Basics
 
-**Note copy**
+**Governing idea.** A polished Portable Show can emerge from the five foundation
+mechanisms without advanced composition.
 
-- Purpose: `Portable Zones divide a normalized surface without depending on a
-  specific LED count. Each Zone can run its own Pattern instance and clock.`
-- Notice: `The Zone overlay stays fixed while the two Patterns exchange sides.`
-- Try this: `Turn off one Zone in the Stage preview.`
-- Try this: `Move the Split from 0.50 to 0.35.`
-- Guide: `show-visual-toolkit#portable-zones`.
+Build a 20-30 second score using only direct Clips, literal Transitions, one or
+two Property ramps, restrained Clip Transform, a small Effect vocabulary, and a
+static Portable Zone Layout. Give the Show a clear establish-drive-resolve arc.
 
-**Acceptance focus.** Zone overlay and Pattern rendering align at 2,000 Preview
-pixels, and toggling one Zone does not pause playback or resize the Stage.
+**Try this direction.** Remove one secondary treatment and judge whether the
+piece improves; replace the final Transition.
 
-### 105 Built from Basics
-
-**Purpose.** Combine the 100-level vocabulary into a polished composition. It
-is the first example intended to feel like a small performance rather than a
-single UI lesson.
-
-**Fixture**
-
-- Reference map: `wide`; Preview pixels: 2,000.
-- Duration: 30 seconds; three 10-second Scenes.
-- Zone Layout `Three bands`: horizontal Stripes with Zones `Sky`, `Signal`, and
-  `Ground`.
-- `Gather`: Sky `Caustics` (`speed=0.25`), Signal `EasedSweep`, Ground
-  `ClockworkIris` (`speed=0.24`). No Effects.
-- `Drive`: Sky `NeonCircuitBoard` (`speed=0.30`, `density=0.10`), Signal
-  `CompassRose` (`speed=0.26`, `sweep=0.72`), Ground `ShapeShifter`
-  (`speed=0.24`, `shape=0.12`). Apply one shared Hue offset of `0.08` to the
-  Signal Clip only.
-- `Resolve`: Sky `TopographicBloom` (`speed=0.24`), Signal `EasedSweep`, Ground
-  `Caustics` (`speed=0.22`). Apply Scale `0.88, 0.88` to Ground only.
-- Gather -> Drive: directional Wipe, 1.4 seconds, left to right, cubic in-out.
-- Drive -> Resolve: Crossfade, 2.0 seconds, sine in-out.
-- Brightness targets by passage: `0.75 -> 1.00 -> 0.78`, interpolated during
-  the two boundaries.
-- No Scene-local composition; this Show uses only concepts from 101-104.
-
-**Energy curve.** Establish, accelerate, then breathe. The middle passage is
-the highest energy, but each band retains a different visual role.
-
-**Note copy**
-
-- Purpose: `A complete short Show can come from Clips, two Transitions, a few
-  Effects, and one static Zone Layout. Complexity comes from sequencing simple
-  decisions rather than maximizing every control.`
-- Notice: `Each passage has one dominant change even though three Zones are
-  active.`
-- Try this: `Mute the Signal Zone and watch how the composition loses its beat.`
-- Try this: `Replace the final Crossfade with a Wipe.`
-- Guide: `show-visual-toolkit#building-a-complete-show`.
-
-**Acceptance focus.** The Show feels energetic without visual noise and remains
-legible at Fit with all three Zone rows expanded.
+**Acceptance focus.** The result succeeds first as LED artwork and remains
+explainable entirely from lessons 101-105.
 
 ## Learn 200: Composition
 
-### 201 Scene-local Cuts
+### 201 Layers and Property Animation
 
-**Purpose.** Show that one global Scene can contain a timed Main schedule. This
-is the bridge from contiguous global Scenes to sub-Scene editing.
+**Governing idea.** Layers allow simultaneous Clip contributions; Property
+animation changes an owned value without creating filler Clips.
 
-**Fixture**
+Use one stable Main Clip and one sparse overlay. Animate overlay Opacity through
+arrival, hold, and departure while both Pattern clocks continue. Keep Viewport,
+keys, and Groups absent.
 
-- Duration: one 18-second Scene named `Three beats`.
-- One Zone, `Main`.
-- Scene composition Main placements:
-  - `EasedSweep`, 0-6 seconds, time scale `0.42`.
-  - `ClockworkIris`, 6-12 seconds, time scale `0.30`, `aperture=0.58`.
-  - `Caustics`, 12-18 seconds, time scale `0.30`, `speed=0.26`.
-- No overlay layers, property tracks, Effects, or global boundary Transition.
-- Each placement uses its own Pattern instance and starts fresh.
+**Try this direction.** Change peak Opacity; move the overlay to another Layer
+and compare ordering.
 
-**Energy curve.** Direction, structure, then drift. The Cuts are crisp enough
-to make the Main lane's schedule obvious.
+**Acceptance focus.** The learner can distinguish Layer order, Clip duration,
+and the Opacity curve controlling contribution inside that interval.
 
-**Note copy**
+### 202 Content and Clip Viewport
 
-- Purpose: `A Scene can contain its own sequence of Main Clips. The global
-  timeline stays simple while the Scene editor carries the internal beats.`
-- Notice: `The three local Clips are mutually exclusive and completely cover
-  the Scene.`
-- Try this: `Drag the second Cut one second earlier.`
-- Try this: `Change the final Clip to continue its clock instead of restarting.`
-- Guide: `show-visual-toolkit#scene-local-main-clips`.
+**Governing idea.** Content transforms the Pattern coordinate field; Clip
+Viewport clips the Clip contribution with an independently positioned
+axis-aligned aperture.
 
-**Acceptance focus.** The read-only Scene X-ray exposes all three internal Cuts,
-and the Scene editor can scrub and play only this 18-second Scene.
+Use a lower Layer that makes uncovered pixels obvious. Move or scale Content
+behind a stationary Viewport, then animate the Viewport while Content remains
+stable. First enablement must preserve the current result.
 
-### 202 Layers and Local Animation
+**Try this direction.** Pan Content behind the frame; animate Viewport width or
+position without changing Pattern time.
 
-**Purpose.** Add one overlay and one Scene-local property track. The example is
-deliberately sparse so layering and opacity animation remain separable.
+**Acceptance focus.** The learner predicts which pixels are sampled, which are
+visible, and when the lower Layer appears.
 
-**Fixture**
+### 203 Pattern Instance Lifecycle
 
-- Duration: one 16-second Scene named `Signal over water`.
-- Main placement: `Caustics`, 0-16 seconds, time scale `0.28`, `speed=0.24`,
-  `sharpness=0.28`.
-- Overlay layer `Signal`, visually above Main.
-- Overlay placement: `SignalMandala`, 3-13 seconds, time scale `0.28`, placement
-  opacity `0.0`, Scale `0.76, 0.76`, Hue `0.08`.
-- Opacity track on the overlay placement:
-  - 3.0 seconds: `0.0`, sine in-out.
-  - 5.0 seconds: `0.72`, sine in-out.
-  - 11.0 seconds: `0.72`, sine in-out.
-  - 13.0 seconds: `0.0`, sine in-out.
-- No second overlay and no global boundary Transition.
+**Governing idea.** A Pattern instance owns private state, clock, controls, and
+instance-level animation independently of the Clips that present it.
 
-**Energy curve.** A stable background makes room for one centered signal to
-arrive, hold, and leave.
+Use a source with unmistakable phase or state. Show Split preserving continuity,
+ordinary duplication restarting independently, two Clips sharing one instance,
+Make Pattern Independent, and Rejoin Shared Pattern. Keep presentation modes
+Live throughout.
 
-**Note copy**
+**Try this direction.** Make one shared Clip independent; rejoin it and observe
+the deliberate state handoff.
 
-- Purpose: `Overlay layers let more than one Pattern contribute to a Scene.
-  Local keyframes animate a typed property without creating more global Scenes.`
-- Notice: `The overlay exists only from 3-13 seconds, while its opacity controls
-  how it enters and leaves that interval.`
-- Try this: `Raise the peak opacity from 0.72 to 1.0.`
-- Try this: `Drag the overlay into a new layer and compare the stacking order.`
-- Guide: `show-visual-toolkit#scene-layers-and-local-animation`.
+**Acceptance focus.** The learner can predict when motion continues, restarts,
+or becomes shared without equating Clip identity with Pattern-instance identity.
 
-**Acceptance focus.** The sparkline uses literal normalized height with inset
-padding, the four points are easy to select, and the read-only X-ray preserves
-their internal timing references.
+### 204 Presentation Modes
 
-### 203 Dynamic Zone Layouts
+**Governing idea.** Clip presentation changes how one placement exposes a
+running Pattern. Live, Freeze, Strobe, and Blink remain Clip-owned; Stutter
+quantizes the shared Pattern-instance clock.
 
-**Purpose.** Demonstrate that the same named Zones can use multiple layouts and
-that layout parameters can move at a boundary.
+Use one diagnostic source and short comparison passages. Make capture-versus-
+visibility behavior obvious without adding unrelated Effects or routing.
+Advanced evaluation policies such as Freeze at entry and Refresh belong in 303,
+where their cost tradeoff can be explained.
 
-**Fixture**
+**Try this direction.** Compare Freeze with Blink; link two Clips and apply
+Stutter to expose its instance ownership.
 
-- Duration: 24 seconds; three 8-second Scenes.
-- Zones: `A` and `B`, each nominally 1,000 Preview pixels.
-- Layout `Vertical`: split on X. Layout `Horizontal`: split on Y.
-- `Narrow A`: Vertical layout, split position `0.35`; A `ClockworkIris`, B
-  `Caustics`.
-- `Wide A`: Vertical layout, split position `0.65`; same Pattern instances
-  continue. Animate split position from `0.35` to `0.65` for 1.8 seconds with
-  sine in-out.
-- `Turn`: switch to Horizontal layout at the second boundary; A
-  `ClockworkIris`, B `Caustics` continue. Use an instantaneous routing boundary
-  plus a 1.2-second Crossfade for the picture.
-- No Clip Effects or local composition.
+**Acceptance focus.** Each mode is recognizable at normal playback speed, and
+the learner distinguishes Clip presentation from Pattern-instance time.
 
-**Energy curve.** Content remains stable while the layout first breathes and
-then changes axis.
+### 205 Groups and Linked Reuse
 
-**Note copy**
+**Governing idea.** A Group definition is reusable choreography; a Group
+occurrence places it without sharing private Pattern state between uses.
 
-- Purpose: `Zone names describe ownership; Zone Layouts describe geometry. The
-  same two Zones can move or adopt a different arrangement without replacing
-  their Patterns.`
-- Notice: `The first boundary animates one layout parameter; the second chooses
-  another named layout.`
-- Try this: `Change the first split targets to 0.20 and 0.80.`
-- Try this: `Toggle the Zone overlay before the Horizontal switch.`
-- Guide: `show-visual-toolkit#dynamic-zone-layouts`.
+Build one compact multi-Layer phrase, Group it, and place a linked duplicate.
+The second occurrence should make a shared definition edit obvious while
+preserving fresh occurrence-local Pattern instances. Make Unique, Ungroup, and
+modeless isolation belong in the **Try this** flow rather than the base score.
 
-**Acceptance focus.** Zone overlays make both changes unambiguous, Pattern
-clocks continue across boundaries, and no transient gap or double ownership
-appears.
+**Try this direction.** Edit one linked definition; Make Unique and change only
+one occurrence.
 
-### 204 Installation Mapping
+**Acceptance focus.** The learner can distinguish Group definition reuse,
+occurrence placement, and Pattern-instance sharing.
 
-**Purpose.** Introduce fixed physical output, measured custom geometry, and
-explicit LED ranges without adding composition complexity.
+### 206 Changing Zone Layouts
 
-**Fixture**
+**Governing idea.** Sequential Zone Layout intervals can restate output topology
+on the same ruler without resetting Pattern instances.
 
-- Installation output: `sunflower-pucks-2d`, exactly 160 pixels.
-- Duration: one 14-second Scene named `Two banks`.
-- Zones:
-  - `Left bank`: range 0-79.
-  - `Right bank`: range 80-159.
-- Left bank: `EasedSweep`, time scale `0.38`.
-- Right bank: `ClockworkIris`, time scale `0.28`, `aperture=0.62`, `color=0.10`.
-- No Transition, Effects, local composition, or routing switch.
+Use two or three intervals that progress from full surface to a simple split and
+then to a clearly different arrangement. Continue at least one Pattern instance
+across a boundary. One interval may animate a Moving or Soft Split position.
+Insert Time, interval duplication, and Layout reuse may appear as supporting
+operations.
 
-**Energy curve.** A directional sweep contrasts with a centered mechanical
-Pattern, making the two physical banks immediately distinct.
+**Try this direction.** Duplicate an interval with content; insert time before a
+Layout boundary and observe the atomic shift.
 
-**Note copy**
+**Acceptance focus.** Topology changes remain distinct from visual Transitions,
+Pattern-instance lifecycle, and Stage maps.
 
-- Purpose: `An Installation Show promises one fixed map and LED count. Physical
-  ranges assign measured LEDs to named Zones.`
-- Notice: `The two 80-pixel banks come from the custom map's actual index order,
-  not a normalized left/right split.`
-- Try this: `Turn on the Zone overlay and compare it with the physical ranges.`
-- Try this: `Solo the Right bank without pausing playback.`
-- Guide: `show-visual-toolkit#installation-output-and-physical-ranges`.
+## Learn 300: Output and Delivery
 
-**Acceptance focus.** Coverage health reports all 160 pixels exactly once, the
-Zone block is visible because there are multiple Zones, and compilation retains
-the fixed output contract.
+### 301 Installation Mapping
 
-### 205 Installation Composition
+**Governing idea.** An Installation output contract fixes one map and pixel
+count; physical Zone ranges must cover that output exactly once.
 
-**Purpose.** Finish the curriculum with a production-shaped fixed installation:
-non-contiguous physical groups, multiple Patterns, controlled Effects, and a
-clear three-passage arc.
+Use an interesting measured 2D map with two visually obvious physical groups.
+Demonstrate named ranges, map-based LED selection, and exact overlap/gap/
+out-of-range diagnostics without adding composition complexity.
 
-**Fixture**
+**Try this direction.** Select one Zone on the map; create and repair a deliberate
+coverage gap in the session draft.
 
-- Installation output: `sunflower-pucks-2d`, exactly 160 pixels.
-- Duration: 30 seconds; three 10-second Scenes.
-- Four 40-pixel Zones, each spanning a pair of physical pucks:
-  - `Top pair`: ranges 0-19 and 80-99.
-  - `Upper middle`: ranges 20-39 and 100-119.
-  - `Lower middle`: ranges 40-59 and 120-139.
-  - `Bottom pair`: ranges 60-79 and 140-159.
-- `Wake`: Top `EasedSweep`; Upper middle `Caustics`; Lower middle `Caustics`;
-  Bottom `EasedSweep`. Time scales `0.35`, brightness `0.72`. No Effects.
-- `Answer`: Top `CompassRose`; Upper middle `ClockworkIris`; Lower middle
-  `ClockworkIris`; Bottom `CompassRose`. Time scales `0.30`, brightness `1.0`.
-  Apply opposing Hue offsets `+0.08` and `-0.08` to the two middle Clips.
-- `Settle`: Top `TopographicBloom`; Upper middle `Caustics`; Lower middle
-  `Caustics`; Bottom `TopographicBloom`. Time scales `0.26`, brightness `0.78`.
-  Apply Scale `0.86, 0.86` to Top and Bottom.
-- Wake -> Answer: bottom-to-top Wipe, 1.5 seconds, cubic in-out, dither edge.
-- Answer -> Settle: Crossfade, 2.0 seconds, sine in-out.
-- Brightness transitions over both boundaries. No Scene-local overlays; the
-  teaching focus is physical composition, not every available feature.
+**Acceptance focus.** The learner understands the difference between a Portable
+logical predicate and Installation physical identity.
 
-**Energy curve.** Symmetric wake, crisp call-and-response, soft release. Mirrored
-Pattern choices make the irregular custom map feel intentional.
+### 302 Installation Composition
 
-**Note copy**
+**Governing idea.** A fixed installation can turn non-contiguous physical groups
+into one decipherable performance using the same Clips, Layers, Transitions,
+instances, and Effects learned earlier.
 
-- Purpose: `A fixed installation can group non-contiguous LEDs into meaningful
-  physical units and choreograph them as one composition.`
-- Notice: `Each row-pair Zone owns two separate index ranges while the compiler
-  still guarantees complete, non-overlapping coverage.`
-- Try this: `Solo one row pair and inspect its two physical ranges.`
-- Try this: `Reverse the first Wipe direction.`
-- Guide: `show-visual-toolkit#composing-a-fixed-installation`.
+Build a 20-30 second score over several named physical groups. Reuse a restrained
+subset of earlier mechanisms and preserve one visual role per group. Do not turn
+the lesson into a compiler stress test.
 
-**Acceptance focus.** All eight pucks render, each Zone overlay outlines two
-physical pucks, and the most energetic Scene remains readable at 160 pixels.
+**Try this direction.** Solo related physical groups; replace one Pattern while
+preserving the routing contract.
 
-## Effect showcases
+**Acceptance focus.** The piece succeeds as artwork, maintains exact coverage,
+and makes the physical grouping legible without reading raw ranges.
 
-Showcases are references, not curriculum prerequisites. They deliberately use
-`TestPattern2D` because its known corner colors, axes, and orbiting white marker
-make spatial and color changes diagnosable. Each Scene uses time scale `0.35`,
-brightness `0.90`, and a Cut boundary.
+### 303 Compile, Simplify, and Deliver
 
-### Transform Effects
+**Governing idea.** A Show remains editable choreography but publishes as one
+ordinary Pixelblaze Pattern whose cost, compatibility, and provenance are
+measured from the generated artifact.
 
-Duration: 30 seconds; six 5-second Scenes.
+Use a compact Portable score with one optional expensive treatment. The lesson
+should expose compile pressure, Show source inventory, selected/rejected
+specializations, **Ways to slim this Show**, generated code, EPE export, Run,
+and Save without requiring a connected Controller to understand the workflow.
+Include Freeze at entry or Refresh only when the visual and cost tradeoff is
+measurable and explicit.
 
-| Scene | Ordered Effects |
+**Try this direction.** Remove the expensive treatment and compare inventory;
+export the EPE or inspect generated code.
+
+**Acceptance focus.** The learner can separate saved choreography from the
+generated Pattern and can act on a named output blocker or cost contributor.
+
+## Showcases
+
+Showcases are reference instruments or finished artworks, not prerequisites in
+the numbered course. Keep each comparison short enough that the viewer can
+attribute the change without memorizing a long matrix. A reference should
+normally contain no more than six to eight comparison passages; split larger
+families.
+
+### Reference groups
+
+**Effects**
+
+- Transform and Address Effects
+- Distortion Effects
+- Color Adjustment Effects
+- Compositing and Key Effects
+
+The split replaces the old overloaded Color & Output matrix. Compositing and Key
+Effects should cover Opacity, Luma Key, Chroma Key, and Vignette against an
+appropriate lower source. Trails remains a Show output Effect and should appear
+inside a finished score until the output-Effect family is large enough to
+justify its own reference.
+
+**Transitions**
+
+- Blend and Fade Transitions
+- Wipes
+- Dissolves
+- Shape Reveals
+- Motion Transitions
+
+This replaces the long combined Wipe and Mix reference. Each Show keeps source
+Patterns and timing constant while one family changes.
+
+**Animation**
+
+- Property Animation
+- Easing
+
+Property Animation should include representative Clip Transform and Viewport
+targets in addition to scalar Pattern and routing values. Easing keeps one
+motion and one duration constant.
+
+**Finished scores**
+
+- Redline Installation
+
+Redline remains a long-form exception and requires fresh visual review against
+the unified editor. Additional finished scores belong here only when they work
+as LED art independently of the mechanism they demonstrate.
+
+## Migration from the previous catalogue
+
+| Previous item | Current disposition |
 | --- | --- |
-| Reference | none |
-| Translate | Translate `x=0.18`, `y=-0.12` |
-| Rotate | Rotate `turns=0.125` |
-| Scale | Scale `x=0.68`, `y=0.82` |
-| Shear | Shear `x=0.28`, `y=0.0` |
-| Wrap | Translate `x=0.28`, `y=0.0`; Wrap |
+| 101 Clips and Crossfade | Rebuild as 101; move Crossfade teaching to 102. |
+| 102 Transitions and Values | Rebuild as 102. |
+| 103 Effects | Split its evidence between 103, 104, and Effect references. |
+| 104 Portable Zones | Rebuild as 105. |
+| 105 Built from Basics | Rebuild as 106. |
+| 201 Scene-local Cuts | Retire as a lesson; direct sequencing belongs in 101. Preserve useful fixture/test evidence. |
+| 202 Layers and Local Animation | Rebuild as 201 without Scene-local framing. |
+| 203 Dynamic Zone Layouts | Rebuild as 206. |
+| 204 Installation Mapping | Rebuild as 301. |
+| 205 Installation Composition | Rebuild as 302. |
+| Existing Transition, Property, and Easing references | Repartition into the shorter reference groups above. |
+| Redline Installation | Retain as a finished score pending fresh review. |
 
-Note purpose: `The same diagnostic Pattern passes through each affine Effect in
-isolation. Cuts make before-and-after comparison immediate.`
-
-Notice: `Wrap becomes useful after a transform moves samples outside the source
-domain.`
-
-Try this: `Change Rotate from 0.125 to 0.25 turns.` Try this: `Move Wrap before
-Translate and compare the result.`
-
-Guide: `show-visual-toolkit#transform-effects`.
-
-### Distortion Effects
-
-Duration: 30 seconds; six 5-second Scenes.
-
-| Scene | Ordered Effects |
-| --- | --- |
-| Reference | none |
-| Ripple | Ripple `amount=0.32`, `frequency=4`, `phase=0`, center `0.5,0.5` |
-| Swirl | Swirl `amount=0.36`, `radius=0.72`, center `0.5,0.5` |
-| Bulge | Bulge `amount=0.42`, `radius=0.58`, center `0.5,0.5` |
-| Pixelate | Pixelate `amount=0.85`, `columns=12`, `rows=12` |
-| Kaleidoscope | Kaleidoscope `amount=1`, `segments=6`, `rotation=0.0`, center `0.5,0.5` |
-
-Note purpose: `Distortions remap where a Clip samples its Pattern. A known grid
-reveals the shape, center, and strength of each remap.`
-
-Notice: `The orbiting white marker makes temporal continuity visible even while
-space is distorted.`
-
-Try this: `Move the Swirl center to 0.25, 0.50.` Try this: `Reduce Kaleidoscope
-segments from 6 to 3.`
-
-Guide: `show-visual-toolkit#distortion-effects`.
-
-### Color and Output Effects
-
-Duration: 40 seconds; ten 4-second Scenes.
-
-| Scene | Ordered Effects |
-| --- | --- |
-| Reference | none |
-| Opacity | Opacity `0.45` |
-| Brightness | Brightness `0.45` |
-| Hue | Hue `turns=0.25` |
-| Saturation | Saturation `0.25` |
-| Contrast | Contrast `0.72` |
-| Invert | Invert `amount=1.0` |
-| Threshold | Threshold `threshold=0.52`, `amount=1.0` |
-| Posterize | Posterize `levels=4`, `amount=1.0` |
-| Color map | Color map `amount=1.0`, shadow `#130c2b`, highlight `#4fffe1` |
-
-Note purpose: `Color and output Effects change a rendered Clip without changing
-its geometry. Known RGB corners make each operation easier to identify.`
-
-Notice: `Opacity and brightness look related on black, but opacity also matters
-when the Clip is layered over another image.`
-
-Try this: `Compare Opacity and Brightness over a temporary overlay.` Try this:
-`Change Posterize from 4 levels to 2.`
-
-Guide: `show-visual-toolkit#color-and-output-effects`.
+Lessons 202-205 and 303 are new fixture designs. Exact Pattern casting, passage
+timing, and note copy remain part of #363 implementation rather than decisions
+to inherit from the superseded packet.
 
 ## Implementation order
 
-The work should remain shippable after each increment:
+Work in complete, reviewable curriculum slices:
 
-1. Add Show-note metadata and the approved disclosure treatment. Add guide
-   heading anchors and link resolution.
-2. Replace the six existing stock fixtures with 101-105. This establishes the
-   naming, metadata, test helpers, and Portable fixture idiom.
-3. Add 201 and 202 with Scene composition and property-track coverage.
-4. Add 203 with layout-switch and routing-property coverage.
-5. Add 204 and 205 with fixed-map and multi-range coverage.
-6. Add the three effect showcases from a data-driven effect matrix.
-7. Add catalogue hierarchy through #426 or, if #426 is not yet available,
-   preserve explicit `collection`, `level`, and `order` metadata so the final
-   tree requires no fixture rewrite.
-8. Run the complete capture and human-review checklist.
+1. Update guide anchors and catalogue metadata for the approved hierarchy.
+2. Rebuild 101-105, then build 106 only from their accepted vocabulary.
+3. Rebuild 201, then add 202-206 one lesson at a time.
+4. Rebuild 301-302 against a reviewed physical map.
+5. Build 303 after the compiler-cost and delivery copy matches current artifact
+   behavior.
+6. Repartition the reference Showcases; retain a current reference only when its
+   existing fixture already satisfies the shorter-family rule.
+7. Review Redline and any other finished scores separately from curriculum
+   acceptance.
+8. Run the complete capture, automated, and human-review gates before
+   publication.
 
-## Automated coverage
+Each slice includes its fixture, note, guide handoff, tests, desktop/narrow
+captures, representative Stage frames, and normal-speed review. Do not implement
+all fixtures first and defer visual review to the end.
 
-At minimum, tests must prove:
+## Acceptance criteria
 
-- all stock ids, names, collection paths, and order values are unique;
-- every Pattern reference resolves to a stock Pattern;
-- every Show normalizes and compiles;
-- Portable Shows declare a Portable 2D output contract and no fixed ranges;
-- Installation Shows declare the 160-pixel fixed output contract and cover
-  exactly 0-159 once per routing layout;
-- every note has purpose, Notice, two Try-this actions, and a valid guide target;
-- every Scene has at least one active Main Clip in every Zone;
-- Main placements do not overlap and remain inside their Scene;
-- property tracks have sorted, in-range keyframes and typed targets;
-- showcase matrices cover every currently supported Effect kind exactly once,
-  except `wrap`, which intentionally follows Translate;
-- deterministic seek at every Scene boundary matches linear playback;
-- every compiled artifact remains below the Pixelblaze per-pattern artifact
-  limit shown by the editor.
+- [ ] The Learn tree contains the approved fifteen lessons in the documented
+  order and no user-facing Scene terminology.
+- [ ] Most lessons run for 8-18 seconds and introduce one governing idea; every
+  longer exception earns its duration through an intelligible arc.
+- [ ] Learn 100 ends with a polished Portable Show using only 101-105 concepts.
+- [ ] Learn 200 teaches Layers, Viewport, Pattern instances, presentation,
+  Groups, and changing Zone Layouts as distinct mechanisms.
+- [ ] Learn 300 distinguishes exact Installation identity from general artifact
+  publication and delivery.
+- [ ] Portable lessons run unchanged across contrasting compatible 2D maps and
+  resolutions without physical-range assumptions.
+- [ ] Installation lessons carry exact contracts and complete non-overlapping
+  physical coverage.
+- [ ] Every note contains a purpose, one Notice, exactly two Try-this actions,
+  and a valid guide target.
+- [ ] Built-in edits remain session-only; Undo/Redo and Reset work without
+  creating personal records.
+- [ ] Showcases hold source, timing, and unrelated properties constant so each
+  comparison has one attributable variable.
+- [ ] Every Show compiles, previews, exports, and reports current artifact cost
+  through production paths.
+- [ ] Names, notes, order, captures, choreography, energy, and normal-speed
+  visual results receive explicit human approval before publication.
 
-## Approved Show-note disclosure
+## Tests and review evidence
 
-The approved treatment is Variant A with a complete collapsed state:
+- Assert unique ids, names, paths, level/order values, note fields, and guide
+  targets.
+- Assert every Pattern reference resolves and every Show normalizes and
+  compiles.
+- Assert production EPE round-trip, output-contract metadata, cost disclosure,
+  and no-write Built-in routing.
+- Assert Portable compatibility on contrasting square and wide maps.
+- Assert complete Installation coverage and map identity.
+- Add time-sampled output assertions for later passages, routed Zones, Layers,
+  presentation modes, Groups, and Layout changes.
+- Test session draft, Undo/Redo, Reset, navigation, and reload behavior.
+- Capture every lesson at Timeline Fit with the note open and closed, one
+  representative Stage frame, and its governing change.
+- Review normal-speed playback at desktop and narrow widths with no console
+  errors or document-level overflow.
 
-- A built-in tutorial opens with the full-width note directly below the Show
-  header. Its placement makes ownership unambiguous and leaves enough width for
-  readable prose and Try-this prompts.
-- Collapsing the note removes the entire note row and returns all vertical space
-  to the Timeline.
-- A compact `101 Guide` control remains beside the Show identity in the existing
-  top toolbar. It reopens the note without adding another row. The control uses
-  the lesson number and `Guide`, not a generic `About` label that could be
-  mistaken for application-wide help.
-- Opening another built-in tutorial supplies that tutorial's note and starts
-  expanded on first visit. Subsequent open/closed state persists per Show.
+## Documentation impact
 
-Variant B was rejected because its trigger and floating layer felt physically
-detached from the Show. Variant C was rejected because it competes with the
-library hierarchy, constrains the copy, and becomes unstable as different notes
-change height.
-
-Prototype URL:
-
-`http://localhost:5174/PXLBLZ-IDE/?prototype=timeline-dual&study=show-notes&variant=A&round=final&scope=show&fixture=atrium`
-
-This packet contains no remaining product-definition blocker to building the
-initial catalogue.
+- `CONTEXT.md` owns canonical Built-in Show, Clip, Layer, Pattern instance,
+  Group, Zone Layout, and output-contract language.
+- The Feature Guide owns catalogue discovery and the shape of the learning path.
+- The Visual Effects Guide owns companion explanations and stable heading
+  targets.
+- The Technical Reference owns Built-in metadata, session-draft, persistence,
+  compiler, and artifact boundaries.
+- This packet owns the current curriculum direction; issue #363 owns executable
+  progress, exact fixture work, review evidence, and publication state.

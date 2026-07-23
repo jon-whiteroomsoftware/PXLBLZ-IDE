@@ -17,15 +17,16 @@ The v2 foundation is built:
 - a public Gallery plus an authenticated, cloud-backed Studio;
 - Pattern, map, Mixin, Library, Show, and Controller-profile authoring;
 - recursive personal folders, manual ordering, recovery through Trash, and
-  immutable Built-in catalogues;
+  immutable Built-in definitions with session-editable Show drafts;
 - Fast and Precise preview across 1D, 2D, and 3D maps;
 - reusable Libraries with dependency pruning and optional call-site inlining;
 - optional live Controller access through the Chrome extension;
 - generated Pattern and Show artifacts with provenance, attribution, output
   contracts, inspection, export, Run, Save, and recovery;
-- a proportional Show timeline with Scenes, zones, local composition, property
-  animation, Clip Transform, Effects, Transitions, deterministic seeking, and
-  Stage preview; and
+- a proportional Show timeline with direct Clips on Layers and Zones, linked
+  Groups, changing Zone Layout intervals, Property animation, Clip Transform
+  and Viewport, presentation modes, literal Transitions, global timing tools,
+  deterministic seeking, and Stage preview; and
 - a measured Show compiler with compact score and plan representations, exact
   resource disclosure, a shared three-plane render-target arena, and a supported
   output envelope of at most 2,000 pixels.
@@ -43,23 +44,21 @@ release map, not a second issue tracker.
 
 ### Small product capabilities
 
-- **Gallery detail transport (#552).** Space and visible transport controls must
-  play and pause the live pattern detail preview with the same input-field and
-  editor exceptions used elsewhere.
-- **Keyboard completion (#524 and #477).** The two open keyboard tickets overlap.
-  Reconcile them into one authoritative acceptance list, then complete and
-  document any missing shortcuts.
+- **Keyboard completion (#477).** Reconcile the remaining shortcut gaps against
+  the shipped unified Show keyboard model, then document the complete
+  application-wide grammar.
 - **Show inputs and output controls (#522).** A compiled Show should accept the
   intended user inputs and expose useful output sliders without weakening its
   ordinary Pixelblaze artifact contract.
-- **Compile Show into Patterns (#509).** An author should be able to keep the
-  compiled result in the Pattern workspace, not only inspect, export, or send it.
 
 ### Content and human review
 
-- **Show curriculum (#363).** Rebuild and approve the Built-in Show progression
-  against the current visual vocabulary. Existing examples are useful fixtures,
-  but publication needs stronger Pattern choices and final editorial judgment.
+- **Show curriculum (#363).** Build and approve the fifteen-lesson progression
+  now designed for the unified editor. The approved course teaches direct Clip
+  timing, Transitions, Clip Transform, Effects, Portable Zones, Layers,
+  Viewport, Pattern instances, presentation modes, Groups, changing Zone
+  Layouts, Installation output, and artifact delivery in short focused Shows.
+  Exact fixtures and the complete course still need their first human review.
 - **Visual-toolkit review (#442 and #460).** The engine and production UI are
   implemented. These issues remain human review of naming, examples,
   screenshots, and explanatory copy rather than open technical architecture.
@@ -67,9 +66,10 @@ release map, not a second issue tracker.
   not a platform blocker unless the owner promotes it into the v2 launch set.
 
 The active catalogue brief remains
-[`stock-show-catalogue-build-packet.md`](stock-show-catalogue-build-packet.md).
-Completed toolkit and Scene-composition designs are retained under
-[`archive/`](archive/) as rationale and evidence.
+[`stock-show-catalogue-build-packet.md`](stock-show-catalogue-build-packet.md),
+which owns the approved lesson sequence, fixture direction, migration map, and
+review gates. The completed Show-editor, toolkit, and Scene-composition designs
+are retained under [`archive/`](archive/) as rationale and evidence.
 
 ### Launch and operations
 
@@ -116,6 +116,8 @@ Milestones and issue bodies remain authoritative if this summary drifts.
 - compositional primitive Pattern library (#501);
 - deeper saved-program and Controller-storage management (#485);
 - hidden diagnostic Patterns for mapping, hardware, and Show debugging (#481);
+- rectangular Clip Viewport coverage-directed evaluation (#590);
+- Circle/Ellipse and later shaped Clip Viewport apertures (#591);
 - Show multi-selection and clipboard editing (#472);
 - broader help strategy (#423); and
 - hardware-validated sensor and scheduler Mixins (#319).
@@ -146,7 +148,9 @@ administration. The following boundaries remain deliberate:
 - Preview presentation settings do not silently ride along with hardware output.
 - Portable Shows target compatible 2D surfaces; Installation Shows target one
   fixed map and pixel count.
-- A Show may use one level of Scene-local composition. Recursive timelines are
+- The Show editor has one direct timeline. The persisted composition and
+  compiler may retain internal Scene partitions for compatibility and lowering,
+  but they never create a Scene-local authoring scope. Recursive timelines are
   outside the current model.
 - Property animation is the one numeric property-over-time mechanism.
 - Effects change one source; Transitions combine boundary sources; routing assigns

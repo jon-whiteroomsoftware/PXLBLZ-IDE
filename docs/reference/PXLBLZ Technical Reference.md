@@ -879,15 +879,21 @@ source; a miss becomes a frozen imported map.
 # Part 5 — Shows
 
 A Show is authored as timeline choreography but shipped as one ordinary,
-self-contained Pixelblaze Pattern. Its model preserves human intent—scenes, zones,
-boundaries, routing, and automation—while the compiler flattens that intent into
-a scheduler and isolated Pattern members the Controller can run by itself.
+self-contained Pixelblaze Pattern. The unified editor preserves human intent as
+direct Clips, Layers, Zones, Transitions, Groups, routing, and Property
+animation. Persistence and compilation retain internal Scene partitions as a
+compatibility and lowering representation, then flatten the complete
+choreography into a scheduler and isolated Pattern members the Controller can
+run by itself.
 
 ## 19. Show domain model and persistence
 
-A Show is saved choreography over scenes, zones, clips, boundaries, and routing
-layouts under one immutable output-contract kind. New records carry a versioned
-`installation` or `portable-2d` discriminated object. Installation stores an
+A Show is saved choreography over direct timeline entities under one immutable
+output-contract kind. `ShowRecord.composition` holds the unified editor's Clips,
+Layers, Groups, Markers, explicit Show End, and Property animation while the
+record's Scenes, Zones, boundary Transitions, and routing layouts remain the
+compatibility and compiler substrate. New records carry a versioned
+`installation` or `portable-2d` output-contract object. Installation stores an
 exact pixel count and output map; Portable 2D stores a reference count/map plus
 its variable-resolution 2D compatibility declaration. `showModel.ts` owns
 creation, normalization, projection, split, growth/removal, range parsing, and
@@ -900,12 +906,13 @@ normalization deliberately preserves an older Installation count above the
 ceiling. The record remains readable and editable, while the artifact compiler
 reports the unsupported count instead of truncating output.
 
-![Show model and runtime: scenes and zones meet in clips, boundary entities own cross-scene behavior, and the compiler flattens the saved model into one scheduled Pixelblaze Pattern](../images/show-model-runtime.svg)
+![Show authoring model: direct timeline entities and routing pass through an internal compatibility representation, then compile into one scheduled Pixelblaze Pattern](../images/show-model-runtime.svg)
 
-Core ownership rules:
+The compatibility and compiler substrate retains these ownership rules:
 
-- a scene owns name, hold duration, and Show-wide property targets, including
-  moving-split position and sample repeat scale;
+- an internal scene partition owns its compatibility name and duration plus
+  Show-wide property targets such as moving-split position and sample repeat
+  scale;
 - a zone owns semantic identity and nominal preview count;
 - a clip owns Pattern reference, scene/zone span, adaptations, control targets,
   an ordered Effect stack, and Continue/Restart entry behavior;
@@ -947,28 +954,35 @@ compatibility literals rather than trusting display copy. A missing or invalid
 contract rejects the row; the Studio does not infer a Show's output promise from
 its Stage, Controller target, zones, or other saved fields.
 
-`src/pixelblaze/stock/shows.ts` owns the immutable built-in Show curriculum as
-ordinary `ShowRecord` fixtures plus catalogue-only track, lesson, and description
-metadata. The route resolves a built-in id without inserting it into `showStore`;
-`ShowEditor` and `ShowStagePreview` accept the resolved record as an explicit
-override. The editor disables mutation affordances while retaining transport,
-inspection, compilation, cost, EPE export, and Controller actions. This keeps
-the learning path on production behavior without creating D1 rows or a second
-Show runtime. A disabled fieldset still provides the native mutation boundary in
-Entity Details. The panel adds a `Built-in values` note and read-only descendant
-styling that removes active-field cues while restoring full text opacity; action
-buttons retain an explicit disabled treatment. The wrapper applies to every
-contextual entity inspector, while `details` summaries remain operable for
-inspection.
+`src/pixelblaze/stock/shows.ts` owns each pristine built-in Show as an ordinary
+`ShowRecord` fixture plus catalogue-only collection, level, order, lesson,
+description, note, and optional reference-guide metadata. The route resolves a
+built-in id without inserting it into the personal `shows` array. App routing
+then supplies the fixture, or its current working copy, to the same
+`ShowEditor`, Stage, compiler, cost, generated-code, EPE export, and Controller
+paths used by personal Shows.
+
+Built-in editing is deliberately session-scoped. `showStore.stockShowDrafts`
+holds an in-memory normalized working copy after the first mutation, and
+`showHistories` gives that copy the normal Undo/Redo behavior. Moving to another
+route does not discard the draft during the same page session. **Reset** removes
+both draft and history; reload recreates the store and therefore restores every
+pristine fixture. No built-in mutation calls the personal-content provider,
+creates a D1 row, or changes the checked-in fixture. The expanded guide labels
+this boundary as `Built-in Show · edits last until reload`, and the header Reset
+action becomes available when either a working copy or a reference-Pattern
+selection exists.
 
 Reference-show explanation and interaction live in catalogue-only
 `ShowReferenceGuide` metadata, outside `ShowRecord`. A session store owns the
 optional **Try with Pattern** selection. `applyShowReferencePattern()` immutably
-projects that Pattern into the guide's declared flat-cell and composition-instance
-slots, clears source-specific Control targets, and produces one transient Show
-override consumed by editor, Stage, compiler, generated-code view, EPE export,
-cost disclosure, and Controller actions. Navigation or reload discards the
-selection; no stock fixture, personal Pattern, Show row, or D1 record is mutated.
+projects that Pattern into the guide's declared flat-cell and
+composition-instance slots, clears source-specific Control targets, and
+produces a transient override on top of the current fixture or working copy.
+The editor, Stage, compiler, generated-code view, EPE export, cost disclosure,
+and Controller actions all consume that same override. Resetting the selection
+or reloading restores the authored reference Pattern; no stock fixture,
+personal Pattern, Show row, or D1 record is mutated.
 
 The Transform Effects reference keeps stable Effect ids and ordering across its
 numeric affine states. Boundary-owned Effect descriptors lower those states as
@@ -1221,7 +1235,11 @@ Show writes SQL `NULL` rather than retaining stale authored state. D1 hydration
 normalizes and validates a version-1 sidecar before attaching it. A malformed
 version-1 sidecar, unknown future version, or invalid ownership graph is omitted
 without changing the flat Show. Create and update reject unsupported envelopes
-before issuing a D1 write.
+before issuing a D1 write. Validation also rejects a non-positive or non-integer
+Show End, duplicate Marker ids, and non-integer or negative Marker times before
+normalization can erase the invalid authored value. A partial composition update
+loads the row's stored Scenes and Zones when they are absent from the patch, so
+the server validates the sidecar against its actual owners.
 
 `showCompositionLowering.ts` validates the sidecar and unions every local Main
 and overlay boundary. Each derived interval becomes an ordered routed stack:
@@ -1412,6 +1430,10 @@ while the icon buttons retain their accessible names; the output summary and
 Run/Save labels disappear only at the tighter breakpoint. The header remains a
 single row rather than wrapping into the timeline. This boundary is based on
 the center pane through container queries, not on the outer browser width.
+At desktop widths the Stage pane keeps the same remembered per-entity width as
+other Studio modes and exposes a keyboard-operable separator. At 980 pixels and
+below the Stage yields to an explicit **Preview** overlay; opening that overlay
+does not create another Show runtime or clock.
 
 The authenticated responsive smoke test traverses Pattern, Map, Library,
 Controller, and Show routes at desktop and narrow widths. It verifies the

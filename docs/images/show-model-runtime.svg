@@ -1,64 +1,58 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 900 570" font-family="'IBM Plex Mono','SF Mono',ui-monospace,Menlo,monospace">
-  <defs><marker id="arr" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="#5c92c7"/></marker></defs>
-  <rect width="900" height="570" fill="#14171c"/>
-  <text x="36" y="30" font-size="12" font-weight="bold" fill="#dde3ea">saved choreography on the left; one generated Pattern on the right</text>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 720 330" font-family="'IBM Plex Mono','SF Mono',ui-monospace,Menlo,monospace">
+  <defs>
+    <marker id="arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+      <path d="M0,0 L10,5 L0,10 z" fill="#5c92c7"/>
+    </marker>
+  </defs>
+  <rect width="720" height="330" fill="#14171c"/>
+  <text x="28" y="34" font-size="13" font-weight="bold" fill="#dde3ea">one Show timeline becomes one self-contained Pattern</text>
 
-  <rect x="28" y="48" width="422" height="452" rx="9" fill="#191e24" stroke="#59626d"/>
-  <text x="46" y="74" font-size="11" font-weight="bold" fill="#97a1ac" letter-spacing="2">SHOW MODEL</text>
+  <rect x="28" y="54" width="300" height="224" fill="#191e24" stroke="#59626d"/>
+  <text x="44" y="75" font-size="10" font-weight="bold" letter-spacing="1.5" fill="#97a1ac">AUTHORED SHOW</text>
 
-  <rect x="52" y="94" width="160" height="58" rx="6" fill="#1d232b" stroke="#dde3ea"/>
-  <text x="68" y="119" font-size="12" font-weight="bold" fill="#dde3ea">Scene</text>
-  <text x="68" y="138" font-size="10.5" fill="#97a1ac">name · hold duration</text>
+  <rect x="44" y="88" width="268" height="50" fill="#2b3a4d" stroke="#5c92c7" stroke-width="1.5"/>
+  <text x="58" y="108" font-size="11" font-weight="bold" fill="#dde3ea">Clips &#183; Layers &#183; Groups</text>
+  <text x="58" y="126" font-size="9.5" fill="#97a1ac">direct entities on one proportional timeline</text>
 
-  <rect x="264" y="94" width="160" height="58" rx="6" fill="#1d232b" stroke="#dde3ea"/>
-  <text x="280" y="119" font-size="12" font-weight="bold" fill="#dde3ea">Zone</text>
-  <text x="280" y="138" font-size="10.5" fill="#97a1ac">identity · nominal count</text>
+  <rect x="44" y="150" width="128" height="50" fill="#232a33" stroke="#97a1ac"/>
+  <text x="56" y="170" font-size="10.5" font-weight="bold" fill="#dde3ea">Zones + Layouts</text>
+  <text x="56" y="188" font-size="9.5" fill="#97a1ac">routing over time</text>
 
-  <line x1="132" y1="152" x2="198" y2="194" stroke="#5c92c7" stroke-width="1.5" marker-end="url(#arr)"/>
-  <line x1="344" y1="152" x2="278" y2="194" stroke="#5c92c7" stroke-width="1.5" marker-end="url(#arr)"/>
+  <rect x="184" y="150" width="128" height="50" fill="#232a33" stroke="#97a1ac"/>
+  <text x="196" y="170" font-size="10.5" font-weight="bold" fill="#dde3ea">Transitions</text>
+  <text x="196" y="188" font-size="9.5" fill="#97a1ac">values + animation</text>
 
-  <rect x="128" y="198" width="220" height="84" rx="6" fill="#232a33" stroke="#dde3ea"/>
-  <text x="144" y="223" font-size="12" font-weight="bold" fill="#dde3ea">Clip</text>
-  <text x="144" y="243" font-size="10.5" fill="#97a1ac">Pattern · scene/zone span</text>
-  <text x="144" y="260" font-size="10.5" fill="#97a1ac">adaptations · Continue/Restart</text>
-  <text x="144" y="277" font-size="10.5" fill="#5c92c7">owns property targets</text>
+  <line x1="178" y1="138" x2="108" y2="148" stroke="#5c92c7" stroke-width="1.4" marker-end="url(#arrow)"/>
+  <line x1="178" y1="138" x2="248" y2="148" stroke="#5c92c7" stroke-width="1.4" marker-end="url(#arrow)"/>
 
-  <rect x="52" y="326" width="372" height="108" rx="6" fill="#1d232b" stroke="#dde3ea"/>
-  <text x="68" y="351" font-size="12" font-weight="bold" fill="#dde3ea">Boundary — stable entity between scenes</text>
-  <text x="68" y="374" font-size="10.5" fill="#dde3ea">visual transition</text>
-  <text x="228" y="374" font-size="10.5" fill="#dde3ea">routing marker</text>
-  <text x="68" y="394" font-size="10.5" fill="#dde3ea">property starts</text>
-  <text x="228" y="394" font-size="10.5" fill="#dde3ea">duration + easing</text>
-  <text x="68" y="417" font-size="10" fill="#5c92c7">interpolates toward the destination clip's targets</text>
+  <rect x="44" y="216" width="268" height="44" fill="#1d232b" stroke="#59626d"/>
+  <text x="58" y="235" font-size="10" font-weight="bold" fill="#97a1ac">internal compatibility representation</text>
+  <text x="58" y="251" font-size="9.5" fill="#97a1ac">Scene partitions + composition lowering</text>
 
-  <line x1="238" y1="282" x2="238" y2="322" stroke="#5c92c7" stroke-width="1.5" marker-start="url(#arr)" marker-end="url(#arr)"/>
+  <line x1="108" y1="200" x2="150" y2="214" stroke="#59626d" stroke-width="1.2" marker-end="url(#arrow)"/>
+  <line x1="248" y1="200" x2="206" y2="214" stroke="#59626d" stroke-width="1.2" marker-end="url(#arrow)"/>
 
-  <line x1="450" y1="274" x2="504" y2="274" stroke="#5c92c7" stroke-width="1.8" marker-end="url(#arr)"/>
-  <text x="477" y="260" text-anchor="middle" font-size="10" fill="#5c92c7">compile</text>
+  <line x1="328" y1="166" x2="388" y2="166" stroke="#5c92c7" stroke-width="1.8" marker-end="url(#arrow)"/>
+  <text x="358" y="154" text-anchor="middle" font-size="9.5" fill="#5c92c7">compile</text>
 
-  <rect x="508" y="48" width="364" height="452" rx="9" fill="#191e24" stroke="#59626d"/>
-  <text x="526" y="74" font-size="11" font-weight="bold" fill="#97a1ac" letter-spacing="2">GENERATED PIXELBLAZE PATTERN</text>
+  <rect x="392" y="54" width="300" height="224" fill="#191e24" stroke="#59626d"/>
+  <text x="408" y="75" font-size="10" font-weight="bold" letter-spacing="1.5" fill="#97a1ac">GENERATED PIXELBLAZE PATTERN</text>
 
-  <rect x="532" y="94" width="316" height="70" rx="6" fill="#232a33" stroke="#dde3ea"/>
-  <text x="548" y="119" font-size="12" font-weight="bold" fill="#dde3ea">Outer scheduler</text>
-  <text x="548" y="139" font-size="10.5" fill="#97a1ac">scene time · boundaries · routing</text>
-  <text x="548" y="155" font-size="10.5" fill="#97a1ac">property interpolation · active domains</text>
+  <rect x="408" y="88" width="268" height="50" fill="#232a33" stroke="#97a1ac"/>
+  <text x="422" y="108" font-size="11" font-weight="bold" fill="#dde3ea">Outer scheduler</text>
+  <text x="422" y="126" font-size="9.5" fill="#97a1ac">time &#183; boundaries &#183; routing &#183; interpolation</text>
 
-  <line x1="690" y1="164" x2="690" y2="202" stroke="#5c92c7" stroke-width="1.5" marker-end="url(#arr)"/>
+  <line x1="542" y1="138" x2="542" y2="148" stroke="#5c92c7" stroke-width="1.4" marker-end="url(#arrow)"/>
 
-  <rect x="532" y="206" width="316" height="92" rx="6" fill="#1d232b" stroke="#dde3ea"/>
-  <text x="548" y="231" font-size="12" font-weight="bold" fill="#dde3ea">Isolated Pattern members</text>
-  <text x="548" y="251" font-size="10.5" fill="#97a1ac">alpha-renamed source · private time</text>
-  <text x="548" y="268" font-size="10.5" fill="#97a1ac">compatible Continue clips reuse state</text>
-  <text x="548" y="285" font-size="10.5" fill="#97a1ac">Restart creates a fresh member identity</text>
+  <rect x="408" y="150" width="268" height="50" fill="#232a33" stroke="#97a1ac"/>
+  <text x="422" y="170" font-size="11" font-weight="bold" fill="#dde3ea">Isolated Pattern members</text>
+  <text x="422" y="188" font-size="9.5" fill="#97a1ac">private state &#183; clocks &#183; shared instances</text>
 
-  <line x1="690" y1="298" x2="690" y2="336" stroke="#5c92c7" stroke-width="1.5" marker-end="url(#arr)"/>
+  <line x1="542" y1="200" x2="542" y2="214" stroke="#5c92c7" stroke-width="1.4" marker-end="url(#arrow)"/>
 
-  <rect x="532" y="340" width="316" height="92" rx="6" fill="#1d232b" stroke="#dde3ea"/>
-  <text x="548" y="365" font-size="12" font-weight="bold" fill="#dde3ea">Per-pixel routing</text>
-  <text x="548" y="385" font-size="10.5" fill="#97a1ac">physical index → zone-local domain</text>
-  <text x="548" y="402" font-size="10.5" fill="#97a1ac">choose one member or blend two</text>
-  <text x="548" y="419" font-size="10.5" fill="#97a1ac">uncovered pixels → black</text>
+  <rect x="408" y="216" width="268" height="44" fill="#232a33" stroke="#97a1ac"/>
+  <text x="422" y="235" font-size="10.5" font-weight="bold" fill="#dde3ea">Per-pixel routing + composite</text>
+  <text x="422" y="251" font-size="9.5" fill="#97a1ac">one hardware-ready render entry point</text>
 
-  <text x="450" y="540" text-anchor="middle" font-size="10.5" fill="#97a1ac">the editor saves intent; the compiler flattens it into a portable, inspectable hardware artifact</text>
+  <text x="360" y="308" text-anchor="middle" font-size="11" fill="#dde3ea">the editor exposes intent; Scene partitions remain compiler and persistence machinery</text>
 </svg>

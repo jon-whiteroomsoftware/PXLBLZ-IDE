@@ -1,5 +1,10 @@
 # Decision: Final UX treatment for the Show editor
 
+Status: implemented and archived. The production editor integrated this
+treatment in #592, and #589 then retired the superseded Scene-centric surfaces.
+This file records the selection and its evidence rather than current product
+behavior.
+
 ## Decision
 
 Select a coherent synthesis: **Candidate A's field-and-ribbon interaction system with Candidate B's bounded light-budget hierarchy**.

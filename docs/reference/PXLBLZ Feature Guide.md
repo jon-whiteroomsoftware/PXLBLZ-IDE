@@ -74,13 +74,14 @@ adding a tab or silently applying that object to the running Pattern.
 
 The rail's personal content lives in compact trees with folders, drag
 reordering, search that sees into collapsed branches, and a Trash that appears
-only when something is in it. Built-in and stock content sits below in
-read-only folders. A brand-new workspace opens with one editable **Start
-Here** example of each kind, so the first visit lands on runnable source
-instead of four empty lists. The center-pane title doubles as the rename
-control for personal content, and **Space** toggles preview playback anywhere
-in Studio (and on Gallery detail pages) except while typing in a text field or
-the code editor.
+only when something is in it. Built-in and stock catalogues sit below in fixed
+folders. Their shipped definitions never change; Built-in Shows alone accept
+session edits that Reset or reload discard. A brand-new workspace opens with
+one editable **Start Here** example of each kind, so the first visit lands on
+runnable source instead of four empty lists. The center-pane title doubles as
+the rename control for personal content, and **Space** toggles preview playback
+anywhere in Studio (and on Gallery detail pages) except while typing in a text
+field or the code editor.
 
 ### Accounts and persistence
 
@@ -492,7 +493,10 @@ animation band on the unified Timeline.
 The right pane is the read-only **Stage**: the Show rendered over its output
 geometry (or honest generic strips when no map is saved), with the familiar
 light size, diffusion, and renderer comfort controls. Show transport owns
-time, so Pattern-level speed and controls stay out of the Stage.
+time, so Pattern-level speed and controls stay out of the Stage. Its divider is
+resizable on desktop. In a narrow workspace the Stage yields before the
+timeline becomes unreadable; **Preview** opens the same Stage as an overlay
+without creating a second clock or playback state.
 
 ## 17. Compile, cost, and export
 
@@ -522,16 +526,21 @@ Pattern first; the destination Show itself is fine.
 
 ## 18. Built-in Shows to learn from
 
-The Shows rail ships a read-only curriculum beneath your personal Shows.
-**Learn** holds numbered lessons that add one idea at a time — routing, an
-Effect, Property animation, a Transition, a cost technique. **Showcases**
-holds reference catalogues for Effects, Transitions, Property animation, and
-easing, each with a **Try with Pattern** selector that swaps the comparison
-source live, plus finished scores such as the 2,000-pixel, five-surface
-**Redline Installation**. Built-ins open in the production timeline with full
-transport, inspection, generated code, export, and Controller send; only
-mutation is locked. The [Visual Effects Guide](../guides/Visual effects guide.md)
-walks this curriculum in prose.
+The Shows rail ships learning examples beneath your personal Shows. **Learn**
+holds numbered lessons that add one idea at a time — routing, Effects, Property
+animation, Transitions, and cost techniques. **Showcases** holds reference
+catalogues for Effects, Transitions, Property animation, and easing, plus
+finished scores such as the 2,000-pixel, five-surface **Redline
+Installation**.
+
+Built-ins use the complete production editor. The first change creates a
+session-only draft with normal Undo/Redo; it does not alter the shipped example
+or create a personal Show. The draft survives navigation during that page
+session. **Reset** or reload restores the built-in definition. Reference
+Showcases also provide **Try with Pattern**, which swaps the comparison source
+through the same timeline, Stage, generated-code, export, cost, and Controller
+paths. The [Visual Effects Guide](../guides/Visual effects guide.md) explains
+the current examples in prose.
 
 ---
 
