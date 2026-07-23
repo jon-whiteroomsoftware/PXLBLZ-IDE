@@ -53,6 +53,23 @@ function showWithComposition(): ShowRecord {
 }
 
 describe('Show Layout intervals', () => {
+  it('uses logical Zone identities for portable Layout occurrences (#589)', () => {
+    const base = showWithComposition()
+    const zoneId = base.zones[0].id
+    const show: ShowRecord = {
+      ...base,
+      routingLayouts: [{
+        id: 'logical-layout',
+        name: 'Logical Layout',
+        zones: [],
+        logical: { kind: 'single', zoneIds: [zoneId] },
+      }],
+    }
+
+    expect(projectShowLayoutIntervals(show)[0].zoneIds).toEqual([zoneId])
+    expect(showLayoutZoneIdAtTime(show, 0)).toBe(zoneId)
+  })
+
   it('projects explicit same-Layout boundaries as separate occurrences', () => {
     const show = appendShowLayoutInterval(showWithComposition(), {
       durationMs: 5_000,

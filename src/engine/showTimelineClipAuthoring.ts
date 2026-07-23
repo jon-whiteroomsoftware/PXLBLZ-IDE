@@ -7,6 +7,7 @@ import type {
 } from './personalContentRecords'
 import {
   addShowMainClip,
+  addShowOverlayClip,
   normalizeShowComposition,
   splitShowMainPlacement,
   splitShowOverlayPlacement,
@@ -14,7 +15,7 @@ import {
 } from './showCompositionModel'
 import { projectShowTimeline } from './showModel'
 
-export type ShowMainClipAddPlan =
+export type ShowClipAddPlan =
   | {
       enabled: true
       code: 'ready'
@@ -28,10 +29,20 @@ export type ShowMainClipAddPlan =
       reason: string
     }
 
+export type ShowMainClipAddPlan = ShowClipAddPlan
+
+export type ShowClipAddTarget =
+  | { kind: 'main' }
+  | { kind: 'overlay'; layerIndex: number }
+
 export interface ShowMainClipAddLocation {
   zoneId: string
   globalTimeMs: number
   defaultDurationMs?: number
+}
+
+export interface ShowClipAddLocation extends ShowMainClipAddLocation {
+  target: ShowClipAddTarget
 }
 
 export type ShowTimelineClipOwner =
@@ -69,6 +80,14 @@ export function planShowMainClipAtGlobalTime(
   composition: ShowCompositionV1,
   input: ShowMainClipAddLocation,
 ): ShowMainClipAddPlan {
+  return planShowClipAtGlobalTime(show, composition, { ...input, target: { kind: 'main' } })
+}
+
+export function planShowClipAtGlobalTime(
+  show: ShowRecord,
+  composition: ShowCompositionV1,
+  input: ShowClipAddLocation,
+): ShowClipAddPlan {
   if (!Number.isFinite(input.globalTimeMs)) {
     return { enabled: false, code: 'invalid-time', reason: 'Choose a time inside the Show.' }
   }
@@ -92,19 +111,22 @@ export function planShowMainClipAtGlobalTime(
     ? composition.scenes.find((scene) => scene.sceneId === sceneRange.sceneId)
     : undefined
   const zone = sceneComposition?.zones.find((candidate) => candidate.zoneId === input.zoneId)
-  if (!sceneRange || !zone) {
+  const placements = input.target.kind === 'main'
+    ? zone?.main
+    : zone?.overlays[input.target.layerIndex]?.placements
+  if (!sceneRange || !zone || !placements) {
     return { enabled: false, code: 'missing-owner', reason: 'The selected Zone has no Layer at the playhead.' }
   }
 
   const localStartMs = globalTimeMs - sceneRange.startMs
-  if (zone.main.some((placement) => (
+  if (placements.some((placement) => (
     localStartMs >= placement.startMs
     && localStartMs < placement.startMs + placement.durationMs
   ))) {
     return { enabled: false, code: 'occupied', reason: 'The selected Layer already has a Clip at the playhead.' }
   }
 
-  const nextObstructionMs = zone.main
+  const nextObstructionMs = placements
     .filter((placement) => placement.startMs > localStartMs)
     .reduce((nearest, placement) => Math.min(nearest, placement.startMs), sceneRange.scene.durationMs)
   const availableMs = nextObstructionMs - localStartMs
@@ -130,20 +152,44 @@ export function addShowMainClipAtGlobalTime(
     placementId: string
   },
 ): ShowCompositionV1 {
-  const plan = planShowMainClipAtGlobalTime(show, composition, input)
+  return addShowClipAtGlobalTime(show, composition, { ...input, target: { kind: 'main' } })
+}
+
+export function addShowClipAtGlobalTime(
+  show: ShowRecord,
+  composition: ShowCompositionV1,
+  input: ShowClipAddLocation & {
+    instance: ShowPatternInstance
+    placementId: string
+  },
+): ShowCompositionV1 {
+  const plan = planShowClipAtGlobalTime(show, composition, input)
   if (!plan.enabled) return composition
 
-  return addShowMainClip(show, composition, {
+  const placement = {
+    id: input.placementId,
+    instanceId: input.instance.id,
+    startMs: plan.localStartMs,
+    durationMs: plan.durationMs,
+    view: { mirror: false, phase: 0, brightness: 1 },
+  }
+  if (input.target.kind === 'main') {
+    return addShowMainClip(show, composition, {
+      sceneId: plan.sceneId,
+      zoneId: input.zoneId,
+      instance: input.instance,
+      placement,
+    })
+  }
+  const layerId = composition.scenes.find((scene) => scene.sceneId === plan.sceneId)?.zones
+    .find((zone) => zone.zoneId === input.zoneId)?.overlays[input.target.layerIndex]?.id
+  if (!layerId) return composition
+  return addShowOverlayClip(show, composition, {
     sceneId: plan.sceneId,
     zoneId: input.zoneId,
+    layerId,
     instance: input.instance,
-    placement: {
-      id: input.placementId,
-      instanceId: input.instance.id,
-      startMs: plan.localStartMs,
-      durationMs: plan.durationMs,
-      view: { mirror: false, phase: 0, brightness: 1 },
-    },
+    placement: { ...placement, opacity: 1 },
   })
 }
 

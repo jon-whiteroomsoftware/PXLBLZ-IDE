@@ -52,6 +52,22 @@ const commonProps = (scope: ShowClipInspectorValue['scope'], onPatch = vi.fn()):
 })
 
 describe('shared Clip Entity Detail sections (#498)', () => {
+  it('gives Source Pattern the wide column shared with Start timing (#592)', () => {
+    render(<ShowClipEntityDetail {...commonProps('scene-main')} />)
+
+    const primaryFields = screen.getByTestId('clip-primary-fields')
+    const localFields = screen.getByTestId('clip-local-fields')
+    const sourceField = screen.getByRole('combobox', { name: 'Source pattern' }).closest('label')
+    const startField = screen.getByRole('spinbutton', { name: 'Start seconds' }).closest('[data-field-span]')
+    const durationField = screen.getByRole('spinbutton', { name: 'Duration seconds' }).closest('[data-field-span]')
+
+    expect(primaryFields).toHaveClass('sm:grid-cols-5')
+    expect(localFields).toHaveClass('sm:grid-cols-5')
+    expect(sourceField).toHaveClass('sm:col-span-3')
+    expect(startField).toHaveClass('sm:col-span-3')
+    expect(durationField).toHaveClass('sm:col-span-2')
+  })
+
   it.each([
     ['global', false, false, false],
     ['scene-main', true, false, false],

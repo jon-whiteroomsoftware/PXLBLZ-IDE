@@ -14,6 +14,7 @@ import {
   deleteShowMainPlacement,
   deleteShowOverlayLayer,
   deleteShowOverlayPlacement,
+  harvestEmptyShowOverlayLayers,
   moveShowMainPlacement,
   moveShowOverlayPlacement,
   normalizeShowComposition,
@@ -740,6 +741,37 @@ describe('Show composition v1 Main schedule (#488)', () => {
       .toEqual(['layer-front', 'layer-back'])
     expect(normalized.scenes[0].zones[0].overlays[0].placements.map((placement) => placement.id))
       .toEqual(['overlay-early', 'overlay-late'])
+  })
+
+  it('harvests an empty middle Layer only when it is empty across every Scene', () => {
+    const show = createDefaultShow('show-harvest-layers', 'Harvest layers', 1)
+    const composition = projectFlatShowToCompositionV1(show, lookup(show))
+    const instanceId = composition.patternInstances[0].id
+    const overlay = (id: string) => ({
+      id,
+      instanceId,
+      startMs: 0,
+      durationMs: 1_000,
+      opacity: 1,
+      view: { mirror: false, phase: 0, brightness: 1 },
+    })
+    composition.scenes.forEach((scene, sceneIndex) => {
+      scene.zones[0].overlays = [
+        { id: `front-${sceneIndex}`, name: 'Front', placements: sceneIndex === 0 ? [overlay('front-clip')] : [] },
+        { id: `empty-${sceneIndex}`, name: 'Empty', placements: [] },
+        { id: `middle-${sceneIndex}`, name: 'Middle', placements: sceneIndex === 1 ? [overlay('middle-clip')] : [] },
+        { id: `back-${sceneIndex}`, name: 'Back', placements: sceneIndex === 0 ? [overlay('back-clip')] : [] },
+      ]
+    })
+
+    const harvested = harvestEmptyShowOverlayLayers(show, composition)
+
+    expect(harvested.scenes.map((scene) => (
+      scene.zones[0].overlays.map((layer) => layer.name)
+    ))).toEqual([
+      ['Front', 'Middle', 'Back'],
+      ['Front', 'Middle', 'Back'],
+    ])
   })
 
   it('rejects overlap inside one overlay layer but permits the same interval across layers', () => {

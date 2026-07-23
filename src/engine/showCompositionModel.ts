@@ -208,6 +208,41 @@ export function normalizeShowComposition(
   }
 }
 
+/**
+ * Remove unified overlay Layers that contain no Clips in any internal Scene.
+ * Layer identity is positional across Scene owners, so removing a middle index
+ * compacts the complete visible stack without changing the order of survivors.
+ */
+export function harvestEmptyShowOverlayLayers(
+  show: Pick<ShowRecord, 'scenes' | 'zones'>,
+  composition: ShowCompositionV1,
+): ShowCompositionV1 {
+  const emptyIndicesByZoneId = new Map<string, Set<number>>()
+  for (const showZone of show.zones) {
+    const zones = composition.scenes.flatMap((scene) => {
+      const zone = scene.zones.find((candidate) => candidate.zoneId === showZone.id)
+      return zone ? [zone] : []
+    })
+    const maximumLayerCount = zones.reduce((maximum, zone) => Math.max(maximum, zone.overlays.length), 0)
+    const emptyIndices = new Set(Array.from({ length: maximumLayerCount }, (_, layerIndex) => layerIndex)
+      .filter((layerIndex) => zones.every((zone) => (
+        (zone.overlays[layerIndex]?.placements.length ?? 0) === 0
+      ))))
+    if (emptyIndices.size > 0) emptyIndicesByZoneId.set(showZone.id, emptyIndices)
+  }
+  if (emptyIndicesByZoneId.size === 0) return composition
+
+  const draft = cloneJson(composition)
+  for (const scene of draft.scenes) {
+    for (const zone of scene.zones) {
+      const emptyIndices = emptyIndicesByZoneId.get(zone.zoneId)
+      if (!emptyIndices) continue
+      zone.overlays = zone.overlays.filter((_, layerIndex) => !emptyIndices.has(layerIndex))
+    }
+  }
+  return normalizeShowComposition(show, draft)
+}
+
 function normalizePlacementAppearance<T extends ShowMainPlacement | ShowOverlayPlacement>(placement: T): T {
   const { transform: authoredTransform, viewport: authoredViewport, ...rest } = placement
   const transform = compactShowClipTransform(authoredTransform)

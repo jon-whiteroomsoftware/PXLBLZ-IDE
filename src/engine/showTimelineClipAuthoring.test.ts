@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import { addShowZone, createDefaultShow } from './showModel'
 import {
+  addShowClipAtGlobalTime,
   addShowOverlayLayerAcrossTimeline,
   addShowMainClipAtGlobalTime,
   duplicateLinkedShowClipAfter,
@@ -8,6 +9,7 @@ import {
   makeShowClipPatternIndependent,
   moveShowClipAtGlobalTime,
   planShowClipPatternRejoin,
+  planShowClipAtGlobalTime,
   planShowMainClipAtGlobalTime,
   projectShowClipPatternInstanceOwnership,
   rejoinShowClipPatternInstance,
@@ -52,6 +54,48 @@ describe('global timeline Clip authoring (#580)', () => {
       [{ id: 'layer-0', name: 'Layer 1', placements: [] }],
       [{ id: 'layer-1', name: 'Layer 1', placements: [] }],
     ])
+  })
+
+  it('plans and adds a Clip to an explicitly chosen overlay Layer', () => {
+    const show = createDefaultShow('show-add-overlay-global', 'Add overlay global', 1000)
+    const empty = emptyComposition(show)
+    const composition = addShowOverlayLayerAcrossTimeline(show, empty, {
+      zoneId: show.zones[0].id,
+      layers: show.scenes.map((scene, index) => ({
+        sceneId: scene.id,
+        layerId: `layer-${index}`,
+      })),
+    })
+    const target = { kind: 'overlay' as const, layerIndex: 0 }
+
+    expect(planShowClipAtGlobalTime(show, composition, {
+      zoneId: show.zones[0].id,
+      globalTimeMs: 2_000,
+      target,
+    })).toMatchObject({
+      enabled: true,
+      sceneId: show.scenes[0].id,
+      localStartMs: 2_000,
+      durationMs: 5_000,
+    })
+
+    const next = addShowClipAtGlobalTime(show, composition, {
+      zoneId: show.zones[0].id,
+      globalTimeMs: 2_000,
+      target,
+      instance,
+      placementId: 'placement-overlay',
+    })
+
+    expect(next.scenes[0].zones[0].main).toEqual([])
+    expect(next.scenes[0].zones[0].overlays[0].placements).toContainEqual({
+      id: 'placement-overlay',
+      instanceId: instance.id,
+      startMs: 2_000,
+      durationMs: 5_000,
+      opacity: 1,
+      view: { mirror: false, phase: 0, brightness: 1 },
+    })
   })
 
   it('plans a five-second Clip from empty global time', () => {

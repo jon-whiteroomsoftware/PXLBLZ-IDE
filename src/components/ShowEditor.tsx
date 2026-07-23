@@ -22,6 +22,7 @@ import { ShowPatternInstanceControls } from '@/components/ShowPatternInstanceCon
 import { ShowTransitionPalette, ShowTransitionParameters } from '@/components/ShowTransitionAuthoring'
 import { ShowLayerTransitionPalette } from '@/components/ShowLayerTransitionPalette'
 import { ShowLayerTransitionEditor } from '@/components/ShowLayerTransitionEditor'
+import { ShowTransitionXrayPictogram } from '@/components/ShowTransitionXrayPictogram'
 import { ShowArtifactInventoryPopover } from '@/components/ShowArtifactInventoryPopover'
 import { getControllerProvider } from '@/engine/controllerProviderRegistry'
 import { makeProgramId } from '@/engine/bytecodePush'
@@ -94,16 +95,17 @@ import {
 } from '@/engine/showTimelineKeyboard'
 import { claimStudioPreviewSpace } from '@/engine/keyboardShortcuts'
 import {
+  addShowClipAtGlobalTime,
   addShowOverlayLayerAcrossTimeline,
-  addShowMainClipAtGlobalTime,
   duplicateShowClipAfter,
   makeShowClipPatternIndependent,
-  planShowMainClipAtGlobalTime,
+  planShowClipAtGlobalTime,
   projectShowClipPatternInstanceOwnership,
   rejoinShowClipPatternInstance,
   splitShowClipAtGlobalTime,
   type ShowTimelineClipMoveTarget,
   type ShowTimelineClipOwner,
+  type ShowClipAddTarget,
 } from '@/engine/showTimelineClipAuthoring'
 import {
   deleteShowClipWithLayerTransitions,
@@ -218,7 +220,7 @@ const compactField =
   'h-6 rounded border border-zinc-700 bg-zinc-950 px-1.5 text-[9.5px] text-zinc-200 outline-none focus:border-live/70'
 const EMPTY_ZONE_IDS: string[] = []
 const clipBase =
-  'show-timeline-clip relative z-10 flex min-h-[44px] flex-col justify-center gap-0.5 overflow-hidden rounded-[5px] border-0 border-l-[3px] px-2 py-1 text-left transition-colors focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-live'
+  'show-timeline-clip z-10 flex min-h-[44px] flex-col justify-center gap-0.5 overflow-hidden rounded-[5px] border-0 border-l-[3px] px-2 py-1 text-left transition-colors focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-live'
 
 function ShowEasingOptions() {
   return SHOW_EASING_OPTIONS.map((option) => (
@@ -1398,13 +1400,14 @@ export function ShowEditor({
                 onDirectManipulationChange={setDetailsSuppressed}
                 onReanchorDetails={reanchorOpenDetails}
                 patternOptions={patternOptions}
-                onAddClipAtPlayhead={async ({ zoneId, globalTimeMs, pattern, patternName }) => {
+                onAddClipAtPlayhead={async ({ zoneId, globalTimeMs, target, pattern, patternName }) => {
                   if (!timelineComposition) return null
                   const instanceId = newPersonalContentId()
                   const placementId = newPersonalContentId()
-                  const nextComposition = addShowMainClipAtGlobalTime(activeShow, timelineComposition, {
+                  const nextComposition = addShowClipAtGlobalTime(activeShow, timelineComposition, {
                     zoneId,
                     globalTimeMs,
+                    target,
                     instance: {
                       id: instanceId,
                       pattern,
@@ -2426,6 +2429,7 @@ function ShowTimelineWorkspace({
   onAddClipAtPlayhead: (input: {
     zoneId: string
     globalTimeMs: number
+    target: ShowClipAddTarget
     pattern: ShowCell['pattern']
     patternName: string
   }) => Promise<string | null>
@@ -2513,6 +2517,7 @@ function ShowTimelineWorkspace({
   const [layoutActionDurationSeconds, setLayoutActionDurationSeconds] = useState(5)
   const [layoutActionError, setLayoutActionError] = useState<string | null>(null)
   const [addClipTimeMs, setAddClipTimeMs] = useState(0)
+  const [addClipLayerTargetKey, setAddClipLayerTargetKey] = useState('main')
   const [addClipPatternKey, setAddClipPatternKey] = useState<string | null>(() => {
     const first = patternOptions[0]
     return first ? `${first.ref.kind}:${first.ref.id}` : null
@@ -2526,6 +2531,22 @@ function ShowTimelineWorkspace({
       : null
   const preferredAuthoringZoneId = selectedCompositionZoneId ?? focusedZoneId
   const addClipZoneId = showLayoutZoneIdAtTime(show, addClipTimeMs, preferredAuthoringZoneId)
+  const addClipSceneId = timeline.scenes.find((scene) => (
+    addClipTimeMs >= scene.startMs && addClipTimeMs < scene.endMs
+  ))?.sceneId
+  const addClipZoneComposition = timelineComposition?.scenes
+    .find((scene) => scene.sceneId === addClipSceneId)?.zones
+    .find((zone) => zone.zoneId === addClipZoneId)
+  const addClipLayerOptions = [
+    ...(addClipZoneComposition?.overlays.map((layer, layerIndex) => ({
+      key: `overlay:${layerIndex}`,
+      label: layer.name || `Layer ${layerIndex + 1}`,
+      target: { kind: 'overlay' as const, layerIndex },
+    })) ?? []),
+    { key: 'main', label: 'Main', target: { kind: 'main' as const } },
+  ]
+  const addClipLayerOption = addClipLayerOptions.find((option) => option.key === addClipLayerTargetKey)
+    ?? addClipLayerOptions[addClipLayerOptions.length - 1]
   const transport = useShowTransportStore.getState()
   const layerTargetTimeMs = transport.showId === show.id ? transport.positionMs : 0
   const layerTargetZoneId = showLayoutZoneIdAtTime(show, layerTargetTimeMs, preferredAuthoringZoneId)
@@ -2605,10 +2626,11 @@ function ShowTimelineWorkspace({
     show.zones.forEach((zone) => setZoneCollapsed(show.id, zone.id, zone.id !== zoneId))
     setFocusedZone(show.id, zoneId)
   }
-  const addClipPlan = timelineComposition && addClipZoneId
-    ? planShowMainClipAtGlobalTime(show, timelineComposition, {
+  const addClipPlan = timelineComposition && addClipZoneId && addClipLayerOption
+    ? planShowClipAtGlobalTime(show, timelineComposition, {
         zoneId: addClipZoneId,
         globalTimeMs: addClipTimeMs,
+        target: addClipLayerOption.target,
       })
     : null
   const addClipPattern = patternOptions.find((option) => (
@@ -3041,7 +3063,14 @@ function ShowTimelineWorkspace({
                   const currentTimeMs = currentTransport.showId === show.id ? currentTransport.positionMs : 0
                   const currentZoneId = showLayoutZoneIdAtTime(show, currentTimeMs, preferredAuthoringZoneId)
                   if (!currentZoneId) return
-                  void onAddCompositionLayer(currentZoneId)
+                  void onAddCompositionLayer(currentZoneId).then((changed) => {
+                    if (!changed) return
+                    setAddClipTimeMs(currentTimeMs)
+                    setAddClipLayerTargetKey('overlay:0')
+                    setInsertTimeOpen(false)
+                    setLayoutActionsOpen(false)
+                    setAddClipOpen(true)
+                  })
                 }}
               >
                 <Layers3 size={12} aria-hidden />
@@ -3104,6 +3133,7 @@ function ShowTimelineWorkspace({
               >
                 <Plus size={12} aria-hidden />
                 <span className="timeline-command-label">Clip</span>
+                <ChevronDown size={9} aria-hidden className="text-zinc-500" />
               </Button>
               {addClipOpen && (
                 <div
@@ -3127,6 +3157,21 @@ function ShowTimelineWorkspace({
                     compact
                     onChange={setAddClipPatternKey}
                   />
+                  {addClipLayerOptions.length > 1 && (
+                    <label className="mt-2 grid grid-cols-[48px_minmax(0,1fr)] items-center gap-2 text-[10px] text-zinc-500">
+                      <span>Layer</span>
+                      <select
+                        aria-label="Destination Layer"
+                        className="h-7 min-w-0 rounded border border-zinc-700 bg-zinc-900 px-2 text-[11px] text-zinc-200 outline-none focus:border-live/70"
+                        value={addClipLayerOption?.key ?? 'main'}
+                        onChange={(event) => setAddClipLayerTargetKey(event.target.value)}
+                      >
+                        {addClipLayerOptions.map((option) => (
+                          <option key={option.key} value={option.key}>{option.label}</option>
+                        ))}
+                      </select>
+                    </label>
+                  )}
                   {addClipPlan && !addClipPlan.enabled && (
                     <p className="mt-1.5 text-[9px] leading-3 text-amber-200/75">{addClipPlan.reason}</p>
                   )}
@@ -3137,10 +3182,11 @@ function ShowTimelineWorkspace({
                       aria-label="Add Clip"
                       disabled={!addClipPattern || !addClipPlan?.enabled}
                       onClick={() => {
-                        if (!addClipPattern || !addClipZoneId || !addClipPlan?.enabled) return
+                        if (!addClipPattern || !addClipZoneId || !addClipLayerOption || !addClipPlan?.enabled) return
                         void onAddClipAtPlayhead({
                           zoneId: addClipZoneId,
                           globalTimeMs: addClipTimeMs,
+                          target: addClipLayerOption.target,
                           pattern: addClipPattern.ref,
                           patternName: addClipPattern.label,
                         }).then((placementId) => {
@@ -3797,6 +3843,7 @@ function ShowTimelineWorkspace({
                       key={clip.id}
                       type="button"
                       aria-label={insideIsolatedGroup ? `Select Group Clip ${clip.patternName}` : group ? `Select Group ${group.name}` : `Select ${clip.patternName}`}
+                      aria-pressed={selected}
                       aria-disabled={outsideIsolation || undefined}
                       data-show-timeline-focus
                       data-show-selection-key={insideIsolatedGroup && groupPlacementId
@@ -3883,7 +3930,7 @@ function ShowTimelineWorkspace({
                           : draggingCompositionClip?.clipId === clip.id
                           ? 'opacity-45'
                           : selected
-                          ? 'text-zinc-100 shadow-[0_0_0_1.5px_var(--color-live),0_8px_18px_-10px_rgba(0,0,0,0.9)]'
+                          ? 'text-zinc-100'
                           : 'text-zinc-300 hover:text-zinc-100',
                       ].join(' ')}
                       style={{
@@ -3892,15 +3939,25 @@ function ShowTimelineWorkspace({
                         width: `${width}%`,
                         minWidth: 2,
                         borderLeftColor: row.color ?? '#38bdf8',
-                        background: `linear-gradient(color-mix(in srgb, ${row.color ?? '#38bdf8'} 9%, #101013), color-mix(in srgb, ${row.color ?? '#38bdf8'} 6%, #0c0c0e))`,
+                        background: `linear-gradient(color-mix(in srgb, ${row.color ?? '#38bdf8'} 18%, #101013), color-mix(in srgb, ${row.color ?? '#38bdf8'} 11%, #0c0c0e))`,
+                        boxShadow: selected
+                          ? `0 0 0 1.5px var(--color-live), inset 0 1px 0 color-mix(in srgb, ${row.color ?? '#38bdf8'} 38%, transparent), 0 8px 18px -10px rgba(0,0,0,0.9)`
+                          : `inset 0 1px 0 color-mix(in srgb, ${row.color ?? '#38bdf8'} 38%, transparent), 0 1px 5px rgba(0,0,0,0.32)`,
                       } as CSSProperties}
                     >
-                      <span className="flex min-w-0 items-center gap-1.5">
+                      <span
+                        aria-hidden
+                        className="pointer-events-none absolute inset-0 opacity-40"
+                        style={{
+                          background: `radial-gradient(circle at 22% 15%, color-mix(in srgb, ${row.color ?? '#38bdf8'} 62%, transparent), transparent 38%), linear-gradient(110deg, transparent 35%, color-mix(in srgb, ${row.color ?? '#38bdf8'} 28%, transparent) 56%, transparent 75%)`,
+                        }}
+                      />
+                      <span className="relative z-10 flex min-w-0 items-center gap-1.5">
                         <Grid2X2 size={11} aria-hidden className="show-clip-pattern-icon shrink-0 text-zinc-500" />
                         <span className="show-clip-pattern-name truncate text-[12px] font-normal text-zinc-100 [text-shadow:0_1px_2px_rgba(0,0,0,0.95)]">{clip.patternName}</span>
                       </span>
                       {clip.effectKinds.length > 0 && (
-                        <span className="truncate text-[9px] text-amber-200/75 [text-shadow:0_1px_2px_rgba(0,0,0,0.95)]">
+                        <span className="relative z-10 truncate text-[9px] text-amber-200/75 [text-shadow:0_1px_2px_rgba(0,0,0,0.95)]">
                           FX {clip.effectKinds.length}
                         </span>
                       )}
@@ -3957,6 +4014,24 @@ function ShowTimelineWorkspace({
                       : { kind: 'group', occurrenceId: internalGroup.id }, anchor)
                     return true
                   }
+                  const openJunctionEditor = (anchor: HTMLElement) => {
+                    onDismiss()
+                    if (junction.boundaryTransition) {
+                      onSelect({ kind: 'transition', transitionId: junction.boundaryTransition.id }, anchor)
+                      return
+                    }
+                    onOpenLayerTransition({
+                      junction,
+                      fromName: leftClip.patternName,
+                      toName: rightClip.patternName,
+                      anchor,
+                    })
+                  }
+                  const transitionPictogram = junction.boundaryTransition
+                    ?? (junction.transition ? {
+                      ...junction.transition,
+                      afterSceneId: leftClip.sceneId,
+                    } : null)
                   const totalMs = Math.max(1, unifiedCompositionTimeline?.durationMs ?? timeline.durationMs)
                   if (junction.kind !== 'cut') {
                     const width = Math.max(junction.durationMs / totalMs * 100, 0.35)
@@ -3970,7 +4045,7 @@ function ShowTimelineWorkspace({
                         data-show-layer-junction={junction.id}
                         data-show-group-occurrence={internalGroup?.id}
                         aria-disabled={outsideIsolation || undefined}
-                        className={`absolute inset-y-1 z-[15] min-w-4 overflow-hidden rounded-[3px] border border-amber-400/45 bg-amber-400/15 px-1 text-[10px] font-medium uppercase text-amber-200 outline-none hover:border-amber-300 hover:bg-amber-400/25 focus-visible:ring-1 focus-visible:ring-amber-300 ${outsideIsolation ? 'pointer-events-none opacity-25' : ''}`}
+                        className={`absolute inset-y-0 z-[15] min-w-4 overflow-hidden bg-transparent outline-none transition-[filter,box-shadow] hover:brightness-125 hover:shadow-[inset_0_0_0_1px_rgba(252,211,77,0.65)] focus-visible:brightness-125 focus-visible:shadow-[inset_0_0_0_1px_rgba(252,211,77,0.85)] ${outsideIsolation ? 'pointer-events-none opacity-25' : ''}`}
                         style={{
                           left: `${junction.startMs / totalMs * 100}%`,
                           width: `${width}%`,
@@ -3978,16 +4053,10 @@ function ShowTimelineWorkspace({
                         onClick={(event) => {
                           event.stopPropagation()
                           if (selectInternalGroup(event.currentTarget)) return
-                          onDismiss()
-                          onOpenLayerTransition({
-                            junction,
-                            fromName: leftClip.patternName,
-                            toName: rightClip.patternName,
-                            anchor: event.currentTarget,
-                          })
+                          openJunctionEditor(event.currentTarget)
                         }}
                       >
-                        {junction.kind === 'crossfade' ? 'xf' : junction.kind.slice(0, 2)}
+                        {transitionPictogram && <ShowTransitionXrayPictogram transition={transitionPictogram} />}
                       </button>
                     )
                   }
@@ -4006,17 +4075,11 @@ function ShowTimelineWorkspace({
                       onClick={(event) => {
                         event.stopPropagation()
                         if (selectInternalGroup(event.currentTarget)) return
-                        onDismiss()
-                        onOpenLayerTransition({
-                          junction,
-                          fromName: leftClip.patternName,
-                          toName: rightClip.patternName,
-                          anchor: event.currentTarget,
-                        })
+                        openJunctionEditor(event.currentTarget)
                       }}
                     >
                       <span aria-hidden className="absolute inset-y-1 left-1/2 w-px -translate-x-1/2 bg-zinc-500/80 transition-colors group-hover/cut:bg-amber-300 group-focus-visible/cut:bg-amber-300" />
-                      <span aria-hidden className="absolute left-1/2 top-1 size-2 -translate-x-1/2 rotate-45 rounded-[1px] border border-zinc-500 bg-[#0b0b0d] transition-colors group-hover/cut:border-amber-300 group-focus-visible/cut:border-amber-300" />
+                      <span aria-hidden className="absolute left-1/2 top-1 size-2 -translate-x-1/2 rotate-45 rounded-[1px] border border-zinc-500 bg-[#0b0b0d] opacity-0 transition-[border-color,opacity] group-hover/cut:border-amber-300 group-hover/cut:opacity-100 group-focus-visible/cut:border-amber-300 group-focus-visible/cut:opacity-100" />
                     </button>
                   )
                 })}

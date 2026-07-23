@@ -54,7 +54,7 @@ import { newPersonalContentId } from '@/engine/personalContentMetadata'
 import { uniquePatternName } from '@/engine/patternName'
 import { useMapStore } from '@/store/mapStore'
 import { createInstallationShowOutputContract } from '@/engine/showOutputContract'
-import { normalizeShowComposition } from '@/engine/showCompositionModel'
+import { harvestEmptyShowOverlayLayers, normalizeShowComposition } from '@/engine/showCompositionModel'
 import { stockShowById } from '@/pixelblaze/stock/shows'
 
 const showPersistenceQueues = new Map<string, Promise<void>>()
@@ -160,6 +160,9 @@ export const useShowStore = create<ShowState>()((set, get) => ({
   loadShows: async () => {
     const shows = (await getPersonalContentProvider().listShows())
       .map(normalizeShowRecord)
+      .map((show) => show.composition
+        ? { ...show, composition: harvestEmptyShowOverlayLayers(show, show.composition) }
+        : show)
     set({ shows: shows.sort((a, b) => b.updatedAt - a.updatedAt), showsLoaded: true })
   },
 

@@ -7,6 +7,7 @@ import {
   updateShowCellAdaptations,
   updateShowCellRestartOnEntry,
   updateShowTransition,
+  updateShowBoundaryTransition,
   createShowWithOutputContract,
   removeShowBoundaryTransition,
   removeShowClip,
@@ -495,6 +496,60 @@ export function render(index) { rgb(field[index], 0, 0) }
       hasRender3D: false,
     })
   })
+
+  it.each(['fast', 'fidelity'] as const)(
+    'keeps a Clock Wipe near its beginning after an absolute seek in %s preview (#592)',
+    (fidelity) => {
+      let show = createDefaultShow('show-clock-wipe-timing', 'Clock Wipe timing', 1)
+      show = {
+        ...show,
+        stageMapId: 'plane',
+        scenes: show.scenes.map((scene) => ({ ...scene, durationMs: 8_000 })),
+      }
+      show = updateShowCellPattern(show, 'cell-1', {
+        pattern: { kind: 'user', id: 'solid-red' },
+        patternName: 'Solid red',
+      })
+      show = updateShowCellPattern(show, 'cell-2', {
+        pattern: { kind: 'user', id: 'solid-green' },
+        patternName: 'Solid green',
+      })
+      show = updateShowTransition(show, 'scene-1', 'wipe', 2_000, 0)
+      show = updateShowBoundaryTransition(show, show.transitions![0].id, {
+        wipeVariant: 'clock',
+        centerX: 0.5,
+        centerY: 0.5,
+        phase: 0,
+        clockwise: true,
+        edgePolicy: 'hard',
+        easing: { curve: 'sine', direction: 'in-out' },
+      })
+      const patterns = [
+        { id: 'solid-red', name: 'Solid red', src: 'export function render2D(index, x, y) { rgb(1, 0, 0) }', controls: {}, updatedAt: 1 },
+        { id: 'solid-green', name: 'Solid green', src: 'export function render2D(index, x, y) { rgb(0, 1, 0) }', controls: {}, updatedAt: 1 },
+      ]
+      const compiled = compileShowForPreview(show, patterns, undefined, {}, { stageDimension: 2 })
+      expect(compiled.error).toBeNull()
+      const artifact = compiled.artifact!
+      const mapPoints = Array.from({ length: 64 * 64 }, (_, index) => ({
+        sample: [(index % 64) / 63, Math.floor(index / 64) / 63],
+      }))
+      const runtime = createFastReplayRuntime({
+        code: artifact.code,
+        fxCode: artifact.fxCode,
+        metadata: artifact.metadata,
+        dimension: nativeDimension(artifact.metadata.renderFns),
+      }, { mapPoints, randomSeed: 1, fidelity })
+
+      const frame = runtime.advanceTo(8_100, { stepMs: 1000 / 60 })
+      const incomingFraction = frame.pixels.filter((pixel) => pixel[1] > pixel[0]).length / mapPoints.length
+      const mix = Number(frame.exports.__pxlblz_show_mix) / (fidelity === 'fidelity' ? 65_536 : 1)
+
+      expect(mix).toBeCloseTo(0.0062, 3)
+      expect(incomingFraction).toBeGreaterThan(0.002)
+      expect(incomingFraction).toBeLessThan(0.015)
+    },
+  )
 
   it('uses shared preview state for Continue and isolated state for Restart (#415)', () => {
     const continued = splitShowAtTime(createDefaultShow('show-1', 'Split preview'), 10_000)

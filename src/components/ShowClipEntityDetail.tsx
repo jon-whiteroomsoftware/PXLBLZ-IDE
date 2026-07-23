@@ -83,8 +83,8 @@ export function ShowClipEntityDetail({
       </header>}
 
       <div className={embedded ? '' : 'p-2.5'}>
-        <div data-testid="clip-primary-fields" className="grid min-w-0 items-end gap-2 sm:grid-cols-[minmax(0,1fr)_minmax(0,7rem)_minmax(0,7rem)]">
-          <label className="block text-[9px] uppercase tracking-[0.1em] text-zinc-600">
+        <div data-testid="clip-primary-fields" className="grid min-w-0 items-end gap-2 sm:grid-cols-5">
+          <label className="block min-w-0 text-[9px] uppercase tracking-[0.1em] text-zinc-600 sm:col-span-3">
             Source pattern
             <PatternCombobox
               key={`${value.owner.kind}:${value.pattern.kind}:${value.pattern.id}`}
@@ -128,29 +128,33 @@ export function ShowClipEntityDetail({
         </div>
 
         {capabilities.localTiming && value.local && (
-          <div data-testid="clip-local-fields" className={`mt-2 grid items-end gap-2 ${capabilities.sourceOverOpacity ? 'sm:grid-cols-4' : 'sm:grid-cols-2'}`}>
-            <ShowInspectorNumberField
-              label="Start"
-              ariaLabel="Start seconds"
-              value={value.local.startMs / 1_000}
-              min={0}
-              max={Number.MAX_SAFE_INTEGER}
-              step={0.1}
-              suffix="s"
-              disabled={readOnly}
-              onChange={(seconds) => onPatch({ local: { startMs: Math.round(seconds * 1_000) } })}
-            />
-            <ShowInspectorNumberField
-              label="Duration"
-              ariaLabel="Duration seconds"
-              value={value.local.durationMs / 1_000}
-              min={0.1}
-              max={Number.MAX_SAFE_INTEGER}
-              step={0.1}
-              suffix="s"
-              disabled={readOnly}
-              onChange={(seconds) => onPatch({ local: { durationMs: Math.round(seconds * 1_000) } })}
-            />
+          <div data-testid="clip-local-fields" className={`mt-2 grid items-end gap-2 ${capabilities.sourceOverOpacity ? 'sm:grid-cols-4' : 'sm:grid-cols-5'}`}>
+            <div data-field-span className={capabilities.sourceOverOpacity ? '' : 'sm:col-span-3'}>
+              <ShowInspectorNumberField
+                label="Start"
+                ariaLabel="Start seconds"
+                value={value.local.startMs / 1_000}
+                min={0}
+                max={Number.MAX_SAFE_INTEGER}
+                step={0.1}
+                suffix="s"
+                disabled={readOnly}
+                onChange={(seconds) => onPatch({ local: { startMs: Math.round(seconds * 1_000) } })}
+              />
+            </div>
+            <div data-field-span className={capabilities.sourceOverOpacity ? '' : 'sm:col-span-2'}>
+              <ShowInspectorNumberField
+                label="Duration"
+                ariaLabel="Duration seconds"
+                value={value.local.durationMs / 1_000}
+                min={0.1}
+                max={Number.MAX_SAFE_INTEGER}
+                step={0.1}
+                suffix="s"
+                disabled={readOnly}
+                onChange={(seconds) => onPatch({ local: { durationMs: Math.round(seconds * 1_000) } })}
+              />
+            </div>
             {capabilities.sourceOverOpacity && (
               <ShowInspectorNumberField
                 label="Opacity"

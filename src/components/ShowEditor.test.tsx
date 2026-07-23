@@ -825,6 +825,19 @@ describe('ShowEditor (#318)', () => {
     expect(screen.queryByRole('dialog', { name: 'Entity Detail Panel' })).not.toBeInTheDocument()
   })
 
+  it('keeps the selected Clip ring above the lit Clip surface (#592)', async () => {
+    const user = userEvent.setup()
+    const show = createDefaultShow('show-selected-clip-ring', 'Selected Clip ring', 1000)
+    useShowStore.setState({ shows: [show], activeShowId: show.id, showsLoaded: true })
+    render(<ShowEditor showId={show.id} />)
+
+    const clip = screen.getByRole('button', { name: 'Select TestPattern1D' })
+    await user.click(clip)
+
+    expect(clip).toHaveAttribute('aria-pressed', 'true')
+    expect(clip.style.boxShadow).toContain('var(--color-live)')
+  })
+
   it('moves a composition Clip by dragging its unified Layer and restores Detail (#580)', async () => {
     const user = userEvent.setup()
     const show = createDefaultShow('show-drag-composition', 'Drag composition', 1000)
@@ -1094,6 +1107,18 @@ describe('ShowEditor (#318)', () => {
       expect(saved?.composition?.scenes.every((scene) => scene.zones[0].overlays.length === 1)).toBe(true)
     })
     expect(document.querySelectorAll('[data-show-layer-kind="overlay"]')).toHaveLength(1)
+
+    const addDialog = await screen.findByRole('dialog', { name: 'Add Clip at playhead' })
+    const layerPicker = within(addDialog).getByRole('combobox', { name: 'Destination Layer' })
+    expect(layerPicker).toHaveValue('overlay:0')
+    expect(within(layerPicker).getAllByRole('option').map((option) => option.textContent)).toEqual(['Layer 1', 'Main'])
+
+    await user.click(within(addDialog).getByRole('button', { name: 'Add Clip' }))
+    await waitFor(() => {
+      const saved = useShowStore.getState().shows.find((candidate) => candidate.id === show.id)
+      expect(saved?.composition?.scenes[0].zones[0].main).toEqual([])
+      expect(saved?.composition?.scenes[0].zones[0].overlays[0].placements).toHaveLength(1)
+    })
   })
 
   it('splits and duplicates the selected composition Clip from timeline commands (#580)', async () => {
@@ -1255,6 +1280,34 @@ describe('ShowEditor (#318)', () => {
     expect(screen.getByRole('button', { name: 'Split at playhead' })).toBeDisabled()
     expect(screen.getByRole('button', { name: 'Clone selection' })).toBeDisabled()
     expect(useShowStore.getState().shows).toEqual([])
+  })
+
+  it('keeps legacy stock Clips on one absolute Layer and exposes their boundary Transition (#589)', async () => {
+    const user = userEvent.setup()
+    const stock = STOCK_SHOWS.find((candidate) => candidate.id === 'stock-show-101-clips-crossfade')!
+
+    render(<ShowEditor showId={stock.id} showOverride={stock.show} readOnly />)
+
+    const signal = screen.getByRole('button', { name: 'Select SignalMandala' })
+    const compass = screen.getByRole('button', { name: 'Select CompassRose' })
+    expect(signal.parentElement).toBe(compass.parentElement)
+    expect(signal.parentElement).toHaveAttribute('data-show-layer-kind', 'main')
+    expect(signal).toHaveClass('absolute')
+    expect(signal).not.toHaveClass('relative')
+
+    const crossfade = screen.getByRole('button', {
+      name: 'Edit crossfade Transition between SignalMandala and CompassRose',
+    })
+    expect(crossfade.parentElement).toBe(signal.parentElement)
+    expect(crossfade).toHaveClass('inset-y-0', 'bg-transparent')
+    expect(crossfade).not.toHaveClass('border-amber-400/45', 'bg-amber-400/15')
+    expect(within(crossfade).getByTestId('transition-xray-pictogram')).toHaveAttribute(
+      'data-xray-transition-icon',
+      'crossfade',
+    )
+
+    await user.click(crossfade)
+    expect(screen.getByRole('dialog', { name: 'Entity Detail Panel' })).toHaveTextContent('crossfade')
   })
 
   it('opens a stock Show guide on first visit and fully collapses it per Show (#363)', async () => {

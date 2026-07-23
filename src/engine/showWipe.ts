@@ -140,7 +140,11 @@ export function showWipeMaskPositionExpression(
   }
   if (normalized.wipeVariant === 'clock') {
     const sign = normalized.clockwise ? 1 : -1
-    return `frac(${sign} * atan2(y - ${normalized.centerY}, x - ${normalized.centerX}) / ${TAU} - ${normalized.phase})`
+    const turn = `${sign} * atan2(y - ${normalized.centerY}, x - ${normalized.centerX}) / ${TAU} - ${normalized.phase}`
+    // Pixelblaze frac() truncates toward zero, so negative angles remain
+    // negative and would make half the Stage pass the Wipe threshold at t=0.
+    // Floor-based wrapping matches showWipeMaskPosition's positive modulo.
+    return `((${turn}) - floor(${turn}))`
   }
   if (normalized.wipeVariant === 'checker') {
     return `(frac((floor(x * ${normalized.count}) + floor(y * ${normalized.count})) * 0.5) * 2 + frac(x * ${normalized.count})) / 2`

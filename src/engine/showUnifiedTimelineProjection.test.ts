@@ -114,6 +114,65 @@ describe('unified Show timeline projection (#580)', () => {
     ])
   })
 
+  it('projects a legacy visual boundary Transition between Scene-local Clips (#589)', () => {
+    const show = createDefaultShow('show-legacy-transition-projection', 'Legacy transition projection', 1_000)
+    const zoneId = show.zones[0].id
+    const [leftScene, rightScene] = show.scenes
+    const composition: ShowCompositionV1 = {
+      version: 1,
+      patternInstances: [{
+        id: 'instance-a',
+        pattern: { kind: 'stock', id: 'Rings' },
+        patternName: 'Rings',
+        time: { timeScale: 1, timeOffsetMs: 0 },
+      }],
+      scenes: [
+        {
+          sceneId: leftScene.id,
+          zones: [{
+            zoneId,
+            main: [{
+              id: 'clip-left',
+              instanceId: 'instance-a',
+              startMs: 0,
+              durationMs: leftScene.durationMs,
+              view: { mirror: false, phase: 0, brightness: 1 },
+            }],
+            overlays: [],
+          }],
+        },
+        {
+          sceneId: rightScene.id,
+          zones: [{
+            zoneId,
+            main: [{
+              id: 'clip-right',
+              instanceId: 'instance-a',
+              startMs: 0,
+              durationMs: rightScene.durationMs,
+              view: { mirror: false, phase: 0, brightness: 1 },
+            }],
+            overlays: [],
+          }],
+        },
+      ],
+    }
+
+    expect(projectShowUnifiedTimeline(show, composition).zones[0].layers[0].junctions).toEqual([
+      expect.objectContaining({
+        id: 'transition-scene-1',
+        kind: 'crossfade',
+        leftClipId: 'clip-left',
+        rightClipId: 'clip-right',
+        startMs: 30_000,
+        endMs: 32_000,
+        durationMs: 2_000,
+        transition: null,
+        boundaryTransition: show.transitions[0],
+      }),
+    ])
+  })
+
   it('projects internal Scene-local placements onto one global timeline', () => {
     const show = createDefaultShow('show-unified-projection', 'Unified projection', 1_000)
     const zoneId = show.zones[0].id

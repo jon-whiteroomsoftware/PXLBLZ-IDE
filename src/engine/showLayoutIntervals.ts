@@ -63,7 +63,7 @@ export function projectShowLayoutIntervals(show: ShowRecord): ShowLayoutInterval
         id: `layout-occurrence-${sceneRange.sceneId}`,
         layoutId: layout.id,
         layoutName: layout.name,
-        zoneIds: layout.zones.map((zone) => zone.zoneId),
+        zoneIds: layout.logical?.zoneIds ?? layout.zones.map((zone) => zone.zoneId),
         startMs,
         endMs: sceneRange.endMs,
         durationMs: sceneRange.endMs - startMs,
