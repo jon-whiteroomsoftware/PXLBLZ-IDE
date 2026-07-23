@@ -13,6 +13,7 @@ import {
   splitShowOverlayPlacement,
   validateShowComposition,
 } from './showCompositionModel'
+import { materializeShowGroupOccurrences } from './showGroupModel'
 import { projectShowTimeline } from './showModel'
 
 export type ShowClipAddPlan =
@@ -111,10 +112,23 @@ export function planShowClipAtGlobalTime(
     ? composition.scenes.find((scene) => scene.sceneId === sceneRange.sceneId)
     : undefined
   const zone = sceneComposition?.zones.find((candidate) => candidate.zoneId === input.zoneId)
-  const placements = input.target.kind === 'main'
+  const authoredOverlayLayer = input.target.kind === 'overlay'
+    ? zone?.overlays[input.target.layerIndex]
+    : undefined
+  const authoredPlacements = input.target.kind === 'main'
     ? zone?.main
-    : zone?.overlays[input.target.layerIndex]?.placements
-  if (!sceneRange || !zone || !placements) {
+    : authoredOverlayLayer?.placements
+  const materializedComposition = composition.groupOccurrences?.length
+    ? materializeShowGroupOccurrences(composition)
+    : composition
+  const materializedScene = sceneRange
+    ? materializedComposition.scenes.find((scene) => scene.sceneId === sceneRange.sceneId)
+    : undefined
+  const materializedZone = materializedScene?.zones.find((candidate) => candidate.zoneId === input.zoneId)
+  const placements = input.target.kind === 'main'
+    ? materializedZone?.main
+    : materializedZone?.overlays.find((layer) => layer.id === authoredOverlayLayer?.id)?.placements
+  if (!sceneRange || !zone || !authoredPlacements || !placements) {
     return { enabled: false, code: 'missing-owner', reason: 'The selected Zone has no Layer at the playhead.' }
   }
 

@@ -218,17 +218,40 @@ export function harvestEmptyShowOverlayLayers(
   composition: ShowCompositionV1,
 ): ShowCompositionV1 {
   const emptyIndicesByZoneId = new Map<string, Set<number>>()
+  const removedAbsoluteLayersByZoneId = new Map<string, number[]>()
+  const groupDefinitionById = new Map((composition.groupDefinitions ?? [])
+    .map((definition) => [definition.id, definition]))
   for (const showZone of show.zones) {
     const zones = composition.scenes.flatMap((scene) => {
       const zone = scene.zones.find((candidate) => candidate.zoneId === showZone.id)
       return zone ? [zone] : []
     })
     const maximumLayerCount = zones.reduce((maximum, zone) => Math.max(maximum, zone.overlays.length), 0)
+    const groupProtectedIndices = new Set<number>()
+    for (const occurrence of composition.groupOccurrences ?? []) {
+      if (occurrence.zoneId !== showZone.id) continue
+      const definition = groupDefinitionById.get(occurrence.definitionId)
+      if (!definition?.placements.length) continue
+      const absoluteLayers = definition.placements
+        .map((placement) => occurrence.baseLayer + placement.layerOffset)
+        .filter((absoluteLayer) => absoluteLayer > 0)
+      if (absoluteLayers.length === 0) continue
+      const minimumAbsoluteLayer = Math.max(1, occurrence.baseLayer)
+      const maximumAbsoluteLayer = Math.max(...absoluteLayers)
+      for (let absoluteLayer = minimumAbsoluteLayer; absoluteLayer <= maximumAbsoluteLayer; absoluteLayer += 1) {
+        const layerIndex = maximumLayerCount - absoluteLayer
+        if (layerIndex >= 0 && layerIndex < maximumLayerCount) groupProtectedIndices.add(layerIndex)
+      }
+    }
     const emptyIndices = new Set(Array.from({ length: maximumLayerCount }, (_, layerIndex) => layerIndex)
       .filter((layerIndex) => zones.every((zone) => (
         (zone.overlays[layerIndex]?.placements.length ?? 0) === 0
-      ))))
-    if (emptyIndices.size > 0) emptyIndicesByZoneId.set(showZone.id, emptyIndices)
+      )) && !groupProtectedIndices.has(layerIndex)))
+    if (emptyIndices.size > 0) {
+      emptyIndicesByZoneId.set(showZone.id, emptyIndices)
+      removedAbsoluteLayersByZoneId.set(showZone.id, [...emptyIndices]
+        .map((layerIndex) => maximumLayerCount - layerIndex))
+    }
   }
   if (emptyIndicesByZoneId.size === 0) return composition
 
@@ -239,6 +262,13 @@ export function harvestEmptyShowOverlayLayers(
       if (!emptyIndices) continue
       zone.overlays = zone.overlays.filter((_, layerIndex) => !emptyIndices.has(layerIndex))
     }
+  }
+  for (const occurrence of draft.groupOccurrences ?? []) {
+    const removedAbsoluteLayers = removedAbsoluteLayersByZoneId.get(occurrence.zoneId)
+    if (!removedAbsoluteLayers) continue
+    occurrence.baseLayer -= removedAbsoluteLayers
+      .filter((absoluteLayer) => absoluteLayer < occurrence.baseLayer)
+      .length
   }
   return normalizeShowComposition(show, draft)
 }

@@ -7,7 +7,7 @@ import type {
   ShowRecord,
   ShowTransitionKind,
 } from './personalContentRecords'
-import { projectShowTimeline } from './showModel'
+import { projectShowTimeline, type ShowTimelineBoundaryTransitionProjection } from './showModel'
 import { materializeShowGroupOccurrences } from './showGroupModel'
 
 export interface ShowUnifiedTimelineClipProjection {
@@ -56,6 +56,10 @@ type ShowVisualBoundaryTransition = Omit<ShowBoundaryTransition, 'kind'> & {
   kind: ShowTransitionKind
 }
 
+type ShowVisualTimelineBoundaryTransition = Omit<ShowTimelineBoundaryTransitionProjection, 'kind'> & {
+  kind: ShowTransitionKind
+}
+
 export interface ShowUnifiedTimelineJunctionProjection {
   id: string
   kind: ShowTransitionKind
@@ -91,6 +95,8 @@ export function projectShowUnifiedTimeline(
 ): ShowUnifiedTimelineProjection {
   const timeline = projectShowTimeline(show)
   const sceneRangeById = new Map(timeline.scenes.map((scene) => [scene.sceneId, scene]))
+  const nextSceneIdById = new Map(timeline.scenes.slice(0, -1)
+    .map((scene, index) => [scene.sceneId, timeline.scenes[index + 1].sceneId]))
   const projectedComposition = materializeShowGroupOccurrences(composition)
   const instanceById = new Map(projectedComposition.patternInstances.map((instance) => [instance.id, instance]))
   const groupByPlacementId = new Map((composition.groupOccurrences ?? []).flatMap((occurrence) => {
@@ -129,7 +135,8 @@ export function projectShowUnifiedTimeline(
             }))
           }).sort((a, b) => a.startMs - b.startMs || a.id.localeCompare(b.id)),
           transitions: projectedComposition.transitions ?? [],
-          boundaryTransitions: show.transitions ?? [],
+          boundaryTransitions: timeline.boundaryTransitions,
+          nextSceneIdById,
         }),
       )
       const mainLayer = projectLayer({
@@ -153,7 +160,8 @@ export function projectShowUnifiedTimeline(
           }))
         }).sort((a, b) => a.startMs - b.startMs || a.id.localeCompare(b.id)),
         transitions: projectedComposition.transitions ?? [],
-        boundaryTransitions: show.transitions ?? [],
+        boundaryTransitions: timeline.boundaryTransitions,
+        nextSceneIdById,
       })
       return {
         id: zone.id,
@@ -192,10 +200,11 @@ export function projectShowUnifiedTimeline(
 function projectLayer(
   layer: Omit<ShowUnifiedTimelineLayerProjection, 'junctions'> & {
     transitions: ShowLayerTransition[]
-    boundaryTransitions: ShowBoundaryTransition[]
+    boundaryTransitions: ShowTimelineBoundaryTransitionProjection[]
+    nextSceneIdById: Map<string, string>
   },
 ): ShowUnifiedTimelineLayerProjection {
-  const { transitions, boundaryTransitions, ...projection } = layer
+  const { transitions, boundaryTransitions, nextSceneIdById, ...projection } = layer
   return {
     ...projection,
     junctions: layer.clips.slice(0, -1).flatMap<ShowUnifiedTimelineJunctionProjection>((leftClip, index) => {
@@ -219,12 +228,21 @@ function projectLayer(
       }
       const boundaryTransition = boundaryTransitions.find((
         candidate,
-      ): candidate is ShowVisualBoundaryTransition => (
+      ): candidate is ShowVisualTimelineBoundaryTransition => (
         candidate.kind !== 'routing'
         && candidate.afterSceneId === leftClip.sceneId
-        && leftClip.endMs + candidate.durationMs === rightClip.startMs
+        && rightClip.sceneId === nextSceneIdById.get(leftClip.sceneId)
+        && leftClip.endMs === candidate.startMs
+        && rightClip.startMs === candidate.endMs
       ))
       if (boundaryTransition) {
+        const {
+          cost: _cost,
+          startMs: _startMs,
+          endMs: _endMs,
+          layoutName: _layoutName,
+          ...authoredBoundaryTransition
+        } = boundaryTransition
         return [{
           id: boundaryTransition.id,
           kind: boundaryTransition.kind,
@@ -234,7 +252,7 @@ function projectLayer(
           endMs: rightClip.startMs,
           durationMs: boundaryTransition.durationMs,
           transition: null,
-          boundaryTransition,
+          boundaryTransition: authoredBoundaryTransition,
         }]
       }
       if (leftClip.endMs !== rightClip.startMs) return []

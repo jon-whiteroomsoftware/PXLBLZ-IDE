@@ -378,29 +378,64 @@ function ShowNoteDisclosure({
   onCollapse: () => void
 }) {
   const title = note.number ? `${note.number} ${note.title}` : note.title
+  const sectionRef = useRef<HTMLElement>(null)
+  const [compactMode, setCompactMode] = useState(false)
+  const [compactExpanded, setCompactExpanded] = useState(false)
+  useEffect(() => {
+    const section = sectionRef.current
+    if (!section) return
+    const update = () => {
+      const width = section.getBoundingClientRect().width
+      setCompactMode(width > 0 && width <= 820)
+    }
+    update()
+    if (typeof ResizeObserver === 'undefined') return
+    const observer = new ResizeObserver(update)
+    observer.observe(section)
+    return () => observer.disconnect()
+  }, [])
+  const compactContentHidden = compactMode && !compactExpanded
   return (
     <section
+      ref={sectionRef}
       role="region"
       aria-label={`${title} guide`}
+      data-compact-expanded={compactExpanded}
       className="shrink-0 select-none border-b border-cyan-200/20 bg-[#0d171b] text-[10px]"
     >
-      <button
-        type="button"
-        aria-label={`Collapse ${note.number ? `${note.number} ` : ''}guide`}
-        className="flex h-8 w-full items-center gap-2 px-3 text-left hover:bg-white/[0.025] focus-visible:outline-2 focus-visible:outline-inset focus-visible:outline-cyan-200"
-        onClick={onCollapse}
-      >
-        <Info size={12} aria-hidden className="shrink-0 text-cyan-200/80" />
-        <span className="shrink-0 font-semibold uppercase tracking-[0.1em] text-cyan-200/85">{note.label}</span>
-        <strong className="truncate font-medium text-zinc-200">{note.number ? `${note.number} · ` : ''}{note.title}</strong>
-        <span className="ml-1 hidden items-center gap-1 text-[9px] text-zinc-600 sm:flex">
-          <RotateCcw size={10} aria-hidden />
-          Built-in Show · edits last until reload
-        </span>
-        <ChevronDown size={12} aria-hidden className="ml-auto shrink-0 rotate-180 text-zinc-500" />
-      </button>
+      <div className="flex h-8 items-center">
+        <button
+          type="button"
+          aria-label={`Collapse ${note.number ? `${note.number} ` : ''}guide`}
+          className="flex h-8 min-w-0 flex-1 items-center gap-2 px-3 text-left hover:bg-white/[0.025] focus-visible:outline-2 focus-visible:outline-inset focus-visible:outline-cyan-200"
+          onClick={onCollapse}
+        >
+          <Info size={12} aria-hidden className="shrink-0 text-cyan-200/80" />
+          <span className="shrink-0 font-semibold uppercase tracking-[0.1em] text-cyan-200/85">{note.label}</span>
+          <strong className="truncate font-medium text-zinc-200">{note.number ? `${note.number} · ` : ''}{note.title}</strong>
+          <span className="ml-1 hidden items-center gap-1 text-[9px] text-zinc-600 sm:flex">
+            <RotateCcw size={10} aria-hidden />
+            Built-in Show · edits last until reload
+          </span>
+          <ChevronDown size={12} aria-hidden className="ml-auto shrink-0 rotate-180 text-zinc-500" />
+        </button>
+        <button
+          type="button"
+          aria-label="Show guide details"
+          aria-expanded={compactExpanded}
+          className="show-note-compact-toggle h-6 shrink-0 items-center gap-1 border-l border-zinc-800 px-2 text-[10px] text-cyan-100/70 hover:bg-white/[0.035] hover:text-cyan-100"
+          onClick={() => setCompactExpanded((expanded) => !expanded)}
+        >
+          Details
+          <ChevronDown size={10} aria-hidden className={compactExpanded ? 'rotate-180' : ''} />
+        </button>
+      </div>
       {reference && (
-        <div className="show-note-expanded-content">
+        <div
+          className="show-note-expanded-content"
+          aria-hidden={compactContentHidden || undefined}
+          inert={compactContentHidden || undefined}
+        >
           <ShowReferenceInstrument
             show={show}
             reference={reference}
@@ -411,7 +446,11 @@ function ShowNoteDisclosure({
           />
         </div>
       )}
-      <div className="show-note-expanded-content grid grid-cols-[minmax(0,1.45fr)_minmax(220px,1fr)] gap-4 border-t border-zinc-800/80 px-3 py-2.5 max-[720px]:grid-cols-1 max-[720px]:gap-2">
+      <div
+        className="show-note-expanded-content grid grid-cols-[minmax(0,1.45fr)_minmax(220px,1fr)] gap-4 border-t border-zinc-800/80 px-3 py-2.5 max-[720px]:grid-cols-1 max-[720px]:gap-2"
+        aria-hidden={compactContentHidden || undefined}
+        inert={compactContentHidden || undefined}
+      >
         <div>
           <p className="max-w-[72ch] leading-4 text-zinc-300">{note.purpose}</p>
           <p className="mt-1.5 flex items-start gap-1.5 leading-4 text-zinc-500">

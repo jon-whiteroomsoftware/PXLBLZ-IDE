@@ -30,6 +30,7 @@ import {
   trimShowOverlayPlacement,
   validateShowComposition,
 } from './showCompositionModel'
+import { materializeShowGroupOccurrences } from './showGroupModel'
 import type { ShowCompositionV1, ShowLayerTransition, ShowRecord } from './personalContentRecords'
 
 const SOURCE = 'export function render(index) { rgb(index / 60, 0.2, 0.4) }'
@@ -771,6 +772,131 @@ describe('Show composition v1 Main schedule (#488)', () => {
     ))).toEqual([
       ['Front', 'Middle', 'Back'],
       ['Front', 'Middle', 'Back'],
+    ])
+  })
+
+  it('preserves a Layer occupied only by a Group occurrence', () => {
+    const show = createDefaultShow('show-harvest-group-layer', 'Harvest Group layer', 1)
+    const composition = projectFlatShowToCompositionV1(show, lookup(show))
+    const instanceId = composition.patternInstances[0].id
+    composition.scenes.forEach((scene, sceneIndex) => {
+      scene.zones[0].main = []
+      scene.zones[0].overlays = [
+        {
+          id: `upper-${sceneIndex}`,
+          name: 'Upper',
+          placements: sceneIndex === 0
+            ? [{
+                id: 'ordinary-upper',
+                instanceId,
+                startMs: 0,
+                durationMs: 1_000,
+                opacity: 1,
+                view: { mirror: false, phase: 0, brightness: 1 },
+              }]
+            : [],
+        },
+        { id: `group-layer-${sceneIndex}`, name: 'Group layer', placements: [] },
+      ]
+    })
+    composition.groupDefinitions = [{
+      id: 'group-definition',
+      name: 'Group',
+      patternInstances: [{
+        id: 'group-instance',
+        pattern: { kind: 'stock', id: 'Rings' },
+        patternName: 'Rings',
+        time: { timeScale: 1, timeOffsetMs: 0 },
+      }],
+      placements: [{
+        id: 'group-child',
+        instanceId: 'group-instance',
+        startMs: 0,
+        durationMs: 1_000,
+        opacity: 1,
+        view: { mirror: false, phase: 0, brightness: 1 },
+        layerOffset: 0,
+      }],
+    }]
+    composition.groupOccurrences = [{
+      id: 'group-use',
+      definitionId: 'group-definition',
+      sceneId: show.scenes[0].id,
+      zoneId: show.zones[0].id,
+      startMs: 0,
+      baseLayer: 1,
+      translationX: 0,
+      translationY: 0,
+    }]
+
+    const harvested = harvestEmptyShowOverlayLayers(show, composition)
+    const materialized = materializeShowGroupOccurrences(harvested)
+
+    expect(harvested.scenes[0].zones[0].overlays).toHaveLength(2)
+    expect(materialized.scenes[0].zones[0].overlays.map((layer) => (
+      layer.placements.map((placement) => placement.id)
+    ))).toEqual([
+      ['ordinary-upper'],
+      ['group-use:group-child'],
+    ])
+  })
+
+  it('preserves empty Layers inside the structural span of a sparse Group', () => {
+    const show = createDefaultShow('show-harvest-sparse-group', 'Harvest sparse Group', 1)
+    const composition = projectFlatShowToCompositionV1(show, lookup(show))
+    composition.scenes.forEach((scene, sceneIndex) => {
+      scene.zones[0].main = []
+      scene.zones[0].overlays = [
+        { id: `layer-2-${sceneIndex}`, name: 'Layer 2', placements: [] },
+        { id: `layer-1-${sceneIndex}`, name: 'Layer 1', placements: [] },
+      ]
+    })
+    composition.groupDefinitions = [{
+      id: 'sparse-definition',
+      name: 'Sparse Group',
+      patternInstances: [{
+        id: 'group-instance',
+        pattern: { kind: 'stock', id: 'Rings' },
+        patternName: 'Rings',
+        time: { timeScale: 1, timeOffsetMs: 0 },
+      }],
+      placements: [
+        {
+          id: 'main-child',
+          instanceId: 'group-instance',
+          startMs: 0,
+          durationMs: 1_000,
+          opacity: 1,
+          view: { mirror: false, phase: 0, brightness: 1 },
+          layerOffset: 0,
+        },
+        {
+          id: 'layer-2-child',
+          instanceId: 'group-instance',
+          startMs: 0,
+          durationMs: 1_000,
+          opacity: 1,
+          view: { mirror: false, phase: 0, brightness: 1 },
+          layerOffset: 2,
+        },
+      ],
+    }]
+    composition.groupOccurrences = [{
+      id: 'sparse-use',
+      definitionId: 'sparse-definition',
+      sceneId: show.scenes[0].id,
+      zoneId: show.zones[0].id,
+      startMs: 0,
+      baseLayer: 0,
+      translationX: 0,
+      translationY: 0,
+    }]
+
+    const harvested = harvestEmptyShowOverlayLayers(show, composition)
+
+    expect(harvested.scenes[0].zones[0].overlays.map((layer) => layer.id)).toEqual([
+      'layer-2-0',
+      'layer-1-0',
     ])
   })
 

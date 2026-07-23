@@ -162,6 +162,121 @@ describe('global timeline Clip authoring (#580)', () => {
     })
   })
 
+  it('disables Add Clip where a Group child occupies Main or an overlay Layer', () => {
+    const show = createDefaultShow('show-group-occupied-add', 'Group occupied Add', 1000)
+    const composition = emptyComposition(show)
+    composition.scenes.forEach((scene, sceneIndex) => {
+      scene.zones[0].overlays = [{
+        id: `overlay-${sceneIndex}`,
+        name: 'Overlay',
+        placements: [],
+      }]
+    })
+    composition.groupDefinitions = [{
+      id: 'group-definition',
+      name: 'Group',
+      patternInstances: [{
+        id: 'group-instance',
+        pattern: { kind: 'stock', id: 'Rings' },
+        patternName: 'Rings',
+        time: { timeScale: 1, timeOffsetMs: 0 },
+      }],
+      placements: [{
+        id: 'group-child',
+        instanceId: 'group-instance',
+        startMs: 1_000,
+        durationMs: 2_000,
+        opacity: 1,
+        view: { mirror: false, phase: 0, brightness: 1 },
+        layerOffset: 0,
+      }],
+    }]
+    composition.groupOccurrences = [
+      {
+        id: 'main-group-use',
+        definitionId: 'group-definition',
+        sceneId: show.scenes[0].id,
+        zoneId: show.zones[0].id,
+        startMs: 0,
+        baseLayer: 0,
+        translationX: 0,
+        translationY: 0,
+      },
+      {
+        id: 'overlay-group-use',
+        definitionId: 'group-definition',
+        sceneId: show.scenes[0].id,
+        zoneId: show.zones[0].id,
+        startMs: 0,
+        baseLayer: 1,
+        translationX: 0,
+        translationY: 0,
+      },
+    ]
+
+    expect(planShowClipAtGlobalTime(show, composition, {
+      zoneId: show.zones[0].id,
+      globalTimeMs: 1_500,
+      target: { kind: 'main' },
+    })).toMatchObject({ enabled: false, code: 'occupied' })
+    expect(planShowClipAtGlobalTime(show, composition, {
+      zoneId: show.zones[0].id,
+      globalTimeMs: 1_500,
+      target: { kind: 'overlay', layerIndex: 0 },
+    })).toMatchObject({ enabled: false, code: 'occupied' })
+  })
+
+  it('keeps an authored overlay target stable when a Group materializes a higher virtual Layer', () => {
+    const show = createDefaultShow('show-group-virtual-layer-add', 'Group virtual Layer Add', 1000)
+    const composition = emptyComposition(show)
+    composition.scenes.forEach((scene, sceneIndex) => {
+      scene.zones[0].overlays = [{
+        id: `authored-overlay-${sceneIndex}`,
+        name: 'Authored overlay',
+        placements: [],
+      }]
+    })
+    composition.groupDefinitions = [{
+      id: 'higher-group-definition',
+      name: 'Higher Group',
+      patternInstances: [{
+        id: 'group-instance',
+        pattern: { kind: 'stock', id: 'Rings' },
+        patternName: 'Rings',
+        time: { timeScale: 1, timeOffsetMs: 0 },
+      }],
+      placements: [{
+        id: 'higher-child',
+        instanceId: 'group-instance',
+        startMs: 1_000,
+        durationMs: 2_000,
+        opacity: 1,
+        view: { mirror: false, phase: 0, brightness: 1 },
+        layerOffset: 0,
+      }],
+    }]
+    composition.groupOccurrences = [{
+      id: 'higher-group-use',
+      definitionId: 'higher-group-definition',
+      sceneId: show.scenes[0].id,
+      zoneId: show.zones[0].id,
+      startMs: 0,
+      baseLayer: 2,
+      translationX: 0,
+      translationY: 0,
+    }]
+
+    expect(planShowClipAtGlobalTime(show, composition, {
+      zoneId: show.zones[0].id,
+      globalTimeMs: 1_500,
+      target: { kind: 'overlay', layerIndex: 0 },
+    })).toMatchObject({
+      enabled: true,
+      code: 'ready',
+      localStartMs: 1_500,
+    })
+  })
+
   it('adds the fresh Pattern instance and placement to the resolved owner', () => {
     const show = createDefaultShow('show-commit-global', 'Commit global', 1000)
     const composition = emptyComposition(show)

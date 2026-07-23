@@ -1348,6 +1348,11 @@ describe('ShowEditor (#318)', () => {
       'href',
       expect.stringContaining('/docs/show-visual-toolkit#clips-scenes-and-boundaries'),
     )
+    const compactDetails = within(guide).getByRole('button', { name: 'Show guide details' })
+    expect(compactDetails).toHaveAttribute('aria-expanded', 'false')
+    await user.click(compactDetails)
+    expect(compactDetails).toHaveAttribute('aria-expanded', 'true')
+    expect(guide).toHaveAttribute('data-compact-expanded', 'true')
 
     await user.click(within(guide).getByRole('button', { name: 'Collapse 101 guide' }))
     expect(screen.queryByRole('region', { name: '101 Clips and Crossfade guide' })).not.toBeInTheDocument()
@@ -1358,6 +1363,49 @@ describe('ShowEditor (#318)', () => {
     expect(within(trigger).queryByText('101 Guide')).not.toBeInTheDocument()
     await user.click(trigger)
     expect(screen.getByRole('region', { name: '101 Clips and Crossfade guide' })).toBeInTheDocument()
+  })
+
+  it('removes compacted guide actions from keyboard access until Details opens', async () => {
+    const user = userEvent.setup()
+    const rect = vi.spyOn(HTMLElement.prototype, 'getBoundingClientRect').mockReturnValue({
+      x: 0, y: 0, left: 0, top: 0, right: 367, bottom: 300, width: 367, height: 300,
+      toJSON: () => ({}),
+    })
+    const stock = STOCK_SHOWS[0]
+    const note = {
+      label: 'Learn 100',
+      number: '101',
+      title: 'Clips and Crossfade',
+      purpose: 'Compose two Patterns.',
+      notice: 'The Transition is its own entity.',
+      prompts: ['Inspect the Clips.', 'Inspect the Transition.'] as [string, string],
+      guide: {
+        documentId: 'show-visual-toolkit' as const,
+        heading: 'clips-scenes-and-boundaries',
+        label: 'Read the guide',
+      },
+      defaultOpen: true,
+    }
+
+    render(<div style={{ width: 367 }}>
+      <ShowEditor
+        showId={stock.id}
+        showOverride={stock.show}
+        readOnly
+        builtInContext={{
+          track: stock.track,
+          lesson: stock.lesson,
+          description: stock.description,
+          note,
+        }}
+      />
+    </div>)
+
+    const guide = screen.getByRole('region', { name: '101 Clips and Crossfade guide' })
+    await waitFor(() => expect(within(guide).queryByRole('link', { name: 'Read the guide' })).not.toBeInTheDocument())
+    await user.click(within(guide).getByRole('button', { name: 'Show guide details' }))
+    expect(within(guide).getByRole('link', { name: 'Read the guide' })).toBeVisible()
+    rect.mockRestore()
   })
 
   it('turns a reference Show guide into a live Pattern comparison instrument (#506)', async () => {

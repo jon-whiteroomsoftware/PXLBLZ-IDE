@@ -232,6 +232,47 @@ describe('unified Show timeline projection (#580)', () => {
     ])
   })
 
+  it('does not infer a Scene-boundary transition across a same-Scene gap', () => {
+    const show = createDefaultShow('show-same-scene-gap', 'Same Scene gap', 1_000)
+    const zoneId = show.zones[0].id
+    const composition: ShowCompositionV1 = {
+      version: 1,
+      patternInstances: [{
+        id: 'instance-a',
+        pattern: { kind: 'stock', id: 'Rings' },
+        patternName: 'Rings',
+        time: { timeScale: 1, timeOffsetMs: 0 },
+      }],
+      scenes: show.scenes.map((scene, sceneIndex) => ({
+        sceneId: scene.id,
+        zones: [{
+          zoneId,
+          main: sceneIndex === 0
+            ? [
+                {
+                  id: 'same-scene-left',
+                  instanceId: 'instance-a',
+                  startMs: 0,
+                  durationMs: 1_000,
+                  view: { mirror: false, phase: 0, brightness: 1 },
+                },
+                {
+                  id: 'same-scene-right',
+                  instanceId: 'instance-a',
+                  startMs: 3_000,
+                  durationMs: 1_000,
+                  view: { mirror: false, phase: 0, brightness: 1 },
+                },
+              ]
+            : [],
+          overlays: [],
+        }],
+      })),
+    }
+
+    expect(projectShowUnifiedTimeline(show, composition).zones[0].layers[0].junctions).toEqual([])
+  })
+
   it('keeps overlay stack positions stable across internal Scene boundaries', () => {
     const show = createDefaultShow('show-layer-projection', 'Layer projection', 1_000)
     const zoneId = show.zones[0].id
