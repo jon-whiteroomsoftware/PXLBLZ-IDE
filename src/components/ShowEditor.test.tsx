@@ -1809,7 +1809,7 @@ describe('ShowEditor (#318)', () => {
 
     await waitFor(() => expect(document.activeElement).toBe(selectedClip))
     await user.keyboard(' ')
-    expect(usePreviewStore.getState().isRunning).toBe(false)
+    expect(usePreviewStore.getState().isRunning).toBe(true)
   })
 
   it('seeks to Show start with A while preserving playback (#588)', () => {
@@ -1931,7 +1931,7 @@ describe('ShowEditor (#318)', () => {
     fireEvent.keyDown(document, { code: 'Space' })
 
     expect(useShowTransportStore.getState()).toMatchObject({ positionMs: 5_000, seekRequest: null })
-    expect(usePreviewStore.getState().isRunning).toBe(true)
+    expect(usePreviewStore.getState().isRunning).toBe(false)
   })
 
   it('drives proportional Show transport and requests an accurate seek (#414)', async () => {
@@ -1944,8 +1944,11 @@ describe('ShowEditor (#318)', () => {
     expect(screen.getByRole('region', { name: 'Show timeline' })).toBeInTheDocument()
     expect(screen.getByRole('slider', { name: 'Show playhead' })).toHaveAttribute('max', '62000')
     expect(screen.getByRole('status', { name: 'Show time' })).toHaveTextContent('00:00.0/01:02.0')
-    expect(screen.getByRole('button', { name: 'Pause Show preview' })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Play Show preview' })).toBeInTheDocument()
 
+    await user.click(screen.getByRole('button', { name: 'Play Show preview' }))
+    expect(usePreviewStore.getState().isRunning).toBe(true)
+    expect(screen.getByRole('button', { name: 'Pause Show preview' })).toBeInTheDocument()
     await user.click(screen.getByRole('button', { name: 'Pause Show preview' }))
     expect(usePreviewStore.getState().isRunning).toBe(false)
     expect(screen.getByRole('button', { name: 'Play Show preview' })).toBeInTheDocument()
@@ -2030,6 +2033,7 @@ describe('ShowEditor (#318)', () => {
     useShowStore.setState({ shows: [show], activeShowId: show.id, showsLoaded: true })
 
     render(<ShowEditor showId={show.id} />)
+    act(() => usePreviewStore.getState().setRunning(true))
 
     const playhead = screen.getByRole('slider', { name: 'Show playhead' })
     fireEvent.change(playhead, { target: { value: '31000' } })

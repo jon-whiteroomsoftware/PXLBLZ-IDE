@@ -106,7 +106,7 @@ describe('ShowStagePreview (#339)', () => {
     expect(screen.queryByRole('region', { name: 'Zones' })).not.toBeInTheDocument()
   })
 
-  it('pauses on initial Show load and whenever the Show identity changes', () => {
+  it('does not own workspace playback when the Stage mounts or changes Show identity', () => {
     const first = createDefaultShow('show-first', 'First Show', 1000)
     const second = createDefaultShow('show-second', 'Second Show', 1000)
     useShowStore.setState({ shows: [first, second], activeShowId: first.id, showsLoaded: true })
@@ -114,13 +114,12 @@ describe('ShowStagePreview (#339)', () => {
 
     const { rerender } = render(<ShowStagePreview showId={first.id} />)
 
-    expect(usePreviewStore.getState().isRunning).toBe(false)
-    expect(screen.getByText(/show paused · Fast/i).parentElement?.querySelector('.lucide-pause')).toBeInTheDocument()
+    expect(usePreviewStore.getState().isRunning).toBe(true)
+    expect(screen.getByRole('button', { name: 'Pause Show preview' })).toBeInTheDocument()
 
-    act(() => usePreviewStore.setState({ isRunning: true }))
     rerender(<ShowStagePreview showId={second.id} />)
 
-    expect(usePreviewStore.getState().isRunning).toBe(false)
+    expect(usePreviewStore.getState().isRunning).toBe(true)
   })
 
   it('puts the primary playback control at the right edge of the preview status row', () => {
@@ -228,7 +227,7 @@ describe('ShowStagePreview (#339)', () => {
     expect(screen.getByTestId('show-stage-zone-outlines')).toBeInTheDocument()
     expect(screen.getByTestId('show-stage-clip-outline')).toBeInTheDocument()
     expect(useShowEditorSessionStore.getState().diagnostics).toMatchObject({ zoneOutlines: true, clipOutlines: true })
-    expect(usePreviewStore.getState().isRunning).toBe(false)
+    expect(usePreviewStore.getState().isRunning).toBe(true)
   })
 
   it('names an Installation output map once without presenting a faux input (#484)', () => {

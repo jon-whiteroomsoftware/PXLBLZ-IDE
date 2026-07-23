@@ -382,8 +382,6 @@ function StudioApp() {
   const [showHeaderGuideTarget, setShowHeaderGuideTarget] = useState<HTMLSpanElement | null>(null)
   const [showStageOverlayShowId, setShowStageOverlayShowId] = useState<string | null>(null)
   const [narrowShowWorkspace, setNarrowShowWorkspace] = useState(() => window.innerWidth <= 980)
-  const previousNarrowShowWorkspaceRef = useRef(narrowShowWorkspace)
-  const [preserveShowStagePlaybackOnMount, setPreserveShowStagePlaybackOnMount] = useState(false)
   const showStageReturnFocusRef = useRef<HTMLElement | null>(null)
   const closeShowStageOverlay = useCallback(() => {
     setShowStageOverlayShowId(null)
@@ -393,27 +391,13 @@ function StudioApp() {
     }, 0)
   }, [])
   useEffect(() => {
-    let handoffReset: number | null = null
     const handleResize = () => {
       const narrow = window.innerWidth <= 980
-      const preservePlayback = previousNarrowShowWorkspaceRef.current && !narrow
-      setPreserveShowStagePlaybackOnMount(preservePlayback)
-      if (handoffReset !== null) window.clearTimeout(handoffReset)
-      if (preservePlayback) {
-        handoffReset = window.setTimeout(() => {
-          setPreserveShowStagePlaybackOnMount(false)
-          handoffReset = null
-        }, 0)
-      }
-      previousNarrowShowWorkspaceRef.current = narrow
       setNarrowShowWorkspace(narrow)
       if (!narrow) setShowStageOverlayShowId(null)
     }
     window.addEventListener('resize', handleResize)
-    return () => {
-      window.removeEventListener('resize', handleResize)
-      if (handoffReset !== null) window.clearTimeout(handoffReset)
-    }
+    return () => window.removeEventListener('resize', handleResize)
   }, [])
   useEffect(() => {
     // Not in the Gallery grid, where no single preview has focus.
@@ -1206,7 +1190,6 @@ function StudioApp() {
                       <ShowStagePreview
                         showId={activeShow.id}
                         showOverride={routedStockShowOverride}
-                        preservePlaybackOnMount={preserveShowStagePlaybackOnMount}
                       />
                     )
                 : <EmptyContextPane label="Shows" />

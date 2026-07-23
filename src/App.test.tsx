@@ -30,6 +30,7 @@ import { createPortableShowOutputContract } from '@/engine/showOutputContract'
 import { previewInitialState, usePreviewStore } from '@/store/previewStore'
 import { showTransportInitialState, useShowTransportStore } from '@/store/showTransportStore'
 import { showEditorSessionInitialState, useShowEditorSessionStore } from '@/store/showEditorSessionStore'
+import { entityOrganizationInitialState, useEntityOrganizationStore } from '@/store/entityOrganizationStore'
 import { STOCK_SHOWS } from '@/pixelblaze/stock/shows'
 
 const authSessionMock = vi.hoisted(() => ({
@@ -63,6 +64,7 @@ beforeEach(() => {
   usePreviewStore.setState(previewInitialState)
   useShowTransportStore.setState(showTransportInitialState)
   useShowEditorSessionStore.setState(showEditorSessionInitialState)
+  useEntityOrganizationStore.setState(entityOrganizationInitialState)
 })
 
 afterEach(() => {
@@ -426,11 +428,73 @@ describe('routing (#308)', () => {
     expect(usePreviewStore.getState().isRunning).toBe(true)
     expect(useShowTransportStore.getState().positionMs).toBeGreaterThan(positionBeforeClose)
 
+    const positionBeforeCode = useShowTransportStore.getState().positionMs
+    await user.click(screen.getByRole('button', { name: 'View code' }))
+    await waitFor(() => expect(screen.getByRole('button', { name: 'Back to show' })).toBeInTheDocument())
+    await waitFor(() => expect(callbacks.size).toBeGreaterThan(0))
+    runFrame(200)
+    runFrame(220)
+
+    expect(usePreviewStore.getState().isRunning).toBe(true)
+    expect(useShowTransportStore.getState().positionMs).toBeGreaterThan(positionBeforeCode)
+
+    await user.click(screen.getByRole('button', { name: 'Back to show' }))
     vi.stubGlobal('innerWidth', 1200)
     fireEvent(window, new Event('resize'))
 
     expect(within(screen.getByTestId('preview-pane')).getByLabelText('Show stage')).toBeInTheDocument()
     expect(usePreviewStore.getState().isRunning).toBe(true)
+  })
+
+  it.each([
+    ['narrow', 900, false],
+    ['wide', 1200, true],
+  ])('pauses inherited Pattern playback when navigating to a %s Show (#593)', async (_label, width, hasStage) => {
+    const user = userEvent.setup()
+    vi.stubGlobal('innerWidth', width)
+    const show = createDefaultShow('show-narrow-inherited-playback', 'Inherited playback', 1000)
+    window.history.replaceState(null, '', '/studio')
+    seedSignedInWorkspace()
+    useShowStore.setState({ shows: [show], showsLoaded: true, activeShowId: null })
+
+    render(<App />)
+    act(() => usePreviewStore.setState({ isRunning: true }))
+    await user.click(screen.getByRole('radio', { name: 'Shows' }))
+    await waitFor(() => expect(screen.getByRole('region', { name: 'Show timeline' })).toBeInTheDocument())
+
+    expect(Boolean(within(screen.getByTestId('preview-pane')).queryByLabelText('Show stage'))).toBe(hasStage)
+    expect(usePreviewStore.getState().isRunning).toBe(false)
+    expect(useShowTransportStore.getState().positionMs).toBe(0)
+  })
+
+  it.each([
+    ['narrow', 900],
+    ['wide', 1200],
+  ])('pauses playback when switching Shows in the %s workspace (#593)', async (_label, width) => {
+    vi.stubGlobal('innerWidth', width)
+    const first = createDefaultShow('show-switch-first', 'First transition Show', 1000)
+    const second = createDefaultShow('show-switch-second', 'Second transition Show', 1000)
+    window.history.replaceState(null, '', `/studio/shows/${first.id}`)
+    seedSignedInWorkspace()
+    useShowStore.setState({ shows: [first, second], showsLoaded: true, activeShowId: first.id })
+
+    render(<App />)
+    act(() => usePreviewStore.setState({ isRunning: true }))
+    act(() => {
+      void useShowStore.getState().openShow(second.id)
+      useRouterStore.getState().navigate({
+        kind: 'studio',
+        entity: { kind: 'shows', id: second.id },
+      })
+    })
+    await waitFor(() => expect(useShowStore.getState().activeShowId).toBe(second.id))
+
+    expect(usePreviewStore.getState().isRunning).toBe(false)
+    expect(useShowTransportStore.getState()).toMatchObject({
+      showId: second.id,
+      positionMs: 0,
+      seekStatus: 'idle',
+    })
   })
 
   it('gives the production Show one workspace owner for its header, timeline, and Stage (#592)', () => {

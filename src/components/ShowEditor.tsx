@@ -720,6 +720,10 @@ export function ShowEditor({
   transportClockActive?: boolean
   onOpenStagePreview?: (anchor: HTMLElement) => void
 }) {
+  useLayoutEffect(() => {
+    usePreviewStore.getState().setRunning(false)
+  }, [showId])
+
   const savedShow = useShowStore((state) => state.shows.find((item) => item.id === showId))
   const hasStockDraft = useShowStore((state) => Boolean(state.stockShowDrafts[showId]))
   const resetStockShowDraft = useShowStore((state) => state.resetStockShowDraft)
@@ -873,6 +877,7 @@ export function ShowEditor({
   )
 
   const activeShow = showOverride ?? savedShow ?? null
+  useShowTransportClock(activeShow, transportClockActive)
   const targetProfile = activeShow?.outputContract?.kind === 'portable-2d'
     ? undefined
     : activeShow?.targetControllerProfileId
@@ -1699,7 +1704,6 @@ export function ShowEditor({
                 timelineComposition={timelineComposition}
                 readOnly={readOnly}
                 transportActive
-                transportClockActive={transportClockActive}
                 patternControlsByCellId={patternControlsByCellId}
                 selection={selection}
                 isolatedGroupOccurrenceId={isolatedGroupOccurrenceId}
@@ -2365,57 +2369,13 @@ export function ShowEditor({
 
 function ShowTransportControls({
   show,
-  clockActive,
 }: {
   show: ShowRecord
-  clockActive: boolean
 }) {
   const durationMs = showLoopDurationMs(show)
   const isRunning = usePreviewStore((state) => state.isRunning)
   const toggle = usePreviewStore((state) => state.toggle)
   const positionMs = useShowTransportStore((state) => state.showId === show.id ? state.positionMs : 0)
-  const seekStatus = useShowTransportStore((state) => state.showId === show.id ? state.seekStatus : 'idle')
-  const seekRequest = useShowTransportStore((state) => state.showId === show.id ? state.seekRequest : null)
-
-  useEffect(() => {
-    useShowTransportStore.getState().openShow(show.id, durationMs)
-  }, [durationMs, show.id])
-
-  useEffect(() => {
-    if (!clockActive || seekStatus !== 'rebuilding' || !seekRequest) return
-    useShowTransportStore.getState().completeSeek(seekRequest.id, seekRequest.targetMs)
-  }, [clockActive, seekRequest, seekStatus])
-
-  useEffect(() => {
-    if (!clockActive || !canAdvanceShowPlayback(isRunning, seekStatus)) return
-    let frameId: number | null = null
-    let lastFrameAt: number | null = null
-    const tick = (now: number) => {
-      const transport = useShowTransportStore.getState()
-      if (!canAdvanceShowPlayback(usePreviewStore.getState().isRunning, transport.seekStatus)) return
-      const last = lastFrameAt ?? now
-      lastFrameAt = now
-      const deltaMs = Math.max(0, now - last) * usePreviewStore.getState().speed
-      const step = resolveShowPlaybackStep(
-        transport.positionMs,
-        deltaMs,
-        transport.playbackWindow,
-        durationMs,
-      )
-      if (step.kind === 'rewind') {
-        usePreviewStore.getState().setRunning(false)
-        transport.setPosition(show.id, step.targetMs)
-        frameId = null
-        return
-      }
-      transport.setPosition(show.id, step.targetMs)
-      frameId = requestAnimationFrame(tick)
-    }
-    frameId = requestAnimationFrame(tick)
-    return () => {
-      if (frameId !== null) cancelAnimationFrame(frameId)
-    }
-  }, [clockActive, durationMs, isRunning, seekStatus, show.id])
 
   useEffect(() => {
     const onKeyDown = (event: KeyboardEvent) => {
@@ -2469,6 +2429,59 @@ function ShowTransportControls({
       </output>
     </div>
   )
+}
+
+function useShowTransportClock(show: ShowRecord | null, clockActive: boolean): void {
+  const showId = show?.id ?? null
+  const durationMs = show ? showLoopDurationMs(show) : 0
+  const isRunning = usePreviewStore((state) => state.isRunning)
+  const seekStatus = useShowTransportStore((state) => (
+    showId && state.showId === showId ? state.seekStatus : 'idle'
+  ))
+  const seekRequest = useShowTransportStore((state) => (
+    showId && state.showId === showId ? state.seekRequest : null
+  ))
+
+  useEffect(() => {
+    if (!showId) return
+    useShowTransportStore.getState().openShow(showId, durationMs)
+  }, [durationMs, showId])
+
+  useEffect(() => {
+    if (!clockActive || seekStatus !== 'rebuilding' || !seekRequest) return
+    useShowTransportStore.getState().completeSeek(seekRequest.id, seekRequest.targetMs)
+  }, [clockActive, seekRequest, seekStatus])
+
+  useEffect(() => {
+    if (!showId || !clockActive || !canAdvanceShowPlayback(isRunning, seekStatus)) return
+    let frameId: number | null = null
+    let lastFrameAt: number | null = null
+    const tick = (now: number) => {
+      const transport = useShowTransportStore.getState()
+      if (!canAdvanceShowPlayback(usePreviewStore.getState().isRunning, transport.seekStatus)) return
+      const last = lastFrameAt ?? now
+      lastFrameAt = now
+      const deltaMs = Math.max(0, now - last) * usePreviewStore.getState().speed
+      const step = resolveShowPlaybackStep(
+        transport.positionMs,
+        deltaMs,
+        transport.playbackWindow,
+        durationMs,
+      )
+      if (step.kind === 'rewind') {
+        usePreviewStore.getState().setRunning(false)
+        transport.setPosition(showId, step.targetMs)
+        frameId = null
+        return
+      }
+      transport.setPosition(showId, step.targetMs)
+      frameId = requestAnimationFrame(tick)
+    }
+    frameId = requestAnimationFrame(tick)
+    return () => {
+      if (frameId !== null) cancelAnimationFrame(frameId)
+    }
+  }, [clockActive, durationMs, isRunning, seekStatus, showId])
 }
 
 function ShowTimelineCommands({
@@ -2780,7 +2793,6 @@ function ShowTimelineWorkspace({
   timelineComposition,
   readOnly,
   transportActive,
-  transportClockActive,
   patternControlsByCellId,
   selection,
   isolatedGroupOccurrenceId,
@@ -2817,7 +2829,6 @@ function ShowTimelineWorkspace({
   timelineComposition: ShowCompositionV1 | null
   readOnly: boolean
   transportActive: boolean
-  transportClockActive: boolean
   patternControlsByCellId: Record<string, AutomatablePatternControl[]>
   selection: ShowSelection
   isolatedGroupOccurrenceId: string | null
@@ -3408,7 +3419,7 @@ function ShowTimelineWorkspace({
         onClick={(event) => event.stopPropagation()}
       >
         <div className="timeline-transport-cluster min-w-0 shrink-0">
-          {transportActive && <ShowTransportControls show={show} clockActive={transportClockActive} />}
+          {transportActive && <ShowTransportControls show={show} />}
         </div>
         <div className="flex min-w-[128px] max-w-[292px] flex-[1_1_220px] shrink items-center gap-1 border-x border-zinc-800/80 px-2" role="group" aria-label="Timeline view controls">
             <TimelineNavigator viewport={viewport} onChange={updateViewport} compact />

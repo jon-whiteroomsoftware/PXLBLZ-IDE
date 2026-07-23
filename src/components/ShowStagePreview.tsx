@@ -83,11 +83,9 @@ function stableShowSeed(showId: string): number {
 export function ShowStagePreview({
   showId,
   showOverride,
-  preservePlaybackOnMount = false,
 }: {
   showId: string
   showOverride?: ShowRecord
-  preservePlaybackOnMount?: boolean
 }) {
   const canvasRef = useRef<HTMLCanvasElement>(null)
   const containerRef = useRef<HTMLDivElement>(null)
@@ -102,7 +100,6 @@ export function ShowStagePreview({
   const performanceOutputRef = useRef<HTMLOutputElement>(null)
   const performancePublishFrameRef = useRef(0)
   const liveSimulatedFramesRef = useRef(0)
-  const preservePlaybackOnMountRef = useRef(preservePlaybackOnMount)
   const savedShow = useShowStore((state) => state.shows.find((item) => item.id === showId))
   const previewShow = useShowPreviewOverrideStore((state) => state.show?.id === showId ? state.show : null)
   const resolvedShow = previewShow ?? showOverride ?? savedShow
@@ -141,8 +138,6 @@ export function ShowStagePreview({
 
   useEffect(() => {
     const preview = usePreviewStore.getState()
-    if (!preservePlaybackOnMountRef.current) preview.setRunning(false)
-    preservePlaybackOnMountRef.current = false
     preview.setLightSize(preview.lightSizeSticky)
     preview.setDiffusion(preview.diffusionSticky)
   }, [showId])
