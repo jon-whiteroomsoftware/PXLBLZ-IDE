@@ -371,6 +371,58 @@ export function render(index) { rgb(ticks, 0, 0) }
     expect(pixel()).toEqual([1, 0, 0])
   })
 
+  it.each([
+    { kind: 'single' as const, insideX: 0.1, outsideX: 0.75 },
+    { kind: 'split' as const, insideX: 0.1, outsideX: 0.2 },
+    { kind: 'soft-split' as const, insideX: 0.1, outsideX: 0.3 },
+  ])('clips Viewports during ordinary $kind logical-routing holds (#592)', ({ kind, insideX, outsideX }) => {
+    const zoneNames = kind === 'single' ? ['main'] : ['left', 'right']
+    const logical = kind === 'single'
+      ? { kind, zoneNames: [zoneNames[0]] as [string] }
+      : kind === 'split'
+        ? { kind, zoneNames: [zoneNames[0], zoneNames[1]] as [string, string], axis: 'x' as const }
+        : { kind, zoneNames: [zoneNames[0], zoneNames[1]] as [string, string], axis: 'x' as const, feather: 0.2 }
+    const placements = zoneNames.flatMap((zoneName) => [
+      { placementId: `${zoneName}-red`, zoneName, clipId: 'red', stackOrder: 0 },
+      {
+        placementId: `${zoneName}-blue`,
+        zoneName,
+        clipId: 'blue',
+        stackOrder: 1,
+        viewport: { enabled: true as const, x: 0, y: 0, width: 0.25, height: 1 },
+      },
+    ])
+    const artifact = compileShow({
+      clips: [
+        { id: 'red', source: 'export function render2D(index, x, y) { rgb(1, 0, 0) }' },
+        { id: 'blue', source: 'export function render2D(index, x, y) { rgb(0, 0, 1) }' },
+      ],
+      routingLayouts: [{
+        id: kind,
+        name: kind,
+        zones: [],
+        logical,
+      }],
+      routedSceneSequence: {
+        scenes: [
+          { holdMs: 1_000, placements, transitionOut: { kind: 'cut', durationMs: 0 } },
+          { holdMs: 1_000, placements },
+        ],
+      },
+      ...(kind === 'single'
+        ? {}
+        : { routingPropertyRamps: { splitPosition: { initial: 0.5, ramps: [] } } }),
+      loopDurationMs: 2_000,
+    }, {})
+    const { handle, pixel } = loadShow(artifact.code, artifact.metadata, 16)
+
+    handle.beforeRender(100)
+    handle.render2D(0, insideX, 0.5)
+    expect(pixel()).toEqual([0, 0, 1])
+    handle.render2D(1, outsideX, 0.5)
+    expect(pixel()).toEqual([1, 0, 0])
+  })
+
   it('preserves a flat Clip Viewport through a routed Scene crossfade (#585)', () => {
     const zones = [{ id: 'main', name: 'main', ranges: [{ start: 0, end: 3 }] }]
     const viewport = { enabled: true as const, x: 0, y: 0, width: 0.5, height: 1 }

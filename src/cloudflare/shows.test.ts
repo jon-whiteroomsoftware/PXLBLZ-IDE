@@ -193,6 +193,11 @@ describe('D1 show persistence (#318)', () => {
       ...composition(),
       scenes: [{ sceneId: 'missing-scene', zones: [] }],
     }],
+    ['invalid Show End and Marker metadata', {
+      ...composition(),
+      durationMs: 0,
+      markers: [{ id: 'negative-marker', timeMs: -1 }],
+    }],
   ])('keeps the flat Show readable when composition_json contains %s', (_label, invalidComposition) => {
     const show = createDefaultShow('safe-flat-show', 'Safe flat Show', 123)
     const record = showRecordFromRow({
@@ -231,6 +236,29 @@ describe('D1 show persistence (#318)', () => {
     const show = createDefaultShow('safe-write-show', 'Safe write Show', 123)
 
     await expect(write(db, show, { ...composition(), version: 2 })).rejects.toMatchObject({
+      code: 'unsupported_show_composition',
+      status: 400,
+    })
+    expect(calls).toEqual([])
+  })
+
+  it.each([
+    ['create', async (db: D1DatabaseShowsLike, show: ReturnType<typeof createDefaultShow>, invalidComposition: unknown) => {
+      await createD1Show(db, 'github:123', { ...show, composition: invalidComposition } as never, 100)
+    }],
+    ['update', async (db: D1DatabaseShowsLike, show: ReturnType<typeof createDefaultShow>, invalidComposition: unknown) => {
+      await updateD1Show(db, 'github:123', show.id, { composition: invalidComposition } as never)
+    }],
+  ])('rejects invalid Show End and Marker metadata before a D1 %s write (#592)', async (_label, write) => {
+    const { db, calls } = fakeDb()
+    const show = createDefaultShow('invalid-timeline-metadata', 'Invalid timeline metadata', 123)
+    const invalidComposition = {
+      ...composition(),
+      durationMs: 0,
+      markers: [{ id: 'negative-marker', timeMs: -1 }],
+    }
+
+    await expect(write(db, show, invalidComposition)).rejects.toMatchObject({
       code: 'unsupported_show_composition',
       status: 400,
     })

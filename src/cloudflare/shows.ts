@@ -2,7 +2,11 @@ import type { ShowCompositionV1, ShowRecord } from '../engine/personalContentRec
 import { normalizeShowRoutingState, normalizeShowTransitionState } from '../engine/showModel'
 import { requireShowOutputContract } from '../engine/showOutputContract'
 import { normalizeShowOutputEffects } from '../engine/showPreviousRgbFeedback'
-import { normalizeShowComposition, validateShowComposition } from '../engine/showCompositionModel'
+import {
+  normalizeShowComposition,
+  validateShowComposition,
+  validateShowCompositionTimelineMetadata,
+} from '../engine/showCompositionModel'
 import { PersonalStorageGuardError } from './resourceProtection'
 
 export interface D1ShowStatementLike {
@@ -176,6 +180,7 @@ function normalizeStoredComposition(
 ): ShowCompositionV1 | undefined {
   try {
     if (!isCompositionV1Envelope(value)) return undefined
+    if (validateShowCompositionTimelineMetadata(value).length > 0) return undefined
     const normalized = normalizeShowComposition(show, value)
     return validateShowComposition(show, normalized).length === 0 ? normalized : undefined
   } catch {
@@ -189,6 +194,7 @@ function requireValidComposition(
 ): ShowCompositionV1 {
   if (!isCompositionV1Envelope(value)) throw unsupportedCompositionError()
   try {
+    if (validateShowCompositionTimelineMetadata(value).length > 0) throw unsupportedCompositionError()
     const normalized = normalizeShowComposition(show, value)
     if (validateShowComposition(show, normalized).length > 0) throw unsupportedCompositionError()
     return normalized
@@ -203,12 +209,14 @@ function normalizeCompositionUpdate(
 ): ShowCompositionV1 | null | undefined {
   if (changes.composition === undefined || changes.composition === null) return changes.composition
   if (!isCompositionV1Envelope(changes.composition)) throw unsupportedCompositionError()
-  if (Array.isArray(changes.scenes) && Array.isArray(changes.zones)) {
-    return requireValidComposition({ scenes: changes.scenes, zones: changes.zones }, changes.composition)
-  }
   try {
+    if (validateShowCompositionTimelineMetadata(changes.composition).length > 0) throw unsupportedCompositionError()
+    if (Array.isArray(changes.scenes) && Array.isArray(changes.zones)) {
+      return requireValidComposition({ scenes: changes.scenes, zones: changes.zones }, changes.composition)
+    }
     return normalizeShowComposition({ scenes: [], zones: [] }, changes.composition)
-  } catch {
+  } catch (error) {
+    if (error instanceof PersonalStorageGuardError) throw error
     throw unsupportedCompositionError()
   }
 }

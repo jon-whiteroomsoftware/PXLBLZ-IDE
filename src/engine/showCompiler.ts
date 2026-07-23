@@ -6021,6 +6021,7 @@ ${placement.member.prefix}_renderCapture2D(__pxlblz_show_route_local_index, __px
       2,
       propertyTracks,
       localTimeExpression,
+      { x: '__pxlblz_show_scene_local_x', y: '__pxlblz_show_scene_local_y' },
     )
     return [`${zoneIndex === 0 ? 'if' : 'else if'} (__pxlblz_show_route_id == ${zoneIndex}) {
   var __pxlblz_show_route_side = ceil(sqrt(${domain.pixelCount}))
@@ -6057,6 +6058,7 @@ ${placement.member.prefix}_renderCapture2D(${localIndex}, __pxlblz_show_route_lo
       2,
       propertyTracks,
       localTimeExpression,
+      { x: '__pxlblz_show_route_local_x', y: '__pxlblz_show_route_local_y' },
     )
   )
   const fromTarget = '__pxlblz_show_soft_scene_0'

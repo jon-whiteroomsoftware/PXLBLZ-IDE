@@ -139,14 +139,13 @@ export function normalizeShowComposition(
     ...(composition.executionModel === 'deterministic-loop'
       ? { executionModel: 'deterministic-loop' as const }
       : {}),
-    ...(Number.isInteger(composition.durationMs) && (composition.durationMs ?? 0) > 0
+    ...(composition.durationMs !== undefined
       ? { durationMs: composition.durationMs }
       : {}),
     ...(composition.markers && composition.markers.length > 0
       ? {
           markers: cloneJson(composition.markers)
-            .filter((marker) => marker.id && Number.isInteger(marker.timeMs) && marker.timeMs >= 0)
-            .sort((a, b) => a.timeMs - b.timeMs || a.id.localeCompare(b.id)),
+            .sort((a, b) => a.timeMs - b.timeMs || String(a.id).localeCompare(String(b.id))),
         }
       : {}),
     patternInstances: cloneJson(composition.patternInstances)
@@ -285,25 +284,10 @@ function normalizePlacementAppearance<T extends ShowMainPlacement | ShowOverlayP
   } as T
 }
 
-export function validateShowComposition(
-  show: Pick<ShowRecord, 'scenes' | 'zones'>,
+export function validateShowCompositionTimelineMetadata(
   composition: ShowCompositionV1,
 ): ShowCompositionValidationIssue[] {
   const issues: ShowCompositionValidationIssue[] = []
-  const sceneById = new Map(show.scenes.map((scene) => [scene.id, scene]))
-  const zoneIds = new Set(show.zones.map((zone) => zone.id))
-  const instanceIds = new Set<string>()
-  const placementIds = new Set<string>()
-  const placementOwnerById = new Map<string, {
-    layerKey: string
-    sceneId: string
-    startMs: number
-    endMs: number
-  }>()
-  const layerIds = new Set<string>()
-
-  issues.push(...validateShowGroups(show, composition))
-
   if (composition.durationMs !== undefined) {
     validateFiniteInteger(issues, 'durationMs', composition.durationMs)
     if (composition.durationMs <= 0) {
@@ -319,6 +303,27 @@ export function validateShowComposition(
     validateFiniteInteger(issues, `${path}.timeMs`, marker.timeMs)
     if (marker.timeMs < 0) addIssue(issues, `${path}.timeMs`, 'out-of-bounds', 'Marker time cannot be negative.')
   }
+  return issues
+}
+
+export function validateShowComposition(
+  show: Pick<ShowRecord, 'scenes' | 'zones'>,
+  composition: ShowCompositionV1,
+): ShowCompositionValidationIssue[] {
+  const issues = validateShowCompositionTimelineMetadata(composition)
+  const sceneById = new Map(show.scenes.map((scene) => [scene.id, scene]))
+  const zoneIds = new Set(show.zones.map((zone) => zone.id))
+  const instanceIds = new Set<string>()
+  const placementIds = new Set<string>()
+  const placementOwnerById = new Map<string, {
+    layerKey: string
+    sceneId: string
+    startMs: number
+    endMs: number
+  }>()
+  const layerIds = new Set<string>()
+
+  issues.push(...validateShowGroups(show, composition))
 
   composition.patternInstances.forEach((instance, instanceIndex) => {
     const path = `patternInstances[${instanceIndex}]`

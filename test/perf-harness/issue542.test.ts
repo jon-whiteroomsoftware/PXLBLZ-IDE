@@ -6,7 +6,7 @@ describe('issue #542 baseline census', () => {
     expect(issue542Census.map((entry) => entry.baseline)).toMatchObject([
       {
         authoredJsonBytes: 33_023,
-        generatedSourceBytes: 177_411,
+        generatedSourceBytes: 177_530,
         patternInstanceCount: 28,
         persistentGlobals: 543,
       },
@@ -39,7 +39,7 @@ describe('issue #542 baseline census', () => {
       generatedSourceBytes: entry.production.generatedSourceBytes,
       persistentGlobals: entry.production.persistentGlobals,
     }))).toEqual([
-      { patternInstanceCount: 3, generatedSourceBytes: 26_174, persistentGlobals: 80 },
+      { patternInstanceCount: 3, generatedSourceBytes: 26_293, persistentGlobals: 80 },
       { patternInstanceCount: 3, generatedSourceBytes: 29_059, persistentGlobals: 78 },
       { patternInstanceCount: 3, generatedSourceBytes: 18_689, persistentGlobals: 78 },
       { patternInstanceCount: 3, generatedSourceBytes: 67_694, persistentGlobals: 75 },
