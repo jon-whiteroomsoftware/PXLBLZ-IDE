@@ -305,6 +305,21 @@ describe('D1 show persistence (#318)', () => {
     expect(calls[0].action).toBe('all')
   })
 
+  it('rejects malformed owner fields instead of validating against stored replacements', async () => {
+    const { db, calls } = fakeDb()
+
+    await expect(updateD1Show(db, 'github:123', 'show-1', {
+      scenes: 'corrupt',
+      composition: composition(),
+      updatedAt: 456,
+    } as never)).rejects.toMatchObject({
+      code: 'unsupported_show_composition',
+      status: 400,
+    })
+
+    expect(calls).toEqual([])
+  })
+
   it('updates Show output Effects as one serialized sidecar (#537)', async () => {
     const { db, calls } = fakeDb()
     const outputEffects = [{ id: 'trails', kind: 'trails' as const, retention: 0.75 }]

@@ -122,7 +122,9 @@ import {
   createShowGroupFromSelection,
   deleteShowGroupOccurrence,
   duplicateShowGroupOccurrence,
+  insertShowGroupLayerTransition,
   makeShowGroupOccurrenceUnique,
+  planShowGroupLayerTransitionInsertion,
   projectShowGroupRuntimePatternInstances,
   resizeShowGroupLayerTransition,
   translateShowGroupOccurrence,
@@ -251,6 +253,33 @@ function showSelectionKey(selection: ShowSelection): string {
 
 function sameShowSelection(left: ShowSelection, right: ShowSelection): boolean {
   return showSelectionKey(left) === showSelectionKey(right)
+}
+
+function showSelectionExists(
+  show: ShowRecord,
+  composition: ShowCompositionV1 | null | undefined,
+  selection: ShowSelection,
+): boolean {
+  if (selection.kind === 'show') return true
+  if (selection.kind === 'clip') {
+    return show.cells.some((cell) => cell.id === selection.clipId)
+      || Boolean(findTimelineClipOwner(composition, selection.clipId))
+  }
+  if (selection.kind === 'transition') {
+    return show.transitions.some((transition) => transition.id === selection.transitionId)
+  }
+  if (selection.kind === 'zone') return show.zones.some((zone) => zone.id === selection.zoneId)
+  if (selection.kind === 'group') {
+    return Boolean(composition?.groupOccurrences?.some((occurrence) => occurrence.id === selection.occurrenceId))
+  }
+  if (selection.kind === 'group-clip') {
+    const occurrence = composition?.groupOccurrences?.find((candidate) => candidate.id === selection.occurrenceId)
+    const definition = composition?.groupDefinitions?.find((candidate) => candidate.id === occurrence?.definitionId)
+    return Boolean(definition?.placements.some((placement) => placement.id === selection.placementId))
+  }
+  return selection.groupSelection.placementIds.every((placementId) => (
+    Boolean(findTimelineClipOwner(composition, placementId))
+  ))
 }
 
 function showSelectionTraversalTarget(selection: ShowSelection): ShowTimelineTraversalTarget | null {
@@ -960,6 +989,23 @@ export function ShowEditor({
     }, 0)
     return () => window.clearTimeout(timeout)
   }, [closeDetailPanel, isolatedGroupOccurrenceId, timelineComposition])
+  useEffect(() => {
+    if (!activeShow) return
+    const pinnedSelectionMissing = Boolean(
+      pinnedDetail && !showSelectionExists(activeShow, timelineComposition, pinnedDetail.selection),
+    )
+    const transientSelectionMissing = detailPanelOpen
+      && !showSelectionExists(activeShow, timelineComposition, selection)
+    if (!pinnedSelectionMissing && !transientSelectionMissing) return
+    const timeout = window.setTimeout(() => {
+      if (pinnedSelectionMissing) setPinnedDetail(null)
+      if (transientSelectionMissing) {
+        closeDetailPanel()
+        setSelection({ kind: 'show' })
+      }
+    }, 0)
+    return () => window.clearTimeout(timeout)
+  }, [activeShow, closeDetailPanel, detailPanelOpen, pinnedDetail, selection, timelineComposition])
   const inspectorShow = activeShow && timelineComposition && !activeShow.composition
     ? { ...activeShow, composition: timelineComposition }
     : activeShow
@@ -970,10 +1016,16 @@ export function ShowEditor({
     ? projectShowGroupClipInspector(inspectorShow, groupEffectPaletteOwner)
     : null
   const layerTransitionPlan = activeShow && timelineComposition && layerTransitionTarget
-    ? planShowLayerTransitionInsertion(activeShow, timelineComposition, {
-        fromPlacementId: layerTransitionTarget.junction.leftClipId,
-        toPlacementId: layerTransitionTarget.junction.rightClipId,
-      })
+    ? layerTransitionTarget.groupOccurrenceId
+      ? planShowGroupLayerTransitionInsertion(activeShow, timelineComposition, {
+          occurrenceId: layerTransitionTarget.groupOccurrenceId,
+          fromPlacementId: layerTransitionTarget.junction.leftClipId,
+          toPlacementId: layerTransitionTarget.junction.rightClipId,
+        })
+      : planShowLayerTransitionInsertion(activeShow, timelineComposition, {
+          fromPlacementId: layerTransitionTarget.junction.leftClipId,
+          toPlacementId: layerTransitionTarget.junction.rightClipId,
+        })
     : null
   const pendingConnectedTransitions = timelineComposition && compositionClipPendingDelete
     ? showLayerTransitionsConnectedToClip(timelineComposition, compositionClipPendingDelete.placementId)
@@ -1954,7 +2006,12 @@ export function ShowEditor({
                   easing: changes.easing ?? { curve: 'linear' },
                   ...(kind === 'crossfade' ? { crossfadePolicy: 'live-live' } : {}),
                 }
-                const nextComposition = insertShowLayerTransition(activeShow, timelineComposition, transition)
+                const nextComposition = layerTransitionTarget.groupOccurrenceId
+                  ? insertShowGroupLayerTransition(activeShow, timelineComposition, {
+                      occurrenceId: layerTransitionTarget.groupOccurrenceId,
+                      transition,
+                    })
+                  : insertShowLayerTransition(activeShow, timelineComposition, transition)
                 if (nextComposition === timelineComposition) return
                 setLayerTransitionTarget(null)
                 void updateShow(activeShow.id, {

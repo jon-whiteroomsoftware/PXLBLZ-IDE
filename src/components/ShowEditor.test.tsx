@@ -651,19 +651,16 @@ describe('ShowEditor (#318)', () => {
 
     fireEvent.doubleClick(screen.getAllByRole('button', { name: 'Select Group Pulse phrase' })[0])
     expect(screen.getByRole('status', { name: 'Group isolation: Pulse phrase' })).toBeInTheDocument()
-    act(() => useShowStore.setState((state) => ({
-      shows: state.shows.map((candidate) => candidate.id === show.id
-        ? {
-            ...candidate,
-            composition: candidate.composition
-              ? { ...candidate.composition, groupDefinitions: undefined, groupOccurrences: undefined }
-              : undefined,
-          }
-        : candidate),
-    })))
+    await user.click(screen.getByRole('button', { name: 'Pin Entity Detail Panel' }))
+    await user.click(within(screen.getByRole('status', { name: 'Group isolation: Pulse phrase' }))
+      .getByRole('button', { name: /Exit/ }))
+    await user.click(screen.getAllByRole('button', { name: 'Select Group Pulse phrase' })[0])
+    const groupPanel = document.querySelector<HTMLElement>('[data-owner-key="group:phrase-use-a"]')!
+    await user.click(within(groupPanel).getByRole('button', { name: 'Ungroup occurrence' }))
+
     await waitFor(() => {
-      expect(screen.queryByRole('status', { name: 'Group isolation: Pulse phrase' })).not.toBeInTheDocument()
-      expect(screen.getByRole('button', { name: 'Select Outside' })).not.toHaveAttribute('aria-disabled')
+      expect(useShowStore.getState().shows[0].composition?.groupOccurrences?.map((occurrence) => occurrence.id))
+        .toEqual(['phrase-use-b'])
       expect(screen.queryByRole('dialog', { name: 'Entity Detail Panel' })).not.toBeInTheDocument()
     })
   })
@@ -720,28 +717,16 @@ describe('ShowEditor (#318)', () => {
           crossfadePolicy: 'live-live',
         }],
       }],
-      groupOccurrences: [
-        {
-          id: 'phrase-use-a',
-          definitionId: 'phrase',
-          sceneId,
-          zoneId,
-          startMs: 0,
-          baseLayer: 0,
-          translationX: 0,
-          translationY: 0,
-        },
-        {
-          id: 'phrase-use-b',
-          definitionId: 'phrase',
-          sceneId,
-          zoneId,
-          startMs: 3_000,
-          baseLayer: 0,
-          translationX: 0,
-          translationY: 0,
-        },
-      ],
+      groupOccurrences: [{
+        id: 'phrase-use-a',
+        definitionId: 'phrase',
+        sceneId,
+        zoneId,
+        startMs: 0,
+        baseLayer: 0,
+        translationX: 0,
+        translationY: 0,
+      }],
     }
     setPersonalContentProvider(memoryProvider([show]))
     useShowStore.setState({ shows: [show], activeShowId: show.id, showsLoaded: true })
@@ -760,6 +745,32 @@ describe('ShowEditor (#318)', () => {
       const definition = useShowStore.getState().shows[0].composition?.groupDefinitions?.[0]
       expect(definition?.transitions?.[0].durationMs).toBe(500)
       expect(definition?.placements.find((placement) => placement.id === 'inside-right')?.startMs).toBe(1_500)
+    })
+
+    await user.click(screen.getByRole('button', {
+      name: 'Edit crossfade Transition between Murmuration and Murmuration',
+    }))
+    await user.click(screen.getByRole('button', { name: 'Reset to Cut' }))
+    await waitFor(() => {
+      const definition = useShowStore.getState().shows[0].composition?.groupDefinitions?.[0]
+      expect(definition?.transitions).toBeUndefined()
+      expect(definition?.placements.find((placement) => placement.id === 'inside-right')?.startMs).toBe(1_000)
+    })
+
+    await user.click(screen.getByRole('button', {
+      name: 'Edit Cut between Murmuration and Murmuration',
+    }))
+    const palette = screen.getByRole('dialog', { name: 'Choose Layer Transition' })
+    await user.click(within(palette).getByRole('button', { name: 'Use Crossfade Transition' }))
+    await waitFor(() => {
+      const definition = useShowStore.getState().shows[0].composition?.groupDefinitions?.[0]
+      expect(definition?.transitions?.[0]).toMatchObject({
+        fromPlacementId: 'inside-left',
+        toPlacementId: 'inside-right',
+        kind: 'crossfade',
+      })
+      expect(definition?.placements.find((placement) => placement.id === 'inside-right')?.startMs)
+        .toBeGreaterThan(1_000)
     })
   })
 

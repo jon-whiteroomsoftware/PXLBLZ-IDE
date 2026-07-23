@@ -214,6 +214,8 @@ async function normalizeCompositionUpdate(
   if (!isCompositionV1Envelope(changes.composition)) throw unsupportedCompositionError()
   try {
     if (validateShowCompositionTimelineMetadata(changes.composition).length > 0) throw unsupportedCompositionError()
+    if (changes.scenes !== undefined && !Array.isArray(changes.scenes)) throw unsupportedCompositionError()
+    if (changes.zones !== undefined && !Array.isArray(changes.zones)) throw unsupportedCompositionError()
     let scenes = changes.scenes
     let zones = changes.zones
     if (!Array.isArray(scenes) || !Array.isArray(zones)) {
