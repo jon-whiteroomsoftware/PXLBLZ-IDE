@@ -1399,12 +1399,23 @@ export function ShowEditor({
       userMaps: generatedSnapshot.userMaps,
       attribution: generatedSnapshot.artifact.attribution,
     })
+    const buildGeneratedDownloadExport = async (): Promise<ShowEpeExport> => {
+      const preview = await buildPreviewJpeg(generatedSnapshot.artifact)
+      if (!preview) throw new Error('Could not render the EPE preview image')
+      return buildShowEpeExport(generatedSnapshot.show, generatedSnapshot.artifact.code, {
+        id: makeProgramId(),
+        preview: bytesToBase64(preview),
+        stampedAt: new Date(generatedSnapshot.show.updatedAt),
+        userMaps: generatedSnapshot.userMaps,
+        attribution: generatedSnapshot.artifact.attribution,
+      })
+    }
     return (
       <div className="flex h-full min-h-0 flex-col bg-zinc-950">
         <div className="flex h-9 shrink-0 items-center gap-2 border-b border-seam px-3 font-mono text-xs text-zinc-400">
           <Code2 size={14} aria-hidden />
           <span className="flex-1 truncate text-zinc-200">Generated pattern - {generatedSnapshot.show.name}</span>
-          <ExportShowButton exported={generatedExport} buildExport={buildDownloadExport} />
+          <ExportShowButton exported={generatedExport} buildExport={buildGeneratedDownloadExport} />
           <Button
             size="xs"
             variant="ghost"

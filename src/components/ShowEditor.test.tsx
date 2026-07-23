@@ -36,6 +36,7 @@ import { buildShowCompositionFreezeCases } from '@/engine/showCompositionFreeze'
 import * as showModel from '@/engine/showModel'
 import { DEFAULT_SHOW_TRAILS_RETENTION } from '@/engine/showPreviousRgbFeedback'
 import { projectShowLayoutIntervals } from '@/engine/showLayoutIntervals'
+import * as previewThumbnailJpeg from '@/engine/previewThumbnailJpeg'
 
 function changeCommittedNumber(label: string, value: string): void {
   const input = screen.getByLabelText(label)
@@ -2535,6 +2536,49 @@ describe('ShowEditor (#318)', () => {
 
     expect(screen.queryByText('Generated pattern - Generated first')).not.toBeInTheDocument()
     expect(screen.getByRole('region', { name: 'Show timeline' })).toBeInTheDocument()
+  })
+
+  it('exports the generated-code snapshot instead of later live Show state (#593)', async () => {
+    const user = userEvent.setup()
+    const show = createDefaultShow('show-code-export-snapshot', 'Inspected snapshot', 1000)
+    useShowStore.setState({ shows: [show], activeShowId: show.id, showsLoaded: true })
+    const createObjectURL = vi.spyOn(URL, 'createObjectURL').mockReturnValue('blob:show-snapshot')
+    const revokeObjectURL = vi.spyOn(URL, 'revokeObjectURL').mockImplementation(() => {})
+    const anchorClick = vi.spyOn(HTMLAnchorElement.prototype, 'click').mockImplementation(() => {})
+    const previewJpeg = vi.spyOn(previewThumbnailJpeg, 'buildPreviewJpeg')
+      .mockResolvedValue(new Uint8Array([1, 2, 3]))
+
+    try {
+      render(<ShowEditor showId={show.id} />)
+      await user.click(screen.getByRole('button', { name: 'View code' }))
+      expect(screen.getByText('Generated pattern - Inspected snapshot')).toBeInTheDocument()
+
+      act(() => useShowStore.setState({
+        shows: [{ ...show, name: 'Rolled back live Show', updatedAt: show.updatedAt + 1 }],
+      }))
+      await user.click(screen.getByRole('button', { name: 'Export Show as .epe' }))
+      await waitFor(() => expect(createObjectURL).toHaveBeenCalledTimes(1))
+
+      const blob = createObjectURL.mock.calls[0][0]
+      const exportedText = await new Promise<string>((resolve, reject) => {
+        const reader = new FileReader()
+        reader.addEventListener('load', () => resolve(String(reader.result)))
+        reader.addEventListener('error', () => reject(reader.error))
+        reader.readAsText(blob)
+      })
+      const exported = JSON.parse(exportedText) as {
+        name: string
+        sources: { main: string }
+      }
+      expect(exported.name).toBe('Inspected snapshot')
+      expect(exported.sources.main).toContain('Compiled PXLBLZ Show: Inspected snapshot')
+      expect(exported.sources.main).not.toContain('Rolled back live Show')
+    } finally {
+      previewJpeg.mockRestore()
+      anchorClick.mockRestore()
+      revokeObjectURL.mockRestore()
+      createObjectURL.mockRestore()
+    }
   })
 
   it('blocks a known-invalid Installation Controller target without changing its map (#437)', async () => {
