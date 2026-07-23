@@ -13,7 +13,7 @@ import type {
 
 export type ShowTimeInsertionPlan =
   | { enabled: true; code: 'ready'; sceneId: string; localTimeMs: number; crossingPlacementIds: string[] }
-  | { enabled: false; code: 'invalid-time' | 'invalid-duration' | 'transition' | 'missing-composition' | 'nonlinear-property-animation'; reason: string }
+  | { enabled: false; code: 'invalid-time' | 'invalid-duration' | 'transition' | 'group' | 'missing-composition' | 'nonlinear-property-animation'; reason: string }
 
 export function planShowTimeInsertion(
   show: ShowRecord,
@@ -46,6 +46,23 @@ export function planShowTimeInsertion(
   if (!range) return { enabled: false, code: 'invalid-time', reason: 'Choose a time inside the Show.' }
   const localTimeMs = Math.round(atMs - range.startMs)
   const scene = show.composition.scenes.find((candidate) => candidate.sceneId === range.sceneId)
+  const definitionById = new Map((show.composition.groupDefinitions ?? [])
+    .map((definition) => [definition.id, definition]))
+  const insideGroup = (show.composition.groupOccurrences ?? []).some((occurrence) => {
+    if (occurrence.sceneId !== range.sceneId) return false
+    const definition = definitionById.get(occurrence.definitionId)
+    const endMs = occurrence.startMs + (definition
+      ? Math.max(0, ...definition.placements.map((placement) => placement.startMs + placement.durationMs))
+      : 0)
+    return occurrence.startMs < localTimeMs && endMs > localTimeMs
+  })
+  if (insideGroup) {
+    return {
+      enabled: false,
+      code: 'group',
+      reason: 'Insert Time is unavailable inside a Group. Move or Ungroup it first.',
+    }
+  }
   if ((scene?.propertyTracks ?? []).some((track) => nonlinearSegmentCrosses(track, localTimeMs))) {
     return {
       enabled: false,
@@ -110,6 +127,11 @@ export function insertShowTime(
       insertIntoPlacements(layer.placements, plan.localTimeMs, durationMs, input.newPlacementIdBySourceId, splitIds)
     }
   }
+  next.composition!.groupOccurrences = next.composition!.groupOccurrences?.map((occurrence) => (
+    occurrence.sceneId === plan.sceneId && occurrence.startMs >= plan.localTimeMs
+      ? { ...occurrence, startMs: occurrence.startMs + durationMs }
+      : occurrence
+  ))
   next.composition!.transitions?.forEach((transition) => {
     const replacement = splitIds.get(transition.fromPlacementId)
     if (replacement) transition.fromPlacementId = replacement

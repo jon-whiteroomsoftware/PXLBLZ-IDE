@@ -87,16 +87,21 @@ import { IDE_MICROTYPE } from '@/components/ui/ideMicrotype'
 import {
   STUDIO_LIBRARY_DEFAULT_WIDTH,
   STUDIO_LIBRARY_MAX_VIEWPORT_WIDTH,
+  STUDIO_LIBRARY_MIN_WIDTH,
   resizeStudioLibraryWidth,
 } from '@/engine/studioChrome'
 
 function Splitter({
   onDrag,
   label,
+  valueNow,
+  valueMin,
   className = '',
 }: {
   onDrag: (dx: number) => void
   label: string
+  valueNow: number
+  valueMin: number
   className?: string
 }) {
   const lastX = useRef(0)
@@ -122,10 +127,19 @@ function Splitter({
   return (
     <div
       role="separator"
+      tabIndex={0}
       aria-label={label}
       aria-orientation="vertical"
+      aria-valuemin={valueMin}
+      aria-valuemax={Math.max(valueMin, window.innerWidth)}
+      aria-valuenow={Math.round(valueNow)}
       className={`w-1 shrink-0 bg-seam hover:bg-zinc-600 cursor-col-resize transition-colors select-none ${className}`}
       onMouseDown={handleMouseDown}
+      onKeyDown={(event) => {
+        if (event.key !== 'ArrowLeft' && event.key !== 'ArrowRight') return
+        event.preventDefault()
+        onDrag((event.key === 'ArrowLeft' ? -1 : 1) * (event.shiftKey ? 50 : 10))
+      }}
     />
   )
 }
@@ -914,7 +928,14 @@ function StudioApp() {
           {/* The live Controller dashboard moved out of this slot (#211): it now
               opens as a pinned popover anchored under its pill in the header. */}
         </aside>
-        {!libraryCollapsed && <Splitter label="Resize library pane" onDrag={handleLeftDrag} />}
+        {!libraryCollapsed && (
+          <Splitter
+            label="Resize library pane"
+            valueNow={leftWidth}
+            valueMin={STUDIO_LIBRARY_MIN_WIDTH}
+            onDrag={handleLeftDrag}
+          />
+        )}
         <div
           data-testid={studioEntityKind === 'shows' ? 'show-workspace' : undefined}
           className={studioEntityKind === 'shows'
@@ -1132,6 +1153,8 @@ function StudioApp() {
         </main>
         <Splitter
           label="Resize preview pane"
+          valueNow={rightWidth}
+          valueMin={MIN_PREVIEW_WIDTH}
           onDrag={handleRightDrag}
           className={studioEntityKind === 'shows'
             ? 'col-start-2 row-start-2 h-full max-[980px]:hidden'

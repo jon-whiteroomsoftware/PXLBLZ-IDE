@@ -153,6 +153,100 @@ describe('Show timeline authoring', () => {
     expect(showLoopDurationMs(changed)).toBe(64_000)
   })
 
+  it('shifts every linked Group occurrence that starts at or after Insert Time', () => {
+    const show = showWithComposition()
+    const firstScene = show.composition!.scenes[0]
+    show.composition!.groupDefinitions = [{
+      id: 'phrase',
+      name: 'Phrase',
+      patternInstances: [{
+        id: 'group-instance',
+        pattern: { kind: 'stock', id: 'Murmuration' },
+        patternName: 'Murmuration',
+        time: { timeScale: 1, timeOffsetMs: 0 },
+      }],
+      placements: [{
+        id: 'group-clip',
+        instanceId: 'group-instance',
+        startMs: 0,
+        durationMs: 2_000,
+        layerOffset: 1,
+        opacity: 1,
+        view: { mirror: false, phase: 0, brightness: 1 },
+      }],
+    }]
+    show.composition!.groupOccurrences = [
+      {
+        id: 'phrase-a',
+        definitionId: 'phrase',
+        sceneId: firstScene.sceneId,
+        zoneId: firstScene.zones[0].zoneId,
+        startMs: 10_000,
+        baseLayer: 0,
+        translationX: 0,
+        translationY: 0,
+      },
+      {
+        id: 'phrase-b',
+        definitionId: 'phrase',
+        sceneId: firstScene.sceneId,
+        zoneId: firstScene.zones[0].zoneId,
+        startMs: 20_000,
+        baseLayer: 0,
+        translationX: 0,
+        translationY: 0,
+      },
+    ]
+
+    const changed = insertShowTime(show, {
+      atMs: 5_000,
+      durationMs: 2_000,
+      newPlacementIdBySourceId: {
+        [firstScene.zones[0].main[0].id]: 'split-main-after-groups',
+      },
+    })
+
+    expect(changed.composition?.groupOccurrences?.map((occurrence) => occurrence.startMs)).toEqual([
+      12_000,
+      22_000,
+    ])
+  })
+
+  it('explains why Insert Time is unavailable inside a Group occurrence', () => {
+    const show = showWithComposition()
+    const firstScene = show.composition!.scenes[0]
+    show.composition!.groupDefinitions = [{
+      id: 'phrase',
+      name: 'Phrase',
+      patternInstances: [],
+      placements: [{
+        id: 'group-clip',
+        instanceId: 'missing-for-plan-only',
+        startMs: 0,
+        durationMs: 2_000,
+        layerOffset: 0,
+        opacity: 1,
+        view: { mirror: false, phase: 0, brightness: 1 },
+      }],
+    }]
+    show.composition!.groupOccurrences = [{
+      id: 'phrase-a',
+      definitionId: 'phrase',
+      sceneId: firstScene.sceneId,
+      zoneId: firstScene.zones[0].zoneId,
+      startMs: 10_000,
+      baseLayer: 0,
+      translationX: 0,
+      translationY: 0,
+    }]
+
+    expect(planShowTimeInsertion(show, 11_000, 2_000)).toEqual({
+      enabled: false,
+      code: 'group',
+      reason: 'Insert Time is unavailable inside a Group. Move or Ungroup it first.',
+    })
+  })
+
   it('explains why Insert Time is unavailable inside a Transition', () => {
     const show = showWithComposition()
 

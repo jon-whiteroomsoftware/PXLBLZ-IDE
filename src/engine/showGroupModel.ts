@@ -267,6 +267,64 @@ export function updateShowGroupOccurrencePlacement(
   }
 }
 
+/** Resize or remove one Transition in a linked Group definition. */
+export function resizeShowGroupLayerTransition(
+  show: Pick<ShowRecord, 'scenes' | 'zones'>,
+  composition: ShowCompositionV1,
+  input: { occurrenceId: string; transitionId: string; durationMs: number },
+): ShowCompositionV1 {
+  if (!Number.isInteger(input.durationMs) || input.durationMs < 0) return composition
+  const occurrence = composition.groupOccurrences?.find((candidate) => candidate.id === input.occurrenceId)
+  const definition = composition.groupDefinitions?.find((candidate) => candidate.id === occurrence?.definitionId)
+  if (!occurrence || !definition) return composition
+  const prefix = `${occurrence.id}:`
+  const transitionId = input.transitionId.startsWith(prefix)
+    ? input.transitionId.slice(prefix.length)
+    : input.transitionId
+  const transition = definition.transitions?.find((candidate) => candidate.id === transitionId)
+  if (!transition || transition.durationMs === input.durationMs) return composition
+
+  const movedPlacementIds = new Set<string>([transition.toPlacementId])
+  let endpointId = transition.toPlacementId
+  while (true) {
+    const nextTransition = definition.transitions?.find((candidate) => candidate.fromPlacementId === endpointId)
+    if (!nextTransition) break
+    movedPlacementIds.add(nextTransition.toPlacementId)
+    endpointId = nextTransition.toPlacementId
+  }
+
+  const deltaMs = input.durationMs - transition.durationMs
+  const draft = cloneJson(composition)
+  const changedDefinition = draft.groupDefinitions?.find((candidate) => candidate.id === definition.id)
+  if (!changedDefinition) return composition
+  for (const placement of changedDefinition.placements) {
+    if (movedPlacementIds.has(placement.id)) placement.startMs += deltaMs
+  }
+  const exclusivelyMovedInstanceIds = new Set(changedDefinition.patternInstances.flatMap((instance) => {
+    const users = changedDefinition.placements.filter((placement) => placement.instanceId === instance.id)
+    return users.length > 0 && users.every((placement) => movedPlacementIds.has(placement.id))
+      ? [instance.id]
+      : []
+  }))
+  for (const track of changedDefinition.propertyTracks ?? []) {
+    const movesWithPlacement = 'placementId' in track.target && movedPlacementIds.has(track.target.placementId)
+    const movesWithInstance = 'instanceId' in track.target && exclusivelyMovedInstanceIds.has(track.target.instanceId)
+    if (!movesWithPlacement && !movesWithInstance) continue
+    track.keyframes.forEach((keyframe) => {
+      keyframe.timeMs += deltaMs
+    })
+  }
+  if (input.durationMs === 0) {
+    changedDefinition.transitions = changedDefinition.transitions?.filter((candidate) => candidate.id !== transitionId)
+    if (changedDefinition.transitions?.length === 0) delete changedDefinition.transitions
+  } else {
+    const changedTransition = changedDefinition.transitions?.find((candidate) => candidate.id === transitionId)
+    if (!changedTransition) return composition
+    changedTransition.durationMs = input.durationMs
+  }
+  return validateShowGroups(show, draft).length === 0 ? draft : composition
+}
+
 export function deleteShowGroupOccurrence(
   composition: ShowCompositionV1,
   occurrenceId: string,

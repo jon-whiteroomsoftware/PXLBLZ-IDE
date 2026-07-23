@@ -599,6 +599,51 @@ describe('global timeline Clip authoring (#580)', () => {
     })
   })
 
+  it('moves sole-use instance automation with a Clip across an internal Scene boundary', () => {
+    const show = createDefaultShow('show-move-instance-keyframes', 'Move instance keyframes', 1000)
+    const composition = emptyComposition(show)
+    composition.patternInstances.push(instance)
+    composition.scenes[0].zones[0].main.push({
+      id: 'placement-move',
+      instanceId: instance.id,
+      startMs: 1_000,
+      durationMs: 3_000,
+      view: { mirror: false, phase: 0, brightness: 1 },
+    })
+    composition.scenes[0].propertyTracks = [{
+      id: 'track-speed',
+      target: { kind: 'instance-time-scale', instanceId: instance.id },
+      keyframes: [
+        { id: 'key-a', timeMs: 1_500, value: 1, easing: { curve: 'linear' } },
+        { id: 'key-b', timeMs: 3_000, value: 2, easing: { curve: 'linear' } },
+      ],
+    }]
+
+    const next = moveShowClipAtGlobalTime(show, composition, {
+      owner: {
+        kind: 'main',
+        sceneId: show.scenes[0].id,
+        zoneId: show.zones[0].id,
+        placementId: 'placement-move',
+      },
+      target: {
+        kind: 'main',
+        zoneId: show.zones[0].id,
+        globalStartMs: 34_000,
+      },
+    })
+
+    expect(next.scenes[0].propertyTracks).toBeUndefined()
+    expect(next.scenes[1].propertyTracks?.[0]).toMatchObject({
+      id: 'track-speed',
+      target: { kind: 'instance-time-scale', instanceId: instance.id },
+      keyframes: [
+        { id: 'key-a', timeMs: 2_500 },
+        { id: 'key-b', timeMs: 4_000 },
+      ],
+    })
+  })
+
   it('splits a Clip at global time while preserving its shared Pattern instance', () => {
     const show = createDefaultShow('show-split-clip', 'Split clip', 1000)
     const composition = emptyComposition(show)

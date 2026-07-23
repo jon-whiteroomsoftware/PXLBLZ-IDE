@@ -122,7 +122,7 @@ export async function updateD1Show(
 ): Promise<void> {
   const assignments: string[] = []
   const values: unknown[] = []
-  const composition = normalizeCompositionUpdate(changes)
+  const composition = await normalizeCompositionUpdate(db, userId, id, changes)
   addAssignment(assignments, values, 'name', changes.name)
   addAssignment(assignments, values, 'scenes_json', changes.scenes, true)
   addAssignment(assignments, values, 'zones_json', changes.zones, true)
@@ -204,17 +204,33 @@ function requireValidComposition(
   }
 }
 
-function normalizeCompositionUpdate(
+async function normalizeCompositionUpdate(
+  db: D1DatabaseShowsLike,
+  userId: string,
+  id: string,
   changes: Partial<Omit<ShowRecord, 'id'>>,
-): ShowCompositionV1 | null | undefined {
+): Promise<ShowCompositionV1 | null | undefined> {
   if (changes.composition === undefined || changes.composition === null) return changes.composition
   if (!isCompositionV1Envelope(changes.composition)) throw unsupportedCompositionError()
   try {
     if (validateShowCompositionTimelineMetadata(changes.composition).length > 0) throw unsupportedCompositionError()
-    if (Array.isArray(changes.scenes) && Array.isArray(changes.zones)) {
-      return requireValidComposition({ scenes: changes.scenes, zones: changes.zones }, changes.composition)
+    let scenes = changes.scenes
+    let zones = changes.zones
+    if (!Array.isArray(scenes) || !Array.isArray(zones)) {
+      const { results } = await db
+        .prepare(`
+          SELECT scenes_json, zones_json
+          FROM personal_shows
+          WHERE user_id = ? AND id = ?
+        `)
+        .bind(userId, id)
+        .all<Pick<D1ShowRow, 'scenes_json' | 'zones_json'>>()
+      const stored = results[0]
+      if (!stored) throw unsupportedCompositionError()
+      if (!Array.isArray(scenes)) scenes = parseJson(stored.scenes_json, [])
+      if (!Array.isArray(zones)) zones = parseJson(stored.zones_json, [])
     }
-    return normalizeShowComposition({ scenes: [], zones: [] }, changes.composition)
+    return requireValidComposition({ scenes, zones }, changes.composition)
   } catch (error) {
     if (error instanceof PersonalStorageGuardError) throw error
     throw unsupportedCompositionError()

@@ -124,6 +124,7 @@ import {
   duplicateShowGroupOccurrence,
   makeShowGroupOccurrenceUnique,
   projectShowGroupRuntimePatternInstances,
+  resizeShowGroupLayerTransition,
   translateShowGroupOccurrence,
   ungroupShowGroupOccurrence,
   updateShowGroupOccurrencePlacement,
@@ -333,6 +334,7 @@ type ShowLayerTransitionTarget = {
   fromName: string
   toName: string
   anchor: HTMLElement
+  groupOccurrenceId?: string
 }
 
 function ShowNoteTrigger({ note, open, onToggle }: {
@@ -1738,6 +1740,7 @@ export function ShowEditor({
                   onPatternCommit={returnFocusToTimelineSelection}
                   onRemoveClip={(clip) => {
                     closeDetailPanel()
+                    closePinnedDetailForSelection({ kind: 'clip', clipId: clip.id })
                     void removeClip(activeShow.id, clip.id)
                   }}
                   onUpdateAdaptations={(cell, changes) => void updateCellAdaptations(activeShow.id, cell.id, changes)}
@@ -1797,6 +1800,9 @@ export function ShowEditor({
                         : timelineComposition
                     if (composition === timelineComposition) return
                     closeDetailPanel()
+                    if (timelineOwner) {
+                      closePinnedDetailForSelection({ kind: 'clip', clipId: timelineOwner.placementId })
+                    }
                     void updateShow(activeShow.id, { ...activeShow, composition, updatedAt: Date.now() })
                   }}
                   onDuplicateGroup={(occurrenceId) => {
@@ -1844,6 +1850,7 @@ export function ShowEditor({
                     const composition = ungroupShowGroupOccurrence(activeShow.composition, occurrenceId)
                     if (composition === activeShow.composition) return
                     closeDetailPanel()
+                    closePinnedDetailForSelection({ kind: 'group', occurrenceId })
                     void updateShow(activeShow.id, { ...activeShow, composition, updatedAt: Date.now() })
                   }}
                   onUpdateControlTarget={(cell, exportName, value) => void updateCellControlTarget(activeShow.id, cell.id, exportName, value)}
@@ -1855,6 +1862,7 @@ export function ShowEditor({
                   onOpenTransitions={(transitionId) => setTransitionPaletteId(transitionId)}
                   onRemoveBoundaryTransition={(transitionId) => {
                     closeDetailPanel()
+                    closePinnedDetailForSelection({ kind: 'transition', transitionId })
                     void removeBoundaryTransition(activeShow.id, transitionId)
                   }}
                   onAddZone={() => {
@@ -1864,6 +1872,7 @@ export function ShowEditor({
                   onUpdateZone={(zoneId, changes) => void updateZone(activeShow.id, zoneId, changes)}
                   onRemoveZone={(zoneId) => {
                     closeDetailPanel()
+                    closePinnedDetailForSelection({ kind: 'zone', zoneId })
                     void removeZone(activeShow.id, zoneId)
                   }}
                   onAddRoutingLayout={(sourceLayoutId) => void addRoutingLayout(activeShow.id, sourceLayoutId)}
@@ -1965,12 +1974,18 @@ export function ShowEditor({
               anchor={layerTransitionTarget.anchor}
               onDurationChange={(durationMs) => {
                 if (!timelineComposition) return
-                const nextComposition = resizeShowLayerTransition(
-                  activeShow,
-                  timelineComposition,
-                  layerTransitionTarget.junction.id,
-                  durationMs,
-                )
+                const nextComposition = layerTransitionTarget.groupOccurrenceId
+                  ? resizeShowGroupLayerTransition(activeShow, timelineComposition, {
+                      occurrenceId: layerTransitionTarget.groupOccurrenceId,
+                      transitionId: layerTransitionTarget.junction.id,
+                      durationMs,
+                    })
+                  : resizeShowLayerTransition(
+                      activeShow,
+                      timelineComposition,
+                      layerTransitionTarget.junction.id,
+                      durationMs,
+                    )
                 if (nextComposition === timelineComposition) return
                 setLayerTransitionTarget(null)
                 void updateShow(activeShow.id, {
@@ -1981,11 +1996,17 @@ export function ShowEditor({
               }}
               onResetToCut={() => {
                 if (!timelineComposition) return
-                const nextComposition = resetShowLayerTransitionToCut(
-                  activeShow,
-                  timelineComposition,
-                  layerTransitionTarget.junction.id,
-                )
+                const nextComposition = layerTransitionTarget.groupOccurrenceId
+                  ? resizeShowGroupLayerTransition(activeShow, timelineComposition, {
+                      occurrenceId: layerTransitionTarget.groupOccurrenceId,
+                      transitionId: layerTransitionTarget.junction.id,
+                      durationMs: 0,
+                    })
+                  : resetShowLayerTransitionToCut(
+                      activeShow,
+                      timelineComposition,
+                      layerTransitionTarget.junction.id,
+                    )
                 if (nextComposition === timelineComposition) return
                 setLayerTransitionTarget(null)
                 void updateShow(activeShow.id, {
@@ -4084,6 +4105,7 @@ function ShowTimelineWorkspace({
                   const outsideIsolation = Boolean(isolatedGroupOccurrenceId && !insideIsolatedGroup)
                   const selectInternalGroup = (anchor: HTMLElement) => {
                     if (!internalGroup) return false
+                    if (insideIsolatedGroup) return false
                     onSelect(insideIsolatedGroup && internalGroupPlacementId
                       ? { kind: 'group-clip', occurrenceId: internalGroup.id, placementId: internalGroupPlacementId }
                       : { kind: 'group', occurrenceId: internalGroup.id }, anchor)
@@ -4100,6 +4122,7 @@ function ShowTimelineWorkspace({
                       fromName: leftClip.patternName,
                       toName: rightClip.patternName,
                       anchor,
+                      ...(internalGroup ? { groupOccurrenceId: internalGroup.id } : {}),
                     })
                   }
                   const transitionPictogram = junction.boundaryTransition

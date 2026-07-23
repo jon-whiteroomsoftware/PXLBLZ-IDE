@@ -569,6 +569,16 @@ describe('ShowEditor (#318)', () => {
     expect(within(panel).getByRole('button', { name: 'Delete Group Pulse phrase' })).toBeInTheDocument()
     expect(within(panel).getByLabelText('Start seconds')).toBeInTheDocument()
     expect(within(panel).getByLabelText('Base Layer')).toBeInTheDocument()
+
+    await user.click(within(panel).getByRole('button', { name: 'Pin Entity Detail Panel' }))
+    const pinned = screen.getByRole('dialog', { name: 'Entity Detail Panel' })
+    expect(pinned).toHaveAttribute('data-pinned', 'true')
+    await user.click(within(pinned).getByRole('button', { name: 'Ungroup occurrence' }))
+
+    await waitFor(() => {
+      expect(useShowStore.getState().shows[0].composition?.groupOccurrences).toBeUndefined()
+    })
+    expect(screen.queryByRole('dialog', { name: 'Entity Detail Panel' })).not.toBeInTheDocument()
   })
 
   it('isolates a Group modelessly, edits its linked definition, and exits with Escape (#587)', async () => {
@@ -655,6 +665,101 @@ describe('ShowEditor (#318)', () => {
       expect(screen.queryByRole('status', { name: 'Group isolation: Pulse phrase' })).not.toBeInTheDocument()
       expect(screen.getByRole('button', { name: 'Select Outside' })).not.toHaveAttribute('aria-disabled')
       expect(screen.queryByRole('dialog', { name: 'Entity Detail Panel' })).not.toBeInTheDocument()
+    })
+  })
+
+  it('edits an internal Group Transition while its linked definition is isolated (#587)', async () => {
+    const user = userEvent.setup()
+    const show = createDefaultShow('show-group-transition', 'Group transition', 1000)
+    const zoneId = show.zones[0].id
+    const sceneId = show.scenes[0].id
+    show.composition = {
+      version: 1,
+      executionModel: 'deterministic-loop',
+      patternInstances: [],
+      scenes: show.scenes.map((scene) => ({
+        sceneId: scene.id,
+        zones: [{ zoneId, main: [], overlays: [] }],
+      })),
+      groupDefinitions: [{
+        id: 'phrase',
+        name: 'Transition phrase',
+        patternInstances: [{
+          id: 'inside-instance',
+          pattern: { kind: 'stock', id: 'Murmuration' },
+          patternName: 'Murmuration',
+          time: { timeScale: 1, timeOffsetMs: 0 },
+        }],
+        placements: [
+          {
+            id: 'inside-left',
+            instanceId: 'inside-instance',
+            layerOffset: 0,
+            startMs: 0,
+            durationMs: 1_000,
+            opacity: 1,
+            view: { mirror: false, phase: 0, brightness: 1 },
+          },
+          {
+            id: 'inside-right',
+            instanceId: 'inside-instance',
+            layerOffset: 0,
+            startMs: 1_250,
+            durationMs: 1_000,
+            opacity: 1,
+            view: { mirror: false, phase: 0, brightness: 1 },
+          },
+        ],
+        transitions: [{
+          id: 'inside-crossfade',
+          fromPlacementId: 'inside-left',
+          toPlacementId: 'inside-right',
+          kind: 'crossfade',
+          durationMs: 250,
+          easing: { curve: 'linear' },
+          crossfadePolicy: 'live-live',
+        }],
+      }],
+      groupOccurrences: [
+        {
+          id: 'phrase-use-a',
+          definitionId: 'phrase',
+          sceneId,
+          zoneId,
+          startMs: 0,
+          baseLayer: 0,
+          translationX: 0,
+          translationY: 0,
+        },
+        {
+          id: 'phrase-use-b',
+          definitionId: 'phrase',
+          sceneId,
+          zoneId,
+          startMs: 3_000,
+          baseLayer: 0,
+          translationX: 0,
+          translationY: 0,
+        },
+      ],
+    }
+    setPersonalContentProvider(memoryProvider([show]))
+    useShowStore.setState({ shows: [show], activeShowId: show.id, showsLoaded: true })
+
+    render(<ShowEditor showId={show.id} />)
+    fireEvent.doubleClick(screen.getAllByRole('button', { name: 'Select Group Transition phrase' })[0])
+
+    const transitions = screen.getAllByRole('button', {
+      name: 'Edit crossfade Transition between Murmuration and Murmuration',
+    })
+    await user.click(transitions[0])
+    expect(screen.getByRole('dialog', { name: 'Layer Transition Details' })).toBeInTheDocument()
+    changeCommittedNumber('Layer Transition duration in seconds', '0.5')
+
+    await waitFor(() => {
+      const definition = useShowStore.getState().shows[0].composition?.groupDefinitions?.[0]
+      expect(definition?.transitions?.[0].durationMs).toBe(500)
+      expect(definition?.placements.find((placement) => placement.id === 'inside-right')?.startMs).toBe(1_500)
     })
   })
 

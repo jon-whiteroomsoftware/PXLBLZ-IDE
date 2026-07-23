@@ -266,15 +266,43 @@ describe('D1 show persistence (#318)', () => {
   })
 
   it('updates a Show composition as one serialized sidecar', async () => {
-    const { db, calls } = fakeDb()
+    const show = createDefaultShow('show-1', 'Stored Show', 123)
+    const { db, calls } = fakeDb([{
+      scenes_json: JSON.stringify(show.scenes),
+      zones_json: JSON.stringify(show.zones),
+    }])
 
     await updateD1Show(db, 'github:123', 'show-1', {
       composition: composition(),
       updatedAt: 456,
     })
 
-    expect(calls[0].sql).toContain('composition_json = ?')
-    expect(calls[0].values).toContain(JSON.stringify(composition()))
+    expect(calls[0].sql).toContain('SELECT scenes_json, zones_json')
+    expect(calls[1].sql).toContain('composition_json = ?')
+    expect(calls[1].values).toContain(JSON.stringify(composition()))
+  })
+
+  it('rejects a semantically invalid composition-only update against its stored owners', async () => {
+    const show = createDefaultShow('show-1', 'Stored Show', 123)
+    const invalid = {
+      ...composition(),
+      patternInstances: [],
+    }
+    const { db, calls } = fakeDb([{
+      scenes_json: JSON.stringify(show.scenes),
+      zones_json: JSON.stringify(show.zones),
+    }])
+
+    await expect(updateD1Show(db, 'github:123', show.id, {
+      composition: invalid,
+      updatedAt: 456,
+    })).rejects.toMatchObject({
+      code: 'unsupported_show_composition',
+      status: 400,
+    })
+
+    expect(calls).toHaveLength(1)
+    expect(calls[0].action).toBe('all')
   })
 
   it('updates Show output Effects as one serialized sidecar (#537)', async () => {

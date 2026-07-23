@@ -265,6 +265,17 @@ export function moveShowClipAtGlobalTime(
   }
   const sourceIndex = sourcePlacements?.findIndex((placement) => placement.id === input.owner.placementId) ?? -1
   if (!sourcePlacements || sourceIndex < 0) return composition
+  const sourceInstanceId = sourcePlacements[sourceIndex].instanceId
+  const instanceUseCount = draft.scenes.reduce((count, scene) => (
+    count + scene.zones.reduce((zoneCount, zone) => (
+      zoneCount
+      + zone.main.filter((placement) => placement.instanceId === sourceInstanceId).length
+      + zone.overlays.reduce((layerCount, layer) => (
+        layerCount + layer.placements.filter((placement) => placement.instanceId === sourceInstanceId).length
+      ), 0)
+    ), 0)
+  ), 0)
+  const instanceIsSoleUse = instanceUseCount === 1
   const [sourcePlacement] = sourcePlacements.splice(sourceIndex, 1)
   const sourceStartMs = sourcePlacement.startMs
 
@@ -283,6 +294,11 @@ export function moveShowClipAtGlobalTime(
 
   const movedTracks = (sourceScene.propertyTracks ?? []).filter((track) => (
     'placementId' in track.target && track.target.placementId === input.owner.placementId
+    || (
+      instanceIsSoleUse
+      && 'instanceId' in track.target
+      && track.target.instanceId === sourcePlacement.instanceId
+    )
   ))
   const offsetMs = startMs - sourceStartMs
   movedTracks.forEach((track) => {
