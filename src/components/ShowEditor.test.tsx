@@ -1340,6 +1340,8 @@ describe('ShowEditor (#318)', () => {
 
     const guide = screen.getByRole('region', { name: '101 Clips and Crossfade guide' })
     expect(guide).toHaveClass('select-none')
+    expect(guide.closest('.show-editor-pane')).toBeInTheDocument()
+    expect(guide.querySelector('.show-note-expanded-content')).toBeInTheDocument()
     expect(within(guide).getByText(builtInContext.note.purpose)).toBeInTheDocument()
     expect(within(guide).getByText(builtInContext.note.notice)).toBeInTheDocument()
     expect(within(guide).getByRole('link', { name: builtInContext.note.guide.label })).toHaveAttribute(

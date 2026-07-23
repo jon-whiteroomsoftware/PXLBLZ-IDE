@@ -400,16 +400,18 @@ function ShowNoteDisclosure({
         <ChevronDown size={12} aria-hidden className="ml-auto shrink-0 rotate-180 text-zinc-500" />
       </button>
       {reference && (
-        <ShowReferenceInstrument
-          show={show}
-          reference={reference}
-          patternOptions={patternOptions}
-          selectedPattern={selectedPattern}
-          onSelectPattern={onSelectPattern}
-          onResetPattern={onResetPattern}
-        />
+        <div className="show-note-expanded-content">
+          <ShowReferenceInstrument
+            show={show}
+            reference={reference}
+            patternOptions={patternOptions}
+            selectedPattern={selectedPattern}
+            onSelectPattern={onSelectPattern}
+            onResetPattern={onResetPattern}
+          />
+        </div>
       )}
-      <div className="grid grid-cols-[minmax(0,1.45fr)_minmax(220px,1fr)] gap-4 border-t border-zinc-800/80 px-3 py-2.5 max-[720px]:grid-cols-1 max-[720px]:gap-2">
+      <div className="show-note-expanded-content grid grid-cols-[minmax(0,1.45fr)_minmax(220px,1fr)] gap-4 border-t border-zinc-800/80 px-3 py-2.5 max-[720px]:grid-cols-1 max-[720px]:gap-2">
         <div>
           <p className="max-w-[72ch] leading-4 text-zinc-300">{note.purpose}</p>
           <p className="mt-1.5 flex items-start gap-1.5 leading-4 text-zinc-500">
@@ -1314,7 +1316,7 @@ export function ShowEditor({
   const pinnedDetailAnchor = pinnedDetail?.anchor ?? null
 
   return (
-    <div className="flex h-full min-h-0 flex-col bg-zinc-950/75 font-mono text-xs text-zinc-400">
+    <div className="show-editor-pane flex h-full min-h-0 flex-col bg-zinc-950/75 font-mono text-xs text-zinc-400">
       {headerGuideTarget && showNoteTrigger
         ? createPortal(showNoteTrigger, headerGuideTarget)
         : null}

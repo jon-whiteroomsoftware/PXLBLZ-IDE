@@ -394,8 +394,18 @@
 /* The center editor may be narrow while the browser viewport remains wide.
    Let Show identity stack inside its own column instead of drawing beneath the
    portaled action cluster. */
+.show-editor-pane,
 .show-pane-header-container {
   container-type: inline-size;
+}
+
+/* Expanded learning material must not displace the authoring canvas when the
+   center pane is squeezed by the library and Stage. Keep its one-line identity
+   and disclosure control available while containing the explanatory body. */
+@container (max-width: 820px) {
+  .show-editor-pane .show-note-expanded-content {
+    display: none;
+  }
 }
 
 /* Clips progressively shed copy before they shed meaning. At narrow scene
