@@ -350,6 +350,7 @@ describe('routing (#308)', () => {
     render(<App />)
 
     expect(screen.queryByRole('dialog', { name: 'Show Stage preview' })).not.toBeInTheDocument()
+    expect(within(screen.getByTestId('preview-pane')).queryByLabelText('Show stage')).not.toBeInTheDocument()
     const previewStage = screen.getByRole('button', { name: 'Preview Stage' })
     await user.click(previewStage)
 
@@ -370,7 +371,7 @@ describe('routing (#308)', () => {
     expect(close).toHaveFocus()
     await user.click(close)
     expect(screen.queryByRole('dialog', { name: 'Show Stage preview' })).not.toBeInTheDocument()
-    expect(within(screen.getByTestId('preview-pane')).getByLabelText('Show stage')).toBeInTheDocument()
+    expect(within(screen.getByTestId('preview-pane')).queryByLabelText('Show stage')).not.toBeInTheDocument()
     await waitFor(() => expect(previewStage).toHaveFocus())
   })
 

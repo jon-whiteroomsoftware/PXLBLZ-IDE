@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, useSyncExternalStore, type CSSProperties, type MouseEvent as ReactMouseEvent, type PointerEvent as ReactPointerEvent, type ReactNode, type SetStateAction } from 'react'
+import { useCallback, useDeferredValue, useEffect, useLayoutEffect, useMemo, useRef, useState, useSyncExternalStore, type CSSProperties, type MouseEvent as ReactMouseEvent, type PointerEvent as ReactPointerEvent, type ReactNode, type SetStateAction } from 'react'
 import { createPortal } from 'react-dom'
 import { Activity, BookOpen, Check, ChevronDown, ChevronRight, Clock3, Code2, Copy, Download, Eye, Flag, Grid2X2, Info, Layers3, Lightbulb, ListChecks, Lock, Magnet, Map as MapIcon, Maximize2, Pause, Play, Plus, Redo2, Repeat2, RotateCcw, RotateCw, Route, Scissors, Settings2, SkipBack, SlidersHorizontal, SplitSquareHorizontal, Trash2, Undo2, WandSparkles, X, Zap } from 'lucide-react'
 import { Button } from '@/components/ui/button'
@@ -47,7 +47,13 @@ import {
   showVisualTransitionAfter,
   transitionCost,
 } from '@/engine/showModel'
-import { compileShowForArtifact, sourceForShowCell, sourceForShowPatternRef, type CompiledShowState } from '@/engine/showPreviewArtifact'
+import {
+  compileShowForArtifact,
+  resolveShowCompilationControllerZones,
+  sourceForShowCell,
+  sourceForShowPatternRef,
+  type CompiledShowState,
+} from '@/engine/showPreviewArtifact'
 import {
   deleteShowMainPlacement,
   deleteShowOverlayPlacement,
@@ -936,16 +942,46 @@ export function ShowEditor({
           ? `Spatial selection needs the map's ${savedStageFixedCount} points to match the ${activeShow.outputContract.pixelCount}-pixel output.`
           : null
     : null
-  const compiled = useMemo(
+  const compilationControllerZones = useMemo(
     () => activeShow
-      ? compileShowForArtifact(activeShow, userPatterns, targetProfile?.zones, {}, {
-          stageDimension,
-          targetPixelCount: activeShow.outputContract?.kind === 'portable-2d'
-            ? activeControllerProfile?.lastKnownPixelCount
-            : undefined,
-        })
+      ? resolveShowCompilationControllerZones(activeShow, Boolean(savedStageMap), targetProfile?.zones)
+      : undefined,
+    [activeShow, savedStageMap, targetProfile?.zones],
+  )
+  const artifactCompilationInput = useMemo(() => activeShow ? {
+    show: activeShow,
+    userPatterns,
+    controllerZones: compilationControllerZones,
+    stageDimension,
+    targetPixelCount: activeShow.outputContract?.kind === 'portable-2d'
+      ? activeControllerProfile?.lastKnownPixelCount
+      : undefined,
+  } : null, [
+    activeControllerProfile?.lastKnownPixelCount,
+    activeShow,
+    compilationControllerZones,
+    stageDimension,
+    userPatterns,
+  ])
+  const deferredArtifactCompilationInput = useDeferredValue(artifactCompilationInput)
+  const effectiveArtifactCompilationInput =
+    deferredArtifactCompilationInput?.show.id === showId
+      ? deferredArtifactCompilationInput
+      : artifactCompilationInput
+  const compiled = useMemo(
+    () => effectiveArtifactCompilationInput
+      ? compileShowForArtifact(
+          effectiveArtifactCompilationInput.show,
+          effectiveArtifactCompilationInput.userPatterns,
+          effectiveArtifactCompilationInput.controllerZones,
+          {},
+          {
+            stageDimension: effectiveArtifactCompilationInput.stageDimension,
+            targetPixelCount: effectiveArtifactCompilationInput.targetPixelCount,
+          },
+        )
       : { artifact: null, error: null },
-    [activeControllerProfile?.lastKnownPixelCount, activeShow, stageDimension, userPatterns, targetProfile?.zones],
+    [effectiveArtifactCompilationInput],
   )
   const compilePressure = useMemo(() => compiled.artifact
     ? assessShowCompilePressure({
@@ -4933,46 +4969,6 @@ function TimelineEndHandlePortal({
   )
 }
 
-function TimelinePlayheadCapPortal({
-  anchor,
-  visible,
-  rebuilding,
-  positionPercent,
-}: {
-  anchor: HTMLElement | null
-  visible: boolean
-  rebuilding: boolean
-  positionPercent: number
-}) {
-  const [position, setPosition] = useState({ left: -100, top: -100 })
-
-  useLayoutEffect(() => {
-    if (!anchor) return
-    const updatePosition = () => {
-      const rect = anchor.getBoundingClientRect()
-      setPosition({ left: rect.left + rect.width / 2 - 4, top: rect.top })
-    }
-    updatePosition()
-    window.addEventListener('resize', updatePosition)
-    window.addEventListener('scroll', updatePosition, true)
-    return () => {
-      window.removeEventListener('resize', updatePosition)
-      window.removeEventListener('scroll', updatePosition, true)
-    }
-  }, [anchor, positionPercent])
-
-  if (!anchor || !visible || typeof document === 'undefined') return null
-  return createPortal(
-    <span
-      data-testid="show-timeline-playhead-cap"
-      aria-hidden
-      className={`pointer-events-none fixed z-[45] h-0 w-0 border-x-[4px] border-t-[6px] border-x-transparent ${rebuilding ? 'border-t-amber-300' : 'border-t-live'}`}
-      style={position}
-    />,
-    document.body,
-  )
-}
-
 function TimelineMarkers({
   show,
   minimumShowEndMs,
@@ -5314,7 +5310,6 @@ function TimelinePlayhead({
   const pendingSeekRef = useRef<{ showId: string; targetMs: number } | null>(null)
   const resumeAfterSeekRef = useRef(false)
   const activePointerRef = useRef<number | null>(null)
-  const [playheadCapAnchor, setPlayheadCapAnchor] = useState<HTMLSpanElement | null>(null)
   const left = durationMs > 0 ? Math.min(100, Math.max(0, positionMs / durationMs * 100)) : 0
   const visible = positionMs >= viewport.startMs && positionMs <= viewport.startMs + viewport.durationMs
   const previewPointerPosition = (event: ReactPointerEvent<HTMLSpanElement>) => {
@@ -5352,48 +5347,55 @@ function TimelinePlayhead({
     resumeAfterSeekRef.current = false
   }
   return (
-    <div
-      aria-hidden
-      data-testid="show-timeline-playhead-surface"
-      className={`pointer-events-none relative z-30 ${visible ? '' : 'invisible'}`}
-      style={{ gridColumn, gridRow: `${gridRow} / span ${rowSpan}` }}
-    >
-      <span
-        data-testid="show-timeline-playhead-hit-target"
-        className="pointer-events-auto absolute inset-y-0 w-[5px] -translate-x-1/2 cursor-col-resize touch-none"
-        style={{ left: `${left}%` }}
-        onPointerDown={(event) => {
-          event.stopPropagation()
-          activePointerRef.current = event.pointerId
-          event.currentTarget.setPointerCapture?.(event.pointerId)
-          previewPointerPosition(event)
-        }}
-        onPointerMove={(event) => {
-          if (activePointerRef.current !== event.pointerId) return
-          previewPointerPosition(event)
-        }}
-        onPointerUp={(event) => {
-          if (activePointerRef.current !== event.pointerId) return
-          previewPointerPosition(event)
-          event.currentTarget.releasePointerCapture?.(event.pointerId)
-          commitPointerPosition()
-        }}
-        onPointerCancel={commitPointerPosition}
+    <>
+      <div
+        aria-hidden
+        data-testid="show-timeline-playhead-surface"
+        className={`pointer-events-none relative z-30 ${visible ? '' : 'invisible'}`}
+        style={{ gridColumn, gridRow: `${gridRow} / span ${rowSpan}` }}
       >
         <span
-          ref={setPlayheadCapAnchor}
-          data-testid="show-timeline-playhead"
-          className={`pointer-events-none absolute inset-y-0 left-1/2 w-px -translate-x-1/2 ${seekStatus === 'rebuilding' ? 'bg-amber-300' : 'bg-live'}`}
-          style={{ boxShadow: '0 0 8px color-mix(in srgb, var(--color-live) 45%, transparent)' }}
+          data-testid="show-timeline-playhead-hit-target"
+          className="pointer-events-auto absolute inset-y-0 w-[5px] -translate-x-1/2 cursor-col-resize touch-none"
+          style={{ left: `${left}%` }}
+          onPointerDown={(event) => {
+            event.stopPropagation()
+            activePointerRef.current = event.pointerId
+            event.currentTarget.setPointerCapture?.(event.pointerId)
+            previewPointerPosition(event)
+          }}
+          onPointerMove={(event) => {
+            if (activePointerRef.current !== event.pointerId) return
+            previewPointerPosition(event)
+          }}
+          onPointerUp={(event) => {
+            if (activePointerRef.current !== event.pointerId) return
+            previewPointerPosition(event)
+            event.currentTarget.releasePointerCapture?.(event.pointerId)
+            commitPointerPosition()
+          }}
+          onPointerCancel={commitPointerPosition}
+        >
+          <span
+            data-testid="show-timeline-playhead"
+            className={`pointer-events-none absolute inset-y-0 left-1/2 w-px -translate-x-1/2 ${seekStatus === 'rebuilding' ? 'bg-amber-300' : 'bg-live'}`}
+            style={{ boxShadow: '0 0 8px color-mix(in srgb, var(--color-live) 45%, transparent)' }}
+          />
+        </span>
+      </div>
+      <div
+        data-testid="show-timeline-playhead-cap-surface"
+        aria-hidden
+        className={`pointer-events-none relative z-[45] ${visible ? '' : 'invisible'}`}
+        style={{ gridColumn, gridRow: `${gridRow} / span ${rowSpan}` }}
+      >
+        <span
+          data-testid="show-timeline-playhead-cap"
+          className={`pointer-events-none absolute top-0 z-[45] h-0 w-0 -ml-1 border-x-[4px] border-t-[6px] border-x-transparent ${seekStatus === 'rebuilding' ? 'border-t-amber-300' : 'border-t-live'}`}
+          style={{ left: `${left}%` }}
         />
-      </span>
-      <TimelinePlayheadCapPortal
-        anchor={playheadCapAnchor}
-        visible={visible}
-        rebuilding={seekStatus === 'rebuilding'}
-        positionPercent={left}
-      />
-    </div>
+      </div>
+    </>
   )
 }
 

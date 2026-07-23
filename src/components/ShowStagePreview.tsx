@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { useCallback, useDeferredValue, useEffect, useMemo, useRef, useState } from 'react'
 import { AlertTriangle, Eye, EyeOff, LoaderCircle, Map as MapIcon, Pause, Play } from 'lucide-react'
 import { useShowStore } from '@/store/showStore'
 import { usePatternStore } from '@/store/patternStore'
@@ -6,7 +6,7 @@ import { useControllerProfileStore } from '@/store/controllerProfileStore'
 import { useMapStore, defaultPixelCountForDim, resolveMap, STOCK_MAPS } from '@/store/mapStore'
 import { usePreviewStore } from '@/store/previewStore'
 import { useCameraStore } from '@/store/cameraStore'
-import { compileShowForPreview } from '@/engine/showPreviewArtifact'
+import { compileShowForPreview, resolveShowCompilationControllerZones } from '@/engine/showPreviewArtifact'
 import { nativeDimension } from '@/engine/loadPattern'
 import {
   advanceFastReplayCooperatively,
@@ -24,11 +24,9 @@ import {
   buildShowLogicalStageProjection,
   showLogicalAspectAdvisory,
   buildShowStripsLayout,
-  buildShowStripControllerZones,
   type ShowStageProjection,
 } from '@/engine/zonePreview'
 import { OrbitControls } from '@/components/OrbitControls'
-import { LIBRARIES } from '@/pixelblaze/libs'
 import { canAdvanceShowPlayback, resolveShowPlaybackStep, useShowTransportStore } from '@/store/showTransportStore'
 import { showLoopDurationMs } from '@/engine/showModel'
 import { useShowPreviewOverrideStore } from '@/store/showPreviewOverrideStore'
@@ -98,7 +96,9 @@ export function ShowStagePreview({ showId, showOverride }: { showId: string; sho
   const liveSimulatedFramesRef = useRef(0)
   const savedShow = useShowStore((state) => state.shows.find((item) => item.id === showId))
   const previewShow = useShowPreviewOverrideStore((state) => state.show?.id === showId ? state.show : null)
-  const show = previewShow ?? showOverride ?? savedShow
+  const resolvedShow = previewShow ?? showOverride ?? savedShow
+  const deferredShow = useDeferredValue(resolvedShow)
+  const show = deferredShow?.id === showId ? deferredShow : resolvedShow
   const userPatterns = usePatternStore((state) => state.userPatterns)
   const userMaps = useMapStore((state) => state.userMaps)
   const controllerProfiles = useControllerProfileStore((state) => state.profiles)
@@ -171,21 +171,20 @@ export function ShowStagePreview({ showId, showOverride }: { showId: string; sho
         ? 'Stage map'
         : 'Preview layout'
 
-  const stripControllerZones = useMemo(
-    () => show ? buildShowStripControllerZones(show.zones, targetProfile?.zones) : [],
-    [show, targetProfile?.zones],
+  const compilationControllerZones = useMemo(
+    () => show
+      ? resolveShowCompilationControllerZones(show, Boolean(selectedStageMap), targetProfile?.zones)
+      : undefined,
+    [selectedStageMap, show, targetProfile?.zones],
   )
-  const portable = show?.outputContract?.kind === 'portable-2d'
-  const spatialControllerZones = savedPhysicalZones
-    ?? (portable ? undefined : selectedStageMap ? targetProfile?.zones : stripControllerZones)
   const compiled = useMemo(
     () =>
       show
-        ? compileShowForPreview(show, userPatterns, spatialControllerZones, LIBRARIES, {
+        ? compileShowForPreview(show, userPatterns, compilationControllerZones, {}, {
             stageDimension: selectedStageMap?.dim,
           })
         : { artifact: null, error: null },
-    [selectedStageMap?.dim, show, spatialControllerZones, userPatterns],
+    [compilationControllerZones, selectedStageMap?.dim, show, userPatterns],
   )
 
   const layout = useMemo((): StageLayout | null => {

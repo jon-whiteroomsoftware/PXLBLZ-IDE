@@ -1,5 +1,9 @@
 import type { ControllerZone } from './controllerProfile'
-import { installationCoverageBlockingMessage, validateInstallationCoverage } from './showInstallationCoverage'
+import {
+  installationCoverageBlockingMessage,
+  installationPhysicalZones,
+  validateInstallationCoverage,
+} from './showInstallationCoverage'
 import { portableCompatibilityBlockingMessage, validatePortableShowCompatibility } from './showPortableCompatibility'
 import type { PatternRecord, ShowCell, ShowPatternRef, ShowRecord } from './personalContentRecords'
 import { compileShow, type GeneratedShowArtifact, type ShowCompileOptions } from './showCompiler'
@@ -9,6 +13,7 @@ import { LIBRARIES } from '@/pixelblaze/libs'
 import { SHOW_MAX_OUTPUT_PIXELS } from './showVmResourceLedger'
 import { extractPatternAuthors, normalizePatternAuthors, PXLBLZ_AUTHOR, type ShowArtifactAttribution, type ShowPatternAttribution } from './patternAttribution'
 import { projectShowGroupRuntimePatternInstances } from './showGroupModel'
+import { buildShowStripControllerZones } from './zonePreview'
 
 export interface CompiledShowState {
   artifact: GeneratedShowArtifact | null
@@ -23,6 +28,22 @@ export interface CompiledShowState {
 interface ShowCompilationOptions extends ShowCompileOptions {
   stageDimension?: 1 | 2 | 3
   targetPixelCount?: number
+}
+
+const SHOW_PREVIEW_COMPILE_CACHE_LIMIT = 8
+const showPreviewCompileCache = new Map<string, CompiledShowState>()
+
+export function resolveShowCompilationControllerZones(
+  show: ShowRecord,
+  hasStageMap: boolean,
+  targetProfileZones?: ControllerZone[],
+): ControllerZone[] | undefined {
+  return installationPhysicalZones(show)
+    ?? (show.outputContract?.kind === 'portable-2d'
+      ? undefined
+      : hasStageMap
+        ? targetProfileZones
+        : buildShowStripControllerZones(show.zones, targetProfileZones))
 }
 
 export function compileShowForPreview(
@@ -55,14 +76,35 @@ export function compileShowForPreview(
       stageDimension: options.stageDimension,
     })
     const { stageDimension: _stageDimension, targetPixelCount: _targetPixelCount, ...compileOptions } = options
-    const artifact = compileShow(recipe, { ...LIBRARIES, ...libraries }, compileOptions)
-    return {
+    const attribution = buildShowArtifactAttribution(show, userPatterns)
+    const libraryOverrides = Object.fromEntries(
+      Object.entries(libraries).filter(([name, source]) => LIBRARIES[name] !== source),
+    )
+    const cacheKey = showCompilationIdentity({
+      recipe,
+      libraryOverrides,
+      compileOptions,
+      attribution,
+    })
+    const cached = showPreviewCompileCache.get(cacheKey)
+    if (cached) {
+      showPreviewCompileCache.delete(cacheKey)
+      showPreviewCompileCache.set(cacheKey, cached)
+      return cached
+    }
+    const artifact = compileShow(recipe, { ...LIBRARIES, ...libraryOverrides }, compileOptions)
+    const compiled = {
       artifact: {
         ...artifact,
-        attribution: buildShowArtifactAttribution(show, userPatterns),
+        attribution,
       },
       error: null,
+    } satisfies CompiledShowState
+    showPreviewCompileCache.set(cacheKey, compiled)
+    if (showPreviewCompileCache.size > SHOW_PREVIEW_COMPILE_CACHE_LIMIT) {
+      showPreviewCompileCache.delete(showPreviewCompileCache.keys().next().value!)
     }
+    return compiled
   } catch (error) {
     return { artifact: null, error: error instanceof Error ? error.message : 'Show compile failed' }
   }
@@ -155,4 +197,8 @@ function authorsForShowPatternRef(
   if (!record) return []
   const structured = normalizePatternAuthors(record.authors)
   return structured.length > 0 ? structured : extractPatternAuthors(record.src)
+}
+
+function showCompilationIdentity(value: unknown): string {
+  return JSON.stringify(value)
 }

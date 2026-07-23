@@ -69,6 +69,42 @@ describe('Show Transition authoring UI', () => {
     expect(onClose).toHaveBeenCalledTimes(1)
   })
 
+  it('applies a previewed candidate without restoring transport or repeating cleanup', () => {
+    const show = createDefaultShow('show-transitions', 'Transitions', 1)
+    useShowTransportStore.getState().openShow(show.id, 62_000)
+    useShowTransportStore.getState().setPosition(show.id, 5_000)
+    const clearPreview = vi.fn(useShowPreviewOverrideStore.getState().clear)
+    useShowPreviewOverrideStore.setState({ clear: clearPreview })
+    const onApply = vi.fn()
+    const onClose = vi.fn()
+    const { unmount } = render(
+      <ShowTransitionPalette
+        show={show}
+        transitionId={show.transitions![0].id}
+        stageDimensions={2}
+        onApply={onApply}
+        onClose={onClose}
+      />,
+    )
+    const crossfade = screen.getByRole('button', { name: 'Use Crossfade Transition' })
+
+    fireEvent.pointerEnter(crossfade)
+    const previewedTransition = useShowPreviewOverrideStore.getState().show?.transitions?.[0]
+    expect(useShowTransportStore.getState().seekRequest?.targetMs).toBe(31_000)
+
+    fireEvent.click(crossfade)
+    expect(onApply).toHaveBeenCalledWith(previewedTransition)
+    expect(onApply.mock.calls[0]?.[0]).toBe(previewedTransition)
+    expect(onClose).toHaveBeenCalledTimes(1)
+    expect(clearPreview).toHaveBeenCalledTimes(1)
+    expect(useShowPreviewOverrideStore.getState().show).toBeNull()
+    expect(useShowTransportStore.getState().seekRequest?.targetMs).toBe(31_000)
+
+    unmount()
+    expect(clearPreview).toHaveBeenCalledTimes(1)
+    expect(useShowTransportStore.getState().seekRequest?.targetMs).toBe(31_000)
+  })
+
   it('renders exact controls from the selected registry variant', () => {
     const catalogue = buildShowToolkitPresentationCatalogue({ stageDimensions: 2 })
     const star = catalogue.find((item) => item.key === 'transition:shape-reveal:star')!

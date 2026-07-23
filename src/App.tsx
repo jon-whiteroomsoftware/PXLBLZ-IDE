@@ -1183,8 +1183,8 @@ function StudioApp() {
             showCreation
               ? <EmptyContextPane label="Output contract setup" />
               : activeShow
-                ? narrowShowWorkspace && showStageOverlayShowId === activeShow.id
-                  ? <EmptyContextPane label="Stage preview open" />
+                ? narrowShowWorkspace
+                  ? <EmptyContextPane label={showStageOverlayShowId === activeShow.id ? 'Stage preview open' : 'Stage preview available'} />
                   : <ShowStagePreview showId={activeShow.id} showOverride={routedStockShowOverride} />
                 : <EmptyContextPane label="Shows" />
           ) : (

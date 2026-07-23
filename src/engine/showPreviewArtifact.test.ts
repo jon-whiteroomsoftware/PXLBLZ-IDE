@@ -1,4 +1,8 @@
-import { compileShowForArtifact, compileShowForPreview } from './showPreviewArtifact'
+import {
+  compileShowForArtifact,
+  compileShowForPreview,
+  resolveShowCompilationControllerZones,
+} from './showPreviewArtifact'
 import {
   addShowZone,
   createDefaultShow,
@@ -21,6 +25,56 @@ import { nativeDimension } from './loadPattern'
 import { LIBRARIES } from '@/pixelblaze/libs'
 
 describe('compileShowForPreview temporal adaptations (#379)', () => {
+  it('reuses one compiled artifact across equivalent preview and artifact consumers', () => {
+    const show = createDefaultShow('show-shared-compile', 'Shared compile', 1)
+
+    const preview = compileShowForPreview(show, [], undefined, {})
+    const artifact = compileShowForArtifact(structuredClone(show), [], undefined, {})
+
+    expect(preview.error).toBeNull()
+    expect(artifact.error).toBeNull()
+    expect(artifact.artifact).toBe(preview.artifact)
+  })
+
+  it('invalidates the shared artifact when compiler inputs change, not for record metadata', () => {
+    const show = createDefaultShow('show-compile-invalidation', 'Compile invalidation', 1)
+    const initial = compileShowForPreview(show, [], undefined, {})
+    const metadataOnly = compileShowForPreview(
+      { ...show, updatedAt: show.updatedAt + 1 },
+      [],
+      undefined,
+      {},
+    )
+    const adapted = compileShowForPreview(
+      updateShowCellAdaptations(show, 'cell-1', { brightness: 0.5 }),
+      [],
+      undefined,
+      {},
+    )
+
+    expect(metadataOnly.artifact).toBe(initial.artifact)
+    expect(adapted.artifact).not.toBe(initial.artifact)
+  })
+
+  it('uses the saved Installation routing ranges as the shared compilation zones', () => {
+    const show = createShowWithOutputContract(
+      'show-shared-installation-zones',
+      'Shared Installation zones',
+      createInstallationShowOutputContract({ outputMapId: 'plane', pixelCount: 8 }),
+    )
+    show.routingLayouts[0].zones[0].ranges = [{ start: 0, end: 7 }]
+
+    expect(resolveShowCompilationControllerZones(show, true, [{
+      id: 'controller-zone',
+      name: 'Controller Zone',
+      ranges: [{ start: 0, end: 99 }],
+    }])).toEqual([{
+      id: `${show.routingLayouts[0].id}:${show.zones[0].id}`,
+      name: show.zones[0].name,
+      ranges: [{ start: 0, end: 7 }],
+    }])
+  })
+
   it('uses the same ordered overlay compositor for preview and artifact output (#489)', () => {
     const show = createDefaultShow('show-overlay-preview', 'Overlay preview', 1)
     const patterns = [

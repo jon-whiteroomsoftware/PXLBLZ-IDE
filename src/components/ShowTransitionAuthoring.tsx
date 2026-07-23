@@ -33,6 +33,7 @@ export function ShowTransitionPalette({
 }) {
   const searchRef = useRef<HTMLInputElement>(null)
   const originalPositionRef = useRef(useShowTransportStore.getState().positionMs)
+  const activePreviewRef = useRef<{ key: string; show: ShowRecord } | null>(null)
   const [query, setQuery] = useState('')
   const [familyId, setFamilyId] = useState<string | null>(null)
   const [compatibleOnly, setCompatibleOnly] = useState(true)
@@ -48,8 +49,14 @@ export function ShowTransitionPalette({
   }).filter((item) => familyId === null || item.familyId === familyId), [catalogue, compatibleOnly, familyId, query])
   const families = useMemo(() => SHOW_VISUAL_TOOLKIT_REGISTRY.filter((family) => family.kind === 'transition'), [])
 
-  const restorePreview = () => {
+  const clearCandidatePreview = () => {
+    if (!activePreviewRef.current) return
+    activePreviewRef.current = null
     clearPreview(show.id)
+  }
+  const restorePreview = () => {
+    if (!activePreviewRef.current) return
+    clearCandidatePreview()
     useShowTransportStore.getState().requestSeek(show.id, originalPositionRef.current)
   }
   const close = () => {
@@ -62,7 +69,10 @@ export function ShowTransitionPalette({
   const previewItem = (item: ShowToolkitPresentationItem, presetId?: string) => {
     if (!item.compatible) return
     setActiveItem(item)
+    const previewKey = `${item.key}:${presetId ?? ''}`
+    if (activePreviewRef.current?.key === previewKey) return
     const changed = candidate(item, presetId)
+    activePreviewRef.current = { key: previewKey, show: changed }
     preview(changed)
     const boundary = projectShowTimeline(changed).boundaryTransitions
       .find((entry) => entry.id === transitionId)
@@ -75,10 +85,18 @@ export function ShowTransitionPalette({
   }
   const applyItem = (item: ShowToolkitPresentationItem, presetId?: string) => {
     if (!item.compatible) return
-    const changed = candidate(item, presetId)
+    const previewKey = `${item.key}:${presetId ?? ''}`
+    const changed = activePreviewRef.current?.key === previewKey
+      ? activePreviewRef.current.show
+      : candidate(item, presetId)
     const transition = changed.transitions?.find((entry) => entry.id === transitionId)
-    if (transition) onApply(transition)
-    close()
+    if (!transition) {
+      close()
+      return
+    }
+    onApply(transition)
+    clearCandidatePreview()
+    onClose()
   }
 
   useEffect(() => {
