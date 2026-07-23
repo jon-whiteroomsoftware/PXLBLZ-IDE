@@ -2447,6 +2447,60 @@ describe('ShowEditor (#318)', () => {
     })))
   })
 
+  it('dismisses pending Controller delivery when navigating to another Show (#593)', async () => {
+    const user = userEvent.setup()
+    let firstShow = createDefaultShow('show-pending-first', 'Pending first', 1000)
+    firstShow = { ...firstShow, stageMapId: 'plane' }
+    firstShow = updateShowTransition(firstShow, firstShow.scenes[0].id, 'portal', 2000, 0.1)
+    const secondShow = createDefaultShow('show-pending-second', 'Pending second', 1000)
+    const pushGeneratedArtifact = vi.fn().mockResolvedValue(undefined)
+    useShowStore.setState({
+      shows: [firstShow, secondShow],
+      activeShowId: firstShow.id,
+      showsLoaded: true,
+    })
+    useControllerStore.setState({
+      controllers: {
+        '10.0.0.5': {
+          ip: '10.0.0.5', nickname: 'Bench PB', phase: 'live', mapDim: 1, firmwareVersion: '3.67',
+        },
+      },
+      activeIp: '10.0.0.5',
+      pushGeneratedArtifact,
+    })
+    setControllerProvider(new ConnectedControllerProvider())
+
+    const view = render(<ShowEditor showId={firstShow.id} />)
+    await user.click(screen.getByRole('button', { name: 'Run on Bench PB' }))
+    expect(screen.getByTestId('show-preflight-dialog')).toBeInTheDocument()
+
+    view.rerender(<ShowEditor showId={secondShow.id} />)
+
+    expect(screen.queryByTestId('show-preflight-dialog')).not.toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'Send anyway' })).not.toBeInTheDocument()
+    expect(pushGeneratedArtifact).not.toHaveBeenCalled()
+  })
+
+  it('closes generated code when navigating to another Show (#593)', async () => {
+    const user = userEvent.setup()
+    const firstShow = createDefaultShow('show-code-first', 'Generated first', 1000)
+    const secondShow = createDefaultShow('show-code-second', 'Generated second', 1000)
+    useShowStore.setState({
+      shows: [firstShow, secondShow],
+      activeShowId: firstShow.id,
+      showsLoaded: true,
+    })
+
+    const view = render(<ShowEditor showId={firstShow.id} />)
+    await user.click(screen.getByRole('button', { name: 'View code' }))
+    expect(screen.getByText('Generated pattern - Generated first')).toBeInTheDocument()
+
+    view.rerender(<ShowEditor showId={secondShow.id} />)
+
+    expect(screen.queryByText('Generated pattern - Generated first')).not.toBeInTheDocument()
+    expect(screen.getByRole('region', { name: 'Show timeline' })).toBeInTheDocument()
+  })
+
   it('blocks a known-invalid Installation Controller target without changing its map (#437)', async () => {
     const user = userEvent.setup()
     const show = createShowWithOutputContract(

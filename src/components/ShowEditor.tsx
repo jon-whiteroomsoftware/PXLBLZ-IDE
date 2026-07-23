@@ -842,6 +842,9 @@ export function ShowEditor({
     setLayerTransitionTarget(null)
     setCompositionClipPendingDelete(null)
     setIsolatedGroupOccurrenceId(null)
+    pendingDeliveryRef.current = null
+    setPendingSendMode(null)
+    setGeneratedSnapshot(null)
   }, [showId])
   useEffect(() => {
     const handleHistoryShortcut = (event: KeyboardEvent) => {
@@ -1377,7 +1380,7 @@ export function ShowEditor({
     }
   }
 
-  if (generatedSnapshot) {
+  if (generatedSnapshot?.show.id === showId) {
     const generatedExport = buildShowEpeExport(generatedSnapshot.show, generatedSnapshot.artifact.code, {
       stampedAt: new Date(generatedSnapshot.show.updatedAt),
       userMaps: generatedSnapshot.userMaps,
@@ -1406,6 +1409,9 @@ export function ShowEditor({
   }
 
   const showArtifactId = `show:${activeShow.id}`
+  const pendingDelivery = pendingDeliveryRef.current?.show.id === showId
+    ? pendingDeliveryRef.current
+    : null
   const preparedSource = preparedControllerArtifact.value?.source ?? ''
   const alreadySent = (mode: SendMode) => isAlreadyPushed({
     mode,
@@ -1427,8 +1433,13 @@ export function ShowEditor({
 
   async function sendShow(mode: SendMode, requestedDelivery?: ShowDeliverySnapshot | null) {
     const delivery = requestedDelivery ?? buildCurrentDeliverySnapshot()
-    if (!delivery) return
+    if (!delivery || delivery.show.id !== showId) {
+      pendingDeliveryRef.current = null
+      setPendingSendMode(null)
+      return
+    }
     const prepared = delivery.prepared
+    const deliveryArtifactId = `show:${delivery.show.id}`
     setPendingSendMode(null)
     pendingDeliveryRef.current = null
     setShowSendMode(mode)
@@ -1439,11 +1450,11 @@ export function ShowEditor({
         : undefined
       trackEvent('send_to_controller', {
         mode,
-        pattern_key: showArtifactId,
+        pattern_key: deliveryArtifactId,
         controller_phase: activeController?.phase ?? controllerStatus.kind,
       })
       await pushGeneratedArtifact({
-        artifactId: showArtifactId,
+        artifactId: deliveryArtifactId,
         source: prepared.source,
         name: delivery.show.name,
         persist: mode === 'save',
@@ -1578,7 +1589,7 @@ export function ShowEditor({
       </Button>
       <ExportShowButton exported={showExport} buildExport={buildDownloadExport} />
       <PushConfirmPopover
-        open={pendingSendMode !== null}
+        open={pendingSendMode !== null && pendingDelivery !== null}
         onCancel={() => {
           pendingDeliveryRef.current = null
           setPendingSendMode(null)
@@ -1602,8 +1613,8 @@ export function ShowEditor({
         )}
       >
         <PatternPushChoices
-          warnings={pendingDeliveryRef.current?.prepared.warnings ?? preparedControllerArtifact.value?.warnings ?? []}
-          blocked={pendingDeliveryRef.current?.prepared.blocked ?? preparedControllerArtifact.value?.blocked ?? true}
+          warnings={pendingDelivery?.prepared.warnings ?? preparedControllerArtifact.value?.warnings ?? []}
+          blocked={pendingDelivery?.prepared.blocked ?? preparedControllerArtifact.value?.blocked ?? true}
           remedy={null}
           onCancel={() => {
             pendingDeliveryRef.current = null
@@ -1611,7 +1622,7 @@ export function ShowEditor({
           }}
           confirmWithMap={async () => {}}
           confirmOnly={async () => {
-            if (pendingSendMode) await sendShow(pendingSendMode, pendingDeliveryRef.current)
+            if (pendingSendMode) await sendShow(pendingSendMode, pendingDelivery)
           }}
         />
       </PushConfirmPopover>
