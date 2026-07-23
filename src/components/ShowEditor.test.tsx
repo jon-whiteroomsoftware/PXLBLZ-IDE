@@ -2481,6 +2481,38 @@ describe('ShowEditor (#318)', () => {
     expect(pushGeneratedArtifact).not.toHaveBeenCalled()
   })
 
+  it('dismisses pending Controller delivery when the active Controller changes (#593)', async () => {
+    const user = userEvent.setup()
+    let show = createDefaultShow('show-pending-controller', 'Pending Controller', 1000)
+    show = { ...show, stageMapId: 'plane' }
+    show = updateShowTransition(show, show.scenes[0].id, 'portal', 2000, 0.1)
+    const pushGeneratedArtifact = vi.fn().mockResolvedValue(undefined)
+    useShowStore.setState({ shows: [show], activeShowId: show.id, showsLoaded: true })
+    useControllerStore.setState({
+      controllers: {
+        '10.0.0.5': {
+          ip: '10.0.0.5', nickname: 'Bench A', phase: 'live', mapDim: 1, firmwareVersion: '3.67',
+        },
+        '10.0.0.6': {
+          ip: '10.0.0.6', nickname: 'Bench B', phase: 'live', mapDim: 2, firmwareVersion: '3.67',
+        },
+      },
+      activeIp: '10.0.0.5',
+      pushGeneratedArtifact,
+    })
+    setControllerProvider(new ConnectedControllerProvider())
+
+    render(<ShowEditor showId={show.id} />)
+    await user.click(screen.getByRole('button', { name: 'Run on Bench A' }))
+    expect(screen.getByTestId('show-preflight-dialog')).toBeInTheDocument()
+
+    act(() => useControllerStore.setState({ activeIp: '10.0.0.6' }))
+
+    expect(screen.queryByTestId('show-preflight-dialog')).not.toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'Send anyway' })).not.toBeInTheDocument()
+    expect(pushGeneratedArtifact).not.toHaveBeenCalled()
+  })
+
   it('closes generated code when navigating to another Show (#593)', async () => {
     const user = userEvent.setup()
     const firstShow = createDefaultShow('show-code-first', 'Generated first', 1000)

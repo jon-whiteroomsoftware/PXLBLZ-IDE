@@ -425,6 +425,12 @@ describe('routing (#308)', () => {
 
     expect(usePreviewStore.getState().isRunning).toBe(true)
     expect(useShowTransportStore.getState().positionMs).toBeGreaterThan(positionBeforeClose)
+
+    vi.stubGlobal('innerWidth', 1200)
+    fireEvent(window, new Event('resize'))
+
+    expect(within(screen.getByTestId('preview-pane')).getByLabelText('Show stage')).toBeInTheDocument()
+    expect(usePreviewStore.getState().isRunning).toBe(true)
   })
 
   it('gives the production Show one workspace owner for its header, timeline, and Stage (#592)', () => {

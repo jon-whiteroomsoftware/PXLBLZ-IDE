@@ -655,6 +655,7 @@ function ShowReferenceInstrument({
 
 interface ShowDeliverySnapshot {
   show: ShowRecord
+  controllerIp: string | null
   artifact: NonNullable<CompiledShowState['artifact']>
   prepared: ReturnType<typeof prepareShowControllerArtifact>
 }
@@ -846,6 +847,12 @@ export function ShowEditor({
     setPendingSendMode(null)
     setGeneratedSnapshot(null)
   }, [showId])
+  useEffect(() => {
+    const pendingDelivery = pendingDeliveryRef.current
+    if (!pendingDelivery || pendingDelivery.controllerIp === activeIp) return
+    pendingDeliveryRef.current = null
+    setPendingSendMode(null)
+  }, [activeIp])
   useEffect(() => {
     const handleHistoryShortcut = (event: KeyboardEvent) => {
       if (readOnly) return
@@ -1308,6 +1315,7 @@ export function ShowEditor({
     try {
       return {
         show: compilation.show,
+        controllerIp: currentActiveIp,
         artifact: compilation.artifact,
         prepared: prepareShowControllerArtifact(
           currentExport.source,
@@ -1409,7 +1417,10 @@ export function ShowEditor({
   }
 
   const showArtifactId = `show:${activeShow.id}`
-  const pendingDelivery = pendingDeliveryRef.current?.show.id === showId
+  const pendingDelivery = (
+    pendingDeliveryRef.current?.show.id === showId
+    && pendingDeliveryRef.current.controllerIp === activeIp
+  )
     ? pendingDeliveryRef.current
     : null
   const preparedSource = preparedControllerArtifact.value?.source ?? ''
@@ -1433,7 +1444,11 @@ export function ShowEditor({
 
   async function sendShow(mode: SendMode, requestedDelivery?: ShowDeliverySnapshot | null) {
     const delivery = requestedDelivery ?? buildCurrentDeliverySnapshot()
-    if (!delivery || delivery.show.id !== showId) {
+    if (
+      !delivery
+      || delivery.show.id !== showId
+      || delivery.controllerIp !== useControllerStore.getState().activeIp
+    ) {
       pendingDeliveryRef.current = null
       setPendingSendMode(null)
       return
@@ -1448,6 +1463,7 @@ export function ShowEditor({
       const previewImage = mode === 'save'
         ? (await buildPreviewJpeg(delivery.artifact).catch(() => null)) ?? undefined
         : undefined
+      if (delivery.controllerIp !== useControllerStore.getState().activeIp) return
       trackEvent('send_to_controller', {
         mode,
         pattern_key: deliveryArtifactId,
