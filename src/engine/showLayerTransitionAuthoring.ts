@@ -208,7 +208,11 @@ export function resizeShowLayerTransition(
   return normalizeShowComposition(show, draft)
 }
 
-/** Horizontal movement treats every non-Cut-connected Clip as one rigid chain. */
+/**
+ * Horizontal movement treats every non-Cut-connected Clip as one rigid chain.
+ * Moving across Layers detaches the selected Clip by removing its directly
+ * connected Transitions before committing the placement move.
+ */
 export function moveShowConnectedClipAtGlobalTime(
   show: ShowRecord,
   composition: ShowCompositionV1,
@@ -226,7 +230,17 @@ export function moveShowConnectedClipAtGlobalTime(
   const sameLayer = input.target.kind === selected.kind
     && input.target.zoneId === selected.zoneId
     && (input.target.kind === 'main' || input.target.layerIndex === selected.layerIndex)
-  if (!sameLayer) return moveShowClipAtGlobalTime(show, composition, input)
+  if (!sameLayer) {
+    const draft = structuredClone(composition)
+    const remainingTransitions = (draft.transitions ?? []).filter((transition) => (
+      transition.fromPlacementId !== selected.id
+      && transition.toPlacementId !== selected.id
+    ))
+    if (remainingTransitions.length > 0) draft.transitions = remainingTransitions
+    else delete draft.transitions
+    const moved = moveShowClipAtGlobalTime(show, draft, input)
+    return moved === draft ? composition : moved
+  }
 
   const selectedIndex = layer.clips.findIndex((clip) => clip.id === selected.id)
   let firstIndex = selectedIndex

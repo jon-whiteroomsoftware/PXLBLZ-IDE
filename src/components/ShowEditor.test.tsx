@@ -208,6 +208,10 @@ describe('ShowEditor (#318)', () => {
     const playheadHitTarget = screen.getByTestId('show-timeline-playhead-hit-target')
     const playheadCapSurface = screen.getByTestId('show-timeline-playhead-cap-surface')
     const playheadCap = screen.getByTestId('show-timeline-playhead-cap')
+    const navigatorPlayhead = screen.getByTestId('show-timeline-navigator-playhead')
+    const navigatorPlayheadCap = screen.getByTestId('show-timeline-navigator-playhead-cap')
+    const navigatorStartHandle = screen.getByRole('button', { name: 'Resize visible range start' })
+    const navigatorEndHandle = screen.getByRole('button', { name: 'Resize visible range end' })
     const grid = screen.getByTestId('show-timeline-grid')
     const scrollRegion = screen.getByTestId('show-timeline-scroll-region')
     const showEnd = screen.getByRole('button', { name: 'Show End at 62 seconds' })
@@ -221,7 +225,7 @@ describe('ShowEditor (#318)', () => {
     expect(ruler).toHaveTextContent('Default · main')
     expect(clipTimeCanvas).not.toHaveTextContent('Default · main')
     expect(grid.style.minWidth).toBe('0px')
-    expect(grid).toHaveClass('isolate')
+    expect(grid).toHaveClass('isolate', 'px-1')
     expect(scrollRegion).toHaveClass('scrollbar-hidden')
     expect(playheadOverlay).toHaveClass('z-30')
     expect(playheadOverlay.style.gridRowStart).toBe(ruler?.style.gridRowStart)
@@ -230,11 +234,32 @@ describe('ShowEditor (#318)', () => {
     expect(playheadCapSurface).toHaveClass('z-[45]')
     expect(playheadCapSurface.style.gridColumn).toBe(playheadOverlay.style.gridColumn)
     expect(playheadCapSurface.style.gridRow).toBe(playheadOverlay.style.gridRow)
-    expect(playheadCap).toHaveClass('absolute', 'z-[45]')
+    expect(playheadCap).toHaveClass(
+      'absolute',
+      'z-[45]',
+      'h-0',
+      'w-0',
+      '-translate-x-1/2',
+      'border-x-[4px]',
+      'border-t-[6px]',
+    )
+    expect(playheadCap).not.toHaveClass('-ml-1')
     expect(playheadCap).toHaveStyle({ left: '0%' })
+    expect(navigatorPlayhead).toHaveStyle({ left: '0%' })
+    expect(navigatorPlayheadCap).toHaveStyle({
+      left: '0%',
+      transform: 'translateX(0)',
+      clipPath: 'polygon(0 100%, 0 0, 100% 0)',
+    })
+    expect(navigatorPlayhead).toHaveClass('bg-live/60')
+    expect(navigatorPlayhead).not.toHaveClass('bg-cyan-300')
+    expect(navigatorStartHandle).toHaveClass('border-zinc-500/70', 'hover:border-amber-300', 'focus-visible:border-amber-300')
+    expect(navigatorEndHandle).toHaveClass('border-zinc-500/70', 'hover:border-amber-300', 'focus-visible:border-amber-300')
     const playheadLine = screen.getByTestId('show-timeline-playhead')
     const readPlayheadRect = vi.spyOn(playheadLine, 'getBoundingClientRect')
-    act(() => useShowTransportStore.getState().setPosition(show.id, 1_000))
+    act(() => useShowTransportStore.getState().setPosition(show.id, 31_000))
+    expect(navigatorPlayhead).toHaveStyle({ left: '50%' })
+    expect(playheadCap).toHaveStyle({ left: '50%' })
     expect(readPlayheadRect).not.toHaveBeenCalled()
     expect(firstLayoutInterval).not.toHaveClass('border-l')
     expect(markers).toHaveClass('z-[35]')
@@ -1241,6 +1266,80 @@ describe('ShowEditor (#318)', () => {
     expect(screen.getByRole('dialog', { name: 'Entity Detail Panel' })).toHaveAttribute('data-pinned', 'true')
   })
 
+  it('moves a composition Clip into a newly added Layer', async () => {
+    const user = userEvent.setup()
+    const show = createDefaultShow('show-drag-new-layer', 'Drag to new Layer', 1000)
+    const zoneId = show.zones[0].id
+    show.composition = {
+      version: 1,
+      patternInstances: [{
+        id: 'instance-new-layer',
+        pattern: { ...show.cells[0].pattern },
+        patternName: 'Layer Traveler',
+        time: { timeScale: 1, timeOffsetMs: 0 },
+      }],
+      scenes: show.scenes.map((scene, index) => ({
+        sceneId: scene.id,
+        zones: [{
+          zoneId,
+          main: index === 0 ? [{
+            id: 'placement-new-layer',
+            instanceId: 'instance-new-layer',
+            startMs: 2_000,
+            durationMs: 4_000,
+            view: { mirror: false, phase: 0, brightness: 1 },
+          }] : [],
+          overlays: [],
+        }],
+      })),
+    }
+    setPersonalContentProvider(memoryProvider([show]))
+    useShowStore.setState({ shows: [show], activeShowId: show.id, showsLoaded: true })
+
+    render(<ShowEditor showId={show.id} />)
+    await user.click(screen.getByRole('button', { name: 'Add to Show' }))
+    await user.click(screen.getByRole('menuitem', { name: 'Layer' }))
+
+    await waitFor(() => {
+      expect(document.querySelectorAll('[data-show-layer-kind="overlay"]')).toHaveLength(1)
+    })
+    const clip = screen.getByRole('button', { name: 'Select Layer Traveler' })
+    const targetLayer = document.querySelector<HTMLElement>('[data-show-layer-kind="overlay"]')!
+    const mainLayer = document.querySelector<HTMLElement>('[data-show-layer-kind="main"]')!
+    expect(targetLayer).toHaveClass('bg-[#18181b]')
+    expect(mainLayer).toHaveClass('bg-[#18181b]')
+    expect(clip).toHaveClass('inset-y-1')
+    expect(clip).not.toHaveClass('inset-y-0')
+    Object.defineProperty(clip, 'getBoundingClientRect', {
+      value: () => ({ left: 20, right: 60, top: 40, bottom: 80, width: 40, height: 40, x: 20, y: 40, toJSON: () => ({}) }),
+    })
+    Object.defineProperty(targetLayer, 'getBoundingClientRect', {
+      value: () => ({ left: 0, right: 620, top: 0, bottom: 40, width: 620, height: 40, x: 0, y: 0, toJSON: () => ({}) }),
+    })
+    const dataTransfer = { setData: () => {}, effectAllowed: 'none', dropEffect: 'none' }
+    const dragEvent = (type: string, clientX: number) => {
+      const event = new Event(type, { bubbles: true, cancelable: true })
+      Object.defineProperties(event, {
+        clientX: { value: clientX },
+        dataTransfer: { value: dataTransfer },
+      })
+      return event
+    }
+
+    fireEvent(clip, dragEvent('dragstart', 20))
+    fireEvent(targetLayer, dragEvent('dragover', 20))
+    expect(targetLayer).toHaveAttribute('data-drop-active', 'true')
+    fireEvent(targetLayer, dragEvent('drop', 20))
+    fireEvent(clip, dragEvent('dragend', 20))
+
+    await waitFor(() => {
+      const saved = useShowStore.getState().shows.find((candidate) => candidate.id === show.id)!
+      expect(saved.composition?.scenes[0].zones[0].main).toEqual([])
+      expect(saved.composition?.scenes[0].zones[0].overlays[0].placements)
+        .toEqual([expect.objectContaining({ id: 'placement-new-layer', startMs: 2_000 })])
+    })
+  })
+
   it('moves a composition Clip between Zone Layers without duplicating it (#581)', async () => {
     const show = addShowZone(createDefaultShow('show-drag-zone', 'Drag Zone', 1000), { name: 'accent' })
     show.composition = {
@@ -1508,7 +1607,7 @@ describe('ShowEditor (#318)', () => {
     const overlayLayer = document.querySelector<HTMLElement>('[data-show-layer-kind="overlay"]')
     const mainLayer = document.querySelector<HTMLElement>('[data-show-layer-kind="main"]')
     expect(overlayLayer).toHaveClass('bg-[#18181b]')
-    expect(mainLayer).toHaveClass('bg-[#08080a]')
+    expect(mainLayer).toHaveClass('bg-[#18181b]')
     expect(screen.queryByRole('dialog', { name: 'Add Clip at playhead' })).not.toBeInTheDocument()
     const saved = useShowStore.getState().shows.find((candidate) => candidate.id === show.id)
     expect(saved?.composition?.scenes.every((scene) => (

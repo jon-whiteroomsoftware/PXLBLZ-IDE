@@ -1193,13 +1193,14 @@ with the persisted Transition interval when a valid record occupies the gap.
 
 `showLayerTransitionAuthoring.ts` owns the corresponding editing algebra.
 Creating or growing a Transition shifts the right placement and every
-Transition-connected successor without changing any Clip duration; moving any
-connected Clip moves the complete rigid sequence. Reset removes the persisted
-record and closes the gap back to a derived Cut. Clip deletion removes directly
-connected Transitions, and split retargets an outgoing Transition to the new
-right half. Its transitive closure helper is the authority for marquee and
-Group selection refinement, so a grouping selection cannot retain only one
-Transition endpoint.
+Transition-connected successor without changing any Clip duration. Horizontal
+movement within one Layer moves the complete connected sequence; moving a Clip
+to another Layer detaches that Clip and removes every Transition directly
+connected to it. Reset removes the persisted record and closes the gap back to
+a derived Cut. Clip deletion also removes directly connected Transitions, and
+split retargets an outgoing Transition to the new right half. Its transitive
+closure helper is the authority for marquee and Group selection refinement, so
+a grouping selection cannot retain only one Transition endpoint.
 
 `ShowCompositionV1.durationMs` persists the explicit Show End, while
 `ShowCompositionV1.markers` persists sorted, Show-owned alignment guides with

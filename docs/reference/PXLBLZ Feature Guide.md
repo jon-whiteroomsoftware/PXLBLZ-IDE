@@ -443,6 +443,10 @@ without saving. Each variant's Entity Detail exposes only its legal fields —
 duration, easing, geometry, edge policy, and family-specific controls — and
 **Reset to cut** returns to a zero-duration boundary.
 
+Dragging a connected Clip horizontally keeps its Transition sequence rigid.
+Dragging that Clip onto another Layer moves the Clip alone and removes the
+Transitions that attached it to its previous Layer.
+
 Transition cost is explicit rather than hidden: parameter ramps keep one
 renderer per pixel, wipes route each pixel to one member, crossfades disclose
 their snapshot-versus-live policy, and feathered shape reveals evaluate both

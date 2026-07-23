@@ -173,15 +173,15 @@ describe('showStore (#318)', () => {
     expect(useShowStore.getState().shows[0].composition).toEqual(composition())
   })
 
-  it('harvests completely empty overlay Layers when a personal Show is reloaded', async () => {
+  it('preserves authored empty overlay Layers when a personal Show is reloaded', async () => {
     const authored = composition()
     authored.scenes[0].zones[0].overlays.unshift({
       id: 'empty-layer',
-      name: 'Unused',
+      name: 'Layer 2',
       placements: [],
     })
     const show = {
-      ...createDefaultShow('show-empty-layer-harvest', 'Empty Layer harvest', 1),
+      ...createDefaultShow('show-empty-layer-reload', 'Empty Layer reload', 1),
       composition: authored,
     }
     setPersonalContentProvider(memoryProvider([show]))
@@ -189,7 +189,7 @@ describe('showStore (#318)', () => {
     await useShowStore.getState().loadShows()
 
     expect(useShowStore.getState().shows[0].composition?.scenes[0].zones[0].overlays.map((layer) => layer.name))
-      .toEqual(['Atmosphere'])
+      .toEqual(['Layer 2', 'Atmosphere'])
   })
 
   it('preserves stable composition ids through undo and redo', async () => {

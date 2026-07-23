@@ -238,7 +238,7 @@ const compactField =
   'h-6 rounded border border-zinc-700 bg-zinc-950 px-1.5 text-[9.5px] text-zinc-200 outline-none focus:border-live/70'
 const EMPTY_ZONE_IDS: string[] = []
 const clipBase =
-  'show-timeline-clip z-10 flex min-h-[44px] flex-col justify-center gap-0.5 overflow-hidden rounded-[5px] border-0 border-l-[3px] px-2 py-1 text-left transition-colors focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-live'
+  'show-timeline-clip z-10 flex flex-col justify-center gap-0.5 overflow-hidden rounded-[5px] border-0 border-l-[3px] px-2 py-1 text-left transition-colors focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-live'
 
 function ShowEasingOptions() {
   return SHOW_EASING_OPTIONS.map((option) => (
@@ -3394,7 +3394,7 @@ function ShowTimelineWorkspace({
           {transportActive && <ShowTransportControls show={show} />}
         </div>
         <div className="timeline-view-cluster flex min-w-[120px] max-w-[210px] flex-[0_1_180px] shrink items-center gap-1 border-l border-zinc-800/80 px-1" role="group" aria-label="Timeline view controls">
-            <TimelineNavigator viewport={viewport} onChange={updateViewport} compact />
+            <TimelineNavigator showId={show.id} viewport={viewport} onChange={updateViewport} compact />
             <Button
               size="icon-xs"
               variant="ghost"
@@ -3808,7 +3808,7 @@ function ShowTimelineWorkspace({
         >
         <div
           data-testid="show-timeline-grid"
-          className="relative isolate grid gap-y-2"
+          className={`relative isolate grid gap-y-2 ${!zonesOpen && !hasMultipleZones ? 'px-1' : ''}`}
           onPointerDownCapture={(event) => {
             if (!isolatedGroupOccurrenceId) return
             const target = event.target
@@ -4178,8 +4178,7 @@ function ShowTimelineWorkspace({
               <div
                 key={layer.id}
                 className={[
-                  'relative min-w-0 border-b border-zinc-900/80 transition-colors',
-                  layer.kind === 'overlay' ? 'bg-[#18181b]' : 'bg-[#08080a]',
+                  'relative min-w-0 border-b border-zinc-900/80 bg-[#18181b] transition-colors',
                   dropTargetKey === `composition:${layer.id}` ? 'bg-live/[0.07] ring-1 ring-inset ring-live/40' : '',
                 ].join(' ')}
                 style={{
@@ -4350,7 +4349,7 @@ function ShowTimelineWorkspace({
                       }}
                       className={[
                         clipBase,
-                        'group absolute inset-y-0 min-h-0 py-0.5',
+                        'group absolute inset-y-1 min-h-0 py-0.5',
                         outsideIsolation
                           ? 'pointer-events-none opacity-25 saturate-50'
                           : draggingCompositionClip?.clipId === clip.id
@@ -4703,10 +4702,12 @@ function ZoneMapPopover({
 }
 
 function TimelineNavigator({
+  showId,
   viewport,
   onChange,
   compact = false,
 }: {
+  showId: string
   viewport: ShowTimelineViewport
   onChange: (viewport: ShowTimelineViewport) => void
   compact?: boolean
@@ -4714,6 +4715,10 @@ function TimelineNavigator({
   const overviewRef = useRef<HTMLDivElement>(null)
   const dragRef = useRef<{ mode: 'pan' | 'start' | 'end'; x: number; viewport: ShowTimelineViewport } | null>(null)
   const thumb = showTimelineThumb(viewport)
+  const positionMs = useShowTransportStore((state) => state.showId === showId ? state.positionMs : 0)
+  const playheadPercent = viewport.totalMs > 0
+    ? Math.min(100, Math.max(0, positionMs / viewport.totalMs * 100))
+    : 0
   const beginDrag = (mode: 'pan' | 'start' | 'end', event: ReactPointerEvent<HTMLElement>) => {
     event.stopPropagation()
     event.currentTarget.focus()
@@ -4771,7 +4776,7 @@ function TimelineNavigator({
         <button
           type="button"
           aria-label="Resize visible range start"
-          className="absolute inset-y-1 z-10 w-1 cursor-ew-resize border-x border-amber-300/70"
+          className="absolute inset-y-1 z-10 w-1 cursor-ew-resize border-x border-zinc-500/70 outline-none transition-colors hover:border-amber-300 focus-visible:border-amber-300"
           style={{ left: `calc(${thumb.leftPercent}% + 4px)` }}
           onPointerDown={(event) => beginDrag('start', event)}
           onPointerMove={moveDrag}
@@ -4787,7 +4792,7 @@ function TimelineNavigator({
         <button
           type="button"
           aria-label="Resize visible range end"
-          className="absolute inset-y-1 z-10 w-1 cursor-ew-resize border-x border-amber-300/70"
+          className="absolute inset-y-1 z-10 w-1 cursor-ew-resize border-x border-zinc-500/70 outline-none transition-colors hover:border-amber-300 focus-visible:border-amber-300"
           style={{ left: `calc(${thumb.leftPercent + thumb.widthPercent}% - 8px)` }}
           onPointerDown={(event) => beginDrag('end', event)}
           onPointerMove={moveDrag}
@@ -4800,6 +4805,18 @@ function TimelineNavigator({
             const end = viewport.startMs + viewport.durationMs + (event.key === 'ArrowLeft' ? -keyboardStep : keyboardStep)
             onChange(resizeShowTimelineViewport(viewport, 'end', end))
           }}
+        />
+        <span
+          aria-hidden
+          data-testid="show-timeline-navigator-playhead"
+          className="pointer-events-none absolute inset-y-0 z-20 w-px bg-live/60 shadow-[0_0_3px_color-mix(in_srgb,var(--color-live)_25%,transparent)]"
+          style={{ left: `${playheadPercent}%` }}
+        />
+        <span
+          aria-hidden
+          data-testid="show-timeline-navigator-playhead-cap"
+          className="pointer-events-none absolute top-0 z-20 h-1 w-1.5 bg-live/70"
+          style={timelinePlayheadCapStyle(playheadPercent)}
         />
       </div>
       <div className="flex items-center justify-end px-1.5 text-[9px] tabular-nums text-zinc-600">{Math.round(viewport.totalMs / viewport.durationMs * 100)}%</div>
@@ -5661,12 +5678,34 @@ function TimelinePlayhead({
       >
         <span
           data-testid="show-timeline-playhead-cap"
-          className={`pointer-events-none absolute top-0 z-[45] h-0 w-0 -ml-1 border-x-[4px] border-t-[6px] border-x-transparent ${seekStatus === 'rebuilding' ? 'border-t-amber-300' : 'border-t-live'}`}
+          className={`pointer-events-none absolute top-0 z-[45] h-0 w-0 -translate-x-1/2 border-x-[4px] border-t-[6px] border-x-transparent ${seekStatus === 'rebuilding' ? 'border-t-amber-300' : 'border-t-live'}`}
           style={{ left: `${left}%` }}
         />
       </div>
     </>
   )
+}
+
+function timelinePlayheadCapStyle(positionPercent: number): CSSProperties {
+  if (positionPercent <= 0) {
+    return {
+      left: '0%',
+      transform: 'translateX(0)',
+      clipPath: 'polygon(0 100%, 0 0, 100% 0)',
+    }
+  }
+  if (positionPercent >= 100) {
+    return {
+      left: '100%',
+      transform: 'translateX(-100%)',
+      clipPath: 'polygon(0 0, 100% 0, 100% 100%)',
+    }
+  }
+  return {
+    left: `${positionPercent}%`,
+    transform: 'translateX(-50%)',
+    clipPath: 'polygon(0 0, 100% 0, 50% 100%)',
+  }
 }
 
 function formatRulerTime(timeMs: number): string {

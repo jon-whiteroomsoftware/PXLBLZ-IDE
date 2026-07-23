@@ -390,6 +390,51 @@ describe('literal per-Layer Transition authoring (#583)', () => {
     ])
   })
 
+  it('breaks connected Transitions when their Clip moves into another Layer', () => {
+    const { show, composition } = fixture()
+    const connected = insertShowLayerTransition(show, composition, {
+      id: 'transition-a-b',
+      fromPlacementId: 'clip-a',
+      toPlacementId: 'clip-b',
+      kind: 'crossfade',
+      durationMs: 1_000,
+      easing: { curve: 'linear' },
+      crossfadePolicy: 'live-live',
+    })
+    connected.scenes[0].zones[0].overlays = [{
+      id: 'new-layer',
+      name: 'Layer 1',
+      placements: [],
+    }]
+
+    const moved = moveShowConnectedClipAtGlobalTime(show, connected, {
+      owner: {
+        kind: 'main',
+        sceneId: show.scenes[0].id,
+        zoneId: show.zones[0].id,
+        placementId: 'clip-b',
+      },
+      target: {
+        kind: 'overlay',
+        zoneId: show.zones[0].id,
+        layerIndex: 0,
+        globalStartMs: 3_000,
+      },
+    })
+
+    expect(moved).not.toBe(connected)
+    expect(moved.scenes[0].zones[0].main.map((clip) => clip.id)).toEqual([
+      'clip-a',
+      'clip-c',
+      'obstruction',
+    ])
+    expect(moved.scenes[0].zones[0].overlays[0].placements.map((clip) => [clip.id, clip.startMs]))
+      .toEqual([
+        ['clip-b', 3_000],
+      ])
+    expect(moved.transitions).toBeUndefined()
+  })
+
   it('expands a partial selection to the complete transition-connected sequence', () => {
     const { composition } = fixture()
     composition.transitions!.push({
