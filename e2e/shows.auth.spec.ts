@@ -163,7 +163,7 @@ test.describe('authenticated Show authoring', () => {
   })
 
   test('ships the dense Timeline frame across desktop and narrow workspaces', async ({ page }) => {
-    await page.setViewportSize({ width: 1440, height: 900 })
+    await page.setViewportSize({ width: 2200, height: 900 })
     await page.goto('studio/shows')
     await createInstallationShow(page)
 
@@ -180,12 +180,52 @@ test.describe('authenticated Show authoring', () => {
     await expect(toolbar.getByRole('button', { name: 'Fit timeline to Show' })).toBeVisible()
 
     const commands = toolbar.getByRole('group', { name: 'Timeline commands' })
-    await expect(commands.getByRole('button', { name: 'Undo Show edit' })).toBeVisible()
-    await expect(commands.getByRole('button', { name: 'Redo Show edit' })).toBeVisible()
-    await expect(commands.getByRole('button', { name: 'Snap playhead' })).toBeVisible()
+    await expect(toolbar.getByRole('button', { name: 'Undo Show edit' })).toBeVisible()
+    await expect(toolbar.getByRole('button', { name: 'Redo Show edit' })).toBeVisible()
+    await expect(toolbar.getByRole('button', { name: 'Snap playhead' })).toBeVisible()
     await expect(commands.getByRole('button', { name: 'Split at playhead' })).toBeVisible()
     await expect(commands.getByRole('button', { name: 'Clone selection' })).toBeDisabled()
+    const groupCommand = commands.getByRole('button', { name: 'Make Group from selection' })
+    const markerCommand = toolbar.getByRole('button', { name: 'Hide Markers' })
+    await expect(groupCommand).toBeVisible()
+    await expect(markerCommand).toBeVisible()
+    await expect(groupCommand.locator('.timeline-command-label')).toHaveCSS('display', 'block')
+    const [toolbarBounds, viewBounds, groupBounds, markerBounds, undoBounds, snapBounds] = await Promise.all([
+      toolbar.boundingBox(),
+      toolbar.getByRole('group', { name: 'Timeline view controls' }).boundingBox(),
+      groupCommand.boundingBox(),
+      markerCommand.boundingBox(),
+      toolbar.getByRole('button', { name: 'Undo Show edit' }).boundingBox(),
+      toolbar.getByRole('button', { name: 'Snap playhead' }).boundingBox(),
+    ])
+    expect(Math.abs(
+      (viewBounds!.x + viewBounds!.width / 2)
+      - (toolbarBounds!.x + toolbarBounds!.width / 2),
+    )).toBeLessThanOrEqual(3)
+    expect(groupBounds!.x).toBeGreaterThanOrEqual(toolbarBounds!.x)
+    expect(markerBounds!.x + markerBounds!.width)
+      .toBeLessThanOrEqual(toolbarBounds!.x + toolbarBounds!.width + 1)
+    expect(toolbarBounds!.x + toolbarBounds!.width - (markerBounds!.x + markerBounds!.width))
+      .toBeLessThanOrEqual(8)
+    expect(undoBounds!.width).toBeLessThanOrEqual(22)
+    expect(snapBounds!.width).toBeLessThanOrEqual(22)
+    expect(markerBounds!.width).toBeLessThanOrEqual(22)
     await expect(page.getByRole('button', { name: 'Select TestPattern1D', exact: true })).toHaveCSS('min-height', '44px')
+
+    const addLabel = toolbar.getByRole('button', { name: 'Add to Show' }).locator('.timeline-command-label-primary')
+    const splitLabel = commands.getByRole('button', { name: 'Split at playhead' }).locator('.timeline-command-label-secondary')
+    const cloneLabel = commands.getByRole('button', { name: 'Clone selection' }).locator('.timeline-command-label-secondary')
+    const groupLabel = groupCommand.locator('.timeline-command-label-tertiary')
+    await page.setViewportSize({ width: 1500, height: 900 })
+    await expect(addLabel).toHaveCSS('display', 'block')
+    await expect(splitLabel).toHaveCSS('display', 'none')
+    await expect(cloneLabel).toHaveCSS('display', 'none')
+    await expect(groupLabel).toHaveCSS('display', 'none')
+    await page.setViewportSize({ width: 1600, height: 900 })
+    await expect(addLabel).toHaveCSS('display', 'block')
+    await expect(splitLabel).toHaveCSS('display', 'block')
+    await expect(cloneLabel).toHaveCSS('display', 'block')
+    await expect(groupLabel).toHaveCSS('display', 'none')
 
     await page.getByRole('button', { name: 'Collapse rail' }).click()
     await expect(page.getByTestId('left-pane')).toHaveCSS('width', '46px')
@@ -199,6 +239,10 @@ test.describe('authenticated Show authoring', () => {
     await expect(toolbar).toBeVisible()
     await expect(toolbar.getByLabel('Show time')).toBeVisible()
     await expect(toolbar.getByRole('slider', { name: 'Pan visible timeline range' })).toBeVisible()
+    expect((await toolbar.getByRole('button', { name: 'Split at playhead' }).boundingBox())!.width)
+      .toBeLessThanOrEqual(29)
+    expect((await toolbar.getByRole('button', { name: 'Make Group from selection' }).boundingBox())!.width)
+      .toBeLessThanOrEqual(29)
     expect(await page.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth)).toBeLessThanOrEqual(8)
 
     await page.setViewportSize({ width: 600, height: 900 })

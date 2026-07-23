@@ -346,17 +346,58 @@
   container-type: inline-size;
 }
 
-@container (max-width: 820px) {
-  .show-timeline-toolbar .timeline-command-label {
+.show-timeline-toolbar [data-size="icon-xs"] {
+  width: 21.5px;
+}
+
+@container (min-width: 1240px) {
+  .show-timeline-toolbar {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) 210px minmax(0, 1fr);
+  }
+
+  .show-timeline-toolbar .timeline-transport-cluster {
+    justify-self: start;
+  }
+
+  .show-timeline-toolbar .timeline-view-cluster {
+    width: 210px;
+    justify-self: center;
+  }
+
+  .show-timeline-toolbar .timeline-command-cluster {
+    margin-left: 0;
+    justify-self: end;
+  }
+}
+
+@container (max-width: 900px) {
+  .show-timeline-toolbar .timeline-command-label-tertiary {
     display: none;
   }
 
+  .show-timeline-toolbar .timeline-command-cluster [data-size="xs"] {
+    padding-inline: 5px;
+  }
+}
+
+@container (max-width: 820px) {
   .show-timeline-toolbar .timeline-zoom-slider {
     width: 96px;
   }
 }
 
+@container (max-width: 760px) {
+  .show-timeline-toolbar .timeline-command-label-secondary {
+    display: none;
+  }
+}
+
 @container (max-width: 640px) {
+  .show-timeline-toolbar .timeline-command-label-primary {
+    display: none;
+  }
+
   .show-timeline-toolbar .timeline-zoom-slider {
     width: 72px;
   }

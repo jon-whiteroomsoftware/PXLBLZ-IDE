@@ -2405,7 +2405,7 @@ function ShowTransportControls({
   }, [show.id])
 
   return (
-    <div className="flex min-w-0 items-center gap-1.5" role="group" aria-label="Show transport controls">
+    <div className="flex min-w-0 items-center gap-1" role="group" aria-label="Show transport controls">
       <Button
         size="icon-xs"
         variant="ghost"
@@ -2430,7 +2430,7 @@ function ShowTransportControls({
         <SkipBack size={18} aria-hidden className="size-[18px]" />
       </Button>
       <output
-        className="timeline-time-display flex min-w-[128px] items-baseline gap-1 whitespace-nowrap text-xs tabular-nums"
+        className="timeline-time-display flex min-w-[118px] items-baseline gap-1 whitespace-nowrap text-xs tabular-nums"
         aria-live="off"
         aria-label="Show time"
       >
@@ -2495,6 +2495,26 @@ function useShowTransportClock(show: ShowRecord | null, clockActive: boolean): v
   }, [clockActive, durationMs, isRunning, seekStatus, showId])
 }
 
+function ShowTimelineHistoryCommands({
+  show,
+  readOnly,
+}: {
+  show: ShowRecord
+  readOnly: boolean
+}) {
+  const undoShow = useShowStore((state) => state.undoShow)
+  const redoShow = useShowStore((state) => state.redoShow)
+  const history = useShowStore((state) => state.showHistories[show.id])
+  return <>
+    <Button size="icon-xs" variant="ghost" aria-label="Undo Show edit" title="Undo Show edit (Command/Ctrl+Z)" disabled={readOnly || !history?.past.length} onClick={() => void undoShow(show.id)}>
+      <Undo2 size={12} aria-hidden />
+    </Button>
+    <Button size="icon-xs" variant="ghost" aria-label="Redo Show edit" title="Redo Show edit (Command/Ctrl+Shift+Z)" disabled={readOnly || !history?.future.length} onClick={() => void redoShow(show.id)}>
+      <Redo2 size={12} aria-hidden />
+    </Button>
+  </>
+}
+
 function ShowTimelineCommands({
   show,
   composition,
@@ -2504,11 +2524,6 @@ function ShowTimelineCommands({
   onCreateGroup,
   onSplitCompositionClip,
   onDuplicateCompositionClip,
-  snapEnabled,
-  onToggleSnap,
-  onFit,
-  fitDisabled = false,
-  includeFit = true,
 }: {
   show: ShowRecord
   composition: ShowCompositionV1 | null
@@ -2518,18 +2533,10 @@ function ShowTimelineCommands({
   onCreateGroup: (selection: ShowGroupSelection) => Promise<string | null>
   onSplitCompositionClip: (owner: ShowTimelineClipOwner, globalTimeMs: number) => Promise<string | null>
   onDuplicateCompositionClip: (owner: ShowTimelineClipOwner) => Promise<string | null>
-  snapEnabled: boolean
-  onToggleSnap: () => void
-  onFit: () => void
-  fitDisabled?: boolean
-  includeFit?: boolean
 }) {
   const positionMs = useShowTransportStore((state) => state.showId === show.id ? state.positionMs : 0)
   const splitAtTime = useShowStore((state) => state.splitAtTime)
   const cloneClip = useShowStore((state) => state.cloneClip)
-  const undoShow = useShowStore((state) => state.undoShow)
-  const redoShow = useShowStore((state) => state.redoShow)
-  const history = useShowStore((state) => state.showHistories[show.id])
   const legacySplitCapability = showSplitCapability(show, positionMs)
   const groupPlan = composition && selection.kind === 'multi'
     ? validateShowGroupSelection(composition, selection.groupSelection)
@@ -2587,34 +2594,7 @@ function ShowTimelineCommands({
   }
 
   return (
-    <div className="flex shrink-0 items-center justify-end gap-1" role="group" aria-label="Timeline commands">
-      <Button size="icon-xs" variant="ghost" aria-label="Undo Show edit" title="Undo Show edit (Command/Ctrl+Z)" disabled={readOnly || !history?.past.length} onClick={() => void undoShow(show.id)}>
-        <Undo2 size={12} aria-hidden />
-      </Button>
-      <Button size="icon-xs" variant="ghost" aria-label="Redo Show edit" title="Redo Show edit (Command/Ctrl+Shift+Z)" disabled={readOnly || !history?.future.length} onClick={() => void redoShow(show.id)}>
-        <Redo2 size={12} aria-hidden />
-      </Button>
-      <Button
-        size="xs"
-        variant="ghost"
-        aria-label="Snap playhead"
-        aria-pressed={snapEnabled}
-        title="Snap to scene, clip, transition, and time-grid boundaries. Hold Alt to temporarily reverse."
-        className={snapEnabled ? 'bg-zinc-800/80 text-zinc-200' : 'text-zinc-600'}
-        onClick={onToggleSnap}
-      >
-        <Magnet size={12} aria-hidden /> <span className="timeline-command-label">Snap</span>
-      </Button>
-      {includeFit && <Button
-        size="xs"
-        variant="ghost"
-        aria-label="Fit timeline to Show"
-        title="Fit the complete Show"
-        disabled={fitDisabled}
-        onClick={onFit}
-      >
-        <Maximize2 size={12} aria-hidden /> <span className="timeline-command-label">Fit</span>
-      </Button>}
+    <div className="flex shrink-0 items-center justify-end gap-[1.5px]" role="group" aria-label="Timeline commands">
       <span className="relative inline-flex">
         <Button
           size="xs"
@@ -2624,7 +2604,7 @@ function ShowTimelineCommands({
           aria-disabled={splitCapability.enabled ? undefined : true}
           aria-describedby={!splitCapability.enabled && splitReasonOpen ? splitReasonId : undefined}
           title={splitCapability.reason}
-          className={`bg-zinc-800/70 text-[10px] text-zinc-400 hover:bg-amber-400/15 hover:text-amber-200 ${
+          className={`bg-zinc-800/70 px-1.5 text-[10px] text-zinc-400 hover:bg-amber-400/15 hover:text-amber-200 ${
             splitCapability.enabled ? '' : 'cursor-not-allowed opacity-50'
           }`}
           onFocus={() => {
@@ -2647,7 +2627,7 @@ function ShowTimelineCommands({
           }}
         >
           <Scissors size={12} aria-hidden />
-          <span className="timeline-command-label">Split</span>
+          <span className="timeline-command-label timeline-command-label-secondary">Split</span>
         </Button>
         {!splitCapability.enabled && splitReasonOpen && (
           <span
@@ -2673,11 +2653,11 @@ function ShowTimelineCommands({
         aria-label="Clone selection"
         title={cloneCapability.reason}
         disabled={readOnly || !cloneCapability.enabled}
-        className="bg-zinc-800/70 text-[10px] text-zinc-400"
+        className="bg-zinc-800/70 px-1.5 text-[10px] text-zinc-400"
         onClick={() => void cloneSelection()}
       >
         <Copy size={12} aria-hidden />
-        <span className="timeline-command-label">Clone</span>
+        <span className="timeline-command-label timeline-command-label-secondary">Clone</span>
       </Button>
       <span className="relative inline-flex">
         <Button
@@ -2688,7 +2668,7 @@ function ShowTimelineCommands({
           disabled={readOnly}
           aria-disabled={!groupPlan.enabled || undefined}
           aria-describedby={!groupPlan.enabled && groupReasonOpen ? groupReasonId : undefined}
-          className={`bg-zinc-800/70 text-[10px] text-zinc-400 ${groupPlan.enabled ? '' : 'cursor-not-allowed opacity-50'}`}
+          className={`bg-zinc-800/70 px-1.5 text-[10px] text-zinc-400 ${groupPlan.enabled ? '' : 'cursor-not-allowed opacity-50'}`}
           onFocus={() => {
             if (!groupPlan.enabled) setGroupReasonOpen(true)
           }}
@@ -2699,7 +2679,7 @@ function ShowTimelineCommands({
           }}
         >
           <Layers3 size={12} aria-hidden />
-          <span className="timeline-command-label">Group</span>
+          <span className="timeline-command-label timeline-command-label-tertiary">Group</span>
         </Button>
         {!groupPlan.enabled && groupReasonOpen && (
           <span
@@ -2912,7 +2892,6 @@ function ShowTimelineWorkspace({
   const snapEnabled = useShowEditorSessionStore((state) => state.snapEnabled)
   const setSnapEnabled = useShowEditorSessionStore((state) => state.setSnapEnabled)
   const markersVisible = useShowEditorSessionStore((state) => state.markersVisible)
-  const markerSnapEnabled = useShowEditorSessionStore((state) => state.markerSnapEnabled)
   const setMarkersVisible = useShowEditorSessionStore((state) => state.setMarkersVisible)
   const setMarkerSnapEnabled = useShowEditorSessionStore((state) => state.setMarkerSnapEnabled)
   const zonesOpen = useShowEditorSessionStore((state) => state.zoneWorkspaceOpenByShowId[show.id] ?? false)
@@ -3092,7 +3071,7 @@ function ShowTimelineWorkspace({
     ...(unifiedCompositionTimeline?.zones.flatMap((zone) => (
       zone.layers.flatMap((layer) => layer.clips.flatMap((clip) => [clip.startMs, clip.endMs]))
     )) ?? []),
-    ...(markerSnapEnabled ? (timelineComposition?.markers ?? []).map((marker) => marker.timeMs) : []),
+    ...(markersVisible ? (timelineComposition?.markers ?? []).map((marker) => marker.timeMs) : []),
   ])]
   const propertyLanesByZone = useMemo(() => {
     const sceneAnimationLanes = projectGlobalShowScenePropertyLanes(displayShow)
@@ -3406,7 +3385,7 @@ function ShowTimelineWorkspace({
       <div
         data-testid="show-timeline-toolbar"
         data-studio-space-preview="true"
-        className="show-timeline-toolbar scrollbar-hidden flex h-11 min-w-0 flex-nowrap items-center gap-2 overflow-x-auto border-b border-zinc-800/80 px-1"
+        className="show-timeline-toolbar scrollbar-hidden ml-[-3px] flex h-11 min-w-0 flex-nowrap items-center gap-1 overflow-x-auto border-b border-zinc-800/80 pl-0 pr-0"
         role="toolbar"
         aria-label="Show timeline controls"
         onClick={(event) => event.stopPropagation()}
@@ -3414,7 +3393,7 @@ function ShowTimelineWorkspace({
         <div className="timeline-transport-cluster min-w-0 shrink-0">
           {transportActive && <ShowTransportControls show={show} />}
         </div>
-        <div className="flex min-w-[128px] max-w-[292px] flex-[1_1_220px] shrink items-center gap-1 border-x border-zinc-800/80 px-2" role="group" aria-label="Timeline view controls">
+        <div className="timeline-view-cluster flex min-w-[120px] max-w-[210px] flex-[0_1_180px] shrink items-center gap-1 border-l border-zinc-800/80 px-1" role="group" aria-label="Timeline view controls">
             <TimelineNavigator viewport={viewport} onChange={updateViewport} compact />
             <Button
               size="icon-xs"
@@ -3428,24 +3407,9 @@ function ShowTimelineWorkspace({
               <Maximize2 size={12} aria-hidden />
             </Button>
         </div>
-        <div className="timeline-command-cluster relative flex min-w-0 shrink-0 items-center gap-1" role="group" aria-label="Show authoring commands">
+        <div className="timeline-command-cluster relative ml-auto flex min-w-0 shrink-0 items-center justify-end gap-[1.5px]" role="group" aria-label="Show authoring commands">
           {!readOnly && (
             <>
-              <Button
-                ref={setZonesPopoverAnchor}
-                size="xs"
-                variant="ghost"
-                aria-label={zonesOpen ? 'Close Zones' : 'Open Zones'}
-                aria-expanded={zonesOpen}
-                title={zonesOpen ? 'Close Zone Map' : 'Open Zone Map'}
-                className={zonesOpen
-                  ? 'bg-live/10 px-1.5 text-[11px] text-live hover:bg-live/15'
-                  : 'bg-transparent px-1.5 text-[11px] text-zinc-400 hover:bg-zinc-800/60 hover:text-zinc-100'}
-                onClick={() => setZoneWorkspaceOpen(show.id, !zonesOpen)}
-              >
-                <MapIcon size={12} aria-hidden />
-                <span className="timeline-command-label">Zones</span>
-              </Button>
               <Button
                 ref={setAddPopoverAnchor}
                 size="xs"
@@ -3454,7 +3418,7 @@ function ShowTimelineWorkspace({
                 aria-haspopup="menu"
                 aria-expanded={addMenuOpen || addClipOpen || insertTimeOpen || layoutActionsOpen}
                 title="Add a Clip, Layer, Time, or Zone Layout"
-                className="bg-zinc-800/70 text-[11px] text-zinc-300 hover:bg-amber-400/15 hover:text-amber-200"
+                className="bg-zinc-800/70 px-1.5 text-[11px] text-zinc-300 hover:bg-amber-400/15 hover:text-amber-200"
                 onClick={() => {
                   const transport = useShowTransportStore.getState()
                   setAddClipTimeMs(transport.showId === show.id ? transport.positionMs : 0)
@@ -3465,30 +3429,8 @@ function ShowTimelineWorkspace({
                 }}
               >
                 <Plus size={12} aria-hidden />
-                <span className="timeline-command-label">Add</span>
+                <span className="timeline-command-label timeline-command-label-primary">Add</span>
                 <ChevronDown size={9} aria-hidden className="text-zinc-500" />
-              </Button>
-              <Button
-                size="icon-xs"
-                variant="ghost"
-                aria-label={markersVisible ? 'Hide Markers' : 'Show Markers'}
-                aria-pressed={markersVisible}
-                title={markersVisible ? 'Hide Marker guides' : 'Show Marker guides'}
-                className={markersVisible ? 'text-amber-300' : 'text-zinc-600'}
-                onClick={() => setMarkersVisible(!markersVisible)}
-              >
-                <Eye size={12} aria-hidden />
-              </Button>
-              <Button
-                size="icon-xs"
-                variant="ghost"
-                aria-label="Snap to Markers"
-                aria-pressed={markerSnapEnabled}
-                title="Use Markers as snap targets"
-                className={markerSnapEnabled ? 'text-amber-300' : 'text-zinc-600'}
-                onClick={() => setMarkerSnapEnabled(!markerSnapEnabled)}
-              >
-                <Flag size={12} aria-hidden />
               </Button>
               {addMenuOpen && (
                 <ShowTimelineToolbarPopover
@@ -3767,12 +3709,57 @@ function ShowTimelineWorkspace({
             onCreateGroup={onCreateGroup}
             onSplitCompositionClip={onSplitCompositionClip}
             onDuplicateCompositionClip={onDuplicateCompositionClip}
-            snapEnabled={snapEnabled}
-            onToggleSnap={() => setSnapEnabled(!snapEnabled)}
-            onFit={() => updateViewport(fitShowTimelineViewport(timeline.durationMs))}
-            fitDisabled={timelineIsFitted}
-            includeFit={false}
           />
+          <ShowTimelineHistoryCommands show={show} readOnly={readOnly} />
+          {!readOnly && (
+            <Button
+              ref={setZonesPopoverAnchor}
+              size="xs"
+              variant="ghost"
+              aria-label={zonesOpen ? 'Close Zones' : 'Open Zones'}
+              aria-expanded={zonesOpen}
+              title={zonesOpen ? 'Close Zone Map' : 'Open Zone Map'}
+              className={zonesOpen
+                ? 'bg-live/10 px-1.5 text-[11px] text-live hover:bg-live/15'
+                : 'bg-transparent px-1.5 text-[11px] text-zinc-400 hover:bg-zinc-800/60 hover:text-zinc-100'}
+              onClick={() => setZoneWorkspaceOpen(show.id, !zonesOpen)}
+            >
+              <MapIcon size={12} aria-hidden />
+              <span className="timeline-command-label timeline-command-label-tertiary">Zones</span>
+            </Button>
+          )}
+          <Button
+            size="icon-xs"
+            variant="ghost"
+            aria-label="Snap playhead"
+            aria-pressed={snapEnabled}
+            title="Snap to scene, clip, transition, and time-grid boundaries. Hold Alt to temporarily reverse."
+            className={snapEnabled ? 'text-amber-300' : 'text-zinc-600'}
+            onClick={() => setSnapEnabled(!snapEnabled)}
+          >
+            <Magnet size={12} aria-hidden />
+          </Button>
+          {!readOnly && (
+            <>
+              <Button
+                size="icon-xs"
+                variant="ghost"
+                aria-label={markersVisible ? 'Hide Markers' : 'Show Markers'}
+                aria-pressed={markersVisible}
+                title={markersVisible
+                  ? 'Hide Markers and stop snapping to them'
+                  : 'Show Markers and use them as snap targets'}
+                className={markersVisible ? 'text-amber-300' : 'text-zinc-600'}
+                onClick={() => {
+                  const enabled = !markersVisible
+                  setMarkersVisible(enabled)
+                  setMarkerSnapEnabled(enabled)
+                }}
+              >
+                <Flag size={12} aria-hidden />
+              </Button>
+            </>
+          )}
         </div>
       </div>
       {isolatedGroupOccurrence && isolatedGroupDefinition && (
@@ -4191,7 +4178,8 @@ function ShowTimelineWorkspace({
               <div
                 key={layer.id}
                 className={[
-                  'relative min-w-0 border-b border-zinc-900/80 bg-[#08080a] transition-colors',
+                  'relative min-w-0 border-b border-zinc-900/80 transition-colors',
+                  layer.kind === 'overlay' ? 'bg-[#18181b]' : 'bg-[#08080a]',
                   dropTargetKey === `composition:${layer.id}` ? 'bg-live/[0.07] ring-1 ring-inset ring-live/40' : '',
                 ].join(' ')}
                 style={{

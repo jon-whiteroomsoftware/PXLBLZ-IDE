@@ -132,7 +132,7 @@ describe('ShowEditor (#318)', () => {
     expect(within(timeline).queryByRole('button', { name: /Select zone/i })).not.toBeInTheDocument()
   })
 
-  it('orders the unified toolbar as transport, Navigator/Fit, then authoring commands (#592)', () => {
+  it('orders the unified toolbar as transport, Navigator/Fit, then authoring commands (#592, #63)', () => {
     const show = createDefaultShow('show-unified-toolbar', 'Unified toolbar', 1000)
     useShowStore.setState({ shows: [show], activeShowId: show.id, showsLoaded: true })
 
@@ -143,12 +143,53 @@ describe('ShowEditor (#318)', () => {
     const view = within(toolbar).getByRole('group', { name: 'Timeline view controls' })
     const authoring = within(toolbar).getByRole('group', { name: 'Show authoring commands' })
 
+    expect(transport).toHaveClass('gap-1')
     expect(within(view).getByRole('group', { name: 'Show navigator' })).toBeInTheDocument()
     expect(within(view).getByRole('button', { name: 'Fit timeline to Show' })).toBeDisabled()
+    expect(view).toHaveClass('max-w-[210px]', 'flex-[0_1_180px]', 'gap-1')
+    expect(toolbar).toHaveClass('ml-[-3px]', 'pl-0', 'pr-0')
+    expect(view).toHaveClass('border-l')
+    expect(view).not.toHaveClass('border-r', 'border-x')
     expect(within(authoring).getByRole('button', { name: 'Open Zones' })).toBeInTheDocument()
     expect(within(authoring).getByRole('button', { name: 'Add to Show' })).toBeInTheDocument()
+    expect(within(authoring).getByRole('button', { name: 'Add to Show' }).querySelector('.timeline-command-label-primary')).toHaveTextContent('Add')
+    expect(within(authoring).getByRole('button', { name: 'Split at playhead' }).querySelector('.timeline-command-label-secondary')).toHaveTextContent('Split')
+    expect(within(authoring).getByRole('button', { name: 'Clone selection' }).querySelector('.timeline-command-label-secondary')).toHaveTextContent('Clone')
+    expect(within(authoring).getByRole('button', { name: 'Make Group from selection' }).querySelector('.timeline-command-label-tertiary')).toHaveTextContent('Group')
+    expect(within(authoring).getByRole('button', { name: 'Open Zones' }).querySelector('.timeline-command-label-tertiary')).toHaveTextContent('Zones')
+    expect(authoring).toHaveClass('ml-auto')
+    expect(within(authoring).getByRole('button', { name: 'Snap playhead' })).toHaveAttribute('data-size', 'icon-xs')
+    expect(within(authoring).getAllByRole('button').map((button) => button.getAttribute('aria-label'))).toEqual([
+      'Add to Show',
+      'Split at playhead',
+      'Clone selection',
+      'Make Group from selection',
+      'Undo Show edit',
+      'Redo Show edit',
+      'Open Zones',
+      'Snap playhead',
+      'Hide Markers',
+    ])
     expect(transport.compareDocumentPosition(view) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
     expect(view.compareDocumentPosition(authoring) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
+  })
+
+  it('uses one Marker control for both visibility and snapping (#63)', async () => {
+    const user = userEvent.setup()
+    const show = createDefaultShow('show-unified-marker-mode', 'Unified marker mode', 1000)
+    useShowStore.setState({ shows: [show], activeShowId: show.id, showsLoaded: true })
+
+    render(<ShowEditor showId={show.id} />)
+
+    const hideMarkers = screen.getByRole('button', { name: 'Hide Markers' })
+    expect(hideMarkers).toHaveAttribute('aria-pressed', 'true')
+    await user.click(hideMarkers)
+
+    expect(screen.getByRole('button', { name: 'Show Markers' })).toHaveAttribute('aria-pressed', 'false')
+    expect(useShowEditorSessionStore.getState()).toMatchObject({
+      markersVisible: false,
+      markerSnapEnabled: false,
+    })
   })
 
   it('keeps the ruler and timeline overlays aligned with Clips through Show End (#588)', () => {
@@ -1462,7 +1503,10 @@ describe('ShowEditor (#318)', () => {
       const saved = useShowStore.getState().shows.find((candidate) => candidate.id === show.id)
       expect(saved?.composition?.scenes.every((scene) => scene.zones[0].overlays.length === 1)).toBe(true)
     })
-    expect(document.querySelectorAll('[data-show-layer-kind="overlay"]')).toHaveLength(1)
+    const overlayLayer = document.querySelector<HTMLElement>('[data-show-layer-kind="overlay"]')
+    const mainLayer = document.querySelector<HTMLElement>('[data-show-layer-kind="main"]')
+    expect(overlayLayer).toHaveClass('bg-[#18181b]')
+    expect(mainLayer).toHaveClass('bg-[#08080a]')
     expect(screen.queryByRole('dialog', { name: 'Add Clip at playhead' })).not.toBeInTheDocument()
     const saved = useShowStore.getState().shows.find((candidate) => candidate.id === show.id)
     expect(saved?.composition?.scenes.every((scene) => (
