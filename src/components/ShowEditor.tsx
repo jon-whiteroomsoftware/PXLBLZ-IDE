@@ -105,7 +105,7 @@ import {
   addShowOverlayLayerAcrossTimeline,
   duplicateShowClipAfter,
   makeShowClipPatternIndependent,
-  planShowClipAtGlobalTime,
+  planShowClipAtTopmostAvailableLayer,
   projectShowClipPatternInstanceOwnership,
   rejoinShowClipPatternInstance,
   splitShowClipAtGlobalTime,
@@ -2938,21 +2938,19 @@ function ShowTimelineWorkspace({
   } | null>(null)
   const [dropTargetKey, setDropTargetKey] = useState<string | null>(null)
   const [marquee, setMarquee] = useState<{ left: number; top: number; width: number; height: number } | null>(null)
+  const [addMenuOpen, setAddMenuOpen] = useState(false)
+  const [addPopoverAnchor, setAddPopoverAnchor] = useState<HTMLButtonElement | null>(null)
   const [addClipOpen, setAddClipOpen] = useState(false)
-  const [addClipPopoverAnchor, setAddClipPopoverAnchor] = useState<HTMLButtonElement | null>(null)
   const [insertTimeOpen, setInsertTimeOpen] = useState(false)
-  const [insertTimePopoverAnchor, setInsertTimePopoverAnchor] = useState<HTMLButtonElement | null>(null)
   const [insertTimeSeconds, setInsertTimeSeconds] = useState(1)
   const [insertTimeAtMs, setInsertTimeAtMs] = useState(0)
   const [layoutActionsOpen, setLayoutActionsOpen] = useState(false)
-  const [layoutActionsPopoverAnchor, setLayoutActionsPopoverAnchor] = useState<HTMLButtonElement | null>(null)
   const [zonesPopoverAnchor, setZonesPopoverAnchor] = useState<HTMLButtonElement | null>(null)
   const [layoutActionTimeMs, setLayoutActionTimeMs] = useState(0)
   const [layoutActionLayoutId, setLayoutActionLayoutId] = useState(show.routingLayouts[0]?.id ?? '')
   const [layoutActionDurationSeconds, setLayoutActionDurationSeconds] = useState(5)
   const [layoutActionError, setLayoutActionError] = useState<string | null>(null)
   const [addClipTimeMs, setAddClipTimeMs] = useState(0)
-  const [addClipLayerTargetKey, setAddClipLayerTargetKey] = useState('main')
   const [addClipPatternKey, setAddClipPatternKey] = useState<string | null>(() => {
     const first = patternOptions[0]
     return first ? `${first.ref.kind}:${first.ref.id}` : null
@@ -2966,22 +2964,12 @@ function ShowTimelineWorkspace({
       : null
   const preferredAuthoringZoneId = selectedCompositionZoneId ?? focusedZoneId
   const addClipZoneId = showLayoutZoneIdAtTime(show, addClipTimeMs, preferredAuthoringZoneId)
-  const addClipSceneId = timeline.scenes.find((scene) => (
-    addClipTimeMs >= scene.startMs && addClipTimeMs < scene.endMs
-  ))?.sceneId
-  const addClipZoneComposition = timelineComposition?.scenes
-    .find((scene) => scene.sceneId === addClipSceneId)?.zones
-    .find((zone) => zone.zoneId === addClipZoneId)
-  const addClipLayerOptions = [
-    ...(addClipZoneComposition?.overlays.map((layer, layerIndex) => ({
-      key: `overlay:${layerIndex}`,
-      label: layer.name || `Layer ${layerIndex + 1}`,
-      target: { kind: 'overlay' as const, layerIndex },
-    })) ?? []),
-    { key: 'main', label: 'Main', target: { kind: 'main' as const } },
-  ]
-  const addClipLayerOption = addClipLayerOptions.find((option) => option.key === addClipLayerTargetKey)
-    ?? addClipLayerOptions[addClipLayerOptions.length - 1]
+  const addClipDestination = timelineComposition && addClipZoneId
+    ? planShowClipAtTopmostAvailableLayer(show, timelineComposition, {
+        zoneId: addClipZoneId,
+        globalTimeMs: addClipTimeMs,
+      })
+    : null
   const transport = useShowTransportStore.getState()
   const layerTargetTimeMs = transport.showId === show.id ? transport.positionMs : 0
   const layerTargetZoneId = showLayoutZoneIdAtTime(show, layerTargetTimeMs, preferredAuthoringZoneId)
@@ -3061,13 +3049,6 @@ function ShowTimelineWorkspace({
     show.zones.forEach((zone) => setZoneCollapsed(show.id, zone.id, zone.id !== zoneId))
     setFocusedZone(show.id, zoneId)
   }
-  const addClipPlan = timelineComposition && addClipZoneId && addClipLayerOption
-    ? planShowClipAtGlobalTime(show, timelineComposition, {
-        zoneId: addClipZoneId,
-        globalTimeMs: addClipTimeMs,
-        target: addClipLayerOption.target,
-      })
-    : null
   const addClipPattern = patternOptions.find((option) => (
     `${option.ref.kind}:${option.ref.id}` === addClipPatternKey
   )) ?? patternOptions[0]
@@ -3416,6 +3397,7 @@ function ShowTimelineWorkspace({
       className="select-none border-b border-seam bg-[#060608] px-2 py-2.5 shadow-[inset_0_6px_14px_-8px_rgba(0,0,0,0.9),inset_0_-6px_14px_-10px_rgba(0,0,0,0.9)] [&_input]:select-text [&_textarea]:select-text"
       onClick={() => {
         onDismiss()
+        setAddMenuOpen(false)
         setAddClipOpen(false)
         setInsertTimeOpen(false)
         setLayoutActionsOpen(false)
@@ -3465,73 +3447,26 @@ function ShowTimelineWorkspace({
                 <span className="timeline-command-label">Zones</span>
               </Button>
               <Button
-                ref={setLayoutActionsPopoverAnchor}
+                ref={setAddPopoverAnchor}
                 size="xs"
                 variant="ghost"
-                aria-label="Layout interval actions"
-                aria-expanded={layoutActionsOpen}
-                title="Append, insert, duplicate, or separate a Zone Layout interval"
-                className={layoutActionsOpen
-                  ? 'bg-live/10 px-1.5 text-[11px] text-live hover:bg-live/15'
-                  : 'bg-transparent px-1.5 text-[11px] text-zinc-400 hover:bg-zinc-800/60 hover:text-zinc-100'}
+                aria-label="Add to Show"
+                aria-haspopup="menu"
+                aria-expanded={addMenuOpen || addClipOpen || insertTimeOpen || layoutActionsOpen}
+                title="Add a Clip, Layer, Time, or Zone Layout"
+                className="bg-zinc-800/70 text-[11px] text-zinc-300 hover:bg-amber-400/15 hover:text-amber-200"
                 onClick={() => {
                   const transport = useShowTransportStore.getState()
-                  const timeMs = transport.showId === show.id ? transport.positionMs : 0
-                  const interval = showLayoutIntervalAtTime(layoutIntervals, timeMs)
-                  setLayoutActionTimeMs(timeMs)
-                  setLayoutActionLayoutId(interval?.layoutId ?? show.routingLayouts[0]?.id ?? '')
-                  setLayoutActionError(null)
+                  setAddClipTimeMs(transport.showId === show.id ? transport.positionMs : 0)
                   setAddClipOpen(false)
                   setInsertTimeOpen(false)
-                  setLayoutActionsOpen((open) => !open)
-                }}
-              >
-                <Grid2X2 size={12} aria-hidden />
-                <span className="timeline-command-label">Layout</span>
-              </Button>
-              <Button
-                size="xs"
-                variant="ghost"
-                aria-label="Add Layer"
-                title={`Add a Layer to ${layerTargetZoneName}`}
-                disabled={!layerTargetZoneId}
-                className="bg-transparent px-1.5 text-[11px] text-zinc-400 hover:bg-zinc-800/60 hover:text-zinc-100"
-                onClick={() => {
-                  const currentTransport = useShowTransportStore.getState()
-                  const currentTimeMs = currentTransport.showId === show.id ? currentTransport.positionMs : 0
-                  const currentZoneId = showLayoutZoneIdAtTime(show, currentTimeMs, preferredAuthoringZoneId)
-                  if (!currentZoneId) return
-                  void onAddCompositionLayer(currentZoneId).then((changed) => {
-                    if (!changed) return
-                    setAddClipTimeMs(currentTimeMs)
-                    setAddClipLayerTargetKey('overlay:0')
-                    setInsertTimeOpen(false)
-                    setLayoutActionsOpen(false)
-                    setAddClipOpen(true)
-                  })
-                }}
-              >
-                <Layers3 size={12} aria-hidden />
-                <span className="timeline-command-label">Layer</span>
-              </Button>
-              <Button
-                ref={setInsertTimePopoverAnchor}
-                size="xs"
-                variant="ghost"
-                aria-label="Insert Time"
-                aria-expanded={insertTimeOpen}
-                title="Insert blank time at the playhead"
-                className="bg-transparent px-1.5 text-[11px] text-zinc-400 hover:bg-zinc-800/60 hover:text-zinc-100"
-                onClick={() => {
-                  const transport = useShowTransportStore.getState()
-                  setInsertTimeAtMs(transport.showId === show.id ? transport.positionMs : 0)
-                  setAddClipOpen(false)
                   setLayoutActionsOpen(false)
-                  setInsertTimeOpen((open) => !open)
+                  setAddMenuOpen((open) => !open)
                 }}
               >
-                <Clock3 size={12} aria-hidden />
-                <span className="timeline-command-label">Insert Time</span>
+                <Plus size={12} aria-hidden />
+                <span className="timeline-command-label">Add</span>
+                <ChevronDown size={9} aria-hidden className="text-zinc-500" />
               </Button>
               <Button
                 size="icon-xs"
@@ -3555,36 +3490,98 @@ function ShowTimelineWorkspace({
               >
                 <Flag size={12} aria-hidden />
               </Button>
-              <Button
-                ref={setAddClipPopoverAnchor}
-                size="xs"
-                variant="ghost"
-                aria-label="Add Clip at playhead"
-                title="Add a Pattern Clip at the playhead"
-                aria-expanded={addClipOpen}
-                className="bg-zinc-800/70 text-[11px] text-zinc-300 hover:bg-amber-400/15 hover:text-amber-200"
-                onClick={() => {
-                  const transport = useShowTransportStore.getState()
-                  setAddClipTimeMs(transport.showId === show.id ? transport.positionMs : 0)
-                  setInsertTimeOpen(false)
-                  setLayoutActionsOpen(false)
-                  setAddClipOpen((open) => !open)
-                }}
-              >
-                <Plus size={12} aria-hidden />
-                <span className="timeline-command-label">Clip</span>
-                <ChevronDown size={9} aria-hidden className="text-zinc-500" />
-              </Button>
+              {addMenuOpen && (
+                <ShowTimelineToolbarPopover
+                  anchor={addPopoverAnchor}
+                  widthPx={288}
+                  role="menu"
+                  ariaLabel="Add to Show"
+                  className="w-[288px] rounded border border-zinc-700 bg-zinc-950 p-1.5 text-[11px] text-zinc-300 shadow-2xl"
+                  onDismiss={() => setAddMenuOpen(false)}
+                  onClick={(event) => event.stopPropagation()}
+                >
+                  <button
+                    type="button"
+                    role="menuitem"
+                    aria-label={addClipDestination ? 'Clip' : 'Clip unavailable: no empty Layer'}
+                    disabled={!addClipDestination}
+                    title={addClipDestination ? 'Add a Pattern Clip at the playhead' : undefined}
+                    className="flex h-8 w-full items-center gap-2 rounded px-2 text-left hover:bg-zinc-800 hover:text-zinc-100 disabled:cursor-not-allowed disabled:opacity-45"
+                    onClick={() => {
+                      if (!addClipDestination) return
+                      setAddMenuOpen(false)
+                      setAddClipOpen(true)
+                    }}
+                  >
+                    <Plus size={12} aria-hidden className="text-amber-300/80" />
+                    <span>Clip</span>
+                    {!addClipDestination && (
+                      <span className="ml-auto text-[10px] text-zinc-600">No empty Layer</span>
+                    )}
+                  </button>
+                  <button
+                    type="button"
+                    role="menuitem"
+                    aria-label={layerTargetZoneId ? 'Layer' : 'Layer unavailable: no active Zone'}
+                    disabled={!layerTargetZoneId}
+                    title={layerTargetZoneId ? `Add a Layer to ${layerTargetZoneName}` : undefined}
+                    className="flex h-8 w-full items-center gap-2 rounded px-2 text-left hover:bg-zinc-800 hover:text-zinc-100 disabled:cursor-not-allowed disabled:opacity-45"
+                    onClick={() => {
+                      if (!layerTargetZoneId) return
+                      setAddMenuOpen(false)
+                      void onAddCompositionLayer(layerTargetZoneId)
+                    }}
+                  >
+                    <Layers3 size={12} aria-hidden className="text-cyan-300/75" />
+                    <span>Layer</span>
+                    {!layerTargetZoneId && (
+                      <span className="ml-auto text-[10px] text-zinc-600">No active Zone</span>
+                    )}
+                  </button>
+                  <button
+                    type="button"
+                    role="menuitem"
+                    className="flex h-8 w-full items-center gap-2 rounded px-2 text-left hover:bg-zinc-800 hover:text-zinc-100"
+                    onClick={() => {
+                      const transport = useShowTransportStore.getState()
+                      setInsertTimeAtMs(transport.showId === show.id ? transport.positionMs : 0)
+                      setAddMenuOpen(false)
+                      setInsertTimeOpen(true)
+                    }}
+                  >
+                    <Clock3 size={12} aria-hidden className="text-zinc-500" />
+                    <span>Time</span>
+                  </button>
+                  <button
+                    type="button"
+                    role="menuitem"
+                    className="flex h-8 w-full items-center gap-2 rounded px-2 text-left hover:bg-zinc-800 hover:text-zinc-100"
+                    onClick={() => {
+                      const transport = useShowTransportStore.getState()
+                      const timeMs = transport.showId === show.id ? transport.positionMs : 0
+                      const interval = showLayoutIntervalAtTime(layoutIntervals, timeMs)
+                      setLayoutActionTimeMs(timeMs)
+                      setLayoutActionLayoutId(interval?.layoutId ?? show.routingLayouts[0]?.id ?? '')
+                      setLayoutActionError(null)
+                      setAddMenuOpen(false)
+                      setLayoutActionsOpen(true)
+                    }}
+                  >
+                    <Grid2X2 size={12} aria-hidden className="text-violet-300/75" />
+                    <span>Zone Layout</span>
+                  </button>
+                </ShowTimelineToolbarPopover>
+              )}
               {addClipOpen && (
                 <ShowTimelineToolbarPopover
-                  anchor={addClipPopoverAnchor}
-                  widthPx={224}
+                  anchor={addPopoverAnchor}
+                  widthPx={288}
                   ariaLabel="Add Clip at playhead"
-                  className="w-56 rounded border border-zinc-700 bg-zinc-950 p-2 shadow-2xl"
+                  className="w-[288px] rounded border border-zinc-700 bg-zinc-950 p-2.5 shadow-2xl"
                   onClick={(event) => event.stopPropagation()}
                 >
                   <div className="mb-1.5 flex items-center justify-between text-[9px] uppercase tracking-[0.1em] text-zinc-500">
-                    <span>New Clip</span>
+                    <span>Add Clip</span>
                     <span className="normal-case tabular-nums text-zinc-600">{formatShowTime(addClipTimeMs)}</span>
                   </div>
                   <PatternCombobox
@@ -3598,36 +3595,18 @@ function ShowTimelineWorkspace({
                     compact
                     onChange={setAddClipPatternKey}
                   />
-                  {addClipLayerOptions.length > 1 && (
-                    <label className="mt-2 grid grid-cols-[48px_minmax(0,1fr)] items-center gap-2 text-[10px] text-zinc-500">
-                      <span>Layer</span>
-                      <select
-                        aria-label="Destination Layer"
-                        className="h-7 min-w-0 rounded border border-zinc-700 bg-zinc-900 px-2 text-[11px] text-zinc-200 outline-none focus:border-live/70"
-                        value={addClipLayerOption?.key ?? 'main'}
-                        onChange={(event) => setAddClipLayerTargetKey(event.target.value)}
-                      >
-                        {addClipLayerOptions.map((option) => (
-                          <option key={option.key} value={option.key}>{option.label}</option>
-                        ))}
-                      </select>
-                    </label>
-                  )}
-                  {addClipPlan && !addClipPlan.enabled && (
-                    <p className="mt-1.5 text-[9px] leading-3 text-amber-200/75">{addClipPlan.reason}</p>
-                  )}
                   <div className="mt-2 flex justify-end gap-1">
                     <Button size="xs" variant="ghost" onClick={() => setAddClipOpen(false)}>Cancel</Button>
                     <Button
                       size="xs"
                       aria-label="Add Clip"
-                      disabled={!addClipPattern || !addClipPlan?.enabled}
+                      disabled={!addClipPattern || !addClipDestination}
                       onClick={() => {
-                        if (!addClipPattern || !addClipZoneId || !addClipLayerOption || !addClipPlan?.enabled) return
+                        if (!addClipPattern || !addClipZoneId || !addClipDestination) return
                         void onAddClipAtPlayhead({
                           zoneId: addClipZoneId,
                           globalTimeMs: addClipTimeMs,
-                          target: addClipLayerOption.target,
+                          target: addClipDestination.target,
                           pattern: addClipPattern.ref,
                           patternName: addClipPattern.label,
                         }).then((placementId) => {
@@ -3644,10 +3623,10 @@ function ShowTimelineWorkspace({
               )}
               {insertTimeOpen && (
                 <ShowTimelineToolbarPopover
-                  anchor={insertTimePopoverAnchor}
-                  widthPx={240}
+                  anchor={addPopoverAnchor}
+                  widthPx={288}
                   ariaLabel="Insert Time"
-                  className="w-60 rounded border border-zinc-700 bg-zinc-950 p-2 shadow-2xl"
+                  className="w-[288px] rounded border border-zinc-700 bg-zinc-950 p-2.5 shadow-2xl"
                   onClick={(event) => event.stopPropagation()}
                 >
                   <div className="mb-1.5 flex items-center justify-between text-[10px] uppercase tracking-[0.1em] text-zinc-500">
@@ -3686,10 +3665,10 @@ function ShowTimelineWorkspace({
               )}
               {layoutActionsOpen && (
                 <ShowTimelineToolbarPopover
-                  anchor={layoutActionsPopoverAnchor}
+                  anchor={addPopoverAnchor}
                   widthPx={288}
                   ariaLabel="Layout interval actions"
-                  className="w-72 rounded border border-zinc-700 bg-zinc-950 p-2.5 text-[12px] text-zinc-300 shadow-2xl"
+                  className="w-[288px] rounded border border-zinc-700 bg-zinc-950 p-2.5 text-[12px] text-zinc-300 shadow-2xl"
                   onClick={(event) => event.stopPropagation()}
                 >
                   <div className="mb-2 flex items-start justify-between gap-3">
@@ -5109,19 +5088,24 @@ function TimelineRuler({
 function ShowTimelineToolbarPopover({
   anchor,
   widthPx,
+  role = 'dialog',
   ariaLabel,
   className,
   children,
+  onDismiss,
   onClick,
 }: {
   anchor: HTMLElement | null
   widthPx: number
+  role?: 'dialog' | 'menu'
   ariaLabel: string
   className: string
   children: ReactNode
+  onDismiss?: () => void
   onClick?: (event: ReactMouseEvent<HTMLDivElement>) => void
 }) {
   const [position, setPosition] = useState({ left: 8, top: 8 })
+  const popoverRef = useRef<HTMLDivElement>(null)
 
   useLayoutEffect(() => {
     if (!anchor) return
@@ -5141,13 +5125,57 @@ function ShowTimelineToolbarPopover({
     }
   }, [anchor, widthPx])
 
+  useLayoutEffect(() => {
+    if (role !== 'menu') return
+    popoverRef.current
+      ?.querySelector<HTMLElement>('[role="menuitem"]:not(:disabled)')
+      ?.focus()
+  }, [role])
+
+  useEffect(() => {
+    if (!onDismiss) return
+    const handlePointerDown = (event: PointerEvent) => {
+      if (!(event.target instanceof Node)) return
+      if (popoverRef.current?.contains(event.target) || anchor?.contains(event.target)) return
+      onDismiss()
+    }
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key !== 'Escape') return
+      event.preventDefault()
+      onDismiss()
+      anchor?.focus()
+    }
+    document.addEventListener('pointerdown', handlePointerDown)
+    document.addEventListener('keydown', handleKeyDown)
+    return () => {
+      document.removeEventListener('pointerdown', handlePointerDown)
+      document.removeEventListener('keydown', handleKeyDown)
+    }
+  }, [anchor, onDismiss])
+
   if (!anchor || typeof document === 'undefined') return null
   return createPortal(
     <div
-      role="dialog"
+      ref={popoverRef}
+      role={role}
       aria-label={ariaLabel}
       className={`fixed z-[80] ${className}`}
       style={{ left: position.left, top: position.top }}
+      onKeyDown={(event) => {
+        if (role !== 'menu' || !['ArrowDown', 'ArrowUp', 'Home', 'End'].includes(event.key)) return
+        const items = [...event.currentTarget.querySelectorAll<HTMLElement>('[role="menuitem"]:not(:disabled)')]
+        if (items.length === 0) return
+        event.preventDefault()
+        const currentIndex = items.indexOf(document.activeElement as HTMLElement)
+        const nextIndex = event.key === 'Home'
+          ? 0
+          : event.key === 'End'
+            ? items.length - 1
+            : event.key === 'ArrowDown'
+              ? (currentIndex + 1 + items.length) % items.length
+              : (currentIndex - 1 + items.length) % items.length
+        items[nextIndex]?.focus()
+      }}
       onClick={onClick}
     >
       {children}

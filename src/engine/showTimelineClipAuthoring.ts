@@ -85,6 +85,29 @@ export function planShowMainClipAtGlobalTime(
   return planShowClipAtGlobalTime(show, composition, { ...input, target: { kind: 'main' } })
 }
 
+export function planShowClipAtTopmostAvailableLayer(
+  show: ShowRecord,
+  composition: ShowCompositionV1,
+  input: ShowMainClipAddLocation,
+): { target: ShowClipAddTarget; plan: Extract<ShowClipAddPlan, { enabled: true }> } | null {
+  const overlayCount = composition.scenes.reduce((maximum, scene) => {
+    const zone = scene.zones.find((candidate) => candidate.zoneId === input.zoneId)
+    return Math.max(maximum, zone?.overlays.length ?? 0)
+  }, 0)
+  const targets: ShowClipAddTarget[] = [
+    ...Array.from({ length: overlayCount }, (_, layerIndex) => ({
+      kind: 'overlay' as const,
+      layerIndex,
+    })),
+    { kind: 'main' },
+  ]
+  for (const target of targets) {
+    const plan = planShowClipAtGlobalTime(show, composition, { ...input, target })
+    if (plan.enabled) return { target, plan }
+  }
+  return null
+}
+
 export function planShowClipAtGlobalTime(
   show: ShowRecord,
   composition: ShowCompositionV1,

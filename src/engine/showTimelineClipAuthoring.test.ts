@@ -10,6 +10,7 @@ import {
   duplicateShowClipAfter,
   makeShowClipPatternIndependent,
   moveShowClipAtGlobalTime,
+  planShowClipAtTopmostAvailableLayer,
   planShowClipPatternRejoin,
   planShowClipAtGlobalTime,
   planShowMainClipAtGlobalTime,
@@ -97,6 +98,36 @@ describe('global timeline Clip authoring (#580)', () => {
       durationMs: 5_000,
       opacity: 1,
       view: { mirror: false, phase: 0, brightness: 1 },
+    })
+  })
+
+  it('chooses the topmost available Layer when a higher Layer is occupied (#594)', () => {
+    const show = createDefaultShow('show-auto-layer', 'Automatic layer', 1000)
+    const composition = emptyComposition(show)
+    composition.patternInstances.push({ ...instance, id: 'instance-occupied' })
+    composition.scenes[0].zones[0].overlays = [{
+      id: 'top-layer',
+      name: 'Top',
+      placements: [{
+        id: 'occupied',
+        instanceId: 'instance-occupied',
+        startMs: 0,
+        durationMs: 5_000,
+        opacity: 1,
+        view: { mirror: false, phase: 0, brightness: 1 },
+      }],
+    }, {
+      id: 'lower-layer',
+      name: 'Lower',
+      placements: [],
+    }]
+
+    expect(planShowClipAtTopmostAvailableLayer(show, composition, {
+      zoneId: show.zones[0].id,
+      globalTimeMs: 2_000,
+    })).toMatchObject({
+      target: { kind: 'overlay', layerIndex: 1 },
+      plan: { enabled: true, localStartMs: 2_000, durationMs: 5_000 },
     })
   })
 

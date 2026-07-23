@@ -146,7 +146,7 @@ describe('ShowEditor (#318)', () => {
     expect(within(view).getByRole('group', { name: 'Show navigator' })).toBeInTheDocument()
     expect(within(view).getByRole('button', { name: 'Fit timeline to Show' })).toBeDisabled()
     expect(within(authoring).getByRole('button', { name: 'Open Zones' })).toBeInTheDocument()
-    expect(within(authoring).getByRole('button', { name: 'Add Clip at playhead' })).toBeInTheDocument()
+    expect(within(authoring).getByRole('button', { name: 'Add to Show' })).toBeInTheDocument()
     expect(transport.compareDocumentPosition(view) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
     expect(view.compareDocumentPosition(authoring) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
   })
@@ -288,7 +288,8 @@ describe('ShowEditor (#318)', () => {
 
     render(<ShowEditor showId={show.id} />)
 
-    await user.click(screen.getByRole('button', { name: 'Layout interval actions' }))
+    await user.click(screen.getByRole('button', { name: 'Add to Show' }))
+    await user.click(screen.getByRole('menuitem', { name: 'Zone Layout' }))
     let dialog = screen.getByRole('dialog', { name: 'Layout interval actions' })
     expect(screen.getByTestId('show-timeline-toolbar')).not.toContainElement(dialog)
     expect(dialog).toHaveClass('fixed')
@@ -307,7 +308,8 @@ describe('ShowEditor (#318)', () => {
       ])
     })
 
-    await user.click(screen.getByRole('button', { name: 'Layout interval actions' }))
+    await user.click(screen.getByRole('button', { name: 'Add to Show' }))
+    await user.click(screen.getByRole('menuitem', { name: 'Zone Layout' }))
     dialog = screen.getByRole('dialog', { name: 'Layout interval actions' })
     await user.click(within(dialog).getByRole('button', { name: 'Append' }))
     await waitFor(() => {
@@ -325,7 +327,8 @@ describe('ShowEditor (#318)', () => {
 
     render(<ShowEditor showId={show.id} />)
 
-    await user.click(screen.getByRole('button', { name: 'Insert Time' }))
+    await user.click(screen.getByRole('button', { name: 'Add to Show' }))
+    await user.click(screen.getByRole('menuitem', { name: 'Time' }))
     const dialog = screen.getByRole('dialog', { name: 'Insert Time' })
     expect(within(dialog).getByText('Insert Time is unavailable inside a Transition.')).toBeInTheDocument()
     expect(within(dialog).getByRole('button', { name: 'Insert' })).toBeDisabled()
@@ -462,7 +465,8 @@ describe('ShowEditor (#318)', () => {
     useShowStore.setState({ shows: [show], activeShowId: show.id, showsLoaded: true })
 
     render(<ShowEditor showId={show.id} />)
-    await user.click(screen.getByRole('button', { name: 'Layout interval actions' }))
+    await user.click(screen.getByRole('button', { name: 'Add to Show' }))
+    await user.click(screen.getByRole('menuitem', { name: 'Zone Layout' }))
     let dialog = screen.getByRole('dialog', { name: 'Layout interval actions' })
     await user.click(within(dialog).getByRole('button', { name: 'Duplicate Layout' }))
 
@@ -473,7 +477,8 @@ describe('ShowEditor (#318)', () => {
     const reusedIntervals = projectShowLayoutIntervals(useShowStore.getState().shows[0])
     act(() => useShowTransportStore.getState().setPosition(show.id, reusedIntervals[1].startMs + 1))
 
-    await user.click(screen.getByRole('button', { name: 'Layout interval actions' }))
+    await user.click(screen.getByRole('button', { name: 'Add to Show' }))
+    await user.click(screen.getByRole('menuitem', { name: 'Zone Layout' }))
     dialog = screen.getByRole('dialog', { name: 'Layout interval actions' })
     expect(within(dialog).getByText(/Separate this occurrence from 1 other use/)).toBeInTheDocument()
     await user.click(within(dialog).getByRole('button', { name: /Make this Layout unique/i }))
@@ -488,7 +493,8 @@ describe('ShowEditor (#318)', () => {
     const unique = useShowStore.getState().shows[0]
     const uniqueInterval = projectShowLayoutIntervals(unique)[1]
     act(() => useShowTransportStore.getState().setPosition(unique.id, uniqueInterval.startMs + 1))
-    await user.click(screen.getByRole('button', { name: 'Add Clip at playhead' }))
+    await user.click(screen.getByRole('button', { name: 'Add to Show' }))
+    await user.click(screen.getByRole('menuitem', { name: 'Clip' }))
     const addDialog = screen.getByRole('dialog', { name: 'Add Clip at playhead' })
 
     await user.click(within(addDialog).getByRole('button', { name: 'Add Clip' }))
@@ -1028,7 +1034,8 @@ describe('ShowEditor (#318)', () => {
     useShowStore.setState({ shows: [show], activeShowId: show.id, showsLoaded: true })
 
     render(<ShowEditor showId={show.id} />)
-    await user.click(screen.getByRole('button', { name: 'Add Clip at playhead' }))
+    await user.click(screen.getByRole('button', { name: 'Add to Show' }))
+    await user.click(screen.getByRole('menuitem', { name: 'Clip' }))
 
     const addDialog = screen.getByRole('dialog', { name: 'Add Clip at playhead' })
     expect(within(addDialog).getByRole('combobox', { name: 'Pattern for new Clip' })).toBeInTheDocument()
@@ -1053,6 +1060,61 @@ describe('ShowEditor (#318)', () => {
     await waitFor(() => expect(screen.getByRole('dialog', { name: 'Entity Detail Panel' })).toBeInTheDocument())
     fireEvent.pointerDown(screen.getByRole('region', { name: 'Show timeline' }))
     expect(screen.queryByRole('dialog', { name: 'Entity Detail Panel' })).not.toBeInTheDocument()
+  })
+
+  it('adds a Clip to the topmost available Layer without asking for a destination (#594)', async () => {
+    const user = userEvent.setup()
+    const show = createDefaultShow('show-auto-add-layer', 'Automatic Add Layer', 1000)
+    const zoneId = show.zones[0].id
+    show.composition = {
+      version: 1,
+      patternInstances: [{
+        id: 'instance-occupied-top',
+        pattern: { ...show.cells[0].pattern },
+        patternName: 'Occupied top',
+        time: { timeScale: 1, timeOffsetMs: 0 },
+      }],
+      scenes: show.scenes.map((scene, sceneIndex) => ({
+        sceneId: scene.id,
+        zones: [{
+          zoneId,
+          main: [],
+          overlays: [{
+            id: `top-${scene.id}`,
+            name: 'Top',
+            placements: sceneIndex === 0 ? [{
+              id: 'occupied-top',
+              instanceId: 'instance-occupied-top',
+              startMs: 0,
+              durationMs: 5_000,
+              opacity: 1,
+              view: { mirror: false, phase: 0, brightness: 1 },
+            }] : [],
+          }, {
+            id: `lower-${scene.id}`,
+            name: 'Lower',
+            placements: [],
+          }],
+        }],
+      })),
+    }
+    setPersonalContentProvider(memoryProvider([show]))
+    useShowStore.setState({ shows: [show], activeShowId: show.id, showsLoaded: true })
+
+    render(<ShowEditor showId={show.id} />)
+    await user.click(screen.getByRole('button', { name: 'Add to Show' }))
+    await user.click(screen.getByRole('menuitem', { name: 'Clip' }))
+
+    const addDialog = screen.getByRole('dialog', { name: 'Add Clip at playhead' })
+    expect(within(addDialog).queryByRole('combobox', { name: 'Destination Layer' })).not.toBeInTheDocument()
+    await user.click(within(addDialog).getByRole('button', { name: 'Add Clip' }))
+
+    await waitFor(() => {
+      const saved = useShowStore.getState().shows.find((candidate) => candidate.id === show.id)!
+      expect(saved.composition?.scenes[0].zones[0].overlays[0].placements).toHaveLength(1)
+      expect(saved.composition?.scenes[0].zones[0].overlays[1].placements).toHaveLength(1)
+      expect(saved.composition?.scenes[0].zones[0].main).toEqual([])
+    })
   })
 
   it('keeps the selected Clip ring above the lit Clip surface (#592)', async () => {
@@ -1343,6 +1405,41 @@ describe('ShowEditor (#318)', () => {
     expect(remove).toHaveAttribute('title', 'A Show must contain at least one Clip.')
   })
 
+  it('consolidates Show creation commands into one flat Add menu (#594)', async () => {
+    const user = userEvent.setup()
+    const show = createDefaultShow('show-add-menu', 'Add menu', 1000)
+    setPersonalContentProvider(memoryProvider([show]))
+    useShowStore.setState({ shows: [show], activeShowId: show.id, showsLoaded: true })
+
+    render(<ShowEditor showId={show.id} />)
+
+    expect(screen.queryByRole('button', { name: 'Add Clip at playhead' })).not.toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'Add Layer' })).not.toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'Insert Time' })).not.toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'Layout interval actions' })).not.toBeInTheDocument()
+
+    await user.click(screen.getByRole('button', { name: 'Add to Show' }))
+    const menu = screen.getByRole('menu', { name: 'Add to Show' })
+    expect(within(menu).getAllByRole('menuitem').map((item) => item.textContent)).toEqual([
+      'ClipNo empty Layer',
+      'Layer',
+      'Time',
+      'Zone Layout',
+    ])
+    const disabledClip = within(menu).getByRole('menuitem', { name: 'Clip unavailable: no empty Layer' })
+    expect(disabledClip).toBeDisabled()
+    expect(disabledClip).not.toHaveAttribute('title')
+    expect(within(disabledClip).getByText('No empty Layer')).toHaveClass('text-zinc-600')
+    expect(within(menu).getByRole('menuitem', { name: 'Layer' })).toHaveFocus()
+
+    await user.keyboard('{ArrowDown}')
+    expect(within(menu).getByRole('menuitem', { name: 'Time' })).toHaveFocus()
+
+    await user.keyboard('{Escape}')
+    expect(screen.queryByRole('menu', { name: 'Add to Show' })).not.toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Add to Show' })).toHaveFocus()
+  })
+
   it('adds an explicit Layer to the selected Zone across the unified timeline (#580)', async () => {
     const user = userEvent.setup()
     const show = createDefaultShow('show-add-layer-ui', 'Add layer UI', 1000)
@@ -1358,25 +1455,19 @@ describe('ShowEditor (#318)', () => {
     useShowStore.setState({ shows: [show], activeShowId: show.id, showsLoaded: true })
 
     render(<ShowEditor showId={show.id} />)
-    await user.click(screen.getByRole('button', { name: 'Add Layer' }))
+    await user.click(screen.getByRole('button', { name: 'Add to Show' }))
+    await user.click(screen.getByRole('menuitem', { name: 'Layer' }))
 
     await waitFor(() => {
       const saved = useShowStore.getState().shows.find((candidate) => candidate.id === show.id)
       expect(saved?.composition?.scenes.every((scene) => scene.zones[0].overlays.length === 1)).toBe(true)
     })
     expect(document.querySelectorAll('[data-show-layer-kind="overlay"]')).toHaveLength(1)
-
-    const addDialog = await screen.findByRole('dialog', { name: 'Add Clip at playhead' })
-    const layerPicker = within(addDialog).getByRole('combobox', { name: 'Destination Layer' })
-    expect(layerPicker).toHaveValue('overlay:0')
-    expect(within(layerPicker).getAllByRole('option').map((option) => option.textContent)).toEqual(['Layer 1', 'Main'])
-
-    await user.click(within(addDialog).getByRole('button', { name: 'Add Clip' }))
-    await waitFor(() => {
-      const saved = useShowStore.getState().shows.find((candidate) => candidate.id === show.id)
-      expect(saved?.composition?.scenes[0].zones[0].main).toEqual([])
-      expect(saved?.composition?.scenes[0].zones[0].overlays[0].placements).toHaveLength(1)
-    })
+    expect(screen.queryByRole('dialog', { name: 'Add Clip at playhead' })).not.toBeInTheDocument()
+    const saved = useShowStore.getState().shows.find((candidate) => candidate.id === show.id)
+    expect(saved?.composition?.scenes.every((scene) => (
+      scene.zones[0].overlays[0].placements.length === 0
+    ))).toBe(true)
   })
 
   it('splits and duplicates the selected composition Clip from timeline commands (#580)', async () => {
