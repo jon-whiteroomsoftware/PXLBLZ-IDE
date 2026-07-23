@@ -764,6 +764,7 @@ describe('ShowSceneZoneEditor (#487)', () => {
 
     fireEvent.click(screen.getAllByRole('button', { name: 'Select TestPattern1D Main clip' })[0])
     expect(screen.getByRole('dialog', { name: 'Entity Detail Panel' })).toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'Pin Entity Detail Panel' })).not.toBeInTheDocument()
     expect(screen.getByRole('region', { name: 'Clip properties' })).toBeInTheDocument()
     expect(screen.queryByRole('combobox', { name: 'Hold scenes' })).not.toBeInTheDocument()
     const chooser = screen.getByRole('combobox', { name: 'Source pattern' })

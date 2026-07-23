@@ -1,7 +1,16 @@
 import { describe, expect, it } from 'vitest'
-import { studioControlOwnsKeyboardEvent } from './keyboardShortcuts'
+import { claimStudioPreviewSpace, studioControlOwnsKeyboardEvent } from './keyboardShortcuts'
 
 describe('studioControlOwnsKeyboardEvent', () => {
+  it('lets only one preview surface claim a Space keydown', () => {
+    const event = new KeyboardEvent('keydown', { code: 'Space', cancelable: true })
+
+    expect(claimStudioPreviewSpace(event)).toBe(true)
+    expect(event.defaultPrevented).toBe(true)
+    expect(claimStudioPreviewSpace(event)).toBe(false)
+    expect(claimStudioPreviewSpace(new KeyboardEvent('keydown', { code: 'KeyA' }))).toBe(false)
+  })
+
   it.each(['input', 'textarea', '[role="textbox"]'])(
     'keeps Space with %s text-entry controls',
     (selector) => {

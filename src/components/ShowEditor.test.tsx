@@ -122,14 +122,70 @@ describe('ShowEditor (#318)', () => {
 
     const timeline = screen.getByRole('region', { name: 'Show timeline' })
     const toolbar = within(timeline).getByRole('toolbar', { name: 'Show timeline controls' })
+    expect(toolbar).toHaveClass('flex-nowrap', 'overflow-x-auto')
+    expect(toolbar).not.toHaveClass('flex-wrap')
     expect(within(toolbar).getByRole('group', { name: 'Show navigator' })).toBeInTheDocument()
     expect(within(timeline).getByRole('slider', { name: 'Show playhead' })).toBeInTheDocument()
     expect(within(timeline).getAllByRole('button', { name: 'Select TestPattern1D' })).not.toHaveLength(0)
     expect(within(timeline).queryByRole('button', { name: 'Add scene' })).not.toBeInTheDocument()
     expect(within(timeline).queryByRole('button', { name: 'Edit Scene 1' })).not.toBeInTheDocument()
     expect(within(timeline).queryByText('X-ray')).not.toBeInTheDocument()
+    expect(within(timeline).queryByRole('group', { name: 'Transition lane' })).not.toBeInTheDocument()
+    expect(within(timeline).queryByText('Show time')).not.toBeInTheDocument()
     expect(within(timeline).queryByRole('group', { name: 'Timeline zoom controls' })).not.toBeInTheDocument()
     expect(within(timeline).queryByRole('button', { name: /Select zone/i })).not.toBeInTheDocument()
+  })
+
+  it('orders the unified toolbar as transport, Navigator/Fit, then authoring commands (#592)', () => {
+    const show = createDefaultShow('show-unified-toolbar', 'Unified toolbar', 1000)
+    useShowStore.setState({ shows: [show], activeShowId: show.id, showsLoaded: true })
+
+    render(<ShowEditor showId={show.id} unifiedTimeline />)
+
+    const toolbar = screen.getByRole('toolbar', { name: 'Show timeline controls' })
+    const transport = within(toolbar).getByRole('group', { name: 'Show transport controls' })
+    const view = within(toolbar).getByRole('group', { name: 'Timeline view controls' })
+    const authoring = within(toolbar).getByRole('group', { name: 'Show authoring commands' })
+
+    expect(within(view).getByRole('group', { name: 'Show navigator' })).toBeInTheDocument()
+    expect(within(view).getByRole('button', { name: 'Fit timeline to Show' })).toBeDisabled()
+    expect(within(authoring).getByRole('button', { name: 'Open Zones' })).toBeInTheDocument()
+    expect(within(authoring).getByRole('button', { name: 'Add Clip at playhead' })).toBeInTheDocument()
+    expect(transport.compareDocumentPosition(view) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
+    expect(view.compareDocumentPosition(authoring) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
+  })
+
+  it('keeps the ruler and timeline overlays aligned with Clips in the final Scene (#588)', () => {
+    const show = createDefaultShow('show-unified-time-canvas', 'Unified time canvas', 1000)
+    useShowStore.setState({ shows: [show], activeShowId: show.id, showsLoaded: true })
+
+    render(<ShowEditor showId={show.id} unifiedTimeline />)
+
+    const finalClip = screen.getByRole('button', { name: 'Select CometLoom' })
+    const clipTimeCanvas = finalClip.parentElement
+    const ruler = screen.getByRole('slider', { name: 'Show playhead' }).parentElement
+    const markers = screen.getByLabelText('Timeline Markers and Show End')
+    const playheadOverlay = screen.getByTestId('show-timeline-playhead-surface')
+    const grid = screen.getByTestId('show-timeline-grid')
+    const scrollRegion = screen.getByTestId('show-timeline-scroll-region')
+    const showEnd = screen.getByRole('button', { name: 'Show End at 62 seconds' })
+    const showEndHandle = screen.getByTestId('show-timeline-end-handle')
+
+    expect(clipTimeCanvas).not.toBeNull()
+    expect(ruler).not.toBeNull()
+    expect(ruler?.style.gridColumn).toBe(clipTimeCanvas?.style.gridColumn)
+    expect(markers.style.gridColumn).toBe(clipTimeCanvas?.style.gridColumn)
+    expect(ruler).toHaveTextContent('Default · main')
+    expect(clipTimeCanvas).not.toHaveTextContent('Default · main')
+    expect(grid.style.minWidth).toBe('0px')
+    expect(grid).toHaveClass('isolate')
+    expect(scrollRegion).toHaveClass('scrollbar-hidden')
+    expect(playheadOverlay).toHaveClass('z-30')
+    expect(playheadOverlay.style.gridRowStart).toBe(ruler?.style.gridRowStart)
+    expect(markers).toHaveClass('z-[35]')
+    expect(showEnd).toHaveClass('right-0')
+    expect(showEnd).not.toHaveClass('translate-x-1/2')
+    expect(showEndHandle).toHaveClass('right-[2px]', 'top-[2px]', 'border')
   })
 
   it('persists deterministic loop semantics when the unified Timeline first materializes a composition (#586)', async () => {
@@ -196,6 +252,7 @@ describe('ShowEditor (#318)', () => {
     await user.click(within(timeline).getByRole('button', { name: 'Close Zones' }))
     expect(within(timeline).queryByRole('dialog', { name: 'Zone Map' })).not.toBeInTheDocument()
     expect(within(timeline).getAllByRole('button', { name: /^Focus zone / })).toHaveLength(2)
+    expect(within(timeline).queryByText('Show time')).not.toBeInTheDocument()
     await user.click(within(timeline).getByRole('button', { name: 'Focus zone accent' }))
     expect(useShowEditorSessionStore.getState()).toMatchObject({
       collapsedZoneIdsByShowId: { [show.id]: ['zone-1'] },
@@ -547,6 +604,11 @@ describe('ShowEditor (#318)', () => {
     })
 
     await user.keyboard('{Escape}')
+    expect(screen.queryByRole('dialog', { name: 'Entity Detail Panel' })).not.toBeInTheDocument()
+    expect(screen.getByRole('status', { name: 'Group isolation: Pulse phrase' })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Select Outside' })).toHaveAttribute('aria-disabled', 'true')
+
+    await user.keyboard('{Escape}')
     expect(screen.queryByRole('status', { name: 'Group isolation: Pulse phrase' })).not.toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'Select Outside' })).not.toHaveAttribute('aria-disabled')
 
@@ -675,7 +737,9 @@ describe('ShowEditor (#318)', () => {
 
     render(<ShowEditor showId={show.id} unifiedTimeline />)
 
-    await user.click(screen.getByRole('button', { name: 'Edit Cut between Cut source and Cut source' }))
+    const cut = screen.getByRole('button', { name: 'Edit Cut between Cut source and Cut source' })
+    expect(cut).toHaveClass('z-[15]')
+    await user.click(cut)
     const palette = screen.getByRole('dialog', { name: 'Choose Layer Transition' })
     expect(within(palette).getByRole('spinbutton', { name: 'Transition duration in seconds' })).toHaveValue(2)
     await user.click(within(palette).getByRole('button', { name: 'Use Crossfade Transition' }))
@@ -809,6 +873,8 @@ describe('ShowEditor (#318)', () => {
     })
     await user.click(clip)
     expect(screen.getByRole('dialog', { name: 'Entity Detail Panel' })).toBeInTheDocument()
+    await user.click(screen.getByRole('button', { name: 'Pin Entity Detail Panel' }))
+    expect(screen.getByRole('dialog', { name: 'Entity Detail Panel' })).toHaveAttribute('data-pinned', 'true')
 
     const dataTransfer = { setData: () => {}, effectAllowed: 'none', dropEffect: 'none' }
     const dragEvent = (type: string, clientX: number) => {
@@ -830,7 +896,8 @@ describe('ShowEditor (#318)', () => {
       const saved = useShowStore.getState().shows.find((candidate) => candidate.id === show.id)
       expect(saved?.composition?.scenes[0].zones[0].main[0].startMs).not.toBe(2_000)
     })
-    expect(screen.getByRole('dialog', { name: 'Entity Detail Panel' })).toBeInTheDocument()
+    expect(screen.getAllByRole('dialog', { name: 'Entity Detail Panel' })).toHaveLength(1)
+    expect(screen.getByRole('dialog', { name: 'Entity Detail Panel' })).toHaveAttribute('data-pinned', 'true')
   })
 
   it('moves a composition Clip between Zone Layers without duplicating it (#581)', async () => {
@@ -892,6 +959,30 @@ describe('ShowEditor (#318)', () => {
       expect(saved.composition?.scenes[0].zones[1].main).toHaveLength(1)
       expect(saved.composition?.patternInstances).toHaveLength(1)
     })
+    expect(screen.queryByRole('dialog', { name: 'Entity Detail Panel' })).not.toBeInTheDocument()
+
+    const movedClip = screen.getByRole('button', { name: 'Select Zone Traveler' })
+    Object.defineProperty(movedClip, 'getBoundingClientRect', {
+      value: () => ({ left: 20, right: 60, top: 40, bottom: 80, width: 40, height: 40, x: 20, y: 40, toJSON: () => ({}) }),
+    })
+    Object.defineProperty(layers[0], 'getBoundingClientRect', {
+      value: () => ({ left: 0, right: 620, top: 0, bottom: 40, width: 620, height: 40, x: 0, y: 0, toJSON: () => ({}) }),
+    })
+    await userEvent.setup().click(movedClip)
+    expect(screen.getByRole('dialog', { name: 'Entity Detail Panel' })).toHaveAttribute('data-owner-key', 'clip:placement-drag-zone')
+
+    fireEvent(movedClip, dragEvent('dragstart', 20))
+    fireEvent(layers[0], dragEvent('dragover', 100))
+    fireEvent(layers[0], dragEvent('drop', 100))
+    fireEvent(movedClip, dragEvent('dragend', 100))
+
+    await waitFor(() => {
+      const saved = useShowStore.getState().shows.find((candidate) => candidate.id === show.id)!
+      expect(saved.composition?.scenes[0].zones[0].main).toHaveLength(1)
+      expect(saved.composition?.scenes[0].zones[1].main).toEqual([])
+    })
+    await waitFor(() => expect(screen.getByRole('dialog', { name: 'Entity Detail Panel' }))
+      .toHaveAttribute('data-owner-key', 'clip:placement-drag-zone'))
   })
 
   it('resizes a composition Clip edge and restores its attached Detail (#580)', async () => {
@@ -976,6 +1067,8 @@ describe('ShowEditor (#318)', () => {
 
     render(<ShowEditor showId={show.id} unifiedTimeline />)
     await user.click(screen.getByRole('button', { name: 'Select Disposable Rings' }))
+    await user.click(screen.getByRole('button', { name: 'Pin Entity Detail Panel' }))
+    expect(screen.getByRole('dialog', { name: 'Entity Detail Panel' })).toHaveAttribute('data-pinned', 'true')
     fireEvent.keyDown(document, { key: 'Delete' })
 
     await waitFor(() => {
@@ -983,6 +1076,7 @@ describe('ShowEditor (#318)', () => {
       expect(saved?.composition?.scenes[0].zones[0].main).toEqual([])
     })
     expect(screen.queryByRole('button', { name: 'Select Disposable Rings' })).not.toBeInTheDocument()
+    expect(screen.queryByRole('dialog', { name: 'Entity Detail Panel' })).not.toBeInTheDocument()
   })
 
   it('adds an explicit Layer to the selected Zone across the unified timeline (#580)', async () => {
@@ -1496,6 +1590,7 @@ describe('ShowEditor (#318)', () => {
     render(<ShowEditor showId={show.id} />)
 
     expect(screen.getByTestId('show-editor-scroll')).toHaveClass('overflow-auto', 'scrollbar-hidden')
+    expect(screen.getByTestId('show-compile-bar')).toHaveClass('overflow-x-auto', 'scrollbar-hidden')
   })
 
   it('reserves Space for Show playback across Timeline toolbar controls', () => {
@@ -1587,33 +1682,68 @@ describe('ShowEditor (#318)', () => {
     expect(usePreviewStore.getState().isRunning).toBe(false)
   })
 
-  it('seeks by one second and Home with clamping while preserving playback (#439)', () => {
+  it('seeks to Show start with A while preserving playback (#588)', () => {
     const show = createDefaultShow('show-keyboard-seek', 'Keyboard seek', 1000)
     useShowStore.setState({ shows: [show], activeShowId: show.id, showsLoaded: true })
     render(<ShowEditor showId={show.id} />)
-    const transport = useShowTransportStore.getState()
-
-    usePreviewStore.setState({ isRunning: false })
-    transport.setPosition(show.id, 500)
-    fireEvent.keyDown(document, { key: 'ArrowLeft' })
-    expect(useShowTransportStore.getState().seekRequest).toMatchObject({ targetMs: 0 })
-    expect(usePreviewStore.getState().isRunning).toBe(false)
 
     usePreviewStore.setState({ isRunning: true })
     useShowTransportStore.getState().setPosition(show.id, 61_500)
-    fireEvent.keyDown(document, { key: 'ArrowRight' })
-    expect(useShowTransportStore.getState().seekRequest).toMatchObject({ targetMs: 62_000 })
-    expect(usePreviewStore.getState().isRunning).toBe(true)
-
-    fireEvent.keyDown(document, { key: 'Home' })
+    fireEvent.keyDown(document, { key: 'a', metaKey: true })
+    expect(useShowTransportStore.getState().seekRequest).toBeNull()
+    fireEvent.keyDown(document, { key: 'a' })
     expect(useShowTransportStore.getState().seekRequest).toMatchObject({ targetMs: 0 })
     expect(usePreviewStore.getState().isRunning).toBe(true)
     const goToStart = screen.getByRole('button', { name: 'Go to Show start' })
-    expect(goToStart).toHaveAttribute('title', 'Go to Show start (Home)')
+    expect(goToStart).toHaveAttribute('title', 'Go to Show start (A)')
     useShowTransportStore.getState().setPosition(show.id, 5_000)
     fireEvent.click(goToStart)
     expect(useShowTransportStore.getState().seekRequest).toMatchObject({ targetMs: 0 })
     expect(usePreviewStore.getState().isRunning).toBe(true)
+  })
+
+  it('pans one visible timeline page with arrows while a Clip owns focus (#588)', () => {
+    const show = createDefaultShow('show-keyboard-pan', 'Keyboard pan', 1000)
+    useShowStore.setState({ shows: [show], activeShowId: show.id, showsLoaded: true })
+    render(<ShowEditor showId={show.id} unifiedTimeline />)
+
+    fireEvent.keyDown(screen.getByRole('button', { name: 'Resize visible range end' }), { key: 'ArrowLeft' })
+    const navigator = screen.getByRole('slider', { name: 'Pan visible timeline range' })
+    const clip = screen.getByRole('button', { name: 'Select TestPattern1D' })
+    clip.focus()
+    fireEvent.keyDown(clip, { key: 'ArrowRight' })
+
+    expect(Number(navigator.getAttribute('aria-valuenow'))).toBeGreaterThan(0)
+    expect(useShowTransportStore.getState().seekRequest).toBeNull()
+  })
+
+  it('traverses Clips in timeline order with Tab and Shift-Tab and wraps (#588)', () => {
+    const show = createDefaultShow('show-keyboard-traversal', 'Keyboard traversal', 1000)
+    useShowStore.setState({ shows: [show], activeShowId: show.id, showsLoaded: true })
+    render(<ShowEditor showId={show.id} unifiedTimeline />)
+
+    const first = screen.getByRole('button', { name: 'Select TestPattern1D' })
+    const second = screen.getByRole('button', { name: 'Select CometLoom' })
+    first.focus()
+
+    fireEvent.keyDown(first, { key: 'Tab' })
+    expect(document.activeElement).toBe(second)
+    fireEvent.keyDown(second, { key: 'Tab' })
+    expect(document.activeElement).toBe(first)
+    fireEvent.keyDown(first, { key: 'Tab', shiftKey: true })
+    expect(document.activeElement).toBe(second)
+  })
+
+  it('leaves native Tab traversal intact inside the Timeline toolbar (#592)', () => {
+    const show = createDefaultShow('show-toolbar-tab', 'Toolbar Tab', 1000)
+    useShowStore.setState({ shows: [show], activeShowId: show.id, showsLoaded: true })
+    render(<ShowEditor showId={show.id} unifiedTimeline />)
+
+    const zones = screen.getByRole('button', { name: 'Open Zones' })
+    zones.focus()
+
+    expect(fireEvent.keyDown(zones, { key: 'Tab' })).toBe(true)
+    expect(document.activeElement).toBe(zones)
   })
 
   it('reserves Space for Show playback after a transport button retains focus', async () => {
@@ -1912,7 +2042,7 @@ describe('ShowEditor (#318)', () => {
     })
   })
 
-  it('keeps Snap durable and excludes editable controls from Show undo shortcuts (#470)', async () => {
+  it('keeps Snap durable and leaves platform editing shortcuts owned by editable controls (#470, #588)', async () => {
     const user = userEvent.setup()
     const show = createDefaultShow('show-470-shortcuts', 'Shortcuts', 1000)
     setPersonalContentProvider(memoryProvider([show]))
@@ -1927,6 +2057,10 @@ describe('ShowEditor (#318)', () => {
 
     const name = screen.getByRole('textbox', { name: 'Scene name' })
     name.focus()
+    expect(fireEvent.keyDown(name, { key: 'x', metaKey: true })).toBe(true)
+    expect(fireEvent.keyDown(name, { key: 'c', metaKey: true })).toBe(true)
+    expect(fireEvent.keyDown(name, { key: 'v', metaKey: true })).toBe(true)
+    expect(useShowStore.getState().shows[0].scenes).toHaveLength(3)
     fireEvent.keyDown(name, { key: 'z', metaKey: true })
     expect(useShowStore.getState().shows[0].scenes).toHaveLength(3)
     fireEvent.keyDown(document.body, { key: 'z', metaKey: true })
@@ -2135,9 +2269,11 @@ describe('ShowEditor (#318)', () => {
     const navigator = screen.getByRole('slider', { name: 'Pan visible timeline range' })
     expect(screen.getByRole('group', { name: 'Show navigator' })).toBeInTheDocument()
     expect(navigator).toHaveStyle({ width: '100%' })
+    expect(screen.getByRole('button', { name: 'Fit timeline to Show' })).toBeDisabled()
 
     await user.click(screen.getByRole('button', { name: 'Zoom timeline in' }))
     expect(navigator).toHaveStyle({ width: '80%' })
+    expect(screen.getByRole('button', { name: 'Fit timeline to Show' })).toBeEnabled()
     expect(playhead).toHaveValue('10000')
     expect(split).toBeEnabled()
 
@@ -2150,6 +2286,7 @@ describe('ShowEditor (#318)', () => {
     expect(navigator).toHaveStyle({ width: '100%' })
     expect(navigator).toHaveAttribute('aria-valuenow', '0')
     expect(playhead).toHaveValue('10000')
+    expect(screen.getByRole('button', { name: 'Fit timeline to Show' })).toBeDisabled()
   })
 
   it('leaves ordinary vertical wheel input available to the Show editor scroll owner (#476)', () => {
@@ -2925,7 +3062,10 @@ describe('ShowEditor (#318)', () => {
     expect(screen.queryByRole('dialog', { name: 'Entity Detail Panel' })).not.toBeInTheDocument()
     const clip = screen.getAllByRole('button', { name: /Select TestPattern1D/i })[0]
     await user.click(clip)
-    expect(screen.getByRole('dialog', { name: 'Entity Detail Panel' })).toHaveAttribute('data-owner-key', `clip:${show.cells[0].id}`)
+    expect(screen.getByRole('dialog', { name: 'Entity Detail Panel' }))
+      .toHaveAttribute('data-owner-key', `clip:${show.cells[0].id}`)
+    expect(screen.getByRole('dialog', { name: 'Entity Detail Panel' }))
+      .toHaveClass('w-[min(340px,calc(100vw-16px))]')
     expect(screen.getByTestId('show-entity-detail-stem')).toBeInTheDocument()
     expect(screen.getByRole('heading', { name: 'TestPattern1D' })).toBeInTheDocument()
 
@@ -2944,6 +3084,38 @@ describe('ShowEditor (#318)', () => {
     await user.click(screen.getByRole('button', { name: 'Show properties' }))
     expect(screen.getByRole('dialog', { name: 'Entity Detail Panel' })).toHaveAttribute('data-owner-key', 'show')
     await user.click(screen.getByText('Show time'))
+    expect(screen.queryByRole('dialog', { name: 'Entity Detail Panel' })).not.toBeInTheDocument()
+  })
+
+  it('pins one Entity Detail for comparison while one transient Detail follows selection (#592)', async () => {
+    const user = userEvent.setup()
+    const show = createDefaultShow('show-pinned-entity-detail', 'Pinned Entity detail', 1000)
+    useShowStore.setState({ shows: [show], activeShowId: show.id, showsLoaded: true })
+
+    render(<ShowEditor showId={show.id} />)
+
+    const clip = screen.getAllByRole('button', { name: /Select TestPattern1D/i })[0]
+    await user.click(clip)
+    const transient = screen.getByRole('dialog', { name: 'Entity Detail Panel' })
+    await user.click(within(transient).getByRole('button', { name: 'Pin Entity Detail Panel' }))
+
+    const pinned = screen.getByRole('dialog', { name: 'Entity Detail Panel' })
+    expect(pinned).toHaveAttribute('data-pinned', 'true')
+    expect(pinned).toHaveAttribute('data-owner-key', `clip:${show.cells[0].id}`)
+
+    await user.click(screen.getByRole('group', { name: 'Scene Scene 1' }))
+    const details = screen.getAllByRole('dialog', { name: 'Entity Detail Panel' })
+    expect(details).toHaveLength(2)
+    expect(details.map((detail) => detail.getAttribute('data-owner-key'))).toEqual([
+      `clip:${show.cells[0].id}`,
+      `scene:${show.scenes[0].id}`,
+    ])
+
+    await user.click(screen.getByText('Show time'))
+    expect(screen.getAllByRole('dialog', { name: 'Entity Detail Panel' })).toHaveLength(1)
+    expect(screen.getByRole('dialog', { name: 'Entity Detail Panel' })).toHaveAttribute('data-pinned', 'true')
+
+    await user.click(within(screen.getByRole('dialog', { name: 'Entity Detail Panel' })).getByRole('button', { name: 'Unpin Entity Detail Panel' }))
     expect(screen.queryByRole('dialog', { name: 'Entity Detail Panel' })).not.toBeInTheDocument()
   })
 

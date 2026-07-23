@@ -1,4 +1,13 @@
 const TEXT_INPUT_TYPES = new Set(['text', 'search', 'email', 'password', 'tel', 'url'])
+const claimedPreviewSpaceEvents = new WeakSet<KeyboardEvent>()
+
+/** A Space keydown may cross nested preview surfaces, but it toggles playback once. */
+export function claimStudioPreviewSpace(event: KeyboardEvent): boolean {
+  if (event.defaultPrevented || event.code !== 'Space' || claimedPreviewSpaceEvents.has(event)) return false
+  claimedPreviewSpaceEvents.add(event)
+  event.preventDefault()
+  return true
+}
 
 export function studioControlOwnsKeyboardEvent(target: EventTarget | null): boolean {
   if (!(target instanceof HTMLElement)) return false

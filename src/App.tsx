@@ -1,5 +1,5 @@
 import { useState, useCallback, useMemo, useRef, useEffect, useLayoutEffect } from 'react'
-import { Braces, Code2, Cpu, Images, Lock, LogIn, Map as MapIcon, PanelsTopLeft } from 'lucide-react'
+import { Braces, Code2, Cpu, Images, Lock, LogIn, Map as MapIcon, PanelsTopLeft, X } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import {
   AlertDialogRoot,
@@ -79,7 +79,7 @@ import { applyShowReferencePattern } from '@/engine/showReferenceShow'
 import { useShowEditorSessionStore } from '@/store/showEditorSessionStore'
 import { InlineEntityTitle } from '@/components/InlineEntityTitle'
 import { usePreviewStore } from '@/store/previewStore'
-import { studioControlOwnsKeyboardEvent } from '@/engine/keyboardShortcuts'
+import { claimStudioPreviewSpace, studioControlOwnsKeyboardEvent } from '@/engine/keyboardShortcuts'
 import { buildPatternEpeExport } from '@/engine/patternEpeExport'
 import { buildPreviewJpeg } from '@/engine/previewThumbnailJpeg'
 import { bytesToBase64 } from '@/engine/RelayWebSocket'
@@ -355,18 +355,39 @@ function StudioApp() {
   })
   const [showHeaderActionsTarget, setShowHeaderActionsTarget] = useState<HTMLSpanElement | null>(null)
   const [showHeaderGuideTarget, setShowHeaderGuideTarget] = useState<HTMLSpanElement | null>(null)
+  const [showStageOverlayShowId, setShowStageOverlayShowId] = useState<string | null>(null)
+  const [narrowShowWorkspace, setNarrowShowWorkspace] = useState(() => window.innerWidth <= 980)
+  const showStageReturnFocusRef = useRef<HTMLElement | null>(null)
+  const closeShowStageOverlay = useCallback(() => {
+    setShowStageOverlayShowId(null)
+    const returnFocus = showStageReturnFocusRef.current
+    window.setTimeout(() => {
+      if (returnFocus?.isConnected) returnFocus.focus()
+    }, 0)
+  }, [])
+  useEffect(() => {
+    const handleResize = () => {
+      const narrow = window.innerWidth <= 980
+      setNarrowShowWorkspace(narrow)
+      if (!narrow) setShowStageOverlayShowId(null)
+    }
+    window.addEventListener('resize', handleResize)
+    return () => window.removeEventListener('resize', handleResize)
+  }, [])
   useEffect(() => {
     // Not in the Gallery grid, where no single preview has focus.
     if (route.kind !== 'studio' && route.kind !== 'pattern-detail') return
+    // The Show editor owns a richer Space/A/arrow model. Registering this
+    // generic preview listener as well would toggle playback twice.
+    if (route.kind === 'studio' && route.entity?.kind === 'shows') return
     const togglePreviewWithSpace = (event: KeyboardEvent) => {
-      if (event.defaultPrevented || event.code !== 'Space') return
       if (studioControlOwnsKeyboardEvent(event.target)) return
-      event.preventDefault()
+      if (!claimStudioPreviewSpace(event)) return
       usePreviewStore.getState().toggle()
     }
     document.addEventListener('keydown', togglePreviewWithSpace)
     return () => document.removeEventListener('keydown', togglePreviewWithSpace)
-  }, [route.kind])
+  }, [route])
   const showCreationMaps = useMemo((): ShowCreationMapOption[] => [
     ...STOCK_MAP_ITEMS.map((map) => ({
       id: map.id,
@@ -883,8 +904,19 @@ function StudioApp() {
               opens as a pinned popover anchored under its pill in the header. */}
         </aside>
         {!libraryCollapsed && <Splitter onDrag={handleLeftDrag} />}
-        <main data-testid="editor-pane" className="flex-1 min-w-0 flex flex-col overflow-hidden">
-          <div className={studioEntityKind === 'shows' ? 'show-pane-header-container shrink-0' : 'shrink-0'}>
+        <div
+          data-testid={studioEntityKind === 'shows' ? 'show-workspace' : undefined}
+          className={studioEntityKind === 'shows'
+            ? 'grid min-h-0 min-w-0 flex-1 grid-cols-[minmax(0,1fr)_clamp(320px,27vw,400px)] grid-rows-[auto_minmax(0,1fr)] max-[980px]:grid-cols-1'
+            : 'contents'}
+        >
+        <main
+          data-testid="editor-pane"
+          className={studioEntityKind === 'shows' ? 'contents' : 'flex-1 min-w-0 flex flex-col overflow-hidden'}
+        >
+          <div className={studioEntityKind === 'shows'
+            ? 'show-pane-header-container col-span-full row-start-1 min-w-0 shrink-0'
+            : 'shrink-0'}>
             <PaneHeader className={studioEntityKind === 'shows' ? 'show-pane-header' : ''}>
             {activeControllerProfileId !== null ? (
               <span className="flex-1 min-w-0 flex items-center gap-1.5">
@@ -1018,7 +1050,9 @@ function StudioApp() {
             )}
             </PaneHeader>
           </div>
-          <div className="flex-1 overflow-hidden">
+          <div className={studioEntityKind === 'shows'
+            ? 'col-start-1 row-start-2 min-h-0 min-w-0 overflow-hidden'
+            : 'flex-1 overflow-hidden'}>
             {activeControllerProfileId !== null ? (
               <ControllerProfilePage profileId={activeControllerProfileId} />
             ) : studioEntityKind === 'controllers' ? (
@@ -1052,6 +1086,10 @@ function StudioApp() {
                   } : undefined}
                   headerGuideTarget={showHeaderGuideTarget}
                   headerActionsTarget={showHeaderActionsTarget}
+                  onOpenStagePreview={(anchor) => {
+                    showStageReturnFocusRef.current = anchor
+                    setShowStageOverlayShowId(activeShow.id)
+                  }}
                 />
               ) : (
                 <StudioPaneMessage
@@ -1083,13 +1121,15 @@ function StudioApp() {
             )}
           </div>
         </main>
-        <Splitter onDrag={handleRightDrag} className={studioEntityKind === 'shows' ? 'max-[980px]:hidden' : ''} />
+        <Splitter onDrag={handleRightDrag} className={studioEntityKind === 'shows' ? 'hidden' : ''} />
         {/* The preview is an output/instrument surface (#150): no header strip — the
             canvas sits flush at the top and all controls live in the deck below it. */}
         <aside
           data-testid="preview-pane"
-          className={`shrink-0 flex flex-col min-h-0 ${studioEntityKind === 'shows' ? 'max-[980px]:hidden' : ''}`}
-          style={{ width: rightWidth, minWidth: MIN_PREVIEW_WIDTH }}
+          className={studioEntityKind === 'shows'
+            ? 'col-start-2 row-start-2 flex min-h-0 min-w-0 flex-col border-l border-seam max-[980px]:hidden'
+            : 'flex min-h-0 shrink-0 flex-col'}
+          style={studioEntityKind === 'shows' ? undefined : { width: rightWidth, minWidth: MIN_PREVIEW_WIDTH }}
         >
           {editorFlavor === 'mixin' ? (
             <MixinProvenancePane />
@@ -1104,12 +1144,71 @@ function StudioApp() {
           ) : studioEntityKind === 'shows' ? (
             showCreation
               ? <EmptyContextPane label="Output contract setup" />
-              : activeShow ? <ShowStagePreview showId={activeShow.id} showOverride={routedStockShowOverride} /> : <EmptyContextPane label="Shows" />
+              : activeShow
+                ? narrowShowWorkspace && showStageOverlayShowId === activeShow.id
+                  ? <EmptyContextPane label="Stage preview open" />
+                  : <ShowStagePreview showId={activeShow.id} showOverride={routedStockShowOverride} />
+                : <EmptyContextPane label="Shows" />
           ) : (
             <Preview />
           )}
         </aside>
+        </div>
       </div>
+      )}
+      {narrowShowWorkspace && showStageOverlayShowId === activeShow?.id && activeShow && (
+        <div
+          role="dialog"
+          aria-modal="true"
+          aria-label="Show Stage preview"
+          className="fixed inset-0 z-[90] flex bg-black/70 p-3 backdrop-blur-sm min-[981px]:hidden"
+          onPointerDown={closeShowStageOverlay}
+        >
+          <section
+            className="m-auto flex h-[min(760px,calc(100vh-24px))] w-[min(680px,calc(100vw-24px))] min-h-0 flex-col overflow-hidden border border-zinc-700 bg-zinc-950 shadow-2xl"
+            onPointerDown={(event) => event.stopPropagation()}
+            onKeyDown={(event) => {
+              if (event.key === 'Escape') {
+                event.preventDefault()
+                event.stopPropagation()
+                closeShowStageOverlay()
+                return
+              }
+              if (event.key !== 'Tab') return
+              const focusable = [...event.currentTarget.querySelectorAll<HTMLElement>(
+                'button:not([disabled]), a[href], input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])',
+              )]
+              if (focusable.length === 0) return
+              const first = focusable[0]
+              const last = focusable[focusable.length - 1]
+              if (event.shiftKey && document.activeElement === first) {
+                event.preventDefault()
+                last.focus()
+              } else if (!event.shiftKey && document.activeElement === last) {
+                event.preventDefault()
+                first.focus()
+              }
+            }}
+          >
+            <header className="flex h-9 shrink-0 items-center justify-between border-b border-zinc-800 px-3">
+              <h2 className="font-mono text-xs font-semibold uppercase tracking-wide text-zinc-300">Stage preview</h2>
+              <Button
+                size="icon-xs"
+                variant="ghost"
+                autoFocus
+                aria-label="Close Stage preview"
+                title="Close Stage preview"
+                className="text-zinc-400 hover:text-zinc-100"
+                onClick={closeShowStageOverlay}
+              >
+                <X size={14} aria-hidden />
+              </Button>
+            </header>
+            <div className="min-h-0 flex-1">
+              <ShowStagePreview showId={activeShow.id} showOverride={routedStockShowOverride} />
+            </div>
+          </section>
+        </div>
       )}
     </div>
   )

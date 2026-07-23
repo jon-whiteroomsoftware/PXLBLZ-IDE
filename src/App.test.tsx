@@ -217,7 +217,8 @@ describe('App smoke test', () => {
     expect(screen.getByTestId('preview-pane')).toHaveStyle({ width: '660px' })
 
     await userEvent.click(screen.getByRole('radio', { name: 'Shows' }))
-    expect(screen.getByTestId('preview-pane')).toHaveStyle({ width: '460px' })
+    expect(screen.getByTestId('preview-pane')).not.toHaveStyle({ width: '460px', minWidth: '320px' })
+    expect(screen.getByTestId('show-workspace')).toHaveClass('grid-cols-[minmax(0,1fr)_clamp(320px,27vw,400px)]')
 
     await userEvent.click(screen.getByRole('radio', { name: 'Patterns' }))
     expect(screen.getByTestId('preview-pane')).toHaveStyle({ width: '660px' })
@@ -334,6 +335,85 @@ describe('routing (#308)', () => {
     expect(screen.getByRole('heading', { name: 'TestPattern1D' })).toBeInTheDocument()
     await user.click(within(editorPane).getByRole('button', { name: 'Show properties' }))
     expect(screen.getByRole('heading', { name: 'Show properties' })).toBeInTheDocument()
+  })
+
+  it('moves the Show Stage into an explicit narrow-workspace preview dialog (#588)', async () => {
+    const user = userEvent.setup()
+    vi.stubGlobal('innerWidth', 900)
+    const show = createDefaultShow('show-narrow-stage', 'Narrow Stage', 1000)
+    show.outputContract = createPortableShowOutputContract({ referenceMapId: 'plane', referencePixelCount: 1024 })
+    window.history.replaceState(null, '', '/studio/shows/show-narrow-stage')
+    seedSignedInWorkspace()
+    useShowStore.setState({ shows: [show], showsLoaded: true, activeShowId: show.id })
+
+    render(<App />)
+
+    expect(screen.queryByRole('dialog', { name: 'Show Stage preview' })).not.toBeInTheDocument()
+    const previewStage = screen.getByRole('button', { name: 'Preview Stage' })
+    await user.click(previewStage)
+
+    const dialog = screen.getByRole('dialog', { name: 'Show Stage preview' })
+    expect(within(dialog).getByLabelText('Show stage')).toBeInTheDocument()
+    expect(within(screen.getByTestId('preview-pane')).queryByLabelText('Show stage')).not.toBeInTheDocument()
+
+    vi.stubGlobal('innerWidth', 1200)
+    fireEvent(window, new Event('resize'))
+    expect(screen.queryByRole('dialog', { name: 'Show Stage preview' })).not.toBeInTheDocument()
+    expect(within(screen.getByTestId('preview-pane')).getByLabelText('Show stage')).toBeInTheDocument()
+
+    vi.stubGlobal('innerWidth', 900)
+    fireEvent(window, new Event('resize'))
+    await user.click(previewStage)
+    const reopenedDialog = screen.getByRole('dialog', { name: 'Show Stage preview' })
+    const close = within(reopenedDialog).getByRole('button', { name: 'Close Stage preview' })
+    expect(close).toHaveFocus()
+    await user.click(close)
+    expect(screen.queryByRole('dialog', { name: 'Show Stage preview' })).not.toBeInTheDocument()
+    expect(within(screen.getByTestId('preview-pane')).getByLabelText('Show stage')).toBeInTheDocument()
+    await waitFor(() => expect(previewStage).toHaveFocus())
+  })
+
+  it('gives the production Show one workspace owner for its header, timeline, and Stage (#592)', () => {
+    const show = createDefaultShow('show-workspace-owner', 'Workspace owner', 1000)
+    show.outputContract = createPortableShowOutputContract({ referenceMapId: 'plane', referencePixelCount: 1024 })
+    window.history.replaceState(null, '', '/studio/shows/show-workspace-owner')
+    seedSignedInWorkspace()
+    useShowStore.setState({ shows: [show], showsLoaded: true, activeShowId: show.id })
+
+    render(<App />)
+
+    const workspace = screen.getByTestId('show-workspace')
+    const editor = screen.getByTestId('editor-pane')
+    const stage = screen.getByTestId('preview-pane')
+
+    expect(workspace).toContainElement(editor)
+    expect(workspace).toContainElement(stage)
+    expect(editor).toHaveClass('contents')
+    expect(workspace).toHaveClass('max-[980px]:grid-cols-1')
+    expect(stage).toHaveClass('max-[980px]:hidden')
+    expect(stage).not.toHaveStyle({ width: '460px' })
+    expect(within(workspace).getByText('Workspace owner')).toBeInTheDocument()
+    expect(within(workspace).getByRole('region', { name: 'Show timeline' })).toBeInTheDocument()
+    expect(within(workspace).getByLabelText('Show stage')).toBeInTheDocument()
+    expect(within(workspace).getByRole('button', { name: 'Preview Stage' })).toHaveClass('max-[980px]:inline-flex')
+  })
+
+  it('gives the Show editor sole ownership of the global Space shortcut (#588)', () => {
+    const show = createDefaultShow('show-space-owner', 'Space owner', 1000)
+    show.outputContract = createPortableShowOutputContract({ referenceMapId: 'plane', referencePixelCount: 1024 })
+    window.history.replaceState(null, '', '/studio/shows/show-space-owner')
+    seedSignedInWorkspace()
+    useShowStore.setState({ shows: [show], showsLoaded: true, activeShowId: show.id })
+
+    render(<App />)
+
+    const clip = screen.getAllByRole('button', { name: 'Select TestPattern1D' })[0]
+    clip.focus()
+    expect(usePreviewStore.getState().isRunning).toBe(false)
+    fireEvent.keyDown(clip, { code: 'Space', key: ' ' })
+    expect(usePreviewStore.getState().isRunning).toBe(true)
+    fireEvent.keyDown(clip, { code: 'Space', key: ' ' })
+    expect(usePreviewStore.getState().isRunning).toBe(false)
   })
 
   it('projects a reference Pattern choice through the routed stock Show artifact (#506)', async () => {

@@ -132,22 +132,25 @@ test.describe('authenticated Show authoring', () => {
 
     const toolbar = page.getByTestId('show-timeline-toolbar')
     await expect(toolbar.getByRole('group', { name: 'Show transport controls' })).toBeVisible()
-    await expect(toolbar.getByRole('group', { name: 'Timeline zoom controls' })).toBeVisible()
+    await expect(toolbar.getByRole('group', { name: 'Timeline view controls' })).toBeVisible()
     await expect(toolbar.getByRole('group', { name: 'Timeline commands' })).toBeVisible()
     const transportToggle = toolbar.locator('button[aria-label="Play Show preview"], button[aria-label="Pause Show preview"]')
     await expect(transportToggle).toHaveCount(1)
     await expect(transportToggle).toBeVisible()
     await expect(toolbar.getByRole('button', { name: 'Go to Show start' })).toBeVisible()
     await expect(toolbar.getByLabel('Show time')).toHaveText(/^\d{2}:\d{2}\.\d\/\d{2}:\d{2}\.\d$/)
-    await expect(toolbar.getByRole('slider', { name: 'Timeline zoom' })).toHaveValue('1')
-    await expect(toolbar.getByLabel('Timeline zoom level')).toHaveText('1.0x')
+    await expect(toolbar.getByRole('slider', { name: 'Pan visible timeline range' })).toBeVisible()
+    await expect(toolbar.getByRole('button', { name: 'Fit timeline to Show' })).toBeVisible()
 
     const commands = toolbar.getByRole('group', { name: 'Timeline commands' })
-    await expect(commands.getByRole('button')).toHaveText(['', '', 'Snap', 'Fit', 'Split', 'Clone'])
+    await expect(commands.getByRole('button', { name: 'Undo Show edit' })).toBeVisible()
+    await expect(commands.getByRole('button', { name: 'Redo Show edit' })).toBeVisible()
+    await expect(commands.getByRole('button', { name: 'Snap playhead' })).toBeVisible()
+    await expect(commands.getByRole('button', { name: 'Split at playhead' })).toBeVisible()
     await expect(commands.getByRole('button', { name: 'Clone selection' })).toBeDisabled()
     await expect(page.getByRole('button', { name: 'Select TestPattern1D', exact: true })).toHaveCSS('min-height', '44px')
 
-    await page.getByRole('button', { name: 'Collapse library' }).click()
+    await page.getByRole('button', { name: 'Collapse rail' }).click()
     await expect(page.getByTestId('left-pane')).toHaveCSS('width', '46px')
     await page.getByRole('radio', { name: 'Patterns' }).click()
     await expect(page.getByRole('button', { name: 'Expand library' })).toBeVisible()
@@ -158,7 +161,7 @@ test.describe('authenticated Show authoring', () => {
     await page.setViewportSize({ width: 760, height: 900 })
     await expect(toolbar).toBeVisible()
     await expect(toolbar.getByLabel('Show time')).toBeVisible()
-    await expect(toolbar.getByRole('slider', { name: 'Timeline zoom' })).toBeVisible()
+    await expect(toolbar.getByRole('slider', { name: 'Pan visible timeline range' })).toBeVisible()
     expect(await page.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth)).toBeLessThanOrEqual(8)
 
     await page.setViewportSize({ width: 600, height: 900 })
@@ -167,10 +170,10 @@ test.describe('authenticated Show authoring', () => {
     await expect(showPropertiesButton).toBeVisible()
     await expect(showPropertiesButton.locator('.show-header-action-label')).toHaveCSS('display', 'none')
     const narrowTransport = await toolbar.getByRole('group', { name: 'Show transport controls' }).boundingBox()
-    const narrowZoom = await toolbar.getByRole('group', { name: 'Timeline zoom controls' }).boundingBox()
+    const narrowView = await toolbar.getByRole('group', { name: 'Timeline view controls' }).boundingBox()
     const narrowCommands = await toolbar.getByRole('group', { name: 'Timeline commands' }).boundingBox()
-    expect(rectanglesOverlap(narrowTransport, narrowZoom)).toBe(false)
-    expect(rectanglesOverlap(narrowZoom, narrowCommands)).toBe(false)
+    expect(rectanglesOverlap(narrowTransport, narrowView)).toBe(false)
+    expect(rectanglesOverlap(narrowView, narrowCommands)).toBe(false)
     expect(rectanglesOverlap(narrowTransport, narrowCommands)).toBe(false)
     const outputSummary = await page.getByTitle('Show output summary').boundingBox()
     const showProperties = await showPropertiesButton.boundingBox()
@@ -178,7 +181,7 @@ test.describe('authenticated Show authoring', () => {
       rectanglesOverlap(outputSummary, showProperties),
       `Show output summary ${JSON.stringify(outputSummary)} overlaps Properties ${JSON.stringify(showProperties)}`,
     ).toBe(false)
-    const compileBar = page.getByText('compiled artifact', { exact: true }).locator('..')
+    const compileBar = page.getByTestId('show-compile-bar')
     await expect(compileBar).toHaveCSS('font-size', '10px')
     await compileBar.evaluate((element) => { element.scrollLeft = element.scrollWidth })
     const compileBarBox = await compileBar.boundingBox()
@@ -355,11 +358,14 @@ test.describe('authenticated Show authoring', () => {
     const timeline = page.getByRole('region', { name: 'Show timeline' })
     const before = await timeline.boundingBox()
     const clip = page.getByRole('button', { name: 'Select TestPattern1D', exact: true })
+    const clipOwnerKey = await clip.getAttribute('data-show-selection-key')
+    if (!clipOwnerKey) throw new Error('Selected Clip does not expose its timeline owner key.')
+    const placementId = clipOwnerKey.slice('clip:'.length)
     await clip.click()
 
     const panel = page.getByRole('dialog', { name: 'Entity Detail Panel' })
     await expect(panel).toHaveCount(1)
-    await expect(panel).toHaveAttribute('data-owner-key', `clip:${firstClip.id}`)
+    await expect(panel).toHaveAttribute('data-owner-key', clipOwnerKey)
     await expect(panel.getByRole('region', { name: 'Clip properties' })).toBeVisible()
     await expect(panel.getByTestId('show-entity-detail-stem')).toBeVisible()
     expect((await timeline.boundingBox())?.height).toBe(before?.height)
@@ -371,7 +377,11 @@ test.describe('authenticated Show authoring', () => {
 
     await panel.getByLabel('Brightness').fill('0.63')
     await panel.getByLabel('Brightness').blur()
-    await waitForCurrentShow(page, (candidate) => candidate.cells.find((cell) => cell.id === firstClip.id)?.adaptations.brightness === 0.63)
+    await waitForCurrentShow(page, (candidate) => candidate.composition?.scenes.some((scene) => (
+      scene.zones?.some((zone) => zone.main?.some((placement) => (
+        placement.id === placementId && placement.view?.brightness === 0.63
+      )))
+    )) === true)
 
     await page.keyboard.press('Escape')
     await expect(panel).toHaveCount(0)
@@ -381,14 +391,17 @@ test.describe('authenticated Show authoring', () => {
     await expect(page.getByRole('dialog', { name: 'Entity Detail Panel' })).toHaveCount(0)
     await page.getByRole('button', { name: 'Select TestPattern1D', exact: true }).click()
     await expect(page.getByRole('dialog', { name: 'Entity Detail Panel' }).getByRole('spinbutton', { name: 'Brightness' })).toHaveValue('0.63')
-    await page.getByRole('button', { name: 'Select Scene 1 to Scene 2 transition (crossfade)' }).click()
+    const comparisonClip = page.getByRole('button', { name: 'Select CometLoom', exact: true })
+    const comparisonOwnerKey = await comparisonClip.getAttribute('data-show-selection-key')
+    if (!comparisonOwnerKey) throw new Error('Comparison Clip does not expose its timeline owner key.')
+    await comparisonClip.click()
     await expect(page.getByRole('dialog', { name: 'Entity Detail Panel' })).toHaveCount(1)
-    await expect(page.getByRole('dialog', { name: 'Entity Detail Panel' })).toHaveAttribute('data-owner-key', `transition:${show?.transitions?.[0].id}`)
+    await expect(page.getByRole('dialog', { name: 'Entity Detail Panel' })).toHaveAttribute('data-owner-key', comparisonOwnerKey)
 
     await page.setViewportSize({ width: 600, height: 700 })
     await expect(page.getByRole('dialog', { name: 'Entity Detail Panel' })).toBeVisible()
     expect(await page.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth)).toBeLessThanOrEqual(8)
-    await page.getByText('Show time', { exact: true }).click()
+    await page.getByRole('status', { name: 'Show time' }).click()
     await expect(page.getByRole('dialog', { name: 'Entity Detail Panel' })).toHaveCount(0)
   })
 
@@ -639,7 +652,7 @@ test.describe('authenticated Show authoring', () => {
     await expect.poll(async () => (await persistedShow(page, proven.id))?.outputContract?.kind).toBe('installation')
   })
 
-  test('returns timeline focus after a discrete edit and supports keyboard preview and seeking', async ({ page }) => {
+  test('returns timeline focus after a discrete edit and supports keyboard preview, start, and page pan', async ({ page }) => {
     await page.goto('studio/shows')
     await createInstallationShow(page)
 
@@ -649,31 +662,44 @@ test.describe('authenticated Show authoring', () => {
     const editedClip = page.getByRole('button', { name: 'Select TestPattern2D' }).first()
     await expect(editedClip).toBeFocused()
 
-    await page.keyboard.press('Space')
-    await expect(page.getByRole('button', { name: 'Play Show preview' })).toBeVisible()
-    await page.keyboard.press('Home')
+    const timelineToolbar = page.getByTestId('show-timeline-toolbar')
+    const play = timelineToolbar.getByRole('button', { name: 'Play Show preview' })
+    const pause = timelineToolbar.getByRole('button', { name: 'Pause Show preview' })
+    if (await pause.count() === 1) await pause.click()
+    await expect(play).toBeVisible()
+    await editedClip.click()
+    await editedClip.press('Space')
+    await expect(pause).toBeVisible()
+    await editedClip.press('Space')
+    await expect(play).toBeVisible()
+    await page.keyboard.press('a')
     await expect(page.getByRole('slider', { name: 'Show playhead' })).toHaveValue('0')
+    const navigator = page.getByRole('slider', { name: 'Pan visible timeline range' })
+    await timelineToolbar.getByRole('button', { name: 'Resize visible range end' }).press('ArrowLeft')
+    await editedClip.focus()
+    const beforePan = Number(await navigator.getAttribute('aria-valuenow'))
     await page.keyboard.press('ArrowRight')
-    await expect(page.getByRole('slider', { name: 'Show playhead' })).toHaveValue('1000')
-    await expect(page.getByRole('button', { name: 'Play Show preview' })).toBeVisible()
+    await expect.poll(async () => Number(await navigator.getAttribute('aria-valuenow'))).toBeGreaterThan(beforePan)
+    await expect(page.getByRole('slider', { name: 'Show playhead' })).toHaveValue('0')
+    await expect(play).toBeVisible()
 
     await page.keyboard.press('Space')
-    await expect(page.getByRole('button', { name: 'Pause Show preview' })).toBeVisible()
-    const beforeRunningSeek = Number(await page.getByRole('slider', { name: 'Show playhead' }).inputValue())
-    await page.keyboard.press('ArrowRight')
-    await expect.poll(async () => Number(await page.getByRole('slider', { name: 'Show playhead' }).inputValue())).toBeGreaterThanOrEqual(beforeRunningSeek + 1000)
-    await expect(page.getByRole('button', { name: 'Pause Show preview' })).toBeVisible()
-    await page.keyboard.press('Home')
+    await expect(pause).toBeVisible()
+    await page.keyboard.press('a')
     await expect.poll(async () => Number(await page.getByRole('slider', { name: 'Show playhead' }).inputValue())).toBeLessThan(1000)
-    await expect(page.getByRole('button', { name: 'Pause Show preview' })).toBeVisible()
-    await expect(page.getByRole('button', { name: 'Go to Show start' })).toHaveAttribute('title', 'Go to Show start (Home)')
+    await expect(pause).toBeVisible()
+    await expect(page.getByRole('button', { name: 'Go to Show start' })).toHaveAttribute('title', 'Go to Show start (A)')
   })
 
   test('authors, reloads, and lays out the canonical Clip Transform at narrow width (#529)', async ({ page }) => {
     await page.goto('studio/shows')
     await createPortableShow(page)
 
-    await page.getByRole('button', { name: 'Select TestPattern1D' }).first().click()
+    const originalClip = page.getByRole('button', { name: 'Select TestPattern1D' }).first()
+    const clipOwnerKey = await originalClip.getAttribute('data-show-selection-key')
+    if (!clipOwnerKey) throw new Error('Selected Clip does not expose its timeline owner key.')
+    const placementId = clipOwnerKey.slice('clip:'.length)
+    await originalClip.click()
     await page.getByLabel('Source pattern').fill('TestPattern2D')
     await page.getByRole('option', { name: 'TestPattern2D' }).click()
 
@@ -683,29 +709,31 @@ test.describe('authenticated Show authoring', () => {
       const effects = document.querySelector('[aria-label="Clip Effects"]')
       return Boolean(effects && (element.compareDocumentPosition(effects) & Node.DOCUMENT_POSITION_FOLLOWING))
     })).toBe(true)
-    await transform.getByRole('spinbutton', { name: 'Position X' }).fill('0.25')
-    await transform.getByRole('spinbutton', { name: 'Position X' }).blur()
+    await transform.getByRole('spinbutton', { name: 'X' }).fill('0.25')
+    await transform.getByRole('spinbutton', { name: 'X' }).blur()
     await transform.getByRole('spinbutton', { name: 'Rotation degrees' }).fill('-90')
     await transform.getByRole('spinbutton', { name: 'Rotation degrees' }).blur()
-    await transform.getByRole('spinbutton', { name: 'Scale X' }).fill('1.4')
-    await transform.getByRole('spinbutton', { name: 'Scale X' }).blur()
-    await transform.getByRole('spinbutton', { name: 'Scale Y' }).fill('0.8')
-    await transform.getByRole('spinbutton', { name: 'Scale Y' }).blur()
+    await transform.getByRole('spinbutton', { name: 'Width' }).fill('1.4')
+    await transform.getByRole('spinbutton', { name: 'Width' }).blur()
+    await transform.getByRole('spinbutton', { name: 'Height' }).fill('0.8')
+    await transform.getByRole('spinbutton', { name: 'Height' }).blur()
 
-    await waitForCurrentShow(page, (show) => show.cells.some((clip) => (
-      clip.patternName === 'TestPattern2D'
-      && clip.transform?.positionX === 0.25
-      && clip.transform?.rotation === -0.25
-      && clip.transform?.scaleX === 1.4
-      && clip.transform?.scaleY === 0.8
-    )))
+    await waitForCurrentShow(page, (show) => show.composition?.scenes.some((scene) => (
+      scene.zones?.some((zone) => zone.main?.some((placement) => (
+        placement.id === placementId
+        && placement.transform?.positionX === 0.25
+        && placement.transform?.rotation === -0.25
+        && placement.transform?.scaleX === 1.4
+        && placement.transform?.scaleY === 0.8
+      )))
+    )) === true)
 
     await page.reload()
     await page.getByRole('button', { name: 'Select TestPattern2D' }).first().click()
-    await expect(transform.getByRole('spinbutton', { name: 'Position X' })).toHaveValue('0.25')
+    await expect(transform.getByRole('spinbutton', { name: 'X' })).toHaveValue('0.25')
     await expect(transform.getByRole('spinbutton', { name: 'Rotation degrees' })).toHaveValue('-90')
-    await expect(transform.getByRole('spinbutton', { name: 'Scale X' })).toHaveValue('1.4')
-    await expect(transform.getByRole('spinbutton', { name: 'Scale Y' })).toHaveValue('0.8')
+    await expect(transform.getByRole('spinbutton', { name: 'Width' })).toHaveValue('1.4')
+    await expect(transform.getByRole('spinbutton', { name: 'Height' })).toHaveValue('0.8')
 
     await page.setViewportSize({ width: 560, height: 900 })
     await expect(transform).toBeVisible()
@@ -1362,6 +1390,7 @@ type PersistedShow = {
   id: string
   composition?: {
     version: number
+    patternInstances?: Array<{ id: string; patternName: string }>
     groupDefinitions?: Array<{
       id: string
       placements: Array<{ id: string; durationMs: number }>
@@ -1374,6 +1403,12 @@ type PersistedShow = {
       }>
       zones?: Array<{
         zoneId: string
+        main?: Array<{
+          id: string
+          instanceId: string
+          view?: { brightness: number }
+          transform?: { positionX: number; positionY: number; rotation: number; scaleX: number; scaleY: number }
+        }>
         overlays: Array<{
           id: string
           name: string

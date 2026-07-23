@@ -1130,6 +1130,23 @@ into its miniature Layer summaries instead of hiding their event times.
 - Arrival uses a subtle fade without shimmer, spinners, layout shift, or repeated
   motion.
 
+**Initial-overhaul decision (2026-07-22): omit filmstrips.** The shipped 40-pixel
+Layer row keeps the complete lit Clip treatment and reserves no empty preview
+band. Its 32-pixel inset Clip interior is sufficient for the readable name and
+status decorations, but not for a meaningful frame beneath them. A 48-pixel row
+would provide about 40 pixels of interior at a 20% density cost; a 56-pixel row
+would provide about 48 pixels at a 40% cost. The larger candidates improve an
+isolated 2D thumbnail, but make multi-Layer, multi-Zone Shows materially harder
+to scan, while short Clips still cannot present a useful sequence.
+
+The current preview runtime also has no bounded sampler for one composed Clip at
+several Show times. A truthful filmstrip must include Pattern-instance phase,
+placement, Effects, presentation, and Transition pre-roll without competing
+with playback or authoring. Building that cache and scheduler solely to decorate
+the timeline is not justified for the initial overhaul. A future filmstrip
+experiment may resume from this section once that sampler exists; it must reuse
+the existing Clip interior and preserve the 40-pixel fallback geometry.
+
 ### 19. Existing components and visual direction
 
 - This is not an aesthetic reset. The dark PXLBLZ palette, typography, density,
