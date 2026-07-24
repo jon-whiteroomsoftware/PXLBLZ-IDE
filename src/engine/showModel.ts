@@ -43,6 +43,7 @@ import {
   showEffectParameterNames,
   showEffectsAreIdentity,
 } from './showEffects'
+import { multiSegmentLogicalPlacementIds } from './showClipInvariant'
 import { normalizeShowOutputEffects } from './showPreviousRgbFeedback'
 import { createInstallationShowOutputContract } from './showOutputContract'
 import type { ShowLogicalRouting } from './showLogicalRouting'
@@ -656,7 +657,7 @@ export function canSplitShowAtTime(show: ShowRecord, atMs: number): boolean {
 
 export type ShowSplitCapability =
   | { enabled: true; code: 'ready'; reason: string }
-  | { enabled: false; code: 'scene-edge-margin' | 'no-scene' | 'nonlinear-property-animation'; reason: string }
+  | { enabled: false; code: 'scene-edge-margin' | 'no-scene' | 'logical-clip' | 'nonlinear-property-animation'; reason: string }
 
 export function showSplitCapability(show: ShowRecord, atMs: number): ShowSplitCapability {
   if (!Number.isFinite(atMs)) {
@@ -676,6 +677,13 @@ export function showSplitCapability(show: ShowRecord, atMs: number): ShowSplitCa
           reason: 'Leave at least 1.0 s on both sides of the playhead.',
         }
       }
+      if (multiSegmentLogicalClipCrosses(show, scene.id, leftDurationMs)) {
+        return {
+          enabled: false,
+          code: 'logical-clip',
+          reason: 'Scene Split is unavailable inside a multi-Scene Clip.',
+        }
+      }
       if (nonlinearPropertySegmentCrosses(show, scene.id, leftDurationMs)) {
         return {
           enabled: false,
@@ -689,6 +697,20 @@ export function showSplitCapability(show: ShowRecord, atMs: number): ShowSplitCa
   }
 
   return { enabled: false, code: 'no-scene', reason: 'Move the playhead inside a Scene.' }
+}
+
+function multiSegmentLogicalClipCrosses(show: ShowRecord, sceneId: string, localTimeMs: number): boolean {
+  if (!show.composition) return false
+  const logicalPlacementIds = multiSegmentLogicalPlacementIds(show.composition)
+  const scene = show.composition.scenes.find((candidate) => candidate.sceneId === sceneId)
+  return Boolean(scene?.zones.some((zone) => [
+    ...zone.main,
+    ...zone.overlays.flatMap((layer) => layer.placements),
+  ].some((placement) => (
+    logicalPlacementIds.has(placement.id)
+    && placement.startMs < localTimeMs
+    && placement.startMs + placement.durationMs > localTimeMs
+  ))))
 }
 
 function nonlinearPropertySegmentCrosses(show: ShowRecord, sceneId: string, localTimeMs: number): boolean {

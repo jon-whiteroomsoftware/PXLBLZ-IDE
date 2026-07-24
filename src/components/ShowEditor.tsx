@@ -2704,6 +2704,8 @@ function ShowTimelineCommands({
           >
             {splitCapability.code === 'scene-edge-margin'
               ? 'Split needs 1.0 s on both sides'
+              : splitCapability.code === 'logical-clip'
+                ? 'Scene Split is unavailable inside a multi-Scene Clip'
               : splitCapability.code === 'nonlinear-property-animation'
                 ? 'Add a keyframe here or make this segment Linear before splitting'
                 : splitCapability.code === 'outside-clip'

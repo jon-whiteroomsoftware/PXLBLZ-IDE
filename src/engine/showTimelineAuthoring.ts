@@ -1,4 +1,5 @@
 import { normalizeShowComposition, validateShowComposition } from './showCompositionModel'
+import { multiSegmentLogicalPlacementIds } from './showClipInvariant'
 import { normalizePersistedShowEasing } from './showEasing'
 import { projectShowTimeline, showLoopDurationMs } from './showModel'
 import { evaluateShowPropertyTrack } from './showPropertyAnimation'
@@ -13,7 +14,7 @@ import type {
 
 export type ShowTimeInsertionPlan =
   | { enabled: true; code: 'ready'; sceneId: string; localTimeMs: number; crossingPlacementIds: string[] }
-  | { enabled: false; code: 'invalid-time' | 'invalid-duration' | 'transition' | 'group' | 'missing-composition' | 'nonlinear-property-animation'; reason: string }
+  | { enabled: false; code: 'invalid-time' | 'invalid-duration' | 'transition' | 'group' | 'logical-clip' | 'missing-composition' | 'nonlinear-property-animation'; reason: string }
 
 export function planShowTimeInsertion(
   show: ShowRecord,
@@ -79,6 +80,14 @@ export function planShowTimeInsertion(
         && placement.startMs + placement.durationMs > localTimeMs
       )).map((placement) => placement.id).sort()
     : []
+  const logicalPlacementIds = multiSegmentLogicalPlacementIds(show.composition)
+  if (crossingPlacementIds.some((placementId) => logicalPlacementIds.has(placementId))) {
+    return {
+      enabled: false,
+      code: 'logical-clip',
+      reason: 'Insert Time is unavailable inside a multi-Scene Clip.',
+    }
+  }
   return { enabled: true, code: 'ready', sceneId: range.sceneId, localTimeMs, crossingPlacementIds }
 }
 

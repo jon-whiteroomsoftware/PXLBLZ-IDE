@@ -603,6 +603,36 @@ describe('showModel (#318)', () => {
     expect(splitShowAtTime(show, 10_000)).toBe(show)
   })
 
+  it('refuses a Scene Split through one segment of a multi-Scene logical Clip (#63)', () => {
+    const show = createDefaultShow('show-63-logical-split', 'Logical split', 1)
+    show.composition = projectFlatShowToCompositionV1(show, {
+      byCellId: Object.fromEntries(show.cells.map((cell) => [cell.id, DEMOS[cell.pattern.id]])),
+    })
+    const instanceId = show.composition.patternInstances[0].id
+    show.composition.scenes[0].zones[0].main = [{
+      id: 'logical-root',
+      instanceId,
+      startMs: 5_000,
+      durationMs: 25_000,
+      view: { mirror: false, phase: 0, brightness: 1 },
+    }]
+    show.composition.scenes[1].zones[0].main = [{
+      id: `logical-root--span-${show.scenes[1].id}`,
+      logicalClipId: 'logical-root',
+      instanceId,
+      startMs: 0,
+      durationMs: 3_000,
+      view: { mirror: false, phase: 0, brightness: 1 },
+    }]
+
+    expect(showSplitCapability(show, 10_000)).toEqual({
+      enabled: false,
+      code: 'logical-clip',
+      reason: 'Scene Split is unavailable inside a multi-Scene Clip.',
+    })
+    expect(splitShowAtTime(show, 10_000)).toBe(show)
+  })
+
   it('partitions linear local Property animation when splitting a composed Scene (#490)', () => {
     const show = createDefaultShow('show-490-linear-split', 'Linear split', 1)
     show.composition = projectFlatShowToCompositionV1(show, {
