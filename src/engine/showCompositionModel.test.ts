@@ -105,6 +105,46 @@ describe('Show composition v1 Main schedule (#488)', () => {
     expect(rejected).toBe(oneClip)
   })
 
+  it('deletes every segment and placement track of one logical Clip (#63)', () => {
+    const { composition } = fixture()
+    composition.scenes.push({
+      sceneId: 'scene-2',
+      zones: [{
+        zoneId: 'zone-1',
+        main: [{
+          ...structuredClone(composition.scenes[0].zones[0].main[0]),
+          id: 'placement-a--span-scene-2',
+          logicalClipId: 'placement-a',
+          startMs: 0,
+          durationMs: 2_000,
+        }],
+        overlays: [],
+      }],
+      propertyTracks: [{
+        id: 'brightness-continuation',
+        target: {
+          kind: 'placement-view',
+          placementId: 'placement-a--span-scene-2',
+          property: 'brightness',
+        },
+        keyframes: [
+          { id: 'brightness-a', timeMs: 0, value: 0, easing: { curve: 'linear' } },
+          { id: 'brightness-b', timeMs: 2_000, value: 1, easing: { curve: 'linear' } },
+        ],
+      }],
+    })
+
+    const deleted = deleteShowMainPlacement(composition, {
+      sceneId: 'scene-1',
+      zoneId: 'zone-1',
+      placementId: 'placement-a',
+    })
+
+    expect(deleted.scenes[0].zones[0].main.map((placement) => placement.id)).toEqual(['placement-b'])
+    expect(deleted.scenes[1].zones[0].main).toEqual([])
+    expect(deleted.scenes[1].propertyTracks).toBeUndefined()
+  })
+
   it('magnetically resolves horizontal moves and quantizes illegal overlaps', () => {
     const placement = { id: 'moving', instanceId: 'instance-a', startMs: 0, durationMs: 1_000, view: { mirror: false, phase: 0, brightness: 1 } }
     const occupied = [

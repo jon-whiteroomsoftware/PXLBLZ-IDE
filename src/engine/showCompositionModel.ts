@@ -638,14 +638,9 @@ export function deleteShowOverlayPlacement(
   composition: ShowCompositionV1,
   input: ShowOverlayPlacementOwner,
 ): ShowCompositionV1 {
-  const draft = cloneJson(composition)
-  const layer = findOverlayLayer(draft, input)
+  const layer = findOverlayLayer(composition, input)
   if (!layer?.placements.some((placement) => placement.id === input.placementId)) return composition
-  if (showCompositionClipCount(composition) <= 1) return composition
-  layer.placements = layer.placements.filter((placement) => placement.id !== input.placementId)
-  removePlacementTracks(draft, input.sceneId, new Set([input.placementId]))
-  removePlacementTransitions(draft, new Set([input.placementId]))
-  return draft
+  return deleteLogicalPlacement(composition, input.placementId)
 }
 
 export function addShowMainClip(
@@ -752,13 +747,37 @@ export function deleteShowMainPlacement(
   composition: ShowCompositionV1,
   input: ShowMainPlacementOwner,
 ): ShowCompositionV1 {
-  const draft = cloneJson(composition)
-  const zone = findZoneComposition(draft, input.sceneId, input.zoneId)
+  const zone = findZoneComposition(composition, input.sceneId, input.zoneId)
   if (!zone || !zone.main.some((placement) => placement.id === input.placementId)) return composition
+  return deleteLogicalPlacement(composition, input.placementId)
+}
+
+function deleteLogicalPlacement(
+  composition: ShowCompositionV1,
+  placementId: string,
+): ShowCompositionV1 {
   if (showCompositionClipCount(composition) <= 1) return composition
-  zone.main = zone.main.filter((placement) => placement.id !== input.placementId)
-  removePlacementTracks(draft, input.sceneId, new Set([input.placementId]))
-  removePlacementTransitions(draft, new Set([input.placementId]))
+  const placements = composition.scenes.flatMap((scene) => scene.zones.flatMap((zone) => [
+    ...zone.main,
+    ...zone.overlays.flatMap((layer) => layer.placements),
+  ]))
+  const selected = placements.find((placement) => placement.id === placementId)
+  if (!selected) return composition
+  const logicalClipId = selected.logicalClipId ?? selected.id
+  const segmentIds = new Set(placements
+    .filter((placement) => (placement.logicalClipId ?? placement.id) === logicalClipId)
+    .map((placement) => placement.id))
+  const draft = cloneJson(composition)
+  for (const scene of draft.scenes) {
+    for (const zone of scene.zones) {
+      zone.main = zone.main.filter((placement) => !segmentIds.has(placement.id))
+      for (const layer of zone.overlays) {
+        layer.placements = layer.placements.filter((placement) => !segmentIds.has(placement.id))
+      }
+    }
+    removePlacementTracks(draft, scene.sceneId, segmentIds)
+  }
+  removePlacementTransitions(draft, segmentIds)
   return draft
 }
 

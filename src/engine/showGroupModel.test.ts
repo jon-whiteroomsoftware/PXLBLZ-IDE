@@ -138,6 +138,52 @@ describe('Show Group model', () => {
     })
   })
 
+  it('expands a logical Clip selection to every physical segment before Group validation (#63)', () => {
+    const { composition } = fixture()
+    composition.patternInstances = [patternInstance('outside')]
+    composition.groupDefinitions = []
+    composition.groupOccurrences = []
+    composition.scenes[0].zones[0].main = [{
+      id: 'logical-root',
+      instanceId: 'outside',
+      startMs: 8_000,
+      durationMs: 2_000,
+      view: { mirror: false, phase: 0, brightness: 1 },
+    }]
+    composition.scenes.push({
+      sceneId: 'scene-2',
+      zones: [{
+        zoneId: 'zone-1',
+        main: [{
+          id: 'logical-root--span-scene-2',
+          logicalClipId: 'logical-root',
+          instanceId: 'outside',
+          startMs: 0,
+          durationMs: 1_000,
+          view: { mirror: false, phase: 0, brightness: 1 },
+        }],
+        overlays: [],
+      }],
+    })
+
+    const selection = completeShowGroupSelection(composition, ['logical-root'])
+
+    expect(selection.placementIds).toEqual([
+      'logical-root',
+      'logical-root--span-scene-2',
+    ])
+    expect(validateShowGroupSelection(composition, selection)).toMatchObject({
+      enabled: false,
+      code: 'cross-layout',
+    })
+    expect(createShowGroupFromSelection(composition, {
+      selection,
+      definitionId: 'phrase',
+      occurrenceId: 'phrase-use',
+      name: 'Phrase',
+    })).toBe(composition)
+  })
+
   it('rejects cross-Zone, cross-Scene, nested, and partial-Transition structures', () => {
     const { show, composition } = fixture()
     composition.groupOccurrences!.push(

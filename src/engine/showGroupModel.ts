@@ -56,15 +56,31 @@ export function completeShowGroupSelection(
   composition: ShowCompositionV1,
   placementIds: Iterable<string>,
 ): ShowGroupSelection {
-  const connectedSet = new Set(placementIds)
+  const owners = ordinaryOwnedPlacements(composition)
+  const placementIdsByLogicalClip = new Map<string, string[]>()
+  for (const [id, owner] of owners) {
+    const logicalClipId = owner.placement.logicalClipId ?? id
+    const ids = placementIdsByLogicalClip.get(logicalClipId) ?? []
+    ids.push(id)
+    placementIdsByLogicalClip.set(logicalClipId, ids)
+  }
+  const connectedSet = new Set<string>()
+  const addLogicalClip = (placementId: string) => {
+    const owner = owners.get(placementId)
+    const logicalClipId = owner?.placement.logicalClipId ?? placementId
+    for (const id of placementIdsByLogicalClip.get(logicalClipId) ?? [placementId]) {
+      connectedSet.add(id)
+    }
+  }
+  for (const placementId of placementIds) addLogicalClip(placementId)
   let changed = true
   while (changed) {
     changed = false
     for (const transition of composition.transitions ?? []) {
       if (!connectedSet.has(transition.fromPlacementId) && !connectedSet.has(transition.toPlacementId)) continue
       const before = connectedSet.size
-      connectedSet.add(transition.fromPlacementId)
-      connectedSet.add(transition.toPlacementId)
+      addLogicalClip(transition.fromPlacementId)
+      addLogicalClip(transition.toPlacementId)
       changed ||= connectedSet.size !== before
     }
   }
