@@ -39,6 +39,29 @@ for this repository.
 same full suite, so a separate full run immediately before pushing normally adds
 delay without adding coverage.
 
+## Show authoring edit contracts
+
+Pure Show composition edits use
+`src/test/showAuthoringContract.ts` as their common test boundary. An accepted
+edit must leave its input deeply unchanged, return a distinct composition,
+pass `validateShowComposition`, and satisfy operation-specific unified-timeline
+projection and durable-reference assertions. A refused edit must return the
+original composition by reference and leave its domain state deeply unchanged.
+
+Move and resize tests in `src/engine/showTimelineClipAuthoring.test.ts` provide
+the initial single-Scene, cross-Scene, accepted, refused, and edit-sequence
+examples. Extend the same harness as more Show authoring operations adopt this
+contract. Keep projection assertions focused on visible logical Clips and use
+the reference callback for Pattern instances, property tracks, Transitions,
+logical Clip identity, Groups, or Layer ownership relevant to the operation.
+
+During development, run:
+
+```bash
+npx vitest run src/test/showAuthoringContract.test.ts \
+  src/engine/showTimelineClipAuthoring.test.ts
+```
+
 ## Staged-test selection
 
 `scripts/test-staged.mjs` reads added, copied, modified, and renamed paths from

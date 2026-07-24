@@ -23,6 +23,10 @@ import {
 } from './showTimelineClipAuthoring'
 import type { ShowCompositionV1, ShowPatternInstance } from './personalContentRecords'
 import { projectShowUnifiedTimeline } from './showUnifiedTimelineProjection'
+import {
+  expectAcceptedShowAuthoringEdit,
+  expectRefusedShowAuthoringEdit,
+} from '@/test/showAuthoringContract'
 
 function emptyComposition(show: ReturnType<typeof createDefaultShow>): ShowCompositionV1 {
   return {
@@ -379,22 +383,36 @@ describe('global timeline Clip authoring (#580)', () => {
       view: { mirror: false, phase: 0.25, brightness: 0.8 },
     })
 
-    const next = moveShowClipAtGlobalTime(show, composition, {
-      owner: {
-        kind: 'main',
-        sceneId: show.scenes[0].id,
-        zoneId: show.zones[0].id,
-        placementId: 'placement-move',
+    const next = expectAcceptedShowAuthoringEdit({
+      show,
+      composition,
+      edit: (input) => moveShowClipAtGlobalTime(show, input, {
+        owner: {
+          kind: 'main',
+          sceneId: show.scenes[0].id,
+          zoneId: show.zones[0].id,
+          placementId: 'placement-move',
+        },
+        target: {
+          kind: 'main',
+          zoneId: show.zones[0].id,
+          globalStartMs: 5_000,
+        },
+      }),
+      assertProjection: (projection) => {
+        expect(projection.zones[0].layers[0].clips).toContainEqual(
+          expect.objectContaining({
+            id: 'placement-move',
+            startMs: 5_000,
+            durationMs: 2_000,
+          }),
+        )
       },
-      target: {
-        kind: 'main',
-        zoneId: show.zones[0].id,
-        globalStartMs: 5_000,
+      assertReferences: (result) => {
+        expect(result.patternInstances).toEqual(composition.patternInstances)
       },
     })
 
-    expect(next).not.toBe(composition)
-    expect(next.patternInstances).toEqual(composition.patternInstances)
     expect(next.scenes[0].zones[0].main).toContainEqual({
       id: 'placement-move',
       instanceId: instance.id,
@@ -425,21 +443,23 @@ describe('global timeline Clip authoring (#580)', () => {
       },
     )
 
-    const next = moveShowClipAtGlobalTime(show, composition, {
-      owner: {
-        kind: 'main',
-        sceneId: show.scenes[0].id,
-        zoneId: show.zones[0].id,
-        placementId: 'placement-move',
-      },
-      target: {
-        kind: 'main',
-        zoneId: show.zones[0].id,
-        globalStartMs: 5_500,
-      },
+    expectRefusedShowAuthoringEdit({
+      show,
+      composition,
+      edit: (input) => moveShowClipAtGlobalTime(show, input, {
+        owner: {
+          kind: 'main',
+          sceneId: show.scenes[0].id,
+          zoneId: show.zones[0].id,
+          placementId: 'placement-move',
+        },
+        target: {
+          kind: 'main',
+          zoneId: show.zones[0].id,
+          globalStartMs: 5_500,
+        },
+      }),
     })
-
-    expect(next).toBe(composition)
   })
 
   it('moves a Clip across an internal Scene boundary while preserving its placement', () => {
@@ -493,21 +513,37 @@ describe('global timeline Clip authoring (#580)', () => {
       view: { mirror: false, phase: 0.25, brightness: 0.8 },
     })
 
-    const next = moveShowClipAtGlobalTime(show, composition, {
-      owner: {
-        kind: 'main',
-        sceneId: show.scenes[0].id,
-        zoneId: show.zones[0].id,
-        placementId: 'placement-spanning-move',
-      },
-      target: {
-        kind: 'main',
-        zoneId: show.zones[0].id,
-        globalStartMs: 28_000,
+    const next = expectAcceptedShowAuthoringEdit({
+      show,
+      composition,
+      edit: (input) => moveShowClipAtGlobalTime(show, input, {
+        owner: {
+          kind: 'main',
+          sceneId: show.scenes[0].id,
+          zoneId: show.zones[0].id,
+          placementId: 'placement-spanning-move',
+        },
+        target: {
+          kind: 'main',
+          zoneId: show.zones[0].id,
+          globalStartMs: 28_000,
+        },
+      }),
+      assertProjection: (projection) => {
+        const layers = projection.zones[0].layers
+        const clips = layers[layers.length - 1]?.clips
+        expect(clips).toContainEqual(expect.objectContaining({
+          id: 'placement-spanning-move',
+          startPlacementId: 'placement-spanning-move',
+          instanceId: instance.id,
+          startMs: 28_000,
+          durationMs: 5_000,
+          endMs: 33_000,
+        }))
+        expect(clips?.find((clip) => clip.id === 'placement-spanning-move')?.segmentIds).toHaveLength(2)
       },
     })
 
-    expect(next).not.toBe(composition)
     expect(next.scenes[0].zones[0].main).toContainEqual(expect.objectContaining({
       id: 'placement-spanning-move',
       startMs: 28_000,
@@ -518,15 +554,6 @@ describe('global timeline Clip authoring (#580)', () => {
       startMs: 0,
       durationMs: 1_000,
     }))
-    const movedLayers = projectShowUnifiedTimeline(show, next).zones[0].layers
-    expect(movedLayers[movedLayers.length - 1]?.clips).toContainEqual(
-      expect.objectContaining({
-        id: 'placement-spanning-move',
-        startMs: 28_000,
-        durationMs: 5_000,
-        endMs: 33_000,
-      }),
-    )
   })
 
   it('moves a Clip vertically between Main and overlay Layers', () => {
@@ -841,19 +868,23 @@ describe('global timeline Clip authoring (#580)', () => {
       ],
     }]
 
-    expect(moveShowClipAtGlobalTime(show, composition, {
-      owner: {
-        kind: 'main',
-        sceneId: show.scenes[0].id,
-        zoneId: show.zones[0].id,
-        placementId: 'placement-move',
-      },
-      target: {
-        kind: 'main',
-        zoneId: show.zones[0].id,
-        globalStartMs: 10_000,
-      },
-    })).toBe(composition)
+    expectRefusedShowAuthoringEdit({
+      show,
+      composition,
+      edit: (input) => moveShowClipAtGlobalTime(show, input, {
+        owner: {
+          kind: 'main',
+          sceneId: show.scenes[0].id,
+          zoneId: show.zones[0].id,
+          placementId: 'placement-move',
+        },
+        target: {
+          kind: 'main',
+          zoneId: show.zones[0].id,
+          globalStartMs: 10_000,
+        },
+      }),
+    })
   })
 
   it('moves a logical Clip again when every partitioned keyframe remains inside Scene holds (#63)', () => {
@@ -1739,18 +1770,59 @@ describe('global timeline Clip authoring (#580)', () => {
       placementId: 'placement-resize',
     }
 
-    const fromLeft = resizeShowClipAtGlobalTime(show, composition, {
-      owner,
-      globalStartMs: 3_000,
-      durationMs: 4_000,
+    const fromLeft = expectAcceptedShowAuthoringEdit({
+      show,
+      composition,
+      edit: (input) => resizeShowClipAtGlobalTime(show, input, {
+        owner,
+        globalStartMs: 3_000,
+        durationMs: 4_000,
+      }),
+      assertProjection: (projection) => {
+        expect(projection.zones[0].layers[0].clips).toContainEqual(
+          expect.objectContaining({
+            id: 'placement-resize',
+            startMs: 3_000,
+            durationMs: 4_000,
+          }),
+        )
+      },
+      assertReferences: (result) => {
+        expect(result.patternInstances).toEqual(composition.patternInstances)
+        expect(result.scenes[0].propertyTracks?.[0]).toMatchObject({
+          id: 'track-resize',
+          target: {
+            kind: 'placement-view',
+            placementId: 'placement-resize',
+            property: 'brightness',
+          },
+          keyframes: [
+            { id: 'key-resize-a' },
+            { id: 'key-resize-b' },
+          ],
+        })
+      },
     })
     expect(fromLeft.scenes[0].zones[0].main[0]).toMatchObject({ startMs: 3_000, durationMs: 4_000 })
     expect(fromLeft.scenes[0].propertyTracks?.[0].keyframes.map((keyframe) => keyframe.timeMs)).toEqual([3_500, 7_000])
 
-    const fromRight = resizeShowClipAtGlobalTime(show, fromLeft, {
-      owner,
-      globalStartMs: 3_000,
-      durationMs: 6_000,
+    const fromRight = expectAcceptedShowAuthoringEdit({
+      show,
+      composition: fromLeft,
+      edit: (input) => resizeShowClipAtGlobalTime(show, input, {
+        owner,
+        globalStartMs: 3_000,
+        durationMs: 6_000,
+      }),
+      assertProjection: (projection) => {
+        expect(projection.zones[0].layers[0].clips).toContainEqual(
+          expect.objectContaining({
+            id: 'placement-resize',
+            startMs: 3_000,
+            durationMs: 6_000,
+          }),
+        )
+      },
     })
     expect(fromRight.scenes[0].zones[0].main[0]).toMatchObject({ startMs: 3_000, durationMs: 6_000 })
     expect(fromRight.scenes[0].propertyTracks?.[0].keyframes.map((keyframe) => keyframe.timeMs)).toEqual([3_500, 7_000])
@@ -1768,26 +1840,58 @@ describe('global timeline Clip authoring (#580)', () => {
       view: { mirror: false, phase: 0, brightness: 1 },
     })
 
-    const next = resizeShowClipAtGlobalTime(show, composition, {
-      owner: {
-        kind: 'main',
-        sceneId: show.scenes[1].id,
-        zoneId: show.zones[0].id,
-        placementId: 'placement-spanning-resize',
+    expectAcceptedShowAuthoringEdit({
+      show,
+      composition,
+      edit: (input) => resizeShowClipAtGlobalTime(show, input, {
+        owner: {
+          kind: 'main',
+          sceneId: show.scenes[1].id,
+          zoneId: show.zones[0].id,
+          placementId: 'placement-spanning-resize',
+        },
+        globalStartMs: 29_000,
+        durationMs: 11_000,
+      }),
+      assertProjection: (projection) => {
+        const layers = projection.zones[0].layers
+        expect(layers[layers.length - 1]?.clips).toContainEqual(
+          expect.objectContaining({
+            id: 'placement-spanning-resize',
+            startMs: 29_000,
+            durationMs: 11_000,
+            endMs: 40_000,
+          }),
+        )
       },
-      globalStartMs: 29_000,
-      durationMs: 11_000,
+    })
+  })
+
+  it('refuses a non-positive resize without changing the Show composition', () => {
+    const show = createDefaultShow('show-resize-refused', 'Resize refused', 1_000)
+    const composition = emptyComposition(show)
+    composition.patternInstances.push(instance)
+    composition.scenes[0].zones[0].main.push({
+      id: 'placement-resize-refused',
+      instanceId: instance.id,
+      startMs: 2_000,
+      durationMs: 5_000,
+      view: { mirror: false, phase: 0, brightness: 1 },
     })
 
-    expect(next).not.toBe(composition)
-    const resizedLayers = projectShowUnifiedTimeline(show, next).zones[0].layers
-    expect(resizedLayers[resizedLayers.length - 1]?.clips).toContainEqual(
-      expect.objectContaining({
-        id: 'placement-spanning-resize',
-        startMs: 29_000,
-        durationMs: 11_000,
-        endMs: 40_000,
+    expectRefusedShowAuthoringEdit({
+      show,
+      composition,
+      edit: (input) => resizeShowClipAtGlobalTime(show, input, {
+        owner: {
+          kind: 'main',
+          sceneId: show.scenes[0].id,
+          zoneId: show.zones[0].id,
+          placementId: 'placement-resize-refused',
+        },
+        globalStartMs: 2_000,
+        durationMs: 0,
       }),
-    )
+    })
   })
 })
