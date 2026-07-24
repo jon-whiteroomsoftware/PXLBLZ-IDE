@@ -71,6 +71,11 @@ supplies context — Pattern preview, map wiring check, library API reference,
 saved Controller programs, or the Show Stage. PXLBLZ is a single-document
 editor: opening a map or library changes the editor context rather than
 adding a tab or silently applying that object to the running Pattern.
+The expanded rail starts compact and remains resizable. An untouched right
+pane also yields as browser zoom or a narrower window reduces the workspace,
+keeping the center authoring pane at least equally wide until the preview
+reaches its usable minimum. A deliberate divider resize remains remembered
+per Studio mode.
 
 The rail's personal content lives in compact trees with folders, drag
 reordering, search that sees into collapsed branches, and a Trash that appears

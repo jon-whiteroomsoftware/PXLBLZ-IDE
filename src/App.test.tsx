@@ -157,7 +157,7 @@ describe('App smoke test', () => {
     render(<App />)
 
     const pane = screen.getByTestId('left-pane')
-    expect(pane).toHaveStyle({ width: '288px', maxWidth: '34vw' })
+    expect(pane).toHaveStyle({ width: '216px', maxWidth: '34vw' })
     expect(screen.queryByRole('button', { name: 'Catalog' })).not.toBeInTheDocument()
 
     await userEvent.click(screen.getByRole('button', { name: 'Collapse rail' }))
@@ -183,7 +183,7 @@ describe('App smoke test', () => {
     expect(pane).toHaveStyle({ width: '46px' })
 
     await userEvent.click(screen.getByRole('button', { name: 'Expand library' }))
-    expect(pane).toHaveStyle({ width: '288px', maxWidth: '34vw' })
+    expect(pane).toHaveStyle({ width: '216px', maxWidth: '34vw' })
     expect(screen.getByRole('button', { name: 'Collapse rail' })).toBeInTheDocument()
   })
 
@@ -202,13 +202,28 @@ describe('App smoke test', () => {
   })
 
   it('starts with a wider preview pane', () => {
+    vi.stubGlobal('innerWidth', 1440)
     window.history.replaceState(null, '', '/studio')
     seedSignedInWorkspace()
     render(<App />)
     expect(screen.getByTestId('preview-pane')).toHaveStyle({ width: '460px' })
   })
 
+  it('shrinks an untouched preview to keep the authoring pane at least equally wide as browser zoom reduces the workspace (#63)', () => {
+    vi.stubGlobal('innerWidth', 1440)
+    window.history.replaceState(null, '', '/studio')
+    seedSignedInWorkspace()
+    render(<App />)
+    expect(screen.getByTestId('preview-pane')).toHaveStyle({ width: '460px' })
+
+    vi.stubGlobal('innerWidth', 1000)
+    fireEvent(window, new Event('resize'))
+
+    expect(screen.getByTestId('preview-pane')).toHaveStyle({ width: '387px' })
+  })
+
   it('remembers right-pane width per Studio mode instead of leaking it across modes (#63)', async () => {
+    vi.stubGlobal('innerWidth', 1440)
     window.history.replaceState(null, '', '/studio')
     seedSignedInWorkspace()
     const { container } = render(<App />)
@@ -498,6 +513,7 @@ describe('routing (#308)', () => {
   })
 
   it('gives the production Show one workspace owner for its header, timeline, and Stage (#592)', () => {
+    vi.stubGlobal('innerWidth', 1440)
     const show = createDefaultShow('show-workspace-owner', 'Workspace owner', 1000)
     show.outputContract = createPortableShowOutputContract({ referenceMapId: 'plane', referencePixelCount: 1024 })
     window.history.replaceState(null, '', '/studio/shows/show-workspace-owner')

@@ -88,6 +88,8 @@ import {
   STUDIO_LIBRARY_DEFAULT_WIDTH,
   STUDIO_LIBRARY_MAX_VIEWPORT_WIDTH,
   STUDIO_LIBRARY_MIN_WIDTH,
+  STUDIO_PREVIEW_MIN_WIDTH,
+  defaultStudioPreviewWidth,
   resizeStudioLibraryWidth,
 } from '@/engine/studioChrome'
 
@@ -381,7 +383,8 @@ function StudioApp() {
   const [showHeaderActionsTarget, setShowHeaderActionsTarget] = useState<HTMLSpanElement | null>(null)
   const [showHeaderGuideTarget, setShowHeaderGuideTarget] = useState<HTMLSpanElement | null>(null)
   const [showStageOverlayShowId, setShowStageOverlayShowId] = useState<string | null>(null)
-  const [narrowShowWorkspace, setNarrowShowWorkspace] = useState(() => window.innerWidth <= 980)
+  const [studioViewportWidth, setStudioViewportWidth] = useState(() => window.innerWidth)
+  const narrowShowWorkspace = studioViewportWidth <= 980
   const showStageReturnFocusRef = useRef<HTMLElement | null>(null)
   const closeShowStageOverlay = useCallback(() => {
     setShowStageOverlayShowId(null)
@@ -392,9 +395,9 @@ function StudioApp() {
   }, [])
   useEffect(() => {
     const handleResize = () => {
-      const narrow = window.innerWidth <= 980
-      setNarrowShowWorkspace(narrow)
-      if (!narrow) setShowStageOverlayShowId(null)
+      const nextWidth = window.innerWidth
+      setStudioViewportWidth(nextWidth)
+      if (nextWidth > 980) setShowStageOverlayShowId(null)
     }
     window.addEventListener('resize', handleResize)
     return () => window.removeEventListener('resize', handleResize)
@@ -645,15 +648,20 @@ function StudioApp() {
   // Right-pane width is remembered per Studio mode: a Stage widened to watch a
   // Show should not carry that width into the Patterns preview or back.
   const [rightWidths, setRightWidths] = useState<Partial<Record<string, number>>>({})
-  const MIN_PREVIEW_WIDTH = 300
-  const DEFAULT_PREVIEW_WIDTH = 460
 
   const activeFileName =
     activeLibraryName ?? activeDemoName ?? userPatterns.find((p) => p.id === activePatternId)?.name ?? '—'
   const activePattern = activePatternId ? userPatterns.find((p) => p.id === activePatternId) : undefined
   const studioEntityKind = route.kind === 'studio' ? (route.entity?.kind ?? null) : null
   const rightPaneKind = studioEntityKind ?? 'patterns'
-  const rightWidth = rightWidths[rightPaneKind] ?? DEFAULT_PREVIEW_WIDTH
+  const visibleLibraryWidth = libraryCollapsed
+    ? 46
+    : Math.min(leftWidth, studioViewportWidth * 0.34)
+  const studioWorkspaceWidth = Math.max(
+    0,
+    studioViewportWidth - visibleLibraryWidth - (libraryCollapsed ? 0 : 4),
+  )
+  const rightWidth = rightWidths[rightPaneKind] ?? defaultStudioPreviewWidth(studioWorkspaceWidth)
   const activeControllerProfileId =
     route.kind === 'studio' && route.entity?.kind === 'controllers' ? route.entity.id : null
   const activeControllerProfile =
@@ -702,9 +710,12 @@ function StudioApp() {
   const handleRightDrag = useCallback((dx: number) => {
     setRightWidths((widths) => ({
       ...widths,
-      [rightPaneKind]: Math.max(MIN_PREVIEW_WIDTH, (widths[rightPaneKind] ?? DEFAULT_PREVIEW_WIDTH) - dx),
+      [rightPaneKind]: Math.max(
+        STUDIO_PREVIEW_MIN_WIDTH,
+        (widths[rightPaneKind] ?? defaultStudioPreviewWidth(studioWorkspaceWidth)) - dx,
+      ),
     }))
-  }, [rightPaneKind])
+  }, [rightPaneKind, studioWorkspaceWidth])
 
   // A deep link to a studio entity that can't resolve (#308): unknown entity id
   // once that personal collection has loaded.
@@ -1155,7 +1166,7 @@ function StudioApp() {
         <Splitter
           label="Resize preview pane"
           valueNow={rightWidth}
-          valueMin={MIN_PREVIEW_WIDTH}
+          valueMin={STUDIO_PREVIEW_MIN_WIDTH}
           onDrag={handleRightDrag}
           className={studioEntityKind === 'shows'
             ? 'col-start-2 row-start-2 h-full max-[980px]:hidden'
@@ -1168,7 +1179,7 @@ function StudioApp() {
           className={studioEntityKind === 'shows'
             ? 'col-start-3 row-start-2 flex min-h-0 min-w-0 flex-col max-[980px]:hidden'
             : 'flex min-h-0 shrink-0 flex-col'}
-          style={{ width: rightWidth, minWidth: MIN_PREVIEW_WIDTH }}
+          style={{ width: rightWidth, minWidth: STUDIO_PREVIEW_MIN_WIDTH }}
         >
           {editorFlavor === 'mixin' ? (
             <MixinProvenancePane />

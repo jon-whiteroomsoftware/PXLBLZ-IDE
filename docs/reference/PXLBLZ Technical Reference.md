@@ -1391,7 +1391,7 @@ module and store. Occupied time never accepts the drag.
 **Collapse library**, which hides only the detail rail and fixes the left pane at
 46 pixels. The collapsed strip exposes **Expand library**. The prior resized
 width remains in memory and returns on explicit expansion. The expanded pane
-starts at 288 pixels and cannot be dragged below 184 pixels. A 34% viewport-width
+starts at 216 pixels and cannot be dragged below 184 pixels. A 34% viewport-width
 cap yields space back to the other two panes in narrow workspaces. Together,
 those limits preserve useful names without turning the rail into an accidental
 icon strip or forcing document-level overflow.
@@ -1436,10 +1436,14 @@ while the icon buttons retain their accessible names; the output summary and
 Run/Save labels disappear only at the tighter breakpoint. The header remains a
 single row rather than wrapping into the timeline. This boundary is based on
 the center pane through container queries, not on the outer browser width.
-At desktop widths the Stage pane keeps the same remembered per-entity width as
-other Studio modes and exposes a keyboard-operable separator. At 980 pixels and
-below the Stage yields to an explicit **Preview** overlay; opening that overlay
-does not create another Show runtime or clock.
+At desktop widths an untouched Stage or preview pane starts at 460 pixels while
+the authoring pane can remain at least equally wide. Browser zoom and narrower
+windows reduce that default toward a 300-pixel floor instead of letting the
+Stage consume the authoring pane's flexible remainder. Dragging the
+keyboard-operable separator creates the same explicit, remembered per-entity
+width used by other Studio modes. At 980 pixels and below the Stage yields to
+an explicit **Preview** overlay; opening that overlay does not create another
+Show runtime or clock.
 
 The authenticated responsive smoke test traverses Pattern, Map, Library,
 Controller, and Show routes at desktop and narrow widths. It verifies the
