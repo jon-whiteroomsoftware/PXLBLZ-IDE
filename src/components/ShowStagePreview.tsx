@@ -7,6 +7,7 @@ import { useMapStore, defaultPixelCountForDim, resolveMap, STOCK_MAPS } from '@/
 import { usePreviewStore } from '@/store/previewStore'
 import { useCameraStore } from '@/store/cameraStore'
 import { compileShowForPreview, resolveShowCompilationControllerZones } from '@/engine/showPreviewArtifact'
+import { nativeDimension } from '@/engine/loadPattern'
 import {
   advanceFastReplayCooperatively,
   createFastReplayRuntime,
@@ -59,6 +60,7 @@ interface StageMapOption {
 interface StageLayout {
   kind: 'strips' | 'map'
   mapPoints: MapPoint[]
+  sampleDimension?: 2 | 3
   draw:
     | { kind: '2d'; positions: [number, number][] }
     | { kind: '3d'; positions: [number, number, number][] }
@@ -239,6 +241,7 @@ export function ShowStagePreview({
       return {
         kind: 'map',
         mapPoints,
+        sampleDimension: 3,
         draw: {
           kind: '3d',
           positions: mapPoints.map((point) => point.pos as [number, number, number]),
@@ -252,6 +255,7 @@ export function ShowStagePreview({
     return {
       kind: 'map',
       mapPoints,
+      sampleDimension: 2,
       draw: {
         kind: '2d',
         positions: mapPoints.map((point) => point.pos as [number, number]),
@@ -363,7 +367,7 @@ export function ShowStagePreview({
         code: compiled.artifact.code,
         fxCode: compiled.artifact.fxCode,
         metadata: compiled.artifact.metadata,
-        dimension: layout.draw.kind === '3d' ? 3 : 2,
+        dimension: layout.sampleDimension ?? nativeDimension(compiled.artifact.metadata.renderFns),
       }, {
         mapPoints: layout.mapPoints,
         randomSeed: stableShowSeed(showId),
@@ -513,7 +517,7 @@ export function ShowStagePreview({
           code: compiled.artifact!.code,
           fxCode: compiled.artifact!.fxCode,
           metadata: compiled.artifact!.metadata,
-          dimension: layout.draw.kind === '3d' ? 3 : 2,
+          dimension: layout.sampleDimension ?? nativeDimension(compiled.artifact!.metadata.renderFns),
         }, {
           mapPoints: layout.mapPoints,
           randomSeed: stableShowSeed(showId),

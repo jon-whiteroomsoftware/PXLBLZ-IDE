@@ -264,6 +264,44 @@ export function render2D(index, x, y) { rgb(x, y, 0) }
     }
   })
 
+  it('preserves native 1D Pattern semantics for generic strip previews', () => {
+    const show = createDefaultShow('show-generic-1d', 'Generic 1D renderer', 1000)
+    show.cells[0] = {
+      ...show.cells[0],
+      pattern: { kind: 'user', id: 'native-1d' },
+      patternName: 'Native 1D',
+    }
+    const pattern: PatternRecord = {
+      id: 'native-1d',
+      name: 'Native 1D',
+      src: 'export function render(index) { rgb(has2DMap(), pixelMapDimensions(), 0) }',
+      controls: {},
+      updatedAt: 1,
+    }
+    useShowStore.setState({ shows: [show], activeShowId: show.id, showsLoaded: true })
+    usePatternStore.setState({ userPatterns: [pattern], patternsLoaded: true })
+    const createRuntime = vi.spyOn(fastReplay, 'createFastReplayRuntime')
+
+    try {
+      render(<ShowStagePreview showId={show.id} />)
+
+      expect(screen.getByLabelText('Show stage')).toHaveTextContent('Zone strips - generic')
+      expect(createRuntime).toHaveBeenCalled()
+      expect(createRuntime.mock.calls[0]?.[0]).toMatchObject({
+        dimension: 1,
+        metadata: {
+          renderFns: {
+            hasRender: true,
+            hasRender2D: false,
+            hasRender3D: false,
+          },
+        },
+      })
+    } finally {
+      createRuntime.mockRestore()
+    }
+  })
+
   it('draws session-only Zone and selected-clip diagnostics above the Stage without changing playback (#491)', () => {
     const show = createDefaultShow('show-diagnostics', 'Diagnostics', 1000)
     show.stageMapId = 'map-1'
