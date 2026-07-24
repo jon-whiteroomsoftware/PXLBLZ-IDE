@@ -264,6 +264,7 @@ function SecondaryBand() {
             min={0}
             max={1}
             step={0.01}
+            presentation="percentage"
             curve={2}
             onChange={(v) => {
               setBrightness(v)
@@ -352,6 +353,7 @@ export function PreviewViewportSection({ profile }: { profile: 'pattern' | 'show
           min={0}
           max={1}
           step={0.01}
+          presentation="percentage"
           onChange={updateDiffusion}
         />
         {pattern && solidEligible && (
@@ -362,6 +364,7 @@ export function PreviewViewportSection({ profile }: { profile: 'pattern' | 'show
             min={0}
             max={1}
             step={0.01}
+            presentation="percentage"
             onChange={(value) => {
               setSolidity(value)
               writeCascadedOverride('solidity', value)

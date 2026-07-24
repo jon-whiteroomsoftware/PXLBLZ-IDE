@@ -3,6 +3,8 @@ import { createPortal } from 'react-dom'
 import { Activity, BookOpen, Check, ChevronDown, ChevronRight, Clock3, Code2, Copy, Download, Eye, Flag, Grid2X2, Info, Layers3, Lightbulb, ListChecks, Lock, Magnet, Map as MapIcon, Maximize2, Pause, Play, Plus, Redo2, Repeat2, RotateCcw, RotateCw, Route, Scissors, Settings2, SkipBack, SlidersHorizontal, SplitSquareHorizontal, Trash2, Undo2, WandSparkles, X, Zap } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { NumberField as UiNumberField, type NumberFieldProps as UiNumberFieldProps } from '@/components/ui/number-field'
+import { PercentageField as UiPercentageField, type PercentageFieldProps as UiPercentageFieldProps } from '@/components/ui/percentage-field'
+import { formatPercentageValue } from '@/engine/percentageValue'
 import {
   AlertDialogAction,
   AlertDialogCancel,
@@ -7170,7 +7172,7 @@ function ClipInspector({
                 <>
                   <div className="mt-1.5 grid grid-cols-2 gap-1.5 sm:grid-cols-4">
                   <NumberField compact label="Shutter rate (Hz)" value={lightShutter.rateHz} min={0.01} max={60} step={0.1} onChange={(rateHz) => updateLightShutter({ rateHz })} />
-                  <NumberField compact label="Light on fraction" value={lightShutter.duty} min={0} max={1} step={0.01} onChange={(duty) => updateLightShutter({ duty })} />
+                  <PercentageField compact label="Light on fraction" value={lightShutter.duty} min={0} max={1} step={0.01} onChange={(duty) => updateLightShutter({ duty })} />
                   <NumberField compact label="Shutter phase" value={lightShutter.phase} min={0} max={1} step={0.01} onChange={(phase) => updateLightShutter({ phase })} />
                   <label className="text-[9px] uppercase tracking-[0.08em] text-zinc-600">
                     Clock while dark
@@ -7934,22 +7936,44 @@ function PropertyTransitionEditor({
               </label>
               {enabled && (
                 <div className="mt-2 grid grid-cols-2 gap-2">
-                  <NumberField
-                    label={`${title} start ${zone.name}`}
-                    value={from}
-                    min={0}
-                    max={max}
-                    step={0.05}
-                    onChange={updateFrom}
-                  />
-                  <NumberField
-                    label={`${title} target ${zone.name}`}
-                    value={cell.adaptations[property]}
-                    min={0}
-                    max={max}
-                    step={0.05}
-                    onChange={(value) => onUpdateCellAdaptations(cell, { [property]: value })}
-                  />
+                  {isTime ? (
+                    <NumberField
+                      label={`${title} start ${zone.name}`}
+                      value={from}
+                      min={0}
+                      max={max}
+                      step={0.05}
+                      onChange={updateFrom}
+                    />
+                  ) : (
+                    <PercentageField
+                      label={`${title} start ${zone.name}`}
+                      value={from}
+                      min={0}
+                      max={1}
+                      step={0.05}
+                      onChange={updateFrom}
+                    />
+                  )}
+                  {isTime ? (
+                    <NumberField
+                      label={`${title} target ${zone.name}`}
+                      value={cell.adaptations[property]}
+                      min={0}
+                      max={max}
+                      step={0.05}
+                      onChange={(value) => onUpdateCellAdaptations(cell, { [property]: value })}
+                    />
+                  ) : (
+                    <PercentageField
+                      label={`${title} target ${zone.name}`}
+                      value={cell.adaptations[property]}
+                      min={0}
+                      max={1}
+                      step={0.05}
+                      onChange={(value) => onUpdateCellAdaptations(cell, { [property]: value })}
+                    />
+                  )}
                 </div>
               )}
             </div>
@@ -8011,7 +8035,7 @@ function PatternControlTransitionEditor({
   return (
     <section className="col-span-2 rounded border border-cyan-400/15 bg-cyan-400/[0.035] p-2" aria-label={`${control.label} control transition`}>
       <div className="mb-1 text-[10px] uppercase tracking-[0.12em] text-cyan-300/80">{control.label} · Pattern control</div>
-      <div className="mb-2 text-[9px] text-zinc-600">{control.exportName} · 0–1 · default {control.defaultValue}</div>
+      <div className="mb-2 text-[9px] text-zinc-600">{control.exportName} · 0–100% · default {formatPercentageValue(control.defaultValue)}</div>
       {descriptor && (
         <div className="mb-2 grid grid-cols-2 gap-2">
           <NumberField
@@ -8061,7 +8085,7 @@ function PatternControlTransitionEditor({
               {!bothTargets && <p className="mt-1 text-[9px] text-amber-300/70">Set this target on both adjacent clips first.</p>}
               {enabled && (
                 <div className="mt-2 grid grid-cols-2 gap-2">
-                  <NumberField
+                  <PercentageField
                     label={`${control.label} start ${zone.name}`}
                     value={from}
                     min={0}
@@ -8069,7 +8093,7 @@ function PatternControlTransitionEditor({
                     step={0.01}
                     onChange={(value) => updateDescriptor({}, { ...(descriptor?.fromByCellId ?? {}), [cell.id]: value })}
                   />
-                  <NumberField
+                  <PercentageField
                     label={`${control.label} target ${zone.name}`}
                     value={cell.controlTargets?.[control.exportName] ?? control.defaultValue}
                     min={0}
@@ -8346,6 +8370,7 @@ function ShowSetupInspector({
                 Retention
                 <input
                   aria-label="Trails retention"
+                  aria-valuetext={formatPercentageValue(trails.retention, 0.015625)}
                   type="range"
                   min={0}
                   max={1}
@@ -8358,7 +8383,7 @@ function ShowSetupInspector({
                   className="min-w-20 flex-1 accent-cyan-400"
                 />
                 <span className="w-10 text-right font-mono text-[10px] tabular-nums text-cyan-300">
-                  {(trails.retention * 100).toFixed(1)}%
+                  {formatPercentageValue(trails.retention, 0.015625)}
                 </span>
               </label>
             )}
@@ -8588,22 +8613,17 @@ function ShowSetupInspector({
                       className={`${field} mt-1 w-full`}
                     />
                   </label>
-                  <label className="text-[9.5px] uppercase text-zinc-600">
-                    Amplitude
-                    <input
-                      key={layout.logical.amplitude}
-                      aria-label="Wave amplitude"
-                      type="number"
-                      min={0}
-                      max={1}
-                      step={0.05}
-                      defaultValue={layout.logical.amplitude}
-                      onBlur={(event) => onUpdateRoutingLayout(layout.id, {
-                        logical: patchLogicalRouting(layout.logical!, 'wave', { amplitude: Math.max(0, Math.min(1, Number(event.currentTarget.value) || 0)) }),
-                      })}
-                      className={`${field} mt-1 w-full`}
-                    />
-                  </label>
+                  <PercentageField
+                    key={layout.logical.amplitude}
+                    label="Wave amplitude"
+                    value={layout.logical.amplitude}
+                    min={0}
+                    max={1}
+                    step={0.05}
+                    onChange={(amplitude) => onUpdateRoutingLayout(layout.id, {
+                      logical: patchLogicalRouting(layout.logical!, 'wave', { amplitude }),
+                    })}
+                  />
                   <label className="text-[9.5px] uppercase text-zinc-600">
                     Frequency
                     <input
@@ -8651,22 +8671,17 @@ function ShowSetupInspector({
                       <option value="y">Y</option>
                     </select>
                   </label>
-                  <label className="text-[9.5px] uppercase text-zinc-600">
-                    Feather
-                    <input
-                      key={layout.logical.feather}
-                      aria-label="Soft Split feather"
-                      type="number"
-                      min={0}
-                      max={1}
-                      step={0.05}
-                      defaultValue={layout.logical.feather}
-                      onBlur={(event) => onUpdateRoutingLayout(layout.id, {
-                        logical: patchLogicalRouting(layout.logical!, 'soft-split', { feather: Math.max(0, Math.min(1, Number(event.currentTarget.value) || 0)) }),
-                      })}
-                      className={`${field} mt-1 w-full`}
-                    />
-                  </label>
+                  <PercentageField
+                    key={layout.logical.feather}
+                    label="Soft Split feather"
+                    value={layout.logical.feather}
+                    min={0}
+                    max={1}
+                    step={0.05}
+                    onChange={(feather) => onUpdateRoutingLayout(layout.id, {
+                      logical: patchLogicalRouting(layout.logical!, 'soft-split', { feather }),
+                    })}
+                  />
                 </div>
               )}
               {layout.logical ? (
@@ -9166,6 +9181,10 @@ function CompileBar({
 // Shared draft-buffered numeric field (#577) in the editor-panel style.
 function NumberField(props: Omit<UiNumberFieldProps, 'variant' | 'align' | 'ariaLabel' | 'disabled'>) {
   return <UiNumberField variant="editor" {...props} />
+}
+
+function PercentageField(props: Omit<UiPercentageFieldProps, 'variant' | 'align' | 'ariaLabel' | 'disabled'>) {
+  return <UiPercentageField variant="editor" {...props} />
 }
 
 function ClipSummaryInline({

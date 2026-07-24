@@ -1,6 +1,7 @@
 import { Fragment, useEffect, useState } from 'react'
 import type React from 'react'
 import { useNumberFieldDraft } from '@/components/ui/number-field'
+import { PercentageField as UiPercentageField } from '@/components/ui/percentage-field'
 import {
   Download,
   Map as MapIcon,
@@ -205,6 +206,38 @@ function NumberField({
       }}
       className={`${fieldClass} tabular-nums`}
     />
+  )
+}
+
+function PercentageField({
+  value,
+  onChange,
+  ariaLabel,
+  min = 0,
+  max = 1,
+  step = 0.01,
+}: {
+  value: number
+  onChange: (value: number) => void
+  ariaLabel: string
+  min?: number
+  max?: number
+  step?: number
+}) {
+  return (
+    <div onClick={stopFieldPropagation} onPointerDown={stopFieldPropagation} onKeyDown={stopFieldPropagation}>
+      <UiPercentageField
+        label={ariaLabel}
+        ariaLabel={ariaLabel}
+        hideLabel
+        variant="editor"
+        value={value}
+        min={min}
+        max={max}
+        step={step}
+        onChange={onChange}
+      />
+    </div>
   )
 }
 
@@ -532,7 +565,7 @@ function InputsTable({
                   />
                 </td>
                 <td className={tableCellClass}>
-                  <NumberField
+                  <PercentageField
                     ariaLabel={`${input.name} smoothing`}
                     min={0}
                     max={1}
@@ -542,7 +575,7 @@ function InputsTable({
                   />
                 </td>
                 <td className={tableCellClass}>
-                  <NumberField
+                  <PercentageField
                     ariaLabel={`${input.name} fallback`}
                     min={0}
                     max={1}
@@ -762,16 +795,15 @@ function PowerCapEditor({
         <div className="grid gap-2 border-t border-zinc-800/80 px-3 py-2.5">
           <PowerCapField
             label="controller brightness"
-            unit="%"
             hint={!transform.provenance && liveBrightness != null ? 'read from device' : undefined}
           >
-            <NumberField
+            <PercentageField
               ariaLabel="Controller brightness percent"
               min={0}
-              max={100}
-              step={1}
-              value={electrical.brightness * 100}
-              onChange={(percent) => applyDerived({ brightness: percent / 100 })}
+              max={1}
+              step={0.01}
+              value={electrical.brightness}
+              onChange={(brightness) => applyDerived({ brightness })}
             />
           </PowerCapField>
           <PowerCapField label="power budget" unit="A">
@@ -786,14 +818,14 @@ function PowerCapEditor({
         </div>
       ) : (
         <div className="border-t border-zinc-800/80 px-3 py-2.5">
-          <PowerCapField label="duty cap" unit="%">
-            <NumberField
+          <PowerCapField label="duty cap">
+            <PercentageField
               ariaLabel="Power cap duty percent"
               min={0}
-              max={100}
-              step={1}
-              value={Math.round(transform.maxDuty * 100)}
-              onChange={(percent) => onChange(directPowerCapSettings(transform, percent / 100))}
+              max={1}
+              step={0.01}
+              value={transform.maxDuty}
+              onChange={(maxDuty) => onChange(directPowerCapSettings(transform, maxDuty))}
             />
           </PowerCapField>
         </div>
@@ -816,7 +848,7 @@ function PowerCapField({
   children,
 }: {
   label: string
-  unit: string
+  unit?: string
   hint?: string
   children: React.ReactNode
 }) {
@@ -825,7 +857,7 @@ function PowerCapField({
       <span className="min-w-0 text-[10px] leading-tight text-zinc-500">{label}</span>
       <span className="flex min-w-0 items-center gap-1.5">
         {children}
-        <span className="shrink-0 text-[10px] text-zinc-500">{unit}</span>
+        {unit && <span className="shrink-0 text-[10px] text-zinc-500">{unit}</span>}
       </span>
       {hint && <span className="col-span-full text-[10px] text-amber-300/80">⚡ {hint}</span>}
     </label>

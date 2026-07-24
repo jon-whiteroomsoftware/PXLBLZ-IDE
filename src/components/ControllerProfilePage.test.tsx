@@ -698,14 +698,14 @@ describe('ControllerProfilePage', () => {
       })
     })
 
-    const input = screen.getByRole('spinbutton', { name: 'Power cap duty percent' })
+    const input = screen.getByRole('textbox', { name: 'Power cap duty percent exact percentage' })
     fireEvent.click(input)
     fireEvent.keyDown(input, { key: 'ArrowUp' })
 
     expect(onAncestorClick).not.toHaveBeenCalled()
     expect(onAncestorKeyDown).not.toHaveBeenCalled()
 
-    fireEvent.change(input, { target: { value: '35' } })
+    fireEvent.change(input, { target: { value: '35%' } })
     fireEvent.blur(input)
 
     await waitFor(() => {
@@ -732,14 +732,14 @@ describe('ControllerProfilePage', () => {
     fireEvent.click(screen.getByRole('button', { name: 'From power budget' }))
 
     expect(await screen.findByRole('spinbutton', { name: 'LED full-white current' })).toHaveValue(60)
-    expect(screen.getByRole('spinbutton', { name: 'Controller brightness percent' })).toHaveValue(100)
+    expect(screen.getByRole('textbox', { name: 'Controller brightness percent exact percentage' })).toHaveValue('100%')
     expect(screen.getByRole('spinbutton', { name: 'Power budget amps' })).toHaveValue(3.6)
     expect(screen.queryByRole('spinbutton', { name: 'Pixel count' })).not.toBeInTheDocument()
 
-    fireEvent.change(screen.getByRole('spinbutton', { name: 'Controller brightness percent' }), {
-      target: { value: '50' },
+    fireEvent.change(screen.getByRole('textbox', { name: 'Controller brightness percent exact percentage' }), {
+      target: { value: '50%' },
     })
-    fireEvent.blur(screen.getByRole('spinbutton', { name: 'Controller brightness percent' }))
+    fireEvent.blur(screen.getByRole('textbox', { name: 'Controller brightness percent exact percentage' }))
 
     await waitFor(() => {
       const transform = useControllerProfileStore.getState().profiles[0].globalTransforms
@@ -789,7 +789,7 @@ describe('ControllerProfilePage', () => {
     render(<ControllerProfilePage profileId="ctrl-1" />)
 
     await waitFor(() => {
-      expect(screen.getByRole('spinbutton', { name: 'Controller brightness percent' })).toHaveValue(50)
+      expect(screen.getByRole('textbox', { name: 'Controller brightness percent exact percentage' })).toHaveValue('50%')
     })
     expect(screen.getByText(/read from device/i)).toBeInTheDocument()
   })

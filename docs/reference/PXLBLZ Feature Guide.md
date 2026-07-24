@@ -136,6 +136,23 @@ Exported functions create the same controls Pixelblaze users know:
 `export var` appears in the var watcher and updates after each frame, with
 arrays summarized element by element.
 
+Straight normalized scalars are presented as percentages throughout Studio.
+An exact field accepts either `72%` or the underlying normalized value `0.72`,
+then displays the canonical `72%`; the saved Pattern, Show, or Controller
+Profile still stores `0.72`. The small grip at the field's right edge opens a
+high-resolution horizontal slider without permanently consuming inspector
+space. Hold and drag to preview continuously and save once on release, or
+click the grip to pin the slider for Arrow, Home/End, Enter, and Escape
+control. Preview and Controller deck sliders keep their full-width layout but
+use the same percentage readout and accessible value text.
+
+Percentage presentation is semantic, not inferred from a `0..1` range.
+Brightness, opacity, duty, diffusion, public Pattern controls, ordinary Effect
+amounts, thresholds, softness, and feather use it; gain controls may extend
+past `100%`. Phase, turns, geometry, spatial scale, time, integer counts,
+multipliers, and ratios retain their own units even when their storage happens
+to be normalized.
+
 Patterns may also call **libraries** with namespace syntax such as
 `SDF.circle(...)` — see [section 7](#7-libraries-and-mixins).
 

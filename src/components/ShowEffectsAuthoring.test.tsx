@@ -78,8 +78,8 @@ describe('Show Effect authoring UI', () => {
     expect(onChange).toHaveBeenLastCalledWith([
       { id: 'green-key', kind: 'chroma-key', color: '#ff00aa', tolerance: 0.05, softness: 0.05 },
     ])
-    expect(screen.getByLabelText('Tolerance')).toHaveValue(0.05)
-    expect(screen.getByLabelText('Softness')).toHaveValue(0.05)
+    expect(screen.getByRole('textbox', { name: 'Tolerance exact percentage' })).toHaveValue('5%')
+    expect(screen.getByRole('textbox', { name: 'Softness exact percentage' })).toHaveValue('5%')
   })
 
   it('edits Color Map as exactly Shadow Color and Highlight Color (#609)', async () => {
@@ -137,7 +137,9 @@ describe('Show Effect authoring UI', () => {
     render(<ShowEffectStack effects={effects} onChange={onChange} onAdd={vi.fn()} />)
 
     await user.click(screen.getByRole('button', { name: 'Edit Vignette Effect' }))
-    for (const label of ['Amount', 'Softness', 'Radius', 'Center X', 'Center Y', 'Aspect']) {
+    expect(screen.getByRole('textbox', { name: 'Amount exact percentage' })).toHaveValue('100%')
+    expect(screen.getByRole('textbox', { name: 'Softness exact percentage' })).toHaveValue('35%')
+    for (const label of ['Radius', 'Center X', 'Center Y', 'Aspect']) {
       expect(screen.getByRole('spinbutton', { name: label })).toBeVisible()
     }
     fireEvent.change(screen.getByRole('spinbutton', { name: 'Radius' }), { target: { value: '0.48' } })

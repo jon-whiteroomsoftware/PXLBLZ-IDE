@@ -85,7 +85,7 @@ describe('Show Clip summary', () => {
       'animation',
     ])
     expect(showClipInlineSummary(summary)).toBe(
-      'Animation speed 0.5× · Start offset 250 ms · Amount 0.3 · Brightness 75% · Hue 0.1 turn · Animation speed animated · Brightness animated',
+      'Animation speed 0.5× · Start offset 250 ms · Amount 30% · Brightness 75% · Hue 0.1 turn · Animation speed animated · Brightness animated',
     )
     expect(summary.find((section) => section.kind === 'animation')?.items).not.toContainEqual(
       expect.objectContaining({ label: 'Position X' }),
@@ -269,8 +269,8 @@ describe('Show Clip summary', () => {
       expect.objectContaining({ label: 'Animation speed', value: '0.35×' }),
     )
     expect(summary.find((section) => section.kind === 'controls')?.items).toEqual([
-      expect.objectContaining({ label: 'Speed', value: '0.28' }),
-      expect.objectContaining({ label: 'Sharpness', value: '0.42' }),
+      expect.objectContaining({ label: 'Speed', value: '28%' }),
+      expect.objectContaining({ label: 'Sharpness', value: '42%' }),
     ])
     expect(summary.find((section) => section.kind === 'view')?.items).toContainEqual(
       expect.objectContaining({ label: 'Brightness', value: '80%' }),
@@ -283,7 +283,7 @@ describe('Show Clip summary', () => {
       expect.objectContaining({ label: 'Animation speed', value: 'animated' }),
     )
     expect(showClipInlineSummary(summary)).toBe(
-      'Animation speed 0.35× · Speed 0.28 · Sharpness 0.42 · Brightness 80% · Scale X 0.8, Y 0.8 · Hue 0.1 turn · Animation speed animated',
+      'Animation speed 0.35× · Speed 28% · Sharpness 42% · Brightness 80% · Scale X 0.8, Y 0.8 · Hue 0.1 turn · Animation speed animated',
     )
   })
 
@@ -293,6 +293,22 @@ describe('Show Clip summary', () => {
 
     expect(summary).toEqual([])
     expect(showClipInlineSummary(summary)).toBe('defaults')
+  })
+
+  it('formats only explicitly classified Effect scalars as percentages', () => {
+    const show = createDefaultShow('show-effect-percent-summary', 'Effect percentages', 1_000)
+    show.cells[0].effects = [
+      { id: 'fade', kind: 'opacity', opacity: 0.25 },
+      { id: 'hue', kind: 'hue', turns: 0.1 },
+    ]
+
+    const effects = projectGlobalShowClipSummary(show, show.cells[0].id)
+      .find((section) => section.kind === 'effects')?.items
+
+    expect(effects).toEqual([
+      expect.objectContaining({ label: 'Opacity', value: '25%' }),
+      expect.objectContaining({ label: 'Hue', value: '0.1 turn' }),
+    ])
   })
 
   it('summarizes canonical Transform placement and animation separately from Effects (#529)', () => {

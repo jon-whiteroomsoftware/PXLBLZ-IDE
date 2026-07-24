@@ -3,6 +3,7 @@ import { showClipEffectParameterValue, showClipEffectParameters } from './showEf
 import { normalizeShowClipTransform } from './showClipTransform'
 import { compactShowClipViewport, normalizeShowClipViewport } from './showClipViewport'
 import { materializeShowGroupOccurrences } from './showGroupModel'
+import { formatPercentageValue } from './percentageValue'
 import type {
   ShowCell,
   ShowClipEffect,
@@ -123,13 +124,17 @@ function projectClipSummary(
     controls: Object.entries(source.controlTargets ?? {}).map(([exportName, value]) => ({
       id: `control:${exportName}`,
       label: controlLabels[exportName] ?? humanizeIdentifier(exportName.replace(/^slider/, '')),
-      value: formatNumber(value),
+      value: formatPercentageValue(value),
     })),
     view: viewItems(source),
     effects: (source.effects ?? []).map((effect) => {
       const parameters = showClipEffectParameters(effect).map((parameter) => ({
         label: compactEffectParameterLabel(parameter.label, effect.kind),
-        value: formatToolkitValue(showClipEffectParameterValue(effect, parameter.id), parameter.unit),
+        value: formatToolkitValue(
+          showClipEffectParameterValue(effect, parameter.id),
+          parameter.unit,
+          parameter.presentation,
+        ),
       }))
       const value = parameters.length === 1
         ? parameters[0].value
@@ -376,8 +381,11 @@ function formatNumber(value: number): string {
   return Number(value.toFixed(2)).toString()
 }
 
-function formatToolkitValue(value: unknown, unit?: string): string {
-  if (typeof value === 'number') return `${formatNumber(value)}${unit ? ` ${unit}` : ''}`
+function formatToolkitValue(value: unknown, unit?: string, presentation?: 'percentage'): string {
+  if (typeof value === 'number') {
+    if (presentation === 'percentage') return formatPercentageValue(value)
+    return `${formatNumber(value)}${unit ? ` ${unit}` : ''}`
+  }
   if (typeof value === 'boolean') return value ? 'On' : 'Off'
   return String(value)
 }

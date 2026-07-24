@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
 import { useNumberFieldDraft } from '@/components/ui/number-field'
+import { PercentageField } from '@/components/ui/percentage-field'
 import { ColorField } from '@/components/ui/color-field'
 import {
   ArrowDown,
@@ -264,6 +265,10 @@ export function ShowEffectStack({
                   {expanded && (
                     <div className="grid grid-cols-2 items-end gap-1.5 border-t border-zinc-800/60 p-2 sm:grid-cols-3">
                       {showClipEffectParameters(effect).map((parameter) => {
+                        const parameterValue = Number(showClipEffectParameterValue(effect, parameter.id))
+                        const updateEffects = (next: number) => effects.map((candidate) => candidate.id === effect.id
+                          ? updateShowClipEffectParameter(candidate, parameter.id, next)
+                          : candidate)
                         if (parameter.kind === 'color') {
                           return (
                             <ColorField
@@ -280,6 +285,23 @@ export function ShowEffectStack({
                             />
                           )
                         }
+                        if (parameter.presentation === 'percentage') {
+                          return (
+                            <PercentageField
+                              key={parameter.id}
+                              label={parameter.label}
+                              value={parameterValue}
+                              min={parameter.min ?? 0}
+                              max={parameter.max ?? 1}
+                              step={parameter.step ?? 0.01}
+                              variant="editor"
+                              compact
+                              onPreview={(next) => onPreview?.(updateEffects(next))}
+                              onPreviewEnd={onPreviewEnd}
+                              onChange={(next) => onChange(updateEffects(next))}
+                            />
+                          )
+                        }
                         return (
                           <label key={parameter.id} className="text-[8px] uppercase tracking-wide text-zinc-600">
                             <span className="flex items-center justify-between gap-2">
@@ -288,7 +310,7 @@ export function ShowEffectStack({
                             </span>
                             <EffectParameterField
                               label={parameter.label}
-                              value={Number(showClipEffectParameterValue(effect, parameter.id))}
+                              value={parameterValue}
                               min={parameter.min}
                               max={parameter.max}
                               step={parameter.step}

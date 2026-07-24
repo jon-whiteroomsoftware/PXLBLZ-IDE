@@ -1492,6 +1492,34 @@ because they are temporal projections rather than scalar Clip fields. The
 shared Detail components do not import a Show store or duplicate occupancy and
 ownership rules.
 
+### Percentage presentation contract
+
+`percentageValue.ts` is the framework-free boundary for straight percentage
+values. It parses exact percentage text and normalized decimal text into real
+model units, formats one canonical percentage string, clamps only at an
+explicit field boundary, maps pointer travel at up to one-thousandth of the
+field span, and places the transient slider so its current thumb begins under
+the initiating pointer while the overlay remains inside the viewport.
+
+`PercentageField` combines a buffered exact draft with a compact grip and a
+portaled horizontal range input. Pointer movement may call an ephemeral preview
+callback many times, but release ends preview before emitting at most one
+persisted change. Pointer cancellation, lost capture, Escape, and unmount end
+preview and restore the committed value. A click without movement pins the
+range; Enter and Space also open it from the grip, Arrow keys use the authored
+semantic step, Home/End select endpoints, Enter commits, and Escape cancels.
+Invalid or incomplete exact drafts remain local until blur and then revert.
+
+Percentage semantics are opt-in. `ShowToolkitParameterDescriptor.presentation`
+marks eligible Effect and Transition parameters; the frozen visual-toolkit
+contract is version 9. Other call sites select percentage presentation
+explicitly. A numeric `min=0, max=1` pair is insufficient because phase,
+direction, centers, viewport geometry, and other spatial values share that
+storage range. Full-width `DeckSlider` controls use the same formatter and
+`aria-valuetext` without changing their layout. Stored records, preview
+overrides, compiler inputs, Controller writes, and generated Pixelblaze source
+all remain in real units.
+
 `showClipTransform.ts` owns Clip Transform normalization, neutral-value
 compaction, and compiler lowering. The persisted record uses normalized
 Position X/Y, Rotation in turns around `(0.5, 0.5)`, and Scale X/Y. Inspector and
@@ -2853,8 +2881,9 @@ counterclockwise Spin, and combined Zoom + Spin; compiler tests cover
 boundary, midpoint, anchored scaling, transformed sampling, and both renderer
 policies.
 
-Property transitions share one descriptor model. Animation speed (`0×..4×`), brightness
-(`0..1`), and exported slider controls carry destination targets on clips. Moving
+Property transitions share one descriptor model. Animation speed (`0×..4×`),
+brightness (`0%..100%` in the UI, `0..1` in the model), and exported slider
+controls carry destination targets on clips. Moving
 split position (`0..1`) and sample repeat scale (`1..8`) carry their targets on
 the destination scene. Every form
 uses boundary-owned starts, durations, and easing. Generated control values call the

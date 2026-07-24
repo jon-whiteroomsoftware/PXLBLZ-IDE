@@ -76,22 +76,22 @@ describe('shared Clip Entity Detail sections (#498)', () => {
     render(<ShowClipEntityDetail {...commonProps(scope)} />)
     expect(screen.getByRole('combobox', { name: 'Source pattern' })).toBeInTheDocument()
     expect(screen.getByRole('spinbutton', { name: 'Animation speed' })).toBeInTheDocument()
-    expect(screen.getByRole('spinbutton', { name: 'Brightness' })).toBeInTheDocument()
+    expect(screen.getByRole('textbox', { name: 'Brightness exact percentage' })).toBeInTheDocument()
     expect(Boolean(screen.queryByRole('spinbutton', { name: 'Start seconds' }))).toBe(localTiming)
     expect(Boolean(screen.queryByRole('combobox', { name: 'Overlay target layer' }))).toBe(layer)
-    expect(Boolean(screen.queryByRole('spinbutton', { name: 'Opacity' }))).toBe(opacity)
+    expect(Boolean(screen.queryByRole('textbox', { name: 'Opacity exact percentage' }))).toBe(opacity)
   })
 
   it('keeps the full control names accessible behind compact visible labels (#63)', () => {
     render(<ShowClipEntityDetail {...commonProps('scene-main')} />)
 
     const speed = screen.getByRole('spinbutton', { name: 'Animation speed' })
-    const brightness = screen.getByRole('spinbutton', { name: 'Brightness' })
+    const brightness = screen.getByRole('textbox', { name: 'Brightness exact percentage' })
     expect(speed.closest('label')).toHaveTextContent('Speed')
     expect(speed.closest('label')).not.toHaveTextContent('Animation speed')
-    expect(brightness.closest('label')).toHaveTextContent('Bright')
-    expect(brightness.closest('label')).not.toHaveTextContent('Brightness')
-    expect(brightness.closest('label')).not.toHaveTextContent('0–1')
+    expect(screen.getByText('Bright')).toBeInTheDocument()
+    expect(brightness).toHaveValue('80%')
+    expect(brightness.parentElement?.parentElement).not.toHaveTextContent('0–1')
   })
 
   it('commits shared Pattern, simulation, view, and control patches', () => {
@@ -104,8 +104,8 @@ describe('shared Clip Entity Detail sections (#498)', () => {
     fireEvent.click(screen.getByRole('option', { name: 'CometLoom' }))
     expect(onPatch).toHaveBeenCalledWith({ pattern: { ref: { kind: 'stock', id: 'CometLoom' }, name: 'CometLoom' } })
 
-    const brightness = screen.getByRole('spinbutton', { name: 'Brightness' })
-    fireEvent.change(brightness, { target: { value: '0.35' } })
+    const brightness = screen.getByRole('textbox', { name: 'Brightness exact percentage' })
+    fireEvent.change(brightness, { target: { value: '35%' } })
     fireEvent.blur(brightness)
     expect(onPatch).toHaveBeenCalledWith({ view: { brightness: 0.35 } })
 
@@ -242,7 +242,7 @@ describe('shared Clip Entity Detail sections (#498)', () => {
     const patternTable = screen.getByRole('table', { name: 'Pattern controls' })
     expect(patternTable).toHaveTextContent('Speed')
     expect(patternTable).toHaveTextContent('sliderSpeed')
-    expect(patternTable).toHaveTextContent('0–1')
+    expect(patternTable).toHaveTextContent('0–100%')
     expect(screen.getByRole('table', { name: 'Advanced clip controls' })).toBeInTheDocument()
     const advancedRows = screen.getByRole('table', { name: 'Advanced clip controls' }).querySelectorAll('tbody tr')
     expect(advancedRows[0].children[1]).toHaveTextContent('Mirror clip')
@@ -255,7 +255,8 @@ describe('shared Clip Entity Detail sections (#498)', () => {
       'pr-[23px]',
     )
     expect(screen.getByRole('spinbutton', { name: 'Animation speed' })).toHaveClass('h-5', 'px-[5px]')
-    expect(screen.getByRole('spinbutton', { name: 'Speed target' })).toHaveClass('h-5', 'border-0', 'border-b')
+    expect(screen.getByRole('textbox', { name: 'Speed target exact percentage' }).parentElement)
+      .toHaveClass('h-5', 'border', 'border-zinc-700')
     expect(screen.getByRole('spinbutton', { name: 'Phase' })).toHaveClass('h-5', 'border-0', 'border-b', 'text-left')
   })
 
@@ -275,7 +276,7 @@ describe('shared Clip Entity Detail sections (#498)', () => {
     expect(row).toHaveClass('h-6')
     expect(within(row).getByRole('rowheader', { name: 'Speed' })).toHaveClass('truncate', 'whitespace-nowrap')
     expect(row.querySelector<HTMLElement>('[title^="sliderSpeed"]')).toHaveClass('truncate', 'whitespace-nowrap')
-    expect(screen.getByRole('spinbutton', { name: 'Speed target' }).closest('td')).toHaveClass(
+    expect(screen.getByRole('textbox', { name: 'Speed target exact percentage' }).closest('td')).toHaveClass(
       'whitespace-nowrap',
       '[&_input]:!border-0',
     )
@@ -313,8 +314,8 @@ describe('shared Clip Entity Detail sections (#498)', () => {
       const onOpenEffects = vi.fn()
       render(<ShowClipEntityDetail {...commonProps(scope, onPatch)} onOpenEffects={onOpenEffects} />)
 
-      const brightness = screen.getByRole('spinbutton', { name: 'Brightness' })
-      fireEvent.change(brightness, { target: { value: '0.45' } })
+      const brightness = screen.getByRole('textbox', { name: 'Brightness exact percentage' })
+      fireEvent.change(brightness, { target: { value: '45%' } })
       fireEvent.blur(brightness)
       fireEvent.click(screen.getByRole('checkbox', { name: 'Mirror clip' }))
       fireEvent.click(screen.getByRole('button', { name: 'Add' }))
@@ -335,8 +336,8 @@ describe('shared Clip Entity Detail sections (#498)', () => {
     fireEvent.blur(duration)
     expect(onPatch).toHaveBeenCalledWith({ local: { durationMs: 3_500 } })
 
-    const opacity = screen.getByRole('spinbutton', { name: 'Opacity' })
-    fireEvent.change(opacity, { target: { value: '0.4' } })
+    const opacity = screen.getByRole('textbox', { name: 'Opacity exact percentage' })
+    fireEvent.change(opacity, { target: { value: '40%' } })
     fireEvent.blur(opacity)
     expect(onPatch).toHaveBeenCalledWith({ local: { opacity: 0.4 } })
 

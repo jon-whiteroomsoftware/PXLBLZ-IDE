@@ -1,5 +1,6 @@
 import { useState, type ReactNode } from 'react'
 import { NumberField } from './ui/number-field'
+import { PercentageField } from './ui/percentage-field'
 import { Grid2X2 } from 'lucide-react'
 import { PatternCombobox, type PatternComboboxOption } from './PatternCombobox'
 import { ShowEffectStack } from './ShowEffectsAuthoring'
@@ -11,6 +12,7 @@ import {
 } from '@/engine/showClipInspectorModel'
 import type { AutomatablePatternControl } from '@/engine/showPatternControls'
 import type { ShowCompiledCostMetadata } from '@/engine/showVisualToolkit'
+import { formatPercentageValue } from '@/engine/percentageValue'
 
 export interface ShowClipEntityDetailProps {
   value: ShowClipInspectorValue
@@ -122,15 +124,16 @@ export function ShowClipEntityDetail({
             help="How quickly Pattern animation advances. Does not change Clip duration or frame rate."
             onChange={(timeScale) => onPatch({ simulation: { timeScale } })}
           />
-          <ShowInspectorNumberField
+          <PercentageField
             label="Bright"
             ariaLabel="Brightness"
             value={value.view.brightness}
             min={0}
             max={1}
             step={0.01}
-            showNormalizedRange={false}
             disabled={readOnly}
+            onPreview={(brightness) => onPreviewPatch?.({ view: { brightness } })}
+            onPreviewEnd={onPreviewEnd}
             onChange={(brightness) => onPatch({ view: { brightness } })}
           />
         </div>
@@ -164,13 +167,15 @@ export function ShowClipEntityDetail({
               />
             </div>
             {capabilities.sourceOverOpacity && (
-              <ShowInspectorNumberField
+              <PercentageField
                 label="Opacity"
                 value={value.local.opacity ?? 1}
                 min={0}
                 max={1}
                 step={0.01}
                 disabled={readOnly}
+                onPreview={(opacity) => onPreviewPatch?.({ local: { opacity } })}
+                onPreviewEnd={onPreviewEnd}
                 onChange={(opacity) => onPatch({ local: { opacity } })}
               />
             )}
@@ -293,13 +298,13 @@ export function ShowClipEntityDetail({
                           </th>
                           <td
                             className="truncate whitespace-nowrap py-0.5 pr-3 font-mono text-[8px] text-zinc-600"
-                            title={`${control.exportName} · Studio default ${control.defaultValue}`}
+                            title={`${control.exportName} · Studio default ${formatPercentageValue(control.defaultValue)}`}
                           >
-                            {control.exportName} · {control.min}–{control.max}
+                            {control.exportName} · 0–100%
                           </td>
                           <td className="whitespace-nowrap py-0.5 [&_input]:!border-0">
                             {enabled ? (
-                              <ShowInspectorNumberField
+                              <PercentageField
                                 label={`${control.label} target`}
                                 hideLabel
                                 value={target}
@@ -308,6 +313,10 @@ export function ShowClipEntityDetail({
                                 step={0.01}
                                 compact
                                 disabled={readOnly}
+                                onPreview={(next) => onPreviewPatch?.({
+                                  simulation: { controlTargets: withControlTarget(controlTargets, control.exportName, next) },
+                                })}
+                                onPreviewEnd={onPreviewEnd}
                                 onChange={(next) => onPatch({
                                   simulation: { controlTargets: withControlTarget(controlTargets, control.exportName, next) },
                                 })}
@@ -423,7 +432,7 @@ export function ShowClipEntityDetail({
                             disabled={readOnly}
                             onChange={(rateHz) => onPatch({ blink: { ...value.blink!, rateHz } })}
                           />
-                          <ShowInspectorNumberField
+                          <PercentageField
                             label="Blink duty"
                             value={value.blink.duty}
                             min={0}
@@ -431,6 +440,8 @@ export function ShowClipEntityDetail({
                             step={0.01}
                             compact
                             disabled={readOnly}
+                            onPreview={(duty) => onPreviewPatch?.({ blink: { ...value.blink!, duty } })}
+                            onPreviewEnd={onPreviewEnd}
                             onChange={(duty) => onPatch({ blink: { ...value.blink!, duty } })}
                           />
                           <ShowInspectorNumberField

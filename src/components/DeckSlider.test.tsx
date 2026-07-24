@@ -10,6 +10,23 @@ describe('DeckSlider', () => {
     expect(screen.getByText('0.75')).toBeInTheDocument()
   })
 
+  it('uses canonical percentage readout and accessibility text when requested', () => {
+    render(
+      <DeckSlider
+        label="brightness"
+        value={0.725}
+        min={0}
+        max={1}
+        step={0.001}
+        presentation="percentage"
+        onChange={() => {}}
+      />,
+    )
+    const slider = screen.getByLabelText('brightness')
+    expect(slider).toHaveAttribute('aria-valuetext', '72.5%')
+    expect(screen.getByText('72.5%')).toBeInTheDocument()
+  })
+
   it('renders an indeterminate (hollow-ring, dashed) state when value is null', () => {
     render(<DeckSlider label="brightness" value={null} min={0} max={1} step={0.01} onChange={() => {}} />)
     const slider = screen.getByLabelText('brightness') as HTMLInputElement

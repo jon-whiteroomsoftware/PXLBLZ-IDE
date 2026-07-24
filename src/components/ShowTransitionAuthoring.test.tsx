@@ -148,6 +148,25 @@ describe('Show Transition authoring UI', () => {
     expect(onChange).toHaveBeenCalledWith('durationMs', 2500)
   })
 
+  it('presents explicitly classified transition fractions as percentages while preserving real units', async () => {
+    const user = userEvent.setup()
+    const catalogue = buildShowToolkitPresentationCatalogue({ stageDimensions: 2 })
+    const split = catalogue.find((item) => item.key === 'transition:wipe:split')!
+    const base = createDefaultShow('show-percent-transition', 'Percent Transition', 1)
+    const show = replaceShowBoundaryTransition(base, base.transitions![0].id, split)
+    const onChange = vi.fn()
+    render(<ShowTransitionParameters transition={show.transitions![0]} item={split} onChange={onChange} />)
+
+    const feather = screen.getByRole('textbox', { name: 'Feather exact percentage' })
+    expect(feather).toHaveValue('0%')
+    await user.clear(feather)
+    await user.type(feather, '12.5%')
+    await user.tab()
+
+    expect(onChange).toHaveBeenCalledOnce()
+    expect(onChange).toHaveBeenCalledWith('feather', 0.125)
+  })
+
   it('reverts the draft on Escape without committing the abandoned edit', async () => {
     const user = userEvent.setup()
     const catalogue = buildShowToolkitPresentationCatalogue({ stageDimensions: 2 })

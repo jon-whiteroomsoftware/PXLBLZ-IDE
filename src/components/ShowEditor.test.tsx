@@ -306,8 +306,8 @@ describe('ShowEditor (#318)', () => {
 
     render(<ShowEditor showId={show.id} />)
     await user.click(screen.getAllByRole('button', { name: 'Select TestPattern1D' })[0])
-    const brightness = screen.getByRole('spinbutton', { name: 'Brightness' })
-    fireEvent.change(brightness, { target: { value: '0.75' } })
+    const brightness = screen.getByRole('textbox', { name: 'Brightness exact percentage' })
+    fireEvent.change(brightness, { target: { value: '75%' } })
     fireEvent.blur(brightness)
 
     await waitFor(() => expect(useShowStore.getState().shows[0].composition?.executionModel).toBe('deterministic-loop'))
@@ -3405,12 +3405,12 @@ describe('ShowEditor (#318)', () => {
 
     expect(screen.getByLabelText('Wave axis')).toHaveValue('x')
     expect(screen.getByLabelText('Wave band count')).toHaveValue(4)
-    expect(screen.getByLabelText('Wave amplitude')).toHaveValue(0.3)
+    expect(screen.getByRole('textbox', { name: 'Wave amplitude exact percentage' })).toHaveValue('30%')
     expect(screen.getByLabelText('Wave frequency')).toHaveValue(2.5)
     expect(screen.getByLabelText('Wave phase')).toHaveValue(0)
     await user.selectOptions(screen.getByLabelText('Wave axis'), 'y')
     changeCommittedNumber('Wave band count', '6')
-    changeCommittedNumber('Wave amplitude', '0.4')
+    changeCommittedNumber('Wave amplitude', '40%')
     changeCommittedNumber('Wave frequency', '3')
     changeCommittedNumber('Wave phase', '0.2')
 
@@ -3444,11 +3444,11 @@ describe('ShowEditor (#318)', () => {
     await user.selectOptions(screen.getByLabelText('Default routing mode'), 'soft-split')
 
     expect(screen.getByLabelText('Soft Split axis')).toHaveValue('x')
-    expect(screen.getByLabelText('Soft Split feather')).toHaveValue(0.2)
+    expect(screen.getByRole('textbox', { name: 'Soft Split feather exact percentage' })).toHaveValue('20%')
     expect(screen.getByText(/inside the feather, both patterns render/i)).toBeInTheDocument()
     expect(screen.getByRole('group', { name: 'Split position lane' })).toBeInTheDocument()
     await user.selectOptions(screen.getByLabelText('Soft Split axis'), 'y')
-    changeCommittedNumber('Soft Split feather', '0.3')
+    changeCommittedNumber('Soft Split feather', '30%')
 
     await waitFor(() => {
       expect(useShowStore.getState().shows[0].routingLayouts[0].logical).toEqual({

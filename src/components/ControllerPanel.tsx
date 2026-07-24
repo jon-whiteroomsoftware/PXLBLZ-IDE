@@ -250,6 +250,7 @@ export function ControllerPanel() {
               min={0}
               max={1}
               step={0.01}
+              presentation="percentage"
               curve={2}
               onChange={setBrightness}
               className="h-10 justify-between"
@@ -286,6 +287,7 @@ export function ControllerPanel() {
                   min={0}
                   max={1}
                   step={0.01}
+                  presentation="percentage"
                   onChange={(v) => setControl(c.name, v)}
                 />
               ),
@@ -309,7 +311,7 @@ export function ControllerPanel() {
                   min={0}
                   max={1}
                   step={0.01}
-                  format={(value) => `${Math.round(value * 100)}%`}
+                  presentation="percentage"
                   onChange={setPowerLimit}
                 />
               </div>

@@ -3,6 +3,7 @@ import { createPortal } from 'react-dom'
 import { Search, X, Zap } from 'lucide-react'
 import type { ShowBoundaryTransition, ShowRecord } from '@/engine/personalContentRecords'
 import { NumberField } from '@/components/ui/number-field'
+import { PercentageField } from '@/components/ui/percentage-field'
 import { ColorField } from '@/components/ui/color-field'
 import { projectShowTimeline } from '@/engine/showModel'
 import {
@@ -257,6 +258,24 @@ export function ShowTransitionParameters({
               label={parameter.label}
               value={String(value)}
               variant="editor"
+              onPreview={(next) => onPreview?.(parameter.id, next)}
+              onPreviewEnd={onPreviewEnd}
+              onChange={(next) => onChange(parameter.id, next)}
+            />
+          )
+        }
+        if (parameter.presentation === 'percentage') {
+          return (
+            <PercentageField
+              key={parameter.id}
+              label={parameter.label}
+              value={Number(value)}
+              min={parameter.min ?? 0}
+              max={parameter.max ?? 1}
+              step={parameter.step ?? 0.01}
+              variant="editor"
+              compact
+              disabled={transition.kind === 'cut'}
               onPreview={(next) => onPreview?.(parameter.id, next)}
               onPreviewEnd={onPreviewEnd}
               onChange={(next) => onChange(parameter.id, next)}

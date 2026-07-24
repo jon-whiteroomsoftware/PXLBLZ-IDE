@@ -3,6 +3,8 @@
 // single shared style for every slider on the preview deck — brightness, light size,
 // diffusion, solidity, and the author's pattern sliders — replacing the teensy
 // short sliders so each has real travel/granularity and shows its value.
+import { formatPercentageValue } from '@/engine/percentageValue'
+
 export function DeckSlider({
   label,
   ariaLabel,
@@ -11,7 +13,8 @@ export function DeckSlider({
   max,
   step,
   onChange,
-  format = (v) => v.toFixed(2),
+  format,
+  presentation = 'number',
   curve = 1,
   className = '',
 }: {
@@ -29,6 +32,7 @@ export function DeckSlider({
   step: number
   onChange: (v: number) => void
   format?: (v: number) => string
+  presentation?: 'number' | 'percentage'
   /** Position-vs-value curve. `1` (default) is linear. Values > 1 devote more of the
    *  track's travel to the low end of the range — e.g. `curve={2.5}` on a 0..1
    *  brightness slider gives fine control at the dim end where the eye is most
@@ -61,6 +65,12 @@ export function DeckSlider({
       ? toPos(value)
       : value
   const handleChange = (raw: number) => onChange(curved ? fromPos(raw) : raw)
+  const formatValue = format ?? (
+    presentation === 'percentage'
+      ? (next: number) => formatPercentageValue(next, step)
+      : (next: number) => next.toFixed(2)
+  )
+  const valueText = indeterminate ? undefined : formatValue(value)
   return (
     <label className={`flex flex-col gap-1 ${className}`}>
       <span className="text-zinc-400">{label}</span>
@@ -68,6 +78,7 @@ export function DeckSlider({
         <input
           type="range"
           aria-label={ariaLabel ?? label}
+          aria-valuetext={valueText}
           min={sliderMin}
           max={sliderMax}
           step={sliderStep}
@@ -81,7 +92,7 @@ export function DeckSlider({
         <span
           className={`shrink-0 w-10 text-right tabular-nums ${indeterminate ? 'text-zinc-500' : 'text-live'}`}
         >
-          {indeterminate ? '—' : format(value)}
+          {indeterminate ? '—' : valueText}
         </span>
       </div>
     </label>

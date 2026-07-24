@@ -166,6 +166,16 @@ describe('Show visual-toolkit contract', () => {
     ])
     expect(resolveShowToolkitParameters('effect', 'output', 'hue', {}).map((parameter) => parameter.id))
       .toEqual(['turns', 'easing'])
+    expect(resolveShowToolkitParameters('effect', 'output', 'brightness', {}))
+      .toContainEqual(expect.objectContaining({ id: 'brightness', presentation: 'percentage' }))
+    expect(resolveShowToolkitParameters('effect', 'output', 'luma-key', {}))
+      .toEqual(expect.arrayContaining([
+        expect.objectContaining({ id: 'target', presentation: 'percentage' }),
+        expect.objectContaining({ id: 'tolerance', presentation: 'percentage' }),
+        expect.objectContaining({ id: 'softness', presentation: 'percentage' }),
+      ]))
+    expect(resolveShowToolkitParameters('effect', 'output', 'hue', {}))
+      .not.toContainEqual(expect.objectContaining({ presentation: 'percentage' }))
     expect(resolveShowToolkitParameters('effect', 'output', 'posterize', {}).map((parameter) => parameter.id))
       .toEqual(['amount', 'levels', 'easing'])
     expect(resolveShowToolkitParameters('effect', 'output', 'color-map', {}).map((parameter) => parameter.id))
@@ -192,10 +202,12 @@ describe('Show visual-toolkit contract', () => {
     ]))
     expect(resolveShowToolkitParameters('effect', 'distortion', 'pixelate', {}))
       .toEqual(expect.arrayContaining([
-        expect.objectContaining({ id: 'amount', defaultValue: 0, min: 0, max: 1 }),
+        expect.objectContaining({ id: 'amount', defaultValue: 0, min: 0, max: 1, presentation: 'percentage' }),
         expect.objectContaining({ id: 'columns', defaultValue: 12, min: 1, max: 128 }),
         expect.objectContaining({ id: 'rows', defaultValue: 12, min: 1, max: 128 }),
       ]))
+    expect(resolveShowToolkitParameters('effect', 'distortion', 'ripple', {}))
+      .not.toContainEqual(expect.objectContaining({ id: 'amount', presentation: 'percentage' }))
     expect(distortion?.variants.some((variant) => variant.id === 'stretch' || variant.id === 'glitch')).toBe(false)
 
     const easingDescriptor = resolveShowToolkitParameters('transition', 'blend', 'crossfade', {})
@@ -220,6 +232,8 @@ describe('Show visual-toolkit contract', () => {
     ])
     expect(resolveShowToolkitParameters('transition', 'wipe', 'split', {}).map((parameter) => parameter.id))
       .toEqual(['durationMs', 'easing', 'wipeMode', 'orientation', 'edgePolicy', 'feather'])
+    expect(resolveShowToolkitParameters('transition', 'wipe', 'split', {}))
+      .toContainEqual(expect.objectContaining({ id: 'feather', presentation: 'percentage' }))
     expect(resolveShowToolkitParameters('transition', 'wipe', 'clock', {}).map((parameter) => parameter.id))
       .toEqual(['durationMs', 'easing', 'centerX', 'centerY', 'phase', 'clockwise', 'edgePolicy', 'feather'])
     expect(resolveShowToolkitParameters('transition', 'wipe', 'checker', {}).map((parameter) => parameter.id))
@@ -245,7 +259,7 @@ describe('Show visual-toolkit contract', () => {
       ]))
     expect(resolveShowToolkitParameters('transition', 'dissolve', 'soft-threshold', {}))
       .toEqual(expect.arrayContaining([
-        expect.objectContaining({ id: 'softness', min: 0, max: 1 }),
+        expect.objectContaining({ id: 'softness', min: 0, max: 1, presentation: 'percentage' }),
         expect.objectContaining({ id: 'edgePolicy', options: expect.arrayContaining([
           expect.objectContaining({ value: 'hard' }),
           expect.objectContaining({ value: 'dither' }),
@@ -266,6 +280,8 @@ describe('Show visual-toolkit contract', () => {
     ])
     expect(resolveShowToolkitParameters('transition', 'motion', 'zoom-in', {}).map((parameter) => parameter.id))
       .toEqual(['durationMs', 'easing', 'anchorX', 'anchorY', 'contentScale', 'rotation', 'spinDirection', 'addressPolicy', 'edgePolicy'])
+    expect(resolveShowToolkitParameters('transition', 'motion', 'zoom-in', {}))
+      .not.toContainEqual(expect.objectContaining({ presentation: 'percentage' }))
     expect(motion?.variants.find((variant) => variant.id === 'zoom-in')?.costPolicies)
       .toEqual(['selector', 'full-blend'])
   })

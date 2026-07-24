@@ -73,10 +73,11 @@ export interface ShowToolkitParameterDescriptor {
   min?: number
   max?: number
   step?: number
+  presentation?: 'percentage'
   unit?: string
   options?: Array<{ value: string; label: string }>
   optionsByVariant?: Record<string, Array<{ value: string; label: string }>>
-  constraintsByVariant?: Record<string, Partial<Pick<ShowToolkitParameterDescriptor, 'defaultValue' | 'min' | 'max' | 'step'>>>
+  constraintsByVariant?: Record<string, Partial<Pick<ShowToolkitParameterDescriptor, 'defaultValue' | 'min' | 'max' | 'step' | 'presentation'>>>
   easingOptions?: ShowEasingOption[]
   compatibility?: { stageDimensions: Array<1 | 2 | 3> }
   variantIds?: string[]
@@ -116,7 +117,7 @@ const EASING: ShowToolkitParameterDescriptor = {
   easingOptions: SHOW_EASING_OPTIONS,
 }
 const FEATHER: ShowToolkitParameterDescriptor = {
-  id: 'feather', label: 'Feather', kind: 'number', defaultValue: 0, min: 0, max: 1, step: 0.01,
+  id: 'feather', label: 'Feather', kind: 'number', defaultValue: 0, min: 0, max: 1, step: 0.01, presentation: 'percentage',
 }
 const CENTER_X: ShowToolkitParameterDescriptor = {
   id: 'centerX', label: 'Center X', kind: 'number', defaultValue: 0.5, min: 0, max: 1, step: 0.01,
@@ -158,22 +159,22 @@ export const SHOW_VISUAL_TOOLKIT_REGISTRY: ShowToolkitFamilyDescriptor[] = [
       { id: 'color-map', label: 'Color map', costPolicies: ['single-source', 'parameter'], compatibility: { stageDimensions: [1, 2, 3] } },
     ],
     parameters: [
-      { id: 'opacity', label: 'Opacity', kind: 'number', defaultValue: 1, min: 0, max: 1, step: 0.01, variantIds: ['opacity'] },
-      { id: 'brightness', label: 'Brightness', kind: 'number', defaultValue: 1, min: 0, max: 2, step: 0.01, variantIds: ['brightness'] },
+      { id: 'opacity', label: 'Opacity', kind: 'number', defaultValue: 1, min: 0, max: 1, step: 0.01, presentation: 'percentage', variantIds: ['opacity'] },
+      { id: 'brightness', label: 'Brightness', kind: 'number', defaultValue: 1, min: 0, max: 2, step: 0.01, presentation: 'percentage', variantIds: ['brightness'] },
       { id: 'turns', label: 'Hue shift', kind: 'number', defaultValue: 0, min: -8, max: 8, step: 0.01, unit: 'turn', variantIds: ['hue'] },
-      { id: 'saturation', label: 'Saturation', kind: 'number', defaultValue: 1, min: 0, max: 2, step: 0.01, variantIds: ['saturation'] },
-      { id: 'contrast', label: 'Contrast', kind: 'number', defaultValue: 1, min: 0, max: 4, step: 0.01, variantIds: ['contrast'] },
+      { id: 'saturation', label: 'Saturation', kind: 'number', defaultValue: 1, min: 0, max: 2, step: 0.01, presentation: 'percentage', variantIds: ['saturation'] },
+      { id: 'contrast', label: 'Contrast', kind: 'number', defaultValue: 1, min: 0, max: 4, step: 0.01, presentation: 'percentage', variantIds: ['contrast'] },
       {
-        id: 'amount', label: 'Amount', kind: 'number', defaultValue: 0, min: 0, max: 1, step: 0.01,
+        id: 'amount', label: 'Amount', kind: 'number', defaultValue: 0, min: 0, max: 1, step: 0.01, presentation: 'percentage',
         variantIds: ['invert', 'threshold', 'posterize', 'vignette', 'color-map'],
         constraintsByVariant: { vignette: { defaultValue: 1 } },
       },
-      { id: 'threshold', label: 'Threshold', kind: 'number', defaultValue: 0.5, min: 0, max: 1, step: 0.01, variantIds: ['threshold'] },
-      { id: 'target', label: 'Target luminance', kind: 'number', defaultValue: 0, min: 0, max: 1, step: 0.01, variantIds: ['luma-key'] },
+      { id: 'threshold', label: 'Threshold', kind: 'number', defaultValue: 0.5, min: 0, max: 1, step: 0.01, presentation: 'percentage', variantIds: ['threshold'] },
+      { id: 'target', label: 'Target luminance', kind: 'number', defaultValue: 0, min: 0, max: 1, step: 0.01, presentation: 'percentage', variantIds: ['luma-key'] },
       { id: 'color', label: 'Target color', kind: 'color', defaultValue: '#00ff00', variantIds: ['chroma-key'] },
-      { id: 'tolerance', label: 'Tolerance', kind: 'number', defaultValue: 0.05, min: 0, max: 1, step: 0.01, variantIds: ['luma-key', 'chroma-key'] },
+      { id: 'tolerance', label: 'Tolerance', kind: 'number', defaultValue: 0.05, min: 0, max: 1, step: 0.01, presentation: 'percentage', variantIds: ['luma-key', 'chroma-key'] },
       {
-        id: 'softness', label: 'Softness', kind: 'number', defaultValue: 0.05, min: 0, max: 1, step: 0.01,
+        id: 'softness', label: 'Softness', kind: 'number', defaultValue: 0.05, min: 0, max: 1, step: 0.01, presentation: 'percentage',
         variantIds: ['luma-key', 'chroma-key', 'vignette'],
         constraintsByVariant: { vignette: { defaultValue: 0.35 } },
       },
@@ -234,8 +235,8 @@ export const SHOW_VISUAL_TOOLKIT_REGISTRY: ShowToolkitFamilyDescriptor[] = [
           ripple: { min: -0.5, max: 0.5 },
           swirl: { min: -4, max: 4 },
           bulge: { min: -0.95, max: 2 },
-          pixelate: { min: 0, max: 1 },
-          kaleidoscope: { min: 0, max: 1 },
+          pixelate: { min: 0, max: 1, presentation: 'percentage' },
+          kaleidoscope: { min: 0, max: 1, presentation: 'percentage' },
         },
       },
       { id: 'frequency', label: 'Frequency', kind: 'number', defaultValue: 8, min: 1, max: 32, step: 0.1, variantIds: ['ripple'] },
@@ -381,7 +382,7 @@ export const SHOW_VISUAL_TOOLKIT_REGISTRY: ShowToolkitFamilyDescriptor[] = [
       },
       { id: 'blockSize', label: 'Block size', kind: 'number', defaultValue: 8, min: 1, max: 1024, step: 1, unit: 'pixels', variantIds: ['block'] },
       { id: 'scale', label: 'Spatial scale', kind: 'number', defaultValue: 6, min: 1, max: 32, step: 0.1, variantIds: ['coherent-noise', 'soft-threshold'] },
-      { id: 'softness', label: 'Softness', kind: 'number', defaultValue: 0.15, min: 0, max: 1, step: 0.01, variantIds: ['soft-threshold'] },
+      { id: 'softness', label: 'Softness', kind: 'number', defaultValue: 0.15, min: 0, max: 1, step: 0.01, presentation: 'percentage', variantIds: ['soft-threshold'] },
     ],
   },
   {

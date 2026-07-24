@@ -78,6 +78,7 @@ export function ControlsPanel() {
         min={0}
         max={1}
         step={0.01}
+        presentation="percentage"
         onChange={(v) => setControlValue(c.exportName, v)}
       />
     )
