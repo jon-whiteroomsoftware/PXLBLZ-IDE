@@ -8520,17 +8520,19 @@ function injectSampleRemappingUpdate(code: string): string {
 
 const SHOW_INSTALLED_MAP_Z = '__pxlblz_show_installed_map_z'
 
-function promoteShowRendererToInstalledMap3D(code: string): string {
+export function promoteShowRendererToInstalledMap3D(code: string): string {
   const signature = 'export function render2D(index, x, y) {'
-  if (!code.includes(signature)) {
+  const signatureStart = code.lastIndexOf(signature)
+  if (signatureStart < 0) {
     throw new Error('Show installed-map z propagation requires an outer render2D entrypoint.')
   }
   // Keep the exact render2D export required by the firmware-3.66/3.67
   // compatibility path (#436). The exact render3D sibling carries installed z
   // on 3D maps without relying on cross-dimensional argument spill.
   const innerRenderer = '__pxlblz_show_render_installed_map'
+  const promotedCode = `${code.slice(0, signatureStart)}function ${innerRenderer}(index, x, y) {${code.slice(signatureStart + signature.length)}`
   return `var ${SHOW_INSTALLED_MAP_Z} = 0
-${code.replace(signature, `function ${innerRenderer}(index, x, y) {`)}
+${promotedCode}
 export function render2D(index, x, y) {
   ${SHOW_INSTALLED_MAP_Z} = 0
   ${innerRenderer}(index, x, y)

@@ -1,5 +1,5 @@
 import { loadPattern, type PatternHandle } from './loadPattern'
-import { compileShow } from './showCompiler'
+import { compileShow, promoteShowRendererToInstalledMap3D } from './showCompiler'
 import { createShim } from './shim'
 import { DEMOS } from '@/pixelblaze/stock/patterns'
 import { LIBRARIES } from '@/pixelblaze/libs'
@@ -736,6 +736,48 @@ export function render2D(index, x, y) { rgb(x, y, 0) }
     })
 
     expect(runtime.renderCurrentFrame().pixels).toEqual([[1, 0, 0]])
+  })
+
+  it('promotes the generated renderer when authored comments mimic its signature', () => {
+    const source = `
+rotateY(PI / 2)
+// export function render2D(index, x, y) {
+/*
+export function render2D(index, x, y) {
+*/
+export function render2D(index, x, y) { rgb(x, y, 0) }
+`
+    const artifact = compileShow({ clips: [{ id: 'commented-depth-aware', source }] }, {})
+    const runtime = createFastReplayRuntime({
+      code: artifact.code,
+      fxCode: artifact.fxCode,
+      metadata: artifact.metadata,
+      dimension: 3,
+    }, {
+      mapPoints: [{ sample: [0, 0, 1], pos: [0, 0, 1] }],
+      randomSeed: 1,
+    })
+
+    expect(runtime.renderCurrentFrame().pixels).toEqual([[1, 0, 0]])
+  })
+
+  it('targets the final outer renderer declaration during installed-map promotion', () => {
+    const signature = 'export function render2D(index, x, y) {'
+    const source = `// ${signature}
+/*
+${signature}
+*/
+${signature}
+  rgb(x, y, 0)
+}`
+
+    const promoted = promoteShowRendererToInstalledMap3D(source)
+
+    expect(promoted).toContain(`// ${signature}`)
+    expect(promoted).toContain(`/*
+${signature}
+*/`)
+    expect(promoted).toContain('function __pxlblz_show_render_installed_map(index, x, y) {')
   })
 
   it('preserves the fourth matrix row when composing arbitrary transforms', () => {
