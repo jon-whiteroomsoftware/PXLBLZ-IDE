@@ -824,6 +824,7 @@ function resolveLogicalPlacementSegments(
     || root.placement.logicalClipId !== undefined
     || segments.some((segment, index) => (
       segment.placement.instanceId !== root.placement.instanceId
+      || placementPresentationSignature(segment.placement) !== placementPresentationSignature(root.placement)
       || segment.zoneId !== root.zoneId
       || segment.layerKey !== root.layerKey
       || (index > 0 && (
@@ -834,6 +835,30 @@ function resolveLogicalPlacementSegments(
     ))
   ) return null
   return segments
+}
+
+function placementPresentationSignature(
+  placement: ShowMainPlacement | ShowOverlayPlacement,
+): string {
+  const {
+    id: _id,
+    logicalClipId: _logicalClipId,
+    startMs: _startMs,
+    durationMs: _durationMs,
+    ...presentation
+  } = normalizePlacementAppearance(placement)
+  return canonicalJson(presentation)
+}
+
+function canonicalJson(value: unknown): string {
+  if (Array.isArray(value)) return `[${value.map(canonicalJson).join(',')}]`
+  if (value && typeof value === 'object') {
+    const entries = Object.entries(value)
+      .filter(([, item]) => item !== undefined)
+      .sort(([left], [right]) => left.localeCompare(right))
+    return `{${entries.map(([key, item]) => `${JSON.stringify(key)}:${canonicalJson(item)}`).join(',')}}`
+  }
+  return JSON.stringify(value) ?? 'undefined'
 }
 
 function validateLogicalClipSegments(

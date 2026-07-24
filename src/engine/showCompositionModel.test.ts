@@ -167,6 +167,33 @@ describe('Show composition v1 Main schedule (#488)', () => {
     })).toBe(composition)
   })
 
+  it('rejects hidden presentation differences between logical Clip segments (#63)', () => {
+    const { show, composition } = fixture()
+    const root = composition.scenes[0].zones[0].main[0]
+    root.startMs = show.scenes[0].durationMs - 1_000
+    root.durationMs = 1_000
+    composition.scenes.push({
+      sceneId: show.scenes[1].id,
+      zones: [{
+        zoneId: 'zone-1',
+        main: [{
+          ...structuredClone(root),
+          id: `placement-a--span-${show.scenes[1].id}`,
+          logicalClipId: 'placement-a',
+          startMs: 0,
+          durationMs: 2_000,
+          view: { ...root.view, brightness: 0.25 },
+        }],
+        overlays: [],
+      }],
+    })
+
+    expect(validateShowComposition(show, composition)).toContainEqual(expect.objectContaining({
+      path: `scenes[1].zones[0].main[0].logicalClipId`,
+      code: 'invalid-logical-clip',
+    }))
+  })
+
   it('magnetically resolves horizontal moves and quantizes illegal overlaps', () => {
     const placement = { id: 'moving', instanceId: 'instance-a', startMs: 0, durationMs: 1_000, view: { mirror: false, phase: 0, brightness: 1 } }
     const occupied = [
