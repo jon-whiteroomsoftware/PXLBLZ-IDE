@@ -29,8 +29,16 @@ export function describeApprovalStatus(
     policyFingerprint,
     isAncestor,
   )
-  const staleCount = receipts.filter((receipt) =>
-    receipt.policyFingerprint !== policyFingerprint).length
+  const staleChain = findApprovalChain(
+    baseSha,
+    tipSha,
+    receipts,
+    null,
+    isAncestor,
+  )
+  const staleCount = staleChain?.filter(
+    (receipt) => receipt.policyFingerprint !== policyFingerprint,
+  ).length ?? 0
   if (chain) {
     return {
       state: 'approved',

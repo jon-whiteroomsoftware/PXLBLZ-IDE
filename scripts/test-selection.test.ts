@@ -152,6 +152,7 @@ describe('pre-commit test selection', () => {
         'scripts/review-candidate.test.ts',
         'scripts/review-status.test.ts',
         'scripts/test-selection.test.ts',
+        'scripts/update-issues.test.ts',
         'scripts/show-authoring-mutation.test.ts',
         'src/engine/showEasing.test.ts',
         'src/components/HelpHint.test.tsx',

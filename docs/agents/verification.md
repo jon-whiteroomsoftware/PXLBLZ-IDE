@@ -32,8 +32,10 @@ the others must rebase before review. Dependent candidates remain deliberately
 stacked until their reviewed base lands.
 
 `review:candidate` resolves the supplied base and tip to commits, requires the
-base to be an ancestor, and sends the exact commit list and patch to Fable
-Medium. If Fable cannot return a valid structured decision because of quota,
+base to be an ancestor, and sends the exact commit list and per-commit patch
+series to Fable Medium. This preserves empty commits and add-then-revert
+histories that an endpoint-tree diff would hide. If Fable cannot return a valid
+structured decision because of quota,
 timeout, process, or malformed output, GPT-5.6 High receives the same immutable
 input. A valid failure from either reviewer is blocking and never creates an
 approval.
@@ -78,9 +80,12 @@ candidate is reviewed.
 ### Publication
 
 The Husky `pre-push` hook reads Git's exact ref-update packet. Deleted refs and
-unchanged ranges require no approval. Each changed existing or new ref must
-have one current approval or a contiguous current chain from its remote base to
-its pushed tip. Missing or stale coverage blocks with an explicit
+unchanged commit identities require no approval; different commit identities
+remain reviewable even when their endpoint trees match. Each changed existing
+or new ref must have one current approval or a contiguous current chain from
+its remote base to its pushed tip. A new ref derives its base only from the
+remote main line; if that baseline does not exist, the gate blocks instead of
+self-basing the range at the pushed tip. Missing or stale coverage blocks with an explicit
 `review:candidate` command; pre-push does not repeat substantive review.
 
 After every outgoing ref has exact coverage, the hook runs the full Vitest suite

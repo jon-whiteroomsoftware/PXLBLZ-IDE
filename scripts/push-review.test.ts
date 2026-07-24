@@ -7,11 +7,14 @@ import {
   REVIEW_TIMEOUT_MS,
   buildCodexReviewArgs,
   buildFableReviewArgs,
+  buildReviewHistoryArgs,
   buildReviewPrompt,
+  determineNewRefBase,
   parseClaudeReviewOutput,
   parseCodexReviewOutput,
   parsePrePushInput,
   parseReviewTestDesignContext,
+  rangeHasChanges,
   reviewWithFallback,
   reviewRangesFromUpdates,
   type PushReviewResult,
@@ -175,6 +178,56 @@ describe('cross-agent push review gate (#63)', () => {
     ])
   })
 
+  it('treats every changed commit identity as reviewable even when endpoint trees match', () => {
+    const same = 'a'.repeat(40)
+    expect(rangeHasChanges({
+      label: 'no ref change',
+      baseSha: same,
+      tipSha: same,
+    })).toBe(false)
+    expect(rangeHasChanges({
+      label: 'empty commit or reverted history',
+      baseSha: same,
+      tipSha: 'b'.repeat(40),
+    })).toBe(true)
+  })
+
+  it('includes each intermediate commit patch in the exact review packet', () => {
+    expect(buildReviewHistoryArgs({
+      label: 'candidate',
+      baseSha: 'base',
+      tipSha: 'tip',
+    })).toEqual([
+      'log',
+      '--reverse',
+      '--format=fuller',
+      '--patch',
+      '--no-ext-diff',
+      '--unified=80',
+      'base..tip',
+      '--',
+    ])
+  })
+
+  it('fails closed when a new ref has no remote-main ancestry base', () => {
+    const update = {
+      localRef: 'refs/heads/main',
+      localSha: 'a'.repeat(40),
+      remoteRef: 'refs/heads/main',
+      remoteSha: '0'.repeat(40),
+    }
+    const calls: string[][] = []
+    expect(() => determineNewRefBase(
+      update,
+      'origin',
+      (...args) => {
+        calls.push(args)
+        throw new Error('origin/main does not exist')
+      },
+    )).toThrow(/cannot determine.*origin\/main/i)
+    expect(calls).toEqual([[update.localSha, 'origin/main']])
+  })
+
   it('requires complete approval coverage for every changed outgoing ref', () => {
     const a = 'a'.repeat(40)
     const b = 'b'.repeat(40)
@@ -258,7 +311,7 @@ describe('cross-agent push review gate (#63)', () => {
       tipSha: 'tip',
     }])
 
-    expect(prompt).toContain('git diff base tip')
+    expect(prompt).toContain('git log --reverse --patch base..tip')
     expect(prompt).toContain('correctness')
     expect(prompt).toContain('Do not flag style')
     expect(prompt).toContain('decision = "fail"')

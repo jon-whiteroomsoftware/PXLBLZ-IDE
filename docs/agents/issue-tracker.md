@@ -9,7 +9,9 @@ Issues and PRDs for this repo live as GitHub issues. Use the `gh` CLI for all op
 - **List issues**: `gh issue list --state open --json number,title,body,labels,comments --jq '[.[] | {number, title, body, labels: [.labels[].name], comments: [.comments[].body]}]'` with appropriate `--label` and `--state` filters.
 - **Comment on an issue**: `gh issue comment <number> --body "..."`
 - **Apply / remove labels**: `gh issue edit <number> --add-label "..."` / `--remove-label "..."`
-- **Close**: `gh issue close <number> --comment "..."`
+- **Close after landing**: `gh issue close <number> --comment "..."`. A candidate
+  commit in a worktree is progress, not completion; keep the issue open until
+  its reviewed commit is reachable from local `main`.
 
 Infer the repo from `git remote -v` — `gh` does this automatically when run inside a clone.
 

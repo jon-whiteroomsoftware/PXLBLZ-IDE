@@ -16,7 +16,7 @@ export const FABLE_REVIEW_EFFORT = 'medium' as const
 export const GPT_REVIEW_MODEL = 'gpt-5.6-sol' as const
 export const GPT_REVIEW_EFFORT = 'high' as const
 export const REVIEW_TIMEOUT_MS = 15 * 60 * 1_000
-export const REVIEW_PROMPT_VERSION = 2 as const
+export const REVIEW_PROMPT_VERSION = 3 as const
 export const REVIEW_SCHEMA_VERSION = 1 as const
 
 export interface PrePushUpdate {
@@ -249,7 +249,7 @@ export function buildReviewPrompt(
   const commands = ranges.map((range) => [
     `- ${range.label}`,
     `  - Commits: git log --oneline ${range.baseSha}..${range.tipSha}`,
-    `  - Diff: git diff ${range.baseSha} ${range.tipSha}`,
+    `  - Per-commit patches: git log --reverse --patch ${range.baseSha}..${range.tipSha}`,
   ].join('\n')).join('\n')
 
   const testDesignPacket = testDesign
@@ -313,26 +313,45 @@ function git(args: string[]): string {
   return execFileSync('git', args, { encoding: 'utf8' }).trim()
 }
 
-function resolveNewRefBase(update: PrePushUpdate, remoteName: string): string {
+export function determineNewRefBase(
+  update: PrePushUpdate,
+  remoteName: string,
+  mergeBase: (localSha: string, remoteRef: string) => string,
+): string {
   const remoteMain = `${remoteName}/main`
   try {
-    return git(['merge-base', update.localSha, remoteMain])
-  } catch {
-    try {
-      return git(['merge-base', update.localSha, 'HEAD'])
-    } catch {
-      throw new Error(`Cannot determine a review base for new ref ${update.localRef}.`)
-    }
+    return mergeBase(update.localSha, remoteMain)
+  } catch (error) {
+    throw new Error(
+      `Cannot determine a review base for new ref ${update.localRef} from ${remoteMain}. Publish the remote main baseline first.`,
+      { cause: error },
+    )
   }
 }
 
+function resolveNewRefBase(update: PrePushUpdate, remoteName: string): string {
+  return determineNewRefBase(
+    update,
+    remoteName,
+    (localSha, remoteRef) => git(['merge-base', localSha, remoteRef]),
+  )
+}
+
 export function rangeHasChanges(range: PushReviewRange): boolean {
-  const result = spawnSync('git', ['diff', '--quiet', range.baseSha, range.tipSha, '--'], {
-    stdio: 'ignore',
-  })
-  if (result.status === 0) return false
-  if (result.status === 1) return true
-  throw new Error(`Git could not inspect outgoing range ${range.baseSha}..${range.tipSha}.`)
+  return range.baseSha !== range.tipSha
+}
+
+export function buildReviewHistoryArgs(range: PushReviewRange): string[] {
+  return [
+    'log',
+    '--reverse',
+    '--format=fuller',
+    '--patch',
+    '--no-ext-diff',
+    '--unified=80',
+    `${range.baseSha}..${range.tipSha}`,
+    '--',
+  ]
 }
 
 export function buildReviewInput(
@@ -346,9 +365,9 @@ export function buildReviewInput(
       '<commit-list>',
       git(['log', '--oneline', `${range.baseSha}..${range.tipSha}`]),
       '</commit-list>',
-      '<patch>',
-      git(['diff', '--no-ext-diff', '--unified=80', range.baseSha, range.tipSha, '--']),
-      '</patch>',
+      '<commit-patches>',
+      git(buildReviewHistoryArgs(range)),
+      '</commit-patches>',
       '</outgoing-range>',
     ].join('\n')),
   ].join('\n')

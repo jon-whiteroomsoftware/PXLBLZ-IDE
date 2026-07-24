@@ -41,4 +41,62 @@ describe('review approval status (#598)', () => {
       () => true,
     )).toMatchObject({ state: 'missing', approvalCount: 0, staleCount: 0 })
   })
+
+  it('does not classify a missing range as stale because of an unrelated old receipt', () => {
+    const baseSha = 'a'.repeat(40)
+    const tipSha = 'b'.repeat(40)
+    const unrelated = createApprovalReceipt({
+      baseSha: 'c'.repeat(40),
+      tipSha: 'd'.repeat(40),
+      reviewer: 'Fable',
+      effort: 'medium',
+      decision: 'pass',
+      policyFingerprint: 'policy-v1',
+      promptVersion: 2,
+      schemaVersion: 1,
+      contextSha256: null,
+      reviewedAt: '2026-07-24T12:00:00.000Z',
+    })
+
+    expect(describeApprovalStatus(
+      baseSha,
+      tipSha,
+      [unrelated],
+      'policy-v2',
+      (ancestor, descendant) => (
+        ancestor === descendant
+        || (ancestor === baseSha && descendant === tipSha)
+      ),
+    )).toMatchObject({ state: 'missing', approvalCount: 0, staleCount: 0 })
+  })
+
+  it('recognizes an exact stale chain assembled under multiple superseded policies', () => {
+    const a = 'a'.repeat(40)
+    const b = 'b'.repeat(40)
+    const c = 'c'.repeat(40)
+    const makeReceipt = (baseSha: string, tipSha: string, policyFingerprint: string) =>
+      createApprovalReceipt({
+        baseSha,
+        tipSha,
+        reviewer: 'Fable',
+        effort: 'medium',
+        decision: 'pass',
+        policyFingerprint,
+        promptVersion: 2,
+        schemaVersion: 1,
+        contextSha256: null,
+        reviewedAt: '2026-07-24T12:00:00.000Z',
+      })
+
+    expect(describeApprovalStatus(
+      a,
+      c,
+      [
+        makeReceipt(a, b, 'policy-v1'),
+        makeReceipt(b, c, 'policy-v2'),
+      ],
+      'policy-v3',
+      () => true,
+    )).toMatchObject({ state: 'stale', approvalCount: 0, staleCount: 2 })
+  })
 })

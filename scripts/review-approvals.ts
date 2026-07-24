@@ -53,14 +53,14 @@ export function findApprovalChain(
   baseSha: string,
   tipSha: string,
   receipts: readonly ReviewApprovalReceipt[],
-  policyFingerprint: string,
+  policyFingerprint: string | null,
   isAncestor: (base: string, tip: string) => boolean = () => true,
 ): ReviewApprovalReceipt[] | null {
   if (baseSha === tipSha) return []
   const usable = receipts.filter((receipt) => (
     receipt.receiptVersion === REVIEW_RECEIPT_VERSION
     && receipt.decision === 'pass'
-    && receipt.policyFingerprint === policyFingerprint
+    && (policyFingerprint === null || receipt.policyFingerprint === policyFingerprint)
     && isAncestor(receipt.baseSha, receipt.tipSha)
     && isAncestor(receipt.tipSha, tipSha)
   ))
