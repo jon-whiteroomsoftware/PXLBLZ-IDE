@@ -346,6 +346,41 @@ describe('shared Clip inspector owner model (#498)', () => {
     expect(validateShowComposition(updated, updated.composition!)).toEqual([])
   })
 
+  it('moves the complete Transition-connected chain after an exact Start edit (#63)', () => {
+    const show = fixture()
+    const layer = show.composition!.scenes[0].zones[0].overlays[0]
+    layer.placements.push({
+      id: 'placement-overlay-next',
+      instanceId: 'instance-overlay',
+      startMs: 4_000,
+      durationMs: 2_000,
+      opacity: 0.75,
+      view: { mirror: true, phase: 0.25, brightness: 0.8 },
+    })
+    show.composition!.transitions = [{
+      id: 'transition-overlay-next',
+      fromPlacementId: 'placement-overlay',
+      toPlacementId: 'placement-overlay-next',
+      kind: 'crossfade',
+      durationMs: 1_000,
+      easing: { curve: 'linear' },
+      crossfadePolicy: 'live-live',
+    }]
+
+    const updated = updateShowClipInspector(show, overlayOwner(show), {
+      local: { startMs: 2_000 },
+    })
+
+    expect(updated).not.toBe(show)
+    expect(updated.composition!.scenes[0].zones[0].overlays[0].placements
+      .map((placement) => [placement.id, placement.startMs])).toEqual([
+      ['placement-overlay', 2_000],
+      ['placement-overlay-next', 5_000],
+    ])
+    expect(updated.composition!.transitions).toEqual(show.composition!.transitions)
+    expect(validateShowComposition(updated, updated.composition!)).toEqual([])
+  })
+
   it('keeps Freeze, Strobe, and Blink on the placement while Stutter stays on the Pattern instance (#586)', () => {
     const show = fixture()
     const updated = updateShowClipInspector(show, overlayOwner(show), {

@@ -16,7 +16,10 @@ import {
   updateShowCellEffects,
   updateShowCellPattern,
 } from './showModel'
-import { resizeShowConnectedClipAtGlobalTime } from './showLayerTransitionAuthoring'
+import {
+  moveShowConnectedClipAtGlobalTime,
+  resizeShowConnectedClipAtGlobalTime,
+} from './showLayerTransitionAuthoring'
 import type {
   ShowCell,
   ShowClipBlink,
@@ -230,13 +233,34 @@ export function updateShowClipInspector(
       if (!range) return show
       const desiredStartMs = patch.local.startMs ?? range.localStartMs
       const desiredDurationMs = patch.local.durationMs ?? range.durationMs
-      const resized = resizeShowConnectedClipAtGlobalTime(show, stagedLocal, {
-        owner: owner.kind === 'scene-main'
-          ? { ...owner, kind: 'main' }
-          : { ...owner, kind: 'overlay' },
-        globalStartMs: range.sceneStartMs + desiredStartMs,
-        durationMs: desiredDurationMs,
-      })
+      const timelineOwner = owner.kind === 'scene-main'
+        ? { ...owner, kind: 'main' as const }
+        : { ...owner, kind: 'overlay' as const }
+      const globalStartMs = range.sceneStartMs + desiredStartMs
+      let resized: ShowCompositionV1
+      if (patch.local.startMs !== undefined && patch.local.durationMs === undefined) {
+        if (owner.kind === 'scene-main') {
+          resized = moveShowConnectedClipAtGlobalTime(show, stagedLocal, {
+            owner: timelineOwner,
+            target: { kind: 'main', zoneId: owner.zoneId, globalStartMs },
+          })
+        } else {
+          const ownerScene = stagedLocal.scenes.find((scene) => scene.sceneId === owner.sceneId)
+          const ownerZone = ownerScene?.zones.find((zone) => zone.zoneId === owner.zoneId)
+          const layerIndex = ownerZone?.overlays.findIndex((layer) => layer.id === owner.layerId) ?? -1
+          if (layerIndex < 0) return show
+          resized = moveShowConnectedClipAtGlobalTime(show, stagedLocal, {
+            owner: timelineOwner,
+            target: { kind: 'overlay', zoneId: owner.zoneId, layerIndex, globalStartMs },
+          })
+        }
+      } else {
+        resized = resizeShowConnectedClipAtGlobalTime(show, stagedLocal, {
+          owner: timelineOwner,
+          globalStartMs,
+          durationMs: desiredDurationMs,
+        })
+      }
       const timingAccepted = resized !== stagedLocal
         || (desiredStartMs === range.localStartMs && desiredDurationMs === range.durationMs)
       composition = timingAccepted ? resized : localBasis
