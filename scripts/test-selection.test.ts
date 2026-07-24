@@ -132,6 +132,7 @@ describe('pre-commit test selection', () => {
       focusedTests: [],
       invariantTests: [
         'scripts/test-selection.test.ts',
+        'scripts/show-authoring-mutation.test.ts',
         'src/engine/showEasing.test.ts',
         'src/components/HelpHint.test.tsx',
       ],

@@ -980,6 +980,34 @@ describe('global timeline Clip authoring (#580)', () => {
     ])
   })
 
+  it('keeps exact Clip boundaries disabled in the public split plan (#597)', () => {
+    const show = createDefaultShow('show-split-plan-boundaries', 'Split plan boundaries', 1000)
+    const composition = emptyComposition(show)
+    composition.patternInstances.push(instance)
+    composition.scenes[0].zones[0].main.push({
+      id: 'placement-boundary',
+      instanceId: instance.id,
+      startMs: 2_000,
+      durationMs: 6_000,
+      view: { mirror: false, phase: 0, brightness: 1 },
+    })
+    const owner = {
+      kind: 'main' as const,
+      sceneId: show.scenes[0].id,
+      zoneId: show.zones[0].id,
+      placementId: 'placement-boundary',
+    }
+
+    expect(planShowClipSplitAtGlobalTime(show, composition, {
+      owner,
+      globalTimeMs: 2_000,
+    })).toMatchObject({ enabled: false, code: 'outside-clip' })
+    expect(planShowClipSplitAtGlobalTime(show, composition, {
+      owner,
+      globalTimeMs: 8_000,
+    })).toMatchObject({ enabled: false, code: 'outside-clip' })
+  })
+
   it('splits one logical Clip on either side of a hidden Scene boundary (#63)', () => {
     const show = createDefaultShow('show-split-spanning-clip', 'Split spanning clip', 1000)
     const composition = emptyComposition(show)

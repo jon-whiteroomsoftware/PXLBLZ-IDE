@@ -259,6 +259,57 @@ describe('shared Clip inspector owner model (#498)', () => {
     expect(projectShowClipInspector(show, overlayOwner(show))?.local?.opacity).toBe(0.75)
   })
 
+  it('accepts a colocated opacity edit when the supplied Start is an exact no-op (#597)', () => {
+    const show = fixture()
+    const layer = show.composition!.scenes[0].zones[0].overlays[0]
+    layer.placements.push({
+      id: 'placement-overlay-next',
+      instanceId: 'instance-overlay',
+      startMs: 4_000,
+      durationMs: 2_000,
+      opacity: 0.75,
+      view: { mirror: true, phase: 0.25, brightness: 0.8 },
+    })
+    show.composition!.transitions = [{
+      id: 'transition-overlay-next',
+      fromPlacementId: 'placement-overlay',
+      toPlacementId: 'placement-overlay-next',
+      kind: 'crossfade',
+      durationMs: 1_000,
+      easing: { curve: 'linear' },
+      crossfadePolicy: 'live-live',
+    }]
+    const local = projectShowClipInspector(show, overlayOwner(show))!.local!
+
+    const updated = updateShowClipInspector(show, overlayOwner(show), {
+      local: {
+        startMs: local.startMs,
+        opacity: 0.4,
+      },
+    })
+
+    expect(updated).not.toBe(show)
+    expect(projectShowClipInspector(updated, overlayOwner(updated))?.local).toMatchObject({
+      startMs: local.startMs,
+      durationMs: local.durationMs,
+      opacity: 0.4,
+    })
+  })
+
+  it('rejects a colocated opacity edit when Start is invalid even if Duration is unchanged (#597)', () => {
+    const show = logicalClipFixture()
+    const local = projectShowClipInspector(show, overlayOwner(show))!.local!
+
+    expect(updateShowClipInspector(show, overlayOwner(show), {
+      local: {
+        startMs: 1_000_000,
+        durationMs: local.durationMs,
+        opacity: 0.4,
+      },
+    })).toBe(show)
+    expect(projectShowClipInspector(show, overlayOwner(show))?.local?.opacity).toBe(0.75)
+  })
+
   it('preserves opacity when a timing edit moves the logical Clip root into another Scene (#63)', () => {
     const show = logicalClipFixture()
 

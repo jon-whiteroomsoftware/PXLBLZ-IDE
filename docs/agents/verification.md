@@ -76,6 +76,42 @@ Changing it runs its fault-sensitivity characterization suite, the central
 matrix, the operation-specific Show-authoring suites, and the persistence
 sequence.
 
+## Show authoring mutation qualification
+
+`npm run test:mutation:show-authoring` checks whether the Show authoring suite
+rejects a small catalog of plausible faults. It is intentionally narrower than
+whole-file mutation: the command resolves named source fragments through the
+TypeScript syntax tree, runs the five owning Vitest suites in an isolated Node
+project, and writes `reports/mutation/show-authoring.json`.
+
+The catalog spans every critical operation family without turning mutation
+testing into a second full suite:
+
+| Operation | Qualified fault boundary |
+| --- | --- |
+| Move | Dispatch between ordinary and multi-Scene logical Clip movement |
+| Resize | Placement-animation keyframes retain their offset from the moved edge |
+| Split | The public plan uses strict interior Clip boundaries |
+| Duplicate | The duplicate starts at the source Clip's exact end |
+| Delete | The complete logical Clip, its tracks, and connected Transitions are removed together |
+| Inspector | Timing and colocated placement fields commit or refuse atomically |
+| Transition | Insert validation and resize-delta arithmetic preserve a valid composition |
+
+The wrapper fails closed when the runner cannot start, omits or malforms its
+JSON report, reports no mutants, leaves a result pending, times out or errors,
+or leaves a meaningful survivor unexplained. Equivalent or mechanically
+irrelevant survivors belong in
+`scripts/show-authoring-mutation-classifications.json` with a stable
+fingerprint and concrete reason. The parser rejects blank, duplicate, and stale
+classifications. The qualified #597 run on 2026-07-23 killed all 57 selected
+mutants in 6.4 seconds, with no survivors, timeouts, errors, or classifications.
+
+Run this command after changing one of the catalogued transformation boundaries,
+after a review cluster exposes weak fault sensitivity in the Show authoring
+family, or before handing off a systemic Show-test change. Keep it outside the
+pre-commit and pre-push hooks; the ordinary focused and full suites remain the
+routine gates.
+
 ## Staged-test selection
 
 `scripts/test-staged.mjs` reads added, copied, modified, and renamed paths from

@@ -106,6 +106,7 @@ npm run lint
 npx tsc -b --pretty false   # TypeScript project check
 npm run test:staged         # staged/colocated tests plus high-risk invariants
 npm test                    # full Vitest suite
+npm run test:mutation:show-authoring # targeted Show authoring fault-sensitivity check
 npm run review:push         # Fable Medium review, with GPT-5.6 High infrastructure fallback
 npm run build
 npm run test:e2e
@@ -131,6 +132,12 @@ the full suite immediately before a push unless diagnosing a failure. See
 Use TDD for behavior changes: fail, implement, refactor. Concentrate coverage
 on pure engine logic; keep component tests light and add Playwright coverage
 for cross-layer flows.
+
+Use targeted mutation qualification after changing a high-risk transformation
+engine or strengthening its shared contract. It is deliberate evidence for
+fault sensitivity, not a universal test requirement or part of the fast commit
+hook. See `docs/agents/verification.md` for the current qualified scope and
+cadence.
 
 When D1 migrations change, apply both local and remote migrations. If local
 Studio personal-content requests return misleading remote-provider 500 errors,

@@ -75,6 +75,23 @@ validation, projection, or reference integrity.
 | Duplicate, then delete | Removing the duplicate preserves the original Clip and its Pattern reference |
 | Move, resize, split, persist, reload | `showStore.test.ts` verifies the serialized multi-Scene result and unified projection |
 
+## Mutation-driven refinements
+
+The targeted mutation command in
+[`verification.md`](verification.md#show-authoring-mutation-qualification)
+qualifies one load-bearing fault boundary for each operation family. Its first
+run exposed three missing distinctions that ordinary coverage did not:
+
+| Boundary | Strengthened oracle |
+| --- | --- |
+| Split plan | Exact Clip start and end remain disabled; only a strict interior time is splittable |
+| Inspector accepted no-op | An exact no-op Start may accompany an opacity change, and the placement change still commits |
+| Inspector refused edit | An invalid Start refuses the colocated opacity change even when Duration equals the current value |
+
+These are operation-level contracts, not mutation-runner fixtures. Keep the
+tests beside their owning engines and retain the mutation fragments only while
+they represent the same load-bearing decisions.
+
 ## Review-defect map
 
 This map records the invariant and partition that should have exposed each

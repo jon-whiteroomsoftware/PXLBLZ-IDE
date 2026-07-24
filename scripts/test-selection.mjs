@@ -51,6 +51,7 @@ const ARTIFACT_CONTRACT_FILES = new Set([
 const TEST_INFRASTRUCTURE_FILES = new Set([
   '.husky/pre-commit',
   'vite.config.ts',
+  'vitest.mutation.config.ts',
   'package.json',
   'package-lock.json',
   'scripts/test-selection.mjs',
@@ -60,6 +61,7 @@ const TEST_INFRASTRUCTURE_FILES = new Set([
 
 const TEST_INFRASTRUCTURE_SMOKE_TESTS = [
   'scripts/test-selection.test.ts',
+  'scripts/show-authoring-mutation.test.ts',
   'src/engine/showEasing.test.ts',
   'src/components/HelpHint.test.tsx',
 ]
