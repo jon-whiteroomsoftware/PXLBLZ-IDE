@@ -7,7 +7,6 @@ import { useMapStore, defaultPixelCountForDim, resolveMap, STOCK_MAPS } from '@/
 import { usePreviewStore } from '@/store/previewStore'
 import { useCameraStore } from '@/store/cameraStore'
 import { compileShowForPreview, resolveShowCompilationControllerZones } from '@/engine/showPreviewArtifact'
-import { nativeDimension } from '@/engine/loadPattern'
 import {
   advanceFastReplayCooperatively,
   createFastReplayRuntime,
@@ -367,7 +366,7 @@ export function ShowStagePreview({
         code: compiled.artifact.code,
         fxCode: compiled.artifact.fxCode,
         metadata: compiled.artifact.metadata,
-        dimension: layout.sampleDimension ?? nativeDimension(compiled.artifact.metadata.renderFns),
+        dimension: layout.sampleDimension ?? (compiled.artifact.metadata.renderFns?.hasRender2D ? 2 : 1),
       }, {
         mapPoints: layout.mapPoints,
         randomSeed: stableShowSeed(showId),
@@ -517,7 +516,7 @@ export function ShowStagePreview({
           code: compiled.artifact!.code,
           fxCode: compiled.artifact!.fxCode,
           metadata: compiled.artifact!.metadata,
-          dimension: layout.sampleDimension ?? nativeDimension(compiled.artifact!.metadata.renderFns),
+          dimension: layout.sampleDimension ?? (compiled.artifact!.metadata.renderFns?.hasRender2D ? 2 : 1),
         }, {
           mapPoints: layout.mapPoints,
           randomSeed: stableShowSeed(showId),
