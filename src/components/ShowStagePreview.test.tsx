@@ -210,6 +210,60 @@ describe('ShowStagePreview (#339)', () => {
     expect(screen.queryByRole('combobox', { name: 'Show stage' })).not.toBeInTheDocument()
   })
 
+  it.each([
+    ['2D', importedMap, 2],
+    ['3D', {
+      ...importedMap,
+      id: 'map-3d',
+      name: 'Depth map',
+      dim: 3,
+      points: [[0, 0, 0], [1, 1, 1]],
+    } satisfies MapRecord, 3],
+  ] as const)('dispatches promoted Show renderers by the selected %s Stage map', (
+    _label,
+    stageMap,
+    expectedDimension,
+  ) => {
+    const show = createDefaultShow(`show-${expectedDimension}d`, 'Stage renderer dimension', 1000)
+    show.stageMapId = stageMap.id
+    show.cells[0] = {
+      ...show.cells[0],
+      pattern: { kind: 'user', id: 'depth-aware' },
+      patternName: 'Depth aware',
+    }
+    const pattern: PatternRecord = {
+      id: 'depth-aware',
+      name: 'Depth aware',
+      src: `
+rotateY(PI / 2)
+export function render2D(index, x, y) { rgb(x, y, 0) }
+`,
+      controls: {},
+      updatedAt: 1,
+    }
+    useShowStore.setState({ shows: [show], activeShowId: show.id, showsLoaded: true })
+    usePatternStore.setState({ userPatterns: [pattern], patternsLoaded: true })
+    useMapStore.setState({ userMaps: [stageMap], mapsLoaded: true })
+    const createRuntime = vi.spyOn(fastReplay, 'createFastReplayRuntime')
+
+    try {
+      render(<ShowStagePreview showId={show.id} />)
+
+      expect(createRuntime).toHaveBeenCalled()
+      expect(createRuntime.mock.calls[0]?.[0]).toMatchObject({
+        dimension: expectedDimension,
+        metadata: {
+          renderFns: {
+            hasRender2D: true,
+            hasRender3D: true,
+          },
+        },
+      })
+    } finally {
+      createRuntime.mockRestore()
+    }
+  })
+
   it('draws session-only Zone and selected-clip diagnostics above the Stage without changing playback (#491)', () => {
     const show = createDefaultShow('show-diagnostics', 'Diagnostics', 1000)
     show.stageMapId = 'map-1'

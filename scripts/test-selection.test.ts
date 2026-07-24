@@ -3,6 +3,7 @@ import {
   collectVitestInputs,
   requiresTypecheck,
   selectPrecommitTests,
+  typecheckBuildArgs,
 } from './test-selection.mjs'
 
 describe('pre-commit test selection', () => {
@@ -23,6 +24,17 @@ describe('pre-commit test selection', () => {
       'scripts/test-selection.test.ts',
       'public/favicon.svg',
     ])).toBe(false)
+  })
+
+  it('builds both configured TypeScript projects during the staged gate', () => {
+    expect(typecheckBuildArgs()).toEqual([
+      'tsc',
+      '-b',
+      'tsconfig.json',
+      'tsconfig.node.json',
+      '--pretty',
+      'false',
+    ])
   })
 
   it('skips Vitest for documentation-only changes', () => {

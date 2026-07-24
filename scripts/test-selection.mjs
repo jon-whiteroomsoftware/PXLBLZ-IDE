@@ -94,6 +94,17 @@ export function requiresTypecheck(changedFiles) {
   ))
 }
 
+export function typecheckBuildArgs() {
+  return [
+    'tsc',
+    '-b',
+    'tsconfig.json',
+    'tsconfig.node.json',
+    '--pretty',
+    'false',
+  ]
+}
+
 export function selectPrecommitTests(changedFiles) {
   const focusedTests = [...new Set(changedFiles.flatMap((file) => {
     if (/\.(test|spec)\.[cm]?[jt]sx?$/.test(file)) return existsSync(file) ? [file] : []

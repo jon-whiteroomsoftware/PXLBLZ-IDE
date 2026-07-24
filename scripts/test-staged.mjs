@@ -3,6 +3,7 @@ import {
   collectVitestInputs,
   requiresTypecheck,
   selectPrecommitTests,
+  typecheckBuildArgs,
 } from './test-selection.mjs'
 
 function stagedFiles() {
@@ -22,12 +23,7 @@ const npx = process.platform === 'win32' ? 'npx.cmd' : 'npx'
 
 if (requiresTypecheck(selectedFiles)) {
   console.log('Running TypeScript project check.')
-  const typecheck = spawnSync(npx, [
-    'tsc',
-    '-b',
-    '--pretty',
-    'false',
-  ], { stdio: 'inherit' })
+  const typecheck = spawnSync(npx, typecheckBuildArgs(), { stdio: 'inherit' })
 
   if (typecheck.error) throw typecheck.error
   if (typecheck.status !== 0) process.exit(typecheck.status ?? 1)
