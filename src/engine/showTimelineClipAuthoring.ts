@@ -215,7 +215,7 @@ function shiftSoleUseInstanceTracksAcrossScenes(
     }).sort((left, right) => left.globalTimeMs - right.globalTimeMs || left.keyframe.id.localeCompare(right.keyframe.id))
     if (sourcePoints.length < 2) return false
     const nonlinear = sourcePoints.some((point) => point.keyframe.easing.curve !== 'linear')
-    if (nonlinear && (groupedEntries.length > 1 || targetSlices.length > 1)) return false
+    if (nonlinear) return false
 
     const evaluateAtGlobalTime = (globalTimeMs: number): number => {
       for (const { scene, track } of groupedEntries) {
@@ -691,12 +691,45 @@ export function moveShowClipAtGlobalTime(
   return normalizeShowComposition(show, draft)
 }
 
+export type ShowClipSplitPlan =
+  | { enabled: true; code: 'ready'; reason: string }
+  | { enabled: false; code: 'invalid-time' | 'missing-owner' | 'outside-clip' | 'transition-gap'; reason: string }
+
+export function planShowClipSplitAtGlobalTime(
+  show: ShowRecord,
+  composition: ShowCompositionV1,
+  input: { owner: ShowTimelineClipOwner; globalTimeMs: number },
+): ShowClipSplitPlan {
+  if (!Number.isFinite(input.globalTimeMs)) {
+    return { enabled: false, code: 'invalid-time', reason: 'Place the playhead inside the selected Clip.' }
+  }
+  const segments = logicalClipSegments(show, composition, input.owner)
+  if (segments.length === 0) {
+    return { enabled: false, code: 'missing-owner', reason: 'The selected Clip no longer exists.' }
+  }
+  const insideSegment = segments.some((segment) => {
+    const startMs = segment.sceneStartMs + segment.placement.startMs
+    const endMs = startMs + segment.placement.durationMs
+    return input.globalTimeMs > startMs && input.globalTimeMs < endMs
+  })
+  if (insideSegment) return { enabled: true, code: 'ready', reason: 'Split the selected Clip at the playhead.' }
+  const logicalRange = globalLogicalClipRange(segments)
+  if (logicalRange && input.globalTimeMs > logicalRange.startMs && input.globalTimeMs < logicalRange.endMs) {
+    return {
+      enabled: false,
+      code: 'transition-gap',
+      reason: 'A Clip cannot be split inside a Scene Transition.',
+    }
+  }
+  return { enabled: false, code: 'outside-clip', reason: 'Place the playhead inside the selected Clip.' }
+}
+
 export function splitShowClipAtGlobalTime(
   show: ShowRecord,
   composition: ShowCompositionV1,
   input: { owner: ShowTimelineClipOwner; globalTimeMs: number; newPlacementId: string },
 ): ShowCompositionV1 {
-  if (!Number.isFinite(input.globalTimeMs)) return composition
+  if (!planShowClipSplitAtGlobalTime(show, composition, input).enabled) return composition
   const segments = logicalClipSegments(show, composition, input.owner)
   const logicalRange = globalLogicalClipRange(segments)
   if (segments.length > 1 && logicalRange) {
@@ -794,7 +827,7 @@ export function duplicateLinkedShowClipAfter(
 
 export type ShowClipDuplicatePlan =
   | { enabled: true; code: 'ready'; reason: string }
-  | { enabled: false; code: 'missing-owner' | 'unsupported-animation'; reason: string }
+  | { enabled: false; code: 'missing-owner' | 'transition-boundary' | 'unsupported-animation'; reason: string }
 
 export function planShowClipDuplicateAfter(
   show: ShowRecord,
@@ -806,6 +839,21 @@ export function planShowClipDuplicateAfter(
     return { enabled: false, code: 'missing-owner', reason: 'The selected Clip no longer exists.' }
   }
   if (logicalSegments.length > 1) {
+    const logicalRange = globalLogicalClipRange(logicalSegments)
+    if (
+      !logicalRange
+      || globalSpanSceneSlices(
+        show,
+        logicalRange.endMs,
+        logicalRange.endMs - logicalRange.startMs,
+      ).length === 0
+    ) {
+      return {
+        enabled: false,
+        code: 'transition-boundary',
+        reason: 'The duplicate would end inside a Scene Transition.',
+      }
+    }
     const base = logicalSegments[0].placement
     const segmentIds = new Set(logicalSegments.map((segment) => segment.placement.id))
     const hasUnsupportedTracks = composition.scenes.some((scene) => (

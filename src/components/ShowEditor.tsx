@@ -108,6 +108,7 @@ import {
   makeShowClipPatternIndependent,
   planShowClipAtTopmostAvailableLayer,
   planShowClipDuplicateAfter,
+  planShowClipSplitAtGlobalTime,
   projectShowClipPatternInstanceOwnership,
   rejoinShowClipPatternInstance,
   splitShowClipAtGlobalTime,
@@ -2601,10 +2602,11 @@ function ShowTimelineCommands({
     ? compositionTimeline?.zones.flatMap((zone) => zone.layers.flatMap((layer) => layer.clips))
       .find((clip) => clip.id === compositionOwner.placementId)
     : null
-  const splitCapability = compositionOwner
-    ? compositionClip && positionMs > compositionClip.startMs && positionMs < compositionClip.endMs
-      ? { enabled: true, code: 'ready' as const, reason: `Split ${compositionClip.patternName} at the playhead` }
-      : { enabled: false, code: 'outside-clip' as const, reason: 'Place the playhead inside the selected Clip' }
+  const splitCapability = compositionOwner && composition
+    ? planShowClipSplitAtGlobalTime(show, composition, {
+        owner: compositionOwner,
+        globalTimeMs: positionMs,
+      })
     : legacySplitCapability
   const legacyCloneCapability = showCloneCapability(show, selection)
   const compositionLayer = compositionClip
@@ -2706,6 +2708,8 @@ function ShowTimelineCommands({
               ? 'Split needs 1.0 s on both sides'
               : splitCapability.code === 'logical-clip'
                 ? 'Scene Split is unavailable inside a multi-Scene Clip'
+              : splitCapability.code === 'transition-gap'
+                ? 'A Clip cannot be split inside a Scene Transition'
               : splitCapability.code === 'nonlinear-property-animation'
                 ? 'Add a keyframe here or make this segment Linear before splitting'
                 : splitCapability.code === 'outside-clip'

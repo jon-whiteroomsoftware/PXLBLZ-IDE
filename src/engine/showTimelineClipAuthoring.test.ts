@@ -12,6 +12,7 @@ import {
   moveShowClipAtGlobalTime,
   planShowClipAtTopmostAvailableLayer,
   planShowClipDuplicateAfter,
+  planShowClipSplitAtGlobalTime,
   planShowClipPatternRejoin,
   planShowClipAtGlobalTime,
   planShowMainClipAtGlobalTime,
@@ -776,6 +777,49 @@ describe('global timeline Clip authoring (#580)', () => {
     })
   })
 
+  it('refuses to move a logical Clip when repartitioning would linearize nonlinear instance animation (#63)', () => {
+    const show = createDefaultShow('show-move-spanning-nonlinear', 'Move spanning nonlinear', 1000)
+    const composition = emptyComposition(show)
+    composition.patternInstances.push(instance)
+    composition.scenes[0].zones[0].main.push({
+      id: 'placement-move',
+      instanceId: instance.id,
+      startMs: 28_000,
+      durationMs: 2_000,
+      view: { mirror: false, phase: 0, brightness: 1 },
+    })
+    composition.scenes[1].zones[0].main.push({
+      id: `placement-move--span-${show.scenes[1].id}`,
+      logicalClipId: 'placement-move',
+      instanceId: instance.id,
+      startMs: 0,
+      durationMs: 3_000,
+      view: { mirror: false, phase: 0, brightness: 1 },
+    })
+    composition.scenes[0].propertyTracks = [{
+      id: 'track-speed',
+      target: { kind: 'instance-time-scale', instanceId: instance.id },
+      keyframes: [
+        { id: 'key-a', timeMs: 0, value: 1, easing: { curve: 'sine', direction: 'in-out' } },
+        { id: 'key-b', timeMs: 30_000, value: 2, easing: { curve: 'linear' } },
+      ],
+    }]
+
+    expect(moveShowClipAtGlobalTime(show, composition, {
+      owner: {
+        kind: 'main',
+        sceneId: show.scenes[0].id,
+        zoneId: show.zones[0].id,
+        placementId: 'placement-move',
+      },
+      target: {
+        kind: 'main',
+        zoneId: show.zones[0].id,
+        globalStartMs: 10_000,
+      },
+    })).toBe(composition)
+  })
+
   it('moves a logical Clip again after its instance automation was partitioned by Scene (#63)', () => {
     const show = createDefaultShow('show-move-spanning-instance-again', 'Move spanning instance again', 1000)
     const composition = emptyComposition(show)
@@ -1063,6 +1107,95 @@ describe('global timeline Clip authoring (#580)', () => {
       durationMs: 7_000,
       endMs: 42_000,
     }))
+  })
+
+  it('disables Split inside the hidden Scene Transition gap of a logical Clip (#63)', () => {
+    const show = createDefaultShow('show-split-transition-gap', 'Split transition gap', 1000)
+    const composition = emptyComposition(show)
+    composition.patternInstances.push(instance)
+    composition.scenes[0].zones[0].main.push({
+      id: 'placement-spanning',
+      instanceId: instance.id,
+      startMs: 29_000,
+      durationMs: 1_000,
+      view: { mirror: false, phase: 0, brightness: 1 },
+    })
+    composition.scenes[1].zones[0].main.push({
+      id: `placement-spanning--span-${show.scenes[1].id}`,
+      logicalClipId: 'placement-spanning',
+      instanceId: instance.id,
+      startMs: 0,
+      durationMs: 3_000,
+      view: { mirror: false, phase: 0, brightness: 1 },
+    })
+    const owner = {
+      kind: 'main' as const,
+      sceneId: show.scenes[0].id,
+      zoneId: show.zones[0].id,
+      placementId: 'placement-spanning',
+    }
+
+    expect(planShowClipSplitAtGlobalTime(show, composition, {
+      owner,
+      globalTimeMs: 31_000,
+    })).toMatchObject({
+      enabled: false,
+      code: 'transition-gap',
+    })
+    expect(splitShowClipAtGlobalTime(show, composition, {
+      owner,
+      globalTimeMs: 31_000,
+      newPlacementId: 'placement-right',
+    })).toBe(composition)
+  })
+
+  it('disables Clone when the duplicate would end inside a Scene Transition (#63)', () => {
+    const show = createDefaultShow('show-clone-transition-end', 'Clone transition end', 1000)
+    show.scenes.push({ id: 'scene-3', name: 'Scene 3', durationMs: 30_000 })
+    show.transitions!.push({
+      id: 'transition-scene-2',
+      afterSceneId: show.scenes[1].id,
+      kind: 'crossfade',
+      durationMs: 2_000,
+      easing: { curve: 'linear' },
+      crossfadePolicy: 'snapshot-live',
+    })
+    const composition = emptyComposition(show)
+    composition.patternInstances.push(instance)
+    composition.scenes[0].zones[0].main.push({
+      id: 'placement-spanning',
+      instanceId: instance.id,
+      startMs: 29_000,
+      durationMs: 1_000,
+      view: { mirror: false, phase: 0, brightness: 1 },
+    })
+    composition.scenes[1].zones[0].main.push({
+      id: `placement-spanning--span-${show.scenes[1].id}`,
+      logicalClipId: 'placement-spanning',
+      instanceId: instance.id,
+      startMs: 0,
+      durationMs: 14_000,
+      view: { mirror: false, phase: 0, brightness: 1 },
+    })
+    const owner = {
+      kind: 'main' as const,
+      sceneId: show.scenes[0].id,
+      zoneId: show.zones[0].id,
+      placementId: 'placement-spanning',
+    }
+
+    expect(planShowClipDuplicateAfter(show, composition, {
+      owner,
+      independent: true,
+    })).toMatchObject({
+      enabled: false,
+      code: 'transition-boundary',
+    })
+    expect(duplicateShowClipAfter(show, composition, {
+      owner,
+      newPlacementId: 'placement-copy',
+      newInstanceId: 'instance-copy',
+    })).toBe(composition)
   })
 
   it('disables Clone when a multi-Scene logical Clip has unsupported placement animation (#63)', () => {
