@@ -246,6 +246,18 @@ describe('shared Clip inspector owner model (#498)', () => {
     })
   })
 
+  it('rejects opacity together with an invalid logical Clip timing edit (#63)', () => {
+    const show = logicalClipFixture()
+
+    expect(updateShowClipInspector(show, overlayOwner(show), {
+      local: {
+        durationMs: 1_000_000,
+        opacity: 0.4,
+      },
+    })).toBe(show)
+    expect(projectShowClipInspector(show, overlayOwner(show))?.local?.opacity).toBe(0.75)
+  })
+
   it('keeps Freeze, Strobe, and Blink on the placement while Stutter stays on the Pattern instance (#586)', () => {
     const show = fixture()
     const updated = updateShowClipInspector(show, overlayOwner(show), {

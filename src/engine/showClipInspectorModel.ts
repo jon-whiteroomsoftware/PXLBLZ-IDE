@@ -218,22 +218,28 @@ export function updateShowClipInspector(
   if (patch.local) {
     const current = resolveCompositionOwner(composition, owner)?.placement
     if (!current) return show
-    if (owner.kind === 'scene-overlay' && patch.local.opacity !== undefined) {
+    let timingAccepted = true
+    if (patch.local.startMs !== undefined || patch.local.durationMs !== undefined) {
+      const range = logicalPlacementRange(show, composition, current)
+      if (!range) return show
+      const desiredStartMs = patch.local.startMs ?? range.localStartMs
+      const desiredDurationMs = patch.local.durationMs ?? range.durationMs
+      const resized = resizeShowClipAtGlobalTime(show, composition, {
+        owner: owner.kind === 'scene-main'
+          ? { ...owner, kind: 'main' }
+          : { ...owner, kind: 'overlay' },
+        globalStartMs: range.sceneStartMs + desiredStartMs,
+        durationMs: desiredDurationMs,
+      })
+      timingAccepted = resized !== composition
+        || (desiredStartMs === range.localStartMs && desiredDurationMs === range.durationMs)
+      composition = resized
+    }
+    if (timingAccepted && owner.kind === 'scene-overlay' && patch.local.opacity !== undefined) {
       composition = mapPlacement(composition, owner, (placement) => ({
         ...placement,
         opacity: clamp01(patch.local!.opacity!),
       }))
-    }
-    if (patch.local.startMs !== undefined || patch.local.durationMs !== undefined) {
-      const range = logicalPlacementRange(show, composition, current)
-      if (!range) return show
-      composition = resizeShowClipAtGlobalTime(show, composition, {
-        owner: owner.kind === 'scene-main'
-          ? { ...owner, kind: 'main' }
-          : { ...owner, kind: 'overlay' },
-        globalStartMs: range.sceneStartMs + (patch.local.startMs ?? range.localStartMs),
-        durationMs: patch.local.durationMs ?? range.durationMs,
-      })
     }
   }
   if (composition === show.composition) return show
