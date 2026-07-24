@@ -343,15 +343,27 @@ export function resizeShowConnectedClipAtGlobalTime(
     transition.toPlacementId === clip.startPlacementId
   ))
   if (incoming && startDeltaMs !== 0 && endDeltaMs === 0) {
-    const resizedTransition = resizeShowLayerTransition(
-      show,
-      composition,
-      incoming.id,
-      incoming.durationMs + startDeltaMs,
-    )
-    if (resizedTransition === composition) return composition
-    const changed = resizeShowClipAtGlobalTime(show, resizedTransition, input)
-    return changed !== resizedTransition && !hasConcurrentLayerTransitions(show, changed) ? changed : composition
+    const transitionDurationMs = incoming.durationMs + startDeltaMs
+    if (transitionDurationMs < 0) return composition
+    const withoutIncoming = structuredClone(composition)
+    withoutIncoming.transitions = withoutIncoming.transitions?.filter((transition) => transition.id !== incoming.id)
+    if (withoutIncoming.transitions?.length === 0) delete withoutIncoming.transitions
+    const resizedClip = resizeShowClipAtGlobalTime(show, withoutIncoming, {
+      ...input,
+      globalStartMs: nextStartMs,
+      durationMs: nextDurationMs,
+    })
+    if (resizedClip === withoutIncoming) return composition
+    if (transitionDurationMs > 0) {
+      resizedClip.transitions = [
+        ...(resizedClip.transitions ?? []),
+        { ...structuredClone(incoming), durationMs: transitionDurationMs },
+      ]
+    }
+    if (validateShowComposition(show, resizedClip).length > 0 || hasConcurrentLayerTransitions(show, resizedClip)) {
+      return composition
+    }
+    return normalizeShowComposition(show, resizedClip)
   }
 
   const outgoing = (composition.transitions ?? []).find((transition) => (

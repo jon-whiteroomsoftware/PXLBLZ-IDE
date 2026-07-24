@@ -729,11 +729,12 @@ export function splitShowClipAtGlobalTime(
   composition: ShowCompositionV1,
   input: { owner: ShowTimelineClipOwner; globalTimeMs: number; newPlacementId: string },
 ): ShowCompositionV1 {
-  if (!planShowClipSplitAtGlobalTime(show, composition, input).enabled) return composition
+  const globalTimeMs = Math.round(input.globalTimeMs)
+  if (!planShowClipSplitAtGlobalTime(show, composition, { ...input, globalTimeMs }).enabled) return composition
   const segments = logicalClipSegments(show, composition, input.owner)
   const logicalRange = globalLogicalClipRange(segments)
   if (segments.length > 1 && logicalRange) {
-    if (input.globalTimeMs <= logicalRange.startMs || input.globalTimeMs >= logicalRange.endMs) return composition
+    if (globalTimeMs <= logicalRange.startMs || globalTimeMs >= logicalRange.endMs) return composition
     const segmentIds = new Set(segments.map((segment) => segment.placement.id))
     const base = segments[0].placement
     const sourceScene = composition.scenes.find((scene) => scene.sceneId === input.owner.sceneId)
@@ -761,14 +762,14 @@ export function splitShowClipAtGlobalTime(
       base,
       target,
       globalStartMs: logicalRange.startMs,
-      durationMs: input.globalTimeMs - logicalRange.startMs,
+      durationMs: globalTimeMs - logicalRange.startMs,
     })) return composition
     if (!appendLogicalClipGlobalSpan(show, draft, {
       rootId: input.newPlacementId,
       base,
       target,
-      globalStartMs: input.globalTimeMs,
-      durationMs: logicalRange.endMs - input.globalTimeMs,
+      globalStartMs: globalTimeMs,
+      durationMs: logicalRange.endMs - globalTimeMs,
     })) return composition
     if (!retargetLogicalSplitPlacementTracks(draft, {
       sourcePlacementIds: segmentIds,
@@ -795,7 +796,7 @@ export function splitShowClipAtGlobalTime(
   }
   const range = projectShowTimeline(show).scenes.find((scene) => scene.sceneId === input.owner.sceneId)
   if (!range) return composition
-  const atMs = Math.round(input.globalTimeMs - range.startMs)
+  const atMs = globalTimeMs - range.startMs
   return input.owner.kind === 'main'
     ? splitShowMainPlacement(show, composition, {
         ...input.owner,

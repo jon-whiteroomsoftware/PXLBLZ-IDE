@@ -15,6 +15,7 @@ import {
   showLayoutIntervalPercentBounds,
   showLayoutZoneIdAtTime,
 } from './showLayoutIntervals'
+import { validateShowComposition } from './showCompositionModel'
 import type { ShowCompositionV1, ShowRecord } from './personalContentRecords'
 
 function showWithComposition(): ShowRecord {
@@ -53,6 +54,56 @@ function showWithComposition(): ShowRecord {
 }
 
 describe('Show Layout intervals', () => {
+  it('remaps logical Clip roots when duplicating a multi-Scene Layout with content (#63)', () => {
+    const show = createDefaultShow('show-layout-logical-copy', 'Logical copy', 1)
+    const instance = {
+      id: 'instance-logical',
+      pattern: { kind: 'stock' as const, id: 'TestPattern1D' },
+      patternName: 'TestPattern1D',
+      time: { timeScale: 1, timeOffsetMs: 0 },
+    }
+    show.composition = {
+      version: 1,
+      patternInstances: [instance],
+      scenes: show.scenes.map((scene, index) => ({
+        sceneId: scene.id,
+        zones: [{
+          zoneId: show.zones[0].id,
+          main: [index === 0
+            ? {
+                id: 'logical-root',
+                instanceId: instance.id,
+                startMs: 29_000,
+                durationMs: 1_000,
+                view: { brightness: 1, phase: 0, mirror: false },
+              }
+            : {
+                id: `logical-root--span-${scene.id}`,
+                logicalClipId: 'logical-root',
+                instanceId: instance.id,
+                startMs: 0,
+                durationMs: 3_000,
+                view: { brightness: 1, phase: 0, mirror: false },
+              }],
+          overlays: [],
+        }],
+      })),
+    }
+
+    const duplicated = duplicateShowLayoutInterval(
+      show,
+      projectShowLayoutIntervals(show)[0].id,
+      { withContent: true },
+    )
+    const duplicateRoot = duplicated.composition!.scenes[2].zones[0].main[0]
+    const duplicateContinuation = duplicated.composition!.scenes[3].zones[0].main[0]
+
+    expect(validateShowComposition(duplicated, duplicated.composition!)).toEqual([])
+    expect(duplicateContinuation.logicalClipId).toBe(duplicateRoot.id)
+    expect(duplicateContinuation.id).toBe(`${duplicateRoot.id}--span-${duplicated.scenes[3].id}`)
+    expect(duplicateContinuation.instanceId).not.toBe(instance.id)
+  })
+
   it('uses logical Zone identities for portable Layout occurrences (#589)', () => {
     const base = showWithComposition()
     const zoneId = base.zones[0].id

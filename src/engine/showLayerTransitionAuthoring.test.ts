@@ -710,4 +710,40 @@ describe('literal per-Layer Transition authoring (#583)', () => {
       ['obstruction', 9_000, 1_000],
     ])
   })
+
+  it('trims a middle Clip start without shifting its outgoing Transition chain (#63)', () => {
+    const { show, composition } = fixture()
+    const connected = insertShowLayerTransition(show, composition, {
+      id: 'transition-a-b',
+      fromPlacementId: 'clip-a',
+      toPlacementId: 'clip-b',
+      kind: 'crossfade',
+      durationMs: 1_000,
+      easing: { curve: 'linear' },
+      crossfadePolicy: 'live-live',
+    })
+
+    const resized = resizeShowConnectedClipAtGlobalTime(show, connected, {
+      owner: {
+        kind: 'main',
+        sceneId: show.scenes[0].id,
+        zoneId: show.zones[0].id,
+        placementId: 'clip-b',
+      },
+      globalStartMs: 3_500,
+      durationMs: 1_500,
+    })
+
+    expect(resized).not.toBe(connected)
+    expect(resized.transitions?.map((transition) => [transition.id, transition.durationMs])).toEqual([
+      ['transition-a-b', 1_500],
+      ['transition-b-c', 1_000],
+    ])
+    expect(resized.scenes[0].zones[0].main.map((clip) => [clip.id, clip.startMs, clip.durationMs])).toEqual([
+      ['clip-a', 0, 2_000],
+      ['clip-b', 3_500, 1_500],
+      ['clip-c', 6_000, 2_000],
+      ['obstruction', 9_000, 1_000],
+    ])
+  })
 })

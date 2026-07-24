@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import { addShowZone, createDefaultShow, showLoopDurationMs } from './showModel'
-import { projectFlatShowToCompositionV1 } from './showCompositionModel'
+import { projectFlatShowToCompositionV1, validateShowComposition } from './showCompositionModel'
 import {
   addShowClipAtGlobalTime,
   addShowClipAtGlobalTimeExtendingShow,
@@ -1147,6 +1147,47 @@ describe('global timeline Clip authoring (#580)', () => {
       globalTimeMs: 31_000,
       newPlacementId: 'placement-right',
     })).toBe(composition)
+  })
+
+  it('rounds one fractional logical Clip split boundary for both resulting halves (#63)', () => {
+    const show = createDefaultShow('show-split-fractional', 'Split fractional', 1000)
+    const composition = emptyComposition(show)
+    composition.patternInstances.push(instance)
+    composition.scenes[0].zones[0].main.push({
+      id: 'placement-spanning',
+      instanceId: instance.id,
+      startMs: 29_000,
+      durationMs: 1_000,
+      view: { mirror: false, phase: 0, brightness: 1 },
+    })
+    composition.scenes[1].zones[0].main.push({
+      id: `placement-spanning--span-${show.scenes[1].id}`,
+      logicalClipId: 'placement-spanning',
+      instanceId: instance.id,
+      startMs: 0,
+      durationMs: 3_000,
+      view: { mirror: false, phase: 0, brightness: 1 },
+    })
+    const split = splitShowClipAtGlobalTime(show, composition, {
+      owner: {
+        kind: 'main',
+        sceneId: show.scenes[0].id,
+        zoneId: show.zones[0].id,
+        placementId: 'placement-spanning',
+      },
+      globalTimeMs: 33_000.5,
+      newPlacementId: 'placement-right',
+    })
+
+    expect(split).not.toBe(composition)
+    expect(validateShowComposition(show, split)).toEqual([])
+    expect(projectShowUnifiedTimeline(show, split).zones[0].layers
+      .flatMap((layer) => layer.clips)
+      .filter((clip) => clip.id === 'placement-spanning' || clip.id === 'placement-right')
+      .map((clip) => [clip.id, clip.startMs, clip.endMs])).toEqual([
+        ['placement-spanning', 29_000, 33_001],
+        ['placement-right', 33_001, 35_000],
+      ])
   })
 
   it('disables Clone when the duplicate would end inside a Scene Transition (#63)', () => {

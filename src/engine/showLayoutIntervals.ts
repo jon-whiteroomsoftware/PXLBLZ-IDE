@@ -440,24 +440,61 @@ function duplicateCompositionScenes(
     instanceIdMap.set(instance.id, id)
     return [{ ...cloneJson(instance), id }]
   })
+  const placementEntries = sourceScenes.flatMap((scene) => scene.zones.flatMap((zone) => [
+    ...zone.main,
+    ...zone.overlays.flatMap((layer) => layer.placements),
+  ]).map((placement) => ({
+    placement,
+    destinationSceneId: sceneIdMap.get(scene.sceneId)!,
+  })))
+  const entriesByLogicalClipId = new Map<string, typeof placementEntries>()
+  for (const entry of placementEntries) {
+    const logicalClipId = entry.placement.logicalClipId ?? entry.placement.id
+    entriesByLogicalClipId.set(logicalClipId, [
+      ...(entriesByLogicalClipId.get(logicalClipId) ?? []),
+      entry,
+    ])
+  }
+  const placementIdMap = new Map<string, string>()
+  const logicalClipIdMap = new Map<string, string>()
+  for (const [logicalClipId, entries] of entriesByLogicalClipId) {
+    const rootId = uniqueId(usedIds, `${logicalClipId}-copy`)
+    logicalClipIdMap.set(logicalClipId, rootId)
+    entries.forEach((entry, index) => {
+      const id = index === 0
+        ? rootId
+        : `${rootId}--span-${entry.destinationSceneId}`
+      usedIds.add(id)
+      placementIdMap.set(entry.placement.id, id)
+    })
+  }
   const duplicates = sourceScenes.map((source) => {
-    const placementIdMap = new Map<string, string>()
     const scene = cloneJson(source)
     scene.sceneId = sceneIdMap.get(source.sceneId)!
     scene.zones = scene.zones.map((zone) => ({
       ...zone,
       main: zone.main.map((placement) => {
-        const id = uniqueId(usedIds, `${placement.id}-copy`)
-        placementIdMap.set(placement.id, id)
-        return { ...placement, id, instanceId: instanceIdMap.get(placement.instanceId) ?? placement.instanceId }
+        const id = placementIdMap.get(placement.id)!
+        const logicalClipId = logicalClipIdMap.get(placement.logicalClipId ?? placement.id)!
+        return {
+          ...placement,
+          id,
+          logicalClipId: id === logicalClipId ? undefined : logicalClipId,
+          instanceId: instanceIdMap.get(placement.instanceId) ?? placement.instanceId,
+        }
       }),
       overlays: zone.overlays.map((layer) => ({
         ...layer,
         id: uniqueId(usedIds, `${layer.id}-copy`),
         placements: layer.placements.map((placement) => {
-          const id = uniqueId(usedIds, `${placement.id}-copy`)
-          placementIdMap.set(placement.id, id)
-          return { ...placement, id, instanceId: instanceIdMap.get(placement.instanceId) ?? placement.instanceId }
+          const id = placementIdMap.get(placement.id)!
+          const logicalClipId = logicalClipIdMap.get(placement.logicalClipId ?? placement.id)!
+          return {
+            ...placement,
+            id,
+            logicalClipId: id === logicalClipId ? undefined : logicalClipId,
+            instanceId: instanceIdMap.get(placement.instanceId) ?? placement.instanceId,
+          }
         }),
       })),
     }))
