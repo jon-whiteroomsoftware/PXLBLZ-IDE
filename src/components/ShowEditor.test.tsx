@@ -7,6 +7,7 @@ import {
   addShowZone,
   createDefaultShow,
   createShowWithOutputContract,
+  extendShowCell,
   removeShowClip,
   removeShowZone,
   spanShowCellZones,
@@ -2408,6 +2409,60 @@ describe('ShowEditor (#318)', () => {
       'A Show must contain at least one Clip.',
     )
     expect(screen.getByRole('button', { name: 'Select CometLoom' })).toBeInTheDocument()
+  })
+
+  it('blocks deletion when the final flat Clip spans multiple projected placements (#63)', async () => {
+    const user = userEvent.setup()
+    const show = extendShowCell(
+      removeShowClip(
+        createDefaultShow('show-protect-spanned-final-clip', 'Protect spanned final Clip', 1000),
+        'cell-2',
+      ),
+      'cell-1',
+      2,
+    )
+    setPersonalContentProvider(memoryProvider([show]))
+    useShowStore.setState({ shows: [show], activeShowId: show.id, showsLoaded: true })
+
+    render(<ShowEditor showId={show.id} />)
+    const firstProjectedPlacement = screen.getAllByRole('button', { name: 'Select TestPattern1D' })
+      .find((button) => button.getAttribute('data-show-selection-key') === 'clip:placement-cell-1-scene-1')
+    expect(firstProjectedPlacement).toBeDefined()
+    await user.click(firstProjectedPlacement!)
+
+    expect(screen.getByRole('button', { name: 'Delete clip TestPattern1D' })).toBeDisabled()
+    await user.keyboard('{Delete}')
+
+    expect(screen.getByTestId('show-clip-delete-blocked')).toBeInTheDocument()
+    expect(screen.getByRole('status', { name: 'Clip deletion unavailable' })).toHaveTextContent(
+      'A Show must contain at least one Clip.',
+    )
+    expect(useShowStore.getState().shows.find((candidate) => candidate.id === show.id)?.cells).toEqual(show.cells)
+    expect(screen.getByRole('dialog', { name: 'Entity Detail Panel' })).toBeInTheDocument()
+  })
+
+  it('blocks deletion when the final flat Clip spans multiple projected Zones (#63)', async () => {
+    const user = userEvent.setup()
+    let show = removeShowClip(
+      createDefaultShow('show-protect-zone-spanned-final-clip', 'Protect Zone-spanned final Clip', 1000),
+      'cell-2',
+    )
+    show = addShowZone(show, { name: 'accent' })
+    show = spanShowCellZones(show, 'cell-1', 2)
+    setPersonalContentProvider(memoryProvider([show]))
+    useShowStore.setState({ shows: [show], activeShowId: show.id, showsLoaded: true })
+
+    render(<ShowEditor showId={show.id} />)
+    const projectedPlacements = screen.getAllByRole('button', { name: 'Select TestPattern1D' })
+    expect(projectedPlacements).toHaveLength(2)
+    await user.click(projectedPlacements[0])
+
+    expect(screen.getByRole('button', { name: 'Delete clip TestPattern1D' })).toBeDisabled()
+    await user.keyboard('{Delete}')
+
+    expect(screen.getByTestId('show-clip-delete-blocked')).toBeInTheDocument()
+    expect(useShowStore.getState().shows.find((candidate) => candidate.id === show.id)?.cells).toEqual(show.cells)
+    expect(screen.getByRole('dialog', { name: 'Entity Detail Panel' })).toBeInTheDocument()
   })
 
   it('consolidates Show creation commands into one flat Add menu (#594)', async () => {

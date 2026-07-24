@@ -976,10 +976,7 @@ export function ShowEditor({
         legacyClipId && activeShow.cells.some((cell) => cell.id === legacyClipId),
       )
       if (!compositionOwner && !visibleCompositionOwner && !legacyClipExists) return false
-      const visibleShow = visibleComposition
-        ? { ...activeShow, composition: visibleComposition }
-        : activeShow
-      if (showRecordClipCount(visibleShow) <= 1) {
+      if (showRecordClipCount(activeShow) <= 1) {
         blockedDeleteFeedbackSequenceRef.current += 1
         setBlockedDeleteFeedback({
           selectionKey: showSelectionKey(targetSelection),
@@ -6571,7 +6568,7 @@ function ContextualInspector({
   onUpdateRoutingLayout: (layoutId: string, changes: Partial<Omit<ShowRoutingLayout, 'id'>>) => void
   onRemoveRoutingLayout: (layoutId: string) => void
 }) {
-  const canRemoveClip = showRecordClipCount(compositionShow) > 1
+  const canRemoveClip = showRecordClipCount(show) > 1
   const compositionTimelineClips = compositionShow.composition
     ? projectShowUnifiedTimeline(compositionShow, compositionShow.composition).zones.flatMap((zone) => (
         zone.layers.flatMap((layer) => layer.clips)
