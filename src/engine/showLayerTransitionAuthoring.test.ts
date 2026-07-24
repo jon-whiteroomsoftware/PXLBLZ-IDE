@@ -503,6 +503,68 @@ describe('literal per-Layer Transition authoring (#583)', () => {
     ])
   })
 
+  it('retargets durable Transition endpoints after a connected logical Clip changes segments (#63)', () => {
+    const { show, composition } = fixture()
+    composition.transitions = [{
+      id: 'transition-spanning-next',
+      fromPlacementId: 'clip-spanning--span-scene-2',
+      toPlacementId: 'clip-next',
+      kind: 'crossfade',
+      durationMs: 1_000,
+      easing: { curve: 'linear' },
+      crossfadePolicy: 'live-live',
+    }]
+    composition.scenes[0].zones[0].main = [{
+      ...composition.scenes[0].zones[0].main[0],
+      id: 'clip-spanning',
+      startMs: 28_000,
+      durationMs: 2_000,
+    }]
+    composition.scenes.push({
+      sceneId: show.scenes[1].id,
+      zones: [{
+        zoneId: show.zones[0].id,
+        main: [{
+          ...composition.scenes[0].zones[0].main[0],
+          id: 'clip-spanning--span-scene-2',
+          logicalClipId: 'clip-spanning',
+          startMs: 0,
+          durationMs: 3_000,
+        }, {
+          ...composition.scenes[0].zones[0].main[0],
+          id: 'clip-next',
+          startMs: 4_000,
+          durationMs: 2_000,
+        }],
+        overlays: [],
+      }],
+    })
+
+    const moved = moveShowConnectedClipAtGlobalTime(show, composition, {
+      owner: {
+        kind: 'main',
+        sceneId: show.scenes[0].id,
+        zoneId: show.zones[0].id,
+        placementId: 'clip-spanning',
+      },
+      target: { kind: 'main', zoneId: show.zones[0].id, globalStartMs: 33_000 },
+    })
+
+    expect(moved).not.toBe(composition)
+    expect(moved.scenes[0].zones[0].main).toEqual([])
+    expect(moved.scenes[1].zones[0].main).toEqual([
+      expect.objectContaining({ id: 'clip-spanning', startMs: 1_000, durationMs: 7_000 }),
+      expect.objectContaining({ id: 'clip-next', startMs: 9_000, durationMs: 2_000 }),
+    ])
+    expect(moved.transitions).toEqual([
+      expect.objectContaining({
+        id: 'transition-spanning-next',
+        fromPlacementId: 'clip-spanning',
+        toPlacementId: 'clip-next',
+      }),
+    ])
+  })
+
   it('breaks connected Transitions when their Clip moves into another Layer', () => {
     const { show, composition } = fixture()
     const connected = insertShowLayerTransition(show, composition, {

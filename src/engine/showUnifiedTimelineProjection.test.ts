@@ -175,6 +175,85 @@ describe('unified Show timeline projection (#580)', () => {
     ])
   })
 
+  it('projects the outgoing boundary Transition from the ending Scene of a logical Clip (#63)', () => {
+    const show = createDefaultShow('show-logical-boundary-projection', 'Logical boundary projection', 1_000)
+    const thirdScene = { id: 'scene-3', name: 'Scene 3', durationMs: 30_000 }
+    show.scenes.push(thirdScene)
+    show.transitions.push({
+      id: 'transition-scene-2',
+      afterSceneId: show.scenes[1].id,
+      kind: 'wipe',
+      durationMs: 1_000,
+      easing: { curve: 'linear' },
+      direction: 0,
+    })
+    const zoneId = show.zones[0].id
+    const placement = {
+      instanceId: 'instance-a',
+      view: { mirror: false, phase: 0, brightness: 1 },
+    }
+    const composition: ShowCompositionV1 = {
+      version: 1,
+      patternInstances: [{
+        id: 'instance-a',
+        pattern: { kind: 'stock', id: 'Rings' },
+        patternName: 'Rings',
+        time: { timeScale: 1, timeOffsetMs: 0 },
+      }],
+      scenes: [{
+        sceneId: show.scenes[0].id,
+        zones: [{
+          zoneId,
+          main: [{
+            ...placement,
+            id: 'clip-spanning',
+            startMs: 28_000,
+            durationMs: 2_000,
+          }],
+          overlays: [],
+        }],
+      }, {
+        sceneId: show.scenes[1].id,
+        zones: [{
+          zoneId,
+          main: [{
+            ...placement,
+            id: 'clip-spanning--span-scene-2',
+            logicalClipId: 'clip-spanning',
+            startMs: 0,
+            durationMs: 30_000,
+          }],
+          overlays: [],
+        }],
+      }, {
+        sceneId: thirdScene.id,
+        zones: [{
+          zoneId,
+          main: [{
+            ...placement,
+            id: 'clip-next',
+            startMs: 0,
+            durationMs: 2_000,
+          }],
+          overlays: [],
+        }],
+      }],
+    }
+
+    expect(projectShowUnifiedTimeline(show, composition).zones[0].layers[0].junctions).toContainEqual(
+      expect.objectContaining({
+        id: 'transition-scene-2',
+        kind: 'wipe',
+        leftClipId: 'clip-spanning',
+        rightClipId: 'clip-next',
+        fromPlacementId: 'clip-spanning--span-scene-2',
+        toPlacementId: 'clip-next',
+        startMs: 62_000,
+        endMs: 63_000,
+      }),
+    )
+  })
+
   it('projects internal Scene-local placements onto one global timeline', () => {
     const show = createDefaultShow('show-unified-projection', 'Unified projection', 1_000)
     const zoneId = show.zones[0].id

@@ -96,6 +96,8 @@ function clip(
     patternName: id,
     compiled: true,
     sceneId: 'scene-1',
+    startSceneId: 'scene-1',
+    endSceneId: 'scene-1',
     zoneId,
     layerId: layerIndex === 0 ? 'overlay' : null,
     layerIndex,

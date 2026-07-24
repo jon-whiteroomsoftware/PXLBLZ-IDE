@@ -509,7 +509,11 @@ function shiftTimelineClips(
   clips: ShowUnifiedTimelineClipProjection[],
   deltaMs: number,
 ): ShowCompositionV1 | null {
-  const savedTransitions = structuredClone(composition.transitions)
+  const savedTransitions = composition.transitions?.map((transition) => ({
+    transition: structuredClone(transition),
+    fromLogicalClipId: logicalClipIdForPlacement(composition, transition.fromPlacementId),
+    toLogicalClipId: logicalClipIdForPlacement(composition, transition.toPlacementId),
+  }))
   const withoutTransitions = structuredClone(composition)
   delete withoutTransitions.transitions
   let draft = withoutTransitions
@@ -529,8 +533,37 @@ function shiftTimelineClips(
     if (moved === draft) return null
     draft = moved
   }
-  if (savedTransitions) draft.transitions = savedTransitions
+  if (savedTransitions) {
+    const movedClips = projectShowUnifiedTimeline(show, draft).zones
+      .flatMap((zone) => zone.layers.flatMap((layer) => layer.clips))
+    draft.transitions = savedTransitions.map((saved) => {
+      const fromClip = movedClips.find((clip) => clip.id === saved.fromLogicalClipId)
+      const toClip = movedClips.find((clip) => clip.id === saved.toLogicalClipId)
+      return {
+        ...saved.transition,
+        fromPlacementId: fromClip?.endPlacementId ?? saved.transition.fromPlacementId,
+        toPlacementId: toClip?.startPlacementId ?? saved.transition.toPlacementId,
+      }
+    })
+  }
   return draft
+}
+
+function logicalClipIdForPlacement(
+  composition: ShowCompositionV1,
+  placementId: string,
+): string {
+  for (const scene of composition.scenes) {
+    for (const zone of scene.zones) {
+      for (const placement of [
+        ...zone.main,
+        ...zone.overlays.flatMap((layer) => layer.placements),
+      ]) {
+        if (placement.id === placementId) return placement.logicalClipId ?? placement.id
+      }
+    }
+  }
+  return placementId
 }
 
 function hasConcurrentLayerTransitions(

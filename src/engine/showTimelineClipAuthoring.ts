@@ -285,6 +285,54 @@ function shiftSoleUseInstanceTracksAcrossScenes(
   return true
 }
 
+function retargetLogicalSplitPlacementTracks(
+  composition: ShowCompositionV1,
+  input: {
+    sourcePlacementIds: Set<string>
+    leftLogicalClipId: string
+    rightLogicalClipId: string
+  },
+): boolean {
+  for (const scene of composition.scenes) {
+    const targetPlacementIds = scene.zones.flatMap((zone) => [
+      ...zone.main,
+      ...zone.overlays.flatMap((layer) => layer.placements),
+    ]).filter((placement) => {
+      const logicalClipId = placementLogicalClipId(placement)
+      return logicalClipId === input.leftLogicalClipId || logicalClipId === input.rightLogicalClipId
+    }).sort((left, right) => {
+      const leftSide = placementLogicalClipId(left) === input.leftLogicalClipId ? 0 : 1
+      const rightSide = placementLogicalClipId(right) === input.leftLogicalClipId ? 0 : 1
+      return leftSide - rightSide || left.startMs - right.startMs || left.id.localeCompare(right.id)
+    }).map((placement) => placement.id)
+    const tracks = scene.propertyTracks ?? []
+    const nextTracks: ShowPropertyAnimationTrack[] = []
+    for (const track of tracks) {
+      if (!('placementId' in track.target) || !input.sourcePlacementIds.has(track.target.placementId)) {
+        nextTracks.push(track)
+        continue
+      }
+      if (targetPlacementIds.length === 0) return false
+      const target = track.target
+      targetPlacementIds.forEach((placementId, index) => {
+        const suffix = index === 0 ? '' : `-${placementId}`
+        nextTracks.push({
+          ...structuredClone(track),
+          id: `${track.id}${suffix}`,
+          target: { ...target, placementId },
+          keyframes: track.keyframes.map((keyframe) => ({
+            ...structuredClone(keyframe),
+            id: `${keyframe.id}${suffix}`,
+          })),
+        })
+      })
+    }
+    if (nextTracks.length > 0) scene.propertyTracks = nextTracks
+    else delete scene.propertyTracks
+  }
+  return true
+}
+
 function replaceLogicalClipGlobalSpan(
   show: ShowRecord,
   composition: ShowCompositionV1,
@@ -654,12 +702,6 @@ export function splitShowClipAtGlobalTime(
   if (segments.length > 1 && logicalRange) {
     if (input.globalTimeMs <= logicalRange.startMs || input.globalTimeMs >= logicalRange.endMs) return composition
     const segmentIds = new Set(segments.map((segment) => segment.placement.id))
-    const hasPlacementTracks = composition.scenes.some((scene) => (
-      (scene.propertyTracks ?? []).some((track) => (
-        'placementId' in track.target && segmentIds.has(track.target.placementId)
-      ))
-    ))
-    if (hasPlacementTracks) return composition
     const base = segments[0].placement
     const sourceScene = composition.scenes.find((scene) => scene.sceneId === input.owner.sceneId)
     const sourceZone = sourceScene?.zones.find((zone) => zone.zoneId === input.owner.zoneId)
@@ -695,6 +737,26 @@ export function splitShowClipAtGlobalTime(
       globalStartMs: input.globalTimeMs,
       durationMs: logicalRange.endMs - input.globalTimeMs,
     })) return composition
+    if (!retargetLogicalSplitPlacementTracks(draft, {
+      sourcePlacementIds: segmentIds,
+      leftLogicalClipId: rootId,
+      rightLogicalClipId: input.newPlacementId,
+    })) return composition
+    const rightSegments = logicalClipSegments(show, draft, {
+      ...input.owner,
+      placementId: input.newPlacementId,
+    })
+    const rightEndPlacementId = rightSegments[rightSegments.length - 1]?.placement.id
+    if (!rightEndPlacementId) return composition
+    draft.transitions = draft.transitions?.map((transition) => ({
+      ...transition,
+      ...(segmentIds.has(transition.fromPlacementId)
+        ? { fromPlacementId: rightEndPlacementId }
+        : {}),
+      ...(segmentIds.has(transition.toPlacementId)
+        ? { toPlacementId: rootId }
+        : {}),
+    }))
     if (validateShowComposition(show, draft).length > 0) return composition
     return normalizeShowComposition(show, draft)
   }

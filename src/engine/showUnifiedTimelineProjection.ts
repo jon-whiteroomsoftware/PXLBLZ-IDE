@@ -20,6 +20,8 @@ export interface ShowUnifiedTimelineClipProjection {
   patternName: string
   compiled: boolean
   sceneId: string
+  startSceneId: string
+  endSceneId: string
   zoneId: string
   layerId: string | null
   layerIndex: number
@@ -240,8 +242,8 @@ function projectLayer(
         candidate,
       ): candidate is ShowVisualTimelineBoundaryTransition => (
         candidate.kind !== 'routing'
-        && candidate.afterSceneId === leftClip.sceneId
-        && rightClip.sceneId === nextSceneIdById.get(leftClip.sceneId)
+        && candidate.afterSceneId === leftClip.endSceneId
+        && rightClip.startSceneId === nextSceneIdById.get(leftClip.endSceneId)
         && leftClip.endMs === candidate.startMs
         && rightClip.startMs === candidate.endMs
       ))
@@ -303,6 +305,8 @@ function coalesceLogicalClips(
       segmentIds: ordered.map((segment) => segment.id),
       startPlacementId: ordered[0].id,
       endPlacementId: ordered[ordered.length - 1].id,
+      startSceneId: ordered[0].sceneId,
+      endSceneId: ordered[ordered.length - 1].sceneId,
       endMs,
       durationMs: endMs - first.startMs,
       diagnostics: [...new Set(ordered.flatMap((segment) => segment.diagnostics))],
@@ -332,6 +336,8 @@ function projectPlacement(input: {
     patternName: instance?.patternName ?? 'Missing Pattern',
     compiled: Boolean(instance),
     sceneId: input.sceneId,
+    startSceneId: input.sceneId,
+    endSceneId: input.sceneId,
     zoneId: input.zoneId,
     layerId: input.layerId,
     layerIndex: input.layerIndex,

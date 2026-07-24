@@ -904,6 +904,82 @@ describe('global timeline Clip authoring (#580)', () => {
     ]))
   })
 
+  it('splits placement animation and retargets the outgoing Transition of a logical Clip (#63)', () => {
+    const show = createDefaultShow('show-split-animated-spanning-clip', 'Split animated spanning clip', 1000)
+    const composition = emptyComposition(show)
+    composition.patternInstances.push(instance)
+    composition.scenes[0].zones[0].main.push({
+      id: 'placement-spanning',
+      instanceId: instance.id,
+      startMs: 28_000,
+      durationMs: 2_000,
+      view: { mirror: false, phase: 0, brightness: 1 },
+    })
+    composition.scenes[1].zones[0].main.push({
+      id: 'placement-spanning--span-scene-2',
+      logicalClipId: 'placement-spanning',
+      instanceId: instance.id,
+      startMs: 0,
+      durationMs: 3_000,
+      view: { mirror: false, phase: 0, brightness: 1 },
+    }, {
+      id: 'placement-next',
+      instanceId: instance.id,
+      startMs: 4_000,
+      durationMs: 2_000,
+      view: { mirror: false, phase: 0, brightness: 1 },
+    })
+    composition.scenes[1].propertyTracks = [{
+      id: 'track-brightness',
+      target: {
+        kind: 'placement-view',
+        placementId: 'placement-spanning--span-scene-2',
+        property: 'brightness',
+      },
+      keyframes: [
+        { id: 'brightness-a', timeMs: 0, value: 0, easing: { curve: 'linear' } },
+        { id: 'brightness-b', timeMs: 3_000, value: 1, easing: { curve: 'linear' } },
+      ],
+    }]
+    composition.transitions = [{
+      id: 'transition-spanning-next',
+      fromPlacementId: 'placement-spanning--span-scene-2',
+      toPlacementId: 'placement-next',
+      kind: 'crossfade',
+      durationMs: 1_000,
+      easing: { curve: 'linear' },
+      crossfadePolicy: 'live-live',
+    }]
+
+    const next = splitShowClipAtGlobalTime(show, composition, {
+      owner: {
+        kind: 'main',
+        sceneId: show.scenes[0].id,
+        zoneId: show.zones[0].id,
+        placementId: 'placement-spanning',
+      },
+      globalTimeMs: 33_000,
+      newPlacementId: 'placement-right',
+    })
+
+    expect(next).not.toBe(composition)
+    expect(next.scenes[1].propertyTracks).toEqual(expect.arrayContaining([
+      expect.objectContaining({
+        target: expect.objectContaining({ placementId: 'placement-spanning--span-scene-2' }),
+      }),
+      expect.objectContaining({
+        target: expect.objectContaining({ placementId: 'placement-right' }),
+      }),
+    ]))
+    expect(next.transitions).toEqual([
+      expect.objectContaining({
+        id: 'transition-spanning-next',
+        fromPlacementId: 'placement-right',
+        toPlacementId: 'placement-next',
+      }),
+    ])
+  })
+
   it('duplicates a Clip immediately after itself with an independent Pattern instance and copied property tracks', () => {
     const show = createDefaultShow('show-duplicate-clip', 'Duplicate clip', 1000)
     const composition = emptyComposition(show)
