@@ -121,6 +121,70 @@ describe('Show Layout intervals', () => {
     expect(duplicateContinuation.instanceId).not.toBe(instance.id)
   })
 
+  it('chooses a logical Clip copy root whose derived continuation IDs are unused (#63)', () => {
+    const show = createDefaultShow('show-layout-logical-copy-collision', 'Logical copy collision', 1)
+    const instance = {
+      id: 'instance-logical',
+      pattern: { kind: 'stock' as const, id: 'TestPattern1D' },
+      patternName: 'TestPattern1D',
+      time: { timeScale: 1, timeOffsetMs: 0 },
+    }
+    show.composition = {
+      version: 1,
+      patternInstances: [instance],
+      scenes: show.scenes.map((scene, index) => ({
+        sceneId: scene.id,
+        zones: [{
+          zoneId: show.zones[0].id,
+          main: [
+            index === 0
+              ? {
+                  id: 'logical-root',
+                  instanceId: instance.id,
+                  startMs: 29_000,
+                  durationMs: 1_000,
+                  view: { brightness: 1, phase: 0, mirror: false },
+                }
+              : {
+                  id: `logical-root--span-${scene.id}`,
+                  logicalClipId: 'logical-root',
+                  instanceId: instance.id,
+                  startMs: 0,
+                  durationMs: 3_000,
+                  view: { brightness: 1, phase: 0, mirror: false },
+                },
+            ...(index === 0 ? [{
+              id: 'logical-root-copy--span-scene-2-copy',
+              instanceId: instance.id,
+              startMs: 0,
+              durationMs: 1_000,
+              view: { brightness: 1, phase: 0, mirror: false },
+            }] : []),
+          ],
+          overlays: [],
+        }],
+      })),
+    }
+
+    const duplicated = duplicateShowLayoutInterval(
+      show,
+      projectShowLayoutIntervals(show)[0].id,
+      { withContent: true },
+    )
+    const duplicateRoot = duplicated.composition!.scenes[2].zones[0].main
+      .find((placement) => placement.logicalClipId === undefined && placement.id.startsWith('logical-root-copy'))!
+    const duplicateContinuation = duplicated.composition!.scenes[3].zones[0].main
+      .find((placement) => placement.logicalClipId === duplicateRoot.id)!
+    const placementIds = duplicated.composition!.scenes.flatMap((scene) => (
+      scene.zones.flatMap((zone) => zone.main.map((placement) => placement.id))
+    ))
+
+    expect(duplicateRoot.id).not.toBe('logical-root-copy')
+    expect(duplicateContinuation.id).toBe(`${duplicateRoot.id}--span-${duplicated.scenes[3].id}`)
+    expect(new Set(placementIds).size).toBe(placementIds.length)
+    expect(validateShowComposition(duplicated, duplicated.composition!)).toEqual([])
+  })
+
   it('uses logical Zone identities for portable Layout occurrences (#589)', () => {
     const base = showWithComposition()
     const zoneId = base.zones[0].id

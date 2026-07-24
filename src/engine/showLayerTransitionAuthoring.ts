@@ -381,14 +381,31 @@ export function resizeShowConnectedClipAtGlobalTime(
     }
     const draft = shiftTimelineClips(show, composition, chain, endDeltaMs)
     if (!draft) return composition
-    const owner = findOwner(draft, clip.id)
+    const shiftedOutgoing = (draft.transitions ?? []).find((transition) => transition.id === outgoing.id)
+    if (!shiftedOutgoing) return composition
+    const withoutOutgoing = structuredClone(draft)
+    withoutOutgoing.transitions = withoutOutgoing.transitions?.filter((transition) => transition.id !== outgoing.id)
+    if (withoutOutgoing.transitions?.length === 0) delete withoutOutgoing.transitions
+    const owner = findOwner(withoutOutgoing, clip.id)
     if (!owner) return composition
-    const changed = resizeShowClipAtGlobalTime(show, draft, {
+    const changed = resizeShowClipAtGlobalTime(show, withoutOutgoing, {
       owner,
       globalStartMs: nextStartMs,
       durationMs: nextDurationMs,
     })
-    return changed !== draft && !hasConcurrentLayerTransitions(show, changed) ? changed : composition
+    if (changed === withoutOutgoing) return composition
+    const resizedClip = projectShowUnifiedTimeline(show, changed).zones
+      .flatMap((zone) => zone.layers.flatMap((layer) => layer.clips))
+      .find((candidate) => candidate.id === clip.id)
+    if (!resizedClip) return composition
+    changed.transitions = [
+      ...(changed.transitions ?? []),
+      { ...shiftedOutgoing, fromPlacementId: resizedClip.endPlacementId },
+    ]
+    if (validateShowComposition(show, changed).length > 0 || hasConcurrentLayerTransitions(show, changed)) {
+      return composition
+    }
+    return normalizeShowComposition(show, changed)
   }
 
   return resizeShowClipAtGlobalTime(show, composition, input)

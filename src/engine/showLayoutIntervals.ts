@@ -5,6 +5,7 @@ import {
   splitShowAtTime,
 } from './showModel'
 import { multiSegmentLogicalClips } from './showClipInvariant'
+import { validateShowComposition } from './showCompositionModel'
 import type {
   ShowBoundaryTransition,
   ShowCell,
@@ -340,7 +341,7 @@ function insertBlankIntervalAtSceneIndex(
     }
   }
 
-  return normalizeShowTransitionState({
+  const inserted = normalizeShowTransitionState({
     ...show,
     scenes,
     cells,
@@ -349,6 +350,10 @@ function insertBlankIntervalAtSceneIndex(
     ...(composition ? { composition } : {}),
     updatedAt: nextUpdatedAt(show),
   })
+  if (inserted.composition && validateShowComposition(inserted, inserted.composition).length > 0) {
+    return show
+  }
+  return inserted
 }
 
 function duplicateIntervalWithContent(show: ShowRecord, interval: ShowLayoutInterval): ShowRecord {
@@ -407,7 +412,7 @@ function duplicateIntervalWithContent(show: ShowRecord, interval: ShowLayoutInte
     })))
   }
 
-  return normalizeShowTransitionState({
+  const duplicated = normalizeShowTransitionState({
     ...show,
     scenes,
     cells,
@@ -415,6 +420,10 @@ function duplicateIntervalWithContent(show: ShowRecord, interval: ShowLayoutInte
     ...(composition ? { composition } : {}),
     updatedAt: nextUpdatedAt(show),
   })
+  if (duplicated.composition && validateShowComposition(duplicated, duplicated.composition).length > 0) {
+    return show
+  }
+  return duplicated
 }
 
 function remapPropertyTransitionCellIds(
@@ -493,7 +502,11 @@ function duplicateCompositionScenes(
   const placementIdMap = new Map<string, string>()
   const logicalClipIdMap = new Map<string, string>()
   for (const [logicalClipId, entries] of entriesByLogicalClipId) {
-    const rootId = uniqueId(usedIds, `${logicalClipId}-copy`)
+    const rootId = uniqueLogicalClipRootId(
+      usedIds,
+      `${logicalClipId}-copy`,
+      entries.slice(1).map((entry) => entry.destinationSceneId),
+    )
     logicalClipIdMap.set(logicalClipId, rootId)
     entries.forEach((entry, index) => {
       const id = index === 0
@@ -673,6 +686,27 @@ function uniqueId(ids: Set<string>, preferred: string): string {
   const id = `${stem}${suffix}`
   ids.add(id)
   return id
+}
+
+function uniqueLogicalClipRootId(
+  ids: Set<string>,
+  preferred: string,
+  continuationSceneIds: string[],
+): string {
+  const match = /^(.*?)(\d+)$/.exec(preferred)
+  const stem = match?.[1] ?? `${preferred}-`
+  let suffix = match ? Number(match[2]) : 1
+  let candidate = preferred
+  while (
+    ids.has(candidate)
+    || continuationSceneIds.some((sceneId) => ids.has(`${candidate}--span-${sceneId}`))
+  ) {
+    suffix += 1
+    candidate = `${stem}${suffix}`
+  }
+  ids.add(candidate)
+  continuationSceneIds.forEach((sceneId) => ids.add(`${candidate}--span-${sceneId}`))
+  return candidate
 }
 
 function uniqueName(preferred: string, names: string[]): string {

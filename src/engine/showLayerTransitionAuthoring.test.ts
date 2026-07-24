@@ -14,6 +14,7 @@ import {
 } from './showLayerTransitionAuthoring'
 import type { ShowCompositionV1 } from './personalContentRecords'
 import { splitShowClipAtGlobalTime } from './showTimelineClipAuthoring'
+import { validateShowComposition } from './showCompositionModel'
 
 function fixture(): {
   show: ReturnType<typeof createDefaultShow>
@@ -709,6 +710,95 @@ describe('literal per-Layer Transition authoring (#583)', () => {
       ['clip-c', 6_500, 2_000],
       ['obstruction', 9_000, 1_000],
     ])
+  })
+
+  it('retargets an outgoing Transition when logical Clip growth creates a new end segment (#63)', () => {
+    const show = createDefaultShow('show-logical-resize-transition', 'Logical resize transition', 1_000)
+    show.scenes.push({ id: 'scene-3', name: 'Scene 3', durationMs: 30_000 })
+    show.transitions.push({
+      id: 'cut-scene-2',
+      afterSceneId: show.scenes[1].id,
+      kind: 'cut',
+      durationMs: 0,
+      easing: { curve: 'linear' },
+    })
+    const zoneId = show.zones[0].id
+    const composition: ShowCompositionV1 = {
+      version: 1,
+      patternInstances: [{
+        id: 'instance-a',
+        pattern: { kind: 'stock', id: 'Rings' },
+        patternName: 'Rings',
+        time: { timeScale: 1, timeOffsetMs: 0 },
+      }],
+      transitions: [{
+        id: 'transition-logical-next',
+        fromPlacementId: `logical-root--span-${show.scenes[1].id}`,
+        toPlacementId: 'clip-next',
+        kind: 'crossfade',
+        durationMs: 2_000,
+        easing: { curve: 'linear' },
+        crossfadePolicy: 'live-live',
+      }],
+      scenes: show.scenes.map((scene, index) => ({
+        sceneId: scene.id,
+        zones: [{
+          zoneId,
+          main: index === 0
+            ? [{
+                id: 'logical-root',
+                instanceId: 'instance-a',
+                startMs: 29_000,
+                durationMs: 1_000,
+                view: { mirror: false, phase: 0, brightness: 1 },
+              }]
+            : index === 1
+              ? [{
+                  id: `logical-root--span-${scene.id}`,
+                  logicalClipId: 'logical-root',
+                  instanceId: 'instance-a',
+                  startMs: 0,
+                  durationMs: 28_000,
+                  view: { mirror: false, phase: 0, brightness: 1 },
+                }]
+              : [{
+                  id: 'clip-next',
+                  instanceId: 'instance-a',
+                  startMs: 0,
+                  durationMs: 2_000,
+                  view: { mirror: false, phase: 0, brightness: 1 },
+                }],
+          overlays: [],
+        }],
+      })),
+    }
+
+    const resized = resizeShowConnectedClipAtGlobalTime(show, composition, {
+      owner: {
+        kind: 'main',
+        sceneId: show.scenes[0].id,
+        zoneId,
+        placementId: 'logical-root',
+      },
+      globalStartMs: 29_000,
+      durationMs: 34_000,
+    })
+
+    expect(resized).not.toBe(composition)
+    expect(resized.transitions).toContainEqual(expect.objectContaining({
+      id: 'transition-logical-next',
+      fromPlacementId: `logical-root--span-${show.scenes[2].id}`,
+      toPlacementId: 'clip-next',
+    }))
+    expect(resized.scenes[2].zones[0].main).toEqual(expect.arrayContaining([
+      expect.objectContaining({
+        id: `logical-root--span-${show.scenes[2].id}`,
+        logicalClipId: 'logical-root',
+        durationMs: 1_000,
+      }),
+      expect.objectContaining({ id: 'clip-next', startMs: 3_000 }),
+    ]))
+    expect(validateShowComposition(show, resized)).toEqual([])
   })
 
   it('trims a middle Clip start without shifting its outgoing Transition chain (#63)', () => {
