@@ -243,7 +243,7 @@ const compactField =
   'h-6 rounded border border-zinc-700 bg-zinc-950 px-1.5 text-[9.5px] text-zinc-200 outline-none focus:border-live/70'
 const EMPTY_ZONE_IDS: string[] = []
 const clipBase =
-  'show-timeline-clip z-10 flex flex-col justify-center gap-0.5 overflow-hidden rounded-[5px] border-0 border-l-[3px] px-2 py-1 text-left transition-colors focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-live'
+  'show-timeline-clip z-10 flex flex-col justify-center gap-px overflow-hidden rounded-[5px] border-0 border-l-[3px] px-2 py-0.5 text-left transition-colors focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-live'
 
 function showTimelineToolbarControlClass(input: {
   enabled: boolean
@@ -3485,7 +3485,7 @@ function ShowTimelineWorkspace({
         length: unifiedCompositionTimeline
           ? unifiedCompositionTimeline.zones.find((zone) => zone.id === row.zoneId)?.layers.length ?? 1
           : 1,
-      }, () => '40px'),
+      }, () => '44px'),
       ...(propertyLanesByZone.get(row.zoneId) ?? []).map(() => '18px'),
     ]),
     '34px',
@@ -4129,6 +4129,7 @@ function ShowTimelineWorkspace({
         )}
         <div
           ref={scrollRef}
+          data-show-timeline-scroll-viewport
           data-testid="show-timeline-scroll-region"
           className="scrollbar-hidden overflow-x-auto"
           onScroll={(event) => {
@@ -4226,6 +4227,7 @@ function ShowTimelineWorkspace({
             gridColumn={`2 / ${timeGridEndLine}`}
             gridRow={rulerRow}
             rowSpan={timelineOverlayRowSpan}
+            layoutScale={timelineScale}
             snapEnabled={snapEnabled}
             structuralTimesMs={structuralTimesMs}
             readOnly={readOnly}
@@ -4235,6 +4237,13 @@ function ShowTimelineWorkspace({
             onSetShowEnd={onSetShowEnd}
           />
         )}
+        <TimelineLayoutBoundaries
+          intervals={layoutIntervals}
+          durationMs={timeline.durationMs}
+          gridColumn={`2 / ${timeGridEndLine}`}
+          gridRow={rulerRow}
+          rowSpan={timelineOverlayRowSpan}
+        />
         <TimelinePlayhead
           show={displayShow}
           gridColumn={`2 / ${timeGridEndLine}`}
@@ -4410,12 +4419,14 @@ function ShowTimelineWorkspace({
             </div>}
             {showMicroZonePicker && <button
               type="button"
-              aria-label={`Focus zone ${row.zoneName}`}
-              aria-pressed={focusedZoneId === row.zoneId}
-              title={row.zoneName}
-              className={focusedZoneId === row.zoneId
+              aria-label={`${collapsed ? 'Expand' : 'Collapse'} zone ${row.zoneName}`}
+              aria-expanded={!collapsed}
+              title={`${collapsed ? 'Expand' : 'Collapse'} ${row.zoneName}`}
+              className={!collapsed && focusedZoneId === row.zoneId
                 ? 'sticky left-0 z-30 grid place-items-center border-l-2 bg-live/10 text-live'
-                : 'sticky left-0 z-30 grid place-items-center border-l-2 bg-[#060608] text-zinc-500 hover:bg-zinc-900 hover:text-zinc-100'}
+                : collapsed
+                  ? 'sticky left-0 z-30 grid place-items-center border-l-2 bg-[#060608] text-zinc-300 hover:bg-zinc-900 hover:text-white'
+                  : 'sticky left-0 z-30 grid place-items-center border-l-2 bg-[#060608] text-zinc-500 hover:bg-zinc-900 hover:text-zinc-100'}
               style={{
                 borderLeftColor: row.color ?? '#38bdf8',
                 gridColumn: 1,
@@ -4423,10 +4434,13 @@ function ShowTimelineWorkspace({
               }}
               onClick={(event) => {
                 event.stopPropagation()
-                focusZone(row.zoneId)
+                setZoneCollapsed(show.id, row.zoneId, !collapsed)
               }}
             >
-              <ZoneGlyph icon={zone?.icon} size={12} />
+              <span className="relative grid size-5 place-items-center">
+                <ZoneGlyph icon={zone?.icon} size={12} />
+                {collapsed && <ChevronRight size={8} aria-hidden className="absolute -right-0.5 bottom-0 text-current" />}
+              </span>
             </button>}
             {unifiedZone && (collapsed ? (
               <div
@@ -4478,11 +4492,15 @@ function ShowTimelineWorkspace({
                   setDropTargetKey(null)
                 }}
               >
-                <div className="absolute inset-0 grid gap-px py-1" style={{ gridTemplateRows: `repeat(${unifiedZone.layers.length}, minmax(0, 1fr))` }}>
-                  {unifiedZone.layers.map((layer) => <div key={layer.id} className="relative min-h-0 bg-white/[0.025]">
+                <div
+                  data-testid="collapsed-zone-density-rail"
+                  className="absolute inset-x-0 bottom-1 grid h-1.5 gap-px"
+                  style={{ gridTemplateRows: `repeat(${unifiedZone.layers.length}, minmax(0, 1fr))` }}
+                >
+                  {unifiedZone.layers.map((layer) => <div key={layer.id} className="relative min-h-0 rounded-sm bg-white/[0.035]">
                     {layer.clips.map((clip) => <i
                       key={clip.id}
-                      className="absolute inset-y-px min-w-px bg-current/70"
+                      className="absolute inset-y-0 min-w-px rounded-sm bg-current/45"
                       style={{
                         color: row.color ?? '#38bdf8',
                         left: `${clip.startMs / Math.max(1, timeline.durationMs) * 100}%`,
@@ -4774,7 +4792,7 @@ function ShowTimelineWorkspace({
                       }}
                       className={[
                         clipBase,
-                        'group absolute inset-y-1 min-h-0 py-0.5',
+                        'group absolute inset-y-1 min-h-0',
                         outsideIsolation
                           ? 'pointer-events-none opacity-25 saturate-50'
                           : draggingCompositionClip?.clipId === clip.id
@@ -4946,12 +4964,22 @@ function ShowTimelineWorkspace({
                 : null
               return (
                 <div key={`${row.zoneId}:${lane.key}`} className="contents">
-                  <div
-                    className="sticky left-0 z-30 flex min-w-0 items-center border-t border-zinc-900/80 bg-[#060608] px-2 font-mono text-[8.5px]"
+                  {(zonesOpen || showMicroZonePicker) && <div
+                    data-testid="show-property-lane-label"
+                    data-compact={showMicroZonePicker ? 'true' : 'false'}
+                    title={showMicroZonePicker ? lane.label : undefined}
+                    className={`sticky left-0 z-30 flex min-w-0 items-center border-t border-zinc-900/80 bg-[#060608] font-mono text-[8.5px] ${showMicroZonePicker ? 'justify-center px-0' : 'px-2'}`}
                     style={{ gridColumn: 1, gridRow: laneRow, color: lane.color }}
                   >
-                    <span className="truncate">↳ {lane.label}</span>
-                  </div>
+                    {showMicroZonePicker ? (
+                      <>
+                        <Activity data-testid="show-property-lane-compact-mark" size={10} aria-hidden className="shrink-0" />
+                        <span className="sr-only">{lane.label}</span>
+                      </>
+                    ) : (
+                      <span className="truncate">↳ {lane.label}</span>
+                    )}
+                  </div>}
                   <div
                     className="min-w-0"
                     style={{ gridColumn: `2 / ${timeGridEndLine}`, gridRow: laneRow }}
@@ -5277,15 +5305,47 @@ function LayoutZoneIntervalOverlay({
       return <span
         key={interval.id}
         aria-hidden
-        className={compact
-          ? 'pointer-events-none absolute top-0 z-[21] max-w-full truncate px-1 text-[10px] leading-3 text-zinc-500'
-          : 'pointer-events-none absolute top-0.5 z-[21] max-w-full truncate rounded-sm bg-black/45 px-1 text-[11px] leading-4 text-zinc-400 shadow-sm'}
-        style={{ left: `calc(${left}% + 2px)`, maxWidth: `calc(${width}% - 4px)` }}
+        data-testid="collapsed-zone-layout-label"
+        className="pointer-events-none absolute top-0.5 z-[21] max-w-full truncate rounded-sm bg-black/75 px-1.5 text-[10px] font-medium leading-4 text-zinc-100 shadow-[0_1px_2px_rgba(0,0,0,0.8)]"
+        style={{ left: `calc(${left}% + 4px)`, maxWidth: `calc(${width}% - 8px)` }}
       >
-        {interval.layoutName} · {zoneName}
+        {zoneName}
       </span>
     })}
   </>
+}
+
+function TimelineLayoutBoundaries({
+  intervals,
+  durationMs,
+  gridColumn,
+  gridRow,
+  rowSpan,
+}: {
+  intervals: ShowLayoutInterval[]
+  durationMs: number
+  gridColumn: string
+  gridRow: number
+  rowSpan: number
+}) {
+  if (intervals.length <= 1) return null
+  return (
+    <div
+      aria-hidden
+      className="pointer-events-none relative z-[25]"
+      style={{ gridColumn, gridRow: `${gridRow} / span ${rowSpan}` }}
+    >
+      {intervals.slice(1).map((interval) => {
+        const { left } = showLayoutIntervalPercentBounds(interval, durationMs)
+        return <i
+          key={interval.id}
+          data-show-layout-boundary={interval.id}
+          className="absolute inset-y-0 w-px bg-live/55"
+          style={{ left: `${left}%` }}
+        />
+      })}
+    </div>
+  )
 }
 
 function TimelineMarkerSource({
@@ -5464,7 +5524,7 @@ function TimelineRuler({
         backgroundImage: 'repeating-linear-gradient(90deg, rgba(113,113,122,.2) 0 1px, transparent 1px 20px)',
       }}
     >
-      {layoutIntervals.map((interval, index) => {
+      {layoutIntervals.length > 1 && layoutIntervals.map((interval) => {
         const { left, width } = showLayoutIntervalPercentBounds(interval, durationMs)
         const soleZone = interval.zoneIds.length === 1
           ? show.zones.find((zone) => zone.id === interval.zoneIds[0])
@@ -5475,10 +5535,10 @@ function TimelineRuler({
             key={interval.id}
             aria-hidden
             data-show-layout-interval={interval.id}
-            className={`pointer-events-none absolute bottom-0 z-[1] h-[13px] overflow-hidden bg-live/[0.035] px-1 text-[11px] leading-[13px] text-zinc-400 ${index > 0 ? 'border-l border-live/45' : ''}`}
+            className="pointer-events-none absolute bottom-0 z-[1] h-[13px] overflow-hidden bg-live/[0.035] px-1 text-[11px] leading-[13px] text-zinc-400"
             style={{ left: `${left}%`, width: `${width}%` }}
           >
-            {index > 0 && <span className="mr-1 text-live/70">◆</span>}{label}
+            {label}
           </span>
         )
       })}
@@ -5650,6 +5710,7 @@ function ShowTimelineToolbarPopover({
 function TimelineEndHandlePortal({
   anchor,
   durationMs,
+  layoutScale,
   dragging,
   blocked,
   readOnly,
@@ -5662,6 +5723,7 @@ function TimelineEndHandlePortal({
 }: {
   anchor: HTMLElement | null
   durationMs: number
+  layoutScale: number
   dragging: boolean
   blocked: boolean
   readOnly: boolean
@@ -5672,13 +5734,20 @@ function TimelineEndHandlePortal({
   onLostPointerCapture: (event: ReactPointerEvent<HTMLButtonElement>) => void
   onClick: (event: ReactMouseEvent<HTMLButtonElement>) => void
 }) {
-  const [position, setPosition] = useState({ left: -100, top: -100 })
+  const [position, setPosition] = useState({ left: -100, top: -100, visible: false })
 
   useLayoutEffect(() => {
     if (!anchor) return
     const updatePosition = () => {
       const rect = anchor.getBoundingClientRect()
-      setPosition({ left: rect.left + rect.width / 2, top: rect.top })
+      const center = rect.left + rect.width / 2
+      const viewport = anchor.closest<HTMLElement>('[data-show-timeline-scroll-viewport]')
+      const viewportRect = viewport?.getBoundingClientRect()
+      setPosition({
+        left: center,
+        top: rect.top,
+        visible: !viewportRect || (center >= viewportRect.left && center <= viewportRect.right),
+      })
     }
     updatePosition()
     window.addEventListener('resize', updatePosition)
@@ -5687,7 +5756,7 @@ function TimelineEndHandlePortal({
       window.removeEventListener('resize', updatePosition)
       window.removeEventListener('scroll', updatePosition, true)
     }
-  }, [anchor, durationMs])
+  }, [anchor, durationMs, layoutScale])
 
   if (!anchor || typeof document === 'undefined') return null
   return createPortal(
@@ -5700,7 +5769,12 @@ function TimelineEndHandlePortal({
       title={`Show End · ${formatSecondsValue(durationMs)}s`}
       disabled={readOnly}
       className={`fixed z-[45] h-4 w-4 -translate-x-1/2 -translate-y-1/2 touch-none text-red-400 disabled:cursor-default ${dragging && blocked ? 'cursor-not-allowed' : 'cursor-ew-resize'}`}
-      style={position}
+      style={{
+        left: position.left,
+        top: position.top,
+        visibility: position.visible || dragging ? undefined : 'hidden',
+        pointerEvents: position.visible || dragging ? undefined : 'none',
+      }}
       onPointerDown={onPointerDown}
       onPointerMove={onPointerMove}
       onPointerUp={onPointerUp}
@@ -5725,6 +5799,7 @@ function TimelineMarkers({
   gridColumn,
   gridRow,
   rowSpan,
+  layoutScale,
   snapEnabled,
   structuralTimesMs,
   readOnly,
@@ -5741,6 +5816,7 @@ function TimelineMarkers({
   gridColumn: string
   gridRow: number
   rowSpan: number
+  layoutScale: number
   snapEnabled: boolean
   structuralTimesMs: number[]
   readOnly: boolean
@@ -6048,6 +6124,7 @@ function TimelineMarkers({
       <TimelineEndHandlePortal
         anchor={showEndAnchor}
         durationMs={durationMs}
+        layoutScale={layoutScale}
         dragging={showEndDragging}
         blocked={showEndDragBlocked}
         readOnly={readOnly}
@@ -6190,8 +6267,13 @@ function TimelinePlayhead({
         >
           <span
             data-testid="show-timeline-playhead"
-            className={`pointer-events-none absolute inset-y-0 left-1/2 w-px -translate-x-1/2 ${seekStatus === 'rebuilding' ? 'bg-amber-300' : 'bg-live'}`}
-            style={{ boxShadow: '0 0 8px color-mix(in srgb, var(--color-live) 45%, transparent)' }}
+            className={`pointer-events-none absolute inset-y-0 left-1/2 w-px ${seekStatus === 'rebuilding' ? 'bg-amber-300' : 'bg-live'}`}
+            style={{
+              transform: left <= 0 ? 'translateX(0)' : left >= 100 ? 'translateX(-100%)' : 'translateX(-50%)',
+              boxShadow: left <= 0 || left >= 100
+                ? 'none'
+                : '0 0 8px color-mix(in srgb, var(--color-live) 45%, transparent)',
+            }}
           />
         </span>
       </div>

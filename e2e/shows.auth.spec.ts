@@ -1,5 +1,5 @@
 import { expect, test } from './fixtures/authenticated'
-import type { Page } from '@playwright/test'
+import type { Locator, Page } from '@playwright/test'
 
 test.describe('authenticated Show authoring', () => {
   test('lets built-in Show lessons be edited session-only with an explicit Reset (#363)', async ({ page }) => {
@@ -72,6 +72,23 @@ test.describe('authenticated Show authoring', () => {
     await expect(showEnd).toHaveAttribute('aria-label', previewLabel!)
   })
 
+  test('hides the Show End diamond when timeline zoom moves its boundary offscreen (#63)', async ({ page }) => {
+    await page.setViewportSize({ width: 1440, height: 900 })
+    await page.goto('studio/shows/stock-show-101-clips-crossfade')
+
+    const showEnd = page.getByRole('button', { name: /Show End at/ })
+    const scrollRegion = page.getByTestId('show-timeline-scroll-region')
+    await expect(showEnd).toBeVisible()
+
+    await page.getByRole('button', { name: 'Resize visible range end' }).press('ArrowLeft')
+    await expect.poll(async () => {
+      const anchor = await page.getByTestId('show-timeline-end-anchor').boundingBox()
+      const viewport = await scrollRegion.boundingBox()
+      return Boolean(anchor && viewport && anchor.x > viewport.x + viewport.width)
+    }).toBe(true)
+    await expect(showEnd).toBeHidden()
+  })
+
   test('renders compact truthful property sparklines at desktop and narrow widths (#483)', async ({ page }) => {
     const consoleErrors: string[] = []
     page.on('console', (message) => {
@@ -104,6 +121,112 @@ test.describe('authenticated Show authoring', () => {
     expect(consoleErrors).toEqual([])
   })
 
+  test('keeps the compact sparkline gutter and time-zero playhead crisp (#63)', async ({ page }) => {
+    await page.setViewportSize({ width: 1440, height: 900 })
+    await page.goto('studio/shows/stock-show-reference-property-animation')
+
+    const speedLane = page.getByRole('group', { name: 'CompassRose animation speed animation for A' })
+    const speedLaneLabel = page.getByTestId('show-property-lane-label').filter({ hasText: 'CompassRose animation speed' })
+    await expect(speedLane).toBeVisible()
+    await expect(speedLaneLabel).toHaveAttribute('data-compact', 'true')
+    await expect(speedLaneLabel.getByTestId('show-property-lane-compact-mark')).toBeVisible()
+    await expect(speedLaneLabel).toHaveAttribute('title', 'CompassRose animation speed')
+
+    const laneBounds = await speedLane.boundingBox()
+    const playheadBounds = await page.getByTestId('show-timeline-playhead').boundingBox()
+    expect(laneBounds).not.toBeNull()
+    expect(playheadBounds).not.toBeNull()
+    expect(playheadBounds!.x).toBeGreaterThanOrEqual(laneBounds!.x)
+  })
+
+  test('does not force a property label into a zero-width gutter (#63)', async ({ page }) => {
+    await page.setViewportSize({ width: 1440, height: 900 })
+    await page.goto('studio/shows/stock-show-202-layers-local-animation')
+
+    const localAnimation = page.getByRole('group', { name: 'SignalMandala opacity animation for Main' })
+    await expect(localAnimation).toBeVisible()
+    await expect(page.getByTestId('show-property-lane-label')).toHaveCount(0)
+
+    const laneBounds = await localAnimation.boundingBox()
+    const playheadBounds = await page.getByTestId('show-timeline-playhead').boundingBox()
+    expect(laneBounds).not.toBeNull()
+    expect(playheadBounds).not.toBeNull()
+    expect(playheadBounds!.x).toBeGreaterThanOrEqual(laneBounds!.x)
+  })
+
+  test('keeps collapsed Zone summaries aligned, legible, and independently restorable (#63)', async ({ page }) => {
+    await page.setViewportSize({ width: 1440, height: 900 })
+    await page.goto('studio/shows/stock-show-105-built-from-basics')
+
+    await expect(page.locator('[data-show-layout-interval]')).toHaveCount(0)
+    await page.getByRole('button', { name: 'Open Zones' }).click()
+    const zoneMap = page.getByRole('dialog', { name: 'Zone Map' })
+    await zoneMap.getByRole('button', { name: 'Collapse zone Sky' }).click()
+    await page.getByRole('button', { name: 'Close Zones' }).click()
+
+    await expect(page.getByRole('button', { name: 'Expand zone Sky' })).toBeVisible()
+    await expect(page.getByRole('button', { name: 'Collapse zone Signal' })).toBeVisible()
+
+    const collapsed = page.getByRole('img', { name: 'Collapsed zone Sky timeline' })
+    const label = collapsed.getByTestId('collapsed-zone-layout-label').first()
+    await expect(label).toBeVisible()
+    await expect(label).toHaveClass(/text-zinc-100/)
+
+    const geometry = await collapsed.evaluate((element) => {
+      const labelElement = element.querySelector<HTMLElement>('[data-testid="collapsed-zone-layout-label"]')
+      const railElement = element.querySelector<HTMLElement>('[data-testid="collapsed-zone-density-rail"]')
+      if (!labelElement || !railElement) return null
+      const row = element.getBoundingClientRect()
+      const labelBounds = labelElement.getBoundingClientRect()
+      const railBounds = railElement.getBoundingClientRect()
+      return {
+        rowTop: row.top,
+        rowBottom: row.bottom,
+        labelTop: labelBounds.top,
+        labelBottom: labelBounds.bottom,
+        labelBackground: getComputedStyle(labelElement).backgroundColor,
+        railBottom: railBounds.bottom,
+        railHeight: railBounds.height,
+      }
+    })
+    expect(geometry).not.toBeNull()
+    expect(geometry!.labelTop).toBeGreaterThan(geometry!.rowTop)
+    expect(geometry!.labelBottom).toBeLessThan(geometry!.rowBottom)
+    expect(geometry!.labelBackground).not.toBe('rgba(0, 0, 0, 0)')
+    expect(geometry!.railHeight).toBeLessThanOrEqual(8)
+    expect(geometry!.railBottom).toBeLessThan(geometry!.rowBottom)
+
+    await page.getByRole('button', { name: 'Expand zone Sky' }).click()
+    await expect(collapsed).toHaveCount(0)
+  })
+
+  test('keeps Zone Layout names on the ruler and Zone names in collapsed summaries (#63)', async ({ page }) => {
+    await page.setViewportSize({ width: 1440, height: 900 })
+    await page.goto('studio/shows/stock-show-203-dynamic-zone-layouts')
+
+    await page.getByRole('button', { name: 'Open Zones' }).click()
+    const zoneMap = page.getByRole('dialog', { name: 'Zone Map' })
+    await zoneMap.getByRole('button', { name: 'Collapse zone A' }).click()
+    await zoneMap.getByRole('button', { name: 'Collapse zone B' }).click()
+    await page.getByRole('button', { name: 'Close Zones' }).click()
+
+    await expect(page.locator('[data-show-layout-interval]')).toHaveText(['Vertical', 'Horizontal'])
+    await expect(page.getByTestId('collapsed-zone-layout-label')).toHaveText(['A', 'A', 'B', 'B'])
+
+    const boundary = page.locator('[data-show-layout-boundary]')
+    await expect(boundary).toHaveCount(1)
+    const boundaryBounds = await boundary.boundingBox()
+    const rulerBounds = await page.getByTestId('show-timeline-ruler').boundingBox()
+    const collapsedBounds = await page.getByRole('img', { name: 'Collapsed zone B timeline' }).boundingBox()
+    expect(boundaryBounds).not.toBeNull()
+    expect(rulerBounds).not.toBeNull()
+    expect(collapsedBounds).not.toBeNull()
+    expect(boundaryBounds!.y).toBeLessThanOrEqual(rulerBounds!.y + 1)
+    expect(boundaryBounds!.y + boundaryBounds!.height).toBeGreaterThanOrEqual(
+      collapsedBounds!.y + collapsedBounds!.height,
+    )
+  })
+
   test('projects one Scene-local animation and summarizes its Clip (#363, #599)', async ({ page }) => {
     await page.setViewportSize({ width: 1440, height: 900 })
     await page.goto('studio/shows/stock-show-202-layers-local-animation')
@@ -118,6 +241,7 @@ test.describe('authenticated Show authoring', () => {
 
     const clip = page.getByRole('button', { name: 'Select Caustics' })
     await expect(clip.getByTitle('Animation speed 0.28× · Speed 0.24 · Sharpness 0.28')).toBeVisible()
+    await expectClipSummaryFits(clip)
     await clip.hover()
     await expect(page.getByRole('tooltip', { name: 'Caustics Clip overrides' })).toHaveCount(0)
     await clip.click()
@@ -1560,6 +1684,24 @@ async function persistedShow(page: Page, id: string): Promise<PersistedShow | un
   if (!response.ok()) return undefined
   const { shows } = await response.json() as { shows: PersistedShow[] }
   return shows.find((show) => show.id === id)
+}
+
+async function expectClipSummaryFits(clip: Locator): Promise<void> {
+  const geometry = await clip.evaluate((element) => {
+    const summary = element.querySelector<HTMLElement>('.show-clip-summary-inline')
+    if (!summary) return null
+    const clipBounds = element.getBoundingClientRect()
+    const summaryBounds = summary.getBoundingClientRect()
+    return {
+      clipBottom: clipBounds.bottom,
+      summaryBottom: summaryBounds.bottom,
+      summaryHeight: summaryBounds.height,
+      summaryLineHeight: Number.parseFloat(getComputedStyle(summary).lineHeight),
+    }
+  })
+  expect(geometry).not.toBeNull()
+  expect(geometry!.summaryHeight).toBeGreaterThanOrEqual(geometry!.summaryLineHeight - 1)
+  expect(geometry!.summaryBottom).toBeLessThanOrEqual(geometry!.clipBottom - 1)
 }
 
 function rectanglesOverlap(

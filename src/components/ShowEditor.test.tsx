@@ -250,7 +250,7 @@ describe('ShowEditor (#318)', () => {
     expect(ruler).not.toBeNull()
     expect(ruler?.style.gridColumn).toBe(clipTimeCanvas?.style.gridColumn)
     expect(markers.style.gridColumn).toBe(clipTimeCanvas?.style.gridColumn)
-    expect(ruler).toHaveTextContent('Default · main')
+    expect(ruler).not.toHaveTextContent('Default · main')
     expect(clipTimeCanvas).not.toHaveTextContent('Default · main')
     expect(grid.style.minWidth).toBe('0px')
     expect(grid).toHaveClass('isolate', 'px-1')
@@ -289,7 +289,7 @@ describe('ShowEditor (#318)', () => {
     expect(navigatorPlayhead).toHaveStyle({ left: '50%' })
     expect(playheadCap).toHaveStyle({ left: '50%' })
     expect(readPlayheadRect).not.toHaveBeenCalled()
-    expect(firstLayoutInterval).not.toHaveClass('border-l')
+    expect(firstLayoutInterval).not.toBeInTheDocument()
     expect(markers).toHaveClass('z-[35]')
     expect(markers).not.toContainElement(showEnd)
     expect(showEnd).toHaveClass('fixed', 'z-[45]')
@@ -352,27 +352,32 @@ describe('ShowEditor (#318)', () => {
     const { unmount } = render(<ShowEditor showId={show.id} />)
     const timeline = screen.getByRole('region', { name: 'Show timeline' })
 
-    expect(within(timeline).getAllByRole('button', { name: /^Focus zone / })).toHaveLength(2)
+    expect(within(timeline).getAllByRole('button', { name: /^Collapse zone / })).toHaveLength(2)
     await user.click(within(timeline).getByRole('button', { name: 'Open Zones' }))
     const zoneMap = screen.getByRole('dialog', { name: 'Zone Map' })
     await user.click(within(zoneMap).getByRole('button', { name: 'Collapse zone main' }))
+    await user.click(within(zoneMap).getByRole('button', { name: 'Focus zone accent' }))
 
     expect(within(screen.getByTestId('show-timeline-grid')).getByRole('button', { name: 'Expand zone main' })).toBeInTheDocument()
     expect(useShowEditorSessionStore.getState().collapsedZoneIdsByShowId[show.id]).toEqual(['zone-1'])
+    expect(useShowEditorSessionStore.getState().focusedZoneIdByShowId[show.id]).toBe('zone-2')
 
     await user.click(within(timeline).getByRole('button', { name: 'Close Zones' }))
     expect(within(timeline).queryByRole('dialog', { name: 'Zone Map' })).not.toBeInTheDocument()
-    expect(within(timeline).getAllByRole('button', { name: /^Focus zone / })).toHaveLength(2)
+    expect(within(timeline).getByRole('button', { name: 'Expand zone main' })).toBeInTheDocument()
+    expect(within(timeline).getByRole('button', { name: 'Collapse zone accent' })).toBeInTheDocument()
     expect(within(timeline).queryByText('Show time')).not.toBeInTheDocument()
-    await user.click(within(timeline).getByRole('button', { name: 'Focus zone accent' }))
-    expect(useShowEditorSessionStore.getState()).toMatchObject({
-      collapsedZoneIdsByShowId: { [show.id]: ['zone-1'] },
-      focusedZoneIdByShowId: { [show.id]: 'zone-2' },
-    })
+
+    await user.click(within(timeline).getByRole('button', { name: 'Expand zone main' }))
+    expect(useShowEditorSessionStore.getState().collapsedZoneIdsByShowId[show.id]).toBeUndefined()
+    expect(screen.queryByRole('img', { name: 'Collapsed zone main timeline' })).not.toBeInTheDocument()
+
+    await user.click(within(timeline).getByRole('button', { name: 'Collapse zone accent' }))
+    expect(useShowEditorSessionStore.getState().collapsedZoneIdsByShowId[show.id]).toEqual(['zone-2'])
 
     unmount()
     render(<ShowEditor showId={show.id} />)
-    expect(screen.getByRole('img', { name: 'Collapsed zone main timeline' })).toBeInTheDocument()
+    expect(screen.getByRole('img', { name: 'Collapsed zone accent timeline' })).toBeInTheDocument()
   })
 
   it('inserts and appends sequential Zone Layout intervals from the unified toolbar (#582)', async () => {
@@ -580,6 +585,18 @@ describe('ShowEditor (#318)', () => {
     render(<ShowEditor showId={show.id} />)
 
     const anchor = screen.getByTestId('show-timeline-end-anchor')
+    const scrollRegion = screen.getByTestId('show-timeline-scroll-region')
+    vi.spyOn(scrollRegion, 'getBoundingClientRect').mockReturnValue({
+      x: 0,
+      y: 0,
+      left: 0,
+      right: 1000,
+      top: 0,
+      bottom: 300,
+      width: 1000,
+      height: 300,
+      toJSON: () => ({}),
+    })
     vi.spyOn(anchor, 'getBoundingClientRect').mockReturnValue({
       x: 620,
       y: 40,
