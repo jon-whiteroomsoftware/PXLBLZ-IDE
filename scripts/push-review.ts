@@ -314,8 +314,35 @@ export function parseCodexReviewOutput(output: string): PushReviewResult {
   )
 }
 
+export const REVIEW_GIT_MAX_BUFFER_BYTES = 16 * 1024 * 1024
+
+interface ReviewGitOptions {
+  encoding: 'utf8'
+  maxBuffer: number
+}
+
+type ReviewGitExecutor = (
+  file: string,
+  args: string[],
+  options: ReviewGitOptions,
+) => string
+
+const executeReviewGit: ReviewGitExecutor = (file, args, options) => (
+  execFileSync(file, args, options)
+)
+
+export function reviewGit(
+  args: string[],
+  execute: ReviewGitExecutor = executeReviewGit,
+): string {
+  return execute('git', args, {
+    encoding: 'utf8',
+    maxBuffer: REVIEW_GIT_MAX_BUFFER_BYTES,
+  }).trim()
+}
+
 function git(args: string[]): string {
-  return execFileSync('git', args, { encoding: 'utf8' }).trim()
+  return reviewGit(args)
 }
 
 export function determineNewRefBase(

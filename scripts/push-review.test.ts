@@ -5,6 +5,7 @@ import {
   CLAUDE_REVIEW_MODEL,
   GPT_REVIEW_EFFORT,
   GPT_REVIEW_MODEL,
+  REVIEW_GIT_MAX_BUFFER_BYTES,
   REVIEW_TIMEOUT_MS,
   buildClaudeReviewArgs,
   buildCodexReviewArgs,
@@ -18,12 +19,36 @@ import {
   parseReviewTestDesignContext,
   rangeHasChanges,
   reviewWithFallback,
+  reviewGit,
   reviewRangesFromUpdates,
   type PushReviewResult,
 } from './push-review'
 import { createApprovalReceipt } from './review-approvals'
 
 describe('cross-agent push review gate (#63)', () => {
+  it('allows Git patch packets to exceed Node’s default one-megabyte child-process buffer', () => {
+    let invocation: {
+      file: string
+      args: string[]
+      options: { encoding: 'utf8'; maxBuffer: number }
+    } | undefined
+    const output = reviewGit(['log', '--patch'], (file, args, options) => {
+      invocation = { file, args, options }
+      return ' review packet '
+    })
+
+    expect(output).toBe('review packet')
+    expect(REVIEW_GIT_MAX_BUFFER_BYTES).toBe(16 * 1024 * 1024)
+    expect(invocation).toEqual({
+      file: 'git',
+      args: ['log', '--patch'],
+      options: {
+        encoding: 'utf8',
+        maxBuffer: REVIEW_GIT_MAX_BUFFER_BYTES,
+      },
+    })
+  })
+
   it('uses Opus 5 High with the fifteen-minute hard cap', () => {
     expect(CLAUDE_REVIEW_MODEL).toBe('opus')
     expect(CLAUDE_REVIEW_EFFORT).toBe('high')
