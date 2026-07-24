@@ -792,24 +792,53 @@ export function duplicateLinkedShowClipAfter(
   return duplicateShowClip(show, composition, { ...input, newInstanceId: null })
 }
 
-function duplicateShowClip(
+export type ShowClipDuplicatePlan =
+  | { enabled: true; code: 'ready'; reason: string }
+  | { enabled: false; code: 'missing-owner' | 'unsupported-animation'; reason: string }
+
+export function planShowClipDuplicateAfter(
   show: ShowRecord,
   composition: ShowCompositionV1,
-  input: { owner: ShowTimelineClipOwner; newPlacementId: string; newInstanceId: string | null },
-): ShowCompositionV1 {
+  input: { owner: ShowTimelineClipOwner; independent: boolean },
+): ShowClipDuplicatePlan {
   const logicalSegments = logicalClipSegments(show, composition, input.owner)
-  const logicalRange = globalLogicalClipRange(logicalSegments)
-  if (logicalSegments.length > 1 && logicalRange) {
+  if (logicalSegments.length === 0) {
+    return { enabled: false, code: 'missing-owner', reason: 'The selected Clip no longer exists.' }
+  }
+  if (logicalSegments.length > 1) {
     const base = logicalSegments[0].placement
     const segmentIds = new Set(logicalSegments.map((segment) => segment.placement.id))
     const hasUnsupportedTracks = composition.scenes.some((scene) => (
       (scene.propertyTracks ?? []).some((track) => (
         'placementId' in track.target
           ? segmentIds.has(track.target.placementId)
-          : Boolean(input.newInstanceId && track.target.instanceId === base.instanceId)
+          : Boolean(input.independent && track.target.instanceId === base.instanceId)
       ))
     ))
-    if (hasUnsupportedTracks) return composition
+    if (hasUnsupportedTracks) {
+      return {
+        enabled: false,
+        code: 'unsupported-animation',
+        reason: 'Multi-Scene Clips with Property animation cannot be cloned yet.',
+      }
+    }
+  }
+  return { enabled: true, code: 'ready', reason: 'Duplicate the selected Clip immediately after itself.' }
+}
+
+function duplicateShowClip(
+  show: ShowRecord,
+  composition: ShowCompositionV1,
+  input: { owner: ShowTimelineClipOwner; newPlacementId: string; newInstanceId: string | null },
+): ShowCompositionV1 {
+  if (!planShowClipDuplicateAfter(show, composition, {
+    owner: input.owner,
+    independent: Boolean(input.newInstanceId),
+  }).enabled) return composition
+  const logicalSegments = logicalClipSegments(show, composition, input.owner)
+  const logicalRange = globalLogicalClipRange(logicalSegments)
+  if (logicalSegments.length > 1 && logicalRange) {
+    const base = logicalSegments[0].placement
     const sourceInstance = composition.patternInstances.find((instance) => instance.id === base.instanceId)
     if (!sourceInstance || (input.newInstanceId && composition.patternInstances.some((instance) => (
       instance.id === input.newInstanceId

@@ -145,6 +145,28 @@ describe('Show composition v1 Main schedule (#488)', () => {
     expect(deleted.scenes[1].propertyTracks).toBeUndefined()
   })
 
+  it('rejects malformed logical Clip aliases before destructive coalescing (#63)', () => {
+    const { show, composition } = fixture()
+    composition.scenes[0].zones[0].main[1].logicalClipId = 'placement-a'
+    composition.scenes[0].zones[0].main.push({
+      id: 'placement-c',
+      instanceId: 'instance-b',
+      startMs: 9_000,
+      durationMs: 1_000,
+      view: { mirror: false, phase: 0, brightness: 1 },
+    })
+
+    expect(validateShowComposition(show, composition)).toContainEqual(expect.objectContaining({
+      path: 'scenes[0].zones[0].main[1].logicalClipId',
+      code: 'invalid-logical-clip',
+    }))
+    expect(deleteShowMainPlacement(composition, {
+      sceneId: 'scene-1',
+      zoneId: 'zone-1',
+      placementId: 'placement-a',
+    })).toBe(composition)
+  })
+
   it('magnetically resolves horizontal moves and quantizes illegal overlaps', () => {
     const placement = { id: 'moving', instanceId: 'instance-a', startMs: 0, durationMs: 1_000, view: { mirror: false, phase: 0, brightness: 1 } }
     const occupied = [

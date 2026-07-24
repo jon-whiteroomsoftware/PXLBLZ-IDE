@@ -107,6 +107,7 @@ import {
   duplicateShowClipAfter,
   makeShowClipPatternIndependent,
   planShowClipAtTopmostAvailableLayer,
+  planShowClipDuplicateAfter,
   projectShowClipPatternInstanceOwnership,
   rejoinShowClipPatternInstance,
   splitShowClipAtGlobalTime,
@@ -2619,9 +2620,16 @@ function ShowTimelineCommands({
     && clip.startMs < duplicateEndMs
     && clip.endMs > compositionClip.endMs
   )))
+  const compositionClonePlan = compositionOwner && composition
+    ? planShowClipDuplicateAfter(show, composition, {
+        owner: compositionOwner,
+        independent: true,
+      })
+    : null
   const cloneCapability = compositionOwner
     ? compositionClip
       && compositionSceneRange
+      && compositionClonePlan?.enabled
       && duplicateEndMs <= (
         (compositionClip.segmentIds?.length ?? 0) > 1
           ? projectShowTimeline(show).durationMs
@@ -2629,7 +2637,12 @@ function ShowTimelineCommands({
       )
       && !duplicateObstructed
       ? { enabled: true, reason: `Duplicate ${compositionClip.patternName} immediately after itself` }
-      : { enabled: false, reason: 'The selected Clip needs empty time after it on this Layer' }
+      : {
+          enabled: false,
+          reason: compositionClonePlan && !compositionClonePlan.enabled
+            ? compositionClonePlan.reason
+            : 'The selected Clip needs empty time after it on this Layer',
+        }
     : legacyCloneCapability
 
   const cloneSelection = async () => {

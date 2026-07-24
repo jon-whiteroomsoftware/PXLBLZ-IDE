@@ -216,6 +216,36 @@ describe('shared Clip inspector owner model (#498)', () => {
     ])
   })
 
+  it('projects and atomically edits timing and opacity for one multi-Scene logical Clip (#63)', () => {
+    const show = logicalClipFixture()
+
+    expect(projectShowClipInspector(show, overlayOwner(show))?.local).toEqual({
+      startMs: show.scenes[0].durationMs - 1_000,
+      durationMs: 5_000,
+      opacity: 0.75,
+    })
+
+    const updated = updateShowClipInspector(show, overlayOwner(show), {
+      local: {
+        durationMs: 6_000,
+        opacity: 0.4,
+      },
+    })
+    const placements = updated.composition!.scenes.flatMap((scene) => (
+      scene.zones[0].overlays.flatMap((layer) => layer.placements)
+    ))
+
+    expect(placements).toEqual([
+      expect.objectContaining({ startMs: show.scenes[0].durationMs - 1_000, durationMs: 1_000, opacity: 0.4 }),
+      expect.objectContaining({ startMs: 0, durationMs: 3_000, opacity: 0.4 }),
+    ])
+    expect(projectShowClipInspector(updated, overlayOwner(updated))?.local).toEqual({
+      startMs: show.scenes[0].durationMs - 1_000,
+      durationMs: 6_000,
+      opacity: 0.4,
+    })
+  })
+
   it('keeps Freeze, Strobe, and Blink on the placement while Stutter stays on the Pattern instance (#586)', () => {
     const show = fixture()
     const updated = updateShowClipInspector(show, overlayOwner(show), {

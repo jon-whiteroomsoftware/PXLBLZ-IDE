@@ -36,6 +36,7 @@ export type ShowCompositionValidationCode =
   | 'out-of-bounds'
   | 'overlap'
   | 'cross-layer'
+  | 'invalid-logical-clip'
   | 'invalid-transition'
   | ShowGroupValidationCode
   | ShowPropertyAnimationValidationCode
@@ -402,6 +403,7 @@ export function validateShowComposition(
       })
     })
   })
+  issues.push(...validateLogicalClipSegments(show, composition))
   const transitionIds = new Set<string>()
   for (const [transitionIndex, transition] of (composition.transitions ?? []).entries()) {
     const path = `transitions[${transitionIndex}]`
@@ -757,16 +759,9 @@ function deleteLogicalPlacement(
   placementId: string,
 ): ShowCompositionV1 {
   if (showCompositionClipCount(composition) <= 1) return composition
-  const placements = composition.scenes.flatMap((scene) => scene.zones.flatMap((zone) => [
-    ...zone.main,
-    ...zone.overlays.flatMap((layer) => layer.placements),
-  ]))
-  const selected = placements.find((placement) => placement.id === placementId)
-  if (!selected) return composition
-  const logicalClipId = selected.logicalClipId ?? selected.id
-  const segmentIds = new Set(placements
-    .filter((placement) => (placement.logicalClipId ?? placement.id) === logicalClipId)
-    .map((placement) => placement.id))
+  const segments = resolveLogicalPlacementSegments(composition, placementId)
+  if (!segments) return composition
+  const segmentIds = new Set(segments.map((segment) => segment.placement.id))
   const draft = cloneJson(composition)
   for (const scene of draft.scenes) {
     for (const zone of scene.zones) {
@@ -779,6 +774,101 @@ function deleteLogicalPlacement(
   }
   removePlacementTransitions(draft, segmentIds)
   return draft
+}
+
+interface LogicalPlacementSegment {
+  path: string
+  sceneId: string
+  sceneIndex: number
+  zoneId: string
+  layerKey: string
+  placement: ShowMainPlacement | ShowOverlayPlacement
+}
+
+function directPlacementSegments(composition: ShowCompositionV1): LogicalPlacementSegment[] {
+  return composition.scenes.flatMap((scene, sceneIndex) => scene.zones.flatMap((zone, zoneIndex) => [
+    ...zone.main.map((placement, placementIndex) => ({
+      path: `scenes[${sceneIndex}].zones[${zoneIndex}].main[${placementIndex}]`,
+      sceneId: scene.sceneId,
+      sceneIndex,
+      zoneId: zone.zoneId,
+      layerKey: 'main',
+      placement,
+    })),
+    ...zone.overlays.flatMap((layer, layerIndex) => layer.placements.map((placement, placementIndex) => ({
+      path: `scenes[${sceneIndex}].zones[${zoneIndex}].overlays[${layerIndex}].placements[${placementIndex}]`,
+      sceneId: scene.sceneId,
+      sceneIndex,
+      zoneId: zone.zoneId,
+      layerKey: `overlay:${layerIndex}`,
+      placement,
+    }))),
+  ]))
+}
+
+function resolveLogicalPlacementSegments(
+  composition: ShowCompositionV1,
+  placementId: string,
+): LogicalPlacementSegment[] | null {
+  const placements = directPlacementSegments(composition)
+  const selected = placements.find((segment) => segment.placement.id === placementId)
+  if (!selected) return null
+  const logicalClipId = selected.placement.logicalClipId ?? selected.placement.id
+  const segments = placements
+    .filter((segment) => (segment.placement.logicalClipId ?? segment.placement.id) === logicalClipId)
+    .sort((left, right) => left.sceneIndex - right.sceneIndex)
+  if (segments.length === 1 && !segments[0].placement.logicalClipId) return segments
+  const root = segments[0]
+  if (
+    root.placement.id !== logicalClipId
+    || root.placement.logicalClipId !== undefined
+    || segments.some((segment, index) => (
+      segment.placement.instanceId !== root.placement.instanceId
+      || segment.zoneId !== root.zoneId
+      || segment.layerKey !== root.layerKey
+      || (index > 0 && (
+        segment.sceneIndex !== segments[index - 1].sceneIndex + 1
+        || segment.placement.id !== `${logicalClipId}--span-${segment.sceneId}`
+        || segment.placement.startMs !== 0
+      ))
+    ))
+  ) return null
+  return segments
+}
+
+function validateLogicalClipSegments(
+  show: Pick<ShowRecord, 'scenes' | 'zones'>,
+  composition: ShowCompositionV1,
+): ShowCompositionValidationIssue[] {
+  const issues: ShowCompositionValidationIssue[] = []
+  const descriptors = directPlacementSegments(composition)
+  const logicalClipIds = new Set(descriptors.flatMap((segment) => (
+    segment.placement.logicalClipId ? [segment.placement.logicalClipId] : []
+  )))
+  const sceneById = new Map(show.scenes.map((scene, index) => [scene.id, { scene, index }]))
+  for (const logicalClipId of logicalClipIds) {
+    const referenced = descriptors.find((segment) => segment.placement.logicalClipId === logicalClipId)
+    const segments = resolveLogicalPlacementSegments(composition, referenced?.placement.id ?? logicalClipId)
+    const hasValidSceneSlices = segments?.every((segment, index) => {
+      const owner = sceneById.get(segment.sceneId)
+      const previous = index > 0 ? sceneById.get(segments[index - 1].sceneId) : null
+      return Boolean(
+        owner
+        && (!previous || owner.index === previous.index + 1)
+        && (index === segments.length - 1
+          || segment.placement.startMs + segment.placement.durationMs === owner.scene.durationMs),
+      )
+    })
+    if (!segments || !hasValidSceneSlices) {
+      addIssue(
+        issues,
+        `${referenced?.path ?? 'scenes'}.logicalClipId`,
+        'invalid-logical-clip',
+        `Logical Clip "${logicalClipId}" must have one real root and contiguous segments on the same Zone, Layer, and Pattern instance.`,
+      )
+    }
+  }
+  return issues
 }
 
 /** Resolve drag intent to a legal millisecond start, preferring nearby magnetic edges. */

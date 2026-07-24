@@ -11,6 +11,7 @@ import {
   makeShowClipPatternIndependent,
   moveShowClipAtGlobalTime,
   planShowClipAtTopmostAvailableLayer,
+  planShowClipDuplicateAfter,
   planShowClipPatternRejoin,
   planShowClipAtGlobalTime,
   planShowMainClipAtGlobalTime,
@@ -1062,6 +1063,58 @@ describe('global timeline Clip authoring (#580)', () => {
       durationMs: 7_000,
       endMs: 42_000,
     }))
+  })
+
+  it('disables Clone when a multi-Scene logical Clip has unsupported placement animation (#63)', () => {
+    const show = createDefaultShow('show-duplicate-spanning-animation', 'Duplicate spanning animation', 1000)
+    const composition = emptyComposition(show)
+    composition.patternInstances.push(instance)
+    composition.scenes[0].zones[0].main.push({
+      id: 'placement-spanning',
+      instanceId: instance.id,
+      startMs: 28_000,
+      durationMs: 2_000,
+      view: { mirror: false, phase: 0, brightness: 1 },
+    })
+    composition.scenes[1].zones[0].main.push({
+      id: 'placement-spanning--span-scene-2',
+      logicalClipId: 'placement-spanning',
+      instanceId: instance.id,
+      startMs: 0,
+      durationMs: 3_000,
+      view: { mirror: false, phase: 0, brightness: 1 },
+    })
+    composition.scenes[1].propertyTracks = [{
+      id: 'brightness-spanning',
+      target: {
+        kind: 'placement-view',
+        placementId: 'placement-spanning--span-scene-2',
+        property: 'brightness',
+      },
+      keyframes: [
+        { id: 'brightness-a', timeMs: 0, value: 0.5, easing: { curve: 'linear' } },
+        { id: 'brightness-b', timeMs: 3_000, value: 1, easing: { curve: 'linear' } },
+      ],
+    }]
+    const owner = {
+      kind: 'main' as const,
+      sceneId: show.scenes[0].id,
+      zoneId: show.zones[0].id,
+      placementId: 'placement-spanning',
+    }
+
+    expect(planShowClipDuplicateAfter(show, composition, {
+      owner,
+      independent: true,
+    })).toMatchObject({
+      enabled: false,
+      code: 'unsupported-animation',
+    })
+    expect(duplicateShowClipAfter(show, composition, {
+      owner,
+      newPlacementId: 'placement-copy',
+      newInstanceId: 'instance-copy',
+    })).toBe(composition)
   })
 
   it('copies instance-owned animation onto the independent duplicate', () => {

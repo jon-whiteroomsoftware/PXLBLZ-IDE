@@ -1,6 +1,5 @@
 import {
-  trimShowMainPlacement,
-  trimShowOverlayPlacement,
+  validateShowComposition,
 } from './showCompositionModel'
 import { normalizeShowClipEffects } from './showEffects'
 import {
@@ -12,10 +11,12 @@ import {
   normalizeShowClipViewport,
 } from './showClipViewport'
 import {
+  projectShowTimeline,
   updateShowCellAdaptations,
   updateShowCellEffects,
   updateShowCellPattern,
 } from './showModel'
+import { resizeShowClipAtGlobalTime } from './showTimelineClipAuthoring'
 import type {
   ShowCell,
   ShowClipBlink,
@@ -142,6 +143,9 @@ export function projectShowClipInspector(
   const resolved = resolveCompositionOwner(show.composition, owner)
   if (!resolved) return null
   const { placement, instance } = resolved
+  const logicalRange = show.composition
+    ? logicalPlacementRange(show, show.composition, placement)
+    : null
   return {
     scope: owner.kind,
     owner,
@@ -162,8 +166,8 @@ export function projectShowClipInspector(
     instanceId: instance.id,
     ...(owner.kind === 'scene-overlay' ? { layerId: owner.layerId } : {}),
     local: {
-      startMs: placement.startMs,
-      durationMs: placement.durationMs,
+      startMs: logicalRange?.localStartMs ?? placement.startMs,
+      durationMs: logicalRange?.durationMs ?? placement.durationMs,
       ...(owner.kind === 'scene-overlay' ? { opacity: (placement as ShowOverlayPlacement).opacity } : {}),
     },
   }
@@ -177,6 +181,9 @@ export function updateShowClipInspector(
   if (owner.kind === 'global') return updateGlobalClip(show, owner.cellId, patch)
   const resolved = resolveCompositionOwner(show.composition, owner)
   if (!show.composition || !resolved) return show
+  if (validateShowComposition(show, show.composition).some((issue) => issue.code === 'invalid-logical-clip')) {
+    return show
+  }
   let composition = show.composition
   const originalPatternKey = patternKey(resolved.instance.pattern)
   if (patch.pattern || patch.simulation || patch.evaluationPolicy) {
@@ -211,18 +218,21 @@ export function updateShowClipInspector(
   if (patch.local) {
     const current = resolveCompositionOwner(composition, owner)?.placement
     if (!current) return show
-    if (owner.kind === 'scene-main') {
-      composition = trimShowMainPlacement(show, composition, {
-        ...owner,
-        startMs: patch.local.startMs ?? current.startMs,
-        durationMs: patch.local.durationMs ?? current.durationMs,
-      })
-    } else {
-      composition = trimShowOverlayPlacement(show, composition, {
-        ...owner,
-        startMs: patch.local.startMs ?? current.startMs,
-        durationMs: patch.local.durationMs ?? current.durationMs,
-        opacity: clamp01(patch.local.opacity ?? (current as ShowOverlayPlacement).opacity),
+    if (owner.kind === 'scene-overlay' && patch.local.opacity !== undefined) {
+      composition = mapPlacement(composition, owner, (placement) => ({
+        ...placement,
+        opacity: clamp01(patch.local!.opacity!),
+      }))
+    }
+    if (patch.local.startMs !== undefined || patch.local.durationMs !== undefined) {
+      const range = logicalPlacementRange(show, composition, current)
+      if (!range) return show
+      composition = resizeShowClipAtGlobalTime(show, composition, {
+        owner: owner.kind === 'scene-main'
+          ? { ...owner, kind: 'main' }
+          : { ...owner, kind: 'overlay' },
+        globalStartMs: range.sceneStartMs + (patch.local.startMs ?? range.localStartMs),
+        durationMs: patch.local.durationMs ?? range.durationMs,
       })
     }
   }
@@ -339,6 +349,38 @@ function resolveCompositionOwner(
     ? composition?.patternInstances.find((candidate) => candidate.id === placement.instanceId)
     : undefined
   return placement && instance ? { placement, instance } : null
+}
+
+function logicalPlacementRange(
+  show: ShowRecord,
+  composition: ShowCompositionV1,
+  placement: ShowMainPlacement | ShowOverlayPlacement,
+): { sceneStartMs: number; localStartMs: number; durationMs: number } | null {
+  const logicalClipId = placement.logicalClipId ?? placement.id
+  const sceneStartById = new Map(projectShowTimeline(show).scenes.map((scene) => [scene.sceneId, scene.startMs]))
+  const segments = composition.scenes.flatMap((scene) => {
+    const sceneStartMs = sceneStartById.get(scene.sceneId)
+    if (sceneStartMs === undefined) return []
+    return scene.zones.flatMap((zone) => [
+      ...zone.main,
+      ...zone.overlays.flatMap((layer) => layer.placements),
+    ]).filter((candidate) => (
+      (candidate.logicalClipId ?? candidate.id) === logicalClipId
+    )).map((candidate) => ({
+      placement: candidate,
+      sceneStartMs,
+      globalStartMs: sceneStartMs + candidate.startMs,
+      globalEndMs: sceneStartMs + candidate.startMs + candidate.durationMs,
+    }))
+  }).sort((left, right) => left.globalStartMs - right.globalStartMs)
+  const first = segments[0]
+  if (!first) return null
+  const endMs = Math.max(...segments.map((segment) => segment.globalEndMs))
+  return {
+    sceneStartMs: first.sceneStartMs,
+    localStartMs: first.placement.startMs,
+    durationMs: endMs - first.globalStartMs,
+  }
 }
 
 function mapPatternInstance(
