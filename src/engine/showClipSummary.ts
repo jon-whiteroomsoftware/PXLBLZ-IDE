@@ -4,6 +4,7 @@ import { normalizeShowClipTransform } from './showClipTransform'
 import { compactShowClipViewport, normalizeShowClipViewport } from './showClipViewport'
 import { materializeShowGroupOccurrences } from './showGroupModel'
 import { formatPercentageValue } from './percentageValue'
+import { formatDomainNumber } from './domainNumberPresentation'
 import type {
   ShowCell,
   ShowClipEffect,
@@ -134,6 +135,7 @@ function projectClipSummary(
           showClipEffectParameterValue(effect, parameter.id),
           parameter.unit,
           parameter.presentation,
+          parameter.step,
         ),
       }))
       const value = parameters.length === 1
@@ -263,7 +265,11 @@ export function projectShowClipTimelineSummary(
 function playbackItems(cell: Pick<ShowCell, 'adaptations' | 'restartOnEntry'>): ShowClipSummaryItem[] {
   const items: ShowClipSummaryItem[] = []
   if (cell.adaptations.timeScale !== 1) {
-    items.push({ id: 'time-scale', label: 'Animation speed', value: `${formatNumber(cell.adaptations.timeScale)}×` })
+    items.push({
+      id: 'time-scale',
+      label: 'Animation speed',
+      value: formatDomainNumber('multiplier', cell.adaptations.timeScale, 0.01),
+    })
   }
   if (cell.restartOnEntry) items.push({ id: 'restart', label: 'Restart on entry', value: 'On' })
   if (cell.adaptations.steppedClock) {
@@ -310,8 +316,14 @@ function viewItems(
   if (transform.positionX !== 0) items.push({ id: 'transform-position-x', label: 'Position X', value: formatNumber(transform.positionX), timelineValue: `x ${formatNumber(transform.positionX)}` })
   if (transform.positionY !== 0) items.push({ id: 'transform-position-y', label: 'Position Y', value: formatNumber(transform.positionY), timelineValue: `y ${formatNumber(transform.positionY)}` })
   if (transform.rotation !== 0) items.push({ id: 'transform-rotation', label: 'Rotation', value: `${formatNumber(transform.rotation * 360)} deg`, timelineValue: `rot ${formatNumber(transform.rotation * 360)} deg` })
-  if (transform.scaleX !== 1) items.push({ id: 'transform-scale-x', label: 'Scale X', value: `${formatNumber(transform.scaleX)}x`, timelineValue: `sx ${formatNumber(transform.scaleX)}` })
-  if (transform.scaleY !== 1) items.push({ id: 'transform-scale-y', label: 'Scale Y', value: `${formatNumber(transform.scaleY)}x`, timelineValue: `sy ${formatNumber(transform.scaleY)}` })
+  if (transform.scaleX !== 1) {
+    const value = formatSummaryDomainNumber('multiplier', transform.scaleX, 0.01)
+    items.push({ id: 'transform-scale-x', label: 'Scale X', value, timelineValue: `sx ${value}` })
+  }
+  if (transform.scaleY !== 1) {
+    const value = formatSummaryDomainNumber('multiplier', transform.scaleY, 0.01)
+    items.push({ id: 'transform-scale-y', label: 'Scale Y', value, timelineValue: `sy ${value}` })
+  }
   const authoredViewport = compactShowClipViewport(cell.viewport)
   if (authoredViewport) {
     const viewport = normalizeShowClipViewport(authoredViewport)
@@ -381,9 +393,28 @@ function formatNumber(value: number): string {
   return Number(value.toFixed(2)).toString()
 }
 
-function formatToolkitValue(value: unknown, unit?: string, presentation?: 'percentage'): string {
+function formatSummaryDomainNumber(
+  presentation: 'multiplier' | 'ratio',
+  value: number,
+  step: number,
+): string {
+  const domainValue = formatDomainNumber(presentation, value, step)
+  if (presentation === 'ratio' && domainValue.includes(':')) return domainValue
+  const rounded = formatNumber(value)
+  return presentation === 'multiplier' ? `${rounded}x` : rounded
+}
+
+function formatToolkitValue(
+  value: unknown,
+  unit?: string,
+  presentation?: 'percentage' | 'multiplier' | 'ratio',
+  step = 0.01,
+): string {
   if (typeof value === 'number') {
     if (presentation === 'percentage') return formatPercentageValue(value)
+    if (presentation === 'multiplier' || presentation === 'ratio') {
+      return formatSummaryDomainNumber(presentation, value, step)
+    }
     return `${formatNumber(value)}${unit ? ` ${unit}` : ''}`
   }
   if (typeof value === 'boolean') return value ? 'On' : 'Off'

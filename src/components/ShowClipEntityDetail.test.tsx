@@ -52,7 +52,7 @@ const commonProps = (scope: ShowClipInspectorValue['scope'], onPatch = vi.fn()):
 })
 
 describe('shared Clip Entity Detail sections (#498)', () => {
-  it('gives Source Pattern the wide column shared with Start timing (#592)', () => {
+  it('aligns the compact Source Pattern and Start columns while giving unit fields room (#592, #610)', () => {
     render(<ShowClipEntityDetail {...commonProps('scene-main')} />)
 
     const primaryFields = screen.getByTestId('clip-primary-fields')
@@ -61,11 +61,11 @@ describe('shared Clip Entity Detail sections (#498)', () => {
     const startField = screen.getByRole('spinbutton', { name: 'Start seconds' }).closest('[data-field-span]')
     const durationField = screen.getByRole('spinbutton', { name: 'Duration seconds' }).closest('[data-field-span]')
 
-    expect(primaryFields).toHaveClass('sm:grid-cols-5')
-    expect(localFields).toHaveClass('sm:grid-cols-5')
-    expect(sourceField).toHaveClass('sm:col-span-3')
-    expect(startField).toHaveClass('sm:col-span-3')
-    expect(durationField).toHaveClass('sm:col-span-2')
+    expect(primaryFields).toHaveClass('sm:grid-cols-[minmax(0,2fr)_minmax(0,1fr)_minmax(0,1fr)]')
+    expect(localFields).toHaveClass('sm:grid-cols-2')
+    expect(sourceField).not.toHaveClass('sm:col-span-3')
+    expect(startField).not.toHaveClass('sm:col-span-3')
+    expect(durationField).not.toHaveClass('sm:col-span-2')
   })
 
   it.each([
@@ -75,7 +75,7 @@ describe('shared Clip Entity Detail sections (#498)', () => {
   ] as const)('renders the capability matrix for %s', (scope, localTiming, layer, opacity) => {
     render(<ShowClipEntityDetail {...commonProps(scope)} />)
     expect(screen.getByRole('combobox', { name: 'Source pattern' })).toBeInTheDocument()
-    expect(screen.getByRole('spinbutton', { name: 'Animation speed' })).toBeInTheDocument()
+    expect(screen.getByRole('textbox', { name: 'Animation speed exact multiplier' })).toHaveValue('1')
     expect(screen.getByRole('textbox', { name: 'Brightness exact percentage' })).toBeInTheDocument()
     expect(Boolean(screen.queryByRole('spinbutton', { name: 'Start seconds' }))).toBe(localTiming)
     expect(Boolean(screen.queryByRole('combobox', { name: 'Overlay target layer' }))).toBe(layer)
@@ -85,12 +85,12 @@ describe('shared Clip Entity Detail sections (#498)', () => {
   it('keeps the full control names accessible behind compact visible labels (#63)', () => {
     render(<ShowClipEntityDetail {...commonProps('scene-main')} />)
 
-    const speed = screen.getByRole('spinbutton', { name: 'Animation speed' })
+    const speed = screen.getByRole('textbox', { name: 'Animation speed exact multiplier' })
     const brightness = screen.getByRole('textbox', { name: 'Brightness exact percentage' })
-    expect(speed.closest('label')).toHaveTextContent('Speed')
-    expect(speed.closest('label')).not.toHaveTextContent('Animation speed')
+    expect(speed.closest('div')).toHaveTextContent('Speed')
+    expect(speed.closest('div')).not.toHaveTextContent('Animation speed')
     expect(screen.getByText('Bright')).toBeInTheDocument()
-    expect(brightness).toHaveValue('80%')
+    expect(brightness).toHaveValue('80')
     expect(brightness.parentElement?.parentElement).not.toHaveTextContent('0–1')
   })
 
@@ -103,6 +103,11 @@ describe('shared Clip Entity Detail sections (#498)', () => {
     fireEvent.change(pattern, { target: { value: 'comet' } })
     fireEvent.click(screen.getByRole('option', { name: 'CometLoom' }))
     expect(onPatch).toHaveBeenCalledWith({ pattern: { ref: { kind: 'stock', id: 'CometLoom' }, name: 'CometLoom' } })
+
+    const speed = screen.getByRole('textbox', { name: 'Animation speed exact multiplier' })
+    fireEvent.change(speed, { target: { value: '0x' } })
+    fireEvent.blur(speed)
+    expect(onPatch).toHaveBeenCalledWith({ simulation: { timeScale: 0 } })
 
     const brightness = screen.getByRole('textbox', { name: 'Brightness exact percentage' })
     fireEvent.change(brightness, { target: { value: '35%' } })
@@ -171,6 +176,13 @@ describe('shared Clip Entity Detail sections (#498)', () => {
     fireEvent.change(positionX, { target: { value: '0.25' } })
     fireEvent.blur(positionX)
     expect(onPatch).toHaveBeenCalledWith({ transform: { positionX: 0.25 } })
+
+    const width = screen.getByRole('textbox', { name: 'Content Width exact multiplier' })
+    expect(width).toHaveValue('1')
+    expect(screen.getByRole('textbox', { name: 'Content Height exact multiplier' })).toHaveValue('1')
+    fireEvent.change(width, { target: { value: '1.5x' } })
+    fireEvent.blur(width)
+    expect(onPatch).toHaveBeenCalledWith({ transform: { scaleX: 1.5 } })
 
     const rotation = screen.getByRole('spinbutton', { name: 'Rotation degrees' })
     fireEvent.change(rotation, { target: { value: '90' } })
@@ -254,7 +266,7 @@ describe('shared Clip Entity Detail sections (#498)', () => {
       'pl-[5px]',
       'pr-[23px]',
     )
-    expect(screen.getByRole('spinbutton', { name: 'Animation speed' })).toHaveClass('h-5', 'px-[5px]')
+    expect(screen.getByRole('textbox', { name: 'Animation speed exact multiplier' }).parentElement).toHaveClass('h-5')
     expect(screen.getByRole('textbox', { name: 'Speed target exact percentage' }).parentElement)
       .toHaveClass('h-5', 'border', 'border-zinc-700')
     expect(screen.getByRole('spinbutton', { name: 'Phase' })).toHaveClass('h-5', 'border-0', 'border-b', 'text-left')

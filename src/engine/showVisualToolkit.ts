@@ -73,7 +73,7 @@ export interface ShowToolkitParameterDescriptor {
   min?: number
   max?: number
   step?: number
-  presentation?: 'percentage'
+  presentation?: 'percentage' | 'multiplier' | 'ratio'
   unit?: string
   options?: Array<{ value: string; label: string }>
   optionsByVariant?: Record<string, Array<{ value: string; label: string }>>
@@ -182,7 +182,7 @@ export const SHOW_VISUAL_TOOLKIT_REGISTRY: ShowToolkitFamilyDescriptor[] = [
       { id: 'radius', label: 'Radius', kind: 'number', defaultValue: 0.35, min: 0, max: 2, step: 0.01, variantIds: ['vignette'] },
       { ...CENTER_X, variantIds: ['vignette'] },
       { ...CENTER_Y, variantIds: ['vignette'] },
-      { id: 'aspect', label: 'Aspect', kind: 'number', defaultValue: 1, min: 0.1, max: 10, step: 0.01, variantIds: ['vignette'] },
+      { id: 'aspect', label: 'Aspect', kind: 'number', defaultValue: 1, min: 0.1, max: 10, step: 0.01, presentation: 'ratio', variantIds: ['vignette'] },
       { id: 'shadowColor', label: 'Shadow Color', kind: 'color', defaultValue: '#000000', variantIds: ['color-map'] },
       { id: 'highlightColor', label: 'Highlight Color', kind: 'color', defaultValue: '#ffffff', variantIds: ['color-map'] },
       EASING,
@@ -204,8 +204,8 @@ export const SHOW_VISUAL_TOOLKIT_REGISTRY: ShowToolkitFamilyDescriptor[] = [
       { id: 'translateX', label: 'X', kind: 'number', defaultValue: 0, min: -2, max: 2, step: 0.01, variantIds: ['translate'] },
       { id: 'translateY', label: 'Y', kind: 'number', defaultValue: 0, min: -2, max: 2, step: 0.01, variantIds: ['translate'] },
       { id: 'turns', label: 'Turns', kind: 'number', defaultValue: 0, min: -8, max: 8, step: 0.01, unit: 'turn', variantIds: ['rotate'] },
-      { id: 'scaleX', label: 'X scale', kind: 'number', defaultValue: 1, min: 0.01, max: 8, step: 0.01, variantIds: ['scale'] },
-      { id: 'scaleY', label: 'Y scale', kind: 'number', defaultValue: 1, min: 0.01, max: 8, step: 0.01, variantIds: ['scale'] },
+      { id: 'scaleX', label: 'X scale', kind: 'number', defaultValue: 1, min: 0.01, max: 8, step: 0.01, presentation: 'multiplier', variantIds: ['scale'] },
+      { id: 'scaleY', label: 'Y scale', kind: 'number', defaultValue: 1, min: 0.01, max: 8, step: 0.01, presentation: 'multiplier', variantIds: ['scale'] },
       { id: 'shearX', label: 'X shear', kind: 'number', defaultValue: 0, min: -4, max: 4, step: 0.01, variantIds: ['shear'] },
       { id: 'shearY', label: 'Y shear', kind: 'number', defaultValue: 0, min: -4, max: 4, step: 0.01, variantIds: ['shear'] },
       { ...EASING, variantIds: ['translate', 'rotate', 'scale', 'shear'] },
@@ -411,7 +411,7 @@ export const SHOW_VISUAL_TOOLKIT_REGISTRY: ShowToolkitFamilyDescriptor[] = [
       CENTER_X,
       CENTER_Y,
       FEATHER,
-      { id: 'scale', label: 'Scale', kind: 'number', defaultValue: 1, min: 0.25, max: 2, step: 0.01 },
+      { id: 'scale', label: 'Scale', kind: 'number', defaultValue: 1, min: 0.25, max: 2, step: 0.01, presentation: 'multiplier' },
       {
         id: 'edgePolicy',
         label: 'Edge',
@@ -432,7 +432,7 @@ export const SHOW_VISUAL_TOOLKIT_REGISTRY: ShowToolkitFamilyDescriptor[] = [
           { value: 'shrink-outgoing', label: 'Shrink outgoing' },
         ],
       },
-      { id: 'aspect', label: 'Aspect', kind: 'number', defaultValue: 1, min: 0.25, max: 4, step: 0.01, variantIds: ['ellipse', 'box', 'rounded-box', 'cross', 'heart', 'star', 'crescent', 'polygon', 'cat-head', 'cat-side-profile', 'bastet'] },
+      { id: 'aspect', label: 'Aspect', kind: 'number', defaultValue: 1, min: 0.25, max: 4, step: 0.01, presentation: 'ratio', variantIds: ['ellipse', 'box', 'rounded-box', 'cross', 'heart', 'star', 'crescent', 'polygon', 'cat-head', 'cat-side-profile', 'bastet'] },
       { id: 'rotation', label: 'Rotation', kind: 'number', defaultValue: 0, min: -1, max: 1, step: 0.01, variantIds: ['ellipse', 'box', 'rounded-box', 'diamond', 'cross', 'heart', 'star', 'crescent', 'polygon', 'cat-head', 'cat-side-profile', 'bastet'] },
       { id: 'spin', label: 'Spin', kind: 'number', defaultValue: 0, min: -4, max: 4, step: 0.01, variantIds: ['diamond'] },
       { id: 'ringWidth', label: 'Ring width', kind: 'number', defaultValue: 0.12, min: 0.02, max: 1, step: 0.01, variantIds: ['ring'] },
@@ -483,7 +483,7 @@ export const SHOW_VISUAL_TOOLKIT_REGISTRY: ShowToolkitFamilyDescriptor[] = [
       { id: 'direction', label: 'Direction', kind: 'number', defaultValue: 0, min: 0, max: 1, step: 0.001, unit: 'turn', variantIds: ['cover', 'reveal', 'push'] },
       { id: 'anchorX', label: 'Anchor X', kind: 'number', defaultValue: 0.5, min: 0, max: 1, step: 0.01, variantIds: ['content-grow', 'content-shrink', 'zoom-in', 'zoom-out'] },
       { id: 'anchorY', label: 'Anchor Y', kind: 'number', defaultValue: 0.5, min: 0, max: 1, step: 0.01, variantIds: ['content-grow', 'content-shrink', 'zoom-in', 'zoom-out'] },
-      { id: 'contentScale', label: 'Endpoint scale', kind: 'number', defaultValue: 0.01, min: 0.01, max: 1, step: 0.01, variantIds: ['content-grow', 'content-shrink', 'zoom-in', 'zoom-out'] },
+      { id: 'contentScale', label: 'Endpoint scale', kind: 'number', defaultValue: 0.01, min: 0.01, max: 1, step: 0.01, presentation: 'multiplier', variantIds: ['content-grow', 'content-shrink', 'zoom-in', 'zoom-out'] },
       { id: 'rotation', label: 'Rotation', kind: 'number', defaultValue: 0, min: 0, max: 8, step: 0.01, unit: 'turn', variantIds: ['zoom-in', 'zoom-out'] },
       {
         id: 'spinDirection', label: 'Rotation direction', kind: 'enum', defaultValue: 'clockwise', variantIds: ['zoom-in', 'zoom-out'],

@@ -4,6 +4,8 @@ import { Activity, BookOpen, Check, ChevronDown, ChevronRight, Clock3, Code2, Co
 import { Button } from '@/components/ui/button'
 import { NumberField as UiNumberField, type NumberFieldProps as UiNumberFieldProps } from '@/components/ui/number-field'
 import { PercentageField as UiPercentageField, type PercentageFieldProps as UiPercentageFieldProps } from '@/components/ui/percentage-field'
+import { DomainNumberField as UiDomainNumberField, type DomainNumberFieldProps as UiDomainNumberFieldProps } from '@/components/ui/domain-number-field'
+import { formatDomainNumber } from '@/engine/domainNumberPresentation'
 import { formatPercentageValue } from '@/engine/percentageValue'
 import {
   AlertDialogAction,
@@ -3493,7 +3495,7 @@ function ShowTimelineWorkspace({
           formatValue: property === 'rotation'
             ? (value: number) => `${Number((value * 360).toFixed(1))} deg`
             : property === 'scaleX' || property === 'scaleY'
-              ? (value: number) => `${Number(value.toFixed(2))}x`
+              ? (value: number) => formatDomainNumber('multiplier', value, 0.01)
               : (value: number) => Number(value.toFixed(2)).toString(),
           projection: projectGlobalShowPropertyLane(displayShow, zone.id, { kind: 'transform', property }),
         })),
@@ -4411,7 +4413,7 @@ function ShowTimelineWorkspace({
                   className="flex items-center justify-center border-t border-zinc-900/80 bg-[repeating-linear-gradient(135deg,rgba(34,211,238,0.12)_0_3px,transparent_3px_8px)] font-mono text-[9px] text-cyan-100"
                   style={{ gridColumn: 2 + sceneIndex * 2, gridRow: contentStartRow + (movingSplitLayout ? 1 : 0) }}
                 >
-                  {formatRepeatScale(scale)}×
+                  {formatRepeatScale(scale)}
                 </div>
               )
             })}
@@ -7601,13 +7603,14 @@ function SampleRepeatTransitionEditor({
           className="h-3.5 w-3.5 accent-cyan-400"
         />
         Repeat scale
-        <span className="ml-auto font-mono text-zinc-500">{formatRepeatScale(fromTarget)}× → {formatRepeatScale(toTarget)}×</span>
+        <span className="ml-auto font-mono text-zinc-500">{formatRepeatScale(fromTarget)} → {formatRepeatScale(toTarget)}</span>
       </label>
       {descriptor && (
         <div className="mt-2 grid grid-cols-3 gap-2">
-          <NumberField
+          <DomainNumberField
             label="Repeat scale start"
             value={descriptor.from}
+            presentation="multiplier"
             min={1}
             max={8}
             step={0.1}
@@ -7646,8 +7649,8 @@ const SHOW_TRANSFORM_PROPERTY_PRESENTATION: Array<{
   { property: 'positionX', label: 'Position X', format: (value) => Number(value.toFixed(2)).toString() },
   { property: 'positionY', label: 'Position Y', format: (value) => Number(value.toFixed(2)).toString() },
   { property: 'rotation', label: 'Rotation', format: (value) => `${Number((value * 360).toFixed(1))} deg` },
-  { property: 'scaleX', label: 'Scale X', format: (value) => `${Number(value.toFixed(2))}x` },
-  { property: 'scaleY', label: 'Scale Y', format: (value) => `${Number(value.toFixed(2))}x` },
+  { property: 'scaleX', label: 'Scale X', format: (value) => formatDomainNumber('multiplier', value, 0.01) },
+  { property: 'scaleY', label: 'Scale Y', format: (value) => formatDomainNumber('multiplier', value, 0.01) },
 ]
 
 function TransformTransitionEditor({
@@ -7937,9 +7940,10 @@ function PropertyTransitionEditor({
               {enabled && (
                 <div className="mt-2 grid grid-cols-2 gap-2">
                   {isTime ? (
-                    <NumberField
+                    <DomainNumberField
                       label={`${title} start ${zone.name}`}
                       value={from}
+                      presentation="multiplier"
                       min={0}
                       max={max}
                       step={0.05}
@@ -7956,9 +7960,10 @@ function PropertyTransitionEditor({
                     />
                   )}
                   {isTime ? (
-                    <NumberField
+                    <DomainNumberField
                       label={`${title} target ${zone.name}`}
                       value={cell.adaptations[property]}
+                      presentation="multiplier"
                       min={0}
                       max={max}
                       step={0.05}
@@ -9187,6 +9192,10 @@ function PercentageField(props: Omit<UiPercentageFieldProps, 'variant' | 'align'
   return <UiPercentageField variant="editor" {...props} />
 }
 
+function DomainNumberField(props: Omit<UiDomainNumberFieldProps, 'variant' | 'align' | 'ariaLabel' | 'disabled'>) {
+  return <UiDomainNumberField variant="editor" {...props} />
+}
+
 function ClipSummaryInline({
   summary,
   previousSummary,
@@ -9314,11 +9323,11 @@ function cellCoveringScene(show: ShowRecord, zoneId: string, targetSceneIndex: n
 }
 
 function formatTimeScale(value: number): string {
-  return Number(value.toFixed(2)).toString()
+  return formatDomainNumber('multiplier', value, 0.01)
 }
 
 function formatRepeatScale(value: number): string {
-  return Number(value.toFixed(2)).toString()
+  return formatDomainNumber('multiplier', value, 0.01)
 }
 
 function formatBrightness(value: number): string {

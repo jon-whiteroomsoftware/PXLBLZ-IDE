@@ -78,8 +78,8 @@ describe('Show Effect authoring UI', () => {
     expect(onChange).toHaveBeenLastCalledWith([
       { id: 'green-key', kind: 'chroma-key', color: '#ff00aa', tolerance: 0.05, softness: 0.05 },
     ])
-    expect(screen.getByRole('textbox', { name: 'Tolerance exact percentage' })).toHaveValue('5%')
-    expect(screen.getByRole('textbox', { name: 'Softness exact percentage' })).toHaveValue('5%')
+    expect(screen.getByRole('textbox', { name: 'Tolerance exact percentage' })).toHaveValue('5')
+    expect(screen.getByRole('textbox', { name: 'Softness exact percentage' })).toHaveValue('5')
   })
 
   it('edits Color Map as exactly Shadow Color and Highlight Color (#609)', async () => {
@@ -137,15 +137,42 @@ describe('Show Effect authoring UI', () => {
     render(<ShowEffectStack effects={effects} onChange={onChange} onAdd={vi.fn()} />)
 
     await user.click(screen.getByRole('button', { name: 'Edit Vignette Effect' }))
-    expect(screen.getByRole('textbox', { name: 'Amount exact percentage' })).toHaveValue('100%')
-    expect(screen.getByRole('textbox', { name: 'Softness exact percentage' })).toHaveValue('35%')
-    for (const label of ['Radius', 'Center X', 'Center Y', 'Aspect']) {
+    expect(screen.getByRole('textbox', { name: 'Amount exact percentage' })).toHaveValue('100')
+    expect(screen.getByRole('textbox', { name: 'Softness exact percentage' })).toHaveValue('35')
+    expect(screen.getByRole('textbox', { name: 'Aspect exact ratio' })).toHaveValue('1:1')
+    for (const label of ['Radius', 'Center X', 'Center Y']) {
       expect(screen.getByRole('spinbutton', { name: label })).toBeVisible()
     }
+    const aspect = screen.getByRole('textbox', { name: 'Aspect exact ratio' })
+    await user.clear(aspect)
+    await user.type(aspect, '16:9')
+    await user.tab()
+    expect(onChange).toHaveBeenLastCalledWith([
+      expect.objectContaining({ id: 'edge', kind: 'vignette', aspect: 16 / 9 }),
+    ])
     fireEvent.change(screen.getByRole('spinbutton', { name: 'Radius' }), { target: { value: '0.48' } })
     fireEvent.blur(screen.getByRole('spinbutton', { name: 'Radius' }))
     expect(onChange).toHaveBeenLastCalledWith([
       expect.objectContaining({ id: 'edge', kind: 'vignette', radius: 0.48 }),
+    ])
+  })
+
+  it('authors Transform Effect scales as multipliers without converting stored values (#610)', async () => {
+    const user = userEvent.setup()
+    const onChange = vi.fn()
+    const effects: ShowClipEffect[] = [{ id: 'size', kind: 'scale', x: 1, y: 0.75 }]
+    render(<ShowEffectStack effects={effects} onChange={onChange} onAdd={vi.fn()} />)
+
+    await user.click(screen.getByRole('button', { name: 'Edit Scale Effect' }))
+    const xScale = screen.getByRole('textbox', { name: 'X scale exact multiplier' })
+    expect(xScale).toHaveValue('1')
+    expect(screen.getByRole('textbox', { name: 'Y scale exact multiplier' })).toHaveValue('0.75')
+    await user.clear(xScale)
+    await user.type(xScale, '1.5x')
+    await user.tab()
+
+    expect(onChange).toHaveBeenCalledWith([
+      { id: 'size', kind: 'scale', x: 1.5, y: 0.75 },
     ])
   })
 

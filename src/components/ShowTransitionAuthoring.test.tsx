@@ -158,13 +158,49 @@ describe('Show Transition authoring UI', () => {
     render(<ShowTransitionParameters transition={show.transitions![0]} item={split} onChange={onChange} />)
 
     const feather = screen.getByRole('textbox', { name: 'Feather exact percentage' })
-    expect(feather).toHaveValue('0%')
+    expect(feather).toHaveValue('0')
     await user.clear(feather)
     await user.type(feather, '12.5%')
     await user.tab()
 
     expect(onChange).toHaveBeenCalledOnce()
     expect(onChange).toHaveBeenCalledWith('feather', 0.125)
+  })
+
+  it('presents shape Aspect as a ratio while preserving the numeric transition model (#610)', async () => {
+    const user = userEvent.setup()
+    const catalogue = buildShowToolkitPresentationCatalogue({ stageDimensions: 2 })
+    const ellipse = catalogue.find((item) => item.key === 'transition:shape-reveal:ellipse')!
+    const base = createDefaultShow('show-ratio-transition', 'Ratio Transition', 1)
+    const show = replaceShowBoundaryTransition(base, base.transitions![0].id, ellipse)
+    const onChange = vi.fn()
+    render(<ShowTransitionParameters transition={show.transitions![0]} item={ellipse} onChange={onChange} />)
+
+    const aspect = screen.getByRole('textbox', { name: 'Aspect exact ratio' })
+    expect(aspect).toHaveValue('1:1')
+    await user.clear(aspect)
+    await user.type(aspect, '16:9')
+    await user.tab()
+
+    expect(onChange).toHaveBeenCalledWith('aspect', 16 / 9)
+  })
+
+  it('presents motion Endpoint scale as a multiplier in unchanged model units (#610)', async () => {
+    const user = userEvent.setup()
+    const catalogue = buildShowToolkitPresentationCatalogue({ stageDimensions: 2 })
+    const zoom = catalogue.find((item) => item.key === 'transition:motion:zoom-in')!
+    const base = createDefaultShow('show-multiplier-transition', 'Multiplier Transition', 1)
+    const show = replaceShowBoundaryTransition(base, base.transitions![0].id, zoom)
+    const onChange = vi.fn()
+    render(<ShowTransitionParameters transition={show.transitions![0]} item={zoom} onChange={onChange} />)
+
+    const scale = screen.getByRole('textbox', { name: 'Endpoint scale exact multiplier' })
+    expect(scale).toHaveValue('0.01')
+    await user.clear(scale)
+    await user.type(scale, '0.25x')
+    await user.tab()
+
+    expect(onChange).toHaveBeenCalledWith('contentScale', 0.25)
   })
 
   it('reverts the draft on Escape without committing the abandoned edit', async () => {

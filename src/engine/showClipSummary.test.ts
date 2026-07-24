@@ -85,7 +85,7 @@ describe('Show Clip summary', () => {
       'animation',
     ])
     expect(showClipInlineSummary(summary)).toBe(
-      'Animation speed 0.5× · Start offset 250 ms · Amount 30% · Brightness 75% · Hue 0.1 turn · Animation speed animated · Brightness animated',
+      'Animation speed 0.5x · Start offset 250 ms · Amount 30% · Brightness 75% · Hue 0.1 turn · Animation speed animated · Brightness animated',
     )
     expect(summary.find((section) => section.kind === 'animation')?.items).not.toContainEqual(
       expect.objectContaining({ label: 'Position X' }),
@@ -266,7 +266,7 @@ describe('Show Clip summary', () => {
       'animation',
     ])
     expect(summary.find((section) => section.kind === 'playback')?.items).toContainEqual(
-      expect.objectContaining({ label: 'Animation speed', value: '0.35×' }),
+      expect.objectContaining({ label: 'Animation speed', value: '0.35x' }),
     )
     expect(summary.find((section) => section.kind === 'controls')?.items).toEqual([
       expect.objectContaining({ label: 'Speed', value: '28%' }),
@@ -283,7 +283,7 @@ describe('Show Clip summary', () => {
       expect.objectContaining({ label: 'Animation speed', value: 'animated' }),
     )
     expect(showClipInlineSummary(summary)).toBe(
-      'Animation speed 0.35× · Speed 28% · Sharpness 42% · Brightness 80% · Scale X 0.8, Y 0.8 · Hue 0.1 turn · Animation speed animated',
+      'Animation speed 0.35x · Speed 28% · Sharpness 42% · Brightness 80% · Scale X 0.8x, Y 0.8x · Hue 0.1 turn · Animation speed animated',
     )
   })
 
@@ -295,11 +295,16 @@ describe('Show Clip summary', () => {
     expect(showClipInlineSummary(summary)).toBe('defaults')
   })
 
-  it('formats only explicitly classified Effect scalars as percentages', () => {
+  it('formats explicitly classified Effect scalars in their authored domain units', () => {
     const show = createDefaultShow('show-effect-percent-summary', 'Effect percentages', 1_000)
     show.cells[0].effects = [
       { id: 'fade', kind: 'opacity', opacity: 0.25 },
       { id: 'hue', kind: 'hue', turns: 0.1 },
+      { id: 'size', kind: 'scale', x: 2.507072, y: 0.75 },
+      {
+        id: 'edge', kind: 'vignette', amount: 1, radius: 0.35, softness: 0.35,
+        centerX: 0.5, centerY: 0.5, aspect: 16 / 9,
+      },
     ]
 
     const effects = projectGlobalShowClipSummary(show, show.cells[0].id)
@@ -308,6 +313,12 @@ describe('Show Clip summary', () => {
     expect(effects).toEqual([
       expect.objectContaining({ label: 'Opacity', value: '25%' }),
       expect.objectContaining({ label: 'Hue', value: '0.1 turn' }),
+      expect.objectContaining({
+        label: 'Scale',
+        value: 'X 2.51x, Y 0.75x',
+        timelineValue: 'x 2.51x, y 0.75x',
+      }),
+      expect.objectContaining({ label: 'Vignette', value: expect.stringContaining('Aspect 16:9') }),
     ])
   })
 
@@ -316,7 +327,7 @@ describe('Show Clip summary', () => {
     const cellId = show.cells[1].id
     show.cells[1] = {
       ...show.cells[1],
-      transform: { positionX: 0.25, positionY: 0, rotation: 0.25, scaleX: 1.5, scaleY: 1 },
+      transform: { positionX: 0.25, positionY: 0, rotation: 0.25, scaleX: 2.507072, scaleY: 1 },
     }
     show = updateShowBoundaryTransition(show, 'transition-scene-1', {
       propertyTransitions: {
@@ -328,7 +339,7 @@ describe('Show Clip summary', () => {
     expect(summary.find((section) => section.kind === 'view')?.items).toEqual(expect.arrayContaining([
       expect.objectContaining({ label: 'Position X', value: '0.25' }),
       expect.objectContaining({ label: 'Rotation', value: '90 deg' }),
-      expect.objectContaining({ label: 'Scale X', value: '1.5x' }),
+      expect.objectContaining({ label: 'Scale X', value: '2.51x', timelineValue: 'sx 2.51x' }),
     ]))
     expect(summary.find((section) => section.kind === 'animation')?.items).toContainEqual(
       expect.objectContaining({ label: 'Position X', value: 'animated' }),
@@ -343,7 +354,7 @@ describe('Show Clip summary', () => {
     const unchanged = projectGlobalShowClipSummary(show, show.cells[1].id)
 
     expect(projectShowClipTimelineSummary(first, null).flatMap((section) => section.items)).toEqual([
-      expect.objectContaining({ id: 'time-scale', value: '0.35×', showValue: true }),
+      expect.objectContaining({ id: 'time-scale', value: '0.35x', showValue: true }),
       expect.objectContaining({ id: 'brightness', value: '80%', showValue: true }),
     ])
     expect(projectShowClipTimelineSummary(unchanged, first).flatMap((section) => section.items)).toEqual([
@@ -354,7 +365,7 @@ describe('Show Clip summary', () => {
     show = updateShowCellAdaptations(show, show.cells[1].id, { timeScale: 0.5 })
     const changed = projectGlobalShowClipSummary(show, show.cells[1].id)
     expect(projectShowClipTimelineSummary(changed, first).flatMap((section) => section.items)).toEqual([
-      expect.objectContaining({ id: 'time-scale', value: '0.5×', showValue: true }),
+      expect.objectContaining({ id: 'time-scale', value: '0.5x', showValue: true }),
       expect.objectContaining({ id: 'brightness', value: '80%', showValue: false }),
     ])
   })

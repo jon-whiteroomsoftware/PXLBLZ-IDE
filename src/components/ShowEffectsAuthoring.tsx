@@ -2,6 +2,7 @@ import { useEffect, useMemo, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
 import { useNumberFieldDraft } from '@/components/ui/number-field'
 import { PercentageField } from '@/components/ui/percentage-field'
+import { DomainNumberField } from '@/components/ui/domain-number-field'
 import { ColorField } from '@/components/ui/color-field'
 import {
   ArrowDown,
@@ -290,6 +291,24 @@ export function ShowEffectStack({
                             <PercentageField
                               key={parameter.id}
                               label={parameter.label}
+                              value={parameterValue}
+                              min={parameter.min ?? 0}
+                              max={parameter.max ?? 1}
+                              step={parameter.step ?? 0.01}
+                              variant="editor"
+                              compact
+                              onPreview={(next) => onPreview?.(updateEffects(next))}
+                              onPreviewEnd={onPreviewEnd}
+                              onChange={(next) => onChange(updateEffects(next))}
+                            />
+                          )
+                        }
+                        if (parameter.presentation === 'multiplier' || parameter.presentation === 'ratio') {
+                          return (
+                            <DomainNumberField
+                              key={parameter.id}
+                              label={parameter.label}
+                              presentation={parameter.presentation}
                               value={parameterValue}
                               min={parameter.min ?? 0}
                               max={parameter.max ?? 1}

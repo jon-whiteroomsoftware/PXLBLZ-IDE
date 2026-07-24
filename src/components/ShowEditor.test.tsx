@@ -1323,6 +1323,32 @@ describe('ShowEditor (#318)', () => {
     expect(screen.queryByRole('dialog', { name: 'Entity Detail Panel' })).not.toBeInTheDocument()
   })
 
+  it('keeps Clip details open while dragging a portaled domain slider (#610)', async () => {
+    const user = userEvent.setup()
+    const show = createDefaultShow('show-domain-slider-detail', 'Domain slider detail', 1000)
+    useShowStore.setState({ shows: [show], activeShowId: show.id, showsLoaded: true })
+
+    render(<ShowEditor showId={show.id} />)
+    await user.click(screen.getByRole('button', { name: 'Select TestPattern1D' }))
+
+    const panel = screen.getByRole('dialog', { name: 'Entity Detail Panel' })
+    const grip = within(panel).getByRole('button', { name: 'Adjust Animation speed with slider' })
+    Object.defineProperty(grip, 'setPointerCapture', { configurable: true, value: vi.fn() })
+    Object.defineProperty(grip, 'releasePointerCapture', { configurable: true, value: vi.fn() })
+    vi.spyOn(grip, 'getBoundingClientRect').mockReturnValue({
+      x: 380, y: 100, left: 380, right: 398, top: 100, bottom: 124, width: 18, height: 24, toJSON: () => ({}),
+    })
+
+    fireEvent.pointerDown(grip, { pointerId: 7, clientX: 389, clientY: 112 })
+    fireEvent.pointerUp(grip, { pointerId: 7, clientX: 389, clientY: 112 })
+    const slider = screen.getByRole('slider', { name: 'Animation speed multiplier slider' })
+    Object.defineProperty(slider, 'setPointerCapture', { configurable: true, value: vi.fn() })
+    fireEvent.pointerDown(slider, { pointerId: 8, clientX: 420, clientY: 112 })
+
+    expect(screen.getByRole('dialog', { name: 'Entity Detail Panel' })).toBeInTheDocument()
+    expect(slider).toBeInTheDocument()
+  })
+
   it('adds a Clip to the topmost available Layer without asking for a destination (#594)', async () => {
     const user = userEvent.setup()
     const show = createDefaultShow('show-auto-add-layer', 'Automatic Add Layer', 1000)
@@ -1433,7 +1459,7 @@ describe('ShowEditor (#318)', () => {
     render(<ShowEditor showId={show.id} />)
 
     const clip = screen.getByRole('button', { name: 'Select Summary Rings' })
-    expect(within(clip).getByText('0.5×')).toBeInTheDocument()
+    expect(within(clip).getByText('0.5x')).toBeInTheDocument()
     expect(within(clip).getByText('75%')).toBeInTheDocument()
     expect(within(clip).getByText('0.1 turn')).toBeInTheDocument()
     expect(within(clip).getByText('animated')).toBeInTheDocument()
@@ -1446,7 +1472,7 @@ describe('ShowEditor (#318)', () => {
     expect(header).not.toHaveTextContent('Main Layer')
     expect(header).not.toHaveTextContent('Pattern Clip')
     const summary = within(panel).getByRole('region', { name: 'Clip summary' })
-    expect(summary).toHaveTextContent('Animation speed0.5×')
+    expect(summary).toHaveTextContent('Animation speed0.5x')
     expect(summary).toHaveTextContent('Brightness75%')
     expect(summary).toHaveTextContent('Hue0.1 turn')
     expect(summary).toHaveTextContent('Animation speedanimated')
@@ -1476,6 +1502,52 @@ describe('ShowEditor (#318)', () => {
 
     expect(within(screen.getByRole('dialog', { name: 'Entity Detail Panel' }))
       .getByRole('region', { name: 'Clip summary' })).toHaveTextContent('Animation speedanimated')
+  })
+
+  it('authors boundary speed and repeat scales as multipliers while persisting raw values (#610)', async () => {
+    const user = userEvent.setup()
+    const show = createDefaultShow('show-boundary-domain-units', 'Boundary domain units', 1000)
+    show.scenes = [
+      { ...show.scenes[0], sampleTargets: { repeatScale: 1 } },
+      { ...show.scenes[1], sampleTargets: { repeatScale: 2 } },
+    ]
+    show.cells[1] = {
+      ...show.cells[1],
+      adaptations: { ...show.cells[1].adaptations, timeScale: 0.25 },
+    }
+    show.transitions = [{
+      ...show.transitions![0],
+      propertyTransitions: {
+        timeScale: {
+          fromByCellId: { [show.cells[1].id]: 0.5 },
+          durationMs: 1_000,
+        },
+        sample: {
+          repeatScale: { from: 1.5, durationMs: 1_000 },
+        },
+      },
+    }]
+    setPersonalContentProvider(memoryProvider([show]))
+    useShowStore.setState({ shows: [show], activeShowId: show.id, showsLoaded: true })
+
+    render(<ShowEditor showId={show.id} />)
+    await user.click(screen.getByRole('button', {
+      name: 'Edit crossfade Transition between TestPattern1D and CometLoom',
+    }))
+    await user.click(screen.getByText('Advanced transition controls'))
+
+    expect(screen.getByRole('textbox', { name: 'Animation speed start main exact multiplier' })).toHaveValue('0.5')
+    expect(screen.getByRole('textbox', { name: 'Animation speed target main exact multiplier' })).toHaveValue('0.25')
+    expect(screen.getByRole('textbox', { name: 'Repeat scale start exact multiplier' })).toHaveValue('1.5')
+
+    changeCommittedNumber('Animation speed target main exact multiplier', '0x')
+    changeCommittedNumber('Repeat scale start exact multiplier', '2x')
+
+    await waitFor(() => {
+      const saved = useShowStore.getState().shows.find((candidate) => candidate.id === show.id)!
+      expect(saved.cells[1].adaptations.timeScale).toBe(0)
+      expect(saved.transitions?.[0].propertyTransitions?.sample?.repeatScale?.from).toBe(2)
+    })
   })
 
   it('contracts unchanged values across a non-Cut Clip junction (#599 review)', () => {
@@ -3405,7 +3477,7 @@ describe('ShowEditor (#318)', () => {
 
     expect(screen.getByLabelText('Wave axis')).toHaveValue('x')
     expect(screen.getByLabelText('Wave band count')).toHaveValue(4)
-    expect(screen.getByRole('textbox', { name: 'Wave amplitude exact percentage' })).toHaveValue('30%')
+    expect(screen.getByRole('textbox', { name: 'Wave amplitude exact percentage' })).toHaveValue('30')
     expect(screen.getByLabelText('Wave frequency')).toHaveValue(2.5)
     expect(screen.getByLabelText('Wave phase')).toHaveValue(0)
     await user.selectOptions(screen.getByLabelText('Wave axis'), 'y')
@@ -3444,7 +3516,7 @@ describe('ShowEditor (#318)', () => {
     await user.selectOptions(screen.getByLabelText('Default routing mode'), 'soft-split')
 
     expect(screen.getByLabelText('Soft Split axis')).toHaveValue('x')
-    expect(screen.getByRole('textbox', { name: 'Soft Split feather exact percentage' })).toHaveValue('20%')
+    expect(screen.getByRole('textbox', { name: 'Soft Split feather exact percentage' })).toHaveValue('20')
     expect(screen.getByText(/inside the feather, both patterns render/i)).toBeInTheDocument()
     expect(screen.getByRole('group', { name: 'Split position lane' })).toBeInTheDocument()
     await user.selectOptions(screen.getByLabelText('Soft Split axis'), 'y')

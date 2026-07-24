@@ -137,14 +137,17 @@ Exported functions create the same controls Pixelblaze users know:
 arrays summarized element by element.
 
 Straight normalized scalars are presented as percentages throughout Studio.
-An exact field accepts either `72%` or the underlying normalized value `0.72`,
-then displays the canonical `72%`; the saved Pattern, Show, or Controller
+An exact field shows `72` with a fixed `%` suffix outside the editable box and
+accepts either `72` or pasted `72%`; the saved Pattern, Show, or Controller
 Profile still stores `0.72`. The small grip at the field's right edge opens a
 high-resolution horizontal slider without permanently consuming inspector
 space. Hold and drag to preview continuously and save once on release, or
 click the grip to pin the slider for Arrow, Home/End, Enter, and Escape
-control. Preview and Controller deck sliders keep their full-width layout but
-use the same percentage readout and accessible value text.
+control. A pinned slider keeps pointer capture during a drag, so releasing
+after the pointer leaves the track still saves the final preview. The slider
+popover remains part of its owning detail panel for outside-click behavior.
+Preview and Controller deck sliders keep their full-width layout but use the
+same percentage readout and accessible value text.
 
 Percentage presentation is semantic, not inferred from a `0..1` range.
 Brightness, opacity, duty, diffusion, public Pattern controls, ordinary Effect
@@ -152,6 +155,23 @@ amounts, thresholds, softness, and feather use it; gain controls may extend
 past `100%`. Phase, turns, geometry, spatial scale, time, integer counts,
 multipliers, and ratios retain their own units even when their storage happens
 to be normalized.
+
+Multiplicative values display their operation directly: `1x` is neutral,
+`0x` pauses Animation speed, and other factors use the same `x` notation in
+timeline summaries and the Preview speed selector. Editable fields show the
+numeric part with a fixed `x` suffix outside the box and accept either `1.5`
+or pasted `1.5x`. Animation speed, Clip Transform Width/Height, Repeat scale,
+and multiplicative Effect or Transition parameters share this presentation.
+Their compact slider marks `1x` and gives extra travel to the useful region
+around neutral while preserving exact endpoints and zero. Compact Clip
+summaries round numeric multiplier values to at most two decimal places
+without changing the stored value.
+
+Aspect values use ratios when the value has a clear small-integer form. For
+example, a widescreen Aspect displays as `16:9`; exact entry also accepts the
+equivalent decimal. Values without a concise ratio retain decimal notation.
+Multiplier and ratio text is presentation only: saved Shows and generated
+Pixelblaze artifacts continue to carry the same real numeric values.
 
 Patterns may also call **libraries** with namespace syntax such as
 `SDF.circle(...)` — see [section 7](#7-libraries-and-mixins).

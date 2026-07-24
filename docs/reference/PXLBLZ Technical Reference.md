@@ -1501,14 +1501,16 @@ explicit field boundary, maps pointer travel at up to one-thousandth of the
 field span, and places the transient slider so its current thumb begins under
 the initiating pointer while the overlay remains inside the viewport.
 
-`PercentageField` combines a buffered exact draft with a compact grip and a
-portaled horizontal range input. Pointer movement may call an ephemeral preview
-callback many times, but release ends preview before emitting at most one
-persisted change. Pointer cancellation, lost capture, Escape, and unmount end
-preview and restore the committed value. A click without movement pins the
-range; Enter and Space also open it from the grip, Arrow keys use the authored
-semantic step, Home/End select endpoints, Enter commits, and Escape cancels.
-Invalid or incomplete exact drafts remain local until blur and then revert.
+`BoundedNumberField` owns the buffered exact draft, compact grip, and portaled
+horizontal range input shared by domain-aware scalar fields.
+`PercentageField` supplies its linear percentage presentation. Pointer movement
+may call an ephemeral preview callback many times, but release ends preview
+before emitting at most one persisted change. Pointer cancellation, lost
+capture, Escape, and unmount end preview and restore the committed value. A
+click without movement pins the range; Enter and Space also open it from the
+grip, Arrow keys use the authored semantic step, Home/End select endpoints,
+Enter commits, and Escape cancels. Invalid or incomplete exact drafts remain
+local until blur and then revert.
 
 Percentage semantics are opt-in. `ShowToolkitParameterDescriptor.presentation`
 marks eligible Effect and Transition parameters; the frozen visual-toolkit
@@ -1519,6 +1521,48 @@ storage range. Full-width `DeckSlider` controls use the same formatter and
 `aria-valuetext` without changing their layout. Stored records, preview
 overrides, compiler inputs, Controller writes, and generated Pixelblaze source
 all remain in real units.
+
+### Multiplier and ratio presentation contract
+
+`domainNumberPresentation.ts` is the framework-free boundary for multiplicative
+and ratio-valued numbers. One resolved presentation carries semantic kind,
+bounds, step, neutral value and slider position, canonical formatting, exact
+parsing, and the invertible value-to-slider mapping. `DomainNumberField` adapts
+that contract to `BoundedNumberField`; call sites pass real model values and do
+not perform display conversions.
+
+Multiplier exact entry accepts a decimal with an optional ASCII `x` suffix and
+renders the numeric draft with a fixed `x` suffix outside the input.
+`PercentageField` uses the same structure with `%`; its numeric draft is in
+percentage units, while parsing still accepts pasted suffixed text. Ratio
+drafts remain self-contained because the separator is part of the value.
+Display-only summaries retain attached units. Compact multiplier summaries
+round to at most two decimals without modifying the real value.
+
+The multiplier's piecewise power mapping places `1x` at the midpoint when the
+authored range crosses one and at the appropriate endpoint otherwise. This
+concentrates adjustment precision on both sides of neutral while preserving
+the exact minimum, maximum, and any meaningful zero. The slider renders a
+neutral marker at the resolved position. Its portaled container is a named
+non-modal dialog, so Show detail outside-click capture recognizes the slider
+as an owned interaction instead of dismissing the detail panel. The range
+captures its active pointer until release; leaving the track therefore commits
+the last preview rather than turning an outside release into cancellation.
+
+Ratio exact entry accepts either a decimal or `numerator:denominator`; a zero
+denominator is invalid. Canonical formatting uses a reduced small-integer ratio
+when the numeric value has one with a denominator no larger than 32, and a
+step-precision decimal otherwise. Positive ratio ranges use logarithmic travel,
+which gives equal multiplicative changes equal slider distance and preserves
+exact endpoints.
+
+`ShowToolkitParameterDescriptor.presentation` selects `multiplier` and `ratio`
+for Effect and Transition parameters just as it selects `percentage`. Explicit
+non-toolkit call sites cover Animation speed, Clip Transform Scale X/Y, Repeat
+scale, and the Preview speed selector. Exact drafts, clamping, cancellation,
+pointer preview, and one-change commit semantics remain owned by the shared
+bounded field. Stored records, Property animation targets, compiler inputs, and
+generated Pixelblaze source remain ordinary real-unit numbers.
 
 `showClipTransform.ts` owns Clip Transform normalization, neutral-value
 compaction, and compiler lowering. The persisted record uses normalized
@@ -2881,7 +2925,7 @@ counterclockwise Spin, and combined Zoom + Spin; compiler tests cover
 boundary, midpoint, anchored scaling, transformed sampling, and both renderer
 policies.
 
-Property transitions share one descriptor model. Animation speed (`0×..4×`),
+Property transitions share one descriptor model. Animation speed (`0x..4x`),
 brightness (`0%..100%` in the UI, `0..1` in the model), and exported slider
 controls carry destination targets on clips. Moving
 split position (`0..1`) and sample repeat scale (`1..8`) carry their targets on

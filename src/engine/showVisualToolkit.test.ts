@@ -286,6 +286,21 @@ describe('Show visual-toolkit contract', () => {
       .toEqual(['selector', 'full-blend'])
   })
 
+  it('classifies factor and aspect parameters with shared domain presentation metadata (#610)', () => {
+    expect(resolveShowToolkitParameters('effect', 'affine', 'scale', {})).toEqual(expect.arrayContaining([
+      expect.objectContaining({ id: 'scaleX', presentation: 'multiplier', min: 0.01, max: 8, step: 0.01 }),
+      expect.objectContaining({ id: 'scaleY', presentation: 'multiplier', min: 0.01, max: 8, step: 0.01 }),
+    ]))
+    expect(resolveShowToolkitParameters('effect', 'output', 'vignette', {}))
+      .toContainEqual(expect.objectContaining({ id: 'aspect', presentation: 'ratio', min: 0.1, max: 10 }))
+    expect(resolveShowToolkitParameters('transition', 'shape-reveal', 'ellipse', {})).toEqual(expect.arrayContaining([
+      expect.objectContaining({ id: 'scale', presentation: 'multiplier', min: 0.25, max: 2 }),
+      expect.objectContaining({ id: 'aspect', presentation: 'ratio', min: 0.25, max: 4 }),
+    ]))
+    expect(resolveShowToolkitParameters('transition', 'motion', 'zoom-in', {}))
+      .toContainEqual(expect.objectContaining({ id: 'contentScale', presentation: 'multiplier', min: 0.01, max: 1 }))
+  })
+
   it('rejects descriptors whose conditions or presets reference private parameters', () => {
     const invalid = structuredClone(SHOW_VISUAL_TOOLKIT_REGISTRY)
     invalid[0].parameters.push({

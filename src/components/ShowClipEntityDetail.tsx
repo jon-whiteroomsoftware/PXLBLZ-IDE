@@ -1,6 +1,7 @@
 import { useState, type ReactNode } from 'react'
 import { NumberField } from './ui/number-field'
 import { PercentageField } from './ui/percentage-field'
+import { DomainNumberField } from './ui/domain-number-field'
 import { Grid2X2 } from 'lucide-react'
 import { PatternCombobox, type PatternComboboxOption } from './PatternCombobox'
 import { ShowEffectStack } from './ShowEffectsAuthoring'
@@ -90,8 +91,8 @@ export function ShowClipEntityDetail({
       </header>}
 
       <div className={embedded ? '' : 'p-2.5'}>
-        <div data-testid="clip-primary-fields" className="grid min-w-0 items-end gap-2 sm:grid-cols-5">
-          <label className="block min-w-0 text-[9px] uppercase tracking-[0.1em] text-zinc-600 sm:col-span-3">
+        <div data-testid="clip-primary-fields" className="grid min-w-0 items-end gap-2 sm:grid-cols-[minmax(0,2fr)_minmax(0,1fr)_minmax(0,1fr)]">
+          <label className="block min-w-0 text-[9px] uppercase tracking-[0.1em] text-zinc-600">
             Source pattern
             <PatternCombobox
               key={`${value.owner.kind}:${value.pattern.kind}:${value.pattern.id}`}
@@ -112,16 +113,18 @@ export function ShowClipEntityDetail({
               }}
             />
           </label>
-          <ShowInspectorNumberField
+          <DomainNumberField
             label="Speed"
             ariaLabel="Animation speed"
+            presentation="multiplier"
             value={value.simulation.timeScale}
             min={0}
             max={4}
             step={0.1}
-            suffix="×"
             disabled={readOnly}
             help="How quickly Pattern animation advances. Does not change Clip duration or frame rate."
+            onPreview={(timeScale) => onPreviewPatch?.({ simulation: { timeScale } })}
+            onPreviewEnd={onPreviewEnd}
             onChange={(timeScale) => onPatch({ simulation: { timeScale } })}
           />
           <PercentageField
@@ -139,8 +142,8 @@ export function ShowClipEntityDetail({
         </div>
 
         {capabilities.localTiming && value.local && (
-          <div data-testid="clip-local-fields" className={`mt-2 grid items-end gap-2 ${capabilities.sourceOverOpacity ? 'sm:grid-cols-4' : 'sm:grid-cols-5'}`}>
-            <div data-field-span className={capabilities.sourceOverOpacity ? '' : 'sm:col-span-3'}>
+          <div data-testid="clip-local-fields" className={`mt-2 grid items-end gap-2 ${capabilities.sourceOverOpacity ? 'sm:grid-cols-4' : 'sm:grid-cols-2'}`}>
+            <div data-field-span>
               <ShowInspectorNumberField
                 label="Start"
                 ariaLabel="Start seconds"
@@ -153,7 +156,7 @@ export function ShowClipEntityDetail({
                 onChange={(seconds) => onPatch({ local: { startMs: Math.round(seconds * 1_000) } })}
               />
             </div>
-            <div data-field-span className={capabilities.sourceOverOpacity ? '' : 'sm:col-span-2'}>
+            <div data-field-span>
               <ShowInspectorNumberField
                 label="Duration"
                 ariaLabel="Duration seconds"
@@ -204,7 +207,14 @@ export function ShowClipEntityDetail({
         >
           <summary className="cursor-pointer py-1 text-[9px] font-medium uppercase tracking-[0.12em] text-cyan-300/80">Placement</summary>
           <div className="grid min-w-0 gap-2 pb-0.5">
-            <ClipContentGeometry value={value} readOnly={readOnly} qualified onPatch={onPatch} />
+            <ClipContentGeometry
+              value={value}
+              readOnly={readOnly}
+              qualified
+              onPreviewPatch={onPreviewPatch}
+              onPreviewEnd={onPreviewEnd}
+              onPatch={onPatch}
+            />
             <label className="mt-1 flex items-center gap-1.5 text-[9px] font-medium uppercase tracking-[0.12em] text-cyan-300/80">
               <span>Viewport</span>
               <input
@@ -530,19 +540,23 @@ function ClipContentGeometry({
   value,
   readOnly,
   qualified = false,
+  onPreviewPatch,
+  onPreviewEnd,
   onPatch,
 }: {
   value: ShowClipInspectorValue
   readOnly: boolean
   qualified?: boolean
+  onPreviewPatch?: ShowClipEntityDetailProps['onPreviewPatch']
+  onPreviewEnd?: ShowClipEntityDetailProps['onPreviewEnd']
   onPatch: (patch: ShowClipInspectorPatch) => void
 }) {
   const aria = (label: string) => qualified ? `Content ${label}` : label
   return <div className="grid min-w-0 grid-cols-2 items-end gap-x-2 gap-y-1.5 sm:grid-cols-5">
     <ShowInspectorNumberField label="X" ariaLabel={aria('X')} value={value.transform.positionX} min={-4} max={4} step={0.01} disabled={readOnly} onChange={(positionX) => onPatch({ transform: { positionX } })} />
     <ShowInspectorNumberField label="Y" ariaLabel={aria('Y')} value={value.transform.positionY} min={-4} max={4} step={0.01} disabled={readOnly} onChange={(positionY) => onPatch({ transform: { positionY } })} />
-    <ShowInspectorNumberField label="Width" ariaLabel={aria('Width')} value={value.transform.scaleX} min={0.01} max={8} step={0.01} disabled={readOnly} onChange={(scaleX) => onPatch({ transform: { scaleX } })} />
-    <ShowInspectorNumberField label="Height" ariaLabel={aria('Height')} value={value.transform.scaleY} min={0.01} max={8} step={0.01} disabled={readOnly} onChange={(scaleY) => onPatch({ transform: { scaleY } })} />
+    <DomainNumberField label="Width" ariaLabel={aria('Width')} presentation="multiplier" value={value.transform.scaleX} min={0.01} max={8} step={0.01} disabled={readOnly} onPreview={(scaleX) => onPreviewPatch?.({ transform: { scaleX } })} onPreviewEnd={onPreviewEnd} onChange={(scaleX) => onPatch({ transform: { scaleX } })} />
+    <DomainNumberField label="Height" ariaLabel={aria('Height')} presentation="multiplier" value={value.transform.scaleY} min={0.01} max={8} step={0.01} disabled={readOnly} onPreview={(scaleY) => onPreviewPatch?.({ transform: { scaleY } })} onPreviewEnd={onPreviewEnd} onChange={(scaleY) => onPatch({ transform: { scaleY } })} />
     <ShowInspectorNumberField label="Rotation" ariaLabel="Rotation degrees" value={value.transform.rotation * 360} min={-2880} max={2880} step={1} suffix="deg" disabled={readOnly} onChange={(degrees) => onPatch({ transform: { rotation: degrees / 360 } })} />
   </div>
 }

@@ -732,7 +732,7 @@ describe('ControllerProfilePage', () => {
     fireEvent.click(screen.getByRole('button', { name: 'From power budget' }))
 
     expect(await screen.findByRole('spinbutton', { name: 'LED full-white current' })).toHaveValue(60)
-    expect(screen.getByRole('textbox', { name: 'Controller brightness percent exact percentage' })).toHaveValue('100%')
+    expect(screen.getByRole('textbox', { name: 'Controller brightness percent exact percentage' })).toHaveValue('100')
     expect(screen.getByRole('spinbutton', { name: 'Power budget amps' })).toHaveValue(3.6)
     expect(screen.queryByRole('spinbutton', { name: 'Pixel count' })).not.toBeInTheDocument()
 
@@ -789,7 +789,7 @@ describe('ControllerProfilePage', () => {
     render(<ControllerProfilePage profileId="ctrl-1" />)
 
     await waitFor(() => {
-      expect(screen.getByRole('textbox', { name: 'Controller brightness percent exact percentage' })).toHaveValue('50%')
+      expect(screen.getByRole('textbox', { name: 'Controller brightness percent exact percentage' })).toHaveValue('50')
     })
     expect(screen.getByText(/read from device/i)).toBeInTheDocument()
   })
