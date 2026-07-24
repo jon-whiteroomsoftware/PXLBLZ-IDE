@@ -64,13 +64,16 @@ export function projectCompositionShowClipSummary(
 ): ShowClipSummarySection[] {
   const materialized = materializeShowGroupOccurrences(composition)
   const segmentIds = new Set(clip.segmentIds ?? [clip.id])
-  const placement = materialized.scenes
-    .flatMap((scene) => scene.zones)
-    .flatMap((zone) => [
+  const ownedPlacements = materialized.scenes.flatMap((scene) => (
+    scene.zones.flatMap((zone) => [
       ...zone.main,
       ...zone.overlays.flatMap((layer) => layer.placements),
-    ])
-    .find((candidate) => segmentIds.has(candidate.id))
+    ]).flatMap((placement) => (
+      segmentIds.has(placement.id) ? [{ sceneId: scene.sceneId, placement }] : []
+    ))
+  ))
+  const placement = ownedPlacements[0]?.placement
+  const sceneIds = new Set(ownedPlacements.map((owner) => owner.sceneId))
   const instance = materialized.patternInstances.find((candidate) => candidate.id === clip.instanceId)
   if (!placement || !instance) return []
 
@@ -87,7 +90,14 @@ export function projectCompositionShowClipSummary(
     ...(instance.controlTargets ? { controlTargets: instance.controlTargets } : {}),
     ...(placement.transform ? { transform: placement.transform } : {}),
     ...(placement.effects ? { effects: placement.effects } : {}),
-  }, controlLabels, compositionAnimationItems(materialized, clip, segmentIds, placement.effects, controlLabels))
+  }, controlLabels, compositionAnimationItems(
+    materialized,
+    clip,
+    segmentIds,
+    sceneIds,
+    placement.effects,
+    controlLabels,
+  ))
 }
 
 type ClipSummarySource = Pick<
@@ -141,14 +151,18 @@ function compositionAnimationItems(
   composition: ShowCompositionV1,
   clip: Pick<ShowUnifiedTimelineClipProjection, 'instanceId'>,
   segmentIds: ReadonlySet<string>,
+  sceneIds: ReadonlySet<string>,
   effects: readonly ShowClipEffect[] | undefined,
   controlLabels: Record<string, string>,
 ): ShowClipSummaryItem[] {
   const labels = new Map<string, string>()
-  for (const track of composition.scenes.flatMap((scene) => scene.propertyTracks ?? [])) {
-    if (!animationTargetBelongsToClip(track.target, clip.instanceId, segmentIds)) continue
-    const item = compositionAnimationItem(track.target, effects, controlLabels)
-    if (item) labels.set(item.id, item.label)
+  for (const scene of composition.scenes) {
+    if (!sceneIds.has(scene.sceneId)) continue
+    for (const track of scene.propertyTracks ?? []) {
+      if (!animationTargetBelongsToClip(track.target, clip.instanceId, segmentIds)) continue
+      const item = compositionAnimationItem(track.target, effects, controlLabels)
+      if (item) labels.set(item.id, item.label)
+    }
   }
   return [...labels].map(([id, label]) => ({ id, label, value: 'animated' }))
 }

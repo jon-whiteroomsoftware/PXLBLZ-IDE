@@ -146,6 +146,53 @@ describe('Show Clip summary', () => {
     })
   })
 
+  it('scopes instance animation to the Scenes owned by the projected Clip (#599 review)', () => {
+    const show = createDefaultShow('show-scene-scoped-summary', 'Scene-scoped summary', 1_000)
+    const zoneId = show.zones[0].id
+    const composition = {
+      version: 1 as const,
+      patternInstances: [{
+        id: 'instance-shared',
+        pattern: { kind: 'stock' as const, id: 'Rings' },
+        patternName: 'Rings',
+        time: { timeScale: 1, timeOffsetMs: 0 },
+      }],
+      scenes: show.scenes.map((scene, sceneIndex) => ({
+        sceneId: scene.id,
+        propertyTracks: sceneIndex === 1 ? [{
+          id: 'track-second-scene-speed',
+          target: { kind: 'instance-time-scale' as const, instanceId: 'instance-shared' },
+          keyframes: [
+            { id: 'speed-0', timeMs: 0, value: 1, easing: { curve: 'linear' as const } },
+            { id: 'speed-1', timeMs: 1_000, value: 0.5, easing: { curve: 'linear' as const } },
+          ],
+        }] : undefined,
+        zones: [{
+          zoneId,
+          main: [{
+            id: `placement-${sceneIndex}`,
+            instanceId: 'instance-shared',
+            startMs: 0,
+            durationMs: scene.durationMs,
+            view: { mirror: false, phase: 0, brightness: 1 },
+          }],
+          overlays: [],
+        }],
+      })),
+    }
+    const clips = projectShowUnifiedTimeline(show, composition).zones[0].layers[0].clips
+
+    const firstSummary = projectCompositionShowClipSummary(composition, clips[0])
+    const secondSummary = projectCompositionShowClipSummary(composition, clips[1])
+
+    expect(firstSummary.find((section) => section.kind === 'animation')).toBeUndefined()
+    expect(secondSummary.find((section) => section.kind === 'animation')?.items).toContainEqual({
+      id: 'animation:time-scale',
+      label: 'Animation speed',
+      value: 'animated',
+    })
+  })
+
   it('separates static playback, Pattern controls, view, Effects, and animation facts', () => {
     let show = createDefaultShow('show-clip-summary', 'Clip summary', 1_000)
     const cellId = show.cells[0].id

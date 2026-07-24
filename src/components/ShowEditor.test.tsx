@@ -1430,6 +1430,84 @@ describe('ShowEditor (#318)', () => {
     expect(summary).toHaveTextContent('Animation speedanimated')
   })
 
+  it('keeps compatibility Clip animation summaries aligned between timeline and Detail (#599 review)', async () => {
+    const user = userEvent.setup()
+    const show = createDefaultShow('show-compatibility-clip-summary', 'Compatibility Clip summary', 1000)
+    show.transitions = [{
+      ...show.transitions![0],
+      propertyTransitions: {
+        timeScale: {
+          fromByCellId: { [show.cells[0].id]: 0.5 },
+          durationMs: 1_000,
+          easing: { curve: 'linear' },
+        },
+      },
+    }]
+    useShowStore.setState({ shows: [show], activeShowId: show.id, showsLoaded: true })
+
+    render(<ShowEditor showId={show.id} />)
+
+    const clip = screen.getByRole('button', { name: 'Select TestPattern1D' })
+    expect(within(clip).getByText('animated')).toBeInTheDocument()
+
+    await user.click(clip)
+
+    expect(within(screen.getByRole('dialog', { name: 'Entity Detail Panel' }))
+      .getByRole('region', { name: 'Clip summary' })).toHaveTextContent('Animation speedanimated')
+  })
+
+  it('contracts unchanged values across a non-Cut Clip junction (#599 review)', () => {
+    const show = createDefaultShow('show-transition-summary-delta', 'Transition summary delta', 1000)
+    const sceneId = show.scenes[0].id
+    const zoneId = show.zones[0].id
+    show.composition = {
+      version: 1,
+      patternInstances: [{
+        id: 'instance-transition-summary',
+        pattern: { ...show.cells[0].pattern },
+        patternName: 'Summary Rings',
+        time: { timeScale: 1, timeOffsetMs: 0 },
+      }],
+      scenes: show.scenes.map((scene) => ({
+        sceneId: scene.id,
+        zones: [{
+          zoneId,
+          main: scene.id === sceneId ? [{
+            id: 'summary-left',
+            instanceId: 'instance-transition-summary',
+            startMs: 0,
+            durationMs: 1_000,
+            view: { mirror: false, phase: 0, brightness: 0.75 },
+          }, {
+            id: 'summary-right',
+            instanceId: 'instance-transition-summary',
+            startMs: 1_250,
+            durationMs: 1_000,
+            view: { mirror: false, phase: 0, brightness: 0.75 },
+          }] : [],
+          overlays: [],
+        }],
+      })),
+      transitions: [{
+        id: 'summary-crossfade',
+        fromPlacementId: 'summary-left',
+        toPlacementId: 'summary-right',
+        kind: 'crossfade',
+        durationMs: 250,
+        easing: { curve: 'linear' },
+        crossfadePolicy: 'live-live',
+      }],
+    }
+    useShowStore.setState({ shows: [show], activeShowId: show.id, showsLoaded: true })
+
+    render(<ShowEditor showId={show.id} />)
+
+    const clips = screen.getAllByRole('button', { name: 'Select Summary Rings' })
+    expect(within(clips[0]).getByText('75%')).toBeInTheDocument()
+    expect(within(clips[1]).queryByText('75%')).not.toBeInTheDocument()
+    expect(clips[1].querySelector('.show-clip-summary-section svg')).toBeInTheDocument()
+  })
+
   it('moves a composition Clip by dragging its unified Layer and restores Detail (#580)', async () => {
     const user = userEvent.setup()
     const show = createDefaultShow('show-drag-composition', 'Drag composition', 1000)

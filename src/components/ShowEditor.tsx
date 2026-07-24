@@ -4620,26 +4620,34 @@ function ShowTimelineWorkspace({
                   const preview = resizePreview?.clipId === clip.id ? resizePreview : clip
                   const left = preview.startMs / totalMs * 100
                   const width = preview.durationMs / totalMs * 100
-                  const patternControls = patternControlsByInstanceId[clip.instanceId] ?? []
-                  const summary = timelineComposition
-                    ? projectCompositionShowClipSummary(
-                        timelineComposition,
-                        clip,
-                        Object.fromEntries(patternControls.map((control) => [control.exportName, control.label])),
-                      )
-                    : []
                   const previousClip = layer.clips[clipIndex - 1]
-                  const previousPatternControls = previousClip
-                    ? patternControlsByInstanceId[previousClip.instanceId] ?? []
-                    : []
+                  const projectTimelineSummary = (
+                    target: ShowUnifiedTimelineClipProjection,
+                  ): ShowClipSummarySection[] => {
+                    const compatibilityCell = !show.composition
+                      ? compatibilityCellForTimelineClip(show, target)
+                      : null
+                    const patternControls = compatibilityCell
+                      ? patternControlsByCellId[compatibilityCell.id] ?? []
+                      : patternControlsByInstanceId[target.instanceId] ?? []
+                    const controlLabels = Object.fromEntries(
+                      patternControls.map((control) => [control.exportName, control.label]),
+                    )
+                    if (compatibilityCell) {
+                      return projectGlobalShowClipSummary(show, compatibilityCell.id, controlLabels)
+                    }
+                    return timelineComposition
+                      ? projectCompositionShowClipSummary(timelineComposition, target, controlLabels)
+                      : []
+                  }
+                  const summary = projectTimelineSummary(clip)
+                  const connectedToPrevious = Boolean(previousClip && layer.junctions.some((junction) => (
+                    junction.leftClipId === previousClip.id && junction.rightClipId === clip.id
+                  )))
                   const previousSummary = timelineComposition
                     && previousClip
-                    && previousClip.endMs === clip.startMs
-                    ? projectCompositionShowClipSummary(
-                        timelineComposition,
-                        previousClip,
-                        Object.fromEntries(previousPatternControls.map((control) => [control.exportName, control.label])),
-                      )
+                    && connectedToPrevious
+                    ? projectTimelineSummary(previousClip)
                     : null
                   const group = clip.groupOccurrenceId
                     ? unifiedZone.groups.find((candidate) => candidate.id === clip.groupOccurrenceId)
@@ -6408,6 +6416,16 @@ function ContextualInspector({
   ): ShowClipSummarySection[] => {
     const clip = compositionTimelineClips.find((candidate) => candidate.id === clipId)
     if (!compositionShow.composition || !clip) return []
+    if (!show.composition) {
+      const compatibilityCell = compatibilityCellForTimelineClip(show, clip)
+      if (!compatibilityCell) return []
+      const compatibilityControls = patternControlsByCellId[compatibilityCell.id] ?? []
+      return projectGlobalShowClipSummary(
+        show,
+        compatibilityCell.id,
+        Object.fromEntries(compatibilityControls.map((control) => [control.exportName, control.label])),
+      )
+    }
     return projectCompositionShowClipSummary(
       compositionShow.composition,
       clip,
@@ -8995,6 +9013,17 @@ function ClipSummaryInline({
       })}
     </span>
   )
+}
+
+function compatibilityCellForTimelineClip(
+  show: ShowRecord,
+  clip: Pick<ShowUnifiedTimelineClipProjection, 'id' | 'segmentIds' | 'sceneId' | 'zoneId'>,
+): ShowCell | null {
+  const segmentIds = new Set(clip.segmentIds ?? [clip.id])
+  return show.cells.find((cell) => {
+    const baseId = `placement-${cell.id}-${clip.sceneId}`
+    return segmentIds.has(baseId) || segmentIds.has(`${baseId}-${clip.zoneId}`)
+  }) ?? null
 }
 
 function ClipConfigurationSummary({ summary }: { summary: ShowClipSummarySection[] }) {
