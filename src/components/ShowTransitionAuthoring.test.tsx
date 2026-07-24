@@ -116,6 +116,7 @@ describe('Show Transition authoring UI', () => {
 
     const controls = screen.getByRole('group', { name: 'Star Transition parameters' })
     expect(within(controls).getByRole('spinbutton', { name: 'Points' })).toHaveValue(5)
+    expect(within(controls).getByRole('spinbutton', { name: 'Points' })).toHaveClass('h-5', 'px-[5px]')
     expect(within(controls).getByRole('combobox', { name: 'Reveal mode' })).toHaveValue('grow-incoming')
     const points = within(controls).getByRole('spinbutton', { name: 'Points' })
     fireEvent.change(points, { target: { value: '7' } })

@@ -1440,6 +1440,10 @@ describe('ShowEditor (#318)', () => {
     await user.click(clip)
 
     const panel = screen.getByRole('dialog', { name: 'Entity Detail Panel' })
+    const header = panel.querySelector<HTMLElement>('section[data-entity-family="clip"] > header')!
+    expect(within(header).getByRole('heading', { name: 'Summary Rings' })).toBeInTheDocument()
+    expect(header).not.toHaveTextContent('Main Layer')
+    expect(header).not.toHaveTextContent('Pattern Clip')
     const summary = within(panel).getByRole('region', { name: 'Clip summary' })
     expect(summary).toHaveTextContent('Animation speed0.5×')
     expect(summary).toHaveTextContent('Brightness75%')
@@ -2357,6 +2361,29 @@ describe('ShowEditor (#318)', () => {
     expect(screen.queryByRole('dialog', { name: 'Entity Detail Panel' })).not.toBeInTheDocument()
   })
 
+  it('deletes a selected flat Show Clip from its projected timeline placement (#63)', async () => {
+    const user = userEvent.setup()
+    const show = createDefaultShow('show-delete-flat-projection', 'Delete flat projection', 1000)
+    setPersonalContentProvider(memoryProvider([show]))
+    useShowStore.setState({ shows: [show], activeShowId: show.id, showsLoaded: true })
+
+    render(<ShowEditor showId={show.id} />)
+    const selectedClip = screen.getByRole('button', { name: 'Select TestPattern1D' })
+    expect(selectedClip).toHaveAttribute(
+      'data-show-selection-key',
+      'clip:placement-cell-1-scene-1',
+    )
+
+    await user.click(selectedClip)
+    await user.keyboard('{Delete}')
+
+    await waitFor(() => {
+      const saved = useShowStore.getState().shows.find((candidate) => candidate.id === show.id)
+      expect(saved?.cells.map((cell) => cell.id)).toEqual(['cell-2'])
+    })
+    expect(screen.queryByRole('button', { name: 'Select TestPattern1D' })).not.toBeInTheDocument()
+  })
+
   it('disables deletion when the selected Clip is the Show’s final Clip', async () => {
     const user = userEvent.setup()
     const show = removeShowClip(
@@ -2372,6 +2399,15 @@ describe('ShowEditor (#318)', () => {
     const remove = screen.getByRole('button', { name: 'Delete clip CometLoom' })
     expect(remove).toBeDisabled()
     expect(remove).toHaveAttribute('title', 'A Show must contain at least one Clip.')
+
+    await user.keyboard('{Delete}')
+
+    expect(screen.getByTestId('show-clip-delete-blocked')).toBeInTheDocument()
+    expect(screen.getByText('Keep one Clip')).toBeInTheDocument()
+    expect(screen.getByRole('status', { name: 'Clip deletion unavailable' })).toHaveTextContent(
+      'A Show must contain at least one Clip.',
+    )
+    expect(screen.getByRole('button', { name: 'Select CometLoom' })).toBeInTheDocument()
   })
 
   it('consolidates Show creation commands into one flat Add menu (#594)', async () => {

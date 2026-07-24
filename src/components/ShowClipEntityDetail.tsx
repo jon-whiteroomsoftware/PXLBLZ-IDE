@@ -55,6 +55,7 @@ export function ShowClipEntityDetail({
   const controlTargets = value.simulation.controlTargets
   const hasAuthoredPatternControls = Object.values(controlTargets ?? {}).some((target) => target !== undefined)
   const [patternTrayOpen, setPatternTrayOpen] = useState(hasAuthoredPatternControls)
+  const [placementOpen, setPlacementOpen] = useState(true)
   const [advancedTrayOpen, setAdvancedTrayOpen] = useState(
     advancedDefaultOpen
       || value.view.mirror
@@ -106,7 +107,8 @@ export function ShowClipEntityDetail({
             />
           </label>
           <ShowInspectorNumberField
-            label="Animation speed"
+            label="Speed"
+            ariaLabel="Animation speed"
             value={value.simulation.timeScale}
             min={0}
             max={4}
@@ -117,11 +119,13 @@ export function ShowClipEntityDetail({
             onChange={(timeScale) => onPatch({ simulation: { timeScale } })}
           />
           <ShowInspectorNumberField
-            label="Brightness"
+            label="Bright"
+            ariaLabel="Brightness"
             value={value.view.brightness}
             min={0}
             max={1}
             step={0.01}
+            showNormalizedRange={false}
             disabled={readOnly}
             onChange={(brightness) => onPatch({ view: { brightness } })}
           />
@@ -183,27 +187,28 @@ export function ShowClipEntityDetail({
           </div>
         )}
 
-        {transformEnabled && <fieldset aria-label="Clip Transform" className="mt-2 min-w-0 border-t border-zinc-800/80 pt-1.5">
-          <legend className="pr-2 text-[9px] font-medium uppercase tracking-[0.12em] text-cyan-300/80">Placement</legend>
-          <div className="grid min-w-0 gap-2">
-            <fieldset aria-label="Content geometry" className="min-w-0">
-              <legend className="mb-1 pr-2 text-[9px] uppercase tracking-[0.12em] text-zinc-600">Content</legend>
-              <ClipContentGeometry value={value} readOnly={readOnly} qualified onPatch={onPatch} />
-            </fieldset>
-            <label className="flex items-center gap-1.5 border-t border-zinc-800/70 pt-1.5 text-[9px] text-zinc-500">
+        {transformEnabled && <details
+          aria-label="Clip Transform"
+          className="mt-2 min-w-0 border-t border-zinc-800/80"
+          open={placementOpen}
+          onToggle={(event) => setPlacementOpen(event.currentTarget.open)}
+        >
+          <summary className="cursor-pointer py-1 text-[9px] font-medium uppercase tracking-[0.12em] text-cyan-300/80">Placement</summary>
+          <div className="grid min-w-0 gap-2 pb-0.5">
+            <ClipContentGeometry value={value} readOnly={readOnly} qualified onPatch={onPatch} />
+            <label className="mt-1 flex items-center gap-1.5 text-[9px] font-medium uppercase tracking-[0.12em] text-cyan-300/80">
+              <span>Viewport</span>
               <input
                 type="checkbox"
-                aria-label="Enable Viewport"
+                aria-label="Viewport"
                 checked={value.viewport.enabled}
                 disabled={readOnly}
                 className="h-3 w-3 accent-cyan-400"
                 onChange={(event) => onPatch({ viewport: { enabled: event.target.checked } })}
               />
-              Enable Viewport
             </label>
             {value.viewport.enabled && (
               <fieldset aria-label="Viewport geometry" className="min-w-0">
-                <legend className="mb-1 pr-2 text-[9px] uppercase tracking-[0.12em] text-zinc-600">Viewport</legend>
                 <div className="grid min-w-0 grid-cols-2 items-end gap-x-2 gap-y-1.5 sm:grid-cols-4">
                   <ShowInspectorNumberField label="X" ariaLabel="Viewport X" value={value.viewport.x} min={-4} max={4} step={0.01} disabled={readOnly} onChange={(x) => onPatch({ viewport: { x } })} />
                   <ShowInspectorNumberField label="Y" ariaLabel="Viewport Y" value={value.viewport.y} min={-4} max={4} step={0.01} disabled={readOnly} onChange={(y) => onPatch({ viewport: { y } })} />
@@ -213,7 +218,7 @@ export function ShowClipEntityDetail({
               </fieldset>
             )}
           </div>
-        </fieldset>}
+        </details>}
 
         <ShowEffectStack
           effects={value.effects}
@@ -232,29 +237,29 @@ export function ShowClipEntityDetail({
               open={patternTrayOpen}
               onToggle={(event) => setPatternTrayOpen(event.currentTarget.open)}
             >
-              <summary className="cursor-pointer py-1 text-[9px] uppercase tracking-[0.12em] text-cyan-300/80">Add or edit pattern controls</summary>
+              <summary className="cursor-pointer py-1 text-[9px] uppercase tracking-[0.12em] text-cyan-300/80">Pattern controls</summary>
               <div className="overflow-x-auto border-t border-zinc-800/70">
                 <table aria-label="Pattern controls" className="w-full table-fixed border-collapse text-left text-[9px]">
                   <colgroup>
                     <col className="w-7" />
-                    <col className="w-[24%]" />
+                    <col style={{ width: '24%' }} />
                     <col />
-                    <col className="w-24" />
+                    <col className="w-8" />
                   </colgroup>
                   <thead className="text-[8px] uppercase tracking-[0.1em] text-zinc-700">
                     <tr>
                       <th className="py-0.5 pr-2"><span className="sr-only">Use</span></th>
-                      <th className="py-0.5 pr-3 font-normal">Control</th>
-                      <th className="py-0.5 pr-3 font-normal">Export</th>
-                      <th className="py-0.5 font-normal">Value</th>
+                      <th className="whitespace-nowrap py-0.5 pr-3 font-normal">Control</th>
+                      <th className="whitespace-nowrap py-0.5 pr-3 font-normal">Export</th>
+                      <th className="whitespace-nowrap py-0.5 font-normal">Value</th>
                     </tr>
                   </thead>
-                  <tbody className="divide-y divide-zinc-900">
+                  <tbody>
                     {patternControls.map((control) => {
                       const target = controlTargets?.[control.exportName]
                       const enabled = target !== undefined
                       return (
-                        <tr key={control.exportName} className="align-middle">
+                        <tr key={control.exportName} className="h-6 align-middle whitespace-nowrap">
                           <td className="py-0.5 pr-2">
                           <input
                             type="checkbox"
@@ -273,14 +278,20 @@ export function ShowClipEntityDetail({
                             className="h-3 w-3 accent-cyan-400"
                           />
                           </td>
-                          <th scope="row" className="py-0.5 pr-3 text-[10px] font-medium text-zinc-300">{control.label}</th>
+                          <th
+                            scope="row"
+                            className="truncate whitespace-nowrap py-0.5 pr-3 text-[10px] font-medium text-zinc-300"
+                            title={control.label}
+                          >
+                            {control.label}
+                          </th>
                           <td
-                            className="break-all py-0.5 pr-3 font-mono text-[8px] text-zinc-600"
+                            className="truncate whitespace-nowrap py-0.5 pr-3 font-mono text-[8px] text-zinc-600"
                             title={`${control.exportName} · Studio default ${control.defaultValue}`}
                           >
                             {control.exportName} · {control.min}–{control.max}
                           </td>
-                          <td className="py-0.5">
+                          <td className="whitespace-nowrap py-0.5 [&_input]:!border-0">
                             {enabled ? (
                               <ShowInspectorNumberField
                                 label={`${control.label} target`}
@@ -314,19 +325,18 @@ export function ShowClipEntityDetail({
           >
             <summary className="cursor-pointer py-1 text-[9px] uppercase tracking-[0.12em] text-zinc-500">Advanced clip controls</summary>
             <div className="border-t border-zinc-800/70">
-              <table aria-label="Advanced clip controls" className="w-full max-w-md table-fixed border-collapse text-left text-[10px]">
+              <table aria-label="Advanced clip controls" className="w-full table-fixed border-collapse text-left text-[9px]">
                 <colgroup>
                   <col className="w-7" />
-                  <col className="w-[24%]" />
-                  <col className="w-28" />
+                  <col style={{ width: '24%' }} />
                   <col />
                 </colgroup>
-                <tbody className="divide-y divide-zinc-900">
+                <tbody>
                   {value.scope !== 'global' && <>
-                    <tr>
-                      <td aria-hidden />
-                      <th scope="row" className="py-1 pr-3 font-normal text-zinc-300">Presentation</th>
-                      <td colSpan={2} className="py-1">
+                    <tr className="h-6 whitespace-nowrap">
+                      <td aria-hidden className="py-0.5 pr-2" />
+                      <th scope="row" className="truncate py-0.5 pr-3 text-[10px] font-medium text-zinc-300">Presentation</th>
+                      <td className="py-0.5">
                         <select
                           aria-label="Clip presentation"
                           value={value.presentation.mode}
@@ -339,7 +349,7 @@ export function ShowClipEntityDetail({
                                 ? { mode: 'strobe', cadenceMs: 1_000 }
                                 : { mode: 'live' } })
                           }}
-                          className="h-6 w-full max-w-44 border-0 border-b border-zinc-800 bg-transparent px-1 text-[10px] text-zinc-200 outline-none focus:border-cyan-400/60 disabled:opacity-60"
+                          className="h-5 w-full border-0 border-b border-zinc-800 bg-transparent px-1 text-[9px] text-zinc-200 outline-none focus:border-cyan-400/60 disabled:opacity-60"
                         >
                           <option value="live">Live</option>
                           <option value="freeze">Freeze</option>
@@ -347,89 +357,92 @@ export function ShowClipEntityDetail({
                         </select>
                       </td>
                     </tr>
-                    {value.presentation.mode === 'strobe' && <tr>
-                      <td aria-hidden />
-                      <th scope="row" className="py-1 pr-3 font-normal text-zinc-300">Strobe cadence</th>
-                      <td className="py-1">
-                        <ShowInspectorNumberField
-                          label="Strobe cadence seconds"
-                          hideLabel
-                          align="left"
-                          value={value.presentation.cadenceMs / 1_000}
-                          min={0.016}
-                          max={60}
-                          step={0.05}
-                          suffix="s"
-                          compact
+                    {value.presentation.mode === 'strobe' && <tr className="h-6 whitespace-nowrap">
+                      <td aria-hidden className="py-0.5 pr-2" />
+                      <th scope="row" className="truncate py-0.5 pr-3 text-[10px] font-medium text-zinc-300">Strobe cadence</th>
+                      <td className="py-0.5">
+                        <div className="flex min-w-0 items-center gap-2">
+                          <div className="min-w-20 max-w-28 flex-1 [&_input]:!border-0">
+                            <ShowInspectorNumberField
+                              label="Strobe cadence seconds"
+                              hideLabel
+                              align="left"
+                              value={value.presentation.cadenceMs / 1_000}
+                              min={0.016}
+                              max={60}
+                              step={0.05}
+                              suffix="s"
+                              compact
+                              disabled={readOnly}
+                              onChange={(seconds) => onPatch({
+                                presentation: { mode: 'strobe', cadenceMs: Math.round(seconds * 1_000) },
+                              })}
+                            />
+                          </div>
+                          <span className="truncate text-[8px] text-zinc-600">capture and hold</span>
+                        </div>
+                      </td>
+                    </tr>}
+                    <tr className="h-6 whitespace-nowrap">
+                      <td className="py-0.5 pr-2">
+                        <input
+                          type="checkbox"
+                          aria-label="Blink Clip output"
+                          checked={value.blink !== undefined}
                           disabled={readOnly}
-                          onChange={(seconds) => onPatch({
-                            presentation: { mode: 'strobe', cadenceMs: Math.round(seconds * 1_000) },
+                          className="h-3 w-3 accent-cyan-400"
+                          onChange={(event) => onPatch({
+                            blink: event.target.checked ? { rateHz: 2, duty: 0.5, phase: 0 } : null,
                           })}
                         />
                       </td>
-                      <td className="py-1 pl-1 text-[9px] text-zinc-600">capture and hold</td>
-                    </tr>}
-                    <tr>
-                      <td aria-hidden />
-                      <th scope="row" className="py-1 pr-3 font-normal text-zinc-300">Blink output</th>
-                      <td colSpan={2} className="py-1">
-                        <label className="flex items-center gap-1.5 text-[10px] text-zinc-400">
-                          <input
-                            type="checkbox"
-                            aria-label="Blink Clip output"
-                            checked={value.blink !== undefined}
-                            disabled={readOnly}
-                            className="h-3 w-3 accent-cyan-400"
-                            onChange={(event) => onPatch({
-                              blink: event.target.checked ? { rateHz: 2, duty: 0.5, phase: 0 } : null,
-                            })}
-                          />
-                          Gate this Clip on and off
-                        </label>
+                      <th scope="row" className="truncate py-0.5 pr-3 text-[10px] font-medium text-zinc-300">Blink output</th>
+                      <td className="truncate py-0.5 text-zinc-500">
+                        Gate this Clip on and off
                       </td>
                     </tr>
-                    {value.blink && <tr>
-                      <td aria-hidden />
-                      <th scope="row" className="py-1 pr-3 font-normal text-zinc-300">Blink timing</th>
-                      <td colSpan={2} className="grid grid-cols-3 gap-1.5 py-1">
-                        <ShowInspectorNumberField
-                          label="Blink rate Hz"
-                          value={value.blink.rateHz}
-                          min={0.01}
-                          max={60}
-                          step={0.1}
-                          suffix="Hz"
-                          compact
-                          disabled={readOnly}
-                          onChange={(rateHz) => onPatch({ blink: { ...value.blink!, rateHz } })}
-                        />
-                        <ShowInspectorNumberField
-                          label="Blink duty"
-                          value={value.blink.duty}
-                          min={0}
-                          max={1}
-                          step={0.01}
-                          compact
-                          disabled={readOnly}
-                          onChange={(duty) => onPatch({ blink: { ...value.blink!, duty } })}
-                        />
-                        <ShowInspectorNumberField
-                          label="Blink phase"
-                          value={value.blink.phase}
-                          min={0}
-                          max={1}
-                          step={0.01}
-                          compact
-                          disabled={readOnly}
-                          onChange={(phase) => onPatch({ blink: { ...value.blink!, phase } })}
-                        />
+                    {value.blink && <tr className="h-6 whitespace-nowrap">
+                      <td aria-hidden className="py-0.5 pr-2" />
+                      <th scope="row" className="truncate py-0.5 pr-3 text-[10px] font-medium text-zinc-300">Blink timing</th>
+                      <td className="py-0.5">
+                        <div className="grid grid-cols-3 gap-1.5 [&_input]:!border-0">
+                          <ShowInspectorNumberField
+                            label="Blink rate Hz"
+                            value={value.blink.rateHz}
+                            min={0.01}
+                            max={60}
+                            step={0.1}
+                            suffix="Hz"
+                            compact
+                            disabled={readOnly}
+                            onChange={(rateHz) => onPatch({ blink: { ...value.blink!, rateHz } })}
+                          />
+                          <ShowInspectorNumberField
+                            label="Blink duty"
+                            value={value.blink.duty}
+                            min={0}
+                            max={1}
+                            step={0.01}
+                            compact
+                            disabled={readOnly}
+                            onChange={(duty) => onPatch({ blink: { ...value.blink!, duty } })}
+                          />
+                          <ShowInspectorNumberField
+                            label="Blink phase"
+                            value={value.blink.phase}
+                            min={0}
+                            max={1}
+                            step={0.01}
+                            compact
+                            disabled={readOnly}
+                            onChange={(phase) => onPatch({ blink: { ...value.blink!, phase } })}
+                          />
+                        </div>
                       </td>
                     </tr>}
                   </>}
-                  <tr>
-                    <td aria-hidden />
-                    <th scope="row" className="py-1 pr-3 font-normal text-zinc-300">Mirror clip</th>
-                    <td className="py-1">
+                  <tr className="h-6 whitespace-nowrap">
+                    <td className="py-0.5 pr-2">
                       <input
                         type="checkbox"
                         aria-label="Mirror clip"
@@ -438,12 +451,13 @@ export function ShowClipEntityDetail({
                         onChange={(event) => onPatch({ view: { mirror: event.target.checked } })}
                       />
                     </td>
-                    <td aria-hidden />
+                    <th scope="row" className="truncate py-0.5 pr-3 text-[10px] font-medium text-zinc-300">Mirror clip</th>
+                    <td aria-hidden className="py-0.5" />
                   </tr>
-                  <tr>
-                    <td aria-hidden />
-                    <th scope="row" className="py-1 pr-3 font-normal text-zinc-300">Phase <span className="ml-1 text-[8px] text-zinc-700">0–1</span></th>
-                    <td className="py-1">
+                  <tr className="h-6 whitespace-nowrap">
+                    <td aria-hidden className="py-0.5 pr-2" />
+                    <th scope="row" className="truncate py-0.5 pr-3 text-[10px] font-medium text-zinc-300">Phase <span className="ml-1 text-[8px] font-normal text-zinc-700">0–1</span></th>
+                    <td className="py-0.5 [&_input]:!border-0">
                       <ShowInspectorNumberField
                         label="Phase"
                         hideLabel
@@ -457,12 +471,11 @@ export function ShowClipEntityDetail({
                         onChange={(phase) => onPatch({ view: { phase } })}
                       />
                     </td>
-                    <td aria-hidden />
                   </tr>
-                  <tr>
-                    <td aria-hidden />
-                    <th scope="row" className="py-1 pr-3 font-normal text-zinc-300">Evaluation</th>
-                    <td colSpan={2} className="py-1">
+                  <tr className="h-6 whitespace-nowrap">
+                    <td aria-hidden className="py-0.5 pr-2" />
+                    <th scope="row" className="truncate py-0.5 pr-3 text-[10px] font-medium text-zinc-300">Evaluation</th>
+                    <td className="py-0.5">
                       <select
                         aria-label="Clip evaluation"
                         value={value.evaluationPolicy}
@@ -487,7 +500,7 @@ export function ShowClipEntityDetail({
                   </tr>
                 </tbody>
               </table>
-              {structuralControls && <div className="border-t border-zinc-800/65 py-1">{structuralControls}</div>}
+              {structuralControls}
             </div>
           </details>
         </div>}

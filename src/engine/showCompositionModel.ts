@@ -68,11 +68,15 @@ export interface ShowOverlayPlacementOwner extends ShowOverlayLayerOwner {
  * shape. The version-0 projection supplies the exact inferred runtime-instance
  * identities, so Continue and Restart preserve current compiler semantics.
  */
-export function projectFlatShowToCompositionV1(
+export function projectFlatShowToCompositionV1WithCellOrigins(
   show: ShowRecord,
   lookup: ShowCompileRecipeSourceLookup,
-): ShowCompositionV1 {
+): {
+  composition: ShowCompositionV1
+  sourceCellIdByPlacementId: Record<string, string>
+} {
   const projection = projectFlatShowComposition(show, lookup)
+  const sourceCellIdByPlacementId: Record<string, string> = {}
   const patternInstances: ShowPatternInstance[] = projection.patternInstances.map((instance) => ({
     id: instance.id,
     pattern: { ...instance.pattern },
@@ -101,6 +105,7 @@ export function projectFlatShowToCompositionV1(
       main: scene.placements.flatMap((placement): ShowMainPlacement[] => {
         if (!placement.zoneIds.includes(zone.id)) return []
         const id = placement.zoneIds.length === 1 ? placement.id : `${placement.id}-${zone.id}`
+        sourceCellIdByPlacementId[id] = placement.sourceCellId
         return [{
           id,
           instanceId: placement.instanceId,
@@ -125,7 +130,17 @@ export function projectFlatShowToCompositionV1(
       overlays: [],
     })),
   }))
-  return normalizeShowComposition(show, { version: 1, patternInstances, scenes })
+  return {
+    composition: normalizeShowComposition(show, { version: 1, patternInstances, scenes }),
+    sourceCellIdByPlacementId,
+  }
+}
+
+export function projectFlatShowToCompositionV1(
+  show: ShowRecord,
+  lookup: ShowCompileRecipeSourceLookup,
+): ShowCompositionV1 {
+  return projectFlatShowToCompositionV1WithCellOrigins(show, lookup).composition
 }
 
 /** Deterministic ordering and cloning only; invalid authored facts remain visible to validation. */

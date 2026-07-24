@@ -33,32 +33,34 @@ export function ShowPatternInstanceControls({
     ?? ownership.compatibleTargets[0]
 
   return (
-    <div role="group" aria-label="Pattern instance" className="space-y-1.5 py-1.5">
-      <div className="flex min-h-6 flex-wrap items-center gap-x-2 gap-y-1">
-        <span className="flex items-center gap-1.5 text-[10px] text-zinc-300">
+    <div role="group" aria-label="Pattern instance" className="text-[9px]">
+      <div role="row" className="grid h-6 grid-cols-[1.75rem_24%_minmax(0,1fr)] items-center whitespace-nowrap">
+        <span role="cell" className="text-zinc-500">
           {ownership.useCount > 1
             ? <Link2 size={11} aria-hidden className="text-cyan-300/80" />
-            : <Unlink2 size={11} aria-hidden className="text-zinc-500" />}
-          <span className="font-medium">Pattern instance</span>
-          <span className={ownership.useCount > 1 ? 'text-cyan-300/80' : 'text-zinc-500'}>
+            : <Unlink2 size={11} aria-hidden />}
+        </span>
+        <span role="rowheader" className="truncate pr-3 text-[10px] font-medium text-zinc-300">Pattern instance</span>
+        <span role="cell" className="flex min-w-0 items-center gap-2">
+          <span className={`truncate ${ownership.useCount > 1 ? 'text-cyan-300/80' : 'text-zinc-500'}`}>
             {ownership.useCount > 1 ? `Shared by ${ownership.useCount} Clips` : 'Independent'}
           </span>
+          {ownership.useCount > 1 && (
+            <Button
+              type="button"
+              size="xs"
+              variant="ghost"
+              className="ml-auto h-5 shrink-0 px-1.5 text-[9px] text-zinc-400 hover:text-zinc-100"
+              onClick={onMakeIndependent}
+            >
+              Make Pattern Independent
+            </Button>
+          )}
         </span>
-        {ownership.useCount > 1 && (
-          <Button
-            type="button"
-            size="xs"
-            variant="ghost"
-            className="ml-auto h-6 px-2 text-[10px] text-zinc-400 hover:text-zinc-100"
-            onClick={onMakeIndependent}
-          >
-            Make Pattern Independent
-          </Button>
-        )}
       </div>
 
-      <div className="flex min-h-6 flex-wrap items-center gap-x-2 gap-y-1 border-t border-zinc-800/65 pt-1.5">
-        <label className="flex items-center gap-1.5 text-[10px] text-zinc-300">
+      <div role="row" className="grid h-6 grid-cols-[1.75rem_24%_minmax(0,1fr)] items-center whitespace-nowrap">
+        <span role="cell">
           <input
             type="checkbox"
             aria-label="Stutter Pattern clock"
@@ -66,53 +68,61 @@ export function ShowPatternInstanceControls({
             className="h-3 w-3 accent-cyan-400"
             onChange={(event) => onSteppedClockChange(event.target.checked ? { stepMs: 250 } : undefined)}
           />
-          Stutter Pattern clock
-        </label>
-        {ownership.useCount > 1 && (
-          <span className="text-[9px] text-cyan-300/70">Affects {ownership.useCount} linked Clips</span>
-        )}
-        {steppedClock && (
-          <span className="ml-auto flex min-w-28 items-center gap-1 text-[9px] text-zinc-500">
-            Step
-            <NumberField
-              label="Stutter step seconds"
-              hideLabel
-              value={steppedClock.stepMs / 1_000}
-              min={0.016}
-              max={60}
-              step={0.05}
-              suffix="s"
-              compact
-              onChange={(seconds) => onSteppedClockChange({ stepMs: Math.round(seconds * 1_000) })}
-            />
-          </span>
-        )}
+        </span>
+        <span role="rowheader" className="truncate pr-3 text-[10px] font-medium text-zinc-300">Stutter Pattern clock</span>
+        <span role="cell" className="flex min-w-0 items-center gap-2">
+          {ownership.useCount > 1 && (
+            <span className="truncate text-cyan-300/70">Affects {ownership.useCount} linked Clips</span>
+          )}
+          {steppedClock && (
+            <span className="ml-auto flex min-w-24 max-w-32 items-center gap-1 text-zinc-500 [&_input]:!border-0">
+              Step
+              <NumberField
+                label="Stutter step seconds"
+                hideLabel
+                value={steppedClock.stepMs / 1_000}
+                min={0.016}
+                max={60}
+                step={0.05}
+                suffix="s"
+                compact
+                onChange={(seconds) => onSteppedClockChange({ stepMs: Math.round(seconds * 1_000) })}
+              />
+            </span>
+          )}
+          {!steppedClock && ownership.useCount === 1 && <span aria-hidden className="text-zinc-700">—</span>}
+        </span>
       </div>
 
       {ownership.compatibleTargets.length > 0 && (
-        <div className="flex min-w-0 items-center gap-1.5">
-          <select
-            aria-label="Shared Pattern instance"
-            value={selectedTarget?.instanceId ?? ''}
-            onChange={(event) => setTargetInstanceId(event.target.value)}
-            className="h-6 min-w-0 flex-1 rounded-sm border border-zinc-800 bg-zinc-950/70 px-1.5 text-[10px] text-zinc-300 outline-none focus:border-cyan-400/60"
-          >
-            {ownership.compatibleTargets.map((target, index) => (
-              <option key={target.instanceId} value={target.instanceId}>
-                {`${target.patternName} · shared instance ${index + 1} · ${target.useCount} ${target.useCount === 1 ? 'Clip' : 'Clips'}`}
-              </option>
-            ))}
-          </select>
-          <Button
-            type="button"
-            size="xs"
-            variant="outline"
-            disabled={!selectedTarget}
-            className="h-6 shrink-0 px-2 text-[10px]"
-            onClick={() => setConfirmingRejoin(true)}
-          >
-            Rejoin Shared Pattern
-          </Button>
+        <div role="row" className="grid h-6 grid-cols-[1.75rem_24%_minmax(0,1fr)] items-center whitespace-nowrap">
+          <span role="cell" aria-hidden />
+          <span role="rowheader" className="truncate pr-3 text-[10px] font-medium text-zinc-300">Rejoin instance</span>
+          <span role="cell" className="flex min-w-0 items-center gap-1.5">
+            <select
+              aria-label="Shared Pattern instance"
+              value={selectedTarget?.instanceId ?? ''}
+              onChange={(event) => setTargetInstanceId(event.target.value)}
+              className="h-5 min-w-0 flex-1 border-0 border-b border-zinc-800 bg-transparent px-1 text-[9px] text-zinc-300 outline-none focus:border-cyan-400/60"
+            >
+              {ownership.compatibleTargets.map((target, index) => (
+                <option key={target.instanceId} value={target.instanceId}>
+                  {`${target.patternName} · shared instance ${index + 1} · ${target.useCount} ${target.useCount === 1 ? 'Clip' : 'Clips'}`}
+                </option>
+              ))}
+            </select>
+            <Button
+              type="button"
+              size="xs"
+              variant="outline"
+              aria-label="Rejoin Shared Pattern"
+              disabled={!selectedTarget}
+              className="h-5 shrink-0 px-1.5 text-[9px]"
+              onClick={() => setConfirmingRejoin(true)}
+            >
+              Rejoin
+            </Button>
+          </span>
         </div>
       )}
 

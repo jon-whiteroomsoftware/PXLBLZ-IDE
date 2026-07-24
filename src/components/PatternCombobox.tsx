@@ -118,9 +118,9 @@ export function PatternCombobox({
           setActiveIndex(0)
         }}
         onKeyDown={handleKeyDown}
-        className={`${compact ? 'h-6 pl-1.5 pr-6 text-[9px]' : 'h-7 pl-2 pr-7 text-xs'} w-full rounded border border-zinc-700 bg-zinc-900 text-zinc-200 outline-none focus:border-live/70 disabled:cursor-default disabled:border-zinc-800 disabled:bg-zinc-950/35 disabled:text-zinc-500`}
+        className={`${compact ? 'h-5 pl-[5px] pr-[23px] text-[9px]' : 'h-7 pl-2 pr-7 text-xs'} w-full rounded border border-zinc-700 bg-zinc-900 text-zinc-200 outline-none focus:border-live/70 disabled:cursor-default disabled:border-zinc-800 disabled:bg-zinc-950/35 disabled:text-zinc-500`}
       />
-      <Search size={compact ? 10 : 12} aria-hidden className={`pointer-events-none absolute right-2 ${compact ? 'top-[7px]' : 'top-2'} text-zinc-500`} />
+      <Search size={compact ? 10 : 12} aria-hidden className={`pointer-events-none absolute right-2 ${compact ? 'top-[5px]' : 'top-2'} text-zinc-500`} />
       {open && !disabled && (
         <div
           id={listboxId}

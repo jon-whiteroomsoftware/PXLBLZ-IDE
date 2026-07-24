@@ -1,4 +1,4 @@
-import { fireEvent, render, screen } from '@testing-library/react'
+import { fireEvent, render, screen, within } from '@testing-library/react'
 import { describe, expect, it, vi } from 'vitest'
 import {
   ShowClipEntityDetail,
@@ -80,6 +80,18 @@ describe('shared Clip Entity Detail sections (#498)', () => {
     expect(Boolean(screen.queryByRole('spinbutton', { name: 'Start seconds' }))).toBe(localTiming)
     expect(Boolean(screen.queryByRole('combobox', { name: 'Overlay target layer' }))).toBe(layer)
     expect(Boolean(screen.queryByRole('spinbutton', { name: 'Opacity' }))).toBe(opacity)
+  })
+
+  it('keeps the full control names accessible behind compact visible labels (#63)', () => {
+    render(<ShowClipEntityDetail {...commonProps('scene-main')} />)
+
+    const speed = screen.getByRole('spinbutton', { name: 'Animation speed' })
+    const brightness = screen.getByRole('spinbutton', { name: 'Brightness' })
+    expect(speed.closest('label')).toHaveTextContent('Speed')
+    expect(speed.closest('label')).not.toHaveTextContent('Animation speed')
+    expect(brightness.closest('label')).toHaveTextContent('Bright')
+    expect(brightness.closest('label')).not.toHaveTextContent('Brightness')
+    expect(brightness.closest('label')).not.toHaveTextContent('0–1')
   })
 
   it('commits shared Pattern, simulation, view, and control patches', () => {
@@ -166,16 +178,18 @@ describe('shared Clip Entity Detail sections (#498)', () => {
     expect(onPatch).toHaveBeenCalledWith({ transform: { rotation: 0.25 } })
   })
 
-  it('places the Viewport disclosure directly after Content geometry (#585, #600)', () => {
+  it('uses the Viewport heading itself as the placement disclosure (#63)', () => {
     const onPatch = vi.fn()
     const props = commonProps('scene-main', onPatch)
     const { rerender } = render(<ShowClipEntityDetail {...props} />)
 
-    const content = screen.getByRole('group', { name: 'Content geometry' })
-    const viewportToggle = screen.getByRole('checkbox', { name: 'Enable Viewport' })
-    expect(content).toBeInTheDocument()
+    const placement = screen.getByRole('group', { name: 'Clip Transform' })
+    const contentX = screen.getByRole('spinbutton', { name: 'Content X' })
+    const viewportToggle = screen.getByRole('checkbox', { name: 'Viewport' })
+    expect(within(placement).queryByText('Content')).not.toBeInTheDocument()
+    expect(viewportToggle.previousElementSibling).toHaveTextContent('Viewport')
     expect(screen.queryByRole('group', { name: 'Viewport geometry' })).not.toBeInTheDocument()
-    expect(content.compareDocumentPosition(viewportToggle) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
+    expect(contentX.compareDocumentPosition(viewportToggle) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
 
     fireEvent.click(viewportToggle)
     expect(onPatch).toHaveBeenCalledWith({ viewport: { enabled: true } })
@@ -185,13 +199,25 @@ describe('shared Clip Entity Detail sections (#498)', () => {
       value={{ ...props.value, viewport: { enabled: true, x: 0, y: 0, width: 1, height: 1 } }}
     />)
     const disclosedViewport = screen.getByRole('group', { name: 'Viewport geometry' })
-    expect(screen.getByRole('group', { name: 'Content geometry' })).toBeInTheDocument()
     expect(viewportToggle.compareDocumentPosition(disclosedViewport) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
 
     const viewportX = screen.getByRole('spinbutton', { name: 'Viewport X' })
     fireEvent.change(viewportX, { target: { value: '0.25' } })
     fireEvent.blur(viewportX)
     expect(onPatch).toHaveBeenCalledWith({ viewport: { x: 0.25 } })
+  })
+
+  it('opens Placement by default and lets it collapse temporarily (#63)', () => {
+    render(<ShowClipEntityDetail {...commonProps('scene-main')} />)
+
+    const placement = screen.getByRole('group', { name: 'Clip Transform' })
+    const disclosure = within(placement).getByText('Placement')
+    expect(placement).toHaveAttribute('open')
+    expect(screen.getByRole('spinbutton', { name: 'Content X' })).toBeVisible()
+
+    fireEvent.click(disclosure)
+    expect(placement).not.toHaveAttribute('open')
+    expect(screen.getByRole('spinbutton', { name: 'Content X' })).not.toBeVisible()
   })
 
   it('does not offer the 2D Transform group for an incompatible Stage (#529)', () => {
@@ -220,13 +246,64 @@ describe('shared Clip Entity Detail sections (#498)', () => {
     expect(screen.getByRole('table', { name: 'Advanced clip controls' })).toBeInTheDocument()
     const advancedRows = screen.getByRole('table', { name: 'Advanced clip controls' }).querySelectorAll('tbody tr')
     expect(advancedRows[0].children[1]).toHaveTextContent('Mirror clip')
-    expect(advancedRows[0].children[2]).toContainElement(screen.getByRole('checkbox', { name: 'Mirror clip' }))
+    expect(advancedRows[0].children[0]).toContainElement(screen.getByRole('checkbox', { name: 'Mirror clip' }))
     expect(advancedRows[1].children[1]).toHaveTextContent('Phase')
     expect(advancedRows[1].children[2]).toContainElement(screen.getByRole('spinbutton', { name: 'Phase' }))
-    expect(screen.getByRole('combobox', { name: 'Source pattern' })).toHaveClass('h-6')
-    expect(screen.getByRole('spinbutton', { name: 'Animation speed' })).toHaveClass('h-6')
+    expect(screen.getByRole('combobox', { name: 'Source pattern' })).toHaveClass(
+      'h-5',
+      'pl-[5px]',
+      'pr-[23px]',
+    )
+    expect(screen.getByRole('spinbutton', { name: 'Animation speed' })).toHaveClass('h-5', 'px-[5px]')
     expect(screen.getByRole('spinbutton', { name: 'Speed target' })).toHaveClass('h-5', 'border-0', 'border-b')
     expect(screen.getByRole('spinbutton', { name: 'Phase' })).toHaveClass('h-5', 'border-0', 'border-b', 'text-left')
+  })
+
+  it('keeps Pattern controls on one unruled line with a compact Value column (#63)', () => {
+    render(<ShowClipEntityDetail {...commonProps('global')} />)
+
+    expect(screen.getByText('Pattern controls')).toBeInTheDocument()
+    expect(screen.queryByText('Add or edit pattern controls')).not.toBeInTheDocument()
+
+    const table = screen.getByRole('table', { name: 'Pattern controls' })
+    const columns = table.querySelectorAll('col')
+    expect(columns[1]).toHaveStyle({ width: '24%' })
+    expect(columns[3]).toHaveClass('w-8')
+    expect(table.querySelector('tbody')).not.toHaveClass('divide-y')
+
+    const row = screen.getByRole('row', { name: /Set Speed target/ })
+    expect(row).toHaveClass('h-6')
+    expect(within(row).getByRole('rowheader', { name: 'Speed' })).toHaveClass('truncate', 'whitespace-nowrap')
+    expect(row.querySelector<HTMLElement>('[title^="sliderSpeed"]')).toHaveClass('truncate', 'whitespace-nowrap')
+    expect(screen.getByRole('spinbutton', { name: 'Speed target' }).closest('td')).toHaveClass(
+      'whitespace-nowrap',
+      '[&_input]:!border-0',
+    )
+  })
+
+  it('matches Advanced Clip control rows to the compact three-column rhythm (#63)', () => {
+    render(<ShowClipEntityDetail {...commonProps('scene-main')} advancedDefaultOpen />)
+
+    const table = screen.getByRole('table', { name: 'Advanced clip controls' })
+    const columns = table.querySelectorAll('col')
+    expect(columns).toHaveLength(3)
+    expect(columns[0]).toHaveClass('w-7')
+    expect(columns[1]).toHaveStyle({ width: '24%' })
+    expect(table.querySelector('tbody')).not.toHaveClass('divide-y')
+
+    const rows = table.querySelectorAll('tbody tr')
+    expect(rows.length).toBeGreaterThan(0)
+    rows.forEach((row) => expect(row).toHaveClass('h-6', 'whitespace-nowrap'))
+
+    const blink = screen.getByRole('checkbox', { name: 'Blink Clip output' })
+    const blinkRow = blink.closest('tr')
+    expect(blinkRow?.children[0]).toContainElement(blink)
+    expect(blinkRow?.children[1]).toHaveTextContent('Blink output')
+
+    const mirror = screen.getByRole('checkbox', { name: 'Mirror clip' })
+    const mirrorRow = mirror.closest('tr')
+    expect(mirrorRow?.children[0]).toContainElement(mirror)
+    expect(mirrorRow?.children[1]).toHaveTextContent('Mirror clip')
   })
 
   it.each(['global', 'scene-main', 'scene-overlay'] as const)(

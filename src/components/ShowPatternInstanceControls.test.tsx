@@ -1,4 +1,4 @@
-import { fireEvent, render, screen } from '@testing-library/react'
+import { fireEvent, render, screen, within } from '@testing-library/react'
 import { describe, expect, it, vi } from 'vitest'
 import { ShowPatternInstanceControls } from './ShowPatternInstanceControls'
 
@@ -64,5 +64,29 @@ describe('Show Pattern instance controls (#586)', () => {
     fireEvent.click(screen.getByRole('checkbox', { name: 'Stutter Pattern clock' }))
     expect(onSteppedClockChange).toHaveBeenCalledWith({ stepMs: 250 })
     expect(screen.getByRole('group', { name: 'Pattern instance' })).toHaveTextContent('Affects 2 linked Clips')
+  })
+
+  it('uses the same compact three-column rows as Advanced Clip controls (#63)', () => {
+    render(
+      <ShowPatternInstanceControls
+        ownership={{ instanceId: 'instance-a', useCount: 1, compatibleTargets: [] }}
+        onMakeIndependent={vi.fn()}
+        onRejoin={vi.fn()}
+        onSteppedClockChange={vi.fn()}
+      />,
+    )
+
+    const group = screen.getByRole('group', { name: 'Pattern instance' })
+    const rows = within(group).getAllByRole('row')
+    expect(rows).toHaveLength(2)
+    rows.forEach((row) => expect(row).toHaveClass(
+      'h-6',
+      'grid-cols-[1.75rem_24%_minmax(0,1fr)]',
+    ))
+    expect(rows[0].children[0].querySelector('svg')).toBeInTheDocument()
+    expect(rows[0].children[1]).toHaveTextContent('Pattern instance')
+    expect(rows[0].children[2]).toHaveTextContent('Independent')
+    expect(rows[1].children[0]).toContainElement(screen.getByRole('checkbox', { name: 'Stutter Pattern clock' }))
+    expect(rows[1].children[1]).toHaveTextContent('Stutter Pattern clock')
   })
 })

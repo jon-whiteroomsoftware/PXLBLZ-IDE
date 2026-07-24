@@ -72,6 +72,27 @@ test.describe('authenticated Show authoring', () => {
     await expect(showEnd).toHaveAttribute('aria-label', previewLabel!)
   })
 
+  test('signals when Delete targets the final remaining Clip (#63)', async ({ page }) => {
+    await page.setViewportSize({ width: 1440, height: 900 })
+    await page.goto('studio/shows')
+    await createInstallationShow(page)
+
+    await page.getByRole('button', { name: 'Select CometLoom', exact: true }).click()
+    await page.getByRole('button', { name: 'Delete clip CometLoom' }).click()
+    await expect(page.getByRole('button', { name: 'Select CometLoom', exact: true })).toHaveCount(0)
+
+    const finalClip = page.getByRole('button', { name: 'Select TestPattern1D', exact: true })
+    await finalClip.click()
+    await finalClip.press('Delete')
+
+    await expect(page.getByTestId('show-clip-delete-blocked')).toBeVisible()
+    await expect(page.getByText('Keep one Clip')).toBeVisible()
+    await expect(page.getByRole('status', { name: 'Clip deletion unavailable' })).toHaveText(
+      'A Show must contain at least one Clip.',
+    )
+    await expect(finalClip).toBeVisible()
+  })
+
   test('hides the Show End diamond when timeline zoom moves its boundary offscreen (#63)', async ({ page }) => {
     await page.setViewportSize({ width: 1440, height: 900 })
     await page.goto('studio/shows/stock-show-101-clips-crossfade')

@@ -636,12 +636,63 @@
 .animate-blink-connect {
   animation: blink-connect 0.5s ease-in-out infinite;
 }
+
+/* A rejected destructive shortcut belongs to the selected timeline object.
+   The temporary label explains the refusal while the ring confirms which Clip
+   received the keystroke. */
+@keyframes show-clip-delete-blocked {
+  0% {
+    box-shadow: 0 0 0 0 rgba(248, 113, 113, 0);
+    opacity: 0;
+  }
+  14% {
+    box-shadow:
+      0 0 0 2px rgba(248, 113, 113, 0.95),
+      0 0 12px 2px rgba(248, 113, 113, 0.5);
+    opacity: 1;
+  }
+  72% {
+    box-shadow:
+      0 0 0 2px rgba(248, 113, 113, 0.85),
+      0 0 9px 1px rgba(248, 113, 113, 0.32);
+    opacity: 1;
+  }
+  100% {
+    box-shadow: 0 0 0 1px rgba(248, 113, 113, 0);
+    opacity: 0;
+  }
+}
+.show-clip-delete-blocked {
+  animation: show-clip-delete-blocked 1000ms cubic-bezier(0.16, 1, 0.3, 1);
+}
+@keyframes show-clip-delete-blocked-label {
+  0% {
+    transform: scale(0.9);
+  }
+  18% {
+    transform: scale(1);
+  }
+  100% {
+    transform: scale(1);
+  }
+}
+.show-clip-delete-blocked-label {
+  animation: show-clip-delete-blocked-label 1000ms cubic-bezier(0.16, 1, 0.3, 1);
+}
 /* Honour reduce-motion: drop the pulse to a steady-but-dimmed amber so the
    "connecting" state still reads as distinct from solid "connected". */
 @media (prefers-reduced-motion: reduce) {
   .animate-blink-connect {
     animation: none;
     opacity: 0.55;
+  }
+  .show-clip-delete-blocked {
+    animation: none;
+    box-shadow: 0 0 0 2px rgba(248, 113, 113, 0.85);
+    opacity: 1;
+  }
+  .show-clip-delete-blocked-label {
+    animation: none;
   }
 }
 

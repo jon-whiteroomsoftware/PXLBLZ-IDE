@@ -57,7 +57,7 @@ import {
 import {
   deleteShowMainPlacement,
   deleteShowOverlayPlacement,
-  projectFlatShowToCompositionV1,
+  projectFlatShowToCompositionV1WithCellOrigins,
 } from '@/engine/showCompositionModel'
 import {
   projectGlobalShowPropertyLane,
@@ -275,6 +275,11 @@ type ShowSelection =
   | { kind: 'group-clip'; occurrenceId: string; placementId: string }
   | { kind: 'multi'; groupSelection: ShowGroupSelection }
   | { kind: 'show' }
+
+type BlockedDeleteFeedback = {
+  selectionKey: string
+  token: number
+}
 
 function showSelectionKey(selection: ShowSelection): string {
   if (selection.kind === 'clip') return `clip:${selection.clipId}`
@@ -823,6 +828,8 @@ export function ShowEditor({
   const pendingDeliveryRef = useRef<ShowDeliverySnapshot | null>(null)
   const [preparingSave, setPreparingSave] = useState(false)
   const [compositionClipPendingDelete, setCompositionClipPendingDelete] = useState<ShowTimelineClipOwner | null>(null)
+  const [blockedDeleteFeedback, setBlockedDeleteFeedback] = useState<BlockedDeleteFeedback | null>(null)
+  const blockedDeleteFeedbackSequenceRef = useRef(0)
   const [spatialZoneSelection, setSpatialZoneSelection] = useState<{ zoneId: string; layoutId: string } | null>(null)
   const [detailPanelOpen, setDetailPanelOpen] = useState(false)
   const [detailAnchor, setDetailAnchor] = useState<HTMLElement | null>(null)
@@ -901,6 +908,7 @@ export function ShowEditor({
     setTransitionPaletteId(null)
     setLayerTransitionTarget(null)
     setCompositionClipPendingDelete(null)
+    setBlockedDeleteFeedback(null)
     setIsolatedGroupOccurrenceId(null)
     pendingDeliveryRef.current = null
     setPendingSendMode(null)
@@ -944,7 +952,11 @@ export function ShowEditor({
       : Boolean(activeIp && profile.lastSeenIp === activeIp)
   )) ?? targetProfile
 
-  const requestDeleteSelection = useCallback((targetSelection: ShowSelection): boolean => {
+  const requestDeleteSelection = useCallback((
+    targetSelection: ShowSelection,
+    visibleComposition?: ShowCompositionV1 | null,
+    visibleSourceCellIdByPlacementId?: Record<string, string>,
+  ): boolean => {
     if (!activeShow || readOnly) return false
     if (targetSelection.kind === 'transition') {
       const transition = activeShow.transitions?.find((candidate) => candidate.id === targetSelection.transitionId)
@@ -956,6 +968,25 @@ export function ShowEditor({
     }
     if (targetSelection.kind === 'clip') {
       const compositionOwner = findTimelineClipOwner(activeShow.composition, targetSelection.clipId)
+      const visibleCompositionOwner = findTimelineClipOwner(visibleComposition, targetSelection.clipId)
+      const legacyClipId = activeShow.cells.some((cell) => cell.id === targetSelection.clipId)
+        ? targetSelection.clipId
+        : visibleSourceCellIdByPlacementId?.[targetSelection.clipId]
+      const legacyClipExists = Boolean(
+        legacyClipId && activeShow.cells.some((cell) => cell.id === legacyClipId),
+      )
+      if (!compositionOwner && !visibleCompositionOwner && !legacyClipExists) return false
+      const visibleShow = visibleComposition
+        ? { ...activeShow, composition: visibleComposition }
+        : activeShow
+      if (showRecordClipCount(visibleShow) <= 1) {
+        blockedDeleteFeedbackSequenceRef.current += 1
+        setBlockedDeleteFeedback({
+          selectionKey: showSelectionKey(targetSelection),
+          token: blockedDeleteFeedbackSequenceRef.current,
+        })
+        return true
+      }
       if (compositionOwner && activeShow.composition) {
         if (showLayerTransitionsConnectedToClip(activeShow.composition, targetSelection.clipId).length > 0) {
           setCompositionClipPendingDelete(compositionOwner)
@@ -970,10 +1001,10 @@ export function ShowEditor({
         void updateShow(activeShow.id, { ...activeShow, composition, updatedAt: Date.now() })
         return true
       }
-      if (!activeShow.cells.some((cell) => cell.id === targetSelection.clipId)) return false
+      if (!legacyClipExists) return false
       closeDetailPanel()
       closePinnedDetailForSelection(targetSelection)
-      void removeClip(activeShow.id, targetSelection.clipId)
+      void removeClip(activeShow.id, legacyClipId!)
       return true
     }
     if (targetSelection.kind === 'group') {
@@ -995,17 +1026,12 @@ export function ShowEditor({
     }
     return false
   }, [activeShow, closeDetailPanel, closePinnedDetailForSelection, readOnly, removeBoundaryTransition, removeClip, removeZone, updateShow])
-
   useEffect(() => {
-    const handleDelete = (event: KeyboardEvent) => {
-      if (event.key !== 'Delete' && event.key !== 'Backspace') return
-      const target = event.target
-      if (target instanceof Element && target.closest('input, textarea, select, [contenteditable="true"], [role="textbox"]')) return
-      if (requestDeleteSelection(selection)) event.preventDefault()
-    }
-    document.addEventListener('keydown', handleDelete)
-    return () => document.removeEventListener('keydown', handleDelete)
-  }, [requestDeleteSelection, selection])
+    if (!blockedDeleteFeedback) return
+    const timeout = window.setTimeout(() => setBlockedDeleteFeedback(null), 1100)
+    return () => window.clearTimeout(timeout)
+  }, [blockedDeleteFeedback])
+
   useEffect(() => {
     const handleEscape = (event: KeyboardEvent) => {
       if (event.key !== 'Escape' || effectPaletteOwner !== null || groupEffectPaletteOwner !== null || transitionPaletteId !== null) return
@@ -1134,21 +1160,48 @@ export function ShowEditor({
       return [instance.id, []]
     }
   })), [activeShow, userPatterns]) as Record<string, AutomatablePatternControl[]>
-  const timelineComposition = useMemo<ShowCompositionV1 | null>(() => {
+  const timelineProjection = useMemo<{
+    composition: ShowCompositionV1
+    sourceCellIdByPlacementId: Record<string, string>
+  } | null>(() => {
     if (!activeShow) return null
-    if (activeShow.composition) return activeShow.composition
-    try {
+    if (activeShow.composition) {
       return {
-        ...projectFlatShowToCompositionV1(activeShow, {
-          byCellId: Object.fromEntries(activeShow.cells.map((cell) => [cell.id, sourceForShowCell(cell, userPatterns)])),
-          stageDimension,
-        }),
-        executionModel: 'deterministic-loop',
+        composition: activeShow.composition,
+        sourceCellIdByPlacementId: {},
+      }
+    }
+    try {
+      const projection = projectFlatShowToCompositionV1WithCellOrigins(activeShow, {
+        byCellId: Object.fromEntries(activeShow.cells.map((cell) => [cell.id, sourceForShowCell(cell, userPatterns)])),
+        stageDimension,
+      })
+      return {
+        ...projection,
+        composition: {
+          ...projection.composition,
+          executionModel: 'deterministic-loop',
+        },
       }
     } catch {
       return null
     }
   }, [activeShow, stageDimension, userPatterns])
+  const timelineComposition = timelineProjection?.composition ?? null
+  useEffect(() => {
+    const handleDelete = (event: KeyboardEvent) => {
+      if (event.key !== 'Delete' && event.key !== 'Backspace') return
+      const target = event.target
+      if (target instanceof Element && target.closest('input, textarea, select, [contenteditable="true"], [role="textbox"]')) return
+      if (requestDeleteSelection(
+        selection,
+        timelineComposition,
+        timelineProjection?.sourceCellIdByPlacementId,
+      )) event.preventDefault()
+    }
+    document.addEventListener('keydown', handleDelete)
+    return () => document.removeEventListener('keydown', handleDelete)
+  }, [requestDeleteSelection, selection, timelineComposition, timelineProjection?.sourceCellIdByPlacementId])
   useEffect(() => {
     if (!isolatedGroupOccurrenceId) return
     const occurrence = timelineComposition?.groupOccurrences
@@ -1764,6 +1817,17 @@ export function ShowEditor({
             className="select-none outline-none [&_input]:select-text [&_textarea]:select-text"
             onFocusCapture={rememberTimelineFocus}
           >
+            {blockedDeleteFeedback && (
+              <span
+                key={blockedDeleteFeedback.token}
+                role="status"
+                aria-label="Clip deletion unavailable"
+                aria-live="polite"
+                className="sr-only"
+              >
+                A Show must contain at least one Clip.
+              </span>
+            )}
             <ShowTimelineWorkspace
                 key={activeShow.id}
                 show={activeShow}
@@ -1773,6 +1837,7 @@ export function ShowEditor({
                 patternControlsByCellId={patternControlsByCellId}
                 patternControlsByInstanceId={patternControlsByInstanceId}
                 selection={selection}
+                blockedDeleteFeedback={blockedDeleteFeedback}
                 isolatedGroupOccurrenceId={isolatedGroupOccurrenceId}
                 onSelect={selectTimeline}
                 onEnterGroupIsolation={(occurrenceId, placementId, anchor) => {
@@ -2885,6 +2950,7 @@ function ShowTimelineWorkspace({
   patternControlsByCellId,
   patternControlsByInstanceId,
   selection,
+  blockedDeleteFeedback,
   isolatedGroupOccurrenceId,
   onSelect,
   onEnterGroupIsolation,
@@ -2922,6 +2988,7 @@ function ShowTimelineWorkspace({
   patternControlsByCellId: Record<string, AutomatablePatternControl[]>
   patternControlsByInstanceId: Record<string, AutomatablePatternControl[]>
   selection: ShowSelection
+  blockedDeleteFeedback: BlockedDeleteFeedback | null
   isolatedGroupOccurrenceId: string | null
   onSelect: (selection: ShowSelection, anchor?: HTMLElement | null) => void
   onEnterGroupIsolation: (occurrenceId: string, placementId: string, anchor: HTMLElement) => void
@@ -4682,6 +4749,10 @@ function ShowTimelineWorkspace({
                         && selection.placementId === groupPlacementId
                     : selection.kind === 'clip' && selection.clipId === clip.id
                       || selection.kind === 'multi' && selection.groupSelection.placementIds.includes(clip.id)
+                  const clipSelectionKey = insideIsolatedGroup && groupPlacementId
+                    ? `group-clip:${group!.id}:${groupPlacementId}`
+                    : group ? `group:${group.id}` : `clip:${clip.id}`
+                  const deleteBlocked = blockedDeleteFeedback?.selectionKey === clipSelectionKey
                   return (
                     <button
                       key={clip.id}
@@ -4690,9 +4761,7 @@ function ShowTimelineWorkspace({
                       aria-pressed={selected}
                       aria-disabled={outsideIsolation || undefined}
                       data-show-timeline-focus
-                      data-show-selection-key={insideIsolatedGroup && groupPlacementId
-                        ? `group-clip:${group!.id}:${groupPlacementId}`
-                        : group ? `group:${group.id}` : `clip:${clip.id}`}
+                      data-show-selection-key={clipSelectionKey}
                       data-show-composition-clip="true"
                       data-show-group-occurrence={group?.id}
                       draggable={!readOnly && !group}
@@ -4813,6 +4882,18 @@ function ShowTimelineWorkspace({
                           : `inset 0 1px 0 color-mix(in srgb, ${row.color ?? '#38bdf8'} 38%, transparent), 0 1px 5px rgba(0,0,0,0.32)`,
                       } as CSSProperties}
                     >
+                      {deleteBlocked && (
+                        <span
+                          key={blockedDeleteFeedback.token}
+                          aria-hidden
+                          data-testid="show-clip-delete-blocked"
+                          className="show-clip-delete-blocked pointer-events-none absolute -inset-[2px] z-30 flex items-center justify-center rounded-[7px]"
+                        >
+                          <span className="show-clip-delete-blocked-label rounded border border-red-300/70 bg-red-950/95 px-1.5 py-0.5 text-[9px] font-semibold uppercase leading-none tracking-[0.08em] text-red-100 shadow-sm">
+                            Keep one Clip
+                          </span>
+                        </span>
+                      )}
                       <span
                         aria-hidden
                         className="pointer-events-none absolute inset-0 opacity-40"
@@ -6335,7 +6416,7 @@ function InspectorPanel({
   children,
 }: {
   family: 'Scene' | 'Clip' | 'Group' | 'Transition' | 'Zone' | 'Show'
-  title: string
+  title?: string
   heading?: string
   headingMeta?: string
   summary?: React.ReactNode
@@ -6371,7 +6452,11 @@ function InspectorPanel({
           )}
           {summary}
         </div>
-        {actions && <div className="ml-auto flex shrink-0 items-center gap-1">{actions}</div>}
+        {actions && (
+          <div className={`ml-auto flex shrink-0 items-center gap-1 ${summary ? 'mt-0.5 self-start' : ''}`}>
+            {actions}
+          </div>
+        )}
       </header>
       <div className="p-2.5">{children}</div>
     </section>
@@ -6801,8 +6886,6 @@ function CompositionClipInspector({
     <InspectorPanel
       family="Clip"
       heading={value.patternName}
-      headingMeta={value.scope === 'scene-overlay' ? 'Overlay Layer' : 'Main Layer'}
-      title="Pattern Clip"
       summary={<ClipConfigurationSummary summary={summary} />}
       icon={<Grid2X2 size={13} aria-hidden />}
       actions={onRemove ? (
@@ -6889,7 +6972,6 @@ function ClipInspector({
   const maxSpan = Math.max(1, show.scenes.length - sceneIndex)
   const zoneIndex = show.zones.findIndex((zone) => zone.id === cell.zoneId)
   const maxZoneSpan = Math.max(1, show.zones.length - zoneIndex)
-  const context = clipInspectorContext(show, cell, sceneIndex, zoneIndex)
   const lightShutter = cell.adaptations.lightShutter
   const hasAdvancedOverrides = cell.adaptations.mirror
     || cell.sceneSpan > 1
@@ -6915,8 +6997,6 @@ function ClipInspector({
     <InspectorPanel
       family="Clip"
       heading={cell.patternName}
-      headingMeta="Pattern"
-      title={context}
       summary={<ClipConfigurationSummary summary={summary} />}
       icon={<Grid2X2 size={13} aria-hidden />}
       actions={(
@@ -7075,24 +7155,6 @@ function ClipInspector({
       </div>
     </InspectorPanel>
   )
-}
-
-function clipInspectorContext(show: ShowRecord, cell: ShowCell, sceneIndex: number, zoneIndex: number): string {
-  const sceneNames = show.scenes
-    .slice(sceneIndex, sceneIndex + Math.max(1, cell.sceneSpan))
-    .map((scene) => scene.name)
-  const zoneNames = show.zones
-    .slice(zoneIndex, zoneIndex + Math.max(1, cell.zoneSpan ?? 1))
-    .map((zone) => zone.name)
-  return [
-    ...(show.zones.length > 1 ? [compactInspectorNames(zoneNames)] : []),
-    compactInspectorNames(sceneNames),
-  ].filter(Boolean).join(' · ')
-}
-
-function compactInspectorNames(names: string[]): string {
-  if (names.length <= 3) return names.join(', ')
-  return `${names.slice(0, 3).join(', ')}, …`
 }
 
 function MotionCadenceControl({

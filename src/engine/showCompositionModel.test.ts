@@ -19,6 +19,7 @@ import {
   moveShowOverlayPlacement,
   normalizeShowComposition,
   projectFlatShowToCompositionV1,
+  projectFlatShowToCompositionV1WithCellOrigins,
   replaceShowPatternInstance,
   renameShowOverlayLayer,
   reorderShowOverlayLayer,
@@ -256,6 +257,23 @@ describe('Show composition v1 Main schedule (#488)', () => {
     expect(new Set(restartedProjection.scenes.flatMap((scene) => (
       scene.zones.flatMap((zone) => zone.main.map((placement) => placement.instanceId))
     ))).size).toBe(2)
+  })
+
+  it('preserves each projected placement’s source flat cell identity', () => {
+    const flat = extendShowCell(createDefaultShow('composition-origins', 'Origins', 1), 'cell-1', 2)
+    const projected = projectFlatShowToCompositionV1WithCellOrigins(flat, lookup(flat))
+
+    const placementIds = projected.composition.scenes.flatMap((scene) => (
+      scene.zones.flatMap((zone) => zone.main.map((placement) => placement.id))
+    ))
+    expect(placementIds).toEqual([
+      'placement-cell-1-scene-1',
+      'placement-cell-1-scene-2',
+    ])
+    expect(projected.sourceCellIdByPlacementId).toEqual({
+      'placement-cell-1-scene-1': 'cell-1',
+      'placement-cell-1-scene-2': 'cell-1',
+    })
   })
 
   it('normalizes deterministically and idempotently without erasing explicit gaps', () => {

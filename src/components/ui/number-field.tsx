@@ -82,6 +82,7 @@ export interface NumberFieldProps {
   suffix?: string
   help?: string
   hideLabel?: boolean
+  showNormalizedRange?: boolean
   compact?: boolean
   align?: 'left' | 'right'
   disabled?: boolean
@@ -99,6 +100,7 @@ export function NumberField({
   suffix,
   help,
   hideLabel = false,
+  showNormalizedRange = true,
   compact = false,
   align,
   disabled = false,
@@ -116,7 +118,7 @@ export function NumberField({
   const inputClass = inspector
     ? `${compact
       ? 'h-5 rounded-none border-0 border-b border-zinc-800 bg-transparent px-1 text-[9px] focus:border-cyan-400/60'
-      : 'h-6 rounded border border-zinc-700 bg-zinc-950 px-1.5 text-[9.5px] focus:border-cyan-400/60'} tabular-nums text-zinc-200 outline-none disabled:cursor-default disabled:opacity-60`
+      : 'h-5 rounded border border-zinc-700 bg-zinc-950 px-[5px] text-[9.5px] focus:border-cyan-400/60'} tabular-nums text-zinc-200 outline-none disabled:cursor-default disabled:opacity-60`
     : `${compact ? editorCompactField : editorField}`
   const suffixClass = inspector
     ? 'text-[10px] normal-case tracking-normal text-zinc-500'
@@ -126,7 +128,9 @@ export function NumberField({
     <label className={labelClass} title={help}>
       <span className={hideLabel ? 'sr-only' : 'flex items-center justify-between gap-2'}>
         <span>{label}</span>
-        {normalized && <span className="font-mono text-[8px] tracking-normal text-zinc-700" title="Normalized value from zero to one">0–1</span>}
+        {normalized && showNormalizedRange && (
+          <span className="font-mono text-[8px] tracking-normal text-zinc-700" title="Normalized value from zero to one">0–1</span>
+        )}
       </span>
       <span className={`${hideLabel ? '' : 'mt-1'} flex min-w-0 items-center gap-1`}>
         <input
