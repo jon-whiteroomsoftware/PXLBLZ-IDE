@@ -25,6 +25,18 @@ import type { CompiledMember, ShowClipAdaptation, ShowClipRecipe } from './showC
 type Node = Record<string, any>
 
 const MEASURED_DEVICE_BUDGET_BYTES = SHOW_ARTIFACT_BUDGET_BYTES
+const MEMBER_COORDINATE_TRANSFORM_BUILTINS = new Set([
+  'resetTransform',
+  'translate',
+  'translate3D',
+  'scale',
+  'scale3D',
+  'rotate',
+  'rotateX',
+  'rotateY',
+  'rotateZ',
+  'transform',
+])
 
 export function clampNumber(value: number, min: number, max: number): number {
   if (!Number.isFinite(value)) return min
@@ -144,9 +156,37 @@ export function compileMember(
   }
   const memberSource = frameHoists.source
   const memberAst = parseModule(memberSource)
-  const bindings = collectTopLevelBindings(memberAst)
-  const mapping = new Map([...bindings].map(name => [name, `${prefix}_${name}`]))
-  const code = rewriteMemberSource(memberSource, memberAst, prefix, mapping).replace(/\bexport\s+/g, '')
+  const implicitBindings = new Set<string>()
+  const bindings = collectTopLevelBindings(memberAst, implicitBindings)
+  const mapping = new Map([...bindings].map(name => [
+    name,
+    implicitBindings.has(name)
+      ? `__pxlblz_show_implicit_c${index}_${name}`
+      : `${prefix}_${name}`,
+  ]))
+  const coordinateTransformBuiltins = new Set<string>()
+  const renamedSource = rewriteMemberSource(
+    memberSource,
+    memberAst,
+    prefix,
+    mapping,
+    coordinateTransformBuiltins,
+  )
+  const coordinateMapBuiltins = new Set<string>()
+  const isolatedSource = coordinateTransformBuiltins.size > 0
+    ? rewriteMemberSource(
+        renamedSource,
+        parseModule(renamedSource),
+        prefix,
+        new Map(),
+        coordinateMapBuiltins,
+        true,
+      )
+    : renamedSource
+  const code = isolatedSource.replace(/\bexport\s+/g, '')
+  const coordinateTransformPrefix = coordinateTransformBuiltins.size > 0
+    ? allocateMemberRuntimePrefix(prefix, mapping, 'ctm')
+    : null
   const reset = analyzeShowPatternMemberReset(code)
   const adaptation = normalizeAdaptation(clip.adaptation)
   const renamedPatternVars = bundled.metadata.patternVars
@@ -194,6 +234,9 @@ export function compileMember(
     hasRender2D: bindings.has('render2D'),
     hasRender3D: bindings.has('render3D'),
     hasBeforeRender: bindings.has('beforeRender'),
+    coordinateTransformBuiltins: [...coordinateTransformBuiltins].sort(),
+    coordinateTransformPrefix,
+    usesMapPixels: coordinateMapBuiltins.has('mapPixels'),
     usesHsv: code.includes(`${prefix}_hsv`),
     usesTime: code.includes(`${prefix}_time`),
     elapsedName: `${prefix}_elapsed_ms`,
@@ -242,100 +285,234 @@ export function compileMember(
     freezeOwnerTokens: [],
     refreshOwnerTokens: [],
     rollingRefreshOwnerTokens: [],
-    resettable: reset.resettable,
+    // Coordinate transforms carry persistent matrix state that is not part of
+    // the Pattern-slot bank. Keep transformed members on independent machines
+    // until that state participates in slot save/restore.
+    resettable: reset.resettable && coordinateTransformBuiltins.size === 0,
     resetAssignments: reset.assignments,
     slotOwnerCount: 1,
     slotOwnerAdaptations: [adaptation],
   }
 }
 
-function rewriteMemberSource(source: string, ast: Node, prefix: string, mapping: Map<string, string>): string {
-  const rewrites: Rewrite[] = []
+function allocateMemberRuntimePrefix(
+  memberPrefix: string,
+  mapping: Map<string, string>,
+  namespace: string,
+): string {
+  const occupied = [...mapping.values()]
+  let suffix = 0
+  while (true) {
+    const candidate = `${memberPrefix}_${namespace}${suffix === 0 ? '' : `_${suffix}`}`
+    if (!occupied.some((name) => name === candidate || name.startsWith(`${candidate}_`))) return candidate
+    suffix++
+  }
+}
+
+interface MemberRewriteContext {
+  mapping: Map<string, string>
+  prefix: string
+  rewrites: Rewrite[]
+  rewrittenBuiltins: Set<string>
+  rewriteMapPixels: boolean
+}
+
+function rewriteMemberSource(
+  source: string,
+  ast: Node,
+  prefix: string,
+  mapping: Map<string, string>,
+  coordinateTransformBuiltins: Set<string>,
+  rewriteMapPixels = false,
+): string {
+  const context: MemberRewriteContext = {
+    mapping,
+    prefix,
+    rewrites: [],
+    rewrittenBuiltins: coordinateTransformBuiltins,
+    rewriteMapPixels,
+  }
   const emptyScope: Scope = { locals: new Set(), parent: null }
-  walkForRewrites(ast, emptyScope, true, mapping, prefix, rewrites)
-  return rewriteSource(source, rewrites)
+  walkForRewrites(ast, emptyScope, true, context)
+  return rewriteSource(source, context.rewrites)
 }
 
 function walkForRewrites(
   node: Node,
   scope: Scope,
   topLevel: boolean,
-  mapping: Map<string, string>,
-  prefix: string,
-  rewrites: Rewrite[],
+  context: MemberRewriteContext,
 ): void {
   if (!node || typeof node !== 'object') return
 
   if (node.type === 'Program') {
     for (const child of node.body as Node[]) {
-      walkForRewrites(child, scope, true, mapping, prefix, rewrites)
+      walkForRewrites(child, scope, true, context)
+    }
+    return
+  }
+
+  if (node.type === 'BlockStatement') {
+    const blockScope = makeBlockScope(node, scope)
+    removeProgramMappedFunctionLocals(
+      blockScope,
+      scope,
+      context.mapping,
+      (node.body as Node[])
+        .filter((statement) => statement.type === 'FunctionDeclaration')
+        .map((statement) => statement.id?.name as string),
+    )
+    for (const child of node.body as Node[]) {
+      walkForRewrites(child, blockScope, false, context)
+    }
+    return
+  }
+
+  if (node.type === 'CatchClause') {
+    const catchLocals = new Set<string>()
+    collectBindingNames(node.param, catchLocals)
+    const catchScope: Scope = { locals: catchLocals, parent: scope }
+    walkForRewrites(node.body, catchScope, false, context)
+    return
+  }
+
+  if (node.type === 'ForStatement' || node.type === 'ForInStatement' || node.type === 'ForOfStatement') {
+    const declaration = node.type === 'ForStatement' ? node.init : node.left
+    const loopLocals = new Set<string>()
+    if (declaration?.type === 'VariableDeclaration' && declaration.kind !== 'var') {
+      for (const item of declaration.declarations as Node[]) collectBindingNames(item.id, loopLocals)
+    }
+    const loopScope: Scope = loopLocals.size > 0 ? { locals: loopLocals, parent: scope } : scope
+    for (const [key, value] of Object.entries(node)) {
+      if (key === 'start' || key === 'end' || key === 'loc' || key === 'type') continue
+      if (Array.isArray(value)) {
+        for (const child of value) walkForRewrites(child as Node, loopScope, false, context)
+      } else if (value && typeof value === 'object') {
+        walkForRewrites(value as Node, loopScope, false, context)
+      }
+    }
+    return
+  }
+
+  if (node.type === 'SwitchStatement') {
+    const switchScope = makeSwitchScope(node, scope)
+    removeProgramMappedFunctionLocals(
+      switchScope,
+      scope,
+      context.mapping,
+      (node.cases as Node[]).flatMap((switchCase) => (
+        (switchCase.consequent as Node[])
+          .filter((statement) => statement.type === 'FunctionDeclaration')
+          .map((statement) => statement.id?.name as string)
+      )),
+    )
+    walkForRewrites(node.discriminant, scope, false, context)
+    for (const switchCase of (node.cases as Node[]) ?? []) {
+      if (switchCase.test) walkForRewrites(switchCase.test, switchScope, false, context)
+      for (const child of (switchCase.consequent as Node[]) ?? []) {
+        walkForRewrites(child, switchScope, false, context)
+      }
     }
     return
   }
 
   if (node.type === 'ExportNamedDeclaration') {
-    if (node.declaration) walkForRewrites(node.declaration, scope, topLevel, mapping, prefix, rewrites)
+    if (node.declaration) walkForRewrites(node.declaration, scope, topLevel, context)
     return
   }
 
   if (node.type === 'VariableDeclaration') {
     for (const declaration of node.declarations as Node[]) {
-      if (topLevel && declaration.id?.type === 'Identifier') {
-        addMappedRewrite(declaration.id, mapping, rewrites)
+      const declarationNames = new Set<string>()
+      collectBindingNames(declaration.id, declarationNames)
+      const programScopedVar = node.kind === 'var'
+        && [...declarationNames].some(name => !isLocallyBound(scope, name))
+      if (topLevel || programScopedVar) {
+        addMappedBindingRewrites(declaration.id, context.mapping, context.rewrites)
       }
-      if (declaration.init) walkForRewrites(declaration.init, scope, false, mapping, prefix, rewrites)
+      walkParameterInitializers(declaration.id, scope, context)
+      if (declaration.init) walkForRewrites(declaration.init, scope, false, context)
     }
     return
   }
 
   if (node.type === 'FunctionDeclaration') {
-    if (topLevel && node.id?.type === 'Identifier') addMappedRewrite(node.id, mapping, rewrites)
-    const fnScope = makeFunctionScope(node, scope)
-    walkForRewrites(node.body, fnScope, false, mapping, prefix, rewrites)
+    if (node.id?.type === 'Identifier' && !isLocallyBound(scope, node.id.name as string)) {
+      addMappedRewrite(node.id, context.mapping, context.rewrites)
+    }
+    const parameterScope = makeFunctionParameterScope(node, scope)
+    for (const param of (node.params as Node[]) ?? []) {
+      walkParameterInitializers(param, parameterScope, context)
+    }
+    walkForRewrites(node.body, makeFunctionBodyScope(node, parameterScope), false, context)
     return
   }
 
   if (node.type === 'FunctionExpression' || node.type === 'ArrowFunctionExpression') {
-    const fnScope = makeFunctionScope(node, scope)
-    walkForRewrites(node.body, fnScope, false, mapping, prefix, rewrites)
+    const parameterScope = makeFunctionParameterScope(node, scope)
+    for (const param of (node.params as Node[]) ?? []) {
+      walkParameterInitializers(param, parameterScope, context)
+    }
+    walkForRewrites(node.body, makeFunctionBodyScope(node, parameterScope), false, context)
     return
   }
 
   if (node.type === 'CallExpression') {
     if (node.callee?.type === 'Identifier') {
-      addReferenceRewrite(node.callee, scope, mapping, prefix, rewrites, true)
+      addReferenceRewrite(node.callee, scope, context, true)
     } else {
-      walkForRewrites(node.callee, scope, false, mapping, prefix, rewrites)
+      walkForRewrites(node.callee, scope, false, context)
     }
     for (const argument of (node.arguments as Node[]) ?? []) {
-      walkForRewrites(argument, scope, false, mapping, prefix, rewrites)
+      walkForRewrites(argument, scope, false, context)
     }
     return
   }
 
   if (node.type === 'MemberExpression') {
-    walkForRewrites(node.object, scope, false, mapping, prefix, rewrites)
-    if (node.computed) walkForRewrites(node.property, scope, false, mapping, prefix, rewrites)
+    walkForRewrites(node.object, scope, false, context)
+    if (node.computed) walkForRewrites(node.property, scope, false, context)
     return
   }
 
   if (node.type === 'Property') {
-    if (node.computed) walkForRewrites(node.key, scope, false, mapping, prefix, rewrites)
-    walkForRewrites(node.value, scope, false, mapping, prefix, rewrites)
+    if (node.shorthand
+      && node.key?.type === 'Identifier') {
+      const binding = node.value?.type === 'Identifier'
+        ? node.value
+        : node.value?.type === 'AssignmentPattern' && node.value.left?.type === 'Identifier'
+          ? node.value.left
+          : null
+      if (!binding) return
+      const rewriteCount = context.rewrites.length
+      addReferenceRewrite(binding, scope, context, false)
+      const rewrite = context.rewrites[rewriteCount]
+      if (rewrite
+        && rewrite.start === binding.start
+        && rewrite.end === binding.end) {
+        rewrite.text = `${node.key.name}: ${rewrite.text}`
+      }
+      if (node.value.type === 'AssignmentPattern') {
+        walkForRewrites(node.value.right, scope, false, context)
+      }
+      return
+    }
+    if (node.computed) walkForRewrites(node.key, scope, false, context)
+    walkForRewrites(node.value, scope, false, context)
     return
   }
 
   if (node.type === 'Identifier') {
-    addReferenceRewrite(node, scope, mapping, prefix, rewrites, false)
+    addReferenceRewrite(node, scope, context, false)
     return
   }
 
   for (const [key, val] of Object.entries(node)) {
     if (key === 'start' || key === 'end' || key === 'loc') continue
     if (Array.isArray(val)) {
-      for (const child of val) walkForRewrites(child as Node, scope, false, mapping, prefix, rewrites)
+      for (const child of val) walkForRewrites(child as Node, scope, false, context)
     } else if (val && typeof val === 'object') {
-      walkForRewrites(val as Node, scope, false, mapping, prefix, rewrites)
+      walkForRewrites(val as Node, scope, false, context)
     }
   }
 }
@@ -343,26 +520,40 @@ function walkForRewrites(
 function addReferenceRewrite(
   node: Node,
   scope: Scope,
-  mapping: Map<string, string>,
-  prefix: string,
-  rewrites: Rewrite[],
+  context: MemberRewriteContext,
   callCallee: boolean,
 ): void {
   const name = node.name as string
   if (isLocallyBound(scope, name)) return
-  const mapped = mapping.get(name)
+  const mapped = context.mapping.get(name)
   if (mapped) {
-    rewrites.push({ start: node.start, end: node.end, text: mapped })
+    context.rewrites.push({ start: node.start, end: node.end, text: mapped })
     return
   }
   if (name === 'pixelCount') {
-    rewrites.push({ start: node.start, end: node.end, text: `${prefix}_pixelCount` })
+    context.rewrites.push({ start: node.start, end: node.end, text: `${context.prefix}_pixelCount` })
+    return
+  }
+  if (name === 'mapPixels' && context.rewriteMapPixels) {
+    context.rewrites.push({ start: node.start, end: node.end, text: `${context.prefix}_mapPixels` })
+    context.rewrittenBuiltins.add(name)
+    return
+  }
+  if (MEMBER_COORDINATE_TRANSFORM_BUILTINS.has(name)) {
+    context.rewrites.push({ start: node.start, end: node.end, text: `${context.prefix}_${name}` })
+    context.rewrittenBuiltins.add(name)
     return
   }
   if (!callCallee) return
-  if (name === 'time') rewrites.push({ start: node.start, end: node.end, text: `${prefix}_time` })
-  if (name === 'rgb') rewrites.push({ start: node.start, end: node.end, text: `${prefix}_rgb` })
-  if (name === 'hsv') rewrites.push({ start: node.start, end: node.end, text: `${prefix}_hsv` })
+  if (name === 'time') {
+    context.rewrites.push({ start: node.start, end: node.end, text: `${context.prefix}_time` })
+  }
+  if (name === 'rgb') {
+    context.rewrites.push({ start: node.start, end: node.end, text: `${context.prefix}_rgb` })
+  }
+  if (name === 'hsv') {
+    context.rewrites.push({ start: node.start, end: node.end, text: `${context.prefix}_hsv` })
+  }
 }
 
 function addMappedRewrite(node: Node, mapping: Map<string, string>, rewrites: Rewrite[]): void {
@@ -370,39 +561,195 @@ function addMappedRewrite(node: Node, mapping: Map<string, string>, rewrites: Re
   if (mapped) rewrites.push({ start: node.start, end: node.end, text: mapped })
 }
 
-function makeFunctionScope(node: Node, parent: Scope): Scope {
-  const locals = new Set<string>()
-  for (const param of (node.params as Node[]) ?? []) {
-    if (param.type === 'Identifier') locals.add(param.name as string)
+function addMappedBindingRewrites(
+  node: Node | null | undefined,
+  mapping: Map<string, string>,
+  rewrites: Rewrite[],
+): void {
+  if (!node || typeof node !== 'object') return
+  if (node.type === 'Identifier') {
+    addMappedRewrite(node, mapping, rewrites)
+    return
   }
+  if (node.type === 'RestElement') {
+    addMappedBindingRewrites(node.argument, mapping, rewrites)
+    return
+  }
+  if (node.type === 'AssignmentPattern') {
+    addMappedBindingRewrites(node.left, mapping, rewrites)
+    return
+  }
+  if (node.type === 'ArrayPattern') {
+    for (const element of (node.elements as Node[]) ?? []) {
+      addMappedBindingRewrites(element, mapping, rewrites)
+    }
+    return
+  }
+  if (node.type === 'ObjectPattern') {
+    for (const property of (node.properties as Node[]) ?? []) {
+      if (property.type === 'RestElement') {
+        addMappedBindingRewrites(property.argument, mapping, rewrites)
+        continue
+      }
+      if (property.shorthand) {
+        const binding = property.value?.type === 'AssignmentPattern'
+          ? property.value.left
+          : property.value
+        const mapped = binding?.type === 'Identifier'
+          ? mapping.get(binding.name as string)
+          : null
+        if (mapped) {
+          rewrites.push({ start: binding.end, end: binding.end, text: `: ${mapped}` })
+        }
+        continue
+      }
+      addMappedBindingRewrites(property.value, mapping, rewrites)
+    }
+  }
+}
+
+function makeFunctionParameterScope(node: Node, parent: Scope): Scope {
+  const locals = new Set<string>()
+  if (node.type === 'FunctionExpression') collectBindingNames(node.id, locals)
+  for (const param of (node.params as Node[]) ?? []) {
+    collectBindingNames(param, locals)
+  }
+  return { locals, parent }
+}
+
+function makeFunctionBodyScope(node: Node, parent: Scope): Scope {
+  const locals = new Set<string>()
   if (node.body?.type === 'BlockStatement') {
     for (const statement of node.body.body as Node[]) {
-      collectLocalDeclarations(statement, locals)
+      if (statement.type === 'FunctionDeclaration') collectBindingNames(statement.id, locals)
+      collectFunctionScopedDeclarations(statement, locals)
     }
   }
   return { locals, parent }
 }
 
-function collectLocalDeclarations(node: Node, locals: Set<string>): void {
+function walkParameterInitializers(
+  node: Node | null | undefined,
+  scope: Scope,
+  context: MemberRewriteContext,
+): void {
+  if (!node || typeof node !== 'object') return
+  if (node.type === 'AssignmentPattern') {
+    walkParameterInitializers(node.left, scope, context)
+    walkForRewrites(node.right, scope, false, context)
+    return
+  }
+  if (node.type === 'RestElement') {
+    walkParameterInitializers(node.argument, scope, context)
+    return
+  }
+  if (node.type === 'ArrayPattern') {
+    for (const element of (node.elements as Node[]) ?? []) {
+      walkParameterInitializers(element, scope, context)
+    }
+    return
+  }
+  if (node.type === 'ObjectPattern') {
+    for (const property of (node.properties as Node[]) ?? []) {
+      if (property.type === 'RestElement') {
+        walkParameterInitializers(property.argument, scope, context)
+      } else {
+        if (property.computed) walkForRewrites(property.key, scope, false, context)
+        walkParameterInitializers(property.value, scope, context)
+      }
+    }
+  }
+}
+
+function makeBlockScope(node: Node, parent: Scope): Scope {
+  const locals = new Set<string>()
+  for (const statement of (node.body as Node[]) ?? []) {
+    if (statement.type === 'VariableDeclaration' && statement.kind !== 'var') {
+      for (const declaration of (statement.declarations as Node[]) ?? []) {
+        collectBindingNames(declaration.id, locals)
+      }
+    } else if (statement.type === 'FunctionDeclaration' || statement.type === 'ClassDeclaration') {
+      collectBindingNames(statement.id, locals)
+    }
+  }
+  return { locals, parent }
+}
+
+function makeSwitchScope(node: Node, parent: Scope): Scope {
+  const locals = new Set<string>()
+  for (const switchCase of (node.cases as Node[]) ?? []) {
+    for (const statement of (switchCase.consequent as Node[]) ?? []) {
+      if (statement.type === 'VariableDeclaration' && statement.kind !== 'var') {
+        for (const declaration of (statement.declarations as Node[]) ?? []) {
+          collectBindingNames(declaration.id, locals)
+        }
+      } else if (statement.type === 'FunctionDeclaration' || statement.type === 'ClassDeclaration') {
+        collectBindingNames(statement.id, locals)
+      }
+    }
+  }
+  return { locals, parent }
+}
+
+function removeProgramMappedFunctionLocals(
+  scope: Scope,
+  parent: Scope,
+  mapping: Map<string, string>,
+  functionNames: string[],
+): void {
+  for (const name of functionNames) {
+    if (mapping.has(name) && !isLocallyBound(parent, name)) scope.locals.delete(name)
+  }
+}
+
+function collectFunctionScopedDeclarations(node: Node, locals: Set<string>): void {
   if (!node || typeof node !== 'object') return
   if (node.type === 'VariableDeclaration') {
-    for (const declaration of (node.declarations as Node[]) ?? []) {
-      if (declaration.id?.type === 'Identifier') locals.add(declaration.id.name as string)
+    if (node.kind === 'var') {
+      for (const declaration of (node.declarations as Node[]) ?? []) {
+        collectBindingNames(declaration.id, locals)
+      }
     }
     return
   }
   if (node.type === 'FunctionDeclaration') {
-    if (node.id?.type === 'Identifier') locals.add(node.id.name as string)
+    collectBindingNames(node.id, locals)
     return
   }
-  if (node.type === 'FunctionExpression' || node.type === 'ArrowFunctionExpression') return
+  if (node.type === 'FunctionExpression'
+    || node.type === 'ArrowFunctionExpression') return
 
   for (const [key, val] of Object.entries(node)) {
     if (key === 'start' || key === 'end' || key === 'loc') continue
     if (Array.isArray(val)) {
-      for (const child of val) collectLocalDeclarations(child as Node, locals)
+      for (const child of val) collectFunctionScopedDeclarations(child as Node, locals)
     } else if (val && typeof val === 'object') {
-      collectLocalDeclarations(val as Node, locals)
+      collectFunctionScopedDeclarations(val as Node, locals)
+    }
+  }
+}
+
+function collectBindingNames(node: Node | null | undefined, locals: Set<string>): void {
+  if (!node || typeof node !== 'object') return
+  if (node.type === 'Identifier') {
+    locals.add(node.name as string)
+    return
+  }
+  if (node.type === 'RestElement') {
+    collectBindingNames(node.argument, locals)
+    return
+  }
+  if (node.type === 'AssignmentPattern') {
+    collectBindingNames(node.left, locals)
+    return
+  }
+  if (node.type === 'ArrayPattern') {
+    for (const element of (node.elements as Node[]) ?? []) collectBindingNames(element, locals)
+    return
+  }
+  if (node.type === 'ObjectPattern') {
+    for (const property of (node.properties as Node[]) ?? []) {
+      collectBindingNames(property.type === 'RestElement' ? property.argument : property.value, locals)
     }
   }
 }
@@ -416,7 +763,7 @@ function isLocallyBound(scope: Scope, name: string): boolean {
   return false
 }
 
-function collectTopLevelBindings(ast: Node): Set<string> {
+function collectTopLevelBindings(ast: Node, implicitBindings: Set<string>): Set<string> {
   const bindings = new Set<string>()
   for (const node of ast.body as Node[]) {
     const declaration = node.type === 'ExportNamedDeclaration' ? node.declaration : node
@@ -425,11 +772,187 @@ function collectTopLevelBindings(ast: Node): Set<string> {
     }
     if (declaration?.type === 'VariableDeclaration') {
       for (const item of (declaration.declarations as Node[]) ?? []) {
-        if (item.id?.type === 'Identifier') bindings.add(item.id.name as string)
+        collectBindingNames(item.id, bindings)
       }
     }
+    collectProgramScopedVarDeclarations(declaration, bindings)
+  }
+  const declaredBindings = new Set(bindings)
+  collectImplicitGlobalAssignments(ast, { locals: bindings, parent: null }, bindings)
+  for (const name of bindings) {
+    if (!declaredBindings.has(name)) implicitBindings.add(name)
   }
   return bindings
+}
+
+function collectImplicitGlobalAssignments(
+  node: Node,
+  scope: Scope,
+  bindings: Set<string>,
+): void {
+  if (!node || typeof node !== 'object') return
+
+  if (node.type === 'Program') {
+    for (const child of node.body as Node[]) {
+      collectImplicitGlobalAssignments(child, scope, bindings)
+    }
+    return
+  }
+
+  if (node.type === 'BlockStatement') {
+    const blockScope = makeBlockScope(node, scope)
+    for (const child of node.body as Node[]) {
+      collectImplicitGlobalAssignments(child, blockScope, bindings)
+    }
+    return
+  }
+
+  if (node.type === 'CatchClause') {
+    const catchLocals = new Set<string>()
+    collectBindingNames(node.param, catchLocals)
+    collectImplicitGlobalAssignments(
+      node.body,
+      { locals: catchLocals, parent: scope },
+      bindings,
+    )
+    return
+  }
+
+  if (node.type === 'ForStatement' || node.type === 'ForInStatement' || node.type === 'ForOfStatement') {
+    const declaration = node.type === 'ForStatement' ? node.init : node.left
+    const loopLocals = new Set<string>()
+    if (declaration?.type === 'VariableDeclaration' && declaration.kind !== 'var') {
+      for (const item of declaration.declarations as Node[]) {
+        collectBindingNames(item.id, loopLocals)
+      }
+    }
+    const loopScope = loopLocals.size > 0 ? { locals: loopLocals, parent: scope } : scope
+    for (const [key, value] of Object.entries(node)) {
+      if (key === 'start' || key === 'end' || key === 'loc' || key === 'type') continue
+      if (Array.isArray(value)) {
+        for (const child of value) {
+          collectImplicitGlobalAssignments(child as Node, loopScope, bindings)
+        }
+      } else if (value && typeof value === 'object') {
+        collectImplicitGlobalAssignments(value as Node, loopScope, bindings)
+      }
+    }
+    return
+  }
+
+  if (node.type === 'SwitchStatement') {
+    const switchScope = makeSwitchScope(node, scope)
+    collectImplicitGlobalAssignments(node.discriminant, scope, bindings)
+    for (const switchCase of (node.cases as Node[]) ?? []) {
+      if (switchCase.test) {
+        collectImplicitGlobalAssignments(switchCase.test, switchScope, bindings)
+      }
+      for (const child of (switchCase.consequent as Node[]) ?? []) {
+        collectImplicitGlobalAssignments(child, switchScope, bindings)
+      }
+    }
+    return
+  }
+
+  if (node.type === 'FunctionDeclaration'
+    || node.type === 'FunctionExpression'
+    || node.type === 'ArrowFunctionExpression') {
+    const parameterScope = makeFunctionParameterScope(node, scope)
+    for (const param of (node.params as Node[]) ?? []) {
+      collectImplicitGlobalAssignments(param, parameterScope, bindings)
+    }
+    collectImplicitGlobalAssignments(
+      node.body,
+      makeFunctionBodyScope(node, parameterScope),
+      bindings,
+    )
+    return
+  }
+
+  if (node.type === 'ClassDeclaration' || node.type === 'ClassExpression') return
+
+  if (node.type === 'AssignmentExpression') {
+    collectAssignmentTargetNames(node.left, (name) => {
+      if (isLocallyBound(scope, name)) return
+      if (MEMBER_COORDINATE_TRANSFORM_BUILTINS.has(name)) return
+      bindings.add(name)
+      let programScope = scope
+      while (programScope.parent) programScope = programScope.parent
+      programScope.locals.add(name)
+    })
+  }
+
+  for (const [key, value] of Object.entries(node)) {
+    if (key === 'start' || key === 'end' || key === 'loc') continue
+    if (Array.isArray(value)) {
+      for (const child of value) {
+        collectImplicitGlobalAssignments(child as Node, scope, bindings)
+      }
+    } else if (value && typeof value === 'object') {
+      collectImplicitGlobalAssignments(value as Node, scope, bindings)
+    }
+  }
+}
+
+function collectAssignmentTargetNames(
+  node: Node | null | undefined,
+  visit: (name: string) => void,
+): void {
+  if (!node || typeof node !== 'object') return
+  if (node.type === 'Identifier') {
+    visit(node.name as string)
+    return
+  }
+  if (node.type === 'RestElement') {
+    collectAssignmentTargetNames(node.argument, visit)
+    return
+  }
+  if (node.type === 'AssignmentPattern') {
+    collectAssignmentTargetNames(node.left, visit)
+    return
+  }
+  if (node.type === 'ArrayPattern') {
+    for (const element of (node.elements as Node[]) ?? []) {
+      collectAssignmentTargetNames(element, visit)
+    }
+    return
+  }
+  if (node.type === 'ObjectPattern') {
+    for (const property of (node.properties as Node[]) ?? []) {
+      collectAssignmentTargetNames(
+        property.type === 'RestElement' ? property.argument : property.value,
+        visit,
+      )
+    }
+  }
+}
+
+function collectProgramScopedVarDeclarations(node: Node, bindings: Set<string>): void {
+  if (!node || typeof node !== 'object') return
+  if (node.type === 'FunctionDeclaration') {
+    collectBindingNames(node.id, bindings)
+    return
+  }
+  if (node.type === 'FunctionExpression'
+    || node.type === 'ArrowFunctionExpression'
+    || node.type === 'ClassDeclaration'
+    || node.type === 'ClassExpression') return
+  if (node.type === 'VariableDeclaration') {
+    if (node.kind === 'var') {
+      for (const declaration of (node.declarations as Node[]) ?? []) {
+        collectBindingNames(declaration.id, bindings)
+      }
+    }
+    return
+  }
+  for (const [key, value] of Object.entries(node)) {
+    if (key === 'start' || key === 'end' || key === 'loc') continue
+    if (Array.isArray(value)) {
+      for (const child of value) collectProgramScopedVarDeclarations(child as Node, bindings)
+    } else if (value && typeof value === 'object') {
+      collectProgramScopedVarDeclarations(value as Node, bindings)
+    }
+  }
 }
 
 export function rewriteSource(src: string, rewrites: Rewrite[]): string {
@@ -443,4 +966,3 @@ export function rewriteSource(src: string, rewrites: Rewrite[]): string {
 export function parseModule(source: string): Node {
   return acorn.parse(source, { ecmaVersion: 2020, sourceType: 'module' }) as unknown as Node
 }
-

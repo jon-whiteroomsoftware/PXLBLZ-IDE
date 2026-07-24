@@ -849,6 +849,9 @@ export interface CompiledMember {
   hasRender2D: boolean
   hasRender3D: boolean
   hasBeforeRender: boolean
+  coordinateTransformBuiltins: string[]
+  coordinateTransformPrefix: string | null
+  usesMapPixels: boolean
   usesHsv: boolean
   usesTime: boolean
   elapsedName: string
@@ -2118,6 +2121,10 @@ export function compileShow(
     }),
     samplePropertyRamps: expandedRecipe.samplePropertyRamps,
   }))
+  for (const member of members) {
+    const snapshots = memberCoordinateTransformSnapshotDeclarations(member)
+    if (snapshots.length > 0) member.code = `${member.code.trim()}\n${snapshots.join('\n')}`
+  }
   let patternSlotRuntimePlan: CompiledPatternSlotRuntimePlan | null = null
   if (patternSlotSharing === 'force' && expandedRecipe.routedSceneSequence) {
     const logicalMembers = members
@@ -2925,6 +2932,9 @@ export function compileShow(
     generatedScalarGlobals: (routingParameterEstimate?.scalarGlobals ?? 0)
       + (expandedRecipe.samplePropertyRamps ? 1 : 0)
       + new Set(selectedScalarFields.map(scalarFieldPlane)).size * 2
+      + members.reduce((count, member) => (
+        count + memberCoordinateTransformScalarGlobals(member)
+      ), 0)
       + members.reduce((count, member) => {
         if (showEffectsAreIdentity(member.effects) && !member.animatedEffects) return count
         const hasAffine = member.effects.some((effect) => ['translate', 'rotate', 'scale', 'shear'].includes(effect.kind))
@@ -4409,6 +4419,7 @@ function emitRoutedSceneSequenceShowCode(
   const advancedFlag = (member: CompiledMember) => `${member.prefix}_advanced_this_frame`
   const loopResetLines = members.flatMap((member) => [
     ...member.resetAssignments,
+    ...memberCoordinateTransformResetAssignments(member),
     `${member.elapsedName} = ${member.adaptation.timeOffsetMs}`,
     ...(member.usesTime ? [`${member.elapsedSecondsName} = ${member.adaptation.timeOffsetMs / 1_000}`] : []),
     ...(member.adaptation.steppedClock
@@ -8514,10 +8525,16 @@ function emitSelectedMemberRendererCall(
   })
   const x = args.x ?? `${args.index} / max(1, ${member.pixelCountName} - 1)`
   const y = args.y ?? '0.5'
+  const rendered = memberCoordinateTransformExpressions(
+    member,
+    x,
+    y,
+    compatibility.renderer === 'render3D' ? '0.5' : '0',
+  )
   const call = compatibility.renderer === 'render3D'
-    ? `${member.render3DName}(${args.index}, ${x}, ${y}, 0.5)`
+    ? `${member.render3DName}(${args.index}, ${rendered.x}, ${rendered.y}, ${rendered.z})`
     : compatibility.renderer === 'render2D'
-      ? `${member.render2DName}(${args.index}, ${x}, ${y})`
+      ? `${member.render2DName}(${args.index}, ${rendered.x}, ${rendered.y})`
       : compatibility.renderer === 'render'
         ? `${member.renderName}(${args.index})`
         : ''
@@ -8525,6 +8542,283 @@ function emitSelectedMemberRendererCall(
   return member.adaptation.lightShutter
     ? `if (${member.prefix}_shutter_open >= 0.5) ${call}`
     : call
+}
+
+function emitMemberCoordinateTransformRuntime(member: CompiledMember): string[] {
+  if (member.coordinateTransformBuiltins.length === 0) return []
+  const transformRuntime = memberNeeds3DCoordinateTransform(member)
+    ? emitMember3DCoordinateTransformRuntime(member)
+    : emitMember2DCoordinateTransformRuntime(member)
+  return member.usesMapPixels
+    ? [...transformRuntime, emitMemberMapPixelsTransformRuntime(member)]
+    : transformRuntime
+}
+
+function emitMemberMapPixelsTransformRuntime(member: CompiledMember): string {
+  const transformed = memberCoordinateTransformExpressions(member, 'x', 'y', 'z')
+  const transformPrefix = member.coordinateTransformPrefix!
+  return `var ${transformPrefix}_map_callback = 0
+function ${transformPrefix}_map_apply(index, x, y, z) {
+  ${transformPrefix}_map_callback(index, ${transformed.x}, ${transformed.y}, ${transformed.z})
+}
+function ${member.prefix}_mapPixels(callback) {
+  var previousCallback = ${transformPrefix}_map_callback
+  ${transformPrefix}_map_callback = callback
+  mapPixels(${transformPrefix}_map_apply)
+  ${transformPrefix}_map_callback = previousCallback
+}`
+}
+
+function memberNeeds3DCoordinateTransform(member: CompiledMember): boolean {
+  return member.coordinateTransformBuiltins.some((name) => (
+    name === 'translate3D'
+    || name === 'scale3D'
+    || name === 'rotateX'
+    || name === 'rotateY'
+    || name === 'transform'
+  ))
+}
+
+function memberCoordinateTransformExpressions(
+  member: CompiledMember,
+  x: string,
+  y: string,
+  z: string,
+): { x: string; y: string; z: string } {
+  if (member.coordinateTransformBuiltins.length === 0) return { x, y, z }
+  const prefix = member.coordinateTransformPrefix!
+  if (!memberNeeds3DCoordinateTransform(member)) {
+    return {
+      x: `${prefix}_ctm_apply_x(${x}, ${y})`,
+      y: `${prefix}_ctm_apply_y(${x}, ${y})`,
+      z,
+    }
+  }
+  return {
+    x: `${prefix}_ctm_apply_x(${x}, ${y}, ${z})`,
+    y: `${prefix}_ctm_apply_y(${x}, ${y}, ${z})`,
+    z: memberUsesTransformedZ(member)
+      ? `${prefix}_ctm_apply_z(${x}, ${y}, ${z})`
+      : z,
+  }
+}
+
+function memberUsesCoordinateTransformApplication(member: CompiledMember): boolean {
+  return member.hasRender2D || member.hasRender3D || member.usesMapPixels
+}
+
+function memberUsesTransformedZ(member: CompiledMember): boolean {
+  return member.hasRender3D || member.usesMapPixels
+}
+
+function emitMember2DCoordinateTransformRuntime(member: CompiledMember): string[] {
+  const prefix = member.coordinateTransformPrefix!
+  const memberPrefix = member.prefix
+  const uses = (name: string) => member.coordinateTransformBuiltins.includes(name)
+  const composes = ['translate', 'scale', 'rotate', 'rotateZ'].some(uses)
+  return [
+    `var ${prefix}_ctm_a = 1`,
+    `var ${prefix}_ctm_b = 0`,
+    `var ${prefix}_ctm_c = 0`,
+    `var ${prefix}_ctm_d = 1`,
+    `var ${prefix}_ctm_tx = 0`,
+    `var ${prefix}_ctm_ty = 0`,
+    ...(memberUsesCoordinateTransformApplication(member) ? [
+      `function ${prefix}_ctm_apply_x(x, y) {
+  return ${prefix}_ctm_a * x + ${prefix}_ctm_c * y + ${prefix}_ctm_tx
+}`,
+      `function ${prefix}_ctm_apply_y(x, y) {
+  return ${prefix}_ctm_b * x + ${prefix}_ctm_d * y + ${prefix}_ctm_ty
+}`,
+    ] : []),
+    ...(composes ? [`function ${prefix}_ctm_compose(a, b, c, d, tx, ty) {
+  var nextA = a * ${prefix}_ctm_a + c * ${prefix}_ctm_b
+  var nextB = b * ${prefix}_ctm_a + d * ${prefix}_ctm_b
+  var nextC = a * ${prefix}_ctm_c + c * ${prefix}_ctm_d
+  var nextD = b * ${prefix}_ctm_c + d * ${prefix}_ctm_d
+  var nextTx = a * ${prefix}_ctm_tx + c * ${prefix}_ctm_ty + tx
+  var nextTy = b * ${prefix}_ctm_tx + d * ${prefix}_ctm_ty + ty
+  ${prefix}_ctm_a = nextA
+  ${prefix}_ctm_b = nextB
+  ${prefix}_ctm_c = nextC
+  ${prefix}_ctm_d = nextD
+  ${prefix}_ctm_tx = nextTx
+  ${prefix}_ctm_ty = nextTy
+}`] : []),
+    ...(uses('resetTransform') ? [`function ${prefix}_ctm_reset() {
+  ${prefix}_ctm_a = 1
+  ${prefix}_ctm_b = 0
+  ${prefix}_ctm_c = 0
+  ${prefix}_ctm_d = 1
+  ${prefix}_ctm_tx = 0
+  ${prefix}_ctm_ty = 0
+}`,
+      `function ${memberPrefix}_resetTransform() { ${prefix}_ctm_reset() }`,
+    ] : []),
+    ...(uses('translate') ? [
+      `function ${memberPrefix}_translate(x, y) { ${prefix}_ctm_compose(1, 0, 0, 1, x, y) }`,
+    ] : []),
+    ...(uses('scale') ? [
+      `function ${memberPrefix}_scale(x, y) { ${prefix}_ctm_compose(x, 0, 0, y, 0, 0) }`,
+    ] : []),
+    ...(['rotate', 'rotateZ'] as const).flatMap((name) => (
+      uses(name)
+        ? [`function ${memberPrefix}_${name}(angle) {
+  var c = cos(angle)
+  var s = sin(angle)
+  ${prefix}_ctm_compose(c, s, -s, c, 0, 0)
+}`]
+        : []
+    )),
+  ]
+}
+
+function emitMember3DCoordinateTransformRuntime(member: CompiledMember): string[] {
+  const prefix = member.coordinateTransformPrefix!
+  const memberPrefix = member.prefix
+  const uses = (name: string) => member.coordinateTransformBuiltins.includes(name)
+  const composes = member.coordinateTransformBuiltins.some((name) => name !== 'resetTransform')
+  const axes = [0, 1, 2, 3] as const
+  const coefficients = axes.flatMap((row) => axes.map((column) => `${row}${column}`))
+  const identityValue = (name: string) => name[0] === name[1] ? 1 : 0
+  const composeArgs = coefficients.map((name) => `a${name}`).join(', ')
+  const next = (name: string) => {
+    const row = name[0]
+    const column = name[1]
+    return axes.map((axis) => (
+      `a${row}${axis} * ${prefix}_ctm_${axis}${column}`
+    )).join(' + ')
+  }
+  const composeFunction = `function ${prefix}_ctm_compose(${composeArgs}) {
+${coefficients.map((name) => `  var next${name} = ${next(name)}`).join('\n')}
+${coefficients.map((name) => `  ${prefix}_ctm_${name} = next${name}`).join('\n')}
+}`
+  const matrixCall = (values: string[]) => `${prefix}_ctm_compose(${values.join(', ')})`
+  return [
+    ...coefficients.map((name) => `var ${prefix}_ctm_${name} = ${identityValue(name)}`),
+    ...(memberUsesCoordinateTransformApplication(member) ? [
+      `function ${prefix}_ctm_apply_x(x, y, z) {
+  return ${prefix}_ctm_00 * x + ${prefix}_ctm_01 * y + ${prefix}_ctm_02 * z + ${prefix}_ctm_03
+}`,
+      `function ${prefix}_ctm_apply_y(x, y, z) {
+  return ${prefix}_ctm_10 * x + ${prefix}_ctm_11 * y + ${prefix}_ctm_12 * z + ${prefix}_ctm_13
+}`,
+      ...(memberUsesTransformedZ(member) ? [`function ${prefix}_ctm_apply_z(x, y, z) {
+  return ${prefix}_ctm_20 * x + ${prefix}_ctm_21 * y + ${prefix}_ctm_22 * z + ${prefix}_ctm_23
+}`] : []),
+    ] : []),
+    ...(composes ? [composeFunction] : []),
+    ...(uses('resetTransform') ? [`function ${prefix}_ctm_reset() {
+${coefficients.map((name) => `  ${prefix}_ctm_${name} = ${identityValue(name)}`).join('\n')}
+}`,
+      `function ${memberPrefix}_resetTransform() { ${prefix}_ctm_reset() }`,
+    ] : []),
+    ...(uses('translate') ? [
+      `function ${memberPrefix}_translate(x, y) { ${matrixCall([
+        '1', '0', '0', 'x',
+        '0', '1', '0', 'y',
+        '0', '0', '1', '0',
+        '0', '0', '0', '1',
+      ])} }`,
+    ] : []),
+    ...(uses('translate3D') ? [
+      `function ${memberPrefix}_translate3D(x, y, z) { ${matrixCall([
+        '1', '0', '0', 'x',
+        '0', '1', '0', 'y',
+        '0', '0', '1', 'z',
+        '0', '0', '0', '1',
+      ])} }`,
+    ] : []),
+    ...(uses('scale') ? [
+      `function ${memberPrefix}_scale(x, y) { ${matrixCall([
+        'x', '0', '0', '0',
+        '0', 'y', '0', '0',
+        '0', '0', '1', '0',
+        '0', '0', '0', '1',
+      ])} }`,
+    ] : []),
+    ...(uses('scale3D') ? [
+      `function ${memberPrefix}_scale3D(x, y, z) { ${matrixCall([
+        'x', '0', '0', '0',
+        '0', 'y', '0', '0',
+        '0', '0', 'z', '0',
+        '0', '0', '0', '1',
+      ])} }`,
+    ] : []),
+    ...(['rotate', 'rotateZ'] as const).flatMap((name) => (
+      uses(name)
+        ? [`function ${memberPrefix}_${name}(angle) {
+  var c = cos(angle)
+  var s = sin(angle)
+  ${matrixCall([
+    'c', '-s', '0', '0',
+    's', 'c', '0', '0',
+    '0', '0', '1', '0',
+    '0', '0', '0', '1',
+  ])}
+}`]
+        : []
+    )),
+    ...(uses('rotateX') ? [`function ${memberPrefix}_rotateX(angle) {
+  var c = cos(angle)
+  var s = sin(angle)
+  ${matrixCall([
+    '1', '0', '0', '0',
+    '0', 'c', '-s', '0',
+    '0', 's', 'c', '0',
+    '0', '0', '0', '1',
+  ])}
+}`] : []),
+    ...(uses('rotateY') ? [`function ${memberPrefix}_rotateY(angle) {
+  var c = cos(angle)
+  var s = sin(angle)
+  ${matrixCall([
+    'c', '0', 's', '0',
+    '0', '1', '0', '0',
+    '-s', '0', 'c', '0',
+    '0', '0', '0', '1',
+  ])}
+}`] : []),
+    ...(uses('transform') ? [`function ${memberPrefix}_transform(
+  a0, a1, a2, a3, a4, a5, a6, a7,
+  a8, a9, a10, a11, a12, a13, a14, a15
+) {
+  ${matrixCall([
+    'a0', 'a4', 'a8', 'a12',
+    'a1', 'a5', 'a9', 'a13',
+    'a2', 'a6', 'a10', 'a14',
+    'a3', 'a7', 'a11', 'a15',
+  ])}
+}`] : []),
+  ]
+}
+
+function memberCoordinateTransformScalarGlobals(member: CompiledMember): number {
+  if (member.coordinateTransformBuiltins.length === 0) return 0
+  return (memberNeeds3DCoordinateTransform(member) ? 32 : 12)
+    + (member.usesMapPixels ? 1 : 0)
+}
+
+function memberCoordinateTransformCoefficientNames(member: CompiledMember): string[] {
+  return memberNeeds3DCoordinateTransform(member)
+    ? [0, 1, 2, 3].flatMap((row) => [0, 1, 2, 3].map((column) => `${row}${column}`))
+    : ['a', 'b', 'c', 'd', 'tx', 'ty']
+}
+
+function memberCoordinateTransformSnapshotDeclarations(member: CompiledMember): string[] {
+  if (member.coordinateTransformBuiltins.length === 0) return []
+  const prefix = member.coordinateTransformPrefix!
+  return memberCoordinateTransformCoefficientNames(member).map((name) => (
+    `var ${prefix}_initial_${name} = ${prefix}_ctm_${name}`
+  ))
+}
+
+function memberCoordinateTransformResetAssignments(member: CompiledMember): string[] {
+  if (member.coordinateTransformBuiltins.length === 0) return []
+  const prefix = member.coordinateTransformPrefix!
+  return memberCoordinateTransformCoefficientNames(member).map((name) => (
+    `${prefix}_ctm_${name} = ${prefix}_initial_${name}`
+  ))
 }
 
 interface SharedEffectKernelBinding {
@@ -9286,6 +9580,7 @@ ${advanceDelta('delta', '  ')}
     `var ${member.prefix}_b = 0`,
     ...(memberHasContentKey(member) ? [`var ${member.prefix}_alpha = 1`] : []),
     ...(effectRuntime?.declarations ?? []),
+    ...emitMemberCoordinateTransformRuntime(member),
     ...steppedClockVars,
     ...shutterVars,
     `function ${member.prefix}_clear() { ${member.prefix}_r = 0; ${member.prefix}_g = 0; ${member.prefix}_b = 0${memberHasContentKey(member) ? `; ${member.prefix}_alpha = 0` : ''} }`,

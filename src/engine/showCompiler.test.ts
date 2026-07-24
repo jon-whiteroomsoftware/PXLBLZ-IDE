@@ -9,6 +9,8 @@ import { showCoherentDissolveField } from './showDissolve'
 import { showShapeRevealSignedDistance } from './showShapeReveal'
 import { sampleShowMotionTransition } from './showMotionTransition'
 import { routeShowLogicalPoint, type ShowLogicalRouting } from './showLogicalRouting'
+import { createFastReplayRuntime, prepareFastReplay } from './fastReplay'
+import type { MapPoint } from './maps/types'
 
 interface LoadedShow {
   handle: PatternHandle
@@ -54,6 +56,918 @@ function loadShow(code: string, metadata: ReturnType<typeof compileShow>['metada
 }
 
 describe('compileShow', () => {
+  it('isolates an inactive member coordinate transform from the active member', () => {
+    const plainSource = 'export function render2D(index, x, y) { rgb(x, y, 0) }'
+    const artifact = compileShow({
+      clips: [
+        { id: 'plain', source: plainSource },
+        {
+          id: 'translated',
+          source: 'translate(-0.5, -0.5)\nexport function render2D(index, x, y) { rgb(x, y, 1) }',
+        },
+      ],
+      routingLayouts: [{
+        id: 'normalized',
+        name: 'Normalized',
+        zones: [],
+        logical: { kind: 'single', zoneNames: ['main'] },
+      }],
+      routedSceneSequence: {
+        scenes: [
+          { holdMs: 1_000, placements: [{ zoneName: 'main', clipId: 'plain' }] },
+          { holdMs: 1_000, placements: [{ zoneName: 'main', clipId: 'translated' }] },
+        ],
+      },
+      loopDurationMs: 2_000,
+    }, {})
+    const runtime = createFastReplayRuntime({
+      code: artifact.code,
+      fxCode: artifact.fxCode,
+      metadata: artifact.metadata,
+      dimension: 2,
+    }, {
+      mapPoints: [
+        { sample: [0, 0], pos: [0, 0] },
+        { sample: [1, 0], pos: [1, 0] },
+        { sample: [0, 1], pos: [0, 1] },
+        { sample: [1, 1], pos: [1, 1] },
+      ],
+      randomSeed: 1,
+    })
+
+    expect(runtime.renderCurrentFrame().pixels).toEqual([
+      [0, 0, 0],
+      [1, 0, 0],
+      [0, 1, 0],
+      [1, 1, 0],
+    ])
+  })
+
+  it('isolates an inactive member coordinate transform referenced through an alias', () => {
+    const artifact = compileShow({
+      clips: [
+        {
+          id: 'plain',
+          source: 'export function render2D(index, x, y) { rgb(x, y, 0) }',
+        },
+        {
+          id: 'translated',
+          source: `
+var move = translate
+move(-0.5, -0.5)
+export function render2D(index, x, y) { rgb(x, y, 1) }
+`,
+        },
+      ],
+      routingLayouts: [{
+        id: 'normalized',
+        name: 'Normalized',
+        zones: [],
+        logical: { kind: 'single', zoneNames: ['main'] },
+      }],
+      routedSceneSequence: {
+        scenes: [
+          { holdMs: 1_000, placements: [{ zoneName: 'main', clipId: 'plain' }] },
+          { holdMs: 1_000, placements: [{ zoneName: 'main', clipId: 'translated' }] },
+        ],
+      },
+      loopDurationMs: 2_000,
+    }, {})
+    const runtime = createFastReplayRuntime({
+      code: artifact.code,
+      fxCode: artifact.fxCode,
+      metadata: artifact.metadata,
+      dimension: 2,
+    }, {
+      mapPoints: [
+        { sample: [0, 0], pos: [0, 0] },
+        { sample: [1, 0], pos: [1, 0] },
+        { sample: [0, 1], pos: [0, 1] },
+        { sample: [1, 1], pos: [1, 1] },
+      ],
+      randomSeed: 1,
+    })
+
+    expect(runtime.renderCurrentFrame().pixels).toEqual([
+      [0, 0, 0],
+      [1, 0, 0],
+      [0, 1, 0],
+      [1, 1, 0],
+    ])
+  })
+
+  it('preserves object keys for shorthand coordinate-builtin aliases', () => {
+    const source = `
+var helper = { translate }
+helper.translate(0.5, 0)
+export function render2D(index, x, y) { rgb(x, y, 0) }
+`
+    const artifact = compileShow({ clips: [{ id: 'shorthand-alias', source }] }, {})
+    const runtime = createFastReplayRuntime({
+      code: artifact.code,
+      fxCode: artifact.fxCode,
+      metadata: artifact.metadata,
+      dimension: 2,
+    }, {
+      mapPoints: [{ sample: [0, 0], pos: [0, 0] }],
+      randomSeed: 1,
+    })
+
+    expect(runtime.renderCurrentFrame().pixels).toEqual([[0.5, 0, 0]])
+    expect(artifact.expandedCode).toContain(
+      '{ translate: __pxlblz_show_c0_translate }',
+    )
+  })
+
+  it('keeps assignments to coordinate builtins on the isolated wrapper', () => {
+    const source = `
+var move = translate
+translate = move
+translate(0.5, 0)
+export function render2D(index, x, y) { rgb(x, y, 0) }
+`
+    const artifact = compileShow({ clips: [{ id: 'assigned-builtin', source }] }, {})
+    const runtime = createFastReplayRuntime({
+      code: artifact.code,
+      fxCode: artifact.fxCode,
+      metadata: artifact.metadata,
+      dimension: 2,
+    }, {
+      mapPoints: [{ sample: [0, 0], pos: [0, 0] }],
+      randomSeed: 1,
+    })
+
+    expect(runtime.renderCurrentFrame().pixels).toEqual([[0.5, 0, 0]])
+    expect(artifact.expandedCode).toContain(
+      '__pxlblz_show_c0_translate = __pxlblz_show_c0_move',
+    )
+  })
+
+  it('isolates implicit-global aliases of member coordinate builtins', () => {
+    const artifact = compileShow({
+      clips: [
+        {
+          id: 'first',
+          source: `
+applyTransform = translate
+visitMap = mapPixels
+applyTransform(-0.5, -0.5)
+function capture(index, x, y) {}
+visitMap(capture)
+export function render2D(index, x, y) { rgb(x, y, 0) }
+`,
+        },
+        {
+          id: 'second',
+          source: `
+applyTransform = translate
+visitMap = mapPixels
+applyTransform(0.25, 0.25)
+function capture(index, x, y) {}
+visitMap(capture)
+export function render2D(index, x, y) { rgb(x, y, 0) }
+`,
+        },
+      ],
+      crossfade: { startMs: 1_000, durationMs: 1_000 },
+    }, {})
+
+    expect(artifact.expandedCode).toContain(
+      '__pxlblz_show_implicit_c0_applyTransform = __pxlblz_show_c0_translate',
+    )
+    expect(artifact.expandedCode).toContain(
+      '__pxlblz_show_implicit_c1_applyTransform = __pxlblz_show_c1_translate',
+    )
+    expect(artifact.expandedCode).toContain(
+      '__pxlblz_show_implicit_c0_visitMap = __pxlblz_show_c0_mapPixels',
+    )
+    expect(artifact.expandedCode).toContain(
+      '__pxlblz_show_implicit_c1_visitMap = __pxlblz_show_c1_mapPixels',
+    )
+  })
+
+  it('keeps implicit globals distinct from compiler-owned member state', () => {
+    const source = `
+r = 0.25
+export function render2D(index, x, y) {
+  if (index) rgb(r, 0, 0)
+}
+`
+    const artifact = compileShow({ clips: [{ id: 'implicit-red', source }] }, {})
+    const runtime = createFastReplayRuntime({
+      code: artifact.code,
+      fxCode: artifact.fxCode,
+      metadata: artifact.metadata,
+      dimension: 2,
+    }, {
+      mapPoints: [
+        { sample: [0, 0], pos: [0, 0] },
+        { sample: [1, 0], pos: [1, 0] },
+      ],
+      randomSeed: 1,
+    })
+
+    expect(runtime.renderCurrentFrame().pixels).toEqual([
+      [0, 0, 0],
+      [0.25, 0, 0],
+    ])
+  })
+
+  it('isolates a coordinate transform referenced by a default parameter', () => {
+    const artifact = compileShow({
+      clips: [
+        {
+          id: 'plain',
+          source: 'export function render2D(index, x, y) { rgb(x, y, 0) }',
+        },
+        {
+          id: 'translated',
+          source: `
+function applyTransform(fn = translate) {
+  var translate = 0
+  fn(-0.5, -0.5)
+}
+applyTransform()
+export function render2D(index, x, y) { rgb(x, y, 1) }
+`,
+        },
+      ],
+      routingLayouts: [{
+        id: 'normalized',
+        name: 'Normalized',
+        zones: [],
+        logical: { kind: 'single', zoneNames: ['main'] },
+      }],
+      routedSceneSequence: {
+        scenes: [
+          { holdMs: 1_000, placements: [{ zoneName: 'main', clipId: 'plain' }] },
+          { holdMs: 1_000, placements: [{ zoneName: 'main', clipId: 'translated' }] },
+        ],
+      },
+      loopDurationMs: 2_000,
+    }, {})
+    const runtime = createFastReplayRuntime({
+      code: artifact.code,
+      fxCode: artifact.fxCode,
+      metadata: artifact.metadata,
+      dimension: 2,
+    }, {
+      mapPoints: [
+        { sample: [0, 0], pos: [0, 0] },
+        { sample: [1, 1], pos: [1, 1] },
+      ],
+      randomSeed: 1,
+    })
+
+    expect(runtime.renderCurrentFrame().pixels).toEqual([
+      [0, 0, 0],
+      [1, 1, 0],
+    ])
+  })
+
+  it('preserves a named function expression self-binding', () => {
+    const source = `
+var recurse = function translate(remaining) {
+  return remaining ? translate(remaining - 1) : 7
+}
+var value = recurse(2)
+export function render2D(index, x, y) { rgb(value, x, y) }
+`
+    const artifact = compileShow({ clips: [{ id: 'recursive', source }] }, {})
+    const runtime = createFastReplayRuntime({
+      code: artifact.code,
+      fxCode: artifact.fxCode,
+      metadata: artifact.metadata,
+      dimension: 2,
+    }, {
+      mapPoints: [{ sample: [0.25, 0.75], pos: [0.25, 0.75] }],
+      randomSeed: 1,
+    })
+
+    expect(runtime.renderCurrentFrame().pixels).toEqual([[7, 0.25, 0.75]])
+    expect(artifact.expandedCode).not.toContain('__pxlblz_show_c0_ctm_')
+  })
+
+  it('renames top-level function declaration self-references', () => {
+    const source = `
+function sum(remaining) {
+  return remaining ? sum(remaining - 1) + 1 : 0
+}
+var value = sum(3)
+export function render2D(index, x, y) { rgb(value, x, y) }
+`
+    const artifact = compileShow({ clips: [{ id: 'recursive', source }] }, {})
+    const runtime = createFastReplayRuntime({
+      code: artifact.code,
+      fxCode: artifact.fxCode,
+      metadata: artifact.metadata,
+      dimension: 2,
+    }, {
+      mapPoints: [{ sample: [0.25, 0.75], pos: [0.25, 0.75] }],
+      randomSeed: 1,
+    })
+
+    expect(runtime.renderCurrentFrame().pixels).toEqual([[3, 0.25, 0.75]])
+    expect(artifact.expandedCode).toContain(
+      'return remaining ? __pxlblz_show_c0_sum(remaining - 1) + 1 : 0',
+    )
+  })
+
+  it('preserves function-local helpers declared inside a block', () => {
+    const source = `
+function evaluate() {
+  if (1) {
+    function scale(value) { return value * 2 }
+  }
+  return scale(3)
+}
+var value = evaluate()
+export function render2D(index, x, y) { rgb(value, x, y) }
+`
+    const artifact = compileShow({ clips: [{ id: 'block-helper', source }] }, {})
+    const runtime = createFastReplayRuntime({
+      code: artifact.code,
+      fxCode: artifact.fxCode,
+      metadata: artifact.metadata,
+      dimension: 2,
+    }, {
+      mapPoints: [{ sample: [0.25, 0.75], pos: [0.25, 0.75] }],
+      randomSeed: 1,
+    })
+
+    expect(runtime.renderCurrentFrame().pixels).toEqual([[6, 0.25, 0.75]])
+    expect(artifact.expandedCode).not.toContain('__pxlblz_show_c0_ctm_')
+  })
+
+  it('renames program helpers declared inside a block', () => {
+    const source = `
+if (1) {
+  function scale(value) { return value * 2 }
+}
+var value = scale(3)
+export function render2D(index, x, y) { rgb(value, x, y) }
+`
+    const artifact = compileShow({ clips: [{ id: 'program-block-helper', source }] }, {})
+    const runtime = createFastReplayRuntime({
+      code: artifact.code,
+      fxCode: artifact.fxCode,
+      metadata: artifact.metadata,
+      dimension: 2,
+    }, {
+      mapPoints: [{ sample: [0.25, 0.75], pos: [0.25, 0.75] }],
+      randomSeed: 1,
+    })
+
+    expect(runtime.renderCurrentFrame().pixels).toEqual([[6, 0.25, 0.75]])
+    expect(artifact.expandedCode).toContain(
+      'function __pxlblz_show_c0_scale(value) { return value * 2 }',
+    )
+    expect(artifact.expandedCode).not.toContain('__pxlblz_show_c0_ctm_')
+  })
+
+  it('renames top-level destructuring bindings', () => {
+    const source = `
+var [value] = [7]
+var sourceValue = { bonus: 2 }
+var { bonus } = sourceValue
+export function render2D(index, x, y) { rgb(value + bonus, x, y) }
+`
+    const artifact = compileShow({ clips: [{ id: 'destructured', source }] }, {})
+    const runtime = createFastReplayRuntime({
+      code: artifact.code,
+      fxCode: artifact.fxCode,
+      metadata: artifact.metadata,
+      dimension: 2,
+    }, {
+      mapPoints: [{ sample: [0.25, 0.75], pos: [0.25, 0.75] }],
+      randomSeed: 1,
+    })
+
+    expect(runtime.renderCurrentFrame().pixels).toEqual([[9, 0.25, 0.75]])
+    expect(artifact.expandedCode).toContain('var [__pxlblz_show_c0_value] = [7]')
+    expect(artifact.expandedCode).toContain('var { bonus: __pxlblz_show_c0_bonus }')
+  })
+
+  it('preserves keys in shorthand destructuring assignments with defaults', () => {
+    const source = `
+var value = 0
+var sourceValue = { value: 3 }
+;({ value = 7 } = sourceValue)
+export function render2D(index, x, y) { rgb(value, x, y) }
+`
+    const artifact = compileShow({ clips: [{ id: 'destructured-default', source }] }, {})
+    const runtime = createFastReplayRuntime({
+      code: artifact.code,
+      fxCode: artifact.fxCode,
+      metadata: artifact.metadata,
+      dimension: 2,
+    }, {
+      mapPoints: [{ sample: [0.25, 0.75], pos: [0.25, 0.75] }],
+      randomSeed: 1,
+    })
+
+    expect(runtime.renderCurrentFrame().pixels).toEqual([[3, 0.25, 0.75]])
+    expect(artifact.expandedCode).toContain(
+      '({ value: __pxlblz_show_c0_value = 7 } = __pxlblz_show_c0_sourceValue)',
+    )
+  })
+
+  it('respects switch-scoped shadows of coordinate-transform builtins', () => {
+    const source = `
+function evaluate(value) {
+  switch (value) {
+    case 1:
+      let translate = 7
+      return translate
+    default:
+      return 0
+  }
+}
+var value = evaluate(1)
+export function render2D(index, x, y) { rgb(value, x, y) }
+`
+    const artifact = compileShow({ clips: [{ id: 'switch-shadow', source }] }, {})
+    const runtime = createFastReplayRuntime({
+      code: artifact.code,
+      fxCode: artifact.fxCode,
+      metadata: artifact.metadata,
+      dimension: 2,
+    }, {
+      mapPoints: [{ sample: [0.25, 0.75], pos: [0.25, 0.75] }],
+      randomSeed: 1,
+    })
+
+    expect(runtime.renderCurrentFrame().pixels).toEqual([[7, 0.25, 0.75]])
+    expect(artifact.expandedCode).not.toContain('__pxlblz_show_c0_ctm_')
+  })
+
+  it('preserves a member dynamic 2D coordinate transform', () => {
+    const source = `
+export function beforeRender(delta) {
+  resetTransform()
+  translate(-0.5, -0.5)
+  rotate(PI / 3)
+  scale(1.25, 0.75)
+  translate(0.5, 0.5)
+}
+export function render2D(index, x, y) { rgb(x, y, 0) }
+`
+    const artifact = compileShow({ clips: [{ id: 'transformed', source }] }, {})
+    const mapPoints: MapPoint[] = [
+      { sample: [0, 0], pos: [0, 0] },
+      { sample: [1, 0], pos: [1, 0] },
+      { sample: [0, 1], pos: [0, 1] },
+      { sample: [1, 1], pos: [1, 1] },
+    ]
+    const standalone = createFastReplayRuntime(prepareFastReplay(source, {}), {
+      mapPoints,
+      randomSeed: 1,
+    }).advanceLive(16).pixels
+    const show = createFastReplayRuntime({
+      code: artifact.code,
+      fxCode: artifact.fxCode,
+      metadata: artifact.metadata,
+      dimension: 2,
+    }, {
+      mapPoints,
+      randomSeed: 1,
+    }).advanceLive(16).pixels
+
+    for (let index = 0; index < standalone.length; index++) {
+      expect(show[index][0]).toBeCloseTo(standalone[index][0])
+      expect(show[index][1]).toBeCloseTo(standalone[index][1])
+      expect(show[index][2]).toBeCloseTo(standalone[index][2])
+    }
+
+    const standalonePrecise = createFastReplayRuntime(prepareFastReplay(source, {}), {
+      mapPoints,
+      randomSeed: 1,
+      fidelity: 'fidelity',
+    }).advanceLive(16).pixels
+    const showPrecise = createFastReplayRuntime({
+      code: artifact.code,
+      fxCode: artifact.fxCode,
+      metadata: artifact.metadata,
+      dimension: 2,
+    }, {
+      mapPoints,
+      randomSeed: 1,
+      fidelity: 'fidelity',
+    }).advanceLive(16).pixels
+
+    for (let index = 0; index < standalonePrecise.length; index++) {
+      expect(showPrecise[index][0]).toBeCloseTo(standalonePrecise[index][0], 3)
+      expect(showPrecise[index][1]).toBeCloseTo(standalonePrecise[index][1], 3)
+      expect(showPrecise[index][2]).toBeCloseTo(standalonePrecise[index][2], 3)
+    }
+  })
+
+  it('keeps animated Precise coordinate transforms close to the float-backed builtin', () => {
+    const source = `
+export function beforeRender(delta) { rotate(0.01) }
+export function render2D(index, x, y) { rgb(x, y, 0) }
+`
+    const artifact = compileShow({ clips: [{ id: 'rotating', source }] }, {})
+    const mapPoints: MapPoint[] = [{ sample: [1, 0], pos: [1, 0] }]
+    const standalone = createFastReplayRuntime(prepareFastReplay(source, {}), {
+      mapPoints,
+      randomSeed: 1,
+      fidelity: 'fidelity',
+    })
+    const show = createFastReplayRuntime({
+      code: artifact.code,
+      fxCode: artifact.fxCode,
+      metadata: artifact.metadata,
+      dimension: 2,
+    }, {
+      mapPoints,
+      randomSeed: 1,
+      fidelity: 'fidelity',
+    })
+
+    for (let frame = 0; frame < 1_000; frame++) {
+      standalone.advanceLive(16)
+      show.advanceLive(16)
+    }
+
+    const standalonePixel = standalone.renderCurrentFrame().pixels[0]
+    const showPixel = show.renderCurrentFrame().pixels[0]
+    expect(Math.abs(showPixel[0] - standalonePixel[0])).toBeLessThan(0.01)
+    expect(Math.abs(showPixel[1] - standalonePixel[1])).toBeLessThan(0.01)
+  })
+
+  it('quantizes each coordinate-transform composition in Precise replay', () => {
+    const source = `
+scale(0.1, 0.1)
+scale(0.1, 0.1)
+scale(0.1, 0.1)
+export function render2D(index, x, y) { rgb(x, y, 0) }
+`
+    const artifact = compileShow({ clips: [{ id: 'quantized-scale', source }] }, {})
+    const runtime = createFastReplayRuntime({
+      code: artifact.code,
+      fxCode: artifact.fxCode,
+      metadata: artifact.metadata,
+      dimension: 2,
+    }, {
+      mapPoints: [{ sample: [1, 1], pos: [1, 1] }],
+      randomSeed: 1,
+      fidelity: 'fidelity',
+    })
+
+    expect(runtime.renderCurrentFrame().pixels).toEqual([
+      [65 / 65_536, 65 / 65_536, 0],
+    ])
+  })
+
+  it('preserves a member 3D coordinate transform for a 2D renderer', () => {
+    const source = `
+export function beforeRender(delta) {
+  resetTransform()
+  translate3D(0.1, -0.2, 0.3)
+  rotateX(PI / 5)
+  rotateY(-PI / 7)
+  scale3D(1.1, 0.8, 1.2)
+  transform(
+    1, 0, 0, 0,
+    0, 1, 0, 0,
+    0, 0, 1, 0,
+    0.05, 0.1, -0.2, 1
+  )
+}
+export function render2D(index, x, y) { rgb(x, y, 0) }
+`
+    const artifact = compileShow({ clips: [{ id: 'transformed', source }] }, {})
+    const mapPoints: MapPoint[] = [
+      { sample: [0, 0], pos: [0, 0] },
+      { sample: [1, 0], pos: [1, 0] },
+      { sample: [0, 1], pos: [0, 1] },
+      { sample: [1, 1], pos: [1, 1] },
+    ]
+    const standalone = createFastReplayRuntime(prepareFastReplay(source, {}), {
+      mapPoints,
+      randomSeed: 1,
+    }).advanceLive(16).pixels
+    const show = createFastReplayRuntime({
+      code: artifact.code,
+      fxCode: artifact.fxCode,
+      metadata: artifact.metadata,
+      dimension: 2,
+    }, {
+      mapPoints,
+      randomSeed: 1,
+    }).advanceLive(16).pixels
+
+    for (let index = 0; index < standalone.length; index++) {
+      expect(show[index][0]).toBeCloseTo(standalone[index][0])
+      expect(show[index][1]).toBeCloseTo(standalone[index][1])
+      expect(show[index][2]).toBeCloseTo(standalone[index][2])
+    }
+
+    const standalonePrecise = createFastReplayRuntime(prepareFastReplay(source, {}), {
+      mapPoints,
+      randomSeed: 1,
+      fidelity: 'fidelity',
+    }).advanceLive(16).pixels
+    const showPrecise = createFastReplayRuntime({
+      code: artifact.code,
+      fxCode: artifact.fxCode,
+      metadata: artifact.metadata,
+      dimension: 2,
+    }, {
+      mapPoints,
+      randomSeed: 1,
+      fidelity: 'fidelity',
+    }).advanceLive(16).pixels
+
+    for (let index = 0; index < standalonePrecise.length; index++) {
+      expect(showPrecise[index][0]).toBeCloseTo(standalonePrecise[index][0], 3)
+      expect(showPrecise[index][1]).toBeCloseTo(standalonePrecise[index][1], 3)
+      expect(showPrecise[index][2]).toBeCloseTo(standalonePrecise[index][2], 3)
+    }
+  })
+
+  it('preserves the fourth matrix row when composing arbitrary transforms', () => {
+    const source = `
+transform(
+  1, 0, 0, 1,
+  0, 1, 0, 0,
+  0, 0, 1, 0,
+  0, 0, 0, 1
+)
+translate(1, 0)
+export function render2D(index, x, y) { rgb(x, y, 0) }
+`
+    const artifact = compileShow({ clips: [{ id: 'projective', source }] }, {})
+    const mapPoints: MapPoint[] = [
+      { sample: [0, 0], pos: [0, 0] },
+      { sample: [1, 0], pos: [1, 0] },
+    ]
+    const standalone = createFastReplayRuntime(prepareFastReplay(source, {}), {
+      mapPoints,
+      randomSeed: 1,
+    }).renderCurrentFrame().pixels
+    const show = createFastReplayRuntime({
+      code: artifact.code,
+      fxCode: artifact.fxCode,
+      metadata: artifact.metadata,
+      dimension: 2,
+    }, {
+      mapPoints,
+      randomSeed: 1,
+    }).renderCurrentFrame().pixels
+
+    expect(show).toEqual(standalone)
+  })
+
+  it('respects block-scoped shadows of coordinate-transform builtins', () => {
+    const source = `
+var value = 0
+{
+  let translate = 1
+  value = translate
+}
+export function render2D(index, x, y) { rgb(value, x, y) }
+`
+    const artifact = compileShow({ clips: [{ id: 'shadowed', source }] }, {})
+    const runtime = createFastReplayRuntime({
+      code: artifact.code,
+      fxCode: artifact.fxCode,
+      metadata: artifact.metadata,
+      dimension: 2,
+    }, {
+      mapPoints: [{ sample: [0.25, 0.75], pos: [0.25, 0.75] }],
+      randomSeed: 1,
+    })
+
+    expect(runtime.renderCurrentFrame().pixels).toEqual([[1, 0.25, 0.75]])
+    expect(artifact.expandedCode).not.toContain('__pxlblz_show_c0_ctm_')
+  })
+
+  it('preserves block-local shadows of renamed program bindings', () => {
+    const source = `
+var value = 1
+export function render2D(index, x, y) {
+  let value = 2
+  rgb(value, x, y)
+}
+`
+    const artifact = compileShow({ clips: [{ id: 'program-shadow', source }] }, {})
+    const runtime = createFastReplayRuntime({
+      code: artifact.code,
+      fxCode: artifact.fxCode,
+      metadata: artifact.metadata,
+      dimension: 2,
+    }, {
+      mapPoints: [{ sample: [0.25, 0.75], pos: [0.25, 0.75] }],
+      randomSeed: 1,
+    })
+
+    expect(runtime.renderCurrentFrame().pixels).toEqual([[2, 0.25, 0.75]])
+  })
+
+  it('respects program-scoped var shadows declared inside statements', () => {
+    const source = `
+if (1) {
+  var translate = 7
+}
+export function render2D(index, x, y) { rgb(translate, x, y) }
+`
+    const artifact = compileShow({ clips: [{ id: 'hoisted-shadow', source }] }, {})
+    const runtime = createFastReplayRuntime({
+      code: artifact.code,
+      fxCode: artifact.fxCode,
+      metadata: artifact.metadata,
+      dimension: 2,
+    }, {
+      mapPoints: [{ sample: [0.25, 0.75], pos: [0.25, 0.75] }],
+      randomSeed: 1,
+    })
+
+    expect(runtime.renderCurrentFrame().pixels).toEqual([[7, 0.25, 0.75]])
+    expect(artifact.expandedCode).not.toContain('__pxlblz_show_c0_ctm_')
+  })
+
+  it('keeps generated transform state separate from authored bindings', () => {
+    const source = `
+var ctm_a = 0.25
+translate(0.5, 0)
+export function render2D(index, x, y) { rgb(ctm_a, x, y) }
+`
+    const artifact = compileShow({ clips: [{ id: 'collision', source }] }, {})
+    const mapPoints: MapPoint[] = [
+      { sample: [0, 0], pos: [0, 0] },
+      { sample: [1, 1], pos: [1, 1] },
+    ]
+    const standalone = createFastReplayRuntime(prepareFastReplay(source, {}), {
+      mapPoints,
+      randomSeed: 1,
+    }).renderCurrentFrame().pixels
+    const show = createFastReplayRuntime({
+      code: artifact.code,
+      fxCode: artifact.fxCode,
+      metadata: artifact.metadata,
+      dimension: 2,
+    }, {
+      mapPoints,
+      randomSeed: 1,
+    }).renderCurrentFrame().pixels
+
+    expect(show).toEqual(standalone)
+  })
+
+  it('applies a member coordinate transform to mapPixels callbacks', () => {
+    const source = `
+var cornerX = 0
+var cornerY = 0
+translate(-0.5, -0.25)
+function captureMap(index, x, y, z) {
+  if (index == pixelCount - 1) {
+    cornerX = x
+    cornerY = y
+  }
+}
+var visitMap = mapPixels
+visitMap(captureMap)
+export function render2D(index, x, y) { rgb(cornerX, cornerY, 0) }
+`
+    const artifact = compileShow({ clips: [{ id: 'mapped', source }] }, {})
+    const mapPoints: MapPoint[] = [
+      { sample: [0, 0], pos: [0, 0] },
+      { sample: [1, 0], pos: [1, 0] },
+      { sample: [0, 1], pos: [0, 1] },
+      { sample: [1, 1], pos: [1, 1] },
+    ]
+    const standalone = createFastReplayRuntime(prepareFastReplay(source, {}), {
+      mapPoints,
+      randomSeed: 1,
+    }).renderCurrentFrame().pixels
+    const show = createFastReplayRuntime({
+      code: artifact.code,
+      fxCode: artifact.fxCode,
+      metadata: artifact.metadata,
+      dimension: 2,
+    }, {
+      mapPoints,
+      randomSeed: 1,
+    }).renderCurrentFrame().pixels
+
+    expect(show).toEqual(standalone)
+
+    const standalonePrecise = createFastReplayRuntime(prepareFastReplay(source, {}), {
+      mapPoints,
+      randomSeed: 1,
+      fidelity: 'fidelity',
+    }).renderCurrentFrame().pixels
+    const showPrecise = createFastReplayRuntime({
+      code: artifact.code,
+      fxCode: artifact.fxCode,
+      metadata: artifact.metadata,
+      dimension: 2,
+    }, {
+      mapPoints,
+      randomSeed: 1,
+      fidelity: 'fidelity',
+    }).renderCurrentFrame().pixels
+
+    expect(showPrecise).toEqual(standalonePrecise)
+  })
+
+  it('preserves the active callback across nested mapPixels traversals', () => {
+    const source = `
+var outerCount = 0
+var nestedCount = 0
+var nested = 0
+translate(-0.5, -0.25)
+function captureNested(index, x, y, z) { nestedCount = nestedCount + 1 }
+function captureOuter(index, x, y, z) {
+  outerCount = outerCount + 1
+  if (!nested) {
+    nested = 1
+    mapPixels(captureNested)
+  }
+}
+mapPixels(captureOuter)
+export function render2D(index, x, y) { rgb(outerCount, nestedCount, 0) }
+`
+    const artifact = compileShow({ clips: [{ id: 'nested-map', source }] }, {})
+    const mapPoints: MapPoint[] = [
+      { sample: [0, 0], pos: [0, 0] },
+      { sample: [1, 1], pos: [1, 1] },
+    ]
+    const standalone = createFastReplayRuntime(prepareFastReplay(source, {}), {
+      mapPoints,
+      randomSeed: 1,
+    }).renderCurrentFrame().pixels
+    const show = createFastReplayRuntime({
+      code: artifact.code,
+      fxCode: artifact.fxCode,
+      metadata: artifact.metadata,
+      dimension: 2,
+    }, {
+      mapPoints,
+      randomSeed: 1,
+    }).renderCurrentFrame().pixels
+
+    expect(show).toEqual(standalone)
+  })
+
+  it('emits coordinate-transform runtime only for members that call its builtins', () => {
+    const plain = compileShow({
+      clips: [{ id: 'plain', source: 'export function render2D(index, x, y) { rgb(x, y, 0) }' }],
+    }, {})
+    const locallyNamed = compileShow({
+      clips: [{
+        id: 'local',
+        source: `
+function scale(value) { return value * 2 }
+export function render2D(index, x, y) { rgb(scale(x), y, 0) }
+`,
+      }],
+    }, {})
+    const scaled = compileShow({
+      clips: [{
+        id: 'scaled',
+        source: `
+scale(2, 3)
+export function render2D(index, x, y) { rgb(x, y, 0) }
+`,
+      }],
+    }, {})
+    const locallyMapped = compileShow({
+      clips: [{
+        id: 'local-map',
+        source: `
+translate(0.25, 0.25)
+function mapPixels(callback) { callback(0, 0.5, 0.5, 0) }
+function capture(index, x, y, z) {}
+mapPixels(capture)
+export function render2D(index, x, y) { rgb(x, y, 0) }
+`,
+      }],
+    }, {})
+    const mapped = compileShow({
+      clips: [{
+        id: 'mapped',
+        source: `
+translate(0.25, 0.25)
+function capture(index, x, y, z) {}
+mapPixels(capture)
+export function render2D(index, x, y) { rgb(x, y, 0) }
+`,
+      }],
+    }, {})
+
+    expect(plain.expandedCode).not.toContain('__pxlblz_show_c0_ctm_')
+    expect(locallyNamed.expandedCode).not.toContain('__pxlblz_show_c0_ctm_')
+    expect(scaled.expandedCode).toContain('function __pxlblz_show_c0_scale(')
+    expect(scaled.expandedCode).not.toContain('function __pxlblz_show_c0_translate(')
+    expect(scaled.expandedCode).not.toContain('function __pxlblz_show_c0_rotate(')
+    expect(locallyMapped.expandedCode).not.toContain('__pxlblz_show_c0_ctm_map_callback')
+    expect(scaled.summary.cost.memory.generatedScalarGlobals).toBe(12)
+    expect(mapped.summary.cost.memory.generatedScalarGlobals).toBe(13)
+  })
+
   it('lowers the canonical Clip Transform through the affine kernel and compiles neutral state away (#529)', () => {
     const clip = {
       id: 'placed',
@@ -651,6 +1565,40 @@ export function render(index) { renders = renders + 1; rgb(elapsed, renders, 0) 
     expect(exports.__pxlblz_show_c0_elapsed).toBeCloseTo(20)
     expect(exports.__pxlblz_show_c0_elapsed_ms).toBeCloseTo(20)
     expect(exports.__pxlblz_show_c0_frames).toBe(1)
+  })
+
+  it('resets isolated coordinate transforms at deterministic Show loop boundaries', () => {
+    const zones = [{ id: 'main', name: 'main', ranges: [{ start: 0, end: 0 }] }]
+    const source = `
+translate(0.5, 0)
+export function beforeRender(delta) { rotate(PI / 2) }
+export function render2D(index, x, y) { rgb(x, y, 0) }
+`
+    const artifact = compileShow({
+      clips: [{ id: 'rotating', source }],
+      zones,
+      routingLayouts: [{ id: 'default', name: 'Default', zones }],
+      routedSceneSequence: { scenes: [
+        { holdMs: 50, placements: [{ zoneName: 'main', clipId: 'rotating' }], transitionOut: { kind: 'cut', durationMs: 0 } },
+        { holdMs: 50, placements: [{ zoneName: 'main', clipId: 'rotating' }] },
+      ] },
+      loopDurationMs: 100,
+      deterministicLoopReset: true,
+    }, {})
+    const runtime = createFastReplayRuntime({
+      code: artifact.code,
+      fxCode: artifact.fxCode,
+      metadata: artifact.metadata,
+      dimension: 2,
+    }, {
+      mapPoints: [{ sample: [1, 0], pos: [1, 0] }],
+      randomSeed: 1,
+    })
+
+    const firstLoop = runtime.advanceLive(60).pixels[0]
+    const secondLoop = runtime.advanceLive(60).pixels[0]
+    expect(secondLoop[0]).toBeCloseTo(firstLoop[0])
+    expect(secondLoop[1]).toBeCloseTo(firstLoop[1])
   })
 
   it('captures an incoming Freeze placement from the beginning of its transition (#586)', () => {
