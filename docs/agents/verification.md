@@ -32,13 +32,16 @@ the others must rebase before review. Dependent candidates remain deliberately
 stacked until their reviewed base lands.
 
 `review:candidate` resolves the supplied base and tip to commits, requires the
-base to be an ancestor, and sends the exact commit list and per-commit patch
-series to Fable Medium. This preserves empty commits and add-then-revert
-histories that an endpoint-tree diff would hide. If Fable cannot return a valid
-structured decision because of quota,
+base to be an ancestor, and rejects merge commits so the reviewed candidate
+history remains linear. The review packet sends the exact commit list and
+per-commit patch series to Fable Medium. It also requests first-parent merge
+diffs defensively, preserving empty commits, conflict-resolution changes, and
+add-then-revert histories that an endpoint-tree diff would hide. If Fable
+cannot return a valid structured decision because of quota,
 timeout, process, or malformed output, GPT-5.6 High receives the same immutable
 input. A valid failure from either reviewer is blocking and never creates an
-approval.
+approval. A pass is valid only with zero findings; contradictory structured
+output is malformed and remains fail-closed.
 
 A pass writes a receipt below the repository's common Git directory:
 

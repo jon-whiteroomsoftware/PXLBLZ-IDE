@@ -16,7 +16,7 @@ export const FABLE_REVIEW_EFFORT = 'medium' as const
 export const GPT_REVIEW_MODEL = 'gpt-5.6-sol' as const
 export const GPT_REVIEW_EFFORT = 'high' as const
 export const REVIEW_TIMEOUT_MS = 15 * 60 * 1_000
-export const REVIEW_PROMPT_VERSION = 3 as const
+export const REVIEW_PROMPT_VERSION = 4 as const
 export const REVIEW_SCHEMA_VERSION = 1 as const
 
 export interface PrePushUpdate {
@@ -264,7 +264,7 @@ ${commands}
 
 Review for correctness bugs only: logic errors, off-by-one errors, broken type contracts, incorrect state transitions, destructive data loss, missing null handling, and behavior that violates an existing invariant. When systematic test-design context is supplied, use its invariants, partitions, sequences, oracles, and residual gaps as review evidence. Do not flag style, naming, formatting, speculative improvements, or missing features outside the changed code.${testDesignPacket}
 
-For each real bug, cite the narrowest file and line where the defect is introduced and explain the concrete failing scenario. Set decision = "fail" when at least one correctness finding exists. Set decision = "pass" only when the outgoing changes are safe to push. If you cannot inspect every range, return decision = "fail" with an infrastructure finding explaining what could not be read.`
+For each real bug, cite the narrowest file and line where the defect is introduced and explain the concrete failing scenario. Set decision = "fail" when at least one correctness finding exists. Set decision = "pass" only when the outgoing changes are safe to push, and return zero findings with a pass. If you cannot inspect every range, return decision = "fail" with an infrastructure finding explaining what could not be read.`
 }
 
 export function parseClaudeReviewOutput(output: string): PushReviewResult {
@@ -287,7 +287,7 @@ export function parseClaudeReviewOutput(output: string): PushReviewResult {
     || !Array.isArray(review.findings)) {
     throw new Error('Fable returned malformed structured review output.')
   }
-  return review as PushReviewResult
+  return validateReviewSemantics(review as PushReviewResult, 'Fable')
 }
 
 export function parseCodexReviewOutput(output: string): PushReviewResult {
@@ -306,7 +306,10 @@ export function parseCodexReviewOutput(output: string): PushReviewResult {
     || !Array.isArray(structured.findings)) {
     throw new Error('GPT-5.6 High returned malformed structured review output.')
   }
-  return structured as PushReviewResult
+  return validateReviewSemantics(
+    structured as PushReviewResult,
+    'GPT-5.6 High',
+  )
 }
 
 function git(args: string[]): string {
@@ -347,6 +350,7 @@ export function buildReviewHistoryArgs(range: PushReviewRange): string[] {
     '--reverse',
     '--format=fuller',
     '--patch',
+    '--diff-merges=first-parent',
     '--no-ext-diff',
     '--unified=80',
     `${range.baseSha}..${range.tipSha}`,
@@ -503,6 +507,16 @@ function gitIsAncestor(baseSha: string, tipSha: string): boolean {
 
 function errorMessage(error: unknown): string {
   return error instanceof Error ? error.message : String(error)
+}
+
+function validateReviewSemantics(
+  review: PushReviewResult,
+  reviewer: string,
+): PushReviewResult {
+  if (review.decision === 'pass' && review.findings.length > 0) {
+    throw new Error(`${reviewer} returned a pass with correctness findings.`)
+  }
+  return review
 }
 
 const invokedPath = process.argv[1] ? pathToFileURL(process.argv[1]).href : ''

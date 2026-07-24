@@ -70,7 +70,8 @@ export interface CandidateApprovalResult {
 export function approveCandidate(
   input: ApproveCandidateInput,
 ): CandidateApprovalResult {
-  if (input.execution.review.decision !== 'pass') {
+  if (input.execution.review.decision !== 'pass'
+    || input.execution.review.findings.length > 0) {
     return { execution: input.execution }
   }
   const receipt = createApprovalReceipt({
@@ -115,6 +116,7 @@ export function validateCandidateCheckout(input: {
   tipSha: string
   headSha: string
   clean: boolean
+  hasMergeCommits: boolean
   isAncestor: (base: string, tip: string) => boolean
 }): void {
   if (input.tipSha !== input.headSha) {
@@ -125,6 +127,9 @@ export function validateCandidateCheckout(input: {
   }
   if (!input.isAncestor(input.baseSha, input.tipSha)) {
     throw new Error(`Candidate base ${input.baseSha} is not an ancestor of tip ${input.tipSha}. Rebase before review.`)
+  }
+  if (input.hasMergeCommits) {
+    throw new Error('Candidate history contains a merge commit. Rebase to a linear range before review.')
   }
 }
 
@@ -138,6 +143,11 @@ function main(): void {
       tipSha,
       headSha: resolveCommit('HEAD'),
       clean: git(['status', '--porcelain']).length === 0,
+      hasMergeCommits: git([
+        'rev-list',
+        '--merges',
+        `${baseSha}..${tipSha}`,
+      ]).length > 0,
       isAncestor: gitIsAncestor,
     })
     const range: PushReviewRange = {

@@ -135,6 +135,17 @@ describe('cross-agent push review gate (#63)', () => {
     })
 
     expect(() => parseCodexReviewOutput('{"decision":"maybe"}')).toThrow(/malformed/i)
+    expect(() => parseCodexReviewOutput(JSON.stringify({
+      decision: 'pass',
+      summary: 'Contradictory pass.',
+      findings: [{
+        severity: 'P1',
+        title: 'Still broken',
+        file: 'src/example.ts',
+        line: 1,
+        explanation: 'A pass cannot contain this finding.',
+      }],
+    }))).toThrow(/pass.*findings|findings.*pass/i)
   })
 
   it('parses the exact ref updates supplied by Git pre-push', () => {
@@ -202,6 +213,7 @@ describe('cross-agent push review gate (#63)', () => {
       '--reverse',
       '--format=fuller',
       '--patch',
+      '--diff-merges=first-parent',
       '--no-ext-diff',
       '--unified=80',
       'base..tip',

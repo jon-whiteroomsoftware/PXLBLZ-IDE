@@ -12,14 +12,16 @@ import { join } from 'node:path'
 import { describe, expect, it } from 'vitest'
 
 describe('post-commit issue updates under reviewed-main delivery (#598)', () => {
-  it('keeps an issue open when a reviewer would close it for a candidate-branch commit', () => {
+  it.each(['codex/candidate', 'main'])(
+    'keeps an issue open when a reviewer would close it for a commit on %s',
+    (branch) => {
     const repository = mkdtempSync(join(tmpdir(), 'candidate-issue-update-'))
     const fakeBin = join(repository, 'fake-bin')
     const callsPath = join(repository, 'gh-calls.txt')
     const gitEnv = environmentWithoutOuterGitRepository()
     mkdirSync(fakeBin)
     try {
-      execFileSync('git', ['init', '--initial-branch=codex/candidate'], {
+      execFileSync('git', ['init', `--initial-branch=${branch}`], {
         cwd: repository,
         env: gitEnv,
       })
@@ -70,7 +72,8 @@ printf '%s\\n' '{"action":"close","message":"Candidate appears complete."}'
     } finally {
       rmSync(repository, { recursive: true, force: true })
     }
-  })
+    },
+  )
 })
 
 function writeExecutable(path: string, contents: string): void {

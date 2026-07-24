@@ -67,6 +67,25 @@ describe('candidate correctness review (#598)', () => {
       },
     }).receiptPath).toBeUndefined()
     expect(saved).toHaveLength(1)
+
+    expect(approveCandidate({
+      ...common,
+      execution: {
+        reviewer: 'GPT-5.6 High',
+        review: {
+          decision: 'pass',
+          summary: 'Contradictory review.',
+          findings: [{
+            severity: 'P1',
+            title: 'Reported despite pass',
+            file: 'src/example.ts',
+            line: 2,
+            explanation: 'A pass cannot carry a correctness finding.',
+          }],
+        },
+      },
+    }).receiptPath).toBeUndefined()
+    expect(saved).toHaveLength(1)
   })
 
   it('reviews only a clean candidate worktree checked out at the exact tip', () => {
@@ -77,6 +96,7 @@ describe('candidate correctness review (#598)', () => {
       tipSha,
       headSha: tipSha,
       clean: true,
+      hasMergeCommits: false,
       isAncestor: () => true,
     })).not.toThrow()
     expect(() => validateCandidateCheckout({
@@ -84,6 +104,7 @@ describe('candidate correctness review (#598)', () => {
       tipSha,
       headSha: 'c'.repeat(40),
       clean: true,
+      hasMergeCommits: false,
       isAncestor: () => true,
     })).toThrow(/checked-out HEAD/i)
     expect(() => validateCandidateCheckout({
@@ -91,6 +112,7 @@ describe('candidate correctness review (#598)', () => {
       tipSha,
       headSha: tipSha,
       clean: false,
+      hasMergeCommits: false,
       isAncestor: () => true,
     })).toThrow(/uncommitted/i)
     expect(() => validateCandidateCheckout({
@@ -98,7 +120,16 @@ describe('candidate correctness review (#598)', () => {
       tipSha,
       headSha: tipSha,
       clean: true,
+      hasMergeCommits: false,
       isAncestor: () => false,
     })).toThrow(/rebase/i)
+    expect(() => validateCandidateCheckout({
+      baseSha,
+      tipSha,
+      headSha: tipSha,
+      clean: true,
+      hasMergeCommits: true,
+      isAncestor: () => true,
+    })).toThrow(/merge commit|linear/i)
   })
 })

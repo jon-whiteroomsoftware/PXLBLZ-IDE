@@ -71,14 +71,9 @@ Respond with JSON only (no markdown fences):
 
   case "$ACTION" in
     close)
-      if [ "$CURRENT_BRANCH" = "main" ]; then
-        echo "   ✅ Closing issue #$ISSUE_NUM"
-        gh issue close "$ISSUE_NUM" --comment "${MESSAGE:-Resolved in commit $COMMIT_SHA}"
-      else
-        echo "   💬 Candidate commit recorded; issue #$ISSUE_NUM remains open awaiting review and landing"
-        gh issue comment "$ISSUE_NUM" --body \
-          "Candidate commit $COMMIT_SHA on \`$CURRENT_BRANCH\` is awaiting review and landing. The issue remains open until the reviewed commit reaches main."
-      fi
+      echo "   💬 Commit recorded; issue #$ISSUE_NUM remains open awaiting review and landing"
+      gh issue comment "$ISSUE_NUM" --body \
+        "Commit $COMMIT_SHA on \`$CURRENT_BRANCH\` is awaiting review and landing verification. The issue remains open until the reviewed commit reaches main and a coordinator closes it."
       ;;
     comment)
       echo "   💬 Adding comment to issue #$ISSUE_NUM"
