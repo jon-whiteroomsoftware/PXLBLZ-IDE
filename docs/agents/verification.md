@@ -51,21 +51,30 @@ and leave both inputs deeply unchanged.
 
 Move and resize tests in `src/engine/showTimelineClipAuthoring.test.ts` provide
 the initial single-Scene, cross-Scene, accepted, refused, and edit-sequence
-examples. Extend the same harness as more Show authoring operations adopt this
-contract. Keep projection assertions focused on visible logical Clips and use
-the reference callback for Pattern instances, property tracks, Transitions,
-logical Clip identity, Groups, or Layer ownership relevant to the operation.
+examples. The declared cross-operation partitions, review-defect map, and
+multi-step cases live in
+[`logical-clip-test-matrix.md`](logical-clip-test-matrix.md). Extend the same
+harness as more Show authoring operations adopt this contract. Keep projection
+assertions focused on visible logical Clips and use the reference callback for
+Pattern instances, property tracks, Transitions, logical Clip identity, Groups,
+or Layer ownership relevant to the operation.
 
 During development, run:
 
 ```bash
 npx vitest run src/test/showAuthoringContract.test.ts \
-  src/engine/showTimelineClipAuthoring.test.ts
+  src/engine/showAuthoringMatrix.test.ts \
+  src/engine/showTimelineClipAuthoring.test.ts \
+  src/engine/showCompositionModel.test.ts \
+  src/engine/showClipInspectorModel.test.ts \
+  src/engine/showLayerTransitionAuthoring.test.ts \
+  src/store/showStore.test.ts
 ```
 
 The staged-test selector treats the shared helper as an invariant boundary.
-Changing it runs both its fault-sensitivity characterization suite and the
-Show-authoring consumer suite.
+Changing it runs its fault-sensitivity characterization suite, the central
+matrix, the operation-specific Show-authoring suites, and the persistence
+sequence.
 
 ## Staged-test selection
 

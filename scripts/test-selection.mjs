@@ -68,7 +68,12 @@ const SHOW_AUTHORING_CONTRACT_FILES = new Set([
 ])
 
 const SHOW_AUTHORING_CONTRACT_INVARIANT_TESTS = [
+  'src/engine/showAuthoringMatrix.test.ts',
   'src/engine/showTimelineClipAuthoring.test.ts',
+  'src/engine/showCompositionModel.test.ts',
+  'src/engine/showClipInspectorModel.test.ts',
+  'src/engine/showLayerTransitionAuthoring.test.ts',
+  'src/store/showStore.test.ts',
 ]
 
 export function selectPrecommitTests(changedFiles) {

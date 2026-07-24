@@ -2,6 +2,14 @@ import { showInitialState, useShowStore } from './showStore'
 import { mapInitialState, useMapStore } from './mapStore'
 import { stockShowById } from '@/pixelblaze/stock/shows'
 import { createDefaultShow } from '@/engine/showModel'
+import { validateShowComposition } from '@/engine/showCompositionModel'
+import {
+  moveShowClipAtGlobalTime,
+  resizeShowClipAtGlobalTime,
+  splitShowClipAtGlobalTime,
+} from '@/engine/showTimelineClipAuthoring'
+import { projectShowUnifiedTimeline } from '@/engine/showUnifiedTimelineProjection'
+import { expectAcceptedShowAuthoringEdit } from '@/test/showAuthoringContract'
 import {
   createInstallationShowOutputContract,
   createPortableShowOutputContract,
@@ -171,6 +179,124 @@ describe('showStore (#318)', () => {
     await useShowStore.getState().loadShows()
 
     expect(useShowStore.getState().shows[0].composition).toEqual(composition())
+  })
+
+  it('persists and reloads a multi-Scene logical Clip edit sequence (#596)', async () => {
+    const show = createDefaultShow('show-logical-sequence-persistence', 'Logical sequence persistence', 1)
+    const zoneId = show.zones[0].id
+    const authored: ShowCompositionV1 = {
+      version: 1,
+      patternInstances: [{
+        id: 'instance-logical',
+        pattern: { kind: 'stock', id: 'Rings' },
+        patternName: 'Rings',
+        time: { timeScale: 1, timeOffsetMs: 0 },
+      }],
+      scenes: show.scenes.map((scene, sceneIndex) => ({
+        sceneId: scene.id,
+        zones: [{
+          zoneId,
+          main: sceneIndex === 0
+            ? [{
+                id: 'logical-root',
+                instanceId: 'instance-logical',
+                startMs: 28_000,
+                durationMs: 2_000,
+                view: { mirror: false, phase: 0, brightness: 1 },
+              }]
+            : [{
+                id: `logical-root--span-${scene.id}`,
+                logicalClipId: 'logical-root',
+                instanceId: 'instance-logical',
+                startMs: 0,
+                durationMs: 3_000,
+                view: { mirror: false, phase: 0, brightness: 1 },
+              }],
+          overlays: [],
+        }],
+      })),
+    }
+    const owner = {
+      kind: 'main' as const,
+      sceneId: show.scenes[0].id,
+      zoneId,
+      placementId: 'logical-root',
+    }
+    const moved = expectAcceptedShowAuthoringEdit({
+      show,
+      composition: authored,
+      edit: (input) => moveShowClipAtGlobalTime(show, input, {
+        owner,
+        target: { kind: 'main', zoneId, globalStartMs: 27_000 },
+      }),
+      assertProjection: (projection) => {
+        const layers = projection.zones[0].layers
+        expect(layers[layers.length - 1]?.clips[0]).toMatchObject({
+          id: 'logical-root',
+          startMs: 27_000,
+        })
+      },
+      assertReferences: (result, original) => {
+        expect(result.patternInstances).toEqual(original.patternInstances)
+      },
+    })
+    const resized = expectAcceptedShowAuthoringEdit({
+      show,
+      composition: moved,
+      edit: (input) => resizeShowClipAtGlobalTime(show, input, {
+        owner,
+        globalStartMs: 27_000,
+        durationMs: 8_000,
+      }),
+      assertProjection: (projection) => {
+        const layers = projection.zones[0].layers
+        expect(layers[layers.length - 1]?.clips[0]).toMatchObject({
+          id: 'logical-root',
+          startMs: 27_000,
+          endMs: 35_000,
+        })
+      },
+      assertReferences: (result, original) => {
+        expect(result.patternInstances).toEqual(original.patternInstances)
+      },
+    })
+    const edited = expectAcceptedShowAuthoringEdit({
+      show,
+      composition: resized,
+      edit: (input) => splitShowClipAtGlobalTime(show, input, {
+        owner,
+        globalTimeMs: 33_000,
+        newPlacementId: 'logical-right',
+      }),
+      assertProjection: (projection) => {
+        expect(projection.zones[0].layers
+          .flatMap((layer) => layer.clips)
+          .map((clip) => clip.id)
+          .sort()).toEqual(['logical-right', 'logical-root'])
+      },
+      assertReferences: (result, original) => {
+        expect(result.patternInstances).toEqual(original.patternInstances)
+      },
+    })
+
+    const provider = memoryProvider([show])
+    setPersonalContentProvider(provider)
+    useShowStore.setState({ shows: [show], activeShowId: show.id, showsLoaded: true })
+    await useShowStore.getState().updateShow(show.id, {
+      ...show,
+      composition: edited,
+      updatedAt: 2,
+    })
+    useShowStore.setState(showInitialState)
+    await useShowStore.getState().loadShows()
+
+    const reloaded = useShowStore.getState().shows[0]
+    expect(reloaded.composition).toEqual(edited)
+    expect(validateShowComposition(reloaded, reloaded.composition!)).toEqual([])
+    expect(projectShowUnifiedTimeline(reloaded, reloaded.composition!).zones[0].layers
+      .flatMap((layer) => layer.clips)
+      .map((clip) => clip.id)
+      .sort()).toEqual(['logical-right', 'logical-root'])
   })
 
   it('preserves authored empty overlay Layers when a personal Show is reloaded', async () => {
