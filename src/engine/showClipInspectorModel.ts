@@ -16,7 +16,7 @@ import {
   updateShowCellEffects,
   updateShowCellPattern,
 } from './showModel'
-import { resizeShowClipAtGlobalTime } from './showTimelineClipAuthoring'
+import { resizeShowConnectedClipAtGlobalTime } from './showLayerTransitionAuthoring'
 import type {
   ShowCell,
   ShowClipBlink,
@@ -230,7 +230,7 @@ export function updateShowClipInspector(
       if (!range) return show
       const desiredStartMs = patch.local.startMs ?? range.localStartMs
       const desiredDurationMs = patch.local.durationMs ?? range.durationMs
-      const resized = resizeShowClipAtGlobalTime(show, stagedLocal, {
+      const resized = resizeShowConnectedClipAtGlobalTime(show, stagedLocal, {
         owner: owner.kind === 'scene-main'
           ? { ...owner, kind: 'main' }
           : { ...owner, kind: 'overlay' },

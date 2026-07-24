@@ -9,6 +9,7 @@ import {
   type ShowClipInspectorOwner,
 } from './showClipInspectorModel'
 import type { ShowCompositionV1, ShowRecord } from './personalContentRecords'
+import { validateShowComposition } from './showCompositionModel'
 
 function fixture(): ShowRecord {
   const show = createDefaultShow('clip-inspector-model', 'Clip inspector model', 1)
@@ -281,6 +282,68 @@ describe('shared Clip inspector owner model (#498)', () => {
         opacity: 0.4,
       }),
     ])
+  })
+
+  it('retargets an outgoing Transition after an exact logical Clip duration edit (#63)', () => {
+    const show = logicalClipFixture()
+    show.scenes.push({ id: 'scene-3', name: 'Scene 3', durationMs: 30_000 })
+    show.transitions.push({
+      id: 'cut-scene-2',
+      afterSceneId: show.scenes[1].id,
+      kind: 'cut',
+      durationMs: 0,
+      easing: { curve: 'linear' },
+    })
+    const continuation = show.composition!.scenes[1].zones[0].overlays[0].placements[0]
+    continuation.durationMs = 28_000
+    show.composition!.scenes.push({
+      sceneId: 'scene-3',
+      zones: [{
+        zoneId: show.zones[0].id,
+        main: [],
+        overlays: [{
+          id: 'layer-front-third',
+          name: 'Front',
+          placements: [{
+            id: 'placement-next',
+            instanceId: continuation.instanceId,
+            startMs: 0,
+            durationMs: 2_000,
+            opacity: 0.75,
+            view: { mirror: true, phase: 0.25, brightness: 0.8 },
+          }],
+        }],
+      }],
+    })
+    show.composition!.transitions = [{
+      id: 'transition-logical-next',
+      fromPlacementId: continuation.id,
+      toPlacementId: 'placement-next',
+      kind: 'crossfade',
+      durationMs: 2_000,
+      easing: { curve: 'linear' },
+      crossfadePolicy: 'live-live',
+    }]
+
+    const updated = updateShowClipInspector(show, overlayOwner(show), {
+      local: { durationMs: 34_000 },
+    })
+
+    expect(updated).not.toBe(show)
+    expect(updated.composition!.transitions).toContainEqual(expect.objectContaining({
+      id: 'transition-logical-next',
+      fromPlacementId: 'placement-overlay--span-scene-3',
+      toPlacementId: 'placement-next',
+    }))
+    expect(updated.composition!.scenes[2].zones[0].overlays[0].placements).toEqual([
+      expect.objectContaining({
+        id: 'placement-overlay--span-scene-3',
+        logicalClipId: 'placement-overlay',
+        durationMs: 1_000,
+      }),
+      expect.objectContaining({ id: 'placement-next', startMs: 3_000 }),
+    ])
+    expect(validateShowComposition(updated, updated.composition!)).toEqual([])
   })
 
   it('keeps Freeze, Strobe, and Blink on the placement while Stutter stays on the Pattern instance (#586)', () => {
