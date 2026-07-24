@@ -214,6 +214,21 @@ function shiftSoleUseInstanceTracksAcrossScenes(
       }))
     }).sort((left, right) => left.globalTimeMs - right.globalTimeMs || left.keyframe.id.localeCompare(right.keyframe.id))
     if (sourcePoints.length < 2) return false
+    const targetIntervals = targetSlices.flatMap((slice) => {
+      const range = sceneRangeById.get(slice.sceneId)
+      return range
+        ? [{
+            startMs: range.startMs + slice.localStartMs,
+            endMs: range.startMs + slice.localStartMs + slice.durationMs,
+          }]
+        : []
+    })
+    if (sourcePoints.some((point) => {
+      const shiftedTimeMs = point.globalTimeMs + input.offsetMs
+      return !targetIntervals.some((interval) => (
+        shiftedTimeMs >= interval.startMs && shiftedTimeMs <= interval.endMs
+      ))
+    })) return false
     const nonlinear = sourcePoints.some((point) => point.keyframe.easing.curve !== 'linear')
     if (nonlinear) return false
 

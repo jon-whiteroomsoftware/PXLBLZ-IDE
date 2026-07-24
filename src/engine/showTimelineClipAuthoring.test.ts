@@ -777,6 +777,42 @@ describe('global timeline Clip authoring (#580)', () => {
     })
   })
 
+  it('rejects a cross-Scene move that would discard an instance keyframe in a Transition gap (#63)', () => {
+    const show = createDefaultShow('show-move-keyframe-gap', 'Move keyframe gap', 1000)
+    const composition = emptyComposition(show)
+    composition.patternInstances.push(instance)
+    composition.scenes[0].zones[0].main.push({
+      id: 'placement-move',
+      instanceId: instance.id,
+      startMs: 20_000,
+      durationMs: 5_000,
+      view: { mirror: false, phase: 0, brightness: 1 },
+    })
+    composition.scenes[0].propertyTracks = [{
+      id: 'track-speed',
+      target: { kind: 'instance-time-scale', instanceId: instance.id },
+      keyframes: [
+        { id: 'key-a', timeMs: 20_000, value: 1, easing: { curve: 'linear' } },
+        { id: 'key-middle', timeMs: 23_000, value: 1.5, easing: { curve: 'linear' } },
+        { id: 'key-b', timeMs: 25_000, value: 2, easing: { curve: 'linear' } },
+      ],
+    }]
+
+    expect(moveShowClipAtGlobalTime(show, composition, {
+      owner: {
+        kind: 'main',
+        sceneId: show.scenes[0].id,
+        zoneId: show.zones[0].id,
+        placementId: 'placement-move',
+      },
+      target: {
+        kind: 'main',
+        zoneId: show.zones[0].id,
+        globalStartMs: 28_000,
+      },
+    })).toBe(composition)
+  })
+
   it('refuses to move a logical Clip when repartitioning would linearize nonlinear instance animation (#63)', () => {
     const show = createDefaultShow('show-move-spanning-nonlinear', 'Move spanning nonlinear', 1000)
     const composition = emptyComposition(show)
@@ -820,7 +856,7 @@ describe('global timeline Clip authoring (#580)', () => {
     })).toBe(composition)
   })
 
-  it('moves a logical Clip again after its instance automation was partitioned by Scene (#63)', () => {
+  it('moves a logical Clip again when every partitioned keyframe remains inside Scene holds (#63)', () => {
     const show = createDefaultShow('show-move-spanning-instance-again', 'Move spanning instance again', 1000)
     const composition = emptyComposition(show)
     composition.patternInstances.push(instance)
@@ -852,24 +888,21 @@ describe('global timeline Clip authoring (#580)', () => {
 
     const second = moveShowClipAtGlobalTime(show, first, {
       owner,
-      target: { kind: 'main', zoneId: show.zones[0].id, globalStartMs: 29_000 },
+      target: { kind: 'main', zoneId: show.zones[0].id, globalStartMs: 34_000 },
     })
 
     expect(second).not.toBe(first)
-    expect(second.scenes[0].zones[0].main[0]).toMatchObject({
-      id: 'placement-move',
-      startMs: 29_000,
-      durationMs: 1_000,
-    })
+    expect(second.scenes[0].zones[0].main).toEqual([])
     expect(second.scenes[1].zones[0].main[0]).toMatchObject({
-      logicalClipId: 'placement-move',
-      startMs: 0,
-      durationMs: 2_000,
+      id: 'placement-move',
+      startMs: 2_000,
+      durationMs: 5_000,
     })
     expect(second.scenes[1].propertyTracks?.[0].keyframes).toEqual([
-      expect.objectContaining({ timeMs: 0, value: 1.6 }),
-      expect.objectContaining({ timeMs: 1_000, value: 1.8 }),
-      expect.objectContaining({ timeMs: 2_000, value: 2 }),
+      expect.objectContaining({ timeMs: 2_000, value: 1 }),
+      expect.objectContaining({ timeMs: 4_000, value: 1.4 }),
+      expect.objectContaining({ timeMs: 6_000, value: 1.8 }),
+      expect.objectContaining({ timeMs: 7_000, value: 2 }),
     ])
   })
 
