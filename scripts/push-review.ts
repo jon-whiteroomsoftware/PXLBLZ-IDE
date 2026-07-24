@@ -16,7 +16,7 @@ export const FABLE_REVIEW_EFFORT = 'medium' as const
 export const GPT_REVIEW_MODEL = 'gpt-5.6-sol' as const
 export const GPT_REVIEW_EFFORT = 'high' as const
 export const REVIEW_TIMEOUT_MS = 15 * 60 * 1_000
-export const REVIEW_PROMPT_VERSION = 4 as const
+export const REVIEW_PROMPT_VERSION = 5 as const
 export const REVIEW_SCHEMA_VERSION = 1 as const
 
 export interface PrePushUpdate {
@@ -248,6 +248,7 @@ export function buildReviewPrompt(
 ): string {
   const commands = ranges.map((range) => [
     `- ${range.label}`,
+    `  - Endpoint Git objects: ${range.baseSha} -> ${range.tipSha}`,
     `  - Commits: git log --oneline ${range.baseSha}..${range.tipSha}`,
     `  - Per-commit patches: git log --reverse --patch ${range.baseSha}..${range.tipSha}`,
   ].join('\n')).join('\n')
@@ -358,6 +359,30 @@ export function buildReviewHistoryArgs(range: PushReviewRange): string[] {
   ]
 }
 
+export function formatReviewObjectPacket(
+  sha: string,
+  type: string,
+  contents?: string,
+): string {
+  if (contents === undefined) {
+    return `<ref-object sha="${sha}" type="${type}" />`
+  }
+  return [
+    `<ref-object sha="${sha}" type="${type}">`,
+    JSON.stringify(contents),
+    '</ref-object>',
+  ].join('\n')
+}
+
+function reviewObjectPacket(sha: string): string {
+  const type = git(['cat-file', '-t', sha])
+  return formatReviewObjectPacket(
+    sha,
+    type,
+    type === 'tag' ? git(['cat-file', '-p', sha]) : undefined,
+  )
+}
+
 export function buildReviewInput(
   ranges: PushReviewRange[],
   testDesign?: ReviewTestDesignContext,
@@ -366,6 +391,10 @@ export function buildReviewInput(
     buildReviewPrompt(ranges, testDesign),
     ...ranges.map((range) => [
       `\n<outgoing-range label=${JSON.stringify(range.label)}>`,
+      '<endpoint-git-objects>',
+      reviewObjectPacket(range.baseSha),
+      reviewObjectPacket(range.tipSha),
+      '</endpoint-git-objects>',
       '<commit-list>',
       git(['log', '--oneline', `${range.baseSha}..${range.tipSha}`]),
       '</commit-list>',

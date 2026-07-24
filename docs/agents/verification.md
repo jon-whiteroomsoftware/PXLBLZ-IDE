@@ -31,9 +31,9 @@ Do not review several sibling candidates from the same base. After one lands,
 the others must rebase before review. Dependent candidates remain deliberately
 stacked until their reviewed base lands.
 
-`review:candidate` resolves the supplied base and tip to commits, requires the
-base to be an ancestor, and rejects merge commits so the reviewed candidate
-history remains linear. The review packet sends the exact commit list and
+`review:candidate` resolves the supplied base and tip to exact Git objects,
+requires their commit ancestry to be linear, and rejects merge commits. The
+review packet sends the exact commit list and
 per-commit patch series to Fable Medium. It also requests first-parent merge
 diffs defensively, preserving empty commits, conflict-resolution changes, and
 add-then-revert histories that an endpoint-tree diff would hide. If Fable
@@ -56,6 +56,13 @@ test-design-context digest, decision, and timestamp. Receipt files are created
 without overwrite permission. Amend, rebase, squash, cherry-pick, changed tip,
 changed policy, malformed receipt, missing receipt, or a gap between receipts
 invalidates reuse.
+
+Annotated tags retain their tag-object SHA as the exact receipt identity rather
+than being reduced to the target commit. Candidate validation peels the tip
+only to confirm that checked-out `HEAD` is the tagged commit. The packet includes
+annotated-tag contents with the commit series, so new tags and retagging can
+receive exact coverage without hiding metadata or publishing an unreviewed
+target commit.
 
 Use `npm run review:status -- <base> <tip>` to inspect whether a range is
 approved, missing, or stale and to display the contiguous receipt chain.

@@ -94,6 +94,7 @@ describe('candidate correctness review (#598)', () => {
     expect(() => validateCandidateCheckout({
       baseSha,
       tipSha,
+      tipCommitSha: tipSha,
       headSha: tipSha,
       clean: true,
       hasMergeCommits: false,
@@ -102,6 +103,7 @@ describe('candidate correctness review (#598)', () => {
     expect(() => validateCandidateCheckout({
       baseSha,
       tipSha,
+      tipCommitSha: tipSha,
       headSha: 'c'.repeat(40),
       clean: true,
       hasMergeCommits: false,
@@ -110,6 +112,7 @@ describe('candidate correctness review (#598)', () => {
     expect(() => validateCandidateCheckout({
       baseSha,
       tipSha,
+      tipCommitSha: tipSha,
       headSha: tipSha,
       clean: false,
       hasMergeCommits: false,
@@ -118,6 +121,7 @@ describe('candidate correctness review (#598)', () => {
     expect(() => validateCandidateCheckout({
       baseSha,
       tipSha,
+      tipCommitSha: tipSha,
       headSha: tipSha,
       clean: true,
       hasMergeCommits: false,
@@ -126,10 +130,20 @@ describe('candidate correctness review (#598)', () => {
     expect(() => validateCandidateCheckout({
       baseSha,
       tipSha,
+      tipCommitSha: tipSha,
       headSha: tipSha,
       clean: true,
       hasMergeCommits: true,
       isAncestor: () => true,
     })).toThrow(/merge commit|linear/i)
+    expect(() => validateCandidateCheckout({
+      baseSha,
+      tipSha: 'c'.repeat(40),
+      tipCommitSha: tipSha,
+      headSha: tipSha,
+      clean: true,
+      hasMergeCommits: false,
+      isAncestor: () => true,
+    })).not.toThrow()
   })
 })

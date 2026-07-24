@@ -96,6 +96,14 @@ function git(args: string[]): string {
   return execFileSync('git', args, { encoding: 'utf8' }).trim()
 }
 
+function resolveObject(ref: string): string {
+  try {
+    return git(['rev-parse', '--verify', ref])
+  } catch {
+    throw new Error(`Cannot resolve candidate Git object: ${ref}`)
+  }
+}
+
 function resolveCommit(ref: string): string {
   try {
     return git(['rev-parse', '--verify', `${ref}^{commit}`])
@@ -114,12 +122,13 @@ function gitIsAncestor(baseSha: string, tipSha: string): boolean {
 export function validateCandidateCheckout(input: {
   baseSha: string
   tipSha: string
+  tipCommitSha: string
   headSha: string
   clean: boolean
   hasMergeCommits: boolean
   isAncestor: (base: string, tip: string) => boolean
 }): void {
-  if (input.tipSha !== input.headSha) {
+  if (input.tipCommitSha !== input.headSha) {
     throw new Error('Candidate tip must equal the checked-out HEAD so reviewer file reads match the reviewed patch.')
   }
   if (!input.clean) {
@@ -136,11 +145,12 @@ export function validateCandidateCheckout(input: {
 function main(): void {
   try {
     const args = parseCandidateArgs(process.argv.slice(2))
-    const baseSha = resolveCommit(args.baseRef)
-    const tipSha = resolveCommit(args.tipRef)
+    const baseSha = resolveObject(args.baseRef)
+    const tipSha = resolveObject(args.tipRef)
     validateCandidateCheckout({
       baseSha,
       tipSha,
+      tipCommitSha: resolveCommit(tipSha),
       headSha: resolveCommit('HEAD'),
       clean: git(['status', '--porcelain']).length === 0,
       hasMergeCommits: git([

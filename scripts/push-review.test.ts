@@ -10,6 +10,7 @@ import {
   buildReviewHistoryArgs,
   buildReviewPrompt,
   determineNewRefBase,
+  formatReviewObjectPacket,
   parseClaudeReviewOutput,
   parseCodexReviewOutput,
   parsePrePushInput,
@@ -219,6 +220,29 @@ describe('cross-agent push review gate (#63)', () => {
       'base..tip',
       '--',
     ])
+  })
+
+  it('includes annotated-tag identity and metadata in the exact review packet', () => {
+    const tagSha = 'a'.repeat(40)
+    const tagBody = [
+      `object ${'b'.repeat(40)}`,
+      'type commit',
+      'tag v1.0.0',
+      'tagger Test <test@example.com> 0 +0000',
+      '',
+      'Release v1.0.0',
+    ].join('\n')
+
+    expect(formatReviewObjectPacket(tagSha, 'tag', tagBody)).toContain(
+      `<ref-object sha="${tagSha}" type="tag">`,
+    )
+    expect(formatReviewObjectPacket(tagSha, 'tag', tagBody)).toContain(
+      'Release v1.0.0',
+    )
+    expect(formatReviewObjectPacket(
+      'b'.repeat(40),
+      'commit',
+    )).toContain('type="commit"')
   })
 
   it('fails closed when a new ref has no remote-main ancestry base', () => {

@@ -59,11 +59,11 @@ function git(args: string[]): string {
   return execFileSync('git', args, { encoding: 'utf8' }).trim()
 }
 
-function resolveCommit(ref: string): string {
+function resolveObject(ref: string): string {
   try {
-    return git(['rev-parse', '--verify', `${ref}^{commit}`])
+    return git(['rev-parse', '--verify', ref])
   } catch {
-    throw new Error(`Cannot resolve review status commit: ${ref}`)
+    throw new Error(`Cannot resolve review status Git object: ${ref}`)
   }
 }
 
@@ -81,8 +81,8 @@ function main(): void {
     }
     const baseRef = args[0] ?? 'origin/main'
     const tipRef = args[1] ?? 'HEAD'
-    const baseSha = resolveCommit(baseRef)
-    const tipSha = resolveCommit(tipRef)
+    const baseSha = resolveObject(baseRef)
+    const tipSha = resolveObject(tipRef)
     const directory = reviewApprovalDirectory(git([
       'rev-parse',
       '--path-format=absolute',
