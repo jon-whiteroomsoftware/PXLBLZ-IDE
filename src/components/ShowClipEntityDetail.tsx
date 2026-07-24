@@ -185,25 +185,25 @@ export function ShowClipEntityDetail({
 
         {transformEnabled && <fieldset aria-label="Clip Transform" className="mt-2 min-w-0 border-t border-zinc-800/80 pt-1.5">
           <legend className="pr-2 text-[9px] font-medium uppercase tracking-[0.12em] text-cyan-300/80">Placement</legend>
-          <label className="mb-1.5 flex items-center gap-1.5 text-[9px] text-zinc-500">
-            <input
-              type="checkbox"
-              aria-label="Enable Viewport"
-              checked={value.viewport.enabled}
-              disabled={readOnly}
-              className="h-3 w-3 accent-cyan-400"
-              onChange={(event) => onPatch({ viewport: { enabled: event.target.checked } })}
-            />
-            Enable Viewport
-          </label>
-          {value.viewport.enabled ? (
-            <div className="grid min-w-0 gap-2">
-              <fieldset aria-label="Content geometry" className="min-w-0">
-                <legend className="mb-1 text-[9px] uppercase tracking-[0.12em] text-zinc-600">Content</legend>
-                <ClipContentGeometry value={value} readOnly={readOnly} qualified onPatch={onPatch} />
-              </fieldset>
-              <fieldset aria-label="Viewport geometry" className="min-w-0 border-t border-zinc-800/70 pt-1.5">
-                <legend className="pr-2 text-[9px] uppercase tracking-[0.12em] text-zinc-600">Viewport</legend>
+          <div className="grid min-w-0 gap-2">
+            <fieldset aria-label="Content geometry" className="min-w-0">
+              <legend className="mb-1 pr-2 text-[9px] uppercase tracking-[0.12em] text-zinc-600">Content</legend>
+              <ClipContentGeometry value={value} readOnly={readOnly} qualified onPatch={onPatch} />
+            </fieldset>
+            <label className="flex items-center gap-1.5 border-t border-zinc-800/70 pt-1.5 text-[9px] text-zinc-500">
+              <input
+                type="checkbox"
+                aria-label="Enable Viewport"
+                checked={value.viewport.enabled}
+                disabled={readOnly}
+                className="h-3 w-3 accent-cyan-400"
+                onChange={(event) => onPatch({ viewport: { enabled: event.target.checked } })}
+              />
+              Enable Viewport
+            </label>
+            {value.viewport.enabled && (
+              <fieldset aria-label="Viewport geometry" className="min-w-0">
+                <legend className="mb-1 pr-2 text-[9px] uppercase tracking-[0.12em] text-zinc-600">Viewport</legend>
                 <div className="grid min-w-0 grid-cols-2 items-end gap-x-2 gap-y-1.5 sm:grid-cols-4">
                   <ShowInspectorNumberField label="X" ariaLabel="Viewport X" value={value.viewport.x} min={-4} max={4} step={0.01} disabled={readOnly} onChange={(x) => onPatch({ viewport: { x } })} />
                   <ShowInspectorNumberField label="Y" ariaLabel="Viewport Y" value={value.viewport.y} min={-4} max={4} step={0.01} disabled={readOnly} onChange={(y) => onPatch({ viewport: { y } })} />
@@ -211,8 +211,8 @@ export function ShowClipEntityDetail({
                   <ShowInspectorNumberField label="Height" ariaLabel="Viewport Height" value={value.viewport.height} min={0.01} max={8} step={0.01} disabled={readOnly} onChange={(height) => onPatch({ viewport: { height } })} />
                 </div>
               </fieldset>
-            </div>
-          ) : <ClipContentGeometry value={value} readOnly={readOnly} onPatch={onPatch} />}
+            )}
+          </div>
         </fieldset>}
 
         <ShowEffectStack

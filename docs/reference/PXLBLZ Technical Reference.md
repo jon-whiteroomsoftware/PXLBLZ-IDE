@@ -1503,10 +1503,11 @@ its placement; placement-owned animation tracks follow the same lifecycle.
 Missing or disabled Viewports leave the complete Zone visible; first enable
 defaults to X/Y `0` and Width/Height `1`, so progressive disclosure is a visual
 no-op. Disabled authored geometry is retained for later re-enable. The compact
-Clip inspector presents ordinary placement as X, Y, Width, Height, and Rotation,
-then qualifies separate Content and Viewport geometry only after enablement.
-Both rectangles use normalized Zone coordinates; Content rotation remains
-center-based while the Viewport stays axis-aligned.
+Clip inspector always labels ordinary placement as Content geometry, followed
+by Enable Viewport. Enabling it discloses the separately labeled Viewport
+geometry immediately below the toggle. Both rectangles use normalized Zone
+coordinates; Content rotation remains center-based while the Viewport stays
+axis-aligned.
 
 Lowering carries the Viewport with its placement. The routed compiler multiplies
 placement opacity by the Viewport's coordinate predicate after Pattern capture,
