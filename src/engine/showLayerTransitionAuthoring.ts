@@ -342,33 +342,48 @@ export function resizeShowConnectedClipAtGlobalTime(
   const incoming = (composition.transitions ?? []).find((transition) => (
     transition.toPlacementId === clip.startPlacementId
   ))
-  if (incoming && startDeltaMs !== 0 && endDeltaMs === 0) {
-    const transitionDurationMs = incoming.durationMs + startDeltaMs
-    if (transitionDurationMs < 0) return composition
-    const withoutIncoming = structuredClone(composition)
-    withoutIncoming.transitions = withoutIncoming.transitions?.filter((transition) => transition.id !== incoming.id)
-    if (withoutIncoming.transitions?.length === 0) delete withoutIncoming.transitions
-    const resizedClip = resizeShowClipAtGlobalTime(show, withoutIncoming, {
+  const outgoing = (composition.transitions ?? []).find((transition) => (
+    transition.fromPlacementId === clip.endPlacementId
+  ))
+  if ((incoming || outgoing) && startDeltaMs !== 0 && endDeltaMs === 0) {
+    const transitionDurationMs = incoming ? incoming.durationMs + startDeltaMs : null
+    if (transitionDurationMs != null && transitionDurationMs < 0) return composition
+    const detachedTransitionIds = new Set([incoming?.id, outgoing?.id].filter(Boolean))
+    const detached = structuredClone(composition)
+    detached.transitions = detached.transitions?.filter((transition) => !detachedTransitionIds.has(transition.id))
+    if (detached.transitions?.length === 0) delete detached.transitions
+    const resizedComposition = resizeShowClipAtGlobalTime(show, detached, {
       ...input,
       globalStartMs: nextStartMs,
       durationMs: nextDurationMs,
     })
-    if (resizedClip === withoutIncoming) return composition
-    if (transitionDurationMs > 0) {
-      resizedClip.transitions = [
-        ...(resizedClip.transitions ?? []),
-        { ...structuredClone(incoming), durationMs: transitionDurationMs },
-      ]
-    }
-    if (validateShowComposition(show, resizedClip).length > 0 || hasConcurrentLayerTransitions(show, resizedClip)) {
+    if (resizedComposition === detached) return composition
+    const resizedClip = projectShowUnifiedTimeline(show, resizedComposition).zones
+      .flatMap((zone) => zone.layers.flatMap((layer) => layer.clips))
+      .find((candidate) => candidate.id === clip.id)
+    if (!resizedClip) return composition
+    resizedComposition.transitions = [
+      ...(resizedComposition.transitions ?? []),
+      ...(incoming && transitionDurationMs != null && transitionDurationMs > 0
+        ? [{
+            ...structuredClone(incoming),
+            toPlacementId: resizedClip.startPlacementId,
+            durationMs: transitionDurationMs,
+          }]
+        : []),
+      ...(outgoing
+        ? [{ ...structuredClone(outgoing), fromPlacementId: resizedClip.endPlacementId }]
+        : []),
+    ]
+    if (
+      validateShowComposition(show, resizedComposition).length > 0
+      || hasConcurrentLayerTransitions(show, resizedComposition)
+    ) {
       return composition
     }
-    return normalizeShowComposition(show, resizedClip)
+    return normalizeShowComposition(show, resizedComposition)
   }
 
-  const outgoing = (composition.transitions ?? []).find((transition) => (
-    transition.fromPlacementId === clip.endPlacementId
-  ))
   if (outgoing && startDeltaMs === 0 && endDeltaMs !== 0) {
     const resolved = resolveEndpointLayer(show, composition, outgoing)
     if (!resolved) return composition
