@@ -1,5 +1,5 @@
 import { normalizeShowComposition, validateShowComposition } from './showCompositionModel'
-import { multiSegmentLogicalPlacementIds } from './showClipInvariant'
+import { multiSegmentLogicalClips, multiSegmentLogicalPlacementIds } from './showClipInvariant'
 import { normalizePersistedShowEasing } from './showEasing'
 import { projectShowTimeline, showLoopDurationMs } from './showModel'
 import { evaluateShowPropertyTrack } from './showPropertyAnimation'
@@ -41,6 +41,27 @@ export function planShowTimeInsertion(
     ))))
   if (insideLegacyTransition || insideLayerTransition) {
     return { enabled: false, code: 'transition', reason: 'Insert Time is unavailable inside a Transition.' }
+  }
+  const boundarySceneIndex = timeline.scenes.findIndex((scene, index) => (
+    index > 0 && scene.startMs === Math.round(atMs)
+  ))
+  if (boundarySceneIndex > 0) {
+    const sceneIndexById = new Map(timeline.scenes.map((scene, index) => [scene.sceneId, index]))
+    const crossesLogicalClip = multiSegmentLogicalClips(show.composition).some((logicalClip) => {
+      const indexes = logicalClip.segments.flatMap((segment) => {
+        const index = sceneIndexById.get(segment.sceneId)
+        return index == null ? [] : [index]
+      })
+      return indexes.some((index) => index < boundarySceneIndex)
+        && indexes.some((index) => index >= boundarySceneIndex)
+    })
+    if (crossesLogicalClip) {
+      return {
+        enabled: false,
+        code: 'logical-clip',
+        reason: 'Insert Time is unavailable inside a multi-Scene Clip.',
+      }
+    }
   }
 
   const range = timeline.scenes.find((scene) => atMs >= scene.startMs && atMs <= scene.endMs)

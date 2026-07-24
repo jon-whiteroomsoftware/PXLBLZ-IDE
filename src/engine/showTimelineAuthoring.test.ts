@@ -243,6 +243,46 @@ describe('Show timeline authoring', () => {
     })).toBe(show)
   })
 
+  it('refuses Insert Time between logical Clip segments at a Cut boundary (#63)', () => {
+    const show = showWithComposition()
+    show.transitions = show.transitions.map((transition) => (
+      transition.kind === 'routing'
+        ? transition
+        : {
+            ...transition,
+            kind: 'cut' as const,
+            durationMs: 0,
+          }
+    ))
+    const instanceId = show.composition!.patternInstances[0].id
+    show.composition!.scenes[0].zones[0].main = [{
+      id: 'logical-root',
+      instanceId,
+      startMs: 29_000,
+      durationMs: 1_000,
+      view: { mirror: false, phase: 0, brightness: 1 },
+    }]
+    show.composition!.scenes[1].zones[0].main = [{
+      id: `logical-root--span-${show.scenes[1].id}`,
+      logicalClipId: 'logical-root',
+      instanceId,
+      startMs: 0,
+      durationMs: 3_000,
+      view: { mirror: false, phase: 0, brightness: 1 },
+    }]
+
+    expect(planShowTimeInsertion(show, 30_000, 2_000)).toEqual({
+      enabled: false,
+      code: 'logical-clip',
+      reason: 'Insert Time is unavailable inside a multi-Scene Clip.',
+    })
+    expect(insertShowTime(show, {
+      atMs: 30_000,
+      durationMs: 2_000,
+      newPlacementIdBySourceId: {},
+    })).toBe(show)
+  })
+
   it('explains why Insert Time is unavailable inside a Group occurrence', () => {
     const show = showWithComposition()
     const firstScene = show.composition!.scenes[0]

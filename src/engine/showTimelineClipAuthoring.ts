@@ -914,6 +914,17 @@ export function planShowClipDuplicateAfter(
   if (!layer) {
     return { enabled: false, code: 'missing-owner', reason: 'The selected Clip no longer exists.' }
   }
+  if (layer.junctions.some((junction) => (
+    junction.durationMs > 0
+    && junction.startMs < targetEndMs
+    && junction.endMs > targetStartMs
+  ))) {
+    return {
+      enabled: false,
+      code: 'transition-boundary',
+      reason: 'The duplicate would overlap a Layer Transition.',
+    }
+  }
   if (layer.clips.some((clip) => (
     clip.id !== input.owner.placementId
     && clip.startMs < targetEndMs

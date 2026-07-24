@@ -4,6 +4,7 @@ import {
   showRoutingTransitionAfter,
   splitShowAtTime,
 } from './showModel'
+import { multiSegmentLogicalClips } from './showClipInvariant'
 import type {
   ShowBoundaryTransition,
   ShowCell,
@@ -159,6 +160,7 @@ export function duplicateShowLayoutInterval(
 ): ShowRecord {
   const interval = projectShowLayoutIntervals(show).find((candidate) => candidate.id === intervalId)
   if (!interval) return show
+  if (logicalClipPartiallyInsideScenes(show.composition, new Set(interval.sceneIds))) return show
   if (!input.withContent) {
     const lastSceneIndex = show.scenes.findIndex((scene) => scene.id === interval.sceneIds[interval.sceneIds.length - 1])
     return insertBlankIntervalAtSceneIndex(show, lastSceneIndex + 1, interval.durationMs, interval.layoutId)
@@ -233,24 +235,6 @@ export function makeShowLayoutIntervalUnique(show: ShowRecord, intervalId: strin
   })
 }
 
-function logicalClipSceneMembership(
-  composition: ShowCompositionV1 | undefined,
-): Map<string, Set<string>> {
-  const membership = new Map<string, Set<string>>()
-  for (const scene of composition?.scenes ?? []) {
-    for (const placement of scene.zones.flatMap((zone) => [
-      ...zone.main,
-      ...zone.overlays.flatMap((layer) => layer.placements),
-    ])) {
-      const logicalClipId = placement.logicalClipId ?? placement.id
-      const sceneIds = membership.get(logicalClipId) ?? new Set<string>()
-      sceneIds.add(scene.sceneId)
-      membership.set(logicalClipId, sceneIds)
-    }
-  }
-  return membership
-}
-
 function logicalClipCrossesSceneBoundary(
   composition: ShowCompositionV1 | undefined,
   scenes: ShowRecord['scenes'],
@@ -258,10 +242,9 @@ function logicalClipCrossesSceneBoundary(
 ): boolean {
   if (!composition || sceneIndex <= 0 || sceneIndex >= scenes.length) return false
   const sceneIndexById = new Map(scenes.map((scene, index) => [scene.id, index]))
-  return [...logicalClipSceneMembership(composition).values()].some((sceneIds) => {
-    if (sceneIds.size < 2) return false
-    const indexes = [...sceneIds].flatMap((sceneId) => {
-      const index = sceneIndexById.get(sceneId)
+  return multiSegmentLogicalClips(composition).some((logicalClip) => {
+    const indexes = logicalClip.segments.flatMap((segment) => {
+      const index = sceneIndexById.get(segment.sceneId)
       return index == null ? [] : [index]
     })
     return indexes.some((index) => index < sceneIndex)
@@ -274,10 +257,9 @@ function logicalClipPartiallyInsideScenes(
   sceneIds: Set<string>,
 ): boolean {
   if (!composition) return false
-  return [...logicalClipSceneMembership(composition).values()].some((membership) => (
-    membership.size > 1
-    && [...membership].some((sceneId) => sceneIds.has(sceneId))
-    && [...membership].some((sceneId) => !sceneIds.has(sceneId))
+  return multiSegmentLogicalClips(composition).some((logicalClip) => (
+    logicalClip.segments.some((segment) => sceneIds.has(segment.sceneId))
+    && logicalClip.segments.some((segment) => !sceneIds.has(segment.sceneId))
   ))
 }
 

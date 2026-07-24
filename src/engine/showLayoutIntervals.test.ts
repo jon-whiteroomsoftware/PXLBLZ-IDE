@@ -224,6 +224,16 @@ describe('Show Layout intervals', () => {
     })).toBe(base)
   })
 
+  it('refuses to duplicate a partial logical Clip Layout occurrence (#63)', () => {
+    const base = showWithLogicalClipAcrossLayoutBoundary()
+    const [first, second] = projectShowLayoutIntervals(base)
+
+    expect(duplicateShowLayoutInterval(base, first.id, { withContent: false })).toBe(base)
+    expect(duplicateShowLayoutInterval(base, first.id, { withContent: true })).toBe(base)
+    expect(duplicateShowLayoutInterval(base, second.id, { withContent: false })).toBe(base)
+    expect(duplicateShowLayoutInterval(base, second.id, { withContent: true })).toBe(base)
+  })
+
   it('duplicates either an empty occurrence or its complete choreography', () => {
     const base = showWithComposition()
     const source = projectShowLayoutIntervals(base)[0]

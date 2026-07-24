@@ -1140,6 +1140,56 @@ describe('global timeline Clip authoring (#580)', () => {
     })).toBe(composition)
   })
 
+  it('disables Clone when the planned destination overlaps a Layer Transition (#63)', () => {
+    const show = createDefaultShow('show-duplicate-transition-gap', 'Duplicate transition gap', 1000)
+    const composition = emptyComposition(show)
+    composition.patternInstances.push(instance)
+    composition.scenes[0].zones[0].main.push(
+      {
+        id: 'placement-source',
+        instanceId: instance.id,
+        startMs: 0,
+        durationMs: 1_000,
+        view: { mirror: false, phase: 0, brightness: 1 },
+      },
+      {
+        id: 'placement-next',
+        instanceId: instance.id,
+        startMs: 3_000,
+        durationMs: 1_000,
+        view: { mirror: false, phase: 0, brightness: 1 },
+      },
+    )
+    composition.transitions = [{
+      id: 'transition-source-next',
+      fromPlacementId: 'placement-source',
+      toPlacementId: 'placement-next',
+      kind: 'crossfade',
+      durationMs: 2_000,
+      easing: { curve: 'linear' },
+      crossfadePolicy: 'live-live',
+    }]
+    const owner = {
+      kind: 'main' as const,
+      sceneId: show.scenes[0].id,
+      zoneId: show.zones[0].id,
+      placementId: 'placement-source',
+    }
+
+    expect(planShowClipDuplicateAfter(show, composition, {
+      owner,
+      independent: true,
+    })).toMatchObject({
+      enabled: false,
+      code: 'transition-boundary',
+    })
+    expect(duplicateShowClipAfter(show, composition, {
+      owner,
+      newPlacementId: 'placement-copy',
+      newInstanceId: 'instance-copy',
+    })).toBe(composition)
+  })
+
   it('disables Clone when a single-Scene Clip would cross its Scene boundary (#63)', () => {
     const show = createDefaultShow('show-duplicate-scene-boundary', 'Duplicate scene boundary', 1000)
     const composition = emptyComposition(show)
