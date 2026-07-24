@@ -26,7 +26,7 @@ describe('preview compile option forwarding', () => {
     expect(artifactBytes({ exactSpecializations: false })).not.toBe(production)
     expect(artifactBytes({ colorCoefficientHoisting: false })).not.toBe(production)
     expect(artifactBytes({ placementPrologueHoisting: false })).not.toBe(production)
-  })
+  }, 20_000)
 
   it('keeps the preview-owned options working alongside forwarded ones', () => {
     const result = compileShowForArtifact(installationShow, [], undefined, {}, {

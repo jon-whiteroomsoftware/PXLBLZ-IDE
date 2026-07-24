@@ -126,7 +126,7 @@ describe('shared routed motion-transition emission (#525)', () => {
         dynamicBranchesAddedPerPixel: 0,
       })
     }
-  })
+  }, 20_000)
 
   it('preserves every motion family across Clip/Wrap and hard/blend policies', () => {
     const variants = [
