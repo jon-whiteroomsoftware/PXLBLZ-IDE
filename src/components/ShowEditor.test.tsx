@@ -3471,6 +3471,7 @@ describe('ShowEditor (#318)', () => {
       await waitFor(() => expect(createObjectURL).toHaveBeenCalledTimes(1))
 
       const blob = createObjectURL.mock.calls[0][0]
+      if (!(blob instanceof Blob)) throw new TypeError('Expected Show export to create a Blob URL')
       const exportedText = await new Promise<string>((resolve, reject) => {
         const reader = new FileReader()
         reader.addEventListener('load', () => resolve(String(reader.result)))

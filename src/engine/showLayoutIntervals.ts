@@ -237,7 +237,7 @@ export function makeShowLayoutIntervalUnique(show: ShowRecord, intervalId: strin
 }
 
 function logicalClipCrossesSceneBoundary(
-  composition: ShowCompositionV1 | undefined,
+  composition: ShowCompositionV1 | null | undefined,
   scenes: ShowRecord['scenes'],
   sceneIndex: number,
 ): boolean {
@@ -254,7 +254,7 @@ function logicalClipCrossesSceneBoundary(
 }
 
 function logicalClipPartiallyInsideScenes(
-  composition: ShowCompositionV1 | undefined,
+  composition: ShowCompositionV1 | null | undefined,
   sceneIds: Set<string>,
 ): boolean {
   if (!composition) return false
