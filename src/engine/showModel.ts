@@ -39,8 +39,8 @@ import { splitShowCompositionScene } from './showCompositionSplit'
 import {
   normalizeShowClipEffects,
   sameShowEffectStructure,
+  showEffectAnimatableParameterNames,
   showEffectNumericValue,
-  showEffectParameterNames,
   showEffectsAreIdentity,
 } from './showEffects'
 import { multiSegmentLogicalPlacementIds } from './showClipInvariant'
@@ -2801,7 +2801,7 @@ function compileShowEffectRamps(
     for (const toEffect of toEffects) {
       const fromEffect = fromEffects.find((effect) => effect.id === toEffect.id && effect.kind === toEffect.kind)
       if (!fromEffect) continue
-      for (const parameter of showEffectParameterNames(toEffect)) {
+      for (const parameter of showEffectAnimatableParameterNames(toEffect)) {
         const descriptor = boundary?.propertyTransitions?.effects?.[toEffect.id]?.[parameter]
         const naturalFrom = showEffectNumericValue(fromEffect, parameter)
         const to = showEffectNumericValue(toEffect, parameter)

@@ -1564,7 +1564,10 @@ round-trip difference for a pre-existing channel is therefore half of one
 merely loading or displaying an existing Show cannot alter generated output.
 Color remains an authored value: Color Map Property animation admits `amount`
 but not its implementation-detail channels, and Chroma key never admits its
-Color target.
+Color target. `showEffectAnimatableParameterNames()` owns that authoring
+boundary separately from `showEffectParameterNames()`, which still enumerates
+every persisted numeric field the compiler must declare for animated and routed
+Effect members.
 
 Effect-palette hover/focus changes only the palette's progressive description
 and cost disclosure. Each row owns a static SVG mnemonic whose child group runs

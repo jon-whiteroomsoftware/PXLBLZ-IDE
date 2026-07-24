@@ -5,6 +5,7 @@ import {
   buildShowEffectSampleMatrix,
   normalizeShowClipEffects,
   sameShowEffectStructure,
+  showEffectAnimatableParameterNames,
   showEffectParameterNames,
   showEffectsAreIdentity,
 } from './showEffects'
@@ -303,6 +304,97 @@ describe('Show clip Effects (#444)', () => {
     expect(artifact.summary.cost.memory.generatedScalarGlobals).toBeGreaterThan(13)
   })
 
+  it('animates Color Map Amount while keeping its persisted colors available to the compiler', () => {
+    const source = 'export function render2D(index, x, y) { rgb(0.5, 0.5, 0.5) }'
+    let show = createDefaultShow('animated-color-map', 'Animated Color Map', 1)
+    show = updateShowCellPattern(show, 'cell-2', {
+      pattern: show.cells[0].pattern,
+      patternName: show.cells[0].patternName,
+    })
+    show = updateShowCellEffects(show, 'cell-1', [{
+      id: 'map', kind: 'color-map', amount: 0,
+      shadowR: 0, shadowG: 0, shadowB: 0,
+      highlightR: 1, highlightG: 1, highlightB: 1,
+    }])
+    show = updateShowCellEffects(show, 'cell-2', [{
+      id: 'map', kind: 'color-map', amount: 1,
+      shadowR: 0.2, shadowG: 0.1, shadowB: 0,
+      highlightR: 1, highlightG: 0.8, highlightB: 0.6,
+    }])
+    show = updateShowBoundaryTransition(show, 'transition-scene-1', {
+      propertyTransitions: {
+        effects: {
+          map: { amount: { fromByCellId: { 'cell-2': 0 }, durationMs: 2_000, easing: { curve: 'linear' } } },
+        },
+      },
+    })
+    const recipe = showRecordToCompileRecipe(show, { byCellId: { 'cell-1': source, 'cell-2': source } })
+    const artifact = compileShow(recipe, {})
+    const runtime = createFastReplayRuntime({
+      code: artifact.code,
+      metadata: artifact.metadata,
+      dimension: nativeDimension(artifact.metadata.renderFns),
+    }, { mapPoints: [{ sample: [0.5, 0.5] }], randomSeed: 609 })
+
+    expect(recipe.adaptationRamp?.effectRamps).toEqual({
+      map: {
+        amount: { from: 0, to: 1, durationMs: 2_000, easing: { curve: 'linear' } },
+      },
+    })
+    expect(artifact.expandedCode).toMatch(/var __pxlblz_show_c\d+_fx_p0_shadowR = 0\.2/)
+    expect(runtime.advanceTo(31_000, { stepMs: 50 }).pixels[0]).toEqual([
+      expect.closeTo(0.55, 12),
+      expect.closeTo(0.475, 12),
+      expect.closeTo(0.4, 12),
+    ])
+  })
+
+  it('renders Color Map channels from a routed placement without a property track', () => {
+    const zones = [{ id: 'main', name: 'main', ranges: [{ start: 0, end: 0 }] }]
+    const artifact = compileShow({
+      masterPixelCount: 1,
+      clips: [{
+        id: 'clip',
+        source: 'export function render(index) { rgb(0.5, 0.5, 0.5) }',
+        effects: [{
+          id: 'map', kind: 'color-map', amount: 1,
+          shadowR: 0.2, shadowG: 0.1, shadowB: 0,
+          highlightR: 1, highlightG: 0.8, highlightB: 0.6,
+        }],
+      }],
+      zones,
+      routingLayouts: [{ id: 'default', name: 'Default', zones }],
+      routedSceneSequence: {
+        scenes: [0, 1].map((index) => ({
+          holdMs: 1_000,
+          placements: [{
+            placementId: `placement-${index}`,
+            zoneName: 'main',
+            clipId: 'clip',
+            effects: [{
+              id: 'map', kind: 'color-map', amount: 1,
+              shadowR: 0.2, shadowG: 0.1, shadowB: 0,
+              highlightR: 1, highlightG: 0.8, highlightB: 0.6,
+            }],
+          }],
+          ...(index === 0 ? { transitionOut: { kind: 'cut' as const, durationMs: 0 } } : {}),
+        })),
+      },
+      loopDurationMs: 2_000,
+    }, {})
+    const runtime = createFastReplayRuntime({
+      code: artifact.code,
+      metadata: artifact.metadata,
+      dimension: nativeDimension(artifact.metadata.renderFns),
+    }, { mapPoints: [{ sample: [0.5] }], randomSeed: 609 })
+
+    expect(runtime.advanceTo(500, { stepMs: 50 }).pixels[0]).toEqual([
+      expect.closeTo(0.6, 12),
+      expect.closeTo(0.45, 12),
+      expect.closeTo(0.3, 12),
+    ])
+  })
+
   it('lowers every affine and opacity parameter through one generic Effect-ramp schema', () => {
     const identity = [
       { id: 'move', kind: 'translate' as const, x: 0, y: 0 },
@@ -528,8 +620,9 @@ describe('Show clip Effects (#444)', () => {
     const show = updateShowCellEffects(createDefaultShow('colors', 'Colors', 454), 'cell-1', effects)
     expect(normalizeShowTransitionState(JSON.parse(JSON.stringify(show))).cells[0].effects).toEqual(effects)
     expect(showEffectParameterNames(effects[7])).toEqual([
-      'amount',
+      'amount', 'shadowR', 'shadowG', 'shadowB', 'highlightR', 'highlightG', 'highlightB',
     ])
+    expect(showEffectAnimatableParameterNames(effects[7])).toEqual(['amount'])
   })
 
   it('keeps legacy brightness in the single ordered output evaluator (#454)', () => {

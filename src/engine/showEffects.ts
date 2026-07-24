@@ -122,13 +122,17 @@ export function showEffectParameterNames(effect: ShowClipEffect): string[] {
   if (effect.kind === 'chroma-key') return ['tolerance', 'softness']
   if (effect.kind === 'posterize') return ['levels', 'amount']
   if (effect.kind === 'vignette') return ['amount', 'radius', 'softness', 'centerX', 'centerY', 'aspect']
-  if (effect.kind === 'color-map') return ['amount']
+  if (effect.kind === 'color-map') return ['amount', 'shadowR', 'shadowG', 'shadowB', 'highlightR', 'highlightG', 'highlightB']
   if (effect.kind === 'ripple') return ['amount', 'frequency', 'phase', 'centerX', 'centerY']
   if (effect.kind === 'swirl' || effect.kind === 'bulge') return ['amount', 'radius', 'centerX', 'centerY']
   if (effect.kind === 'pixelate') return ['amount', 'columns', 'rows']
   if (effect.kind === 'kaleidoscope') return ['amount', 'segments', 'rotation', 'centerX', 'centerY']
   if (effect.kind === 'wrap') return []
   return ['x', 'y']
+}
+
+export function showEffectAnimatableParameterNames(effect: ShowClipEffect): string[] {
+  return effect.kind === 'color-map' ? ['amount'] : showEffectParameterNames(effect)
 }
 
 export function sameShowEffectStructure(a: readonly ShowClipEffect[] | undefined, b: readonly ShowClipEffect[] | undefined): boolean {
