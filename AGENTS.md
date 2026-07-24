@@ -103,6 +103,7 @@ than the sandboxed status result.
 ```bash
 npm run dev                 # only when the persistent server is absent
 npm run lint
+npx tsc -b --pretty false   # TypeScript project check
 npm run test:staged         # staged/colocated tests plus high-risk invariants
 npm test                    # full Vitest suite
 npm run review:push         # Fable Medium review, with GPT-5.6 High infrastructure fallback
@@ -114,17 +115,18 @@ npm run db:migrate:local
 npm run db:migrate:remote
 ```
 
-The pre-commit hook runs lint, colocated tests for staged code, and conservative
-invariant suites for compiler, persistence, resource-ledger, artifact-contract,
-and test-infrastructure changes. The pre-push hook owns the one comprehensive
-publication gate: Fable Medium reviews the exact outgoing range. If Fable cannot
-return a valid review because of quota, timeout, process, or response failure,
-the gate sends the same review input to GPT-5.6 High. A valid `fail` decision
-from either reviewer remains blocking. After review passes, the full Vitest suite
-and Playwright smoke suite run. The Git hook applies equally to Claude, Codex,
-and terminal pushes. Do not manually repeat the full suite immediately before a
-push unless diagnosing a failure. See `docs/agents/verification.md` for the gate
-model.
+The pre-commit hook runs lint, a full TypeScript project check when staged paths
+can affect either TypeScript project, colocated tests for staged code, and
+conservative invariant suites for compiler, persistence, resource-ledger,
+artifact-contract, and test-infrastructure changes. The pre-push hook owns the
+one comprehensive publication gate: Fable Medium reviews the exact outgoing
+range. If Fable cannot return a valid review because of quota, timeout, process,
+or response failure, the gate sends the same review input to GPT-5.6 High. A
+valid `fail` decision from either reviewer remains blocking. After review
+passes, the full Vitest suite and Playwright smoke suite run. The Git hook
+applies equally to Claude, Codex, and terminal pushes. Do not manually repeat
+the full suite immediately before a push unless diagnosing a failure. See
+`docs/agents/verification.md` for the gate model.
 
 Use TDD for behavior changes: fail, implement, refactor. Concentrate coverage
 on pure engine logic; keep component tests light and add Playwright coverage

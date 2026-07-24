@@ -49,6 +49,7 @@ const ARTIFACT_CONTRACT_FILES = new Set([
 ])
 
 const TEST_INFRASTRUCTURE_FILES = new Set([
+  '.husky/pre-commit',
   'vite.config.ts',
   'package.json',
   'package-lock.json',
@@ -75,6 +76,21 @@ const SHOW_AUTHORING_CONTRACT_INVARIANT_TESTS = [
   'src/engine/showLayerTransitionAuthoring.test.ts',
   'src/store/showStore.test.ts',
 ]
+
+const TYPESCRIPT_PROJECT_FILES = new Set([
+  'vite.config.ts',
+  'tsconfig.json',
+  'tsconfig.node.json',
+  'package.json',
+  'package-lock.json',
+])
+
+export function requiresTypecheck(changedFiles) {
+  return changedFiles.some((file) => (
+    TYPESCRIPT_PROJECT_FILES.has(file)
+    || (/^(src|functions)\/.*\.[cm]?[jt]sx?$/.test(file))
+  ))
+}
 
 export function selectPrecommitTests(changedFiles) {
   const focusedTests = [...new Set(changedFiles.flatMap((file) => {

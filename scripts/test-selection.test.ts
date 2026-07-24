@@ -1,7 +1,30 @@
 import { describe, expect, it } from 'vitest'
-import { collectVitestInputs, selectPrecommitTests } from './test-selection.mjs'
+import {
+  collectVitestInputs,
+  requiresTypecheck,
+  selectPrecommitTests,
+} from './test-selection.mjs'
 
 describe('pre-commit test selection', () => {
+  it('typechecks changes that can affect the TypeScript projects', () => {
+    expect(requiresTypecheck([
+      'src/engine/showLayoutIntervals.ts',
+      'src/components/ShowEditor.test.tsx',
+      'functions/api/show.ts',
+      'vite.config.ts',
+      'tsconfig.json',
+      'tsconfig.node.json',
+      'package.json',
+      'package-lock.json',
+    ])).toBe(true)
+
+    expect(requiresTypecheck([
+      'docs/reference/PXLBLZ Technical Reference.md',
+      'scripts/test-selection.test.ts',
+      'public/favicon.svg',
+    ])).toBe(false)
+  })
+
   it('skips Vitest for documentation-only changes', () => {
     expect(selectPrecommitTests([
       'docs/reference/PXLBLZ Technical Reference.md',

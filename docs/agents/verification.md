@@ -79,9 +79,12 @@ sequence.
 ## Staged-test selection
 
 `scripts/test-staged.mjs` reads added, copied, modified, and renamed paths from
-the Git index. It selects a staged test directly or the colocated test for a
-staged JavaScript or TypeScript source file. `scripts/test-selection.mjs` also
-adds fixed regression suites when a changed path touches a boundary where a
+the Git index. When those paths can affect either configured TypeScript project,
+it first runs `tsc -b --pretty false`; a type-invalid source or test change
+therefore cannot be committed even when ESLint and Vitest accept the file. It
+then selects a staged test directly or the colocated test for a staged
+JavaScript or TypeScript source file. `scripts/test-selection.mjs` also adds
+fixed regression suites when a changed path touches a boundary where a
 colocated test is not a sufficient safety net:
 
 - Show compiler and generated controller artifacts
