@@ -1894,4 +1894,48 @@ describe('global timeline Clip authoring (#580)', () => {
       }),
     })
   })
+
+  it('refuses a cross-Scene resize that would linearize nonlinear instance animation', () => {
+    const show = createDefaultShow('show-resize-spanning-nonlinear', 'Resize spanning nonlinear', 1_000)
+    const composition = emptyComposition(show)
+    composition.patternInstances.push(instance)
+    composition.scenes[0].zones[0].main.push({
+      id: 'placement-resize',
+      instanceId: instance.id,
+      startMs: 28_000,
+      durationMs: 2_000,
+      view: { mirror: false, phase: 0, brightness: 1 },
+    })
+    composition.scenes[1].zones[0].main.push({
+      id: `placement-resize--span-${show.scenes[1].id}`,
+      logicalClipId: 'placement-resize',
+      instanceId: instance.id,
+      startMs: 0,
+      durationMs: 3_000,
+      view: { mirror: false, phase: 0, brightness: 1 },
+    })
+    composition.scenes[0].propertyTracks = [{
+      id: 'track-speed',
+      target: { kind: 'instance-time-scale', instanceId: instance.id },
+      keyframes: [
+        { id: 'key-a', timeMs: 0, value: 1, easing: { curve: 'sine', direction: 'in-out' } },
+        { id: 'key-b', timeMs: 30_000, value: 2, easing: { curve: 'linear' } },
+      ],
+    }]
+
+    expectRefusedShowAuthoringEdit({
+      show,
+      composition,
+      edit: (input) => resizeShowClipAtGlobalTime(show, input, {
+        owner: {
+          kind: 'main',
+          sceneId: show.scenes[0].id,
+          zoneId: show.zones[0].id,
+          placementId: 'placement-resize',
+        },
+        globalStartMs: 10_000,
+        durationMs: 5_000,
+      }),
+    })
+  })
 })
