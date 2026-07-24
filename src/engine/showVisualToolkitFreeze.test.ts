@@ -16,9 +16,9 @@ describe('Show visual-toolkit integration freeze (#459)', () => {
   it('covers every registered variant with a versioned, deterministic fixture contract', () => {
     const freeze = buildShowVisualToolkitFreeze()
 
-    expect(SHOW_VISUAL_TOOLKIT_CONTRACT_VERSION).toBe(7)
+    expect(SHOW_VISUAL_TOOLKIT_CONTRACT_VERSION).toBe(8)
     expect(freeze.errors).toEqual([])
-    expect(freeze.fingerprint).toBe('9eb5dfb1')
+    expect(freeze.fingerprint).toBe('45cf7a53')
     expect(buildShowVisualToolkitFreeze().fingerprint).toBe(freeze.fingerprint)
     expect(freeze.variants.length).toBeGreaterThan(0)
     expect(freeze.variants.every((variant) => variant.fixtureIds.length > 0)).toBe(true)

@@ -434,6 +434,13 @@ policies, and Color & output Effects including Luma key, Chroma key, and
 Vignette. Show-wide output Effects such as **Trails** live in Show
 properties and apply after the full composite.
 
+Authored colors use one compact **Color** field: click its swatch for the
+platform picker or type an exact canonical `#RRGGBB` value beside it. Picker
+movement previews on the Stage, then closing the picker saves one edit;
+invalid text and Escape restore the saved color. **Color Map** consequently
+has one **Shadow Color** and one **Highlight Color**, not separate red, green,
+and blue controls. Chroma key and Fade through color use the same field.
+
 Clips can separately trade evaluation fidelity for cost: **Freeze at entry**
 captures one frame and replays it, and **Refresh** re-evaluates a quarter of
 the pixels per frame. These advanced policies keep the Pattern clock running

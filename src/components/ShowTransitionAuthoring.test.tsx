@@ -166,4 +166,26 @@ describe('Show Transition authoring UI', () => {
     expect(onChange).not.toHaveBeenCalled()
     expect(duration).toHaveValue(2)
   })
+
+  it('authors Fade through color with the shared Color field and one picker commit (#609)', () => {
+    const catalogue = buildShowToolkitPresentationCatalogue({ stageDimensions: 2 })
+    const fade = catalogue.find((item) => item.key === 'transition:fade:through-color')!
+    const base = createDefaultShow('show-fade-color', 'Fade color', 1)
+    const show = replaceShowBoundaryTransition(base, base.transitions![0].id, fade)
+    const onChange = vi.fn()
+    const onPreview = vi.fn()
+    const onPreviewEnd = vi.fn()
+    render(<ShowTransitionParameters transition={show.transitions![0]} item={fade} onPreview={onPreview} onPreviewEnd={onPreviewEnd} onChange={onChange} />)
+
+    expect(screen.getByRole('textbox', { name: 'Color exact value' })).toHaveValue('#000000')
+    const picker = screen.getByLabelText('Color picker')
+    fireEvent.input(picker, { target: { value: '#112233' } })
+    fireEvent.input(picker, { target: { value: '#445566' } })
+    expect(onPreview.mock.calls).toEqual([['color', '#112233'], ['color', '#445566']])
+    expect(onChange).not.toHaveBeenCalled()
+    fireEvent.change(picker, { target: { value: '#445566' } })
+    expect(onPreviewEnd).toHaveBeenCalledOnce()
+    expect(onChange).toHaveBeenCalledOnce()
+    expect(onChange).toHaveBeenCalledWith('color', '#445566')
+  })
 })

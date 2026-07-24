@@ -1545,10 +1545,26 @@ stage-constrained reorder transformations. `ShowEffectsAuthoring` projects that
 logic into the clip Entity Detail Panel and compact palette; it does not encode
 family-specific compiler behavior in React.
 
-Luma key and Chroma key add a native color-well or numeric target plus Tolerance
-and Softness controls to that same authoring adapter. The React surface treats
-color as an authored value, while only numeric parameters enter Effect Property
-animation tracks.
+Luma key and Chroma key add a luminance or Color target plus Tolerance and
+Softness controls to that same authoring adapter. `colorValue.ts` owns the
+canonical six-digit `#RRGGBB` representation and conversion to normalized RGB.
+`ColorField` owns one UI contract for the visible swatch, native picker, buffered
+exact draft, validation, disabled and focus states, and accessible names. Native
+`input` events update an ephemeral Stage preview; the final native `change`
+clears that preview and emits one persisted edit. Cancel, Escape, and unmount
+also clear the preview without saving.
+
+Color Map remains a compatibility record with `shadowR/G/B` and
+`highlightR/G/B` normalized channels, but `showEffectAuthoring.ts` projects
+those fields as the semantic `shadowColor` and `highlightColor` parameters.
+Projection rounds each channel to the nearest 8-bit value without mutating the
+record; a committed Color writes exact `channel / 255` values back. The maximum
+round-trip difference for a pre-existing channel is therefore half of one
+8-bit step. The compiler continues to consume the compatibility fields, so
+merely loading or displaying an existing Show cannot alter generated output.
+Color remains an authored value: Color Map Property animation admits `amount`
+but not its implementation-detail channels, and Chroma key never admits its
+Color target.
 
 Effect-palette hover/focus changes only the palette's progressive description
 and cost disclosure. Each row owns a static SVG mnemonic whose child group runs
@@ -1576,12 +1592,14 @@ a second family-specific normalization model.
 
 Transition hover/focus builds an immutable candidate Show with
 `replaceShowBoundaryTransition()` and writes it to the same ephemeral preview
-override seam used by other temporary Show previews. Effects deliberately do
-not use that seam. Transition preview also requests a deterministic seek to the
-candidate boundary midpoint so the existing Stage actually shows both outgoing
-and incoming sources. Leave, Escape, close, apply, and unmount clear the
-candidate and restore the captured playhead position. Apply alone sends the
-normalized boundary through `showStore.updateBoundaryTransition()`.
+override seam used by other temporary Show previews. Effect-palette traversal
+deliberately does not use that seam; an active authored Color picker does, using
+the same input/commit lifecycle as a Transition Color. Transition palette
+preview also requests a deterministic seek to the candidate boundary midpoint
+so the existing Stage actually shows both outgoing and incoming sources. Leave,
+Escape, close, apply, and unmount clear the candidate and restore the captured
+playhead position. Apply alone sends the normalized boundary through
+`showStore.updateBoundaryTransition()`.
 
 Show persistence writes complete records. `showStore` therefore serializes
 updates per Show after applying each optimistic state change; rapid parameter

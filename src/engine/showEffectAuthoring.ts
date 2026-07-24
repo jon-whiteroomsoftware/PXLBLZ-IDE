@@ -1,4 +1,5 @@
 import type { ShowClipEffect } from './personalContentRecords'
+import { colorValueToNormalizedRgb, normalizedRgbToColorValue, parseColorValue } from './colorValue'
 import { normalizeShowClipEffects } from './showEffects'
 import {
   SHOW_VISUAL_TOOLKIT_REGISTRY,
@@ -85,6 +86,14 @@ export function showClipEffectParameterValue(
   effect: ShowClipEffect,
   parameterId: string,
 ): ShowToolkitParameterValue {
+  if (effect.kind === 'color-map') {
+    if (parameterId === 'shadowColor') {
+      return normalizedRgbToColorValue([effect.shadowR, effect.shadowG, effect.shadowB])
+    }
+    if (parameterId === 'highlightColor') {
+      return normalizedRgbToColorValue([effect.highlightR, effect.highlightG, effect.highlightB])
+    }
+  }
   const field = showClipEffectPersistedField(effect.kind, parameterId)
   const value = (effect as unknown as Record<string, ShowToolkitParameterValue>)[field]
   return value ?? 0
@@ -95,6 +104,19 @@ export function updateShowClipEffectParameter(
   parameterId: string,
   value: ShowToolkitParameterValue,
 ): ShowClipEffect {
+  if (effect.kind === 'color-map' && (parameterId === 'shadowColor' || parameterId === 'highlightColor')) {
+    const color = parseColorValue(value)
+    if (!color) return effect
+    const [red, green, blue] = colorValueToNormalizedRgb(color)
+    const prefix = parameterId === 'shadowColor' ? 'shadow' : 'highlight'
+    return normalizeShowClipEffects([{
+      ...effect,
+      [`${prefix}R`]: red,
+      [`${prefix}G`]: green,
+      [`${prefix}B`]: blue,
+      id: effect.id,
+    } as ShowClipEffect])[0] ?? effect
+  }
   const field = showClipEffectPersistedField(effect.kind, parameterId)
   return normalizeShowClipEffects([{
     ...effect,

@@ -528,7 +528,7 @@ describe('Show clip Effects (#444)', () => {
     const show = updateShowCellEffects(createDefaultShow('colors', 'Colors', 454), 'cell-1', effects)
     expect(normalizeShowTransitionState(JSON.parse(JSON.stringify(show))).cells[0].effects).toEqual(effects)
     expect(showEffectParameterNames(effects[7])).toEqual([
-      'amount', 'shadowR', 'shadowG', 'shadowB', 'highlightR', 'highlightG', 'highlightB',
+      'amount',
     ])
   })
 

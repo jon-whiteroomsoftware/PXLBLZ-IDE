@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
 import { useNumberFieldDraft } from '@/components/ui/number-field'
+import { ColorField } from '@/components/ui/color-field'
 import {
   ArrowDown,
   ArrowUp,
@@ -190,6 +191,8 @@ export function ShowEffectStack({
   mirror = false,
   compiledCost,
   onChange,
+  onPreview,
+  onPreviewEnd,
   onMirrorChange,
   onAdd,
 }: {
@@ -197,6 +200,8 @@ export function ShowEffectStack({
   mirror?: boolean
   compiledCost?: ShowCompiledCostMetadata
   onChange: (effects: ShowClipEffect[]) => void
+  onPreview?: (effects: ShowClipEffect[]) => void
+  onPreviewEnd?: () => void
   onMirrorChange?: (mirror: boolean) => void
   onAdd: () => void
 }) {
@@ -257,24 +262,30 @@ export function ShowEffectStack({
                     <IconButton label={`Remove ${item?.label ?? effect.kind} Effect`} onClick={() => onChange(effects.filter((candidate) => candidate.id !== effect.id))}><Trash2 size={11} /></IconButton>
                   </div>
                   {expanded && (
-                    <div className="grid grid-cols-2 gap-1.5 border-t border-zinc-800/60 p-2 sm:grid-cols-3">
-                      {showClipEffectParameters(effect).map((parameter) => (
-                        <label key={parameter.id} className="text-[8px] uppercase tracking-wide text-zinc-600">
-                          <span className="flex items-center justify-between gap-2">
-                            <span>{parameter.label}</span>
-                            {parameter.min === 0 && parameter.max === 1 && <span className="font-mono tracking-normal text-zinc-700" title="Normalized value from zero to one">0–1</span>}
-                          </span>
-                          {parameter.kind === 'color' ? (
-                            <input
-                              type="color"
-                              aria-label={parameter.label}
+                    <div className="grid grid-cols-2 items-end gap-1.5 border-t border-zinc-800/60 p-2 sm:grid-cols-3">
+                      {showClipEffectParameters(effect).map((parameter) => {
+                        if (parameter.kind === 'color') {
+                          return (
+                            <ColorField
+                              key={parameter.id}
+                              label={parameter.label}
                               value={String(showClipEffectParameterValue(effect, parameter.id))}
-                              onChange={(event) => onChange(effects.map((candidate) => candidate.id === effect.id
-                                ? updateShowClipEffectParameter(candidate, parameter.id, event.target.value)
+                              onPreview={(value) => onPreview?.(effects.map((candidate) => candidate.id === effect.id
+                                ? updateShowClipEffectParameter(candidate, parameter.id, value)
                                 : candidate))}
-                              className="mt-1 h-7 w-full cursor-pointer rounded border border-zinc-700 bg-zinc-950 p-0.5 outline-none focus:border-cyan-400/60"
+                              onPreviewEnd={onPreviewEnd}
+                              onChange={(value) => onChange(effects.map((candidate) => candidate.id === effect.id
+                                ? updateShowClipEffectParameter(candidate, parameter.id, value)
+                                : candidate))}
                             />
-                          ) : (
+                          )
+                        }
+                        return (
+                          <label key={parameter.id} className="text-[8px] uppercase tracking-wide text-zinc-600">
+                            <span className="flex items-center justify-between gap-2">
+                              <span>{parameter.label}</span>
+                              {parameter.min === 0 && parameter.max === 1 && <span className="font-mono tracking-normal text-zinc-700" title="Normalized value from zero to one">0–1</span>}
+                            </span>
                             <EffectParameterField
                               label={parameter.label}
                               value={Number(showClipEffectParameterValue(effect, parameter.id))}
@@ -285,9 +296,9 @@ export function ShowEffectStack({
                                 ? updateShowClipEffectParameter(candidate, parameter.id, value)
                                 : candidate))}
                             />
-                          )}
-                        </label>
-                      ))}
+                          </label>
+                        )
+                      })}
                       {showClipEffectParameters(effect).length === 0 && <p className="col-span-full text-[9px] text-zinc-600">No parameters. Wrap changes the address policy for transformed coordinates.</p>}
                     </div>
                   )}

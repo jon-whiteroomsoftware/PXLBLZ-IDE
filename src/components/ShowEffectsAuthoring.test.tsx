@@ -70,15 +70,61 @@ describe('Show Effect authoring UI', () => {
     render(<ShowEffectStack effects={effects} onChange={onChange} onAdd={vi.fn()} />)
 
     await user.click(screen.getByRole('button', { name: 'Edit Chroma key Effect' }))
-    const color = screen.getByLabelText('Target color')
-    expect(color).toHaveAttribute('type', 'color')
-    expect(color).toHaveValue('#00ff00')
-    fireEvent.change(color, { target: { value: '#ff00aa' } })
+    const color = screen.getByRole('textbox', { name: 'Target color exact value' })
+    expect(screen.getByLabelText('Target color picker')).toHaveValue('#00ff00')
+    await user.clear(color)
+    await user.type(color, '#ff00aa')
+    await user.tab()
     expect(onChange).toHaveBeenLastCalledWith([
       { id: 'green-key', kind: 'chroma-key', color: '#ff00aa', tolerance: 0.05, softness: 0.05 },
     ])
     expect(screen.getByLabelText('Tolerance')).toHaveValue(0.05)
     expect(screen.getByLabelText('Softness')).toHaveValue(0.05)
+  })
+
+  it('edits Color Map as exactly Shadow Color and Highlight Color (#609)', async () => {
+    const user = userEvent.setup()
+    const onChange = vi.fn()
+    const onPreview = vi.fn()
+    const onPreviewEnd = vi.fn()
+    const effects: ShowClipEffect[] = [{
+      id: 'map', kind: 'color-map', amount: 1,
+      shadowR: 0, shadowG: 0, shadowB: 0,
+      highlightR: 1, highlightG: 1, highlightB: 1,
+    }]
+    render(<ShowEffectStack effects={effects} onChange={onChange} onPreview={onPreview} onPreviewEnd={onPreviewEnd} onAdd={vi.fn()} />)
+
+    await user.click(screen.getByRole('button', { name: 'Edit Color map Effect' }))
+    expect(screen.getByRole('textbox', { name: 'Shadow Color exact value' })).toHaveValue('#000000')
+    expect(screen.getByRole('textbox', { name: 'Highlight Color exact value' })).toHaveValue('#ffffff')
+    for (const channel of ['Shadow red', 'Shadow green', 'Shadow blue', 'Highlight red', 'Highlight green', 'Highlight blue']) {
+      expect(screen.queryByRole('spinbutton', { name: channel })).not.toBeInTheDocument()
+    }
+
+    const shadowPicker = screen.getByLabelText('Shadow Color picker')
+    fireEvent.input(shadowPicker, { target: { value: '#abcdef' } })
+    expect(onPreview).toHaveBeenCalledWith([{
+      ...effects[0],
+      shadowR: 0xab / 255,
+      shadowG: 0xcd / 255,
+      shadowB: 0xef / 255,
+    }])
+    expect(onChange).not.toHaveBeenCalled()
+    fireEvent.change(shadowPicker, { target: { value: '#abcdef' } })
+    expect(onPreviewEnd).toHaveBeenCalledOnce()
+    expect(onChange).toHaveBeenCalledOnce()
+    onChange.mockClear()
+
+    const highlight = screen.getByRole('textbox', { name: 'Highlight Color exact value' })
+    await user.clear(highlight)
+    await user.type(highlight, '#123456')
+    await user.tab()
+    expect(onChange).toHaveBeenCalledWith([{
+      ...effects[0],
+      highlightR: 0x12 / 255,
+      highlightG: 0x34 / 255,
+      highlightB: 0x56 / 255,
+    }])
   })
 
   it('edits every Vignette geometry control (#539)', async () => {

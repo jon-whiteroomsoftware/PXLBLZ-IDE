@@ -1,0 +1,155 @@
+import { useEffect, useRef, useState, type FormEvent, type KeyboardEvent } from 'react'
+import { formatColorValue, parseColorValue } from '@/engine/colorValue'
+
+export interface ColorFieldProps {
+  label: string
+  value: string
+  disabled?: boolean
+  compact?: boolean
+  hideLabel?: boolean
+  variant?: 'inspector' | 'editor'
+  onPreview?: (value: string) => void
+  onPreviewEnd?: () => void
+  onChange: (value: string) => void
+}
+
+/** One authored-Color control: swatch/picker plus a buffered exact hex draft. */
+export function ColorField({
+  label,
+  value,
+  disabled = false,
+  compact = false,
+  hideLabel = false,
+  variant = 'inspector',
+  onPreview,
+  onPreviewEnd,
+  onChange,
+}: ColorFieldProps) {
+  const canonicalValue = formatColorValue(value)
+  const [draft, setDraft] = useState(canonicalValue)
+  const exactFocusedRef = useRef(false)
+  const pickerCommittedRef = useRef(false)
+  const pickerRef = useRef<HTMLInputElement>(null)
+  const pickerPreviewActiveRef = useRef(false)
+  const onPreviewEndRef = useRef(onPreviewEnd)
+
+  useEffect(() => {
+    onPreviewEndRef.current = onPreviewEnd
+  }, [onPreviewEnd])
+
+  useEffect(() => () => {
+    if (pickerPreviewActiveRef.current) onPreviewEndRef.current?.()
+  }, [])
+
+  const endPickerPreview = () => {
+    if (!pickerPreviewActiveRef.current) return
+    pickerPreviewActiveRef.current = false
+    onPreviewEndRef.current?.()
+  }
+
+  useEffect(() => {
+    if (!exactFocusedRef.current) setDraft(canonicalValue)
+  }, [canonicalValue])
+
+  useEffect(() => {
+    const picker = pickerRef.current
+    if (!picker) return
+    const commit = () => {
+      const parsed = parseColorValue(picker.value)
+      if (!parsed) return
+      pickerCommittedRef.current = true
+      setDraft(parsed)
+      endPickerPreview()
+      if (parsed !== canonicalValue) onChange(parsed)
+    }
+    picker.addEventListener('change', commit)
+    return () => picker.removeEventListener('change', commit)
+  }, [canonicalValue, onChange])
+
+  const revert = (endPreview = false) => {
+    setDraft(canonicalValue)
+    if (endPreview) endPickerPreview()
+  }
+  const commitExact = (raw: string) => {
+    exactFocusedRef.current = false
+    const parsed = parseColorValue(raw)
+    if (!parsed) {
+      revert()
+      return
+    }
+    setDraft(parsed)
+    if (parsed !== canonicalValue) onChange(parsed)
+  }
+  const previewPicker = (event: FormEvent<HTMLInputElement>) => {
+    const parsed = parseColorValue(event.currentTarget.value)
+    if (!parsed) return
+    setDraft(parsed)
+    pickerPreviewActiveRef.current = true
+    onPreview?.(parsed)
+  }
+  const onExactKeyDown = (event: KeyboardEvent<HTMLInputElement>) => {
+    if (event.key === 'Enter') event.currentTarget.blur()
+    if (event.key === 'Escape') {
+      exactFocusedRef.current = false
+      event.currentTarget.value = canonicalValue
+      revert()
+      event.currentTarget.blur()
+    }
+  }
+  const onPickerKeyDown = (event: KeyboardEvent<HTMLInputElement>) => {
+    if (event.key !== 'Escape') return
+    pickerCommittedRef.current = false
+    revert(true)
+  }
+
+  const inspector = variant === 'inspector'
+  const labelClass = inspector
+    ? 'min-w-0 text-[9px] uppercase tracking-[0.1em] text-zinc-600'
+    : `min-w-0 uppercase text-zinc-600 ${compact ? 'text-[9px] tracking-[0.08em]' : 'text-[10px]'}`
+  const fieldHeight = compact ? 'h-5' : inspector ? 'h-6' : 'h-7'
+  const fieldBackground = inspector ? 'bg-zinc-950' : 'bg-zinc-900'
+  const swatch = parseColorValue(draft) ?? canonicalValue
+
+  return (
+    <label className={labelClass}>
+      <span className={hideLabel ? 'sr-only' : ''}>{label}</span>
+      <span className={`${hideLabel ? '' : 'mt-1'} ${fieldHeight} flex min-w-0 overflow-hidden rounded border border-zinc-700 ${fieldBackground} focus-within:border-cyan-400/60 disabled:opacity-60`}>
+        <span
+          className="relative w-8 shrink-0 border-r border-zinc-700"
+          style={{ backgroundColor: swatch }}
+          aria-hidden="true"
+        >
+          <span className="pointer-events-none absolute inset-0 bg-[linear-gradient(135deg,transparent_46%,rgba(255,255,255,0.25)_50%,transparent_54%)] opacity-50" />
+        </span>
+        <input
+          ref={pickerRef}
+          type="color"
+          aria-label={`${label} picker`}
+          value={swatch}
+          disabled={disabled}
+          onFocus={() => { pickerCommittedRef.current = false }}
+          onInput={previewPicker}
+          onBlur={() => {
+            if (!pickerCommittedRef.current && draft !== canonicalValue) revert(true)
+          }}
+          onKeyDown={onPickerKeyDown}
+          className="-ml-8 w-8 shrink-0 cursor-pointer opacity-0 disabled:cursor-default"
+        />
+        <input
+          type="text"
+          aria-label={`${label} exact value`}
+          value={draft}
+          disabled={disabled}
+          maxLength={7}
+          spellCheck={false}
+          autoCapitalize="none"
+          onFocus={() => { exactFocusedRef.current = true }}
+          onChange={(event) => setDraft(event.currentTarget.value)}
+          onBlur={(event) => commitExact(event.currentTarget.value)}
+          onKeyDown={onExactKeyDown}
+          className="min-w-0 flex-1 bg-transparent px-1.5 text-left font-mono text-[9.5px] normal-case tracking-normal text-zinc-200 outline-none disabled:cursor-default disabled:opacity-60"
+        />
+      </span>
+    </label>
+  )
+}

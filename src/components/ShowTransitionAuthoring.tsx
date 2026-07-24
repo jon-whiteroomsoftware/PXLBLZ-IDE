@@ -3,6 +3,7 @@ import { createPortal } from 'react-dom'
 import { Search, X, Zap } from 'lucide-react'
 import type { ShowBoundaryTransition, ShowRecord } from '@/engine/personalContentRecords'
 import { NumberField } from '@/components/ui/number-field'
+import { ColorField } from '@/components/ui/color-field'
 import { projectShowTimeline } from '@/engine/showModel'
 import {
   replaceShowBoundaryTransition,
@@ -213,15 +214,19 @@ export function ShowTransitionPalette({
 export function ShowTransitionParameters({
   transition,
   item,
+  onPreview,
+  onPreviewEnd,
   onChange,
 }: {
   transition: ShowBoundaryTransition
   item: ShowToolkitPresentationItem
+  onPreview?: (parameterId: string, value: ShowToolkitParameterValue) => void
+  onPreviewEnd?: () => void
   onChange: (parameterId: string, value: ShowToolkitParameterValue) => void
 }) {
   const parameters = showBoundaryTransitionParameters(item, transition)
   return (
-    <div role="group" aria-label={`${item.label} Transition parameters`} className="grid grid-cols-2 gap-1.5 sm:grid-cols-3">
+    <div role="group" aria-label={`${item.label} Transition parameters`} className="grid grid-cols-2 items-end gap-1.5 sm:grid-cols-3">
       {parameters.map((parameter) => {
         const value = showBoundaryTransitionParameterValue(transition, parameter.id)
         if (parameter.kind === 'boolean') {
@@ -247,10 +252,15 @@ export function ShowTransitionParameters({
         }
         if (parameter.kind === 'color') {
           return (
-            <label key={parameter.id} className="text-[8px] uppercase tracking-wide text-zinc-600">
-              {parameter.label}
-              <input aria-label={parameter.label} type="color" value={String(value)} onChange={(event) => onChange(parameter.id, event.target.value)} className="mt-0.5 h-7 w-full rounded border border-zinc-700 bg-zinc-900 p-0.5" />
-            </label>
+            <ColorField
+              key={parameter.id}
+              label={parameter.label}
+              value={String(value)}
+              variant="editor"
+              onPreview={(next) => onPreview?.(parameter.id, next)}
+              onPreviewEnd={onPreviewEnd}
+              onChange={(next) => onChange(parameter.id, next)}
+            />
           )
         }
         // Millisecond model values present as seconds (#577): the model and

@@ -169,7 +169,7 @@ describe('Show visual-toolkit contract', () => {
     expect(resolveShowToolkitParameters('effect', 'output', 'posterize', {}).map((parameter) => parameter.id))
       .toEqual(['amount', 'levels', 'easing'])
     expect(resolveShowToolkitParameters('effect', 'output', 'color-map', {}).map((parameter) => parameter.id))
-      .toEqual(['amount', 'shadowR', 'shadowG', 'shadowB', 'highlightR', 'highlightG', 'highlightB', 'easing'])
+      .toEqual(['amount', 'shadowColor', 'highlightColor', 'easing'])
     expect(resolveShowToolkitParameters('effect', 'output', 'luma-key', {}).map((parameter) => parameter.id))
       .toEqual(['target', 'tolerance', 'softness', 'easing'])
     expect(resolveShowToolkitParameters('effect', 'output', 'chroma-key', {})).toEqual(expect.arrayContaining([

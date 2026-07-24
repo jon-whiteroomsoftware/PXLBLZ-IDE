@@ -1,18 +1,13 @@
+import { colorValueToNormalizedRgb, formatColorValue } from './colorValue'
+
 export type ShowRgb = [number, number, number]
 
-const HEX_COLOR = /^#[0-9a-f]{6}$/i
-
 export function normalizeShowTransitionColor(color: string | undefined): string {
-  return typeof color === 'string' && HEX_COLOR.test(color) ? color.toLowerCase() : '#000000'
+  return formatColorValue(color)
 }
 
 export function showTransitionColorToRgb(color: string | undefined): ShowRgb {
-  const normalized = normalizeShowTransitionColor(color)
-  return [
-    Number.parseInt(normalized.slice(1, 3), 16) / 255,
-    Number.parseInt(normalized.slice(3, 5), 16) / 255,
-    Number.parseInt(normalized.slice(5, 7), 16) / 255,
-  ]
+  return colorValueToNormalizedRgb(color)
 }
 
 export function evaluateFadeThroughColor(

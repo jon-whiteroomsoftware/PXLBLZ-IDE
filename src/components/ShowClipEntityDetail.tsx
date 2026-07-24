@@ -27,6 +27,8 @@ export interface ShowClipEntityDetailProps {
   advancedDefaultOpen?: boolean
   transformEnabled?: boolean
   onPatch: (patch: ShowClipInspectorPatch) => void
+  onPreviewPatch?: (patch: ShowClipInspectorPatch) => void
+  onPreviewEnd?: () => void
   onPatternCommit?: () => void
   onOpenEffects: () => void
   onMoveLayer?: (layerId: string) => void
@@ -47,6 +49,8 @@ export function ShowClipEntityDetail({
   advancedDefaultOpen = false,
   transformEnabled = true,
   onPatch,
+  onPreviewPatch,
+  onPreviewEnd,
   onPatternCommit,
   onOpenEffects,
   onMoveLayer,
@@ -225,6 +229,8 @@ export function ShowClipEntityDetail({
           mirror={value.view.mirror}
           compiledCost={compiledCost}
           onChange={(effects) => onPatch({ effects })}
+          onPreview={(effects) => onPreviewPatch?.({ effects })}
+          onPreviewEnd={onPreviewEnd}
           onMirrorChange={(mirror) => onPatch({ view: { mirror } })}
           onAdd={onOpenEffects}
         />

@@ -93,6 +93,34 @@ describe('Show Effect authoring adapter', () => {
     expect(showClipEffectStage(effect)).toBe('color-output')
   })
 
+  it('authors Color Map as two Colors while preserving normalized channel storage (#609)', () => {
+    const effect: ShowClipEffect = {
+      id: 'map', kind: 'color-map', amount: 0.75,
+      shadowR: 0.05, shadowG: 0, shadowB: 0.2,
+      highlightR: 1, highlightG: 0.7, highlightB: 0.1,
+    }
+
+    expect(showClipEffectParameters(effect).map((parameter) => [parameter.id, parameter.label, parameter.kind])).toEqual([
+      ['amount', 'Amount', 'number'],
+      ['shadowColor', 'Shadow Color', 'color'],
+      ['highlightColor', 'Highlight Color', 'color'],
+    ])
+    expect(showClipEffectParameterValue(effect, 'shadowColor')).toBe('#0d0033')
+    expect(showClipEffectParameterValue(effect, 'highlightColor')).toBe('#ffb31a')
+    expect(effect).toEqual({
+      id: 'map', kind: 'color-map', amount: 0.75,
+      shadowR: 0.05, shadowG: 0, shadowB: 0.2,
+      highlightR: 1, highlightG: 0.7, highlightB: 0.1,
+    })
+
+    expect(updateShowClipEffectParameter(effect, 'shadowColor', '#123456')).toEqual({
+      ...effect,
+      shadowR: 0x12 / 255,
+      shadowG: 0x34 / 255,
+      shadowB: 0x56 / 255,
+    })
+  })
+
   it('duplicates next to its source with a stable unique id', () => {
     const effects: ShowClipEffect[] = [
       { id: 'move', kind: 'translate', x: 0.2, y: 0 },

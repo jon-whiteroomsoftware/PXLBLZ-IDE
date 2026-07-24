@@ -46,6 +46,7 @@ import {
   projectShowTimeline,
   showVisualTransitionAfter,
   transitionCost,
+  updateShowBoundaryTransition,
 } from '@/engine/showModel'
 import {
   compileShowForArtifact,
@@ -204,6 +205,7 @@ import {
 } from '@/store/showTransportStore'
 import { usePatternStore } from '@/store/patternStore'
 import { useShowStore } from '@/store/showStore'
+import { useShowPreviewOverrideStore } from '@/store/showPreviewOverrideStore'
 import { useShowEditorSessionStore } from '@/store/showEditorSessionStore'
 import { docExternalHref } from '@/docs/catalog'
 import type { StockShowNote } from '@/pixelblaze/stock/shows'
@@ -1265,6 +1267,21 @@ export function ShowEditor({
     if (next === activeShow || !next.composition || validateShowGroups(next, next.composition).length > 0) return Promise.resolve()
     return Promise.resolve(updateShow(activeShow.id, next))
   }
+  const previewClipInspectorPatch = (owner: ShowClipInspectorOwner, patch: ShowClipInspectorPatch) => {
+    if (!inspectorShow) return
+    const next = updateShowClipInspector(inspectorShow, owner, patch)
+    if (next !== inspectorShow) useShowPreviewOverrideStore.getState().preview(next)
+  }
+  const previewGroupClipInspectorPatch = (owner: ShowGroupClipOwner, patch: ShowClipInspectorPatch) => {
+    if (!activeShow) return
+    const next = updateShowGroupClipInspector(activeShow, owner, patch)
+    if (next !== activeShow && next.composition && validateShowGroups(next, next.composition).length === 0) {
+      useShowPreviewOverrideStore.getState().preview(next)
+    }
+  }
+  const endInspectorPreview = () => {
+    if (activeShow) useShowPreviewOverrideStore.getState().clear(activeShow.id)
+  }
   const inspectableShowExport = useMemo(
     () => activeShow && compiled.artifact
       ? buildShowEpeExport(activeShow, compiled.artifact.code, {
@@ -2179,6 +2196,9 @@ export function ShowEditor({
                   onUpdateAdaptations={(cell, changes) => void updateCellAdaptations(activeShow.id, cell.id, changes)}
                   onUpdateClipInspector={commitClipInspectorPatch}
                   onUpdateGroupClipInspector={commitGroupClipInspectorPatch}
+                  onPreviewClipInspector={previewClipInspectorPatch}
+                  onPreviewGroupClipInspector={previewGroupClipInspectorPatch}
+                  onPreviewEnd={endInspectorPreview}
                   onOpenEffects={(cell) => setEffectPaletteOwner({ kind: 'global', cellId: cell.id })}
                   onOpenCompositionEffects={setEffectPaletteOwner}
                   onOpenGroupEffects={setGroupEffectPaletteOwner}
@@ -6486,6 +6506,9 @@ function ContextualInspector({
   onUpdateAdaptations,
   onUpdateClipInspector,
   onUpdateGroupClipInspector,
+  onPreviewClipInspector,
+  onPreviewGroupClipInspector,
+  onPreviewEnd,
   onOpenEffects,
   onOpenCompositionEffects,
   onOpenGroupEffects,
@@ -6538,6 +6561,9 @@ function ContextualInspector({
   onUpdateAdaptations: (cell: ShowCell, changes: Partial<ShowCell['adaptations']>) => void
   onUpdateClipInspector: (owner: ShowClipInspectorOwner, patch: ShowClipInspectorPatch) => void
   onUpdateGroupClipInspector: (owner: ShowGroupClipOwner, patch: ShowClipInspectorPatch) => void
+  onPreviewClipInspector: (owner: ShowClipInspectorOwner, patch: ShowClipInspectorPatch) => void
+  onPreviewGroupClipInspector: (owner: ShowGroupClipOwner, patch: ShowClipInspectorPatch) => void
+  onPreviewEnd: () => void
   onOpenEffects: (cell: ShowCell) => void
   onOpenCompositionEffects: (owner: ShowClipInspectorOwner) => void
   onOpenGroupEffects: (owner: ShowGroupClipOwner) => void
@@ -6615,6 +6641,8 @@ function ContextualInspector({
           compiledCost={compiledCost}
           instanceOwnership={null}
           onPatch={(patch) => onUpdateGroupClipInspector(selectedGroupClipOwner, patch)}
+          onPreviewPatch={(patch) => onPreviewGroupClipInspector(selectedGroupClipOwner, patch)}
+          onPreviewEnd={onPreviewEnd}
           onPatternCommit={onPatternCommit}
           onOpenEffects={() => onOpenGroupEffects(selectedGroupClipOwner)}
           onMakePatternIndependent={() => {}}
@@ -6664,6 +6692,8 @@ function ContextualInspector({
           compiledCost={compiledCost}
           instanceOwnership={instanceOwnership}
           onPatch={(patch) => onUpdateClipInspector(selectedCompositionClipOwner, patch)}
+          onPreviewPatch={(patch) => onPreviewClipInspector(selectedCompositionClipOwner, patch)}
+          onPreviewEnd={onPreviewEnd}
           onPatternCommit={onPatternCommit}
           onOpenEffects={() => onOpenCompositionEffects(selectedCompositionClipOwner)}
           onMakePatternIndependent={() => onMakeCompositionPatternIndependent(selectedCompositionClipOwner)}
@@ -6687,6 +6717,8 @@ function ContextualInspector({
         compiledCost={compiledCost}
         canRemove={canRemoveClip}
         onUpdateClip={(patch) => onUpdateClipInspector({ kind: 'global', cellId: selectedClip.id }, patch)}
+        onPreviewClip={(patch) => onPreviewClipInspector({ kind: 'global', cellId: selectedClip.id }, patch)}
+        onPreviewEnd={onPreviewEnd}
         onPatternCommit={onPatternCommit}
         onRemove={() => onRemoveClip(selectedClip)}
         onUpdateAdaptations={(changes) => onUpdateAdaptations(selectedClip, changes)}
@@ -6857,6 +6889,8 @@ function CompositionClipInspector({
   compiledCost,
   instanceOwnership,
   onPatch,
+  onPreviewPatch,
+  onPreviewEnd,
   onPatternCommit,
   onOpenEffects,
   onMakePatternIndependent,
@@ -6872,6 +6906,8 @@ function CompositionClipInspector({
   compiledCost?: import('@/engine/showVisualToolkit').ShowCompiledCostMetadata
   instanceOwnership: ReturnType<typeof projectShowClipPatternInstanceOwnership>
   onPatch: (patch: ShowClipInspectorPatch) => void
+  onPreviewPatch?: (patch: ShowClipInspectorPatch) => void
+  onPreviewEnd?: () => void
   onPatternCommit: () => void
   onOpenEffects: () => void
   onMakePatternIndependent: () => void
@@ -6922,6 +6958,8 @@ function CompositionClipInspector({
         ) : undefined}
         embedded
         onPatch={onPatch}
+        onPreviewPatch={onPreviewPatch}
+        onPreviewEnd={onPreviewEnd}
         onPatternCommit={onPatternCommit}
         onOpenEffects={onOpenEffects}
       />
@@ -6938,6 +6976,8 @@ function ClipInspector({
   compiledCost,
   canRemove,
   onUpdateClip,
+  onPreviewClip,
+  onPreviewEnd,
   onPatternCommit,
   onRemove,
   onUpdateAdaptations,
@@ -6955,6 +6995,8 @@ function ClipInspector({
   compiledCost?: import('@/engine/showVisualToolkit').ShowCompiledCostMetadata
   canRemove: boolean
   onUpdateClip: (patch: ShowClipInspectorPatch) => void
+  onPreviewClip?: (patch: ShowClipInspectorPatch) => void
+  onPreviewEnd?: () => void
   onPatternCommit: () => void
   onRemove: () => void
   onUpdateAdaptations: (changes: Partial<ShowCell['adaptations']>) => void
@@ -7026,6 +7068,8 @@ function ClipInspector({
           embedded
           advancedDefaultOpen={hasAdvancedOverrides}
           onPatch={onUpdateClip}
+          onPreviewPatch={onPreviewClip}
+          onPreviewEnd={onPreviewEnd}
           onPatternCommit={onPatternCommit}
           onOpenEffects={onOpenEffects}
         />
@@ -7400,6 +7444,15 @@ function TransitionInspector({
         <ShowTransitionParameters
           transition={transition}
           item={transitionItem}
+          onPreview={(parameterId, value) => {
+            const changes = showBoundaryTransitionParameterChanges(transition, transitionItem, parameterId, value)
+            if (changes) {
+              useShowPreviewOverrideStore.getState().preview(
+                updateShowBoundaryTransition(show, transition.id, changes),
+              )
+            }
+          }}
+          onPreviewEnd={() => useShowPreviewOverrideStore.getState().clear(show.id)}
           onChange={(parameterId, value) => {
             const changes = showBoundaryTransitionParameterChanges(transition, transitionItem, parameterId, value)
             if (changes) onUpdate(transition.id, changes)
