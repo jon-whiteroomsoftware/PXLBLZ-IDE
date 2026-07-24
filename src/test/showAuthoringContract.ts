@@ -16,11 +16,14 @@ interface ShowAuthoringEditContract {
 }
 
 interface AcceptedShowAuthoringEditContract extends ShowAuthoringEditContract {
-  assertProjection?: (
+  assertProjection: (
     projection: ShowUnifiedTimelineProjection,
     result: ShowCompositionV1,
   ) => void
-  assertReferences?: (result: ShowCompositionV1) => void
+  assertReferences: (
+    result: ShowCompositionV1,
+    original: ShowCompositionV1,
+  ) => void
 }
 
 /**
@@ -36,16 +39,18 @@ export function expectAcceptedShowAuthoringEdit({
   assertProjection,
   assertReferences,
 }: AcceptedShowAuthoringEditContract): ShowCompositionV1 {
+  const showSnapshot = structuredClone(show)
+  const compositionSnapshot = structuredClone(composition)
   expect(validateShowComposition(show, composition)).toEqual([])
-  const originalSnapshot = structuredClone(composition)
 
   const result = edit(composition)
 
-  expect(composition).toEqual(originalSnapshot)
+  expect(show).toEqual(showSnapshot)
+  expect(composition).toEqual(compositionSnapshot)
   expect(result).not.toBe(composition)
   expect(validateShowComposition(show, result)).toEqual([])
-  assertProjection?.(projectShowUnifiedTimeline(show, result), result)
-  assertReferences?.(result)
+  assertProjection(projectShowUnifiedTimeline(show, result), result)
+  assertReferences(result, compositionSnapshot)
   return result
 }
 
@@ -57,12 +62,14 @@ export function expectRefusedShowAuthoringEdit({
   composition,
   edit,
 }: ShowAuthoringEditContract): ShowCompositionV1 {
+  const showSnapshot = structuredClone(show)
+  const compositionSnapshot = structuredClone(composition)
   expect(validateShowComposition(show, composition)).toEqual([])
-  const originalSnapshot = structuredClone(composition)
 
   const result = edit(composition)
 
   expect(result).toBe(composition)
-  expect(composition).toEqual(originalSnapshot)
+  expect(show).toEqual(showSnapshot)
+  expect(composition).toEqual(compositionSnapshot)
   return result
 }

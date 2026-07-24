@@ -114,4 +114,11 @@ describe('pre-commit test selection', () => {
       ],
     })
   })
+
+  it('runs Show authoring consumers when the shared edit contract changes', () => {
+    expect(selectPrecommitTests(['src/test/showAuthoringContract.ts'])).toEqual({
+      focusedTests: ['src/test/showAuthoringContract.test.ts'],
+      invariantTests: ['src/engine/showTimelineClipAuthoring.test.ts'],
+    })
+  })
 })

@@ -63,6 +63,14 @@ const TEST_INFRASTRUCTURE_SMOKE_TESTS = [
   'src/components/HelpHint.test.tsx',
 ]
 
+const SHOW_AUTHORING_CONTRACT_FILES = new Set([
+  'src/test/showAuthoringContract.ts',
+])
+
+const SHOW_AUTHORING_CONTRACT_INVARIANT_TESTS = [
+  'src/engine/showTimelineClipAuthoring.test.ts',
+]
+
 export function selectPrecommitTests(changedFiles) {
   const focusedTests = [...new Set(changedFiles.flatMap((file) => {
     if (/\.(test|spec)\.[cm]?[jt]sx?$/.test(file)) return existsSync(file) ? [file] : []
@@ -79,12 +87,14 @@ export function selectPrecommitTests(changedFiles) {
   const resourceLedgerChanged = changedFiles.includes('src/engine/showVmResourceLedger.ts')
   const artifactContractChanged = changedFiles.some((file) => ARTIFACT_CONTRACT_FILES.has(file))
   const testInfrastructureChanged = changedFiles.some((file) => TEST_INFRASTRUCTURE_FILES.has(file))
+  const showAuthoringContractChanged = changedFiles.some((file) => SHOW_AUTHORING_CONTRACT_FILES.has(file))
   const invariantTests = [...new Set([
     ...(changedFiles.includes('src/engine/showCompiler.ts') ? COMPILER_INVARIANT_TESTS : []),
     ...(persistenceChanged ? PERSISTENCE_INVARIANT_TESTS : []),
     ...(resourceLedgerChanged ? RESOURCE_INVARIANT_TESTS : []),
     ...(artifactContractChanged ? ARTIFACT_INVARIANT_TESTS : []),
     ...(testInfrastructureChanged ? TEST_INFRASTRUCTURE_SMOKE_TESTS : []),
+    ...(showAuthoringContractChanged ? SHOW_AUTHORING_CONTRACT_INVARIANT_TESTS : []),
   ])]
   return { focusedTests, invariantTests }
 }

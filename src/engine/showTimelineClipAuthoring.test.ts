@@ -542,6 +542,22 @@ describe('global timeline Clip authoring (#580)', () => {
         }))
         expect(clips?.find((clip) => clip.id === 'placement-spanning-move')?.segmentIds).toHaveLength(2)
       },
+      assertReferences: (result, original) => {
+        expect(result.patternInstances).toEqual(original.patternInstances)
+        const segments = result.scenes.flatMap((scene) => (
+          scene.zones.flatMap((zone) => zone.main)
+        ))
+        expect(segments).toEqual([
+          expect.objectContaining({
+            id: 'placement-spanning-move',
+            instanceId: instance.id,
+          }),
+          expect.objectContaining({
+            logicalClipId: 'placement-spanning-move',
+            instanceId: instance.id,
+          }),
+        ])
+      },
     })
 
     expect(next.scenes[0].zones[0].main).toContainEqual(expect.objectContaining({
@@ -1823,6 +1839,21 @@ describe('global timeline Clip authoring (#580)', () => {
           }),
         )
       },
+      assertReferences: (result, original) => {
+        expect(result.patternInstances).toEqual(original.patternInstances)
+        expect(result.scenes[0].propertyTracks?.[0]).toMatchObject({
+          id: 'track-resize',
+          target: {
+            kind: 'placement-view',
+            placementId: 'placement-resize',
+            property: 'brightness',
+          },
+          keyframes: [
+            { id: 'key-resize-a' },
+            { id: 'key-resize-b' },
+          ],
+        })
+      },
     })
     expect(fromRight.scenes[0].zones[0].main[0]).toMatchObject({ startMs: 3_000, durationMs: 6_000 })
     expect(fromRight.scenes[0].propertyTracks?.[0].keyframes.map((keyframe) => keyframe.timeMs)).toEqual([3_500, 7_000])
@@ -1863,6 +1894,22 @@ describe('global timeline Clip authoring (#580)', () => {
             endMs: 40_000,
           }),
         )
+      },
+      assertReferences: (result, original) => {
+        expect(result.patternInstances).toEqual(original.patternInstances)
+        const segments = result.scenes.flatMap((scene) => (
+          scene.zones.flatMap((zone) => zone.main)
+        ))
+        expect(segments).toEqual([
+          expect.objectContaining({
+            id: 'placement-spanning-resize',
+            instanceId: instance.id,
+          }),
+          expect.objectContaining({
+            logicalClipId: 'placement-spanning-resize',
+            instanceId: instance.id,
+          }),
+        ])
       },
     })
   })

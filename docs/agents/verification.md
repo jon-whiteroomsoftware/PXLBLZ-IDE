@@ -43,10 +43,11 @@ delay without adding coverage.
 
 Pure Show composition edits use
 `src/test/showAuthoringContract.ts` as their common test boundary. An accepted
-edit must leave its input deeply unchanged, return a distinct composition,
-pass `validateShowComposition`, and satisfy operation-specific unified-timeline
-projection and durable-reference assertions. A refused edit must return the
-original composition by reference and leave its domain state deeply unchanged.
+edit must leave both its Show and composition deeply unchanged, return a
+distinct composition, pass `validateShowComposition`, and supply
+operation-specific unified-timeline projection and durable-reference
+assertions. A refused edit must return the original composition by reference
+and leave both inputs deeply unchanged.
 
 Move and resize tests in `src/engine/showTimelineClipAuthoring.test.ts` provide
 the initial single-Scene, cross-Scene, accepted, refused, and edit-sequence
@@ -62,6 +63,10 @@ npx vitest run src/test/showAuthoringContract.test.ts \
   src/engine/showTimelineClipAuthoring.test.ts
 ```
 
+The staged-test selector treats the shared helper as an invariant boundary.
+Changing it runs both its fault-sensitivity characterization suite and the
+Show-authoring consumer suite.
+
 ## Staged-test selection
 
 `scripts/test-staged.mjs` reads added, copied, modified, and renamed paths from
@@ -75,6 +80,7 @@ colocated test is not a sufficient safety net:
 - controller resource accounting
 - Pattern artifact production and stamping
 - Vitest configuration and staged-test infrastructure
+- shared Show authoring edit contracts
 
 Documentation-only commits skip Vitest at pre-commit. The full review-and-test
 pre-push gate is unchanged by the selection result and remains the final
