@@ -78,7 +78,7 @@ export function approveCandidate(
     baseSha: input.range.baseSha,
     tipSha: input.range.tipSha,
     reviewer: input.execution.reviewer,
-    effort: input.execution.reviewer === 'Fable' ? 'medium' : 'high',
+    effort: 'high',
     decision: input.execution.review.decision,
     policyFingerprint: input.policyFingerprint,
     promptVersion: input.promptVersion,

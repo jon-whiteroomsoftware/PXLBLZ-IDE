@@ -13,7 +13,7 @@ export interface ReviewApprovalReceipt {
   receiptVersion: typeof REVIEW_RECEIPT_VERSION
   baseSha: string
   tipSha: string
-  reviewer: 'Fable' | 'GPT-5.6 High'
+  reviewer: 'Fable' | 'Opus 5 High' | 'GPT-5.6 High'
   effort: 'medium' | 'high'
   decision: 'pass'
   policyFingerprint: string
@@ -145,7 +145,9 @@ export function parseApprovalReceipt(value: unknown): ReviewApprovalReceipt {
   if (receipt.receiptVersion !== REVIEW_RECEIPT_VERSION
     || !validSha(receipt.baseSha)
     || !validSha(receipt.tipSha)
-    || (receipt.reviewer !== 'Fable' && receipt.reviewer !== 'GPT-5.6 High')
+    || (receipt.reviewer !== 'Fable'
+      && receipt.reviewer !== 'Opus 5 High'
+      && receipt.reviewer !== 'GPT-5.6 High')
     || (receipt.effort !== 'medium' && receipt.effort !== 'high')
     || receipt.decision !== 'pass'
     || typeof receipt.policyFingerprint !== 'string'

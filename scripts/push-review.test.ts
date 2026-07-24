@@ -1,12 +1,13 @@
 import { describe, expect, it } from 'vitest'
 import {
   approvalCoverageFromUpdates,
-  FABLE_REVIEW_EFFORT,
+  CLAUDE_REVIEW_EFFORT,
+  CLAUDE_REVIEW_MODEL,
   GPT_REVIEW_EFFORT,
   GPT_REVIEW_MODEL,
   REVIEW_TIMEOUT_MS,
+  buildClaudeReviewArgs,
   buildCodexReviewArgs,
-  buildFableReviewArgs,
   buildReviewHistoryArgs,
   buildReviewPrompt,
   determineNewRefBase,
@@ -23,15 +24,28 @@ import {
 import { createApprovalReceipt } from './review-approvals'
 
 describe('cross-agent push review gate (#63)', () => {
-  it('uses Fable Medium with the fifteen-minute hard cap', () => {
-    expect(FABLE_REVIEW_EFFORT).toBe('medium')
+  it('uses Opus 5 High with the fifteen-minute hard cap', () => {
+    expect(CLAUDE_REVIEW_MODEL).toBe('opus')
+    expect(CLAUDE_REVIEW_EFFORT).toBe('high')
     expect(REVIEW_TIMEOUT_MS).toBe(15 * 60 * 1_000)
-    const args = buildFableReviewArgs()
-    expect(args).toContain('fable')
-    expect(args).not.toContain('opus')
+    expect(buildClaudeReviewArgs()).toEqual([
+      '-p',
+      '--safe-mode',
+      '--model', 'opus',
+      '--effort', 'high',
+      '--permission-mode', 'dontAsk',
+      '--no-session-persistence',
+      '--tools', 'Read,Grep,Glob',
+      '--allowedTools',
+      'Read',
+      'Grep',
+      'Glob',
+      '--output-format', 'json',
+      '--json-schema', expect.any(String),
+    ])
   })
 
-  it('falls back to GPT-5.6 High when Fable cannot return a review', () => {
+  it('falls back to GPT-5.6 High when Opus 5 High cannot return a review', () => {
     const fallbackReview: PushReviewResult = {
       decision: 'pass',
       summary: 'Fallback review passed.',
@@ -39,7 +53,7 @@ describe('cross-agent push review gate (#63)', () => {
     }
     const result = reviewWithFallback(
       () => {
-        throw new Error('Fable quota exhausted')
+        throw new Error('Opus quota exhausted')
       },
       () => fallbackReview,
     )
@@ -49,7 +63,7 @@ describe('cross-agent push review gate (#63)', () => {
     expect(result).toEqual({
       reviewer: 'GPT-5.6 High',
       review: fallbackReview,
-      fallbackReason: 'Fable quota exhausted',
+      fallbackReason: 'Opus quota exhausted',
     })
   })
 
@@ -57,8 +71,8 @@ describe('cross-agent push review gate (#63)', () => {
     const events: string[] = []
     reviewWithFallback(
       () => {
-        events.push('fable')
-        throw new Error('Fable timed out')
+        events.push('opus')
+        throw new Error('Opus timed out')
       },
       () => {
         events.push('gpt')
@@ -68,14 +82,14 @@ describe('cross-agent push review gate (#63)', () => {
     )
 
     expect(events).toEqual([
-      'fable',
-      'fallback: Fable timed out',
+      'opus',
+      'fallback: Opus timed out',
       'gpt',
     ])
   })
 
-  it('keeps a valid Fable failure authoritative', () => {
-    const fableReview: PushReviewResult = {
+  it('keeps a valid Opus 5 High failure authoritative', () => {
+    const opusReview: PushReviewResult = {
       decision: 'fail',
       summary: 'A correctness bug was found.',
       findings: [{
@@ -88,26 +102,26 @@ describe('cross-agent push review gate (#63)', () => {
     }
     let fallbackRuns = 0
     const result = reviewWithFallback(
-      () => fableReview,
+      () => opusReview,
       () => {
         fallbackRuns += 1
         return { decision: 'pass', summary: 'Fallback passed.', findings: [] }
       },
     )
 
-    expect(result).toEqual({ reviewer: 'Fable', review: fableReview })
+    expect(result).toEqual({ reviewer: 'Opus 5 High', review: opusReview })
     expect(fallbackRuns).toBe(0)
   })
 
   it('fails closed with both errors when neither reviewer can respond', () => {
     expect(() => reviewWithFallback(
       () => {
-        throw new Error('Fable timed out')
+        throw new Error('Opus timed out')
       },
       () => {
         throw new Error('Codex authentication failed')
       },
-    )).toThrow(/Fable unavailable: Fable timed out[\s\S]*GPT-5\.6 High fallback failed: Codex authentication failed/)
+    )).toThrow(/Opus 5 High unavailable: Opus timed out[\s\S]*GPT-5\.6 High fallback failed: Codex authentication failed/)
   })
 
   it('runs the fallback reviewer as ephemeral read-only GPT-5.6 High', () => {
@@ -340,7 +354,7 @@ describe('cross-agent push review gate (#63)', () => {
     expect(() => parseClaudeReviewOutput('{"type":"result","subtype":"error"}')).toThrow(/structured review output/i)
   })
 
-  it('tells Fable to review only correctness and the exact outgoing ranges', () => {
+  it('tells Opus to review only correctness and the exact outgoing ranges', () => {
     const prompt = buildReviewPrompt([{
       label: 'refs/heads/main -> refs/heads/main',
       baseSha: 'base',

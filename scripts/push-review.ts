@@ -12,7 +12,8 @@ import {
 } from './review-approvals'
 
 const ZERO_SHA = /^0+$/
-export const FABLE_REVIEW_EFFORT = 'medium' as const
+export const CLAUDE_REVIEW_MODEL = 'opus' as const
+export const CLAUDE_REVIEW_EFFORT = 'high' as const
 export const GPT_REVIEW_MODEL = 'gpt-5.6-sol' as const
 export const GPT_REVIEW_EFFORT = 'high' as const
 export const REVIEW_TIMEOUT_MS = 15 * 60 * 1_000
@@ -47,7 +48,7 @@ export interface PushReviewResult {
 }
 
 export interface PushReviewExecution {
-  reviewer: 'Fable' | 'GPT-5.6 High'
+  reviewer: 'Opus 5 High' | 'GPT-5.6 High'
   review: PushReviewResult
   fallbackReason?: string
 }
@@ -84,14 +85,14 @@ export function parseReviewTestDesignContext(
 }
 
 export function reviewWithFallback(
-  runFable: () => PushReviewResult,
+  runClaude: () => PushReviewResult,
   runGpt: () => PushReviewResult,
   onFallback: (reason: string) => void = () => {},
 ): PushReviewExecution {
   try {
-    return { reviewer: 'Fable', review: runFable() }
-  } catch (fableError) {
-    const fallbackReason = errorMessage(fableError)
+    return { reviewer: 'Opus 5 High', review: runClaude() }
+  } catch (claudeError) {
+    const fallbackReason = errorMessage(claudeError)
     onFallback(fallbackReason)
     try {
       return {
@@ -101,7 +102,7 @@ export function reviewWithFallback(
       }
     } catch (gptError) {
       throw new Error(
-        `Fable unavailable: ${fallbackReason}\nGPT-5.6 High fallback failed: ${errorMessage(gptError)}`,
+        `Opus 5 High unavailable: ${fallbackReason}\nGPT-5.6 High fallback failed: ${errorMessage(gptError)}`,
         { cause: gptError },
       )
     }
@@ -122,12 +123,12 @@ export function buildCodexReviewArgs(schemaPath: string, outputPath: string): st
   ]
 }
 
-export function buildFableReviewArgs(): string[] {
+export function buildClaudeReviewArgs(): string[] {
   return [
     '-p',
     '--safe-mode',
-    '--model', 'fable',
-    '--effort', FABLE_REVIEW_EFFORT,
+    '--model', CLAUDE_REVIEW_MODEL,
+    '--effort', CLAUDE_REVIEW_EFFORT,
     '--permission-mode', 'dontAsk',
     '--no-session-persistence',
     '--tools', 'Read,Grep,Glob',
@@ -175,7 +176,7 @@ export function reviewPolicyFingerprint(): string {
       baseSha: '<base>',
       tipSha: '<tip>',
     }]),
-    fable: { model: 'fable', effort: FABLE_REVIEW_EFFORT },
+    claude: { model: CLAUDE_REVIEW_MODEL, effort: CLAUDE_REVIEW_EFFORT },
     gpt: { model: GPT_REVIEW_MODEL, effort: GPT_REVIEW_EFFORT },
   })).digest('hex')
 }
@@ -273,22 +274,22 @@ export function parseClaudeReviewOutput(output: string): PushReviewResult {
   try {
     envelope = JSON.parse(output.trim())
   } catch {
-    throw new Error('Fable did not return valid JSON review output.')
+    throw new Error('Opus 5 High did not return valid JSON review output.')
   }
   if (!envelope || typeof envelope !== 'object') {
-    throw new Error('Fable did not return structured review output.')
+    throw new Error('Opus 5 High did not return structured review output.')
   }
   const structured = (envelope as { structured_output?: unknown }).structured_output
   if (!structured || typeof structured !== 'object') {
-    throw new Error('Fable did not return structured review output.')
+    throw new Error('Opus 5 High did not return structured review output.')
   }
   const review = structured as Partial<PushReviewResult>
   if ((review.decision !== 'pass' && review.decision !== 'fail')
     || typeof review.summary !== 'string'
     || !Array.isArray(review.findings)) {
-    throw new Error('Fable returned malformed structured review output.')
+    throw new Error('Opus 5 High returned malformed structured review output.')
   }
-  return validateReviewSemantics(review as PushReviewResult, 'Fable')
+  return validateReviewSemantics(review as PushReviewResult, 'Opus 5 High')
 }
 
 export function parseCodexReviewOutput(output: string): PushReviewResult {
@@ -406,8 +407,8 @@ export function buildReviewInput(
   ].join('\n')
 }
 
-function runFableReview(reviewInput: string): PushReviewResult {
-  const result = spawnSync('claude', buildFableReviewArgs(), {
+function runClaudeReview(reviewInput: string): PushReviewResult {
+  const result = spawnSync('claude', buildClaudeReviewArgs(), {
     cwd: process.cwd(),
     encoding: 'utf8',
     input: reviewInput,
@@ -418,7 +419,7 @@ function runFableReview(reviewInput: string): PushReviewResult {
   if (result.error) throw result.error
   if (result.status !== 0) {
     const detail = (result.stderr || result.stdout || '').trim()
-    throw new Error(`Fable review process exited ${result.status}${detail ? `: ${detail}` : '.'}`)
+    throw new Error(`Opus 5 High review process exited ${result.status}${detail ? `: ${detail}` : '.'}`)
   }
   return parseClaudeReviewOutput(result.stdout)
 }
@@ -453,10 +454,10 @@ export function runReviewForRanges(
 ): PushReviewExecution {
   const reviewInput = buildReviewInput(ranges, testDesign)
   return reviewWithFallback(
-    () => runFableReview(reviewInput),
+    () => runClaudeReview(reviewInput),
     () => runGptReview(reviewInput),
     (reason) => {
-      console.warn(`⚠ Fable unavailable: ${reason}`)
+      console.warn(`⚠ Opus 5 High unavailable: ${reason}`)
       console.log('▶ GPT-5.6 High reviewing the same exact Git range...')
     },
   )

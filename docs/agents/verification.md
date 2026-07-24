@@ -34,9 +34,9 @@ stacked until their reviewed base lands.
 `review:candidate` resolves the supplied base and tip to exact Git objects,
 requires their commit ancestry to be linear, and rejects merge commits. The
 review packet sends the exact commit list and
-per-commit patch series to Fable Medium. It also requests first-parent merge
+per-commit patch series to Opus 5 High. It also requests first-parent merge
 diffs defensively, preserving empty commits, conflict-resolution changes, and
-add-then-revert histories that an endpoint-tree diff would hide. If Fable
+add-then-revert histories that an endpoint-tree diff would hide. If Opus 5 High
 cannot return a valid structured decision because of quota,
 timeout, process, or malformed output, GPT-5.6 High receives the same immutable
 input. A valid failure from either reviewer is blocking and never creates an

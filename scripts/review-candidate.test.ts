@@ -43,16 +43,20 @@ describe('candidate correctness review (#598)', () => {
     expect(approveCandidate({
       ...common,
       execution: {
-        reviewer: 'Fable',
+        reviewer: 'Opus 5 High',
         review: { decision: 'pass', summary: 'Safe.', findings: [] },
       },
     }).receiptPath).toContain('receipt.json')
     expect(saved).toHaveLength(1)
+    expect(saved[0]).toMatchObject({
+      reviewer: 'Opus 5 High',
+      effort: 'high',
+    })
 
     expect(approveCandidate({
       ...common,
       execution: {
-        reviewer: 'Fable',
+        reviewer: 'Opus 5 High',
         review: {
           decision: 'fail',
           summary: 'Bug.',
