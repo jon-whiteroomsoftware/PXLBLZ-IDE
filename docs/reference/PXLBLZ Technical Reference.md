@@ -1514,7 +1514,7 @@ local until blur and then revert.
 
 Percentage semantics are opt-in. `ShowToolkitParameterDescriptor.presentation`
 marks eligible Effect and Transition parameters; the frozen visual-toolkit
-contract is version 9. Other call sites select percentage presentation
+contract is version 10. Other call sites select percentage presentation
 explicitly. A numeric `min=0, max=1` pair is insufficient because phase,
 direction, centers, viewport geometry, and other spatial values share that
 storage range. Full-width `DeckSlider` controls use the same formatter and
