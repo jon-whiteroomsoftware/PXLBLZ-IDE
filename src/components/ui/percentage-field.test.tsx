@@ -163,6 +163,43 @@ describe('PercentageField', () => {
     expect(onChange).toHaveBeenCalledWith(0.8)
   })
 
+  it('cancels a pinned slider preview when pointer capture is unexpectedly lost', () => {
+    const onPreview = vi.fn()
+    const onPreviewEnd = vi.fn()
+    const onChange = vi.fn()
+    render(
+      <PercentageField
+        label="Brightness"
+        value={0.5}
+        min={0}
+        max={1}
+        step={0.01}
+        onPreview={onPreview}
+        onPreviewEnd={onPreviewEnd}
+        onChange={onChange}
+      />,
+    )
+    const grip = screen.getByRole('button', { name: 'Adjust Brightness with slider' })
+    Object.defineProperty(grip, 'setPointerCapture', { configurable: true, value: vi.fn() })
+    Object.defineProperty(grip, 'releasePointerCapture', { configurable: true, value: vi.fn() })
+    vi.spyOn(grip, 'getBoundingClientRect').mockReturnValue({
+      x: 380, y: 100, left: 380, right: 398, top: 100, bottom: 124, width: 18, height: 24, toJSON: () => ({}),
+    })
+    fireEvent.pointerDown(grip, { pointerId: 4, clientX: 389 })
+    fireEvent.pointerUp(grip, { pointerId: 4, clientX: 389 })
+
+    const slider = screen.getByRole('slider', { name: 'Brightness percentage slider' })
+    Object.defineProperty(slider, 'setPointerCapture', { configurable: true, value: vi.fn() })
+    fireEvent.pointerDown(slider, { pointerId: 12 })
+    fireEvent.input(slider, { target: { value: '0.8' } })
+    fireEvent.lostPointerCapture(slider, { pointerId: 12 })
+
+    expect(onPreview).toHaveBeenLastCalledWith(0.8)
+    expect(onPreviewEnd).toHaveBeenCalledOnce()
+    expect(onChange).not.toHaveBeenCalled()
+    expect(screen.getByRole('textbox', { name: 'Brightness exact percentage' })).toHaveValue('50')
+  })
+
   it('opens the pinned slider from the grip keyboard affordance without a pointer', () => {
     const onPreviewEnd = vi.fn()
     render(

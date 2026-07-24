@@ -351,7 +351,7 @@ export function BoundedNumberField({
               onLostPointerCapture={() => {
                 if (sliderPointerIdRef.current === null) return
                 sliderPointerIdRef.current = null
-                commitSlider(sliderValueRef.current)
+                cancelSlider()
               }}
               onBlur={() => {
                 if (slider.pinned && sliderPointerIdRef.current === null) {

@@ -295,6 +295,17 @@ describe('Show Clip summary', () => {
     expect(showClipInlineSummary(summary)).toBe('defaults')
   })
 
+  it('compacts high-precision animation speed without mutating the stored value', () => {
+    const show = createDefaultShow('show-speed-summary-precision', 'Speed summary precision', 1_000)
+    show.cells[0].adaptations.timeScale = 2.507072
+
+    const summary = projectGlobalShowClipSummary(show, show.cells[0].id)
+    const speed = summary.find((section) => section.kind === 'playback')?.items[0]
+
+    expect(speed).toEqual(expect.objectContaining({ label: 'Animation speed', value: '2.51x' }))
+    expect(show.cells[0].adaptations.timeScale).toBe(2.507072)
+  })
+
   it('formats explicitly classified Effect scalars in their authored domain units', () => {
     const show = createDefaultShow('show-effect-percent-summary', 'Effect percentages', 1_000)
     show.cells[0].effects = [

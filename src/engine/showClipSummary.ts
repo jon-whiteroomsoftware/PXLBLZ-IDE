@@ -268,7 +268,7 @@ function playbackItems(cell: Pick<ShowCell, 'adaptations' | 'restartOnEntry'>): 
     items.push({
       id: 'time-scale',
       label: 'Animation speed',
-      value: formatDomainNumber('multiplier', cell.adaptations.timeScale, 0.01),
+      value: formatSummaryDomainNumber('multiplier', cell.adaptations.timeScale, 0.01),
     })
   }
   if (cell.restartOnEntry) items.push({ id: 'restart', label: 'Restart on entry', value: 'On' })
