@@ -68,7 +68,9 @@ import { updateShowPhysicalZoneSelection } from '@/engine/showSpatialSelection'
 import { createPortableShowOutputContract } from '@/engine/showOutputContract'
 import { discoverAutomatablePatternControls, type AutomatablePatternControl } from '@/engine/showPatternControls'
 import {
+  projectCompositionShowClipSummary,
   projectGlobalShowClipSummary,
+  projectShowClipTimelineSummary,
   showClipInlineSummary,
   type ShowClipSummaryKind,
   type ShowClipSummarySection,
@@ -1769,6 +1771,7 @@ export function ShowEditor({
                 readOnly={readOnly}
                 transportActive
                 patternControlsByCellId={patternControlsByCellId}
+                patternControlsByInstanceId={patternControlsByInstanceId}
                 selection={selection}
                 isolatedGroupOccurrenceId={isolatedGroupOccurrenceId}
                 onSelect={selectTimeline}
@@ -2880,6 +2883,7 @@ function ShowTimelineWorkspace({
   readOnly,
   transportActive,
   patternControlsByCellId,
+  patternControlsByInstanceId,
   selection,
   isolatedGroupOccurrenceId,
   onSelect,
@@ -2916,6 +2920,7 @@ function ShowTimelineWorkspace({
   readOnly: boolean
   transportActive: boolean
   patternControlsByCellId: Record<string, AutomatablePatternControl[]>
+  patternControlsByInstanceId: Record<string, AutomatablePatternControl[]>
   selection: ShowSelection
   isolatedGroupOccurrenceId: string | null
   onSelect: (selection: ShowSelection, anchor?: HTMLElement | null) => void
@@ -4610,11 +4615,32 @@ function ShowTimelineWorkspace({
                     }}
                   />
                 )}
-                {layer.clips.map((clip) => {
+                {layer.clips.map((clip, clipIndex) => {
                   const totalMs = Math.max(1, unifiedCompositionTimeline?.durationMs ?? timeline.durationMs)
                   const preview = resizePreview?.clipId === clip.id ? resizePreview : clip
                   const left = preview.startMs / totalMs * 100
                   const width = preview.durationMs / totalMs * 100
+                  const patternControls = patternControlsByInstanceId[clip.instanceId] ?? []
+                  const summary = timelineComposition
+                    ? projectCompositionShowClipSummary(
+                        timelineComposition,
+                        clip,
+                        Object.fromEntries(patternControls.map((control) => [control.exportName, control.label])),
+                      )
+                    : []
+                  const previousClip = layer.clips[clipIndex - 1]
+                  const previousPatternControls = previousClip
+                    ? patternControlsByInstanceId[previousClip.instanceId] ?? []
+                    : []
+                  const previousSummary = timelineComposition
+                    && previousClip
+                    && previousClip.endMs === clip.startMs
+                    ? projectCompositionShowClipSummary(
+                        timelineComposition,
+                        previousClip,
+                        Object.fromEntries(previousPatternControls.map((control) => [control.exportName, control.label])),
+                      )
+                    : null
                   const group = clip.groupOccurrenceId
                     ? unifiedZone.groups.find((candidate) => candidate.id === clip.groupOccurrenceId)
                     : null
@@ -4772,11 +4798,7 @@ function ShowTimelineWorkspace({
                         <Grid2X2 size={11} aria-hidden className="show-clip-pattern-icon shrink-0 text-zinc-500" />
                         <span className="show-clip-pattern-name truncate text-[12px] font-normal text-zinc-100 [text-shadow:0_1px_2px_rgba(0,0,0,0.95)]">{clip.patternName}</span>
                       </span>
-                      {clip.effectKinds.length > 0 && (
-                        <span className="relative z-10 truncate text-[9px] text-amber-200/75 [text-shadow:0_1px_2px_rgba(0,0,0,0.95)]">
-                          FX {clip.effectKinds.length}
-                        </span>
-                      )}
+                      <ClipSummaryInline summary={summary} previousSummary={previousSummary} />
                       {!readOnly && !group && (
                         <>
                           <span
@@ -6375,16 +6397,38 @@ function ContextualInspector({
   onRemoveRoutingLayout: (layoutId: string) => void
 }) {
   const canRemoveClip = showRecordClipCount(compositionShow) > 1
+  const compositionTimelineClips = compositionShow.composition
+    ? projectShowUnifiedTimeline(compositionShow, compositionShow.composition).zones.flatMap((zone) => (
+        zone.layers.flatMap((layer) => layer.clips)
+      ))
+    : []
+  const compositionClipSummary = (
+    clipId: string,
+    patternControls: AutomatablePatternControl[],
+  ): ShowClipSummarySection[] => {
+    const clip = compositionTimelineClips.find((candidate) => candidate.id === clipId)
+    if (!compositionShow.composition || !clip) return []
+    return projectCompositionShowClipSummary(
+      compositionShow.composition,
+      clip,
+      Object.fromEntries(patternControls.map((control) => [control.exportName, control.label])),
+    )
+  }
   if (selection.kind === 'group-clip' && selectedGroupClipOwner) {
     const value = projectShowGroupClipInspector(compositionShow, selectedGroupClipOwner)
     if (value) {
+      const patternControls = value.instanceId
+        ? patternControlsByInstanceId[`${selectedGroupClipOwner.occurrenceId}:${value.instanceId}`] ?? []
+        : []
       return (
         <CompositionClipInspector
           value={value}
           patternOptions={patternOptions}
-          patternControls={value.instanceId
-            ? patternControlsByInstanceId[`${selectedGroupClipOwner.occurrenceId}:${value.instanceId}`] ?? []
-            : []}
+          patternControls={patternControls}
+          summary={compositionClipSummary(
+            `${selectedGroupClipOwner.occurrenceId}:${selectedGroupClipOwner.placementId}`,
+            patternControls,
+          )}
           transformEnabled={transformEnabled}
           compiledCost={compiledCost}
           instanceOwnership={null}
@@ -6427,11 +6471,13 @@ function ContextualInspector({
       ? projectShowClipPatternInstanceOwnership(compositionShow.composition, timelineOwner)
       : null
     if (value) {
+      const patternControls = value.instanceId ? patternControlsByInstanceId[value.instanceId] ?? [] : []
       return (
         <CompositionClipInspector
           value={value}
           patternOptions={patternOptions}
-          patternControls={value.instanceId ? patternControlsByInstanceId[value.instanceId] ?? [] : []}
+          patternControls={patternControls}
+          summary={compositionClipSummary(selection.clipId, patternControls)}
           transformEnabled={transformEnabled}
           compiledCost={compiledCost}
           instanceOwnership={instanceOwnership}
@@ -6624,6 +6670,7 @@ function CompositionClipInspector({
   value,
   patternOptions,
   patternControls,
+  summary,
   transformEnabled,
   compiledCost,
   instanceOwnership,
@@ -6638,6 +6685,7 @@ function CompositionClipInspector({
   value: NonNullable<ReturnType<typeof projectShowClipInspector>>
   patternOptions: ShowPatternOption[]
   patternControls: AutomatablePatternControl[]
+  summary: ShowClipSummarySection[]
   transformEnabled: boolean
   compiledCost?: import('@/engine/showVisualToolkit').ShowCompiledCostMetadata
   instanceOwnership: ReturnType<typeof projectShowClipPatternInstanceOwnership>
@@ -6655,6 +6703,7 @@ function CompositionClipInspector({
       heading={value.patternName}
       headingMeta={value.scope === 'scene-overlay' ? 'Overlay Layer' : 'Main Layer'}
       title="Pattern Clip"
+      summary={<ClipConfigurationSummary summary={summary} />}
       icon={<Grid2X2 size={13} aria-hidden />}
       actions={onRemove ? (
         <Button
@@ -8905,6 +8954,47 @@ function CompileBar({
 // Shared draft-buffered numeric field (#577) in the editor-panel style.
 function NumberField(props: Omit<UiNumberFieldProps, 'variant' | 'align' | 'ariaLabel' | 'disabled'>) {
   return <UiNumberField variant="editor" {...props} />
+}
+
+function ClipSummaryInline({
+  summary,
+  previousSummary,
+}: {
+  summary: ShowClipSummarySection[]
+  previousSummary: ShowClipSummarySection[] | null
+}) {
+  const timelineSummary = projectShowClipTimelineSummary(summary, previousSummary)
+  return (
+    <span
+      aria-hidden
+      title={showClipInlineSummary(summary)}
+      className="show-clip-summary-inline relative z-10 flex min-w-0 items-center gap-0.5 overflow-hidden whitespace-nowrap text-[10px] text-zinc-500 [text-shadow:0_1px_2px_rgba(0,0,0,0.95)]"
+    >
+      {summary.length === 0 && <span className="show-clip-summary-copy shrink-0">defaults</span>}
+      {timelineSummary.map((section) => {
+        const visibleItems = section.items.filter((item) => item.showValue)
+        return (
+          <span
+            key={section.kind}
+            data-show-clip-summary-has-value={visibleItems.length > 0 ? 'true' : 'false'}
+            className={`show-clip-summary-section inline-flex min-w-max items-center gap-1 ${visibleItems.length > 0 ? 'mr-1.5 last:mr-0' : ''}`}
+          >
+            <ClipSummaryIcon kind={section.kind} size={10} />
+            {visibleItems.length > 0 && (
+              <span className="show-clip-summary-values inline-flex items-center">
+                {visibleItems.map((item, index) => (
+                  <span key={item.id}>
+                    {index > 0 && <span className="px-0.5 text-zinc-700">·</span>}
+                    <span className="text-zinc-400">{item.displayValue}</span>
+                  </span>
+                ))}
+              </span>
+            )}
+          </span>
+        )
+      })}
+    </span>
+  )
 }
 
 function ClipConfigurationSummary({ summary }: { summary: ShowClipSummarySection[] }) {

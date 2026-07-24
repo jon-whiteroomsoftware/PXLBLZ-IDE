@@ -1098,10 +1098,14 @@ than producing flat lanes. Default-only global targets also return
 instead of reserving empty rows.
 
 `showClipSummary.ts` keeps the complete authored Clip facts independent of
-timeline density. The compact Entity Detail summary groups those facts by
-stable category and item identity while the timeline Clip itself preserves the
-Pattern name plus a minimal Effect count. This prevents narrow Clips from
-turning configuration prose into a second visual lane.
+timeline density and adapts both compatibility cells and unified composition
+Pattern instances, placements, Effects, and typed Property tracks into the same
+summary model. The compact Entity Detail summary groups those facts by stable
+category and item identity. The timeline Clip restores the terse second row:
+category glyphs retain meaning at narrow widths, values appear when introduced
+or changed from the preceding connected Clip, and the complete summary remains
+available as its title. Logical Clips collect animation owned by every hidden
+Scene segment without including tracks owned by another Clip.
 
 `ShowPropertySparkline` renders the compact Property lanes in the production
 Show timeline. It draws into a ten-unit SVG ordinate and separates four-pixel

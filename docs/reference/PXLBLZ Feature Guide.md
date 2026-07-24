@@ -360,13 +360,16 @@ The working grammar is compact:
   target Layer has room. Dragging moves a Clip without overwriting another;
   selected Clip edges resize it. **Split** divides the selected Clip at the
   playhead and **Clone** duplicates it immediately after itself. Exact Start
-  and Duration remain editable in decimal seconds. Unavailable commands stay
-  focusable and explain why. Every commit is one session-scoped undo step
-  (Cmd/Ctrl+Z).
+  and Duration remain editable in decimal seconds. Each Clip's second row
+  tersely summarizes its authored controls, view changes, Effects, and Property
+  animation; unchanged values after a connected Clip contract to their category
+  glyphs. Unavailable commands stay focusable and explain why. Every commit is
+  one session-scoped undo step (Cmd/Ctrl+Z).
 - **Selection and detail.** Selecting a Clip, Group, Transition, Zone, or the
   Show opens a compact floating **Entity Detail Panel** beside its source with
-  that entity's exact editable fields. Clicking elsewhere closes transient
-  Details; one Detail may be pinned for comparison.
+  that entity's exact editable fields. Clip Details repeat the complete
+  categorized configuration summary at the top. Clicking elsewhere closes
+  transient Details; one Detail may be pinned for comparison.
 - **Progressive structure.** **Layer** deliberately adds another compositing
   lane. **Zones** reveals the Zone Map only when routing structure is needed;
   a one-Zone Show otherwise spends the full width on its Clips.

@@ -1,12 +1,151 @@
 import { describe, expect, it } from 'vitest'
 import { createDefaultShow, updateShowBoundaryTransition, updateShowCellAdaptations } from './showModel'
 import {
+  projectCompositionShowClipSummary,
   projectGlobalShowClipSummary,
   projectShowClipTimelineSummary,
   showClipInlineSummary,
 } from './showClipSummary'
+import { projectShowUnifiedTimeline } from './showUnifiedTimelineProjection'
 
 describe('Show Clip summary', () => {
+  it('projects unified Clip instance, placement, Effect, and owned animation facts (#599)', () => {
+    const show = createDefaultShow('show-composition-summary', 'Composition summary', 1_000)
+    const sceneId = show.scenes[0].id
+    const zoneId = show.zones[0].id
+    const composition = {
+      version: 1 as const,
+      patternInstances: [{
+        id: 'instance-summary',
+        pattern: { kind: 'stock' as const, id: 'Rings' },
+        patternName: 'Rings',
+        time: { timeScale: 0.5, timeOffsetMs: 250 },
+        controlTargets: { sliderAmount: 0.3 },
+      }, {
+        id: 'instance-unrelated',
+        pattern: { kind: 'stock' as const, id: 'Comet' },
+        patternName: 'Comet',
+        time: { timeScale: 1, timeOffsetMs: 0 },
+      }],
+      scenes: [{
+        sceneId,
+        propertyTracks: [{
+          id: 'track-speed',
+          target: { kind: 'instance-time-scale' as const, instanceId: 'instance-summary' },
+          keyframes: [
+            { id: 'speed-0', timeMs: 0, value: 0.5, easing: { curve: 'linear' as const } },
+            { id: 'speed-1', timeMs: 1_000, value: 1, easing: { curve: 'linear' as const } },
+          ],
+        }, {
+          id: 'track-brightness',
+          target: { kind: 'placement-view' as const, placementId: 'placement-summary', property: 'brightness' as const },
+          keyframes: [
+            { id: 'brightness-0', timeMs: 0, value: 0.75, easing: { curve: 'linear' as const } },
+            { id: 'brightness-1', timeMs: 1_000, value: 1, easing: { curve: 'linear' as const } },
+          ],
+        }, {
+          id: 'track-unrelated',
+          target: { kind: 'placement-transform' as const, placementId: 'placement-unrelated', property: 'positionX' as const },
+          keyframes: [
+            { id: 'unrelated-0', timeMs: 0, value: 0, easing: { curve: 'linear' as const } },
+            { id: 'unrelated-1', timeMs: 1_000, value: 1, easing: { curve: 'linear' as const } },
+          ],
+        }],
+        zones: [{
+          zoneId,
+          main: [{
+            id: 'placement-summary',
+            instanceId: 'instance-summary',
+            startMs: 0,
+            durationMs: 1_000,
+            view: { mirror: false, phase: 0, brightness: 0.75 },
+            effects: [{ id: 'hue', kind: 'hue' as const, turns: 0.1 }],
+          }, {
+            id: 'placement-unrelated',
+            instanceId: 'instance-unrelated',
+            startMs: 2_000,
+            durationMs: 1_000,
+            view: { mirror: false, phase: 0, brightness: 1 },
+          }],
+          overlays: [],
+        }],
+      }],
+    }
+    const clip = projectShowUnifiedTimeline(show, composition).zones[0].layers[0].clips[0]
+
+    const summary = projectCompositionShowClipSummary(composition, clip, {
+      sliderAmount: 'Amount',
+    })
+
+    expect(summary.map((section) => section.kind)).toEqual([
+      'playback',
+      'controls',
+      'view',
+      'effects',
+      'animation',
+    ])
+    expect(showClipInlineSummary(summary)).toBe(
+      'Animation speed 0.5× · Start offset 250 ms · Amount 0.3 · Brightness 75% · Hue 0.1 turn · Animation speed animated · Brightness animated',
+    )
+    expect(summary.find((section) => section.kind === 'animation')?.items).not.toContainEqual(
+      expect.objectContaining({ label: 'Position X' }),
+    )
+  })
+
+  it('collects animation owned by every hidden segment of one logical Clip (#599)', () => {
+    const show = createDefaultShow('show-logical-summary', 'Logical summary', 1_000)
+    const zoneId = show.zones[0].id
+    const composition = {
+      version: 1 as const,
+      patternInstances: [{
+        id: 'instance-logical',
+        pattern: { kind: 'stock' as const, id: 'Rings' },
+        patternName: 'Rings',
+        time: { timeScale: 1, timeOffsetMs: 0 },
+      }],
+      scenes: show.scenes.map((scene, sceneIndex) => ({
+        sceneId: scene.id,
+        propertyTracks: sceneIndex === 1 ? [{
+          id: 'track-second-segment-effect',
+          target: {
+            kind: 'placement-effect' as const,
+            placementId: 'logical-right',
+            effectId: 'hue',
+            effectKind: 'hue' as const,
+            parameterId: 'turns',
+          },
+          keyframes: [
+            { id: 'hue-0', timeMs: 0, value: 0.1, easing: { curve: 'linear' as const } },
+            { id: 'hue-1', timeMs: 1_000, value: 0.4, easing: { curve: 'linear' as const } },
+          ],
+        }] : undefined,
+        zones: [{
+          zoneId,
+          main: [{
+            id: sceneIndex === 0 ? 'logical-left' : 'logical-right',
+            logicalClipId: 'logical-clip',
+            instanceId: 'instance-logical',
+            startMs: 0,
+            durationMs: scene.durationMs,
+            view: { mirror: false, phase: 0, brightness: 1 },
+            effects: [{ id: 'hue', kind: 'hue' as const, turns: 0.1 }],
+          }],
+          overlays: [],
+        }],
+      })),
+    }
+    const clip = projectShowUnifiedTimeline(show, composition).zones[0].layers[0].clips[0]
+
+    const summary = projectCompositionShowClipSummary(composition, clip)
+
+    expect(clip.segmentIds).toEqual(['logical-left', 'logical-right'])
+    expect(summary.find((section) => section.kind === 'animation')?.items).toContainEqual({
+      id: 'animation:effect:hue:turns',
+      label: 'Hue shift',
+      value: 'animated',
+    })
+  })
+
   it('separates static playback, Pattern controls, view, Effects, and animation facts', () => {
     let show = createDefaultShow('show-clip-summary', 'Clip summary', 1_000)
     const cellId = show.cells[0].id

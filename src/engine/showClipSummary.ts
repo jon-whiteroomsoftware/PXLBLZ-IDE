@@ -1,7 +1,16 @@
 import { steppedClockRateHz } from './steppedClock'
 import { showClipEffectParameterValue, showClipEffectParameters } from './showEffectAuthoring'
 import { normalizeShowClipTransform } from './showClipTransform'
-import type { ShowCell, ShowPropertyTransitions, ShowRecord } from './personalContentRecords'
+import { materializeShowGroupOccurrences } from './showGroupModel'
+import type {
+  ShowCell,
+  ShowClipEffect,
+  ShowCompositionV1,
+  ShowPropertyAnimationTarget,
+  ShowPropertyTransitions,
+  ShowRecord,
+} from './personalContentRecords'
+import type { ShowUnifiedTimelineClipProjection } from './showUnifiedTimelineProjection'
 
 export type ShowClipSummaryKind = 'playback' | 'controls' | 'view' | 'effects' | 'animation'
 
@@ -44,15 +53,62 @@ export function projectGlobalShowClipSummary(
   const cell = show.cells.find((candidate) => candidate.id === cellId)
   if (!cell) return []
 
+  return projectClipSummary(cell, controlLabels, animationItems(show, cell, controlLabels))
+}
+
+/** Adapt the authored unified Clip substrate to the retained summary language. */
+export function projectCompositionShowClipSummary(
+  composition: ShowCompositionV1,
+  clip: Pick<ShowUnifiedTimelineClipProjection, 'id' | 'instanceId' | 'segmentIds'>,
+  controlLabels: Record<string, string> = {},
+): ShowClipSummarySection[] {
+  const materialized = materializeShowGroupOccurrences(composition)
+  const segmentIds = new Set(clip.segmentIds ?? [clip.id])
+  const placement = materialized.scenes
+    .flatMap((scene) => scene.zones)
+    .flatMap((zone) => [
+      ...zone.main,
+      ...zone.overlays.flatMap((layer) => layer.placements),
+    ])
+    .find((candidate) => segmentIds.has(candidate.id))
+  const instance = materialized.patternInstances.find((candidate) => candidate.id === clip.instanceId)
+  if (!placement || !instance) return []
+
+  return projectClipSummary({
+    adaptations: {
+      mirror: placement.view.mirror,
+      phase: placement.view.phase,
+      brightness: placement.view.brightness,
+      timeScale: instance.time.timeScale,
+      ...(instance.time.lightShutter ? { lightShutter: instance.time.lightShutter } : {}),
+      ...(instance.time.steppedClock ? { steppedClock: instance.time.steppedClock } : {}),
+      ...(instance.time.timeOffsetMs !== 0 ? { timeOffsetMs: instance.time.timeOffsetMs } : {}),
+    },
+    ...(instance.controlTargets ? { controlTargets: instance.controlTargets } : {}),
+    ...(placement.transform ? { transform: placement.transform } : {}),
+    ...(placement.effects ? { effects: placement.effects } : {}),
+  }, controlLabels, compositionAnimationItems(materialized, clip, segmentIds, placement.effects, controlLabels))
+}
+
+type ClipSummarySource = Pick<
+  ShowCell,
+  'adaptations' | 'controlTargets' | 'effects' | 'restartOnEntry' | 'transform'
+>
+
+function projectClipSummary(
+  source: ClipSummarySource,
+  controlLabels: Record<string, string>,
+  authoredAnimationItems: ShowClipSummaryItem[],
+): ShowClipSummarySection[] {
   const sections: Record<ShowClipSummaryKind, ShowClipSummaryItem[]> = {
-    playback: playbackItems(cell),
-    controls: Object.entries(cell.controlTargets ?? {}).map(([exportName, value]) => ({
+    playback: playbackItems(source),
+    controls: Object.entries(source.controlTargets ?? {}).map(([exportName, value]) => ({
       id: `control:${exportName}`,
       label: controlLabels[exportName] ?? humanizeIdentifier(exportName.replace(/^slider/, '')),
       value: formatNumber(value),
     })),
-    view: viewItems(cell),
-    effects: (cell.effects ?? []).map((effect) => {
+    view: viewItems(source),
+    effects: (source.effects ?? []).map((effect) => {
       const parameters = showClipEffectParameters(effect).map((parameter) => ({
         label: compactEffectParameterLabel(parameter.label, effect.kind),
         value: formatToolkitValue(showClipEffectParameterValue(effect, parameter.id), parameter.unit),
@@ -71,7 +127,7 @@ export function projectGlobalShowClipSummary(
             )).join(', '),
       }
     }),
-    animation: animationItems(show, cell, controlLabels),
+    animation: authoredAnimationItems,
   }
 
   return (Object.keys(sections) as ShowClipSummaryKind[]).flatMap((kind) => (
@@ -79,6 +135,75 @@ export function projectGlobalShowClipSummary(
       ? [{ kind, label: SECTION_LABELS[kind], items: sections[kind] }]
       : []
   ))
+}
+
+function compositionAnimationItems(
+  composition: ShowCompositionV1,
+  clip: Pick<ShowUnifiedTimelineClipProjection, 'instanceId'>,
+  segmentIds: ReadonlySet<string>,
+  effects: readonly ShowClipEffect[] | undefined,
+  controlLabels: Record<string, string>,
+): ShowClipSummaryItem[] {
+  const labels = new Map<string, string>()
+  for (const track of composition.scenes.flatMap((scene) => scene.propertyTracks ?? [])) {
+    if (!animationTargetBelongsToClip(track.target, clip.instanceId, segmentIds)) continue
+    const item = compositionAnimationItem(track.target, effects, controlLabels)
+    if (item) labels.set(item.id, item.label)
+  }
+  return [...labels].map(([id, label]) => ({ id, label, value: 'animated' }))
+}
+
+function animationTargetBelongsToClip(
+  target: ShowPropertyAnimationTarget,
+  instanceId: string,
+  segmentIds: ReadonlySet<string>,
+): boolean {
+  if (target.kind === 'instance-time-scale' || target.kind === 'instance-control') {
+    return target.instanceId === instanceId
+  }
+  return segmentIds.has(target.placementId)
+}
+
+function compositionAnimationItem(
+  target: ShowPropertyAnimationTarget,
+  effects: readonly ShowClipEffect[] | undefined,
+  controlLabels: Record<string, string>,
+): Pick<ShowClipSummaryItem, 'id' | 'label'> | null {
+  if (target.kind === 'instance-time-scale') {
+    return { id: 'animation:time-scale', label: 'Animation speed' }
+  }
+  if (target.kind === 'instance-control') {
+    return {
+      id: `animation:control:${target.exportName}`,
+      label: controlLabels[target.exportName] ?? humanizeIdentifier(target.exportName.replace(/^slider/, '')),
+    }
+  }
+  if (target.kind === 'placement-opacity') {
+    return { id: 'animation:opacity', label: 'Opacity' }
+  }
+  if (target.kind === 'placement-view') {
+    return { id: `animation:view:${target.property}`, label: humanizeIdentifier(target.property) }
+  }
+  if (target.kind === 'placement-transform') {
+    return { id: `animation:transform:${target.property}`, label: humanizeIdentifier(target.property) }
+  }
+  if (target.kind === 'placement-viewport') {
+    return {
+      id: `animation:viewport:${target.property}`,
+      label: `Viewport ${humanizeIdentifier(target.property)}`,
+    }
+  }
+  const effect = effects?.find((candidate) => (
+    candidate.id === target.effectId && candidate.kind === target.effectKind
+  ))
+  const parameter = effect
+    ? showClipEffectParameters(effect).find((candidate) => candidate.id === target.parameterId)
+    : undefined
+  if (!effect || !parameter) return null
+  return {
+    id: `animation:effect:${target.effectId}:${target.parameterId}`,
+    label: `${humanizeIdentifier(effect.kind)} ${compactEffectParameterLabel(parameter.label, effect.kind)}`,
+  }
 }
 
 /** Full terse text for the timeline Clip. CSS may crop it; the model never drops facts. */
@@ -108,7 +233,7 @@ export function projectShowClipTimelineSummary(
   }))
 }
 
-function playbackItems(cell: ShowCell): ShowClipSummaryItem[] {
+function playbackItems(cell: Pick<ShowCell, 'adaptations' | 'restartOnEntry'>): ShowClipSummaryItem[] {
   const items: ShowClipSummaryItem[] = []
   if (cell.adaptations.timeScale !== 1) {
     items.push({ id: 'time-scale', label: 'Animation speed', value: `${formatNumber(cell.adaptations.timeScale)}×` })
@@ -140,7 +265,7 @@ function playbackItems(cell: ShowCell): ShowClipSummaryItem[] {
   return items
 }
 
-function viewItems(cell: ShowCell): ShowClipSummaryItem[] {
+function viewItems(cell: Pick<ShowCell, 'adaptations' | 'transform'>): ShowClipSummaryItem[] {
   const items: ShowClipSummaryItem[] = []
   if (cell.adaptations.brightness !== 1) {
     items.push({ id: 'brightness', label: 'Brightness', value: `${Math.round(cell.adaptations.brightness * 100)}%` })

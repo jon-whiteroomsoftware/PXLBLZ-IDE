@@ -1373,6 +1373,63 @@ describe('ShowEditor (#318)', () => {
     expect(clip.style.boxShadow).toContain('var(--color-live)')
   })
 
+  it('restores unified Clip summaries in the timeline and Entity Detail (#599)', async () => {
+    const user = userEvent.setup()
+    const show = createDefaultShow('show-unified-clip-summary', 'Unified Clip summary', 1000)
+    const sceneId = show.scenes[0].id
+    const zoneId = show.zones[0].id
+    show.composition = {
+      version: 1,
+      patternInstances: [{
+        id: 'instance-summary-ui',
+        pattern: { ...show.cells[0].pattern },
+        patternName: 'Summary Rings',
+        time: { timeScale: 0.5, timeOffsetMs: 0 },
+      }],
+      scenes: show.scenes.map((scene) => ({
+        sceneId: scene.id,
+        propertyTracks: scene.id === sceneId ? [{
+          id: 'track-summary-speed',
+          target: { kind: 'instance-time-scale', instanceId: 'instance-summary-ui' },
+          keyframes: [
+            { id: 'summary-speed-0', timeMs: 0, value: 0.5, easing: { curve: 'linear' } },
+            { id: 'summary-speed-1', timeMs: 1_000, value: 1, easing: { curve: 'linear' } },
+          ],
+        }] : undefined,
+        zones: [{
+          zoneId,
+          main: scene.id === sceneId ? [{
+            id: 'placement-summary-ui',
+            instanceId: 'instance-summary-ui',
+            startMs: 0,
+            durationMs: 5_000,
+            view: { mirror: false, phase: 0, brightness: 0.75 },
+            effects: [{ id: 'hue-summary-ui', kind: 'hue', turns: 0.1 }],
+          }] : [],
+          overlays: [],
+        }],
+      })),
+    }
+    useShowStore.setState({ shows: [show], activeShowId: show.id, showsLoaded: true })
+
+    render(<ShowEditor showId={show.id} />)
+
+    const clip = screen.getByRole('button', { name: 'Select Summary Rings' })
+    expect(within(clip).getByText('0.5×')).toBeInTheDocument()
+    expect(within(clip).getByText('75%')).toBeInTheDocument()
+    expect(within(clip).getByText('0.1 turn')).toBeInTheDocument()
+    expect(within(clip).getByText('animated')).toBeInTheDocument()
+
+    await user.click(clip)
+
+    const panel = screen.getByRole('dialog', { name: 'Entity Detail Panel' })
+    const summary = within(panel).getByRole('region', { name: 'Clip summary' })
+    expect(summary).toHaveTextContent('Animation speed0.5×')
+    expect(summary).toHaveTextContent('Brightness75%')
+    expect(summary).toHaveTextContent('Hue0.1 turn')
+    expect(summary).toHaveTextContent('Animation speedanimated')
+  })
+
   it('moves a composition Clip by dragging its unified Layer and restores Detail (#580)', async () => {
     const user = userEvent.setup()
     const show = createDefaultShow('show-drag-composition', 'Drag composition', 1000)

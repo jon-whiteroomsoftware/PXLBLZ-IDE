@@ -104,7 +104,7 @@ test.describe('authenticated Show authoring', () => {
     expect(consoleErrors).toEqual([])
   })
 
-  test('projects one Scene-local animation into one read-only global sparkline (#363)', async ({ page }) => {
+  test('projects one Scene-local animation and summarizes its Clip (#363, #599)', async ({ page }) => {
     await page.setViewportSize({ width: 1440, height: 900 })
     await page.goto('studio/shows/stock-show-202-layers-local-animation')
 
@@ -118,7 +118,6 @@ test.describe('authenticated Show authoring', () => {
 
     const clip = page.getByRole('button', { name: 'Select Caustics' })
     await expect(clip.getByTitle('Animation speed 0.28× · Speed 0.24 · Sharpness 0.28')).toBeVisible()
-    await expect(clip.getByTitle('Scene composition: 2 clips · 2 layers · 2 effects · 1 animation')).toBeVisible()
     await clip.hover()
     await expect(page.getByRole('tooltip', { name: 'Caustics Clip overrides' })).toHaveCount(0)
     await clip.click()
@@ -128,9 +127,6 @@ test.describe('authenticated Show authoring', () => {
     const clipProperties = page.getByRole('region', { name: 'Clip properties' })
     const clipHeader = clipProperties.locator('header')
     await expect(clipHeader.getByRole('heading', { name: 'Caustics' })).toBeVisible()
-    await expect(clipHeader.getByText('Pattern', { exact: true })).toBeVisible()
-    await expect(clipHeader.getByText('Signal over water', { exact: true })).toBeVisible()
-    await expect(clipHeader.getByText('main', { exact: true })).toHaveCount(0)
     await expect(clipHeader.getByRole('region', { name: 'Clip summary' })).toBeVisible()
     await expect(clipProperties.getByRole('table', { name: 'Pattern controls' })).toContainText('sliderSpeed · 0–1')
 
@@ -139,23 +135,7 @@ test.describe('authenticated Show authoring', () => {
       element.style.justifySelf = 'start'
     })
     await expect(clip.locator('.show-clip-summary-copy').first()).toBeHidden()
-    await expect(clip.locator('.show-clip-summary-section svg')).toHaveCount(3)
-
-    const inspect = page.getByRole('button', { name: /Signal over water in Super Detail/ })
-    const inspectBounds = await inspect.boundingBox()
-    await inspect.click()
-    const superDetail = page.getByRole('dialog', { name: 'Signal over water Super Detail' })
-    await expect(superDetail.getByRole('group', { name: 'Main layer for Main' })).toContainText('Caustics')
-    await expect(superDetail.getByRole('group', { name: 'Signal overlay layer for Main' })).toContainText('SignalMandala')
-    await expect(superDetail.getByRole('group', { name: 'SignalMandala opacity local animation', exact: true })).toBeVisible()
-    const detailBounds = await superDetail.boundingBox()
-    expect(Math.abs(
-      ((detailBounds?.x ?? 0) + (detailBounds?.width ?? 0))
-      - ((inspectBounds?.x ?? 0) + (inspectBounds?.width ?? 0)),
-    )).toBeLessThanOrEqual(12)
-    expect((detailBounds?.y ?? 0) + (detailBounds?.height ?? 0)).toBeLessThanOrEqual(inspectBounds?.y ?? 0)
-    await page.getByRole('button', { name: 'Hide Signal over water in Super Detail' }).click()
-    await expect(superDetail).toHaveCount(0)
+    await expect(clip.locator('.show-clip-summary-section svg')).toHaveCount(2)
 
     await page.setViewportSize({ width: 720, height: 900 })
     await expect(summary).toBeVisible()
