@@ -1,9 +1,10 @@
 # Verification gates
 
-Local verification has two layers: commits get a fast, conservative signal;
-pushes get one comprehensive landing gate. The push gate combines an independent
-correctness review with the complete automated suite, so code does not leave the
-machine without both forms of evidence.
+Local verification has three moments: commits get a fast conservative signal,
+landing candidates receive substantive correctness review, and pushes prove
+that exact approved history before running the comprehensive automated suite.
+Review happens once, before landing on local `main`; publication reuses that
+evidence instead of reviewing an expanding stack again.
 
 ## Gate ownership
 
@@ -11,33 +12,89 @@ machine without both forms of evidence.
 | --- | --- | --- |
 | During development | `npx vitest run path/to/test.ts` | Keep the red-green-refactor loop focused. |
 | Before each commit | `npm run lint` and `npm run test:staged` | Run colocated tests for staged code plus explicitly mapped high-risk invariants. |
-| Before each push | `npm run review:push`, `npm run test:full`, and `npm run test:e2e` | Review the exact outgoing Git range with Fable Medium or the GPT-5.6 High infrastructure fallback, run every Vitest file once, then exercise the browser smoke flow. |
+| Before landing | `npm run review:candidate -- <base> <tip> [--test-design <json>]` | Review one explicit candidate range and record an immutable approval for a valid pass. |
+| Before each push | `npm run review:push`, `npm run test:full`, and `npm run test:e2e` | Require exact approval coverage for every outgoing ref, run every Vitest file once, then exercise the browser smoke flow. |
 
-The Husky `pre-push` hook owns all three steps. Because this is a Git hook rather
-than a Claude or Codex lifecycle hook, it runs for pushes initiated by either
-agent or from a terminal. `scripts/push-review.ts` reads Git's exact ref-update
-packet and assembles one immutable review input containing the outgoing commit
-list and patch. Fable Medium receives that input first through the installed
-Claude CLI. If Fable cannot return a valid structured decision because of quota,
-timeout, process, or response failure, GPT-5.6 High receives the same input
-through the installed Codex CLI.
+### Candidate review and landing
 
-A valid `fail` decision from Fable is authoritative and never invokes the
-fallback. A valid `fail` decision from GPT-5.6 High is equally blocking. The gate
-also fails closed when neither reviewer returns a valid decision. A blocked
-review is terminal: fix the finding or reviewer, then make a new push; never
-silently retry or bypass the gate.
+The shared checkout stays clean on local `main`; every substantive slice is
+implemented and committed in a worktree. Independent candidates may be built
+concurrently, but final review and landing form a serialized admission queue:
 
-`npm run review:push` can exercise the reviewer directly; without Git pre-push
-input it reviews `origin/main..HEAD`. The primary review transmits the outgoing
-private diff to Anthropic under the developer's authenticated Claude session. A
-fallback review transmits the same diff to OpenAI under the developer's
-authenticated Codex session. The user has explicitly approved both behaviors
-for this repository.
+1. Rebase the next independent candidate onto the latest reviewed local `main`.
+2. Run its focused verification and commit the final candidate tip.
+3. Run `npm run review:candidate -- <main-sha> <candidate-tip>`.
+4. If the candidate passes, land it immediately with `git merge --ff-only`.
+5. Remove the landed worktree and branch.
+
+Do not review several sibling candidates from the same base. After one lands,
+the others must rebase before review. Dependent candidates remain deliberately
+stacked until their reviewed base lands.
+
+`review:candidate` resolves the supplied base and tip to commits, requires the
+base to be an ancestor, and sends the exact commit list and patch to Fable
+Medium. If Fable cannot return a valid structured decision because of quota,
+timeout, process, or malformed output, GPT-5.6 High receives the same immutable
+input. A valid failure from either reviewer is blocking and never creates an
+approval.
+
+A pass writes a receipt below the repository's common Git directory:
+
+```text
+.git/pxlblz/review-approvals/v1/
+```
+
+Worktrees share this directory. Receipts are deliberately outside source
+control and contain the exact base and tip identities, reviewer and effort,
+prompt and output-schema versions, review-policy fingerprint, optional
+test-design-context digest, decision, and timestamp. Receipt files are created
+without overwrite permission. Amend, rebase, squash, cherry-pick, changed tip,
+changed policy, malformed receipt, missing receipt, or a gap between receipts
+invalidates reuse.
+
+Use `npm run review:status -- <base> <tip>` to inspect whether a range is
+approved, missing, or stale and to display the contiguous receipt chain.
+
+### Systematic test-design context
+
+When `systematic-test-design` produced a candidate model, pass a JSON file with
+the review:
+
+```json
+{
+  "invariants": ["Accepted history remains byte-identical through landing."],
+  "partitions": ["single receipt", "contiguous chain", "missing approval"],
+  "sequences": ["review A-B, review B-C, then push A-C"],
+  "oracles": ["the outgoing range is covered exactly from remote SHA to tip"],
+  "residualGaps": ["remote main can advance before publication"]
+}
+```
+
+The command validates all five arrays, includes them in the review packet, and
+records their digest in the receipt. A review-discovered defect family returns
+through `systematic-test-design` for a same-class sweep before the replacement
+candidate is reviewed.
+
+### Publication
+
+The Husky `pre-push` hook reads Git's exact ref-update packet. Deleted refs and
+unchanged ranges require no approval. Each changed existing or new ref must
+have one current approval or a contiguous current chain from its remote base to
+its pushed tip. Missing or stale coverage blocks with an explicit
+`review:candidate` command; pre-push does not repeat substantive review.
+
+After every outgoing ref has exact coverage, the hook runs the full Vitest suite
+and Playwright smoke suite once. Because this is a Git hook rather than a Claude
+or Codex lifecycle hook, it applies equally to agent and terminal pushes.
 
 `npm test` remains the explicit full-suite command. The pre-push hook invokes the
 same full suite, so a separate full run immediately before pushing normally adds
 delay without adding coverage.
+
+Candidate review transmits the exact private diff and supplied engineering
+context to Anthropic under the developer's authenticated Claude session. A
+fallback transmits the same material to OpenAI under the authenticated Codex
+session. The user has explicitly approved both behaviors for this repository.
 
 ## Show authoring edit contracts
 

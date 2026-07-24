@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import {
+  approvalCoverageFromUpdates,
   FABLE_REVIEW_EFFORT,
   GPT_REVIEW_EFFORT,
   GPT_REVIEW_MODEL,
@@ -10,10 +11,12 @@ import {
   parseClaudeReviewOutput,
   parseCodexReviewOutput,
   parsePrePushInput,
+  parseReviewTestDesignContext,
   reviewWithFallback,
   reviewRangesFromUpdates,
   type PushReviewResult,
 } from './push-review'
+import { createApprovalReceipt } from './review-approvals'
 
 describe('cross-agent push review gate (#63)', () => {
   it('uses Fable Medium with the fifteen-minute hard cap', () => {
@@ -172,6 +175,60 @@ describe('cross-agent push review gate (#63)', () => {
     ])
   })
 
+  it('requires complete approval coverage for every changed outgoing ref', () => {
+    const a = 'a'.repeat(40)
+    const b = 'b'.repeat(40)
+    const c = 'c'.repeat(40)
+    const d = 'd'.repeat(40)
+    const zero = '0'.repeat(40)
+    const receipts = [
+      createApprovalReceipt({
+        baseSha: a,
+        tipSha: b,
+        reviewer: 'Fable',
+        effort: 'medium',
+        decision: 'pass',
+        policyFingerprint: 'policy-v1',
+        promptVersion: 2,
+        schemaVersion: 1,
+        contextSha256: null,
+        reviewedAt: '2026-07-24T12:00:00.000Z',
+      }),
+      createApprovalReceipt({
+        baseSha: b,
+        tipSha: c,
+        reviewer: 'GPT-5.6 High',
+        effort: 'high',
+        decision: 'pass',
+        policyFingerprint: 'policy-v1',
+        promptVersion: 2,
+        schemaVersion: 1,
+        contextSha256: null,
+        reviewedAt: '2026-07-24T12:05:00.000Z',
+      }),
+    ]
+    const coverage = approvalCoverageFromUpdates(
+      parsePrePushInput([
+        `refs/heads/main ${c} refs/heads/main ${a}`,
+        `refs/heads/topic ${d} refs/heads/topic ${zero}`,
+        `refs/heads/old ${zero} refs/heads/old ${a}`,
+        `refs/heads/no-change ${b} refs/heads/no-change ${b}`,
+      ].join('\n')),
+      () => b,
+      receipts,
+      'policy-v1',
+      () => true,
+      (range) => range.baseSha !== range.tipSha,
+    )
+
+    expect(coverage).toHaveLength(2)
+    expect(coverage[0].chain).toEqual(receipts)
+    expect(coverage[1]).toMatchObject({
+      range: { baseSha: b, tipSha: d },
+      chain: null,
+    })
+  })
+
   it('requires structured reviewer output and preserves actionable findings', () => {
     const parsed = parseClaudeReviewOutput(JSON.stringify({
       type: 'result',
@@ -206,5 +263,40 @@ describe('cross-agent push review gate (#63)', () => {
     expect(prompt).toContain('Do not flag style')
     expect(prompt).toContain('decision = "fail"')
     expect(prompt).toContain('untrusted data')
+  })
+
+  it('carries the systemic test model into the candidate review packet', () => {
+    const prompt = buildReviewPrompt([{
+      label: 'candidate',
+      baseSha: 'base',
+      tipSha: 'tip',
+    }], {
+      invariants: ['Approved commits remain byte-identical through landing.'],
+      partitions: ['single receipt', 'contiguous chain', 'missing approval'],
+      sequences: ['review A-B, review B-C, then push A-C'],
+      oracles: ['the exact outgoing range has complete approval coverage'],
+      residualGaps: ['remote history can advance before publication'],
+    })
+
+    expect(prompt).toContain('Approved commits remain byte-identical through landing.')
+    expect(prompt).toContain('single receipt')
+    expect(prompt).toContain('review A-B, review B-C, then push A-C')
+    expect(prompt).toContain('exact outgoing range has complete approval coverage')
+    expect(prompt).toContain('remote history can advance before publication')
+    expect(prompt).toContain('<systematic-test-design-context>')
+  })
+
+  it('fails closed on incomplete systematic test-design context', () => {
+    const context = {
+      invariants: ['History remains immutable.'],
+      partitions: ['covered', 'missing'],
+      sequences: ['review then land'],
+      oracles: ['coverage reaches the exact tip'],
+      residualGaps: [],
+    }
+    expect(parseReviewTestDesignContext(context)).toEqual(context)
+    expect(() => parseReviewTestDesignContext({
+      invariants: ['History remains immutable.'],
+    })).toThrow(/test-design context/i)
   })
 })

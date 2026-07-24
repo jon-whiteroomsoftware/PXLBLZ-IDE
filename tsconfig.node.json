@@ -10,5 +10,11 @@
     "moduleDetection": "force",
     "noEmit": true
   },
-  "include": ["vite.config.ts"]
+  "include": [
+    "vite.config.ts",
+    "scripts/push-review.ts",
+    "scripts/review-approvals.ts",
+    "scripts/review-candidate.ts",
+    "scripts/review-status.ts"
+  ]
 }

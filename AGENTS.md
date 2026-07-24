@@ -62,12 +62,15 @@ Preserve these invariants:
 
 ### Concurrent work and landing
 
-- Keep the shared checkout on `main`; work there unless concurrent edits require
-  isolation.
-- Use a temporary local worktree branch for concurrent work. Do not push it or
-  ask the user to manage it unless a PR was explicitly requested.
-- The coordinating agent owns the whole lifecycle. A child agent hands back a
-  verified commit; the coordinator lands it on `main`.
+- Use the `reviewed-main-workflow` skill for every substantive slice, candidate
+  review, landing, and push.
+- Keep the shared checkout clean and on `main`; implement every substantive
+  slice in a temporary worktree under `~/src/worktrees/`.
+- Implementation is concurrent, but review and landing are serialized. Rebase
+  before review, then land the exact approved tip immediately with
+  `git merge --ff-only`; never rewrite or cherry-pick approved commits.
+- Keep dependent work stacked until its reviewed base lands. The coordinating
+  agent owns approval, landing, issue updates, and worktree cleanup.
 - Work done in a worktree is not complete until its verified commit is reachable
   from the shared local `main`. If local landing must wait, report it as awaiting
   landing; do not leave finished work only on an isolated branch.
@@ -107,7 +110,9 @@ npx tsc -b --pretty false   # TypeScript project check
 npm run test:staged         # staged/colocated tests plus high-risk invariants
 npm test                    # full Vitest suite
 npm run test:mutation:show-authoring # targeted Show authoring fault-sensitivity check
-npm run review:push         # Fable Medium review, with GPT-5.6 High infrastructure fallback
+npm run review:candidate -- <base> <tip> [--test-design <json>]
+npm run review:status -- [<base> <tip>]
+npm run review:push         # verify exact approvals for outgoing refs
 npm run build
 npm run test:e2e
 npm run check:playwright
@@ -116,18 +121,11 @@ npm run db:migrate:local
 npm run db:migrate:remote
 ```
 
-The pre-commit hook runs lint, a full TypeScript project check when staged paths
-can affect either TypeScript project, colocated tests for staged code, and
-conservative invariant suites for compiler, persistence, resource-ledger,
-artifact-contract, and test-infrastructure changes. The pre-push hook owns the
-one comprehensive publication gate: Fable Medium reviews the exact outgoing
-range. If Fable cannot return a valid review because of quota, timeout, process,
-or response failure, the gate sends the same review input to GPT-5.6 High. A
-valid `fail` decision from either reviewer remains blocking. After review
-passes, the full Vitest suite and Playwright smoke suite run. The Git hook
-applies equally to Claude, Codex, and terminal pushes. Do not manually repeat
-the full suite immediately before a push unless diagnosing a failure. See
-`docs/agents/verification.md` for the gate model.
+Pre-commit runs lint, conditional full-project typecheck, focused tests, and
+mapped invariants. Candidate review records an immutable approval only for a
+valid exact-range pass. Pre-push requires contiguous approval coverage instead
+of repeating review, then runs full Vitest and Playwright once. See
+`docs/agents/verification.md` for the mechanism and privacy boundary.
 
 Use TDD for behavior changes: fail, implement, refactor. Concentrate coverage
 on pure engine logic; keep component tests light and add Playwright coverage

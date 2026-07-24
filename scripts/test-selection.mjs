@@ -50,16 +50,25 @@ const ARTIFACT_CONTRACT_FILES = new Set([
 
 const TEST_INFRASTRUCTURE_FILES = new Set([
   '.husky/pre-commit',
+  '.husky/pre-push',
   'vite.config.ts',
   'vitest.mutation.config.ts',
   'package.json',
   'package-lock.json',
+  'scripts/push-review.ts',
+  'scripts/review-approvals.ts',
+  'scripts/review-candidate.ts',
+  'scripts/review-status.ts',
   'scripts/test-selection.mjs',
   'scripts/test-staged.mjs',
   'src/test/setup.ts',
 ])
 
 const TEST_INFRASTRUCTURE_SMOKE_TESTS = [
+  'scripts/push-review.test.ts',
+  'scripts/review-approvals.test.ts',
+  'scripts/review-candidate.test.ts',
+  'scripts/review-status.test.ts',
   'scripts/test-selection.test.ts',
   'scripts/show-authoring-mutation.test.ts',
   'src/engine/showEasing.test.ts',
@@ -85,6 +94,10 @@ const TYPESCRIPT_PROJECT_FILES = new Set([
   'tsconfig.node.json',
   'package.json',
   'package-lock.json',
+  'scripts/push-review.ts',
+  'scripts/review-approvals.ts',
+  'scripts/review-candidate.ts',
+  'scripts/review-status.ts',
 ])
 
 export function requiresTypecheck(changedFiles) {

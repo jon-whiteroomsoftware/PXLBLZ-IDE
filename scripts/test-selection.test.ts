@@ -24,6 +24,10 @@ describe('pre-commit test selection', () => {
       'scripts/test-selection.test.ts',
       'public/favicon.svg',
     ])).toBe(false)
+
+    expect(requiresTypecheck([
+      'scripts/review-candidate.ts',
+    ])).toBe(true)
   })
 
   it('builds both configured TypeScript projects during the staged gate', () => {
@@ -143,6 +147,10 @@ describe('pre-commit test selection', () => {
     expect(selectPrecommitTests(['vite.config.ts'])).toEqual({
       focusedTests: [],
       invariantTests: [
+        'scripts/push-review.test.ts',
+        'scripts/review-approvals.test.ts',
+        'scripts/review-candidate.test.ts',
+        'scripts/review-status.test.ts',
         'scripts/test-selection.test.ts',
         'scripts/show-authoring-mutation.test.ts',
         'src/engine/showEasing.test.ts',
