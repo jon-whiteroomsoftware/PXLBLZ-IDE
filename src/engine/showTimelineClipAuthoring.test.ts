@@ -1099,6 +1099,79 @@ describe('global timeline Clip authoring (#580)', () => {
     })
   })
 
+  it('disables Clone when another Clip occupies the planned destination (#63)', () => {
+    const show = createDefaultShow('show-duplicate-occupied', 'Duplicate occupied', 1000)
+    const composition = emptyComposition(show)
+    composition.patternInstances.push(instance)
+    composition.scenes[0].zones[0].main.push(
+      {
+        id: 'placement-source',
+        instanceId: instance.id,
+        startMs: 2_000,
+        durationMs: 3_000,
+        view: { mirror: false, phase: 0, brightness: 1 },
+      },
+      {
+        id: 'placement-blocker',
+        instanceId: instance.id,
+        startMs: 6_000,
+        durationMs: 2_000,
+        view: { mirror: false, phase: 0, brightness: 1 },
+      },
+    )
+    const owner = {
+      kind: 'main' as const,
+      sceneId: show.scenes[0].id,
+      zoneId: show.zones[0].id,
+      placementId: 'placement-source',
+    }
+
+    expect(planShowClipDuplicateAfter(show, composition, {
+      owner,
+      independent: true,
+    })).toMatchObject({
+      enabled: false,
+      code: 'occupied',
+    })
+    expect(duplicateShowClipAfter(show, composition, {
+      owner,
+      newPlacementId: 'placement-copy',
+      newInstanceId: 'instance-copy',
+    })).toBe(composition)
+  })
+
+  it('disables Clone when a single-Scene Clip would cross its Scene boundary (#63)', () => {
+    const show = createDefaultShow('show-duplicate-scene-boundary', 'Duplicate scene boundary', 1000)
+    const composition = emptyComposition(show)
+    composition.patternInstances.push(instance)
+    composition.scenes[0].zones[0].main.push({
+      id: 'placement-source',
+      instanceId: instance.id,
+      startMs: 27_000,
+      durationMs: 3_000,
+      view: { mirror: false, phase: 0, brightness: 1 },
+    })
+    const owner = {
+      kind: 'main' as const,
+      sceneId: show.scenes[0].id,
+      zoneId: show.zones[0].id,
+      placementId: 'placement-source',
+    }
+
+    expect(planShowClipDuplicateAfter(show, composition, {
+      owner,
+      independent: true,
+    })).toMatchObject({
+      enabled: false,
+      code: 'scene-boundary',
+    })
+    expect(duplicateShowClipAfter(show, composition, {
+      owner,
+      newPlacementId: 'placement-copy',
+      newInstanceId: 'instance-copy',
+    })).toBe(composition)
+  })
+
   it('duplicates the full duration of one logical Clip after its hidden Scene segments (#63)', () => {
     const show = createDefaultShow('show-duplicate-spanning-clip', 'Duplicate spanning clip', 1000)
     const composition = emptyComposition(show)

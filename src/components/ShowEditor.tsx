@@ -2609,19 +2609,6 @@ function ShowTimelineCommands({
       })
     : legacySplitCapability
   const legacyCloneCapability = showCloneCapability(show, selection)
-  const compositionLayer = compositionClip
-    ? compositionTimeline?.zones.flatMap((zone) => zone.layers)
-      .find((layer) => layer.clips.some((clip) => clip.id === compositionClip.id))
-    : null
-  const compositionSceneRange = compositionClip
-    ? projectShowTimeline(show).scenes.find((scene) => scene.sceneId === compositionClip.sceneId)
-    : null
-  const duplicateEndMs = compositionClip ? compositionClip.endMs + compositionClip.durationMs : 0
-  const duplicateObstructed = Boolean(compositionClip && compositionLayer?.clips.some((clip) => (
-    clip.id !== compositionClip.id
-    && clip.startMs < duplicateEndMs
-    && clip.endMs > compositionClip.endMs
-  )))
   const compositionClonePlan = compositionOwner && composition
     ? planShowClipDuplicateAfter(show, composition, {
         owner: compositionOwner,
@@ -2630,14 +2617,7 @@ function ShowTimelineCommands({
     : null
   const cloneCapability = compositionOwner
     ? compositionClip
-      && compositionSceneRange
       && compositionClonePlan?.enabled
-      && duplicateEndMs <= (
-        (compositionClip.segmentIds?.length ?? 0) > 1
-          ? projectShowTimeline(show).durationMs
-          : compositionSceneRange.endMs
-      )
-      && !duplicateObstructed
       ? { enabled: true, reason: `Duplicate ${compositionClip.patternName} immediately after itself` }
       : {
           enabled: false,

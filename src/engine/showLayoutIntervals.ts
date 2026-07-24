@@ -146,6 +146,9 @@ export function insertShowLayoutInterval(
   }
   const boundary = resolveInsertionBoundary(inputShow, input.atMs)
   if (!boundary) return inputShow
+  if (logicalClipCrossesSceneBoundary(boundary.show.composition, boundary.show.scenes, boundary.sceneIndex)) {
+    return inputShow
+  }
   return insertBlankIntervalAtSceneIndex(boundary.show, boundary.sceneIndex, input.durationMs, input.layoutId)
 }
 
@@ -172,6 +175,9 @@ export function makeShowLayoutIntervalUnique(show: ShowRecord, intervalId: strin
   const sourceLayout = show.routingLayouts.find((layout) => layout.id === interval.layoutId)
   if (!sourceLayout) return show
 
+  const occurrenceSceneIds = new Set(interval.sceneIds)
+  if (logicalClipPartiallyInsideScenes(show.composition, occurrenceSceneIds)) return show
+
   const usedIds = recordIds(show)
   const layoutId = uniqueId(usedIds, `${sourceLayout.id}-copy`)
   const zoneIdMap = new Map<string, string>()
@@ -194,7 +200,6 @@ export function makeShowLayoutIntervalUnique(show: ShowRecord, intervalId: strin
       } as ShowRoutingLayout['logical'],
     } : {}),
   }
-  const occurrenceSceneIds = new Set(interval.sceneIds)
   const composition = show.composition
     ? remapOccurrenceZones(show.composition, occurrenceSceneIds, zoneIdMap, zones)
     : show.composition
@@ -226,6 +231,54 @@ export function makeShowLayoutIntervalUnique(show: ShowRecord, intervalId: strin
     ...(composition ? { composition } : {}),
     updatedAt: nextUpdatedAt(show),
   })
+}
+
+function logicalClipSceneMembership(
+  composition: ShowCompositionV1 | undefined,
+): Map<string, Set<string>> {
+  const membership = new Map<string, Set<string>>()
+  for (const scene of composition?.scenes ?? []) {
+    for (const placement of scene.zones.flatMap((zone) => [
+      ...zone.main,
+      ...zone.overlays.flatMap((layer) => layer.placements),
+    ])) {
+      const logicalClipId = placement.logicalClipId ?? placement.id
+      const sceneIds = membership.get(logicalClipId) ?? new Set<string>()
+      sceneIds.add(scene.sceneId)
+      membership.set(logicalClipId, sceneIds)
+    }
+  }
+  return membership
+}
+
+function logicalClipCrossesSceneBoundary(
+  composition: ShowCompositionV1 | undefined,
+  scenes: ShowRecord['scenes'],
+  sceneIndex: number,
+): boolean {
+  if (!composition || sceneIndex <= 0 || sceneIndex >= scenes.length) return false
+  const sceneIndexById = new Map(scenes.map((scene, index) => [scene.id, index]))
+  return [...logicalClipSceneMembership(composition).values()].some((sceneIds) => {
+    if (sceneIds.size < 2) return false
+    const indexes = [...sceneIds].flatMap((sceneId) => {
+      const index = sceneIndexById.get(sceneId)
+      return index == null ? [] : [index]
+    })
+    return indexes.some((index) => index < sceneIndex)
+      && indexes.some((index) => index >= sceneIndex)
+  })
+}
+
+function logicalClipPartiallyInsideScenes(
+  composition: ShowCompositionV1 | undefined,
+  sceneIds: Set<string>,
+): boolean {
+  if (!composition) return false
+  return [...logicalClipSceneMembership(composition).values()].some((membership) => (
+    membership.size > 1
+    && [...membership].some((sceneId) => sceneIds.has(sceneId))
+    && [...membership].some((sceneId) => !sceneIds.has(sceneId))
+  ))
 }
 
 function resolveInsertionBoundary(

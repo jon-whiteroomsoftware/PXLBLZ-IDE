@@ -53,6 +53,23 @@ function showWithComposition(): ShowRecord {
   }
 }
 
+function showWithLogicalClipAcrossLayoutBoundary(): ShowRecord {
+  const appended = appendShowLayoutInterval(showWithComposition(), {
+    durationMs: 30_000,
+    layoutId: 'layout-1',
+  })
+  const root = appended.composition!.scenes[0].zones[0].main[0]
+  root.id = 'logical-root'
+  appended.composition!.scenes[1].zones[0].main.push({
+    ...structuredClone(root),
+    id: `logical-root--span-${appended.scenes[1].id}`,
+    logicalClipId: 'logical-root',
+    startMs: 0,
+    durationMs: 3_000,
+  })
+  return appended
+}
+
 describe('Show Layout intervals', () => {
   it('remaps logical Clip roots when duplicating a multi-Scene Layout with content (#63)', () => {
     const show = createDefaultShow('show-layout-logical-copy', 'Logical copy', 1)
@@ -197,6 +214,16 @@ describe('Show Layout intervals', () => {
     expect(right.zones[0].main[0].id).not.toBe(left.zones[0].main[0].id)
   })
 
+  it('refuses to insert a Layout interval through a logical Clip boundary (#63)', () => {
+    const base = showWithLogicalClipAcrossLayoutBoundary()
+
+    expect(insertShowLayoutInterval(base, {
+      atMs: 30_000,
+      durationMs: 5_000,
+      layoutId: 'layout-1',
+    })).toBe(base)
+  })
+
   it('duplicates either an empty occurrence or its complete choreography', () => {
     const base = showWithComposition()
     const source = projectShowLayoutIntervals(base)[0]
@@ -318,6 +345,13 @@ describe('Show Layout intervals', () => {
     expect(unique.routingLayouts[1].zones[0].zoneId).not.toBe(unique.routingLayouts[0].zones[0].zoneId)
     expect(unique.composition!.scenes[0].zones[0].zoneId).toBe(unique.routingLayouts[0].zones[0].zoneId)
     expect(unique.composition!.scenes[1].zones[0].zoneId).toBe(unique.routingLayouts[1].zones[0].zoneId)
+  })
+
+  it('refuses to make one occurrence unique through a logical Clip (#63)', () => {
+    const base = showWithLogicalClipAcrossLayoutBoundary()
+    const second = projectShowLayoutIntervals(base)[1]
+
+    expect(makeShowLayoutIntervalUnique(base, second.id)).toBe(base)
   })
 
   it('resolves Clip authoring to a made-unique occurrence Zone', () => {

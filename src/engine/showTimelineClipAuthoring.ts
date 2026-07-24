@@ -18,6 +18,7 @@ import { materializeShowGroupOccurrences } from './showGroupModel'
 import { projectShowTimeline, showLoopDurationMs } from './showModel'
 import { evaluateShowPropertyTrack } from './showPropertyAnimation'
 import { setShowEndMs } from './showTimelineAuthoring'
+import { projectShowUnifiedTimeline } from './showUnifiedTimelineProjection'
 
 export type ShowClipAddPlan =
   | {
@@ -843,7 +844,11 @@ export function duplicateLinkedShowClipAfter(
 
 export type ShowClipDuplicatePlan =
   | { enabled: true; code: 'ready'; reason: string }
-  | { enabled: false; code: 'missing-owner' | 'transition-boundary' | 'unsupported-animation'; reason: string }
+  | {
+      enabled: false
+      code: 'missing-owner' | 'transition-boundary' | 'scene-boundary' | 'occupied' | 'unsupported-animation'
+      reason: string
+    }
 
 export function planShowClipDuplicateAfter(
   show: ShowRecord,
@@ -854,14 +859,29 @@ export function planShowClipDuplicateAfter(
   if (logicalSegments.length === 0) {
     return { enabled: false, code: 'missing-owner', reason: 'The selected Clip no longer exists.' }
   }
+  const logicalRange = globalLogicalClipRange(logicalSegments)
+  if (!logicalRange) {
+    return { enabled: false, code: 'missing-owner', reason: 'The selected Clip no longer exists.' }
+  }
+  const durationMs = logicalRange.endMs - logicalRange.startMs
+  const targetStartMs = logicalRange.endMs
+  const targetEndMs = targetStartMs + durationMs
+  if (logicalSegments.length === 1) {
+    const sceneRange = projectShowTimeline(show).scenes.find((scene) => scene.sceneId === input.owner.sceneId)
+    if (!sceneRange || targetEndMs > sceneRange.endMs) {
+      return {
+        enabled: false,
+        code: 'scene-boundary',
+        reason: 'The duplicate would cross the selected Clip’s Scene boundary.',
+      }
+    }
+  }
   if (logicalSegments.length > 1) {
-    const logicalRange = globalLogicalClipRange(logicalSegments)
     if (
-      !logicalRange
-      || globalSpanSceneSlices(
+      globalSpanSceneSlices(
         show,
-        logicalRange.endMs,
-        logicalRange.endMs - logicalRange.startMs,
+        targetStartMs,
+        durationMs,
       ).length === 0
     ) {
       return {
@@ -885,6 +905,24 @@ export function planShowClipDuplicateAfter(
         code: 'unsupported-animation',
         reason: 'Multi-Scene Clips with Property animation cannot be cloned yet.',
       }
+    }
+  }
+  const timeline = projectShowUnifiedTimeline(show, composition)
+  const layer = timeline.zones
+    .find((zone) => zone.id === input.owner.zoneId)
+    ?.layers.find((candidate) => candidate.clips.some((clip) => clip.id === input.owner.placementId))
+  if (!layer) {
+    return { enabled: false, code: 'missing-owner', reason: 'The selected Clip no longer exists.' }
+  }
+  if (layer.clips.some((clip) => (
+    clip.id !== input.owner.placementId
+    && clip.startMs < targetEndMs
+    && clip.endMs > targetStartMs
+  ))) {
+    return {
+      enabled: false,
+      code: 'occupied',
+      reason: 'The selected Clip needs empty time after it on this Layer.',
     }
   }
   return { enabled: true, code: 'ready', reason: 'Duplicate the selected Clip immediately after itself.' }
