@@ -216,30 +216,32 @@ export function updateShowClipInspector(
     }))
   }
   if (patch.local) {
-    const current = resolveCompositionOwner(composition, owner)?.placement
+    const localBasis = composition
+    const current = resolveCompositionOwner(localBasis, owner)?.placement
     if (!current) return show
-    let timingAccepted = true
+    const stagedLocal = owner.kind === 'scene-overlay' && patch.local.opacity !== undefined
+      ? mapPlacement(localBasis, owner, (placement) => ({
+          ...placement,
+          opacity: clamp01(patch.local!.opacity!),
+        }))
+      : localBasis
     if (patch.local.startMs !== undefined || patch.local.durationMs !== undefined) {
-      const range = logicalPlacementRange(show, composition, current)
+      const range = logicalPlacementRange(show, stagedLocal, current)
       if (!range) return show
       const desiredStartMs = patch.local.startMs ?? range.localStartMs
       const desiredDurationMs = patch.local.durationMs ?? range.durationMs
-      const resized = resizeShowClipAtGlobalTime(show, composition, {
+      const resized = resizeShowClipAtGlobalTime(show, stagedLocal, {
         owner: owner.kind === 'scene-main'
           ? { ...owner, kind: 'main' }
           : { ...owner, kind: 'overlay' },
         globalStartMs: range.sceneStartMs + desiredStartMs,
         durationMs: desiredDurationMs,
       })
-      timingAccepted = resized !== composition
+      const timingAccepted = resized !== stagedLocal
         || (desiredStartMs === range.localStartMs && desiredDurationMs === range.durationMs)
-      composition = resized
-    }
-    if (timingAccepted && owner.kind === 'scene-overlay' && patch.local.opacity !== undefined) {
-      composition = mapPlacement(composition, owner, (placement) => ({
-        ...placement,
-        opacity: clamp01(patch.local!.opacity!),
-      }))
+      composition = timingAccepted ? resized : localBasis
+    } else {
+      composition = stagedLocal
     }
   }
   if (composition === show.composition) return show
