@@ -203,6 +203,30 @@ export function render2D(index, x, y) { rgb(x, y, 0) }
     )
   })
 
+  it('keeps assignments to mapPixels on the isolated wrapper', () => {
+    const source = `
+var visitedX = 0
+translate(0.5, 0)
+function capture(index, x, y, z) { visitedX = x }
+var visit = mapPixels
+mapPixels = visit
+visit(capture)
+export function render2D(index, x, y) { rgb(visitedX, y, 0) }
+`
+    const artifact = compileShow({ clips: [{ id: 'assigned-mapPixels', source }] }, {})
+    const runtime = createFastReplayRuntime({
+      code: artifact.code,
+      fxCode: artifact.fxCode,
+      metadata: artifact.metadata,
+      dimension: 2,
+    }, {
+      mapPoints: [{ sample: [0, 0], pos: [0, 0] }],
+      randomSeed: 1,
+    })
+
+    expect(runtime.renderCurrentFrame().pixels).toEqual([[0.5, 0, 0]])
+  })
+
   it('isolates implicit-global aliases of member coordinate builtins', () => {
     const artifact = compileShow({
       clips: [
@@ -638,6 +662,10 @@ export function beforeRender(delta) {
 export function render2D(index, x, y) { rgb(x, y, 0) }
 `
     const artifact = compileShow({ clips: [{ id: 'transformed', source }] }, {})
+    expect(artifact.metadata.renderFns).toMatchObject({
+      hasRender2D: true,
+      hasRender3D: true,
+    })
     const mapPoints: MapPoint[] = [
       { sample: [0, 0], pos: [0, 0] },
       { sample: [1, 0], pos: [1, 0] },
@@ -685,6 +713,29 @@ export function render2D(index, x, y) { rgb(x, y, 0) }
       expect(showPrecise[index][1]).toBeCloseTo(standalonePrecise[index][1], 3)
       expect(showPrecise[index][2]).toBeCloseTo(standalonePrecise[index][2], 3)
     }
+  })
+
+  it('preserves installed-map z through a private 3D transform before render2D', () => {
+    const source = `
+rotateY(PI / 2)
+export function render2D(index, x, y) { rgb(x, y, 0) }
+`
+    const artifact = compileShow({ clips: [{ id: 'depth-aware', source }] }, {})
+    expect(artifact.metadata.renderFns).toMatchObject({
+      hasRender2D: true,
+      hasRender3D: true,
+    })
+    const runtime = createFastReplayRuntime({
+      code: artifact.code,
+      fxCode: artifact.fxCode,
+      metadata: artifact.metadata,
+      dimension: 3,
+    }, {
+      mapPoints: [{ sample: [0, 0, 1], pos: [0, 0, 1] }],
+      randomSeed: 1,
+    })
+
+    expect(runtime.renderCurrentFrame().pixels).toEqual([[1, 0, 0]])
   })
 
   it('preserves the fourth matrix row when composing arbitrary transforms', () => {

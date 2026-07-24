@@ -2291,6 +2291,9 @@ export function compileShow(
   )
   const boundedBlend = portalBlend || wipeBlend || dissolveBlend
   const memberOutputDimension = showOutputDimensionForMembers(members)
+  const needsInstalledMapZ = members.some((member) => (
+    member.hasRender2D && memberNeeds3DCoordinateTransform(member)
+  ))
   const sequenceOutputDimension: ShowOutputDimension = sequenceHasPortal || sequenceHasDirectionalWipe || sequenceHasMotion || sequenceHasSpatialDissolve ? 2 : memberOutputDimension
   const transitionOutputDimension: ShowOutputDimension = portalTransition || directionalWipeTransition || motionTransition || spatialDissolveTransition ? 2 : memberOutputDimension
   const routedOutputDimension: 1 | 2 = routingLayouts?.some((layout) => layout.logical)
@@ -2673,9 +2676,12 @@ export function compileShow(
   const emittedWithSampleRemapping = expandedRecipe.samplePropertyRamps
     ? injectSampleRemappingUpdate(emittedWithEasingRuntime)
     : emittedWithEasingRuntime
-  const expandedCode = renderTargetArenaEmission
-    ? `${emitShowRenderTargetArenaSource(renderTargetPixelCount)}\n${emittedWithSampleRemapping}`
+  const emittedWithInstalledMapZ = needsInstalledMapZ
+    ? promoteShowRendererToInstalledMap3D(emittedWithSampleRemapping)
     : emittedWithSampleRemapping
+  const expandedCode = renderTargetArenaEmission
+    ? `${emitShowRenderTargetArenaSource(renderTargetPixelCount)}\n${emittedWithInstalledMapZ}`
+    : emittedWithInstalledMapZ
   const compacted = compactGeneratedShowSymbols(expandedCode)
   const code = compacted.code
   const sourceInventory = buildShowSourceInventory(code, compacted.names, members)
@@ -2694,6 +2700,9 @@ export function compileShow(
     sum + (group.memberIds.length - 1) * 6
   ), 0)
   const metadata = buildMetadata(members, compiledOutputDimension, trailsSelected)
+  if (needsInstalledMapZ) {
+    metadata.renderFns.hasRender3D = true
+  }
   const patternVarBindings = Object.fromEntries(metadata.patternVars.flatMap((name) => {
     const runtimeName = compacted.names.get(name)
     return runtimeName ? [[name, runtimeName]] : []
@@ -2935,6 +2944,7 @@ export function compileShow(
       + members.reduce((count, member) => (
         count + memberCoordinateTransformScalarGlobals(member)
       ), 0)
+      + (needsInstalledMapZ ? 1 : 0)
       + members.reduce((count, member) => {
         if (showEffectsAreIdentity(member.effects) && !member.animatedEffects) return count
         const hasAffine = member.effects.some((effect) => ['translate', 'rotate', 'scale', 'shear'].includes(effect.kind))
@@ -8508,6 +8518,29 @@ function injectSampleRemappingUpdate(code: string): string {
   return `${code.slice(0, lineEnd + 1)}  __pxlblz_show_update_sample_remap()\n${code.slice(lineEnd + 1)}`
 }
 
+const SHOW_INSTALLED_MAP_Z = '__pxlblz_show_installed_map_z'
+
+function promoteShowRendererToInstalledMap3D(code: string): string {
+  const signature = 'export function render2D(index, x, y) {'
+  if (!code.includes(signature)) {
+    throw new Error('Show installed-map z propagation requires an outer render2D entrypoint.')
+  }
+  // Keep the exact render2D export required by the firmware-3.66/3.67
+  // compatibility path (#436). The exact render3D sibling carries installed z
+  // on 3D maps without relying on cross-dimensional argument spill.
+  const innerRenderer = '__pxlblz_show_render_installed_map'
+  return `var ${SHOW_INSTALLED_MAP_Z} = 0
+${code.replace(signature, `function ${innerRenderer}(index, x, y) {`)}
+export function render2D(index, x, y) {
+  ${SHOW_INSTALLED_MAP_Z} = 0
+  ${innerRenderer}(index, x, y)
+}
+export function render3D(index, x, y, z) {
+  ${SHOW_INSTALLED_MAP_Z} = z
+  ${innerRenderer}(index, x, y)
+}`
+}
+
 function showOutputDimensionForMembers(members: CompiledMember[]): ShowOutputDimension {
   return members.some((member) => member.hasRender2D) ? 2 : 1
 }
@@ -8525,11 +8558,14 @@ function emitSelectedMemberRendererCall(
   })
   const x = args.x ?? `${args.index} / max(1, ${member.pixelCountName} - 1)`
   const y = args.y ?? '0.5'
+  const z = member.hasRender2D && memberNeeds3DCoordinateTransform(member)
+    ? SHOW_INSTALLED_MAP_Z
+    : compatibility.renderer === 'render3D' ? '0.5' : '0'
   const rendered = memberCoordinateTransformExpressions(
     member,
     x,
     y,
-    compatibility.renderer === 'render3D' ? '0.5' : '0',
+    z,
   )
   const call = compatibility.renderer === 'render3D'
     ? `${member.render3DName}(${args.index}, ${rendered.x}, ${rendered.y}, ${rendered.z})`

@@ -874,7 +874,7 @@ function collectImplicitGlobalAssignments(
   if (node.type === 'AssignmentExpression') {
     collectAssignmentTargetNames(node.left, (name) => {
       if (isLocallyBound(scope, name)) return
-      if (MEMBER_COORDINATE_TRANSFORM_BUILTINS.has(name)) return
+      if (MEMBER_COORDINATE_TRANSFORM_BUILTINS.has(name) || name === 'mapPixels') return
       bindings.add(name)
       let programScope = scope
       while (programScope.parent) programScope = programScope.parent
