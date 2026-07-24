@@ -1100,8 +1100,9 @@ instead of reserving empty rows.
 `showClipSummary.ts` keeps the complete authored Clip facts independent of
 timeline density and adapts both compatibility cells and unified composition
 Pattern instances, placements, Effects, and typed Property tracks into the same
-summary model. The compact Entity Detail summary groups those facts by stable
-category and item identity. The timeline Clip restores the terse second row:
+summary model, including placement-only opacity and Viewport configuration. The
+compact Entity Detail summary groups those facts by stable category and item
+identity. The timeline Clip restores the terse second row:
 category glyphs retain meaning at narrow widths, values appear when introduced
 or changed from the preceding connected Clip, and the complete summary remains
 available as its title. Logical Clips collect animation owned by every hidden

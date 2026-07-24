@@ -193,6 +193,48 @@ describe('Show Clip summary', () => {
     })
   })
 
+  it('includes static overlay opacity and Viewport configuration (#599 review)', () => {
+    const show = createDefaultShow('show-placement-summary', 'Placement summary', 1_000)
+    const sceneId = show.scenes[0].id
+    const zoneId = show.zones[0].id
+    const composition = {
+      version: 1 as const,
+      patternInstances: [{
+        id: 'instance-placement',
+        pattern: { kind: 'stock' as const, id: 'Rings' },
+        patternName: 'Rings',
+        time: { timeScale: 1, timeOffsetMs: 0 },
+      }],
+      scenes: [{
+        sceneId,
+        zones: [{
+          zoneId,
+          main: [],
+          overlays: [{
+            id: 'overlay-placement',
+            name: 'Overlay',
+            placements: [{
+              id: 'placement-configured',
+              instanceId: 'instance-placement',
+              startMs: 0,
+              durationMs: 1_000,
+              opacity: 0.25,
+              view: { mirror: false, phase: 0, brightness: 1 },
+              viewport: { enabled: true, x: 0.1, y: 0.2, width: 0.6, height: 0.5 },
+            }],
+          }],
+        }],
+      }],
+    }
+    const clip = projectShowUnifiedTimeline(show, composition).zones[0].layers[0].clips[0]
+
+    const summary = projectCompositionShowClipSummary(composition, clip)
+
+    expect(showClipInlineSummary(summary)).toBe(
+      'Opacity 25% · Viewport On · x 0.1, y 0.2, 0.6 × 0.5',
+    )
+  })
+
   it('separates static playback, Pattern controls, view, Effects, and animation facts', () => {
     let show = createDefaultShow('show-clip-summary', 'Clip summary', 1_000)
     const cellId = show.cells[0].id

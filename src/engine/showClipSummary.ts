@@ -1,6 +1,7 @@
 import { steppedClockRateHz } from './steppedClock'
 import { showClipEffectParameterValue, showClipEffectParameters } from './showEffectAuthoring'
 import { normalizeShowClipTransform } from './showClipTransform'
+import { compactShowClipViewport, normalizeShowClipViewport } from './showClipViewport'
 import { materializeShowGroupOccurrences } from './showGroupModel'
 import type {
   ShowCell,
@@ -76,6 +77,9 @@ export function projectCompositionShowClipSummary(
   const sceneIds = new Set(ownedPlacements.map((owner) => owner.sceneId))
   const instance = materialized.patternInstances.find((candidate) => candidate.id === clip.instanceId)
   if (!placement || !instance) return []
+  const opacity = 'opacity' in placement && typeof placement.opacity === 'number'
+    ? placement.opacity
+    : undefined
 
   return projectClipSummary({
     adaptations: {
@@ -88,7 +92,9 @@ export function projectCompositionShowClipSummary(
       ...(instance.time.timeOffsetMs !== 0 ? { timeOffsetMs: instance.time.timeOffsetMs } : {}),
     },
     ...(instance.controlTargets ? { controlTargets: instance.controlTargets } : {}),
+    ...(opacity !== undefined ? { opacity } : {}),
     ...(placement.transform ? { transform: placement.transform } : {}),
+    ...(placement.viewport ? { viewport: placement.viewport } : {}),
     ...(placement.effects ? { effects: placement.effects } : {}),
   }, controlLabels, compositionAnimationItems(
     materialized,
@@ -102,8 +108,10 @@ export function projectCompositionShowClipSummary(
 
 type ClipSummarySource = Pick<
   ShowCell,
-  'adaptations' | 'controlTargets' | 'effects' | 'restartOnEntry' | 'transform'
->
+  'adaptations' | 'controlTargets' | 'effects' | 'restartOnEntry' | 'transform' | 'viewport'
+> & {
+  opacity?: number
+}
 
 function projectClipSummary(
   source: ClipSummarySource,
@@ -279,8 +287,13 @@ function playbackItems(cell: Pick<ShowCell, 'adaptations' | 'restartOnEntry'>): 
   return items
 }
 
-function viewItems(cell: Pick<ShowCell, 'adaptations' | 'transform'>): ShowClipSummaryItem[] {
+function viewItems(
+  cell: Pick<ShowCell, 'adaptations' | 'transform' | 'viewport'> & { opacity?: number },
+): ShowClipSummaryItem[] {
   const items: ShowClipSummaryItem[] = []
+  if (cell.opacity !== undefined && cell.opacity !== 1) {
+    items.push({ id: 'opacity', label: 'Opacity', value: `${Math.round(cell.opacity * 100)}%` })
+  }
   if (cell.adaptations.brightness !== 1) {
     items.push({ id: 'brightness', label: 'Brightness', value: `${Math.round(cell.adaptations.brightness * 100)}%` })
   }
@@ -294,6 +307,15 @@ function viewItems(cell: Pick<ShowCell, 'adaptations' | 'transform'>): ShowClipS
   if (transform.rotation !== 0) items.push({ id: 'transform-rotation', label: 'Rotation', value: `${formatNumber(transform.rotation * 360)} deg`, timelineValue: `rot ${formatNumber(transform.rotation * 360)} deg` })
   if (transform.scaleX !== 1) items.push({ id: 'transform-scale-x', label: 'Scale X', value: `${formatNumber(transform.scaleX)}x`, timelineValue: `sx ${formatNumber(transform.scaleX)}` })
   if (transform.scaleY !== 1) items.push({ id: 'transform-scale-y', label: 'Scale Y', value: `${formatNumber(transform.scaleY)}x`, timelineValue: `sy ${formatNumber(transform.scaleY)}` })
+  const authoredViewport = compactShowClipViewport(cell.viewport)
+  if (authoredViewport) {
+    const viewport = normalizeShowClipViewport(authoredViewport)
+    items.push({
+      id: 'viewport',
+      label: 'Viewport',
+      value: `${viewport.enabled ? 'On' : 'Off'} · x ${formatNumber(viewport.x)}, y ${formatNumber(viewport.y)}, ${formatNumber(viewport.width)} × ${formatNumber(viewport.height)}`,
+    })
+  }
   return items
 }
 
