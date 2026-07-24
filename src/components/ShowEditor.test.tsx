@@ -176,6 +176,34 @@ describe('ShowEditor (#318)', () => {
     expect(view.compareDocumentPosition(authoring) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
   })
 
+  it('uses one visual state language for Show authoring toolbar controls', () => {
+    const show = createDefaultShow('show-toolbar-states', 'Toolbar states', 1000)
+    useShowStore.setState({ shows: [show], activeShowId: show.id, showsLoaded: true })
+
+    render(<ShowEditor showId={show.id} />)
+
+    const add = screen.getByRole('button', { name: 'Add to Show' })
+    const split = screen.getByRole('button', { name: 'Split at playhead' })
+    const clone = screen.getByRole('button', { name: 'Clone selection' })
+    const group = screen.getByRole('button', { name: 'Make Group from selection' })
+    const undo = screen.getByRole('button', { name: 'Undo Show edit' })
+    const zones = screen.getByRole('button', { name: 'Open Zones' })
+    const snap = screen.getByRole('button', { name: 'Snap playhead' })
+    const markers = screen.getByRole('button', { name: 'Hide Markers' })
+
+    for (const control of [add, zones]) {
+      expect(control).toHaveClass('text-zinc-400', 'hover:text-amber-200')
+    }
+    for (const control of [split, clone, group, undo]) {
+      expect(control).toHaveClass('cursor-not-allowed', 'text-zinc-700', 'hover:text-zinc-700')
+      expect(control).not.toHaveClass('hover:text-amber-200')
+    }
+    expect(clone).toHaveClass('disabled:pointer-events-auto', 'disabled:opacity-100')
+    for (const toggle of [snap, markers]) {
+      expect(toggle).toHaveClass('bg-amber-400/10', 'text-amber-300', 'hover:text-amber-200')
+    }
+  })
+
   it('uses one Marker control for both visibility and snapping (#63)', async () => {
     const user = userEvent.setup()
     const show = createDefaultShow('show-unified-marker-mode', 'Unified marker mode', 1000)

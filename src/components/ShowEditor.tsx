@@ -243,6 +243,22 @@ const EMPTY_ZONE_IDS: string[] = []
 const clipBase =
   'show-timeline-clip z-10 flex flex-col justify-center gap-0.5 overflow-hidden rounded-[5px] border-0 border-l-[3px] px-2 py-1 text-left transition-colors focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-live'
 
+function showTimelineToolbarControlClass(input: {
+  enabled: boolean
+  active?: boolean
+  surface?: boolean
+}): string {
+  if (!input.enabled) {
+    const background = input.surface ? 'bg-zinc-900/60' : 'bg-transparent'
+    const hoverBackground = input.surface ? 'hover:bg-zinc-900/60' : 'hover:bg-transparent'
+    return `${background} ${hoverBackground} cursor-not-allowed text-zinc-700 opacity-100 hover:text-zinc-700 disabled:pointer-events-auto disabled:opacity-100`
+  }
+  if (input.active) {
+    return 'bg-amber-400/10 text-amber-300 hover:bg-amber-400/15 hover:text-amber-200 active:bg-amber-400/20 active:text-amber-100 aria-expanded:bg-amber-400/10 aria-expanded:text-amber-300'
+  }
+  return `${input.surface ? 'bg-zinc-800/70' : 'bg-transparent'} text-zinc-400 hover:bg-amber-400/10 hover:text-amber-200 active:bg-amber-400/20 active:text-amber-100 aria-expanded:bg-amber-400/10 aria-expanded:text-amber-300`
+}
+
 function ShowEasingOptions() {
   return SHOW_EASING_OPTIONS.map((option) => (
     <option key={option.id} value={option.id}>{option.label}</option>
@@ -2552,11 +2568,29 @@ function ShowTimelineHistoryCommands({
   const undoShow = useShowStore((state) => state.undoShow)
   const redoShow = useShowStore((state) => state.redoShow)
   const history = useShowStore((state) => state.showHistories[show.id])
+  const undoEnabled = !readOnly && Boolean(history?.past.length)
+  const redoEnabled = !readOnly && Boolean(history?.future.length)
   return <>
-    <Button size="icon-xs" variant="ghost" aria-label="Undo Show edit" title="Undo Show edit (Command/Ctrl+Z)" disabled={readOnly || !history?.past.length} onClick={() => void undoShow(show.id)}>
+    <Button
+      size="icon-xs"
+      variant="ghost"
+      aria-label="Undo Show edit"
+      title="Undo Show edit (Command/Ctrl+Z)"
+      disabled={!undoEnabled}
+      className={showTimelineToolbarControlClass({ enabled: undoEnabled })}
+      onClick={() => void undoShow(show.id)}
+    >
       <Undo2 size={12} aria-hidden />
     </Button>
-    <Button size="icon-xs" variant="ghost" aria-label="Redo Show edit" title="Redo Show edit (Command/Ctrl+Shift+Z)" disabled={readOnly || !history?.future.length} onClick={() => void redoShow(show.id)}>
+    <Button
+      size="icon-xs"
+      variant="ghost"
+      aria-label="Redo Show edit"
+      title="Redo Show edit (Command/Ctrl+Shift+Z)"
+      disabled={!redoEnabled}
+      className={showTimelineToolbarControlClass({ enabled: redoEnabled })}
+      onClick={() => void redoShow(show.id)}
+    >
       <Redo2 size={12} aria-hidden />
     </Button>
   </>
@@ -2639,6 +2673,9 @@ function ShowTimelineCommands({
       if (copy) onSelect({ kind: 'clip', clipId: copy.id })
     }
   }
+  const splitEnabled = !readOnly && splitCapability.enabled
+  const cloneEnabled = !readOnly && cloneCapability.enabled
+  const groupEnabled = !readOnly && groupPlan.enabled
 
   return (
     <div className="flex shrink-0 items-center justify-end gap-[1.5px]" role="group" aria-label="Timeline commands">
@@ -2651,9 +2688,10 @@ function ShowTimelineCommands({
           aria-disabled={splitCapability.enabled ? undefined : true}
           aria-describedby={!splitCapability.enabled && splitReasonOpen ? splitReasonId : undefined}
           title={splitCapability.reason}
-          className={`bg-zinc-800/70 px-1.5 text-[10px] text-zinc-400 hover:bg-amber-400/15 hover:text-amber-200 ${
-            splitCapability.enabled ? '' : 'cursor-not-allowed opacity-50'
-          }`}
+          className={`px-1.5 text-[10px] ${showTimelineToolbarControlClass({
+            enabled: splitEnabled,
+            surface: true,
+          })}`}
           onFocus={() => {
             if (!splitCapability.enabled) setSplitReasonOpen(true)
           }}
@@ -2704,7 +2742,10 @@ function ShowTimelineCommands({
         aria-label="Clone selection"
         title={cloneCapability.reason}
         disabled={readOnly || !cloneCapability.enabled}
-        className="bg-zinc-800/70 px-1.5 text-[10px] text-zinc-400"
+        className={`px-1.5 text-[10px] ${showTimelineToolbarControlClass({
+          enabled: cloneEnabled,
+          surface: true,
+        })}`}
         onClick={() => void cloneSelection()}
       >
         <Copy size={12} aria-hidden />
@@ -2719,7 +2760,10 @@ function ShowTimelineCommands({
           disabled={readOnly}
           aria-disabled={!groupPlan.enabled || undefined}
           aria-describedby={!groupPlan.enabled && groupReasonOpen ? groupReasonId : undefined}
-          className={`bg-zinc-800/70 px-1.5 text-[10px] text-zinc-400 ${groupPlan.enabled ? '' : 'cursor-not-allowed opacity-50'}`}
+          className={`px-1.5 text-[10px] ${showTimelineToolbarControlClass({
+            enabled: groupEnabled,
+            surface: true,
+          })}`}
           onFocus={() => {
             if (!groupPlan.enabled) setGroupReasonOpen(true)
           }}
@@ -3697,7 +3741,11 @@ function ShowTimelineWorkspace({
                 aria-haspopup="menu"
                 aria-expanded={addMenuOpen || addClipOpen || insertTimeOpen || layoutActionsOpen}
                 title="Add a Clip, Layer, Time, or Zone Layout"
-                className="bg-zinc-800/70 px-1.5 text-[11px] text-zinc-300 hover:bg-amber-400/15 hover:text-amber-200"
+                className={`px-1.5 text-[11px] ${showTimelineToolbarControlClass({
+                  enabled: true,
+                  active: addMenuOpen || addClipOpen || insertTimeOpen || layoutActionsOpen,
+                  surface: true,
+                })}`}
                 onClick={() => {
                   const transport = useShowTransportStore.getState()
                   setAddClipTimeMs(transport.showId === show.id ? transport.positionMs : 0)
@@ -3709,7 +3757,7 @@ function ShowTimelineWorkspace({
               >
                 <Plus size={12} aria-hidden />
                 <span className="timeline-command-label timeline-command-label-primary">Add</span>
-                <ChevronDown size={9} aria-hidden className="text-zinc-500" />
+                <ChevronDown size={9} aria-hidden />
               </Button>
               {addMenuOpen && (
                 <ShowTimelineToolbarPopover
@@ -3998,9 +4046,10 @@ function ShowTimelineWorkspace({
               aria-label={zonesOpen ? 'Close Zones' : 'Open Zones'}
               aria-expanded={zonesOpen}
               title={zonesOpen ? 'Close Zone Map' : 'Open Zone Map'}
-              className={zonesOpen
-                ? 'bg-live/10 px-1.5 text-[11px] text-live hover:bg-live/15'
-                : 'bg-transparent px-1.5 text-[11px] text-zinc-400 hover:bg-zinc-800/60 hover:text-zinc-100'}
+              className={`px-1.5 text-[11px] ${showTimelineToolbarControlClass({
+                enabled: true,
+                active: zonesOpen,
+              })}`}
               onClick={() => setZoneWorkspaceOpen(show.id, !zonesOpen)}
             >
               <MapIcon size={12} aria-hidden />
@@ -4013,7 +4062,7 @@ function ShowTimelineWorkspace({
             aria-label="Snap playhead"
             aria-pressed={snapEnabled}
             title="Snap to scene, clip, transition, and time-grid boundaries. Hold Alt to temporarily reverse."
-            className={snapEnabled ? 'text-amber-300' : 'text-zinc-600'}
+            className={showTimelineToolbarControlClass({ enabled: true, active: snapEnabled })}
             onClick={() => setSnapEnabled(!snapEnabled)}
           >
             <Magnet size={12} aria-hidden />
@@ -4028,7 +4077,7 @@ function ShowTimelineWorkspace({
                 title={markersVisible
                   ? 'Hide Markers and stop snapping to them'
                   : 'Show Markers and use them as snap targets'}
-                className={markersVisible ? 'text-amber-300' : 'text-zinc-600'}
+                className={showTimelineToolbarControlClass({ enabled: true, active: markersVisible })}
                 onClick={() => {
                   const enabled = !markersVisible
                   setMarkersVisible(enabled)
