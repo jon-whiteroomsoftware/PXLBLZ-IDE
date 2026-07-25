@@ -94,7 +94,7 @@ async function renderFrames(config: RenderConfig): Promise<number> {
     await page.addStyleTag({
       content: `
         [data-testid="top-bar"], [data-testid="left-pane"], [data-testid="editor-pane"] { display: none !important; }
-        [data-testid="preview-pane"] { width: 100vw !important; min-width: 0 !important; }
+        [data-testid="preview-pane"] { display: flex !important; width: 100vw !important; min-width: 0 !important; }
       `,
     })
 
