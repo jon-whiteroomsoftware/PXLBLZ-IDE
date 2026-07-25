@@ -59,7 +59,7 @@ export function HeaderAction({
       disabled={disabled}
       title={title}
       aria-label={title}
-      className="shrink-0 text-zinc-400 hover:text-live disabled:opacity-30 disabled:hover:text-zinc-400"
+      className="relative z-50 shrink-0 text-zinc-400 hover:text-live disabled:opacity-30 disabled:hover:text-zinc-400"
     >
       {icon}
     </button>

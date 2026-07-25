@@ -134,6 +134,24 @@ describe('rail header alignment', () => {
     expect(heading.compareDocumentPosition(actions) & Node.DOCUMENT_POSITION_FOLLOWING).not.toBe(0)
   })
 
+  it('keeps Collapse rail above an open shared search overlay (#621)', async () => {
+    const user = userEvent.setup()
+    const onCollapse = vi.fn()
+    render(
+      <RailEntityHeader
+        title="Patterns"
+        onCollapse={onCollapse}
+        action={<RailFilterBar query="signal" onQueryChange={vi.fn()} />}
+      />,
+    )
+
+    const collapse = screen.getByRole('button', { name: 'Collapse rail' })
+    expect(collapse).toHaveClass('relative', 'z-50')
+    collapse.focus()
+    await user.keyboard('{Enter}')
+    expect(onCollapse).toHaveBeenCalledOnce()
+  })
+
   it('aligns built-in disclosure labels with entity-tree rows', () => {
     render(<StockSectionHeader label="Built-in Shows" open onToggle={vi.fn()} />)
     expect(screen.getByRole('button', { name: 'Built-in Shows' })).toHaveClass('px-[6px]', 'text-[12px]')

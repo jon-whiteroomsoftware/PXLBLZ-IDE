@@ -1388,7 +1388,7 @@ module and store. Occupied time never accepts the drag.
 
 `App` owns one ephemeral `libraryCollapsed` flag above every Studio mode.
 `PatternList` always retains `ActivityStrip`; the active entity header exposes
-**Collapse library**, which hides only the detail rail and fixes the left pane at
+**Collapse rail**, which hides only the detail rail and fixes the left pane at
 46 pixels. The collapsed strip exposes **Expand library**. The prior resized
 width remains in memory and returns on explicit expansion. The expanded pane
 starts at 216 pixels and cannot be dragged below 184 pixels. A 34% viewport-width
