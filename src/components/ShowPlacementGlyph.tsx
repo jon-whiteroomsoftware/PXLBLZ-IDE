@@ -128,7 +128,7 @@ export function describeShowPlacement({
     ? transform.scaleX === 1 ? 'Full Zone' : `${formatRatio(transform.scaleX)} size`
     : `${formatRatio(transform.scaleX)} by ${formatRatio(transform.scaleY)}`
   const where = transform.positionX === 0 && transform.positionY === 0
-    ? 'centred'
+    ? 'centered'
     : `offset ${transform.positionX >= 0 ? 'right' : 'left'} ${Math.abs(transform.positionX).toFixed(2)}, ${transform.positionY >= 0 ? 'down' : 'up'} ${Math.abs(transform.positionY).toFixed(2)}`
   const turned = transform.rotation === 0 ? '' : `, turned ${Math.round(transform.rotation * 360)} degrees`
   const placement = `${size}, ${where}${turned}`

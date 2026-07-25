@@ -24,7 +24,9 @@ describe('Show render-target residual-headroom census (#514)', () => {
       && entry.pixelCount === 2_000
       && Array.isArray(entry.rejectionReasons)
     ))).toBe(true)
-    expect(report.summary.savedShowCount).toBe(17)
+    // Recensused with the #363 Learn recast: the catalogue dropped from 19
+    // Shows to 15, and every one of them now clears the portable-2d filter.
+    expect(report.summary.savedShowCount).toBe(15)
     expect(report.summary.savedShowRejections).toHaveLength(0)
     expect(report.summary.savedShowRejections.every((entry) => !entry.failsSolelyBecauseOfReservation)).toBe(true)
   })

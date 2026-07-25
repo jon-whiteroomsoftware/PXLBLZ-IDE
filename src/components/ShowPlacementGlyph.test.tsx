@@ -10,7 +10,7 @@ const viewport = (patch: Partial<ShowClipViewport> = {}): ShowClipViewport => ({
 
 describe('placement description', () => {
   it('reads a neutral placement plainly', () => {
-    expect(describeShowPlacement({ transform: transform() })).toBe('Full Zone, centred · no aperture')
+    expect(describeShowPlacement({ transform: transform() })).toBe('Full Zone, centered · no aperture')
   })
 
   it('names a turned box', () => {
@@ -19,7 +19,7 @@ describe('placement description', () => {
 
   it('prefers a shape people would say aloud over coordinates', () => {
     const summary = describeShowPlacement({ transform: transform(), viewport: viewport({ width: 1 / 3 }) })
-    expect(summary).toBe('Full Zone, centred · left a third visible')
+    expect(summary).toBe('Full Zone, centered · left a third visible')
   })
 
   it('falls back to extents when the window is not edge-aligned', () => {
@@ -37,7 +37,7 @@ describe('placement description', () => {
 
   it('splits the read for the paired views', () => {
     const props = { transform: transform({ scaleX: 0.5, scaleY: 0.5 }), viewport: viewport({ width: 0.5 }) }
-    expect(describeShowPlacement({ ...props, view: 'placement' })).toBe('half size, centred')
+    expect(describeShowPlacement({ ...props, view: 'placement' })).toBe('half size, centered')
     expect(describeShowPlacement({ ...props, view: 'aperture' })).toContain('visible')
   })
 
@@ -45,11 +45,11 @@ describe('placement description', () => {
     expect(describeShowPlacement({
       transform: transform({ scaleX: 4 / 3, scaleY: 4 / 3 }),
       view: 'placement',
-    })).toBe('4/3 size, centred')
+    })).toBe('4/3 size, centered')
     expect(describeShowPlacement({
       transform: transform({ scaleX: 2, scaleY: 2 }),
       view: 'placement',
-    })).toBe('2x size, centred')
+    })).toBe('2x size, centered')
   })
 
   it('reports an absent aperture in the aperture view', () => {
@@ -60,12 +60,12 @@ describe('placement description', () => {
 describe('glyph rendering', () => {
   it('labels itself with the same read for screen readers', () => {
     render(<ShowPlacementGlyph transform={transform()} />)
-    expect(screen.getByRole('img', { name: 'Full Zone, centred · no aperture' })).toBeInTheDocument()
+    expect(screen.getByRole('img', { name: 'Full Zone, centered · no aperture' })).toBeInTheDocument()
   })
 
   it('exposes an accurate accessible label for enlarged content', () => {
     render(<ShowPlacementGlyph transform={transform({ scaleX: 4 / 3, scaleY: 4 / 3 })} />)
-    expect(screen.getByRole('img', { name: '4/3 size, centred · no aperture' })).toBeInTheDocument()
+    expect(screen.getByRole('img', { name: '4/3 size, centered · no aperture' })).toBeInTheDocument()
   })
 
   it('draws a dashed window only when an aperture is enabled', () => {
@@ -105,6 +105,6 @@ describe('glyph rendering', () => {
 describe('full-Zone aperture', () => {
   it('says so plainly rather than reading as an extent', () => {
     expect(describeShowPlacement({ transform: transform(), viewport: viewport() }))
-      .toBe('Full Zone, centred · aperture over the whole Zone')
+      .toBe('Full Zone, centered · aperture over the whole Zone')
   })
 })

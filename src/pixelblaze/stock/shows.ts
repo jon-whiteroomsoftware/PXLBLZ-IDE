@@ -111,8 +111,7 @@ const CARDINAL_DIRECTIONS = [
 ] as const
 
 export const STOCK_SHOWS: StockShow[] = [
-  learn101(), learn102(), learn103(), learn104(), learn105(),
-  learn201(), learn202(), learn203(), learn204(), learn205(),
+  learn101(), learn102(), learn103(), learn104(), learn105(), learn106(),
   effectShowcase('transform'), effectShowcase('distortion'), effectShowcase('color-output'),
   wipeAndMixTransitionReference(), shapeRevealTransitionReference(), motionTransitionReference(),
   propertyAnimationReference(), easingReference(),
@@ -269,195 +268,189 @@ function learn103(): StockShow {
     id, title: 'Clip Transform', track: 'portable', collection: 'learn', level: 100, order: 3,
     purpose: 'A Clip can be moved, turned, resized, or flipped on the Stage. The Pattern inside it keeps playing exactly as before; only where its picture lands changes, and no second copy of the Pattern is started.',
     notice: 'Every Clip here shares one Pattern instance, so the rose keeps turning at the same rate while only its placement changes.',
-    prompts: ['Center the offset Clip (2) by setting Position back to 0, 0.', 'Rotate the Scale Clip (4) a quarter turn and watch the sweep follow.'],
+    prompts: ['Center the offset Clip (2) by setting Position back to 0, 0.', 'Rotate the Scale Clip (4) by 72 degrees; because that differs from Clip 3, the timeline gives it its own marker.'],
     guideHeading: 'clip-transform',
     output: portableOutput(), zones, layouts: [singleLayout(zones)], scenes, composition,
   })
 }
 
+// 104 needs a Pattern with one unmistakable silhouette, because the whole
+// lesson rests on seeing where that silhouette lands. Move and Resize are the
+// right pair for a near-symmetric blob: both are Transform-stage Effects, so
+// swapping them proves the list is ordered, and the difference shows up purely
+// as position. Resize scales the offset that Move has already applied, so
+// moving first lands the shape halfway in while resizing first leaves it out at
+// full distance. Rotation would be the obvious pair but reads as almost nothing
+// on a shape this close to rotationally symmetric.
 function learn104(): StockShow {
-  const id = 'stock-show-104-portable-zones'
-  const zones = logicalZones(['Left', 'Right'], 2_000)
-  const iris = { sliderSpeed: 0.30, sliderAperture: 0.62, sliderColor: 0.10 }
-  const scenes: SceneSpec[] = [
-    scene('separate', 'Separate', 8, [clip('zone-1', 'EasedSweep', 0.42), clip('zone-2', 'ClockworkIris', 0.30, iris)]),
-    scene('exchange', 'Exchange', 8, [clip('zone-1', 'ClockworkIris', 0.30, iris), clip('zone-2', 'EasedSweep', 0.42)]),
+  const id = 'stock-show-104-effects-and-ordering'
+  const zones = logicalZones(['Main'], PORTABLE_REFERENCE_PIXELS)
+  const move: ShowClipEffect = { id: 'move', kind: 'translate', x: 0.42, y: 0 }
+  const resize: ShowClipEffect = { id: 'resize', kind: 'scale', x: 0.5, y: 0.5 }
+  const stacks: Array<[string, ShowClipEffect[]]> = [
+    ['clip-plain', []],
+    ['clip-move', [move]],
+    ['clip-move-resize', [move, resize]],
+    ['clip-resize-move', [resize, move]],
   ]
-  return catalogue({
-    id, title: 'Portable Zones', track: 'portable', collection: 'learn', level: 100, order: 4,
-    purpose: 'Portable Zones divide a normalized surface without depending on a specific LED count. Each Zone can run its own Pattern instance and clock.',
-    notice: 'The Zone overlay stays fixed while the two Patterns exchange sides.',
-    prompts: ['Turn off one Zone in the Stage preview.', 'Move the Split from 0.50 to 0.35.'],
-    guideHeading: 'portable-zones',
-    output: portableOutput(), zones, layouts: [splitLayout('layout-side-by-side', 'Side by side', zones, 'x')], scenes,
-    transitions: [boundary('separate', 'crossfade', 1_200, SINE_IN_OUT)],
-  })
-}
-
-function learn105(): StockShow {
-  const id = 'stock-show-105-built-from-basics'
-  const zones = logicalZones(['Sky', 'Signal', 'Ground'], 2_000)
   const scenes: SceneSpec[] = [
-    scene('gather', 'Gather', 10, [
-      clip('zone-1', 'Caustics', 0.25, { sliderSpeed: 0.25 }, 0.75),
-      clip('zone-2', 'EasedSweep', 0.35, undefined, 0.75),
-      clip('zone-3', 'ClockworkIris', 0.24, { sliderSpeed: 0.24 }, 0.75),
-    ]),
-    scene('drive', 'Drive', 10, [
-      clip('zone-1', 'NeonCircuitBoard', 0.30, { sliderSpeed: 0.30, sliderDensity: 0.10 }, 1),
-      clip('zone-2', 'CompassRose', 0.26, { sliderSpeed: 0.26, sliderSweep: 0.72 }, 1, [{ id: 'signal-hue', kind: 'hue', turns: 0.08 }]),
-      clip('zone-3', 'ShapeShifter', 0.24, { sliderSpeed: 0.24, sliderShape: 0.12 }, 1),
-    ]),
-    scene('resolve', 'Resolve', 10, [
-      clip('zone-1', 'TopographicBloom', 0.24, { sliderSpeed: 0.24 }, 0.78),
-      clip('zone-2', 'EasedSweep', 0.30, undefined, 0.78),
-      clip('zone-3', 'Caustics', 0.22, { sliderSpeed: 0.22 }, 0.78, [{ id: 'ground-scale', kind: 'scale', x: 0.88, y: 0.88 }]),
-    ]),
-  ]
-  return catalogue({
-    id, title: 'Built from Basics', track: 'portable', collection: 'learn', level: 100, order: 5,
-    purpose: 'A complete short Show can come from Clips, two Transitions, a few Effects, and one static Zone Layout. Complexity comes from sequencing simple decisions rather than maximizing every control.',
-    notice: 'Each passage has one dominant change even though three Zones are active.',
-    prompts: ['Mute the Signal Zone and watch how the composition loses its beat.', 'Replace the final Crossfade with a Wipe.'],
-    guideHeading: 'building-a-complete-show',
-    output: { kind: 'portable', mapId: 'wide', pixelCount: 2_000 }, zones,
-    layouts: [{ id: 'layout-three-bands', name: 'Three bands', zones: [], logical: { kind: 'stripes', zoneIds: zones.map((zone) => zone.id), axis: 'y' } }], scenes,
-    transitions: [
-      brightnessBoundary('gather', 'wipe', 1_400, CUBIC_IN_OUT, scenes[1], 0.75, { direction: 0, feather: 0.08, edgePolicy: 'dither' }),
-      brightnessBoundary('drive', 'crossfade', 2_000, SINE_IN_OUT, scenes[2], 1),
-    ],
-  })
-}
-
-function learn201(): StockShow {
-  const id = 'stock-show-201-scene-local-cuts'
-  const zones = logicalZones(['Main'], 2_000)
-  const scenes = [scene('three-beats', 'Three beats', 18, [clip('zone-1', 'EasedSweep', 0.42)])]
-  const instances = [
-    instance('sweep', 'EasedSweep', 0.42),
-    instance('iris', 'ClockworkIris', 0.30, { sliderAperture: 0.58 }),
-    instance('caustics', 'Caustics', 0.30, { sliderSpeed: 0.26 }),
+    scene('stacks', 'Stacks', 16, [clip('zone-1', 'ShapeShifter', LESSON_TIME_SCALE)]),
   ]
   const composition: ShowCompositionV1 = {
-    version: 1, patternInstances: instances,
-    scenes: [{ sceneId: 'three-beats', zones: [{ zoneId: 'zone-1', overlays: [], main: [
-      placement('main-sweep', 'sweep', 0, 6), placement('main-iris', 'iris', 6, 6), placement('main-caustics', 'caustics', 12, 6),
-    ] }] }],
+    version: 1,
+    patternInstances: [instance('shape', 'ShapeShifter', LESSON_TIME_SCALE)],
+    scenes: [{
+      sceneId: 'stacks',
+      zones: [{
+        zoneId: 'zone-1',
+        overlays: [],
+        main: stacks.map(([placementId, effects], index) => ({
+          ...placement(placementId, 'shape', index * 4, 4),
+          ...(effects.length > 0 ? { effects } : {}),
+        })),
+      }],
+    }],
+    durationMs: 16_000,
   }
   return catalogue({
-    id, title: 'Clip Sequencing and Cuts', track: 'portable', collection: 'learn', level: 200, order: 1,
-    purpose: 'A Layer can carry its own sequence of Clips. The unified timeline keeps every beat visible without introducing another editing scope.',
-    notice: 'The three Clips are mutually exclusive and completely cover the Layer interval.',
-    prompts: ['Drag the second Cut one second earlier.', 'Change the final Clip to continue its clock instead of restarting.'],
-    guideHeading: 'clip-sequencing-and-cuts', output: portableOutput(), zones, layouts: [singleLayout(zones)], scenes, composition,
+    id, title: 'Effects and Ordering', track: 'portable', collection: 'learn', level: 100, order: 4,
+    purpose: 'An Effect changes the picture a Clip has already drawn, without editing the Pattern. A Clip holds its Effects as a list, and each one works on the result of the one above it, so the same two Effects in a different order do not give the same picture.',
+    notice: 'The last two Clips carry the same Move and the same Resize. Only the order differs: Clip 3 moves and then shrinks, so it lands halfway in, and Clip 4 shrinks and then moves, so it stays out at the edge.',
+    prompts: ['On Clip 4, use Move later on the Resize Effect and watch it land where Clip 3 does.', 'Open the Move Effect on Clip 2, set its distance to 0, and confirm the Clip returns to the reference.'],
+    guideHeading: 'clip-effects',
+    output: portableOutput(), zones, layouts: [singleLayout(zones)], scenes, composition,
   })
 }
 
-function learn202(): StockShow {
-  const id = 'stock-show-202-layers-local-animation'
-  const zones = logicalZones(['Main'], 2_000)
-  const scenes = [scene('signal-water', 'Signal over water', 16, [clip('zone-1', 'Caustics', 0.28, { sliderSpeed: 0.24, sliderSharpness: 0.28 })])]
-  const tracks: ShowPropertyAnimationTrack[] = [{
-    id: 'track-signal-opacity', target: { kind: 'placement-opacity', placementId: 'overlay-signal' },
-    keyframes: [
-      keyframe('opacity-0', 3, 0), keyframe('opacity-in', 5, 0.72), keyframe('opacity-hold', 11, 0.72), keyframe('opacity-out', 13, 0),
-    ],
-  }]
+// 105 pairs woven linework against a soft liquid field so the split reads as a
+// boundary between two different pictures rather than one picture with a seam.
+// Two instances serve all four Clips: the swap at the halfway Cut is a change of
+// side, not a second pair of Patterns, which is also what keeps the artifact
+// small enough for two Zones to be affordable.
+function learn105(): StockShow {
+  const id = 'stock-show-105-portable-zones'
+  const zones = logicalZones(['Left', 'Right'], PORTABLE_REFERENCE_PIXELS)
+  const scenes: SceneSpec[] = [
+    scene('sides', 'Sides', 14, [
+      clip('zone-1', 'RibbonLoom', LESSON_TIME_SCALE),
+      clip('zone-2', 'Caustics', LESSON_TIME_SCALE),
+    ]),
+  ]
   const composition: ShowCompositionV1 = {
     version: 1,
     patternInstances: [
-      instance('water', 'Caustics', 0.28, { sliderSpeed: 0.24, sliderSharpness: 0.28 }),
-      instance('signal', 'SignalMandala', 0.28),
+      instance('ribbons', 'RibbonLoom', LESSON_TIME_SCALE),
+      instance('water', 'Caustics', LESSON_TIME_SCALE),
     ],
-    scenes: [{ sceneId: 'signal-water', propertyTracks: tracks, zones: [{ zoneId: 'zone-1',
-      main: [placement('main-water', 'water', 0, 16)],
-      overlays: [{ id: 'layer-signal', name: 'Signal', placements: [{
-        ...placement('overlay-signal', 'signal', 3, 10), opacity: 0,
-        effects: [{ id: 'signal-scale', kind: 'scale', x: 0.76, y: 0.76 }, { id: 'signal-hue', kind: 'hue', turns: 0.08 }],
-      }] }],
-    }] }],
+    scenes: [{
+      sceneId: 'sides',
+      zones: [
+        {
+          zoneId: 'zone-1',
+          overlays: [],
+          main: [placement('clip-left-ribbons', 'ribbons', 0, 7), placement('clip-left-water', 'water', 7, 7)],
+        },
+        {
+          // The Cut lands at the same instant in both Zones, so the two Patterns
+          // trade sides in one move instead of drifting past each other.
+          zoneId: 'zone-2',
+          overlays: [],
+          main: [placement('clip-right-water', 'water', 0, 7), placement('clip-right-ribbons', 'ribbons', 7, 7)],
+        },
+      ],
+    }],
+    durationMs: 14_000,
   }
   return catalogue({
-    id, title: 'Layers and Local Animation', track: 'portable', collection: 'learn', level: 200, order: 2,
-    purpose: 'Layers let more than one Pattern contribute at the same time. Keyframes animate a typed property without creating extra Clips.',
-    notice: 'The overlay exists only from 3-13 seconds, while its opacity controls how it enters and leaves that interval.',
-    prompts: ['Raise the peak opacity from 0.72 to 1.0.', 'Drag the overlay into a new layer and compare the stacking order.'],
-    guideHeading: 'layers-and-property-animation', output: portableOutput(), zones, layouts: [singleLayout(zones)], scenes, composition,
+    id, title: 'Portable Zones', track: 'portable', collection: 'learn', level: 100, order: 5,
+    purpose: 'A Zone is a named part of the Stage that holds its share of whatever surface the Show ends up on. Each Zone runs its own Clip, so two Patterns play side by side without either one being told how many LEDs it got.',
+    notice: 'The split never moves. At the halfway Cut the two Patterns simply trade sides. Open the Zone Map from the timeline toolbar to see both Zones listed.',
+    prompts: ['Open the Zone Map, Focus the Right Zone, and watch the Left one drop out of the Stage.', 'Drag the Cut in one Zone a second earlier so the two sides stop trading at the same instant.'],
+    guideHeading: 'portable-zones',
+    output: portableOutput(), zones, layouts: [splitLayout('layout-side-by-side', 'Side by side', zones, 'x')], scenes, composition,
   })
 }
 
-function learn203(): StockShow {
-  const id = 'stock-show-203-dynamic-zone-layouts'
-  const zones = logicalZones(['A', 'B'], 2_000)
-  const pair = () => [clip('zone-1', 'ClockworkIris', 0.30), clip('zone-2', 'Caustics', 0.30)]
-  const scenes = [
-    scene('narrow-a', 'Narrow A', 8, pair(), { splitPosition: 0.35 }),
-    scene('wide-a', 'Wide A', 8, pair(), { splitPosition: 0.65 }),
-    scene('turn', 'Turn', 8, pair(), { splitPosition: 0.65 }),
-  ]
-  return catalogue({
-    id, title: 'Dynamic Zone Layouts', track: 'portable', collection: 'learn', level: 200, order: 3,
-    purpose: 'Zone names describe ownership; Zone Layouts describe geometry. The same two Zones can move or adopt a different arrangement without replacing their Patterns.',
-    notice: 'The first boundary animates one layout parameter; the second chooses another named layout.',
-    prompts: ['Change the first split targets to 0.20 and 0.80.', 'Toggle the Zone overlay before the Horizontal switch.'],
-    guideHeading: 'dynamic-zone-layouts', output: portableOutput(), zones,
-    layouts: [splitLayout('layout-vertical', 'Vertical', zones, 'x'), splitLayout('layout-horizontal', 'Horizontal', zones, 'y')], scenes,
-    transitions: [
-      boundary('narrow-a', 'crossfade', 1_800, SINE_IN_OUT, { propertyTransitions: { routing: { splitPosition: { from: 0.35, durationMs: 1_800, easing: SINE_IN_OUT } } } }),
-      boundary('wide-a', 'crossfade', 1_200, SINE_IN_OUT),
-      { id: 'routing-wide-a', afterSceneId: 'wide-a', kind: 'routing', durationMs: 0, easing: LINEAR, layoutId: 'layout-horizontal' },
-    ],
-  })
-}
-
-function learn204(): StockShow {
-  const id = 'stock-show-204-installation-mapping'
-  const zones = physicalZones(['Left bank', 'Right bank'], [80, 80])
-  const scenes = [scene('two-banks', 'Two banks', 14, [
-    clip('zone-1', 'EasedSweep', 0.38),
-    clip('zone-2', 'ClockworkIris', 0.28, { sliderAperture: 0.62, sliderColor: 0.10 }),
-  ])]
-  return catalogue({
-    id, title: 'Installation Mapping', track: 'installation', collection: 'learn', level: 200, order: 4,
-    purpose: 'An Installation Show promises one fixed map and LED count. Physical ranges assign measured LEDs to named Zones.',
-    notice: "The two 80-pixel banks come from the custom map's actual index order, not a normalized left/right split.",
-    prompts: ['Turn on the Zone overlay and compare it with the physical ranges.', 'Solo the Right bank without pausing playback.'],
-    guideHeading: 'installation-output-and-physical-ranges', output: installationOutput(), zones,
-    layouts: [physicalLayout('layout-banks', 'Two banks', zones, [[[0, 79]], [[80, 159]]])], scenes,
-  })
-}
-
-function learn205(): StockShow {
-  const id = 'stock-show-205-installation-composition'
-  const zones = physicalZones(['Top pair', 'Upper middle', 'Lower middle', 'Bottom pair'], [40, 40, 40, 40])
+// 106 is the capstone, so it spends its budget on recombination rather than on
+// new material: every element below was taught in 101-105 and nothing else
+// appears. The Sky takes the radial family and the Ground takes the blob family
+// that opened 101, so the two Zones stay tellable apart for the whole arc and
+// the last lesson closes on the first lesson's Pattern.
+function learn106(): StockShow {
+  const id = 'stock-show-106-built-from-basics'
+  const zones = logicalZones(['Sky', 'Ground'], PORTABLE_REFERENCE_PIXELS)
   const scenes: SceneSpec[] = [
-    scene('wake', 'Wake', 10, [
-      clip('zone-1', 'EasedSweep', 0.35, undefined, 0.72), clip('zone-2', 'Caustics', 0.35, undefined, 0.72),
-      clip('zone-3', 'Caustics', 0.35, undefined, 0.72), clip('zone-4', 'EasedSweep', 0.35, undefined, 0.72),
-    ]),
-    scene('answer', 'Answer', 10, [
-      clip('zone-1', 'CompassRose', 0.30), clip('zone-2', 'ClockworkIris', 0.30, undefined, 1, [{ id: 'hue-plus', kind: 'hue', turns: 0.08 }]),
-      clip('zone-3', 'ClockworkIris', 0.30, undefined, 1, [{ id: 'hue-minus', kind: 'hue', turns: -0.08 }]), clip('zone-4', 'CompassRose', 0.30),
-    ]),
-    scene('settle', 'Settle', 10, [
-      clip('zone-1', 'TopographicBloom', 0.26, undefined, 0.78, [{ id: 'scale-top', kind: 'scale', x: 0.86, y: 0.86 }]),
-      clip('zone-2', 'Caustics', 0.26, undefined, 0.78), clip('zone-3', 'Caustics', 0.26, undefined, 0.78),
-      clip('zone-4', 'TopographicBloom', 0.26, undefined, 0.78, [{ id: 'scale-bottom', kind: 'scale', x: 0.86, y: 0.86 }]),
+    scene('arc', 'Arc', 24, [
+      clip('zone-1', 'TopographicBloom', LESSON_TIME_SCALE),
+      clip('zone-2', 'MetaballGarden', LESSON_TIME_SCALE),
     ]),
   ]
-  return catalogue({
-    id, title: 'Installation Composition', track: 'installation', collection: 'learn', level: 200, order: 5,
-    purpose: 'A fixed installation can group non-contiguous LEDs into meaningful physical units and choreograph them as one composition.',
-    notice: 'Each row-pair Zone owns two separate index ranges while the compiler still guarantees complete, non-overlapping coverage.',
-    prompts: ['Solo one row pair and inspect its two physical ranges.', 'Reverse the first Wipe direction.'],
-    guideHeading: 'composing-a-fixed-installation', output: installationOutput(), zones,
-    layouts: [physicalLayout('layout-row-pairs', 'Row pairs', zones, [
-      [[0, 19], [80, 99]], [[20, 39], [100, 119]], [[40, 59], [120, 139]], [[60, 79], [140, 159]],
-    ])], scenes,
-    transitions: [
-      brightnessBoundary('wake', 'wipe', 1_500, CUBIC_IN_OUT, scenes[1], 0.72, { direction: 0.75, feather: 0.08, edgePolicy: 'dither' }),
-      brightnessBoundary('answer', 'crossfade', 2_000, SINE_IN_OUT, scenes[2], 1),
+  const composition: ShowCompositionV1 = {
+    version: 1,
+    patternInstances: [
+      instance('bloom', 'TopographicBloom', LESSON_TIME_SCALE),
+      instance('mandala', 'SignalMandala', LESSON_TIME_SCALE),
+      instance('garden', 'MetaballGarden', LESSON_TIME_SCALE),
     ],
+    scenes: [{
+      sceneId: 'arc',
+      propertyTracks: [{
+        // One value curve, on the Clip that closes the Show. The Sky releases
+        // while the Ground is still holding, which is what makes the ending read
+        // as a decision rather than a stop.
+        id: 'track-sky-release',
+        target: { kind: 'placement-view', placementId: 'clip-sky-reprise', property: 'brightness' },
+        keyframes: [
+          keyframe('sky-arrive', 18, 1),
+          keyframe('sky-hold', 21, 1),
+          keyframe('sky-release', 24, 0.3),
+        ],
+      }],
+      // No instance is placed in two Zones at once. Each Zone owns its own
+      // material, which reads more clearly and is also what keeps the compiled
+      // artifact well inside budget: a Pattern placed in two Zones has to be
+      // emitted twice.
+      zones: [
+        {
+          zoneId: 'zone-1',
+          overlays: [],
+          main: [
+            placement('clip-sky-bloom', 'bloom', 0, 8),
+            // A real gap: the Crossfade owns these two seconds on the ruler.
+            placement('clip-sky-mandala', 'mandala', 10, 8),
+            placement('clip-sky-reprise', 'bloom', 18, 6),
+          ],
+        },
+        {
+          zoneId: 'zone-2',
+          overlays: [],
+          main: [
+            placement('clip-ground-garden', 'garden', 0, 11),
+            // One second of blank time in the Ground while the Sky keeps going.
+            {
+              // The return is the same instance seen from a different pose, and
+              // it carries the Show's only Effect.
+              ...placement('clip-ground-return', 'garden', 12, 12),
+              transform: { ...NEUTRAL_SHOW_CLIP_TRANSFORM, scaleX: 0.7, scaleY: 0.7 },
+              effects: [{ id: 'ground-hue', kind: 'hue', turns: 0.12 }],
+            },
+          ],
+        },
+      ],
+    }],
+    transitions: [{
+      id: 'transition-sky-bloom-mandala', fromPlacementId: 'clip-sky-bloom', toPlacementId: 'clip-sky-mandala',
+      kind: 'crossfade', durationMs: 2_000, easing: SINE_IN_OUT,
+    }],
+    durationMs: 24_000,
+  }
+  return catalogue({
+    id, title: 'Built from Basics', track: 'portable', collection: 'learn', level: 100, order: 6,
+    purpose: 'Everything in this Show came from the five lessons before it: Clips and Cuts, blank time, one Transition, one value curve, one Clip Transform, one Effect, and two Zones. A Show gets its shape from how few decisions are placed well, not from how many are switched on.',
+    notice: 'Only one thing changes at a time. Find the Crossfade in the Sky, the blank second in the Ground, and the single Effect on the last Ground Clip.',
+    prompts: ['Delete the Crossfade and watch the same junction become a Cut.', 'Stretch the blank second in the Ground to three and see how much the ending changes.'],
+    guideHeading: 'building-a-complete-show',
+    output: portableOutput(), zones, layouts: [splitLayout('layout-sky-ground', 'Sky and ground', zones, 'y')], scenes, composition,
   })
 }
 
@@ -1116,19 +1109,6 @@ function effectTweenBoundary(
   })
 }
 
-function brightnessBoundary(afterSceneId: string, kind: 'wipe' | 'crossfade', durationMs: number, easing: ShowStructuredEasing, destination: SceneSpec, from: number, extra: Partial<ShowBoundaryTransition> = {}): ShowBoundaryTransition {
-  return boundary(afterSceneId, kind, durationMs, easing, {
-    ...extra,
-    propertyTransitions: {
-      ...extra.propertyTransitions,
-      brightness: {
-        fromByCellId: Object.fromEntries(destination.clips.map((item) => [cellId(destination.id, item.zoneId), from])),
-        durationMs, easing,
-      },
-    },
-  })
-}
-
 function cutBoundaries(scenes: SceneSpec[]): ShowBoundaryTransition[] {
   return scenes.slice(0, -1).map((item) => boundary(item.id, 'cut', 0, LINEAR))
 }
@@ -1160,10 +1140,6 @@ function physicalLayout(id: string, name: string, zones: ShowZone[], ranges: Arr
 
 function portableOutput(): CatalogueInput['output'] {
   return { kind: 'portable', mapId: 'plane', pixelCount: PORTABLE_REFERENCE_PIXELS }
-}
-
-function installationOutput(): CatalogueInput['output'] {
-  return { kind: 'installation', mapId: 'sunflower-pucks-2d', pixelCount: 160 }
 }
 
 function cellId(sceneId: string, zoneId: string): string {

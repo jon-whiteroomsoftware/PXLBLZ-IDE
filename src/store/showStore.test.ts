@@ -942,7 +942,7 @@ describe('showStore (#318)', () => {
 })
 
 describe('built-in Show session drafts (#363)', () => {
-  const STOCK_ID = 'stock-show-101-clips-crossfade'
+  const STOCK_ID = 'stock-show-101-clips-cuts-blank-time'
 
   it('edits a built-in Show into an in-memory draft without any provider write', async () => {
     const provider = memoryProvider()
@@ -951,7 +951,7 @@ describe('built-in Show session drafts (#363)', () => {
     setPersonalContentProvider(provider)
 
     const base = useShowStore.getState().resolveEditableShow(STOCK_ID)!
-    expect(base.name).toBe('101 Clips and Crossfade')
+    expect(base.name).toBe('101 Clips, Cuts, and Blank Time')
 
     await useShowStore.getState().addScene(STOCK_ID)
 

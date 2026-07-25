@@ -3264,21 +3264,21 @@ describe('ShowEditor (#318)', () => {
 
   it('projects one Scene-local keyframe animation into one main-timeline sparkline', async () => {
     const user = userEvent.setup()
-    const stock = STOCK_SHOWS.find((candidate) => candidate.id === 'stock-show-202-layers-local-animation')!
+    const stock = STOCK_SHOWS.find((candidate) => candidate.id === 'stock-show-102-transitions-values')!
 
     render(<ShowEditor showId={stock.id} showOverride={stock.show} readOnly />)
 
-    const localAnimation = screen.getByRole('group', { name: 'SignalMandala opacity animation for Main' })
+    const localAnimation = screen.getByRole('group', { name: 'SignalMandala brightness animation for Main' })
     expect(localAnimation.querySelector('polyline')).toBeInTheDocument()
-    expect(localAnimation.querySelectorAll('[data-property-beat-dot]')).toHaveLength(4)
+    expect(localAnimation.querySelectorAll('[data-property-beat-dot]')).toHaveLength(3)
     expect(screen.getAllByRole('group', { name: /animation for Main$/ })).toHaveLength(1)
     expect(screen.queryByRole('group', { name: 'Animation speed lane for Main' })).not.toBeInTheDocument()
 
     await user.click(screen.getByRole('button', { name: 'Select SignalMandala' }))
     const panel = screen.getByRole('dialog', { name: 'Entity Detail Panel' })
     expect(within(panel).queryByText('Unsupported Property')).not.toBeInTheDocument()
-    expect(within(panel).getByRole('group', { name: 'Opacity keyframes' })).toBeInTheDocument()
-    expect(within(panel).getByRole('button', { name: 'Delete Opacity animation' })).toBeDisabled()
+    expect(within(panel).getByRole('group', { name: 'Brightness keyframes' })).toBeInTheDocument()
+    expect(within(panel).getByRole('button', { name: 'Delete Brightness animation' })).toBeDisabled()
   })
 
   it('authors and removes a Clip Property animation from the unified inspector (#607)', async () => {

@@ -9,6 +9,7 @@ import { loadPattern, nativeDimension } from '@/engine/loadPattern'
 import { createFastReplayRuntime } from '@/engine/fastReplay'
 import { createShim } from '@/engine/shim'
 import { validateShowComposition } from '@/engine/showCompositionModel'
+import { createInstallationCompositionFixture } from '@/engine/showInstallationTestFixture'
 import { projectShowTimeline } from '@/engine/showModel'
 import { SHOW_EASING_OPTIONS, showEasingOptionId } from '@/engine/showEasing'
 import { SHOW_VISUAL_TOOLKIT_REGISTRY } from '@/engine/showVisualToolkit'
@@ -19,20 +20,16 @@ import { SOURCE_STOCK_MAPS } from './maps/stockCatalogue'
 import { STOCK_SHOWS, stockShowById } from './shows'
 
 describe('stock Show curriculum (#363)', () => {
-  it('ships the stable Learn 100, Learn 200, and showcase catalogue', () => {
-    expect(STOCK_SHOWS).toHaveLength(19)
+  it('ships the stable Learn 100 and showcase catalogue', () => {
+    expect(STOCK_SHOWS).toHaveLength(15)
     expect(new Set(STOCK_SHOWS.map((item) => item.id)).size).toBe(STOCK_SHOWS.length)
     expect(STOCK_SHOWS.map((item) => [item.name, item.collection, item.level, item.order])).toEqual([
       ['101 Clips, Cuts, and Blank Time', 'learn', 100, 1],
       ['102 Transitions and Values', 'learn', 100, 2],
       ['103 Clip Transform', 'learn', 100, 3],
-      ['104 Portable Zones', 'learn', 100, 4],
-      ['105 Built from Basics', 'learn', 100, 5],
-      ['201 Clip Sequencing and Cuts', 'learn', 200, 1],
-      ['202 Layers and Local Animation', 'learn', 200, 2],
-      ['203 Dynamic Zone Layouts', 'learn', 200, 3],
-      ['204 Installation Mapping', 'learn', 200, 4],
-      ['205 Installation Composition', 'learn', 200, 5],
+      ['104 Effects and Ordering', 'learn', 100, 4],
+      ['105 Portable Zones', 'learn', 100, 5],
+      ['106 Built from Basics', 'learn', 100, 6],
       ['Transform Effects', 'showcases', null, 1],
       ['Distortion Effects', 'showcases', null, 2],
       ['Color and Output Effects', 'showcases', null, 3],
@@ -193,7 +190,13 @@ describe('stock Show curriculum (#363)', () => {
     'stock-show-101-clips-cuts-blank-time',
     'stock-show-102-transitions-values',
     'stock-show-103-clip-transform',
+    'stock-show-104-effects-and-ordering',
+    'stock-show-105-portable-zones',
+    'stock-show-106-built-from-basics',
   ]
+  // Simultaneity is itself the subject from 105 onward, so those two lessons
+  // are allowed the second Zone the earlier four must do without.
+  const SINGLE_ZONE_IDS = FOUNDATION_IDS.slice(0, 4)
   const foundations = () => FOUNDATION_IDS.map((id) => stockShowById(id)!)
   const lessonPatternNames = (item: (typeof STOCK_SHOWS)[number]) => [
     ...item.show.cells.map((cell) => cell.patternName),
@@ -256,11 +259,12 @@ describe('stock Show curriculum (#363)', () => {
     }
   })
 
-  it('runs each foundation lesson on one Zone so simultaneity stays out of the lesson', () => {
-    // Measured: cost scales with simultaneous zones (~4 KB each), not with
-    // Pattern variety (~1 KB per sequential reprise).
+  it('spends a second Zone only where the lesson is about simultaneity', () => {
+    // Measured: cost scales with simultaneous Zones, not with Pattern variety
+    // (~1 KB per sequential reprise). No foundation lesson needs a third.
     for (const item of foundations()) {
-      expect(item.show.zones, item.name).toHaveLength(1)
+      const expected = SINGLE_ZONE_IDS.includes(item.id) ? 1 : 2
+      expect(item.show.zones, item.name).toHaveLength(expected)
     }
   })
 
@@ -319,6 +323,90 @@ describe('stock Show curriculum (#363)', () => {
       .toBeGreaterThanOrEqual(3)
     const poses = main.map((placement) => JSON.stringify([placement.transform, placement.view.mirror]))
     expect(new Set(poses).size, 'each placement shows a distinct pose').toBe(main.length)
+  })
+
+  it('proves Effect order in 104 with the same two Effects swapped', () => {
+    const item = stockShowById('stock-show-104-effects-and-ordering')!
+    const composition = item.show.composition!
+    const main = [...composition.scenes[0].zones[0].main].sort((a, b) => a.startMs - b.startMs)
+
+    // One instance, so the Pattern is provably not what changes between Clips.
+    expect(composition.patternInstances.map((instance) => instance.patternName)).toEqual(['ShapeShifter'])
+    expect(new Set(main.map((placement) => placement.instanceId)).size).toBe(1)
+
+    // The ladder: none, one, two, the same two reversed.
+    expect(main.map((placement) => (placement.effects ?? []).map((effect) => effect.id))).toEqual([
+      [], ['move'], ['move', 'resize'], ['resize', 'move'],
+    ])
+    const [secondLast, last] = [main[2], main[3]]
+    expect(new Set(last.effects!.map((effect) => effect.id)))
+      .toEqual(new Set(secondLast.effects!.map((effect) => effect.id)))
+    expect(last.effects!.map((effect) => effect.id))
+      .not.toEqual(secondLast.effects!.map((effect) => effect.id))
+    // Both Effects are Transform-stage, which is what makes the swap visible
+    // rather than a no-op across two independent stages. Rotation is avoided
+    // deliberately: it reads as almost nothing on a near-symmetric silhouette.
+    expect(new Set(last.effects!.map((effect) => effect.kind))).toEqual(new Set(['translate', 'scale']))
+    // Clip Transform is 103's subject and stays out of this lesson.
+    expect(main.every((placement) => placement.transform === undefined)).toBe(true)
+  })
+
+  it('swaps 105 across two Zones at one shared Cut without a third Pattern', () => {
+    const item = stockShowById('stock-show-105-portable-zones')!
+    const composition = item.show.composition!
+    const [left, right] = composition.scenes[0].zones
+
+    expect(composition.patternInstances.map((instance) => instance.patternName))
+      .toEqual(['RibbonLoom', 'Caustics'])
+    expect(item.show.routingLayouts[0].logical).toMatchObject({ kind: 'split', axis: 'x' })
+
+    // Both Zones cut at the same instant, so the Patterns trade sides in one
+    // move instead of drifting past each other.
+    const cutOf = (zone: typeof left) => {
+      const ordered = [...zone.main].sort((a, b) => a.startMs - b.startMs)
+      return ordered[0].startMs + ordered[0].durationMs
+    }
+    expect(cutOf(left)).toBe(cutOf(right))
+    expect(cutOf(left)).toBe(7_000)
+    expect(left.main.map((placement) => placement.instanceId))
+      .toEqual([...right.main].reverse().map((placement) => placement.instanceId))
+
+    // Zones are the whole subject; nothing else competes for attention.
+    expect(composition.transitions ?? []).toEqual([])
+    expect(composition.scenes[0].propertyTracks ?? []).toEqual([])
+    expect([...left.main, ...right.main].every((placement) => (
+      !placement.effects?.length && placement.transform === undefined
+    ))).toBe(true)
+  })
+
+  it('recombines 106 from 101-105 material and nothing newer', () => {
+    const item = stockShowById('stock-show-106-built-from-basics')!
+    const composition = item.show.composition!
+    const [sky, ground] = composition.scenes[0].zones
+    const placements = [...sky.main, ...ground.main]
+
+    // One of each, once. A capstone that doubles up on any mechanism stops
+    // being a demonstration that few decisions are enough.
+    expect((composition.transitions ?? []).map((transition) => transition.kind)).toEqual(['crossfade'])
+    expect(composition.scenes[0].propertyTracks).toHaveLength(1)
+    expect(placements.filter((placement) => placement.effects?.length).length).toBe(1)
+    expect(placements.filter((placement) => placement.transform !== undefined).length).toBe(1)
+    expect(placements.every((placement) => placement.viewport === undefined)).toBe(true)
+    // No Layers: overlays are 200-level material.
+    expect(sky.overlays).toEqual([])
+    expect(ground.overlays).toEqual([])
+
+    // Blank time survives in the Ground while the Sky keeps playing.
+    const groundMain = [...ground.main].sort((a, b) => a.startMs - b.startMs)
+    expect(groundMain[0].startMs + groundMain[0].durationMs).toBeLessThan(groundMain[1].startMs)
+    expect(composition.durationMs).toBe(24_000)
+
+    // No instance is placed in two Zones at once: each Zone owns its material,
+    // which is also what keeps the compiled artifact affordable.
+    const skyInstances = new Set(sky.main.map((placement) => placement.instanceId))
+    const groundInstances = new Set(ground.main.map((placement) => placement.instanceId))
+    expect([...skyInstances].filter((id) => groundInstances.has(id)), 'no instance spans both Zones')
+      .toEqual([])
   })
 
   it('scores Redline as a 60-second five-surface Installation showcase (#503)', () => {
@@ -492,27 +580,6 @@ describe('stock Show curriculum (#363)', () => {
     }
   }, 30_000)
 
-  it('ships valid local Main scheduling and typed overlay animation in Learn 200', () => {
-    for (const id of ['stock-show-201-scene-local-cuts', 'stock-show-202-layers-local-animation']) {
-      const item = STOCK_SHOWS.find((candidate) => candidate.id === id)!
-      expect(item.show.composition, item.name).toBeDefined()
-      expect(validateShowComposition(item.show, item.show.composition!), item.name).toEqual([])
-    }
-
-    const cuts = STOCK_SHOWS.find((candidate) => candidate.id === 'stock-show-201-scene-local-cuts')!
-    expect(cuts.show.composition!.scenes[0].zones[0].main.map((placement) => [placement.startMs, placement.durationMs]))
-      .toEqual([[0, 6_000], [6_000, 6_000], [12_000, 6_000]])
-
-    const layered = STOCK_SHOWS.find((candidate) => candidate.id === 'stock-show-202-layers-local-animation')!
-    expect(layered.show.composition!.scenes[0].propertyTracks?.[0]).toMatchObject({
-      target: { kind: 'placement-opacity', placementId: 'overlay-signal' },
-      keyframes: [
-        { timeMs: 3_000, value: 0 }, { timeMs: 5_000, value: 0.72 },
-        { timeMs: 11_000, value: 0.72 }, { timeMs: 13_000, value: 0 },
-      ],
-    })
-  })
-
   it('covers every Effect kind in the three data-driven showcases', () => {
     const kinds = STOCK_SHOWS
       .filter((item) => item.id.startsWith('stock-show-showcase-'))
@@ -586,19 +653,15 @@ describe('stock Show curriculum (#363)', () => {
     }
   })
 
-  it('uses representative high-density square Stages for the reviewed Portable compositions', () => {
-    // 101 is recast at the 44x44 square; 105 keeps its legacy 2,000 reference
-    // until its own curriculum slice recasts it.
-    for (const [id, pixels] of [
-      ['stock-show-101-clips-cuts-blank-time', 1_936],
-      ['stock-show-105-built-from-basics', 2_000],
-    ] as const) {
-      const item = stockShowById(id)!
-      expect(item.show.outputContract, id).toMatchObject({
+  it('uses one high-density square Stage across the whole foundation level', () => {
+    // Every Learn 100 lesson renders on the same 44x44 square, so a learner
+    // comparing two lessons is comparing choreography, not resolution.
+    for (const item of foundations()) {
+      expect(item.show.outputContract, item.id).toMatchObject({
         kind: 'portable-2d',
-        referencePixelCount: pixels,
+        referencePixelCount: 1_936,
       })
-      expect(item.show.zones.reduce((sum, zone) => sum + zone.nominalPixelCount, 0), id).toBe(pixels)
+      expect(item.show.zones.reduce((sum, zone) => sum + zone.nominalPixelCount, 0), item.id).toBe(1_936)
     }
   })
 
@@ -613,8 +676,8 @@ describe('stock Show curriculum (#363)', () => {
   }, 15_000)
 
   it('plays distinct routed content after each top-level Scene boundary (#478)', () => {
-    const item = STOCK_SHOWS.find((candidate) => candidate.id === 'stock-show-205-installation-composition')!
-    const compiled = compileShowForArtifact(item.show, [], undefined, {}, { stageDimension: 2 })
+    const show = createInstallationCompositionFixture()
+    const compiled = compileShowForArtifact(show, [], undefined, {}, { stageDimension: 2 })
     const pixelCount = 256
     const mapPoints = Array.from({ length: pixelCount }, (_, index) => ({
       sample: [(index % 16) / 15, Math.floor(index / 16) / 15] as [number, number],
@@ -640,7 +703,7 @@ describe('stock Show curriculum (#363)', () => {
   })
 
   it('keeps Portable logical Zones independent while advancing the Scene schedule (#478)', () => {
-    const item = STOCK_SHOWS.find((candidate) => candidate.id === 'stock-show-104-portable-zones')!
+    const item = stockShowById('stock-show-105-portable-zones')!
     const compiled = compileShowForArtifact(item.show, [], undefined, {}, { stageDimension: 2 })
     const pixelCount = 1024
     const mapPoints = Array.from({ length: pixelCount }, (_, index) => ({

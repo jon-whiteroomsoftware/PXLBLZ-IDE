@@ -345,7 +345,7 @@ export const CHEATSHEETS: Record<string, Cheatsheet> = {
         entries: [
           { sig: 'fill(d)', desc: '1 inside, 0 outside; hard edge' },
           { sig: 'softFill(d, softness)', desc: 'antialiased fill; try softness 0.02' },
-          { sig: 'glow(d, falloff)', desc: 'brightness centred on edge, fades over falloff' },
+          { sig: 'glow(d, falloff)', desc: 'brightness centered on edge, fades over falloff' },
           { sig: 'fillGlow(d, falloff)', desc: 'full brightness inside + glow fading outside' },
           { sig: 'border(d, width)', desc: 'sharp ring along the edge' },
           { sig: 'bands(d, spacing)', desc: 'topographic bands radiating from the edge' },
@@ -371,7 +371,7 @@ export const CHEATSHEETS: Record<string, Cheatsheet> = {
       {
         header: 'Out-var Helpers (read globals immediately after)',
         entries: [
-          { sig: 'toUV(x, y, aspect)', desc: 'centred UVs → ux, uy; aspect = cols/rows, short axis = unit' },
+          { sig: 'toUV(x, y, aspect)', desc: 'centered UVs → ux, uy; aspect = cols/rows, short axis = unit' },
           { sig: 'normalize2(x, y)', desc: 'unit vector → nx, ny (+ len)' },
           { sig: 'normalize3(x, y, z)', desc: 'unit vector → nx, ny, nz (+ len)' },
           { sig: 'rot2(x, y, angle)', desc: '2D rotation about origin → rx, ry' },

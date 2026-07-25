@@ -396,9 +396,9 @@ describe('PatternList', () => {
     expect(within(builtInTree).getByRole('treeitem', { name: /Showcases/ })).toBeInTheDocument()
     expect(within(builtInTree).getByRole('treeitem', { name: /Installations/ })).toBeInTheDocument()
 
-    await user.click(screen.getByText('101 Clips and Crossfade'))
+    await user.click(screen.getByText('101 Clips, Cuts, and Blank Time'))
 
-    expect(window.location.pathname).toBe('/studio/shows/stock-show-101-clips-crossfade')
+    expect(window.location.pathname).toBe('/studio/shows/stock-show-101-clips-cuts-blank-time')
     expect(useShowStore.getState().shows).toEqual([])
     expect(requests.some(({ url, init }) => url === '/api/shows' && init?.method === 'POST')).toBe(false)
   })

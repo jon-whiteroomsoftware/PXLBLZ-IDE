@@ -17,7 +17,7 @@ type Controls = PatternMetadata['controls']
 export const CONTROL_DESCRIPTIONS: Record<string, Record<string, string>> = {
   AuroraSphere: {
     sliderRingCount: 'Number of glowing latitude rings wrapped around the sphere.',
-    sliderSpin: 'How fast the bright great-ring orbits — centred is still, higher spins faster.',
+    sliderSpin: 'How fast the bright great-ring orbits — centered is still, higher spins faster.',
     sliderSpeed: 'How often the rings ratchet up a level — the tick rate of the bloom.',
   },
   Caustics: {

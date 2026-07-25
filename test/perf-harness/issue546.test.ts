@@ -24,7 +24,7 @@ describe('Restart Pattern machine-slot qualification (#546)', () => {
         sourceChangePercent: expect.closeTo(-20.02, 1),
       },
       {
-        id: 'stock-show-205-installation-composition',
+        id: 'fixture-installation-composition',
         baseline: { sourceBytes: 75_386, physicalMachines: 12 },
         selected: {
           sourceBytes: 68_084,

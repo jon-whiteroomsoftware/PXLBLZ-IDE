@@ -4,9 +4,10 @@ import { createFastReplayRuntime } from './fastReplay'
 import { nativeDimension } from './loadPattern'
 import { compileShow } from './showCompiler'
 import { compileShowForArtifact } from './showPreviewArtifact'
+import { createInstallationCompositionFixture } from './showInstallationTestFixture'
 
 const propertyShow = STOCK_SHOWS.find((entry) => entry.id === 'stock-show-reference-property-animation')!.show
-const installationShow = STOCK_SHOWS.find((entry) => entry.id === 'stock-show-205-installation-composition')!.show
+const installationShow = createInstallationCompositionFixture()
 const mapPoints = Array.from({ length: 64 }, (_, index) => ({
   sample: [(index % 8) / 7, Math.floor(index / 8) / 7],
 }))
@@ -129,7 +130,7 @@ export function render2D(index, x, y) { hsv(phase + x, 1, initialPixels / pixelC
     expect(checksums(selected, propertyShow, 'fidelity')).toEqual(checksums(baseline, propertyShow, 'fidelity'))
   }, 20_000)
 
-  it('also shares exact non-overlapping machines in 205 Installation Composition', () => {
+  it('also shares exact non-overlapping machines in a fixed Installation composition', () => {
     const baseline = compile(installationShow, 'none')
     const selected = compile(installationShow, 'force')
 

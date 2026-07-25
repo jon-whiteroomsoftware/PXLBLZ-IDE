@@ -4,7 +4,9 @@ describe('Restart-instance global-liveness census (#536)', () => {
   it('covers the full saved-Show catalogue and the acceptance composition', () => {
     expect(report.schemaVersion).toBe(1)
     expect(report.issue).toBe(536)
-    expect(report.summary.savedShowCount).toBe(19)
+    // Recensused with the #363 Learn recast, which replaced the ten 100/200
+    // level lessons with six.
+    expect(report.summary.savedShowCount).toBe(15)
     expect(report.cases.some((entry) => entry.kind === 'five-pattern-acceptance')).toBe(true)
     expect(report.summary.compileFailures).toEqual([])
   })
@@ -49,12 +51,15 @@ describe('Restart-instance global-liveness census (#536)', () => {
 
   it('applies the 15% gate mechanically without converting it into a product invariant', () => {
     expect(report.decision.threshold).toBe(0.15)
+    // Recensused with the #363 Learn recast. The gate still reads the
+    // unweighted percent, so the verdict below is unchanged even though the
+    // weighted figure now sits above the threshold.
     expect(report.summary).toMatchObject({
-      representativeMemberGlobals: 2_613,
-      representativeReclaimedGlobals: 395,
+      representativeMemberGlobals: 2_095,
+      representativeReclaimedGlobals: 371,
     })
-    expect(report.decision.representativeReclaimPercent).toBe(0)
-    expect(report.decision.weightedRepresentativeReclaimPercent).toBeCloseTo(0.15116724, 8)
+    expect(report.decision.representativeReclaimPercent).toBeCloseTo(0.00925926, 8)
+    expect(report.decision.weightedRepresentativeReclaimPercent).toBeCloseTo(0.17708831, 8)
     expect(report.decision.ceilingRescues).toEqual([])
     expect(report.decision.proceedWithEmission).toBe(false)
     expect(report.decision.proceedWithEmission).toBe(

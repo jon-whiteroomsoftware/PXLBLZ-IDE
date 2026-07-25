@@ -3,10 +3,10 @@
 // counterfactual was silently dropped by the field-by-field pass-through.
 // These tests pin round-tripping through compileShowForArtifact for options
 // added at different times, so a forwarding regression fails loudly.
-import { STOCK_SHOWS } from '../pixelblaze/stock/shows'
 import { compileShowForArtifact } from './showPreviewArtifact'
+import { createInstallationCompositionFixture } from './showInstallationTestFixture'
 
-const installationShow = STOCK_SHOWS.find((entry) => entry.id === 'stock-show-205-installation-composition')!.show
+const installationShow = createInstallationCompositionFixture()
 
 function artifactBytes(options: Record<string, unknown>): number {
   const result = compileShowForArtifact(installationShow, [], undefined, {}, {

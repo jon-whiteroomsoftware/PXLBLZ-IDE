@@ -78,27 +78,25 @@ describe('Show property lane projection (#483)', () => {
   })
 
   it('projects only genuine Scene-local change into parent Show-time coordinates', () => {
-    const stock = STOCK_SHOWS.find((candidate) => candidate.id === 'stock-show-202-layers-local-animation')!
+    const stock = STOCK_SHOWS.find((candidate) => candidate.id === 'stock-show-102-transitions-values')!
     const lanes = projectGlobalShowScenePropertyLanes(stock.show)
 
     expect(lanes).toHaveLength(1)
     expect(lanes[0]).toMatchObject({
-      sceneId: 'signal-water',
+      sceneId: 'passages',
       zoneId: 'zone-1',
-      label: 'SignalMandala opacity',
+      label: 'SignalMandala brightness',
       valueKind: 'percent',
     })
     expect(lanes[0].projection.beats.map((beat) => ({ timeMs: beat.timeMs, value: beat.value }))).toEqual([
-      { timeMs: 3_000, value: 0 },
-      { timeMs: 5_000, value: 0.72 },
-      { timeMs: 11_000, value: 0.72 },
-      { timeMs: 13_000, value: 0 },
+      { timeMs: 12_500, value: 1 },
+      { timeMs: 14_500, value: 1 },
+      { timeMs: 16_500, value: 0.45 },
     ])
     expect(lanes[0].projection.beats.map((beat) => beat.displayX)).toEqual([
-      3 / 16,
-      5 / 16,
-      11 / 16,
-      13 / 16,
+      12.5 / 16.5,
+      14.5 / 16.5,
+      16.5 / 16.5,
     ])
   })
 
