@@ -1041,16 +1041,17 @@ export function ShowEditor({
       if (event.key !== 'Escape' || effectPaletteOwner !== null || groupEffectPaletteOwner !== null || transitionPaletteId !== null) return
       if (!detailPanelOpen && !pinnedDetail && !isolatedGroupOccurrenceId && selection.kind === 'show') return
       event.preventDefault()
-      if (detailPanelOpen || pinnedDetail) {
+      if (isolatedGroupOccurrenceId) {
         closeDetailPanel(true)
         setPinnedDetail(null)
-        return
-      }
-      if (isolatedGroupOccurrenceId) {
-        closeDetailPanel()
         setIsolatedGroupOccurrenceId(null)
         setSelection({ kind: 'group', occurrenceId: isolatedGroupOccurrenceId })
         window.setTimeout(() => timelineWorkspaceRef.current?.focus(), 0)
+        return
+      }
+      if (detailPanelOpen || pinnedDetail) {
+        closeDetailPanel(true)
+        setPinnedDetail(null)
         return
       }
       setSelection({ kind: 'show' })

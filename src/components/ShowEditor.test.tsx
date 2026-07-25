@@ -930,12 +930,9 @@ describe('ShowEditor (#318)', () => {
 
     await user.keyboard('{Escape}')
     expect(screen.queryByRole('dialog', { name: 'Entity Detail Panel' })).not.toBeInTheDocument()
-    expect(screen.getByRole('status', { name: 'Group isolation: Pulse phrase' })).toBeInTheDocument()
-    expect(screen.getByRole('button', { name: 'Select Outside' })).toHaveAttribute('aria-disabled', 'true')
-
-    await user.keyboard('{Escape}')
     expect(screen.queryByRole('status', { name: 'Group isolation: Pulse phrase' })).not.toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'Select Outside' })).not.toHaveAttribute('aria-disabled')
+    await waitFor(() => expect(screen.getByLabelText('Show timeline')).toHaveFocus())
 
     fireEvent.doubleClick(screen.getAllByRole('button', { name: 'Select Group Pulse phrase' })[0])
     expect(screen.getByRole('status', { name: 'Group isolation: Pulse phrase' })).toBeInTheDocument()
