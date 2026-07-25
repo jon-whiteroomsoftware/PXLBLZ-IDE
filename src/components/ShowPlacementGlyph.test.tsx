@@ -77,3 +77,10 @@ describe('glyph rendering', () => {
     expect(new Set(ids).size).toBe(ids.length)
   })
 })
+
+describe('full-Zone aperture', () => {
+  it('says so plainly rather than reading as an extent', () => {
+    expect(describeShowPlacement({ transform: transform(), viewport: viewport() }))
+      .toBe('Full Zone, centred · aperture over the whole Zone')
+  })
+})

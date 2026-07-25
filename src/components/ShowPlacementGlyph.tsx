@@ -139,6 +139,9 @@ export function describeShowPlacement({
 
 /** Prefers a shape people would say out loud; exact values live in the fields. */
 function describeWindow(viewport: ShowClipViewport): string {
+  const wholeZone = viewport.x <= 0.001 && viewport.y <= 0.001
+    && viewport.width >= 0.999 && viewport.height >= 0.999
+  if (wholeZone) return 'aperture over the whole Zone'
   const covers = (value: number, extent: number, low: string, high: string) => {
     if (value <= 0.001 && extent >= 0.999) return null
     if (value <= 0.001) return `${low} ${formatRatio(extent)}`
