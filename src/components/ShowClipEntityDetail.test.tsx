@@ -190,35 +190,44 @@ describe('shared Clip Entity Detail sections (#498)', () => {
     expect(onPatch).toHaveBeenCalledWith({ transform: { rotation: 0.25 } })
   })
 
-  it('uses the Viewport heading itself as the placement disclosure (#63)', () => {
+  it('discloses Aperture geometry below the content fields as its own group (#63, #617)', () => {
     const onPatch = vi.fn()
     const props = commonProps('scene-main', onPatch)
     const { rerender } = render(<ShowClipEntityDetail {...props} />)
 
-    const placement = screen.getByRole('group', { name: 'Clip Transform' })
     const contentX = screen.getByRole('spinbutton', { name: 'Content X' })
-    const viewportToggle = screen.getByRole('checkbox', { name: 'Viewport' })
-    expect(within(placement).queryByText('Content')).not.toBeInTheDocument()
-    expect(viewportToggle.previousElementSibling).toHaveTextContent('Viewport')
-    expect(viewportToggle.closest('label')).toHaveClass('text-zinc-500')
-    expect(viewportToggle.closest('label')).not.toHaveClass('text-cyan-300/80')
+    // Enabling moved into the placement pad, so the panel no longer owns it.
+    expect(screen.queryByRole('checkbox', { name: 'Viewport' })).not.toBeInTheDocument()
     expect(screen.queryByRole('group', { name: 'Viewport geometry' })).not.toBeInTheDocument()
-    expect(contentX.compareDocumentPosition(viewportToggle) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
-
-    fireEvent.click(viewportToggle)
-    expect(onPatch).toHaveBeenCalledWith({ viewport: { enabled: true } })
 
     rerender(<ShowClipEntityDetail
       {...props}
       value={{ ...props.value, viewport: { enabled: true, x: 0, y: 0, width: 1, height: 1 } }}
     />)
     const disclosedViewport = screen.getByRole('group', { name: 'Viewport geometry' })
-    expect(viewportToggle.compareDocumentPosition(disclosedViewport) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
+    expect(contentX.compareDocumentPosition(disclosedViewport) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
+    expect(within(disclosedViewport).getByText('Aperture')).toBeInTheDocument()
 
     const viewportX = screen.getByRole('spinbutton', { name: 'Viewport X' })
     fireEvent.change(viewportX, { target: { value: '0.25' } })
     fireEvent.blur(viewportX)
     expect(onPatch).toHaveBeenCalledWith({ viewport: { x: 0.25 } })
+  })
+
+  it('summarises placement and opens the pad from the same row (#617)', () => {
+    const props = commonProps('scene-main')
+    render(<ShowClipEntityDetail {...props} />)
+
+    const placement = screen.getByRole('group', { name: 'Clip Transform' })
+    const edit = within(placement).getByRole('button', { name: 'Edit placement' })
+    expect(edit).toHaveAttribute('aria-expanded', 'false')
+    expect(within(edit).getByRole('img', { name: /no aperture/ })).toBeInTheDocument()
+    expect(screen.queryByRole('dialog', { name: 'Clip placement' })).not.toBeInTheDocument()
+
+    fireEvent.click(edit)
+    expect(edit).toHaveAttribute('aria-expanded', 'true')
+    expect(screen.getByRole('dialog', { name: 'Clip placement' })).toBeInTheDocument()
+    expect(screen.getByRole('application', { name: /Placement pad/ })).toBeInTheDocument()
   })
 
   it('opens Placement by default and lets it collapse temporarily (#63)', () => {

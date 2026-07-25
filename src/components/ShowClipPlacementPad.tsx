@@ -47,14 +47,26 @@ export interface ShowClipPlacementPadProps {
   transform: ShowClipTransform
   viewport: ShowClipViewport
   readOnly?: boolean
+  /** Commits a value. Called once per gesture, not once per pointer move. */
   onChange: (patch: { transform?: ShowClipTransform; viewport?: ShowClipViewport }) => void
+  /** Continuous feedback during a gesture. Falls back to onChange when absent. */
+  onPreview?: (patch: { transform?: ShowClipTransform; viewport?: ShowClipViewport }) => void
+  onPreviewEnd?: () => void
 }
 
-export function ShowClipPlacementPad({ transform, viewport, readOnly = false, onChange }: ShowClipPlacementPadProps) {
+export function ShowClipPlacementPad({
+  transform,
+  viewport,
+  readOnly = false,
+  onChange,
+  onPreview,
+  onPreviewEnd,
+}: ShowClipPlacementPadProps) {
   const [grid, setGrid] = useState(3)
   const [focus, setFocus] = useState<PlacementFocus>('content')
   const surface = useRef<SVGSVGElement>(null)
   const drag = useRef<DragKind | null>(null)
+  const pending = useRef<PlacementPadResult | null>(null)
 
   const context: PlacementPadContext = { transform, viewport, grid }
   const apertureOn = viewport.enabled
@@ -72,6 +84,27 @@ export function ShowClipPlacementPad({ transform, viewport, readOnly = false, on
 
   const apply = (result: PlacementPadResult) => {
     if (result.transform || result.viewport) onChange(result)
+  }
+
+  /**
+   * Pointer gestures fire continuously, so they preview and commit once on
+   * release. Committing every move would flood undo history and the autosave.
+   */
+  const previewResult = (result: PlacementPadResult) => {
+    if (!result.transform && !result.viewport) return
+    pending.current = result
+    if (onPreview) onPreview(result)
+    else onChange(result)
+  }
+
+  const commitPending = () => {
+    const result = pending.current
+    pending.current = null
+    if (!result) return
+    if (onPreview) {
+      onChange(result)
+      onPreviewEnd?.()
+    }
   }
 
   const pointerUnit = (event: { clientX: number; clientY: number }) => {
@@ -97,7 +130,7 @@ export function ShowClipPlacementPad({ transform, viewport, readOnly = false, on
     if (drag.current || !apertureActive) return
     const point = pointerUnit(event)
     beginDrag(event, { kind: 'viewport-sweep', originX: point.x, originY: point.y })
-    apply(sweepViewport(context, point.x, point.y, point.x, point.y))
+    previewResult(sweepViewport(context, point.x, point.y, point.x, point.y))
   }
 
   const onPointerMove = (event: ReactPointerEvent) => {
@@ -105,23 +138,26 @@ export function ShowClipPlacementPad({ transform, viewport, readOnly = false, on
     if (!gesture) return
     const point = pointerUnit(event)
     if (gesture.kind === 'content-move') {
-      apply(moveContentCentre(context, point.x - gesture.grabX, point.y - gesture.grabY))
+      previewResult(moveContentCentre(context, point.x - gesture.grabX, point.y - gesture.grabY))
     } else if (gesture.kind === 'content-corner') {
-      apply(resizeContentToAnchor(context, gesture.anchor, point.x, point.y, { uniform: apertureOn || event.shiftKey }))
+      previewResult(resizeContentToAnchor(context, gesture.anchor, point.x, point.y, { uniform: apertureOn || event.shiftKey }))
     } else if (gesture.kind === 'content-rotate') {
       const angle = Math.atan2(point.y - (box.top + box.height / 2), point.x - (box.left + box.width / 2))
       const turns = (angle / (Math.PI * 2) + 0.25) % 1
-      apply(rotateContent(context, event.shiftKey ? Math.round(turns * 24) / 24 : turns))
+      previewResult(rotateContent(context, event.shiftKey ? Math.round(turns * 24) / 24 : turns))
     } else if (gesture.kind === 'viewport-sweep') {
-      apply(sweepViewport(context, gesture.originX, gesture.originY, point.x, point.y))
+      previewResult(sweepViewport(context, gesture.originX, gesture.originY, point.x, point.y))
     } else if (gesture.kind === 'viewport-corner') {
-      apply(resizeViewportToAnchor(context, gesture.anchor, point.x, point.y))
+      previewResult(resizeViewportToAnchor(context, gesture.anchor, point.x, point.y))
     } else {
-      apply(moveViewportTo(context, point.x - gesture.grabX, point.y - gesture.grabY, { carryContent: gesture.carry }))
+      previewResult(moveViewportTo(context, point.x - gesture.grabX, point.y - gesture.grabY, { carryContent: gesture.carry }))
     }
   }
 
-  const endDrag = () => { drag.current = null }
+  const endDrag = () => {
+    drag.current = null
+    commitPending()
+  }
 
   const onKeyDown = (event: { key: string; shiftKey: boolean; preventDefault: () => void }) => {
     if (readOnly) return
@@ -359,7 +395,10 @@ export function ShowClipPlacementPad({ transform, viewport, readOnly = false, on
           step={0.01}
           value={transform.scaleX}
           disabled={readOnly}
-          onChange={(event) => apply(zoomContent(context, Number(event.target.value)))}
+          onChange={(event) => previewResult(zoomContent(context, Number(event.target.value)))}
+          onPointerUp={commitPending}
+          onKeyUp={commitPending}
+          onBlur={commitPending}
           className="h-1 flex-1 accent-cyan-400"
         />
         <span className="w-10 text-right font-mono text-[10px] text-zinc-300">{transform.scaleX.toFixed(2)}×</span>

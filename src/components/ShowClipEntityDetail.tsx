@@ -6,6 +6,9 @@ import { TimeField } from './ui/time-field'
 import { Grid2X2 } from 'lucide-react'
 import { PatternCombobox, type PatternComboboxOption } from './PatternCombobox'
 import { ShowEffectStack } from './ShowEffectsAuthoring'
+import { ShowClipPlacementPad } from './ShowClipPlacementPad'
+import { ShowClipPlacementPopover } from './ShowClipPlacementPopover'
+import { describeShowPlacement, ShowPlacementGlyph } from './ShowPlacementGlyph'
 import {
   normalizeShowClipEvaluationPolicy,
   showClipInspectorCapabilities,
@@ -64,6 +67,8 @@ export function ShowClipEntityDetail({
   const hasAuthoredPatternControls = Object.values(controlTargets ?? {}).some((target) => target !== undefined)
   const [patternTrayOpen, setPatternTrayOpen] = useState(hasAuthoredPatternControls)
   const [placementOpen, setPlacementOpen] = useState(true)
+  const [padOpen, setPadOpen] = useState(false)
+  const [padAnchor, setPadAnchor] = useState<HTMLButtonElement | null>(null)
   const [advancedTrayOpen, setAdvancedTrayOpen] = useState(
     advancedDefaultOpen
       || value.view.mirror
@@ -210,6 +215,41 @@ export function ShowClipEntityDetail({
         >
           <summary className="cursor-pointer py-1 text-[9px] font-medium uppercase tracking-[0.12em] text-cyan-300/80">Placement</summary>
           <div className="grid min-w-0 gap-2 pb-0.5">
+            <button
+              ref={setPadAnchor}
+              type="button"
+              aria-label="Edit placement"
+              aria-expanded={padOpen}
+              onClick={() => setPadOpen((open) => !open)}
+              className="flex min-w-0 items-center gap-2 text-left"
+            >
+              <ShowPlacementGlyph
+                size={26}
+                className="shrink-0 text-zinc-300"
+                transform={value.transform}
+                viewport={value.viewport}
+              />
+              <span className="min-w-0 flex-1 truncate text-[10px] text-zinc-500">
+                {describeShowPlacement({ transform: value.transform, viewport: value.viewport })}
+              </span>
+              <span className="shrink-0 text-[9px] text-cyan-300/80">Edit</span>
+            </button>
+            {padOpen && padAnchor && (
+              <ShowClipPlacementPopover
+                anchor={padAnchor}
+                label="Clip placement"
+                onClose={() => setPadOpen(false)}
+              >
+                <ShowClipPlacementPad
+                  transform={value.transform}
+                  viewport={value.viewport}
+                  readOnly={readOnly}
+                  onChange={onPatch}
+                  onPreview={onPreviewPatch}
+                  onPreviewEnd={onPreviewEnd}
+                />
+              </ShowClipPlacementPopover>
+            )}
             <ClipContentGeometry
               value={value}
               readOnly={readOnly}
@@ -218,19 +258,9 @@ export function ShowClipEntityDetail({
               onPreviewEnd={onPreviewEnd}
               onPatch={onPatch}
             />
-            <label className="mt-1 flex items-center gap-1.5 text-[9px] font-medium uppercase tracking-[0.12em] text-zinc-500">
-              <span>Viewport</span>
-              <input
-                type="checkbox"
-                aria-label="Viewport"
-                checked={value.viewport.enabled}
-                disabled={readOnly}
-                className="h-3 w-3 accent-cyan-400"
-                onChange={(event) => onPatch({ viewport: { enabled: event.target.checked } })}
-              />
-            </label>
             {value.viewport.enabled && (
               <fieldset aria-label="Viewport geometry" className="min-w-0">
+                <legend className="mb-1 text-[9px] font-medium uppercase tracking-[0.12em] text-amber-300/80">Aperture</legend>
                 <div className="grid min-w-0 grid-cols-2 items-end gap-x-2 gap-y-1.5 sm:grid-cols-4">
                   <ShowInspectorNumberField label="X" ariaLabel="Viewport X" value={value.viewport.x} min={-4} max={4} step={0.01} disabled={readOnly} onChange={(x) => onPatch({ viewport: { x } })} />
                   <ShowInspectorNumberField label="Y" ariaLabel="Viewport Y" value={value.viewport.y} min={-4} max={4} step={0.01} disabled={readOnly} onChange={(y) => onPatch({ viewport: { y } })} />

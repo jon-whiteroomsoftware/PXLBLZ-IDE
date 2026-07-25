@@ -2806,7 +2806,7 @@ describe('ShowEditor (#318)', () => {
     expect(screen.queryByRole('dialog', { name: 'Entity Detail Panel' })).not.toBeInTheDocument()
   })
 
-  it('shows legacy stock Clip Pattern controls before any edit and retains them across Viewport toggles (#615)', async () => {
+  it('shows legacy stock Clip Pattern controls before any edit and retains them across Aperture toggles (#615, #617)', async () => {
     const user = userEvent.setup()
     const show = {
       ...structuredClone(
@@ -2822,13 +2822,15 @@ describe('ShowEditor (#318)', () => {
     await user.click(screen.getByRole('button', { name: 'Select SignalMandala' }))
     expect(screen.getByRole('table', { name: 'Pattern controls' })).toBeInTheDocument()
 
-    const viewport = screen.getByRole('checkbox', { name: 'Viewport' })
-    await user.click(viewport)
-    await waitFor(() => expect(viewport).toBeChecked())
+    // The Aperture toggle lives in the placement pad now (#617).
+    await user.click(screen.getByRole('button', { name: 'Edit placement' }))
+    const aperture = screen.getByRole('checkbox', { name: 'Aperture' })
+    await user.click(aperture)
+    await waitFor(() => expect(aperture).toBeChecked())
     expect(screen.getByRole('table', { name: 'Pattern controls' })).toBeInTheDocument()
 
-    await user.click(viewport)
-    await waitFor(() => expect(viewport).not.toBeChecked())
+    await user.click(aperture)
+    await waitFor(() => expect(aperture).not.toBeChecked())
     expect(screen.getByRole('table', { name: 'Pattern controls' })).toBeInTheDocument()
   })
 
