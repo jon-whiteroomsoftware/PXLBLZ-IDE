@@ -2,6 +2,7 @@ import { useState, type ReactNode } from 'react'
 import { NumberField } from './ui/number-field'
 import { PercentageField } from './ui/percentage-field'
 import { DomainNumberField } from './ui/domain-number-field'
+import { TimeField } from './ui/time-field'
 import { Grid2X2 } from 'lucide-react'
 import { PatternCombobox, type PatternComboboxOption } from './PatternCombobox'
 import { ShowEffectStack } from './ShowEffectsAuthoring'
@@ -144,28 +145,30 @@ export function ShowClipEntityDetail({
         {capabilities.localTiming && value.local && (
           <div data-testid="clip-local-fields" className={`mt-2 grid items-end gap-2 ${capabilities.sourceOverOpacity ? 'sm:grid-cols-4' : 'sm:grid-cols-2'}`}>
             <div data-field-span>
-              <ShowInspectorNumberField
+              <TimeField
                 label="Start"
                 ariaLabel="Start seconds"
                 value={value.local.startMs / 1_000}
                 min={0}
                 max={Number.MAX_SAFE_INTEGER}
-                step={0.1}
-                suffix="s"
+                step={0.001}
                 disabled={readOnly}
+                onPreview={(seconds) => onPreviewPatch?.({ local: { startMs: Math.round(seconds * 1_000) } })}
+                onPreviewEnd={onPreviewEnd}
                 onChange={(seconds) => onPatch({ local: { startMs: Math.round(seconds * 1_000) } })}
               />
             </div>
             <div data-field-span>
-              <ShowInspectorNumberField
+              <TimeField
                 label="Duration"
                 ariaLabel="Duration seconds"
                 value={value.local.durationMs / 1_000}
                 min={0.1}
                 max={Number.MAX_SAFE_INTEGER}
-                step={0.1}
-                suffix="s"
+                step={0.001}
                 disabled={readOnly}
+                onPreview={(seconds) => onPreviewPatch?.({ local: { durationMs: Math.round(seconds * 1_000) } })}
+                onPreviewEnd={onPreviewEnd}
                 onChange={(seconds) => onPatch({ local: { durationMs: Math.round(seconds * 1_000) } })}
               />
             </div>
@@ -388,7 +391,7 @@ export function ShowClipEntityDetail({
                       <td className="py-0.5">
                         <div className="flex min-w-0 items-center gap-2">
                           <div className="min-w-20 max-w-28 flex-1 [&_input]:!border-0">
-                            <ShowInspectorNumberField
+                            <TimeField
                               label="Strobe cadence seconds"
                               hideLabel
                               align="left"
@@ -396,9 +399,12 @@ export function ShowClipEntityDetail({
                               min={0.016}
                               max={60}
                               step={0.05}
-                              suffix="s"
                               compact
                               disabled={readOnly}
+                              onPreview={(seconds) => onPreviewPatch?.({
+                                presentation: { mode: 'strobe', cadenceMs: Math.round(seconds * 1_000) },
+                              })}
+                              onPreviewEnd={onPreviewEnd}
                               onChange={(seconds) => onPatch({
                                 presentation: { mode: 'strobe', cadenceMs: Math.round(seconds * 1_000) },
                               })}

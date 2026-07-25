@@ -2,6 +2,7 @@ import { useEffect } from 'react'
 import { createPortal } from 'react-dom'
 import { RotateCcw, X, Zap } from 'lucide-react'
 import type { ShowLayerTransition } from '@/engine/personalContentRecords'
+import { TimeField } from '@/components/ui/time-field'
 
 export function ShowLayerTransitionEditor({
   transition,
@@ -57,31 +58,16 @@ export function ShowLayerTransitionEditor({
         </button>
       </header>
       <div className="p-2.5">
-        <label className="block text-[11px] text-zinc-500">
-          Duration (seconds)
-          <input
-            key={transition.durationMs}
-            type="number"
-            inputMode="decimal"
-            min={0}
-            step={0.001}
-            defaultValue={seconds}
-            aria-label="Layer Transition duration in seconds"
-            onBlur={(event) => {
-              const durationMs = Math.round(Number(event.currentTarget.value) * 1_000)
-              if (!Number.isFinite(durationMs) || durationMs < 0) {
-                event.currentTarget.value = String(seconds)
-                return
-              }
-              onDurationChange(durationMs)
-            }}
-            onKeyDown={(event) => {
-              if (event.key === 'Enter') event.currentTarget.blur()
-              if (event.key === 'Escape') onClose()
-            }}
-            className="mt-1 h-8 w-full rounded border border-zinc-700 bg-zinc-950 px-2 text-xs tabular-nums text-zinc-100 outline-none focus:border-amber-400/60"
-          />
-        </label>
+        <TimeField
+          label="Duration"
+          ariaLabel="Layer Transition duration in seconds"
+          value={seconds}
+          min={0}
+          max={Number.MAX_SAFE_INTEGER}
+          step={0.001}
+          variant="editor"
+          onChange={(next) => onDurationChange(Math.round(next * 1_000))}
+        />
       </div>
       <footer className="flex items-center border-t border-zinc-800 px-2.5 py-2">
         <button type="button" onClick={onResetToCut} className="ml-auto flex h-7 items-center gap-1.5 rounded px-2 text-[11px] text-zinc-400 hover:bg-zinc-800 hover:text-amber-200">

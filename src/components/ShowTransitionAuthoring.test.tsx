@@ -134,10 +134,10 @@ describe('Show Transition authoring UI', () => {
     const onChange = vi.fn()
     render(<ShowTransitionParameters transition={transition} item={crossfade} onChange={onChange} />)
 
-    const duration = screen.getByRole('spinbutton', { name: 'Duration (s)' })
+    const duration = screen.getByRole('textbox', { name: 'Duration (s) exact time' })
     await user.click(duration)
     await user.clear(duration)
-    expect(duration).toHaveValue(null)
+    expect(duration).toHaveValue('')
     expect(onChange).not.toHaveBeenCalled()
 
     await user.type(duration, '2.5')
@@ -212,14 +212,14 @@ describe('Show Transition authoring UI', () => {
     const onChange = vi.fn()
     render(<ShowTransitionParameters transition={show.transitions![0]} item={crossfade} onChange={onChange} />)
 
-    const duration = screen.getByRole('spinbutton', { name: 'Duration (s)' })
+    const duration = screen.getByRole('textbox', { name: 'Duration (s) exact time' })
     await user.click(duration)
     await user.clear(duration)
     await user.type(duration, '9.9')
     await user.keyboard('{Escape}')
 
     expect(onChange).not.toHaveBeenCalled()
-    expect(duration).toHaveValue(2)
+    expect(duration).toHaveValue('2')
   })
 
   it('authors Fade through color with the shared Color field and one picker commit (#609)', () => {

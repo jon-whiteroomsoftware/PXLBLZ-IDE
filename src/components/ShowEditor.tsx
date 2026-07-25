@@ -3,6 +3,7 @@ import { createPortal } from 'react-dom'
 import { Activity, BookOpen, Check, ChevronDown, ChevronRight, Clock3, Code2, Copy, Download, Eye, Flag, Grid2X2, Info, Layers3, Lightbulb, ListChecks, Lock, Magnet, Map as MapIcon, Maximize2, Pause, Play, Plus, Redo2, Repeat2, RotateCcw, RotateCw, Route, Scissors, Settings2, SkipBack, SlidersHorizontal, SplitSquareHorizontal, Trash2, Undo2, WandSparkles, X, Zap } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { NumberField as UiNumberField, type NumberFieldProps as UiNumberFieldProps } from '@/components/ui/number-field'
+import { TimeField as UiTimeField, type TimeFieldProps as UiTimeFieldProps } from '@/components/ui/time-field'
 import { PercentageField as UiPercentageField, type PercentageFieldProps as UiPercentageFieldProps } from '@/components/ui/percentage-field'
 import { DomainNumberField as UiDomainNumberField, type DomainNumberFieldProps as UiDomainNumberFieldProps } from '@/components/ui/domain-number-field'
 import { formatDomainNumber } from '@/engine/domainNumberPresentation'
@@ -3995,15 +3996,16 @@ function ShowTimelineWorkspace({
                     <span>Insert Time</span>
                     <span className="normal-case tabular-nums text-zinc-500">at {formatSecondsValue(insertTimeAtMs)}s</span>
                   </div>
-                  <UiNumberField
+                  <UiTimeField
                     label="Time to insert"
                     ariaLabel="Time to insert in seconds"
                     hideLabel
                     variant="editor"
                     value={insertTimeSeconds}
                     min={0.001}
+                    max={Number.MAX_SAFE_INTEGER}
                     step={0.001}
-                    suffix="s"
+                    onPreview={setInsertTimeSeconds}
                     onChange={setInsertTimeSeconds}
                   />
                   {!insertTimePlan.enabled && (
@@ -4053,15 +4055,16 @@ function ShowTimelineWorkspace({
                   </label>
                   <div className="grid grid-cols-[72px_1fr] items-center gap-2 py-1">
                     <span className="text-zinc-500">Duration</span>
-                    <UiNumberField
+                    <UiTimeField
                       label="Layout interval duration"
                       ariaLabel="Layout interval duration in seconds"
                       hideLabel
                       variant="editor"
                       value={layoutActionDurationSeconds}
                       min={0.001}
+                      max={Number.MAX_SAFE_INTEGER}
                       step={0.001}
-                      suffix="s"
+                      onPreview={setLayoutActionDurationSeconds}
                       onChange={setLayoutActionDurationSeconds}
                     />
                   </div>
@@ -6179,29 +6182,21 @@ function TimelineMarkers({
                   onBlur={(event) => void onUpdateMarker(marker.id, { name: event.target.value.trim() || undefined })}
                 />
               </label>
-              <label className="grid grid-cols-[44px_1fr] items-center gap-2 py-1">
+              <div className="grid grid-cols-[44px_1fr] items-center gap-2 py-1">
                 <span>Time</span>
-                <span className="flex items-center gap-1">
-                  <input
-                    type="number"
-                    aria-label="Marker time in seconds"
-                    min={0}
-                    step={0.001}
-                    className="min-w-0 flex-1 rounded border border-zinc-800 bg-zinc-900 px-1.5 py-1 text-right tabular-nums text-zinc-200"
-                    defaultValue={formatSecondsValue(marker.timeMs)}
-                    onBlur={(event) => {
-                      const seconds = event.target.value.trim()
-                      const parsed = Number(seconds)
-                      if (!seconds || !Number.isFinite(parsed)) {
-                        event.target.value = formatSecondsValue(marker.timeMs)
-                        return
-                      }
-                      void onUpdateMarker(marker.id, { timeMs: parsed * 1000 })
-                    }}
-                  />
-                  <span className="text-zinc-600">s</span>
-                </span>
-              </label>
+                <UiTimeField
+                  label="Marker time"
+                  ariaLabel="Marker time in seconds"
+                  hideLabel
+                  compact
+                  variant="editor"
+                  value={marker.timeMs / 1_000}
+                  min={0}
+                  max={Number.MAX_SAFE_INTEGER}
+                  step={0.001}
+                  onChange={(seconds) => void onUpdateMarker(marker.id, { timeMs: Math.round(seconds * 1_000) })}
+                />
+              </div>
               <label className="grid grid-cols-[44px_1fr] items-center gap-2 py-1">
                 <span>Color</span>
                 <input
@@ -6249,27 +6244,21 @@ function TimelineMarkers({
             <strong className="font-medium text-zinc-200">Show End</strong>
             <button type="button" aria-label="Close Show End details" className="text-zinc-600 hover:text-zinc-200" onClick={() => setShowEndOpen(false)}><X size={12} /></button>
           </div>
-          <label className="flex items-center gap-1">
+          <div className="grid grid-cols-[40px_1fr] items-center gap-1">
             <span className="w-10">Time</span>
-            <input
-              type="number"
-              aria-label="Show End time in seconds"
+            <UiTimeField
+              label="Show End time"
+              ariaLabel="Show End time in seconds"
+              hideLabel
+              compact
+              variant="editor"
+              value={durationMs / 1_000}
               min={0.001}
+              max={Number.MAX_SAFE_INTEGER}
               step={0.001}
-              className="min-w-0 flex-1 rounded border border-zinc-800 bg-zinc-900 px-1.5 py-1 text-right tabular-nums text-zinc-200"
-              defaultValue={formatSecondsValue(durationMs)}
-              onBlur={(event) => {
-                const seconds = event.target.value.trim()
-                const parsed = Number(seconds)
-                if (!seconds || !Number.isFinite(parsed)) {
-                  event.target.value = formatSecondsValue(durationMs)
-                  return
-                }
-                void onSetShowEnd(parsed * 1000)
-              }}
+              onChange={(seconds) => void onSetShowEnd(Math.round(seconds * 1_000))}
             />
-            <span className="text-zinc-600">s</span>
-          </label>
+          </div>
         </div>
       )}
     </div>
@@ -6842,10 +6831,11 @@ function GroupInspector({
       )}
     >
       <div className="grid gap-2 sm:grid-cols-4">
-        <NumberField
+        <TimeField
           label="Start seconds"
           value={occurrence.startMs / 1_000}
           min={0}
+          max={Number.MAX_SAFE_INTEGER}
           step={0.001}
           onChange={(startSeconds) => onPlace({ startMs: Math.round(startSeconds * 1_000) })}
         />
@@ -7257,7 +7247,7 @@ function MotionCadenceControl({
           </button>
         </div>
         <div className="sm:col-start-3 sm:row-start-2">
-          <NumberField
+          <TimeField
             compact
             hideLabel
             label="Start offset (s)"
@@ -7349,7 +7339,7 @@ function TransitionInspector({
               ))}
             </select>
           </label>
-          <NumberField
+          <TimeField
             label="Routing transfer duration seconds"
             value={transition.durationMs / 1000}
             min={0}
@@ -7616,7 +7606,7 @@ function SampleRepeatTransitionEditor({
             step={0.1}
             onChange={(from) => updateDescriptor({ from })}
           />
-          <NumberField
+          <TimeField
             label="Repeat scale duration seconds"
             value={(descriptor.durationMs ?? transition.durationMs) / 1000}
             min={0}
@@ -7726,7 +7716,7 @@ function TransformTransitionEditor({
               </label>
               {descriptor && (
                 <div className="mt-1.5 grid grid-cols-2 gap-2 pl-5">
-                  <NumberField
+                  <TimeField
                     label={`${label} transform duration seconds`}
                     value={(descriptor.durationMs ?? transition.durationMs) / 1_000}
                     min={0}
@@ -7815,7 +7805,7 @@ function RoutingSplitTransitionEditor({
             step={0.01}
             onChange={(from) => updateDescriptor({ from })}
           />
-          <NumberField
+          <TimeField
             label="Split position duration seconds"
             value={(descriptor.durationMs ?? transition.durationMs) / 1000}
             min={0}
@@ -7893,7 +7883,7 @@ function PropertyTransitionEditor({
         : 'mb-2 text-[10px] uppercase tracking-[0.12em] text-amber-300/80'}>{title}</div>
       {descriptor && (
         <div className="mb-2 grid grid-cols-2 gap-2">
-          <NumberField
+          <TimeField
             label={`${title} duration seconds`}
             value={(descriptor.durationMs ?? transition.durationMs) / 1000}
             min={0.1}
@@ -8043,7 +8033,7 @@ function PatternControlTransitionEditor({
       <div className="mb-2 text-[9px] text-zinc-600">{control.exportName} · 0–100% · default {formatPercentageValue(control.defaultValue)}</div>
       {descriptor && (
         <div className="mb-2 grid grid-cols-2 gap-2">
-          <NumberField
+          <TimeField
             label={`${control.label} duration seconds`}
             value={(descriptor.durationMs ?? transition.durationMs) / 1000}
             min={0.1}
@@ -9186,6 +9176,10 @@ function CompileBar({
 // Shared draft-buffered numeric field (#577) in the editor-panel style.
 function NumberField(props: Omit<UiNumberFieldProps, 'variant' | 'align' | 'ariaLabel' | 'disabled'>) {
   return <UiNumberField variant="editor" {...props} />
+}
+
+function TimeField(props: Omit<UiTimeFieldProps, 'variant' | 'align' | 'ariaLabel' | 'disabled'>) {
+  return <UiTimeField variant="editor" {...props} />
 }
 
 function PercentageField(props: Omit<UiPercentageFieldProps, 'variant' | 'align' | 'ariaLabel' | 'disabled'>) {

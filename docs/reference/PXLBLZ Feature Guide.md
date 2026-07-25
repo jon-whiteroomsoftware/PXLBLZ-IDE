@@ -173,6 +173,13 @@ equivalent decimal. Values without a concise ratio retain decimal notation.
 Multiplier and ratio text is presentation only: saved Shows and generated
 Pixelblaze artifacts continue to carry the same real numeric values.
 
+Show time fields use the same compact exact-entry-and-grip interaction. The
+editable box contains decimal seconds and keeps a fixed `s` suffix outside;
+the transient ruler covers `0..60s`, marks every whole second, and labels
+landmarks faintly. Short ranges also show half-second detents. The ruler is a
+fast adjustment surface, not a storage limit: values beyond 60 seconds remain
+available through exact entry wherever the Show model permits them.
+
 Patterns may also call **libraries** with namespace syntax such as
 `SDF.circle(...)` — see [section 7](#7-libraries-and-mixins).
 
@@ -401,8 +408,9 @@ The working grammar is compact:
 - **Direct Clip edits.** **Add Clip** places a Pattern at the playhead when the
   target Layer has room. Dragging moves a Clip without overwriting another;
   selected Clip edges resize it. **Split** divides the selected Clip at the
-  playhead and **Clone** duplicates it immediately after itself. Exact Start
-  and Duration remain editable in decimal seconds. Each Clip's second row
+  playhead and **Clone** duplicates it immediately after itself. Start and
+  Duration combine exact decimal-second entry with the shared detented time
+  ruler. Each Clip's second row
   tersely summarizes its authored controls, view changes, Effects, and Property
   animation; unchanged values after a connected Clip contract to their category
   glyphs. Unavailable commands stay focusable and explain why. Every commit is

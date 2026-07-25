@@ -21,6 +21,15 @@ export interface BoundedNumberPresentation {
   min: number
   max: number
   step: number
+  sliderMin?: number
+  sliderMax?: number
+  sliderStep?: number
+  sliderPositionStep?: number
+  sliderMarks?: ReadonlyArray<{
+    position: number
+    label?: string
+    major: boolean
+  }>
   neutralPosition?: number
   format: (value: number) => string
   parse: (draft: string) => number | null
@@ -67,6 +76,11 @@ export function BoundedNumberField({
     min,
     max,
     step,
+    sliderMin = min,
+    sliderMax = max,
+    sliderStep = step,
+    sliderPositionStep = 0.001,
+    sliderMarks = [],
     neutralPosition,
     format,
     parse,
@@ -77,11 +91,13 @@ export function BoundedNumberField({
   } = presentation
   const inputId = useId()
   const canonicalValue = formatDraft(value)
+  const boundedSliderValue = clampPercentageValue(value, sliderMin, sliderMax)
   const [draft, setDraft] = useState(canonicalValue)
   const [slider, setSlider] = useState<(PercentageSliderPlacement & { pinned: boolean }) | null>(null)
-  const [sliderValue, setSliderValue] = useState(value)
-  const sliderValueRef = useRef(value)
+  const [sliderValue, setSliderValue] = useState(boundedSliderValue)
+  const sliderValueRef = useRef(boundedSliderValue)
   const sliderPointerIdRef = useRef<number | null>(null)
+  const sliderDirtyRef = useRef(false)
   const focusedRef = useRef(false)
   const dirtyRef = useRef(false)
   const sliderRef = useRef<HTMLInputElement>(null)
@@ -142,6 +158,7 @@ export function BoundedNumberField({
     }
   }
   const previewSliderValue = (next: number) => {
+    sliderDirtyRef.current = true
     previewActiveRef.current = true
     sliderValueRef.current = next
     setSliderValue(next)
@@ -154,13 +171,23 @@ export function BoundedNumberField({
   }
   const cancelSlider = () => {
     endPreview()
-    sliderValueRef.current = value
-    setSliderValue(value)
+    sliderDirtyRef.current = false
+    sliderValueRef.current = boundedSliderValue
+    setSliderValue(boundedSliderValue)
     setDraft(canonicalValue)
     closeSlider()
   }
   const commitSlider = (next: number) => {
     endPreview()
+    const changed = sliderDirtyRef.current
+    sliderDirtyRef.current = false
+    if (!changed) {
+      sliderValueRef.current = boundedSliderValue
+      setSliderValue(boundedSliderValue)
+      setDraft(canonicalValue)
+      closeSlider()
+      return
+    }
     sliderValueRef.current = next
     setSliderValue(next)
     setDraft(formatDraft(next))
@@ -176,6 +203,7 @@ export function BoundedNumberField({
     value: toSliderPosition(value),
     min: 0,
     max: 1,
+    height: sliderMarks.length > 0 ? 58 : undefined,
   })
   const valueFromPointer = (pointerX: number, placement: PercentageSliderPlacement) => {
     const position = percentageValueFromPointer(
@@ -184,9 +212,9 @@ export function BoundedNumberField({
       placement.trackWidth,
       0,
       1,
-      0.001,
+      sliderPositionStep,
     )
-    return Number(clampPercentageValue(fromSliderPosition(position), min, max).toFixed(10))
+    return Number(clampPercentageValue(fromSliderPosition(position), sliderMin, sliderMax).toFixed(10))
   }
   const openSlider = (event: PointerEvent<HTMLButtonElement>) => {
     if (disabled) return
@@ -195,12 +223,13 @@ export function BoundedNumberField({
     pointerSessionRef.current = {
       pointerId: event.pointerId,
       startX: event.clientX,
-      currentValue: value,
+      currentValue: boundedSliderValue,
       moved: false,
       placement,
     }
-    sliderValueRef.current = value
-    setSliderValue(value)
+    sliderDirtyRef.current = false
+    sliderValueRef.current = boundedSliderValue
+    setSliderValue(boundedSliderValue)
     setSlider({ ...placement, pinned: false })
     event.currentTarget.setPointerCapture(event.pointerId)
   }
@@ -209,6 +238,7 @@ export function BoundedNumberField({
     if (!session || session.pointerId !== event.pointerId) return
     if (!session.moved && Math.abs(event.clientX - session.startX) < 3) return
     session.moved = true
+    sliderDirtyRef.current = true
     const next = valueFromPointer(event.clientX, session.placement)
     if (next === session.currentValue) return
     session.currentValue = next
@@ -233,8 +263,9 @@ export function BoundedNumberField({
     const rect = event.currentTarget.getBoundingClientRect()
     const placement = placeSlider(rect, rect.left + rect.width / 2)
     pointerSessionRef.current = null
-    sliderValueRef.current = value
-    setSliderValue(value)
+    sliderDirtyRef.current = false
+    sliderValueRef.current = boundedSliderValue
+    setSliderValue(boundedSliderValue)
     setSlider({ ...placement, pinned: true })
     window.setTimeout(() => sliderRef.current?.focus(), 0)
   }
@@ -309,7 +340,7 @@ export function BoundedNumberField({
           className="fixed z-[120] flex items-center rounded-md border border-cyan-400/35 bg-zinc-950 px-4 shadow-[0_12px_32px_rgba(0,0,0,0.5)]"
           style={{ left: slider.left, top: slider.top, width: slider.width, height: slider.height }}
         >
-          <div className="relative flex w-full items-center">
+          <div className={sliderMarks.length > 0 ? 'relative h-9 w-full' : 'relative flex w-full items-center'}>
             {neutralPosition !== undefined && (
               <span
                 data-testid="domain-number-neutral"
@@ -318,6 +349,27 @@ export function BoundedNumberField({
                 style={{ left: `${neutralPosition * 100}%` }}
               />
             )}
+            {sliderMarks.length > 0 && (
+              <div aria-hidden className="pointer-events-none absolute inset-x-[7px] top-6 h-3">
+                {sliderMarks.map((mark) => (
+                  <span
+                    key={`${mark.position}:${mark.label ?? ''}`}
+                    data-testid="bounded-number-detent"
+                    className={`absolute top-0 -translate-x-1/2 border-l ${mark.major ? 'h-2 border-zinc-500/65' : 'h-1 border-zinc-700/70'}`}
+                    style={{ left: `${mark.position * 100}%` }}
+                  >
+                    {mark.label && (
+                      <span
+                        data-testid="bounded-number-detent-label"
+                        className="absolute left-0 top-2 -translate-x-1/2 font-mono text-[7px] font-normal tracking-normal text-zinc-600"
+                      >
+                        {mark.label}
+                      </span>
+                    )}
+                  </span>
+                ))}
+              </div>
+            )}
             <input
               ref={sliderRef}
               type="range"
@@ -325,7 +377,7 @@ export function BoundedNumberField({
               aria-valuetext={format(sliderValue)}
               min={0}
               max={1}
-              step={0.001}
+              step={sliderPositionStep}
               value={toSliderPosition(sliderValue)}
               onPointerDown={(event) => {
                 sliderPointerIdRef.current = event.pointerId
@@ -334,8 +386,8 @@ export function BoundedNumberField({
               onInput={(event) => previewSliderValue(Number(
                 clampPercentageValue(
                   fromSliderPosition(Number(event.currentTarget.value)),
-                  min,
-                  max,
+                  sliderMin,
+                  sliderMax,
                 ).toFixed(10),
               ))}
               onPointerUp={(event) => {
@@ -372,23 +424,23 @@ export function BoundedNumberField({
                   return
                 }
                 const delta = event.key === 'ArrowRight' || event.key === 'ArrowUp'
-                  ? step
+                  ? sliderStep
                   : event.key === 'ArrowLeft' || event.key === 'ArrowDown'
-                    ? -step
+                    ? -sliderStep
                     : null
                 const next = event.key === 'Home'
-                  ? min
+                  ? sliderMin
                   : event.key === 'End'
-                    ? max
+                    ? sliderMax
                     : delta === null
                       ? null
-                      : clampPercentageValue(sliderValue + delta, min, max)
+                      : clampPercentageValue(sliderValue + delta, sliderMin, sliderMax)
                 if (next === null) return
                 event.preventDefault()
                 event.stopPropagation()
                 previewSliderValue(Number(next.toFixed(10)))
               }}
-              className="w-full accent-cyan-400"
+              className={`${sliderMarks.length > 0 ? 'absolute inset-x-0 top-0 z-10 h-5' : ''} w-full accent-cyan-400`}
             />
           </div>
         </div>,

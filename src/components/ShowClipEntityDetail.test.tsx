@@ -58,8 +58,8 @@ describe('shared Clip Entity Detail sections (#498)', () => {
     const primaryFields = screen.getByTestId('clip-primary-fields')
     const localFields = screen.getByTestId('clip-local-fields')
     const sourceField = screen.getByRole('combobox', { name: 'Source pattern' }).closest('label')
-    const startField = screen.getByRole('spinbutton', { name: 'Start seconds' }).closest('[data-field-span]')
-    const durationField = screen.getByRole('spinbutton', { name: 'Duration seconds' }).closest('[data-field-span]')
+    const startField = screen.getByRole('textbox', { name: 'Start seconds exact time' }).closest('[data-field-span]')
+    const durationField = screen.getByRole('textbox', { name: 'Duration seconds exact time' }).closest('[data-field-span]')
 
     expect(primaryFields).toHaveClass('sm:grid-cols-[minmax(0,2fr)_minmax(0,1fr)_minmax(0,1fr)]')
     expect(localFields).toHaveClass('sm:grid-cols-2')
@@ -77,7 +77,7 @@ describe('shared Clip Entity Detail sections (#498)', () => {
     expect(screen.getByRole('combobox', { name: 'Source pattern' })).toBeInTheDocument()
     expect(screen.getByRole('textbox', { name: 'Animation speed exact multiplier' })).toHaveValue('1')
     expect(screen.getByRole('textbox', { name: 'Brightness exact percentage' })).toBeInTheDocument()
-    expect(Boolean(screen.queryByRole('spinbutton', { name: 'Start seconds' }))).toBe(localTiming)
+    expect(Boolean(screen.queryByRole('textbox', { name: 'Start seconds exact time' }))).toBe(localTiming)
     expect(Boolean(screen.queryByRole('combobox', { name: 'Overlay target layer' }))).toBe(layer)
     expect(Boolean(screen.queryByRole('textbox', { name: 'Opacity exact percentage' }))).toBe(opacity)
   })
@@ -158,7 +158,7 @@ describe('shared Clip Entity Detail sections (#498)', () => {
       {...props}
       value={{ ...props.value, presentation: { mode: 'strobe', cadenceMs: 1_000 } }}
     />)
-    const cadence = screen.getByRole('spinbutton', { name: 'Strobe cadence seconds' })
+    const cadence = screen.getByRole('textbox', { name: 'Strobe cadence seconds exact time' })
     fireEvent.change(cadence, { target: { value: '0.5' } })
     fireEvent.blur(cadence)
     expect(onPatch).toHaveBeenCalledWith({ presentation: { mode: 'strobe', cadenceMs: 500 } })
@@ -343,10 +343,10 @@ describe('shared Clip Entity Detail sections (#498)', () => {
     const onMoveLayer = vi.fn()
     render(<ShowClipEntityDetail {...commonProps('scene-overlay', onPatch)} onMoveLayer={onMoveLayer} />)
 
-    const duration = screen.getByRole('spinbutton', { name: 'Duration seconds' })
-    fireEvent.change(duration, { target: { value: '3.5' } })
+    const duration = screen.getByRole('textbox', { name: 'Duration seconds exact time' })
+    fireEvent.change(duration, { target: { value: '75.5' } })
     fireEvent.blur(duration)
-    expect(onPatch).toHaveBeenCalledWith({ local: { durationMs: 3_500 } })
+    expect(onPatch).toHaveBeenCalledWith({ local: { durationMs: 75_500 } })
 
     const opacity = screen.getByRole('textbox', { name: 'Opacity exact percentage' })
     fireEvent.change(opacity, { target: { value: '40%' } })
@@ -355,5 +355,40 @@ describe('shared Clip Entity Detail sections (#498)', () => {
 
     fireEvent.change(screen.getByRole('combobox', { name: 'Overlay target layer' }), { target: { value: 'layer-2' } })
     expect(onMoveLayer).toHaveBeenCalledWith('layer-2')
+  })
+
+  it('previews one detented Start scrub and commits it once on release', () => {
+    const onPatch = vi.fn()
+    const onPreviewPatch = vi.fn()
+    const onPreviewEnd = vi.fn()
+    render(
+      <ShowClipEntityDetail
+        {...commonProps('scene-main', onPatch)}
+        onPreviewPatch={onPreviewPatch}
+        onPreviewEnd={onPreviewEnd}
+      />,
+    )
+
+    const grip = screen.getByRole('button', { name: 'Adjust Start seconds with slider' })
+    Object.defineProperty(grip, 'setPointerCapture', { configurable: true, value: vi.fn() })
+    Object.defineProperty(grip, 'releasePointerCapture', { configurable: true, value: vi.fn() })
+    vi.spyOn(grip, 'getBoundingClientRect').mockReturnValue({
+      x: 200, y: 100, left: 200, right: 218, top: 100, bottom: 120, width: 18, height: 20, toJSON: () => ({}),
+    })
+
+    fireEvent.pointerDown(grip, { pointerId: 9, clientX: 209, clientY: 110 })
+    expect(screen.getAllByTestId('bounded-number-detent')).toHaveLength(61)
+    fireEvent.pointerMove(grip, { pointerId: 9, clientX: 229, clientY: 110 })
+    fireEvent.pointerMove(grip, { pointerId: 9, clientX: 239, clientY: 110 })
+
+    expect(onPreviewPatch).toHaveBeenCalledTimes(2)
+    expect(onPreviewPatch.mock.calls[1][0].local.startMs)
+      .toBeGreaterThan(onPreviewPatch.mock.calls[0][0].local.startMs)
+    expect(onPatch).not.toHaveBeenCalled()
+
+    fireEvent.pointerUp(grip, { pointerId: 9, clientX: 239, clientY: 110 })
+    expect(onPreviewEnd).toHaveBeenCalledOnce()
+    expect(onPatch).toHaveBeenCalledOnce()
+    expect(onPatch).toHaveBeenCalledWith(onPreviewPatch.mock.calls[1][0])
   })
 })

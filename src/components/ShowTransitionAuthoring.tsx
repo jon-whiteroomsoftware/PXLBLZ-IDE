@@ -5,6 +5,7 @@ import type { ShowBoundaryTransition, ShowRecord } from '@/engine/personalConten
 import { NumberField } from '@/components/ui/number-field'
 import { PercentageField } from '@/components/ui/percentage-field'
 import { DomainNumberField } from '@/components/ui/domain-number-field'
+import { TimeField } from '@/components/ui/time-field'
 import { ColorField } from '@/components/ui/color-field'
 import { projectShowTimeline } from '@/engine/showModel'
 import {
@@ -305,16 +306,29 @@ export function ShowTransitionParameters({
         // Millisecond model values present as seconds (#577): the model and
         // presets stay in ms while entry uses the app-wide seconds convention.
         const msUnit = parameter.unit === 'ms'
-        return (
+        return msUnit ? (
+          <TimeField
+            key={parameter.id}
+            label={`${parameter.label} (s)`}
+            value={Number(value) / 1_000}
+            min={(parameter.min ?? 0) / 1_000}
+            max={(parameter.max ?? 60_000) / 1_000}
+            step={0.1}
+            disabled={transition.kind === 'cut' && parameter.id !== 'durationMs'}
+            onPreview={(next) => onPreview?.(parameter.id, Math.round(next * 1_000))}
+            onPreviewEnd={onPreviewEnd}
+            onChange={(next) => onChange(parameter.id, Math.round(next * 1_000))}
+          />
+        ) : (
           <NumberField
             key={parameter.id}
-            label={msUnit ? `${parameter.label} (s)` : `${parameter.label}${parameter.unit ? ` (${parameter.unit})` : ''}`}
-            value={msUnit ? Number(value) / 1_000 : Number(value)}
-            min={msUnit && parameter.min !== undefined ? parameter.min / 1_000 : parameter.min}
-            max={msUnit && parameter.max !== undefined ? parameter.max / 1_000 : parameter.max}
-            step={msUnit ? 0.1 : parameter.step}
+            label={`${parameter.label}${parameter.unit ? ` (${parameter.unit})` : ''}`}
+            value={Number(value)}
+            min={parameter.min}
+            max={parameter.max}
+            step={parameter.step}
             disabled={transition.kind === 'cut' && parameter.id !== 'durationMs'}
-            onChange={(next) => onChange(parameter.id, msUnit ? Math.round(next * 1_000) : next)}
+            onChange={(next) => onChange(parameter.id, next)}
           />
         )
       })}

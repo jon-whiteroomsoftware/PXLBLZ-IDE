@@ -1564,6 +1564,31 @@ pointer preview, and one-change commit semantics remain owned by the shared
 bounded field. Stored records, Property animation targets, compiler inputs, and
 generated Pixelblaze source remain ordinary real-unit numbers.
 
+### Time presentation contract
+
+`linearNumberPresentation.ts` supplies an invertible linear mapping whose exact
+entry bounds are independent of its adjustment bounds. `TimeField` specializes
+that contract for decimal seconds: the numeric draft accepts an optional `s`
+suffix, renders the suffix outside the input, and uses a `0..60s` ruler unless a
+narrower authored range applies. Exact entry may therefore retain a valid value
+above 60 seconds without moving or silently clamping it when the ruler opens.
+The value changes to the ruler's bounded range only after an actual ruler
+adjustment.
+
+The ruler marks each whole second and labels landmarks at a density selected
+for its span. Ranges of ten seconds or less add half-second minor marks. Marks
+are presentation hints rather than snap points: pointer travel retains
+sub-second precision, keyboard arrows use the field's ruler step, and exact
+entry retains the authored field precision.
+
+All production Show fields whose values are semantically time use `TimeField`,
+including placement Start and Duration, Show End and Marker time, insertion and
+layout intervals, Transition and Property-animation durations, group and motion
+offsets, routing transfer time, and strobe or stutter cadence. React call sites
+convert seconds to whole model milliseconds only at existing persistence
+boundaries. Show records, compilation, occupancy rules, and timeline math remain
+unchanged.
+
 `showClipTransform.ts` owns Clip Transform normalization, neutral-value
 compaction, and compiler lowering. The persisted record uses normalized
 Position X/Y, Rotation in turns around `(0.5, 0.5)`, and Scale X/Y. Inspector and

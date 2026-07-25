@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from 'react'
 import { createPortal } from 'react-dom'
 import { Search, X, Zap } from 'lucide-react'
-import { NumberField } from '@/components/ui/number-field'
+import { TimeField } from '@/components/ui/time-field'
 import {
   buildShowToolkitPresentationCatalogue,
   filterShowToolkitPresentationCatalogue,
@@ -86,13 +86,12 @@ export function ShowLayerTransitionPalette({
           />
         </label>
         <div className="w-36 text-[11px] text-zinc-500">
-          <NumberField
+          <TimeField
             label="Duration"
-            suffix="seconds"
             variant="editor"
             compact
             min={0.001}
-            max={maxDurationMs / 1_000}
+            max={Math.max(0.001, maxDurationMs / 1_000)}
             step={0.001}
             ariaLabel="Transition duration in seconds"
             value={durationMs / 1_000}

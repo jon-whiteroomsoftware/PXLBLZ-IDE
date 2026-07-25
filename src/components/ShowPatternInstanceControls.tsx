@@ -12,7 +12,7 @@ import {
 import { Button } from '@/components/ui/button'
 import type { ShowClipPatternInstanceOwnership } from '@/engine/showTimelineClipAuthoring'
 import type { ShowSteppedClock } from '@/engine/personalContentRecords'
-import { NumberField } from '@/components/ui/number-field'
+import { TimeField } from '@/components/ui/time-field'
 
 export function ShowPatternInstanceControls({
   ownership,
@@ -77,14 +77,13 @@ export function ShowPatternInstanceControls({
           {steppedClock && (
             <span className="ml-auto flex min-w-24 max-w-32 items-center gap-1 text-zinc-500 [&_input]:!border-0">
               Step
-              <NumberField
+              <TimeField
                 label="Stutter step seconds"
                 hideLabel
                 value={steppedClock.stepMs / 1_000}
                 min={0.016}
                 max={60}
                 step={0.05}
-                suffix="s"
                 compact
                 onChange={(seconds) => onSteppedClockChange({ stepMs: Math.round(seconds * 1_000) })}
               />

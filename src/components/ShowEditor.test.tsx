@@ -396,7 +396,7 @@ describe('ShowEditor (#318)', () => {
     expect(screen.getByTestId('show-timeline-toolbar')).not.toContainElement(dialog)
     expect(dialog).toHaveClass('fixed')
     await user.selectOptions(within(dialog).getByRole('combobox', { name: 'Layout definition' }), show.routingLayouts[1].id)
-    const duration = within(dialog).getByRole('spinbutton', { name: 'Layout interval duration in seconds' })
+    const duration = within(dialog).getByRole('textbox', { name: 'Layout interval duration in seconds exact time' })
     await user.clear(duration)
     await user.type(duration, '3')
     await user.click(within(dialog).getByRole('button', { name: 'Insert here' }))
@@ -457,7 +457,7 @@ describe('ShowEditor (#318)', () => {
     ]))
     await user.click(screen.getByRole('button', { name: 'Marker 1 at 4.023 seconds' }))
     const details = screen.getByRole('dialog', { name: 'Marker 1 details' })
-    const markerTime = within(details).getByRole('spinbutton', { name: 'Marker time in seconds' })
+    const markerTime = within(details).getByRole('textbox', { name: 'Marker time in seconds exact time' })
     await user.clear(markerTime)
     await user.type(markerTime, '4.125')
     fireEvent.blur(markerTime)
@@ -468,7 +468,7 @@ describe('ShowEditor (#318)', () => {
     await user.clear(markerTime)
     fireEvent.blur(markerTime)
     await waitFor(() => expect(useShowStore.getState().shows[0].composition?.markers?.[0].timeMs).toBe(4_125))
-    expect(markerTime).toHaveValue(4.125)
+    expect(markerTime).toHaveValue('4.125')
 
     await user.click(screen.getByTestId('show-timeline-toolbar'))
     expect(screen.queryByRole('dialog', { name: 'Marker 1 details' })).not.toBeInTheDocument()
@@ -663,7 +663,7 @@ describe('ShowEditor (#318)', () => {
 
     await user.click(screen.getByRole('button', { name: 'Show End at 62 seconds' }))
     const details = screen.getByRole('dialog', { name: 'Show End details' })
-    const showEnd = within(details).getByRole('spinbutton', { name: 'Show End time in seconds' })
+    const showEnd = within(details).getByRole('textbox', { name: 'Show End time in seconds exact time' })
     await user.clear(showEnd)
     await user.type(showEnd, '65.5')
     fireEvent.blur(showEnd)
@@ -674,7 +674,7 @@ describe('ShowEditor (#318)', () => {
     await user.clear(showEnd)
     fireEvent.blur(showEnd)
     await waitFor(() => expect(showModel.showLoopDurationMs(useShowStore.getState().shows[0])).toBe(65_500))
-    expect(showEnd).toHaveValue(65.5)
+    expect(showEnd).toHaveValue('65.5')
   })
 
   it('does not toggle Show End details after dragging its handle (#584)', async () => {
@@ -845,7 +845,7 @@ describe('ShowEditor (#318)', () => {
     expect(within(panel).getByRole('button', { name: 'Make Group unique' })).toBeInTheDocument()
     expect(within(panel).getByRole('button', { name: 'Ungroup occurrence' })).toBeInTheDocument()
     expect(within(panel).getByRole('button', { name: 'Delete Group Pulse phrase' })).toBeInTheDocument()
-    expect(within(panel).getByLabelText('Start seconds')).toBeInTheDocument()
+    expect(within(panel).getByLabelText('Start seconds exact time')).toBeInTheDocument()
     expect(within(panel).getByLabelText('Base Layer')).toBeInTheDocument()
 
     await user.click(within(panel).getByRole('button', { name: 'Pin Entity Detail Panel' }))
@@ -913,7 +913,7 @@ describe('ShowEditor (#318)', () => {
     const panel = screen.getByRole('dialog', { name: 'Entity Detail Panel' })
     expect(panel).toHaveAttribute('data-owner-key', 'group-clip:phrase-use-a:inside-clip')
     expect(within(panel).getByLabelText('Pattern automation targets')).toBeInTheDocument()
-    changeCommittedNumber('Duration seconds', '1.5')
+    changeCommittedNumber('Duration seconds exact time', '1.5')
     await waitFor(() => {
       expect(useShowStore.getState().shows[0].composition?.groupDefinitions?.[0].placements[0].durationMs).toBe(1_500)
     })
@@ -1086,7 +1086,7 @@ describe('ShowEditor (#318)', () => {
     })
     await user.click(transitions[0])
     expect(screen.getByRole('dialog', { name: 'Layer Transition Details' })).toBeInTheDocument()
-    changeCommittedNumber('Layer Transition duration in seconds', '0.5')
+    changeCommittedNumber('Layer Transition duration in seconds exact time', '0.5')
 
     await waitFor(() => {
       const definition = useShowStore.getState().shows[0].composition?.groupDefinitions?.[0]
@@ -1231,7 +1231,7 @@ describe('ShowEditor (#318)', () => {
     expect(cut).toHaveClass('z-[15]')
     await user.click(cut)
     const palette = screen.getByRole('dialog', { name: 'Choose Layer Transition' })
-    expect(within(palette).getByRole('spinbutton', { name: 'Transition duration in seconds' })).toHaveValue(2)
+    expect(within(palette).getByRole('textbox', { name: 'Transition duration in seconds exact time' })).toHaveValue('2')
     await user.click(within(palette).getByRole('button', { name: 'Use Crossfade Transition' }))
 
     await waitFor(() => {
@@ -1249,7 +1249,7 @@ describe('ShowEditor (#318)', () => {
 
     await user.click(screen.getByRole('button', { name: 'Edit crossfade Transition between Cut source and Cut source' }))
     expect(screen.getByRole('dialog', { name: 'Layer Transition Details' })).toBeInTheDocument()
-    changeCommittedNumber('Layer Transition duration in seconds', '1.5')
+    changeCommittedNumber('Layer Transition duration in seconds exact time', '1.5')
     await waitFor(() => {
       const saved = useShowStore.getState().shows[0].composition!
       expect(saved.transitions?.[0].durationMs).toBe(1_500)
@@ -1312,8 +1312,8 @@ describe('ShowEditor (#318)', () => {
     const clip = screen.getByRole('button', { name: `Select ${patternName}` })
     expect(clip).toHaveAttribute('data-show-composition-clip', 'true')
     await waitFor(() => expect(screen.getByRole('dialog', { name: 'Entity Detail Panel' })).toBeInTheDocument())
-    expect(screen.getByRole('spinbutton', { name: 'Start seconds' })).toHaveValue(0)
-    expect(screen.getByRole('spinbutton', { name: 'Duration seconds' })).toHaveValue(5)
+    expect(screen.getByRole('textbox', { name: 'Start seconds exact time' })).toHaveValue('0')
+    expect(screen.getByRole('textbox', { name: 'Duration seconds exact time' })).toHaveValue('5')
 
     await user.click(clip)
     expect(screen.queryByRole('dialog', { name: 'Entity Detail Panel' })).not.toBeInTheDocument()
