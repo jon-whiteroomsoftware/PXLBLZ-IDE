@@ -805,7 +805,8 @@ export function ShowEditor({
   }, [showId])
 
   const savedShow = useShowStore((state) => state.shows.find((item) => item.id === showId))
-  const hasStockDraft = useShowStore((state) => Boolean(state.stockShowDrafts[showId]))
+  const stockShowDraft = useShowStore((state) => state.stockShowDrafts[showId])
+  const hasStockDraft = stockShowDraft !== undefined
   const resetStockShowDraft = useShowStore((state) => state.resetStockShowDraft)
   const updateShow = useShowStore((state) => state.updateShow)
   const updateBoundaryTransition = useShowStore((state) => state.updateBoundaryTransition)
@@ -959,7 +960,7 @@ export function ShowEditor({
     () => controllerProvider.getStatus(),
   )
 
-  const activeShow = showOverride ?? savedShow ?? null
+  const activeShow = stockShowDraft ?? showOverride ?? savedShow ?? null
   useShowTransportClock(activeShow, transportClockActive)
   const targetProfile = activeShow?.outputContract?.kind === 'portable-2d'
     ? undefined

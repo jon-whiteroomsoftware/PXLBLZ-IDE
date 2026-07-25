@@ -2829,6 +2829,62 @@ describe('ShowEditor (#318)', () => {
     expect(useShowStore.getState().shows).toEqual([])
   })
 
+  it('renders the current built-in session draft and enables Reset for it (#619)', async () => {
+    const user = userEvent.setup()
+    const stock = STOCK_SHOWS[0]
+    const draft = { ...stock.show, name: 'Edited session Show', updatedAt: stock.show.updatedAt + 1 }
+    useShowStore.setState({ stockShowDrafts: { [stock.id]: draft } })
+
+    render(<ShowEditor
+      showId={stock.id}
+      showOverride={stock.show}
+      builtInContext={{ track: 'portable', lesson: 'Session draft', description: 'Test built-in draft state' }}
+    />)
+
+    const reset = screen.getByRole('button', { name: 'Reset built-in Show' })
+    expect(reset).toBeEnabled()
+    await user.click(screen.getByRole('button', { name: 'Show properties' }))
+    expect(screen.getByText('Edited session Show')).toBeInTheDocument()
+
+    await user.click(reset)
+    expect(reset).toBeDisabled()
+    expect(useShowStore.getState().stockShowDrafts[stock.id]).toBeUndefined()
+
+    act(() => useShowStore.setState({ stockShowDrafts: { [stock.id]: draft } }))
+    await waitFor(() => expect(reset).toBeEnabled())
+    reset.focus()
+    await user.keyboard('{Enter}')
+    expect(reset).toBeDisabled()
+    expect(useShowStore.getState().stockShowDrafts[stock.id]).toBeUndefined()
+  })
+
+  it('enables Reset after a built-in Clip edit without creating a personal Show (#619)', async () => {
+    const user = userEvent.setup()
+    const stock = STOCK_SHOWS.find((candidate) => candidate.id === 'stock-show-101-clips-crossfade')!
+
+    render(<ShowEditor
+      showId={stock.id}
+      showOverride={stock.show}
+      builtInContext={{ track: 'portable', lesson: 'Session edit', description: 'Test built-in reset state' }}
+    />)
+
+    const reset = screen.getByRole('button', { name: 'Reset built-in Show' })
+    expect(reset).toBeDisabled()
+    await user.click(screen.getByRole('button', { name: 'Select SignalMandala' }))
+    const brightness = screen.getByRole('textbox', { name: 'Brightness exact percentage' })
+    await user.clear(brightness)
+    await user.type(brightness, '75%')
+    fireEvent.blur(brightness)
+
+    await waitFor(() => expect(reset).toBeEnabled())
+    expect(useShowStore.getState().shows).toEqual([])
+
+    await user.click(reset)
+    expect(reset).toBeDisabled()
+    expect(useShowStore.getState().stockShowDrafts[stock.id]).toBeUndefined()
+    expect(useShowStore.getState().shows).toEqual([])
+  })
+
   it('keeps legacy stock Clips on one absolute Layer and exposes their boundary Transition (#589)', async () => {
     const user = userEvent.setup()
     const stock = STOCK_SHOWS.find((candidate) => candidate.id === 'stock-show-101-clips-crossfade')!

@@ -2,7 +2,7 @@ import { expect, test } from './fixtures/authenticated'
 import type { Locator, Page } from '@playwright/test'
 
 test.describe('authenticated Show authoring', () => {
-  test('lets built-in Show lessons be edited session-only with an explicit Reset (#363)', async ({ page }) => {
+  test('keeps built-in Show Reset aligned with session-only edits (#363, #619)', async ({ page }) => {
     const showWrites: string[] = []
     page.on('request', (request) => {
       if (request.url().includes('/api/shows') && request.method() !== 'GET') showWrites.push(request.method())
@@ -15,20 +15,33 @@ test.describe('authenticated Show authoring', () => {
     await expect(page.getByRole('region', { name: '101 Clips and Crossfade guide' })).toBeVisible()
     await expect(page.getByRole('region', { name: 'Show timeline' })).toBeVisible()
 
-    // Editable: lesson content accepts real edits without any persistence.
+    // Editable: a real Clip edit creates only a session draft.
     const resetButton = page.getByRole('button', { name: 'Reset built-in Show' })
     await expect(resetButton).toBeDisabled()
-    const sceneName = page.locator('[data-show-scene-name]').first()
-    await expect(sceneName).toHaveValue('Mandala')
-    await expect(sceneName).toBeEnabled()
-    await sceneName.fill('Playground')
-    await sceneName.press('Enter')
-    await expect(sceneName).toHaveValue('Playground')
+    await page.getByRole('button', { name: 'Select SignalMandala' }).click()
+    const clipPanel = page.getByRole('dialog', { name: 'Entity Detail Panel' })
+    await expect(clipPanel).toBeVisible()
+    const brightness = clipPanel.getByRole('textbox', { name: 'Brightness exact percentage' })
+    await brightness.fill('75')
+    await brightness.blur()
 
-    // Reset restores the pristine catalogue definition.
+    // Reset removes the draft, and reload leaves no session-only edit behind.
     await expect(resetButton).toBeEnabled()
     await resetButton.click()
-    await expect(page.locator('[data-show-scene-name]').first()).toHaveValue('Mandala')
+    await expect(resetButton).toBeDisabled()
+
+    // A later session draft is also discarded by reload rather than persisted.
+    await page.getByRole('button', { name: 'Select SignalMandala' }).click()
+    const editedAgainBrightness = page.getByRole('dialog', { name: 'Entity Detail Panel' })
+      .getByRole('textbox', { name: 'Brightness exact percentage' })
+    await editedAgainBrightness.fill('50')
+    await editedAgainBrightness.blur()
+    await expect(resetButton).toBeEnabled()
+    await page.reload()
+    await expect(page.getByRole('button', { name: 'Reset built-in Show' })).toBeDisabled()
+    await page.getByRole('button', { name: 'Select SignalMandala' }).click()
+    await expect(page.getByRole('dialog', { name: 'Entity Detail Panel' })
+      .getByRole('textbox', { name: 'Brightness exact percentage' })).toHaveValue('100')
     expect(showWrites).toEqual([])
 
     await page.setViewportSize({ width: 600, height: 800 })
