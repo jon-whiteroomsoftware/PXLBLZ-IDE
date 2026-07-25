@@ -17,8 +17,9 @@ export const CLAUDE_REVIEW_EFFORT = 'high' as const
 export const GPT_REVIEW_MODEL = 'gpt-5.6-sol' as const
 export const GPT_REVIEW_EFFORT = 'high' as const
 export const REVIEW_TIMEOUT_MS = 15 * 60 * 1_000
-export const REVIEW_PROMPT_VERSION = 5 as const
+export const REVIEW_PROMPT_VERSION = 6 as const
 export const REVIEW_SCHEMA_VERSION = 1 as const
+export const REVIEW_APPROVAL_POLICY_VERSION = 2 as const
 
 export interface PrePushUpdate {
   localRef: string
@@ -170,6 +171,7 @@ export function reviewPolicyFingerprint(): string {
   return createHash('sha256').update(JSON.stringify({
     promptVersion: REVIEW_PROMPT_VERSION,
     schemaVersion: REVIEW_SCHEMA_VERSION,
+    approvalPolicyVersion: REVIEW_APPROVAL_POLICY_VERSION,
     schema: REVIEW_SCHEMA,
     prompt: buildReviewPrompt([{
       label: '<range>',
@@ -221,6 +223,26 @@ export interface PushApprovalCoverage {
   chain: ReviewApprovalReceipt[] | null
 }
 
+export function formatApprovalCoverage(entry: PushApprovalCoverage): string[] {
+  const chain = entry.chain ?? []
+  const advisoryReceipts = chain.filter((receipt) => receipt.coverage === 'advisory')
+  const header = (
+    `✓ ${entry.range.label}: ${entry.range.baseSha.slice(0, 12)}..${entry.range.tipSha.slice(0, 12)}`
+    + ` covered by ${chain.length} review receipt${chain.length === 1 ? '' : 's'}`
+    + (advisoryReceipts.length > 0
+      ? `, including ${advisoryReceipts.length} advisory`
+      : '')
+    + '.'
+  )
+  const advisories = advisoryReceipts.flatMap((receipt) => (
+    receipt.advisories?.map((finding) => {
+      const location = finding.line ? `${finding.file}:${finding.line}` : finding.file
+      return `  [${finding.severity}] ${finding.title} - ${location}`
+    }) ?? []
+  ))
+  return [header, ...advisories]
+}
+
 export function approvalCoverageFromUpdates(
   updates: PrePushUpdate[],
   newRefBase: (update: PrePushUpdate) => string,
@@ -266,7 +288,7 @@ ${commands}
 
 Review for correctness bugs only: logic errors, off-by-one errors, broken type contracts, incorrect state transitions, destructive data loss, missing null handling, and behavior that violates an existing invariant. When systematic test-design context is supplied, use its invariants, partitions, sequences, oracles, and residual gaps as review evidence. Do not flag style, naming, formatting, speculative improvements, or missing features outside the changed code.${testDesignPacket}
 
-For each real bug, cite the narrowest file and line where the defect is introduced and explain the concrete failing scenario. Set decision = "fail" when at least one correctness finding exists. Set decision = "pass" only when the outgoing changes are safe to push, and return zero findings with a pass. If you cannot inspect every range, return decision = "fail" with an infrastructure finding explaining what could not be read.`
+For each real bug, cite the narrowest file and line where the defect is introduced and explain the concrete failing scenario. Severity controls follow-up scope: P0/P1 findings require a complete replacement-range review after correction. P2/P3 findings preserve this reviewed range as non-terminal advisory coverage and require an exact review of a new corrective commit. Set decision = "fail" when at least one correctness finding exists. Set decision = "pass" only when the outgoing changes are safe to push, and return zero findings with a pass. If you cannot inspect every range, return decision = "fail" with a P1 infrastructure finding explaining what could not be read.`
 }
 
 export function parseClaudeReviewOutput(output: string): PushReviewResult {
@@ -542,10 +564,7 @@ function main(): void {
       ].join('\n'))
     }
     for (const entry of coverage) {
-      console.log(
-        `✓ ${entry.range.label}: ${entry.range.baseSha.slice(0, 12)}..${entry.range.tipSha.slice(0, 12)}`
-        + ` covered by ${entry.chain?.length ?? 0} approval${entry.chain?.length === 1 ? '' : 's'}.`,
-      )
+      for (const line of formatApprovalCoverage(entry)) console.log(line)
     }
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error)

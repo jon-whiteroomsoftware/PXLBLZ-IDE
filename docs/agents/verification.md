@@ -39,11 +39,17 @@ diffs defensively, preserving empty commits, conflict-resolution changes, and
 add-then-revert histories that an endpoint-tree diff would hide. If Opus 5 High
 cannot return a valid structured decision because of quota,
 timeout, process, or malformed output, GPT-5.6 High receives the same immutable
-input. A valid failure from either reviewer is blocking and never creates an
-approval. A pass is valid only with zero findings; contradictory structured
+input. P0/P1 findings are blocking and create no coverage; after correction,
+the complete candidate range must be reviewed again. A failure containing only
+P2/P3 findings records non-terminal advisory coverage for the reviewed range.
+Fix those findings in a new commit, then review only that exact follow-up
+range. The advisory receipt can be an intermediate edge in a
+contiguous chain, but it can never authorize publication as the final receipt.
+A clean pass remains valid only with zero findings; contradictory structured
 output is malformed and remains fail-closed.
 
-A pass writes a receipt below the repository's common Git directory:
+A clean pass or P2/P3-only review writes a receipt below the repository's
+common Git directory:
 
 ```text
 .git/pxlblz/review-approvals/v1/
@@ -52,10 +58,15 @@ A pass writes a receipt below the repository's common Git directory:
 Worktrees share this directory. Receipts are deliberately outside source
 control and contain the exact base and tip identities, reviewer and effort,
 prompt and output-schema versions, review-policy fingerprint, optional
-test-design-context digest, decision, and timestamp. Receipt files are created
+test-design-context digest, decision, timestamp, and any non-blocking advisory
+findings. Receipt files are created
 without overwrite permission. Amend, rebase, squash, cherry-pick, changed tip,
 changed policy, malformed receipt, missing receipt, or a gap between receipts
 invalidates reuse.
+
+The severity contract is part of the reviewer prompt and policy fingerprint.
+Changing that contract invalidates older receipts even when their clean result
+would otherwise be stronger evidence.
 
 Annotated tags retain their tag-object SHA as the exact receipt identity rather
 than being reduced to the target commit. Candidate validation peels the tip
@@ -83,9 +94,10 @@ the review:
 ```
 
 The command validates all five arrays, includes them in the review packet, and
-records their digest in the receipt. A review-discovered defect family returns
-through `systematic-test-design` for a same-class sweep before the replacement
-candidate is reviewed.
+records their digest in the receipt. A P0/P1 defect family returns through
+`systematic-test-design` before the replacement candidate receives a new full
+review. A P2/P3 defect receives the same-class sweep in its corrective slice,
+then only that exact follow-up range is reviewed.
 
 ### Publication
 

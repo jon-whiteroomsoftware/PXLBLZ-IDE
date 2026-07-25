@@ -4,6 +4,7 @@ import { pathToFileURL } from 'node:url'
 import {
   createApprovalReceipt,
   reviewApprovalDirectory,
+  type ReviewAdvisoryFinding,
   type ReviewApprovalReceipt,
   writeApprovalReceipt,
 } from './review-approvals'
@@ -70,8 +71,20 @@ export interface CandidateApprovalResult {
 export function approveCandidate(
   input: ApproveCandidateInput,
 ): CandidateApprovalResult {
-  if (input.execution.review.decision !== 'pass'
-    || input.execution.review.findings.length > 0) {
+  const advisories = input.execution.review.findings.filter(
+    (finding): finding is typeof finding & ReviewAdvisoryFinding => (
+      finding.severity === 'P2' || finding.severity === 'P3'
+    ),
+  )
+  const hasBlockingFinding = input.execution.review.findings.some(
+    (finding) => finding.severity === 'P0' || finding.severity === 'P1',
+  )
+  const cleanPass = input.execution.review.decision === 'pass'
+    && input.execution.review.findings.length === 0
+  const advisoryFailure = input.execution.review.decision === 'fail'
+    && advisories.length > 0
+    && !hasBlockingFinding
+  if (!cleanPass && !advisoryFailure) {
     return { execution: input.execution }
   }
   const receipt = createApprovalReceipt({
@@ -79,7 +92,8 @@ export function approveCandidate(
     tipSha: input.range.tipSha,
     reviewer: input.execution.reviewer,
     effort: 'high',
-    decision: input.execution.review.decision,
+    decision: 'pass',
+    ...(advisoryFailure ? { coverage: 'advisory' as const, advisories } : {}),
     policyFingerprint: input.policyFingerprint,
     promptVersion: input.promptVersion,
     schemaVersion: input.schemaVersion,
@@ -194,6 +208,12 @@ function main(): void {
     })
     if (!result.receiptPath) {
       console.error('CANDIDATE REVIEW BLOCKED: fix the findings, commit a new tip, and review that new exact range.')
+      process.exitCode = 1
+      return
+    }
+    if (execution.review.findings.length > 0) {
+      console.log(`✓ Non-blocking range coverage recorded: ${result.receiptPath}`)
+      console.error('CANDIDATE FOLLOW-UP REQUIRED: fix the P2/P3 findings in a new commit, then review that exact follow-up range. Full-range re-review is not required.')
       process.exitCode = 1
       return
     }

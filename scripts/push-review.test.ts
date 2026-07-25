@@ -5,6 +5,7 @@ import {
   CLAUDE_REVIEW_MODEL,
   GPT_REVIEW_EFFORT,
   GPT_REVIEW_MODEL,
+  REVIEW_APPROVAL_POLICY_VERSION,
   REVIEW_GIT_MAX_BUFFER_BYTES,
   REVIEW_TIMEOUT_MS,
   buildClaudeReviewArgs,
@@ -13,6 +14,7 @@ import {
   buildReviewPrompt,
   determineNewRefBase,
   formatReviewObjectPacket,
+  formatApprovalCoverage,
   parseClaudeReviewOutput,
   parseCodexReviewOutput,
   parsePrePushInput,
@@ -53,6 +55,7 @@ describe('cross-agent push review gate (#63)', () => {
     expect(CLAUDE_REVIEW_MODEL).toBe('claude-opus-5')
     expect(CLAUDE_REVIEW_EFFORT).toBe('high')
     expect(REVIEW_TIMEOUT_MS).toBe(15 * 60 * 1_000)
+    expect(REVIEW_APPROVAL_POLICY_VERSION).toBe(2)
     expect(buildClaudeReviewArgs()).toEqual([
       '-p',
       '--safe-mode',
@@ -357,6 +360,52 @@ describe('cross-agent push review gate (#63)', () => {
     })
   })
 
+  it('surfaces advisory edges and their findings at the publication boundary', () => {
+    const a = 'a'.repeat(40)
+    const b = 'b'.repeat(40)
+    const c = 'c'.repeat(40)
+    const advisory = createApprovalReceipt({
+      baseSha: a,
+      tipSha: b,
+      reviewer: 'Opus 5 High',
+      effort: 'high',
+      decision: 'pass',
+      coverage: 'advisory',
+      advisories: [{
+        severity: 'P2',
+        title: 'Unexpected resize',
+        file: 'src/example.ts',
+        line: 12,
+        explanation: 'A move changes the stored size.',
+      }],
+      policyFingerprint: 'policy-v1',
+      promptVersion: 6,
+      schemaVersion: 1,
+      contextSha256: null,
+      reviewedAt: '2026-07-24T12:00:00.000Z',
+    })
+    const clean = createApprovalReceipt({
+      baseSha: b,
+      tipSha: c,
+      reviewer: 'Opus 5 High',
+      effort: 'high',
+      decision: 'pass',
+      policyFingerprint: 'policy-v1',
+      promptVersion: 6,
+      schemaVersion: 1,
+      contextSha256: null,
+      reviewedAt: '2026-07-24T12:05:00.000Z',
+    })
+
+    expect(formatApprovalCoverage({
+      range: { label: 'main', baseSha: a, tipSha: c },
+      chain: [advisory, clean],
+    })).toEqual([
+      expect.stringContaining('2 review receipts, including 1 advisory'),
+      expect.stringContaining('[P2] Unexpected resize - src/example.ts:12'),
+    ])
+  })
+
   it('requires structured reviewer output and preserves actionable findings', () => {
     const parsed = parseClaudeReviewOutput(JSON.stringify({
       type: 'result',
@@ -390,6 +439,9 @@ describe('cross-agent push review gate (#63)', () => {
     expect(prompt).toContain('correctness')
     expect(prompt).toContain('Do not flag style')
     expect(prompt).toContain('decision = "fail"')
+    expect(prompt).toContain('P0/P1 findings require a complete replacement-range review')
+    expect(prompt).toContain('P2/P3 findings preserve this reviewed range')
+    expect(prompt).toContain('P1 infrastructure finding')
     expect(prompt).toContain('untrusted data')
   })
 

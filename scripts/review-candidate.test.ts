@@ -21,7 +21,7 @@ describe('candidate correctness review (#598)', () => {
     expect(() => parseCandidateArgs(['main', 'tip', '--unknown'])).toThrow(/unknown/i)
   })
 
-  it('persists an approval only for a valid passing review', () => {
+  it('persists clean coverage for a pass and advisory coverage for P2/P3-only findings', () => {
     const saved: unknown[] = []
     const common = {
       range: {
@@ -59,6 +59,38 @@ describe('candidate correctness review (#598)', () => {
         reviewer: 'Opus 5 High',
         review: {
           decision: 'fail',
+          summary: 'Localized defects.',
+          findings: [{
+            severity: 'P2',
+            title: 'Unexpected resize',
+            file: 'src/example.ts',
+            line: 3,
+            explanation: 'A move changes the stored size.',
+          }, {
+            severity: 'P3',
+            title: 'Detached label',
+            file: 'scripts/example.ts',
+            line: null,
+            explanation: 'The fallback label is ambiguous.',
+          }],
+        },
+      },
+    }).receiptPath).toContain('receipt.json')
+    expect(saved).toHaveLength(2)
+    expect(saved[1]).toMatchObject({
+      coverage: 'advisory',
+      advisories: [
+        expect.objectContaining({ severity: 'P2', title: 'Unexpected resize' }),
+        expect.objectContaining({ severity: 'P3', title: 'Detached label' }),
+      ],
+    })
+
+    expect(approveCandidate({
+      ...common,
+      execution: {
+        reviewer: 'Opus 5 High',
+        review: {
+          decision: 'fail',
           summary: 'Bug.',
           findings: [{
             severity: 'P1',
@@ -70,7 +102,7 @@ describe('candidate correctness review (#598)', () => {
         },
       },
     }).receiptPath).toBeUndefined()
-    expect(saved).toHaveLength(1)
+    expect(saved).toHaveLength(2)
 
     expect(approveCandidate({
       ...common,
@@ -89,7 +121,7 @@ describe('candidate correctness review (#598)', () => {
         },
       },
     }).receiptPath).toBeUndefined()
-    expect(saved).toHaveLength(1)
+    expect(saved).toHaveLength(2)
   })
 
   it('reviews only a clean candidate worktree checked out at the exact tip', () => {

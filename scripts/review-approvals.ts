@@ -9,6 +9,14 @@ import { join } from 'node:path'
 
 export const REVIEW_RECEIPT_VERSION = 1 as const
 
+export interface ReviewAdvisoryFinding {
+  severity: 'P2' | 'P3'
+  title: string
+  file: string
+  line: number | null
+  explanation: string
+}
+
 export interface ReviewApprovalReceipt {
   receiptVersion: typeof REVIEW_RECEIPT_VERSION
   baseSha: string
@@ -16,6 +24,9 @@ export interface ReviewApprovalReceipt {
   reviewer: 'Fable' | 'Opus 5 High' | 'GPT-5.6 High'
   effort: 'medium' | 'high'
   decision: 'pass'
+  /** Omitted means clean. Advisory coverage must be followed by a clean exact-range receipt. */
+  coverage?: 'advisory'
+  advisories?: ReviewAdvisoryFinding[]
   policyFingerprint: string
   promptVersion: number
   schemaVersion: number
@@ -29,6 +40,8 @@ export interface CreateApprovalReceiptInput {
   reviewer: ReviewApprovalReceipt['reviewer']
   effort: ReviewApprovalReceipt['effort']
   decision: 'pass' | 'fail'
+  coverage?: ReviewApprovalReceipt['coverage']
+  advisories?: ReviewAdvisoryFinding[]
   policyFingerprint: string
   promptVersion: number
   schemaVersion: number
@@ -42,11 +55,12 @@ export function createApprovalReceipt(
   if (input.decision !== 'pass') {
     throw new Error('A failed review cannot create an approval receipt.')
   }
-  return {
+  const receipt: ReviewApprovalReceipt = {
     receiptVersion: REVIEW_RECEIPT_VERSION,
     ...input,
     decision: 'pass',
   }
+  return parseApprovalReceipt(receipt)
 }
 
 export function findApprovalChain(
@@ -76,7 +90,7 @@ export function findApprovalChain(
     for (const receipt of usable) {
       if (receipt.baseSha !== current.sha) continue
       const chain = [...current.chain, receipt]
-      if (receipt.tipSha === tipSha) return chain
+      if (receipt.tipSha === tipSha && receipt.coverage !== 'advisory') return chain
       if (visited.has(receipt.tipSha)) continue
       visited.add(receipt.tipSha)
       queue.push({ sha: receipt.tipSha, chain })
@@ -92,7 +106,10 @@ export function writeApprovalReceipt(
   const validated = parseApprovalReceipt(receipt)
   mkdirSync(directory, { recursive: true })
   const identity = createHash('sha256')
-    .update(`${validated.baseSha}\0${validated.tipSha}\0${validated.policyFingerprint}`)
+    .update(
+      `${validated.baseSha}\0${validated.tipSha}\0${validated.policyFingerprint}`
+      + `\0${validated.coverage ?? 'clean'}`,
+    )
     .digest('hex')
   const path = join(directory, `${validated.tipSha.slice(0, 12)}-${identity}.json`)
   const serialized = `${JSON.stringify(validated, null, 2)}\n`
@@ -150,6 +167,10 @@ export function parseApprovalReceipt(value: unknown): ReviewApprovalReceipt {
       && receipt.reviewer !== 'GPT-5.6 High')
     || (receipt.effort !== 'medium' && receipt.effort !== 'high')
     || receipt.decision !== 'pass'
+    || (receipt.coverage !== undefined && receipt.coverage !== 'advisory')
+    || (receipt.coverage === 'advisory'
+      ? !validAdvisories(receipt.advisories)
+      : receipt.advisories !== undefined)
     || typeof receipt.policyFingerprint !== 'string'
     || receipt.policyFingerprint.length === 0
     || !Number.isInteger(receipt.promptVersion)
@@ -160,6 +181,23 @@ export function parseApprovalReceipt(value: unknown): ReviewApprovalReceipt {
     throw new Error('Receipt fields are malformed or unsupported.')
   }
   return receipt as ReviewApprovalReceipt
+}
+
+function validAdvisories(value: unknown): value is ReviewAdvisoryFinding[] {
+  return Array.isArray(value)
+    && value.length > 0
+    && value.every((finding) => (
+      finding
+      && typeof finding === 'object'
+      && ((finding as ReviewAdvisoryFinding).severity === 'P2'
+        || (finding as ReviewAdvisoryFinding).severity === 'P3')
+      && typeof (finding as ReviewAdvisoryFinding).title === 'string'
+      && typeof (finding as ReviewAdvisoryFinding).file === 'string'
+      && ((finding as ReviewAdvisoryFinding).line === null
+        || (Number.isInteger((finding as ReviewAdvisoryFinding).line)
+          && (finding as ReviewAdvisoryFinding).line! > 0))
+      && typeof (finding as ReviewAdvisoryFinding).explanation === 'string'
+    ))
 }
 
 function validSha(value: unknown): value is string {

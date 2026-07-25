@@ -102,7 +102,8 @@ function main(): void {
       for (const receipt of status.chain) {
         console.log(
           `  ${receipt.baseSha.slice(0, 12)}..${receipt.tipSha.slice(0, 12)}`
-          + ` ${receipt.reviewer} ${receipt.effort} ${receipt.reviewedAt}`,
+          + ` ${receipt.reviewer} ${receipt.effort}`
+          + ` ${receipt.coverage ?? 'clean'} ${receipt.reviewedAt}`,
         )
       }
       return

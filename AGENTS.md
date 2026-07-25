@@ -142,8 +142,10 @@ npm run db:migrate:remote
 ```
 
 Pre-commit runs lint, conditional full-project typecheck, focused tests, and
-mapped invariants. Candidate review records an immutable approval only for a
-valid exact-range pass. Pre-push requires contiguous approval coverage instead
+mapped invariants. Candidate review records clean approval for an exact-range
+pass. P2/P3-only findings preserve non-terminal advisory coverage and require
+only an exact corrective review; P0/P1 findings require a new full-range
+review. Pre-push requires a contiguous chain ending in clean approval instead
 of repeating review, then runs full Vitest and Playwright once. See
 `docs/agents/verification.md` for the mechanism and privacy boundary.
 
