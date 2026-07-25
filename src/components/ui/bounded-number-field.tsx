@@ -37,6 +37,7 @@ export interface BoundedNumberPresentation {
   parseDraft?: (draft: string) => number | null
   toSliderPosition: (value: number) => number
   fromSliderPosition: (position: number) => number
+  snapSliderValue?: (value: number) => number
 }
 
 export interface BoundedNumberFieldProps {
@@ -88,12 +89,30 @@ export function BoundedNumberField({
     parseDraft = parse,
     toSliderPosition,
     fromSliderPosition,
+    snapSliderValue = (next) => clampPercentageValue(next, sliderMin, sliderMax),
   } = presentation
   const inputId = useId()
   const canonicalValue = formatDraft(value)
-  const boundedSliderValue = clampPercentageValue(value, sliderMin, sliderMax)
   const sliderPositionCount = Math.max(1, Math.ceil(1 / sliderPositionStep))
   const [draft, setDraft] = useState(canonicalValue)
+  const [pendingCommits, setPendingCommits] = useState<number[]>([])
+  const [lastControlledValue, setLastControlledValue] = useState(value)
+  let activePendingCommits = pendingCommits
+  if (lastControlledValue !== value) {
+    const acknowledgedIndex = pendingCommits.findIndex((pending) => Object.is(pending, value))
+    activePendingCommits = acknowledgedIndex >= 0
+      ? pendingCommits.slice(acknowledgedIndex + 1)
+      : []
+    setLastControlledValue(value)
+    setPendingCommits(activePendingCommits)
+  }
+  const interactionValue = clampPercentageValue(
+    activePendingCommits[activePendingCommits.length - 1] ?? value,
+    min,
+    max,
+  )
+  const interactionDraft = formatDraft(interactionValue)
+  const boundedSliderValue = clampPercentageValue(interactionValue, sliderMin, sliderMax)
   const [slider, setSlider] = useState<(PercentageSliderPlacement & { pinned: boolean }) | null>(null)
   const [sliderValue, setSliderValue] = useState(boundedSliderValue)
   const sliderValueRef = useRef(boundedSliderValue)
@@ -114,8 +133,8 @@ export function BoundedNumberField({
   } | null>(null)
 
   useEffect(() => {
-    if (!focusedRef.current) setDraft(canonicalValue)
-  }, [canonicalValue])
+    if (!focusedRef.current) setDraft(interactionDraft)
+  }, [interactionDraft])
 
   useEffect(() => {
     onPreviewEndRef.current = onPreviewEnd
@@ -130,14 +149,19 @@ export function BoundedNumberField({
     previewActiveRef.current = false
     onPreviewEndRef.current?.()
   }
+  const recordPendingCommit = (next: number) => {
+    setPendingCommits((current) => (
+      Object.is(next, value) ? [] : [...current, next]
+    ))
+  }
   const revert = () => {
     dirtyRef.current = false
-    setDraft(canonicalValue)
+    setDraft(formatDraft(interactionValue))
   }
   const commit = (raw: string) => {
     focusedRef.current = false
     if (!dirtyRef.current) {
-      setDraft(canonicalValue)
+      setDraft(formatDraft(interactionValue))
       return
     }
     const parsed = parseDraft(raw)
@@ -148,13 +172,16 @@ export function BoundedNumberField({
     const bounded = clampPercentageValue(parsed, min, max)
     dirtyRef.current = false
     setDraft(formatDraft(bounded))
-    if (bounded !== value) onChange(bounded)
+    if (bounded !== interactionValue) {
+      recordPendingCommit(bounded)
+      onChange(bounded)
+    }
   }
   const onExactKeyDown = (event: KeyboardEvent<HTMLInputElement>) => {
     if (event.key === 'Enter') event.currentTarget.blur()
     if (event.key === 'Escape') {
       focusedRef.current = false
-      event.currentTarget.value = canonicalValue
+      event.currentTarget.value = formatDraft(interactionValue)
       revert()
       event.currentTarget.blur()
     }
@@ -190,7 +217,7 @@ export function BoundedNumberField({
     if (!changed) {
       sliderValueRef.current = boundedSliderValue
       setSliderValue(boundedSliderValue)
-      setDraft(canonicalValue)
+      setDraft(formatDraft(startValue))
       closeSlider()
       return
     }
@@ -198,15 +225,22 @@ export function BoundedNumberField({
     setSliderValue(next)
     setDraft(formatDraft(next))
     closeSlider()
-    if (next !== startValue) onChange(next)
+    if (next !== startValue) {
+      recordPendingCommit(next)
+      onChange(next)
+    }
   }
-  const placeSlider = (anchor: DOMRect, pointerX: number) => percentageSliderPlacement({
+  const placeSlider = (
+    anchor: DOMRect,
+    pointerX: number,
+    initialValue: number,
+  ) => percentageSliderPlacement({
     pointerX,
     anchorTop: anchor.top,
     anchorBottom: anchor.bottom,
     viewportWidth: window.innerWidth,
     viewportHeight: window.innerHeight,
-    value: toSliderPosition(value),
+    value: toSliderPosition(initialValue),
     min: 0,
     max: 1,
     height: sliderMarks.length > 0 ? 58 : undefined,
@@ -220,12 +254,12 @@ export function BoundedNumberField({
       1,
       sliderPositionStep,
     )
-    return Number(clampPercentageValue(fromSliderPosition(position), sliderMin, sliderMax).toFixed(10))
+    return snapSliderValue(fromSliderPosition(position))
   }
   const openSlider = (event: PointerEvent<HTMLButtonElement>) => {
     if (disabled) return
     const rect = event.currentTarget.getBoundingClientRect()
-    const placement = placeSlider(rect, event.clientX)
+    const placement = placeSlider(rect, event.clientX, interactionValue)
     pointerSessionRef.current = {
       pointerId: event.pointerId,
       startX: event.clientX,
@@ -233,7 +267,7 @@ export function BoundedNumberField({
       moved: false,
       placement,
     }
-    sliderStartValueRef.current = value
+    sliderStartValueRef.current = interactionValue
     sliderDirtyRef.current = false
     sliderValueRef.current = boundedSliderValue
     setSliderValue(boundedSliderValue)
@@ -268,9 +302,9 @@ export function BoundedNumberField({
     event.preventDefault()
     event.stopPropagation()
     const rect = event.currentTarget.getBoundingClientRect()
-    const placement = placeSlider(rect, rect.left + rect.width / 2)
+    const placement = placeSlider(rect, rect.left + rect.width / 2, interactionValue)
     pointerSessionRef.current = null
-    sliderStartValueRef.current = value
+    sliderStartValueRef.current = interactionValue
     sliderDirtyRef.current = false
     sliderValueRef.current = boundedSliderValue
     setSliderValue(boundedSliderValue)
@@ -392,12 +426,8 @@ export function BoundedNumberField({
                 sliderPointerIdRef.current = event.pointerId
                 event.currentTarget.setPointerCapture(event.pointerId)
               }}
-              onInput={(event) => previewSliderValue(Number(
-                clampPercentageValue(
-                  fromSliderPosition(Number(event.currentTarget.value) / sliderPositionCount),
-                  sliderMin,
-                  sliderMax,
-                ).toFixed(10),
+              onInput={(event) => previewSliderValue(snapSliderValue(
+                fromSliderPosition(Number(event.currentTarget.value) / sliderPositionCount),
               ))}
               onPointerUp={(event) => {
                 if (sliderPointerIdRef.current !== event.pointerId) return
@@ -449,7 +479,7 @@ export function BoundedNumberField({
                 event.stopPropagation()
                 previewSliderValue(Number(next.toFixed(10)))
               }}
-              className={`${sliderMarks.length > 0 ? 'absolute inset-x-0 top-0 z-10 h-5' : ''} w-full accent-cyan-400`}
+              className={`${sliderMarks.length > 0 ? 'absolute inset-x-0 top-0 z-10 h-5' : ''} w-full accent-cyan-400 outline-none focus:outline-none focus-visible:outline-none`}
             />
           </div>
         </div>,

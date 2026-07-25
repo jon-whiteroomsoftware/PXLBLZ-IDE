@@ -17,13 +17,14 @@ export function TimeField({
   max,
   step,
   sliderMin = Math.max(0, min),
-  sliderMax = Math.min(60, max),
+  sliderMax = Math.min(30, max),
   ...props
 }: TimeFieldProps) {
   const boundedSliderMin = Math.max(min, Math.min(sliderMin, sliderMax))
   const boundedSliderMax = Math.min(max, Math.max(sliderMin, sliderMax))
   const span = Math.max(0, boundedSliderMax - boundedSliderMin)
   const detentStep = span <= 10 ? 0.5 : 1
+  const detentMagnet = detentStep * 0.3
   const labelStep = span <= 10 ? 1 : span <= 20 ? 2 : span <= 40 ? 5 : 10
   const presentation = resolveLinearNumberPresentation({
     kindLabel: 'time',
@@ -35,6 +36,7 @@ export function TimeField({
     sliderMax: boundedSliderMax,
     sliderStep: Math.min(0.1, Math.max(step, span || step)),
     detentStep,
+    detentMagnet,
     labelStep,
   })
 

@@ -68,14 +68,14 @@ describe('DomainNumberField (#610)', () => {
     await user.type(exact, '3:0')
     await user.tab()
     expect(onChange).toHaveBeenCalledOnce()
-    expect(exact).toHaveValue('1:1')
+    expect(exact).toHaveValue('16:9')
 
     await user.click(exact)
     await user.clear(exact)
     await user.type(exact, '1.5')
     await user.keyboard('{Escape}')
     expect(onChange).toHaveBeenCalledOnce()
-    expect(exact).toHaveValue('1:1')
+    expect(exact).toHaveValue('16:9')
   })
 
   it('keeps focused drafts stable across external values and synchronizes after blur', async () => {
@@ -186,5 +186,34 @@ describe('DomainNumberField (#610)', () => {
     expect(onPreviewEnd).toHaveBeenCalledOnce()
     expect(onChange).not.toHaveBeenCalled()
     expect(screen.getByRole('textbox', { name: 'Repeat scale exact multiplier' })).toHaveValue('1')
+  })
+
+  it('applies keyboard slider steps to the precise controlled value rather than its rounded draft', () => {
+    const onPreview = vi.fn()
+    const onChange = vi.fn()
+    render(
+      <DomainNumberField
+        label="Scale X"
+        presentation="multiplier"
+        value={1.234567}
+        min={0.01}
+        max={8}
+        step={0.01}
+        onPreview={onPreview}
+        onChange={onChange}
+      />,
+    )
+    const grip = screen.getByRole('button', { name: 'Adjust Scale X with slider' })
+    vi.spyOn(grip, 'getBoundingClientRect').mockReturnValue({
+      x: 200, y: 100, left: 200, right: 218, top: 100, bottom: 120, width: 18, height: 20, toJSON: () => ({}),
+    })
+
+    fireEvent.keyDown(grip, { key: 'Enter' })
+    const slider = screen.getByRole('slider', { name: 'Scale X multiplier slider' })
+    fireEvent.keyDown(slider, { key: 'ArrowRight' })
+    expect(onPreview).toHaveBeenLastCalledWith(1.244567)
+    fireEvent.keyDown(slider, { key: 'Enter' })
+    expect(onChange).toHaveBeenCalledOnce()
+    expect(onChange).toHaveBeenCalledWith(1.244567)
   })
 })

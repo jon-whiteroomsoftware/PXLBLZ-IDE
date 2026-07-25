@@ -5,7 +5,7 @@ import { describe, expect, it, vi } from 'vitest'
 import { TimeField } from './time-field'
 
 describe('TimeField (#614)', () => {
-  it('accepts exact seconds beyond the sixty-second scrub range', async () => {
+  it('accepts exact seconds beyond the thirty-second scrub range', async () => {
     const user = userEvent.setup()
     const onChange = vi.fn()
     render(
@@ -30,7 +30,7 @@ describe('TimeField (#614)', () => {
     expect(onChange).toHaveBeenCalledWith(90.125)
   })
 
-  it('renders whole-second detents and keeps slider keyboard travel within sixty seconds', () => {
+  it('renders whole-second detents and keeps slider keyboard travel within thirty seconds', () => {
     const onPreview = vi.fn()
     const onPreviewEnd = vi.fn()
     const onChange = vi.fn()
@@ -53,17 +53,17 @@ describe('TimeField (#614)', () => {
     })
     fireEvent.keyDown(grip, { key: 'Enter' })
 
-    expect(screen.getAllByTestId('bounded-number-detent')).toHaveLength(60)
+    expect(screen.getAllByTestId('bounded-number-detent')).toHaveLength(30)
     expect(screen.getAllByTestId('bounded-number-detent-label').map((label) => label.textContent))
-      .toEqual(['10', '20', '30', '40', '50', '60'])
+      .toEqual(['5', '10', '15', '20', '25', '30'])
 
     const slider = screen.getByRole('slider', { name: 'Duration time slider' })
     fireEvent.keyDown(slider, { key: 'End' })
-    expect(onPreview).toHaveBeenLastCalledWith(60)
+    expect(onPreview).toHaveBeenLastCalledWith(30)
     fireEvent.keyDown(slider, { key: 'Enter' })
     expect(onPreviewEnd).toHaveBeenCalledOnce()
     expect(onChange).toHaveBeenCalledOnce()
-    expect(onChange).toHaveBeenCalledWith(60)
+    expect(onChange).toHaveBeenCalledWith(30)
   })
 
   it('keeps an exact value above the scrub range until the user adjusts the ruler', () => {
@@ -86,7 +86,7 @@ describe('TimeField (#614)', () => {
     fireEvent.keyDown(grip, { key: 'Enter' })
 
     const slider = screen.getByRole('slider', { name: 'Show End time slider' })
-    expect(slider).toHaveAttribute('aria-valuetext', '60s')
+    expect(slider).toHaveAttribute('aria-valuetext', '30s')
     fireEvent.blur(slider)
 
     expect(onChange).not.toHaveBeenCalled()
@@ -139,13 +139,13 @@ describe('TimeField (#614)', () => {
 
     const slider = screen.getByRole('slider', { name: 'Strobe cadence time slider' })
     expect(slider).toHaveAttribute('min', '0')
-    expect(slider).toHaveAttribute('max', '600')
+    expect(slider).toHaveAttribute('max', '300')
     expect(slider).toHaveAttribute('step', '1')
-    fireEvent.input(slider, { target: { value: '600' } })
-    expect(onPreview).toHaveBeenLastCalledWith(60)
+    fireEvent.input(slider, { target: { value: '300' } })
+    expect(onPreview).toHaveBeenLastCalledWith(30)
     fireEvent.keyDown(slider, { key: 'Enter' })
     expect(onChange).toHaveBeenCalledOnce()
-    expect(onChange).toHaveBeenCalledWith(60)
+    expect(onChange).toHaveBeenCalledWith(30)
   })
 
   it('restores the gesture-start value when a controlled preview is canceled', () => {
@@ -173,7 +173,7 @@ describe('TimeField (#614)', () => {
     fireEvent.keyDown(grip, { key: 'Enter' })
     const slider = screen.getByRole('slider', { name: 'Insert duration time slider' })
     fireEvent.keyDown(slider, { key: 'End' })
-    expect(screen.getByRole('textbox', { name: 'Insert duration exact time' })).toHaveValue('60')
+    expect(screen.getByRole('textbox', { name: 'Insert duration exact time' })).toHaveValue('30')
     fireEvent.keyDown(slider, { key: 'Escape' })
 
     expect(onChange).not.toHaveBeenCalled()
@@ -193,5 +193,69 @@ describe('TimeField (#614)', () => {
     )
 
     expect(screen.getByRole('textbox', { name: 'Cadence exact time' })).toHaveValue('0.016')
+  })
+
+  it('reopens and closes at an optimistic drag value before its controlled prop catches up', () => {
+    const onChange = vi.fn()
+    render(
+      <TimeField
+        label="Start"
+        value={0}
+        min={0}
+        max={Number.MAX_SAFE_INTEGER}
+        step={0.001}
+        onChange={onChange}
+      />,
+    )
+
+    const grip = screen.getByRole('button', { name: 'Adjust Start with slider' })
+    Object.defineProperty(grip, 'setPointerCapture', { configurable: true, value: vi.fn() })
+    Object.defineProperty(grip, 'releasePointerCapture', { configurable: true, value: vi.fn() })
+    vi.spyOn(grip, 'getBoundingClientRect').mockReturnValue({
+      x: 200, y: 100, left: 200, right: 218, top: 100, bottom: 120, width: 18, height: 20, toJSON: () => ({}),
+    })
+
+    fireEvent.pointerDown(grip, { pointerId: 31, clientX: 209 })
+    fireEvent.pointerMove(grip, { pointerId: 31, clientX: 349 })
+    fireEvent.pointerUp(grip, { pointerId: 31, clientX: 349 })
+    const committed = onChange.mock.calls[0]?.[0]
+    expect(committed).toBeGreaterThan(0)
+    expect(screen.getByRole('textbox', { name: 'Start exact time' })).toHaveValue(String(committed))
+
+    fireEvent.keyDown(grip, { key: 'Enter' })
+    const reopenedSlider = screen.getByRole('slider', { name: 'Start time slider' })
+    expect(reopenedSlider).toHaveAttribute('aria-valuetext', `${committed}s`)
+    fireEvent.keyDown(reopenedSlider, { key: 'Enter' })
+
+    expect(onChange).toHaveBeenCalledOnce()
+    expect(screen.getByRole('textbox', { name: 'Start exact time' })).toHaveValue(String(committed))
+  })
+
+  it('holds the thumb at a whole-second detent across nearby pointer positions', () => {
+    const onPreview = vi.fn()
+    render(
+      <TimeField
+        label="Start"
+        value={12.5}
+        min={0}
+        max={Number.MAX_SAFE_INTEGER}
+        step={0.001}
+        onPreview={onPreview}
+        onChange={vi.fn()}
+      />,
+    )
+
+    const grip = screen.getByRole('button', { name: 'Adjust Start with slider' })
+    vi.spyOn(grip, 'getBoundingClientRect').mockReturnValue({
+      x: 200, y: 100, left: 200, right: 218, top: 100, bottom: 120, width: 18, height: 20, toJSON: () => ({}),
+    })
+    fireEvent.keyDown(grip, { key: 'Enter' })
+    const slider = screen.getByRole('slider', { name: 'Start time slider' })
+
+    fireEvent.input(slider, { target: { value: '126' } })
+    expect(onPreview).toHaveBeenLastCalledWith(12.6)
+    fireEvent.input(slider, { target: { value: '127' } })
+    expect(onPreview).toHaveBeenLastCalledWith(13)
+    expect(slider).toHaveAttribute('aria-valuetext', '13s')
   })
 })

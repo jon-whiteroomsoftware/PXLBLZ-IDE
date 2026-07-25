@@ -200,6 +200,8 @@ describe('shared Clip Entity Detail sections (#498)', () => {
     const viewportToggle = screen.getByRole('checkbox', { name: 'Viewport' })
     expect(within(placement).queryByText('Content')).not.toBeInTheDocument()
     expect(viewportToggle.previousElementSibling).toHaveTextContent('Viewport')
+    expect(viewportToggle.closest('label')).toHaveClass('text-zinc-500')
+    expect(viewportToggle.closest('label')).not.toHaveClass('text-cyan-300/80')
     expect(screen.queryByRole('group', { name: 'Viewport geometry' })).not.toBeInTheDocument()
     expect(contentX.compareDocumentPosition(viewportToggle) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
 
@@ -281,7 +283,7 @@ describe('shared Clip Entity Detail sections (#498)', () => {
     const table = screen.getByRole('table', { name: 'Pattern controls' })
     const columns = table.querySelectorAll('col')
     expect(columns[1]).toHaveStyle({ width: '24%' })
-    expect(columns[3]).toHaveClass('w-8')
+    expect(columns[3]).toHaveClass('w-16')
     expect(table.querySelector('tbody')).not.toHaveClass('divide-y')
 
     const row = screen.getByRole('row', { name: /Set Speed target/ })
@@ -377,7 +379,7 @@ describe('shared Clip Entity Detail sections (#498)', () => {
     })
 
     fireEvent.pointerDown(grip, { pointerId: 9, clientX: 209, clientY: 110 })
-    expect(screen.getAllByTestId('bounded-number-detent')).toHaveLength(61)
+    expect(screen.getAllByTestId('bounded-number-detent')).toHaveLength(31)
     fireEvent.pointerMove(grip, { pointerId: 9, clientX: 229, clientY: 110 })
     fireEvent.pointerMove(grip, { pointerId: 9, clientX: 239, clientY: 110 })
 

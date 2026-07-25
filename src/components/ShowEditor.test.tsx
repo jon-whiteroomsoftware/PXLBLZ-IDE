@@ -2806,6 +2806,32 @@ describe('ShowEditor (#318)', () => {
     expect(screen.queryByRole('dialog', { name: 'Entity Detail Panel' })).not.toBeInTheDocument()
   })
 
+  it('shows legacy stock Clip Pattern controls before any edit and retains them across Viewport toggles (#615)', async () => {
+    const user = userEvent.setup()
+    const show = {
+      ...structuredClone(
+        STOCK_SHOWS.find((candidate) => candidate.id === 'stock-show-101-clips-crossfade')!.show,
+      ),
+      id: 'show-issue-615',
+    }
+    setPersonalContentProvider(memoryProvider([show]))
+    useShowStore.setState({ shows: [show], activeShowId: show.id, showsLoaded: true })
+
+    render(<ShowEditor showId={show.id} />)
+
+    await user.click(screen.getByRole('button', { name: 'Select SignalMandala' }))
+    expect(screen.getByRole('table', { name: 'Pattern controls' })).toBeInTheDocument()
+
+    const viewport = screen.getByRole('checkbox', { name: 'Viewport' })
+    await user.click(viewport)
+    await waitFor(() => expect(viewport).toBeChecked())
+    expect(screen.getByRole('table', { name: 'Pattern controls' })).toBeInTheDocument()
+
+    await user.click(viewport)
+    await waitFor(() => expect(viewport).not.toBeChecked())
+    expect(screen.getByRole('table', { name: 'Pattern controls' })).toBeInTheDocument()
+  })
+
   it('opens a stock Show guide on first visit and fully collapses it per Show (#363)', async () => {
     const user = userEvent.setup()
     const stock = STOCK_SHOWS[0]

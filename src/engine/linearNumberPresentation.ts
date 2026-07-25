@@ -11,6 +11,7 @@ export interface LinearNumberPresentationInput {
   sliderMax: number
   sliderStep: number
   detentStep?: number
+  detentMagnet?: number
   labelStep?: number
 }
 
@@ -38,6 +39,7 @@ export interface ResolvedLinearNumberPresentation {
   parseDraft: (draft: string) => number | null
   toSliderPosition: (value: number) => number
   fromSliderPosition: (position: number) => number
+  snapSliderValue: (value: number) => number
 }
 
 export function resolveLinearNumberPresentation(
@@ -50,6 +52,8 @@ export function resolveLinearNumberPresentation(
   const sliderMax = clamp(Math.max(input.sliderMin, input.sliderMax), sliderMin, max)
   const sliderStep = Math.min(Math.abs(input.sliderStep) || step, Math.max(step, sliderMax - sliderMin))
   const sliderSpan = sliderMax - sliderMin
+  const detentStep = Math.abs(input.detentStep ?? 0)
+  const detentMagnet = Math.min(Math.abs(input.detentMagnet ?? 0), detentStep / 2)
   const sliderPositionStep = sliderSpan > 0 ? clamp(sliderStep / sliderSpan, 0.000001, 1) : 1
   const formatDraft = (value: number) => formatDecimal(value, step)
   const parseDraft = (draft: string) => parseLinearNumber(draft, input.suffix)
@@ -59,6 +63,27 @@ export function resolveLinearNumberPresentation(
   const fromSliderPosition = (position: number) => (
     sliderSpan > 0 ? sliderMin + sliderSpan * clamp(position, 0, 1) : sliderMin
   )
+  const snapSliderValue = (value: number) => {
+    const bounded = clamp(value, sliderMin, sliderMax)
+    if (bounded === sliderMin || bounded === sliderMax) return bounded
+    if (detentStep > 0 && detentMagnet > 0) {
+      const detentValue = Math.round(bounded / detentStep) * detentStep
+      const detentDistance = Math.abs(bounded - detentValue)
+      const detentTolerance = Number.EPSILON * Math.max(1, Math.abs(detentValue)) * 4
+      if (
+        detentValue >= sliderMin
+        && detentValue <= sliderMax
+        && detentDistance <= detentMagnet + detentTolerance
+      ) {
+        return Number(detentValue.toFixed(10))
+      }
+    }
+    return Number(clamp(
+      Math.round(bounded / sliderStep) * sliderStep,
+      sliderMin,
+      sliderMax,
+    ).toFixed(10))
+  }
 
   return {
     kindLabel: input.kindLabel,
@@ -73,7 +98,7 @@ export function resolveLinearNumberPresentation(
     sliderMarks: buildSliderMarks({
       sliderMin,
       sliderMax,
-      detentStep: input.detentStep,
+      detentStep,
       labelStep: input.labelStep,
       toSliderPosition,
     }),
@@ -83,6 +108,7 @@ export function resolveLinearNumberPresentation(
     parseDraft,
     toSliderPosition,
     fromSliderPosition,
+    snapSliderValue,
   }
 }
 

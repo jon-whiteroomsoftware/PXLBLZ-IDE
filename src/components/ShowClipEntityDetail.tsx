@@ -218,7 +218,7 @@ export function ShowClipEntityDetail({
               onPreviewEnd={onPreviewEnd}
               onPatch={onPatch}
             />
-            <label className="mt-1 flex items-center gap-1.5 text-[9px] font-medium uppercase tracking-[0.12em] text-cyan-300/80">
+            <label className="mt-1 flex items-center gap-1.5 text-[9px] font-medium uppercase tracking-[0.12em] text-zinc-500">
               <span>Viewport</span>
               <input
                 type="checkbox"
@@ -268,7 +268,7 @@ export function ShowClipEntityDetail({
                     <col className="w-7" />
                     <col style={{ width: '24%' }} />
                     <col />
-                    <col className="w-8" />
+                    <col className="w-16" />
                   </colgroup>
                   <thead className="text-[8px] uppercase tracking-[0.1em] text-zinc-700">
                     <tr>

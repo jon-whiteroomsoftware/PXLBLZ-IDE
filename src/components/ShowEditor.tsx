@@ -1152,18 +1152,6 @@ export function ShowEditor({
       return [cell.id, []]
     }
   })), [activeShow, userPatterns]) as Record<string, AutomatablePatternControl[]>
-  const patternControlsByInstanceId = useMemo(() => Object.fromEntries((activeShow?.composition
-    ? [
-        ...activeShow.composition.patternInstances,
-        ...projectShowGroupRuntimePatternInstances(activeShow.composition),
-      ]
-    : []).map((instance) => {
-    try {
-      return [instance.id, discoverAutomatablePatternControls(sourceForShowPatternRef(instance.pattern, userPatterns), {})]
-    } catch {
-      return [instance.id, []]
-    }
-  })), [activeShow, userPatterns]) as Record<string, AutomatablePatternControl[]>
   const timelineProjection = useMemo<{
     composition: ShowCompositionV1
     sourceCellIdByPlacementId: Record<string, string>
@@ -1192,6 +1180,18 @@ export function ShowEditor({
     }
   }, [activeShow, stageDimension, userPatterns])
   const timelineComposition = timelineProjection?.composition ?? null
+  const patternControlsByInstanceId = useMemo(() => Object.fromEntries((timelineComposition
+    ? [
+        ...timelineComposition.patternInstances,
+        ...projectShowGroupRuntimePatternInstances(timelineComposition),
+      ]
+    : []).map((instance) => {
+    try {
+      return [instance.id, discoverAutomatablePatternControls(sourceForShowPatternRef(instance.pattern, userPatterns), {})]
+    } catch {
+      return [instance.id, []]
+    }
+  })), [timelineComposition, userPatterns]) as Record<string, AutomatablePatternControl[]>
   useEffect(() => {
     const handleDelete = (event: KeyboardEvent) => {
       if (event.key !== 'Delete' && event.key !== 'Backspace') return

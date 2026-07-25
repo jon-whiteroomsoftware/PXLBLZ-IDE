@@ -116,7 +116,7 @@ describe('PercentageField', () => {
     fireEvent.keyDown(slider, { key: 'Escape' })
     expect(onChange).toHaveBeenCalledOnce()
     expect(onPreviewEnd).toHaveBeenCalledTimes(2)
-    expect(screen.getByRole('textbox', { name: 'Diffusion exact percentage' })).toHaveValue('50')
+    expect(screen.getByRole('textbox', { name: 'Diffusion exact percentage' })).toHaveValue('100')
   })
 
   it('captures a pinned slider drag so releasing outside commits the last preview', () => {
@@ -256,7 +256,7 @@ describe('PercentageField', () => {
     await user.type(exact, '10%')
     await user.keyboard('{Escape}')
     expect(onChange).toHaveBeenCalledOnce()
-    expect(exact).toHaveValue('40')
+    expect(exact).toHaveValue('100')
   })
 
   it('syncs external values while idle without overwriting an active exact draft', () => {
@@ -276,6 +276,76 @@ describe('PercentageField', () => {
     fireEvent.keyDown(exact, { key: 'Escape' })
     expect(exact).toHaveValue('80')
     expect(onChange).not.toHaveBeenCalled()
+  })
+
+  it('emits a follow-up exact edit that returns an optimistic commit to the stale controlled value', () => {
+    const onChange = vi.fn()
+    render(<PercentageField label="Opacity" value={0.4} min={0} max={1} step={0.01} onChange={onChange} />)
+    const exact = screen.getByRole('textbox', { name: 'Opacity exact percentage' })
+
+    fireEvent.focus(exact)
+    fireEvent.change(exact, { target: { value: '100' } })
+    fireEvent.blur(exact)
+    expect(onChange).toHaveBeenLastCalledWith(1)
+
+    fireEvent.focus(exact)
+    fireEvent.change(exact, { target: { value: '40' } })
+    fireEvent.blur(exact)
+
+    expect(onChange.mock.calls).toEqual([[1], [0.4]])
+    expect(exact).toHaveValue('40')
+  })
+
+  it('keeps the newest optimistic commit through delayed intermediate prop acknowledgements', () => {
+    const onChange = vi.fn()
+    const { rerender } = render(
+      <PercentageField label="Opacity" value={0.4} min={0} max={1} step={0.01} onChange={onChange} />,
+    )
+    const exact = screen.getByRole('textbox', { name: 'Opacity exact percentage' })
+
+    fireEvent.focus(exact)
+    fireEvent.change(exact, { target: { value: '100' } })
+    fireEvent.blur(exact)
+    fireEvent.focus(exact)
+    fireEvent.change(exact, { target: { value: '60' } })
+    fireEvent.blur(exact)
+    expect(onChange.mock.calls).toEqual([[1], [0.6]])
+
+    rerender(<PercentageField label="Opacity" value={1} min={0} max={1} step={0.01} onChange={onChange} />)
+    expect(exact).toHaveValue('60')
+    const grip = screen.getByRole('button', { name: 'Adjust Opacity with slider' })
+    vi.spyOn(grip, 'getBoundingClientRect').mockReturnValue({
+      x: 200, y: 100, left: 200, right: 218, top: 100, bottom: 120, width: 18, height: 20, toJSON: () => ({}),
+    })
+    fireEvent.keyDown(grip, { key: 'Enter' })
+    const slider = screen.getByRole('slider', { name: 'Opacity percentage slider' })
+    expect(slider).toHaveAttribute('aria-valuetext', '60%')
+    fireEvent.keyDown(slider, { key: 'Enter' })
+
+    rerender(<PercentageField label="Opacity" value={0.6} min={0} max={1} step={0.01} onChange={onChange} />)
+    expect(exact).toHaveValue('60')
+  })
+
+  it('does not retain collapsed commits after returning to the current controlled value', () => {
+    const onChange = vi.fn()
+    const { rerender } = render(
+      <PercentageField label="Opacity" value={0.4} min={0} max={1} step={0.01} onChange={onChange} />,
+    )
+    const exact = screen.getByRole('textbox', { name: 'Opacity exact percentage' })
+
+    fireEvent.focus(exact)
+    fireEvent.change(exact, { target: { value: '100' } })
+    fireEvent.blur(exact)
+    fireEvent.focus(exact)
+    fireEvent.change(exact, { target: { value: '40' } })
+    fireEvent.blur(exact)
+    expect(onChange.mock.calls).toEqual([[1], [0.4]])
+    expect(exact).toHaveValue('40')
+
+    rerender(<PercentageField label="Opacity" value={0.4} min={0} max={1} step={0.01} onChange={onChange} />)
+    rerender(<PercentageField label="Opacity" value={1} min={0} max={1} step={0.01} onChange={onChange} />)
+
+    expect(exact).toHaveValue('100')
   })
 
   it('cancels an active pointer preview on pointer cancellation or lost capture', () => {

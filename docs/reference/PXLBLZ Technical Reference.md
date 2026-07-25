@@ -1492,6 +1492,12 @@ because they are temporal projections rather than scalar Clip fields. The
 shared Detail components do not import a Show store or duplicate occupancy and
 ownership rules.
 
+The public Pattern-control catalogue is derived from the visible timeline
+composition, including the compatibility projection for a legacy flat Show.
+The first Entity Detail render therefore exposes the same controls as the
+materialized composition reached after an edit; enabling or disabling a Clip
+Viewport does not add, remove, or collapse that catalogue.
+
 ### Percentage presentation contract
 
 `percentageValue.ts` is the framework-free boundary for straight percentage
@@ -1501,8 +1507,15 @@ explicit field boundary, maps pointer travel at up to one-thousandth of the
 field span, and places the transient slider so its current thumb begins under
 the initiating pointer while the overlay remains inside the viewport.
 
-`BoundedNumberField` owns the buffered exact draft, compact grip, and portaled
-horizontal range input shared by domain-aware scalar fields.
+`BoundedNumberField` owns the buffered exact draft, a small ordered queue of
+pending numeric commits, the compact grip, and the portaled horizontal range
+input shared by domain-aware scalar fields. Display formatting is never read
+back as the controlled numeric value, so reopening or stepping a rounded draft
+preserves the stored precision while parent acknowledgements are still in
+flight. Intermediate acknowledgements are consumed without replacing a newer
+pending interaction value. A new commit that returns to the current controlled
+value clears older pending commits immediately, so a parent that collapses the
+round trip cannot leave stale acknowledgements behind.
 `PercentageField` supplies its linear percentage presentation. Pointer movement
 may call an ephemeral preview callback many times, but release ends preview
 before emitting at most one persisted change. Pointer cancellation, lost
@@ -1569,17 +1582,18 @@ generated Pixelblaze source remain ordinary real-unit numbers.
 `linearNumberPresentation.ts` supplies an invertible linear mapping whose exact
 entry bounds are independent of its adjustment bounds. `TimeField` specializes
 that contract for decimal seconds: the numeric draft accepts an optional `s`
-suffix, renders the suffix outside the input, and uses a `0..60s` ruler unless a
+suffix, renders the suffix outside the input, and uses a `0..30s` ruler unless a
 narrower authored range applies. Exact entry may therefore retain a valid value
-above 60 seconds without moving or silently clamping it when the ruler opens.
+above 30 seconds without moving or silently clamping it when the ruler opens.
 The value changes to the ruler's bounded range only after an actual ruler
 adjustment.
 
 The ruler marks each whole second and labels landmarks at a density selected
 for its span. Ranges of ten seconds or less add half-second minor marks. Marks
-are presentation hints rather than snap points: pointer travel retains
-sub-second precision, keyboard arrows use the field's ruler step, and exact
-entry retains the authored field precision.
+are magnetic pointer detents: the nearest mark captures values within thirty
+percent of its interval, while pointer travel retains tenth-second choices
+outside that band. Keyboard arrows use the field's ruler step, and exact entry
+retains the authored field precision.
 
 All production Show fields whose values are semantically time use `TimeField`,
 including placement Start and Duration, Show End and Marker time, insertion and

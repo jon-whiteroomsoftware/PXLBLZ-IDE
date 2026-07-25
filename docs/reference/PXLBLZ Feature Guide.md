@@ -175,10 +175,12 @@ Pixelblaze artifacts continue to carry the same real numeric values.
 
 Show time fields use the same compact exact-entry-and-grip interaction. The
 editable box contains decimal seconds and keeps a fixed `s` suffix outside;
-the transient ruler covers `0..60s`, marks every whole second, and labels
-landmarks faintly. Short ranges also show half-second detents. The ruler is a
-fast adjustment surface, not a storage limit: values beyond 60 seconds remain
-available through exact entry wherever the Show model permits them.
+the transient ruler covers `0..30s`, marks every whole second, and labels
+landmarks faintly. Short ranges also show half-second detents. Pointer travel
+settles magnetically on nearby detents while retaining tenth-second choices
+between them. The ruler is a fast adjustment surface, not a storage limit:
+values beyond 30 seconds remain available through exact entry wherever the
+Show model permits them.
 
 Patterns may also call **libraries** with namespace syntax such as
 `SDF.circle(...)` — see [section 7](#7-libraries-and-mixins).
