@@ -462,6 +462,16 @@
   grid-template-columns: minmax(0, 1fr) 4px auto;
 }
 
+/* At phone widths the editor is the authoring surface. The preview remains an
+   instrument on larger Studio widths, but it must not consume the center pane
+   by merely flex-shrinking out of sight alongside the rail. */
+@media (max-width: 640px) {
+  .studio-preview-pane,
+  .studio-preview-splitter {
+    display: none;
+  }
+}
+
 @media (max-width: 980px) {
   .show-workspace {
     grid-template-columns: minmax(0, 1fr);
@@ -556,6 +566,7 @@
   }
 
   .show-header-actions {
+    flex: 1 1 0%;
     gap: 4px;
   }
 

@@ -1170,7 +1170,7 @@ function StudioApp() {
           onDrag={handleRightDrag}
           className={studioEntityKind === 'shows'
             ? 'col-start-2 row-start-2 h-full max-[980px]:hidden'
-            : ''}
+            : 'studio-preview-splitter'}
         />
         {/* The preview is an output/instrument surface (#150): no header strip — the
             canvas sits flush at the top and all controls live in the deck below it. */}
@@ -1178,7 +1178,7 @@ function StudioApp() {
           data-testid="preview-pane"
           className={studioEntityKind === 'shows'
             ? 'col-start-3 row-start-2 flex min-h-0 min-w-0 flex-col max-[980px]:hidden'
-            : 'flex min-h-0 shrink-0 flex-col'}
+            : 'studio-preview-pane flex min-h-0 shrink-0 flex-col'}
           style={{ width: rightWidth, minWidth: STUDIO_PREVIEW_MIN_WIDTH }}
         >
           {editorFlavor === 'mixin' ? (

@@ -63,6 +63,52 @@ test('shared Studio chrome remains legible, dense, and reachable across routes (
     .toBe(46)
 })
 
+test('Studio authoring keeps the rail and editor reachable at 390px (#622)', async ({ page }) => {
+  await page.setViewportSize({ width: 1440, height: 900 })
+  await page.goto('studio/shows')
+  await page.getByRole('button', { name: 'Add show' }).click()
+  await page.getByRole('button', { name: 'New show' }).click()
+  await page.getByRole('button', { name: 'Create Installation Show' }).click()
+  await page.getByRole('button', { name: 'Create Show' }).click()
+
+  await page.setViewportSize({ width: 390, height: 844 })
+
+  for (const route of [
+    { path: 'studio/patterns/IridescentFibers', action: 'Collapse rail' },
+    { path: 'studio/maps/plane', action: 'Collapse rail' },
+  ]) {
+    await page.goto(route.path)
+
+    await expect.poll(
+      () => page.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth),
+      `${route.path} should not create document-level horizontal overflow at 390px`,
+    ).toBeLessThanOrEqual(1)
+
+    await expect(page.getByRole('button', { name: route.action })).toBeInViewport()
+  }
+
+  await page.goto('studio/patterns/IridescentFibers')
+  await expect(page.getByTestId('preview-pane')).toBeHidden()
+  await expect(page.getByTestId('editor-pane')).toBeInViewport()
+
+  await page.goto('studio/shows')
+  await page.getByRole('treeitem', { name: 'Untitled Show' }).click()
+  await expect.poll(
+    () => page.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth),
+    'Show authoring should not create document-level horizontal overflow at 390px',
+  ).toBeLessThanOrEqual(1)
+  await expect(page.getByRole('button', { name: 'Show properties' })).toBeInViewport()
+
+  await page.getByRole('treeitem', { name: '101 Clips and Crossfade' }).click()
+  await expect.poll(
+    () => page.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth),
+    'A built-in Show with the full guide and deployment header should stay contained at 390px',
+  ).toBeLessThanOrEqual(1)
+
+  await page.getByRole('button', { name: 'Collapse rail' }).click()
+  await expect(page.getByRole('button', { name: 'Expand library' })).toBeInViewport()
+})
+
 test('resized Pattern and Show previews keep their controls reachable', async ({ page }) => {
   await page.setViewportSize({ width: 1280, height: 720 })
   await page.goto('studio/patterns/IridescentFibers')
