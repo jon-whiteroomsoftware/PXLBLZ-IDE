@@ -72,6 +72,26 @@ describe('grid snapping quantises edges, not the centre', () => {
     const padContext = context({}, { enabled: true, x: 0, y: 0, width: 1 / 3, height: 1 }, 3)
     expect(moveContentCentre(padContext, 0.4, 0.4).transform!.positionX).toBeCloseTo(-0.1)
   })
+
+  it('preserves non-lattice content size during a gridded move', () => {
+    const padContext = context({ scaleX: 0.5, scaleY: 0.5 }, {}, 3)
+    const moved = contentRectFromTransform(moveContentCentre(padContext, 0.58, 0.58).transform!)
+
+    expect(moved.left).toBeCloseTo(1 / 3)
+    expect(moved.top).toBeCloseTo(1 / 3)
+    expect(moved.width).toBeCloseTo(0.5)
+    expect(moved.height).toBeCloseTo(0.5)
+  })
+
+  it('preserves non-lattice aperture size during a gridded move', () => {
+    const padContext = context({}, { enabled: true, x: 0.25, y: 0.25, width: 0.5, height: 0.5 }, 3)
+    const moved = viewportRect(moveViewportTo(padContext, 0.3, 0.3).viewport!)
+
+    expect(moved.left).toBeCloseTo(1 / 3)
+    expect(moved.top).toBeCloseTo(1 / 3)
+    expect(moved.width).toBeCloseTo(0.5)
+    expect(moved.height).toBeCloseTo(0.5)
+  })
 })
 
 describe('resize holds the anchor captured at pointer down', () => {

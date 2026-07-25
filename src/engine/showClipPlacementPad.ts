@@ -119,6 +119,24 @@ export function snapPlacementRect(rect: PlacementRect, grid: number): PlacementR
 }
 
 /**
+ * Grid snapping for a move. The nearer edge lands on the lattice and the
+ * opposite edge follows by translation, preserving the authored extent.
+ */
+function snapPlacementTranslate(rect: PlacementRect, grid: number): PlacementRect {
+  if (grid <= 0) return rect
+  const offset = (low: number, high: number) => {
+    const lowOffset = snapPlacementValue(low, grid) - low
+    const highOffset = snapPlacementValue(high, grid) - high
+    return Math.abs(lowOffset) <= Math.abs(highOffset) ? lowOffset : highOffset
+  }
+  return {
+    ...rect,
+    left: rect.left + offset(rect.left, rect.left + rect.width),
+    top: rect.top + offset(rect.top, rect.top + rect.height),
+  }
+}
+
+/**
  * Same-side edge magnets against several targets at once, nearest wins. Runs
  * after the lattice so an exact match with the other rectangle can win it: the
  * tolerance is far below any cell, so a cell sweep only gives way when the
@@ -238,8 +256,10 @@ function placeContentRect(context: PlacementPadContext, rect: PlacementRect, tra
     ? translating
       ? stickPlacementTranslate(rect, contentMagnets(context))
       : stickPlacementRect(rect, contentMagnets(context))
-    : snapPlacementRect(rect, context.grid)
-  return clampPlacementRectToZone(aligned, context.viewport.enabled ? 0 : context.grid)
+    : translating
+      ? snapPlacementTranslate(rect, context.grid)
+      : snapPlacementRect(rect, context.grid)
+  return clampPlacementRectToZone(aligned, context.viewport.enabled || translating ? 0 : context.grid)
 }
 
 export function moveContentCentre(context: PlacementPadContext, centreX: number, centreY: number): PlacementPadResult {
@@ -338,12 +358,17 @@ export function setViewportRect(
   options: { carryContent?: boolean; translate?: boolean; snap?: boolean } = {},
 ): PlacementPadResult {
   const snapping = options.snap !== false
-  const snapped = snapping ? snapPlacementRect(rect, context.grid) : rect
+  const translating = options.translate === true
+  const snapped = snapping
+    ? translating
+      ? snapPlacementTranslate(rect, context.grid)
+      : snapPlacementRect(rect, context.grid)
+    : rect
   const targets = [contentRectFromTransform(context.transform), { ...PLACEMENT_ZONE_RECT }]
-  const stuck = options.translate
+  const stuck = translating
     ? stickPlacementTranslate(snapped, targets)
     : stickPlacementRect(snapped, targets)
-  const held = clampPlacementRectToZone(stuck, snapping ? context.grid : 0)
+  const held = clampPlacementRectToZone(stuck, snapping && !translating ? context.grid : 0)
   const viewport = viewportFromRect(held, true)
   if (!options.carryContent) return { viewport }
   const dx = viewport.x - context.viewport.x
