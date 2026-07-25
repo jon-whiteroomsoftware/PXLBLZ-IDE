@@ -1757,8 +1757,10 @@ native keys. Both handlers ignore an already prevented event, so
 one Space keydown can toggle only once regardless of listener order. Relative and zero
 commands clamp through `showTransportStore`, create ordinary deterministic seek
 requests, and pause/resume around reconstruction so the previous playback state
-is preserved. Keyboard seeking does not alter the timeline viewport. Unmount
-removes the handler, preventing shortcuts from leaking into other Studio modes.
+is preserved. Keyboard seeking does not alter the timeline viewport and ignores
+keydown auto-repeat, so one physical press creates one deterministic
+reconstruction. Unmount removes the handler, preventing shortcuts from leaking
+into other Studio modes.
 
 The ruler's transparent range input remains the primary full-width scrubbing
 surface. `TimelinePlayhead` adds a five-pixel pointer target around its one-pixel

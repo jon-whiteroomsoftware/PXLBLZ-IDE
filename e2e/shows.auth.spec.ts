@@ -862,7 +862,7 @@ test.describe('authenticated Show authoring', () => {
     await expect.poll(async () => (await persistedShow(page, proven.id))?.outputContract?.kind).toBe('installation')
   })
 
-  test('returns timeline focus after a discrete edit and supports keyboard preview, start, and page pan', async ({ page }) => {
+  test('returns timeline focus after a discrete edit and supports keyboard preview, start, and five-second seek', async ({ page }) => {
     await page.goto('studio/shows')
     await createInstallationShow(page)
 
@@ -887,10 +887,10 @@ test.describe('authenticated Show authoring', () => {
     const navigator = page.getByRole('slider', { name: 'Pan visible timeline range' })
     await timelineToolbar.getByRole('button', { name: 'Resize visible range end' }).press('ArrowLeft')
     await editedClip.focus()
-    const beforePan = Number(await navigator.getAttribute('aria-valuenow'))
+    const beforeViewportStart = await navigator.getAttribute('aria-valuenow')
     await page.keyboard.press('ArrowRight')
-    await expect.poll(async () => Number(await navigator.getAttribute('aria-valuenow'))).toBeGreaterThan(beforePan)
-    await expect(page.getByRole('slider', { name: 'Show playhead' })).toHaveValue('0')
+    await expect(page.getByRole('slider', { name: 'Show playhead' })).toHaveValue('5000')
+    await expect(navigator).toHaveAttribute('aria-valuenow', beforeViewportStart ?? '0')
     await expect(play).toBeVisible()
 
     await page.keyboard.press('Space')

@@ -3626,6 +3626,7 @@ function ShowTimelineWorkspace({
 
       if (event.key === 'ArrowLeft' || event.key === 'ArrowRight') {
         event.preventDefault()
+        if (event.repeat) return
         const direction = event.key === 'ArrowLeft' ? -1 : 1
         requestShowSeek(show.id, positionMsRef.current + direction * 5_000)
         return

@@ -3163,9 +3163,15 @@ describe('ShowEditor (#318)', () => {
     useShowTransportStore.getState().setPosition(show.id, 10_000)
 
     fireEvent.keyDown(clip, { key: 'ArrowRight' })
-    expect(useShowTransportStore.getState().seekRequest).toMatchObject({ targetMs: 15_000 })
+    const seekAfterInitialPress = useShowTransportStore.getState().seekRequest
+    expect(seekAfterInitialPress).toMatchObject({ targetMs: 15_000 })
     expect(usePreviewStore.getState().isRunning).toBe(true)
     expect(navigator).toHaveAttribute('aria-valuenow', viewportStart)
+
+    fireEvent.keyDown(clip, { key: 'ArrowRight', repeat: true })
+    expect(useShowTransportStore.getState().seekRequest).toEqual(seekAfterInitialPress)
+    expect(useShowTransportStore.getState().positionMs).toBe(15_000)
+    expect(usePreviewStore.getState().isRunning).toBe(true)
 
     fireEvent.keyDown(clip, { key: 'ArrowLeft' })
     expect(useShowTransportStore.getState().seekRequest).toMatchObject({ targetMs: 10_000 })
