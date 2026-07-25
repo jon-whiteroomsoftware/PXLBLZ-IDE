@@ -59,7 +59,7 @@ describe('editing focus', () => {
     setup({}, { enabled: true, width: 0.5 })
     expect(screen.getByRole('button', { name: 'Fit' })).toBeInTheDocument()
     fireEvent.click(screen.getByRole('button', { name: 'Aperture' }))
-    expect(screen.getByRole('button', { name: 'Frame content' })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Frame' })).toBeInTheDocument()
     expect(screen.queryByRole('button', { name: 'Fit' })).not.toBeInTheDocument()
   })
 
@@ -81,7 +81,7 @@ describe('control bar actions', () => {
   it('frames the aperture onto the content without touching it', () => {
     const onChange = setup({ positionX: -0.25, scaleX: 0.5, scaleY: 0.5 }, { enabled: true })
     fireEvent.click(screen.getByRole('button', { name: 'Aperture' }))
-    fireEvent.click(screen.getByRole('button', { name: 'Frame content' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Frame' }))
     const patch = onChange.mock.calls[onChange.mock.calls.length - 1][0]
     expect(patch.viewport).toMatchObject({ x: 0, width: 0.5 })
     expect(patch.transform).toBeUndefined()
@@ -99,5 +99,47 @@ describe('read-only', () => {
     setup({}, { enabled: true, width: 0.5 }, true)
     expect(screen.getByLabelText('Aperture')).toBeDisabled()
     expect(screen.queryByLabelText('Resize content nw')).not.toBeInTheDocument()
+  })
+})
+
+describe('gesture feedback (#617)', () => {
+  it('keeps its own height across a focus change, so the popover cannot jump', () => {
+    const { container } = render(
+      <ShowClipPlacementPad
+        transform={{ ...NEUTRAL_SHOW_CLIP_TRANSFORM }}
+        viewport={{ ...DEFAULT_SHOW_CLIP_VIEWPORT, enabled: true, width: 0.5 }}
+        onChange={vi.fn()}
+      />,
+    )
+    const reserved = container.querySelector('.min-h-\\[40px\\]')
+    expect(reserved).toBeInTheDocument()
+    fireEvent.click(screen.getByRole('button', { name: 'Aperture' }))
+    // The row survives the focus change even though its controls do not.
+    expect(container.querySelector('.min-h-\\[40px\\]')).toBeInTheDocument()
+    expect(screen.queryByLabelText('Zoom')).not.toBeInTheDocument()
+  })
+
+  it('previews continuously and commits once, rather than per pointer move', () => {
+    const onChange = vi.fn()
+    const onPreview = vi.fn()
+    const onPreviewEnd = vi.fn()
+    render(
+      <ShowClipPlacementPad
+        transform={{ ...NEUTRAL_SHOW_CLIP_TRANSFORM }}
+        viewport={{ ...DEFAULT_SHOW_CLIP_VIEWPORT }}
+        onChange={onChange}
+        onPreview={onPreview}
+        onPreviewEnd={onPreviewEnd}
+      />,
+    )
+    const zoom = screen.getByLabelText('Zoom')
+    fireEvent.change(zoom, { target: { value: '1.5' } })
+    fireEvent.change(zoom, { target: { value: '2' } })
+    expect(onPreview).toHaveBeenCalledTimes(2)
+    expect(onChange).not.toHaveBeenCalled()
+
+    fireEvent.pointerUp(zoom)
+    expect(onChange).toHaveBeenCalledTimes(1)
+    expect(onPreviewEnd).toHaveBeenCalledTimes(1)
   })
 })

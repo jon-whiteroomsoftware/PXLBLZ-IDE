@@ -403,3 +403,23 @@ describe('shared Clip Entity Detail sections (#498)', () => {
     expect(onPatch).toHaveBeenCalledWith(onPreviewPatch.mock.calls[1][0])
   })
 })
+
+describe('placement field display (#617)', () => {
+  it('rounds float dust out of the fields without touching what is stored', () => {
+    const onPatch = vi.fn()
+    const props = commonProps('scene-main', onPatch)
+    render(<ShowClipEntityDetail
+      {...props}
+      value={{
+        ...props.value,
+        transform: { ...props.value.transform, positionX: -0.21488423 },
+        viewport: { enabled: true, x: 0, y: 0, width: 2 / 3, height: 1 },
+      }}
+    />)
+
+    expect(screen.getByRole('spinbutton', { name: 'Content X' })).toHaveValue(-0.215)
+    expect(screen.getByRole('textbox', { name: 'Viewport Width exact multiplier' })).toHaveValue('0.67')
+    // Display only: nothing is written back just for being rendered.
+    expect(onPatch).not.toHaveBeenCalled()
+  })
+})

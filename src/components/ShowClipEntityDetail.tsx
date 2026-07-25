@@ -41,6 +41,15 @@ export interface ShowClipEntityDetailProps {
   onMoveLayer?: (layerId: string) => void
 }
 
+/**
+ * Placement values come from free dragging, so they carry float dust that fills
+ * a narrow field with noise like 0.66666666. Rounded for display only - the
+ * stored value keeps full precision, because content is centre-anchored and the
+ * aperture corner-anchored, and rounding each would round them apart and break
+ * the exact match the pad's edge magnets exist to produce.
+ */
+const shown = (value: number) => Math.round(value * 1000) / 1000
+
 export function ShowClipEntityDetail({
   value,
   title,
@@ -250,25 +259,13 @@ export function ShowClipEntityDetail({
                 />
               </ShowClipPlacementPopover>
             )}
-            <ClipContentGeometry
+            <ClipPlacementGeometry
               value={value}
               readOnly={readOnly}
-              qualified
               onPreviewPatch={onPreviewPatch}
               onPreviewEnd={onPreviewEnd}
               onPatch={onPatch}
             />
-            {value.viewport.enabled && (
-              <fieldset aria-label="Viewport geometry" className="min-w-0">
-                <legend className="mb-1 text-[9px] font-medium uppercase tracking-[0.12em] text-amber-300/80">Aperture</legend>
-                <div className="grid min-w-0 grid-cols-2 items-end gap-x-2 gap-y-1.5 sm:grid-cols-4">
-                  <ShowInspectorNumberField label="X" ariaLabel="Viewport X" value={value.viewport.x} min={-4} max={4} step={0.01} disabled={readOnly} onChange={(x) => onPatch({ viewport: { x } })} />
-                  <ShowInspectorNumberField label="Y" ariaLabel="Viewport Y" value={value.viewport.y} min={-4} max={4} step={0.01} disabled={readOnly} onChange={(y) => onPatch({ viewport: { y } })} />
-                  <ShowInspectorNumberField label="Width" ariaLabel="Viewport Width" value={value.viewport.width} min={0.01} max={8} step={0.01} disabled={readOnly} onChange={(width) => onPatch({ viewport: { width } })} />
-                  <ShowInspectorNumberField label="Height" ariaLabel="Viewport Height" value={value.viewport.height} min={0.01} max={8} step={0.01} disabled={readOnly} onChange={(height) => onPatch({ viewport: { height } })} />
-                </div>
-              </fieldset>
-            )}
           </div>
         </details>}
 
@@ -572,29 +569,55 @@ export function ShowClipEntityDetail({
   )
 }
 
-function ClipContentGeometry({
+/**
+ * One label row over two aligned field rows: the content on top, the aperture
+ * directly beneath in the same columns, so the two rectangles read as variants
+ * of the same four numbers. Rotation takes the left quarter because only the
+ * content can turn; the aperture is axis-aligned and leaves that cell to its
+ * own name.
+ */
+function ClipPlacementGeometry({
   value,
   readOnly,
-  qualified = false,
   onPreviewPatch,
   onPreviewEnd,
   onPatch,
 }: {
   value: ShowClipInspectorValue
   readOnly: boolean
-  qualified?: boolean
   onPreviewPatch?: ShowClipEntityDetailProps['onPreviewPatch']
   onPreviewEnd?: ShowClipEntityDetailProps['onPreviewEnd']
   onPatch: (patch: ShowClipInspectorPatch) => void
 }) {
-  const aria = (label: string) => qualified ? `Content ${label}` : label
-  return <div className="grid min-w-0 grid-cols-2 items-end gap-x-2 gap-y-1.5 sm:grid-cols-5">
-    <ShowInspectorNumberField label="X" ariaLabel={aria('X')} value={value.transform.positionX} min={-4} max={4} step={0.01} disabled={readOnly} onChange={(positionX) => onPatch({ transform: { positionX } })} />
-    <ShowInspectorNumberField label="Y" ariaLabel={aria('Y')} value={value.transform.positionY} min={-4} max={4} step={0.01} disabled={readOnly} onChange={(positionY) => onPatch({ transform: { positionY } })} />
-    <DomainNumberField label="Width" ariaLabel={aria('Width')} presentation="multiplier" value={value.transform.scaleX} min={0.01} max={8} step={0.01} disabled={readOnly} onPreview={(scaleX) => onPreviewPatch?.({ transform: { scaleX } })} onPreviewEnd={onPreviewEnd} onChange={(scaleX) => onPatch({ transform: { scaleX } })} />
-    <DomainNumberField label="Height" ariaLabel={aria('Height')} presentation="multiplier" value={value.transform.scaleY} min={0.01} max={8} step={0.01} disabled={readOnly} onPreview={(scaleY) => onPreviewPatch?.({ transform: { scaleY } })} onPreviewEnd={onPreviewEnd} onChange={(scaleY) => onPatch({ transform: { scaleY } })} />
-    <ShowInspectorNumberField label="Rotation" ariaLabel="Rotation degrees" value={value.transform.rotation * 360} min={-2880} max={2880} step={1} suffix="deg" disabled={readOnly} onChange={(degrees) => onPatch({ transform: { rotation: degrees / 360 } })} />
-  </div>
+  // Rotation | X | Y | Width | Height. The four shared columns hold 75%.
+  const columns = 'grid min-w-0 grid-cols-[1.5fr_1.4fr_1.4fr_1.85fr_1.85fr] items-end gap-x-1.5'
+  return (
+    <div className="grid min-w-0 gap-1.5">
+      <div className={`${columns} text-[9px] uppercase tracking-[0.1em] text-zinc-600`}>
+        <span>Rotation</span><span>X</span><span>Y</span><span>Width</span><span>Height</span>
+      </div>
+
+      <div className={columns}>
+        <ShowInspectorNumberField hideLabel label="" ariaLabel="Rotation degrees" value={shown(value.transform.rotation * 360)} min={-2880} max={2880} step={1} suffix="°" disabled={readOnly} onChange={(degrees) => onPatch({ transform: { rotation: degrees / 360 } })} />
+        <ShowInspectorNumberField hideLabel label="" ariaLabel="Content X" value={shown(value.transform.positionX)} min={-4} max={4} step={0.01} disabled={readOnly} onChange={(positionX) => onPatch({ transform: { positionX } })} />
+        <ShowInspectorNumberField hideLabel label="" ariaLabel="Content Y" value={shown(value.transform.positionY)} min={-4} max={4} step={0.01} disabled={readOnly} onChange={(positionY) => onPatch({ transform: { positionY } })} />
+        <DomainNumberField hideLabel label="" ariaLabel="Content Width" presentation="multiplier" value={shown(value.transform.scaleX)} min={0.01} max={8} step={0.01} disabled={readOnly} onPreview={(scaleX) => onPreviewPatch?.({ transform: { scaleX } })} onPreviewEnd={onPreviewEnd} onChange={(scaleX) => onPatch({ transform: { scaleX } })} />
+        <DomainNumberField hideLabel label="" ariaLabel="Content Height" presentation="multiplier" value={shown(value.transform.scaleY)} min={0.01} max={8} step={0.01} disabled={readOnly} onPreview={(scaleY) => onPreviewPatch?.({ transform: { scaleY } })} onPreviewEnd={onPreviewEnd} onChange={(scaleY) => onPatch({ transform: { scaleY } })} />
+      </div>
+
+      {value.viewport.enabled && (
+        // display:contents keeps the accessible grouping without breaking the
+        // column alignment the two rows exist to show.
+        <fieldset aria-label="Viewport geometry" className={columns}>
+          <span className="pb-1.5 text-[9px] uppercase tracking-[0.1em] text-zinc-500">Aperture</span>
+          <ShowInspectorNumberField hideLabel label="" ariaLabel="Viewport X" value={shown(value.viewport.x)} min={-4} max={4} step={0.01} disabled={readOnly} onChange={(x) => onPatch({ viewport: { x } })} />
+          <ShowInspectorNumberField hideLabel label="" ariaLabel="Viewport Y" value={shown(value.viewport.y)} min={-4} max={4} step={0.01} disabled={readOnly} onChange={(y) => onPatch({ viewport: { y } })} />
+          <DomainNumberField hideLabel label="" ariaLabel="Viewport Width" presentation="multiplier" value={shown(value.viewport.width)} min={0.01} max={8} step={0.01} disabled={readOnly} onPreview={(width) => onPreviewPatch?.({ viewport: { width } })} onPreviewEnd={onPreviewEnd} onChange={(width) => onPatch({ viewport: { width } })} />
+          <DomainNumberField hideLabel label="" ariaLabel="Viewport Height" presentation="multiplier" value={shown(value.viewport.height)} min={0.01} max={8} step={0.01} disabled={readOnly} onPreview={(height) => onPreviewPatch?.({ viewport: { height } })} onPreviewEnd={onPreviewEnd} onChange={(height) => onPatch({ viewport: { height } })} />
+        </fieldset>
+      )}
+    </div>
+  )
 }
 
 // The shared draft-buffered numeric field (#577). Re-exported under the

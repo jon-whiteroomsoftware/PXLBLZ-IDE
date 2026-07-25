@@ -55,8 +55,8 @@ export interface ShowClipPlacementPadProps {
 }
 
 export function ShowClipPlacementPad({
-  transform,
-  viewport,
+  transform: committedTransform,
+  viewport: committedViewport,
   readOnly = false,
   onChange,
   onPreview,
@@ -64,10 +64,15 @@ export function ShowClipPlacementPad({
 }: ShowClipPlacementPadProps) {
   const [grid, setGrid] = useState(3)
   const [focus, setFocus] = useState<PlacementFocus>('content')
+  // The pad is controlled, and preview does not flow back through props, so a
+  // gesture would show nothing until release without holding its own value.
+  const [live, setLive] = useState<PlacementPadResult | null>(null)
   const surface = useRef<SVGSVGElement>(null)
   const drag = useRef<DragKind | null>(null)
   const pending = useRef<PlacementPadResult | null>(null)
 
+  const transform = live?.transform ?? committedTransform
+  const viewport = live?.viewport ?? committedViewport
   const context: PlacementPadContext = { transform, viewport, grid }
   const apertureOn = viewport.enabled
   const active: PlacementFocus = apertureOn ? focus : 'content'
@@ -93,18 +98,17 @@ export function ShowClipPlacementPad({
   const previewResult = (result: PlacementPadResult) => {
     if (!result.transform && !result.viewport) return
     pending.current = result
-    if (onPreview) onPreview(result)
-    else onChange(result)
+    setLive((current) => ({ ...current, ...result }))
+    onPreview?.(result)
   }
 
   const commitPending = () => {
     const result = pending.current
     pending.current = null
+    setLive(null)
     if (!result) return
-    if (onPreview) {
-      onChange(result)
-      onPreviewEnd?.()
-    }
+    onChange(result)
+    onPreviewEnd?.()
   }
 
   const pointerUnit = (event: { clientX: number; clientY: number }) => {
@@ -175,7 +179,7 @@ export function ShowClipPlacementPad({
 
   return (
     <div className="grid gap-2">
-      <div className="flex min-w-0 flex-wrap items-center gap-1.5">
+      <div className="flex min-w-0 flex-nowrap items-center gap-1">
         <label className="flex items-center gap-1.5 text-[10px] text-zinc-300">
           <input
             type="checkbox"
@@ -193,12 +197,10 @@ export function ShowClipPlacementPad({
         </label>
 
         {apertureOn && <>
-          <span className="h-4 w-px bg-zinc-700" />
           <FocusChip active={active === 'content'} colour={CONTENT} onClick={() => setFocus('content')}>Content</FocusChip>
           <FocusChip active={active === 'aperture'} colour={APERTURE} onClick={() => setFocus('aperture')}>Aperture</FocusChip>
         </>}
 
-        <span className="h-4 w-px bg-zinc-700" />
         <label className="flex items-center gap-1 text-[10px] text-zinc-500">
           <span className="sr-only">Grid</span>
           <select
@@ -214,10 +216,10 @@ export function ShowClipPlacementPad({
           </select>
         </label>
 
-        <span className="ml-auto flex gap-1.5">
+        <span className="ml-auto flex gap-1">
           {apertureActive
             ? <>
-                <PadAction onClick={() => apply(frameContent(context))}>Frame content</PadAction>
+                <PadAction onClick={() => apply(frameContent(context))}>Frame</PadAction>
                 <PadAction onClick={() => apply(setViewportRect(context, { left: 0, top: 0, width: 1, height: 1 }))}>Full Zone</PadAction>
               </>
             : <>
@@ -385,7 +387,8 @@ export function ShowClipPlacementPad({
         </g>}
       </svg>
 
-      {contentActive && <div className="flex items-center gap-2">
+      <div className="flex min-h-[40px] items-center gap-2">
+        {contentActive && <>
         <span className="w-10 shrink-0 text-[9px] uppercase tracking-[0.08em] text-zinc-500">Zoom</span>
         <input
           type="range"
@@ -403,7 +406,8 @@ export function ShowClipPlacementPad({
         />
         <span className="w-10 text-right font-mono text-[10px] text-zinc-300">{transform.scaleX.toFixed(2)}×</span>
         <AnchorPad disabled={readOnly} onAnchor={(column, row) => apply(anchorContent(context, column, row))} />
-      </div>}
+        </>}
+      </div>
 
       <p className="text-[10px] leading-relaxed text-zinc-500">
         {!apertureOn

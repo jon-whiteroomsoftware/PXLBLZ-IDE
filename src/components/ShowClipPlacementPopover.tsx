@@ -1,8 +1,12 @@
 import { useCallback, useEffect, useLayoutEffect, useRef, useState, type ReactNode } from 'react'
 import { createPortal } from 'react-dom'
-import { placeShowEntityDetailPanel, type ShowEntityDetailPlacement } from '@/engine/showEntityDetailPlacement'
+import { placeShowPlacementPad, type PlacementPadAnchorPlacement } from '@/engine/showPlacementPadAnchoring'
 
-// A second floating layer over the Clip detail panel, holding the placement pad.
+// A second floating layer beside the Clip detail panel, holding the placement pad.
+//
+// Beside, not above or below: the panel is already tall and often sits low
+// against the timeline, so stacking a ~460px pad on the same axis runs off the
+// viewport. Sideways it also stops covering the panel it was opened from.
 //
 // It carries role="dialog" deliberately: the editor's outside-pointerdown
 // handler bails on `closest('[role="dialog"]')`, so pointer activity in here
@@ -22,16 +26,18 @@ export function ShowClipPlacementPopover({
   children: ReactNode
 }) {
   const popoverRef = useRef<HTMLDivElement>(null)
-  const [position, setPosition] = useState<ShowEntityDetailPlacement | null>(null)
+  const [position, setPosition] = useState<PlacementPadAnchorPlacement | null>(null)
 
   const updatePosition = useCallback(() => {
     const popover = popoverRef.current
     if (!popover || !anchor.isConnected) return
-    setPosition(placeShowEntityDetailPanel({
+    const owner = anchor.closest<HTMLElement>('[data-testid="show-entity-detail-panel"]') ?? anchor
+    const pad = popover.getBoundingClientRect()
+    setPosition(placeShowPlacementPad({
       anchor: anchor.getBoundingClientRect(),
-      panel: popover.getBoundingClientRect(),
+      panel: owner.getBoundingClientRect(),
+      pad: { width: pad.width, height: pad.height },
       viewport: { width: window.innerWidth, height: window.innerHeight },
-      avoid: [],
     }))
   }, [anchor])
 
@@ -76,22 +82,23 @@ export function ShowClipPlacementPopover({
       aria-modal="false"
       aria-label={label}
       data-testid="show-clip-placement-popover"
-      data-placement={position?.placement ?? 'measuring'}
-      className="fixed z-[90] w-[min(440px,calc(100vw-16px))] rounded-md border border-zinc-600 bg-[#0b0b0e]/[0.985] p-2.5 shadow-[0_18px_55px_-18px_rgba(0,0,0,0.95)] backdrop-blur-sm"
+      data-placement={position?.side ?? 'measuring'}
+      className="fixed z-[90] w-[min(440px,calc(100vw-16px))] overflow-y-auto rounded-md border border-zinc-600 bg-[#0b0b0e]/[0.985] p-2.5 shadow-[0_18px_55px_-18px_rgba(0,0,0,0.95)] backdrop-blur-sm"
       style={{
         left: position?.left ?? 8,
         top: position?.top ?? 8,
+        maxHeight: position?.maxHeight,
         visibility: position ? 'visible' : 'hidden',
       }}
     >
       <span
         aria-hidden
-        className={position?.placement === 'above'
-          ? 'pointer-events-none absolute z-10 size-3 rotate-45 border-b border-r border-zinc-600 bg-[#0b0b0e]'
-          : 'pointer-events-none absolute z-10 size-3 rotate-45 border-l border-t border-zinc-600 bg-[#0b0b0e]'}
+        className={position?.side === 'left'
+          ? 'pointer-events-none absolute z-10 size-3 rotate-45 border-r border-t border-zinc-600 bg-[#0b0b0e]'
+          : 'pointer-events-none absolute z-10 size-3 rotate-45 border-b border-l border-zinc-600 bg-[#0b0b0e]'}
         style={{
-          left: (position?.stemLeft ?? 24) - 6,
-          top: position?.placement === 'above' ? 'calc(100% - 6px)' : -6,
+          top: (position?.stemTop ?? 16) - 6,
+          left: position?.side === 'left' ? 'calc(100% - 6px)' : -6,
         }}
       />
       {children}
