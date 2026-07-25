@@ -1453,6 +1453,13 @@ labels clip at the preview boundary, and the authenticated account control can
 shrink and truncate its visible handle at narrow widths without losing its
 accessible name.
 
+The fast authenticated persistence smoke creates a personal Show, renames it
+through the normal header control, observes its saved API record, and proves
+the renamed record survives reload. Its synthetic D1 probe confirms that Vite's
+API proxy and the worktree-local Wrangler process address the same database
+before any UI locator runs; deep Show composition editing remains in the
+dedicated Show suite.
+
 Selection is UI-local and has one explicit open owner across Show setup, Clip,
 Group, Transition, and Zone entities. `ShowEditor` records the owner key and its
 live Timeline element separately from the selected model entity. A second click

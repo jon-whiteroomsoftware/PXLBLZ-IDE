@@ -1,30 +1,30 @@
 import { expect, test } from './fixtures/authenticated'
 
-test('authenticated Studio creates, edits, and reloads a persisted Show', async ({ page }) => {
+test('authenticated Studio creates, renames, and reloads a persisted Show', async ({ page }) => {
   await page.goto('studio/shows')
 
   await expect(page.getByRole('button', { name: /Account menu for playwright-shows/i })).toBeVisible()
+  await page.getByRole('button', { name: 'Add show' }).click()
   await page.getByRole('button', { name: 'New show' }).click()
   await page.getByRole('button', { name: 'Create Installation Show' }).click()
   await page.getByRole('button', { name: 'Create Show' }).click()
   await expect(page).toHaveURL(/\/studio\/shows\/[a-z0-9-]+$/)
 
-  const sceneName = page.getByLabel('Scene 1 scene name')
-  await sceneName.fill('Opening')
-  await page.getByLabel('Opening duration seconds').fill('12')
+  await page.getByRole('button', { name: 'Rename show Untitled Show' }).click()
+  await page.getByRole('textbox', { name: 'Show name' }).fill('Opening')
+  await page.getByRole('textbox', { name: 'Show name' }).press('Enter')
   await expect.poll(async () => {
     const response = await page.context().request.get('/api/shows')
     if (!response.ok()) return false
     const { shows } = await response.json() as {
-      shows: Array<{ scenes: Array<{ name: string; durationMs: number }> }>
+      shows: Array<{ name: string }>
     }
-    return shows.some((show) => show.scenes[0]?.name === 'Opening' && show.scenes[0]?.durationMs === 12_000)
+    return shows.some((show) => show.name === 'Opening')
   }).toBe(true)
 
   await page.reload()
 
-  await expect(page.getByLabel('Opening scene name')).toHaveValue('Opening')
-  await expect(page.getByLabel('Opening duration seconds')).toHaveValue('12')
+  await expect(page.getByRole('button', { name: 'Rename show Opening' })).toBeVisible()
 })
 
 test('shared Studio chrome remains legible, dense, and reachable across routes (#479)', async ({ page }) => {
@@ -57,7 +57,7 @@ test('shared Studio chrome remains legible, dense, and reachable across routes (
   }
 
   await page.goto('studio/patterns/IridescentFibers')
-  await page.getByRole('button', { name: 'Collapse library' }).click()
+  await page.getByRole('button', { name: 'Collapse rail' }).click()
   await expect(page.getByRole('button', { name: 'Expand library' })).toBeVisible()
   expect(await page.locator('[aria-label="Studio activity"]').evaluate((element) => element.getBoundingClientRect().width))
     .toBe(46)

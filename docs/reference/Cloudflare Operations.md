@@ -120,9 +120,17 @@ npm run test:e2e:auth-smoke  # fast create/edit/reload persistence path
 npm run test:e2e:shows       # deeper clip, transition, automation, and routing flows
 ```
 
-Both commands build the Pages output, apply local migrations, and start or reuse
-Vite and Wrangler. They require `SESSION_SECRET` in `.dev.vars`; OAuth client
-credentials are not required.
+Both commands build the Pages output and apply local migrations. The
+authenticated Playwright configuration then owns an isolated Vite/Wrangler pair
+on 5175/8789 by default, rather than reusing the persistent 5174/8788
+development pair; this prevents another
+worktree's proxy from silently serving a different local D1 store. Its setup
+writes a synthetic probe through this worktree's Wrangler CLI and requires the
+same record through Vite's `/api/patterns` proxy before running locators. A
+mismatch reports the owning worktree and the failed API evidence directly.
+Override those ports only with `PLAYWRIGHT_AUTH_SMOKE_VITE_PORT` and
+`PLAYWRIGHT_AUTH_SMOKE_WRANGLER_PORT` together. The commands require
+`SESSION_SECRET` in `.dev.vars`; OAuth client credentials are not required.
 
 After deploy, open the Pages URL and smoke-test:
 

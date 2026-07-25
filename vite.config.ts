@@ -92,6 +92,7 @@ export default defineConfig(({ mode }) => {
   const env = loadEnv(mode, process.cwd(), '')
   const base = env.VITE_BASE_PATH?.trim() || DEFAULT_BASE
   const apiProxyTarget = env.VITE_API_PROXY_TARGET?.trim() || DEFAULT_API_PROXY_TARGET
+  const port = Number(env.VITE_PORT ?? 5174)
 
   return {
     base,
@@ -102,9 +103,16 @@ export default defineConfig(({ mode }) => {
       tailwindcss(),
     ],
     server: {
-      port: 5174,
+      port,
       strictPort: true,
       allowedHosts: true,
+      // A worktree may link the checked-out dependency tree during local QA.
+      // Permit Vite's font imports through that resolved path so the browser
+      // smoke's console oracle still catches application errors rather than
+      // reporting dependency-serving noise.
+      fs: {
+        allow: [path.resolve(__dirname), fs.realpathSync(path.resolve(__dirname, 'node_modules'))],
+      },
       proxy: {
         '/api': {
           target: apiProxyTarget,

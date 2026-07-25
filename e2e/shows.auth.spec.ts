@@ -1577,8 +1577,8 @@ test.describe('authenticated Show authoring', () => {
     await page.getByRole('button', { name: 'Select Group Group' }).last().dblclick()
     await expect(page.getByRole('status', { name: 'Group isolation: Group' })).toBeVisible()
     await page.getByRole('button', { name: 'Select Group Clip Main pulse' }).click()
-    await page.getByRole('spinbutton', { name: 'Duration seconds' }).fill('4')
-    await page.getByRole('spinbutton', { name: 'Duration seconds' }).press('Enter')
+    await page.getByRole('textbox', { name: 'Duration seconds exact time' }).fill('4')
+    await page.getByRole('textbox', { name: 'Duration seconds exact time' }).press('Enter')
     await waitForCurrentShow(page, (saved) => (
       saved.composition?.groupDefinitions?.length === 1
       && saved.composition.groupDefinitions[0].placements.some((placement) => placement.durationMs === 4_000)
