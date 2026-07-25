@@ -519,9 +519,11 @@ Property animation uses one shared model: the destination Clip or Show target
 owns its value, while the incoming boundary owns start, duration, and easing.
 Animation speed, Brightness, Clip Transform, exported sliders, and routing
 split position all use the same system and appear as compact sparklines beneath
-their Zones. Existing exact keyframe tracks continue to preview, compile, and
-split through the internal composition model without exposing a separate
-Scene-local authoring surface.
+their Zones. Select a Clip and use **Property animation** in its Entity Detail
+Panel to choose a supported Property, click **Animate**, then edit its exact
+keyframe time, value, and easing. The authored track continues to preview,
+compile, persist, and split through the internal composition model; it does not
+open a separate Scene-local authoring surface.
 
 ## 16. Zones and routing
 

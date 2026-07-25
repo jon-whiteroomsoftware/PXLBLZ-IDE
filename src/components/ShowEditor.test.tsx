@@ -923,6 +923,7 @@ describe('ShowEditor (#318)', () => {
     const panel = screen.getByRole('dialog', { name: 'Entity Detail Panel' })
     expect(panel).toHaveAttribute('data-owner-key', 'group-clip:phrase-use-a:inside-clip')
     expect(within(panel).getByLabelText('Pattern automation targets')).toBeInTheDocument()
+    expect(within(panel).queryByRole('region', { name: 'Property animation' })).not.toBeInTheDocument()
     changeCommittedNumber('Duration seconds exact time', '1.5')
     await waitFor(() => {
       expect(useShowStore.getState().shows[0].composition?.groupDefinitions?.[0].placements[0].durationMs).toBe(1_500)
@@ -3032,6 +3033,131 @@ describe('ShowEditor (#318)', () => {
     expect(localAnimation.querySelectorAll('[data-property-beat-dot]')).toHaveLength(4)
     expect(screen.getAllByRole('group', { name: /animation for Main$/ })).toHaveLength(1)
     expect(screen.queryByRole('group', { name: 'Animation speed lane for Main' })).not.toBeInTheDocument()
+  })
+
+  it('authors and removes a Clip Property animation from the unified inspector (#607)', async () => {
+    const user = userEvent.setup()
+    const show = createDefaultShow('show-clip-property-animation', 'Clip Property animation', 1000)
+    const scene = show.scenes[0]
+    setPersonalContentProvider(memoryProvider([show]))
+    useShowStore.setState({ shows: [show], activeShowId: show.id, showsLoaded: true })
+
+    render(<ShowEditor showId={show.id} />)
+    await user.click(screen.getByRole('button', { name: 'Select TestPattern1D' }))
+    const panel = screen.getByRole('dialog', { name: 'Entity Detail Panel' })
+    expect(within(panel).getByRole('combobox', { name: 'Property to animate' })).toBeInTheDocument()
+    expect(within(panel).getByText('Only supported numeric Clip properties can be animated.')).toBeInTheDocument()
+    await user.selectOptions(
+      within(panel).getByRole('combobox', { name: 'Property to animate' }),
+      within(panel).getByRole('option', { name: 'Brightness' }),
+    )
+    await user.click(within(panel).getByRole('button', { name: 'Animate selected property' }))
+
+    await waitFor(() => {
+      const track = useShowStore.getState().shows[0].composition?.scenes[0].propertyTracks?.[0]
+      expect(track?.target).toEqual({
+        kind: 'placement-view',
+        placementId: 'placement-cell-1-scene-1',
+        property: 'brightness',
+      })
+      expect(track?.keyframes.map((keyframe) => keyframe.timeMs)).toEqual([0, scene.durationMs])
+    })
+    await user.click(within(panel).getByRole('button', { name: `Select keyframe at ${scene.durationMs} ms` }))
+    const value = within(panel).getByRole('spinbutton', { name: 'Keyframe value' })
+    await user.clear(value)
+    await user.type(value, '0.42')
+    fireEvent.blur(value)
+    await user.selectOptions(within(panel).getByRole('combobox', { name: 'Keyframe easing' }), 'steps-4-end')
+    await waitFor(() => {
+      const keyframe = useShowStore.getState().shows[0].composition?.scenes[0].propertyTracks?.[0].keyframes[1]
+      expect(keyframe?.value).toBe(0.42)
+      expect(keyframe?.easing).toMatchObject({ curve: 'steps', steps: 4, position: 'end' })
+    })
+
+    await user.click(within(panel).getByRole('button', { name: 'Select keyframe at 0 ms' }))
+    expect(within(panel).getByRole('spinbutton', { name: 'Keyframe value' })).toHaveValue(1)
+    await user.click(within(panel).getByRole('button', { name: `Select keyframe at ${scene.durationMs} ms` }))
+    expect(within(panel).getByRole('spinbutton', { name: 'Keyframe value' })).toHaveValue(0.42)
+
+    const time = within(panel).getByRole('spinbutton', { name: 'Keyframe time ms' })
+    await user.clear(time)
+    await user.type(time, '0')
+    fireEvent.blur(time)
+    await waitFor(() => expect(
+      within(panel).getByRole('spinbutton', { name: 'Keyframe time ms' }),
+    ).toHaveValue(scene.durationMs))
+
+    await user.click(within(panel).getByRole('button', { name: 'Delete Brightness animation' }))
+    await waitFor(() => expect(useShowStore.getState().shows[0].composition?.scenes[0].propertyTracks).toBeUndefined())
+  })
+
+  it('exposes only Property animations owned by the inspected Clip (#607)', async () => {
+    const user = userEvent.setup()
+    const show = createDefaultShow('show-clip-property-ownership', 'Clip Property ownership', 1000)
+    const [firstScene, secondScene] = show.scenes
+    const zone = show.zones[0]
+    show.composition = {
+      version: 1,
+      patternInstances: [
+        {
+          id: 'instance-a',
+          pattern: { kind: 'stock', id: 'TestPattern1D' },
+          patternName: 'TestPattern1D',
+          time: { timeScale: 1, timeOffsetMs: 0 },
+        },
+        {
+          id: 'instance-b',
+          pattern: { kind: 'stock', id: 'CometLoom' },
+          patternName: 'CometLoom',
+          time: { timeScale: 1, timeOffsetMs: 0 },
+        },
+      ],
+      scenes: [
+        {
+          sceneId: firstScene.id,
+          propertyTracks: [{
+            id: 'track-b-brightness',
+            target: { kind: 'placement-view', placementId: 'placement-b', property: 'brightness' },
+            keyframes: [
+              { id: 'key-b-start', timeMs: 0, value: 0.25, easing: { curve: 'linear' } },
+              { id: 'key-b-end', timeMs: firstScene.durationMs, value: 0.75, easing: { curve: 'linear' } },
+            ],
+          }],
+          zones: [{
+            zoneId: zone.id,
+            main: [
+              {
+                id: 'placement-a',
+                instanceId: 'instance-a',
+                startMs: 0,
+                durationMs: firstScene.durationMs / 2,
+                view: { brightness: 1, phase: 0, mirror: false },
+              },
+              {
+                id: 'placement-b',
+                instanceId: 'instance-b',
+                startMs: firstScene.durationMs / 2,
+                durationMs: firstScene.durationMs / 2,
+                view: { brightness: 1, phase: 0, mirror: false },
+              },
+            ],
+            overlays: [],
+          }],
+        },
+        { sceneId: secondScene.id, zones: [{ zoneId: zone.id, main: [], overlays: [] }] },
+      ],
+    }
+    setPersonalContentProvider(memoryProvider([show]))
+    useShowStore.setState({ shows: [show], activeShowId: show.id, showsLoaded: true })
+
+    render(<ShowEditor showId={show.id} />)
+    await user.click(screen.getByRole('button', { name: 'Select TestPattern1D' }))
+    expect(screen.queryByText('Unsupported Property')).not.toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'Delete Property animation' })).not.toBeInTheDocument()
+    expect(screen.getByText('Static values stay compact until you animate one.')).toBeInTheDocument()
+
+    await user.click(screen.getByRole('button', { name: 'Select CometLoom' }))
+    expect(screen.getByRole('button', { name: 'Delete Brightness animation' })).toBeInTheDocument()
   })
 
 

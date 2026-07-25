@@ -89,7 +89,10 @@ function redirectBaseTrailingSlash(base: string) {
 }
 
 export default defineConfig(({ mode }) => {
-  const env = loadEnv(mode, process.cwd(), '')
+  // loadEnv reads .env files only. Keep shell-provided values authoritative so
+  // isolated Playwright smoke servers can select their own Vite port and API
+  // proxy target instead of accidentally using the persistent dev pair.
+  const env = { ...loadEnv(mode, process.cwd(), ''), ...process.env }
   const base = env.VITE_BASE_PATH?.trim() || DEFAULT_BASE
   const apiProxyTarget = env.VITE_API_PROXY_TARGET?.trim() || DEFAULT_API_PROXY_TARGET
   const port = Number(env.VITE_PORT ?? 5174)

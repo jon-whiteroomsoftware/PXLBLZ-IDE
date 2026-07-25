@@ -2,7 +2,7 @@ import { useCallback, useDeferredValue, useEffect, useLayoutEffect, useMemo, use
 import { createPortal } from 'react-dom'
 import { Activity, BookOpen, Check, ChevronDown, ChevronRight, Clock3, Code2, Copy, Download, Eye, Flag, Grid2X2, Info, Layers3, Lightbulb, ListChecks, Lock, Magnet, Map as MapIcon, Maximize2, Pause, Play, Plus, Redo2, Repeat2, RotateCcw, RotateCw, Route, Scissors, Settings2, SkipBack, SlidersHorizontal, SplitSquareHorizontal, Trash2, Undo2, WandSparkles, X, Zap } from 'lucide-react'
 import { Button } from '@/components/ui/button'
-import { NumberField as UiNumberField, type NumberFieldProps as UiNumberFieldProps } from '@/components/ui/number-field'
+import { NumberField as UiNumberField, useNumberFieldDraft, type NumberFieldProps as UiNumberFieldProps } from '@/components/ui/number-field'
 import { TimeField as UiTimeField, type TimeFieldProps as UiTimeFieldProps } from '@/components/ui/time-field'
 import { PercentageField as UiPercentageField, type PercentageFieldProps as UiPercentageFieldProps } from '@/components/ui/percentage-field'
 import { DomainNumberField as UiDomainNumberField, type DomainNumberFieldProps as UiDomainNumberFieldProps } from '@/components/ui/domain-number-field'
@@ -87,6 +87,16 @@ import {
   type ShowClipInspectorOwner,
   type ShowClipInspectorPatch,
 } from '@/engine/showClipInspectorModel'
+import {
+  addShowPropertyTrack,
+  deleteShowPropertyTrack,
+  propertyTargetKey,
+  updateShowPropertyKeyframe,
+} from '@/engine/showPropertyAnimation'
+import {
+  showClipEffectParameterValue,
+  showClipEffectParameters,
+} from '@/engine/showEffectAuthoring'
 import {
   fitShowTimelineViewport,
   panShowTimelineViewport,
@@ -228,6 +238,9 @@ import type {
   ShowOutputEffect,
   ShowRoutingLayout,
   ShowAutomatableProperty,
+  ShowPropertyAnimationKeyframe,
+  ShowPropertyAnimationTarget,
+  ShowPropertyAnimationTrack,
 } from '@/engine/personalContentRecords'
 import { DEFAULT_SHOW_TRAILS_RETENTION, normalizeShowOutputEffects } from '@/engine/showPreviousRgbFeedback'
 import { normalizeShowClipTransform } from '@/engine/showClipTransform'
@@ -2201,6 +2214,27 @@ export function ShowEditor({
                   }}
                   onUpdateAdaptations={(cell, changes) => void updateCellAdaptations(activeShow.id, cell.id, changes)}
                   onUpdateClipInspector={commitClipInspectorPatch}
+                  onPropertyAnimationChange={(owner, change) => {
+                    if (!inspectorShow?.composition || owner.kind === 'global') return false
+                    const scene = inspectorShow.scenes.find((candidate) => candidate.id === owner.sceneId)
+                    if (!scene) return false
+                    const composition = inspectorShow.composition
+                    const next = change.kind === 'add-track'
+                      ? addShowPropertyTrack(activeShow, composition, owner.sceneId, {
+                          id: newPersonalContentId(),
+                          target: change.target,
+                          keyframes: [
+                            { id: newPersonalContentId(), timeMs: 0, value: change.initialValue, easing: { curve: 'linear' } },
+                            { id: newPersonalContentId(), timeMs: scene.durationMs, value: change.initialValue, easing: { curve: 'linear' } },
+                          ],
+                        })
+                      : change.kind === 'update-keyframe'
+                        ? updateShowPropertyKeyframe(activeShow, composition, owner.sceneId, change.trackId, change.keyframeId, change.changes)
+                        : deleteShowPropertyTrack(composition, owner.sceneId, change.trackId)
+                    if (next === composition) return false
+                    void updateShow(activeShow.id, { ...activeShow, composition: next, updatedAt: Date.now() })
+                    return true
+                  }}
                   onUpdateGroupClipInspector={commitGroupClipInspectorPatch}
                   onPreviewClipInspector={previewClipInspectorPatch}
                   onPreviewGroupClipInspector={previewGroupClipInspectorPatch}
@@ -6517,6 +6551,7 @@ function ContextualInspector({
   onRemoveClip,
   onUpdateAdaptations,
   onUpdateClipInspector,
+  onPropertyAnimationChange,
   onUpdateGroupClipInspector,
   onPreviewClipInspector,
   onPreviewGroupClipInspector,
@@ -6572,6 +6607,7 @@ function ContextualInspector({
   onRemoveClip: (clip: ShowCell) => void
   onUpdateAdaptations: (cell: ShowCell, changes: Partial<ShowCell['adaptations']>) => void
   onUpdateClipInspector: (owner: ShowClipInspectorOwner, patch: ShowClipInspectorPatch) => boolean | void | Promise<void>
+  onPropertyAnimationChange: (owner: ShowClipInspectorOwner, change: ShowPropertyAnimationChange) => boolean | void
   onUpdateGroupClipInspector: (owner: ShowGroupClipOwner, patch: ShowClipInspectorPatch) => boolean | void | Promise<void>
   onPreviewClipInspector: (owner: ShowClipInspectorOwner, patch: ShowClipInspectorPatch) => void
   onPreviewGroupClipInspector: (owner: ShowGroupClipOwner, patch: ShowClipInspectorPatch) => void
@@ -6692,7 +6728,7 @@ function ContextualInspector({
     const instanceOwnership = compositionShow.composition && timelineOwner
       ? projectShowClipPatternInstanceOwnership(compositionShow.composition, timelineOwner)
       : null
-    if (value) {
+    if (value && selectedCompositionClipOwner.kind !== 'global') {
       const patternControls = value.instanceId ? patternControlsByInstanceId[value.instanceId] ?? [] : []
       return (
         <CompositionClipInspector
@@ -6704,6 +6740,11 @@ function ContextualInspector({
           compiledCost={compiledCost}
           instanceOwnership={instanceOwnership}
           onPatch={(patch) => onUpdateClipInspector(selectedCompositionClipOwner, patch)}
+          propertyTracks={compositionShow.composition?.scenes
+            .find((scene) => scene.sceneId === selectedCompositionClipOwner.sceneId)?.propertyTracks
+            ?.filter((track) => showPropertyTrackBelongsToClip(track, value)) ?? []}
+          sceneDurationMs={show.scenes.find((scene) => scene.id === selectedCompositionClipOwner.sceneId)?.durationMs ?? value.local?.durationMs ?? 0}
+          onPropertyAnimationChange={(change) => onPropertyAnimationChange(selectedCompositionClipOwner, change)}
           onPreviewPatch={(patch) => onPreviewClipInspector(selectedCompositionClipOwner, patch)}
           onPreviewEnd={onPreviewEnd}
           onPatternCommit={onPatternCommit}
@@ -6902,6 +6943,9 @@ function CompositionClipInspector({
   compiledCost,
   instanceOwnership,
   onPatch,
+  propertyTracks = [],
+  sceneDurationMs = value.local?.durationMs ?? 0,
+  onPropertyAnimationChange,
   onPreviewPatch,
   onPreviewEnd,
   onPatternCommit,
@@ -6919,6 +6963,9 @@ function CompositionClipInspector({
   compiledCost?: import('@/engine/showVisualToolkit').ShowCompiledCostMetadata
   instanceOwnership: ReturnType<typeof projectShowClipPatternInstanceOwnership>
   onPatch: (patch: ShowClipInspectorPatch) => boolean | void | Promise<void>
+  propertyTracks?: ShowPropertyAnimationTrack[]
+  sceneDurationMs?: number
+  onPropertyAnimationChange?: (change: ShowPropertyAnimationChange) => boolean | void
   onPreviewPatch?: (patch: ShowClipInspectorPatch) => void
   onPreviewEnd?: () => void
   onPatternCommit: () => void
@@ -6976,8 +7023,287 @@ function CompositionClipInspector({
         onPatternCommit={onPatternCommit}
         onOpenEffects={onOpenEffects}
       />
+      {onPropertyAnimationChange && value.placementId && value.instanceId && value.local && (
+        <ShowPropertyAnimationPanel
+          value={value}
+          durationMs={sceneDurationMs}
+          tracks={propertyTracks}
+          onChange={onPropertyAnimationChange}
+        />
+      )}
     </InspectorPanel>
   )
+}
+
+type ShowPropertyAnimationChange =
+  | { kind: 'add-track'; target: ShowPropertyAnimationTarget; initialValue: number }
+  | {
+      kind: 'update-keyframe'
+      trackId: string
+      keyframeId: string
+      changes: Partial<Pick<ShowPropertyAnimationKeyframe, 'timeMs' | 'value' | 'easing'>>
+    }
+  | { kind: 'delete-track'; trackId: string }
+
+interface ShowPropertyAnimationOption {
+  key: string
+  label: string
+  target: ShowPropertyAnimationTarget
+  value: number
+  min: number
+  max: number
+  step: number
+}
+
+function showPropertyTrackBelongsToClip(
+  track: ShowPropertyAnimationTrack,
+  value: NonNullable<ReturnType<typeof projectShowClipInspector>>,
+): boolean {
+  const target = track.target
+  if (target.kind === 'instance-time-scale' || target.kind === 'instance-control') {
+    return target.instanceId === value.instanceId
+  }
+  return target.placementId === value.placementId
+}
+
+function ShowPropertyAnimationPanel({
+  value,
+  durationMs,
+  tracks = [],
+  onChange = () => {},
+}: {
+  value: NonNullable<ReturnType<typeof projectShowClipInspector>>
+  durationMs: number
+  tracks?: ShowPropertyAnimationTrack[]
+  onChange?: (change: ShowPropertyAnimationChange) => boolean | void
+}) {
+  const [targetKey, setTargetKey] = useState('')
+  const [selected, setSelected] = useState<{ trackId: string; keyframeId: string } | null>(null)
+  const options = buildShowPropertyAnimationOptions(value)
+  const animated = new Set(tracks.map((track) => propertyTargetKey(track.target)))
+  const addable = options.filter((option) => !animated.has(option.key))
+  const selectedOption = addable.find((option) => option.key === targetKey) ?? addable[0]
+
+  return (
+    <section className="mt-2 overflow-hidden rounded border border-violet-300/20 bg-violet-300/[0.025]" aria-label="Property animation">
+      <div className="flex min-h-8 items-center gap-1.5 border-b border-violet-300/15 px-2">
+        <Activity size={11} aria-hidden className="text-violet-300" />
+        <strong className="text-[9px] font-medium uppercase tracking-[0.1em] text-violet-200">Property animation</strong>
+        <select
+          aria-label="Property to animate"
+          value={selectedOption?.key ?? ''}
+          disabled={addable.length === 0}
+          onChange={(event) => setTargetKey(event.target.value)}
+          className="ml-auto h-6 min-w-0 max-w-44 rounded border border-zinc-800 bg-zinc-950 px-1 text-[9px] text-zinc-200 disabled:opacity-50"
+        >
+          {addable.map((option) => <option key={option.key} value={option.key}>{option.label}</option>)}
+          {addable.length === 0 && <option value="">All supported Properties animated</option>}
+        </select>
+        <Button
+          size="xs"
+          variant="ghost"
+          aria-label="Animate selected property"
+          disabled={!selectedOption}
+          className="h-6 px-1.5 text-[9px] text-violet-200 hover:bg-violet-300/10 hover:text-violet-100"
+          onClick={() => selectedOption && onChange({
+            kind: 'add-track',
+            target: selectedOption.target,
+            initialValue: selectedOption.value,
+          })}
+        >
+          <Plus size={10} aria-hidden /> Animate
+        </Button>
+      </div>
+      <p className="px-2 pt-1 text-[9px] leading-3 text-zinc-500">
+        Only supported numeric Clip properties can be animated.
+      </p>
+      {tracks.map((track) => {
+        const option = options.find((candidate) => candidate.key === propertyTargetKey(track.target))
+        const selectedKeyframe = selected?.trackId === track.id
+          ? track.keyframes.find((keyframe) => keyframe.id === selected.keyframeId)
+          : undefined
+        return (
+          <div key={track.id} className="border-b border-violet-300/10 last:border-b-0">
+            <div className="flex min-h-7 items-center gap-1.5 px-2">
+              <span className="min-w-0 truncate text-[9px] text-violet-100">{option?.label ?? 'Unsupported Property'}</span>
+              <div className="ml-auto flex items-center gap-1" role="group" aria-label={`${option?.label ?? 'Property'} keyframes`}>
+                {track.keyframes.map((keyframe) => (
+                  <button
+                    key={keyframe.id}
+                    type="button"
+                    aria-label={`Select keyframe at ${keyframe.timeMs} ms`}
+                    className={`size-3 rotate-45 border ${selectedKeyframe?.id === keyframe.id ? 'border-amber-200 bg-amber-200' : 'border-violet-200/70 bg-violet-300/40 hover:bg-violet-200'}`}
+                    onClick={() => setSelected({ trackId: track.id, keyframeId: keyframe.id })}
+                  />
+                ))}
+              </div>
+              <button
+                type="button"
+                aria-label={`Delete ${option?.label ?? 'Property'} animation`}
+                className="grid size-5 place-items-center text-zinc-600 hover:text-red-300"
+                onClick={() => { setSelected(null); onChange({ kind: 'delete-track', trackId: track.id }) }}
+              ><Trash2 size={10} aria-hidden /></button>
+            </div>
+            {selectedKeyframe && option && (
+              <ShowPropertyKeyframeEditor
+                key={`${track.id}:${selectedKeyframe.id}`}
+                trackId={track.id}
+                keyframe={selectedKeyframe}
+                durationMs={durationMs}
+                option={option}
+                onChange={onChange}
+              />
+            )}
+          </div>
+        )
+      })}
+      {tracks.length === 0 && <p className="px-2 py-1.5 text-[9px] text-zinc-500">Static values stay compact until you animate one.</p>}
+    </section>
+  )
+}
+
+function ShowPropertyKeyframeEditor({
+  trackId,
+  keyframe,
+  durationMs,
+  option,
+  onChange,
+}: {
+  trackId: string
+  keyframe: ShowPropertyAnimationKeyframe
+  durationMs: number
+  option: ShowPropertyAnimationOption
+  onChange: (change: ShowPropertyAnimationChange) => boolean | void
+}) {
+  const [rejectionRevision, setRejectionRevision] = useState(0)
+  return (
+    <ShowPropertyKeyframeFields
+      key={rejectionRevision}
+      trackId={trackId}
+      keyframe={keyframe}
+      durationMs={durationMs}
+      option={option}
+      onChange={(change) => {
+        const accepted = onChange(change)
+        if (accepted === false) setRejectionRevision((revision) => revision + 1)
+      }}
+    />
+  )
+}
+
+function ShowPropertyKeyframeFields({
+  trackId,
+  keyframe,
+  durationMs,
+  option,
+  onChange,
+}: {
+  trackId: string
+  keyframe: ShowPropertyAnimationKeyframe
+  durationMs: number
+  option: ShowPropertyAnimationOption
+  onChange: (change: ShowPropertyAnimationChange) => void
+}) {
+  const timeField = useNumberFieldDraft({
+    value: keyframe.timeMs,
+    min: 0,
+    max: durationMs,
+    onChange: (timeMs) => onChange({
+      kind: 'update-keyframe',
+      trackId,
+      keyframeId: keyframe.id,
+      changes: { timeMs: Math.round(timeMs) },
+    }),
+  })
+  const valueField = useNumberFieldDraft({
+    value: keyframe.value,
+    min: option.min,
+    max: option.max,
+    onChange: (value) => onChange({
+      kind: 'update-keyframe',
+      trackId,
+      keyframeId: keyframe.id,
+      changes: { value },
+    }),
+  })
+  return (
+    <div className="flex flex-wrap items-center gap-1.5 border-t border-violet-300/10 bg-zinc-950/40 px-2 py-1.5">
+      <label className="text-[9px] text-zinc-400">Time
+        <input
+          aria-label="Keyframe time ms"
+          type="number"
+          min={0}
+          max={durationMs}
+          step={1}
+          {...timeField.inputProps}
+          className="ml-1 h-6 w-20 rounded border border-zinc-800 bg-zinc-950 px-1 text-right text-[9px] text-zinc-100"
+        />
+      </label>
+      <label className="text-[9px] text-zinc-400">Value
+        <input
+          aria-label="Keyframe value"
+          type="number"
+          min={option.min}
+          max={option.max}
+          step={option.step}
+          {...valueField.inputProps}
+          className="ml-1 h-6 w-16 rounded border border-zinc-800 bg-zinc-950 px-1 text-right text-[9px] text-zinc-100"
+        />
+      </label>
+      <select
+        aria-label="Keyframe easing"
+        value={showEasingOptionId(keyframe.easing)}
+        onChange={(event) => onChange({
+          kind: 'update-keyframe',
+          trackId,
+          keyframeId: keyframe.id,
+          changes: { easing: showEasingFromOptionId(event.target.value) },
+        })}
+        className="h-6 min-w-24 rounded border border-zinc-800 bg-zinc-950 px-1 text-[9px] text-zinc-100"
+      >
+        <ShowEasingOptions />
+      </select>
+    </div>
+  )
+}
+
+function buildShowPropertyAnimationOptions(
+  value: NonNullable<ReturnType<typeof projectShowClipInspector>>,
+): ShowPropertyAnimationOption[] {
+  if (!value.placementId || !value.instanceId) return []
+  const option = (label: string, target: ShowPropertyAnimationTarget, current: number, min: number, max: number, step: number): ShowPropertyAnimationOption => ({
+    key: propertyTargetKey(target), label, target, value: current, min, max, step,
+  })
+  const placementId = value.placementId
+  const instanceId = value.instanceId
+  return [
+    option('Animation speed', { kind: 'instance-time-scale', instanceId }, value.simulation.timeScale, 0, 4, 0.01),
+    ...Object.entries(value.simulation.controlTargets ?? {}).map(([exportName, current]) => (
+      option(exportName, { kind: 'instance-control', instanceId, exportName }, current, 0, 1, 0.01)
+    )),
+    option('Brightness', { kind: 'placement-view', placementId, property: 'brightness' }, value.view.brightness, 0, 1, 0.01),
+    option('Phase', { kind: 'placement-view', placementId, property: 'phase' }, value.view.phase, 0, 1, 0.01),
+    option('Position X', { kind: 'placement-transform', placementId, property: 'positionX' }, value.transform.positionX, -4, 4, 0.01),
+    option('Position Y', { kind: 'placement-transform', placementId, property: 'positionY' }, value.transform.positionY, -4, 4, 0.01),
+    option('Rotation', { kind: 'placement-transform', placementId, property: 'rotation' }, value.transform.rotation, -8, 8, 0.01),
+    option('Scale X', { kind: 'placement-transform', placementId, property: 'scaleX' }, value.transform.scaleX, 0.01, 8, 0.01),
+    option('Scale Y', { kind: 'placement-transform', placementId, property: 'scaleY' }, value.transform.scaleY, 0.01, 8, 0.01),
+    option('Viewport X', { kind: 'placement-viewport', placementId, property: 'x' }, value.viewport.x, -4, 4, 0.01),
+    option('Viewport Y', { kind: 'placement-viewport', placementId, property: 'y' }, value.viewport.y, -4, 4, 0.01),
+    option('Viewport width', { kind: 'placement-viewport', placementId, property: 'width' }, value.viewport.width, 0.01, 8, 0.01),
+    option('Viewport height', { kind: 'placement-viewport', placementId, property: 'height' }, value.viewport.height, 0.01, 8, 0.01),
+    ...value.effects.flatMap((effect) => showClipEffectParameters(effect).flatMap((parameter) => {
+      const current = showClipEffectParameterValue(effect, parameter.id)
+      return typeof current === 'number' ? [option(
+        `${effect.kind} - ${parameter.label}`,
+        { kind: 'placement-effect', placementId, effectId: effect.id, effectKind: effect.kind, parameterId: parameter.id },
+        current,
+        parameter.min ?? -1_000,
+        parameter.max ?? 1_000,
+        parameter.step ?? 0.01,
+      )] : []
+    })),
+  ]
 }
 
 function ClipInspector({
