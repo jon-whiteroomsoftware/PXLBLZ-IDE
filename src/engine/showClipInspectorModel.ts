@@ -207,6 +207,9 @@ export function updateShowClipInspector(
       ),
     }))
   }
+  if (patch.pattern || (patch.simulation && Object.prototype.hasOwnProperty.call(patch.simulation, 'controlTargets'))) {
+    composition = pruneRemovedControlPropertyTracks(composition, resolved.instance.id)
+  }
   if (patch.view || patch.transform || patch.viewport || patch.effects || patch.presentation || patch.blink !== undefined) {
     composition = mapPlacement(composition, owner, (placement) => ({
       ...placement,
@@ -217,6 +220,12 @@ export function updateShowClipInspector(
       ...(patch.presentation ? compactPresentation(patch.presentation) : {}),
       ...(patch.blink === null ? { blink: undefined } : patch.blink ? { blink: normalizeBlink(patch.blink) } : {}),
     }))
+  }
+  if (patch.effects) {
+    composition = pruneRemovedEffectPropertyTracks(
+      composition,
+      resolved.placement.logicalClipId ?? resolved.placement.id,
+    )
   }
   if (patch.local) {
     const localBasis = composition
@@ -452,6 +461,62 @@ function mapPlacement(
         })),
       })),
     })),
+  }
+}
+
+function pruneRemovedEffectPropertyTracks(
+  composition: ShowCompositionV1,
+  logicalClipId: string,
+): ShowCompositionV1 {
+  const affectedPlacements = new Map<string, ShowMainPlacement | ShowOverlayPlacement>()
+  for (const scene of composition.scenes) {
+    for (const zone of scene.zones) {
+      for (const placement of [...zone.main, ...zone.overlays.flatMap((layer) => layer.placements)]) {
+        if ((placement.logicalClipId ?? placement.id) === logicalClipId) {
+          affectedPlacements.set(placement.id, placement)
+        }
+      }
+    }
+  }
+  return {
+    ...composition,
+    scenes: composition.scenes.map((scene) => {
+      const propertyTracks = scene.propertyTracks?.filter((track) => {
+        const target = track.target
+        if (target.kind !== 'placement-effect') return true
+        const placement = affectedPlacements.get(target.placementId)
+        if (!placement) return true
+        return (placement.effects ?? []).some((effect) => (
+          effect.id === target.effectId && effect.kind === target.effectKind
+        ))
+      })
+      return {
+        ...scene,
+        ...(propertyTracks?.length ? { propertyTracks } : { propertyTracks: undefined }),
+      }
+    }),
+  }
+}
+
+function pruneRemovedControlPropertyTracks(
+  composition: ShowCompositionV1,
+  instanceId: string,
+): ShowCompositionV1 {
+  const controlTargets = composition.patternInstances
+    .find((instance) => instance.id === instanceId)?.controlTargets
+  return {
+    ...composition,
+    scenes: composition.scenes.map((scene) => {
+      const propertyTracks = scene.propertyTracks?.filter((track) => {
+        const target = track.target
+        if (target.kind !== 'instance-control' || target.instanceId !== instanceId) return true
+        return Object.prototype.hasOwnProperty.call(controlTargets ?? {}, target.exportName)
+      })
+      return {
+        ...scene,
+        ...(propertyTracks?.length ? { propertyTracks } : { propertyTracks: undefined }),
+      }
+    }),
   }
 }
 

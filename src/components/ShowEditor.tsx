@@ -7281,6 +7281,9 @@ function buildShowPropertyAnimationOptions(
     ...Object.entries(value.simulation.controlTargets ?? {}).map(([exportName, current]) => (
       option(exportName, { kind: 'instance-control', instanceId, exportName }, current, 0, 1, 0.01)
     )),
+    ...(value.local?.opacity !== undefined
+      ? [option('Opacity', { kind: 'placement-opacity', placementId }, value.local.opacity, 0, 1, 0.01)]
+      : []),
     option('Brightness', { kind: 'placement-view', placementId, property: 'brightness' }, value.view.brightness, 0, 1, 0.01),
     option('Phase', { kind: 'placement-view', placementId, property: 'phase' }, value.view.phase, 0, 1, 0.01),
     option('Position X', { kind: 'placement-transform', placementId, property: 'positionX' }, value.transform.positionX, -4, 4, 0.01),

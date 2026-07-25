@@ -533,6 +533,78 @@ describe('shared Clip inspector owner model (#498)', () => {
     })
   })
 
+  it('prunes only Effect Property tracks whose referent the inspector removes (#607)', () => {
+    const show = fixture()
+    const scene = show.composition!.scenes[0]
+    const placement = scene.zones[0].overlays[0].placements[0]
+    placement.effects = [{ id: 'move', kind: 'translate', x: 0, y: 0 }]
+    scene.propertyTracks = [
+      {
+        id: 'track-effect-x',
+        target: {
+          kind: 'placement-effect',
+          placementId: placement.id,
+          effectId: 'move',
+          effectKind: 'translate',
+          parameterId: 'translateX',
+        },
+        keyframes: [
+          { id: 'effect-x-start', timeMs: 0, value: 0, easing: { curve: 'linear' } },
+          { id: 'effect-x-end', timeMs: 1_000, value: 0.2, easing: { curve: 'linear' } },
+        ],
+      },
+      {
+        id: 'track-brightness',
+        target: { kind: 'placement-view', placementId: placement.id, property: 'brightness' },
+        keyframes: [
+          { id: 'brightness-start', timeMs: 0, value: 0.5, easing: { curve: 'linear' } },
+          { id: 'brightness-end', timeMs: 1_000, value: 0.8, easing: { curve: 'linear' } },
+        ],
+      },
+    ]
+    const original = structuredClone(show)
+    expect(validateShowComposition(show, show.composition!)).toEqual([])
+
+    const updated = updateShowClipInspector(show, overlayOwner(show), { effects: [] })
+
+    expect(show).toEqual(original)
+    expect(updated.composition!.scenes[0].propertyTracks?.map((track) => track.id)).toEqual(['track-brightness'])
+    expect(validateShowComposition(updated, updated.composition!)).toEqual([])
+  })
+
+  it('prunes only control Property tracks cleared by a Pattern change (#607)', () => {
+    const show = fixture()
+    const scene = show.composition!.scenes[0]
+    scene.propertyTracks = [
+      {
+        id: 'track-control-speed',
+        target: { kind: 'instance-control', instanceId: 'instance-overlay', exportName: 'sliderSpeed' },
+        keyframes: [
+          { id: 'control-speed-start', timeMs: 0, value: 0.2, easing: { curve: 'linear' } },
+          { id: 'control-speed-end', timeMs: 1_000, value: 0.8, easing: { curve: 'linear' } },
+        ],
+      },
+      {
+        id: 'track-brightness',
+        target: { kind: 'placement-view', placementId: 'placement-overlay', property: 'brightness' },
+        keyframes: [
+          { id: 'brightness-start', timeMs: 0, value: 0.5, easing: { curve: 'linear' } },
+          { id: 'brightness-end', timeMs: 1_000, value: 0.8, easing: { curve: 'linear' } },
+        ],
+      },
+    ]
+    const original = structuredClone(show)
+    expect(validateShowComposition(show, show.composition!)).toEqual([])
+
+    const updated = updateShowClipInspector(show, overlayOwner(show), {
+      pattern: { ref: { kind: 'stock', id: 'Caustics' }, name: 'Caustics' },
+    })
+
+    expect(show).toEqual(original)
+    expect(updated.composition!.scenes[0].propertyTracks?.map((track) => track.id)).toEqual(['track-brightness'])
+    expect(validateShowComposition(updated, updated.composition!)).toEqual([])
+  })
+
   it('clamps normalized and speed fields at the adapter boundary', () => {
     const show = fixture()
     const updated = updateShowClipInspector(show, overlayOwner(show), {
