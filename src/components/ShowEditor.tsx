@@ -2538,6 +2538,12 @@ export function ShowEditor({
   )
 }
 
+const SHOW_PLAYBACK_RATE_BY_KEY: Readonly<Record<string, number | undefined>> = {
+  '1': 1,
+  '2': 1.5,
+  '3': 2,
+}
+
 function ShowTransportControls({
   show,
 }: {
@@ -2550,10 +2556,18 @@ function ShowTransportControls({
 
   useEffect(() => {
     const onKeyDown = (event: KeyboardEvent) => {
-      if (showControlOwnsKeyboardEvent(event.target)) return
+      if (event.defaultPrevented || showControlOwnsKeyboardEvent(event.target)) return
       if (claimStudioPreviewSpace(event)) {
         usePreviewStore.getState().toggle()
         return
+      }
+      if (!event.metaKey && !event.ctrlKey && !event.altKey) {
+        const playbackRate = SHOW_PLAYBACK_RATE_BY_KEY[event.key]
+        if (playbackRate !== undefined) {
+          event.preventDefault()
+          usePreviewStore.getState().setSpeed(playbackRate)
+          return
+        }
       }
       if (!event.metaKey && !event.ctrlKey && !event.altKey && event.key.toLowerCase() === 'a') {
         event.preventDefault()
@@ -3613,10 +3627,7 @@ function ShowTimelineWorkspace({
       if (event.key === 'ArrowLeft' || event.key === 'ArrowRight') {
         event.preventDefault()
         const direction = event.key === 'ArrowLeft' ? -1 : 1
-        updateViewport((current) => panShowTimelineViewport(
-          current,
-          current.startMs + direction * current.durationMs,
-        ))
+        requestShowSeek(show.id, positionMsRef.current + direction * 5_000)
         return
       }
       if (event.key !== 'Tab' || event.metaKey || event.ctrlKey || event.altKey) return
@@ -3635,7 +3646,7 @@ function ShowTimelineWorkspace({
     }
     document.addEventListener('keydown', handleTimelineKeyboard)
     return () => document.removeEventListener('keydown', handleTimelineKeyboard)
-  }, [selection, traversalTargets, updateViewport])
+  }, [selection, show.id, traversalTargets, updateViewport])
   const zoomAroundPlayhead = useCallback((factor: number) => updateViewport((current) => {
     const visibleEnd = current.startMs + current.durationMs
     const playheadMs = positionMsRef.current

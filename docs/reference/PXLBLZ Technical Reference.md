@@ -1748,15 +1748,17 @@ their native keyboard ownership.
 and contenteditable surfaces untouched. Buttons, links, selectors, sliders,
 menus, and entity-tree rows delegate Space to Preview transport. Tree rows use
 Enter for open/disclose so they cannot preempt the shared shortcut. The Show
-handler keeps the same guarded Space behavior as a local fallback and adds A
-for Show start, Left/Right for one-page timeline pan, and Tab/Shift-Tab for
-deterministic entity traversal when the Show workspace or a marked timeline
-entity owns focus. Both handlers ignore an already prevented event, so
+handler keeps the same guarded Space behavior as a local fallback, adds A for
+Show start, and maps 1/2/3 to 1x/1.5x/2x playback. The timeline handler maps
+Left/Right to five-second playhead seeks and Tab/Shift-Tab to deterministic
+entity traversal when the Show workspace or a marked timeline entity owns
+focus. Focused editable fields and keyboard-operable controls retain their
+native keys. Both handlers ignore an already prevented event, so
 one Space keydown can toggle only once regardless of listener order. Relative and zero
 commands clamp through `showTransportStore`, create ordinary deterministic seek
 requests, and pause/resume around reconstruction so the previous playback state
-is preserved. Unmount removes the handler, preventing shortcuts from leaking
-into other Studio modes.
+is preserved. Keyboard seeking does not alter the timeline viewport. Unmount
+removes the handler, preventing shortcuts from leaking into other Studio modes.
 
 The ruler's transparent range input remains the primary full-width scrubbing
 surface. `TimelinePlayhead` adds a five-pixel pointer target around its one-pixel

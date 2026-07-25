@@ -3149,19 +3149,74 @@ describe('ShowEditor (#318)', () => {
     expect(usePreviewStore.getState().isRunning).toBe(true)
   })
 
-  it('pans one visible timeline page with arrows while a Clip owns focus (#588)', () => {
-    const show = createDefaultShow('show-keyboard-pan', 'Keyboard pan', 1000)
+  it('seeks five seconds with arrows without changing playback or the timeline viewport (#602)', () => {
+    const show = createDefaultShow('show-keyboard-seek-step', 'Keyboard seek step', 1000)
     useShowStore.setState({ shows: [show], activeShowId: show.id, showsLoaded: true })
     render(<ShowEditor showId={show.id} />)
 
     fireEvent.keyDown(screen.getByRole('button', { name: 'Resize visible range end' }), { key: 'ArrowLeft' })
     const navigator = screen.getByRole('slider', { name: 'Pan visible timeline range' })
+    const viewportStart = navigator.getAttribute('aria-valuenow')
     const clip = screen.getByRole('button', { name: 'Select TestPattern1D' })
     clip.focus()
-    fireEvent.keyDown(clip, { key: 'ArrowRight' })
+    usePreviewStore.setState({ isRunning: true })
+    useShowTransportStore.getState().setPosition(show.id, 10_000)
 
-    expect(Number(navigator.getAttribute('aria-valuenow'))).toBeGreaterThan(0)
-    expect(useShowTransportStore.getState().seekRequest).toBeNull()
+    fireEvent.keyDown(clip, { key: 'ArrowRight' })
+    expect(useShowTransportStore.getState().seekRequest).toMatchObject({ targetMs: 15_000 })
+    expect(usePreviewStore.getState().isRunning).toBe(true)
+    expect(navigator).toHaveAttribute('aria-valuenow', viewportStart)
+
+    fireEvent.keyDown(clip, { key: 'ArrowLeft' })
+    expect(useShowTransportStore.getState().seekRequest).toMatchObject({ targetMs: 10_000 })
+    expect(usePreviewStore.getState().isRunning).toBe(true)
+    expect(navigator).toHaveAttribute('aria-valuenow', viewportStart)
+
+    usePreviewStore.setState({ isRunning: false })
+    fireEvent.keyDown(clip, { key: 'ArrowLeft' })
+    expect(useShowTransportStore.getState().seekRequest).toMatchObject({ targetMs: 5_000 })
+    expect(usePreviewStore.getState().isRunning).toBe(false)
+    expect(navigator).toHaveAttribute('aria-valuenow', viewportStart)
+  })
+
+  it('clamps arrow-key Show seeks at the Show boundaries (#602)', () => {
+    const show = createDefaultShow('show-keyboard-seek-clamp', 'Keyboard seek clamp', 1000)
+    useShowStore.setState({ shows: [show], activeShowId: show.id, showsLoaded: true })
+    render(<ShowEditor showId={show.id} />)
+
+    const clip = screen.getByRole('button', { name: 'Select TestPattern1D' })
+    useShowTransportStore.getState().setPosition(show.id, 2_000)
+    fireEvent.keyDown(clip, { key: 'ArrowLeft' })
+    expect(useShowTransportStore.getState().seekRequest).toMatchObject({ targetMs: 0 })
+
+    useShowTransportStore.getState().setPosition(show.id, 60_000)
+    fireEvent.keyDown(clip, { key: 'ArrowRight' })
+    expect(useShowTransportStore.getState().seekRequest).toMatchObject({ targetMs: 62_000 })
+  })
+
+  it('maps 1, 2, and 3 to 1x, 1.5x, and 2x without changing playback (#616)', () => {
+    const show = createDefaultShow('show-keyboard-speed', 'Keyboard speed', 1000)
+    useShowStore.setState({ shows: [show], activeShowId: show.id, showsLoaded: true })
+    usePreviewStore.setState({ isRunning: false, speed: 4 })
+    render(<ShowEditor showId={show.id} />)
+
+    fireEvent.keyDown(document, { key: '1' })
+    expect(usePreviewStore.getState()).toMatchObject({ speed: 1, isRunning: false })
+    fireEvent.keyDown(document, { key: '2' })
+    expect(usePreviewStore.getState()).toMatchObject({ speed: 1.5, isRunning: false })
+    usePreviewStore.setState({ isRunning: true })
+    fireEvent.keyDown(document, { key: '3' })
+    expect(usePreviewStore.getState()).toMatchObject({ speed: 2, isRunning: true })
+
+    fireEvent.keyDown(document, { key: '1', metaKey: true })
+    expect(usePreviewStore.getState().speed).toBe(2)
+
+    const input = document.createElement('input')
+    input.type = 'text'
+    document.body.append(input)
+    fireEvent.keyDown(input, { key: '1' })
+    expect(usePreviewStore.getState().speed).toBe(2)
+    input.remove()
   })
 
   it('traverses Clips in timeline order with Tab and Shift-Tab and wraps (#588)', () => {
@@ -3240,15 +3295,17 @@ describe('ShowEditor (#318)', () => {
   it('removes Show shortcuts when the Show editor closes (#439)', () => {
     const show = createDefaultShow('show-shortcut-scope', 'Shortcut scope', 1000)
     useShowStore.setState({ shows: [show], activeShowId: show.id, showsLoaded: true })
+    usePreviewStore.setState({ isRunning: false, speed: 4 })
     const view = render(<ShowEditor showId={show.id} />)
     useShowTransportStore.getState().setPosition(show.id, 5_000)
 
     view.unmount()
     fireEvent.keyDown(document, { key: 'ArrowRight' })
+    fireEvent.keyDown(document, { key: '2' })
     fireEvent.keyDown(document, { code: 'Space' })
 
     expect(useShowTransportStore.getState()).toMatchObject({ positionMs: 5_000, seekRequest: null })
-    expect(usePreviewStore.getState().isRunning).toBe(false)
+    expect(usePreviewStore.getState()).toMatchObject({ isRunning: false, speed: 4 })
   })
 
   it('drives proportional Show transport and requests an accurate seek (#414)', async () => {
