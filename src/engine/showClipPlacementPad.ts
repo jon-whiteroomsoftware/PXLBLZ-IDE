@@ -262,11 +262,13 @@ export function resizeContentToAnchor(
     width = side
     height = side
   }
+  width = Math.max(MIN_SCALE, width)
+  height = Math.max(MIN_SCALE, height)
   const next: PlacementRect = {
-    left: Math.min(pointerX, anchor.x),
-    top: Math.min(pointerY, anchor.y),
-    width: Math.max(MIN_SCALE, width),
-    height: Math.max(MIN_SCALE, height),
+    left: pointerX < anchor.x ? anchor.x - width : anchor.x,
+    top: pointerY < anchor.y ? anchor.y - height : anchor.y,
+    width,
+    height,
   }
   return { transform: transformFromContentRect(placeContentRect(context, next, false), context.transform.rotation) }
 }

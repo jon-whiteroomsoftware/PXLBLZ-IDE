@@ -94,6 +94,51 @@ describe('resize holds the anchor captured at pointer down', () => {
     expect(rect.left).toBeCloseTo(-0.5)
     expect(rect.left + rect.width).toBeCloseTo(1)
   })
+
+  it('keeps the opposite corner pinned when a uniform resize expands the shorter axis', () => {
+    const padContext = context({}, { enabled: true })
+    const anchor = placementCornerAnchor(contentRectFromTransform(padContext.transform), 'nw')
+    const rect = contentRectFromTransform(
+      resizeContentToAnchor(padContext, anchor, 0.4, 0.6, { uniform: true }).transform!,
+    )
+
+    expect(rect.left).toBeCloseTo(0.4)
+    expect(rect.top).toBeCloseTo(0.4)
+    expect(rect.width).toBeCloseTo(0.6)
+    expect(rect.height).toBeCloseTo(0.6)
+    expect(rect.left + rect.width).toBeCloseTo(anchor.x)
+    expect(rect.top + rect.height).toBeCloseTo(anchor.y)
+  })
+
+  it.each([
+    { corner: 'nw' as const, pointer: [0.4, 0.6], horizontal: 'right', vertical: 'bottom' },
+    { corner: 'ne' as const, pointer: [0.6, 0.4], horizontal: 'left', vertical: 'bottom' },
+    { corner: 'sw' as const, pointer: [0.4, 0.6], horizontal: 'right', vertical: 'top' },
+    { corner: 'se' as const, pointer: [0.6, 0.4], horizontal: 'left', vertical: 'top' },
+  ])('pins the $corner opposite corner throughout uniform resize', ({ corner, pointer, horizontal, vertical }) => {
+    const padContext = context({}, { enabled: true })
+    const anchor = placementCornerAnchor(contentRectFromTransform(padContext.transform), corner)
+    const rect = contentRectFromTransform(
+      resizeContentToAnchor(padContext, anchor, pointer[0], pointer[1], { uniform: true }).transform!,
+    )
+
+    expect(rect.width).toBeCloseTo(rect.height)
+    expect(horizontal === 'left' ? rect.left : rect.left + rect.width).toBeCloseTo(anchor.x)
+    expect(vertical === 'top' ? rect.top : rect.top + rect.height).toBeCloseTo(anchor.y)
+  })
+
+  it('keeps the anchor pinned when the minimum size floor expands both axes', () => {
+    const padContext = context({}, { enabled: true })
+    const anchor = placementCornerAnchor(contentRectFromTransform(padContext.transform), 'nw')
+    const rect = contentRectFromTransform(
+      resizeContentToAnchor(padContext, anchor, 0.9999, 0.9998, { uniform: true }).transform!,
+    )
+
+    expect(rect.width).toBeCloseTo(rect.height)
+    expect(rect.width).toBeGreaterThan(0.0002)
+    expect(rect.left + rect.width).toBeCloseTo(anchor.x)
+    expect(rect.top + rect.height).toBeCloseTo(anchor.y)
+  })
 })
 
 describe('edge magnets', () => {
