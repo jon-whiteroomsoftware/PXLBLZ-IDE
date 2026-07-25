@@ -117,7 +117,10 @@ export function restoreShowReferencePatternSlots(
   authored: ShowRecord,
   projection: ShowReferencePatternProjection,
 ): ShowRecord {
-  const resolvedProjection = extendShowReferencePatternProjection(edited, projection)
+  const resolvedProjection = extendShowReferencePatternProjection(
+    edited,
+    extendShowReferencePatternProjection(authored, projection),
+  )
   const cellIds = new Set(resolvedProjection.cellIds)
   const instanceIds = new Set(resolvedProjection.instanceIds)
   const authoredCells = new Map(authored.cells.map((cell) => [cell.id, cell]))

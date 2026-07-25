@@ -125,8 +125,32 @@ describe('Show reference Pattern projection (#506)', () => {
     expect(reprojected.composition?.patternInstances
       .filter((instance) => instance.id !== newlyAuthoredInstance.id)
       .every((instance) => (
-      instance.pattern.kind === 'stock' && instance.pattern.id === 'Caustics'
+        instance.pattern.kind === 'stock' && instance.pattern.id === 'Caustics'
       ))).toBe(true)
+
+    const derivedInstanceId = reprojected.composition!.patternInstances
+      .find((instance) => instance.id !== newlyAuthoredInstance.id)!.id
+    const withOrphanedInstance = {
+      ...reprojected,
+      composition: {
+        ...reprojected.composition!,
+        scenes: reprojected.composition!.scenes.map((scene) => ({
+          ...scene,
+          zones: scene.zones.map((zone) => ({
+            ...zone,
+            main: zone.main.filter((placement) => placement.instanceId !== derivedInstanceId),
+            overlays: zone.overlays.map((layer) => ({
+              ...layer,
+              placements: layer.placements.filter((placement) => placement.instanceId !== derivedInstanceId),
+            })),
+          })),
+        })),
+      },
+    }
+    const restoredAfterDelete = restoreShowReferencePatternSlots(withOrphanedInstance, restored, projection)
+    expect(restoredAfterDelete.composition?.patternInstances.find((instance) => (
+      instance.id === derivedInstanceId
+    ))?.pattern).toEqual({ kind: 'stock', id: 'TestPattern2D' })
   })
 
   it('keeps a boundary example current through the following Scene hold', () => {
