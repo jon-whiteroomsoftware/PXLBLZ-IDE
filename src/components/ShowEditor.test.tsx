@@ -3075,6 +3075,15 @@ describe('ShowEditor (#318)', () => {
     })
     expect(within(guide).getByRole('button', { name: 'Reset Pattern' })).toBeInTheDocument()
 
+    act(() => useShowStore.setState({
+      stockShowDrafts: {
+        [stock.id]: { ...stock.show, name: 'Edited reference draft', updatedAt: stock.show.updatedAt + 1 },
+      },
+    }))
+    expect(screen.queryByRole('button', { name: 'Select CompassRose' })).not.toBeInTheDocument()
+    await user.click(screen.getByRole('button', { name: 'Show properties' }))
+    expect(screen.getByRole('dialog', { name: 'Entity Detail Panel' })).toHaveTextContent('Edited reference draft')
+
     await user.click(within(guide).getByRole('button', { name: 'Reset Pattern' }))
     expect(useShowEditorSessionStore.getState().referencePatternByShowId[stock.id]).toBeUndefined()
   })

@@ -960,7 +960,21 @@ export function ShowEditor({
     () => controllerProvider.getStatus(),
   )
 
-  const activeShow = stockShowDraft ?? showOverride ?? savedShow ?? null
+  const activeShow = useMemo(() => {
+    const base = stockShowDraft ?? showOverride ?? savedShow ?? null
+    const referenceSlots = builtInContext?.reference?.patternSlots
+    if (!base || !selectedReferencePattern || !referenceSlots) return base
+    const patternName = selectedReferencePattern.kind === 'stock'
+      ? selectedReferencePattern.id
+      : userPatterns.find((pattern) => pattern.id === selectedReferencePattern.id)?.name
+    if (!patternName) return base
+    return applyShowReferencePattern(base, {
+      pattern: selectedReferencePattern,
+      patternName,
+      cellIds: referenceSlots.cellIds,
+      instanceIds: referenceSlots.instanceIds,
+    })
+  }, [builtInContext?.reference?.patternSlots, savedShow, selectedReferencePattern, showOverride, stockShowDraft, userPatterns])
   useShowTransportClock(activeShow, transportClockActive)
   const targetProfile = activeShow?.outputContract?.kind === 'portable-2d'
     ? undefined
