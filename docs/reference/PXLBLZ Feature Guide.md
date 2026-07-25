@@ -555,11 +555,13 @@ The output contract determines what those Zones mean:
   rule holds on any compatible surface.
 
 A Show may own several named Zone Layouts and reference them from explicit
-Layout intervals on the Timeline. A boundary may switch definitions as a Cut;
-Moving Split and Soft Split animate an owned position while every Pattern clock
-continues. A synchronized **Repeat scale** tiles what Patterns sample without
-changing Zone ownership or drawn positions and appears as an ordinary Property
-animation band on the unified Timeline.
+Layout intervals on the Timeline. Each routed interval has a numbered selectable
+Timeline control; selecting it opens the incoming routing transition's
+destination Layout, transfer duration, easing, and direction. A boundary may
+switch definitions as a Cut; Moving Split and Soft Split animate an owned
+position while every Pattern clock continues. A synchronized **Repeat scale**
+tiles what Patterns sample without changing Zone ownership or drawn positions
+and appears as an ordinary Property animation band on the unified Timeline.
 
 The right pane is the read-only **Stage**: the Show rendered over its output
 geometry (or honest generic strips when no map is saved), with the familiar

@@ -36,7 +36,7 @@ import { STOCK_SHOWS } from '@/pixelblaze/stock/shows'
 import { buildShowCompositionFreezeCases } from '@/engine/showCompositionFreeze'
 import * as showModel from '@/engine/showModel'
 import { DEFAULT_SHOW_TRAILS_RETENTION } from '@/engine/showPreviousRgbFeedback'
-import { projectShowLayoutIntervals } from '@/engine/showLayoutIntervals'
+import { appendShowLayoutInterval, projectShowLayoutIntervals } from '@/engine/showLayoutIntervals'
 import * as previewThumbnailJpeg from '@/engine/previewThumbnailJpeg'
 
 function changeCommittedNumber(label: string, value: string): void {
@@ -417,6 +417,69 @@ describe('ShowEditor (#318)', () => {
     await waitFor(() => {
       const intervals = projectShowLayoutIntervals(useShowStore.getState().shows[0])
       expect(intervals[intervals.length - 1]).toMatchObject({ layoutId: show.routingLayouts[1].id, durationMs: 3_000 })
+    })
+  })
+
+  it('selects an appended Zone Layout routing interval from the timeline (#624)', async () => {
+    const user = userEvent.setup()
+    const show = addShowRoutingLayout(createDefaultShow('show-routing-interval-select', 'Routing interval selection', 1000), 'Alternate')
+    setPersonalContentProvider(memoryProvider([show]))
+    useShowStore.setState({ shows: [show], activeShowId: show.id, showsLoaded: true })
+
+    render(<ShowEditor showId={show.id} />)
+
+    await user.click(screen.getByRole('button', { name: 'Add to Show' }))
+    await user.click(screen.getByRole('menuitem', { name: 'Zone Layout' }))
+    const dialog = screen.getByRole('dialog', { name: 'Layout interval actions' })
+    await user.selectOptions(within(dialog).getByRole('combobox', { name: 'Layout definition' }), show.routingLayouts[1].id)
+    await user.click(within(dialog).getByRole('button', { name: 'Append' }))
+
+    await waitFor(() => expect(projectShowLayoutIntervals(useShowStore.getState().shows[0])).toHaveLength(2))
+
+    const interval = await screen.findByRole('button', { name: 'Select Alternate routing interval 1' })
+    expect(interval).toHaveAttribute('aria-pressed', 'false')
+    await user.click(interval)
+
+    expect(interval).toHaveAttribute('aria-pressed', 'true')
+    expect(screen.getByRole('dialog', { name: 'Entity Detail Panel' })).toBeInTheDocument()
+    expect(screen.getByLabelText('Destination routing layout')).toHaveValue(show.routingLayouts[1].id)
+    changeCommittedNumber('Routing transfer duration seconds exact time', '2')
+    await user.selectOptions(screen.getByLabelText('Routing transfer easing'), 'ease-in-out')
+    await user.selectOptions(screen.getByLabelText('Routing transfer direction'), 'reverse')
+
+    await waitFor(() => expect(useShowStore.getState().shows[0].transitions).toContainEqual(expect.objectContaining({
+      kind: 'routing',
+      layoutId: show.routingLayouts[1].id,
+      durationMs: 2_000,
+      routingDirection: 'reverse',
+      easing: { curve: 'quadratic', direction: 'in-out' },
+    })))
+  })
+
+  it('keeps repeated routing interval controls distinct from visual transitions (#624)', async () => {
+    const user = userEvent.setup()
+    const base = addShowRoutingLayout(createDefaultShow('show-routing-interval-identities', 'Routing interval identities', 1000), 'Alternate')
+    const once = appendShowLayoutInterval(base, { layoutId: base.routingLayouts[1].id, durationMs: 4_000 })
+    const show = appendShowLayoutInterval(once, { layoutId: base.routingLayouts[1].id, durationMs: 5_000 })
+    useShowStore.setState({ shows: [show], activeShowId: show.id, showsLoaded: true })
+
+    render(<ShowEditor showId={show.id} />)
+
+    const first = screen.getByRole('button', { name: 'Select Alternate routing interval 1' })
+    const second = screen.getByRole('button', { name: 'Select Alternate routing interval 2' })
+    expect(first).toHaveAttribute('data-show-selection-key', 'transition:routing-scene-2')
+    expect(second).toHaveAttribute('data-show-selection-key', 'transition:routing-scene-3')
+    expect(first).toHaveAttribute('aria-pressed', 'false')
+    expect(second).toHaveAttribute('aria-pressed', 'false')
+
+    await user.click(second)
+
+    expect(first).toHaveAttribute('aria-pressed', 'false')
+    expect(second).toHaveAttribute('aria-pressed', 'true')
+    expect(screen.getByLabelText('Destination routing layout')).toHaveValue(base.routingLayouts[1].id)
+    expect(useShowStore.getState().shows[0].transitions.find((transition) => transition.id === 'transition-scene-1')).toMatchObject({
+      kind: 'crossfade',
+      durationMs: 2_000,
     })
   })
 

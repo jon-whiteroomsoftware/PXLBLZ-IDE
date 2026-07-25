@@ -1149,6 +1149,7 @@ test.describe('authenticated Show authoring', () => {
     await page.goto('studio/shows')
     await createInstallationShow(page)
 
+    await page.getByRole('button', { name: 'Show properties' }).click()
     await page.getByRole('button', { name: 'Add routing layout' }).click()
     await page.getByLabel('New layout routing layout name').fill('Alternating')
     const ranges = page.getByLabel('Alternating main pixel ranges')
@@ -1157,7 +1158,7 @@ test.describe('authenticated Show authoring', () => {
     await page.getByRole('button', { name: 'Set routing layout after Scene 1' }).click()
     await page.getByLabel('Destination routing layout').selectOption({ label: 'Alternating' })
     await page.getByRole('button', { name: 'Select Scene 1 to Scene 2 transition (routing)' }).click()
-    await page.getByLabel('Routing transfer duration seconds').fill('2')
+    await page.getByLabel('Routing transfer duration seconds exact time').fill('2')
     await page.getByLabel('Routing transfer easing').selectOption('ease-in-out')
     await page.getByLabel('Routing transfer direction').selectOption('reverse')
 
@@ -1182,9 +1183,54 @@ test.describe('authenticated Show authoring', () => {
     await expect(page.getByLabel('Alternating main pixel ranges')).toHaveValue('0-29')
     await page.getByRole('button', { name: 'Select Scene 1 to Scene 2 transition (routing)' }).click()
     await expect(page.getByLabel('Destination routing layout')).toHaveValue('layout-2')
-    await expect(page.getByLabel('Routing transfer duration seconds')).toHaveValue('2')
+    await expect(page.getByLabel('Routing transfer duration seconds exact time')).toHaveValue('2')
     await expect(page.getByLabel('Routing transfer easing')).toHaveValue('ease-in-out')
     await expect(page.getByLabel('Routing transfer direction')).toHaveValue('reverse')
+  })
+
+  test('selects, edits, and reloads an appended Zone Layout interval from the timeline (#624)', async ({ page }) => {
+    await page.goto('studio/shows')
+    await createInstallationShow(page)
+
+    await page.getByRole('button', { name: 'Show properties' }).click()
+    await page.getByRole('button', { name: 'Add routing layout' }).click()
+    await page.getByLabel('New layout routing layout name').fill('Alternate interval')
+    await page.getByRole('button', { name: 'Add to Show' }).click()
+    await page.getByRole('menuitem', { name: 'Zone Layout' }).click()
+    const actions = page.getByRole('dialog', { name: 'Layout interval actions' })
+    await actions.getByLabel('Layout definition').selectOption({ label: 'Alternate interval' })
+    await actions.getByLabel('Layout interval duration in seconds exact time').fill('5')
+    await actions.getByRole('button', { name: 'Append' }).click()
+
+    const interval = page.getByRole('button', { name: 'Select Alternate interval routing interval 1' })
+    await expect(interval).toHaveAttribute('aria-pressed', 'false')
+    await interval.click()
+    await expect(interval).toHaveAttribute('aria-pressed', 'true')
+    const duration = page.getByLabel('Routing transfer duration seconds exact time')
+    const easing = page.getByLabel('Routing transfer easing')
+    await duration.fill('2')
+    await duration.press('Tab')
+    await expect(easing).toBeEnabled()
+    await easing.selectOption('ease-in-out')
+    await page.getByLabel('Routing transfer direction').selectOption('reverse')
+
+    await waitForCurrentShow(page, (show) => show.transitions?.some((transition) => (
+      transition.kind === 'routing'
+      && transition.layoutId === 'layout-2'
+      && transition.durationMs === 2_000
+      && showEasingId(transition.easing) === 'ease-in-out'
+      && transition.routingDirection === 'reverse'
+    )))
+
+    await page.reload()
+
+    await page.getByRole('button', { name: 'Select Alternate interval routing interval 1' }).click()
+    await expect(page.getByLabel('Destination routing layout')).toHaveValue('layout-2')
+    await expect(page.getByLabel('Routing transfer duration seconds exact time')).toHaveValue('2')
+    await expect(page.getByLabel('Routing transfer easing')).toHaveValue('ease-in-out')
+    await expect(page.getByLabel('Routing transfer direction')).toHaveValue('reverse')
+    await page.getByRole('button', { name: 'View code' }).first().click()
+    await expect(page.getByText('Generated pattern - Untitled Show')).toBeVisible()
   })
 
   test('authors, reloads, compiles, and removes a shared moving-split property (#623)', async ({ page }) => {

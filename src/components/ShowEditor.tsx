@@ -49,6 +49,7 @@ import {
   parseShowRoutingRanges,
   showLoopDurationMs,
   projectShowTimeline,
+  showRoutingTransitionAfter,
   showVisualTransitionAfter,
   transitionCost,
   updateShowBoundaryTransition,
@@ -4415,11 +4416,14 @@ function ShowTimelineWorkspace({
           />
         )}
         <TimelineLayoutBoundaries
+          show={show}
           intervals={layoutIntervals}
           durationMs={timeline.durationMs}
           gridColumn={`2 / ${timeGridEndLine}`}
           gridRow={rulerRow}
           rowSpan={timelineOverlayRowSpan}
+          selection={selection}
+          onSelect={onSelect}
         />
         <TimelinePlayhead
           show={displayShow}
@@ -5507,32 +5511,54 @@ function LayoutZoneIntervalOverlay({
 }
 
 function TimelineLayoutBoundaries({
+  show,
   intervals,
   durationMs,
   gridColumn,
   gridRow,
   rowSpan,
+  selection,
+  onSelect,
 }: {
+  show: ShowRecord
   intervals: ShowLayoutInterval[]
   durationMs: number
   gridColumn: string
   gridRow: number
   rowSpan: number
+  selection: ShowSelection
+  onSelect: (selection: ShowSelection, anchor?: HTMLElement | null) => void
 }) {
   if (intervals.length <= 1) return null
   return (
     <div
-      aria-hidden
-      className="pointer-events-none relative z-[25]"
+      aria-label="Zone Layout routing intervals"
+      className="relative z-[25]"
       style={{ gridColumn, gridRow: `${gridRow} / span ${rowSpan}` }}
     >
-      {intervals.slice(1).map((interval) => {
+      {intervals.slice(1).map((interval, index) => {
+        const precedingInterval = intervals[index]
+        const precedingSceneId = precedingInterval.sceneIds[precedingInterval.sceneIds.length - 1]
+        const transition = showRoutingTransitionAfter(show, precedingSceneId)
+        if (!transition) return null
         const { left } = showLayoutIntervalPercentBounds(interval, durationMs)
-        return <i
+        const selected = selection.kind === 'transition' && selection.transitionId === transition.id
+        return <button
           key={interval.id}
+          type="button"
+          aria-label={`Select ${interval.layoutName} routing interval ${index + 1}`}
+          aria-pressed={selected}
+          data-show-timeline-focus
+          data-show-selection-key={`transition:${transition.id}`}
           data-show-layout-boundary={interval.id}
-          className="absolute inset-y-0 w-px bg-live/55"
+          className={selected
+            ? 'absolute inset-y-0 z-[1] w-2 -translate-x-1/2 bg-live/35 outline-none ring-1 ring-live/80'
+            : 'absolute inset-y-0 z-[1] w-2 -translate-x-1/2 bg-live/20 outline-none hover:bg-live/45 focus-visible:bg-live/45'}
           style={{ left: `${left}%` }}
+          onClick={(event) => {
+            event.stopPropagation()
+            onSelect({ kind: 'transition', transitionId: transition.id }, event.currentTarget)
+          }}
         />
       })}
     </div>
