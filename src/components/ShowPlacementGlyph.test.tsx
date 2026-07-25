@@ -27,10 +27,29 @@ describe('placement description', () => {
     expect(summary).toContain('aperture half by half')
   })
 
+  it('reduces enlarged aperture extents without treating them as proper fractions', () => {
+    const summary = describeShowPlacement({
+      transform: transform(),
+      viewport: viewport({ x: 0.25, y: 0.25, width: 4 / 3, height: 2 }),
+    })
+    expect(summary).toContain('right 4/3 by bottom 2x visible')
+  })
+
   it('splits the read for the paired views', () => {
     const props = { transform: transform({ scaleX: 0.5, scaleY: 0.5 }), viewport: viewport({ width: 0.5 }) }
     expect(describeShowPlacement({ ...props, view: 'placement' })).toBe('half size, centred')
     expect(describeShowPlacement({ ...props, view: 'aperture' })).toContain('visible')
+  })
+
+  it('describes enlarged content with reduced improper ratios', () => {
+    expect(describeShowPlacement({
+      transform: transform({ scaleX: 4 / 3, scaleY: 4 / 3 }),
+      view: 'placement',
+    })).toBe('4/3 size, centred')
+    expect(describeShowPlacement({
+      transform: transform({ scaleX: 2, scaleY: 2 }),
+      view: 'placement',
+    })).toBe('2x size, centred')
   })
 
   it('reports an absent aperture in the aperture view', () => {
@@ -42,6 +61,11 @@ describe('glyph rendering', () => {
   it('labels itself with the same read for screen readers', () => {
     render(<ShowPlacementGlyph transform={transform()} />)
     expect(screen.getByRole('img', { name: 'Full Zone, centred · no aperture' })).toBeInTheDocument()
+  })
+
+  it('exposes an accurate accessible label for enlarged content', () => {
+    render(<ShowPlacementGlyph transform={transform({ scaleX: 4 / 3, scaleY: 4 / 3 })} />)
+    expect(screen.getByRole('img', { name: '4/3 size, centred · no aperture' })).toBeInTheDocument()
   })
 
   it('draws a dashed window only when an aperture is enabled', () => {

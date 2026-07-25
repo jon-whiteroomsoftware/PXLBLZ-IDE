@@ -1,4 +1,5 @@
 import { useId } from 'react'
+import { recognizableRatio } from '@/engine/domainNumberPresentation'
 import type { ShowClipTransform, ShowClipViewport } from '@/engine/personalContentRecords'
 import { contentRectFromTransform, viewportRect } from '@/engine/showClipPlacementPad'
 
@@ -157,17 +158,14 @@ function describeWindow(viewport: ShowClipViewport): string {
 }
 
 function formatRatio(value: number): string {
-  for (const denominator of [2, 3, 4, 6, 8]) {
-    const numerator = value * denominator
-    if (Math.abs(numerator - Math.round(numerator)) < 0.004) {
-      const whole = Math.round(numerator)
-      if (whole === denominator) return 'full'
-      if (denominator === 2 && whole === 1) return 'half'
-      if (denominator === 3) return whole === 1 ? 'a third' : 'two-thirds'
-      if (denominator === 4 && whole === 1) return 'a quarter'
-      if (denominator === 4 && whole === 3) return 'three-quarters'
-      return `${whole}/${denominator}`
-    }
-  }
-  return `${value.toFixed(2)}x`
+  const ratio = recognizableRatio(value)
+  if (!ratio) return `${value.toFixed(2)}x`
+  const [numerator, denominator] = ratio.split(':').map(Number)
+  if (denominator === 1) return numerator === 1 ? 'full' : `${numerator}x`
+  if (numerator === 1 && denominator === 2) return 'half'
+  if (numerator === 1 && denominator === 3) return 'a third'
+  if (numerator === 2 && denominator === 3) return 'two-thirds'
+  if (numerator === 1 && denominator === 4) return 'a quarter'
+  if (numerator === 3 && denominator === 4) return 'three-quarters'
+  return `${numerator}/${denominator}`
 }

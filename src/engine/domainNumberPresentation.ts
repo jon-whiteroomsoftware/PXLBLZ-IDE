@@ -173,7 +173,7 @@ function parseExactNumber(value: string): number | null {
   return Number.isFinite(parsed) ? parsed : null
 }
 
-function recognizableRatio(value: number): string | null {
+export function recognizableRatio(value: number): string | null {
   if (!Number.isFinite(value) || value <= 0) return null
   for (let denominator = 1; denominator <= RATIO_DENOMINATOR_LIMIT; denominator += 1) {
     const numerator = Math.round(value * denominator)
