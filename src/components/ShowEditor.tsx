@@ -5951,7 +5951,7 @@ function TimelineMarkers({
     if (!openMarkerId && !showEndOpen) return
     const closeDetails = (event: PointerEvent) => {
       const target = event.target
-      if (target instanceof Element && target.closest('[data-show-timeline-marker-ui]')) return
+      if (target instanceof Element && target.closest('[data-show-timeline-marker-ui], [data-bounded-number-slider-ui]')) return
       setOpenMarkerId(null)
       setShowEndOpen(false)
     }

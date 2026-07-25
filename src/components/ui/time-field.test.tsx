@@ -1,5 +1,6 @@
 import { fireEvent, render, screen } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
+import { useState } from 'react'
 import { describe, expect, it, vi } from 'vitest'
 import { TimeField } from './time-field'
 
@@ -145,5 +146,52 @@ describe('TimeField (#614)', () => {
     fireEvent.keyDown(slider, { key: 'Enter' })
     expect(onChange).toHaveBeenCalledOnce()
     expect(onChange).toHaveBeenCalledWith(60)
+  })
+
+  it('restores the gesture-start value when a controlled preview is canceled', () => {
+    const onChange = vi.fn()
+    function PreviewHost() {
+      const [value, setValue] = useState(1)
+      return (
+        <TimeField
+          label="Insert duration"
+          value={value}
+          min={0.001}
+          max={Number.MAX_SAFE_INTEGER}
+          step={0.001}
+          onPreview={setValue}
+          onChange={onChange}
+        />
+      )
+    }
+    render(<PreviewHost />)
+
+    const grip = screen.getByRole('button', { name: 'Adjust Insert duration with slider' })
+    vi.spyOn(grip, 'getBoundingClientRect').mockReturnValue({
+      x: 200, y: 100, left: 200, right: 218, top: 100, bottom: 120, width: 18, height: 20, toJSON: () => ({}),
+    })
+    fireEvent.keyDown(grip, { key: 'Enter' })
+    const slider = screen.getByRole('slider', { name: 'Insert duration time slider' })
+    fireEvent.keyDown(slider, { key: 'End' })
+    expect(screen.getByRole('textbox', { name: 'Insert duration exact time' })).toHaveValue('60')
+    fireEvent.keyDown(slider, { key: 'Escape' })
+
+    expect(onChange).not.toHaveBeenCalled()
+    expect(screen.getByRole('textbox', { name: 'Insert duration exact time' })).toHaveValue('1')
+  })
+
+  it('displays valid millisecond values without rounding to the ruler step', () => {
+    render(
+      <TimeField
+        label="Cadence"
+        value={0.016}
+        min={0.016}
+        max={60}
+        step={0.05}
+        onChange={vi.fn()}
+      />,
+    )
+
+    expect(screen.getByRole('textbox', { name: 'Cadence exact time' })).toHaveValue('0.016')
   })
 })

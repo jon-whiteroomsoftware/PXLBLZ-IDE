@@ -97,6 +97,7 @@ export function BoundedNumberField({
   const [slider, setSlider] = useState<(PercentageSliderPlacement & { pinned: boolean }) | null>(null)
   const [sliderValue, setSliderValue] = useState(boundedSliderValue)
   const sliderValueRef = useRef(boundedSliderValue)
+  const sliderStartValueRef = useRef(value)
   const sliderPointerIdRef = useRef<number | null>(null)
   const sliderDirtyRef = useRef(false)
   const focusedRef = useRef(false)
@@ -171,14 +172,18 @@ export function BoundedNumberField({
     setSlider(null)
   }
   const cancelSlider = () => {
+    const startValue = sliderStartValueRef.current
+    if (previewActiveRef.current) onPreview?.(startValue)
     endPreview()
     sliderDirtyRef.current = false
-    sliderValueRef.current = boundedSliderValue
-    setSliderValue(boundedSliderValue)
-    setDraft(canonicalValue)
+    const boundedStartValue = clampPercentageValue(startValue, sliderMin, sliderMax)
+    sliderValueRef.current = boundedStartValue
+    setSliderValue(boundedStartValue)
+    setDraft(formatDraft(startValue))
     closeSlider()
   }
   const commitSlider = (next: number) => {
+    const startValue = sliderStartValueRef.current
     endPreview()
     const changed = sliderDirtyRef.current
     sliderDirtyRef.current = false
@@ -193,7 +198,7 @@ export function BoundedNumberField({
     setSliderValue(next)
     setDraft(formatDraft(next))
     closeSlider()
-    if (next !== value) onChange(next)
+    if (next !== startValue) onChange(next)
   }
   const placeSlider = (anchor: DOMRect, pointerX: number) => percentageSliderPlacement({
     pointerX,
@@ -228,6 +233,7 @@ export function BoundedNumberField({
       moved: false,
       placement,
     }
+    sliderStartValueRef.current = value
     sliderDirtyRef.current = false
     sliderValueRef.current = boundedSliderValue
     setSliderValue(boundedSliderValue)
@@ -264,6 +270,7 @@ export function BoundedNumberField({
     const rect = event.currentTarget.getBoundingClientRect()
     const placement = placeSlider(rect, rect.left + rect.width / 2)
     pointerSessionRef.current = null
+    sliderStartValueRef.current = value
     sliderDirtyRef.current = false
     sliderValueRef.current = boundedSliderValue
     setSliderValue(boundedSliderValue)
@@ -338,6 +345,7 @@ export function BoundedNumberField({
           role="dialog"
           aria-modal="false"
           aria-label={`${ariaLabel ?? label} slider controls`}
+          data-bounded-number-slider-ui
           className="fixed z-[120] flex items-center rounded-md border border-cyan-400/35 bg-zinc-950 px-4 shadow-[0_12px_32px_rgba(0,0,0,0.5)]"
           style={{ left: slider.left, top: slider.top, width: slider.width, height: slider.height }}
         >

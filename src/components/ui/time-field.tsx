@@ -30,7 +30,7 @@ export function TimeField({
     suffix: 's',
     min,
     max,
-    step,
+    step: Math.min(Math.abs(step) || 0.001, 0.001),
     sliderMin: boundedSliderMin,
     sliderMax: boundedSliderMax,
     sliderStep: Math.min(0.1, Math.max(step, span || step)),
