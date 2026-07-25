@@ -92,6 +92,7 @@ export function BoundedNumberField({
   const inputId = useId()
   const canonicalValue = formatDraft(value)
   const boundedSliderValue = clampPercentageValue(value, sliderMin, sliderMax)
+  const sliderPositionCount = Math.max(1, Math.ceil(1 / sliderPositionStep))
   const [draft, setDraft] = useState(canonicalValue)
   const [slider, setSlider] = useState<(PercentageSliderPlacement & { pinned: boolean }) | null>(null)
   const [sliderValue, setSliderValue] = useState(boundedSliderValue)
@@ -376,16 +377,16 @@ export function BoundedNumberField({
               aria-label={`${ariaLabel ?? label} ${kindLabel} slider`}
               aria-valuetext={format(sliderValue)}
               min={0}
-              max={1}
-              step={sliderPositionStep}
-              value={toSliderPosition(sliderValue)}
+              max={sliderPositionCount}
+              step={1}
+              value={Math.round(toSliderPosition(sliderValue) * sliderPositionCount)}
               onPointerDown={(event) => {
                 sliderPointerIdRef.current = event.pointerId
                 event.currentTarget.setPointerCapture(event.pointerId)
               }}
               onInput={(event) => previewSliderValue(Number(
                 clampPercentageValue(
-                  fromSliderPosition(Number(event.currentTarget.value)),
+                  fromSliderPosition(Number(event.currentTarget.value) / sliderPositionCount),
                   sliderMin,
                   sliderMax,
                 ).toFixed(10),

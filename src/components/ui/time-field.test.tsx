@@ -114,4 +114,36 @@ describe('TimeField (#614)', () => {
     expect(screen.getAllByTestId('bounded-number-detent-label').map((label) => label.textContent))
       .toEqual(['0', '1', '2', '3', '4', '5'])
   })
+
+  it('makes both native ruler endpoints reachable when the span is not step-divisible', () => {
+    const onPreview = vi.fn()
+    const onChange = vi.fn()
+    render(
+      <TimeField
+        label="Strobe cadence"
+        value={1}
+        min={0.016}
+        max={60}
+        step={0.05}
+        onPreview={onPreview}
+        onChange={onChange}
+      />,
+    )
+
+    const grip = screen.getByRole('button', { name: 'Adjust Strobe cadence with slider' })
+    vi.spyOn(grip, 'getBoundingClientRect').mockReturnValue({
+      x: 200, y: 100, left: 200, right: 218, top: 100, bottom: 120, width: 18, height: 20, toJSON: () => ({}),
+    })
+    fireEvent.keyDown(grip, { key: 'Enter' })
+
+    const slider = screen.getByRole('slider', { name: 'Strobe cadence time slider' })
+    expect(slider).toHaveAttribute('min', '0')
+    expect(slider).toHaveAttribute('max', '600')
+    expect(slider).toHaveAttribute('step', '1')
+    fireEvent.input(slider, { target: { value: '600' } })
+    expect(onPreview).toHaveBeenLastCalledWith(60)
+    fireEvent.keyDown(slider, { key: 'Enter' })
+    expect(onChange).toHaveBeenCalledOnce()
+    expect(onChange).toHaveBeenCalledWith(60)
+  })
 })
