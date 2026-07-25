@@ -1263,14 +1263,14 @@ export function ShowEditor({
     ? showLayerTransitionsConnectedToClip(timelineComposition, compositionClipPendingDelete.placementId)
     : []
   const commitClipInspectorPatch = (owner: ShowClipInspectorOwner, patch: ShowClipInspectorPatch) => {
-    if (!activeShow || !inspectorShow) return Promise.resolve()
+    if (!activeShow || !inspectorShow) return false
     const next = updateShowClipInspector(inspectorShow, owner, patch)
-    return next !== inspectorShow ? Promise.resolve(updateShow(activeShow.id, next)) : Promise.resolve()
+    return next !== inspectorShow ? Promise.resolve(updateShow(activeShow.id, next)) : false
   }
   const commitGroupClipInspectorPatch = (owner: ShowGroupClipOwner, patch: ShowClipInspectorPatch) => {
-    if (!activeShow) return Promise.resolve()
+    if (!activeShow) return false
     const next = updateShowGroupClipInspector(activeShow, owner, patch)
-    if (next === activeShow || !next.composition || validateShowGroups(next, next.composition).length > 0) return Promise.resolve()
+    if (next === activeShow || !next.composition || validateShowGroups(next, next.composition).length > 0) return false
     return Promise.resolve(updateShow(activeShow.id, next))
   }
   const previewClipInspectorPatch = (owner: ShowClipInspectorOwner, patch: ShowClipInspectorPatch) => {
@@ -2353,9 +2353,12 @@ export function ShowEditor({
                   return
                 }
                 const effect = application.effect
-                void commitClipInspectorPatch(effectPaletteOwner, { effects: [...effectPaletteValue.effects, effect] }).then(() => {
-                  window.setTimeout(() => document.querySelector<HTMLElement>(`[data-show-effect-id="${effect.id}"]`)?.focus(), 0)
-                })
+                const committed = commitClipInspectorPatch(effectPaletteOwner, { effects: [...effectPaletteValue.effects, effect] })
+                if (committed !== false) {
+                  void committed.then(() => {
+                    window.setTimeout(() => document.querySelector<HTMLElement>(`[data-show-effect-id="${effect.id}"]`)?.focus(), 0)
+                  })
+                }
               }}
               onClose={() => setEffectPaletteOwner(null)}
             />
@@ -2370,11 +2373,14 @@ export function ShowEditor({
                   return
                 }
                 const effect = application.effect
-                void commitGroupClipInspectorPatch(groupEffectPaletteOwner, {
+                const committed = commitGroupClipInspectorPatch(groupEffectPaletteOwner, {
                   effects: [...groupEffectPaletteValue.effects, effect],
-                }).then(() => {
-                  window.setTimeout(() => document.querySelector<HTMLElement>(`[data-show-effect-id="${effect.id}"]`)?.focus(), 0)
                 })
+                if (committed !== false) {
+                  void committed.then(() => {
+                    window.setTimeout(() => document.querySelector<HTMLElement>(`[data-show-effect-id="${effect.id}"]`)?.focus(), 0)
+                  })
+                }
               }}
               onClose={() => setGroupEffectPaletteOwner(null)}
             />
@@ -6553,8 +6559,8 @@ function ContextualInspector({
   onPatternCommit: () => void
   onRemoveClip: (clip: ShowCell) => void
   onUpdateAdaptations: (cell: ShowCell, changes: Partial<ShowCell['adaptations']>) => void
-  onUpdateClipInspector: (owner: ShowClipInspectorOwner, patch: ShowClipInspectorPatch) => void
-  onUpdateGroupClipInspector: (owner: ShowGroupClipOwner, patch: ShowClipInspectorPatch) => void
+  onUpdateClipInspector: (owner: ShowClipInspectorOwner, patch: ShowClipInspectorPatch) => boolean | void | Promise<void>
+  onUpdateGroupClipInspector: (owner: ShowGroupClipOwner, patch: ShowClipInspectorPatch) => boolean | void | Promise<void>
   onPreviewClipInspector: (owner: ShowClipInspectorOwner, patch: ShowClipInspectorPatch) => void
   onPreviewGroupClipInspector: (owner: ShowGroupClipOwner, patch: ShowClipInspectorPatch) => void
   onPreviewEnd: () => void
@@ -6900,7 +6906,7 @@ function CompositionClipInspector({
   transformEnabled: boolean
   compiledCost?: import('@/engine/showVisualToolkit').ShowCompiledCostMetadata
   instanceOwnership: ReturnType<typeof projectShowClipPatternInstanceOwnership>
-  onPatch: (patch: ShowClipInspectorPatch) => void
+  onPatch: (patch: ShowClipInspectorPatch) => boolean | void | Promise<void>
   onPreviewPatch?: (patch: ShowClipInspectorPatch) => void
   onPreviewEnd?: () => void
   onPatternCommit: () => void
@@ -6989,7 +6995,7 @@ function ClipInspector({
   transformEnabled: boolean
   compiledCost?: import('@/engine/showVisualToolkit').ShowCompiledCostMetadata
   canRemove: boolean
-  onUpdateClip: (patch: ShowClipInspectorPatch) => void
+  onUpdateClip: (patch: ShowClipInspectorPatch) => boolean | void | Promise<void>
   onPreviewClip?: (patch: ShowClipInspectorPatch) => void
   onPreviewEnd?: () => void
   onPatternCommit: () => void

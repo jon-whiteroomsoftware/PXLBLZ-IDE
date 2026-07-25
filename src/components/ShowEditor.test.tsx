@@ -1330,6 +1330,61 @@ describe('ShowEditor (#318)', () => {
     expect(screen.queryByRole('dialog', { name: 'Entity Detail Panel' })).not.toBeInTheDocument()
   })
 
+  it('restores a Clip timing field when the engine refuses an overlap (#614)', async () => {
+    const user = userEvent.setup()
+    const show = createDefaultShow('show-refused-inspector-timing', 'Refused inspector timing', 1000)
+    const zoneId = show.zones[0].id
+    show.composition = {
+      version: 1,
+      patternInstances: [{
+        id: 'instance-refused-timing',
+        pattern: { ...show.cells[0].pattern },
+        patternName: 'Refusal source',
+        time: { timeScale: 1, timeOffsetMs: 0 },
+      }],
+      scenes: show.scenes.map((scene, index) => ({
+        sceneId: scene.id,
+        zones: [{
+          zoneId,
+          main: index === 0 ? [{
+            id: 'clip-refused-left',
+            instanceId: 'instance-refused-timing',
+            startMs: 0,
+            durationMs: 5_000,
+            view: { mirror: false, phase: 0, brightness: 1 },
+          }, {
+            id: 'clip-refused-right',
+            instanceId: 'instance-refused-timing',
+            startMs: 5_000,
+            durationMs: 5_000,
+            view: { mirror: false, phase: 0, brightness: 1 },
+          }] : [],
+          overlays: [],
+        }],
+      })),
+    }
+    setPersonalContentProvider(memoryProvider([show]))
+    useShowStore.setState({ shows: [show], activeShowId: show.id, showsLoaded: true })
+
+    render(<ShowEditor showId={show.id} />)
+    await user.click(screen.getAllByRole('button', { name: 'Select Refusal source' })[0])
+
+    const start = screen.getByRole('textbox', { name: 'Start seconds exact time' })
+    expect(start).toHaveValue('0')
+    fireEvent.change(start, { target: { value: '7' } })
+    fireEvent.blur(start)
+
+    expect(useShowStore.getState().shows[0].composition?.scenes[0].zones[0].main[0].startMs).toBe(0)
+    expect(start).toHaveValue('0')
+
+    const grip = screen.getByRole('button', { name: 'Adjust Start seconds with slider' })
+    vi.spyOn(grip, 'getBoundingClientRect').mockReturnValue({
+      x: 200, y: 100, left: 200, right: 218, top: 100, bottom: 120, width: 18, height: 20, toJSON: () => ({}),
+    })
+    fireEvent.keyDown(grip, { key: 'Enter' })
+    expect(screen.getByRole('slider', { name: 'Start seconds time slider' })).toHaveAttribute('aria-valuetext', '0s')
+  })
+
   it('keeps Clip details open while dragging a portaled domain slider (#610)', async () => {
     const user = userEvent.setup()
     const show = createDefaultShow('show-domain-slider-detail', 'Domain slider detail', 1000)

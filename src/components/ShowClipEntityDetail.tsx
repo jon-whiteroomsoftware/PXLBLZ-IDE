@@ -33,7 +33,7 @@ export interface ShowClipEntityDetailProps {
   primaryOnly?: boolean
   advancedDefaultOpen?: boolean
   transformEnabled?: boolean
-  onPatch: (patch: ShowClipInspectorPatch) => void
+  onPatch: (patch: ShowClipInspectorPatch) => boolean | void | Promise<void>
   onPreviewPatch?: (patch: ShowClipInspectorPatch) => void
   onPreviewEnd?: () => void
   onPatternCommit?: () => void
@@ -587,7 +587,7 @@ function ClipPlacementGeometry({
   readOnly: boolean
   onPreviewPatch?: ShowClipEntityDetailProps['onPreviewPatch']
   onPreviewEnd?: ShowClipEntityDetailProps['onPreviewEnd']
-  onPatch: (patch: ShowClipInspectorPatch) => void
+  onPatch: ShowClipEntityDetailProps['onPatch']
 }) {
   // Rotation | X | Y | Width | Height. The four shared columns hold 75%.
   const columns = 'grid min-w-0 grid-cols-[1.5fr_1.4fr_1.4fr_1.85fr_1.85fr] items-end gap-x-1.5'

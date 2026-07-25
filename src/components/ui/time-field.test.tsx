@@ -231,6 +231,63 @@ describe('TimeField (#614)', () => {
     expect(screen.getByRole('textbox', { name: 'Start exact time' })).toHaveValue(String(committed))
   })
 
+  it('restores the controlled value when a commit is synchronously refused', () => {
+    const onChange = vi.fn(() => false)
+    render(
+      <TimeField
+        label="Start"
+        value={0}
+        min={0}
+        max={Number.MAX_SAFE_INTEGER}
+        step={0.001}
+        onChange={onChange}
+      />,
+    )
+
+    const exact = screen.getByRole('textbox', { name: 'Start exact time' })
+    fireEvent.change(exact, { target: { value: '7' } })
+    fireEvent.blur(exact)
+
+    expect(onChange).toHaveBeenCalledWith(7)
+    expect(exact).toHaveValue('0')
+
+    const grip = screen.getByRole('button', { name: 'Adjust Start with slider' })
+    vi.spyOn(grip, 'getBoundingClientRect').mockReturnValue({
+      x: 200, y: 100, left: 200, right: 218, top: 100, bottom: 120, width: 18, height: 20, toJSON: () => ({}),
+    })
+    fireEvent.keyDown(grip, { key: 'Enter' })
+    expect(screen.getByRole('slider', { name: 'Start time slider' })).toHaveAttribute('aria-valuetext', '0s')
+  })
+
+  it('restores the gesture-start value when a slider commit is synchronously refused', () => {
+    const onChange = vi.fn(() => false)
+    render(
+      <TimeField
+        label="Start"
+        value={1}
+        min={0}
+        max={Number.MAX_SAFE_INTEGER}
+        step={0.001}
+        onChange={onChange}
+      />,
+    )
+
+    const grip = screen.getByRole('button', { name: 'Adjust Start with slider' })
+    vi.spyOn(grip, 'getBoundingClientRect').mockReturnValue({
+      x: 200, y: 100, left: 200, right: 218, top: 100, bottom: 120, width: 18, height: 20, toJSON: () => ({}),
+    })
+    fireEvent.keyDown(grip, { key: 'Enter' })
+    const slider = screen.getByRole('slider', { name: 'Start time slider' })
+    fireEvent.keyDown(slider, { key: 'End' })
+    fireEvent.keyDown(slider, { key: 'Enter' })
+
+    expect(onChange).toHaveBeenCalledWith(30)
+    expect(screen.getByRole('textbox', { name: 'Start exact time' })).toHaveValue('1')
+
+    fireEvent.keyDown(grip, { key: 'Enter' })
+    expect(screen.getByRole('slider', { name: 'Start time slider' })).toHaveAttribute('aria-valuetext', '1s')
+  })
+
   it('holds the thumb at a whole-second detent across nearby pointer positions', () => {
     const onPreview = vi.fn()
     render(

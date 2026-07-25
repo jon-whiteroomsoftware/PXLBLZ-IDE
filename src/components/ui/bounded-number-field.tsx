@@ -53,7 +53,8 @@ export interface BoundedNumberFieldProps {
   variant?: 'inspector' | 'editor'
   onPreview?: (value: number) => void
   onPreviewEnd?: () => void
-  onChange: (value: number) => void
+  /** Return false synchronously when the controlled owner refuses the commit. */
+  onChange: (value: number) => boolean | void | Promise<void>
 }
 
 export function BoundedNumberField({
@@ -173,8 +174,9 @@ export function BoundedNumberField({
     dirtyRef.current = false
     setDraft(formatDraft(bounded))
     if (bounded !== interactionValue) {
-      recordPendingCommit(bounded)
-      onChange(bounded)
+      const accepted = onChange(bounded) !== false
+      if (accepted) recordPendingCommit(bounded)
+      else setDraft(formatDraft(interactionValue))
     }
   }
   const onExactKeyDown = (event: KeyboardEvent<HTMLInputElement>) => {
@@ -221,14 +223,22 @@ export function BoundedNumberField({
       closeSlider()
       return
     }
+    if (next !== startValue) {
+      const accepted = onChange(next) !== false
+      if (!accepted) {
+        const boundedStartValue = clampPercentageValue(startValue, sliderMin, sliderMax)
+        sliderValueRef.current = boundedStartValue
+        setSliderValue(boundedStartValue)
+        setDraft(formatDraft(startValue))
+        closeSlider()
+        return
+      }
+      recordPendingCommit(next)
+    }
     sliderValueRef.current = next
     setSliderValue(next)
     setDraft(formatDraft(next))
     closeSlider()
-    if (next !== startValue) {
-      recordPendingCommit(next)
-      onChange(next)
-    }
   }
   const placeSlider = (
     anchor: DOMRect,
