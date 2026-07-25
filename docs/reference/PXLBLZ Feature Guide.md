@@ -400,10 +400,12 @@ The working grammar is compact:
 
 - **Transport and keys.** Space plays and pauses; A rewinds; 1, 2, and 3 select
   1x, 1.5x, and 2x playback. Left/Right Arrow seek backward or forward five
-  seconds without moving the visible range, while Tab and Shift-Tab traverse
-  timeline entities in deterministic time order. Click or drag the ruler to
-  seek. Scrubbing rebuilds exact deterministic Pattern state by replaying from
-  Show start — there is no approximate seek.
+  seconds without moving the visible range. These transport keys work from
+  ordinary Show page content without first focusing the timeline; active editors
+  and keyboard-operable controls retain their native keys. Tab and Shift-Tab
+  traverse timeline entities in deterministic time order. Click or drag the
+  ruler to seek. Scrubbing rebuilds exact deterministic Pattern state by
+  replaying from Show start — there is no approximate seek.
 - **Navigator and Snap.** The compact Navigator pans or resizes the visible
   range; Fit restores the complete Show, and Ctrl/Cmd-wheel zooms around the
   playhead. Snap magnetically aligns scrubbing and edits to Clip, Transition,

@@ -3408,9 +3408,9 @@ describe('ShowEditor (#318)', () => {
 
     usePreviewStore.setState({ isRunning: true })
     useShowTransportStore.getState().setPosition(show.id, 61_500)
-    fireEvent.keyDown(document, { key: 'a', metaKey: true })
+    fireEvent.keyDown(document.body, { key: 'a', metaKey: true })
     expect(useShowTransportStore.getState().seekRequest).toBeNull()
-    fireEvent.keyDown(document, { key: 'a' })
+    fireEvent.keyDown(document.body, { key: 'a' })
     expect(useShowTransportStore.getState().seekRequest).toMatchObject({ targetMs: 0 })
     expect(usePreviewStore.getState().isRunning).toBe(true)
     const goToStart = screen.getByRole('button', { name: 'Go to Show start' })
@@ -3455,6 +3455,41 @@ describe('ShowEditor (#318)', () => {
     expect(useShowTransportStore.getState().seekRequest).toMatchObject({ targetMs: 5_000 })
     expect(usePreviewStore.getState().isRunning).toBe(false)
     expect(navigator).toHaveAttribute('aria-valuenow', viewportStart)
+  })
+
+  it('seeks five seconds with arrows from ordinary Show page content without timeline focus (#63)', () => {
+    const show = createDefaultShow('show-global-keyboard-seek', 'Global keyboard seek', 1000)
+    useShowStore.setState({ shows: [show], activeShowId: show.id, showsLoaded: true })
+    render(<ShowEditor showId={show.id} />)
+
+    usePreviewStore.setState({ isRunning: true })
+    useShowTransportStore.getState().setPosition(show.id, 10_000)
+    document.body.focus()
+
+    fireEvent.keyDown(document.body, { key: 'ArrowRight' })
+
+    expect(useShowTransportStore.getState().seekRequest).toMatchObject({ targetMs: 15_000 })
+    expect(usePreviewStore.getState().isRunning).toBe(true)
+  })
+
+  it('leaves global Arrow and A Show shortcuts inactive in text-entry controls (#63)', () => {
+    const show = createDefaultShow('show-editable-keyboard-guard', 'Editable keyboard guard', 1000)
+    useShowStore.setState({ shows: [show], activeShowId: show.id, showsLoaded: true })
+    render(<ShowEditor showId={show.id} />)
+
+    useShowTransportStore.getState().setPosition(show.id, 10_000)
+    const input = document.createElement('input')
+    input.type = 'text'
+    document.body.append(input)
+
+    fireEvent.keyDown(input, { key: 'ArrowRight' })
+    fireEvent.keyDown(input, { key: 'a' })
+
+    expect(useShowTransportStore.getState()).toMatchObject({
+      positionMs: 10_000,
+      seekRequest: null,
+    })
+    input.remove()
   })
 
   it('clamps arrow-key Show seeks at the Show boundaries (#602)', () => {

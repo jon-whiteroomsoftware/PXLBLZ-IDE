@@ -2622,6 +2622,13 @@ function ShowTransportControls({
         usePreviewStore.getState().toggle()
         return
       }
+      if (event.key === 'ArrowLeft' || event.key === 'ArrowRight') {
+        event.preventDefault()
+        if (event.repeat) return
+        const direction = event.key === 'ArrowLeft' ? -1 : 1
+        requestShowSeek(show.id, useShowTransportStore.getState().positionMs + direction * 5_000)
+        return
+      }
       if (!event.metaKey && !event.ctrlKey && !event.altKey) {
         const playbackRate = SHOW_PLAYBACK_RATE_BY_KEY[event.key]
         if (playbackRate !== undefined) {
@@ -3685,13 +3692,6 @@ function ShowTimelineWorkspace({
 
       if (event.key === 'Tab' && target.closest('[role="toolbar"]')) return
 
-      if (event.key === 'ArrowLeft' || event.key === 'ArrowRight') {
-        event.preventDefault()
-        if (event.repeat) return
-        const direction = event.key === 'ArrowLeft' ? -1 : 1
-        requestShowSeek(show.id, positionMsRef.current + direction * 5_000)
-        return
-      }
       if (event.key !== 'Tab' || event.metaKey || event.ctrlKey || event.altKey) return
 
       event.preventDefault()
