@@ -2622,11 +2622,17 @@ function ShowTransportControls({
         usePreviewStore.getState().toggle()
         return
       }
-      if (event.key === 'ArrowLeft' || event.key === 'ArrowRight') {
+      if (
+        !event.metaKey && !event.ctrlKey && !event.altKey && !event.shiftKey
+        && (event.key === 'ArrowLeft' || event.key === 'ArrowRight')
+      ) {
+        if (event.target instanceof HTMLElement && event.target.closest('[role="treeitem"][aria-expanded]')) return
+        const transport = useShowTransportStore.getState()
+        if (transport.showId !== show.id) return
         event.preventDefault()
         if (event.repeat) return
         const direction = event.key === 'ArrowLeft' ? -1 : 1
-        requestShowSeek(show.id, useShowTransportStore.getState().positionMs + direction * 5_000)
+        requestShowSeek(show.id, transport.positionMs + direction * 5_000)
         return
       }
       if (!event.metaKey && !event.ctrlKey && !event.altKey) {

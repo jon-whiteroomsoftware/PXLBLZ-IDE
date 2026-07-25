@@ -399,8 +399,8 @@ aligned to that same time axis.
 The working grammar is compact:
 
 - **Transport and keys.** Space plays and pauses; A rewinds; 1, 2, and 3 select
-  1x, 1.5x, and 2x playback. Left/Right Arrow seek backward or forward five
-  seconds without moving the visible range. These transport keys work from
+  1x, 1.5x, and 2x playback. Unmodified Left/Right Arrow seek backward or
+  forward five seconds without moving the visible range. These transport keys work from
   ordinary Show page content without first focusing the timeline; active editors
   and keyboard-operable controls retain their native keys. Tab and Shift-Tab
   traverse timeline entities in deterministic time order. Click or drag the

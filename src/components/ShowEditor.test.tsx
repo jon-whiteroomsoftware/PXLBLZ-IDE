@@ -3492,6 +3492,69 @@ describe('ShowEditor (#318)', () => {
     input.remove()
   })
 
+  it.each([
+    ['Meta', { metaKey: true }],
+    ['Control', { ctrlKey: true }],
+    ['Alt', { altKey: true }],
+    ['Shift', { shiftKey: true }],
+  ])('leaves %s+Arrow available to the browser or focused page content (#63)', (_name, modifier) => {
+    const show = createDefaultShow('show-modified-arrow-guard', 'Modified Arrow guard', 1000)
+    useShowStore.setState({ shows: [show], activeShowId: show.id, showsLoaded: true })
+    render(<ShowEditor showId={show.id} />)
+
+    useShowTransportStore.getState().setPosition(show.id, 10_000)
+    fireEvent.keyDown(document.body, { key: 'ArrowRight', ...modifier })
+
+    expect(useShowTransportStore.getState()).toMatchObject({
+      positionMs: 10_000,
+      seekRequest: null,
+    })
+  })
+
+  it('ignores a global Arrow while transport is transiently open on another Show (#63)', () => {
+    const show = createDefaultShow('show-transport-owner', 'Transport owner', 1000)
+    useShowStore.setState({ shows: [show], activeShowId: show.id, showsLoaded: true })
+    render(<ShowEditor showId={show.id} />)
+
+    useShowTransportStore.getState().openShow('other-show', 62_000)
+    useShowTransportStore.getState().setPosition('other-show', 25_000)
+    usePreviewStore.setState({ isRunning: true })
+    const toggle = vi.spyOn(usePreviewStore.getState(), 'toggle')
+
+    fireEvent.keyDown(document.body, { key: 'ArrowRight' })
+
+    expect(toggle).not.toHaveBeenCalled()
+    expect(useShowTransportStore.getState()).toMatchObject({
+      showId: 'other-show',
+      positionMs: 25_000,
+      seekRequest: null,
+    })
+  })
+
+  it.each([
+    ['expanded', 'true', 'ArrowRight'],
+    ['collapsed', 'false', 'ArrowLeft'],
+  ])('leaves Arrow ownership with an %s Show rail folder (#63)', (_state, expanded, key) => {
+    const show = createDefaultShow('show-rail-folder-arrow-guard', 'Rail folder Arrow guard', 1000)
+    useShowStore.setState({ shows: [show], activeShowId: show.id, showsLoaded: true })
+    render(<ShowEditor showId={show.id} />)
+
+    const folder = document.createElement('li')
+    folder.setAttribute('role', 'treeitem')
+    folder.setAttribute('aria-expanded', expanded)
+    folder.setAttribute('data-studio-space-preview', 'true')
+    document.body.append(folder)
+    useShowTransportStore.getState().setPosition(show.id, 10_000)
+
+    fireEvent.keyDown(folder, { key })
+
+    expect(useShowTransportStore.getState()).toMatchObject({
+      positionMs: 10_000,
+      seekRequest: null,
+    })
+    folder.remove()
+  })
+
   it('clamps arrow-key Show seeks at the Show boundaries (#602)', () => {
     const show = createDefaultShow('show-keyboard-seek-clamp', 'Keyboard seek clamp', 1000)
     useShowStore.setState({ shows: [show], activeShowId: show.id, showsLoaded: true })
