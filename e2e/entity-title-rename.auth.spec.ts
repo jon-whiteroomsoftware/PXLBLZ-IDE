@@ -26,3 +26,38 @@ test('authenticated Studio renames a Pattern from the middle-pane title', async 
   await page.setViewportSize({ width: 640, height: 900 })
   await expect(page.getByRole('button', { name: 'Rename pattern Header Renamed Pattern' })).toBeVisible()
 })
+
+test('authenticated Studio renames a Library from the middle-pane title with Apply and Enter', async ({ page }) => {
+  const id = `library-title-rename-${Date.now()}`
+  const originalName = `LaunchLib${Date.now()}`
+  const firstName = `${originalName}Enter`
+  const finalName = `${originalName}Apply`
+  const request = page.context().request
+  const created = await request.post('/api/libraries', {
+    data: { id, name: originalName, src: 'function helper(v) { return v }', updatedAt: Date.now() },
+  })
+  expect(created.ok()).toBe(true)
+
+  try {
+    await page.goto(`studio/libraries/${id}`)
+    await page.getByRole('button', { name: `Rename library ${originalName}` }).click()
+    await page.getByRole('textbox', { name: 'Library name' }).fill(firstName)
+    await page.getByRole('textbox', { name: 'Library name' }).press('Enter')
+    await expect(page.getByRole('button', { name: `Rename library ${firstName}` })).toBeVisible()
+
+    await page.getByRole('button', { name: `Rename library ${firstName}` }).click()
+    await page.getByRole('textbox', { name: 'Library name' }).fill(finalName)
+    await page.getByRole('button', { name: 'Apply library name' }).click()
+    await expect.poll(async () => {
+      const response = await request.get('/api/libraries')
+      if (!response.ok()) return false
+      const { libraries } = await response.json() as { libraries: Array<{ id: string; name: string }> }
+      return libraries.some((library) => library.id === id && library.name === finalName)
+    }).toBe(true)
+
+    await page.reload()
+    await expect(page.getByRole('button', { name: `Rename library ${finalName}` })).toBeVisible()
+  } finally {
+    await request.delete(`/api/libraries/${encodeURIComponent(id)}`)
+  }
+})

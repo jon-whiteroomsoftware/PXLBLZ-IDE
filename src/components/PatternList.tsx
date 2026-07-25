@@ -652,12 +652,6 @@ export function PatternList({
   }
 
   async function handleRenameLibrary(libraryId: string, name: string) {
-    const library = userLibraries.find((candidate) => candidate.id === libraryId)
-    const prior = library?.name ?? 'this library'
-    const confirmed = window.confirm(
-      `Rename library namespace "${prior}" to "${name}"? Patterns that reference "${prior}.*" will fail compile with an unknown-namespace error until you update them.`,
-    )
-    if (!confirmed) return
     await renameLibrary(libraryId, name)
   }
 

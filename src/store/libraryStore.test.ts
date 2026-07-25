@@ -104,6 +104,28 @@ describe('libraryStore (#347)', () => {
     await expect(useLibraryStore.getState().renameLibrary('lib-1', 'OtherLib')).rejects.toThrow('already')
   })
 
+  it('persists a valid rename, updates the active namespace, and retains it after reload (#620)', async () => {
+    const provider = memoryProvider([CUSTOM_LIBRARY])
+    setPersonalContentProvider(provider)
+    await useLibraryStore.getState().loadLibraries()
+    useLibraryStore.getState().openExistingLibrary(CUSTOM_LIBRARY)
+
+    await useLibraryStore.getState().renameLibrary(CUSTOM_LIBRARY.id, 'DawnLib')
+
+    expect(useLibraryStore.getState().userLibraries).toContainEqual(expect.objectContaining({
+      id: CUSTOM_LIBRARY.id,
+      name: 'DawnLib',
+    }))
+    expect(usePatternStore.getState().activeLibraryName).toBe('DawnLib')
+
+    await useLibraryStore.getState().loadLibraries()
+
+    expect(useLibraryStore.getState().userLibraries).toContainEqual(expect.objectContaining({
+      id: CUSTOM_LIBRARY.id,
+      name: 'DawnLib',
+    }))
+  })
+
   it('updates source for an open custom library', async () => {
     await useLibraryStore.getState().addLibrary(CUSTOM_LIBRARY)
     useLibraryStore.getState().openExistingLibrary(CUSTOM_LIBRARY)

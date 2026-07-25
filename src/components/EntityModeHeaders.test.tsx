@@ -63,7 +63,8 @@ describe('entity mode headers', () => {
   it('renames a user Library as an identifier and keeps a stock Library read-only', async () => {
     const user = userEvent.setup()
     const renameLibrary = vi.fn()
-    vi.stubGlobal('confirm', vi.fn(() => true))
+    const confirm = vi.fn(() => false)
+    vi.stubGlobal('confirm', confirm)
     useLibraryStore.setState({
       userLibraries: [library], editingLibrary: { kind: 'existing', id: library.id }, renameLibrary,
       validateLibraryNamespace: () => null,
@@ -77,6 +78,13 @@ describe('entity mode headers', () => {
     expect(input).toHaveValue('NightLib')
     await user.keyboard('{Enter}')
     expect(renameLibrary).toHaveBeenCalledWith(library.id, 'NightLib')
+
+    await user.click(screen.getByRole('button', { name: 'Rename library AuroraLib' }))
+    await user.clear(screen.getByRole('textbox', { name: 'Library name' }))
+    await user.type(screen.getByRole('textbox', { name: 'Library name' }), 'DawnLib')
+    await user.click(screen.getByRole('button', { name: 'Apply library name' }))
+    expect(renameLibrary).toHaveBeenLastCalledWith(library.id, 'DawnLib')
+    expect(confirm).not.toHaveBeenCalled()
 
     useLibraryStore.setState({ editingLibrary: { kind: 'stock', id: 'Color' } })
     usePatternStore.setState({ activeLibraryName: 'Color' })

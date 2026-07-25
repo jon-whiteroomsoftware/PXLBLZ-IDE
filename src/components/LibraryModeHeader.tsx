@@ -30,10 +30,6 @@ export function LibraryModeHeader() {
 
   async function handleRenameLibrary(nextName: string): Promise<boolean> {
     if (!openRecord) return false
-    const confirmed = window.confirm(
-      `Rename library namespace "${openRecord.name}" to "${nextName}"? Patterns that reference "${openRecord.name}.*" will fail compile with an unknown-namespace error until you update them.`,
-    )
-    if (!confirmed) return false
     await renameLibrary(openRecord.id, nextName)
     return true
   }
