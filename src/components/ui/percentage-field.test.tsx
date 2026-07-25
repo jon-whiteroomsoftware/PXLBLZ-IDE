@@ -152,7 +152,7 @@ describe('PercentageField', () => {
 
     fireEvent.pointerDown(slider, { pointerId: 11 })
     expect(setPointerCapture).toHaveBeenCalledWith(11)
-    fireEvent.input(slider, { target: { value: '0.8' } })
+    fireEvent.input(slider, { target: { value: '800' } })
     fireEvent.pointerLeave(slider, { pointerId: 11 })
     fireEvent.pointerUp(slider, { pointerId: 11 })
 
@@ -191,10 +191,11 @@ describe('PercentageField', () => {
     const slider = screen.getByRole('slider', { name: 'Brightness percentage slider' })
     Object.defineProperty(slider, 'setPointerCapture', { configurable: true, value: vi.fn() })
     fireEvent.pointerDown(slider, { pointerId: 12 })
-    fireEvent.input(slider, { target: { value: '0.8' } })
+    fireEvent.input(slider, { target: { value: '800' } })
+    expect(onPreview).toHaveBeenLastCalledWith(0.8)
     fireEvent.lostPointerCapture(slider, { pointerId: 12 })
 
-    expect(onPreview).toHaveBeenLastCalledWith(0.8)
+    expect(onPreview).toHaveBeenLastCalledWith(0.5)
     expect(onPreviewEnd).toHaveBeenCalledOnce()
     expect(onChange).not.toHaveBeenCalled()
     expect(screen.getByRole('textbox', { name: 'Brightness exact percentage' })).toHaveValue('50')
