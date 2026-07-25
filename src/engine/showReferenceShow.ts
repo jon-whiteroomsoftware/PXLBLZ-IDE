@@ -38,22 +38,23 @@ export function applyShowReferencePattern(
   show: ShowRecord,
   projection: ShowReferencePatternProjection,
 ): ShowRecord {
-  const cellIds = new Set(projection.cellIds)
-  const instanceIds = new Set(projection.instanceIds)
+  const resolvedProjection = extendShowReferencePatternProjection(show, projection)
+  const cellIds = new Set(resolvedProjection.cellIds)
+  const instanceIds = new Set(resolvedProjection.instanceIds)
   return {
     ...show,
     cells: show.cells.map((cell) => cellIds.has(cell.id) ? {
       ...cell,
-      pattern: projection.pattern,
-      patternName: projection.patternName,
+      pattern: resolvedProjection.pattern,
+      patternName: resolvedProjection.patternName,
       controlTargets: undefined,
     } : cell),
     composition: show.composition ? {
       ...show.composition,
       patternInstances: show.composition.patternInstances.map((instance) => instanceIds.has(instance.id) ? {
         ...instance,
-        pattern: projection.pattern,
-        patternName: projection.patternName,
+        pattern: resolvedProjection.pattern,
+        patternName: resolvedProjection.patternName,
         controlTargets: undefined,
       } : instance),
     } : show.composition,
@@ -68,12 +69,23 @@ export function applyShowReferencePattern(
 export function extendShowReferencePatternProjection(
   show: ShowRecord,
   projection: ShowReferencePatternProjection,
-  sourceCellIdByPlacementId: Readonly<Record<string, string>>,
 ): ShowReferencePatternProjection {
   if (!show.composition) return projection
   const cellIds = new Set(projection.cellIds)
   const instanceIds = new Set(projection.instanceIds)
   const instanceSourceCellIdById = { ...projection.instanceSourceCellIdById }
+  const sourceCellIdByPlacementId: Record<string, string> = {}
+  const sceneIndexById = new Map(show.scenes.map((scene, index) => [scene.id, index]))
+  for (const cell of show.cells) {
+    if (!cellIds.has(cell.id)) continue
+    const startIndex = sceneIndexById.get(cell.sceneId)
+    if (startIndex === undefined) continue
+    for (const scene of show.scenes.slice(startIndex, startIndex + Math.max(1, cell.sceneSpan))) {
+      const placementId = `placement-${cell.id}-${scene.id}`
+      sourceCellIdByPlacementId[placementId] = cell.id
+      for (const zone of show.zones) sourceCellIdByPlacementId[`${placementId}-${zone.id}`] = cell.id
+    }
+  }
   for (const scene of show.composition.scenes) {
     for (const zone of scene.zones) {
       const placements = [
@@ -105,8 +117,9 @@ export function restoreShowReferencePatternSlots(
   authored: ShowRecord,
   projection: ShowReferencePatternProjection,
 ): ShowRecord {
-  const cellIds = new Set(projection.cellIds)
-  const instanceIds = new Set(projection.instanceIds)
+  const resolvedProjection = extendShowReferencePatternProjection(edited, projection)
+  const cellIds = new Set(resolvedProjection.cellIds)
+  const instanceIds = new Set(resolvedProjection.instanceIds)
   const authoredCells = new Map(authored.cells.map((cell) => [cell.id, cell]))
   const authoredInstances = new Map(
     authored.composition?.patternInstances.map((instance) => [instance.id, instance]) ?? [],
@@ -125,7 +138,7 @@ export function restoreShowReferencePatternSlots(
     composition: edited.composition ? {
       ...edited.composition,
       patternInstances: edited.composition.patternInstances.map((instance) => {
-        const sourceCellId = projection.instanceSourceCellIdById?.[instance.id]
+        const sourceCellId = resolvedProjection.instanceSourceCellIdById?.[instance.id]
         const source = instanceIds.has(instance.id)
           ? authoredInstances.get(instance.id) ?? (sourceCellId ? authoredCells.get(sourceCellId) : undefined)
           : undefined

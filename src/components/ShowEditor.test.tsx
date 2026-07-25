@@ -3116,7 +3116,7 @@ describe('ShowEditor (#318)', () => {
     const user = userEvent.setup()
     const stock = STOCK_SHOWS.find((candidate) => candidate.id === 'stock-show-showcase-transform-effects')!
 
-    render(<ShowEditor
+    const editor = render(<ShowEditor
       showId={stock.id}
       showOverride={stock.show}
       builtInContext={{
@@ -3143,6 +3143,20 @@ describe('ShowEditor (#318)', () => {
         instance.pattern.kind === 'stock' && instance.pattern.id === 'TestPattern2D'
       ))).toBe(true)
     })
+
+    editor.unmount()
+    render(<ShowEditor
+      showId={stock.id}
+      showOverride={stock.show}
+      builtInContext={{
+        track: stock.track,
+        lesson: stock.lesson,
+        description: stock.description,
+        note: stock.note,
+        reference: stock.reference,
+      }}
+    />)
+    expect(screen.getAllByRole('button', { name: 'Select Caustics' }).length).toBeGreaterThan(0)
 
     await user.click(screen.getByRole('button', { name: 'Reset Pattern' }))
     expect(screen.getAllByRole('button', { name: 'Select TestPattern2D' }).length).toBeGreaterThan(0)

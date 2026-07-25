@@ -4,7 +4,6 @@ import { projectFlatShowToCompositionV1WithCellOrigins } from './showComposition
 import {
   applyShowReferencePattern,
   currentShowReferenceExample,
-  extendShowReferencePatternProjection,
   restoreShowReferencePatternSlots,
   type ShowReferenceGuide,
 } from './showReferenceShow'
@@ -84,11 +83,6 @@ describe('Show reference Pattern projection (#506)', () => {
       stageDimension: 2,
     })
 
-    const derivedProjection = extendShowReferencePatternProjection(
-      { ...projected, composition: synthesized.composition },
-      projection,
-      synthesized.sourceCellIdByPlacementId,
-    )
     const newlyAuthoredInstance = {
       ...synthesized.composition.patternInstances[0],
       id: 'user-authored-caustics',
@@ -102,10 +96,21 @@ describe('Show reference Pattern projection (#506)', () => {
         composition: {
           ...synthesized.composition,
           patternInstances: [...synthesized.composition.patternInstances, newlyAuthoredInstance],
+          scenes: synthesized.composition.scenes.map((scene, sceneIndex) => sceneIndex === 0 ? {
+            ...scene,
+            zones: scene.zones.map((zone, zoneIndex) => zoneIndex === 0 ? {
+              ...zone,
+              main: [...zone.main, {
+                ...zone.main[0],
+                id: 'user-authored-placement',
+                instanceId: newlyAuthoredInstance.id,
+              }],
+            } : zone),
+          } : scene),
         },
       },
       authored,
-      derivedProjection,
+      projection,
     )
     expect(restored.composition?.patternInstances
       .filter((instance) => instance.id !== newlyAuthoredInstance.id)
@@ -116,7 +121,7 @@ describe('Show reference Pattern projection (#506)', () => {
       instance.id === newlyAuthoredInstance.id
     ))?.pattern).toEqual(projection.pattern)
 
-    const reprojected = applyShowReferencePattern(restored, derivedProjection)
+    const reprojected = applyShowReferencePattern(restored, projection)
     expect(reprojected.composition?.patternInstances
       .filter((instance) => instance.id !== newlyAuthoredInstance.id)
       .every((instance) => (
