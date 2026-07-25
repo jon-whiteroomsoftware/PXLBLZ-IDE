@@ -1184,47 +1184,61 @@ test.describe('authenticated Show authoring', () => {
     await expect(page.getByLabel('Routing transfer direction')).toHaveValue('reverse')
   })
 
-  test('authors and reloads a shared moving-split property', async ({ page }) => {
+  test('authors, reloads, compiles, and removes a shared moving-split property (#623)', async ({ page }) => {
     await page.goto('studio/shows')
     await createInstallationShow(page)
-    await page.getByRole('button', { name: 'Add zone' }).last().click()
+    await page.getByRole('button', { name: 'Open Zones' }).click()
+    await page.getByRole('dialog', { name: 'Zone Map' }).getByRole('button', { name: 'Add zone' }).click()
+    await page.getByRole('button', { name: 'Close Zones' }).click()
+    await page.getByRole('button', { name: 'Show properties' }).click()
     await page.getByLabel('Default routing mode').selectOption('split-x')
+    await page.getByRole('button', { name: 'Show properties' }).click()
     await expect(page.getByRole('group', { name: 'Split position lane' })).toBeVisible()
 
-    await page.getByRole('group', { name: 'Scene Scene 1' }).click()
-    await page.getByRole('spinbutton', { name: 'Split position', exact: true }).fill('0.25')
-    await page.getByRole('group', { name: 'Scene Scene 2' }).click()
-    await page.getByRole('spinbutton', { name: 'Split position', exact: true }).fill('0.75')
-    await page.getByRole('button', { name: 'Select Scene 1 to Scene 2 transition (crossfade)' }).click()
+    await page.getByRole('button', { name: 'Edit split position transition from Scene 1' }).click()
     await page.getByText('Advanced transition controls').click()
     await page.getByLabel('Animate split position').check()
     await page.getByLabel('Split position start').fill('0.2')
-    await page.getByLabel('Split position duration seconds').fill('1.2')
+    await page.getByLabel('Split position duration seconds exact time').fill('1.2')
     await page.getByLabel('Split position easing').selectOption('ease-in-out')
 
     await waitForCurrentShow(page, (show) => (
       show.routingLayouts[0]?.logical?.kind === 'split'
-      && show.scenes[0]?.routingTargets?.splitPosition === 0.25
-      && show.scenes[1]?.routingTargets?.splitPosition === 0.75
       && show.transitions?.[0]?.propertyTransitions?.routing?.splitPosition?.from === 0.2
       && show.transitions[0].propertyTransitions.routing.splitPosition.durationMs === 1200
       && showEasingId(show.transitions[0].propertyTransitions.routing.splitPosition.easing) === 'ease-in-out'
     ))
 
     await page.reload()
+    await page.getByRole('button', { name: 'Show properties' }).click()
     await expect(page.getByLabel('Default routing mode')).toHaveValue('split-x')
-    await page.getByRole('group', { name: 'Scene Scene 2' }).click()
-    await expect(page.getByRole('spinbutton', { name: 'Split position', exact: true })).toHaveValue('0.75')
+    await page.getByRole('button', { name: 'Show properties' }).click()
+    await page.getByRole('button', { name: 'Edit split position transition from Scene 1' }).click()
+    await page.getByText('Advanced transition controls').click()
+    await expect(page.getByLabel('Animate split position')).toBeChecked()
+    await expect(page.getByLabel('Split position start')).toHaveValue('0.2')
+    await expect(page.getByLabel('Split position duration seconds exact time')).toHaveValue('1.2')
+    await expect(page.getByLabel('Split position easing')).toHaveValue('ease-in-out')
     await expect(page.getByText(/moving split: 1 scalar/i)).toBeVisible()
+    await page.getByRole('button', { name: 'View code' }).click()
+    await expect(page.getByText('Generated pattern - Untitled Show')).toBeVisible()
+    await page.getByRole('button', { name: 'Back to show' }).click()
 
     await page.setViewportSize({ width: 720, height: 900 })
     await expect(page.getByRole('group', { name: 'Split position lane' })).toBeVisible()
-    await expect(page.getByRole('spinbutton', { name: 'Split position', exact: true })).toBeVisible()
+    await expect(page.getByRole('button', { name: 'Edit split position transition from Scene 1' })).toBeVisible()
     const pageOverflow = await page.evaluate(() => ({
       scrollWidth: document.documentElement.scrollWidth,
       clientWidth: document.documentElement.clientWidth,
     }))
     expect(pageOverflow.scrollWidth - pageOverflow.clientWidth).toBeLessThanOrEqual(8)
+
+    await page.getByRole('button', { name: 'Edit split position transition from Scene 1' }).click()
+    await page.getByText('Advanced transition controls').click()
+    await page.getByLabel('Animate split position').uncheck()
+    await waitForCurrentShow(page, (show) => (
+      show.transitions?.[0]?.propertyTransitions?.routing?.splitPosition === undefined
+    ))
   })
 
   test('authors and reloads synchronized sample tiling', async ({ page }) => {
