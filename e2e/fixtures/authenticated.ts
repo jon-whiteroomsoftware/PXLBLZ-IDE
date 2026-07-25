@@ -62,8 +62,8 @@ function watchSeriousErrors(page: Page): string[] {
   return errors
 }
 
-async function removeSyntheticContent(request: APIRequestContext): Promise<void> {
-  for (const resource of ['shows', 'patterns', 'maps'] as const) {
+export async function removeSyntheticContent(request: APIRequestContext): Promise<void> {
+  for (const resource of ['shows', 'patterns', 'maps', 'mixins', 'libraries', 'controllers'] as const) {
     const response = await request.get(`/api/${resource}`)
     if (!response.ok()) throw new Error(`GET /api/${resource} -> ${response.status()}`)
     const body = await response.json() as Record<string, Array<{ id: string }>>
