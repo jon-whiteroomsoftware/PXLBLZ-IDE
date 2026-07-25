@@ -1,9 +1,7 @@
 import { test as base, expect, type APIRequestContext, type Page } from '@playwright/test'
-import fs from 'node:fs'
-import path from 'node:path'
 import { createSessionToken, sessionCookieName } from '../../src/cloudflare/auth'
-
-const syntheticUserId = 'github:playwright-shows'
+import { readDevVarsFile } from '../../scripts/dev-runtime-auth'
+import { authenticatedPlaywrightUserId } from '../../scripts/authenticated-playwright-user'
 
 type AuthenticatedFixtures = {
   authenticatedBoundary: void
@@ -11,10 +9,11 @@ type AuthenticatedFixtures = {
 
 export const test = base.extend<AuthenticatedFixtures>({
   storageState: async ({}, use) => {
-    const secret = process.env.SESSION_SECRET ?? readDevVars().SESSION_SECRET
-    if (!secret) throw new Error('SESSION_SECRET is required in .dev.vars or the shell environment.')
+    const devVarsFile = requiredEnvironment('PXLBLZ_DEV_VARS_FILE')
+    const secret = process.env.SESSION_SECRET ?? readDevVarsFile(devVarsFile).SESSION_SECRET
+    if (!secret) throw new Error(`SESSION_SECRET is required in ${devVarsFile} or the shell environment.`)
     const token = await createSessionToken({
-      userId: syntheticUserId,
+      userId: authenticatedPlaywrightUserId,
       primaryProvider: 'github',
       primaryHandle: 'playwright-shows',
       githubUserId: 'playwright-shows',
@@ -48,15 +47,10 @@ export const test = base.extend<AuthenticatedFixtures>({
 
 export { expect }
 
-function readDevVars(): Record<string, string> {
-  const file = path.resolve(process.cwd(), '.dev.vars')
-  if (!fs.existsSync(file)) return {}
-  return Object.fromEntries(fs.readFileSync(file, 'utf8').split(/\r?\n/).flatMap((line) => {
-    const trimmed = line.trim()
-    if (!trimmed || trimmed.startsWith('#')) return []
-    const separator = trimmed.indexOf('=')
-    return separator === -1 ? [] : [[trimmed.slice(0, separator), trimmed.slice(separator + 1)]]
-  }))
+function requiredEnvironment(name: string): string {
+  const value = process.env[name]?.trim()
+  if (!value) throw new Error(`${name} is required for authenticated Playwright.`)
+  return value
 }
 
 function watchSeriousErrors(page: Page): string[] {

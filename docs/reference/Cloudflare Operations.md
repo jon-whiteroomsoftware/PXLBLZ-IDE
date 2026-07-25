@@ -90,26 +90,27 @@ npm run build
 VITE_BASE_PATH=/ npm run build
 ```
 
-For a local Cloudflare runtime check against Wrangler's local D1 store:
+The stable local Cloudflare runtime belongs to the reviewed-main checkout:
 
 ```bash
 cp .dev.vars.example .dev.vars
-npm run cf:build
-npm run db:migrate:local
-npm run cf:dev:local
+npm run dev:main
 ```
 
-Then open `http://localhost:8788`. Fill `.dev.vars` with localhost GitHub and/or
-Google OAuth apps to test the browser sign-in loop, or run `npm run cf:session`
-and attach the printed `pxlblz_session` cookie to local API smoke requests.
+This keeps Vite on `5174`, Wrangler on `8788`, and the shared local D1 in the
+main checkout's `.wrangler/state`. The command applies pending migrations,
+provisions synthetic local identities, and starts missing services without
+replacing healthy listeners. Fill the main checkout's `.dev.vars` with
+localhost GitHub and/or Google OAuth apps to test the browser sign-in loop.
 
-Run `npm run db:migrate:local` again whenever new migrations are added or pulled.
-The local Wrangler D1 store is independent from the remote D1 database; if it is
-behind the code, authenticated localhost Studio screens can fail with browser
-console errors such as `Remote personal content request failed: 500` on
-`/api/maps`, `/api/controllers`, `/api/shows`, or other personal-content
-endpoints. Treat that symptom as a local schema-drift check before chasing
-OAuth/provider configuration.
+Issue work reserves a discoverable runtime with `npm run dev:issue`; most UI
+work uses `--profile shared` and proxies to main's Wrangler and D1. Functions,
+migrations, authentication, and changed API contracts use
+`--profile isolated`, which receives a migrated issue-specific D1 and Wrangler.
+See `docs/agents/dev-runtime.md` for commands, port ranges, identity isolation,
+and cleanup. Run `npm run dev:main` after landing or pulling a migration. If the
+shared store is behind the code, authenticated Studio screens can report
+misleading remote-provider 500 errors on personal-content endpoints.
 
 The authenticated Playwright tier creates its own signed synthetic user and
 cleans that user's Shows after every test. It never invokes OAuth or reads a
@@ -120,17 +121,12 @@ npm run test:e2e:auth-smoke  # fast create/edit/reload persistence path
 npm run test:e2e:shows       # deeper clip, transition, automation, and routing flows
 ```
 
-Both commands build the Pages output and apply local migrations. The
-authenticated Playwright configuration then owns an isolated Vite/Wrangler pair
-on 5175/8789 by default, rather than reusing the persistent 5174/8788
-development pair; this prevents another
-worktree's proxy from silently serving a different local D1 store. Its setup
-writes a synthetic probe through this worktree's Wrangler CLI and requires the
-same record through Vite's `/api/patterns` proxy before running locators. A
-mismatch reports the owning worktree and the failed API evidence directly.
-Override those ports only with `PLAYWRIGHT_AUTH_SMOKE_VITE_PORT` and
-`PLAYWRIGHT_AUTH_SMOKE_WRANGLER_PORT` together. The commands require
-`SESSION_SECRET` in `.dev.vars`; OAuth client credentials are not required.
+Both commands reserve an isolated Vite/Wrangler pair from the managed runtime
+registry, create an explicit temporary D1 store, apply migrations and seed the
+synthetic user before server startup, then release the reservation and store.
+Parallel runs cannot collide with the persistent 5174/8788 pair or active issue
+runtimes. The commands require `SESSION_SECRET` in the main checkout's
+`.dev.vars`; OAuth client credentials are not required.
 
 After deploy, open the Pages URL and smoke-test:
 

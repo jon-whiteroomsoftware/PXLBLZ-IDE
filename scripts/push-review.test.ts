@@ -50,13 +50,13 @@ describe('cross-agent push review gate (#63)', () => {
   })
 
   it('uses Opus 5 High with the fifteen-minute hard cap', () => {
-    expect(CLAUDE_REVIEW_MODEL).toBe('opus')
+    expect(CLAUDE_REVIEW_MODEL).toBe('claude-opus-5')
     expect(CLAUDE_REVIEW_EFFORT).toBe('high')
     expect(REVIEW_TIMEOUT_MS).toBe(15 * 60 * 1_000)
     expect(buildClaudeReviewArgs()).toEqual([
       '-p',
       '--safe-mode',
-      '--model', 'opus',
+      '--model', 'claude-opus-5',
       '--effort', 'high',
       '--permission-mode', 'dontAsk',
       '--no-session-persistence',

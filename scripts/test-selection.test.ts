@@ -27,6 +27,7 @@ describe('pre-commit test selection', () => {
 
     expect(requiresTypecheck([
       'scripts/review-candidate.ts',
+      'scripts/dev-runtime.ts',
     ])).toBe(true)
   })
 
@@ -147,6 +148,11 @@ describe('pre-commit test selection', () => {
     expect(selectPrecommitTests(['vite.config.ts'])).toEqual({
       focusedTests: [],
       invariantTests: [
+        'scripts/dev-runtime-auth.test.ts',
+        'scripts/dev-runtime-core.test.ts',
+        'scripts/dev-runtime-store.test.ts',
+        'scripts/dev-runtime.test.ts',
+        'scripts/run-authenticated-playwright.test.ts',
         'scripts/push-review.test.ts',
         'scripts/review-approvals.test.ts',
         'scripts/review-candidate.test.ts',

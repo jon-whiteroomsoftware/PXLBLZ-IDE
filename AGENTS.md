@@ -87,10 +87,27 @@ Preserve these invariants:
   shared local `main` contains the commit and that no abandoned worktrees or
   branches remain.
 
-Keep Vite on `5174` and Wrangler on `8788` running between tasks. If either is
-absent or unreachable, start it; never stop these servers when finishing a task.
-Run `npm run check:node` before starting them and activate a `package.json`
-supported Node version instead of macOS's system Node when it fails.
+Use the managed local runtime described in `docs/agents/dev-runtime.md`. The
+stable reviewed-main checkout owns Vite `5174`, Wrangler `8788`, and the shared
+local D1. Run `npm run dev:main` to migrate, provision, and recover that pair;
+never stop it during ordinary task cleanup.
+
+Every issue runtime must declare its isolation boundary:
+
+```bash
+npm run dev:issue -- --issue <number> --description "<short description>" --profile shared
+npm run dev:issue -- --issue <number> --description "<short description>" --profile isolated
+```
+
+Use `shared` for UI work compatible with main's Functions and schema. Use
+`isolated` for Functions, migrations, authentication, or a changed API
+contract. Rename the task to the command's printed
+`<issue>:<port> - <description>` title. Use `npm run dev:status` for discovery,
+`npm run dev:session -- --issue <number>` for that task's synthetic local user,
+and `npm run dev:release -- --issue <number>` before removing its worktree.
+Agents use separate browser contexts and never replace the user's Chrome
+cookies. The main checkout's ignored `.dev.vars` is canonical; do not copy
+secrets into worktrees.
 
 Codex's command sandbox may be unable to reach host localhost even while these
 services are healthy. A sandboxed `curl` refusal is not evidence that a server
@@ -104,7 +121,10 @@ successful authenticated operation outside the sandbox is stronger evidence
 than the sandboxed status result.
 
 ```bash
-npm run dev                 # only when the persistent server is absent
+npm run dev:main            # migrate/provision/recover persistent main
+npm run dev:issue -- --issue <number> --description "<description>" --profile <shared|isolated>
+npm run dev:status
+npm run dev:release -- --issue <number>
 npm run lint
 npx tsc -b --pretty false   # TypeScript project check
 npm run test:staged         # staged/colocated tests plus high-risk invariants

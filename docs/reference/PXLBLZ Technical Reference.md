@@ -1455,10 +1455,11 @@ accessible name.
 
 The fast authenticated persistence smoke creates a personal Show, renames it
 through the normal header control, observes its saved API record, and proves
-the renamed record survives reload. Its synthetic D1 probe confirms that Vite's
-API proxy and the worktree-local Wrangler process address the same database
-before any UI locator runs; deep Show composition editing remains in the
-dedicated Show suite.
+the renamed record survives reload. The managed test wrapper reserves an
+isolated Vite/Wrangler pair and explicit temporary D1 store, migrates and seeds
+that store before startup, and confirms the synthetic D1 probe through Vite's
+API proxy before any UI locator runs. Deep Show composition editing remains in
+the dedicated Show suite.
 
 Selection is UI-local and has one explicit open owner across Show setup, Clip,
 Group, Transition, and Zone entities. `ShowEditor` records the owner key and its

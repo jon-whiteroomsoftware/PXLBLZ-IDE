@@ -6,7 +6,9 @@ import path from 'node:path'
 const require = createRequire(import.meta.url)
 const repoRoot = process.cwd()
 const repoNodeModules = path.join(repoRoot, 'node_modules')
+const repoNodeModulesReal = fs.realpathSync(repoNodeModules)
 const playwrightPath = require.resolve('playwright')
+const playwrightPathReal = fs.realpathSync(playwrightPath)
 const playwrightPkg = require('playwright/package.json')
 const playwrightCorePkgPath = require.resolve('playwright-core/package.json')
 const browsersPath = path.join(path.dirname(playwrightCorePkgPath), 'browsers.json')
@@ -15,11 +17,12 @@ const browsers = JSON.parse(fs.readFileSync(browsersPath, 'utf8')).browsers
 const chromium = browsers.find((browser) => browser.name === 'chromium')
 const headlessShell = browsers.find((browser) => browser.name === 'chromium-headless-shell')
 
-if (!playwrightPath.startsWith(repoNodeModules)) {
+if (!playwrightPathReal.startsWith(`${repoNodeModulesReal}${path.sep}`)) {
   fail([
     'Playwright resolved outside this repository.',
     `resolved=${playwrightPath}`,
-    `expected prefix=${repoNodeModules}`,
+    `resolved real path=${playwrightPathReal}`,
+    `expected real prefix=${repoNodeModulesReal}`,
     'Run this check from the repo with npm, not through a bundled app Node REPL.',
   ])
 }

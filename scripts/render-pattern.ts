@@ -6,7 +6,7 @@
 //   npm run render -- --demo PlasmaNebula --seconds 10
 //   npm run render -- --file path/to/pattern.js --seconds 5 --fps 30
 //
-// Requires the persistent Vite dev server (npm run dev) — the frames are
+// Requires the persistent reviewed-main Vite server (npm run dev:main) — the frames are
 // written by its /__capture sink to /tmp/pxlblz-captures. Output resolution
 // tracks --width (canvas width is container CSS width; no DPR scaling).
 
@@ -63,7 +63,7 @@ async function assertServerReachable(baseUrl: string): Promise<void> {
   } catch (error) {
     fail(
       `dev server unreachable at ${baseUrl} (${String(error)}). ` +
-      'Start it with `npm run dev` (port 5174) or pass --base-url.',
+      'Start it with `npm run dev:main` (port 5174) or pass --base-url.',
     )
   }
 }

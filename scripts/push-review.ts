@@ -12,7 +12,7 @@ import {
 } from './review-approvals'
 
 const ZERO_SHA = /^0+$/
-export const CLAUDE_REVIEW_MODEL = 'opus' as const
+export const CLAUDE_REVIEW_MODEL = 'claude-opus-5' as const
 export const CLAUDE_REVIEW_EFFORT = 'high' as const
 export const GPT_REVIEW_MODEL = 'gpt-5.6-sol' as const
 export const GPT_REVIEW_EFFORT = 'high' as const

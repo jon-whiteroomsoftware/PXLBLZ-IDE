@@ -111,6 +111,14 @@ context to Anthropic under the developer's authenticated Claude session. A
 fallback transmits the same material to OpenAI under the authenticated Codex
 session. The user has explicitly approved both behaviors for this repository.
 
+## Authenticated browser suites
+
+Authenticated Playwright does not reuse the persistent development database.
+`npm run test:e2e:auth-smoke` and `npm run test:e2e:shows` reserve isolated
+ports and D1 persistence through the managed runtime registry, seed before
+server startup, and release their state after the run. See
+[`dev-runtime.md`](dev-runtime.md) for the shared-versus-isolated contract.
+
 ## Show authoring edit contracts
 
 Pure Show composition edits use
