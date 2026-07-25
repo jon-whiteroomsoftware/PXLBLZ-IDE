@@ -8,6 +8,19 @@ export interface ShowReferencePatternProjection {
   instanceIds: readonly string[]
 }
 
+function patternRefKey(pattern: ShowPatternRef): string {
+  return `${pattern.kind}:${pattern.id}`
+}
+
+function referencePatternSources(show: ShowRecord, projection: ShowReferencePatternProjection) {
+  const cellIds = new Set(projection.cellIds)
+  const instanceIds = new Set(projection.instanceIds)
+  return [
+    ...show.cells.filter((cell) => cellIds.has(cell.id)),
+    ...(show.composition?.patternInstances.filter((instance) => instanceIds.has(instance.id)) ?? []),
+  ]
+}
+
 export type ShowReferenceExampleAnchor =
   | { kind: 'scene'; sceneId: string }
   | { kind: 'boundary'; transitionId: string }
@@ -39,6 +52,7 @@ export function applyShowReferencePattern(
 ): ShowRecord {
   const cellIds = new Set(projection.cellIds)
   const instanceIds = new Set(projection.instanceIds)
+  const sourcePatternKeys = new Set(referencePatternSources(show, projection).map((source) => patternRefKey(source.pattern)))
   return {
     ...show,
     cells: show.cells.map((cell) => cellIds.has(cell.id) ? {
@@ -49,7 +63,9 @@ export function applyShowReferencePattern(
     } : cell),
     composition: show.composition ? {
       ...show.composition,
-      patternInstances: show.composition.patternInstances.map((instance) => instanceIds.has(instance.id) ? {
+      patternInstances: show.composition.patternInstances.map((instance) => (
+        instanceIds.has(instance.id) || sourcePatternKeys.has(patternRefKey(instance.pattern))
+      ) ? {
         ...instance,
         pattern: projection.pattern,
         patternName: projection.patternName,
@@ -67,14 +83,19 @@ export function applyShowReferencePattern(
 export function restoreShowReferencePatternSlots(
   edited: ShowRecord,
   authored: ShowRecord,
-  slots: Pick<ShowReferencePatternProjection, 'cellIds' | 'instanceIds'>,
+  projection: ShowReferencePatternProjection,
 ): ShowRecord {
-  const cellIds = new Set(slots.cellIds)
-  const instanceIds = new Set(slots.instanceIds)
+  const cellIds = new Set(projection.cellIds)
+  const instanceIds = new Set(projection.instanceIds)
   const authoredCells = new Map(authored.cells.map((cell) => [cell.id, cell]))
   const authoredInstances = new Map(
     authored.composition?.patternInstances.map((instance) => [instance.id, instance]) ?? [],
   )
+  const referenceSources = referencePatternSources(authored, projection)
+  const sourcePatternKeys = new Set(referenceSources.map((source) => patternRefKey(source.pattern)))
+  const fallbackSource = referenceSources.every((source) => (
+    patternRefKey(source.pattern) === patternRefKey(referenceSources[0]?.pattern ?? source.pattern)
+  )) ? referenceSources[0] : undefined
   return {
     ...edited,
     cells: edited.cells.map((cell) => {
@@ -89,7 +110,13 @@ export function restoreShowReferencePatternSlots(
     composition: edited.composition ? {
       ...edited.composition,
       patternInstances: edited.composition.patternInstances.map((instance) => {
-        const source = instanceIds.has(instance.id) ? authoredInstances.get(instance.id) : undefined
+        const authoredInstance = authoredInstances.get(instance.id)
+        const source = instanceIds.has(instance.id)
+          || (authoredInstance && sourcePatternKeys.has(patternRefKey(authoredInstance.pattern)))
+          ? authoredInstance
+          : !authoredInstance && patternRefKey(instance.pattern) === patternRefKey(projection.pattern)
+            ? fallbackSource
+            : undefined
         return source ? {
           ...instance,
           pattern: source.pattern,

@@ -3112,6 +3112,42 @@ describe('ShowEditor (#318)', () => {
     expect(screen.getAllByRole('button', { name: 'Select CompassRose' }).length).toBeGreaterThan(0)
   })
 
+  it('keeps a legacy reference Pattern transient after its first composition edit (#619)', async () => {
+    const user = userEvent.setup()
+    const stock = STOCK_SHOWS.find((candidate) => candidate.id === 'stock-show-showcase-transform-effects')!
+
+    render(<ShowEditor
+      showId={stock.id}
+      showOverride={stock.show}
+      builtInContext={{
+        track: stock.track,
+        lesson: stock.lesson,
+        description: stock.description,
+        note: stock.note,
+        reference: stock.reference,
+      }}
+    />)
+
+    await user.click(screen.getByRole('combobox', { name: 'Try with Pattern' }))
+    await user.click(screen.getByRole('option', { name: 'Caustics' }))
+    await user.click(screen.getAllByRole('button', { name: 'Select Caustics' })[0])
+    const brightness = screen.getByRole('textbox', { name: 'Brightness exact percentage' })
+    await user.clear(brightness)
+    await user.type(brightness, '60%')
+    fireEvent.blur(brightness)
+
+    await waitFor(() => {
+      const draft = useShowStore.getState().stockShowDrafts[stock.id]
+      expect(draft.composition?.patternInstances.length).toBeGreaterThan(0)
+      expect(draft.composition?.patternInstances.every((instance) => (
+        instance.pattern.kind === 'stock' && instance.pattern.id === 'TestPattern2D'
+      ))).toBe(true)
+    })
+
+    await user.click(screen.getByRole('button', { name: 'Reset Pattern' }))
+    expect(screen.getAllByRole('button', { name: 'Select TestPattern2D' }).length).toBeGreaterThan(0)
+  })
+
   it('projects one Scene-local keyframe animation into one main-timeline sparkline', async () => {
     const user = userEvent.setup()
     const stock = STOCK_SHOWS.find((candidate) => candidate.id === 'stock-show-202-layers-local-animation')!

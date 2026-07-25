@@ -963,28 +963,30 @@ export function ShowEditor({
 
   const canonicalStockShow = builtInContext ? stockShowById(showId)?.show : undefined
   const editableShow = stockShowDraft ?? savedShow ?? canonicalStockShow ?? showOverride ?? null
-  const activeShow = useMemo(() => {
-    const base = editableShow
+  const referenceProjection = useMemo(() => {
     const referenceSlots = builtInContext?.reference?.patternSlots
-    if (!base || !selectedReferencePattern || !referenceSlots) return base
+    if (!selectedReferencePattern || !referenceSlots) return null
     const patternName = selectedReferencePattern.kind === 'stock'
       ? selectedReferencePattern.id
       : userPatterns.find((pattern) => pattern.id === selectedReferencePattern.id)?.name
-    if (!patternName) return base
-    return applyShowReferencePattern(base, {
+    return patternName ? {
       pattern: selectedReferencePattern,
       patternName,
       cellIds: referenceSlots.cellIds,
       instanceIds: referenceSlots.instanceIds,
-    })
-  }, [builtInContext?.reference?.patternSlots, editableShow, selectedReferencePattern, userPatterns])
+    } : null
+  }, [builtInContext?.reference?.patternSlots, selectedReferencePattern, userPatterns])
+  const activeShow = useMemo(() => (
+    editableShow && referenceProjection
+      ? applyShowReferencePattern(editableShow, referenceProjection)
+      : editableShow
+  ), [editableShow, referenceProjection])
   const updateShow = useCallback((id: string, next: ShowRecord) => {
-    const referenceSlots = builtInContext?.reference?.patternSlots
-    const persisted = editableShow && selectedReferencePattern && referenceSlots
-      ? restoreShowReferencePatternSlots(next, editableShow, referenceSlots)
+    const persisted = editableShow && referenceProjection
+      ? restoreShowReferencePatternSlots(next, editableShow, referenceProjection)
       : next
     return persistShow(id, persisted)
-  }, [builtInContext?.reference?.patternSlots, editableShow, persistShow, selectedReferencePattern])
+  }, [editableShow, persistShow, referenceProjection])
   useShowTransportClock(activeShow, transportClockActive)
   const targetProfile = activeShow?.outputContract?.kind === 'portable-2d'
     ? undefined
