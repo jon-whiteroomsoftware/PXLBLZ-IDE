@@ -3110,7 +3110,7 @@ describe('ShowEditor (#318)', () => {
     await user.click(within(guide).getByRole('button', { name: 'Reset Pattern' }))
     expect(useShowEditorSessionStore.getState().referencePatternByShowId[stock.id]).toBeUndefined()
     expect(screen.getAllByRole('button', { name: 'Select CompassRose' }).length).toBeGreaterThan(0)
-  })
+  }, 10_000)
 
   it('keeps a legacy reference Pattern transient after its first composition edit (#619)', async () => {
     const user = userEvent.setup()

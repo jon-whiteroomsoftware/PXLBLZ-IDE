@@ -6,19 +6,7 @@ export interface ShowReferencePatternProjection {
   patternName: string
   cellIds: readonly string[]
   instanceIds: readonly string[]
-}
-
-function patternRefKey(pattern: ShowPatternRef): string {
-  return `${pattern.kind}:${pattern.id}`
-}
-
-function referencePatternSources(show: ShowRecord, projection: ShowReferencePatternProjection) {
-  const cellIds = new Set(projection.cellIds)
-  const instanceIds = new Set(projection.instanceIds)
-  return [
-    ...show.cells.filter((cell) => cellIds.has(cell.id)),
-    ...(show.composition?.patternInstances.filter((instance) => instanceIds.has(instance.id)) ?? []),
-  ]
+  instanceSourceCellIdById?: Readonly<Record<string, string>>
 }
 
 export type ShowReferenceExampleAnchor =
@@ -52,7 +40,6 @@ export function applyShowReferencePattern(
 ): ShowRecord {
   const cellIds = new Set(projection.cellIds)
   const instanceIds = new Set(projection.instanceIds)
-  const sourcePatternKeys = new Set(referencePatternSources(show, projection).map((source) => patternRefKey(source.pattern)))
   return {
     ...show,
     cells: show.cells.map((cell) => cellIds.has(cell.id) ? {
@@ -63,15 +50,48 @@ export function applyShowReferencePattern(
     } : cell),
     composition: show.composition ? {
       ...show.composition,
-      patternInstances: show.composition.patternInstances.map((instance) => (
-        instanceIds.has(instance.id) || sourcePatternKeys.has(patternRefKey(instance.pattern))
-      ) ? {
+      patternInstances: show.composition.patternInstances.map((instance) => instanceIds.has(instance.id) ? {
         ...instance,
         pattern: projection.pattern,
         patternName: projection.patternName,
         controlTargets: undefined,
       } : instance),
     } : show.composition,
+  }
+}
+
+/**
+ * Extends declared instance slots only when a placement has explicit lineage
+ * to a declared flat-cell slot. Newly authored placements have no lineage and
+ * therefore never become part of the transient projection by coincidence.
+ */
+export function extendShowReferencePatternProjection(
+  show: ShowRecord,
+  projection: ShowReferencePatternProjection,
+  sourceCellIdByPlacementId: Readonly<Record<string, string>>,
+): ShowReferencePatternProjection {
+  if (!show.composition) return projection
+  const cellIds = new Set(projection.cellIds)
+  const instanceIds = new Set(projection.instanceIds)
+  const instanceSourceCellIdById = { ...projection.instanceSourceCellIdById }
+  for (const scene of show.composition.scenes) {
+    for (const zone of scene.zones) {
+      const placements = [
+        ...zone.main,
+        ...zone.overlays.flatMap((layer) => layer.placements),
+      ]
+      for (const placement of placements) {
+        const sourceCellId = sourceCellIdByPlacementId[placement.id]
+        if (!sourceCellId || !cellIds.has(sourceCellId)) continue
+        instanceIds.add(placement.instanceId)
+        instanceSourceCellIdById[placement.instanceId] = sourceCellId
+      }
+    }
+  }
+  return {
+    ...projection,
+    instanceIds: [...instanceIds],
+    instanceSourceCellIdById,
   }
 }
 
@@ -91,11 +111,6 @@ export function restoreShowReferencePatternSlots(
   const authoredInstances = new Map(
     authored.composition?.patternInstances.map((instance) => [instance.id, instance]) ?? [],
   )
-  const referenceSources = referencePatternSources(authored, projection)
-  const sourcePatternKeys = new Set(referenceSources.map((source) => patternRefKey(source.pattern)))
-  const fallbackSource = referenceSources.every((source) => (
-    patternRefKey(source.pattern) === patternRefKey(referenceSources[0]?.pattern ?? source.pattern)
-  )) ? referenceSources[0] : undefined
   return {
     ...edited,
     cells: edited.cells.map((cell) => {
@@ -110,13 +125,10 @@ export function restoreShowReferencePatternSlots(
     composition: edited.composition ? {
       ...edited.composition,
       patternInstances: edited.composition.patternInstances.map((instance) => {
-        const authoredInstance = authoredInstances.get(instance.id)
+        const sourceCellId = projection.instanceSourceCellIdById?.[instance.id]
         const source = instanceIds.has(instance.id)
-          || (authoredInstance && sourcePatternKeys.has(patternRefKey(authoredInstance.pattern)))
-          ? authoredInstance
-          : !authoredInstance && patternRefKey(instance.pattern) === patternRefKey(projection.pattern)
-            ? fallbackSource
-            : undefined
+          ? authoredInstances.get(instance.id) ?? (sourceCellId ? authoredCells.get(sourceCellId) : undefined)
+          : undefined
         return source ? {
           ...instance,
           pattern: source.pattern,

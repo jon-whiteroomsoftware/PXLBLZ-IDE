@@ -1,9 +1,10 @@
 import { describe, expect, it } from 'vitest'
 import { createDefaultShow } from './showModel'
-import { projectFlatShowToCompositionV1 } from './showCompositionModel'
+import { projectFlatShowToCompositionV1WithCellOrigins } from './showCompositionModel'
 import {
   applyShowReferencePattern,
   currentShowReferenceExample,
+  extendShowReferencePatternProjection,
   restoreShowReferencePatternSlots,
   type ShowReferenceGuide,
 } from './showReferenceShow'
@@ -75,7 +76,7 @@ describe('Show reference Pattern projection (#506)', () => {
       instanceIds: [],
     }
     const projected = applyShowReferencePattern(authored, projection)
-    const synthesized = projectFlatShowToCompositionV1(projected, {
+    const synthesized = projectFlatShowToCompositionV1WithCellOrigins(projected, {
       byCellId: Object.fromEntries(projected.cells.map((cell) => [
         cell.id,
         'export function render(index) { rgb(index, 0, 0) }',
@@ -83,19 +84,44 @@ describe('Show reference Pattern projection (#506)', () => {
       stageDimension: 2,
     })
 
-    const restored = restoreShowReferencePatternSlots(
-      { ...projected, name: 'Edited legacy draft', composition: synthesized },
-      authored,
+    const derivedProjection = extendShowReferencePatternProjection(
+      { ...projected, composition: synthesized.composition },
       projection,
+      synthesized.sourceCellIdByPlacementId,
     )
-    expect(restored.composition?.patternInstances.every((instance) => (
+    const newlyAuthoredInstance = {
+      ...synthesized.composition.patternInstances[0],
+      id: 'user-authored-caustics',
+      pattern: projection.pattern,
+      patternName: projection.patternName,
+    }
+    const restored = restoreShowReferencePatternSlots(
+      {
+        ...projected,
+        name: 'Edited legacy draft',
+        composition: {
+          ...synthesized.composition,
+          patternInstances: [...synthesized.composition.patternInstances, newlyAuthoredInstance],
+        },
+      },
+      authored,
+      derivedProjection,
+    )
+    expect(restored.composition?.patternInstances
+      .filter((instance) => instance.id !== newlyAuthoredInstance.id)
+      .every((instance) => (
       instance.pattern.kind === 'stock' && instance.pattern.id === 'TestPattern2D'
-    ))).toBe(true)
+      ))).toBe(true)
+    expect(restored.composition?.patternInstances.find((instance) => (
+      instance.id === newlyAuthoredInstance.id
+    ))?.pattern).toEqual(projection.pattern)
 
-    const reprojected = applyShowReferencePattern(restored, projection)
-    expect(reprojected.composition?.patternInstances.every((instance) => (
+    const reprojected = applyShowReferencePattern(restored, derivedProjection)
+    expect(reprojected.composition?.patternInstances
+      .filter((instance) => instance.id !== newlyAuthoredInstance.id)
+      .every((instance) => (
       instance.pattern.kind === 'stock' && instance.pattern.id === 'Caustics'
-    ))).toBe(true)
+      ))).toBe(true)
   })
 
   it('keeps a boundary example current through the following Scene hold', () => {

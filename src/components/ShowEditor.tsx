@@ -192,6 +192,7 @@ import { SHOW_EASING_OPTIONS, showEasingFromOptionId, showEasingOptionId } from 
 import {
   applyShowReferencePattern,
   currentShowReferenceExample,
+  extendShowReferencePatternProjection,
   restoreShowReferencePatternSlots,
   type ShowReferenceGuide,
 } from '@/engine/showReferenceShow'
@@ -862,6 +863,7 @@ export function ShowEditor({
   const [transitionPaletteId, setTransitionPaletteId] = useState<string | null>(null)
   const [layerTransitionTarget, setLayerTransitionTarget] = useState<ShowLayerTransitionTarget | null>(null)
   const detailShowIdRef = useRef(showId)
+  const referenceSourceCellIdByPlacementIdRef = useRef<Record<string, string>>({})
   const timelineWorkspaceRef = useRef<HTMLElement>(null)
   const lastTimelineFocusRef = useRef<HTMLElement | null>(null)
   const closeDetailPanel = useCallback((restoreFocus = false) => {
@@ -920,6 +922,7 @@ export function ShowEditor({
   useEffect(() => {
     if (detailShowIdRef.current === showId) return
     detailShowIdRef.current = showId
+    referenceSourceCellIdByPlacementIdRef.current = {}
     setSelection({ kind: 'show' })
     setDetailPanelOpen(false)
     setDetailAnchor(null)
@@ -963,7 +966,7 @@ export function ShowEditor({
 
   const canonicalStockShow = builtInContext ? stockShowById(showId)?.show : undefined
   const editableShow = stockShowDraft ?? savedShow ?? canonicalStockShow ?? showOverride ?? null
-  const referenceProjection = useMemo(() => {
+  const declaredReferenceProjection = useMemo(() => {
     const referenceSlots = builtInContext?.reference?.patternSlots
     if (!selectedReferencePattern || !referenceSlots) return null
     const patternName = selectedReferencePattern.kind === 'stock'
@@ -976,14 +979,30 @@ export function ShowEditor({
       instanceIds: referenceSlots.instanceIds,
     } : null
   }, [builtInContext?.reference?.patternSlots, selectedReferencePattern, userPatterns])
+  const referenceProjection = useMemo(() => (
+    editableShow && declaredReferenceProjection
+      ? extendShowReferencePatternProjection(
+          editableShow,
+          declaredReferenceProjection,
+          referenceSourceCellIdByPlacementIdRef.current,
+        )
+      : declaredReferenceProjection
+  ), [declaredReferenceProjection, editableShow])
   const activeShow = useMemo(() => (
     editableShow && referenceProjection
       ? applyShowReferencePattern(editableShow, referenceProjection)
       : editableShow
   ), [editableShow, referenceProjection])
   const updateShow = useCallback((id: string, next: ShowRecord) => {
-    const persisted = editableShow && referenceProjection
-      ? restoreShowReferencePatternSlots(next, editableShow, referenceProjection)
+    const persistedProjection = referenceProjection
+      ? extendShowReferencePatternProjection(
+          next,
+          referenceProjection,
+          referenceSourceCellIdByPlacementIdRef.current,
+        )
+      : null
+    const persisted = editableShow && persistedProjection
+      ? restoreShowReferencePatternSlots(next, editableShow, persistedProjection)
       : next
     return persistShow(id, persisted)
   }, [editableShow, persistShow, referenceProjection])
@@ -1221,6 +1240,12 @@ export function ShowEditor({
     }
   }, [activeShow, stageDimension, userPatterns])
   const timelineComposition = timelineProjection?.composition ?? null
+  useEffect(() => {
+    const sourceCells = timelineProjection?.sourceCellIdByPlacementId
+    if (sourceCells && Object.keys(sourceCells).length > 0) {
+      referenceSourceCellIdByPlacementIdRef.current = sourceCells
+    }
+  }, [timelineProjection])
   const patternControlsByInstanceId = useMemo(() => Object.fromEntries((timelineComposition
     ? [
         ...timelineComposition.patternInstances,
