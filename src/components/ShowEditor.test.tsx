@@ -3048,7 +3048,6 @@ describe('ShowEditor (#318)', () => {
     render(<ShowEditor
       showId={stock.id}
       showOverride={stock.show}
-      readOnly
       builtInContext={{
         track: stock.track,
         lesson: stock.lesson,
@@ -3075,17 +3074,42 @@ describe('ShowEditor (#318)', () => {
     })
     expect(within(guide).getByRole('button', { name: 'Reset Pattern' })).toBeInTheDocument()
 
+    const editedDraft = {
+      ...stock.show,
+      name: 'Edited reference draft',
+      updatedAt: stock.show.updatedAt + 1,
+      composition: stock.show.composition ? {
+        ...stock.show.composition,
+        patternInstances: stock.show.composition.patternInstances.map((instance) => (
+          instance.id === 'instance-reference-content-selected'
+            ? { ...instance, controlTargets: { speed: 0.42 } }
+            : instance
+        )),
+      } : undefined,
+    }
     act(() => useShowStore.setState({
       stockShowDrafts: {
-        [stock.id]: { ...stock.show, name: 'Edited reference draft', updatedAt: stock.show.updatedAt + 1 },
+        [stock.id]: editedDraft,
       },
     }))
     expect(screen.queryByRole('button', { name: 'Select CompassRose' })).not.toBeInTheDocument()
     await user.click(screen.getByRole('button', { name: 'Show properties' }))
     expect(screen.getByRole('dialog', { name: 'Entity Detail Panel' })).toHaveTextContent('Edited reference draft')
 
+    await user.click(screen.getAllByRole('button', { name: 'Select Caustics' })[0])
+    const brightness = screen.getByRole('textbox', { name: 'Brightness exact percentage' })
+    await user.clear(brightness)
+    await user.type(brightness, '60%')
+    fireEvent.blur(brightness)
+    await waitFor(() => expect(useShowStore.getState().stockShowDrafts[stock.id].composition
+      ?.patternInstances.find((instance) => instance.id === 'instance-reference-content-selected')).toMatchObject({
+      pattern: { kind: 'stock', id: 'CompassRose' },
+      controlTargets: { speed: 0.42 },
+    }))
+
     await user.click(within(guide).getByRole('button', { name: 'Reset Pattern' }))
     expect(useShowEditorSessionStore.getState().referencePatternByShowId[stock.id]).toBeUndefined()
+    expect(screen.getAllByRole('button', { name: 'Select CompassRose' }).length).toBeGreaterThan(0)
   })
 
   it('projects one Scene-local keyframe animation into one main-timeline sparkline', async () => {

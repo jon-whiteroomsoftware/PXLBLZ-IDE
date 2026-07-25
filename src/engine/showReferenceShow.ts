@@ -59,6 +59,48 @@ export function applyShowReferencePattern(
   }
 }
 
+/**
+ * Removes a transient reference-Pattern projection before an edited record is
+ * persisted. The configured slots keep their authored Pattern identity and
+ * controls while unrelated edits made against the projected view survive.
+ */
+export function restoreShowReferencePatternSlots(
+  edited: ShowRecord,
+  authored: ShowRecord,
+  slots: Pick<ShowReferencePatternProjection, 'cellIds' | 'instanceIds'>,
+): ShowRecord {
+  const cellIds = new Set(slots.cellIds)
+  const instanceIds = new Set(slots.instanceIds)
+  const authoredCells = new Map(authored.cells.map((cell) => [cell.id, cell]))
+  const authoredInstances = new Map(
+    authored.composition?.patternInstances.map((instance) => [instance.id, instance]) ?? [],
+  )
+  return {
+    ...edited,
+    cells: edited.cells.map((cell) => {
+      const source = cellIds.has(cell.id) ? authoredCells.get(cell.id) : undefined
+      return source ? {
+        ...cell,
+        pattern: source.pattern,
+        patternName: source.patternName,
+        controlTargets: source.controlTargets,
+      } : cell
+    }),
+    composition: edited.composition ? {
+      ...edited.composition,
+      patternInstances: edited.composition.patternInstances.map((instance) => {
+        const source = instanceIds.has(instance.id) ? authoredInstances.get(instance.id) : undefined
+        return source ? {
+          ...instance,
+          pattern: source.pattern,
+          patternName: source.patternName,
+          controlTargets: source.controlTargets,
+        } : instance
+      }),
+    } : edited.composition,
+  }
+}
+
 export function currentShowReferenceExample(
   show: ShowRecord,
   guide: ShowReferenceGuide,

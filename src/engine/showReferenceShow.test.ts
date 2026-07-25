@@ -3,6 +3,7 @@ import { createDefaultShow } from './showModel'
 import {
   applyShowReferencePattern,
   currentShowReferenceExample,
+  restoreShowReferencePatternSlots,
   type ShowReferenceGuide,
 } from './showReferenceShow'
 
@@ -27,6 +28,34 @@ describe('Show reference Pattern projection (#506)', () => {
     expect(projected.cells[0].controlTargets).toBeUndefined()
     expect(projected.cells[1]).toEqual(authored.cells[1])
     expect(authored).toEqual(original)
+  })
+
+  it('restores authored Pattern fields without discarding unrelated projected-view edits', () => {
+    const authored = createDefaultShow('show-1', 'Reference Show', 100)
+    authored.cells[0].controlTargets = { speed: 0.5 }
+    const projected = applyShowReferencePattern(authored, {
+      pattern: { kind: 'stock', id: 'Caustics' },
+      patternName: 'Caustics',
+      cellIds: [authored.cells[0].id],
+      instanceIds: [],
+    })
+    const edited = { ...projected, name: 'Edited while projected', updatedAt: 200 }
+
+    const restored = restoreShowReferencePatternSlots(edited, authored, {
+      cellIds: [authored.cells[0].id],
+      instanceIds: [],
+    })
+
+    expect(restored).toMatchObject({ name: 'Edited while projected', updatedAt: 200 })
+    expect(restored.cells[0]).toMatchObject({
+      pattern: authored.cells[0].pattern,
+      patternName: authored.cells[0].patternName,
+      controlTargets: { speed: 0.5 },
+    })
+    expect(projected.cells[0]).toMatchObject({
+      pattern: { kind: 'stock', id: 'Caustics' },
+      controlTargets: undefined,
+    })
   })
 
   it('keeps a boundary example current through the following Scene hold', () => {

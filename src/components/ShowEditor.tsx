@@ -192,6 +192,7 @@ import { SHOW_EASING_OPTIONS, showEasingFromOptionId, showEasingOptionId } from 
 import {
   applyShowReferencePattern,
   currentShowReferenceExample,
+  restoreShowReferencePatternSlots,
   type ShowReferenceGuide,
 } from '@/engine/showReferenceShow'
 import { exportedDims } from '@/engine/exportedDims'
@@ -223,7 +224,7 @@ import { useShowStore } from '@/store/showStore'
 import { useShowPreviewOverrideStore } from '@/store/showPreviewOverrideStore'
 import { useShowEditorSessionStore } from '@/store/showEditorSessionStore'
 import { docExternalHref } from '@/docs/catalog'
-import type { StockShowNote } from '@/pixelblaze/stock/shows'
+import { stockShowById, type StockShowNote } from '@/pixelblaze/stock/shows'
 import { newPersonalContentId } from '@/engine/personalContentMetadata'
 import type {
   MapRecord,
@@ -808,7 +809,7 @@ export function ShowEditor({
   const stockShowDraft = useShowStore((state) => state.stockShowDrafts[showId])
   const hasStockDraft = stockShowDraft !== undefined
   const resetStockShowDraft = useShowStore((state) => state.resetStockShowDraft)
-  const updateShow = useShowStore((state) => state.updateShow)
+  const persistShow = useShowStore((state) => state.updateShow)
   const updateBoundaryTransition = useShowStore((state) => state.updateBoundaryTransition)
   const removeBoundaryTransition = useShowStore((state) => state.removeBoundaryTransition)
   const removeClip = useShowStore((state) => state.removeClip)
@@ -960,8 +961,10 @@ export function ShowEditor({
     () => controllerProvider.getStatus(),
   )
 
+  const canonicalStockShow = builtInContext ? stockShowById(showId)?.show : undefined
+  const editableShow = stockShowDraft ?? savedShow ?? canonicalStockShow ?? showOverride ?? null
   const activeShow = useMemo(() => {
-    const base = stockShowDraft ?? showOverride ?? savedShow ?? null
+    const base = editableShow
     const referenceSlots = builtInContext?.reference?.patternSlots
     if (!base || !selectedReferencePattern || !referenceSlots) return base
     const patternName = selectedReferencePattern.kind === 'stock'
@@ -974,7 +977,14 @@ export function ShowEditor({
       cellIds: referenceSlots.cellIds,
       instanceIds: referenceSlots.instanceIds,
     })
-  }, [builtInContext?.reference?.patternSlots, savedShow, selectedReferencePattern, showOverride, stockShowDraft, userPatterns])
+  }, [builtInContext?.reference?.patternSlots, editableShow, selectedReferencePattern, userPatterns])
+  const updateShow = useCallback((id: string, next: ShowRecord) => {
+    const referenceSlots = builtInContext?.reference?.patternSlots
+    const persisted = editableShow && selectedReferencePattern && referenceSlots
+      ? restoreShowReferencePatternSlots(next, editableShow, referenceSlots)
+      : next
+    return persistShow(id, persisted)
+  }, [builtInContext?.reference?.patternSlots, editableShow, persistShow, selectedReferencePattern])
   useShowTransportClock(activeShow, transportClockActive)
   const targetProfile = activeShow?.outputContract?.kind === 'portable-2d'
     ? undefined
