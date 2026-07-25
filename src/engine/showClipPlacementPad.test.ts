@@ -283,3 +283,17 @@ describe('pad view follows content out of the Zone', () => {
     expect((view.min + view.max) / 2).toBeCloseTo(0.5)
   })
 })
+
+describe('framing ignores the lattice', () => {
+  it('matches the content exactly even on a coarse grid', () => {
+    const padContext = context({ scaleX: 0.5, scaleY: 0.5 }, { enabled: true }, 3)
+    const framed = viewportRect(frameContent(padContext).viewport!)
+    expect(framed.width).toBeCloseTo(0.5)
+    expect(framed.left).toBeCloseTo(0.25)
+  })
+
+  it('still snaps an ordinary sweep on the same grid', () => {
+    const padContext = context({ scaleX: 0.5, scaleY: 0.5 }, { enabled: true }, 3)
+    expect(viewportRect(sweepViewport(padContext, 0.1, 0.1, 0.1, 0.1).viewport!).width).toBeCloseTo(1 / 3)
+  })
+})

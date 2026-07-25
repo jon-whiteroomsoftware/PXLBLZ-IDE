@@ -333,14 +333,15 @@ export function anchorContent(context: PlacementPadContext, column: 0 | 1 | 2, r
 export function setViewportRect(
   context: PlacementPadContext,
   rect: PlacementRect,
-  options: { carryContent?: boolean; translate?: boolean } = {},
+  options: { carryContent?: boolean; translate?: boolean; snap?: boolean } = {},
 ): PlacementPadResult {
-  const snapped = snapPlacementRect(rect, context.grid)
+  const snapping = options.snap !== false
+  const snapped = snapping ? snapPlacementRect(rect, context.grid) : rect
   const targets = [contentRectFromTransform(context.transform), { ...PLACEMENT_ZONE_RECT }]
   const stuck = options.translate
     ? stickPlacementTranslate(snapped, targets)
     : stickPlacementRect(snapped, targets)
-  const held = clampPlacementRectToZone(stuck, context.grid)
+  const held = clampPlacementRectToZone(stuck, snapping ? context.grid : 0)
   const viewport = viewportFromRect(held, true)
   if (!options.carryContent) return { viewport }
   const dx = viewport.x - context.viewport.x
@@ -435,9 +436,14 @@ export function enableViewportForContent(context: PlacementPadContext): ShowClip
   return viewportFromRect(visible, true)
 }
 
-/** Adopts the content's current bounds as the viewport, leaving content alone. */
+/**
+ * Adopts the content's current bounds as the viewport, leaving content alone.
+ * Deliberately bypasses the lattice: framing means matching the content
+ * exactly, and snapping would make that impossible whenever the content does
+ * not already sit on the grid.
+ */
 export function frameContent(context: PlacementPadContext): PlacementPadResult {
-  return setViewportRect(context, contentRectFromTransform(context.transform))
+  return setViewportRect(context, contentRectFromTransform(context.transform), { snap: false })
 }
 
 /**
