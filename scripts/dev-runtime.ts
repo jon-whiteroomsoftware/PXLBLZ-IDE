@@ -471,7 +471,10 @@ function stopProcessGroup(processGroupId: number): void {
 
 export function repositoryContext(cwd: string): RepositoryContext {
   const worktree = git(cwd, ['rev-parse', '--show-toplevel'])
-  const branch = git(cwd, ['branch', '--show-current'])
+  const branch = runtimeBranchLabel(
+    git(cwd, ['branch', '--show-current']),
+    git(cwd, ['rev-parse', 'HEAD']),
+  )
   const gitCommonDirectory = git(cwd, [
     'rev-parse',
     '--path-format=absolute',
@@ -485,6 +488,14 @@ export function repositoryContext(cwd: string): RepositoryContext {
     gitCommonDirectory,
     runtimeDirectory: join(gitCommonDirectory, 'pxlblz', 'dev-runtime', 'v1'),
   }
+}
+
+export function runtimeBranchLabel(branch: string, headSha: string): string {
+  const namedBranch = branch.trim()
+  if (namedBranch) return namedBranch
+  const commit = headSha.trim()
+  if (!commit) throw new Error('Cannot identify the current branch or detached HEAD commit.')
+  return `detached@${commit.slice(0, 12)}`
 }
 
 function parseMainWorktree(output: string): string {

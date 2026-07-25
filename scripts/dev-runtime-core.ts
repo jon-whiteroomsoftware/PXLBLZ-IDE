@@ -151,6 +151,7 @@ export async function allocateRuntimeAssignment(
   manifest: RuntimeManifest,
   dependencies: RuntimeAllocationDependencies,
 ): Promise<RuntimeAllocationResult> {
+  validateAssignmentRequest(request)
   const existing = registry.assignments.find((assignment) => (
     assignment.issue === request.issue
   ))
@@ -244,6 +245,16 @@ function rangesOverlap(first: PortRange, second: PortRange): boolean {
 
 function nonEmptyString(value: unknown): value is string {
   return typeof value === 'string' && value.trim().length > 0
+}
+
+function validateAssignmentRequest(value: RuntimeAssignmentRequest): void {
+  if (!nonEmptyString(value.issue)
+    || !nonEmptyString(value.description)
+    || !nonEmptyString(value.worktree)
+    || !nonEmptyString(value.branch)
+    || (value.profile !== 'shared' && value.profile !== 'isolated')) {
+    throw new Error('Runtime assignment request fields are malformed or unsupported.')
+  }
 }
 
 function validateAssignment(value: unknown): asserts value is RuntimeAssignment {

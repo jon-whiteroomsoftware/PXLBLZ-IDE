@@ -5,6 +5,7 @@ import { join } from 'node:path'
 import {
   ensureSharedDevVarsLink,
   parseDevRuntimeArgs,
+  runtimeBranchLabel,
 } from './dev-runtime'
 
 describe('development runtime command', () => {
@@ -36,5 +37,11 @@ describe('development runtime command', () => {
     })
 
     expect(realpathSync(join(worktree, '.dev.vars'))).toBe(realpathSync(shared))
+  })
+
+  it('gives a detached HEAD a readable stable branch label', () => {
+    expect(runtimeBranchLabel('', '02d8d9badfcc2fda2b4a96919db1375f9c23c0d6'))
+      .toBe('detached@02d8d9badfcc')
+    expect(runtimeBranchLabel('codex/issue-627', '02d8d9badfcc')).toBe('codex/issue-627')
   })
 })

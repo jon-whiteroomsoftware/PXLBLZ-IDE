@@ -77,6 +77,19 @@ describe('runtime assignment allocation', () => {
       portIsAvailable: async () => true,
     })).rejects.toThrow('already assigned to /tmp/first-worktree')
   })
+
+  it('refuses an assignment that its registry parser could not read back', async () => {
+    await expect(allocateRuntimeAssignment(emptyRuntimeRegistry(), {
+      issue: '627',
+      description: 'managed local runtime',
+      worktree: '/tmp/detached-worktree',
+      branch: '',
+      profile: 'shared',
+    }, manifest, {
+      now: () => '2026-07-25T18:00:00.000Z',
+      portIsAvailable: async () => true,
+    })).rejects.toThrow('Runtime assignment request fields are malformed or unsupported')
+  })
 })
 
 describe('runtime manifest', () => {
