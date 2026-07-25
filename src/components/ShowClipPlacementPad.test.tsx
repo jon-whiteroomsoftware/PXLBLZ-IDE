@@ -82,7 +82,7 @@ describe('control bar actions', () => {
     const onChange = setup({ positionX: -0.25, scaleX: 0.5, scaleY: 0.5 }, { enabled: true })
     fireEvent.click(screen.getByRole('button', { name: 'Aperture' }))
     fireEvent.click(screen.getByRole('button', { name: 'Frame content' }))
-    const patch = onChange.mock.calls.at(-1)![0]
+    const patch = onChange.mock.calls[onChange.mock.calls.length - 1][0]
     expect(patch.viewport).toMatchObject({ x: 0, width: 0.5 })
     expect(patch.transform).toBeUndefined()
   })
