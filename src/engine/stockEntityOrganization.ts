@@ -18,7 +18,12 @@ export function stockPatternOrganization(patterns: readonly GalleryPattern[]): E
 }
 
 export function stockShowOrganization(shows: readonly StockShow[]): EntityOrganizationV1 {
-  const learn = ([100, 200] as const).map((level): EntityOrganizationNode => ({
+  // Derived from the catalogue rather than declared, so a level with no lessons
+  // does not leave an empty folder in the rail (#363).
+  const learnLevels = [...new Set(shows
+    .filter((show) => show.collection === 'learn' && show.level !== null)
+    .map((show) => show.level as number))].sort((left, right) => left - right)
+  const learn = learnLevels.map((level): EntityOrganizationNode => ({
     kind: 'folder',
     id: `stock-show-learn-${level}`,
     name: String(level),

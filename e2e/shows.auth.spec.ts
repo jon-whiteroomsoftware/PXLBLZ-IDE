@@ -18,7 +18,7 @@ test.describe('authenticated Show authoring', () => {
     // Editable: a real Clip edit creates only a session draft.
     const resetButton = page.getByRole('button', { name: 'Reset built-in Show' })
     await expect(resetButton).toBeDisabled()
-    await page.getByRole('button', { name: 'Select SignalMandala' }).click()
+    await page.getByRole('button', { name: 'Select MetaballGarden' }).click()
     const clipPanel = page.getByRole('dialog', { name: 'Entity Detail Panel' })
     await expect(clipPanel).toBeVisible()
     const brightness = clipPanel.getByRole('textbox', { name: 'Brightness exact percentage' })
@@ -31,7 +31,7 @@ test.describe('authenticated Show authoring', () => {
     await expect(resetButton).toBeDisabled()
 
     // A later session draft is also discarded by reload rather than persisted.
-    await page.getByRole('button', { name: 'Select SignalMandala' }).click()
+    await page.getByRole('button', { name: 'Select MetaballGarden' }).click()
     const editedAgainBrightness = page.getByRole('dialog', { name: 'Entity Detail Panel' })
       .getByRole('textbox', { name: 'Brightness exact percentage' })
     await editedAgainBrightness.fill('50')
@@ -39,7 +39,7 @@ test.describe('authenticated Show authoring', () => {
     await expect(resetButton).toBeEnabled()
     await page.reload()
     await expect(page.getByRole('button', { name: 'Reset built-in Show' })).toBeDisabled()
-    await page.getByRole('button', { name: 'Select SignalMandala' }).click()
+    await page.getByRole('button', { name: 'Select MetaballGarden' }).click()
     await expect(page.getByRole('dialog', { name: 'Entity Detail Panel' })
       .getByRole('textbox', { name: 'Brightness exact percentage' })).toHaveValue('100')
     expect(showWrites).toEqual([])

@@ -24,7 +24,7 @@ describe('built-in entity organization', () => {
     const organization = stockShowOrganization(STOCK_SHOWS)
 
     expect(organization.nodes).toMatchObject([
-      { kind: 'folder', name: 'Learn', children: [{ kind: 'folder', name: '100' }, { kind: 'folder', name: '200' }] },
+      { kind: 'folder', name: 'Learn', children: [{ kind: 'folder', name: '100' }] },
       { kind: 'folder', name: 'Showcases', children: [
         { kind: 'folder', name: 'Effects' },
         { kind: 'folder', name: 'Transitions & animation' },
@@ -32,6 +32,18 @@ describe('built-in entity organization', () => {
       ] },
     ])
     expect(new Set(collectEntityIds(organization.nodes)).size).toBe(STOCK_SHOWS.length)
+  })
+
+  it('omits a Learn level folder that has no lessons', () => {
+    // The rail is derived from the catalogue, so retiring a level removes its
+    // folder instead of leaving an empty node behind (#363).
+    const only100 = STOCK_SHOWS.filter((show) => show.collection !== 'learn' || show.level === 100)
+    const learn = stockShowOrganization(only100).nodes
+      .find((node) => node.kind === 'folder' && node.name === 'Learn')
+
+    expect(learn).toMatchObject({ children: [{ name: '100' }] })
+    expect(stockShowOrganization(STOCK_SHOWS.filter((show) => show.collection !== 'learn')).nodes)
+      .toMatchObject([{ kind: 'folder', name: 'Learn', children: [] }, { kind: 'folder', name: 'Showcases' }])
   })
 })
 
