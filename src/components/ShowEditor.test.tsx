@@ -28,7 +28,7 @@ import {
   type PersonalContentProvider,
 } from '@/engine/personalContentProvider'
 import type { ControllerProfile } from '@/engine/controllerProfile'
-import type { MapRecord, MixinRecord, PatternRecord, ShowRecord } from '@/engine/personalContentRecords'
+import type { MapRecord, MixinRecord, PatternRecord, ShowCell, ShowRecord } from '@/engine/personalContentRecords'
 import { createInstallationShowOutputContract, createPortableShowOutputContract } from '@/engine/showOutputContract'
 import { showPreviewOverrideInitialState, useShowPreviewOverrideStore } from '@/store/showPreviewOverrideStore'
 import { showEditorSessionInitialState, useShowEditorSessionStore } from '@/store/showEditorSessionStore'
@@ -2923,7 +2923,7 @@ describe('ShowEditor (#318)', () => {
 
   it('enables Reset after a built-in Clip edit without creating a personal Show (#619)', async () => {
     const user = userEvent.setup()
-    const stock = STOCK_SHOWS.find((candidate) => candidate.id === 'stock-show-101-clips-crossfade')!
+    const stock = STOCK_SHOWS.find((candidate) => candidate.id === 'stock-show-101-clips-cuts-blank-time')!
 
     render(<ShowEditor
       showId={stock.id}
@@ -2933,7 +2933,7 @@ describe('ShowEditor (#318)', () => {
 
     const reset = screen.getByRole('button', { name: 'Reset built-in Show' })
     expect(reset).toBeDisabled()
-    await user.click(screen.getByRole('button', { name: 'Select SignalMandala' }))
+    await user.click(screen.getByRole('button', { name: 'Select MetaballGarden' }))
     const brightness = screen.getByRole('textbox', { name: 'Brightness exact percentage' })
     await user.clear(brightness)
     await user.type(brightness, '75%')
@@ -2948,9 +2948,51 @@ describe('ShowEditor (#318)', () => {
     expect(useShowStore.getState().shows).toEqual([])
   })
 
+  // A flat-cell record with a boundary Transition and Clip control targets: the
+  // shape older saved Shows still load with. It lives here rather than pointing
+  // at a curriculum fixture, because the Learn catalogue is authored in the
+  // composition model and must stay free to change (#363).
+  function legacyTwoClipShow(id: string): ShowRecord {
+    const cell = (sceneId: string, pattern: string, controls: Record<string, number>): ShowCell => ({
+      id: `cell-${sceneId}-zone-1`,
+      zoneId: 'zone-1',
+      sceneId,
+      sceneSpan: 1,
+      pattern: { kind: 'stock', id: pattern },
+      patternName: pattern,
+      adaptations: { mirror: false, phase: 0, brightness: 1, timeScale: 0.35 },
+      restartOnEntry: false,
+      controlTargets: controls,
+    })
+    return {
+      id,
+      name: 'Legacy two-Clip Show',
+      scenes: [
+        { id: 'mandala', name: 'Mandala', durationMs: 8_000 },
+        { id: 'compass', name: 'Compass', durationMs: 8_000 },
+      ],
+      zones: [{ id: 'zone-1', name: 'Main', nominalPixelCount: 2_000, color: '#38bdf8' }],
+      cells: [
+        cell('mandala', 'SignalMandala', { sliderSpeed: 0.45, sliderSpokes: 0.48 }),
+        cell('compass', 'CompassRose', { sliderSpeed: 0.3, sliderPoints: 0.42 }),
+      ],
+      routingLayouts: [{ id: 'layout-main', name: 'Main', zones: [], logical: { kind: 'single', zoneIds: ['zone-1'] } }],
+      transitions: [{
+        id: 'transition-mandala',
+        afterSceneId: 'mandala',
+        kind: 'crossfade',
+        durationMs: 3_000,
+        easing: { curve: 'sine', direction: 'in-out' },
+      }],
+      stageMapId: 'plane',
+      outputContract: createPortableShowOutputContract({ referenceMapId: 'plane', referencePixelCount: 2_000 }),
+      updatedAt: 363,
+    }
+  }
+
   it('keeps legacy stock Clips on one absolute Layer and exposes their boundary Transition (#589)', async () => {
     const user = userEvent.setup()
-    const stock = STOCK_SHOWS.find((candidate) => candidate.id === 'stock-show-101-clips-crossfade')!
+    const stock = { id: 'legacy-two-clip-show', show: legacyTwoClipShow('legacy-two-clip-show') }
 
     render(<ShowEditor showId={stock.id} showOverride={stock.show} readOnly />)
 
@@ -2980,12 +3022,7 @@ describe('ShowEditor (#318)', () => {
 
   it('shows legacy stock Clip Pattern controls before any edit and retains them across Aperture toggles (#615, #617)', async () => {
     const user = userEvent.setup()
-    const show = {
-      ...structuredClone(
-        STOCK_SHOWS.find((candidate) => candidate.id === 'stock-show-101-clips-crossfade')!.show,
-      ),
-      id: 'show-issue-615',
-    }
+    const show = { ...legacyTwoClipShow('show-issue-615') }
     setPersonalContentProvider(memoryProvider([show]))
     useShowStore.setState({ shows: [show], activeShowId: show.id, showsLoaded: true })
 
@@ -4762,3 +4799,4 @@ describe('ShowEditor (#318)', () => {
   })
 
 })
+

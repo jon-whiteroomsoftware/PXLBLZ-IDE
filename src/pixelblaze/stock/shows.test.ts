@@ -16,16 +16,16 @@ import { sameShowEffectStructure } from '@/engine/showEffects'
 import { getUserDoc } from '@/docs/catalog'
 import { DEMOS } from './patterns'
 import { SOURCE_STOCK_MAPS } from './maps/stockCatalogue'
-import { STOCK_SHOWS } from './shows'
+import { STOCK_SHOWS, stockShowById } from './shows'
 
 describe('stock Show curriculum (#363)', () => {
   it('ships the stable Learn 100, Learn 200, and showcase catalogue', () => {
     expect(STOCK_SHOWS).toHaveLength(19)
     expect(new Set(STOCK_SHOWS.map((item) => item.id)).size).toBe(STOCK_SHOWS.length)
     expect(STOCK_SHOWS.map((item) => [item.name, item.collection, item.level, item.order])).toEqual([
-      ['101 Clips and Crossfade', 'learn', 100, 1],
+      ['101 Clips, Cuts, and Blank Time', 'learn', 100, 1],
       ['102 Transitions and Values', 'learn', 100, 2],
-      ['103 Effects', 'learn', 100, 3],
+      ['103 Clip Transform', 'learn', 100, 3],
       ['104 Portable Zones', 'learn', 100, 4],
       ['105 Built from Basics', 'learn', 100, 5],
       ['201 Clip Sequencing and Cuts', 'learn', 200, 1],
@@ -181,17 +181,144 @@ describe('stock Show curriculum (#363)', () => {
     }
   })
 
-  it('keeps the first lesson to two Clips and one boundary-owned Crossfade', () => {
-    const item = STOCK_SHOWS.find((candidate) => candidate.id === 'stock-show-101-clips-crossfade')!
-    expect(item.show.scenes.map((scene) => [scene.name, scene.durationMs])).toEqual([
-      ['Mandala', 8_000], ['Compass', 8_000],
-    ])
-    expect(item.show.cells.map((cell) => cell.patternName)).toEqual(['SignalMandala', 'CompassRose'])
-    expect(item.show.transitions).toEqual([
-      expect.objectContaining({ afterSceneId: 'mandala', kind: 'crossfade', durationMs: 3_000 }),
-    ])
-    expect(item.show.composition).toBeUndefined()
+  // Casting doctrine agreed 2026-07-25: the approved tiers exclude diagnostic
+  // Patterns that "look cheap", HeatShimmerTiles, and everything in the
+  // very-expensive tier, whose marginal artifact cost runs 7-11 KB each.
+  const EXCLUDED_FROM_LESSONS = [
+    'TestPattern1D', 'TestPattern2D', 'TestPattern3D', 'EasedSweep', 'HeatShimmerTiles',
+    'PhantomStar', 'ZippyZaps', 'SceneSplice', 'Kishimisu',
+    'RedlineMachine', 'RedlineMachinePortable',
+  ]
+  const FOUNDATION_IDS = [
+    'stock-show-101-clips-cuts-blank-time',
+    'stock-show-102-transitions-values',
+    'stock-show-103-clip-transform',
+  ]
+  const foundations = () => FOUNDATION_IDS.map((id) => stockShowById(id)!)
+  const lessonPatternNames = (item: (typeof STOCK_SHOWS)[number]) => [
+    ...item.show.cells.map((cell) => cell.patternName),
+    ...(item.show.composition?.patternInstances.map((instance) => instance.patternName) ?? []),
+  ]
+
+  it('casts every foundation lesson from the approved Pattern tiers', () => {
+    for (const item of foundations()) {
+      expect(item, `${FOUNDATION_IDS.join(', ')} must all exist`).toBeDefined()
+      for (const name of lessonPatternNames(item)) {
+        expect(EXCLUDED_FROM_LESSONS, `${item.name} casts ${name}`).not.toContain(name)
+        expect(DEMOS, item.name).toHaveProperty(name)
+      }
+    }
+  })
+
+  it('exposes no Pattern control targets in the foundation lessons', () => {
+    // A control target is a claim that the lesson depends on that value. The
+    // foundation lessons depend on none, so they set none and let each Pattern
+    // render at its authored defaults.
+    for (const item of foundations()) {
+      expect(item.show.cells.every((cell) => cell.controlTargets === undefined), item.name).toBe(true)
+      expect(
+        (item.show.composition?.patternInstances ?? []).every((instance) => instance.controlTargets === undefined),
+        item.name,
+      ).toBe(true)
+    }
+  })
+
+  it('uses one shared time scale across each foundation Show', () => {
+    for (const item of foundations()) {
+      const scales = new Set([
+        ...item.show.cells.map((cell) => cell.adaptations.timeScale),
+        ...(item.show.composition?.patternInstances.map((instance) => instance.time.timeScale) ?? []),
+      ])
+      expect(scales.size, `${item.name} time scales: ${[...scales].join(', ')}`).toBe(1)
+    }
+  })
+
+  it('declares the 44x44 portable reference for every foundation lesson', () => {
+    // 1,936 is the largest complete square under SHOW_MAX_OUTPUT_PIXELS; 2,000
+    // yields a 45-wide grid with a ragged final row.
+    for (const item of foundations()) {
+      expect(item.show.outputContract, item.name).toMatchObject({
+        kind: 'portable-2d', referenceMapId: 'plane', referencePixelCount: 1_936,
+      })
+    }
+  })
+
+  it('leaves each foundation lesson compile headroom for session edits', () => {
+    // Built-ins are session-editable and every note asks the learner to change
+    // something, so a lesson compiled near the ceiling breaks on first use.
+    for (const item of foundations()) {
+      const compiled = compileShowForArtifact(item.show, [], undefined, {}, { stageDimension: 2 })
+      expect(compiled.error, item.name).toBeNull()
+      const summary = compiled.artifact!.summary
+      const ratio = summary.artifactBytes / summary.measuredDeviceBudgetBytes
+      expect(ratio, `${item.name} uses ${(ratio * 100).toFixed(1)}% of the device budget`)
+        .toBeLessThan(0.6)
+    }
+  })
+
+  it('runs each foundation lesson on one Zone so simultaneity stays out of the lesson', () => {
+    // Measured: cost scales with simultaneous zones (~4 KB each), not with
+    // Pattern variety (~1 KB per sequential reprise).
+    for (const item of foundations()) {
+      expect(item.show.zones, item.name).toHaveLength(1)
+    }
+  })
+
+  it('keeps the first lesson to Cuts, blank time, and an explicit Show End', () => {
+    const item = stockShowById('stock-show-101-clips-cuts-blank-time')!
+    const composition = item.show.composition!
+    const main = [...composition.scenes[0].zones[0].main].sort((a, b) => a.startMs - b.startMs)
+
     expect(item.show.zones).toHaveLength(1)
+    expect(main.map((placement) => [placement.startMs, placement.durationMs])).toEqual([
+      [0, 5_000], [5_000, 5_000], [12_000, 4_000],
+    ])
+    // The Cut is the implicit zero-duration junction where two Clips touch.
+    expect(main[0].startMs + main[0].durationMs).toBe(main[1].startMs)
+    // Blank time is a real gap, not a dimmed Clip, and renders black.
+    expect(main[1].startMs + main[1].durationMs).toBeLessThan(main[2].startMs)
+    expect(composition.durationMs).toBe(16_000)
+    // No competing mechanism: Cuts only, no Effects, no second Layer.
+    expect(composition.transitions ?? []).toEqual([])
+    expect(item.show.transitions).toEqual([])
+    expect(main.every((placement) => !placement.effects?.length)).toBe(true)
+    expect(composition.scenes[0].zones[0].overlays).toEqual([])
+  })
+
+  it('gives 102 two Transition families over the center-locked radial pair', () => {
+    const item = stockShowById('stock-show-102-transitions-values')!
+    const instances = item.show.composition!.patternInstances
+
+    expect(instances.map((instance) => instance.patternName))
+      .toEqual(['ClockworkIris', 'EventHorizon', 'SignalMandala'])
+    const kinds = (item.show.composition!.transitions ?? []).map((transition) => transition.kind)
+    expect(new Set(kinds).size, 'two distinct Transition families').toBe(2)
+    expect(kinds).toContain('crossfade')
+    // Exactly one legible value ramp. A Layer Transition owns geometry only, so
+    // the value change is a Property track owned by the destination Clip.
+    const tracks = item.show.composition!.scenes.flatMap((scene) => scene.propertyTracks ?? [])
+    expect(tracks).toHaveLength(1)
+    expect(tracks[0].target).toMatchObject({ kind: 'placement-view', property: 'brightness' })
+  })
+
+  it('keeps 103 on one Pattern instance whose clock never restarts', () => {
+    const item = stockShowById('stock-show-103-clip-transform')!
+    const composition = item.show.composition!
+    const main = [...composition.scenes[0].zones[0].main].sort((a, b) => a.startMs - b.startMs)
+
+    expect(composition.patternInstances.map((instance) => instance.patternName)).toEqual(['CompassRose'])
+    expect(new Set(main.map((placement) => placement.instanceId)).size).toBe(1)
+    expect(main.length).toBeGreaterThanOrEqual(4)
+    // Clip Transform is the only variable: no Effects, no Viewport, no restart.
+    expect(main.every((placement) => !placement.effects?.length)).toBe(true)
+    expect(main.every((placement) => placement.viewport === undefined)).toBe(true)
+    // The opening Reference pose is neutral, and a neutral transform compacts
+    // away; every later pose carries an explicit one.
+    expect(main[0].transform).toBeUndefined()
+    expect(main.slice(1).filter((placement) => placement.transform !== undefined).length)
+      .toBeGreaterThanOrEqual(3)
+    const poses = main.map((placement) => JSON.stringify([placement.transform, placement.view.mirror]))
+    expect(new Set(poses).size, 'each placement shows a distinct pose').toBe(main.length)
   })
 
   it('scores Redline as a 60-second five-surface Installation showcase (#503)', () => {
@@ -460,13 +587,18 @@ describe('stock Show curriculum (#363)', () => {
   })
 
   it('uses representative high-density square Stages for the reviewed Portable compositions', () => {
-    for (const id of ['stock-show-101-clips-crossfade', 'stock-show-105-built-from-basics']) {
-      const item = STOCK_SHOWS.find((candidate) => candidate.id === id)!
-      expect(item.show.outputContract).toMatchObject({
+    // 101 is recast at the 44x44 square; 105 keeps its legacy 2,000 reference
+    // until its own curriculum slice recasts it.
+    for (const [id, pixels] of [
+      ['stock-show-101-clips-cuts-blank-time', 1_936],
+      ['stock-show-105-built-from-basics', 2_000],
+    ] as const) {
+      const item = stockShowById(id)!
+      expect(item.show.outputContract, id).toMatchObject({
         kind: 'portable-2d',
-        referencePixelCount: 2_000,
+        referencePixelCount: pixels,
       })
-      expect(item.show.zones.reduce((sum, zone) => sum + zone.nominalPixelCount, 0)).toBe(2_000)
+      expect(item.show.zones.reduce((sum, zone) => sum + zone.nominalPixelCount, 0), id).toBe(pixels)
     }
   })
 

@@ -171,12 +171,28 @@ The stock catalogue uses small executable examples rather than an embedded
 tutorial system. Each Show note names the idea to notice and two safe changes to
 try; the sections below explain the corresponding mechanism.
 
-### Clips, Layers, and boundaries
+### Clips, Cuts, and blank time
 
 A Clip chooses a Pattern and its values for a span of time. A Layer orders Clips
 that cannot overlap in time. The junction between adjacent Clips owns the Cut,
 Crossfade, Wipe, or other Transition that exchanges them; a Cut occupies no
 duration but remains selectable so it can be changed.
+
+Time a Layer does not schedule is blank, and blank time renders black. It is an
+ordinary authoring choice rather than a gap to repair, so a Show can breathe
+between phrases without inserting a dimmed filler Clip. Show End marks where the
+choreography stops; Markers beyond it stay dormant rather than extending it.
+
+### Clip Transform
+
+Clip Transform is the placement geometry of one Clip: Position, Rotation, Scale,
+and Mirror. It changes where the Clip samples its Pattern without editing
+Pattern source and without allocating a second Pattern instance, so two Clips
+sharing one instance can hold different poses while one clock drives both.
+
+Transform applies before any ordered Effects on the same Clip and stays distinct
+from them. An authored Scale Effect and a Transform scale can coexist, and only
+the Effect stack participates in Effect ordering.
 
 ### Transitions and Clip values
 

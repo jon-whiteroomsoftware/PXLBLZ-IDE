@@ -480,8 +480,14 @@
 
 /* Expanded learning material must not displace the authoring canvas when the
    center pane is squeezed by the library and Stage. Keep its one-line identity
-   and disclosure control available while containing the explanatory body. */
-@container (max-width: 820px) {
+   and disclosure control available while containing the explanatory body.
+
+   The note is the teaching surface, so it holds its full layout well past the
+   point the timeline starts to crowd (#363). This threshold must stay equal to
+   SHOW_NOTE_COMPACT_WIDTH_PX in ShowEditor.tsx: this rule owns visibility and
+   the TypeScript constant owns the matching aria-hidden/inert state, so a split
+   between them leaves the body readable but inert. */
+@container (max-width: 560px) {
   .show-editor-pane .show-note-expanded-content {
     visibility: hidden;
     max-height: 0;

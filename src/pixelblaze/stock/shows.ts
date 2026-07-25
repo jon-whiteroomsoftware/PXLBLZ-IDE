@@ -2,6 +2,7 @@ import type {
   ShowBoundaryTransition,
   ShowCell,
   ShowClipEffect,
+  ShowClipTransform,
   ShowCompositionV1,
   ShowPropertyAnimationTrack,
   ShowRecord,
@@ -10,6 +11,7 @@ import type {
   ShowStructuredEasing,
   ShowZone,
 } from '@/engine/personalContentRecords'
+import { NEUTRAL_SHOW_CLIP_TRANSFORM } from '@/engine/showClipTransform'
 import { SHOW_EASING_OPTIONS } from '@/engine/showEasing'
 import { showEffectNumericValue, showEffectParameterNames } from '@/engine/showEffects'
 import type { ShowReferenceGuide } from '@/engine/showReferenceShow'
@@ -90,6 +92,13 @@ type CatalogueInput = {
 }
 
 const UPDATED_AT = 363
+// 44 x 44. The largest complete square under SHOW_MAX_OUTPUT_PIXELS (2,000):
+// the plane map derives cols = ceil(sqrt(n)), so 2,000 leaves a 45-wide grid
+// with a ragged 20-pixel final row.
+const PORTABLE_REFERENCE_PIXELS = 1_936
+// Foundation lessons share one Show-wide pace instead of tuning each Clip, so
+// the timeline reads as choreography rather than per-Clip knob work.
+const LESSON_TIME_SCALE = 0.32
 const SINE_IN_OUT: ShowStructuredEasing = { curve: 'sine', direction: 'in-out' }
 const CUBIC_IN_OUT: ShowStructuredEasing = { curve: 'cubic', direction: 'in-out' }
 const LINEAR: ShowStructuredEasing = { curve: 'linear' }
@@ -114,78 +123,155 @@ export function stockShowById(id: string | null | undefined): StockShow | undefi
   return id ? STOCK_SHOWS.find((item) => item.id === id) : undefined
 }
 
+// 101 pairs sparse linework against a solid field so the Cut, the gap, and Show
+// End are all legible without opening Entity Details. No Transition entity, no
+// Effect, and no second Layer competes with direct timing.
 function learn101(): StockShow {
-  const id = 'stock-show-101-clips-crossfade'
-  const zones = logicalZones(['Main'], 2_000)
+  const id = 'stock-show-101-clips-cuts-blank-time'
+  const zones = logicalZones(['Main'], PORTABLE_REFERENCE_PIXELS)
   const scenes: SceneSpec[] = [
-    scene('mandala', 'Mandala', 8, [clip('zone-1', 'SignalMandala', 0.35, { sliderSpeed: 0.45, sliderSpokes: 0.48, sliderRings: 0.36, sliderColor: 0.64 })]),
-    scene('compass', 'Compass', 8, [clip('zone-1', 'CompassRose', 0.35, { sliderSpeed: 0.30, sliderPoints: 0.42, sliderSweep: 0.62, sliderHue: 0.10 })]),
+    scene('timeline', 'Timeline', 16, [clip('zone-1', 'RibbonLoom', LESSON_TIME_SCALE)]),
   ]
+  const composition: ShowCompositionV1 = {
+    version: 1,
+    patternInstances: [
+      instance('ribbons', 'RibbonLoom', LESSON_TIME_SCALE),
+      instance('garden', 'MetaballGarden', LESSON_TIME_SCALE),
+    ],
+    scenes: [{
+      sceneId: 'timeline',
+      zones: [{
+        zoneId: 'zone-1',
+        overlays: [],
+        main: [
+          placement('clip-ribbons', 'ribbons', 0, 5),
+          // Touching the previous Clip: the Cut is the implicit junction.
+          placement('clip-garden', 'garden', 5, 5),
+          // Two seconds of blank time before the reprise, which renders black.
+          placement('clip-reprise', 'ribbons', 12, 4),
+        ],
+      }],
+    }],
+    durationMs: 16_000,
+  }
   return catalogue({
-    id, title: 'Clips and Crossfade', track: 'portable', collection: 'learn', level: 100, order: 1,
-    purpose: 'Two Patterns become one timed composition. Each Clip owns what plays; the boundary between them owns how the picture changes.',
-    notice: 'The Crossfade is a separate timeline entity, not a property hidden inside either Clip.',
-    prompts: ['Shorten the Crossfade from 3.0 s to 1.0 s.', 'Replace Compass Rose with a Pattern that moves differently.'],
-    guideHeading: 'clips-layers-and-boundaries',
-    output: portableOutput(), zones, layouts: [singleLayout(zones)], scenes,
-    transitions: [boundary('mandala', 'crossfade', 3_000, SINE_IN_OUT)],
+    id, title: 'Clips, Cuts, and Blank Time', track: 'portable', collection: 'learn', level: 100, order: 1,
+    purpose: 'A Clip occupies a span of Show time on a Layer. Where two Clips touch, the junction between them is a Cut; where none is scheduled, the Show renders black.',
+    notice: 'The two seconds before the final Clip are empty on purpose. Blank time is a valid part of the timeline, not a mistake.',
+    prompts: ['Split the first Clip in half without changing the picture.', 'Drag the last Clip left to close the gap, then back to reopen it.'],
+    guideHeading: 'clips-cuts-and-blank-time',
+    output: portableOutput(), zones, layouts: [singleLayout(zones)], scenes, composition,
   })
 }
 
+// 102 casts the two black-cored radial machines so the Crossfade reads as one
+// mechanism becoming another rather than two pictures fighting, then wipes into
+// a bright full-field mandala so the second family is unmistakable.
 function learn102(): StockShow {
   const id = 'stock-show-102-transitions-values'
-  const zones = logicalZones(['Main'], 2_000)
+  const zones = logicalZones(['Main'], PORTABLE_REFERENCE_PIXELS)
   const scenes: SceneSpec[] = [
-    scene('sweep', 'Sweep', 7, [clip('zone-1', 'EasedSweep', 0.40, undefined, 0.70)]),
-    scene('compass', 'Compass', 7, [clip('zone-1', 'CompassRose', 0.32, { sliderSpeed: 0.30, sliderPoints: 0.42, sliderSweep: 0.62, sliderHue: 0.58 }, 1)]),
-    scene('bloom', 'Bloom', 7, [clip('zone-1', 'TopographicBloom', 0.30, { sliderSpeed: 0.28, sliderLayers: 0.82, sliderSpacing: 0.48, sliderColor: 0.30 }, 0.82)]),
+    scene('passages', 'Passages', 16.5, [clip('zone-1', 'ClockworkIris', LESSON_TIME_SCALE)]),
   ]
-  const compassId = cellId('compass', 'zone-1')
-  const bloomId = cellId('bloom', 'zone-1')
+  const composition: ShowCompositionV1 = {
+    version: 1,
+    patternInstances: [
+      instance('iris', 'ClockworkIris', LESSON_TIME_SCALE),
+      instance('horizon', 'EventHorizon', LESSON_TIME_SCALE),
+      instance('mandala', 'SignalMandala', LESSON_TIME_SCALE),
+    ],
+    scenes: [{
+      sceneId: 'passages',
+      propertyTracks: [{
+        // The destination owns its brightness; the ramp is a Clip-owned
+        // sparkline, separate from the Wipe that exchanges the picture.
+        // The Wipe lands on full brightness, then the second half of the Clip
+        // settles back. Arriving bright and easing down reads as a deliberate
+        // release; arriving dim reads as the Transition having failed.
+        id: 'track-mandala-brightness',
+        target: { kind: 'placement-view', placementId: 'clip-mandala', property: 'brightness' },
+        keyframes: [
+          keyframe('mandala-arrive', 12.5, 1),
+          keyframe('mandala-hold', 14.5, 1),
+          keyframe('mandala-settle', 16.5, 0.45),
+        ],
+      }],
+      zones: [{
+        zoneId: 'zone-1',
+        overlays: [],
+        // A Layer Transition occupies the exact gap between its Clips, so the
+        // junction owns real time on the ruler instead of hiding inside a Clip.
+        main: [
+          placement('clip-iris', 'iris', 0, 5),
+          placement('clip-horizon', 'horizon', 7, 4),
+          placement('clip-mandala', 'mandala', 12.5, 4),
+        ],
+      }],
+    }],
+    transitions: [
+      {
+        id: 'transition-iris-horizon', fromPlacementId: 'clip-iris', toPlacementId: 'clip-horizon',
+        kind: 'crossfade', durationMs: 2_000, easing: SINE_IN_OUT,
+      },
+      {
+        id: 'transition-horizon-mandala', fromPlacementId: 'clip-horizon', toPlacementId: 'clip-mandala',
+        kind: 'wipe', durationMs: 1_500, easing: CUBIC_IN_OUT,
+        direction: 0, feather: 0.08, edgePolicy: 'dither',
+      },
+    ],
+    durationMs: 16_500,
+  }
   return catalogue({
     id, title: 'Transitions and Values', track: 'portable', collection: 'learn', level: 100, order: 2,
-    purpose: 'Boundaries can change the picture and interpolate Clip values at the same time. This Show uses two Transition families and two compact value ramps.',
-    notice: 'Brightness and speed belong to the destination Clip; the boundary only describes how the old value reaches the new one.',
-    prompts: ['Reverse the Wipe direction.', 'Change Bloom brightness to 0.45 and compare the ramp.'],
+    purpose: 'A Transition is its own entity at the junction between two Clips. It owns how the picture changes; the destination Clip still owns the values it arrives at.',
+    notice: 'The Crossfade and the Wipe change the picture. The brightness ramp on the last Clip is a separate, Clip-owned curve.',
+    prompts: ['Shorten the Crossfade from 2.0 s to 0.5 s.', "Change where the last Clip's brightness settles from 45% to 100%."],
     guideHeading: 'transitions-and-clip-values',
-    output: portableOutput(), zones, layouts: [singleLayout(zones)], scenes,
-    transitions: [
-      boundary('sweep', 'wipe', 1_200, CUBIC_IN_OUT, {
-        direction: 0, feather: 0.08, edgePolicy: 'dither',
-        propertyTransitions: { brightness: { fromByCellId: { [compassId]: 0.70 }, durationMs: 1_200, easing: CUBIC_IN_OUT } },
-      }),
-      boundary('compass', 'fade-color', 1_400, SINE_IN_OUT, {
-        color: '#10131a',
-        propertyTransitions: { timeScale: { fromByCellId: { [bloomId]: 0.32 }, durationMs: 1_400, easing: SINE_IN_OUT } },
-      }),
-    ],
+    output: portableOutput(), zones, layouts: [singleLayout(zones)], scenes, composition,
   })
 }
 
+// 103 reuses one instance of the only radial Pattern with unmistakable
+// orientation: its cardinal points and asymmetric sweep make Rotation and
+// Mirror visible, which a symmetric mandala could never show. Sharing one
+// instance keeps the Pattern clock running so only the pose changes.
 function learn103(): StockShow {
-  const id = 'stock-show-103-effects'
-  const zones = logicalZones(['Main'], 2_000)
-  const specs: Array<[string, string, ShowClipEffect[]?]> = [
-    ['reference', 'Reference', undefined],
-    ['frame', 'Frame', [
-      { id: 'translate', kind: 'translate', x: 0.12, y: -0.08 },
-      { id: 'scale', kind: 'scale', x: 0.78, y: 0.78 },
-    ]],
-    ['ripple', 'Ripple', [{ id: 'ripple', kind: 'ripple', amount: 0.32, frequency: 4, phase: 0, centerX: 0.5, centerY: 0.5 }]],
-    ['color', 'Color', [
-      { id: 'hue', kind: 'hue', turns: 0.18 },
-      { id: 'contrast', kind: 'contrast', contrast: 0.72 },
-    ]],
+  const id = 'stock-show-103-clip-transform'
+  const zones = logicalZones(['Main'], PORTABLE_REFERENCE_PIXELS)
+  const poses: Array<[string, string, Partial<ShowClipTransform> | undefined, boolean]> = [
+    ['clip-reference', 'Reference', undefined, false],
+    ['clip-position', 'Position', { positionX: 0.22, positionY: -0.14 }, false],
+    ['clip-rotation', 'Rotation', { rotation: 0.125 }, false],
+    ['clip-scale', 'Scale', { scaleX: 0.62, scaleY: 0.62 }, false],
+    ['clip-mirror', 'Mirror', undefined, true],
   ]
-  const scenes = specs.map(([sceneId, name, effects]) => scene(sceneId, name, 6, [clip('zone-1', 'TestPattern2D', 0.35, undefined, 0.90, effects)]))
+  const scenes: SceneSpec[] = [
+    scene('poses', 'Poses', 15, [clip('zone-1', 'CompassRose', LESSON_TIME_SCALE)]),
+  ]
+  const composition: ShowCompositionV1 = {
+    version: 1,
+    patternInstances: [instance('rose', 'CompassRose', LESSON_TIME_SCALE)],
+    scenes: [{
+      sceneId: 'poses',
+      zones: [{
+        zoneId: 'zone-1',
+        overlays: [],
+        main: poses.map(([placementId, , transform, mirror], index) => ({
+          ...placement(placementId, 'rose', index * 3, 3),
+          view: { mirror, phase: 0, brightness: 1 },
+          ...(transform ? { transform: { ...NEUTRAL_SHOW_CLIP_TRANSFORM, ...transform } } : {}),
+        })),
+      }],
+    }],
+    durationMs: 15_000,
+  }
   return catalogue({
-    id, title: 'Effects', track: 'portable', collection: 'learn', level: 100, order: 3,
-    purpose: 'Effects transform a Clip after its Pattern renders. Reusing one known Pattern makes operation order and spatial change easier to see.',
-    notice: 'The Reference Clip and every effected Clip share the same Pattern.',
-    prompts: ['Swap the order of Translate and Scale.', 'Set Ripple amount to zero, then bring it back gradually.'],
-    guideHeading: 'clip-effects',
-    output: portableOutput(), zones, layouts: [singleLayout(zones)], scenes,
-    transitions: cutBoundaries(scenes),
+    id, title: 'Clip Transform', track: 'portable', collection: 'learn', level: 100, order: 3,
+    purpose: 'A Clip can be moved, turned, resized, or flipped on the Stage. The Pattern inside it keeps playing exactly as before; only where its picture lands changes, and no second copy of the Pattern is started.',
+    notice: 'Every Clip here shares one Pattern instance, so the rose keeps turning at the same rate while only its placement changes.',
+    prompts: ['Center the offset Clip (2) by setting Position back to 0, 0.', 'Rotate the Scale Clip (4) a quarter turn and watch the sweep follow.'],
+    guideHeading: 'clip-transform',
+    output: portableOutput(), zones, layouts: [singleLayout(zones)], scenes, composition,
   })
 }
 
@@ -1073,7 +1159,7 @@ function physicalLayout(id: string, name: string, zones: ShowZone[], ranges: Arr
 }
 
 function portableOutput(): CatalogueInput['output'] {
-  return { kind: 'portable', mapId: 'plane', pixelCount: 2_000 }
+  return { kind: 'portable', mapId: 'plane', pixelCount: PORTABLE_REFERENCE_PIXELS }
 }
 
 function installationOutput(): CatalogueInput['output'] {

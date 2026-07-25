@@ -478,6 +478,11 @@ type ShowClipResizePlan = {
   owner: ShowTimelineClipOwner
 }
 
+// Width at or below which the lesson note folds its two columns behind the
+// Details disclosure. The note is the teaching surface, so it keeps its full
+// layout well past the point the timeline itself starts to crowd (#363).
+export const SHOW_NOTE_COMPACT_WIDTH_PX = 560
+
 function ShowNoteTrigger({ note, open, onToggle }: {
   note: StockShowNote
   open: boolean
@@ -530,7 +535,7 @@ function ShowNoteDisclosure({
     if (!section) return
     const update = () => {
       const width = section.getBoundingClientRect().width
-      setCompactMode(width > 0 && width <= 820)
+      setCompactMode(width > 0 && width <= SHOW_NOTE_COMPACT_WIDTH_PX)
     }
     update()
     if (typeof ResizeObserver === 'undefined') return
