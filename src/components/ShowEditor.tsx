@@ -1,4 +1,4 @@
-import { useCallback, useDeferredValue, useEffect, useLayoutEffect, useMemo, useRef, useState, useSyncExternalStore, type CSSProperties, type MouseEvent as ReactMouseEvent, type PointerEvent as ReactPointerEvent, type ReactNode, type SetStateAction } from 'react'
+import { Fragment, useCallback, useDeferredValue, useEffect, useLayoutEffect, useMemo, useRef, useState, useSyncExternalStore, type CSSProperties, type MouseEvent as ReactMouseEvent, type PointerEvent as ReactPointerEvent, type ReactNode, type SetStateAction } from 'react'
 import { createPortal } from 'react-dom'
 import { Activity, BookOpen, Check, ChevronDown, ChevronRight, Clock3, Code2, Copy, Download, Eye, Flag, Grid2X2, Info, Layers3, Lightbulb, ListChecks, Lock, Magnet, Map as MapIcon, Maximize2, Pause, Play, Plus, Redo2, Repeat2, RotateCcw, RotateCw, Route, Scissors, Settings2, SkipBack, SlidersHorizontal, SplitSquareHorizontal, Trash2, Undo2, WandSparkles, X, Zap } from 'lucide-react'
 import { Button } from '@/components/ui/button'
@@ -5543,23 +5543,31 @@ function TimelineLayoutBoundaries({
         if (!transition) return null
         const { left } = showLayoutIntervalPercentBounds(interval, durationMs)
         const selected = selection.kind === 'transition' && selection.transitionId === transition.id
-        return <button
-          key={interval.id}
-          type="button"
-          aria-label={`Select ${interval.layoutName} routing interval ${index + 1}`}
-          aria-pressed={selected}
-          data-show-timeline-focus
-          data-show-selection-key={`transition:${transition.id}`}
-          data-show-layout-boundary={interval.id}
-          className={selected
-            ? 'pointer-events-auto absolute top-0 z-[1] h-7 w-2 -translate-x-1/2 bg-live/35 outline-none ring-1 ring-live/80'
-            : 'pointer-events-auto absolute top-0 z-[1] h-7 w-2 -translate-x-1/2 bg-live/20 outline-none hover:bg-live/45 focus-visible:bg-live/45'}
-          style={{ left: `${left}%` }}
-          onClick={(event) => {
-            event.stopPropagation()
-            onSelect({ kind: 'transition', transitionId: transition.id }, event.currentTarget)
-          }}
-        />
+        return <Fragment key={interval.id}>
+          <span
+            aria-hidden
+            data-show-layout-boundary={interval.id}
+            className={selected
+              ? 'pointer-events-none absolute inset-y-0 z-0 w-px -translate-x-1/2 bg-live/70'
+              : 'pointer-events-none absolute inset-y-0 z-0 w-px -translate-x-1/2 bg-live/30'}
+            style={{ left: `${left}%` }}
+          />
+          <button
+            type="button"
+            aria-label={`Select ${interval.layoutName} routing interval ${index + 1}`}
+            aria-pressed={selected}
+            data-show-timeline-focus
+            data-show-selection-key={`transition:${transition.id}`}
+            className={selected
+              ? 'pointer-events-auto absolute top-0 z-[1] h-7 w-2 -translate-x-1/2 bg-live/35 outline-none ring-1 ring-live/80'
+              : 'pointer-events-auto absolute top-0 z-[1] h-7 w-2 -translate-x-1/2 bg-live/20 outline-none hover:bg-live/45 focus-visible:bg-live/45'}
+            style={{ left: `${left}%` }}
+            onClick={(event) => {
+              event.stopPropagation()
+              onSelect({ kind: 'transition', transitionId: transition.id }, event.currentTarget)
+            }}
+          />
+        </Fragment>
       })}
     </div>
   )
