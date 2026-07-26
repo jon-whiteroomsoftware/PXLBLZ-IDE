@@ -770,6 +770,7 @@ test.describe('authenticated Show authoring', () => {
       if (message.type() === 'error') seriousConsoleErrors.push(message.text())
     })
     await page.goto('studio/shows')
+    await page.getByRole('button', { name: 'Add show' }).click()
     await page.getByRole('button', { name: 'New show' }).click()
 
     await expect(page.getByText('LED-resolution independent')).toBeVisible()
@@ -845,10 +846,12 @@ test.describe('authenticated Show authoring', () => {
 
   test('Cancel and workspace Escape leave no Show record', async ({ page }) => {
     await page.goto('studio/shows')
+    await page.getByRole('button', { name: 'Add show' }).click()
     await page.getByRole('button', { name: 'New show' }).click()
     await page.getByRole('button', { name: 'Cancel' }).click()
     await expect(page.getByText('No show selected')).toBeVisible()
 
+    await page.getByRole('button', { name: 'Add show' }).click()
     await page.getByRole('button', { name: 'New show' }).click()
     await page.keyboard.press('Escape')
     await expect(page.getByText('No show selected')).toBeVisible()
@@ -1032,6 +1035,7 @@ test.describe('authenticated Show authoring', () => {
     expect(response.ok()).toBe(true)
 
     await page.goto('studio/shows')
+    await page.getByRole('button', { name: 'Add show' }).click()
     await page.getByRole('button', { name: 'New show' }).click()
     await page.getByRole('button', { name: 'Create Installation Show' }).click()
     await page.getByLabel('Output map').selectOption(map.id)
