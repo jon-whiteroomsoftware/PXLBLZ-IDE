@@ -194,6 +194,7 @@ test.describe('authenticated Show authoring', () => {
 
     await expect(page.locator('[data-show-layout-interval]')).toHaveCount(0)
     await page.getByRole('button', { name: 'Open Zones' }).click()
+    await page.getByRole('button', { name: 'Open Zone Map' }).click()
     const zoneMap = page.getByRole('dialog', { name: 'Zone Map' })
     await zoneMap.getByRole('button', { name: 'Collapse zone Sky' }).click()
     await page.getByRole('button', { name: 'Close Zones' }).click()
@@ -244,6 +245,7 @@ test.describe('authenticated Show authoring', () => {
     await page.goto('studio/shows/stock-show-203-dynamic-zone-layouts')
 
     await page.getByRole('button', { name: 'Open Zones' }).click()
+    await page.getByRole('button', { name: 'Open Zone Map' }).click()
     const zoneMap = page.getByRole('dialog', { name: 'Zone Map' })
     await zoneMap.getByRole('button', { name: 'Collapse zone A' }).click()
     await zoneMap.getByRole('button', { name: 'Collapse zone B' }).click()
@@ -1256,6 +1258,7 @@ test.describe('authenticated Show authoring', () => {
     await page.goto('studio/shows')
     await createInstallationShow(page)
     await page.getByRole('button', { name: 'Open Zones' }).click()
+    await page.getByRole('button', { name: 'Open Zone Map' }).click()
     await page.getByRole('dialog', { name: 'Zone Map' }).getByRole('button', { name: 'Add zone' }).click()
     await page.getByRole('button', { name: 'Close Zones' }).click()
     await page.getByRole('button', { name: 'Show properties' }).click()

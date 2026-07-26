@@ -430,7 +430,7 @@ The working grammar is compact:
   count instead of a decorative list. Clicking elsewhere closes
   transient Details; one Detail may be pinned for comparison.
 - **Progressive structure.** **Layer** deliberately adds another compositing
-  lane. **Zones** reveals the Zone Map only when routing structure is needed;
+  lane. **Zones** reveals the Zone rail only when routing structure is needed;
   a one-Zone Show otherwise spends the full width on its Clips.
 
 ### Groups and linked choreography
@@ -547,10 +547,19 @@ it does not open a separate Scene-local authoring surface.
 ## 16. Zones and routing
 
 Zones progressively disclose routing structure. A new Show starts with one
-full-output Zone and no persistent Zone chrome. **Zones** opens a compact Zone
-Map containing that existing Zone, Add Zone, a stable optional icon, and links
-to exact Zone properties. With several Zones, closing the map leaves only a
-thin icon picker.
+full-output Zone and no persistent Zone chrome. **Zones** is a plain toggle for
+the Zone rail: the sticky first column of the timeline, holding one header per
+Zone. With several Zones, closing the rail leaves only a thin icon picker.
+
+Each Zone header carries exactly two affordances. The leading control expands or
+collapses that Zone; the trailing control opens its exact Zone properties, where
+the Zone can also be removed. The header's own colour bar, name, and nominal
+pixel count are labels rather than controls.
+
+The **Zone Map** opens from the map control in the rail's column header, above
+the first Zone header, and closes on outside click, Escape, or the same control.
+It holds the Show's Zones - Add Zone, a stable optional icon, collapse, focus,
+and links to exact Zone properties. Closing the map leaves the rail in place.
 
 Expanded Zones share the ruler and may collapse independently. A collapsed
 Zone remains a time-accurate miniature: one thin band per Layer retains Clip

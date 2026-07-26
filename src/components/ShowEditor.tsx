@@ -1,6 +1,6 @@
 import { Fragment, useCallback, useDeferredValue, useEffect, useLayoutEffect, useMemo, useRef, useState, useSyncExternalStore, type CSSProperties, type MouseEvent as ReactMouseEvent, type PointerEvent as ReactPointerEvent, type ReactNode, type SetStateAction } from 'react'
 import { createPortal } from 'react-dom'
-import { Activity, BookOpen, Check, ChevronDown, ChevronRight, Clock3, Code2, Copy, Download, Eye, Flag, Grid2X2, Info, Layers3, Lightbulb, ListChecks, Lock, Magnet, Map as MapIcon, Maximize2, Pause, Play, Plus, Redo2, Repeat2, RotateCcw, RotateCw, Route, Scissors, Settings2, SkipBack, SlidersHorizontal, SplitSquareHorizontal, Trash2, Undo2, WandSparkles, X, Zap } from 'lucide-react'
+import { Activity, BookOpen, Check, ChevronDown, ChevronRight, Clock3, Code2, Copy, Download, Eye, Flag, Grid2X2, Info, Layers3, Lightbulb, ListChecks, Lock, Magnet, Map as MapIcon, Maximize2, PanelLeft, Pause, Play, Plus, Redo2, Repeat2, RotateCcw, RotateCw, Route, Scissors, Settings2, SkipBack, SlidersHorizontal, SplitSquareHorizontal, Trash2, Undo2, WandSparkles, X, Zap } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { NumberField as UiNumberField, useNumberFieldDraft, type NumberFieldProps as UiNumberFieldProps } from '@/components/ui/number-field'
 import { TimeField as UiTimeField, type TimeFieldProps as UiTimeFieldProps } from '@/components/ui/time-field'
@@ -294,6 +294,14 @@ function ShowEasingOptions() {
     <option key={option.id} value={option.id}>{option.label}</option>
   ))
 }
+
+/**
+ * Zone rail widths for the timeline's sticky first column. The open rail holds a
+ * disclosure control, the Zone name with its nominal pixel count, and a
+ * properties control; the micro rail holds only the Zone glyph picker.
+ */
+const ZONE_RAIL_OPEN_PX = 108
+const ZONE_RAIL_MICRO_PX = 32
 
 type ShowSelection =
   | { kind: 'clip'; clipId: string }
@@ -3242,7 +3250,8 @@ function ShowTimelineWorkspace({
   const [insertTimeSeconds, setInsertTimeSeconds] = useState(1)
   const [insertTimeAtMs, setInsertTimeAtMs] = useState(0)
   const [layoutActionsOpen, setLayoutActionsOpen] = useState(false)
-  const [zonesPopoverAnchor, setZonesPopoverAnchor] = useState<HTMLButtonElement | null>(null)
+  const [zoneMapOpen, setZoneMapOpen] = useState(false)
+  const [zoneMapAnchor, setZoneMapAnchor] = useState<HTMLButtonElement | null>(null)
   const [layoutActionTimeMs, setLayoutActionTimeMs] = useState(0)
   const [layoutActionLayoutId, setLayoutActionLayoutId] = useState(show.routingLayouts[0]?.id ?? '')
   const [layoutActionDurationSeconds, setLayoutActionDurationSeconds] = useState(5)
@@ -3704,7 +3713,7 @@ function ShowTimelineWorkspace({
   const contentStartRow = 2
   const timelineOverlayRowSpan = totalContentRows + routingLaneRows + 2
   const columns = [
-    zonesOpen ? '148px' : hasMultipleZones ? '32px' : '0px',
+    zonesOpen ? `${ZONE_RAIL_OPEN_PX}px` : hasMultipleZones ? `${ZONE_RAIL_MICRO_PX}px` : '0px',
     ...displayShow.scenes.flatMap((scene, index) => (
       index < displayShow.scenes.length - 1
         ? [
@@ -4253,20 +4262,6 @@ function ShowTimelineWorkspace({
                   {layoutActionError && <p role="alert" className="mt-2 text-[11px] leading-4 text-amber-200/80">{layoutActionError}</p>}
                 </ShowTimelineToolbarPopover>
               )}
-              {zonesOpen && (
-                <ZoneMapPopover
-                  anchor={zonesPopoverAnchor}
-                  show={show}
-                  collapsedZoneIds={collapsedZoneIdSet}
-                  focusedZoneId={focusedZoneId}
-                  readOnly={readOnly}
-                  onAddZone={onAddZone}
-                  onSelectZone={(zoneId, anchor) => onSelect({ kind: 'zone', zoneId }, anchor)}
-                  onToggleZone={(zoneId) => setZoneCollapsed(show.id, zoneId, !collapsedZoneIdSet.has(zoneId))}
-                  onFocusZone={focusZone}
-                  onUpdateZone={onUpdateZone}
-                />
-              )}
             </>
           )}
           <ShowTimelineCommands
@@ -4282,20 +4277,18 @@ function ShowTimelineWorkspace({
           <ShowTimelineHistoryCommands show={show} readOnly={readOnly} />
           {!readOnly && (
             <Button
-              ref={setZonesPopoverAnchor}
-              size="xs"
+              size="icon-xs"
               variant="ghost"
               aria-label={zonesOpen ? 'Close Zones' : 'Open Zones'}
               aria-expanded={zonesOpen}
-              title={zonesOpen ? 'Close Zone Map' : 'Open Zone Map'}
-              className={`px-1.5 text-[11px] ${showTimelineToolbarControlClass({
-                enabled: true,
-                active: zonesOpen,
-              })}`}
-              onClick={() => setZoneWorkspaceOpen(show.id, !zonesOpen)}
+              title={zonesOpen ? 'Hide the Zone rail' : 'Show the Zone rail'}
+              className={showTimelineToolbarControlClass({ enabled: true, active: zonesOpen })}
+              onClick={() => {
+                setZoneMapOpen(false)
+                setZoneWorkspaceOpen(show.id, !zonesOpen)
+              }}
             >
-              <MapIcon size={12} aria-hidden />
-              <span className="timeline-command-label timeline-command-label-tertiary">Zones</span>
+              <PanelLeft size={12} aria-hidden />
             </Button>
           )}
           <Button
@@ -4434,15 +4427,42 @@ function ShowTimelineWorkspace({
             style={marquee}
           />
         )}
-        {(showFullZoneHeaders || showMicroZonePicker) && <div className="sticky left-0 z-30 self-end border-b border-zinc-800 bg-[#060608] px-1 pb-2 text-[9.5px] uppercase tracking-[0.12em] text-structural">
-          {showMicroZonePicker ? <MapIcon size={12} aria-label="Zone picker" /> : 'Zones'}
-        </div>}
         {(showFullZoneHeaders || showMicroZonePicker) && <div
-          className="sticky left-0 z-30 flex items-center justify-center border-b border-zinc-900 bg-[#060608] px-1 text-[9px] uppercase tracking-[0.12em] text-zinc-600"
+          className="sticky left-0 z-30 flex items-center border-b border-zinc-900 bg-[#060608] px-1"
           style={{ gridColumn: 1, gridRow: rulerRow }}
         >
-          {showMicroZonePicker ? <MapIcon size={12} aria-hidden /> : 'Show time'}
+          <button
+            ref={setZoneMapAnchor}
+            type="button"
+            aria-label={zoneMapOpen ? 'Close Zone Map' : 'Open Zone Map'}
+            aria-expanded={zoneMapOpen}
+            title={zoneMapOpen ? 'Close the Zone Map' : 'Open the Zone Map: Zones and Zone Layouts'}
+            className={[
+              'flex h-6 min-w-0 flex-1 items-center gap-1 rounded px-1 text-[9px] uppercase tracking-[0.12em] transition-colors',
+              showMicroZonePicker ? 'justify-center' : '',
+              zoneMapOpen ? 'bg-live/10 text-live' : 'text-structural hover:bg-zinc-900 hover:text-zinc-200',
+            ].join(' ')}
+            onClick={() => setZoneMapOpen(!zoneMapOpen)}
+          >
+            <MapIcon size={12} aria-hidden className="shrink-0" />
+            {!showMicroZonePicker && <span className="truncate">Zones</span>}
+          </button>
         </div>}
+        {zoneMapOpen && (showFullZoneHeaders || showMicroZonePicker) && (
+          <ZoneMapPopover
+            anchor={zoneMapAnchor}
+            show={show}
+            collapsedZoneIds={collapsedZoneIdSet}
+            focusedZoneId={focusedZoneId}
+            readOnly={readOnly}
+            onAddZone={onAddZone}
+            onDismiss={() => setZoneMapOpen(false)}
+            onSelectZone={(zoneId, anchor) => onSelect({ kind: 'zone', zoneId }, anchor)}
+            onToggleZone={(zoneId) => setZoneCollapsed(show.id, zoneId, !collapsedZoneIdSet.has(zoneId))}
+            onFocusZone={focusZone}
+            onUpdateZone={onUpdateZone}
+          />
+        )}
         <TimelineRuler
           rulerRef={timelineRulerRef}
           show={displayShow}
@@ -4602,7 +4622,7 @@ function ShowTimelineWorkspace({
           <div key={row.zoneId} className="contents">
             {showFullZoneHeaders && <div
               className={[
-                'group sticky left-0 z-30 flex cursor-pointer items-stretch gap-2 rounded-[5px] border border-transparent bg-[#060608] pr-2 text-left font-mono transition-all focus-visible:border-live/60 focus-visible:outline-none',
+                'group sticky left-0 z-30 flex items-stretch gap-0.5 rounded-[5px] border border-transparent bg-[#060608] pr-0.5 text-left font-mono transition-all',
                 selection.kind === 'zone' && selection.zoneId === row.zoneId
                   ? 'border-live/25 bg-live/10 text-zinc-100'
                   : 'text-zinc-300 hover:border-zinc-800 hover:bg-zinc-900/65 hover:text-zinc-100',
@@ -4616,46 +4636,46 @@ function ShowTimelineWorkspace({
             >
               <span
                 aria-hidden
-                className="w-1 self-stretch rounded-sm"
+                className="mr-0.5 w-[3px] self-stretch rounded-sm"
                 style={{ backgroundColor: row.color ?? '#38bdf8' }}
               />
+              {hasMultipleZones ? (
+                <button
+                  type="button"
+                  aria-label={`${collapsed ? 'Expand' : 'Collapse'} zone ${row.zoneName}`}
+                  aria-expanded={!collapsed}
+                  title={`${collapsed ? 'Expand' : 'Collapse'} ${row.zoneName}`}
+                  className="grid size-5 shrink-0 place-items-center self-center rounded text-zinc-500 hover:bg-zinc-800 hover:text-zinc-100"
+                  onClick={(event) => {
+                    event.stopPropagation()
+                    setZoneCollapsed(show.id, row.zoneId, !collapsed)
+                  }}
+                >
+                  {collapsed ? <ChevronRight size={13} /> : <ChevronDown size={13} />}
+                </button>
+              ) : (
+                <span aria-hidden className="grid size-5 shrink-0 place-items-center self-center text-zinc-600">
+                  <ZoneGlyph icon={zone?.icon} size={11} />
+                </span>
+              )}
+              <span className="flex min-w-0 flex-1 flex-col justify-center gap-0.5 py-1">
+                <span className="truncate text-[12px] font-medium">{row.zoneName}</span>
+                <span className="truncate text-[10px] text-structural transition-colors group-hover:text-zinc-400">{row.nominalPixelCount}px</span>
+              </span>
               <button
                 type="button"
-                aria-label={`Select zone ${row.zoneName}`}
+                aria-label={`Open zone ${row.zoneName} properties`}
                 title={`Open ${row.zoneName} properties`}
                 data-show-timeline-focus
                 data-show-selection-key={`zone:${row.zoneId}`}
-                className="flex min-w-0 flex-1 items-center gap-1.5 text-left"
+                className="grid size-5 shrink-0 place-items-center self-center rounded text-zinc-600 transition-colors hover:bg-zinc-800 hover:text-zinc-100 group-hover:text-zinc-400 focus-visible:text-zinc-100 focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-live/60"
                 onClick={(event) => {
                   event.stopPropagation()
                   onSelect({ kind: 'zone', zoneId: row.zoneId }, event.currentTarget)
                 }}
               >
-                <span className="grid size-5 shrink-0 place-items-center rounded border border-current/20 text-zinc-500">
-                  <ZoneGlyph icon={zone?.icon} size={11} />
-                </span>
-                <span className="flex min-w-0 flex-1 flex-col justify-center gap-0.5 py-1">
-                <span className="flex min-w-0 items-center gap-1.5">
-                  <span className="truncate text-[12px] font-medium group-hover:underline group-hover:decoration-dotted group-hover:underline-offset-4">{row.zoneName}</span>
-                </span>
-                <span className="flex min-w-0 items-center text-[10px] text-structural transition-colors group-hover:text-zinc-400">
-                  <span>{row.nominalPixelCount}px</span>
-                  <Settings2 size={11} aria-hidden className="ml-auto shrink-0 text-zinc-400 opacity-0 transition-opacity group-hover:opacity-100 group-focus-visible:opacity-100" />
-                </span>
-              </span>
+                <Settings2 size={12} aria-hidden />
               </button>
-              {hasMultipleZones && <button
-                type="button"
-                aria-label={`${collapsed ? 'Expand' : 'Collapse'} zone ${row.zoneName}`}
-                title={`${collapsed ? 'Expand' : 'Collapse'} ${row.zoneName}`}
-                className="grid size-7 shrink-0 place-items-center self-center rounded text-zinc-500 hover:bg-zinc-800 hover:text-zinc-100"
-                onClick={(event) => {
-                  event.stopPropagation()
-                  setZoneCollapsed(show.id, row.zoneId, !collapsed)
-                }}
-              >
-                {collapsed ? <ChevronRight size={13} /> : <ChevronDown size={13} />}
-              </button>}
             </div>}
             {showMicroZonePicker && <button
               type="button"
@@ -5259,7 +5279,7 @@ function ShowTimelineWorkspace({
                       family={lane.family}
                       hoverText={lane.hoverText}
                       showId={show.id}
-                      stickyLeftPx={zonesOpen ? 148 : hasMultipleZones ? 32 : 0}
+                      stickyLeftPx={zonesOpen ? ZONE_RAIL_OPEN_PX : hasMultipleZones ? ZONE_RAIL_MICRO_PX : 0}
                       showFamilyGlyph={!zonesOpen && !showMicroZonePicker}
                       projection={lane.projection}
                       color={lane.color}
@@ -5315,6 +5335,7 @@ function ZoneMapPopover({
   focusedZoneId,
   readOnly,
   onAddZone,
+  onDismiss,
   onSelectZone,
   onToggleZone,
   onFocusZone,
@@ -5326,6 +5347,7 @@ function ZoneMapPopover({
   focusedZoneId: string | null
   readOnly: boolean
   onAddZone: () => void
+  onDismiss: () => void
   onSelectZone: (zoneId: string, anchor: HTMLElement) => void
   onToggleZone: (zoneId: string) => void
   onFocusZone: (zoneId: string) => void
@@ -5337,7 +5359,7 @@ function ZoneMapPopover({
       widthPx={310}
       ariaLabel="Zone Map"
       className="w-[min(310px,calc(100vw-24px))] rounded border border-zinc-700 bg-[#0a0a0d]/[0.985] p-1.5 shadow-2xl backdrop-blur"
-      onClick={(event) => event.stopPropagation()}
+      onDismiss={onDismiss}
     >
       <header className="flex h-8 items-center gap-2 border-b border-zinc-800 px-1.5">
         <MapIcon size={13} aria-hidden className="text-live" />

@@ -186,7 +186,8 @@ describe('ShowEditor (#318)', () => {
     expect(within(authoring).getByRole('button', { name: 'Split at playhead' }).querySelector('.timeline-command-label-secondary')).toHaveTextContent('Split')
     expect(within(authoring).getByRole('button', { name: 'Clone selection' }).querySelector('.timeline-command-label-secondary')).toHaveTextContent('Clone')
     expect(within(authoring).getByRole('button', { name: 'Make Group from selection' }).querySelector('.timeline-command-label-tertiary')).toHaveTextContent('Group')
-    expect(within(authoring).getByRole('button', { name: 'Open Zones' }).querySelector('.timeline-command-label-tertiary')).toHaveTextContent('Zones')
+    expect(within(authoring).getByRole('button', { name: 'Open Zones' }).querySelector('.timeline-command-label')).toBeNull()
+    expect(within(authoring).getByRole('button', { name: 'Open Zones' })).toHaveAttribute('data-size', 'icon-xs')
     expect(authoring).toHaveClass('ml-auto')
     expect(within(authoring).getByRole('button', { name: 'Snap playhead' })).toHaveAttribute('data-size', 'icon-xs')
     expect(within(authoring).getAllByRole('button').map((button) => button.getAttribute('aria-label'))).toEqual([
@@ -349,17 +350,24 @@ describe('ShowEditor (#318)', () => {
     render(<ShowEditor showId={show.id} />)
 
     const timeline = screen.getByRole('region', { name: 'Show timeline' })
-    expect(within(timeline).queryByRole('button', { name: /Select zone/i })).not.toBeInTheDocument()
+    expect(within(timeline).queryByRole('button', { name: /zone main properties/i })).not.toBeInTheDocument()
+    expect(within(timeline).queryByRole('button', { name: 'Open Zone Map' })).not.toBeInTheDocument()
     expect(within(timeline).queryByRole('dialog', { name: 'Zone Map' })).not.toBeInTheDocument()
 
     await user.click(within(timeline).getByRole('button', { name: 'Open Zones' }))
+
+    expect(screen.queryByRole('dialog', { name: 'Zone Map' })).not.toBeInTheDocument()
+    const grid = screen.getByTestId('show-timeline-grid')
+    expect(within(grid).getByRole('button', { name: 'Open zone main properties' })).toBeInTheDocument()
+    expect(grid.style.gridTemplateColumns.startsWith('108px')).toBe(true)
+
+    await user.click(within(grid).getByRole('button', { name: 'Open Zone Map' }))
 
     const zoneMap = screen.getByRole('dialog', { name: 'Zone Map' })
     expect(timeline).not.toContainElement(zoneMap)
     expect(zoneMap).toHaveClass('fixed', 'z-[80]')
     expect(within(zoneMap).getByText('main')).toBeInTheDocument()
     expect(within(zoneMap).getByRole('button', { name: 'Add Zone' })).toBeInTheDocument()
-    expect(within(screen.getByTestId('show-timeline-grid')).getByRole('button', { name: 'Select zone main' })).toBeInTheDocument()
     expect(within(zoneMap).queryByRole('button', { name: 'Collapse zone main' })).not.toBeInTheDocument()
 
     await user.selectOptions(within(zoneMap).getByRole('combobox', { name: 'Zone icon main' }), 'bolt')
@@ -367,6 +375,61 @@ describe('ShowEditor (#318)', () => {
     await user.click(within(zoneMap).getByRole('button', { name: 'Add Zone' }))
     await waitFor(() => expect(useShowStore.getState().shows[0].zones).toHaveLength(2))
     expect(screen.getAllByRole('button', { name: /^Focus zone / })).toHaveLength(2)
+  })
+
+  it('dismisses the Zone Map without retiring the Zone rail (#629)', async () => {
+    const user = userEvent.setup()
+    const show = addShowZone(createDefaultShow('show-zone-map-dismiss', 'Zone map dismiss', 1000), {
+      name: 'accent',
+      nominalPixelCount: 24,
+    })
+    useShowStore.setState({ shows: [show], activeShowId: show.id, showsLoaded: true })
+
+    render(<ShowEditor showId={show.id} />)
+    const timeline = screen.getByRole('region', { name: 'Show timeline' })
+
+    await user.click(within(timeline).getByRole('button', { name: 'Open Zones' }))
+    const grid = screen.getByTestId('show-timeline-grid')
+    const trigger = within(grid).getByRole('button', { name: 'Open Zone Map' })
+
+    await user.click(trigger)
+    expect(screen.getByRole('dialog', { name: 'Zone Map' })).toBeInTheDocument()
+    expect(within(grid).getByRole('button', { name: 'Close Zone Map' })).toBe(trigger)
+
+    await user.keyboard('{Escape}')
+    expect(screen.queryByRole('dialog', { name: 'Zone Map' })).not.toBeInTheDocument()
+    expect(within(grid).getByRole('button', { name: 'Open zone main properties' })).toBeInTheDocument()
+
+    await user.click(trigger)
+    expect(screen.getByRole('dialog', { name: 'Zone Map' })).toBeInTheDocument()
+    fireEvent.pointerDown(document.body)
+    expect(screen.queryByRole('dialog', { name: 'Zone Map' })).not.toBeInTheDocument()
+    expect(within(grid).getByRole('button', { name: 'Open zone main properties' })).toBeInTheDocument()
+    expect(useShowEditorSessionStore.getState().zoneWorkspaceOpenByShowId[show.id]).toBe(true)
+  })
+
+  it('gives each Zone header one disclosure and one properties affordance (#632)', async () => {
+    const user = userEvent.setup()
+    const show = addShowZone(createDefaultShow('show-zone-header', 'Zone header', 1000), {
+      name: 'accent',
+      nominalPixelCount: 24,
+    })
+    useShowStore.setState({ shows: [show], activeShowId: show.id, showsLoaded: true })
+
+    render(<ShowEditor showId={show.id} />)
+    await user.click(screen.getByRole('button', { name: 'Open Zones' }))
+    const grid = screen.getByTestId('show-timeline-grid')
+
+    expect(within(grid).queryByRole('button', { name: 'Select zone main' })).not.toBeInTheDocument()
+    const collapse = within(grid).getByRole('button', { name: 'Collapse zone main' })
+    const properties = within(grid).getByRole('button', { name: 'Open zone main properties' })
+    const header = collapse.parentElement
+    expect(header).toContainElement(properties)
+    expect(collapse.compareDocumentPosition(properties) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
+    expect(properties).toHaveAttribute('data-show-selection-key', 'zone:zone-1')
+
+    await user.click(properties)
+    expect(screen.getByRole('button', { name: 'Remove zone main' })).toBeInTheDocument()
   })
 
   it('collapses Zones independently and retains a micro Zone picker when the map closes (#581)', async () => {
@@ -382,6 +445,7 @@ describe('ShowEditor (#318)', () => {
 
     expect(within(timeline).getAllByRole('button', { name: /^Collapse zone / })).toHaveLength(2)
     await user.click(within(timeline).getByRole('button', { name: 'Open Zones' }))
+    await user.click(within(screen.getByTestId('show-timeline-grid')).getByRole('button', { name: 'Open Zone Map' }))
     const zoneMap = screen.getByRole('dialog', { name: 'Zone Map' })
     await user.click(within(zoneMap).getByRole('button', { name: 'Collapse zone main' }))
     await user.click(within(zoneMap).getByRole('button', { name: 'Focus zone accent' }))
@@ -391,7 +455,7 @@ describe('ShowEditor (#318)', () => {
     expect(useShowEditorSessionStore.getState().focusedZoneIdByShowId[show.id]).toBe('zone-2')
 
     await user.click(within(timeline).getByRole('button', { name: 'Close Zones' }))
-    expect(within(timeline).queryByRole('dialog', { name: 'Zone Map' })).not.toBeInTheDocument()
+    expect(screen.queryByRole('dialog', { name: 'Zone Map' })).not.toBeInTheDocument()
     expect(within(timeline).getByRole('button', { name: 'Expand zone main' })).toBeInTheDocument()
     expect(within(timeline).getByRole('button', { name: 'Collapse zone accent' })).toBeInTheDocument()
     expect(within(timeline).queryByText('Show time')).not.toBeInTheDocument()

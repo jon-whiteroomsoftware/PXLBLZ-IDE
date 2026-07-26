@@ -1089,14 +1089,23 @@ atomically with the routing topology; adding a second Zone to a Portable
 single-Zone operator seeds a valid horizontal Stripes subdivision until the
 author chooses another routing operator.
 
-The Zones control progressively discloses the Zone Map. One-Zone Shows retain a
-zero-width header column until it opens. Multi-Zone Shows use either full
-148-pixel Zone headers or a 32-pixel icon picker. Each independently persisted
-collapse replaces its Layer and property rows with one 28-pixel miniature that
-retains proportional Clip spans, property-event marks, structural snap times,
-and a Main-layer drop target. Zone names remain 12-pixel primary text in the
-full header; a curated icon and full accessible label preserve identity when
-the header narrows.
+The Zones control progressively discloses the Zone rail, and nothing else;
+`ZONE_RAIL_OPEN_PX` and `ZONE_RAIL_MICRO_PX` in `ShowEditor.tsx` are the single
+source for its width in the grid template and in sticky property-lane offsets.
+One-Zone Shows retain a zero-width header column until it opens. Multi-Zone
+Shows use either full 108-pixel Zone headers or a 32-pixel icon picker. Each
+independently persisted collapse replaces its Layer and property rows with one
+28-pixel miniature that retains proportional Clip spans, property-event marks,
+structural snap times, and a Main-layer drop target. Zone names remain
+12-pixel primary text in the full header; a curated icon and full accessible
+label preserve identity when the header narrows.
+
+The full Zone header exposes one disclosure control and one properties control,
+so the header itself carries no click behaviour. The disclosure control occupies
+the leading glyph slot when the Show has several Zones; a one-Zone Show, which
+cannot collapse, shows the Zone glyph there instead. The Zone Map is separate
+local popover state anchored to the rail's column header, dismissed by outside
+pointerdown, Escape, or retiring the rail.
 
 `showPropertyLaneProjection.ts` is the framework-free authority for compact
 Property animation geometry. It samples authored segments plus every segment
