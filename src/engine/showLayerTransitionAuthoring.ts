@@ -50,21 +50,23 @@ export function planShowLayerTransitionInsertion(
   // here. Zones own separate pixels and separate time, so a Clip starting at this
   // instant in another Zone is not a conflict. Counting them refused a Transition
   // in every symmetric multi-Zone Show, which is the common shape (#363).
-  const unrelatedClips = projectShowUnifiedTimeline(show, composition).zones
-    .filter((zone) => zone.layers.some((layer) => (
-      layer.clips.some((clip) => clipOwnsPlacementId(clip, endpoints.fromPlacementId))
-    )))
-    .flatMap((zone) => (
-      zone.layers
-        .filter((layer) => !layer.clips.some((clip) => clipOwnsPlacementId(clip, endpoints.fromPlacementId)))
-        .flatMap((layer) => layer.clips)
-        .filter((clip) => clip.sceneId === fromOwner.sceneId)
-    ))
+  const projection = projectShowUnifiedTimeline(show, composition)
+  const owningZone = projection.zones.find((zone) => zone.layers.some((layer) => (
+    layer.clips.some((clip) => clipOwnsPlacementId(clip, endpoints.fromPlacementId))
+  )))
+  const unrelatedClips = owningZone?.layers
+    .filter((layer) => !layer.clips.some((clip) => clipOwnsPlacementId(clip, endpoints.fromPlacementId)))
+    .flatMap((layer) => layer.clips)
+    .filter((clip) => clip.sceneId === fromOwner.sceneId) ?? []
+  const otherZoneClips = projection.zones
+    .filter((zone) => zone !== owningZone)
+    .flatMap((zone) => zone.layers.flatMap((layer) => layer.clips))
+    .filter((clip) => clip.sceneId === fromOwner.sceneId)
   const chain = downstreamConnectedChain(resolved.layer, composition, resolved.toIndex)
   const last = chain[chain.length - 1]
   const obstruction = resolved.layer.clips[resolved.toIndex + chain.length]
   const sceneEndMs = projectShowTimeline(show).scenes.find((scene) => scene.sceneId === fromOwner.sceneId)?.endMs
-    ?? projectShowUnifiedTimeline(show, composition).durationMs
+    ?? projection.durationMs
   let maxDurationMs = Math.max(
     0,
     Math.min(obstruction?.startMs ?? sceneEndMs, sceneEndMs) - last.endMs,
@@ -88,10 +90,17 @@ export function planShowLayerTransitionInsertion(
   if (Number.isFinite(activeUnrelatedEndMs)) {
     maxDurationMs = Math.min(maxDurationMs, activeUnrelatedEndMs - cut.startMs - 1)
   }
+  const nextOtherZoneBoundaryMs = otherZoneClips
+    .flatMap((clip) => [clip.startMs, clip.endMs])
+    .filter((boundaryMs) => boundaryMs > cut.startMs && boundaryMs < sceneEndMs)
+    .reduce((nearest, boundaryMs) => Math.min(nearest, boundaryMs), Number.POSITIVE_INFINITY)
+  if (Number.isFinite(nextOtherZoneBoundaryMs)) {
+    maxDurationMs = Math.min(maxDurationMs, nextOtherZoneBoundaryMs - cut.startMs - 1)
+  }
   const movingTransitionIds = new Set((composition.transitions ?? []).filter((transition) => (
     chain.some((clip) => clipOwnsPlacementId(clip, transition.fromPlacementId))
   )).map((transition) => transition.id))
-  const fixedIntervals = projectShowUnifiedTimeline(show, composition).zones
+  const fixedIntervals = projection.zones
     .flatMap((zone) => zone.layers.flatMap((layer) => layer.junctions))
     .filter((junction) => junction.transition && !movingTransitionIds.has(junction.id))
   if (fixedIntervals.some((interval) => cut.startMs >= interval.startMs && cut.startMs < interval.endMs)) {

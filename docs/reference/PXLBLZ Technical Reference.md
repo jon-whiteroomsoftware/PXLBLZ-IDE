@@ -1319,10 +1319,13 @@ deletes later Markers.
 Composition validation independently enforces consecutive endpoints. Within
 the Transition's Zone, an unrelated Clip may either remain inactive or span the
 complete Transition interval; it may not start or stop at either endpoint or
-inside that interval. Clip boundaries in other Zones are independent.
-That invariant guards every edit path, not only Transition controls: duplicate,
-trim, and move operations cannot introduce an unrelated boundary into the
-Transition, and
+inside that interval. Another Zone may Cut at the exact Transition start; the
+compiler applies that Cut immediately and scopes the Transition kernel to its
+owning Zone. A later boundary in another Zone caps authoring before that instant
+and is invalid inside persisted Transition time until per-Zone segmentation
+exists. That invariant guards every edit path, not only Transition controls:
+duplicate, trim, and move operations cannot introduce an unrelated boundary into
+the Transition, and
 direct placement or Layer deletion strips connected Transition records before
 persistence.
 
@@ -1370,8 +1373,14 @@ therefore identical in the outgoing and incoming stacks and distributes through
 the selection or blend without changing its pixels. This algebraic lifting is
 equivalent to transitioning the changed Layer and requires no additional RGB
 render target. Lowering rejects an unrelated same-Zone Clip boundary at either
-endpoint or inside the interval. Simultaneous Layer Transitions remain rejected
-pending explicit multi-transition segmentation and compositing.
+endpoint or inside the interval. A lowered Layer Transition carries its owning
+Zone into the routed recipe: the compiler runs the Transition kernel only there
+and renders the destination stack directly in every other Zone, preserving a
+coincident Cut without crossfading it. Later cross-Zone boundaries and
+simultaneous Layer Transitions remain rejected pending explicit per-Zone
+segmentation and compositing. Fade and coordinate-moving Motion keep their
+Scene-wide spanning-content guard even though the authoring palette excludes
+them.
 
 `showCompositionFreeze.ts` is the production-path release gate over that seam.
 Its Portable fixture measures 60,019 UTF-8 generated-source bytes. Comparing

@@ -141,6 +141,8 @@ export interface ShowCompileRecipeSourceLookup {
     localTimeOffsetMs: number
     tracks: ShowPropertyAnimationTrack[]
   }>
+  /** Transient owning Zone for a lowered per-Layer Transition. */
+  compositionTransitionZoneIdByTransitionId?: Record<string, string>
   controllerZones?: ControllerZone[]
   stageDimension?: 1 | 2 | 3
 }
@@ -2229,11 +2231,13 @@ function showRecordToSceneSequenceRecipe(
 function compilerSequenceTransition(
   transition: ShowBoundaryTransition & { kind: ShowTransitionKind },
   easing?: ShowBoundaryTransition['easing'],
+  scopeZoneName?: string,
 ): NonNullable<NonNullable<ShowRecipe['sceneSequence']>['scenes'][number]['transitionOut']> {
   return {
     kind: transition.kind,
     durationMs: transition.durationMs,
     easing: easing ?? { curve: 'linear' },
+    ...(scopeZoneName ? { scopeZoneName } : {}),
     ...(transition.kind === 'crossfade' ? { crossfadePolicy: transition.crossfadePolicy } : {}),
     ...(transition.kind === 'fade-color' ? { color: normalizeShowTransitionColor(transition.color) } : {}),
     ...(transition.kind === 'dither'
@@ -2527,6 +2531,13 @@ function showRecordToRoutedSceneSequenceRecipe(
   const routedScenes = normalized.scenes.map((scene, sceneIndex) => {
     const transitionRamps = routedScenePlacementRamps(normalized, sceneIndex, clipIdByCellId)
     const propertyAnimation = lookup.compositionPropertyTracksBySceneId?.[scene.id]
+    const visualTransition = showVisualTransitionAfter(normalized, scene.id)
+    const scopeZoneId = visualTransition
+      ? lookup.compositionTransitionZoneIdByTransitionId?.[visualTransition.id]
+      : undefined
+    const scopeZoneName = scopeZoneId
+      ? normalized.zones.find((zone) => zone.id === scopeZoneId)?.name
+      : undefined
     return {
           holdMs: scene.durationMs,
           ...(propertyAnimation ? {
@@ -2566,10 +2577,11 @@ function showRecordToRoutedSceneSequenceRecipe(
               }
             })
           }),
-          ...(showVisualTransitionAfter(normalized, scene.id) ? {
+          ...(visualTransition ? {
             transitionOut: compilerSequenceTransition(
-              showVisualTransitionAfter(normalized, scene.id)!,
-              showVisualTransitionAfter(normalized, scene.id)?.easing,
+              visualTransition,
+              visualTransition.easing,
+              scopeZoneName,
             ),
           } : {}),
           ...(transitionRamps.length > 0 ? { transitionRamps } : {}),

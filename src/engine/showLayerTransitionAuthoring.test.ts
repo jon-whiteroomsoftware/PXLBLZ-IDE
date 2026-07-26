@@ -165,6 +165,21 @@ describe('literal per-Layer Transition authoring (#583)', () => {
     expect(validateShowComposition(show, changed)).toEqual([])
   })
 
+  it('caps insertion before a later Clip boundary in another Zone (#630)', () => {
+    const show = stockShowById('stock-show-105-portable-zones')!.show
+    const composition = structuredClone(show.composition!)
+    composition.scenes[0].zones[0].main[1].durationMs = 4_000
+    composition.scenes[0].zones[1].main[0].durationMs = 8_000
+    composition.scenes[0].zones[1].main[1].startMs = 8_000
+    composition.scenes[0].zones[1].main[1].durationMs = 6_000
+    const junction = projectShowUnifiedTimeline(show, composition).zones[0].layers[0].junctions[0]
+
+    expect(planShowLayerTransitionInsertion(show, composition, {
+      fromPlacementId: junction.fromPlacementId,
+      toPlacementId: junction.toPlacementId,
+    })).toEqual({ enabled: true, maxDurationMs: 999 })
+  })
+
   it('refuses growth when the connected chain would collide with unrelated content', () => {
     const { show, composition } = fixture()
 

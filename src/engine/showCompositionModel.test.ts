@@ -639,6 +639,84 @@ describe('Show composition v1 Main schedule (#488)', () => {
     }
   })
 
+  it('rejects Fade and Motion over a spanning Clip in another Zone (#630)', () => {
+    const { show, composition } = fixture()
+    show.zones.push({ id: 'zone-2', name: 'other', nominalPixelCount: 60 })
+    composition.scenes[0].zones.push({
+      zoneId: 'zone-2',
+      main: [{
+        ...composition.scenes[0].zones[0].main[0],
+        id: 'other-zone-through-transition',
+        startMs: 0,
+        durationMs: 8_000,
+      }],
+      overlays: [],
+    })
+
+    for (const transition of [
+      {
+        id: 'fade-a-b',
+        fromPlacementId: 'placement-a',
+        toPlacementId: 'placement-b',
+        kind: 'fade-color' as const,
+        durationMs: 1_000,
+        easing: { curve: 'linear' as const },
+        color: '#000000',
+      },
+      {
+        id: 'motion-a-b',
+        fromPlacementId: 'placement-a',
+        toPlacementId: 'placement-b',
+        kind: 'motion' as const,
+        motionVariant: 'cover' as const,
+        durationMs: 1_000,
+        easing: { curve: 'linear' as const },
+      },
+    ]) {
+      composition.transitions = [transition]
+      expect(validateShowComposition(show, composition)).toContainEqual(expect.objectContaining({
+        path: 'transitions[0]',
+        code: 'invalid-transition',
+        message: 'Fade and Motion Layer transitions cannot pass over an unrelated Clip.',
+      }))
+    }
+  })
+
+  it('rejects a later Clip boundary in another Zone during a Layer Transition (#630)', () => {
+    const { show, composition } = fixture()
+    show.zones.push({ id: 'zone-2', name: 'other', nominalPixelCount: 60 })
+    composition.scenes[0].zones.push({
+      zoneId: 'zone-2',
+      main: [{
+        ...composition.scenes[0].zones[0].main[0],
+        id: 'other-zone-before',
+        startMs: 0,
+        durationMs: 4_500,
+      }, {
+        ...composition.scenes[0].zones[0].main[1],
+        id: 'other-zone-after',
+        startMs: 4_500,
+        durationMs: 3_500,
+      }],
+      overlays: [],
+    })
+    composition.transitions = [{
+      id: 'transition-a-b',
+      fromPlacementId: 'placement-a',
+      toPlacementId: 'placement-b',
+      kind: 'crossfade',
+      durationMs: 1_000,
+      easing: { curve: 'linear' },
+      crossfadePolicy: 'live-live',
+    }]
+
+    expect(validateShowComposition(show, composition)).toContainEqual(expect.objectContaining({
+      path: 'transitions[0]',
+      code: 'invalid-transition',
+      message: 'A Clip in another Zone cannot start or stop after a Layer Transition has begun.',
+    }))
+  })
+
   it('removes connected transitions from every direct placement and Layer delete path', () => {
     const { composition } = fixture()
     composition.transitions = [{

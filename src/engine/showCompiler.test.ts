@@ -3126,6 +3126,106 @@ export function render(index) { renders = renders + 1; rgb(${r}, ${g}, ${b}) }
     expect(pixel()).toEqual([1, 0.5, 0.5])
   })
 
+  it('applies a scoped Layer Transition only inside its owning Zone (#630)', () => {
+    const zones = [
+      { id: 'left', name: 'Left', ranges: [{ start: 0, end: 0 }] },
+      { id: 'right', name: 'Right', ranges: [{ start: 1, end: 1 }] },
+    ]
+    const artifact = compileShow({
+      clips: [
+        { id: 'left-before', source: 'export function render(index) { rgb(1, 0, 0) }' },
+        { id: 'left-after', source: 'export function render(index) { rgb(0, 1, 0) }' },
+        { id: 'right-before', source: 'export function render(index) { rgb(0, 0, 1) }' },
+        { id: 'right-after', source: 'export function render(index) { rgb(1, 1, 0) }' },
+      ],
+      zones,
+      routingLayouts: [{ id: 'split', name: 'Split', zones }],
+      routedSceneSequence: {
+        scenes: [{
+          holdMs: 1_000,
+          placements: [
+            { zoneName: 'Left', clipId: 'left-before' },
+            { zoneName: 'Right', clipId: 'right-before' },
+          ],
+          transitionOut: {
+            kind: 'crossfade',
+            durationMs: 1_000,
+            easing: 'linear',
+            crossfadePolicy: 'live-live',
+            scopeZoneName: 'Left',
+          },
+        }, {
+          holdMs: 1_000,
+          placements: [
+            { zoneName: 'Left', clipId: 'left-after' },
+            { zoneName: 'Right', clipId: 'right-after' },
+          ],
+        }],
+      },
+      loopDurationMs: 3_000,
+    }, {})
+    const { handle, pixel } = loadShow(artifact.code, artifact.metadata, 2)
+
+    handle.beforeRender(1_500)
+    handle.render(0)
+    expect(pixel()).toEqual([0.5, 0.5, 0])
+    handle.render(1)
+    expect(pixel()).toEqual([1, 1, 0])
+  })
+
+  it('applies the same Zone scope through Portable logical routing (#630)', () => {
+    const zones = [
+      { id: 'left', name: 'Left', ranges: [{ start: 0, end: 1 }] },
+      { id: 'right', name: 'Right', ranges: [{ start: 2, end: 3 }] },
+    ]
+    const artifact = compileShow({
+      clips: [
+        { id: 'left-before', source: 'export function render2D(index, x, y) { rgb(1, 0, 0) }' },
+        { id: 'left-after', source: 'export function render2D(index, x, y) { rgb(0, 1, 0) }' },
+        { id: 'right-before', source: 'export function render2D(index, x, y) { rgb(0, 0, 1) }' },
+        { id: 'right-after', source: 'export function render2D(index, x, y) { rgb(1, 1, 0) }' },
+      ],
+      zones,
+      routingLayouts: [{
+        id: 'split',
+        name: 'Split',
+        zones,
+        logical: { kind: 'split', zoneNames: ['Left', 'Right'], axis: 'x' },
+      }],
+      routingPropertyRamps: { splitPosition: { initial: 0.5, ramps: [] } },
+      routedSceneSequence: {
+        scenes: [{
+          holdMs: 1_000,
+          placements: [
+            { zoneName: 'Left', clipId: 'left-before' },
+            { zoneName: 'Right', clipId: 'right-before' },
+          ],
+          transitionOut: {
+            kind: 'crossfade',
+            durationMs: 1_000,
+            easing: 'linear',
+            crossfadePolicy: 'live-live',
+            scopeZoneName: 'Left',
+          },
+        }, {
+          holdMs: 1_000,
+          placements: [
+            { zoneName: 'Left', clipId: 'left-after' },
+            { zoneName: 'Right', clipId: 'right-after' },
+          ],
+        }],
+      },
+      loopDurationMs: 3_000,
+    }, {})
+    const { handle, pixel } = loadShow(artifact.code, artifact.metadata, 4)
+
+    handle.beforeRender(1_500)
+    handle.render2D(0, 0.25, 0.5)
+    expect(pixel()).toEqual([0.5, 0.5, 0])
+    handle.render2D(3, 0.75, 0.5)
+    expect(pixel()).toEqual([1, 1, 0])
+  })
+
   it('animates a moving split through one routed renderer per pixel (#405)', () => {
     const zones = [
       { id: 'left', name: 'left', ranges: [{ start: 0, end: 3 }] },

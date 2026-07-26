@@ -53,6 +53,11 @@ export function lowerShowCompositionForCompile(
   const lastDerivedSceneId = new Map<string, string>()
   const derivedCellIdByFlatCellId = new Map<string, string>()
   const layerTransitionsBySceneId = resolveLocalLayerTransitions(composition)
+  const compositionTransitionZoneIdByTransitionId = Object.fromEntries(
+    [...layerTransitionsBySceneId.values()].flatMap((entries) => entries.map((entry) => (
+      [entry.transition.id, entry.zoneId]
+    ))),
+  )
 
   for (const scene of show.scenes) {
     const sceneComposition = sceneCompositionById.get(scene.id)
@@ -206,15 +211,17 @@ export function lowerShowCompositionForCompile(
       compositionLayerByCellId,
       compositionPlacementIdByCellId,
       compositionPropertyTracksBySceneId,
+      compositionTransitionZoneIdByTransitionId,
     },
   }
 }
 
 function resolveLocalLayerTransitions(
   composition: ShowCompositionV1,
-): Map<string, Array<{ transition: ShowLayerTransition; startMs: number; endMs: number }>> {
+): Map<string, Array<{ transition: ShowLayerTransition; zoneId: string; startMs: number; endMs: number }>> {
   const placementById = new Map<string, {
     sceneId: string
+    zoneId: string
     layerKey: string
     startMs: number
     endMs: number
@@ -223,6 +230,7 @@ function resolveLocalLayerTransitions(
     for (const zone of scene.zones) {
       zone.main.forEach((placement) => placementById.set(placement.id, {
         sceneId: scene.sceneId,
+        zoneId: zone.zoneId,
         layerKey: `${zone.zoneId}:main`,
         startMs: placement.startMs,
         endMs: placement.startMs + placement.durationMs,
@@ -230,6 +238,7 @@ function resolveLocalLayerTransitions(
       zone.overlays.forEach((layer, layerIndex) => layer.placements.forEach((placement) => {
         placementById.set(placement.id, {
           sceneId: scene.sceneId,
+          zoneId: zone.zoneId,
           layerKey: `${zone.zoneId}:overlay:${layerIndex}`,
           startMs: placement.startMs,
           endMs: placement.startMs + placement.durationMs,
@@ -238,7 +247,12 @@ function resolveLocalLayerTransitions(
     }
   }
 
-  const result = new Map<string, Array<{ transition: ShowLayerTransition; startMs: number; endMs: number }>>()
+  const result = new Map<string, Array<{
+    transition: ShowLayerTransition
+    zoneId: string
+    startMs: number
+    endMs: number
+  }>>()
   for (const transition of composition.transitions ?? []) {
     const from = placementById.get(transition.fromPlacementId)
     const to = placementById.get(transition.toPlacementId)
@@ -258,6 +272,7 @@ function resolveLocalLayerTransitions(
         placementId === transition.fromPlacementId
         || placementId === transition.toPlacementId
         || placement.sceneId !== from.sceneId
+        || placement.zoneId !== from.zoneId
       ) return false
       const touchesTransitionInterval = placement.endMs >= from.endMs && placement.startMs <= to.startMs
       const spansCompleteInterval = placement.startMs < from.endMs && placement.endMs > to.startMs
@@ -270,7 +285,7 @@ function resolveLocalLayerTransitions(
     if (entries.some((entry) => from.endMs < entry.endMs && to.startMs > entry.startMs)) {
       throw new Error('Overlapping per-Layer transitions require independent render targets and are not supported yet.')
     }
-    entries.push({ transition, startMs: from.endMs, endMs: to.startMs })
+    entries.push({ transition, zoneId: from.zoneId, startMs: from.endMs, endMs: to.startMs })
     result.set(from.sceneId, entries)
   }
   return result

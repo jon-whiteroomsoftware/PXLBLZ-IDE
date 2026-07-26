@@ -2522,11 +2522,8 @@ export function ShowEditor({
                     })
                   : insertShowLayerTransition(activeShow, timelineComposition, transition)
                 if (nextComposition === timelineComposition) {
-                  // Do not guess at the cause. The insertion refused for a
-                  // reason the plan did not predict, and naming a wrong one is
-                  // worse than admitting the gap (#363).
                   setLayerTransitionApplyError(
-                    `${item.label} was refused at this junction. This is a known gap: the check that enables this panel does not yet agree with the insertion itself.`,
+                    `${item.label} could not be inserted because the available time at this junction changed. Reopen the Transition panel and try again.`,
                   )
                   return
                 }

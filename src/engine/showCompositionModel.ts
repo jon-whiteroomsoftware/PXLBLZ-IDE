@@ -461,14 +461,14 @@ export function validateShowComposition(
       addIssue(issues, path, 'invalid-transition', 'A Layer transition must occupy the exact gap between its ordered Clip endpoints.')
     }
     if (fromOwner && toOwner) {
-      const unrelatedOwners = [...placementOwnerById.entries()].flatMap(([placementId, owner]) => {
+      const sceneUnrelatedOwners = [...placementOwnerById.entries()].flatMap(([placementId, owner]) => {
         return (
           placementId === transition.fromPlacementId
           || placementId === transition.toPlacementId
           || owner.sceneId !== fromOwner.sceneId
-          || owner.zoneId !== fromOwner.zoneId
         ) ? [] : [owner]
       })
+      const unrelatedOwners = sceneUnrelatedOwners.filter((owner) => owner.zoneId === fromOwner.zoneId)
       const unrelatedBoundaryInside = unrelatedOwners.some((owner) => {
         const touchesTransitionInterval = owner.endMs >= fromOwner.endMs && owner.startMs <= toOwner.startMs
         const spansCompleteInterval = owner.startMs < fromOwner.endMs && owner.endMs > toOwner.startMs
@@ -477,7 +477,17 @@ export function validateShowComposition(
       if (unrelatedBoundaryInside) {
         addIssue(issues, path, 'invalid-transition', 'An unrelated Clip cannot start or stop at or inside a Layer transition.')
       }
-      const unrelatedSpansCompleteInterval = unrelatedOwners.some((owner) => (
+      const otherZoneBoundaryAfterStart = sceneUnrelatedOwners.some((owner) => (
+        owner.zoneId !== fromOwner.zoneId
+        && (
+          (owner.startMs > fromOwner.endMs && owner.startMs <= toOwner.startMs)
+          || (owner.endMs > fromOwner.endMs && owner.endMs <= toOwner.startMs)
+        )
+      ))
+      if (otherZoneBoundaryAfterStart) {
+        addIssue(issues, path, 'invalid-transition', 'A Clip in another Zone cannot start or stop after a Layer Transition has begun.')
+      }
+      const unrelatedSpansCompleteInterval = sceneUnrelatedOwners.some((owner) => (
         owner.startMs < fromOwner.endMs && owner.endMs > toOwner.startMs
       ))
       if (unrelatedSpansCompleteInterval && (transition.kind === 'fade-color' || transition.kind === 'motion')) {

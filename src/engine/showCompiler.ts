@@ -279,6 +279,8 @@ export interface ShowRouteTransitionRecipe {
 export interface ShowSceneSequenceTransitionRecipe {
   kind: 'cut' | 'crossfade' | 'fade-color' | 'wipe' | 'dither' | 'portal' | 'motion'
   durationMs: number
+  /** Compiler-only scope for a lowered per-Layer Transition. */
+  scopeZoneName?: string
   crossfadePolicy?: ShowCrossfadePolicy
   color?: string
   direction?: number
@@ -6167,6 +6169,9 @@ function emitLogicalSceneTransition(
       snapshotRenderTarget,
       scalarField,
     )
+    const zoneBlock = transitionAppliesToZone(transition, zoneName)
+      ? transitionBlock
+      : `${toCapture}\n${to.prefix}_emit()`
     return [`${zoneIndex === 0 ? 'if' : 'else if'} (__pxlblz_show_route_id == ${zoneIndex}) {
 ${fromStack.map((placement) => `  ${placement.member.pixelCountName} = ${fromDomain.pixelCount}`).join('\n')}
 ${toStack.map((placement) => `  ${placement.member.pixelCountName} = ${toDomain.pixelCount}`).join('\n')}
@@ -6180,7 +6185,7 @@ ${toStack.map((placement) => `  ${placement.member.pixelCountName} = ${toDomain.
   var __pxlblz_show_scene_to_local_y = ${toDomain.y}
   var ${localIndex} = min(${from.pixelCountName} - 1, floor(__pxlblz_show_scene_local_y * __pxlblz_show_route_side) * __pxlblz_show_route_side + floor(__pxlblz_show_scene_local_x * __pxlblz_show_route_side))
   var ${toLocalIndex} = min(${to.pixelCountName} - 1, floor(__pxlblz_show_scene_to_local_y * __pxlblz_show_route_to_side) * __pxlblz_show_route_to_side + floor(__pxlblz_show_scene_to_local_x * __pxlblz_show_route_to_side))
-${indentBlock(transitionBlock, 2)}
+${indentBlock(zoneBlock, 2)}
   return
 }`]
   })
@@ -6220,21 +6225,23 @@ function emitLogicalSoftSplitSceneTransition(
     ]
     const fromCapture = `${from.prefix}_renderCapture2D(__pxlblz_show_route_local_index, __pxlblz_show_route_local_x, __pxlblz_show_route_local_y)`
     const toCapture = `${to.prefix}_renderCapture2D(__pxlblz_show_route_local_index, __pxlblz_show_route_local_x, __pxlblz_show_route_local_y)`
-    const transitionBlock = emitSceneTransitionWithCaptures(
-      from,
-      to,
-      transition,
-      2,
-      fromCapture,
-      toCapture,
-      {
-        index: '__pxlblz_show_route_local_index',
-        x: '__pxlblz_show_route_local_x',
-        y: '__pxlblz_show_route_local_y',
-      },
-      snapshotRenderTarget,
-      scalarField,
-    )
+    const transitionBlock = transitionAppliesToZone(transition, zoneName)
+      ? emitSceneTransitionWithCaptures(
+          from,
+          to,
+          transition,
+          2,
+          fromCapture,
+          toCapture,
+          {
+            index: '__pxlblz_show_route_local_index',
+            x: '__pxlblz_show_route_local_x',
+            y: '__pxlblz_show_route_local_y',
+          },
+          snapshotRenderTarget,
+          scalarField,
+        )
+      : `${toCapture}\n${to.prefix}_emit()`
     const capture = `${countLines.join('\n')}
 ${redirectTransitionOutputToCapture(transitionBlock, from, to)}
 var ${target}_r = __pxlblz_show_transition_capture_r
@@ -7234,6 +7241,7 @@ function emitPhysicalSceneZoneStackTransition(
     fromZone,
     toZone,
     zoneIndex,
+    zoneName,
     from,
     to,
     transition,
@@ -7249,6 +7257,7 @@ function emitPhysicalSceneZoneTransition(
   fromZone: ControllerZone,
   toZone: ControllerZone,
   zoneIndex: number,
+  zoneName: string,
   from: CompiledMember,
   to: CompiledMember,
   transition: ShowSceneSequenceTransitionRecipe,
@@ -7284,17 +7293,19 @@ function emitPhysicalSceneZoneTransition(
   const toCapture = outputDimension === 2
     ? `${to.prefix}_renderCapture2D(${toLocal}, ${toLocalX}, ${toLocalY})`
     : `${to.prefix}_renderCapture(${toLocal})`
-  const transitionBlock = emitSceneTransitionWithCaptures(
-    from,
-    to,
-    transition,
-    outputDimension,
-    fromCapture,
-    toCapture,
-    { index: fromLocal, x: localX, y: localY },
-    snapshotRenderTarget,
-    scalarField,
-  )
+  const transitionBlock = transitionAppliesToZone(transition, zoneName)
+    ? emitSceneTransitionWithCaptures(
+        from,
+        to,
+        transition,
+        outputDimension,
+        fromCapture,
+        toCapture,
+        { index: fromLocal, x: localX, y: localY },
+        snapshotRenderTarget,
+        scalarField,
+      )
+    : `${toCapture}\n${to.prefix}_emit()`
   return [
     `var ${fromLocal} = -1`,
     ...emitZoneLocalAssignments(fromZone, fromLocal),
@@ -7308,6 +7319,13 @@ function emitPhysicalSceneZoneTransition(
     `  return`,
     `}`,
   ].join('\n')
+}
+
+function transitionAppliesToZone(
+  transition: ShowSceneSequenceTransitionRecipe,
+  zoneName: string,
+): boolean {
+  return transition.scopeZoneName === undefined || transition.scopeZoneName === zoneName
 }
 
 function emitSceneTransitionWithCaptures(
