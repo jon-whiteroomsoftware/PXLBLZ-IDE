@@ -218,6 +218,13 @@ Build an arc from a few legible decisions: establish structure, introduce one
 dominant change at a time, then release it. More active Zones do not require
 every Clip to change Pattern, Effect, value, and Transition simultaneously.
 
+Vary the junctions. Consecutive Clips can be joined by any Transition family, and
+using one everywhere hides that the choice exists. Where both sides of a junction
+share a Pattern, a blend has nothing to show; a Dissolve, Wipe, or shape reveal
+does. End deliberately as well: give each Zone a release curve on the same
+schedule so they go dark together, take the curve to zero rather than near it,
+and leave held black before Show End so the Show finishes instead of stopping.
+
 ### Clip sequencing and cuts
 
 One Layer is a mutually exclusive schedule. Its Clips may touch but not overlap,

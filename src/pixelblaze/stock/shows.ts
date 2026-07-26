@@ -102,6 +102,7 @@ const LESSON_TIME_SCALE = 0.32
 const SINE_IN_OUT: ShowStructuredEasing = { curve: 'sine', direction: 'in-out' }
 const CUBIC_IN_OUT: ShowStructuredEasing = { curve: 'cubic', direction: 'in-out' }
 const LINEAR: ShowStructuredEasing = { curve: 'linear' }
+const QUADRATIC_IN: ShowStructuredEasing = { curve: 'quadratic', direction: 'in' }
 const COLORS = ['#38bdf8', '#f97316', '#a78bfa', '#22c55e']
 const CARDINAL_DIRECTIONS = [
   { id: 'east', label: 'east', turns: 0 },
@@ -399,7 +400,7 @@ function learn106(): StockShow {
   const id = 'stock-show-106-built-from-basics'
   const zones = logicalZones(['Sky', 'Ground'], PORTABLE_REFERENCE_PIXELS)
   const scenes: SceneSpec[] = [
-    scene('arc', 'Arc', 24, [
+    scene('arc', 'Arc', 30, [
       clip('zone-1', 'TopographicBloom', LESSON_TIME_SCALE),
       clip('zone-2', 'MetaballGarden', LESSON_TIME_SCALE),
     ]),
@@ -413,61 +414,108 @@ function learn106(): StockShow {
     ],
     scenes: [{
       sceneId: 'arc',
-      propertyTracks: [{
-        // One value curve, on the Clip that closes the Show. The Sky releases
-        // while the Ground is still holding, which is what makes the ending read
-        // as a decision rather than a stop.
-        id: 'track-sky-release',
-        target: { kind: 'placement-view', placementId: 'clip-sky-reprise', property: 'brightness' },
-        keyframes: [
-          keyframe('sky-arrive', 18, 1),
-          keyframe('sky-hold', 21, 1),
-          keyframe('sky-release', 24, 0.3),
-        ],
-      }],
+      propertyTracks: [
+        // The Ground's arrival. The Dissolve reassembles the garden and this
+        // curve takes over the instant it lands: a rotation that starts almost
+        // still and accelerates, so the Clip is going fastest as it goes dark.
+        {
+          id: 'track-ground-spin',
+          target: { kind: 'placement-transform', placementId: 'clip-ground-return', property: 'rotation' },
+          keyframes: [
+            keyframe('spin-still', 15, 0, QUADRATIC_IN),
+            keyframe('spin-away', 30, 1.25),
+          ],
+        },
+        // Both Zones release together. The ramp is slow and it reaches zero,
+        // not almost-zero, and then two seconds of held black end the Show.
+        {
+          id: 'track-sky-release',
+          target: { kind: 'placement-view', placementId: 'clip-sky-reprise', property: 'brightness' },
+          keyframes: [
+            keyframe('sky-hold', 24, 1),
+            keyframe('sky-dark', 28, 0, LINEAR),
+            keyframe('sky-black', 30, 0),
+          ],
+        },
+        {
+          id: 'track-ground-release',
+          target: { kind: 'placement-view', placementId: 'clip-ground-return', property: 'brightness' },
+          keyframes: [
+            keyframe('ground-hold', 24, 1),
+            keyframe('ground-dark', 28, 0, LINEAR),
+            keyframe('ground-black', 30, 0),
+          ],
+        },
+      ],
       // No instance is placed in two Zones at once. Each Zone owns its own
-      // material, which reads more clearly and is also what keeps the compiled
-      // artifact well inside budget: a Pattern placed in two Zones has to be
-      // emitted twice.
+      // material, which reads more clearly and is also the main thing holding
+      // this Show's artifact down: a Pattern placed in two Zones has to be
+      // emitted twice, and the capstone is already the heaviest lesson.
       zones: [
         {
           zoneId: 'zone-1',
           overlays: [],
           main: [
             placement('clip-sky-bloom', 'bloom', 0, 8),
-            // A real gap: the Crossfade owns these two seconds on the ruler.
-            placement('clip-sky-mandala', 'mandala', 10, 8),
-            placement('clip-sky-reprise', 'bloom', 18, 6),
+            // Real gaps: each Transition owns its seconds on the ruler.
+            placement('clip-sky-mandala', 'mandala', 11, 8.5),
+            placement('clip-sky-reprise', 'bloom', 22.5, 7.5),
           ],
         },
         {
           zoneId: 'zone-2',
           overlays: [],
           main: [
-            placement('clip-ground-garden', 'garden', 0, 11),
-            // One second of blank time in the Ground while the Sky keeps going.
+            placement('clip-ground-garden', 'garden', 0, 12.5),
             {
-              // The return is the same instance seen from a different pose, and
-              // it carries the Show's only Effect.
-              ...placement('clip-ground-return', 'garden', 12, 12),
-              transform: { ...NEUTRAL_SHOW_CLIP_TRANSFORM, scaleX: 0.7, scaleY: 0.7 },
+              // The return is the same instance, reassembled by the Dissolve
+              // and then turned by its own curve. It carries the only Effect.
+              //
+              // The zoom is not decoration. A rotating Clip samples outside its
+              // own frame at the corners, which renders as a hard jagged edge
+              // sweeping through the picture. Measured against a full-field
+              // Pattern, that costs up to 18.8% of the Zone at 1.0 and 0.2% at
+              // 1.4; 1.5 is the first value that stays clean through a whole
+              // turn. A circular Clip Viewport would be the real fix (#591).
+              ...placement('clip-ground-return', 'garden', 15, 15),
+              transform: { ...NEUTRAL_SHOW_CLIP_TRANSFORM, scaleX: 1.5, scaleY: 1.5 },
               effects: [{ id: 'ground-hue', kind: 'hue', turns: 0.12 }],
             },
           ],
         },
       ],
     }],
-    transitions: [{
-      id: 'transition-sky-bloom-mandala', fromPlacementId: 'clip-sky-bloom', toPlacementId: 'clip-sky-mandala',
-      kind: 'crossfade', durationMs: 2_000, easing: SINE_IN_OUT,
-    }],
-    durationMs: 24_000,
+    // Three Transitions, deliberately from three different families, because a
+    // Crossfade is the least of what a junction can do.
+    transitions: [
+      {
+        id: 'transition-sky-bloom-mandala', fromPlacementId: 'clip-sky-bloom', toPlacementId: 'clip-sky-mandala',
+        kind: 'crossfade', durationMs: 3_000, easing: SINE_IN_OUT,
+      },
+      {
+        // Both Sky Patterns are radial, so a circle opening from the center
+        // reads as the reprise growing out of the mandala rather than covering it.
+        id: 'transition-sky-mandala-reprise', fromPlacementId: 'clip-sky-mandala', toPlacementId: 'clip-sky-reprise',
+        kind: 'portal', durationMs: 3_000, easing: SINE_IN_OUT,
+        shape: 'circle', revealMode: 'grow-incoming',
+        centerX: 0.5, centerY: 0.5, featherPolicy: 'blend', feather: 0.12,
+      },
+      {
+        // The Ground returns to the same Pattern, so a blend would show nothing:
+        // both sides are the same pixels. A Dissolve breaks the garden apart and
+        // reassembles it, which is visible where a blend would not be.
+        id: 'transition-ground-garden-return', fromPlacementId: 'clip-ground-garden', toPlacementId: 'clip-ground-return',
+        kind: 'dither', durationMs: 2_500, easing: CUBIC_IN_OUT,
+        dissolveVariant: 'coherent-noise', seed: 106, softness: 0.35,
+      },
+    ],
+    durationMs: 30_000,
   }
   return catalogue({
     id, title: 'Built from Basics', track: 'portable', collection: 'learn', level: 100, order: 6,
-    purpose: 'Everything in this Show came from the five lessons before it: Clips and Cuts, blank time, one Transition, one value curve, one Clip Transform, one Effect, and two Zones. A Show gets its shape from how few decisions are placed well, not from how many are switched on.',
-    notice: 'Only one thing changes at a time. Find the Crossfade in the Sky, the blank second in the Ground, and the single Effect on the last Ground Clip.',
-    prompts: ['Delete the Crossfade and watch the same junction become a Cut.', 'Stretch the blank second in the Ground to three and see how much the ending changes.'],
+    purpose: 'Everything in this Show came from the five lessons before it: Clips and Cuts, blank time, Transitions, value curves, Clip Transforms, one Effect, and two Zones. What is new is only that the pieces are timed against each other, so the Sky and the Ground arrive and leave as one gesture rather than two.',
+    notice: 'Three junctions, three different Transitions: a Crossfade, a circle opening from the center, and a Dissolve that reassembles the Ground. The garden then turns faster and faster while both Zones fade to black together and hold it.',
+    prompts: ['Change the circle Transition in the Sky to a different shape and watch the same junction tell a different story.', 'Drag the two release curves apart so the Zones stop fading together, then put them back.'],
     guideHeading: 'building-a-complete-show',
     output: portableOutput(), zones, layouts: [splitLayout('layout-sky-ground', 'Sky and ground', zones, 'y')], scenes, composition,
   })
@@ -1176,6 +1224,6 @@ function placement(id: string, instanceId: string, startSeconds: number, duratio
   }
 }
 
-function keyframe(id: string, seconds: number, value: number) {
-  return { id, timeMs: seconds * 1_000, value, easing: SINE_IN_OUT }
+function keyframe(id: string, seconds: number, value: number, easing: ShowStructuredEasing = SINE_IN_OUT) {
+  return { id, timeMs: seconds * 1_000, value, easing }
 }

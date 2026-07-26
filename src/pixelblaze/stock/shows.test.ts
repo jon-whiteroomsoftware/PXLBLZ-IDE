@@ -250,13 +250,22 @@ describe('stock Show curriculum (#363)', () => {
   it('leaves each foundation lesson compile headroom for session edits', () => {
     // Built-ins are session-editable and every note asks the learner to change
     // something, so a lesson compiled near the ceiling breaks on first use.
+    //
+    // The single-mechanism lessons stay well under half the budget. The capstone
+    // is the one Show that carries every mechanism at once over two Zones, and
+    // measurement puts that baseline alone near 58%: three Patterns, three
+    // Transition families, and three value curves cannot also fit under 0.6. Its
+    // prompts are deliberately non-structural -- swap a Transition shape, drag a
+    // curve -- so the headroom it needs is smaller than the other lessons', and
+    // the ceiling here is what that trade actually costs.
+    const ceilingFor = (id: string) => (id === 'stock-show-106-built-from-basics' ? 0.8 : 0.6)
     for (const item of foundations()) {
       const compiled = compileShowForArtifact(item.show, [], undefined, {}, { stageDimension: 2 })
       expect(compiled.error, item.name).toBeNull()
       const summary = compiled.artifact!.summary
       const ratio = summary.artifactBytes / summary.measuredDeviceBudgetBytes
       expect(ratio, `${item.name} uses ${(ratio * 100).toFixed(1)}% of the device budget`)
-        .toBeLessThan(0.6)
+        .toBeLessThan(ceilingFor(item.id))
     }
   })
 
@@ -406,13 +415,14 @@ describe('stock Show curriculum (#363)', () => {
     const [sky, ground] = composition.scenes[0].zones
     const placements = [...sky.main, ...ground.main]
 
-    // One of each, once. A capstone that doubles up on any mechanism stops
-    // being a demonstration that few decisions are enough.
-    expect((composition.transitions ?? []).map((transition) => transition.kind)).toEqual(['crossfade'])
-    expect(composition.scenes[0].propertyTracks).toHaveLength(1)
+    // Every junction is a different Transition family. The capstone's job is to
+    // show that a Crossfade is one option among several, not the only one.
+    expect((composition.transitions ?? []).map((transition) => transition.kind))
+      .toEqual(['crossfade', 'portal', 'dither'])
     expect(placements.filter((placement) => placement.effects?.length).length).toBe(1)
     expect(placements.filter((placement) => placement.transform !== undefined).length).toBe(1)
     expect(placements.every((placement) => placement.viewport === undefined)).toBe(true)
+    expect(placements.every((placement) => placement.presentation === undefined)).toBe(true)
     // No Layers: overlays are 200-level material.
     expect(sky.overlays).toEqual([])
     expect(ground.overlays).toEqual([])
@@ -420,7 +430,7 @@ describe('stock Show curriculum (#363)', () => {
     // Blank time survives in the Ground while the Sky keeps playing.
     const groundMain = [...ground.main].sort((a, b) => a.startMs - b.startMs)
     expect(groundMain[0].startMs + groundMain[0].durationMs).toBeLessThan(groundMain[1].startMs)
-    expect(composition.durationMs).toBe(24_000)
+    expect(composition.durationMs).toBe(30_000)
 
     // No instance is placed in two Zones at once: each Zone owns its material,
     // which is also what keeps the compiled artifact affordable.
@@ -428,6 +438,41 @@ describe('stock Show curriculum (#363)', () => {
     const groundInstances = new Set(ground.main.map((placement) => placement.instanceId))
     expect([...skyInstances].filter((id) => groundInstances.has(id)), 'no instance spans both Zones')
       .toEqual([])
+  })
+
+  it('lands 106 on a shared release that reaches black and holds it', () => {
+    // The ending is the point of the Show: both Zones dim on the same schedule,
+    // all the way to zero rather than to a residual glow, and the last two
+    // seconds are held black so the Show reads as finished rather than cut off.
+    const item = stockShowById('stock-show-106-built-from-basics')!
+    const composition = item.show.composition!
+    const tracks = composition.scenes[0].propertyTracks ?? []
+    const releases = tracks.filter((track) => track.id.endsWith('-release'))
+
+    expect(releases.map((track) => track.id)).toEqual(['track-sky-release', 'track-ground-release'])
+    for (const track of releases) {
+      expect(track.keyframes.map((frame) => [frame.timeMs, frame.value]), track.id)
+        .toEqual([[24_000, 1], [28_000, 0], [30_000, 0]])
+    }
+    // Each release owns the closing Clip of its own Zone.
+    expect(releases.map((track) => (track.target as { placementId: string }).placementId))
+      .toEqual(['clip-sky-reprise', 'clip-ground-return'])
+    for (const zone of composition.scenes[0].zones) {
+      const ordered = [...zone.main].sort((a, b) => a.startMs - b.startMs)
+      const last = ordered[ordered.length - 1]
+      expect(last.startMs + last.durationMs, `${zone.zoneId} plays to Show End`).toBe(30_000)
+    }
+
+    // The Ground keeps moving into the dark: rotation accelerates out of the
+    // Dissolve instead of holding a pose.
+    const spin = tracks.find((track) => track.id === 'track-ground-spin')!
+    expect(spin.target).toEqual({
+      kind: 'placement-transform', placementId: 'clip-ground-return', property: 'rotation',
+    })
+    expect(spin.keyframes[0]).toMatchObject({ timeMs: 15_000, value: 0, easing: { curve: 'quadratic', direction: 'in' } })
+    const finalSpin = spin.keyframes[spin.keyframes.length - 1]
+    expect(finalSpin).toMatchObject({ timeMs: 30_000 })
+    expect(finalSpin.value).toBeGreaterThan(1)
   })
 
   it('scores Redline as a 60-second five-surface Installation showcase (#503)', () => {

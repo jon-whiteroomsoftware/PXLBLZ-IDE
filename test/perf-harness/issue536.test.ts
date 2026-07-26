@@ -51,15 +51,16 @@ describe('Restart-instance global-liveness census (#536)', () => {
 
   it('applies the 15% gate mechanically without converting it into a product invariant', () => {
     expect(report.decision.threshold).toBe(0.15)
-    // Recensused with the #363 Learn recast. The gate still reads the
-    // unweighted percent, so the verdict below is unchanged even though the
-    // weighted figure now sits above the threshold.
+    // Recensused with the #363 Learn recast, and again when 106 gained its
+    // second and third Transitions. The gate still reads the unweighted
+    // percent, so the verdict below is unchanged even though the weighted
+    // figure sits above the threshold.
     expect(report.summary).toMatchObject({
-      representativeMemberGlobals: 2_092,
+      representativeMemberGlobals: 2_083,
       representativeReclaimedGlobals: 371,
     })
     expect(report.decision.representativeReclaimPercent).toBeCloseTo(0.00925926, 8)
-    expect(report.decision.weightedRepresentativeReclaimPercent).toBeCloseTo(0.17734226, 8)
+    expect(report.decision.weightedRepresentativeReclaimPercent).toBeCloseTo(0.17810850, 8)
     expect(report.decision.ceilingRescues).toEqual([])
     expect(report.decision.proceedWithEmission).toBe(false)
     expect(report.decision.proceedWithEmission).toBe(
