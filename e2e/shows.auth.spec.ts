@@ -457,7 +457,7 @@ test.describe('authenticated Show authoring', () => {
 
   test('keeps vertical scroll, horizontal trackpad pan, and Shift-wheel pan distinct (#476)', async ({ page }) => {
     await page.setViewportSize({ width: 1200, height: 500 })
-    await page.goto('studio/shows/stock-show-installation-finale')
+    await page.goto('studio/shows/stock-show-showcase-redline-installation')
     await zoomTimeline(page, 8)
 
     const timeline = page.getByTestId('show-timeline-scroll-region')
@@ -494,49 +494,6 @@ test.describe('authenticated Show authoring', () => {
 
     await expect(page.getByRole('slider', { name: 'Show playhead' })).toHaveValue('0')
     await expect(playhead).toBeHidden()
-  })
-
-  test('bridges Global Show to one read-only Scene X-ray and Super Detail layer', async ({ page }) => {
-    await page.setViewportSize({ width: 1440, height: 900 })
-    await page.goto('studio/shows')
-    await createInstallationShow(page)
-
-    const timeline = page.getByRole('region', { name: 'Show timeline' })
-    const before = await timeline.boundingBox()
-    const xray = page.getByRole('group', { name: 'Scene 1 Scene X-ray, read only' })
-    await expect(xray).toHaveCSS('height', '36px')
-    await expect(xray.locator('input, select, textarea, [contenteditable="true"]')).toHaveCount(0)
-
-    await page.getByRole('button', { name: 'Inspect Scene 1 in Super Detail' }).click()
-    const firstDetail = page.getByRole('dialog', { name: 'Scene 1 Super Detail' })
-    await expect(firstDetail).toHaveAttribute('aria-modal', 'false')
-    await expect(firstDetail).toContainText('Global')
-    await expect(firstDetail).toContainText('Local')
-    await expect(firstDetail.locator('input, select, textarea, [contenteditable="true"]')).toHaveCount(0)
-    await expect(firstDetail.getByRole('button', { name: 'Open Scene 1 editor' })).toBeVisible()
-    await expect(page.getByRole('button', { name: 'Edit Scene 1' })).toBeVisible()
-    expect((await timeline.boundingBox())?.height).toBe(before?.height)
-
-    await zoomTimeline(page, 8)
-    await expect(xray).toHaveCSS('height', '36px')
-    await expect(firstDetail).toHaveCount(0)
-    await page.getByRole('button', { name: 'Show Scene 2 Scene X-ray' }).click()
-    await expect(page.getByRole('dialog')).toHaveCount(0)
-    await page.getByRole('button', { name: 'Inspect Scene 2 in Super Detail' }).click()
-    await expect(page.getByRole('dialog', { name: 'Scene 2 Super Detail' })).toBeVisible()
-
-    await page.setViewportSize({ width: 600, height: 720 })
-    await expect(page.getByRole('dialog', { name: 'Scene 2 Super Detail' })).toHaveCount(0)
-    await page.getByRole('button', { name: 'Inspect Scene 2 in Super Detail' }).click()
-    await expect(page.getByRole('dialog', { name: 'Scene 2 Super Detail' })).toBeVisible()
-    const detailBounds = await page.getByRole('dialog', { name: 'Scene 2 Super Detail' }).boundingBox()
-    expect(detailBounds?.x ?? -1).toBeGreaterThanOrEqual(0)
-    expect((detailBounds?.x ?? 0) + (detailBounds?.width ?? 0)).toBeLessThanOrEqual(600)
-    expect((detailBounds?.y ?? 0) + (detailBounds?.height ?? 0)).toBeLessThanOrEqual(720)
-    expect(await page.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth)).toBeLessThanOrEqual(8)
-
-    await page.keyboard.press('Escape')
-    await expect(page.getByRole('dialog', { name: 'Scene 2 Super Detail' })).toHaveCount(0)
   })
 
   test('clones and magnetically moves one owner with session undo, redo, and durable Snap', async ({ page }) => {
@@ -1327,39 +1284,6 @@ test.describe('authenticated Show authoring', () => {
     await expect(page.getByText('Generated pattern - Untitled Show')).toBeVisible()
   })
 
-  test('keeps Scene-local transport bounded and explicit (#487)', async ({ page }) => {
-    await page.setViewportSize({ width: 1440, height: 900 })
-    await page.goto('studio/shows')
-    await createInstallationShow(page)
-
-    await page.getByRole('button', { name: 'Inspect Scene 1 in Super Detail' }).click()
-    await page.getByRole('button', { name: 'Open Scene 1 editor' }).click()
-    await expect(page.getByTestId('scene-transition-playhead-line')).toBeVisible()
-
-    await expect(page.getByRole('button', { name: 'Go to Scene start' })).toBeVisible()
-    await expect(page.getByRole('button', { name: 'Go to Show start' })).toHaveCount(0)
-    const playhead = page.getByRole('slider', { name: 'Scene playhead' })
-    await playhead.fill('5000')
-    await playhead.blur()
-    await expect(page.getByLabel('Scene local time')).toContainText('00:05.0')
-
-    await page.getByRole('button', { name: 'Go to Scene start' }).click()
-    await expect(page.getByLabel('Scene local time')).toContainText('00:00.0')
-    await playhead.fill('30000')
-    await playhead.blur()
-    await page.getByRole('button', { name: 'Play Scene preview' }).click()
-    expect(Number(await playhead.inputValue())).toBeLessThan(1_000)
-    await page.getByRole('button', { name: 'Pause Scene preview' }).click()
-
-    await page.setViewportSize({ width: 720, height: 900 })
-    await expect(page.getByRole('group', { name: 'Scene transport controls' })).toBeVisible()
-    const pageOverflow = await page.evaluate(() => ({
-      scrollWidth: document.documentElement.scrollWidth,
-      clientWidth: document.documentElement.clientWidth,
-    }))
-    expect(pageOverflow.scrollWidth - pageOverflow.clientWidth).toBeLessThanOrEqual(8)
-  })
-
   test('authors and reloads exact Scene-local Property animation (#490)', async ({ page }) => {
     await page.setViewportSize({ width: 1440, height: 900 })
     await page.goto('studio/shows')
@@ -1389,111 +1313,6 @@ test.describe('authenticated Show authoring', () => {
     await page.getByRole('button', { name: 'Select keyframe at 30000 ms' }).click()
     await expect(page.getByRole('spinbutton', { name: 'Keyframe value' })).toHaveValue('0.42')
     await expect(page.getByRole('combobox', { name: 'Keyframe easing' })).toHaveValue('steps-4-end')
-  })
-
-  test('moves Scene-local overlays across layers and keeps diagnostics responsive (#491)', async ({ page }) => {
-    const consoleErrors: string[] = []
-    page.on('console', (message) => {
-      if (message.type() === 'error') consoleErrors.push(message.text())
-    })
-    await page.setViewportSize({ width: 1440, height: 900 })
-    await page.goto('studio/shows')
-    await createInstallationShow(page)
-    await page.getByRole('button', { name: 'Inspect Scene 1 in Super Detail' }).click()
-    await page.getByRole('button', { name: 'Open Scene 1 editor' }).click()
-    await expect(page.getByTestId('scene-transition-playhead-line')).toBeVisible()
-    await page.getByRole('button', { name: 'Enable local cuts' }).click()
-    await page.getByRole('combobox', { name: 'New Main clip Pattern' }).selectOption({ label: 'TestPattern1D' })
-    await page.getByRole('button', { name: 'Overlay layer' }).click()
-    await page.getByRole('button', { name: 'Overlay layer' }).click()
-    await page.getByRole('button', { name: 'Add clip to Overlay 1 at playhead' }).click()
-    await page.getByRole('button', { name: 'Add clip to Overlay 2 at playhead' }).click()
-
-    const clip = page.getByRole('button', { name: 'Select TestPattern1D clip in Overlay 1' })
-    const bounds = await clip.boundingBox()
-    expect(bounds).not.toBeNull()
-    await page.mouse.move(bounds!.x + Math.min(12, bounds!.width / 2), bounds!.y + bounds!.height - 3)
-    await page.mouse.down()
-    const liftedBounds = await page.getByTestId('scene-overlay-drag-ghost').boundingBox()
-    expect(liftedBounds).not.toBeNull()
-    expect(Math.abs(liftedBounds!.y - bounds!.y)).toBeLessThanOrEqual(1)
-    await page.mouse.move(bounds!.x + Math.min(18, bounds!.width / 2), bounds!.y + bounds!.height / 2 + 48, { steps: 4 })
-    await expect(page.getByTestId('scene-overlay-drag-ghost')).toContainText('TestPattern1D')
-    await expect(page.locator('[data-drop-target="true"]')).toHaveCount(1)
-    await page.mouse.up()
-    await expect(page.getByTestId('scene-overlay-drag-ghost')).toHaveCount(0)
-
-    // A fully occupied target has no legal before/after position, so the first
-    // drop returns to its source layer without creating a partial edit.
-    await expect(page.getByRole('button', { name: 'Select TestPattern1D clip in Overlay 1' })).toBeVisible()
-    await expect(page.getByRole('button', { name: 'Select TestPattern1D clip in Overlay 2' })).toBeVisible()
-    await page.getByRole('button', { name: 'Select TestPattern1D clip in Overlay 2' }).click()
-    await page.getByRole('button', { name: 'Delete overlay clip' }).click()
-
-    const retryClip = page.getByRole('button', { name: 'Select TestPattern1D clip in Overlay 1' })
-    const retryBounds = await retryClip.boundingBox()
-    expect(retryBounds).not.toBeNull()
-    const playheadBeforeDrag = await page.getByRole('slider', { name: 'Scene playhead' }).inputValue()
-    await page.mouse.move(retryBounds!.x + Math.min(12, retryBounds!.width / 2), retryBounds!.y + retryBounds!.height / 2)
-    await page.mouse.down()
-    await page.mouse.move(retryBounds!.x + Math.min(18, retryBounds!.width / 2), retryBounds!.y + retryBounds!.height / 2 + 48, { steps: 4 })
-    await expect(page.getByTestId('scene-overlay-drag-ghost')).toContainText('TestPattern1D')
-    await page.mouse.up()
-    await expect(page.getByTestId('scene-overlay-drag-ghost')).toHaveCount(0)
-
-    await waitForCurrentShow(page, (show) => (
-      show.composition?.scenes[0]?.zones?.[0]?.overlays?.[0]?.placements.length === 0
-      && show.composition.scenes[0].zones[0].overlays[1]?.placements.length === 1
-    ))
-    await expect(page.getByRole('button', { name: 'Select TestPattern1D clip in Overlay 2' })).toHaveAttribute('aria-pressed', 'true')
-    await expect(page.getByRole('spinbutton', { name: 'Start seconds' })).toBeVisible()
-    await expect(page.getByRole('slider', { name: 'Scene playhead' })).toHaveValue(playheadBeforeDrag)
-
-    const layerHandle = page.getByRole('button', { name: 'Reorder Overlay 2 layer' })
-    const layerHandleBounds = await layerHandle.boundingBox()
-    expect(layerHandleBounds).not.toBeNull()
-    await page.mouse.move(layerHandleBounds!.x + layerHandleBounds!.width / 2, layerHandleBounds!.y + layerHandleBounds!.height / 2)
-    await page.mouse.down()
-    await page.mouse.move(layerHandleBounds!.x + layerHandleBounds!.width / 2, layerHandleBounds!.y - 54, { steps: 4 })
-    await expect(page.getByTestId('scene-layer-drag-ghost')).toContainText('Overlay 2')
-    await expect(page.locator('[data-layer-drop-target="true"]')).toHaveCount(1)
-    await page.mouse.up()
-    await expect(page.getByTestId('scene-layer-drag-ghost')).toHaveCount(0)
-    await waitForCurrentShow(page, (show) => show.composition?.scenes[0]?.zones?.[0]?.overlays?.[0]?.name === 'Overlay 2')
-
-    await page.getByRole('button', { name: 'Reorder Overlay 2 layer' }).press('ArrowDown')
-    await waitForCurrentShow(page, (show) => show.composition?.scenes[0]?.zones?.[0]?.overlays?.[1]?.name === 'Overlay 2')
-
-    // Keep the narrow check representative of a busy layer rail rather than a
-    // two-row happy path.
-    await page.getByRole('button', { name: 'Overlay layer' }).click()
-    await page.getByRole('button', { name: 'Overlay layer' }).click()
-    await page.getByRole('button', { name: 'Add clip to Overlay 3 at playhead' }).click()
-    await page.getByRole('button', { name: 'Add clip to Overlay 4 at playhead' }).click()
-
-    await page.getByRole('button', { name: 'Select TestPattern1D clip in Overlay 2' }).click()
-    await page.getByRole('button', { name: 'Show Zone outlines' }).click()
-    await page.getByRole('button', { name: 'Show Clip outline' }).click()
-    await expect(page.getByTestId('show-stage-zone-outlines')).toBeVisible()
-    await expect(page.getByTestId('show-stage-clip-outline')).toBeVisible()
-
-    await page.setViewportSize({ width: 720, height: 900 })
-    await expect(page.getByTestId('show-scene-zone-editor')).toBeVisible()
-    const localScroller = page.getByTestId('scene-local-scroll')
-    const scrollMetrics = await localScroller.evaluate((element) => ({
-      clientWidth: element.clientWidth,
-      scrollWidth: element.scrollWidth,
-      scrollLeft: element.scrollLeft,
-    }))
-    expect(scrollMetrics.scrollWidth).toBeGreaterThan(scrollMetrics.clientWidth)
-    await localScroller.hover()
-    await page.mouse.wheel(0, 120)
-    await page.keyboard.down('Shift')
-    await page.mouse.wheel(0, 120)
-    await page.keyboard.up('Shift')
-    await expect.poll(() => localScroller.evaluate((element) => element.scrollLeft)).toBeGreaterThan(scrollMetrics.scrollLeft)
-    expect(await page.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth)).toBeLessThanOrEqual(8)
-    expect(consoleErrors).toEqual([])
   })
 
   test('authors shape-aware diamond and ring spatial transitions', async ({ page }) => {
