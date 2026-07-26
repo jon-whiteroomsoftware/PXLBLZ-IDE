@@ -86,6 +86,10 @@ describe('Show property lane projection (#483)', () => {
       sceneId: 'passages',
       zoneId: 'zone-1',
       label: 'SignalMandala brightness',
+      // Owning Clip and property stay separable so lane naming can drop or
+      // abbreviate the Clip without re-parsing the label (#631).
+      patternName: 'SignalMandala',
+      propertyLabel: 'brightness',
       valueKind: 'percent',
     })
     expect(lanes[0].projection.beats.map((beat) => ({ timeMs: beat.timeMs, value: beat.value }))).toEqual([

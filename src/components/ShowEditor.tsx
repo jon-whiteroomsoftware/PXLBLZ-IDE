@@ -21,6 +21,7 @@ import { PixelblazeCodeEditor } from '@/components/PixelblazeCodeEditor'
 import { ShowZoneSpatialSelector } from '@/components/ShowZoneSpatialSelector'
 import { ShowEntityDetailPanel } from '@/components/ShowEntityDetailPanel'
 import { ShowPropertySparkline } from '@/components/ShowPropertySparkline'
+import { resolvePropertyLaneDisplayLabels } from '@/engine/showPropertyLaneLabels'
 import { ShowEffectPalette } from '@/components/ShowEffectsAuthoring'
 import { ShowClipEntityDetail } from '@/components/ShowClipEntityDetail'
 import { ShowPatternInstanceControls } from '@/components/ShowPatternInstanceControls'
@@ -3588,6 +3589,8 @@ function ShowTimelineWorkspace({
         {
           key: 'timeScale',
           label: 'animation speed',
+          propertyLabel: 'animation speed',
+          ownerName: undefined as string | undefined,
           ariaLabel: `Animation speed lane for ${zone.name}`,
           selectsTransition: true,
           color: '#a78bfa',
@@ -3597,6 +3600,8 @@ function ShowTimelineWorkspace({
         {
           key: 'brightness',
           label: 'brightness',
+          propertyLabel: 'brightness',
+          ownerName: undefined as string | undefined,
           ariaLabel: `Brightness lane for ${zone.name}`,
           selectsTransition: true,
           color: '#fbbf24',
@@ -3612,6 +3617,8 @@ function ShowTimelineWorkspace({
         ] as const).map(([property, label, color]) => ({
           key: `transform:${property}`,
           label,
+          propertyLabel: label as string,
+          ownerName: undefined as string | undefined,
           ariaLabel: `${label} lane for ${zone.name}`,
           selectsTransition: true,
           color,
@@ -3625,6 +3632,8 @@ function ShowTimelineWorkspace({
         ...controlLanes.map((control) => ({
           key: `control:${control.exportName}`,
           label: control.label,
+          propertyLabel: control.label,
+          ownerName: undefined as string | undefined,
           ariaLabel: `${control.label} control lane for ${zone.name}`,
           selectsTransition: true,
           color: '#22d3ee',
@@ -3640,6 +3649,8 @@ function ShowTimelineWorkspace({
           .map((lane) => ({
             key: `scene:${lane.id}`,
             label: lane.label,
+            propertyLabel: lane.propertyLabel,
+            ownerName: lane.patternName as string | undefined,
             ariaLabel: `${lane.label} animation for ${zone.name}`,
             selectsTransition: false,
             color: '#a78bfa',
@@ -3651,7 +3662,17 @@ function ShowTimelineWorkspace({
             projection: lane.projection,
           })),
       ]
-      return [zone.id, candidates.filter((candidate) => candidate.projection.timeVarying)] as const
+      // The lane itself is named by property alone; the owning Clip returns,
+      // abbreviated, only where a property would otherwise repeat (#631).
+      const visible = candidates.filter((candidate) => candidate.projection.timeVarying)
+      const displayLabels = resolvePropertyLaneDisplayLabels(visible.map((candidate) => ({
+        propertyLabel: candidate.propertyLabel,
+        ownerName: candidate.ownerName,
+      })))
+      return [zone.id, visible.map((candidate, index) => ({
+        ...candidate,
+        displayLabel: displayLabels[index],
+      }))] as const
     }))
   }, [displayShow, patternControlsByCellId, show])
   const movingSplitLayout = show.routingLayouts.find((layout) => (
@@ -5222,6 +5243,7 @@ function ShowTimelineWorkspace({
                   >
                     <ShowPropertySparkline
                       ariaLabel={lane.ariaLabel}
+                      label={lane.displayLabel}
                       projection={lane.projection}
                       color={lane.color}
                       selectedBeatId={selectedBeat}

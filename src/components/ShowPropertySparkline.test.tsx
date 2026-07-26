@@ -37,6 +37,49 @@ describe('ShowPropertySparkline (#483)', () => {
     )
   })
 
+  it('names the animated property on the lane without renaming the lane (#631)', () => {
+    const projection = projectShowPropertyLane({
+      durationMs: 1_000,
+      constraint: { min: 0, max: 1 },
+      defaultValue: 1,
+      segments: [{ id: 'ramp', startMs: 0, endMs: 1_000, from: 0.2, to: 0.8, easing: { curve: 'linear' } }],
+      beats: [],
+    })
+
+    render(
+      <ShowPropertySparkline
+        ariaLabel="SignalMandala brightness animation for Main"
+        label="SignalMandala brightness"
+        projection={projection}
+      />,
+    )
+
+    const group = screen.getByRole('group', { name: 'SignalMandala brightness animation for Main' })
+    const pill = screen.getByTestId('show-property-lane-inline-label')
+    expect(group).toContainElement(pill)
+    expect(pill).toHaveTextContent('SignalMandala brightness')
+    expect(pill).toHaveAttribute('aria-hidden', 'true')
+    // pointer-events-none keeps the pill off the hit-test path, so beat dots
+    // underneath stay clickable and no dead `title` promises a tooltip (#631).
+    expect(pill).toHaveClass('pointer-events-none')
+    expect(pill).not.toHaveAttribute('title')
+    expect(pill).toHaveClass('truncate')
+  })
+
+  it('leaves the lane unlabelled when no property name is supplied (#631)', () => {
+    const projection = projectShowPropertyLane({
+      durationMs: 1_000,
+      constraint: { min: 0, max: 1 },
+      defaultValue: 1,
+      segments: [],
+      beats: [],
+    })
+
+    render(<ShowPropertySparkline ariaLabel="Unlabelled lane" projection={projection} />)
+
+    expect(screen.queryByTestId('show-property-lane-inline-label')).not.toBeInTheDocument()
+  })
+
   it('reports vertical beat dragging in sparkline display coordinates (#496)', () => {
     const onMoveBeat = vi.fn()
     const projection = projectShowPropertyLane({

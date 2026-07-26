@@ -78,6 +78,10 @@ export interface ShowScenePropertyLaneProjection {
   sceneId: string
   zoneId: string
   label: string
+  /** Owning Clip's Pattern name, kept apart from `label` so lane naming can drop or abbreviate it (#631). */
+  patternName: string
+  /** Animated property without the owning Clip, e.g. 'brightness' (#631). */
+  propertyLabel: string
   valueKind: 'number' | 'percent' | 'multiplier'
   projection: ShowPropertyLaneProjection
 }
@@ -356,11 +360,14 @@ export function projectGlobalShowScenePropertyLanes(show: ShowRecord): ShowScene
         if (!local.timeVarying) return []
         const globalDurationMs = Math.max(1, timeline.durationMs)
         const toGlobalTime = (localTimeMs: number) => sceneRange.startMs + localTimeMs
+        const label = `${descriptor.patternName} ${descriptor.propertyLabel}`
         return [{
           id: `${scene.id}:${descriptor.zoneId}:${track.id}`,
           sceneId: scene.id,
           zoneId: descriptor.zoneId,
-          label: descriptor.label,
+          label,
+          patternName: descriptor.patternName,
+          propertyLabel: descriptor.propertyLabel,
           valueKind: descriptor.valueKind,
           projection: {
             ...local,
@@ -375,7 +382,7 @@ export function projectGlobalShowScenePropertyLanes(show: ShowRecord): ShowScene
                 ...beat,
                 timeMs,
                 displayX: timeMs / globalDurationMs,
-                label: `${descriptor.label} keyframe at ${formatLaneSeconds(beat.timeMs)} in ${scene.name}`,
+                label: `${label} keyframe at ${formatLaneSeconds(beat.timeMs)} in ${scene.name}`,
               }
             }),
           },
@@ -387,7 +394,8 @@ export function projectGlobalShowScenePropertyLanes(show: ShowRecord): ShowScene
 
 type SceneTrackDescriptor = {
   zoneId: string
-  label: string
+  patternName: string
+  propertyLabel: string
   valueKind: ShowScenePropertyLaneProjection['valueKind']
   defaultValue: number
   constraint: { min: number; max: number }
@@ -407,7 +415,8 @@ function describeScenePropertyTrack(
     const controlLabel = target.kind === 'instance-control' ? humanizeControlName(target.exportName) : 'animation speed'
     return zoneIds.map((zoneId) => ({
       zoneId,
-      label: `${instance.patternName} ${controlLabel}`,
+      patternName: instance.patternName,
+      propertyLabel: controlLabel,
       valueKind: target.kind === 'instance-time-scale' ? 'multiplier' : 'number',
       defaultValue: target.kind === 'instance-time-scale'
         ? instance.time.timeScale
@@ -422,12 +431,13 @@ function describeScenePropertyTrack(
   const patternName = instance?.patternName ?? 'Clip'
   if (target.kind === 'placement-opacity') {
     if (!('opacity' in owner.placement)) return []
-    return [{ zoneId: owner.zoneId, label: `${patternName} opacity`, valueKind: 'percent', defaultValue: owner.placement.opacity, constraint: { min: 0, max: 1 } }]
+    return [{ zoneId: owner.zoneId, patternName, propertyLabel: 'opacity', valueKind: 'percent', defaultValue: owner.placement.opacity, constraint: { min: 0, max: 1 } }]
   }
   if (target.kind === 'placement-view') {
     return [{
       zoneId: owner.zoneId,
-      label: `${patternName} ${target.property}`,
+      patternName,
+      propertyLabel: target.property,
       valueKind: target.property === 'brightness' ? 'percent' : 'number',
       defaultValue: owner.placement.view[target.property],
       constraint: { min: 0, max: 1 },
@@ -440,7 +450,8 @@ function describeScenePropertyTrack(
       : target.property === 'rotation' ? { min: -8, max: 8 } : { min: 0.01, max: 8 }
     return [{
       zoneId: owner.zoneId,
-      label: `${patternName} ${target.property}`,
+      patternName,
+      propertyLabel: target.property,
       valueKind: 'number',
       defaultValue: value,
       constraint,
@@ -453,7 +464,8 @@ function describeScenePropertyTrack(
       : { min: -4, max: 4 }
     return [{
       zoneId: owner.zoneId,
-      label: `${patternName} viewport ${target.property}`,
+      patternName,
+      propertyLabel: `viewport ${target.property}`,
       valueKind: 'number',
       defaultValue: value,
       constraint,
@@ -465,7 +477,8 @@ function describeScenePropertyTrack(
   if (!effect || !parameter || typeof value !== 'number') return []
   return [{
     zoneId: owner.zoneId,
-    label: `${patternName} ${effect.kind} ${parameter.label}`,
+    patternName,
+    propertyLabel: `${effect.kind} ${parameter.label}`,
     valueKind: 'number',
     defaultValue: value,
     constraint: { min: parameter.min ?? value - 1, max: parameter.max ?? value + 1 },

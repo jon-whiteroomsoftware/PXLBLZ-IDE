@@ -3308,6 +3308,18 @@ describe('ShowEditor (#318)', () => {
     expect(within(panel).getByRole('button', { name: 'Delete Brightness animation' })).toBeDisabled()
   })
 
+  it('identifies each property sparkline on the lane itself (#631)', () => {
+    const stock = STOCK_SHOWS.find((candidate) => candidate.id === 'stock-show-102-transitions-values')!
+
+    render(<ShowEditor showId={stock.id} showOverride={stock.show} readOnly />)
+
+    const lane = screen.getByRole('group', { name: 'SignalMandala brightness animation for Main' })
+    const inlineLabel = within(lane).getByTestId('show-property-lane-inline-label')
+    // The owning Clip sits directly above the lane, so an unambiguous property
+    // needs no Clip name on the lane itself (#631).
+    expect(inlineLabel).toHaveTextContent('brightness')
+  })
+
   it('authors and removes a Clip Property animation from the unified inspector (#607)', async () => {
     const user = userEvent.setup()
     const show = createDefaultShow('show-clip-property-animation', 'Clip Property animation', 1000)
@@ -3362,6 +3374,65 @@ describe('ShowEditor (#318)', () => {
 
     await user.click(within(panel).getByRole('button', { name: 'Delete Brightness animation' }))
     await waitFor(() => expect(useShowStore.getState().shows[0].composition?.scenes[0].propertyTracks).toBeUndefined())
+  })
+
+  it('abbreviates the owning Clip only where two lanes animate the same property (#631)', () => {
+    const show = createDefaultShow('show-colliding-property-lanes', 'Colliding property lanes', 1000)
+    const [firstScene] = show.scenes
+    const zone = show.zones[0]
+    const ramp = (id: string) => [
+      { id: `${id}-start`, timeMs: 0, value: 0.25, easing: { curve: 'linear' as const } },
+      { id: `${id}-end`, timeMs: firstScene.durationMs, value: 0.75, easing: { curve: 'linear' as const } },
+    ]
+    show.composition = {
+      version: 1,
+      patternInstances: [
+        { id: 'instance-a', pattern: { kind: 'stock', id: 'TestPattern1D' }, patternName: 'TestPattern1D', time: { timeScale: 1, timeOffsetMs: 0 } },
+        { id: 'instance-b', pattern: { kind: 'stock', id: 'CometLoom' }, patternName: 'CometLoom', time: { timeScale: 1, timeOffsetMs: 0 } },
+      ],
+      scenes: [{
+        sceneId: firstScene.id,
+        propertyTracks: [
+          {
+            id: 'track-a-brightness',
+            target: { kind: 'placement-view', placementId: 'placement-a', property: 'brightness' },
+            keyframes: ramp('key-a'),
+          },
+          {
+            id: 'track-b-brightness',
+            target: { kind: 'placement-view', placementId: 'placement-b', property: 'brightness' },
+            keyframes: ramp('key-b'),
+          },
+          {
+            id: 'track-b-phase',
+            target: { kind: 'placement-view', placementId: 'placement-b', property: 'phase' },
+            keyframes: ramp('key-p'),
+          },
+        ],
+        zones: [{
+          zoneId: zone.id,
+          main: [
+            { id: 'placement-a', instanceId: 'instance-a', startMs: 0, durationMs: firstScene.durationMs, view: { brightness: 1, phase: 0, mirror: false } },
+            { id: 'placement-b', instanceId: 'instance-b', startMs: 0, durationMs: firstScene.durationMs, view: { brightness: 1, phase: 0, mirror: false } },
+          ],
+          overlays: [],
+        }],
+      }],
+    }
+    setPersonalContentProvider(memoryProvider([show]))
+    useShowStore.setState({ shows: [show], activeShowId: show.id, showsLoaded: true })
+
+    render(<ShowEditor showId={show.id} />)
+
+    const labelFor = (accessibleName: string) => within(
+      screen.getByRole('group', { name: accessibleName }),
+    ).getByTestId('show-property-lane-inline-label').textContent
+
+    // Two Clips animate brightness, so those lanes reclaim an abbreviated owner.
+    expect(labelFor('TestPattern1D brightness animation for main')).toBe('TPD brightness')
+    expect(labelFor('CometLoom brightness animation for main')).toBe('CL brightness')
+    // Phase is unique in the Zone, so it stays bare.
+    expect(labelFor('CometLoom phase animation for main')).toBe('phase')
   })
 
   it('exposes only Property animations owned by the inspected Clip (#607)', async () => {

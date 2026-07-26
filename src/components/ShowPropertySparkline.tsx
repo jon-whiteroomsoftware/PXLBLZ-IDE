@@ -7,6 +7,7 @@ const VERTICAL_SPAN = 1 - VERTICAL_INSET * 2
 export function ShowPropertySparkline({
   projection,
   ariaLabel,
+  label,
   color = '#a78bfa',
   selectedBeatId = null,
   formatValue = defaultFormatValue,
@@ -17,6 +18,7 @@ export function ShowPropertySparkline({
 }: {
   projection: ShowPropertyLaneProjection
   ariaLabel: string
+  label?: string
   color?: string
   selectedBeatId?: string | null
   formatValue?: (value: number) => string
@@ -47,6 +49,17 @@ export function ShowPropertySparkline({
           vectorEffect="non-scaling-stroke"
         />
       </svg>
+      {/* Non-interactive so it can never swallow a beat click; the full text
+          stays on the lane's accessible name and the gutter label (#631). */}
+      {label && (
+        <span
+          aria-hidden="true"
+          data-testid="show-property-lane-inline-label"
+          className="pointer-events-none absolute left-1 top-1/2 z-[2] max-w-[calc(100%-8px)] -translate-y-1/2 truncate rounded-sm bg-black/75 px-1 text-[10px] font-medium leading-[14px] text-zinc-100 shadow-[0_1px_2px_rgba(0,0,0,0.8)]"
+        >
+          {label}
+        </span>
+      )}
       {projection.beats.map((beat) => {
         const label = `${beat.label ?? 'Property beat'}, value ${formatValue(beat.value)}`
         if (!onSelectBeat) {
