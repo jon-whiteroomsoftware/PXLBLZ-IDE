@@ -1,13 +1,9 @@
 {
-  "comment": "Locators in e2e specs that live src no longer produces. Ratchet for scripts/check-e2e-locators.mjs (#638). Shrink this list; never grow it.",
+  "comment": "Ratchet for scripts/check-e2e-locators.mjs (#638). \"stale\" names are produced nowhere in live src and must shrink to zero. \"unverifiable\" names are assembled mostly from runtime data (`Select ${clip.patternName}`); no spec edit can repair them, so they are recorded separately and never gate.",
   "stale": [
     {
       "name": "101 Clips, Cuts, and Blank Time",
       "spec": "authenticated-smoke.auth.spec.ts"
-    },
-    {
-      "name": "101 Clips, Cuts, and Blank Time guide",
-      "spec": "shows.auth.spec.ts"
     },
     {
       "name": "Add clip to main in Scene 1",
@@ -18,28 +14,34 @@
       "spec": "shows.auth.spec.ts"
     },
     {
-      "name": "Add Ripple Effect",
-      "spec": "shows.auth.spec.ts"
-    },
-    {
-      "name": "Add Vignette Effect",
-      "spec": "shows.auth.spec.ts"
-    },
-    {
-      "name": "Alternating main pixel ranges",
-      "spec": "shows.auth.spec.ts"
-    },
-    {
       "name": "Animation speed 0.32\\u00d7 \\u00b7 Speed 0.08",
       "spec": "shows.auth.spec.ts"
     },
     {
-      "name": "Apply library name",
-      "spec": "entity-title-rename.auth.spec.ts"
+      "name": "CompassRose Clip overrides",
+      "spec": "shows.auth.spec.ts"
     },
     {
-      "name": "Apply pattern name",
-      "spec": "entity-title-rename.auth.spec.ts"
+      "name": "Edit split position transition from Scene 1",
+      "spec": "shows.auth.spec.ts"
+    },
+    {
+      "name": "Pattern for new clip",
+      "spec": "shows.auth.spec.ts"
+    },
+    {
+      "name": "Reference pixels",
+      "spec": "shows.auth.spec.ts"
+    },
+    {
+      "name": "Set routing layout after Scene 1",
+      "spec": "shows.auth.spec.ts"
+    }
+  ],
+  "unverifiable": [
+    {
+      "name": "101 Clips, Cuts, and Blank Time guide",
+      "spec": "shows.auth.spec.ts"
     },
     {
       "name": "Brightness exact percentage",
@@ -50,63 +52,15 @@
       "spec": "shows.auth.spec.ts"
     },
     {
-      "name": "CompassRose Clip overrides",
-      "spec": "shows.auth.spec.ts"
-    },
-    {
-      "name": "Default main pixel ranges",
-      "spec": "shows.auth.spec.ts"
-    },
-    {
-      "name": "Default routing mode",
-      "spec": "shows.auth.spec.ts"
-    },
-    {
       "name": "Duration seconds exact time",
       "spec": "shows.auth.spec.ts"
     },
     {
-      "name": "Edit crossfade Transition between TestPattern1D and CometLoom",
+      "name": "Layout interval duration in seconds exact time",
       "spec": "shows.auth.spec.ts"
     },
     {
-      "name": "Edit crossfade Transition between TestPattern1D and TestPattern1D",
-      "spec": "shows.auth.spec.ts"
-    },
-    {
-      "name": "Edit portal Transition between TestPattern1D and CometLoom",
-      "spec": "shows.auth.spec.ts"
-    },
-    {
-      "name": "Edit Ripple Effect",
-      "spec": "shows.auth.spec.ts"
-    },
-    {
-      "name": "Edit routing Transition between TestPattern1D and CometLoom",
-      "spec": "shows.auth.spec.ts"
-    },
-    {
-      "name": "Edit split position transition from Scene 1",
-      "spec": "shows.auth.spec.ts"
-    },
-    {
-      "name": "Edit Vignette Effect",
-      "spec": "shows.auth.spec.ts"
-    },
-    {
-      "name": "Expand zone Sky",
-      "spec": "shows.auth.spec.ts"
-    },
-    {
-      "name": "Group properties",
-      "spec": "shows.auth.spec.ts"
-    },
-    {
-      "name": "Move Ripple Effect earlier",
-      "spec": "shows.auth.spec.ts"
-    },
-    {
-      "name": "Open Scene 1 properties",
+      "name": "Pattern controls summary",
       "spec": "shows.auth.spec.ts"
     },
     {
@@ -114,11 +68,19 @@
       "spec": "smoke.spec.ts"
     },
     {
-      "name": "Playback summary",
-      "spec": "shows.auth.spec.ts"
+      "name": "Rename pattern Header Renamed Pattern",
+      "spec": "entity-title-rename.auth.spec.ts"
     },
     {
-      "name": "Reference pixels",
+      "name": "Rename show Opening",
+      "spec": "authenticated-smoke.auth.spec.ts"
+    },
+    {
+      "name": "Rename show Untitled Show",
+      "spec": "authenticated-smoke.auth.spec.ts"
+    },
+    {
+      "name": "Resize CometLoom end",
       "spec": "shows.auth.spec.ts"
     },
     {
@@ -130,15 +92,31 @@
       "spec": "shows.auth.spec.ts"
     },
     {
-      "name": "Scene Scene 1",
+      "name": "Select CompassRose",
       "spec": "shows.auth.spec.ts"
     },
     {
-      "name": "Scene Scene 2",
+      "name": "Select LEDs for main",
       "spec": "shows.auth.spec.ts"
     },
     {
-      "name": "Set routing layout after Scene 1",
+      "name": "Select MetaballGarden",
+      "spec": "shows.auth.spec.ts"
+    },
+    {
+      "name": "Select NeonCircuitBoard",
+      "spec": "show-visual-toolkit-docs.auth.spec.ts"
+    },
+    {
+      "name": "Select Overlay pulse",
+      "spec": "shows.auth.spec.ts"
+    },
+    {
+      "name": "Select TestPattern1D",
+      "spec": "shows.auth.spec.ts"
+    },
+    {
+      "name": "Select TestPattern2D",
       "spec": "shows.auth.spec.ts"
     },
     {
@@ -151,26 +129,6 @@
     },
     {
       "name": "Time scale target main",
-      "spec": "shows.auth.spec.ts"
-    },
-    {
-      "name": "Use Cut Transition",
-      "spec": "shows.auth.spec.ts"
-    },
-    {
-      "name": "Use Diamond Transition",
-      "spec": "shows.auth.spec.ts"
-    },
-    {
-      "name": "Use Linear Transition",
-      "spec": "shows.auth.spec.ts"
-    },
-    {
-      "name": "Use Ring Transition",
-      "spec": "shows.auth.spec.ts"
-    },
-    {
-      "name": "Use Star Transition",
       "spec": "shows.auth.spec.ts"
     }
   ]

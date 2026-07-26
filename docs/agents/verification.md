@@ -154,10 +154,26 @@ pre-commit close the awareness gap without paying browser time:
   is not coverage; that is precisely how `workspace-recovery.auth.spec.ts` ran
   in no suite while #626 was adding tests to it.
 - `npm run check:e2e-locators` fails when a spec names a user-facing string live
-  source no longer produces. It ratchets against
-  `e2e/known-stale-locators.json`: new staleness fails, and repairing staleness
-  requires shrinking the file. Re-record with
-  `npm run check:e2e-locators -- --record`.
+  source no longer produces. Labels are usually assembled from templates, so it
+  matches a name against each template's static segments in order, honouring the
+  template's own anchoring. Re-record with
+  `npm run check:e2e-locators -- --record`; `scripts/check-e2e-locators.test.ts`
+  pins the behaviour.
+
+  `e2e/known-stale-locators.json` keeps two buckets, and the distinction is the
+  point:
+
+  - **`stale`** — produced nowhere in live source. These are broken specs. The
+    check gates on this list, and it must shrink to zero.
+  - **`unverifiable`** — assembled mostly from runtime data, such as
+    `Select ${clip.patternName}`. Static analysis can neither confirm nor refute
+    them, and no spec edit will ever "repair" one. They are recorded separately
+    and never gate.
+
+  Conflating the two is what made an earlier version of this check useless: it
+  filed every `Verb ${x} Noun` label as stale, which both buried the genuinely
+  broken names and left the check blind to a rename of the very affordance that
+  motivated it.
 
 The locator check exists because the 2.0 rename pass was applied unevenly —
 `New show` fixed in two helpers but not four inline call sites, the transition

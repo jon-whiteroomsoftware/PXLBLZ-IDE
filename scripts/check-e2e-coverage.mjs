@@ -7,9 +7,10 @@
 // nothing said so: an unrun spec is indistinguishable from a passing one. See
 // #638.
 import { readFileSync, readdirSync } from 'node:fs'
-import { join } from 'node:path'
+import { fileURLToPath } from 'node:url'
+import { dirname, join } from 'node:path'
 
-const repositoryRoot = new URL('..', import.meta.url).pathname
+const repositoryRoot = join(dirname(fileURLToPath(import.meta.url)), '..')
 const specDirectory = join(repositoryRoot, 'e2e')
 
 const packageScripts = JSON.parse(readFileSync(join(repositoryRoot, 'package.json'), 'utf8')).scripts
