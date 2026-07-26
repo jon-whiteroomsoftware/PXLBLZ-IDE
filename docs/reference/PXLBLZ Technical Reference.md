@@ -1332,14 +1332,32 @@ advanced Pattern instance. Preview, deterministic Fast replay, artifact output,
 EPE export, and Controller output therefore consume the same emitted evaluator.
 
 The unified timeline discloses a compact sparkline only when a property actually
-varies. Each disclosed lane carries its own name, overlaid on the lane so it
-survives the gutter collapsing to an icon. `showPropertyLaneLabels.ts` resolves
-those names per Zone: a lane is named by its property alone, and the owning
-Clip returns abbreviated to its capitals only where a property would otherwise
-repeat inside that Zone, falling back to full Pattern names when two
-abbreviations would collide. The Scene lane projection carries `patternName`
-and `propertyLabel` separately so naming composes them rather than re-parsing
-the accessible name, which always keeps the full text.
+varies. Every disclosed lane is named, and `showPropertyLaneFamilies.ts` sorts
+animatable properties into five families — time, appearance, transform, control,
+and effect — derived from the animation target kind. A family fixes the lane's
+colour, its glyph, and the family noun in its hover text, so the polyline, its
+beat dots, and the gutter mark all share one hue instead of a uniform violet.
+
+`showPropertyLaneLabels.ts` resolves names per Zone: a lane is named by its
+property alone, and the owning Clip returns abbreviated to its capitals only
+where a property repeats *within one family* in that Zone, falling back to full
+Pattern names when two abbreviations would collide. Families carry the rest, so
+a Clip's `speed` and a Pattern control named `speed` need no prefix; their
+accessible names stay distinct through `qualifiedPropertyLabel`, which reads
+`animation speed` and `speed control` respectively. The Scene lane projection
+carries `patternName`, `propertyLabel`, and `family` separately so naming
+composes them rather than re-parsing the accessible name.
+
+Where the name appears follows the Zone gutter. With the gutter open, its own
+sticky rows carry the name and glyph and no on-lane label is drawn. With the
+gutter collapsed or absent, the label sits on the lane, sticky past the
+timeline's first column so it survives a zoomed horizontal scroll, and stays
+off the hit-test path so beat dots keep their clicks. That label thins its
+backing while it covers the animated span, and retires to transparent once the
+span falls behind the viewport, which declutters a timeline as it plays past
+each property. Hover text on the lane reports the Pattern, the property, its
+family, and its Show-global seconds; Scene-local time is never surfaced.
+
 Split and Restart preserve or clone affected placement- or
 instance-owned tracks under stable targets, while deletion removes tracks whose
 owner no longer exists. The compiler's Scene-local representation remains an

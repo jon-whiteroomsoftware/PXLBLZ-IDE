@@ -521,10 +521,20 @@ Property animation uses one shared model: the destination Clip or Show target
 owns its value, while the incoming boundary owns start, duration, and easing.
 Animation speed, Brightness, Clip Transform, exported sliders, and routing
 split position all use the same system and appear as compact sparklines beneath
-their Zones. Each sparkline is labelled on the lane with the Property it
-animates, so a Zone with several animated Properties reads without hovering.
-When two lanes in one Zone animate the same Property, those lanes also show the
-owning Clip, abbreviated. Select a Clip and use **Property animation** in its
+their Zones. Every sparkline is named by the Property it animates, so a Zone
+with several animated Properties reads without hovering. Each name carries a
+small glyph and colour for its family — animation speed, appearance, transform,
+Pattern control, or Effect parameter — which is what tells a Clip's animation
+speed from a Pattern control that happens to be named `speed`. Only when two
+lanes in one Zone animate the same Property *in the same family* does the owning
+Clip appear, abbreviated.
+
+With the Zone gutter open, those names sit in the gutter. With it closed they sit
+on the lanes, following you as a zoomed timeline scrolls, thinning where a curve
+runs beneath them, and fading out once their animation is behind you. Hover any
+lane for the Pattern, Property, family, and the seconds it spans.
+
+Select a Clip and use **Property animation** in its
 Entity Detail Panel to choose a supported Property, click **Animate**, then
 edit its exact keyframe time, value, and easing. The authored track continues
 to preview, compile, persist, and split through the internal composition model;
