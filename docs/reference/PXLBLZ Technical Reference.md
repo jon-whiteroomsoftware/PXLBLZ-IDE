@@ -1121,12 +1121,21 @@ rail chrome at once.
 A collapsed header must fit that 28-pixel row, so it drops the nominal pixel
 count and keeps only the name, and the header clips its own content: an
 overflowing second line paints across the neighbouring lanes, because the header
-is sticky at z-30 above them. `LayoutZoneIntervalOverlay` stamps the Zone name
-once per owned span only when the caller passes `labelZoneName`, which the
-collapsed lane does exclusively while the rail is closed. With the rail open the
-header already carries the name a few pixels to the left, so the stamp was pure
-duplication; with the rail closed the 32-pixel picker has room for a glyph only,
-and the stamp is the collapsed Zone's sole textual identity.
+is sticky at z-30 above them. `LayoutZoneIntervalOverlay` draws only the
+unowned-span masks; `CollapsedZoneNameOverlay` names the Zone once per owned
+span, and the collapsed lane renders it exclusively while the rail is closed.
+With the rail open the header already carries the name a few pixels to the left,
+so the stamp would be pure duplication; with the rail closed the 32-pixel picker
+has room for a glyph only, and the stamp is the collapsed Zone's sole textual
+identity.
+
+That overlay is its own grid cell rather than a child of the collapsed lane,
+because each stamp is `sticky` and clears the rail by `stickyLeftPx + 4` like the
+property-lane labels. The lane clips its content, and an `overflow: hidden` box
+becomes the scrollport that `sticky` resolves against, so a stamp nested inside
+it would never move. Each stamp's absolutely positioned span is its containing
+block, so the name follows a scrolled or zoomed timeline and still stops at its
+own interval's boundary.
 
 The Zone Map is the only authoring surface for Zone structure. It lists Zones
 and Zone Layout definitions, and `ShowSelection` carries a `zone-layout` kind so

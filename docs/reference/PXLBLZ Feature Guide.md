@@ -583,7 +583,9 @@ spans and property-event positions, and it remains a snapping and drag target.
 Its rail header keeps the Zone name alone on that single row, and the pixel count
 returns when the Zone expands. The miniature names its Zone only while the rail
 is closed and the header cannot: with the rail open the name would simply repeat
-the header a few pixels to its left.
+the header a few pixels to its left. That name is sticky, so it stays legible as
+the timeline scrolls or zooms, and stops at the boundary of the Zone Layout
+interval it belongs to.
 Focusing a Zone expands it and collapses its siblings. Collapse, focus, and
 Zone-workspace disclosure persists independently per Show.
 

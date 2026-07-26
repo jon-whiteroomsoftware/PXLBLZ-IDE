@@ -205,12 +205,13 @@ test.describe('authenticated Show authoring', () => {
     const collapsed = page.getByRole('img', { name: 'Collapsed zone Sky timeline' })
     // The rail is closed here, so the summary is the only thing that can name the
     // Zone; with the rail open its header carries the name instead (#632).
-    const label = collapsed.getByTestId('collapsed-zone-layout-label').first()
+    const label = page.getByTestId('collapsed-zone-layout-label').first()
     await expect(label).toBeVisible()
     await expect(label).toHaveClass(/text-zinc-100/)
+    await expect(label).toHaveCSS('position', 'sticky')
 
     const geometry = await collapsed.evaluate((element) => {
-      const labelElement = element.querySelector<HTMLElement>('[data-testid="collapsed-zone-layout-label"]')
+      const labelElement = document.querySelector<HTMLElement>('[data-testid="collapsed-zone-layout-label"]')
       const railElement = element.querySelector<HTMLElement>('[data-testid="collapsed-zone-density-rail"]')
       if (!labelElement || !railElement) return null
       const row = element.getBoundingClientRect()

@@ -4732,6 +4732,17 @@ function ShowTimelineWorkspace({
                 {collapsed && <ChevronRight size={8} aria-hidden className="absolute -right-0.5 bottom-0 text-current" />}
               </span>
             </button>}
+            {unifiedZone && collapsed && !showFullZoneHeaders && (
+              <CollapsedZoneNameOverlay
+                intervals={layoutIntervals}
+                zoneId={row.zoneId}
+                zoneName={row.zoneName}
+                durationMs={timeline.durationMs}
+                stickyLeftPx={hasMultipleZones ? ZONE_RAIL_MICRO_PX : 0}
+                gridColumn={`2 / ${columns.length + 1}`}
+                gridRow={rowStart(rowIndex) + contentStartRow + routingLaneRows}
+              />
+            )}
             {unifiedZone && (collapsed ? (
               <div
                 role="img"
@@ -4810,7 +4821,6 @@ function ShowTimelineWorkspace({
                   intervals={layoutIntervals}
                   zoneId={row.zoneId}
                   durationMs={timeline.durationMs}
-                  labelZoneName={showFullZoneHeaders ? undefined : row.zoneName}
                 />
               </div>
             ) : unifiedZone.layers.map((layer, layerIndex) => (
@@ -5678,21 +5688,69 @@ function TimelineNavigator({
 }
 
 /**
- * Masks the spans where a Zone is unowned by the Layout in force, and names the
- * Zone once per owned span when nothing else does. `labelZoneName` is set only
- * for a collapsed Zone whose rail is closed: the open rail's header already
- * carries the name, and repeating it there is pure duplication (#632).
+ * Names a collapsed Zone once per owned span, and follows a scrolled timeline.
+ *
+ * This renders as its own grid cell rather than inside the collapsed lane: the
+ * lane clips its content, and an `overflow: hidden` box becomes the scrollport
+ * that `position: sticky` resolves against, so a stamp nested in the lane would
+ * never move. Only a closed rail asks for it - an open rail's header already
+ * carries the name (#632).
  */
+function CollapsedZoneNameOverlay({
+  intervals,
+  zoneId,
+  zoneName,
+  durationMs,
+  stickyLeftPx,
+  gridColumn,
+  gridRow,
+}: {
+  intervals: ShowLayoutInterval[]
+  zoneId: string
+  zoneName: string
+  durationMs: number
+  stickyLeftPx: number
+  gridColumn: string
+  gridRow: number
+}) {
+  const totalMs = Math.max(1, durationMs)
+  return (
+    <div
+      aria-hidden
+      className="pointer-events-none relative z-[21] min-w-0"
+      style={{ gridColumn, gridRow }}
+    >
+      {intervals.filter((interval) => interval.zoneIds.includes(zoneId)).map((interval) => (
+        <span
+          key={interval.id}
+          className="absolute inset-y-0 flex items-start"
+          style={{
+            left: `${interval.startMs / totalMs * 100}%`,
+            width: `${interval.durationMs / totalMs * 100}%`,
+          }}
+        >
+          <span
+            data-testid="collapsed-zone-layout-label"
+            className="sticky mt-0.5 max-w-[calc(100%-8px)] truncate rounded-sm bg-black/75 px-1.5 text-[10px] font-medium leading-4 text-zinc-100 shadow-[0_1px_2px_rgba(0,0,0,0.8)]"
+            style={{ left: stickyLeftPx + 4 }}
+          >
+            {zoneName}
+          </span>
+        </span>
+      ))}
+    </div>
+  )
+}
+
+/** Masks the spans where a Zone is unowned by the Layout in force. */
 function LayoutZoneIntervalOverlay({
   intervals,
   zoneId,
   durationMs,
-  labelZoneName,
 }: {
   intervals: ShowLayoutInterval[]
   zoneId: string
   durationMs: number
-  labelZoneName?: string
 }) {
   const totalMs = Math.max(1, durationMs)
   return <>
@@ -5709,16 +5767,7 @@ function LayoutZoneIntervalOverlay({
           style={{ left: `${left}%`, width: `${width}%` }}
         />
       }
-      if (!labelZoneName) return null
-      return <span
-        key={interval.id}
-        aria-hidden
-        data-testid="collapsed-zone-layout-label"
-        className="pointer-events-none absolute top-0.5 z-[21] max-w-full truncate rounded-sm bg-black/75 px-1.5 text-[10px] font-medium leading-4 text-zinc-100 shadow-[0_1px_2px_rgba(0,0,0,0.8)]"
-        style={{ left: `calc(${left}% + 4px)`, maxWidth: `calc(${width}% - 8px)` }}
-      >
-        {labelZoneName}
-      </span>
+      return null
     })}
   </>
 }

@@ -478,16 +478,21 @@ describe('ShowEditor (#318)', () => {
     await user.click(screen.getByRole('button', { name: 'Open Zones' }))
     await user.click(within(screen.getByTestId('show-timeline-grid')).getByRole('button', { name: 'Collapse zone accent' }))
 
-    const openRailSummary = screen.getByRole('img', { name: 'Collapsed zone accent timeline' })
-    expect(openRailSummary.querySelector('[data-testid="collapsed-zone-layout-label"]')).toBeNull()
+    expect(screen.queryByTestId('collapsed-zone-layout-label')).not.toBeInTheDocument()
 
     await user.click(screen.getByRole('button', { name: 'Close Zones' }))
 
-    const closedRailSummary = screen.getByRole('img', { name: 'Collapsed zone accent timeline' })
-    const label = closedRailSummary.querySelector('[data-testid="collapsed-zone-layout-label"]')
-    expect(label).not.toBeNull()
+    const label = screen.getByTestId('collapsed-zone-layout-label')
     expect(label).toHaveTextContent('accent')
     expect(screen.queryByText('24px')).not.toBeInTheDocument()
+    // Sticky, so the name follows a scrolled timeline, which requires living
+    // outside the collapsed lane: that lane clips, and a clipping box becomes the
+    // scrollport sticky resolves against (#632).
+    expect(label).toHaveClass('sticky')
+    const summary = screen.getByRole('img', { name: 'Collapsed zone accent timeline' })
+    expect(summary).not.toContainElement(label)
+    expect(label.getBoundingClientRect().top).toBeGreaterThanOrEqual(summary.getBoundingClientRect().top)
+    expect(label.getBoundingClientRect().bottom).toBeLessThanOrEqual(summary.getBoundingClientRect().bottom)
   })
 
   it('leaves Space with Show playback after using the Zone rail controls (#632)', async () => {
