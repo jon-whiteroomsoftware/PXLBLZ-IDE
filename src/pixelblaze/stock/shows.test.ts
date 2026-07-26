@@ -427,9 +427,22 @@ describe('stock Show curriculum (#363)', () => {
     expect(sky.overlays).toEqual([])
     expect(ground.overlays).toEqual([])
 
-    // Blank time survives in the Ground while the Sky keeps playing.
-    const groundMain = [...ground.main].sort((a, b) => a.startMs - b.startMs)
-    expect(groundMain[0].startMs + groundMain[0].durationMs).toBeLessThan(groundMain[1].startMs)
+    // Every gap in this Show is owned by a Transition rather than left blank, so
+    // a gap alone proves nothing: assert each one is exactly consumed. This is
+    // what the capstone departs from 101 on, and the copy has to keep matching.
+    const byId = new Map(placements.map((placement) => [placement.id, placement]))
+    for (const transition of composition.transitions ?? []) {
+      const from = byId.get(transition.fromPlacementId)!
+      const to = byId.get(transition.toPlacementId)!
+      expect(from.startMs + from.durationMs + transition.durationMs, transition.id).toBe(to.startMs)
+    }
+    const gaps = composition.scenes[0].zones.flatMap((zone) => {
+      const ordered = [...zone.main].sort((a, b) => a.startMs - b.startMs)
+      return ordered.slice(1).map((placement, index) => (
+        placement.startMs - (ordered[index].startMs + ordered[index].durationMs)
+      ))
+    })
+    expect(gaps.filter((gap) => gap > 0)).toHaveLength(composition.transitions!.length)
     expect(composition.durationMs).toBe(30_000)
 
     // No instance is placed in two Zones at once: each Zone owns its material,

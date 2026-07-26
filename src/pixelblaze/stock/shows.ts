@@ -428,12 +428,14 @@ function learn106(): StockShow {
         },
         // Both Zones release together. The ramp is slow and it reaches zero,
         // not almost-zero, and then two seconds of held black end the Show.
+        // Easing governs the segment leaving its keyframe, so the steady
+        // release is authored on the 24s keyframe, not the 28s one.
         {
           id: 'track-sky-release',
           target: { kind: 'placement-view', placementId: 'clip-sky-reprise', property: 'brightness' },
           keyframes: [
-            keyframe('sky-hold', 24, 1),
-            keyframe('sky-dark', 28, 0, LINEAR),
+            keyframe('sky-hold', 24, 1, LINEAR),
+            keyframe('sky-dark', 28, 0),
             keyframe('sky-black', 30, 0),
           ],
         },
@@ -441,8 +443,8 @@ function learn106(): StockShow {
           id: 'track-ground-release',
           target: { kind: 'placement-view', placementId: 'clip-ground-return', property: 'brightness' },
           keyframes: [
-            keyframe('ground-hold', 24, 1),
-            keyframe('ground-dark', 28, 0, LINEAR),
+            keyframe('ground-hold', 24, 1, LINEAR),
+            keyframe('ground-dark', 28, 0),
             keyframe('ground-black', 30, 0),
           ],
         },
@@ -506,14 +508,14 @@ function learn106(): StockShow {
         // reassembles it, which is visible where a blend would not be.
         id: 'transition-ground-garden-return', fromPlacementId: 'clip-ground-garden', toPlacementId: 'clip-ground-return',
         kind: 'dither', durationMs: 2_500, easing: CUBIC_IN_OUT,
-        dissolveVariant: 'coherent-noise', seed: 106, softness: 0.35,
+        dissolveVariant: 'coherent-noise', seed: 106,
       },
     ],
     durationMs: 30_000,
   }
   return catalogue({
     id, title: 'Built from Basics', track: 'portable', collection: 'learn', level: 100, order: 6,
-    purpose: 'Everything in this Show came from the five lessons before it: Clips and Cuts, blank time, Transitions, value curves, Clip Transforms, one Effect, and two Zones. What is new is only that the pieces are timed against each other, so the Sky and the Ground arrive and leave as one gesture rather than two.',
+    purpose: 'Everything in this Show came from the five lessons before it: Clips, Transitions, value curves, a Clip Transform, one Effect, and two Zones. What is new is that the pieces are timed against each other, so the Sky and the Ground arrive and leave as one gesture rather than two. Every junction here is a Transition rather than a Cut, which is the one deliberate departure from 101.',
     notice: 'Three junctions, three different Transitions: a Crossfade, a circle opening from the center, and a Dissolve that reassembles the Ground. The garden then turns faster and faster while both Zones fade to black together and hold it.',
     prompts: ['Change the circle Transition in the Sky to a different shape and watch the same junction tell a different story.', 'Drag the two release curves apart so the Zones stop fading together, then put them back.'],
     guideHeading: 'building-a-complete-show',
