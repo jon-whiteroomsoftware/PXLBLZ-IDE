@@ -28,6 +28,27 @@ describe('Show diagnostic presentation (#634)', () => {
     )
   })
 
+  it('preserves comma-separated candidate boundaries while removing lowered interval suffixes', () => {
+    expect(presentShowDiagnostic(
+      'Conflicts with freeze:routed:0:0:use-a@scene-1, freeze:routed:0:1:use-b@scene-2 during an overlapping lifetime.',
+    )).toBe(
+      'Conflicts with freeze:routed:0:0:use-a, freeze:routed:0:1:use-b during an overlapping lifetime.',
+    )
+  })
+
+  it('reframes a missing internal interval without inventing or corrupting an identifier', () => {
+    expect(presentShowDiagnostic(
+      'Show composition scenes[0].sceneId: Scene "scene-1" does not exist.',
+    )).toBe(
+      'Show composition timeline[0].intervalId: Referenced Show interval does not exist.',
+    )
+  })
+
+  it('maps an internal lifetime token as a complete token', () => {
+    expect(presentShowDiagnostic('Assigned plane 0 until scene-exit or show-loop.'))
+      .toBe('Assigned plane 0 until interval-end or show-loop.')
+  })
+
   it('reframes the known static-Clip compiler fallback without losing its constraint', () => {
     expect(presentShowDiagnostic(
       'Freeze at entry for clip "rings" fell back to Live because this release requires one static, unkeyed placement on a single-zone routed Scene.',
