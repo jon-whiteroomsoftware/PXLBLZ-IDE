@@ -413,9 +413,10 @@ The working grammar is compact:
 - **Direct Clip edits.** **Add Clip** places a Pattern at the playhead when the
   target Layer has room. Dragging moves a Clip without overwriting another;
   selected Clip edges resize it. **Split** divides the selected Clip at the
-  playhead and **Clone** duplicates it immediately after itself. Start and
-  Duration combine exact decimal-second entry with the shared detented time
-  ruler. Each Clip's second row
+  playhead and **Clone** duplicates it immediately after itself. **Start** is
+  always measured from the beginning of the Show, including for a Clip inside
+  a Group; **Duration** spans the complete logical Clip. Both fields combine
+  exact decimal-second entry with the shared detented time ruler. Each Clip's second row
   tersely summarizes its authored controls, view changes, Effects, and Property
   animation; unchanged values after a connected Clip contract to their category
   glyphs. Unavailable commands stay focusable and explain why. Every commit is
@@ -423,7 +424,10 @@ The working grammar is compact:
 - **Selection and detail.** Selecting a Clip, Group, Transition, Zone, or the
   Show opens a compact floating **Entity Detail Panel** beside its source with
   that entity's exact editable fields. Clip Details repeat the complete
-  categorized configuration summary at the top. Clicking elsewhere closes
+  categorized configuration summary at the top. Transition Details identify
+  their incoming content compactly as `15.0: CompassRose`, or
+  `1:15.3: CompassRose` at one minute or later; simultaneous incoming Clips add a
+  count instead of a decorative list. Clicking elsewhere closes
   transient Details; one Detail may be pinned for comparison.
 - **Progressive structure.** **Layer** deliberately adds another compositing
   lane. **Zones** reveals the Zone Map only when routing structure is needed;
@@ -603,7 +607,8 @@ available.
 Outbound paths mirror ordinary Patterns. **View code** shows the generated
 source read-only; **Run** and **Save** compile it with the connected
 Controller's compiler; **Export `.epe`** packages it with provenance,
-a readable summary, and a compatibility contract that import and read-back
+a Show-global Clip schedule, useful Transition and routing facts, and a
+compatibility contract that import and read-back
 recover. Sending never changes the Controller's shared map or pixel count;
 Installation identity mismatches block Send, and Portable compatibility facts
 are advisories. One practical gotcha: hot-replacing one very large resident

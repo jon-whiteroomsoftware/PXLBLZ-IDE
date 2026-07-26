@@ -1021,6 +1021,20 @@ Groups, Markers, and Layer Transitions are the production authoring model.
 Internal Scene ids partition compatibility storage and compiler lowering; no
 production command creates or selects a Scene.
 
+`showClipInspectorModel.ts` projects ordinary placement Start as Show-global
+time while preserving Scene-relative storage. Updates pass that global value to
+the timeline move/resize authoring boundary, so projection, preview, commit,
+split, and later reprojection share one frame of reference. Group-child
+inspection adds the occurrence's global start before display and subtracts it
+again before updating the shared definition; bare Start therefore never means a
+definition-relative offset.
+
+`showClipIdentity.ts` owns compact identity at boundaries and in exported
+schedules. Times below one minute use `s.t`; later times use unpadded `m:ss.t`.
+The identity appends the incoming Pattern name and, when several Clips begin at
+the boundary, one additional count. Transition titles and boundary
+accessibility names consume this projection instead of internal Scene names.
+
 `showTimelineClipAuthoring.ts` performs Split, Duplicate, resize, and movement
 as atomic composition updates in global time. Split rejects a playhead outside
 the selected Clip or inside its connected Transition and leaves at least one
@@ -1637,7 +1651,8 @@ layout intervals, Transition and Property-animation durations, group and motion
 offsets, routing transfer time, and strobe or stutter cadence. React call sites
 convert seconds to whole model milliseconds only at existing persistence
 boundaries. Show records, compilation, occupancy rules, and timeline math remain
-unchanged.
+unchanged. Placement and Group-child Start fields are Show-global; internal
+Scene-relative values are converted only by their inspector owner adapters.
 
 `showClipTransform.ts` owns Clip Transform normalization, neutral-value
 compaction, and compiler lowering. The persisted record uses normalized
@@ -3335,7 +3350,9 @@ Controller compilation into the standard EPE envelope. Export adds:
 
 - a normal Controller-format program id;
 - a 100×150 preview JPEG;
-- a readable Show summary;
+- a readable Show-global Clip schedule whose rows use compact
+  `<start>: <Pattern name>` identity;
+- useful Transition and routing facts keyed by Show-global boundary time;
 - PXLBLZ artifact provenance; and
 - source Pattern provenance/license comments retained inside isolated members.
 
