@@ -4629,7 +4629,8 @@ describe('ShowEditor (#318)', () => {
     expect(compileBar).toHaveTextContent('arena 192')
     expect(compileBar).toHaveTextContent('render target: 3 planes · stage-rgb · RGB 0/1/2 · XY 0/1 · scalar 0 · previous RGB 0/1/2')
     expect(compileBar).toHaveTextContent('cache plan: 1 selected · 0 rejected · peak 3/3 planes')
-    expect(compileBar).toHaveTextContent('stage-rgb planes 0/1/2 · transition · invalidates transition-exit/show-loop')
+    expect(compileBar).not.toHaveTextContent(/invalidates/i)
+    expect(compileBar).not.toHaveTextContent(/scene lifetime/i)
     expect(compileBar).toHaveTextContent('crossfade: snapshot outgoing · capture frame 2 render paths/px · then 1 live render path/px')
   })
 

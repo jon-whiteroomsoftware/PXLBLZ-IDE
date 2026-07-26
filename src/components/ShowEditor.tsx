@@ -9,6 +9,7 @@ import { DomainNumberField as UiDomainNumberField, type DomainNumberFieldProps a
 import { formatDomainNumber } from '@/engine/domainNumberPresentation'
 import { formatPercentageValue } from '@/engine/percentageValue'
 import { formatShowTime, showBoundaryClipIdentity } from '@/engine/showClipIdentity'
+import { presentShowDiagnostic } from '@/engine/showDiagnosticPresentation'
 import {
   AlertDialogAction,
   AlertDialogCancel,
@@ -9301,7 +9302,7 @@ function CompileBar({
     return (
       <div className="flex min-h-10 shrink-0 items-center gap-2 border-t border-seam bg-zinc-950 px-3 font-mono text-xs text-amber-300">
         <Zap size={14} aria-hidden />
-        {compiled.error}
+        {presentShowDiagnostic(compiled.error)}
       </div>
     )
   }
@@ -9370,11 +9371,6 @@ function CompileBar({
     .join(' · ')
   const rejectedRenderTargetCandidates = summary?.renderTargetPlan.decisions
     .filter((decision) => decision.status === 'rejected') ?? []
-  const renderTargetAssignmentLabels = summary?.renderTargetPlan.assignments.map((assignment) => (
-    `${assignment.role} planes ${assignment.planes.join('/')}`
-    + ` · ${assignment.lifetime.kind}`
-    + ` · invalidates ${assignment.invalidatedBy.join('/')}`
-  )) ?? []
   const coverage = summary?.specializations.contentKeys
   const coverageEndpointCount = coverage
     ? coverage.zeroWeightLayersSkipped
@@ -9455,14 +9451,6 @@ function CompileBar({
           {' · '}est. {summary.renderTargetPlan.totalEstimatedSavedWork.toLocaleString('en-US')} work avoided
         </span>
       )}
-      {renderTargetAssignmentLabels.map((label) => (
-        <span key={label} className="text-violet-200">{label}</span>
-      ))}
-      {rejectedRenderTargetCandidates.map((decision) => (
-        <span key={decision.candidateId} className="text-amber-300">
-          cache rejected: {decision.candidateId} · {decision.reason} · {decision.detail}
-        </span>
-      ))}
       {summary && summary.specializations.freezeAtEntry.authoredClipCount > 0 && (
         <span className={summary.specializations.freezeAtEntry.evaluationsAvoidedPerReplayFrame > 0 ? 'text-emerald-300' : 'text-amber-300'}>
           freeze at entry: {summary.specializations.freezeAtEntry.evaluationsAvoidedPerReplayFrame.toLocaleString('en-US')} Pattern evaluations/replay frame avoided
@@ -9632,7 +9620,7 @@ function CompileBar({
           Clock offset: {timeOffsetLabel} - renderer cost unchanged
         </span>
       )}
-      {summary?.warnings.map((warning) => <span key={warning} className="text-amber-300">{warning}</span>)}
+      {summary?.warnings.map((warning) => <span key={warning} className="text-amber-300">{presentShowDiagnostic(warning)}</span>)}
       {pushResult && <span className="text-zinc-300">{pushResult}</span>}
       </div>
     </div>

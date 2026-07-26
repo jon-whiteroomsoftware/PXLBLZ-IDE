@@ -8,7 +8,9 @@ import { makeProgramId } from './bytecodePush'
 import { showEasingOptionId } from './showEasing'
 import { STOCK_MAP_SPECS } from './maps'
 import type { MapRecord, ShowBoundaryTransition, ShowRecord } from './personalContentRecords'
-import { normalizeShowTransitionState, showVisualTransitionAfter } from './showModel'
+import { normalizeShowTransitionState, projectShowTimeline, showVisualTransitionAfter } from './showModel'
+import { projectShowUnifiedTimeline } from './showUnifiedTimelineProjection'
+import { formatShowBoundaryIdentity, formatShowClipIdentity } from './showClipIdentity'
 import { buildStudioMapFingerprintCandidates } from './mapFingerprint'
 import { buildShowPatternCreditLines, PXLBLZ_AUTHOR, type ShowArtifactAttribution, type ShowPatternAttribution } from './patternAttribution'
 
@@ -102,6 +104,39 @@ function showArtifactHeader(
     transition.kind === 'routing' ? [[transition.afterSceneId, transition] as const] : []
   )))
   const layoutName = new Map(show.routingLayouts.map((layout) => [layout.id, layout.name]))
+  const timeline = projectShowTimeline(show)
+  const clipSchedule = show.composition
+    ? projectShowUnifiedTimeline(show, show.composition).zones.flatMap((zone) => (
+        zone.layers.flatMap((layer) => layer.clips.map((clip) => ({
+          id: clip.id,
+          startMs: clip.startMs,
+          patternName: clip.patternName,
+        })))
+      ))
+    : timeline.rows.flatMap((row) => row.cells.map((cell) => ({
+        id: cell.id,
+        startMs: cell.startMs,
+        patternName: cell.patternName,
+      })))
+  const uniqueClipSchedule = [...new Map(clipSchedule.map((clip) => [clip.id, clip])).values()]
+    .sort((left, right) => left.startMs - right.startMs || left.patternName.localeCompare(right.patternName) || left.id.localeCompare(right.id))
+  const boundaryFacts = show.scenes.slice(0, -1).flatMap((scene) => {
+    const routingTransition = routingTransitionByScene.get(scene.id)
+    const destinationId = routingTransition?.layoutId
+    const routingNote = destinationId
+      ? routingTransition.durationMs > 0
+        ? `transfer ${routingTransition.routingDirection ?? 'forward'} to ${commentText(layoutName.get(destinationId) ?? destinationId)} over ${formatSeconds(routingTransition.durationMs)} (${showEasingOptionId(routingTransition.easing)})`
+        : `switch to ${commentText(layoutName.get(destinationId) ?? destinationId)}`
+      : null
+    const transition = showVisualTransitionAfter(show, scene.id)
+    const transitionNote = transition && transition.kind !== 'cut' ? describeTransition(transition) : null
+    const facts = [transitionNote, routingNote].filter((fact): fact is string => Boolean(fact))
+    if (facts.length === 0) return []
+    const atMs = timeline.boundaryTransitions.find((boundary) => boundary.afterSceneId === scene.id)?.startMs
+      ?? timeline.scenes.find((range) => range.sceneId === scene.id)?.endMs
+      ?? 0
+    return [` * - ${formatShowBoundaryIdentity(atMs, [])}: ${facts.join('; ')}`]
+  })
   const lines = [
     '/*',
     ` * Compiled PXLBLZ Show: ${commentText(show.name.trim() || 'Untitled Show')}`,
@@ -128,19 +163,9 @@ function showArtifactHeader(
     ...(mapMetadata.showOutputContract
       ? [` * Output contract: ${describeShowOutputContract(mapMetadata.showOutputContract)}`]
       : []),
-    ' * Scenes:',
-    ...show.scenes.map((scene) => {
-      const routingTransition = routingTransitionByScene.get(scene.id)
-      const destinationId = routingTransition?.layoutId
-      const routingNote = destinationId
-        ? routingTransition && routingTransition.durationMs > 0
-          ? `: transfer ${routingTransition.routingDirection ?? 'forward'} to ${commentText(layoutName.get(destinationId) ?? destinationId)} over ${formatSeconds(routingTransition.durationMs)} (${showEasingOptionId(routingTransition.easing)}) after scene`
-          : `: switch to ${commentText(layoutName.get(destinationId) ?? destinationId)} after scene`
-        : ''
-      const transition = showVisualTransitionAfter(show, scene.id)
-      const transitionNote = transition && transition.kind !== 'cut' ? `: ${describeTransition(transition)}` : ''
-      return ` * - ${commentText(scene.name)} (${formatSeconds(scene.durationMs)})${transitionNote}${routingNote}`
-    }),
+    ' * Clip schedule:',
+    ...uniqueClipSchedule.map((clip) => ` * - ${formatShowClipIdentity(clip.startMs, commentText(clip.patternName))}`),
+    ...(boundaryFacts.length > 0 ? [' *', ' * Boundaries:', ...boundaryFacts] : []),
     ' *',
     ' * Generated orchestration follows; member bindings are isolated with collision-safe prefixes.',
     ' * This file is an ordinary standalone Pixelblaze Pattern after compilation.',

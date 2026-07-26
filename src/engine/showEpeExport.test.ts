@@ -98,7 +98,12 @@ describe('Show EPE export (#399)', () => {
     expect(parsed.src).toContain('Source Patterns:')
     expect(parsed.src).toContain('- TestPattern1D [stock:TestPattern1D]')
     expect(parsed.src).toContain('Routing Layouts: Default -> Quadrants')
-    expect(parsed.src).toContain('Scene 1 (30s): crossfade 2s: switch to Quadrants after scene')
+    expect(parsed.src).toContain('Clip schedule:')
+    expect(parsed.src).toContain(' * - 0.0: TestPattern1D')
+    expect(parsed.src).toContain(' * - 32.0: CometLoom')
+    expect(parsed.src).toContain(' * - 30.0: crossfade 2s; switch to Quadrants')
+    expect(parsed.src).not.toContain(' * Scenes:')
+    expect(parsed.src).not.toContain('after scene')
     expect(parsed.src).toContain('Generated orchestration follows; member bindings are isolated with collision-safe prefixes.')
     expect(parsed.src).toContain(generatedCode)
   })
@@ -126,8 +131,39 @@ describe('Show EPE export (#399)', () => {
     const exported = buildShowEpeExport(show, 'export function render() {}')
 
     expect(parseEpe(exported.text).src).toContain(
-      'transfer reverse to Alternate over 2s (ease-in-out) after scene',
+      'transfer reverse to Alternate over 2s (ease-in-out)',
     )
+  })
+
+  it('exports composition Clips at their current Show-global starts (#634)', () => {
+    const show = createDefaultShow('show-global-schedule', 'Global schedule', 1000)
+    show.composition = {
+      version: 1,
+      patternInstances: [{
+        id: 'instance-schedule',
+        pattern: { kind: 'stock', id: 'Rings' },
+        patternName: 'Rings',
+        time: { timeScale: 1, timeOffsetMs: 0 },
+      }],
+      scenes: show.scenes.map((scene, index) => ({
+        sceneId: scene.id,
+        zones: [{
+          zoneId: show.zones[0].id,
+          main: index === 1 ? [{
+            id: 'clip-schedule',
+            instanceId: 'instance-schedule',
+            startMs: 1_500,
+            durationMs: 2_000,
+            view: { mirror: false, phase: 0, brightness: 1 },
+          }] : [],
+          overlays: [],
+        }],
+      })),
+    }
+
+    const source = parseEpe(buildShowEpeExport(show, 'export function render() {}').text).src
+
+    expect(source).toContain(' * - 33.5: Rings')
   })
 
   it('explains the selected spatial shape in exported source (#404)', () => {

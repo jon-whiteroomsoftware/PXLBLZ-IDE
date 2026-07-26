@@ -2399,7 +2399,7 @@ export function compileShow(
   for (const [candidateId, mode] of requiredClipPresentationCandidates) {
     if (availableClipPresentationCandidates.has(candidateId)) continue
     throw new Error(
-      `${mode} Clip presentation cannot be compiled exactly for ${candidateId}; this release requires one static, unkeyed placement in a single-zone routed Scene.`,
+      `${mode} Clip presentation cannot be compiled exactly for ${candidateId}; this release requires one static, unkeyed Clip on a single Zone for its full interval.`,
     )
   }
   const renderTargetCandidates = [
@@ -2912,7 +2912,7 @@ export function compileShow(
   for (const member of authoredFreezeMembers) {
     if (compatibleFreezeMemberIds.has(member.id)) continue
     warnings.push(
-      `Freeze at entry for clip "${member.id}" fell back to Live because this first release requires one static, unkeyed placement on a single-zone routed Scene.`,
+      `Freeze at entry for clip "${member.id}" fell back to Live because this first release requires one static, unkeyed Clip on a single Zone for its full interval.`,
     )
   }
   const authoredRefreshMembers = members.filter((member) => member.evaluationPolicy === 'refresh')
@@ -2920,7 +2920,7 @@ export function compileShow(
   for (const member of authoredRefreshMembers) {
     if (compatibleRefreshMemberIds.has(member.id)) continue
     warnings.push(
-      `Refresh for clip "${member.id}" fell back to Live because this diagnostic requires one static, unkeyed placement on a single-zone routed Scene.`,
+      `Refresh for clip "${member.id}" fell back to Live because this diagnostic requires one static, unkeyed Clip on a single Zone for its full interval.`,
     )
   }
   const authoredRollingRefreshMembers = members.filter((member) => member.evaluationPolicy === 'rolling-refresh')
@@ -2928,7 +2928,7 @@ export function compileShow(
   for (const member of authoredRollingRefreshMembers) {
     if (compatibleRollingRefreshMemberIds.has(member.id)) continue
     warnings.push(
-      `Rolling Refresh for clip "${member.id}" fell back to Live because this policy requires one static, unkeyed placement on a single-zone routed Scene.`,
+      `Rolling Refresh for clip "${member.id}" fell back to Live because this policy requires one static, unkeyed Clip on a single Zone for its full interval.`,
     )
   }
   const cost = buildShowCompiledCostMetadata({
