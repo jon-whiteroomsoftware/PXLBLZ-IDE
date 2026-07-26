@@ -1106,7 +1106,10 @@ the properties control carries `data-show-timeline-focus`. Both markers make
 `showControlOwnsKeyboardEvent` yield, so Space stays with Show playback after a
 pointer click leaves focus on the control. Without one of them any focused
 `button` swallows Space and repeats its own action instead; the Timeline toolbar
-gets this from a single marker on the toolbar element.
+gets this from a single marker on the toolbar element. That predicate also gates
+the Timeline's Tab traversal, so chrome carrying either marker is exempted from
+it explicitly and keeps native Tab: the markers mean the control owns no Show
+binding, not that it joins Clip traversal.
 
 A collapsed header must fit that 28-pixel row, so it drops the nominal pixel
 count and keeps only the name, and the header clips its own content: an

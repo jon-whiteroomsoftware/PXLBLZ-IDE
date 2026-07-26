@@ -3770,7 +3770,11 @@ function ShowTimelineWorkspace({
       const target = event.target
       if (!(target instanceof HTMLElement) || !target.closest('[aria-label="Show timeline"]')) return
 
-      if (event.key === 'Tab' && target.closest('[role="toolbar"]')) return
+      // Chrome that yields Show shortcuts keeps native Tab as well. The marker
+      // means "this control owns no Show binding", not "this control joins Clip
+      // traversal", and teleporting focus out of the rail or the toolbar would
+      // strand its own controls (#632).
+      if (event.key === 'Tab' && target.closest('[role="toolbar"], [data-studio-space-preview="true"]')) return
 
       if (event.key !== 'Tab' || event.metaKey || event.ctrlKey || event.altKey) return
 

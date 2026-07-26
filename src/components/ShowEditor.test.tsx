@@ -519,6 +519,35 @@ describe('ShowEditor (#318)', () => {
     expect(screen.getByRole('button', { name: 'Expand zone accent' })).toBeInTheDocument()
   })
 
+  it('leaves native Tab traversal intact for Zone rail controls (#632)', async () => {
+    const user = userEvent.setup()
+    const show = addShowZone(createDefaultShow('show-zone-tab', 'Zone rail tab', 1000), {
+      name: 'accent',
+      nominalPixelCount: 24,
+    })
+    useShowStore.setState({ shows: [show], activeShowId: show.id, showsLoaded: true })
+
+    render(<ShowEditor showId={show.id} />)
+    await user.click(screen.getByRole('button', { name: 'Open Zones' }))
+    const grid = screen.getByTestId('show-timeline-grid')
+
+    const collapse = within(grid).getByRole('button', { name: 'Collapse zone accent' })
+    collapse.focus()
+    expect(fireEvent.keyDown(collapse, { key: 'Tab' })).toBe(true)
+    expect(document.activeElement).toBe(collapse)
+
+    const mapTrigger = within(grid).getByRole('button', { name: 'Open Zone Map' })
+    mapTrigger.focus()
+    expect(fireEvent.keyDown(mapTrigger, { key: 'Tab', shiftKey: true })).toBe(true)
+    expect(document.activeElement).toBe(mapTrigger)
+
+    await user.click(screen.getByRole('button', { name: 'Close Zones' }))
+    const picker = screen.getByRole('button', { name: 'Collapse zone accent' })
+    picker.focus()
+    expect(fireEvent.keyDown(picker, { key: 'Tab' })).toBe(true)
+    expect(document.activeElement).toBe(picker)
+  })
+
   it('collapses Zones independently and retains a micro Zone picker when the map closes (#581)', async () => {
     const user = userEvent.setup()
     const show = addShowZone(createDefaultShow('show-zone-collapse', 'Zone collapse', 1000), {
