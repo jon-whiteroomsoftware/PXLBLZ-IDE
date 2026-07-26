@@ -1332,7 +1332,15 @@ advanced Pattern instance. Preview, deterministic Fast replay, artifact output,
 EPE export, and Controller output therefore consume the same emitted evaluator.
 
 The unified timeline discloses a compact sparkline only when a property actually
-varies. Split and Restart preserve or clone affected placement- or
+varies. Each disclosed lane carries its own name, overlaid on the lane so it
+survives the gutter collapsing to an icon. `showPropertyLaneLabels.ts` resolves
+those names per Zone: a lane is named by its property alone, and the owning
+Clip returns abbreviated to its capitals only where a property would otherwise
+repeat inside that Zone, falling back to full Pattern names when two
+abbreviations would collide. The Scene lane projection carries `patternName`
+and `propertyLabel` separately so naming composes them rather than re-parsing
+the accessible name, which always keeps the full text.
+Split and Restart preserve or clone affected placement- or
 instance-owned tracks under stable targets, while deletion removes tracks whose
 owner no longer exists. The compiler's Scene-local representation remains an
 internal storage and lowering detail rather than a second authoring surface.
