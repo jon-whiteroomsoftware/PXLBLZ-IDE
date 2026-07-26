@@ -541,6 +541,11 @@ describe('ShowEditor (#318)', () => {
     expect(fireEvent.keyDown(mapTrigger, { key: 'Tab', shiftKey: true })).toBe(true)
     expect(document.activeElement).toBe(mapTrigger)
 
+    const properties = within(grid).getByRole('button', { name: 'Open zone accent properties' })
+    properties.focus()
+    expect(fireEvent.keyDown(properties, { key: 'Tab' })).toBe(true)
+    expect(document.activeElement).toBe(properties)
+
     await user.click(screen.getByRole('button', { name: 'Close Zones' }))
     const picker = screen.getByRole('button', { name: 'Collapse zone accent' })
     picker.focus()

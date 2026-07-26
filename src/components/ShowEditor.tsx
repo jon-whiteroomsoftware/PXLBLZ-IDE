@@ -4695,6 +4695,7 @@ function ShowTimelineWorkspace({
                 aria-label={`Open zone ${row.zoneName} properties`}
                 title={`Open ${row.zoneName} properties`}
                 data-show-timeline-focus
+                data-studio-space-preview="true"
                 data-show-selection-key={`zone:${row.zoneId}`}
                 className="grid size-5 shrink-0 place-items-center self-center rounded text-zinc-600 transition-colors hover:bg-zinc-800 hover:text-zinc-100 group-hover:text-zinc-400 focus-visible:text-zinc-100 focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-live/60"
                 onClick={(event) => {

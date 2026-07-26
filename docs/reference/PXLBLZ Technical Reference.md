@@ -1100,16 +1100,23 @@ structural snap times, and a Main-layer drop target. Zone names remain
 12-pixel primary text in the full header; a curated icon and full accessible
 label preserve identity when the header narrows.
 
-Rail controls that are not selection anchors - the collapse chevrons, the micro
-picker, and the Zone Map trigger - carry `data-studio-space-preview="true"`, and
-the properties control carries `data-show-timeline-focus`. Both markers make
-`showControlOwnsKeyboardEvent` yield, so Space stays with Show playback after a
-pointer click leaves focus on the control. Without one of them any focused
-`button` swallows Space and repeats its own action instead; the Timeline toolbar
-gets this from a single marker on the toolbar element. That predicate also gates
-the Timeline's Tab traversal, so chrome carrying either marker is exempted from
-it explicitly and keeps native Tab: the markers mean the control owns no Show
-binding, not that it joins Clip traversal.
+Every Zone rail control - the collapse chevrons, the micro picker, the Zone Map
+trigger, and the properties control - carries
+`data-studio-space-preview="true"`. It makes `showControlOwnsKeyboardEvent`
+yield, so Space stays with Show playback after a pointer click leaves focus on
+the control; without it any focused `button` swallows Space and repeats its own
+action instead. The Timeline toolbar gets the same treatment from a single
+marker on the toolbar element.
+
+That predicate also gates the Timeline's Tab traversal, which walks Clips and
+Groups rather than chrome. The traversal handler therefore exempts
+`[role="toolbar"]` and `[data-studio-space-preview="true"]` explicitly, so rail
+and toolbar controls keep native Tab and cannot strand focus in a Show with no
+Clips. `data-show-timeline-focus` is a different marker with a narrower job: it
+releases Space and marks a focus-return target, and Clips, junctions, and
+boundary buttons carry it precisely because they do belong to Clip traversal.
+The Zone properties control carries both - it is the Zone's selection anchor and
+rail chrome at once.
 
 A collapsed header must fit that 28-pixel row, so it drops the nominal pixel
 count and keeps only the name, and the header clips its own content: an
