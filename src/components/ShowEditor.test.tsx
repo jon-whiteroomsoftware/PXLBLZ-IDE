@@ -1708,13 +1708,29 @@ describe('ShowEditor (#318)', () => {
     const show = createDefaultShow('show-add-at-layer-pointer', 'Add at Layer pointer', 1000)
     show.composition = {
       version: 1,
-      patternInstances: [],
-      scenes: show.scenes.map((scene) => ({
+      patternInstances: [{
+        id: 'existing-overlay-instance',
+        pattern: { kind: 'stock', id: 'AuroraSphere' },
+        patternName: 'Existing overlay',
+        time: { timeScale: 1, timeOffsetMs: 0 },
+      }],
+      scenes: show.scenes.map((scene, sceneIndex) => ({
         sceneId: scene.id,
         zones: show.zones.map((zone) => ({
           zoneId: zone.id,
           main: [],
-          overlays: [{ id: `overlay-${scene.id}`, name: 'Layer 2', placements: [] }],
+          overlays: [{
+            id: `overlay-${scene.id}`,
+            name: 'Layer 2',
+            placements: sceneIndex === 0 ? [{
+              id: 'existing-overlay-clip',
+              instanceId: 'existing-overlay-instance',
+              startMs: 0,
+              durationMs: 20_000,
+              opacity: 1,
+              view: { mirror: false, phase: 0, brightness: 1 },
+            }] : [],
+          }],
         })),
       })),
     }
@@ -1722,19 +1738,24 @@ describe('ShowEditor (#318)', () => {
     useShowStore.setState({ shows: [show], activeShowId: show.id, showsLoaded: true })
 
     render(<ShowEditor showId={show.id} />)
+    Object.defineProperty(screen.getByTestId('show-timeline-scroll-region'), 'clientWidth', {
+      configurable: true,
+      value: 620,
+    })
     const overlayLayer = document.querySelector<HTMLElement>('[data-show-layer-kind="overlay"]')!
     vi.spyOn(overlayLayer, 'getBoundingClientRect').mockReturnValue({
       x: 100, y: 120, left: 100, top: 120, right: 720, bottom: 160, width: 620, height: 40,
       toJSON: () => ({}),
     })
 
-    fireEvent.doubleClick(overlayLayer, { clientX: 255, clientY: 150 })
+    fireEvent.doubleClick(overlayLayer, { clientX: 300.37, clientY: 150 })
 
     const addDialog = screen.getByRole('dialog', { name: 'Add Clip at playhead' })
-    expect(addDialog).toHaveStyle({ left: '255px', top: '154px' })
-    expect(within(addDialog).getByText('00:15.5')).toBeInTheDocument()
+    expect(addDialog).toHaveStyle({ left: '300.37px', top: '154px' })
+    expect(within(addDialog).getByText('00:20.0')).toBeInTheDocument()
     const chooser = within(addDialog).getByRole('combobox', { name: 'Pattern for new Clip' })
     expect(chooser).toHaveValue('')
+    expect(chooser).toBeEnabled()
     expect(within(addDialog).queryByRole('button', { name: 'Add Clip' })).not.toBeInTheDocument()
     await user.click(chooser)
     await user.click(screen.getByRole('option', { name: 'AuroraSphere' }))
@@ -1742,10 +1763,23 @@ describe('ShowEditor (#318)', () => {
     await waitFor(() => {
       const saved = useShowStore.getState().shows.find((candidate) => candidate.id === show.id)!
       expect(saved.composition?.scenes[0].zones[0].overlays[0].placements).toContainEqual(expect.objectContaining({
-        startMs: 15_500,
+        startMs: 20_000,
         durationMs: 5_000,
       }))
       expect(saved.composition?.scenes[0].zones[0].main).toEqual([])
+    })
+
+    fireEvent.doubleClick(overlayLayer, { clientX: 350.37, clientY: 150, altKey: true })
+    const unsnappedDialog = screen.getByRole('dialog', { name: 'Add Clip at playhead' })
+    const unsnappedChooser = within(unsnappedDialog).getByRole('combobox', { name: 'Pattern for new Clip' })
+    await user.click(unsnappedChooser)
+    await user.click(screen.getByRole('option', { name: 'AuroraSphere' }))
+
+    await waitFor(() => {
+      const saved = useShowStore.getState().shows.find((candidate) => candidate.id === show.id)!
+      expect(saved.composition?.scenes[0].zones[0].overlays[0].placements).toContainEqual(expect.objectContaining({
+        startMs: 25_037,
+      }))
     })
   })
 

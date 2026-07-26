@@ -4870,7 +4870,12 @@ function ShowTimelineWorkspace({
                   )) return
                   const rect = event.currentTarget.getBoundingClientRect()
                   const fraction = Math.min(1, Math.max(0, (event.clientX - rect.left) / Math.max(1, rect.width)))
-                  const globalTimeMs = Math.round(fraction * Math.max(1, unifiedCompositionTimeline?.durationMs ?? timeline.durationMs))
+                  const totalMs = Math.max(1, unifiedCompositionTimeline?.durationMs ?? timeline.durationMs)
+                  const globalTimeMs = snapClipBoundary(fraction * totalMs, {
+                    altKey: event.altKey,
+                    visibleWidthPx: Math.max(1, scrollRef.current?.clientWidth ?? rect.width),
+                    maxTimeMs: totalMs,
+                  }).timeMs
                   const target: ShowClipAddTarget = layer.kind === 'main'
                     ? { kind: 'main' }
                     : { kind: 'overlay', layerIndex: layer.layerIndex }

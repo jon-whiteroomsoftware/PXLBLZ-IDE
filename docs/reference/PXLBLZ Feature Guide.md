@@ -416,8 +416,8 @@ The working grammar is compact:
 - **Direct Clip edits.** **Add Clip** places a Pattern at the playhead when an
   available Layer has room. Double-clicking empty Layer time opens the same
   Pattern chooser at the pointer; choosing a Pattern immediately places the
-  Clip on that Layer at the clicked Show time. Dragging moves a Clip without
-  overwriting another;
+  Clip on that Layer at the clicked Show time, respecting **Snap** and its Alt
+  inversion. Dragging moves a Clip without overwriting another;
   selected Clip edges resize it. **Split** divides the selected Clip at the
   playhead and **Clone** duplicates it immediately after itself. **Start** is
   always measured from the beginning of the Show, including for a Clip inside
