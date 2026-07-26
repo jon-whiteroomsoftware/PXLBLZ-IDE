@@ -277,16 +277,21 @@ export function moveShowConnectedClipAtGlobalTime(
 }
 
 /**
- * Move one Clip as an atomic Show edit. If the selected Clip still touches a
- * Scene-boundary visual Transition, that record cannot identify one Layer's
- * endpoints and is deleted before the endpoint-owned move is evaluated.
+ * Move one Clip as an atomic Show edit. Plan against the original Show timing,
+ * then delete a Scene-boundary visual Transition only when the accepted move
+ * breaks its endpoint junction. The planned Composition therefore keeps the
+ * requested global placement even when deleting that Transition shortens the
+ * canonical Show timeline.
  */
 export function moveShowConnectedClipInShowAtGlobalTime(
   show: ShowRecord,
-  input: { owner: ShowTimelineClipOwner; target: ShowTimelineClipMoveTarget },
+  composition: ShowCompositionV1,
+  input: {
+    owner: ShowTimelineClipOwner
+    target: ShowTimelineClipMoveTarget
+    plannedComposition?: ShowCompositionV1
+  },
 ): ShowRecord {
-  const composition = show.composition
-  if (!composition) return show
   const projection = projectShowUnifiedTimeline(show, composition)
   const selected = projection.zones
     .flatMap((zone) => zone.layers.flatMap((layer) => layer.clips))
@@ -297,18 +302,31 @@ export function moveShowConnectedClipInShowAtGlobalTime(
     .find((candidate) => candidate.clips.some((clip) => clip.id === selected.id))
   if (!layer) return show
 
-  const boundaryTransitionIds = layer.junctions.flatMap((junction) => (
-    junction.boundaryTransition
-      && (junction.leftClipId === selected.id || junction.rightClipId === selected.id)
-      ? [junction.boundaryTransition.id]
-      : []
-  ))
+  const sameLayer = input.target.kind === selected.kind
+    && input.target.zoneId === selected.zoneId
+    && (input.target.kind === 'main' || input.target.layerIndex === selected.layerIndex)
+  if (sameLayer && Math.round(input.target.globalStartMs) === selected.startMs) return show
+  const moved = input.plannedComposition
+    ?? moveShowConnectedClipAtGlobalTime(show, composition, input)
+  if (moved === composition) return show
+
+  const plannedJunctions = projectShowUnifiedTimeline(show, moved).zones
+    .flatMap((zone) => zone.layers.flatMap((candidate) => candidate.junctions))
+  const boundaryTransitionIds = layer.junctions.flatMap((junction) => {
+    if (
+      !junction.boundaryTransition
+      || (junction.leftClipId !== selected.id && junction.rightClipId !== selected.id)
+    ) return []
+    return plannedJunctions.some((candidate) => (
+      candidate.id === junction.id
+      && (candidate.leftClipId === selected.id || candidate.rightClipId === selected.id)
+    )) ? [] : [junction.boundaryTransition.id]
+  })
   const canonicalShow = boundaryTransitionIds.reduce(
     (current, transitionId) => removeShowBoundaryTransition(current, transitionId),
     show,
   )
-  const moved = moveShowConnectedClipAtGlobalTime(canonicalShow, composition, input)
-  return moved === composition ? show : { ...canonicalShow, composition: moved }
+  return { ...canonicalShow, composition: moved }
 }
 
 export function showLayerTransitionsConnectedToClip(

@@ -1968,10 +1968,14 @@ export function ShowEditor({
                   await updateShow(activeShow.id, nextShow)
                   return placementId
                 }}
-                onMoveCompositionClip={async ({ owner, target, sourceComposition }) => {
+                onMoveCompositionClip={async ({ owner, target, sourceComposition, plannedComposition }) => {
                   if (!timelineComposition) return false
                   if (sourceComposition && sourceComposition !== timelineComposition) return false
-                  const nextShow = moveShowConnectedClipInShowAtGlobalTime(activeShow, { owner, target })
+                  const nextShow = moveShowConnectedClipInShowAtGlobalTime(
+                    activeShow,
+                    timelineComposition,
+                    { owner, target, plannedComposition },
+                  )
                   if (nextShow === activeShow) return false
                   await updateShow(activeShow.id, { ...nextShow, updatedAt: Date.now() })
                   return true
