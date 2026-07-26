@@ -5,4 +5,5 @@
 # pre-commit hook already runs focused tests and high-risk invariants, so paying
 # for every Vitest file again on each local commit only duplicates work.
 echo "▶ Checking exact candidate-review approvals before publication…"
-npm run review:push -- "$1" "$2" && npm run test:full && npm run test:e2e
+npm run review:push -- "$1" "$2" && npm run test:full && npm run test:e2e \
+  && npm run test:e2e:auth-smoke

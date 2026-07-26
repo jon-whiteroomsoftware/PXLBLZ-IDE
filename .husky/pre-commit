@@ -1,4 +1,4 @@
-npm run lint && npm run test:staged
+npm run lint && npm run check:e2e-coverage && npm run check:e2e-locators && npm run test:staged
 
 # If *significant* (non-test) src/ files are staged but the technical reference is not,
 # prompt to confirm the system reference is still accurate before the commit lands.

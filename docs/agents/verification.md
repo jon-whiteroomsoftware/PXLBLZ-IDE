@@ -131,6 +131,40 @@ ports and D1 persistence through the managed runtime registry, seed before
 server startup, and release their state after the run. See
 [`dev-runtime.md`](dev-runtime.md) for the shared-versus-isolated contract.
 
+### What the gates actually cover
+
+`playwright.config.ts` sets `testIgnore: '**/*.auth.spec.ts'`, so
+`npm run test:e2e` — the suite pre-push runs — covers **no** authenticated spec.
+A green pre-push says nothing about authenticated behavior beyond the smoke set.
+
+| Suite | Gate |
+| --- | --- |
+| `npm run test:e2e` (unauthenticated) | pre-push |
+| `npm run test:e2e:auth-smoke` | pre-push |
+| `npm run test:e2e:shows` | manual, until #638 lands it green |
+| `npm run test:e2e:auth-full` (every auth spec) | manual |
+
+Treating "manual" as covered is how #638 happened: three feature-retirement
+commits removed UI and fixtures without touching `e2e/`, and `shows.auth`
+reached 27 of 40 failing on `main` before anyone noticed. Two static checks in
+pre-commit close the awareness gap without paying browser time:
+
+- `npm run check:e2e-coverage` fails when an authenticated spec is named by no
+  npm script. Invoking a spec through a bare `npx tsx …` line in this document
+  is not coverage; that is precisely how `workspace-recovery.auth.spec.ts` ran
+  in no suite while #626 was adding tests to it.
+- `npm run check:e2e-locators` fails when a spec names a user-facing string live
+  source no longer produces. It ratchets against
+  `e2e/known-stale-locators.json`: new staleness fails, and repairing staleness
+  requires shrinking the file. Re-record with
+  `npm run check:e2e-locators -- --record`.
+
+The locator check exists because the 2.0 rename pass was applied unevenly —
+`New show` fixed in two helpers but not four inline call sites, the transition
+selector in one call site but not eight, the pan slider but not the zoom slider
+on the adjacent line. Each would have failed this check in the commit that made
+it.
+
 ### Workspace recovery contract
 
 The focused workspace-recovery gate combines store-level fault oracles with a
