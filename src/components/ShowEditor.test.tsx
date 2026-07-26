@@ -2247,6 +2247,121 @@ describe('ShowEditor (#318)', () => {
     })
   })
 
+  it('deletes an unmappable Scene-boundary crossfade when its Clip moves between Layers (#635)', async () => {
+    const user = userEvent.setup()
+    const show = createDefaultShow('show-legacy-transition-round-trip', 'Legacy transition round trip', 1000)
+    const zoneId = show.zones[0].id
+    const [leftScene, rightScene] = show.scenes
+    show.composition = {
+      version: 1,
+      patternInstances: [{
+        id: 'instance-left',
+        pattern: { ...show.cells[0].pattern },
+        patternName: 'Outgoing',
+        time: { timeScale: 1, timeOffsetMs: 0 },
+      }, {
+        id: 'instance-right',
+        pattern: { ...show.cells[0].pattern },
+        patternName: 'Incoming',
+        time: { timeScale: 1, timeOffsetMs: 0 },
+      }],
+      scenes: [{
+        sceneId: leftScene.id,
+        zones: [{
+          zoneId,
+          main: [{
+            id: 'clip-left',
+            instanceId: 'instance-left',
+            startMs: 0,
+            durationMs: leftScene.durationMs,
+            view: { mirror: false, phase: 0, brightness: 1 },
+          }],
+          overlays: [],
+        }],
+      }, {
+        sceneId: rightScene.id,
+        zones: [{
+          zoneId,
+          main: [{
+            id: 'clip-right',
+            instanceId: 'instance-right',
+            startMs: 0,
+            durationMs: rightScene.durationMs,
+            view: { mirror: false, phase: 0, brightness: 1 },
+          }],
+          overlays: [],
+        }],
+      }],
+    }
+    setPersonalContentProvider(memoryProvider([show]))
+    useShowStore.setState({ shows: [show], activeShowId: show.id, showsLoaded: true })
+
+    render(<ShowEditor showId={show.id} />)
+    expect(screen.getByRole('button', {
+      name: 'Edit crossfade Transition between Outgoing and Incoming',
+    })).toBeInTheDocument()
+    await user.click(screen.getByRole('button', { name: 'Add to Show' }))
+    await user.click(screen.getByRole('menuitem', { name: 'Layer' }))
+
+    const dragEvent = (type: string) => {
+      const event = new Event(type, { bubbles: true, cancelable: true })
+      Object.defineProperties(event, {
+        clientX: { value: 20 },
+        dataTransfer: { value: { setData: () => {}, effectAllowed: 'none', dropEffect: 'none' } },
+      })
+      return event
+    }
+    const clipRect = () => ({
+      left: 0, right: 300, top: 40, bottom: 80, width: 300, height: 40, x: 0, y: 40,
+      toJSON: () => ({}),
+    })
+    const layerRect = () => ({
+      left: 0, right: 620, top: 0, bottom: 40, width: 620, height: 40, x: 0, y: 0,
+      toJSON: () => ({}),
+    })
+
+    const outgoing = screen.getByRole('button', { name: 'Select Outgoing' })
+    const overlayLayer = document.querySelector<HTMLElement>('[data-show-layer-kind="overlay"]')!
+    Object.defineProperty(outgoing, 'getBoundingClientRect', { value: clipRect })
+    Object.defineProperty(overlayLayer, 'getBoundingClientRect', { value: layerRect })
+    fireEvent(outgoing, dragEvent('dragstart'))
+    fireEvent(overlayLayer, dragEvent('dragover'))
+    fireEvent(overlayLayer, dragEvent('drop'))
+    fireEvent(outgoing, dragEvent('dragend'))
+
+    await waitFor(() => {
+      const saved = useShowStore.getState().shows.find((candidate) => candidate.id === show.id)!
+      expect(saved.transitions).toEqual([expect.objectContaining({
+        afterSceneId: leftScene.id,
+        kind: 'cut',
+        durationMs: 0,
+      })])
+      expect(saved.composition?.scenes[0].zones[0].overlays[0].placements.map((clip) => clip.id))
+        .toEqual(['clip-left'])
+    })
+    expect(screen.queryByRole('button', {
+      name: 'Edit crossfade Transition between Outgoing and Incoming',
+    })).not.toBeInTheDocument()
+
+    const movedOutgoing = screen.getByRole('button', { name: 'Select Outgoing' })
+    const mainLayer = document.querySelector<HTMLElement>('[data-show-layer-kind="main"]')!
+    Object.defineProperty(movedOutgoing, 'getBoundingClientRect', { value: clipRect })
+    Object.defineProperty(mainLayer, 'getBoundingClientRect', { value: layerRect })
+    fireEvent(movedOutgoing, dragEvent('dragstart'))
+    fireEvent(mainLayer, dragEvent('dragover'))
+    fireEvent(mainLayer, dragEvent('drop'))
+    fireEvent(movedOutgoing, dragEvent('dragend'))
+
+    await waitFor(() => {
+      const saved = useShowStore.getState().shows.find((candidate) => candidate.id === show.id)!
+      expect(saved.composition?.scenes[0].zones[0].main.map((clip) => clip.id))
+        .toEqual(['clip-left'])
+    })
+    expect(screen.queryByRole('button', {
+      name: 'Edit crossfade Transition between Outgoing and Incoming',
+    })).not.toBeInTheDocument()
+  })
+
   it('moves a composition Clip between Zone Layers without duplicating it (#581)', async () => {
     const show = addShowZone(createDefaultShow('show-drag-zone', 'Drag Zone', 1000), { name: 'accent' })
     show.composition = {

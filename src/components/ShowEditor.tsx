@@ -144,6 +144,7 @@ import {
   deleteShowClipWithLayerTransitions,
   insertShowLayerTransition,
   moveShowConnectedClipAtGlobalTime,
+  moveShowConnectedClipInShowAtGlobalTime,
   planShowGroupLayerTransitionInsertion,
   planShowLayerTransitionInsertion,
   resizeShowLayerTransition,
@@ -1967,17 +1968,12 @@ export function ShowEditor({
                   await updateShow(activeShow.id, nextShow)
                   return placementId
                 }}
-                onMoveCompositionClip={async ({ owner, target, sourceComposition, plannedComposition }) => {
+                onMoveCompositionClip={async ({ owner, target, sourceComposition }) => {
                   if (!timelineComposition) return false
                   if (sourceComposition && sourceComposition !== timelineComposition) return false
-                  const nextComposition = plannedComposition
-                    ?? moveShowConnectedClipAtGlobalTime(activeShow, timelineComposition, { owner, target })
-                  if (nextComposition === timelineComposition) return false
-                  await updateShow(activeShow.id, {
-                    ...activeShow,
-                    composition: nextComposition,
-                    updatedAt: Date.now(),
-                  })
+                  const nextShow = moveShowConnectedClipInShowAtGlobalTime(activeShow, { owner, target })
+                  if (nextShow === activeShow) return false
+                  await updateShow(activeShow.id, { ...nextShow, updatedAt: Date.now() })
                   return true
                 }}
                 onAddCompositionLayer={async (zoneId) => {

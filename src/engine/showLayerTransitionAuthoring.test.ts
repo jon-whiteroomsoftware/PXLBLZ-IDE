@@ -4,6 +4,7 @@ import {
   deleteShowClipWithLayerTransitions,
   insertShowLayerTransition,
   moveShowConnectedClipAtGlobalTime,
+  moveShowConnectedClipInShowAtGlobalTime,
   planShowGroupLayerTransitionInsertion,
   planShowLayerTransitionInsertion,
   resizeShowConnectedClipAtGlobalTime,
@@ -15,6 +16,7 @@ import {
 import type { ShowCompositionV1 } from './personalContentRecords'
 import { splitShowClipAtGlobalTime } from './showTimelineClipAuthoring'
 import { validateShowComposition } from './showCompositionModel'
+import { projectShowUnifiedTimeline } from './showUnifiedTimelineProjection'
 
 function fixture(): {
   show: ReturnType<typeof createDefaultShow>
@@ -609,6 +611,146 @@ describe('literal per-Layer Transition authoring (#583)', () => {
         ['clip-b', 3_000],
       ])
     expect(moved.transitions).toBeUndefined()
+  })
+
+  it('does not restore a removed Transition after its endpoint returns to the Layer (#635)', () => {
+    const { show, composition } = fixture()
+    const connected = insertShowLayerTransition(show, composition, {
+      id: 'transition-a-b',
+      fromPlacementId: 'clip-a',
+      toPlacementId: 'clip-b',
+      kind: 'crossfade',
+      durationMs: 1_000,
+      easing: { curve: 'linear' },
+      crossfadePolicy: 'live-live',
+    })
+    connected.scenes[0].zones[0].overlays = [{
+      id: 'new-layer',
+      name: 'Layer 1',
+      placements: [],
+    }]
+    const beforeMove = structuredClone(connected)
+
+    const movedAway = moveShowConnectedClipAtGlobalTime(show, connected, {
+      owner: {
+        kind: 'main',
+        sceneId: show.scenes[0].id,
+        zoneId: show.zones[0].id,
+        placementId: 'clip-a',
+      },
+      target: {
+        kind: 'overlay',
+        zoneId: show.zones[0].id,
+        layerIndex: 0,
+        globalStartMs: 0,
+      },
+    })
+    const movedBack = moveShowConnectedClipAtGlobalTime(show, movedAway, {
+      owner: {
+        kind: 'overlay',
+        sceneId: show.scenes[0].id,
+        zoneId: show.zones[0].id,
+        layerId: 'new-layer',
+        placementId: 'clip-a',
+      },
+      target: {
+        kind: 'main',
+        zoneId: show.zones[0].id,
+        globalStartMs: 0,
+      },
+    })
+
+    expect(connected).toEqual(beforeMove)
+    expect(validateShowComposition(show, movedAway)).toEqual([])
+    expect(validateShowComposition(show, movedBack)).toEqual([])
+    expect(movedAway.transitions).toEqual([
+      expect.objectContaining({ id: 'transition-b-c' }),
+    ])
+    expect(movedBack.transitions).toEqual([
+      expect.objectContaining({ id: 'transition-b-c' }),
+    ])
+    expect(projectShowUnifiedTimeline(show, movedBack).zones[0].layers
+      .find((layer) => layer.kind === 'main')?.junctions.map((junction) => junction.id))
+      .toEqual(['transition-b-c'])
+  })
+
+  it('atomically deletes an unmappable Scene-boundary Transition when its endpoint changes Layers (#635)', () => {
+    const show = createDefaultShow('show-boundary-move', 'Boundary move', 1_000)
+    const zoneId = show.zones[0].id
+    const [leftScene, rightScene] = show.scenes
+    show.transitions.push({
+      id: 'routing-scene-1',
+      afterSceneId: leftScene.id,
+      kind: 'routing',
+      durationMs: 0,
+      easing: { curve: 'linear' },
+      layoutId: show.routingLayouts[0].id,
+    })
+    show.composition = {
+      version: 1,
+      patternInstances: [{
+        id: 'instance-a',
+        pattern: { kind: 'stock', id: 'Rings' },
+        patternName: 'Rings',
+        time: { timeScale: 1, timeOffsetMs: 0 },
+      }],
+      scenes: [leftScene, rightScene].map((scene, index) => ({
+        sceneId: scene.id,
+        zones: [{
+          zoneId,
+          main: [{
+            id: index === 0 ? 'clip-left' : 'clip-right',
+            instanceId: 'instance-a',
+            startMs: 0,
+            durationMs: scene.durationMs,
+            view: { mirror: false, phase: 0, brightness: 1 },
+          }],
+          overlays: [{ id: `layer-${index}`, name: 'Layer 1', placements: [] }],
+        }],
+      })),
+    }
+    const before = structuredClone(show)
+
+    const rejected = moveShowConnectedClipInShowAtGlobalTime(show, {
+      owner: { kind: 'main', sceneId: leftScene.id, zoneId, placementId: 'clip-left' },
+      target: { kind: 'main', zoneId: 'missing-zone', globalStartMs: 0 },
+    })
+    expect(rejected).toBe(show)
+    expect(show).toEqual(before)
+
+    const movedAway = moveShowConnectedClipInShowAtGlobalTime(show, {
+      owner: { kind: 'main', sceneId: leftScene.id, zoneId, placementId: 'clip-left' },
+      target: { kind: 'overlay', zoneId, layerIndex: 0, globalStartMs: 0 },
+    })
+
+    expect(show).toEqual(before)
+    expect(movedAway).not.toBe(show)
+    expect(movedAway.transitions).toEqual([
+      expect.objectContaining({
+        id: `transition-${leftScene.id}`,
+        kind: 'cut',
+        durationMs: 0,
+      }),
+      expect.objectContaining({ id: 'routing-scene-1', kind: 'routing' }),
+    ])
+    expect(movedAway.composition?.scenes[0].zones[0].overlays[0].placements)
+      .toEqual([expect.objectContaining({ id: 'clip-left' })])
+    expect(validateShowComposition(movedAway, movedAway.composition!)).toEqual([])
+
+    const movedBack = moveShowConnectedClipInShowAtGlobalTime(movedAway, {
+      owner: {
+        kind: 'overlay',
+        sceneId: leftScene.id,
+        zoneId,
+        layerId: 'layer-0',
+        placementId: 'clip-left',
+      },
+      target: { kind: 'main', zoneId, globalStartMs: 0 },
+    })
+    expect(movedBack.transitions).toEqual(movedAway.transitions)
+    expect(projectShowUnifiedTimeline(movedBack, movedBack.composition!).zones[0].layers
+      .flatMap((layer) => layer.junctions).map((junction) => junction.kind))
+      .toEqual(['cut'])
   })
 
   it('expands a partial selection to the complete transition-connected sequence', () => {

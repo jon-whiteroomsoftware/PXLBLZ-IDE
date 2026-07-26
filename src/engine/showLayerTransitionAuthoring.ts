@@ -15,7 +15,7 @@ import {
   type ShowTimelineClipMoveTarget,
   type ShowTimelineClipOwner,
 } from './showTimelineClipAuthoring'
-import { projectShowTimeline } from './showModel'
+import { projectShowTimeline, removeShowBoundaryTransition } from './showModel'
 import {
   projectShowUnifiedTimeline,
   type ShowUnifiedTimelineClipProjection,
@@ -274,6 +274,41 @@ export function moveShowConnectedClipAtGlobalTime(
   const changed = shiftTimelineClips(show, composition, chain, deltaMs)
   if (!changed || validateShowComposition(show, changed).length > 0 || hasConcurrentLayerTransitions(show, changed)) return composition
   return normalizeShowComposition(show, changed)
+}
+
+/**
+ * Move one Clip as an atomic Show edit. If the selected Clip still touches a
+ * Scene-boundary visual Transition, that record cannot identify one Layer's
+ * endpoints and is deleted before the endpoint-owned move is evaluated.
+ */
+export function moveShowConnectedClipInShowAtGlobalTime(
+  show: ShowRecord,
+  input: { owner: ShowTimelineClipOwner; target: ShowTimelineClipMoveTarget },
+): ShowRecord {
+  const composition = show.composition
+  if (!composition) return show
+  const projection = projectShowUnifiedTimeline(show, composition)
+  const selected = projection.zones
+    .flatMap((zone) => zone.layers.flatMap((layer) => layer.clips))
+    .find((clip) => clip.id === input.owner.placementId)
+  if (!selected) return show
+  const layer = projection.zones
+    .flatMap((zone) => zone.layers)
+    .find((candidate) => candidate.clips.some((clip) => clip.id === selected.id))
+  if (!layer) return show
+
+  const boundaryTransitionIds = layer.junctions.flatMap((junction) => (
+    junction.boundaryTransition
+      && (junction.leftClipId === selected.id || junction.rightClipId === selected.id)
+      ? [junction.boundaryTransition.id]
+      : []
+  ))
+  const canonicalShow = boundaryTransitionIds.reduce(
+    (current, transitionId) => removeShowBoundaryTransition(current, transitionId),
+    show,
+  )
+  const moved = moveShowConnectedClipAtGlobalTime(canonicalShow, composition, input)
+  return moved === composition ? show : { ...canonicalShow, composition: moved }
 }
 
 export function showLayerTransitionsConnectedToClip(

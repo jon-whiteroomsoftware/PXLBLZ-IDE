@@ -1221,6 +1221,14 @@ split retargets an outgoing Transition to the new right half. Its transitive
 closure helper is the authority for marquee and Group selection refinement, so
 a grouping selection cannot retain only one Transition endpoint.
 
+`moveShowConnectedClipInShowAtGlobalTime()` commits that movement as one
+Show-level edit. If a composed Show still carries a visual Scene-boundary
+record attached to the moved Clip, the record cannot identify one Layer's
+endpoints and is replaced by a neutral compiler Cut before the endpoint-owned
+move runs. Routing at the same boundary and unrelated Layer Transitions remain
+unchanged. A refused move returns the original Show, so the compatibility
+record cannot disappear without the requested placement change.
+
 `ShowCompositionV1.durationMs` persists the explicit Show End, while
 `ShowCompositionV1.markers` persists sorted, Show-owned alignment guides with
 millisecond time, optional name, and optional color. Markers do not affect
