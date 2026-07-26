@@ -339,9 +339,10 @@ describe('stock Show curriculum (#363)', () => {
     expect(main.map((placement) => (placement.effects ?? []).map((effect) => effect.kind))).toEqual([
       [], ['threshold'], ['brightness', 'threshold'], ['threshold', 'brightness'],
     ])
-    // Distinct ids across the two ordered Clips. The compiler shares one emitted
-    // Color & output chain per Effect-id set and specializes only the constants,
-    // so matching ids would collapse both orders onto one picture (#363).
+    // Distinct ids across the two ordered Clips. The compiler now splits
+    // placements whose Effect order conflicts, so this is no longer load-bearing
+    // for correctness, but keeping the ids distinct states the lesson's intent
+    // and keeps the two Clips independently editable (#363).
     const allIds = main.flatMap((placement) => (placement.effects ?? []).map((effect) => effect.id))
     expect(new Set(allIds).size, 'every Effect id is unique across the Clips').toBe(allIds.length)
     const [thirdEffects, fourthEffects] = [main[2].effects!, main[3].effects!]

@@ -292,11 +292,9 @@ function learn103(): StockShow {
 function learn104(): StockShow {
   const id = 'stock-show-104-effects-and-ordering'
   const zones = logicalZones(['Main'], PORTABLE_REFERENCE_PIXELS)
-  // Effect ids are per-Clip and must stay distinct between the two ordered
-  // Clips. The compiler shares one emitted Color & output chain across Clips
-  // whose Effects carry the same ids and specializes only the constants, so
-  // reusing ids here collapses both orders onto whichever one it emits and the
-  // lesson silently shows the same picture twice (#363).
+  // Distinct Effect ids per Clip. The compiler splits placements whose Effect
+  // order conflicts, so this is not required for correctness, but it keeps each
+  // Clip's Effects independently addressable and states the intent (#363).
   const dim = (id: string): ShowClipEffect => ({ id, kind: 'brightness', brightness: 0.25 })
   const cutoff = (id: string): ShowClipEffect => ({ id, kind: 'threshold', threshold: 0.2, amount: 1 })
   const stacks: Array<[string, ShowClipEffect[]]> = [

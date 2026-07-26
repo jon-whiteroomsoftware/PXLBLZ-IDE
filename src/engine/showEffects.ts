@@ -143,6 +143,47 @@ export function sameShowEffectStructure(a: readonly ShowClipEffect[] | undefined
   ))
 }
 
+/**
+ * True when two Effect lists disagree about the relative order of Effects they
+ * both carry. Placements of one Pattern instance share a single emitted chain
+ * whose sequence comes from the merged list, so a subset or a differing value is
+ * representable but a contradictory order is not (#363).
+ */
+export function showEffectOrderConflicts(
+  a: readonly ShowClipEffect[] | undefined,
+  b: readonly ShowClipEffect[] | undefined,
+): boolean {
+  const left = normalizeShowClipEffects(a)
+  const positionById = new Map(left.map((effect, index) => [effect.id, index] as const))
+  const shared = normalizeShowClipEffects(b).filter((effect) => positionById.has(effect.id))
+  for (let index = 1; index < shared.length; index += 1) {
+    if (positionById.get(shared[index - 1].id)! > positionById.get(shared[index].id)!) return true
+  }
+  return false
+}
+
+// Separator for Effect-order clip variants. Chosen to be absent from authored
+// instance ids so the base id can always be recovered.
+const SHOW_EFFECT_ORDER_VARIANT_SEPARATOR = '~fx'
+
+/**
+ * Clip id for a placement whose Effect order conflicts with the instance's
+ * existing chain. The base instance id stays with the first order seen, so
+ * Shows without a conflict keep exactly the ids they had (#363).
+ */
+export function showEffectOrderVariantClipId(instanceId: string, variant: number): string {
+  return `${instanceId}${SHOW_EFFECT_ORDER_VARIANT_SEPARATOR}${variant}`
+}
+
+/**
+ * Base instance id behind a clip id, so instance-scoped lookups such as Property
+ * tracks still resolve for a split placement.
+ */
+export function showEffectOrderBaseInstanceId(clipId: string): string {
+  const index = clipId.lastIndexOf(SHOW_EFFECT_ORDER_VARIANT_SEPARATOR)
+  return index === -1 ? clipId : clipId.slice(0, index)
+}
+
 export function showEffectsAreIdentity(effects: readonly ShowClipEffect[] | undefined): boolean {
   const normalized = normalizeShowClipEffects(effects)
   const hasAffine = normalized.some((effect) => (

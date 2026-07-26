@@ -39,6 +39,8 @@ import { splitShowCompositionScene } from './showCompositionSplit'
 import {
   normalizeShowClipEffects,
   sameShowEffectStructure,
+  showEffectOrderConflicts,
+  showEffectOrderVariantClipId,
   showEffectAnimatableParameterNames,
   showEffectNumericValue,
   showEffectsAreIdentity,
@@ -2451,13 +2453,28 @@ function showRecordToRoutedSceneSequenceRecipe(
     : undefined
 
   const clipIdByCellId = new Map<string, string>()
+  // Placements of one instance normally share a clip, and their Effect lists are
+  // merged by id so a placement may carry a subset or its own values. That merge
+  // cannot represent two placements whose shared Effects run in opposite order,
+  // so a conflicting placement takes its own clip variant instead of silently
+  // adopting whichever order was seen first (#363).
+  const mergedEffectsByClipId = new Map<string, ShowCell['effects']>()
   for (const zone of normalized.zones) {
     normalized.scenes.forEach((scene, sceneIndex) => {
       for (const cell of showCompileCellsAtSlot(normalized, zone.id, scene.id, lookup)) {
         if (clipIdByCellId.has(cell.id)) continue
         const explicitInstanceId = lookup.instanceIdByCellId?.[cell.id]
         if (explicitInstanceId) {
-          clipIdByCellId.set(cell.id, explicitInstanceId)
+          let clipId = explicitInstanceId
+          for (let variant = 1; mergedEffectsByClipId.has(clipId); variant += 1) {
+            if (!showEffectOrderConflicts(mergedEffectsByClipId.get(clipId), cell.effects)) break
+            clipId = showEffectOrderVariantClipId(explicitInstanceId, variant)
+          }
+          mergedEffectsByClipId.set(
+            clipId,
+            mergeShowPlacementEffects(mergedEffectsByClipId.get(clipId), cell.effects),
+          )
+          clipIdByCellId.set(cell.id, clipId)
           continue
         }
         const previousScene = normalized.scenes[sceneIndex - 1]

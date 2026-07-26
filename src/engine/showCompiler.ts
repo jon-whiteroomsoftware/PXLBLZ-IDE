@@ -60,6 +60,7 @@ import {
   showEffectNumericValue,
   showEffectParameterNames,
   showEffectsAreIdentity,
+  showEffectOrderBaseInstanceId,
 } from './showEffects'
 import {
   buildShowCompiledCostMetadata,
@@ -5949,12 +5950,15 @@ function emitRoutedInstancePropertyTrackAssignments(
   tracks: ShowPropertyAnimationTrack[],
   localTimeExpression: string,
 ): string {
+  // A placement split out because its Effect order conflicted carries a variant
+  // clip id, so instance-scoped tracks must match the base instance (#363).
+  const instanceId = showEffectOrderBaseInstanceId(member.id)
   return tracks.flatMap((track): string[] => {
     const expression = emitShowPropertyTrackExpression(track, localTimeExpression)
-    if (track.target.kind === 'instance-time-scale' && track.target.instanceId === member.id) {
+    if (track.target.kind === 'instance-time-scale' && track.target.instanceId === instanceId) {
       return [`${member.prefix}_adapt_timeScale = ${expression}`]
     }
-    if (track.target.kind === 'instance-control' && track.target.instanceId === member.id) {
+    if (track.target.kind === 'instance-control' && track.target.instanceId === instanceId) {
       const exportName = track.target.exportName
       const control = member.controls.find((candidate) => candidate.exportName === exportName)
       if (!control) throw new Error(`Clip "${member.id}" cannot animate missing control "${track.target.exportName}".`)
