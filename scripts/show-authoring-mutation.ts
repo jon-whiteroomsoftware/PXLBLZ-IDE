@@ -115,7 +115,7 @@ const SHOW_AUTHORING_MUTATION_TARGETS: MutationTarget[] = [
     'updateShowClipInspector',
     [
       'const timingAccepted = resized !== stagedLocal',
-      '        || (desiredStartMs === range.localStartMs && desiredDurationMs === range.durationMs)',
+      '        || (desiredStartMs === range.globalStartMs && desiredDurationMs === range.durationMs)',
       '      composition = timingAccepted ? resized : localBasis',
     ].join('\n'),
   ),

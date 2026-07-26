@@ -1,7 +1,6 @@
 import { readFileSync, writeFileSync } from 'node:fs'
 import { buildShowEpeExport } from '../../src/engine/showEpeExport'
 import { createPatternPrismShow } from '../../src/engine/patternPrismShow'
-import { createSceneSpliceShow } from '../../src/engine/sceneSpliceShow'
 import { compileShowForPreview } from '../../src/engine/showPreviewArtifact'
 import type { ShowRecord } from '../../src/engine/personalContentRecords'
 
@@ -18,11 +17,6 @@ describe.skipIf(!refreshRequested)('reviewed Show artifact refresh', () => {
       'artifacts/electromage/pattern-prism.epe',
       createPatternPrismShow(),
       '2026-07-10T21:00:00.000Z',
-    )
-    refresh(
-      'artifacts/electromage/scene-splice-showcase.epe',
-      createSceneSpliceShow(),
-      '2026-07-10T22:00:00.000Z',
     )
   })
 })

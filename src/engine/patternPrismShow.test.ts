@@ -77,7 +77,7 @@ describe('Pattern Prism catalog Show (#401)', () => {
     expect(parsed.src).toContain('Built with PXLBLZ-IDE https://pxlblz-ide.whiteroomsoftware.com/')
     expect(parsed.src).toContain('Ribbon Loom [stock:RibbonLoom]')
     expect(parsed.src).toContain('Routing Layouts: Full panel -> Four quadrants -> Alternating vertical strips -> Pinwheel interleave')
-    expect(parsed.src).toContain('switch to Pinwheel interleave after scene')
+    expect(parsed.src).toContain('15.0: switch to Pinwheel interleave')
   })
 
   it('keeps the reviewed Electromage artifact importable', () => {
