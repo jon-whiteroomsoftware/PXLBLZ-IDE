@@ -413,8 +413,11 @@ The working grammar is compact:
   range; Fit restores the complete Show, and Ctrl/Cmd-wheel zooms around the
   playhead. Snap magnetically aligns scrubbing and edits to Clip, Transition,
   Marker, and time-grid boundaries; Alt temporarily reverses it.
-- **Direct Clip edits.** **Add Clip** places a Pattern at the playhead when the
-  target Layer has room. Dragging moves a Clip without overwriting another;
+- **Direct Clip edits.** **Add Clip** places a Pattern at the playhead when an
+  available Layer has room. Double-clicking empty Layer time opens the same
+  Pattern chooser at the pointer; choosing a Pattern immediately places the
+  Clip on that Layer at the clicked Show time. Dragging moves a Clip without
+  overwriting another;
   selected Clip edges resize it. **Split** divides the selected Clip at the
   playhead and **Clone** duplicates it immediately after itself. **Start** is
   always measured from the beginning of the Show, including for a Clip inside

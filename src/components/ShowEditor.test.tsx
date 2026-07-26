@@ -1136,7 +1136,8 @@ describe('ShowEditor (#318)', () => {
     await user.click(screen.getByRole('menuitem', { name: 'Clip' }))
     const addDialog = screen.getByRole('dialog', { name: 'Add Clip at playhead' })
 
-    await user.click(within(addDialog).getByRole('button', { name: 'Add Clip' }))
+    await user.click(within(addDialog).getByRole('combobox', { name: 'Pattern for new Clip' }))
+    await user.click(screen.getByRole('option', { name: 'AuroraSphere' }))
 
     await waitFor(() => {
       const saved = useShowStore.getState().shows[0]
@@ -1675,8 +1676,11 @@ describe('ShowEditor (#318)', () => {
     await user.click(screen.getByRole('menuitem', { name: 'Clip' }))
 
     const addDialog = screen.getByRole('dialog', { name: 'Add Clip at playhead' })
-    expect(within(addDialog).getByRole('combobox', { name: 'Pattern for new Clip' })).toBeInTheDocument()
-    await user.click(within(addDialog).getByRole('button', { name: 'Add Clip' }))
+    const chooser = within(addDialog).getByRole('combobox', { name: 'Pattern for new Clip' })
+    expect(chooser).toHaveValue('')
+    expect(within(addDialog).queryByRole('button', { name: 'Add Clip' })).not.toBeInTheDocument()
+    await user.click(chooser)
+    await user.click(screen.getByRole('option', { name: 'AuroraSphere' }))
 
     await waitFor(() => {
       const saved = useShowStore.getState().shows.find((candidate) => candidate.id === show.id)
@@ -1697,6 +1701,52 @@ describe('ShowEditor (#318)', () => {
     await waitFor(() => expect(screen.getByRole('dialog', { name: 'Entity Detail Panel' })).toBeInTheDocument())
     fireEvent.pointerDown(screen.getByRole('region', { name: 'Show timeline' }))
     expect(screen.queryByRole('dialog', { name: 'Entity Detail Panel' })).not.toBeInTheDocument()
+  })
+
+  it('opens the Clip chooser at an empty Layer double-click and adds there (#601)', async () => {
+    const user = userEvent.setup()
+    const show = createDefaultShow('show-add-at-layer-pointer', 'Add at Layer pointer', 1000)
+    show.composition = {
+      version: 1,
+      patternInstances: [],
+      scenes: show.scenes.map((scene) => ({
+        sceneId: scene.id,
+        zones: show.zones.map((zone) => ({
+          zoneId: zone.id,
+          main: [],
+          overlays: [{ id: `overlay-${scene.id}`, name: 'Layer 2', placements: [] }],
+        })),
+      })),
+    }
+    setPersonalContentProvider(memoryProvider([show]))
+    useShowStore.setState({ shows: [show], activeShowId: show.id, showsLoaded: true })
+
+    render(<ShowEditor showId={show.id} />)
+    const overlayLayer = document.querySelector<HTMLElement>('[data-show-layer-kind="overlay"]')!
+    vi.spyOn(overlayLayer, 'getBoundingClientRect').mockReturnValue({
+      x: 100, y: 120, left: 100, top: 120, right: 720, bottom: 160, width: 620, height: 40,
+      toJSON: () => ({}),
+    })
+
+    fireEvent.doubleClick(overlayLayer, { clientX: 255, clientY: 150 })
+
+    const addDialog = screen.getByRole('dialog', { name: 'Add Clip at playhead' })
+    expect(addDialog).toHaveStyle({ left: '255px', top: '154px' })
+    expect(within(addDialog).getByText('00:15.5')).toBeInTheDocument()
+    const chooser = within(addDialog).getByRole('combobox', { name: 'Pattern for new Clip' })
+    expect(chooser).toHaveValue('')
+    expect(within(addDialog).queryByRole('button', { name: 'Add Clip' })).not.toBeInTheDocument()
+    await user.click(chooser)
+    await user.click(screen.getByRole('option', { name: 'AuroraSphere' }))
+
+    await waitFor(() => {
+      const saved = useShowStore.getState().shows.find((candidate) => candidate.id === show.id)!
+      expect(saved.composition?.scenes[0].zones[0].overlays[0].placements).toContainEqual(expect.objectContaining({
+        startMs: 15_500,
+        durationMs: 5_000,
+      }))
+      expect(saved.composition?.scenes[0].zones[0].main).toEqual([])
+    })
   })
 
   it('restores a Clip timing field when the engine refuses an overlap (#614)', async () => {
@@ -1825,7 +1875,8 @@ describe('ShowEditor (#318)', () => {
 
     const addDialog = screen.getByRole('dialog', { name: 'Add Clip at playhead' })
     expect(within(addDialog).queryByRole('combobox', { name: 'Destination Layer' })).not.toBeInTheDocument()
-    await user.click(within(addDialog).getByRole('button', { name: 'Add Clip' }))
+    await user.click(within(addDialog).getByRole('combobox', { name: 'Pattern for new Clip' }))
+    await user.click(screen.getByRole('option', { name: 'AuroraSphere' }))
 
     await waitFor(() => {
       const saved = useShowStore.getState().shows.find((candidate) => candidate.id === show.id)!

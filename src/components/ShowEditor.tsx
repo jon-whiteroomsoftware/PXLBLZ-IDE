@@ -130,6 +130,7 @@ import {
   addShowOverlayLayerAcrossTimeline,
   duplicateShowClipAfter,
   makeShowClipPatternIndependent,
+  planShowClipAtGlobalTime,
   planShowClipAtTopmostAvailableLayer,
   planShowClipDuplicateAfter,
   planShowClipSplitAtGlobalTime,
@@ -3256,6 +3257,13 @@ function ShowTimelineWorkspace({
   const [addMenuOpen, setAddMenuOpen] = useState(false)
   const [addPopoverAnchor, setAddPopoverAnchor] = useState<HTMLButtonElement | null>(null)
   const [addClipOpen, setAddClipOpen] = useState(false)
+  const [addClipPointerContext, setAddClipPointerContext] = useState<{
+    anchor: HTMLElement
+    point: { clientX: number; clientY: number }
+    zoneId: string
+    target: ShowClipAddTarget
+  } | null>(null)
+  const [addClipSubmitting, setAddClipSubmitting] = useState(false)
   const [insertTimeOpen, setInsertTimeOpen] = useState(false)
   const [insertTimeSeconds, setInsertTimeSeconds] = useState(1)
   const [insertTimeAtMs, setInsertTimeAtMs] = useState(0)
@@ -3267,10 +3275,7 @@ function ShowTimelineWorkspace({
   const [layoutActionDurationSeconds, setLayoutActionDurationSeconds] = useState(5)
   const [layoutActionError, setLayoutActionError] = useState<string | null>(null)
   const [addClipTimeMs, setAddClipTimeMs] = useState(0)
-  const [addClipPatternKey, setAddClipPatternKey] = useState<string | null>(() => {
-    const first = patternOptions[0]
-    return first ? `${first.ref.kind}:${first.ref.id}` : null
-  })
+  const [addClipPatternKey, setAddClipPatternKey] = useState<string | null>(null)
   const selectedCompositionZoneId = selection.kind === 'zone'
     ? selection.zoneId
     : selection.kind === 'clip'
@@ -3279,13 +3284,25 @@ function ShowTimelineWorkspace({
         ))?.id
       : null
   const preferredAuthoringZoneId = selectedCompositionZoneId ?? focusedZoneId
-  const addClipZoneId = showLayoutZoneIdAtTime(show, addClipTimeMs, preferredAuthoringZoneId)
-  const addClipDestination = timelineComposition && addClipZoneId
-    ? planShowClipAtTopmostAvailableLayer(show, timelineComposition, {
-        zoneId: addClipZoneId,
+  const addClipZoneId = addClipPointerContext?.zoneId
+    ?? showLayoutZoneIdAtTime(show, addClipTimeMs, preferredAuthoringZoneId)
+  const exactAddClipPlan = timelineComposition && addClipPointerContext
+    ? planShowClipAtGlobalTime(show, timelineComposition, {
+        zoneId: addClipPointerContext.zoneId,
         globalTimeMs: addClipTimeMs,
+        target: addClipPointerContext.target,
       })
     : null
+  const addClipDestination = addClipPointerContext
+    ? exactAddClipPlan?.enabled
+      ? { target: addClipPointerContext.target, plan: exactAddClipPlan }
+      : null
+    : timelineComposition && addClipZoneId
+      ? planShowClipAtTopmostAvailableLayer(show, timelineComposition, {
+          zoneId: addClipZoneId,
+          globalTimeMs: addClipTimeMs,
+        })
+      : null
   const transport = useShowTransportStore.getState()
   const layerTargetTimeMs = transport.showId === show.id ? transport.positionMs : 0
   const layerTargetZoneId = showLayoutZoneIdAtTime(show, layerTargetTimeMs, preferredAuthoringZoneId)
@@ -3367,7 +3384,28 @@ function ShowTimelineWorkspace({
   }
   const addClipPattern = patternOptions.find((option) => (
     `${option.ref.kind}:${option.ref.id}` === addClipPatternKey
-  )) ?? patternOptions[0]
+  )) ?? null
+  const chooseAddClipPattern = (patternKey: string) => {
+    if (addClipSubmitting || !addClipZoneId || !addClipDestination) return
+    const pattern = patternOptions.find((option) => (
+      `${option.ref.kind}:${option.ref.id}` === patternKey
+    ))
+    if (!pattern) return
+    setAddClipPatternKey(patternKey)
+    setAddClipSubmitting(true)
+    void onAddClipAtPlayhead({
+      zoneId: addClipZoneId,
+      globalTimeMs: addClipTimeMs,
+      target: addClipDestination.target,
+      pattern: pattern.ref,
+      patternName: pattern.label,
+    }).then((placementId) => {
+      if (!placementId) return
+      setAddClipOpen(false)
+      setAddClipPointerContext(null)
+      onSelect({ kind: 'clip', clipId: placementId })
+    }).finally(() => setAddClipSubmitting(false))
+  }
   const layoutActionInterval = showLayoutIntervalAtTime(layoutIntervals, layoutActionTimeMs)
   const layoutActionDurationMs = Math.round(layoutActionDurationSeconds * 1000)
   const layoutActionDurationValid = Number.isFinite(layoutActionDurationMs) && layoutActionDurationMs >= 1
@@ -4007,6 +4045,9 @@ function ShowTimelineWorkspace({
                 onClick={() => {
                   const transport = useShowTransportStore.getState()
                   setAddClipTimeMs(transport.showId === show.id ? transport.positionMs : 0)
+                  setAddClipPatternKey(null)
+                  setAddClipSubmitting(false)
+                  setAddClipPointerContext(null)
                   setAddClipOpen(false)
                   setInsertTimeOpen(false)
                   setLayoutActionsOpen(false)
@@ -4106,7 +4147,8 @@ function ShowTimelineWorkspace({
               )}
               {addClipOpen && (
                 <ShowTimelineToolbarPopover
-                  anchor={addPopoverAnchor}
+                  anchor={addClipPointerContext?.anchor ?? addPopoverAnchor}
+                  point={addClipPointerContext?.point}
                   widthPx={288}
                   ariaLabel="Add Clip at playhead"
                   className="w-[288px] rounded border border-zinc-700 bg-zinc-950 p-2.5 shadow-2xl"
@@ -4125,31 +4167,14 @@ function ShowTimelineWorkspace({
                       group: option.group,
                     }))}
                     compact
-                    onChange={setAddClipPatternKey}
+                    disabled={addClipSubmitting || !addClipDestination}
+                    onChange={chooseAddClipPattern}
                   />
-                  <div className="mt-2 flex justify-end gap-1">
-                    <Button size="xs" variant="ghost" onClick={() => setAddClipOpen(false)}>Cancel</Button>
-                    <Button
-                      size="xs"
-                      aria-label="Add Clip"
-                      disabled={!addClipPattern || !addClipDestination}
-                      onClick={() => {
-                        if (!addClipPattern || !addClipZoneId || !addClipDestination) return
-                        void onAddClipAtPlayhead({
-                          zoneId: addClipZoneId,
-                          globalTimeMs: addClipTimeMs,
-                          target: addClipDestination.target,
-                          pattern: addClipPattern.ref,
-                          patternName: addClipPattern.label,
-                        }).then((placementId) => {
-                          if (!placementId) return
-                          setAddClipOpen(false)
-                          onSelect({ kind: 'clip', clipId: placementId })
-                        })
-                      }}
-                    >
-                      Add Clip
-                    </Button>
+                  <div className="mt-2 flex justify-end">
+                    <Button size="xs" variant="ghost" onClick={() => {
+                      setAddClipOpen(false)
+                      setAddClipPointerContext(null)
+                    }} disabled={addClipSubmitting}>Cancel</Button>
                   </div>
                 </ShowTimelineToolbarPopover>
               )}
@@ -4837,6 +4862,40 @@ function ShowTimelineWorkspace({
                 data-show-layer-kind={layer.kind}
                 data-show-layer-index={layer.layerIndex}
                 data-drop-active={dropTargetKey === `composition:${layer.id}` ? 'true' : undefined}
+                onDoubleClick={(event) => {
+                  if (readOnly || !timelineComposition || isolatedGroupOccurrenceId) return
+                  const targetElement = event.target
+                  if (targetElement instanceof Element && targetElement.closest(
+                    '[data-show-composition-clip="true"], [data-show-layer-junction], button, input, select, textarea, [role="slider"]',
+                  )) return
+                  const rect = event.currentTarget.getBoundingClientRect()
+                  const fraction = Math.min(1, Math.max(0, (event.clientX - rect.left) / Math.max(1, rect.width)))
+                  const globalTimeMs = Math.round(fraction * Math.max(1, unifiedCompositionTimeline?.durationMs ?? timeline.durationMs))
+                  const target: ShowClipAddTarget = layer.kind === 'main'
+                    ? { kind: 'main' }
+                    : { kind: 'overlay', layerIndex: layer.layerIndex }
+                  const plan = planShowClipAtGlobalTime(show, timelineComposition, {
+                    zoneId: row.zoneId,
+                    globalTimeMs,
+                    target,
+                  })
+                  if (!plan.enabled) return
+                  event.preventDefault()
+                  event.stopPropagation()
+                  setAddMenuOpen(false)
+                  setInsertTimeOpen(false)
+                  setLayoutActionsOpen(false)
+                  setAddClipTimeMs(globalTimeMs)
+                  setAddClipPatternKey(null)
+                  setAddClipSubmitting(false)
+                  setAddClipPointerContext({
+                    anchor: event.currentTarget,
+                    point: { clientX: event.clientX, clientY: event.clientY },
+                    zoneId: row.zoneId,
+                    target,
+                  })
+                  setAddClipOpen(true)
+                }}
                 onDragEnter={(event) => {
                   if (!draggingCompositionClipRef.current || readOnly) return
                   event.preventDefault()
@@ -6097,6 +6156,7 @@ function TimelineRuler({
 
 function ShowTimelineToolbarPopover({
   anchor,
+  point,
   widthPx,
   align = 'end',
   role = 'dialog',
@@ -6107,6 +6167,7 @@ function ShowTimelineToolbarPopover({
   onClick,
 }: {
   anchor: HTMLElement | null
+  point?: { clientX: number; clientY: number }
   widthPx: number
   /** Toolbar popovers hang from their anchor's right edge; rail popovers from its left. */
   align?: 'start' | 'end'
@@ -6124,9 +6185,18 @@ function ShowTimelineToolbarPopover({
     if (!anchor) return
     const updatePosition = () => {
       const rect = anchor.getBoundingClientRect()
+      const popoverHeight = popoverRef.current?.getBoundingClientRect().height ?? 0
+      const desiredTop = point
+        ? point.clientY + popoverHeight + 4 <= window.innerHeight - 8
+          ? point.clientY + 4
+          : point.clientY - popoverHeight - 4
+        : rect.bottom + 4
       setPosition({
-        left: Math.max(8, Math.min(align === 'start' ? rect.left : rect.right - widthPx, window.innerWidth - widthPx - 8)),
-        top: rect.bottom + 4,
+        left: Math.max(8, Math.min(
+          point?.clientX ?? (align === 'start' ? rect.left : rect.right - widthPx),
+          window.innerWidth - widthPx - 8,
+        )),
+        top: Math.max(8, Math.min(desiredTop, window.innerHeight - popoverHeight - 8)),
       })
     }
     updatePosition()
@@ -6136,7 +6206,7 @@ function ShowTimelineToolbarPopover({
       window.removeEventListener('resize', updatePosition)
       window.removeEventListener('scroll', updatePosition, true)
     }
-  }, [align, anchor, widthPx])
+  }, [align, anchor, point, widthPx])
 
   useLayoutEffect(() => {
     if (role !== 'menu') return

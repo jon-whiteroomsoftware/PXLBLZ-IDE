@@ -1594,9 +1594,13 @@ without trapping focus or changing Timeline layout. The pure
 `showEntityDetailPlacement.ts` helper chooses above or below, clamps the panel
 to viewport margins, and keeps the stem aimed at the anchor. Resize, scrolling,
 and anchor/panel size changes recompute placement. New Clips enter through the
-toolbar's playhead-aware Pattern catalogue; Entity Details handle existing
-owners. Model mutations delegate through `showStore`; the React surface does
-not reproduce occupancy, split, Transition, or routing rules.
+toolbar's playhead-aware Pattern catalogue or the same pointer-positioned
+chooser after an empty Layer double-click. The latter binds the clicked Layer
+and Show-global time. Choosing a Pattern commits immediately in either entry
+path, while both paths delegate occupancy and placement to the same
+clip-authoring planner. Entity Details handle existing owners. Model mutations
+delegate through `showStore`; the React surface does not reproduce occupancy,
+split, Transition, or routing rules.
 
 `showClipInspectorModel.ts` is the framework-free owner boundary for Clip
 Entity Detail. A discriminated owner identifies a compatibility flat cell, an
