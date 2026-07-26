@@ -172,7 +172,13 @@ async function exerciseConfirmedDeletion(page: Page, request: APIRequestContext,
   await expect(page).toHaveURL(new RegExp(`/${entity.resource}$`))
   await expect(entity.selected(page)).toHaveCount(0)
   await expectEntityAbsent(request, entity)
+  const hydrated = page.waitForResponse((response) => (
+    response.request().method() === 'GET'
+    && new URL(response.url()).pathname.endsWith(`/api/${entity.resource}`)
+    && response.ok()
+  ))
   await page.reload()
+  await hydrated
   await expect(page).toHaveURL(new RegExp(`/${entity.resource}$`))
   await expect(entity.selected(page)).toHaveCount(0)
 }
