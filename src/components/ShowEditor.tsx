@@ -4387,7 +4387,7 @@ function ShowTimelineWorkspace({
         >
         <div
           data-testid="show-timeline-grid"
-          className={`relative isolate grid gap-y-2 ${!zonesOpen && !hasMultipleZones ? 'px-1' : ''}`}
+          className={`relative isolate grid gap-y-1.5 ${!zonesOpen && !hasMultipleZones ? 'px-1' : ''}`}
           onPointerDownCapture={(event) => {
             if (!isolatedGroupOccurrenceId) return
             const target = event.target
