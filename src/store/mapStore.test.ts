@@ -528,18 +528,34 @@ describe('map eval/bake/deploy (#143)', () => {
     expect(useMapStore.getState().userMaps[0].gridDims).toBeUndefined()
   })
 
-  it('bakeEditingMap surfaces an eval error and keeps the prior bake', async () => {
+  it('keeps the prior bake through an eval error, then repairs and reloads the durable map', async () => {
     await useMapStore.getState().createNewMap()
     useEditorStore.getState().setSource(GRID_SRC)
     useMapStore.setState({ activePixelCount: 8 })
     await useMapStore.getState().bakeEditingMap()
+    const priorPoints = useMapStore.getState().userMaps[0].points
 
     // Now a parse-clean source that throws when run: prior points stay, error set.
     useEditorStore.getState().setSource(`function(n){ throw new Error('boom') }`)
     await useMapStore.getState().bakeEditingMap()
-    const rec = useMapStore.getState().userMaps[0]
     expect(useMapStore.getState().mapEvalError).toMatch(/boom/)
-    expect(rec.points).toHaveLength(8) // prior good bake intact
+    expect(useMapStore.getState().userMaps[0].points).toEqual(priorPoints)
+
+    const repaired = '[[0, 0], [1, 1], [2, 0]]'
+    useEditorStore.getState().setSource(repaired)
+    await useMapStore.getState().bakeEditingMap()
+    expect(useMapStore.getState().mapEvalError).toBeNull()
+    expect(useMapStore.getState().userMaps[0]).toMatchObject({
+      source: repaired,
+      points: [[0, 0], [0.5, 0.5], [1, 0]],
+    })
+
+    useMapStore.setState(mapInitialState)
+    useEditorStore.setState(editorInitialState)
+    await useMapStore.getState().loadMaps()
+    const reloaded = useMapStore.getState().userMaps[0]
+    expect(reloaded.source).toBe(repaired)
+    expect(reloaded.points).toEqual([[0, 0], [0.5, 0.5], [1, 0]])
   })
 
   it('deployEditingMap no longer selects the open map as the active layout', async () => {

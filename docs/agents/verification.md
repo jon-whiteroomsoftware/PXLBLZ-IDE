@@ -131,6 +131,24 @@ ports and D1 persistence through the managed runtime registry, seed before
 server startup, and release their state after the run. See
 [`dev-runtime.md`](dev-runtime.md) for the shared-versus-isolated contract.
 
+### Workspace recovery contract
+
+The focused workspace-recovery gate combines store-level fault oracles with a
+small authenticated browser matrix:
+
+```bash
+npx vitest run src/components/Editor.recovery.test.tsx src/store/mapStore.test.ts
+npx tsx scripts/run-authenticated-playwright.ts e2e/workspace-recovery.auth.spec.ts
+```
+
+The unit layer proves last-clean Pattern preview/persistence and last-good Map
+bake recovery through invalid input, repair, and reload. The browser layer uses
+an isolated disposable identity to prove selected-entity cancel, confirmed
+deletion, route recovery, API readback, and reload for representative rails.
+The authenticated fixture removes only its synthetic records, across every
+personal-content resource, even when a test fails. It never cleans or mutates
+the persistent shared development identity.
+
 ## Show authoring edit contracts
 
 Pure Show composition edits use

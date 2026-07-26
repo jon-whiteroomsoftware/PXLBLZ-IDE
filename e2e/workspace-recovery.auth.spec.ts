@@ -153,7 +153,8 @@ async function createEntity(request: APIRequestContext, entity: ConfirmedEntity)
 
 async function expectEntityPresent(request: APIRequestContext, entity: ConfirmedEntity): Promise<void> {
   const records = await listEntities(request, entity.resource)
-  expect(records.some((record) => record.id === entity.id && record.name === entity.name)).toBe(true)
+  const record = records.find((candidate) => candidate.id === entity.id)
+  expect(record).toMatchObject({ id: entity.id, name: entity.name, ...entity.record })
 }
 
 async function expectEntityAbsent(request: APIRequestContext, entity: ConfirmedEntity): Promise<void> {
@@ -161,9 +162,12 @@ async function expectEntityAbsent(request: APIRequestContext, entity: ConfirmedE
   expect(records.some((record) => record.id === entity.id)).toBe(false)
 }
 
-async function listEntities(request: APIRequestContext, resource: ConfirmedEntity['resource']): Promise<Array<{ id: string; name: string }>> {
+async function listEntities(
+  request: APIRequestContext,
+  resource: ConfirmedEntity['resource'],
+): Promise<Array<Record<string, unknown> & { id: string; name: string }>> {
   const response = await request.get(`/api/${resource}`)
   expect(response.ok(), `GET /api/${resource} -> ${response.status()}`).toBe(true)
-  const body = await response.json() as Record<string, Array<{ id: string; name: string }>>
+  const body = await response.json() as Record<string, Array<Record<string, unknown> & { id: string; name: string }>>
   return body[resource] ?? []
 }
