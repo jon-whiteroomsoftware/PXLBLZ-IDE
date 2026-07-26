@@ -1,10 +1,13 @@
 import { fireEvent, render, screen } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
-import { describe, expect, it, vi } from 'vitest'
+import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { projectShowPropertyLane } from '@/engine/showPropertyLaneProjection'
 import { ShowPropertySparkline } from './ShowPropertySparkline'
+import { showTransportInitialState, useShowTransportStore } from '@/store/showTransportStore'
 
 describe('ShowPropertySparkline (#483)', () => {
+  beforeEach(() => useShowTransportStore.setState(showTransportInitialState))
+
   it('uses compact accessible beat targets without turning dots into large handles', async () => {
     const user = userEvent.setup()
     const onSelectBeat = vi.fn()
@@ -147,6 +150,38 @@ describe('ShowPropertySparkline (#483)', () => {
     const pill = screen.getByTestId('show-property-lane-inline-label')
     expect(pill).toHaveAttribute('data-retired', 'false')
     expect(pill).toHaveStyle({ opacity: '1' })
+  })
+
+  it('retires the label once the playhead passes its animation (#631)', () => {
+    const projection = projectShowPropertyLane({
+      durationMs: 10_000,
+      constraint: { min: 0, max: 1 },
+      defaultValue: 0.5,
+      segments: [{ id: 'ramp', startMs: 1_000, endMs: 2_000, from: 0.1, to: 0.9, easing: { curve: 'linear' } }],
+      beats: [
+        { id: 'a', timeMs: 1_000, value: 0.1, kind: 'authored' },
+        { id: 'b', timeMs: 2_000, value: 0.9, kind: 'authored' },
+      ],
+    })
+    const lane = () => (
+      <ShowPropertySparkline
+        ariaLabel="Early brightness lane"
+        label="brightness"
+        family="appearance"
+        showId="show-1"
+        projection={projection}
+      />
+    )
+
+    // A fitted timeline never scrolls, so playback alone has to retire the label.
+    useShowTransportStore.setState({ showId: 'show-1', positionMs: 1_500 })
+    const { unmount } = render(lane())
+    expect(screen.getByTestId('show-property-lane-inline-label')).toHaveAttribute('data-retired', 'false')
+    unmount()
+
+    useShowTransportStore.setState({ showId: 'show-1', positionMs: 4_000 })
+    render(lane())
+    expect(screen.getByTestId('show-property-lane-inline-label')).toHaveAttribute('data-retired', 'true')
   })
 
   it('keeps beat targets above the label so the pill cannot intercept a dot (#631)', () => {

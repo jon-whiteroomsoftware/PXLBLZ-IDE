@@ -64,13 +64,17 @@ export function propertyLaneAnimatedSpanMs(
     const times = projection.beats.map((beat) => beat.timeMs)
     return { startMs: Math.min(...times), endMs: Math.max(...times) }
   }
-  const varying = projection.samples.filter((sample, index, all) => (
+  // A change is already underway at the sample *before* the one that differs,
+  // so the span starts there rather than one sample interval late.
+  const changes = projection.samples.flatMap((sample, index, all) => (
     index > 0 && Math.abs(sample.value - all[index - 1].value) > 0.000001
+      ? [{ startMs: all[index - 1].timeMs, endMs: sample.timeMs }]
+      : []
   ))
-  if (varying.length === 0) return null
+  if (changes.length === 0) return null
   return {
-    startMs: Math.min(...varying.map((sample) => sample.timeMs)),
-    endMs: Math.max(...varying.map((sample) => sample.timeMs)),
+    startMs: Math.min(...changes.map((change) => change.startMs)),
+    endMs: Math.max(...changes.map((change) => change.endMs)),
   }
 }
 
@@ -101,9 +105,10 @@ function formatSeconds(timeMs: number): string {
 }
 
 /**
- * True once the whole animated span sits behind the visible window, so the label
- * refers to nothing still to come. Scrolling or playing past a property retires
- * its label instead of leaving it to clutter the timeline.
+ * True once the whole animated span sits behind `visibleFrom`, so the label
+ * refers to nothing still to come. Callers pass whichever frontier has advanced
+ * furthest - the scrolled viewport's left edge or the playhead - so both
+ * scrolling and playing past a property retire its label.
  */
 export function propertyLaneAnimationIsPast(
   projection: ShowPropertyLaneProjection,

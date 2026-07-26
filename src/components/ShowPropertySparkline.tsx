@@ -1,6 +1,7 @@
 import type { ShowPropertyLaneBeat, ShowPropertyLaneProjection } from '@/engine/showPropertyLaneProjection'
 import type { ShowPropertyLaneFamily } from '@/engine/showPropertyLaneFamilies'
-import { propertyLaneAnimationIsPast, propertyLaneLabelObscuresCurve } from '@/engine/showPropertyLaneLabels'
+import { propertyLaneAnimatedSpanMs, propertyLaneAnimationIsPast, propertyLaneLabelObscuresCurve } from '@/engine/showPropertyLaneLabels'
+import { useShowTransportStore } from '@/store/showTransportStore'
 import { ShowPropertyLaneFamilyGlyph } from '@/components/ShowPropertyLaneFamilyGlyph'
 import { useEffect, useLayoutEffect, useRef, useState } from 'react'
 
@@ -13,6 +14,7 @@ export function ShowPropertySparkline({
   label,
   family,
   hoverText,
+  showId,
   stickyLeftPx = 0,
   showFamilyGlyph = false,
   color = '#a78bfa',
@@ -28,6 +30,8 @@ export function ShowPropertySparkline({
   label?: string
   family?: ShowPropertyLaneFamily
   hoverText?: string
+  /** Show whose playhead retires this label once it passes the animated span. */
+  showId?: string
   /** Width of the timeline's sticky first column, which the label must clear. */
   stickyLeftPx?: number
   /** Only when the gutter mark is absent does the label carry the family glyph. */
@@ -83,7 +87,14 @@ export function ShowPropertySparkline({
     return () => window.removeEventListener('scroll', onScroll, { capture: true })
   }, [label])
   const obscuresCurve = Boolean(label) && propertyLaneLabelObscuresCurve(projection, covered)
-  const retired = Boolean(label) && propertyLaneAnimationIsPast(projection, covered.visibleFrom)
+  // Selecting a boolean rather than the position keeps a playing Show from
+  // re-rendering every lane on every frame: this flips at most once per pass.
+  const animatedEndMs = propertyLaneAnimatedSpanMs(projection)?.endMs ?? null
+  const playedPast = useShowTransportStore((state) => (
+    animatedEndMs !== null && showId !== undefined && state.showId === showId && state.positionMs > animatedEndMs
+  ))
+  const retired = Boolean(label)
+    && (playedPast || propertyLaneAnimationIsPast(projection, covered.visibleFrom))
   const points = projection.samples
     .map((sample) => `${sample.displayX * 100},${(VERTICAL_INSET + sample.displayY * VERTICAL_SPAN) * 10}`)
     .join(' ')
@@ -109,9 +120,10 @@ export function ShowPropertySparkline({
       {/* Non-interactive so it can never swallow a beat click; the lane carries
           the hover text, and the full name stays on its accessible name (#631).
           Sticky, so the name follows a scrolled timeline. Its backing thins
-          while it covers the animated span, and it retires altogether once that
-          span is behind the viewport. Retirement opacity is computed, so it is
-          set directly rather than through a utility class per value. */}
+          while it covers the animated span, and it retires altogether once the
+          scrolled viewport or the playhead is past that span. Retirement opacity
+          is computed, so it is set directly rather than through a utility class
+          per value. */}
       {label && (
         <span aria-hidden="true" className="pointer-events-none absolute inset-0 z-[1] flex items-center">
           <span

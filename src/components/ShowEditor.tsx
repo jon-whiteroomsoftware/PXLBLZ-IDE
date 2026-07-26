@@ -5265,6 +5265,7 @@ function ShowTimelineWorkspace({
                       label={zonesOpen ? undefined : lane.displayLabel}
                       family={lane.family}
                       hoverText={lane.hoverText}
+                      showId={show.id}
                       stickyLeftPx={zonesOpen ? 148 : hasMultipleZones ? 32 : 0}
                       showFamilyGlyph={!zonesOpen && !showMicroZonePicker}
                       projection={lane.projection}

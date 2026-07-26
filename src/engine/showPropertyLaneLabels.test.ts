@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest'
 import { projectShowPropertyLane } from './showPropertyLaneProjection'
 import {
   describePropertyLaneHover,
+  propertyLaneAnimatedSpanMs,
   propertyLaneAnimationIsPast,
   propertyLaneLabelObscuresCurve,
   resolvePropertyLaneDisplayLabels,
@@ -91,6 +92,25 @@ describe('describePropertyLaneHover (#631)', () => {
       propertyLabel: 'speed',
       projection: ramp,
     })).toBe('speed · Animation speed · 5-12.5 s')
+  })
+
+  it('starts a beat-less span at the sample the change departs from', () => {
+    // Without keyframes the span is inferred from sample-to-sample change; the
+    // change is already underway at the earlier sample, not the later one.
+    const rampFromZero = projectShowPropertyLane({
+      durationMs: 10_000,
+      constraint: { min: 0, max: 1 },
+      defaultValue: 0,
+      segments: [{ id: 'ramp', startMs: 0, endMs: 4_000, from: 0, to: 1, easing: { curve: 'linear' } }],
+      beats: [],
+    })
+
+    expect(propertyLaneAnimatedSpanMs(rampFromZero)).toEqual({ startMs: 0, endMs: 4_000 })
+    expect(describePropertyLaneHover({
+      family: 'appearance',
+      propertyLabel: 'brightness',
+      projection: rampFromZero,
+    })).toBe('brightness · Appearance · 0-4 s')
   })
 
   it('reports a single instant rather than an empty span', () => {

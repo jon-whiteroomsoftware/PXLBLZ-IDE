@@ -1353,9 +1353,11 @@ sticky rows carry the name and glyph and no on-lane label is drawn. With the
 gutter collapsed or absent, the label sits on the lane, sticky past the
 timeline's first column so it survives a zoomed horizontal scroll, and stays
 off the hit-test path so beat dots keep their clicks. That label thins its
-backing while it covers the animated span, and retires to transparent once the
-span falls behind the viewport, which declutters a timeline as it plays past
-each property. Hover text on the lane reports the Pattern, the property, its
+backing while it covers the animated span, and retires to transparent once
+either frontier passes that span: the scrolled viewport's left edge, or the
+playhead. Retirement watches the playhead through a per-lane boolean selector,
+so a playing Show declutters its timeline without re-rendering every lane on
+every frame. Hover text on the lane reports the Pattern, the property, its
 family, and its Show-global seconds; Scene-local time is never surfaced.
 
 Split and Restart preserve or clone affected placement- or
