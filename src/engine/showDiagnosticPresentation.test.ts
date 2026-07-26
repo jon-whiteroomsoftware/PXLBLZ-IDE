@@ -49,6 +49,14 @@ describe('Show diagnostic presentation (#634)', () => {
       .toBe('Assigned plane 0 until interval-end or show-loop.')
   })
 
+  it('reframes Scene-local placement bounds without matching hyphenated identifiers', () => {
+    expect(presentShowDiagnostic(
+      'Show composition scenes[0].zones[0].main[0]: Main placement must stay inside positive Scene-local time.',
+    )).toBe(
+      'Show composition timeline[0].zones[0].main[0]: Main Clip must stay inside its Show interval.',
+    )
+  })
+
   it('reframes the known static-Clip compiler fallback without losing its constraint', () => {
     expect(presentShowDiagnostic(
       'Freeze at entry for clip "rings" fell back to Live because this release requires one static, unkeyed placement on a single-zone routed Scene.',

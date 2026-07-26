@@ -3,6 +3,7 @@ const INTERNAL_SCENE_FIELD = /\.sceneId\b/gi
 const INTERNAL_SCENE_ID_SUFFIX = /@scene-[A-Za-z0-9._-]+/gi
 const MISSING_INTERNAL_SCENE = /Show composition scenes\[(\d+)\]\.sceneId: Scene "[^"]+" does not exist\./gi
 const SCENE_EXIT_TOKEN = /\bscene-exit\b/gi
+const SCENE_LOCAL_PLACEMENT_BOUND = /\b(Main|Overlay) placement must stay inside positive Scene-local time\b/gi
 const ADJACENT_SCENES = /\bboth adjacent scenes\b/gi
 const SCENES_TERM = /(^|[^-\w])scenes(?=$|[^-\w])/gi
 const SCENE_TERM = /(^|[^-\w])scene(?=$|[^-\w])/gi
@@ -20,6 +21,7 @@ export function presentShowDiagnostic(message: string): string {
       'one static, unkeyed Clip on a single Zone for its full interval',
     )
     .replace(SCENE_EXIT_TOKEN, 'interval-end')
+    .replace(SCENE_LOCAL_PLACEMENT_BOUND, '$1 Clip must stay inside its Show interval')
     .replace(INTERNAL_SCENE_PATH, 'timeline[')
     .replace(INTERNAL_SCENE_FIELD, '.intervalId')
     .replace(ADJACENT_SCENES, 'both adjacent Clips')
