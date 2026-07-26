@@ -1121,10 +1121,12 @@ rail chrome at once.
 A collapsed header must fit that 28-pixel row, so it drops the nominal pixel
 count and keeps only the name, and the header clips its own content: an
 overflowing second line paints across the neighbouring lanes, because the header
-is sticky at z-30 above them. `LayoutZoneIntervalOverlay` correspondingly draws
-only the unowned-span masks. It no longer repeats the Zone name inside the
-miniature, which duplicated the header at the one scroll position where the
-header was already visible.
+is sticky at z-30 above them. `LayoutZoneIntervalOverlay` stamps the Zone name
+once per owned span only when the caller passes `labelZoneName`, which the
+collapsed lane does exclusively while the rail is closed. With the rail open the
+header already carries the name a few pixels to the left, so the stamp was pure
+duplication; with the rail closed the 32-pixel picker has room for a glyph only,
+and the stamp is the collapsed Zone's sole textual identity.
 
 The Zone Map is the only authoring surface for Zone structure. It lists Zones
 and Zone Layout definitions, and `ShowSelection` carries a `zone-layout` kind so

@@ -203,22 +203,33 @@ test.describe('authenticated Show authoring', () => {
     await expect(page.getByRole('button', { name: 'Collapse zone Ground' })).toBeVisible()
 
     const collapsed = page.getByRole('img', { name: 'Collapsed zone Sky timeline' })
-    // The Zone name lives in the rail header, which stays put while the timeline
-    // scrolls, so the summary carries no label of its own (#632).
-    await expect(collapsed.getByTestId('collapsed-zone-layout-label')).toHaveCount(0)
+    // The rail is closed here, so the summary is the only thing that can name the
+    // Zone; with the rail open its header carries the name instead (#632).
+    const label = collapsed.getByTestId('collapsed-zone-layout-label').first()
+    await expect(label).toBeVisible()
+    await expect(label).toHaveClass(/text-zinc-100/)
 
     const geometry = await collapsed.evaluate((element) => {
+      const labelElement = element.querySelector<HTMLElement>('[data-testid="collapsed-zone-layout-label"]')
       const railElement = element.querySelector<HTMLElement>('[data-testid="collapsed-zone-density-rail"]')
-      if (!railElement) return null
+      if (!labelElement || !railElement) return null
       const row = element.getBoundingClientRect()
+      const labelBounds = labelElement.getBoundingClientRect()
       const railBounds = railElement.getBoundingClientRect()
       return {
+        rowTop: row.top,
         rowBottom: row.bottom,
+        labelTop: labelBounds.top,
+        labelBottom: labelBounds.bottom,
+        labelBackground: getComputedStyle(labelElement).backgroundColor,
         railBottom: railBounds.bottom,
         railHeight: railBounds.height,
       }
     })
     expect(geometry).not.toBeNull()
+    expect(geometry!.labelTop).toBeGreaterThan(geometry!.rowTop)
+    expect(geometry!.labelBottom).toBeLessThan(geometry!.rowBottom)
+    expect(geometry!.labelBackground).not.toBe('rgba(0, 0, 0, 0)')
     expect(geometry!.railHeight).toBeLessThanOrEqual(8)
     expect(geometry!.railBottom).toBeLessThan(geometry!.rowBottom)
 
@@ -243,6 +254,7 @@ test.describe('authenticated Show authoring', () => {
     await page.getByRole('button', { name: 'Close Zones' }).click()
 
     await expect(page.locator('[data-show-layout-interval]')).toHaveText(['Vertical', 'Horizontal'])
+    await expect(page.getByTestId('collapsed-zone-layout-label')).toHaveText(['A', 'A', 'B', 'B'])
 
     const boundary = page.locator('[data-show-layout-boundary]')
     await expect(boundary).toHaveCount(1)

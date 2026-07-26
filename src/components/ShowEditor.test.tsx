@@ -466,7 +466,7 @@ describe('ShowEditor (#318)', () => {
     expect(within(grid).getByText('60px')).toBeInTheDocument()
   })
 
-  it('leaves the collapsed Zone summary unlabelled because the rail holds the name (#632)', async () => {
+  it('names a collapsed Zone summary only while its rail header cannot (#632)', async () => {
     const user = userEvent.setup()
     const show = addShowZone(createDefaultShow('show-collapsed-label', 'Collapsed label', 1000), {
       name: 'accent',
@@ -478,9 +478,16 @@ describe('ShowEditor (#318)', () => {
     await user.click(screen.getByRole('button', { name: 'Open Zones' }))
     await user.click(within(screen.getByTestId('show-timeline-grid')).getByRole('button', { name: 'Collapse zone accent' }))
 
-    const summary = screen.getByRole('img', { name: 'Collapsed zone accent timeline' })
-    expect(summary).toBeInTheDocument()
-    expect(summary.querySelector('[data-testid="collapsed-zone-layout-label"]')).toBeNull()
+    const openRailSummary = screen.getByRole('img', { name: 'Collapsed zone accent timeline' })
+    expect(openRailSummary.querySelector('[data-testid="collapsed-zone-layout-label"]')).toBeNull()
+
+    await user.click(screen.getByRole('button', { name: 'Close Zones' }))
+
+    const closedRailSummary = screen.getByRole('img', { name: 'Collapsed zone accent timeline' })
+    const label = closedRailSummary.querySelector('[data-testid="collapsed-zone-layout-label"]')
+    expect(label).not.toBeNull()
+    expect(label).toHaveTextContent('accent')
+    expect(screen.queryByText('24px')).not.toBeInTheDocument()
   })
 
   it('leaves Space with Show playback after using the Zone rail controls (#632)', async () => {

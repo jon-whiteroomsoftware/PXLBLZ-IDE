@@ -4810,6 +4810,7 @@ function ShowTimelineWorkspace({
                   intervals={layoutIntervals}
                   zoneId={row.zoneId}
                   durationMs={timeline.durationMs}
+                  labelZoneName={showFullZoneHeaders ? undefined : row.zoneName}
                 />
               </div>
             ) : unifiedZone.layers.map((layer, layerIndex) => (
@@ -5677,18 +5678,21 @@ function TimelineNavigator({
 }
 
 /**
- * Masks the spans where a Zone is unowned by the Layout in force. The Zone's own
- * name belongs to the rail header, which stays put while the timeline scrolls,
- * so this overlay carries no label of its own (#632).
+ * Masks the spans where a Zone is unowned by the Layout in force, and names the
+ * Zone once per owned span when nothing else does. `labelZoneName` is set only
+ * for a collapsed Zone whose rail is closed: the open rail's header already
+ * carries the name, and repeating it there is pure duplication (#632).
  */
 function LayoutZoneIntervalOverlay({
   intervals,
   zoneId,
   durationMs,
+  labelZoneName,
 }: {
   intervals: ShowLayoutInterval[]
   zoneId: string
   durationMs: number
+  labelZoneName?: string
 }) {
   const totalMs = Math.max(1, durationMs)
   return <>
@@ -5705,7 +5709,16 @@ function LayoutZoneIntervalOverlay({
           style={{ left: `${left}%`, width: `${width}%` }}
         />
       }
-      return null
+      if (!labelZoneName) return null
+      return <span
+        key={interval.id}
+        aria-hidden
+        data-testid="collapsed-zone-layout-label"
+        className="pointer-events-none absolute top-0.5 z-[21] max-w-full truncate rounded-sm bg-black/75 px-1.5 text-[10px] font-medium leading-4 text-zinc-100 shadow-[0_1px_2px_rgba(0,0,0,0.8)]"
+        style={{ left: `calc(${left}% + 4px)`, maxWidth: `calc(${width}% - 8px)` }}
+      >
+        {labelZoneName}
+      </span>
     })}
   </>
 }
