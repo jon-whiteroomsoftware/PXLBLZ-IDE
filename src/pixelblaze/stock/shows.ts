@@ -384,7 +384,7 @@ function learn105(): StockShow {
     id, title: 'Portable Zones', track: 'portable', collection: 'learn', level: 100, order: 5,
     purpose: 'A Zone is a named part of the Stage that holds its share of whatever surface the Show ends up on. Each Zone runs its own Clip, so two Patterns play side by side without either one being told how many LEDs it got.',
     notice: 'The split never moves. At the halfway Cut the two Patterns simply trade sides, and each Zone keeps its own row on the timeline.',
-    prompts: ["The two Clips in each Zone touch, and that junction is a real entity rather than a seam. Shorten the second Clip to make room, then click the junction and turn it into a Crossfade.", 'Now drag the second Clip later. The Crossfade travels with it rather than staying put, because the junction belongs to the pair of Clips and not to a moment on the ruler.'],
+    prompts: ["The two Clips in each Zone touch, and that junction is a real entity rather than a seam. Drag three seconds off the end of the second Clip, then click the junction and give it a two-second Crossfade.", 'Now drag the second Clip later. The Crossfade travels with it rather than staying put, because the junction belongs to the pair of Clips and not to a moment on the ruler.'],
     guideHeading: 'portable-zones',
     output: portableOutput(), zones, layouts: [splitLayout('layout-side-by-side', 'Side by side', zones, 'x')], scenes, composition,
   })
