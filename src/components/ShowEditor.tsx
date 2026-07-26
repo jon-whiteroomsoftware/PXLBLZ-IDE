@@ -21,7 +21,9 @@ import { PixelblazeCodeEditor } from '@/components/PixelblazeCodeEditor'
 import { ShowZoneSpatialSelector } from '@/components/ShowZoneSpatialSelector'
 import { ShowEntityDetailPanel } from '@/components/ShowEntityDetailPanel'
 import { ShowPropertySparkline } from '@/components/ShowPropertySparkline'
-import { resolvePropertyLaneDisplayLabels } from '@/engine/showPropertyLaneLabels'
+import { describePropertyLaneHover, resolvePropertyLaneDisplayLabels } from '@/engine/showPropertyLaneLabels'
+import { propertyLaneFamilyColor, type ShowPropertyLaneFamily } from '@/engine/showPropertyLaneFamilies'
+import { ShowPropertyLaneFamilyGlyph } from '@/components/ShowPropertyLaneFamilyGlyph'
 import { ShowEffectPalette } from '@/components/ShowEffectsAuthoring'
 import { ShowClipEntityDetail } from '@/components/ShowClipEntityDetail'
 import { ShowPatternInstanceControls } from '@/components/ShowPatternInstanceControls'
@@ -3589,11 +3591,12 @@ function ShowTimelineWorkspace({
         {
           key: 'timeScale',
           label: 'animation speed',
-          propertyLabel: 'animation speed',
+          propertyLabel: 'speed',
+          family: 'time' as ShowPropertyLaneFamily,
           ownerName: undefined as string | undefined,
           ariaLabel: `Animation speed lane for ${zone.name}`,
           selectsTransition: true,
-          color: '#a78bfa',
+          color: propertyLaneFamilyColor('time'),
           formatValue: formatTimeScale,
           projection: projectGlobalShowPropertyLane(displayShow, zone.id, { kind: 'timeScale' }),
         },
@@ -3601,27 +3604,29 @@ function ShowTimelineWorkspace({
           key: 'brightness',
           label: 'brightness',
           propertyLabel: 'brightness',
+          family: 'appearance' as ShowPropertyLaneFamily,
           ownerName: undefined as string | undefined,
           ariaLabel: `Brightness lane for ${zone.name}`,
           selectsTransition: true,
-          color: '#fbbf24',
+          color: propertyLaneFamilyColor('appearance'),
           formatValue: formatBrightness,
           projection: projectGlobalShowPropertyLane(displayShow, zone.id, { kind: 'brightness' }),
         },
         ...([
-          ['positionX', 'position x', '#67e8f9'],
-          ['positionY', 'position y', '#67e8f9'],
-          ['rotation', 'rotation', '#5eead4'],
-          ['scaleX', 'scale x', '#2dd4bf'],
-          ['scaleY', 'scale y', '#2dd4bf'],
-        ] as const).map(([property, label, color]) => ({
+          ['positionX', 'position x'],
+          ['positionY', 'position y'],
+          ['rotation', 'rotation'],
+          ['scaleX', 'scale x'],
+          ['scaleY', 'scale y'],
+        ] as const).map(([property, label]) => ({
           key: `transform:${property}`,
           label,
           propertyLabel: label as string,
+          family: 'transform' as ShowPropertyLaneFamily,
           ownerName: undefined as string | undefined,
           ariaLabel: `${label} lane for ${zone.name}`,
           selectsTransition: true,
-          color,
+          color: propertyLaneFamilyColor('transform'),
           formatValue: property === 'rotation'
             ? (value: number) => `${Number((value * 360).toFixed(1))} deg`
             : property === 'scaleX' || property === 'scaleY'
@@ -3633,10 +3638,11 @@ function ShowTimelineWorkspace({
           key: `control:${control.exportName}`,
           label: control.label,
           propertyLabel: control.label,
+          family: 'control' as ShowPropertyLaneFamily,
           ownerName: undefined as string | undefined,
           ariaLabel: `${control.label} control lane for ${zone.name}`,
           selectsTransition: true,
-          color: '#22d3ee',
+          color: propertyLaneFamilyColor('control'),
           formatValue: formatControlValue,
           projection: projectGlobalShowPropertyLane(displayShow, zone.id, {
             kind: 'control' as const,
@@ -3650,10 +3656,11 @@ function ShowTimelineWorkspace({
             key: `scene:${lane.id}`,
             label: lane.label,
             propertyLabel: lane.propertyLabel,
+            family: lane.family,
             ownerName: lane.patternName as string | undefined,
             ariaLabel: `${lane.label} animation for ${zone.name}`,
             selectsTransition: false,
-            color: '#a78bfa',
+            color: propertyLaneFamilyColor(lane.family),
             formatValue: lane.valueKind === 'percent'
               ? formatBrightness
               : lane.valueKind === 'multiplier'
@@ -3667,11 +3674,18 @@ function ShowTimelineWorkspace({
       const visible = candidates.filter((candidate) => candidate.projection.timeVarying)
       const displayLabels = resolvePropertyLaneDisplayLabels(visible.map((candidate) => ({
         propertyLabel: candidate.propertyLabel,
+        family: candidate.family,
         ownerName: candidate.ownerName,
       })))
       return [zone.id, visible.map((candidate, index) => ({
         ...candidate,
         displayLabel: displayLabels[index],
+        hoverText: describePropertyLaneHover({
+          ownerName: candidate.ownerName,
+          family: candidate.family,
+          propertyLabel: candidate.propertyLabel,
+          projection: candidate.projection,
+        }),
       }))] as const
     }))
   }, [displayShow, patternControlsByCellId, show])
@@ -5230,11 +5244,16 @@ function ShowTimelineWorkspace({
                   >
                     {showMicroZonePicker ? (
                       <>
-                        <Activity data-testid="show-property-lane-compact-mark" size={10} aria-hidden className="shrink-0" />
+                        <span data-testid="show-property-lane-compact-mark" className="shrink-0">
+                          <ShowPropertyLaneFamilyGlyph family={lane.family} size={10} />
+                        </span>
                         <span className="sr-only">{lane.label}</span>
                       </>
                     ) : (
-                      <span className="truncate">↳ {lane.label}</span>
+                      <>
+                        <ShowPropertyLaneFamilyGlyph family={lane.family} size={9} className="mr-1 shrink-0" />
+                        <span className="truncate">{lane.displayLabel}</span>
+                      </>
                     )}
                   </div>}
                   <div
@@ -5243,7 +5262,11 @@ function ShowTimelineWorkspace({
                   >
                     <ShowPropertySparkline
                       ariaLabel={lane.ariaLabel}
-                      label={lane.displayLabel}
+                      label={zonesOpen ? undefined : lane.displayLabel}
+                      family={lane.family}
+                      hoverText={lane.hoverText}
+                      stickyLeftPx={zonesOpen ? 148 : hasMultipleZones ? 32 : 0}
+                      showFamilyGlyph={!zonesOpen && !showMicroZonePicker}
                       projection={lane.projection}
                       color={lane.color}
                       selectedBeatId={selectedBeat}

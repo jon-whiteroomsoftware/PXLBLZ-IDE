@@ -1,5 +1,8 @@
 import type { ShowPropertyLaneBeat, ShowPropertyLaneProjection } from '@/engine/showPropertyLaneProjection'
-import { useRef } from 'react'
+import type { ShowPropertyLaneFamily } from '@/engine/showPropertyLaneFamilies'
+import { propertyLaneAnimationIsPast, propertyLaneLabelObscuresCurve } from '@/engine/showPropertyLaneLabels'
+import { ShowPropertyLaneFamilyGlyph } from '@/components/ShowPropertyLaneFamilyGlyph'
+import { useEffect, useLayoutEffect, useRef, useState } from 'react'
 
 const VERTICAL_INSET = 0.1
 const VERTICAL_SPAN = 1 - VERTICAL_INSET * 2
@@ -8,6 +11,10 @@ export function ShowPropertySparkline({
   projection,
   ariaLabel,
   label,
+  family,
+  hoverText,
+  stickyLeftPx = 0,
+  showFamilyGlyph = false,
   color = '#a78bfa',
   selectedBeatId = null,
   formatValue = defaultFormatValue,
@@ -19,6 +26,12 @@ export function ShowPropertySparkline({
   projection: ShowPropertyLaneProjection
   ariaLabel: string
   label?: string
+  family?: ShowPropertyLaneFamily
+  hoverText?: string
+  /** Width of the timeline's sticky first column, which the label must clear. */
+  stickyLeftPx?: number
+  /** Only when the gutter mark is absent does the label carry the family glyph. */
+  showFamilyGlyph?: boolean
   color?: string
   selectedBeatId?: string | null
   formatValue?: (value: number) => string
@@ -28,6 +41,49 @@ export function ShowPropertySparkline({
   className?: string
 }) {
   const rootRef = useRef<HTMLDivElement>(null)
+  const labelRef = useRef<HTMLSpanElement>(null)
+  // How much of the lane the label covers changes with zoom and window width,
+  // so the fade is recomputed from measured geometry rather than guessed (#631).
+  const [covered, setCovered] = useState({ from: 0, to: 0, visibleFrom: 0 })
+  const measureCovered = () => {
+    const root = rootRef.current
+    const labelElement = labelRef.current
+    if (!root || !labelElement) return
+    const lane = root.getBoundingClientRect()
+    if (lane.width <= 0) return
+    const box = labelElement.getBoundingClientRect()
+    const clamp = (value: number) => Math.min(1, Math.max(0, value))
+    const viewport = scrollParentRect(root)
+    setCovered((current) => {
+      const next = {
+        from: clamp((box.left - lane.left) / lane.width),
+        to: clamp((box.right - lane.left) / lane.width),
+        visibleFrom: viewport === null ? 0 : clamp((viewport.left - lane.left) / lane.width),
+      }
+      return next.from === current.from && next.to === current.to && next.visibleFrom === current.visibleFrom
+        ? current
+        : next
+    })
+  }
+  useLayoutEffect(() => {
+    if (!label || typeof ResizeObserver === 'undefined') return
+    // ResizeObserver delivers an initial callback on observe, which supplies the
+    // first measurement without the effect body setting state itself.
+    const observer = new ResizeObserver(measureCovered)
+    if (rootRef.current) observer.observe(rootRef.current)
+    if (labelRef.current) observer.observe(labelRef.current)
+    return () => observer.disconnect()
+  }, [label])
+  useEffect(() => {
+    if (!label) return
+    // The label sticks to the viewport, so scrolling moves which slice of the
+    // lane it covers even though nothing resized.
+    const onScroll = () => measureCovered()
+    window.addEventListener('scroll', onScroll, { capture: true, passive: true })
+    return () => window.removeEventListener('scroll', onScroll, { capture: true })
+  }, [label])
+  const obscuresCurve = Boolean(label) && propertyLaneLabelObscuresCurve(projection, covered)
+  const retired = Boolean(label) && propertyLaneAnimationIsPast(projection, covered.visibleFrom)
   const points = projection.samples
     .map((sample) => `${sample.displayX * 100},${(VERTICAL_INSET + sample.displayY * VERTICAL_SPAN) * 10}`)
     .join(' ')
@@ -37,7 +93,8 @@ export function ShowPropertySparkline({
       ref={rootRef}
       role="group"
       aria-label={ariaLabel}
-      className={`relative min-w-0 overflow-hidden ${className}`}
+      title={hoverText}
+      className={`relative min-w-0 ${className}`}
       data-property-lane-disclosed={projection.disclosed ? 'true' : 'false'}
     >
       <svg viewBox="0 0 100 10" preserveAspectRatio="none" className="absolute inset-0 size-full" aria-hidden>
@@ -49,15 +106,29 @@ export function ShowPropertySparkline({
           vectorEffect="non-scaling-stroke"
         />
       </svg>
-      {/* Non-interactive so it can never swallow a beat click; the full text
-          stays on the lane's accessible name and the gutter label (#631). */}
+      {/* Non-interactive so it can never swallow a beat click; the lane carries
+          the hover text, and the full name stays on its accessible name (#631).
+          Sticky, so the name follows a scrolled timeline. Its backing thins
+          while it covers the animated span, and it retires altogether once that
+          span is behind the viewport. Retirement opacity is computed, so it is
+          set directly rather than through a utility class per value. */}
       {label && (
-        <span
-          aria-hidden="true"
-          data-testid="show-property-lane-inline-label"
-          className="pointer-events-none absolute left-1 top-1/2 z-[2] max-w-[calc(100%-8px)] -translate-y-1/2 truncate rounded-sm bg-black/75 px-1 text-[10px] font-medium leading-[14px] text-zinc-100 shadow-[0_1px_2px_rgba(0,0,0,0.8)]"
-        >
-          {label}
+        <span aria-hidden="true" className="pointer-events-none absolute inset-0 z-[1] flex items-center">
+          <span
+            ref={labelRef}
+            data-testid="show-property-lane-inline-label"
+            data-obscures-curve={obscuresCurve ? 'true' : 'false'}
+            data-retired={retired ? 'true' : 'false'}
+            className={`sticky flex max-w-[calc(100%-8px)] items-center gap-1 rounded-sm px-1 text-[10px] font-medium leading-[14px] transition-opacity duration-300 motion-reduce:transition-none ${
+              obscuresCurve
+                ? 'bg-black/25 shadow-none'
+                : 'bg-black/75 shadow-[0_1px_2px_rgba(0,0,0,0.8)]'
+            }`}
+            style={{ color, left: stickyLeftPx + 4, opacity: retired ? 0 : 1 }}
+          >
+            {showFamilyGlyph && family && <ShowPropertyLaneFamilyGlyph family={family} size={8} className="shrink-0" />}
+            <span className="truncate">{label}</span>
+          </span>
         </span>
       )}
       {projection.beats.map((beat) => {
@@ -68,8 +139,12 @@ export function ShowPropertySparkline({
               key={beat.id}
               data-property-beat-dot
               aria-hidden
-              className="absolute z-[1] size-1 -translate-x-1/2 -translate-y-1/2 rounded-full bg-violet-300"
-              style={{ left: `${beat.displayX * 100}%`, top: `${(VERTICAL_INSET + beat.displayY * VERTICAL_SPAN) * 100}%` }}
+              className="absolute z-[2] size-1 -translate-x-1/2 -translate-y-1/2 rounded-full"
+              style={{
+                left: `${beat.displayX * 100}%`,
+                top: `${(VERTICAL_INSET + beat.displayY * VERTICAL_SPAN) * 100}%`,
+                backgroundColor: color,
+              }}
             />
           )
         }
@@ -109,19 +184,30 @@ export function ShowPropertySparkline({
                 event.currentTarget.releasePointerCapture?.(event.pointerId)
               }
             } : undefined}
-            className={`absolute z-[1] grid size-3 -translate-x-1/2 -translate-y-1/2 place-items-center rounded-full focus-visible:outline focus-visible:outline-1 focus-visible:outline-offset-0 focus-visible:outline-amber-200 disabled:pointer-events-none motion-reduce:transition-none ${onMoveBeat ? 'cursor-ns-resize touch-none' : ''}`}
+            className={`absolute z-[2] grid size-3 -translate-x-1/2 -translate-y-1/2 place-items-center rounded-full focus-visible:outline focus-visible:outline-1 focus-visible:outline-offset-0 focus-visible:outline-amber-200 disabled:pointer-events-none motion-reduce:transition-none ${onMoveBeat ? 'cursor-ns-resize touch-none' : ''}`}
             style={{ left: `${beat.displayX * 100}%`, top: `${(VERTICAL_INSET + beat.displayY * VERTICAL_SPAN) * 100}%` }}
           >
             <i
               data-property-beat-dot
               aria-hidden
-              className={`size-1 rounded-full ${selectedBeatId === beat.id ? 'bg-amber-200' : 'bg-violet-300'}`}
+              className={`size-1 rounded-full ${selectedBeatId === beat.id ? 'bg-amber-200' : ''}`}
+              style={selectedBeatId === beat.id ? undefined : { backgroundColor: color }}
             />
           </button>
         )
       })}
     </div>
   )
+}
+
+/** Visible box of the nearest horizontally scrollable ancestor. */
+function scrollParentRect(from: HTMLElement): DOMRect | null {
+  let element: HTMLElement | null = from.parentElement
+  while (element) {
+    if (/(auto|scroll)/.test(getComputedStyle(element).overflowX)) return element.getBoundingClientRect()
+    element = element.parentElement
+  }
+  return null
 }
 
 function defaultFormatValue(value: number): string {

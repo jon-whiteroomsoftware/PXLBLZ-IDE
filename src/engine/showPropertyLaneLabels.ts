@@ -1,36 +1,43 @@
-// On-lane display names for Show property animation sparklines (#631). A lane
-// is named by its property alone, because the owning Clip is normally readable
-// from the Clip directly above it. The owning Clip is reintroduced, abbreviated,
-// only on the lanes whose property name would otherwise repeat inside one Zone.
+// On-lane display names, hover text, and label/curve collision for Show
+// property animation sparklines (#631). A lane is named by its property alone,
+// because the owning Clip is normally readable from the Clip directly above it
+// and its family is carried by a glyph. The owning Clip is reintroduced,
+// abbreviated, only where a property repeats within one family in one Zone.
+
+import { propertyLaneFamilyName, type ShowPropertyLaneFamily } from './showPropertyLaneFamilies'
+import type { ShowPropertyLaneProjection } from './showPropertyLaneProjection'
 
 export interface PropertyLaneLabelInput {
   /** Property being animated, without the owning Clip: 'brightness', 'translate X'. */
   propertyLabel: string
+  family: ShowPropertyLaneFamily
   /** Owning Clip's Pattern name; absent for Zone-level lanes. */
   ownerName?: string
 }
 
 export function resolvePropertyLaneDisplayLabels(lanes: readonly PropertyLaneLabelInput[]): string[] {
-  const sharedProperties = new Set(
+  // Two lanes only compete for a name inside one family: across families the
+  // glyph already tells a Pattern control named 'speed' from animation speed.
+  const key = (lane: PropertyLaneLabelInput) => `${lane.family} ${lane.propertyLabel}`
+  const contested = new Set(
     lanes
-      .map((lane) => lane.propertyLabel)
-      .filter((label, index, all) => all.indexOf(label) !== index),
+      .map(key)
+      .filter((candidate, index, all) => all.indexOf(candidate) !== index),
   )
 
   // Within one contested property, abbreviations only disambiguate when they
   // stay distinct; otherwise that property falls back to full Clip names.
   const abbreviationWorks = new Map<string, boolean>()
-  for (const property of sharedProperties) {
-    const owners = lanes
-      .filter((lane) => lane.propertyLabel === property)
-      .map((lane) => lane.ownerName)
-    const qualifiers = owners.map((owner) => (owner === undefined ? '' : abbreviateOwnerName(owner)))
-    abbreviationWorks.set(property, new Set(qualifiers).size === qualifiers.length)
+  for (const contestedKey of contested) {
+    const qualifiers = lanes
+      .filter((lane) => key(lane) === contestedKey)
+      .map((lane) => (lane.ownerName === undefined ? '' : abbreviateOwnerName(lane.ownerName)))
+    abbreviationWorks.set(contestedKey, new Set(qualifiers).size === qualifiers.length)
   }
 
   return lanes.map((lane) => {
-    if (lane.ownerName === undefined || !sharedProperties.has(lane.propertyLabel)) return lane.propertyLabel
-    const qualifier = abbreviationWorks.get(lane.propertyLabel)
+    if (lane.ownerName === undefined || !contested.has(key(lane))) return lane.propertyLabel
+    const qualifier = abbreviationWorks.get(key(lane))
       ? abbreviateOwnerName(lane.ownerName)
       : lane.ownerName
     return `${qualifier} ${lane.propertyLabel}`
@@ -43,4 +50,85 @@ function abbreviateOwnerName(ownerName: string): string {
   if (capitals.length >= 2) return capitals
   const head = ownerName.trim().slice(0, 2)
   return head.charAt(0).toUpperCase() + head.slice(1)
+}
+
+/**
+ * Show-global window over which this lane actually animates. Scene-local time is
+ * not a user-facing frame of reference, so every second reported here is
+ * Show-global, matching the ruler above the lane.
+ */
+export function propertyLaneAnimatedSpanMs(
+  projection: ShowPropertyLaneProjection,
+): { startMs: number; endMs: number } | null {
+  if (projection.beats.length > 0) {
+    const times = projection.beats.map((beat) => beat.timeMs)
+    return { startMs: Math.min(...times), endMs: Math.max(...times) }
+  }
+  const varying = projection.samples.filter((sample, index, all) => (
+    index > 0 && Math.abs(sample.value - all[index - 1].value) > 0.000001
+  ))
+  if (varying.length === 0) return null
+  return {
+    startMs: Math.min(...varying.map((sample) => sample.timeMs)),
+    endMs: Math.max(...varying.map((sample) => sample.timeMs)),
+  }
+}
+
+/** Plain hover text: what is animated, which family it belongs to, and when. */
+export function describePropertyLaneHover(input: {
+  ownerName?: string
+  family: ShowPropertyLaneFamily
+  propertyLabel: string
+  projection: ShowPropertyLaneProjection
+}): string {
+  const span = propertyLaneAnimatedSpanMs(input.projection)
+  return [
+    ...(input.ownerName === undefined ? [] : [input.ownerName]),
+    input.propertyLabel,
+    propertyLaneFamilyName(input.family),
+    ...(span === null ? [] : [formatSpanSeconds(span)]),
+  ].join(' · ')
+}
+
+function formatSpanSeconds(span: { startMs: number; endMs: number }): string {
+  const start = formatSeconds(span.startMs)
+  const end = formatSeconds(span.endMs)
+  return start === end ? `${start} s` : `${start}-${end} s`
+}
+
+function formatSeconds(timeMs: number): string {
+  return `${Number((timeMs / 1_000).toFixed(1))}`
+}
+
+/**
+ * True once the whole animated span sits behind the visible window, so the label
+ * refers to nothing still to come. Scrolling or playing past a property retires
+ * its label instead of leaving it to clutter the timeline.
+ */
+export function propertyLaneAnimationIsPast(
+  projection: ShowPropertyLaneProjection,
+  visibleFrom: number,
+): boolean {
+  if (visibleFrom <= 0) return false
+  const span = propertyLaneAnimatedSpanMs(projection)
+  if (span === null) return false
+  return span.endMs / Math.max(1, projection.durationMs) < visibleFrom
+}
+
+/**
+ * True when the window of the lane the label covers holds part of the animated
+ * span, which is when an opaque label would hide the curve the lane exists to
+ * show. The window is a fraction range rather than a prefix because the label
+ * sticks to the left of the viewport: once zoomed and scrolled it sits over the
+ * middle of the lane, and zooming in narrows the window it covers.
+ */
+export function propertyLaneLabelObscuresCurve(
+  projection: ShowPropertyLaneProjection,
+  covered: { from: number; to: number },
+): boolean {
+  if (covered.to <= covered.from) return false
+  const span = propertyLaneAnimatedSpanMs(projection)
+  if (span === null) return false
+  const durationMs = Math.max(1, projection.durationMs)
+  return span.startMs / durationMs < covered.to && span.endMs / durationMs > covered.from
 }
