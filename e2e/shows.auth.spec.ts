@@ -458,7 +458,7 @@ test.describe('authenticated Show authoring', () => {
   test('keeps vertical scroll, horizontal trackpad pan, and Shift-wheel pan distinct (#476)', async ({ page }) => {
     await page.setViewportSize({ width: 1200, height: 500 })
     await page.goto('studio/shows/stock-show-installation-finale')
-    await page.getByRole('slider', { name: 'Timeline zoom' }).fill('5.1')
+    await zoomTimeline(page, 8)
 
     const timeline = page.getByTestId('show-timeline-scroll-region')
     const editor = page.getByTestId('show-editor-scroll')
@@ -489,7 +489,7 @@ test.describe('authenticated Show authoring', () => {
     const playhead = page.getByTestId('show-timeline-playhead-hit-target')
     await expect(playhead).toBeVisible()
 
-    await page.getByRole('slider', { name: 'Timeline zoom' }).fill('6')
+    await zoomTimeline(page, 9)
     await page.getByRole('slider', { name: 'Pan visible timeline range' }).press('ArrowRight')
 
     await expect(page.getByRole('slider', { name: 'Show playhead' })).toHaveValue('0')
@@ -517,7 +517,7 @@ test.describe('authenticated Show authoring', () => {
     await expect(page.getByRole('button', { name: 'Edit Scene 1' })).toBeVisible()
     expect((await timeline.boundingBox())?.height).toBe(before?.height)
 
-    await page.getByRole('slider', { name: 'Timeline zoom' }).fill('5.1')
+    await zoomTimeline(page, 8)
     await expect(xray).toHaveCSS('height', '36px')
     await expect(firstDetail).toHaveCount(0)
     await page.getByRole('button', { name: 'Show Scene 2 Scene X-ray' }).click()
@@ -722,7 +722,7 @@ test.describe('authenticated Show authoring', () => {
     await createInstallationShow(page)
     const showId = new URL(page.url()).pathname.split('/').at(-1)!
 
-    await page.getByRole('button', { name: 'Select Scene 1 to Scene 2 transition (crossfade)' }).click()
+    await page.getByRole('button', { name: 'Edit crossfade Transition between TestPattern1D and CometLoom' }).click()
     const panel = page.getByRole('dialog', { name: 'Entity Detail Panel' })
     await panel.getByRole('button', { name: /Crossfade · Change/ }).click()
     const palette = page.getByRole('dialog', { name: 'Choose Transition' })
@@ -749,7 +749,7 @@ test.describe('authenticated Show authoring', () => {
       && show.transitions[0].edgePolicy === 'blend')
 
     await page.reload()
-    await page.getByRole('button', { name: 'Select Scene 1 to Scene 2 transition (portal)' }).click()
+    await page.getByRole('button', { name: 'Edit portal Transition between TestPattern1D and CometLoom' }).click()
     const reloadedPanel = page.getByRole('dialog', { name: 'Entity Detail Panel' })
     await expect(reloadedPanel.getByRole('button', { name: /Star · Change/ })).toBeVisible()
     await expect(reloadedPanel.getByRole('spinbutton', { name: 'Duration' })).toHaveValue('3400')
@@ -1114,7 +1114,7 @@ test.describe('authenticated Show authoring', () => {
 
     await page.getByRole('button', { name: 'Select CometLoom' }).click()
     await page.getByLabel('Source pattern').selectOption('stock:TestPattern1D')
-    await page.getByRole('button', { name: 'Select Scene 1 to Scene 2 transition (crossfade)' }).click()
+    await page.getByRole('button', { name: 'Edit crossfade Transition between TestPattern1D and TestPattern1D' }).click()
     await page.getByRole('button', { name: /Crossfade · Change/ }).click()
     await page.getByRole('button', { name: 'Use Linear Transition' }).click()
     await page.getByLabel('Easing').selectOption('ease-in-out')
@@ -1144,7 +1144,7 @@ test.describe('authenticated Show authoring', () => {
     await ranges.blur()
     await page.getByRole('button', { name: 'Set routing layout after Scene 1' }).click()
     await page.getByLabel('Destination routing layout').selectOption({ label: 'Alternating' })
-    await page.getByRole('button', { name: 'Select Scene 1 to Scene 2 transition (routing)' }).click()
+    await page.getByRole('button', { name: 'Edit routing Transition between TestPattern1D and CometLoom' }).click()
     await page.getByLabel('Routing transfer duration seconds exact time').fill('2')
     await page.getByLabel('Routing transfer easing').selectOption('ease-in-out')
     await page.getByLabel('Routing transfer direction').selectOption('reverse')
@@ -1169,7 +1169,7 @@ test.describe('authenticated Show authoring', () => {
     await openZoneLayout(page, 'Alternating')
     await expect(page.getByLabel('Zone Layout name Alternating')).toHaveValue('Alternating')
     await expect(page.getByLabel('Alternating main pixel ranges')).toHaveValue('0-29')
-    await page.getByRole('button', { name: 'Select Scene 1 to Scene 2 transition (routing)' }).click()
+    await page.getByRole('button', { name: 'Edit routing Transition between TestPattern1D and CometLoom' }).click()
     await expect(page.getByLabel('Destination routing layout')).toHaveValue('layout-2')
     await expect(page.getByLabel('Routing transfer duration seconds exact time')).toHaveValue('2')
     await expect(page.getByLabel('Routing transfer easing')).toHaveValue('ease-in-out')
@@ -1293,7 +1293,7 @@ test.describe('authenticated Show authoring', () => {
     await expect(page.getByRole('group', { name: 'Sample repeat lane' })).toBeVisible()
     await page.getByRole('group', { name: 'Scene Scene 2' }).click()
     await page.getByRole('spinbutton', { name: 'Repeat scale', exact: true }).fill('3')
-    await page.getByRole('button', { name: 'Select Scene 1 to Scene 2 transition (crossfade)' }).click()
+    await page.getByRole('button', { name: 'Edit crossfade Transition between TestPattern1D and CometLoom' }).click()
     await page.getByText('Advanced transition controls').click()
     await page.getByLabel('Animate repeat scale').check()
     await page.getByLabel('Repeat scale start').fill('1.25')
@@ -1499,7 +1499,7 @@ test.describe('authenticated Show authoring', () => {
   test('authors shape-aware diamond and ring spatial transitions', async ({ page }) => {
     await page.goto('studio/shows')
     await createInstallationShow(page)
-    await page.getByRole('button', { name: 'Select Scene 1 to Scene 2 transition (crossfade)' }).click()
+    await page.getByRole('button', { name: 'Edit crossfade Transition between TestPattern1D and CometLoom' }).click()
     await page.getByRole('button', { name: /Crossfade · Change/ }).click()
     await page.getByRole('button', { name: 'Use Diamond Transition' }).click()
     await page.getByLabel('Rotation').fill('0.125')
@@ -1528,7 +1528,7 @@ test.describe('authenticated Show authoring', () => {
     )) ?? false)
 
     await page.reload()
-    await page.getByRole('button', { name: 'Select Scene 1 to Scene 2 transition (portal)' }).click()
+    await page.getByRole('button', { name: 'Edit portal Transition between TestPattern1D and CometLoom' }).click()
     await expect(page.getByRole('button', { name: /Ring · Change/ })).toBeVisible()
     await expect(page.getByLabel('Ring width')).toHaveValue('0.2')
     await page.getByRole('button', { name: 'View code' }).first().click()
@@ -1747,6 +1747,15 @@ async function createInstallationShow(page: Page): Promise<void> {
   await page.getByRole('button', { name: 'Create Installation Show' }).click()
   await page.getByRole('button', { name: 'Create Show' }).click()
   await expect(page).toHaveURL(/\/studio\/shows\/[a-z0-9-]+$/)
+}
+
+// The 'Timeline zoom' slider was retired with the 2.0 timeline; zoom is now
+// Ctrl/Meta + wheel around the playhead, 1.25x per notch (ShowEditor.tsx).
+async function zoomTimeline(page: Page, notches: number): Promise<void> {
+  await page.getByTestId('show-timeline-scroll-region').hover()
+  await page.keyboard.down('Control')
+  for (let index = 0; index < notches; index += 1) await page.mouse.wheel(0, -100)
+  await page.keyboard.up('Control')
 }
 
 async function createPortableShow(page: Page): Promise<void> {
