@@ -334,6 +334,7 @@ export function validateShowComposition(
   const placementOwnerById = new Map<string, {
     layerKey: string
     sceneId: string
+    zoneId: string
     startMs: number
     endMs: number
   }>()
@@ -367,6 +368,7 @@ export function validateShowComposition(
         placementOwnerById.set(placement.id, {
           layerKey: `${scene.sceneId}:${zone.zoneId}:main`,
           sceneId: scene.sceneId,
+          zoneId: zone.zoneId,
           startMs: placement.startMs,
           endMs: placement.startMs + placement.durationMs,
         })
@@ -396,6 +398,7 @@ export function validateShowComposition(
           placementOwnerById.set(placement.id, {
             layerKey: `${scene.sceneId}:${zone.zoneId}:overlay:${layerIndex}`,
             sceneId: scene.sceneId,
+            zoneId: zone.zoneId,
             startMs: placement.startMs,
             endMs: placement.startMs + placement.durationMs,
           })
@@ -463,6 +466,7 @@ export function validateShowComposition(
           placementId === transition.fromPlacementId
           || placementId === transition.toPlacementId
           || owner.sceneId !== fromOwner.sceneId
+          || owner.zoneId !== fromOwner.zoneId
         ) ? [] : [owner]
       })
       const unrelatedBoundaryInside = unrelatedOwners.some((owner) => {

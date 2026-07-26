@@ -17,6 +17,7 @@ import type { ShowCompositionV1 } from './personalContentRecords'
 import { splitShowClipAtGlobalTime } from './showTimelineClipAuthoring'
 import { validateShowComposition } from './showCompositionModel'
 import { projectShowUnifiedTimeline } from './showUnifiedTimelineProjection'
+import { stockShowById } from '../pixelblaze/stock/shows'
 
 function fixture(): {
   show: ReturnType<typeof createDefaultShow>
@@ -131,6 +132,37 @@ describe('literal per-Layer Transition authoring (#583)', () => {
       expect.objectContaining({ id: 'transition-a-b', durationMs: 1_000, kind: 'wipe' }),
       expect.objectContaining({ id: 'transition-b-c', durationMs: 1_000 }),
     ]))
+  })
+
+  it('inserts a Transition despite a coincident Clip boundary in another Zone (#630)', () => {
+    const show = stockShowById('stock-show-105-portable-zones')!.show
+    const composition = structuredClone(show.composition!)
+    composition.scenes[0].zones[0].main[1].durationMs = 4_000
+    const original = structuredClone(composition)
+    const junction = projectShowUnifiedTimeline(show, composition).zones[0].layers[0].junctions[0]
+    const transition = {
+      id: 'transition-left-zone',
+      fromPlacementId: junction.fromPlacementId,
+      toPlacementId: junction.toPlacementId,
+      kind: 'crossfade' as const,
+      durationMs: 2_000,
+      easing: { curve: 'linear' as const },
+      crossfadePolicy: 'live-live' as const,
+    }
+
+    expect(planShowLayerTransitionInsertion(show, composition, transition)).toEqual({
+      enabled: true,
+      maxDurationMs: 3_000,
+    })
+
+    const changed = insertShowLayerTransition(show, composition, transition)
+
+    expect(changed).not.toBe(composition)
+    expect(composition).toEqual(original)
+    expect(changed.scenes[0].zones[0].main[1].startMs).toBe(9_000)
+    expect(changed.scenes[0].zones[1]).toEqual(composition.scenes[0].zones[1])
+    expect(changed.transitions).toContainEqual(transition)
+    expect(validateShowComposition(show, changed)).toEqual([])
   })
 
   it('refuses growth when the connected chain would collide with unrelated content', () => {

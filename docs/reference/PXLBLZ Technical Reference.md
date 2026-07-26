@@ -1316,9 +1316,10 @@ the final internal Scene duration until Scene compatibility lowering is removed;
 ordinary shortening clamps to the last authored placement or keyframe and never
 deletes later Markers.
 
-Composition validation independently enforces consecutive endpoints. An
-unrelated Clip may either remain inactive or span the complete Transition
-interval; it may not start or stop at either endpoint or inside that interval.
+Composition validation independently enforces consecutive endpoints. Within
+the Transition's Zone, an unrelated Clip may either remain inactive or span the
+complete Transition interval; it may not start or stop at either endpoint or
+inside that interval. Clip boundaries in other Zones are independent.
 That invariant guards every edit path, not only Transition controls: duplicate,
 trim, and move operations cannot introduce an unrelated boundary into the
 Transition, and
@@ -1368,9 +1369,9 @@ blend sources at the same output coordinate. A spanning unrelated Layer is
 therefore identical in the outgoing and incoming stacks and distributes through
 the selection or blend without changing its pixels. This algebraic lifting is
 equivalent to transitioning the changed Layer and requires no additional RGB
-render target. Lowering rejects an unrelated Clip boundary at either endpoint
-or inside the interval. Simultaneous Layer Transitions remain rejected pending
-explicit multi-transition segmentation and compositing.
+render target. Lowering rejects an unrelated same-Zone Clip boundary at either
+endpoint or inside the interval. Simultaneous Layer Transitions remain rejected
+pending explicit multi-transition segmentation and compositing.
 
 `showCompositionFreeze.ts` is the production-path release gate over that seam.
 Its Portable fixture measures 60,019 UTF-8 generated-source bytes. Comparing
