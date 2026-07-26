@@ -1,5 +1,6 @@
 import type { APIRequestContext, Page } from '@playwright/test'
 import { expect, removeSyntheticContent, test } from './fixtures/authenticated'
+import { createDefaultShow } from '../src/engine/showModel'
 
 type ConfirmedEntity = {
   resource: 'patterns' | 'maps' | 'mixins'
@@ -14,6 +15,37 @@ type ConfirmedEntity = {
 test('authenticated fixture removes every synthetic personal-content resource', async ({ request }) => {
   const sentinel = Date.now()
   const records = [
+    {
+      resource: 'shows',
+      data: createDefaultShow(
+        `workspace-cleanup-show-${sentinel}`,
+        `Workspace cleanup Show ${sentinel}`,
+        sentinel,
+      ),
+    },
+    {
+      resource: 'patterns',
+      data: {
+        id: `workspace-cleanup-pattern-${sentinel}`,
+        name: `Workspace cleanup Pattern ${sentinel}`,
+        src: 'export function render(index) { rgb(index / pixelCount, 0, 0) }',
+        controls: {},
+        updatedAt: sentinel,
+      },
+    },
+    {
+      resource: 'maps',
+      data: {
+        id: `workspace-cleanup-map-${sentinel}`,
+        name: `Workspace cleanup Map ${sentinel}`,
+        dim: 2,
+        generator: 'custom',
+        params: {},
+        points: [[0, 0], [1, 1]],
+        source: '[[0, 0], [1, 1]]',
+        updatedAt: sentinel,
+      },
+    },
     {
       resource: 'mixins',
       data: {
@@ -141,6 +173,7 @@ async function exerciseConfirmedDeletion(page: Page, request: APIRequestContext,
   await expect(entity.selected(page)).toHaveCount(0)
   await expectEntityAbsent(request, entity)
   await page.reload()
+  await expect(page).toHaveURL(new RegExp(`/${entity.resource}$`))
   await expect(entity.selected(page)).toHaveCount(0)
 }
 

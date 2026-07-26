@@ -533,13 +533,18 @@ describe('map eval/bake/deploy (#143)', () => {
     useEditorStore.getState().setSource(GRID_SRC)
     useMapStore.setState({ activePixelCount: 8 })
     await useMapStore.getState().bakeEditingMap()
-    const priorPoints = useMapStore.getState().userMaps[0].points
+    const cleanBake = useMapStore.getState().userMaps[0]
+    const priorBake = structuredClone({
+      points: cleanBake.points,
+      dim: cleanBake.dim,
+      gridDims: cleanBake.gridDims,
+    })
 
     // Now a parse-clean source that throws when run: prior points stay, error set.
     useEditorStore.getState().setSource(`function(n){ throw new Error('boom') }`)
     await useMapStore.getState().bakeEditingMap()
     expect(useMapStore.getState().mapEvalError).toMatch(/boom/)
-    expect(useMapStore.getState().userMaps[0].points).toEqual(priorPoints)
+    expect(useMapStore.getState().userMaps[0]).toMatchObject(priorBake)
 
     const repaired = '[[0, 0], [1, 1], [2, 0]]'
     useEditorStore.getState().setSource(repaired)
