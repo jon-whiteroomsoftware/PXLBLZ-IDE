@@ -444,6 +444,45 @@ describe('ShowEditor (#318)', () => {
     expect(screen.getByRole('button', { name: 'Remove zone main' })).toBeInTheDocument()
   })
 
+  it('fits a collapsed Zone header in its own row and drops the pixel count (#632)', async () => {
+    const user = userEvent.setup()
+    const show = addShowZone(createDefaultShow('show-collapsed-header', 'Collapsed header', 1000), {
+      name: 'accent',
+      nominalPixelCount: 24,
+    })
+    useShowStore.setState({ shows: [show], activeShowId: show.id, showsLoaded: true })
+
+    render(<ShowEditor showId={show.id} />)
+    await user.click(screen.getByRole('button', { name: 'Open Zones' }))
+    const grid = screen.getByTestId('show-timeline-grid')
+    expect(within(grid).getByText('24px')).toBeInTheDocument()
+
+    await user.click(within(grid).getByRole('button', { name: 'Collapse zone accent' }))
+
+    const header = within(grid).getByRole('button', { name: 'Expand zone accent' }).parentElement!
+    expect(within(header).getByText('accent')).toBeInTheDocument()
+    expect(within(header).queryByText('24px')).not.toBeInTheDocument()
+    expect(header.className).toContain('overflow-hidden')
+    expect(within(grid).getByText('60px')).toBeInTheDocument()
+  })
+
+  it('leaves the collapsed Zone summary unlabelled because the rail holds the name (#632)', async () => {
+    const user = userEvent.setup()
+    const show = addShowZone(createDefaultShow('show-collapsed-label', 'Collapsed label', 1000), {
+      name: 'accent',
+      nominalPixelCount: 24,
+    })
+    useShowStore.setState({ shows: [show], activeShowId: show.id, showsLoaded: true })
+
+    render(<ShowEditor showId={show.id} />)
+    await user.click(screen.getByRole('button', { name: 'Open Zones' }))
+    await user.click(within(screen.getByTestId('show-timeline-grid')).getByRole('button', { name: 'Collapse zone accent' }))
+
+    const summary = screen.getByRole('img', { name: 'Collapsed zone accent timeline' })
+    expect(summary).toBeInTheDocument()
+    expect(summary.querySelector('[data-testid="collapsed-zone-layout-label"]')).toBeNull()
+  })
+
   it('collapses Zones independently and retains a micro Zone picker when the map closes (#581)', async () => {
     const user = userEvent.setup()
     const show = addShowZone(createDefaultShow('show-zone-collapse', 'Zone collapse', 1000), {

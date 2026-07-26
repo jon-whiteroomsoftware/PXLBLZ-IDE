@@ -4642,7 +4642,7 @@ function ShowTimelineWorkspace({
           <div key={row.zoneId} className="contents">
             {showFullZoneHeaders && <div
               className={[
-                'group sticky left-0 z-30 flex items-stretch gap-0.5 rounded-[5px] border border-transparent bg-[#060608] pr-0.5 text-left font-mono transition-all',
+                'group sticky left-0 z-30 flex items-stretch gap-0.5 overflow-hidden rounded-[5px] border border-transparent bg-[#060608] pr-0.5 text-left font-mono transition-all',
                 selection.kind === 'zone' && selection.zoneId === row.zoneId
                   ? 'border-live/25 bg-live/10 text-zinc-100'
                   : 'text-zinc-300 hover:border-zinc-800 hover:bg-zinc-900/65 hover:text-zinc-100',
@@ -4678,9 +4678,11 @@ function ShowTimelineWorkspace({
                   <ZoneGlyph icon={zone?.icon} size={11} />
                 </span>
               )}
-              <span className="flex min-w-0 flex-1 flex-col justify-center gap-0.5 py-1">
-                <span className="truncate text-[12px] font-medium">{row.zoneName}</span>
-                <span className="truncate text-[10px] text-structural transition-colors group-hover:text-zinc-400">{row.nominalPixelCount}px</span>
+              <span className="flex min-w-0 flex-1 flex-col justify-center gap-0.5 overflow-hidden py-1">
+                <span className="truncate text-[12px] font-medium leading-4">{row.zoneName}</span>
+                {/* A collapsed Zone owns one 28px row; a second line would overflow
+                    it and paint across its neighbours (#632). */}
+                {!collapsed && <span className="truncate text-[10px] leading-3 text-structural transition-colors group-hover:text-zinc-400">{row.nominalPixelCount}px</span>}
               </span>
               <button
                 type="button"
@@ -4799,9 +4801,7 @@ function ShowTimelineWorkspace({
                 <LayoutZoneIntervalOverlay
                   intervals={layoutIntervals}
                   zoneId={row.zoneId}
-                  zoneName={row.zoneName}
                   durationMs={timeline.durationMs}
-                  compact
                 />
               </div>
             ) : unifiedZone.layers.map((layer, layerIndex) => (
@@ -4899,7 +4899,6 @@ function ShowTimelineWorkspace({
                 <LayoutZoneIntervalOverlay
                   intervals={layoutIntervals}
                   zoneId={row.zoneId}
-                  zoneName={row.zoneName}
                   durationMs={timeline.durationMs}
                 />
                 {movePreview?.targetKey === `composition:${layer.id}` && (
@@ -5669,18 +5668,19 @@ function TimelineNavigator({
   )
 }
 
+/**
+ * Masks the spans where a Zone is unowned by the Layout in force. The Zone's own
+ * name belongs to the rail header, which stays put while the timeline scrolls,
+ * so this overlay carries no label of its own (#632).
+ */
 function LayoutZoneIntervalOverlay({
   intervals,
   zoneId,
-  zoneName,
   durationMs,
-  compact = false,
 }: {
   intervals: ShowLayoutInterval[]
   zoneId: string
-  zoneName: string
   durationMs: number
-  compact?: boolean
 }) {
   const totalMs = Math.max(1, durationMs)
   return <>
@@ -5697,16 +5697,7 @@ function LayoutZoneIntervalOverlay({
           style={{ left: `${left}%`, width: `${width}%` }}
         />
       }
-      if (!compact) return null
-      return <span
-        key={interval.id}
-        aria-hidden
-        data-testid="collapsed-zone-layout-label"
-        className="pointer-events-none absolute top-0.5 z-[21] max-w-full truncate rounded-sm bg-black/75 px-1.5 text-[10px] font-medium leading-4 text-zinc-100 shadow-[0_1px_2px_rgba(0,0,0,0.8)]"
-        style={{ left: `calc(${left}% + 4px)`, maxWidth: `calc(${width}% - 8px)` }}
-      >
-        {zoneName}
-      </span>
+      return null
     })}
   </>
 }

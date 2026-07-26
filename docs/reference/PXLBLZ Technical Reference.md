@@ -1100,6 +1100,14 @@ structural snap times, and a Main-layer drop target. Zone names remain
 12-pixel primary text in the full header; a curated icon and full accessible
 label preserve identity when the header narrows.
 
+A collapsed header must fit that 28-pixel row, so it drops the nominal pixel
+count and keeps only the name, and the header clips its own content: an
+overflowing second line paints across the neighbouring lanes, because the header
+is sticky at z-30 above them. `LayoutZoneIntervalOverlay` correspondingly draws
+only the unowned-span masks. It no longer repeats the Zone name inside the
+miniature, which duplicated the header at the one scroll position where the
+header was already visible.
+
 The Zone Map is the only authoring surface for Zone structure. It lists Zones
 and Zone Layout definitions, and `ShowSelection` carries a `zone-layout` kind so
 a definition opens in the Entity Detail panel as `Zone Layout properties`

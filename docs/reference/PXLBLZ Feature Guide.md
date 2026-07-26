@@ -577,6 +577,8 @@ it.
 Expanded Zones share the ruler and may collapse independently. A collapsed
 Zone remains a time-accurate miniature: one thin band per Layer retains Clip
 spans and property-event positions, and it remains a snapping and drag target.
+Its rail header keeps the Zone name alone on that single row; the pixel count
+returns when the Zone expands, and the miniature carries no name of its own.
 Focusing a Zone expands it and collapses its siblings. Collapse, focus, and
 Zone-workspace disclosure persists independently per Show.
 
