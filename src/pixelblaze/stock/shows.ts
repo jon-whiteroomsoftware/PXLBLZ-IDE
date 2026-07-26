@@ -277,8 +277,9 @@ function learn103(): StockShow {
 // 104 teaches ordering with two Color & output Effects rather than two
 // Transform Effects, because every stock Pattern here fills the frame: moving
 // or turning a full-field texture only reveals a different part of the same
-// texture. Dim and Cutoff act on rendered pixels, so the whole Stage carries the
-// difference.
+// texture. Brightness and Threshold act on rendered pixels, so the whole Stage
+// carries the difference. Both are named exactly as the Effects panel labels
+// them, so the note and the screen agree.
 //
 // The cast is measured, not chosen by eye. Across the 2D catalogue at 44x44,
 // MetaballGarden is the only Pattern with real mid-range luminance - 28% of its
@@ -286,22 +287,30 @@ function learn103(): StockShow {
 // luminance Cutoff needs mid-range pixels to bisect. Reusing 101's Pattern is
 // the price of a lesson that actually demonstrates its own claim.
 //
-// Measured on those pixels: Cutoff then Dim lights 27.6% of the Stage, Dim then
-// Cutoff lights 0.0%. Dimming to a quarter puts every pixel under a 0.2 cutoff,
-// so the wrong order is not a subtler picture, it is no picture.
+// Measured on those pixels, the two orders differ in kind rather than in degree.
+// Threshold then Brightness lights 27.6% of the Stage at 40%: the whole shape,
+// lowered. Brightness then Threshold lights 10.3% at full strength: only pixels
+// bright enough to clear a threshold they meet already lowered, so what survives
+// is a sparse scatter of white. Their mean brightness is nearly identical (0.110
+// against 0.103), which is what makes the difference read as a decision about
+// order rather than a brightness knob.
+//
+// Brightness sits at 40% rather than the 25% that drove Clip 3 to pure black.
+// Black was the most pronounced result but read as an empty Clip rather than a
+// taught one.
 function learn104(): StockShow {
   const id = 'stock-show-104-effects-and-ordering'
   const zones = logicalZones(['Main'], PORTABLE_REFERENCE_PIXELS)
   // Distinct Effect ids per Clip. The compiler splits placements whose Effect
   // order conflicts, so this is not required for correctness, but it keeps each
   // Clip's Effects independently addressable and states the intent (#363).
-  const dim = (id: string): ShowClipEffect => ({ id, kind: 'brightness', brightness: 0.25 })
-  const cutoff = (id: string): ShowClipEffect => ({ id, kind: 'threshold', threshold: 0.2, amount: 1 })
+  const brightness = (id: string): ShowClipEffect => ({ id, kind: 'brightness', brightness: 0.4 })
+  const threshold = (id: string): ShowClipEffect => ({ id, kind: 'threshold', threshold: 0.2, amount: 1 })
   const stacks: Array<[string, ShowClipEffect[]]> = [
     ['clip-plain', []],
-    ['clip-cutoff', [cutoff('cutoff-alone')]],
-    ['clip-dim-cutoff', [dim('dim-first'), cutoff('cutoff-second')]],
-    ['clip-cutoff-dim', [cutoff('cutoff-first'), dim('dim-second')]],
+    ['clip-threshold', [threshold('threshold-alone')]],
+    ['clip-brightness-threshold', [brightness('brightness-first'), threshold('threshold-second')]],
+    ['clip-threshold-brightness', [threshold('threshold-first'), brightness('brightness-second')]],
   ]
   const scenes: SceneSpec[] = [
     scene('stacks', 'Stacks', 16, [clip('zone-1', 'MetaballGarden', LESSON_TIME_SCALE)]),
@@ -325,8 +334,8 @@ function learn104(): StockShow {
   return catalogue({
     id, title: 'Effects and Ordering', track: 'portable', collection: 'learn', level: 100, order: 4,
     purpose: 'An Effect changes the picture a Clip has already drawn, without editing the Pattern. A Clip holds its Effects as a list, and each one works on the result of the one above it, so the same two Effects in a different order do not give the same picture.',
-    notice: 'Clips 3 and 4 carry the same Dim and the same Cutoff, swapped. Dimming first puts every pixel under the cutoff, so nothing survives it and Clip 3 goes black. Cutting off first keeps the bright shapes, and the dim then simply lowers them.',
-    prompts: ['On Clip 3, use Move later on the Dim Effect and watch the picture come back.', 'Leave the order alone on Clip 3 and lower its Cutoff until the shapes reappear.'],
+    notice: 'Clips 3 and 4 carry the same Brightness and the same Threshold, swapped. Clip 3 lowers Brightness first, so only the brightest pixels still clear the Threshold and a sparse scatter survives at full strength. Clip 4 applies Threshold first, so the whole shape survives and Brightness then lowers it. Almost the same amount of light, a completely different picture.',
+    prompts: ['On Clip 3, press Move Brightness Effect later so Brightness runs after Threshold, and watch the whole shape come back.', "Leave the order alone on Clip 3 and lower that Clip's Threshold until more of the shape survives."],
     guideHeading: 'clip-effects',
     output: portableOutput(), zones, layouts: [singleLayout(zones)], scenes, composition,
   })

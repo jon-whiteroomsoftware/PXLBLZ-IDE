@@ -361,15 +361,14 @@ describe('stock Show curriculum (#363)', () => {
     // The swap has to change the picture, not just the data. A mid-bright pixel
     // survives the cutoff when the cutoff runs first, and is destroyed when the
     // dim runs first.
-    // A pixel near the top of MetaballGarden's measured range still cannot clear
-    // the cutoff once it has been dimmed to a quarter, so the wrong order gives
-    // no picture at all rather than a subtler one. Measured over the Pattern's
-    // real output: Cutoff then Dim lights 27.6% of the Stage, Dim then Cutoff
-    // lights 0.0%.
-    const sample: ShowRgb = [0.7, 0.7, 0.7]
+    // A mid-range pixel is destroyed when the dim runs first, because it meets
+    // the cutoff already lowered, and survives when the cutoff runs first.
+    // Measured over the Pattern's real output: Cutoff then Dim lights 27.6% of
+    // the Stage, Dim then Cutoff lights 10.3%, at nearly equal mean brightness.
+    const sample: ShowRgb = [0.35, 0.35, 0.35]
     const third = applyShowColorEffects(thirdEffects, sample)
     const fourth = applyShowColorEffects(fourthEffects, sample)
-    expect(Math.max(...third), 'dim before cutoff destroys even a white pixel').toBe(0)
+    expect(Math.max(...third), 'dim before cutoff drops it under the cutoff').toBe(0)
     expect(Math.min(...fourth), 'cutoff before dim keeps it').toBeGreaterThan(0.2)
   })
 
