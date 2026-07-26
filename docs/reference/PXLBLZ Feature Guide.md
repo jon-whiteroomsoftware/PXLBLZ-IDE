@@ -402,8 +402,11 @@ The working grammar is compact:
   1x, 1.5x, and 2x playback. Unmodified Left/Right Arrow seek backward or
   forward five seconds without moving the visible range. These transport keys work from
   ordinary Show page content without first focusing the timeline; active editors
-  and keyboard-operable controls retain their native keys. Tab and Shift-Tab
-  traverse timeline entities in deterministic time order. Click or drag the
+  and keyboard-operable controls retain their native keys. Space keeps reaching
+  playback after clicking toolbar or Zone rail chrome, and Tab and Shift-Tab
+  leave that chrome in its natural focus order while traversing timeline entities
+  in deterministic time order. Within an open popover, Space activates the
+  focused button instead. Click or drag the
   ruler to seek. Scrubbing rebuilds exact deterministic Pattern state by
   replaying from Show start — there is no approximate seek.
 - **Navigator and Snap.** The compact Navigator pans or resizes the visible

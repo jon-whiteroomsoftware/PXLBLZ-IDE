@@ -1856,8 +1856,21 @@ their native keyboard ownership.
 `studioControlOwnsKeyboardEvent()` to leave only text inputs, textboxes, Monaco,
 and contenteditable surfaces untouched. Buttons, links, selectors, sliders,
 menus, and entity-tree rows delegate Space to Preview transport. Tree rows use
-Enter for open/disclose so they cannot preempt the shared shortcut. The Show
-document handler keeps the same guarded Space behavior as a local fallback,
+Enter for open/disclose so they cannot preempt the shared shortcut.
+
+Inside the Show editor the same intent is expressed by an opt-in rather than an
+opt-out. `showControlOwnsKeyboardEvent()` treats any focused `button` as owning
+the key, so Timeline chrome must be marked to release it: the toolbar element and
+each Zone rail control carry `data-studio-space-preview="true"`. Space is a
+Show-wide binding, so no chrome control may shadow it after a pointer click
+leaves focus behind. Buttons inside a Timeline popover - Add to Show, Add Clip,
+Insert Time, Zone Layout at playhead, and the Zone Map - are the deliberate
+exception: they keep native Space activation, because a popover is the surface
+the author is aiming at and its buttons should behave like buttons. Treat that as
+settled rather than as an inconsistency to repair.
+
+The Show document handler keeps the same guarded Space behavior as a local
+fallback,
 adds A for Show start, maps 1/2/3 to 1x/1.5x/2x playback, and maps unmodified
 Left/Right to five-second playhead seeks from ordinary Show page content. The
 timeline handler maps Tab/Shift-Tab to deterministic entity traversal when the Show
