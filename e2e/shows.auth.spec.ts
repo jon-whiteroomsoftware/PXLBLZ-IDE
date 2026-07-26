@@ -814,6 +814,7 @@ test.describe('authenticated Show authoring', () => {
     await page.reload()
     await expect(page.getByLabel('Portable reference map')).toHaveValue('wide')
     await expect(page.getByLabel('Portable reference pixels')).toHaveValue('1536')
+    await openZoneLayout(page, 'Default')
     await expect(page.getByLabel('Default routing mode')).toHaveValue('grid-2x2')
     await expect(page.getByRole('button', { name: 'View code' }).first()).toBeEnabled()
     await expect(page.getByText(/preserves about a 2.0:1 aspect/i)).toBeVisible()
@@ -1030,6 +1031,7 @@ test.describe('authenticated Show authoring', () => {
     await page.goto('studio/shows')
     await createInstallationShow(page)
 
+    await openZoneLayout(page, 'Default')
     const ranges = page.getByLabel('Default main pixel ranges')
     await ranges.fill('0-199')
     await ranges.blur()
@@ -1038,6 +1040,7 @@ test.describe('authenticated Show authoring', () => {
     await expect(page.getByRole('button', { name: 'Export Show as .epe' })).toBeDisabled()
 
     await page.reload()
+    await openZoneLayout(page, 'Default')
     await expect(page.getByLabel('Default main pixel ranges')).toHaveValue('0-199')
     await page.getByLabel('Default main pixel ranges').fill('0-255')
     await page.getByLabel('Default main pixel ranges').blur()
@@ -1168,9 +1171,7 @@ test.describe('authenticated Show authoring', () => {
     await page.goto('studio/shows')
     await createInstallationShow(page)
 
-    await page.getByRole('button', { name: 'Show properties' }).click()
-    await page.getByRole('button', { name: 'Add routing layout' }).click()
-    await page.getByLabel('New layout routing layout name').fill('Alternating')
+    await addZoneLayout(page, 'Alternating')
     const ranges = page.getByLabel('Alternating main pixel ranges')
     await ranges.fill('0-29')
     await ranges.blur()
@@ -1198,7 +1199,8 @@ test.describe('authenticated Show authoring', () => {
 
     await page.reload()
 
-    await expect(page.getByLabel('Alternating routing layout name')).toHaveValue('Alternating')
+    await openZoneLayout(page, 'Alternating')
+    await expect(page.getByLabel('Zone Layout name Alternating')).toHaveValue('Alternating')
     await expect(page.getByLabel('Alternating main pixel ranges')).toHaveValue('0-29')
     await page.getByRole('button', { name: 'Select Scene 1 to Scene 2 transition (routing)' }).click()
     await expect(page.getByLabel('Destination routing layout')).toHaveValue('layout-2')
@@ -1211,13 +1213,12 @@ test.describe('authenticated Show authoring', () => {
     await page.goto('studio/shows')
     await createInstallationShow(page)
 
-    await page.getByRole('button', { name: 'Show properties' }).click()
-    await page.getByRole('button', { name: 'Add routing layout' }).click()
-    await page.getByLabel('New layout routing layout name').fill('Alternate interval')
+    await addZoneLayout(page, 'Alternate interval')
+    await page.keyboard.press('Escape')
     await page.getByRole('button', { name: 'Add to Show' }).click()
     await page.getByRole('menuitem', { name: 'Zone Layout' }).click()
-    const actions = page.getByRole('dialog', { name: 'Layout interval actions' })
-    await actions.getByLabel('Layout definition').selectOption({ label: 'Alternate interval' })
+    const actions = page.getByRole('dialog', { name: 'Zone Layout at playhead' })
+    await actions.getByLabel('Zone Layout', { exact: true }).selectOption({ label: 'Alternate interval' })
     await actions.getByLabel('Layout interval duration in seconds exact time').fill('5')
     await actions.getByRole('button', { name: 'Append' }).click()
 
@@ -1285,9 +1286,9 @@ test.describe('authenticated Show authoring', () => {
     ))
 
     await page.reload()
-    await page.getByRole('button', { name: 'Show properties' }).click()
+    await openZoneLayout(page, 'Default')
     await expect(page.getByLabel('Default routing mode')).toHaveValue('split-x')
-    await page.getByRole('button', { name: 'Show properties' }).click()
+    await page.keyboard.press('Escape')
     await page.getByRole('button', { name: 'Edit split position transition from Scene 1' }).click()
     await page.getByText('Advanced transition controls').click()
     await expect(page.getByLabel('Animate split position')).toBeChecked()
@@ -1750,6 +1751,27 @@ type PersistedShow = {
   }>
   routingSwitches: Array<{ afterSceneId: string; layoutId: string }>
   outputEffects?: Array<{ id: string; kind: 'trails'; retention: number }>
+}
+
+/**
+ * Zone Layout definitions live in the Zone Map, reached from the Zone rail, and
+ * are edited in the Entity Detail panel (#629).
+ */
+async function openZoneLayout(page: Page, layoutName: string): Promise<void> {
+  const openZones = page.getByRole('button', { name: 'Open Zones' })
+  if (await openZones.count() > 0) await openZones.click()
+  const openMap = page.getByRole('button', { name: 'Open Zone Map' })
+  if (await openMap.count() > 0) await openMap.click()
+  await page.getByRole('button', { name: `Open Zone Layout ${layoutName}` }).click()
+}
+
+async function addZoneLayout(page: Page, name: string): Promise<void> {
+  const openZones = page.getByRole('button', { name: 'Open Zones' })
+  if (await openZones.count() > 0) await openZones.click()
+  const openMap = page.getByRole('button', { name: 'Open Zone Map' })
+  if (await openMap.count() > 0) await openMap.click()
+  await page.getByRole('dialog', { name: 'Zone Map' }).getByRole('button', { name: 'Add Zone Layout' }).click()
+  await page.getByLabel('Zone Layout name New layout').fill(name)
 }
 
 async function createInstallationShow(page: Page): Promise<void> {

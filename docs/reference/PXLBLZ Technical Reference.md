@@ -1111,10 +1111,16 @@ intervals stay distinct: `projectShowLayoutIntervals` remains the only source of
 interval geometry, and an unreferenced definition reports itself as not placed.
 
 Popovers rendered inside the Zone rail pass `align="start"` so they hang from
-the anchor's left edge, and they must keep stopping click propagation: the
-editor closes the Entity Detail panel on document clicks outside the current
-selection key, so a selection made inside a popover would otherwise close the
-panel it just opened.
+the anchor's left edge, and two placement rules keep them inert against the
+canvas. They must keep stopping click propagation, because the editor closes the
+Entity Detail panel on document clicks outside the current selection key, so a
+selection made inside a popover would otherwise close the panel it just opened.
+They must also render outside the timeline grid element, which owns the group
+marquee and Group-isolation pointer handlers: portalled children still bubble
+their events through their JSX ancestors, so a press inside the map would start
+a marquee. A control that opens a Detail panel and closes its own popover must
+anchor the panel to an element that survives the same commit; a detached anchor
+leaves `ShowEntityDetailPanel` hidden with no observer to recover it.
 
 The full Zone header exposes one disclosure control and one properties control,
 so the header itself carries no click behaviour. The disclosure control occupies

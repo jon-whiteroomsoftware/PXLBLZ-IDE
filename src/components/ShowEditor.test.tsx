@@ -539,6 +539,30 @@ describe('ShowEditor (#318)', () => {
       const intervals = projectShowLayoutIntervals(useShowStore.getState().shows[0])
       expect(intervals.map((interval) => interval.layoutId)).toEqual([show.routingLayouts[0].id, added.id])
     })
+
+    await user.click(screen.getByRole('button', { name: 'Add to Show' }))
+    await user.click(screen.getByRole('menuitem', { name: 'Zone Layout' }))
+    await user.click(screen.getByRole('button', { name: 'Open Zone Layout Default' }))
+    expect(screen.queryByRole('dialog', { name: 'Zone Layout at playhead' })).not.toBeInTheDocument()
+    const panel = screen.getByRole('dialog', { name: 'Entity Detail Panel' })
+    expect(within(panel).getByRole('region', { name: 'Zone Layout properties' })).toBeInTheDocument()
+    expect(panel).toBeVisible()
+  })
+
+  it('keeps Zone Map pointer presses out of the timeline marquee (#629)', async () => {
+    const user = userEvent.setup()
+    const show = addShowZone(createDefaultShow('show-zone-map-marquee', 'Zone map marquee', 1000), { name: 'accent' })
+    useShowStore.setState({ shows: [show], activeShowId: show.id, showsLoaded: true })
+
+    render(<ShowEditor showId={show.id} />)
+    await user.click(screen.getByRole('button', { name: 'Open Zones' }))
+    await user.click(screen.getByRole('button', { name: 'Open Zone Map' }))
+    const zoneMap = screen.getByRole('dialog', { name: 'Zone Map' })
+
+    fireEvent.pointerDown(within(zoneMap).getByText('Zone Map'), { button: 0, clientX: 40, clientY: 40 })
+
+    expect(document.querySelector('[data-show-timeline-marquee]')).toBeNull()
+    expect(screen.getByRole('dialog', { name: 'Zone Map' })).toBeInTheDocument()
   })
 
   it('inserts and appends sequential Zone Layout intervals from the unified toolbar (#582)', async () => {

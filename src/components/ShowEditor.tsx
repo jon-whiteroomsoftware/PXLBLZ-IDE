@@ -4232,9 +4232,12 @@ function ShowTimelineWorkspace({
                       type="button"
                       aria-label={`Open Zone Layout ${layoutActionInterval.layoutName}`}
                       className="mt-0.5 text-left text-[11px] text-zinc-500 underline decoration-dotted underline-offset-4 hover:text-zinc-200"
-                      onClick={(event) => {
+                      onClick={() => {
+                        // Anchor to the toolbar button, not to this link: closing
+                        // the popover unmounts the link in the same commit, and a
+                        // detached anchor leaves the panel hidden (#629).
                         setLayoutActionsOpen(false)
-                        onSelect({ kind: 'zone-layout', layoutId: layoutActionInterval.layoutId }, event.currentTarget)
+                        onSelect({ kind: 'zone-layout', layoutId: layoutActionInterval.layoutId }, addPopoverAnchor)
                       }}
                     >
                       Edit {layoutActionInterval.layoutName}
@@ -4480,28 +4483,6 @@ function ShowTimelineWorkspace({
             {!showMicroZonePicker && <span className="truncate">Zones</span>}
           </button>
         </div>}
-        {zoneMapOpen && (showFullZoneHeaders || showMicroZonePicker) && (
-          <ZoneMapPopover
-            anchor={zoneMapAnchor}
-            show={show}
-            collapsedZoneIds={collapsedZoneIdSet}
-            focusedZoneId={focusedZoneId}
-            readOnly={readOnly}
-            layoutIntervals={layoutIntervals}
-            onAddZone={onAddZone}
-            onAddZoneLayout={(anchor) => {
-              void onAddZoneLayout().then((layoutId) => {
-                if (layoutId) onSelect({ kind: 'zone-layout', layoutId }, anchor)
-              })
-            }}
-            onDismiss={() => setZoneMapOpen(false)}
-            onSelectZone={(zoneId, anchor) => onSelect({ kind: 'zone', zoneId }, anchor)}
-            onSelectZoneLayout={(layoutId, anchor) => onSelect({ kind: 'zone-layout', layoutId }, anchor)}
-            onToggleZone={(zoneId) => setZoneCollapsed(show.id, zoneId, !collapsedZoneIdSet.has(zoneId))}
-            onFocusZone={focusZone}
-            onUpdateZone={onUpdateZone}
-          />
-        )}
         <TimelineRuler
           rulerRef={timelineRulerRef}
           show={displayShow}
@@ -5345,6 +5326,31 @@ function ShowTimelineWorkspace({
         </div>
       </div>
       </div>
+      {/* Outside the grid subtree: the grid owns marquee and group-isolation
+          pointer handlers, and React bubbles portalled popover events through
+          their JSX ancestors (#629). */}
+      {zoneMapOpen && (showFullZoneHeaders || showMicroZonePicker) && (
+        <ZoneMapPopover
+          anchor={zoneMapAnchor}
+          show={show}
+          collapsedZoneIds={collapsedZoneIdSet}
+          focusedZoneId={focusedZoneId}
+          readOnly={readOnly}
+          layoutIntervals={layoutIntervals}
+          onAddZone={onAddZone}
+          onAddZoneLayout={(anchor) => {
+            void onAddZoneLayout().then((layoutId) => {
+              if (layoutId) onSelect({ kind: 'zone-layout', layoutId }, anchor)
+            })
+          }}
+          onDismiss={() => setZoneMapOpen(false)}
+          onSelectZone={(zoneId, anchor) => onSelect({ kind: 'zone', zoneId }, anchor)}
+          onSelectZoneLayout={(layoutId, anchor) => onSelect({ kind: 'zone-layout', layoutId }, anchor)}
+          onToggleZone={(zoneId) => setZoneCollapsed(show.id, zoneId, !collapsedZoneIdSet.has(zoneId))}
+          onFocusZone={focusZone}
+          onUpdateZone={onUpdateZone}
+        />
+      )}
     </div>
   )
 }
