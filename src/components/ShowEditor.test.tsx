@@ -39,6 +39,18 @@ import { DEFAULT_SHOW_TRAILS_RETENTION } from '@/engine/showPreviousRgbFeedback'
 import { appendShowLayoutInterval, projectShowLayoutIntervals } from '@/engine/showLayoutIntervals'
 import * as previewThumbnailJpeg from '@/engine/previewThumbnailJpeg'
 
+/**
+ * Zone Layout definitions are authored in the Zone Map, reached from the Zone
+ * rail on the Timeline, and edited in the Entity Detail panel (#629).
+ */
+async function openZoneLayout(user: ReturnType<typeof userEvent.setup>, layoutName: string): Promise<void> {
+  const openZones = screen.queryByRole('button', { name: 'Open Zones' })
+  if (openZones) await user.click(openZones)
+  const openMap = screen.queryByRole('button', { name: 'Open Zone Map' })
+  if (openMap) await user.click(openMap)
+  await user.click(screen.getByRole('button', { name: `Open Zone Layout ${layoutName}` }))
+}
+
 function changeCommittedNumber(label: string, value: string): void {
   const input = screen.getByLabelText(label)
   fireEvent.change(input, { target: { value } })
@@ -472,6 +484,63 @@ describe('ShowEditor (#318)', () => {
     expect(screen.getByRole('img', { name: 'Collapsed zone accent timeline' })).toBeInTheDocument()
   })
 
+  it('authors Zone Layout definitions in the Zone Map, not Show properties (#629)', async () => {
+    const user = userEvent.setup()
+    const show = createDefaultShow('show-zone-layout-authoring', 'Zone Layout authoring', 1000)
+    setPersonalContentProvider(memoryProvider([show]))
+    useShowStore.setState({ shows: [show], activeShowId: show.id, showsLoaded: true })
+
+    render(<ShowEditor showId={show.id} />)
+
+    await user.click(screen.getByRole('button', { name: 'Show properties' }))
+    expect(screen.queryByRole('button', { name: 'Add routing layout' })).not.toBeInTheDocument()
+    expect(screen.queryByLabelText('Default routing mode')).not.toBeInTheDocument()
+    expect(screen.getByText(/Zones and Zone Layouts are authored in the Zone Map/i)).toBeInTheDocument()
+
+    await user.click(screen.getByRole('button', { name: 'Open Zones' }))
+    await user.click(screen.getByRole('button', { name: 'Open Zone Map' }))
+    const zoneMap = screen.getByRole('dialog', { name: 'Zone Map' })
+    const definition = within(zoneMap).getByRole('button', { name: 'Open Zone Layout Default' })
+    expect(definition).toHaveTextContent('physical pixel ranges')
+    expect(definition).toHaveTextContent('1 interval')
+
+    await user.click(within(zoneMap).getByRole('button', { name: 'Add Zone Layout' }))
+    await waitFor(() => expect(useShowStore.getState().shows[0].routingLayouts).toHaveLength(2))
+    const added = useShowStore.getState().shows[0].routingLayouts[1]
+    expect(screen.getByRole('region', { name: 'Zone Layout properties' })).toBeInTheDocument()
+    expect(screen.getByText(/not on the timeline yet/i)).toBeInTheDocument()
+
+    const name = screen.getByLabelText(`Zone Layout name ${added.name}`)
+    fireEvent.change(name, { target: { value: 'Split' } })
+    await waitFor(() => expect(useShowStore.getState().shows[0].routingLayouts[1].name).toBe('Split'))
+    expect(within(screen.getByRole('dialog', { name: 'Zone Map' })).getByRole('button', { name: 'Open Zone Layout Split' })).toBeInTheDocument()
+  })
+
+  it('defines and places a Zone Layout in one pass from the Add menu (#629)', async () => {
+    const user = userEvent.setup()
+    const show = createDefaultShow('show-zone-layout-new-option', 'Zone Layout at playhead', 1000)
+    setPersonalContentProvider(memoryProvider([show]))
+    useShowStore.setState({ shows: [show], activeShowId: show.id, showsLoaded: true })
+    useShowTransportStore.setState({ showId: show.id, positionMs: 0 })
+
+    render(<ShowEditor showId={show.id} />)
+
+    await user.click(screen.getByRole('button', { name: 'Add to Show' }))
+    await user.click(screen.getByRole('menuitem', { name: 'Zone Layout' }))
+    const dialog = screen.getByRole('dialog', { name: 'Zone Layout at playhead' })
+    await user.selectOptions(within(dialog).getByRole('combobox', { name: 'Zone Layout' }), '__new-zone-layout__')
+
+    await waitFor(() => expect(useShowStore.getState().shows[0].routingLayouts).toHaveLength(2))
+    const added = useShowStore.getState().shows[0].routingLayouts[1]
+    expect(within(dialog).getByRole('combobox', { name: 'Zone Layout' })).toHaveValue(added.id)
+
+    await user.click(within(dialog).getByRole('button', { name: 'Append' }))
+    await waitFor(() => {
+      const intervals = projectShowLayoutIntervals(useShowStore.getState().shows[0])
+      expect(intervals.map((interval) => interval.layoutId)).toEqual([show.routingLayouts[0].id, added.id])
+    })
+  })
+
   it('inserts and appends sequential Zone Layout intervals from the unified toolbar (#582)', async () => {
     const user = userEvent.setup()
     const show = addShowRoutingLayout(createDefaultShow('show-layout-authoring', 'Layout authoring', 1000), 'Alternate')
@@ -483,10 +552,10 @@ describe('ShowEditor (#318)', () => {
 
     await user.click(screen.getByRole('button', { name: 'Add to Show' }))
     await user.click(screen.getByRole('menuitem', { name: 'Zone Layout' }))
-    let dialog = screen.getByRole('dialog', { name: 'Layout interval actions' })
+    let dialog = screen.getByRole('dialog', { name: 'Zone Layout at playhead' })
     expect(screen.getByTestId('show-timeline-toolbar')).not.toContainElement(dialog)
     expect(dialog).toHaveClass('fixed')
-    await user.selectOptions(within(dialog).getByRole('combobox', { name: 'Layout definition' }), show.routingLayouts[1].id)
+    await user.selectOptions(within(dialog).getByRole('combobox', { name: 'Zone Layout' }), show.routingLayouts[1].id)
     const duration = within(dialog).getByRole('textbox', { name: 'Layout interval duration in seconds exact time' })
     await user.clear(duration)
     await user.type(duration, '3')
@@ -503,7 +572,7 @@ describe('ShowEditor (#318)', () => {
 
     await user.click(screen.getByRole('button', { name: 'Add to Show' }))
     await user.click(screen.getByRole('menuitem', { name: 'Zone Layout' }))
-    dialog = screen.getByRole('dialog', { name: 'Layout interval actions' })
+    dialog = screen.getByRole('dialog', { name: 'Zone Layout at playhead' })
     await user.click(within(dialog).getByRole('button', { name: 'Append' }))
     await waitFor(() => {
       const intervals = projectShowLayoutIntervals(useShowStore.getState().shows[0])
@@ -521,8 +590,8 @@ describe('ShowEditor (#318)', () => {
 
     await user.click(screen.getByRole('button', { name: 'Add to Show' }))
     await user.click(screen.getByRole('menuitem', { name: 'Zone Layout' }))
-    const dialog = screen.getByRole('dialog', { name: 'Layout interval actions' })
-    await user.selectOptions(within(dialog).getByRole('combobox', { name: 'Layout definition' }), show.routingLayouts[1].id)
+    const dialog = screen.getByRole('dialog', { name: 'Zone Layout at playhead' })
+    await user.selectOptions(within(dialog).getByRole('combobox', { name: 'Zone Layout' }), show.routingLayouts[1].id)
     await user.click(within(dialog).getByRole('button', { name: 'Append' }))
 
     await waitFor(() => expect(projectShowLayoutIntervals(useShowStore.getState().shows[0])).toHaveLength(2))
@@ -892,7 +961,7 @@ describe('ShowEditor (#318)', () => {
     render(<ShowEditor showId={show.id} />)
     await user.click(screen.getByRole('button', { name: 'Add to Show' }))
     await user.click(screen.getByRole('menuitem', { name: 'Zone Layout' }))
-    let dialog = screen.getByRole('dialog', { name: 'Layout interval actions' })
+    let dialog = screen.getByRole('dialog', { name: 'Zone Layout at playhead' })
     await user.click(within(dialog).getByRole('button', { name: 'Duplicate Layout' }))
 
     await waitFor(() => expect(projectShowLayoutIntervals(useShowStore.getState().shows[0])).toHaveLength(2))
@@ -904,7 +973,7 @@ describe('ShowEditor (#318)', () => {
 
     await user.click(screen.getByRole('button', { name: 'Add to Show' }))
     await user.click(screen.getByRole('menuitem', { name: 'Zone Layout' }))
-    dialog = screen.getByRole('dialog', { name: 'Layout interval actions' })
+    dialog = screen.getByRole('dialog', { name: 'Zone Layout at playhead' })
     expect(within(dialog).getByText(/Separate this occurrence from 1 other use/)).toBeInTheDocument()
     await user.click(within(dialog).getByRole('button', { name: /Make this Layout unique/i }))
 
@@ -2880,7 +2949,7 @@ describe('ShowEditor (#318)', () => {
     expect(screen.queryByRole('button', { name: 'Add Clip at playhead' })).not.toBeInTheDocument()
     expect(screen.queryByRole('button', { name: 'Add Layer' })).not.toBeInTheDocument()
     expect(screen.queryByRole('button', { name: 'Insert Time' })).not.toBeInTheDocument()
-    expect(screen.queryByRole('button', { name: 'Layout interval actions' })).not.toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'Zone Layout at playhead' })).not.toBeInTheDocument()
 
     await user.click(screen.getByRole('button', { name: 'Add to Show' }))
     const menu = screen.getByRole('menu', { name: 'Add to Show' })
@@ -4279,7 +4348,7 @@ describe('ShowEditor (#318)', () => {
     useShowStore.setState({ shows: [show], activeShowId: show.id, showsLoaded: true })
 
     render(<ShowEditor showId={show.id} />)
-    await user.click(screen.getByRole('button', { name: 'Show properties' }))
+    await openZoneLayout(user, 'Default')
     await user.selectOptions(screen.getByLabelText('Default routing mode'), 'split-x')
 
     await waitFor(() => {
@@ -4306,7 +4375,7 @@ describe('ShowEditor (#318)', () => {
     useShowStore.setState({ shows: [show], activeShowId: show.id, showsLoaded: true })
 
     render(<ShowEditor showId={show.id} />)
-    await user.click(screen.getByRole('button', { name: 'Show properties' }))
+    await openZoneLayout(user, 'Default')
     await user.selectOptions(screen.getByLabelText('Default routing mode'), 'checker')
 
     expect(screen.getByLabelText('Checker columns')).toHaveValue(4)
@@ -4338,7 +4407,7 @@ describe('ShowEditor (#318)', () => {
     useShowStore.setState({ shows: [show], activeShowId: show.id, showsLoaded: true })
 
     render(<ShowEditor showId={show.id} />)
-    await user.click(screen.getByRole('button', { name: 'Show properties' }))
+    await openZoneLayout(user, 'Default')
     await user.selectOptions(screen.getByLabelText('Default routing mode'), 'rings')
 
     expect(screen.getByLabelText('Ring count')).toHaveValue(5)
@@ -4366,7 +4435,7 @@ describe('ShowEditor (#318)', () => {
     useShowStore.setState({ shows: [show], activeShowId: show.id, showsLoaded: true })
 
     render(<ShowEditor showId={show.id} />)
-    await user.click(screen.getByRole('button', { name: 'Show properties' }))
+    await openZoneLayout(user, 'Default')
     await user.selectOptions(screen.getByLabelText('Default routing mode'), 'pinwheel')
 
     expect(screen.getByLabelText('Pinwheel arms')).toHaveValue(6)
@@ -4400,7 +4469,7 @@ describe('ShowEditor (#318)', () => {
     useShowStore.setState({ shows: [show], activeShowId: show.id, showsLoaded: true })
 
     render(<ShowEditor showId={show.id} />)
-    await user.click(screen.getByRole('button', { name: 'Show properties' }))
+    await openZoneLayout(user, 'Default')
     await user.selectOptions(screen.getByLabelText('Default routing mode'), 'wave')
 
     expect(screen.getByLabelText('Wave axis')).toHaveValue('x')
@@ -4440,7 +4509,7 @@ describe('ShowEditor (#318)', () => {
     useShowStore.setState({ shows: [show], activeShowId: show.id, showsLoaded: true })
 
     render(<ShowEditor showId={show.id} />)
-    await user.click(screen.getByRole('button', { name: 'Show properties' }))
+    await openZoneLayout(user, 'Default')
     await user.selectOptions(screen.getByLabelText('Default routing mode'), 'soft-split')
 
     expect(screen.getByLabelText('Soft Split axis')).toHaveValue('x')
@@ -4984,6 +5053,7 @@ describe('ShowEditor (#318)', () => {
     await user.selectOptions(screen.getByLabelText('Portable reference map'), 'wide')
     fireEvent.change(screen.getByLabelText('Portable reference pixels'), { target: { value: '1536' } })
     fireEvent.blur(screen.getByLabelText('Portable reference pixels'))
+    await openZoneLayout(user, 'Default')
     await user.selectOptions(screen.getByLabelText('Default routing mode'), 'grid-2x2')
 
     await waitFor(() => {
@@ -5019,10 +5089,11 @@ describe('ShowEditor (#318)', () => {
 
     await user.click(screen.getByRole('button', { name: 'Show properties' }))
     expect(screen.getAllByText(/assigns 6 of 8 pixels \(2 missing\)/i)).toHaveLength(2)
-    expect(screen.getByLabelText('Default main pixel ranges')).toHaveValue('0-5')
     expect(screen.getByRole('button', { name: 'View code' })).toBeDisabled()
     expect(screen.getByRole('button', { name: 'Export Show as .epe' })).toBeDisabled()
 
+    await openZoneLayout(user, 'Default')
+    expect(screen.getByLabelText('Default main pixel ranges')).toHaveValue('0-5')
     const ranges = screen.getByLabelText('Default main pixel ranges')
     await user.clear(ranges)
     await user.type(ranges, '0-7')
@@ -5032,6 +5103,7 @@ describe('ShowEditor (#318)', () => {
       expect(screen.getByRole('button', { name: 'View code' })).toBeEnabled()
       expect(screen.getByRole('button', { name: 'Export Show as .epe' })).toBeEnabled()
     })
+    await user.click(screen.getByRole('button', { name: 'Show properties' }))
     expect(screen.getByText(/Default assigns 8 of 8 pixels exactly once/i)).toBeInTheDocument()
   })
 

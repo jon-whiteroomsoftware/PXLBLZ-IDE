@@ -300,6 +300,8 @@ function ShowEasingOptions() {
  * disclosure control, the Zone name with its nominal pixel count, and a
  * properties control; the micro rail holds only the Zone glyph picker.
  */
+const NEW_ZONE_LAYOUT_OPTION = '__new-zone-layout__'
+
 const ZONE_RAIL_OPEN_PX = 108
 const ZONE_RAIL_MICRO_PX = 32
 
@@ -307,6 +309,7 @@ type ShowSelection =
   | { kind: 'clip'; clipId: string }
   | { kind: 'transition'; transitionId: string }
   | { kind: 'zone'; zoneId: string }
+  | { kind: 'zone-layout'; layoutId: string }
   | { kind: 'group'; occurrenceId: string }
   | { kind: 'group-clip'; occurrenceId: string; placementId: string }
   | { kind: 'multi'; groupSelection: ShowGroupSelection }
@@ -321,6 +324,7 @@ function showSelectionKey(selection: ShowSelection): string {
   if (selection.kind === 'clip') return `clip:${selection.clipId}`
   if (selection.kind === 'transition') return `transition:${selection.transitionId}`
   if (selection.kind === 'zone') return `zone:${selection.zoneId}`
+  if (selection.kind === 'zone-layout') return `zone-layout:${selection.layoutId}`
   if (selection.kind === 'group') return `group:${selection.occurrenceId}`
   if (selection.kind === 'group-clip') return `group-clip:${selection.occurrenceId}:${selection.placementId}`
   if (selection.kind === 'multi') return 'multi'
@@ -360,6 +364,9 @@ function showSelectionExists(
     return show.transitions.some((transition) => transition.id === selection.transitionId)
   }
   if (selection.kind === 'zone') return show.zones.some((zone) => zone.id === selection.zoneId)
+  if (selection.kind === 'zone-layout') {
+    return show.routingLayouts.some((layout) => layout.id === selection.layoutId)
+  }
   if (selection.kind === 'group') {
     return showGroupOccurrenceExists(show, composition, selection.occurrenceId)
   }
@@ -2164,6 +2171,7 @@ export function ShowEditor({
                   timelineWorkspaceRef.current?.focus()
                   void addZone(activeShow.id)
                 }}
+                onAddZoneLayout={() => addRoutingLayout(activeShow.id)}
                 onUpdateZone={(zoneId, changes) => void updateZone(activeShow.id, zoneId, changes)}
               />
           </section>
@@ -3127,6 +3135,7 @@ function ShowTimelineWorkspace({
   onDuplicateLayoutInterval,
   onMakeLayoutIntervalUnique,
   onAddZone,
+  onAddZoneLayout,
   onUpdateZone,
 }: {
   show: ShowRecord
@@ -3182,6 +3191,7 @@ function ShowTimelineWorkspace({
   onDuplicateLayoutInterval: (intervalId: string, withContent: boolean) => Promise<boolean>
   onMakeLayoutIntervalUnique: (intervalId: string) => Promise<boolean>
   onAddZone: () => void
+  onAddZoneLayout: () => Promise<string | null>
   onUpdateZone: (zoneId: string, changes: Partial<ShowRecord['zones'][number]>) => void
 }) {
   const [showEndPreviewMs, setShowEndPreviewMs] = useState<number | null>(null)
@@ -4186,7 +4196,7 @@ function ShowTimelineWorkspace({
                 <ShowTimelineToolbarPopover
                   anchor={addPopoverAnchor}
                   widthPx={288}
-                  ariaLabel="Layout interval actions"
+                  ariaLabel="Zone Layout at playhead"
                   className="w-[288px] rounded border border-zinc-700 bg-zinc-950 p-2.5 text-[12px] text-zinc-300 shadow-2xl"
                   onClick={(event) => event.stopPropagation()}
                 >
@@ -4200,14 +4210,36 @@ function ShowTimelineWorkspace({
                   <label className="grid grid-cols-[72px_1fr] items-center gap-2 py-1">
                     <span className="text-zinc-500">Use Layout</span>
                     <select
-                      aria-label="Layout definition"
+                      aria-label="Zone Layout"
                       className="h-7 min-w-0 rounded border border-zinc-700 bg-zinc-900 px-2 text-[12px] text-zinc-200 outline-none focus:border-live/70"
                       value={layoutActionLayoutId}
-                      onChange={(event) => setLayoutActionLayoutId(event.target.value)}
+                      onChange={(event) => {
+                        if (event.target.value !== NEW_ZONE_LAYOUT_OPTION) {
+                          setLayoutActionLayoutId(event.target.value)
+                          return
+                        }
+                        void onAddZoneLayout().then((layoutId) => {
+                          if (layoutId) setLayoutActionLayoutId(layoutId)
+                        })
+                      }}
                     >
                       {show.routingLayouts.map((layout) => <option key={layout.id} value={layout.id}>{layout.name}</option>)}
+                      <option value={NEW_ZONE_LAYOUT_OPTION}>New Zone Layout...</option>
                     </select>
                   </label>
+                  {layoutActionInterval && (
+                    <button
+                      type="button"
+                      aria-label={`Open Zone Layout ${layoutActionInterval.layoutName}`}
+                      className="mt-0.5 text-left text-[11px] text-zinc-500 underline decoration-dotted underline-offset-4 hover:text-zinc-200"
+                      onClick={(event) => {
+                        setLayoutActionsOpen(false)
+                        onSelect({ kind: 'zone-layout', layoutId: layoutActionInterval.layoutId }, event.currentTarget)
+                      }}
+                    >
+                      Edit {layoutActionInterval.layoutName}
+                    </button>
+                  )}
                   <div className="grid grid-cols-[72px_1fr] items-center gap-2 py-1">
                     <span className="text-zinc-500">Duration</span>
                     <UiTimeField
@@ -4455,9 +4487,16 @@ function ShowTimelineWorkspace({
             collapsedZoneIds={collapsedZoneIdSet}
             focusedZoneId={focusedZoneId}
             readOnly={readOnly}
+            layoutIntervals={layoutIntervals}
             onAddZone={onAddZone}
+            onAddZoneLayout={(anchor) => {
+              void onAddZoneLayout().then((layoutId) => {
+                if (layoutId) onSelect({ kind: 'zone-layout', layoutId }, anchor)
+              })
+            }}
             onDismiss={() => setZoneMapOpen(false)}
             onSelectZone={(zoneId, anchor) => onSelect({ kind: 'zone', zoneId }, anchor)}
+            onSelectZoneLayout={(layoutId, anchor) => onSelect({ kind: 'zone-layout', layoutId }, anchor)}
             onToggleZone={(zoneId) => setZoneCollapsed(show.id, zoneId, !collapsedZoneIdSet.has(zoneId))}
             onFocusZone={focusZone}
             onUpdateZone={onUpdateZone}
@@ -5334,9 +5373,12 @@ function ZoneMapPopover({
   collapsedZoneIds,
   focusedZoneId,
   readOnly,
+  layoutIntervals,
   onAddZone,
+  onAddZoneLayout,
   onDismiss,
   onSelectZone,
+  onSelectZoneLayout,
   onToggleZone,
   onFocusZone,
   onUpdateZone,
@@ -5346,9 +5388,12 @@ function ZoneMapPopover({
   collapsedZoneIds: Set<string>
   focusedZoneId: string | null
   readOnly: boolean
+  layoutIntervals: ShowLayoutInterval[]
   onAddZone: () => void
+  onAddZoneLayout: (anchor: HTMLElement) => void
   onDismiss: () => void
   onSelectZone: (zoneId: string, anchor: HTMLElement) => void
+  onSelectZoneLayout: (layoutId: string, anchor: HTMLElement) => void
   onToggleZone: (zoneId: string) => void
   onFocusZone: (zoneId: string) => void
   onUpdateZone: (zoneId: string, changes: Partial<ShowRecord['zones'][number]>) => void
@@ -5357,15 +5402,23 @@ function ZoneMapPopover({
     <ShowTimelineToolbarPopover
       anchor={anchor}
       widthPx={310}
+      align="start"
       ariaLabel="Zone Map"
       className="w-[min(310px,calc(100vw-24px))] rounded border border-zinc-700 bg-[#0a0a0d]/[0.985] p-1.5 shadow-2xl backdrop-blur"
       onDismiss={onDismiss}
+      // Selections made inside the map must not reach the editor's document
+      // click handling, which would close the Entity Detail panel they open.
+      // Dismissal listens on pointerdown, so it still sees outside presses.
+      onClick={(event) => event.stopPropagation()}
     >
       <header className="flex h-8 items-center gap-2 border-b border-zinc-800 px-1.5">
         <MapIcon size={13} aria-hidden className="text-live" />
         <strong className="text-[13px] font-medium text-zinc-100">Zone Map</strong>
-        <span className="ml-auto text-[10px] tabular-nums text-zinc-500">{show.zones.length} Zone{show.zones.length === 1 ? '' : 's'}</span>
       </header>
+      <h3 className="mt-1 px-1.5 text-[9px] uppercase tracking-[0.12em] text-zinc-500">
+        Zones
+        <span className="ml-1 normal-case tracking-normal text-zinc-600">the whole output, divided</span>
+      </h3>
       <div className="py-1">
         {show.zones.map((zone) => {
           const collapsed = collapsedZoneIds.has(zone.id)
@@ -5441,6 +5494,46 @@ function ZoneMapPopover({
         >
           <Plus size={12} aria-hidden />
           Add Zone
+        </button>
+      )}
+      <h3 className="mt-2.5 border-t border-zinc-800 px-1.5 pt-2 text-[9px] uppercase tracking-[0.12em] text-zinc-500">
+        Zone Layouts
+        <span className="ml-1 normal-case tracking-normal text-zinc-600">named ways to divide it</span>
+      </h3>
+      <div className="py-1">
+        {show.routingLayouts.map((layout) => {
+          const uses = layoutIntervals.filter((interval) => interval.layoutId === layout.id).length
+          return (
+            <button
+              key={layout.id}
+              type="button"
+              aria-label={`Open Zone Layout ${layout.name}`}
+              title={`Open ${layout.name}`}
+              className="flex min-h-8 w-full min-w-0 items-center gap-2 rounded px-1.5 py-1 text-left text-zinc-300 hover:bg-zinc-800/70 hover:text-zinc-100"
+              onClick={(event) => onSelectZoneLayout(layout.id, event.currentTarget)}
+            >
+              <Route size={12} aria-hidden className="shrink-0 text-zinc-500" />
+              <span className="min-w-0 flex-1">
+                <strong className="block truncate text-[12px] font-medium">{layout.name}</strong>
+                <span className="block truncate text-[10px] text-zinc-500">{routingModeLabel(layout)}</span>
+              </span>
+              <span className="shrink-0 text-[10px] tabular-nums text-zinc-600">
+                {uses === 0 ? 'not placed' : `${uses} interval${uses === 1 ? '' : 's'}`}
+              </span>
+            </button>
+          )
+        })}
+      </div>
+      {!readOnly && (
+        <button
+          type="button"
+          aria-label="Add Zone Layout"
+          title="Define another named Zone Layout"
+          className="flex h-8 w-full items-center justify-center gap-1 rounded border border-dashed border-zinc-800 text-[11px] text-zinc-400 hover:border-zinc-600 hover:text-zinc-100"
+          onClick={(event) => onAddZoneLayout(event.currentTarget)}
+        >
+          <Plus size={12} aria-hidden />
+          Add Zone Layout
         </button>
       )}
     </ShowTimelineToolbarPopover>
@@ -5938,6 +6031,7 @@ function TimelineRuler({
 function ShowTimelineToolbarPopover({
   anchor,
   widthPx,
+  align = 'end',
   role = 'dialog',
   ariaLabel,
   className,
@@ -5947,6 +6041,8 @@ function ShowTimelineToolbarPopover({
 }: {
   anchor: HTMLElement | null
   widthPx: number
+  /** Toolbar popovers hang from their anchor's right edge; rail popovers from its left. */
+  align?: 'start' | 'end'
   role?: 'dialog' | 'menu'
   ariaLabel: string
   className: string
@@ -5962,7 +6058,7 @@ function ShowTimelineToolbarPopover({
     const updatePosition = () => {
       const rect = anchor.getBoundingClientRect()
       setPosition({
-        left: Math.max(8, Math.min(rect.right - widthPx, window.innerWidth - widthPx - 8)),
+        left: Math.max(8, Math.min(align === 'start' ? rect.left : rect.right - widthPx, window.innerWidth - widthPx - 8)),
         top: rect.bottom + 4,
       })
     }
@@ -5973,7 +6069,7 @@ function ShowTimelineToolbarPopover({
       window.removeEventListener('resize', updatePosition)
       window.removeEventListener('scroll', updatePosition, true)
     }
-  }, [anchor, widthPx])
+  }, [align, anchor, widthPx])
 
   useLayoutEffect(() => {
     if (role !== 'menu') return
@@ -6647,7 +6743,7 @@ function InspectorPanel({
   actions,
   children,
 }: {
-  family: 'Clip' | 'Group' | 'Transition' | 'Zone' | 'Show'
+  family: 'Clip' | 'Group' | 'Transition' | 'Zone' | 'Zone Layout' | 'Show'
   title?: string
   heading?: string
   headingMeta?: string
@@ -6662,10 +6758,11 @@ function InspectorPanel({
     Group: 'border-emerald-400/35 bg-emerald-400/10 text-emerald-300',
     Transition: 'border-violet-400/35 bg-violet-400/10 text-violet-300',
     Zone: 'border-sky-400/35 bg-sky-400/10 text-sky-300',
+    'Zone Layout': 'border-sky-400/25 bg-sky-400/[0.07] text-sky-200',
     Show: 'border-zinc-600 bg-zinc-800/80 text-amber-300',
   }[family]
   return (
-    <section role="region" aria-label={label} data-entity-family={family.toLowerCase()} className="overflow-hidden bg-transparent">
+    <section role="region" aria-label={label} data-entity-family={family.toLowerCase().replace(' ', '-')} className="overflow-hidden bg-transparent">
       {/* Two rows when a summary is present: the actions sit beside the title,
           and the summary then spans the full header width. Sharing one row with
           the action column truncated long Effect descriptions (#363). */}
@@ -6744,7 +6841,6 @@ function ContextualInspector({
   onUpdateBoundaryTransition,
   onOpenTransitions,
   onRemoveBoundaryTransition,
-  onAddZone,
   onUpdateZone,
   onRemoveZone,
   onAddRoutingLayout,
@@ -6983,6 +7079,22 @@ function ContextualInspector({
     }
   }
 
+  if (selection.kind === 'zone-layout') {
+    const layout = show.routingLayouts.find((candidate) => candidate.id === selection.layoutId)
+    if (layout) {
+      return (
+        <ZoneLayoutInspector
+          show={show}
+          layout={layout}
+          intervals={projectShowLayoutIntervals(show)}
+          onAddRoutingLayout={onAddRoutingLayout}
+          onUpdateRoutingLayout={onUpdateRoutingLayout}
+          onRemoveRoutingLayout={onRemoveRoutingLayout}
+        />
+      )
+    }
+  }
+
   return (
     <ShowSetupInspector
       show={show}
@@ -6993,10 +7105,6 @@ function ContextualInspector({
       onUpdatePortableReference={onUpdatePortableReference}
       onUpdateOutputEffects={onUpdateOutputEffects}
       compiledOutputEffects={compiledOutputEffects}
-      onAddZone={onAddZone}
-      onAddRoutingLayout={onAddRoutingLayout}
-      onUpdateRoutingLayout={onUpdateRoutingLayout}
-      onRemoveRoutingLayout={onRemoveRoutingLayout}
     />
   )
 }
@@ -8598,6 +8706,25 @@ function PatternControlTransitionEditor({
   )
 }
 
+const ROUTING_MODE_LABELS: Record<string, string> = {
+  physical: 'physical pixel ranges',
+  single: 'full surface',
+  'stripes-x': 'left / right stripes',
+  'stripes-y': 'top / bottom stripes',
+  'grid-2x2': '2 x 2 grid',
+  checker: 'checker',
+  rings: 'rings',
+  pinwheel: 'pinwheel',
+  wave: 'wave',
+  'soft-split': 'soft split',
+  'split-x': 'moving split X',
+  'split-y': 'moving split Y',
+}
+
+function routingModeLabel(layout: ShowRoutingLayout): string {
+  return ROUTING_MODE_LABELS[routingModeValue(layout)] ?? routingModeValue(layout)
+}
+
 function routingModeValue(layout: ShowRoutingLayout): string {
   const logical = layout.logical
   if (!logical) return 'physical'
@@ -8681,10 +8808,6 @@ function ShowSetupInspector({
   onUpdatePortableReference,
   onUpdateOutputEffects,
   compiledOutputEffects,
-  onAddZone,
-  onAddRoutingLayout,
-  onUpdateRoutingLayout,
-  onRemoveRoutingLayout,
 }: {
   show: ShowRecord
   controllerProfiles: ControllerProfile[]
@@ -8694,10 +8817,6 @@ function ShowSetupInspector({
   onUpdatePortableReference: (referenceMapId: string | null, referencePixelCount: number) => void
   onUpdateOutputEffects: (outputEffects: ShowOutputEffect[]) => void
   compiledOutputEffects?: import('@/engine/showCompiler').ShowCompileSummary['outputEffects']
-  onAddZone: () => void
-  onAddRoutingLayout: (sourceLayoutId?: string) => void
-  onUpdateRoutingLayout: (layoutId: string, changes: Partial<Omit<ShowRoutingLayout, 'id'>>) => void
-  onRemoveRoutingLayout: (layoutId: string) => void
 }) {
   const zonePixels = show.zones.reduce((sum, zone) => sum + zone.nominalPixelCount, 0)
   const contract = show.outputContract
@@ -8820,19 +8939,12 @@ function ShowSetupInspector({
           </div>
         </div>
       </div>
-      <div className="mt-3 flex items-center gap-2 text-[10px] text-zinc-500">
-        <span>{portable
+      <p className="mt-3 text-[10px] text-zinc-500">
+        {portable
           ? 'Portable routing uses normalized Stage positions at runtime.'
-          : `Using ${targetProfile?.name ?? 'nominal zones'} for compile estimates.`}</span>
-        <span className="flex-1" />
-        <button
-          type="button"
-          onClick={onAddZone}
-          className="h-7 rounded border border-zinc-800 px-2 text-[10px] uppercase tracking-wider text-zinc-400 hover:border-zinc-600 hover:text-zinc-100"
-        >
-          Add zone
-        </button>
-      </div>
+          : `Using ${targetProfile?.name ?? 'nominal zones'} for compile estimates.`}
+        {' '}Zones and Zone Layouts are authored in the Zone Map, from the Zones rail on the Timeline.
+      </p>
       <div className="mt-4 border-t border-zinc-800 pt-3">
         <div className="mb-2 flex items-center gap-2">
           <WandSparkles size={13} aria-hidden className="text-cyan-400/75" />
@@ -8885,331 +8997,337 @@ function ShowSetupInspector({
           )}
         </div>
       </div>
-      <div className="mt-4 border-t border-zinc-800 pt-3">
-        <div className="mb-2 flex items-center gap-2">
-          <Route size={13} aria-hidden className="text-zinc-500" />
-          <h4 className="text-[10px] font-semibold uppercase tracking-wider text-zinc-500">Routing layouts</h4>
-          <span className="flex-1" />
-          <button
-            type="button"
-            aria-label="Add routing layout"
-            title="Add routing layout"
-            onClick={() => onAddRoutingLayout()}
-            className="flex h-7 w-7 items-center justify-center rounded border border-zinc-800 text-zinc-400 hover:border-zinc-600 hover:text-zinc-100"
-          >
-            <Plus size={13} aria-hidden />
-          </button>
-        </div>
-        <div className="divide-y divide-zinc-800/80 border-y border-zinc-800/80">
-          {show.routingLayouts.map((layout) => (
-            <div key={layout.id} className="py-3">
-              <div className="flex items-center gap-2">
-                <input
-                  aria-label={`${layout.name} routing layout name`}
-                  value={layout.name}
-                  onChange={(event) => onUpdateRoutingLayout(layout.id, { name: event.target.value })}
-                  className={`${field} min-w-0 flex-1`}
-                />
-                <button
-                  type="button"
-                  aria-label={`Duplicate routing layout ${layout.name}`}
-                  title={`Duplicate ${layout.name}`}
-                  onClick={() => onAddRoutingLayout(layout.id)}
-                  className="flex h-7 w-7 items-center justify-center rounded text-zinc-500 hover:bg-zinc-800 hover:text-zinc-100"
-                >
-                  <Copy size={13} aria-hidden />
-                </button>
-                <button
-                  type="button"
-                  aria-label={`Remove routing layout ${layout.name}`}
-                  title={`Remove ${layout.name}`}
-                  onClick={() => onRemoveRoutingLayout(layout.id)}
-                  disabled={show.routingLayouts.length <= 1}
-                  className="flex h-7 w-7 items-center justify-center rounded text-zinc-500 hover:bg-red-950/30 hover:text-red-300 disabled:opacity-25 disabled:hover:bg-transparent disabled:hover:text-zinc-500"
-                >
-                  <Trash2 size={13} aria-hidden />
-                </button>
-              </div>
-              <label className="mt-2 block text-[9.5px] uppercase text-zinc-600">
-                Routing mode
-                <select
-                  aria-label={`${layout.name} routing mode`}
-                  value={routingModeValue(layout)}
-                  onChange={(event) => {
-                    const value = event.target.value
-                    onUpdateRoutingLayout(layout.id, {
-                      logical: logicalRoutingForMode(value, show.zones.map((zone) => zone.id)),
-                    })
-                  }}
-                  className={`${field} mt-1 w-full max-w-xs`}
-                >
-                  {!portable && <option value="physical">physical pixel ranges</option>}
-                  {portable && <option value="single">full surface</option>}
-                  <option value="stripes-x">left / right stripes</option>
-                  <option value="stripes-y">top / bottom stripes</option>
-                  <option value="grid-2x2" disabled={show.zones.length < 4}>2 x 2 grid</option>
-                  <option value="checker" disabled={show.zones.length < 2}>checker</option>
-                  <option value="rings">rings</option>
-                  <option value="pinwheel">pinwheel</option>
-                  <option value="wave">wave</option>
-                  <option value="soft-split" disabled={show.zones.length < 2}>soft split</option>
-                  <option value="split-x">moving split X</option>
-                  <option value="split-y">moving split Y</option>
-                </select>
-              </label>
-              {layout.logical?.kind === 'checker' && (
-                <div className="mt-2 grid max-w-xs grid-cols-2 gap-2">
-                  <label className="text-[9.5px] uppercase text-zinc-600">
-                    Columns
-                    <input
-                      key={layout.logical.columns}
-                      aria-label="Checker columns"
-                      type="number"
-                      min={1}
-                      step={1}
-                      defaultValue={layout.logical.columns}
-                      onBlur={(event) => onUpdateRoutingLayout(layout.id, {
-                        logical: patchLogicalRouting(layout.logical!, 'checker', {
-                          columns: Math.max(1, Math.round(Number(event.currentTarget.value) || 1)),
-                        }),
-                      })}
-                      className={`${field} mt-1 w-full`}
-                    />
-                  </label>
-                  <label className="text-[9.5px] uppercase text-zinc-600">
-                    Rows
-                    <input
-                      key={layout.logical.rows}
-                      aria-label="Checker rows"
-                      type="number"
-                      min={1}
-                      step={1}
-                      defaultValue={layout.logical.rows}
-                      onBlur={(event) => onUpdateRoutingLayout(layout.id, {
-                        logical: patchLogicalRouting(layout.logical!, 'checker', {
-                          rows: Math.max(1, Math.round(Number(event.currentTarget.value) || 1)),
-                        }),
-                      })}
-                      className={`${field} mt-1 w-full`}
-                    />
-                  </label>
-                </div>
-              )}
-              {layout.logical?.kind === 'rings' && (
-                <div className="mt-2 max-w-[9.5rem]">
-                  <label className="text-[9.5px] uppercase text-zinc-600">
-                    Ring count
-                    <input
-                      key={layout.logical.rings}
-                      aria-label="Ring count"
-                      type="number"
-                      min={1}
-                      step={1}
-                      defaultValue={layout.logical.rings}
-                      onBlur={(event) => onUpdateRoutingLayout(layout.id, {
-                        logical: patchLogicalRouting(layout.logical!, 'rings', {
-                          rings: Math.max(1, Math.round(Number(event.currentTarget.value) || 1)),
-                        }),
-                      })}
-                      className={`${field} mt-1 w-full`}
-                    />
-                  </label>
-                </div>
-              )}
-              {layout.logical?.kind === 'pinwheel' && (
-                <div className="mt-2 grid max-w-xl grid-cols-3 gap-2">
-                  <label className="text-[9.5px] uppercase text-zinc-600">
-                    Arms
-                    <input
-                      key={layout.logical.arms ?? layout.logical.zoneIds.length}
-                      aria-label="Pinwheel arms"
-                      type="number"
-                      min={1}
-                      step={1}
-                      defaultValue={layout.logical.arms ?? layout.logical.zoneIds.length}
-                      onBlur={(event) => onUpdateRoutingLayout(layout.id, {
-                        logical: patchLogicalRouting(layout.logical!, 'pinwheel', {
-                          arms: Math.max(1, Math.round(Number(event.currentTarget.value) || 1)),
-                        }),
-                      })}
-                      className={`${field} mt-1 w-full`}
-                    />
-                  </label>
-                  <label className="text-[9.5px] uppercase text-zinc-600">
-                    Twist turns
-                    <input
-                      key={layout.logical.twist}
-                      aria-label="Pinwheel twist turns"
-                      type="number"
-                      step={0.05}
-                      defaultValue={Number((layout.logical.twist / (Math.PI * 2)).toFixed(3))}
-                      onBlur={(event) => onUpdateRoutingLayout(layout.id, {
-                        logical: patchLogicalRouting(layout.logical!, 'pinwheel', {
-                          twist: (Number(event.currentTarget.value) || 0) * Math.PI * 2,
-                        }),
-                      })}
-                      className={`${field} mt-1 w-full`}
-                    />
-                  </label>
-                  <label className="text-[9.5px] uppercase text-zinc-600">
-                    Rotation °
-                    <input
-                      key={layout.logical.rotation ?? 0}
-                      aria-label="Pinwheel rotation degrees"
-                      type="number"
-                      step={1}
-                      defaultValue={Number((((layout.logical.rotation ?? 0) * 180) / Math.PI).toFixed(2))}
-                      onBlur={(event) => onUpdateRoutingLayout(layout.id, {
-                        logical: patchLogicalRouting(layout.logical!, 'pinwheel', {
-                          rotation: (Number(event.currentTarget.value) || 0) * Math.PI / 180,
-                        }),
-                      })}
-                      className={`${field} mt-1 w-full`}
-                    />
-                  </label>
-                </div>
-              )}
-              {layout.logical?.kind === 'wave' && (
-                <div className="mt-2 grid max-w-2xl grid-cols-2 gap-2 sm:grid-cols-5">
-                  <label className="text-[9.5px] uppercase text-zinc-600">
-                    Axis
-                    <select
-                      aria-label="Wave axis"
-                      value={layout.logical.axis}
-                      onChange={(event) => onUpdateRoutingLayout(layout.id, {
-                        logical: patchLogicalRouting(layout.logical!, 'wave', { axis: event.target.value === 'y' ? 'y' : 'x' }),
-                      })}
-                      className={`${field} mt-1 w-full`}
-                    >
-                      <option value="x">X</option>
-                      <option value="y">Y</option>
-                    </select>
-                  </label>
-                  <label className="text-[9.5px] uppercase text-zinc-600">
-                    Bands
-                    <input
-                      key={layout.logical.bands}
-                      aria-label="Wave band count"
-                      type="number"
-                      min={1}
-                      step={1}
-                      defaultValue={layout.logical.bands}
-                      onBlur={(event) => onUpdateRoutingLayout(layout.id, {
-                        logical: patchLogicalRouting(layout.logical!, 'wave', { bands: Math.max(1, Math.round(Number(event.currentTarget.value) || 1)) }),
-                      })}
-                      className={`${field} mt-1 w-full`}
-                    />
-                  </label>
-                  <PercentageField
-                    key={layout.logical.amplitude}
-                    label="Wave amplitude"
-                    value={layout.logical.amplitude}
-                    min={0}
-                    max={1}
-                    step={0.05}
-                    onChange={(amplitude) => onUpdateRoutingLayout(layout.id, {
-                      logical: patchLogicalRouting(layout.logical!, 'wave', { amplitude }),
-                    })}
-                  />
-                  <label className="text-[9.5px] uppercase text-zinc-600">
-                    Frequency
-                    <input
-                      key={layout.logical.frequency}
-                      aria-label="Wave frequency"
-                      type="number"
-                      min={0}
-                      step={0.1}
-                      defaultValue={layout.logical.frequency}
-                      onBlur={(event) => onUpdateRoutingLayout(layout.id, {
-                        logical: patchLogicalRouting(layout.logical!, 'wave', { frequency: Math.max(0, Number(event.currentTarget.value) || 0) }),
-                      })}
-                      className={`${field} mt-1 w-full`}
-                    />
-                  </label>
-                  <label className="text-[9.5px] uppercase text-zinc-600">
-                    Phase
-                    <input
-                      key={layout.logical.phase}
-                      aria-label="Wave phase"
-                      type="number"
-                      step={0.05}
-                      defaultValue={layout.logical.phase}
-                      onBlur={(event) => onUpdateRoutingLayout(layout.id, {
-                        logical: patchLogicalRouting(layout.logical!, 'wave', { phase: Number(event.currentTarget.value) || 0 }),
-                      })}
-                      className={`${field} mt-1 w-full`}
-                    />
-                  </label>
-                </div>
-              )}
-              {layout.logical?.kind === 'soft-split' && (
-                <div className="mt-2 grid max-w-xs grid-cols-2 gap-2">
-                  <label className="text-[9.5px] uppercase text-zinc-600">
-                    Axis
-                    <select
-                      aria-label="Soft Split axis"
-                      value={layout.logical.axis}
-                      onChange={(event) => onUpdateRoutingLayout(layout.id, {
-                        logical: patchLogicalRouting(layout.logical!, 'soft-split', { axis: event.target.value === 'y' ? 'y' : 'x' }),
-                      })}
-                      className={`${field} mt-1 w-full`}
-                    >
-                      <option value="x">X</option>
-                      <option value="y">Y</option>
-                    </select>
-                  </label>
-                  <PercentageField
-                    key={layout.logical.feather}
-                    label="Soft Split feather"
-                    value={layout.logical.feather}
-                    min={0}
-                    max={1}
-                    step={0.05}
-                    onChange={(feather) => onUpdateRoutingLayout(layout.id, {
-                      logical: patchLogicalRouting(layout.logical!, 'soft-split', { feather }),
-                    })}
-                  />
-                </div>
-              )}
-              {layout.logical ? (
-                <p className="mt-2 rounded border border-sky-900/40 bg-sky-950/10 px-2 py-1.5 text-[10px] leading-4 text-zinc-500">
-                  {logicalRoutingDescription(layout, show)}
-                </p>
-              ) : (
-              <div className="mt-2 grid gap-2 md:grid-cols-2 xl:grid-cols-3">
-                {show.zones.map((zone) => {
-                  const layoutZone = layout.zones.find((candidate) => candidate.zoneId === zone.id)
-                  return (
-                    <label key={zone.id} className="text-[9.5px] uppercase text-zinc-600">
-                      {zone.name} ranges
-                      <input
-                        key={formatShowRoutingRanges(layoutZone?.ranges ?? [])}
-                        aria-label={`${layout.name} ${zone.name} pixel ranges`}
-                        defaultValue={formatShowRoutingRanges(layoutZone?.ranges ?? [])}
-                        placeholder="0-63, 128-191"
-                        onBlur={(event) => {
-                          const ranges = parseShowRoutingRanges(event.currentTarget.value)
-                          if (ranges === null) {
-                            event.currentTarget.value = formatShowRoutingRanges(layoutZone?.ranges ?? [])
-                            return
-                          }
-                          onUpdateRoutingLayout(layout.id, {
-                            zones: layout.zones.map((candidate) => candidate.zoneId === zone.id
-                              ? { ...candidate, ranges }
-                              : candidate),
-                          })
-                        }}
-                        className={`${field} mt-1 w-full font-mono`}
-                      />
-                    </label>
-                  )
-                })}
-              </div>
-              )}
-            </div>
-          ))}
-        </div>
+    </InspectorPanel>
+  )
+}
+
+function ZoneLayoutInspector({
+  show,
+  layout,
+  intervals,
+  onAddRoutingLayout,
+  onUpdateRoutingLayout,
+  onRemoveRoutingLayout,
+}: {
+  show: ShowRecord
+  layout: ShowRoutingLayout
+  intervals: ShowLayoutInterval[]
+  onAddRoutingLayout: (sourceLayoutId?: string) => void
+  onUpdateRoutingLayout: (layoutId: string, changes: Partial<Omit<ShowRoutingLayout, 'id'>>) => void
+  onRemoveRoutingLayout: (layoutId: string) => void
+}) {
+  const portable = show.outputContract?.kind === 'portable-2d' ? show.outputContract : null
+  const uses = intervals.filter((interval) => interval.layoutId === layout.id)
+  return (
+    <InspectorPanel family="Zone Layout" title={layout.name} icon={<Route size={13} aria-hidden />}>
+      <div className="flex items-center gap-2">
+        <input
+          aria-label={`Zone Layout name ${layout.name}`}
+          value={layout.name}
+          onChange={(event) => onUpdateRoutingLayout(layout.id, { name: event.target.value })}
+          className={`${field} min-w-0 flex-1`}
+        />
+        <button
+          type="button"
+          aria-label={`Duplicate Zone Layout ${layout.name}`}
+          title={`Duplicate ${layout.name}`}
+          onClick={() => onAddRoutingLayout(layout.id)}
+          className="flex h-7 w-7 items-center justify-center rounded text-zinc-500 hover:bg-zinc-800 hover:text-zinc-100"
+        >
+          <Copy size={13} aria-hidden />
+        </button>
+        <button
+          type="button"
+          aria-label={`Remove Zone Layout ${layout.name}`}
+          title={`Remove ${layout.name}`}
+          onClick={() => onRemoveRoutingLayout(layout.id)}
+          disabled={show.routingLayouts.length <= 1}
+          className="flex h-7 w-7 items-center justify-center rounded text-zinc-500 hover:bg-red-950/30 hover:text-red-300 disabled:opacity-25 disabled:hover:bg-transparent disabled:hover:text-zinc-500"
+        >
+          <Trash2 size={13} aria-hidden />
+        </button>
       </div>
+      <p className="mt-2 text-[10px] leading-4 text-zinc-500">
+        {uses.length === 0
+          ? 'This definition is not on the timeline yet. Add > Zone Layout places an interval that uses it.'
+          : `On the timeline for ${uses.length} interval${uses.length === 1 ? '' : 's'}: ${uses.map((interval) => `${formatShowTime(interval.startMs)}-${formatShowTime(interval.endMs)}`).join(', ')}.`}
+      </p>
+      <label className="mt-2 block text-[9.5px] uppercase text-zinc-600">
+        Routing mode
+        <select
+          aria-label={`${layout.name} routing mode`}
+          value={routingModeValue(layout)}
+          onChange={(event) => {
+            const value = event.target.value
+            onUpdateRoutingLayout(layout.id, {
+              logical: logicalRoutingForMode(value, show.zones.map((zone) => zone.id)),
+            })
+          }}
+          className={`${field} mt-1 w-full max-w-xs`}
+        >
+          {!portable && <option value="physical">physical pixel ranges</option>}
+          {portable && <option value="single">full surface</option>}
+          <option value="stripes-x">left / right stripes</option>
+          <option value="stripes-y">top / bottom stripes</option>
+          <option value="grid-2x2" disabled={show.zones.length < 4}>2 x 2 grid</option>
+          <option value="checker" disabled={show.zones.length < 2}>checker</option>
+          <option value="rings">rings</option>
+          <option value="pinwheel">pinwheel</option>
+          <option value="wave">wave</option>
+          <option value="soft-split" disabled={show.zones.length < 2}>soft split</option>
+          <option value="split-x">moving split X</option>
+          <option value="split-y">moving split Y</option>
+        </select>
+      </label>
+      {layout.logical?.kind === 'checker' && (
+        <div className="mt-2 grid max-w-xs grid-cols-2 gap-2">
+          <label className="text-[9.5px] uppercase text-zinc-600">
+            Columns
+            <input
+              key={layout.logical.columns}
+              aria-label="Checker columns"
+              type="number"
+              min={1}
+              step={1}
+              defaultValue={layout.logical.columns}
+              onBlur={(event) => onUpdateRoutingLayout(layout.id, {
+                logical: patchLogicalRouting(layout.logical!, 'checker', {
+                  columns: Math.max(1, Math.round(Number(event.currentTarget.value) || 1)),
+                }),
+              })}
+              className={`${field} mt-1 w-full`}
+            />
+          </label>
+          <label className="text-[9.5px] uppercase text-zinc-600">
+            Rows
+            <input
+              key={layout.logical.rows}
+              aria-label="Checker rows"
+              type="number"
+              min={1}
+              step={1}
+              defaultValue={layout.logical.rows}
+              onBlur={(event) => onUpdateRoutingLayout(layout.id, {
+                logical: patchLogicalRouting(layout.logical!, 'checker', {
+                  rows: Math.max(1, Math.round(Number(event.currentTarget.value) || 1)),
+                }),
+              })}
+              className={`${field} mt-1 w-full`}
+            />
+          </label>
+        </div>
+      )}
+      {layout.logical?.kind === 'rings' && (
+        <div className="mt-2 max-w-[9.5rem]">
+          <label className="text-[9.5px] uppercase text-zinc-600">
+            Ring count
+            <input
+              key={layout.logical.rings}
+              aria-label="Ring count"
+              type="number"
+              min={1}
+              step={1}
+              defaultValue={layout.logical.rings}
+              onBlur={(event) => onUpdateRoutingLayout(layout.id, {
+                logical: patchLogicalRouting(layout.logical!, 'rings', {
+                  rings: Math.max(1, Math.round(Number(event.currentTarget.value) || 1)),
+                }),
+              })}
+              className={`${field} mt-1 w-full`}
+            />
+          </label>
+        </div>
+      )}
+      {layout.logical?.kind === 'pinwheel' && (
+        <div className="mt-2 grid max-w-xl grid-cols-3 gap-2">
+          <label className="text-[9.5px] uppercase text-zinc-600">
+            Arms
+            <input
+              key={layout.logical.arms ?? layout.logical.zoneIds.length}
+              aria-label="Pinwheel arms"
+              type="number"
+              min={1}
+              step={1}
+              defaultValue={layout.logical.arms ?? layout.logical.zoneIds.length}
+              onBlur={(event) => onUpdateRoutingLayout(layout.id, {
+                logical: patchLogicalRouting(layout.logical!, 'pinwheel', {
+                  arms: Math.max(1, Math.round(Number(event.currentTarget.value) || 1)),
+                }),
+              })}
+              className={`${field} mt-1 w-full`}
+            />
+          </label>
+          <label className="text-[9.5px] uppercase text-zinc-600">
+            Twist turns
+            <input
+              key={layout.logical.twist}
+              aria-label="Pinwheel twist turns"
+              type="number"
+              step={0.05}
+              defaultValue={Number((layout.logical.twist / (Math.PI * 2)).toFixed(3))}
+              onBlur={(event) => onUpdateRoutingLayout(layout.id, {
+                logical: patchLogicalRouting(layout.logical!, 'pinwheel', {
+                  twist: (Number(event.currentTarget.value) || 0) * Math.PI * 2,
+                }),
+              })}
+              className={`${field} mt-1 w-full`}
+            />
+          </label>
+          <label className="text-[9.5px] uppercase text-zinc-600">
+            Rotation °
+            <input
+              key={layout.logical.rotation ?? 0}
+              aria-label="Pinwheel rotation degrees"
+              type="number"
+              step={1}
+              defaultValue={Number((((layout.logical.rotation ?? 0) * 180) / Math.PI).toFixed(2))}
+              onBlur={(event) => onUpdateRoutingLayout(layout.id, {
+                logical: patchLogicalRouting(layout.logical!, 'pinwheel', {
+                  rotation: (Number(event.currentTarget.value) || 0) * Math.PI / 180,
+                }),
+              })}
+              className={`${field} mt-1 w-full`}
+            />
+          </label>
+        </div>
+      )}
+      {layout.logical?.kind === 'wave' && (
+        <div className="mt-2 grid max-w-2xl grid-cols-2 gap-2 sm:grid-cols-5">
+          <label className="text-[9.5px] uppercase text-zinc-600">
+            Axis
+            <select
+              aria-label="Wave axis"
+              value={layout.logical.axis}
+              onChange={(event) => onUpdateRoutingLayout(layout.id, {
+                logical: patchLogicalRouting(layout.logical!, 'wave', { axis: event.target.value === 'y' ? 'y' : 'x' }),
+              })}
+              className={`${field} mt-1 w-full`}
+            >
+              <option value="x">X</option>
+              <option value="y">Y</option>
+            </select>
+          </label>
+          <label className="text-[9.5px] uppercase text-zinc-600">
+            Bands
+            <input
+              key={layout.logical.bands}
+              aria-label="Wave band count"
+              type="number"
+              min={1}
+              step={1}
+              defaultValue={layout.logical.bands}
+              onBlur={(event) => onUpdateRoutingLayout(layout.id, {
+                logical: patchLogicalRouting(layout.logical!, 'wave', { bands: Math.max(1, Math.round(Number(event.currentTarget.value) || 1)) }),
+              })}
+              className={`${field} mt-1 w-full`}
+            />
+          </label>
+          <PercentageField
+            key={layout.logical.amplitude}
+            label="Wave amplitude"
+            value={layout.logical.amplitude}
+            min={0}
+            max={1}
+            step={0.05}
+            onChange={(amplitude) => onUpdateRoutingLayout(layout.id, {
+              logical: patchLogicalRouting(layout.logical!, 'wave', { amplitude }),
+            })}
+          />
+          <label className="text-[9.5px] uppercase text-zinc-600">
+            Frequency
+            <input
+              key={layout.logical.frequency}
+              aria-label="Wave frequency"
+              type="number"
+              min={0}
+              step={0.1}
+              defaultValue={layout.logical.frequency}
+              onBlur={(event) => onUpdateRoutingLayout(layout.id, {
+                logical: patchLogicalRouting(layout.logical!, 'wave', { frequency: Math.max(0, Number(event.currentTarget.value) || 0) }),
+              })}
+              className={`${field} mt-1 w-full`}
+            />
+          </label>
+          <label className="text-[9.5px] uppercase text-zinc-600">
+            Phase
+            <input
+              key={layout.logical.phase}
+              aria-label="Wave phase"
+              type="number"
+              step={0.05}
+              defaultValue={layout.logical.phase}
+              onBlur={(event) => onUpdateRoutingLayout(layout.id, {
+                logical: patchLogicalRouting(layout.logical!, 'wave', { phase: Number(event.currentTarget.value) || 0 }),
+              })}
+              className={`${field} mt-1 w-full`}
+            />
+          </label>
+        </div>
+      )}
+      {layout.logical?.kind === 'soft-split' && (
+        <div className="mt-2 grid max-w-xs grid-cols-2 gap-2">
+          <label className="text-[9.5px] uppercase text-zinc-600">
+            Axis
+            <select
+              aria-label="Soft Split axis"
+              value={layout.logical.axis}
+              onChange={(event) => onUpdateRoutingLayout(layout.id, {
+                logical: patchLogicalRouting(layout.logical!, 'soft-split', { axis: event.target.value === 'y' ? 'y' : 'x' }),
+              })}
+              className={`${field} mt-1 w-full`}
+            >
+              <option value="x">X</option>
+              <option value="y">Y</option>
+            </select>
+          </label>
+          <PercentageField
+            key={layout.logical.feather}
+            label="Soft Split feather"
+            value={layout.logical.feather}
+            min={0}
+            max={1}
+            step={0.05}
+            onChange={(feather) => onUpdateRoutingLayout(layout.id, {
+              logical: patchLogicalRouting(layout.logical!, 'soft-split', { feather }),
+            })}
+          />
+        </div>
+      )}
+      {layout.logical ? (
+        <p className="mt-2 rounded border border-sky-900/40 bg-sky-950/10 px-2 py-1.5 text-[10px] leading-4 text-zinc-500">
+          {logicalRoutingDescription(layout, show)}
+        </p>
+      ) : (
+      <div className="mt-2 grid gap-2 md:grid-cols-2 xl:grid-cols-3">
+        {show.zones.map((zone) => {
+          const layoutZone = layout.zones.find((candidate) => candidate.zoneId === zone.id)
+          return (
+            <label key={zone.id} className="text-[9.5px] uppercase text-zinc-600">
+              {zone.name} ranges
+              <input
+                key={formatShowRoutingRanges(layoutZone?.ranges ?? [])}
+                aria-label={`${layout.name} ${zone.name} pixel ranges`}
+                defaultValue={formatShowRoutingRanges(layoutZone?.ranges ?? [])}
+                placeholder="0-63, 128-191"
+                onBlur={(event) => {
+                  const ranges = parseShowRoutingRanges(event.currentTarget.value)
+                  if (ranges === null) {
+                    event.currentTarget.value = formatShowRoutingRanges(layoutZone?.ranges ?? [])
+                    return
+                  }
+                  onUpdateRoutingLayout(layout.id, {
+                    zones: layout.zones.map((candidate) => candidate.zoneId === zone.id
+                      ? { ...candidate, ranges }
+                      : candidate),
+                  })
+                }}
+                className={`${field} mt-1 w-full font-mono`}
+              />
+            </label>
+          )
+        })}
+      </div>
+      )}
     </InspectorPanel>
   )
 }

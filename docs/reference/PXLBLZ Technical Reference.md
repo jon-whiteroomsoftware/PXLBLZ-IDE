@@ -1100,6 +1100,22 @@ structural snap times, and a Main-layer drop target. Zone names remain
 12-pixel primary text in the full header; a curated icon and full accessible
 label preserve identity when the header narrows.
 
+The Zone Map is the only authoring surface for Zone structure. It lists Zones
+and Zone Layout definitions, and `ShowSelection` carries a `zone-layout` kind so
+a definition opens in the Entity Detail panel as `Zone Layout properties`
+alongside Clip, Zone, and Transition details. `ShowSetupInspector` therefore no
+longer renders routing-layout fields, and `addRoutingLayout` returns the new
+definition's id so create-then-select is one act from the map or from the
+Add > Zone Layout popover's `New Zone Layout...` option. Definitions and
+intervals stay distinct: `projectShowLayoutIntervals` remains the only source of
+interval geometry, and an unreferenced definition reports itself as not placed.
+
+Popovers rendered inside the Zone rail pass `align="start"` so they hang from
+the anchor's left edge, and they must keep stopping click propagation: the
+editor closes the Entity Detail panel on document clicks outside the current
+selection key, so a selection made inside a popover would otherwise close the
+panel it just opened.
+
 The full Zone header exposes one disclosure control and one properties control,
 so the header itself carries no click behaviour. The disclosure control occupies
 the leading glyph slot when the Show has several Zones; a one-Zone Show, which

@@ -128,7 +128,8 @@ interface ShowState {
   addZone: (showId: string) => Promise<void>
   updateZone: (showId: string, zoneId: string, changes: Partial<Omit<ShowZone, 'id'>>) => Promise<void>
   removeZone: (showId: string, zoneId: string) => Promise<void>
-  addRoutingLayout: (showId: string, sourceLayoutId?: string) => Promise<void>
+  /** Resolves with the new Zone Layout's id so callers can select what they just defined. */
+  addRoutingLayout: (showId: string, sourceLayoutId?: string) => Promise<string | null>
   updateRoutingLayout: (showId: string, layoutId: string, changes: Partial<Omit<ShowRoutingLayout, 'id'>>) => Promise<void>
   removeRoutingLayout: (showId: string, layoutId: string) => Promise<void>
   updateRoutingSwitch: (showId: string, afterSceneId: string, layoutId: string | null) => Promise<void>
@@ -448,8 +449,10 @@ export const useShowStore = create<ShowState>()((set, get) => ({
 
   addRoutingLayout: async (showId, sourceLayoutId) => {
     const show = get().resolveEditableShow(showId)
-    if (!show) return
-    await get().updateShow(showId, addShowRoutingLayout(show, 'New layout', sourceLayoutId))
+    if (!show) return null
+    const next = addShowRoutingLayout(show, 'New layout', sourceLayoutId)
+    await get().updateShow(showId, next)
+    return next.routingLayouts[next.routingLayouts.length - 1]?.id ?? null
   },
 
   updateRoutingLayout: async (showId, layoutId, changes) => {

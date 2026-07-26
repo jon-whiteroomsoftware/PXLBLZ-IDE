@@ -558,8 +558,21 @@ pixel count are labels rather than controls.
 
 The **Zone Map** opens from the map control in the rail's column header, above
 the first Zone header, and closes on outside click, Escape, or the same control.
-It holds the Show's Zones - Add Zone, a stable optional icon, collapse, focus,
-and links to exact Zone properties. Closing the map leaves the rail in place.
+Closing the map leaves the rail in place. It is the single home for Zone
+structure, in two sections that match the model:
+
+- **Zones** - the whole output, divided. Add Zone, a stable optional icon,
+  collapse, focus, and links to exact Zone properties. Zones are Show-wide: a
+  new Zone joins every Zone Layout at once.
+- **Zone Layouts** - named ways to divide it. Each definition lists its routing
+  mode and how many Timeline intervals currently use it, including definitions
+  not placed yet. **Add Zone Layout** defines another one and opens it.
+
+Selecting a definition opens **Zone Layout properties**, which owns its name,
+routing mode, shape parameters, physical ranges, duplication, and removal, and
+states where it sits on the Timeline. Defining a Zone Layout and placing it are
+deliberately separate acts: a definition is inert until an interval references
+it.
 
 Expanded Zones share the ruler and may collapse independently. A collapsed
 Zone remains a time-accurate miniature: one thin band per Layer retains Clip
@@ -581,9 +594,12 @@ The output contract determines what those Zones mean:
   rule holds on any compatible surface.
 
 A Show may own several named Zone Layouts and reference them from explicit
-Layout intervals on the Timeline. Each routed interval has a numbered selectable
-Timeline control; selecting it opens the incoming routing transition's
-destination Layout, transfer duration, easing, and direction. A boundary may
+Layout intervals on the Timeline. **Add > Zone Layout** places an interval at the
+playhead: choose an existing definition, or **New Zone Layout...** to define and
+place one without leaving the Timeline, then Append or Insert here. That popover
+also links to the definition governing the playhead. Each routed interval has a
+numbered selectable Timeline control; selecting it opens the incoming routing
+transition's destination Layout, transfer duration, easing, and direction. A boundary may
 switch definitions as a Cut; Moving Split and Soft Split animate an owned
 position while every Pattern clock continues. A synchronized **Repeat scale**
 tiles what Patterns sample without changing Zone ownership or drawn positions
