@@ -1222,12 +1222,13 @@ closure helper is the authority for marquee and Group selection refinement, so
 a grouping selection cannot retain only one Transition endpoint.
 
 `moveShowConnectedClipInShowAtGlobalTime()` commits that movement as one
-Show-level edit. If a composed Show still carries a visual Scene-boundary
-record attached to the moved Clip, the record cannot identify one Layer's
-endpoints and is replaced by a neutral compiler Cut before the endpoint-owned
-move runs. Routing at the same boundary and unrelated Layer Transitions remain
-unchanged. A refused move returns the original Show, so the compatibility
-record cannot disappear without the requested placement change.
+Show-level edit. It plans against the current Show timing first. If the
+accepted move breaks a visual Scene-boundary junction attached to the moved
+Clip, that record can no longer identify one Layer's endpoints and is replaced
+by a neutral compiler Cut as the planned Composition is committed. Routing at
+the same boundary and unrelated Layer Transitions remain unchanged. A refused
+or exact no-op move returns the original Show, so transition cleanup cannot
+escape the requested placement change.
 
 `ShowCompositionV1.durationMs` persists the explicit Show End, while
 `ShowCompositionV1.markers` persists sorted, Show-owned alignment guides with
