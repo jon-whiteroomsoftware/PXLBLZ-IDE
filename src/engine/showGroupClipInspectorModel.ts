@@ -14,6 +14,7 @@ import {
 import { normalizeShowClipEffects } from './showEffects'
 import { compactShowClipTransform, normalizeShowClipTransform } from './showClipTransform'
 import { compactShowClipViewport, normalizeShowClipViewport } from './showClipViewport'
+import { projectShowTimeline } from './showModel'
 
 export interface ShowGroupClipOwner {
   occurrenceId: string
@@ -21,12 +22,14 @@ export interface ShowGroupClipOwner {
 }
 
 export function projectShowGroupClipInspector(
-  show: Pick<ShowRecord, 'composition'>,
+  show: ShowRecord,
   owner: ShowGroupClipOwner,
 ): ShowClipInspectorValue | null {
   const resolved = resolveGroupClip(show, owner)
   if (!resolved) return null
   const { occurrence, placement, instance } = resolved
+  const sceneRange = projectShowTimeline(show).scenes.find((scene) => scene.sceneId === occurrence.sceneId)
+  if (!sceneRange) return null
   const absoluteLayer = occurrence.baseLayer + placement.layerOffset
   return {
     scope: absoluteLayer === 0 ? 'scene-main' : 'scene-overlay',
@@ -64,7 +67,7 @@ export function projectShowGroupClipInspector(
     instanceId: instance.id,
     ...(absoluteLayer > 0 ? { layerId: `group-layer:${absoluteLayer}` } : {}),
     local: {
-      startMs: placement.startMs,
+      startMs: sceneRange.startMs + occurrence.startMs + placement.startMs,
       durationMs: placement.durationMs,
       ...(absoluteLayer > 0 ? { opacity: placement.opacity } : {}),
     },
@@ -77,10 +80,22 @@ export function updateShowGroupClipInspector(
   patch: ShowClipInspectorPatch,
 ): ShowRecord {
   const resolved = resolveGroupClip(show, owner)
-  if (!show.composition || !resolved || !validLocalPatch(patch)) return show
+  if (!show.composition || !resolved) return show
+  const sceneRange = projectShowTimeline(show).scenes.find((scene) => scene.sceneId === resolved.occurrence.sceneId)
+  if (!sceneRange) return show
+  const normalizedPatch = patch.local?.startMs === undefined
+    ? patch
+    : {
+        ...patch,
+        local: {
+          ...patch.local,
+          startMs: Math.round(patch.local.startMs - sceneRange.startMs - resolved.occurrence.startMs),
+        },
+      }
+  if (!validLocalPatch(normalizedPatch)) return show
   const definitions = show.composition.groupDefinitions?.map((definition) => {
     if (definition.id !== resolved.definition.id) return definition
-    return updateDefinition(definition, resolved.placement.id, resolved.instance.id, patch)
+    return updateDefinition(definition, resolved.placement.id, resolved.instance.id, normalizedPatch)
   })
   if (!definitions) return show
   return {

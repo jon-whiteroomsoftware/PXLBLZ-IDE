@@ -169,7 +169,7 @@ export function projectShowClipInspector(
     instanceId: instance.id,
     ...(owner.kind === 'scene-overlay' ? { layerId: owner.layerId } : {}),
     local: {
-      startMs: logicalRange?.localStartMs ?? placement.startMs,
+      startMs: logicalRange?.globalStartMs ?? placement.startMs,
       durationMs: logicalRange?.durationMs ?? placement.durationMs,
       ...(owner.kind === 'scene-overlay' ? { opacity: (placement as ShowOverlayPlacement).opacity } : {}),
     },
@@ -240,12 +240,12 @@ export function updateShowClipInspector(
     if (patch.local.startMs !== undefined || patch.local.durationMs !== undefined) {
       const range = logicalPlacementRange(show, stagedLocal, current)
       if (!range) return show
-      const desiredStartMs = patch.local.startMs ?? range.localStartMs
+      const desiredStartMs = patch.local.startMs ?? range.globalStartMs
       const desiredDurationMs = patch.local.durationMs ?? range.durationMs
       const timelineOwner = owner.kind === 'scene-main'
         ? { ...owner, kind: 'main' as const }
         : { ...owner, kind: 'overlay' as const }
-      const globalStartMs = range.sceneStartMs + desiredStartMs
+      const globalStartMs = desiredStartMs
       let resized: ShowCompositionV1
       if (patch.local.startMs !== undefined && patch.local.durationMs === undefined) {
         if (owner.kind === 'scene-main') {
@@ -271,7 +271,7 @@ export function updateShowClipInspector(
         })
       }
       const timingAccepted = resized !== stagedLocal
-        || (desiredStartMs === range.localStartMs && desiredDurationMs === range.durationMs)
+        || (desiredStartMs === range.globalStartMs && desiredDurationMs === range.durationMs)
       composition = timingAccepted ? resized : localBasis
     } else {
       composition = stagedLocal
@@ -396,7 +396,7 @@ function logicalPlacementRange(
   show: ShowRecord,
   composition: ShowCompositionV1,
   placement: ShowMainPlacement | ShowOverlayPlacement,
-): { sceneStartMs: number; localStartMs: number; durationMs: number } | null {
+): { globalStartMs: number; durationMs: number } | null {
   const logicalClipId = placement.logicalClipId ?? placement.id
   const sceneStartById = new Map(projectShowTimeline(show).scenes.map((scene) => [scene.sceneId, scene.startMs]))
   const segments = composition.scenes.flatMap((scene) => {
@@ -418,8 +418,7 @@ function logicalPlacementRange(
   if (!first) return null
   const endMs = Math.max(...segments.map((segment) => segment.globalEndMs))
   return {
-    sceneStartMs: first.sceneStartMs,
-    localStartMs: first.placement.startMs,
+    globalStartMs: first.globalStartMs,
     durationMs: endMs - first.globalStartMs,
   }
 }

@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import { createShowClipEffect } from './showEffectAuthoring'
 import { buildShowToolkitPresentationCatalogue } from './showVisualToolkitPresentation'
-import { createDefaultShow } from './showModel'
+import { createDefaultShow, projectShowTimeline } from './showModel'
 import {
   projectShowClipInspector,
   showClipInspectorCapabilities,
@@ -151,6 +151,53 @@ describe('shared Clip inspector owner model (#498)', () => {
       view: { mirror: true, phase: 0.25, brightness: 0.8 },
       local: { startMs: 1_000, durationMs: 2_000, opacity: 0.75 },
     })
+  })
+
+  it('projects and edits a later Clip Start in Show-global time (#634)', () => {
+    const show = fixture()
+    const composition = structuredClone(show.composition!)
+    const placement = composition.scenes[0].zones[0].overlays[0].placements.shift()!
+    placement.startMs = 1_250
+    composition.scenes.push({
+      sceneId: show.scenes[1].id,
+      zones: [{
+        zoneId: show.zones[0].id,
+        main: [],
+        overlays: [{
+          id: 'layer-later',
+          name: 'Later',
+          placements: [placement],
+        }],
+      }],
+    })
+    const laterShow = { ...show, composition }
+    const owner: ShowClipInspectorOwner = {
+      kind: 'scene-overlay',
+      sceneId: show.scenes[1].id,
+      zoneId: show.zones[0].id,
+      layerId: 'layer-later',
+      placementId: placement.id,
+    }
+    const sceneStartMs = projectShowTimeline(laterShow).scenes[1].startMs
+    const original = structuredClone(laterShow)
+
+    expect(projectShowClipInspector(laterShow, owner)?.local).toMatchObject({
+      startMs: sceneStartMs + 1_250,
+      durationMs: 2_000,
+    })
+
+    const updated = updateShowClipInspector(laterShow, owner, {
+      local: { startMs: sceneStartMs + 2_250 },
+    })
+
+    expect(laterShow).toEqual(original)
+    expect(updated).not.toBe(laterShow)
+    expect(updated.composition?.scenes[1].zones[0].overlays[0].placements[0].startMs).toBe(2_250)
+    expect(projectShowClipInspector(updated, owner)?.local).toMatchObject({
+      startMs: sceneStartMs + 2_250,
+      durationMs: 2_000,
+    })
+    expect(validateShowComposition(updated, updated.composition!)).toEqual([])
   })
 
   it('defaults legacy Clips to Live and persists authored evaluation policies for every owner', () => {

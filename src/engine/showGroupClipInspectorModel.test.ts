@@ -4,6 +4,7 @@ import {
   projectShowGroupClipInspector,
   updateShowGroupClipInspector,
 } from './showGroupClipInspectorModel'
+import { validateShowGroups } from './showGroupModel'
 
 function fixture() {
   const show = createDefaultShow('group-inspector', 'Group inspector', 100)
@@ -45,7 +46,7 @@ function fixture() {
 }
 
 describe('Show Group Clip inspector model', () => {
-  it('projects a definition child through one occurrence without baking occurrence offsets', () => {
+  it('projects a definition child through one occurrence in Show-global time (#634)', () => {
     const value = projectShowGroupClipInspector(fixture(), {
       occurrenceId: 'use-b',
       placementId: 'inside-clip',
@@ -55,8 +56,31 @@ describe('Show Group Clip inspector model', () => {
       patternName: 'Hue Wave',
       placementId: 'inside-clip',
       instanceId: 'inside-instance',
-      local: { startMs: 250, durationMs: 1_000, opacity: 0.75 },
+      local: { startMs: 2_250, durationMs: 1_000, opacity: 0.75 },
     })
+  })
+
+  it('converts a Show-global Start edit back to the shared Group offset (#634)', () => {
+    const show = fixture()
+    const original = structuredClone(show)
+    const updated = updateShowGroupClipInspector(show, {
+      occurrenceId: 'use-b',
+      placementId: 'inside-clip',
+    }, {
+      local: { startMs: 2_750 },
+    })
+
+    expect(show).toEqual(original)
+    expect(updated.composition?.groupDefinitions?.[0].placements[0].startMs).toBe(750)
+    expect(projectShowGroupClipInspector(updated, {
+      occurrenceId: 'use-b',
+      placementId: 'inside-clip',
+    })?.local?.startMs).toBe(2_750)
+    expect(projectShowGroupClipInspector(updated, {
+      occurrenceId: 'use-a',
+      placementId: 'inside-clip',
+    })?.local?.startMs).toBe(750)
+    expect(validateShowGroups(updated, updated.composition!)).toEqual([])
   })
 
   it('edits the shared definition so every linked occurrence receives the change', () => {
