@@ -1205,6 +1205,8 @@ test.describe('authenticated Show authoring', () => {
     const adjacentCrossfade = page.getByRole('button', { name: 'Edit crossfade Transition between TestPattern1D and CometLoom' })
     await adjacentCrossfade.click()
     await expect(page.getByRole('button', { name: /Crossfade · Change/ })).toBeVisible()
+    await page.getByRole('button', { name: 'Select CometLoom' }).click()
+    await page.getByRole('separator', { name: 'Resize CometLoom end' }).hover()
 
     const interval = page.getByRole('button', { name: 'Select Alternate interval routing interval 1' })
     await expect(interval).toHaveAttribute('aria-pressed', 'false')

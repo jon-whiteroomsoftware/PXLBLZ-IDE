@@ -5552,8 +5552,8 @@ function TimelineLayoutBoundaries({
           data-show-selection-key={`transition:${transition.id}`}
           data-show-layout-boundary={interval.id}
           className={selected
-            ? 'pointer-events-auto absolute inset-y-0 z-[1] w-2 -translate-x-1/2 bg-live/35 outline-none ring-1 ring-live/80'
-            : 'pointer-events-auto absolute inset-y-0 z-[1] w-2 -translate-x-1/2 bg-live/20 outline-none hover:bg-live/45 focus-visible:bg-live/45'}
+            ? 'pointer-events-auto absolute top-0 z-[1] h-7 w-2 -translate-x-1/2 bg-live/35 outline-none ring-1 ring-live/80'
+            : 'pointer-events-auto absolute top-0 z-[1] h-7 w-2 -translate-x-1/2 bg-live/20 outline-none hover:bg-live/45 focus-visible:bg-live/45'}
           style={{ left: `${left}%` }}
           onClick={(event) => {
             event.stopPropagation()
