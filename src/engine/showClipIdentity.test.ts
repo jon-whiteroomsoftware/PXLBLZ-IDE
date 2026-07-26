@@ -38,4 +38,10 @@ describe('Show Clip identity (#634)', () => {
 
     expect(showBoundaryClipIdentity(show, 'scene-1')).toBe('32.0: CometLoom + 1')
   })
+
+  it('falls back to Show End when an internal boundary cannot be resolved', () => {
+    const show = createDefaultShow('missing-boundary-identity', 'Missing boundary identity', 100)
+
+    expect(showBoundaryClipIdentity(show, 'missing-boundary')).toBe('1:02.0')
+  })
 })

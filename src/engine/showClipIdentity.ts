@@ -22,6 +22,7 @@ export function formatShowBoundaryIdentity(startMs: number, incomingPatternNames
 export function showBoundaryClipIdentity(show: ShowRecord, afterSceneId: string): string {
   const timeline = projectShowTimeline(show)
   const boundaryIndex = timeline.scenes.findIndex((range) => range.sceneId === afterSceneId)
+  if (boundaryIndex < 0) return formatShowIdentityTime(timeline.durationMs)
   const destination = timeline.scenes[boundaryIndex + 1]
   if (!destination) return formatShowIdentityTime(timeline.durationMs)
 
