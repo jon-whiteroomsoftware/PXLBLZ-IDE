@@ -65,7 +65,9 @@ function watchSeriousErrors(page: Page): string[] {
 export async function removeSyntheticContent(request: APIRequestContext): Promise<void> {
   for (const resource of ['shows', 'patterns', 'maps', 'mixins', 'libraries', 'controllers'] as const) {
     const response = await request.get(`/api/${resource}`)
-    if (!response.ok()) throw new Error(`GET /api/${resource} -> ${response.status()}`)
+    if (!response.ok()) {
+      throw new Error(`GET /api/${resource} -> ${response.status()}: ${await response.text()}`)
+    }
     const body = await response.json() as Record<string, Array<{ id: string }>>
     for (const record of body[resource] ?? []) {
       const removed = await request.delete(`/api/${resource}/${encodeURIComponent(record.id)}`)

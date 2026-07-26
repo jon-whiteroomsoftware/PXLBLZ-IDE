@@ -33,7 +33,7 @@ test('shared Studio chrome remains legible, dense, and reachable across routes (
     { path: 'studio/maps/plane', activity: 'Maps', heading: 'Maps' },
     { path: 'studio/libraries/Shader', activity: 'Libraries', heading: 'Libraries' },
     { path: 'studio/controllers', activity: 'Controllers', heading: 'Controllers' },
-    { path: 'studio/shows/stock-show-installation-finale', activity: 'Shows', heading: 'Shows' },
+    { path: 'studio/shows/stock-show-101-clips-cuts-blank-time', activity: 'Shows', heading: 'Shows' },
   ] as const
 
   for (const viewport of [{ width: 1440, height: 900 }, { width: 720, height: 720 }]) {
@@ -99,7 +99,7 @@ test('Studio authoring keeps the rail and editor reachable at 390px (#622)', asy
   ).toBeLessThanOrEqual(1)
   await expect(page.getByRole('button', { name: 'Show properties' })).toBeInViewport()
 
-  await page.getByRole('treeitem', { name: '101 Clips and Crossfade' }).click()
+  await page.getByRole('treeitem', { name: '101 Clips, Cuts, and Blank Time' }).click()
   await expect.poll(
     () => page.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth),
     'A built-in Show with the full guide and deployment header should stay contained at 390px',

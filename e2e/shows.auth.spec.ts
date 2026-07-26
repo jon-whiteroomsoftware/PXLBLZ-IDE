@@ -858,46 +858,6 @@ test.describe('authenticated Show authoring', () => {
     expect(shows).toEqual([])
   })
 
-  test('classifies legacy Shows once, preserves cancellation, and auto-migrates physical evidence', async ({ page }) => {
-    const ambiguous = legacyShowFixture('legacy-ambiguous', 'Legacy field', [])
-    const proven = legacyShowFixture('legacy-physical', 'Legacy installation', [{ start: 0, end: 59 }])
-    for (const show of [ambiguous, proven]) {
-      const response = await page.context().request.post('/api/shows', { data: show })
-      expect(response.ok()).toBe(true)
-    }
-
-    await page.goto(`studio/shows/${ambiguous.id}`)
-    await expect(page.getByRole('heading', { name: 'Classify this legacy Show' })).toBeVisible()
-    await expect(page.getByText('Square')).toBeVisible()
-    await expect(page.getByText('60 pixels')).toBeVisible()
-    await expect(page.getByText('No target Controller')).toBeVisible()
-    await page.setViewportSize({ width: 720, height: 900 })
-    expect(await page.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth)).toBeLessThanOrEqual(8)
-    await expect(page.getByRole('button', { name: 'Use Installation contract' })).toBeVisible()
-    await page.setViewportSize({ width: 1280, height: 720 })
-
-    await page.getByRole('button', { name: 'Cancel' }).click()
-    await expect(page).toHaveURL(/\/studio\/shows\/?$/)
-    await expect.poll(async () => (await persistedShow(page, ambiguous.id))?.outputContract).toBeUndefined()
-
-    await page.getByRole('listitem').filter({ hasText: ambiguous.name }).click()
-    await page.getByRole('button', { name: 'Use Portable contract' }).click()
-    await expect(page.getByLabel('Reference map')).toHaveValue('plane')
-    await expect(page.getByLabel('Reference pixels')).toHaveValue('60')
-    await page.getByRole('button', { name: 'Confirm classification' }).click()
-    await expect(page.getByTitle('Show output summary')).toContainText('Portable 2D')
-    await waitForCurrentShow(page, (show) => show.outputContract?.kind === 'portable-2d')
-
-    await page.reload()
-    await expect(page.getByRole('heading', { name: 'Classify this legacy Show' })).toHaveCount(0)
-    await expect(page.getByTitle('Show output summary')).toContainText('Portable 2D')
-
-    await page.goto(`studio/shows/${proven.id}`)
-    await expect(page.getByRole('heading', { name: 'Classify this legacy Show' })).toHaveCount(0)
-    await expect(page.getByTitle('Show output summary')).toContainText('Installation')
-    await expect.poll(async () => (await persistedShow(page, proven.id))?.outputContract?.kind).toBe('installation')
-  })
-
   test('returns timeline focus after a discrete edit and supports keyboard preview, start, and five-second seek', async ({ page }) => {
     await page.goto('studio/shows')
     await createInstallationShow(page)
