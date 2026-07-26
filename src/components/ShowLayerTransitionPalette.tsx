@@ -12,6 +12,7 @@ export function ShowLayerTransitionPalette({
   stageDimensions,
   maxDurationMs,
   disabledReason,
+  applyError,
   fromName,
   toName,
   onApply,
@@ -20,6 +21,7 @@ export function ShowLayerTransitionPalette({
   stageDimensions: 1 | 2 | 3
   maxDurationMs: number
   disabledReason?: string
+  applyError?: string | null
   fromName: string
   toName: string
   onApply: (item: ShowToolkitPresentationItem, durationMs: number) => void
@@ -85,23 +87,33 @@ export function ShowLayerTransitionPalette({
             className="h-8 w-full rounded border border-zinc-700 bg-zinc-950 pl-7 pr-2 text-xs text-zinc-200 outline-none focus:border-amber-400/60"
           />
         </label>
-        <div className="w-36 text-[11px] text-zinc-500">
-          <TimeField
-            label="Duration"
-            variant="editor"
-            compact
-            min={0.001}
-            max={Math.max(0.001, maxDurationMs / 1_000)}
-            step={0.001}
-            ariaLabel="Transition duration in seconds"
-            value={durationMs / 1_000}
-            onChange={(seconds) => {
-              const next = Math.round(seconds * 1_000)
-              setDurationMs(Math.max(1, Math.min(maxDurationMs, next)))
-            }}
-          />
-        </div>
+        {/* No Duration control when nothing can be applied. A slider that snaps
+            back to its floor teaches that the app is broken rather than that this
+            junction has no room (#363). */}
+        {!disabledReason && maxDurationMs >= 1 && (
+          <div className="w-36 text-[11px] text-zinc-500">
+            <TimeField
+              label="Duration"
+              variant="editor"
+              compact
+              min={0.001}
+              max={Math.max(0.001, maxDurationMs / 1_000)}
+              step={0.001}
+              ariaLabel="Transition duration in seconds"
+              value={durationMs / 1_000}
+              onChange={(seconds) => {
+                const next = Math.round(seconds * 1_000)
+                setDurationMs(Math.max(1, Math.min(maxDurationMs, next)))
+              }}
+            />
+          </div>
+        )}
       </div>
+      {(disabledReason || applyError) && (
+        <p role="alert" className="shrink-0 border-b border-amber-300/25 bg-amber-300/[0.06] px-3 py-2 text-[11px] leading-4 text-amber-200/90">
+          {applyError ?? disabledReason}
+        </p>
+      )}
       <div className="grid min-h-0 flex-1 auto-rows-min grid-cols-1 gap-px overflow-auto bg-zinc-800 sm:grid-cols-2 lg:grid-cols-3">
         {items.map((item) => (
           <button
@@ -118,11 +130,14 @@ export function ShowLayerTransitionPalette({
           </button>
         ))}
       </div>
-      <footer className="shrink-0 border-t border-zinc-800 px-3 py-2 text-[11px] text-zinc-500">
-        {disabledReason
-          ? disabledReason
-          : `The Transition occupies timeline space; both Clip durations stay unchanged. Up to ${(maxDurationMs / 1_000).toFixed(3)} seconds fits here.`}
-      </footer>
+      {/* When nothing can be applied the reason leads, above the catalogue,
+          rather than sitting as a footnote beneath a grid of dead buttons. */}
+      {!disabledReason && (
+        <footer className="shrink-0 border-t border-zinc-800 px-3 py-2 text-[11px] text-zinc-500">
+          The Transition occupies timeline space; both Clip durations stay unchanged.
+          {` Up to ${(maxDurationMs / 1_000).toFixed(3)} seconds fits here.`}
+        </footer>
+      )}
     </section>,
     document.body,
   )

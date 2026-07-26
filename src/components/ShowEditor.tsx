@@ -867,6 +867,9 @@ export function ShowEditor({
   const [groupEffectPaletteOwner, setGroupEffectPaletteOwner] = useState<ShowGroupClipOwner | null>(null)
   const [transitionPaletteId, setTransitionPaletteId] = useState<string | null>(null)
   const [layerTransitionTarget, setLayerTransitionTarget] = useState<ShowLayerTransitionTarget | null>(null)
+  // A refused insertion used to return silently, so choosing a Transition did
+  // nothing at all: no change, no error, no closed panel (#363).
+  const [layerTransitionApplyError, setLayerTransitionApplyError] = useState<string | null>(null)
   const detailShowIdRef = useRef(showId)
   const timelineWorkspaceRef = useRef<HTMLElement>(null)
   const lastTimelineFocusRef = useRef<HTMLElement | null>(null)
@@ -2469,6 +2472,7 @@ export function ShowEditor({
               stageDimensions={(stageDimension ?? 2) as 1 | 2 | 3}
               maxDurationMs={layerTransitionPlan.maxDurationMs}
               disabledReason={layerTransitionPlan.enabled ? undefined : layerTransitionPlan.reason}
+              applyError={layerTransitionApplyError}
               fromName={layerTransitionTarget.fromName}
               toName={layerTransitionTarget.toName}
               onApply={(item, durationMs) => {
@@ -2492,7 +2496,16 @@ export function ShowEditor({
                       transition,
                     })
                   : insertShowLayerTransition(activeShow, timelineComposition, transition)
-                if (nextComposition === timelineComposition) return
+                if (nextComposition === timelineComposition) {
+                  // Do not guess at the cause. The insertion refused for a
+                  // reason the plan did not predict, and naming a wrong one is
+                  // worse than admitting the gap (#363).
+                  setLayerTransitionApplyError(
+                    `${item.label} was refused at this junction. This is a known gap: the check that enables this panel does not yet agree with the insertion itself.`,
+                  )
+                  return
+                }
+                setLayerTransitionApplyError(null)
                 setLayerTransitionTarget(null)
                 void updateShow(activeShow.id, {
                   ...activeShow,
@@ -2500,7 +2513,10 @@ export function ShowEditor({
                   updatedAt: Date.now(),
                 })
               }}
-              onClose={() => setLayerTransitionTarget(null)}
+              onClose={() => {
+                setLayerTransitionApplyError(null)
+                setLayerTransitionTarget(null)
+              }}
             />
           )}
           {layerTransitionTarget?.junction.transition && (
@@ -3977,7 +3993,9 @@ function ShowTimelineWorkspace({
                   <button
                     type="button"
                     role="menuitem"
-                    aria-label={layerTargetZoneId ? 'Layer' : 'Layer unavailable: no active Zone'}
+                    aria-label={layerTargetZoneId
+                      ? (hasMultipleZones ? `Layer in ${layerTargetZoneName}` : 'Layer')
+                      : 'Layer unavailable: no active Zone'}
                     disabled={!layerTargetZoneId}
                     title={layerTargetZoneId ? `Add a Layer to ${layerTargetZoneName}` : undefined}
                     className="flex h-8 w-full items-center gap-2 rounded px-2 text-left hover:bg-zinc-800 hover:text-zinc-100 disabled:cursor-not-allowed disabled:opacity-45"
@@ -3988,7 +4006,10 @@ function ShowTimelineWorkspace({
                     }}
                   >
                     <Layers3 size={12} aria-hidden className="text-cyan-300/75" />
-                    <span>Layer</span>
+                    {/* Name the destination in the label, not just the tooltip: with
+                        several Zones the resolved Zone is the one thing an author
+                        cannot infer from the command (#363). */}
+                    <span>{layerTargetZoneId && hasMultipleZones ? `Layer in ${layerTargetZoneName}` : 'Layer'}</span>
                     {!layerTargetZoneId && (
                       <span className="ml-auto text-[10px] text-zinc-600">No active Zone</span>
                     )}
@@ -5027,28 +5048,38 @@ function ShowTimelineWorkspace({
                       <ClipSummaryInline summary={summary} previousSummary={previousSummary} />
                       {!readOnly && !group && (
                         <>
-                          <span
-                            role="separator"
-                            aria-orientation="vertical"
-                            aria-label={`Resize ${clip.patternName} start`}
-                            className={[
-                              'absolute inset-y-0 left-0 z-20 w-1 cursor-ew-resize bg-live/70 transition-opacity',
-                              selected ? 'opacity-100' : 'opacity-0 group-hover:opacity-70',
-                            ].join(' ')}
-                            onClick={(event) => event.stopPropagation()}
-                            onPointerDown={(event) => beginCompositionResize(clip, 'start', event)}
-                          />
-                          <span
-                            role="separator"
-                            aria-orientation="vertical"
-                            aria-label={`Resize ${clip.patternName} end`}
-                            className={[
-                              'absolute inset-y-0 right-0 z-20 w-1 cursor-ew-resize bg-live/70 transition-opacity',
-                              selected ? 'opacity-100' : 'opacity-0 group-hover:opacity-70',
-                            ].join(' ')}
-                            onClick={(event) => event.stopPropagation()}
-                            onPointerDown={(event) => beginCompositionResize(clip, 'end', event)}
-                          />
+                          {/* A junction draws a 16px band centred on the boundary, so
+                              it covers 8px inside each neighbouring Clip. The grab
+                              zone therefore starts past that band on a joined edge and
+                              widens to stay easy to hit, leaving the Cut or Transition
+                              cleanly clickable in its own territory. A free edge keeps
+                              its zone at the very edge. Capped at a third of the Clip
+                              so a short Clip keeps a draggable body. The zone draws nothing:
+                              the resize cursor is the affordance, and a visible mark
+                              read as a selection artifact (#363). */}
+                          {(['start', 'end'] as const).map((edge) => {
+                            const joined = edge === 'start'
+                              ? layer.junctions.some((junction) => junction.rightClipId === clip.id)
+                              : layer.junctions.some((junction) => junction.leftClipId === clip.id)
+                            return (
+                              <span
+                                key={edge}
+                                role="separator"
+                                aria-orientation="vertical"
+                                aria-label={`Resize ${clip.patternName} ${edge}`}
+                                data-resize-joined={joined ? 'true' : undefined}
+                                className={[
+                                  'absolute inset-y-0 z-20 max-w-[33%] cursor-ew-resize',
+                                  joined ? 'w-3.5' : 'w-2.5',
+                                  edge === 'start'
+                                    ? (joined ? 'left-2' : 'left-0')
+                                    : (joined ? 'right-2' : 'right-0'),
+                                ].join(' ')}
+                                onClick={(event) => event.stopPropagation()}
+                                onPointerDown={(event) => beginCompositionResize(clip, edge, event)}
+                              />
+                            )
+                          })}
                         </>
                       )}
                     </button>

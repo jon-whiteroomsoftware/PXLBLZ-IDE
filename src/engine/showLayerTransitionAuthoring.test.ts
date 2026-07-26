@@ -258,7 +258,7 @@ describe('literal per-Layer Transition authoring (#583)', () => {
     })).toEqual({
       enabled: false,
       maxDurationMs: 0,
-      reason: 'Another Layer is already transitioning at this time.',
+      reason: 'Another Layer is already running a Transition across this moment. Only one Layer can transition at a time, so move this junction or shorten that Transition.',
     })
     expect(insertShowLayerTransition(show, composition, {
       id: 'overlapping-transition',
@@ -340,7 +340,7 @@ describe('literal per-Layer Transition authoring (#583)', () => {
     })).toEqual({
       enabled: false,
       maxDurationMs: 0,
-      reason: 'An unrelated Clip starts at this Cut.',
+      reason: 'Another Layer starts a Clip at exactly this moment. Making room here would slide this Layer out of step with it, so move one of them first.',
     })
   })
 
@@ -374,7 +374,7 @@ describe('literal per-Layer Transition authoring (#583)', () => {
     })).toEqual({
       enabled: false,
       maxDurationMs: 0,
-      reason: 'Move downstream content or extend the Show to make room.',
+      reason: 'There is no free time after the last Clip on this Layer. Shorten a Clip or extend Show End, then come back.',
     })
   })
 
@@ -911,6 +911,96 @@ describe('literal per-Layer Transition authoring (#583)', () => {
     expect(resized.scenes[0].zones[0].main.map((clip) => [clip.id, clip.startMs, clip.durationMs])).toEqual([
       ['clip-a', 0, 2_000],
       ['clip-b', 3_500, 1_500],
+      ['clip-c', 6_000, 2_000],
+      ['obstruction', 9_000, 1_000],
+    ])
+  })
+})
+
+// Resize is how an author moves a junction: the Cut itself is not draggable, so
+// shortening the Clip beside it is the gesture. These pin what each edge drag
+// does across a Cut, across a Transition that owns real time, and at the end of
+// the timeline (#363).
+describe('resizing Clips by their edges (#363)', () => {
+  const main = (composition: ShowCompositionV1) =>
+    composition.scenes[0].zones[0].main.map((clip) => [clip.id, clip.startMs, clip.durationMs])
+  const owner = (show: ReturnType<typeof createDefaultShow>, placementId: string) => ({
+    kind: 'main' as const,
+    sceneId: show.scenes[0].id,
+    zoneId: show.zones[0].id,
+    placementId,
+  })
+
+  it('opens a gap when the Clip before a Cut is shortened', () => {
+    const { show, composition } = fixture()
+    // clip-a ends exactly where clip-b starts, so their junction is a Cut.
+    const changed = resizeShowConnectedClipAtGlobalTime(show, composition, {
+      owner: owner(show, 'clip-a'),
+      globalStartMs: 0,
+      durationMs: 1_500,
+    })
+
+    expect(main(changed)).toEqual([
+      ['clip-a', 0, 1_500],
+      ['clip-b', 2_000, 2_000],
+      ['clip-c', 5_000, 2_000],
+      ['obstruction', 9_000, 1_000],
+    ])
+  })
+
+  it('carries the downstream chain when the Clip before a Transition is shortened', () => {
+    const { show, composition } = fixture()
+    // clip-b hands off to clip-c through a 1s Transition occupying 4000-5000.
+    const changed = resizeShowConnectedClipAtGlobalTime(show, composition, {
+      owner: owner(show, 'clip-b'),
+      globalStartMs: 2_000,
+      durationMs: 1_000,
+    })
+
+    expect(main(changed)).toEqual([
+      ['clip-a', 0, 2_000],
+      ['clip-b', 2_000, 1_000],
+      ['clip-c', 4_000, 2_000],
+      ['obstruction', 9_000, 1_000],
+    ])
+    // The Transition keeps its authored duration and still spans the gap.
+    expect(changed.transitions?.find((transition) => transition.id === 'transition-b-c')?.durationMs)
+      .toBe(1_000)
+  })
+
+  it('lengthens the last connected Clip into free time and refuses past an obstruction', () => {
+    const { show, composition } = fixture()
+    const grown = resizeShowConnectedClipAtGlobalTime(show, composition, {
+      owner: owner(show, 'clip-c'),
+      globalStartMs: 5_000,
+      durationMs: 4_000,
+    })
+    expect(main(grown)).toEqual([
+      ['clip-a', 0, 2_000],
+      ['clip-b', 2_000, 2_000],
+      ['clip-c', 5_000, 4_000],
+      ['obstruction', 9_000, 1_000],
+    ])
+
+    const blocked = resizeShowConnectedClipAtGlobalTime(show, composition, {
+      owner: owner(show, 'clip-c'),
+      globalStartMs: 5_000,
+      durationMs: 5_000,
+    })
+    expect(blocked, 'occupied time refuses the resize').toBe(composition)
+  })
+
+  it('pushes the downstream chain when the Clip before a Transition is lengthened', () => {
+    const { show, composition } = fixture()
+    const changed = resizeShowConnectedClipAtGlobalTime(show, composition, {
+      owner: owner(show, 'clip-b'),
+      globalStartMs: 2_000,
+      durationMs: 3_000,
+    })
+
+    expect(main(changed)).toEqual([
+      ['clip-a', 0, 2_000],
+      ['clip-b', 2_000, 3_000],
       ['clip-c', 6_000, 2_000],
       ['obstruction', 9_000, 1_000],
     ])

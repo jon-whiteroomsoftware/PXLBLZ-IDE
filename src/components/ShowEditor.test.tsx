@@ -3262,6 +3262,33 @@ describe('ShowEditor (#318)', () => {
     expect(screen.getAllByRole('button', { name: 'Select TestPattern2D' }).length).toBeGreaterThan(0)
   })
 
+  it('keeps Clip resize grab zones clear of the junction band (#363)', () => {
+    // A junction draws a 16px band centred on the boundary, covering 8px inside
+    // each neighbouring Clip. A grab zone at the very edge of a joined Clip sits
+    // underneath it and can never be hit, which is what made resizing feel
+    // broken. 105 is two touching Clips per Zone, so one edge of each is joined
+    // and the other is free.
+    const stock = STOCK_SHOWS.find((candidate) => candidate.id === 'stock-show-105-portable-zones')!
+
+    render(<ShowEditor showId={stock.id} showOverride={stock.show} />)
+
+    const handles = screen.getAllByRole('separator', { name: /^Resize .+ (start|end)$/ })
+    expect(handles.length).toBeGreaterThanOrEqual(8)
+
+    const joined = handles.filter((handle) => handle.dataset.resizeJoined === 'true')
+    const free = handles.filter((handle) => handle.dataset.resizeJoined !== 'true')
+    expect(joined.length, 'each Zone has one Cut, joining two Clip edges').toBeGreaterThan(0)
+    expect(free.length, 'the outer edges of the row are free').toBeGreaterThan(0)
+
+    // Joined edges step inward past the band; free edges stay flush.
+    for (const handle of joined) {
+      expect(handle.className, handle.getAttribute('aria-label') ?? '').toMatch(/(left|right)-2\b/)
+    }
+    for (const handle of free) {
+      expect(handle.className, handle.getAttribute('aria-label') ?? '').toMatch(/(left|right)-0\b/)
+    }
+  })
+
   it('projects one Scene-local keyframe animation into one main-timeline sparkline', async () => {
     const user = userEvent.setup()
     const stock = STOCK_SHOWS.find((candidate) => candidate.id === 'stock-show-102-transitions-values')!

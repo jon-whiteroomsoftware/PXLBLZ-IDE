@@ -34,24 +34,32 @@ export function planShowLayerTransitionInsertion(
   const fromOwner = findOwner(composition, endpoints.fromPlacementId)
   const toOwner = findOwner(composition, endpoints.toPlacementId)
   if (!fromOwner || !toOwner || fromOwner.sceneId !== toOwner.sceneId) {
-    return { enabled: false, maxDurationMs: 0, reason: 'A Transition cannot cross a Zone Layout boundary.' }
+    return { enabled: false, maxDurationMs: 0, reason: 'These two Clips sit in different Zone Layouts. A Transition has to live inside one layout, so move the junction away from the layout change.' }
   }
   const resolved = resolveEndpointLayer(show, composition, endpoints)
   if (!resolved || resolved.toIndex !== resolved.fromIndex + 1) {
-    return { enabled: false, maxDurationMs: 0, reason: 'Choose consecutive Clips on one Layer.' }
+    return { enabled: false, maxDurationMs: 0, reason: 'A Transition joins two Clips that follow each other on the same Layer. Select a Clip and the one directly after it.' }
   }
   const cut = resolved.layer.junctions.find((junction) => (
     junction.kind === 'cut'
     && junction.fromPlacementId === endpoints.fromPlacementId
     && junction.toPlacementId === endpoints.toPlacementId
   ))
-  if (!cut) return { enabled: false, maxDurationMs: 0, reason: 'This junction is not a Cut.' }
-  const unrelatedClips = projectShowUnifiedTimeline(show, composition).zones.flatMap((zone) => (
-    zone.layers
-      .filter((layer) => !layer.clips.some((clip) => clipOwnsPlacementId(clip, endpoints.fromPlacementId)))
-      .flatMap((layer) => layer.clips)
-      .filter((clip) => clip.sceneId === fromOwner.sceneId)
-  ))
+  if (!cut) return { enabled: false, maxDurationMs: 0, reason: 'This junction already has a Transition. Edit that one instead of adding another.' }
+  // Only other Layers of the same Zone can be knocked out of step by making room
+  // here. Zones own separate pixels and separate time, so a Clip starting at this
+  // instant in another Zone is not a conflict. Counting them refused a Transition
+  // in every symmetric multi-Zone Show, which is the common shape (#363).
+  const unrelatedClips = projectShowUnifiedTimeline(show, composition).zones
+    .filter((zone) => zone.layers.some((layer) => (
+      layer.clips.some((clip) => clipOwnsPlacementId(clip, endpoints.fromPlacementId))
+    )))
+    .flatMap((zone) => (
+      zone.layers
+        .filter((layer) => !layer.clips.some((clip) => clipOwnsPlacementId(clip, endpoints.fromPlacementId)))
+        .flatMap((layer) => layer.clips)
+        .filter((clip) => clip.sceneId === fromOwner.sceneId)
+    ))
   const chain = downstreamConnectedChain(resolved.layer, composition, resolved.toIndex)
   const last = chain[chain.length - 1]
   const obstruction = resolved.layer.clips[resolved.toIndex + chain.length]
@@ -71,7 +79,7 @@ export function planShowLayerTransitionInsertion(
     return {
       enabled: false,
       maxDurationMs: 0,
-      reason: 'An unrelated Clip starts at this Cut.',
+      reason: 'Another Layer starts a Clip at exactly this moment. Making room here would slide this Layer out of step with it, so move one of them first.',
     }
   }
   const activeUnrelatedEndMs = unrelatedClips
@@ -87,7 +95,7 @@ export function planShowLayerTransitionInsertion(
     .flatMap((zone) => zone.layers.flatMap((layer) => layer.junctions))
     .filter((junction) => junction.transition && !movingTransitionIds.has(junction.id))
   if (fixedIntervals.some((interval) => cut.startMs >= interval.startMs && cut.startMs < interval.endMs)) {
-    return { enabled: false, maxDurationMs: 0, reason: 'Another Layer is already transitioning at this time.' }
+    return { enabled: false, maxDurationMs: 0, reason: 'Another Layer is already running a Transition across this moment. Only one Layer can transition at a time, so move this junction or shorten that Transition.' }
   }
   const nextFixedStart = fixedIntervals
     .filter((interval) => interval.startMs > cut.startMs)
@@ -95,7 +103,7 @@ export function planShowLayerTransitionInsertion(
   if (Number.isFinite(nextFixedStart)) maxDurationMs = Math.min(maxDurationMs, nextFixedStart - cut.startMs)
   return maxDurationMs > 0
     ? { enabled: true, maxDurationMs }
-    : { enabled: false, maxDurationMs: 0, reason: 'Move downstream content or extend the Show to make room.' }
+    : { enabled: false, maxDurationMs: 0, reason: 'There is no free time after the last Clip on this Layer. Shorten a Clip or extend Show End, then come back.' }
 }
 
 export function planShowGroupLayerTransitionInsertion(
