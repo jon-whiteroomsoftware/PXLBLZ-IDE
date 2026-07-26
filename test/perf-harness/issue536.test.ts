@@ -55,11 +55,11 @@ describe('Restart-instance global-liveness census (#536)', () => {
     // unweighted percent, so the verdict below is unchanged even though the
     // weighted figure now sits above the threshold.
     expect(report.summary).toMatchObject({
-      representativeMemberGlobals: 2_095,
+      representativeMemberGlobals: 2_092,
       representativeReclaimedGlobals: 371,
     })
     expect(report.decision.representativeReclaimPercent).toBeCloseTo(0.00925926, 8)
-    expect(report.decision.weightedRepresentativeReclaimPercent).toBeCloseTo(0.17708831, 8)
+    expect(report.decision.weightedRepresentativeReclaimPercent).toBeCloseTo(0.17734226, 8)
     expect(report.decision.ceilingRescues).toEqual([])
     expect(report.decision.proceedWithEmission).toBe(false)
     expect(report.decision.proceedWithEmission).toBe(

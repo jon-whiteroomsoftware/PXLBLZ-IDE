@@ -6570,28 +6570,29 @@ function InspectorPanel({
   }[family]
   return (
     <section role="region" aria-label={label} data-entity-family={family.toLowerCase()} className="overflow-hidden bg-transparent">
-      <header className={`flex shrink-0 items-center gap-2 border-b border-zinc-800/90 bg-zinc-950/65 pl-2.5 pr-16 ${summary ? 'min-h-12 py-1.5' : 'h-10 py-1'}`}>
-        <span className={`grid size-6 shrink-0 place-items-center rounded border ${accent}`}>{icon}</span>
-        <div className="min-w-0 flex-1">
-          {heading ? (
-            <div className="flex min-w-0 items-baseline gap-1.5">
-              <h3 className="shrink-0 text-[11px] font-semibold text-zinc-200">{heading}</h3>
-              {headingMeta && <span className="shrink-0 text-[8px] uppercase tracking-[0.1em] text-zinc-600">{headingMeta}</span>}
-              {title && <><span aria-hidden className="text-zinc-700">·</span><p className="truncate text-[9px] text-zinc-500">{title}</p></>}
-            </div>
-          ) : (
-            <>
-              <h3 className="text-[10px] font-semibold uppercase tracking-[0.12em] text-zinc-300">{label}</h3>
-              <p className="truncate text-[9px] text-zinc-600">{title}</p>
-            </>
-          )}
-          {summary}
-        </div>
-        {actions && (
-          <div className={`ml-auto flex shrink-0 items-center gap-1 ${summary ? 'mt-0.5 self-start' : ''}`}>
-            {actions}
+      {/* Two rows when a summary is present: the actions sit beside the title,
+          and the summary then spans the full header width. Sharing one row with
+          the action column truncated long Effect descriptions (#363). */}
+      <header className={`flex shrink-0 flex-col border-b border-zinc-800/90 bg-zinc-950/65 ${summary ? 'min-h-12 gap-1 py-1.5' : 'h-10 justify-center py-1'}`}>
+        <div className="flex min-w-0 items-center gap-2 pl-2.5 pr-16">
+          <span className={`grid size-6 shrink-0 place-items-center rounded border ${accent}`}>{icon}</span>
+          <div className="min-w-0 flex-1">
+            {heading ? (
+              <div className="flex min-w-0 items-baseline gap-1.5">
+                <h3 className="shrink-0 text-[11px] font-semibold text-zinc-200">{heading}</h3>
+                {headingMeta && <span className="shrink-0 text-[8px] uppercase tracking-[0.1em] text-zinc-600">{headingMeta}</span>}
+                {title && <><span aria-hidden className="text-zinc-700">·</span><p className="truncate text-[9px] text-zinc-500">{title}</p></>}
+              </div>
+            ) : (
+              <>
+                <h3 className="text-[10px] font-semibold uppercase tracking-[0.12em] text-zinc-300">{label}</h3>
+                <p className="truncate text-[9px] text-zinc-600">{title}</p>
+              </>
+            )}
           </div>
-        )}
+          {actions && <div className="ml-auto flex shrink-0 items-center gap-1">{actions}</div>}
+        </div>
+        {summary && <div className="min-w-0 px-2.5">{summary}</div>}
       </header>
       <div className="p-2.5">{children}</div>
     </section>

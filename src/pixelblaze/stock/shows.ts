@@ -274,38 +274,50 @@ function learn103(): StockShow {
   })
 }
 
-// 104 needs a Pattern with one unmistakable silhouette, because the whole
-// lesson rests on seeing where that silhouette lands. Move and Resize are the
-// right pair for a near-symmetric blob: both are Transform-stage Effects, so
-// swapping them proves the list is ordered, and the difference shows up purely
-// as position. Resize scales the offset that Move has already applied, so
-// moving first lands the shape halfway in while resizing first leaves it out at
-// full distance. Rotation would be the obvious pair but reads as almost nothing
-// on a shape this close to rotationally symmetric.
+// 104 teaches ordering with two Color & output Effects rather than two
+// Transform Effects, because every stock Pattern here fills the frame: moving
+// or turning a full-field texture only reveals a different part of the same
+// texture. Dim and Cutoff act on rendered pixels, so the whole Stage carries the
+// difference.
+//
+// The cast is measured, not chosen by eye. Across the 2D catalogue at 44x44,
+// MetaballGarden is the only Pattern with real mid-range luminance - 28% of its
+// pixels fall between 0.2 and 0.8, against 4-10% for everything else - and a
+// luminance Cutoff needs mid-range pixels to bisect. Reusing 101's Pattern is
+// the price of a lesson that actually demonstrates its own claim.
+//
+// Measured on those pixels: Cutoff then Dim lights 27.6% of the Stage, Dim then
+// Cutoff lights 0.0%. Dimming to a quarter puts every pixel under a 0.2 cutoff,
+// so the wrong order is not a subtler picture, it is no picture.
 function learn104(): StockShow {
   const id = 'stock-show-104-effects-and-ordering'
   const zones = logicalZones(['Main'], PORTABLE_REFERENCE_PIXELS)
-  const move: ShowClipEffect = { id: 'move', kind: 'translate', x: 0.42, y: 0 }
-  const resize: ShowClipEffect = { id: 'resize', kind: 'scale', x: 0.5, y: 0.5 }
+  // Effect ids are per-Clip and must stay distinct between the two ordered
+  // Clips. The compiler shares one emitted Color & output chain across Clips
+  // whose Effects carry the same ids and specializes only the constants, so
+  // reusing ids here collapses both orders onto whichever one it emits and the
+  // lesson silently shows the same picture twice (#363).
+  const dim = (id: string): ShowClipEffect => ({ id, kind: 'brightness', brightness: 0.25 })
+  const cutoff = (id: string): ShowClipEffect => ({ id, kind: 'threshold', threshold: 0.2, amount: 1 })
   const stacks: Array<[string, ShowClipEffect[]]> = [
     ['clip-plain', []],
-    ['clip-move', [move]],
-    ['clip-move-resize', [move, resize]],
-    ['clip-resize-move', [resize, move]],
+    ['clip-cutoff', [cutoff('cutoff-alone')]],
+    ['clip-dim-cutoff', [dim('dim-first'), cutoff('cutoff-second')]],
+    ['clip-cutoff-dim', [cutoff('cutoff-first'), dim('dim-second')]],
   ]
   const scenes: SceneSpec[] = [
-    scene('stacks', 'Stacks', 16, [clip('zone-1', 'ShapeShifter', LESSON_TIME_SCALE)]),
+    scene('stacks', 'Stacks', 16, [clip('zone-1', 'MetaballGarden', LESSON_TIME_SCALE)]),
   ]
   const composition: ShowCompositionV1 = {
     version: 1,
-    patternInstances: [instance('shape', 'ShapeShifter', LESSON_TIME_SCALE)],
+    patternInstances: [instance('garden', 'MetaballGarden', LESSON_TIME_SCALE)],
     scenes: [{
       sceneId: 'stacks',
       zones: [{
         zoneId: 'zone-1',
         overlays: [],
         main: stacks.map(([placementId, effects], index) => ({
-          ...placement(placementId, 'shape', index * 4, 4),
+          ...placement(placementId, 'garden', index * 4, 4),
           ...(effects.length > 0 ? { effects } : {}),
         })),
       }],
@@ -315,8 +327,8 @@ function learn104(): StockShow {
   return catalogue({
     id, title: 'Effects and Ordering', track: 'portable', collection: 'learn', level: 100, order: 4,
     purpose: 'An Effect changes the picture a Clip has already drawn, without editing the Pattern. A Clip holds its Effects as a list, and each one works on the result of the one above it, so the same two Effects in a different order do not give the same picture.',
-    notice: 'The last two Clips carry the same Move and the same Resize. Only the order differs: Clip 3 moves and then shrinks, so it lands halfway in, and Clip 4 shrinks and then moves, so it stays out at the edge.',
-    prompts: ['On Clip 4, use Move later on the Resize Effect and watch it land where Clip 3 does.', 'Open the Move Effect on Clip 2, set its distance to 0, and confirm the Clip returns to the reference.'],
+    notice: 'Clips 3 and 4 carry the same Dim and the same Cutoff, swapped. Dimming first puts every pixel under the cutoff, so nothing survives it and Clip 3 goes black. Cutting off first keeps the bright shapes, and the dim then simply lowers them.',
+    prompts: ['On Clip 3, use Move later on the Dim Effect and watch the picture come back.', 'Leave the order alone on Clip 3 and lower its Cutoff until the shapes reappear.'],
     guideHeading: 'clip-effects',
     output: portableOutput(), zones, layouts: [singleLayout(zones)], scenes, composition,
   })

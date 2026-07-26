@@ -13,7 +13,8 @@ import { createInstallationCompositionFixture } from '@/engine/showInstallationT
 import { projectShowTimeline } from '@/engine/showModel'
 import { SHOW_EASING_OPTIONS, showEasingOptionId } from '@/engine/showEasing'
 import { SHOW_VISUAL_TOOLKIT_REGISTRY } from '@/engine/showVisualToolkit'
-import { sameShowEffectStructure } from '@/engine/showEffects'
+import { applyShowColorEffects, sameShowEffectStructure, type ShowRgb } from '@/engine/showEffects'
+import { showClipEffectStage } from '@/engine/showEffectAuthoring'
 import { getUserDoc } from '@/docs/catalog'
 import { DEMOS } from './patterns'
 import { SOURCE_STOCK_MAPS } from './maps/stockCatalogue'
@@ -331,24 +332,44 @@ describe('stock Show curriculum (#363)', () => {
     const main = [...composition.scenes[0].zones[0].main].sort((a, b) => a.startMs - b.startMs)
 
     // One instance, so the Pattern is provably not what changes between Clips.
-    expect(composition.patternInstances.map((instance) => instance.patternName)).toEqual(['ShapeShifter'])
+    expect(composition.patternInstances.map((instance) => instance.patternName)).toEqual(['MetaballGarden'])
     expect(new Set(main.map((placement) => placement.instanceId)).size).toBe(1)
 
     // The ladder: none, one, two, the same two reversed.
-    expect(main.map((placement) => (placement.effects ?? []).map((effect) => effect.id))).toEqual([
-      [], ['move'], ['move', 'resize'], ['resize', 'move'],
+    expect(main.map((placement) => (placement.effects ?? []).map((effect) => effect.kind))).toEqual([
+      [], ['threshold'], ['brightness', 'threshold'], ['threshold', 'brightness'],
     ])
-    const [secondLast, last] = [main[2], main[3]]
-    expect(new Set(last.effects!.map((effect) => effect.id)))
-      .toEqual(new Set(secondLast.effects!.map((effect) => effect.id)))
-    expect(last.effects!.map((effect) => effect.id))
-      .not.toEqual(secondLast.effects!.map((effect) => effect.id))
-    // Both Effects are Transform-stage, which is what makes the swap visible
-    // rather than a no-op across two independent stages. Rotation is avoided
-    // deliberately: it reads as almost nothing on a near-symmetric silhouette.
-    expect(new Set(last.effects!.map((effect) => effect.kind))).toEqual(new Set(['translate', 'scale']))
-    // Clip Transform is 103's subject and stays out of this lesson.
-    expect(main.every((placement) => placement.transform === undefined)).toBe(true)
+    // Distinct ids across the two ordered Clips. The compiler shares one emitted
+    // Color & output chain per Effect-id set and specializes only the constants,
+    // so matching ids would collapse both orders onto one picture (#363).
+    const allIds = main.flatMap((placement) => (placement.effects ?? []).map((effect) => effect.id))
+    expect(new Set(allIds).size, 'every Effect id is unique across the Clips').toBe(allIds.length)
+    const [thirdEffects, fourthEffects] = [main[2].effects!, main[3].effects!]
+    expect(new Set(fourthEffects.map((effect) => effect.kind)))
+      .toEqual(new Set(thirdEffects.map((effect) => effect.kind)))
+    expect(fourthEffects.map((effect) => effect.kind)).not.toEqual(thirdEffects.map((effect) => effect.kind))
+
+    // Both Effects are Color & output stage, so they can actually be reordered
+    // against each other and every pixel carries the difference. A Transform
+    // pair cannot teach this: every Pattern here fills the frame, so moving one
+    // only reveals a different part of the same texture.
+    for (const effect of fourthEffects) {
+      expect(showClipEffectStage(effect), effect.id).toBe('color-output')
+    }
+
+    // The swap has to change the picture, not just the data. A mid-bright pixel
+    // survives the cutoff when the cutoff runs first, and is destroyed when the
+    // dim runs first.
+    // A pixel near the top of MetaballGarden's measured range still cannot clear
+    // the cutoff once it has been dimmed to a quarter, so the wrong order gives
+    // no picture at all rather than a subtler one. Measured over the Pattern's
+    // real output: Cutoff then Dim lights 27.6% of the Stage, Dim then Cutoff
+    // lights 0.0%.
+    const sample: ShowRgb = [0.7, 0.7, 0.7]
+    const third = applyShowColorEffects(thirdEffects, sample)
+    const fourth = applyShowColorEffects(fourthEffects, sample)
+    expect(Math.max(...third), 'dim before cutoff destroys even a white pixel').toBe(0)
+    expect(Math.min(...fourth), 'cutoff before dim keeps it').toBeGreaterThan(0.2)
   })
 
   it('swaps 105 across two Zones at one shared Cut without a third Pattern', () => {
