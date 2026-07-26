@@ -1100,6 +1100,14 @@ structural snap times, and a Main-layer drop target. Zone names remain
 12-pixel primary text in the full header; a curated icon and full accessible
 label preserve identity when the header narrows.
 
+Rail controls that are not selection anchors - the collapse chevrons, the micro
+picker, and the Zone Map trigger - carry `data-studio-space-preview="true"`, and
+the properties control carries `data-show-timeline-focus`. Both markers make
+`showControlOwnsKeyboardEvent` yield, so Space stays with Show playback after a
+pointer click leaves focus on the control. Without one of them any focused
+`button` swallows Space and repeats its own action instead; the Timeline toolbar
+gets this from a single marker on the toolbar element.
+
 A collapsed header must fit that 28-pixel row, so it drops the nominal pixel
 count and keeps only the name, and the header clips its own content: an
 overflowing second line paints across the neighbouring lanes, because the header

@@ -4469,6 +4469,7 @@ function ShowTimelineWorkspace({
           <button
             ref={setZoneMapAnchor}
             type="button"
+            data-studio-space-preview="true"
             aria-label={zoneMapOpen ? 'Close Zone Map' : 'Open Zone Map'}
             aria-expanded={zoneMapOpen}
             title={zoneMapOpen ? 'Close the Zone Map' : 'Open the Zone Map: Zones and Zone Layouts'}
@@ -4662,6 +4663,7 @@ function ShowTimelineWorkspace({
               {hasMultipleZones ? (
                 <button
                   type="button"
+                  data-studio-space-preview="true"
                   aria-label={`${collapsed ? 'Expand' : 'Collapse'} zone ${row.zoneName}`}
                   aria-expanded={!collapsed}
                   title={`${collapsed ? 'Expand' : 'Collapse'} ${row.zoneName}`}
@@ -4701,6 +4703,7 @@ function ShowTimelineWorkspace({
             </div>}
             {showMicroZonePicker && <button
               type="button"
+              data-studio-space-preview="true"
               aria-label={`${collapsed ? 'Expand' : 'Collapse'} zone ${row.zoneName}`}
               aria-expanded={!collapsed}
               title={`${collapsed ? 'Expand' : 'Collapse'} ${row.zoneName}`}

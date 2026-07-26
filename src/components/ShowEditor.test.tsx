@@ -483,6 +483,42 @@ describe('ShowEditor (#318)', () => {
     expect(summary.querySelector('[data-testid="collapsed-zone-layout-label"]')).toBeNull()
   })
 
+  it('leaves Space with Show playback after using the Zone rail controls (#632)', async () => {
+    const user = userEvent.setup()
+    const show = addShowZone(createDefaultShow('show-zone-space', 'Zone rail space', 1000), {
+      name: 'accent',
+      nominalPixelCount: 24,
+    })
+    useShowStore.setState({ shows: [show], activeShowId: show.id, showsLoaded: true })
+    usePreviewStore.setState({ isRunning: false })
+
+    render(<ShowEditor showId={show.id} />)
+    await user.click(screen.getByRole('button', { name: 'Open Zones' }))
+    const grid = screen.getByTestId('show-timeline-grid')
+
+    const collapse = within(grid).getByRole('button', { name: 'Collapse zone accent' })
+    await user.click(collapse)
+    collapse.focus()
+    await user.keyboard(' ')
+    expect(usePreviewStore.getState().isRunning).toBe(true)
+    expect(within(grid).getByRole('button', { name: 'Expand zone accent' })).toBeInTheDocument()
+
+    const mapTrigger = within(grid).getByRole('button', { name: 'Open Zone Map' })
+    await user.click(mapTrigger)
+    mapTrigger.focus()
+    await user.keyboard(' ')
+    expect(usePreviewStore.getState().isRunning).toBe(false)
+    expect(screen.getByRole('dialog', { name: 'Zone Map' })).toBeInTheDocument()
+
+    await user.keyboard('{Escape}')
+    await user.click(screen.getByRole('button', { name: 'Close Zones' }))
+    const picker = screen.getByRole('button', { name: 'Expand zone accent' })
+    picker.focus()
+    await user.keyboard(' ')
+    expect(usePreviewStore.getState().isRunning).toBe(true)
+    expect(screen.getByRole('button', { name: 'Expand zone accent' })).toBeInTheDocument()
+  })
+
   it('collapses Zones independently and retains a micro Zone picker when the map closes (#581)', async () => {
     const user = userEvent.setup()
     const show = addShowZone(createDefaultShow('show-zone-collapse', 'Zone collapse', 1000), {
