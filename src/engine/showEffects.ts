@@ -153,11 +153,27 @@ export function showEffectOrderConflicts(
   a: readonly ShowClipEffect[] | undefined,
   b: readonly ShowClipEffect[] | undefined,
 ): boolean {
-  const left = normalizeShowClipEffects(a)
-  const positionById = new Map(left.map((effect, index) => [effect.id, index] as const))
-  const shared = normalizeShowClipEffects(b).filter((effect) => positionById.has(effect.id))
-  for (let index = 1; index < shared.length; index += 1) {
-    if (positionById.get(shared[index - 1].id)! > positionById.get(shared[index].id)!) return true
+  const existing = normalizeShowClipEffects(a)
+  const incoming = normalizeShowClipEffects(b)
+  // The merge keeps the existing sequence and appends ids it has not seen, so
+  // comparing only shared ids misses inversions the append itself creates:
+  // [scale, hue] merged with [translate, scale] yields [scale, hue, translate],
+  // which runs scale before translate although the second list authored the
+  // reverse. Model the merge, then require the incoming list to survive as an
+  // ordered subsequence of the result.
+  const merged = [...existing]
+  for (const effect of incoming) {
+    if (!merged.some((candidate) => candidate.id === effect.id && candidate.kind === effect.kind)) {
+      merged.push(effect)
+    }
+  }
+  let cursor = 0
+  for (const effect of incoming) {
+    const index = merged.findIndex((candidate, position) => (
+      position >= cursor && candidate.id === effect.id && candidate.kind === effect.kind
+    ))
+    if (index === -1) return true
+    cursor = index + 1
   }
   return false
 }

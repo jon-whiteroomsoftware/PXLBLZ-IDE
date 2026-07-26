@@ -301,9 +301,9 @@ function learn103(): StockShow {
 function learn104(): StockShow {
   const id = 'stock-show-104-effects-and-ordering'
   const zones = logicalZones(['Main'], PORTABLE_REFERENCE_PIXELS)
-  // Distinct Effect ids per Clip. The compiler splits placements whose Effect
-  // order conflicts, so this is not required for correctness, but it keeps each
-  // Clip's Effects independently addressable and states the intent (#363).
+  // Distinct Effect ids per Clip, so each Clip's Effects stay independently
+  // addressable and the two ordered Clips can never be merged onto one emitted
+  // chain (#363).
   const brightness = (id: string): ShowClipEffect => ({ id, kind: 'brightness', brightness: 0.4 })
   const threshold = (id: string): ShowClipEffect => ({ id, kind: 'threshold', threshold: 0.2, amount: 1 })
   const stacks: Array<[string, ShowClipEffect[]]> = [
@@ -384,7 +384,7 @@ function learn105(): StockShow {
     id, title: 'Portable Zones', track: 'portable', collection: 'learn', level: 100, order: 5,
     purpose: 'A Zone is a named part of the Stage that holds its share of whatever surface the Show ends up on. Each Zone runs its own Clip, so two Patterns play side by side without either one being told how many LEDs it got.',
     notice: 'The split never moves. At the halfway Cut the two Patterns simply trade sides, and each Zone keeps its own row on the timeline.',
-    prompts: ["The two Clips in each Zone touch, and that junction is a real entity rather than a seam. Shorten the second Clip to make room, then click the junction and turn it into a Crossfade.", 'Now drag those two Clips apart. Blank time cannot hold a Transition, so the Crossfade goes with it: the junction exists only while the two Clips meet.'],
+    prompts: ["The two Clips in each Zone touch, and that junction is a real entity rather than a seam. Shorten the second Clip to make room, then click the junction and turn it into a Crossfade.", 'Now drag the second Clip later. The Crossfade travels with it rather than staying put, because the junction belongs to the pair of Clips and not to a moment on the ruler.'],
     guideHeading: 'portable-zones',
     output: portableOutput(), zones, layouts: [splitLayout('layout-side-by-side', 'Side by side', zones, 'x')], scenes, composition,
   })

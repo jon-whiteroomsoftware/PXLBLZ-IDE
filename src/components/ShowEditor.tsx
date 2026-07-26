@@ -2048,7 +2048,12 @@ export function ShowEditor({
                   })
                   return true
                 }}
-                onOpenLayerTransition={setLayerTransitionTarget}
+                onOpenLayerTransition={(target) => {
+                  // A refusal belongs to the junction that produced it; carrying
+                  // it forward would also mask the next junction's own reason.
+                  setLayerTransitionApplyError(null)
+                  setLayerTransitionTarget(target)
+                }}
                 onInsertTime={async (atMs, durationMs) => {
                   if (!timelineComposition) return false
                   const basis = { ...activeShow, composition: timelineComposition }

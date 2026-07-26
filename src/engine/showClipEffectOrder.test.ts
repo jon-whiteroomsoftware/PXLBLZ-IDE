@@ -56,6 +56,44 @@ function checksumAt(show: ShowRecord, timeMs: number): string {
   return runtime.advanceTo(timeMs, { stepMs: 16, presentTargetFrame: true }).checksum
 }
 
+import { showEffectOrderConflicts } from './showEffects'
+
+describe('Effect order conflict detection (#363)', () => {
+  const fx = (id: string, kind: 'scale' | 'rotate' | 'translate'): ShowClipEffect => (
+    kind === 'scale'
+      ? { id, kind, x: 0.5, y: 0.5 }
+      : kind === 'rotate'
+      ? { id, kind, turns: 0.25 }
+      : { id, kind, x: 0.3, y: 0 }
+  )
+
+  it('detects an inversion the merge itself would introduce', () => {
+    // The merge keeps the first sequence and appends unseen ids, so [scale, hue]
+    // plus [translate, scale] becomes [scale, hue, translate] - running scale
+    // before translate although the second list authored the reverse. Comparing
+    // only the shared id (scale) misses it entirely.
+    const existing = [fx('scale', 'scale'), fx('spin', 'rotate')]
+    const incoming = [fx('move', 'translate'), fx('scale', 'scale')]
+    expect(showEffectOrderConflicts(existing, incoming)).toBe(true)
+  })
+
+  it('accepts a placement that carries a subset in the same order', () => {
+    const existing = [fx('move', 'translate'), fx('scale', 'scale'), fx('spin', 'rotate')]
+    expect(showEffectOrderConflicts(existing, [fx('move', 'translate'), fx('spin', 'rotate')])).toBe(false)
+    expect(showEffectOrderConflicts(existing, [fx('scale', 'scale')])).toBe(false)
+  })
+
+  it('accepts new Effects appended after everything it shares', () => {
+    const existing = [fx('move', 'translate'), fx('scale', 'scale')]
+    expect(showEffectOrderConflicts(existing, [fx('scale', 'scale'), fx('spin', 'rotate')])).toBe(false)
+  })
+
+  it('detects a straight swap of two shared Effects', () => {
+    const existing = [fx('move', 'translate'), fx('scale', 'scale')]
+    expect(showEffectOrderConflicts(existing, [fx('scale', 'scale'), fx('move', 'translate')])).toBe(true)
+  })
+})
+
 describe('Clip Effect ordering across placements of one instance (#363)', () => {
   it('renders two orders of the same Effect ids differently', () => {
     const show = sharedIdOrderingShow()
