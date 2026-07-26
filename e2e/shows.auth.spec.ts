@@ -734,7 +734,7 @@ test.describe('authenticated Show authoring', () => {
     await expect(page.getByText('Exact pixel and map identity')).toBeVisible()
     await page.getByRole('button', { name: 'Create Portable Show' }).click()
     await page.getByLabel('Show name').fill('Touring field')
-    await page.getByLabel('Reference pixels').fill('1024')
+    await page.getByLabel('Preview pixels').fill('1024')
     await page.getByRole('button', { name: 'Create Show' }).click()
 
     await expect(page).toHaveURL(/\/studio\/shows\/[a-z0-9-]+$/)
@@ -747,6 +747,7 @@ test.describe('authenticated Show authoring', () => {
 
     await page.reload()
     await expect(page.getByTitle('Show output summary')).toContainText('Portable 2D')
+    await page.getByRole('button', { name: 'Show properties' }).click()
     await expect(page.getByText('Portable · Resolution-independent 2D')).toBeVisible()
     await expect(page.getByText('Compatible 2D mapped surfaces at variable resolution.')).toBeVisible()
     await expect(page.getByLabel('Portable reference map')).toHaveValue('plane')
@@ -756,6 +757,7 @@ test.describe('authenticated Show authoring', () => {
     await page.getByLabel('Portable reference map').selectOption('wide')
     await page.getByLabel('Portable reference pixels').fill('1536')
     await page.getByLabel('Portable reference pixels').blur()
+    await page.getByRole('button', { name: 'Show properties' }).click()
     await page.getByRole('button', { name: 'Open Zones' }).click()
     await page.getByRole('button', { name: 'Open Zone Map' }).click()
     const portableZoneMap = page.getByRole('dialog', { name: 'Zone Map' })
@@ -763,7 +765,10 @@ test.describe('authenticated Show authoring', () => {
     await portableZoneMap.getByRole('button', { name: 'Add Zone', exact: true }).click()
     await portableZoneMap.getByRole('button', { name: 'Add Zone', exact: true }).click()
     await portableZoneMap.getByRole('button', { name: 'Open Zone Layout Default' }).click()
-    await expect(page.getByLabel('Default routing mode')).toHaveValue('single')
+    // Adding Zones moves the definition off the one-zone operator: CONTEXT.md
+    // pairs a Portable Zone Layout with an operator over its ordered Zones, so
+    // three Zones on 'single' would be incoherent.
+    await expect(page.getByLabel('Default routing mode')).not.toHaveValue('single')
     await page.getByLabel('Default routing mode').selectOption('grid-2x2')
     await waitForCurrentShow(page, (show) => (
       show.outputContract?.kind === 'portable-2d'
@@ -773,6 +778,7 @@ test.describe('authenticated Show authoring', () => {
     ))
 
     await page.reload()
+    await page.getByRole('button', { name: 'Show properties' }).click()
     await expect(page.getByLabel('Portable reference map')).toHaveValue('wide')
     await expect(page.getByLabel('Portable reference pixels')).toHaveValue('1536')
     await openZoneLayout(page, 'Default')
@@ -923,7 +929,9 @@ test.describe('authenticated Show authoring', () => {
   test('selects discontinuous Installation LED ranges on the saved 2D map at desktop and narrow widths', async ({ page }) => {
     await page.goto('studio/shows')
     await createInstallationShow(page)
-    await page.getByRole('button', { name: 'Select zone main' }).click()
+    const openZonesRail = page.getByRole('button', { name: 'Open Zones' })
+    if (await openZonesRail.count() > 0) await openZonesRail.click()
+    await page.getByRole('button', { name: 'Open zone main properties' }).click()
     await page.getByRole('button', { name: 'Select main LEDs on output map' }).click()
 
     await expect(page.getByRole('heading', { name: 'Select LEDs for main' })).toBeVisible()
@@ -1007,6 +1015,7 @@ test.describe('authenticated Show authoring', () => {
       && show.outputContract.outputMapId === map.id
     ))
     await page.reload()
+    await page.getByRole('button', { name: 'Show properties' }).click()
     await expect(page.getByText('4 px fixed')).toBeVisible()
     await expect(page.getByLabel('Show stage').getByText('Measured four')).toBeVisible()
   })
