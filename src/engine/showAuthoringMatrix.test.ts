@@ -923,7 +923,7 @@ const refusedRelationshipPartitionCases: (Omit<MatrixCase, 'arrange'> & {
         keyframes: [
           {
             id: 'speed-a',
-            timeMs: 0,
+            timeMs: 28_000,
             value: 1,
             easing: { curve: 'sine', direction: 'in-out' },
           },

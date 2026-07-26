@@ -879,7 +879,7 @@ describe('global timeline Clip authoring (#580)', () => {
       id: 'track-speed',
       target: { kind: 'instance-time-scale', instanceId: instance.id },
       keyframes: [
-        { id: 'key-a', timeMs: 0, value: 1, easing: { curve: 'sine', direction: 'in-out' } },
+        { id: 'key-a', timeMs: 28_000, value: 1, easing: { curve: 'sine', direction: 'in-out' } },
         { id: 'key-b', timeMs: 30_000, value: 2, easing: { curve: 'linear' } },
       ],
     }]
@@ -1993,7 +1993,7 @@ describe('global timeline Clip authoring (#580)', () => {
       id: 'track-speed',
       target: { kind: 'instance-time-scale', instanceId: instance.id },
       keyframes: [
-        { id: 'key-a', timeMs: 0, value: 1, easing: { curve: 'sine', direction: 'in-out' } },
+        { id: 'key-a', timeMs: 28_000, value: 1, easing: { curve: 'sine', direction: 'in-out' } },
         { id: 'key-b', timeMs: 30_000, value: 2, easing: { curve: 'linear' } },
       ],
     }]
