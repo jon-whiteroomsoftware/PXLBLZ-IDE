@@ -1729,6 +1729,13 @@ describe('ShowEditor (#318)', () => {
               durationMs: 20_000,
               opacity: 1,
               view: { mirror: false, phase: 0, brightness: 1 },
+            }, {
+              id: 'future-overlay-clip',
+              instanceId: 'existing-overlay-instance',
+              startMs: 28_000,
+              durationMs: 2_000,
+              opacity: 1,
+              view: { mirror: false, phase: 0, brightness: 1 },
             }] : [],
           }],
         })),
@@ -1767,6 +1774,21 @@ describe('ShowEditor (#318)', () => {
         durationMs: 5_000,
       }))
       expect(saved.composition?.scenes[0].zones[0].main).toEqual([])
+    })
+
+    fireEvent.doubleClick(overlayLayer, { clientX: 377, clientY: 150 })
+    const occupiedSnapDialog = screen.getByRole('dialog', { name: 'Add Clip at playhead' })
+    expect(within(occupiedSnapDialog).getByText('00:27.7')).toBeInTheDocument()
+    const occupiedSnapChooser = within(occupiedSnapDialog).getByRole('combobox', { name: 'Pattern for new Clip' })
+    await user.click(occupiedSnapChooser)
+    await user.click(screen.getByRole('option', { name: 'AuroraSphere' }))
+
+    await waitFor(() => {
+      const saved = useShowStore.getState().shows.find((candidate) => candidate.id === show.id)!
+      expect(saved.composition?.scenes[0].zones[0].overlays[0].placements).toContainEqual(expect.objectContaining({
+        startMs: 27_700,
+        durationMs: 300,
+      }))
     })
 
     fireEvent.doubleClick(overlayLayer, { clientX: 350.37, clientY: 150, altKey: true })

@@ -4871,7 +4871,8 @@ function ShowTimelineWorkspace({
                   const rect = event.currentTarget.getBoundingClientRect()
                   const fraction = Math.min(1, Math.max(0, (event.clientX - rect.left) / Math.max(1, rect.width)))
                   const totalMs = Math.max(1, unifiedCompositionTimeline?.durationMs ?? timeline.durationMs)
-                  const globalTimeMs = snapClipBoundary(fraction * totalMs, {
+                  const rawGlobalTimeMs = fraction * totalMs
+                  const snappedGlobalTimeMs = snapClipBoundary(rawGlobalTimeMs, {
                     altKey: event.altKey,
                     visibleWidthPx: Math.max(1, scrollRef.current?.clientWidth ?? rect.width),
                     maxTimeMs: totalMs,
@@ -4879,11 +4880,23 @@ function ShowTimelineWorkspace({
                   const target: ShowClipAddTarget = layer.kind === 'main'
                     ? { kind: 'main' }
                     : { kind: 'overlay', layerIndex: layer.layerIndex }
-                  const plan = planShowClipAtGlobalTime(show, timelineComposition, {
+                  let globalTimeMs = snappedGlobalTimeMs
+                  let plan = planShowClipAtGlobalTime(show, timelineComposition, {
                     zoneId: row.zoneId,
                     globalTimeMs,
                     target,
                   })
+                  if (!plan.enabled && snappedGlobalTimeMs !== rawGlobalTimeMs) {
+                    const rawPlan = planShowClipAtGlobalTime(show, timelineComposition, {
+                      zoneId: row.zoneId,
+                      globalTimeMs: rawGlobalTimeMs,
+                      target,
+                    })
+                    if (rawPlan.enabled) {
+                      globalTimeMs = rawGlobalTimeMs
+                      plan = rawPlan
+                    }
+                  }
                   if (!plan.enabled) return
                   event.preventDefault()
                   event.stopPropagation()
