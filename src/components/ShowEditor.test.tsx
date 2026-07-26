@@ -148,6 +148,18 @@ describe('ShowEditor (#318)', () => {
     expect(inspector).not.toHaveTextContent('Scene 2')
   })
 
+  it('omits obsolete Scene controls and decoration from Clip properties (#634)', () => {
+    const show = createDefaultShow('show-scene-control-removal', 'Control removal', 1000)
+    useShowStore.setState({ shows: [show], activeShowId: show.id, showsLoaded: true })
+
+    render(<ShowEditor showId={show.id} />)
+    fireEvent.click(screen.getByRole('button', { name: 'Select CometLoom' }))
+
+    const inspector = screen.getByRole('region', { name: 'Clip properties' })
+    expect(within(inspector).queryByLabelText('Hold scenes')).not.toBeInTheDocument()
+    expect(inspector).not.toHaveTextContent(/scene boundary/i)
+  })
+
   it('orders the unified toolbar as transport, Navigator/Fit, then authoring commands (#592, #63)', () => {
     const show = createDefaultShow('show-unified-toolbar', 'Unified toolbar', 1000)
     useShowStore.setState({ shows: [show], activeShowId: show.id, showsLoaded: true })

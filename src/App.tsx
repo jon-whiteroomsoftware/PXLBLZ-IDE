@@ -28,12 +28,6 @@ import { PatternDetailPage } from '@/components/PatternDetailPage'
 import { ControllerProfilePage } from '@/components/ControllerProfilePage'
 import { ControllerSavedProgramsPane } from '@/components/ControllerSavedProgramsPane'
 import { ShowEditor } from '@/components/ShowEditor'
-import { ShowVisualToolkitPrototype } from '@/components/ShowVisualToolkitPrototype'
-import { ShowSceneCompositionPrototype } from '@/components/ShowSceneCompositionPrototype'
-import { ShowTimelineDualModelPrototype } from '@/components/ShowTimelineDualModelPrototype'
-import { ShowTimelineRoundTwoPrototype } from '@/components/ShowTimelineRoundTwoPrototype'
-import { ShowSemanticZoomPrototype } from '@/components/ShowSemanticZoomPrototype'
-import { ShowOverlayPlacementPrototype } from '@/components/ShowOverlayPlacementPrototype'
 import { ShowEditorOverhaulPrototype } from '@/components/ShowEditorOverhaulPrototype'
 import { ShowStagePreview } from '@/components/ShowStagePreview'
 import { ShowCreationFlow, type ShowCreationMapOption } from '@/components/ShowCreationFlow'
@@ -298,24 +292,6 @@ function StudioWelcomePage({
 }
 
 export default function App() {
-  if (import.meta.env.DEV && new URLSearchParams(window.location.search).get('prototype') === 'visual-toolkit') {
-    return <ShowVisualToolkitPrototype showName="Visual toolkit stress test" />
-  }
-  if (import.meta.env.DEV && new URLSearchParams(window.location.search).get('prototype') === 'scene-composition') {
-    return <ShowSceneCompositionPrototype showName="Cathedral Signal" />
-  }
-  if (import.meta.env.DEV && new URLSearchParams(window.location.search).get('prototype') === 'timeline-dual') {
-    if (new URLSearchParams(window.location.search).get('study') === 'scene-overlays') {
-      return <ShowOverlayPlacementPrototype />
-    }
-    if (new URLSearchParams(window.location.search).get('study') === 'semantic-zoom') {
-      return <ShowSemanticZoomPrototype />
-    }
-    if (new URLSearchParams(window.location.search).get('round') === '2' || new URLSearchParams(window.location.search).get('round') === 'final') {
-      return <ShowTimelineRoundTwoPrototype />
-    }
-    return <ShowTimelineDualModelPrototype />
-  }
   if (import.meta.env.DEV && new URLSearchParams(window.location.search).get('prototype') === 'show-overhaul') {
     return <ShowEditorOverhaulPrototype />
   }

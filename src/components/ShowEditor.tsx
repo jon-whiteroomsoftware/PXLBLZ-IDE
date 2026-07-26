@@ -826,7 +826,6 @@ export function ShowEditor({
   const updateCellAdaptations = useShowStore((state) => state.updateCellAdaptations)
   const updateCellControlTarget = useShowStore((state) => state.updateCellControlTarget)
   const updateCellRestartOnEntry = useShowStore((state) => state.updateCellRestartOnEntry)
-  const extendCell = useShowStore((state) => state.extendCell)
   const spanCellZones = useShowStore((state) => state.spanCellZones)
   const updateCellZoneMode = useShowStore((state) => state.updateCellZoneMode)
   const addZone = useShowStore((state) => state.addZone)
@@ -2393,7 +2392,6 @@ export function ShowEditor({
                   }}
                   onUpdateControlTarget={(cell, exportName, value) => void updateCellControlTarget(activeShow.id, cell.id, exportName, value)}
                   onUpdateRestartOnEntry={(cell, restartOnEntry) => void updateCellRestartOnEntry(activeShow.id, cell.id, restartOnEntry)}
-                  onExtend={(cell, sceneSpan) => void extendCell(activeShow.id, cell.id, sceneSpan)}
                   onSpanZones={(cell, zoneSpan) => void spanCellZones(activeShow.id, cell.id, zoneSpan)}
                   onUpdateCellZoneMode={(cell, zoneMode) => void updateCellZoneMode(activeShow.id, cell.id, zoneMode)}
                   onUpdateBoundaryTransition={(transitionId, changes) => void updateBoundaryTransition(activeShow.id, transitionId, changes)}
@@ -6626,7 +6624,7 @@ function InspectorPanel({
   actions,
   children,
 }: {
-  family: 'Scene' | 'Clip' | 'Group' | 'Transition' | 'Zone' | 'Show'
+  family: 'Clip' | 'Group' | 'Transition' | 'Zone' | 'Show'
   title?: string
   heading?: string
   headingMeta?: string
@@ -6637,7 +6635,6 @@ function InspectorPanel({
 }) {
   const label = `${family} properties`
   const accent = {
-    Scene: 'border-amber-400/35 bg-amber-400/10 text-amber-300',
     Clip: 'border-cyan-400/35 bg-cyan-400/10 text-cyan-300',
     Group: 'border-emerald-400/35 bg-emerald-400/10 text-emerald-300',
     Transition: 'border-violet-400/35 bg-violet-400/10 text-violet-300',
@@ -6719,7 +6716,6 @@ function ContextualInspector({
   onUngroup,
   onUpdateControlTarget,
   onUpdateRestartOnEntry,
-  onExtend,
   onSpanZones,
   onUpdateCellZoneMode,
   onUpdateBoundaryTransition,
@@ -6775,7 +6771,6 @@ function ContextualInspector({
   onUngroup: (occurrenceId: string) => void
   onUpdateControlTarget: (cell: ShowCell, exportName: string, value: number | undefined) => void
   onUpdateRestartOnEntry: (cell: ShowCell, restartOnEntry: boolean) => void
-  onExtend: (cell: ShowCell, sceneSpan: number) => void
   onSpanZones: (cell: ShowCell, zoneSpan: number) => void
   onUpdateCellZoneMode: (cell: ShowCell, zoneMode: NonNullable<ShowCell['zoneMode']>) => void
   onUpdateBoundaryTransition: (
@@ -6926,7 +6921,6 @@ function ContextualInspector({
         onUpdateAdaptations={(changes) => onUpdateAdaptations(selectedClip, changes)}
         onOpenEffects={() => onOpenEffects(selectedClip)}
         onUpdateRestartOnEntry={(restartOnEntry) => onUpdateRestartOnEntry(selectedClip, restartOnEntry)}
-        onExtend={(sceneSpan) => onExtend(selectedClip, sceneSpan)}
         onSpanZones={(zoneSpan) => onSpanZones(selectedClip, zoneSpan)}
         onUpdateZoneMode={(zoneMode) => onUpdateCellZoneMode(selectedClip, zoneMode)}
       />
@@ -7474,7 +7468,6 @@ function ClipInspector({
   onUpdateAdaptations,
   onOpenEffects,
   onUpdateRestartOnEntry,
-  onExtend,
   onSpanZones,
   onUpdateZoneMode,
 }: {
@@ -7493,13 +7486,11 @@ function ClipInspector({
   onUpdateAdaptations: (changes: Partial<ShowCell['adaptations']>) => void
   onOpenEffects: () => void
   onUpdateRestartOnEntry: (restartOnEntry: boolean) => void
-  onExtend: (sceneSpan: number) => void
   onSpanZones: (zoneSpan: number) => void
   onUpdateZoneMode: (zoneMode: NonNullable<ShowCell['zoneMode']>) => void
 }) {
   const cell = clip
   const sceneIndex = show.scenes.findIndex((scene) => scene.id === cell.sceneId)
-  const maxSpan = Math.max(1, show.scenes.length - sceneIndex)
   const zoneIndex = show.zones.findIndex((zone) => zone.id === cell.zoneId)
   const maxZoneSpan = Math.max(1, show.zones.length - zoneIndex)
   const lightShutter = cell.adaptations.lightShutter
@@ -7575,19 +7566,6 @@ function ClipInspector({
           <summary className="cursor-pointer py-1 text-[9px] uppercase tracking-[0.12em] text-zinc-500">Global placement and clock controls</summary>
           <div className="border-t border-zinc-800/70 py-1 text-[9px]">
             <div className="grid max-w-[30rem] grid-cols-2 items-end gap-1.5 sm:grid-cols-3">
-            <label className="text-[9px] uppercase tracking-[0.08em] text-zinc-600">
-              Hold scenes
-              <select
-                aria-label="Hold scenes"
-                value={cell.sceneSpan}
-                onChange={(event) => onExtend(Number(event.target.value))}
-                className={`${compactField} mt-1 w-full`}
-              >
-                {Array.from({ length: maxSpan }, (_, index) => index + 1).map((span) => (
-                  <option key={span} value={span}>{span}</option>
-                ))}
-              </select>
-            </label>
             {(cell.zoneSpan ?? 1) > 1 && (
               <label className="text-[9px] uppercase tracking-[0.08em] text-zinc-600">
                 Zone domain
@@ -7617,7 +7595,7 @@ function ClipInspector({
             </label>
             </div>
             {sceneIndex > 0 && (
-              <section className="mt-1 flex max-w-2xl min-w-0 items-center gap-2 border-t border-zinc-800/65 py-1">
+              <section className="mt-1 max-w-2xl border-t border-zinc-800/65 py-1">
                 <label className="flex shrink-0 items-center gap-2 text-zinc-200">
                 <input
                   type="checkbox"
@@ -7627,13 +7605,6 @@ function ClipInspector({
                 />
                 Restart Pattern on entry
                 </label>
-                <p className="min-w-0 flex-1 truncate text-[9px] text-zinc-500" title={cell.restartOnEntry
-                  ? 'Starts a fresh Pattern instance and private time base at this scene boundary.'
-                  : 'Continues the matching Pattern instance, private clock, and accumulated state across this boundary.'}>
-                  {cell.restartOnEntry
-                    ? 'Starts a fresh Pattern instance and private time base at this scene boundary.'
-                    : 'Continues the matching Pattern instance, private clock, and accumulated state across this boundary.'}
-                </p>
               </section>
             )}
             <MotionCadenceControl
@@ -9493,12 +9464,9 @@ function CompileBar({
         </span>
       ))}
       {summary && summary.specializations.freezeAtEntry.authoredClipCount > 0 && (
-        <span className={summary.specializations.freezeAtEntry.selectedSceneCount > 0 ? 'text-emerald-300' : 'text-amber-300'}>
-          freeze at entry: {summary.specializations.freezeAtEntry.selectedSceneCount} selected scene{summary.specializations.freezeAtEntry.selectedSceneCount === 1 ? '' : 's'}
-          {' · '}{summary.specializations.freezeAtEntry.evaluationsAvoidedPerReplayFrame.toLocaleString('en-US')} Pattern evaluations/replay frame avoided
-          {' · '}scene lifetime · RGB planes 0/1/2
+        <span className={summary.specializations.freezeAtEntry.evaluationsAvoidedPerReplayFrame > 0 ? 'text-emerald-300' : 'text-amber-300'}>
+          freeze at entry: {summary.specializations.freezeAtEntry.evaluationsAvoidedPerReplayFrame.toLocaleString('en-US')} Pattern evaluations/replay frame avoided
           {' · '}capture once, private clock continues
-          {' · '}invalidates on scene/clip exit, loop, seek, pre-capture changes, or arena ownership
         </span>
       )}
       {summary && (
