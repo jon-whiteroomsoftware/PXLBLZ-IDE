@@ -133,6 +133,21 @@ describe('ShowEditor (#318)', () => {
     expect(within(timeline).queryByRole('button', { name: /Select zone/i })).not.toBeInTheDocument()
   })
 
+  it('identifies a selected boundary by Show time and incoming Pattern (#634)', () => {
+    const show = createDefaultShow('show-boundary-identity', 'Boundary identity', 1000)
+    useShowStore.setState({ shows: [show], activeShowId: show.id, showsLoaded: true })
+
+    render(<ShowEditor showId={show.id} />)
+    fireEvent.click(screen.getByRole('button', {
+      name: 'Edit crossfade Transition between TestPattern1D and CometLoom',
+    }))
+
+    const inspector = screen.getByRole('region', { name: 'Transition properties' })
+    expect(inspector).toHaveTextContent('32.0: CometLoom · crossfade')
+    expect(inspector).not.toHaveTextContent('Scene 1')
+    expect(inspector).not.toHaveTextContent('Scene 2')
+  })
+
   it('orders the unified toolbar as transport, Navigator/Fit, then authoring commands (#592, #63)', () => {
     const show = createDefaultShow('show-unified-toolbar', 'Unified toolbar', 1000)
     useShowStore.setState({ shows: [show], activeShowId: show.id, showsLoaded: true })
@@ -3960,7 +3975,7 @@ describe('ShowEditor (#318)', () => {
     expect(toggle).toHaveAttribute('aria-pressed', 'true')
     expect(toggle).toHaveAttribute(
       'title',
-      'Snap to scene, clip, transition, and time-grid boundaries. Hold Alt to temporarily reverse.',
+      'Snap to nearby Clip, Transition, Marker, Show-end, and time-grid boundaries. Hold Alt to temporarily reverse.',
     )
     const playhead = screen.getByRole('slider', { name: 'Show playhead' })
     fireEvent.pointerDown(playhead)
@@ -4060,7 +4075,7 @@ describe('ShowEditor (#318)', () => {
     expect(refusal()).toHaveTextContent('Split needs 1.0 s on both sides')
 
     fireEvent.change(playhead, { target: { value: '30500' } })
-    expect(refusal()).toHaveTextContent('Split only works inside a Scene')
+    expect(refusal()).toHaveTextContent('Move the playhead inside the selected Clip')
   })
 
   it('turns a named routing layout into a two-zone moving split (#405)', async () => {
@@ -4083,7 +4098,8 @@ describe('ShowEditor (#318)', () => {
         axis: 'x',
       })
     })
-    expect(screen.getByText(/scene targets move the split continuously/i)).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Edit split position at 32.0: CometLoom' })).toBeInTheDocument()
+    expect(screen.getByText(/boundary values move the split continuously/i)).toBeInTheDocument()
   })
 
   it('authors Checker dimensions from the existing routing inspector (#507)', async () => {
@@ -4897,4 +4913,3 @@ describe('ShowEditor (#318)', () => {
   })
 
 })
-

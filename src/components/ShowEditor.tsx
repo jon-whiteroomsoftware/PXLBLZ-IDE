@@ -8,6 +8,7 @@ import { PercentageField as UiPercentageField, type PercentageFieldProps as UiPe
 import { DomainNumberField as UiDomainNumberField, type DomainNumberFieldProps as UiDomainNumberFieldProps } from '@/components/ui/domain-number-field'
 import { formatDomainNumber } from '@/engine/domainNumberPresentation'
 import { formatPercentageValue } from '@/engine/percentageValue'
+import { formatShowTime, showBoundaryClipIdentity } from '@/engine/showClipIdentity'
 import {
   AlertDialogAction,
   AlertDialogCancel,
@@ -2940,14 +2941,14 @@ function ShowTimelineCommands({
             {splitCapability.code === 'scene-edge-margin'
               ? 'Split needs 1.0 s on both sides'
               : splitCapability.code === 'logical-clip'
-                ? 'Scene Split is unavailable inside a multi-Scene Clip'
+                ? 'This multi-part Clip cannot be split here'
               : splitCapability.code === 'transition-gap'
-                ? 'A Clip cannot be split inside a Scene Transition'
+                ? 'A Clip cannot be split inside a Transition'
               : splitCapability.code === 'nonlinear-property-animation'
                 ? 'Add a keyframe here or make this segment Linear before splitting'
                 : splitCapability.code === 'outside-clip'
                   ? 'Place the playhead inside the selected Clip'
-                  : 'Split only works inside a Scene'}
+                  : 'Move the playhead inside the selected Clip'}
           </span>
         )}
       </span>
@@ -3016,7 +3017,7 @@ function showCloneCapability(show: ShowRecord, selection: ShowSelection): { enab
     }
     return { enabled: true, reason: `Clone ${cell.patternName} immediately after itself` }
   }
-  return { enabled: false, reason: 'Select one Scene or simple Clip to Clone' }
+  return { enabled: false, reason: 'Select one simple Clip to Clone' }
 }
 
 function requestShowSeek(showId: string, targetMs: number): void {
@@ -3034,13 +3035,6 @@ function showControlOwnsKeyboardEvent(target: EventTarget | null): boolean {
   if (target.closest('[data-show-timeline-focus]') && target.matches('[data-show-timeline-focus]')) return false
   if (target.closest('[data-studio-space-preview="true"]')) return false
   return target.closest('input, select, textarea, button, a[href], summary, [contenteditable="true"], [role="textbox"], [role="slider"]') !== null
-}
-
-function formatShowTime(timeMs: number): string {
-  const tenths = Math.max(0, Math.round((Number.isFinite(timeMs) ? timeMs : 0) / 100))
-  const minutes = Math.floor(tenths / 600)
-  const seconds = Math.floor((tenths % 600) / 10)
-  return `${String(minutes).padStart(2, '0')}:${String(seconds).padStart(2, '0')}.${tenths % 10}`
 }
 
 function ExportShowButton({
@@ -4310,7 +4304,7 @@ function ShowTimelineWorkspace({
             variant="ghost"
             aria-label="Snap playhead"
             aria-pressed={snapEnabled}
-            title="Snap to scene, clip, transition, and time-grid boundaries. Hold Alt to temporarily reverse."
+            title="Snap to nearby Clip, Transition, Marker, Show-end, and time-grid boundaries. Hold Alt to temporarily reverse."
             className={showTimelineToolbarControlClass({ enabled: true, active: snapEnabled })}
             onClick={() => setSnapEnabled(!snapEnabled)}
           >
@@ -4539,7 +4533,7 @@ function ShowTimelineWorkspace({
                   <button
                     key={`split-boundary-${scene.id}`}
                     type="button"
-                    aria-label={`Edit split position transition from ${scene.name}`}
+                    aria-label={`Edit split position at ${showBoundaryClipIdentity(show, scene.id)}`}
                     data-show-timeline-focus
                     data-show-selection-key={`transition:${transition.id}`}
                     className={descriptor ? 'border-t border-zinc-900/80 bg-sky-400/10 font-mono text-[9px] text-sky-200' : 'border-t border-zinc-900/80 font-mono text-[9px] text-zinc-700 hover:text-sky-300'}
@@ -4584,7 +4578,7 @@ function ShowTimelineWorkspace({
                 <button
                   key={`sample-repeat-boundary-${scene.id}`}
                   type="button"
-                  aria-label={`Edit repeat scale transition from ${scene.name}`}
+                  aria-label={`Edit repeat scale at ${showBoundaryClipIdentity(show, scene.id)}`}
                   data-show-timeline-focus
                   data-show-selection-key={`transition:${transition.id}`}
                   className={descriptor ? 'border-t border-zinc-900/80 bg-cyan-400/10 font-mono text-[9px] text-cyan-200' : 'border-t border-zinc-900/80 font-mono text-[9px] text-zinc-700 hover:text-cyan-300'}
@@ -7816,11 +7810,12 @@ function TransitionInspector({
   const sceneIndex = show.scenes.findIndex((scene) => scene.id === transition.afterSceneId)
   const scene = show.scenes[sceneIndex] ?? show.scenes[0]
   const nextScene = show.scenes[sceneIndex + 1]
+  const boundaryIdentity = showBoundaryClipIdentity(show, transition.afterSceneId)
   if (transition.kind === 'routing') {
     return (
       <InspectorPanel
         family="Transition"
-        title={`${scene?.name ?? 'Scene'} → ${nextScene?.name ?? 'next'} · routing`}
+        title={`${boundaryIdentity} · routing`}
         icon={<Route size={13} aria-hidden />}
         actions={(
           <Button size="icon-xs" variant="ghost" aria-label="Remove routing marker" title="Remove routing marker" className="text-zinc-500 hover:bg-red-950/30 hover:text-red-300" onClick={() => onRemove(transition.id)}>
@@ -7920,7 +7915,7 @@ function TransitionInspector({
   return (
     <InspectorPanel
       family="Transition"
-      title={`${scene?.name ?? 'Scene'} → ${nextScene?.name ?? 'next'} · ${transition.kind}`}
+      title={`${boundaryIdentity} · ${transition.kind}`}
       icon={<Zap size={13} aria-hidden />}
       actions={transition.kind !== 'cut' ? (
         <Button size="icon-xs" variant="ghost" aria-label="Reset transition to cut" title="Reset to cut" className="text-zinc-500 hover:bg-red-950/30 hover:text-red-300" onClick={() => onRemove(transition.id)}>
@@ -7931,7 +7926,7 @@ function TransitionInspector({
       <div className="mb-2 grid grid-cols-[minmax(0,1fr)_auto] items-end gap-2">
         <label className="text-[10px] uppercase text-zinc-600">
           Boundary
-          <div className="mt-1 text-zinc-300">{scene?.name} to {nextScene?.name}</div>
+          <div className="mt-1 text-zinc-300">{boundaryIdentity}</div>
         </label>
         <button type="button" onClick={onOpenPalette} className="flex h-7 items-center gap-1.5 rounded border border-amber-400/25 bg-amber-400/[0.04] px-2 text-[9px] text-amber-200 hover:border-amber-400/55 hover:bg-amber-400/[0.08]">
           <Zap size={11} aria-hidden /> {transitionItem?.label ?? transition.kind} · Change
@@ -8479,7 +8474,7 @@ function PropertyTransitionEditor({
         })}
       </div>
       <p className="mt-2 text-[10px] leading-4 text-zinc-500">
-        The destination scene owns the target. This boundary owns this property's start, duration, and easing.
+        The value moves from its outgoing setting to its incoming setting across this boundary.
         {isTime ? ' A target of 0 pauses without resetting Pattern state.' : ''}
       </p>
     </section>
@@ -8679,7 +8674,7 @@ function logicalRoutingDescription(layout: ShowRoutingLayout, show: ShowRecord):
   }
   if (logical.kind === 'wave') return `${names.join(', ')} cycle through ${logical.bands} displaced bands along the normalized ${logical.axis.toUpperCase()} axis.`
   if (logical.kind === 'soft-split') return `${names[0]} and ${names[1]} blend across a movable ${logical.axis.toUpperCase()} boundary. Inside the feather, both Patterns render; outside it, only one renders.`
-  if (logical.kind === 'split') return `${names[0]} and ${names[1]} share a normalized Stage axis. Scene targets move the split continuously.`
+  if (logical.kind === 'split') return `${names[0]} and ${names[1]} share a normalized Stage axis. Boundary values move the split continuously.`
   return `${names.join(', ')} route by normalized Stage position.`
 }
 

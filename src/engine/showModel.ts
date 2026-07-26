@@ -663,7 +663,7 @@ export type ShowSplitCapability =
 
 export function showSplitCapability(show: ShowRecord, atMs: number): ShowSplitCapability {
   if (!Number.isFinite(atMs)) {
-    return { enabled: false, code: 'no-scene', reason: 'Move the playhead inside a Scene.' }
+    return { enabled: false, code: 'no-scene', reason: 'Move the playhead inside a Clip.' }
   }
 
   let cursorMs = 0
@@ -683,22 +683,22 @@ export function showSplitCapability(show: ShowRecord, atMs: number): ShowSplitCa
         return {
           enabled: false,
           code: 'logical-clip',
-          reason: 'Scene Split is unavailable inside a multi-Scene Clip.',
+          reason: 'This multi-part Clip cannot be split here.',
         }
       }
       if (nonlinearPropertySegmentCrosses(show, scene.id, leftDurationMs)) {
         return {
           enabled: false,
           code: 'nonlinear-property-animation',
-          reason: 'Add a keyframe at the playhead or change the crossing segment to Linear before splitting this Scene.',
+          reason: 'Add a keyframe at the playhead or change the crossing segment to Linear before splitting.',
         }
       }
-      return { enabled: true, code: 'ready', reason: 'Split this Scene at the playhead.' }
+      return { enabled: true, code: 'ready', reason: 'Split at the playhead.' }
     }
     cursorMs = holdEndMs + Math.max(0, showVisualTransitionAfter(show, scene.id)?.durationMs ?? 0)
   }
 
-  return { enabled: false, code: 'no-scene', reason: 'Move the playhead inside a Scene.' }
+  return { enabled: false, code: 'no-scene', reason: 'Move the playhead inside a Clip.' }
 }
 
 function multiSegmentLogicalClipCrosses(show: ShowRecord, sceneId: string, localTimeMs: number): boolean {

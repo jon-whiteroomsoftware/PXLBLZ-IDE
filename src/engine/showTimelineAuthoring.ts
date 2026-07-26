@@ -59,7 +59,7 @@ export function planShowTimeInsertion(
       return {
         enabled: false,
         code: 'logical-clip',
-        reason: 'Insert Time is unavailable inside a multi-Scene Clip.',
+        reason: 'Insert Time is unavailable inside a multi-part Clip.',
       }
     }
   }
@@ -106,7 +106,7 @@ export function planShowTimeInsertion(
     return {
       enabled: false,
       code: 'logical-clip',
-      reason: 'Insert Time is unavailable inside a multi-Scene Clip.',
+      reason: 'Insert Time is unavailable inside a multi-part Clip.',
     }
   }
   return { enabled: true, code: 'ready', sceneId: range.sceneId, localTimeMs, crossingPlacementIds }

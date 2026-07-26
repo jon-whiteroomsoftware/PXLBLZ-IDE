@@ -734,7 +734,7 @@ export function planShowClipSplitAtGlobalTime(
     return {
       enabled: false,
       code: 'transition-gap',
-      reason: 'A Clip cannot be split inside a Scene Transition.',
+      reason: 'A Clip cannot be split inside a Transition.',
     }
   }
   return { enabled: false, code: 'outside-clip', reason: 'Place the playhead inside the selected Clip.' }
@@ -872,7 +872,7 @@ export function planShowClipDuplicateAfter(
       return {
         enabled: false,
         code: 'scene-boundary',
-        reason: 'The duplicate would cross the selected Clip’s Scene boundary.',
+        reason: 'The duplicate needs uninterrupted Show time after the selected Clip.',
       }
     }
   }
@@ -887,7 +887,7 @@ export function planShowClipDuplicateAfter(
       return {
         enabled: false,
         code: 'transition-boundary',
-        reason: 'The duplicate would end inside a Scene Transition.',
+        reason: 'The duplicate would end inside a Transition.',
       }
     }
     const base = logicalSegments[0].placement
@@ -903,7 +903,7 @@ export function planShowClipDuplicateAfter(
       return {
         enabled: false,
         code: 'unsupported-animation',
-        reason: 'Multi-Scene Clips with Property animation cannot be cloned yet.',
+        reason: 'Multi-part Clips with Property animation cannot be cloned yet.',
       }
     }
   }

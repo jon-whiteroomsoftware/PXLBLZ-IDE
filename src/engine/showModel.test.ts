@@ -555,7 +555,7 @@ describe('showModel (#318)', () => {
     expect(showSplitCapability(show, Number.NaN)).toEqual({
       enabled: false,
       code: 'no-scene',
-      reason: 'Move the playhead inside a Scene.',
+      reason: 'Move the playhead inside a Clip.',
     })
     expect(showSplitCapability(show, 0)).toEqual({
       enabled: false,
@@ -570,12 +570,12 @@ describe('showModel (#318)', () => {
     expect(showSplitCapability(show, 1_000)).toEqual({
       enabled: true,
       code: 'ready',
-      reason: 'Split this Scene at the playhead.',
+      reason: 'Split at the playhead.',
     })
     expect(showSplitCapability(show, 30_500)).toEqual({
       enabled: false,
       code: 'no-scene',
-      reason: 'Move the playhead inside a Scene.',
+      reason: 'Move the playhead inside a Clip.',
     })
   })
 
@@ -598,7 +598,7 @@ describe('showModel (#318)', () => {
     expect(showSplitCapability(show, 10_000)).toEqual({
       enabled: false,
       code: 'nonlinear-property-animation',
-      reason: 'Add a keyframe at the playhead or change the crossing segment to Linear before splitting this Scene.',
+      reason: 'Add a keyframe at the playhead or change the crossing segment to Linear before splitting.',
     })
     expect(splitShowAtTime(show, 10_000)).toBe(show)
   })
@@ -628,7 +628,7 @@ describe('showModel (#318)', () => {
     expect(showSplitCapability(show, 10_000)).toEqual({
       enabled: false,
       code: 'logical-clip',
-      reason: 'Scene Split is unavailable inside a multi-Scene Clip.',
+      reason: 'This multi-part Clip cannot be split here.',
     })
     expect(splitShowAtTime(show, 10_000)).toBe(show)
   })

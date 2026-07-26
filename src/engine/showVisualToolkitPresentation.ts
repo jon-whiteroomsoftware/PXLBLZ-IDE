@@ -26,16 +26,16 @@ export interface ShowToolkitPresentationItem {
 }
 
 const FAMILY_SUMMARIES: Record<string, string> = {
-  'property-animation:property': 'Animate a scene value as the incoming boundary completes.',
+  'property-animation:property': 'Animate a value as the incoming boundary completes.',
   'effect:affine': 'Move or reshape the source coordinates before the Pattern renders.',
   'effect:distortion': 'Bend the source coordinates before the Pattern renders.',
   'effect:output': 'Adjust the rendered color and output level.',
-  'transition:blend': 'Mix the outgoing and incoming scenes over the boundary.',
-  'transition:fade': 'Pass through a chosen color between scenes.',
+  'transition:blend': 'Mix the outgoing and incoming content over the boundary.',
+  'transition:fade': 'Pass through a chosen color between outgoing and incoming content.',
   'transition:wipe': 'Move a geometric edge across the Stage.',
   'transition:dissolve': 'Choose pixels over time using a repeatable spatial pattern.',
-  'transition:shape-reveal': 'Reveal the incoming scene through a scalable shape.',
-  'transition:motion': 'Move or scale scene content through the boundary.',
+  'transition:shape-reveal': 'Reveal the incoming content through a scalable shape.',
+  'transition:motion': 'Move or scale content through the boundary.',
 }
 
 export function validateShowToolkitPresentationSummaries(

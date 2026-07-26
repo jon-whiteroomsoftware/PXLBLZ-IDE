@@ -234,7 +234,7 @@ describe('Show timeline authoring', () => {
     expect(planShowTimeInsertion(show, 5_000, 2_000)).toEqual({
       enabled: false,
       code: 'logical-clip',
-      reason: 'Insert Time is unavailable inside a multi-Scene Clip.',
+      reason: 'Insert Time is unavailable inside a multi-part Clip.',
     })
     expect(insertShowTime(show, {
       atMs: 5_000,
@@ -274,7 +274,7 @@ describe('Show timeline authoring', () => {
     expect(planShowTimeInsertion(show, 30_000, 2_000)).toEqual({
       enabled: false,
       code: 'logical-clip',
-      reason: 'Insert Time is unavailable inside a multi-Scene Clip.',
+      reason: 'Insert Time is unavailable inside a multi-part Clip.',
     })
     expect(insertShowTime(show, {
       atMs: 30_000,
