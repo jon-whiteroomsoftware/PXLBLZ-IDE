@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 // @ts-expect-error -- plain ESM script without type declarations
-import { classify, matchesTemplate, sourceProduces, sourceTemplates } from './check-e2e-locators.mjs'
+import { classify, labelTemplateStrings, matchesTemplate, sourceProduces, sourceTemplates } from './check-e2e-locators.mjs'
 
 // The label shapes that actually occur in this codebase. Every one of these was
 // reported stale by the original prefix-only heuristic, which froze them into
@@ -93,6 +93,31 @@ describe('e2e locator staleness detection', () => {
       const source = 'aria-label={`Select ${clip.patternName}`}'
       expect(classify('Select TestPattern1D', source)).toBe('unverifiable')
       expect(classify('Add clip to main in Scene 1', source)).toBe('stale')
+    })
+
+    it('does not let a non-label template vouch for a user-facing name', () => {
+      // showModel generates default entity names; it renders no label, so it
+      // must not bless "Scene Scene 1", which no group in src produces.
+      const source = 'const name = uniqueSceneName(`Scene ${show.scenes.length + 1}`, taken)'
+      expect(classify('Scene Scene 1', source)).toBe('stale')
+    })
+
+    it('keeps the dynamic branch when an interpolation has a quoted default', () => {
+      // `${marker.name ?? 'Marker'}` is not a closed set: the fallback is one
+      // possibility among arbitrary runtime names. Expanding only to the
+      // literal would file the real rendered label as stale.
+      const source = "aria-label={`Delete ${marker.name ?? 'Marker'}`}"
+      expect(classify('Delete Marker', source)).toBe('produced')
+      expect(classify('Delete Chorus start', source)).toBe('unverifiable')
+    })
+
+    it('extracts every literal from a ternary label expression', () => {
+      const source = 'aria-label={inGroup ? `Select Group Clip ${p}` : `Select ${p}`}'
+      expect(labelTemplateStrings(source)).toEqual([
+        'Select Group Clip ${p}',
+        'Select ${p}',
+      ])
+      expect(classify('Select TestPattern1D', source)).toBe('unverifiable')
     })
   })
 })

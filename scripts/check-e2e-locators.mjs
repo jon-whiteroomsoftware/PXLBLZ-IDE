@@ -12,7 +12,7 @@
 // Ratchet, not a wall: strings already known to be stale live in the allowlist
 // beside this script. New staleness fails; fixing staleness requires shrinking
 // the allowlist. It never silently grows.
-import { readFileSync, readdirSync, writeFileSync, statSync } from 'node:fs'
+import { readFileSync, readdirSync, realpathSync, writeFileSync, statSync } from 'node:fs'
 import { fileURLToPath } from 'node:url'
 import { dirname, join, relative } from 'node:path'
 
@@ -65,10 +65,40 @@ export function specLocators(root = repositoryRoot) {
 // prefix-only rule required a six-character literal immediately before the first
 // interpolation, so it reported all of those as stale and froze them into the
 // allowlist, leaving the check blind to the very renames it exists to catch.
-const TEMPLATE_PATTERNS = [
-  /`([^`\\]*\$\{[^`]*)`/g,
-  /aria-?[Ll]abel=\{`([^`]*)`\}/g,
-]
+// Only label-bearing contexts. Harvesting every template literal in src let
+// internal helpers vouch for user-facing names: showModel's
+// uniqueSceneName(`Scene ${n}`) generates a default entity name and renders no
+// label, yet it was enough to bless the genuinely stale "Scene Scene 1".
+//
+// A label expression is frequently a ternary holding several literals, as in
+// aria-label={inGroup ? `Select Group Clip ${p}` : `Select ${p}`}, so scan the
+// whole attribute value rather than expecting one literal inside the braces.
+const LABEL_ATTRIBUTE = /(?:aria-?[Ll]abel|title|placeholder|label)\s*[=:]\s*/g
+
+export function labelTemplateStrings(source) {
+  const found = []
+  for (const match of source.matchAll(LABEL_ATTRIBUTE)) {
+    let index = match.index + match[0].length
+    if (source[index] === '`') {
+      const end = source.indexOf('`', index + 1)
+      if (end !== -1) found.push(source.slice(index + 1, end))
+      continue
+    }
+    if (source[index] !== '{') continue
+    let depth = 0
+    const start = index
+    for (; index < source.length; index += 1) {
+      if (source[index] === '{') depth += 1
+      else if (source[index] === '}') {
+        depth -= 1
+        if (depth === 0) break
+      }
+    }
+    const span = source.slice(start, index + 1)
+    for (const literal of span.matchAll(/`([^`]*)`/g)) found.push(literal[1])
+  }
+  return found
+}
 
 // `${collapsed ? 'Expand' : 'Collapse'} zone ${name}` is a common idiom here,
 // and its only unconditionally static word is "zone". Treat quoted literals
@@ -85,7 +115,14 @@ function expandAlternatives(raw) {
       continue
     }
     const literals = [...part.matchAll(/['"]([^'"]{2,})['"]/g)].map((match) => match[1])
-    const options = literals.length > 0 && literals.length <= 4 ? literals : [DYNAMIC]
+    // `${marker.name ?? 'Marker'}` is not a closed set: the quoted text is one
+    // possibility among arbitrary runtime names, so the dynamic branch has to
+    // stay. Only a ternary between quoted literals is genuinely closed.
+    const closed = literals.length > 0 && literals.length <= 4
+      && /\?[^?]*:[^:]*$/.test(part) && !/\?\?|\|\|/.test(part)
+    const options = literals.length === 0 ? [DYNAMIC]
+      : closed ? literals
+      : [...literals, DYNAMIC]
     if (variants.length * options.length > 16) {
       variants = variants.map((variant) => variant + DYNAMIC)
       continue
@@ -97,9 +134,8 @@ function expandAlternatives(raw) {
 
 export function sourceTemplates(source) {
   const templates = []
-  for (const pattern of TEMPLATE_PATTERNS) {
-    for (const match of source.matchAll(pattern)) {
-      const raw = match[1]
+  {
+    for (const raw of labelTemplateStrings(source)) {
       if (!raw.includes('${')) continue
       for (const variant of expandAlternatives(raw)) {
         const segments = variant.split(DYNAMIC).map((segment) => segment.trim()).filter(Boolean)
@@ -222,6 +258,9 @@ some call sites and left others, and no gate ran these specs to notice.
   return 0
 }
 
-if (process.argv[1] && fileURLToPath(import.meta.url) === process.argv[1]) {
+// Node realpaths the main module, so argv[1] must be realpathed too. Comparing
+// the raw argument silently skips main() in any symlinked checkout, and the
+// check then exits 0 having verified nothing.
+if (process.argv[1] && fileURLToPath(import.meta.url) === realpathSync(process.argv[1])) {
   process.exit(main())
 }

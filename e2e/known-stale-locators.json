@@ -34,6 +34,14 @@
       "spec": "shows.auth.spec.ts"
     },
     {
+      "name": "Scene Scene 1",
+      "spec": "shows.auth.spec.ts"
+    },
+    {
+      "name": "Scene Scene 2",
+      "spec": "shows.auth.spec.ts"
+    },
+    {
       "name": "Set routing layout after Scene 1",
       "spec": "shows.auth.spec.ts"
     }
