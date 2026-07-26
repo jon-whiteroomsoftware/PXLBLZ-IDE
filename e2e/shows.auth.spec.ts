@@ -1202,6 +1202,10 @@ test.describe('authenticated Show authoring', () => {
     await actions.getByLabel('Layout interval duration in seconds exact time').fill('5')
     await actions.getByRole('button', { name: 'Append' }).click()
 
+    const adjacentCrossfade = page.getByRole('button', { name: 'Edit crossfade Transition between TestPattern1D and CometLoom' })
+    await adjacentCrossfade.click()
+    await expect(page.getByRole('button', { name: /Crossfade · Change/ })).toBeVisible()
+
     const interval = page.getByRole('button', { name: 'Select Alternate interval routing interval 1' })
     await expect(interval).toHaveAttribute('aria-pressed', 'false')
     await interval.click()

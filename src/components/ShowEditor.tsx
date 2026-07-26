@@ -5533,7 +5533,7 @@ function TimelineLayoutBoundaries({
   return (
     <div
       aria-label="Zone Layout routing intervals"
-      className="relative z-[25]"
+      className="pointer-events-none relative z-[25]"
       style={{ gridColumn, gridRow: `${gridRow} / span ${rowSpan}` }}
     >
       {intervals.slice(1).map((interval, index) => {
@@ -5552,8 +5552,8 @@ function TimelineLayoutBoundaries({
           data-show-selection-key={`transition:${transition.id}`}
           data-show-layout-boundary={interval.id}
           className={selected
-            ? 'absolute inset-y-0 z-[1] w-2 -translate-x-1/2 bg-live/35 outline-none ring-1 ring-live/80'
-            : 'absolute inset-y-0 z-[1] w-2 -translate-x-1/2 bg-live/20 outline-none hover:bg-live/45 focus-visible:bg-live/45'}
+            ? 'pointer-events-auto absolute inset-y-0 z-[1] w-2 -translate-x-1/2 bg-live/35 outline-none ring-1 ring-live/80'
+            : 'pointer-events-auto absolute inset-y-0 z-[1] w-2 -translate-x-1/2 bg-live/20 outline-none hover:bg-live/45 focus-visible:bg-live/45'}
           style={{ left: `${left}%` }}
           onClick={(event) => {
             event.stopPropagation()
