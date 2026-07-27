@@ -4,6 +4,9 @@ test('authenticated Studio renames a Pattern from the middle-pane title', async 
   await page.goto('studio/patterns')
 
   await expect(page.getByRole('button', { name: /Account menu for playwright-shows/i })).toBeVisible()
+  // The rail hamburger became an add menu in 58e1a83 (#63); New pattern is a
+  // menu item now, exactly as New show is in the Shows rail.
+  await page.getByRole('button', { name: 'Add pattern' }).click()
   await page.getByRole('button', { name: 'New pattern' }).click()
   await expect(page).toHaveURL(/\/studio\/patterns\/[a-z0-9-]+$/)
 
