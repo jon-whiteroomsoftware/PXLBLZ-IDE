@@ -3048,7 +3048,10 @@ function showControlOwnsKeyboardEvent(target: EventTarget | null): boolean {
   if (!(target instanceof HTMLElement)) return false
   if (target.closest('[data-show-timeline-focus]') && target.matches('[data-show-timeline-focus]')) return false
   if (target.closest('[data-studio-space-preview="true"]')) return false
-  return target.closest('input, select, textarea, button, a[href], summary, [contenteditable="true"], [role="textbox"], [role="slider"]') !== null
+  // role="tab" is listed because the Clip detail tabs cannot be <button>: a
+  // read-only Show wraps the panel in <fieldset disabled>, which would disable
+  // them. Without it, Show shortcuts fire while a tab has focus (#642).
+  return target.closest('input, select, textarea, button, a[href], summary, [contenteditable="true"], [role="textbox"], [role="slider"], [role="tab"]') !== null
 }
 
 function ExportShowButton({

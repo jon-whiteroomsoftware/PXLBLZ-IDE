@@ -115,6 +115,10 @@ export function ShowClipEntityDetail({
   const selectTab = (tab: ShowClipDetailTabId) => {
     setPreferredTab(tab)
     rememberShowClipDetailTab(panelKey, tab)
+    // Leaving Place must close the pad. A pointer switch closed it as a side
+    // effect of the popover's outside-pointerdown handler while a keyboard
+    // switch did not, so the pad sprang back open on returning to Place.
+    if (tab !== 'place') setPadOpen(false)
   }
   const tabIdFor = (tab: ShowClipDetailTabId) => `clip-detail-tab-${panelKey}-${tab}`
   const panelId = `clip-detail-panel-${panelKey}`

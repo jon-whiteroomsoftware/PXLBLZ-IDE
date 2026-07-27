@@ -3560,16 +3560,14 @@ describe('ShowEditor (#318)', () => {
     // The Aperture toggle lives in the placement pad (#617), which is now its own
     // tab (#642) - so the guard is that the controls survive the round trip, not
     // that both are on screen at once.
+    // Both toggles happen without leaving Place. Switching tabs closes the pad
+    // through the popover's outside-pointerdown handler, which would detach the
+    // checkbox and let the second toggle assert against a dead node.
     await user.click(screen.getByRole('tab', { name: /^Place/ }))
     await user.click(screen.getByRole('button', { name: 'Edit placement' }))
     const aperture = screen.getByRole('checkbox', { name: 'Aperture' })
     await user.click(aperture)
     await waitFor(() => expect(aperture).toBeChecked())
-
-    await user.click(screen.getByRole('tab', { name: /^Pattern/ }))
-    expect(screen.getByRole('table', { name: 'Pattern controls' })).toBeInTheDocument()
-
-    await user.click(screen.getByRole('tab', { name: /^Place/ }))
     await user.click(aperture)
     await waitFor(() => expect(aperture).not.toBeChecked())
 

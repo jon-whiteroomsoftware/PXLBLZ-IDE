@@ -93,6 +93,20 @@ describe('Clip detail tabs (#642)', () => {
     expect(document.activeElement).toBe(place)
   })
 
+  it('closes the placement pad when the tab changes, whichever input did it', () => {
+    render(<ShowClipEntityDetail {...commonProps('scene-main')} />)
+
+    showTab('Place')
+    fireEvent.click(screen.getByRole('button', { name: 'Edit placement' }))
+    expect(screen.getByRole('dialog', { name: 'Clip placement' })).toBeInTheDocument()
+
+    // Keyboard switching dispatches no pointerdown, so the popover's own
+    // outside-click handler never fires; the pad must still not spring back.
+    fireEvent.keyDown(screen.getByRole('tablist'), { key: 'ArrowRight' })
+    showTab('Place')
+    expect(screen.queryByRole('dialog', { name: 'Clip placement' })).not.toBeInTheDocument()
+  })
+
   it('rests on Pattern and shows one panel at a time', () => {
     render(<ShowClipEntityDetail {...commonProps('scene-main')} />)
 
