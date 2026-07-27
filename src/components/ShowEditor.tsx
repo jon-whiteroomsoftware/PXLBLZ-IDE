@@ -2233,6 +2233,7 @@ export function ShowEditor({
                   <ContextualInspector
               show={activeShow}
                   compositionShow={inspectorShow ?? activeShow}
+                  panelKey={detail.id}
                   selection={detail.selection}
                   selectedClip={detailSelectedClip}
                   selectedCompositionClipOwner={detailSelectedCompositionClipOwner}
@@ -6947,6 +6948,7 @@ function InspectorPanel({
 function ContextualInspector({
   show,
   compositionShow,
+  panelKey,
   selection,
   selectedClip,
   selectedCompositionClipOwner,
@@ -7001,6 +7003,7 @@ function ContextualInspector({
 }: {
   show: ShowRecord
   compositionShow: ShowRecord
+  panelKey: string
   selection: ShowSelection
   selectedClip: ShowCell | null
   selectedCompositionClipOwner: ShowClipInspectorOwner | null
@@ -7094,6 +7097,7 @@ function ContextualInspector({
       return (
         <CompositionClipInspector
           value={value}
+          panelKey={panelKey}
           patternOptions={patternOptions}
           patternControls={patternControls}
           summary={compositionClipSummary(
@@ -7148,6 +7152,7 @@ function ContextualInspector({
       return (
         <CompositionClipInspector
           value={value}
+          panelKey={panelKey}
           patternOptions={patternOptions}
           patternControls={patternControls}
           summary={compositionClipSummary(selection.clipId, patternControls)}
@@ -7362,6 +7367,7 @@ function GroupInspector({
 
 function CompositionClipInspector({
   value,
+  panelKey,
   patternOptions,
   patternControls,
   summary,
@@ -7382,6 +7388,7 @@ function CompositionClipInspector({
   onRemove,
 }: {
   value: NonNullable<ReturnType<typeof projectShowClipInspector>>
+  panelKey: string
   patternOptions: ShowPatternOption[]
   patternControls: AutomatablePatternControl[]
   summary: ShowClipSummarySection[]
@@ -7433,6 +7440,7 @@ function CompositionClipInspector({
         patternControls={patternControls}
         transformEnabled={transformEnabled}
         compiledCost={compiledCost}
+        panelKey={panelKey}
         structuralControls={instanceOwnership ? (
           <ShowPatternInstanceControls
             ownership={instanceOwnership}
@@ -7831,7 +7839,6 @@ function ClipInspector({
           transformEnabled={transformEnabled}
           compiledCost={compiledCost}
           embedded
-          advancedDefaultOpen={hasAdvancedOverrides}
           onPatch={onUpdateClip}
           onPreviewPatch={onPreviewClip}
           onPreviewEnd={onPreviewEnd}

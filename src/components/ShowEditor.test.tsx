@@ -3344,7 +3344,6 @@ describe('ShowEditor (#318)', () => {
     render(<ShowEditor showId={show.id} />)
 
     await user.click(screen.getAllByRole('button', { name: 'Select Shared Rings' })[0])
-    await user.click(screen.getByText('Advanced clip controls'))
     expect(screen.getByRole('group', { name: 'Pattern instance' })).toHaveTextContent('Shared by 2 Clips')
     await user.click(screen.getByRole('button', { name: 'Make Pattern Independent' }))
 
@@ -3558,15 +3557,23 @@ describe('ShowEditor (#318)', () => {
     await user.click(screen.getByRole('button', { name: 'Select SignalMandala' }))
     expect(screen.getByRole('table', { name: 'Pattern controls' })).toBeInTheDocument()
 
-    // The Aperture toggle lives in the placement pad now (#617).
+    // The Aperture toggle lives in the placement pad (#617), which is now its own
+    // tab (#642) - so the guard is that the controls survive the round trip, not
+    // that both are on screen at once.
+    await user.click(screen.getByRole('tab', { name: /^Place/ }))
     await user.click(screen.getByRole('button', { name: 'Edit placement' }))
     const aperture = screen.getByRole('checkbox', { name: 'Aperture' })
     await user.click(aperture)
     await waitFor(() => expect(aperture).toBeChecked())
+
+    await user.click(screen.getByRole('tab', { name: /^Pattern/ }))
     expect(screen.getByRole('table', { name: 'Pattern controls' })).toBeInTheDocument()
 
+    await user.click(screen.getByRole('tab', { name: /^Place/ }))
     await user.click(aperture)
     await waitFor(() => expect(aperture).not.toBeChecked())
+
+    await user.click(screen.getByRole('tab', { name: /^Pattern/ }))
     expect(screen.getByRole('table', { name: 'Pattern controls' })).toBeInTheDocument()
   })
 

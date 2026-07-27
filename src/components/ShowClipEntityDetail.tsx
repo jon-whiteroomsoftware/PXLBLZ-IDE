@@ -15,6 +15,13 @@ import {
   type ShowClipInspectorPatch,
   type ShowClipInspectorValue,
 } from '@/engine/showClipInspectorModel'
+import {
+  projectShowClipDetailTabs,
+  recallShowClipDetailTab,
+  rememberShowClipDetailTab,
+  resolveShowClipDetailTab,
+  type ShowClipDetailTabId,
+} from '@/engine/showClipDetailTabs'
 import type { AutomatablePatternControl } from '@/engine/showPatternControls'
 import type { ShowCompiledCostMetadata } from '@/engine/showVisualToolkit'
 import { formatPercentageValue } from '@/engine/percentageValue'
@@ -30,8 +37,8 @@ export interface ShowClipEntityDetailProps {
   actions?: ReactNode
   structuralControls?: ReactNode
   embedded?: boolean
-  primaryOnly?: boolean
-  advancedDefaultOpen?: boolean
+  /** Identity of the owning panel, so a pinned panel keeps its own tab. */
+  panelKey?: string
   transformEnabled?: boolean
   onPatch: (patch: ShowClipInspectorPatch) => boolean | void | Promise<void>
   onPreviewPatch?: (patch: ShowClipInspectorPatch) => void
@@ -72,8 +79,7 @@ export function ShowClipEntityDetail({
   actions,
   structuralControls,
   embedded = false,
-  primaryOnly = false,
-  advancedDefaultOpen = false,
+  panelKey = 'transient',
   transformEnabled = true,
   onPatch,
   onPreviewPatch,
@@ -89,19 +95,29 @@ export function ShowClipEntityDetail({
   const showOpacity = capabilities.sourceOverOpacity && value.local !== undefined
   const headerFieldCount = 1 + (localTiming ? 2 : 0) + (showOpacity ? 1 : 0)
   const controlTargets = value.simulation.controlTargets
-  const hasAuthoredPatternControls = Object.values(controlTargets ?? {}).some((target) => target !== undefined)
-  const [patternTrayOpen, setPatternTrayOpen] = useState(hasAuthoredPatternControls)
-  const [placementOpen, setPlacementOpen] = useState(true)
   const [padOpen, setPadOpen] = useState(false)
   const [padAnchor, setPadAnchor] = useState<HTMLButtonElement | null>(null)
-  const [advancedTrayOpen, setAdvancedTrayOpen] = useState(
-    advancedDefaultOpen
-      || value.view.mirror
-      || value.view.phase !== 0
-      || value.evaluationPolicy !== 'live'
-      || value.presentation.mode !== 'live'
-      || value.blink !== undefined,
+
+  /*
+    Tabs (#642). The preference is session-scoped and keyed by panel, so a pinned
+    comparison panel keeps its own tab. It is deliberately not per Clip: holding
+    one facet still while stepping through Clips is the whole point.
+
+    Only an explicit click writes the preference. The fallback for an
+    inapplicable tab does not, so the chosen tab returns as soon as a Clip can
+    show it again.
+  */
+  const [preferredTab, setPreferredTab] = useState<ShowClipDetailTabId | undefined>(
+    () => recallShowClipDetailTab(panelKey),
   )
+  const tabs = projectShowClipDetailTabs({ value, transformEnabled })
+  const activeTab = resolveShowClipDetailTab(preferredTab, tabs)
+  const selectTab = (tab: ShowClipDetailTabId) => {
+    setPreferredTab(tab)
+    rememberShowClipDetailTab(panelKey, tab)
+  }
+  const tabIdFor = (tab: ShowClipDetailTabId) => `clip-detail-tab-${panelKey}-${tab}`
+  const panelId = `clip-detail-panel-${panelKey}`
 
   return (
     <section
@@ -200,7 +216,66 @@ export function ShowClipEntityDetail({
           )}
         </div>
 
-        <div data-testid="clip-primary-fields" className="mt-2 grid min-w-0 items-end gap-2 sm:grid-cols-[minmax(0,2fr)_minmax(0,1fr)]">
+        <div
+          role="tablist"
+          aria-label="Clip properties sections"
+          data-testid="clip-detail-tabs"
+          className="mt-2 flex border-y border-zinc-800/80"
+          onKeyDown={(event) => {
+            const available = tabs.filter((tab) => tab.applicable)
+            const index = available.findIndex((tab) => tab.id === activeTab)
+            const step = event.key === 'ArrowRight' ? 1 : event.key === 'ArrowLeft' ? -1 : 0
+            const target = event.key === 'Home'
+              ? available[0]
+              : event.key === 'End'
+                ? available[available.length - 1]
+                : step
+                  ? available[(index + step + available.length) % available.length]
+                  : undefined
+            if (!target) return
+            event.preventDefault()
+            selectTab(target.id)
+          }}
+        >
+          {tabs.filter((tab) => tab.applicable).map((tab) => (
+            <button
+              key={tab.id}
+              type="button"
+              role="tab"
+              id={tabIdFor(tab.id)}
+              aria-selected={activeTab === tab.id}
+              aria-controls={panelId}
+              tabIndex={activeTab === tab.id ? 0 : -1}
+              data-authored={tab.authored ? 'true' : undefined}
+              onClick={() => selectTab(tab.id)}
+              className={`flex flex-1 items-center justify-center gap-1.5 py-1.5 text-[9.5px] tracking-[0.06em] transition-colors ${
+                activeTab === tab.id
+                  ? 'border-b-[1.5px] border-cyan-300 text-cyan-300'
+                  : 'border-b-[1.5px] border-transparent text-zinc-500 hover:text-zinc-300'
+              }`}
+            >
+              {tab.label}
+              {/* A dot means authored non-default state, not "has content" -
+                  the latter would leave Pattern and Place permanently marked. */}
+              {tab.authored && (
+                <span aria-hidden className="size-[3px] rounded-full bg-current" />
+              )}
+              {tab.authored && <span className="sr-only">(has changes)</span>}
+            </button>
+          ))}
+        </div>
+
+        {/* A floor, not a fixed height: the panel must not resize as tabs change,
+            but a takeover may still use the room below it. */}
+        <div
+          role="tabpanel"
+          id={panelId}
+          aria-labelledby={tabIdFor(activeTab)}
+          data-active-tab={activeTab}
+          className="min-h-[262px] pt-2"
+        >
+
+        {activeTab === 'pattern' && <div data-testid="clip-primary-fields" className="grid min-w-0 items-end gap-2 sm:grid-cols-[minmax(0,2fr)_minmax(0,1fr)]">
           <label className="block min-w-0 text-[9px] uppercase tracking-[0.1em] text-zinc-600">
             Source pattern
             <PatternCombobox
@@ -236,9 +311,9 @@ export function ShowClipEntityDetail({
             onPreviewEnd={onPreviewEnd}
             onChange={(timeScale) => onPatch({ simulation: { timeScale } })}
           />
-        </div>
+        </div>}
 
-        {capabilities.layerAssignment && layerOptions && (
+        {activeTab === 'pattern' && capabilities.layerAssignment && layerOptions && (
           <label className="mt-2 block min-w-0 text-[9px] uppercase tracking-[0.1em] text-zinc-600 sm:w-1/2">
             Layer
             <select
@@ -253,13 +328,7 @@ export function ShowClipEntityDetail({
           </label>
         )}
 
-        {transformEnabled && <details
-          aria-label="Clip Transform"
-          className="mt-2 min-w-0 border-t border-zinc-800/80"
-          open={placementOpen}
-          onToggle={(event) => setPlacementOpen(event.currentTarget.open)}
-        >
-          <summary className="cursor-pointer py-1 text-[9px] font-medium uppercase tracking-[0.12em] text-cyan-300/80">Placement</summary>
+        {activeTab === 'place' && <div role="group" aria-label="Clip Transform" className="min-w-0">
           <div className="grid min-w-0 gap-2 pb-0.5">
             <button
               ref={setPadAnchor}
@@ -304,9 +373,9 @@ export function ShowClipEntityDetail({
               onPatch={onPatch}
             />
           </div>
-        </details>}
+        </div>}
 
-        <ShowEffectStack
+        {activeTab === 'effects' && <ShowEffectStack
           effects={value.effects}
           mirror={value.view.mirror}
           compiledCost={compiledCost}
@@ -315,17 +384,12 @@ export function ShowClipEntityDetail({
           onPreviewEnd={onPreviewEnd}
           onMirrorChange={(mirror) => onPatch({ view: { mirror } })}
           onAdd={onOpenEffects}
-        />
+        />}
 
-        {!primaryOnly && <div data-testid="clip-control-trays" className="mt-1.5">
-          {patternControls.length > 0 && (
-            <details
-              className="min-w-0 border-t border-zinc-800/80"
-              aria-label="Pattern automation targets"
-              open={patternTrayOpen}
-              onToggle={(event) => setPatternTrayOpen(event.currentTarget.open)}
-            >
-              <summary className="cursor-pointer py-1 text-[9px] uppercase tracking-[0.12em] text-cyan-300/80">Pattern controls</summary>
+        <div data-testid="clip-control-trays">
+          {activeTab === 'pattern' && patternControls.length > 0 && (
+            <div className="mt-2 min-w-0 border-t border-zinc-800/80" aria-label="Pattern automation targets">
+              <p className="py-1 text-[9px] uppercase tracking-[0.12em] text-cyan-300/80">Pattern controls</p>
               <div className="overflow-x-auto border-t border-zinc-800/70">
                 <table aria-label="Pattern controls" className="w-full table-fixed border-collapse text-left text-[9px]">
                   <colgroup>
@@ -406,18 +470,19 @@ export function ShowClipEntityDetail({
                   </tbody>
                 </table>
               </div>
-            </details>
+            </div>
           )}
 
-          <details
-            className="min-w-0 border-t border-zinc-800/80"
-            aria-label="Advanced Clip controls"
-            open={advancedTrayOpen}
-            onToggle={(event) => setAdvancedTrayOpen(event.currentTarget.open)}
-          >
-            <summary className="cursor-pointer py-1 text-[9px] uppercase tracking-[0.12em] text-zinc-500">Advanced clip controls</summary>
-            <div className="border-t border-zinc-800/70">
-              <table aria-label="Advanced clip controls" className="w-full table-fixed border-collapse text-left text-[9px]">
+          {activeTab === 'pattern' && structuralControls && (
+            <div className="mt-2 min-w-0 border-t border-zinc-800/80">
+              <p className="py-1 text-[9px] uppercase tracking-[0.12em] text-cyan-300/80">Pattern instance</p>
+              {structuralControls}
+            </div>
+          )}
+
+          {activeTab === 'playback' && (
+            <div className="min-w-0" aria-label="Playback controls">
+              <table aria-label="Playback controls" className="w-full table-fixed border-collapse text-left text-[9px]">
                 <colgroup>
                   <col className="w-7" />
                   <col style={{ width: '24%' }} />
@@ -597,10 +662,10 @@ export function ShowClipEntityDetail({
                   </tr>
                 </tbody>
               </table>
-              {structuralControls}
             </div>
-          </details>
-        </div>}
+          )}
+        </div>
+        </div>
       </div>
     </section>
   )

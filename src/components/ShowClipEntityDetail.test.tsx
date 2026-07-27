@@ -1,10 +1,11 @@
 import { fireEvent, render, screen, within } from '@testing-library/react'
-import { describe, expect, it, vi } from 'vitest'
+import { beforeEach, describe, expect, it, vi } from 'vitest'
 import {
   ShowClipEntityDetail,
   type ShowClipEntityDetailProps,
 } from './ShowClipEntityDetail'
 import type { ShowClipInspectorValue } from '@/engine/showClipInspectorModel'
+import { resetShowClipDetailTabMemory } from '@/engine/showClipDetailTabs'
 
 function value(scope: ShowClipInspectorValue['scope']): ShowClipInspectorValue {
   const scene = scope !== 'global'
@@ -49,6 +50,107 @@ const commonProps = (scope: ShowClipInspectorValue['scope'], onPatch = vi.fn()):
   onPatch,
   onOpenEffects: vi.fn(),
   onMoveLayer: vi.fn(),
+})
+
+/**
+ * #642 moved the body behind tabs, so a test touching Place, Effects or Playback
+ * must go to that tab first. Header fields need no tab.
+ */
+function showTab(name: 'Pattern' | 'Place' | 'Effects' | 'Playback') {
+  fireEvent.click(screen.getByRole('tab', { name: new RegExp(`^${name}`) }))
+}
+
+// The remembered tab is session-scoped, so it would otherwise leak between cases.
+beforeEach(resetShowClipDetailTabMemory)
+
+describe('Clip detail tabs (#642)', () => {
+  it('rests on Pattern and shows one panel at a time', () => {
+    render(<ShowClipEntityDetail {...commonProps('scene-main')} />)
+
+    expect(screen.getAllByRole('tab').map((tab) => tab.textContent?.replace('(has changes)', '')))
+      .toEqual(['Pattern', 'Place', 'Effects', 'Playback'])
+    expect(screen.getAllByRole('tabpanel')).toHaveLength(1)
+    expect(screen.getByRole('tab', { name: /^Pattern/ })).toHaveAttribute('aria-selected', 'true')
+  })
+
+  it('wires the tab to its panel and keeps a roving tab stop', () => {
+    render(<ShowClipEntityDetail {...commonProps('scene-main')} />)
+
+    const pattern = screen.getByRole('tab', { name: /^Pattern/ })
+    const place = screen.getByRole('tab', { name: /^Place/ })
+    expect(screen.getByRole('tabpanel')).toHaveAttribute('aria-labelledby', pattern.id)
+    expect(pattern).toHaveAttribute('tabindex', '0')
+    expect(place).toHaveAttribute('tabindex', '-1')
+  })
+
+  it('moves between tabs with the arrow keys and Home/End', () => {
+    render(<ShowClipEntityDetail {...commonProps('scene-main')} />)
+    const tablist = screen.getByRole('tablist')
+
+    fireEvent.keyDown(tablist, { key: 'ArrowRight' })
+    expect(screen.getByRole('tab', { name: /^Place/ })).toHaveAttribute('aria-selected', 'true')
+
+    fireEvent.keyDown(tablist, { key: 'End' })
+    expect(screen.getByRole('tab', { name: /^Playback/ })).toHaveAttribute('aria-selected', 'true')
+
+    fireEvent.keyDown(tablist, { key: 'Home' })
+    expect(screen.getByRole('tab', { name: /^Pattern/ })).toHaveAttribute('aria-selected', 'true')
+
+    // Wraps rather than dead-ending.
+    fireEvent.keyDown(tablist, { key: 'ArrowLeft' })
+    expect(screen.getByRole('tab', { name: /^Playback/ })).toHaveAttribute('aria-selected', 'true')
+  })
+
+  it('dots only the tabs carrying authored non-default state', () => {
+    const props = commonProps('scene-main')
+    render(<ShowClipEntityDetail
+      {...props}
+      value={{ ...props.value, view: { ...props.value.view, mirror: true } }}
+    />)
+
+    expect(screen.getByRole('tab', { name: /^Effects/ })).toHaveAttribute('data-authored', 'true')
+    expect(screen.getByRole('tab', { name: /^Place/ })).not.toHaveAttribute('data-authored')
+  })
+
+  it('holds the chosen tab across Clips, and falls back without forgetting it', () => {
+    const props = commonProps('scene-main')
+    const { rerender, unmount } = render(<ShowClipEntityDetail {...props} />)
+    showTab('Place')
+
+    // A different Clip in the same panel keeps the facet in view.
+    rerender(<ShowClipEntityDetail {...props} value={{ ...props.value, patternName: 'Other' }} />)
+    expect(screen.getByRole('tab', { name: /^Place/ })).toHaveAttribute('aria-selected', 'true')
+
+    // Closing and reopening the panel keeps it too.
+    unmount()
+    render(<ShowClipEntityDetail {...props} />)
+    expect(screen.getByRole('tab', { name: /^Place/ })).toHaveAttribute('aria-selected', 'true')
+  })
+
+  it('falls back off a 2D Stage without losing the preference', () => {
+    const props = commonProps('scene-main')
+    const { unmount } = render(<ShowClipEntityDetail {...props} />)
+    showTab('Place')
+    unmount()
+
+    render(<ShowClipEntityDetail {...props} transformEnabled={false} />)
+    expect(screen.getByRole('tab', { name: /^Pattern/ })).toHaveAttribute('aria-selected', 'true')
+    unmount()
+
+    // Place returns for the next Clip that can show it.
+    render(<ShowClipEntityDetail {...props} />)
+    expect(screen.getByRole('tab', { name: /^Place/ })).toHaveAttribute('aria-selected', 'true')
+  })
+
+  it('gives a pinned panel its own tab so comparison panels do not move together', () => {
+    const props = commonProps('scene-main')
+    const { unmount } = render(<ShowClipEntityDetail {...props} panelKey="pinned" />)
+    showTab('Effects')
+    unmount()
+
+    render(<ShowClipEntityDetail {...props} panelKey="transient" />)
+    expect(screen.getByRole('tab', { name: /^Pattern/ })).toHaveAttribute('aria-selected', 'true')
+  })
 })
 
 describe('persistent Clip header fields (#641)', () => {
@@ -173,6 +275,7 @@ describe('shared Clip Entity Detail sections (#498)', () => {
     fireEvent.blur(brightness)
     expect(onPatch).toHaveBeenCalledWith({ view: { brightness: 0.35 } })
 
+    showTab('Playback')
     fireEvent.click(screen.getByRole('checkbox', { name: 'Mirror clip' }))
     expect(onPatch).toHaveBeenCalledWith({ view: { mirror: true } })
 
@@ -185,6 +288,7 @@ describe('shared Clip Entity Detail sections (#498)', () => {
     })
     expect(onPatch).toHaveBeenCalledWith({ evaluationPolicy: 'rolling-refresh' })
 
+    showTab('Pattern')
     fireEvent.click(screen.getByRole('checkbox', { name: 'Set Speed target' }))
     expect(onPatch).toHaveBeenCalledWith({ simulation: { controlTargets: undefined } })
   })
@@ -193,6 +297,7 @@ describe('shared Clip Entity Detail sections (#498)', () => {
     const onPatch = vi.fn()
     render(<ShowClipEntityDetail {...commonProps('scene-main', onPatch)} />)
 
+    showTab('Playback')
     const phase = screen.getByRole('spinbutton', { name: 'Phase' })
     expect(phase).toHaveValue(0.25)
     fireEvent.change(phase, { target: { value: '0.5' } })
@@ -204,7 +309,7 @@ describe('shared Clip Entity Detail sections (#498)', () => {
     const onPatch = vi.fn()
     const props = commonProps('scene-main', onPatch)
     const { rerender } = render(<ShowClipEntityDetail {...props} />)
-    fireEvent.click(screen.getByText('Advanced clip controls'))
+    showTab('Playback')
 
     const presentation = screen.getByRole('combobox', { name: 'Clip presentation' })
     expect(Array.from(presentation.querySelectorAll('option')).map((option) => option.textContent)).toEqual([
@@ -230,6 +335,7 @@ describe('shared Clip Entity Detail sections (#498)', () => {
     const onPatch = vi.fn()
     render(<ShowClipEntityDetail {...commonProps('scene-main', onPatch)} />)
 
+    showTab('Place')
     expect(screen.getByRole('group', { name: 'Clip Transform' })).toBeInTheDocument()
     const positionX = screen.getByRole('spinbutton', { name: 'Content X' })
     fireEvent.change(positionX, { target: { value: '0.25' } })
@@ -253,6 +359,7 @@ describe('shared Clip Entity Detail sections (#498)', () => {
     const onPatch = vi.fn()
     const props = commonProps('scene-main', onPatch)
     const { rerender } = render(<ShowClipEntityDetail {...props} />)
+    showTab('Place')
 
     const contentX = screen.getByRole('spinbutton', { name: 'Content X' })
     // Enabling moved into the placement pad, so the panel no longer owns it.
@@ -277,6 +384,7 @@ describe('shared Clip Entity Detail sections (#498)', () => {
     const props = commonProps('scene-main')
     render(<ShowClipEntityDetail {...props} />)
 
+    showTab('Place')
     const placement = screen.getByRole('group', { name: 'Clip Transform' })
     const edit = within(placement).getByRole('button', { name: 'Edit placement' })
     expect(edit).toHaveAttribute('aria-expanded', 'false')
@@ -289,23 +397,25 @@ describe('shared Clip Entity Detail sections (#498)', () => {
     expect(screen.getByRole('application', { name: /Placement pad/ })).toBeInTheDocument()
   })
 
-  it('opens Placement by default and lets it collapse temporarily (#63)', () => {
+  it('reaches Placement through its own tab rather than a disclosure (#63, #642)', () => {
     render(<ShowClipEntityDetail {...commonProps('scene-main')} />)
 
-    const placement = screen.getByRole('group', { name: 'Clip Transform' })
-    const disclosure = within(placement).getByText('Placement')
-    expect(placement).toHaveAttribute('open')
+    // Pattern is the resting tab, so placement is not rendered at all.
+    expect(screen.queryByRole('spinbutton', { name: 'Content X' })).not.toBeInTheDocument()
+
+    showTab('Place')
+    expect(screen.getByRole('group', { name: 'Clip Transform' })).toBeInTheDocument()
     expect(screen.getByRole('spinbutton', { name: 'Content X' })).toBeVisible()
 
-    fireEvent.click(disclosure)
-    expect(placement).not.toHaveAttribute('open')
-    expect(screen.getByRole('spinbutton', { name: 'Content X' })).not.toBeVisible()
+    showTab('Pattern')
+    expect(screen.queryByRole('spinbutton', { name: 'Content X' })).not.toBeInTheDocument()
   })
 
   it('does not offer the 2D Transform group for an incompatible Stage (#529)', () => {
     render(<ShowClipEntityDetail {...commonProps('scene-main')} transformEnabled={false} />)
 
     expect(screen.queryByRole('group', { name: 'Clip Transform' })).not.toBeInTheDocument()
+    expect(screen.queryByRole('tab', { name: /^Place/ })).not.toBeInTheDocument()
   })
 
   it('shows an authored Mirror in the active Effect stack and removes it through the Effect UI (#543)', () => {
@@ -313,6 +423,7 @@ describe('shared Clip Entity Detail sections (#498)', () => {
     const props = commonProps('scene-main', onPatch)
     render(<ShowClipEntityDetail {...props} value={{ ...props.value, view: { ...props.value.view, mirror: true } }} />)
 
+    showTab('Effects')
     expect(screen.getByText('Mirror')).toBeInTheDocument()
     fireEvent.click(screen.getByRole('button', { name: 'Remove Mirror Effect' }))
     expect(onPatch).toHaveBeenCalledWith({ view: { mirror: false } })
@@ -325,12 +436,6 @@ describe('shared Clip Entity Detail sections (#498)', () => {
     expect(patternTable).toHaveTextContent('Speed')
     expect(patternTable).toHaveTextContent('sliderSpeed')
     expect(patternTable).toHaveTextContent('0–100%')
-    expect(screen.getByRole('table', { name: 'Advanced clip controls' })).toBeInTheDocument()
-    const advancedRows = screen.getByRole('table', { name: 'Advanced clip controls' }).querySelectorAll('tbody tr')
-    expect(advancedRows[0].children[1]).toHaveTextContent('Mirror clip')
-    expect(advancedRows[0].children[0]).toContainElement(screen.getByRole('checkbox', { name: 'Mirror clip' }))
-    expect(advancedRows[1].children[1]).toHaveTextContent('Phase')
-    expect(advancedRows[1].children[2]).toContainElement(screen.getByRole('spinbutton', { name: 'Phase' }))
     expect(screen.getByRole('combobox', { name: 'Source pattern' })).toHaveClass(
       'h-5',
       'pl-[5px]',
@@ -339,6 +444,14 @@ describe('shared Clip Entity Detail sections (#498)', () => {
     expect(screen.getByRole('textbox', { name: 'Animation speed exact multiplier' }).parentElement).toHaveClass('h-5')
     expect(screen.getByRole('textbox', { name: 'Speed target exact percentage' }).parentElement)
       .toHaveClass('h-5', 'border', 'border-zinc-700')
+
+    showTab('Playback')
+    expect(screen.getByRole('table', { name: 'Playback controls' })).toBeInTheDocument()
+    const advancedRows = screen.getByRole('table', { name: 'Playback controls' }).querySelectorAll('tbody tr')
+    expect(advancedRows[0].children[1]).toHaveTextContent('Mirror clip')
+    expect(advancedRows[0].children[0]).toContainElement(screen.getByRole('checkbox', { name: 'Mirror clip' }))
+    expect(advancedRows[1].children[1]).toHaveTextContent('Phase')
+    expect(advancedRows[1].children[2]).toContainElement(screen.getByRole('spinbutton', { name: 'Phase' }))
     expect(screen.getByRole('spinbutton', { name: 'Phase' })).toHaveClass('h-5', 'border-0', 'border-b', 'text-left')
   })
 
@@ -365,9 +478,10 @@ describe('shared Clip Entity Detail sections (#498)', () => {
   })
 
   it('matches Advanced Clip control rows to the compact three-column rhythm (#63)', () => {
-    render(<ShowClipEntityDetail {...commonProps('scene-main')} advancedDefaultOpen />)
+    render(<ShowClipEntityDetail {...commonProps('scene-main')} />)
 
-    const table = screen.getByRole('table', { name: 'Advanced clip controls' })
+    showTab('Playback')
+    const table = screen.getByRole('table', { name: 'Playback controls' })
     const columns = table.querySelectorAll('col')
     expect(columns).toHaveLength(3)
     expect(columns[0]).toHaveClass('w-7')
@@ -399,7 +513,9 @@ describe('shared Clip Entity Detail sections (#498)', () => {
       const brightness = screen.getByRole('textbox', { name: 'Brightness exact percentage' })
       fireEvent.change(brightness, { target: { value: '45%' } })
       fireEvent.blur(brightness)
+      showTab('Playback')
       fireEvent.click(screen.getByRole('checkbox', { name: 'Mirror clip' }))
+      showTab('Effects')
       fireEvent.click(screen.getByRole('button', { name: 'Add' }))
 
       expect(onPatch).toHaveBeenCalledWith({ view: { brightness: 0.45 } })
@@ -475,6 +591,7 @@ describe('placement field display (#617)', () => {
         viewport: { enabled: true, x: 0, y: 0, width: 2 / 3, height: 1 },
       }}
     />)
+    showTab('Place')
 
     expect(screen.getByRole('spinbutton', { name: 'Content X' })).toHaveValue(-0.215)
     expect(screen.getByRole('textbox', { name: 'Viewport Width exact multiplier' })).toHaveValue('0.67')
