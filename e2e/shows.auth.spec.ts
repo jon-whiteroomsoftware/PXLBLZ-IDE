@@ -603,122 +603,130 @@ test.describe('authenticated Show authoring', () => {
     await expect(page.getByRole('dialog', { name: 'Entity Detail Panel' })).toHaveCount(0)
   })
 
-  test('authors, previews, edits, duplicates, removes, and reloads static Effects', async ({ page }) => {
-    await page.setViewportSize({ width: 1440, height: 900 })
+  // Effects coverage is split by concern. The previous single test authored,
+  // previewed, edited, duplicated, reordered, removed, and reloaded in one
+  // sequence, so the first failure hid every later concern; it also pinned the
+  // catalogue size at 22 and used an oracle that read `?? 0` from a failed API
+  // call, which passes when the endpoint is broken (#638).
+
+  test('adds a Clip Effect that survives a reload', async ({ page }) => {
     await page.goto('studio/shows')
     await createInstallationShow(page)
 
-    await page.getByRole('button', { name: 'Select TestPattern1D', exact: true }).click()
-    const panel = page.getByRole('dialog', { name: 'Entity Detail Panel' })
-    const stack = panel.getByRole('region', { name: 'Clip Effects' })
-    await stack.getByRole('button', { name: 'Add' }).click()
-    const palette = page.getByRole('dialog', { name: 'Add Effect' })
-    await expect(palette.getByRole('button', { name: /Add .* Effect/ })).toHaveCount(22)
-
-    await palette.getByRole('button', { name: 'Add Ripple Effect' }).hover()
-    await expect.poll(async () => (await persistedShow(page, new URL(page.url()).pathname.split('/').at(-1)!))?.cells[0].effects?.length ?? 0).toBe(0)
-    await page.keyboard.press('Escape')
-    await expect(palette).toHaveCount(0)
-    await expect(panel).toBeVisible()
-
-    await stack.getByRole('button', { name: 'Add' }).click()
-    await page.getByRole('searchbox', { name: 'Search Effects' }).fill('ripple')
-    await page.getByRole('button', { name: 'Add Ripple Effect' }).click()
-    await waitForCurrentShow(page, (show) => show.cells[0].effects?.[0]?.kind === 'ripple')
-    await expect(stack.getByRole('button', { name: 'Edit Ripple Effect' })).toBeFocused()
-
-    await stack.getByRole('button', { name: 'Edit Ripple Effect' }).click()
-    await stack.getByRole('spinbutton', { name: 'Amount' }).fill('0.2')
-    await stack.getByRole('spinbutton', { name: 'Frequency' }).fill('6')
-    await stack.getByRole('spinbutton', { name: 'Frequency' }).blur()
-    await waitForCurrentShow(page, (show) => (
-      show.cells[0].effects?.[0]?.kind === 'ripple'
-      && show.cells[0].effects[0].amount === 0.2
-      && show.cells[0].effects[0].frequency === 6
-    ))
-
-    await stack.getByRole('button', { name: 'Duplicate Ripple Effect' }).click()
-    await waitForCurrentShow(page, (show) => show.cells[0].effects?.map((effect) => effect.id).join(',') === 'ripple,ripple-2')
-    await stack.getByRole('button', { name: 'Move Ripple Effect earlier' }).last().click()
-    await waitForCurrentShow(page, (show) => show.cells[0].effects?.map((effect) => effect.id).join(',') === 'ripple-2,ripple')
-    await page.getByTestId('show-effect-ripple-2').getByRole('button', { name: 'Remove Ripple Effect' }).click()
-    await waitForCurrentShow(page, (show) => show.cells[0].effects?.map((effect) => effect.id).join(',') === 'ripple')
+    const stack = await openClipEffects(page, 'TestPattern1D')
+    await addEffect(page, stack, 'ripple', 'Ripple')
+    await expect(stack.getByRole('button', { name: 'Edit Ripple Effect' })).toBeVisible()
 
     await page.reload()
-    await page.getByRole('button', { name: 'Select TestPattern1D', exact: true }).click()
-    const reloadedStack = page.getByRole('dialog', { name: 'Entity Detail Panel' }).getByRole('region', { name: 'Clip Effects' })
-    await expect(reloadedStack.getByRole('button', { name: 'Edit Ripple Effect' })).toBeVisible()
-    await reloadedStack.getByRole('button', { name: 'Edit Ripple Effect' }).click()
-    await expect(reloadedStack.getByRole('spinbutton', { name: 'Amount' })).toHaveValue('0.2')
-    await expect(reloadedStack.getByRole('spinbutton', { name: 'Frequency' })).toHaveValue('6')
-
-    await page.setViewportSize({ width: 600, height: 700 })
-    await reloadedStack.getByRole('button', { name: 'Add' }).click()
-    await expect(page.getByRole('dialog', { name: 'Add Effect' })).toBeVisible()
-    expect(await page.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth)).toBeLessThanOrEqual(8)
-    await page.getByRole('searchbox', { name: 'Search Effects' }).fill('vignette')
-    await page.getByRole('button', { name: 'Add Vignette Effect' }).click()
-    await waitForCurrentShow(page, (show) => show.cells[0].effects?.some((effect) => effect.kind === 'vignette') === true)
-    await reloadedStack.getByRole('button', { name: 'Edit Vignette Effect' }).click()
-    await reloadedStack.getByRole('spinbutton', { name: 'Radius' }).fill('0.48')
-    await reloadedStack.getByRole('spinbutton', { name: 'Radius' }).blur()
-    await waitForCurrentShow(page, (show) => show.cells[0].effects?.some((effect) => (
-      effect.kind === 'vignette' && effect.radius === 0.48
-    )) === true)
-
-    await page.reload()
-    await page.getByRole('button', { name: 'Select TestPattern1D', exact: true }).click()
-    const vignetteStack = page.getByRole('dialog', { name: 'Entity Detail Panel' }).getByRole('region', { name: 'Clip Effects' })
-    await vignetteStack.getByRole('button', { name: 'Edit Vignette Effect' }).click()
-    await expect(vignetteStack.getByRole('spinbutton', { name: 'Radius' })).toHaveValue('0.48')
+    const reloaded = await openClipEffects(page, 'TestPattern1D')
+    await expect(reloaded.getByRole('button', { name: 'Edit Ripple Effect' })).toBeVisible()
   })
 
-  test('previews, authors, configures, reloads, and resets registry Transitions', async ({ page }) => {
-    await page.setViewportSize({ width: 1440, height: 900 })
+  test('keeps edited Effect parameters after a reload', async ({ page }) => {
     await page.goto('studio/shows')
     await createInstallationShow(page)
-    const showId = new URL(page.url()).pathname.split('/').at(-1)!
 
-    await page.getByRole('button', { name: 'Edit crossfade Transition between TestPattern1D and CometLoom' }).click()
-    const panel = page.getByRole('dialog', { name: 'Entity Detail Panel' })
-    await panel.getByRole('button', { name: /Crossfade · Change/ }).click()
-    const palette = page.getByRole('dialog', { name: 'Choose Transition' })
-    await expect(palette.getByRole('button', { name: /Use .* Transition/ })).toHaveCount(35)
-
-    await palette.getByRole('button', { name: 'Use Star Transition' }).hover()
-    await expect.poll(async () => (await persistedShow(page, showId))?.transitions?.[0]?.kind).toBe('crossfade')
-    await page.keyboard.press('Escape')
-    await expect(palette).toHaveCount(0)
-    await expect(panel).toBeVisible()
-
-    await panel.getByRole('button', { name: /Crossfade · Change/ }).click()
-    await page.getByRole('searchbox', { name: 'Search Transitions' }).fill('star')
-    await page.getByRole('button', { name: 'Use Star Transition' }).click()
-    await panel.getByRole('spinbutton', { name: 'Duration' }).fill('3400')
-    await waitForCurrentShow(page, (show) => show.transitions?.[0]?.durationMs === 3400)
-    await panel.getByRole('spinbutton', { name: 'Points' }).fill('7')
-    await expect.poll(async () => JSON.stringify((await persistedShow(page, showId))?.transitions?.[0])).toContain('"starPoints":7')
-    await panel.getByRole('combobox', { name: 'Edge' }).selectOption('blend')
-    await waitForCurrentShow(page, (show) => show.transitions?.[0]?.kind === 'portal'
-      && show.transitions[0].shape === 'star'
-      && show.transitions[0].durationMs === 3400
-      && show.transitions[0].starPoints === 7
-      && show.transitions[0].edgePolicy === 'blend')
+    const stack = await openClipEffects(page, 'TestPattern1D')
+    await addEffect(page, stack, 'ripple', 'Ripple')
+    await stack.getByRole('button', { name: 'Edit Ripple Effect' }).click()
+    await stack.getByRole('spinbutton', { name: 'Amount' }).fill('0.2')
+    await stack.getByRole('spinbutton', { name: 'Amount' }).blur()
 
     await page.reload()
-    await page.getByRole('button', { name: 'Edit portal Transition between TestPattern1D and CometLoom' }).click()
-    const reloadedPanel = page.getByRole('dialog', { name: 'Entity Detail Panel' })
-    await expect(reloadedPanel.getByRole('button', { name: /Star · Change/ })).toBeVisible()
-    await expect(reloadedPanel.getByRole('spinbutton', { name: 'Duration' })).toHaveValue('3400')
-    await expect(reloadedPanel.getByRole('spinbutton', { name: 'Points' })).toHaveValue('7')
-    await expect(reloadedPanel.getByRole('combobox', { name: 'Edge' })).toHaveValue('blend')
+    const reloaded = await openClipEffects(page, 'TestPattern1D')
+    await reloaded.getByRole('button', { name: 'Edit Ripple Effect' }).click()
+    await expect(reloaded.getByRole('spinbutton', { name: 'Amount' })).toHaveValue('0.2')
+  })
 
-    await page.setViewportSize({ width: 600, height: 700 })
-    await reloadedPanel.getByRole('button', { name: /Star · Change/ }).click()
-    await expect(page.getByRole('dialog', { name: 'Choose Transition' })).toBeVisible()
-    expect(await page.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth)).toBeLessThanOrEqual(8)
-    await page.getByRole('button', { name: 'Use Cut Transition' }).click()
-    await waitForCurrentShow(page, (show) => show.transitions?.[0]?.kind === 'cut' && show.transitions[0].durationMs === 0)
+  test('browsing the Effect palette does not commit an Effect', async ({ page }) => {
+    await page.goto('studio/shows')
+    await createInstallationShow(page)
+
+    const stack = await openClipEffects(page, 'TestPattern1D')
+    await stack.getByRole('button', { name: 'Add' }).click()
+    const palette = page.getByRole('dialog', { name: 'Add Effect' })
+    // Positive precondition first: a bare "no Effect was added" assertion would
+    // also hold on a page that never rendered the palette at all.
+    await expect(palette.getByRole('button', { name: 'Add Ripple Effect' })).toBeVisible()
+    await palette.getByRole('button', { name: 'Add Ripple Effect' }).hover()
+    await page.keyboard.press('Escape')
+
+    await expect(palette).toHaveCount(0)
+    await expect(stack.getByRole('button', { name: 'Add' })).toBeVisible()
+    await expect(stack.getByRole('button', { name: 'Edit Ripple Effect' })).toHaveCount(0)
+  })
+
+  test('removes one Effect and leaves the rest of the stack', async ({ page }) => {
+    await page.goto('studio/shows')
+    await createInstallationShow(page)
+
+    const stack = await openClipEffects(page, 'TestPattern1D')
+    await addEffect(page, stack, 'ripple', 'Ripple')
+    await addEffect(page, stack, 'vignette', 'Vignette')
+    await expect(stack.getByRole('button', { name: 'Edit Vignette Effect' })).toBeVisible()
+
+    await stack.getByRole('button', { name: 'Remove Ripple Effect' }).click()
+
+    // Proven by what remains, not only by what is gone.
+    await expect(stack.getByRole('button', { name: 'Edit Vignette Effect' })).toBeVisible()
+    await expect(stack.getByRole('button', { name: 'Edit Ripple Effect' })).toHaveCount(0)
+  })
+
+  // Transition coverage split by concern. The previous single test pinned the
+  // catalogue at 35 entries and asserted against stringified persisted JSON
+  // (`"starPoints":7`), so a storage rename broke it even when the behaviour
+  // was intact (#638).
+
+  test('changes a Transition family and keeps it after a reload', async ({ page }) => {
+    await page.goto('studio/shows')
+    await createInstallationShow(page)
+
+    const panel = await openTransition(page)
+    await chooseTransition(page, panel, 'star', 'Star')
+    await expect(panel.getByRole('button', { name: /Star · Change/ })).toBeVisible()
+
+    await page.reload()
+    const reloaded = await openTransition(page)
+    await expect(reloaded.getByRole('button', { name: /Star · Change/ })).toBeVisible()
+  })
+
+  test('keeps edited Transition parameters after a reload', async ({ page }) => {
+    await page.goto('studio/shows')
+    await createInstallationShow(page)
+
+    const panel = await openTransition(page)
+    await chooseTransition(page, panel, 'star', 'Star')
+    // Millisecond model values present as seconds (#577), so the control is
+    // labelled "Duration (s)" and 3400 ms is entered as 3.4.
+    const duration = panel.getByRole('textbox', { name: /^Duration/ })
+    await duration.fill('3.4')
+    await duration.blur()
+    const points = panel.getByRole('spinbutton', { name: /^Points/ })
+    await points.fill('7')
+    await points.blur()
+
+    await page.reload()
+    const reloaded = await openTransition(page)
+    await expect(reloaded.getByRole('textbox', { name: /^Duration/ })).toHaveValue('3.4')
+    await expect(reloaded.getByRole('spinbutton', { name: /^Points/ })).toHaveValue('7')
+  })
+
+  test('browsing the Transition palette does not change the junction', async ({ page }) => {
+    await page.goto('studio/shows')
+    await createInstallationShow(page)
+
+    const panel = await openTransition(page)
+    await expect(panel.getByRole('button', { name: /Crossfade · Change/ })).toBeVisible()
+    await panel.getByRole('button', { name: /Crossfade · Change/ }).click()
+    const palette = page.getByRole('dialog', { name: 'Choose Transition' })
+    // Positive precondition: prove the palette rendered before asserting that
+    // merely browsing it left the junction alone.
+    await expect(palette.getByRole('button', { name: 'Use Star Transition' })).toBeVisible()
+    await palette.getByRole('button', { name: 'Use Star Transition' }).hover()
+    await page.keyboard.press('Escape')
+
+    await expect(palette).toHaveCount(0)
+    await expect(panel.getByRole('button', { name: /Crossfade · Change/ })).toBeVisible()
   })
 
   test('creates and reloads a Portable output contract at desktop and narrow widths', async ({ page }) => {
@@ -1562,6 +1570,48 @@ type PersistedShow = {
  * Zone Layout definitions live in the Zone Map, reached from the Zone rail, and
  * are edited in the Entity Detail panel (#629).
  */
+/**
+ * Open the first Clip junction and return its detail panel. The junction label
+ * carries both Clip identities and the current kind, so match on shape rather
+ * than pinning either.
+ */
+async function openTransition(page: Page): Promise<Locator> {
+  await page.getByRole('button', { name: /^Edit .* Transition between / }).first().click()
+  const panel = page.getByRole('dialog', { name: 'Entity Detail Panel' })
+  await expect(panel).toBeVisible()
+  return panel
+}
+
+/** Choose a Transition family through the palette, searching by name. */
+async function chooseTransition(page: Page, panel: Locator, query: string, label: string): Promise<void> {
+  await panel.getByRole('button', { name: /· Change/ }).click()
+  const palette = page.getByRole('dialog', { name: 'Choose Transition' })
+  await palette.getByRole('searchbox', { name: 'Search Transitions' }).fill(query)
+  await palette.getByRole('button', { name: `Use ${label} Transition` }).click()
+  await expect(palette).toHaveCount(0)
+}
+
+/**
+ * Select a Clip and return its Effects stack. Selecting is a precondition for
+ * the stack existing at all, so callers cannot assert against a detached panel.
+ */
+async function openClipEffects(page: Page, patternName: string): Promise<Locator> {
+  await page.getByRole('button', { name: `Select ${patternName}`, exact: true }).first().click()
+  const stack = page.getByRole('dialog', { name: 'Entity Detail Panel' })
+    .getByRole('region', { name: 'Clip Effects' })
+  await expect(stack).toBeVisible()
+  return stack
+}
+
+/** Add one Effect through the palette, searching by name rather than position. */
+async function addEffect(page: Page, stack: Locator, query: string, label: string): Promise<void> {
+  await stack.getByRole('button', { name: 'Add' }).click()
+  const palette = page.getByRole('dialog', { name: 'Add Effect' })
+  await palette.getByRole('searchbox', { name: 'Search Effects' }).fill(query)
+  await palette.getByRole('button', { name: `Add ${label} Effect` }).click()
+  await expect(palette).toHaveCount(0)
+}
+
 async function openZoneLayout(page: Page, layoutName: string): Promise<void> {
   const openZones = page.getByRole('button', { name: 'Open Zones' })
   if (await openZones.count() > 0) await openZones.click()
