@@ -10,10 +10,6 @@
       "spec": "shows.auth.spec.ts"
     },
     {
-      "name": "Add clip to main in Scene 2",
-      "spec": "shows.auth.spec.ts"
-    },
-    {
       "name": "Animation speed 0.32\\u00d7 \\u00b7 Speed 0.08",
       "spec": "shows.auth.spec.ts"
     },
