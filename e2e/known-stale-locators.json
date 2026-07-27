@@ -96,10 +96,6 @@
       "spec": "shows.auth.spec.ts"
     },
     {
-      "name": "Select NeonCircuitBoard",
-      "spec": "show-visual-toolkit-docs.auth.spec.ts"
-    },
-    {
       "name": "Select Overlay pulse",
       "spec": "shows.auth.spec.ts"
     },

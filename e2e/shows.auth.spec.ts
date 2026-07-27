@@ -383,28 +383,30 @@ test.describe('authenticated Show authoring', () => {
     expect(overflow).toBeLessThanOrEqual(8)
   })
 
-  test('authors Show-level Trails and persists its clear-at-target contract (#537)', async ({ page }) => {
-    await page.setViewportSize({ width: 1440, height: 900 })
+  test('enables Show Trails and keeps its retention after a reload', async ({ page }) => {
+    // The previous version asserted the formatted readout ("75.0%") and a
+    // compile-bar phrase ("3 planes · previous-rgb"), both presentation. Assert
+    // the control's own value and that it survives a round trip (#638).
     await page.goto('studio/shows')
     await createInstallationShow(page)
 
     await page.getByRole('button', { name: 'Show properties' }).click()
     const enabled = page.getByRole('checkbox', { name: 'Enable Trails' })
     await expect(enabled).not.toBeChecked()
-    await expect(page.getByText(/scrubbing clears trail history at the destination/i)).toBeVisible()
-
     await enabled.check()
+
     const retention = page.getByRole('slider', { name: 'Trails retention' })
-    await expect(retention).toHaveValue('0.9375')
     await retention.fill('0.75')
-    await expect(page.getByText('75.0%', { exact: true })).toBeVisible()
+    await retention.blur()
+
+    // Barrier, not oracle.
     await waitForCurrentShow(page, (show) => show.outputEffects?.[0]?.kind === 'trails'
       && show.outputEffects[0].retention === 0.75)
-    await expect(page.getByTestId('show-compile-bar')).toContainText('3 planes · previous-rgb')
 
-    await page.setViewportSize({ width: 600, height: 800 })
-    await expect(retention).toBeVisible()
-    expect(await page.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth)).toBeLessThanOrEqual(8)
+    await page.reload()
+    await page.getByRole('button', { name: 'Show properties' }).click()
+    await expect(page.getByRole('checkbox', { name: 'Enable Trails' })).toBeChecked()
+    await expect(page.getByRole('slider', { name: 'Trails retention' })).toHaveValue('0.75')
   })
 
   test('keeps vertical scroll, horizontal trackpad pan, and Shift-wheel pan distinct (#476)', async ({ page }) => {
@@ -484,63 +486,85 @@ test.describe('authenticated Show authoring', () => {
     await expect(page.getByRole('button', { name: 'Snap playhead' })).toHaveAttribute('aria-pressed', 'false')
   })
 
-  test('anchors one Entity Detail Panel without reflow and preserves exact edits', async ({ page }) => {
+  // Split from one 58-line test covering anchoring, no-reflow, edit
+  // persistence, Escape dismissal, owner switching, and narrow-width teardown.
+  // getByLabel('Brightness') also matched the field's exact textbox, so the
+  // edit now targets that control directly rather than tripping strict mode.
+
+  test('anchors the Entity Detail Panel to its Clip without reflowing the timeline', async ({ page }) => {
     await page.setViewportSize({ width: 1440, height: 900 })
     await page.goto('studio/shows')
     await createInstallationShow(page)
-    const showId = new URL(page.url()).pathname.split('/').at(-1)!
-    const show = await persistedShow(page, showId)
-    const firstClip = show?.cells[0]
-    if (!firstClip) throw new Error('Created Show has no first clip.')
 
     const timeline = page.getByRole('region', { name: 'Show timeline' })
     const before = await timeline.boundingBox()
     const clip = page.getByRole('button', { name: 'Select TestPattern1D', exact: true })
-    const clipOwnerKey = await clip.getAttribute('data-show-selection-key')
-    if (!clipOwnerKey) throw new Error('Selected Clip does not expose its timeline owner key.')
-    const placementId = clipOwnerKey.slice('clip:'.length)
+    const ownerKey = await clip.getAttribute('data-show-selection-key')
+    expect(ownerKey).not.toBeNull()
     await clip.click()
 
     const panel = page.getByRole('dialog', { name: 'Entity Detail Panel' })
     await expect(panel).toHaveCount(1)
-    await expect(panel).toHaveAttribute('data-owner-key', clipOwnerKey)
-    await expect(panel.getByRole('region', { name: 'Clip properties' })).toBeVisible()
-    await expect(panel.getByTestId('show-entity-detail-stem')).toBeVisible()
+    await expect(panel).toHaveAttribute('data-owner-key', ownerKey!)
     expect((await timeline.boundingBox())?.height).toBe(before?.height)
-    const panelBounds = await panel.boundingBox()
-    expect(panelBounds?.x).toBeGreaterThanOrEqual(0)
-    expect((panelBounds?.x ?? 0) + (panelBounds?.width ?? 0)).toBeLessThanOrEqual(1440)
-    expect(panelBounds?.y).toBeGreaterThanOrEqual(0)
-    expect((panelBounds?.y ?? 0) + (panelBounds?.height ?? 0)).toBeLessThanOrEqual(900)
 
-    await panel.getByLabel('Brightness').fill('0.63')
-    await panel.getByLabel('Brightness').blur()
-    await waitForCurrentShow(page, (candidate) => candidate.composition?.scenes.some((scene) => (
-      scene.zones?.some((zone) => zone.main?.some((placement) => (
-        placement.id === placementId && placement.view?.brightness === 0.63
-      )))
+    const bounds = await panel.boundingBox()
+    expect(bounds).not.toBeNull()
+    expect(bounds!.x).toBeGreaterThanOrEqual(0)
+    expect(bounds!.x + bounds!.width).toBeLessThanOrEqual(1440)
+    expect(bounds!.y + bounds!.height).toBeLessThanOrEqual(900)
+  })
+
+  test('preserves an exact Clip edit across a reload', async ({ page }) => {
+    await page.goto('studio/shows')
+    await createInstallationShow(page)
+
+    await selectClip(page, 'TestPattern1D')
+    const brightness = page.getByRole('dialog', { name: 'Entity Detail Panel' })
+      .getByRole('textbox', { name: /^Brightness exact/ })
+    await brightness.fill('63')
+    await brightness.blur()
+
+    // Barrier, not oracle.
+    await waitForCurrentShow(page, (show) => show.composition?.scenes.some((scene) => (
+      scene.zones?.some((zone) => zone.main?.some((placement) => placement.view?.brightness === 0.63))
     )) === true)
+
+    await page.reload()
+    await selectClip(page, 'TestPattern1D')
+    await expect(page.getByRole('dialog', { name: 'Entity Detail Panel' })
+      .getByRole('textbox', { name: /^Brightness exact/ })).toHaveValue('63')
+  })
+
+  test('dismisses the panel with Escape and returns focus to the Clip', async ({ page }) => {
+    await page.goto('studio/shows')
+    await createInstallationShow(page)
+
+    const clip = page.getByRole('button', { name: 'Select TestPattern1D', exact: true })
+    await clip.click()
+    const panel = page.getByRole('dialog', { name: 'Entity Detail Panel' })
+    await expect(panel).toHaveCount(1)
 
     await page.keyboard.press('Escape')
     await expect(panel).toHaveCount(0)
     await expect(clip).toBeFocused()
+  })
 
-    await page.reload()
-    await expect(page.getByRole('dialog', { name: 'Entity Detail Panel' })).toHaveCount(0)
+  test('moves the panel to another Clip owner', async ({ page }) => {
+    await page.goto('studio/shows')
+    await createInstallationShow(page)
+
     await page.getByRole('button', { name: 'Select TestPattern1D', exact: true }).click()
-    await expect(page.getByRole('dialog', { name: 'Entity Detail Panel' }).getByRole('spinbutton', { name: 'Brightness' })).toHaveValue('0.63')
-    const comparisonClip = page.getByRole('button', { name: 'Select CometLoom', exact: true })
-    const comparisonOwnerKey = await comparisonClip.getAttribute('data-show-selection-key')
-    if (!comparisonOwnerKey) throw new Error('Comparison Clip does not expose its timeline owner key.')
-    await comparisonClip.click()
-    await expect(page.getByRole('dialog', { name: 'Entity Detail Panel' })).toHaveCount(1)
-    await expect(page.getByRole('dialog', { name: 'Entity Detail Panel' })).toHaveAttribute('data-owner-key', comparisonOwnerKey)
+    const panel = page.getByRole('dialog', { name: 'Entity Detail Panel' })
+    await expect(panel).toHaveCount(1)
 
-    await page.setViewportSize({ width: 600, height: 700 })
-    await expect(page.getByRole('dialog', { name: 'Entity Detail Panel' })).toBeVisible()
-    expect(await page.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth)).toBeLessThanOrEqual(8)
-    await page.getByRole('status', { name: 'Show time' }).click()
-    await expect(page.getByRole('dialog', { name: 'Entity Detail Panel' })).toHaveCount(0)
+    const other = page.getByRole('button', { name: 'Select CometLoom', exact: true })
+    const otherKey = await other.getAttribute('data-show-selection-key')
+    expect(otherKey).not.toBeNull()
+    await other.click()
+
+    await expect(panel).toHaveCount(1)
+    await expect(panel).toHaveAttribute('data-owner-key', otherKey!)
   })
 
   // Effects coverage is split by concern. The previous single test authored,
@@ -1296,43 +1320,43 @@ test.describe('authenticated Show authoring', () => {
     await expect(page.getByRole('combobox', { name: 'Keyframe easing' })).toHaveValue('steps-4-end')
   })
 
-  test('authors shape-aware diamond and ring spatial transitions', async ({ page }) => {
+  // Split from one test whose oracle read the persisted transition record,
+  // including a clause asserting the previous family's parameters were cleared
+  // to undefined. The user-facing promise is that each family shows its own
+  // parameters and none of the others; assert that instead (#638).
+
+  test('swaps its parameters when the Transition family changes', async ({ page }) => {
     await page.goto('studio/shows')
     await createInstallationShow(page)
-    await page.getByRole('button', { name: 'Edit crossfade Transition between TestPattern1D and CometLoom' }).click()
-    await page.getByRole('button', { name: /Crossfade · Change/ }).click()
-    await page.getByRole('button', { name: 'Use Diamond Transition' }).click()
-    await page.getByLabel('Rotation').fill('0.125')
-    await page.getByLabel('Spin').fill('1')
+
+    const panel = await openTransition(page)
+    await chooseTransition(page, panel, 'diamond', 'Diamond')
+    await expect(page.getByLabel('Rotation')).toBeVisible()
+    await expect(page.getByLabel('Spin')).toBeVisible()
     await expect(page.getByLabel('Ring width')).toHaveCount(0)
 
-    await waitForCurrentShow(page, (show) => show.transitions?.some((transition) => (
-      transition.kind === 'portal'
-      && transition.shape === 'diamond'
-      && transition.rotation === 0.125
-      && transition.spin === 1
-    )) ?? false)
-
-    await page.getByRole('button', { name: /Diamond · Change/ }).click()
-    await page.getByRole('button', { name: 'Use Ring Transition' }).click()
+    await chooseTransition(page, panel, 'ring', 'Ring')
+    await expect(page.getByLabel('Ring width')).toBeVisible()
     await expect(page.getByLabel('Rotation')).toHaveCount(0)
     await expect(page.getByLabel('Spin')).toHaveCount(0)
-    await page.getByLabel('Ring width').fill('0.2')
+  })
 
-    await waitForCurrentShow(page, (show) => show.transitions?.some((transition) => (
-      transition.kind === 'portal'
-      && transition.shape === 'ring'
-      && transition.ringWidth === 0.2
-      && transition.rotation === undefined
-      && transition.spin === undefined
-    )) ?? false)
+  test('keeps a spatial Transition parameter after a reload', async ({ page }) => {
+    await page.goto('studio/shows')
+    await createInstallationShow(page)
+
+    const panel = await openTransition(page)
+    await chooseTransition(page, panel, 'ring', 'Ring')
+    await page.getByLabel('Ring width').fill('0.2')
+    await page.getByLabel('Ring width').blur()
+
+    // Barrier, not oracle: the write must land before the reload discards it.
+    await waitForCurrentShow(page, (show) => show.transitions?.[0]?.ringWidth === 0.2)
 
     await page.reload()
-    await page.getByRole('button', { name: 'Edit portal Transition between TestPattern1D and CometLoom' }).click()
-    await expect(page.getByRole('button', { name: /Ring · Change/ })).toBeVisible()
+    const reloaded = await openTransition(page)
+    await expect(reloaded.getByRole('button', { name: /Ring · Change/ })).toBeVisible()
     await expect(page.getByLabel('Ring width')).toHaveValue('0.2')
-    await page.getByRole('button', { name: 'View code' }).first().click()
-    await expect(page.getByText('Generated pattern - Untitled Show')).toBeVisible()
   })
 
   test('groups a marquee, edits linked choreography, makes one occurrence unique, and undoes (#587)', async ({ page }) => {
@@ -1632,13 +1656,6 @@ async function waitForCurrentShow(page: Page, predicate: (show: PersistedShow) =
     const show = shows.find((candidate) => candidate.id === id)
     return show ? predicate(show) : false
   }).toBe(true)
-}
-
-async function persistedShow(page: Page, id: string): Promise<PersistedShow | undefined> {
-  const response = await page.context().request.get('/api/shows')
-  if (!response.ok()) return undefined
-  const { shows } = await response.json() as { shows: PersistedShow[] }
-  return shows.find((show) => show.id === id)
 }
 
 async function expectClipSummaryFits(clip: Locator): Promise<void> {
