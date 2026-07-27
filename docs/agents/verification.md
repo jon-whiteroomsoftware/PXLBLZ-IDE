@@ -131,6 +131,12 @@ ports and D1 persistence through the managed runtime registry, seed before
 server startup, and release their state after the run. See
 [`dev-runtime.md`](dev-runtime.md) for the shared-versus-isolated contract.
 
+Each authenticated run seeds four synthetic worker identities and runs its
+specs fully parallel. A worker signs in as the identity derived from its stable
+parallel index, and the automatic fixture cleanup lists and deletes records
+only through that worker's session. The synthetic namespace is separate from
+the persistent development identity, which the suites never read or mutate.
+
 ### What the gates actually cover
 
 `playwright.config.ts` sets `testIgnore: '**/*.auth.spec.ts'`, so

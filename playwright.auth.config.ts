@@ -1,4 +1,5 @@
 import { defineConfig, devices } from '@playwright/test'
+import { authenticatedPlaywrightWorkerCount } from './scripts/authenticated-playwright-user'
 
 // Authenticated smoke owns its two ports. The persistent 5174/8788 dev pair can
 // belong to another worktree, and reusing only one of that pair silently points
@@ -13,8 +14,8 @@ requireEnvironment('PXLBLZ_DEV_VARS_FILE')
 export default defineConfig({
   testDir: './e2e',
   testMatch: '**/*.auth.spec.ts',
-  fullyParallel: false,
-  workers: 1,
+  fullyParallel: true,
+  workers: authenticatedPlaywrightWorkerCount,
   reporter: 'list',
   globalSetup: './e2e/auth.global-setup.ts',
   use: {

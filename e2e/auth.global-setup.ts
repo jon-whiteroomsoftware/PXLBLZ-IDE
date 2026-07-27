@@ -2,22 +2,14 @@ import { createSessionToken, sessionCookieName } from '../src/cloudflare/auth'
 import { readDevVarsFile } from '../scripts/dev-runtime-auth'
 import {
   authenticatedPlaywrightProbeId,
-  authenticatedPlaywrightUserId,
+  authenticatedPlaywrightUser,
 } from '../scripts/authenticated-playwright-user'
 
 export default async function prepareAuthenticatedPlaywrightUser(): Promise<() => void> {
   const devVarsFile = requiredEnvironment('PXLBLZ_DEV_VARS_FILE')
   const secret = process.env.SESSION_SECRET ?? readDevVarsFile(devVarsFile).SESSION_SECRET
   if (!secret) throw new Error(`SESSION_SECRET is required in ${devVarsFile} or the shell environment.`)
-  const token = await createSessionToken({
-    userId: authenticatedPlaywrightUserId,
-    primaryProvider: 'github',
-    primaryHandle: 'playwright-shows',
-    githubUserId: 'playwright-shows',
-    githubLogin: 'playwright-shows',
-    displayName: 'Playwright Shows',
-    avatarUrl: null,
-  }, secret)
+  const token = await createSessionToken(authenticatedPlaywrightUser(0), secret)
   const vitePort = requiredEnvironment('PLAYWRIGHT_AUTH_SMOKE_VITE_PORT')
   const studioUrl = process.env.PLAYWRIGHT_STUDIO_URL ?? `http://localhost:${vitePort}/PXLBLZ-IDE/`
   const response = await fetchApiWithRetry(studioUrl, token)

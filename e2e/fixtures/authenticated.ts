@@ -1,26 +1,21 @@
 import { test as base, expect, type APIRequestContext, type Page } from '@playwright/test'
 import { createSessionToken, sessionCookieName } from '../../src/cloudflare/auth'
 import { readDevVarsFile } from '../../scripts/dev-runtime-auth'
-import { authenticatedPlaywrightUserId } from '../../scripts/authenticated-playwright-user'
+import { authenticatedPlaywrightUser } from '../../scripts/authenticated-playwright-user'
 
 type AuthenticatedFixtures = {
   authenticatedBoundary: void
 }
 
 export const test = base.extend<AuthenticatedFixtures>({
-  storageState: async ({}, use) => {
+  storageState: async ({}, use, workerInfo) => {
     const devVarsFile = requiredEnvironment('PXLBLZ_DEV_VARS_FILE')
     const secret = process.env.SESSION_SECRET ?? readDevVarsFile(devVarsFile).SESSION_SECRET
     if (!secret) throw new Error(`SESSION_SECRET is required in ${devVarsFile} or the shell environment.`)
-    const token = await createSessionToken({
-      userId: authenticatedPlaywrightUserId,
-      primaryProvider: 'github',
-      primaryHandle: 'playwright-shows',
-      githubUserId: 'playwright-shows',
-      githubLogin: 'playwright-shows',
-      displayName: 'Playwright Shows',
-      avatarUrl: null,
-    }, secret)
+    const token = await createSessionToken(
+      authenticatedPlaywrightUser(workerInfo.parallelIndex),
+      secret,
+    )
     await use({
       cookies: [{
         name: sessionCookieName,

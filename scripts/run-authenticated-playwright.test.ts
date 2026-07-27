@@ -36,7 +36,7 @@ describe('authenticated Playwright runtime', () => {
 
   it('seeds the isolated synthetic user before Wrangler starts', () => {
     expect(authenticatedPlaywrightSeedSql(123)).toContain(
-      "VALUES ('github:playwright-shows', 'Playwright Shows'",
+      "'github:playwright-worker-00'",
     )
     expect(authenticatedPlaywrightSeedSql(123)).toContain(
       "'__playwright_local_d1_owner_probe__'",

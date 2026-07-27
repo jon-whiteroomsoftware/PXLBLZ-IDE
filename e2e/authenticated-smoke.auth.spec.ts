@@ -3,7 +3,7 @@ import { expect, test } from './fixtures/authenticated'
 test('authenticated Studio creates, renames, and reloads a persisted Show', async ({ page }) => {
   await page.goto('studio/shows')
 
-  await expect(page.getByRole('button', { name: /Account menu for playwright-shows/i })).toBeVisible()
+  await expect(page.getByRole('button', { name: /Account menu for playwright-worker-\d+/i })).toBeVisible()
   await page.getByRole('button', { name: 'Add show' }).click()
   await page.getByRole('button', { name: 'New show' }).click()
   await page.getByRole('button', { name: 'Create Installation Show' }).click()
