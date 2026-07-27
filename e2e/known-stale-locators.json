@@ -4,30 +4,6 @@
     {
       "name": "101 Clips, Cuts, and Blank Time",
       "spec": "authenticated-smoke.auth.spec.ts"
-    },
-    {
-      "name": "Add clip to main in Scene 1",
-      "spec": "shows.auth.spec.ts"
-    },
-    {
-      "name": "Animation speed 0.32\\u00d7 \\u00b7 Speed 0.08",
-      "spec": "shows.auth.spec.ts"
-    },
-    {
-      "name": "CompassRose Clip overrides",
-      "spec": "shows.auth.spec.ts"
-    },
-    {
-      "name": "Pattern for new clip",
-      "spec": "shows.auth.spec.ts"
-    },
-    {
-      "name": "Scene Scene 1",
-      "spec": "shows.auth.spec.ts"
-    },
-    {
-      "name": "Scene Scene 2",
-      "spec": "shows.auth.spec.ts"
     }
   ],
   "unverifiable": [
@@ -52,10 +28,6 @@
       "spec": "shows.auth.spec.ts"
     },
     {
-      "name": "Pattern controls summary",
-      "spec": "shows.auth.spec.ts"
-    },
-    {
       "name": "Pixel count editor",
       "spec": "smoke.spec.ts"
     },
@@ -77,10 +49,6 @@
     },
     {
       "name": "Routing transfer duration seconds exact time",
-      "spec": "shows.auth.spec.ts"
-    },
-    {
-      "name": "Scene 1 part 2 scene name",
       "spec": "shows.auth.spec.ts"
     },
     {
@@ -113,10 +81,6 @@
     },
     {
       "name": "Split position duration seconds exact time",
-      "spec": "shows.auth.spec.ts"
-    },
-    {
-      "name": "Time scale target main",
       "spec": "shows.auth.spec.ts"
     }
   ]

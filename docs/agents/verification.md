@@ -13,7 +13,7 @@ evidence instead of reviewing an expanding stack again.
 | During development | `npx vitest run path/to/test.ts` | Keep the red-green-refactor loop focused. |
 | Before each commit | `npm run lint` and `npm run test:staged` | Run colocated tests for staged code plus explicitly mapped high-risk invariants. |
 | Before landing | `npm run review:candidate -- <base> <tip> [--test-design <json>]` | Review one explicit candidate range and record an immutable approval for a valid pass. |
-| Before each push | `npm run review:push`, `npm run test:full`, and `npm run test:e2e` | Require exact approval coverage for every outgoing ref, run every Vitest file once, then exercise the browser smoke flow. |
+| Before each push | `npm run review:push`, `npm run test:full`, `npm run test:e2e`, `npm run test:e2e:auth-smoke`, and `npm run test:e2e:shows` | Require exact approval coverage for every outgoing ref, run every Vitest file once, then exercise the unauthenticated smoke flow and the authenticated suites. |
 
 ### Candidate review and landing
 
@@ -110,8 +110,8 @@ remote main line; if that baseline does not exist, the gate blocks instead of
 self-basing the range at the pushed tip. Missing or stale coverage blocks with an explicit
 `review:candidate` command; pre-push does not repeat substantive review.
 
-After every outgoing ref has exact coverage, the hook runs the full Vitest suite
-and Playwright smoke suite once. Because this is a Git hook rather than a Claude
+After every outgoing ref has exact coverage, the hook runs the full Vitest suite,
+the Playwright smoke suite, and the authenticated smoke and Show suites once. Because this is a Git hook rather than a Claude
 or Codex lifecycle hook, it applies equally to agent and terminal pushes.
 
 `npm test` remains the explicit full-suite command. The pre-push hook invokes the
@@ -134,14 +134,14 @@ server startup, and release their state after the run. See
 ### What the gates actually cover
 
 `playwright.config.ts` sets `testIgnore: '**/*.auth.spec.ts'`, so
-`npm run test:e2e` — the suite pre-push runs — covers **no** authenticated spec.
-A green pre-push says nothing about authenticated behavior beyond the smoke set.
+`npm run test:e2e` covers **no** authenticated spec on its own. Pre-push
+therefore runs the authenticated suites explicitly alongside it.
 
 | Suite | Gate |
 | --- | --- |
 | `npm run test:e2e` (unauthenticated) | pre-push |
 | `npm run test:e2e:auth-smoke` | pre-push |
-| `npm run test:e2e:shows` | manual, until #638 lands it green |
+| `npm run test:e2e:shows` | pre-push |
 | `npm run test:e2e:auth-full` (every auth spec) | manual |
 
 Treating "manual" as covered is how #638 happened: three feature-retirement
