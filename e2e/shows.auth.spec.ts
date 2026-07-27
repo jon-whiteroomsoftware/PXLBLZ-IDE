@@ -817,6 +817,7 @@ test.describe('authenticated Show authoring', () => {
     await createInstallationShow(page)
 
     await selectClip(page, 'TestPattern1D')
+    await showClipTab(page, 'Place')
     const transform = page.getByRole('group', { name: 'Clip Transform' })
     await expect(transform).toBeVisible()
 
@@ -837,6 +838,7 @@ test.describe('authenticated Show authoring', () => {
 
     await page.reload()
     await selectClip(page, 'TestPattern1D')
+    await showClipTab(page, 'Place')
     const reloaded = page.getByRole('group', { name: 'Clip Transform' })
     await expect(reloaded.getByRole('spinbutton', { name: 'Content X' })).toHaveValue('0.25')
     await expect(reloaded.getByRole('spinbutton', { name: 'Rotation degrees' })).toHaveValue('-90')
@@ -850,6 +852,7 @@ test.describe('authenticated Show authoring', () => {
     await createInstallationShow(page)
 
     await selectClip(page, 'TestPattern1D')
+    await showClipTab(page, 'Place')
     const transform = page.getByRole('group', { name: 'Clip Transform' })
     await expect(transform).toBeVisible()
 
@@ -1397,16 +1400,16 @@ type PersistedShow = {
  * Zone Layout definitions live in the Zone Map, reached from the Zone rail, and
  * are edited in the Entity Detail panel (#629).
  */
-/** Evaluation policy and other advanced fields sit behind a details disclosure. */
+/** The Clip detail body is tabbed (#642); reach a facet by its tab. */
+async function showClipTab(page: Page, name: 'Pattern' | 'Place' | 'Effects' | 'Playback'): Promise<void> {
+  await page.getByRole('dialog', { name: 'Entity Detail Panel' })
+    .getByRole('tab', { name: new RegExp(`^${name}`) }).click()
+}
+
+/** Evaluation policy and the other presentation fields live on the Playback tab. */
 async function openAdvancedClipControls(page: Page): Promise<void> {
-  const evaluation = page.getByLabel('Clip evaluation')
-  // The tray's open state survives a reload, so toggling unconditionally would
-  // close it and hide the very field the caller is about to read.
-  if (!await evaluation.isVisible()) {
-    await page.getByRole('group', { name: 'Advanced Clip controls' })
-      .getByText('Advanced clip controls').click()
-  }
-  await expect(evaluation).toBeVisible()
+  await showClipTab(page, 'Playback')
+  await expect(page.getByLabel('Clip evaluation')).toBeVisible()
 }
 
 /** Select a Clip so its detail panel exists before anything asserts against it. */
@@ -1442,6 +1445,7 @@ async function chooseTransition(page: Page, panel: Locator, query: string, label
  */
 async function openClipEffects(page: Page, patternName: string): Promise<Locator> {
   await page.getByRole('button', { name: `Select ${patternName}`, exact: true }).first().click()
+  await showClipTab(page, 'Effects')
   const stack = page.getByRole('dialog', { name: 'Entity Detail Panel' })
     .getByRole('region', { name: 'Clip Effects' })
   await expect(stack).toBeVisible()
