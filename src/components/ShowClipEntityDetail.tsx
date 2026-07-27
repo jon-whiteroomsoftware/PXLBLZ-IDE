@@ -50,6 +50,17 @@ export interface ShowClipEntityDetailProps {
  */
 const shown = (value: number) => Math.round(value * 1000) / 1000
 
+/**
+ * Written out rather than interpolated because Tailwind only emits classes it
+ * can see as literals. Brightness is always present, so one is the floor.
+ */
+const HEADER_COLUMN_CLASS: Record<number, string> = {
+  1: 'grid-cols-1',
+  2: 'grid-cols-2',
+  3: 'grid-cols-3',
+  4: 'grid-cols-4',
+}
+
 export function ShowClipEntityDetail({
   value,
   title,
@@ -72,6 +83,11 @@ export function ShowClipEntityDetail({
   onMoveLayer,
 }: ShowClipEntityDetailProps) {
   const capabilities = showClipInspectorCapabilities(value.scope)
+  // Narrowed once so the header can both gate rendering and count its columns
+  // from the same predicate.
+  const localTiming = capabilities.localTiming && value.local !== undefined
+  const showOpacity = capabilities.sourceOverOpacity && value.local !== undefined
+  const headerFieldCount = 1 + (localTiming ? 2 : 0) + (showOpacity ? 1 : 0)
   const controlTargets = value.simulation.controlTargets
   const hasAuthoredPatternControls = Object.values(controlTargets ?? {}).some((target) => target !== undefined)
   const [patternTrayOpen, setPatternTrayOpen] = useState(hasAuthoredPatternControls)
@@ -106,7 +122,85 @@ export function ShowClipEntityDetail({
       </header>}
 
       <div className={embedded ? '' : 'p-2.5'}>
-        <div data-testid="clip-primary-fields" className="grid min-w-0 items-end gap-2 sm:grid-cols-[minmax(0,2fr)_minmax(0,1fr)_minmax(0,1fr)]">
+        {/*
+          The persistent zone (#641). Start and Duration are what an author moves
+          constantly while composing; Brightness and Opacity describe the whole
+          Clip rather than the Pattern, which is why they sit here and not beside
+          Source pattern. One row, because two rows cost roughly 40px paid on
+          every open.
+
+          The column count follows the scope's real capabilities rather than a
+          fixed four: a global-scope Clip has no local timing, and overlay is the
+          only scope with source-over Opacity. A fixed grid would leave holes.
+        */}
+        <div
+          data-testid="clip-header-fields"
+          className={`grid min-w-0 items-end gap-x-2 ${HEADER_COLUMN_CLASS[headerFieldCount]}`}
+        >
+          {localTiming && value.local && (
+            <div data-header-field="start">
+              <TimeField
+                label="Start"
+                ariaLabel="Start seconds"
+                value={value.local.startMs / 1_000}
+                min={0}
+                max={Number.MAX_SAFE_INTEGER}
+                step={0.001}
+                disabled={readOnly}
+                onPreview={(seconds) => onPreviewPatch?.({ local: { startMs: Math.round(seconds * 1_000) } })}
+                onPreviewEnd={onPreviewEnd}
+                onChange={(seconds) => onPatch({ local: { startMs: Math.round(seconds * 1_000) } })}
+              />
+            </div>
+          )}
+          {localTiming && value.local && (
+            <div data-header-field="duration">
+              <TimeField
+                label="Duration"
+                ariaLabel="Duration seconds"
+                value={value.local.durationMs / 1_000}
+                min={0.1}
+                max={Number.MAX_SAFE_INTEGER}
+                step={0.001}
+                disabled={readOnly}
+                onPreview={(seconds) => onPreviewPatch?.({ local: { durationMs: Math.round(seconds * 1_000) } })}
+                onPreviewEnd={onPreviewEnd}
+                onChange={(seconds) => onPatch({ local: { durationMs: Math.round(seconds * 1_000) } })}
+              />
+            </div>
+          )}
+          <div data-header-field="brightness">
+            <PercentageField
+              label="Brightness"
+              ariaLabel="Brightness"
+              value={value.view.brightness}
+              min={0}
+              max={1}
+              step={0.01}
+              disabled={readOnly}
+              onPreview={(brightness) => onPreviewPatch?.({ view: { brightness } })}
+              onPreviewEnd={onPreviewEnd}
+              onChange={(brightness) => onPatch({ view: { brightness } })}
+            />
+          </div>
+          {showOpacity && value.local && (
+            <div data-header-field="opacity">
+              <PercentageField
+                label="Opacity"
+                value={value.local.opacity ?? 1}
+                min={0}
+                max={1}
+                step={0.01}
+                disabled={readOnly}
+                onPreview={(opacity) => onPreviewPatch?.({ local: { opacity } })}
+                onPreviewEnd={onPreviewEnd}
+                onChange={(opacity) => onPatch({ local: { opacity } })}
+              />
+            </div>
+          )}
+        </div>
+
+        <div data-testid="clip-primary-fields" className="mt-2 grid min-w-0 items-end gap-2 sm:grid-cols-[minmax(0,2fr)_minmax(0,1fr)]">
           <label className="block min-w-0 text-[9px] uppercase tracking-[0.1em] text-zinc-600">
             Source pattern
             <PatternCombobox
@@ -142,78 +236,21 @@ export function ShowClipEntityDetail({
             onPreviewEnd={onPreviewEnd}
             onChange={(timeScale) => onPatch({ simulation: { timeScale } })}
           />
-          <PercentageField
-            label="Bright"
-            ariaLabel="Brightness"
-            value={value.view.brightness}
-            min={0}
-            max={1}
-            step={0.01}
-            disabled={readOnly}
-            onPreview={(brightness) => onPreviewPatch?.({ view: { brightness } })}
-            onPreviewEnd={onPreviewEnd}
-            onChange={(brightness) => onPatch({ view: { brightness } })}
-          />
         </div>
 
-        {capabilities.localTiming && value.local && (
-          <div data-testid="clip-local-fields" className={`mt-2 grid items-end gap-2 ${capabilities.sourceOverOpacity ? 'sm:grid-cols-4' : 'sm:grid-cols-2'}`}>
-            <div data-field-span>
-              <TimeField
-                label="Start"
-                ariaLabel="Start seconds"
-                value={value.local.startMs / 1_000}
-                min={0}
-                max={Number.MAX_SAFE_INTEGER}
-                step={0.001}
-                disabled={readOnly}
-                onPreview={(seconds) => onPreviewPatch?.({ local: { startMs: Math.round(seconds * 1_000) } })}
-                onPreviewEnd={onPreviewEnd}
-                onChange={(seconds) => onPatch({ local: { startMs: Math.round(seconds * 1_000) } })}
-              />
-            </div>
-            <div data-field-span>
-              <TimeField
-                label="Duration"
-                ariaLabel="Duration seconds"
-                value={value.local.durationMs / 1_000}
-                min={0.1}
-                max={Number.MAX_SAFE_INTEGER}
-                step={0.001}
-                disabled={readOnly}
-                onPreview={(seconds) => onPreviewPatch?.({ local: { durationMs: Math.round(seconds * 1_000) } })}
-                onPreviewEnd={onPreviewEnd}
-                onChange={(seconds) => onPatch({ local: { durationMs: Math.round(seconds * 1_000) } })}
-              />
-            </div>
-            {capabilities.sourceOverOpacity && (
-              <PercentageField
-                label="Opacity"
-                value={value.local.opacity ?? 1}
-                min={0}
-                max={1}
-                step={0.01}
-                disabled={readOnly}
-                onPreview={(opacity) => onPreviewPatch?.({ local: { opacity } })}
-                onPreviewEnd={onPreviewEnd}
-                onChange={(opacity) => onPatch({ local: { opacity } })}
-              />
-            )}
-            {capabilities.layerAssignment && layerOptions && (
-              <label className="min-w-0 text-[9px] uppercase tracking-[0.1em] text-zinc-600">
-                Layer
-                <select
-                  aria-label="Overlay target layer"
-                  value={value.layerId}
-                  disabled={readOnly}
-                  onChange={(event) => onMoveLayer?.(event.target.value)}
-                  className="mt-1 h-7 w-full rounded border border-zinc-700 bg-zinc-950 px-2 text-[10px] normal-case tracking-normal text-zinc-200 outline-none focus:border-cyan-400/60"
-                >
-                  {layerOptions.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}
-                </select>
-              </label>
-            )}
-          </div>
+        {capabilities.layerAssignment && layerOptions && (
+          <label className="mt-2 block min-w-0 text-[9px] uppercase tracking-[0.1em] text-zinc-600 sm:w-1/2">
+            Layer
+            <select
+              aria-label="Overlay target layer"
+              value={value.layerId}
+              disabled={readOnly}
+              onChange={(event) => onMoveLayer?.(event.target.value)}
+              className="mt-1 h-7 w-full rounded border border-zinc-700 bg-zinc-950 px-2 text-[10px] normal-case tracking-normal text-zinc-200 outline-none focus:border-cyan-400/60"
+            >
+              {layerOptions.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}
+            </select>
+          </label>
         )}
 
         {transformEnabled && <details

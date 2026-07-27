@@ -51,21 +51,79 @@ const commonProps = (scope: ShowClipInspectorValue['scope'], onPatch = vi.fn()):
   onMoveLayer: vi.fn(),
 })
 
+describe('persistent Clip header fields (#641)', () => {
+  const headerFields = () => [...screen.getByTestId('clip-header-fields').querySelectorAll('[data-header-field]')]
+    .map((field) => field.getAttribute('data-header-field'))
+
+  it('carries Start, Duration, Brightness and Opacity on one row for an overlay Clip', () => {
+    render(<ShowClipEntityDetail {...commonProps('scene-overlay')} />)
+
+    expect(headerFields()).toEqual(['start', 'duration', 'brightness', 'opacity'])
+    expect(screen.getByTestId('clip-header-fields')).toHaveClass('grid-cols-4')
+  })
+
+  it('drops Opacity for a main-layer Clip without leaving a hole', () => {
+    render(<ShowClipEntityDetail {...commonProps('scene-main')} />)
+
+    expect(headerFields()).toEqual(['start', 'duration', 'brightness'])
+    expect(screen.getByTestId('clip-header-fields')).toHaveClass('grid-cols-3')
+  })
+
+  it('keeps only Brightness when the scope has no local timing', () => {
+    render(<ShowClipEntityDetail {...commonProps('global')} />)
+
+    expect(headerFields()).toEqual(['brightness'])
+    expect(screen.getByTestId('clip-header-fields')).toHaveClass('grid-cols-1')
+  })
+
+  it('spells the header labels out in full', () => {
+    render(<ShowClipEntityDetail {...commonProps('scene-overlay')} />)
+    const header = screen.getByTestId('clip-header-fields')
+
+    expect(header).toHaveTextContent('Duration')
+    expect(header).toHaveTextContent('Brightness')
+    expect(header.textContent).not.toMatch(/\bDur\b/)
+    expect(header.textContent).not.toMatch(/\bBright\b/)
+  })
+
+  it('leaves Source pattern and Speed in the body, and never repeats a header field', () => {
+    render(<ShowClipEntityDetail {...commonProps('scene-overlay')} />)
+
+    const primaryFields = screen.getByTestId('clip-primary-fields')
+    expect(primaryFields).toContainElement(screen.getByRole('combobox', { name: 'Source pattern' }))
+    expect(primaryFields).toContainElement(screen.getByRole('textbox', { name: 'Animation speed exact multiplier' }))
+
+    expect(screen.getAllByRole('textbox', { name: 'Brightness exact percentage' })).toHaveLength(1)
+    expect(screen.getAllByRole('textbox', { name: 'Start seconds exact time' })).toHaveLength(1)
+    expect(screen.getAllByRole('textbox', { name: 'Opacity exact percentage' })).toHaveLength(1)
+    expect(screen.queryByTestId('clip-local-fields')).not.toBeInTheDocument()
+  })
+
+  it('still commits header edits through the same patches', () => {
+    const onPatch = vi.fn()
+    render(<ShowClipEntityDetail {...commonProps('scene-overlay', onPatch)} />)
+
+    const brightness = screen.getByRole('textbox', { name: 'Brightness exact percentage' })
+    fireEvent.change(brightness, { target: { value: '35%' } })
+    fireEvent.blur(brightness)
+    expect(onPatch).toHaveBeenCalledWith({ view: { brightness: 0.35 } })
+
+    const opacity = screen.getByRole('textbox', { name: 'Opacity exact percentage' })
+    fireEvent.change(opacity, { target: { value: '50%' } })
+    fireEvent.blur(opacity)
+    expect(onPatch).toHaveBeenCalledWith({ local: { opacity: 0.5 } })
+  })
+})
+
 describe('shared Clip Entity Detail sections (#498)', () => {
-  it('aligns the compact Source Pattern and Start columns while giving unit fields room (#592, #610)', () => {
+  it('gives Source Pattern the wide column beside Speed (#592, #610, #641)', () => {
     render(<ShowClipEntityDetail {...commonProps('scene-main')} />)
 
     const primaryFields = screen.getByTestId('clip-primary-fields')
-    const localFields = screen.getByTestId('clip-local-fields')
     const sourceField = screen.getByRole('combobox', { name: 'Source pattern' }).closest('label')
-    const startField = screen.getByRole('textbox', { name: 'Start seconds exact time' }).closest('[data-field-span]')
-    const durationField = screen.getByRole('textbox', { name: 'Duration seconds exact time' }).closest('[data-field-span]')
 
-    expect(primaryFields).toHaveClass('sm:grid-cols-[minmax(0,2fr)_minmax(0,1fr)_minmax(0,1fr)]')
-    expect(localFields).toHaveClass('sm:grid-cols-2')
+    expect(primaryFields).toHaveClass('sm:grid-cols-[minmax(0,2fr)_minmax(0,1fr)]')
     expect(sourceField).not.toHaveClass('sm:col-span-3')
-    expect(startField).not.toHaveClass('sm:col-span-3')
-    expect(durationField).not.toHaveClass('sm:col-span-2')
   })
 
   it.each([
@@ -89,7 +147,8 @@ describe('shared Clip Entity Detail sections (#498)', () => {
     const brightness = screen.getByRole('textbox', { name: 'Brightness exact percentage' })
     expect(speed.closest('div')).toHaveTextContent('Speed')
     expect(speed.closest('div')).not.toHaveTextContent('Animation speed')
-    expect(screen.getByText('Bright')).toBeInTheDocument()
+    // #641 spells the header labels out; "Bright" was the old compact form.
+    expect(screen.getByText('Brightness')).toBeInTheDocument()
     expect(brightness).toHaveValue('80')
     expect(brightness.parentElement?.parentElement).not.toHaveTextContent('0–1')
   })
