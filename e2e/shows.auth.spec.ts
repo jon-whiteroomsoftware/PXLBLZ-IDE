@@ -976,6 +976,9 @@ test.describe('authenticated Show authoring', () => {
     await page.getByLabel('Default main pixel ranges').fill('0-255')
     await page.getByLabel('Default main pixel ranges').blur()
 
+    // The invalid case also surfaces as a diagnostic banner, but the valid
+    // coverage line exists only in the Show InspectorPanel.
+    await page.getByRole('button', { name: 'Show properties' }).click()
     await expect(page.getByText(/Default assigns 256 of 256 pixels exactly once/i)).toBeVisible()
     await expect(page.getByRole('button', { name: 'View code' }).first()).toBeEnabled()
     await expect(page.getByRole('button', { name: 'Export Show as .epe' })).toBeEnabled()
@@ -1555,8 +1558,12 @@ type PersistedShow = {
 async function openZoneLayout(page: Page, layoutName: string): Promise<void> {
   const openZones = page.getByRole('button', { name: 'Open Zones' })
   if (await openZones.count() > 0) await openZones.click()
+  // The map control lives in the rail's own column header, so it does not exist
+  // until the rail has rendered. A bare count() here races that render and
+  // silently skips opening the map, leaving the layout button unreachable.
   const openMap = page.getByRole('button', { name: 'Open Zone Map' })
-  if (await openMap.count() > 0) await openMap.click()
+  await expect(openMap).toBeVisible()
+  await openMap.click()
   await page.getByRole('button', { name: `Open Zone Layout ${layoutName}` }).click()
 }
 
