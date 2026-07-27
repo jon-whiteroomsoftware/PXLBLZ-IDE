@@ -35,6 +35,18 @@ export interface D1ShowRow {
   updated_at: number
 }
 
+export interface D1UnreadableShow {
+  id: string
+  name: string
+  code: 'missing_show_output_contract' | 'invalid_show_record'
+  error: string
+}
+
+export interface D1ShowListResult {
+  shows: ShowRecord[]
+  unreadableShows: D1UnreadableShow[]
+}
+
 export function showRecordFromRow(row: D1ShowRow): ShowRecord {
   const outputContract = requireShowOutputContract(
     row.output_contract_json ? parseJson(row.output_contract_json, null) : null,
@@ -63,7 +75,7 @@ export function showRecordFromRow(row: D1ShowRow): ShowRecord {
   return composition ? { ...show, composition } : show
 }
 
-export async function listD1Shows(db: D1DatabaseShowsLike, userId: string): Promise<ShowRecord[]> {
+export async function listD1Shows(db: D1DatabaseShowsLike, userId: string): Promise<D1ShowListResult> {
   const { results } = await db
     .prepare(`
       SELECT id, name, scenes_json, zones_json, cells_json, routing_layouts_json, transitions_json,
@@ -74,7 +86,21 @@ export async function listD1Shows(db: D1DatabaseShowsLike, userId: string): Prom
     `)
     .bind(userId)
     .all<D1ShowRow>()
-  return results.map(showRecordFromRow)
+  const shows: ShowRecord[] = []
+  const unreadableShows: D1UnreadableShow[] = []
+  for (const row of results) {
+    try {
+      shows.push(showRecordFromRow(row))
+    } catch (error) {
+      unreadableShows.push({
+        id: row.id,
+        name: row.name,
+        code: row.output_contract_json ? 'invalid_show_record' : 'missing_show_output_contract',
+        error: error instanceof Error ? error.message : String(error),
+      })
+    }
+  }
+  return { shows, unreadableShows }
 }
 
 export async function createD1Show(
@@ -83,6 +109,7 @@ export async function createD1Show(
   record: ShowRecord,
   now = Math.floor(Date.now() / 1000),
 ): Promise<void> {
+  const outputContract = requireWritableShowOutputContract(record.outputContract, record.id)
   if (
     record.composition != null
     && (!isShowSceneArray(record.scenes) || !isShowZoneArray(record.zones))
@@ -113,7 +140,7 @@ export async function createD1Show(
       record.outputEffects?.length ? JSON.stringify(normalizeShowOutputEffects(record.outputEffects)) : null,
       record.targetControllerProfileId ?? null,
       record.stageMapId ?? null,
-      record.outputContract ? JSON.stringify(record.outputContract) : null,
+      JSON.stringify(outputContract),
       now,
       record.updatedAt,
     )
@@ -128,6 +155,9 @@ export async function updateD1Show(
 ): Promise<void> {
   const assignments: string[] = []
   const values: unknown[] = []
+  const outputContract = changes.outputContract === undefined
+    ? undefined
+    : requireWritableShowOutputContract(changes.outputContract, id)
   const composition = await normalizeCompositionUpdate(db, userId, id, changes)
   addAssignment(assignments, values, 'name', changes.name)
   addAssignment(assignments, values, 'scenes_json', changes.scenes, true)
@@ -139,7 +169,7 @@ export async function updateD1Show(
   addAssignment(assignments, values, 'output_effects_json', changes.outputEffects, true)
   addAssignment(assignments, values, 'target_controller_profile_id', changes.targetControllerProfileId)
   addAssignment(assignments, values, 'stage_map_id', changes.stageMapId)
-  addAssignment(assignments, values, 'output_contract_json', changes.outputContract, true)
+  addAssignment(assignments, values, 'output_contract_json', outputContract, true)
   addAssignment(assignments, values, 'updated_at', changes.updatedAt)
   if (assignments.length === 0) return
 
@@ -314,4 +344,16 @@ function unsupportedCompositionError(): PersonalStorageGuardError {
     400,
     'Show composition must be a valid version-1 payload',
   )
+}
+
+function requireWritableShowOutputContract(value: unknown, showId: string) {
+  try {
+    return requireShowOutputContract(value, showId)
+  } catch {
+    throw new PersonalStorageGuardError(
+      'missing_show_output_contract',
+      400,
+      `Show ${showId} is missing a valid output contract`,
+    )
+  }
 }

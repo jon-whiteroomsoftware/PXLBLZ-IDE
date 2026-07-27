@@ -112,9 +112,10 @@ and cleanup. Run `npm run dev:main` after landing or pulling a migration. If the
 shared store is behind the code, authenticated Studio screens can report
 misleading remote-provider 500 errors on personal-content endpoints.
 
-The authenticated Playwright tier creates its own signed synthetic user and
-cleans that user's Shows after every test. It never invokes OAuth or reads a
-personal account:
+The authenticated Playwright tier seeds four signed synthetic worker users and
+cleans each worker's personal-content resources through only that worker's
+session before and after every test. It never invokes OAuth or reads a
+persistent development or personal account:
 
 ```bash
 npm run test:e2e:auth-smoke  # fast create/edit/reload persistence path
@@ -123,7 +124,7 @@ npm run test:e2e:shows       # deeper clip, transition, automation, and routing 
 
 Both commands reserve an isolated Vite/Wrangler pair from the managed runtime
 registry, create an explicit temporary D1 store, apply migrations and seed the
-synthetic user before server startup, then release the reservation and store.
+synthetic users before server startup, then release the reservation and store.
 Parallel runs cannot collide with the persistent 5174/8788 pair or active issue
 runtimes. The commands require `SESSION_SECRET` in the main checkout's
 `.dev.vars`; OAuth client credentials are not required.

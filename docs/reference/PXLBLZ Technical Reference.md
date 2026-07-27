@@ -952,7 +952,11 @@ The D1 record stores the contract as `output_contract_json`. Row loading accepts
 only the known version and discriminants, then reconstructs canonical
 compatibility literals rather than trusting display copy. A missing or invalid
 contract rejects the row; the Studio does not infer a Show's output promise from
-its Stage, Controller target, zones, or other saved fields.
+its Stage, Controller target, zones, or other saved fields. Create and update
+writes apply that same validator before touching D1. Collection reads keep valid
+Shows available and report rejected rows in `unreadableShows` with stable ids,
+names, error codes, and messages, so one legacy null contract cannot fail the
+whole `/api/shows` response.
 
 `src/pixelblaze/stock/shows.ts` owns each pristine built-in Show as an ordinary
 `ShowRecord` fixture plus catalogue-only collection, level, order, lesson,

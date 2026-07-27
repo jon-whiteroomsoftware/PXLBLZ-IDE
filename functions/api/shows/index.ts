@@ -16,8 +16,7 @@ export async function onRequestGet(context: PagesFunctionContext): Promise<Respo
   if (!session) return Response.json({ error: 'Unauthorized' }, { status: 401 })
   if (!context.env.PXLBLZ_DB) return Response.json({ error: 'D1 database is not configured' }, { status: 503 })
 
-  const shows = await listD1Shows(context.env.PXLBLZ_DB, session.userId)
-  return Response.json({ shows })
+  return Response.json(await listD1Shows(context.env.PXLBLZ_DB, session.userId))
 }
 
 export async function onRequestPost(context: PagesFunctionContext): Promise<Response> {
