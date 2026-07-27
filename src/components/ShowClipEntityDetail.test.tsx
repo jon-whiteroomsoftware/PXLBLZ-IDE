@@ -64,6 +64,35 @@ function showTab(name: 'Pattern' | 'Place' | 'Effects' | 'Playback') {
 beforeEach(resetShowClipDetailTabMemory)
 
 describe('Clip detail tabs (#642)', () => {
+  it('keeps the tabs operable inside a disabled fieldset, as a read-only Show renders them', () => {
+    // ShowEditor wraps the panel body in <fieldset disabled> for a built-in
+    // Show. A disabled fieldset disables descendant form controls, so tabs must
+    // not be form controls: reading a read-only Clip is still reading.
+    render(
+      <fieldset disabled>
+        <ShowClipEntityDetail {...commonProps('scene-main')} />
+      </fieldset>,
+    )
+
+    showTab('Effects')
+    expect(screen.getByRole('tab', { name: /^Effects/ })).toHaveAttribute('aria-selected', 'true')
+    expect(screen.getByRole('region', { name: 'Clip Effects' })).toBeInTheDocument()
+
+    showTab('Place')
+    expect(screen.getByRole('group', { name: 'Clip Transform' })).toBeInTheDocument()
+  })
+
+  it('moves focus with selection so the roving tab stop stays in sync', () => {
+    render(<ShowClipEntityDetail {...commonProps('scene-main')} />)
+    const tablist = screen.getByRole('tablist')
+
+    fireEvent.keyDown(tablist, { key: 'ArrowRight' })
+    const place = screen.getByRole('tab', { name: /^Place/ })
+    expect(place).toHaveAttribute('aria-selected', 'true')
+    expect(place).toHaveAttribute('tabindex', '0')
+    expect(document.activeElement).toBe(place)
+  })
+
   it('rests on Pattern and shows one panel at a time', () => {
     render(<ShowClipEntityDetail {...commonProps('scene-main')} />)
 
@@ -129,13 +158,15 @@ describe('Clip detail tabs (#642)', () => {
 
   it('falls back off a 2D Stage without losing the preference', () => {
     const props = commonProps('scene-main')
-    const { unmount } = render(<ShowClipEntityDetail {...props} />)
+    const first = render(<ShowClipEntityDetail {...props} />)
     showTab('Place')
-    unmount()
+    first.unmount()
 
-    render(<ShowClipEntityDetail {...props} transformEnabled={false} />)
+    // Each render gets its own handle; reusing the first leaves a panel mounted
+    // and the later queries then match across two panels.
+    const second = render(<ShowClipEntityDetail {...props} transformEnabled={false} />)
     expect(screen.getByRole('tab', { name: /^Pattern/ })).toHaveAttribute('aria-selected', 'true')
-    unmount()
+    second.unmount()
 
     // Place returns for the next Clip that can show it.
     render(<ShowClipEntityDetail {...props} />)
@@ -144,9 +175,9 @@ describe('Clip detail tabs (#642)', () => {
 
   it('gives a pinned panel its own tab so comparison panels do not move together', () => {
     const props = commonProps('scene-main')
-    const { unmount } = render(<ShowClipEntityDetail {...props} panelKey="pinned" />)
+    const pinned = render(<ShowClipEntityDetail {...props} panelKey="pinned" />)
     showTab('Effects')
-    unmount()
+    pinned.unmount()
 
     render(<ShowClipEntityDetail {...props} panelKey="transient" />)
     expect(screen.getByRole('tab', { name: /^Pattern/ })).toHaveAttribute('aria-selected', 'true')

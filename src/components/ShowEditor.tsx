@@ -7181,6 +7181,7 @@ function ContextualInspector({
   if (selection.kind === 'clip' && selectedClip) {
     return (
       <ClipInspector
+        panelKey={panelKey}
         key={selectedClip.id}
         show={show}
         clip={selectedClip}
@@ -7745,6 +7746,7 @@ function buildShowPropertyAnimationOptions(
 
 function ClipInspector({
   show,
+  panelKey,
   clip,
   patternOptions,
   patternControls,
@@ -7763,6 +7765,7 @@ function ClipInspector({
   onUpdateZoneMode,
 }: {
   show: ShowRecord
+  panelKey: string
   clip: ShowCell
   patternOptions: ShowPatternOption[]
   patternControls: AutomatablePatternControl[]
@@ -7838,6 +7841,7 @@ function ClipInspector({
           patternControls={patternControls}
           transformEnabled={transformEnabled}
           compiledCost={compiledCost}
+          panelKey={panelKey}
           embedded
           onPatch={onUpdateClip}
           onPreviewPatch={onPreviewClip}

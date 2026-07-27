@@ -235,12 +235,22 @@ export function ShowClipEntityDetail({
             if (!target) return
             event.preventDefault()
             selectTab(target.id)
+            // The roving tab stop has to follow selection, or focus is left on a
+            // tab that is now aria-selected=false with tabindex=-1.
+            document.getElementById(tabIdFor(target.id))?.focus()
           }}
         >
           {tabs.filter((tab) => tab.applicable).map((tab) => (
-            <button
+            /*
+              Deliberately not a <button>. ShowEditor wraps this panel in
+              <fieldset disabled> for a read-only built-in Show, and a disabled
+              fieldset disables descendant form controls - which would make Place,
+              Effects and Playback permanently unreachable there. The disclosures
+              this replaced were not form controls and stayed operable, so tabs
+              must too: navigating a read-only panel is still reading, not editing.
+            */
+            <div
               key={tab.id}
-              type="button"
               role="tab"
               id={tabIdFor(tab.id)}
               aria-selected={activeTab === tab.id}
@@ -248,7 +258,13 @@ export function ShowClipEntityDetail({
               tabIndex={activeTab === tab.id ? 0 : -1}
               data-authored={tab.authored ? 'true' : undefined}
               onClick={() => selectTab(tab.id)}
-              className={`flex flex-1 items-center justify-center gap-1.5 py-1.5 text-[9.5px] tracking-[0.06em] transition-colors ${
+              onKeyDown={(event) => {
+                if (event.key !== 'Enter' && event.key !== ' ') return
+                event.preventDefault()
+                event.stopPropagation()
+                selectTab(tab.id)
+              }}
+              className={`flex flex-1 cursor-pointer select-none items-center justify-center gap-1.5 py-1.5 text-[9.5px] tracking-[0.06em] transition-colors focus-visible:outline focus-visible:outline-1 focus-visible:outline-cyan-300 ${
                 activeTab === tab.id
                   ? 'border-b-[1.5px] border-cyan-300 text-cyan-300'
                   : 'border-b-[1.5px] border-transparent text-zinc-500 hover:text-zinc-300'
@@ -261,7 +277,7 @@ export function ShowClipEntityDetail({
                 <span aria-hidden className="size-[3px] rounded-full bg-current" />
               )}
               {tab.authored && <span className="sr-only">(has changes)</span>}
-            </button>
+            </div>
           ))}
         </div>
 
