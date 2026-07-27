@@ -1082,7 +1082,9 @@ test.describe('authenticated Show authoring', () => {
     await createInstallationShow(page)
 
     await page.getByRole('button', { name: 'Select CometLoom' }).click()
-    await page.getByLabel('Source pattern').selectOption('stock:TestPattern1D')
+    // PatternCombobox is a typeahead input with a listbox, not a <select>.
+    await page.getByLabel('Source pattern').fill('TestPattern1D')
+    await page.getByRole('option', { name: 'TestPattern1D', exact: true }).click()
     await page.getByRole('button', { name: 'Edit crossfade Transition between TestPattern1D and TestPattern1D' }).click()
     await page.getByRole('button', { name: /Crossfade · Change/ }).click()
     await page.getByRole('button', { name: 'Use Linear Transition' }).click()
