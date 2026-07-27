@@ -572,6 +572,16 @@ test.describe('authenticated Show authoring', () => {
     await stack.getByRole('spinbutton', { name: 'Amount' }).fill('0.2')
     await stack.getByRole('spinbutton', { name: 'Amount' }).blur()
 
+    // Barrier, not oracle: showPersistenceQueues chains writes per Show, so a
+    // second edit's PUT is not dispatched until the first resolves, and
+    // page.reload() would discard it. Observe the persisted value before
+    // navigating; the assertion after the reload stays on visible state.
+    await waitForCurrentShow(page, (show) => show.composition?.scenes.some((scene) => (
+      scene.zones?.some((zone) => zone.main?.some((placement) => (
+        placement.effects?.some((effect) => effect.kind === 'ripple' && effect.amount === 0.2)
+      )))
+    )) === true)
+
     await page.reload()
     const reloaded = await openClipEffects(page, 'TestPattern1D')
     await reloaded.getByRole('button', { name: 'Edit Ripple Effect' }).click()
@@ -644,6 +654,14 @@ test.describe('authenticated Show authoring', () => {
     const points = panel.getByRole('spinbutton', { name: /^Points/ })
     await points.fill('7')
     await points.blur()
+
+    // Barrier, not oracle: showPersistenceQueues chains writes per Show, so a
+    // second edit's PUT is not dispatched until the first resolves, and
+    // page.reload() would discard it. Observe the persisted value before
+    // navigating; the assertion after the reload stays on visible state.
+    await waitForCurrentShow(page, (show) => (
+      show.transitions?.[0]?.durationMs === 3400 && show.transitions[0].starPoints === 7
+    ))
 
     await page.reload()
     const reloaded = await openTransition(page)
@@ -826,6 +844,16 @@ test.describe('authenticated Show authoring', () => {
     await transform.getByRole('spinbutton', { name: 'Content X' }).blur()
     await transform.getByRole('spinbutton', { name: 'Rotation degrees' }).fill('-90')
     await transform.getByRole('spinbutton', { name: 'Rotation degrees' }).blur()
+
+    // Barrier, not oracle: showPersistenceQueues chains writes per Show, so a
+    // second edit's PUT is not dispatched until the first resolves, and
+    // page.reload() would discard it. Observe the persisted value before
+    // navigating; the assertion after the reload stays on visible state.
+    await waitForCurrentShow(page, (show) => show.composition?.scenes.some((scene) => (
+      scene.zones?.some((zone) => zone.main?.some((placement) => (
+        placement.transform?.positionX === 0.25 && placement.transform?.rotation === -0.25
+      )))
+    )) === true)
 
     await page.reload()
     await selectClip(page, 'TestPattern1D')
@@ -1437,6 +1465,7 @@ type PersistedShow = {
           instanceId: string
           view?: { brightness: number }
           transform?: { positionX: number; positionY: number; rotation: number; scaleX: number; scaleY: number }
+        effects?: Array<{ id: string; kind: string; amount?: number; frequency?: number }>
         }>
         overlays: Array<{
           id: string
