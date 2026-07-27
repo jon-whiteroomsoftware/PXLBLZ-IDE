@@ -22,10 +22,6 @@
       "spec": "shows.auth.spec.ts"
     },
     {
-      "name": "Edit split position transition from Scene 1",
-      "spec": "shows.auth.spec.ts"
-    },
-    {
       "name": "Pattern for new clip",
       "spec": "shows.auth.spec.ts"
     },
@@ -35,10 +31,6 @@
     },
     {
       "name": "Scene Scene 2",
-      "spec": "shows.auth.spec.ts"
-    },
-    {
-      "name": "Set routing layout after Scene 1",
       "spec": "shows.auth.spec.ts"
     }
   ],

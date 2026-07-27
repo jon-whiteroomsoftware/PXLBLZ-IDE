@@ -1111,8 +1111,13 @@ test.describe('authenticated Show authoring', () => {
     const ranges = page.getByLabel('Alternating main pixel ranges')
     await ranges.fill('0-29')
     await ranges.blur()
-    await page.getByRole('button', { name: 'Set routing layout after Scene 1' }).click()
-    await page.getByLabel('Destination routing layout').selectOption({ label: 'Alternating' })
+    // Placing a layout is now an explicit Zone Layout interval appended at the
+    // playhead, not a switch attached to a Scene boundary (#624, CONTEXT.md).
+    await page.getByRole('button', { name: 'Add to Show' }).click()
+    await page.getByRole('menuitem', { name: 'Zone Layout' }).click()
+    const layoutAtPlayhead = page.getByRole('dialog', { name: 'Zone Layout at playhead' })
+    await layoutAtPlayhead.getByLabel('Zone Layout', { exact: true }).selectOption({ label: 'Alternating' })
+    await layoutAtPlayhead.getByRole('button', { name: 'Append' }).click()
     await page.getByRole('button', { name: 'Edit routing Transition between TestPattern1D and CometLoom' }).click()
     await page.getByLabel('Routing transfer duration seconds exact time').fill('2')
     await page.getByLabel('Routing transfer easing').selectOption('ease-in-out')
@@ -1207,7 +1212,7 @@ test.describe('authenticated Show authoring', () => {
     await page.getByRole('button', { name: 'Close Zones' }).click()
     await expect(page.getByRole('group', { name: 'Split position lane' })).toBeVisible()
 
-    await page.getByRole('button', { name: 'Edit split position transition from Scene 1' }).click()
+    await page.getByRole('button', { name: /^Edit split position at / }).click()
     await page.getByText('Advanced transition controls').click()
     await page.getByLabel('Animate split position').check()
     await page.getByLabel('Split position start').fill('0.2')
@@ -1225,7 +1230,7 @@ test.describe('authenticated Show authoring', () => {
     await openZoneLayout(page, 'Default')
     await expect(page.getByLabel('Default routing mode')).toHaveValue('split-x')
     await page.keyboard.press('Escape')
-    await page.getByRole('button', { name: 'Edit split position transition from Scene 1' }).click()
+    await page.getByRole('button', { name: /^Edit split position at / }).click()
     await page.getByText('Advanced transition controls').click()
     await expect(page.getByLabel('Animate split position')).toBeChecked()
     await expect(page.getByLabel('Split position start')).toHaveValue('0.2')
@@ -1238,14 +1243,14 @@ test.describe('authenticated Show authoring', () => {
 
     await page.setViewportSize({ width: 720, height: 900 })
     await expect(page.getByRole('group', { name: 'Split position lane' })).toBeVisible()
-    await expect(page.getByRole('button', { name: 'Edit split position transition from Scene 1' })).toBeVisible()
+    await expect(page.getByRole('button', { name: /^Edit split position at / })).toBeVisible()
     const pageOverflow = await page.evaluate(() => ({
       scrollWidth: document.documentElement.scrollWidth,
       clientWidth: document.documentElement.clientWidth,
     }))
     expect(pageOverflow.scrollWidth - pageOverflow.clientWidth).toBeLessThanOrEqual(8)
 
-    await page.getByRole('button', { name: 'Edit split position transition from Scene 1' }).click()
+    await page.getByRole('button', { name: /^Edit split position at / }).click()
     await page.getByText('Advanced transition controls').click()
     await page.getByLabel('Animate split position').uncheck()
     await waitForCurrentShow(page, (show) => (
