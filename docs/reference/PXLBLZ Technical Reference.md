@@ -3314,6 +3314,14 @@ retain the routing-produced index argument while reading repeated X/Y; 1D
 members receive the repeated bounded index domain. Existing source Patterns are
 unchanged.
 
+The 2.0 authoring surface exposes repeat tiling on the incoming visual
+Transition: the Repeat scale lane control opens Transition details, where
+Advanced transition controls enable and edit the starting multiplier, duration,
+and easing. The destination target belongs to the destination Scene. The general
+Scene editor does not currently expose a separate repeat-target field, so a new
+Show targets 1x unless a curated or imported artifact already carries another
+Scene target.
+
 The transform adds zero member renderers. Its worst 2D pixel cost is two
 multiplies and two `frac` calls; 1D uses one of each. Compile summary exposes
 that ceiling separately from routing and transition renderer cost. No 3D remap

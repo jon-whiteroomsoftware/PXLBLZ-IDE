@@ -1097,6 +1097,46 @@ test.describe('authenticated Show authoring', () => {
     ))
   })
 
+  test('authors and reloads transition-scoped sample repeat tiling (#654)', async ({ page }) => {
+    await page.setViewportSize({ width: 1440, height: 900 })
+    await page.goto('studio/shows')
+    await createInstallationShow(page)
+
+    let panel = await openTransition(page)
+    await panel.getByText('Advanced transition controls').click()
+    const animateRepeatScale = panel.getByLabel('Animate repeat scale')
+    await expect(animateRepeatScale).toBeVisible()
+    await animateRepeatScale.check()
+
+    const repeatLane = page.getByRole('group', { name: 'Sample repeat lane' })
+    await expect(repeatLane).toBeVisible()
+    await expect(repeatLane.getByRole('button', { name: /^Edit repeat scale at / })).toContainText('1x→1x')
+
+    await panel.getByLabel('Repeat scale start exact multiplier').fill('2x')
+    await panel.getByLabel('Repeat scale start exact multiplier').press('Tab')
+    await panel.getByLabel('Repeat scale duration seconds exact time').fill('0.8')
+    await panel.getByLabel('Repeat scale duration seconds exact time').press('Tab')
+    await panel.getByLabel('Repeat scale easing').selectOption('ease-in-out')
+
+    await waitForCurrentShow(page, (show) => {
+      const descriptor = show.transitions?.[0]?.propertyTransitions?.sample?.repeatScale
+      return descriptor?.from === 2
+        && descriptor.durationMs === 800
+        && showEasingId(descriptor.easing) === 'ease-in-out'
+    })
+
+    await page.reload()
+
+    panel = await openTransition(page)
+    await panel.getByText('Advanced transition controls').click()
+    await expect(panel.getByLabel('Animate repeat scale')).toBeChecked()
+    await expect(panel.getByLabel('Repeat scale start exact multiplier')).toHaveValue('2')
+    await expect(panel.getByLabel('Repeat scale duration seconds exact time')).toHaveValue('0.8')
+    await expect(panel.getByLabel('Repeat scale easing')).toHaveValue('ease-in-out')
+    await expect(page.getByRole('group', { name: 'Sample repeat lane' })).toBeVisible()
+    await expect(page.getByRole('button', { name: /^Edit repeat scale at / })).toContainText('2x→1x')
+  })
+
   test('authors and reloads exact Scene-local Property animation (#490)', async ({ page }) => {
     await page.setViewportSize({ width: 1440, height: 900 })
     await page.goto('studio/shows')

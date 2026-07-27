@@ -616,6 +616,11 @@ switch definitions as a Cut; Moving Split and Soft Split animate an owned
 position while every Pattern clock continues. A synchronized **Repeat scale**
 tiles what Patterns sample without changing Zone ownership or drawn positions
 and appears as an ordinary Property animation band on the unified Timeline.
+Select a visual Transition (or its Repeat scale lane control), expand
+**Advanced transition controls**, and enable **Animate repeat scale** to author
+the ramp's starting multiplier, duration, and easing. Ordinary newly created
+Shows ramp into the destination Scene's 1x repeat target; curated or imported
+Shows may carry a different destination target, which the lane displays.
 
 The right pane is the read-only **Stage**: the Show rendered over its output
 geometry (or honest generic strips when no map is saved), with the familiar
