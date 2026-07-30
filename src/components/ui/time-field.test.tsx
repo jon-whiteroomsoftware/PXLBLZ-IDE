@@ -5,6 +5,27 @@ import { describe, expect, it, vi } from 'vitest'
 import { TimeField } from './time-field'
 
 describe('TimeField (#614)', () => {
+  it('keeps the field label unique while describing its auxiliary time controls (#656)', () => {
+    render(
+      <TimeField
+        label="Duration"
+        value={1}
+        min={0}
+        max={30}
+        step={0.001}
+        onChange={vi.fn()}
+      />,
+    )
+
+    const exact = screen.getByRole('textbox', { name: 'Duration exact time' })
+    const grip = screen.getByRole('button', { name: 'Adjust with time slider' })
+    expect(grip).toHaveAccessibleDescription('Duration')
+    fireEvent.keyDown(grip, { key: 'Enter' })
+    expect(screen.getByRole('slider', { name: 'Time slider' }))
+      .toHaveAccessibleDescription('Duration')
+    expect(screen.getAllByLabelText(/Duration/i)).toEqual([exact])
+  })
+
   it('accepts exact seconds beyond the thirty-second scrub range', async () => {
     const user = userEvent.setup()
     const onChange = vi.fn()
@@ -47,7 +68,7 @@ describe('TimeField (#614)', () => {
       />,
     )
 
-    const grip = screen.getByRole('button', { name: 'Adjust Duration with slider' })
+    const grip = screen.getByRole('button', { name: 'Adjust with time slider' })
     vi.spyOn(grip, 'getBoundingClientRect').mockReturnValue({
       x: 200, y: 100, left: 200, right: 218, top: 100, bottom: 120, width: 18, height: 20, toJSON: () => ({}),
     })
@@ -57,7 +78,7 @@ describe('TimeField (#614)', () => {
     expect(screen.getAllByTestId('bounded-number-detent-label').map((label) => label.textContent))
       .toEqual(['5', '10', '15', '20', '25', '30'])
 
-    const slider = screen.getByRole('slider', { name: 'Duration time slider' })
+    const slider = screen.getByRole('slider', { name: 'Time slider' })
     fireEvent.keyDown(slider, { key: 'End' })
     expect(onPreview).toHaveBeenLastCalledWith(30)
     fireEvent.keyDown(slider, { key: 'Enter' })
@@ -79,13 +100,13 @@ describe('TimeField (#614)', () => {
       />,
     )
 
-    const grip = screen.getByRole('button', { name: 'Adjust Show End with slider' })
+    const grip = screen.getByRole('button', { name: 'Adjust with time slider' })
     vi.spyOn(grip, 'getBoundingClientRect').mockReturnValue({
       x: 200, y: 100, left: 200, right: 218, top: 100, bottom: 120, width: 18, height: 20, toJSON: () => ({}),
     })
     fireEvent.keyDown(grip, { key: 'Enter' })
 
-    const slider = screen.getByRole('slider', { name: 'Show End time slider' })
+    const slider = screen.getByRole('slider', { name: 'Time slider' })
     expect(slider).toHaveAttribute('aria-valuetext', '30s')
     fireEvent.blur(slider)
 
@@ -105,7 +126,7 @@ describe('TimeField (#614)', () => {
       />,
     )
 
-    const grip = screen.getByRole('button', { name: 'Adjust Cadence with slider' })
+    const grip = screen.getByRole('button', { name: 'Adjust with time slider' })
     vi.spyOn(grip, 'getBoundingClientRect').mockReturnValue({
       x: 200, y: 100, left: 200, right: 218, top: 100, bottom: 120, width: 18, height: 20, toJSON: () => ({}),
     })
@@ -131,13 +152,13 @@ describe('TimeField (#614)', () => {
       />,
     )
 
-    const grip = screen.getByRole('button', { name: 'Adjust Strobe cadence with slider' })
+    const grip = screen.getByRole('button', { name: 'Adjust with time slider' })
     vi.spyOn(grip, 'getBoundingClientRect').mockReturnValue({
       x: 200, y: 100, left: 200, right: 218, top: 100, bottom: 120, width: 18, height: 20, toJSON: () => ({}),
     })
     fireEvent.keyDown(grip, { key: 'Enter' })
 
-    const slider = screen.getByRole('slider', { name: 'Strobe cadence time slider' })
+    const slider = screen.getByRole('slider', { name: 'Time slider' })
     expect(slider).toHaveAttribute('min', '0')
     expect(slider).toHaveAttribute('max', '300')
     expect(slider).toHaveAttribute('step', '1')
@@ -166,12 +187,12 @@ describe('TimeField (#614)', () => {
     }
     render(<PreviewHost />)
 
-    const grip = screen.getByRole('button', { name: 'Adjust Insert duration with slider' })
+    const grip = screen.getByRole('button', { name: 'Adjust with time slider' })
     vi.spyOn(grip, 'getBoundingClientRect').mockReturnValue({
       x: 200, y: 100, left: 200, right: 218, top: 100, bottom: 120, width: 18, height: 20, toJSON: () => ({}),
     })
     fireEvent.keyDown(grip, { key: 'Enter' })
-    const slider = screen.getByRole('slider', { name: 'Insert duration time slider' })
+    const slider = screen.getByRole('slider', { name: 'Time slider' })
     fireEvent.keyDown(slider, { key: 'End' })
     expect(screen.getByRole('textbox', { name: 'Insert duration exact time' })).toHaveValue('30')
     fireEvent.keyDown(slider, { key: 'Escape' })
@@ -208,7 +229,7 @@ describe('TimeField (#614)', () => {
       />,
     )
 
-    const grip = screen.getByRole('button', { name: 'Adjust Start with slider' })
+    const grip = screen.getByRole('button', { name: 'Adjust with time slider' })
     Object.defineProperty(grip, 'setPointerCapture', { configurable: true, value: vi.fn() })
     Object.defineProperty(grip, 'releasePointerCapture', { configurable: true, value: vi.fn() })
     vi.spyOn(grip, 'getBoundingClientRect').mockReturnValue({
@@ -223,7 +244,7 @@ describe('TimeField (#614)', () => {
     expect(screen.getByRole('textbox', { name: 'Start exact time' })).toHaveValue(String(committed))
 
     fireEvent.keyDown(grip, { key: 'Enter' })
-    const reopenedSlider = screen.getByRole('slider', { name: 'Start time slider' })
+    const reopenedSlider = screen.getByRole('slider', { name: 'Time slider' })
     expect(reopenedSlider).toHaveAttribute('aria-valuetext', `${committed}s`)
     fireEvent.keyDown(reopenedSlider, { key: 'Enter' })
 
@@ -251,12 +272,12 @@ describe('TimeField (#614)', () => {
     expect(onChange).toHaveBeenCalledWith(7)
     expect(exact).toHaveValue('0')
 
-    const grip = screen.getByRole('button', { name: 'Adjust Start with slider' })
+    const grip = screen.getByRole('button', { name: 'Adjust with time slider' })
     vi.spyOn(grip, 'getBoundingClientRect').mockReturnValue({
       x: 200, y: 100, left: 200, right: 218, top: 100, bottom: 120, width: 18, height: 20, toJSON: () => ({}),
     })
     fireEvent.keyDown(grip, { key: 'Enter' })
-    expect(screen.getByRole('slider', { name: 'Start time slider' })).toHaveAttribute('aria-valuetext', '0s')
+    expect(screen.getByRole('slider', { name: 'Time slider' })).toHaveAttribute('aria-valuetext', '0s')
   })
 
   it('restores the gesture-start value when a slider commit is synchronously refused', () => {
@@ -272,12 +293,12 @@ describe('TimeField (#614)', () => {
       />,
     )
 
-    const grip = screen.getByRole('button', { name: 'Adjust Start with slider' })
+    const grip = screen.getByRole('button', { name: 'Adjust with time slider' })
     vi.spyOn(grip, 'getBoundingClientRect').mockReturnValue({
       x: 200, y: 100, left: 200, right: 218, top: 100, bottom: 120, width: 18, height: 20, toJSON: () => ({}),
     })
     fireEvent.keyDown(grip, { key: 'Enter' })
-    const slider = screen.getByRole('slider', { name: 'Start time slider' })
+    const slider = screen.getByRole('slider', { name: 'Time slider' })
     fireEvent.keyDown(slider, { key: 'End' })
     fireEvent.keyDown(slider, { key: 'Enter' })
 
@@ -285,7 +306,7 @@ describe('TimeField (#614)', () => {
     expect(screen.getByRole('textbox', { name: 'Start exact time' })).toHaveValue('1')
 
     fireEvent.keyDown(grip, { key: 'Enter' })
-    expect(screen.getByRole('slider', { name: 'Start time slider' })).toHaveAttribute('aria-valuetext', '1s')
+    expect(screen.getByRole('slider', { name: 'Time slider' })).toHaveAttribute('aria-valuetext', '1s')
   })
 
   it('holds the thumb at a whole-second detent across nearby pointer positions', () => {
@@ -302,12 +323,12 @@ describe('TimeField (#614)', () => {
       />,
     )
 
-    const grip = screen.getByRole('button', { name: 'Adjust Start with slider' })
+    const grip = screen.getByRole('button', { name: 'Adjust with time slider' })
     vi.spyOn(grip, 'getBoundingClientRect').mockReturnValue({
       x: 200, y: 100, left: 200, right: 218, top: 100, bottom: 120, width: 18, height: 20, toJSON: () => ({}),
     })
     fireEvent.keyDown(grip, { key: 'Enter' })
-    const slider = screen.getByRole('slider', { name: 'Start time slider' })
+    const slider = screen.getByRole('slider', { name: 'Time slider' })
 
     fireEvent.input(slider, { target: { value: '126' } })
     expect(onPreview).toHaveBeenLastCalledWith(12.6)

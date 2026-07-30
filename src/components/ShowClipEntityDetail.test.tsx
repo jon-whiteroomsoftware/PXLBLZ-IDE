@@ -241,6 +241,7 @@ describe('persistent Clip header fields (#641)', () => {
     expect(primaryFields).toContainElement(screen.getByRole('textbox', { name: 'Animation speed exact multiplier' }))
 
     expect(screen.getAllByRole('textbox', { name: 'Brightness exact percentage' })).toHaveLength(1)
+    expect(screen.getAllByLabelText(/Brightness/i)).toHaveLength(1)
     expect(screen.getAllByRole('textbox', { name: 'Start seconds exact time' })).toHaveLength(1)
     expect(screen.getAllByRole('textbox', { name: 'Opacity exact percentage' })).toHaveLength(1)
     expect(screen.queryByTestId('clip-local-fields')).not.toBeInTheDocument()
@@ -343,8 +344,8 @@ describe('shared Clip Entity Detail sections (#498)', () => {
     render(<ShowClipEntityDetail {...commonProps('scene-main', onPatch)} />)
 
     showTab('Playback')
-    const phase = screen.getByRole('spinbutton', { name: 'Phase' })
-    expect(phase).toHaveValue(0.25)
+    const phase = screen.getByRole('textbox', { name: 'Phase' })
+    expect(phase).toHaveValue('0.25')
     fireEvent.change(phase, { target: { value: '0.5' } })
     fireEvent.blur(phase)
     expect(onPatch).toHaveBeenCalledWith({ view: { phase: 0.5 } })
@@ -382,7 +383,7 @@ describe('shared Clip Entity Detail sections (#498)', () => {
 
     showTab('Place')
     expect(screen.getByRole('group', { name: 'Clip Transform' })).toBeInTheDocument()
-    const positionX = screen.getByRole('spinbutton', { name: 'Content X' })
+    const positionX = screen.getByRole('textbox', { name: 'Content X' })
     fireEvent.change(positionX, { target: { value: '0.25' } })
     fireEvent.blur(positionX)
     expect(onPatch).toHaveBeenCalledWith({ transform: { positionX: 0.25 } })
@@ -394,7 +395,7 @@ describe('shared Clip Entity Detail sections (#498)', () => {
     fireEvent.blur(width)
     expect(onPatch).toHaveBeenCalledWith({ transform: { scaleX: 1.5 } })
 
-    const rotation = screen.getByRole('spinbutton', { name: 'Rotation degrees' })
+    const rotation = screen.getByRole('textbox', { name: 'Rotation degrees' })
     fireEvent.change(rotation, { target: { value: '90' } })
     fireEvent.blur(rotation)
     expect(onPatch).toHaveBeenCalledWith({ transform: { rotation: 0.25 } })
@@ -406,7 +407,7 @@ describe('shared Clip Entity Detail sections (#498)', () => {
     const { rerender } = render(<ShowClipEntityDetail {...props} />)
     showTab('Place')
 
-    const contentX = screen.getByRole('spinbutton', { name: 'Content X' })
+    const contentX = screen.getByRole('textbox', { name: 'Content X' })
     // Enabling moved into the placement pad, so the panel no longer owns it.
     expect(screen.queryByRole('checkbox', { name: 'Viewport' })).not.toBeInTheDocument()
     expect(screen.queryByRole('group', { name: 'Viewport geometry' })).not.toBeInTheDocument()
@@ -419,7 +420,7 @@ describe('shared Clip Entity Detail sections (#498)', () => {
     expect(contentX.compareDocumentPosition(disclosedViewport) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
     expect(within(disclosedViewport).getByText('Aperture')).toBeInTheDocument()
 
-    const viewportX = screen.getByRole('spinbutton', { name: 'Viewport X' })
+    const viewportX = screen.getByRole('textbox', { name: 'Viewport X' })
     fireEvent.change(viewportX, { target: { value: '0.25' } })
     fireEvent.blur(viewportX)
     expect(onPatch).toHaveBeenCalledWith({ viewport: { x: 0.25 } })
@@ -446,14 +447,14 @@ describe('shared Clip Entity Detail sections (#498)', () => {
     render(<ShowClipEntityDetail {...commonProps('scene-main')} />)
 
     // Pattern is the resting tab, so placement is not rendered at all.
-    expect(screen.queryByRole('spinbutton', { name: 'Content X' })).not.toBeInTheDocument()
+    expect(screen.queryByRole('textbox', { name: 'Content X' })).not.toBeInTheDocument()
 
     showTab('Place')
     expect(screen.getByRole('group', { name: 'Clip Transform' })).toBeInTheDocument()
-    expect(screen.getByRole('spinbutton', { name: 'Content X' })).toBeVisible()
+    expect(screen.getByRole('textbox', { name: 'Content X' })).toBeVisible()
 
     showTab('Pattern')
-    expect(screen.queryByRole('spinbutton', { name: 'Content X' })).not.toBeInTheDocument()
+    expect(screen.queryByRole('textbox', { name: 'Content X' })).not.toBeInTheDocument()
   })
 
   it('does not offer the 2D Transform group for an incompatible Stage (#529)', () => {
@@ -496,8 +497,8 @@ describe('shared Clip Entity Detail sections (#498)', () => {
     expect(advancedRows[0].children[1]).toHaveTextContent('Mirror clip')
     expect(advancedRows[0].children[0]).toContainElement(screen.getByRole('checkbox', { name: 'Mirror clip' }))
     expect(advancedRows[1].children[1]).toHaveTextContent('Phase')
-    expect(advancedRows[1].children[2]).toContainElement(screen.getByRole('spinbutton', { name: 'Phase' }))
-    expect(screen.getByRole('spinbutton', { name: 'Phase' })).toHaveClass('h-5', 'border-0', 'border-b', 'text-left')
+    expect(advancedRows[1].children[2]).toContainElement(screen.getByRole('textbox', { name: 'Phase' }))
+    expect(screen.getByRole('textbox', { name: 'Phase' })).toHaveClass('h-5', 'border-0', 'border-b', 'text-left')
   })
 
   it('keeps Pattern controls on one unruled line with a compact Value column (#63)', () => {
@@ -600,7 +601,7 @@ describe('shared Clip Entity Detail sections (#498)', () => {
       />,
     )
 
-    const grip = screen.getByRole('button', { name: 'Adjust Start seconds with slider' })
+    const grip = screen.getByRole('button', { name: 'Adjust with time slider', description: 'Start seconds' })
     Object.defineProperty(grip, 'setPointerCapture', { configurable: true, value: vi.fn() })
     Object.defineProperty(grip, 'releasePointerCapture', { configurable: true, value: vi.fn() })
     vi.spyOn(grip, 'getBoundingClientRect').mockReturnValue({
@@ -638,7 +639,7 @@ describe('placement field display (#617)', () => {
     />)
     showTab('Place')
 
-    expect(screen.getByRole('spinbutton', { name: 'Content X' })).toHaveValue(-0.215)
+    expect(screen.getByRole('textbox', { name: 'Content X' })).toHaveValue('-0.215')
     expect(screen.getByRole('textbox', { name: 'Viewport Width exact multiplier' })).toHaveValue('0.67')
     // Display only: nothing is written back just for being rendered.
     expect(onPatch).not.toHaveBeenCalled()

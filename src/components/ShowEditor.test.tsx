@@ -826,11 +826,11 @@ describe('ShowEditor (#318)', () => {
     await user.click(screen.getByRole('button', { name: 'Marker 1 at 4.023 seconds' }))
     const details = screen.getByRole('dialog', { name: 'Marker 1 details' })
     const markerTime = within(details).getByRole('textbox', { name: 'Marker time in seconds exact time' })
-    fireEvent.keyDown(within(details).getByRole('button', { name: 'Adjust Marker time in seconds with slider' }), { key: 'Enter' })
-    const markerSliderDialog = screen.getByRole('dialog', { name: 'Marker time in seconds slider controls' })
+    fireEvent.keyDown(within(details).getByRole('button', { name: 'Adjust with time slider', description: 'Marker time in seconds' }), { key: 'Enter' })
+    const markerSliderDialog = screen.getByRole('dialog', { name: 'Time slider controls' })
     fireEvent.pointerDown(markerSliderDialog, { pointerId: 77 })
     expect(screen.getByRole('dialog', { name: 'Marker 1 details' })).toBeInTheDocument()
-    fireEvent.keyDown(screen.getByRole('slider', { name: 'Marker time in seconds time slider' }), { key: 'Escape' })
+    fireEvent.keyDown(screen.getByRole('slider', { name: 'Time slider', description: 'Marker time in seconds' }), { key: 'Escape' })
     await user.clear(markerTime)
     await user.type(markerTime, '4.125')
     fireEvent.blur(markerTime)
@@ -1037,11 +1037,11 @@ describe('ShowEditor (#318)', () => {
     await user.click(screen.getByRole('button', { name: 'Show End at 62 seconds' }))
     const details = screen.getByRole('dialog', { name: 'Show End details' })
     const showEnd = within(details).getByRole('textbox', { name: 'Show End time in seconds exact time' })
-    fireEvent.keyDown(within(details).getByRole('button', { name: 'Adjust Show End time in seconds with slider' }), { key: 'Enter' })
-    const showEndSliderDialog = screen.getByRole('dialog', { name: 'Show End time in seconds slider controls' })
+    fireEvent.keyDown(within(details).getByRole('button', { name: 'Adjust with time slider', description: 'Show End time in seconds' }), { key: 'Enter' })
+    const showEndSliderDialog = screen.getByRole('dialog', { name: 'Time slider controls' })
     fireEvent.pointerDown(showEndSliderDialog, { pointerId: 78 })
     expect(screen.getByRole('dialog', { name: 'Show End details' })).toBeInTheDocument()
-    fireEvent.keyDown(screen.getByRole('slider', { name: 'Show End time in seconds time slider' }), { key: 'Escape' })
+    fireEvent.keyDown(screen.getByRole('slider', { name: 'Time slider', description: 'Show End time in seconds' }), { key: 'Escape' })
     await user.clear(showEnd)
     await user.type(showEnd, '65.5')
     fireEvent.blur(showEnd)
@@ -1852,12 +1852,12 @@ describe('ShowEditor (#318)', () => {
     expect(useShowStore.getState().shows[0].composition?.scenes[0].zones[0].main[0].startMs).toBe(0)
     expect(start).toHaveValue('0')
 
-    const grip = screen.getByRole('button', { name: 'Adjust Start seconds with slider' })
+    const grip = screen.getByRole('button', { name: 'Adjust with time slider', description: 'Start seconds' })
     vi.spyOn(grip, 'getBoundingClientRect').mockReturnValue({
       x: 200, y: 100, left: 200, right: 218, top: 100, bottom: 120, width: 18, height: 20, toJSON: () => ({}),
     })
     fireEvent.keyDown(grip, { key: 'Enter' })
-    expect(screen.getByRole('slider', { name: 'Start seconds time slider' })).toHaveAttribute('aria-valuetext', '0s')
+    expect(screen.getByRole('slider', { name: 'Time slider', description: 'Start seconds' })).toHaveAttribute('aria-valuetext', '0s')
   })
 
   it('keeps Clip details open while dragging a portaled domain slider (#610)', async () => {
@@ -1869,7 +1869,7 @@ describe('ShowEditor (#318)', () => {
     await user.click(screen.getByRole('button', { name: 'Select TestPattern1D' }))
 
     const panel = screen.getByRole('dialog', { name: 'Entity Detail Panel' })
-    const grip = within(panel).getByRole('button', { name: 'Adjust Animation speed with slider' })
+    const grip = within(panel).getByRole('button', { name: 'Adjust with multiplier slider', description: 'Animation speed' })
     Object.defineProperty(grip, 'setPointerCapture', { configurable: true, value: vi.fn() })
     Object.defineProperty(grip, 'releasePointerCapture', { configurable: true, value: vi.fn() })
     vi.spyOn(grip, 'getBoundingClientRect').mockReturnValue({
@@ -1878,7 +1878,7 @@ describe('ShowEditor (#318)', () => {
 
     fireEvent.pointerDown(grip, { pointerId: 7, clientX: 389, clientY: 112 })
     fireEvent.pointerUp(grip, { pointerId: 7, clientX: 389, clientY: 112 })
-    const slider = screen.getByRole('slider', { name: 'Animation speed multiplier slider' })
+    const slider = screen.getByRole('slider', { name: 'Multiplier slider', description: 'Animation speed' })
     Object.defineProperty(slider, 'setPointerCapture', { configurable: true, value: vi.fn() })
     fireEvent.pointerDown(slider, { pointerId: 8, clientX: 420, clientY: 112 })
 

@@ -15,6 +15,8 @@ export interface DomainNumberFieldProps extends Omit<BoundedNumberFieldProps, 'p
   step: number
 }
 
+// Domain values accept formatted drafts such as multipliers and ratios, so the
+// deliberate #656 role is an exact textbox with a described transient slider.
 export function DomainNumberField({
   presentation: kind,
   min,

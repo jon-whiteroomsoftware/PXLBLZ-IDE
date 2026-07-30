@@ -742,8 +742,9 @@ function ClipPlacementGeometry({
   )
 }
 
-// The shared draft-buffered numeric field (#577). Re-exported under the
-// historical inspector name for existing call sites.
+// The shared decimal-textbox numeric field (#577, #656). Re-exported under the
+// historical inspector name for existing call sites; it intentionally has the
+// same textbox role and never restores native spinbutton behavior.
 export const ShowInspectorNumberField = NumberField
 
 function withControlTarget(

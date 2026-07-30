@@ -45,7 +45,7 @@ describe('PercentageField', () => {
         onChange={onChange}
       />,
     )
-    const grip = screen.getByRole('button', { name: 'Adjust Opacity with slider' })
+    const grip = screen.getByRole('button', { name: 'Adjust with percentage slider' })
     Object.defineProperty(grip, 'setPointerCapture', { configurable: true, value: vi.fn() })
     Object.defineProperty(grip, 'releasePointerCapture', { configurable: true, value: vi.fn() })
     vi.spyOn(grip, 'getBoundingClientRect').mockReturnValue({
@@ -53,7 +53,7 @@ describe('PercentageField', () => {
     })
 
     fireEvent.pointerDown(grip, { pointerId: 7, clientX: 400, clientY: 114 })
-    const slider = screen.getByRole('slider', { name: 'Opacity percentage slider' })
+    const slider = screen.getByRole('slider', { name: 'Percentage slider' })
     expect(slider).toHaveAttribute('aria-valuetext', '50%')
     expect(onPreview).not.toHaveBeenCalled()
 
@@ -67,7 +67,7 @@ describe('PercentageField', () => {
     expect(onPreviewEnd).toHaveBeenCalledOnce()
     expect(onChange).toHaveBeenCalledOnce()
     expect(onChange).toHaveBeenCalledWith(0.702)
-    expect(screen.queryByRole('slider', { name: 'Opacity percentage slider' })).not.toBeInTheDocument()
+    expect(screen.queryByRole('slider', { name: 'Percentage slider' })).not.toBeInTheDocument()
   })
 
   it('pins on a click and supports stepped keyboard adjustment, endpoints, commit, and cancel', () => {
@@ -86,7 +86,7 @@ describe('PercentageField', () => {
         onChange={onChange}
       />,
     )
-    const grip = screen.getByRole('button', { name: 'Adjust Diffusion with slider' })
+    const grip = screen.getByRole('button', { name: 'Adjust with percentage slider' })
     Object.defineProperty(grip, 'setPointerCapture', { configurable: true, value: vi.fn() })
     Object.defineProperty(grip, 'releasePointerCapture', { configurable: true, value: vi.fn() })
     vi.spyOn(grip, 'getBoundingClientRect').mockReturnValue({
@@ -95,7 +95,7 @@ describe('PercentageField', () => {
 
     fireEvent.pointerDown(grip, { pointerId: 3, clientX: 400 })
     fireEvent.pointerUp(grip, { pointerId: 3, clientX: 400 })
-    let slider = screen.getByRole('slider', { name: 'Diffusion percentage slider' })
+    let slider = screen.getByRole('slider', { name: 'Percentage slider' })
 
     fireEvent.keyDown(slider, { key: 'ArrowRight' })
     expect(onPreview).toHaveBeenLastCalledWith(0.51)
@@ -111,7 +111,7 @@ describe('PercentageField', () => {
 
     fireEvent.pointerDown(grip, { pointerId: 4, clientX: 400 })
     fireEvent.pointerUp(grip, { pointerId: 4, clientX: 400 })
-    slider = screen.getByRole('slider', { name: 'Diffusion percentage slider' })
+    slider = screen.getByRole('slider', { name: 'Percentage slider' })
     fireEvent.keyDown(slider, { key: 'ArrowLeft' })
     fireEvent.keyDown(slider, { key: 'Escape' })
     expect(onChange).toHaveBeenCalledOnce()
@@ -135,7 +135,7 @@ describe('PercentageField', () => {
         onChange={onChange}
       />,
     )
-    const grip = screen.getByRole('button', { name: 'Adjust Brightness with slider' })
+    const grip = screen.getByRole('button', { name: 'Adjust with percentage slider' })
     Object.defineProperty(grip, 'setPointerCapture', { configurable: true, value: vi.fn() })
     Object.defineProperty(grip, 'releasePointerCapture', { configurable: true, value: vi.fn() })
     vi.spyOn(grip, 'getBoundingClientRect').mockReturnValue({
@@ -144,7 +144,7 @@ describe('PercentageField', () => {
     fireEvent.pointerDown(grip, { pointerId: 4, clientX: 389 })
     fireEvent.pointerUp(grip, { pointerId: 4, clientX: 389 })
 
-    const slider = screen.getByRole('slider', { name: 'Brightness percentage slider' })
+    const slider = screen.getByRole('slider', { name: 'Percentage slider' })
     const setPointerCapture = vi.fn()
     const releasePointerCapture = vi.fn()
     Object.defineProperty(slider, 'setPointerCapture', { configurable: true, value: setPointerCapture })
@@ -179,7 +179,7 @@ describe('PercentageField', () => {
         onChange={onChange}
       />,
     )
-    const grip = screen.getByRole('button', { name: 'Adjust Brightness with slider' })
+    const grip = screen.getByRole('button', { name: 'Adjust with percentage slider' })
     Object.defineProperty(grip, 'setPointerCapture', { configurable: true, value: vi.fn() })
     Object.defineProperty(grip, 'releasePointerCapture', { configurable: true, value: vi.fn() })
     vi.spyOn(grip, 'getBoundingClientRect').mockReturnValue({
@@ -188,7 +188,7 @@ describe('PercentageField', () => {
     fireEvent.pointerDown(grip, { pointerId: 4, clientX: 389 })
     fireEvent.pointerUp(grip, { pointerId: 4, clientX: 389 })
 
-    const slider = screen.getByRole('slider', { name: 'Brightness percentage slider' })
+    const slider = screen.getByRole('slider', { name: 'Percentage slider' })
     Object.defineProperty(slider, 'setPointerCapture', { configurable: true, value: vi.fn() })
     fireEvent.pointerDown(slider, { pointerId: 12 })
     fireEvent.input(slider, { target: { value: '800' } })
@@ -215,18 +215,18 @@ describe('PercentageField', () => {
         onChange={vi.fn()}
       />,
     )
-    const grip = screen.getByRole('button', { name: 'Adjust Brightness with slider' })
+    const grip = screen.getByRole('button', { name: 'Adjust with percentage slider' })
     vi.spyOn(grip, 'getBoundingClientRect').mockReturnValue({
       x: 380, y: 100, left: 380, right: 408, top: 100, bottom: 128, width: 28, height: 28, toJSON: () => ({}),
     })
 
     fireEvent.keyDown(grip, { key: 'Enter' })
-    const slider = screen.getByRole('slider', { name: 'Brightness percentage slider' })
+    const slider = screen.getByRole('slider', { name: 'Percentage slider' })
     expect(slider).toHaveAttribute('aria-valuetext', '25%')
     fireEvent.keyDown(slider, { key: 'ArrowUp' })
     fireEvent.keyDown(slider, { key: 'Escape' })
     expect(onPreviewEnd).toHaveBeenCalledOnce()
-    expect(screen.queryByRole('slider', { name: 'Brightness percentage slider' })).not.toBeInTheDocument()
+    expect(screen.queryByRole('slider', { name: 'Percentage slider' })).not.toBeInTheDocument()
   })
 
   it('keeps partial exact drafts local, clamps valid commits, and reverts invalid or escaped drafts', async () => {
@@ -313,12 +313,12 @@ describe('PercentageField', () => {
 
     rerender(<PercentageField label="Opacity" value={1} min={0} max={1} step={0.01} onChange={onChange} />)
     expect(exact).toHaveValue('60')
-    const grip = screen.getByRole('button', { name: 'Adjust Opacity with slider' })
+    const grip = screen.getByRole('button', { name: 'Adjust with percentage slider' })
     vi.spyOn(grip, 'getBoundingClientRect').mockReturnValue({
       x: 200, y: 100, left: 200, right: 218, top: 100, bottom: 120, width: 18, height: 20, toJSON: () => ({}),
     })
     fireEvent.keyDown(grip, { key: 'Enter' })
-    const slider = screen.getByRole('slider', { name: 'Opacity percentage slider' })
+    const slider = screen.getByRole('slider', { name: 'Percentage slider' })
     expect(slider).toHaveAttribute('aria-valuetext', '60%')
     fireEvent.keyDown(slider, { key: 'Enter' })
 
@@ -364,7 +364,7 @@ describe('PercentageField', () => {
         onChange={onChange}
       />,
     )
-    const grip = screen.getByRole('button', { name: 'Adjust Opacity with slider' })
+    const grip = screen.getByRole('button', { name: 'Adjust with percentage slider' })
     Object.defineProperty(grip, 'setPointerCapture', { configurable: true, value: vi.fn() })
     Object.defineProperty(grip, 'releasePointerCapture', { configurable: true, value: vi.fn() })
     vi.spyOn(grip, 'getBoundingClientRect').mockReturnValue({
@@ -400,7 +400,7 @@ describe('PercentageField', () => {
         onChange={vi.fn()}
       />,
     )
-    const grip = screen.getByRole('button', { name: 'Adjust Opacity with slider' })
+    const grip = screen.getByRole('button', { name: 'Adjust with percentage slider' })
     Object.defineProperty(grip, 'setPointerCapture', { configurable: true, value: vi.fn() })
     vi.spyOn(grip, 'getBoundingClientRect').mockReturnValue({
       x: 380, y: 100, left: 380, right: 408, top: 100, bottom: 128, width: 28, height: 28, toJSON: () => ({}),
@@ -412,6 +412,6 @@ describe('PercentageField', () => {
 
     render(<PercentageField label="Duty" value={0.5} min={0} max={1} step={0.01} disabled onChange={vi.fn()} />)
     expect(screen.getByRole('textbox', { name: 'Duty exact percentage' })).toBeDisabled()
-    expect(screen.getByRole('button', { name: 'Adjust Duty with slider' })).toBeDisabled()
+    expect(screen.getByRole('button', { name: 'Adjust with percentage slider' })).toBeDisabled()
   })
 })

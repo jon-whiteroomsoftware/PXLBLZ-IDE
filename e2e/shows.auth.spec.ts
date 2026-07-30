@@ -631,7 +631,7 @@ test.describe('authenticated Show authoring', () => {
     const duration = panel.getByRole('textbox', { name: /^Duration/ })
     await duration.fill('3.4')
     await duration.blur()
-    const points = panel.getByRole('spinbutton', { name: /^Points/ })
+    const points = panel.getByRole('textbox', { name: /^Points/ })
     await points.fill('7')
     await points.blur()
 
@@ -646,7 +646,7 @@ test.describe('authenticated Show authoring', () => {
     await page.reload()
     const reloaded = await openTransition(page)
     await expect(reloaded.getByRole('textbox', { name: /^Duration/ })).toHaveValue('3.4')
-    await expect(reloaded.getByRole('spinbutton', { name: /^Points/ })).toHaveValue('7')
+    await expect(reloaded.getByRole('textbox', { name: /^Points/ })).toHaveValue('7')
   })
 
   test('browsing the Transition palette does not change the junction', async ({ page }) => {
@@ -821,10 +821,10 @@ test.describe('authenticated Show authoring', () => {
     const transform = page.getByRole('group', { name: 'Clip Transform' })
     await expect(transform).toBeVisible()
 
-    await transform.getByRole('spinbutton', { name: 'Content X' }).fill('0.25')
-    await transform.getByRole('spinbutton', { name: 'Content X' }).blur()
-    await transform.getByRole('spinbutton', { name: 'Rotation degrees' }).fill('-90')
-    await transform.getByRole('spinbutton', { name: 'Rotation degrees' }).blur()
+    await transform.getByRole('textbox', { name: 'Content X' }).fill('0.25')
+    await transform.getByRole('textbox', { name: 'Content X' }).blur()
+    await transform.getByRole('textbox', { name: 'Rotation degrees' }).fill('-90')
+    await transform.getByRole('textbox', { name: 'Rotation degrees' }).blur()
 
     // Barrier, not oracle: showPersistenceQueues chains writes per Show, so a
     // second edit's PUT is not dispatched until the first resolves, and
@@ -840,8 +840,8 @@ test.describe('authenticated Show authoring', () => {
     await selectClip(page, 'TestPattern1D')
     await showClipTab(page, 'Place')
     const reloaded = page.getByRole('group', { name: 'Clip Transform' })
-    await expect(reloaded.getByRole('spinbutton', { name: 'Content X' })).toHaveValue('0.25')
-    await expect(reloaded.getByRole('spinbutton', { name: 'Rotation degrees' })).toHaveValue('-90')
+    await expect(reloaded.getByRole('textbox', { name: 'Content X' })).toHaveValue('0.25')
+    await expect(reloaded.getByRole('textbox', { name: 'Rotation degrees' })).toHaveValue('-90')
   })
 
   test('keeps the Clip Transform readable in a narrow workspace', async ({ page }) => {

@@ -115,10 +115,10 @@ describe('Show Transition authoring UI', () => {
     render(<ShowTransitionParameters transition={transition} item={star} onChange={onChange} />)
 
     const controls = screen.getByRole('group', { name: 'Star Transition parameters' })
-    expect(within(controls).getByRole('spinbutton', { name: 'Points' })).toHaveValue(5)
-    expect(within(controls).getByRole('spinbutton', { name: 'Points' })).toHaveClass('h-5', 'px-[5px]')
+    expect(within(controls).getByRole('textbox', { name: 'Points' })).toHaveValue('5')
+    expect(within(controls).getByRole('textbox', { name: 'Points' })).toHaveClass('h-5', 'px-[5px]')
     expect(within(controls).getByRole('combobox', { name: 'Reveal mode' })).toHaveValue('grow-incoming')
-    const points = within(controls).getByRole('spinbutton', { name: 'Points' })
+    const points = within(controls).getByRole('textbox', { name: 'Points' })
     fireEvent.change(points, { target: { value: '7' } })
     fireEvent.blur(points)
     expect(onChange).toHaveBeenCalledWith('starPoints', 7)

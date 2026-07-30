@@ -12,6 +12,9 @@ export interface TimeFieldProps extends Omit<BoundedNumberFieldProps, 'presentat
   sliderMax?: number
 }
 
+// Time values accept unit-bearing, millisecond-precise drafts beyond the scrub
+// range, so the deliberate #656 role is an exact textbox with a described
+// transient slider.
 export function TimeField({
   min,
   max,

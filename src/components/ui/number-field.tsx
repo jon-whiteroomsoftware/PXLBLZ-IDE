@@ -1,11 +1,12 @@
 import { useEffect, useRef, useState, type FocusEvent, type ChangeEvent, type KeyboardEvent } from 'react'
 
-// The one numeric-entry contract for the app (#577): keystrokes edit a local
-// string draft (so deletion and partial numbers survive re-renders), the
-// parsed value is bounded and committed once on blur or Enter, Escape reverts
-// the draft, and external value changes only sync in while the field is not
-// focused. Raw controlled <input type="number"> elements commit per keystroke
-// and snap back on deletion; an ESLint guard bans them outside this module.
+// The one simple numeric-entry contract for the app (#577, #656): this is a
+// decimal textbox, deliberately not a native number input/spinbutton. Keystrokes
+// edit a local string draft (so deletion and partial numbers survive
+// re-renders), the parsed value is bounded and committed once on blur or Enter,
+// Escape reverts the draft, and external value changes only sync in while the
+// field is not focused. Domain, time, and percentage values use the specialized
+// BoundedNumberField wrappers instead.
 
 export interface NumberFieldDraft {
   draft: string
@@ -96,7 +97,6 @@ export function NumberField({
   value,
   min,
   max,
-  step,
   suffix,
   help,
   hideLabel = false,
@@ -136,13 +136,11 @@ export function NumberField({
         <input
           aria-label={ariaLabel ?? label}
           title={help}
-          type="number"
-          min={min}
-          max={max}
-          step={step}
+          type="text"
+          inputMode="decimal"
           disabled={disabled}
           {...inputProps}
-          className={`${inputClass} min-w-0 w-full flex-1 appearance-none ${resolvedAlign === 'left' ? 'text-left' : 'text-right'} [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none`}
+          className={`${inputClass} min-w-0 w-full flex-1 ${resolvedAlign === 'left' ? 'text-left' : 'text-right'}`}
         />
         {suffix && <span className={suffixClass}>{suffix}</span>}
       </span>

@@ -4,6 +4,28 @@ import { describe, expect, it, vi } from 'vitest'
 import { DomainNumberField } from './domain-number-field'
 
 describe('DomainNumberField (#610)', () => {
+  it('keeps the field label unique while describing its auxiliary multiplier controls (#656)', () => {
+    render(
+      <DomainNumberField
+        label="Animation speed"
+        presentation="multiplier"
+        value={1}
+        min={0}
+        max={4}
+        step={0.1}
+        onChange={vi.fn()}
+      />,
+    )
+
+    const exact = screen.getByRole('textbox', { name: 'Animation speed exact multiplier' })
+    const grip = screen.getByRole('button', { name: 'Adjust with multiplier slider' })
+    expect(grip).toHaveAccessibleDescription('Animation speed')
+    fireEvent.keyDown(grip, { key: 'Enter' })
+    expect(screen.getByRole('slider', { name: 'Multiplier slider' }))
+      .toHaveAccessibleDescription('Animation speed')
+    expect(screen.getAllByLabelText(/Animation speed/i)).toEqual([exact])
+  })
+
   it('preserves partial multiplier drafts and canonicalizes or clamps once on commit', async () => {
     const user = userEvent.setup()
     const onChange = vi.fn()
@@ -130,7 +152,7 @@ describe('DomainNumberField (#610)', () => {
         onChange={onChange}
       />,
     )
-    const grip = screen.getByRole('button', { name: 'Adjust Animation speed with slider' })
+    const grip = screen.getByRole('button', { name: 'Adjust with multiplier slider' })
     expect(grip).toHaveClass('w-[18px]')
     Object.defineProperty(grip, 'setPointerCapture', { configurable: true, value: vi.fn() })
     Object.defineProperty(grip, 'releasePointerCapture', { configurable: true, value: vi.fn() })
@@ -140,7 +162,7 @@ describe('DomainNumberField (#610)', () => {
 
     fireEvent.pointerDown(grip, { pointerId: 7, clientX: 400, clientY: 114 })
     expect(screen.getByTestId('domain-number-neutral')).toHaveStyle({ left: '50%' })
-    expect(screen.getByRole('slider', { name: 'Animation speed multiplier slider' }))
+    expect(screen.getByRole('slider', { name: 'Multiplier slider' }))
       .toHaveAttribute('aria-valuetext', '1x')
 
     fireEvent.pointerMove(grip, { pointerId: 7, clientX: 424, clientY: 114 })
@@ -173,13 +195,13 @@ describe('DomainNumberField (#610)', () => {
         onChange={onChange}
       />,
     )
-    const grip = screen.getByRole('button', { name: 'Adjust Repeat scale with slider' })
+    const grip = screen.getByRole('button', { name: 'Adjust with multiplier slider' })
     vi.spyOn(grip, 'getBoundingClientRect').mockReturnValue({
       x: 200, y: 100, left: 200, right: 228, top: 100, bottom: 128, width: 28, height: 28, toJSON: () => ({}),
     })
 
     fireEvent.keyDown(grip, { key: 'Enter' })
-    const slider = screen.getByRole('slider', { name: 'Repeat scale multiplier slider' })
+    const slider = screen.getByRole('slider', { name: 'Multiplier slider' })
     fireEvent.keyDown(slider, { key: 'ArrowRight' })
     expect(onPreview).toHaveBeenCalledWith(1.1)
     fireEvent.keyDown(slider, { key: 'Escape' })
@@ -203,13 +225,13 @@ describe('DomainNumberField (#610)', () => {
         onChange={onChange}
       />,
     )
-    const grip = screen.getByRole('button', { name: 'Adjust Scale X with slider' })
+    const grip = screen.getByRole('button', { name: 'Adjust with multiplier slider' })
     vi.spyOn(grip, 'getBoundingClientRect').mockReturnValue({
       x: 200, y: 100, left: 200, right: 218, top: 100, bottom: 120, width: 18, height: 20, toJSON: () => ({}),
     })
 
     fireEvent.keyDown(grip, { key: 'Enter' })
-    const slider = screen.getByRole('slider', { name: 'Scale X multiplier slider' })
+    const slider = screen.getByRole('slider', { name: 'Multiplier slider' })
     fireEvent.keyDown(slider, { key: 'ArrowRight' })
     expect(onPreview).toHaveBeenLastCalledWith(1.244567)
     fireEvent.keyDown(slider, { key: 'Enter' })

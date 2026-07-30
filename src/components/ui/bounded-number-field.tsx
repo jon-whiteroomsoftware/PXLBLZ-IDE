@@ -57,6 +57,11 @@ export interface BoundedNumberFieldProps {
   onChange: (value: number) => boolean | void | Promise<void>
 }
 
+// Specialized numeric fields deliberately expose one formatted exact textbox
+// plus an optional transient slider (#656). Only the exact textbox carries the
+// field label. Auxiliary controls use operation names and carry the field label
+// as their accessible description, so a label never resolves to two interactive
+// elements while assistive technology still receives the field context.
 export function BoundedNumberField({
   label,
   ariaLabel,
@@ -93,6 +98,8 @@ export function BoundedNumberField({
     snapSliderValue = (next) => clampPercentageValue(next, sliderMin, sliderMax),
   } = presentation
   const inputId = useId()
+  const accessibleFieldLabel = ariaLabel ?? label
+  const auxiliaryKindLabel = `${kindLabel.charAt(0).toUpperCase()}${kindLabel.slice(1)}`
   const canonicalValue = formatDraft(value)
   const sliderPositionCount = Math.max(1, Math.ceil(1 / sliderPositionStep))
   const [draft, setDraft] = useState(canonicalValue)
@@ -333,14 +340,16 @@ export function BoundedNumberField({
 
   return (
     <div className={labelClass} title={help}>
-      <label htmlFor={inputId} className={hideLabel ? 'sr-only' : ''}>{label}</label>
+      <label htmlFor={inputId} className={hideLabel ? 'sr-only' : ''}>
+        {hideLabel ? accessibleFieldLabel : label}
+      </label>
       <span className={`${hideLabel ? '' : 'mt-1'} flex min-w-0 items-center gap-1`}>
         <span className={`${fieldHeight} ${fieldBackground} flex min-w-0 flex-1 overflow-hidden rounded border border-zinc-700 focus-within:border-cyan-400/60`}>
           <input
             id={inputId}
             type="text"
             inputMode="decimal"
-            aria-label={`${ariaLabel ?? label} exact ${kindLabel}`}
+            aria-label={`${accessibleFieldLabel} exact ${kindLabel}`}
             title={help}
             value={draft}
             disabled={disabled}
@@ -358,7 +367,8 @@ export function BoundedNumberField({
           />
           <button
             type="button"
-            aria-label={`Adjust ${ariaLabel ?? label} with slider`}
+            aria-label={`Adjust with ${kindLabel} slider`}
+            title={accessibleFieldLabel}
             aria-expanded={slider !== null}
             disabled={disabled}
             onPointerDown={openSlider}
@@ -388,7 +398,8 @@ export function BoundedNumberField({
         <div
           role="dialog"
           aria-modal="false"
-          aria-label={`${ariaLabel ?? label} slider controls`}
+          aria-label={`${auxiliaryKindLabel} slider controls`}
+          title={accessibleFieldLabel}
           data-bounded-number-slider-ui
           className="fixed z-[120] flex items-center rounded-md border border-cyan-400/35 bg-zinc-950 px-4 shadow-[0_12px_32px_rgba(0,0,0,0.5)]"
           style={{ left: slider.left, top: slider.top, width: slider.width, height: slider.height }}
@@ -426,7 +437,8 @@ export function BoundedNumberField({
             <input
               ref={sliderRef}
               type="range"
-              aria-label={`${ariaLabel ?? label} ${kindLabel} slider`}
+              aria-label={`${auxiliaryKindLabel} slider`}
+              title={accessibleFieldLabel}
               aria-valuetext={format(sliderValue)}
               min={0}
               max={sliderPositionCount}
