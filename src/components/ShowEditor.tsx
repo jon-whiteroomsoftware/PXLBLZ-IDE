@@ -2242,7 +2242,6 @@ export function ShowEditor({
                   patternOptions={patternOptions}
                   patternControlsByCellId={patternControlsByCellId}
                   patternControlsByInstanceId={patternControlsByInstanceId}
-                  compiledCost={compiled.artifact?.summary.cost}
                   compiledOutputEffects={compiled.artifact?.summary.outputEffects}
                   controllerProfiles={controllerProfiles}
                   targetProfile={targetProfile}
@@ -6960,7 +6959,6 @@ function ContextualInspector({
   patternOptions,
   patternControlsByCellId,
   patternControlsByInstanceId,
-  compiledCost,
   compiledOutputEffects,
   controllerProfiles,
   targetProfile,
@@ -7015,7 +7013,6 @@ function ContextualInspector({
   patternOptions: ShowPatternOption[]
   patternControlsByCellId: Record<string, AutomatablePatternControl[]>
   patternControlsByInstanceId: Record<string, AutomatablePatternControl[]>
-  compiledCost?: import('@/engine/showVisualToolkit').ShowCompiledCostMetadata
   compiledOutputEffects?: import('@/engine/showCompiler').ShowCompileSummary['outputEffects']
   controllerProfiles: ControllerProfile[]
   targetProfile?: ControllerProfile
@@ -7108,7 +7105,6 @@ function ContextualInspector({
             patternControls,
           )}
           transformEnabled={transformEnabled}
-          compiledCost={compiledCost}
           instanceOwnership={null}
           onPatch={(patch) => onUpdateGroupClipInspector(selectedGroupClipOwner, patch)}
           onPreviewPatch={(patch) => onPreviewGroupClipInspector(selectedGroupClipOwner, patch)}
@@ -7160,7 +7156,6 @@ function ContextualInspector({
           patternControls={patternControls}
           summary={compositionClipSummary(selection.clipId, patternControls)}
           transformEnabled={transformEnabled}
-          compiledCost={compiledCost}
           instanceOwnership={instanceOwnership}
           onPatch={(patch) => onUpdateClipInspector(selectedCompositionClipOwner, patch)}
           propertyTracks={compositionShow.composition?.scenes
@@ -7191,7 +7186,6 @@ function ContextualInspector({
         patternOptions={patternOptions}
         patternControls={patternControlsByCellId[selectedClip.id] ?? []}
         transformEnabled={transformEnabled}
-        compiledCost={compiledCost}
         canRemove={canRemoveClip}
         onUpdateClip={(patch) => onUpdateClipInspector({ kind: 'global', cellId: selectedClip.id }, patch)}
         onPreviewClip={(patch) => onPreviewClipInspector({ kind: 'global', cellId: selectedClip.id }, patch)}
@@ -7376,7 +7370,6 @@ function CompositionClipInspector({
   patternControls,
   summary,
   transformEnabled,
-  compiledCost,
   instanceOwnership,
   onPatch,
   propertyTracks = [],
@@ -7397,7 +7390,6 @@ function CompositionClipInspector({
   patternControls: AutomatablePatternControl[]
   summary: ShowClipSummarySection[]
   transformEnabled: boolean
-  compiledCost?: import('@/engine/showVisualToolkit').ShowCompiledCostMetadata
   instanceOwnership: ReturnType<typeof projectShowClipPatternInstanceOwnership>
   onPatch: (patch: ShowClipInspectorPatch) => boolean | void | Promise<void>
   propertyTracks?: ShowPropertyAnimationTrack[]
@@ -7443,7 +7435,6 @@ function CompositionClipInspector({
         }))}
         patternControls={patternControls}
         transformEnabled={transformEnabled}
-        compiledCost={compiledCost}
         panelKey={panelKey}
         structuralControls={instanceOwnership ? (
           <ShowPatternInstanceControls
@@ -7754,7 +7745,6 @@ function ClipInspector({
   patternOptions,
   patternControls,
   transformEnabled,
-  compiledCost,
   canRemove,
   onUpdateClip,
   onPreviewClip,
@@ -7773,7 +7763,6 @@ function ClipInspector({
   patternOptions: ShowPatternOption[]
   patternControls: AutomatablePatternControl[]
   transformEnabled: boolean
-  compiledCost?: import('@/engine/showVisualToolkit').ShowCompiledCostMetadata
   canRemove: boolean
   onUpdateClip: (patch: ShowClipInspectorPatch) => boolean | void | Promise<void>
   onPreviewClip?: (patch: ShowClipInspectorPatch) => void
@@ -7843,7 +7832,6 @@ function ClipInspector({
           }))}
           patternControls={patternControls}
           transformEnabled={transformEnabled}
-          compiledCost={compiledCost}
           panelKey={panelKey}
           embedded
           onPatch={onUpdateClip}

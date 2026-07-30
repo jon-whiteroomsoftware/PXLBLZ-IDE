@@ -2,7 +2,6 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { fireEvent, render, screen, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { createDefaultShow } from '@/engine/showModel'
-import { compileShow } from '@/engine/showCompiler'
 import type { ShowClipEffect } from '@/engine/personalContentRecords'
 import { showPreviewOverrideInitialState, useShowPreviewOverrideStore } from '@/store/showPreviewOverrideStore'
 import { ShowEffectPalette, ShowEffectStack } from './ShowEffectsAuthoring'
@@ -235,6 +234,7 @@ describe('Show Effect authoring UI', () => {
 
     fireEvent.pointerEnter(screen.getByRole('button', { name: 'Add Translate Effect' }))
     fireEvent.focus(screen.getByRole('button', { name: 'Add Ripple Effect' }))
+    expect(screen.getByText('single-source · parameter')).toBeInTheDocument()
     expect(useShowPreviewOverrideStore.getState().show).toBeNull()
   })
 
@@ -248,7 +248,6 @@ describe('Show Effect authoring UI', () => {
     const onChange = vi.fn()
     render(<ShowEffectStack effects={effects} onChange={onChange} onAdd={vi.fn()} />)
 
-    expect(screen.getByText('Cost: 1 Pattern render')).toBeInTheDocument()
     expect(screen.getAllByTestId('show-effect-stage')).toHaveLength(2)
     await user.click(screen.getByRole('button', { name: 'Edit Translate Effect' }))
     const translate = screen.getByTestId('show-effect-move')
@@ -272,14 +271,21 @@ describe('Show Effect authoring UI', () => {
     expect(onChange.mock.calls[onChange.mock.calls.length - 1]?.[0].map((effect: ShowClipEffect) => effect.id)).not.toContain('move')
   })
 
-  it('labels advanced generated-source pressure as a source-size proxy (#502)', () => {
-    const compiledCost = compileShow({
-      clips: [{ id: 'only', source: 'export function render(index) { rgb(1, 0, 0) }' }],
-    }, {}).summary.cost
+  it('keeps Show-wide cost surfaces out of the Clip Effect stack (#643)', () => {
+    render(<ShowEffectStack
+      effects={[
+        { id: 'move', kind: 'translate', x: 0.2, y: 0 },
+        { id: 'ripple', kind: 'ripple', amount: 0.1, frequency: 8, phase: 0, centerX: 0.5, centerY: 0.5 },
+      ]}
+      mirror
+      onChange={vi.fn()}
+      onAdd={vi.fn()}
+    />)
 
-    render(<ShowEffectStack effects={[]} compiledCost={compiledCost} onChange={vi.fn()} onAdd={vi.fn()} />)
-
-    expect(screen.getByText('Generated UTF-8 source')).toBeInTheDocument()
-    expect(screen.getByText(/source-size proxy/i)).toHaveTextContent('% source-size proxy')
+    const stack = screen.getByRole('region', { name: 'Clip Effects' })
+    expect(within(stack).queryByText(/Cost:/i)).not.toBeInTheDocument()
+    expect(within(stack).queryByText('Advanced compiled cost')).not.toBeInTheDocument()
+    expect(within(stack).queryByText(/single-source/i)).not.toBeInTheDocument()
+    expect(within(stack).queryByText(/parameter/i)).not.toBeInTheDocument()
   })
 })

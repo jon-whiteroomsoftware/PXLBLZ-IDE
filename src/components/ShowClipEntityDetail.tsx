@@ -23,7 +23,6 @@ import {
   type ShowClipDetailTabId,
 } from '@/engine/showClipDetailTabs'
 import type { AutomatablePatternControl } from '@/engine/showPatternControls'
-import type { ShowCompiledCostMetadata } from '@/engine/showVisualToolkit'
 import { formatPercentageValue } from '@/engine/percentageValue'
 
 export interface ShowClipEntityDetailProps {
@@ -32,7 +31,6 @@ export interface ShowClipEntityDetailProps {
   readOnly: boolean
   patternOptions: PatternComboboxOption[]
   patternControls: AutomatablePatternControl[]
-  compiledCost?: ShowCompiledCostMetadata
   layerOptions?: Array<{ value: string; label: string }>
   actions?: ReactNode
   structuralControls?: ReactNode
@@ -74,7 +72,6 @@ export function ShowClipEntityDetail({
   readOnly,
   patternOptions,
   patternControls,
-  compiledCost,
   layerOptions,
   actions,
   structuralControls,
@@ -398,7 +395,6 @@ export function ShowClipEntityDetail({
         {activeTab === 'effects' && <ShowEffectStack
           effects={value.effects}
           mirror={value.view.mirror}
-          compiledCost={compiledCost}
           onChange={(effects) => onPatch({ effects })}
           onPreview={(effects) => onPreviewPatch?.({ effects })}
           onPreviewEnd={onPreviewEnd}

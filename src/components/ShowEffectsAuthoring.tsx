@@ -28,7 +28,7 @@ import {
   updateShowClipEffectParameter,
 } from '@/engine/showEffectAuthoring'
 import type { ShowEffectApplication } from '@/engine/showEffectAuthoring'
-import { SHOW_VISUAL_TOOLKIT_REGISTRY, type ShowCompiledCostMetadata } from '@/engine/showVisualToolkit'
+import { SHOW_VISUAL_TOOLKIT_REGISTRY } from '@/engine/showVisualToolkit'
 import {
   buildShowToolkitPresentationCatalogue,
   filterShowToolkitPresentationCatalogue,
@@ -191,7 +191,6 @@ export function ShowEffectPalette({
 export function ShowEffectStack({
   effects,
   mirror = false,
-  compiledCost,
   onChange,
   onPreview,
   onPreviewEnd,
@@ -200,7 +199,6 @@ export function ShowEffectStack({
 }: {
   effects: readonly ShowClipEffect[]
   mirror?: boolean
-  compiledCost?: ShowCompiledCostMetadata
   onChange: (effects: ShowClipEffect[]) => void
   onPreview?: (effects: ShowClipEffect[]) => void
   onPreviewEnd?: () => void
@@ -216,12 +214,6 @@ export function ShowEffectStack({
       <header className="flex h-6 items-center gap-1.5 border-b border-zinc-800 px-1.5">
         <Sparkles size={10} className="text-cyan-300" aria-hidden />
         <div className="text-[9px] font-semibold text-zinc-300">Effects</div>
-        <span
-          className="text-[8px] text-zinc-600"
-          title="The active Effect stack is compiled into one Pixelblaze Pattern render."
-        >
-          Cost: 1 Pattern render
-        </span>
         <button type="button" onClick={onAdd} className="ml-auto flex h-5 items-center gap-1 rounded border border-zinc-700 px-1.5 text-[8px] text-zinc-400 hover:border-cyan-400/50 hover:text-cyan-200"><Plus size={9} /> Add</button>
       </header>
       {STAGES.map((stage) => {
@@ -240,7 +232,6 @@ export function ShowEffectStack({
                 <div className="flex h-8 items-center gap-1 px-1.5">
                   <span className="grid size-6 shrink-0 place-items-center text-cyan-400/70"><EffectMnemonic kind="mirror" /></span>
                   <span className="min-w-0 flex-1 truncate text-[10px] text-zinc-200">Mirror</span>
-                  <span className="hidden text-[8px] text-zinc-700 sm:inline">single-source</span>
                   <IconButton label="Remove Mirror Effect" onClick={() => onMirrorChange?.(false)}><Trash2 size={11} /></IconButton>
                 </div>
               </div>
@@ -257,7 +248,6 @@ export function ShowEffectStack({
                       {expanded ? <ChevronDown size={12} /> : <ChevronRight size={12} />}
                     </button>
                     <span className="min-w-0 flex-1 truncate text-[10px] text-zinc-200">{item?.label ?? effect.kind}</span>
-                    <span className="hidden text-[8px] text-zinc-700 sm:inline">{item?.costPolicies.join(' · ')}</span>
                     <IconButton label={`Move ${item?.label ?? effect.kind} Effect earlier`} disabled={!canEarlier} onClick={() => onChange(moveShowClipEffectWithinStage(effects, effect.id, -1))}><ArrowUp size={11} /></IconButton>
                     <IconButton label={`Move ${item?.label ?? effect.kind} Effect later`} disabled={!canLater} onClick={() => onChange(moveShowClipEffectWithinStage(effects, effect.id, 1))}><ArrowDown size={11} /></IconButton>
                     <IconButton label={`Duplicate ${item?.label ?? effect.kind} Effect`} onClick={() => onChange(duplicateShowClipEffect(effects, effect.id))}><Copy size={11} /></IconButton>
@@ -349,25 +339,6 @@ export function ShowEffectStack({
           </div>
         )
       })}
-      {compiledCost && (
-        <details className="border-t border-zinc-800 bg-zinc-950/45">
-          <summary className="cursor-pointer px-2 py-1.5 text-[8px] uppercase tracking-[0.1em] text-zinc-600">Advanced compiled cost</summary>
-          <div className="grid grid-cols-2 gap-x-3 gap-y-1 border-t border-zinc-800 px-2 py-2 text-[8px] text-zinc-500 sm:grid-cols-3">
-            <span>Pattern evaluations <b className="text-zinc-300">{compiledCost.cpu.patternEvaluations.formula}</b></span>
-            <span>Affine/frame <b className="text-zinc-300">{compiledCost.cpu.effects.affineOperationsPerFrame}</b></span>
-            <span>Distort ops/px <b className="text-zinc-300">{compiledCost.cpu.effects.distortionScalarOpsPerEvaluatedPixel}</b></span>
-            <span>Color ops/px <b className="text-zinc-300">{compiledCost.cpu.effects.colorScalarOpsPerEvaluatedPixel}</b></span>
-            <span>Generated scalars <b className="text-zinc-300">{compiledCost.memory.generatedScalarGlobals}</b></span>
-            <span
-              aria-label={`Generated UTF-8 source, ${compiledCost.code.artifactBytes} bytes, ${Math.round(compiledCost.code.budgetRatio * 100)}% source-size proxy against the observed ${compiledCost.code.budgetBytes.toLocaleString('en-US')}-byte compiled-bytecode activation ceiling. This is not remaining Controller capacity.`}
-              title={`Source-size proxy against the observed ${compiledCost.code.budgetBytes.toLocaleString('en-US')}-byte compiled-bytecode activation ceiling; not remaining Controller capacity.`}
-            >
-              <span>Generated UTF-8 source</span>{' '}
-              <b className="text-zinc-300">{compiledCost.code.artifactBytes} B · {Math.round(compiledCost.code.budgetRatio * 100)}% source-size proxy</b>
-            </span>
-          </div>
-        </details>
-      )}
     </section>
   )
 }
