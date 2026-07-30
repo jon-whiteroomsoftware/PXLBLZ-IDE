@@ -637,8 +637,9 @@ code size, renderer policy, transition cost, memory ledger, and warnings, all
 measured from the artifact it just built rather than estimated from menu
 labels. The **Show source** number expands into a byte-level inventory with
 **Ways to slim this Show** ranking the contributors you can actually change.
-**Advanced compiled cost** names every specialization the compiler selected
-or rejected, and why — the mechanisms behind those labels are the subject of
+Other compile-bar facts name the specializations the compiler selected or
+rejected, and why. Clip details do not repeat these Show totals. The mechanisms
+behind those labels are the subject of
 [Inside the Show Compiler](../guides/Inside the Show compiler.md).
 
 The same bar enforces the support envelope: outputs above 2,000 pixels,

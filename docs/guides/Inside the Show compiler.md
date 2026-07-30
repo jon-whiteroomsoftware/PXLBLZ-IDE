@@ -306,9 +306,9 @@ timeline reports the memory ledger, renderer depth, and support envelope.
 Hovering the **Show source** figure opens an exact byte-level inventory of
 the generated artifact — which Patterns, plans, and score tables own which
 bytes — with **Ways to slim this Show** ranking the levers you actually
-control. **Advanced compiled cost** names every selected specialization,
-every cache the planner chose, and every candidate it rejected, with the
-reason. And **View code** shows you the whole generated Pattern, because the
+control. The remaining compile-bar facts name selected specializations, the
+caches the planner chose, and candidates it rejected, with the reason. And
+**View code** shows you the whole generated Pattern, because the
 best answer to "what did the compiler do?" is the code it wrote.
 
 For the measured evidence behind every number here, see

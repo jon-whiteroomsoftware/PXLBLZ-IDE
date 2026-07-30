@@ -144,9 +144,10 @@ work.
 
 ## Cost: how many Pattern evaluations happen
 
-The compact cost label and **Advanced compiled cost** describe the generated
-artifact, not a generic warning attached to a menu item. Let `N` be the number
-of output pixels and `E` the pixels inside a blended spatial edge.
+The Show-level compile bar describes the generated artifact, not a generic
+warning attached to a menu item. Clip details deliberately do not repeat those
+Show totals. Let `N` be the number of output pixels and `E` the pixels inside a
+blended spatial edge.
 
 ![Transition cost classes: one renderer per pixel, both renderers inside a feather band, or both renderers everywhere](../images/transition-cost-classes.svg)
 
@@ -160,9 +161,9 @@ of output pixels and `E` the pixels inside a blended spatial edge.
   frame. Crossfade and full-blend Motion are `2N` during their transition window.
 
 Effects can still add scalar, trigonometric, square-root, or address work around
-that one Pattern evaluation. The advanced disclosure reports those operations,
-generated memory, artifact bytes, pixel-count math, and compatibility warnings.
-It is the place to compare two visually acceptable choices before sending a
+that one Pattern evaluation. The compile bar reports those operations, generated
+memory, artifact bytes, pixel-count math, and compatibility warnings. It is the
+place to compare two visually acceptable choices before sending a
 dense Show to a Controller.
 
 ## Stock Show companion
