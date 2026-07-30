@@ -161,10 +161,10 @@ blended spatial edge.
   frame. Crossfade and full-blend Motion are `2N` during their transition window.
 
 Effects can still add scalar, trigonometric, square-root, or address work around
-that one Pattern evaluation. The compile bar reports those operations, generated
-memory, artifact bytes, pixel-count math, and compatibility warnings. It is the
-place to compare two visually acceptable choices before sending a
-dense Show to a Controller.
+that one Pattern evaluation. The current UI does not itemize those per-Effect
+operations. The Add Effect palette exposes broad cost policies while you choose;
+the Show compile bar reports aggregate renderer cost, generated memory, artifact
+bytes, and compatibility warnings for the finished artifact.
 
 ## Stock Show companion
 
