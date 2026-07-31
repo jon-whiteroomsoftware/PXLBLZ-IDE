@@ -5,6 +5,7 @@ import { installationPhysicalZones } from '../../src/engine/showInstallationCove
 import { compilerVintageOptions } from '../../src/engine/showCompilerVintages'
 import { compileShow, type ShowRecipe } from '../../src/engine/showCompiler'
 import { showRecordToCompileRecipe } from '../../src/engine/showModel'
+import { projectShowGroupRuntimePatternInstances } from '../../src/engine/showGroupModel'
 import type { ShowPatternRef, ShowRecord } from '../../src/engine/personalContentRecords'
 import { SHOW_ARTIFACT_BUDGET_BYTES } from '../../src/engine/showVmResourceLedger'
 import { LIBRARIES } from '../../src/pixelblaze/libs'
@@ -93,9 +94,13 @@ function stockRecipe(index: number): ShowRecipe {
     : undefined
   return showRecordToCompileRecipe(show, {
     byCellId: Object.fromEntries(show.cells.map((cell) => [cell.id, sourceForPattern(cell.pattern)])),
-    byPatternInstanceId: Object.fromEntries((show.composition?.patternInstances ?? []).map((instance) => (
-      [instance.id, sourceForPattern(instance.pattern)]
-    ))),
+    // Group occurrences materialize occurrence-local runtime instances
+    // (205 Groups and Linked Reuse), so the lookup mirrors the production
+    // artifact path and includes them alongside the authored instances.
+    byPatternInstanceId: Object.fromEntries([
+      ...(show.composition?.patternInstances ?? []),
+      ...(show.composition ? projectShowGroupRuntimePatternInstances(show.composition) : []),
+    ].map((instance) => [instance.id, sourceForPattern(instance.pattern)])),
     controllerZones: installationPhysicalZones(show),
     stageDimension: map?.dim ?? 2,
   })

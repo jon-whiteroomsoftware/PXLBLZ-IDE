@@ -206,30 +206,31 @@ test.describe('authenticated Show authoring', () => {
     await expect(collapsed).toHaveCount(0)
   })
 
-  // Skipped with the Learn 200 recast (#363): this needs a Show carrying two
-  // named Zone Layouts and a layout boundary, and 203 Dynamic Zone Layouts was
-  // the only fixture that had them. Restore this test against the rebuilt
-  // 200-level lesson; the ruler and collapsed-summary code it covers is
-  // unchanged.
-  test.skip('keeps Zone Layout names on the ruler and Zone names in collapsed summaries (#63)', async ({ page }) => {
+  // Restored with the Learn 200 rebuild (#363): 206 Changing Zone Layouts
+  // carries the three named Zone Layouts and two layout boundaries this
+  // ruler and collapsed-summary coverage needs.
+  test('keeps Zone Layout names on the ruler and Zone names in collapsed summaries (#63)', async ({ page }) => {
     await page.setViewportSize({ width: 1440, height: 900 })
-    await page.goto('studio/shows/stock-show-203-dynamic-zone-layouts')
+    await page.goto('studio/shows/stock-show-206-changing-zone-layouts')
 
     await page.getByRole('button', { name: 'Open Zones' }).click()
     await page.getByRole('button', { name: 'Open Zone Map' }).click()
     const zoneMap = page.getByRole('dialog', { name: 'Zone Map' })
-    await zoneMap.getByRole('button', { name: 'Collapse zone A' }).click()
-    await zoneMap.getByRole('button', { name: 'Collapse zone B' }).click()
+    await zoneMap.getByRole('button', { name: 'Collapse zone Weave' }).click()
+    await zoneMap.getByRole('button', { name: 'Collapse zone Water' }).click()
     await page.getByRole('button', { name: 'Close Zones' }).click()
 
-    await expect(page.locator('[data-show-layout-interval]')).toHaveText(['Vertical', 'Horizontal'])
-    await expect(page.getByTestId('collapsed-zone-layout-label')).toHaveText(['A', 'A', 'B', 'B'])
+    // Single-zone intervals append their sole Zone to the Layout name.
+    await expect(page.locator('[data-show-layout-interval]'))
+      .toHaveText(['Full Surface · Weave', 'Moving Split', 'Rings'])
+    await expect(page.getByTestId('collapsed-zone-layout-label'))
+      .toHaveText(['Weave', 'Weave', 'Weave', 'Water', 'Water'])
 
-    const boundary = page.locator('[data-show-layout-boundary]')
-    await expect(boundary).toHaveCount(1)
-    const boundaryBounds = await boundary.boundingBox()
+    const boundaries = page.locator('[data-show-layout-boundary]')
+    await expect(boundaries).toHaveCount(2)
+    const boundaryBounds = await boundaries.last().boundingBox()
     const rulerBounds = await page.getByTestId('show-timeline-ruler').boundingBox()
-    const collapsedBounds = await page.getByRole('img', { name: 'Collapsed zone B timeline' }).boundingBox()
+    const collapsedBounds = await page.getByRole('img', { name: 'Collapsed zone Water timeline' }).boundingBox()
     expect(boundaryBounds).not.toBeNull()
     expect(rulerBounds).not.toBeNull()
     expect(collapsedBounds).not.toBeNull()

@@ -9,6 +9,7 @@ import { loadPattern, nativeDimension } from '@/engine/loadPattern'
 import { createFastReplayRuntime } from '@/engine/fastReplay'
 import { createShim } from '@/engine/shim'
 import { validateShowComposition } from '@/engine/showCompositionModel'
+import { materializeShowGroupOccurrences } from '@/engine/showGroupModel'
 import { createInstallationCompositionFixture } from '@/engine/showInstallationTestFixture'
 import { projectShowTimeline } from '@/engine/showModel'
 import { SHOW_EASING_OPTIONS, showEasingOptionId } from '@/engine/showEasing'
@@ -21,8 +22,8 @@ import { SOURCE_STOCK_MAPS } from './maps/stockCatalogue'
 import { STOCK_SHOWS, stockShowById } from './shows'
 
 describe('stock Show curriculum (#363)', () => {
-  it('ships the stable Learn 100 and showcase catalogue', () => {
-    expect(STOCK_SHOWS).toHaveLength(15)
+  it('ships the stable Learn 100, Learn 200, and showcase catalogue', () => {
+    expect(STOCK_SHOWS).toHaveLength(21)
     expect(new Set(STOCK_SHOWS.map((item) => item.id)).size).toBe(STOCK_SHOWS.length)
     expect(STOCK_SHOWS.map((item) => [item.name, item.collection, item.level, item.order])).toEqual([
       ['101 Clips, Cuts, and Blank Time', 'learn', 100, 1],
@@ -31,6 +32,12 @@ describe('stock Show curriculum (#363)', () => {
       ['104 Effects and Ordering', 'learn', 100, 4],
       ['105 Portable Zones', 'learn', 100, 5],
       ['106 Built from Basics', 'learn', 100, 6],
+      ['201 Layers and Property Animation', 'learn', 200, 1],
+      ['202 Content and Clip Viewport', 'learn', 200, 2],
+      ['203 Pattern Instance Lifecycle', 'learn', 200, 3],
+      ['204 Presentation Modes', 'learn', 200, 4],
+      ['205 Groups and Linked Reuse', 'learn', 200, 5],
+      ['206 Changing Zone Layouts', 'learn', 200, 6],
       ['Transform Effects', 'showcases', null, 1],
       ['Distortion Effects', 'showcases', null, 2],
       ['Color and Output Effects', 'showcases', null, 3],
@@ -195,18 +202,35 @@ describe('stock Show curriculum (#363)', () => {
     'stock-show-105-portable-zones',
     'stock-show-106-built-from-basics',
   ]
+  const COMPOSITION_IDS = [
+    'stock-show-201-layers-property-animation',
+    'stock-show-202-content-clip-viewport',
+    'stock-show-203-pattern-instance-lifecycle',
+    'stock-show-204-presentation-modes',
+    'stock-show-205-groups-linked-reuse',
+    'stock-show-206-changing-zone-layouts',
+  ]
+  const LESSON_IDS = [...FOUNDATION_IDS, ...COMPOSITION_IDS]
   // Simultaneity is itself the subject from 105 onward, so those two lessons
-  // are allowed the second Zone the earlier four must do without.
-  const SINGLE_ZONE_IDS = FOUNDATION_IDS.slice(0, 4)
-  const foundations = () => FOUNDATION_IDS.map((id) => stockShowById(id)!)
+  // are allowed the second Zone the earlier four must do without. At the 200
+  // level simultaneity lives on Layers, so only 206 - where changing routed
+  // topology is the lesson - carries a second Zone.
+  const SINGLE_ZONE_IDS = [
+    ...FOUNDATION_IDS.slice(0, 4),
+    ...COMPOSITION_IDS.slice(0, 5),
+  ]
+  const lessons = () => LESSON_IDS.map((id) => stockShowById(id)!)
   const lessonPatternNames = (item: (typeof STOCK_SHOWS)[number]) => [
     ...item.show.cells.map((cell) => cell.patternName),
     ...(item.show.composition?.patternInstances.map((instance) => instance.patternName) ?? []),
+    ...(item.show.composition?.groupDefinitions ?? []).flatMap((definition) => (
+      definition.patternInstances.map((instance) => instance.patternName)
+    )),
   ]
 
-  it('casts every foundation lesson from the approved Pattern tiers', () => {
-    for (const item of foundations()) {
-      expect(item, `${FOUNDATION_IDS.join(', ')} must all exist`).toBeDefined()
+  it('casts every lesson from the approved Pattern tiers', () => {
+    for (const item of lessons()) {
+      expect(item, `${LESSON_IDS.join(', ')} must all exist`).toBeDefined()
       for (const name of lessonPatternNames(item)) {
         expect(EXCLUDED_FROM_LESSONS, `${item.name} casts ${name}`).not.toContain(name)
         expect(DEMOS, item.name).toHaveProperty(name)
@@ -214,11 +238,11 @@ describe('stock Show curriculum (#363)', () => {
     }
   })
 
-  it('exposes no Pattern control targets in the foundation lessons', () => {
+  it('exposes no Pattern control targets in the lessons', () => {
     // A control target is a claim that the lesson depends on that value. The
-    // foundation lessons depend on none, so they set none and let each Pattern
+    // curriculum lessons depend on none, so they set none and let each Pattern
     // render at its authored defaults.
-    for (const item of foundations()) {
+    for (const item of lessons()) {
       expect(item.show.cells.every((cell) => cell.controlTargets === undefined), item.name).toBe(true)
       expect(
         (item.show.composition?.patternInstances ?? []).every((instance) => instance.controlTargets === undefined),
@@ -227,27 +251,30 @@ describe('stock Show curriculum (#363)', () => {
     }
   })
 
-  it('uses one shared time scale across each foundation Show', () => {
-    for (const item of foundations()) {
+  it('uses one shared time scale across each lesson Show', () => {
+    for (const item of lessons()) {
       const scales = new Set([
         ...item.show.cells.map((cell) => cell.adaptations.timeScale),
         ...(item.show.composition?.patternInstances.map((instance) => instance.time.timeScale) ?? []),
+        ...(item.show.composition?.groupDefinitions ?? []).flatMap((definition) => (
+          definition.patternInstances.map((instance) => instance.time.timeScale)
+        )),
       ])
       expect(scales.size, `${item.name} time scales: ${[...scales].join(', ')}`).toBe(1)
     }
   })
 
-  it('declares the 44x44 portable reference for every foundation lesson', () => {
+  it('declares the 44x44 portable reference for every lesson', () => {
     // 1,936 is the largest complete square under SHOW_MAX_OUTPUT_PIXELS; 2,000
     // yields a 45-wide grid with a ragged final row.
-    for (const item of foundations()) {
+    for (const item of lessons()) {
       expect(item.show.outputContract, item.name).toMatchObject({
         kind: 'portable-2d', referenceMapId: 'plane', referencePixelCount: 1_936,
       })
     }
   })
 
-  it('leaves each foundation lesson compile headroom for session edits', () => {
+  it('leaves each lesson compile headroom for session edits', () => {
     // Built-ins are session-editable and every note asks the learner to change
     // something, so a lesson compiled near the ceiling breaks on first use.
     //
@@ -259,7 +286,7 @@ describe('stock Show curriculum (#363)', () => {
     // curve -- so the headroom it needs is smaller than the other lessons', and
     // the ceiling here is what that trade actually costs.
     const ceilingFor = (id: string) => (id === 'stock-show-106-built-from-basics' ? 0.8 : 0.6)
-    for (const item of foundations()) {
+    for (const item of lessons()) {
       const compiled = compileShowForArtifact(item.show, [], undefined, {}, { stageDimension: 2 })
       expect(compiled.error, item.name).toBeNull()
       const summary = compiled.artifact!.summary
@@ -271,8 +298,9 @@ describe('stock Show curriculum (#363)', () => {
 
   it('spends a second Zone only where the lesson is about simultaneity', () => {
     // Measured: cost scales with simultaneous Zones, not with Pattern variety
-    // (~1 KB per sequential reprise). No foundation lesson needs a third.
-    for (const item of foundations()) {
+    // (~1 KB per sequential reprise). No lesson needs a third; at the 200
+    // level, simultaneity is taught on Layers, so only 206 routes two Zones.
+    for (const item of lessons()) {
       const expected = SINGLE_ZONE_IDS.includes(item.id) ? 1 : 2
       expect(item.show.zones, item.name).toHaveLength(expected)
     }
@@ -486,6 +514,294 @@ describe('stock Show curriculum (#363)', () => {
     const finalSpin = spin.keyframes[spin.keyframes.length - 1]
     expect(finalSpin).toMatchObject({ timeMs: 30_000 })
     expect(finalSpin.value).toBeGreaterThan(1)
+  })
+
+  // Learn 200: one governing idea per lesson, verified both structurally and
+  // by time-sampled output through the production compile + replay path.
+  const lessonReplay = (id: string) => {
+    const item = stockShowById(id)!
+    const compiled = compileShowForArtifact(item.show, [], undefined, {}, { stageDimension: 2 })
+    expect(compiled.error, item.name).toBeNull()
+    const mapPoints = SOURCE_STOCK_MAPS.find((map) => map.id === 'plane')!.resolve(1_936)
+    const runtime = createFastReplayRuntime({
+      code: compiled.artifact!.code,
+      fxCode: compiled.artifact!.fxCode,
+      metadata: compiled.artifact!.metadata,
+      dimension: nativeDimension(compiled.artifact!.metadata.renderFns),
+    }, { mapPoints, randomSeed: 363, fidelity: 'fast' })
+    // Frames must be sampled in ascending time order.
+    const frameAt = (timeMs: number) => runtime.advanceTo(timeMs, { stepMs: 100 }).pixels.map((px) => [...px])
+    return { item, mapPoints, frameAt }
+  }
+  const luma = ([r, g, b]: number[]) => 0.2126 * r + 0.7152 * g + 0.0722 * b
+  const meanLuma = (frame: number[][]) => frame.reduce((sum, px) => sum + luma(px), 0) / frame.length
+  const frameDiff = (a: number[][], b: number[][]) => a.reduce((sum, px, i) => (
+    sum + Math.abs(px[0] - b[i][0]) + Math.abs(px[1] - b[i][1]) + Math.abs(px[2] - b[i][2])
+  ), 0) / a.length
+
+  it('drives the whole 201 overlay entrance through one Opacity curve', () => {
+    const item = stockShowById('stock-show-201-layers-property-animation')!
+    const composition = item.show.composition!
+    const zone = composition.scenes[0].zones[0]
+
+    // One continuous Main Clip owns the bed; the glyphs live on an overlay
+    // Layer whose placement starts at rest opacity zero.
+    expect(zone.main).toHaveLength(1)
+    expect(zone.main[0]).toMatchObject({ instanceId: 'water', startMs: 0, durationMs: 14_000 })
+    expect(zone.overlays).toHaveLength(1)
+    expect(zone.overlays[0].placements).toHaveLength(1)
+    expect(zone.overlays[0].placements[0]).toMatchObject({ instanceId: 'glyphs', opacity: 0 })
+
+    const tracks = composition.scenes[0].propertyTracks ?? []
+    expect(tracks).toHaveLength(1)
+    expect(tracks[0].target).toEqual({ kind: 'placement-opacity', placementId: 'clip-glyphs' })
+    expect(tracks[0].keyframes.map((frame) => [frame.timeMs, frame.value])).toEqual([
+      [2_000, 0], [4_000, 0.65], [9_000, 0.65], [12_000, 0],
+    ])
+    // Nothing else competes: no Transitions, Effects, or Transform changes.
+    expect(composition.transitions ?? []).toEqual([])
+    expect(zone.main[0].effects ?? []).toEqual([])
+    expect(zone.overlays[0].placements[0].effects ?? []).toEqual([])
+  })
+
+  it('shows the 201 overlay arriving and leaving in sampled output', () => {
+    const { frameAt } = lessonReplay('stock-show-201-layers-property-animation')
+    const before = frameAt(1_500)
+    const during = frameAt(6_500)
+    const after = frameAt(13_200)
+
+    // Opacity is a mix: the mostly-black rain measurably recedes the water at
+    // the hold, and the bed's own luminance returns once the curve lands.
+    expect(meanLuma(during)).toBeLessThan(meanLuma(before) * 0.7)
+    expect(meanLuma(after)).toBeGreaterThan(meanLuma(during) * 1.4)
+  })
+
+  it('separates 202 Content motion from Viewport motion', () => {
+    const item = stockShowById('stock-show-202-content-clip-viewport')!
+    const composition = item.show.composition!
+    const zone = composition.scenes[0].zones[0]
+    const subjects = zone.overlays[0].placements
+
+    // The dim bed is the lower Layer that makes uncovered pixels legible.
+    expect(zone.main[0].view.brightness).toBeLessThan(0.5)
+    // Establish, Content pan behind a static aperture, then aperture slide.
+    expect(subjects.map((placementItem) => placementItem.id))
+      .toEqual(['clip-establish', 'clip-content-pan', 'clip-aperture'])
+    expect(subjects[0].viewport).toBeUndefined()
+    expect(subjects[1].viewport).toMatchObject({ enabled: true, x: 0.25, y: 0.25, width: 0.5, height: 0.5 })
+    expect(subjects[2].viewport).toMatchObject({ enabled: true, x: 0.05 })
+    // One instance serves all three Clips: the subject never restarts.
+    expect(new Set(subjects.map((placementItem) => placementItem.instanceId)).size).toBe(1)
+
+    const tracks = composition.scenes[0].propertyTracks ?? []
+    expect(tracks.map((track) => track.target.kind))
+      .toEqual(['placement-transform', 'placement-viewport'])
+    expect(tracks[0].target).toMatchObject({ placementId: 'clip-content-pan', property: 'positionX' })
+    expect(tracks[1].target).toMatchObject({ placementId: 'clip-aperture', property: 'x' })
+  })
+
+  it('keeps the 202 aperture brighter than the uncovered bed in sampled output', () => {
+    const { mapPoints, frameAt } = lessonReplay('stock-show-202-content-clip-viewport')
+    const at7 = frameAt(7_000)
+    const inside: number[] = []
+    const outside: number[] = []
+    mapPoints.forEach((point, index) => {
+      const [x, y] = point.sample
+      if (x > 0.3 && x < 0.7 && y > 0.3 && y < 0.7) inside.push(luma(at7[index]))
+      if (x < 0.2 || x > 0.8 || y < 0.2 || y > 0.8) outside.push(luma(at7[index]))
+    })
+    const average = (values: number[]) => values.reduce((sum, value) => sum + value, 0) / values.length
+    expect(average(inside)).toBeGreaterThan(average(outside) * 1.3)
+  })
+
+  it('proves 203 instance sharing, restart, and resume in sampled output', () => {
+    const item = stockShowById('stock-show-203-pattern-instance-lifecycle')!
+    const composition = item.show.composition!
+    const main = [...composition.scenes[0].zones[0].main].sort((a, b) => a.startMs - b.startMs)
+
+    // Clip identity and instance identity are separate facts: four Clips,
+    // two instances, and the shared one serves the first, second, and last.
+    expect(composition.patternInstances.map((instance) => instance.patternName))
+      .toEqual(['IQPalettes', 'IQPalettes'])
+    expect(main.map((placementItem) => placementItem.instanceId))
+      .toEqual(['palette-shared', 'palette-shared', 'palette-fresh', 'palette-shared'])
+    expect(main.map((placementItem) => [placementItem.startMs, placementItem.durationMs]))
+      .toEqual([[0, 4_000], [4_000, 4_000], [8_000, 4_000], [12_000, 4_000]])
+
+    const { frameAt } = lessonReplay('stock-show-203-pattern-instance-lifecycle')
+    const early = frameAt(500)
+    const beforeCut = frameAt(3_500)
+    const afterCut = frameAt(4_500)
+    const beforeFresh = frameAt(7_500)
+    const afterFresh = frameAt(8_500)
+    const beforeRejoin = frameAt(11_500)
+    const rejoined = frameAt(12_500)
+
+    // The Cut changes nothing: both sides share one instance.
+    expect(frameDiff(beforeCut, afterCut)).toBeLessThan(frameDiff(early, beforeCut))
+    // The fresh instance restarts: its first moments replay the opening.
+    expect(frameDiff(afterFresh, early)).toBeLessThan(0.02)
+    expect(frameDiff(afterFresh, beforeFresh)).toBeGreaterThan(0.05)
+    // Rejoining resumes the paused shared state, not the wall clock.
+    expect(frameDiff(rejoined, beforeFresh)).toBeLessThan(frameDiff(rejoined, beforeRejoin))
+  })
+
+  it('makes each 204 presentation recognizable in sampled output', () => {
+    const item = stockShowById('stock-show-204-presentation-modes')!
+    const composition = item.show.composition!
+    const main = [...composition.scenes[0].zones[0].main].sort((a, b) => a.startMs - b.startMs)
+
+    expect(main.map((placementItem) => [
+      placementItem.id,
+      placementItem.presentation?.mode ?? (placementItem.blink ? 'blink' : 'live'),
+    ])).toEqual([
+      ['clip-live', 'live'],
+      ['clip-freeze', 'freeze'],
+      ['clip-strobe', 'strobe'],
+      ['clip-blink', 'blink'],
+      ['clip-stutter', 'live'],
+    ])
+    // Stutter is instance-owned: only the dedicated instance steps its clock.
+    const stuttered = composition.patternInstances.find((instance) => instance.id === 'palette-stuttered')!
+    expect(stuttered.time.steppedClock).toEqual({ stepMs: 500 })
+    expect(composition.patternInstances.find((instance) => instance.id === 'palette')!.time.steppedClock)
+      .toBeUndefined()
+
+    const { frameAt } = lessonReplay('stock-show-204-presentation-modes')
+    const liveA = frameAt(1_000)
+    const liveB = frameAt(2_000)
+    const freezeA = frameAt(3_600)
+    const freezeB = frameAt(5_400)
+    // Late-window samples: the refresh carries a short settle transient
+    // (measured), so hold is asserted well inside one beat and the refresh
+    // across windows.
+    const strobeA = frameAt(6_600)
+    const strobeB = frameAt(6_700)
+    const strobeC = frameAt(7_100)
+    const blinkOn = frameAt(9_200)
+    const blinkOff = frameAt(9_700)
+    const stutterA = frameAt(12_100)
+    const stutterB = frameAt(12_400)
+    const stutterC = frameAt(12_800)
+
+    expect(frameDiff(liveA, liveB)).toBeGreaterThan(0.02)
+    expect(frameDiff(freezeA, freezeB)).toBeLessThan(0.001)
+    // Strobe holds within a beat and refreshes across one.
+    expect(frameDiff(strobeA, strobeB)).toBeLessThan(0.001)
+    expect(frameDiff(strobeA, strobeC)).toBeGreaterThan(0.005)
+    // Blink gates visibility to black while time continues underneath.
+    expect(meanLuma(blinkOff)).toBeLessThan(0.001)
+    expect(meanLuma(blinkOn)).toBeGreaterThan(0.05)
+    // Stutter holds within a step and snaps across one, with finite pixels
+    // from the first window on.
+    expect(stutterA.every((px) => px.every((channel) => Number.isFinite(channel)))).toBe(true)
+    expect(frameDiff(stutterA, stutterB)).toBeLessThan(0.001)
+    expect(frameDiff(stutterB, stutterC)).toBeGreaterThan(0.005)
+  })
+
+  it('links both 205 occurrences to one definition with fresh instances', () => {
+    const item = stockShowById('stock-show-205-groups-linked-reuse')!
+    const composition = item.show.composition!
+
+    expect(composition.groupDefinitions).toHaveLength(1)
+    const definition = composition.groupDefinitions![0]
+    // A compact multi-Layer phrase: two placements on different Layer
+    // offsets, each brought in and out by its own Opacity curve.
+    expect(definition.placements.map((placementItem) => placementItem.layerOffset)).toEqual([0, 1])
+    expect(definition.propertyTracks?.map((track) => track.target.kind))
+      .toEqual(['placement-opacity', 'placement-opacity'])
+    expect(composition.groupOccurrences!.map((occurrence) => [occurrence.definitionId, occurrence.startMs]))
+      .toEqual([['group-pulse', 2_000], ['group-pulse', 9_000]])
+    // The linked duplicate is translated so reuse reads as a second
+    // performance rather than a replay of the same pixels.
+    const second = composition.groupOccurrences![1]
+    expect(Math.abs(second.translationX) + Math.abs(second.translationY)).toBeGreaterThan(0)
+
+    // Each occurrence materializes occurrence-local Pattern instances.
+    const materialized = materializeShowGroupOccurrences(composition)
+    const pulseInstances = materialized.patternInstances
+      .filter((instance) => instance.patternName === 'SignalMandala')
+    expect(pulseInstances).toHaveLength(2)
+    expect(new Set(pulseInstances.map((instance) => instance.id)).size).toBe(2)
+    expect(validateShowComposition(item.show, composition)).toEqual([])
+  })
+
+  it('performs the 205 phrase at both occurrence times in sampled output', () => {
+    const { frameAt } = lessonReplay('stock-show-205-groups-linked-reuse')
+    const firstPulse = frameAt(3_500)
+    const betweenPulses = frameAt(7_500)
+    const secondPulse = frameAt(10_500)
+
+    expect(frameDiff(firstPulse, betweenPulses)).toBeGreaterThan(0.03)
+    expect(frameDiff(secondPulse, betweenPulses)).toBeGreaterThan(0.03)
+  })
+
+  it('restates 206 topology across three named Layout intervals', () => {
+    const item = stockShowById('stock-show-206-changing-zone-layouts')!
+
+    expect(item.show.zones.map((zone) => zone.name)).toEqual(['Weave', 'Water'])
+    expect(item.show.routingLayouts.map((layout) => [layout.name, layout.logical?.kind]))
+      .toEqual([['Full Surface', 'single'], ['Moving Split', 'split'], ['Rings', 'rings']])
+    // One swept restatement, one atomic one - and no visual Transition
+    // anywhere, so topology change stays distinct from blending.
+    expect(item.show.transitions.map((transition) => [transition.kind, transition.durationMs, transition.layoutId]))
+      .toEqual([
+        ['routing', 1_500, 'layout-split'],
+        ['routing', 0, 'layout-rings'],
+      ])
+    expect(item.show.transitions[0].routingDirection).toBe('forward')
+
+    // The loom instance continues through every interval; the water joins at
+    // the split and stays. Neither ever restarts at a Layout boundary.
+    const composition = item.show.composition!
+    const instancesByScene = composition.scenes.map((sceneItem) => (
+      sceneItem.zones.flatMap((zone) => zone.main.map((placementItem) => placementItem.instanceId))
+    ))
+    expect(instancesByScene).toEqual([
+      ['loom'],
+      ['loom', 'water'],
+      ['loom', 'water'],
+    ])
+  })
+
+  it('routes 206 output differently in each Layout interval', () => {
+    const { mapPoints, frameAt } = lessonReplay('stock-show-206-changing-zone-layouts')
+    const sideContrast = (frame: number[][]) => {
+      const left: number[] = []
+      const right: number[] = []
+      mapPoints.forEach((point, index) => {
+        const [x, y] = point.sample
+        if (y > 0.4 && y < 0.6) {
+          if (x < 0.3) left.push(luma(frame[index]))
+          if (x > 0.7) right.push(luma(frame[index]))
+        }
+      })
+      const average = (values: number[]) => values.reduce((sum, value) => sum + value, 0) / values.length
+      return Math.abs(average(left) - average(right))
+    }
+    const radialContrast = (frame: number[][]) => {
+      const center: number[] = []
+      const edge: number[] = []
+      mapPoints.forEach((point, index) => {
+        const [x, y] = point.sample
+        const radial = Math.hypot(x - 0.5, y - 0.5)
+        if (radial < 0.2) center.push(luma(frame[index]))
+        if (radial > 0.45) edge.push(luma(frame[index]))
+      })
+      const average = (values: number[]) => values.reduce((sum, value) => sum + value, 0) / values.length
+      return Math.abs(average(center) - average(edge))
+    }
+
+    const full = frameAt(2_000)
+    const split = frameAt(9_000)
+    const rings = frameAt(15_000)
+    // Full surface reads as one material; the split puts two materials side
+    // by side; rings swaps the contrast to center-versus-edge.
+    expect(sideContrast(split)).toBeGreaterThan(sideContrast(full) * 2)
+    expect(radialContrast(rings)).toBeGreaterThan(0.05)
+    expect(meanLuma(full)).toBeGreaterThan(0.02)
+    expect(meanLuma(split)).toBeGreaterThan(0.02)
+    expect(meanLuma(rings)).toBeGreaterThan(0.02)
   })
 
   it('scores Redline as a 60-second five-surface Installation showcase (#503)', () => {
@@ -732,10 +1048,10 @@ describe('stock Show curriculum (#363)', () => {
     }
   })
 
-  it('uses one high-density square Stage across the whole foundation level', () => {
-    // Every Learn 100 lesson renders on the same 44x44 square, so a learner
-    // comparing two lessons is comparing choreography, not resolution.
-    for (const item of foundations()) {
+  it('uses one high-density square Stage across the whole curriculum', () => {
+    // Every lesson renders on the same 44x44 square, so a learner comparing
+    // two lessons is comparing choreography, not resolution.
+    for (const item of lessons()) {
       expect(item.show.outputContract, item.id).toMatchObject({
         kind: 'portable-2d',
         referencePixelCount: 1_936,

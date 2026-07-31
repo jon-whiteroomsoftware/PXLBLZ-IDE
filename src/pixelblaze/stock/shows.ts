@@ -113,6 +113,7 @@ const CARDINAL_DIRECTIONS = [
 
 export const STOCK_SHOWS: StockShow[] = [
   learn101(), learn102(), learn103(), learn104(), learn105(), learn106(),
+  learn201(), learn202(), learn203(), learn204(), learn205(), learn206(),
   effectShowcase('transform'), effectShowcase('distortion'), effectShowcase('color-output'),
   wipeAndMixTransitionReference(), shapeRevealTransitionReference(), motionTransitionReference(),
   propertyAnimationReference(), easingReference(),
@@ -520,6 +521,422 @@ function learn106(): StockShow {
     prompts: ['Change the circle Transition in the Sky to a different shape and watch the same junction tell a different story.', 'Drag the two release curves apart so the Zones stop fading together, then put them back.'],
     guideHeading: 'building-a-complete-show',
     output: portableOutput(), zones, layouts: [splitLayout('layout-sky-ground', 'Sky and ground', zones, 'y')], scenes, composition,
+  })
+}
+
+// 201 casts the sparsest moving Pattern in the 2D catalogue over the calmest
+// full field. Measured at the 44x44 reference, GlyphRain leaves 82% of the
+// Stage dark while still visibly moving, and Caustics fills every pixel with
+// continuous motion, so the overlay's whole contribution is carried by its
+// Opacity curve: when the curve is at zero the water is provably untouched,
+// and everything that appears between 2s and 12s belongs to the second Layer.
+// The peak stops at 0.65 because Opacity is a mix, not an addition - at 0.85
+// the mostly-black rain replaced the water almost completely (measured mean
+// luminance fell from 0.24 to 0.06), which read as the bed failing rather
+// than a second voice joining.
+function learn201(): StockShow {
+  const id = 'stock-show-201-layers-property-animation'
+  const zones = logicalZones(['Main'], PORTABLE_REFERENCE_PIXELS)
+  const scenes: SceneSpec[] = [
+    scene('layers', 'Layers', 14, [clip('zone-1', 'Caustics', LESSON_TIME_SCALE)]),
+  ]
+  const composition: ShowCompositionV1 = {
+    version: 1,
+    patternInstances: [
+      instance('water', 'Caustics', LESSON_TIME_SCALE),
+      instance('glyphs', 'GlyphRain', LESSON_TIME_SCALE),
+    ],
+    scenes: [{
+      sceneId: 'layers',
+      propertyTracks: [{
+        // Arrival, hold, departure. The Clip occupies 2s-12s; the curve, not
+        // the Clip boundary, is what the eye sees. Both Pattern clocks keep
+        // running the whole time, so fading back in never rewinds the rain.
+        id: 'track-glyph-opacity',
+        target: { kind: 'placement-opacity', placementId: 'clip-glyphs' },
+        keyframes: [
+          keyframe('glyphs-arrive', 2, 0),
+          keyframe('glyphs-hold', 4, 0.65),
+          keyframe('glyphs-depart', 9, 0.65),
+          keyframe('glyphs-gone', 12, 0),
+        ],
+      }],
+      zones: [{
+        zoneId: 'zone-1',
+        // The bed never changes. One continuous Clip owns Main for the whole
+        // Show so every visible change is attributable to the overlay Layer.
+        main: [placement('clip-water', 'water', 0, 14)],
+        overlays: [{
+          id: 'layer-glyphs',
+          name: 'Glyph overlay',
+          placements: [{ ...placement('clip-glyphs', 'glyphs', 2, 10), opacity: 0 }],
+        }],
+      }],
+    }],
+    durationMs: 14_000,
+  }
+  return catalogue({
+    id, title: 'Layers and Property Animation', track: 'portable', collection: 'learn', level: 200, order: 1,
+    purpose: 'Layers let two Clips contribute to the same pixels at the same time. The glyphs arrive, hold, and leave without any extra Clips, because a Property curve animates their Opacity inside the one Clip that owns them.',
+    notice: 'The water Clip never changes - Opacity is a mix, so as the glyphs rise the water recedes, and when the curve returns to zero the water is exactly where its own clock says. The entrance and exit are the curve, not Clip edges.',
+    prompts: ['Drag the peak Opacity keyframe from 65% down to 30% and watch the glyphs become a tint instead of a voice.', 'Move the departure keyframe from 9 s to 11 s so the glyphs hold longer before they leave.'],
+    guideHeading: 'layers-and-property-animation',
+    output: portableOutput(), zones, layouts: [singleLayout(zones)], scenes, composition,
+  })
+}
+
+// 202 needs the learner to predict two different rectangles: where the Pattern
+// is sampled (Content) and where the Clip is allowed to draw (the Viewport
+// aperture). CompassRose is the one Pattern whose cardinal points make a pan
+// direction unmistakable, and a dimmed MetaballGarden bed makes every pixel
+// the aperture does not cover read as "lower Layer showing through" rather
+// than as a rendering hole.
+function learn202(): StockShow {
+  const id = 'stock-show-202-content-clip-viewport'
+  const zones = logicalZones(['Main'], PORTABLE_REFERENCE_PIXELS)
+  const scenes: SceneSpec[] = [
+    scene('viewport', 'Viewport', 16, [clip('zone-1', 'MetaballGarden', LESSON_TIME_SCALE)]),
+  ]
+  const aperture = { enabled: true, x: 0.25, y: 0.25, width: 0.5, height: 0.5 }
+  const composition: ShowCompositionV1 = {
+    version: 1,
+    patternInstances: [
+      instance('garden', 'MetaballGarden', LESSON_TIME_SCALE),
+      instance('rose', 'CompassRose', LESSON_TIME_SCALE),
+    ],
+    scenes: [{
+      sceneId: 'viewport',
+      propertyTracks: [
+        {
+          // Content pans behind a stationary frame: the aperture holds still
+          // while the sampled field slides west to east underneath it.
+          id: 'track-content-pan',
+          target: { kind: 'placement-transform', placementId: 'clip-content-pan', property: 'positionX' },
+          keyframes: [
+            keyframe('pan-west', 5, -0.22),
+            keyframe('pan-east', 10, 0.22),
+          ],
+        },
+        {
+          // Then the frame moves while Content holds still: the same rose
+          // stays put and the aperture slides across it.
+          id: 'track-aperture-slide',
+          target: { kind: 'placement-viewport', placementId: 'clip-aperture', property: 'x' },
+          keyframes: [
+            keyframe('aperture-west', 10, 0.05),
+            keyframe('aperture-east', 16, 0.45),
+          ],
+        },
+      ],
+      zones: [{
+        zoneId: 'zone-1',
+        // The bed is deliberately dim so uncovered pixels are obviously the
+        // lower Layer rather than black.
+        main: [{
+          ...placement('clip-garden', 'garden', 0, 16),
+          view: { mirror: false, phase: 0, brightness: 0.3 },
+        }],
+        overlays: [{
+          id: 'layer-subject',
+          name: 'Subject',
+          placements: [
+            // Establish: the full rose, no aperture, so the subject is known
+            // before anything clips it.
+            { ...placement('clip-establish', 'rose', 0, 5), opacity: 1 },
+            {
+              ...placement('clip-content-pan', 'rose', 5, 5),
+              opacity: 1,
+              viewport: { ...aperture },
+              transform: { ...NEUTRAL_SHOW_CLIP_TRANSFORM, positionX: -0.22 },
+            },
+            {
+              ...placement('clip-aperture', 'rose', 10, 6),
+              opacity: 1,
+              viewport: { ...aperture, x: 0.05 },
+            },
+          ],
+        }],
+      }],
+    }],
+    durationMs: 16_000,
+  }
+  return catalogue({
+    id, title: 'Content and Clip Viewport', track: 'portable', collection: 'learn', level: 200, order: 2,
+    purpose: 'Content and the Clip Viewport are two different rectangles. Content decides where the Pattern is sampled; the Viewport is an aperture that decides where the Clip may draw. Wherever the aperture does not cover, the Layer below shows through.',
+    notice: 'The middle Clip pans Content behind a frame that never moves. The last Clip does the opposite: the rose holds still and the aperture slides across it.',
+    prompts: ['On the middle Clip, drag Content up or down and watch the frame stay put while different parts of the rose pass behind it.', 'On the last Clip, widen the aperture until the whole rose fits inside it again.'],
+    guideHeading: 'content-and-clip-viewport',
+    output: portableOutput(), zones, layouts: [singleLayout(zones)], scenes, composition,
+  })
+}
+
+// 203 needs a source whose state is unmistakable at a glance. Measured across
+// the 2D catalogue, IQPalettes drifts further from itself over twelve seconds
+// than anything else that stays calm frame to frame (d12s=0.26 at the lesson
+// clock), because its whole identity is which palette world it currently
+// occupies. A restart therefore reads as the color world snapping back, and a
+// shared clock reads as the world staying put across a junction.
+function learn203(): StockShow {
+  const id = 'stock-show-203-pattern-instance-lifecycle'
+  const zones = logicalZones(['Main'], PORTABLE_REFERENCE_PIXELS)
+  const scenes: SceneSpec[] = [
+    scene('lifecycle', 'Lifecycle', 16, [clip('zone-1', 'IQPalettes', LESSON_TIME_SCALE)]),
+  ]
+  const composition: ShowCompositionV1 = {
+    version: 1,
+    patternInstances: [
+      instance('palette-shared', 'IQPalettes', LESSON_TIME_SCALE),
+      instance('palette-fresh', 'IQPalettes', LESSON_TIME_SCALE),
+    ],
+    scenes: [{
+      sceneId: 'lifecycle',
+      zones: [{
+        zoneId: 'zone-1',
+        main: [
+          // A Split: two Clips, one instance, one continuous picture. The Cut
+          // at 4s changes nothing on the Stage because the Pattern instance
+          // never noticed it.
+          placement('clip-opening', 'palette-shared', 0, 4),
+          placement('clip-continued', 'palette-shared', 4, 4),
+          // An ordinary duplicate: same Pattern, new instance, so the color
+          // world restarts from the beginning while the first instance's
+          // state lives on unseen.
+          placement('clip-duplicate', 'palette-fresh', 8, 4),
+          // Rejoining the shared instance: its clock only runs while a Clip
+          // presents it (measured: the rejoined frame matches the paused
+          // state, not the wall clock), so the world resumes exactly where
+          // the duplicate interrupted it.
+          placement('clip-rejoined', 'palette-shared', 12, 4),
+        ],
+        overlays: [],
+      }],
+    }],
+    durationMs: 16_000,
+  }
+  return catalogue({
+    id, title: 'Pattern Instance Lifecycle', track: 'portable', collection: 'learn', level: 200, order: 3,
+    purpose: 'A Pattern instance owns its own state and clock. Clips only present it. Two Clips can share one instance so the picture continues across their junction, while a duplicated Clip gets a fresh instance that starts over.',
+    notice: 'The junction at 4 s changes nothing: both Clips share one instance. At 8 s the same Pattern restarts from the beginning, because that Clip owns a fresh instance. At 12 s the shared instance returns and resumes exactly where it was interrupted - an instance clock only runs while a Clip presents it.',
+    prompts: ['Select the third Clip and rejoin it to the shared Pattern instance, then watch the 8 s junction stop mattering.', 'Make the last Clip independent instead, and compare where its colors land.'],
+    guideHeading: 'pattern-instance-lifecycle',
+    output: portableOutput(), zones, layouts: [singleLayout(zones)], scenes, composition,
+  })
+}
+
+// 204 compares five presentations of one drifting palette field. The cast is
+// measured, not chosen by eye: IQPalettes carries the strongest full-channel
+// motion among the Patterns that are safe to Stutter (0.157 mean RGB change
+// over two seconds at the lesson clock), and 203 already establishes it as
+// the level's diagnostic source. Caustics moves harder but is excluded: the
+// stepped clock's documented contract renders before the first beforeRender
+// delivery, and Caustics computes its render state there, so its whole first
+// Stutter window comes out non-finite. The Stutter passage owns a second
+// instance because Stutter quantizes the Pattern-instance clock itself;
+// giving it the shared instance would stutter every other Clip too.
+function learn204(): StockShow {
+  const id = 'stock-show-204-presentation-modes'
+  const zones = logicalZones(['Main'], PORTABLE_REFERENCE_PIXELS)
+  const scenes: SceneSpec[] = [
+    scene('presentation', 'Presentation', 15, [clip('zone-1', 'IQPalettes', LESSON_TIME_SCALE)]),
+  ]
+  const composition: ShowCompositionV1 = {
+    version: 1,
+    patternInstances: [
+      instance('palette', 'IQPalettes', LESSON_TIME_SCALE),
+      {
+        id: 'palette-stuttered',
+        pattern: { kind: 'stock', id: 'IQPalettes' },
+        patternName: 'IQPalettes',
+        time: { timeScale: LESSON_TIME_SCALE, timeOffsetMs: 0, steppedClock: { stepMs: 500 } },
+      },
+    ],
+    scenes: [{
+      sceneId: 'presentation',
+      zones: [{
+        zoneId: 'zone-1',
+        main: [
+          placement('clip-live', 'palette', 0, 3),
+          { ...placement('clip-freeze', 'palette', 3, 3), presentation: { mode: 'freeze' } },
+          { ...placement('clip-strobe', 'palette', 6, 3), presentation: { mode: 'strobe', cadenceMs: 400 } },
+          { ...placement('clip-blink', 'palette', 9, 3), blink: { rateHz: 1, duty: 0.5, phase: 0 } },
+          placement('clip-stutter', 'palette-stuttered', 12, 3),
+        ],
+        overlays: [],
+      }],
+    }],
+    durationMs: 15_000,
+  }
+  return catalogue({
+    id, title: 'Presentation Modes', track: 'portable', collection: 'learn', level: 200, order: 4,
+    purpose: 'Presentation changes how one Clip shows a running Pattern without touching the Pattern itself. Freeze holds the arrival frame, Strobe refreshes it on a fixed beat, and Blink gates visibility on and off while time keeps passing underneath.',
+    notice: 'Live, Freeze, Strobe, and Blink all present the same Pattern instance, and its clock never stops. The last Clip is different in kind: Stutter quantizes the instance clock itself, so it owns a second instance.',
+    prompts: ['Compare Freeze with Blink: one holds a picture, the other hides a moving one, and the colors land somewhere different when each ends.', 'Change the Stutter step and watch the whole Clip snap on a different beat.'],
+    guideHeading: 'presentation-modes',
+    output: portableOutput(), zones, layouts: [singleLayout(zones)], scenes, composition,
+  })
+}
+
+// 205 builds one short phrase - a mandala pulse and its smaller offset echo -
+// and places it twice. The phrase runs over quiet linework so both occurrences
+// stay attributable, the second occurrence is translated so reuse does not
+// read as a replay of the same pixels, and each occurrence materializes its
+// own Pattern instances so the two pulses never share private state.
+function learn205(): StockShow {
+  const id = 'stock-show-205-groups-linked-reuse'
+  const zones = logicalZones(['Main'], PORTABLE_REFERENCE_PIXELS)
+  const scenes: SceneSpec[] = [
+    scene('reuse', 'Reuse', 16, [clip('zone-1', 'RibbonLoom', LESSON_TIME_SCALE)]),
+  ]
+  const composition: ShowCompositionV1 = {
+    version: 1,
+    patternInstances: [instance('loom', 'RibbonLoom', LESSON_TIME_SCALE)],
+    scenes: [{
+      sceneId: 'reuse',
+      zones: [{
+        zoneId: 'zone-1',
+        main: [placement('clip-loom', 'loom', 0, 16)],
+        overlays: [],
+      }],
+    }],
+    groupDefinitions: [{
+      id: 'group-pulse',
+      name: 'Mandala pulse',
+      patternInstances: [instance('pulse', 'SignalMandala', LESSON_TIME_SCALE)],
+      placements: [
+        { ...placement('pulse-lead', 'pulse', 0, 4), opacity: 0, layerOffset: 0 },
+        {
+          ...placement('pulse-echo', 'pulse', 1, 3),
+          opacity: 0,
+          layerOffset: 1,
+          transform: { ...NEUTRAL_SHOW_CLIP_TRANSFORM, positionX: 0.2, positionY: -0.14, scaleX: 0.6, scaleY: 0.6 },
+        },
+      ],
+      propertyTracks: [
+        {
+          id: 'track-pulse-lead',
+          target: { kind: 'placement-opacity', placementId: 'pulse-lead' },
+          keyframes: [keyframe('lead-in', 0, 0), keyframe('lead-peak', 1.5, 0.9), keyframe('lead-out', 4, 0)],
+        },
+        {
+          id: 'track-pulse-echo',
+          target: { kind: 'placement-opacity', placementId: 'pulse-echo' },
+          keyframes: [keyframe('echo-in', 1, 0), keyframe('echo-peak', 2.5, 0.55), keyframe('echo-out', 4, 0)],
+        },
+      ],
+    }],
+    groupOccurrences: [
+      {
+        id: 'occurrence-first',
+        definitionId: 'group-pulse',
+        sceneId: 'reuse',
+        zoneId: 'zone-1',
+        startMs: 2_000,
+        baseLayer: 1,
+        translationX: 0,
+        translationY: 0,
+      },
+      {
+        // The linked duplicate: same definition, its own fresh instances,
+        // moved so reuse reads as a second performance rather than a replay.
+        id: 'occurrence-second',
+        definitionId: 'group-pulse',
+        sceneId: 'reuse',
+        zoneId: 'zone-1',
+        startMs: 9_000,
+        baseLayer: 1,
+        translationX: -0.18,
+        translationY: 0.12,
+      },
+    ],
+    durationMs: 16_000,
+  }
+  return catalogue({
+    id, title: 'Groups and Linked Reuse', track: 'portable', collection: 'learn', level: 200, order: 5,
+    purpose: 'A Group definition is choreography you can reuse. Each occurrence places the whole phrase - here a pulse and its echo across two Layers - and every occurrence gets its own fresh Pattern instances, so linked copies repeat the moves without sharing private state.',
+    notice: 'Both pulses are one definition. Edit the phrase once and both occurrences change; the second is translated, and its mandala runs on its own instance rather than continuing the first one.',
+    prompts: ['Open the Group definition and move the echo one second later - both occurrences pick up the change.', 'Make the second occurrence unique, then change only its echo and compare the two.'],
+    guideHeading: 'groups-and-linked-reuse',
+    output: portableOutput(), zones, layouts: [singleLayout(zones)], scenes, composition,
+  })
+}
+
+// 206 restates topology on the same ruler: full surface, an axis-aligned
+// split, and rings. The 105 pairing returns because it is already proven to
+// separate cleanly at a boundary; what is new here is only the Layout, which
+// is the point. The loom instance runs through every interval without
+// restarting, so the learner can see that changing the Layout re-routes
+// pixels without touching Pattern state. The two boundaries deliberately
+// differ: the first sweeps the new Layout across the Stage, the second
+// restates it in one atomic step.
+function learn206(): StockShow {
+  const id = 'stock-show-206-changing-zone-layouts'
+  const zones = logicalZones(['Weave', 'Water'], PORTABLE_REFERENCE_PIXELS)
+  const scenes: SceneSpec[] = [
+    scene('full', 'Full surface', 5, [clip('zone-1', 'RibbonLoom', LESSON_TIME_SCALE)]),
+    scene('split', 'Split', 6, [
+      clip('zone-1', 'RibbonLoom', LESSON_TIME_SCALE),
+      clip('zone-2', 'Caustics', LESSON_TIME_SCALE),
+    ], { splitPosition: 0.5 }),
+    scene('rings', 'Rings', 6, [
+      clip('zone-1', 'RibbonLoom', LESSON_TIME_SCALE),
+      clip('zone-2', 'Caustics', LESSON_TIME_SCALE),
+    ]),
+  ]
+  const composition: ShowCompositionV1 = {
+    version: 1,
+    patternInstances: [
+      instance('loom', 'RibbonLoom', LESSON_TIME_SCALE),
+      instance('water', 'Caustics', LESSON_TIME_SCALE),
+    ],
+    scenes: [
+      {
+        sceneId: 'full',
+        zones: [
+          { zoneId: 'zone-1', main: [placement('clip-full-loom', 'loom', 0, 5)], overlays: [] },
+          { zoneId: 'zone-2', main: [], overlays: [] },
+        ],
+      },
+      {
+        sceneId: 'split',
+        zones: [
+          { zoneId: 'zone-1', main: [placement('clip-split-loom', 'loom', 0, 6)], overlays: [] },
+          { zoneId: 'zone-2', main: [placement('clip-split-water', 'water', 0, 6)], overlays: [] },
+        ],
+      },
+      {
+        sceneId: 'rings',
+        zones: [
+          { zoneId: 'zone-1', main: [placement('clip-rings-loom', 'loom', 0, 6)], overlays: [] },
+          { zoneId: 'zone-2', main: [placement('clip-rings-water', 'water', 0, 6)], overlays: [] },
+        ],
+      },
+    ],
+    durationMs: 17_000,
+  }
+  const transitions: ShowBoundaryTransition[] = [
+    // The first restatement travels: the split sweeps in across the Stage,
+    // which is Layout motion owned by the routing boundary itself.
+    {
+      id: 'routing-full-split', afterSceneId: 'full', kind: 'routing', durationMs: 1_500,
+      easing: SINE_IN_OUT, layoutId: 'layout-split', routingDirection: 'forward',
+    },
+    // The second restatement is atomic: zero duration, one step, so the two
+    // boundary styles can be compared inside one Show.
+    { id: 'routing-split-rings', afterSceneId: 'split', kind: 'routing', durationMs: 0, easing: LINEAR, layoutId: 'layout-rings' },
+  ]
+  return catalogue({
+    id, title: 'Changing Zone Layouts', track: 'portable', collection: 'learn', level: 200, order: 6,
+    purpose: 'A Zone Layout can be restated partway through a Show: the same ruler carries full surface, a split, and rings as sequential intervals. Zones keep their names and Patterns; only the geometry that routes pixels to them changes.',
+    notice: 'The weave never restarts at a Layout boundary. The first boundary sweeps the split across the Stage; the second switches to Rings in one atomic step. Neither is a visual Transition - pixels are re-routed, not blended.',
+    prompts: ['Drag the split position in the middle interval - the Layout owns that geometry, and the Patterns on either side never notice.', 'Insert time before the Rings boundary: the Layout change moves atomically with the intervals around it.'],
+    guideHeading: 'changing-zone-layouts',
+    output: portableOutput(), zones,
+    layouts: [
+      { id: 'layout-full', name: 'Full Surface', zones: [], logical: { kind: 'single', zoneIds: [zones[0].id] } },
+      { id: 'layout-split', name: 'Moving Split', zones: [], logical: { kind: 'split', zoneIds: [zones[0].id, zones[1].id], axis: 'x' } },
+      { id: 'layout-rings', name: 'Rings', zones: [], logical: { kind: 'rings', zoneIds: [zones[0].id, zones[1].id], rings: 2 } },
+    ],
+    scenes, transitions, composition,
   })
 }
 

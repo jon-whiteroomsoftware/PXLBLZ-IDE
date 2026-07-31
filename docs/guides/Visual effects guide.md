@@ -226,25 +226,80 @@ does. End deliberately as well: give each Zone a release curve on the same
 schedule so they go dark together, take the curve to zero rather than near it,
 and leave held black before Show End so the Show finishes instead of stopping.
 
-### Clip sequencing and cuts
-
-One Layer is a mutually exclusive schedule. Its Clips may touch but not overlap,
-which makes Cuts predictable and guarantees at most one source from that Layer
-at any instant. Additional Layers add concurrent Clips without changing the
-timeline's editing model.
-
 ### Layers and property animation
 
-Higher Layers composite above lower Layers. A Clip's opacity and typed property
-tracks control how it contributes during its own interval. Hidden keyframes are
-preserved if a Clip is shortened, so lengthening it again restores the authored
-motion rather than destroying it.
+One Layer is a mutually exclusive schedule: its Clips may touch but not
+overlap. Additional Layers add concurrent Clips, and higher Layers composite
+above lower ones. An overlay Clip's Opacity is a mix with everything below it,
+so raising one voice necessarily recedes the others.
 
-### Dynamic Zone Layouts
+A Property curve animates a value the Clip already owns - Opacity, brightness,
+a Transform axis - without adding filler Clips. The curve lives inside its
+Clip's interval, and hidden keyframes are preserved if a Clip is shortened, so
+lengthening it again restores the authored motion rather than destroying it.
 
-Zone names express ownership and Zone Layouts express geometry. A boundary can
-animate a parameter of the current layout or switch to another named layout
-without changing which Patterns the Zones own.
+### Content and Clip Viewport
+
+Content and the Clip Viewport are two different rectangles. Content is the
+Clip's placement geometry: it decides where the Pattern's picture is sampled,
+and moving it slides different material into view. The Viewport is an
+independently positioned, axis-aligned aperture: it decides where on the Stage
+the Clip may draw at all. Pixels outside the aperture fall through to the
+Layer below, which is why a lower Layer makes a Viewport edge easy to read.
+
+Enabling a Viewport for the first time frames the Clip's current result, so
+nothing changes until the aperture is moved or resized. Both rectangles can be
+animated, and they answer different questions: Content answers "which part of
+the Pattern," the Viewport answers "which part of the Stage."
+
+### Pattern instance lifecycle
+
+A Pattern instance owns private state, a clock, and control values; Clips only
+present it. Splitting a Clip leaves both halves sharing one instance, so the
+junction changes nothing on the Stage. An ordinary duplicate takes a fresh
+instance of the same Pattern, which starts over from the Pattern's beginning.
+
+An instance's clock runs only while some Clip presents it. Rejoining a shared
+instance therefore resumes exactly where the last presenting Clip left off,
+and Make Pattern Independent hands a Clip its own copy of the current state.
+Clip identity and instance identity are separate facts: one instance can serve
+many Clips, and two Clips of one Pattern can live in different worlds.
+
+### Presentation modes
+
+Presentation changes how one Clip exposes a running Pattern without touching
+the Pattern itself. Live shows every frame. Freeze holds the frame the Clip
+arrived on. Strobe re-captures a fresh frame on a fixed beat and holds it
+between beats. Blink gates visibility on and off. Under all four, the Pattern
+instance's clock keeps running, so when a Freeze or Blink ends the Pattern has
+moved on.
+
+Stutter is different in kind: it quantizes the Pattern instance's own clock,
+so every Clip sharing that instance snaps to the same beat. The first four are
+Clip-owned choices; Stutter is an instance-owned one.
+
+### Groups and linked reuse
+
+A Group definition is reusable choreography: a small phrase of Clips, Layers,
+and Property curves with its own local timeline. An occurrence places the
+whole phrase at a time, Zone, and Layer, optionally translated. Occurrences of
+one definition stay linked - editing the definition changes every occurrence -
+but each occurrence materializes its own fresh Pattern instances, so linked
+copies repeat the moves without sharing private state.
+
+Make Unique detaches an occurrence into its own definition when one copy must
+diverge; Ungroup dissolves the phrase back into ordinary Clips.
+
+### Changing Zone Layouts
+
+Zone names express ownership and Zone Layouts express geometry. The same ruler
+can carry a sequence of Layout intervals - full surface, a split, rings -
+while Zones keep their names and their Pattern instances. A Layout boundary
+re-routes pixels rather than blending them: it can restate the topology in one
+atomic step or sweep the new geometry across the Stage, and neither is a
+visual Transition. Pattern instances continue across a Layout boundary without
+restarting, which is what separates changing the Layout from changing the
+content.
 
 ### Installation output and physical ranges
 

@@ -24,7 +24,7 @@ describe('built-in entity organization', () => {
     const organization = stockShowOrganization(STOCK_SHOWS)
 
     expect(organization.nodes).toMatchObject([
-      { kind: 'folder', name: 'Learn', children: [{ kind: 'folder', name: '100' }] },
+      { kind: 'folder', name: 'Learn', children: [{ kind: 'folder', name: '100' }, { kind: 'folder', name: '200' }] },
       { kind: 'folder', name: 'Showcases', children: [
         { kind: 'folder', name: 'Effects' },
         { kind: 'folder', name: 'Transitions & animation' },
