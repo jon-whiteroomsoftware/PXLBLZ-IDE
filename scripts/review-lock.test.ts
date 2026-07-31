@@ -2,9 +2,11 @@ import { mkdtempSync, rmSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
+import { existsSync, readFileSync, writeFileSync } from 'node:fs'
 import {
   acquireReviewLock,
   parseReviewLockOwner,
+  reapStaleReviewLock,
   reviewLockDirectory,
   type ReviewLockOwner,
 } from './review-lock'
@@ -98,6 +100,62 @@ describe('review serialization lock (#637)', () => {
       isAlive: () => false,
     })
     handle.release()
+  })
+
+  it('restores a lock that was reacquired by a live holder before a stale reap lands (#637 P1)', async () => {
+    const lockDirectory = join(base, 'review.lock')
+    const live = await acquireReviewLock({
+      lockDirectory,
+      owner: owner(process.pid),
+      waitMs: 1_000,
+      pollMs: 1,
+    })
+
+    // A reaper acting on a stale dead-owner observation must not delete the
+    // live holder's lock: the quarantined owner re-check renames it back.
+    reapStaleReviewLock(lockDirectory, () => true)
+
+    expect(existsSync(join(lockDirectory, 'owner.json'))).toBe(true)
+    expect(parseReviewLockOwner(
+      readFileSync(join(lockDirectory, 'owner.json'), 'utf8'),
+    )).toEqual(owner(process.pid))
+    live.release()
+    expect(existsSync(lockDirectory)).toBe(false)
+
+    // A confirmed-dead quarantine is removed for real.
+    await acquireReviewLock({ lockDirectory, owner: owner(77777), waitMs: 1_000, pollMs: 1 })
+    reapStaleReviewLock(lockDirectory, () => false)
+    expect(existsSync(lockDirectory)).toBe(false)
+
+    // Reaping an already-released lock is a no-op.
+    reapStaleReviewLock(lockDirectory, () => false)
+    expect(existsSync(lockDirectory)).toBe(false)
+  })
+
+  it('never releases a lock recorded to a different owner (#637 P1)', async () => {
+    const lockDirectory = join(base, 'review.lock')
+    const displaced = await acquireReviewLock({
+      lockDirectory,
+      owner: owner(process.pid),
+      waitMs: 1_000,
+      pollMs: 1,
+    })
+    const replacement: ReviewLockOwner = {
+      pid: process.pid + 1,
+      range: 'cccc..dddd',
+      startedAt: '2026-07-31T14:00:00.000Z',
+    }
+    writeFileSync(
+      join(lockDirectory, 'owner.json'),
+      `${JSON.stringify(replacement, null, 2)}\n`,
+    )
+
+    displaced.release()
+
+    expect(existsSync(join(lockDirectory, 'owner.json'))).toBe(true)
+    expect(parseReviewLockOwner(
+      readFileSync(join(lockDirectory, 'owner.json'), 'utf8'),
+    )).toEqual(replacement)
   })
 
   it('times out with the holder identity when the holder never releases', async () => {

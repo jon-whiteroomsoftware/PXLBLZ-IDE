@@ -281,7 +281,10 @@ async function main(): Promise<void> {
     const args = parseCandidateArgs(process.argv.slice(2))
     const baseSha = resolveObject(args.baseRef)
     const tipSha = resolveObject(args.tipRef)
-    validateCandidateCheckout({
+    // Re-queried on each call: the checkout must also be revalidated after
+    // waiting on the review lock, or the reviewer's file reads could come
+    // from a checkout that moved while this run was queued.
+    const assertCandidateCheckout = (): void => validateCandidateCheckout({
       baseSha,
       tipSha,
       tipCommitSha: resolveCommit(tipSha),
@@ -294,6 +297,7 @@ async function main(): Promise<void> {
       ]).length > 0,
       isAncestor: gitIsAncestor,
     })
+    assertCandidateCheckout()
     const range: PushReviewRange = {
       label: `candidate ${args.baseRef} -> ${args.tipRef}`,
       baseSha,
@@ -362,6 +366,7 @@ async function main(): Promise<void> {
     })
     let execution: PushReviewExecution
     try {
+      assertCandidateCheckout()
       console.log(`▶ Reviewing candidate ${baseSha.slice(0, 12)}..${tipSha.slice(0, 12)}...`)
       execution = await runReviewForRanges([range], testDesign)
     } finally {

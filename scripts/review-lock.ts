@@ -7,7 +7,7 @@
  * report who holds it and reap locks whose owning process is gone.
  */
 
-import { mkdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
+import { mkdirSync, readFileSync, renameSync, rmSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
 
 export interface ReviewLockOwner {
@@ -63,6 +63,50 @@ const defaultSleep = (ms: number): Promise<void> => (
   new Promise((resolve) => setTimeout(resolve, ms))
 )
 
+let reapCounter = 0
+
+/**
+ * Reaps an apparently dead lock without the delete-a-live-lock race: the
+ * directory is first renamed into a unique quarantine path (atomic, so
+ * exactly one of several racing reapers wins), then the owner is re-read
+ * INSIDE the quarantine. If the quarantined owner turns out to be alive --
+ * the stale observation predated a reacquisition -- the directory is renamed
+ * back intact. Only a confirmed-dead quarantine is removed. The residual
+ * window (a third process acquiring between rename and rename-back after a
+ * liveness misjudgment) requires pid-level misreporting plus a microsecond
+ * race, versus the removed bug which needed only two waiters and one crash.
+ */
+export function reapStaleReviewLock(
+  lockDirectory: string,
+  isAlive: (pid: number) => boolean = processIsAlive,
+): void {
+  reapCounter += 1
+  const quarantine = `${lockDirectory}.reaping-${process.pid}-${reapCounter}`
+  try {
+    renameSync(lockDirectory, quarantine)
+  } catch {
+    // Another reaper won, or the holder released; nothing to do.
+    return
+  }
+  let quarantinedOwner: ReviewLockOwner | null = null
+  try {
+    quarantinedOwner = parseReviewLockOwner(
+      readFileSync(join(quarantine, 'owner.json'), 'utf8'),
+    )
+  } catch {
+    quarantinedOwner = null
+  }
+  if (quarantinedOwner && isAlive(quarantinedOwner.pid)) {
+    try {
+      renameSync(quarantine, lockDirectory)
+      return
+    } catch {
+      // A new lock appeared in the window; fall through to drop quarantine.
+    }
+  }
+  rmSync(quarantine, { recursive: true, force: true })
+}
+
 export async function acquireReviewLock(
   options: AcquireReviewLockOptions,
 ): Promise<ReviewLockHandle> {
@@ -77,7 +121,17 @@ export async function acquireReviewLock(
       mkdirSync(options.lockDirectory, { recursive: false })
       writeFileSync(ownerPath, `${JSON.stringify(options.owner, null, 2)}\n`)
       return {
-        release: () => rmSync(options.lockDirectory, { recursive: true, force: true }),
+        release: () => {
+          // A reaper that misjudged our liveness may have replaced this
+          // lock; never delete a lock recorded to a different owner.
+          try {
+            const current = parseReviewLockOwner(readFileSync(ownerPath, 'utf8'))
+            if (current && current.pid !== options.owner.pid) return
+          } catch {
+            // Missing or unreadable owner: removal below is a no-op or ours.
+          }
+          rmSync(options.lockDirectory, { recursive: true, force: true })
+        },
       }
     } catch (error) {
       if ((error as NodeJS.ErrnoException).code === 'ENOENT') {
@@ -95,7 +149,7 @@ export async function acquireReviewLock(
       holder = null
     }
     if (holder && !isAlive(holder.pid)) {
-      rmSync(options.lockDirectory, { recursive: true, force: true })
+      reapStaleReviewLock(options.lockDirectory, isAlive)
       continue
     }
 
