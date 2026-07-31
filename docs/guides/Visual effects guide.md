@@ -261,9 +261,11 @@ instance of the same Pattern, which starts over from the Pattern's beginning.
 
 An instance's clock runs only while some Clip presents it. Rejoining a shared
 instance therefore resumes exactly where the last presenting Clip left off,
-and Make Pattern Independent hands a Clip its own copy of the current state.
-Clip identity and instance identity are separate facts: one instance can serve
-many Clips, and two Clips of one Pattern can live in different worlds.
+and Make Pattern Independent hands a Clip its own instance with the same
+authored settings - the new instance starts from the Pattern's beginning
+rather than inheriting the shared instance's running state. Clip identity and
+instance identity are separate facts: one instance can serve many Clips, and
+two Clips of one Pattern can live in different worlds.
 
 ### Presentation modes
 
