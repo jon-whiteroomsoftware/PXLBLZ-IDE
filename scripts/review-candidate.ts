@@ -1,4 +1,5 @@
 import { execFileSync, spawnSync } from 'node:child_process'
+import { createHash } from 'node:crypto'
 import { readFileSync } from 'node:fs'
 import { pathToFileURL } from 'node:url'
 import {
@@ -11,8 +12,7 @@ import {
 } from './review-approvals'
 import {
   carryApprovalChainForward,
-  findChainByPatchIds,
-  parsePatchIdOutput,
+  findChainByContentIds,
   type RebasedCommit,
 } from './review-carry'
 import {
@@ -62,7 +62,7 @@ export function parseCandidateArgs(args: string[]): CandidateReviewArgs {
 export interface ApproveCandidateInput {
   range: PushReviewRange
   execution: PushReviewExecution
-  patchIds?: string[]
+  contentIds?: string[]
   policyFingerprint: string
   promptVersion: number
   schemaVersion: number
@@ -108,7 +108,7 @@ export function approveCandidate(
     ...(input.execution.crossFamily !== undefined
       ? { crossFamily: input.execution.crossFamily }
       : {}),
-    ...(input.patchIds?.length ? { patchIds: input.patchIds } : {}),
+    ...(input.contentIds?.length ? { contentIds: input.contentIds } : {}),
     policyFingerprint: input.policyFingerprint,
     promptVersion: input.promptVersion,
     schemaVersion: input.schemaVersion,
@@ -136,17 +136,24 @@ function gitFileList(args: string[]): string[] {
 }
 
 /**
- * Ordered per-commit stable patch-ids for the range, or null when any commit
- * produces no patch (empty commits cannot be content-matched, so neither
- * recording nor carry-forward applies).
+ * Ordered per-commit content ids for the range: a byte-exact sha256 of each
+ * commit's full diff-tree patch text. Deliberately NOT `git patch-id`, which
+ * ignores intra-line whitespace; whitespace is semantic in reviewed code.
+ * `--full-index` keeps complete pre/post blob hashes in the hashed text, so
+ * any intervening change to a stack-touched file changes the content id.
  */
-function computeRangePatchIds(baseSha: string, tipSha: string): RebasedCommit[] | null {
-  const commitCount = Number(git(['rev-list', '--count', `${baseSha}..${tipSha}`]))
-  const patchIds = parsePatchIdOutput(git(
-    ['patch-id', '--stable'],
-    git(['log', '--reverse', '--patch', '--format=commit %H', '--no-ext-diff', `${baseSha}..${tipSha}`, '--']),
-  ))
-  return patchIds.length === commitCount ? patchIds : null
+function computeRangeContentIds(baseSha: string, tipSha: string): RebasedCommit[] {
+  const shas = git(['rev-list', '--reverse', `${baseSha}..${tipSha}`])
+    .split(/\r?\n/)
+    .filter((line) => line.length > 0)
+  return shas.map((sha) => {
+    const patch = git([
+      'diff-tree', '--patch', '--no-ext-diff', '--full-index', '--unified=3',
+      '--no-color', '--root', sha,
+    ])
+    const body = patch.split('\n').slice(1).join('\n')
+    return { sha, contentId: createHash('sha256').update(body).digest('hex') }
+  })
 }
 
 interface CarryForwardOutcome {
@@ -157,15 +164,16 @@ interface CarryForwardOutcome {
 function tryCarryForward(input: {
   baseSha: string
   tipSha: string
+  /** Null when the tip is not a plain commit: an annotated tag's receipt must end at the tag-object sha, which carry cannot produce. */
   rebasedCommits: RebasedCommit[] | null
   receipts: readonly ReviewApprovalReceipt[]
   policyFingerprint: string
   receiptsDirectory: string
 }): CarryForwardOutcome | null {
   if (!input.rebasedCommits || input.rebasedCommits.length === 0) return null
-  const chain = findChainByPatchIds(
+  const chain = findChainByContentIds(
     input.receipts,
-    input.rebasedCommits.map((commit) => commit.patchId),
+    input.rebasedCommits.map((commit) => commit.contentId),
     input.policyFingerprint,
   )
   if (!chain) return null
@@ -269,7 +277,10 @@ async function main(): Promise<void> {
       '--git-common-dir',
     ]))
     const policyFingerprint = reviewPolicyFingerprint()
-    const rebasedCommits = computeRangePatchIds(baseSha, tipSha)
+    const tipIsPlainCommit = tipSha === resolveCommit(tipSha)
+    const rebasedCommits = tipIsPlainCommit
+      ? computeRangeContentIds(baseSha, tipSha)
+      : null
 
     const carriedForward = tryCarryForward({
       baseSha,
@@ -284,7 +295,7 @@ async function main(): Promise<void> {
       console.log(
         `✓ Approval carried forward from ${original[0].baseSha.slice(0, 12)}..`
         + `${original[original.length - 1].tipSha.slice(0, 12)}: content-identical rebase`
-        + ' (matching patch-ids, disjoint intervening files). No re-review required.',
+        + ' (matching content ids, disjoint intervening files). No re-review required.',
       )
       for (const path of carriedForward.receiptPaths) console.log(`  ${path}`)
       console.log('Land this candidate unchanged with a fast-forward; amend, rebase, squash, or cherry-pick invalidates this approval.')
@@ -297,7 +308,7 @@ async function main(): Promise<void> {
     const result = approveCandidate({
       range,
       execution,
-      patchIds: rebasedCommits?.map((commit) => commit.patchId),
+      contentIds: rebasedCommits?.map((commit) => commit.contentId),
       policyFingerprint,
       promptVersion: REVIEW_PROMPT_VERSION,
       schemaVersion: REVIEW_SCHEMA_VERSION,

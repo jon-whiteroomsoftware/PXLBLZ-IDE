@@ -87,19 +87,31 @@ The severity contract is part of the reviewer prompt and policy fingerprint.
 Changing that contract invalidates older receipts even when their clean result
 would otherwise be stronger evidence.
 
-One exception re-keys receipts instead of discarding them: patch-id
-carry-forward (#637). Receipts record the ordered per-commit
-`git patch-id --stable` sequence, and `review:candidate` carries an approved
-chain across a rebase without re-review when the rebased range's patch-id
+One exception re-keys receipts instead of discarding them: content-id
+carry-forward (#637). Receipts record an ordered per-commit content id -- a
+byte-exact sha256 of each commit's full `git diff-tree --patch --full-index`
+text, deliberately not `git patch-id`, which ignores intra-line whitespace
+that is semantic in reviewed code. `review:candidate` carries an approved
+chain across a rebase without re-review when the rebased range's content-id
 sequence is identical and the intervening commits touch a file set disjoint
-from the stack's. Both checks are required: identical patch-ids prove the
-content is unchanged, and disjoint files bound the semantic blast radius of
-the new base (a textually identical patch can still be broken by changes to
-the code it lands beside). Conflict resolutions, reordering, added or dropped
-commits, overlapping files, empty commits, or receipts predating patch-id
-recording all fall through to a fresh review. Carried receipts keep the
-original reviewer, coverage, advisories, and authorship, and record
-`carriedFrom` provenance rooted at the originally reviewed range.
+from the stack's. The hashed text includes pre-image blob hashes and context
+lines, so any intervening change to a stack-touched file changes the content
+id; the disjoint-files check is defense in depth on top of that. Conflict
+resolutions, reordering, added or dropped commits, overlapping files,
+annotated-tag tips, or receipts predating content-id recording all fall
+through to a fresh review. Carried receipts keep the original reviewer,
+coverage, advisories, and authorship, and record `carriedFrom` provenance
+rooted at the originally reviewed range.
+
+Accepted residual, decided on #637: path disjointness cannot prove semantic
+independence -- an intervening commit can change behavior a carried patch
+calls into while touching only other files. Re-review closes that window at
+the cost of re-reviewing every rebased stack; the recorded decision is that
+a byte-identical stack over disjoint files carries, and semantically
+entangled landings are expected to overlap in files often enough for the
+guards to catch them. The full Vitest and Playwright pre-push runs still
+execute against the final rebased history regardless of how approval was
+obtained.
 
 Annotated tags retain their tag-object SHA as the exact receipt identity rather
 than being reduced to the target commit. Candidate validation peels the tip

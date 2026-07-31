@@ -3,8 +3,7 @@ import { createApprovalReceipt, type ReviewApprovalReceipt } from './review-appr
 import {
   carryApprovalChainForward,
   filesAreDisjoint,
-  findChainByPatchIds,
-  parsePatchIdOutput,
+  findChainByContentIds,
   type RebasedCommit,
 } from './review-carry'
 
@@ -34,28 +33,19 @@ function receipt(
   })
 }
 
-describe('patch-id approval carry-forward (#637)', () => {
-  it('parses git patch-id output in order and rejects malformed lines', () => {
-    expect(parsePatchIdOutput(`p1 ${A}\np2 ${B}\n\n`)).toEqual([
-      { sha: A, patchId: 'p1' },
-      { sha: B, patchId: 'p2' },
-    ])
-    expect(parsePatchIdOutput('')).toEqual([])
-    expect(() => parsePatchIdOutput('lonely-token')).toThrow(/malformed/i)
-  })
-
-  it('finds a receipt chain by concatenated patch-id sequence ending clean', () => {
-    const first = receipt({ baseSha: A, tipSha: B, patchIds: ['p1', 'p2'] })
-    const second = receipt({ baseSha: B, tipSha: C, patchIds: ['p3'] })
+describe('content-id approval carry-forward (#637)', () => {
+  it('finds a receipt chain by concatenated content-id sequence ending clean', () => {
+    const first = receipt({ baseSha: A, tipSha: B, contentIds: ['p1', 'p2'] })
+    const second = receipt({ baseSha: B, tipSha: C, contentIds: ['p3'] })
     const receipts = [first, second]
 
-    expect(findChainByPatchIds(receipts, ['p1', 'p2', 'p3'], 'policy-v1'))
+    expect(findChainByContentIds(receipts, ['p1', 'p2', 'p3'], 'policy-v1'))
       .toEqual([first, second])
-    expect(findChainByPatchIds(receipts, ['p1', 'p2'], 'policy-v1')).toEqual([first])
-    expect(findChainByPatchIds(receipts, ['p1', 'p3'], 'policy-v1')).toBeNull()
-    expect(findChainByPatchIds(receipts, ['p1', 'p2', 'p3'], 'policy-v2')).toBeNull()
-    expect(findChainByPatchIds(receipts, [], 'policy-v1')).toBeNull()
-    expect(findChainByPatchIds(
+    expect(findChainByContentIds(receipts, ['p1', 'p2'], 'policy-v1')).toEqual([first])
+    expect(findChainByContentIds(receipts, ['p1', 'p3'], 'policy-v1')).toBeNull()
+    expect(findChainByContentIds(receipts, ['p1', 'p2', 'p3'], 'policy-v2')).toBeNull()
+    expect(findChainByContentIds(receipts, [], 'policy-v1')).toBeNull()
+    expect(findChainByContentIds(
       [receipt({ baseSha: A, tipSha: B })],
       ['p1'],
       'policy-v1',
@@ -74,12 +64,12 @@ describe('patch-id approval carry-forward (#637)', () => {
         line: 1,
         explanation: 'Corrective commit required.',
       }],
-      patchIds: ['p1'],
+      contentIds: ['p1'],
     })
-    const corrective = receipt({ baseSha: B, tipSha: C, patchIds: ['p2'] })
+    const corrective = receipt({ baseSha: B, tipSha: C, contentIds: ['p2'] })
 
-    expect(findChainByPatchIds([advisory], ['p1'], 'policy-v1')).toBeNull()
-    expect(findChainByPatchIds([advisory, corrective], ['p1', 'p2'], 'policy-v1'))
+    expect(findChainByContentIds([advisory], ['p1'], 'policy-v1')).toBeNull()
+    expect(findChainByContentIds([advisory, corrective], ['p1', 'p2'], 'policy-v1'))
       .toEqual([advisory, corrective])
   })
 
@@ -93,11 +83,11 @@ describe('patch-id approval carry-forward (#637)', () => {
     const original = receipt({
       baseSha: A,
       tipSha: B,
-      patchIds: ['p1', 'p2'],
+      contentIds: ['p1', 'p2'],
     })
     const rebased: RebasedCommit[] = [
-      { sha: N1, patchId: 'p1' },
-      { sha: N2, patchId: 'p2' },
+      { sha: N1, contentId: 'p1' },
+      { sha: N2, contentId: 'p2' },
     ]
 
     const carried = carryApprovalChainForward({
@@ -115,7 +105,7 @@ describe('patch-id approval carry-forward (#637)', () => {
       baseSha: M1,
       tipSha: N2,
       reviewer: 'GPT-5.6 High',
-      patchIds: ['p1', 'p2'],
+      contentIds: ['p1', 'p2'],
       carriedFrom: { baseSha: A, tipSha: B, carriedAt: '2026-07-31T13:00:00.000Z' },
       reviewedAt: '2026-07-31T12:00:00.000Z',
     })
@@ -133,16 +123,16 @@ describe('patch-id approval carry-forward (#637)', () => {
         line: 1,
         explanation: 'Needs a follow-up.',
       }],
-      patchIds: ['p1'],
+      contentIds: ['p1'],
     })
-    const corrective = receipt({ baseSha: B, tipSha: C, patchIds: ['p2'] })
+    const corrective = receipt({ baseSha: B, tipSha: C, contentIds: ['p2'] })
 
     const carried = carryApprovalChainForward({
       chain: [advisory, corrective],
       newBaseSha: M1,
       rebasedCommits: [
-        { sha: N1, patchId: 'p1' },
-        { sha: N2, patchId: 'p2' },
+        { sha: N1, contentId: 'p1' },
+        { sha: N2, contentId: 'p2' },
       ],
       interveningFiles: ['src/other.ts'],
       stackFiles: ['src/x.ts'],
@@ -154,20 +144,20 @@ describe('patch-id approval carry-forward (#637)', () => {
       baseSha: M1,
       tipSha: N1,
       coverage: 'advisory',
-      patchIds: ['p1'],
+      contentIds: ['p1'],
     })
     expect(carried![0].advisories).toHaveLength(1)
-    expect(carried![1]).toMatchObject({ baseSha: N1, tipSha: N2, patchIds: ['p2'] })
+    expect(carried![1]).toMatchObject({ baseSha: N1, tipSha: N2, contentIds: ['p2'] })
   })
 
   it('refuses to carry when content, order, count, files, or provenance disagree', () => {
-    const original = receipt({ baseSha: A, tipSha: B, patchIds: ['p1', 'p2'] })
+    const original = receipt({ baseSha: A, tipSha: B, contentIds: ['p1', 'p2'] })
     const base = {
       chain: [original],
       newBaseSha: M1,
       rebasedCommits: [
-        { sha: N1, patchId: 'p1' },
-        { sha: N2, patchId: 'p2' },
+        { sha: N1, contentId: 'p1' },
+        { sha: N2, contentId: 'p2' },
       ],
       interveningFiles: ['src/other.ts'],
       stackFiles: ['scripts/push-review.ts'],
@@ -176,15 +166,15 @@ describe('patch-id approval carry-forward (#637)', () => {
 
     expect(carryApprovalChainForward({
       ...base,
-      rebasedCommits: [{ sha: N1, patchId: 'p1' }, { sha: N2, patchId: 'DIFFERENT' }],
+      rebasedCommits: [{ sha: N1, contentId: 'p1' }, { sha: N2, contentId: 'DIFFERENT' }],
     })).toBeNull()
     expect(carryApprovalChainForward({
       ...base,
-      rebasedCommits: [{ sha: N1, patchId: 'p2' }, { sha: N2, patchId: 'p1' }],
+      rebasedCommits: [{ sha: N1, contentId: 'p2' }, { sha: N2, contentId: 'p1' }],
     })).toBeNull()
     expect(carryApprovalChainForward({
       ...base,
-      rebasedCommits: [{ sha: N1, patchId: 'p1' }],
+      rebasedCommits: [{ sha: N1, contentId: 'p1' }],
     })).toBeNull()
     expect(carryApprovalChainForward({
       ...base,
@@ -199,7 +189,7 @@ describe('patch-id approval carry-forward (#637)', () => {
       chain: [receipt({
         baseSha: A,
         tipSha: B,
-        patchIds: ['p1', 'p2'],
+        contentIds: ['p1', 'p2'],
         carriedFrom: {
           baseSha: 'f'.repeat(40),
           tipSha: '9'.repeat(40),
@@ -213,7 +203,7 @@ describe('patch-id approval carry-forward (#637)', () => {
     const carriedOnce = receipt({
       baseSha: A,
       tipSha: B,
-      patchIds: ['p1'],
+      contentIds: ['p1'],
       carriedFrom: {
         baseSha: 'f'.repeat(40),
         tipSha: '9'.repeat(40),
@@ -224,7 +214,7 @@ describe('patch-id approval carry-forward (#637)', () => {
     const carried = carryApprovalChainForward({
       chain: [carriedOnce],
       newBaseSha: M1,
-      rebasedCommits: [{ sha: N1, patchId: 'p1' }],
+      rebasedCommits: [{ sha: N1, contentId: 'p1' }],
       interveningFiles: [],
       stackFiles: ['src/x.ts'],
       carriedAt: '2026-07-31T13:00:00.000Z',

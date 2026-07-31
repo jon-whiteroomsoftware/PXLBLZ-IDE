@@ -31,8 +31,8 @@ export interface ReviewApprovalReceipt {
   authoredModels?: string[]
   /** Reviewer family differs from every signalled authoring family. Omitted receipts are unverified on this axis (#637). */
   crossFamily?: boolean
-  /** Ordered per-commit `git patch-id --stable` sequence; enables carry-forward across content-identical rebases (#637). */
-  patchIds?: string[]
+  /** Ordered per-commit byte-exact patch hashes (sha256 of full diff-tree patch text); enables carry-forward across content-identical rebases (#637). */
+  contentIds?: string[]
   /** Provenance of a carried receipt, rooted at the originally reviewed range (#637). */
   carriedFrom?: ReviewCarryProvenance
   policyFingerprint: string
@@ -58,7 +58,7 @@ export interface CreateApprovalReceiptInput {
   advisories?: ReviewAdvisoryFinding[]
   authoredModels?: string[]
   crossFamily?: boolean
-  patchIds?: string[]
+  contentIds?: string[]
   carriedFrom?: ReviewCarryProvenance
   policyFingerprint: string
   promptVersion: number
@@ -196,11 +196,11 @@ export function parseApprovalReceipt(value: unknown): ReviewApprovalReceipt {
           typeof model !== 'string' || model.trim().length === 0
         ))))
     || (receipt.crossFamily !== undefined && typeof receipt.crossFamily !== 'boolean')
-    || (receipt.patchIds !== undefined
-      && (!Array.isArray(receipt.patchIds)
-        || receipt.patchIds.length === 0
-        || receipt.patchIds.some((patchId) => (
-          typeof patchId !== 'string' || patchId.trim().length === 0
+    || (receipt.contentIds !== undefined
+      && (!Array.isArray(receipt.contentIds)
+        || receipt.contentIds.length === 0
+        || receipt.contentIds.some((contentId) => (
+          typeof contentId !== 'string' || contentId.trim().length === 0
         ))))
     || (receipt.carriedFrom !== undefined
       && !(receipt.carriedFrom
