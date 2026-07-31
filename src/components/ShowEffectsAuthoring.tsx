@@ -236,12 +236,27 @@ export function ShowEffectStack({
               {stage.label}
             </div>
             {hasMirror && (
-              <div data-testid="show-effect-mirror" className="border-t border-zinc-800/60 bg-[#101115]">
-                <div className="flex h-8 items-center gap-1 px-1.5">
-                  <span className="grid size-6 shrink-0 place-items-center text-cyan-400/70"><EffectMnemonic kind="mirror" /></span>
-                  <span className="min-w-0 flex-1 truncate text-[10px] text-zinc-200">Mirror</span>
-                  <IconButton label="Remove Mirror Effect" onClick={() => onMirrorChange?.(false)}><Trash2 size={11} /></IconButton>
+              <div
+                data-testid="show-effect-mirror"
+                data-fixed="true"
+                className="grid min-h-8 grid-cols-[24px_minmax(0,1fr)_24px] items-center gap-1 border-l-2 border-t border-l-amber-400/55 border-t-zinc-800/60 bg-amber-400/[0.035] px-1 py-1"
+              >
+                <span className="grid size-6 shrink-0 place-items-center text-amber-300/80"><EffectMnemonic kind="mirror" /></span>
+                <div className="flex min-w-0 items-center gap-2">
+                  <span className="truncate text-[10px] text-zinc-200">Mirror</span>
+                  <span className="shrink-0 rounded border border-amber-400/20 bg-amber-400/[0.06] px-1 py-0.5 text-[7px] font-medium uppercase tracking-[0.08em] text-amber-300/70">
+                    Always first
+                  </span>
                 </div>
+                <EffectActionsMenu
+                  label="Mirror"
+                  actions={[{
+                    label: 'Remove Mirror Effect',
+                    disabled: false,
+                    icon: <Trash2 size={11} />,
+                    run: () => onMirrorChange?.(false),
+                  }]}
+                />
               </div>
             )}
             {stageEffects.map((effect, index) => {
@@ -390,12 +405,12 @@ export function ShowEffectStack({
                   <EffectActionsMenu
                     effectId={effect.id}
                     label={label}
-                    canEarlier={canEarlier}
-                    canLater={canLater}
-                    onEarlier={() => onChange(moveShowClipEffectWithinStage(effects, effect.id, -1))}
-                    onLater={() => onChange(moveShowClipEffectWithinStage(effects, effect.id, 1))}
-                    onDuplicate={() => onChange(duplicateShowClipEffect(effects, effect.id))}
-                    onRemove={() => onChange(effects.filter((candidate) => candidate.id !== effect.id))}
+                    actions={[
+                      { label: `Move ${label} Effect earlier`, disabled: !canEarlier, icon: <ArrowUp size={11} />, run: () => onChange(moveShowClipEffectWithinStage(effects, effect.id, -1)) },
+                      { label: `Move ${label} Effect later`, disabled: !canLater, icon: <ArrowDown size={11} />, run: () => onChange(moveShowClipEffectWithinStage(effects, effect.id, 1)) },
+                      { label: `Duplicate ${label} Effect`, disabled: false, icon: <Copy size={11} />, run: () => onChange(duplicateShowClipEffect(effects, effect.id)) },
+                      { label: `Remove ${label} Effect`, disabled: false, icon: <Trash2 size={11} />, run: () => onChange(effects.filter((candidate) => candidate.id !== effect.id)) },
+                    ]}
                   />
                 </div>
               )
@@ -410,40 +425,28 @@ export function ShowEffectStack({
 function EffectActionsMenu({
   effectId,
   label,
-  canEarlier,
-  canLater,
-  onEarlier,
-  onLater,
-  onDuplicate,
-  onRemove,
+  actions,
 }: {
-  effectId: string
+  effectId?: string
   label: string
-  canEarlier: boolean
-  canLater: boolean
-  onEarlier: () => void
-  onLater: () => void
-  onDuplicate: () => void
-  onRemove: () => void
+  actions: Array<{
+    label: string
+    disabled: boolean
+    icon: React.ReactNode
+    run: () => void
+  }>
 }) {
   const [open, setOpen] = useState(false)
   const [position, setPosition] = useState({ left: 4, top: 4 })
   const triggerRef = useRef<HTMLButtonElement>(null)
   const menuRef = useRef<HTMLDivElement>(null)
   const itemRefs = useRef<Array<HTMLButtonElement | null>>([])
-  const actions = [
-    { label: `Move ${label} Effect earlier`, disabled: !canEarlier, icon: <ArrowUp size={11} />, run: onEarlier },
-    { label: `Move ${label} Effect later`, disabled: !canLater, icon: <ArrowDown size={11} />, run: onLater },
-    { label: `Duplicate ${label} Effect`, disabled: false, icon: <Copy size={11} />, run: onDuplicate },
-    { label: `Remove ${label} Effect`, disabled: false, icon: <Trash2 size={11} />, run: onRemove },
-  ]
-
   useEffect(() => {
     if (!open) return
     const trigger = triggerRef.current
     if (!trigger) return
     const bounds = trigger.getBoundingClientRect()
-    const menuHeight = 108
+    const menuHeight = actions.length * 24 + 8
     setPosition({
       left: Math.max(4, Math.min(window.innerWidth - 164, bounds.right - 160)),
       top: bounds.bottom + menuHeight <= window.innerHeight ? bounds.bottom + 2 : Math.max(4, bounds.top - menuHeight - 2),
@@ -458,7 +461,7 @@ function EffectActionsMenu({
       window.clearTimeout(focusTimer)
       document.removeEventListener('pointerdown', closeOnPointerDown)
     }
-  }, [open])
+  }, [open, actions.length])
 
   const closeAndFocus = () => {
     setOpen(false)
@@ -559,15 +562,6 @@ function EffectParameterField({ label, value, min, max, step, onCommit }: {
       className="mt-0.5 h-5 w-full rounded border border-zinc-700 bg-zinc-950 px-1 text-right text-[9px] tabular-nums text-zinc-200 outline-none focus:border-cyan-400/60"
     />
   )
-}
-
-function IconButton({ label, disabled = false, onClick, children }: {
-  label: string
-  disabled?: boolean
-  onClick: () => void
-  children: React.ReactNode
-}) {
-  return <button type="button" aria-label={label} title={label} disabled={disabled} onClick={onClick} className="grid size-6 shrink-0 place-items-center rounded text-zinc-600 hover:bg-zinc-800 hover:text-zinc-200 disabled:opacity-20">{children}</button>
 }
 
 function stageLabel(stage: ShowEffectPipelineStage | null): string {

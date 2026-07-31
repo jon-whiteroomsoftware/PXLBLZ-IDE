@@ -264,8 +264,8 @@ _Avoid_: describing compiler Scene partitions as user-facing authoring objects;
 representing internal Scene boundaries as a second timeline hierarchy.
 
 **Clip Transform** (in a Show):
-The canonical placement-owned 2D pose for one compatible clip: Position X/Y, signed Rotation, and Scale X/Y. The UI presents Rotation in degrees, while the Show stores turns around the normalized Stage center `(0.5, 0.5)`. The compiler applies scale, then rotation, then position before authored Transform Effects, Distort, Address, Pattern render, and Color/output stages. Neutral values are omitted from the artifact. Clip Transform has a stable placement target, so its static values and Property animation survive Effect-stack changes.
-_Avoid_: treating Clip Transform as another ordered Effect; storing degrees; implying it replaces advanced Translate, Rotate, Scale, or Shear Effects that may be composed after it.
+The canonical placement-owned 2D pose for one compatible clip: Position X/Y, signed Rotation, and Scale X/Y. The UI presents Rotation in degrees, while the Show stores turns around the normalized Stage center `(0.5, 0.5)`. The compiler applies scale, then rotation, then position before authored Transform Effects, Distort, Address, Pattern render, and Color/output stages. Neutral values are omitted from the artifact. Clip Transform has a stable placement target, so its static values and Property animation survive Effect-stack changes. **Mirror** is a separate placement-owned adaptation shown as the fixed first row of the Effects Transform stage; it is not part of the ordered Effect stack and cannot be moved, duplicated, or animated.
+_Avoid_: treating Clip Transform or Mirror as another ordered Effect; storing degrees; implying Clip Transform replaces advanced Translate, Rotate, Scale, or Shear Effects that may be composed after it.
 
 **Transition** (in a Show):
 A stable junction between two connected Clips on one Layer. A Transition carries

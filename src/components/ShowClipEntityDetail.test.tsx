@@ -322,8 +322,10 @@ describe('shared Clip Entity Detail sections (#498)', () => {
     expect(onPatch).toHaveBeenCalledWith({ view: { brightness: 0.35 } })
 
     showTab('Playback')
-    fireEvent.click(screen.getByRole('checkbox', { name: 'Mirror clip' }))
-    expect(onPatch).toHaveBeenCalledWith({ view: { mirror: true } })
+    const phase = screen.getByRole('textbox', { name: 'Phase' })
+    fireEvent.change(phase, { target: { value: '0.5' } })
+    fireEvent.blur(phase)
+    expect(onPatch).toHaveBeenCalledWith({ view: { phase: 0.5 } })
 
     fireEvent.change(screen.getByRole('combobox', { name: 'Clip evaluation' }), {
       target: { value: 'freeze-at-entry' },
@@ -464,15 +466,27 @@ describe('shared Clip Entity Detail sections (#498)', () => {
     expect(screen.queryByRole('tab', { name: /^Place/ })).not.toBeInTheDocument()
   })
 
-  it('shows an authored Mirror in the active Effect stack and removes it through the Effect UI (#543)', () => {
+  it('gives authored Mirror one fixed first home in the Transform Effect stage (#543, #645)', () => {
     const onPatch = vi.fn()
     const props = commonProps('scene-main', onPatch)
-    render(<ShowClipEntityDetail {...props} value={{ ...props.value, view: { ...props.value.view, mirror: true } }} />)
+    render(<ShowClipEntityDetail
+      {...props}
+      value={{
+        ...props.value,
+        view: { ...props.value.view, mirror: true },
+        effects: [{ id: 'translate', kind: 'translate', x: 0.2, y: 0.1 }],
+      }}
+    />)
 
+    showTab('Playback')
+    expect(screen.queryByRole('checkbox', { name: 'Mirror clip' })).not.toBeInTheDocument()
     showTab('Effects')
-    expect(screen.getByText('Mirror')).toBeInTheDocument()
-    fireEvent.click(screen.getByRole('button', { name: 'Remove Mirror Effect' }))
-    expect(onPatch).toHaveBeenCalledWith({ view: { mirror: false } })
+    const mirrorRow = screen.getByTestId('show-effect-mirror')
+    const translateRow = screen.getByTestId('show-effect-translate')
+    expect(mirrorRow.compareDocumentPosition(translateRow) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
+    expect(within(mirrorRow).getByText('Always first')).toBeInTheDocument()
+    expect(within(mirrorRow).queryByRole('button', { name: /Drag/ })).not.toBeInTheDocument()
+    expect(within(mirrorRow).getByRole('button', { name: 'More actions for Mirror Effect' })).toBeVisible()
   })
 
   it('presents Pattern and advanced controls as flat readable tables', () => {
@@ -493,11 +507,10 @@ describe('shared Clip Entity Detail sections (#498)', () => {
 
     showTab('Playback')
     expect(screen.getByRole('table', { name: 'Playback controls' })).toBeInTheDocument()
-    const advancedRows = screen.getByRole('table', { name: 'Playback controls' }).querySelectorAll('tbody tr')
-    expect(advancedRows[0].children[1]).toHaveTextContent('Mirror clip')
-    expect(advancedRows[0].children[0]).toContainElement(screen.getByRole('checkbox', { name: 'Mirror clip' }))
-    expect(advancedRows[1].children[1]).toHaveTextContent('Phase')
-    expect(advancedRows[1].children[2]).toContainElement(screen.getByRole('textbox', { name: 'Phase' }))
+    expect(screen.queryByRole('checkbox', { name: 'Mirror clip' })).not.toBeInTheDocument()
+    const phaseRow = screen.getByRole('textbox', { name: 'Phase' }).closest('tr')
+    expect(phaseRow?.children[1]).toHaveTextContent('Phase')
+    expect(phaseRow?.children[2]).toContainElement(screen.getByRole('textbox', { name: 'Phase' }))
     expect(screen.getByRole('textbox', { name: 'Phase' })).toHaveClass('h-5', 'border-0', 'border-b', 'text-left')
   })
 
@@ -543,10 +556,7 @@ describe('shared Clip Entity Detail sections (#498)', () => {
     expect(blinkRow?.children[0]).toContainElement(blink)
     expect(blinkRow?.children[1]).toHaveTextContent('Blink output')
 
-    const mirror = screen.getByRole('checkbox', { name: 'Mirror clip' })
-    const mirrorRow = mirror.closest('tr')
-    expect(mirrorRow?.children[0]).toContainElement(mirror)
-    expect(mirrorRow?.children[1]).toHaveTextContent('Mirror clip')
+    expect(screen.queryByRole('checkbox', { name: 'Mirror clip' })).not.toBeInTheDocument()
   })
 
   it.each(['global', 'scene-main', 'scene-overlay'] as const)(
@@ -554,18 +564,24 @@ describe('shared Clip Entity Detail sections (#498)', () => {
     (scope) => {
       const onPatch = vi.fn()
       const onOpenEffects = vi.fn()
-      render(<ShowClipEntityDetail {...commonProps(scope, onPatch)} onOpenEffects={onOpenEffects} />)
+      const props = commonProps(scope, onPatch)
+      render(<ShowClipEntityDetail
+        {...props}
+        value={{ ...props.value, view: { ...props.value.view, mirror: true } }}
+        onOpenEffects={onOpenEffects}
+      />)
 
       const brightness = screen.getByRole('textbox', { name: 'Brightness exact percentage' })
       fireEvent.change(brightness, { target: { value: '45%' } })
       fireEvent.blur(brightness)
-      showTab('Playback')
-      fireEvent.click(screen.getByRole('checkbox', { name: 'Mirror clip' }))
       showTab('Effects')
+      fireEvent.click(screen.getByRole('button', { name: 'More actions for Mirror Effect' }))
+      expect(screen.getAllByRole('menuitem')).toHaveLength(1)
+      fireEvent.click(screen.getByRole('menuitem', { name: 'Remove Mirror Effect' }))
       fireEvent.click(screen.getByRole('button', { name: 'Add' }))
 
       expect(onPatch).toHaveBeenCalledWith({ view: { brightness: 0.45 } })
-      expect(onPatch).toHaveBeenCalledWith({ view: { mirror: true } })
+      expect(onPatch).toHaveBeenCalledWith({ view: { mirror: false } })
       expect(onOpenEffects).toHaveBeenCalledOnce()
     },
   )

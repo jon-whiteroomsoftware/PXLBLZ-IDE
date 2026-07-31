@@ -620,19 +620,6 @@ export function ShowClipEntityDetail({
                     </tr>}
                   </>}
                   <tr className="h-6 whitespace-nowrap">
-                    <td className="py-0.5 pr-2">
-                      <input
-                        type="checkbox"
-                        aria-label="Mirror clip"
-                        checked={value.view.mirror}
-                        disabled={readOnly}
-                        onChange={(event) => onPatch({ view: { mirror: event.target.checked } })}
-                      />
-                    </td>
-                    <th scope="row" className="truncate py-0.5 pr-3 text-[10px] font-medium text-zinc-300">Mirror clip</th>
-                    <td aria-hidden className="py-0.5" />
-                  </tr>
-                  <tr className="h-6 whitespace-nowrap">
                     <td aria-hidden className="py-0.5 pr-2" />
                     <th scope="row" className="truncate py-0.5 pr-3 text-[10px] font-medium text-zinc-300">Phase <span className="ml-1 text-[8px] font-normal text-zinc-700">0–1</span></th>
                     <td className="py-0.5 [&_input]:!border-0">

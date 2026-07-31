@@ -3156,7 +3156,9 @@ than an ordered `ShowClipEffect`. This preserves existing flat-cell and
 composition records without migration. It reverses local index order in 1D and
 maps local X to `1 - x` in 2D before the inverse affine matrix. Mirror is
 discrete: it can be added or removed, but not duplicated, reordered, or used as
-a Property-animation target.
+a Property-animation target. Its only Clip-detail home is a fixed first row in
+the Effects Transform stage; the row has no drag affordance and its action menu
+contains Remove only.
 
 Generated color-effect lines obey a coefficient-hoisting contract (#558):
 frame-invariant subexpressions of effect parameters - the hue-rotate rotation

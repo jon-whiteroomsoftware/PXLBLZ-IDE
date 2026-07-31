@@ -544,6 +544,33 @@ test.describe('authenticated Show authoring', () => {
     await expect(reloaded.getByRole('button', { name: 'More actions for Ripple Effect' })).toBeVisible()
   })
 
+  test('adds and removes Mirror only through its fixed Transform row', async ({ page }) => {
+    await page.goto('studio/shows')
+    await createInstallationShow(page)
+
+    const stack = await openClipEffects(page, 'TestPattern1D')
+    await addEffect(page, stack, 'mirror', 'Mirror')
+    const mirrorRow = stack.getByTestId('show-effect-mirror')
+    await expect(mirrorRow).toHaveAttribute('data-fixed', 'true')
+    await expect(mirrorRow.getByText('Always first')).toBeVisible()
+    await expect(mirrorRow.getByRole('button', { name: /Drag/ })).toHaveCount(0)
+    await waitForCurrentShow(page, (show) => show.composition?.scenes.some((scene) => (
+      scene.zones?.some((zone) => zone.main?.some((placement) => placement.view.mirror))
+    )) === true)
+
+    await page.reload()
+    const reloaded = await openClipEffects(page, 'TestPattern1D')
+    await reloaded.getByRole('button', { name: 'More actions for Mirror Effect' }).click()
+    const menu = page.getByRole('menu', { name: 'Actions for Mirror Effect' })
+    await expect(menu.getByRole('menuitem')).toHaveCount(1)
+    await menu.getByRole('menuitem', { name: 'Remove Mirror Effect' }).click()
+
+    await expect(reloaded.getByTestId('show-effect-mirror')).toHaveCount(0)
+    await waitForCurrentShow(page, (show) => show.composition?.scenes.every((scene) => (
+      scene.zones?.every((zone) => zone.main?.every((placement) => !placement.view.mirror))
+    )) === true)
+  })
+
   test('keeps edited Effect parameters after a reload', async ({ page }) => {
     await page.goto('studio/shows')
     await createInstallationShow(page)

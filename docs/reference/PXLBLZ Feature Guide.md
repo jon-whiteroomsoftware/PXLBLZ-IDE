@@ -483,18 +483,21 @@ and phase without pausing Pattern time. Stutter is different: it quantizes the
 shared Pattern clock, so every Clip linked to that instance observes the same
 stepped motion.
 
-Compatible 2D clips expose a canonical **Transform** group — position,
-rotation, scale, and a Mirror flip — followed by an ordered **Effect stack**
-grouped into the compiler's fixed Transform, Distort, Address, and Color &
-output stages. **Effects > Add** opens a searchable registry with animated
-mnemonics and factual cost notes; clicking applies documented defaults, and
-the Entity Detail Panel keeps each Effect's exact parameters visible in a
-compact row. Drag handles reorder Effects inside one compiler stage; each
-row's action menu provides keyboard- and touch-friendly **Move earlier**,
-**Move later**, **Duplicate**, and **Remove** alternatives. The registry spans
-transforms (Translate, Rotate, Scale, Shear, Wrap), distortions, address
-policies, and Color & output Effects including Luma key, Chroma key, and
-Vignette. Show-wide output Effects such as **Trails** live in Show
+Compatible 2D clips expose a canonical **Transform** group for position,
+rotation, and scale, followed by an ordered **Effect stack** grouped into the
+compiler's fixed Transform, Distort, Address, and Color & output stages.
+**Mirror** appears only in that stack as a visually distinct, fixed first
+Transform row. It remains a placement adaptation rather than an ordered
+Effect, so its action menu offers **Remove** but never move or duplicate.
+**Effects > Add** opens a searchable registry with animated mnemonics and
+factual cost notes; clicking applies documented defaults, and the Entity
+Detail Panel keeps each ordinary Effect's exact parameters visible in a
+compact row. Drag handles reorder ordinary Effects inside one compiler stage;
+each ordinary row's action menu provides keyboard- and touch-friendly **Move
+earlier**, **Move later**, **Duplicate**, and **Remove** alternatives. The
+registry spans transforms (Translate, Rotate, Scale, Shear, Wrap), distortions,
+address policies, and Color & output Effects including Luma key, Chroma key,
+and Vignette. Show-wide output Effects such as **Trails** live in Show
 properties and apply after the full composite.
 
 Authored colors use one compact **Color** field: click its swatch for the
