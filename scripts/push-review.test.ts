@@ -6,7 +6,9 @@ import {
   GPT_REVIEW_EFFORT,
   GPT_REVIEW_MODEL,
   REVIEW_APPROVAL_POLICY_VERSION,
+  REVIEW_BACKSTOP_TIMEOUT_MS,
   REVIEW_GIT_MAX_BUFFER_BYTES,
+  REVIEW_STALL_TIMEOUT_MS,
   REVIEW_TIMEOUT_MS,
   buildClaudeReviewArgs,
   buildCodexReviewArgs,
@@ -51,13 +53,16 @@ describe('cross-agent push review gate (#63)', () => {
     })
   })
 
-  it('uses Opus 5 High with the fifteen-minute hard cap', () => {
+  it('streams Opus 5 High with a stall timer primary and the caps as backstop (#637)', () => {
     expect(CLAUDE_REVIEW_MODEL).toBe('claude-opus-5')
     expect(CLAUDE_REVIEW_EFFORT).toBe('high')
     expect(REVIEW_TIMEOUT_MS).toBe(15 * 60 * 1_000)
+    expect(REVIEW_STALL_TIMEOUT_MS).toBe(5 * 60 * 1_000)
+    expect(REVIEW_BACKSTOP_TIMEOUT_MS).toBe(30 * 60 * 1_000)
     expect(REVIEW_APPROVAL_POLICY_VERSION).toBe(2)
     expect(buildClaudeReviewArgs()).toEqual([
       '-p',
+      '--verbose',
       '--safe-mode',
       '--model', 'claude-opus-5',
       '--effort', 'high',
@@ -68,21 +73,20 @@ describe('cross-agent push review gate (#63)', () => {
       'Read',
       'Grep',
       'Glob',
-      '--output-format', 'json',
+      '--output-format', 'stream-json',
+      '--include-partial-messages',
       '--json-schema', expect.any(String),
     ])
   })
 
-  it('falls back to GPT-5.6 High when Opus 5 High cannot return a review', () => {
+  it('falls back to GPT-5.6 High when Opus 5 High cannot return a review', async () => {
     const fallbackReview: PushReviewResult = {
       decision: 'pass',
       summary: 'Fallback review passed.',
       findings: [],
     }
-    const result = reviewWithFallback(
-      () => {
-        throw new Error('Opus quota exhausted')
-      },
+    const result = await reviewWithFallback(
+      () => Promise.reject(new Error('Opus quota exhausted')),
       () => fallbackReview,
     )
 
@@ -95,9 +99,9 @@ describe('cross-agent push review gate (#63)', () => {
     })
   })
 
-  it('announces the provider transition before GPT-5.6 High starts', () => {
+  it('announces the provider transition before GPT-5.6 High starts', async () => {
     const events: string[] = []
-    reviewWithFallback(
+    await reviewWithFallback(
       () => {
         events.push('opus')
         throw new Error('Opus timed out')
@@ -116,7 +120,7 @@ describe('cross-agent push review gate (#63)', () => {
     ])
   })
 
-  it('keeps a valid Opus 5 High failure authoritative', () => {
+  it('keeps a valid Opus 5 High failure authoritative', async () => {
     const opusReview: PushReviewResult = {
       decision: 'fail',
       summary: 'A correctness bug was found.',
@@ -129,8 +133,8 @@ describe('cross-agent push review gate (#63)', () => {
       }],
     }
     let fallbackRuns = 0
-    const result = reviewWithFallback(
-      () => opusReview,
+    const result = await reviewWithFallback(
+      async () => opusReview,
       () => {
         fallbackRuns += 1
         return { decision: 'pass', summary: 'Fallback passed.', findings: [] }
@@ -141,15 +145,15 @@ describe('cross-agent push review gate (#63)', () => {
     expect(fallbackRuns).toBe(0)
   })
 
-  it('fails closed with both errors when neither reviewer can respond', () => {
-    expect(() => reviewWithFallback(
+  it('fails closed with both errors when neither reviewer can respond', async () => {
+    await expect(reviewWithFallback(
       () => {
         throw new Error('Opus timed out')
       },
       () => {
         throw new Error('Codex authentication failed')
       },
-    )).toThrow(/Opus 5 High unavailable: Opus timed out[\s\S]*GPT-5\.6 High fallback failed: Codex authentication failed/)
+    )).rejects.toThrow(/Opus 5 High unavailable: Opus timed out[\s\S]*GPT-5\.6 High fallback failed: Codex authentication failed/)
   })
 
   it('runs the fallback reviewer as ephemeral read-only GPT-5.6 High', () => {

@@ -156,7 +156,7 @@ export function validateCandidateCheckout(input: {
   }
 }
 
-function main(): void {
+async function main(): Promise<void> {
   try {
     const args = parseCandidateArgs(process.argv.slice(2))
     const baseSha = resolveObject(args.baseRef)
@@ -187,7 +187,7 @@ function main(): void {
       : undefined
 
     console.log(`▶ Reviewing candidate ${baseSha.slice(0, 12)}..${tipSha.slice(0, 12)}...`)
-    const execution = runReviewForRanges([range], testDesign)
+    const execution = await runReviewForRanges([range], testDesign)
     printReview(execution.reviewer, execution.review)
     const result = approveCandidate({
       range,
@@ -228,4 +228,4 @@ function main(): void {
 }
 
 const invokedPath = process.argv[1] ? pathToFileURL(process.argv[1]).href : ''
-if (import.meta.url === invokedPath) main()
+if (import.meta.url === invokedPath) void main()

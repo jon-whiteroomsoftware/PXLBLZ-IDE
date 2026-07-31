@@ -1,8 +1,9 @@
-import { execFileSync, spawnSync } from 'node:child_process'
+import { execFileSync, spawn, spawnSync } from 'node:child_process'
 import { createHash } from 'node:crypto'
 import { mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
+import { createInterface } from 'node:readline'
 import { pathToFileURL } from 'node:url'
 import {
   findApprovalChain,
@@ -10,13 +11,24 @@ import {
   reviewApprovalDirectory,
   type ReviewApprovalReceipt,
 } from './review-approvals'
+import {
+  INITIAL_REVIEW_STREAM_STATE,
+  formatReviewStreamDiagnostic,
+  reduceReviewStreamLine,
+  type ReviewStreamState,
+} from './review-stream'
 
 const ZERO_SHA = /^0+$/
 export const CLAUDE_REVIEW_MODEL = 'claude-opus-5' as const
 export const CLAUDE_REVIEW_EFFORT = 'high' as const
 export const GPT_REVIEW_MODEL = 'gpt-5.6-sol' as const
 export const GPT_REVIEW_EFFORT = 'high' as const
+/** Hard cap for the non-streaming Codex fallback reviewer. */
 export const REVIEW_TIMEOUT_MS = 15 * 60 * 1_000
+/** Primary failure condition for the streaming reviewer: no event for this long. */
+export const REVIEW_STALL_TIMEOUT_MS = 5 * 60 * 1_000
+/** Backstop for a streaming review that keeps emitting but never finishes. */
+export const REVIEW_BACKSTOP_TIMEOUT_MS = 30 * 60 * 1_000
 export const REVIEW_PROMPT_VERSION = 6 as const
 export const REVIEW_SCHEMA_VERSION = 1 as const
 export const REVIEW_APPROVAL_POLICY_VERSION = 2 as const
@@ -85,20 +97,20 @@ export function parseReviewTestDesignContext(
   return context as ReviewTestDesignContext
 }
 
-export function reviewWithFallback(
-  runClaude: () => PushReviewResult,
-  runGpt: () => PushReviewResult,
+export async function reviewWithFallback(
+  runClaude: () => PushReviewResult | Promise<PushReviewResult>,
+  runGpt: () => PushReviewResult | Promise<PushReviewResult>,
   onFallback: (reason: string) => void = () => {},
-): PushReviewExecution {
+): Promise<PushReviewExecution> {
   try {
-    return { reviewer: 'Opus 5 High', review: runClaude() }
+    return { reviewer: 'Opus 5 High', review: await runClaude() }
   } catch (claudeError) {
     const fallbackReason = errorMessage(claudeError)
     onFallback(fallbackReason)
     try {
       return {
         reviewer: 'GPT-5.6 High',
-        review: runGpt(),
+        review: await runGpt(),
         fallbackReason,
       }
     } catch (gptError) {
@@ -127,6 +139,7 @@ export function buildCodexReviewArgs(schemaPath: string, outputPath: string): st
 export function buildClaudeReviewArgs(): string[] {
   return [
     '-p',
+    '--verbose',
     '--safe-mode',
     '--model', CLAUDE_REVIEW_MODEL,
     '--effort', CLAUDE_REVIEW_EFFORT,
@@ -137,7 +150,8 @@ export function buildClaudeReviewArgs(): string[] {
     'Read',
     'Grep',
     'Glob',
-    '--output-format', 'json',
+    '--output-format', 'stream-json',
+    '--include-partial-messages',
     '--json-schema', REVIEW_SCHEMA,
   ]
 }
@@ -456,21 +470,91 @@ export function buildReviewInput(
   ].join('\n')
 }
 
-function runClaudeReview(reviewInput: string): PushReviewResult {
-  const result = spawnSync('claude', buildClaudeReviewArgs(), {
-    cwd: process.cwd(),
-    encoding: 'utf8',
-    input: reviewInput,
-    timeout: REVIEW_TIMEOUT_MS,
-    maxBuffer: 16 * 1024 * 1024,
-  })
+const REVIEW_HEALTH_INTERVAL_MS = 15 * 1_000
+const REVIEW_HEARTBEAT_MS = 60 * 1_000
 
-  if (result.error) throw result.error
-  if (result.status !== 0) {
-    const detail = (result.stderr || result.stdout || '').trim()
-    throw new Error(`Opus 5 High review process exited ${result.status}${detail ? `: ${detail}` : '.'}`)
-  }
-  return parseClaudeReviewOutput(result.stdout)
+function runClaudeReview(reviewInput: string): Promise<PushReviewResult> {
+  return new Promise((resolve, reject) => {
+    const child = spawn('claude', buildClaudeReviewArgs(), {
+      cwd: process.cwd(),
+      stdio: ['pipe', 'pipe', 'pipe'],
+    })
+    let state: ReviewStreamState = INITIAL_REVIEW_STREAM_STATE
+    let stderrTail = ''
+    const startedAt = Date.now()
+    let lastEventAt = startedAt
+    let lastPrintAt = startedAt
+    let settled = false
+    let failureLines: string[] | null = null
+
+    const health = setInterval(() => {
+      const now = Date.now()
+      const sinceLastEventMs = now - lastEventAt
+      const elapsedMs = now - startedAt
+      if (sinceLastEventMs >= REVIEW_STALL_TIMEOUT_MS
+        || elapsedMs >= REVIEW_BACKSTOP_TIMEOUT_MS) {
+        failureLines = formatReviewStreamDiagnostic(state, {
+          reason: sinceLastEventMs >= REVIEW_STALL_TIMEOUT_MS ? 'stalled' : 'timed out',
+          elapsedMs,
+          sinceLastEventMs,
+        })
+        child.kill('SIGKILL')
+        return
+      }
+      if (now - lastPrintAt >= REVIEW_HEARTBEAT_MS) {
+        lastPrintAt = now
+        console.log(
+          `  … still reviewing (${(elapsedMs / 60_000).toFixed(1)} min, `
+          + `${state.eventCount} events, last: ${state.lastActivity ?? 'no output yet'})`,
+        )
+      }
+    }, REVIEW_HEALTH_INTERVAL_MS)
+
+    const settle = (outcome: () => void): void => {
+      if (settled) return
+      settled = true
+      clearInterval(health)
+      outcome()
+    }
+
+    createInterface({ input: child.stdout }).on('line', (line) => {
+      lastEventAt = Date.now()
+      const reduction = reduceReviewStreamLine(state, line)
+      state = reduction.state
+      for (const progress of reduction.progress) {
+        lastPrintAt = Date.now()
+        console.log(progress)
+      }
+    })
+    child.stderr.on('data', (chunk: Buffer) => {
+      stderrTail = (stderrTail + chunk.toString('utf8')).slice(-2_000)
+    })
+    child.on('error', (error) => settle(() => reject(error)))
+    child.on('close', (code) => settle(() => {
+      if (failureLines) {
+        reject(new Error(failureLines.join('\n')))
+        return
+      }
+      if (code !== 0) {
+        const detail = stderrTail.trim()
+        reject(new Error(`Opus 5 High review process exited ${code}${detail ? `: ${detail}` : '.'}`))
+        return
+      }
+      if (!state.resultLine) {
+        reject(new Error('Opus 5 High stream ended without a result envelope.'))
+        return
+      }
+      try {
+        resolve(parseClaudeReviewOutput(state.resultLine))
+      } catch (error) {
+        reject(error)
+      }
+    }))
+    child.stdin.on('error', () => {
+      // A child that dies before consuming stdin surfaces via 'close'.
+    })
+    child.stdin.end(reviewInput)
+  })
 }
 
 function runGptReview(reviewInput: string): PushReviewResult {
@@ -500,7 +584,7 @@ function runGptReview(reviewInput: string): PushReviewResult {
 export function runReviewForRanges(
   ranges: PushReviewRange[],
   testDesign?: ReviewTestDesignContext,
-): PushReviewExecution {
+): Promise<PushReviewExecution> {
   const reviewInput = buildReviewInput(ranges, testDesign)
   return reviewWithFallback(
     () => runClaudeReview(reviewInput),
