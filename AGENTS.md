@@ -149,6 +149,16 @@ review. Pre-push requires a contiguous chain ending in clean approval instead
 of repeating review, then runs full Vitest and Playwright once. See
 `docs/agents/verification.md` for the mechanism and privacy boundary.
 
+End every agent-authored commit message with an `X-Authored-Model:` trailer
+naming the exact model id (for example `X-Authored-Model: claude-fable-5` or
+`X-Authored-Model: gpt-5.6-sol`), after any other trailers. Candidate review
+routes to the opposite model family based on this trailer (#637): commits
+without it are unsignalled, receive the default reviewer order, and can never
+claim cross-family coverage on their receipts. When the counterpart family's
+reviewer is unavailable, the gate falls back to a same-family review and
+records the downgrade on the receipt; it never blocks on the missing
+counterpart and never records the downgrade silently.
+
 Use TDD for behavior changes: fail, implement, refactor. Concentrate coverage
 on pure engine logic; keep component tests light and add Playwright coverage
 for cross-layer flows.

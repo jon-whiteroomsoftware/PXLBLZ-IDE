@@ -30,6 +30,45 @@ function receipt(
 }
 
 describe('exact-range review approvals (#598)', () => {
+  it('records and validates cross-family authorship fields, rejecting malformed ones (#637)', () => {
+    const crossFamily = createApprovalReceipt({
+      baseSha: 'a'.repeat(40),
+      tipSha: 'b'.repeat(40),
+      reviewer: 'GPT-5.6 High',
+      effort: 'high',
+      decision: 'pass',
+      authoredModels: ['claude-fable-5'],
+      crossFamily: true,
+      policyFingerprint: 'policy-v1',
+      promptVersion: 6,
+      schemaVersion: 1,
+      contextSha256: null,
+      reviewedAt: '2026-07-31T12:00:00.000Z',
+    })
+    expect(crossFamily.authoredModels).toEqual(['claude-fable-5'])
+    expect(crossFamily.crossFamily).toBe(true)
+
+    const legacy = receipt('a'.repeat(40), 'b'.repeat(40))
+    expect(legacy.authoredModels).toBeUndefined()
+    expect(legacy.crossFamily).toBeUndefined()
+
+    expect(() => createApprovalReceipt({
+      ...crossFamily,
+      decision: 'pass',
+      authoredModels: [],
+    })).toThrow(/malformed/i)
+    expect(() => createApprovalReceipt({
+      ...crossFamily,
+      decision: 'pass',
+      authoredModels: ['  '],
+    })).toThrow(/malformed/i)
+    expect(() => createApprovalReceipt({
+      ...crossFamily,
+      decision: 'pass',
+      crossFamily: 'yes' as unknown as boolean,
+    })).toThrow(/malformed/i)
+  })
+
   it('records the exact passed range, reviewer policy, and test-design context', () => {
     expect(createApprovalReceipt({
       baseSha: 'a'.repeat(40),

@@ -55,6 +55,22 @@ export function describeApprovalStatus(
   }
 }
 
+export function formatReceiptLine(receipt: ReviewApprovalReceipt): string {
+  const familyCoverage = receipt.crossFamily === true
+    ? 'cross-family'
+    : receipt.crossFamily === false
+      ? 'SAME-FAMILY'
+      : 'family-unverified'
+  const authors = receipt.authoredModels?.length
+    ? ` authored-by ${receipt.authoredModels.join(', ')}`
+    : ''
+  return (
+    `  ${receipt.baseSha.slice(0, 12)}..${receipt.tipSha.slice(0, 12)}`
+    + ` ${receipt.reviewer} ${receipt.effort}`
+    + ` ${receipt.coverage ?? 'clean'} ${familyCoverage}${authors} ${receipt.reviewedAt}`
+  )
+}
+
 function git(args: string[]): string {
   return execFileSync('git', args, { encoding: 'utf8' }).trim()
 }
@@ -100,11 +116,7 @@ function main(): void {
     console.log(`Status: ${status.state}`)
     if (status.state === 'approved') {
       for (const receipt of status.chain) {
-        console.log(
-          `  ${receipt.baseSha.slice(0, 12)}..${receipt.tipSha.slice(0, 12)}`
-          + ` ${receipt.reviewer} ${receipt.effort}`
-          + ` ${receipt.coverage ?? 'clean'} ${receipt.reviewedAt}`,
-        )
+        console.log(formatReceiptLine(receipt))
       }
       return
     }

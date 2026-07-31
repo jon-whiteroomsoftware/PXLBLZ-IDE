@@ -10,6 +10,7 @@ import {
   REVIEW_GIT_MAX_BUFFER_BYTES,
   REVIEW_STALL_TIMEOUT_MS,
   REVIEW_TIMEOUT_MS,
+  buildAuthorshipLogArgs,
   buildClaudeReviewArgs,
   buildCodexReviewArgs,
   buildReviewHistoryArgs,
@@ -86,8 +87,8 @@ describe('cross-agent push review gate (#63)', () => {
       findings: [],
     }
     const result = await reviewWithFallback(
-      () => Promise.reject(new Error('Opus quota exhausted')),
-      () => fallbackReview,
+      { reviewer: 'Opus 5 High', run: () => Promise.reject(new Error('Opus quota exhausted')) },
+      { reviewer: 'GPT-5.6 High', run: () => fallbackReview },
     )
 
     expect(GPT_REVIEW_MODEL).toBe('gpt-5.6-sol')
@@ -102,13 +103,19 @@ describe('cross-agent push review gate (#63)', () => {
   it('announces the provider transition before GPT-5.6 High starts', async () => {
     const events: string[] = []
     await reviewWithFallback(
-      () => {
-        events.push('opus')
-        throw new Error('Opus timed out')
+      {
+        reviewer: 'Opus 5 High',
+        run: () => {
+          events.push('opus')
+          throw new Error('Opus timed out')
+        },
       },
-      () => {
-        events.push('gpt')
-        return { decision: 'pass', summary: 'Fallback passed.', findings: [] }
+      {
+        reviewer: 'GPT-5.6 High',
+        run: () => {
+          events.push('gpt')
+          return { decision: 'pass', summary: 'Fallback passed.', findings: [] }
+        },
       },
       (reason) => events.push(`fallback: ${reason}`),
     )
@@ -134,10 +141,13 @@ describe('cross-agent push review gate (#63)', () => {
     }
     let fallbackRuns = 0
     const result = await reviewWithFallback(
-      async () => opusReview,
-      () => {
-        fallbackRuns += 1
-        return { decision: 'pass', summary: 'Fallback passed.', findings: [] }
+      { reviewer: 'Opus 5 High', run: async () => opusReview },
+      {
+        reviewer: 'GPT-5.6 High',
+        run: () => {
+          fallbackRuns += 1
+          return { decision: 'pass', summary: 'Fallback passed.', findings: [] }
+        },
       },
     )
 
@@ -147,13 +157,52 @@ describe('cross-agent push review gate (#63)', () => {
 
   it('fails closed with both errors when neither reviewer can respond', async () => {
     await expect(reviewWithFallback(
-      () => {
-        throw new Error('Opus timed out')
+      {
+        reviewer: 'Opus 5 High',
+        run: () => {
+          throw new Error('Opus timed out')
+        },
       },
-      () => {
-        throw new Error('Codex authentication failed')
+      {
+        reviewer: 'GPT-5.6 High',
+        run: () => {
+          throw new Error('Codex authentication failed')
+        },
       },
     )).rejects.toThrow(/Opus 5 High unavailable: Opus timed out[\s\S]*GPT-5\.6 High fallback failed: Codex authentication failed/)
+  })
+
+  it('routes a GPT-primary review and reports the reversed fallback identity (#637)', async () => {
+    const result = await reviewWithFallback(
+      { reviewer: 'GPT-5.6 High', run: () => Promise.reject(new Error('codex ENOENT')) },
+      {
+        reviewer: 'Opus 5 High',
+        run: () => ({ decision: 'pass' as const, summary: 'Same-family fallback.', findings: [] }),
+      },
+    )
+    expect(result).toEqual({
+      reviewer: 'Opus 5 High',
+      review: { decision: 'pass', summary: 'Same-family fallback.', findings: [] },
+      fallbackReason: 'codex ENOENT',
+    })
+
+    await expect(reviewWithFallback(
+      { reviewer: 'GPT-5.6 High', run: () => Promise.reject(new Error('down')) },
+      { reviewer: 'Opus 5 High', run: () => Promise.reject(new Error('also down')) },
+    )).rejects.toThrow(/GPT-5\.6 High unavailable: down[\s\S]*Opus 5 High fallback failed: also down/)
+  })
+
+  it('collects range authorship with trailers in a machine-parseable format (#637)', () => {
+    expect(buildAuthorshipLogArgs({
+      label: 'candidate',
+      baseSha: 'base',
+      tipSha: 'tip',
+    })).toEqual([
+      'log',
+      '--format=%H%x1f%(trailers)%x1e',
+      'base..tip',
+      '--',
+    ])
   })
 
   it('runs the fallback reviewer as ephemeral read-only GPT-5.6 High', () => {

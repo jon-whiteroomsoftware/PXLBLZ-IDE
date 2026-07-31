@@ -12,6 +12,13 @@ import {
   type ReviewApprovalReceipt,
 } from './review-approvals'
 import {
+  crossFamilyCoverage,
+  parseAuthorshipLog,
+  routeReview,
+  type CommitAuthorship,
+  type ReviewerName,
+} from './review-routing'
+import {
   INITIAL_REVIEW_STREAM_STATE,
   formatReviewStreamDiagnostic,
   reduceReviewStreamLine,
@@ -61,9 +68,18 @@ export interface PushReviewResult {
 }
 
 export interface PushReviewExecution {
-  reviewer: 'Opus 5 High' | 'GPT-5.6 High'
+  reviewer: ReviewerName
   review: PushReviewResult
   fallbackReason?: string
+  /** Distinct authoring models signalled by the reviewed commits. */
+  authoredModels?: string[]
+  /** Undefined when authorship is entirely unsignalled. */
+  crossFamily?: boolean
+}
+
+export interface ReviewerRunner {
+  reviewer: ReviewerName
+  run: () => PushReviewResult | Promise<PushReviewResult>
 }
 
 export interface ReviewTestDesignContext {
@@ -98,25 +114,25 @@ export function parseReviewTestDesignContext(
 }
 
 export async function reviewWithFallback(
-  runClaude: () => PushReviewResult | Promise<PushReviewResult>,
-  runGpt: () => PushReviewResult | Promise<PushReviewResult>,
+  primary: ReviewerRunner,
+  fallback: ReviewerRunner,
   onFallback: (reason: string) => void = () => {},
 ): Promise<PushReviewExecution> {
   try {
-    return { reviewer: 'Opus 5 High', review: await runClaude() }
-  } catch (claudeError) {
-    const fallbackReason = errorMessage(claudeError)
+    return { reviewer: primary.reviewer, review: await primary.run() }
+  } catch (primaryError) {
+    const fallbackReason = errorMessage(primaryError)
     onFallback(fallbackReason)
     try {
       return {
-        reviewer: 'GPT-5.6 High',
-        review: await runGpt(),
+        reviewer: fallback.reviewer,
+        review: await fallback.run(),
         fallbackReason,
       }
-    } catch (gptError) {
+    } catch (fallbackError) {
       throw new Error(
-        `Opus 5 High unavailable: ${fallbackReason}\nGPT-5.6 High fallback failed: ${errorMessage(gptError)}`,
-        { cause: gptError },
+        `${primary.reviewer} unavailable: ${fallbackReason}\n${fallback.reviewer} fallback failed: ${errorMessage(fallbackError)}`,
+        { cause: fallbackError },
       )
     }
   }
@@ -581,19 +597,53 @@ function runGptReview(reviewInput: string): PushReviewResult {
   }
 }
 
-export function runReviewForRanges(
+export function buildAuthorshipLogArgs(range: PushReviewRange): string[] {
+  return [
+    'log',
+    '--format=%H%x1f%(trailers)%x1e',
+    `${range.baseSha}..${range.tipSha}`,
+    '--',
+  ]
+}
+
+function collectRangeAuthorship(ranges: PushReviewRange[]): CommitAuthorship[] {
+  return ranges.flatMap((range) => parseAuthorshipLog(git(buildAuthorshipLogArgs(range))))
+}
+
+export async function runReviewForRanges(
   ranges: PushReviewRange[],
   testDesign?: ReviewTestDesignContext,
 ): Promise<PushReviewExecution> {
   const reviewInput = buildReviewInput(ranges, testDesign)
-  return reviewWithFallback(
-    () => runClaudeReview(reviewInput),
-    () => runGptReview(reviewInput),
+  const commits = collectRangeAuthorship(ranges)
+  const routing = routeReview(commits)
+  console.log(`▶ ${routing.primary} primary reviewer (${routing.reason}).`)
+  const runners: Record<ReviewerName, () => PushReviewResult | Promise<PushReviewResult>> = {
+    'Opus 5 High': () => runClaudeReview(reviewInput),
+    'GPT-5.6 High': () => runGptReview(reviewInput),
+  }
+  const execution = await reviewWithFallback(
+    { reviewer: routing.primary, run: runners[routing.primary] },
+    { reviewer: routing.fallback, run: runners[routing.fallback] },
     (reason) => {
-      console.warn(`⚠ Opus 5 High unavailable: ${reason}`)
-      console.log('▶ GPT-5.6 High reviewing the same exact Git range...')
+      console.warn(`⚠ ${routing.primary} unavailable: ${reason}`)
+      console.log(`▶ ${routing.fallback} reviewing the same exact Git range...`)
     },
   )
+  const crossFamily = crossFamilyCoverage(commits, execution.reviewer)
+  if (crossFamily === false) {
+    console.warn(
+      `⚠ Same-family review: ${execution.reviewer} shares a model family with the range authors`
+      + ` (${routing.authoredModels.join(', ') || 'unknown'}). Recorded on the receipt, never silent.`,
+    )
+  } else if (crossFamily === undefined) {
+    console.warn('⚠ Authorship unsignalled on this range; cross-family coverage is unverified.')
+  }
+  return {
+    ...execution,
+    ...(routing.authoredModels.length > 0 ? { authoredModels: routing.authoredModels } : {}),
+    ...(crossFamily !== undefined ? { crossFamily } : {}),
+  }
 }
 
 export function printReview(reviewer: PushReviewExecution['reviewer'], review: PushReviewResult): void {

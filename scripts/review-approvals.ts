@@ -27,6 +27,10 @@ export interface ReviewApprovalReceipt {
   /** Omitted means clean. Advisory coverage must be followed by a clean exact-range receipt. */
   coverage?: 'advisory'
   advisories?: ReviewAdvisoryFinding[]
+  /** Distinct authoring models signalled by the reviewed commits (#637). */
+  authoredModels?: string[]
+  /** Reviewer family differs from every signalled authoring family. Omitted receipts are unverified on this axis (#637). */
+  crossFamily?: boolean
   policyFingerprint: string
   promptVersion: number
   schemaVersion: number
@@ -42,6 +46,8 @@ export interface CreateApprovalReceiptInput {
   decision: 'pass' | 'fail'
   coverage?: ReviewApprovalReceipt['coverage']
   advisories?: ReviewAdvisoryFinding[]
+  authoredModels?: string[]
+  crossFamily?: boolean
   policyFingerprint: string
   promptVersion: number
   schemaVersion: number
@@ -171,6 +177,13 @@ export function parseApprovalReceipt(value: unknown): ReviewApprovalReceipt {
     || (receipt.coverage === 'advisory'
       ? !validAdvisories(receipt.advisories)
       : receipt.advisories !== undefined)
+    || (receipt.authoredModels !== undefined
+      && (!Array.isArray(receipt.authoredModels)
+        || receipt.authoredModels.length === 0
+        || receipt.authoredModels.some((model) => (
+          typeof model !== 'string' || model.trim().length === 0
+        ))))
+    || (receipt.crossFamily !== undefined && typeof receipt.crossFamily !== 'boolean')
     || typeof receipt.policyFingerprint !== 'string'
     || receipt.policyFingerprint.length === 0
     || !Number.isInteger(receipt.promptVersion)

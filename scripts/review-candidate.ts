@@ -94,6 +94,12 @@ export function approveCandidate(
     effort: 'high',
     decision: 'pass',
     ...(advisoryFailure ? { coverage: 'advisory' as const, advisories } : {}),
+    ...(input.execution.authoredModels?.length
+      ? { authoredModels: input.execution.authoredModels }
+      : {}),
+    ...(input.execution.crossFamily !== undefined
+      ? { crossFamily: input.execution.crossFamily }
+      : {}),
     policyFingerprint: input.policyFingerprint,
     promptVersion: input.promptVersion,
     schemaVersion: input.schemaVersion,

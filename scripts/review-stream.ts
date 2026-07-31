@@ -39,7 +39,7 @@ interface StreamToolUseBlock {
 
 function toolCallDescription(name: string, input: unknown): string {
   const record = (input && typeof input === 'object' ? input : {}) as Record<string, unknown>
-  const detail = [record.file_path, record.pattern, record.path]
+  const detail = [record.file_path, record.pattern, record.path, record.command]
     .find((value) => typeof value === 'string' && value.length > 0)
   return detail ? `${name} ${detail}` : name
 }

@@ -33,13 +33,32 @@ stacked until their reviewed base lands.
 
 `review:candidate` resolves the supplied base and tip to exact Git objects,
 requires their commit ancestry to be linear, and rejects merge commits. The
-review packet sends the exact commit list and
-per-commit patch series to Opus 5 High. It also requests first-parent merge
+review packet sends the exact commit list and per-commit patch series to the
+primary reviewer. It also requests first-parent merge
 diffs defensively, preserving empty commits, conflict-resolution changes, and
-add-then-revert histories that an endpoint-tree diff would hide. If Opus 5 High
-cannot return a valid structured decision because of quota,
-timeout, process, or malformed output, GPT-5.6 High receives the same immutable
-input. P0/P1 findings are blocking and create no coverage; after correction,
+add-then-revert histories that an endpoint-tree diff would hide.
+
+The primary reviewer is routed against range authorship (#637): commits
+signal their authoring model with an `X-Authored-Model:` trailer (legacy
+Claude `Co-Authored-By:` trailers also classify), and a range authored
+entirely by one model family routes to the opposite family first --
+Anthropic-authored to GPT-5.6 High, OpenAI-authored to Opus 5 High. Mixed or
+unsignalled ranges use the default order (Opus 5 High first). If the primary
+reviewer cannot return a valid structured decision because of quota, timeout,
+process, or malformed output, the other reviewer receives the same immutable
+input; a fallback that lands same-family is recorded on the receipt as
+`crossFamily: false` and warned about loudly, never silently. Receipts also
+record the signalled `authoredModels`; receipts predating these fields are
+unverified on the cross-family axis, and `review:status` displays each
+receipt as `cross-family`, `SAME-FAMILY`, or `family-unverified`.
+
+The Anthropic reviewer streams progress while it works (#637): one line per
+tool call, a heartbeat once a minute, a 5-minute no-event stall timer as the
+primary failure condition, and a 30-minute backstop. On stall or timeout,
+partially emitted structured output is surfaced as diagnostics -- clearly
+marked as not an approval -- instead of being discarded. Approval always
+requires the complete validated result envelope. The Codex fallback is not
+streamed and keeps its 15-minute hard cap. P0/P1 findings are blocking and create no coverage; after correction,
 the complete candidate range must be reviewed again. A failure containing only
 P2/P3 findings records non-terminal advisory coverage for the reviewed range.
 Fix those findings in a new commit, then review only that exact follow-up

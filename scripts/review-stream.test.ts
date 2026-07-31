@@ -59,15 +59,17 @@ describe('review stream reduction (#637)', () => {
       assistantToolUse('Read', { file_path: 'scripts/push-review.ts' }),
       assistantToolUse('Grep', { pattern: 'runReviewForRanges', path: 'scripts' }),
       assistantToolUse('Glob', { pattern: 'scripts/*.test.ts' }),
+      assistantToolUse('Bash', { command: 'git log --oneline' }),
     ])
 
     expect(progress).toEqual([
       '  ⋯ Read scripts/push-review.ts',
       '  ⋯ Grep runReviewForRanges',
       '  ⋯ Glob scripts/*.test.ts',
+      '  ⋯ Bash git log --oneline',
     ])
-    expect(state.eventCount).toBe(4)
-    expect(state.lastActivity).toBe('Glob scripts/*.test.ts')
+    expect(state.eventCount).toBe(5)
+    expect(state.lastActivity).toBe('Bash git log --oneline')
   })
 
   it('announces structured output emission without duplicating raw deltas as progress', () => {
