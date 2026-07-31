@@ -162,12 +162,23 @@ export function ShowClipEntityDetail({
     location: ShowPropertyAnimationFieldLocation,
     targetKey: string,
   ) => {
+    const viewportTarget = targetKey.startsWith('placement-viewport:')
+    const reveal = viewportTarget && !value.viewport.enabled
+      ? onPatch({
+          viewport: enableViewportForContent({
+            transform: value.transform,
+            viewport: value.viewport,
+            grid: 3,
+          }),
+        })
+      : undefined
+    if (viewportTarget) setPlacementFocus('aperture')
     if (location !== 'header') {
       selectTab(location)
     } else {
       onAnimationOverviewClose?.(false)
     }
-    window.setTimeout(() => {
+    const focusTarget = () => {
       const action = [...(detailRef.current?.querySelectorAll<HTMLElement>(
         '[data-show-property-animation-target]',
       ) ?? [])].find((candidate) => candidate.dataset.showPropertyAnimationTarget === targetKey)
@@ -176,7 +187,12 @@ export function ShowClipEntityDetail({
       )
       field?.querySelector<HTMLElement>('input:not([disabled]), select:not([disabled]), textarea:not([disabled])')
         ?.focus()
-    }, 0)
+    }
+    if (reveal && typeof (reveal as Promise<void>).then === 'function') {
+      void Promise.resolve(reveal).then(() => window.setTimeout(focusTarget, 0))
+    } else {
+      window.setTimeout(focusTarget, 0)
+    }
   }
   const tabIdFor = (tab: ShowClipDetailTabId) => `clip-detail-tab-${panelKey}-${tab}`
   const panelId = `clip-detail-panel-${panelKey}`

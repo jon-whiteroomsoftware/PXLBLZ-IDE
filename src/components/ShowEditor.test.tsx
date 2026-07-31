@@ -4014,6 +4014,38 @@ describe('ShowEditor (#318)', () => {
     await user.click(within(panel).getByRole('tab', { name: /^Pattern/ }))
   })
 
+  it('reveals the aperture before focusing a Viewport animation field (#649 review)', async () => {
+    const user = userEvent.setup()
+    const show = createDefaultShow('show-viewport-animation-navigation', 'Viewport animation navigation', 1000)
+    show.stageMapId = 'plane'
+    setPersonalContentProvider(memoryProvider([show]))
+    useShowStore.setState({ shows: [show], activeShowId: show.id, showsLoaded: true })
+
+    render(<ShowEditor showId={show.id} />)
+    await user.click(screen.getByRole('button', { name: 'Select TestPattern1D' }))
+    const panel = screen.getByRole('dialog', { name: 'Entity Detail Panel' })
+    await user.click(within(panel).getByRole('tab', { name: /^Place/ }))
+    await user.click(within(panel).getByRole('button', { name: 'Aperture summary' }))
+    await user.click(within(panel).getByRole('button', { name: 'Animate Viewport Width' }))
+    const widthFrom = screen.getByRole('textbox', { name: 'Viewport width animation from exact multiplier' })
+    await user.clear(widthFrom)
+    await user.type(widthFrom, '0.8x')
+    fireEvent.blur(widthFrom)
+    fireEvent.keyDown(screen.getByRole('dialog', { name: 'Viewport width animation' }), { key: 'Escape' })
+    await user.click(within(panel).getByRole('button', { name: 'Content summary' }))
+    await user.click(within(panel).getByRole('tab', { name: /^Pattern/ }))
+
+    await user.click(within(panel).getByRole('button', { name: 'Animations — 1' }))
+    const row = within(panel).getByRole('group', { name: 'Viewport width animation summary' })
+    await user.click(within(row).getByRole('button', { name: 'Go to Viewport width field' }))
+
+    await waitFor(() => {
+      expect(within(panel).getByRole('tab', { name: /^Place/ })).toHaveAttribute('aria-selected', 'true')
+      expect(within(panel).getByRole('textbox', { name: 'Viewport Width exact multiplier' })).toHaveFocus()
+    })
+    await user.click(within(panel).getByRole('tab', { name: /^Pattern/ }))
+  })
+
   it('abbreviates the owning Clip only where two lanes animate the same property (#631)', () => {
     const show = createDefaultShow('show-colliding-property-lanes', 'Colliding property lanes', 1000)
     const [firstScene] = show.scenes
@@ -4141,6 +4173,11 @@ describe('ShowEditor (#318)', () => {
     const panel = screen.getByRole('dialog', { name: 'Entity Detail Panel' })
     await user.click(within(panel).getByRole('button', { name: 'Animations — 1' }))
     expect(within(panel).getByRole('group', { name: 'Brightness animation summary' })).toBeInTheDocument()
+
+    await user.click(screen.getByRole('button', { name: 'Select TestPattern1D' }))
+    const switchedPanel = screen.getByRole('dialog', { name: 'Entity Detail Panel' })
+    expect(within(switchedPanel).queryByRole('region', { name: 'Animations overview' })).not.toBeInTheDocument()
+    expect(within(switchedPanel).getByRole('combobox', { name: 'Source pattern' })).toBeInTheDocument()
   })
 
 

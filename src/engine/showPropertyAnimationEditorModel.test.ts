@@ -53,6 +53,22 @@ function brightnessTrack(
   }
 }
 
+function indexedTracks(placementId: string): ShowPropertyAnimationTrack[] {
+  return Array.from({ length: 11 }, (_, index) => index === 10
+    ? {
+        id: 'track-10-orphan',
+        target: {
+          kind: 'placement-effect' as const,
+          placementId,
+          effectId: 'missing-effect',
+          effectKind: 'brightness' as const,
+          parameterId: 'amount',
+        },
+        keyframes: brightnessTrack('track-10-orphan', placementId, 0, 1_000).keyframes,
+      }
+    : brightnessTrack(`track-${index}`, placementId, 0, 1_000))
+}
+
 function twoSceneShow(): ShowRecord {
   const show = createDefaultShow('show-animation-editor', 'Animation editor', 1)
   show.scenes[0].durationMs = 4_000
@@ -106,6 +122,44 @@ describe('Property animation editor time projection (#648)', () => {
     expect(context?.tracks.map((track) => track.id)).toEqual(['brightness'])
     expect(showPropertyAnimationGlobalSeconds(context!, 500)).toBe(6.5)
     expect(showPropertyAnimationLocalTimeMs(context!, 9.5)).toBe(3_500)
+  })
+
+  it('does not assign a double-digit Scene track issue to a shorter index prefix', () => {
+    const show = twoSceneShow()
+    const sceneId = show.scenes[0].id
+    const composition: ShowCompositionV1 = {
+      version: 1,
+      patternInstances: [{
+        id: 'instance-indexed',
+        pattern: { kind: 'stock', id: 'hue-wave' },
+        patternName: 'Hue Wave',
+        time: { timeScale: 1, timeOffsetMs: 0 },
+      }],
+      scenes: [{
+        sceneId,
+        propertyTracks: indexedTracks('placement-indexed'),
+        zones: [{
+          zoneId: 'zone-1',
+          main: [{
+            id: 'placement-indexed',
+            instanceId: 'instance-indexed',
+            startMs: 0,
+            durationMs: 4_000,
+            view: { mirror: false, phase: 0, brightness: 1 },
+          }],
+          overlays: [],
+        }],
+      }],
+    }
+    show.composition = composition
+
+    const context = projectShowPropertyAnimationEditorContext(
+      show,
+      inspectorValue(sceneId, 'placement-indexed', 'instance-indexed'),
+    )
+
+    expect(context?.trackIssues['track-1'].map((issue) => issue.code)).not.toContain('missing-effect')
+    expect(context?.trackIssues['track-10-orphan'].map((issue) => issue.code)).toContain('missing-effect')
   })
 
   it('round-trips a Group child through the selected occurrence while retaining definition-local storage', () => {
@@ -188,6 +242,57 @@ describe('Property animation editor time projection (#648)', () => {
     expect(showPropertyAnimationLocalTimeMs(context!, 10.5)).toBe(3_500)
     expect(definition.propertyTracks?.[0].keyframes.map((keyframe) => keyframe.timeMs))
       .toEqual([500, 3_500])
+  })
+
+  it('does not assign a double-digit materialized Group issue to a shorter index prefix', () => {
+    const show = twoSceneShow()
+    const sceneId = show.scenes[0].id
+    const definition: ShowGroupDefinition = {
+      id: 'definition-indexed',
+      name: 'Indexed phrase',
+      patternInstances: [{
+        id: 'inside-instance',
+        pattern: { kind: 'stock', id: 'hue-wave' },
+        patternName: 'Hue Wave',
+        time: { timeScale: 1, timeOffsetMs: 0 },
+      }],
+      placements: [{
+        id: 'inside-placement',
+        instanceId: 'inside-instance',
+        layerOffset: 0,
+        startMs: 0,
+        durationMs: 4_000,
+        opacity: 1,
+        view: { mirror: false, phase: 0, brightness: 1 },
+      }],
+      propertyTracks: indexedTracks('inside-placement'),
+    }
+    const composition: ShowCompositionV1 = {
+      version: 1,
+      patternInstances: [],
+      scenes: [{ sceneId, zones: [{ zoneId: 'zone-1', main: [], overlays: [] }] }],
+      groupDefinitions: [definition],
+      groupOccurrences: [{
+        id: 'occurrence-indexed',
+        definitionId: definition.id,
+        sceneId,
+        zoneId: 'zone-1',
+        startMs: 0,
+        baseLayer: 0,
+        translationX: 0,
+        translationY: 0,
+      }],
+    }
+    show.composition = composition
+
+    const context = projectShowPropertyAnimationEditorContext(
+      show,
+      inspectorValue(sceneId, 'inside-placement', 'inside-instance'),
+      { occurrenceId: 'occurrence-indexed', placementId: 'inside-placement' },
+    )
+
+    expect(context?.trackIssues['track-1'].map((issue) => issue.code)).not.toContain('missing-effect')
+    expect(context?.trackIssues['track-10-orphan'].map((issue) => issue.code)).toContain('missing-effect')
   })
 
   it('adds, edits, and removes one Group-definition track without materializing Show-global time', () => {

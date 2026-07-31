@@ -7060,6 +7060,7 @@ function ContextualInspector({
         : []
       return (
         <CompositionClipInspector
+          key={`group-clip:${selectedGroupClipOwner.occurrenceId}:${selectedGroupClipOwner.placementId}`}
           value={value}
           panelKey={panelKey}
           patternOptions={patternOptions}
@@ -7119,6 +7120,7 @@ function ContextualInspector({
       const patternControls = value.instanceId ? patternControlsByInstanceId[value.instanceId] ?? [] : []
       return (
         <CompositionClipInspector
+          key={`clip:${selection.clipId}`}
           value={value}
           panelKey={panelKey}
           patternOptions={patternOptions}

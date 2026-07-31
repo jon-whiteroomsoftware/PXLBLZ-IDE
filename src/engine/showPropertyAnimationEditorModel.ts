@@ -389,7 +389,10 @@ function trackIssuesForScene(
   const issues = validateShowPropertyTracks(show, composition)
   return Object.fromEntries((scene.propertyTracks ?? []).map((track, trackIndex) => [
     track.id,
-    issues.filter((issue) => issue.path.startsWith(`scenes[${sceneIndex}].propertyTracks[${trackIndex}]`)),
+    issues.filter((issue) => issuePathBelongsTo(
+      issue.path,
+      `scenes[${sceneIndex}].propertyTracks[${trackIndex}]`,
+    )),
   ]))
 }
 
@@ -407,10 +410,16 @@ function trackIssuesForGroup(
       const trackIndex = (scene.propertyTracks ?? []).findIndex((candidate) => candidate.id === materializedId)
       if (trackIndex < 0) continue
       const prefix = `scenes[${sceneIndex}].propertyTracks[${trackIndex}]`
-      return [track.id, issues.filter((issue) => issue.path.startsWith(prefix))]
+      return [track.id, issues.filter((issue) => issuePathBelongsTo(issue.path, prefix))]
     }
     return [track.id, []]
   }))
+}
+
+function issuePathBelongsTo(path: string, trackPath: string): boolean {
+  return path === trackPath
+    || path.startsWith(`${trackPath}.`)
+    || path.startsWith(`${trackPath}[`)
 }
 
 function isInstanceTarget(target: ShowPropertyAnimationTarget): boolean {
