@@ -499,16 +499,22 @@ and the `?` control explains the focus-specific gestures.
 **Mirror** appears only in that stack as a visually distinct, fixed first
 Transform row. It remains a placement adaptation rather than an ordered
 Effect, so its action menu offers **Remove** but never move or duplicate.
-**Effects > Add** opens a searchable registry with animated mnemonics and
-factual cost notes; clicking applies documented defaults, and the Entity
-Detail Panel keeps each ordinary Effect's exact parameters visible in a
-compact row. Drag handles reorder ordinary Effects inside one compiler stage;
-each ordinary row's action menu provides keyboard- and touch-friendly **Move
-earlier**, **Move later**, **Duplicate**, and **Remove** alternatives. The
-registry spans transforms (Translate, Rotate, Scale, Shear, Wrap), distortions,
-address policies, and Color & output Effects including Luma key, Chroma key,
-and Vignette. Show-wide output Effects such as **Trails** live in Show
-properties and apply after the full composite.
+**Effects > Add** replaces the stack inside the Effects tab with a searchable
+registry rather than opening another overlay. Family and compatibility chips
+filter the registry while its results remain grouped by Transform, Distort,
+Address, and Color & output stage. Search matches names, common aliases, stage
+terms, parameters, and preset names. A focused or hovered row expands in place
+with its summary, factual cost notes, and presets; clicking the row applies its
+documented defaults. **Back** returns to the stack, and Escape first collapses
+an expanded row before returning to the stack with focus restored to **Add**.
+The Entity Detail Panel keeps each ordinary Effect's exact parameters visible
+in a compact row. Drag handles reorder ordinary Effects inside one compiler
+stage; each ordinary row's action menu provides keyboard- and touch-friendly
+**Move earlier**, **Move later**, **Duplicate**, and **Remove** alternatives.
+The registry spans transforms (Translate, Rotate, Scale, Shear, Wrap),
+distortions, address policies, and Color & output Effects including Luma key,
+Chroma key, and Vignette. Show-wide output Effects such as **Trails** live in
+Show properties and apply after the full composite.
 
 Authored colors use one compact **Color** field: click its swatch for the
 platform picker or type an exact canonical `#RRGGBB` value beside it. Picker

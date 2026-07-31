@@ -59,6 +59,13 @@ function effectStage(familyId: string, variantId: string): ShowEffectPipelineSta
   return null
 }
 
+const EFFECT_STAGE_SEARCH_TEXT: Record<ShowEffectPipelineStage, string> = {
+  transform: 'transform source coordinates',
+  distort: 'distort distortion warped coordinates',
+  address: 'address clip wrap',
+  'color-output': 'color output rendered pixels',
+}
+
 function variantCompatibility(
   variant: ShowToolkitVariantDescriptor,
   stageDimensions: 1 | 2 | 3,
@@ -82,6 +89,15 @@ export function buildShowToolkitPresentationCatalogue(input: {
     const presetLabels = variant.presets?.map((preset) => preset.label) ?? []
     const summary = FAMILY_SUMMARIES[`${family.kind}:${family.id}`]
       ?? `Use ${variant.label} in the ${family.label} family.`
+    const stage = family.kind === 'effect' ? effectStage(family.id, variant.id) : null
+    const parameterSearchText = family.parameters
+      .filter((parameter) => !parameter.variantIds || parameter.variantIds.includes(variant.id))
+      .flatMap((parameter) => [
+        parameter.id,
+        parameter.label,
+        ...(parameter.options?.map((option) => option.label) ?? []),
+        ...(parameter.optionsByVariant?.[variant.id]?.map((option) => option.label) ?? []),
+      ])
     return {
       key,
       kind: family.kind,
@@ -90,10 +106,20 @@ export function buildShowToolkitPresentationCatalogue(input: {
       variantId: variant.id,
       label: variant.label,
       summary,
-      searchText: [variant.label, family.label, summary, ...presetLabels].join(' ').toLocaleLowerCase(),
+      searchText: [
+        variant.id,
+        variant.label,
+        ...(variant.aliases ?? []),
+        family.id,
+        family.label,
+        summary,
+        ...(stage ? [EFFECT_STAGE_SEARCH_TEXT[stage]] : []),
+        ...parameterSearchText,
+        ...presetLabels,
+      ].join(' ').toLocaleLowerCase(),
       ...compatibility,
       costPolicies: [...variant.costPolicies],
-      effectStage: family.kind === 'effect' ? effectStage(family.id, variant.id) : null,
+      effectStage: stage,
       presetLabels,
       authoringTarget: variant.authoringTarget ?? 'effect-stack',
     }

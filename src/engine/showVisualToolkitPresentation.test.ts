@@ -23,6 +23,21 @@ describe('Show visual-toolkit presentation catalogue', () => {
     }).map((item) => item.key)).toEqual(['effect:distortion:bulge'])
   })
 
+  it.each([
+    ['flip', 'effect:affine:mirror'],
+    ['address', 'effect:affine:wrap'],
+    ['segments', 'effect:distortion:kaleidoscope'],
+    ['pinch', 'effect:distortion:bulge'],
+  ])('finds an Effect through %s search vocabulary', (query, key) => {
+    const catalogue = buildShowToolkitPresentationCatalogue({ stageDimensions: 2 })
+
+    expect(filterShowToolkitPresentationCatalogue(catalogue, {
+      kind: 'effect',
+      query,
+      compatibleOnly: true,
+    }).map((item) => item.key)).toContain(key)
+  })
+
   it('reports compatibility and the actual Effect pipeline stage', () => {
     const catalogue = buildShowToolkitPresentationCatalogue({ stageDimensions: 1 })
     const byKey = new Map(catalogue.map((item) => [item.key, item]))

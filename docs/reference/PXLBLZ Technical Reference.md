@@ -1632,12 +1632,20 @@ React surface requests one Show update.
 
 `ShowClipEntityDetail` renders the Pattern chooser, Animation speed,
 Brightness, the inline Clip-placement surface, Mirror, phase, public Pattern
-controls, Effect stack, and numeric field behavior. `ShowEditor` supplies placement timing, Layer,
-Opacity, structural actions, and clock controls through the same anchored
-`ShowEntityDetailPanel`. Sparklines remain aligned beneath the owning Zone
-because they are temporal projections rather than scalar Clip fields. The
-shared Detail components do not import a Show store or duplicate occupancy and
-ownership rules.
+controls, Effect stack, inline Add Effect takeover, and numeric field behavior.
+The takeover is local to each Detail instance, so a pinned panel does not share
+chooser state with another panel. It replaces only the Effects tab body,
+filters the presentation catalogue by family, compatibility, stage vocabulary,
+aliases, parameters, and presets, and expands the focused row in place. Back or
+chooser-level Escape restores focus to Add; when a row is expanded, the first
+Escape collapses that row and leaves the chooser open. Applying a choice uses
+the same normalized inspector patch boundary as an ordinary stack edit and
+then restores focus to the applied row. `ShowEditor` supplies Stage
+dimensionality, placement timing, Layer, Opacity, structural actions, and clock
+controls through the same anchored `ShowEntityDetailPanel`. Sparklines remain
+aligned beneath the owning Zone because they are temporal projections rather
+than scalar Clip fields. The shared Detail components do not import a Show
+store or duplicate occupancy and ownership rules.
 
 The public Pattern-control catalogue is derived from the visible timeline
 composition, including the compatibility projection for a legacy flat Show.
@@ -1674,7 +1682,7 @@ local until blur and then revert.
 
 Percentage semantics are opt-in. `ShowToolkitParameterDescriptor.presentation`
 marks eligible Effect and Transition parameters; the frozen visual-toolkit
-contract is version 10. Other call sites select percentage presentation
+contract is version 11. Other call sites select percentage presentation
 explicitly. A numeric `min=0, max=1` pair is insufficient because phase,
 direction, centers, viewport geometry, and other spatial values share that
 storage range. Full-width `DeckSlider` controls use the same formatter and

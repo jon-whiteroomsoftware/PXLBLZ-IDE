@@ -1,12 +1,14 @@
-import { useEffect, useMemo, useRef, useState } from 'react'
+import { useEffect, useMemo, useRef, useState, type Ref } from 'react'
 import { createPortal } from 'react-dom'
 import { useNumberFieldDraft } from '@/components/ui/number-field'
 import { PercentageField } from '@/components/ui/percentage-field'
 import { DomainNumberField } from '@/components/ui/domain-number-field'
 import { ColorField } from '@/components/ui/color-field'
 import {
+  ArrowLeft,
   ArrowDown,
   ArrowUp,
+  Check,
   Copy,
   GripVertical,
   MoreHorizontal,
@@ -14,7 +16,6 @@ import {
   Search,
   Sparkles,
   Trash2,
-  X,
 } from 'lucide-react'
 import type { ShowCell, ShowClipEffect } from '@/engine/personalContentRecords'
 import {
@@ -61,6 +62,7 @@ export function ShowEffectPalette({
   const [familyId, setFamilyId] = useState<string | null>(null)
   const [compatibleOnly, setCompatibleOnly] = useState(true)
   const [activeItem, setActiveItem] = useState<ShowToolkitPresentationItem | null>(null)
+  const [dismissedItemKey, setDismissedItemKey] = useState<string | null>(null)
   const catalogue = useMemo(
     () => buildShowToolkitPresentationCatalogue({ stageDimensions }),
     [stageDimensions],
@@ -73,30 +75,41 @@ export function ShowEffectPalette({
   const families = useMemo(() => SHOW_VISUAL_TOOLKIT_REGISTRY.filter((family) => family.kind === 'effect'), [])
 
   const close = onClose
-  const inspectItem = (item: ShowToolkitPresentationItem) => {
+  const inspectItem = (item: ShowToolkitPresentationItem, source: 'focus' | 'pointer') => {
     if (!item.compatible) return
+    if (source === 'focus' && dismissedItemKey === item.key) return
+    setDismissedItemKey(null)
     setActiveItem(item)
   }
   const applyItem = (item: ShowToolkitPresentationItem, presetId?: string) => {
     if (!item.compatible) return
-    onApply(createShowEffectApplication(item, clip.effects ?? [], presetId))
     close()
+    onApply(createShowEffectApplication(item, clip.effects ?? [], presetId))
   }
 
   useEffect(() => {
     searchRef.current?.focus()
+  }, [])
+
+  useEffect(() => {
     const onKeyDown = (event: KeyboardEvent) => {
       if (event.key !== 'Escape') return
       event.preventDefault()
+      event.stopImmediatePropagation()
+      if (activeItem) {
+        const itemId = `show-effect-choice-${activeItem.variantId}`
+        setDismissedItemKey(activeItem.key)
+        setActiveItem(null)
+        window.setTimeout(() => document.getElementById(itemId)?.focus(), 0)
+        return
+      }
       close()
     }
-    document.addEventListener('keydown', onKeyDown)
+    document.addEventListener('keydown', onKeyDown, true)
     return () => {
-      document.removeEventListener('keydown', onKeyDown)
+      document.removeEventListener('keydown', onKeyDown, true)
     }
-  // The open palette owns this keyboard lifecycle.
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [])
+  }, [activeItem, close])
 
   const activeVariant = activeItem
     ? SHOW_VISUAL_TOOLKIT_REGISTRY
@@ -104,89 +117,144 @@ export function ShowEffectPalette({
       ?.variants.find((variant) => variant.id === activeItem.variantId)
     : undefined
 
-  return createPortal(
+  return (
     <section
-      role="dialog"
-      aria-modal="false"
+      role="region"
       aria-label="Add Effect"
-      className="fixed left-1/2 top-[76px] z-[90] flex max-h-[min(500px,calc(100vh-92px))] w-[min(680px,calc(100vw-16px))] -translate-x-1/2 flex-col overflow-hidden rounded-md border border-zinc-700 bg-[#0b0c0f]/[0.985] shadow-[0_24px_80px_-18px_rgba(0,0,0,0.98)] backdrop-blur-sm"
-      onPointerDown={(event) => event.stopPropagation()}
-      onClick={(event) => event.stopPropagation()}
+      data-testid="show-effect-takeover"
+      className="flex h-[396px] min-h-[262px] max-h-[calc(100vh-164px)] flex-col overflow-hidden"
     >
-      <header className="flex h-10 shrink-0 items-center gap-2 border-b border-zinc-800 px-2.5">
-        <Sparkles size={13} className="text-cyan-300" aria-hidden />
-        <div className="min-w-0">
-          <h3 className="text-[10px] font-semibold uppercase tracking-[0.12em] text-zinc-200">Add Effect</h3>
-          <p className="truncate text-[9px] text-zinc-600">{clip.patternName} · choose an Effect, then edit it in Clip properties</p>
-        </div>
-        <button type="button" onClick={close} className="ml-auto grid size-6 place-items-center rounded text-zinc-500 hover:bg-zinc-800 hover:text-zinc-100" aria-label="Close Effects palette"><X size={13} /></button>
+      <header className="mb-1.5 flex h-5 shrink-0 items-center gap-1.5">
+        <button
+          type="button"
+          onClick={close}
+          aria-label="Back to Effects"
+          className="flex h-5 items-center gap-1 rounded pr-1.5 text-[9px] text-cyan-300 hover:bg-cyan-400/10 focus-visible:outline focus-visible:outline-1 focus-visible:outline-cyan-300"
+        >
+          <ArrowLeft size={11} aria-hidden />
+          Back
+        </button>
+        <Sparkles size={10} className="text-cyan-300" aria-hidden />
+        <h3 className="text-[9.5px] font-semibold text-zinc-400">Add Effect</h3>
       </header>
-      <div className="flex shrink-0 items-center gap-1.5 border-b border-zinc-800 p-2">
-        <label className="relative min-w-0 flex-1">
-          <Search size={12} className="pointer-events-none absolute left-2 top-2 text-zinc-600" aria-hidden />
-          <input
-            ref={searchRef}
-            type="search"
-            aria-label="Search Effects"
-            value={query}
-            onChange={(event) => setQuery(event.target.value)}
-            placeholder="Search Effects and presets"
-            className="h-7 w-full rounded border border-zinc-700 bg-zinc-950 pl-7 pr-2 text-[10px] text-zinc-200 outline-none focus:border-cyan-400/60"
-          />
-        </label>
-        <label className="flex h-7 shrink-0 items-center gap-1.5 rounded border border-zinc-800 px-2 text-[9px] text-zinc-500">
-          <input type="checkbox" checked={compatibleOnly} onChange={(event) => setCompatibleOnly(event.target.checked)} className="size-3 accent-cyan-400" />
-          compatible
-        </label>
-      </div>
-      <nav className="scrollbar-hidden flex shrink-0 gap-1 overflow-x-auto border-b border-zinc-800 px-2 py-1.5" aria-label="Effect families">
-        <button type="button" onClick={() => setFamilyId(null)} className={`h-6 rounded px-2 text-[9px] ${familyId === null ? 'bg-cyan-400/15 text-cyan-200' : 'text-zinc-500 hover:bg-zinc-800 hover:text-zinc-200'}`}>All</button>
+      <label className="relative mb-1 min-w-0 shrink-0">
+        <Search size={11} className="pointer-events-none absolute left-2 top-1.5 text-zinc-600" aria-hidden />
+        <input
+          ref={searchRef}
+          type="search"
+          aria-label="Search Effects"
+          value={query}
+          onChange={(event) => {
+            setQuery(event.target.value)
+            setDismissedItemKey(null)
+            setActiveItem(null)
+          }}
+          placeholder="Search Effects and presets"
+          className="h-6 w-full rounded border border-zinc-700 bg-zinc-950 pl-7 pr-2 text-[9.5px] text-zinc-200 outline-none focus:border-cyan-400/70"
+        />
+      </label>
+      <div className="mb-1 flex shrink-0 flex-wrap gap-1" aria-label="Effect filters">
+        <button
+          type="button"
+          aria-pressed={familyId === null}
+          onClick={() => {
+            setFamilyId(null)
+            setDismissedItemKey(null)
+            setActiveItem(null)
+          }}
+          className={`h-5 rounded-full border px-2 text-[8px] ${familyId === null ? 'border-transparent bg-cyan-400/15 text-cyan-200' : 'border-zinc-800 text-zinc-500 hover:text-zinc-200'}`}
+        >
+          All
+        </button>
         {families.map((family) => (
-          <button key={family.id} type="button" onClick={() => setFamilyId(family.id)} className={`h-6 rounded px-2 text-[9px] ${familyId === family.id ? 'bg-cyan-400/15 text-cyan-200' : 'text-zinc-500 hover:bg-zinc-800 hover:text-zinc-200'}`}>{family.label}</button>
-        ))}
-      </nav>
-      <div className="grid min-h-0 flex-1 auto-rows-min grid-cols-1 gap-px overflow-auto bg-zinc-800 sm:grid-cols-2 lg:grid-cols-3">
-        {effectItems.map((item) => (
           <button
-            key={item.key}
+            key={family.id}
             type="button"
-            aria-label={`Add ${item.label} Effect`}
-            disabled={!item.compatible}
-            onPointerEnter={() => inspectItem(item)}
-            onFocus={() => inspectItem(item)}
-            onClick={() => applyItem(item)}
-            className="show-effect-choice group flex h-10 min-w-0 items-center gap-2 bg-[#101115] px-2 text-left hover:bg-[#171920] focus-visible:relative focus-visible:z-10 focus-visible:outline focus-visible:outline-1 focus-visible:outline-cyan-300 disabled:cursor-not-allowed disabled:opacity-40"
-            title={item.compatible ? item.summary : item.compatibilityReason ?? undefined}
+            aria-pressed={familyId === family.id}
+            onClick={() => {
+              setFamilyId(family.id)
+              setDismissedItemKey(null)
+              setActiveItem(null)
+            }}
+            className={`h-5 rounded-full border px-2 text-[8px] ${familyId === family.id ? 'border-transparent bg-cyan-400/15 text-cyan-200' : 'border-zinc-800 text-zinc-500 hover:text-zinc-200'}`}
           >
-            <EffectMnemonic kind={item.variantId} />
-            <span className="min-w-0 flex-1">
-              <span className="block truncate text-[10px] font-medium text-zinc-100">{item.label}</span>
-              <span className="block truncate text-[8px] text-zinc-600">{item.familyLabel} · {stageLabel(item.effectStage)}</span>
-            </span>
+            {family.label}
           </button>
         ))}
-        {effectItems.length === 0 && <p className="col-span-full p-6 text-center text-[10px] text-zinc-600">No Effects match.</p>}
+        <button
+          type="button"
+          aria-pressed={compatibleOnly}
+          onClick={() => {
+            setCompatibleOnly((current) => !current)
+            setDismissedItemKey(null)
+            setActiveItem(null)
+          }}
+          className={`ml-auto flex h-5 items-center gap-1 rounded-full border border-dashed px-2 text-[8px] ${compatibleOnly ? 'border-cyan-400/30 text-cyan-200' : 'border-zinc-700 text-zinc-500 hover:text-zinc-200'}`}
+        >
+          {compatibleOnly && <Check size={9} aria-hidden />}
+          Compatible
+        </button>
       </div>
-      <footer className="min-h-12 shrink-0 border-t border-zinc-800 bg-zinc-950/75 px-2.5 py-2">
-        {activeItem ? (
-          <div className="flex min-w-0 items-center gap-2">
-            <p className="min-w-0 flex-1 truncate text-[9px] text-zinc-400" title={activeItem.summary}>{activeItem.summary}</p>
-            <span className="shrink-0 text-[8px] uppercase tracking-wide text-zinc-600">{activeItem.costPolicies.join(' · ')}</span>
-            {activeVariant?.presets?.map((preset) => (
-              <button
-                key={preset.id}
-                type="button"
-                onClick={() => applyItem(activeItem, preset.id)}
-                className="h-6 shrink-0 rounded border border-zinc-700 px-2 text-[8px] text-zinc-300 hover:border-cyan-400/50 hover:text-cyan-200"
+      <div className="min-h-0 flex-1 overflow-y-auto border-t border-zinc-800/80">
+        {STAGES.map((stage) => {
+          const stageItems = effectItems.filter((item) => item.effectStage === stage.id)
+          if (stageItems.length === 0) return null
+          return (
+            <section key={stage.id} role="group" aria-label={`${stage.label} Effects`}>
+              <h4
+                className="sticky top-0 z-[1] flex h-4 items-center gap-1 bg-[#08080a]/95 px-1 text-[8px] font-medium uppercase tracking-[0.1em] text-zinc-600 backdrop-blur"
+                title={stage.detail}
               >
-                {preset.label}
-              </button>
-            ))}
-          </div>
-        ) : <p className="text-[9px] text-zinc-600">Hover or focus an Effect to see details. Click to apply.</p>}
-      </footer>
-    </section>,
-    document.body,
+                <span className="h-px w-2 bg-cyan-400/40" aria-hidden />
+                {stage.label}
+              </h4>
+              {stageItems.map((item) => {
+                const expanded = activeItem?.key === item.key
+                const detailId = `show-effect-choice-detail-${item.variantId}`
+                return (
+                  <div key={item.key} className={expanded ? 'border-l-2 border-cyan-300/70 bg-cyan-400/[0.045]' : ''}>
+                    <button
+                      id={`show-effect-choice-${item.variantId}`}
+                      type="button"
+                      aria-label={`Add ${item.label} Effect`}
+                      aria-expanded={expanded}
+                      aria-controls={detailId}
+                      disabled={!item.compatible}
+                      onPointerEnter={() => inspectItem(item, 'pointer')}
+                      onFocus={() => inspectItem(item, 'focus')}
+                      onClick={() => applyItem(item)}
+                      className="show-effect-choice group flex h-7 w-full min-w-0 items-center gap-2 border-b border-zinc-800/55 px-1 text-left hover:bg-[#171920] focus-visible:relative focus-visible:z-10 focus-visible:outline focus-visible:outline-1 focus-visible:outline-cyan-300 disabled:cursor-not-allowed disabled:opacity-40"
+                      title={item.compatible ? item.summary : item.compatibilityReason ?? undefined}
+                    >
+                      <EffectMnemonic kind={item.variantId} />
+                      <span className="min-w-0 flex-1 truncate text-[10px] font-medium text-zinc-100">{item.label}</span>
+                      <span className="shrink-0 text-[7px] uppercase tracking-[0.08em] text-zinc-700">{item.familyLabel}</span>
+                    </button>
+                    {expanded && (
+                      <div id={detailId} className="flex min-w-0 items-center gap-1.5 border-b border-zinc-800/55 pb-1 pl-7 pr-1 pt-0.5">
+                        <p className="min-w-0 flex-1 text-[8.5px] leading-3 text-zinc-500">{item.summary}</p>
+                        <span className="shrink-0 text-[7px] uppercase tracking-wide text-zinc-700">{item.costPolicies.join(' · ')}</span>
+                        {activeVariant?.presets?.map((preset) => (
+                          <button
+                            key={preset.id}
+                            type="button"
+                            onClick={() => applyItem(item, preset.id)}
+                            className="h-5 shrink-0 rounded border border-zinc-700 px-1.5 text-[8px] text-zinc-300 hover:border-cyan-400/50 hover:text-cyan-200"
+                          >
+                            {preset.label}
+                          </button>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                )
+              })}
+            </section>
+          )
+        })}
+        {effectItems.length === 0 && <p className="p-6 text-center text-[10px] text-zinc-600">No Effects match.</p>}
+      </div>
+    </section>
   )
 }
 
@@ -198,6 +266,8 @@ export function ShowEffectStack({
   onPreviewEnd,
   onMirrorChange,
   onAdd,
+  addButtonRef,
+  disabled = false,
 }: {
   effects: readonly ShowClipEffect[]
   mirror?: boolean
@@ -206,6 +276,8 @@ export function ShowEffectStack({
   onPreviewEnd?: () => void
   onMirrorChange?: (mirror: boolean) => void
   onAdd: () => void
+  addButtonRef?: Ref<HTMLButtonElement>
+  disabled?: boolean
 }) {
   const catalogue = useMemo(() => buildShowToolkitPresentationCatalogue({ stageDimensions: 2 }), [])
   const byKey = useMemo(() => new Map(catalogue.map((item) => [item.key, item])), [catalogue])
@@ -223,7 +295,20 @@ export function ShowEffectStack({
       <header className="flex h-6 items-center gap-1.5 border-b border-zinc-800 px-1.5">
         <Sparkles size={10} className="text-cyan-300" aria-hidden />
         <div className="text-[9px] font-semibold text-zinc-300">Effects</div>
-        <button type="button" onClick={onAdd} className="ml-auto flex h-5 items-center gap-1 rounded border border-zinc-700 px-1.5 text-[8px] text-zinc-400 hover:border-cyan-400/50 hover:text-cyan-200"><Plus size={9} /> Add</button>
+        <button
+          ref={addButtonRef}
+          type="button"
+          aria-label="Add Effect"
+          disabled={disabled}
+          onClick={(event) => {
+            if (event.currentTarget.matches(':disabled')) return
+            onAdd()
+          }}
+          className="ml-auto flex h-5 items-center gap-1 rounded border border-zinc-700 px-1.5 text-[8px] text-zinc-400 hover:border-cyan-400/50 hover:text-cyan-200 disabled:cursor-not-allowed disabled:opacity-45"
+        >
+          <Plus size={9} />
+          Add
+        </button>
       </header>
       {STAGES.map((stage) => {
         const stageEffects = effects.filter((effect) => showClipEffectStage(effect) === stage.id)
@@ -564,9 +649,6 @@ function EffectParameterField({ label, value, min, max, step, onCommit }: {
   )
 }
 
-function stageLabel(stage: ShowEffectPipelineStage | null): string {
-  return STAGES.find((candidate) => candidate.id === stage)?.label ?? 'Effect'
-}
 
 const EFFECT_MNEMONIC_MOTION: Record<string, string> = {
   opacity: 'fade',

@@ -596,20 +596,50 @@ test.describe('authenticated Show authoring', () => {
   })
 
   test('browsing the Effect palette does not commit an Effect', async ({ page }) => {
+    await page.setViewportSize({ width: 1440, height: 900 })
     await page.goto('studio/shows')
     await createInstallationShow(page)
 
     const stack = await openClipEffects(page, 'TestPattern1D')
-    await stack.getByRole('button', { name: 'Add' }).click()
-    const palette = page.getByRole('dialog', { name: 'Add Effect' })
+    await stack.getByRole('button', { name: 'Add Effect' }).click()
+    const palette = page.getByRole('region', { name: 'Add Effect' })
+    const panel = page.getByRole('dialog', { name: 'Entity Detail Panel' })
     // Positive precondition first: a bare "no Effect was added" assertion would
     // also hold on a page that never rendered the palette at all.
     await expect(palette.getByRole('button', { name: 'Add Ripple Effect' })).toBeVisible()
-    await palette.getByRole('button', { name: 'Add Ripple Effect' }).hover()
+    await expect(palette.getByRole('searchbox', { name: 'Search Effects' })).toBeFocused()
+    await expect(page.getByRole('dialog', { name: 'Add Effect' })).toHaveCount(0)
+    const desktopPanelBounds = await panel.boundingBox()
+    const desktopPaletteBounds = await palette.boundingBox()
+    expect(desktopPanelBounds).not.toBeNull()
+    expect(desktopPaletteBounds).not.toBeNull()
+    expect(desktopPanelBounds!.height).toBeLessThanOrEqual(560)
+    expect(desktopPaletteBounds!.height).toBe(396)
+    expect(desktopPaletteBounds!.x).toBeGreaterThanOrEqual(desktopPanelBounds!.x)
+    expect(desktopPaletteBounds!.x + desktopPaletteBounds!.width)
+      .toBeLessThanOrEqual(desktopPanelBounds!.x + desktopPanelBounds!.width)
+
+    const ripple = palette.getByRole('button', { name: 'Add Ripple Effect' })
+    await ripple.hover()
+    await page.setViewportSize({ width: 600, height: 800 })
+    const narrowPanelBounds = await panel.boundingBox()
+    const narrowPaletteBounds = await palette.boundingBox()
+    expect(narrowPanelBounds).not.toBeNull()
+    expect(narrowPaletteBounds).not.toBeNull()
+    expect(narrowPanelBounds!.height).toBeLessThanOrEqual(560)
+    expect(narrowPaletteBounds!.height).toBeGreaterThanOrEqual(262)
+    expect(narrowPaletteBounds!.x).toBeGreaterThanOrEqual(narrowPanelBounds!.x)
+    expect(narrowPaletteBounds!.x + narrowPaletteBounds!.width)
+      .toBeLessThanOrEqual(narrowPanelBounds!.x + narrowPanelBounds!.width)
+    expect(await page.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth))
+      .toBeLessThanOrEqual(8)
     await page.keyboard.press('Escape')
 
+    await expect(palette).toBeVisible()
+    await expect(ripple).toBeFocused()
+    await page.keyboard.press('Escape')
     await expect(palette).toHaveCount(0)
-    await expect(stack.getByRole('button', { name: 'Add' })).toBeVisible()
+    await expect(stack.getByRole('button', { name: 'Add Effect' })).toBeFocused()
     await expect(stack.getByRole('button', { name: 'More actions for Ripple Effect' })).toHaveCount(0)
   })
 
@@ -1537,8 +1567,8 @@ async function openClipEffects(page: Page, patternName: string): Promise<Locator
 
 /** Add one Effect through the palette, searching by name rather than position. */
 async function addEffect(page: Page, stack: Locator, query: string, label: string): Promise<void> {
-  await stack.getByRole('button', { name: 'Add' }).click()
-  const palette = page.getByRole('dialog', { name: 'Add Effect' })
+  await stack.getByRole('button', { name: 'Add Effect' }).click()
+  const palette = page.getByRole('region', { name: 'Add Effect' })
   await palette.getByRole('searchbox', { name: 'Search Effects' }).fill(query)
   await palette.getByRole('button', { name: `Add ${label} Effect` }).click()
   await expect(palette).toHaveCount(0)

@@ -26,7 +26,6 @@ import { ShowPropertySparkline } from '@/components/ShowPropertySparkline'
 import { describePropertyLaneHover, resolvePropertyLaneDisplayLabels } from '@/engine/showPropertyLaneLabels'
 import { propertyLaneFamilyColor, type ShowPropertyLaneFamily } from '@/engine/showPropertyLaneFamilies'
 import { ShowPropertyLaneFamilyGlyph } from '@/components/ShowPropertyLaneFamilyGlyph'
-import { ShowEffectPalette } from '@/components/ShowEffectsAuthoring'
 import { ShowClipEntityDetail } from '@/components/ShowClipEntityDetail'
 import { ShowPatternInstanceControls } from '@/components/ShowPatternInstanceControls'
 import { ShowTransitionPalette, ShowTransitionParameters } from '@/components/ShowTransitionAuthoring'
@@ -884,8 +883,6 @@ export function ShowEditor({
   const [detailAnchor, setDetailAnchor] = useState<HTMLElement | null>(null)
   const [pinnedDetail, setPinnedDetail] = useState<{ selection: ShowSelection; anchor: HTMLElement } | null>(null)
   const [detailsSuppressed, setDetailsSuppressed] = useState(false)
-  const [effectPaletteOwner, setEffectPaletteOwner] = useState<ShowClipInspectorOwner | null>(null)
-  const [groupEffectPaletteOwner, setGroupEffectPaletteOwner] = useState<ShowGroupClipOwner | null>(null)
   const [transitionPaletteId, setTransitionPaletteId] = useState<string | null>(null)
   const [layerTransitionTarget, setLayerTransitionTarget] = useState<ShowLayerTransitionTarget | null>(null)
   // A refused insertion used to return silently, so choosing a Transition did
@@ -896,8 +893,6 @@ export function ShowEditor({
   const lastTimelineFocusRef = useRef<HTMLElement | null>(null)
   const closeDetailPanel = useCallback((restoreFocus = false) => {
     const previousAnchor = detailAnchor
-    setEffectPaletteOwner(null)
-    setGroupEffectPaletteOwner(null)
     setTransitionPaletteId(null)
     setLayerTransitionTarget(null)
     setDetailPanelOpen(false)
@@ -955,8 +950,6 @@ export function ShowEditor({
     setDetailAnchor(null)
     setPinnedDetail(null)
     setDetailsSuppressed(false)
-    setEffectPaletteOwner(null)
-    setGroupEffectPaletteOwner(null)
     setTransitionPaletteId(null)
     setLayerTransitionTarget(null)
     setCompositionClipPendingDelete(null)
@@ -1108,7 +1101,7 @@ export function ShowEditor({
 
   useEffect(() => {
     const handleEscape = (event: KeyboardEvent) => {
-      if (event.key !== 'Escape' || effectPaletteOwner !== null || groupEffectPaletteOwner !== null || transitionPaletteId !== null) return
+      if (event.key !== 'Escape' || transitionPaletteId !== null) return
       if (!detailPanelOpen && !pinnedDetail && !isolatedGroupOccurrenceId && selection.kind === 'show') return
       event.preventDefault()
       if (isolatedGroupOccurrenceId) {
@@ -1129,7 +1122,7 @@ export function ShowEditor({
     }
     document.addEventListener('keydown', handleEscape)
     return () => document.removeEventListener('keydown', handleEscape)
-  }, [closeDetailPanel, detailPanelOpen, effectPaletteOwner, groupEffectPaletteOwner, isolatedGroupOccurrenceId, pinnedDetail, selection.kind, transitionPaletteId])
+  }, [closeDetailPanel, detailPanelOpen, isolatedGroupOccurrenceId, pinnedDetail, selection.kind, transitionPaletteId])
   useEffect(() => {
     if (!detailPanelOpen) return
     const handleOutsidePointerDown = (event: PointerEvent) => {
@@ -1311,12 +1304,6 @@ export function ShowEditor({
   const inspectorShow = activeShow && timelineComposition && !activeShow.composition
     ? { ...activeShow, composition: timelineComposition }
     : activeShow
-  const effectPaletteValue = inspectorShow && effectPaletteOwner
-    ? projectShowClipInspector(inspectorShow, effectPaletteOwner)
-    : null
-  const groupEffectPaletteValue = inspectorShow && groupEffectPaletteOwner
-    ? projectShowGroupClipInspector(inspectorShow, groupEffectPaletteOwner)
-    : null
   const layerTransitionPlan = activeShow && timelineComposition && layerTransitionTarget
     ? layerTransitionTarget.groupOccurrenceId
       ? planShowGroupLayerTransitionInsertion(activeShow, timelineComposition, {
@@ -2239,6 +2226,7 @@ export function ShowEditor({
                   selectedCompositionClipOwner={detailSelectedCompositionClipOwner}
                   selectedGroupClipOwner={detailSelectedGroupClipOwner}
                   transformEnabled={stageDimension === 2}
+                  stageDimensions={(stageDimension ?? 2) as 1 | 2 | 3}
                   patternOptions={patternOptions}
                   patternControlsByCellId={patternControlsByCellId}
                   patternControlsByInstanceId={patternControlsByInstanceId}
@@ -2301,9 +2289,6 @@ export function ShowEditor({
                   onPreviewClipInspector={previewClipInspectorPatch}
                   onPreviewGroupClipInspector={previewGroupClipInspectorPatch}
                   onPreviewEnd={endInspectorPreview}
-                  onOpenEffects={(cell) => setEffectPaletteOwner({ kind: 'global', cellId: cell.id })}
-                  onOpenCompositionEffects={setEffectPaletteOwner}
-                  onOpenGroupEffects={setGroupEffectPaletteOwner}
                   onMakeCompositionPatternIndependent={(owner) => {
                     if (!timelineComposition) return
                     const timelineOwner = showTimelineOwnerForInspector(owner)
@@ -2438,48 +2423,6 @@ export function ShowEditor({
             </ShowEntityDetailPanel>
             )
           })}
-          {effectPaletteOwner && effectPaletteValue && (
-            <ShowEffectPalette
-              clip={effectPaletteValue}
-              stageDimensions={(stageDimension ?? 2) as 1 | 2 | 3}
-              onApply={(application) => {
-                if (application.target === 'placement-mirror') {
-                  void commitClipInspectorPatch(effectPaletteOwner, { view: { mirror: application.mirror } })
-                  return
-                }
-                const effect = application.effect
-                const committed = commitClipInspectorPatch(effectPaletteOwner, { effects: [...effectPaletteValue.effects, effect] })
-                if (committed !== false) {
-                  void committed.then(() => {
-                    window.setTimeout(() => document.querySelector<HTMLElement>(`[data-show-effect-id="${effect.id}"]`)?.focus(), 0)
-                  })
-                }
-              }}
-              onClose={() => setEffectPaletteOwner(null)}
-            />
-          )}
-          {groupEffectPaletteOwner && groupEffectPaletteValue && (
-            <ShowEffectPalette
-              clip={groupEffectPaletteValue}
-              stageDimensions={(stageDimension ?? 2) as 1 | 2 | 3}
-              onApply={(application) => {
-                if (application.target === 'placement-mirror') {
-                  void commitGroupClipInspectorPatch(groupEffectPaletteOwner, { view: { mirror: application.mirror } })
-                  return
-                }
-                const effect = application.effect
-                const committed = commitGroupClipInspectorPatch(groupEffectPaletteOwner, {
-                  effects: [...groupEffectPaletteValue.effects, effect],
-                })
-                if (committed !== false) {
-                  void committed.then(() => {
-                    window.setTimeout(() => document.querySelector<HTMLElement>(`[data-show-effect-id="${effect.id}"]`)?.focus(), 0)
-                  })
-                }
-              }}
-              onClose={() => setGroupEffectPaletteOwner(null)}
-            />
-          )}
           {transitionPaletteId && activeShow.transitions?.some((transition) => transition.id === transitionPaletteId && transition.kind !== 'routing') && (
             <ShowTransitionPalette
               show={activeShow}
@@ -6956,6 +6899,7 @@ function ContextualInspector({
   selectedCompositionClipOwner,
   selectedGroupClipOwner,
   transformEnabled,
+  stageDimensions,
   patternOptions,
   patternControlsByCellId,
   patternControlsByInstanceId,
@@ -6977,9 +6921,6 @@ function ContextualInspector({
   onPreviewClipInspector,
   onPreviewGroupClipInspector,
   onPreviewEnd,
-  onOpenEffects,
-  onOpenCompositionEffects,
-  onOpenGroupEffects,
   onMakeCompositionPatternIndependent,
   onRejoinCompositionPattern,
   onRemoveCompositionClip,
@@ -7010,6 +6951,7 @@ function ContextualInspector({
   selectedCompositionClipOwner: ShowClipInspectorOwner | null
   selectedGroupClipOwner: ShowGroupClipOwner | null
   transformEnabled: boolean
+  stageDimensions: 1 | 2 | 3
   patternOptions: ShowPatternOption[]
   patternControlsByCellId: Record<string, AutomatablePatternControl[]>
   patternControlsByInstanceId: Record<string, AutomatablePatternControl[]>
@@ -7031,9 +6973,6 @@ function ContextualInspector({
   onPreviewClipInspector: (owner: ShowClipInspectorOwner, patch: ShowClipInspectorPatch) => void
   onPreviewGroupClipInspector: (owner: ShowGroupClipOwner, patch: ShowClipInspectorPatch) => void
   onPreviewEnd: () => void
-  onOpenEffects: (cell: ShowCell) => void
-  onOpenCompositionEffects: (owner: ShowClipInspectorOwner) => void
-  onOpenGroupEffects: (owner: ShowGroupClipOwner) => void
   onMakeCompositionPatternIndependent: (owner: ShowClipInspectorOwner) => void
   onRejoinCompositionPattern: (owner: ShowClipInspectorOwner, targetInstanceId: string) => void
   onRemoveCompositionClip: (owner: ShowClipInspectorOwner) => void
@@ -7105,12 +7044,12 @@ function ContextualInspector({
             patternControls,
           )}
           transformEnabled={transformEnabled}
+          stageDimensions={stageDimensions}
           instanceOwnership={null}
           onPatch={(patch) => onUpdateGroupClipInspector(selectedGroupClipOwner, patch)}
           onPreviewPatch={(patch) => onPreviewGroupClipInspector(selectedGroupClipOwner, patch)}
           onPreviewEnd={onPreviewEnd}
           onPatternCommit={onPatternCommit}
-          onOpenEffects={() => onOpenGroupEffects(selectedGroupClipOwner)}
           onMakePatternIndependent={() => {}}
           onRejoinPattern={() => {}}
         />
@@ -7156,6 +7095,7 @@ function ContextualInspector({
           patternControls={patternControls}
           summary={compositionClipSummary(selection.clipId, patternControls)}
           transformEnabled={transformEnabled}
+          stageDimensions={stageDimensions}
           instanceOwnership={instanceOwnership}
           onPatch={(patch) => onUpdateClipInspector(selectedCompositionClipOwner, patch)}
           propertyTracks={compositionShow.composition?.scenes
@@ -7166,7 +7106,6 @@ function ContextualInspector({
           onPreviewPatch={(patch) => onPreviewClipInspector(selectedCompositionClipOwner, patch)}
           onPreviewEnd={onPreviewEnd}
           onPatternCommit={onPatternCommit}
-          onOpenEffects={() => onOpenCompositionEffects(selectedCompositionClipOwner)}
           onMakePatternIndependent={() => onMakeCompositionPatternIndependent(selectedCompositionClipOwner)}
           onRejoinPattern={(targetInstanceId) => onRejoinCompositionPattern(selectedCompositionClipOwner, targetInstanceId)}
           canRemove={canRemoveClip}
@@ -7186,6 +7125,7 @@ function ContextualInspector({
         patternOptions={patternOptions}
         patternControls={patternControlsByCellId[selectedClip.id] ?? []}
         transformEnabled={transformEnabled}
+        stageDimensions={stageDimensions}
         canRemove={canRemoveClip}
         onUpdateClip={(patch) => onUpdateClipInspector({ kind: 'global', cellId: selectedClip.id }, patch)}
         onPreviewClip={(patch) => onPreviewClipInspector({ kind: 'global', cellId: selectedClip.id }, patch)}
@@ -7193,7 +7133,6 @@ function ContextualInspector({
         onPatternCommit={onPatternCommit}
         onRemove={() => onRemoveClip(selectedClip)}
         onUpdateAdaptations={(changes) => onUpdateAdaptations(selectedClip, changes)}
-        onOpenEffects={() => onOpenEffects(selectedClip)}
         onUpdateRestartOnEntry={(restartOnEntry) => onUpdateRestartOnEntry(selectedClip, restartOnEntry)}
         onSpanZones={(zoneSpan) => onSpanZones(selectedClip, zoneSpan)}
         onUpdateZoneMode={(zoneMode) => onUpdateCellZoneMode(selectedClip, zoneMode)}
@@ -7370,6 +7309,7 @@ function CompositionClipInspector({
   patternControls,
   summary,
   transformEnabled,
+  stageDimensions,
   instanceOwnership,
   onPatch,
   propertyTracks = [],
@@ -7378,7 +7318,6 @@ function CompositionClipInspector({
   onPreviewPatch,
   onPreviewEnd,
   onPatternCommit,
-  onOpenEffects,
   onMakePatternIndependent,
   onRejoinPattern,
   canRemove = true,
@@ -7390,6 +7329,7 @@ function CompositionClipInspector({
   patternControls: AutomatablePatternControl[]
   summary: ShowClipSummarySection[]
   transformEnabled: boolean
+  stageDimensions: 1 | 2 | 3
   instanceOwnership: ReturnType<typeof projectShowClipPatternInstanceOwnership>
   onPatch: (patch: ShowClipInspectorPatch) => boolean | void | Promise<void>
   propertyTracks?: ShowPropertyAnimationTrack[]
@@ -7398,7 +7338,6 @@ function CompositionClipInspector({
   onPreviewPatch?: (patch: ShowClipInspectorPatch) => void
   onPreviewEnd?: () => void
   onPatternCommit: () => void
-  onOpenEffects: () => void
   onMakePatternIndependent: () => void
   onRejoinPattern: (targetInstanceId: string) => void
   canRemove?: boolean
@@ -7435,6 +7374,7 @@ function CompositionClipInspector({
         }))}
         patternControls={patternControls}
         transformEnabled={transformEnabled}
+        stageDimensions={stageDimensions}
         panelKey={panelKey}
         structuralControls={instanceOwnership ? (
           <ShowPatternInstanceControls
@@ -7450,7 +7390,6 @@ function CompositionClipInspector({
         onPreviewPatch={onPreviewPatch}
         onPreviewEnd={onPreviewEnd}
         onPatternCommit={onPatternCommit}
-        onOpenEffects={onOpenEffects}
       />
       {onPropertyAnimationChange && value.placementId && value.instanceId && value.local && (
         <ShowPropertyAnimationPanel
@@ -7745,6 +7684,7 @@ function ClipInspector({
   patternOptions,
   patternControls,
   transformEnabled,
+  stageDimensions,
   canRemove,
   onUpdateClip,
   onPreviewClip,
@@ -7752,7 +7692,6 @@ function ClipInspector({
   onPatternCommit,
   onRemove,
   onUpdateAdaptations,
-  onOpenEffects,
   onUpdateRestartOnEntry,
   onSpanZones,
   onUpdateZoneMode,
@@ -7763,6 +7702,7 @@ function ClipInspector({
   patternOptions: ShowPatternOption[]
   patternControls: AutomatablePatternControl[]
   transformEnabled: boolean
+  stageDimensions: 1 | 2 | 3
   canRemove: boolean
   onUpdateClip: (patch: ShowClipInspectorPatch) => boolean | void | Promise<void>
   onPreviewClip?: (patch: ShowClipInspectorPatch) => void
@@ -7770,7 +7710,6 @@ function ClipInspector({
   onPatternCommit: () => void
   onRemove: () => void
   onUpdateAdaptations: (changes: Partial<ShowCell['adaptations']>) => void
-  onOpenEffects: () => void
   onUpdateRestartOnEntry: (restartOnEntry: boolean) => void
   onSpanZones: (zoneSpan: number) => void
   onUpdateZoneMode: (zoneMode: NonNullable<ShowCell['zoneMode']>) => void
@@ -7832,13 +7771,13 @@ function ClipInspector({
           }))}
           patternControls={patternControls}
           transformEnabled={transformEnabled}
+          stageDimensions={stageDimensions}
           panelKey={panelKey}
           embedded
           onPatch={onUpdateClip}
           onPreviewPatch={onPreviewClip}
           onPreviewEnd={onPreviewEnd}
           onPatternCommit={onPatternCommit}
-          onOpenEffects={onOpenEffects}
         />
       )}
       <div data-testid="global-clip-control-tray" className="mt-2">

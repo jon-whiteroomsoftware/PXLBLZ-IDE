@@ -48,7 +48,6 @@ const commonProps = (scope: ShowClipInspectorValue['scope'], onPatch = vi.fn()):
     ? [{ value: 'layer-1', label: 'Front' }, { value: 'layer-2', label: 'Back' }]
     : undefined,
   onPatch,
-  onOpenEffects: vi.fn(),
   onMoveLayer: vi.fn(),
 })
 
@@ -77,6 +76,10 @@ describe('Clip detail tabs (#642)', () => {
     showTab('Effects')
     expect(screen.getByRole('tab', { name: /^Effects/ })).toHaveAttribute('aria-selected', 'true')
     expect(screen.getByRole('region', { name: 'Clip Effects' })).toBeInTheDocument()
+    const addEffect = screen.getByRole('button', { name: 'Add Effect' })
+    expect(addEffect).toBeDisabled()
+    fireEvent.click(addEffect)
+    expect(screen.queryByRole('region', { name: 'Add Effect' })).not.toBeInTheDocument()
 
     showTab('Place')
     expect(screen.getByRole('group', { name: 'Clip Transform' })).toBeInTheDocument()
@@ -574,12 +577,10 @@ describe('shared Clip Entity Detail sections (#498)', () => {
     'commits the same shared view and Effect actions for %s',
     (scope) => {
       const onPatch = vi.fn()
-      const onOpenEffects = vi.fn()
       const props = commonProps(scope, onPatch)
       render(<ShowClipEntityDetail
         {...props}
         value={{ ...props.value, view: { ...props.value.view, mirror: true } }}
-        onOpenEffects={onOpenEffects}
       />)
 
       const brightness = screen.getByRole('textbox', { name: 'Brightness exact percentage' })
@@ -589,13 +590,28 @@ describe('shared Clip Entity Detail sections (#498)', () => {
       fireEvent.click(screen.getByRole('button', { name: 'More actions for Mirror Effect' }))
       expect(screen.getAllByRole('menuitem')).toHaveLength(1)
       fireEvent.click(screen.getByRole('menuitem', { name: 'Remove Mirror Effect' }))
-      fireEvent.click(screen.getByRole('button', { name: 'Add' }))
+      fireEvent.click(screen.getByRole('button', { name: 'Add Effect' }))
+      fireEvent.click(screen.getByRole('button', { name: 'Add Mirror Effect' }))
 
       expect(onPatch).toHaveBeenCalledWith({ view: { brightness: 0.45 } })
       expect(onPatch).toHaveBeenCalledWith({ view: { mirror: false } })
-      expect(onOpenEffects).toHaveBeenCalledOnce()
+      expect(onPatch).toHaveBeenCalledWith({ view: { mirror: true } })
     },
   )
+
+  it('owns the Add Effect takeover and restores focus to Add on Back', async () => {
+    const props = commonProps('scene-main')
+    render(<ShowClipEntityDetail {...props} />)
+    showTab('Effects')
+    const add = screen.getByRole('button', { name: 'Add Effect' })
+    fireEvent.click(add)
+
+    expect(screen.queryByRole('dialog', { name: 'Add Effect' })).not.toBeInTheDocument()
+    expect(screen.getByRole('region', { name: 'Add Effect' })).toBeInTheDocument()
+    fireEvent.click(screen.getByRole('button', { name: 'Back to Effects' }))
+
+    await vi.waitFor(() => expect(screen.getByRole('button', { name: 'Add Effect' })).toHaveFocus())
+  })
 
   it('commits local timing, opacity, and layer assignment only for an overlay', () => {
     const onPatch = vi.fn()

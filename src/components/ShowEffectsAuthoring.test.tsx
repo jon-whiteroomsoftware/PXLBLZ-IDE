@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
-import { fireEvent, render, screen, waitFor, within } from '@testing-library/react'
+import { act, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { createDefaultShow } from '@/engine/showModel'
 import type { ShowClipEffect } from '@/engine/personalContentRecords'
@@ -56,14 +56,76 @@ describe('Show Effect authoring UI', () => {
     expect(useShowPreviewOverrideStore.getState().show).toBeNull()
   })
 
-  it('closes on Escape without touching the Stage preview seam', () => {
+  it('renders as a one-column in-panel takeover grouped by compiler stage', () => {
+    const show = createDefaultShow('show-effects-layout', 'Effects layout', 1)
+    render(<ShowEffectPalette clip={show.cells[0]} stageDimensions={2} onApply={vi.fn()} onClose={vi.fn()} />)
+
+    expect(screen.queryByRole('dialog', { name: 'Add Effect' })).not.toBeInTheDocument()
+    expect(screen.getByRole('region', { name: 'Add Effect' })).toHaveClass('h-[396px]')
+    expect(screen.getAllByRole('group', { name: /Effects$/ }).map((group) => group.getAttribute('aria-label')))
+      .toEqual(['Transform Effects', 'Distort Effects', 'Address Effects', 'Color & output Effects'])
+  })
+
+  it.each([
+    ['flip', 'Mirror'],
+    ['address', 'Wrap'],
+    ['segments', 'Kaleidoscope'],
+    ['pinch', 'Bulge / Pinch'],
+  ])('searches alias, stage, parameter, and preset vocabulary through %s', async (query, label) => {
+    const user = userEvent.setup()
+    const show = createDefaultShow(`show-effects-search-${query}`, 'Effects search', 1)
+    render(<ShowEffectPalette clip={show.cells[0]} stageDimensions={2} onApply={vi.fn()} onClose={vi.fn()} />)
+
+    const search = screen.getByRole('searchbox', { name: 'Search Effects' })
+    expect(search).toHaveFocus()
+    await user.type(search, query)
+    expect(screen.getByRole('button', { name: `Add ${label} Effect` })).toBeVisible()
+  })
+
+  it('closes an expanded row before Escape closes the chooser', async () => {
     const show = createDefaultShow('show-effects', 'Effects', 1)
     const onClose = vi.fn()
     render(<ShowEffectPalette clip={show.cells[0]} stageDimensions={2} onApply={vi.fn()} onClose={onClose} />)
-    fireEvent.focus(screen.getByRole('button', { name: 'Add Ripple Effect' }))
+    const bulge = screen.getByRole('button', { name: 'Add Bulge / Pinch Effect' })
+    fireEvent.pointerEnter(bulge)
+    expect(screen.getByText('Bend the source coordinates before the Pattern renders.')).toBeInTheDocument()
+
     fireEvent.keyDown(document, { key: 'Escape' })
     expect(useShowPreviewOverrideStore.getState().show).toBeNull()
+    expect(onClose).not.toHaveBeenCalled()
+    expect(screen.queryByText('Bend the source coordinates before the Pattern renders.')).not.toBeInTheDocument()
+    await vi.waitFor(() => expect(bulge).toHaveFocus())
+    expect(bulge).toHaveAttribute('aria-expanded', 'false')
+
+    fireEvent.keyDown(document, { key: 'Escape' })
     expect(onClose).toHaveBeenCalledTimes(1)
+  })
+
+  it('offers Back as the explicit non-keyboard close path', async () => {
+    const user = userEvent.setup()
+    const show = createDefaultShow('show-effects-back', 'Effects back', 1)
+    const onClose = vi.fn()
+    render(<ShowEffectPalette clip={show.cells[0]} stageDimensions={2} onApply={vi.fn()} onClose={onClose} />)
+
+    await user.click(screen.getByRole('button', { name: 'Back to Effects' }))
+    expect(onClose).toHaveBeenCalledOnce()
+  })
+
+  it('expands presets in place and applies the chosen preset', async () => {
+    const user = userEvent.setup()
+    const show = createDefaultShow('show-effects-presets', 'Effects presets', 1)
+    const onApply = vi.fn()
+    const onClose = vi.fn()
+    render(<ShowEffectPalette clip={show.cells[0]} stageDimensions={2} onApply={onApply} onClose={onClose} />)
+
+    act(() => screen.getByRole('button', { name: 'Add Bulge / Pinch Effect' }).focus())
+    await user.click(screen.getByRole('button', { name: 'Pinch' }))
+
+    expect(onApply).toHaveBeenCalledWith({
+      target: 'effect-stack',
+      effect: expect.objectContaining({ kind: 'bulge', amount: -0.65 }),
+    })
+    expect(onClose).toHaveBeenCalledOnce()
   })
 
   it('offers horizontal Mirror through the Effect palette without creating a stack Effect (#543)', async () => {
@@ -203,7 +265,7 @@ describe('Show Effect authoring UI', () => {
     expect(useShowPreviewOverrideStore.getState().show).toBeNull()
     await new Promise((resolve) => window.setTimeout(resolve, 120))
     expect(useShowPreviewOverrideStore.getState().show).toBeNull()
-    expect(within(screen.getByRole('contentinfo')).getByText('Bend the source coordinates before the Pattern renders.')).toBeInTheDocument()
+    expect(within(screen.getByRole('region', { name: 'Add Effect' })).getByText('Bend the source coordinates before the Pattern renders.')).toBeInTheDocument()
   })
 
   it('renders a complete CSS-local Effect motion vocabulary for hover and focus (#474)', () => {

@@ -5,7 +5,7 @@ import { DomainNumberField } from './ui/domain-number-field'
 import { TimeField } from './ui/time-field'
 import { Grid2X2 } from 'lucide-react'
 import { PatternCombobox, type PatternComboboxOption } from './PatternCombobox'
-import { ShowEffectStack } from './ShowEffectsAuthoring'
+import { ShowEffectPalette, ShowEffectStack } from './ShowEffectsAuthoring'
 import { ShowClipPlacementPad } from './ShowClipPlacementPad'
 import {
   enableViewportForContent,
@@ -40,11 +40,11 @@ export interface ShowClipEntityDetailProps {
   /** Identity of the owning panel, so a pinned panel keeps its own tab. */
   panelKey?: string
   transformEnabled?: boolean
+  stageDimensions?: 1 | 2 | 3
   onPatch: (patch: ShowClipInspectorPatch) => boolean | void | Promise<void>
   onPreviewPatch?: (patch: ShowClipInspectorPatch) => void
   onPreviewEnd?: () => void
   onPatternCommit?: () => void
-  onOpenEffects: () => void
   onMoveLayer?: (layerId: string) => void
 }
 
@@ -80,11 +80,11 @@ export function ShowClipEntityDetail({
   embedded = false,
   panelKey = 'transient',
   transformEnabled = true,
+  stageDimensions = transformEnabled ? 2 : 1,
   onPatch,
   onPreviewPatch,
   onPreviewEnd,
   onPatternCommit,
-  onOpenEffects,
   onMoveLayer,
 }: ShowClipEntityDetailProps) {
   const capabilities = showClipInspectorCapabilities(value.scope)
@@ -95,7 +95,10 @@ export function ShowClipEntityDetail({
   const headerFieldCount = 1 + (localTiming ? 2 : 0) + (showOpacity ? 1 : 0)
   const controlTargets = value.simulation.controlTargets
   const [placementFocus, setPlacementFocus] = useState<PlacementFocus>('content')
+  const [effectChooserOpen, setEffectChooserOpen] = useState(false)
+  const addEffectButtonRef = useRef<HTMLButtonElement>(null)
   const placementGroupRef = useRef<HTMLDivElement>(null)
+  const detailRef = useRef<HTMLElement>(null)
   const activePlacementFocus: PlacementFocus = value.viewport.enabled ? placementFocus : 'content'
   const selectPlacementFocus = (next: PlacementFocus) => setPlacementFocus(next)
   const selectPlacementSummary = (next: PlacementFocus) => {
@@ -113,6 +116,18 @@ export function ShowClipEntityDetail({
   const focusPlacementPad = () => placementGroupRef.current
     ?.querySelector<SVGSVGElement>('[role="application"]')
     ?.focus()
+  const closeEffectChooser = () => {
+    setEffectChooserOpen(false)
+    window.setTimeout(() => addEffectButtonRef.current?.focus(), 0)
+  }
+  const focusAppliedEffect = (effectId?: string) => {
+    window.setTimeout(() => {
+      const target = effectId
+        ? detailRef.current?.querySelector<HTMLElement>(`[data-show-effect-id="${effectId}"]`)
+        : detailRef.current?.querySelector<HTMLElement>('[data-testid="show-effect-mirror"] button')
+      target?.focus()
+    }, 0)
+  }
 
   /*
     Tabs (#642). The preference is session-scoped and keyed by panel, so a pinned
@@ -137,6 +152,7 @@ export function ShowClipEntityDetail({
 
   return (
     <section
+      ref={detailRef}
       role={embedded ? undefined : 'region'}
       aria-label={embedded ? undefined : 'Clip properties'}
       data-entity-family="clip"
@@ -392,15 +408,35 @@ export function ShowClipEntityDetail({
           </div>
         </div>}
 
-        {activeTab === 'effects' && <ShowEffectStack
-          effects={value.effects}
-          mirror={value.view.mirror}
-          onChange={(effects) => onPatch({ effects })}
-          onPreview={(effects) => onPreviewPatch?.({ effects })}
-          onPreviewEnd={onPreviewEnd}
-          onMirrorChange={(mirror) => onPatch({ view: { mirror } })}
-          onAdd={onOpenEffects}
-        />}
+        {activeTab === 'effects' && (effectChooserOpen
+          ? <ShowEffectPalette
+              clip={{ patternName: value.patternName, effects: value.effects }}
+              stageDimensions={stageDimensions}
+              onApply={(application) => {
+                if (application.target === 'placement-mirror') {
+                  const committed = onPatch({ view: { mirror: application.mirror } })
+                  if (committed !== false) void Promise.resolve(committed).then(() => focusAppliedEffect())
+                  return
+                }
+                const effect = application.effect
+                const committed = onPatch({ effects: [...value.effects, effect] })
+                if (committed !== false) void Promise.resolve(committed).then(() => focusAppliedEffect(effect.id))
+              }}
+              onClose={closeEffectChooser}
+            />
+          : <ShowEffectStack
+              effects={value.effects}
+              mirror={value.view.mirror}
+              disabled={readOnly}
+              onChange={(effects) => onPatch({ effects })}
+              onPreview={(effects) => onPreviewPatch?.({ effects })}
+              onPreviewEnd={onPreviewEnd}
+              onMirrorChange={(mirror) => onPatch({ view: { mirror } })}
+              onAdd={() => {
+                if (!readOnly) setEffectChooserOpen(true)
+              }}
+              addButtonRef={addEffectButtonRef}
+            />)}
 
         <div data-testid="clip-control-trays">
           {activeTab === 'pattern' && patternControls.length > 0 && (

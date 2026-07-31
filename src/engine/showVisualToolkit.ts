@@ -93,6 +93,8 @@ export interface ShowToolkitPresetDescriptor {
 export interface ShowToolkitVariantDescriptor {
   id: string
   label: string
+  /** Author-facing synonyms used by searchable toolkit choosers. */
+  aliases?: string[]
   costPolicies: ShowToolkitCostPolicy[]
   /** Most Effects persist in the ordered stack; placement Mirror reuses its existing view flag. */
   authoringTarget?: ShowEffectAuthoringTarget
@@ -193,12 +195,12 @@ export const SHOW_VISUAL_TOOLKIT_REGISTRY: ShowToolkitFamilyDescriptor[] = [
     id: 'affine',
     label: 'Transform',
     variants: [
-      { id: 'mirror', label: 'Mirror', costPolicies: ['single-source'], authoringTarget: 'placement-mirror', compatibility: { stageDimensions: [1, 2] } },
-      { id: 'translate', label: 'Translate', costPolicies: ['single-source', 'parameter'], compatibility: { stageDimensions: [2] } },
-      { id: 'rotate', label: 'Rotate', costPolicies: ['single-source', 'parameter'], compatibility: { stageDimensions: [2] } },
-      { id: 'scale', label: 'Scale', costPolicies: ['single-source', 'parameter'], compatibility: { stageDimensions: [2] } },
-      { id: 'shear', label: 'Shear', costPolicies: ['single-source', 'parameter'], compatibility: { stageDimensions: [2] } },
-      { id: 'wrap', label: 'Wrap', costPolicies: ['single-source'], compatibility: { stageDimensions: [2] } },
+      { id: 'mirror', label: 'Mirror', aliases: ['flip', 'reflect'], costPolicies: ['single-source'], authoringTarget: 'placement-mirror', compatibility: { stageDimensions: [1, 2] } },
+      { id: 'translate', label: 'Translate', aliases: ['move', 'position'], costPolicies: ['single-source', 'parameter'], compatibility: { stageDimensions: [2] } },
+      { id: 'rotate', label: 'Rotate', aliases: ['turn'], costPolicies: ['single-source', 'parameter'], compatibility: { stageDimensions: [2] } },
+      { id: 'scale', label: 'Scale', aliases: ['zoom', 'resize'], costPolicies: ['single-source', 'parameter'], compatibility: { stageDimensions: [2] } },
+      { id: 'shear', label: 'Shear', aliases: ['skew'], costPolicies: ['single-source', 'parameter'], compatibility: { stageDimensions: [2] } },
+      { id: 'wrap', label: 'Wrap', aliases: ['tile', 'repeat'], costPolicies: ['single-source'], compatibility: { stageDimensions: [2] } },
     ],
     parameters: [
       { id: 'translateX', label: 'X', kind: 'number', defaultValue: 0, min: -2, max: 2, step: 0.01, variantIds: ['translate'] },

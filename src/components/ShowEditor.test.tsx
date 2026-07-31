@@ -1297,6 +1297,14 @@ describe('ShowEditor (#318)', () => {
     await waitFor(() => {
       expect(useShowStore.getState().shows[0].composition?.groupDefinitions?.[0].placements[0].durationMs).toBe(1_500)
     })
+    await user.click(within(panel).getByRole('tab', { name: /^Effects/ }))
+    await user.click(within(panel).getByRole('button', { name: 'Add Effect' }))
+    expect(within(panel).getByRole('region', { name: 'Add Effect' })).toBeInTheDocument()
+    await user.click(within(panel).getByRole('button', { name: 'Add Mirror Effect' }))
+    await waitFor(() => {
+      expect(useShowStore.getState().shows[0].composition?.groupDefinitions?.[0].placements[0].view.mirror).toBe(true)
+    })
+    await user.click(within(panel).getByRole('tab', { name: /^Pattern/ }))
 
     await user.keyboard('{Escape}')
     expect(screen.queryByRole('dialog', { name: 'Entity Detail Panel' })).not.toBeInTheDocument()
