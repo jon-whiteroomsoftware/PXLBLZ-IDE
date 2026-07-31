@@ -1813,10 +1813,11 @@ coordinates are normalized through the rendered SVG bounds before the engine
 applies move, resize, rotation, cell sweep, clamp, and exact edge-magnet rules;
 therefore resizing the surface does not change stored results. The toolbar
 keeps Content/Aperture focus, grid, focused-rectangle actions, and contextual
-help in one row. Content zoom uses discrete one-commit steps, and X/Y grips
-focus the adjacent pad instead of opening another spatial control. Placement
-adds no nested dialog; the owning `ShowEntityDetailPanel` retains Escape and
-outside-pointer behavior.
+help in one row. Content zoom uses discrete one-commit steps. X/Y exact fields
+use the shared bounded-number interaction with linear position sliders, while
+the adjacent pad remains their direct two-dimensional manipulation surface.
+The pad adds no nested placement dialog; its transient scalar sliders retain
+the owning `ShowEntityDetailPanel`'s Escape and outside-pointer behavior.
 
 Lowering carries the Viewport with its placement. The routed compiler multiplies
 placement opacity by the Viewport's coordinate predicate after Pattern capture,

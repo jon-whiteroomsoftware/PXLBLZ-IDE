@@ -399,7 +399,7 @@ describe('shared Clip Entity Detail sections (#498)', () => {
 
     showTab('Place')
     expect(screen.getByRole('group', { name: 'Clip Transform' })).toBeInTheDocument()
-    const positionX = screen.getByRole('textbox', { name: 'Content X' })
+    const positionX = screen.getByRole('textbox', { name: 'Content X exact position' })
     fireEvent.change(positionX, { target: { value: '0.25' } })
     fireEvent.blur(positionX)
     expect(onPatch).toHaveBeenCalledWith({ transform: { positionX: 0.25 } })
@@ -423,7 +423,7 @@ describe('shared Clip Entity Detail sections (#498)', () => {
     const { rerender } = render(<ShowClipEntityDetail {...props} />)
     showTab('Place')
 
-    expect(screen.getByRole('textbox', { name: 'Content X' })).toBeInTheDocument()
+    expect(screen.getByRole('textbox', { name: 'Content X exact position' })).toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'Aperture summary' })).toHaveTextContent('Off')
 
     rerender(<ShowClipEntityDetail
@@ -431,9 +431,9 @@ describe('shared Clip Entity Detail sections (#498)', () => {
       value={{ ...props.value, viewport: { enabled: true, x: 0, y: 0, width: 1, height: 1 } }}
     />)
     fireEvent.click(screen.getByRole('button', { name: 'Aperture summary' }))
-    expect(screen.queryByRole('textbox', { name: 'Content X' })).not.toBeInTheDocument()
+    expect(screen.queryByRole('textbox', { name: 'Content X exact position' })).not.toBeInTheDocument()
 
-    const viewportX = screen.getByRole('textbox', { name: 'Viewport X' })
+    const viewportX = screen.getByRole('textbox', { name: 'Viewport X exact position' })
     fireEvent.change(viewportX, { target: { value: '0.25' } })
     fireEvent.blur(viewportX)
     expect(onPatch).toHaveBeenCalledWith({ viewport: { x: 0.25 } })
@@ -461,28 +461,48 @@ describe('shared Clip Entity Detail sections (#498)', () => {
     expect([...gutters].map((gutter) => gutter.textContent)).toEqual(['', '', 'x', 'x', '°'])
   })
 
-  it('sends the X and Y grips to the adjacent placement pad (#611, #646)', () => {
-    render(<ShowClipEntityDetail {...commonProps('scene-main')} />)
+  it('opens independent X and Y sliders while retaining the adjacent placement pad (#661)', () => {
+    const onPatch = vi.fn()
+    render(<ShowClipEntityDetail {...commonProps('scene-main', onPatch)} />)
     showTab('Place')
-    const pad = screen.getByRole('application', { name: /Placement pad/ })
-    fireEvent.click(screen.getByRole('button', { name: 'Use Content X on placement pad' }))
-    expect(pad).toHaveFocus()
-    fireEvent.click(screen.getByRole('button', { name: 'Use Content Y on placement pad' }))
-    expect(pad).toHaveFocus()
+
+    expect(screen.getByRole('application', { name: /Placement pad/ })).toBeInTheDocument()
+    const xGrip = screen.getByRole('button', {
+      name: 'Adjust with position slider',
+      description: 'Content X',
+    })
+    fireEvent.keyDown(xGrip, { key: 'Enter' })
+    const xSlider = screen.getByRole('slider', {
+      name: 'Position slider',
+      description: 'Content X',
+    })
+    fireEvent.keyDown(xSlider, { key: 'ArrowRight' })
+    fireEvent.keyDown(xSlider, { key: 'Enter' })
+    expect(onPatch).toHaveBeenLastCalledWith({ transform: { positionX: 0.01 } })
+
+    const yGrip = screen.getByRole('button', {
+      name: 'Adjust with position slider',
+      description: 'Content Y',
+    })
+    fireEvent.keyDown(yGrip, { key: 'Enter' })
+    expect(screen.getByRole('slider', {
+      name: 'Position slider',
+      description: 'Content Y',
+    })).toBeInTheDocument()
   })
 
   it('reaches Placement through its own tab rather than a disclosure (#63, #642)', () => {
     render(<ShowClipEntityDetail {...commonProps('scene-main')} />)
 
     // Pattern is the resting tab, so placement is not rendered at all.
-    expect(screen.queryByRole('textbox', { name: 'Content X' })).not.toBeInTheDocument()
+    expect(screen.queryByRole('textbox', { name: 'Content X exact position' })).not.toBeInTheDocument()
 
     showTab('Place')
     expect(screen.getByRole('group', { name: 'Clip Transform' })).toBeInTheDocument()
-    expect(screen.getByRole('textbox', { name: 'Content X' })).toBeVisible()
+    expect(screen.getByRole('textbox', { name: 'Content X exact position' })).toBeVisible()
 
     showTab('Pattern')
-    expect(screen.queryByRole('textbox', { name: 'Content X' })).not.toBeInTheDocument()
+    expect(screen.queryByRole('textbox', { name: 'Content X exact position' })).not.toBeInTheDocument()
   })
 
   it('does not offer the 2D Transform group for an incompatible Stage (#529)', () => {
@@ -826,7 +846,7 @@ describe('placement field display (#617)', () => {
     />)
     showTab('Place')
 
-    expect(screen.getByRole('textbox', { name: 'Content X' })).toHaveValue('-0.215')
+    expect(screen.getByRole('textbox', { name: 'Content X exact position' })).toHaveValue('-0.215')
     fireEvent.click(screen.getByRole('button', { name: 'Aperture summary' }))
     expect(screen.getByRole('textbox', { name: 'Viewport Width exact multiplier' })).toHaveValue('0.67')
     // Display only: nothing is written back just for being rendered.

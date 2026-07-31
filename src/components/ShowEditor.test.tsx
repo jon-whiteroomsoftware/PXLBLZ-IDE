@@ -2089,14 +2089,14 @@ describe('ShowEditor (#318)', () => {
     }))
     await waitFor(() => {
       expect(within(panel).getByRole('tab', { name: /^Place/ })).toHaveAttribute('aria-selected', 'true')
-      expect(within(panel).getByRole('textbox', { name: 'Content X' })).toHaveFocus()
+      expect(within(panel).getByRole('textbox', { name: 'Content X exact position' })).toHaveFocus()
     })
 
     await user.click(within(summary).getByRole('button', {
       name: 'Viewport On · x 0.1, y 0, 0.8 × 1; go to Place Viewport fields',
     }))
     await waitFor(() => {
-      expect(within(panel).getByRole('textbox', { name: 'Viewport X' })).toHaveFocus()
+      expect(within(panel).getByRole('textbox', { name: 'Viewport X exact position' })).toHaveFocus()
     })
 
     await user.click(within(panel).getByRole('tab', { name: /^Effects/ }))
@@ -2152,7 +2152,7 @@ describe('ShowEditor (#318)', () => {
 
     await waitFor(() => {
       expect(within(panel).getByRole('tab', { name: /^Place/ })).toHaveAttribute('aria-selected', 'true')
-      expect(within(panel).getByRole('textbox', { name: 'Viewport X' })).toHaveFocus()
+      expect(within(panel).getByRole('textbox', { name: 'Viewport X exact position' })).toHaveFocus()
     })
     expect(within(panel).getByRole('button', { name: 'Content' })).toHaveAttribute('aria-pressed', 'false')
     expect(within(panel).getByRole('button', { name: 'Aperture' })).toHaveAttribute('aria-pressed', 'true')
@@ -4216,7 +4216,7 @@ describe('ShowEditor (#318)', () => {
 
     await waitFor(() => {
       expect(within(panel).getByRole('tab', { name: /^Place/ })).toHaveAttribute('aria-selected', 'true')
-      expect(within(panel).getByRole('textbox', { name: 'Content X' })).toHaveFocus()
+      expect(within(panel).getByRole('textbox', { name: 'Content X exact position' })).toHaveFocus()
     })
     await user.click(within(panel).getByRole('tab', { name: /^Pattern/ }))
   })

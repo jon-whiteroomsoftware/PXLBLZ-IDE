@@ -496,9 +496,10 @@ edit the focused **Content** or **Aperture** rectangle; the other rectangle
 appears as a compact summary above them and switches focus when clicked.
 Selecting an absent Aperture enables it over the Content's visible bounds.
 Drag the focused rectangle, its corners, or Content's rotation handle on the
-pad; grid edges and the other rectangle remain exact magnets. X/Y grips move
-keyboard focus to that same pad, while a compact stepper adjusts Content zoom
-and the `?` control explains the focus-specific gestures.
+pad; grid edges and the other rectangle remain exact magnets. X and Y retain
+exact numeric entry and each grip opens its own position slider, while the pad
+remains the direct two-dimensional manipulation surface. A compact stepper
+adjusts Content zoom, and the `?` control explains the focus-specific gestures.
 
 **Mirror** appears only in that stack as a visually distinct, fixed first
 Transform row. It remains a placement adaptation rather than an ordered
