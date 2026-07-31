@@ -103,6 +103,28 @@ describe('control bar actions', () => {
     fireEvent.click(screen.getByLabelText('Anchor column 3 row 3'))
     expect(onChange).toHaveBeenCalledWith({ transform: expect.objectContaining({ positionX: 0.25, positionY: 0.25 }) })
   })
+
+  it.each([
+    ['ArrowRight', false, 0.01],
+    ['ArrowDown', true, 0.1],
+  ])('nudges the aperture off the grid with %s', (key, shiftKey, delta) => {
+    const onChange = setup({}, {
+      enabled: true,
+      x: 1 / 3,
+      y: 1 / 3,
+      width: 1 / 3,
+      height: 1 / 3,
+    })
+    fireEvent.click(screen.getByRole('button', { name: 'Aperture' }))
+    fireEvent.keyDown(screen.getByRole('application', { name: /Placement pad/ }), { key, shiftKey })
+
+    expect(onChange).toHaveBeenCalledWith({
+      viewport: expect.objectContaining({
+        x: key === 'ArrowRight' ? 1 / 3 + delta : 1 / 3,
+        y: key === 'ArrowDown' ? 1 / 3 + delta : 1 / 3,
+      }),
+    })
+  })
 })
 
 describe('read-only', () => {
@@ -146,6 +168,15 @@ describe('gesture feedback (#617)', () => {
     expect(onChange).toHaveBeenCalledWith({
       transform: expect.objectContaining({ scaleX: 1.1, scaleY: 1.1 }),
     })
+  })
+
+  it('keeps anchor and zoom controls in flow so they cannot cover resize handles', () => {
+    setup()
+    const footer = screen.getByTestId('placement-pad-footer')
+    expect(footer).toContainElement(screen.getByRole('group', { name: 'Anchor' }))
+    expect(footer).toContainElement(screen.getByRole('button', { name: 'Zoom in' }))
+    expect(footer).not.toHaveClass('absolute')
+    expect(screen.getByLabelText('Resize content sw')).toBeInTheDocument()
   })
 
   it.each([156, 228])('preserves exact edge magnets at a %dpx rendered size', (size) => {

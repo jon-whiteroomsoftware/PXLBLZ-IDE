@@ -12,6 +12,7 @@ import {
   moveContentCentre,
   moveViewportTo,
   nudgeContent,
+  nudgeViewport,
   placementCornerAnchor,
   placementPadView,
   resizeContentToAnchor,
@@ -230,6 +231,22 @@ describe('dragging stops once the content is clear of the Zone', () => {
       transform = nudgeContent({ ...context(), transform }, -0.01, 0).transform!
     }
     expect(contentRectFromTransform(transform).left).toBeCloseTo(-1)
+  })
+
+  it('nudges an aperture by the exact keyboard step without snapping to its grid', () => {
+    const padContext = context({}, {
+      enabled: true,
+      x: 1 / 3,
+      y: 1 / 3,
+      width: 1 / 3,
+      height: 1 / 3,
+    }, 3)
+    const rect = viewportRect(nudgeViewport(padContext, 0.01, 0.1).viewport!)
+
+    expect(rect.left).toBeCloseTo(1 / 3 + 0.01)
+    expect(rect.top).toBeCloseTo(1 / 3 + 0.1)
+    expect(rect.width).toBeCloseTo(1 / 3)
+    expect(rect.height).toBeCloseTo(1 / 3)
   })
 
   it('does not move a rect that is already inside', () => {

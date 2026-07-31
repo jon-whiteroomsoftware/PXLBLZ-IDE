@@ -309,6 +309,13 @@ export function nudgeContent(context: PlacementPadContext, dx: number, dy: numbe
   return { transform: transformFromContentRect(moved, context.transform.rotation) }
 }
 
+/** Keyboard nudges are exact edits, so they bypass pointer magnets and the grid. */
+export function nudgeViewport(context: PlacementPadContext, dx: number, dy: number): PlacementPadResult {
+  const rect = viewportRect(context.viewport)
+  const moved = clampPlacementRectToZone({ ...rect, left: rect.left + dx, top: rect.top + dy }, 0)
+  return { viewport: viewportFromRect(moved, true) }
+}
+
 export type PlacementFit = 'fill' | 'fit' | 'stretch' | 'reset'
 
 /**

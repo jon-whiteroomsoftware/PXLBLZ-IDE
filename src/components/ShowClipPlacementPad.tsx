@@ -9,6 +9,7 @@ import {
   moveContentCentre,
   moveViewportTo,
   nudgeContent,
+  nudgeViewport,
   placementCornerAnchor,
   placementPadView,
   PLACEMENT_GRID_DIVISORS,
@@ -185,7 +186,7 @@ export function ShowClipPlacementPad({
     event.preventDefault()
     apply(active === 'content'
       ? nudgeContent(context, move[0], move[1])
-      : moveViewportTo(context, window.left + move[0], window.top + move[1], { carryContent: false }))
+      : nudgeViewport(context, move[0], move[1]))
   }
 
   const rotation = `rotate(${transform.rotation * 360} ${toPad(box.left + box.width / 2)} ${toPad(box.top + box.height / 2)})`
@@ -267,7 +268,7 @@ export function ShowClipPlacementPad({
         </button>
       </div>
 
-      <div className="relative min-w-[156px]">
+      <div className="grid min-w-[156px] gap-1">
         <svg
           ref={surface}
           viewBox={`0 0 ${PAD} ${PAD}`}
@@ -425,15 +426,15 @@ export function ShowClipPlacementPad({
         </g>}
         </svg>
         {contentActive && !readOnly && (
-          <div className="absolute bottom-1 right-1 flex h-5 items-center overflow-hidden rounded border border-zinc-700 bg-zinc-950/95 shadow">
-            <button type="button" aria-label="Zoom out" onClick={() => apply(zoomContent(context, transform.scaleX - 0.1))} className="size-5 text-[11px] text-zinc-400 hover:bg-zinc-800 hover:text-zinc-100">−</button>
-            <output aria-label="Zoom level" className="w-8 border-x border-zinc-800 text-center font-mono text-[8px] text-zinc-300">{transform.scaleX.toFixed(1)}×</output>
-            <button type="button" aria-label="Zoom in" onClick={() => apply(zoomContent(context, transform.scaleX + 0.1))} className="size-5 text-[11px] text-zinc-400 hover:bg-zinc-800 hover:text-zinc-100">+</button>
-          </div>
-        )}
-        {contentActive && !readOnly && (
-          <div className="absolute bottom-1 left-1 rounded bg-zinc-950/95 p-0.5 shadow">
-            <AnchorPad disabled={readOnly} onAnchor={(column, row) => apply(anchorContent(context, column, row))} />
+          <div data-testid="placement-pad-footer" className="flex items-start justify-between gap-1">
+            <div className="rounded bg-zinc-950 p-0.5">
+              <AnchorPad disabled={readOnly} onAnchor={(column, row) => apply(anchorContent(context, column, row))} />
+            </div>
+            <div className="flex h-5 items-center overflow-hidden rounded border border-zinc-700 bg-zinc-950">
+              <button type="button" aria-label="Zoom out" onClick={() => apply(zoomContent(context, transform.scaleX - 0.1))} className="size-5 text-[11px] text-zinc-400 hover:bg-zinc-800 hover:text-zinc-100">−</button>
+              <output aria-label="Zoom level" className="w-8 border-x border-zinc-800 text-center font-mono text-[8px] text-zinc-300">{transform.scaleX.toFixed(1)}×</output>
+              <button type="button" aria-label="Zoom in" onClick={() => apply(zoomContent(context, transform.scaleX + 0.1))} className="size-5 text-[11px] text-zinc-400 hover:bg-zinc-800 hover:text-zinc-100">+</button>
+            </div>
           </div>
         )}
       </div>
