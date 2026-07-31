@@ -1135,7 +1135,7 @@ export function ShowEditor({
     const handleOutsidePointerDown = (event: PointerEvent) => {
       const target = event.target
       if (!(target instanceof Element)) return
-      if (target.closest('[role="dialog"], [role="alertdialog"]')) return
+      if (target.closest('[role="dialog"], [role="alertdialog"], [data-show-detail-owned-portal="true"]')) return
       if (target.closest(`[data-show-selection-key="${showSelectionKey(selection)}"]`)) return
       closeDetailPanel()
     }

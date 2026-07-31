@@ -1699,6 +1699,12 @@ describe('ShowEditor (#318)', () => {
     expect(screen.queryByRole('dialog', { name: 'Entity Detail Panel' })).not.toBeInTheDocument()
     await user.click(clip)
     await waitFor(() => expect(screen.getByRole('dialog', { name: 'Entity Detail Panel' })).toBeInTheDocument())
+    const ownedPortal = document.createElement('div')
+    ownedPortal.dataset.showDetailOwnedPortal = 'true'
+    document.body.append(ownedPortal)
+    fireEvent.pointerDown(ownedPortal)
+    expect(screen.getByRole('dialog', { name: 'Entity Detail Panel' })).toBeInTheDocument()
+    ownedPortal.remove()
     fireEvent.pointerDown(screen.getByRole('region', { name: 'Show timeline' }))
     expect(screen.queryByRole('dialog', { name: 'Entity Detail Panel' })).not.toBeInTheDocument()
   })

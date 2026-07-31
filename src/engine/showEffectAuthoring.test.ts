@@ -5,6 +5,7 @@ import {
   createShowEffectApplication,
   duplicateShowClipEffect,
   moveShowClipEffectWithinStage,
+  moveShowClipEffectToStagePosition,
   nextShowEffectId,
   showClipEffectParameterValue,
   showClipEffectParameters,
@@ -149,5 +150,21 @@ describe('Show Effect authoring adapter', () => {
     expect(moveShowClipEffectWithinStage(effects, 'move', 1).map((effect) => effect.id))
       .toEqual(['turn', 'ripple', 'move', 'fade'])
     expect(moveShowClipEffectWithinStage(effects, 'ripple', 1)).toEqual(effects)
+  })
+
+  it('drops an Effect before or after only a target in its compiler stage (#644)', () => {
+    const effects: ShowClipEffect[] = [
+      { id: 'move', kind: 'translate', x: 0.2, y: 0 },
+      { id: 'ripple', kind: 'ripple', amount: 0.1, frequency: 8, phase: 0, centerX: 0.5, centerY: 0.5 },
+      { id: 'turn', kind: 'rotate', turns: 0.1 },
+      { id: 'size', kind: 'scale', x: 1, y: 1 },
+    ]
+
+    expect(moveShowClipEffectToStagePosition(effects, 'size', 'move', 'before').map((effect) => effect.id))
+      .toEqual(['size', 'ripple', 'move', 'turn'])
+    expect(moveShowClipEffectToStagePosition(effects, 'move', 'turn', 'after').map((effect) => effect.id))
+      .toEqual(['turn', 'ripple', 'move', 'size'])
+    expect(moveShowClipEffectToStagePosition(effects, 'ripple', 'move', 'before'))
+      .toEqual(effects)
   })
 })

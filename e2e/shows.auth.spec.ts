@@ -535,11 +535,11 @@ test.describe('authenticated Show authoring', () => {
 
     const stack = await openClipEffects(page, 'TestPattern1D')
     await addEffect(page, stack, 'ripple', 'Ripple')
-    await expect(stack.getByRole('button', { name: 'Edit Ripple Effect' })).toBeVisible()
+    await expect(stack.getByRole('button', { name: 'More actions for Ripple Effect' })).toBeVisible()
 
     await page.reload()
     const reloaded = await openClipEffects(page, 'TestPattern1D')
-    await expect(reloaded.getByRole('button', { name: 'Edit Ripple Effect' })).toBeVisible()
+    await expect(reloaded.getByRole('button', { name: 'More actions for Ripple Effect' })).toBeVisible()
   })
 
   test('keeps edited Effect parameters after a reload', async ({ page }) => {
@@ -548,7 +548,6 @@ test.describe('authenticated Show authoring', () => {
 
     const stack = await openClipEffects(page, 'TestPattern1D')
     await addEffect(page, stack, 'ripple', 'Ripple')
-    await stack.getByRole('button', { name: 'Edit Ripple Effect' }).click()
     await stack.getByRole('spinbutton', { name: 'Amount' }).fill('0.2')
     await stack.getByRole('spinbutton', { name: 'Amount' }).blur()
 
@@ -564,7 +563,6 @@ test.describe('authenticated Show authoring', () => {
 
     await page.reload()
     const reloaded = await openClipEffects(page, 'TestPattern1D')
-    await reloaded.getByRole('button', { name: 'Edit Ripple Effect' }).click()
     await expect(reloaded.getByRole('spinbutton', { name: 'Amount' })).toHaveValue('0.2')
   })
 
@@ -583,7 +581,7 @@ test.describe('authenticated Show authoring', () => {
 
     await expect(palette).toHaveCount(0)
     await expect(stack.getByRole('button', { name: 'Add' })).toBeVisible()
-    await expect(stack.getByRole('button', { name: 'Edit Ripple Effect' })).toHaveCount(0)
+    await expect(stack.getByRole('button', { name: 'More actions for Ripple Effect' })).toHaveCount(0)
   })
 
   test('removes one Effect and leaves the rest of the stack', async ({ page }) => {
@@ -593,13 +591,35 @@ test.describe('authenticated Show authoring', () => {
     const stack = await openClipEffects(page, 'TestPattern1D')
     await addEffect(page, stack, 'ripple', 'Ripple')
     await addEffect(page, stack, 'vignette', 'Vignette')
-    await expect(stack.getByRole('button', { name: 'Edit Vignette Effect' })).toBeVisible()
+    await expect(stack.getByRole('button', { name: 'More actions for Vignette Effect' })).toBeVisible()
 
-    await stack.getByRole('button', { name: 'Remove Ripple Effect' }).click()
+    await stack.getByRole('button', { name: 'More actions for Ripple Effect' }).click()
+    await page.getByRole('menuitem', { name: 'Remove Ripple Effect' }).click()
 
     // Proven by what remains, not only by what is gone.
-    await expect(stack.getByRole('button', { name: 'Edit Vignette Effect' })).toBeVisible()
-    await expect(stack.getByRole('button', { name: 'Edit Ripple Effect' })).toHaveCount(0)
+    await expect(stack.getByRole('button', { name: 'More actions for Vignette Effect' })).toBeVisible()
+    await expect(stack.getByRole('button', { name: 'More actions for Ripple Effect' })).toHaveCount(0)
+  })
+
+  test('duplicates and reorders Effects through the overflow menu', async ({ page }) => {
+    await page.goto('studio/shows')
+    await createInstallationShow(page)
+
+    const stack = await openClipEffects(page, 'TestPattern1D')
+    await addEffect(page, stack, 'ripple', 'Ripple')
+    await addEffect(page, stack, 'swirl', 'Swirl')
+
+    await stack.getByRole('button', { name: 'More actions for Ripple Effect' }).click()
+    await page.getByRole('menuitem', { name: 'Duplicate Ripple Effect' }).click()
+    const duplicate = stack.getByTestId('show-effect-ripple-2')
+    await expect(duplicate).toBeVisible()
+
+    await duplicate.getByRole('button', { name: 'More actions for Ripple Effect' }).click()
+    await page.getByRole('menuitem', { name: 'Move Ripple Effect later' }).click()
+    const distortionRows = stack.locator('[data-effect-stage="distort"]')
+    await expect(distortionRows).toHaveCount(3)
+    await expect.poll(() => distortionRows.evaluateAll((rows) => rows.map((row) => row.getAttribute('data-testid'))))
+      .toEqual(['show-effect-ripple', 'show-effect-swirl', 'show-effect-ripple-2'])
   })
 
   // Transition coverage split by concern. The previous single test pinned the

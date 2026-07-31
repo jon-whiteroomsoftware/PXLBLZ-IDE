@@ -7,9 +7,9 @@ import { ColorField } from '@/components/ui/color-field'
 import {
   ArrowDown,
   ArrowUp,
-  ChevronDown,
-  ChevronRight,
   Copy,
+  GripVertical,
+  MoreHorizontal,
   Plus,
   Search,
   Sparkles,
@@ -20,6 +20,7 @@ import type { ShowCell, ShowClipEffect } from '@/engine/personalContentRecords'
 import {
   createShowEffectApplication,
   duplicateShowClipEffect,
+  moveShowClipEffectToStagePosition,
   moveShowClipEffectWithinStage,
   showClipEffectParameterValue,
   showClipEffectParameters,
@@ -28,6 +29,7 @@ import {
   updateShowClipEffectParameter,
 } from '@/engine/showEffectAuthoring'
 import type { ShowEffectApplication } from '@/engine/showEffectAuthoring'
+import { contractTimelineParameterLabel } from '@/engine/showClipSummary'
 import { SHOW_VISUAL_TOOLKIT_REGISTRY } from '@/engine/showVisualToolkit'
 import {
   buildShowToolkitPresentationCatalogue,
@@ -205,9 +207,16 @@ export function ShowEffectStack({
   onMirrorChange?: (mirror: boolean) => void
   onAdd: () => void
 }) {
-  const [expandedId, setExpandedId] = useState<string | null>(null)
   const catalogue = useMemo(() => buildShowToolkitPresentationCatalogue({ stageDimensions: 2 }), [])
   const byKey = useMemo(() => new Map(catalogue.map((item) => [item.key, item])), [catalogue])
+  const draggedEffectRef = useRef<string | null>(null)
+  const [dropTarget, setDropTarget] = useState<{ effectId: string; edge: 'before' | 'after' } | null>(null)
+
+  const draggedEffect = () => effects.find((effect) => effect.id === draggedEffectRef.current)
+  const dropEdge = (event: React.DragEvent<HTMLElement>): 'before' | 'after' => {
+    const bounds = event.currentTarget.getBoundingClientRect()
+    return event.clientY < bounds.top + bounds.height / 2 ? 'before' : 'after'
+  }
 
   return (
     <section className="mt-2 overflow-hidden rounded border border-cyan-400/15 bg-cyan-400/[0.025]" aria-label="Clip Effects">
@@ -222,10 +231,9 @@ export function ShowEffectStack({
         if (stageEffects.length === 0 && !hasMirror) return null
         return (
           <div key={stage.id} data-testid="show-effect-stage" className="border-b border-zinc-800/80 last:border-b-0">
-            <div className="flex h-6 items-center gap-1.5 bg-zinc-950/55 px-2 text-[8px] uppercase tracking-[0.1em] text-zinc-600">
-              <span className="size-1.5 rounded-full bg-cyan-400/50" />
+            <div className="flex h-4 items-center gap-1 bg-zinc-950/55 px-2 text-[8px] font-medium uppercase tracking-[0.1em] text-zinc-600" title={stage.detail}>
+              <span className="h-px w-2 bg-cyan-400/40" aria-hidden />
               {stage.label}
-              <span className="normal-case tracking-normal text-zinc-700">{stage.detail}</span>
             </div>
             {hasMirror && (
               <div data-testid="show-effect-mirror" className="border-t border-zinc-800/60 bg-[#101115]">
@@ -238,33 +246,72 @@ export function ShowEffectStack({
             )}
             {stageEffects.map((effect, index) => {
               const item = byKey.get(showClipEffectPresentationKey(effect))
-              const expanded = expandedId === effect.id
+              const label = item?.label ?? effect.kind
               const canEarlier = index > 0
               const canLater = index < stageEffects.length - 1
+              const parameters = showClipEffectParameters(effect)
+              const contractLabels = parameters.length >= 5
+              const activeDrop = dropTarget?.effectId === effect.id ? dropTarget.edge : null
               return (
-                <div key={effect.id} data-testid={`show-effect-${effect.id}`} className="border-t border-zinc-800/60 bg-[#101115]">
-                  <div className="flex h-8 items-center gap-1 px-1.5">
-                    <button type="button" onClick={() => setExpandedId(expanded ? null : effect.id)} className="grid size-6 shrink-0 place-items-center text-zinc-600 hover:text-zinc-200" aria-label={`Edit ${item?.label ?? effect.kind} Effect`} data-show-effect-id={effect.id}>
-                      {expanded ? <ChevronDown size={12} /> : <ChevronRight size={12} />}
-                    </button>
-                    <span className="min-w-0 flex-1 truncate text-[10px] text-zinc-200">{item?.label ?? effect.kind}</span>
-                    <IconButton label={`Move ${item?.label ?? effect.kind} Effect earlier`} disabled={!canEarlier} onClick={() => onChange(moveShowClipEffectWithinStage(effects, effect.id, -1))}><ArrowUp size={11} /></IconButton>
-                    <IconButton label={`Move ${item?.label ?? effect.kind} Effect later`} disabled={!canLater} onClick={() => onChange(moveShowClipEffectWithinStage(effects, effect.id, 1))}><ArrowDown size={11} /></IconButton>
-                    <IconButton label={`Duplicate ${item?.label ?? effect.kind} Effect`} onClick={() => onChange(duplicateShowClipEffect(effects, effect.id))}><Copy size={11} /></IconButton>
-                    <IconButton label={`Remove ${item?.label ?? effect.kind} Effect`} onClick={() => onChange(effects.filter((candidate) => candidate.id !== effect.id))}><Trash2 size={11} /></IconButton>
-                  </div>
-                  {expanded && (
-                    <div className="grid grid-cols-2 items-end gap-1.5 border-t border-zinc-800/60 p-2 sm:grid-cols-3">
-                      {showClipEffectParameters(effect).map((parameter) => {
-                        const parameterValue = Number(showClipEffectParameterValue(effect, parameter.id))
-                        const updateEffects = (next: number) => effects.map((candidate) => candidate.id === effect.id
-                          ? updateShowClipEffectParameter(candidate, parameter.id, next)
-                          : candidate)
-                        if (parameter.kind === 'color') {
-                          return (
+                <div
+                  key={effect.id}
+                  data-testid={`show-effect-${effect.id}`}
+                  data-effect-stage={stage.id}
+                  className={`group relative grid min-h-8 grid-cols-[24px_minmax(0,1fr)_24px] items-center gap-1 border-t bg-[#101115] px-1 py-1 ${activeDrop === 'before' ? 'border-t-cyan-300' : 'border-t-zinc-800/60'} ${activeDrop === 'after' ? 'after:absolute after:inset-x-0 after:bottom-0 after:h-px after:bg-cyan-300' : ''}`}
+                  onDragOver={(event) => {
+                    const source = draggedEffect()
+                    if (!source || source.id === effect.id || showClipEffectStage(source) !== stage.id) return
+                    event.preventDefault()
+                    event.dataTransfer.dropEffect = 'move'
+                    setDropTarget({ effectId: effect.id, edge: dropEdge(event) })
+                  }}
+                  onDragLeave={(event) => {
+                    if (!event.currentTarget.contains(event.relatedTarget as Node | null)) setDropTarget(null)
+                  }}
+                  onDrop={(event) => {
+                    event.preventDefault()
+                    const sourceId = draggedEffectRef.current ?? event.dataTransfer.getData('application/x-pxlblz-effect')
+                    const source = effects.find((candidate) => candidate.id === sourceId)
+                    setDropTarget(null)
+                    draggedEffectRef.current = null
+                    if (!source || showClipEffectStage(source) !== stage.id) return
+                    onChange(moveShowClipEffectToStagePosition(effects, source.id, effect.id, dropEdge(event)))
+                  }}
+                >
+                  <button
+                    type="button"
+                    draggable
+                    aria-label={`Drag ${label} Effect to reorder`}
+                    title={`Drag ${label} Effect to reorder within ${stage.label}`}
+                    className="grid size-6 cursor-grab place-items-center rounded text-zinc-600 opacity-0 hover:bg-zinc-800 hover:text-zinc-200 focus-visible:opacity-100 focus-visible:outline focus-visible:outline-1 focus-visible:outline-cyan-300 active:cursor-grabbing group-hover:opacity-100 group-focus-within:opacity-100"
+                    onDragStart={(event) => {
+                      draggedEffectRef.current = effect.id
+                      event.dataTransfer.effectAllowed = 'move'
+                      event.dataTransfer.setData('application/x-pxlblz-effect', effect.id)
+                    }}
+                    onDragEnd={() => {
+                      draggedEffectRef.current = null
+                      setDropTarget(null)
+                    }}
+                  >
+                    <GripVertical size={12} aria-hidden />
+                  </button>
+                  <div className="flex min-w-0 flex-wrap items-end gap-x-1 gap-y-0.5">
+                    <span className="w-[68px] shrink-0 self-center truncate text-[10px] text-zinc-200" title={`${label} Effect`}>{label}</span>
+                    {parameters.map((parameter) => {
+                      const parameterValue = Number(showClipEffectParameterValue(effect, parameter.id))
+                      const updateEffects = (next: number) => effects.map((candidate) => candidate.id === effect.id
+                        ? updateShowClipEffectParameter(candidate, parameter.id, next)
+                        : candidate)
+                      const visibleLabel = contractLabels ? contractTimelineParameterLabel(parameter.label) : parameter.label
+                      if (parameter.kind === 'color') {
+                        return (
+                          <div key={parameter.id} className="w-[104px] shrink-0 text-[8px] uppercase tracking-wide text-zinc-600" title={parameter.label}>
+                            <span aria-hidden>{visibleLabel}</span>
                             <ColorField
-                              key={parameter.id}
                               label={parameter.label}
+                              hideLabel
+                              compact
                               value={String(showClipEffectParameterValue(effect, parameter.id))}
                               onPreview={(value) => onPreview?.(effects.map((candidate) => candidate.id === effect.id
                                 ? updateShowClipEffectParameter(candidate, parameter.id, value)
@@ -274,65 +321,77 @@ export function ShowEffectStack({
                                 ? updateShowClipEffectParameter(candidate, parameter.id, value)
                                 : candidate))}
                             />
-                          )
-                        }
-                        if (parameter.presentation === 'percentage') {
-                          return (
+                          </div>
+                        )
+                      }
+                      if (parameter.presentation === 'percentage') {
+                        return (
+                          <div key={parameter.id} className="w-[66px] shrink-0" title={parameter.label}>
                             <PercentageField
-                              key={parameter.id}
-                              label={parameter.label}
+                              label={visibleLabel}
+                              ariaLabel={parameter.label}
+                              help={parameter.label}
                               value={parameterValue}
                               min={parameter.min ?? 0}
                               max={parameter.max ?? 1}
                               step={parameter.step ?? 0.01}
-                              variant="editor"
+                              variant="inspector"
                               compact
                               onPreview={(next) => onPreview?.(updateEffects(next))}
                               onPreviewEnd={onPreviewEnd}
                               onChange={(next) => onChange(updateEffects(next))}
                             />
-                          )
-                        }
-                        if (parameter.presentation === 'multiplier' || parameter.presentation === 'ratio') {
-                          return (
+                          </div>
+                        )
+                      }
+                      if (parameter.presentation === 'multiplier' || parameter.presentation === 'ratio') {
+                        return (
+                          <div key={parameter.id} className="w-[66px] shrink-0" title={parameter.label}>
                             <DomainNumberField
-                              key={parameter.id}
-                              label={parameter.label}
+                              label={visibleLabel}
+                              ariaLabel={parameter.label}
+                              help={parameter.label}
                               presentation={parameter.presentation}
                               value={parameterValue}
                               min={parameter.min ?? 0}
                               max={parameter.max ?? 1}
                               step={parameter.step ?? 0.01}
-                              variant="editor"
+                              variant="inspector"
                               compact
                               onPreview={(next) => onPreview?.(updateEffects(next))}
                               onPreviewEnd={onPreviewEnd}
                               onChange={(next) => onChange(updateEffects(next))}
                             />
-                          )
-                        }
-                        return (
-                          <label key={parameter.id} className="text-[8px] uppercase tracking-wide text-zinc-600">
-                            <span className="flex items-center justify-between gap-2">
-                              <span>{parameter.label}</span>
-                              {parameter.min === 0 && parameter.max === 1 && <span className="font-mono tracking-normal text-zinc-700" title="Normalized value from zero to one">0–1</span>}
-                            </span>
-                            <EffectParameterField
-                              label={parameter.label}
-                              value={parameterValue}
-                              min={parameter.min}
-                              max={parameter.max}
-                              step={parameter.step}
-                              onCommit={(value) => onChange(effects.map((candidate) => candidate.id === effect.id
-                                ? updateShowClipEffectParameter(candidate, parameter.id, value)
-                                : candidate))}
-                            />
-                          </label>
+                          </div>
                         )
-                      })}
-                      {showClipEffectParameters(effect).length === 0 && <p className="col-span-full text-[9px] text-zinc-600">No parameters. Wrap changes the address policy for transformed coordinates.</p>}
-                    </div>
-                  )}
+                      }
+                      return (
+                        <label key={parameter.id} className="w-[52px] shrink-0 text-[8px] uppercase tracking-wide text-zinc-600" title={parameter.label}>
+                          <span aria-hidden>{visibleLabel}</span>
+                          <EffectParameterField
+                            label={parameter.label}
+                            value={parameterValue}
+                            min={parameter.min}
+                            max={parameter.max}
+                            step={parameter.step}
+                            onCommit={(value) => onChange(effects.map((candidate) => candidate.id === effect.id
+                              ? updateShowClipEffectParameter(candidate, parameter.id, value)
+                              : candidate))}
+                          />
+                        </label>
+                      )
+                    })}
+                    {parameters.length === 0 && <p className="self-center text-[8px] text-zinc-600" title="Wrap changes the address policy for transformed coordinates.">No parameters</p>}
+                  </div>
+                  <EffectActionsMenu
+                    label={label}
+                    canEarlier={canEarlier}
+                    canLater={canLater}
+                    onEarlier={() => onChange(moveShowClipEffectWithinStage(effects, effect.id, -1))}
+                    onLater={() => onChange(moveShowClipEffectWithinStage(effects, effect.id, 1))}
+                    onDuplicate={() => onChange(duplicateShowClipEffect(effects, effect.id))}
+                    onRemove={() => onChange(effects.filter((candidate) => candidate.id !== effect.id))}
+                  />
                 </div>
               )
             })}
@@ -340,6 +399,135 @@ export function ShowEffectStack({
         )
       })}
     </section>
+  )
+}
+
+function EffectActionsMenu({
+  label,
+  canEarlier,
+  canLater,
+  onEarlier,
+  onLater,
+  onDuplicate,
+  onRemove,
+}: {
+  label: string
+  canEarlier: boolean
+  canLater: boolean
+  onEarlier: () => void
+  onLater: () => void
+  onDuplicate: () => void
+  onRemove: () => void
+}) {
+  const [open, setOpen] = useState(false)
+  const [position, setPosition] = useState({ left: 4, top: 4 })
+  const triggerRef = useRef<HTMLButtonElement>(null)
+  const menuRef = useRef<HTMLDivElement>(null)
+  const itemRefs = useRef<Array<HTMLButtonElement | null>>([])
+  const actions = [
+    { label: `Move ${label} Effect earlier`, disabled: !canEarlier, icon: <ArrowUp size={11} />, run: onEarlier },
+    { label: `Move ${label} Effect later`, disabled: !canLater, icon: <ArrowDown size={11} />, run: onLater },
+    { label: `Duplicate ${label} Effect`, disabled: false, icon: <Copy size={11} />, run: onDuplicate },
+    { label: `Remove ${label} Effect`, disabled: false, icon: <Trash2 size={11} />, run: onRemove },
+  ]
+
+  useEffect(() => {
+    if (!open) return
+    const trigger = triggerRef.current
+    if (!trigger) return
+    const bounds = trigger.getBoundingClientRect()
+    const menuHeight = 108
+    setPosition({
+      left: Math.max(4, Math.min(window.innerWidth - 164, bounds.right - 160)),
+      top: bounds.bottom + menuHeight <= window.innerHeight ? bounds.bottom + 2 : Math.max(4, bounds.top - menuHeight - 2),
+    })
+    const focusTimer = window.setTimeout(() => itemRefs.current.find((item) => item && !item.disabled)?.focus(), 0)
+    const closeOnPointerDown = (event: PointerEvent) => {
+      const target = event.target as Node
+      if (!triggerRef.current?.contains(target) && !menuRef.current?.contains(target)) setOpen(false)
+    }
+    document.addEventListener('pointerdown', closeOnPointerDown)
+    return () => {
+      window.clearTimeout(focusTimer)
+      document.removeEventListener('pointerdown', closeOnPointerDown)
+    }
+  }, [open])
+
+  const closeAndFocus = () => {
+    setOpen(false)
+    window.setTimeout(() => triggerRef.current?.focus(), 0)
+  }
+  const moveFocus = (currentIndex: number, direction: -1 | 1) => {
+    for (let offset = 1; offset <= actions.length; offset += 1) {
+      const index = (currentIndex + direction * offset + actions.length) % actions.length
+      const target = itemRefs.current[index]
+      if (target && !target.disabled) {
+        target.focus()
+        return
+      }
+    }
+  }
+
+  return (
+    <>
+      <button
+        ref={triggerRef}
+        type="button"
+        aria-label={`More actions for ${label} Effect`}
+        aria-haspopup="menu"
+        aria-expanded={open}
+        title={`More actions for ${label} Effect`}
+        onClick={() => setOpen((value) => !value)}
+        className="grid size-6 place-items-center rounded text-zinc-500 hover:bg-zinc-800 hover:text-zinc-100 focus-visible:outline focus-visible:outline-1 focus-visible:outline-cyan-300"
+      >
+        <MoreHorizontal size={13} aria-hidden />
+      </button>
+      {open && createPortal(
+        <div
+          ref={menuRef}
+          role="menu"
+          aria-label={`Actions for ${label} Effect`}
+          data-show-detail-owned-portal="true"
+          className="fixed z-[110] w-40 overflow-hidden rounded border border-zinc-700 bg-zinc-950 p-1 shadow-xl"
+          style={position}
+          onKeyDown={(event) => {
+            const index = itemRefs.current.indexOf(event.target as HTMLButtonElement)
+            if (event.key === 'Escape') {
+              event.preventDefault()
+              event.stopPropagation()
+              closeAndFocus()
+            } else if (event.key === 'ArrowDown' || event.key === 'ArrowUp') {
+              event.preventDefault()
+              moveFocus(index, event.key === 'ArrowDown' ? 1 : -1)
+            } else if (event.key === 'Home' || event.key === 'End') {
+              event.preventDefault()
+              const enabled = itemRefs.current.filter((item): item is HTMLButtonElement => Boolean(item && !item.disabled))
+              enabled[event.key === 'Home' ? 0 : enabled.length - 1]?.focus()
+            }
+          }}
+        >
+          {actions.map((action, index) => (
+            <button
+              key={action.label}
+              ref={(node) => { itemRefs.current[index] = node }}
+              type="button"
+              role="menuitem"
+              aria-label={action.label}
+              disabled={action.disabled}
+              onClick={() => {
+                action.run()
+                closeAndFocus()
+              }}
+              className="flex h-6 w-full items-center gap-2 rounded px-2 text-left text-[9px] text-zinc-300 hover:bg-zinc-800 focus-visible:bg-zinc-800 focus-visible:outline-none disabled:text-zinc-700"
+            >
+              {action.icon}
+              {action.label.replace(` ${label} Effect`, '')}
+            </button>
+          ))}
+        </div>,
+        document.body,
+      )}
+    </>
   )
 }
 
@@ -360,7 +548,7 @@ function EffectParameterField({ label, value, min, max, step, onCommit }: {
       max={max}
       step={step}
       {...inputProps}
-      className="mt-1 h-7 w-full rounded border border-zinc-700 bg-zinc-950 px-2 text-right text-[10px] tabular-nums text-zinc-200 outline-none focus:border-cyan-400/60"
+      className="mt-0.5 h-5 w-full rounded border border-zinc-700 bg-zinc-950 px-1 text-right text-[9px] tabular-nums text-zinc-200 outline-none focus:border-cyan-400/60"
     />
   )
 }

@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
-import { fireEvent, render, screen, within } from '@testing-library/react'
+import { fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { createDefaultShow } from '@/engine/showModel'
 import type { ShowClipEffect } from '@/engine/personalContentRecords'
@@ -8,6 +8,22 @@ import { ShowEffectPalette, ShowEffectStack } from './ShowEffectsAuthoring'
 
 describe('Show Effect authoring UI', () => {
   beforeEach(() => useShowPreviewOverrideStore.setState(showPreviewOverrideInitialState))
+
+  it('keeps Effect parameters visible without disclosure controls (#644)', () => {
+    const effects: ShowClipEffect[] = [{
+      id: 'edge', kind: 'vignette', amount: 1, radius: 0.35, softness: 0.35,
+      centerX: 0.5, centerY: 0.5, aspect: 1,
+    }]
+    render(<ShowEffectStack effects={effects} onChange={vi.fn()} onAdd={vi.fn()} />)
+
+    expect(screen.getByRole('textbox', { name: 'Amount exact percentage' })).toBeVisible()
+    expect(screen.getByRole('spinbutton', { name: 'Radius' })).toBeVisible()
+    expect(screen.queryByRole('button', { name: 'Edit Vignette Effect' })).not.toBeInTheDocument()
+    const row = screen.getByTestId('show-effect-edge')
+    expect(within(row).getByText('amt').parentElement).toHaveAttribute('title', 'Amount')
+    expect(screen.queryByText('rendered pixels')).not.toBeInTheDocument()
+    expect(screen.getByTitle('rendered pixels')).toHaveTextContent('Color & output')
+  })
 
   it('searches the compact registry, reveals hover guidance without rebuilding the Stage, and applies once', async () => {
     const user = userEvent.setup()
@@ -68,7 +84,6 @@ describe('Show Effect authoring UI', () => {
     }]
     render(<ShowEffectStack effects={effects} onChange={onChange} onAdd={vi.fn()} />)
 
-    await user.click(screen.getByRole('button', { name: 'Edit Chroma key Effect' }))
     const color = screen.getByRole('textbox', { name: 'Target color exact value' })
     expect(screen.getByLabelText('Target color picker')).toHaveValue('#00ff00')
     await user.clear(color)
@@ -93,7 +108,6 @@ describe('Show Effect authoring UI', () => {
     }]
     render(<ShowEffectStack effects={effects} onChange={onChange} onPreview={onPreview} onPreviewEnd={onPreviewEnd} onAdd={vi.fn()} />)
 
-    await user.click(screen.getByRole('button', { name: 'Edit Color map Effect' }))
     expect(screen.getByRole('textbox', { name: 'Shadow Color exact value' })).toHaveValue('#000000')
     expect(screen.getByRole('textbox', { name: 'Highlight Color exact value' })).toHaveValue('#ffffff')
     for (const channel of ['Shadow red', 'Shadow green', 'Shadow blue', 'Highlight red', 'Highlight green', 'Highlight blue']) {
@@ -135,7 +149,6 @@ describe('Show Effect authoring UI', () => {
     }]
     render(<ShowEffectStack effects={effects} onChange={onChange} onAdd={vi.fn()} />)
 
-    await user.click(screen.getByRole('button', { name: 'Edit Vignette Effect' }))
     expect(screen.getByRole('textbox', { name: 'Amount exact percentage' })).toHaveValue('100')
     expect(screen.getByRole('textbox', { name: 'Softness exact percentage' })).toHaveValue('35')
     expect(screen.getByRole('textbox', { name: 'Aspect exact ratio' })).toHaveValue('1:1')
@@ -162,7 +175,6 @@ describe('Show Effect authoring UI', () => {
     const effects: ShowClipEffect[] = [{ id: 'size', kind: 'scale', x: 1, y: 0.75 }]
     render(<ShowEffectStack effects={effects} onChange={onChange} onAdd={vi.fn()} />)
 
-    await user.click(screen.getByRole('button', { name: 'Edit Scale Effect' }))
     const xScale = screen.getByRole('textbox', { name: 'X scale exact multiplier' })
     expect(xScale).toHaveValue('1')
     expect(screen.getByRole('textbox', { name: 'Y scale exact multiplier' })).toHaveValue('0.75')
@@ -249,7 +261,6 @@ describe('Show Effect authoring UI', () => {
     render(<ShowEffectStack effects={effects} onChange={onChange} onAdd={vi.fn()} />)
 
     expect(screen.getAllByTestId('show-effect-stage')).toHaveLength(2)
-    await user.click(screen.getByRole('button', { name: 'Edit Translate Effect' }))
     const translate = screen.getByTestId('show-effect-move')
     fireEvent.change(within(translate).getByRole('spinbutton', { name: 'X' }), { target: { value: '0.35' } })
     expect(onChange).not.toHaveBeenCalled()
@@ -258,17 +269,92 @@ describe('Show Effect authoring UI', () => {
       expect.objectContaining({ id: 'move', x: 0.35 }),
     ]))
 
-    await user.click(screen.getByRole('button', { name: 'Move Rotate Effect earlier' }))
+    const rotateTrigger = screen.getByRole('button', { name: 'More actions for Rotate Effect' })
+    await user.click(rotateTrigger)
+    const rotateMenu = screen.getByRole('menu', { name: 'Actions for Rotate Effect' })
+    expect(within(rotateMenu).getByRole('menuitem', { name: 'Move Rotate Effect later' })).toBeDisabled()
+    await user.click(within(rotateMenu).getByRole('menuitem', { name: 'Move Rotate Effect earlier' }))
+    await waitFor(() => expect(rotateTrigger).toHaveFocus())
     expect(onChange).toHaveBeenCalledWith(expect.arrayContaining([
       expect.objectContaining({ id: 'turn' }),
     ]))
     expect(onChange.mock.calls[onChange.mock.calls.length - 1]?.[0].map((effect: ShowClipEffect) => effect.id))
       .toEqual(['turn', 'ripple', 'move'])
 
-    await user.click(screen.getByRole('button', { name: 'Duplicate Translate Effect' }))
+    await user.click(screen.getByRole('button', { name: 'More actions for Translate Effect' }))
+    await user.click(screen.getByRole('menuitem', { name: 'Duplicate Translate Effect' }))
     expect(onChange.mock.calls[onChange.mock.calls.length - 1]?.[0]).toContainEqual(expect.objectContaining({ id: 'move-2' }))
-    await user.click(screen.getByRole('button', { name: 'Remove Translate Effect' }))
+    await user.click(screen.getByRole('button', { name: 'More actions for Translate Effect' }))
+    await user.click(screen.getByRole('menuitem', { name: 'Remove Translate Effect' }))
     expect(onChange.mock.calls[onChange.mock.calls.length - 1]?.[0].map((effect: ShowClipEffect) => effect.id)).not.toContain('move')
+  })
+
+  it('supports keyboard menu navigation and restores focus to the Effect row (#644)', async () => {
+    const user = userEvent.setup()
+    const effects: ShowClipEffect[] = [
+      { id: 'move', kind: 'translate', x: 0.2, y: 0 },
+      { id: 'turn', kind: 'rotate', turns: 0.1 },
+    ]
+    render(<ShowEffectStack effects={effects} onChange={vi.fn()} onAdd={vi.fn()} />)
+
+    const trigger = screen.getByRole('button', { name: 'More actions for Rotate Effect' })
+    await user.click(trigger)
+    expect(screen.getByRole('menuitem', { name: 'Move Rotate Effect earlier' })).toHaveFocus()
+    await user.keyboard('{ArrowDown}')
+    expect(screen.getByRole('menuitem', { name: 'Duplicate Rotate Effect' })).toHaveFocus()
+    const escapedParent = vi.fn()
+    document.addEventListener('keydown', escapedParent)
+    await user.keyboard('{Escape}')
+    document.removeEventListener('keydown', escapedParent)
+    expect(escapedParent).not.toHaveBeenCalled()
+    expect(trigger).toHaveFocus()
+  })
+
+  it('opens the always-visible action menu from a touch pointer (#644)', () => {
+    render(<ShowEffectStack
+      effects={[{ id: 'fade', kind: 'opacity', opacity: 0.5 }]}
+      onChange={vi.fn()}
+      onAdd={vi.fn()}
+    />)
+
+    const trigger = screen.getByRole('button', { name: 'More actions for Opacity Effect' })
+    fireEvent.pointerDown(trigger, { pointerType: 'touch' })
+    fireEvent.click(trigger)
+    expect(screen.getByRole('menu', { name: 'Actions for Opacity Effect' }))
+      .toHaveAttribute('data-show-detail-owned-portal', 'true')
+  })
+
+  it('drags within one compiler stage and rejects a cross-stage drop (#644)', () => {
+    const effects: ShowClipEffect[] = [
+      { id: 'move', kind: 'translate', x: 0.2, y: 0 },
+      { id: 'ripple', kind: 'ripple', amount: 0.1, frequency: 8, phase: 0, centerX: 0.5, centerY: 0.5 },
+      { id: 'turn', kind: 'rotate', turns: 0.1 },
+    ]
+    const onChange = vi.fn()
+    render(<ShowEffectStack effects={effects} onChange={onChange} onAdd={vi.fn()} />)
+    const data = new Map<string, string>()
+    const dataTransfer = {
+      effectAllowed: 'move',
+      dropEffect: 'move',
+      setData: (type: string, value: string) => data.set(type, value),
+      getData: (type: string) => data.get(type) ?? '',
+    }
+    const turnRow = screen.getByTestId('show-effect-turn')
+
+    fireEvent.dragStart(screen.getByRole('button', { name: 'Drag Translate Effect to reorder' }), { dataTransfer })
+    fireEvent.dragOver(turnRow, { dataTransfer })
+    fireEvent.drop(turnRow, { dataTransfer })
+    expect(onChange).toHaveBeenLastCalledWith([
+      expect.objectContaining({ id: 'turn' }),
+      expect.objectContaining({ id: 'ripple' }),
+      expect.objectContaining({ id: 'move' }),
+    ])
+
+    onChange.mockClear()
+    fireEvent.dragStart(screen.getByRole('button', { name: 'Drag Ripple Effect to reorder' }), { dataTransfer })
+    fireEvent.dragOver(turnRow, { dataTransfer })
+    fireEvent.drop(turnRow, { dataTransfer })
+    expect(onChange).not.toHaveBeenCalled()
   })
 
   it('keeps Show-wide cost surfaces out of the Clip Effect stack (#643)', () => {

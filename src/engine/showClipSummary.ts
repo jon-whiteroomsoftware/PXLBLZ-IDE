@@ -429,7 +429,7 @@ function compactEffectParameterLabel(label: string, effectKind: string): string 
   return kept.join(' ') || label
 }
 
-const TIMELINE_PARAMETER_CONTRACTIONS: Record<string, string> = {
+const TIMELINE_PARAMETER_CONTRACTIONS: Readonly<Record<string, string>> = {
   amount: 'amt',
   frequency: 'freq',
   'center x': 'cx',
@@ -455,7 +455,7 @@ const TIMELINE_PARAMETER_CONTRACTIONS: Record<string, string> = {
   'highlight blue': 'hi b',
 }
 
-function contractTimelineParameterLabel(label: string): string {
+export function contractTimelineParameterLabel(label: string): string {
   const lower = label.toLowerCase()
   return TIMELINE_PARAMETER_CONTRACTIONS[lower] ?? lower
 }

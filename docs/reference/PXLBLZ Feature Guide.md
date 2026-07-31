@@ -488,7 +488,10 @@ rotation, scale, and a Mirror flip — followed by an ordered **Effect stack**
 grouped into the compiler's fixed Transform, Distort, Address, and Color &
 output stages. **Effects > Add** opens a searchable registry with animated
 mnemonics and factual cost notes; clicking applies documented defaults, and
-the Entity Detail Panel exposes exact parameters. The registry spans
+the Entity Detail Panel keeps each Effect's exact parameters visible in a
+compact row. Drag handles reorder Effects inside one compiler stage; each
+row's action menu provides keyboard- and touch-friendly **Move earlier**,
+**Move later**, **Duplicate**, and **Remove** alternatives. The registry spans
 transforms (Translate, Rotate, Scale, Shear, Wrap), distortions, address
 policies, and Color & output Effects including Luma key, Chroma key, and
 Vignette. Show-wide output Effects such as **Trails** live in Show

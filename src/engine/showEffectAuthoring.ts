@@ -180,3 +180,32 @@ export function moveShowClipEffectWithinStage(
   ;[next[index], next[targetIndex]] = [next[targetIndex], next[index]]
   return next
 }
+
+export function moveShowClipEffectToStagePosition(
+  effects: readonly ShowClipEffect[],
+  effectId: string,
+  targetEffectId: string,
+  edge: 'before' | 'after',
+): ShowClipEffect[] {
+  const normalized = normalizeShowClipEffects(effects)
+  if (effectId === targetEffectId) return normalized
+  const effect = normalized.find((candidate) => candidate.id === effectId)
+  const target = normalized.find((candidate) => candidate.id === targetEffectId)
+  if (!effect || !target || showClipEffectStage(effect) !== showClipEffectStage(target)) return normalized
+
+  const stage = showClipEffectStage(effect)
+  const siblingIndexes = normalized.flatMap((candidate, index) => (
+    showClipEffectStage(candidate) === stage ? [index] : []
+  ))
+  const siblings = siblingIndexes.map((index) => normalized[index])
+  const sourceIndex = siblings.findIndex((candidate) => candidate.id === effectId)
+  siblings.splice(sourceIndex, 1)
+  const targetIndex = siblings.findIndex((candidate) => candidate.id === targetEffectId)
+  siblings.splice(targetIndex + (edge === 'after' ? 1 : 0), 0, effect)
+
+  const next = [...normalized]
+  siblingIndexes.forEach((index, siblingIndex) => {
+    next[index] = siblings[siblingIndex]
+  })
+  return next
+}

@@ -336,7 +336,7 @@ function learn104(): StockShow {
     id, title: 'Effects and Ordering', track: 'portable', collection: 'learn', level: 100, order: 4,
     purpose: 'An Effect changes the picture a Clip has already drawn, without editing the Pattern. A Clip holds its Effects as a list, and each one works on the result of the one above it, so the same two Effects in a different order do not give the same picture.',
     notice: 'Clips 3 and 4 carry the same Brightness and the same Threshold, swapped. Clip 3 lowers Brightness first, so only the brightest pixels still clear the Threshold and a sparse scatter survives at full strength. Clip 4 applies Threshold first, so the whole shape survives and Brightness then lowers it. Almost the same amount of light, a completely different picture.',
-    prompts: ['On Clip 3, press Move Brightness Effect later so Brightness runs after Threshold, and watch the whole shape come back.', "Leave the order alone on Clip 3 and lower that Clip's Threshold until more of the shape survives."],
+    prompts: ["On Clip 3, open Brightness's action menu and choose Move later so Brightness runs after Threshold, then watch the whole shape come back.", "Leave the order alone on Clip 3 and lower that Clip's Threshold until more of the shape survives."],
     guideHeading: 'clip-effects',
     output: portableOutput(), zones, layouts: [singleLayout(zones)], scenes, composition,
   })
