@@ -577,9 +577,20 @@ Pattern-instance value.
 The editor displays both keyframe times in Show-global seconds, including for a
 Clip inside a Group. Persistence remains Scene-relative (or Group-definition-
 relative), so the displayed offset does not alter authored timing. The
-transitional **Property animation** picker remains below the Clip fields and
-authors the same tracks; it will be retired after the per-parameter path has
-shipped. Every authored track continues to preview, compile, persist, and split
+Clip summary shows **Animations — N** whenever the selected Clip owns one or
+more tracks. Select it to replace the active tab body with the Animations
+overview. The overview separates placement-owned Brightness, Opacity,
+Transform, Viewport, and Effect parameters from shared Pattern-instance Speed
+and controls; shared rows state how many linked Clips they affect. Each row
+shows its endpoint values, Show-global time range, and owning tab. Selecting
+the row returns to that tab and focuses the exact field. Back or Escape restores
+focus to the summary.
+
+The overview is the single place to remove a track. Tracks whose target field
+no longer exists remain visible as removable orphans with the validator reason.
+Tracks with more than two keyframes remain intact and appear read-only with
+their full keyframe count; opening the overview never truncates or rewrites
+them. Every authored track continues to preview, compile, persist, and split
 through the internal composition model.
 
 ## 16. Zones and routing

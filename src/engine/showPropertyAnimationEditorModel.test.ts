@@ -268,4 +268,49 @@ describe('Property animation editor time projection (#648)', () => {
     }, nextId)
     expect(removed.groupDefinitions?.[0].propertyTracks).toBeUndefined()
   })
+
+  it('removes one orphaned Group track even when another invalid track remains', () => {
+    const show = twoSceneShow()
+    const definition: ShowGroupDefinition = {
+      id: 'definition-orphans',
+      name: 'Damaged phrase',
+      patternInstances: [],
+      placements: [],
+      propertyTracks: [
+        brightnessTrack('remove-me', 'missing-a', 0, 1_000),
+        brightnessTrack('keep-me', 'missing-b', 0, 1_000),
+      ],
+    }
+    const composition: ShowCompositionV1 = {
+      version: 1,
+      patternInstances: [],
+      scenes: [
+        { sceneId: show.scenes[0].id, zones: [] },
+        { sceneId: 'scene-2', zones: [{ zoneId: 'zone-1', main: [], overlays: [] }] },
+      ],
+      groupDefinitions: [definition],
+      groupOccurrences: [{
+        id: 'occurrence-orphans',
+        definitionId: definition.id,
+        sceneId: 'scene-2',
+        zoneId: 'zone-1',
+        startMs: 0,
+        baseLayer: 0,
+        translationX: 0,
+        translationY: 0,
+      }],
+    }
+    show.composition = composition
+
+    const next = applyShowGroupPropertyAnimationChange(show, composition, {
+      kind: 'group',
+      definitionId: definition.id,
+      occurrenceId: 'occurrence-orphans',
+    }, {
+      kind: 'delete-track',
+      trackId: 'remove-me',
+    }, () => 'unused')
+
+    expect(next.groupDefinitions?.[0].propertyTracks?.map((track) => track.id)).toEqual(['keep-me'])
+  })
 })

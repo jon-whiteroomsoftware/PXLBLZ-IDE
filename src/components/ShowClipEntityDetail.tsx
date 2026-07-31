@@ -7,7 +7,10 @@ import { Grid2X2 } from 'lucide-react'
 import { PatternCombobox, type PatternComboboxOption } from './PatternCombobox'
 import { ShowEffectPalette, ShowEffectStack } from './ShowEffectsAuthoring'
 import { ShowClipPlacementPad } from './ShowClipPlacementPad'
-import { ShowPropertyAnimationAction } from './ShowPropertyAnimationEditor'
+import {
+  ShowPropertyAnimationAction,
+  ShowPropertyAnimationOverview,
+} from './ShowPropertyAnimationEditor'
 import {
   enableViewportForContent,
   type PlacementFocus,
@@ -28,6 +31,7 @@ import {
 import type { AutomatablePatternControl } from '@/engine/showPatternControls'
 import { formatPercentageValue } from '@/engine/percentageValue'
 import type { ShowPropertyAnimationTarget } from '@/engine/personalContentRecords'
+import type { ShowPropertyAnimationFieldLocation } from '@/engine/showPropertyAnimationEditorModel'
 
 export interface ShowClipEntityDetailProps {
   value: ShowClipInspectorValue
@@ -48,6 +52,8 @@ export interface ShowClipEntityDetailProps {
   onPreviewEnd?: () => void
   onPatternCommit?: () => void
   onMoveLayer?: (layerId: string) => void
+  animationOverviewOpen?: boolean
+  onAnimationOverviewClose?: (restoreSummaryFocus: boolean) => void
 }
 
 /**
@@ -88,6 +94,8 @@ export function ShowClipEntityDetail({
   onPreviewEnd,
   onPatternCommit,
   onMoveLayer,
+  animationOverviewOpen = false,
+  onAnimationOverviewClose,
 }: ShowClipEntityDetailProps) {
   const capabilities = showClipInspectorCapabilities(value.scope)
   // Narrowed once so the header can both gate rendering and count its columns
@@ -146,8 +154,29 @@ export function ShowClipEntityDetail({
   const tabs = projectShowClipDetailTabs({ value, transformEnabled })
   const activeTab = resolveShowClipDetailTab(preferredTab, tabs)
   const selectTab = (tab: ShowClipDetailTabId) => {
+    if (animationOverviewOpen) onAnimationOverviewClose?.(false)
     setPreferredTab(tab)
     rememberShowClipDetailTab(panelKey, tab)
+  }
+  const navigateToAnimationField = (
+    location: ShowPropertyAnimationFieldLocation,
+    targetKey: string,
+  ) => {
+    if (location !== 'header') {
+      selectTab(location)
+    } else {
+      onAnimationOverviewClose?.(false)
+    }
+    window.setTimeout(() => {
+      const action = [...(detailRef.current?.querySelectorAll<HTMLElement>(
+        '[data-show-property-animation-target]',
+      ) ?? [])].find((candidate) => candidate.dataset.showPropertyAnimationTarget === targetKey)
+      const field = action?.closest<HTMLElement>(
+        '[data-header-field], tr, [data-show-effect-id], label, div',
+      )
+      field?.querySelector<HTMLElement>('input:not([disabled]), select:not([disabled]), textarea:not([disabled])')
+        ?.focus()
+    }, 0)
   }
   const tabIdFor = (tab: ShowClipDetailTabId) => `clip-detail-tab-${panelKey}-${tab}`
   const panelId = `clip-detail-panel-${panelKey}`
@@ -335,6 +364,12 @@ export function ShowClipEntityDetail({
           className="min-h-[262px] pt-2"
         >
 
+        {animationOverviewOpen ? (
+          <ShowPropertyAnimationOverview
+            onBack={() => onAnimationOverviewClose?.(true)}
+            onNavigate={navigateToAnimationField}
+          />
+        ) : <>
         {activeTab === 'pattern' && <div data-testid="clip-primary-fields" className="grid min-w-0 items-end gap-2 sm:grid-cols-[minmax(0,2fr)_minmax(0,1fr)]">
           <label className="block min-w-0 text-[9px] uppercase tracking-[0.1em] text-zinc-600">
             Source pattern
@@ -744,6 +779,7 @@ export function ShowClipEntityDetail({
             </div>
           )}
         </div>
+        </>}
         </div>
       </div>
     </section>

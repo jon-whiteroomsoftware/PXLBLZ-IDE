@@ -1,8 +1,8 @@
-import { Fragment, useCallback, useDeferredValue, useEffect, useLayoutEffect, useMemo, useRef, useState, useSyncExternalStore, type CSSProperties, type MouseEvent as ReactMouseEvent, type PointerEvent as ReactPointerEvent, type ReactNode, type SetStateAction } from 'react'
+import { Fragment, useCallback, useDeferredValue, useEffect, useLayoutEffect, useMemo, useRef, useState, useSyncExternalStore, type CSSProperties, type MouseEvent as ReactMouseEvent, type PointerEvent as ReactPointerEvent, type ReactNode, type RefObject, type SetStateAction } from 'react'
 import { createPortal } from 'react-dom'
 import { Activity, BookOpen, Check, ChevronDown, ChevronRight, Clock3, Code2, Copy, Download, Eye, Flag, Grid2X2, Info, Layers3, Lightbulb, ListChecks, Lock, Magnet, Map as MapIcon, Maximize2, PanelLeft, Pause, Play, Plus, Redo2, Repeat2, RotateCcw, RotateCw, Route, Scissors, Settings2, SkipBack, SlidersHorizontal, SplitSquareHorizontal, Trash2, Undo2, WandSparkles, X, Zap } from 'lucide-react'
 import { Button } from '@/components/ui/button'
-import { NumberField as UiNumberField, useNumberFieldDraft, type NumberFieldProps as UiNumberFieldProps } from '@/components/ui/number-field'
+import { NumberField as UiNumberField, type NumberFieldProps as UiNumberFieldProps } from '@/components/ui/number-field'
 import { TimeField as UiTimeField, type TimeFieldProps as UiTimeFieldProps } from '@/components/ui/time-field'
 import { PercentageField as UiPercentageField, type PercentageFieldProps as UiPercentageFieldProps } from '@/components/ui/percentage-field'
 import { DomainNumberField as UiDomainNumberField, type DomainNumberFieldProps as UiDomainNumberFieldProps } from '@/components/ui/domain-number-field'
@@ -96,7 +96,6 @@ import {
 import {
   addShowPropertyTrack,
   deleteShowPropertyTrack,
-  propertyTargetKey,
   updateShowPropertyKeyframe,
 } from '@/engine/showPropertyAnimation'
 import {
@@ -105,7 +104,6 @@ import {
   projectShowPropertyAnimationEditorContext,
   type ShowPropertyAnimationChange,
   type ShowPropertyAnimationEditorContext,
-  type ShowPropertyAnimationOption,
   type ShowPropertyAnimationStorageOwner,
 } from '@/engine/showPropertyAnimationEditorModel'
 import {
@@ -252,8 +250,6 @@ import type {
   ShowOutputEffect,
   ShowRoutingLayout,
   ShowAutomatableProperty,
-  ShowPropertyAnimationKeyframe,
-  ShowPropertyAnimationTrack,
 } from '@/engine/personalContentRecords'
 import { DEFAULT_SHOW_TRAILS_RETENTION, normalizeShowOutputEffects } from '@/engine/showPreviousRgbFeedback'
 import { normalizeShowClipTransform } from '@/engine/showClipTransform'
@@ -1109,10 +1105,11 @@ export function ShowEditor({
       if (event.key !== 'Escape' || transitionPaletteId !== null) return
       if (
         document.querySelector('[data-show-detail-owned-portal="true"]')
+        || document.querySelector('[data-show-detail-escape-owned="true"]')
         || (event.target instanceof Element
-          && event.target.closest('[data-show-detail-owned-portal="true"]'))
+          && event.target.closest('[data-show-detail-owned-portal="true"], [data-show-detail-escape-owned="true"]'))
         || (document.activeElement instanceof Element
-          && document.activeElement.closest('[data-show-detail-owned-portal="true"]'))
+          && document.activeElement.closest('[data-show-detail-owned-portal="true"], [data-show-detail-escape-owned="true"]'))
       ) return
       if (!detailPanelOpen && !pinnedDetail && !isolatedGroupOccurrenceId && selection.kind === 'show') return
       event.preventDefault()
@@ -7373,8 +7370,42 @@ function CompositionClipInspector({
   canRemove?: boolean
   onRemove?: () => void
 }) {
-  const clipDetail = (
-    <>
+  const [animationOverviewOpen, setAnimationOverviewOpen] = useState(false)
+  const animationSummaryRef = useRef<HTMLDivElement>(null)
+  const animationCount = propertyAnimationContext?.tracks.length ?? 0
+  const closeAnimationOverview = (restoreSummaryFocus: boolean) => {
+    setAnimationOverviewOpen(false)
+    if (restoreSummaryFocus) {
+      window.setTimeout(() => animationSummaryRef.current?.focus(), 0)
+    }
+  }
+  const inspector = (
+    <InspectorPanel
+      family="Clip"
+      heading={value.patternName}
+      summary={(
+        <ClipConfigurationSummary
+          summary={summary}
+          animationCount={animationCount}
+          animationButtonRef={animationSummaryRef}
+          onAnimationsClick={() => setAnimationOverviewOpen(true)}
+        />
+      )}
+      icon={<Grid2X2 size={13} aria-hidden />}
+      actions={onRemove ? (
+        <Button
+          size="icon-xs"
+          variant="ghost"
+          aria-label={`Delete clip ${value.patternName}`}
+          title={canRemove ? `Delete ${value.patternName}` : 'A Show must contain at least one Clip.'}
+          disabled={!canRemove}
+          className="text-zinc-500 hover:bg-red-950/30 hover:text-red-300"
+          onClick={onRemove}
+        >
+          <Trash2 size={12} aria-hidden />
+        </Button>
+      ) : undefined}
+    >
       <ShowClipEntityDetail
         value={value}
         title={value.patternName}
@@ -7402,260 +7433,32 @@ function CompositionClipInspector({
         onPreviewPatch={onPreviewPatch}
         onPreviewEnd={onPreviewEnd}
         onPatternCommit={onPatternCommit}
+        animationOverviewOpen={animationOverviewOpen}
+        onAnimationOverviewClose={closeAnimationOverview}
       />
-      {onPropertyAnimationChange && propertyAnimationContext && value.placementId && value.instanceId && value.local && (
-        <ShowPropertyAnimationPanel
-          value={value}
-          durationMs={propertyAnimationContext.storageDurationMs}
-          showTimeOffsetMs={propertyAnimationContext.showTimeOffsetMs}
-          tracks={propertyAnimationContext.tracks}
-          onChange={onPropertyAnimationChange}
-        />
-      )}
-    </>
-  )
-  return (
-    <InspectorPanel
-      family="Clip"
-      heading={value.patternName}
-      summary={<ClipConfigurationSummary summary={summary} />}
-      icon={<Grid2X2 size={13} aria-hidden />}
-      actions={onRemove ? (
-        <Button
-          size="icon-xs"
-          variant="ghost"
-          aria-label={`Delete clip ${value.patternName}`}
-          title={canRemove ? `Delete ${value.patternName}` : 'A Show must contain at least one Clip.'}
-          disabled={!canRemove}
-          className="text-zinc-500 hover:bg-red-950/30 hover:text-red-300"
-          onClick={onRemove}
-        >
-          <Trash2 size={12} aria-hidden />
-        </Button>
-      ) : undefined}
-    >
-      {onPropertyAnimationChange && propertyAnimationContext ? (
-        <ShowPropertyAnimationProvider
-          options={buildShowPropertyAnimationOptions(value)}
-          tracks={propertyAnimationContext.tracks}
-          storageDurationMs={propertyAnimationContext.storageDurationMs}
-          showTimeOffsetMs={propertyAnimationContext.showTimeOffsetMs}
-          instanceUseCount={propertyAnimationContext.instanceUseCount}
-          onChange={onPropertyAnimationChange}
-        >
-          {clipDetail}
-        </ShowPropertyAnimationProvider>
-      ) : clipDetail}
     </InspectorPanel>
   )
-}
-
-function ShowPropertyAnimationPanel({
-  value,
-  durationMs,
-  showTimeOffsetMs,
-  tracks = [],
-  onChange = () => {},
-}: {
-  value: NonNullable<ReturnType<typeof projectShowClipInspector>>
-  durationMs: number
-  showTimeOffsetMs: number
-  tracks?: ShowPropertyAnimationTrack[]
-  onChange?: (change: ShowPropertyAnimationChange) => boolean | void
-}) {
-  const [targetKey, setTargetKey] = useState('')
-  const [selected, setSelected] = useState<{ trackId: string; keyframeId: string } | null>(null)
-  const options = buildShowPropertyAnimationOptions(value)
-  const animated = new Set(tracks.map((track) => propertyTargetKey(track.target)))
-  const addable = options.filter((option) => !animated.has(option.key))
-  const selectedOption = addable.find((option) => option.key === targetKey) ?? addable[0]
-
+  if (!onPropertyAnimationChange || !propertyAnimationContext) return inspector
+  const changePropertyAnimation = (change: ShowPropertyAnimationChange) => {
+    const accepted = onPropertyAnimationChange(change)
+    if (accepted !== false && change.kind === 'delete-track' && animationCount === 1) {
+      setAnimationOverviewOpen(false)
+    }
+    return accepted
+  }
   return (
-    <section className="mt-2 overflow-hidden rounded border border-violet-300/20 bg-violet-300/[0.025]" aria-label="Property animation">
-      <div className="flex min-h-8 items-center gap-1.5 border-b border-violet-300/15 px-2">
-        <Activity size={11} aria-hidden className="text-violet-300" />
-        <strong className="text-[9px] font-medium uppercase tracking-[0.1em] text-violet-200">Property animation</strong>
-        <select
-          aria-label="Property to animate"
-          value={selectedOption?.key ?? ''}
-          disabled={addable.length === 0}
-          onChange={(event) => setTargetKey(event.target.value)}
-          className="ml-auto h-6 min-w-0 max-w-44 rounded border border-zinc-800 bg-zinc-950 px-1 text-[9px] text-zinc-200 disabled:opacity-50"
-        >
-          {addable.map((option) => <option key={option.key} value={option.key}>{option.label}</option>)}
-          {addable.length === 0 && <option value="">All supported Properties animated</option>}
-        </select>
-        <Button
-          size="xs"
-          variant="ghost"
-          aria-label="Animate selected property"
-          disabled={!selectedOption}
-          className="h-6 px-1.5 text-[9px] text-violet-200 hover:bg-violet-300/10 hover:text-violet-100"
-          onClick={() => selectedOption && onChange({
-            kind: 'add-track',
-            target: selectedOption.target,
-            initialValue: selectedOption.value,
-          })}
-        >
-          <Plus size={10} aria-hidden /> Animate
-        </Button>
-      </div>
-      <p className="px-2 pt-1 text-[9px] leading-3 text-zinc-500">
-        Only supported numeric Clip properties can be animated.
-      </p>
-      {tracks.map((track) => {
-        const option = options.find((candidate) => candidate.key === propertyTargetKey(track.target))
-        const selectedKeyframe = selected?.trackId === track.id
-          ? track.keyframes.find((keyframe) => keyframe.id === selected.keyframeId)
-          : undefined
-        return (
-          <div key={track.id} className="border-b border-violet-300/10 last:border-b-0">
-            <div className="flex min-h-7 items-center gap-1.5 px-2">
-              <span className="min-w-0 truncate text-[9px] text-violet-100">{option?.label ?? 'Unsupported Property'}</span>
-              <div className="ml-auto flex items-center gap-1" role="group" aria-label={`${option?.label ?? 'Property'} keyframes`}>
-                {track.keyframes.map((keyframe) => (
-                  <button
-                    key={keyframe.id}
-                    type="button"
-                    aria-label={`Select keyframe at ${(showTimeOffsetMs + keyframe.timeMs) / 1_000} seconds`}
-                    className={`size-3 rotate-45 border ${selectedKeyframe?.id === keyframe.id ? 'border-amber-200 bg-amber-200' : 'border-violet-200/70 bg-violet-300/40 hover:bg-violet-200'}`}
-                    onClick={() => setSelected({ trackId: track.id, keyframeId: keyframe.id })}
-                  />
-                ))}
-              </div>
-              <button
-                type="button"
-                aria-label={`Delete ${option?.label ?? 'Property'} animation`}
-                className="grid size-5 place-items-center text-zinc-600 hover:text-red-300"
-                onClick={() => { setSelected(null); onChange({ kind: 'delete-track', trackId: track.id }) }}
-              ><Trash2 size={10} aria-hidden /></button>
-            </div>
-            {selectedKeyframe && option && (
-              <ShowPropertyKeyframeEditor
-                key={`${track.id}:${selectedKeyframe.id}`}
-                trackId={track.id}
-                keyframe={selectedKeyframe}
-                durationMs={durationMs}
-                showTimeOffsetMs={showTimeOffsetMs}
-                option={option}
-                onChange={onChange}
-              />
-            )}
-          </div>
-        )
-      })}
-      {tracks.length === 0 && <p className="px-2 py-1.5 text-[9px] text-zinc-500">Static values stay compact until you animate one.</p>}
-    </section>
-  )
-}
-
-function ShowPropertyKeyframeEditor({
-  trackId,
-  keyframe,
-  durationMs,
-  showTimeOffsetMs,
-  option,
-  onChange,
-}: {
-  trackId: string
-  keyframe: ShowPropertyAnimationKeyframe
-  durationMs: number
-  showTimeOffsetMs: number
-  option: ShowPropertyAnimationOption
-  onChange: (change: ShowPropertyAnimationChange) => boolean | void
-}) {
-  const [rejectionRevision, setRejectionRevision] = useState(0)
-  return (
-    <ShowPropertyKeyframeFields
-      key={rejectionRevision}
-      trackId={trackId}
-      keyframe={keyframe}
-      durationMs={durationMs}
-      showTimeOffsetMs={showTimeOffsetMs}
-      option={option}
-      onChange={(change) => {
-        const accepted = onChange(change)
-        if (accepted === false) setRejectionRevision((revision) => revision + 1)
-      }}
-    />
-  )
-}
-
-function ShowPropertyKeyframeFields({
-  trackId,
-  keyframe,
-  durationMs,
-  showTimeOffsetMs,
-  option,
-  onChange,
-}: {
-  trackId: string
-  keyframe: ShowPropertyAnimationKeyframe
-  durationMs: number
-  showTimeOffsetMs: number
-  option: ShowPropertyAnimationOption
-  onChange: (change: ShowPropertyAnimationChange) => void
-}) {
-  const timeField = useNumberFieldDraft({
-    value: (showTimeOffsetMs + keyframe.timeMs) / 1_000,
-    min: showTimeOffsetMs / 1_000,
-    max: (showTimeOffsetMs + durationMs) / 1_000,
-    onChange: (seconds) => onChange({
-      kind: 'update-keyframe',
-      trackId,
-      keyframeId: keyframe.id,
-      changes: { timeMs: Math.round(seconds * 1_000 - showTimeOffsetMs) },
-    }),
-  })
-  const valueField = useNumberFieldDraft({
-    value: keyframe.value,
-    min: option.min,
-    max: option.max,
-    onChange: (value) => onChange({
-      kind: 'update-keyframe',
-      trackId,
-      keyframeId: keyframe.id,
-      changes: { value },
-    }),
-  })
-  return (
-    <div className="flex flex-wrap items-center gap-1.5 border-t border-violet-300/10 bg-zinc-950/40 px-2 py-1.5">
-      <label className="text-[9px] text-zinc-400">Time
-        <input
-          aria-label="Keyframe time seconds"
-          type="number"
-          min={showTimeOffsetMs / 1_000}
-          max={(showTimeOffsetMs + durationMs) / 1_000}
-          step={0.001}
-          {...timeField.inputProps}
-          className="ml-1 h-6 w-20 rounded border border-zinc-800 bg-zinc-950 px-1 text-right text-[9px] text-zinc-100"
-        />
-      </label>
-      <label className="text-[9px] text-zinc-400">Value
-        <input
-          aria-label="Keyframe value"
-          type="number"
-          min={option.min}
-          max={option.max}
-          step={option.step}
-          {...valueField.inputProps}
-          className="ml-1 h-6 w-16 rounded border border-zinc-800 bg-zinc-950 px-1 text-right text-[9px] text-zinc-100"
-        />
-      </label>
-      <select
-        aria-label="Keyframe easing"
-        value={showEasingOptionId(keyframe.easing)}
-        onChange={(event) => onChange({
-          kind: 'update-keyframe',
-          trackId,
-          keyframeId: keyframe.id,
-          changes: { easing: showEasingFromOptionId(event.target.value) },
-        })}
-        className="h-6 min-w-24 rounded border border-zinc-800 bg-zinc-950 px-1 text-[9px] text-zinc-100"
-      >
-        <ShowEasingOptions />
-      </select>
-    </div>
+    <ShowPropertyAnimationProvider
+      options={buildShowPropertyAnimationOptions(value)}
+      tracks={propertyAnimationContext.tracks}
+      trackIssues={propertyAnimationContext.trackIssues}
+      storageDurationMs={propertyAnimationContext.storageDurationMs}
+      showTimeOffsetMs={propertyAnimationContext.showTimeOffsetMs}
+      instanceUseCount={propertyAnimationContext.instanceUseCount}
+      onOpenOverview={() => setAnimationOverviewOpen(true)}
+      onChange={changePropertyAnimation}
+    >
+      {inspector}
+    </ShowPropertyAnimationProvider>
   )
 }
 
@@ -9911,16 +9714,29 @@ function compatibilityCellForTimelineClip(
   }) ?? null
 }
 
-function ClipConfigurationSummary({ summary }: { summary: ShowClipSummarySection[] }) {
+function ClipConfigurationSummary({
+  summary,
+  animationCount,
+  animationButtonRef,
+  onAnimationsClick,
+}: {
+  summary: ShowClipSummarySection[]
+  animationCount?: number
+  animationButtonRef?: RefObject<HTMLDivElement | null>
+  onAnimationsClick?: () => void
+}) {
+  const visibleSummary = animationCount === undefined || animationCount === 0
+    ? summary
+    : summary.filter((section) => section.kind !== 'animation')
   return (
     <section
       role="region"
       aria-label="Clip summary"
-      title={showClipInlineSummary(summary)}
+      title={showClipInlineSummary(visibleSummary)}
       className="mt-0.5 flex max-h-7 min-h-3 flex-wrap items-center gap-x-3 gap-y-0.5 overflow-hidden font-mono text-[9px]"
     >
-      {summary.length === 0 && <span className="text-zinc-600">Defaults</span>}
-      {summary.map((section) => (
+      {visibleSummary.length === 0 && !animationCount && <span className="text-zinc-600">Defaults</span>}
+      {visibleSummary.map((section) => (
         <span
           key={section.kind}
           role="group"
@@ -9943,6 +9759,24 @@ function ClipConfigurationSummary({ summary }: { summary: ShowClipSummarySection
           ))}
         </span>
       ))}
+      {animationCount !== undefined && animationCount > 0 && (
+        <div
+          ref={animationButtonRef}
+          role="button"
+          tabIndex={0}
+          aria-label={`Animations — ${animationCount}`}
+          onClick={onAnimationsClick}
+          onKeyDown={(event) => {
+            if (event.key !== 'Enter' && event.key !== ' ') return
+            event.preventDefault()
+            onAnimationsClick?.()
+          }}
+          className="inline-flex h-5 items-center gap-1 rounded px-1 text-violet-300/90 hover:bg-violet-300/10 hover:text-violet-200 focus-visible:outline focus-visible:outline-1 focus-visible:outline-violet-200"
+        >
+          <Activity size={11} aria-hidden />
+          <span>Animations — {animationCount}</span>
+        </div>
+      )}
     </section>
   )
 }

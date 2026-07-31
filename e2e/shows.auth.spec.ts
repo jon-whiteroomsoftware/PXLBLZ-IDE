@@ -1302,35 +1302,45 @@ test.describe('authenticated Show authoring', () => {
       .toHaveValue('60')
   })
 
-  test('authors and reloads exact Scene-local Property animation through the legacy picker (#490, #648)', async ({ page }) => {
-    await page.setViewportSize({ width: 1440, height: 900 })
+  test('reloads, navigates, and removes a Scene-local animation through the overview (#490, #649)', async ({ page }) => {
+    await page.setViewportSize({ width: 760, height: 900 })
     await page.goto('studio/shows')
     await createInstallationShow(page)
 
     await page.getByRole('button', { name: 'Select TestPattern1D' }).click()
     const clipPanel = page.getByRole('dialog', { name: 'Entity Detail Panel' })
     await expect(clipPanel.getByRole('region', { name: 'Clip properties' })).toBeVisible()
-    await page.getByRole('combobox', { name: 'Property to animate' }).selectOption({ label: 'Brightness' })
-    await page.getByRole('button', { name: 'Animate selected property' }).click()
-    await page.getByRole('button', { name: 'Select keyframe at 30 seconds' }).click()
-    await page.getByRole('spinbutton', { name: 'Keyframe value' }).fill('0.42')
-    await page.getByRole('spinbutton', { name: 'Keyframe value' }).blur()
-    await page.getByRole('combobox', { name: 'Keyframe easing' }).selectOption('steps-4-end')
+    await clipPanel.getByRole('button', { name: 'Animate Brightness' }).click()
+    await page.getByRole('textbox', { name: 'Brightness animation to exact percentage' }).fill('42%')
+    await page.getByRole('textbox', { name: 'Brightness animation to exact percentage' }).blur()
+    await page.getByRole('combobox', { name: 'Brightness animation easing' }).selectOption('steps-4-end')
 
     await waitForCurrentShow(page, (show) => {
       const track = show.composition?.scenes[0]?.propertyTracks?.[0]
       return track?.target.kind === 'placement-view'
         && track.target.property === 'brightness'
         && track.keyframes[1]?.value === 0.42
-        && typeof track.keyframes[1]?.easing === 'object'
-        && track.keyframes[1].easing.curve === 'steps'
+        && typeof track.keyframes[0]?.easing === 'object'
+        && track.keyframes[0].easing.curve === 'steps'
     })
 
     await page.reload()
     await page.getByRole('button', { name: 'Select TestPattern1D' }).click()
-    await page.getByRole('button', { name: 'Select keyframe at 30 seconds' }).click()
-    await expect(page.getByRole('spinbutton', { name: 'Keyframe value' })).toHaveValue('0.42')
-    await expect(page.getByRole('combobox', { name: 'Keyframe easing' })).toHaveValue('steps-4-end')
+    const reloadedPanel = page.getByRole('dialog', { name: 'Entity Detail Panel' })
+    await reloadedPanel.getByRole('button', { name: 'Animations — 1' }).click()
+    const overview = reloadedPanel.getByRole('region', { name: 'Animations overview' })
+    const brightness = overview.getByRole('group', { name: 'Brightness animation summary' })
+    await expect(brightness).toContainText('100% → 42%')
+    await expect(brightness).toContainText('0s → 30s')
+    await expect(brightness).toContainText('Header')
+
+    await brightness.getByRole('button', { name: 'Go to Brightness field' }).click()
+    await expect(reloadedPanel.getByRole('textbox', { name: 'Brightness exact percentage' })).toBeFocused()
+
+    await reloadedPanel.getByRole('button', { name: 'Animations — 1' }).click()
+    await reloadedPanel.getByRole('button', { name: 'Remove Brightness animation' }).click()
+    await waitForCurrentShow(page, (show) => !show.composition?.scenes[0]?.propertyTracks?.length)
+    await expect(reloadedPanel.getByRole('button', { name: /^Animations/ })).toHaveCount(0)
   })
 
   // Split from one test whose oracle read the persisted transition record,

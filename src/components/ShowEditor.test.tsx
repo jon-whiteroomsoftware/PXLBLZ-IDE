@@ -1292,7 +1292,7 @@ describe('ShowEditor (#318)', () => {
     const panel = screen.getByRole('dialog', { name: 'Entity Detail Panel' })
     expect(panel).toHaveAttribute('data-owner-key', 'group-clip:phrase-use-a:inside-clip')
     expect(within(panel).getByLabelText('Pattern automation targets')).toBeInTheDocument()
-    expect(within(panel).getByRole('region', { name: 'Property animation' })).toBeInTheDocument()
+    expect(within(panel).queryByRole('region', { name: 'Animations overview' })).not.toBeInTheDocument()
     expect(within(panel).getByRole('button', { name: 'Animate Brightness' })).toBeVisible()
     changeCommittedNumber('Duration seconds exact time', '1.5')
     await waitFor(() => {
@@ -2028,7 +2028,7 @@ describe('ShowEditor (#318)', () => {
     expect(summary).toHaveTextContent('Animation speed0.5x')
     expect(summary).toHaveTextContent('Brightness75%')
     expect(summary).toHaveTextContent('Hue0.1 turn')
-    expect(summary).toHaveTextContent('Animation speedanimated')
+    expect(summary).toHaveTextContent('Animations — 1')
   })
 
   it('keeps compatibility Clip animation summaries aligned between timeline and Detail (#599 review)', async () => {
@@ -3834,6 +3834,7 @@ describe('ShowEditor (#318)', () => {
   it('projects one Scene-local keyframe animation into one main-timeline sparkline', async () => {
     const user = userEvent.setup()
     const stock = STOCK_SHOWS.find((candidate) => candidate.id === 'stock-show-102-transitions-values')!
+    const before = structuredClone(stock.show.composition?.scenes[0].propertyTracks)
 
     render(<ShowEditor showId={stock.id} showOverride={stock.show} readOnly />)
 
@@ -3846,8 +3847,12 @@ describe('ShowEditor (#318)', () => {
     await user.click(screen.getByRole('button', { name: 'Select SignalMandala' }))
     const panel = screen.getByRole('dialog', { name: 'Entity Detail Panel' })
     expect(within(panel).queryByText('Unsupported Property')).not.toBeInTheDocument()
-    expect(within(panel).getByRole('group', { name: 'Brightness keyframes' })).toBeInTheDocument()
-    expect(within(panel).getByRole('button', { name: 'Delete Brightness animation' })).toBeDisabled()
+    fireEvent.click(within(panel).getByRole('button', { name: 'Animations — 1' }))
+    expect(within(panel).getByRole('region', { name: 'Animations overview' })).toBeInTheDocument()
+    expect(within(panel).getByText('3 keyframes · read-only')).toBeInTheDocument()
+    expect(within(panel).getByRole('button', { name: 'Remove Brightness animation' })).toBeDisabled()
+    await user.click(within(panel).getByRole('button', { name: 'Back from Animations overview' }))
+    expect(stock.show.composition?.scenes[0].propertyTracks).toEqual(before)
   })
 
   it('identifies each property sparkline on the lane itself (#631)', () => {
@@ -3862,7 +3867,7 @@ describe('ShowEditor (#318)', () => {
     expect(inlineLabel).toHaveTextContent('brightness')
   })
 
-  it('authors and removes a Clip Property animation from the unified inspector (#607)', async () => {
+  it('opens the Animations overview, returns to the owning field, and removes in one undo step (#607, #649)', async () => {
     const user = userEvent.setup()
     const show = createDefaultShow('show-clip-property-animation', 'Clip Property animation', 1000)
     const scene = show.scenes[0]
@@ -3872,13 +3877,17 @@ describe('ShowEditor (#318)', () => {
     render(<ShowEditor showId={show.id} />)
     await user.click(screen.getByRole('button', { name: 'Select TestPattern1D' }))
     const panel = screen.getByRole('dialog', { name: 'Entity Detail Panel' })
-    expect(within(panel).getByRole('combobox', { name: 'Property to animate' })).toBeInTheDocument()
-    expect(within(panel).getByText('Only supported numeric Clip properties can be animated.')).toBeInTheDocument()
+    expect(within(panel).queryByRole('button', { name: /^Animations/ })).not.toBeInTheDocument()
+    await user.click(within(panel).getByRole('button', { name: 'Animate Brightness' }))
+    const toValue = screen.getByRole('textbox', { name: 'Brightness animation to exact percentage' })
+    await user.clear(toValue)
+    await user.type(toValue, '42%')
+    fireEvent.blur(toValue)
     await user.selectOptions(
-      within(panel).getByRole('combobox', { name: 'Property to animate' }),
-      within(panel).getByRole('option', { name: 'Brightness' }),
+      screen.getByRole('combobox', { name: 'Brightness animation easing' }),
+      'steps-4-end',
     )
-    await user.click(within(panel).getByRole('button', { name: 'Animate selected property' }))
+    fireEvent.keyDown(screen.getByRole('dialog', { name: 'Brightness animation' }), { key: 'Escape' })
 
     await waitFor(() => {
       const track = useShowStore.getState().shows[0].composition?.scenes[0].propertyTracks?.[0]
@@ -3888,34 +3897,42 @@ describe('ShowEditor (#318)', () => {
         property: 'brightness',
       })
       expect(track?.keyframes.map((keyframe) => keyframe.timeMs)).toEqual([0, scene.durationMs])
-    })
-    await user.click(within(panel).getByRole('button', { name: `Select keyframe at ${scene.durationMs / 1_000} seconds` }))
-    const value = within(panel).getByRole('spinbutton', { name: 'Keyframe value' })
-    await user.clear(value)
-    await user.type(value, '0.42')
-    fireEvent.blur(value)
-    await user.selectOptions(within(panel).getByRole('combobox', { name: 'Keyframe easing' }), 'steps-4-end')
-    await waitFor(() => {
-      const keyframe = useShowStore.getState().shows[0].composition?.scenes[0].propertyTracks?.[0].keyframes[1]
+      const keyframe = track?.keyframes[1]
       expect(keyframe?.value).toBe(0.42)
-      expect(keyframe?.easing).toMatchObject({ curve: 'steps', steps: 4, position: 'end' })
+      expect(track?.keyframes[0].easing).toMatchObject({ curve: 'steps', steps: 4, position: 'end' })
     })
 
-    await user.click(within(panel).getByRole('button', { name: 'Select keyframe at 0 seconds' }))
-    expect(within(panel).getByRole('spinbutton', { name: 'Keyframe value' })).toHaveValue(1)
-    await user.click(within(panel).getByRole('button', { name: `Select keyframe at ${scene.durationMs / 1_000} seconds` }))
-    expect(within(panel).getByRole('spinbutton', { name: 'Keyframe value' })).toHaveValue(0.42)
+    const summary = within(panel).getByRole('button', { name: 'Animations — 1' })
+    await user.click(summary)
+    const overview = within(panel).getByRole('region', { name: 'Animations overview' })
+    expect(within(overview).getByRole('heading', { name: 'This Clip placement' })).toBeInTheDocument()
+    const row = within(overview).getByRole('group', { name: 'Brightness animation summary' })
+    expect(row).toHaveTextContent('100% → 42%')
+    expect(row).toHaveTextContent(`0s → ${scene.durationMs / 1_000}s`)
+    expect(row).toHaveTextContent('Header')
 
-    const time = within(panel).getByRole('spinbutton', { name: 'Keyframe time seconds' })
-    await user.clear(time)
-    await user.type(time, '0')
-    fireEvent.blur(time)
+    await user.click(within(row).getByRole('button', { name: 'Go to Brightness field' }))
     await waitFor(() => expect(
-      within(panel).getByRole('spinbutton', { name: 'Keyframe time seconds' }),
-    ).toHaveValue(scene.durationMs / 1_000))
+      within(panel).getByRole('textbox', { name: 'Brightness exact percentage' }),
+    ).toHaveFocus())
 
-    await user.click(within(panel).getByRole('button', { name: 'Delete Brightness animation' }))
-    await waitFor(() => expect(useShowStore.getState().shows[0].composition?.scenes[0].propertyTracks).toBeUndefined())
+    await user.click(within(panel).getByRole('button', { name: 'Animations — 1' }))
+    await user.click(within(panel).getByRole('button', { name: 'Back from Animations overview' }))
+    await waitFor(() => expect(within(panel).getByRole('button', { name: 'Animations — 1' })).toHaveFocus())
+
+    await user.click(within(panel).getByRole('button', { name: 'Animations — 1' }))
+    fireEvent.keyDown(document, { key: 'Escape' })
+    await waitFor(() => expect(within(panel).getByRole('button', { name: 'Animations — 1' })).toHaveFocus())
+
+    await user.click(within(panel).getByRole('button', { name: 'Animations — 1' }))
+    const historyBeforeRemove = useShowStore.getState().showHistories[show.id]?.past.length ?? 0
+    await user.click(within(panel).getByRole('button', { name: 'Remove Brightness animation' }))
+    await waitFor(() => {
+      const current = useShowStore.getState()
+      expect(current.shows[0].composition?.scenes[0].propertyTracks).toBeUndefined()
+      expect(current.showHistories[show.id]?.past.length).toBe(historyBeforeRemove + 1)
+      expect(within(panel).queryByRole('button', { name: /^Animations/ })).not.toBeInTheDocument()
+    })
   })
 
   it('keeps a per-parameter draft transient and records its first edit as one undo step (#648)', async () => {
@@ -3965,6 +3982,36 @@ describe('ShowEditor (#318)', () => {
       expect(within(panel).getByRole('button', { name: 'Animate Brightness' }))
         .toHaveAttribute('data-animated', 'false')
     })
+  })
+
+  it('returns an overview row to its owning tab and focuses the exact field (#649)', async () => {
+    const user = userEvent.setup()
+    const show = createDefaultShow('show-animation-navigation', 'Animation navigation', 1000)
+    setPersonalContentProvider(memoryProvider([show]))
+    useShowStore.setState({ shows: [show], activeShowId: show.id, showsLoaded: true })
+
+    render(<ShowEditor showId={show.id} />)
+    await user.click(screen.getByRole('button', { name: 'Select TestPattern1D' }))
+    const panel = screen.getByRole('dialog', { name: 'Entity Detail Panel' })
+    await user.click(within(panel).getByRole('tab', { name: /^Playback/ }))
+    await user.click(within(panel).getByRole('button', { name: 'Animate Phase' }))
+    const phaseFrom = screen.getByRole('textbox', { name: 'Phase animation from' })
+    await user.clear(phaseFrom)
+    await user.type(phaseFrom, '0.2')
+    fireEvent.blur(phaseFrom)
+    fireEvent.keyDown(screen.getByRole('dialog', { name: 'Phase animation' }), { key: 'Escape' })
+    await user.click(within(panel).getByRole('tab', { name: /^Pattern/ }))
+
+    await user.click(within(panel).getByRole('button', { name: 'Animations — 1' }))
+    const row = within(panel).getByRole('group', { name: 'Phase animation summary' })
+    expect(row).toHaveTextContent('Playback')
+    await user.click(within(row).getByRole('button', { name: 'Go to Phase field' }))
+
+    await waitFor(() => {
+      expect(within(panel).getByRole('tab', { name: /^Playback/ })).toHaveAttribute('aria-selected', 'true')
+      expect(within(panel).getByRole('textbox', { name: 'Phase' })).toHaveFocus()
+    })
+    await user.click(within(panel).getByRole('tab', { name: /^Pattern/ }))
   })
 
   it('abbreviates the owning Clip only where two lanes animate the same property (#631)', () => {
@@ -4088,11 +4135,12 @@ describe('ShowEditor (#318)', () => {
     render(<ShowEditor showId={show.id} />)
     await user.click(screen.getByRole('button', { name: 'Select TestPattern1D' }))
     expect(screen.queryByText('Unsupported Property')).not.toBeInTheDocument()
-    expect(screen.queryByRole('button', { name: 'Delete Property animation' })).not.toBeInTheDocument()
-    expect(screen.getByText('Static values stay compact until you animate one.')).toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: /^Animations/ })).not.toBeInTheDocument()
 
     await user.click(screen.getByRole('button', { name: 'Select CometLoom' }))
-    expect(screen.getByRole('button', { name: 'Delete Brightness animation' })).toBeInTheDocument()
+    const panel = screen.getByRole('dialog', { name: 'Entity Detail Panel' })
+    await user.click(within(panel).getByRole('button', { name: 'Animations — 1' }))
+    expect(within(panel).getByRole('group', { name: 'Brightness animation summary' })).toBeInTheDocument()
   })
 
 

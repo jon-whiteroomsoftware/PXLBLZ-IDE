@@ -259,9 +259,17 @@ meaningful changes onto the unified Timeline rather than exposing a second
 Scene-local authoring scope. Instance time and public Pattern controls remain
 instance-owned; placement view, Clip Transform, overlay opacity, and Effect
 parameters remain placement-owned. Unanimated values stay inline and create no
-empty lanes.
+empty lanes. Clip Detail projects all tracks owned by the selected Clip through
+one **Animations overview** reached from the persistent `Animations — N`
+summary. It groups placement-owned and shared Pattern-instance targets, reports
+Show-global endpoint ranges, and navigates back to each target's owning field.
+The overview owns removal, keeps validator-identified orphan tracks visible and
+removable, and treats tracks with more than two keyframes as read-only without
+rewriting their stored points.
 _Avoid_: describing compiler Scene partitions as user-facing authoring objects;
-representing internal Scene boundaries as a second timeline hierarchy.
+representing internal Scene boundaries as a second timeline hierarchy;
+silently dropping orphan tracks or coercing multi-keyframe tracks into
+two-point ramps.
 
 **Clip Transform** (in a Show):
 The canonical placement-owned 2D pose for one compatible clip: Position X/Y, signed Rotation, and Scale X/Y. The UI presents Rotation in degrees, while the Show stores turns around the normalized Stage center `(0.5, 0.5)`. The compiler applies scale, then rotation, then position before authored Transform Effects, Distort, Address, Pattern render, and Color/output stages. Neutral values are omitted from the artifact. Clip Transform has a stable placement target, so its static values and Property animation survive Effect-stack changes. **Mirror** is a separate placement-owned adaptation shown as the fixed first row of the Effects Transform stage; it is not part of the ordered Effect stack and cannot be moved, duplicated, or animated.

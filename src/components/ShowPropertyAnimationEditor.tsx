@@ -8,7 +8,7 @@ import {
   type ReactNode,
 } from 'react'
 import { createPortal } from 'react-dom'
-import { Diamond, Trash2 } from 'lucide-react'
+import { AlertTriangle, ArrowLeft, Diamond, Trash2 } from 'lucide-react'
 import { DomainNumberField } from './ui/domain-number-field'
 import { NumberField } from './ui/number-field'
 import { PercentageField } from './ui/percentage-field'
@@ -27,18 +27,23 @@ import { propertyTargetKey } from '@/engine/showPropertyAnimation'
 import {
   showPropertyAnimationGlobalSeconds,
   showPropertyAnimationLocalTimeMs,
+  projectShowPropertyAnimationOverview,
+  type ShowPropertyAnimationFieldLocation,
   type ShowPropertyAnimationChange,
   type ShowPropertyAnimationOption,
 } from '@/engine/showPropertyAnimationEditorModel'
+import type { ShowPropertyAnimationValidationIssue } from '@/engine/showPropertyAnimation'
 
 interface ShowPropertyAnimationEditorValue {
   options: ShowPropertyAnimationOption[]
   tracks: ShowPropertyAnimationTrack[]
+  trackIssues: Record<string, ShowPropertyAnimationValidationIssue[]>
   storageDurationMs: number
   showTimeOffsetMs: number
   instanceUseCount: number
   activeKey: string | null
   setActiveKey: (key: string | null) => void
+  onOpenOverview?: () => void
   onChange: (change: ShowPropertyAnimationChange) => boolean | void
 }
 
@@ -47,17 +52,21 @@ const ShowPropertyAnimationEditorContext = createContext<ShowPropertyAnimationEd
 export function ShowPropertyAnimationProvider({
   options,
   tracks,
+  trackIssues = {},
   storageDurationMs,
   showTimeOffsetMs,
   instanceUseCount,
+  onOpenOverview,
   onChange,
   children,
 }: {
   options: ShowPropertyAnimationOption[]
   tracks: ShowPropertyAnimationTrack[]
+  trackIssues?: Record<string, ShowPropertyAnimationValidationIssue[]>
   storageDurationMs: number
   showTimeOffsetMs: number
   instanceUseCount: number
+  onOpenOverview?: () => void
   onChange: (change: ShowPropertyAnimationChange) => boolean | void
   children: ReactNode
 }) {
@@ -65,19 +74,23 @@ export function ShowPropertyAnimationProvider({
   const value = useMemo(() => ({
     options,
     tracks,
+    trackIssues,
     storageDurationMs,
     showTimeOffsetMs,
     instanceUseCount,
     activeKey,
     setActiveKey,
+    onOpenOverview,
     onChange,
   }), [
     activeKey,
     instanceUseCount,
     onChange,
+    onOpenOverview,
     options,
     showTimeOffsetMs,
     storageDurationMs,
+    trackIssues,
     tracks,
   ])
   return (
@@ -102,8 +115,11 @@ export function ShowPropertyAnimationAction({
   if (!context || !option) return null
   const accessibleLabel = label ?? option.label
   const animated = Boolean(track)
+  const overviewOnly = Boolean(track && track.keyframes.length !== 2)
   const open = context.activeKey === key
-  const title = animated
+  const title = overviewOnly
+    ? `View the ${track?.keyframes.length}-keyframe ${accessibleLabel} animation in the Animations overview`
+    : animated
     ? `Edit the two-point ${accessibleLabel} animation`
     : `Create a two-point ${accessibleLabel} ramp and open its editor`
   return (
@@ -114,9 +130,15 @@ export function ShowPropertyAnimationAction({
         aria-expanded={open}
         title={title}
         data-animated={animated ? 'true' : 'false'}
+        data-show-property-animation-target={key}
         onClick={(event) => {
           event.preventDefault()
           event.stopPropagation()
+          if (overviewOnly && context.onOpenOverview) {
+            context.setActiveKey(null)
+            context.onOpenOverview()
+            return
+          }
           setAnchor(event.currentTarget)
           context.setActiveKey(open ? null : key)
         }}
@@ -137,6 +159,176 @@ export function ShowPropertyAnimationAction({
       )}
     </>
   )
+}
+
+export function ShowPropertyAnimationOverview({
+  onBack,
+  onNavigate,
+}: {
+  onBack: () => void
+  onNavigate: (location: ShowPropertyAnimationFieldLocation, targetKey: string) => void
+}) {
+  const context = useContext(ShowPropertyAnimationEditorContext)
+  const backRef = useRef<HTMLDivElement>(null)
+  const onBackRef = useRef(onBack)
+  const rows = context
+    ? projectShowPropertyAnimationOverview(context, context.options)
+    : []
+
+  useEffect(() => {
+    onBackRef.current = onBack
+  }, [onBack])
+
+  useEffect(() => {
+    backRef.current?.focus()
+    const closeOnEscape = (event: KeyboardEvent) => {
+      if (event.key !== 'Escape') return
+      event.preventDefault()
+      onBackRef.current()
+    }
+    document.addEventListener('keydown', closeOnEscape)
+    return () => document.removeEventListener('keydown', closeOnEscape)
+  }, [])
+
+  if (!context) return null
+  const placementRows = rows.filter((row) => row.group === 'placement')
+  const instanceRows = rows.filter((row) => row.group === 'instance')
+  return (
+    <section
+      role="region"
+      aria-label="Animations overview"
+      data-show-detail-escape-owned="true"
+      className="min-h-[262px] overflow-hidden rounded border border-violet-300/20 bg-violet-300/[0.025]"
+    >
+      <header className="flex h-8 items-center gap-2 border-b border-violet-300/15 px-2">
+        <div
+          ref={backRef}
+          role="button"
+          tabIndex={0}
+          aria-label="Back from Animations overview"
+          onClick={onBack}
+          onKeyDown={(event) => {
+            if (event.key !== 'Enter' && event.key !== ' ') return
+            event.preventDefault()
+            onBack()
+          }}
+          className="grid size-6 place-items-center rounded text-zinc-500 hover:bg-zinc-800 hover:text-zinc-100 focus-visible:outline focus-visible:outline-1 focus-visible:outline-violet-200"
+        >
+          <ArrowLeft size={12} aria-hidden />
+        </div>
+        <Diamond size={9} fill="currentColor" aria-hidden className="text-violet-300" />
+        <h3 className="text-[9px] font-semibold uppercase tracking-[0.12em] text-violet-200">
+          Animations · {rows.length}
+        </h3>
+      </header>
+      <div className="max-h-[360px] overflow-y-auto p-2">
+        <AnimationOverviewGroup
+          heading="This Clip placement"
+          rows={placementRows}
+          context={context}
+          onNavigate={onNavigate}
+        />
+        <AnimationOverviewGroup
+          heading="Shared Pattern instance"
+          note={instanceRows.length > 0 ? `affects ${context.instanceUseCount} linked Clips` : undefined}
+          rows={instanceRows}
+          context={context}
+          onNavigate={onNavigate}
+        />
+      </div>
+    </section>
+  )
+}
+
+function AnimationOverviewGroup({
+  heading,
+  note,
+  rows,
+  context,
+  onNavigate,
+}: {
+  heading: string
+  note?: string
+  rows: ReturnType<typeof projectShowPropertyAnimationOverview>
+  context: ShowPropertyAnimationEditorValue
+  onNavigate: (location: ShowPropertyAnimationFieldLocation, targetKey: string) => void
+}) {
+  if (rows.length === 0) return null
+  return (
+    <section className="mb-2 last:mb-0">
+      <div className="mb-1 flex items-baseline gap-2">
+        <h4 className="text-[8px] font-semibold uppercase tracking-[0.11em] text-zinc-400">{heading}</h4>
+        {note && <span className="text-[8px] text-cyan-300/70">{note}</span>}
+      </div>
+      <div className="divide-y divide-zinc-800/80 overflow-hidden rounded border border-zinc-800">
+        {rows.map((row) => (
+          <div
+            key={row.trackId}
+            role="group"
+            aria-label={`${row.label} animation summary`}
+            className={`grid grid-cols-[minmax(0,1fr)_auto] gap-2 px-2 py-1.5 ${
+              row.orphaned ? 'bg-red-950/15' : 'bg-zinc-950/45'
+            }`}
+          >
+            <div className="min-w-0">
+              <div className="flex min-w-0 items-center gap-1.5">
+                {row.orphaned && <AlertTriangle size={10} aria-hidden className="shrink-0 text-red-400" />}
+                {row.fieldLocation ? (
+                  <div
+                    role="button"
+                    tabIndex={0}
+                    aria-label={`Go to ${row.label} field`}
+                    onClick={() => onNavigate(row.fieldLocation!, row.targetKey)}
+                    onKeyDown={(event) => {
+                      if (event.key !== 'Enter' && event.key !== ' ') return
+                      event.preventDefault()
+                      onNavigate(row.fieldLocation!, row.targetKey)
+                    }}
+                    className="truncate text-left text-[9.5px] font-medium text-violet-100 hover:text-violet-200 focus-visible:outline focus-visible:outline-1 focus-visible:outline-violet-200"
+                  >
+                    {row.label}
+                  </div>
+                ) : (
+                  <strong className="truncate text-[9.5px] font-medium text-red-300">{row.label}</strong>
+                )}
+                {row.fieldLocation && (
+                  <span className="shrink-0 rounded bg-zinc-800 px-1 text-[7.5px] uppercase tracking-[0.08em] text-zinc-500">
+                    {fieldLocationLabel(row.fieldLocation)}
+                  </span>
+                )}
+              </div>
+              <p className="mt-0.5 truncate font-mono text-[8.5px] text-zinc-400">
+                {row.valueRange} · {row.timeRange}
+              </p>
+              {row.orphaned && (
+                <p className="mt-0.5 text-[8px] leading-3 text-red-300/75">
+                  Orphaned · {row.orphanMessage ?? 'The target field no longer exists.'}
+                </p>
+              )}
+              {!row.orphaned && row.keyframeCount !== 2 && (
+                <p className="mt-0.5 text-[8px] text-amber-300/75">
+                  {row.keyframeCount} keyframes · read-only
+                </p>
+              )}
+            </div>
+            <button
+              type="button"
+              aria-label={`Remove ${row.label} animation`}
+              onClick={() => context.onChange({ kind: 'delete-track', trackId: row.trackId })}
+              className="grid size-6 place-items-center self-center rounded text-red-400 hover:bg-red-950/30 hover:text-red-300 focus-visible:outline focus-visible:outline-1 focus-visible:outline-red-300"
+            >
+              <Trash2 size={10} aria-hidden />
+            </button>
+          </div>
+        ))}
+      </div>
+    </section>
+  )
+}
+
+function fieldLocationLabel(location: ShowPropertyAnimationFieldLocation): string {
+  if (location === 'header') return 'Header'
+  return `${location.charAt(0).toUpperCase()}${location.slice(1)}`
 }
 
 function ShowPropertyAnimationPopover({
@@ -299,7 +491,7 @@ function ShowPropertyAnimationPopover({
         </div>
       ) : (
         <p className="p-2 text-[9px] leading-4 text-zinc-400">
-          This stored track has {ordered.length} keyframes. Use the Property animation list below to edit it without losing points.
+          This stored track has {ordered.length} keyframes. Open Animations overview to inspect it without losing points.
         </p>
       )}
       <div className="flex min-h-7 items-center border-t border-zinc-800 px-2 text-[8.5px] text-zinc-500">

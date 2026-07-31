@@ -16,6 +16,8 @@ import {
   normalizeShowPropertyTracks,
   propertyTargetKey,
   validateShowPropertyTracks,
+  type ShowPropertyAnimationValidationCode,
+  type ShowPropertyAnimationValidationIssue,
 } from './showPropertyAnimation'
 import { materializeShowGroupOccurrences, validateShowGroups } from './showGroupModel'
 
@@ -55,10 +57,39 @@ export type ShowPropertyAnimationStorageOwner =
 export interface ShowPropertyAnimationEditorContext {
   storageOwner: ShowPropertyAnimationStorageOwner
   tracks: ShowPropertyAnimationTrack[]
+  trackIssues: Record<string, ShowPropertyAnimationValidationIssue[]>
   storageDurationMs: number
   showTimeOffsetMs: number
   instanceUseCount: number
 }
+
+export type ShowPropertyAnimationFieldLocation = 'header' | 'pattern' | 'place' | 'effects' | 'playback'
+
+export interface ShowPropertyAnimationOverviewRow {
+  trackId: string
+  targetKey: string
+  group: 'placement' | 'instance'
+  label: string
+  valueRange: string
+  timeRange: string
+  fieldLocation: ShowPropertyAnimationFieldLocation | null
+  linkedClipCount?: number
+  keyframeCount: number
+  readOnly: boolean
+  orphaned: boolean
+  orphanCode?: ShowPropertyAnimationValidationCode
+  orphanMessage?: string
+  removable: true
+}
+
+const ORPHAN_CODES = new Set<ShowPropertyAnimationValidationCode>([
+  'missing-instance',
+  'missing-control',
+  'missing-placement',
+  'missing-effect',
+  'effect-identity-mismatch',
+  'missing-effect-parameter',
+])
 
 export function buildShowPropertyAnimationOptions(
   value: ShowClipInspectorValue,
@@ -187,6 +218,7 @@ export function projectShowPropertyAnimationEditorContext(
   return {
     storageOwner: { kind: 'scene', sceneId },
     tracks: (scene.propertyTracks ?? []).filter((track) => trackBelongsToValue(track, value)),
+    trackIssues: trackIssuesForScene(show, composition, sceneId),
     storageDurationMs: sourceScene.durationMs,
     showTimeOffsetMs: sceneRange.startMs,
     instanceUseCount: ordinaryInstanceUseCount(composition, value.instanceId),
@@ -205,6 +237,42 @@ export function showPropertyAnimationLocalTimeMs(
   showGlobalSeconds: number,
 ): number {
   return Math.round(showGlobalSeconds * 1_000 - context.showTimeOffsetMs)
+}
+
+export function projectShowPropertyAnimationOverview(
+  context: Pick<
+    ShowPropertyAnimationEditorContext,
+    'tracks' | 'trackIssues' | 'showTimeOffsetMs' | 'instanceUseCount'
+  >,
+  options: readonly ShowPropertyAnimationOption[],
+): ShowPropertyAnimationOverviewRow[] {
+  const optionByKey = new Map(options.map((option) => [option.key, option]))
+  return context.tracks.map((track) => {
+    const targetKey = propertyTargetKey(track.target)
+    const option = optionByKey.get(targetKey)
+    const ordered = [...track.keyframes]
+      .sort((left, right) => left.timeMs - right.timeMs || left.id.localeCompare(right.id))
+    const first = ordered[0]
+    const last = ordered[ordered.length - 1]
+    const orphanIssue = context.trackIssues[track.id]
+      ?.find((issue) => ORPHAN_CODES.has(issue.code))
+    const orphaned = Boolean(orphanIssue || !option)
+    return {
+      trackId: track.id,
+      targetKey,
+      group: isInstanceTarget(track.target) ? 'instance' : 'placement',
+      label: option?.label ?? orphanTargetLabel(track.target),
+      valueRange: `${formatOverviewValue(option, first?.value)} → ${formatOverviewValue(option, last?.value)}`,
+      timeRange: `${formatOverviewSeconds(context, first?.timeMs)} → ${formatOverviewSeconds(context, last?.timeMs)}`,
+      fieldLocation: orphaned ? null : fieldLocation(track.target),
+      ...(isInstanceTarget(track.target) ? { linkedClipCount: context.instanceUseCount } : {}),
+      keyframeCount: ordered.length,
+      readOnly: orphaned || ordered.length !== 2,
+      orphaned,
+      ...(orphanIssue ? { orphanCode: orphanIssue.code, orphanMessage: orphanIssue.message } : {}),
+      removable: true,
+    }
+  })
 }
 
 export function applyShowGroupPropertyAnimationChange(
@@ -249,6 +317,7 @@ export function applyShowGroupPropertyAnimationChange(
   if (definition.propertyTracks) {
     definition.propertyTracks = normalizeShowPropertyTracks(definition.propertyTracks)
   }
+  if (change.kind === 'delete-track') return draft
   if (
     validateShowGroups(show, draft).length > 0
     || validateShowPropertyTracks(show, materializeShowGroupOccurrences(draft)).length > 0
@@ -278,6 +347,7 @@ function projectGroupContext(
       occurrenceId: occurrence.id,
     },
     tracks: (definition.propertyTracks ?? []).filter((track) => trackBelongsToValue(track, value)),
+    trackIssues: trackIssuesForGroup(show, composition, occurrence.id, definition.propertyTracks ?? []),
     storageDurationMs: Math.max(
       0,
       ...definition.placements.map((placement) => placement.startMs + placement.durationMs),
@@ -306,4 +376,83 @@ function trackBelongsToValue(
     return track.target.instanceId === value.instanceId
   }
   return track.target.placementId === value.placementId
+}
+
+function trackIssuesForScene(
+  show: ShowRecord,
+  composition: ShowCompositionV1,
+  sceneId: string,
+): Record<string, ShowPropertyAnimationValidationIssue[]> {
+  const sceneIndex = composition.scenes.findIndex((scene) => scene.sceneId === sceneId)
+  const scene = composition.scenes[sceneIndex]
+  if (!scene) return {}
+  const issues = validateShowPropertyTracks(show, composition)
+  return Object.fromEntries((scene.propertyTracks ?? []).map((track, trackIndex) => [
+    track.id,
+    issues.filter((issue) => issue.path.startsWith(`scenes[${sceneIndex}].propertyTracks[${trackIndex}]`)),
+  ]))
+}
+
+function trackIssuesForGroup(
+  show: ShowRecord,
+  composition: ShowCompositionV1,
+  occurrenceId: string,
+  tracks: readonly ShowPropertyAnimationTrack[],
+): Record<string, ShowPropertyAnimationValidationIssue[]> {
+  const materialized = materializeShowGroupOccurrences(composition)
+  const issues = validateShowPropertyTracks(show, materialized)
+  return Object.fromEntries(tracks.map((track) => {
+    const materializedId = `${occurrenceId}:${track.id}`
+    for (const [sceneIndex, scene] of materialized.scenes.entries()) {
+      const trackIndex = (scene.propertyTracks ?? []).findIndex((candidate) => candidate.id === materializedId)
+      if (trackIndex < 0) continue
+      const prefix = `scenes[${sceneIndex}].propertyTracks[${trackIndex}]`
+      return [track.id, issues.filter((issue) => issue.path.startsWith(prefix))]
+    }
+    return [track.id, []]
+  }))
+}
+
+function isInstanceTarget(target: ShowPropertyAnimationTarget): boolean {
+  return target.kind === 'instance-time-scale' || target.kind === 'instance-control'
+}
+
+function fieldLocation(target: ShowPropertyAnimationTarget): ShowPropertyAnimationFieldLocation {
+  if (target.kind === 'instance-time-scale' || target.kind === 'instance-control') return 'pattern'
+  if (target.kind === 'placement-opacity') return 'header'
+  if (target.kind === 'placement-view') return target.property === 'phase' ? 'playback' : 'header'
+  if (target.kind === 'placement-transform' || target.kind === 'placement-viewport') return 'place'
+  return 'effects'
+}
+
+function formatOverviewValue(option: ShowPropertyAnimationOption | undefined, value: number | undefined): string {
+  if (value === undefined) return '—'
+  const rounded = (candidate: number) => Number(candidate.toFixed(3)).toString()
+  if (option?.presentation === 'percentage') return `${rounded(value * 100)}%`
+  if (option?.presentation === 'multiplier') return `${rounded(value)}x`
+  if (option?.presentation === 'degrees') return `${rounded(value * 360)}°`
+  return rounded(value)
+}
+
+function formatOverviewSeconds(
+  context: Pick<ShowPropertyAnimationEditorContext, 'showTimeOffsetMs'>,
+  timeMs: number | undefined,
+): string {
+  if (timeMs === undefined) return '—'
+  return `${Number(showPropertyAnimationGlobalSeconds(context, timeMs).toFixed(3))}s`
+}
+
+function orphanTargetLabel(target: ShowPropertyAnimationTarget): string {
+  if (target.kind === 'instance-time-scale') return 'Animation speed'
+  if (target.kind === 'instance-control') return humanize(target.exportName)
+  if (target.kind === 'placement-opacity') return 'Opacity'
+  if (target.kind === 'placement-view') return humanize(target.property)
+  if (target.kind === 'placement-transform') return humanize(target.property)
+  if (target.kind === 'placement-viewport') return `Viewport ${humanize(target.property)}`
+  return `${humanize(target.effectKind)} ${humanize(target.parameterId)}`
+}
+
+function humanize(value: string): string {
+  const spaced = value.replace(/([a-z0-9])([A-Z])/g, '$1 $2').replace(/[-_]+/g, ' ')
+  return `${spaced.charAt(0).toUpperCase()}${spaced.slice(1)}`
 }
