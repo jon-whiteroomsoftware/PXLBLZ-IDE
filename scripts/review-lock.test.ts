@@ -1,4 +1,4 @@
-import { mkdtempSync, rmSync } from 'node:fs'
+import { mkdirSync, mkdtempSync, rmSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
@@ -102,34 +102,54 @@ describe('review serialization lock (#637)', () => {
     handle.release()
   })
 
-  it('restores a lock that was reacquired by a live holder before a stale reap lands (#637 P1)', async () => {
+  it('reaps only the exact observed-dead owner, never a live successor (#637 P1)', async () => {
     const lockDirectory = join(base, 'review.lock')
-    const live = await acquireReviewLock({
+
+    // GPT scenario: reaper observed dead owner A, but successor B acquired
+    // meanwhile. The identity precondition must leave B's lock untouched.
+    const successor = await acquireReviewLock({
       lockDirectory,
       owner: owner(process.pid),
       waitMs: 1_000,
       pollMs: 1,
     })
-
-    // A reaper acting on a stale dead-owner observation must not delete the
-    // live holder's lock: the quarantined owner re-check renames it back.
-    reapStaleReviewLock(lockDirectory, () => true)
-
-    expect(existsSync(join(lockDirectory, 'owner.json'))).toBe(true)
+    reapStaleReviewLock(lockDirectory, owner(99999), () => false)
     expect(parseReviewLockOwner(
       readFileSync(join(lockDirectory, 'owner.json'), 'utf8'),
     )).toEqual(owner(process.pid))
-    live.release()
+
+    // An identity match whose owner is still alive is restored, not reaped.
+    reapStaleReviewLock(lockDirectory, owner(process.pid), () => true)
+    expect(parseReviewLockOwner(
+      readFileSync(join(lockDirectory, 'owner.json'), 'utf8'),
+    )).toEqual(owner(process.pid))
+    successor.release()
     expect(existsSync(lockDirectory)).toBe(false)
 
-    // A confirmed-dead quarantine is removed for real.
+    // The exact observed-dead owner is removed for real.
     await acquireReviewLock({ lockDirectory, owner: owner(77777), waitMs: 1_000, pollMs: 1 })
-    reapStaleReviewLock(lockDirectory, () => false)
+    reapStaleReviewLock(lockDirectory, owner(77777), () => false)
     expect(existsSync(lockDirectory)).toBe(false)
 
     // Reaping an already-released lock is a no-op.
-    reapStaleReviewLock(lockDirectory, () => false)
+    reapStaleReviewLock(lockDirectory, owner(77777), () => false)
     expect(existsSync(lockDirectory)).toBe(false)
+  })
+
+  it('reaps an ownerless lock left by a crashed acquisition (#637 P2)', async () => {
+    const lockDirectory = join(base, 'review.lock')
+    mkdirSync(lockDirectory, { recursive: true })
+
+    const handle = await acquireReviewLock({
+      lockDirectory,
+      owner: owner(process.pid),
+      waitMs: 1_000,
+      pollMs: 1,
+    })
+    expect(parseReviewLockOwner(
+      readFileSync(join(lockDirectory, 'owner.json'), 'utf8'),
+    )).toEqual(owner(process.pid))
+    handle.release()
   })
 
   it('never releases a lock recorded to a different owner (#637 P1)', async () => {

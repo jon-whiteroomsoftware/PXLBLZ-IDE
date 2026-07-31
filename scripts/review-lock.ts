@@ -2,9 +2,12 @@
  * Review serialization lock (#637). Two concurrent `review:candidate` runs
  * contend for reviewer quota and can starve each other into their caps, so
  * reviews queue on an exclusive lock in the shared git common directory
- * (worktrees share it). The lock is a directory created atomically with
- * `mkdir`; the owner file records pid, range, and start time so a waiter can
- * report who holds it and reap locks whose owning process is gone.
+ * (worktrees share it). The lock is a directory published atomically by
+ * renaming a fully formed staging directory into place, so it is never
+ * visible without its owner.json (pid, range, start time); waiters report
+ * who holds it, and locks whose recorded owner is gone -- or that are
+ * ownerless, which staged publish makes synonymous with corrupt -- are
+ * reaped identity-conditionally via quarantine.
  */
 
 import { mkdirSync, readFileSync, renameSync, rmSync, writeFileSync } from 'node:fs'
@@ -63,48 +66,68 @@ const defaultSleep = (ms: number): Promise<void> => (
   new Promise((resolve) => setTimeout(resolve, ms))
 )
 
-let reapCounter = 0
+let lockCounter = 0
+
+function readLockOwner(lockDirectory: string): ReviewLockOwner | null {
+  try {
+    return parseReviewLockOwner(
+      readFileSync(join(lockDirectory, 'owner.json'), 'utf8'),
+    )
+  } catch {
+    return null
+  }
+}
+
+function sameLockOwner(a: ReviewLockOwner | null, b: ReviewLockOwner | null): boolean {
+  if (a === null || b === null) return a === b
+  return a.pid === b.pid && a.range === b.range && a.startedAt === b.startedAt
+}
 
 /**
- * Reaps an apparently dead lock without the delete-a-live-lock race: the
- * directory is first renamed into a unique quarantine path (atomic, so
- * exactly one of several racing reapers wins), then the owner is re-read
- * INSIDE the quarantine. If the quarantined owner turns out to be alive --
- * the stale observation predated a reacquisition -- the directory is renamed
- * back intact. Only a confirmed-dead quarantine is removed. The residual
- * window (a third process acquiring between rename and rename-back after a
- * liveness misjudgment) requires pid-level misreporting plus a microsecond
- * race, versus the removed bug which needed only two waiters and one crash.
+ * Reaps a lock previously observed dead (or ownerless, which the staged
+ * publish in acquireReviewLock makes synonymous with corrupt) without the
+ * displace-a-live-successor race: the reap is conditional on IDENTITY, not
+ * liveness. The owner is re-read immediately before the rename and the reap
+ * aborts unless it still equals the observed owner -- a successor that
+ * acquired after the stale observation is therefore never renamed, no
+ * matter how delayed the reaper is. The unique-destination rename is atomic,
+ * so one of several racing reapers wins and the losers return on ENOENT.
+ * After the rename the quarantined owner is verified again; anything other
+ * than the confirmed-dead observed owner is renamed back intact, and if a
+ * new lock has already replaced it the quarantine is abandoned with a
+ * warning rather than deleting a live holder's lock. Reaching that warning
+ * requires the owner to change within the read-to-rename microseconds AND a
+ * third acquisition within the rename-to-restore microseconds.
  */
 export function reapStaleReviewLock(
   lockDirectory: string,
+  observed: ReviewLockOwner | null,
   isAlive: (pid: number) => boolean = processIsAlive,
 ): void {
-  reapCounter += 1
-  const quarantine = `${lockDirectory}.reaping-${process.pid}-${reapCounter}`
+  if (!sameLockOwner(readLockOwner(lockDirectory), observed)) return
+  lockCounter += 1
+  const quarantine = `${lockDirectory}.reaping-${process.pid}-${lockCounter}`
   try {
     renameSync(lockDirectory, quarantine)
   } catch {
     // Another reaper won, or the holder released; nothing to do.
     return
   }
-  let quarantinedOwner: ReviewLockOwner | null = null
+  const quarantined = readLockOwner(quarantine)
+  const confirmedReapable = observed === null
+    ? quarantined === null
+    : sameLockOwner(quarantined, observed) && !isAlive(observed.pid)
+  if (confirmedReapable) {
+    rmSync(quarantine, { recursive: true, force: true })
+    return
+  }
   try {
-    quarantinedOwner = parseReviewLockOwner(
-      readFileSync(join(quarantine, 'owner.json'), 'utf8'),
-    )
+    renameSync(quarantine, lockDirectory)
   } catch {
-    quarantinedOwner = null
+    console.warn(
+      `⚠ Review lock quarantine could not be restored; leaving ${quarantine} for inspection.`,
+    )
   }
-  if (quarantinedOwner && isAlive(quarantinedOwner.pid)) {
-    try {
-      renameSync(quarantine, lockDirectory)
-      return
-    } catch {
-      // A new lock appeared in the window; fall through to drop quarantine.
-    }
-  }
-  rmSync(quarantine, { recursive: true, force: true })
 }
 
 export async function acquireReviewLock(
@@ -113,43 +136,40 @@ export async function acquireReviewLock(
   const isAlive = options.isAlive ?? processIsAlive
   const sleep = options.sleep ?? defaultSleep
   const now = options.now ?? Date.now
-  const ownerPath = join(options.lockDirectory, 'owner.json')
   const startedWaiting = now()
 
   for (;;) {
+    // Staged publish: the lock directory is built fully formed (owner.json
+    // first) and renamed into place atomically, so a lock is never visible
+    // without its owner. A crash mid-acquisition leaves only an orphan
+    // staging directory, and an ownerless lock is unambiguously corrupt.
+    lockCounter += 1
+    const staging = `${options.lockDirectory}.staging-${process.pid}-${lockCounter}`
+    mkdirSync(staging, { recursive: true })
+    writeFileSync(
+      join(staging, 'owner.json'),
+      `${JSON.stringify(options.owner, null, 2)}\n`,
+    )
     try {
-      mkdirSync(options.lockDirectory, { recursive: false })
-      writeFileSync(ownerPath, `${JSON.stringify(options.owner, null, 2)}\n`)
+      renameSync(staging, options.lockDirectory)
       return {
         release: () => {
-          // A reaper that misjudged our liveness may have replaced this
-          // lock; never delete a lock recorded to a different owner.
-          try {
-            const current = parseReviewLockOwner(readFileSync(ownerPath, 'utf8'))
-            if (current && current.pid !== options.owner.pid) return
-          } catch {
-            // Missing or unreadable owner: removal below is a no-op or ours.
-          }
+          // A reaper that misjudged this lock may have replaced it; never
+          // delete a lock recorded to a different owner.
+          const current = readLockOwner(options.lockDirectory)
+          if (current && !sameLockOwner(current, options.owner)) return
           rmSync(options.lockDirectory, { recursive: true, force: true })
         },
       }
     } catch (error) {
-      if ((error as NodeJS.ErrnoException).code === 'ENOENT') {
-        // Parent .git/pxlblz does not exist yet; create it and retry.
-        mkdirSync(join(options.lockDirectory, '..'), { recursive: true })
-        continue
-      }
-      if ((error as NodeJS.ErrnoException).code !== 'EEXIST') throw error
+      rmSync(staging, { recursive: true, force: true })
+      const code = (error as NodeJS.ErrnoException).code
+      if (code !== 'EEXIST' && code !== 'ENOTEMPTY') throw error
     }
 
-    let holder: ReviewLockOwner | null = null
-    try {
-      holder = parseReviewLockOwner(readFileSync(ownerPath, 'utf8'))
-    } catch {
-      holder = null
-    }
-    if (holder && !isAlive(holder.pid)) {
-      reapStaleReviewLock(options.lockDirectory, isAlive)
+    const holder = readLockOwner(options.lockDirectory)
+    if (holder === null || !isAlive(holder.pid)) {
+      reapStaleReviewLock(options.lockDirectory, holder, isAlive)
       continue
     }
 
