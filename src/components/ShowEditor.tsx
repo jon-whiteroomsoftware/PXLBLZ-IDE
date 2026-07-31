@@ -1,4 +1,4 @@
-import { Fragment, useCallback, useDeferredValue, useEffect, useLayoutEffect, useMemo, useRef, useState, useSyncExternalStore, type CSSProperties, type MouseEvent as ReactMouseEvent, type PointerEvent as ReactPointerEvent, type ReactNode, type RefObject, type SetStateAction } from 'react'
+import { Fragment, createContext, useCallback, useContext, useDeferredValue, useEffect, useLayoutEffect, useMemo, useRef, useState, useSyncExternalStore, type CSSProperties, type MouseEvent as ReactMouseEvent, type PointerEvent as ReactPointerEvent, type ReactNode, type RefObject, type SetStateAction } from 'react'
 import { createPortal } from 'react-dom'
 import { Activity, BookOpen, Check, ChevronDown, ChevronRight, Clock3, Code2, Copy, Download, Eye, Flag, Grid2X2, Info, Layers3, Lightbulb, ListChecks, Lock, Magnet, Map as MapIcon, Maximize2, PanelLeft, Pause, Play, Plus, Redo2, Repeat2, RotateCcw, RotateCw, Route, Scissors, Settings2, SkipBack, SlidersHorizontal, SplitSquareHorizontal, Trash2, Undo2, WandSparkles, X, Zap } from 'lucide-react'
 import { Button } from '@/components/ui/button'
@@ -26,7 +26,7 @@ import { ShowPropertySparkline } from '@/components/ShowPropertySparkline'
 import { describePropertyLaneHover, resolvePropertyLaneDisplayLabels } from '@/engine/showPropertyLaneLabels'
 import { propertyLaneFamilyColor, type ShowPropertyLaneFamily } from '@/engine/showPropertyLaneFamilies'
 import { ShowPropertyLaneFamilyGlyph } from '@/components/ShowPropertyLaneFamilyGlyph'
-import { ShowClipEntityDetail } from '@/components/ShowClipEntityDetail'
+import { ShowClipEntityDetail, type ShowClipEntityDetailHandle } from '@/components/ShowClipEntityDetail'
 import { ShowPropertyAnimationProvider } from '@/components/ShowPropertyAnimationEditor'
 import { ShowPatternInstanceControls } from '@/components/ShowPatternInstanceControls'
 import { ShowTransitionPalette, ShowTransitionParameters } from '@/components/ShowTransitionAuthoring'
@@ -83,7 +83,10 @@ import {
   projectCompositionShowClipSummary,
   projectGlobalShowClipSummary,
   projectShowClipTimelineSummary,
+  showClipSummaryDestination,
   showClipInlineSummary,
+  type ShowClipSummaryDestination,
+  type ShowClipSummaryItem,
   type ShowClipSummaryKind,
   type ShowClipSummarySection,
 } from '@/engine/showClipSummary'
@@ -2219,13 +2222,7 @@ export function ShowEditor({
                     <span className="truncate text-zinc-400">Inspect here; create your own Show to edit.</span>
                   </div>
                 )}
-                <fieldset
-                  disabled={readOnly}
-                  data-read-only={readOnly ? 'true' : undefined}
-                  className={readOnly
-                    ? 'contents [&_input:disabled]:cursor-default [&_input:disabled]:border-zinc-800 [&_input:disabled]:bg-zinc-950/35 [&_input:disabled]:text-zinc-300 [&_input:disabled]:opacity-100 [&_select:disabled]:cursor-default [&_select:disabled]:border-zinc-800 [&_select:disabled]:bg-zinc-950/35 [&_select:disabled]:text-zinc-300 [&_select:disabled]:opacity-100 [&_button:disabled]:cursor-not-allowed [&_button:disabled]:opacity-45'
-                    : 'contents'}
-                >
+                <InspectorReadOnlyContext.Provider value={readOnly}>
                   <ContextualInspector
               show={activeShow}
                   compositionShow={inspectorShow ?? activeShow}
@@ -2438,7 +2435,7 @@ export function ShowEditor({
                   onUpdateRoutingLayout={(layoutId, changes) => void updateRoutingLayout(activeShow.id, layoutId, changes)}
                   onRemoveRoutingLayout={(layoutId) => void removeRoutingLayout(activeShow.id, layoutId)}
                   />
-                </fieldset>
+                </InspectorReadOnlyContext.Provider>
               </div>
             </ShowEntityDetailPanel>
             )
@@ -6851,6 +6848,9 @@ function formatSecondsValue(timeMs: number): string {
   return Number((Math.max(0, timeMs) / 1000).toFixed(3)).toString()
 }
 
+const InspectorReadOnlyContext = createContext(false)
+const READ_ONLY_INSPECTOR_CLASS = 'contents [&_input:disabled]:cursor-default [&_input:disabled]:border-zinc-800 [&_input:disabled]:bg-zinc-950/35 [&_input:disabled]:text-zinc-300 [&_input:disabled]:opacity-100 [&_select:disabled]:cursor-default [&_select:disabled]:border-zinc-800 [&_select:disabled]:bg-zinc-950/35 [&_select:disabled]:text-zinc-300 [&_select:disabled]:opacity-100 [&_button:disabled]:cursor-not-allowed [&_button:disabled]:opacity-45'
+
 function InspectorPanel({
   family,
   title,
@@ -6870,6 +6870,7 @@ function InspectorPanel({
   actions?: React.ReactNode
   children: React.ReactNode
 }) {
+  const readOnly = useContext(InspectorReadOnlyContext)
   const label = `${family} properties`
   const accent = {
     Clip: 'border-cyan-400/35 bg-cyan-400/10 text-cyan-300',
@@ -6901,11 +6902,21 @@ function InspectorPanel({
               </>
             )}
           </div>
-          {actions && <div className="ml-auto flex shrink-0 items-center gap-1">{actions}</div>}
+          {actions && (
+            <fieldset disabled={readOnly} className="contents">
+              <div className="ml-auto flex shrink-0 items-center gap-1">{actions}</div>
+            </fieldset>
+          )}
         </div>
         {summary && <div className="min-w-0 px-2.5">{summary}</div>}
       </header>
-      <div className="p-2.5">{children}</div>
+      <fieldset
+        disabled={readOnly}
+        data-read-only={readOnly ? 'true' : undefined}
+        className={readOnly ? READ_ONLY_INSPECTOR_CLASS : 'contents'}
+      >
+        <div className="p-2.5">{children}</div>
+      </fieldset>
     </section>
   )
 }
@@ -7255,6 +7266,33 @@ function showTimelineOwnerForInspector(owner: ShowClipInspectorOwner): ShowTimel
   return null
 }
 
+function availableClipSummaryDestination(
+  section: ShowClipSummarySection,
+  item: ShowClipSummaryItem,
+  {
+    transformEnabled,
+    patternControls,
+    stutterAvailable,
+    opacityAvailable,
+  }: {
+    transformEnabled: boolean
+    patternControls: AutomatablePatternControl[]
+    stutterAvailable: boolean
+    opacityAvailable: boolean
+  },
+): ShowClipSummaryDestination | null {
+  const destination = showClipSummaryDestination(section.kind, item.id)
+  if (!destination) return null
+  if (destination.location === 'place' && !transformEnabled) return null
+  if (destination.targetKey === 'opacity' && !opacityAvailable) return null
+  if (destination.targetKey === 'stutter' && !stutterAvailable) return null
+  if (destination.targetKey.startsWith('control:')) {
+    const exportName = destination.targetKey.slice('control:'.length)
+    if (!patternControls.some((control) => control.exportName === exportName)) return null
+  }
+  return destination
+}
+
 function GroupInspector({
   definition,
   occurrence,
@@ -7373,7 +7411,8 @@ function CompositionClipInspector({
   onRemove?: () => void
 }) {
   const [animationOverviewOpen, setAnimationOverviewOpen] = useState(false)
-  const animationSummaryRef = useRef<HTMLDivElement>(null)
+  const animationSummaryRef = useRef<HTMLButtonElement>(null)
+  const clipDetailRef = useRef<ShowClipEntityDetailHandle>(null)
   const animationCount = propertyAnimationContext?.tracks.length ?? 0
   const closeAnimationOverview = (restoreSummaryFocus: boolean) => {
     setAnimationOverviewOpen(false)
@@ -7391,6 +7430,13 @@ function CompositionClipInspector({
           animationCount={animationCount}
           animationButtonRef={animationSummaryRef}
           onAnimationsClick={() => setAnimationOverviewOpen(true)}
+          destinationForItem={(section, item) => availableClipSummaryDestination(section, item, {
+            transformEnabled,
+            patternControls,
+            stutterAvailable: instanceOwnership !== null,
+            opacityAvailable: value.local?.opacity !== undefined,
+          })}
+          onNavigate={(destination) => clipDetailRef.current?.navigateToSummaryDestination(destination)}
         />
       )}
       icon={<Grid2X2 size={13} aria-hidden />}
@@ -7409,6 +7455,7 @@ function CompositionClipInspector({
       ) : undefined}
     >
       <ShowClipEntityDetail
+        ref={clipDetailRef}
         value={value}
         title={value.patternName}
         readOnly={false}
@@ -7502,6 +7549,7 @@ function ClipInspector({
   onUpdateZoneMode: (zoneMode: NonNullable<ShowCell['zoneMode']>) => void
 }) {
   const cell = clip
+  const clipDetailRef = useRef<ShowClipEntityDetailHandle>(null)
   const sceneIndex = show.scenes.findIndex((scene) => scene.id === cell.sceneId)
   const zoneIndex = show.zones.findIndex((zone) => zone.id === cell.zoneId)
   const maxZoneSpan = Math.max(1, show.zones.length - zoneIndex)
@@ -7530,7 +7578,18 @@ function ClipInspector({
     <InspectorPanel
       family="Clip"
       heading={cell.patternName}
-      summary={<ClipConfigurationSummary summary={summary} />}
+      summary={(
+        <ClipConfigurationSummary
+          summary={summary}
+          destinationForItem={(section, item) => availableClipSummaryDestination(section, item, {
+            transformEnabled,
+            patternControls,
+            stutterAvailable: false,
+            opacityAvailable: false,
+          })}
+          onNavigate={(destination) => clipDetailRef.current?.navigateToSummaryDestination(destination)}
+        />
+      )}
       icon={<Grid2X2 size={13} aria-hidden />}
       actions={(
         <Button
@@ -7548,6 +7607,7 @@ function ClipInspector({
     >
       {inspectorValue && (
         <ShowClipEntityDetail
+          ref={clipDetailRef}
           value={inspectorValue}
           title={cell.patternName}
           readOnly={false}
@@ -9721,11 +9781,18 @@ function ClipConfigurationSummary({
   animationCount,
   animationButtonRef,
   onAnimationsClick,
+  destinationForItem,
+  onNavigate,
 }: {
   summary: ShowClipSummarySection[]
   animationCount?: number
-  animationButtonRef?: RefObject<HTMLDivElement | null>
+  animationButtonRef?: RefObject<HTMLButtonElement | null>
   onAnimationsClick?: () => void
+  destinationForItem?: (
+    section: ShowClipSummarySection,
+    item: ShowClipSummaryItem,
+  ) => ShowClipSummaryDestination | null
+  onNavigate?: (destination: ShowClipSummaryDestination) => void
 }) {
   const visibleSummary = animationCount === undefined || animationCount === 0
     ? summary
@@ -9752,32 +9819,44 @@ function ClipConfigurationSummary({
           >
             <ClipSummaryIcon kind={section.kind} size={11} />
           </span>
-          {section.items.map((item, index) => (
-            <span key={item.id} className="inline-flex items-baseline whitespace-nowrap">
-              {index > 0 && <span aria-hidden className="mr-1.5 text-zinc-700">·</span>}
-              <span className="text-zinc-400">{item.label}</span>
-              {item.value && <strong className="ml-1 font-medium text-zinc-100">{item.value}</strong>}
-            </span>
-          ))}
+          {section.items.map((item, index) => {
+            const destination = destinationForItem?.(section, item) ?? null
+            const content = (
+              <>
+                {index > 0 && <span aria-hidden className="mr-1.5 text-zinc-700">·</span>}
+                <span className="text-zinc-400">{item.label}</span>
+                {item.value && <strong className="ml-1 font-medium text-zinc-100">{item.value}</strong>}
+              </>
+            )
+            return destination ? (
+              <button
+                key={item.id}
+                type="button"
+                aria-label={`${item.label}${item.value ? ` ${item.value}` : ''}; go to ${destination.destinationLabel}`}
+                onClick={() => onNavigate?.(destination)}
+                className="inline-flex items-baseline whitespace-nowrap rounded border-0 bg-transparent p-0 text-left hover:bg-zinc-800/70 focus-visible:outline focus-visible:outline-1 focus-visible:outline-cyan-300"
+              >
+                {content}
+              </button>
+            ) : (
+              <span key={item.id} className="inline-flex items-baseline whitespace-nowrap">
+                {content}
+              </span>
+            )
+          })}
         </span>
       ))}
       {animationCount !== undefined && animationCount > 0 && (
-        <div
+        <button
           ref={animationButtonRef}
-          role="button"
-          tabIndex={0}
+          type="button"
           aria-label={`Animations — ${animationCount}`}
           onClick={onAnimationsClick}
-          onKeyDown={(event) => {
-            if (event.key !== 'Enter' && event.key !== ' ') return
-            event.preventDefault()
-            onAnimationsClick?.()
-          }}
           className="inline-flex h-5 items-center gap-1 rounded px-1 text-violet-300/90 hover:bg-violet-300/10 hover:text-violet-200 focus-visible:outline focus-visible:outline-1 focus-visible:outline-violet-200"
         >
           <Activity size={11} aria-hidden />
           <span>Animations — {animationCount}</span>
-        </div>
+        </button>
       )}
     </section>
   )

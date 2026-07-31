@@ -326,6 +326,9 @@ export function ShowEffectStack({
               <div
                 data-testid="show-effect-mirror"
                 data-fixed="true"
+                data-show-clip-summary-target="mirror"
+                data-show-clip-summary-focus="container"
+                tabIndex={-1}
                 className="grid min-h-8 grid-cols-[24px_minmax(0,1fr)_24px] items-center gap-1 border-l-2 border-t border-l-amber-400/55 border-t-zinc-800/60 bg-amber-400/[0.035] px-1 py-1"
               >
                 <span className="grid size-6 shrink-0 place-items-center text-amber-300/80"><EffectMnemonic kind="mirror" /></span>
@@ -359,6 +362,9 @@ export function ShowEffectStack({
                   key={effect.id}
                   data-testid={`show-effect-${effect.id}`}
                   data-effect-stage={stage.id}
+                  data-show-clip-summary-target={`effect:${effect.id}`}
+                  data-show-clip-summary-focus="container"
+                  tabIndex={-1}
                   className={`group relative grid min-h-8 grid-cols-[24px_minmax(0,1fr)_24px] items-center gap-1 border-t bg-[#101115] px-1 py-1 ${activeDrop === 'before' ? 'border-t-cyan-300' : 'border-t-zinc-800/60'} ${activeDrop === 'after' ? 'after:absolute after:inset-x-0 after:bottom-0 after:h-px after:bg-cyan-300' : ''}`}
                   onDragOver={(event) => {
                     const source = draggedEffect()

@@ -34,7 +34,10 @@ export function ShowPatternInstanceControls({
 
   return (
     <div role="group" aria-label="Pattern instance" className="text-[9px]">
-      <div role="row" className="grid h-6 grid-cols-[1.75rem_24%_minmax(0,1fr)] items-center whitespace-nowrap">
+      <div
+        role="row"
+        className="grid h-6 grid-cols-[1.75rem_24%_minmax(0,1fr)] items-center whitespace-nowrap"
+      >
         <span role="cell" className="text-zinc-500">
           {ownership.useCount > 1
             ? <Link2 size={11} aria-hidden className="text-cyan-300/80" />
@@ -59,7 +62,12 @@ export function ShowPatternInstanceControls({
         </span>
       </div>
 
-      <div role="row" className="grid h-6 grid-cols-[1.75rem_24%_minmax(0,1fr)] items-center whitespace-nowrap">
+      <div
+        role="row"
+        data-show-clip-summary-target="stutter"
+        tabIndex={-1}
+        className="grid h-6 grid-cols-[1.75rem_24%_minmax(0,1fr)] items-center whitespace-nowrap"
+      >
         <span role="cell">
           <input
             type="checkbox"

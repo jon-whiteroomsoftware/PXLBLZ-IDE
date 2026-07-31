@@ -430,8 +430,12 @@ The working grammar is compact:
 - **Selection and detail.** Selecting a Clip, Group, Transition, Zone, or the
   Show opens a compact floating **Entity Detail Panel** beside its source with
   that entity's exact editable fields. Clip Details repeat the complete
-  categorized configuration summary at the top. Transition Details identify
-  their incoming content compactly as `15.0: CompassRose`, or
+  categorized configuration summary at the top. Each summary fact with an
+  owning field or row is a shortcut: select it to open the owning tab and focus
+  that destination. Facts without a destination remain plain text. The same
+  navigation works in read-only Clip Details, where the focused destination
+  remains visible but disabled. Transition Details identify their incoming
+  content compactly as `15.0: CompassRose`, or
   `1:15.3: CompassRose` at one minute or later; simultaneous incoming Clips add a
   count instead of a decorative list. Clicking elsewhere closes
   transient Details; one Detail may be pinned for comparison.

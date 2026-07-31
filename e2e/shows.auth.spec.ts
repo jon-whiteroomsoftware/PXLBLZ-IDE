@@ -252,17 +252,7 @@ test.describe('authenticated Show authoring', () => {
     await expect(page.getByRole('group', { name: 'Animation speed lane for Main' })).toHaveCount(0)
   })
 
-  // The Learn 100 lessons deliberately carry no Pattern control targets, so the
-  // Clip summary and control-table coverage lives on the Property Animation
-  // reference, which still authors one (#363).
-  test('surfaces a Clip summary when the Clip is selected (#599)', async ({ page }) => {
-    // The previous version pinned a formatted tooltip title
-    // ("Animation speed 0.32× · Speed 0.08") and two summary sub-groups that no
-    // longer exist, and forced a width by mutating element.style to test
-    // truncation. Assert the surfaces that remain: the Clip carries a summary,
-    // and selecting it names the Pattern. The Pattern controls table is not
-    // asserted: it does not render for this Show's Clip, which needs its own
-    // look rather than a guess (#638).
+  test('navigates from a built-in Clip summary to its field (#599, #650)', async ({ page }) => {
     await page.goto('studio/shows/stock-show-reference-property-animation')
 
     const clip = page.getByRole('button', { name: 'Select CompassRose' }).first()
@@ -271,7 +261,20 @@ test.describe('authenticated Show authoring', () => {
 
     const clipProperties = page.getByRole('region', { name: 'Clip properties' })
     await expect(clipProperties.getByRole('heading', { name: 'CompassRose' })).toBeVisible()
-    await expect(clipProperties.getByRole('region', { name: 'Clip summary' })).toBeVisible()
+    const summary = clipProperties.getByRole('region', { name: 'Clip summary' })
+    await expect(summary).toBeVisible()
+
+    await summary.getByRole('button', {
+      name: /^Animation speed .*; go to Pattern Speed field$/,
+    }).click()
+
+    await expect(clipProperties.getByRole('tab', { name: /^Pattern/ })).toHaveAttribute(
+      'aria-selected',
+      'true',
+    )
+    await expect(
+      clipProperties.getByRole('textbox', { name: 'Animation speed exact multiplier' }),
+    ).toBeFocused()
   })
 
   // The dense-toolbar test was 112 lines over five viewports with dozens of

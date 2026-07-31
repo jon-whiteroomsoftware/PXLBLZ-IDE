@@ -4,11 +4,37 @@ import {
   projectCompositionShowClipSummary,
   projectGlobalShowClipSummary,
   projectShowClipTimelineSummary,
+  showClipSummaryDestination,
   showClipInlineSummary,
 } from './showClipSummary'
 import { projectShowUnifiedTimeline } from './showUnifiedTimelineProjection'
 
 describe('Show Clip summary', () => {
+  it.each([
+    ['playback', 'time-scale', { location: 'pattern', targetKey: 'speed', destinationLabel: 'Pattern Speed field' }],
+    ['playback', 'stepped-clock', { location: 'pattern', targetKey: 'stutter', destinationLabel: 'Pattern Stutter control' }],
+    ['controls', 'control:sliderSpeed', { location: 'pattern', targetKey: 'control:sliderSpeed', destinationLabel: 'Pattern control' }],
+    ['view', 'brightness', { location: 'header', targetKey: 'brightness', destinationLabel: 'Clip header Brightness field' }],
+    ['view', 'opacity', { location: 'header', targetKey: 'opacity', destinationLabel: 'Clip header Opacity field' }],
+    ['view', 'mirror', { location: 'effects', targetKey: 'mirror', destinationLabel: 'Effects Mirror row' }],
+    ['view', 'phase', { location: 'playback', targetKey: 'phase', destinationLabel: 'Playback Phase field' }],
+    ['view', 'transform-position-x', { location: 'place', targetKey: 'transform-position-x', destinationLabel: 'Place Position X field' }],
+    ['view', 'viewport', { location: 'place', targetKey: 'viewport', destinationLabel: 'Place Viewport fields' }],
+    ['effects', 'effect:threshold', { location: 'effects', targetKey: 'effect:threshold', destinationLabel: 'Effects row' }],
+  ] as const)('maps the %s/%s summary fact to its owning surface (#650)', (kind, itemId, expected) => {
+    expect(showClipSummaryDestination(kind, itemId)).toEqual(expected)
+  })
+
+  it.each([
+    ['playback', 'restart'],
+    ['playback', 'time-offset'],
+    ['playback', 'light-shutter'],
+    ['animation', 'animation:time-scale'],
+    ['view', 'unknown'],
+  ] as const)('leaves %s/%s plain when the tabbed inspector has no destination (#650)', (kind, itemId) => {
+    expect(showClipSummaryDestination(kind, itemId)).toBeNull()
+  })
+
   it('projects unified Clip instance, placement, Effect, and owned animation facts (#599)', () => {
     const show = createDefaultShow('show-composition-summary', 'Composition summary', 1_000)
     const sceneId = show.scenes[0].id

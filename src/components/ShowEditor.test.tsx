@@ -2031,6 +2031,128 @@ describe('ShowEditor (#318)', () => {
     expect(summary).toHaveTextContent('Animations — 1')
   })
 
+  it('navigates each configuration summary category to its exact owning field or row (#650)', async () => {
+    const user = userEvent.setup()
+    const show = createDefaultShow('show-navigational-summary', 'Navigational summary', 1000)
+    show.stageMapId = 'plane'
+    show.cells[0] = {
+      ...show.cells[0],
+      pattern: { kind: 'stock', id: 'CometLoom' },
+      patternName: 'CometLoom',
+      controlTargets: { sliderSpeed: 0.42 },
+      adaptations: {
+        ...show.cells[0].adaptations,
+        timeScale: 0.5,
+        brightness: 0.75,
+        mirror: true,
+        phase: 0.2,
+        timeOffsetMs: 250,
+      },
+      transform: { positionX: 0.25, positionY: 0, rotation: 0, scaleX: 1, scaleY: 1 },
+      viewport: { enabled: true, x: 0.1, y: 0, width: 0.8, height: 1 },
+      effects: [{ id: 'threshold-navigation', kind: 'threshold', amount: 1, threshold: 0.2 }],
+    }
+    setPersonalContentProvider(memoryProvider([show]))
+    useShowStore.setState({ shows: [show], activeShowId: show.id, showsLoaded: true })
+
+    render(<ShowEditor showId={show.id} />)
+    await user.click(screen.getAllByRole('button', { name: 'Select CometLoom' })[0])
+    const panel = screen.getByRole('dialog', { name: 'Entity Detail Panel' })
+    const summary = within(panel).getByRole('region', { name: 'Clip summary' })
+
+    const speed = within(summary).getByRole('button', {
+      name: 'Animation speed 0.5x; go to Pattern Speed field',
+    })
+    speed.focus()
+    await user.keyboard('{Enter}')
+    await waitFor(() => {
+      expect(within(panel).getByRole('tab', { name: /^Pattern/ })).toHaveAttribute('aria-selected', 'true')
+      expect(within(panel).getByRole('textbox', { name: 'Animation speed exact multiplier' })).toHaveFocus()
+    })
+
+    await user.click(within(summary).getByRole('button', {
+      name: 'Speed 42%; go to Pattern control',
+    }))
+    await waitFor(() => {
+      expect(within(panel).getByRole('textbox', { name: 'Speed target exact percentage' })).toHaveFocus()
+    })
+
+    await user.click(within(summary).getByRole('button', {
+      name: 'Brightness 75%; go to Clip header Brightness field',
+    }))
+    await waitFor(() => {
+      expect(within(panel).getByRole('textbox', { name: 'Brightness exact percentage' })).toHaveFocus()
+    })
+
+    await user.click(within(summary).getByRole('button', {
+      name: 'Position X 0.25; go to Place Position X field',
+    }))
+    await waitFor(() => {
+      expect(within(panel).getByRole('tab', { name: /^Place/ })).toHaveAttribute('aria-selected', 'true')
+      expect(within(panel).getByRole('textbox', { name: 'Content X' })).toHaveFocus()
+    })
+
+    await user.click(within(summary).getByRole('button', {
+      name: 'Viewport On · x 0.1, y 0, 0.8 × 1; go to Place Viewport fields',
+    }))
+    await waitFor(() => {
+      expect(within(panel).getByRole('textbox', { name: 'Viewport X' })).toHaveFocus()
+    })
+
+    await user.click(within(summary).getByRole('button', {
+      name: 'Mirror On; go to Effects Mirror row',
+    }))
+    const mirrorRow = within(panel).getByTestId('show-effect-mirror')
+    await waitFor(() => {
+      expect(within(panel).getByRole('tab', { name: /^Effects/ })).toHaveAttribute('aria-selected', 'true')
+      expect(mirrorRow).toHaveFocus()
+    })
+
+    await user.click(within(summary).getByRole('button', {
+      name: /Threshold .*; go to Effects row/,
+    }))
+    const thresholdRow = within(panel).getByTestId('show-effect-threshold-navigation')
+    await waitFor(() => expect(thresholdRow).toHaveFocus())
+
+    await user.click(within(summary).getByRole('button', {
+      name: 'Phase 0.2; go to Playback Phase field',
+    }))
+    await waitFor(() => {
+      expect(within(panel).getByRole('tab', { name: /^Playback/ })).toHaveAttribute('aria-selected', 'true')
+      expect(within(panel).getByRole('textbox', { name: 'Phase' })).toHaveFocus()
+    })
+
+    expect(within(summary).getByText('Start offset')).toBeInTheDocument()
+    expect(within(summary).queryByRole('button', { name: /Start offset/ })).not.toBeInTheDocument()
+  })
+
+  it('keeps summary navigation operable while a built-in destination remains disabled (#650)', async () => {
+    const user = userEvent.setup()
+    const show = createDefaultShow('show-read-only-navigational-summary', 'Read-only navigational summary', 1000)
+    show.cells[0] = {
+      ...show.cells[0],
+      adaptations: { ...show.cells[0].adaptations, timeScale: 0.5 },
+    }
+
+    render(<ShowEditor showId={show.id} showOverride={show} readOnly />)
+    await user.click(screen.getByRole('button', { name: 'Select TestPattern1D' }))
+    const panel = screen.getByRole('dialog', { name: 'Entity Detail Panel' })
+    const summary = within(panel).getByRole('region', { name: 'Clip summary' })
+
+    const speed = within(summary).getByRole('button', {
+      name: 'Animation speed 0.5x; go to Pattern Speed field',
+    })
+    expect(speed).toBeEnabled()
+    await user.click(speed)
+
+    await waitFor(() => {
+      const destination = within(panel).getByTestId('clip-summary-target-speed')
+      expect(within(panel).getByRole('tab', { name: /^Pattern/ })).toHaveAttribute('aria-selected', 'true')
+      expect(within(panel).getByRole('textbox', { name: 'Animation speed exact multiplier' })).toBeDisabled()
+      expect(destination).toHaveFocus()
+    })
+  })
+
   it('keeps compatibility Clip animation summaries aligned between timeline and Detail (#599 review)', async () => {
     const user = userEvent.setup()
     const show = createDefaultShow('show-compatibility-clip-summary', 'Compatibility Clip summary', 1000)

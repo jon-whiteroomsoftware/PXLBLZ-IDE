@@ -30,6 +30,12 @@ export interface ShowClipSummarySection {
   items: ShowClipSummaryItem[]
 }
 
+export interface ShowClipSummaryDestination {
+  location: 'header' | 'pattern' | 'place' | 'effects' | 'playback'
+  targetKey: string
+  destinationLabel: string
+}
+
 export interface ShowClipTimelineSummaryItem extends ShowClipSummaryItem {
   showValue: boolean
   displayValue?: string
@@ -45,6 +51,65 @@ const SECTION_LABELS: Record<ShowClipSummaryKind, string> = {
   view: 'View',
   effects: 'Effects',
   animation: 'Animation',
+}
+
+/**
+ * Resolve an authored summary fact to the tabbed Clip inspector surface that
+ * owns it. Availability remains a UI concern: Place can disappear on a 1D
+ * Stage, a Group Clip can lack instance controls, and imported legacy facts
+ * can have no rendered editor at all.
+ */
+export function showClipSummaryDestination(
+  kind: ShowClipSummaryKind,
+  itemId: string,
+): ShowClipSummaryDestination | null {
+  if (kind === 'playback') {
+    if (itemId === 'time-scale') {
+      return { location: 'pattern', targetKey: 'speed', destinationLabel: 'Pattern Speed field' }
+    }
+    if (itemId === 'stepped-clock') {
+      return { location: 'pattern', targetKey: 'stutter', destinationLabel: 'Pattern Stutter control' }
+    }
+    return null
+  }
+  if (kind === 'controls' && itemId.startsWith('control:')) {
+    return { location: 'pattern', targetKey: itemId, destinationLabel: 'Pattern control' }
+  }
+  if (kind === 'view') {
+    if (itemId === 'brightness' || itemId === 'opacity') {
+      const field = itemId === 'brightness' ? 'Brightness' : 'Opacity'
+      return {
+        location: 'header',
+        targetKey: itemId,
+        destinationLabel: `Clip header ${field} field`,
+      }
+    }
+    if (itemId === 'mirror') {
+      return { location: 'effects', targetKey: 'mirror', destinationLabel: 'Effects Mirror row' }
+    }
+    if (itemId === 'phase') {
+      return { location: 'playback', targetKey: 'phase', destinationLabel: 'Playback Phase field' }
+    }
+    if (itemId === 'viewport') {
+      return { location: 'place', targetKey: 'viewport', destinationLabel: 'Place Viewport fields' }
+    }
+    if (itemId.startsWith('transform-')) {
+      const field = itemId.slice('transform-'.length)
+        .split('-')
+        .map((word) => word[0]?.toUpperCase() + word.slice(1))
+        .join(' ')
+      return {
+        location: 'place',
+        targetKey: itemId,
+        destinationLabel: `Place ${field} field`,
+      }
+    }
+    return null
+  }
+  if (kind === 'effects' && itemId.startsWith('effect:')) {
+    return { location: 'effects', targetKey: itemId, destinationLabel: 'Effects row' }
+  }
+  return null
 }
 
 /** Project the complete authored summary for one Clip without UI or layout concerns. */
