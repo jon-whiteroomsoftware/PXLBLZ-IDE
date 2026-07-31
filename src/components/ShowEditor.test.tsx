@@ -4033,15 +4033,31 @@ describe('ShowEditor (#318)', () => {
     fireEvent.blur(widthFrom)
     fireEvent.keyDown(screen.getByRole('dialog', { name: 'Viewport width animation' }), { key: 'Escape' })
     await user.click(within(panel).getByRole('button', { name: 'Content summary' }))
+    await user.click(within(panel).getByRole('button', { name: 'Animate Content X' }))
+    const positionFrom = screen.getByRole('textbox', { name: 'Position X animation from' })
+    await user.clear(positionFrom)
+    await user.type(positionFrom, '0.2')
+    fireEvent.blur(positionFrom)
+    fireEvent.keyDown(screen.getByRole('dialog', { name: 'Position X animation' }), { key: 'Escape' })
+    await user.click(within(panel).getByRole('button', { name: 'Aperture summary' }))
     await user.click(within(panel).getByRole('tab', { name: /^Pattern/ }))
 
-    await user.click(within(panel).getByRole('button', { name: 'Animations — 1' }))
+    await user.click(within(panel).getByRole('button', { name: 'Animations — 2' }))
     const row = within(panel).getByRole('group', { name: 'Viewport width animation summary' })
     await user.click(within(row).getByRole('button', { name: 'Go to Viewport width field' }))
 
     await waitFor(() => {
       expect(within(panel).getByRole('tab', { name: /^Place/ })).toHaveAttribute('aria-selected', 'true')
       expect(within(panel).getByRole('textbox', { name: 'Viewport Width exact multiplier' })).toHaveFocus()
+    })
+    await user.click(within(panel).getByRole('tab', { name: /^Pattern/ }))
+    await user.click(within(panel).getByRole('button', { name: 'Animations — 2' }))
+    const positionRow = within(panel).getByRole('group', { name: 'Position X animation summary' })
+    await user.click(within(positionRow).getByRole('button', { name: 'Go to Position X field' }))
+
+    await waitFor(() => {
+      expect(within(panel).getByRole('tab', { name: /^Place/ })).toHaveAttribute('aria-selected', 'true')
+      expect(within(panel).getByRole('textbox', { name: 'Content X' })).toHaveFocus()
     })
     await user.click(within(panel).getByRole('tab', { name: /^Pattern/ }))
   })

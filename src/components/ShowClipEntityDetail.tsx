@@ -162,7 +162,13 @@ export function ShowClipEntityDetail({
     location: ShowPropertyAnimationFieldLocation,
     targetKey: string,
   ) => {
-    const viewportTarget = targetKey.startsWith('placement-viewport:')
+    const placeTarget = location === 'place'
+    const placeApplicable = tabs.some((tab) => tab.id === 'place' && tab.applicable)
+    if (placeTarget && !placeApplicable) {
+      onAnimationOverviewClose?.(true)
+      return
+    }
+    const viewportTarget = placeTarget && targetKey.startsWith('placement-viewport:')
     const reveal = viewportTarget && !value.viewport.enabled
       ? onPatch({
           viewport: enableViewportForContent({
@@ -172,7 +178,7 @@ export function ShowClipEntityDetail({
           }),
         })
       : undefined
-    if (viewportTarget) setPlacementFocus('aperture')
+    if (placeTarget) setPlacementFocus(viewportTarget ? 'aperture' : 'content')
     if (location !== 'header') {
       selectTab(location)
     } else {

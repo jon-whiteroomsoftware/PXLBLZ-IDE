@@ -8,6 +8,7 @@ import type { ShowClipInspectorValue } from '@/engine/showClipInspectorModel'
 import { resetShowClipDetailTabMemory } from '@/engine/showClipDetailTabs'
 import { buildShowPropertyAnimationOptions } from '@/engine/showPropertyAnimationEditorModel'
 import { ShowPropertyAnimationProvider } from './ShowPropertyAnimationEditor'
+import type { ShowPropertyAnimationTrack } from '@/engine/personalContentRecords'
 
 function value(scope: ShowClipInspectorValue['scope']): ShowClipInspectorValue {
   const scene = scope !== 'global'
@@ -726,6 +727,47 @@ describe('per-parameter animation affordances (#648)', () => {
 
     showTab('Playback')
     expect(screen.getByRole('button', { name: 'Animate Phase' })).toBeVisible()
+  })
+
+  it('does not reveal an unavailable Place field or mutate its viewport (#649 review)', () => {
+    const onPatch = vi.fn()
+    const onAnimationOverviewClose = vi.fn()
+    const props = commonProps('scene-main', onPatch)
+    const viewportTrack: ShowPropertyAnimationTrack = {
+      id: 'viewport-width',
+      target: {
+        kind: 'placement-viewport',
+        placementId: 'placement-1',
+        property: 'width',
+      },
+      keyframes: [
+        { id: 'from', timeMs: 0, value: 1, easing: { curve: 'linear' } },
+        { id: 'to', timeMs: 2_000, value: 0.8, easing: { curve: 'linear' } },
+      ],
+    }
+
+    render(
+      <ShowPropertyAnimationProvider
+        options={buildShowPropertyAnimationOptions(props.value)}
+        tracks={[viewportTrack]}
+        storageDurationMs={2_000}
+        showTimeOffsetMs={1_000}
+        instanceUseCount={1}
+        onChange={vi.fn()}
+      >
+        <ShowClipEntityDetail
+          {...props}
+          transformEnabled={false}
+          animationOverviewOpen
+          onAnimationOverviewClose={onAnimationOverviewClose}
+        />
+      </ShowPropertyAnimationProvider>,
+    )
+
+    fireEvent.click(screen.getByRole('button', { name: 'Go to Viewport width field' }))
+
+    expect(onPatch).not.toHaveBeenCalled()
+    expect(onAnimationOverviewClose).toHaveBeenCalledWith(true)
   })
 })
 
