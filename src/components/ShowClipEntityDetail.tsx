@@ -114,7 +114,7 @@ export const ShowClipEntityDetail = forwardRef<ShowClipEntityDetailHandle, ShowC
   const addEffectButtonRef = useRef<HTMLButtonElement>(null)
   const placementGroupRef = useRef<HTMLDivElement>(null)
   const detailRef = useRef<HTMLElement>(null)
-  const activePlacementFocus: PlacementFocus = value.viewport.enabled ? placementFocus : 'content'
+  const activePlacementFocus = placementFocus
   const selectPlacementFocus = (next: PlacementFocus) => setPlacementFocus(next)
   const selectPlacementSummary = (next: PlacementFocus) => {
     selectPlacementFocus(next)
@@ -212,6 +212,7 @@ export const ShowClipEntityDetail = forwardRef<ShowClipEntityDetailHandle, ShowC
     if (placeTarget) {
       setPlacementFocus(destination.targetKey === 'viewport' ? 'aperture' : 'content')
     }
+    if (destination.location === 'effects') setEffectChooserOpen(false)
     if (destination.location === 'header') {
       if (animationOverviewOpen) onAnimationOverviewClose?.(false)
     } else {

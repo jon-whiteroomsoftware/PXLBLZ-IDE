@@ -2099,11 +2099,15 @@ describe('ShowEditor (#318)', () => {
       expect(within(panel).getByRole('textbox', { name: 'Viewport X' })).toHaveFocus()
     })
 
+    await user.click(within(panel).getByRole('tab', { name: /^Effects/ }))
+    await user.click(within(panel).getByRole('button', { name: 'Add Effect' }))
+    expect(within(panel).getByRole('region', { name: 'Add Effect' })).toBeInTheDocument()
     await user.click(within(summary).getByRole('button', {
       name: 'Mirror On; go to Effects Mirror row',
     }))
     const mirrorRow = within(panel).getByTestId('show-effect-mirror')
     await waitFor(() => {
+      expect(within(panel).queryByRole('region', { name: 'Add Effect' })).not.toBeInTheDocument()
       expect(within(panel).getByRole('tab', { name: /^Effects/ })).toHaveAttribute('aria-selected', 'true')
       expect(mirrorRow).toHaveFocus()
     })
@@ -2124,6 +2128,33 @@ describe('ShowEditor (#318)', () => {
 
     expect(within(summary).getByText('Start offset')).toBeInTheDocument()
     expect(within(summary).queryByRole('button', { name: /Start offset/ })).not.toBeInTheDocument()
+  })
+
+  it('reveals retained Viewport fields without enabling a disabled Aperture (#650 review)', async () => {
+    const user = userEvent.setup()
+    const show = createDefaultShow('show-disabled-viewport-summary', 'Disabled viewport summary', 1000)
+    show.stageMapId = 'plane'
+    show.cells[0] = {
+      ...show.cells[0],
+      viewport: { enabled: false, x: 0.1, y: 0, width: 0.8, height: 1 },
+    }
+    setPersonalContentProvider(memoryProvider([show]))
+    useShowStore.setState({ shows: [show], activeShowId: show.id, showsLoaded: true })
+
+    render(<ShowEditor showId={show.id} />)
+    await user.click(screen.getByRole('button', { name: 'Select TestPattern1D' }))
+    const panel = screen.getByRole('dialog', { name: 'Entity Detail Panel' })
+    const summary = within(panel).getByRole('region', { name: 'Clip summary' })
+
+    await user.click(within(summary).getByRole('button', {
+      name: 'Viewport Off · x 0.1, y 0, 0.8 × 1; go to Place Viewport fields',
+    }))
+
+    await waitFor(() => {
+      expect(within(panel).getByRole('tab', { name: /^Place/ })).toHaveAttribute('aria-selected', 'true')
+      expect(within(panel).getByRole('textbox', { name: 'Viewport X' })).toHaveFocus()
+    })
+    expect(useShowStore.getState().shows[0]!.cells[0]!.viewport!.enabled).toBe(false)
   })
 
   it('keeps summary navigation operable while a built-in destination remains disabled (#650)', async () => {
