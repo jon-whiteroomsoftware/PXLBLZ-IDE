@@ -1262,7 +1262,47 @@ test.describe('authenticated Show authoring', () => {
     await expect(page.getByRole('button', { name: /^Edit repeat scale at / })).toContainText('2x→1x')
   })
 
-  test('authors and reloads exact Scene-local Property animation (#490)', async ({ page }) => {
+  test('drafts, authors, and reloads a per-parameter Property animation (#648)', async ({ page }) => {
+    await page.setViewportSize({ width: 1440, height: 900 })
+    await page.goto('studio/shows')
+    await createInstallationShow(page)
+
+    await page.getByRole('button', { name: 'Select TestPattern1D' }).click()
+    const clipPanel = page.getByRole('dialog', { name: 'Entity Detail Panel' })
+    const diamond = clipPanel.getByRole('button', { name: 'Animate Brightness' })
+    await expect(diamond).toBeVisible()
+    await diamond.click()
+    const popover = page.getByRole('dialog', { name: 'Brightness animation' })
+    await expect(popover.getByRole('textbox', { name: 'Brightness animation from time exact time' })).toHaveValue('0')
+    await expect(popover.getByRole('textbox', { name: 'Brightness animation to time exact time' })).toHaveValue('30')
+    await page.keyboard.press('Escape')
+    await expect(popover).toHaveCount(0)
+    await expect(clipPanel).toBeVisible()
+    await waitForCurrentShow(page, (show) => !show.composition?.scenes[0]?.propertyTracks?.length)
+
+    await diamond.click()
+    const from = page.getByRole('textbox', { name: 'Brightness animation from exact percentage' })
+    await from.fill('60%')
+    await from.blur()
+    await waitForCurrentShow(page, (show) => {
+      const track = show.composition?.scenes[0]?.propertyTracks?.[0]
+      return track?.target.kind === 'placement-view'
+        && track.target.property === 'brightness'
+        && track.keyframes[0]?.timeMs === 0
+        && track.keyframes[0]?.value === 0.6
+        && track.keyframes[1]?.timeMs === 30_000
+    })
+    await expect(clipPanel.getByRole('button', { name: 'Edit Brightness animation' }))
+      .toHaveAttribute('data-animated', 'true')
+
+    await page.reload()
+    await page.getByRole('button', { name: 'Select TestPattern1D' }).click()
+    await page.getByRole('button', { name: 'Edit Brightness animation' }).click()
+    await expect(page.getByRole('textbox', { name: 'Brightness animation from exact percentage' }))
+      .toHaveValue('60')
+  })
+
+  test('authors and reloads exact Scene-local Property animation through the legacy picker (#490, #648)', async ({ page }) => {
     await page.setViewportSize({ width: 1440, height: 900 })
     await page.goto('studio/shows')
     await createInstallationShow(page)
@@ -1272,7 +1312,7 @@ test.describe('authenticated Show authoring', () => {
     await expect(clipPanel.getByRole('region', { name: 'Clip properties' })).toBeVisible()
     await page.getByRole('combobox', { name: 'Property to animate' }).selectOption({ label: 'Brightness' })
     await page.getByRole('button', { name: 'Animate selected property' }).click()
-    await page.getByRole('button', { name: 'Select keyframe at 30000 ms' }).click()
+    await page.getByRole('button', { name: 'Select keyframe at 30 seconds' }).click()
     await page.getByRole('spinbutton', { name: 'Keyframe value' }).fill('0.42')
     await page.getByRole('spinbutton', { name: 'Keyframe value' }).blur()
     await page.getByRole('combobox', { name: 'Keyframe easing' }).selectOption('steps-4-end')
@@ -1288,7 +1328,7 @@ test.describe('authenticated Show authoring', () => {
 
     await page.reload()
     await page.getByRole('button', { name: 'Select TestPattern1D' }).click()
-    await page.getByRole('button', { name: 'Select keyframe at 30000 ms' }).click()
+    await page.getByRole('button', { name: 'Select keyframe at 30 seconds' }).click()
     await expect(page.getByRole('spinbutton', { name: 'Keyframe value' })).toHaveValue('0.42')
     await expect(page.getByRole('combobox', { name: 'Keyframe easing' })).toHaveValue('steps-4-end')
   })

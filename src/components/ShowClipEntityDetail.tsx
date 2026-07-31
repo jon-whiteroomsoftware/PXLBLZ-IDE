@@ -7,6 +7,7 @@ import { Grid2X2 } from 'lucide-react'
 import { PatternCombobox, type PatternComboboxOption } from './PatternCombobox'
 import { ShowEffectPalette, ShowEffectStack } from './ShowEffectsAuthoring'
 import { ShowClipPlacementPad } from './ShowClipPlacementPad'
+import { ShowPropertyAnimationAction } from './ShowPropertyAnimationEditor'
 import {
   enableViewportForContent,
   type PlacementFocus,
@@ -26,6 +27,7 @@ import {
 } from '@/engine/showClipDetailTabs'
 import type { AutomatablePatternControl } from '@/engine/showPatternControls'
 import { formatPercentageValue } from '@/engine/percentageValue'
+import type { ShowPropertyAnimationTarget } from '@/engine/personalContentRecords'
 
 export interface ShowClipEntityDetailProps {
   value: ShowClipInspectorValue
@@ -221,6 +223,11 @@ export function ShowClipEntityDetail({
             <PercentageField
               label="Brightness"
               ariaLabel="Brightness"
+              labelAction={value.placementId ? (
+                <ShowPropertyAnimationAction
+                  target={{ kind: 'placement-view', placementId: value.placementId, property: 'brightness' }}
+                />
+              ) : undefined}
               value={value.view.brightness}
               min={0}
               max={1}
@@ -235,6 +242,11 @@ export function ShowClipEntityDetail({
             <div data-header-field="opacity">
               <PercentageField
                 label="Opacity"
+                labelAction={value.placementId ? (
+                  <ShowPropertyAnimationAction
+                    target={{ kind: 'placement-opacity', placementId: value.placementId }}
+                  />
+                ) : undefined}
                 value={value.local.opacity ?? 1}
                 min={0}
                 max={1}
@@ -348,6 +360,11 @@ export function ShowClipEntityDetail({
           <DomainNumberField
             label="Speed"
             ariaLabel="Animation speed"
+            labelAction={value.instanceId ? (
+              <ShowPropertyAnimationAction
+                target={{ kind: 'instance-time-scale', instanceId: value.instanceId }}
+              />
+            ) : undefined}
             presentation="multiplier"
             value={value.simulation.timeScale}
             min={0}
@@ -427,6 +444,7 @@ export function ShowClipEntityDetail({
           : <ShowEffectStack
               effects={value.effects}
               mirror={value.view.mirror}
+              animationPlacementId={value.placementId}
               disabled={readOnly}
               onChange={(effects) => onPatch({ effects })}
               onPreview={(effects) => onPreviewPatch?.({ effects })}
@@ -449,6 +467,7 @@ export function ShowClipEntityDetail({
                     <col style={{ width: '24%' }} />
                     <col />
                     <col className="w-16" />
+                    <col className="w-5" />
                   </colgroup>
                   <thead className="text-[8px] uppercase tracking-[0.1em] text-zinc-700">
                     <tr>
@@ -515,6 +534,18 @@ export function ShowClipEntityDetail({
                                 })}
                               />
                             ) : <span aria-hidden className="text-zinc-700">—</span>}
+                          </td>
+                          <td className="py-0.5 pl-1">
+                            {enabled && value.instanceId && (
+                              <ShowPropertyAnimationAction
+                                target={{
+                                  kind: 'instance-control',
+                                  instanceId: value.instanceId,
+                                  exportName: control.exportName,
+                                }}
+                                label={control.label}
+                              />
+                            )}
                           </td>
                         </tr>
                       )
@@ -657,7 +688,16 @@ export function ShowClipEntityDetail({
                   </>}
                   <tr className="h-6 whitespace-nowrap">
                     <td aria-hidden className="py-0.5 pr-2" />
-                    <th scope="row" className="truncate py-0.5 pr-3 text-[10px] font-medium text-zinc-300">Phase <span className="ml-1 text-[8px] font-normal text-zinc-700">0–1</span></th>
+                    <th scope="row" className="py-0.5 pr-3 text-[10px] font-medium text-zinc-300">
+                      <span className="flex items-center gap-1">
+                        <span className="truncate">Phase <span className="ml-1 text-[8px] font-normal text-zinc-700">0–1</span></span>
+                        {value.placementId && (
+                          <ShowPropertyAnimationAction
+                            target={{ kind: 'placement-view', placementId: value.placementId, property: 'phase' }}
+                          />
+                        )}
+                      </span>
+                    </th>
                     <td className="py-0.5 [&_input]:!border-0">
                       <ShowInspectorNumberField
                         label="Phase"
@@ -776,13 +816,36 @@ function ClipPlacementGeometry({
   const positionY = content ? value.transform.positionY : value.viewport.y
   const width = content ? value.transform.scaleX : value.viewport.width
   const height = content ? value.transform.scaleY : value.viewport.height
+  const animationTarget = (
+    property: 'positionX' | 'positionY' | 'rotation' | 'scaleX' | 'scaleY' | 'x' | 'y' | 'width' | 'height',
+  ): ShowPropertyAnimationTarget | undefined => {
+    if (!value.placementId) return undefined
+    return content
+      ? {
+          kind: 'placement-transform',
+          placementId: value.placementId,
+          property: property as 'positionX' | 'positionY' | 'rotation' | 'scaleX' | 'scaleY',
+        }
+      : {
+          kind: 'placement-viewport',
+          placementId: value.placementId,
+          property: property as 'x' | 'y' | 'width' | 'height',
+        }
+  }
+  const animationAction = (
+    property: Parameters<typeof animationTarget>[0],
+    label: string,
+  ) => {
+    const target = animationTarget(property)
+    return target ? <ShowPropertyAnimationAction target={target} label={label} /> : undefined
+  }
   return (
     <div role="group" aria-label={`${content ? 'Content' : 'Aperture'} geometry`} className="grid min-w-0 gap-1">
-      <ShowInspectorNumberField compact label="X" ariaLabel={xLabel} value={shown(positionX)} min={-4} max={4} step={0.01} reserveSuffixSpace padGrip={{ ariaLabel: `Use ${prefix} X on placement pad`, onClick: onFocusPad }} disabled={readOnly} onChange={(next) => onPatch(content ? { transform: { positionX: next } } : { viewport: { x: next } })} />
-      <ShowInspectorNumberField compact label="Y" ariaLabel={yLabel} value={shown(positionY)} min={-4} max={4} step={0.01} reserveSuffixSpace padGrip={{ ariaLabel: `Use ${prefix} Y on placement pad`, onClick: onFocusPad }} disabled={readOnly} onChange={(next) => onPatch(content ? { transform: { positionY: next } } : { viewport: { y: next } })} />
-      <DomainNumberField compact label="Width" ariaLabel={widthLabel} presentation="multiplier" value={shown(width)} min={0.01} max={8} step={0.01} reserveSuffixSpace disabled={readOnly} onPreview={(next) => onPreviewPatch?.(content ? { transform: { scaleX: next } } : { viewport: { width: next } })} onPreviewEnd={onPreviewEnd} onChange={(next) => onPatch(content ? { transform: { scaleX: next } } : { viewport: { width: next } })} />
-      <DomainNumberField compact label="Height" ariaLabel={heightLabel} presentation="multiplier" value={shown(height)} min={0.01} max={8} step={0.01} reserveSuffixSpace disabled={readOnly} onPreview={(next) => onPreviewPatch?.(content ? { transform: { scaleY: next } } : { viewport: { height: next } })} onPreviewEnd={onPreviewEnd} onChange={(next) => onPatch(content ? { transform: { scaleY: next } } : { viewport: { height: next } })} />
-      <ShowInspectorNumberField compact label="Rotation" ariaLabel={content ? 'Rotation degrees' : 'Viewport rotation'} value={content ? shown(value.transform.rotation * 360) : 0} min={-2880} max={2880} step={1} suffix="°" reserveSuffixSpace disabled={readOnly || !content} help={content ? undefined : 'Aperture is axis-aligned'} onChange={(degrees) => onPatch({ transform: { rotation: degrees / 360 } })} />
+      <ShowInspectorNumberField compact label="X" ariaLabel={xLabel} labelAction={animationAction(content ? 'positionX' : 'x', xLabel)} value={shown(positionX)} min={-4} max={4} step={0.01} reserveSuffixSpace padGrip={{ ariaLabel: `Use ${prefix} X on placement pad`, onClick: onFocusPad }} disabled={readOnly} onChange={(next) => onPatch(content ? { transform: { positionX: next } } : { viewport: { x: next } })} />
+      <ShowInspectorNumberField compact label="Y" ariaLabel={yLabel} labelAction={animationAction(content ? 'positionY' : 'y', yLabel)} value={shown(positionY)} min={-4} max={4} step={0.01} reserveSuffixSpace padGrip={{ ariaLabel: `Use ${prefix} Y on placement pad`, onClick: onFocusPad }} disabled={readOnly} onChange={(next) => onPatch(content ? { transform: { positionY: next } } : { viewport: { y: next } })} />
+      <DomainNumberField compact label="Width" ariaLabel={widthLabel} labelAction={animationAction(content ? 'scaleX' : 'width', widthLabel)} presentation="multiplier" value={shown(width)} min={0.01} max={8} step={0.01} reserveSuffixSpace disabled={readOnly} onPreview={(next) => onPreviewPatch?.(content ? { transform: { scaleX: next } } : { viewport: { width: next } })} onPreviewEnd={onPreviewEnd} onChange={(next) => onPatch(content ? { transform: { scaleX: next } } : { viewport: { width: next } })} />
+      <DomainNumberField compact label="Height" ariaLabel={heightLabel} labelAction={animationAction(content ? 'scaleY' : 'height', heightLabel)} presentation="multiplier" value={shown(height)} min={0.01} max={8} step={0.01} reserveSuffixSpace disabled={readOnly} onPreview={(next) => onPreviewPatch?.(content ? { transform: { scaleY: next } } : { viewport: { height: next } })} onPreviewEnd={onPreviewEnd} onChange={(next) => onPatch(content ? { transform: { scaleY: next } } : { viewport: { height: next } })} />
+      <ShowInspectorNumberField compact label="Rotation" ariaLabel={content ? 'Rotation degrees' : 'Viewport rotation'} labelAction={content ? animationAction('rotation', 'Rotation') : undefined} value={content ? shown(value.transform.rotation * 360) : 0} min={-2880} max={2880} step={1} suffix="°" reserveSuffixSpace disabled={readOnly || !content} help={content ? undefined : 'Aperture is axis-aligned'} onChange={(degrees) => onPatch({ transform: { rotation: degrees / 360 } })} />
     </div>
   )
 }

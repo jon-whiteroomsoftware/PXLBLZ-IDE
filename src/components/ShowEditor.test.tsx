@@ -1292,7 +1292,8 @@ describe('ShowEditor (#318)', () => {
     const panel = screen.getByRole('dialog', { name: 'Entity Detail Panel' })
     expect(panel).toHaveAttribute('data-owner-key', 'group-clip:phrase-use-a:inside-clip')
     expect(within(panel).getByLabelText('Pattern automation targets')).toBeInTheDocument()
-    expect(within(panel).queryByRole('region', { name: 'Property animation' })).not.toBeInTheDocument()
+    expect(within(panel).getByRole('region', { name: 'Property animation' })).toBeInTheDocument()
+    expect(within(panel).getByRole('button', { name: 'Animate Brightness' })).toBeVisible()
     changeCommittedNumber('Duration seconds exact time', '1.5')
     await waitFor(() => {
       expect(useShowStore.getState().shows[0].composition?.groupDefinitions?.[0].placements[0].durationMs).toBe(1_500)
@@ -3888,7 +3889,7 @@ describe('ShowEditor (#318)', () => {
       })
       expect(track?.keyframes.map((keyframe) => keyframe.timeMs)).toEqual([0, scene.durationMs])
     })
-    await user.click(within(panel).getByRole('button', { name: `Select keyframe at ${scene.durationMs} ms` }))
+    await user.click(within(panel).getByRole('button', { name: `Select keyframe at ${scene.durationMs / 1_000} seconds` }))
     const value = within(panel).getByRole('spinbutton', { name: 'Keyframe value' })
     await user.clear(value)
     await user.type(value, '0.42')
@@ -3900,21 +3901,70 @@ describe('ShowEditor (#318)', () => {
       expect(keyframe?.easing).toMatchObject({ curve: 'steps', steps: 4, position: 'end' })
     })
 
-    await user.click(within(panel).getByRole('button', { name: 'Select keyframe at 0 ms' }))
+    await user.click(within(panel).getByRole('button', { name: 'Select keyframe at 0 seconds' }))
     expect(within(panel).getByRole('spinbutton', { name: 'Keyframe value' })).toHaveValue(1)
-    await user.click(within(panel).getByRole('button', { name: `Select keyframe at ${scene.durationMs} ms` }))
+    await user.click(within(panel).getByRole('button', { name: `Select keyframe at ${scene.durationMs / 1_000} seconds` }))
     expect(within(panel).getByRole('spinbutton', { name: 'Keyframe value' })).toHaveValue(0.42)
 
-    const time = within(panel).getByRole('spinbutton', { name: 'Keyframe time ms' })
+    const time = within(panel).getByRole('spinbutton', { name: 'Keyframe time seconds' })
     await user.clear(time)
     await user.type(time, '0')
     fireEvent.blur(time)
     await waitFor(() => expect(
-      within(panel).getByRole('spinbutton', { name: 'Keyframe time ms' }),
-    ).toHaveValue(scene.durationMs))
+      within(panel).getByRole('spinbutton', { name: 'Keyframe time seconds' }),
+    ).toHaveValue(scene.durationMs / 1_000))
 
     await user.click(within(panel).getByRole('button', { name: 'Delete Brightness animation' }))
     await waitFor(() => expect(useShowStore.getState().shows[0].composition?.scenes[0].propertyTracks).toBeUndefined())
+  })
+
+  it('keeps a per-parameter draft transient and records its first edit as one undo step (#648)', async () => {
+    const user = userEvent.setup()
+    const show = createDefaultShow('show-per-parameter-animation', 'Per-parameter animation', 1000)
+    setPersonalContentProvider(memoryProvider([show]))
+    useShowStore.setState({ shows: [show], activeShowId: show.id, showsLoaded: true })
+
+    render(<ShowEditor showId={show.id} />)
+    await user.click(screen.getByRole('button', { name: 'Select TestPattern1D' }))
+    const panel = screen.getByRole('dialog', { name: 'Entity Detail Panel' })
+    const historyBeforeDraft = useShowStore.getState().showHistories[show.id]?.past.length ?? 0
+
+    await user.click(within(panel).getByRole('button', { name: 'Animate Brightness' }))
+    expect(screen.getByRole('dialog', { name: 'Brightness animation' })).toBeInTheDocument()
+    fireEvent.keyDown(screen.getByRole('dialog', { name: 'Brightness animation' }), { key: 'Escape' })
+    expect(useShowStore.getState().shows[0].composition?.scenes[0].propertyTracks).toBeUndefined()
+    expect(useShowStore.getState().showHistories[show.id]?.past.length ?? 0).toBe(historyBeforeDraft)
+    expect(panel).toBeInTheDocument()
+
+    await user.click(within(panel).getByRole('button', { name: 'Animate Brightness' }))
+    const from = screen.getByRole('textbox', { name: 'Brightness animation from exact percentage' })
+    await user.clear(from)
+    await user.type(from, '60%')
+    fireEvent.blur(from)
+
+    await waitFor(() => {
+      const current = useShowStore.getState()
+      const track = current.shows[0].composition?.scenes[0].propertyTracks?.[0]
+      expect(track?.target).toEqual({
+        kind: 'placement-view',
+        placementId: 'placement-cell-1-scene-1',
+        property: 'brightness',
+      })
+      expect(track?.keyframes.map(({ timeMs, value }) => ({ timeMs, value }))).toEqual([
+        { timeMs: 0, value: 0.6 },
+        { timeMs: show.scenes[0].durationMs, value: 1 },
+      ])
+      expect(current.showHistories[show.id]?.past.length).toBe(historyBeforeDraft + 1)
+    })
+
+    expect(within(panel).getByRole('button', { name: 'Edit Brightness animation' }))
+      .toHaveAttribute('data-animated', 'true')
+    await user.click(screen.getByRole('button', { name: 'Remove Brightness animation' }))
+    await waitFor(() => {
+      expect(useShowStore.getState().shows[0].composition?.scenes[0].propertyTracks).toBeUndefined()
+      expect(within(panel).getByRole('button', { name: 'Animate Brightness' }))
+        .toHaveAttribute('data-animated', 'false')
+    })
   })
 
   it('abbreviates the owning Clip only where two lanes animate the same property (#631)', () => {

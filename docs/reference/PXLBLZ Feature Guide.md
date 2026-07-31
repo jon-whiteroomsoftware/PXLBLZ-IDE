@@ -566,11 +566,21 @@ on the lanes, following you as a zoomed timeline scrolls, thinning where a curve
 runs beneath them, and fading out once their animation is behind you. Hover any
 lane for the Pattern, Property, family, and the seconds it spans.
 
-Select a Clip and use **Property animation** in its
-Entity Detail Panel to choose a supported Property, click **Animate**, then
-edit its exact keyframe time, value, and easing. The authored track continues
-to preview, compile, persist, and split through the internal composition model;
-it does not open a separate Scene-local authoring surface.
+Select a Clip and use the diamond beside an animatable parameter. A hollow
+diamond creates a two-point ramp draft and opens its compact **From -> To**
+editor; a filled violet diamond reopens an existing animation for that exact
+parameter. The draft is not saved until its first real value, time, or easing
+edit, so opening and dismissing it leaves the Show unchanged. Animation speed
+and enabled Pattern controls also state how many linked Clips share their
+Pattern-instance value.
+
+The editor displays both keyframe times in Show-global seconds, including for a
+Clip inside a Group. Persistence remains Scene-relative (or Group-definition-
+relative), so the displayed offset does not alter authored timing. The
+transitional **Property animation** picker remains below the Clip fields and
+authors the same tracks; it will be retired after the per-parameter path has
+shipped. Every authored track continues to preview, compile, persist, and split
+through the internal composition model.
 
 ## 16. Zones and routing
 

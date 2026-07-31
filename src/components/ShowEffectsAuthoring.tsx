@@ -4,6 +4,7 @@ import { useNumberFieldDraft } from '@/components/ui/number-field'
 import { PercentageField } from '@/components/ui/percentage-field'
 import { DomainNumberField } from '@/components/ui/domain-number-field'
 import { ColorField } from '@/components/ui/color-field'
+import { ShowPropertyAnimationAction } from '@/components/ShowPropertyAnimationEditor'
 import {
   ArrowLeft,
   ArrowDown,
@@ -260,6 +261,7 @@ export function ShowEffectPalette({
 export function ShowEffectStack({
   effects,
   mirror = false,
+  animationPlacementId,
   onChange,
   onPreview,
   onPreviewEnd,
@@ -270,6 +272,7 @@ export function ShowEffectStack({
 }: {
   effects: readonly ShowClipEffect[]
   mirror?: boolean
+  animationPlacementId?: string
   onChange: (effects: ShowClipEffect[]) => void
   onPreview?: (effects: ShowClipEffect[]) => void
   onPreviewEnd?: () => void
@@ -407,6 +410,20 @@ export function ShowEffectStack({
                         ? updateShowClipEffectParameter(candidate, parameter.id, next)
                         : candidate)
                       const visibleLabel = contractLabels ? contractTimelineParameterLabel(parameter.label) : parameter.label
+                      const animationAction = animationPlacementId && parameter.kind === 'number'
+                        ? (
+                            <ShowPropertyAnimationAction
+                              target={{
+                                kind: 'placement-effect',
+                                placementId: animationPlacementId,
+                                effectId: effect.id,
+                                effectKind: effect.kind,
+                                parameterId: parameter.id,
+                              }}
+                              label={`${label} ${parameter.label}`}
+                            />
+                          )
+                        : undefined
                       if (parameter.kind === 'color') {
                         return (
                           <div key={parameter.id} className="w-[104px] shrink-0 text-[8px] uppercase tracking-wide text-zinc-600" title={parameter.label}>
@@ -433,6 +450,7 @@ export function ShowEffectStack({
                             <PercentageField
                               label={visibleLabel}
                               ariaLabel={parameter.label}
+                              labelAction={animationAction}
                               help={parameter.label}
                               value={parameterValue}
                               min={parameter.min ?? 0}
@@ -453,6 +471,7 @@ export function ShowEffectStack({
                             <DomainNumberField
                               label={visibleLabel}
                               ariaLabel={parameter.label}
+                              labelAction={animationAction}
                               help={parameter.label}
                               presentation={parameter.presentation}
                               value={parameterValue}
@@ -469,8 +488,11 @@ export function ShowEffectStack({
                         )
                       }
                       return (
-                        <label key={parameter.id} className="w-[52px] shrink-0 text-[8px] uppercase tracking-wide text-zinc-600" title={parameter.label}>
-                          <span aria-hidden>{visibleLabel}</span>
+                        <div key={parameter.id} className="w-[52px] shrink-0 text-[8px] uppercase tracking-wide text-zinc-600" title={parameter.label}>
+                          <span className="flex h-4 items-center justify-between gap-1" title={parameter.label}>
+                            <span aria-hidden>{visibleLabel}</span>
+                            {animationAction}
+                          </span>
                           <EffectParameterField
                             label={parameter.label}
                             value={parameterValue}
@@ -481,7 +503,7 @@ export function ShowEffectStack({
                               ? updateShowClipEffectParameter(candidate, parameter.id, value)
                               : candidate))}
                           />
-                        </label>
+                        </div>
                       )
                     })}
                     {parameters.length === 0 && <p className="self-center text-[8px] text-zinc-600" title="Wrap changes the address policy for transformed coordinates.">No parameters</p>}

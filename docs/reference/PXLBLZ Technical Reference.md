@@ -1436,6 +1436,16 @@ endpoint while a top-level Transition is running. Instance tracks apply once per
 advanced Pattern instance. Preview, deterministic Fast replay, artifact output,
 EPE export, and Controller output therefore consume the same emitted evaluator.
 
+The Clip detail editor projects those local records into a parameter-owned
+authoring surface. Each supported field exposes a hollow diamond until its
+target has a track, then a filled violet diamond. Opening a hollow diamond
+creates only an in-memory two-point draft; the first value, Show-global time, or
+easing edit persists the complete track as one history operation. The editor
+subtracts the owning Scene or Group occurrence offset before storage, so its
+global-second display does not change Scene-local or Group-definition-local
+semantics. Instance-owned parameters also report the number of linked Clips
+that share the edited Pattern instance.
+
 The unified timeline discloses a compact sparkline only when a property actually
 varies. Every disclosed lane is named, and `showPropertyLaneFamilies.ts` sorts
 animatable properties into five families — time, appearance, transform, control,

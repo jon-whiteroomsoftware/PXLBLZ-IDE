@@ -1,4 +1,13 @@
-import { useEffect, useRef, useState, type FocusEvent, type ChangeEvent, type KeyboardEvent } from 'react'
+import {
+  useEffect,
+  useId,
+  useRef,
+  useState,
+  type ChangeEvent,
+  type FocusEvent,
+  type KeyboardEvent,
+  type ReactNode,
+} from 'react'
 import { GripVertical } from 'lucide-react'
 
 // The one simple numeric-entry contract for the app (#577, #656): this is a
@@ -88,6 +97,7 @@ export interface NumberFieldProps {
     onClick: () => void
   }
   help?: string
+  labelAction?: ReactNode
   hideLabel?: boolean
   showNormalizedRange?: boolean
   compact?: boolean
@@ -107,6 +117,7 @@ export function NumberField({
   reserveSuffixSpace = false,
   padGrip,
   help,
+  labelAction,
   hideLabel = false,
   showNormalizedRange = true,
   compact = false,
@@ -116,6 +127,7 @@ export function NumberField({
   onChange,
 }: NumberFieldProps) {
   const { inputProps } = useNumberFieldDraft({ value, min, max, onChange })
+  const inputId = useId()
   const normalized = min === 0 && max === 1
   const inspector = variant === 'inspector'
   const resolvedAlign = align ?? (inspector ? 'right' : 'left')
@@ -133,9 +145,10 @@ export function NumberField({
     : 'text-[10px] text-zinc-500'
 
   return (
-    <label className={labelClass} title={help}>
-      <span className={hideLabel ? 'sr-only' : 'flex items-center justify-between gap-2'}>
-        <span>{label}</span>
+    <div className={labelClass} title={help}>
+      <span className={hideLabel ? 'sr-only' : 'flex h-4 items-center justify-between gap-1'}>
+        <label htmlFor={inputId}>{label}</label>
+        {labelAction}
         {normalized && showNormalizedRange && (
           <span className="font-mono text-[8px] tracking-normal text-zinc-700" title="Normalized value from zero to one">0–1</span>
         )}
@@ -143,6 +156,7 @@ export function NumberField({
       <span className={`${hideLabel ? '' : 'mt-1'} flex min-w-0 items-center gap-1`}>
         <span className={padGrip ? 'flex min-w-0 flex-1' : 'contents'}>
           <input
+            id={inputId}
             aria-label={ariaLabel ?? label}
             title={help}
             type="text"
@@ -174,6 +188,6 @@ export function NumberField({
           </span>
         )}
       </span>
-    </label>
+    </div>
   )
 }

@@ -7,6 +7,7 @@ import {
   useState,
   type KeyboardEvent,
   type PointerEvent,
+  type ReactNode,
 } from 'react'
 import {
   clampPercentageValue,
@@ -46,6 +47,7 @@ export interface BoundedNumberFieldProps {
   value: number
   presentation: BoundedNumberPresentation
   help?: string
+  labelAction?: ReactNode
   hideLabel?: boolean
   reserveSuffixSpace?: boolean
   compact?: boolean
@@ -69,6 +71,7 @@ export function BoundedNumberField({
   value,
   presentation,
   help,
+  labelAction,
   hideLabel = false,
   reserveSuffixSpace = false,
   compact = false,
@@ -342,9 +345,13 @@ export function BoundedNumberField({
 
   return (
     <div className={labelClass} title={help}>
-      <label htmlFor={inputId} className={hideLabel ? 'sr-only' : ''}>
-        {hideLabel ? accessibleFieldLabel : label}
-      </label>
+      <span
+        className={hideLabel ? 'sr-only' : 'flex h-4 items-center justify-between gap-1'}
+        title={help}
+      >
+        <label htmlFor={inputId}>{hideLabel ? accessibleFieldLabel : label}</label>
+        {labelAction}
+      </span>
       <span className={`${hideLabel ? '' : 'mt-1'} flex min-w-0 items-center gap-1`}>
         <span className={`${fieldHeight} ${fieldBackground} flex min-w-0 flex-1 overflow-hidden rounded border border-zinc-700 focus-within:border-cyan-400/60`}>
           <input

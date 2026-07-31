@@ -6,6 +6,8 @@ import {
 } from './ShowClipEntityDetail'
 import type { ShowClipInspectorValue } from '@/engine/showClipInspectorModel'
 import { resetShowClipDetailTabMemory } from '@/engine/showClipDetailTabs'
+import { buildShowPropertyAnimationOptions } from '@/engine/showPropertyAnimationEditorModel'
+import { ShowPropertyAnimationProvider } from './ShowPropertyAnimationEditor'
 
 function value(scope: ShowClipInspectorValue['scope']): ShowClipInspectorValue {
   const scene = scope !== 'global'
@@ -680,6 +682,50 @@ describe('shared Clip Entity Detail sections (#498)', () => {
     expect(onPreviewEnd).toHaveBeenCalledOnce()
     expect(onPatch).toHaveBeenCalledOnce()
     expect(onPatch).toHaveBeenCalledWith(onPreviewPatch.mock.calls[1][0])
+  })
+})
+
+describe('per-parameter animation affordances (#648)', () => {
+  it('puts an accessible diamond beside every rendered animatable Clip parameter', () => {
+    const props = commonProps('scene-overlay')
+    const animatedValue: ShowClipInspectorValue = {
+      ...props.value,
+      viewport: { enabled: true, x: 0.1, y: 0.2, width: 0.8, height: 0.7 },
+      effects: [{ id: 'cut', kind: 'threshold', threshold: 0.4, amount: 0.5 }],
+    }
+    render(
+      <ShowPropertyAnimationProvider
+        options={buildShowPropertyAnimationOptions(animatedValue)}
+        tracks={[]}
+        storageDurationMs={4_000}
+        showTimeOffsetMs={10_000}
+        instanceUseCount={2}
+        onChange={vi.fn()}
+      >
+        <ShowClipEntityDetail {...props} value={animatedValue} />
+      </ShowPropertyAnimationProvider>,
+    )
+
+    expect(screen.getByRole('button', { name: 'Animate Brightness' })).toBeVisible()
+    expect(screen.getByRole('button', { name: 'Animate Opacity' })).toBeVisible()
+    expect(screen.getByRole('button', { name: 'Animate Animation speed' })).toBeVisible()
+    expect(screen.getByRole('button', { name: 'Animate Speed' })).toBeVisible()
+
+    showTab('Place')
+    for (const label of ['Content X', 'Content Y', 'Content Width', 'Content Height', 'Rotation']) {
+      expect(screen.getByRole('button', { name: `Animate ${label}` })).toBeVisible()
+    }
+    fireEvent.click(screen.getByRole('button', { name: 'Aperture summary' }))
+    for (const label of ['Viewport X', 'Viewport Y', 'Viewport Width', 'Viewport Height']) {
+      expect(screen.getByRole('button', { name: `Animate ${label}` })).toBeVisible()
+    }
+
+    showTab('Effects')
+    expect(screen.getByRole('button', { name: 'Animate Threshold Amount' })).toBeVisible()
+    expect(screen.getByRole('button', { name: 'Animate Threshold Threshold' })).toBeVisible()
+
+    showTab('Playback')
+    expect(screen.getByRole('button', { name: 'Animate Phase' })).toBeVisible()
   })
 })
 

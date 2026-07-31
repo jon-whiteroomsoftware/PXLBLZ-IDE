@@ -27,6 +27,7 @@ import { describePropertyLaneHover, resolvePropertyLaneDisplayLabels } from '@/e
 import { propertyLaneFamilyColor, type ShowPropertyLaneFamily } from '@/engine/showPropertyLaneFamilies'
 import { ShowPropertyLaneFamilyGlyph } from '@/components/ShowPropertyLaneFamilyGlyph'
 import { ShowClipEntityDetail } from '@/components/ShowClipEntityDetail'
+import { ShowPropertyAnimationProvider } from '@/components/ShowPropertyAnimationEditor'
 import { ShowPatternInstanceControls } from '@/components/ShowPatternInstanceControls'
 import { ShowTransitionPalette, ShowTransitionParameters } from '@/components/ShowTransitionAuthoring'
 import { ShowLayerTransitionPalette } from '@/components/ShowLayerTransitionPalette'
@@ -99,9 +100,14 @@ import {
   updateShowPropertyKeyframe,
 } from '@/engine/showPropertyAnimation'
 import {
-  showClipEffectParameterValue,
-  showClipEffectParameters,
-} from '@/engine/showEffectAuthoring'
+  applyShowGroupPropertyAnimationChange,
+  buildShowPropertyAnimationOptions,
+  projectShowPropertyAnimationEditorContext,
+  type ShowPropertyAnimationChange,
+  type ShowPropertyAnimationEditorContext,
+  type ShowPropertyAnimationOption,
+  type ShowPropertyAnimationStorageOwner,
+} from '@/engine/showPropertyAnimationEditorModel'
 import {
   fitShowTimelineViewport,
   panShowTimelineViewport,
@@ -247,7 +253,6 @@ import type {
   ShowRoutingLayout,
   ShowAutomatableProperty,
   ShowPropertyAnimationKeyframe,
-  ShowPropertyAnimationTarget,
   ShowPropertyAnimationTrack,
 } from '@/engine/personalContentRecords'
 import { DEFAULT_SHOW_TRAILS_RETENTION, normalizeShowOutputEffects } from '@/engine/showPreviousRgbFeedback'
@@ -1102,6 +1107,13 @@ export function ShowEditor({
   useEffect(() => {
     const handleEscape = (event: KeyboardEvent) => {
       if (event.key !== 'Escape' || transitionPaletteId !== null) return
+      if (
+        document.querySelector('[data-show-detail-owned-portal="true"]')
+        || (event.target instanceof Element
+          && event.target.closest('[data-show-detail-owned-portal="true"]'))
+        || (document.activeElement instanceof Element
+          && document.activeElement.closest('[data-show-detail-owned-portal="true"]'))
+      ) return
       if (!detailPanelOpen && !pinnedDetail && !isolatedGroupOccurrenceId && selection.kind === 'show') return
       event.preventDefault()
       if (isolatedGroupOccurrenceId) {
@@ -2265,22 +2277,33 @@ export function ShowEditor({
                   onUpdateAdaptations={(cell, changes) => void updateCellAdaptations(activeShow.id, cell.id, changes)}
                   onUpdateClipInspector={commitClipInspectorPatch}
                   onPropertyAnimationChange={(owner, change) => {
-                    if (!inspectorShow?.composition || owner.kind === 'global') return false
-                    const scene = inspectorShow.scenes.find((candidate) => candidate.id === owner.sceneId)
-                    if (!scene) return false
+                    if (!inspectorShow?.composition) return false
                     const composition = inspectorShow.composition
-                    const next = change.kind === 'add-track'
-                      ? addShowPropertyTrack(activeShow, composition, owner.sceneId, {
-                          id: newPersonalContentId(),
-                          target: change.target,
-                          keyframes: [
-                            { id: newPersonalContentId(), timeMs: 0, value: change.initialValue, easing: { curve: 'linear' } },
-                            { id: newPersonalContentId(), timeMs: scene.durationMs, value: change.initialValue, easing: { curve: 'linear' } },
-                          ],
-                        })
-                      : change.kind === 'update-keyframe'
-                        ? updateShowPropertyKeyframe(activeShow, composition, owner.sceneId, change.trackId, change.keyframeId, change.changes)
-                        : deleteShowPropertyTrack(composition, owner.sceneId, change.trackId)
+                    let next: ShowCompositionV1
+                    if (owner.kind === 'group') {
+                      next = applyShowGroupPropertyAnimationChange(
+                        activeShow,
+                        composition,
+                        owner,
+                        change,
+                        newPersonalContentId,
+                      )
+                    } else {
+                      const scene = inspectorShow.scenes.find((candidate) => candidate.id === owner.sceneId)
+                      if (!scene) return false
+                      next = change.kind === 'add-track'
+                        ? addShowPropertyTrack(activeShow, composition, owner.sceneId, {
+                            id: newPersonalContentId(),
+                            target: change.target,
+                            keyframes: (change.keyframes ?? [
+                              { timeMs: 0, value: change.initialValue, easing: { curve: 'linear' as const } },
+                              { timeMs: scene.durationMs, value: change.initialValue, easing: { curve: 'linear' as const } },
+                            ]).map((keyframe) => ({ ...keyframe, id: newPersonalContentId() })),
+                          })
+                        : change.kind === 'update-keyframe'
+                          ? updateShowPropertyKeyframe(activeShow, composition, owner.sceneId, change.trackId, change.keyframeId, change.changes)
+                          : deleteShowPropertyTrack(composition, owner.sceneId, change.trackId)
+                    }
                     if (next === composition) return false
                     void updateShow(activeShow.id, { ...activeShow, composition: next, updatedAt: Date.now() })
                     return true
@@ -6968,7 +6991,7 @@ function ContextualInspector({
   onRemoveClip: (clip: ShowCell) => void
   onUpdateAdaptations: (cell: ShowCell, changes: Partial<ShowCell['adaptations']>) => void
   onUpdateClipInspector: (owner: ShowClipInspectorOwner, patch: ShowClipInspectorPatch) => boolean | void | Promise<void>
-  onPropertyAnimationChange: (owner: ShowClipInspectorOwner, change: ShowPropertyAnimationChange) => boolean | void
+  onPropertyAnimationChange: (owner: ShowPropertyAnimationStorageOwner, change: ShowPropertyAnimationChange) => boolean | void
   onUpdateGroupClipInspector: (owner: ShowGroupClipOwner, patch: ShowClipInspectorPatch) => boolean | void | Promise<void>
   onPreviewClipInspector: (owner: ShowClipInspectorOwner, patch: ShowClipInspectorPatch) => void
   onPreviewGroupClipInspector: (owner: ShowGroupClipOwner, patch: ShowClipInspectorPatch) => void
@@ -7030,6 +7053,11 @@ function ContextualInspector({
   if (selection.kind === 'group-clip' && selectedGroupClipOwner) {
     const value = projectShowGroupClipInspector(compositionShow, selectedGroupClipOwner)
     if (value) {
+      const propertyAnimationContext = projectShowPropertyAnimationEditorContext(
+        compositionShow,
+        value,
+        selectedGroupClipOwner,
+      )
       const patternControls = value.instanceId
         ? patternControlsByInstanceId[`${selectedGroupClipOwner.occurrenceId}:${value.instanceId}`] ?? []
         : []
@@ -7046,6 +7074,10 @@ function ContextualInspector({
           transformEnabled={transformEnabled}
           stageDimensions={stageDimensions}
           instanceOwnership={null}
+          propertyAnimationContext={propertyAnimationContext}
+          onPropertyAnimationChange={propertyAnimationContext
+            ? (change) => onPropertyAnimationChange(propertyAnimationContext.storageOwner, change)
+            : undefined}
           onPatch={(patch) => onUpdateGroupClipInspector(selectedGroupClipOwner, patch)}
           onPreviewPatch={(patch) => onPreviewGroupClipInspector(selectedGroupClipOwner, patch)}
           onPreviewEnd={onPreviewEnd}
@@ -7086,6 +7118,7 @@ function ContextualInspector({
       ? projectShowClipPatternInstanceOwnership(compositionShow.composition, timelineOwner)
       : null
     if (value && selectedCompositionClipOwner.kind !== 'global') {
+      const propertyAnimationContext = projectShowPropertyAnimationEditorContext(compositionShow, value)
       const patternControls = value.instanceId ? patternControlsByInstanceId[value.instanceId] ?? [] : []
       return (
         <CompositionClipInspector
@@ -7097,12 +7130,11 @@ function ContextualInspector({
           transformEnabled={transformEnabled}
           stageDimensions={stageDimensions}
           instanceOwnership={instanceOwnership}
+          propertyAnimationContext={propertyAnimationContext}
           onPatch={(patch) => onUpdateClipInspector(selectedCompositionClipOwner, patch)}
-          propertyTracks={compositionShow.composition?.scenes
-            .find((scene) => scene.sceneId === selectedCompositionClipOwner.sceneId)?.propertyTracks
-            ?.filter((track) => showPropertyTrackBelongsToClip(track, value)) ?? []}
-          sceneDurationMs={show.scenes.find((scene) => scene.id === selectedCompositionClipOwner.sceneId)?.durationMs ?? value.local?.durationMs ?? 0}
-          onPropertyAnimationChange={(change) => onPropertyAnimationChange(selectedCompositionClipOwner, change)}
+          onPropertyAnimationChange={propertyAnimationContext
+            ? (change) => onPropertyAnimationChange(propertyAnimationContext.storageOwner, change)
+            : undefined}
           onPreviewPatch={(patch) => onPreviewClipInspector(selectedCompositionClipOwner, patch)}
           onPreviewEnd={onPreviewEnd}
           onPatternCommit={onPatternCommit}
@@ -7312,8 +7344,7 @@ function CompositionClipInspector({
   stageDimensions,
   instanceOwnership,
   onPatch,
-  propertyTracks = [],
-  sceneDurationMs = value.local?.durationMs ?? 0,
+  propertyAnimationContext,
   onPropertyAnimationChange,
   onPreviewPatch,
   onPreviewEnd,
@@ -7332,8 +7363,7 @@ function CompositionClipInspector({
   stageDimensions: 1 | 2 | 3
   instanceOwnership: ReturnType<typeof projectShowClipPatternInstanceOwnership>
   onPatch: (patch: ShowClipInspectorPatch) => boolean | void | Promise<void>
-  propertyTracks?: ShowPropertyAnimationTrack[]
-  sceneDurationMs?: number
+  propertyAnimationContext?: ShowPropertyAnimationEditorContext | null
   onPropertyAnimationChange?: (change: ShowPropertyAnimationChange) => boolean | void
   onPreviewPatch?: (patch: ShowClipInspectorPatch) => void
   onPreviewEnd?: () => void
@@ -7343,26 +7373,8 @@ function CompositionClipInspector({
   canRemove?: boolean
   onRemove?: () => void
 }) {
-  return (
-    <InspectorPanel
-      family="Clip"
-      heading={value.patternName}
-      summary={<ClipConfigurationSummary summary={summary} />}
-      icon={<Grid2X2 size={13} aria-hidden />}
-      actions={onRemove ? (
-        <Button
-          size="icon-xs"
-          variant="ghost"
-          aria-label={`Delete clip ${value.patternName}`}
-          title={canRemove ? `Delete ${value.patternName}` : 'A Show must contain at least one Clip.'}
-          disabled={!canRemove}
-          className="text-zinc-500 hover:bg-red-950/30 hover:text-red-300"
-          onClick={onRemove}
-        >
-          <Trash2 size={12} aria-hidden />
-        </Button>
-      ) : undefined}
-    >
+  const clipDetail = (
+    <>
       <ShowClipEntityDetail
         value={value}
         title={value.patternName}
@@ -7391,57 +7403,63 @@ function CompositionClipInspector({
         onPreviewEnd={onPreviewEnd}
         onPatternCommit={onPatternCommit}
       />
-      {onPropertyAnimationChange && value.placementId && value.instanceId && value.local && (
+      {onPropertyAnimationChange && propertyAnimationContext && value.placementId && value.instanceId && value.local && (
         <ShowPropertyAnimationPanel
           value={value}
-          durationMs={sceneDurationMs}
-          tracks={propertyTracks}
+          durationMs={propertyAnimationContext.storageDurationMs}
+          showTimeOffsetMs={propertyAnimationContext.showTimeOffsetMs}
+          tracks={propertyAnimationContext.tracks}
           onChange={onPropertyAnimationChange}
         />
       )}
+    </>
+  )
+  return (
+    <InspectorPanel
+      family="Clip"
+      heading={value.patternName}
+      summary={<ClipConfigurationSummary summary={summary} />}
+      icon={<Grid2X2 size={13} aria-hidden />}
+      actions={onRemove ? (
+        <Button
+          size="icon-xs"
+          variant="ghost"
+          aria-label={`Delete clip ${value.patternName}`}
+          title={canRemove ? `Delete ${value.patternName}` : 'A Show must contain at least one Clip.'}
+          disabled={!canRemove}
+          className="text-zinc-500 hover:bg-red-950/30 hover:text-red-300"
+          onClick={onRemove}
+        >
+          <Trash2 size={12} aria-hidden />
+        </Button>
+      ) : undefined}
+    >
+      {onPropertyAnimationChange && propertyAnimationContext ? (
+        <ShowPropertyAnimationProvider
+          options={buildShowPropertyAnimationOptions(value)}
+          tracks={propertyAnimationContext.tracks}
+          storageDurationMs={propertyAnimationContext.storageDurationMs}
+          showTimeOffsetMs={propertyAnimationContext.showTimeOffsetMs}
+          instanceUseCount={propertyAnimationContext.instanceUseCount}
+          onChange={onPropertyAnimationChange}
+        >
+          {clipDetail}
+        </ShowPropertyAnimationProvider>
+      ) : clipDetail}
     </InspectorPanel>
   )
-}
-
-type ShowPropertyAnimationChange =
-  | { kind: 'add-track'; target: ShowPropertyAnimationTarget; initialValue: number }
-  | {
-      kind: 'update-keyframe'
-      trackId: string
-      keyframeId: string
-      changes: Partial<Pick<ShowPropertyAnimationKeyframe, 'timeMs' | 'value' | 'easing'>>
-    }
-  | { kind: 'delete-track'; trackId: string }
-
-interface ShowPropertyAnimationOption {
-  key: string
-  label: string
-  target: ShowPropertyAnimationTarget
-  value: number
-  min: number
-  max: number
-  step: number
-}
-
-function showPropertyTrackBelongsToClip(
-  track: ShowPropertyAnimationTrack,
-  value: NonNullable<ReturnType<typeof projectShowClipInspector>>,
-): boolean {
-  const target = track.target
-  if (target.kind === 'instance-time-scale' || target.kind === 'instance-control') {
-    return target.instanceId === value.instanceId
-  }
-  return target.placementId === value.placementId
 }
 
 function ShowPropertyAnimationPanel({
   value,
   durationMs,
+  showTimeOffsetMs,
   tracks = [],
   onChange = () => {},
 }: {
   value: NonNullable<ReturnType<typeof projectShowClipInspector>>
   durationMs: number
+  showTimeOffsetMs: number
   tracks?: ShowPropertyAnimationTrack[]
   onChange?: (change: ShowPropertyAnimationChange) => boolean | void
 }) {
@@ -7499,7 +7517,7 @@ function ShowPropertyAnimationPanel({
                   <button
                     key={keyframe.id}
                     type="button"
-                    aria-label={`Select keyframe at ${keyframe.timeMs} ms`}
+                    aria-label={`Select keyframe at ${(showTimeOffsetMs + keyframe.timeMs) / 1_000} seconds`}
                     className={`size-3 rotate-45 border ${selectedKeyframe?.id === keyframe.id ? 'border-amber-200 bg-amber-200' : 'border-violet-200/70 bg-violet-300/40 hover:bg-violet-200'}`}
                     onClick={() => setSelected({ trackId: track.id, keyframeId: keyframe.id })}
                   />
@@ -7518,6 +7536,7 @@ function ShowPropertyAnimationPanel({
                 trackId={track.id}
                 keyframe={selectedKeyframe}
                 durationMs={durationMs}
+                showTimeOffsetMs={showTimeOffsetMs}
                 option={option}
                 onChange={onChange}
               />
@@ -7534,12 +7553,14 @@ function ShowPropertyKeyframeEditor({
   trackId,
   keyframe,
   durationMs,
+  showTimeOffsetMs,
   option,
   onChange,
 }: {
   trackId: string
   keyframe: ShowPropertyAnimationKeyframe
   durationMs: number
+  showTimeOffsetMs: number
   option: ShowPropertyAnimationOption
   onChange: (change: ShowPropertyAnimationChange) => boolean | void
 }) {
@@ -7550,6 +7571,7 @@ function ShowPropertyKeyframeEditor({
       trackId={trackId}
       keyframe={keyframe}
       durationMs={durationMs}
+      showTimeOffsetMs={showTimeOffsetMs}
       option={option}
       onChange={(change) => {
         const accepted = onChange(change)
@@ -7563,24 +7585,26 @@ function ShowPropertyKeyframeFields({
   trackId,
   keyframe,
   durationMs,
+  showTimeOffsetMs,
   option,
   onChange,
 }: {
   trackId: string
   keyframe: ShowPropertyAnimationKeyframe
   durationMs: number
+  showTimeOffsetMs: number
   option: ShowPropertyAnimationOption
   onChange: (change: ShowPropertyAnimationChange) => void
 }) {
   const timeField = useNumberFieldDraft({
-    value: keyframe.timeMs,
-    min: 0,
-    max: durationMs,
-    onChange: (timeMs) => onChange({
+    value: (showTimeOffsetMs + keyframe.timeMs) / 1_000,
+    min: showTimeOffsetMs / 1_000,
+    max: (showTimeOffsetMs + durationMs) / 1_000,
+    onChange: (seconds) => onChange({
       kind: 'update-keyframe',
       trackId,
       keyframeId: keyframe.id,
-      changes: { timeMs: Math.round(timeMs) },
+      changes: { timeMs: Math.round(seconds * 1_000 - showTimeOffsetMs) },
     }),
   })
   const valueField = useNumberFieldDraft({
@@ -7598,11 +7622,11 @@ function ShowPropertyKeyframeFields({
     <div className="flex flex-wrap items-center gap-1.5 border-t border-violet-300/10 bg-zinc-950/40 px-2 py-1.5">
       <label className="text-[9px] text-zinc-400">Time
         <input
-          aria-label="Keyframe time ms"
+          aria-label="Keyframe time seconds"
           type="number"
-          min={0}
-          max={durationMs}
-          step={1}
+          min={showTimeOffsetMs / 1_000}
+          max={(showTimeOffsetMs + durationMs) / 1_000}
+          step={0.001}
           {...timeField.inputProps}
           className="ml-1 h-6 w-20 rounded border border-zinc-800 bg-zinc-950 px-1 text-right text-[9px] text-zinc-100"
         />
@@ -7633,48 +7657,6 @@ function ShowPropertyKeyframeFields({
       </select>
     </div>
   )
-}
-
-function buildShowPropertyAnimationOptions(
-  value: NonNullable<ReturnType<typeof projectShowClipInspector>>,
-): ShowPropertyAnimationOption[] {
-  if (!value.placementId || !value.instanceId) return []
-  const option = (label: string, target: ShowPropertyAnimationTarget, current: number, min: number, max: number, step: number): ShowPropertyAnimationOption => ({
-    key: propertyTargetKey(target), label, target, value: current, min, max, step,
-  })
-  const placementId = value.placementId
-  const instanceId = value.instanceId
-  return [
-    option('Animation speed', { kind: 'instance-time-scale', instanceId }, value.simulation.timeScale, 0, 4, 0.01),
-    ...Object.entries(value.simulation.controlTargets ?? {}).map(([exportName, current]) => (
-      option(exportName, { kind: 'instance-control', instanceId, exportName }, current, 0, 1, 0.01)
-    )),
-    ...(value.local?.opacity !== undefined
-      ? [option('Opacity', { kind: 'placement-opacity', placementId }, value.local.opacity, 0, 1, 0.01)]
-      : []),
-    option('Brightness', { kind: 'placement-view', placementId, property: 'brightness' }, value.view.brightness, 0, 1, 0.01),
-    option('Phase', { kind: 'placement-view', placementId, property: 'phase' }, value.view.phase, 0, 1, 0.01),
-    option('Position X', { kind: 'placement-transform', placementId, property: 'positionX' }, value.transform.positionX, -4, 4, 0.01),
-    option('Position Y', { kind: 'placement-transform', placementId, property: 'positionY' }, value.transform.positionY, -4, 4, 0.01),
-    option('Rotation', { kind: 'placement-transform', placementId, property: 'rotation' }, value.transform.rotation, -8, 8, 0.01),
-    option('Scale X', { kind: 'placement-transform', placementId, property: 'scaleX' }, value.transform.scaleX, 0.01, 8, 0.01),
-    option('Scale Y', { kind: 'placement-transform', placementId, property: 'scaleY' }, value.transform.scaleY, 0.01, 8, 0.01),
-    option('Viewport X', { kind: 'placement-viewport', placementId, property: 'x' }, value.viewport.x, -4, 4, 0.01),
-    option('Viewport Y', { kind: 'placement-viewport', placementId, property: 'y' }, value.viewport.y, -4, 4, 0.01),
-    option('Viewport width', { kind: 'placement-viewport', placementId, property: 'width' }, value.viewport.width, 0.01, 8, 0.01),
-    option('Viewport height', { kind: 'placement-viewport', placementId, property: 'height' }, value.viewport.height, 0.01, 8, 0.01),
-    ...value.effects.flatMap((effect) => showClipEffectParameters(effect).flatMap((parameter) => {
-      const current = showClipEffectParameterValue(effect, parameter.id)
-      return typeof current === 'number' ? [option(
-        `${effect.kind} - ${parameter.label}`,
-        { kind: 'placement-effect', placementId, effectId: effect.id, effectKind: effect.kind, parameterId: parameter.id },
-        current,
-        parameter.min ?? -1_000,
-        parameter.max ?? 1_000,
-        parameter.step ?? 0.01,
-      )] : []
-    })),
-  ]
 }
 
 function ClipInspector({
