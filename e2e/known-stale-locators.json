@@ -1,12 +1,11 @@
 {
   "comment": "Ratchet for scripts/check-e2e-locators.mjs (#638). \"stale\" names are produced nowhere in live src and must shrink to zero. \"unverifiable\" names are assembled mostly from runtime data (`Select ${clip.patternName}`); no spec edit can repair them, so they are recorded separately and never gate.",
-  "stale": [
+  "stale": [],
+  "unverifiable": [
     {
       "name": "101 Clips, Cuts, and Blank Time",
       "spec": "authenticated-smoke.auth.spec.ts"
-    }
-  ],
-  "unverifiable": [
+    },
     {
       "name": "101 Clips, Cuts, and Blank Time guide",
       "spec": "shows.auth.spec.ts"

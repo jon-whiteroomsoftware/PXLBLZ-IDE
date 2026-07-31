@@ -99,7 +99,8 @@ test('Studio authoring keeps the rail and editor reachable at 390px (#622)', asy
   ).toBeLessThanOrEqual(1)
   await expect(page.getByRole('button', { name: 'Show properties' })).toBeInViewport()
 
-  await page.getByRole('treeitem', { name: '101 Clips, Cuts, and Blank Time' }).click()
+  // The Learn number is composed from catalogue level and order at runtime.
+  await page.getByRole('treeitem', { name: /Clips, Cuts, and Blank Time$/ }).click()
   await expect.poll(
     () => page.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth),
     'A built-in Show with the full guide and deployment header should stay contained at 390px',
