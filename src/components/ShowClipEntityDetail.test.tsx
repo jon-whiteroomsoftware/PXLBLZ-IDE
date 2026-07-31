@@ -93,18 +93,17 @@ describe('Clip detail tabs (#642)', () => {
     expect(document.activeElement).toBe(place)
   })
 
-  it('closes the placement pad when the tab changes, whichever input did it', () => {
+  it('mounts placement only with its tab instead of preserving a second floating layer', () => {
     render(<ShowClipEntityDetail {...commonProps('scene-main')} />)
 
     showTab('Place')
-    fireEvent.click(screen.getByRole('button', { name: 'Edit placement' }))
-    expect(screen.getByRole('dialog', { name: 'Clip placement' })).toBeInTheDocument()
-
-    // Keyboard switching dispatches no pointerdown, so the popover's own
-    // outside-click handler never fires; the pad must still not spring back.
-    fireEvent.keyDown(screen.getByRole('tablist'), { key: 'ArrowRight' })
-    showTab('Place')
+    expect(screen.getByRole('application', { name: /Placement pad/ })).toBeInTheDocument()
     expect(screen.queryByRole('dialog', { name: 'Clip placement' })).not.toBeInTheDocument()
+
+    fireEvent.keyDown(screen.getByRole('tablist'), { key: 'ArrowRight' })
+    expect(screen.queryByRole('application', { name: /Placement pad/ })).not.toBeInTheDocument()
+    showTab('Place')
+    expect(screen.getByRole('application', { name: /Placement pad/ })).toBeInTheDocument()
   })
 
   it('rests on Pattern and shows one panel at a time', () => {
@@ -403,24 +402,21 @@ describe('shared Clip Entity Detail sections (#498)', () => {
     expect(onPatch).toHaveBeenCalledWith({ transform: { rotation: 0.25 } })
   })
 
-  it('discloses Aperture geometry below the content fields as its own group (#63, #617)', () => {
+  it('switches the five-field geometry stack between Content and Aperture (#63, #646)', () => {
     const onPatch = vi.fn()
     const props = commonProps('scene-main', onPatch)
     const { rerender } = render(<ShowClipEntityDetail {...props} />)
     showTab('Place')
 
-    const contentX = screen.getByRole('textbox', { name: 'Content X' })
-    // Enabling moved into the placement pad, so the panel no longer owns it.
-    expect(screen.queryByRole('checkbox', { name: 'Viewport' })).not.toBeInTheDocument()
-    expect(screen.queryByRole('group', { name: 'Viewport geometry' })).not.toBeInTheDocument()
+    expect(screen.getByRole('textbox', { name: 'Content X' })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Aperture summary' })).toHaveTextContent('Off')
 
     rerender(<ShowClipEntityDetail
       {...props}
       value={{ ...props.value, viewport: { enabled: true, x: 0, y: 0, width: 1, height: 1 } }}
     />)
-    const disclosedViewport = screen.getByRole('group', { name: 'Viewport geometry' })
-    expect(contentX.compareDocumentPosition(disclosedViewport) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
-    expect(within(disclosedViewport).getByText('Aperture')).toBeInTheDocument()
+    fireEvent.click(screen.getByRole('button', { name: 'Aperture summary' }))
+    expect(screen.queryByRole('textbox', { name: 'Content X' })).not.toBeInTheDocument()
 
     const viewportX = screen.getByRole('textbox', { name: 'Viewport X' })
     fireEvent.change(viewportX, { target: { value: '0.25' } })
@@ -428,21 +424,36 @@ describe('shared Clip Entity Detail sections (#498)', () => {
     expect(onPatch).toHaveBeenCalledWith({ viewport: { x: 0.25 } })
   })
 
-  it('summarises placement and opens the pad from the same row (#617)', () => {
+  it('keeps the unfocused rectangle summary level with the inline pad toolbar (#646)', () => {
     const props = commonProps('scene-main')
     render(<ShowClipEntityDetail {...props} />)
 
     showTab('Place')
     const placement = screen.getByRole('group', { name: 'Clip Transform' })
-    const edit = within(placement).getByRole('button', { name: 'Edit placement' })
-    expect(edit).toHaveAttribute('aria-expanded', 'false')
-    expect(within(edit).getByRole('img', { name: /no aperture/ })).toBeInTheDocument()
-    expect(screen.queryByRole('dialog', { name: 'Clip placement' })).not.toBeInTheDocument()
-
-    fireEvent.click(edit)
-    expect(edit).toHaveAttribute('aria-expanded', 'true')
-    expect(screen.getByRole('dialog', { name: 'Clip placement' })).toBeInTheDocument()
+    expect(within(placement).getByTestId('placement-pad-toolbar')).toHaveClass('h-5')
+    expect(within(placement).getByRole('button', { name: 'Aperture summary' })).toHaveClass('h-5')
     expect(screen.getByRole('application', { name: /Placement pad/ })).toBeInTheDocument()
+    expect(screen.queryByTestId('show-clip-placement-popover')).not.toBeInTheDocument()
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
+  })
+
+  it('reserves one suffix gutter on every active geometry row (#646)', () => {
+    render(<ShowClipEntityDetail {...commonProps('scene-main')} />)
+    showTab('Place')
+    const geometry = screen.getByRole('group', { name: 'Content geometry' })
+    const gutters = geometry.querySelectorAll('[data-placement-suffix-gutter]')
+    expect(gutters).toHaveLength(5)
+    expect([...gutters].map((gutter) => gutter.textContent)).toEqual(['', '', 'x', 'x', '°'])
+  })
+
+  it('sends the X and Y grips to the adjacent placement pad (#611, #646)', () => {
+    render(<ShowClipEntityDetail {...commonProps('scene-main')} />)
+    showTab('Place')
+    const pad = screen.getByRole('application', { name: /Placement pad/ })
+    fireEvent.click(screen.getByRole('button', { name: 'Use Content X on placement pad' }))
+    expect(pad).toHaveFocus()
+    fireEvent.click(screen.getByRole('button', { name: 'Use Content Y on placement pad' }))
+    expect(pad).toHaveFocus()
   })
 
   it('reaches Placement through its own tab rather than a disclosure (#63, #642)', () => {
@@ -656,6 +667,7 @@ describe('placement field display (#617)', () => {
     showTab('Place')
 
     expect(screen.getByRole('textbox', { name: 'Content X' })).toHaveValue('-0.215')
+    fireEvent.click(screen.getByRole('button', { name: 'Aperture summary' }))
     expect(screen.getByRole('textbox', { name: 'Viewport Width exact multiplier' })).toHaveValue('0.67')
     // Display only: nothing is written back just for being rendered.
     expect(onPatch).not.toHaveBeenCalled()

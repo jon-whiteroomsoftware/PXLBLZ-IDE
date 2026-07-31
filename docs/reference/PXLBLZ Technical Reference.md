@@ -1631,8 +1631,8 @@ sections are legal. Pure update adapters translate normalized patches back to
 React surface requests one Show update.
 
 `ShowClipEntityDetail` renders the Pattern chooser, Animation speed,
-Brightness, Clip Transform, Mirror, phase, public Pattern controls, Effect stack,
-and numeric field behavior. `ShowEditor` supplies placement timing, Layer,
+Brightness, the inline Clip-placement surface, Mirror, phase, public Pattern
+controls, Effect stack, and numeric field behavior. `ShowEditor` supplies placement timing, Layer,
 Opacity, structural actions, and clock controls through the same anchored
 `ShowEntityDetailPanel`. Sparklines remain aligned beneath the owning Zone
 because they are temporal projections rather than scalar Clip fields. The
@@ -1768,14 +1768,30 @@ undo/redo, persistence, and deletion all retain or remove the Transform with
 its placement; placement-owned animation tracks follow the same lifecycle.
 
 `showClipViewport.ts` owns the optional placement-local clipping rectangle.
-Missing or disabled Viewports leave the complete Zone visible; first enable
-defaults to X/Y `0` and Width/Height `1`, so progressive disclosure is a visual
-no-op. Disabled authored geometry is retained for later re-enable. The compact
-Clip inspector always labels ordinary placement as Content geometry, followed
-by Enable Viewport. Enabling it discloses the separately labeled Viewport
-geometry immediately below the toggle. Both rectangles use normalized Zone
-coordinates; Content rotation remains center-based while the Viewport stays
-axis-aligned.
+Missing or disabled Viewports leave the complete Zone visible. First enable
+frames the Content portion already visible inside the Zone, so progressive
+disclosure is a visual no-op; an authored disabled rectangle is restored
+instead of being derived again.
+
+The Place tab renders `ShowClipPlacementPad` inline with one geometry column.
+The SVG keeps a stable `384 x 384` coordinate system for gesture math but fills
+a responsive `156..228px` layout column. Content and Aperture share one editing
+focus: the active rectangle owns the pad handles and the five-field X/Y/Width/
+Height/Rotation stack, while the inactive rectangle becomes a clickable
+read-only summary level with the pad toolbar. Aperture Rotation remains a
+disabled zero because the rectangle is axis-aligned. Every geometry row
+reserves the same unit gutter, including unitless X/Y, so its exact-entry field
+edge remains aligned.
+
+`showClipPlacementPad.ts` remains the framework-free gesture boundary. Pointer
+coordinates are normalized through the rendered SVG bounds before the engine
+applies move, resize, rotation, cell sweep, clamp, and exact edge-magnet rules;
+therefore resizing the surface does not change stored results. The toolbar
+keeps Content/Aperture focus, grid, focused-rectangle actions, and contextual
+help in one row. Content zoom uses discrete one-commit steps, and X/Y grips
+focus the adjacent pad instead of opening another spatial control. Placement
+adds no nested dialog; the owning `ShowEntityDetailPanel` retains Escape and
+outside-pointer behavior.
 
 Lowering carries the Viewport with its placement. The routed compiler multiplies
 placement opacity by the Viewport's coordinate predicate after Pattern capture,

@@ -2,6 +2,7 @@ import { fireEvent, render, screen } from '@testing-library/react'
 import { describe, expect, it, vi } from 'vitest'
 import { NEUTRAL_SHOW_CLIP_TRANSFORM } from '@/engine/showClipTransform'
 import { DEFAULT_SHOW_CLIP_VIEWPORT } from '@/engine/showClipViewport'
+import { contentRectFromTransform } from '@/engine/showClipPlacementPad'
 import { ShowClipPlacementPad } from './ShowClipPlacementPad'
 import type { ShowClipTransform, ShowClipViewport } from '@/engine/personalContentRecords'
 
@@ -25,21 +26,23 @@ function setup(
 describe('aperture enablement', () => {
   it('opens the aperture on what the clip already covers', () => {
     const onChange = setup({ positionY: -0.25, scaleY: 0.5 })
-    fireEvent.click(screen.getByLabelText('Aperture'))
+    fireEvent.click(screen.getByRole('button', { name: 'Aperture' }))
     expect(onChange).toHaveBeenCalledWith({ viewport: expect.objectContaining({ enabled: true, height: 0.5, y: 0 }) })
   })
 
   it('disables without discarding the authored rectangle', () => {
     const onChange = setup({}, { enabled: true, x: 0.25, y: 0.25, width: 0.5, height: 0.5 })
-    fireEvent.click(screen.getByLabelText('Aperture'))
+    fireEvent.click(screen.getByRole('button', { name: 'Aperture' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Aperture' }))
     expect(onChange).toHaveBeenCalledWith({ viewport: expect.objectContaining({ enabled: false, x: 0.25, width: 0.5 }) })
   })
 })
 
 describe('editing focus', () => {
-  it('offers no focus toggle until an aperture exists', () => {
+  it('offers the two rectangles in one compact focus control', () => {
     setup()
-    expect(screen.queryByRole('button', { name: 'Content' })).not.toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Content' })).toHaveAttribute('aria-pressed', 'true')
+    expect(screen.getByRole('button', { name: 'Aperture' })).toHaveAttribute('aria-pressed', 'false')
   })
 
   it('shows content handles and hides aperture handles while content has focus', () => {
@@ -69,6 +72,14 @@ describe('editing focus', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Aperture' }))
     expect(screen.queryByLabelText('Rotate content')).not.toBeInTheDocument()
   })
+
+  it('enables a missing aperture when its focus segment is activated', () => {
+    const onChange = setup()
+    fireEvent.click(screen.getByRole('button', { name: 'Aperture' }))
+    expect(onChange).toHaveBeenCalledWith({
+      viewport: expect.objectContaining({ enabled: true, width: 1, height: 1 }),
+    })
+  })
 })
 
 describe('control bar actions', () => {
@@ -95,15 +106,17 @@ describe('control bar actions', () => {
 })
 
 describe('read-only', () => {
-  it('disables the controls and drops the handles', () => {
+  it('keeps rectangle focus inspectable while disabling mutations and dropping handles', () => {
     setup({}, { enabled: true, width: 0.5 }, true)
-    expect(screen.getByLabelText('Aperture')).toBeDisabled()
+    expect(screen.getByRole('button', { name: 'Aperture' })).toBeEnabled()
+    expect(screen.getByRole('combobox', { name: 'Grid' })).toBeDisabled()
+    expect(screen.getByRole('button', { name: 'Fit' })).toBeDisabled()
     expect(screen.queryByLabelText('Resize content nw')).not.toBeInTheDocument()
   })
 })
 
 describe('gesture feedback (#617)', () => {
-  it('keeps its own height across a focus change, so the popover cannot jump', () => {
+  it('keeps the square surface responsive instead of fixing its rendered size', () => {
     const { container } = render(
       <ShowClipPlacementPad
         transform={{ ...NEUTRAL_SHOW_CLIP_TRANSFORM }}
@@ -111,35 +124,70 @@ describe('gesture feedback (#617)', () => {
         onChange={vi.fn()}
       />,
     )
-    const reserved = container.querySelector('.min-h-\\[40px\\]')
-    expect(reserved).toBeInTheDocument()
-    fireEvent.click(screen.getByRole('button', { name: 'Aperture' }))
-    // The row survives the focus change even though its controls do not.
-    expect(container.querySelector('.min-h-\\[40px\\]')).toBeInTheDocument()
-    expect(screen.queryByLabelText('Zoom')).not.toBeInTheDocument()
+    const pad = screen.getByRole('application', { name: /Placement pad/ })
+    expect(pad).toHaveAttribute('viewBox', '0 0 384 384')
+    expect(pad).not.toHaveAttribute('width')
+    expect(pad).toHaveClass('aspect-square', 'w-full')
+    expect(container.querySelector('[data-placement-help]')).toHaveAttribute('title')
   })
 
-  it('previews continuously and commits once, rather than per pointer move', () => {
+  it('replaces the continuous zoom slider with one-commit stepper actions', () => {
     const onChange = vi.fn()
-    const onPreview = vi.fn()
-    const onPreviewEnd = vi.fn()
     render(
       <ShowClipPlacementPad
         transform={{ ...NEUTRAL_SHOW_CLIP_TRANSFORM }}
         viewport={{ ...DEFAULT_SHOW_CLIP_VIEWPORT }}
         onChange={onChange}
-        onPreview={onPreview}
-        onPreviewEnd={onPreviewEnd}
       />,
     )
-    const zoom = screen.getByLabelText('Zoom')
-    fireEvent.change(zoom, { target: { value: '1.5' } })
-    fireEvent.change(zoom, { target: { value: '2' } })
-    expect(onPreview).toHaveBeenCalledTimes(2)
-    expect(onChange).not.toHaveBeenCalled()
-
-    fireEvent.pointerUp(zoom)
+    expect(screen.queryByRole('slider', { name: 'Zoom' })).not.toBeInTheDocument()
+    fireEvent.click(screen.getByRole('button', { name: 'Zoom in' }))
     expect(onChange).toHaveBeenCalledTimes(1)
-    expect(onPreviewEnd).toHaveBeenCalledTimes(1)
+    expect(onChange).toHaveBeenCalledWith({
+      transform: expect.objectContaining({ scaleX: 1.1, scaleY: 1.1 }),
+    })
+  })
+
+  it.each([156, 228])('preserves exact edge magnets at a %dpx rendered size', (size) => {
+    const onChange = vi.fn()
+    render(
+      <ShowClipPlacementPad
+        transform={{
+          ...NEUTRAL_SHOW_CLIP_TRANSFORM,
+          positionX: -0.1,
+          positionY: -0.2,
+          scaleX: 0.6,
+          scaleY: 0.4,
+        }}
+        viewport={{
+          ...DEFAULT_SHOW_CLIP_VIEWPORT,
+          enabled: true,
+          x: 0.2,
+          y: 0.2,
+          width: 0.6,
+          height: 0.4,
+        }}
+        onChange={onChange}
+      />,
+    )
+    const pad = screen.getByRole('application', { name: /Placement pad/ })
+    vi.spyOn(pad, 'getBoundingClientRect').mockReturnValue({
+      x: 0, y: 0, left: 0, top: 0, right: size, bottom: size, width: size, height: size,
+      toJSON: () => ({}),
+    })
+    // Everything is within the Zone, so placementPadView is [-0.35, 1.35].
+    const px = (unit: number) => (unit + 0.35) / 1.7 * size
+    const content = screen.getByLabelText('Move content')
+    fireEvent.pointerDown(content, { pointerId: 7, clientX: px(0.4), clientY: px(0.3) })
+    fireEvent.pointerMove(content, { pointerId: 7, clientX: px(0.49), clientY: px(0.39) })
+    fireEvent.pointerUp(content, { pointerId: 7, clientX: px(0.49), clientY: px(0.39) })
+
+    const patch = onChange.mock.calls[onChange.mock.calls.length - 1]?.[0]
+    expect(contentRectFromTransform(patch.transform)).toEqual({
+      left: 0.2,
+      top: 0.2,
+      width: 0.6,
+      height: 0.4,
+    })
   })
 })

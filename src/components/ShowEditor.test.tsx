@@ -3563,19 +3563,14 @@ describe('ShowEditor (#318)', () => {
     await user.click(screen.getByRole('button', { name: 'Select SignalMandala' }))
     expect(screen.getByRole('table', { name: 'Pattern controls' })).toBeInTheDocument()
 
-    // The Aperture toggle lives in the placement pad (#617), which is now its own
-    // tab (#642) - so the guard is that the controls survive the round trip, not
-    // that both are on screen at once.
-    // Both toggles happen without leaving Place. Switching tabs closes the pad
-    // through the popover's outside-pointerdown handler, which would detach the
-    // checkbox and let the second toggle assert against a dead node.
+    // The Aperture focus/toggle lives in the inline placement pad (#646), which
+    // is on its own tab (#642). Pattern controls survive the round trip.
     await user.click(screen.getByRole('tab', { name: /^Place/ }))
-    await user.click(screen.getByRole('button', { name: 'Edit placement' }))
-    const aperture = screen.getByRole('checkbox', { name: 'Aperture' })
+    const aperture = screen.getByRole('button', { name: 'Aperture' })
     await user.click(aperture)
-    await waitFor(() => expect(aperture).toBeChecked())
+    await waitFor(() => expect(aperture).toHaveAttribute('aria-pressed', 'true'))
     await user.click(aperture)
-    await waitFor(() => expect(aperture).not.toBeChecked())
+    await waitFor(() => expect(aperture).toHaveAttribute('aria-pressed', 'false'))
 
     await user.click(screen.getByRole('tab', { name: /^Pattern/ }))
     expect(screen.getByRole('table', { name: 'Pattern controls' })).toBeInTheDocument()

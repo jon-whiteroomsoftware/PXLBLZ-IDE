@@ -486,6 +486,16 @@ stepped motion.
 Compatible 2D clips expose a canonical **Transform** group for position,
 rotation, and scale, followed by an ordered **Effect stack** grouped into the
 compiler's fixed Transform, Distort, Address, and Color & output stages.
+The **Place** tab keeps spatial editing inside the Clip panel: a responsive
+square pad sits beside one X, Y, Width, Height, and Rotation stack. The fields
+edit the focused **Content** or **Aperture** rectangle; the other rectangle
+appears as a compact summary above them and switches focus when clicked.
+Selecting an absent Aperture enables it over the Content's visible bounds.
+Drag the focused rectangle, its corners, or Content's rotation handle on the
+pad; grid edges and the other rectangle remain exact magnets. X/Y grips move
+keyboard focus to that same pad, while a compact stepper adjusts Content zoom
+and the `?` control explains the focus-specific gestures.
+
 **Mirror** appears only in that stack as a visually distinct, fixed first
 Transform row. It remains a placement adaptation rather than an ordered
 Effect, so its action menu offers **Remove** but never move or duplicate.

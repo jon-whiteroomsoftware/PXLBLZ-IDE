@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState, type FocusEvent, type ChangeEvent, type KeyboardEvent } from 'react'
+import { GripVertical } from 'lucide-react'
 
 // The one simple numeric-entry contract for the app (#577, #656): this is a
 // decimal textbox, deliberately not a native number input/spinbutton. Keystrokes
@@ -81,6 +82,11 @@ export interface NumberFieldProps {
   max?: number
   step?: number
   suffix?: string
+  reserveSuffixSpace?: boolean
+  padGrip?: {
+    ariaLabel: string
+    onClick: () => void
+  }
   help?: string
   hideLabel?: boolean
   showNormalizedRange?: boolean
@@ -98,6 +104,8 @@ export function NumberField({
   min,
   max,
   suffix,
+  reserveSuffixSpace = false,
+  padGrip,
   help,
   hideLabel = false,
   showNormalizedRange = true,
@@ -133,16 +141,38 @@ export function NumberField({
         )}
       </span>
       <span className={`${hideLabel ? '' : 'mt-1'} flex min-w-0 items-center gap-1`}>
-        <input
-          aria-label={ariaLabel ?? label}
-          title={help}
-          type="text"
-          inputMode="decimal"
-          disabled={disabled}
-          {...inputProps}
-          className={`${inputClass} min-w-0 w-full flex-1 ${resolvedAlign === 'left' ? 'text-left' : 'text-right'}`}
-        />
-        {suffix && <span className={suffixClass}>{suffix}</span>}
+        <span className={padGrip ? 'flex min-w-0 flex-1' : 'contents'}>
+          <input
+            aria-label={ariaLabel ?? label}
+            title={help}
+            type="text"
+            inputMode="decimal"
+            disabled={disabled}
+            {...inputProps}
+            className={`${inputClass} min-w-0 w-full flex-1 ${padGrip ? 'rounded-r-none border-r-0' : ''} ${resolvedAlign === 'left' ? 'text-left' : 'text-right'}`}
+          />
+          {padGrip && (
+            <button
+              type="button"
+              aria-label={padGrip.ariaLabel}
+              title="Use the adjacent placement pad"
+              disabled={disabled}
+              onClick={padGrip.onClick}
+              className="grid h-5 w-[18px] shrink-0 place-items-center rounded-r border border-l border-zinc-700 bg-zinc-950 text-zinc-600 hover:bg-zinc-800 hover:text-cyan-300 focus:outline-none focus-visible:text-cyan-300 disabled:opacity-40"
+            >
+              <GripVertical size={12} aria-hidden />
+            </button>
+          )}
+        </span>
+        {(suffix !== undefined || reserveSuffixSpace) && (
+          <span
+            aria-hidden
+            data-placement-suffix-gutter={reserveSuffixSpace ? '' : undefined}
+            className={`${suffixClass} w-[11px] shrink-0 text-left`}
+          >
+            {suffix}
+          </span>
+        )}
       </span>
     </label>
   )

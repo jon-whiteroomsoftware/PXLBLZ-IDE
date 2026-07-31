@@ -1,4 +1,4 @@
-import { useState, type ReactNode } from 'react'
+import { useRef, useState, type ReactNode } from 'react'
 import { NumberField } from './ui/number-field'
 import { PercentageField } from './ui/percentage-field'
 import { DomainNumberField } from './ui/domain-number-field'
@@ -7,8 +7,10 @@ import { Grid2X2 } from 'lucide-react'
 import { PatternCombobox, type PatternComboboxOption } from './PatternCombobox'
 import { ShowEffectStack } from './ShowEffectsAuthoring'
 import { ShowClipPlacementPad } from './ShowClipPlacementPad'
-import { ShowClipPlacementPopover } from './ShowClipPlacementPopover'
-import { describeShowPlacement, ShowPlacementGlyph } from './ShowPlacementGlyph'
+import {
+  enableViewportForContent,
+  type PlacementFocus,
+} from '@/engine/showClipPlacementPad'
 import {
   normalizeShowClipEvaluationPolicy,
   showClipInspectorCapabilities,
@@ -92,8 +94,25 @@ export function ShowClipEntityDetail({
   const showOpacity = capabilities.sourceOverOpacity && value.local !== undefined
   const headerFieldCount = 1 + (localTiming ? 2 : 0) + (showOpacity ? 1 : 0)
   const controlTargets = value.simulation.controlTargets
-  const [padOpen, setPadOpen] = useState(false)
-  const [padAnchor, setPadAnchor] = useState<HTMLButtonElement | null>(null)
+  const [placementFocus, setPlacementFocus] = useState<PlacementFocus>('content')
+  const placementGroupRef = useRef<HTMLDivElement>(null)
+  const activePlacementFocus: PlacementFocus = value.viewport.enabled ? placementFocus : 'content'
+  const selectPlacementFocus = (next: PlacementFocus) => setPlacementFocus(next)
+  const selectPlacementSummary = (next: PlacementFocus) => {
+    selectPlacementFocus(next)
+    if (next === 'aperture' && !value.viewport.enabled) {
+      void onPatch({
+        viewport: enableViewportForContent({
+          transform: value.transform,
+          viewport: value.viewport,
+          grid: 3,
+        }),
+      })
+    }
+  }
+  const focusPlacementPad = () => placementGroupRef.current
+    ?.querySelector<SVGSVGElement>('[role="application"]')
+    ?.focus()
 
   /*
     Tabs (#642). The preference is session-scoped and keyed by panel, so a pinned
@@ -112,10 +131,6 @@ export function ShowClipEntityDetail({
   const selectTab = (tab: ShowClipDetailTabId) => {
     setPreferredTab(tab)
     rememberShowClipDetailTab(panelKey, tab)
-    // Leaving Place must close the pad. A pointer switch closed it as a side
-    // effect of the popover's outside-pointerdown handler while a keyboard
-    // switch did not, so the pad sprang back open on returning to Place.
-    if (tab !== 'place') setPadOpen(false)
   }
   const tabIdFor = (tab: ShowClipDetailTabId) => `clip-detail-tab-${panelKey}-${tab}`
   const panelId = `clip-detail-panel-${panelKey}`
@@ -345,50 +360,35 @@ export function ShowClipEntityDetail({
           </label>
         )}
 
-        {activeTab === 'place' && <div role="group" aria-label="Clip Transform" className="min-w-0">
-          <div className="grid min-w-0 gap-2 pb-0.5">
-            <button
-              ref={setPadAnchor}
-              type="button"
-              aria-label="Edit placement"
-              aria-expanded={padOpen}
-              onClick={() => setPadOpen((open) => !open)}
-              className="flex min-w-0 items-center gap-2 text-left"
-            >
-              <ShowPlacementGlyph
-                size={26}
-                className="shrink-0 text-zinc-300"
-                transform={value.transform}
-                viewport={value.viewport}
-              />
-              <span className="min-w-0 flex-1 truncate text-[10px] text-zinc-500">
-                {describeShowPlacement({ transform: value.transform, viewport: value.viewport })}
-              </span>
-              <span className="shrink-0 text-[9px] text-cyan-300/80">Edit</span>
-            </button>
-            {padOpen && padAnchor && (
-              <ShowClipPlacementPopover
-                anchor={padAnchor}
-                label="Clip placement"
-                onClose={() => setPadOpen(false)}
-              >
-                <ShowClipPlacementPad
-                  transform={value.transform}
-                  viewport={value.viewport}
-                  readOnly={readOnly}
-                  onChange={onPatch}
-                  onPreview={onPreviewPatch}
-                  onPreviewEnd={onPreviewEnd}
-                />
-              </ShowClipPlacementPopover>
-            )}
-            <ClipPlacementGeometry
-              value={value}
+        {activeTab === 'place' && <div ref={placementGroupRef} role="group" aria-label="Clip Transform" className="min-w-0">
+          <div className="grid min-w-0 grid-cols-[minmax(156px,228px)_minmax(112px,1fr)] items-start gap-2 pb-0.5">
+            <ShowClipPlacementPad
+              transform={value.transform}
+              viewport={value.viewport}
               readOnly={readOnly}
-              onPreviewPatch={onPreviewPatch}
+              focus={activePlacementFocus}
+              onFocusChange={selectPlacementFocus}
+              onChange={onPatch}
+              onPreview={onPreviewPatch}
               onPreviewEnd={onPreviewEnd}
-              onPatch={onPatch}
             />
+            <div className="grid min-w-0 gap-1">
+              <PlacementRectangleSummary
+                focus={activePlacementFocus}
+                value={value}
+                readOnly={readOnly}
+                onSelect={selectPlacementSummary}
+              />
+              <ClipPlacementGeometry
+                focus={activePlacementFocus}
+                onFocusPad={focusPlacementPad}
+                value={value}
+                readOnly={readOnly}
+                onPreviewPatch={onPreviewPatch}
+                onPreviewEnd={onPreviewEnd}
+                onPatch={onPatch}
+              />
+            </div>
           </div>
         </div>}
 
@@ -674,53 +674,79 @@ export function ShowClipEntityDetail({
   )
 }
 
+function PlacementRectangleSummary({
+  focus,
+  value,
+  readOnly,
+  onSelect,
+}: {
+  focus: PlacementFocus
+  value: ShowClipInspectorValue
+  readOnly: boolean
+  onSelect: (focus: PlacementFocus) => void
+}) {
+  const summaryFocus: PlacementFocus = focus === 'content' ? 'aperture' : 'content'
+  const isAperture = summaryFocus === 'aperture'
+  const summary = isAperture
+    ? value.viewport.enabled
+      ? `${shown(value.viewport.x)}, ${shown(value.viewport.y)} · ${shown(value.viewport.width)}×${shown(value.viewport.height)}`
+      : 'Off · select to enable'
+    : `${shown(value.transform.positionX)}, ${shown(value.transform.positionY)} · ${shown(value.transform.scaleX)}×${shown(value.transform.scaleY)}`
+  const label = isAperture ? 'Aperture' : 'Content'
+  return (
+    <button
+      type="button"
+      aria-label={`${label} summary`}
+      disabled={readOnly && isAperture && !value.viewport.enabled}
+      onClick={() => onSelect(summaryFocus)}
+      className="flex h-5 min-w-0 items-center gap-1 rounded border border-transparent px-1 text-left font-mono text-[8px] text-zinc-500 hover:border-zinc-800 hover:text-zinc-300 focus-visible:outline focus-visible:outline-1 focus-visible:outline-cyan-300 disabled:cursor-default disabled:opacity-60"
+    >
+      <span className={`shrink-0 font-sans text-[7.5px] uppercase tracking-[0.08em] ${isAperture ? 'text-amber-300/75' : 'text-violet-300/75'}`}>
+        {isAperture ? 'Ap' : 'Ct'}
+      </span>
+      <span className="min-w-0 truncate">{summary}</span>
+    </button>
+  )
+}
+
 /**
- * One label row over two aligned field rows: the content on top, the aperture
- * directly beneath in the same columns, so the two rectangles read as variants
- * of the same four numbers. Rotation takes the left quarter because only the
- * content can turn; the aperture is axis-aligned and leaves that cell to its
- * own name.
+ * The fields edit the focused rectangle. The other rectangle stays visible in
+ * the summary above, preserving comparison without spending a second field row.
  */
 function ClipPlacementGeometry({
+  focus,
+  onFocusPad,
   value,
   readOnly,
   onPreviewPatch,
   onPreviewEnd,
   onPatch,
 }: {
+  focus: PlacementFocus
+  onFocusPad: () => void
   value: ShowClipInspectorValue
   readOnly: boolean
   onPreviewPatch?: ShowClipEntityDetailProps['onPreviewPatch']
   onPreviewEnd?: ShowClipEntityDetailProps['onPreviewEnd']
   onPatch: ShowClipEntityDetailProps['onPatch']
 }) {
-  // Rotation | X | Y | Width | Height. The four shared columns hold 75%.
-  const columns = 'grid min-w-0 grid-cols-[1.5fr_1.4fr_1.4fr_1.85fr_1.85fr] items-end gap-x-1.5'
+  const content = focus === 'content'
+  const prefix = content ? 'Content' : 'Viewport'
+  const xLabel = content ? 'Content X' : 'Viewport X'
+  const yLabel = content ? 'Content Y' : 'Viewport Y'
+  const widthLabel = content ? 'Content Width' : 'Viewport Width'
+  const heightLabel = content ? 'Content Height' : 'Viewport Height'
+  const positionX = content ? value.transform.positionX : value.viewport.x
+  const positionY = content ? value.transform.positionY : value.viewport.y
+  const width = content ? value.transform.scaleX : value.viewport.width
+  const height = content ? value.transform.scaleY : value.viewport.height
   return (
-    <div className="grid min-w-0 gap-1.5">
-      <div className={`${columns} text-[9px] uppercase tracking-[0.1em] text-zinc-600`}>
-        <span>Rotation</span><span>X</span><span>Y</span><span>Width</span><span>Height</span>
-      </div>
-
-      <div className={columns}>
-        <ShowInspectorNumberField hideLabel label="" ariaLabel="Rotation degrees" value={shown(value.transform.rotation * 360)} min={-2880} max={2880} step={1} suffix="°" disabled={readOnly} onChange={(degrees) => onPatch({ transform: { rotation: degrees / 360 } })} />
-        <ShowInspectorNumberField hideLabel label="" ariaLabel="Content X" value={shown(value.transform.positionX)} min={-4} max={4} step={0.01} disabled={readOnly} onChange={(positionX) => onPatch({ transform: { positionX } })} />
-        <ShowInspectorNumberField hideLabel label="" ariaLabel="Content Y" value={shown(value.transform.positionY)} min={-4} max={4} step={0.01} disabled={readOnly} onChange={(positionY) => onPatch({ transform: { positionY } })} />
-        <DomainNumberField hideLabel label="" ariaLabel="Content Width" presentation="multiplier" value={shown(value.transform.scaleX)} min={0.01} max={8} step={0.01} disabled={readOnly} onPreview={(scaleX) => onPreviewPatch?.({ transform: { scaleX } })} onPreviewEnd={onPreviewEnd} onChange={(scaleX) => onPatch({ transform: { scaleX } })} />
-        <DomainNumberField hideLabel label="" ariaLabel="Content Height" presentation="multiplier" value={shown(value.transform.scaleY)} min={0.01} max={8} step={0.01} disabled={readOnly} onPreview={(scaleY) => onPreviewPatch?.({ transform: { scaleY } })} onPreviewEnd={onPreviewEnd} onChange={(scaleY) => onPatch({ transform: { scaleY } })} />
-      </div>
-
-      {value.viewport.enabled && (
-        // display:contents keeps the accessible grouping without breaking the
-        // column alignment the two rows exist to show.
-        <fieldset aria-label="Viewport geometry" className={columns}>
-          <span className="pb-1.5 text-[9px] uppercase tracking-[0.1em] text-zinc-500">Aperture</span>
-          <ShowInspectorNumberField hideLabel label="" ariaLabel="Viewport X" value={shown(value.viewport.x)} min={-4} max={4} step={0.01} disabled={readOnly} onChange={(x) => onPatch({ viewport: { x } })} />
-          <ShowInspectorNumberField hideLabel label="" ariaLabel="Viewport Y" value={shown(value.viewport.y)} min={-4} max={4} step={0.01} disabled={readOnly} onChange={(y) => onPatch({ viewport: { y } })} />
-          <DomainNumberField hideLabel label="" ariaLabel="Viewport Width" presentation="multiplier" value={shown(value.viewport.width)} min={0.01} max={8} step={0.01} disabled={readOnly} onPreview={(width) => onPreviewPatch?.({ viewport: { width } })} onPreviewEnd={onPreviewEnd} onChange={(width) => onPatch({ viewport: { width } })} />
-          <DomainNumberField hideLabel label="" ariaLabel="Viewport Height" presentation="multiplier" value={shown(value.viewport.height)} min={0.01} max={8} step={0.01} disabled={readOnly} onPreview={(height) => onPreviewPatch?.({ viewport: { height } })} onPreviewEnd={onPreviewEnd} onChange={(height) => onPatch({ viewport: { height } })} />
-        </fieldset>
-      )}
+    <div role="group" aria-label={`${content ? 'Content' : 'Aperture'} geometry`} className="grid min-w-0 gap-1">
+      <ShowInspectorNumberField compact label="X" ariaLabel={xLabel} value={shown(positionX)} min={-4} max={4} step={0.01} reserveSuffixSpace padGrip={{ ariaLabel: `Use ${prefix} X on placement pad`, onClick: onFocusPad }} disabled={readOnly} onChange={(next) => onPatch(content ? { transform: { positionX: next } } : { viewport: { x: next } })} />
+      <ShowInspectorNumberField compact label="Y" ariaLabel={yLabel} value={shown(positionY)} min={-4} max={4} step={0.01} reserveSuffixSpace padGrip={{ ariaLabel: `Use ${prefix} Y on placement pad`, onClick: onFocusPad }} disabled={readOnly} onChange={(next) => onPatch(content ? { transform: { positionY: next } } : { viewport: { y: next } })} />
+      <DomainNumberField compact label="Width" ariaLabel={widthLabel} presentation="multiplier" value={shown(width)} min={0.01} max={8} step={0.01} reserveSuffixSpace disabled={readOnly} onPreview={(next) => onPreviewPatch?.(content ? { transform: { scaleX: next } } : { viewport: { width: next } })} onPreviewEnd={onPreviewEnd} onChange={(next) => onPatch(content ? { transform: { scaleX: next } } : { viewport: { width: next } })} />
+      <DomainNumberField compact label="Height" ariaLabel={heightLabel} presentation="multiplier" value={shown(height)} min={0.01} max={8} step={0.01} reserveSuffixSpace disabled={readOnly} onPreview={(next) => onPreviewPatch?.(content ? { transform: { scaleY: next } } : { viewport: { height: next } })} onPreviewEnd={onPreviewEnd} onChange={(next) => onPatch(content ? { transform: { scaleY: next } } : { viewport: { height: next } })} />
+      <ShowInspectorNumberField compact label="Rotation" ariaLabel={content ? 'Rotation degrees' : 'Viewport rotation'} value={content ? shown(value.transform.rotation * 360) : 0} min={-2880} max={2880} step={1} suffix="°" reserveSuffixSpace disabled={readOnly || !content} help={content ? undefined : 'Aperture is axis-aligned'} onChange={(degrees) => onPatch({ transform: { rotation: degrees / 360 } })} />
     </div>
   )
 }

@@ -47,6 +47,7 @@ export interface BoundedNumberFieldProps {
   presentation: BoundedNumberPresentation
   help?: string
   hideLabel?: boolean
+  reserveSuffixSpace?: boolean
   compact?: boolean
   align?: 'left' | 'right'
   disabled?: boolean
@@ -69,6 +70,7 @@ export function BoundedNumberField({
   presentation,
   help,
   hideLabel = false,
+  reserveSuffixSpace = false,
   compact = false,
   align,
   disabled = false,
@@ -384,11 +386,12 @@ export function BoundedNumberField({
             <GripVertical size={12} aria-hidden />
           </button>
         </span>
-        {suffix && (
+        {(suffix !== undefined || reserveSuffixSpace) && (
           <span
             aria-hidden
-            data-unit-suffix={suffix}
-            className="shrink-0 text-[10px] normal-case tracking-normal text-zinc-500"
+            data-unit-suffix={suffix ?? ''}
+            data-placement-suffix-gutter={reserveSuffixSpace ? '' : undefined}
+            className="w-[11px] shrink-0 text-left text-[10px] normal-case tracking-normal text-zinc-500"
           >
             {suffix}
           </span>

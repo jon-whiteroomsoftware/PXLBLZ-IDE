@@ -30,6 +30,8 @@ import {
 // gestures act on. The unfocused rectangle dims and goes inert but keeps
 // acting as a magnet, which is what makes an exact match reachable by hand.
 
+// The viewBox stays stable so gesture math is independent of rendered size.
+// CSS owns the physical size: the inline surface fills its responsive column.
 const PAD = 384
 const CONTENT = '#a78bfa'
 const APERTURE = '#e6b85c'
@@ -47,6 +49,8 @@ export interface ShowClipPlacementPadProps {
   transform: ShowClipTransform
   viewport: ShowClipViewport
   readOnly?: boolean
+  focus?: PlacementFocus
+  onFocusChange?: (focus: PlacementFocus) => void
   /** Commits a value. Called once per gesture, not once per pointer move. */
   onChange: (patch: { transform?: ShowClipTransform; viewport?: ShowClipViewport }) => void
   /** Continuous feedback during a gesture. Falls back to onChange when absent. */
@@ -58,12 +62,14 @@ export function ShowClipPlacementPad({
   transform: committedTransform,
   viewport: committedViewport,
   readOnly = false,
+  focus: controlledFocus,
+  onFocusChange,
   onChange,
   onPreview,
   onPreviewEnd,
 }: ShowClipPlacementPadProps) {
   const [grid, setGrid] = useState(3)
-  const [focus, setFocus] = useState<PlacementFocus>('content')
+  const [uncontrolledFocus, setUncontrolledFocus] = useState<PlacementFocus>('content')
   // The pad is controlled, and preview does not flow back through props, so a
   // gesture would show nothing until release without holding its own value.
   const [live, setLive] = useState<PlacementPadResult | null>(null)
@@ -75,6 +81,7 @@ export function ShowClipPlacementPad({
   const viewport = live?.viewport ?? committedViewport
   const context: PlacementPadContext = { transform, viewport, grid }
   const apertureOn = viewport.enabled
+  const focus = controlledFocus ?? uncontrolledFocus
   const active: PlacementFocus = apertureOn ? focus : 'content'
   const contentActive = active === 'content' && !readOnly
   const apertureActive = active === 'aperture' && !readOnly
@@ -86,6 +93,10 @@ export function ShowClipPlacementPad({
   const toPad = (unit: number) => (unit - view.min) / extent * PAD
   const toUnit = (pad: number) => pad / PAD * extent + view.min
   const span = (unit: number) => unit / extent * PAD
+  const chooseFocus = (next: PlacementFocus) => {
+    setUncontrolledFocus(next)
+    onFocusChange?.(next)
+  }
 
   const apply = (result: PlacementPadResult) => {
     if (result.transform || result.viewport) onChange(result)
@@ -172,35 +183,48 @@ export function ShowClipPlacementPad({
     const move = moves[event.key]
     if (!move) return
     event.preventDefault()
-    apply(nudgeContent(context, move[0], move[1]))
+    apply(active === 'content'
+      ? nudgeContent(context, move[0], move[1])
+      : moveViewportTo(context, window.left + move[0], window.top + move[1], { carryContent: false }))
   }
 
   const rotation = `rotate(${transform.rotation * 360} ${toPad(box.left + box.width / 2)} ${toPad(box.top + box.height / 2)})`
 
   return (
-    <div className="grid gap-2">
-      <div className="flex min-w-0 flex-nowrap items-center gap-1">
-        <label className="flex items-center gap-1.5 text-[10px] text-zinc-300">
-          <input
-            type="checkbox"
-            aria-label="Aperture"
-            className="h-3 w-3 accent-cyan-400"
-            checked={apertureOn}
-            disabled={readOnly}
-            onChange={(event) => onChange({
-              viewport: event.target.checked
-                ? enableViewportForContent(context)
-                : { ...viewport, enabled: false },
-            })}
-          />
-          Aperture
-        </label>
-
-        {apertureOn && <>
-          <FocusChip active={active === 'content'} colour={CONTENT} onClick={() => setFocus('content')}>Content</FocusChip>
-          <FocusChip active={active === 'aperture'} colour={APERTURE} onClick={() => setFocus('aperture')}>Aperture</FocusChip>
-        </>}
-
+    <div className="grid min-w-0 gap-1">
+      <div data-testid="placement-pad-toolbar" className="flex h-5 min-w-0 flex-nowrap items-center gap-0.5">
+        <span className="flex h-5 min-w-0 overflow-hidden rounded border border-zinc-700">
+          <FocusSegment
+            ariaLabel="Content"
+            active={active === 'content'}
+            colour={CONTENT}
+            shortLabel="Ct"
+            onClick={() => chooseFocus('content')}
+          >
+            Content
+          </FocusSegment>
+          <FocusSegment
+            ariaLabel="Aperture"
+            active={active === 'aperture'}
+            colour={APERTURE}
+            shortLabel="Ap"
+            onClick={() => {
+              if (!apertureOn) {
+                if (readOnly) return
+                chooseFocus('aperture')
+                onChange({ viewport: enableViewportForContent(context) })
+              } else if (active === 'aperture') {
+                if (readOnly) return
+                chooseFocus('content')
+                onChange({ viewport: { ...viewport, enabled: false } })
+              } else {
+                chooseFocus('aperture')
+              }
+            }}
+          >
+            Aperture
+          </FocusSegment>
+        </span>
         <label className="flex items-center gap-1 text-[10px] text-zinc-500">
           <span className="sr-only">Grid</span>
           <select
@@ -208,41 +232,55 @@ export function ShowClipPlacementPad({
             value={grid}
             disabled={readOnly}
             onChange={(event) => setGrid(Number(event.target.value))}
-            className="h-5 rounded border border-zinc-700 bg-zinc-950 px-1 text-[10px] text-zinc-200 outline-none focus:border-cyan-400/60"
+            className="h-5 w-9 rounded border border-zinc-700 bg-zinc-950 px-0.5 text-[8px] text-zinc-200 outline-none focus:border-cyan-400/60"
           >
             {PLACEMENT_GRID_DIVISORS.map((divisor) => (
-              <option key={divisor} value={divisor}>{divisor === 0 ? 'Free' : `${divisor}×${divisor}`}</option>
+              <option key={divisor} value={divisor}>{divisor === 0 ? 'Free' : `${divisor}×`}</option>
             ))}
           </select>
         </label>
 
-        <span className="ml-auto flex gap-1">
+        <span className="ml-auto flex min-w-0 gap-0.5">
           {apertureActive
             ? <>
-                <PadAction onClick={() => apply(frameContent(context))}>Frame</PadAction>
-                <PadAction onClick={() => apply(setViewportRect(context, { left: 0, top: 0, width: 1, height: 1 }))}>Full Zone</PadAction>
+                <PadAction disabled={readOnly} onClick={() => apply(frameContent(context))}>Frame</PadAction>
+                <PadAction disabled={readOnly} title="Full Zone" onClick={() => apply(setViewportRect(context, { left: 0, top: 0, width: 1, height: 1 }))}>Full</PadAction>
               </>
             : <>
                 <PadAction disabled={readOnly} onClick={() => apply(applyContentFit(context, 'fit'))}>Fit</PadAction>
                 <PadAction disabled={readOnly} onClick={() => apply(applyContentFit(context, 'fill'))}>Fill</PadAction>
-                <PadAction disabled={readOnly} onClick={() => apply(applyContentFit(context, 'reset'))}>Reset</PadAction>
+                <PadAction ariaLabel="Reset content" title="Reset content" disabled={readOnly} onClick={() => apply(applyContentFit(context, 'reset'))}>↺</PadAction>
               </>}
         </span>
+        <button
+          type="button"
+          aria-label="Placement help"
+          data-placement-help
+          title={!apertureOn
+            ? 'Drag the content or its corners. Grid lines magnetize edges; Shift keeps corner resizing square.'
+            : apertureActive
+              ? 'Drag the Aperture or its corners; drag bare pad to sweep cells. Alt-drag carries Content.'
+              : 'Drag Content or its corners. Its edges magnetize to the Aperture and Zone; only Content rotates.'}
+          className="grid size-5 shrink-0 place-items-center rounded text-[9px] text-zinc-600 hover:bg-zinc-800 hover:text-zinc-300 focus-visible:outline focus-visible:outline-1 focus-visible:outline-cyan-300"
+        >
+          ?
+        </button>
       </div>
 
-      <svg
-        ref={surface}
-        viewBox={`0 0 ${PAD} ${PAD}`}
-        tabIndex={readOnly ? -1 : 0}
-        role="application"
-        aria-label="Placement pad. Arrow keys nudge the content rectangle."
-        className="w-full touch-none rounded border border-zinc-800 bg-zinc-950 outline-none focus-visible:border-cyan-400/60"
-        onPointerDown={onSurfaceDown}
-        onPointerMove={onPointerMove}
-        onPointerUp={endDrag}
-        onPointerCancel={endDrag}
-        onKeyDown={onKeyDown}
-      >
+      <div className="relative min-w-[156px]">
+        <svg
+          ref={surface}
+          viewBox={`0 0 ${PAD} ${PAD}`}
+          tabIndex={readOnly ? -1 : 0}
+          role="application"
+          aria-label={`Placement pad. Arrow keys nudge the ${active === 'content' ? 'content' : 'aperture'} rectangle.`}
+          className="aspect-square w-full touch-none rounded border border-zinc-800 bg-zinc-950 outline-none focus-visible:border-cyan-400/60"
+          onPointerDown={onSurfaceDown}
+          onPointerMove={onPointerMove}
+          onPointerUp={endDrag}
+          onPointerCancel={endDrag}
+          onKeyDown={onKeyDown}
+        >
         <rect x={toPad(0)} y={toPad(0)} width={span(1)} height={span(1)} fill="#18181b" stroke="#3f3f46" />
         <text x={toPad(0)} y={toPad(0) - 5} fill="#71717a" fontSize="10" fontFamily="ui-monospace, monospace">0, 0</text>
         <text x={toPad(1)} y={toPad(1) + 13} textAnchor="end" fill="#71717a" fontSize="10" fontFamily="ui-monospace, monospace">1, 1</text>
@@ -385,63 +423,63 @@ export function ShowClipPlacementPad({
             />
           ))}
         </g>}
-      </svg>
-
-      <div className="flex min-h-[40px] items-center gap-2">
-        {contentActive && <>
-        <span className="w-10 shrink-0 text-[9px] uppercase tracking-[0.08em] text-zinc-500">Zoom</span>
-        <input
-          type="range"
-          aria-label="Zoom"
-          min={0.05}
-          max={3}
-          step={0.01}
-          value={transform.scaleX}
-          disabled={readOnly}
-          onChange={(event) => previewResult(zoomContent(context, Number(event.target.value)))}
-          onPointerUp={commitPending}
-          onKeyUp={commitPending}
-          onBlur={commitPending}
-          className="h-1 flex-1 accent-cyan-400"
-        />
-        <span className="w-10 text-right font-mono text-[10px] text-zinc-300">{transform.scaleX.toFixed(2)}×</span>
-        <AnchorPad disabled={readOnly} onAnchor={(column, row) => apply(anchorContent(context, column, row))} />
-        </>}
+        </svg>
+        {contentActive && !readOnly && (
+          <div className="absolute bottom-1 right-1 flex h-5 items-center overflow-hidden rounded border border-zinc-700 bg-zinc-950/95 shadow">
+            <button type="button" aria-label="Zoom out" onClick={() => apply(zoomContent(context, transform.scaleX - 0.1))} className="size-5 text-[11px] text-zinc-400 hover:bg-zinc-800 hover:text-zinc-100">−</button>
+            <output aria-label="Zoom level" className="w-8 border-x border-zinc-800 text-center font-mono text-[8px] text-zinc-300">{transform.scaleX.toFixed(1)}×</output>
+            <button type="button" aria-label="Zoom in" onClick={() => apply(zoomContent(context, transform.scaleX + 0.1))} className="size-5 text-[11px] text-zinc-400 hover:bg-zinc-800 hover:text-zinc-100">+</button>
+          </div>
+        )}
+        {contentActive && !readOnly && (
+          <div className="absolute bottom-1 left-1 rounded bg-zinc-950/95 p-0.5 shadow">
+            <AnchorPad disabled={readOnly} onAnchor={(column, row) => apply(anchorContent(context, column, row))} />
+          </div>
+        )}
       </div>
-
-      <p className="text-[10px] leading-relaxed text-zinc-500">
-        {!apertureOn
-          ? 'Drag the content or its corners. The grid snaps edges onto the cell lattice; shift constrains a corner drag to square.'
-          : apertureActive
-            ? 'Drag the Aperture to move it, its corners to resize, bare pad to sweep a cell span. Alt-drag carries the content along.'
-            : 'Drag the content or its corners. Its edges pull onto the Aperture and the Zone. Only the content turns — the Aperture is axis-aligned.'}
-      </p>
     </div>
   )
 }
 
-function FocusChip({ active, colour, onClick, children }: { active: boolean; colour: string; onClick: () => void; children: ReactNode }) {
+function FocusSegment({
+  ariaLabel,
+  active,
+  colour,
+  shortLabel,
+  onClick,
+  children,
+}: {
+  ariaLabel: string
+  active: boolean
+  colour: string
+  shortLabel: string
+  onClick: () => void
+  children: ReactNode
+}) {
   return (
     <button
       type="button"
+      aria-label={ariaLabel}
       onClick={onClick}
       aria-pressed={active}
       style={active ? { borderColor: colour, color: colour } : undefined}
-      className={`flex h-5 items-center gap-1 rounded border px-1.5 text-[10px] ${active ? 'bg-white/5' : 'border-zinc-700 bg-zinc-900 text-zinc-500 hover:border-zinc-500 hover:text-zinc-300'}`}
+      className={`h-[18px] min-w-0 border-r border-zinc-700 px-1 text-[8px] last:border-r-0 ${active ? 'bg-white/5' : 'bg-zinc-900 text-zinc-500 hover:text-zinc-300'}`}
     >
-      <i className="size-1.5 shrink-0" style={{ background: active ? colour : '#52525b' }} />
-      {children}
+      <span className="hidden min-[480px]:inline">{children}</span>
+      <span aria-hidden className="min-[480px]:hidden">{shortLabel}</span>
     </button>
   )
 }
 
-function PadAction({ onClick, disabled = false, children }: { onClick: () => void; disabled?: boolean; children: ReactNode }) {
+function PadAction({ onClick, disabled = false, ariaLabel, title, children }: { onClick: () => void; disabled?: boolean; ariaLabel?: string; title?: string; children: ReactNode }) {
   return (
     <button
       type="button"
+      aria-label={ariaLabel}
       onClick={onClick}
       disabled={disabled}
-      className="h-5 rounded border border-zinc-700 bg-zinc-900 px-1.5 text-[10px] text-zinc-400 hover:border-zinc-500 hover:text-zinc-200 disabled:opacity-50"
+      title={title}
+      className="h-5 rounded border border-zinc-700 bg-zinc-900 px-1 text-[8px] text-zinc-400 hover:border-zinc-500 hover:text-zinc-200 disabled:opacity-50"
     >
       {children}
     </button>

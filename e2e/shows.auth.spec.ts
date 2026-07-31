@@ -869,6 +869,8 @@ test.describe('authenticated Show authoring', () => {
     await showClipTab(page, 'Place')
     const transform = page.getByRole('group', { name: 'Clip Transform' })
     await expect(transform).toBeVisible()
+    await expect(transform.getByRole('application', { name: /Placement pad/ })).toBeVisible()
+    await expect(page.getByRole('dialog', { name: 'Clip placement' })).toHaveCount(0)
 
     await transform.getByRole('textbox', { name: 'Content X' }).fill('0.25')
     await transform.getByRole('textbox', { name: 'Content X' }).blur()
@@ -893,10 +895,10 @@ test.describe('authenticated Show authoring', () => {
     await expect(reloaded.getByRole('textbox', { name: 'Rotation degrees' })).toHaveValue('-90')
   })
 
-  test('keeps the Clip Transform readable in a narrow workspace', async ({ page }) => {
+  test('keeps inline placement aligned and usable at the panel floor', async ({ page }) => {
     // Layout is its own concern. Bundling it into the persistence test above
     // meant a broken field hid the layout regression and vice versa.
-    await page.setViewportSize({ width: 720, height: 900 })
+    await page.setViewportSize({ width: 320, height: 900 })
     await page.goto('studio/shows')
     await createInstallationShow(page)
 
@@ -904,13 +906,41 @@ test.describe('authenticated Show authoring', () => {
     await showClipTab(page, 'Place')
     const transform = page.getByRole('group', { name: 'Clip Transform' })
     await expect(transform).toBeVisible()
+    const pad = transform.getByRole('application', { name: /Placement pad/ })
+    const toolbar = transform.getByTestId('placement-pad-toolbar')
+    const help = transform.getByRole('button', { name: 'Placement help' })
+    const summary = transform.getByRole('button', { name: 'Aperture summary' })
+    await expect(pad).toBeVisible()
+    await expect(page.getByRole('dialog', { name: 'Clip placement' })).toHaveCount(0)
 
     const bounds = await transform.boundingBox()
+    const padBounds = await pad.boundingBox()
+    const toolbarBounds = await toolbar.boundingBox()
+    const helpBounds = await help.boundingBox()
+    const summaryBounds = await summary.boundingBox()
     expect(bounds).not.toBeNull()
+    expect(padBounds).not.toBeNull()
+    expect(toolbarBounds).not.toBeNull()
+    expect(helpBounds).not.toBeNull()
+    expect(summaryBounds).not.toBeNull()
     expect(bounds!.x).toBeGreaterThanOrEqual(0)
-    expect(bounds!.x + bounds!.width).toBeLessThanOrEqual(720)
+    expect(bounds!.x + bounds!.width).toBeLessThanOrEqual(320)
+    expect(padBounds!.width).toBeGreaterThanOrEqual(155)
+    expect(padBounds!.width).toBeLessThanOrEqual(228)
+    expect(Math.abs(toolbarBounds!.y - summaryBounds!.y)).toBeLessThanOrEqual(1)
+    expect(helpBounds!.x + helpBounds!.width).toBeLessThanOrEqual(toolbarBounds!.x + toolbarBounds!.width + 1)
+
+    const gutterRights = await transform.locator('[data-placement-suffix-gutter]').evaluateAll((gutters) => (
+      gutters.map((gutter) => gutter.getBoundingClientRect().right)
+    ))
+    expect(gutterRights).toHaveLength(5)
+    expect(Math.max(...gutterRights) - Math.min(...gutterRights)).toBeLessThanOrEqual(1)
     const overflow = await page.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth)
     expect(overflow).toBeLessThanOrEqual(8)
+
+    await pad.focus()
+    await page.keyboard.press('Escape')
+    await expect(page.getByRole('dialog', { name: 'Entity Detail Panel' })).toHaveCount(0)
   })
 
   test('selects discontinuous Installation LED ranges on the saved 2D map at desktop and narrow widths', async ({ page }) => {
