@@ -87,6 +87,20 @@ The severity contract is part of the reviewer prompt and policy fingerprint.
 Changing that contract invalidates older receipts even when their clean result
 would otherwise be stronger evidence.
 
+One exception re-keys receipts instead of discarding them: patch-id
+carry-forward (#637). Receipts record the ordered per-commit
+`git patch-id --stable` sequence, and `review:candidate` carries an approved
+chain across a rebase without re-review when the rebased range's patch-id
+sequence is identical and the intervening commits touch a file set disjoint
+from the stack's. Both checks are required: identical patch-ids prove the
+content is unchanged, and disjoint files bound the semantic blast radius of
+the new base (a textually identical patch can still be broken by changes to
+the code it lands beside). Conflict resolutions, reordering, added or dropped
+commits, overlapping files, empty commits, or receipts predating patch-id
+recording all fall through to a fresh review. Carried receipts keep the
+original reviewer, coverage, advisories, and authorship, and record
+`carriedFrom` provenance rooted at the originally reviewed range.
+
 Annotated tags retain their tag-object SHA as the exact receipt identity rather
 than being reduced to the target commit. Candidate validation peels the tip
 only to confirm that checked-out `HEAD` is the tagged commit. The packet includes

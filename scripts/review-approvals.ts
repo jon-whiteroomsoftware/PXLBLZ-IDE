@@ -31,11 +31,21 @@ export interface ReviewApprovalReceipt {
   authoredModels?: string[]
   /** Reviewer family differs from every signalled authoring family. Omitted receipts are unverified on this axis (#637). */
   crossFamily?: boolean
+  /** Ordered per-commit `git patch-id --stable` sequence; enables carry-forward across content-identical rebases (#637). */
+  patchIds?: string[]
+  /** Provenance of a carried receipt, rooted at the originally reviewed range (#637). */
+  carriedFrom?: ReviewCarryProvenance
   policyFingerprint: string
   promptVersion: number
   schemaVersion: number
   contextSha256: string | null
   reviewedAt: string
+}
+
+export interface ReviewCarryProvenance {
+  baseSha: string
+  tipSha: string
+  carriedAt: string
 }
 
 export interface CreateApprovalReceiptInput {
@@ -48,6 +58,8 @@ export interface CreateApprovalReceiptInput {
   advisories?: ReviewAdvisoryFinding[]
   authoredModels?: string[]
   crossFamily?: boolean
+  patchIds?: string[]
+  carriedFrom?: ReviewCarryProvenance
   policyFingerprint: string
   promptVersion: number
   schemaVersion: number
@@ -184,6 +196,19 @@ export function parseApprovalReceipt(value: unknown): ReviewApprovalReceipt {
           typeof model !== 'string' || model.trim().length === 0
         ))))
     || (receipt.crossFamily !== undefined && typeof receipt.crossFamily !== 'boolean')
+    || (receipt.patchIds !== undefined
+      && (!Array.isArray(receipt.patchIds)
+        || receipt.patchIds.length === 0
+        || receipt.patchIds.some((patchId) => (
+          typeof patchId !== 'string' || patchId.trim().length === 0
+        ))))
+    || (receipt.carriedFrom !== undefined
+      && !(receipt.carriedFrom
+        && typeof receipt.carriedFrom === 'object'
+        && validSha(receipt.carriedFrom.baseSha)
+        && validSha(receipt.carriedFrom.tipSha)
+        && typeof receipt.carriedFrom.carriedAt === 'string'
+        && !Number.isNaN(Date.parse(receipt.carriedFrom.carriedAt))))
     || typeof receipt.policyFingerprint !== 'string'
     || receipt.policyFingerprint.length === 0
     || !Number.isInteger(receipt.promptVersion)

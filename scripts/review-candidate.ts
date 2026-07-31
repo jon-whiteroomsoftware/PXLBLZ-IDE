@@ -3,11 +3,18 @@ import { readFileSync } from 'node:fs'
 import { pathToFileURL } from 'node:url'
 import {
   createApprovalReceipt,
+  loadApprovalReceipts,
   reviewApprovalDirectory,
   type ReviewAdvisoryFinding,
   type ReviewApprovalReceipt,
   writeApprovalReceipt,
 } from './review-approvals'
+import {
+  carryApprovalChainForward,
+  findChainByPatchIds,
+  parsePatchIdOutput,
+  type RebasedCommit,
+} from './review-carry'
 import {
   parseReviewTestDesignContext,
   printReview,
@@ -55,6 +62,7 @@ export function parseCandidateArgs(args: string[]): CandidateReviewArgs {
 export interface ApproveCandidateInput {
   range: PushReviewRange
   execution: PushReviewExecution
+  patchIds?: string[]
   policyFingerprint: string
   promptVersion: number
   schemaVersion: number
@@ -100,6 +108,7 @@ export function approveCandidate(
     ...(input.execution.crossFamily !== undefined
       ? { crossFamily: input.execution.crossFamily }
       : {}),
+    ...(input.patchIds?.length ? { patchIds: input.patchIds } : {}),
     policyFingerprint: input.policyFingerprint,
     promptVersion: input.promptVersion,
     schemaVersion: input.schemaVersion,
@@ -112,8 +121,71 @@ export function approveCandidate(
   }
 }
 
-function git(args: string[]): string {
-  return execFileSync('git', args, { encoding: 'utf8' }).trim()
+const GIT_MAX_BUFFER_BYTES = 16 * 1024 * 1024
+
+function git(args: string[], input?: string): string {
+  return execFileSync('git', args, {
+    encoding: 'utf8',
+    maxBuffer: GIT_MAX_BUFFER_BYTES,
+    ...(input !== undefined ? { input } : {}),
+  }).trim()
+}
+
+function gitFileList(args: string[]): string[] {
+  return git(args).split(/\r?\n/).filter((line) => line.length > 0)
+}
+
+/**
+ * Ordered per-commit stable patch-ids for the range, or null when any commit
+ * produces no patch (empty commits cannot be content-matched, so neither
+ * recording nor carry-forward applies).
+ */
+function computeRangePatchIds(baseSha: string, tipSha: string): RebasedCommit[] | null {
+  const commitCount = Number(git(['rev-list', '--count', `${baseSha}..${tipSha}`]))
+  const patchIds = parsePatchIdOutput(git(
+    ['patch-id', '--stable'],
+    git(['log', '--reverse', '--patch', '--format=commit %H', '--no-ext-diff', `${baseSha}..${tipSha}`, '--']),
+  ))
+  return patchIds.length === commitCount ? patchIds : null
+}
+
+interface CarryForwardOutcome {
+  chain: ReviewApprovalReceipt[]
+  receiptPaths: string[]
+}
+
+function tryCarryForward(input: {
+  baseSha: string
+  tipSha: string
+  rebasedCommits: RebasedCommit[] | null
+  receipts: readonly ReviewApprovalReceipt[]
+  policyFingerprint: string
+  receiptsDirectory: string
+}): CarryForwardOutcome | null {
+  if (!input.rebasedCommits || input.rebasedCommits.length === 0) return null
+  const chain = findChainByPatchIds(
+    input.receipts,
+    input.rebasedCommits.map((commit) => commit.patchId),
+    input.policyFingerprint,
+  )
+  if (!chain) return null
+  if (chain[chain.length - 1].tipSha === input.tipSha) return null
+  if (!gitIsAncestor(chain[0].baseSha, input.baseSha)) return null
+  const carried = carryApprovalChainForward({
+    chain,
+    newBaseSha: input.baseSha,
+    rebasedCommits: input.rebasedCommits,
+    interveningFiles: gitFileList(['diff', '--name-only', chain[0].baseSha, input.baseSha]),
+    stackFiles: gitFileList(['diff', '--name-only', input.baseSha, input.tipSha]),
+    carriedAt: new Date().toISOString(),
+  })
+  if (!carried) return null
+  return {
+    chain,
+    receiptPaths: carried.map((receipt) => (
+      writeApprovalReceipt(input.receiptsDirectory, receipt)
+    )),
+  }
 }
 
 function resolveObject(ref: string): string {
@@ -191,6 +263,33 @@ async function main(): Promise<void> {
     const testDesign = args.testDesignPath
       ? parseReviewTestDesignContext(JSON.parse(readFileSync(args.testDesignPath, 'utf8')))
       : undefined
+    const receiptsDirectory = reviewApprovalDirectory(git([
+      'rev-parse',
+      '--path-format=absolute',
+      '--git-common-dir',
+    ]))
+    const policyFingerprint = reviewPolicyFingerprint()
+    const rebasedCommits = computeRangePatchIds(baseSha, tipSha)
+
+    const carriedForward = tryCarryForward({
+      baseSha,
+      tipSha,
+      rebasedCommits,
+      receipts: loadApprovalReceipts(receiptsDirectory),
+      policyFingerprint,
+      receiptsDirectory,
+    })
+    if (carriedForward) {
+      const original = carriedForward.chain
+      console.log(
+        `✓ Approval carried forward from ${original[0].baseSha.slice(0, 12)}..`
+        + `${original[original.length - 1].tipSha.slice(0, 12)}: content-identical rebase`
+        + ' (matching patch-ids, disjoint intervening files). No re-review required.',
+      )
+      for (const path of carriedForward.receiptPaths) console.log(`  ${path}`)
+      console.log('Land this candidate unchanged with a fast-forward; amend, rebase, squash, or cherry-pick invalidates this approval.')
+      return
+    }
 
     console.log(`▶ Reviewing candidate ${baseSha.slice(0, 12)}..${tipSha.slice(0, 12)}...`)
     const execution = await runReviewForRanges([range], testDesign)
@@ -198,19 +297,13 @@ async function main(): Promise<void> {
     const result = approveCandidate({
       range,
       execution,
-      policyFingerprint: reviewPolicyFingerprint(),
+      patchIds: rebasedCommits?.map((commit) => commit.patchId),
+      policyFingerprint,
       promptVersion: REVIEW_PROMPT_VERSION,
       schemaVersion: REVIEW_SCHEMA_VERSION,
       contextSha256: reviewContextSha256(testDesign),
       reviewedAt: new Date().toISOString(),
-      saveReceipt: (receipt) => writeApprovalReceipt(
-        reviewApprovalDirectory(git([
-          'rev-parse',
-          '--path-format=absolute',
-          '--git-common-dir',
-        ])),
-        receipt,
-      ),
+      saveReceipt: (receipt) => writeApprovalReceipt(receiptsDirectory, receipt),
     })
     if (!result.receiptPath) {
       console.error('CANDIDATE REVIEW BLOCKED: fix the findings, commit a new tip, and review that new exact range.')
