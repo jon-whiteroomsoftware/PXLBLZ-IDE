@@ -1647,10 +1647,13 @@ The takeover is local to each Detail instance, so a pinned panel does not share
 chooser state with another panel. It replaces only the Effects tab body,
 filters the presentation catalogue by family, compatibility, stage vocabulary,
 aliases, parameters, and presets. The bounded Effects body presents
-stable-height choices in two-column stage groups and gives the catalogue its
-only vertical scrollbar; the other Clip tabs retain their intrinsic overflow.
-Hover or keyboard focus places the active choice's summary, cost policy, and
-presets in one shared strip above the catalogue instead of changing row height.
+stable-height choices in two-column stage groups and delegates its single
+active vertical scrollbar to either the Effect stack or the catalogue; the
+other Clip tabs retain their intrinsic overflow. Hover or keyboard focus places
+the active choice's summary, cost policy, and presets in one shared strip above
+the catalogue instead of changing row height. Choices with presets expose a
+dedicated row control that targets the correct choice and moves focus directly
+into that strip.
 Back or chooser-level Escape restores focus to Add; when guidance is active,
 the first Escape clears it and leaves the chooser open. Applying a choice uses
 the same normalized inspector patch boundary as an ordinary stack edit and

@@ -424,9 +424,7 @@ export const ShowClipEntityDetail = forwardRef<ShowClipEntityDetailHandle, ShowC
           aria-labelledby={tabIdFor(activeTab)}
           data-active-tab={activeTab}
           className={activeTab === 'effects' && !animationOverviewOpen
-            ? `flex h-[clamp(180px,calc(100vh-250px),300px)] min-h-0 flex-col pt-2 ${
-              effectChooserOpen ? 'overflow-hidden' : 'overflow-y-auto'
-            }`
+            ? 'flex h-[clamp(180px,calc(100vh-250px),300px)] min-h-0 flex-col overflow-hidden pt-2'
             : 'min-h-[262px] pt-2'}
         >
 

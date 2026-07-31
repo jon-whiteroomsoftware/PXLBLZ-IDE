@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
-import { act, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
+import { fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { createDefaultShow } from '@/engine/showModel'
 import type { ShowClipEffect } from '@/engine/personalContentRecords'
@@ -153,6 +153,8 @@ describe('Show Effect authoring UI', () => {
     fireEvent.keyDown(transientSearch, { key: 'Escape' })
     expect(closePinned).not.toHaveBeenCalled()
     expect(closeTransient).not.toHaveBeenCalled()
+    expect(within(palettes[1]).getByTestId('show-effect-choice-detail'))
+      .toHaveTextContent('Focus an Effect for details.')
     await vi.waitFor(() => expect(transientBulge).toHaveFocus())
 
     fireEvent.keyDown(transientBulge, { key: 'Escape' })
@@ -170,21 +172,42 @@ describe('Show Effect authoring UI', () => {
     expect(onClose).toHaveBeenCalledOnce()
   })
 
-  it('expands presets in place and applies the chosen preset', async () => {
+  it('moves preset access directly from a stable row to the shared strip', async () => {
     const user = userEvent.setup()
     const show = createDefaultShow('show-effects-presets', 'Effects presets', 1)
     const onApply = vi.fn()
     const onClose = vi.fn()
     render(<ShowEffectPalette clip={show.cells[0]} stageDimensions={2} onApply={onApply} onClose={onClose} />)
 
-    act(() => screen.getByRole('button', { name: 'Add Bulge / Pinch Effect' }).focus())
-    await user.click(screen.getByRole('button', { name: 'Pinch' }))
+    fireEvent.pointerEnter(screen.getByRole('button', { name: 'Add Ripple Effect' }))
+    await user.click(screen.getByRole('button', { name: 'Choose Bulge / Pinch preset' }))
+
+    const bulge = screen.getByRole('button', { name: 'Bulge' })
+    const pinch = screen.getByRole('button', { name: 'Pinch' })
+    expect(screen.getByTestId('show-effect-choice-detail')).toHaveTextContent('Bend the source coordinates')
+    await vi.waitFor(() => expect(bulge).toHaveFocus())
+    await user.tab()
+    expect(pinch).toHaveFocus()
+    await user.click(pinch)
 
     expect(onApply).toHaveBeenCalledWith({
       target: 'effect-stack',
       effect: expect.objectContaining({ kind: 'bulge', amount: -0.65 }),
     })
     expect(onClose).toHaveBeenCalledOnce()
+  })
+
+  it('makes the bounded Effect stack its tab body scroll surface (#659)', () => {
+    const effects: ShowClipEffect[] = Array.from({ length: 8 }, (_, index) => ({
+      id: `opacity-${index}`,
+      kind: 'opacity',
+      opacity: 0.5,
+    }))
+
+    render(<ShowEffectStack effects={effects} onChange={vi.fn()} onAdd={vi.fn()} />)
+
+    expect(screen.getByRole('region', { name: 'Clip Effects' }))
+      .toHaveClass('min-h-0', 'flex-1', 'overflow-y-auto')
   })
 
   it('offers horizontal Mirror through the Effect palette without creating a stack Effect (#543)', async () => {
@@ -317,14 +340,27 @@ describe('Show Effect authoring UI', () => {
 
     const ripple = screen.getByRole('button', { name: 'Add Ripple Effect' })
     const swirl = screen.getByRole('button', { name: 'Add Swirl Effect' })
-    fireEvent.pointerEnter(ripple)
+    fireEvent.pointerEnter(ripple, { clientX: 80, clientY: 240 })
     fireEvent.pointerLeave(ripple)
-    fireEvent.pointerEnter(swirl)
+    fireEvent.pointerEnter(swirl, { clientX: 220, clientY: 240 })
 
     expect(useShowPreviewOverrideStore.getState().show).toBeNull()
     await new Promise((resolve) => window.setTimeout(resolve, 120))
     expect(useShowPreviewOverrideStore.getState().show).toBeNull()
     expect(within(screen.getByRole('region', { name: 'Add Effect' })).getByText('Bend the source coordinates before the Pattern renders.')).toBeInTheDocument()
+  })
+
+  it('does not retarget guidance when responsive layout moves a row under a stationary pointer (#659)', async () => {
+    const show = createDefaultShow('show-effects-stationary-pointer', 'Stationary pointer', 1)
+    render(<ShowEffectPalette clip={show.cells[0]} stageDimensions={2} onApply={vi.fn()} onClose={vi.fn()} />)
+
+    const ripple = screen.getByRole('button', { name: 'Add Ripple Effect' })
+    const swirl = screen.getByRole('button', { name: 'Add Swirl Effect' })
+    fireEvent.pointerEnter(ripple, { clientX: 80, clientY: 240 })
+    fireEvent.pointerEnter(swirl, { clientX: 80, clientY: 240 })
+    fireEvent.keyDown(screen.getByRole('searchbox', { name: 'Search Effects' }), { key: 'Escape' })
+
+    await vi.waitFor(() => expect(ripple).toHaveFocus())
   })
 
   it('renders a complete CSS-local Effect motion vocabulary for hover and focus (#474)', () => {

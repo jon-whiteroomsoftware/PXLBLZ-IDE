@@ -60,6 +60,8 @@ export function ShowEffectPalette({
 }) {
   const paletteRef = useRef<HTMLElement>(null)
   const searchRef = useRef<HTMLInputElement>(null)
+  const firstPresetRef = useRef<HTMLButtonElement>(null)
+  const lastPointerPointRef = useRef<{ x: number; y: number } | null>(null)
   const idPrefix = useId()
   const [query, setQuery] = useState('')
   const [familyId, setFamilyId] = useState<string | null>(null)
@@ -78,8 +80,17 @@ export function ShowEffectPalette({
   const families = useMemo(() => SHOW_VISUAL_TOOLKIT_REGISTRY.filter((family) => family.kind === 'effect'), [])
 
   const close = onClose
-  const inspectItem = (item: ShowToolkitPresentationItem, source: 'focus' | 'pointer') => {
+  const inspectItem = (
+    item: ShowToolkitPresentationItem,
+    source: 'focus' | 'pointer',
+    pointerPoint?: { x: number; y: number },
+  ) => {
     if (!item.compatible) return
+    if (source === 'pointer' && pointerPoint) {
+      const previous = lastPointerPointRef.current
+      if (previous?.x === pointerPoint.x && previous.y === pointerPoint.y) return
+      lastPointerPointRef.current = pointerPoint
+    }
     if (source === 'focus' && dismissedItemKey === item.key) return
     setDismissedItemKey(null)
     setActiveItem(item)
@@ -88,6 +99,12 @@ export function ShowEffectPalette({
     if (!item.compatible) return
     close()
     onApply(createShowEffectApplication(item, clip.effects ?? [], presetId))
+  }
+  const openPresets = (item: ShowToolkitPresentationItem) => {
+    if (!item.compatible || item.presetLabels.length === 0) return
+    setDismissedItemKey(null)
+    setActiveItem(item)
+    window.setTimeout(() => firstPresetRef.current?.focus(), 0)
   }
 
   useEffect(() => {
@@ -195,21 +212,22 @@ export function ShowEffectPalette({
           Compatible
         </button>
       </div>
-      {activeItem && (
-        <div
-          id={activeDetailId}
-          data-testid="show-effect-choice-detail"
-          className="flex min-h-7 shrink-0 items-center gap-1.5 border-y border-cyan-400/20 bg-cyan-400/[0.035] px-1.5 py-0.5"
-        >
+      <div
+        id={activeDetailId}
+        data-testid="show-effect-choice-detail"
+        className="flex h-7 shrink-0 items-center gap-1.5 border-y border-cyan-400/20 bg-cyan-400/[0.035] px-1.5 py-0.5"
+      >
+        {activeItem ? <>
           <p className="min-w-0 flex-1 truncate text-[8.5px] leading-3 text-zinc-400" title={activeItem.summary}>
             {activeItem.summary}
           </p>
           <span className="shrink-0 text-[7px] uppercase tracking-wide text-zinc-600">
             {activeItem.costPolicies.join(' · ')}
           </span>
-          {activeVariant?.presets?.map((preset) => (
+          {activeVariant?.presets?.map((preset, index) => (
             <button
               key={preset.id}
+              ref={index === 0 ? firstPresetRef : undefined}
               type="button"
               onClick={() => applyItem(activeItem, preset.id)}
               className="h-5 shrink-0 rounded border border-zinc-700 px-1.5 text-[8px] text-zinc-300 hover:border-cyan-400/50 hover:text-cyan-200"
@@ -217,8 +235,12 @@ export function ShowEffectPalette({
               {preset.label}
             </button>
           ))}
-        </div>
-      )}
+        </> : (
+          <p className="truncate text-[8.5px] leading-3 text-zinc-600">
+            Focus an Effect for details.
+          </p>
+        )}
+      </div>
       <div
         data-testid="show-effect-choice-list"
         className="min-h-0 flex-1 overflow-y-auto border-t border-zinc-800/80"
@@ -239,7 +261,10 @@ export function ShowEffectPalette({
                 {stageItems.map((item) => {
                   const expanded = activeItem?.key === item.key
                   return (
-                    <div key={item.key} className={expanded ? 'border-l-2 border-cyan-300/70 bg-cyan-400/[0.045]' : ''}>
+                    <div
+                      key={item.key}
+                      className={`flex h-7 min-w-0 ${expanded ? 'border-l-2 border-cyan-300/70 bg-cyan-400/[0.045]' : ''}`}
+                    >
                       <button
                         id={`${idPrefix}-choice-${item.variantId}`}
                         data-show-effect-choice={item.variantId}
@@ -248,15 +273,36 @@ export function ShowEffectPalette({
                         aria-expanded={expanded}
                         aria-controls={expanded ? activeDetailId : undefined}
                         disabled={!item.compatible}
-                        onPointerEnter={() => inspectItem(item, 'pointer')}
+                        onPointerEnter={(event) => inspectItem(item, 'pointer', {
+                          x: event.clientX,
+                          y: event.clientY,
+                        })}
                         onFocus={() => inspectItem(item, 'focus')}
                         onClick={() => applyItem(item)}
-                        className="show-effect-choice group flex h-7 w-full min-w-0 items-center gap-2 border-b border-zinc-800/55 px-1 text-left hover:bg-[#171920] focus-visible:relative focus-visible:z-10 focus-visible:outline focus-visible:outline-1 focus-visible:outline-cyan-300 disabled:cursor-not-allowed disabled:opacity-40"
+                        className="show-effect-choice group flex h-7 min-w-0 flex-1 items-center gap-2 border-b border-zinc-800/55 px-1 text-left hover:bg-[#171920] focus-visible:relative focus-visible:z-10 focus-visible:outline focus-visible:outline-1 focus-visible:outline-cyan-300 disabled:cursor-not-allowed disabled:opacity-40"
                         title={item.compatible ? item.summary : item.compatibilityReason ?? undefined}
                       >
                         <EffectMnemonic kind={item.variantId} />
                         <span className="min-w-0 flex-1 truncate text-[10px] font-medium text-zinc-100">{item.label}</span>
                       </button>
+                      {item.compatible && item.presetLabels.length > 0 && (
+                        <button
+                          type="button"
+                          aria-label={`Choose ${item.label} preset`}
+                          aria-controls={activeDetailId}
+                          aria-expanded={expanded}
+                          onPointerEnter={(event) => inspectItem(item, 'pointer', {
+                            x: event.clientX,
+                            y: event.clientY,
+                          })}
+                          onFocus={() => inspectItem(item, 'focus')}
+                          onClick={() => openPresets(item)}
+                          className="grid h-7 w-6 shrink-0 place-items-center border-b border-zinc-800/55 text-zinc-600 hover:bg-[#171920] hover:text-cyan-200 focus-visible:relative focus-visible:z-10 focus-visible:outline focus-visible:outline-1 focus-visible:outline-cyan-300"
+                          title={`${item.label} presets`}
+                        >
+                          <MoreHorizontal size={11} aria-hidden />
+                        </button>
+                      )}
                     </div>
                   )
                 })}
@@ -305,7 +351,7 @@ export function ShowEffectStack({
   }
 
   return (
-    <section className="mt-2 overflow-hidden rounded border border-cyan-400/15 bg-cyan-400/[0.025]" aria-label="Clip Effects">
+    <section className="mt-2 min-h-0 flex-1 overflow-y-auto rounded border border-cyan-400/15 bg-cyan-400/[0.025]" aria-label="Clip Effects">
       <header className="flex h-6 items-center gap-1.5 border-b border-zinc-800 px-1.5">
         <Sparkles size={10} className="text-cyan-300" aria-hidden />
         <div className="text-[9px] font-semibold text-zinc-300">Effects</div>

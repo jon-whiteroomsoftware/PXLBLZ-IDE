@@ -634,13 +634,14 @@ describe('shared Clip Entity Detail sections (#498)', () => {
     expect(tabpanel).toHaveClass(
       'h-[clamp(180px,calc(100vh-250px),300px)]',
       'min-h-0',
-      'overflow-y-auto',
+      'overflow-hidden',
     )
+    expect(screen.getByRole('region', { name: 'Clip Effects' }))
+      .toHaveClass('min-h-0', 'flex-1', 'overflow-y-auto')
 
     fireEvent.click(screen.getByRole('button', { name: 'Add Effect' }))
 
     expect(tabpanel).toHaveClass('overflow-hidden')
-    expect(tabpanel).not.toHaveClass('overflow-y-auto')
     expect(screen.getByRole('region', { name: 'Add Effect' })).toHaveClass('min-h-0', 'flex-1')
     expect(screen.getByTestId('show-effect-choice-list')).toHaveClass('overflow-y-auto')
   })
