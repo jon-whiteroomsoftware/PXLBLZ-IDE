@@ -159,6 +159,20 @@ describe('review serialization lock (#637)', () => {
     expect(existsSync(lockDirectory)).toBe(true)
   })
 
+  it('shell-quotes the lock path in recovery commands (#637 P2)', async () => {
+    const lockDirectory = join(base, "O'Brien.lock")
+    mkdirSync(lockDirectory, { recursive: true })
+    writeFileSync(join(lockDirectory, 'owner.json'), 'corrupt')
+
+    await expect(acquireReviewLock({
+      lockDirectory,
+      owner: owner(process.pid),
+      waitMs: 5_000,
+      pollMs: 1,
+      sleep: async () => {},
+    })).rejects.toThrow(`rm -rf '${join(base, "O'\\''Brien.lock")}'`)
+  })
+
   it('fails closed on a persistently unreadable owner without removing it (#637 P2)', async () => {
     const lockDirectory = join(base, 'review.lock')
     mkdirSync(lockDirectory, { recursive: true })

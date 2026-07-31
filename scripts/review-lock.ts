@@ -93,11 +93,16 @@ function sameLockOwner(a: ReviewLockOwner | null, b: ReviewLockOwner | null): bo
   return a.pid === b.pid && a.range === b.range && a.startedAt === b.startedAt
 }
 
+/** POSIX single-quote escaping so the suggested command survives quotes and spaces in the repository path. */
+function shellQuote(path: string): string {
+  return `'${path.replaceAll("'", "'\\''")}'`
+}
+
 function abandonedLockError(lockDirectory: string, detail: string): Error {
   return new Error(
     `Review lock ${lockDirectory} appears abandoned: ${detail}. `
     + 'No review lock is ever removed automatically. Confirm no review is '
-    + `actually running, then remove it yourself: rm -rf '${lockDirectory}'`,
+    + `actually running, then remove it yourself: rm -rf ${shellQuote(lockDirectory)}`,
   )
 }
 
@@ -177,7 +182,7 @@ export async function acquireReviewLock(
       throw new Error(
         `Timed out after ${Math.round(waitedMs / 60_000)} min waiting for the review lock held by `
         + `pid ${holder.pid} reviewing ${holder.range} since ${holder.startedAt}. `
-        + `If that process is truly gone, remove it yourself: rm -rf '${options.lockDirectory}'`,
+        + `If that process is truly gone, remove it yourself: rm -rf ${shellQuote(options.lockDirectory)}`,
       )
     }
     options.onWait?.(holder, waitedMs)
