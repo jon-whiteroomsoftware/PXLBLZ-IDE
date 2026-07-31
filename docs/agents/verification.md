@@ -129,9 +129,15 @@ target commit.
 
 Concurrent reviews serialize on `.git/pxlblz/review.lock` (#637): the lock
 directory lives in the shared git common directory so worktrees queue
-against each other instead of contending for reviewer quota. A waiter
-reports who holds the lock, reaps locks whose owning process is gone, and
-gives up after 30 minutes with the holder's identity rather than deadlock.
+against each other instead of contending for reviewer quota. The lock is
+published atomically (staging directory renamed into place, never visible
+without its owner record) and is never removed automatically -- POSIX has
+no compare-and-delete, so every auto-reap scheme admits an interleaving
+where a delayed reaper displaces a live successor. Like git's own
+`index.lock`, a dead or persistently unreadable holder fails the run
+immediately with explicit `rm -rf` instructions, and a live holder is
+reported while waiting, up to a 30-minute cap. After a hard crash, one
+manual removal is the cost of unconditional serialization.
 
 Use `npm run review:status -- <base> <tip>` to inspect whether a range is
 approved, missing, or stale and to display the contiguous receipt chain.
