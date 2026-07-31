@@ -15,6 +15,7 @@ import {
   findChainByContentIds,
   type RebasedCommit,
 } from './review-carry'
+import { acquireReviewLock, reviewLockDirectory } from './review-lock'
 import { parseAuthorshipLog, type CommitAuthorship } from './review-routing'
 import {
   parseReviewTestDesignContext,
@@ -304,11 +305,12 @@ async function main(): Promise<void> {
     const testDesign = args.testDesignPath
       ? parseReviewTestDesignContext(JSON.parse(readFileSync(args.testDesignPath, 'utf8')))
       : undefined
-    const receiptsDirectory = reviewApprovalDirectory(git([
+    const gitCommonDirectory = git([
       'rev-parse',
       '--path-format=absolute',
       '--git-common-dir',
-    ]))
+    ])
+    const receiptsDirectory = reviewApprovalDirectory(gitCommonDirectory)
     const policyFingerprint = reviewPolicyFingerprint()
     const tipIsPlainCommit = tipSha === resolveCommit(tipSha)
     const rebasedCommits = tipIsPlainCommit
@@ -336,8 +338,35 @@ async function main(): Promise<void> {
       return
     }
 
-    console.log(`▶ Reviewing candidate ${baseSha.slice(0, 12)}..${tipSha.slice(0, 12)}...`)
-    const execution = await runReviewForRanges([range], testDesign)
+    // Reviews queue on a shared lock: two concurrent reviewers contend for
+    // quota and can starve each other into their caps (#637 slice D).
+    let waitReports = 0
+    const lock = await acquireReviewLock({
+      lockDirectory: reviewLockDirectory(gitCommonDirectory),
+      owner: {
+        pid: process.pid,
+        range: `${baseSha.slice(0, 12)}..${tipSha.slice(0, 12)}`,
+        startedAt: new Date().toISOString(),
+      },
+      waitMs: 30 * 60 * 1_000,
+      pollMs: 5 * 1_000,
+      onWait: (holder, waitedMs) => {
+        if (waitReports % 6 === 0) {
+          const description = holder
+            ? `pid ${holder.pid} reviewing ${holder.range} since ${holder.startedAt}`
+            : 'an unidentified holder'
+          console.log(`… waiting for the review lock (${Math.round(waitedMs / 1_000)}s): ${description}`)
+        }
+        waitReports += 1
+      },
+    })
+    let execution: PushReviewExecution
+    try {
+      console.log(`▶ Reviewing candidate ${baseSha.slice(0, 12)}..${tipSha.slice(0, 12)}...`)
+      execution = await runReviewForRanges([range], testDesign)
+    } finally {
+      lock.release()
+    }
     printReview(execution.reviewer, execution.review)
     const result = approveCandidate({
       range,

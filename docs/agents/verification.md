@@ -127,6 +127,12 @@ annotated-tag contents with the commit series, so new tags and retagging can
 receive exact coverage without hiding metadata or publishing an unreviewed
 target commit.
 
+Concurrent reviews serialize on `.git/pxlblz/review.lock` (#637): the lock
+directory lives in the shared git common directory so worktrees queue
+against each other instead of contending for reviewer quota. A waiter
+reports who holds the lock, reaps locks whose owning process is gone, and
+gives up after 30 minutes with the holder's identity rather than deadlock.
+
 Use `npm run review:status -- <base> <tip>` to inspect whether a range is
 approved, missing, or stale and to display the contiguous receipt chain.
 
