@@ -3,10 +3,6 @@
   "stale": [],
   "unverifiable": [
     {
-      "name": "101 Clips, Cuts, and Blank Time",
-      "spec": "authenticated-smoke.auth.spec.ts"
-    },
-    {
       "name": "101 Clips, Cuts, and Blank Time guide",
       "spec": "shows.auth.spec.ts"
     },
