@@ -275,12 +275,16 @@ export function ShowEffectStack({
                     setDropTarget(null)
                     draggedEffectRef.current = null
                     if (!source || showClipEffectStage(source) !== stage.id) return
-                    onChange(moveShowClipEffectToStagePosition(effects, source.id, effect.id, dropEdge(event)))
+                    const nextEffects = moveShowClipEffectToStagePosition(effects, source.id, effect.id, dropEdge(event))
+                    if (nextEffects.some((candidate, candidateIndex) => candidate.id !== effects[candidateIndex]?.id)) {
+                      onChange(nextEffects)
+                    }
                   }}
                 >
                   <button
                     type="button"
                     draggable
+                    tabIndex={-1}
                     aria-label={`Drag ${label} Effect to reorder`}
                     title={`Drag ${label} Effect to reorder within ${stage.label}`}
                     className="grid size-6 cursor-grab place-items-center rounded text-zinc-600 opacity-0 hover:bg-zinc-800 hover:text-zinc-200 focus-visible:opacity-100 focus-visible:outline focus-visible:outline-1 focus-visible:outline-cyan-300 active:cursor-grabbing group-hover:opacity-100 group-focus-within:opacity-100"
@@ -384,6 +388,7 @@ export function ShowEffectStack({
                     {parameters.length === 0 && <p className="self-center text-[8px] text-zinc-600" title="Wrap changes the address policy for transformed coordinates.">No parameters</p>}
                   </div>
                   <EffectActionsMenu
+                    effectId={effect.id}
                     label={label}
                     canEarlier={canEarlier}
                     canLater={canLater}
@@ -403,6 +408,7 @@ export function ShowEffectStack({
 }
 
 function EffectActionsMenu({
+  effectId,
   label,
   canEarlier,
   canLater,
@@ -411,6 +417,7 @@ function EffectActionsMenu({
   onDuplicate,
   onRemove,
 }: {
+  effectId: string
   label: string
   canEarlier: boolean
   canLater: boolean
@@ -476,6 +483,7 @@ function EffectActionsMenu({
         aria-label={`More actions for ${label} Effect`}
         aria-haspopup="menu"
         aria-expanded={open}
+        data-show-effect-id={effectId}
         title={`More actions for ${label} Effect`}
         onClick={() => setOpen((value) => !value)}
         className="grid size-6 place-items-center rounded text-zinc-500 hover:bg-zinc-800 hover:text-zinc-100 focus-visible:outline focus-visible:outline-1 focus-visible:outline-cyan-300"

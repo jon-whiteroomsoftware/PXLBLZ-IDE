@@ -19,6 +19,9 @@ describe('Show Effect authoring UI', () => {
     expect(screen.getByRole('textbox', { name: 'Amount exact percentage' })).toBeVisible()
     expect(screen.getByRole('spinbutton', { name: 'Radius' })).toBeVisible()
     expect(screen.queryByRole('button', { name: 'Edit Vignette Effect' })).not.toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'More actions for Vignette Effect' }))
+      .toHaveAttribute('data-show-effect-id', 'edge')
+    expect(screen.getByRole('button', { name: 'Drag Vignette Effect to reorder' })).toHaveAttribute('tabindex', '-1')
     const row = screen.getByTestId('show-effect-edge')
     expect(within(row).getByText('amt').parentElement).toHaveAttribute('title', 'Amount')
     expect(screen.queryByText('rendered pixels')).not.toBeInTheDocument()
@@ -351,6 +354,11 @@ describe('Show Effect authoring UI', () => {
     ])
 
     onChange.mockClear()
+    fireEvent.dragStart(screen.getByRole('button', { name: 'Drag Rotate Effect to reorder' }), { dataTransfer })
+    fireEvent.dragOver(screen.getByTestId('show-effect-move'), { dataTransfer })
+    fireEvent.drop(screen.getByTestId('show-effect-move'), { dataTransfer })
+    expect(onChange).not.toHaveBeenCalled()
+
     fireEvent.dragStart(screen.getByRole('button', { name: 'Drag Ripple Effect to reorder' }), { dataTransfer })
     fireEvent.dragOver(turnRow, { dataTransfer })
     fireEvent.drop(turnRow, { dataTransfer })

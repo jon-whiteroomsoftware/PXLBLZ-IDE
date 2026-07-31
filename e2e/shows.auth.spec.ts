@@ -535,7 +535,9 @@ test.describe('authenticated Show authoring', () => {
 
     const stack = await openClipEffects(page, 'TestPattern1D')
     await addEffect(page, stack, 'ripple', 'Ripple')
-    await expect(stack.getByRole('button', { name: 'More actions for Ripple Effect' })).toBeVisible()
+    const addedEffect = stack.getByRole('button', { name: 'More actions for Ripple Effect' })
+    await expect(addedEffect).toBeVisible()
+    await expect(addedEffect).toBeFocused()
 
     await page.reload()
     const reloaded = await openClipEffects(page, 'TestPattern1D')
