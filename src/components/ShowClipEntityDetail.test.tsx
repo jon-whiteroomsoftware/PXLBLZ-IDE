@@ -625,6 +625,37 @@ describe('shared Clip Entity Detail sections (#498)', () => {
     await vi.waitFor(() => expect(screen.getByRole('button', { name: 'Add Effect' })).toHaveFocus())
   })
 
+  it('bounds the tab body and gives Add Effect one intentional scroll surface (#659)', () => {
+    const props = commonProps('scene-main')
+    render(<ShowClipEntityDetail {...props} />)
+    showTab('Effects')
+
+    const tabpanel = screen.getByRole('tabpanel')
+    expect(tabpanel).toHaveClass(
+      'h-[clamp(180px,calc(100vh-250px),300px)]',
+      'min-h-0',
+      'overflow-y-auto',
+    )
+
+    fireEvent.click(screen.getByRole('button', { name: 'Add Effect' }))
+
+    expect(tabpanel).toHaveClass('overflow-hidden')
+    expect(tabpanel).not.toHaveClass('overflow-y-auto')
+    expect(screen.getByRole('region', { name: 'Add Effect' })).toHaveClass('min-h-0', 'flex-1')
+    expect(screen.getByTestId('show-effect-choice-list')).toHaveClass('overflow-y-auto')
+  })
+
+  it('does not impose the Effects scroll container on the Pattern tab (#659 regression)', () => {
+    const props = commonProps('scene-main')
+    render(<ShowClipEntityDetail {...props} />)
+
+    expect(screen.getByRole('tabpanel')).toHaveClass('min-h-[262px]')
+    expect(screen.getByRole('tabpanel')).not.toHaveClass(
+      'h-[clamp(180px,calc(100vh-250px),300px)]',
+      'overflow-y-auto',
+    )
+  })
+
   it('lets a header field consume Escape while the Add Effect takeover is open', () => {
     const props = commonProps('scene-main')
     render(<ShowClipEntityDetail {...props} />)

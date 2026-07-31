@@ -56,14 +56,30 @@ describe('Show Effect authoring UI', () => {
     expect(useShowPreviewOverrideStore.getState().show).toBeNull()
   })
 
-  it('renders as a one-column in-panel takeover grouped by compiler stage', () => {
+  it('renders as a bounded two-column takeover grouped by compiler stage (#659)', () => {
     const show = createDefaultShow('show-effects-layout', 'Effects layout', 1)
     render(<ShowEffectPalette clip={show.cells[0]} stageDimensions={2} onApply={vi.fn()} onClose={vi.fn()} />)
 
     expect(screen.queryByRole('dialog', { name: 'Add Effect' })).not.toBeInTheDocument()
-    expect(screen.getByRole('region', { name: 'Add Effect' })).toHaveClass('h-[396px]')
+    expect(screen.getByRole('region', { name: 'Add Effect' })).toHaveClass('min-h-0', 'flex-1')
     expect(screen.getAllByRole('group', { name: /Effects$/ }).map((group) => group.getAttribute('aria-label')))
       .toEqual(['Transform Effects', 'Distort Effects', 'Address Effects', 'Color & output Effects'])
+    screen.getAllByTestId('show-effect-stage-grid')
+      .forEach((grid) => expect(grid).toHaveClass('grid-cols-2'))
+  })
+
+  it('keeps choice rows stable while guidance and presets use one shared strip (#659)', () => {
+    const show = createDefaultShow('show-effects-detail-strip', 'Effects detail strip', 1)
+    render(<ShowEffectPalette clip={show.cells[0]} stageDimensions={2} onApply={vi.fn()} onClose={vi.fn()} />)
+
+    const bulge = screen.getByRole('button', { name: 'Add Bulge / Pinch Effect' })
+    fireEvent.pointerEnter(bulge)
+
+    const detail = screen.getByTestId('show-effect-choice-detail')
+    expect(detail).toHaveTextContent('Bend the source coordinates before the Pattern renders.')
+    expect(detail).toContainElement(screen.getByRole('button', { name: 'Pinch' }))
+    expect(bulge).toHaveAttribute('aria-controls', detail.id)
+    expect(bulge.parentElement).not.toContainElement(detail)
   })
 
   it.each([

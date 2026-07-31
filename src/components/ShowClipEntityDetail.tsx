@@ -416,14 +416,18 @@ export const ShowClipEntityDetail = forwardRef<ShowClipEntityDetailHandle, ShowC
           ))}
         </div>
 
-        {/* A floor, not a fixed height: the panel must not resize as tabs change,
-            but a takeover may still use the room below it. */}
+        {/* Effects needs a bounded body so its catalogue owns the only scrollbar.
+            Other tabs retain their intrinsic layout and established overflow. */}
         <div
           role="tabpanel"
           id={panelId}
           aria-labelledby={tabIdFor(activeTab)}
           data-active-tab={activeTab}
-          className="min-h-[262px] pt-2"
+          className={activeTab === 'effects' && !animationOverviewOpen
+            ? `flex h-[clamp(180px,calc(100vh-250px),300px)] min-h-0 flex-col pt-2 ${
+              effectChooserOpen ? 'overflow-hidden' : 'overflow-y-auto'
+            }`
+            : 'min-h-[262px] pt-2'}
         >
 
         {animationOverviewOpen ? (

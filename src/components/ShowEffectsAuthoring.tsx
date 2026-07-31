@@ -99,6 +99,7 @@ export function ShowEffectPalette({
       .find((family) => family.kind === 'effect' && family.id === activeItem.familyId)
       ?.variants.find((variant) => variant.id === activeItem.variantId)
     : undefined
+  const activeDetailId = `${idPrefix}-choice-detail`
 
   return (
     <section
@@ -106,7 +107,7 @@ export function ShowEffectPalette({
       role="region"
       aria-label="Add Effect"
       data-testid="show-effect-takeover"
-      className="flex h-[396px] min-h-[262px] max-h-[calc(100vh-164px)] flex-col overflow-hidden"
+      className="flex min-h-0 flex-1 flex-col overflow-hidden"
       onKeyDown={(event) => {
         if (event.key !== 'Escape') return
         event.preventDefault()
@@ -194,7 +195,34 @@ export function ShowEffectPalette({
           Compatible
         </button>
       </div>
-      <div className="min-h-0 flex-1 overflow-y-auto border-t border-zinc-800/80">
+      {activeItem && (
+        <div
+          id={activeDetailId}
+          data-testid="show-effect-choice-detail"
+          className="flex min-h-7 shrink-0 items-center gap-1.5 border-y border-cyan-400/20 bg-cyan-400/[0.035] px-1.5 py-0.5"
+        >
+          <p className="min-w-0 flex-1 truncate text-[8.5px] leading-3 text-zinc-400" title={activeItem.summary}>
+            {activeItem.summary}
+          </p>
+          <span className="shrink-0 text-[7px] uppercase tracking-wide text-zinc-600">
+            {activeItem.costPolicies.join(' · ')}
+          </span>
+          {activeVariant?.presets?.map((preset) => (
+            <button
+              key={preset.id}
+              type="button"
+              onClick={() => applyItem(activeItem, preset.id)}
+              className="h-5 shrink-0 rounded border border-zinc-700 px-1.5 text-[8px] text-zinc-300 hover:border-cyan-400/50 hover:text-cyan-200"
+            >
+              {preset.label}
+            </button>
+          ))}
+        </div>
+      )}
+      <div
+        data-testid="show-effect-choice-list"
+        className="min-h-0 flex-1 overflow-y-auto border-t border-zinc-800/80"
+      >
         {STAGES.map((stage) => {
           const stageItems = effectItems.filter((item) => item.effectStage === stage.id)
           if (stageItems.length === 0) return null
@@ -207,48 +235,32 @@ export function ShowEffectPalette({
                 <span className="h-px w-2 bg-cyan-400/40" aria-hidden />
                 {stage.label}
               </h4>
-              {stageItems.map((item) => {
-                const expanded = activeItem?.key === item.key
-                const detailId = `${idPrefix}-choice-detail-${item.variantId}`
-                return (
-                  <div key={item.key} className={expanded ? 'border-l-2 border-cyan-300/70 bg-cyan-400/[0.045]' : ''}>
-                    <button
-                      id={`${idPrefix}-choice-${item.variantId}`}
-                      data-show-effect-choice={item.variantId}
-                      type="button"
-                      aria-label={`Add ${item.label} Effect`}
-                      aria-expanded={expanded}
-                      aria-controls={detailId}
-                      disabled={!item.compatible}
-                      onPointerEnter={() => inspectItem(item, 'pointer')}
-                      onFocus={() => inspectItem(item, 'focus')}
-                      onClick={() => applyItem(item)}
-                      className="show-effect-choice group flex h-7 w-full min-w-0 items-center gap-2 border-b border-zinc-800/55 px-1 text-left hover:bg-[#171920] focus-visible:relative focus-visible:z-10 focus-visible:outline focus-visible:outline-1 focus-visible:outline-cyan-300 disabled:cursor-not-allowed disabled:opacity-40"
-                      title={item.compatible ? item.summary : item.compatibilityReason ?? undefined}
-                    >
-                      <EffectMnemonic kind={item.variantId} />
-                      <span className="min-w-0 flex-1 truncate text-[10px] font-medium text-zinc-100">{item.label}</span>
-                      <span className="shrink-0 text-[7px] uppercase tracking-[0.08em] text-zinc-700">{item.familyLabel}</span>
-                    </button>
-                    {expanded && (
-                      <div id={detailId} className="flex min-w-0 items-center gap-1.5 border-b border-zinc-800/55 pb-1 pl-7 pr-1 pt-0.5">
-                        <p className="min-w-0 flex-1 text-[8.5px] leading-3 text-zinc-500">{item.summary}</p>
-                        <span className="shrink-0 text-[7px] uppercase tracking-wide text-zinc-700">{item.costPolicies.join(' · ')}</span>
-                        {activeVariant?.presets?.map((preset) => (
-                          <button
-                            key={preset.id}
-                            type="button"
-                            onClick={() => applyItem(item, preset.id)}
-                            className="h-5 shrink-0 rounded border border-zinc-700 px-1.5 text-[8px] text-zinc-300 hover:border-cyan-400/50 hover:text-cyan-200"
-                          >
-                            {preset.label}
-                          </button>
-                        ))}
-                      </div>
-                    )}
-                  </div>
-                )
-              })}
+              <div data-testid="show-effect-stage-grid" className="grid grid-cols-2">
+                {stageItems.map((item) => {
+                  const expanded = activeItem?.key === item.key
+                  return (
+                    <div key={item.key} className={expanded ? 'border-l-2 border-cyan-300/70 bg-cyan-400/[0.045]' : ''}>
+                      <button
+                        id={`${idPrefix}-choice-${item.variantId}`}
+                        data-show-effect-choice={item.variantId}
+                        type="button"
+                        aria-label={`Add ${item.label} Effect`}
+                        aria-expanded={expanded}
+                        aria-controls={expanded ? activeDetailId : undefined}
+                        disabled={!item.compatible}
+                        onPointerEnter={() => inspectItem(item, 'pointer')}
+                        onFocus={() => inspectItem(item, 'focus')}
+                        onClick={() => applyItem(item)}
+                        className="show-effect-choice group flex h-7 w-full min-w-0 items-center gap-2 border-b border-zinc-800/55 px-1 text-left hover:bg-[#171920] focus-visible:relative focus-visible:z-10 focus-visible:outline focus-visible:outline-1 focus-visible:outline-cyan-300 disabled:cursor-not-allowed disabled:opacity-40"
+                        title={item.compatible ? item.summary : item.compatibilityReason ?? undefined}
+                      >
+                        <EffectMnemonic kind={item.variantId} />
+                        <span className="min-w-0 flex-1 truncate text-[10px] font-medium text-zinc-100">{item.label}</span>
+                      </button>
+                    </div>
+                  )
+                })}
+              </div>
             </section>
           )
         })}
