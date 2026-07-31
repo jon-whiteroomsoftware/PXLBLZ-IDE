@@ -622,15 +622,24 @@ test.describe('authenticated Show authoring', () => {
     const ripple = palette.getByRole('button', { name: 'Add Ripple Effect' })
     await ripple.hover()
     await page.setViewportSize({ width: 600, height: 800 })
+    await expect.poll(async () => {
+      const [panelBounds, paletteBounds] = await Promise.all([
+        panel.boundingBox(),
+        palette.boundingBox(),
+      ])
+      return Boolean(
+        panelBounds
+        && paletteBounds
+        && paletteBounds.x >= panelBounds.x
+        && paletteBounds.x + paletteBounds.width <= panelBounds.x + panelBounds.width,
+      )
+    }).toBe(true)
     const narrowPanelBounds = await panel.boundingBox()
     const narrowPaletteBounds = await palette.boundingBox()
     expect(narrowPanelBounds).not.toBeNull()
     expect(narrowPaletteBounds).not.toBeNull()
     expect(narrowPanelBounds!.height).toBeLessThanOrEqual(560)
     expect(narrowPaletteBounds!.height).toBeGreaterThanOrEqual(262)
-    expect(narrowPaletteBounds!.x).toBeGreaterThanOrEqual(narrowPanelBounds!.x)
-    expect(narrowPaletteBounds!.x + narrowPaletteBounds!.width)
-      .toBeLessThanOrEqual(narrowPanelBounds!.x + narrowPanelBounds!.width)
     expect(await page.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth))
       .toBeLessThanOrEqual(8)
     await page.keyboard.press('Escape')

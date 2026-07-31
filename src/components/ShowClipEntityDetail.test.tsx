@@ -613,6 +613,21 @@ describe('shared Clip Entity Detail sections (#498)', () => {
     await vi.waitFor(() => expect(screen.getByRole('button', { name: 'Add Effect' })).toHaveFocus())
   })
 
+  it('lets a header field consume Escape while the Add Effect takeover is open', () => {
+    const props = commonProps('scene-main')
+    render(<ShowClipEntityDetail {...props} />)
+    showTab('Effects')
+    fireEvent.click(screen.getByRole('button', { name: 'Add Effect' }))
+    const brightness = screen.getByRole('textbox', { name: 'Brightness exact percentage' })
+    fireEvent.focus(brightness)
+    fireEvent.change(brightness, { target: { value: 'invalid' } })
+
+    fireEvent.keyDown(brightness, { key: 'Escape' })
+
+    expect(brightness).toHaveValue('80')
+    expect(screen.getByRole('region', { name: 'Add Effect' })).toBeInTheDocument()
+  })
+
   it('commits local timing, opacity, and layer assignment only for an overlay', () => {
     const onPatch = vi.fn()
     const onMoveLayer = vi.fn()

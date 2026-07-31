@@ -90,15 +90,58 @@ describe('Show Effect authoring UI', () => {
     fireEvent.pointerEnter(bulge)
     expect(screen.getByText('Bend the source coordinates before the Pattern renders.')).toBeInTheDocument()
 
-    fireEvent.keyDown(document, { key: 'Escape' })
+    fireEvent.keyDown(screen.getByRole('searchbox', { name: 'Search Effects' }), { key: 'Escape' })
     expect(useShowPreviewOverrideStore.getState().show).toBeNull()
     expect(onClose).not.toHaveBeenCalled()
     expect(screen.queryByText('Bend the source coordinates before the Pattern renders.')).not.toBeInTheDocument()
     await vi.waitFor(() => expect(bulge).toHaveFocus())
     expect(bulge).toHaveAttribute('aria-expanded', 'false')
 
-    fireEvent.keyDown(document, { key: 'Escape' })
+    fireEvent.keyDown(bulge, { key: 'Escape' })
     expect(onClose).toHaveBeenCalledTimes(1)
+  })
+
+  it('leaves Escape handling outside the takeover to the focused control', () => {
+    const show = createDefaultShow('show-effects-scope', 'Effects scope', 1)
+    const outsideKeyDown = vi.fn()
+    const onClose = vi.fn()
+    render(
+      <>
+        <input aria-label="Outside field" onKeyDown={outsideKeyDown} />
+        <ShowEffectPalette clip={show.cells[0]} stageDimensions={2} onApply={vi.fn()} onClose={onClose} />
+      </>,
+    )
+
+    const outside = screen.getByRole('textbox', { name: 'Outside field' })
+    fireEvent.keyDown(outside, { key: 'Escape' })
+
+    expect(outsideKeyDown).toHaveBeenCalledOnce()
+    expect(onClose).not.toHaveBeenCalled()
+  })
+
+  it('keeps Escape and row focus scoped to the active takeover instance', async () => {
+    const show = createDefaultShow('show-effects-panels', 'Effects panels', 1)
+    const closePinned = vi.fn()
+    const closeTransient = vi.fn()
+    render(
+      <>
+        <ShowEffectPalette clip={show.cells[0]} stageDimensions={2} onApply={vi.fn()} onClose={closePinned} />
+        <ShowEffectPalette clip={show.cells[0]} stageDimensions={2} onApply={vi.fn()} onClose={closeTransient} />
+      </>,
+    )
+    const palettes = screen.getAllByRole('region', { name: 'Add Effect' })
+    const transientSearch = within(palettes[1]).getByRole('searchbox', { name: 'Search Effects' })
+    const transientBulge = within(palettes[1]).getByRole('button', { name: 'Add Bulge / Pinch Effect' })
+    fireEvent.pointerEnter(transientBulge)
+
+    fireEvent.keyDown(transientSearch, { key: 'Escape' })
+    expect(closePinned).not.toHaveBeenCalled()
+    expect(closeTransient).not.toHaveBeenCalled()
+    await vi.waitFor(() => expect(transientBulge).toHaveFocus())
+
+    fireEvent.keyDown(transientBulge, { key: 'Escape' })
+    expect(closePinned).not.toHaveBeenCalled()
+    expect(closeTransient).toHaveBeenCalledOnce()
   })
 
   it('offers Back as the explicit non-keyboard close path', async () => {

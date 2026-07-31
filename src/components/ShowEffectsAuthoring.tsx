@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState, type Ref } from 'react'
+import { useEffect, useId, useMemo, useRef, useState, type Ref } from 'react'
 import { createPortal } from 'react-dom'
 import { useNumberFieldDraft } from '@/components/ui/number-field'
 import { PercentageField } from '@/components/ui/percentage-field'
@@ -57,7 +57,9 @@ export function ShowEffectPalette({
   onApply: (application: ShowEffectApplication) => void
   onClose: () => void
 }) {
+  const paletteRef = useRef<HTMLElement>(null)
   const searchRef = useRef<HTMLInputElement>(null)
+  const idPrefix = useId()
   const [query, setQuery] = useState('')
   const [familyId, setFamilyId] = useState<string | null>(null)
   const [compatibleOnly, setCompatibleOnly] = useState(true)
@@ -91,26 +93,6 @@ export function ShowEffectPalette({
     searchRef.current?.focus()
   }, [])
 
-  useEffect(() => {
-    const onKeyDown = (event: KeyboardEvent) => {
-      if (event.key !== 'Escape') return
-      event.preventDefault()
-      event.stopImmediatePropagation()
-      if (activeItem) {
-        const itemId = `show-effect-choice-${activeItem.variantId}`
-        setDismissedItemKey(activeItem.key)
-        setActiveItem(null)
-        window.setTimeout(() => document.getElementById(itemId)?.focus(), 0)
-        return
-      }
-      close()
-    }
-    document.addEventListener('keydown', onKeyDown, true)
-    return () => {
-      document.removeEventListener('keydown', onKeyDown, true)
-    }
-  }, [activeItem, close])
-
   const activeVariant = activeItem
     ? SHOW_VISUAL_TOOLKIT_REGISTRY
       .find((family) => family.kind === 'effect' && family.id === activeItem.familyId)
@@ -119,10 +101,26 @@ export function ShowEffectPalette({
 
   return (
     <section
+      ref={paletteRef}
       role="region"
       aria-label="Add Effect"
       data-testid="show-effect-takeover"
       className="flex h-[396px] min-h-[262px] max-h-[calc(100vh-164px)] flex-col overflow-hidden"
+      onKeyDown={(event) => {
+        if (event.key !== 'Escape') return
+        event.preventDefault()
+        event.stopPropagation()
+        if (activeItem) {
+          const variantId = activeItem.variantId
+          setDismissedItemKey(activeItem.key)
+          setActiveItem(null)
+          window.setTimeout(() => paletteRef.current
+            ?.querySelector<HTMLElement>(`[data-show-effect-choice="${variantId}"]`)
+            ?.focus(), 0)
+          return
+        }
+        close()
+      }}
     >
       <header className="mb-1.5 flex h-5 shrink-0 items-center gap-1.5">
         <button
@@ -210,11 +208,12 @@ export function ShowEffectPalette({
               </h4>
               {stageItems.map((item) => {
                 const expanded = activeItem?.key === item.key
-                const detailId = `show-effect-choice-detail-${item.variantId}`
+                const detailId = `${idPrefix}-choice-detail-${item.variantId}`
                 return (
                   <div key={item.key} className={expanded ? 'border-l-2 border-cyan-300/70 bg-cyan-400/[0.045]' : ''}>
                     <button
-                      id={`show-effect-choice-${item.variantId}`}
+                      id={`${idPrefix}-choice-${item.variantId}`}
+                      data-show-effect-choice={item.variantId}
                       type="button"
                       aria-label={`Add ${item.label} Effect`}
                       aria-expanded={expanded}
