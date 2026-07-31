@@ -123,15 +123,20 @@ export function routeReview(commits: readonly CommitAuthorship[]): ReviewRouting
 }
 
 /**
- * True when no commit in the range is known to share the reviewer's family;
- * false when at least one does; undefined when authorship is entirely
- * unsignalled, which cannot claim cross-family coverage either way.
+ * False when any commit is known to share the reviewer's family; true only
+ * when every commit is signalled and none shares it. Any unsignalled commit
+ * otherwise degrades the claim to undefined (unverified): it could itself be
+ * authored by the reviewer's family, so it can never support a positive
+ * cross-family claim.
  */
 export function crossFamilyCoverage(
   commits: readonly CommitAuthorship[],
   reviewer: ReviewerName,
 ): boolean | undefined {
   const families = knownFamilies(commits)
-  if (families.size === 0) return undefined
-  return !families.has(REVIEWER_FAMILY[reviewer])
+  if (families.has(REVIEWER_FAMILY[reviewer])) return false
+  if (families.size === 0 || commits.some((commit) => commit.family === null)) {
+    return undefined
+  }
+  return true
 }

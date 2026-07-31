@@ -108,7 +108,7 @@ describe('cross-family review routing (#637)', () => {
     expect(routing.authoredModels).toEqual(['claude-fable-5'])
   })
 
-  it('reports cross-family coverage only against known authorship', () => {
+  it('reports cross-family coverage only when every commit is signalled', () => {
     const anthropic = [commit('anthropic', 'claude-fable-5')]
     expect(crossFamilyCoverage(anthropic, 'GPT-5.6 High')).toBe(true)
     expect(crossFamilyCoverage(anthropic, 'Opus 5 High')).toBe(false)
@@ -117,6 +117,12 @@ describe('cross-family review routing (#637)', () => {
       commit('anthropic', 'claude-fable-5'),
       commit('openai', 'gpt-5.6-sol'),
     ], 'Opus 5 High')).toBe(false)
+  })
+
+  it('never claims cross-family coverage for a partially unsignalled range (#637 P2)', () => {
+    const partial = [commit('anthropic', 'claude-fable-5'), commit(null)]
+    expect(crossFamilyCoverage(partial, 'GPT-5.6 High')).toBeUndefined()
+    expect(crossFamilyCoverage(partial, 'Opus 5 High')).toBe(false)
   })
 
   it('always routes primary and fallback to different reviewers', () => {
