@@ -182,10 +182,10 @@ function rangeAuthorshipAligned(
   return authorship
 }
 
-/** Union of paths touched by any intervening commit, not the net endpoint diff: touch-and-revert must still force re-review. */
-function interveningTouchedFiles(oldBaseSha: string, newBaseSha: string): string[] {
+/** Union of paths touched by any commit in the range, not the net endpoint diff: touch-and-revert must still force re-review. */
+function rangeTouchedFiles(baseSha: string, tipSha: string): string[] {
   return [...new Set(gitFileList([
-    'log', '--name-only', '--format=', '--no-renames', `${oldBaseSha}..${newBaseSha}`, '--',
+    'log', '--name-only', '--format=', '--no-renames', `${baseSha}..${tipSha}`, '--',
   ]))]
 }
 
@@ -216,8 +216,8 @@ function tryCarryForward(input: {
     rebasedCommits: input.rebasedCommits,
     authorship,
     contextSha256: input.contextSha256,
-    interveningFiles: interveningTouchedFiles(chain[0].baseSha, input.baseSha),
-    stackFiles: gitFileList(['diff', '--name-only', input.baseSha, input.tipSha]),
+    interveningFiles: rangeTouchedFiles(chain[0].baseSha, input.baseSha),
+    stackFiles: rangeTouchedFiles(input.baseSha, input.tipSha),
     carriedAt: new Date().toISOString(),
   })
   if (!carried) return null
