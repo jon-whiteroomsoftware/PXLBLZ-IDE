@@ -83,13 +83,18 @@ export function ShowClipPlacementPad({
   const context: PlacementPadContext = { transform, viewport, grid }
   const apertureOn = viewport.enabled
   const focus = controlledFocus ?? uncontrolledFocus
-  const active: PlacementFocus = apertureOn ? focus : 'content'
-  const contentActive = active === 'content' && !readOnly
-  const apertureActive = active === 'aperture' && !readOnly
+  const active = focus
+  const contentFocused = active === 'content'
+  const apertureFocused = active === 'aperture'
+  const apertureVisible = apertureOn || apertureFocused
+  const contentActive = contentFocused && !readOnly
+  const apertureActive = apertureFocused && !readOnly
 
   const box = contentRectFromTransform(transform)
   const window = viewportRect(viewport)
-  const view = placementPadView(context)
+  const view = placementPadView(apertureVisible && !apertureOn
+    ? { ...context, viewport: { ...viewport, enabled: true } }
+    : context)
   const extent = view.max - view.min
   const toPad = (unit: number) => (unit - view.min) / extent * PAD
   const toUnit = (pad: number) => pad / PAD * extent + view.min
@@ -242,7 +247,7 @@ export function ShowClipPlacementPad({
         </label>
 
         <span className="ml-auto flex min-w-0 gap-0.5">
-          {apertureActive
+          {apertureFocused
             ? <>
                 <PadAction disabled={readOnly} onClick={() => apply(frameContent(context))}>Frame</PadAction>
                 <PadAction disabled={readOnly} title="Full Zone" onClick={() => apply(setViewportRect(context, { left: 0, top: 0, width: 1, height: 1 }))}>Full</PadAction>
@@ -257,10 +262,12 @@ export function ShowClipPlacementPad({
           type="button"
           aria-label="Placement help"
           data-placement-help
-          title={!apertureOn
+          title={!apertureVisible
             ? 'Drag the content or its corners. Grid lines magnetize edges; Shift keeps corner resizing square.'
-            : apertureActive
-              ? 'Drag the Aperture or its corners; drag bare pad to sweep cells. Alt-drag carries Content.'
+            : apertureFocused
+              ? apertureOn
+                ? 'Drag the Aperture or its corners; drag bare pad to sweep cells. Alt-drag carries Content.'
+                : 'This retained Aperture is off. Editing it on the pad enables it.'
               : 'Drag Content or its corners. Its edges magnetize to the Aperture and Zone; only Content rotates.'}
           className="grid size-5 shrink-0 place-items-center rounded text-[9px] text-zinc-600 hover:bg-zinc-800 hover:text-zinc-300 focus-visible:outline focus-visible:outline-1 focus-visible:outline-cyan-300"
         >
@@ -288,7 +295,7 @@ export function ShowClipPlacementPad({
 
         {grid > 0 && Array.from({ length: grid - 1 }, (_, index) => {
           const at = toPad((index + 1) / grid)
-          const magnet = !apertureOn
+          const magnet = !apertureVisible
           return (
             <g key={index} stroke={magnet ? '#52525b' : '#3f3f46'} strokeDasharray={magnet ? undefined : '2 4'}>
               <line x1={at} y1={toPad(0)} x2={at} y2={toPad(1)} />
@@ -333,14 +340,14 @@ export function ShowClipPlacementPad({
 
         {/* The scrim sits above the content so masked content reads as masked.
             Handles are re-raised above it so they stay grabbable. */}
-        {apertureOn && <>
-          <path
-            d={`M0,0H${PAD}V${PAD}H0Z M${toPad(window.left)},${toPad(window.top)}V${toPad(window.top + window.height)}H${toPad(window.left + window.width)}V${toPad(window.top)}Z`}
-            fill="#09090b"
-            fillOpacity="0.72"
-            fillRule="evenodd"
-            pointerEvents="none"
-          />
+        {apertureVisible && <>
+          {apertureOn && <path
+              d={`M0,0H${PAD}V${PAD}H0Z M${toPad(window.left)},${toPad(window.top)}V${toPad(window.top + window.height)}H${toPad(window.left + window.width)}V${toPad(window.top)}Z`}
+              fill="#09090b"
+              fillOpacity="0.72"
+              fillRule="evenodd"
+              pointerEvents="none"
+            />}
           <rect x={toPad(0)} y={toPad(0)} width={span(1)} height={span(1)} fill="none" stroke="#52525b" pointerEvents="none" />
           <rect
             x={toPad(window.left)}
@@ -372,7 +379,9 @@ export function ShowClipPlacementPad({
             onPointerMove={onPointerMove}
             onPointerUp={endDrag}
           />
-          <text x={toPad(window.left) + 5} y={toPad(window.top + window.height) - 5} fill={APERTURE} fontSize="10" pointerEvents="none">Aperture</text>
+          <text x={toPad(window.left) + 5} y={toPad(window.top + window.height) - 5} fill={APERTURE} fontSize="10" pointerEvents="none">
+            {apertureOn ? 'Aperture' : 'Aperture (off)'}
+          </text>
           {apertureActive && <g>{CORNERS.map((corner) => (
             <rect
               key={corner}

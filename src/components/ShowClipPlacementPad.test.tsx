@@ -80,6 +80,33 @@ describe('editing focus', () => {
       viewport: expect.objectContaining({ enabled: true, width: 1, height: 1 }),
     })
   })
+
+  it('honors controlled Aperture focus for a retained disabled rectangle (#650 review)', () => {
+    const onChange = vi.fn()
+    render(
+      <ShowClipPlacementPad
+        transform={{ ...NEUTRAL_SHOW_CLIP_TRANSFORM }}
+        viewport={{ ...DEFAULT_SHOW_CLIP_VIEWPORT, enabled: false, x: 0.1, width: 0.8 }}
+        focus="aperture"
+        onChange={onChange}
+      />,
+    )
+
+    expect(screen.getByRole('button', { name: 'Content' })).toHaveAttribute('aria-pressed', 'false')
+    expect(screen.getByRole('button', { name: 'Aperture' })).toHaveAttribute('aria-pressed', 'true')
+    expect(screen.getByText('Aperture (off)')).toBeInTheDocument()
+    const pad = screen.getByRole('application', {
+      name: 'Placement pad. Arrow keys nudge the aperture rectangle.',
+    })
+    expect(screen.getByRole('button', { name: 'Frame' })).toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'Fit' })).not.toBeInTheDocument()
+    expect(onChange).not.toHaveBeenCalled()
+
+    fireEvent.keyDown(pad, { key: 'ArrowRight', shiftKey: false })
+    expect(onChange).toHaveBeenCalledWith({
+      viewport: expect.objectContaining({ enabled: true, x: 0.11, width: 0.8 }),
+    })
+  })
 })
 
 describe('control bar actions', () => {

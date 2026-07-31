@@ -2154,6 +2154,12 @@ describe('ShowEditor (#318)', () => {
       expect(within(panel).getByRole('tab', { name: /^Place/ })).toHaveAttribute('aria-selected', 'true')
       expect(within(panel).getByRole('textbox', { name: 'Viewport X' })).toHaveFocus()
     })
+    expect(within(panel).getByRole('button', { name: 'Content' })).toHaveAttribute('aria-pressed', 'false')
+    expect(within(panel).getByRole('button', { name: 'Aperture' })).toHaveAttribute('aria-pressed', 'true')
+    expect(within(panel).getByText('Aperture (off)')).toBeInTheDocument()
+    expect(within(panel).getByRole('application', {
+      name: 'Placement pad. Arrow keys nudge the aperture rectangle.',
+    })).toBeInTheDocument()
     expect(useShowStore.getState().shows[0]!.cells[0]!.viewport!.enabled).toBe(false)
   })
 
