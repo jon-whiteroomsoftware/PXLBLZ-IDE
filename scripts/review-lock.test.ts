@@ -142,22 +142,21 @@ describe('review serialization lock (#637)', () => {
     expect(polls).toBeGreaterThanOrEqual(2)
   })
 
-  it('atomically replaces an empty legacy lock directory instead of blocking on it', async () => {
+  it('treats an existing empty directory as contention, never as claimable (#637 P1)', async () => {
     const lockDirectory = join(base, 'review.lock')
     mkdirSync(lockDirectory, { recursive: true })
 
-    // rename(2) may replace an empty target directory, so a bare directory
-    // with no contents is claimed directly and safely.
-    const handle = await acquireReviewLock({
+    // A transiently empty directory is exactly what a mid-release lock
+    // looks like; claiming it could seize a lock still being removed. It
+    // gets the ownerless grace period, then fails closed untouched.
+    await expect(acquireReviewLock({
       lockDirectory,
       owner: owner(process.pid),
-      waitMs: 1_000,
+      waitMs: 5_000,
       pollMs: 1,
-    })
-    expect(parseReviewLockOwner(
-      readFileSync(join(lockDirectory, 'owner.json'), 'utf8'),
-    )).toEqual(owner(process.pid))
-    handle.release()
+      sleep: async () => {},
+    })).rejects.toThrow(/no owner across 3 consecutive checks[\s\S]*rm -rf/)
+    expect(existsSync(lockDirectory)).toBe(true)
   })
 
   it('fails closed on a persistently unreadable owner without removing it (#637 P2)', async () => {

@@ -2,22 +2,27 @@
  * Review serialization lock (#637). Two concurrent `review:candidate` runs
  * contend for reviewer quota and can starve each other into their caps, so
  * reviews queue on an exclusive lock in the shared git common directory
- * (worktrees share it). The lock is a directory published atomically by
- * renaming a fully formed staging directory into place, so it is never
- * visible without its owner.json (pid, range, start time).
+ * (worktrees share it). The claim primitive is `mkdir`, the only POSIX
+ * create-if-absent that refuses every existing directory -- rename is
+ * disqualified because it can replace an EMPTY directory, and a lock being
+ * torn down by a releasing holder is transiently empty, so rename-based
+ * claiming could seize a mid-release lock and then be destroyed by the
+ * still-running removal. owner.json (pid, range, start time) is written
+ * immediately after the claim; the microseconds-wide ownerless instants
+ * (post-mkdir and mid-release) are absorbed by a short grace period.
  *
  * There is deliberately NO automatic reaping. POSIX filesystems provide no
  * compare-and-delete, so every automatic-removal scheme has an interleaving
  * in which a delayed reaper displaces a live successor's lock and two
- * reviews run concurrently (three review rounds of adversarial analysis
- * kept finding them). Instead, this follows git's own index.lock design: a
- * lock is removed only by its holder's release or by an explicit operator
- * command, and a dead or persistently ownerless holder fails the run
- * immediately with exact cleanup instructions. Serialization is therefore
- * unconditional; the cost is one manual removal after a hard crash.
+ * reviews run concurrently (successive review rounds of adversarial
+ * analysis kept finding them). Instead, this follows git's own index.lock
+ * design: a lock is removed only by its holder's release or by an explicit
+ * operator command, and a dead or persistently ownerless holder fails the
+ * run immediately with exact cleanup instructions. Serialization is
+ * therefore unconditional; the cost is one manual removal after a crash.
  */
 
-import { mkdirSync, readFileSync, renameSync, rmSync, writeFileSync } from 'node:fs'
+import { mkdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
 
 export interface ReviewLockOwner {
@@ -73,8 +78,6 @@ const defaultSleep = (ms: number): Promise<void> => (
   new Promise((resolve) => setTimeout(resolve, ms))
 )
 
-let lockCounter = 0
-
 function readLockOwner(lockDirectory: string): ReviewLockOwner | null {
   try {
     return parseReviewLockOwner(
@@ -111,19 +114,17 @@ export async function acquireReviewLock(
   let ownerlessPolls = 0
 
   for (;;) {
-    // Staged publish: the lock directory is built fully formed (owner.json
-    // first) and renamed into place atomically, so a lock is never visible
-    // without its owner. A crash mid-acquisition leaves only an orphan
-    // staging directory next to the lock, never a half-made lock.
-    lockCounter += 1
-    const staging = `${options.lockDirectory}.staging-${process.pid}-${lockCounter}`
-    mkdirSync(staging, { recursive: true })
-    writeFileSync(
-      join(staging, 'owner.json'),
-      `${JSON.stringify(options.owner, null, 2)}\n`,
-    )
+    // mkdir is the claim: atomic create-if-absent that treats EVERY
+    // existing directory -- including a transiently empty one mid-release
+    // -- as contention. Never claim by rename; rename may replace an empty
+    // directory and thereby seize a lock that its releasing holder is
+    // still removing.
     try {
-      renameSync(staging, options.lockDirectory)
+      mkdirSync(options.lockDirectory, { recursive: false })
+      writeFileSync(
+        join(options.lockDirectory, 'owner.json'),
+        `${JSON.stringify(options.owner, null, 2)}\n`,
+      )
       return {
         release: () => {
           // Defense against operator mistakes: never delete a lock
@@ -134,9 +135,13 @@ export async function acquireReviewLock(
         },
       }
     } catch (error) {
-      rmSync(staging, { recursive: true, force: true })
       const code = (error as NodeJS.ErrnoException).code
-      if (code !== 'EEXIST' && code !== 'ENOTEMPTY') throw error
+      if (code === 'ENOENT') {
+        // Parent .git/pxlblz does not exist yet; create it and retry.
+        mkdirSync(join(options.lockDirectory, '..'), { recursive: true })
+        continue
+      }
+      if (code !== 'EEXIST') throw error
     }
 
     const holder = readLockOwner(options.lockDirectory)

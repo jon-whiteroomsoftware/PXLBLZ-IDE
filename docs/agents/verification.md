@@ -129,11 +129,13 @@ target commit.
 
 Concurrent reviews serialize on `.git/pxlblz/review.lock` (#637): the lock
 directory lives in the shared git common directory so worktrees queue
-against each other instead of contending for reviewer quota. The lock is
-published atomically (staging directory renamed into place, never visible
-without its owner record) and is never removed automatically -- POSIX has
-no compare-and-delete, so every auto-reap scheme admits an interleaving
-where a delayed reaper displaces a live successor. Like git's own
+against each other instead of contending for reviewer quota. The claim
+primitive is `mkdir` -- the one POSIX create-if-absent that refuses even an
+empty existing directory, which matters because a lock mid-release is
+transiently empty and rename-based claiming could seize it -- and the lock
+is never removed automatically: POSIX has no compare-and-delete, so every
+auto-reap scheme admits an interleaving where a delayed reaper displaces a
+live successor. Like git's own
 `index.lock`, a dead or persistently unreadable holder fails the run
 immediately with explicit `rm -rf` instructions, and a live holder is
 reported while waiting, up to a 30-minute cap. After a hard crash, one
