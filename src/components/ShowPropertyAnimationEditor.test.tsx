@@ -151,4 +151,84 @@ describe('per-parameter Property animation editor (#648)', () => {
     expect(screen.getByRole('dialog', { name: 'Animation speed animation' }))
       .toHaveTextContent('Affects 4 linked Clips')
   })
+
+  it('authors Rotation in the degrees taught by the adjacent Clip field', () => {
+    const rotation: ShowPropertyAnimationOption = {
+      key: 'placement-transform:placement-1:rotation',
+      label: 'Rotation',
+      target: { kind: 'placement-transform', placementId: 'placement-1', property: 'rotation' },
+      value: 0.25,
+      min: -8,
+      max: 8,
+      step: 1 / 360,
+      presentation: 'degrees',
+    }
+    const onChange = vi.fn()
+    render(
+      <ShowPropertyAnimationProvider
+        options={[rotation]}
+        tracks={[]}
+        storageDurationMs={4_000}
+        showTimeOffsetMs={0}
+        instanceUseCount={1}
+        onChange={onChange}
+      >
+        <ShowPropertyAnimationAction target={rotation.target} />
+      </ShowPropertyAnimationProvider>,
+    )
+
+    fireEvent.click(screen.getByRole('button', { name: 'Animate Rotation' }))
+    const from = screen.getByRole('textbox', { name: 'Rotation animation from degrees' })
+    expect(from).toHaveValue('90')
+    fireEvent.change(from, { target: { value: '180' } })
+    fireEvent.blur(from)
+
+    expect(onChange).toHaveBeenCalledWith(expect.objectContaining({
+      kind: 'add-track',
+      keyframes: [
+        { timeMs: 0, value: 0.5, easing: { curve: 'linear' } },
+        { timeMs: 4_000, value: 0.25, easing: { curve: 'linear' } },
+      ],
+    }))
+  })
+
+  it('authors Phase in the raw zero-to-one units taught by the adjacent Clip field', () => {
+    const phase: ShowPropertyAnimationOption = {
+      key: 'placement-view:placement-1:phase',
+      label: 'Phase',
+      target: { kind: 'placement-view', placementId: 'placement-1', property: 'phase' },
+      value: 0.25,
+      min: 0,
+      max: 1,
+      step: 0.01,
+      presentation: 'number',
+    }
+    const onChange = vi.fn()
+    render(
+      <ShowPropertyAnimationProvider
+        options={[phase]}
+        tracks={[]}
+        storageDurationMs={4_000}
+        showTimeOffsetMs={0}
+        instanceUseCount={1}
+        onChange={onChange}
+      >
+        <ShowPropertyAnimationAction target={phase.target} />
+      </ShowPropertyAnimationProvider>,
+    )
+
+    fireEvent.click(screen.getByRole('button', { name: 'Animate Phase' }))
+    const from = screen.getByRole('textbox', { name: 'Phase animation from' })
+    expect(from).toHaveValue('0.25')
+    fireEvent.change(from, { target: { value: '0.5' } })
+    fireEvent.blur(from)
+
+    expect(onChange).toHaveBeenCalledWith(expect.objectContaining({
+      kind: 'add-track',
+      keyframes: [
+        { timeMs: 0, value: 0.5, easing: { curve: 'linear' } },
+        { timeMs: 4_000, value: 0.25, easing: { curve: 'linear' } },
+      ],
+    }))
+  })
 })

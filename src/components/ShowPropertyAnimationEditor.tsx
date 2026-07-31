@@ -424,6 +424,23 @@ function AnimationValueField({
       />
     )
   }
+  if (option.presentation === 'degrees') {
+    return (
+      <NumberField
+        label={label}
+        ariaLabel={`${label} degrees`}
+        hideLabel
+        value={value * 360}
+        min={option.min * 360}
+        max={option.max * 360}
+        step={option.step * 360}
+        suffix="°"
+        compact
+        variant="inspector"
+        onChange={(degrees) => onChange(degrees / 360)}
+      />
+    )
+  }
   return (
     <NumberField
       label={label}

@@ -19,7 +19,7 @@ import {
 } from './showPropertyAnimation'
 import { materializeShowGroupOccurrences, validateShowGroups } from './showGroupModel'
 
-export type ShowPropertyAnimationValuePresentation = 'number' | 'percentage' | 'multiplier'
+export type ShowPropertyAnimationValuePresentation = 'number' | 'percentage' | 'multiplier' | 'degrees'
 
 export interface ShowPropertyAnimationOption {
   key: string
@@ -132,11 +132,11 @@ export function buildShowPropertyAnimationOptions(
       0,
       1,
       0.01,
-      'percentage',
+      'number',
     ),
     option('Position X', { kind: 'placement-transform', placementId, property: 'positionX' }, value.transform.positionX, -4, 4, 0.01),
     option('Position Y', { kind: 'placement-transform', placementId, property: 'positionY' }, value.transform.positionY, -4, 4, 0.01),
-    option('Rotation', { kind: 'placement-transform', placementId, property: 'rotation' }, value.transform.rotation, -8, 8, 0.01),
+    option('Rotation', { kind: 'placement-transform', placementId, property: 'rotation' }, value.transform.rotation, -8, 8, 1 / 360, 'degrees'),
     option('Scale X', { kind: 'placement-transform', placementId, property: 'scaleX' }, value.transform.scaleX, 0.01, 8, 0.01, 'multiplier'),
     option('Scale Y', { kind: 'placement-transform', placementId, property: 'scaleY' }, value.transform.scaleY, 0.01, 8, 0.01, 'multiplier'),
     option('Viewport X', { kind: 'placement-viewport', placementId, property: 'x' }, value.viewport.x, -4, 4, 0.01),
