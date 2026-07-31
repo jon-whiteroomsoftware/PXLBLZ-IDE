@@ -65,6 +65,15 @@ function showTab(name: 'Pattern' | 'Place' | 'Effects' | 'Playback') {
 // The remembered tab is session-scoped, so it would otherwise leak between cases.
 beforeEach(resetShowClipDetailTabMemory)
 
+describe('Clip detail label contrast (#660)', () => {
+  it('promotes every form label to the readable text tier', () => {
+    render(<ShowClipEntityDetail {...commonProps('scene-overlay')} />)
+
+    expect(screen.getByRole('region', { name: 'Clip properties' }))
+      .toHaveClass('[&_label]:text-zinc-400')
+  })
+})
+
 describe('Clip detail tabs (#642)', () => {
   it('keeps the tabs operable inside a disabled fieldset, as a read-only Show renders them', () => {
     // ShowEditor wraps the panel body in <fieldset disabled> for a built-in

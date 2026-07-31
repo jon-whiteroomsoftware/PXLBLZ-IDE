@@ -241,7 +241,7 @@ export const ShowClipEntityDetail = forwardRef<ShowClipEntityDetailHandle, ShowC
       role={embedded ? undefined : 'region'}
       aria-label={embedded ? undefined : 'Clip properties'}
       data-entity-family="clip"
-      className="overflow-hidden bg-transparent"
+      className="overflow-hidden bg-transparent [&_label]:text-zinc-400"
     >
       {!embedded && <header className="flex h-10 shrink-0 items-center gap-2 border-b border-zinc-800/90 bg-zinc-950/65 py-1 pl-2.5 pr-10">
         <span className="grid size-6 shrink-0 place-items-center rounded border border-cyan-400/35 bg-cyan-400/10 text-cyan-300">
