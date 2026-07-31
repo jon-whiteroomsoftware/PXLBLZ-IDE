@@ -96,12 +96,19 @@ chain across a rebase without re-review when the rebased range's content-id
 sequence is identical and the intervening commits touch a file set disjoint
 from the stack's. The hashed text includes pre-image blob hashes and context
 lines, so any intervening change to a stack-touched file changes the content
-id; the disjoint-files check is defense in depth on top of that. Conflict
-resolutions, reordering, added or dropped commits, overlapping files,
-annotated-tag tips, or receipts predating content-id recording all fall
-through to a fresh review. Carried receipts keep the original reviewer,
-coverage, advisories, and authorship, and record `carriedFrom` provenance
-rooted at the originally reviewed range.
+id; the disjoint-files check is defense in depth on top of that, computed as
+the union of paths touched by any intervening commit (not the net endpoint
+diff, so touch-and-revert still forces re-review). Because content ids hash
+only the diff, carry also recomputes authorship from the rebased commits'
+trailers and requires the receipt's recorded `authoredModels` and
+`crossFamily` to match -- a message-only reword that changes the authoring
+family refuses to carry rather than misstating reviewer independence -- and
+requires the supplied test-design context digest to equal every source
+receipt's recorded digest. Conflict resolutions, reordering, added or
+dropped commits, overlapping files, annotated-tag tips, or receipts
+predating content-id recording all fall through to a fresh review. Carried
+receipts keep the original reviewer, coverage, advisories, and authorship,
+and record `carriedFrom` provenance rooted at the originally reviewed range.
 
 Accepted residual, decided on #637: path disjointness cannot prove semantic
 independence -- an intervening commit can change behavior a carried patch

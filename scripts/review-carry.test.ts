@@ -33,6 +33,10 @@ function receipt(
   })
 }
 
+function unsignalled(commits: readonly RebasedCommit[]) {
+  return commits.map((commit) => ({ sha: commit.sha, model: null, family: null }))
+}
+
 describe('content-id approval carry-forward (#637)', () => {
   it('finds a receipt chain by concatenated content-id sequence ending clean', () => {
     const first = receipt({ baseSha: A, tipSha: B, contentIds: ['p1', 'p2'] })
@@ -94,6 +98,8 @@ describe('content-id approval carry-forward (#637)', () => {
       chain: [original],
       newBaseSha: M1,
       rebasedCommits: rebased,
+      authorship: unsignalled(rebased),
+      contextSha256: null,
       interveningFiles: ['src/other.ts'],
       stackFiles: ['scripts/push-review.ts'],
       carriedAt: '2026-07-31T13:00:00.000Z',
@@ -127,13 +133,16 @@ describe('content-id approval carry-forward (#637)', () => {
     })
     const corrective = receipt({ baseSha: B, tipSha: C, contentIds: ['p2'] })
 
+    const rebased: RebasedCommit[] = [
+      { sha: N1, contentId: 'p1' },
+      { sha: N2, contentId: 'p2' },
+    ]
     const carried = carryApprovalChainForward({
       chain: [advisory, corrective],
       newBaseSha: M1,
-      rebasedCommits: [
-        { sha: N1, contentId: 'p1' },
-        { sha: N2, contentId: 'p2' },
-      ],
+      rebasedCommits: rebased,
+      authorship: unsignalled(rebased),
+      contextSha256: null,
       interveningFiles: ['src/other.ts'],
       stackFiles: ['src/x.ts'],
       carriedAt: '2026-07-31T13:00:00.000Z',
@@ -152,13 +161,16 @@ describe('content-id approval carry-forward (#637)', () => {
 
   it('refuses to carry when content, order, count, files, or provenance disagree', () => {
     const original = receipt({ baseSha: A, tipSha: B, contentIds: ['p1', 'p2'] })
+    const rebased: RebasedCommit[] = [
+      { sha: N1, contentId: 'p1' },
+      { sha: N2, contentId: 'p2' },
+    ]
     const base = {
       chain: [original],
       newBaseSha: M1,
-      rebasedCommits: [
-        { sha: N1, contentId: 'p1' },
-        { sha: N2, contentId: 'p2' },
-      ],
+      rebasedCommits: rebased,
+      authorship: unsignalled(rebased),
+      contextSha256: null,
       interveningFiles: ['src/other.ts'],
       stackFiles: ['scripts/push-review.ts'],
       carriedAt: '2026-07-31T13:00:00.000Z',
@@ -175,6 +187,7 @@ describe('content-id approval carry-forward (#637)', () => {
     expect(carryApprovalChainForward({
       ...base,
       rebasedCommits: [{ sha: N1, contentId: 'p1' }],
+      authorship: unsignalled([{ sha: N1, contentId: 'p1' }]),
     })).toBeNull()
     expect(carryApprovalChainForward({
       ...base,
@@ -199,6 +212,67 @@ describe('content-id approval carry-forward (#637)', () => {
     })).not.toBeNull()
   })
 
+  it('refuses to carry when a reword changes authorship facts (#637 P1)', () => {
+    const original = receipt({
+      baseSha: A,
+      tipSha: B,
+      authoredModels: ['claude-fable-5'],
+      crossFamily: true,
+      contentIds: ['p1'],
+    })
+    const rebased: RebasedCommit[] = [{ sha: N1, contentId: 'p1' }]
+    const base = {
+      chain: [original],
+      newBaseSha: M1,
+      rebasedCommits: rebased,
+      contextSha256: null,
+      interveningFiles: ['src/other.ts'],
+      stackFiles: ['src/x.ts'],
+      carriedAt: '2026-07-31T13:00:00.000Z',
+    }
+
+    expect(carryApprovalChainForward({
+      ...base,
+      authorship: [{ sha: N1, model: 'claude-fable-5', family: 'anthropic' }],
+    })).not.toBeNull()
+    expect(carryApprovalChainForward({
+      ...base,
+      authorship: [{ sha: N1, model: 'gpt-5.6-sol', family: 'openai' }],
+    })).toBeNull()
+    expect(carryApprovalChainForward({
+      ...base,
+      authorship: unsignalled(rebased),
+    })).toBeNull()
+    expect(carryApprovalChainForward({
+      ...base,
+      authorship: [],
+    })).toBeNull()
+  })
+
+  it('refuses to carry under a different test-design context (#637 P2)', () => {
+    const original = receipt({
+      baseSha: A,
+      tipSha: B,
+      contentIds: ['p1'],
+      contextSha256: 'context-digest',
+    })
+    const rebased: RebasedCommit[] = [{ sha: N1, contentId: 'p1' }]
+    const base = {
+      chain: [original],
+      newBaseSha: M1,
+      rebasedCommits: rebased,
+      authorship: unsignalled(rebased),
+      interveningFiles: [],
+      stackFiles: ['src/x.ts'],
+      carriedAt: '2026-07-31T13:00:00.000Z',
+    }
+
+    expect(carryApprovalChainForward({ ...base, contextSha256: 'context-digest' }))
+      .not.toBeNull()
+    expect(carryApprovalChainForward({ ...base, contextSha256: null })).toBeNull()
+    expect(carryApprovalChainForward({ ...base, contextSha256: 'different' })).toBeNull()
+  })
+
   it('carries already-carried receipts while preserving the original provenance root', () => {
     const carriedOnce = receipt({
       baseSha: A,
@@ -215,6 +289,8 @@ describe('content-id approval carry-forward (#637)', () => {
       chain: [carriedOnce],
       newBaseSha: M1,
       rebasedCommits: [{ sha: N1, contentId: 'p1' }],
+      authorship: unsignalled([{ sha: N1, contentId: 'p1' }]),
+      contextSha256: null,
       interveningFiles: [],
       stackFiles: ['src/x.ts'],
       carriedAt: '2026-07-31T13:00:00.000Z',

@@ -31,10 +31,28 @@
  */
 
 import { REVIEW_RECEIPT_VERSION, type ReviewApprovalReceipt } from './review-approvals'
+import {
+  crossFamilyCoverage,
+  type CommitAuthorship,
+  type ReviewerName,
+} from './review-routing'
 
 export interface RebasedCommit {
   sha: string
   contentId: string
+}
+
+function receiptReviewerName(
+  reviewer: ReviewApprovalReceipt['reviewer'],
+): ReviewerName {
+  // Fable is Anthropic-family for coverage purposes, same as Opus 5 High.
+  return reviewer === 'GPT-5.6 High' ? 'GPT-5.6 High' : 'Opus 5 High'
+}
+
+function sameModelSet(a: readonly string[], b: readonly string[]): boolean {
+  const left = new Set(a)
+  const right = new Set(b)
+  return left.size === right.size && [...left].every((model) => right.has(model))
 }
 
 /**
@@ -98,6 +116,10 @@ export interface CarryApprovalChainInput {
   chain: readonly ReviewApprovalReceipt[]
   newBaseSha: string
   rebasedCommits: readonly RebasedCommit[]
+  /** Trailer-derived authorship of each rebased commit, index-aligned with rebasedCommits. */
+  authorship: readonly CommitAuthorship[]
+  /** Digest of the test-design context supplied to THIS candidate run. */
+  contextSha256: string | null
   interveningFiles: readonly string[]
   stackFiles: readonly string[]
   carriedAt: string
@@ -107,6 +129,7 @@ export function carryApprovalChainForward(
   input: CarryApprovalChainInput,
 ): ReviewApprovalReceipt[] | null {
   if (input.chain.length === 0) return null
+  if (input.authorship.length !== input.rebasedCommits.length) return null
   if (!filesAreDisjoint(input.interveningFiles, input.stackFiles)) return null
   const chainContentIds = input.chain.map((receipt) => receipt.contentIds)
   if (chainContentIds.some((contentIds) => !contentIds || contentIds.length === 0)) {
@@ -119,6 +142,11 @@ export function carryApprovalChainForward(
     ))) {
     return null
   }
+  // The context supplied to this run must be the context the chain was
+  // reviewed under, or the requested review evidence was never examined.
+  if (input.chain.some((receipt) => receipt.contextSha256 !== input.contextSha256)) {
+    return null
+  }
 
   const carried: ReviewApprovalReceipt[] = []
   let cursor = 0
@@ -126,7 +154,22 @@ export function carryApprovalChainForward(
   for (const receipt of input.chain) {
     const edgeLength = receipt.contentIds?.length ?? 0
     const edgeCommits = input.rebasedCommits.slice(cursor, cursor + edgeLength)
+    const edgeAuthorship = input.authorship.slice(cursor, cursor + edgeLength)
     cursor += edgeLength
+    // Content ids hash only the diff, so a message-only reword can change
+    // authorship trailers without changing any content id. Recompute
+    // authorship facts from the rebased commits and require them to match
+    // what the receipt recorded; otherwise the carried receipt would
+    // misstate reviewer independence.
+    const models = [...new Set(
+      edgeAuthorship.flatMap((commit) => (commit.model ? [commit.model] : [])),
+    )]
+    if (!sameModelSet(models, receipt.authoredModels ?? [])) return null
+    const recomputedCrossFamily = crossFamilyCoverage(
+      edgeAuthorship,
+      receiptReviewerName(receipt.reviewer),
+    )
+    if (recomputedCrossFamily !== receipt.crossFamily) return null
     const tipSha = edgeCommits[edgeCommits.length - 1].sha
     carried.push({
       ...receipt,

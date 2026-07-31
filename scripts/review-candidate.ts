@@ -15,6 +15,7 @@ import {
   findChainByContentIds,
   type RebasedCommit,
 } from './review-carry'
+import { parseAuthorshipLog, type CommitAuthorship } from './review-routing'
 import {
   parseReviewTestDesignContext,
   printReview,
@@ -161,11 +162,39 @@ interface CarryForwardOutcome {
   receiptPaths: string[]
 }
 
+/**
+ * Trailer-derived authorship for each commit of the range, oldest first so
+ * indexes align with computeRangeContentIds. Returns null when the two git
+ * views disagree on the commit sequence; carry must not guess.
+ */
+function rangeAuthorshipAligned(
+  baseSha: string,
+  tipSha: string,
+  rebasedCommits: readonly RebasedCommit[],
+): CommitAuthorship[] | null {
+  const authorship = parseAuthorshipLog(git([
+    'log', '--reverse', '--format=%H%x1f%(trailers)%x1e', `${baseSha}..${tipSha}`, '--',
+  ]))
+  if (authorship.length !== rebasedCommits.length
+    || authorship.some((commit, index) => commit.sha !== rebasedCommits[index].sha)) {
+    return null
+  }
+  return authorship
+}
+
+/** Union of paths touched by any intervening commit, not the net endpoint diff: touch-and-revert must still force re-review. */
+function interveningTouchedFiles(oldBaseSha: string, newBaseSha: string): string[] {
+  return [...new Set(gitFileList([
+    'log', '--name-only', '--format=', '--no-renames', `${oldBaseSha}..${newBaseSha}`, '--',
+  ]))]
+}
+
 function tryCarryForward(input: {
   baseSha: string
   tipSha: string
   /** Null when the tip is not a plain commit: an annotated tag's receipt must end at the tag-object sha, which carry cannot produce. */
   rebasedCommits: RebasedCommit[] | null
+  contextSha256: string | null
   receipts: readonly ReviewApprovalReceipt[]
   policyFingerprint: string
   receiptsDirectory: string
@@ -179,11 +208,15 @@ function tryCarryForward(input: {
   if (!chain) return null
   if (chain[chain.length - 1].tipSha === input.tipSha) return null
   if (!gitIsAncestor(chain[0].baseSha, input.baseSha)) return null
+  const authorship = rangeAuthorshipAligned(input.baseSha, input.tipSha, input.rebasedCommits)
+  if (!authorship) return null
   const carried = carryApprovalChainForward({
     chain,
     newBaseSha: input.baseSha,
     rebasedCommits: input.rebasedCommits,
-    interveningFiles: gitFileList(['diff', '--name-only', chain[0].baseSha, input.baseSha]),
+    authorship,
+    contextSha256: input.contextSha256,
+    interveningFiles: interveningTouchedFiles(chain[0].baseSha, input.baseSha),
     stackFiles: gitFileList(['diff', '--name-only', input.baseSha, input.tipSha]),
     carriedAt: new Date().toISOString(),
   })
@@ -286,6 +319,7 @@ async function main(): Promise<void> {
       baseSha,
       tipSha,
       rebasedCommits,
+      contextSha256: reviewContextSha256(testDesign),
       receipts: loadApprovalReceipts(receiptsDirectory),
       policyFingerprint,
       receiptsDirectory,
