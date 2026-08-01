@@ -78,7 +78,11 @@ Preserve these invariants:
   `npm run test:e2e:shows`; authentication, sessions, or personal content →
   `npm run test:e2e:auth-smoke`; app shell or Pattern Studio surfaces →
   `npm run test:e2e`. Run the whole affected suite, not one test — several
-  known failures only reproduce under full-suite timing (#672).
+  known failures only reproduce under full-suite timing (#672). State the
+  result as an `X-E2E:` trailer on the slice's final commit (for example
+  `X-E2E: test:e2e:shows 52/52`), placed before `X-Authored-Model:`; the
+  candidate reviewer reads trailers in the range, not the issue, and emits a
+  P3 advisory when a gate-covered surface changes without one.
 - Keep dependent work stacked until its reviewed base lands. The coordinating
   agent owns approval, landing, issue updates, and worktree cleanup.
 - Work done in a worktree is not complete until its verified commit is reachable

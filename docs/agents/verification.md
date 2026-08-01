@@ -267,8 +267,11 @@ e2e validation *before* landing, not the pushing agent:
   Zones, or Show persistence → `npm run test:e2e:shows`; authentication,
   sessions, or personal content → `npm run test:e2e:auth-smoke`; app shell or
   Pattern Studio surfaces → `npm run test:e2e`.
-- Record which suites ran (and their counts) in the issue's Tests section, so
-  the landing coordinator and the pushing agent can see the coverage.
+- Record which suites ran (and their counts) in the issue's Tests section for
+  the landing coordinator, and as an `X-E2E:` trailer on the slice's final
+  commit (for example `X-E2E: test:e2e:shows 52/52`, before the
+  `X-Authored-Model:` trailer) — the candidate reviewer sees only the commit
+  range, so the trailer is what clears its advisory.
 - Run the whole affected suite, not a filtered test: several failures only
   reproduce under full-suite timing (#672 reproduced 2/2 in suite order and
   0/2 in isolation).
