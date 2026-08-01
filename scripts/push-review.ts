@@ -36,7 +36,7 @@ export const REVIEW_TIMEOUT_MS = 15 * 60 * 1_000
 export const REVIEW_STALL_TIMEOUT_MS = 5 * 60 * 1_000
 /** Backstop for a streaming review that keeps emitting but never finishes. */
 export const REVIEW_BACKSTOP_TIMEOUT_MS = 30 * 60 * 1_000
-export const REVIEW_PROMPT_VERSION = 6 as const
+export const REVIEW_PROMPT_VERSION = 7 as const
 export const REVIEW_SCHEMA_VERSION = 1 as const
 export const REVIEW_APPROVAL_POLICY_VERSION = 2 as const
 
@@ -317,6 +317,8 @@ Review the exact outgoing ranges below. The complete commit lists and patches ar
 ${commands}
 
 Review for correctness bugs only: logic errors, off-by-one errors, broken type contracts, incorrect state transitions, destructive data loss, missing null handling, and behavior that violates an existing invariant. When systematic test-design context is supplied, use its invariants, partitions, sequences, oracles, and residual gaps as review evidence. Do not flag style, naming, formatting, speculative improvements, or missing features outside the changed code.${testDesignPacket}
+
+The Playwright suites run only at push time, so pre-landing e2e validation is the implementing agent's responsibility (docs/agents/verification.md, #673). When the diff plainly changes a flow those suites cover — Show editor or timeline interaction, Zone or Show persistence, authentication or personal-content plumbing, app-shell navigation — and the range contains no corresponding e2e spec change or stated e2e run, add one P3 advisory finding naming the affected suite (test:e2e:shows, test:e2e:auth-smoke, or test:e2e). This advisory prompts a full-suite run before landing; it is not a correctness bug and must not be the sole reason for a fail decision.
 
 For each real bug, cite the narrowest file and line where the defect is introduced and explain the concrete failing scenario. Severity controls follow-up scope: P0/P1 findings require a complete replacement-range review after correction. P2/P3 findings preserve this reviewed range as non-terminal advisory coverage and require an exact review of a new corrective commit. Set decision = "fail" when at least one correctness finding exists. Set decision = "pass" only when the outgoing changes are safe to push, and return zero findings with a pass. If you cannot inspect every range, return decision = "fail" with a P1 infrastructure finding explaining what could not be read.`
 }

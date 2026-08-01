@@ -253,6 +253,29 @@ selector in one call site but not eight, the pan slider but not the zoom slider
 on the adjacent line. Each would have failed this check in the commit that made
 it.
 
+### Pre-landing e2e responsibility (#673)
+
+Static checks catch dead locators, not broken behavior. Because the Playwright
+suites run automatically only at push time, and pushes batch several agents'
+landings, a behavioral e2e failure surfaces on whichever agent happens to push
+— hours after the commit that caused it, on top of unrelated work (#667's push
+absorbed exactly this). The implementing agent is therefore responsible for
+e2e validation *before* landing, not the pushing agent:
+
+- Before requesting review for a slice that touches a gate-covered surface,
+  run the affected suite in full from the worktree: Show editor, timeline,
+  Zones, or Show persistence → `npm run test:e2e:shows`; authentication,
+  sessions, or personal content → `npm run test:e2e:auth-smoke`; app shell or
+  Pattern Studio surfaces → `npm run test:e2e`.
+- Record which suites ran (and their counts) in the issue's Tests section, so
+  the landing coordinator and the pushing agent can see the coverage.
+- Run the whole affected suite, not a filtered test: several failures only
+  reproduce under full-suite timing (#672 reproduced 2/2 in suite order and
+  0/2 in isolation).
+- The candidate reviewer emits a P3 advisory when a diff plainly touches one
+  of these flows and the range carries no corresponding e2e evidence. The
+  advisory is a prompt to run the suite, not a substitute for it.
+
 ### Workspace recovery contract
 
 The focused workspace-recovery gate combines store-level fault oracles with a

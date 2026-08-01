@@ -69,6 +69,16 @@ Preserve these invariants:
 - Implementation is concurrent, but review and landing are serialized. Rebase
   before review, then land the exact approved tip immediately with
   `git merge --ff-only`; never rewrite or cherry-pick approved commits.
+- The Playwright suites run automatically only at push time (#638), and pushes
+  batch several agents' landings — a push-time e2e failure taxes whichever
+  agent happens to push, not the agent who broke it. Before requesting review
+  for a slice that touches a gate-covered surface, run the affected suite in
+  full from the worktree and record which suites ran in the issue's Tests
+  section: Show editor, timeline, Zones, or Show persistence →
+  `npm run test:e2e:shows`; authentication, sessions, or personal content →
+  `npm run test:e2e:auth-smoke`; app shell or Pattern Studio surfaces →
+  `npm run test:e2e`. Run the whole affected suite, not one test — several
+  known failures only reproduce under full-suite timing (#672).
 - Keep dependent work stacked until its reviewed base lands. The coordinating
   agent owns approval, landing, issue updates, and worktree cleanup.
 - Work done in a worktree is not complete until its verified commit is reachable
