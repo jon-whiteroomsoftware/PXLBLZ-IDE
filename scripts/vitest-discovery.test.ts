@@ -8,15 +8,15 @@ describe('Vitest discovery boundaries', () => {
   it('ignores tests below nested worktrees and node_modules directories', () => {
     const workspaceRoot = process.cwd()
     const nestedRoot = mkdtempSync(path.join(tmpdir(), 'pxlblz-vitest-discovery-'))
-    const candidates = [
-      path.join(nestedRoot, 'tool', 'worktrees', 'candidate', 'src', 'leak.test.ts'),
-      path.join(nestedRoot, 'vendor', 'node_modules', 'package', 'leak.test.ts'),
-    ]
+    const ordinaryTest = path.join(nestedRoot, 'src', 'ordinary.test.ts')
+    const worktreeTest = path.join(nestedRoot, 'tool', 'worktrees', 'candidate', 'src', 'leak.test.ts')
+    const dependencyTest = path.join(nestedRoot, 'vendor', 'node_modules', 'package', 'leak.test.ts')
+    const candidates = [ordinaryTest, worktreeTest, dependencyTest]
 
     try {
       for (const candidate of candidates) {
         mkdirSync(path.dirname(candidate), { recursive: true })
-        writeFileSync(candidate, "import { it } from 'vitest'\nit('must not be discovered', () => {})\n")
+        writeFileSync(candidate, "import { it } from 'vitest'\nit('sentinel test', () => {})\n")
       }
 
       const output = execFileSync(
@@ -33,7 +33,9 @@ describe('Vitest discovery boundaries', () => {
         { cwd: nestedRoot, encoding: 'utf8' },
       )
 
-      expect(output.trim()).toBe('')
+      expect(output).toContain('src/ordinary.test.ts > sentinel test')
+      expect(output).not.toContain('tool/worktrees/candidate/src/leak.test.ts')
+      expect(output).not.toContain('vendor/node_modules/package/leak.test.ts')
     } finally {
       rmSync(nestedRoot, { recursive: true, force: true })
     }
