@@ -1820,14 +1820,18 @@ Clip-local preview projection merges transient Transform or Viewport patches
 into the pad's controlled inputs until the committed inspector value catches
 up, so scalar sliders and pad gestures share continuous visual feedback without
 adding persistence writes. Preview generations also isolate overlapping saves:
-completion of an older persistence write cannot clear a newer axis preview.
-The pad adds no nested placement dialog; its
+completion of an older persistence write cannot clear a newer axis preview,
+and a per-generation pending count prevents one same-generation commit from
+releasing another commit's preview guard. The pad adds no nested placement
+dialog; its
 transient scalar sliders retain the owning `ShowEntityDetailPanel`'s Escape and
 outside-pointer behavior. Clip panels suppress outer-panel overflow and make the
 active tab body the constrained scroll owner inside an explicit panel height;
 the persistent header and tabs do not move when the viewport is short. Placement
 grid tracks derive from the panel's content width, keeping the pad and every
-scalar grip reachable in narrow windows.
+scalar grip reachable in narrow windows. Supplemental flat-Clip controls render
+inside the Pattern tab body rather than as an unbounded sibling of the tabbed
+detail, so that compatibility path retains the same scroll ownership.
 
 Lowering carries the Viewport with its placement. The routed compiler multiplies
 placement opacity by the Viewport's coordinate predicate after Pattern capture,

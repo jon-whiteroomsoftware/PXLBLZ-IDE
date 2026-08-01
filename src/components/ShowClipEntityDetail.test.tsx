@@ -544,6 +544,53 @@ describe('shared Clip Entity Detail sections (#498)', () => {
     expect(content).toHaveAttribute('y', previewY)
   })
 
+  it('keeps a preview while another same-generation commit finishes (#661)', async () => {
+    let finishFirstSave: (() => void) | undefined
+    const firstSave = new Promise<void>((resolve) => {
+      finishFirstSave = resolve
+    })
+    const onPatch = vi.fn()
+      .mockReturnValueOnce(firstSave)
+      .mockReturnValueOnce(false)
+    render(<ShowClipEntityDetail {...commonProps('scene-main', onPatch)} />)
+    showTab('Place')
+
+    const content = screen.getByRole('application', { name: /Placement pad/ })
+      .querySelector('[aria-label="Move content"]')
+    fireEvent.keyDown(screen.getByRole('button', {
+      name: 'Adjust with position slider',
+      description: 'Content X',
+    }), { key: 'Enter' })
+    fireEvent.keyDown(screen.getByRole('slider', {
+      name: 'Position slider',
+      description: 'Content X',
+    }), { key: 'ArrowRight' })
+    fireEvent.keyDown(screen.getByRole('slider', {
+      name: 'Position slider',
+      description: 'Content X',
+    }), { key: 'Enter' })
+    const previewX = content?.getAttribute('x')
+
+    const rotation = screen.getByRole('textbox', { name: 'Rotation degrees' })
+    fireEvent.change(rotation, { target: { value: '90' } })
+    fireEvent.blur(rotation)
+
+    expect(content).toHaveAttribute('x', previewX)
+    await act(async () => finishFirstSave?.())
+  })
+
+  it('renders additional Pattern controls inside the active tab body', () => {
+    render(
+      <ShowClipEntityDetail {...commonProps('global')}>
+        <div data-testid="extra-pattern-controls">Global controls</div>
+      </ShowClipEntityDetail>,
+    )
+
+    expect(screen.getByRole('tabpanel')).toContainElement(screen.getByTestId('extra-pattern-controls'))
+    showTab('Playback')
+    expect(screen.queryByTestId('extra-pattern-controls')).not.toBeInTheDocument()
+  })
+
   it('reaches Placement through its own tab rather than a disclosure (#63, #642)', () => {
     render(<ShowClipEntityDetail {...commonProps('scene-main')} />)
 

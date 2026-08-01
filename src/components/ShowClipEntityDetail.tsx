@@ -45,6 +45,8 @@ export interface ShowClipEntityDetailProps {
   layerOptions?: Array<{ value: string; label: string }>
   actions?: ReactNode
   structuralControls?: ReactNode
+  /** Extra controls that belong to the Pattern tab's scroll-owning body. */
+  children?: ReactNode
   embedded?: boolean
   /** Identity of the owning panel, so a pinned panel keeps its own tab. */
   panelKey?: string
@@ -110,6 +112,7 @@ export const ShowClipEntityDetail = forwardRef<ShowClipEntityDetailHandle, ShowC
   layerOptions,
   actions,
   structuralControls,
+  children,
   embedded = false,
   panelKey = 'transient',
   transformEnabled = true,
@@ -135,7 +138,7 @@ export const ShowClipEntityDetail = forwardRef<ShowClipEntityDetailHandle, ShowC
   const addEffectButtonRef = useRef<HTMLButtonElement>(null)
   const detailRef = useRef<HTMLElement>(null)
   const placementPreviewVersionRef = useRef(0)
-  const placementCommitVersionsRef = useRef(new Set<number>())
+  const placementCommitCountsRef = useRef(new Map<number, number>())
   const activePlacementFocus = placementFocus
   const previewTransform = placementPreview?.transform
     ? { ...value.transform, ...placementPreview.transform }
@@ -159,16 +162,21 @@ export const ShowClipEntityDetail = forwardRef<ShowClipEntityDetailHandle, ShowC
     queueMicrotask(() => {
       if (
         placementPreviewVersionRef.current === previewVersion
-        && !placementCommitVersionsRef.current.has(previewVersion)
+        && !placementCommitCountsRef.current.has(previewVersion)
       ) setPlacementPreview(null)
     })
   }
   const commitPlacementPatch = (patch: ShowClipInspectorPatch) => {
     const previewVersion = placementPreviewVersionRef.current
-    placementCommitVersionsRef.current.add(previewVersion)
+    const commitCounts = placementCommitCountsRef.current
+    commitCounts.set(previewVersion, (commitCounts.get(previewVersion) ?? 0) + 1)
     const finishCommit = () => {
-      placementCommitVersionsRef.current.delete(previewVersion)
-      if (placementPreviewVersionRef.current === previewVersion) setPlacementPreview(null)
+      const remaining = (commitCounts.get(previewVersion) ?? 1) - 1
+      if (remaining > 0) commitCounts.set(previewVersion, remaining)
+      else commitCounts.delete(previewVersion)
+      if (remaining === 0 && placementPreviewVersionRef.current === previewVersion) {
+        setPlacementPreview(null)
+      }
     }
     let committed: ReturnType<typeof onPatch>
     try {
@@ -751,6 +759,8 @@ export const ShowClipEntityDetail = forwardRef<ShowClipEntityDetailHandle, ShowC
               {structuralControls}
             </div>
           )}
+
+          {activeTab === 'pattern' && children}
 
           {activeTab === 'playback' && (
             <div className="min-w-0" aria-label="Playback controls">

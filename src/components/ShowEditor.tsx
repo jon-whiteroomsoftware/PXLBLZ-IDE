@@ -2194,7 +2194,9 @@ export function ShowEditor({
             const detailSelectedGroupClipOwner: ShowGroupClipOwner | null = detail.selection.kind === 'group-clip'
               ? { occurrenceId: detail.selection.occurrenceId, placementId: detail.selection.placementId }
               : null
-            const detailIsClip = detail.selection.kind === 'clip' || detail.selection.kind === 'group-clip'
+            const detailIsClip = Boolean(
+              detailSelectedClip || detailSelectedCompositionClipOwner || detailSelectedGroupClipOwner,
+            )
             return (
             <ShowEntityDetailPanel
               key={detail.id}
@@ -7630,9 +7632,8 @@ function ClipInspector({
           onPreviewPatch={onPreviewClip}
           onPreviewEnd={onPreviewEnd}
           onPatternCommit={onPatternCommit}
-        />
-      )}
-      <div data-testid="global-clip-control-tray" className="mt-2">
+        >
+          <div data-testid="global-clip-control-tray" className="mt-2">
         <details
           className="min-w-0 border-t border-zinc-800/80"
           aria-label="Global placement and clock controls"
@@ -7731,7 +7732,9 @@ function ClipInspector({
             </div>
           </div>
         </details>
-      </div>
+          </div>
+        </ShowClipEntityDetail>
+      )}
     </InspectorPanel>
   )
 }
