@@ -866,30 +866,15 @@ export function planShowClipDuplicateAfter(
   const durationMs = logicalRange.endMs - logicalRange.startMs
   const targetStartMs = logicalRange.endMs
   const targetEndMs = targetStartMs + durationMs
-  if (logicalSegments.length === 1) {
-    const sceneRange = projectShowTimeline(show).scenes.find((scene) => scene.sceneId === input.owner.sceneId)
-    if (!sceneRange || targetEndMs > sceneRange.endMs) {
-      return {
-        enabled: false,
-        code: 'scene-boundary',
-        reason: 'The duplicate needs uninterrupted Show time after the selected Clip.',
-      }
+  const targetSlices = globalSpanSceneSlices(show, targetStartMs, durationMs)
+  if (targetSlices.length === 0) {
+    return {
+      enabled: false,
+      code: targetEndMs > showLoopDurationMs(show) ? 'scene-boundary' : 'transition-boundary',
+      reason: 'The duplicate needs uninterrupted Show time after the selected Clip.',
     }
   }
-  if (logicalSegments.length > 1) {
-    if (
-      globalSpanSceneSlices(
-        show,
-        targetStartMs,
-        durationMs,
-      ).length === 0
-    ) {
-      return {
-        enabled: false,
-        code: 'transition-boundary',
-        reason: 'The duplicate would end inside a Transition.',
-      }
-    }
+  if (logicalSegments.length > 1 || targetSlices.length > 1) {
     const base = logicalSegments[0].placement
     const segmentIds = new Set(logicalSegments.map((segment) => segment.placement.id))
     const hasUnsupportedTracks = composition.scenes.some((scene) => (
@@ -948,99 +933,103 @@ function duplicateShowClip(
     owner: input.owner,
     independent: Boolean(input.newInstanceId),
   }).enabled) return composition
+  const logicalRange = globalLogicalClipRange(logicalClipSegments(show, composition, input.owner))
+  const target = clipMoveTargetForOwner(composition, input.owner, logicalRange?.endMs ?? Number.NaN)
+  if (!target) return composition
+  return duplicateShowClipAtGlobalTime(show, composition, { ...input, target })
+}
+
+function clipMoveTargetForOwner(
+  composition: ShowCompositionV1,
+  owner: ShowTimelineClipOwner,
+  globalStartMs: number,
+): ShowTimelineClipMoveTarget | null {
+  if (owner.kind === 'main') return { kind: 'main', zoneId: owner.zoneId, globalStartMs }
+  const zone = composition.scenes.find((scene) => scene.sceneId === owner.sceneId)?.zones
+    .find((candidate) => candidate.zoneId === owner.zoneId)
+  const layerIndex = zone?.overlays.findIndex((layer) => layer.id === owner.layerId) ?? -1
+  return layerIndex >= 0
+    ? { kind: 'overlay', zoneId: owner.zoneId, layerIndex, globalStartMs }
+    : null
+}
+
+export function duplicateShowClipAtGlobalTime(
+  show: ShowRecord,
+  composition: ShowCompositionV1,
+  input: {
+    owner: ShowTimelineClipOwner
+    target: ShowTimelineClipMoveTarget
+    newPlacementId: string
+    newInstanceId: string | null
+  },
+): ShowCompositionV1 {
+  if (!Number.isFinite(input.target.globalStartMs)) return composition
   const logicalSegments = logicalClipSegments(show, composition, input.owner)
   const logicalRange = globalLogicalClipRange(logicalSegments)
-  if (logicalSegments.length > 1 && logicalRange) {
-    const base = logicalSegments[0].placement
-    const sourceInstance = composition.patternInstances.find((instance) => instance.id === base.instanceId)
-    if (!sourceInstance || (input.newInstanceId && composition.patternInstances.some((instance) => (
-      instance.id === input.newInstanceId
-    )))) return composition
-    const sourceScene = composition.scenes.find((scene) => scene.sceneId === input.owner.sceneId)
-    const sourceZone = sourceScene?.zones.find((zone) => zone.zoneId === input.owner.zoneId)
-    const sourceLayerId = input.owner.kind === 'overlay' ? input.owner.layerId : null
-    const layerIndex = sourceLayerId
-      ? sourceZone?.overlays.findIndex((layer) => layer.id === sourceLayerId)
-      : -1
-    if (input.owner.kind === 'overlay' && (layerIndex === undefined || layerIndex < 0)) return composition
-    const draft = structuredClone(composition)
-    if (input.newInstanceId) {
-      draft.patternInstances.push({ ...structuredClone(sourceInstance), id: input.newInstanceId })
+  const base = logicalSegments.find((segment) => segment.placement.id === input.owner.placementId)?.placement
+    ?? logicalSegments[0]?.placement
+  if (!logicalRange || !base || composition.scenes.some((scene) => scene.zones.some((zone) => (
+    zone.main.some((placement) => placement.id === input.newPlacementId)
+    || zone.overlays.some((layer) => layer.placements.some((placement) => placement.id === input.newPlacementId))
+  )))) return composition
+  const sourceInstance = composition.patternInstances.find((instance) => instance.id === base.instanceId)
+  if (!sourceInstance || (input.newInstanceId && composition.patternInstances.some((instance) => (
+    instance.id === input.newInstanceId
+  )))) return composition
+
+  const sourceTarget = clipMoveTargetForOwner(composition, input.owner, logicalRange.startMs)
+  if (!sourceTarget) return composition
+  const staged = structuredClone(composition)
+  if (input.newInstanceId) {
+    staged.patternInstances.push({ ...structuredClone(sourceInstance), id: input.newInstanceId })
+  }
+  if (!appendLogicalClipGlobalSpan(show, staged, {
+    rootId: input.newPlacementId,
+    base: {
+      ...structuredClone(base),
+      instanceId: input.newInstanceId ?? base.instanceId,
+    },
+    target: sourceTarget.kind === 'main'
+      ? { kind: 'main', zoneId: sourceTarget.zoneId }
+      : { kind: 'overlay', zoneId: sourceTarget.zoneId, layerIndex: sourceTarget.layerIndex },
+    globalStartMs: logicalRange.startMs,
+    durationMs: logicalRange.endMs - logicalRange.startMs,
+  })) return composition
+
+  if (logicalSegments.length === 1) {
+    const sourceScene = staged.scenes.find((scene) => scene.sceneId === logicalSegments[0].sceneId)
+    const placementCopies = (sourceScene?.propertyTracks ?? []).flatMap((track) => (
+      'placementId' in track.target && track.target.placementId === input.owner.placementId
+        ? [{
+            ...structuredClone(track),
+            id: `${track.id}-${input.newPlacementId}`,
+            target: { ...track.target, placementId: input.newPlacementId },
+            keyframes: track.keyframes.map((keyframe) => ({
+              ...structuredClone(keyframe),
+              id: `${keyframe.id}-${input.newPlacementId}`,
+            })),
+          }]
+        : []
+    ))
+    if (sourceScene && placementCopies.length > 0) {
+      sourceScene.propertyTracks = [...(sourceScene.propertyTracks ?? []), ...placementCopies]
     }
-    const target: ShowClipAddTarget & { zoneId: string } = input.owner.kind === 'main'
-      ? { kind: 'main', zoneId: input.owner.zoneId }
-      : { kind: 'overlay', zoneId: input.owner.zoneId, layerIndex: layerIndex! }
-    if (!appendLogicalClipGlobalSpan(show, draft, {
-      rootId: input.newPlacementId,
-      base: {
-        ...structuredClone(base),
-        instanceId: input.newInstanceId ?? base.instanceId,
-      },
-      target,
-      globalStartMs: logicalRange.endMs,
-      durationMs: logicalRange.endMs - logicalRange.startMs,
-    })) return composition
-    if (validateShowComposition(show, draft).length > 0) return composition
-    return normalizeShowComposition(show, draft)
   }
-  const draft = structuredClone(composition)
-  const scene = draft.scenes.find((candidate) => candidate.sceneId === input.owner.sceneId)
-  const zone = scene?.zones.find((candidate) => candidate.zoneId === input.owner.zoneId)
-  if (!scene || !zone) return composition
-  let placements: Array<ShowMainPlacement | ShowOverlayPlacement> | undefined
-  if (input.owner.kind === 'main') {
-    placements = zone.main
-  } else {
-    const layerId = input.owner.layerId
-    placements = zone.overlays.find((layer) => layer.id === layerId)?.placements
+  if (input.newInstanceId) {
+    for (const sceneId of new Set(logicalSegments.map((segment) => segment.sceneId))) {
+      cloneTimelineInstanceTracks(staged, sceneId, base.instanceId, input.newInstanceId, 0)
+    }
   }
-  const source = placements?.find((placement) => placement.id === input.owner.placementId)
-  if (!placements || !source) return composition
-  const sourceInstance = draft.patternInstances.find((instance) => instance.id === source.instanceId)
-  if (!sourceInstance || (input.newInstanceId && draft.patternInstances.some((instance) => instance.id === input.newInstanceId))) return composition
-  if (input.newInstanceId) draft.patternInstances.push({ ...structuredClone(sourceInstance), id: input.newInstanceId })
-  const startMs = source.startMs + source.durationMs
-  placements.push({
-    ...structuredClone(source),
-    id: input.newPlacementId,
-    instanceId: input.newInstanceId ?? source.instanceId,
-    startMs,
+
+  // Stage the copy at the source so the existing move path owns target
+  // slicing, track relocation, occupancy checks, and final validation. The
+  // overlapping draft is internal only; a refused move returns the original.
+  const stagedOwner: ShowTimelineClipOwner = { ...input.owner, placementId: input.newPlacementId }
+  const duplicated = moveShowClipAtGlobalTime(show, staged, {
+    owner: stagedOwner,
+    target: { ...input.target, globalStartMs: Math.round(input.target.globalStartMs) },
   })
-
-  const sourceTracks = (scene.propertyTracks ?? []).filter((track) => (
-    'placementId' in track.target && track.target.placementId === input.owner.placementId
-  ))
-  const copies = sourceTracks.map((track) => ({
-    ...structuredClone(track),
-    id: `${track.id}-${input.newPlacementId}`,
-    target: { ...track.target, placementId: input.newPlacementId },
-    keyframes: track.keyframes.map((keyframe) => ({
-      ...structuredClone(keyframe),
-      id: `${keyframe.id}-${input.newPlacementId}`,
-      timeMs: keyframe.timeMs + source.durationMs,
-    })),
-  }))
-  if (copies.length > 0) scene.propertyTracks = [...(scene.propertyTracks ?? []), ...copies]
-
-  const sourceInstanceTracks = input.newInstanceId
-    ? (scene.propertyTracks ?? []).filter((track) => (
-        'instanceId' in track.target && track.target.instanceId === source.instanceId
-      ))
-    : []
-  const instanceCopies = sourceInstanceTracks.map((track) => ({
-    ...structuredClone(track),
-    id: `${track.id}-${input.newInstanceId!}`,
-    target: { ...track.target, instanceId: input.newInstanceId! },
-    keyframes: track.keyframes.map((keyframe) => ({
-      ...structuredClone(keyframe),
-      id: `${keyframe.id}-${input.newInstanceId!}`,
-      timeMs: keyframe.timeMs + source.durationMs,
-    })),
-  }))
-  if (instanceCopies.length > 0) scene.propertyTracks = [...(scene.propertyTracks ?? []), ...instanceCopies]
-
-  if (validateShowComposition(show, draft).length > 0) return composition
-  return normalizeShowComposition(show, draft)
+  return duplicated === staged ? composition : duplicated
 }
 
 export function makeShowClipPatternIndependent(

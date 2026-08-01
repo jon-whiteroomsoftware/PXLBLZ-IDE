@@ -2383,6 +2383,207 @@ describe('ShowEditor (#318)', () => {
     expect(screen.getByRole('dialog', { name: 'Entity Detail Panel' })).toHaveAttribute('data-pinned', 'true')
   })
 
+  it('latches Option-drag into an independent Clip duplicate after Option is released (#668)', async () => {
+    const user = userEvent.setup()
+    const show = createDefaultShow('show-option-drag-copy', 'Option drag copy', 1000)
+    const zoneId = show.zones[0].id
+    show.composition = {
+      version: 1,
+      patternInstances: [{
+        id: 'instance-option-source',
+        pattern: { ...show.cells[0].pattern },
+        patternName: 'Option Copy Rings',
+        time: { timeScale: 0.75, timeOffsetMs: 1_250 },
+      }],
+      scenes: show.scenes.map((scene, index) => ({
+        sceneId: scene.id,
+        zones: [{
+          zoneId,
+          main: index === 0 ? [{
+            id: 'placement-option-source',
+            instanceId: 'instance-option-source',
+            startMs: 2_000,
+            durationMs: 4_000,
+            view: { mirror: true, phase: 0.25, brightness: 0.6 },
+          }] : [],
+          overlays: [{ id: `layer-option-${index}`, name: 'Layer 1', placements: [] }],
+        }],
+      })),
+    }
+    setPersonalContentProvider(memoryProvider([show]))
+    useShowStore.setState({ shows: [show], activeShowId: show.id, showsLoaded: true })
+    useShowEditorSessionStore.setState({
+      snapEnabled: false,
+      markersVisible: false,
+      markerSnapEnabled: false,
+    })
+
+    render(<ShowEditor showId={show.id} />)
+    const clip = screen.getByRole('button', { name: 'Select Option Copy Rings' })
+    const layer = document.querySelector<HTMLElement>('[data-show-layer-kind="overlay"]')!
+    Object.defineProperty(screen.getByTestId('show-timeline-scroll-region'), 'clientWidth', { value: 620 })
+    Object.defineProperty(clip, 'getBoundingClientRect', {
+      value: () => ({ left: 20, right: 60, top: 0, bottom: 40, width: 40, height: 40, x: 20, y: 0, toJSON: () => ({}) }),
+    })
+    Object.defineProperty(layer, 'getBoundingClientRect', {
+      value: () => ({ left: 0, right: 620, top: 0, bottom: 40, width: 620, height: 40, x: 0, y: 0, toJSON: () => ({}) }),
+    })
+    const dataTransfer = { setData: () => {}, effectAllowed: 'none', dropEffect: 'none' }
+    const dragEvent = (type: string, clientX: number, altKey: boolean) => {
+      const event = new Event(type, { bubbles: true, cancelable: true })
+      Object.defineProperties(event, {
+        clientX: { value: clientX },
+        altKey: { value: altKey },
+        dataTransfer: { value: dataTransfer },
+      })
+      return event
+    }
+
+    fireEvent(clip, dragEvent('dragstart', 20, true))
+    expect(dataTransfer.effectAllowed).toBe('copy')
+
+    fireEvent(layer, dragEvent('dragover', 123.37, true))
+    expect(screen.getByTestId('show-clip-move-preview')).toHaveStyle({
+      left: `${12_337 / 62_000 * 100}%`,
+    })
+
+    // Copy mode is chosen when the drag begins. Releasing Option must not turn
+    // the gesture into a move or restore Option's former snap inversion.
+    fireEvent(layer, dragEvent('dragover', 123.37, false))
+    expect(screen.getByTestId('show-clip-move-preview')).toHaveAttribute('data-drag-mode', 'duplicate')
+    expect(useShowStore.getState().shows[0].composition).toEqual(show.composition)
+
+    fireEvent(layer, dragEvent('drop', 123.37, false))
+    fireEvent(clip, dragEvent('dragend', 123.37, false))
+
+    await waitFor(() => {
+      const composition = useShowStore.getState().shows[0].composition!
+      const source = composition.scenes[0].zones[0].main
+      const duplicates = composition.scenes[0].zones[0].overlays[0].placements
+      expect(source).toHaveLength(1)
+      expect(duplicates).toHaveLength(1)
+      expect(source[0]).toMatchObject({
+        startMs: 2_000,
+        durationMs: 4_000,
+        instanceId: 'instance-option-source',
+        view: { mirror: true, phase: 0.25, brightness: 0.6 },
+      })
+      const duplicate = duplicates[0]
+      expect(duplicate).toMatchObject({
+        startMs: 12_337,
+        durationMs: 4_000,
+        view: { mirror: true, phase: 0.25, brightness: 0.6 },
+      })
+      expect(duplicate?.instanceId).not.toBe('instance-option-source')
+      expect(composition.patternInstances.find((instance) => instance.id === duplicate?.instanceId)).toMatchObject({
+        pattern: show.composition!.patternInstances[0].pattern,
+        time: { timeScale: 0.75, timeOffsetMs: 1_250 },
+      })
+    })
+    const selected = screen.getAllByRole('button', { name: 'Select Option Copy Rings' })
+      .filter((candidate) => candidate.getAttribute('aria-pressed') === 'true')
+    expect(selected).toHaveLength(1)
+    expect(selected[0]).not.toBe(clip)
+    expect(useShowStore.getState().showHistories[show.id]?.past).toHaveLength(1)
+
+    await user.click(screen.getByRole('button', { name: 'Undo Show edit' }))
+    await waitFor(() => {
+      expect(useShowStore.getState().shows[0].composition?.scenes[0].zones[0].main).toEqual([
+        expect.objectContaining({ id: 'placement-option-source', startMs: 2_000 }),
+      ])
+    })
+  })
+
+  it('cancels Option-drag over an invalid target or without a drop without changing history (#668)', async () => {
+    const user = userEvent.setup()
+    const show = createDefaultShow('show-option-drag-cancel', 'Option drag cancel', 1000)
+    const zoneId = show.zones[0].id
+    show.composition = {
+      version: 1,
+      patternInstances: [{
+        id: 'instance-cancel-source',
+        pattern: { ...show.cells[0].pattern },
+        patternName: 'Cancel Source',
+        time: { timeScale: 1, timeOffsetMs: 0 },
+      }, {
+        id: 'instance-cancel-blocker',
+        pattern: { ...show.cells[1].pattern },
+        patternName: 'Cancel Blocker',
+        time: { timeScale: 1, timeOffsetMs: 0 },
+      }],
+      scenes: show.scenes.map((scene, index) => ({
+        sceneId: scene.id,
+        zones: [{
+          zoneId,
+          main: index === 0 ? [{
+            id: 'placement-cancel-source',
+            instanceId: 'instance-cancel-source',
+            startMs: 2_000,
+            durationMs: 4_000,
+            view: { mirror: false, phase: 0, brightness: 1 },
+          }, {
+            id: 'placement-cancel-blocker',
+            instanceId: 'instance-cancel-blocker',
+            startMs: 8_000,
+            durationMs: 4_000,
+            view: { mirror: false, phase: 0, brightness: 1 },
+          }] : [],
+          overlays: [],
+        }],
+      })),
+    }
+    setPersonalContentProvider(memoryProvider([show]))
+    useShowStore.setState({ shows: [show], activeShowId: show.id, showsLoaded: true })
+    useShowEditorSessionStore.setState({
+      snapEnabled: false,
+      markersVisible: false,
+      markerSnapEnabled: false,
+    })
+
+    render(<ShowEditor showId={show.id} />)
+    const clip = screen.getByRole('button', { name: 'Select Cancel Source' })
+    const layer = document.querySelector<HTMLElement>('[data-show-layer-kind="main"]')!
+    Object.defineProperty(screen.getByTestId('show-timeline-scroll-region'), 'clientWidth', { value: 620 })
+    Object.defineProperty(clip, 'getBoundingClientRect', {
+      value: () => ({ left: 20, right: 60, top: 0, bottom: 40, width: 40, height: 40, x: 20, y: 0, toJSON: () => ({}) }),
+    })
+    Object.defineProperty(layer, 'getBoundingClientRect', {
+      value: () => ({ left: 0, right: 620, top: 0, bottom: 40, width: 620, height: 40, x: 0, y: 0, toJSON: () => ({}) }),
+    })
+    const dataTransfer = { setData: () => {}, effectAllowed: 'none', dropEffect: 'none' }
+    const dragEvent = (type: string, clientX: number, altKey = false) => {
+      const event = new Event(type, { bubbles: true, cancelable: true })
+      Object.defineProperties(event, {
+        clientX: { value: clientX },
+        altKey: { value: altKey },
+        dataTransfer: { value: dataTransfer },
+      })
+      return event
+    }
+    await user.click(clip)
+    const before = structuredClone(useShowStore.getState().shows[0])
+
+    fireEvent(clip, dragEvent('dragstart', 20, true))
+    fireEvent(layer, dragEvent('dragover', 50))
+    expect(screen.queryByTestId('show-clip-move-preview')).not.toBeInTheDocument()
+    expect(dataTransfer.dropEffect).toBe('none')
+    fireEvent(layer, dragEvent('drop', 50))
+    fireEvent(clip, dragEvent('dragend', 50))
+
+    expect(useShowStore.getState().shows[0]).toEqual(before)
+    expect(useShowStore.getState().showHistories[show.id]?.past ?? []).toEqual([])
+    expect(clip).toHaveAttribute('aria-pressed', 'true')
+
+    // Native drag-and-drop reports Escape and outside releases as dragend
+    // without a committed drop. Both use the same cleanup-only path.
+    fireEvent(clip, dragEvent('dragstart', 20, true))
+    fireEvent(clip, dragEvent('dragend', 200))
+
+    expect(useShowStore.getState().shows[0]).toEqual(before)
+    expect(useShowStore.getState().showHistories[show.id]?.past ?? []).toEqual([])
+    expect(screen.queryByTestId('show-clip-move-preview')).not.toBeInTheDocument()
+  })
+
   it('previews and snaps either Clip edge to a visible Marker while the global magnet is off', async () => {
     const show = createDefaultShow('show-clip-marker-snap', 'Clip Marker snap', 1000)
     const zoneId = show.zones[0].id
@@ -3477,6 +3678,56 @@ describe('ShowEditor (#318)', () => {
       expect(saved?.composition?.patternInstances).toHaveLength(2)
       const instanceIds = saved?.composition?.scenes[0].zones[0].main.map((placement) => placement.instanceId)
       expect(new Set(instanceIds).size).toBe(2)
+    })
+  })
+
+  it('restores Clone for a selected Clip whose duplicate crosses a Cut (#668)', async () => {
+    const user = userEvent.setup()
+    const show = createDefaultShow('show-clone-cut-regression', 'Clone Cut regression', 1000)
+    show.transitions[0] = { ...show.transitions[0], kind: 'cut', durationMs: 0 }
+    const zoneId = show.zones[0].id
+    show.composition = {
+      version: 1,
+      patternInstances: [{
+        id: 'instance-clone-cut',
+        pattern: { ...show.cells[0].pattern },
+        patternName: 'Cut Crossing Rings',
+        time: { timeScale: 1, timeOffsetMs: 0 },
+      }],
+      scenes: show.scenes.map((scene, index) => ({
+        sceneId: scene.id,
+        zones: [{
+          zoneId,
+          main: index === 0 ? [{
+            id: 'placement-clone-cut',
+            instanceId: 'instance-clone-cut',
+            startMs: 27_000,
+            durationMs: 3_000,
+            view: { mirror: false, phase: 0, brightness: 1 },
+          }] : [],
+          overlays: [],
+        }],
+      })),
+    }
+    setPersonalContentProvider(memoryProvider([show]))
+    useShowStore.setState({ shows: [show], activeShowId: show.id, showsLoaded: true })
+
+    render(<ShowEditor showId={show.id} />)
+    await user.click(screen.getByRole('button', { name: 'Select Cut Crossing Rings' }))
+    const clone = screen.getByRole('button', { name: 'Clone selection' })
+    expect(clone).toBeEnabled()
+    await user.click(clone)
+
+    await waitFor(() => {
+      const composition = useShowStore.getState().shows[0].composition!
+      expect(composition.scenes[0].zones[0].main).toEqual([
+        expect.objectContaining({ id: 'placement-clone-cut', startMs: 27_000, durationMs: 3_000 }),
+      ])
+      expect(composition.scenes[1].zones[0].main).toEqual([
+        expect.objectContaining({ startMs: 0, durationMs: 3_000 }),
+      ])
+      expect(composition.patternInstances).toHaveLength(2)
+      expect(useShowStore.getState().showHistories[show.id]?.past).toHaveLength(1)
     })
   })
 

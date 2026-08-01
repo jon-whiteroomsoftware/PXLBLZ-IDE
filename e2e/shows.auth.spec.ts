@@ -446,6 +446,99 @@ test.describe('authenticated Show authoring', () => {
     await expect(page.getByRole('button', { name: 'Snap playhead' })).toHaveAttribute('aria-pressed', 'false')
   })
 
+  test('Option-drags an independent Clip duplicate onto another Layer (#668)', async ({ page }) => {
+    const id = `playwright-option-drag-${Date.now()}`
+    const show = {
+      ...legacyShowFixture(id, 'Option-drag duplicate', [{ start: 0, end: 59 }]),
+      outputContract: {
+        version: 1 as const,
+        kind: 'installation' as const,
+        outputMapId: null,
+        pixelCount: 60,
+        resolution: 'fixed' as const,
+      },
+      composition: {
+        version: 1,
+        patternInstances: [{
+          id: 'instance-source',
+          pattern: { kind: 'stock' as const, id: 'TestPattern1D' },
+          patternName: 'Option Copy Rings',
+          time: { timeScale: 0.75, timeOffsetMs: 1_250 },
+        }],
+        scenes: [
+          {
+            sceneId: 'scene-1',
+            zones: [{
+              zoneId: 'zone-1',
+              main: [{
+                id: 'clip-source',
+                instanceId: 'instance-source',
+                startMs: 0,
+                durationMs: 5_000,
+                view: { mirror: true, phase: 0.25, brightness: 0.6 },
+              }],
+              overlays: [{ id: 'overlay-scene-1', name: 'Layer 1', placements: [] }],
+            }],
+          },
+          {
+            sceneId: 'scene-2',
+            zones: [{
+              zoneId: 'zone-1',
+              main: [],
+              overlays: [{ id: 'overlay-scene-2', name: 'Layer 1', placements: [] }],
+            }],
+          },
+        ],
+      },
+    }
+    const response = await page.context().request.post('/api/shows', { data: show })
+    expect(response.ok(), await response.text()).toBe(true)
+
+    await page.setViewportSize({ width: 1440, height: 900 })
+    await page.goto(`studio/shows/${id}`)
+    const source = page.getByRole('button', { name: 'Select Option Copy Rings' })
+    const overlay = page.locator('[data-show-layer-kind="overlay"]').first()
+    const [sourceBounds, overlayBounds] = await Promise.all([
+      source.boundingBox(),
+      overlay.boundingBox(),
+    ])
+    expect(sourceBounds).not.toBeNull()
+    expect(overlayBounds).not.toBeNull()
+
+    await page.keyboard.down('Alt')
+    await page.mouse.move(
+      sourceBounds!.x + sourceBounds!.width / 2,
+      sourceBounds!.y + sourceBounds!.height / 2,
+    )
+    await page.mouse.down()
+    await page.mouse.move(
+      overlayBounds!.x + overlayBounds!.width * 0.25,
+      overlayBounds!.y + overlayBounds!.height / 2,
+      { steps: 8 },
+    )
+    await expect(page.getByTestId('show-clip-move-preview')).toHaveAttribute('data-drag-mode', 'duplicate')
+
+    // Releasing Option after drag start must not turn the latched copy into a move.
+    await page.keyboard.up('Alt')
+    await page.mouse.up()
+
+    await expect(page.getByRole('button', { name: 'Select Option Copy Rings' })).toHaveCount(2)
+    await waitForCurrentShow(page, (saved) => {
+      const composition = saved.composition
+      if (!composition || composition.patternInstances?.length !== 2) return false
+      const sourceClips = composition.scenes.flatMap((scene) => scene.zones?.[0]?.main ?? [])
+      const copiedClips = composition.scenes.flatMap((scene) => (
+        scene.zones?.[0]?.overlays.flatMap((layer) => layer.placements) ?? []
+      ))
+      return sourceClips.length === 1
+        && sourceClips[0]?.instanceId === 'instance-source'
+        && copiedClips.length === 1
+    })
+
+    await page.keyboard.press('Control+z')
+    await expect(page.getByRole('button', { name: 'Select Option Copy Rings' })).toHaveCount(1)
+  })
+
   // Split from one 58-line test covering anchoring, no-reflow, edit
   // persistence, Escape dismissal, owner switching, and narrow-width teardown.
   // getByLabel('Brightness') also matched the field's exact textbox, so the

@@ -8,6 +8,7 @@ import {
   addShowMainClipAtGlobalTime,
   duplicateLinkedShowClipAfter,
   duplicateShowClipAfter,
+  duplicateShowClipAtGlobalTime,
   makeShowClipPatternIndependent,
   moveShowClipAtGlobalTime,
   planShowClipAtTopmostAvailableLayer,
@@ -1174,6 +1175,86 @@ describe('global timeline Clip authoring (#580)', () => {
     })
   })
 
+  it('duplicates an exact independently animated Clip onto another Layer at global time (#668)', () => {
+    const show = createDefaultShow('show-duplicate-at-target', 'Duplicate at target', 1000)
+    const composition = emptyComposition(show)
+    composition.patternInstances.push({
+      ...instance,
+      time: { timeScale: 0.75, timeOffsetMs: 1_250 },
+    })
+    composition.scenes.forEach((scene, index) => {
+      scene.zones[0].overlays.push({ id: `layer-${index}`, name: 'Layer 1', placements: [] })
+    })
+    composition.scenes[0].zones[0].main.push({
+      id: 'placement-source',
+      instanceId: instance.id,
+      startMs: 2_000,
+      durationMs: 4_000,
+      view: { mirror: true, phase: 0.25, brightness: 0.6 },
+      effects: [{ id: 'invert', kind: 'invert', amount: 1 }],
+    })
+    composition.scenes[0].propertyTracks = [{
+      id: 'brightness-source',
+      target: { kind: 'placement-view', placementId: 'placement-source', property: 'brightness' },
+      keyframes: [
+        { id: 'brightness-a', timeMs: 2_000, value: 0.4, easing: { curve: 'linear' } },
+        { id: 'brightness-b', timeMs: 6_000, value: 0.9, easing: { curve: 'linear' } },
+      ],
+    }, {
+      id: 'speed-source',
+      target: { kind: 'instance-time-scale', instanceId: instance.id },
+      keyframes: [
+        { id: 'speed-a', timeMs: 2_000, value: 0.75, easing: { curve: 'linear' } },
+        { id: 'speed-b', timeMs: 6_000, value: 1.5, easing: { curve: 'linear' } },
+      ],
+    }]
+    const before = structuredClone(composition)
+
+    const duplicated = duplicateShowClipAtGlobalTime(show, composition, {
+      owner: {
+        kind: 'main',
+        sceneId: show.scenes[0].id,
+        zoneId: show.zones[0].id,
+        placementId: 'placement-source',
+      },
+      target: { kind: 'overlay', zoneId: show.zones[0].id, layerIndex: 0, globalStartMs: 12_000 },
+      newPlacementId: 'placement-copy',
+      newInstanceId: 'instance-copy',
+    })
+
+    expect(composition).toEqual(before)
+    expect(duplicated.scenes[0].zones[0].main).toEqual([
+      expect.objectContaining({ id: 'placement-source', startMs: 2_000 }),
+    ])
+    expect(duplicated.scenes[0].zones[0].overlays[0].placements).toEqual([
+      expect.objectContaining({
+        id: 'placement-copy',
+        instanceId: 'instance-copy',
+        startMs: 12_000,
+        durationMs: 4_000,
+        view: { mirror: true, phase: 0.25, brightness: 0.6 },
+        effects: [{ id: 'invert', kind: 'invert', amount: 1 }],
+      }),
+    ])
+    expect(duplicated.patternInstances).toEqual(expect.arrayContaining([
+      expect.objectContaining({
+        id: 'instance-copy',
+        time: { timeScale: 0.75, timeOffsetMs: 1_250 },
+      }),
+    ]))
+    expect(duplicated.scenes[0].propertyTracks).toEqual(expect.arrayContaining([
+      expect.objectContaining({
+        target: { kind: 'placement-view', placementId: 'placement-copy', property: 'brightness' },
+        keyframes: [expect.objectContaining({ timeMs: 12_000 }), expect.objectContaining({ timeMs: 16_000 })],
+      }),
+      expect.objectContaining({
+        target: { kind: 'instance-time-scale', instanceId: 'instance-copy' },
+        keyframes: [expect.objectContaining({ timeMs: 12_000 }), expect.objectContaining({ timeMs: 16_000 })],
+      }),
+    ]))
+    expect(validateShowComposition(show, duplicated)).toEqual([])
+  })
+
   it('disables Clone when another Clip occupies the planned destination (#63)', () => {
     const show = createDefaultShow('show-duplicate-occupied', 'Duplicate occupied', 1000)
     const composition = emptyComposition(show)
@@ -1265,8 +1346,13 @@ describe('global timeline Clip authoring (#580)', () => {
     })).toBe(composition)
   })
 
-  it('disables Clone when a single-Scene Clip would cross its Scene boundary (#63)', () => {
+  it('duplicates a single-Scene Clip across a Cut into the next Scene (#668)', () => {
     const show = createDefaultShow('show-duplicate-scene-boundary', 'Duplicate scene boundary', 1000)
+    show.transitions[0] = {
+      ...show.transitions[0],
+      kind: 'cut',
+      durationMs: 0,
+    }
     const composition = emptyComposition(show)
     composition.patternInstances.push(instance)
     composition.scenes[0].zones[0].main.push({
@@ -1286,15 +1372,29 @@ describe('global timeline Clip authoring (#580)', () => {
     expect(planShowClipDuplicateAfter(show, composition, {
       owner,
       independent: true,
-    })).toMatchObject({
-      enabled: false,
-      code: 'scene-boundary',
-    })
-    expect(duplicateShowClipAfter(show, composition, {
+    })).toMatchObject({ enabled: true, code: 'ready' })
+
+    const before = structuredClone(composition)
+    const duplicated = duplicateShowClipAfter(show, composition, {
       owner,
       newPlacementId: 'placement-copy',
       newInstanceId: 'instance-copy',
-    })).toBe(composition)
+    })
+
+    expect(composition).toEqual(before)
+    expect(duplicated).not.toBe(composition)
+    expect(duplicated.scenes[0].zones[0].main).toEqual([
+      expect.objectContaining({ id: 'placement-source', startMs: 27_000, durationMs: 3_000 }),
+    ])
+    expect(duplicated.scenes[1].zones[0].main).toEqual([
+      expect.objectContaining({
+        id: 'placement-copy',
+        instanceId: 'instance-copy',
+        startMs: 0,
+        durationMs: 3_000,
+      }),
+    ])
+    expect(validateShowComposition(show, duplicated)).toEqual([])
   })
 
   it('duplicates the full duration of one logical Clip after its hidden Scene segments (#63)', () => {

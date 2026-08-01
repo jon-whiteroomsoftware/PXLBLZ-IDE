@@ -1039,12 +1039,15 @@ The identity appends the incoming Pattern name and, when several Clips begin at
 the boundary, one additional count. Transition titles and boundary
 accessibility names consume this projection instead of internal Scene names.
 
-`showTimelineClipAuthoring.ts` performs Split, Duplicate, resize, and movement
-as atomic composition updates in global time. Split rejects a playhead outside
-the selected Clip or inside its connected Transition and leaves at least one
-millisecond on either side. Duplicate requires enough unobstructed time on the
-same Layer. Movement resolves the target Zone, Layer, Layout interval, and
-internal Scene owner without overwriting occupied time. Returning the input
+`showTimelineClipAuthoring.ts` performs Split, target-aware Duplicate, resize,
+and movement as atomic composition updates in global time. Split rejects a
+playhead outside the selected Clip or inside its connected Transition and leaves at least one
+millisecond on either side. Duplicate preserves the source, creates an
+independent Pattern instance, and resolves an unobstructed target Zone, Layer,
+Layout interval, and global time. The toolbar command targets the time
+immediately after the selected Clip and may cross a Cut; Option-drag supplies
+an arbitrary target. Movement resolves the target Zone, Layer, Layout interval,
+and internal Scene owner without overwriting occupied time. Returning the input
 composition is the common refusal contract, and focusable commands disclose the
 specific refusal instead of depending on native disabled-button tooltips.
 
@@ -1507,7 +1510,11 @@ tenth-second current/total readout. The center group renders the compact
 Navigator and Fit action; Navigator dragging pans or resizes the visible range,
 while Ctrl/Cmd-wheel zooms through `zoomShowTimelineViewport()` around the
 playhead when visible or the viewport center otherwise. `ShowTimelineCommands`
-owns Snap, Split, Clone, Group, and compact session Undo/Redo. The adjacent
+owns Snap, Split, Clone, Group, and compact session Undo/Redo. A plain Clip drag
+moves its source; Option held at drag start latches an independent Duplicate.
+The drag preview is a pure proposal, and only a valid drop records one Show
+update and undo entry. Invalid, outside, and cancelled drops discard the
+proposal. The adjacent
 direct-authoring cluster owns Zones, Layout intervals, Layer, Insert Time,
 Marker visibility/snapping, and Clip insertion. Clone enablement is derived
 from the one selected owner. CSS container queries

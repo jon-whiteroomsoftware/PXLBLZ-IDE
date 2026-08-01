@@ -105,8 +105,8 @@ const SHOW_AUTHORING_MUTATION_TARGETS: MutationTarget[] = [
   target(
     'duplicate',
     'showTimelineClipAuthoring.ts',
-    'duplicateShowClip',
-    'const startMs = source.startMs + source.durationMs',
+    'planShowClipDuplicateAfter',
+    'const targetEndMs = targetStartMs + durationMs',
   ),
   target('delete', 'showCompositionModel.ts', 'deleteLogicalPlacement'),
   target(

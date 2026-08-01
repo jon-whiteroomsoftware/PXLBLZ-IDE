@@ -429,14 +429,19 @@ The working grammar is compact:
 - **Navigator and Snap.** The compact Navigator pans or resizes the visible
   range; Fit restores the complete Show, and Ctrl/Cmd-wheel zooms around the
   playhead. Snap magnetically aligns scrubbing and edits to Clip, Transition,
-  Marker, and time-grid boundaries; Alt temporarily reverses it.
+  Marker, and time-grid boundaries. Alt temporarily reverses it for scrubbing
+  and non-Clip time edits; Clip dragging reserves Option/Alt for duplication.
 - **Direct Clip edits.** **Add Clip** places a Pattern at the playhead when an
   available Layer has room. Double-clicking empty Layer time opens the same
   Pattern chooser at the pointer; choosing a Pattern immediately places the
   Clip on that Layer at the clicked Show time, respecting **Snap** and its Alt
-  inversion. Dragging moves a Clip without overwriting another;
-  selected Clip edges resize it. **Split** divides the selected Clip at the
-  playhead and **Clone** duplicates it immediately after itself. **Start** is
+  inversion. Dragging moves a Clip without overwriting another; Option-dragging
+  places an independent exact duplicate on any valid Layer and time. Copy mode
+  is chosen when the drag begins, so releasing Option does not turn the gesture
+  into a move. Dropping outside a valid target cancels without changing the
+  Show. Selected Clip edges resize it. **Split** divides the selected Clip at
+  the playhead and **Clone** duplicates it immediately after itself, including
+  across a Cut into the next Scene. **Start** is
   always measured from the beginning of the Show, including for a Clip inside
   a Group; **Duration** spans the complete logical Clip. Both fields combine
   exact decimal-second entry with the shared detented time ruler. Each Clip's second row

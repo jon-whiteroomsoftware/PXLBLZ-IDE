@@ -153,7 +153,7 @@ describe('Show authoring mutation qualification (#597)', () => {
       'moveShowClipAtGlobalTime',
       'resizeShowClipAtGlobalTime',
       'planShowClipSplitAtGlobalTime',
-      'duplicateShowClip',
+      'planShowClipDuplicateAfter',
       'deleteLogicalPlacement',
       'updateShowClipInspector',
       'insertShowLayerTransition',

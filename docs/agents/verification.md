@@ -324,7 +324,7 @@ testing into a second full suite:
 | Move | Dispatch between ordinary and multi-Scene logical Clip movement |
 | Resize | Placement-animation keyframes retain their offset from the moved edge |
 | Split | The public plan uses strict interior Clip boundaries |
-| Duplicate | The duplicate starts at the source Clip's exact end |
+| Duplicate | The immediate-after destination retains one complete source-Clip duration |
 | Delete | The complete logical Clip, its tracks, and connected Transitions are removed together |
 | Inspector | Timing and colocated placement fields commit or refuse atomically |
 | Transition | Insert validation and resize-delta arithmetic preserve a valid composition |
