@@ -1,11 +1,19 @@
 import { defineConfig, loadEnv } from 'vite'
 import react from '@vitejs/plugin-react'
 import tailwindcss from '@tailwindcss/vite'
+import { defaultExclude } from 'vitest/config'
 import path from 'path'
 import fs from 'fs'
 
 const DEFAULT_BASE = '/PXLBLZ-IDE/'
 const DEFAULT_API_PROXY_TARGET = 'http://localhost:8788'
+// A project-level exclude replaces Vitest's defaults. Preserve those defaults,
+// then reject nested tool worktrees before their source or dependencies leak in.
+const TEST_DISCOVERY_EXCLUDES = [
+  ...defaultExclude,
+  'e2e/**',
+  '**/worktrees/**',
+]
 
 // Keep browser-dependent files explicit. Every other .test.ts file runs in the
 // cheaper Node project; the browser project retains jsdom isolation because
@@ -144,7 +152,7 @@ export default defineConfig(({ mode }) => {
             globals: true,
             isolate: false,
             include: ['**/*.test.ts'],
-            exclude: ['e2e/**', 'node_modules/**', ...BROWSER_TEST_FILES],
+            exclude: [...TEST_DISCOVERY_EXCLUDES, ...BROWSER_TEST_FILES],
           },
         },
         {
@@ -157,7 +165,7 @@ export default defineConfig(({ mode }) => {
             setupFiles: ['./src/test/setup.ts'],
             include: ['**/*.test.tsx', ...BROWSER_TEST_FILES],
             // Playwright E2E specs live in e2e/ and are run by Playwright.
-            exclude: ['e2e/**', 'node_modules/**'],
+            exclude: TEST_DISCOVERY_EXCLUDES,
           },
         },
       ],
