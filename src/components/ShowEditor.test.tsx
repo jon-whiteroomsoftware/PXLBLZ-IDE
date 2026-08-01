@@ -5236,9 +5236,47 @@ describe('ShowEditor (#318)', () => {
     // own position — no jump to the pointer.
     expect(useShowTransportStore.getState().positionMs).toBe(10_500)
 
-    fireEvent.pointerUp(playhead, { pointerId: 51, clientX: 250, shiftKey: true })
+    // Releasing Shift keeps the gesture incremental at full gain: +10px is
+    // +1s from the fine-adjusted time, not a jump to the pointer's absolute
+    // track position (#667 review).
+    fireEvent.pointerMove(playhead, { pointerId: 51, clientX: 260 })
+    expect(useShowTransportStore.getState().positionMs).toBe(11_500)
+
+    // The native range mapping stays suppressed for the rest of the gesture.
+    fireEvent.change(playhead, { target: { value: '15000' } })
+    expect(useShowTransportStore.getState().positionMs).toBe(11_500)
+
+    fireEvent.pointerUp(playhead, { pointerId: 51, clientX: 260 })
     await waitFor(() => {
-      expect(useShowTransportStore.getState().seekRequest).toMatchObject({ targetMs: 10_500 })
+      expect(useShowTransportStore.getState().seekRequest).toMatchObject({ targetMs: 11_500 })
+    })
+  })
+
+  it('keeps the direct playhead drag incremental after Shift is released (#667)', async () => {
+    const show = createDefaultShow('show-direct-playhead-fine', 'Direct playhead fine', 1000)
+    useShowStore.setState({ shows: [show], activeShowId: show.id, showsLoaded: true })
+    render(<ShowEditor showId={show.id} />)
+    act(() => useShowTransportStore.getState().setPosition(show.id, 10_000))
+
+    const hitTarget = screen.getByTestId('show-timeline-playhead-hit-target')
+    const track = hitTarget.parentElement!
+    vi.spyOn(track, 'getBoundingClientRect').mockReturnValue({
+      left: 100, right: 720, top: 0, bottom: 300, width: 620, height: 300, x: 100, y: 0, toJSON: () => ({}),
+    })
+
+    // Grab with Shift: fine from the playhead's own time, 100ms/px track.
+    fireEvent.pointerDown(hitTarget, { pointerId: 61, clientX: 200, shiftKey: true })
+    fireEvent.pointerMove(hitTarget, { pointerId: 61, clientX: 250, shiftKey: true })
+    expect(useShowTransportStore.getState().positionMs).toBe(10_500)
+
+    // Releasing Shift continues from 10.5s at full gain — the pointer's
+    // absolute position (15s) must not win (#667 review).
+    fireEvent.pointerMove(hitTarget, { pointerId: 61, clientX: 260 })
+    expect(useShowTransportStore.getState().positionMs).toBe(11_500)
+
+    fireEvent.pointerUp(hitTarget, { pointerId: 61, clientX: 260 })
+    await waitFor(() => {
+      expect(useShowTransportStore.getState().seekRequest).toMatchObject({ targetMs: 11_500 })
     })
   })
 

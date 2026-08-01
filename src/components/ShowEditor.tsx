@@ -6141,11 +6141,13 @@ function TimelineRuler({
   const pointerScrubRef = useRef({ active: false, inverted: false })
   // Shift-fine scrubbing (#667): while Shift is held the captured pointer
   // drives the playhead at a tenth of the gain through an incremental
-  // session; without it the native range drag owns the position and the
-  // session just re-anchors, so toggling Shift mid-scrub never jumps.
+  // session. Once Shift has engaged, the whole remaining gesture stays
+  // incremental — coarse deltas at full gain — because handing back to the
+  // native absolute range mapping would jump the playhead to the pointer's
+  // coarse position (#667 review).
   const scrubDragRef = useRef<FineAdjustDrag | null>(null)
   const scrubWidthPxRef = useRef(1)
-  const scrubFineRef = useRef(false)
+  const scrubFineEngagedRef = useRef(false)
   const previewScrub = (targetMs: number, snap = false) => {
     const resolvedTimeMs = snap
       ? snapShowTimelineTime(targetMs, {
@@ -6253,7 +6255,7 @@ function TimelineRuler({
         step={1}
         value={Math.min(positionMs, durationMs)}
         onChange={(event) => {
-          if (pointerScrubRef.current.active && scrubFineRef.current) return
+          if (pointerScrubRef.current.active && scrubFineEngagedRef.current) return
           previewScrub(
             Number(event.target.value),
             pointerScrubRef.current.active && snapEnabled !== pointerScrubRef.current.inverted,
@@ -6261,7 +6263,7 @@ function TimelineRuler({
         }}
         onPointerDown={(event) => {
           pointerScrubRef.current = { active: true, inverted: event.altKey }
-          scrubFineRef.current = event.shiftKey
+          scrubFineEngagedRef.current = event.shiftKey
           // The input extends 8px past the ruler on both sides; the usable
           // track is the ruler span itself.
           const trackWidthPx = event.currentTarget.getBoundingClientRect().width - 16
@@ -6273,10 +6275,10 @@ function TimelineRuler({
         onPointerMove={(event) => {
           if (!pointerScrubRef.current.active) return
           pointerScrubRef.current.inverted = event.altKey
-          scrubFineRef.current = event.shiftKey
+          if (event.shiftKey) scrubFineEngagedRef.current = true
           const drag = scrubDragRef.current
           if (drag === null) return
-          if (!event.shiftKey) {
+          if (!scrubFineEngagedRef.current) {
             scrubDragRef.current = beginFineAdjust(
               event.clientX,
               Math.min(useShowTransportStore.getState().positionMs, durationMs),
@@ -6284,7 +6286,7 @@ function TimelineRuler({
             return
           }
           scrubDragRef.current = moveFineAdjust(drag, event.clientX, {
-            fine: true,
+            fine: event.shiftKey,
             scale: durationMs / scrubWidthPxRef.current,
           })
           previewScrub(Math.max(0, Math.min(durationMs, scrubDragRef.current.position)))
@@ -6310,13 +6312,13 @@ function TimelineRuler({
           commitScrub()
           pointerScrubRef.current = { active: false, inverted: false }
           scrubDragRef.current = null
-          scrubFineRef.current = false
+          scrubFineEngagedRef.current = false
         }}
         onPointerCancel={() => {
           commitScrub()
           pointerScrubRef.current = { active: false, inverted: false }
           scrubDragRef.current = null
-          scrubFineRef.current = false
+          scrubFineEngagedRef.current = false
         }}
         onKeyUp={(event) => {
           if (event.key === 'ArrowLeft' || event.key === 'ArrowRight') keyboardHoldRef.current = null
@@ -6985,6 +6987,7 @@ function TimelinePlayhead({
   const resumeAfterSeekRef = useRef(false)
   const activePointerRef = useRef<number | null>(null)
   const directDragRef = useRef<FineAdjustDrag | null>(null)
+  const directFineEngagedRef = useRef(false)
   const left = durationMs > 0 ? Math.min(100, Math.max(0, positionMs / durationMs * 100)) : 0
   const visible = positionMs >= viewport.startMs && positionMs <= viewport.startMs + viewport.durationMs
   const previewPointerPosition = (event: ReactPointerEvent<HTMLSpanElement>) => {
@@ -6992,12 +6995,15 @@ function TimelinePlayhead({
     if (!track) return
     const rect = track.getBoundingClientRect()
     // Shift drags the playhead at a tenth of the gain from wherever it is,
-    // unsnapped — precision is the point; releasing Shift re-anchors to the
-    // absolute pointer mapping without a jump (#667).
+    // unsnapped — precision is the point. Once Shift has engaged, the whole
+    // remaining gesture stays incremental (coarse deltas at full gain):
+    // returning to the absolute pointer mapping would jump the playhead to
+    // the pointer's coarse position (#667 review).
+    if (event.shiftKey) directFineEngagedRef.current = true
     const drag = directDragRef.current
-    if (event.shiftKey && drag !== null) {
+    if (directFineEngagedRef.current && drag !== null) {
       directDragRef.current = moveFineAdjust(drag, event.clientX, {
-        fine: true,
+        fine: event.shiftKey,
         scale: durationMs / Math.max(1, rect.width),
       })
       applyPreviewPosition(Math.max(0, Math.min(durationMs, directDragRef.current.position)))
@@ -7028,6 +7034,7 @@ function TimelinePlayhead({
     pendingSeekRef.current = null
     activePointerRef.current = null
     directDragRef.current = null
+    directFineEngagedRef.current = false
     if (!pending || pending.showId !== show.id) {
       resumeAfterSeekRef.current = false
       return
@@ -7056,6 +7063,7 @@ function TimelinePlayhead({
             event.currentTarget.setPointerCapture?.(event.pointerId)
             // Grabbing with Shift already held starts fine mode from the
             // playhead's current time — no jump to the pointer, no snap.
+            directFineEngagedRef.current = event.shiftKey
             if (event.shiftKey) {
               directDragRef.current = beginFineAdjust(event.clientX, Math.min(positionMs, durationMs))
               return

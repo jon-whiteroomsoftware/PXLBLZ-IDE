@@ -139,6 +139,49 @@ describe('PercentageField', () => {
     expect(onChange).not.toHaveBeenCalled()
   })
 
+  it('keeps a pinned-slider gesture incremental after Shift is released (#667)', () => {
+    const onPreview = vi.fn()
+    const onChange = vi.fn()
+    render(
+      <PercentageField
+        label="Opacity"
+        value={0.5}
+        min={0}
+        max={1}
+        step={0.01}
+        onPreview={onPreview}
+        onChange={onChange}
+      />,
+    )
+    const grip = screen.getByRole('button', { name: 'Adjust with percentage slider' })
+    fireEvent.keyDown(grip, { key: 'Enter' })
+    const slider = screen.getByRole('slider', { name: 'Percentage slider' })
+    Object.defineProperty(slider, 'setPointerCapture', { configurable: true, value: vi.fn() })
+    Object.defineProperty(slider, 'releasePointerCapture', { configurable: true, value: vi.fn() })
+    vi.spyOn(slider, 'getBoundingClientRect').mockReturnValue({
+      x: 300, y: 100, left: 300, right: 500, top: 100, bottom: 120, width: 200, height: 20, toJSON: () => ({}),
+    })
+
+    fireEvent.pointerDown(slider, { pointerId: 21, clientX: 300 })
+    // Fine engages: +20px at a tenth of the gain over the 200px track.
+    fireEvent.pointerMove(slider, { pointerId: 21, clientX: 320, shiftKey: true })
+    expect(onPreview).toHaveBeenLastCalledWith(0.51)
+
+    // Once fine has engaged, native range input is suppressed for the rest
+    // of the gesture — an absolute native value must not jump the field
+    // (#667 review).
+    fireEvent.input(slider, { target: { value: '900' } })
+    expect(onPreview).toHaveBeenLastCalledWith(0.51)
+
+    // Releasing Shift continues incrementally at full gain: +20px is +0.1.
+    fireEvent.pointerMove(slider, { pointerId: 21, clientX: 340 })
+    expect(onPreview).toHaveBeenLastCalledWith(0.61)
+
+    fireEvent.pointerUp(slider, { pointerId: 21, clientX: 340 })
+    expect(onChange).toHaveBeenCalledOnce()
+    expect(onChange).toHaveBeenCalledWith(0.61)
+  })
+
   it('takes a ten-times-coarser keyboard stride with Shift on the pinned slider (#667)', () => {
     const onPreview = vi.fn()
     const onChange = vi.fn()

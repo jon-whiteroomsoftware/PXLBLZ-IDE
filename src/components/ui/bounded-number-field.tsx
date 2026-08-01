@@ -159,7 +159,10 @@ export function BoundedNumberField({
   } | null>(null)
   const popoverDragRef = useRef<FineAdjustDrag | null>(null)
   const popoverTrackWidthRef = useRef(1)
-  const popoverFineRef = useRef(false)
+  // Once Shift engages during a gesture the rest of that gesture stays
+  // incremental — returning to the native absolute mapping on release would
+  // jump the value to the pointer's coarse position (#667 review).
+  const popoverFineEngagedRef = useRef(false)
 
   useEffect(() => {
     if (!focusedRef.current) setDraft(interactionDraft)
@@ -497,7 +500,7 @@ export function BoundedNumberField({
               onPointerDown={(event) => {
                 sliderPointerIdRef.current = event.pointerId
                 event.currentTarget.setPointerCapture(event.pointerId)
-                popoverFineRef.current = event.shiftKey
+                popoverFineEngagedRef.current = event.shiftKey
                 popoverTrackWidthRef.current = Math.max(
                   1,
                   event.currentTarget.getBoundingClientRect().width,
@@ -508,14 +511,15 @@ export function BoundedNumberField({
                 )
               }}
               onPointerMove={(event) => {
-                // Shift takes over the captured drag at a tenth of the gain;
-                // without it the native range drag owns the value and the
-                // session just re-anchors to whatever it produced, so
-                // toggling Shift mid-drag never jumps (#667).
+                // Shift takes over the captured drag at a tenth of the gain,
+                // and once it has engaged, the whole remaining gesture stays
+                // incremental — coarse deltas at full gain — instead of
+                // handing back to the native absolute mapping, which would
+                // jump the value to the pointer's coarse position (#667).
                 const drag = popoverDragRef.current
                 if (sliderPointerIdRef.current !== event.pointerId || drag === null) return
-                popoverFineRef.current = event.shiftKey
-                if (!event.shiftKey) {
+                if (event.shiftKey) popoverFineEngagedRef.current = true
+                if (!popoverFineEngagedRef.current) {
                   popoverDragRef.current = beginFineAdjust(
                     event.clientX,
                     toSliderPosition(sliderValueRef.current),
@@ -523,13 +527,15 @@ export function BoundedNumberField({
                   return
                 }
                 popoverDragRef.current = moveFineAdjust(drag, event.clientX, {
-                  fine: true,
+                  fine: event.shiftKey,
                   scale: 1 / popoverTrackWidthRef.current,
                 })
-                previewSliderValue(valueFromTrackPosition(popoverDragRef.current.position, true))
+                previewSliderValue(
+                  valueFromTrackPosition(popoverDragRef.current.position, event.shiftKey),
+                )
               }}
               onInput={(event) => {
-                if (sliderPointerIdRef.current !== null && popoverFineRef.current) return
+                if (sliderPointerIdRef.current !== null && popoverFineEngagedRef.current) return
                 previewSliderValue(snapSliderValue(
                   fromSliderPosition(Number(event.currentTarget.value) / sliderPositionCount),
                 ))
@@ -538,21 +544,21 @@ export function BoundedNumberField({
                 if (sliderPointerIdRef.current !== event.pointerId) return
                 sliderPointerIdRef.current = null
                 popoverDragRef.current = null
-                popoverFineRef.current = false
+                popoverFineEngagedRef.current = false
                 event.currentTarget.releasePointerCapture(event.pointerId)
                 commitSlider(sliderValueRef.current)
               }}
               onPointerCancel={() => {
                 sliderPointerIdRef.current = null
                 popoverDragRef.current = null
-                popoverFineRef.current = false
+                popoverFineEngagedRef.current = false
                 cancelSlider()
               }}
               onLostPointerCapture={() => {
                 if (sliderPointerIdRef.current === null) return
                 sliderPointerIdRef.current = null
                 popoverDragRef.current = null
-                popoverFineRef.current = false
+                popoverFineEngagedRef.current = false
                 cancelSlider()
               }}
               onBlur={() => {
