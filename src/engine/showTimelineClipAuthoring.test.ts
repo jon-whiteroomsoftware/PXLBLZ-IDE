@@ -1572,6 +1572,7 @@ describe('global timeline Clip authoring (#580)', () => {
 
   it('disables Clone when a multi-Scene logical Clip has unsupported placement animation (#63)', () => {
     const show = createDefaultShow('show-duplicate-spanning-animation', 'Duplicate spanning animation', 1000)
+    show.transitions[0] = { ...show.transitions[0], kind: 'cut', durationMs: 0 }
     const composition = emptyComposition(show)
     composition.patternInstances.push(instance)
     composition.scenes[0].zones[0].main.push({
@@ -1619,6 +1620,12 @@ describe('global timeline Clip authoring (#580)', () => {
       owner,
       newPlacementId: 'placement-copy',
       newInstanceId: 'instance-copy',
+    })).toBe(composition)
+    expect(duplicateShowClipAtGlobalTime(show, composition, {
+      owner,
+      target: { kind: 'main', zoneId: show.zones[0].id, globalStartMs: 10_000 },
+      newPlacementId: 'placement-copy-at-target',
+      newInstanceId: 'instance-copy-at-target',
     })).toBe(composition)
   })
 

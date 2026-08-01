@@ -2584,6 +2584,84 @@ describe('ShowEditor (#318)', () => {
     expect(screen.queryByTestId('show-clip-move-preview')).not.toBeInTheDocument()
   })
 
+  it('duplicates into a collapsed Zone without moving the source Clip (#668)', async () => {
+    const user = userEvent.setup()
+    const show = addShowZone(createDefaultShow('show-option-drag-collapsed', 'Collapsed option drag', 1000), {
+      name: 'accent',
+      nominalPixelCount: 24,
+    })
+    const [sourceZone, targetZone] = show.zones
+    show.composition = {
+      version: 1,
+      patternInstances: [{
+        id: 'instance-collapsed-source',
+        pattern: { ...show.cells[0].pattern },
+        patternName: 'Collapsed Copy Source',
+        time: { timeScale: 1, timeOffsetMs: 0 },
+      }],
+      scenes: show.scenes.map((scene, index) => ({
+        sceneId: scene.id,
+        zones: [{
+          zoneId: sourceZone.id,
+          main: index === 0 ? [{
+            id: 'placement-collapsed-source',
+            instanceId: 'instance-collapsed-source',
+            startMs: 2_000,
+            durationMs: 4_000,
+            view: { mirror: false, phase: 0, brightness: 1 },
+          }] : [],
+          overlays: [],
+        }, {
+          zoneId: targetZone.id,
+          main: [],
+          overlays: [],
+        }],
+      })),
+    }
+    setPersonalContentProvider(memoryProvider([show]))
+    useShowStore.setState({ shows: [show], activeShowId: show.id, showsLoaded: true })
+    useShowEditorSessionStore.setState({ snapEnabled: false })
+
+    render(<ShowEditor showId={show.id} />)
+    await user.click(screen.getByRole('button', { name: 'Collapse zone accent' }))
+    const clip = screen.getByRole('button', { name: 'Select Collapsed Copy Source' })
+    const collapsedZone = screen.getByRole('img', { name: 'Collapsed zone accent timeline' })
+    Object.defineProperty(screen.getByTestId('show-timeline-scroll-region'), 'clientWidth', { value: 620 })
+    Object.defineProperty(clip, 'getBoundingClientRect', {
+      value: () => ({ left: 20, right: 60, top: 0, bottom: 40, width: 40, height: 40, x: 20, y: 0, toJSON: () => ({}) }),
+    })
+    Object.defineProperty(collapsedZone, 'getBoundingClientRect', {
+      value: () => ({ left: 0, right: 620, top: 40, bottom: 68, width: 620, height: 28, x: 0, y: 40, toJSON: () => ({}) }),
+    })
+    const dataTransfer = { setData: () => {}, effectAllowed: 'none', dropEffect: 'none' }
+    const dragEvent = (type: string, clientX: number, altKey: boolean) => {
+      const event = new Event(type, { bubbles: true, cancelable: true })
+      Object.defineProperties(event, {
+        clientX: { value: clientX },
+        altKey: { value: altKey },
+        dataTransfer: { value: dataTransfer },
+      })
+      return event
+    }
+
+    fireEvent(clip, dragEvent('dragstart', 20, true))
+    fireEvent(collapsedZone, dragEvent('dragover', 123, false))
+    expect(dataTransfer.dropEffect).toBe('copy')
+    fireEvent(collapsedZone, dragEvent('drop', 123, false))
+    fireEvent(clip, dragEvent('dragend', 123, false))
+
+    await waitFor(() => {
+      const composition = useShowStore.getState().shows[0].composition!
+      expect(composition.scenes[0].zones[0].main).toEqual([
+        expect.objectContaining({ id: 'placement-collapsed-source', instanceId: 'instance-collapsed-source' }),
+      ])
+      expect(composition.scenes[0].zones[1].main).toHaveLength(1)
+      expect(composition.scenes[0].zones[1].main[0].instanceId).not.toBe('instance-collapsed-source')
+      expect(composition.patternInstances).toHaveLength(2)
+    })
+    expect(useShowStore.getState().showHistories[show.id]?.past).toHaveLength(1)
+  })
+
   it('previews and snaps either Clip edge to a visible Marker while the global magnet is off', async () => {
     const show = createDefaultShow('show-clip-marker-snap', 'Clip Marker snap', 1000)
     const zoneId = show.zones[0].id

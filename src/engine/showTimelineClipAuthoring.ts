@@ -850,6 +850,25 @@ export type ShowClipDuplicatePlan =
       reason: string
     }
 
+function showClipDuplicateHasUnsupportedTracks(
+  composition: ShowCompositionV1,
+  logicalSegments: LogicalClipSegment[],
+  targetSliceCount: number,
+  independent: boolean,
+): boolean {
+  if (logicalSegments.length <= 1 && targetSliceCount <= 1) return false
+  const base = logicalSegments[0]?.placement
+  if (!base) return false
+  const segmentIds = new Set(logicalSegments.map((segment) => segment.placement.id))
+  return composition.scenes.some((scene) => (
+    (scene.propertyTracks ?? []).some((track) => (
+      'placementId' in track.target
+        ? segmentIds.has(track.target.placementId)
+        : Boolean(independent && track.target.instanceId === base.instanceId)
+    ))
+  ))
+}
+
 export function planShowClipDuplicateAfter(
   show: ShowRecord,
   composition: ShowCompositionV1,
@@ -874,22 +893,16 @@ export function planShowClipDuplicateAfter(
       reason: 'The duplicate needs uninterrupted Show time after the selected Clip.',
     }
   }
-  if (logicalSegments.length > 1 || targetSlices.length > 1) {
-    const base = logicalSegments[0].placement
-    const segmentIds = new Set(logicalSegments.map((segment) => segment.placement.id))
-    const hasUnsupportedTracks = composition.scenes.some((scene) => (
-      (scene.propertyTracks ?? []).some((track) => (
-        'placementId' in track.target
-          ? segmentIds.has(track.target.placementId)
-          : Boolean(input.independent && track.target.instanceId === base.instanceId)
-      ))
-    ))
-    if (hasUnsupportedTracks) {
-      return {
-        enabled: false,
-        code: 'unsupported-animation',
-        reason: 'Multi-part Clips with Property animation cannot be cloned yet.',
-      }
+  if (showClipDuplicateHasUnsupportedTracks(
+    composition,
+    logicalSegments,
+    targetSlices.length,
+    input.independent,
+  )) {
+    return {
+      enabled: false,
+      code: 'unsupported-animation',
+      reason: 'Multi-part Clips with Property animation cannot be cloned yet.',
     }
   }
   const timeline = projectShowUnifiedTimeline(show, composition)
@@ -972,6 +985,18 @@ export function duplicateShowClipAtGlobalTime(
     zone.main.some((placement) => placement.id === input.newPlacementId)
     || zone.overlays.some((layer) => layer.placements.some((placement) => placement.id === input.newPlacementId))
   )))) return composition
+  const targetStartMs = Math.round(input.target.globalStartMs)
+  const targetSlices = globalSpanSceneSlices(
+    show,
+    targetStartMs,
+    logicalRange.endMs - logicalRange.startMs,
+  )
+  if (targetSlices.length === 0 || showClipDuplicateHasUnsupportedTracks(
+    composition,
+    logicalSegments,
+    targetSlices.length,
+    Boolean(input.newInstanceId),
+  )) return composition
   const sourceInstance = composition.patternInstances.find((instance) => instance.id === base.instanceId)
   if (!sourceInstance || (input.newInstanceId && composition.patternInstances.some((instance) => (
     instance.id === input.newInstanceId
@@ -1027,7 +1052,7 @@ export function duplicateShowClipAtGlobalTime(
   const stagedOwner: ShowTimelineClipOwner = { ...input.owner, placementId: input.newPlacementId }
   const duplicated = moveShowClipAtGlobalTime(show, staged, {
     owner: stagedOwner,
-    target: { ...input.target, globalStartMs: Math.round(input.target.globalStartMs) },
+    target: { ...input.target, globalStartMs: targetStartMs },
   })
   return duplicated === staged ? composition : duplicated
 }

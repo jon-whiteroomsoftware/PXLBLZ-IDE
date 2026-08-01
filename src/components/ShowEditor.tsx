@@ -4787,9 +4787,10 @@ function ShowTimelineWorkspace({
                   gridRow: rowStart(rowIndex) + contentStartRow + routingLaneRows,
                 }}
                 onDragOver={(event) => {
-                  if (!draggingCompositionClipRef.current || readOnly) return
+                  const draggedClip = draggingCompositionClipRef.current
+                  if (!draggedClip || readOnly) return
                   event.preventDefault()
-                  event.dataTransfer.dropEffect = 'move'
+                  event.dataTransfer.dropEffect = draggedClip.mode === 'duplicate' ? 'copy' : 'move'
                   setDropTargetKey(`composition-zone:${row.zoneId}`)
                 }}
                 onDragLeave={() => setDropTargetKey((current) => current === `composition-zone:${row.zoneId}` ? null : current)}
@@ -4806,18 +4807,38 @@ function ShowTimelineWorkspace({
                   const candidateMs = Math.min(1, Math.max(0, (event.clientX - rect.left) / Math.max(1, rect.width))) * totalMs - draggedClip.grabOffsetMs
                   const clipDurationMs = clip?.durationMs ?? 0
                   const globalStartMs = resolveClipMoveStart(candidateMs, clipDurationMs, {
-                    altKey: event.altKey,
+                    altKey: false,
                     visibleWidthPx: Math.max(1, scrollRef.current?.clientWidth ?? rect.width),
                     totalMs,
                   }).startMs
-                  void onMoveCompositionClip({
-                    owner: draggedClip.owner,
-                    target: { kind: 'main', zoneId: row.zoneId, globalStartMs },
-                  }).then((moved) => {
-                    if (moved) onReanchorDetails({ kind: 'clip', clipId: draggedClip.clipId })
+                  const target = { kind: 'main' as const, zoneId: row.zoneId, globalStartMs }
+                  const plannedComposition = draggedClip.mode === 'duplicate' && timelineComposition
+                    ? duplicateShowClipAtGlobalTime(show, timelineComposition, {
+                        owner: draggedClip.owner,
+                        target,
+                        newPlacementId: draggedClip.duplicatePlacementId!,
+                        newInstanceId: draggedClip.duplicateInstanceId,
+                      })
+                    : null
+                  const commit = draggedClip.mode === 'duplicate' && timelineComposition && plannedComposition
+                    ? onDuplicateCompositionClipAtTarget({
+                        sourceComposition: timelineComposition,
+                        plannedComposition,
+                      })
+                    : onMoveCompositionClip({ owner: draggedClip.owner, target })
+                  void commit.then((changed) => {
+                    if (!changed) return
+                    const clipId = draggedClip.mode === 'duplicate'
+                      ? draggedClip.duplicatePlacementId!
+                      : draggedClip.clipId
+                    if (draggedClip.mode === 'duplicate') onSelect({ kind: 'clip', clipId })
+                    onReanchorDetails({ kind: 'clip', clipId })
                   }).finally(() => {
+                    activeMoveLayerRef.current = null
                     draggingCompositionClipRef.current = null
                     setDraggingCompositionClip(null)
+                    movePlanRef.current = null
+                    setMovePreview(null)
                     onDirectManipulationChange(false)
                   })
                   setDropTargetKey(null)
