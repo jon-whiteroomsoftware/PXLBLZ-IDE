@@ -157,13 +157,24 @@ export interface ShowTimelineSnapResult {
 }
 
 /**
- * Timeline drops land on whole seconds by default; Shift asks for tenths
- * (#667). The step is fixed rather than zoom-following so values authored at
- * different zoom levels still line up with each other, and it never goes
- * below 100ms — the exact textbox owns finer precision.
+ * Timeline drops land on whole seconds by default; Shift asks for a fixed
+ * 0.1s at any zoom (#667). Zooming in refines the default grid along the
+ * ruler's own 1/2/5 tick family — 1s, then 500ms, then a 200ms floor — so a
+ * drop always lands on a tick line the user can see, and every step divides
+ * one second, so whole-second landings stay available at every zoom. The
+ * exact textbox owns anything finer.
  */
-export function showTimelineQuantizeStepMs(fine: boolean): number {
-  return fine ? 100 : 1_000
+export function showTimelineQuantizeStepMs(
+  fine: boolean,
+  visibleDurationMs?: number,
+  visibleWidthPx?: number,
+): number {
+  if (fine) return 100
+  if (visibleDurationMs === undefined || visibleWidthPx === undefined) return 1_000
+  const majorStepMs = showTimelineGridStepMs(visibleDurationMs, visibleWidthPx)
+  const multiplier = Math.round(majorStepMs / 10 ** Math.floor(Math.log10(majorStepMs)))
+  const minorStepMs = multiplier === 2 ? majorStepMs / 4 : majorStepMs / 5
+  return Math.min(1_000, Math.max(200, minorStepMs))
 }
 
 export function snapShowTimelineTime(

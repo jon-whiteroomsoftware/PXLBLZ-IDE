@@ -150,6 +150,20 @@ describe('Show timeline viewport (#420)', () => {
     expect(showTimelineQuantizeStepMs(true)).toBe(100)
   })
 
+  it('refines the default drop grid with zoom along the ruler tick family (#667)', () => {
+    // Whole show visible: whole seconds, even though ruler minors are 2s.
+    expect(showTimelineQuantizeStepMs(false, 60_000, 600)).toBe(1_000)
+    // ~3x zoom: minors are 1s.
+    expect(showTimelineQuantizeStepMs(false, 20_000, 600)).toBe(1_000)
+    // ~5x zoom: ruler minors reach 500ms.
+    expect(showTimelineQuantizeStepMs(false, 12_000, 600)).toBe(500)
+    // ~10x zoom: minors reach 200ms — the floor; never finer than 200ms.
+    expect(showTimelineQuantizeStepMs(false, 6_000, 600)).toBe(200)
+    expect(showTimelineQuantizeStepMs(false, 1_000, 600)).toBe(200)
+    // Shift stays a fixed 0.1s at every zoom.
+    expect(showTimelineQuantizeStepMs(true, 6_000, 600)).toBe(100)
+  })
+
   it('can snap to explicit boundaries without enabling the time grid', () => {
     expect(snapShowTimelineTime(5_930, {
       visibleDurationMs: 60_000,

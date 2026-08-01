@@ -3495,7 +3495,7 @@ function ShowTimelineWorkspace({
       visibleDurationMs: viewport.durationMs,
       visibleWidthPx: options.visibleWidthPx,
       structuralTimesMs: activeStructuralTimesMs,
-      quantizeStepMs: showTimelineQuantizeStepMs(options.shiftKey),
+      quantizeStepMs: showTimelineQuantizeStepMs(options.shiftKey, viewport.durationMs, options.visibleWidthPx),
       minTimeMs,
       maxTimeMs: options.maxTimeMs,
     })
@@ -6021,11 +6021,12 @@ function TimelineMarkerSource({
     if (!rect || clientX < rect.left || clientX > rect.right) return null
     const rawTimeMs = (clientX - rect.left) / Math.max(1, rect.width) * durationMs
     if (modifiers.altKey) return Math.round(Math.max(0, Math.min(durationMs, rawTimeMs)))
+    const visibleWidthPx = getVisibleWidth()
     return Math.round(snapShowTimelineTime(rawTimeMs, {
       visibleDurationMs: viewport.durationMs,
-      visibleWidthPx: getVisibleWidth(),
+      visibleWidthPx,
       structuralTimesMs: snapEnabled ? structuralTimesMs : [],
-      quantizeStepMs: showTimelineQuantizeStepMs(modifiers.shiftKey),
+      quantizeStepMs: showTimelineQuantizeStepMs(modifiers.shiftKey, viewport.durationMs, visibleWidthPx),
       maxTimeMs: durationMs,
     }).timeMs)
   }
@@ -6550,7 +6551,7 @@ function TimelineMarkers({
       structuralTimesMs: snapEnabled
         ? structuralTimesMs.filter((timeMs) => timeMs !== excludeTimeMs)
         : [],
-      quantizeStepMs: showTimelineQuantizeStepMs(event.shiftKey),
+      quantizeStepMs: showTimelineQuantizeStepMs(event.shiftKey, durationMs, rect.width),
       maxTimeMs: durationMs,
     }).timeMs)
   }
@@ -6575,7 +6576,11 @@ function TimelineMarkers({
                 candidateMs !== pointer.startDurationMs && candidateMs !== durationMs
               ))
             : [],
-          quantizeStepMs: showTimelineQuantizeStepMs(event.shiftKey),
+          quantizeStepMs: showTimelineQuantizeStepMs(
+            event.shiftKey,
+            pointer.startDurationMs,
+            pointer.surfaceWidthPx,
+          ),
           minTimeMs: minimumShowEndMs,
           maxTimeMs,
         }).timeMs)
