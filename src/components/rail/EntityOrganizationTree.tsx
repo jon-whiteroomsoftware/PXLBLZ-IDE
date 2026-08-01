@@ -90,7 +90,7 @@ export const EntityOrganizationTree = forwardRef<EntityOrganizationTreeHandle, E
   const itemsById = useMemo(() => new Map(items.map((item) => [item.id, item])), [items])
   const trimmedQuery = query.trim()
   const treeLabel = sectionLabel ?? `${editable ? '' : 'Built-in '}${noun[0].toUpperCase()}${noun.slice(1)}s`
-  const overflowWidthClass = allowHorizontalOverflow ? 'min-w-full w-max' : ''
+  const overflowWidthClass = allowHorizontalOverflow ? 'min-w-full' : ''
 
   useEffect(() => {
     if (!menuKey) return
@@ -162,6 +162,7 @@ export const EntityOrganizationTree = forwardRef<EntityOrganizationTreeHandle, E
               path={result.path}
               active={activeEntityId === result.entityId}
               noun={noun}
+              allowHorizontalOverflow={allowHorizontalOverflow}
               onSelect={() => onSelect(result.entityId)}
             />
           ))}
@@ -230,6 +231,7 @@ export const EntityOrganizationTree = forwardRef<EntityOrganizationTreeHandle, E
             editable={editable}
             canRenameEntity={canRenameEntity}
             noun={noun}
+            allowHorizontalOverflow={allowHorizontalOverflow}
             draggedKey={draggedKey}
             editingKey={editingKey}
             menuKey={menuKey}
@@ -303,6 +305,7 @@ function OrganizationTreeNode(props: {
   editable: boolean
   canRenameEntity: boolean
   noun: EntityNoun
+  allowHorizontalOverflow: boolean
   draggedKey: EntityOrganizationNodeKey | null
   editingKey: EntityOrganizationNodeKey | null
   menuKey: EntityOrganizationNodeKey | null
@@ -393,7 +396,7 @@ function OrganizationTreeNode(props: {
           props.onDrop({ key, placement: placement(event) })
         }}
         style={{ paddingLeft: 6 + props.depth * 14 }}
-        className={`group relative flex min-h-[20px] cursor-pointer items-center gap-1 py-px pr-1.5 outline-none transition-opacity focus-visible:ring-1 focus-visible:ring-live/70 focus-visible:ring-inset ${IDE_MICROTYPE.entity.sizeClassName} ${dragging ? 'bg-zinc-900/40 text-zinc-600 opacity-40' : active ? 'bg-live/5 text-live' : 'text-zinc-400 hover:bg-zinc-800/60 hover:text-zinc-300'}`}
+        className={`group relative flex min-h-[20px] cursor-pointer items-center gap-1 py-px pr-1.5 outline-none transition-opacity focus-visible:ring-1 focus-visible:ring-live/70 focus-visible:ring-inset ${IDE_MICROTYPE.entity.sizeClassName} ${dragging ? 'bg-zinc-900/40 text-zinc-600 opacity-40' : active ? 'bg-live/5 text-live' : 'bg-[#0b0c0f] text-zinc-400 hover:bg-zinc-800/60 hover:text-zinc-300'}`}
       >
         {active && !dragging && <span aria-hidden className="absolute inset-y-0 left-0 w-0.5 bg-live" />}
         {activeDrop === 'before' && <span data-drop-cue="before" className="absolute inset-x-1 -top-px h-0.5 bg-live" />}
@@ -412,38 +415,34 @@ function OrganizationTreeNode(props: {
             onCancel={() => props.onEdit(null)}
           />
         ) : (
-          <span className="min-w-0 flex-1 truncate" title={name}>{name}</span>
+          <span className={`min-w-0 flex-1 ${props.allowHorizontalOverflow ? 'whitespace-nowrap' : 'truncate'}`} title={name}>{name}</span>
         )}
-        {(folder || (item?.meta && active) || (props.editable && !dragging)) && (
-          <span className={`relative sticky right-1 ml-auto flex shrink-0 items-center gap-1 bg-inherit ${props.editable && !dragging ? 'min-w-5' : ''}`}>
-            {folder && <span className="shrink-0 text-[9px] text-zinc-600 group-hover:opacity-0">{props.editable ? countEntities(folder.children) : visibleEntityCount(folder.children, props.itemsById)}</span>}
-            {item?.meta && active && <span className="shrink-0 text-[8px] uppercase text-zinc-500 group-hover:opacity-0">{item.meta}</span>}
-            {props.editable && !dragging && (
-              <button
-                type="button"
-                onClick={(event) => {
-                  event.stopPropagation()
-                  props.onMenu(props.menuKey === key ? null : key)
-                }}
-                className="absolute right-0 top-1/2 hidden size-5 -translate-y-1/2 place-items-center border border-zinc-800 bg-zinc-950 text-zinc-500 hover:text-zinc-200 group-hover:grid group-focus-within:grid"
-                aria-label={`More actions for ${name}`}
-              >
-                <MoreHorizontal size={12} />
-              </button>
-            )}
-            {props.menuKey === key && (
-              <RowActionMenu
-                onRename={folder || props.canRenameEntity ? () => {
-                  props.onMenu(null)
-                  props.onEdit(key)
-                } : undefined}
-                onMoveUp={() => props.onReorder(key, -1)}
-                onMoveDown={() => props.onReorder(key, 1)}
-                onMoveTo={() => props.onMove(key)}
-                onTrash={() => props.onTrash(key)}
-              />
-            )}
-          </span>
+        {folder && <span className="relative z-10 shrink-0 bg-inherit pl-1 text-[9px] text-zinc-600 group-hover:opacity-0">{props.editable ? countEntities(folder.children) : visibleEntityCount(folder.children, props.itemsById)}</span>}
+        {item?.meta && active && <span className="relative z-10 shrink-0 bg-inherit pl-1 text-[8px] uppercase text-zinc-500 group-hover:opacity-0">{item.meta}</span>}
+        {props.editable && !dragging && (
+          <button
+            type="button"
+            onClick={(event) => {
+              event.stopPropagation()
+              props.onMenu(props.menuKey === key ? null : key)
+            }}
+            className="absolute right-1 top-1/2 hidden size-5 -translate-y-1/2 place-items-center border border-zinc-800 bg-zinc-950 text-zinc-500 hover:text-zinc-200 group-hover:grid group-focus-within:grid"
+            aria-label={`More actions for ${name}`}
+          >
+            <MoreHorizontal size={12} />
+          </button>
+        )}
+        {props.menuKey === key && (
+          <RowActionMenu
+            onRename={folder || props.canRenameEntity ? () => {
+              props.onMenu(null)
+              props.onEdit(key)
+            } : undefined}
+            onMoveUp={() => props.onReorder(key, -1)}
+            onMoveDown={() => props.onReorder(key, 1)}
+            onMoveTo={() => props.onMove(key)}
+            onTrash={() => props.onTrash(key)}
+          />
         )}
       </li>
       {folder && !collapsed && folder.children.map((child) => (
@@ -453,7 +452,7 @@ function OrganizationTreeNode(props: {
   )
 }
 
-function SearchResultRow({ name, path, active, noun, onSelect }: { name: string; path: string[]; active: boolean; noun: EntityNoun; onSelect: () => void }) {
+function SearchResultRow({ name, path, active, noun, allowHorizontalOverflow, onSelect }: { name: string; path: string[]; active: boolean; noun: EntityNoun; allowHorizontalOverflow: boolean; onSelect: () => void }) {
   return (
     <li
       role="treeitem"
@@ -476,7 +475,7 @@ function SearchResultRow({ name, path, active, noun, onSelect }: { name: string;
       {active && <span aria-hidden className="absolute inset-y-0 left-0 w-0.5 bg-live" />}
       <span className={`flex items-center gap-1 ${IDE_MICROTYPE.entity.sizeClassName}`}>
         <EntityIcon noun={noun} />
-        <span className="min-w-0 flex-1 truncate">{name}</span>
+        <span className={`min-w-0 flex-1 ${allowHorizontalOverflow ? 'whitespace-nowrap' : 'truncate'}`}>{name}</span>
       </span>
       {path.length > 0 && <span className="block truncate pl-4 text-[9px] leading-3 text-zinc-600">{path.join(' / ')}</span>}
     </li>
@@ -521,13 +520,13 @@ function RowActionMenu(props: { onRename?: () => void; onMoveUp: () => void; onM
     ['Move to Trash', props.onTrash],
   ] as const
   return (
-    <span className="absolute right-1 top-full z-30 block min-w-28 border border-zinc-700 bg-zinc-950 py-1 shadow-xl shadow-black/70" onClick={(event) => event.stopPropagation()}>
+    <div className="absolute right-1 top-full z-30 min-w-28 border border-zinc-700 bg-zinc-950 py-1 shadow-xl shadow-black/70" onClick={(event) => event.stopPropagation()}>
       {actions.map(([label, action]) => (
         <button key={label} type="button" onClick={action} className="block h-6 w-full px-2 text-left text-[10px] text-zinc-300 hover:bg-zinc-800">
           {label}
         </button>
       ))}
-    </span>
+    </div>
   )
 }
 

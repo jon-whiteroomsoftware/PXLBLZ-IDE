@@ -184,7 +184,8 @@ describe('PatternList', () => {
 
     const scroller = await screen.findByTestId('pattern-list-scroll')
     expect(scroller).toHaveClass('overflow-x-auto')
-    expect(await screen.findByRole('tree', { name: 'Patterns' })).toHaveClass('min-w-full', 'w-max')
+    expect(await screen.findByRole('tree', { name: 'Patterns' })).toHaveClass('min-w-full')
+    expect(await screen.findByText('RedlineMachinePortable')).toHaveClass('whitespace-nowrap')
   })
 
   it('creates a new pattern from the Patterns title row', async () => {

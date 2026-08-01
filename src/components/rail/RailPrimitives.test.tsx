@@ -1,5 +1,5 @@
 import { createRef } from 'react'
-import { fireEvent, render, screen, within } from '@testing-library/react'
+import { fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { vi } from 'vitest'
 import {
@@ -25,8 +25,9 @@ describe('railScrollMetrics', () => {
     expect(railScrollResizeTargets(scroller)).toEqual([scroller, personalTree, builtInTree])
   })
 
-  it('keeps one observed content box while asynchronous Pattern trees mount (#662)', () => {
+  it('keeps one observed content box while asynchronous Pattern trees mount (#662)', async () => {
     const scrollRef = createRef<HTMLDivElement>()
+    const onContentChange = vi.fn()
     const metrics = {
       top: 0,
       height: 0,
@@ -40,7 +41,7 @@ describe('railScrollMetrics', () => {
         testId="pattern-list-scroll"
         scrollRef={scrollRef}
         metrics={metrics}
-        onScroll={vi.fn()}
+        onScroll={onContentChange}
         allowHorizontalScroll
       >
         <p>Signed-out Pattern state</p>
@@ -49,19 +50,22 @@ describe('railScrollMetrics', () => {
     const scroller = screen.getByTestId('pattern-list-scroll') as HTMLDivElement
     const content = screen.getByTestId('rail-scroll-content')
     expect(railScrollResizeTargets(scroller)).toEqual([scroller, content])
+    expect(content).not.toHaveClass('w-max')
+    onContentChange.mockClear()
 
     view.rerender(
       <RailSectionScroller
         testId="pattern-list-scroll"
         scrollRef={scrollRef}
         metrics={metrics}
-        onScroll={vi.fn()}
+        onScroll={onContentChange}
         allowHorizontalScroll
       >
         <ul role="tree" aria-label="Patterns"><li>A long personal Pattern</li></ul>
       </RailSectionScroller>,
     )
     expect(content).toContainElement(screen.getByRole('tree', { name: 'Patterns' }))
+    await waitFor(() => expect(onContentChange).toHaveBeenCalled())
   })
 
   it('maps horizontal Pattern overflow onto a draggable thumb (#662)', () => {

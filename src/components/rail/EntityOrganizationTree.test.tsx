@@ -1,12 +1,12 @@
 // @vitest-environment jsdom
 import { createRef } from 'react'
-import { act, fireEvent, render, screen } from '@testing-library/react'
+import { act, fireEvent, render, screen, within } from '@testing-library/react'
 import { describe, expect, it, vi } from 'vitest'
 import type { EntityOrganizationV1 } from '@/engine/entityOrganization'
 import { EntityOrganizationTree, type EntityOrganizationTreeHandle } from './EntityOrganizationTree'
 
 describe('EntityOrganizationTree', () => {
-  it('keeps Pattern row actions at the visible rail edge while names overflow (#662)', () => {
+  it('keeps the Pattern action menu in the row stacking context while names overflow (#662)', () => {
     const organization: EntityOrganizationV1 = {
       version: 1,
       nodes: [{ kind: 'entity', entityId: 'pattern-long' }],
@@ -27,10 +27,42 @@ describe('EntityOrganizationTree', () => {
       />,
     )
 
-    expect(screen.getByRole('button', { name: 'More actions for A deliberately long Pattern name' }).parentElement).toHaveClass(
-      'sticky',
-      'right-1',
+    const row = screen.getByRole('treeitem', { name: /A deliberately long Pattern name/ })
+    fireEvent.click(screen.getByRole('button', { name: 'More actions for A deliberately long Pattern name' }))
+
+    expect(screen.getByRole('button', { name: 'Move to Trash' }).parentElement?.parentElement).toBe(row)
+  })
+
+  it('masks overflowing folder names behind their fixed row facts (#662)', () => {
+    const organization: EntityOrganizationV1 = {
+      version: 1,
+      nodes: [{
+        kind: 'folder',
+        id: 'folder-long',
+        name: 'A deliberately long Pattern folder name',
+        children: [{ kind: 'entity', entityId: 'pattern-short' }],
+      }],
+      trash: [],
+      collapsedFolderIds: [],
+    }
+    render(
+      <EntityOrganizationTree
+        organization={organization}
+        items={[{ id: 'pattern-short', name: 'Short' }]}
+        activeEntityId={null}
+        query=""
+        noun="pattern"
+        editable={false}
+        allowHorizontalOverflow
+        onSelect={vi.fn()}
+        onRenameEntity={vi.fn()}
+        onOrganizationChange={vi.fn()}
+      />,
     )
+
+    const folder = screen.getByRole('treeitem', { name: 'A deliberately long Pattern folder name1' })
+    expect(folder).toHaveClass('bg-[#0b0c0f]')
+    expect(within(folder).getByText('1')).toHaveClass('relative', 'z-10', 'bg-inherit')
   })
 
   it('discloses a recursive folder and persists its collapsed state', () => {

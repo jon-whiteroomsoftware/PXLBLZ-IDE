@@ -614,6 +614,16 @@ export function RailSectionScroller({
   allowHorizontalScroll?: boolean
   children: React.ReactNode
 }) {
+  const contentRef = useRef<HTMLDivElement>(null)
+
+  useEffect(() => {
+    const content = contentRef.current
+    if (!allowHorizontalScroll || !content || typeof MutationObserver === 'undefined') return
+    const observer = new MutationObserver(() => onScroll())
+    observer.observe(content, { childList: true, characterData: true, subtree: true })
+    return () => observer.disconnect()
+  }, [allowHorizontalScroll, onScroll])
+
   return (
     <div className="relative flex-1 min-h-0">
       <div
@@ -623,8 +633,9 @@ export function RailSectionScroller({
         className={`rail-list-scroll h-full overflow-y-auto ${allowHorizontalScroll ? 'overflow-x-auto pb-3' : 'overflow-x-hidden pb-2'}`}
       >
         <div
+          ref={contentRef}
           data-testid="rail-scroll-content"
-          className={allowHorizontalScroll ? 'min-w-full w-max' : 'min-w-full'}
+          className="min-w-full"
         >
           {children}
         </div>
