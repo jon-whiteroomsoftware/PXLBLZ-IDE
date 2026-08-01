@@ -136,8 +136,12 @@ export function ShowPropertyAnimationAction({
           setAnchor(event.currentTarget)
           context.setActiveKey(open ? null : key)
         }}
-        className={`-m-1 grid size-6 shrink-0 place-items-center rounded text-[8px] transition-colors hover:bg-violet-300/10 hover:text-violet-200 focus-visible:outline focus-visible:outline-1 focus-visible:outline-violet-200 ${
-          animated ? 'text-violet-300' : 'text-zinc-700'
+        className={`-my-1 -ml-1 grid size-6 shrink-0 place-items-center rounded border text-[8px] transition-colors hover:border-violet-300/30 hover:bg-violet-300/10 hover:text-violet-200 focus-visible:outline focus-visible:outline-1 focus-visible:outline-violet-200 ${
+          open
+            ? 'border-violet-300/45 bg-violet-300/20 text-violet-100 shadow-inner'
+            : animated
+              ? 'border-violet-300/20 bg-violet-300/[0.05] text-violet-300'
+              : 'border-zinc-800/80 bg-zinc-950/50 text-zinc-700'
         }`}
       >
         <Diamond size={8} fill={animated ? 'currentColor' : 'none'} aria-hidden />
@@ -377,11 +381,11 @@ function ShowPropertyAnimationPopover({
       onCloseRef.current()
       window.setTimeout(() => anchor?.focus(), 0)
     }
-    document.addEventListener('pointerdown', dismiss)
+    document.addEventListener('pointerdown', dismiss, true)
     document.addEventListener('keydown', dismissOnEscape)
     return () => {
       window.clearTimeout(timeout)
-      document.removeEventListener('pointerdown', dismiss)
+      document.removeEventListener('pointerdown', dismiss, true)
       document.removeEventListener('keydown', dismissOnEscape)
     }
   }, [anchor])
@@ -477,8 +481,11 @@ function ShowPropertyAnimationPopover({
               {!isLast && (
                 // Easing belongs to the segment leaving this keyframe, so its
                 // control sits between the two keyframes it connects.
-                <label className="mb-1.5 grid grid-cols-[24px_minmax(0,1fr)_16px] items-center gap-1 text-[8px] uppercase tracking-[0.1em] text-zinc-600">
-                  <span aria-hidden className="self-center text-center text-zinc-700">~</span>
+                // The trailing column combines the delete gutter with the
+                // Time field's 11px unit gutter and 4px gap, so the easing
+                // control aligns with the bordered numeric fields above.
+                <label className="mb-1.5 grid grid-cols-[24px_minmax(0,1fr)_31px] items-center gap-1 text-[8px] uppercase tracking-[0.1em] text-zinc-600">
+                  <span aria-hidden />
                   <select
                     aria-label={`${option.label} animation easing${index > 0 ? ` after keyframe ${index + 1}` : ''}`}
                     value={showEasingOptionId(keyframe.easing)}

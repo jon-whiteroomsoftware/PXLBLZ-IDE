@@ -579,7 +579,8 @@ Select a Clip and use the diamond beside an animatable parameter. A hollow
 diamond creates a two-point ramp draft and opens its compact **From -> To**
 editor; a filled violet diamond reopens an existing animation for that exact
 parameter. The draft is not saved until its first real value, time, or easing
-edit, so opening and dismissing it leaves the Show unchanged. Animation speed
+edit, so opening and dismissing it leaves the Show unchanged. Click elsewhere
+or press Escape to dismiss the editor. Animation speed
 and enabled Pattern controls also state how many linked Clips share their
 Pattern-instance value.
 

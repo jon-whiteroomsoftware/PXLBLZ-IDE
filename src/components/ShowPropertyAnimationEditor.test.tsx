@@ -50,6 +50,31 @@ function editor(
 }
 
 describe('per-parameter Property animation editor (#648)', () => {
+  it('dismisses on an outside press even when the surrounding workspace stops pointer bubbling (#664)', () => {
+    render(
+      <div onPointerDown={(event) => event.stopPropagation()}>
+        <ShowPropertyAnimationProvider
+          options={[brightness]}
+          tracks={[]}
+          storageDurationMs={4_000}
+          showTimeOffsetMs={12_000}
+          instanceUseCount={1}
+          onChange={vi.fn()}
+        >
+          <ShowPropertyAnimationAction target={brightness.target} />
+        </ShowPropertyAnimationProvider>
+        <button type="button">Timeline surface</button>
+      </div>,
+    )
+
+    fireEvent.click(screen.getByRole('button', { name: 'Animate Brightness' }))
+    expect(screen.getByRole('dialog', { name: 'Brightness animation' })).toBeInTheDocument()
+
+    fireEvent.pointerDown(screen.getByRole('button', { name: 'Timeline surface' }))
+
+    expect(screen.queryByRole('dialog', { name: 'Brightness animation' })).not.toBeInTheDocument()
+  })
+
   it('keeps a hollow animation draft transient when dismissed without a real edit', () => {
     const { onChange } = editor([])
 
