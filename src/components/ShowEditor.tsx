@@ -4388,7 +4388,7 @@ function ShowTimelineWorkspace({
             variant="ghost"
             aria-label="Snap playhead"
             aria-pressed={snapEnabled}
-            title="Snap to nearby Clip, Transition, Marker, Show-end, and time-grid boundaries. Hold Alt to temporarily reverse."
+            title="Magnetize drags to nearby Clip, Transition, Marker, Show-end, and playhead boundaries. Drops always land on the time grid: whole seconds, finer as you zoom in · Shift for tenths · Alt for free placement."
             className={showTimelineToolbarControlClass({ enabled: true, active: snapEnabled })}
             onClick={() => setSnapEnabled(!snapEnabled)}
           >
@@ -5073,7 +5073,24 @@ function ShowTimelineWorkspace({
                       left: `${movePreview.startMs / Math.max(1, unifiedCompositionTimeline?.durationMs ?? timeline.durationMs) * 100}%`,
                       width: `${movePreview.durationMs / Math.max(1, unifiedCompositionTimeline?.durationMs ?? timeline.durationMs) * 100}%`,
                     }}
-                  />
+                  >
+                    <span
+                      data-testid="show-clip-move-preview-time"
+                      className="absolute -top-0.5 left-1 whitespace-nowrap font-mono text-[9px] not-italic leading-none text-amber-200/90"
+                    >
+                      {formatSecondsValue(movePreview.startMs)}s
+                    </span>
+                  </i>
+                )}
+                {resizePreview !== null && layer.clips.some((clip) => clip.id === resizePreview.clipId) && (
+                  <span
+                    aria-hidden
+                    data-testid="show-clip-resize-time"
+                    className="pointer-events-none absolute top-0 z-[40] whitespace-nowrap rounded-sm bg-zinc-950/90 px-1 font-mono text-[9px] leading-3 text-amber-200/90"
+                    style={{ left: `${resizePreview.startMs / Math.max(1, unifiedCompositionTimeline?.durationMs ?? timeline.durationMs) * 100}%` }}
+                  >
+                    {formatSecondsValue(resizePreview.startMs)}–{formatSecondsValue(resizePreview.startMs + resizePreview.durationMs)}s
+                  </span>
                 )}
                 {layer.clips.map((clip, clipIndex) => {
                   const totalMs = Math.max(1, unifiedCompositionTimeline?.durationMs ?? timeline.durationMs)
@@ -6043,7 +6060,7 @@ function TimelineMarkerSource({
       <button
         type="button"
         aria-label="Add Marker at playhead"
-        title="Click to add at the playhead, or drag onto the ruler"
+        title="Click to add at the playhead, or drag onto the ruler · lands on the time grid, Shift for tenths, Alt for free placement"
         className="pointer-events-auto flex h-4 w-4 cursor-ew-resize items-center justify-center rounded-sm text-amber-300/75 hover:bg-amber-300/10 hover:text-amber-200 focus-visible:outline focus-visible:outline-1 focus-visible:outline-amber-300"
         onPointerDown={(event) => {
           event.stopPropagation()
@@ -6507,6 +6524,14 @@ function TimelineEndHandlePortal({
         data-testid="show-timeline-end-handle"
         className="absolute left-1/2 top-1/2 h-[5px] w-[5px] -translate-x-1/2 -translate-y-1/2 rotate-45 bg-current"
       />
+      {dragging && (
+        <span
+          data-testid="show-end-drag-time"
+          className="absolute left-1/2 top-4 -translate-x-1/2 whitespace-nowrap rounded border border-red-300/25 bg-zinc-950/95 px-1.5 py-0.5 text-[9px] font-medium tabular-nums text-red-200 shadow-lg"
+        >
+          {formatSecondsValue(durationMs)}s
+        </span>
+      )}
     </button>,
     document.body,
   )
@@ -6707,6 +6732,26 @@ function TimelineMarkers({
           <span className="absolute left-1/2 top-0 h-0 w-0 -translate-x-1/2 border-x-[3px] border-t-[5px] border-x-transparent border-t-current" />
         </div>
       )}
+      {/* Landing-time readout: a drag is only precise if you can see the
+          value you are about to land on (#667). */}
+      {(markerFeedback?.kind === 'drag' || markerMovePreview !== null) && (() => {
+        const timeMs = markerFeedback?.kind === 'drag' ? markerFeedback.timeMs : markerMovePreview!.timeMs
+        const left = timeMs / Math.max(1, durationMs) * 100
+        return (
+          <div
+            aria-hidden
+            className="pointer-events-none absolute top-0 z-30 text-amber-200"
+            style={{ left: `${left}%` }}
+          >
+            <span
+              data-testid="show-timeline-drag-time"
+              className={`absolute top-1 whitespace-nowrap rounded border border-amber-300/25 bg-zinc-950/95 px-1.5 py-0.5 text-[9px] font-medium tabular-nums shadow-lg ${left > 82 ? 'right-2' : 'left-2'}`}
+            >
+              {formatSecondsValue(timeMs)}s
+            </span>
+          </div>
+        )
+      })()}
       {markerFeedback?.kind === 'confirmation' && (() => {
         const left = markerFeedback.timeMs / Math.max(1, durationMs) * 100
         return (

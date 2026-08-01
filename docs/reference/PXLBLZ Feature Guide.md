@@ -144,7 +144,12 @@ Profile still stores `0.72`. The small grip at the field's right edge opens a
 high-resolution horizontal slider without permanently consuming inspector
 space. Hold and drag to preview continuously and save once on release, or
 click the grip to pin the slider for Arrow, Home/End, Enter, and Escape
-control. A pinned slider keeps pointer capture during a drag, so releasing
+control. Holding Shift during any grip or pinned-slider drag switches to fine
+adjustment: pointer travel counts for a tenth, the value step becomes ten
+times finer, and magnetic detents stand aside; pressing or releasing Shift
+mid-drag never jumps the value. Arrows step at fine resolution already, so
+Shift+Arrow strides ten steps at once. A pinned slider keeps pointer capture
+during a drag, so releasing
 after the pointer leaves the track still saves the final preview. The slider
 popover remains part of its owning detail panel for outside-click behavior.
 Preview and Controller deck sliders keep their full-width layout but use the
@@ -428,9 +433,18 @@ The working grammar is compact:
   replaying from Show start — there is no approximate seek.
 - **Navigator and Snap.** The compact Navigator pans or resizes the visible
   range; Fit restores the complete Show, and Ctrl/Cmd-wheel zooms around the
-  playhead. Snap magnetically aligns scrubbing and edits to Clip, Transition,
-  Marker, and time-grid boundaries. Alt temporarily reverses it for scrubbing
-  and non-Clip time edits; Clip dragging reserves Option/Alt for duplication.
+  playhead. Timeline drags — Clip moves and trims, Marker creation and moves,
+  and the Show End handle — always land on the drop grid: whole seconds when
+  the whole Show is visible, refining along the ruler's own tick family to
+  500ms and a 200ms floor as zoom increases, so a drop always lands on a tick
+  line. Shift asks for a fixed tenth of a second at any zoom, and dragging
+  previews its landing time in a small readout. Snap magnetically aligns
+  drags to Clip, Transition, Marker, playhead, and Show-end boundaries and
+  wins over the grid within its capture radius. Alt suspends both the grid
+  and the magnet for one gesture on scrubbing and non-Clip time edits; Clip
+  dragging reserves Option/Alt for duplication, so Clips always land on the
+  grid or a magnet. Shift also scrubs the playhead at a tenth of the pointer
+  gain, unsnapped, for frame-accurate inspection.
 - **Direct Clip edits.** **Add Clip** places a Pattern at the playhead when an
   available Layer has room. Double-clicking empty Layer time opens the same
   Pattern chooser at the pointer; choosing a Pattern immediately places the

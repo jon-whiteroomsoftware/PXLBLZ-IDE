@@ -5336,7 +5336,7 @@ describe('ShowEditor (#318)', () => {
     expect(toggle).toHaveAttribute('aria-pressed', 'true')
     expect(toggle).toHaveAttribute(
       'title',
-      'Snap to nearby Clip, Transition, Marker, Show-end, and time-grid boundaries. Hold Alt to temporarily reverse.',
+      'Magnetize drags to nearby Clip, Transition, Marker, Show-end, and playhead boundaries. Drops always land on the time grid: whole seconds, finer as you zoom in · Shift for tenths · Alt for free placement.',
     )
     const playhead = screen.getByRole('slider', { name: 'Show playhead' })
     fireEvent.pointerDown(playhead)

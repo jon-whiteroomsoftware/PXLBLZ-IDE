@@ -1079,7 +1079,16 @@ Split lane whose colored cells depict the authored ownership boundary.
 `showTimelineViewport.ts` owns Fit-to-16x zoom, playhead-anchored zoom, pan,
 Navigator thumb geometry, and
 range resizing. It also owns magnetic playhead snapping: structural Show
-boundaries take priority over a zoom-aware nice-number time grid. Ruler ticks
+boundaries take priority over a zoom-aware nice-number time grid. For
+authored time drags, `snapShowTimelineTime` additionally accepts an always-on
+quantize step (`showTimelineQuantizeStepMs`): near boundaries still win, but
+every other landing rounds onto the drop grid — whole seconds by default,
+refining along the ruler's 1/2/5 tick family to a 200ms floor as zoom
+increases, and a fixed 100ms while Shift is held. The step derives from the
+same `showTimelineGridStepMs` formula as the ruler ticks, so landings and
+visible tick lines never disagree. Quantization rounds the raw pointer time
+before clamping, so a drag pressed past a range limit rests on the limit
+rather than the grid line beyond it. Ruler ticks
 share that same grid step: `showTimelineRulerTicks` emits major and minor
 ticks on 1/2/5 x 10^n ms boundaries across the whole ruler, so marks and
 labels sit on whole seconds or clean decimal fractions at every zoom and
@@ -1697,9 +1706,19 @@ explicit field boundary, maps pointer travel at up to one-thousandth of the
 field span, and places the transient slider so its current thumb begins under
 the initiating pointer while the overlay remains inside the viewport.
 
+`fineAdjust.ts` is the shared pure helper for modifier-scaled drags: a
+session accumulates per-sample pointer deltas (a tenth of the gain while the
+fine modifier is down), so toggling the modifier mid-gesture re-anchors
+implicitly and the value never jumps, and the accumulated position stays
+unclamped so overshoot unwinds over the travel that produced it. Grip
+scrubs, popover slider drags, and both playhead scrub surfaces build on it.
+
 `BoundedNumberField` owns the buffered exact draft, a small ordered queue of
 pending numeric commits, the compact grip, and the portaled horizontal range
-input shared by domain-aware scalar fields. Display formatting is never read
+input shared by domain-aware scalar fields. Shift-fine scrubbing applies a
+tenth of the pointer gain with a ten-times-finer position step, suspends
+pointer-only magnetic detents, and still honors canonicalization and slider
+bounds; Shift+Arrow strides ten keyboard steps. Display formatting is never read
 back as the controlled numeric value, so reopening or stepping a rounded draft
 preserves the stored precision while parent acknowledgements are still in
 flight. Intermediate acknowledgements are consumed without replacing a newer
