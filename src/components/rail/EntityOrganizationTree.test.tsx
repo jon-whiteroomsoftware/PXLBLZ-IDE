@@ -6,6 +6,33 @@ import type { EntityOrganizationV1 } from '@/engine/entityOrganization'
 import { EntityOrganizationTree, type EntityOrganizationTreeHandle } from './EntityOrganizationTree'
 
 describe('EntityOrganizationTree', () => {
+  it('keeps Pattern row actions at the visible rail edge while names overflow (#662)', () => {
+    const organization: EntityOrganizationV1 = {
+      version: 1,
+      nodes: [{ kind: 'entity', entityId: 'pattern-long' }],
+      trash: [],
+      collapsedFolderIds: [],
+    }
+    render(
+      <EntityOrganizationTree
+        organization={organization}
+        items={[{ id: 'pattern-long', name: 'A deliberately long Pattern name' }]}
+        activeEntityId="pattern-long"
+        query=""
+        noun="pattern"
+        allowHorizontalOverflow
+        onSelect={vi.fn()}
+        onRenameEntity={vi.fn()}
+        onOrganizationChange={vi.fn()}
+      />,
+    )
+
+    expect(screen.getByRole('button', { name: 'More actions for A deliberately long Pattern name' }).parentElement).toHaveClass(
+      'sticky',
+      'right-1',
+    )
+  })
+
   it('discloses a recursive folder and persists its collapsed state', () => {
     const organization: EntityOrganizationV1 = {
       version: 1,

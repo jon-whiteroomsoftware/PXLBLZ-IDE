@@ -25,6 +25,45 @@ describe('railScrollMetrics', () => {
     expect(railScrollResizeTargets(scroller)).toEqual([scroller, personalTree, builtInTree])
   })
 
+  it('keeps one observed content box while asynchronous Pattern trees mount (#662)', () => {
+    const scrollRef = createRef<HTMLDivElement>()
+    const metrics = {
+      top: 0,
+      height: 0,
+      visible: false,
+      left: 0,
+      width: 0,
+      horizontalVisible: false,
+    }
+    const view = render(
+      <RailSectionScroller
+        testId="pattern-list-scroll"
+        scrollRef={scrollRef}
+        metrics={metrics}
+        onScroll={vi.fn()}
+        allowHorizontalScroll
+      >
+        <p>Signed-out Pattern state</p>
+      </RailSectionScroller>,
+    )
+    const scroller = screen.getByTestId('pattern-list-scroll') as HTMLDivElement
+    const content = screen.getByTestId('rail-scroll-content')
+    expect(railScrollResizeTargets(scroller)).toEqual([scroller, content])
+
+    view.rerender(
+      <RailSectionScroller
+        testId="pattern-list-scroll"
+        scrollRef={scrollRef}
+        metrics={metrics}
+        onScroll={vi.fn()}
+        allowHorizontalScroll
+      >
+        <ul role="tree" aria-label="Patterns"><li>A long personal Pattern</li></ul>
+      </RailSectionScroller>,
+    )
+    expect(content).toContainElement(screen.getByRole('tree', { name: 'Patterns' }))
+  })
+
   it('maps horizontal Pattern overflow onto a draggable thumb (#662)', () => {
     const metrics = railScrollMetrics({
       clientHeight: 100,

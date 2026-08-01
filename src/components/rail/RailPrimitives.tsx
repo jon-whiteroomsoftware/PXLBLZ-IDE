@@ -622,7 +622,12 @@ export function RailSectionScroller({
         onScroll={onScroll}
         className={`rail-list-scroll h-full overflow-y-auto ${allowHorizontalScroll ? 'overflow-x-auto pb-3' : 'overflow-x-hidden pb-2'}`}
       >
-        {children}
+        <div
+          data-testid="rail-scroll-content"
+          className={allowHorizontalScroll ? 'min-w-full w-max' : 'min-w-full'}
+        >
+          {children}
+        </div>
       </div>
       <RailScrollThumb metrics={metrics} scrollRef={scrollRef} />
       {allowHorizontalScroll && (

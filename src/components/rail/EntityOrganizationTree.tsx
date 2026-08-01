@@ -414,32 +414,36 @@ function OrganizationTreeNode(props: {
         ) : (
           <span className="min-w-0 flex-1 truncate" title={name}>{name}</span>
         )}
-        {folder && <span className="shrink-0 text-[9px] text-zinc-600 group-hover:opacity-0">{props.editable ? countEntities(folder.children) : visibleEntityCount(folder.children, props.itemsById)}</span>}
-        {item?.meta && active && <span className="shrink-0 text-[8px] uppercase text-zinc-500 group-hover:opacity-0">{item.meta}</span>}
-        {props.editable && !dragging && (
-          <button
-            type="button"
-            onClick={(event) => {
-              event.stopPropagation()
-              props.onMenu(props.menuKey === key ? null : key)
-            }}
-            className="absolute right-1 top-1/2 hidden size-5 -translate-y-1/2 place-items-center border border-zinc-800 bg-zinc-950 text-zinc-500 hover:text-zinc-200 group-hover:grid group-focus-within:grid"
-            aria-label={`More actions for ${name}`}
-          >
-            <MoreHorizontal size={12} />
-          </button>
-        )}
-        {props.menuKey === key && (
-          <RowActionMenu
-            onRename={folder || props.canRenameEntity ? () => {
-              props.onMenu(null)
-              props.onEdit(key)
-            } : undefined}
-            onMoveUp={() => props.onReorder(key, -1)}
-            onMoveDown={() => props.onReorder(key, 1)}
-            onMoveTo={() => props.onMove(key)}
-            onTrash={() => props.onTrash(key)}
-          />
+        {(folder || (item?.meta && active) || (props.editable && !dragging)) && (
+          <span className={`relative sticky right-1 ml-auto flex shrink-0 items-center gap-1 bg-inherit ${props.editable && !dragging ? 'min-w-5' : ''}`}>
+            {folder && <span className="shrink-0 text-[9px] text-zinc-600 group-hover:opacity-0">{props.editable ? countEntities(folder.children) : visibleEntityCount(folder.children, props.itemsById)}</span>}
+            {item?.meta && active && <span className="shrink-0 text-[8px] uppercase text-zinc-500 group-hover:opacity-0">{item.meta}</span>}
+            {props.editable && !dragging && (
+              <button
+                type="button"
+                onClick={(event) => {
+                  event.stopPropagation()
+                  props.onMenu(props.menuKey === key ? null : key)
+                }}
+                className="absolute right-0 top-1/2 hidden size-5 -translate-y-1/2 place-items-center border border-zinc-800 bg-zinc-950 text-zinc-500 hover:text-zinc-200 group-hover:grid group-focus-within:grid"
+                aria-label={`More actions for ${name}`}
+              >
+                <MoreHorizontal size={12} />
+              </button>
+            )}
+            {props.menuKey === key && (
+              <RowActionMenu
+                onRename={folder || props.canRenameEntity ? () => {
+                  props.onMenu(null)
+                  props.onEdit(key)
+                } : undefined}
+                onMoveUp={() => props.onReorder(key, -1)}
+                onMoveDown={() => props.onReorder(key, 1)}
+                onMoveTo={() => props.onMove(key)}
+                onTrash={() => props.onTrash(key)}
+              />
+            )}
+          </span>
         )}
       </li>
       {folder && !collapsed && folder.children.map((child) => (
@@ -517,13 +521,13 @@ function RowActionMenu(props: { onRename?: () => void; onMoveUp: () => void; onM
     ['Move to Trash', props.onTrash],
   ] as const
   return (
-    <div className="absolute right-1 top-full z-30 min-w-28 border border-zinc-700 bg-zinc-950 py-1 shadow-xl shadow-black/70" onClick={(event) => event.stopPropagation()}>
+    <span className="absolute right-1 top-full z-30 block min-w-28 border border-zinc-700 bg-zinc-950 py-1 shadow-xl shadow-black/70" onClick={(event) => event.stopPropagation()}>
       {actions.map(([label, action]) => (
         <button key={label} type="button" onClick={action} className="block h-6 w-full px-2 text-left text-[10px] text-zinc-300 hover:bg-zinc-800">
           {label}
         </button>
       ))}
-    </div>
+    </span>
   )
 }
 
