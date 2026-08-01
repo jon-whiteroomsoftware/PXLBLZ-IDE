@@ -126,11 +126,13 @@ test('Docs and API header buttons preserve one public return origin', async ({ p
 
   const docsButton = page.getByRole('button', { name: 'Docs' })
   await expect(docsButton).toHaveAttribute('aria-pressed', 'true')
-  const [docsColor, docsIconColor] = await Promise.all([
-    docsButton.evaluate((element) => getComputedStyle(element).color),
-    docsButton.locator('svg').evaluate((element) => getComputedStyle(element).color),
-  ])
-  expect(docsIconColor).toBe(docsColor)
+  await expect.poll(async () => {
+    const [docsColor, docsIconColor] = await Promise.all([
+      docsButton.evaluate((element) => getComputedStyle(element).color),
+      docsButton.locator('svg').evaluate((element) => getComputedStyle(element).color),
+    ])
+    return docsIconColor === docsColor
+  }).toBe(true)
 
   await page.getByRole('button', { name: 'API' }).click()
   await expect(page).toHaveURL(/\/reference$/)
