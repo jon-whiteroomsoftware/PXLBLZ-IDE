@@ -24,10 +24,11 @@ import type {
   ShowPropertyAnimationTarget,
   ShowPropertyAnimationTrack,
 } from '@/engine/personalContentRecords'
-import { evaluateShowPropertyTrack, propertyTargetKey } from '@/engine/showPropertyAnimation'
+import { propertyTargetKey } from '@/engine/showPropertyAnimation'
 import {
   showPropertyAnimationGlobalSeconds,
   showPropertyAnimationLocalTimeMs,
+  showPropertyKeyframeInsertion,
   projectShowPropertyAnimationOverview,
   type ShowPropertyAnimationFieldLocation,
   type ShowPropertyAnimationChange,
@@ -345,6 +346,7 @@ function ShowPropertyAnimationPopover({
   const ordered = track
     ? [...track.keyframes].sort((left, right) => left.timeMs - right.timeMs || left.id.localeCompare(right.id))
     : draft
+  const insertion = track ? showPropertyKeyframeInsertion(track, option) : null
   const rect = anchor?.getBoundingClientRect()
   const left = Math.max(8, Math.min(
     typeof window === 'undefined' ? 8 : window.innerWidth - 286,
@@ -428,8 +430,14 @@ function ShowPropertyAnimationPopover({
       aria-modal="false"
       aria-label={`${option.label} animation`}
       data-show-detail-owned-portal="true"
-      className="fixed z-[130] w-[278px] overflow-hidden rounded-md border border-violet-300/35 bg-zinc-950 shadow-[0_14px_40px_-14px_rgba(0,0,0,0.95)]"
-      style={{ left, top }}
+      className="fixed z-[130] flex w-[278px] flex-col overflow-hidden rounded-md border border-violet-300/35 bg-zinc-950 shadow-[0_14px_40px_-14px_rgba(0,0,0,0.95)]"
+      style={{
+        left,
+        top,
+        // A long track must stay reachable: the popover caps at the viewport
+        // and the keyframe list scrolls inside it.
+        maxHeight: typeof window === 'undefined' ? undefined : Math.max(160, window.innerHeight - top - 8),
+      }}
     >
       <div className="flex h-7 items-center gap-1.5 border-b border-zinc-800 bg-violet-300/[0.06] px-2">
         <Diamond size={9} fill={track ? 'currentColor' : 'none'} aria-hidden className="text-violet-300" />
@@ -437,7 +445,7 @@ function ShowPropertyAnimationPopover({
           {option.label} animates
         </strong>
       </div>
-      <div className="p-2">
+      <div className="min-h-0 flex-1 overflow-y-auto p-2">
         {ordered.map((keyframe, index) => {
           const isLast = index === ordered.length - 1
           const edge = index === 0 ? 'from' : isLast ? 'to' : `keyframe ${index + 1}`
@@ -501,12 +509,15 @@ function ShowPropertyAnimationPopover({
           <button
             type="button"
             aria-label={`Add ${option.label} keyframe`}
+            disabled={!insertion}
+            title={insertion
+              ? 'Insert a keyframe without changing the animation'
+              : 'Set a segment\'s easing to Linear (or make its endpoints equal) to insert a keyframe inside it without changing the animation'}
             onClick={() => {
-              const insertion = keyframeInsertionFor(track, option)
               if (!insertion) return
               context.onChange({ kind: 'add-keyframe', trackId: track.id, keyframe: insertion })
             }}
-            className="ml-auto flex h-5 items-center gap-1 rounded px-1 text-violet-300 hover:bg-violet-950/40 hover:text-violet-200 focus-visible:outline focus-visible:outline-1 focus-visible:outline-violet-300"
+            className="ml-auto flex h-5 items-center gap-1 rounded px-1 text-violet-300 hover:bg-violet-950/40 hover:text-violet-200 focus-visible:outline focus-visible:outline-1 focus-visible:outline-violet-300 disabled:cursor-not-allowed disabled:text-zinc-600 disabled:hover:bg-transparent"
           >
             <Diamond size={9} aria-hidden /> Add keyframe
           </button>
@@ -531,44 +542,6 @@ function ShowPropertyAnimationPopover({
   )
 }
 
-/**
- * A new keyframe lands at the midpoint of the largest splittable time gap,
- * carrying the curve's evaluated value there. Linear segments are preferred
- * because splitting one leaves the rendered animation unchanged; splitting a
- * curved segment re-eases each half over its shorter interval, so it is the
- * fallback rather than the default. The value is clamped to the property's
- * bounds because valid easing curves may overshoot them mid-segment, and an
- * out-of-bounds keyframe would be rejected by validation.
- */
-function keyframeInsertionFor(
-  track: ShowPropertyAnimationTrack,
-  option: ShowPropertyAnimationOption,
-): DraftKeyframe | null {
-  const ordered = [...track.keyframes].sort((left, right) => left.timeMs - right.timeMs || left.id.localeCompare(right.id))
-  const largestGapIndex = (linearOnly: boolean): number => {
-    let bestIndex = -1
-    let bestGap = 1
-    ordered.forEach((keyframe, index) => {
-      if (index === 0) return
-      if (linearOnly && ordered[index - 1].easing.curve !== 'linear') return
-      const gap = keyframe.timeMs - ordered[index - 1].timeMs
-      if (gap > bestGap) {
-        bestGap = gap
-        bestIndex = index
-      }
-    })
-    return bestIndex
-  }
-  const bestIndex = largestGapIndex(true) >= 0 ? largestGapIndex(true) : largestGapIndex(false)
-  if (bestIndex < 0) return null
-  const left = ordered[bestIndex - 1]
-  const timeMs = Math.round(left.timeMs + (ordered[bestIndex].timeMs - left.timeMs) / 2)
-  return {
-    timeMs,
-    value: Math.min(option.max, Math.max(option.min, evaluateShowPropertyTrack(track, timeMs))),
-    easing: structuredClone(left.easing),
-  }
-}
 
 type DraftKeyframe = Omit<ShowPropertyAnimationKeyframe, 'id'>
 

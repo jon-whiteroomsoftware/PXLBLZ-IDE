@@ -13,6 +13,7 @@ import type { ShowClipInspectorValue } from './showClipInspectorModel'
 import type { ShowGroupClipOwner } from './showGroupClipInspectorModel'
 import { projectShowTimeline } from './showModel'
 import {
+  evaluateShowPropertyTrack,
   normalizeShowPropertyTracks,
   propertyTargetKey,
   validateShowPropertyTracks,
@@ -441,6 +442,46 @@ function issuePathBelongsTo(path: string, trackPath: string): boolean {
   return path === trackPath
     || path.startsWith(`${trackPath}.`)
     || path.startsWith(`${trackPath}[`)
+}
+
+/**
+ * Where Add keyframe may insert without changing the rendered animation.
+ *
+ * Insertion carries the curve's evaluated midpoint value, which is lossless
+ * only when both halves of the split segment replay identically: a linear
+ * segment, or a hold whose endpoint values are equal (any easing between
+ * equal values is constant). The midpoint value must also survive the
+ * property's step grid and bounds untouched - a linear 8-to-9 integer ramp
+ * has no representable midpoint, and quantizing one in would reshape the
+ * curve as surely as splitting an eased segment. Gaps are tried largest
+ * first; when none is lossless the caller disables the affordance instead
+ * of silently editing the curve or letting validation reject the keyframe.
+ */
+export function showPropertyKeyframeInsertion(
+  track: ShowPropertyAnimationTrack,
+  option: Pick<ShowPropertyAnimationOption, 'min' | 'max' | 'step'>,
+): Omit<ShowPropertyAnimationKeyframe, 'id'> | null {
+  const ordered = [...track.keyframes]
+    .sort((left, right) => left.timeMs - right.timeMs || left.id.localeCompare(right.id))
+  const candidates = ordered
+    .flatMap((keyframe, index) => {
+      if (index === 0) return []
+      const left = ordered[index - 1]
+      const constant = left.easing.curve === 'linear' || left.value === keyframe.value
+      const gap = keyframe.timeMs - left.timeMs
+      return constant && gap > 1 ? [{ left, gap }] : []
+    })
+    .sort((a, b) => b.gap - a.gap)
+  const step = option.step > 0 ? option.step : 0.01
+  for (const candidate of candidates) {
+    const timeMs = Math.round(candidate.left.timeMs + candidate.gap / 2)
+    const evaluated = evaluateShowPropertyTrack(track, timeMs)
+    const quantized = Number((Math.round(evaluated / step) * step).toFixed(6))
+    const value = Math.min(option.max, Math.max(option.min, quantized))
+    if (Math.abs(value - evaluated) > 1e-9) continue
+    return { timeMs, value, easing: structuredClone(candidate.left.easing) }
+  }
+  return null
 }
 
 function isInstanceTarget(target: ShowPropertyAnimationTarget): boolean {

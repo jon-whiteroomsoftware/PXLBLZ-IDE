@@ -12,6 +12,7 @@ import {
   projectShowPropertyAnimationEditorContext,
   showPropertyAnimationGlobalSeconds,
   showPropertyAnimationLocalTimeMs,
+  showPropertyKeyframeInsertion,
 } from './showPropertyAnimationEditorModel'
 
 function inspectorValue(
@@ -453,5 +454,89 @@ describe('Property animation editor time projection (#648)', () => {
     }, () => 'unused')
 
     expect(next.groupDefinitions?.[0].propertyTracks?.map((track) => track.id)).toEqual(['keep-me'])
+  })
+})
+
+describe('Add-keyframe insertion policy (#363)', () => {
+  const keyframe = (
+    id: string,
+    timeMs: number,
+    value: number,
+    easing: ShowPropertyAnimationTrack['keyframes'][number]['easing'] = { curve: 'linear' },
+  ) => ({ id, timeMs, value, easing })
+  const percentOption = { min: 0, max: 1, step: 0.01 }
+
+  it('splits the largest linear segment at its midpoint with the evaluated value', () => {
+    const track: ShowPropertyAnimationTrack = {
+      id: 'track',
+      target: { kind: 'placement-opacity', placementId: 'p' },
+      keyframes: [
+        keyframe('a', 0, 0),
+        keyframe('b', 2_000, 0.5),
+        keyframe('c', 10_000, 1),
+      ],
+    }
+    expect(showPropertyKeyframeInsertion(track, percentOption)).toMatchObject({
+      timeMs: 6_000,
+      value: 0.75,
+      easing: { curve: 'linear' },
+    })
+  })
+
+  it('treats an eased hold between equal values as lossless', () => {
+    const track: ShowPropertyAnimationTrack = {
+      id: 'track',
+      target: { kind: 'placement-opacity', placementId: 'p' },
+      keyframes: [
+        keyframe('a', 2_000, 0.65, { curve: 'sine', direction: 'in-out' }),
+        keyframe('b', 9_000, 0.65, { curve: 'sine', direction: 'in-out' }),
+        keyframe('c', 12_000, 0, { curve: 'sine', direction: 'in-out' }),
+      ],
+    }
+    // The 2s-9s hold is the only lossless gap: it is eased but constant.
+    expect(showPropertyKeyframeInsertion(track, percentOption)).toMatchObject({
+      timeMs: 5_500,
+      value: 0.65,
+      easing: { curve: 'sine', direction: 'in-out' },
+    })
+  })
+
+  it('offers nothing when every segment is a moving eased curve', () => {
+    const track: ShowPropertyAnimationTrack = {
+      id: 'track',
+      target: { kind: 'placement-opacity', placementId: 'p' },
+      keyframes: [
+        keyframe('a', 0, 0, { curve: 'quadratic', direction: 'in' }),
+        keyframe('b', 10_000, 1, { curve: 'quadratic', direction: 'in' }),
+      ],
+    }
+    // Splitting a moving eased segment re-eases each half and reshapes the
+    // animation, so no silent insertion is offered.
+    expect(showPropertyKeyframeInsertion(track, percentOption)).toBeNull()
+  })
+
+  it('skips a linear gap whose midpoint does not land on an integer step grid', () => {
+    const track: ShowPropertyAnimationTrack = {
+      id: 'track',
+      target: {
+        kind: 'placement-effect',
+        placementId: 'p',
+        effectId: 'posterize',
+        effectKind: 'posterize',
+        parameterId: 'levels',
+      },
+      keyframes: [
+        keyframe('a', 0, 8),
+        keyframe('b', 10_000, 9),
+        keyframe('c', 12_000, 9),
+      ],
+    }
+    // The big 8-to-9 ramp has no representable midpoint at step 1, so the
+    // insertion falls through to the constant tail instead of quantizing a
+    // curve change in or letting validation reject the keyframe.
+    expect(showPropertyKeyframeInsertion(track, { min: 2, max: 16, step: 1 })).toMatchObject({
+      timeMs: 11_000,
+      value: 9,
+    })
   })
 })
