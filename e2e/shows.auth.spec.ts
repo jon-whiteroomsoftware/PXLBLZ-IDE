@@ -1138,7 +1138,12 @@ test.describe('authenticated Show authoring', () => {
     const gripBounds = await transform.locator('button[aria-label^="Adjust with"][title]').evaluateAll((grips) => (
       grips.map((grip) => {
         const bounds = grip.getBoundingClientRect()
-        return { left: bounds.left, right: bounds.right, width: bounds.width }
+        return {
+          title: grip.getAttribute('title'),
+          left: bounds.left,
+          right: bounds.right,
+          width: bounds.width,
+        }
       })
     ))
     const gridBounds = await transform.getByTestId('clip-placement-grid').evaluate((grid) => ({
@@ -1147,7 +1152,13 @@ test.describe('authenticated Show authoring', () => {
       children: [...grid.children].map((child) => child.getBoundingClientRect().toJSON()),
     }))
     expect(panelBounds).not.toBeNull()
-    expect(gripBounds).toHaveLength(4)
+    expect(gripBounds.map((grip) => grip.title)).toEqual([
+      'Content X',
+      'Content Y',
+      'Content Width',
+      'Content Height',
+      'Rotation',
+    ])
     expect(gripBounds.every((grip) => (
       grip.width > 0
       && grip.left >= panelBounds!.x
@@ -1539,14 +1550,17 @@ test.describe('authenticated Show authoring', () => {
 
     const panel = await openTransition(page)
     await chooseTransition(page, panel, 'diamond', 'Diamond')
-    await expect(page.getByLabel('Rotation')).toBeVisible()
-    await expect(page.getByLabel('Spin')).toBeVisible()
-    await expect(page.getByLabel('Ring width')).toHaveCount(0)
+    const rotation = panel.getByRole('textbox', { name: 'Rotation exact rotation' })
+    const spin = panel.getByRole('textbox', { name: 'Spin exact turns' })
+    const ringWidth = panel.getByRole('textbox', { name: 'Ring width', exact: true })
+    await expect(rotation).toBeVisible()
+    await expect(spin).toBeVisible()
+    await expect(ringWidth).toHaveCount(0)
 
     await chooseTransition(page, panel, 'ring', 'Ring')
-    await expect(page.getByLabel('Ring width')).toBeVisible()
-    await expect(page.getByLabel('Rotation')).toHaveCount(0)
-    await expect(page.getByLabel('Spin')).toHaveCount(0)
+    await expect(ringWidth).toBeVisible()
+    await expect(rotation).toHaveCount(0)
+    await expect(spin).toHaveCount(0)
   })
 
   test('keeps a spatial Transition parameter after a reload', async ({ page }) => {
