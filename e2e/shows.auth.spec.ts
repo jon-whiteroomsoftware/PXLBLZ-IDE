@@ -1364,13 +1364,14 @@ test.describe('authenticated Show authoring', () => {
     await page.getByLabel('Default routing mode').selectOption('split-x')
     await page.keyboard.press('Escape')
     await expect(page.getByRole('dialog', { name: 'Entity Detail Panel' })).toHaveCount(0)
-    // The panel disappears from the accessibility tree before its Escape
-    // ownership markers unmount; a second Escape inside that window is
-    // claimed by the closing panel instead of the Zone Map. Wait for the
-    // ownership to release, as the stacked-dialog dismissals do (#623).
-    await expect(page.locator(
-      '[data-show-detail-owned-portal="true"], [data-show-detail-escape-owned="true"]',
-    )).toHaveCount(0)
+    // Escape peels one layer at a time: the Zone Layout selection is still
+    // active after its panel closes, so the next Escape clears it (the
+    // editor confirms by focusing the timeline). Whether that same press
+    // also dismisses the Zone Map depends on document-listener order, so
+    // wait for the selection layer, then dismiss the map with a press that
+    // is a no-op if the map already closed.
+    await page.keyboard.press('Escape')
+    await expect(page.getByRole('region', { name: 'Show timeline' })).toBeFocused()
     await page.keyboard.press('Escape')
     await expect(page.getByRole('dialog', { name: 'Zone Map' })).toHaveCount(0)
     await page.getByRole('button', { name: 'Close Zones' }).click()
