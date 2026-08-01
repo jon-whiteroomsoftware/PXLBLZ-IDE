@@ -473,13 +473,19 @@ export function showPropertyKeyframeInsertion(
     })
     .sort((a, b) => b.gap - a.gap)
   const step = option.step > 0 ? option.step : 0.01
+  // Grid membership is tested with a step-proportional tolerance because
+  // steps like 1/360 are not representable in decimal: rounding the
+  // candidate to fixed decimals would push every whole-degree Rotation off
+  // its own grid. The stored value is the evaluated one - by definition on
+  // the curve - once it proves to sit on the grid and inside the bounds.
   for (const candidate of candidates) {
     const timeMs = Math.round(candidate.left.timeMs + candidate.gap / 2)
     const evaluated = evaluateShowPropertyTrack(track, timeMs)
-    const quantized = Number((Math.round(evaluated / step) * step).toFixed(6))
-    const value = Math.min(option.max, Math.max(option.min, quantized))
-    if (Math.abs(value - evaluated) > 1e-9) continue
-    return { timeMs, value, easing: structuredClone(candidate.left.easing) }
+    const quantized = Math.round(evaluated / step) * step
+    const offGrid = Math.abs(quantized - evaluated) > step * 1e-6
+    const outOfBounds = evaluated < option.min || evaluated > option.max
+    if (offGrid || outOfBounds) continue
+    return { timeMs, value: evaluated, easing: structuredClone(candidate.left.easing) }
   }
   return null
 }

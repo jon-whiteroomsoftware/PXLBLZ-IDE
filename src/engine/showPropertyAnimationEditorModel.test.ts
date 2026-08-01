@@ -540,3 +540,20 @@ describe('Add-keyframe insertion policy (#363)', () => {
     })
   })
 })
+
+describe('Add-keyframe rotation grid tolerance (#363)', () => {
+  it('accepts whole-degree Rotation holds despite the irrational 1/360 step', () => {
+    const track: ShowPropertyAnimationTrack = {
+      id: 'track',
+      target: { kind: 'placement-transform', placementId: 'p', property: 'rotation' },
+      keyframes: [
+        { id: 'a', timeMs: 0, value: 30 / 360, easing: { curve: 'sine', direction: 'in-out' } },
+        { id: 'b', timeMs: 8_000, value: 30 / 360, easing: { curve: 'sine', direction: 'in-out' } },
+      ],
+    }
+    expect(showPropertyKeyframeInsertion(track, { min: -8, max: 8, step: 1 / 360 })).toMatchObject({
+      timeMs: 4_000,
+      value: 30 / 360,
+    })
+  })
+})
