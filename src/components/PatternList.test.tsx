@@ -179,6 +179,14 @@ describe('PatternList', () => {
     expect(screen.getAllByRole('button', { name: 'Open pattern from .epe file' })).toHaveLength(1)
   })
 
+  it('lets long Pattern tree names establish horizontal overflow (#662)', async () => {
+    render(<PatternList />)
+
+    const scroller = await screen.findByTestId('pattern-list-scroll')
+    expect(scroller).toHaveClass('overflow-x-auto')
+    expect(await screen.findByRole('tree', { name: 'Patterns' })).toHaveClass('min-w-full', 'w-max')
+  })
+
   it('creates a new pattern from the Patterns title row', async () => {
     const user = userEvent.setup()
     render(<PatternList />)

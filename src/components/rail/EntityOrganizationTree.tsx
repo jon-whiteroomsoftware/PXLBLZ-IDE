@@ -54,6 +54,7 @@ interface EntityOrganizationTreeProps {
   noun: EntityNoun
   editable?: boolean
   canRenameEntity?: boolean
+  allowHorizontalOverflow?: boolean
   sectionLabel?: string
   emptyMessage?: string
   onSelect: (entityId: string) => void
@@ -70,6 +71,7 @@ export const EntityOrganizationTree = forwardRef<EntityOrganizationTreeHandle, E
   noun,
   editable = true,
   canRenameEntity = true,
+  allowHorizontalOverflow = false,
   sectionLabel,
   emptyMessage,
   onSelect,
@@ -88,6 +90,7 @@ export const EntityOrganizationTree = forwardRef<EntityOrganizationTreeHandle, E
   const itemsById = useMemo(() => new Map(items.map((item) => [item.id, item])), [items])
   const trimmedQuery = query.trim()
   const treeLabel = sectionLabel ?? `${editable ? '' : 'Built-in '}${noun[0].toUpperCase()}${noun.slice(1)}s`
+  const overflowWidthClass = allowHorizontalOverflow ? 'min-w-full w-max' : ''
 
   useEffect(() => {
     if (!menuKey) return
@@ -151,7 +154,7 @@ export const EntityOrganizationTree = forwardRef<EntityOrganizationTreeHandle, E
     const results = searchEntityOrganization(organization, namesByEntityId, trimmedQuery)
     return (
       <>
-        <ul role="tree" aria-label={treeLabel} className="py-1">
+        <ul role="tree" aria-label={treeLabel} className={`py-1 ${overflowWidthClass}`}>
           {results.map((result) => (
             <SearchResultRow
               key={result.entityId}
@@ -210,7 +213,7 @@ export const EntityOrganizationTree = forwardRef<EntityOrganizationTreeHandle, E
         ref={treeRef}
         role="tree"
         aria-label={treeLabel}
-        className="py-1"
+        className={`py-1 ${overflowWidthClass}`}
         onDragLeave={(event) => {
           const related = event.relatedTarget
           if (!(related instanceof Node) || !event.currentTarget.contains(related)) clearDrag()

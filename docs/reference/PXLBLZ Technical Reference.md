@@ -1563,7 +1563,9 @@ headings at 13px zinc-200. Selectable entity names and empty states are 12px
 zinc-400 in a 15px line box. One-line rail rows have an explicit 20px minimum;
 long names may occupy two lines before truncating, while their dimension and
 count facts remain aligned to the first line. Pattern and Show tree names use a
-single truncated line so nested rows preserve vertical scan rhythm.
+single line so nested rows preserve vertical scan rhythm. The Pattern tree lets
+long names establish intrinsic width and exposes a slim custom horizontal thumb
+only while that width exceeds the rail; Show names remain truncated in place.
 Required persistent microcopy is 10px zinc-400 (7.63:1 measured contrast);
 secondary labels may use 9px but retain zinc-400; 8px zinc-500 is reserved for
 nonessential ornament or transient annotations. Disabled controls may remain

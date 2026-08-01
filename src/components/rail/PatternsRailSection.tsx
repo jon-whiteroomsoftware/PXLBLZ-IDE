@@ -109,6 +109,7 @@ export function PatternsRailSection({
         scrollRef={scrollRef}
         metrics={scrollMetrics}
         onScroll={onScroll}
+        allowHorizontalScroll
       >
         {importError && (
           <p className="pl-3 pr-3 py-1 text-red-400 truncate" title={importError}>{importError}</p>
@@ -126,6 +127,7 @@ export function PatternsRailSection({
               activeEntityId={activePatternId}
               query={query}
               noun="pattern"
+              allowHorizontalOverflow
               sectionLabel="Patterns"
               emptyMessage="No patterns yet"
               onSelect={(id) => {
@@ -157,6 +159,7 @@ export function PatternsRailSection({
               activeEntityId={activeDemoName}
               query={query}
               noun="pattern"
+              allowHorizontalOverflow
               editable={false}
               sectionLabel="Built-in Patterns"
               onSelect={onOpenStockPattern}

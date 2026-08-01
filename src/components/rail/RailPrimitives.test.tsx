@@ -1,4 +1,5 @@
-import { render, screen, within } from '@testing-library/react'
+import { createRef } from 'react'
+import { fireEvent, render, screen, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { vi } from 'vitest'
 import {
@@ -7,9 +8,73 @@ import {
   RailEmptyRow,
   RailEntityHeader,
   RailFilterBar,
+  RailSectionScroller,
+  railScrollResizeTargets,
+  railScrollMetrics,
   StockListItem,
   StockSectionHeader,
 } from './RailPrimitives'
+
+describe('railScrollMetrics', () => {
+  it('tracks asynchronously widening Pattern tree content (#662)', () => {
+    const scroller = document.createElement('div')
+    const personalTree = document.createElement('ul')
+    const builtInTree = document.createElement('ul')
+    scroller.append(personalTree, builtInTree)
+
+    expect(railScrollResizeTargets(scroller)).toEqual([scroller, personalTree, builtInTree])
+  })
+
+  it('maps horizontal Pattern overflow onto a draggable thumb (#662)', () => {
+    const metrics = railScrollMetrics({
+      clientHeight: 100,
+      scrollHeight: 100,
+      scrollTop: 0,
+      clientWidth: 120,
+      scrollWidth: 300,
+      scrollLeft: 90,
+    } as HTMLDivElement)
+
+    expect(metrics).toMatchObject({
+      horizontalVisible: true,
+      left: 36,
+      width: 48,
+    })
+  })
+
+  it('drags the visible horizontal thumb across Pattern overflow (#662)', () => {
+    const scrollRef = createRef<HTMLDivElement>()
+    render(
+      <RailSectionScroller
+        testId="pattern-list-scroll"
+        scrollRef={scrollRef}
+        metrics={{
+          top: 0,
+          height: 0,
+          visible: false,
+          left: 0,
+          width: 48,
+          horizontalVisible: true,
+        }}
+        onScroll={vi.fn()}
+        allowHorizontalScroll
+      >
+        <div>Long Pattern name</div>
+      </RailSectionScroller>,
+    )
+    const scroller = screen.getByTestId('pattern-list-scroll')
+    Object.defineProperties(scroller, {
+      clientWidth: { configurable: true, value: 120 },
+      scrollWidth: { configurable: true, value: 300 },
+    })
+
+    fireEvent.pointerDown(screen.getByTestId('rail-horizontal-scroll-thumb'), { clientX: 0 })
+    fireEvent.pointerMove(window, { clientX: 36 })
+    fireEvent.pointerUp(window)
+
+    expect(scroller.scrollLeft).toBe(90)
+  })
+})
 
 function renderEditableListItem({
   name = 'Lib1',

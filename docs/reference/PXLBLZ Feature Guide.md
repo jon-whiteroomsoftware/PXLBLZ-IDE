@@ -75,7 +75,8 @@ The expanded rail starts compact and remains resizable. An untouched right
 pane also yields as browser zoom or a narrower window reduces the workspace,
 keeping the center authoring pane at least equally wide until the preview
 reaches its usable minimum. A deliberate divider resize remains remembered
-per Studio mode.
+per Studio mode. Long Pattern and folder names stay on one line; when they
+outgrow the Pattern rail, a slim bar at its bottom scrolls to the hidden text.
 
 The rail's personal content lives in compact trees with folders, drag
 reordering, search that sees into collapsed branches, and a Trash that appears

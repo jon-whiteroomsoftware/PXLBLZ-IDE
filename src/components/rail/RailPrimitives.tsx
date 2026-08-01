@@ -35,6 +35,9 @@ export type ScrollMetrics = {
   top: number
   height: number
   visible: boolean
+  left: number
+  width: number
+  horizontalVisible: boolean
 }
 
 // An icon action button for a rail title row (e.g. "+" new, or open-from-disk).
@@ -574,12 +577,26 @@ export function RailSubsectionLabel({ children }: { children: React.ReactNode })
 }
 
 export function railScrollMetrics(el: HTMLDivElement): ScrollMetrics {
-  const { clientHeight, scrollHeight, scrollTop } = el
-  if (scrollHeight <= clientHeight + 1) return { top: 0, height: 0, visible: false }
-  const height = Math.max(24, (clientHeight / scrollHeight) * clientHeight)
-  const maxTop = clientHeight - height
-  const top = (scrollTop / (scrollHeight - clientHeight)) * maxTop
-  return { top, height, visible: true }
+  const { clientHeight, scrollHeight, scrollTop, clientWidth, scrollWidth, scrollLeft } = el
+  const verticalVisible = scrollHeight > clientHeight + 1
+  const height = verticalVisible
+    ? Math.max(24, (clientHeight / scrollHeight) * clientHeight)
+    : 0
+  const top = verticalVisible
+    ? (scrollTop / (scrollHeight - clientHeight)) * (clientHeight - height)
+    : 0
+  const horizontalVisible = scrollWidth > clientWidth + 1
+  const width = horizontalVisible
+    ? Math.max(24, (clientWidth / scrollWidth) * clientWidth)
+    : 0
+  const left = horizontalVisible
+    ? (scrollLeft / (scrollWidth - clientWidth)) * (clientWidth - width)
+    : 0
+  return { top, height, visible: verticalVisible, left, width, horizontalVisible }
+}
+
+export function railScrollResizeTargets(el: HTMLDivElement): Element[] {
+  return [el, ...el.children]
 }
 
 export function RailSectionScroller({
@@ -587,12 +604,14 @@ export function RailSectionScroller({
   scrollRef,
   metrics,
   onScroll,
+  allowHorizontalScroll = false,
   children,
 }: {
   testId: string
   scrollRef: RefObject<HTMLDivElement | null>
   metrics: ScrollMetrics
   onScroll: () => void
+  allowHorizontalScroll?: boolean
   children: React.ReactNode
 }) {
   return (
@@ -601,11 +620,62 @@ export function RailSectionScroller({
         ref={scrollRef}
         data-testid={testId}
         onScroll={onScroll}
-        className="rail-list-scroll h-full overflow-y-auto overflow-x-hidden pb-2"
+        className={`rail-list-scroll h-full overflow-y-auto ${allowHorizontalScroll ? 'overflow-x-auto pb-3' : 'overflow-x-hidden pb-2'}`}
       >
         {children}
       </div>
       <RailScrollThumb metrics={metrics} scrollRef={scrollRef} />
+      {allowHorizontalScroll && (
+        <RailHorizontalScrollThumb metrics={metrics} scrollRef={scrollRef} />
+      )}
+    </div>
+  )
+}
+
+function RailHorizontalScrollThumb({
+  metrics,
+  scrollRef,
+}: {
+  metrics: ScrollMetrics
+  scrollRef: RefObject<HTMLDivElement | null>
+}) {
+  if (!metrics.horizontalVisible) return null
+
+  function handlePointerDown(event: React.PointerEvent<HTMLDivElement>) {
+    const scrollEl = scrollRef.current
+    if (!scrollEl) return
+    const activeScrollEl: HTMLDivElement = scrollEl
+    const startX = event.clientX
+    const startScrollLeft = activeScrollEl.scrollLeft
+    const maxScrollLeft = activeScrollEl.scrollWidth - activeScrollEl.clientWidth
+    const maxThumbLeft = activeScrollEl.clientWidth - metrics.width
+    const scrollPerPixel = maxThumbLeft > 0 ? maxScrollLeft / maxThumbLeft : 0
+
+    function move(moveEvent: PointerEvent) {
+      activeScrollEl.scrollLeft = startScrollLeft + (moveEvent.clientX - startX) * scrollPerPixel
+    }
+
+    function up() {
+      window.removeEventListener('pointermove', move)
+      window.removeEventListener('pointerup', up)
+    }
+
+    window.addEventListener('pointermove', move)
+    window.addEventListener('pointerup', up)
+    event.preventDefault()
+  }
+
+  return (
+    <div
+      aria-hidden
+      className="pointer-events-none absolute inset-x-0 bottom-0 z-20 h-2 border-t border-zinc-800/80 bg-zinc-950/95"
+    >
+      <div
+        data-testid="rail-horizontal-scroll-thumb"
+        className="pointer-events-auto absolute bottom-0.5 h-1 rounded-full bg-zinc-500/60 hover:bg-zinc-400/75"
+        style={{ left: metrics.left, width: metrics.width }}
+        onPointerDown={handlePointerDown}
+      />
     </div>
   )
 }

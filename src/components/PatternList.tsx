@@ -43,7 +43,11 @@ import { openDemoPattern } from '@/store/openPattern'
 import { useWorkspaceStore } from '@/store/workspaceStore'
 import { useLibraryStore, type LibraryRecord } from '@/store/libraryStore'
 import { ActivityStrip, type RailMode } from '@/components/rail/ActivityStrip'
-import { railScrollMetrics, type ScrollMetrics } from '@/components/rail/RailPrimitives'
+import {
+  railScrollMetrics,
+  railScrollResizeTargets,
+  type ScrollMetrics,
+} from '@/components/rail/RailPrimitives'
 import { PatternsRailSection } from '@/components/rail/PatternsRailSection'
 import { MapsRailSection } from '@/components/rail/MapsRailSection'
 import { MixinsRailSection } from '@/components/rail/MixinsRailSection'
@@ -302,7 +306,14 @@ export function PatternList({
     controllers: null,
     shows: null,
   })
-  const [scrollMetrics, setScrollMetrics] = useState<ScrollMetrics>({ top: 0, height: 0, visible: false })
+  const [scrollMetrics, setScrollMetrics] = useState<ScrollMetrics>({
+    top: 0,
+    height: 0,
+    visible: false,
+    left: 0,
+    width: 0,
+    horizontalVisible: false,
+  })
   const [personalWorkspaceAuthenticated, setPersonalWorkspaceAuthenticated] = useState(false)
   const setGlobalWorkspaceAuthenticated = useWorkspaceStore((s) => s.setPersonalWorkspaceAuthenticated)
   const query = queries[railMode]
@@ -357,7 +368,7 @@ export function PatternList({
     const el = scrollRef.current
     if (!el || typeof ResizeObserver === 'undefined') return
     const resizeObserver = new ResizeObserver(updateScrollMetrics)
-    resizeObserver.observe(el)
+    for (const target of railScrollResizeTargets(el)) resizeObserver.observe(target)
     return () => resizeObserver.disconnect()
   }, [
     railMode,
