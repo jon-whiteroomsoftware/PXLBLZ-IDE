@@ -10149,6 +10149,7 @@ function buildMetadata(
             `${member.prefix}_step_ms`,
             `${member.prefix}_step_pending_ms`,
             `${member.prefix}_step_pending_delta`,
+            `${member.prefix}_step_primed`,
           ]
         : []),
       `${member.prefix}_r`,

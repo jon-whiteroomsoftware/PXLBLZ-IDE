@@ -5346,6 +5346,7 @@ export function render(index) { rgb(scale, frames, index) }
     expect(runtime.handle.getExports()).toMatchObject({
       __pxlblz_show_c0_elapsed_ms: 116,
       __pxlblz_show_c0_step_pending_ms: 0,
+      __pxlblz_show_c0_step_primed: 1,
       __pxlblz_show_c0_frames: 2,
     })
   })
