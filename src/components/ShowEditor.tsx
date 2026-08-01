@@ -116,6 +116,7 @@ import {
   fitShowTimelineViewport,
   panShowTimelineViewport,
   resizeShowTimelineViewport,
+  showTimelineRulerTicks,
   showTimelineThumb,
   snapShowTimelineTime,
   zoomShowTimelineViewport,
@@ -6116,21 +6117,30 @@ function TimelineRuler({
     useShowTransportStore.getState().requestSeek(show.id, pending.targetMs)
     if (shouldResume && !usePreviewStore.getState().isRunning) usePreviewStore.getState().toggle()
   }
-  const ticks = Array.from({ length: 7 }, (_, index) => ({
-    position: index / 6,
-    timeMs: durationMs * index / 6,
-  }))
+  const { ticks } = showTimelineRulerTicks({
+    rulerDurationMs: durationMs,
+    viewport,
+    visibleWidthPx: getVisibleWidth(),
+  })
   return (
     <div
       ref={rulerRef}
       data-testid="show-timeline-ruler"
       className="group/timeline-ruler relative overflow-hidden border-b border-zinc-800 bg-zinc-950/70 ring-1 ring-inset ring-transparent transition-colors hover:bg-zinc-900/70 hover:ring-zinc-700/70 focus-within:bg-zinc-900/70 focus-within:ring-live/25"
-      style={{
-        gridColumn,
-        gridRow,
-        backgroundImage: 'repeating-linear-gradient(90deg, rgba(113,113,122,.2) 0 1px, transparent 1px 20px)',
-      }}
+      style={{ gridColumn, gridRow }}
     >
+      {ticks.map((tick) => (
+        <span
+          key={tick.timeMs}
+          aria-hidden
+          data-show-ruler-tick={tick.kind}
+          className="pointer-events-none absolute inset-y-0 w-px"
+          style={{
+            left: `${tick.fraction * 100}%`,
+            backgroundColor: tick.kind === 'major' ? 'rgba(113,113,122,.35)' : 'rgba(113,113,122,.18)',
+          }}
+        />
+      ))}
       {layoutIntervals.length > 1 && layoutIntervals.map((interval) => {
         const { left, width } = showLayoutIntervalPercentBounds(interval, durationMs)
         const soleZone = interval.zoneIds.length === 1
@@ -6149,14 +6159,14 @@ function TimelineRuler({
           </span>
         )
       })}
-      {ticks.map((tick) => (
+      {ticks.filter((tick) => tick.kind === 'major').map((tick) => (
         <span
-          key={tick.position}
+          key={tick.timeMs}
           aria-hidden
-          className="absolute top-1 text-[8.5px] tabular-nums text-zinc-600 transition-colors group-hover/timeline-ruler:text-zinc-400"
-          style={{ left: `${tick.position * 100}%`, transform: `translateX(${tick.position === 0 ? 0 : tick.position === 1 ? -100 : -50}%)` }}
+          className="pointer-events-none absolute top-1 text-[8.5px] tabular-nums text-zinc-600 transition-colors group-hover/timeline-ruler:text-zinc-400"
+          style={{ left: `${tick.fraction * 100}%`, transform: `translateX(${tick.fraction === 0 ? 0 : tick.fraction === 1 ? -100 : -50}%)` }}
         >
-          {formatRulerTime(tick.timeMs)}
+          {tick.label}
         </span>
       ))}
       <input
@@ -6920,11 +6930,6 @@ function timelinePlayheadCapStyle(positionPercent: number): CSSProperties {
     transform: 'translateX(-50%)',
     clipPath: 'polygon(0 0, 100% 0, 50% 100%)',
   }
-}
-
-function formatRulerTime(timeMs: number): string {
-  const seconds = Math.round(timeMs / 1000)
-  return seconds < 60 ? `${seconds}s` : `${Math.floor(seconds / 60)}:${String(seconds % 60).padStart(2, '0')}`
 }
 
 function formatSecondsValue(timeMs: number): string {

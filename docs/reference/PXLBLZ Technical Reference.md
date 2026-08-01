@@ -1079,7 +1079,11 @@ Split lane whose colored cells depict the authored ownership boundary.
 `showTimelineViewport.ts` owns Fit-to-16x zoom, playhead-anchored zoom, pan,
 Navigator thumb geometry, and
 range resizing. It also owns magnetic playhead snapping: structural Show
-boundaries take priority over a zoom-aware nice-number time grid. Snap defaults
+boundaries take priority over a zoom-aware nice-number time grid. Ruler ticks
+share that same grid step: `showTimelineRulerTicks` emits viewport-trimmed
+major and minor ticks on 1/2/5 x 10^n ms boundaries, so ruler marks and labels
+sit on whole seconds or clean decimal fractions at every zoom and coincide with
+magnetic grid times. Snap defaults
 on and Alt temporarily inverts it where supported. The
 `showEditorSessionStore` persists Snap plus per-Show Zone-workspace disclosure,
 collapsed Zone ids, and focused Zone id. These presentation facts never change

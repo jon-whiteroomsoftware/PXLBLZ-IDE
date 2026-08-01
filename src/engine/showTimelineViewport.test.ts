@@ -1,8 +1,10 @@
 import {
   fitShowTimelineViewport,
+  formatShowTimelineRulerTime,
   panShowTimelineViewport,
   rangeThumbCenterOffsetPx,
   resizeShowTimelineViewport,
+  showTimelineRulerTicks,
   showTimelineThumb,
   showTimelineGridStepMs,
   snapShowTimelineTime,
@@ -92,5 +94,92 @@ describe('Show timeline viewport (#420)', () => {
       structuralTimesMs: [6_000],
       gridEnabled: false,
     })).toEqual({ timeMs: 10_650 })
+  })
+})
+
+describe('Show timeline ruler ticks (#670)', () => {
+  it('places ruler ticks on the magnetic grid step at fit zoom', () => {
+    const { majorStepMs, minorStepMs, ticks } = showTimelineRulerTicks({
+      rulerDurationMs: 60_000,
+      viewport: fitShowTimelineViewport(60_000),
+      visibleWidthPx: 600,
+    })
+
+    expect(majorStepMs).toBe(showTimelineGridStepMs(60_000, 600))
+    expect(minorStepMs).toBe(2_000)
+    expect(ticks[0]).toEqual({ timeMs: 0, fraction: 0, kind: 'major', label: '0s' })
+    expect(ticks[ticks.length - 1]).toEqual({ timeMs: 60_000, fraction: 1, kind: 'major', label: '1:00' })
+    expect(ticks).toHaveLength(31)
+    expect(ticks.filter((tick) => tick.kind === 'major').map((tick) => tick.timeMs))
+      .toEqual([0, 10_000, 20_000, 30_000, 40_000, 50_000, 60_000])
+    ticks.forEach((tick) => {
+      expect(tick.timeMs % minorStepMs).toBe(0)
+      expect(tick.fraction).toBeCloseTo(tick.timeMs / 60_000, 12)
+      expect(tick.label !== undefined).toBe(tick.kind === 'major')
+    })
+  })
+
+  it('refines tick steps with zoom and emits only the visible window plus margin', () => {
+    const viewport = { totalMs: 60_000, startMs: 14_500, durationMs: 6_000, minDurationMs: 3_750 }
+    const { majorStepMs, minorStepMs, ticks } = showTimelineRulerTicks({
+      rulerDurationMs: 60_000,
+      viewport,
+      visibleWidthPx: 600,
+    })
+
+    expect(majorStepMs).toBe(1_000)
+    expect(minorStepMs).toBe(200)
+    expect(ticks[0].timeMs).toBe(13_600)
+    expect(ticks[ticks.length - 1].timeMs).toBe(21_400)
+    expect(ticks.filter((tick) => tick.kind === 'major').map((tick) => tick.label))
+      .toEqual(['14s', '15s', '16s', '17s', '18s', '19s', '20s', '21s'])
+  })
+
+  it('subdivides 2-multiplier steps into quarters so minors stay on clean decimals', () => {
+    const { majorStepMs, minorStepMs } = showTimelineRulerTicks({
+      rulerDurationMs: 16_000,
+      viewport: { totalMs: 16_000, startMs: 0, durationMs: 1_000, minDurationMs: 1_000 },
+      visibleWidthPx: 600,
+    })
+    expect(majorStepMs).toBe(200)
+    expect(minorStepMs).toBe(50)
+  })
+
+  it('subdivides 5-multiplier steps into whole units', () => {
+    const { majorStepMs, minorStepMs } = showTimelineRulerTicks({
+      rulerDurationMs: 30_000,
+      viewport: fitShowTimelineViewport(30_000),
+      visibleWidthPx: 600,
+    })
+    expect(majorStepMs).toBe(5_000)
+    expect(minorStepMs).toBe(1_000)
+  })
+
+  it('clamps the tick window to the ruler bounds', () => {
+    const { ticks } = showTimelineRulerTicks({
+      rulerDurationMs: 60_000,
+      viewport: { totalMs: 60_000, startMs: 54_000, durationMs: 6_000, minDurationMs: 3_750 },
+      visibleWidthPx: 600,
+    })
+    expect(ticks[ticks.length - 1].timeMs).toBe(60_000)
+    expect(ticks.every((tick) => tick.timeMs >= 0 && tick.timeMs <= 60_000)).toBe(true)
+  })
+
+  it('returns no ticks for a degenerate ruler duration', () => {
+    expect(showTimelineRulerTicks({
+      rulerDurationMs: 0,
+      viewport: fitShowTimelineViewport(0),
+      visibleWidthPx: 600,
+    }).ticks).toEqual([])
+  })
+
+  it('labels whole seconds, clean sub-second fractions, and minutes', () => {
+    expect(formatShowTimelineRulerTime(0)).toBe('0s')
+    expect(formatShowTimelineRulerTime(200)).toBe('0.2s')
+    expect(formatShowTimelineRulerTime(1_500)).toBe('1.5s')
+    expect(formatShowTimelineRulerTime(12_000)).toBe('12s')
+    expect(formatShowTimelineRulerTime(90_000)).toBe('1:30')
+    expect(formatShowTimelineRulerTime(90_500)).toBe('1:30.5')
+    expect(formatShowTimelineRulerTime(600_000)).toBe('10:00')
   })
 })

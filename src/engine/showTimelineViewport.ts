@@ -70,6 +70,72 @@ export function showTimelineGridStepMs(visibleDurationMs: number, visibleWidthPx
   return multiplier * magnitude
 }
 
+export interface ShowTimelineRulerTick {
+  timeMs: number
+  fraction: number
+  kind: 'major' | 'minor'
+  label?: string
+}
+
+export interface ShowTimelineRulerTicksOptions {
+  rulerDurationMs: number
+  viewport: ShowTimelineViewport
+  visibleWidthPx: number
+}
+
+export interface ShowTimelineRulerTicksResult {
+  majorStepMs: number
+  minorStepMs: number
+  ticks: ShowTimelineRulerTick[]
+}
+
+/**
+ * Ruler ticks share the magnetic grid step, so the marks users see are the
+ * same times the timeline snaps to. Steps are 1/2/5 x 10^n ms, which keeps
+ * every tick on a whole second or a clean decimal fraction at any zoom, and
+ * the emitted window is trimmed to the viewport (plus one major step of
+ * margin) so a deeply zoomed ruler does not render thousands of marks.
+ */
+export function showTimelineRulerTicks(options: ShowTimelineRulerTicksOptions): ShowTimelineRulerTicksResult {
+  const majorStepMs = showTimelineGridStepMs(options.viewport.durationMs, options.visibleWidthPx)
+  const multiplier = Math.round(majorStepMs / 10 ** Math.floor(Math.log10(majorStepMs)))
+  const minorStepMs = multiplier === 2 ? majorStepMs / 4 : majorStepMs / 5
+  if (options.rulerDurationMs <= 0) return { majorStepMs, minorStepMs, ticks: [] }
+
+  const windowStartMs = clamp(options.viewport.startMs - majorStepMs, 0, options.rulerDurationMs)
+  const windowEndMs = clamp(
+    options.viewport.startMs + options.viewport.durationMs + majorStepMs,
+    0,
+    options.rulerDurationMs,
+  )
+  const ticks: ShowTimelineRulerTick[] = []
+  for (let index = Math.ceil(windowStartMs / minorStepMs); index * minorStepMs <= windowEndMs; index += 1) {
+    const timeMs = index * minorStepMs
+    const major = timeMs % majorStepMs === 0
+    ticks.push({
+      timeMs,
+      fraction: timeMs / options.rulerDurationMs,
+      kind: major ? 'major' : 'minor',
+      ...(major ? { label: formatShowTimelineRulerTime(timeMs) } : {}),
+    })
+  }
+  return { majorStepMs, minorStepMs, ticks }
+}
+
+export function formatShowTimelineRulerTime(timeMs: number): string {
+  const totalSeconds = timeMs / 1000
+  if (totalSeconds < 60) return `${trimSeconds(totalSeconds)}s`
+  const minutes = Math.floor(totalSeconds / 60)
+  const seconds = totalSeconds - minutes * 60
+  const wholeSeconds = Math.floor(seconds)
+  const fraction = trimSeconds(seconds - wholeSeconds).replace(/^0\.?/, '')
+  return `${minutes}:${String(wholeSeconds).padStart(2, '0')}${fraction ? `.${fraction}` : ''}`
+}
+
+function trimSeconds(seconds: number): string {
+  return Number(seconds.toFixed(3)).toString()
+}
+
 export interface ShowTimelineSnapOptions {
   visibleDurationMs: number
   visibleWidthPx: number
