@@ -1705,7 +1705,7 @@ local until blur and then revert.
 
 Percentage semantics are opt-in. `ShowToolkitParameterDescriptor.presentation`
 marks eligible Effect and Transition parameters; the frozen visual-toolkit
-contract is version 11. Other call sites select percentage presentation
+contract is version 12. Other call sites select percentage presentation
 explicitly. A numeric `min=0, max=1` pair is insufficient because phase,
 direction, centers, viewport geometry, and other spatial values share that
 storage range. Full-width `DeckSlider` controls use the same formatter and
@@ -1754,6 +1754,46 @@ scale, and the Preview speed selector. Exact drafts, clamping, cancellation,
 pointer preview, and one-change commit semantics remain owned by the shared
 bounded field. Stored records, Property animation targets, compiler inputs, and
 generated Pixelblaze source remain ordinary real-unit numbers.
+
+### Angle and cycle presentation contract
+
+`anglePresentation.ts` is the framework-free boundary for values stored in
+turns (#612). Four kinds map the stored representation to the authored
+concept: `direction` (wrapped single cycle, degrees canonical), `phase`
+(cyclic but animation-traversable, turns canonical), `rotation` (signed
+multi-turn, degrees canonical), and `cycles` (signed multi-turn, turns
+canonical — hue shift, twist, spin). `AngleField` adapts the resolved
+presentation to `BoundedNumberField`; call sites pass stored turns and never
+perform display conversions.
+
+Exact entry accepts an explicit degree suffix (`°`, `deg`, `degrees`), an
+explicit turn suffix (`t`, `turn`, `turns`), or a bare number in the kind's
+canonical unit; parsing always returns turns. Only `direction` normalizes on
+parse, wrapping onto `[0, 1)`; `phase`, `rotation`, and `cycles` preserve the
+authored sign and turn count so multi-turn Property animation paths are never
+collapsed by presentation.
+
+The transient slider windows onto the stored range instead of spanning it:
+`direction` covers one cycle with labeled compass quarters (`E S W N`,
+clockwise from screen east, matching the stage's y-down orientation);
+`phase` covers the cycle containing the committed value with quarter-cycle
+detents; `rotation` and `cycles` cover two turns centered on the committed
+value's nearest whole turn with a neutral zero marker when zero is in window.
+The window anchors on the committed value — previews route through the Show
+preview override store — so it never recenters mid-gesture. Values outside
+the window remain reachable through exact entry, and the field's clamp bounds
+stay the full stored range.
+
+`ShowToolkitParameterDescriptor.presentation` selects the four angle kinds for
+Effect and Transition parameters; Clip Transform Rotation and the placement
+view/blink Phase fields select their kinds explicitly. The Property animation
+editor maps `direction`/`rotation` to its `degrees` value presentation and
+`phase`/`cycles` to `turns`, and keyframe value fields use the same shared
+field. Clip summaries format angle parameters through the shared
+`formatAngleValue`, so canonical display stays identical across resting
+fields, summaries, and animation overviews. Stored records, routing values,
+compiler inputs, and generated Pixelblaze source remain ordinary turn-valued
+numbers.
 
 ### Time presentation contract
 

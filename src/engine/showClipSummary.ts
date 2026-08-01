@@ -5,6 +5,7 @@ import { compactShowClipViewport, normalizeShowClipViewport } from './showClipVi
 import { materializeShowGroupOccurrences } from './showGroupModel'
 import { formatPercentageValue } from './percentageValue'
 import { formatDomainNumber } from './domainNumberPresentation'
+import { anglePresentationKind, formatAngleValue } from './anglePresentation'
 import type {
   ShowCell,
   ShowClipEffect,
@@ -380,7 +381,7 @@ function viewItems(
   const transform = normalizeShowClipTransform(cell.transform)
   if (transform.positionX !== 0) items.push({ id: 'transform-position-x', label: 'Position X', value: formatNumber(transform.positionX), timelineValue: `x ${formatNumber(transform.positionX)}` })
   if (transform.positionY !== 0) items.push({ id: 'transform-position-y', label: 'Position Y', value: formatNumber(transform.positionY), timelineValue: `y ${formatNumber(transform.positionY)}` })
-  if (transform.rotation !== 0) items.push({ id: 'transform-rotation', label: 'Rotation', value: `${formatNumber(transform.rotation * 360)} deg`, timelineValue: `rot ${formatNumber(transform.rotation * 360)} deg` })
+  if (transform.rotation !== 0) items.push({ id: 'transform-rotation', label: 'Rotation', value: formatAngleValue('rotation', transform.rotation), timelineValue: `rot ${formatAngleValue('rotation', transform.rotation)}` })
   if (transform.scaleX !== 1) {
     const value = formatSummaryDomainNumber('multiplier', transform.scaleX, 0.01)
     items.push({ id: 'transform-scale-x', label: 'Scale X', value, timelineValue: `sx ${value}` })
@@ -472,7 +473,7 @@ function formatSummaryDomainNumber(
 function formatToolkitValue(
   value: unknown,
   unit?: string,
-  presentation?: 'percentage' | 'multiplier' | 'ratio',
+  presentation?: 'percentage' | 'multiplier' | 'ratio' | 'direction' | 'phase' | 'rotation' | 'cycles',
   step = 0.01,
 ): string {
   if (typeof value === 'number') {
@@ -480,6 +481,8 @@ function formatToolkitValue(
     if (presentation === 'multiplier' || presentation === 'ratio') {
       return formatSummaryDomainNumber(presentation, value, step)
     }
+    const angleKind = anglePresentationKind(presentation)
+    if (angleKind) return formatAngleValue(angleKind, value)
     return `${formatNumber(value)}${unit ? ` ${unit}` : ''}`
   }
   if (typeof value === 'boolean') return value ? 'On' : 'Off'

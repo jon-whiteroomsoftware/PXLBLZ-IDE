@@ -2014,7 +2014,7 @@ describe('ShowEditor (#318)', () => {
     const clip = screen.getByRole('button', { name: 'Select Summary Rings' })
     expect(within(clip).getByText('0.5x')).toBeInTheDocument()
     expect(within(clip).getByText('75%')).toBeInTheDocument()
-    expect(within(clip).getByText('0.1 turn')).toBeInTheDocument()
+    expect(within(clip).getByText('0.1t')).toBeInTheDocument()
     expect(within(clip).getByText('animated')).toBeInTheDocument()
 
     await user.click(clip)
@@ -2027,7 +2027,7 @@ describe('ShowEditor (#318)', () => {
     const summary = within(panel).getByRole('region', { name: 'Clip summary' })
     expect(summary).toHaveTextContent('Animation speed0.5x')
     expect(summary).toHaveTextContent('Brightness75%')
-    expect(summary).toHaveTextContent('Hue0.1 turn')
+    expect(summary).toHaveTextContent('Hue0.1t')
     expect(summary).toHaveTextContent('Animations — 1')
   })
 
@@ -2123,7 +2123,7 @@ describe('ShowEditor (#318)', () => {
     }))
     await waitFor(() => {
       expect(within(panel).getByRole('tab', { name: /^Playback/ })).toHaveAttribute('aria-selected', 'true')
-      expect(within(panel).getByRole('textbox', { name: 'Phase' })).toHaveFocus()
+      expect(within(panel).getByRole('textbox', { name: 'Phase exact phase' })).toHaveFocus()
     })
 
     expect(within(summary).getByText('Start offset')).toBeInTheDocument()
@@ -4241,7 +4241,7 @@ describe('ShowEditor (#318)', () => {
 
     await waitFor(() => {
       expect(within(panel).getByRole('tab', { name: /^Playback/ })).toHaveAttribute('aria-selected', 'true')
-      expect(within(panel).getByRole('textbox', { name: 'Phase' })).toHaveFocus()
+      expect(within(panel).getByRole('textbox', { name: 'Phase exact phase' })).toHaveFocus()
     })
     await user.click(within(panel).getByRole('tab', { name: /^Pattern/ }))
   })

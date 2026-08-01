@@ -27,6 +27,7 @@ import { describePropertyLaneHover, resolvePropertyLaneDisplayLabels } from '@/e
 import { propertyLaneFamilyColor, type ShowPropertyLaneFamily } from '@/engine/showPropertyLaneFamilies'
 import { ShowPropertyLaneFamilyGlyph } from '@/components/ShowPropertyLaneFamilyGlyph'
 import { ShowClipEntityDetail, type ShowClipEntityDetailHandle } from '@/components/ShowClipEntityDetail'
+import { formatAngleValue } from '@/engine/anglePresentation'
 import { ShowPropertyAnimationProvider } from '@/components/ShowPropertyAnimationEditor'
 import { ShowPatternInstanceControls } from '@/components/ShowPatternInstanceControls'
 import { ShowTransitionPalette, ShowTransitionParameters } from '@/components/ShowTransitionAuthoring'
@@ -3654,7 +3655,7 @@ function ShowTimelineWorkspace({
           selectsTransition: true,
           color: propertyLaneFamilyColor('transform'),
           formatValue: property === 'rotation'
-            ? (value: number) => `${Number((value * 360).toFixed(1))} deg`
+            ? (value: number) => formatAngleValue('rotation', value)
             : property === 'scaleX' || property === 'scaleY'
               ? (value: number) => formatDomainNumber('multiplier', value, 0.01)
               : (value: number) => Number(value.toFixed(2)).toString(),
@@ -8195,7 +8196,7 @@ const SHOW_TRANSFORM_PROPERTY_PRESENTATION: Array<{
 }> = [
   { property: 'positionX', label: 'Position X', format: (value) => Number(value.toFixed(2)).toString() },
   { property: 'positionY', label: 'Position Y', format: (value) => Number(value.toFixed(2)).toString() },
-  { property: 'rotation', label: 'Rotation', format: (value) => `${Number((value * 360).toFixed(1))} deg` },
+  { property: 'rotation', label: 'Rotation', format: (value) => formatAngleValue('rotation', value) },
   { property: 'scaleX', label: 'Scale X', format: (value) => formatDomainNumber('multiplier', value, 0.01) },
   { property: 'scaleY', label: 'Scale Y', format: (value) => formatDomainNumber('multiplier', value, 0.01) },
 ]

@@ -336,7 +336,7 @@ describe('shared Clip Entity Detail sections (#498)', () => {
     expect(onPatch).toHaveBeenCalledWith({ view: { brightness: 0.35 } })
 
     showTab('Playback')
-    const phase = screen.getByRole('textbox', { name: 'Phase' })
+    const phase = screen.getByRole('textbox', { name: 'Phase exact phase' })
     fireEvent.change(phase, { target: { value: '0.5' } })
     fireEvent.blur(phase)
     expect(onPatch).toHaveBeenCalledWith({ view: { phase: 0.5 } })
@@ -360,7 +360,7 @@ describe('shared Clip Entity Detail sections (#498)', () => {
     render(<ShowClipEntityDetail {...commonProps('scene-main', onPatch)} />)
 
     showTab('Playback')
-    const phase = screen.getByRole('textbox', { name: 'Phase' })
+    const phase = screen.getByRole('textbox', { name: 'Phase exact phase' })
     expect(phase).toHaveValue('0.25')
     fireEvent.change(phase, { target: { value: '0.5' } })
     fireEvent.blur(phase)
@@ -411,7 +411,7 @@ describe('shared Clip Entity Detail sections (#498)', () => {
     fireEvent.blur(width)
     expect(onPatch).toHaveBeenCalledWith({ transform: { scaleX: 1.5 } })
 
-    const rotation = screen.getByRole('textbox', { name: 'Rotation degrees' })
+    const rotation = screen.getByRole('textbox', { name: 'Rotation exact rotation' })
     fireEvent.change(rotation, { target: { value: '90' } })
     fireEvent.blur(rotation)
     expect(onPatch).toHaveBeenCalledWith({ transform: { rotation: 0.25 } })
@@ -571,7 +571,7 @@ describe('shared Clip Entity Detail sections (#498)', () => {
     }), { key: 'Enter' })
     const previewX = content?.getAttribute('x')
 
-    const rotation = screen.getByRole('textbox', { name: 'Rotation degrees' })
+    const rotation = screen.getByRole('textbox', { name: 'Rotation exact rotation' })
     fireEvent.change(rotation, { target: { value: '90' } })
     fireEvent.blur(rotation)
 
@@ -654,10 +654,11 @@ describe('shared Clip Entity Detail sections (#498)', () => {
     showTab('Playback')
     expect(screen.getByRole('table', { name: 'Playback controls' })).toBeInTheDocument()
     expect(screen.queryByRole('checkbox', { name: 'Mirror clip' })).not.toBeInTheDocument()
-    const phaseRow = screen.getByRole('textbox', { name: 'Phase' }).closest('tr')
+    const phaseRow = screen.getByRole('textbox', { name: 'Phase exact phase' }).closest('tr')
     expect(phaseRow?.children[1]).toHaveTextContent('Phase')
-    expect(phaseRow?.children[2]).toContainElement(screen.getByRole('textbox', { name: 'Phase' }))
-    expect(screen.getByRole('textbox', { name: 'Phase' })).toHaveClass('h-5', 'border-0', 'border-b', 'text-left')
+    expect(phaseRow?.children[2]).toContainElement(screen.getByRole('textbox', { name: 'Phase exact phase' }))
+    expect(screen.getByRole('textbox', { name: 'Phase exact phase' })).toHaveClass('text-left')
+    expect(screen.getByRole('button', { name: 'Adjust with phase slider' })).toBeInTheDocument()
   })
 
   it('keeps Pattern controls on one unruled line with a compact Value column (#63)', () => {

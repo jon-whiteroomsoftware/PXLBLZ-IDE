@@ -11,7 +11,7 @@ import {
 } from './showVisualToolkitFixtures'
 import { compileShow } from './showCompiler'
 
-export const SHOW_VISUAL_TOOLKIT_CONTRACT_VERSION = 11
+export const SHOW_VISUAL_TOOLKIT_CONTRACT_VERSION = 12
 
 export interface FrozenShowToolkitVariant {
   kind: ShowToolkitKind

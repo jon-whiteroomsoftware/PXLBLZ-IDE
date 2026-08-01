@@ -73,7 +73,12 @@ export interface ShowToolkitParameterDescriptor {
   min?: number
   max?: number
   step?: number
-  presentation?: 'percentage' | 'multiplier' | 'ratio'
+  /**
+   * The angle/cycle kinds (#612) present stored turns through the shared
+   * angle entry contract: direction wraps onto one cycle; phase, rotation,
+   * and cycles never normalize an authored turn count.
+   */
+  presentation?: 'percentage' | 'multiplier' | 'ratio' | 'direction' | 'phase' | 'rotation' | 'cycles'
   unit?: string
   options?: Array<{ value: string; label: string }>
   optionsByVariant?: Record<string, Array<{ value: string; label: string }>>
@@ -163,7 +168,7 @@ export const SHOW_VISUAL_TOOLKIT_REGISTRY: ShowToolkitFamilyDescriptor[] = [
     parameters: [
       { id: 'opacity', label: 'Opacity', kind: 'number', defaultValue: 1, min: 0, max: 1, step: 0.01, presentation: 'percentage', variantIds: ['opacity'] },
       { id: 'brightness', label: 'Brightness', kind: 'number', defaultValue: 1, min: 0, max: 2, step: 0.01, presentation: 'percentage', variantIds: ['brightness'] },
-      { id: 'turns', label: 'Hue shift', kind: 'number', defaultValue: 0, min: -8, max: 8, step: 0.01, unit: 'turn', variantIds: ['hue'] },
+      { id: 'turns', label: 'Hue shift', kind: 'number', defaultValue: 0, min: -8, max: 8, step: 0.01, unit: 'turn', presentation: 'cycles', variantIds: ['hue'] },
       { id: 'saturation', label: 'Saturation', kind: 'number', defaultValue: 1, min: 0, max: 2, step: 0.01, presentation: 'percentage', variantIds: ['saturation'] },
       { id: 'contrast', label: 'Contrast', kind: 'number', defaultValue: 1, min: 0, max: 4, step: 0.01, presentation: 'percentage', variantIds: ['contrast'] },
       {
@@ -205,7 +210,7 @@ export const SHOW_VISUAL_TOOLKIT_REGISTRY: ShowToolkitFamilyDescriptor[] = [
     parameters: [
       { id: 'translateX', label: 'X', kind: 'number', defaultValue: 0, min: -2, max: 2, step: 0.01, variantIds: ['translate'] },
       { id: 'translateY', label: 'Y', kind: 'number', defaultValue: 0, min: -2, max: 2, step: 0.01, variantIds: ['translate'] },
-      { id: 'turns', label: 'Turns', kind: 'number', defaultValue: 0, min: -8, max: 8, step: 0.01, unit: 'turn', variantIds: ['rotate'] },
+      { id: 'turns', label: 'Turns', kind: 'number', defaultValue: 0, min: -8, max: 8, step: 0.01, unit: 'turn', presentation: 'cycles', variantIds: ['rotate'] },
       { id: 'scaleX', label: 'X scale', kind: 'number', defaultValue: 1, min: 0.01, max: 8, step: 0.01, presentation: 'multiplier', variantIds: ['scale'] },
       { id: 'scaleY', label: 'Y scale', kind: 'number', defaultValue: 1, min: 0.01, max: 8, step: 0.01, presentation: 'multiplier', variantIds: ['scale'] },
       { id: 'shearX', label: 'X shear', kind: 'number', defaultValue: 0, min: -4, max: 4, step: 0.01, variantIds: ['shear'] },
@@ -242,14 +247,14 @@ export const SHOW_VISUAL_TOOLKIT_REGISTRY: ShowToolkitFamilyDescriptor[] = [
         },
       },
       { id: 'frequency', label: 'Frequency', kind: 'number', defaultValue: 8, min: 1, max: 32, step: 0.1, variantIds: ['ripple'] },
-      { id: 'phase', label: 'Phase', kind: 'number', defaultValue: 0, min: -8, max: 8, step: 0.01, unit: 'turn', variantIds: ['ripple'] },
+      { id: 'phase', label: 'Phase', kind: 'number', defaultValue: 0, min: -8, max: 8, step: 0.01, unit: 'turn', presentation: 'phase', variantIds: ['ripple'] },
       { id: 'radius', label: 'Radius', kind: 'number', defaultValue: 0.7, min: 0.05, max: 2, step: 0.01, variantIds: ['swirl', 'bulge'] },
       { ...CENTER_X, variantIds: ['ripple', 'swirl', 'bulge', 'kaleidoscope'] },
       { ...CENTER_Y, variantIds: ['ripple', 'swirl', 'bulge', 'kaleidoscope'] },
       { id: 'columns', label: 'Columns', kind: 'number', defaultValue: 12, min: 1, max: 128, step: 1, variantIds: ['pixelate'] },
       { id: 'rows', label: 'Rows', kind: 'number', defaultValue: 12, min: 1, max: 128, step: 1, variantIds: ['pixelate'] },
       { id: 'segments', label: 'Segments', kind: 'number', defaultValue: 6, min: 2, max: 16, step: 1, variantIds: ['kaleidoscope'] },
-      { id: 'rotation', label: 'Rotation', kind: 'number', defaultValue: 0, min: -8, max: 8, step: 0.01, unit: 'turn', variantIds: ['kaleidoscope'] },
+      { id: 'rotation', label: 'Rotation', kind: 'number', defaultValue: 0, min: -8, max: 8, step: 0.01, unit: 'turn', presentation: 'rotation', variantIds: ['kaleidoscope'] },
       EASING,
     ],
   },
@@ -322,7 +327,7 @@ export const SHOW_VISUAL_TOOLKIT_REGISTRY: ShowToolkitFamilyDescriptor[] = [
     parameters: [
       DURATION,
       EASING,
-      { id: 'direction', label: 'Direction', kind: 'number', defaultValue: 0, min: 0, max: 1, step: 0.001, unit: 'turn', compatibility: { stageDimensions: [2] }, variantIds: ['linear'] },
+      { id: 'direction', label: 'Direction', kind: 'number', defaultValue: 0, min: 0, max: 1, step: 0.001, unit: 'turn', presentation: 'direction', compatibility: { stageDimensions: [2] }, variantIds: ['linear'] },
       {
         id: 'wipeMode', label: 'Mode', kind: 'enum', defaultValue: 'center-out', variantIds: ['split', 'barn-doors'],
         options: [{ value: 'center-out', label: 'Center out' }, { value: 'center-in', label: 'Center in' }],
@@ -334,7 +339,7 @@ export const SHOW_VISUAL_TOOLKIT_REGISTRY: ShowToolkitFamilyDescriptor[] = [
       { ...CENTER_X, variantIds: ['barn-doors', 'clock'] },
       { ...CENTER_Y, variantIds: ['barn-doors', 'clock'] },
       { id: 'count', label: 'Count', kind: 'number', defaultValue: 8, min: 1, max: 32, step: 1, variantIds: ['blinds', 'checker', 'grid'] },
-      { id: 'phase', label: 'Phase', kind: 'number', defaultValue: 0, min: 0, max: 1, step: 0.001, unit: 'turn', variantIds: ['blinds', 'clock'] },
+      { id: 'phase', label: 'Phase', kind: 'number', defaultValue: 0, min: 0, max: 1, step: 0.001, unit: 'turn', presentation: 'phase', variantIds: ['blinds', 'clock'] },
       { id: 'clockwise', label: 'Clockwise', kind: 'boolean', defaultValue: true, variantIds: ['clock'] },
       {
         id: 'edgePolicy',
@@ -435,8 +440,8 @@ export const SHOW_VISUAL_TOOLKIT_REGISTRY: ShowToolkitFamilyDescriptor[] = [
         ],
       },
       { id: 'aspect', label: 'Aspect', kind: 'number', defaultValue: 1, min: 0.25, max: 4, step: 0.01, presentation: 'ratio', variantIds: ['ellipse', 'box', 'rounded-box', 'cross', 'heart', 'star', 'crescent', 'polygon', 'cat-head', 'cat-side-profile', 'bastet'] },
-      { id: 'rotation', label: 'Rotation', kind: 'number', defaultValue: 0, min: -1, max: 1, step: 0.01, variantIds: ['ellipse', 'box', 'rounded-box', 'diamond', 'cross', 'heart', 'star', 'crescent', 'polygon', 'cat-head', 'cat-side-profile', 'bastet'] },
-      { id: 'spin', label: 'Spin', kind: 'number', defaultValue: 0, min: -4, max: 4, step: 0.01, variantIds: ['diamond'] },
+      { id: 'rotation', label: 'Rotation', kind: 'number', defaultValue: 0, min: -1, max: 1, step: 0.01, unit: 'turn', presentation: 'rotation', variantIds: ['ellipse', 'box', 'rounded-box', 'diamond', 'cross', 'heart', 'star', 'crescent', 'polygon', 'cat-head', 'cat-side-profile', 'bastet'] },
+      { id: 'spin', label: 'Spin', kind: 'number', defaultValue: 0, min: -4, max: 4, step: 0.01, unit: 'turn', presentation: 'cycles', variantIds: ['diamond'] },
       { id: 'ringWidth', label: 'Ring width', kind: 'number', defaultValue: 0.12, min: 0.02, max: 1, step: 0.01, variantIds: ['ring'] },
       { id: 'cornerRadius', label: 'Corner roundness', kind: 'number', defaultValue: 0.3, min: 0, max: 1, step: 0.01, variantIds: ['rounded-box'] },
       { id: 'crossWidth', label: 'Arm width', kind: 'number', defaultValue: 0.32, min: 0.1, max: 0.9, step: 0.01, variantIds: ['cross'] },
@@ -482,11 +487,11 @@ export const SHOW_VISUAL_TOOLKIT_REGISTRY: ShowToolkitFamilyDescriptor[] = [
     parameters: [
       DURATION,
       EASING,
-      { id: 'direction', label: 'Direction', kind: 'number', defaultValue: 0, min: 0, max: 1, step: 0.001, unit: 'turn', variantIds: ['cover', 'reveal', 'push'] },
+      { id: 'direction', label: 'Direction', kind: 'number', defaultValue: 0, min: 0, max: 1, step: 0.001, unit: 'turn', presentation: 'direction', variantIds: ['cover', 'reveal', 'push'] },
       { id: 'anchorX', label: 'Anchor X', kind: 'number', defaultValue: 0.5, min: 0, max: 1, step: 0.01, variantIds: ['content-grow', 'content-shrink', 'zoom-in', 'zoom-out'] },
       { id: 'anchorY', label: 'Anchor Y', kind: 'number', defaultValue: 0.5, min: 0, max: 1, step: 0.01, variantIds: ['content-grow', 'content-shrink', 'zoom-in', 'zoom-out'] },
       { id: 'contentScale', label: 'Endpoint scale', kind: 'number', defaultValue: 0.01, min: 0.01, max: 1, step: 0.01, presentation: 'multiplier', variantIds: ['content-grow', 'content-shrink', 'zoom-in', 'zoom-out'] },
-      { id: 'rotation', label: 'Rotation', kind: 'number', defaultValue: 0, min: 0, max: 8, step: 0.01, unit: 'turn', variantIds: ['zoom-in', 'zoom-out'] },
+      { id: 'rotation', label: 'Rotation', kind: 'number', defaultValue: 0, min: 0, max: 8, step: 0.01, unit: 'turn', presentation: 'rotation', variantIds: ['zoom-in', 'zoom-out'] },
       {
         id: 'spinDirection', label: 'Rotation direction', kind: 'enum', defaultValue: 'clockwise', variantIds: ['zoom-in', 'zoom-out'],
         options: [

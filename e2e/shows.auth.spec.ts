@@ -930,8 +930,8 @@ test.describe('authenticated Show authoring', () => {
 
     await transform.getByRole('textbox', { name: 'Content X exact position' }).fill('0.25')
     await transform.getByRole('textbox', { name: 'Content X exact position' }).blur()
-    await transform.getByRole('textbox', { name: 'Rotation degrees' }).fill('-90')
-    await transform.getByRole('textbox', { name: 'Rotation degrees' }).blur()
+    await transform.getByRole('textbox', { name: 'Rotation exact rotation' }).fill('-90')
+    await transform.getByRole('textbox', { name: 'Rotation exact rotation' }).blur()
 
     // Barrier, not oracle: showPersistenceQueues chains writes per Show, so a
     // second edit's PUT is not dispatched until the first resolves, and
@@ -948,7 +948,7 @@ test.describe('authenticated Show authoring', () => {
     await showClipTab(page, 'Place')
     const reloaded = page.getByRole('group', { name: 'Clip Transform' })
     await expect(reloaded.getByRole('textbox', { name: 'Content X exact position' })).toHaveValue('0.25')
-    await expect(reloaded.getByRole('textbox', { name: 'Rotation degrees' })).toHaveValue('-90')
+    await expect(reloaded.getByRole('textbox', { name: 'Rotation exact rotation' })).toHaveValue('-90')
   })
 
   test('previews placement sliders without scrolling the outer detail panel', async ({ page }) => {
@@ -975,7 +975,7 @@ test.describe('authenticated Show authoring', () => {
     }))).toEqual({ overflowY: 'hidden', scrollTop: 0 })
 
     const tabBody = page.locator('[role="tabpanel"][data-active-tab="place"]')
-    const rotation = transform.getByRole('textbox', { name: 'Rotation degrees' })
+    const rotation = transform.getByRole('textbox', { name: 'Rotation exact rotation' })
     await rotation.scrollIntoViewIfNeeded()
     await expect(rotation).toBeVisible()
     expect(await tabBody.evaluate((element) => getComputedStyle(element).overflowY)).toBe('auto')

@@ -10,6 +10,7 @@ import {
 } from 'react'
 import { createPortal } from 'react-dom'
 import { AlertTriangle, ArrowLeft, Diamond, Trash2 } from 'lucide-react'
+import { AngleField } from './ui/angle-field'
 import { DomainNumberField } from './ui/domain-number-field'
 import { NumberField } from './ui/number-field'
 import { PercentageField } from './ui/percentage-field'
@@ -665,20 +666,20 @@ function AnimationValueField({
       />
     )
   }
-  if (option.presentation === 'degrees') {
+  if (option.presentation === 'degrees' || option.presentation === 'turns') {
     return (
-      <NumberField
+      <AngleField
+        kind={option.presentation === 'degrees' ? 'rotation' : 'cycles'}
         label={label}
-        ariaLabel={`${label} degrees`}
+        ariaLabel={label}
         hideLabel
-        value={value * 360}
-        min={option.min * 360}
-        max={option.max * 360}
-        step={option.step * 360}
-        suffix="°"
+        value={value}
+        min={option.min}
+        max={option.max}
+        step={option.step}
         compact
         variant="inspector"
-        onChange={(degrees) => onChange(degrees / 360)}
+        onChange={onChange}
       />
     )
   }

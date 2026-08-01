@@ -111,7 +111,7 @@ describe('Show Clip summary', () => {
       'animation',
     ])
     expect(showClipInlineSummary(summary)).toBe(
-      'Animation speed 0.5x · Start offset 250 ms · Amount 30% · Brightness 75% · Hue 0.1 turn · Animation speed animated · Brightness animated',
+      'Animation speed 0.5x · Start offset 250 ms · Amount 30% · Brightness 75% · Hue 0.1t · Animation speed animated · Brightness animated',
     )
     expect(summary.find((section) => section.kind === 'animation')?.items).not.toContainEqual(
       expect.objectContaining({ label: 'Position X' }),
@@ -309,7 +309,7 @@ describe('Show Clip summary', () => {
       expect.objectContaining({ label: 'Animation speed', value: 'animated' }),
     )
     expect(showClipInlineSummary(summary)).toBe(
-      'Animation speed 0.35x · Speed 28% · Sharpness 42% · Brightness 80% · Scale X 0.8x, Y 0.8x · Hue 0.1 turn · Animation speed animated',
+      'Animation speed 0.35x · Speed 28% · Sharpness 42% · Brightness 80% · Scale X 0.8x, Y 0.8x · Hue 0.1t · Animation speed animated',
     )
   })
 
@@ -349,7 +349,7 @@ describe('Show Clip summary', () => {
 
     expect(effects).toEqual([
       expect.objectContaining({ label: 'Opacity', value: '25%' }),
-      expect.objectContaining({ label: 'Hue', value: '0.1 turn' }),
+      expect.objectContaining({ label: 'Hue', value: '0.1t' }),
       expect.objectContaining({
         label: 'Scale',
         value: 'X 2.51x, Y 0.75x',
@@ -375,7 +375,7 @@ describe('Show Clip summary', () => {
     const summary = projectGlobalShowClipSummary(show, cellId)
     expect(summary.find((section) => section.kind === 'view')?.items).toEqual(expect.arrayContaining([
       expect.objectContaining({ label: 'Position X', value: '0.25' }),
-      expect.objectContaining({ label: 'Rotation', value: '90 deg' }),
+      expect.objectContaining({ label: 'Rotation', value: '90°' }),
       expect.objectContaining({ label: 'Scale X', value: '2.51x', timelineValue: 'sx 2.51x' }),
     ]))
     expect(summary.find((section) => section.kind === 'animation')?.items).toContainEqual(
@@ -426,7 +426,7 @@ describe('Show Clip summary', () => {
     const timelineEffect = projectShowClipTimelineSummary(summary, null)
       .find((section) => section.kind === 'effects')?.items[0]
 
-    expect(effect?.value).toBe('Amount 0.32, Frequency 4, Phase 0 turn, Center X 0.5, Center Y 0.5')
-    expect(timelineEffect?.displayValue).toBe('amt 0.32, freq 4, phase 0 turn, cx 0.5, cy 0.5')
+    expect(effect?.value).toBe('Amount 0.32, Frequency 4, Phase 0t, Center X 0.5, Center Y 0.5')
+    expect(timelineEffect?.displayValue).toBe('amt 0.32, freq 4, phase 0t, cx 0.5, cy 0.5')
   })
 })

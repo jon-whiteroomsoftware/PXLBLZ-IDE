@@ -149,6 +149,19 @@ export function BoundedNumberField({
     if (!focusedRef.current) setDraft(interactionDraft)
   }, [interactionDraft])
 
+  // A pinned slider can outlive the render it opened from: a commit's
+  // acknowledgement (or a windowed presentation recentering on it) may land
+  // while the popover is open, leaving the captured thumb value stale. Re-sync
+  // an idle slider to the settled controlled value; never fight an active
+  // pointer drag or unsaved keyboard adjustment (#612).
+  useEffect(() => {
+    if (!slider || sliderDirtyRef.current) return
+    if (pointerSessionRef.current !== null || sliderPointerIdRef.current !== null) return
+    sliderStartValueRef.current = interactionValue
+    sliderValueRef.current = boundedSliderValue
+    setSliderValue(boundedSliderValue)
+  }, [slider, interactionValue, boundedSliderValue])
+
   useEffect(() => {
     onPreviewEndRef.current = onPreviewEnd
   }, [onPreviewEnd])

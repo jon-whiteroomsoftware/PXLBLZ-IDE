@@ -2,6 +2,8 @@ import { useEffect, useId, useMemo, useRef, useState, type Ref } from 'react'
 import { createPortal } from 'react-dom'
 import { useNumberFieldDraft } from '@/components/ui/number-field'
 import { PercentageField } from '@/components/ui/percentage-field'
+import { AngleField } from '@/components/ui/angle-field'
+import { anglePresentationKind } from '@/engine/anglePresentation'
 import { DomainNumberField } from '@/components/ui/domain-number-field'
 import { ColorField } from '@/components/ui/color-field'
 import { ShowPropertyAnimationAction } from '@/components/ShowPropertyAnimationEditor'
@@ -512,6 +514,29 @@ export function ShowEffectStack({
                         return (
                           <div key={parameter.id} className="w-[66px] shrink-0" title={parameter.label}>
                             <PercentageField
+                              label={visibleLabel}
+                              ariaLabel={parameter.label}
+                              labelAction={animationAction}
+                              help={parameter.label}
+                              value={parameterValue}
+                              min={parameter.min ?? 0}
+                              max={parameter.max ?? 1}
+                              step={parameter.step ?? 0.01}
+                              variant="inspector"
+                              compact
+                              onPreview={(next) => onPreview?.(updateEffects(next))}
+                              onPreviewEnd={onPreviewEnd}
+                              onChange={(next) => onChange(updateEffects(next))}
+                            />
+                          </div>
+                        )
+                      }
+                      const angleKind = anglePresentationKind(parameter.presentation)
+                      if (angleKind) {
+                        return (
+                          <div key={parameter.id} className="w-[66px] shrink-0" title={parameter.label}>
+                            <AngleField
+                              kind={angleKind}
                               label={visibleLabel}
                               ariaLabel={parameter.label}
                               labelAction={animationAction}

@@ -3,6 +3,7 @@ import { NumberField } from './ui/number-field'
 import { BoundedNumberField } from './ui/bounded-number-field'
 import { PercentageField } from './ui/percentage-field'
 import { DomainNumberField } from './ui/domain-number-field'
+import { AngleField } from './ui/angle-field'
 import { TimeField } from './ui/time-field'
 import { Grid2X2 } from 'lucide-react'
 import { PatternCombobox, type PatternComboboxOption } from './PatternCombobox'
@@ -871,7 +872,8 @@ export const ShowClipEntityDetail = forwardRef<ShowClipEntityDetailHandle, ShowC
                             onPreviewEnd={onPreviewEnd}
                             onChange={(duty) => onPatch({ blink: { ...value.blink!, duty } })}
                           />
-                          <ShowInspectorNumberField
+                          <AngleField
+                            kind="phase"
                             label="Blink phase"
                             value={value.blink.phase}
                             min={0}
@@ -879,6 +881,8 @@ export const ShowClipEntityDetail = forwardRef<ShowClipEntityDetailHandle, ShowC
                             step={0.01}
                             compact
                             disabled={readOnly}
+                            onPreview={(phase) => onPreviewPatch?.({ blink: { ...value.blink!, phase } })}
+                            onPreviewEnd={onPreviewEnd}
                             onChange={(phase) => onPatch({ blink: { ...value.blink!, phase } })}
                           />
                         </div>
@@ -901,8 +905,9 @@ export const ShowClipEntityDetail = forwardRef<ShowClipEntityDetailHandle, ShowC
                         )}
                       </span>
                     </th>
-                    <td className="py-0.5 [&_input]:!border-0">
-                      <ShowInspectorNumberField
+                    <td className="py-0.5">
+                      <AngleField
+                        kind="phase"
                         label="Phase"
                         hideLabel
                         align="left"
@@ -912,6 +917,8 @@ export const ShowClipEntityDetail = forwardRef<ShowClipEntityDetailHandle, ShowC
                         step={0.01}
                         compact
                         disabled={readOnly}
+                        onPreview={(phase) => onPreviewPatch?.({ view: { phase } })}
+                        onPreviewEnd={onPreviewEnd}
                         onChange={(phase) => onPatch({ view: { phase } })}
                       />
                     </td>
@@ -1061,7 +1068,7 @@ function ClipPlacementGeometry({
         <DomainNumberField compact label="Height" ariaLabel={heightLabel} labelAction={animationAction(content ? 'scaleY' : 'height', heightLabel)} presentation="multiplier" value={shown(height)} min={0.01} max={8} step={0.01} reserveSuffixSpace disabled={readOnly} onPreview={(next) => onPreviewPatch?.(content ? { transform: { scaleY: next } } : { viewport: { height: next } })} onPreviewEnd={onPreviewEnd} onChange={(next) => onPatch(content ? { transform: { scaleY: next } } : { viewport: { height: next } })} />
       </div>
       <div className="min-w-0" data-show-clip-summary-target={content ? 'transform-rotation' : undefined} tabIndex={content ? -1 : undefined}>
-        <ShowInspectorNumberField compact label="Rotation" ariaLabel={content ? 'Rotation degrees' : 'Viewport rotation'} labelAction={content ? animationAction('rotation', 'Rotation') : undefined} value={content ? shown(value.transform.rotation * 360) : 0} min={-2880} max={2880} step={1} suffix="°" reserveSuffixSpace disabled={readOnly || !content} help={content ? undefined : 'Aperture is axis-aligned'} onChange={(degrees) => onPatch({ transform: { rotation: degrees / 360 } })} />
+        <AngleField compact kind="rotation" label="Rotation" ariaLabel={content ? 'Rotation' : 'Viewport rotation'} labelAction={content ? animationAction('rotation', 'Rotation') : undefined} value={content ? value.transform.rotation : 0} min={-8} max={8} step={1 / 360} reserveSuffixSpace disabled={readOnly || !content} help={content ? undefined : 'Aperture is axis-aligned'} onPreview={content ? (rotation) => onPreviewPatch?.({ transform: { rotation } }) : undefined} onPreviewEnd={onPreviewEnd} onChange={(rotation) => onPatch({ transform: { rotation } })} />
       </div>
     </div>
   )

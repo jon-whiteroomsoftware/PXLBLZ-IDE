@@ -183,6 +183,22 @@ between them. The ruler is a fast adjustment surface, not a storage limit:
 values beyond 30 seconds remain available through exact entry wherever the
 Show model permits them.
 
+Angle and cycle values share the same exact-entry-and-grip interaction with
+four presentations that match the authored concept. Directions and rotations
+display degrees with a fixed `°` suffix; phases, hue shifts, twists, and spins
+display turns with a fixed `t` suffix. Exact entry accepts degrees (`90`,
+`90°`, `90deg`), turns (`0.25t`, `2 turns`), or a bare number in the field's
+canonical unit, and storage always remains in turns. Direction fields wrap
+exact entry onto one cycle and mark compass landmarks (`E`, `S`, `W`, `N`,
+clockwise from screen east) on their slider. Phase sliders cover the cycle
+containing the current value with quarter-cycle detents and never normalize an
+authored value, so multi-cycle Property animation paths survive editing.
+Rotation sliders cover two turns centered near the current value with a
+neutral `0` marker and quarter-turn detents; the full stored range (for
+example ±8 turns on Clip Transform Rotation) stays reachable through exact
+entry, and sign and turn count survive display, editing, animation, and
+compilation — animating `0` to `720°` still spins twice.
+
 Patterns may also call **libraries** with namespace syntax such as
 `SDF.circle(...)` — see [section 7](#7-libraries-and-mixins).
 

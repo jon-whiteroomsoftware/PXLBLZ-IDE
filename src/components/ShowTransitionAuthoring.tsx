@@ -5,6 +5,8 @@ import type { ShowBoundaryTransition, ShowRecord } from '@/engine/personalConten
 import { NumberField } from '@/components/ui/number-field'
 import { PercentageField } from '@/components/ui/percentage-field'
 import { DomainNumberField } from '@/components/ui/domain-number-field'
+import { AngleField } from '@/components/ui/angle-field'
+import { anglePresentationKind } from '@/engine/anglePresentation'
 import { TimeField } from '@/components/ui/time-field'
 import { ColorField } from '@/components/ui/color-field'
 import { projectShowTimeline } from '@/engine/showModel'
@@ -270,6 +272,26 @@ export function ShowTransitionParameters({
           return (
             <PercentageField
               key={parameter.id}
+              label={parameter.label}
+              value={Number(value)}
+              min={parameter.min ?? 0}
+              max={parameter.max ?? 1}
+              step={parameter.step ?? 0.01}
+              variant="editor"
+              compact
+              disabled={transition.kind === 'cut'}
+              onPreview={(next) => onPreview?.(parameter.id, next)}
+              onPreviewEnd={onPreviewEnd}
+              onChange={(next) => onChange(parameter.id, next)}
+            />
+          )
+        }
+        const angleKind = anglePresentationKind(parameter.presentation)
+        if (angleKind) {
+          return (
+            <AngleField
+              key={parameter.id}
+              kind={angleKind}
               label={parameter.label}
               value={Number(value)}
               min={parameter.min ?? 0}

@@ -203,7 +203,7 @@ describe('per-parameter Property animation editor (#648)', () => {
     )
 
     fireEvent.click(screen.getByRole('button', { name: 'Animate Rotation' }))
-    const from = screen.getByRole('textbox', { name: 'Rotation animation from degrees' })
+    const from = screen.getByRole('textbox', { name: 'Rotation animation from exact rotation' })
     expect(from).toHaveValue('90')
     fireEvent.change(from, { target: { value: '180' } })
     fireEvent.blur(from)
