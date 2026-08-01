@@ -504,7 +504,7 @@ export const ShowClipEntityDetail = forwardRef<ShowClipEntityDetailHandle, ShowC
           data-active-tab={activeTab}
           className={embedded
             ? activeTab === 'effects' && !animationOverviewOpen
-              ? 'flex min-h-0 flex-1 flex-col overflow-hidden pt-2'
+              ? 'flex h-[clamp(180px,calc(100vh-250px),300px)] min-h-0 shrink-0 flex-col overflow-hidden pt-2'
               : 'min-h-0 flex-1 overflow-y-auto pt-2'
             : activeTab === 'effects' && !animationOverviewOpen
               ? 'flex h-[clamp(180px,calc(100vh-250px),300px)] min-h-0 flex-col overflow-hidden pt-2'

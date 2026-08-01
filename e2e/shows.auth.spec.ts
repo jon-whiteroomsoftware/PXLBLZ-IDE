@@ -515,7 +515,7 @@ test.describe('authenticated Show authoring', () => {
     await expect(clip).toBeFocused()
   })
 
-  test('moves the panel to another Clip owner', async ({ page }) => {
+  test('moves the panel to another Clip owner through keyboard navigation', async ({ page }) => {
     await page.goto('studio/shows')
     await createInstallationShow(page)
 
@@ -526,7 +526,8 @@ test.describe('authenticated Show authoring', () => {
     const other = page.getByRole('button', { name: 'Select CometLoom', exact: true })
     const otherKey = await other.getAttribute('data-show-selection-key')
     expect(otherKey).not.toBeNull()
-    await other.click()
+    await other.focus()
+    await other.press('Enter')
 
     await expect(panel).toHaveCount(1)
     await expect(panel).toHaveAttribute('data-owner-key', otherKey!)
@@ -1211,6 +1212,8 @@ test.describe('authenticated Show authoring', () => {
     const adjacentCrossfade = page.getByRole('button', { name: 'Edit crossfade Transition between TestPattern1D and CometLoom' })
     await adjacentCrossfade.click()
     await expect(page.getByRole('button', { name: /Crossfade · Change/ })).toBeVisible()
+    await page.keyboard.press('Escape')
+    await expect(page.getByRole('dialog', { name: 'Entity Detail Panel' })).toHaveCount(0)
     await page.getByRole('button', { name: 'Select CometLoom' }).click()
     await page.getByRole('separator', { name: 'Resize CometLoom end' }).hover()
 
@@ -1241,6 +1244,8 @@ test.describe('authenticated Show authoring', () => {
     await expect(page.getByLabel('Routing transfer duration seconds exact time')).toHaveValue('2')
     await expect(page.getByLabel('Routing transfer easing')).toHaveValue('ease-in-out')
     await expect(page.getByLabel('Routing transfer direction')).toHaveValue('reverse')
+    await page.keyboard.press('Escape')
+    await expect(page.getByRole('dialog', { name: 'Entity Detail Panel' })).toHaveCount(0)
     await page.getByRole('button', { name: 'View code' }).first().click()
     await expect(page.getByText('Generated pattern - Untitled Show')).toBeVisible()
   })
