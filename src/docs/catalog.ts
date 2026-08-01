@@ -1,5 +1,6 @@
 import ecosystemPrimer from '../../docs/reference/Pixelblaze Ecosystem Primer.md?raw'
 import featureGuide from '../../docs/reference/PXLBLZ Feature Guide.md?raw'
+import keyboardShortcuts from '../../docs/reference/PXLBLZ Keyboard Shortcuts.md?raw'
 import understandingMaps from '../../docs/reference/Understanding Maps.md?raw'
 import optimizationGuide from '../../docs/guides/Optimizing Pixelblaze patterns.md?raw'
 import visualEffectsGuide from '../../docs/guides/Visual effects guide.md?raw'
@@ -27,6 +28,7 @@ import showVisualToolkitEntityDetailUrl from '../../docs/screenshots/show-visual
 export type DocId =
   | 'ecosystem-primer'
   | 'feature-guide'
+  | 'keyboard-shortcuts'
   | 'show-visual-toolkit'
   | 'optimization-guide'
   | 'understanding-maps'
@@ -83,6 +85,16 @@ export const USER_DOCS: UserDoc[] = [
     menuKicker: 'Using PXLBLZ',
     summary: 'Gallery, Studio authoring, preview, maps, Controllers, and Shows.',
     source: featureGuide,
+    assets: sharedAssets,
+  },
+  {
+    id: 'keyboard-shortcuts',
+    path: 'docs/reference/PXLBLZ Keyboard Shortcuts.md',
+    title: 'PXLBLZ Keyboard Shortcuts',
+    menuLabel: 'Keyboard Shortcuts',
+    menuKicker: 'Using PXLBLZ',
+    summary: 'Keyboard commands and modifier-assisted interactions across Preview, Studio, and Shows.',
+    source: keyboardShortcuts,
     assets: sharedAssets,
   },
   {

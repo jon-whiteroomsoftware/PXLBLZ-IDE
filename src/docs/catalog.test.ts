@@ -1,10 +1,22 @@
 import { USER_DOCS, docHash, getUserDoc, isDocId, resolveDocAsset, resolveDocHref } from './catalog'
 
 describe('docs catalog', () => {
+  it('exposes the keyboard shortcuts guide in the public catalog', () => {
+    expect(isDocId('keyboard-shortcuts')).toBe(true)
+    expect(getUserDoc('keyboard-shortcuts')).toMatchObject({
+      title: 'PXLBLZ Keyboard Shortcuts',
+      menuLabel: 'Keyboard Shortcuts',
+      menuKicker: 'Using PXLBLZ',
+      path: 'docs/reference/PXLBLZ Keyboard Shortcuts.md',
+    })
+    expect(getUserDoc('keyboard-shortcuts')?.source).toContain('# PXLBLZ Keyboard Shortcuts')
+  })
+
   it('exposes the public documentation set', () => {
     expect(USER_DOCS.map((doc) => doc.id)).toEqual([
       'ecosystem-primer',
       'feature-guide',
+      'keyboard-shortcuts',
       'show-visual-toolkit',
       'understanding-maps',
       'optimization-guide',
