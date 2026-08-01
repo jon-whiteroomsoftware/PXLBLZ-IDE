@@ -5,9 +5,10 @@ own keyboard behavior. This guide collects both kinds of interaction, along
 with modifier-assisted gestures that are useful but easy to miss.
 
 `Command/Ctrl` means Command on macOS and Ctrl on Windows or Linux.
-`Option/Alt` means Option on macOS and Alt on Windows or Linux. A text field,
-menu, popover, or other focused control keeps the keys it needs, so a shortcut
-may wait until focus returns to the surrounding Studio or Show workspace.
+`Option/Alt` means Option on macOS and Alt on Windows or Linux. Text fields and
+the code editor retain typing keys. Menus, popovers, sliders, and other focused
+controls retain their normal navigation and editing keys unless a section below
+names an app-level shortcut.
 
 This guide covers PXLBLZ-owned behavior. The code editor retains Monaco's
 standard platform shortcuts, and ordinary browser controls retain their normal
@@ -23,12 +24,13 @@ Preview playback uses the same shortcut wherever authoring work happens.
 |---|---|
 | `Space` | Play or pause the active Preview. |
 
-`Space` works throughout Studio and on Pattern detail pages. Text fields, the
-code editor, and controls that use Space for their own interaction keep it.
-Inside the Show editor, the timeline toolbar, Zone rail, timeline entities,
-Navigator, and playhead deliberately pass Space through to playback. An open
-menu or popover normally keeps Space so its focused button can still be
-activated.
+`Space` works throughout Studio and on Pattern detail pages. Text fields and the
+code editor keep it for typing. Outside the Show timeline, buttons, links,
+selectors, sliders, menus, and entity-tree rows delegate Space to Preview
+playback instead of using their native Space action. Inside the Show editor,
+the timeline toolbar, Zone rail, timeline entities, Navigator, and playhead
+also pass Space through to playback. An open timeline menu or popover keeps
+Space so its focused button can still be activated.
 
 ### 3D Preview
 
