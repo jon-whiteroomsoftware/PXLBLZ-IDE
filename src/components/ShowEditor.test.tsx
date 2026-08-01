@@ -4008,7 +4008,7 @@ describe('ShowEditor (#318)', () => {
     expect(within(panel).queryByText('Unsupported Property')).not.toBeInTheDocument()
     fireEvent.click(within(panel).getByRole('button', { name: 'Animations — 1' }))
     expect(within(panel).getByRole('region', { name: 'Animations overview' })).toBeInTheDocument()
-    expect(within(panel).getByText('3 keyframes · read-only')).toBeInTheDocument()
+    expect(within(panel).getByText('3 keyframes')).toBeInTheDocument()
     expect(within(panel).getByRole('button', { name: 'Remove Brightness animation' })).toBeDisabled()
     await user.click(within(panel).getByRole('button', { name: 'Back from Animations overview' }))
     expect(stock.show.composition?.scenes[0].propertyTracks).toEqual(before)
@@ -4092,6 +4092,63 @@ describe('ShowEditor (#318)', () => {
       expect(current.showHistories[show.id]?.past.length).toBe(historyBeforeRemove + 1)
       expect(within(panel).queryByRole('button', { name: /^Animations/ })).not.toBeInTheDocument()
     })
+  })
+
+  it('adds, edits, and deletes interior keyframes in the animation popover (#363)', async () => {
+    const user = userEvent.setup()
+    const show = createDefaultShow('show-multi-keyframe-animation', 'Multi keyframe animation', 1000)
+    setPersonalContentProvider(memoryProvider([show]))
+    useShowStore.setState({ shows: [show], activeShowId: show.id, showsLoaded: true })
+
+    render(<ShowEditor showId={show.id} />)
+    await user.click(screen.getByRole('button', { name: 'Select TestPattern1D' }))
+    const panel = screen.getByRole('dialog', { name: 'Entity Detail Panel' })
+    await user.click(within(panel).getByRole('button', { name: 'Animate Brightness' }))
+    const toValue = screen.getByRole('textbox', { name: 'Brightness animation to exact percentage' })
+    await user.clear(toValue)
+    await user.type(toValue, '42%')
+    fireEvent.blur(toValue)
+    await waitFor(() => {
+      expect(useShowStore.getState().shows[0].composition?.scenes[0].propertyTracks?.[0].keyframes).toHaveLength(2)
+    })
+
+    // A new keyframe splits the largest gap without changing the curve: it
+    // lands at the midpoint carrying the evaluated value there.
+    const sceneDurationMs = show.scenes[0].durationMs
+    await user.click(screen.getByRole('button', { name: 'Add Brightness keyframe' }))
+    await waitFor(() => {
+      const track = useShowStore.getState().shows[0].composition?.scenes[0].propertyTracks?.[0]
+      expect(track?.keyframes.map((keyframe) => keyframe.timeMs))
+        .toEqual([0, sceneDurationMs / 2, sceneDurationMs])
+      expect(track?.keyframes[1].value).toBeCloseTo(0.71, 5)
+    })
+
+    // The interior keyframe is a full editing surface: value, time, and the
+    // easing of the segment it starts.
+    const middleValue = screen.getByRole('textbox', { name: 'Brightness animation keyframe 2 exact percentage' })
+    await user.clear(middleValue)
+    await user.type(middleValue, '20%')
+    fireEvent.blur(middleValue)
+    await waitFor(() => {
+      expect(useShowStore.getState().shows[0].composition?.scenes[0].propertyTracks?.[0].keyframes[1].value).toBe(0.2)
+    })
+    expect(screen.getByRole('combobox', { name: 'Brightness animation easing' })).toBeInTheDocument()
+    await user.selectOptions(
+      screen.getByRole('combobox', { name: 'Brightness animation easing after keyframe 2' }),
+      'steps-4-end',
+    )
+    await waitFor(() => {
+      expect(useShowStore.getState().shows[0].composition?.scenes[0].propertyTracks?.[0].keyframes[1].easing)
+        .toMatchObject({ curve: 'steps', steps: 4, position: 'end' })
+    })
+
+    await user.click(screen.getByRole('button', { name: 'Delete Brightness animation keyframe 2' }))
+    await waitFor(() => {
+      const track = useShowStore.getState().shows[0].composition?.scenes[0].propertyTracks?.[0]
+      expect(track?.keyframes.map((keyframe) => keyframe.timeMs)).toEqual([0, sceneDurationMs])
+    })
+    // The two-point floor: end keyframes offer no per-row delete.
+    expect(screen.queryByRole('button', { name: /Delete Brightness animation/ })).not.toBeInTheDocument()
   })
 
   it('keeps a per-parameter draft transient and records its first edit as one undo step (#648)', async () => {

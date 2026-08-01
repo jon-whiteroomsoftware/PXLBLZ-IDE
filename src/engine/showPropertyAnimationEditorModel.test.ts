@@ -372,6 +372,42 @@ describe('Property animation editor time projection (#648)', () => {
       trackId: authored!.id,
     }, nextId)
     expect(removed.groupDefinitions?.[0].propertyTracks).toBeUndefined()
+
+    // Multi-keyframe editing (#363): interior keyframes insert in time order,
+    // reject duplicate times through validation, and can be removed only
+    // while more than two keyframes remain.
+    const middle = applyShowGroupPropertyAnimationChange(show, added, owner, {
+      kind: 'add-keyframe',
+      trackId: authored!.id,
+      keyframe: { timeMs: 2_000, value: 1, easing: { curve: 'sine', direction: 'in-out' } },
+    }, nextId)
+    const middleTrack = middle.groupDefinitions?.[0].propertyTracks?.[0]
+    expect(middleTrack?.keyframes.map(({ timeMs, value }) => ({ timeMs, value }))).toEqual([
+      { timeMs: 500, value: 0.75 },
+      { timeMs: 2_000, value: 1 },
+      { timeMs: 3_500, value: 0.25 },
+    ])
+
+    const duplicateTime = applyShowGroupPropertyAnimationChange(show, middle, owner, {
+      kind: 'add-keyframe',
+      trackId: authored!.id,
+      keyframe: { timeMs: 2_000, value: 0.5, easing: { curve: 'linear' } },
+    }, nextId)
+    expect(duplicateTime).toBe(middle)
+
+    const trimmed = applyShowGroupPropertyAnimationChange(show, middle, owner, {
+      kind: 'delete-keyframe',
+      trackId: authored!.id,
+      keyframeId: middleTrack!.keyframes[1].id,
+    }, nextId)
+    expect(trimmed.groupDefinitions?.[0].propertyTracks?.[0].keyframes).toHaveLength(2)
+
+    const refused = applyShowGroupPropertyAnimationChange(show, trimmed, owner, {
+      kind: 'delete-keyframe',
+      trackId: authored!.id,
+      keyframeId: trimmed.groupDefinitions![0].propertyTracks![0].keyframes[0].id,
+    }, nextId)
+    expect(refused).toBe(trimmed)
   })
 
   it('removes one orphaned Group track even when another invalid track remains', () => {

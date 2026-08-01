@@ -234,9 +234,12 @@ above lower ones. An overlay Clip's Opacity is a mix with everything below it,
 so raising one voice necessarily recedes the others.
 
 A Property curve animates a value the Clip already owns - Opacity, brightness,
-a Transform axis - without adding filler Clips. The curve lives inside its
-Clip's interval, and hidden keyframes are preserved if a Clip is shortened, so
-lengthening it again restores the authored motion rather than destroying it.
+a Transform axis - without adding filler Clips. A curve carries any number of
+keyframes: the diamond beside the owning field opens an editor that adds,
+moves, revalues, and removes them, and each segment between two keyframes owns
+its easing. The curve lives inside its Clip's interval, and hidden keyframes
+are preserved if a Clip is shortened, so lengthening it again restores the
+authored motion rather than destroying it.
 
 ### Content and Clip Viewport
 

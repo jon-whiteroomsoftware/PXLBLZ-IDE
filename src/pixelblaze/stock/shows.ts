@@ -534,6 +534,10 @@ function learn106(): StockShow {
 // the mostly-black rain replaced the water almost completely (measured mean
 // luminance fell from 0.24 to 0.06), which read as the bed failing rather
 // than a second voice joining.
+//
+// The four-point curve is deliberate: this lesson is the working proof of the
+// multi-keyframe animation editor (#363), so its prompts edit and add
+// keyframes on the arrival-hold-departure arc rather than avoiding it.
 function learn201(): StockShow {
   const id = 'stock-show-201-layers-property-animation'
   const zones = logicalZones(['Main'], PORTABLE_REFERENCE_PIXELS)
@@ -577,9 +581,9 @@ function learn201(): StockShow {
   }
   return catalogue({
     id, title: 'Layers and Property Animation', track: 'portable', collection: 'learn', level: 200, order: 1,
-    purpose: 'Layers let two Clips contribute to the same pixels at the same time. The glyphs arrive, hold, and leave without any extra Clips, because a Property curve animates their Opacity inside the one Clip that owns them.',
-    notice: 'The water Clip never changes - Opacity is a mix, so as the glyphs rise the water recedes, and when the curve returns to zero the water is exactly where its own clock says. The entrance and exit are the curve, not Clip edges.',
-    prompts: ['Drag the peak Opacity keyframe from 65% down to 30% and watch the glyphs become a tint instead of a voice.', 'Move the departure keyframe from 9 s to 11 s so the glyphs hold longer before they leave.'],
+    purpose: 'Layers blend pixels from different Clips into one picture: whatever a higher Layer draws is mixed over the Layers below it. Here GlyphRain plays on its own Layer above Caustics, and one Opacity curve - rise, hold, fade - is the whole story of its arrival and exit.',
+    notice: 'The Caustics Clip never changes. Opacity mixes the two Layers, so the water recedes only while the rain is up, and the rain arrives and leaves on its Opacity curve rather than at its Clip edges.',
+    prompts: ['Open the GlyphRain Clip, click the diamond next to Opacity, and drag both 65% keyframes down to 30% - the rain becomes a tint instead of a voice.', 'Click Add keyframe and pull the new middle point up to 100% for a swell in the middle of the hold.'],
     guideHeading: 'layers-and-property-animation',
     output: portableOutput(), zones, layouts: [singleLayout(zones)], scenes, composition,
   })

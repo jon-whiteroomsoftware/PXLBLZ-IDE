@@ -137,11 +137,14 @@ describe('Property animation overview projection (#649)', () => {
 
     const [row] = projectShowPropertyAnimationOverview(context([authored]), [brightness])
 
+    // Multi-keyframe tracks are ordinary editable tracks (#363), and the
+    // summary carries every value because a curve's meaning often lives in
+    // its middle.
     expect(row).toMatchObject({
       trackId: 'three-point',
       keyframeCount: 3,
-      readOnly: true,
-      valueRange: '10% → 90%',
+      readOnly: false,
+      valueRange: '10% → 50% → 90%',
       timeRange: '12s → 14s',
     })
     expect(authored).toEqual(before)

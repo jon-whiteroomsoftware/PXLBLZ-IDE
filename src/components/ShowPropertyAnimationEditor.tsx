@@ -1,5 +1,6 @@
 import {
   createContext,
+  Fragment,
   useContext,
   useEffect,
   useMemo,
@@ -23,7 +24,7 @@ import type {
   ShowPropertyAnimationTarget,
   ShowPropertyAnimationTrack,
 } from '@/engine/personalContentRecords'
-import { propertyTargetKey } from '@/engine/showPropertyAnimation'
+import { evaluateShowPropertyTrack, propertyTargetKey } from '@/engine/showPropertyAnimation'
 import {
   showPropertyAnimationGlobalSeconds,
   showPropertyAnimationLocalTimeMs,
@@ -306,8 +307,8 @@ function AnimationOverviewGroup({
                 </p>
               )}
               {!row.orphaned && row.keyframeCount !== 2 && (
-                <p className="mt-0.5 text-[8px] text-amber-300/75">
-                  {row.keyframeCount} keyframes · read-only
+                <p className="mt-0.5 text-[8px] text-zinc-500">
+                  {row.keyframeCount} keyframes
                 </p>
               )}
             </div>
@@ -352,13 +353,10 @@ function ShowPropertyAnimationPopover({
   const ordered = track
     ? [...track.keyframes].sort((left, right) => left.timeMs - right.timeMs || left.id.localeCompare(right.id))
     : draft
-  const from = ordered[0]
-  const to = ordered[1]
-  const twoPointTrack = ordered.length === 2 && from && to
   const rect = anchor?.getBoundingClientRect()
   const left = Math.max(8, Math.min(
-    typeof window === 'undefined' ? 8 : window.innerWidth - 258,
-    (rect?.right ?? 258) - 250,
+    typeof window === 'undefined' ? 8 : window.innerWidth - 286,
+    (rect?.right ?? 286) - 278,
   ))
   const top = Math.max(8, Math.min(
     typeof window === 'undefined' ? 8 : window.innerHeight - 230,
@@ -406,7 +404,7 @@ function ShowPropertyAnimationPopover({
     if (accepted) setDraftCommitted(true)
   }
   const changeKeyframe = (
-    index: 0 | 1,
+    index: number,
     changes: Partial<Pick<ShowPropertyAnimationKeyframe, 'timeMs' | 'value' | 'easing'>>,
   ) => {
     if (track) {
@@ -422,6 +420,7 @@ function ShowPropertyAnimationPopover({
       })
       return
     }
+    if (index !== 0 && index !== 1) return
     const next = draft.map((keyframe, candidateIndex) => (
       candidateIndex === index ? { ...keyframe, ...changes } : keyframe
     )) as [DraftKeyframe, DraftKeyframe]
@@ -437,7 +436,7 @@ function ShowPropertyAnimationPopover({
       aria-modal="false"
       aria-label={`${option.label} animation`}
       data-show-detail-owned-portal="true"
-      className="fixed z-[130] w-[250px] overflow-hidden rounded-md border border-violet-300/35 bg-zinc-950 shadow-[0_14px_40px_-14px_rgba(0,0,0,0.95)]"
+      className="fixed z-[130] w-[278px] overflow-hidden rounded-md border border-violet-300/35 bg-zinc-950 shadow-[0_14px_40px_-14px_rgba(0,0,0,0.95)]"
       style={{ left, top }}
     >
       <div className="flex h-7 items-center gap-1.5 border-b border-zinc-800 bg-violet-300/[0.06] px-2">
@@ -446,56 +445,77 @@ function ShowPropertyAnimationPopover({
           {option.label} animates
         </strong>
       </div>
-      {twoPointTrack ? (
-        <div className="p-2">
-          <KeyframeRow
-            edge="from"
-            option={option}
-            keyframe={from}
-            context={context}
-            onValueChange={(value) => changeKeyframe(0, { value })}
-            onTimeChange={(seconds) => changeKeyframe(0, {
-              timeMs: showPropertyAnimationLocalTimeMs(context, seconds),
-            })}
-          />
-          <KeyframeRow
-            edge="to"
-            option={option}
-            keyframe={to}
-            context={context}
-            onValueChange={(value) => changeKeyframe(1, { value })}
-            onTimeChange={(seconds) => changeKeyframe(1, {
-              timeMs: showPropertyAnimationLocalTimeMs(context, seconds),
-            })}
-          />
-          <label className="mt-2 block text-[8px] uppercase tracking-[0.1em] text-zinc-600">
-            Easing
-            <select
-              aria-label={`${option.label} animation easing`}
-              value={showEasingOptionId(from.easing)}
-              onChange={(event) => changeKeyframe(0, {
-                easing: showEasingFromOptionId(event.target.value),
-              })}
-              className="mt-1 h-6 w-full rounded border border-zinc-700 bg-zinc-950 px-2 text-[9.5px] normal-case tracking-normal text-zinc-200 outline-none focus:border-violet-300/70"
-            >
-              {SHOW_EASING_OPTIONS.map((candidate) => (
-                <option key={candidate.id} value={candidate.id}>{candidate.label}</option>
-              ))}
-            </select>
-          </label>
-          {linked && context.instanceUseCount > 1 && (
-            <p className="mt-2 text-[8.5px] text-cyan-300/70">
-              Affects {context.instanceUseCount} linked Clips
-            </p>
-          )}
-        </div>
-      ) : (
-        <p className="p-2 text-[9px] leading-4 text-zinc-400">
-          This stored track has {ordered.length} keyframes. Open Animations overview to inspect it without losing points.
-        </p>
-      )}
-      <div className="flex min-h-7 items-center border-t border-zinc-800 px-2 text-[8.5px] text-zinc-500">
+      <div className="p-2">
+        {ordered.map((keyframe, index) => {
+          const isLast = index === ordered.length - 1
+          const edge = index === 0 ? 'from' : isLast ? 'to' : `keyframe ${index + 1}`
+          const display = index === 0 ? 'From' : isLast ? 'To' : `K${index + 1}`
+          const keyframeId = track ? (keyframe as ShowPropertyAnimationKeyframe).id : String(index)
+          return (
+            <Fragment key={keyframeId}>
+              <KeyframeRow
+                edge={edge}
+                display={display}
+                option={option}
+                keyframe={keyframe}
+                context={context}
+                onValueChange={(value) => changeKeyframe(index, { value })}
+                onTimeChange={(seconds) => changeKeyframe(index, {
+                  timeMs: showPropertyAnimationLocalTimeMs(context, seconds),
+                })}
+                onDelete={track && ordered.length > 2
+                  ? () => context.onChange({
+                      kind: 'delete-keyframe',
+                      trackId: track.id,
+                      keyframeId: (keyframe as ShowPropertyAnimationKeyframe).id,
+                    })
+                  : undefined}
+              />
+              {!isLast && (
+                // Easing belongs to the segment leaving this keyframe, so its
+                // control sits between the two keyframes it connects.
+                <label className="mb-1.5 grid grid-cols-[24px_minmax(0,1fr)_16px] items-center gap-1 text-[8px] uppercase tracking-[0.1em] text-zinc-600">
+                  <span aria-hidden className="self-center text-center text-zinc-700">~</span>
+                  <select
+                    aria-label={`${option.label} animation easing${index > 0 ? ` after keyframe ${index + 1}` : ''}`}
+                    value={showEasingOptionId(keyframe.easing)}
+                    onChange={(event) => changeKeyframe(index, {
+                      easing: showEasingFromOptionId(event.target.value),
+                    })}
+                    className="h-6 w-full rounded border border-zinc-700 bg-zinc-950 px-2 text-[9.5px] normal-case tracking-normal text-zinc-200 outline-none focus:border-violet-300/70"
+                  >
+                    {SHOW_EASING_OPTIONS.map((candidate) => (
+                      <option key={candidate.id} value={candidate.id}>{candidate.label}</option>
+                    ))}
+                  </select>
+                  <span aria-hidden />
+                </label>
+              )}
+            </Fragment>
+          )
+        })}
+        {linked && context.instanceUseCount > 1 && (
+          <p className="mt-2 text-[8.5px] text-cyan-300/70">
+            Affects {context.instanceUseCount} linked Clips
+          </p>
+        )}
+      </div>
+      <div className="flex min-h-7 items-center gap-1 border-t border-zinc-800 px-2 text-[8.5px] text-zinc-500">
         <span>Show-global time</span>
+        {track && (
+          <button
+            type="button"
+            aria-label={`Add ${option.label} keyframe`}
+            onClick={() => {
+              const insertion = keyframeInsertionFor(track)
+              if (!insertion) return
+              context.onChange({ kind: 'add-keyframe', trackId: track.id, keyframe: insertion })
+            }}
+            className="ml-auto flex h-5 items-center gap-1 rounded px-1 text-violet-300 hover:bg-violet-950/40 hover:text-violet-200 focus-visible:outline focus-visible:outline-1 focus-visible:outline-violet-300"
+          >
+            <Diamond size={9} aria-hidden /> Add keyframe
+          </button>
+        )}
         {track && (
           <button
             type="button"
@@ -505,7 +525,7 @@ function ShowPropertyAnimationPopover({
               onClose()
               window.setTimeout(() => anchor?.focus(), 0)
             }}
-            className="ml-auto flex h-5 items-center gap-1 rounded px-1 text-red-400 hover:bg-red-950/30 hover:text-red-300 focus-visible:outline focus-visible:outline-1 focus-visible:outline-red-300"
+            className="flex h-5 items-center gap-1 rounded px-1 text-red-400 hover:bg-red-950/30 hover:text-red-300 focus-visible:outline focus-visible:outline-1 focus-visible:outline-red-300"
           >
             <Trash2 size={9} aria-hidden /> Remove
           </button>
@@ -514,6 +534,33 @@ function ShowPropertyAnimationPopover({
     </div>,
     document.body,
   )
+}
+
+/**
+ * A new keyframe lands at the midpoint of the largest time gap, carrying the
+ * curve's evaluated value there and the easing of the segment it splits, so
+ * adding a point never changes the rendered animation until it is edited.
+ */
+function keyframeInsertionFor(track: ShowPropertyAnimationTrack): DraftKeyframe | null {
+  const ordered = [...track.keyframes].sort((left, right) => left.timeMs - right.timeMs || left.id.localeCompare(right.id))
+  let bestIndex = -1
+  let bestGap = 1
+  ordered.forEach((keyframe, index) => {
+    if (index === 0) return
+    const gap = keyframe.timeMs - ordered[index - 1].timeMs
+    if (gap > bestGap) {
+      bestGap = gap
+      bestIndex = index
+    }
+  })
+  if (bestIndex < 0) return null
+  const left = ordered[bestIndex - 1]
+  const timeMs = Math.round(left.timeMs + bestGap / 2)
+  return {
+    timeMs,
+    value: evaluateShowPropertyTrack(track, timeMs),
+    easing: structuredClone(left.easing),
+  }
 }
 
 type DraftKeyframe = Omit<ShowPropertyAnimationKeyframe, 'id'>
@@ -530,24 +577,27 @@ function draftFor(
 
 function KeyframeRow({
   edge,
+  display,
   option,
   keyframe,
   context,
   onValueChange,
   onTimeChange,
+  onDelete,
 }: {
-  edge: 'from' | 'to'
+  edge: string
+  display: string
   option: ShowPropertyAnimationOption
   keyframe: DraftKeyframe
   context: ShowPropertyAnimationEditorValue
   onValueChange: (value: number) => void
   onTimeChange: (seconds: number) => void
+  onDelete?: () => void
 }) {
-  const edgeLabel = edge === 'from' ? 'From' : 'To'
   const accessiblePrefix = `${option.label} animation ${edge}`
   return (
-    <div className="mb-1.5 grid grid-cols-[24px_minmax(0,1fr)_13px_minmax(0,1fr)] items-end gap-1 last:mb-0">
-      <span className="self-center text-[8px] uppercase tracking-[0.1em] text-zinc-600">{edgeLabel}</span>
+    <div className="mb-1.5 grid grid-cols-[24px_minmax(0,1fr)_13px_minmax(0,1fr)_16px] items-end gap-1 last:mb-0">
+      <span className="self-center text-[8px] uppercase tracking-[0.1em] text-zinc-600">{display}</span>
       <AnimationValueField
         option={option}
         edge={edge}
@@ -567,6 +617,18 @@ function KeyframeRow({
         variant="inspector"
         onChange={onTimeChange}
       />
+      {onDelete ? (
+        <button
+          type="button"
+          aria-label={`Delete ${accessiblePrefix}`}
+          onClick={onDelete}
+          className="grid size-5 place-items-center self-center rounded text-zinc-500 hover:bg-red-950/30 hover:text-red-300 focus-visible:outline focus-visible:outline-1 focus-visible:outline-red-300"
+        >
+          <Trash2 size={9} aria-hidden />
+        </button>
+      ) : (
+        <span aria-hidden />
+      )}
     </div>
   )
 }
@@ -578,7 +640,7 @@ function AnimationValueField({
   onChange,
 }: {
   option: ShowPropertyAnimationOption
-  edge: 'from' | 'to'
+  edge: string
   value: number
   onChange: (value: number) => void
 }) {

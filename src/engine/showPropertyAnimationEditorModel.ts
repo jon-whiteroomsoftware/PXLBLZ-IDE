@@ -48,6 +48,12 @@ export type ShowPropertyAnimationChange =
       keyframeId: string
       changes: Partial<Pick<ShowPropertyAnimationKeyframe, 'timeMs' | 'value' | 'easing'>>
     }
+  | {
+      kind: 'add-keyframe'
+      trackId: string
+      keyframe: Omit<ShowPropertyAnimationKeyframe, 'id'>
+    }
+  | { kind: 'delete-keyframe'; trackId: string; keyframeId: string }
   | { kind: 'delete-track'; trackId: string }
 
 export type ShowPropertyAnimationStorageOwner =
@@ -262,12 +268,16 @@ export function projectShowPropertyAnimationOverview(
       targetKey,
       group: isInstanceTarget(track.target) ? 'instance' : 'placement',
       label: option?.label ?? orphanTargetLabel(track.target),
-      valueRange: `${formatOverviewValue(option, first?.value)} → ${formatOverviewValue(option, last?.value)}`,
+      // Every keyframe value, in time order: a curve's meaning often lives in
+      // its middle, so an endpoints-only summary can read as a flat line.
+      valueRange: ordered.length > 0
+        ? ordered.map((keyframe) => formatOverviewValue(option, keyframe.value)).join(' → ')
+        : `${formatOverviewValue(option, undefined)} → ${formatOverviewValue(option, undefined)}`,
       timeRange: `${formatOverviewSeconds(context, first?.timeMs)} → ${formatOverviewSeconds(context, last?.timeMs)}`,
       fieldLocation: orphaned ? null : fieldLocation(track.target),
       ...(isInstanceTarget(track.target) ? { linkedClipCount: context.instanceUseCount } : {}),
       keyframeCount: ordered.length,
-      readOnly: orphaned || ordered.length !== 2,
+      readOnly: orphaned,
       orphaned,
       ...(orphanIssue ? { orphanCode: orphanIssue.code, orphanMessage: orphanIssue.message } : {}),
       removable: true,
@@ -309,6 +319,17 @@ export function applyShowGroupPropertyAnimationChange(
     if (!track || !keyframe) return composition
     Object.assign(keyframe, structuredClone(change.changes))
     track.keyframes.sort((left, right) => left.timeMs - right.timeMs || left.id.localeCompare(right.id))
+  } else if (change.kind === 'add-keyframe') {
+    const track = definition.propertyTracks?.find((candidate) => candidate.id === change.trackId)
+    if (!track) return composition
+    track.keyframes.push({ ...structuredClone(change.keyframe), id: newId() })
+    track.keyframes.sort((left, right) => left.timeMs - right.timeMs || left.id.localeCompare(right.id))
+  } else if (change.kind === 'delete-keyframe') {
+    const track = definition.propertyTracks?.find((candidate) => candidate.id === change.trackId)
+    // A track needs at least two keyframes, matching the scene-path rule.
+    if (!track || track.keyframes.length <= 2) return composition
+    if (!track.keyframes.some((candidate) => candidate.id === change.keyframeId)) return composition
+    track.keyframes = track.keyframes.filter((candidate) => candidate.id !== change.keyframeId)
   } else {
     if (!definition.propertyTracks?.some((candidate) => candidate.id === change.trackId)) return composition
     definition.propertyTracks = definition.propertyTracks.filter((candidate) => candidate.id !== change.trackId)

@@ -97,7 +97,9 @@ import {
   type ShowClipInspectorPatch,
 } from '@/engine/showClipInspectorModel'
 import {
+  addShowPropertyKeyframe,
   addShowPropertyTrack,
+  deleteShowPropertyKeyframe,
   deleteShowPropertyTrack,
   updateShowPropertyKeyframe,
 } from '@/engine/showPropertyAnimation'
@@ -2303,7 +2305,14 @@ export function ShowEditor({
                           })
                         : change.kind === 'update-keyframe'
                           ? updateShowPropertyKeyframe(activeShow, composition, owner.sceneId, change.trackId, change.keyframeId, change.changes)
-                          : deleteShowPropertyTrack(composition, owner.sceneId, change.trackId)
+                          : change.kind === 'add-keyframe'
+                            ? addShowPropertyKeyframe(activeShow, composition, owner.sceneId, change.trackId, {
+                                ...change.keyframe,
+                                id: newPersonalContentId(),
+                              })
+                            : change.kind === 'delete-keyframe'
+                              ? deleteShowPropertyKeyframe(composition, owner.sceneId, change.trackId, change.keyframeId)
+                              : deleteShowPropertyTrack(composition, owner.sceneId, change.trackId)
                     }
                     if (next === composition) return false
                     void updateShow(activeShow.id, { ...activeShow, composition: next, updatedAt: Date.now() })

@@ -126,12 +126,18 @@ describe('Animations overview (#649)', () => {
     expect(onChange).toHaveBeenCalledWith({ kind: 'delete-track', trackId: 'orphan' })
   })
 
-  it('shows an N-keyframe track read-only and returns with Back or Escape', () => {
+  it('summarizes an N-keyframe track with every value and returns with Back or Escape', () => {
     const { onBack, onChange } = overview({
       tracks: [track('three-point', brightness.target, [0.1, 0.5, 0.9])],
     })
 
-    expect(screen.getByText('3 keyframes · read-only')).toBeInTheDocument()
+    // Multi-keyframe tracks are ordinary editable tracks (#363): the row
+    // reports the count neutrally, and the summary carries every value
+    // because a curve's meaning often lives in its middle.
+    expect(screen.getByText('3 keyframes')).toBeInTheDocument()
+    expect(screen.queryByText(/read-only/)).not.toBeInTheDocument()
+    expect(screen.getByRole('group', { name: 'Brightness animation summary' }))
+      .toHaveTextContent('10% → 50% → 90%')
     expect(onChange).not.toHaveBeenCalled()
     fireEvent.click(screen.getByRole('button', { name: 'Back from Animations overview' }))
     expect(onBack).toHaveBeenCalledOnce()
