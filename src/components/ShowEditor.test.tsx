@@ -5218,6 +5218,30 @@ describe('ShowEditor (#318)', () => {
     expect(useShowTransportStore.getState().seekRequest).toMatchObject({ targetMs: 18_000 })
   })
 
+  it('scrubs the playhead at a tenth of the gain while Shift is held (#667)', async () => {
+    const show = createDefaultShow('show-playhead-fine', 'Playhead fine scrub', 1000)
+    useShowStore.setState({ shows: [show], activeShowId: show.id, showsLoaded: true })
+    render(<ShowEditor showId={show.id} />)
+    const playhead = screen.getByRole('slider', { name: 'Show playhead' })
+    act(() => useShowTransportStore.getState().setPosition(show.id, 10_000))
+    // The input extends 8px past each ruler edge: 636px rect = 620px track
+    // over 62s, i.e. 100ms per pixel coarse.
+    vi.spyOn(playhead, 'getBoundingClientRect').mockReturnValue({
+      left: 92, right: 728, top: 0, bottom: 24, width: 636, height: 24, x: 92, y: 0, toJSON: () => ({}),
+    })
+
+    fireEvent.pointerDown(playhead, { pointerId: 51, clientX: 200, shiftKey: true })
+    fireEvent.pointerMove(playhead, { pointerId: 51, clientX: 250, shiftKey: true })
+    // +50px of travel at a tenth of the gain is +500ms, from the playhead's
+    // own position — no jump to the pointer.
+    expect(useShowTransportStore.getState().positionMs).toBe(10_500)
+
+    fireEvent.pointerUp(playhead, { pointerId: 51, clientX: 250, shiftKey: true })
+    await waitFor(() => {
+      expect(useShowTransportStore.getState().seekRequest).toMatchObject({ targetMs: 10_500 })
+    })
+  })
+
   it('removes Show shortcuts when the Show editor closes (#439)', () => {
     const show = createDefaultShow('show-shortcut-scope', 'Shortcut scope', 1000)
     useShowStore.setState({ shows: [show], activeShowId: show.id, showsLoaded: true })

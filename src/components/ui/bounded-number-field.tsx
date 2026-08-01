@@ -12,9 +12,13 @@ import {
 import {
   clampPercentageValue,
   percentageSliderPlacement,
-  percentageValueFromPointer,
   type PercentageSliderPlacement,
 } from '@/engine/percentageValue'
+import {
+  beginFineAdjust,
+  moveFineAdjust,
+  type FineAdjustDrag,
+} from '@/engine/fineAdjust'
 
 export interface BoundedNumberPresentation {
   kindLabel: string
@@ -151,7 +155,11 @@ export function BoundedNumberField({
     currentValue: number
     moved: boolean
     placement: PercentageSliderPlacement
+    drag: FineAdjustDrag
   } | null>(null)
+  const popoverDragRef = useRef<FineAdjustDrag | null>(null)
+  const popoverTrackWidthRef = useRef(1)
+  const popoverFineRef = useRef(false)
 
   useEffect(() => {
     if (!focusedRef.current) setDraft(interactionDraft)
@@ -288,16 +296,19 @@ export function BoundedNumberField({
     max: 1,
     height: sliderMarks.length > 0 ? 58 : undefined,
   })
-  const valueFromPointer = (pointerX: number, placement: PercentageSliderPlacement) => {
-    const position = percentageValueFromPointer(
-      pointerX,
-      placement.trackLeft,
-      placement.trackWidth,
-      0,
-      1,
-      sliderPositionStep,
+  // Holding Shift scrubs at a tenth of the pointer gain with a
+  // ten-times-finer value step (#667). Fine values skip pointer-only magnetic
+  // detents — precision is the point — but still honor canonicalization and
+  // the slider bounds.
+  const pointerPositionStep = Math.min(Math.abs(sliderPositionStep) || 1, 0.001)
+  const valueFromTrackPosition = (position: number, fine: boolean) => {
+    const positionStep = fine ? pointerPositionStep / 10 : pointerPositionStep
+    const stepped = Math.round(clampPercentageValue(position, 0, 1) / positionStep) * positionStep
+    const raw = fromSliderPosition(Number(clampPercentageValue(stepped, 0, 1).toFixed(10)))
+    if (!fine) return snapSliderValue(raw)
+    return Number(
+      canonicalizeSliderValue(clampPercentageValue(raw, sliderMin, sliderMax)).toFixed(10),
     )
-    return snapSliderValue(fromSliderPosition(position))
   }
   const openSlider = (event: PointerEvent<HTMLButtonElement>) => {
     if (disabled) return
@@ -309,6 +320,7 @@ export function BoundedNumberField({
       currentValue: boundedSliderValue,
       moved: false,
       placement,
+      drag: beginFineAdjust(event.clientX, toSliderPosition(interactionValue)),
     }
     sliderStartValueRef.current = interactionValue
     sliderDirtyRef.current = false
@@ -320,10 +332,17 @@ export function BoundedNumberField({
   const moveSlider = (event: PointerEvent<HTMLButtonElement>) => {
     const session = pointerSessionRef.current
     if (!session || session.pointerId !== event.pointerId) return
+    // Every sample accumulates — including the pre-threshold ones — so no
+    // travel is lost, and Shift can engage or release mid-gesture without the
+    // value jumping (#667).
+    session.drag = moveFineAdjust(session.drag, event.clientX, {
+      fine: event.shiftKey,
+      scale: 1 / Math.max(1, session.placement.trackWidth),
+    })
     if (!session.moved && Math.abs(event.clientX - session.startX) < 3) return
     session.moved = true
     sliderDirtyRef.current = true
-    const next = valueFromPointer(event.clientX, session.placement)
+    const next = valueFromTrackPosition(session.drag.position, event.shiftKey)
     if (next === session.currentValue) return
     session.currentValue = next
     previewSliderValue(next)
@@ -478,23 +497,62 @@ export function BoundedNumberField({
               onPointerDown={(event) => {
                 sliderPointerIdRef.current = event.pointerId
                 event.currentTarget.setPointerCapture(event.pointerId)
+                popoverFineRef.current = event.shiftKey
+                popoverTrackWidthRef.current = Math.max(
+                  1,
+                  event.currentTarget.getBoundingClientRect().width,
+                )
+                popoverDragRef.current = beginFineAdjust(
+                  event.clientX,
+                  toSliderPosition(sliderValueRef.current),
+                )
               }}
-              onInput={(event) => previewSliderValue(snapSliderValue(
-                fromSliderPosition(Number(event.currentTarget.value) / sliderPositionCount),
-              ))}
+              onPointerMove={(event) => {
+                // Shift takes over the captured drag at a tenth of the gain;
+                // without it the native range drag owns the value and the
+                // session just re-anchors to whatever it produced, so
+                // toggling Shift mid-drag never jumps (#667).
+                const drag = popoverDragRef.current
+                if (sliderPointerIdRef.current !== event.pointerId || drag === null) return
+                popoverFineRef.current = event.shiftKey
+                if (!event.shiftKey) {
+                  popoverDragRef.current = beginFineAdjust(
+                    event.clientX,
+                    toSliderPosition(sliderValueRef.current),
+                  )
+                  return
+                }
+                popoverDragRef.current = moveFineAdjust(drag, event.clientX, {
+                  fine: true,
+                  scale: 1 / popoverTrackWidthRef.current,
+                })
+                previewSliderValue(valueFromTrackPosition(popoverDragRef.current.position, true))
+              }}
+              onInput={(event) => {
+                if (sliderPointerIdRef.current !== null && popoverFineRef.current) return
+                previewSliderValue(snapSliderValue(
+                  fromSliderPosition(Number(event.currentTarget.value) / sliderPositionCount),
+                ))
+              }}
               onPointerUp={(event) => {
                 if (sliderPointerIdRef.current !== event.pointerId) return
                 sliderPointerIdRef.current = null
+                popoverDragRef.current = null
+                popoverFineRef.current = false
                 event.currentTarget.releasePointerCapture(event.pointerId)
                 commitSlider(sliderValueRef.current)
               }}
               onPointerCancel={() => {
                 sliderPointerIdRef.current = null
+                popoverDragRef.current = null
+                popoverFineRef.current = false
                 cancelSlider()
               }}
               onLostPointerCapture={() => {
                 if (sliderPointerIdRef.current === null) return
                 sliderPointerIdRef.current = null
+                popoverDragRef.current = null
+                popoverFineRef.current = false
                 cancelSlider()
               }}
               onBlur={() => {
@@ -515,10 +573,14 @@ export function BoundedNumberField({
                   cancelSlider()
                   return
                 }
+                // Keyboard arrows already step at fine resolution, so Shift
+                // means the other granularity there: a ten-times-coarser
+                // stride (#667).
+                const keyboardStep = sliderStep * (event.shiftKey ? 10 : 1)
                 const delta = event.key === 'ArrowRight' || event.key === 'ArrowUp'
-                  ? sliderStep
+                  ? keyboardStep
                   : event.key === 'ArrowLeft' || event.key === 'ArrowDown'
-                    ? -sliderStep
+                    ? -keyboardStep
                     : null
                 const next = event.key === 'Home'
                   ? sliderMin

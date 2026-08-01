@@ -70,6 +70,101 @@ describe('PercentageField', () => {
     expect(screen.queryByRole('slider', { name: 'Percentage slider' })).not.toBeInTheDocument()
   })
 
+  it('scrubs at a tenth of the gain with a finer value step while Shift is held (#667)', () => {
+    const onPreview = vi.fn()
+    const onChange = vi.fn()
+    render(
+      <PercentageField
+        label="Opacity"
+        value={0.5}
+        min={0}
+        max={1}
+        step={0.01}
+        onPreview={onPreview}
+        onChange={onChange}
+      />,
+    )
+    const grip = screen.getByRole('button', { name: 'Adjust with percentage slider' })
+    Object.defineProperty(grip, 'setPointerCapture', { configurable: true, value: vi.fn() })
+    Object.defineProperty(grip, 'releasePointerCapture', { configurable: true, value: vi.fn() })
+    vi.spyOn(grip, 'getBoundingClientRect').mockReturnValue({
+      x: 380, y: 100, left: 380, right: 408, top: 100, bottom: 128, width: 28, height: 28, toJSON: () => ({}),
+    })
+
+    fireEvent.pointerDown(grip, { pointerId: 7, clientX: 400, clientY: 114 })
+    // Coarse travel: +46px over the 228px track from 0.5.
+    fireEvent.pointerMove(grip, { pointerId: 7, clientX: 446, clientY: 114 })
+    // Fine travel: the same +23px now moves a tenth as far, on a 10x finer
+    // value step — and engages mid-gesture without any jump.
+    fireEvent.pointerMove(grip, { pointerId: 7, clientX: 469, clientY: 114, shiftKey: true })
+    // Releasing Shift resumes coarse deltas from where fine left off.
+    fireEvent.pointerMove(grip, { pointerId: 7, clientX: 446, clientY: 114 })
+    expect(onPreview.mock.calls).toEqual([[0.702], [0.7118], [0.611]])
+
+    fireEvent.pointerUp(grip, { pointerId: 7, clientX: 446, clientY: 114 })
+    expect(onChange).toHaveBeenCalledOnce()
+    expect(onChange).toHaveBeenCalledWith(0.611)
+  })
+
+  it('scrubs fine from the gesture start and cancels back to the origin (#667)', () => {
+    const onPreview = vi.fn()
+    const onChange = vi.fn()
+    render(
+      <PercentageField
+        label="Opacity"
+        value={0.5}
+        min={0}
+        max={1}
+        step={0.01}
+        onPreview={onPreview}
+        onChange={onChange}
+      />,
+    )
+    const grip = screen.getByRole('button', { name: 'Adjust with percentage slider' })
+    Object.defineProperty(grip, 'setPointerCapture', { configurable: true, value: vi.fn() })
+    Object.defineProperty(grip, 'releasePointerCapture', { configurable: true, value: vi.fn() })
+    vi.spyOn(grip, 'getBoundingClientRect').mockReturnValue({
+      x: 380, y: 100, left: 380, right: 408, top: 100, bottom: 128, width: 28, height: 28, toJSON: () => ({}),
+    })
+
+    // Shift held before the drag begins: fine gain applies from the first
+    // sample, anchored at the field's current value.
+    fireEvent.pointerDown(grip, { pointerId: 8, clientX: 400, shiftKey: true })
+    fireEvent.pointerMove(grip, { pointerId: 8, clientX: 446, shiftKey: true })
+    expect(onPreview).toHaveBeenLastCalledWith(0.5202)
+
+    // Cancelling mid-fine restores the origin and commits nothing.
+    fireEvent.pointerCancel(grip, { pointerId: 8 })
+    expect(onPreview).toHaveBeenLastCalledWith(0.5)
+    expect(onChange).not.toHaveBeenCalled()
+  })
+
+  it('takes a ten-times-coarser keyboard stride with Shift on the pinned slider (#667)', () => {
+    const onPreview = vi.fn()
+    const onChange = vi.fn()
+    render(
+      <PercentageField
+        label="Diffusion"
+        value={0.5}
+        min={0}
+        max={1}
+        step={0.01}
+        onPreview={onPreview}
+        onChange={onChange}
+      />,
+    )
+    const grip = screen.getByRole('button', { name: 'Adjust with percentage slider' })
+    fireEvent.keyDown(grip, { key: 'Enter' })
+    const slider = screen.getByRole('slider', { name: 'Percentage slider' })
+    fireEvent.keyDown(slider, { key: 'ArrowRight', shiftKey: true })
+    expect(onPreview).toHaveBeenLastCalledWith(0.6)
+    fireEvent.keyDown(slider, { key: 'ArrowRight' })
+    expect(onPreview).toHaveBeenLastCalledWith(0.61)
+    fireEvent.keyDown(slider, { key: 'Enter' })
+    expect(onChange).toHaveBeenCalledOnce()
+    expect(onChange).toHaveBeenCalledWith(0.61)
+  })
+
   it('pins on a click and supports stepped keyboard adjustment, endpoints, commit, and cancel', () => {
     const onPreview = vi.fn()
     const onPreviewEnd = vi.fn()
