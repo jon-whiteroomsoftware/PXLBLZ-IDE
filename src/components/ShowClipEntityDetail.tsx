@@ -134,7 +134,8 @@ export const ShowClipEntityDetail = forwardRef<ShowClipEntityDetailHandle, ShowC
   const [effectChooserOpen, setEffectChooserOpen] = useState(false)
   const addEffectButtonRef = useRef<HTMLButtonElement>(null)
   const detailRef = useRef<HTMLElement>(null)
-  const placementCommitPendingRef = useRef(false)
+  const placementPreviewVersionRef = useRef(0)
+  const placementCommitVersionsRef = useRef(new Set<number>())
   const activePlacementFocus = placementFocus
   const previewTransform = placementPreview?.transform
     ? { ...value.transform, ...placementPreview.transform }
@@ -144,31 +145,43 @@ export const ShowClipEntityDetail = forwardRef<ShowClipEntityDetailHandle, ShowC
     : value.viewport
   const previewPlacementPatch = (patch: ShowClipInspectorPatch) => {
     if (patch.transform || patch.viewport) {
+      placementPreviewVersionRef.current += 1
       setPlacementPreview({ transform: patch.transform, viewport: patch.viewport })
     }
     onPreviewPatch?.(patch)
   }
   const endPlacementPreview = () => {
     onPreviewEnd?.()
+    const previewVersion = placementPreviewVersionRef.current
     // Bounded fields end preview immediately before commit, while pad gestures
     // commit immediately before ending preview. The microtask observes either
     // order without flashing the pad back to its previous controlled value.
     queueMicrotask(() => {
-      if (!placementCommitPendingRef.current) setPlacementPreview(null)
+      if (
+        placementPreviewVersionRef.current === previewVersion
+        && !placementCommitVersionsRef.current.has(previewVersion)
+      ) setPlacementPreview(null)
     })
   }
   const commitPlacementPatch = (patch: ShowClipInspectorPatch) => {
-    placementCommitPendingRef.current = true
-    const committed = onPatch(patch)
+    const previewVersion = placementPreviewVersionRef.current
+    placementCommitVersionsRef.current.add(previewVersion)
+    const finishCommit = () => {
+      placementCommitVersionsRef.current.delete(previewVersion)
+      if (placementPreviewVersionRef.current === previewVersion) setPlacementPreview(null)
+    }
+    let committed: ReturnType<typeof onPatch>
+    try {
+      committed = onPatch(patch)
+    } catch (error) {
+      finishCommit()
+      throw error
+    }
     if (committed === false) {
-      placementCommitPendingRef.current = false
-      setPlacementPreview(null)
+      finishCommit()
       return false
     }
-    void Promise.resolve(committed).finally(() => {
-      placementCommitPendingRef.current = false
-      setPlacementPreview(null)
-    })
+    void Promise.resolve(committed).then(finishCommit, finishCommit)
     return committed
   }
 
@@ -214,7 +227,10 @@ export const ShowClipEntityDetail = forwardRef<ShowClipEntityDetailHandle, ShowC
   const activeTab = resolveShowClipDetailTab(preferredTab, tabs)
   const selectTab = (tab: ShowClipDetailTabId) => {
     if (animationOverviewOpen) onAnimationOverviewClose?.(false)
-    if (tab !== 'place') setPlacementPreview(null)
+    if (tab !== 'place') {
+      placementPreviewVersionRef.current += 1
+      setPlacementPreview(null)
+    }
     setPreferredTab(tab)
     rememberShowClipDetailTab(panelKey, tab)
   }
@@ -560,7 +576,11 @@ export const ShowClipEntityDetail = forwardRef<ShowClipEntityDetailHandle, ShowC
         )}
 
         {activeTab === 'place' && <div role="group" aria-label="Clip Transform" className="min-w-0">
-          <div className="grid min-w-0 grid-cols-[clamp(156px,calc(100vh-564px),228px)_minmax(112px,1fr)] items-start gap-2 pb-0.5">
+          <div
+            data-testid="clip-placement-grid"
+            className="grid min-w-0 items-start gap-2 pb-0.5"
+            style={{ gridTemplateColumns: 'minmax(0, min(228px, calc(100% - 120px))) minmax(112px, 1fr)' }}
+          >
             <ShowClipPlacementPad
               transform={previewTransform}
               viewport={previewViewport}
@@ -1018,19 +1038,19 @@ function ClipPlacementGeometry({
       tabIndex={content ? undefined : -1}
       className="grid min-w-0 gap-0.5"
     >
-      <div data-show-clip-summary-target={content ? 'transform-position-x' : undefined} tabIndex={content ? -1 : undefined}>
+      <div className="min-w-0" data-show-clip-summary-target={content ? 'transform-position-x' : undefined} tabIndex={content ? -1 : undefined}>
         <BoundedNumberField compact label="X" ariaLabel={xLabel} labelAction={animationAction(content ? 'positionX' : 'x', xLabel)} presentation={POSITION_PRESENTATION} value={shown(positionX)} reserveSuffixSpace disabled={readOnly} onPreview={(next) => onPreviewPatch?.(content ? { transform: { positionX: next } } : { viewport: { x: next } })} onPreviewEnd={onPreviewEnd} onChange={(next) => onPatch(content ? { transform: { positionX: next } } : { viewport: { x: next } })} />
       </div>
-      <div data-show-clip-summary-target={content ? 'transform-position-y' : undefined} tabIndex={content ? -1 : undefined}>
+      <div className="min-w-0" data-show-clip-summary-target={content ? 'transform-position-y' : undefined} tabIndex={content ? -1 : undefined}>
         <BoundedNumberField compact label="Y" ariaLabel={yLabel} labelAction={animationAction(content ? 'positionY' : 'y', yLabel)} presentation={POSITION_PRESENTATION} value={shown(positionY)} reserveSuffixSpace disabled={readOnly} onPreview={(next) => onPreviewPatch?.(content ? { transform: { positionY: next } } : { viewport: { y: next } })} onPreviewEnd={onPreviewEnd} onChange={(next) => onPatch(content ? { transform: { positionY: next } } : { viewport: { y: next } })} />
       </div>
-      <div data-show-clip-summary-target={content ? 'transform-scale-x' : undefined} tabIndex={content ? -1 : undefined}>
+      <div className="min-w-0" data-show-clip-summary-target={content ? 'transform-scale-x' : undefined} tabIndex={content ? -1 : undefined}>
         <DomainNumberField compact label="Width" ariaLabel={widthLabel} labelAction={animationAction(content ? 'scaleX' : 'width', widthLabel)} presentation="multiplier" value={shown(width)} min={0.01} max={8} step={0.01} reserveSuffixSpace disabled={readOnly} onPreview={(next) => onPreviewPatch?.(content ? { transform: { scaleX: next } } : { viewport: { width: next } })} onPreviewEnd={onPreviewEnd} onChange={(next) => onPatch(content ? { transform: { scaleX: next } } : { viewport: { width: next } })} />
       </div>
-      <div data-show-clip-summary-target={content ? 'transform-scale-y' : undefined} tabIndex={content ? -1 : undefined}>
+      <div className="min-w-0" data-show-clip-summary-target={content ? 'transform-scale-y' : undefined} tabIndex={content ? -1 : undefined}>
         <DomainNumberField compact label="Height" ariaLabel={heightLabel} labelAction={animationAction(content ? 'scaleY' : 'height', heightLabel)} presentation="multiplier" value={shown(height)} min={0.01} max={8} step={0.01} reserveSuffixSpace disabled={readOnly} onPreview={(next) => onPreviewPatch?.(content ? { transform: { scaleY: next } } : { viewport: { height: next } })} onPreviewEnd={onPreviewEnd} onChange={(next) => onPatch(content ? { transform: { scaleY: next } } : { viewport: { height: next } })} />
       </div>
-      <div data-show-clip-summary-target={content ? 'transform-rotation' : undefined} tabIndex={content ? -1 : undefined}>
+      <div className="min-w-0" data-show-clip-summary-target={content ? 'transform-rotation' : undefined} tabIndex={content ? -1 : undefined}>
         <ShowInspectorNumberField compact label="Rotation" ariaLabel={content ? 'Rotation degrees' : 'Viewport rotation'} labelAction={content ? animationAction('rotation', 'Rotation') : undefined} value={content ? shown(value.transform.rotation * 360) : 0} min={-2880} max={2880} step={1} suffix="°" reserveSuffixSpace disabled={readOnly || !content} help={content ? undefined : 'Aperture is axis-aligned'} onChange={(degrees) => onPatch({ transform: { rotation: degrees / 360 } })} />
       </div>
     </div>

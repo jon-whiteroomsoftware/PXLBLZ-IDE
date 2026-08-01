@@ -1,4 +1,4 @@
-import { fireEvent, render, screen, within } from '@testing-library/react'
+import { act, fireEvent, render, screen, within } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import {
   ShowClipEntityDetail,
@@ -501,6 +501,47 @@ describe('shared Clip Entity Detail sections (#498)', () => {
       name: 'Position slider',
       description: 'Content Y',
     })).toBeInTheDocument()
+  })
+
+  it('keeps a newer axis preview when an earlier placement save finishes (#661)', async () => {
+    let finishFirstSave: (() => void) | undefined
+    const firstSave = new Promise<void>((resolve) => {
+      finishFirstSave = resolve
+    })
+    const onPatch = vi.fn().mockReturnValueOnce(firstSave)
+    render(<ShowClipEntityDetail {...commonProps('scene-main', onPatch)} />)
+    showTab('Place')
+
+    const content = screen.getByRole('application', { name: /Placement pad/ })
+      .querySelector('[aria-label="Move content"]')
+    expect(content).not.toBeNull()
+
+    fireEvent.keyDown(screen.getByRole('button', {
+      name: 'Adjust with position slider',
+      description: 'Content X',
+    }), { key: 'Enter' })
+    fireEvent.keyDown(screen.getByRole('slider', {
+      name: 'Position slider',
+      description: 'Content X',
+    }), { key: 'ArrowRight' })
+    fireEvent.keyDown(screen.getByRole('slider', {
+      name: 'Position slider',
+      description: 'Content X',
+    }), { key: 'Enter' })
+
+    fireEvent.keyDown(screen.getByRole('button', {
+      name: 'Adjust with position slider',
+      description: 'Content Y',
+    }), { key: 'Enter' })
+    fireEvent.keyDown(screen.getByRole('slider', {
+      name: 'Position slider',
+      description: 'Content Y',
+    }), { key: 'ArrowRight' })
+    const previewY = content?.getAttribute('y')
+
+    await act(async () => finishFirstSave?.())
+
+    expect(content).toHaveAttribute('y', previewY)
   })
 
   it('reaches Placement through its own tab rather than a disclosure (#63, #642)', () => {

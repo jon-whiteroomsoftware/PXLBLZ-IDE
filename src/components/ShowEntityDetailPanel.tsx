@@ -8,6 +8,7 @@ export function ShowEntityDetailPanel({
   ownerKey,
   pinned = false,
   avoidPinnedPanel = false,
+  bodyOwnsOverflow = false,
   onPinnedChange,
   onClose,
   children,
@@ -16,6 +17,7 @@ export function ShowEntityDetailPanel({
   ownerKey: string
   pinned?: boolean
   avoidPinnedPanel?: boolean
+  bodyOwnsOverflow?: boolean
   onPinnedChange?: () => void
   onClose: () => void
   children: ReactNode
@@ -71,10 +73,12 @@ export function ShowEntityDetailPanel({
       data-owner-key={ownerKey}
       data-pinned={pinned ? 'true' : 'false'}
       data-placement={position?.placement ?? 'measuring'}
-      className="fixed z-[80] w-[min(408px,calc(100vw-16px))] max-h-[min(560px,calc(100vh-16px))] overflow-x-hidden overflow-y-auto rounded-md border border-zinc-700 bg-[#08080a]/[0.985] shadow-[0_18px_55px_-18px_rgba(0,0,0,0.95),0_0_0_1px_rgba(245,158,11,0.08)] backdrop-blur-sm has-[[data-entity-family=clip]]:overflow-y-hidden [&:has([data-entity-family=clip])>div]:h-full"
+      data-scroll-owner={bodyOwnsOverflow ? 'body' : 'panel'}
+      className={`fixed z-[80] w-[min(408px,calc(100vw-16px))] max-h-[min(560px,calc(100vh-16px))] overflow-x-hidden rounded-md border border-zinc-700 bg-[#08080a]/[0.985] shadow-[0_18px_55px_-18px_rgba(0,0,0,0.95),0_0_0_1px_rgba(245,158,11,0.08)] backdrop-blur-sm ${bodyOwnsOverflow ? 'overflow-y-hidden' : 'overflow-y-auto'}`}
       style={{
         left: position?.left ?? 8,
         top: position?.top ?? 8,
+        height: bodyOwnsOverflow && position ? Math.min(560, position.maxHeight) : undefined,
         maxHeight: position ? Math.min(560, position.maxHeight) : undefined,
         visibility: position ? 'visible' : 'hidden',
       }}

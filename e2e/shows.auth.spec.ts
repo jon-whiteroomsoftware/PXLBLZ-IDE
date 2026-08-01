@@ -946,7 +946,7 @@ test.describe('authenticated Show authoring', () => {
   })
 
   test('previews placement sliders without scrolling the outer detail panel', async ({ page }) => {
-    await page.setViewportSize({ width: 1024, height: 640 })
+    await page.setViewportSize({ width: 1024, height: 500 })
     await page.goto('studio/shows')
     await createInstallationShow(page)
 
@@ -973,6 +973,21 @@ test.describe('authenticated Show authoring', () => {
     await rotation.scrollIntoViewIfNeeded()
     await expect(rotation).toBeVisible()
     expect(await tabBody.evaluate((element) => getComputedStyle(element).overflowY)).toBe('auto')
+    expect(await tabBody.evaluate((element) => element.scrollTop)).toBeGreaterThan(0)
+    expect(await panel.evaluate((element) => element.scrollTop)).toBe(0)
+
+    await showClipTab(page, 'Effects')
+    await page.getByRole('button', { name: 'Add Effect' }).click()
+    const choices = page.getByTestId('show-effect-choice-list')
+    await expect(choices).toBeVisible()
+    expect(await choices.evaluate((element) => ({
+      overflowY: getComputedStyle(element).overflowY,
+      clientHeight: element.clientHeight,
+      scrollHeight: element.scrollHeight,
+    }))).toMatchObject({ overflowY: 'auto' })
+    expect(await choices.evaluate((element) => element.scrollHeight)).toBeGreaterThan(
+      await choices.evaluate((element) => element.clientHeight),
+    )
     expect(await panel.evaluate((element) => element.scrollTop)).toBe(0)
   })
 
@@ -1020,6 +1035,25 @@ test.describe('authenticated Show authoring', () => {
     ))
     expect(gutterRights).toHaveLength(5)
     expect(Math.max(...gutterRights) - Math.min(...gutterRights)).toBeLessThanOrEqual(1)
+    const panelBounds = await page.getByRole('dialog', { name: 'Entity Detail Panel' }).boundingBox()
+    const gripBounds = await transform.locator('button[aria-label^="Adjust with"][title]').evaluateAll((grips) => (
+      grips.map((grip) => {
+        const bounds = grip.getBoundingClientRect()
+        return { left: bounds.left, right: bounds.right, width: bounds.width }
+      })
+    ))
+    const gridBounds = await transform.getByTestId('clip-placement-grid').evaluate((grid) => ({
+      columns: getComputedStyle(grid).gridTemplateColumns,
+      rect: grid.getBoundingClientRect().toJSON(),
+      children: [...grid.children].map((child) => child.getBoundingClientRect().toJSON()),
+    }))
+    expect(panelBounds).not.toBeNull()
+    expect(gripBounds).toHaveLength(4)
+    expect(gripBounds.every((grip) => (
+      grip.width > 0
+      && grip.left >= panelBounds!.x
+      && grip.right <= panelBounds!.x + panelBounds!.width
+    )), JSON.stringify({ panelBounds, gripBounds, gridBounds })).toBe(true)
     const overflow = await page.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth)
     expect(overflow).toBeLessThanOrEqual(8)
 

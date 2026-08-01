@@ -2194,6 +2194,7 @@ export function ShowEditor({
             const detailSelectedGroupClipOwner: ShowGroupClipOwner | null = detail.selection.kind === 'group-clip'
               ? { occurrenceId: detail.selection.occurrenceId, placementId: detail.selection.placementId }
               : null
+            const detailIsClip = detail.selection.kind === 'clip' || detail.selection.kind === 'group-clip'
             return (
             <ShowEntityDetailPanel
               key={detail.id}
@@ -2201,6 +2202,7 @@ export function ShowEditor({
               ownerKey={showSelectionKey(detail.selection)}
               pinned={detail.pinned}
               avoidPinnedPanel={!detail.pinned}
+              bodyOwnsOverflow={detailIsClip}
               onPinnedChange={() => {
                 if (detail.pinned) {
                   setPinnedDetail(null)
@@ -2211,7 +2213,10 @@ export function ShowEditor({
               }}
               onClose={() => detail.pinned ? setPinnedDetail(null) : closeDetailPanel(true)}
             >
-              <div onChangeCapture={returnFocusAfterDiscreteCommit}>
+              <div
+                className={detailIsClip ? 'flex h-full min-h-0 flex-col' : undefined}
+                onChangeCapture={returnFocusAfterDiscreteCommit}
+              >
                 {readOnly && (
                   <div
                     role="note"
@@ -6881,7 +6886,7 @@ function InspectorPanel({
     Show: 'border-zinc-600 bg-zinc-800/80 text-amber-300',
   }[family]
   return (
-    <section role="region" aria-label={label} data-entity-family={family.toLowerCase().replace(' ', '-')} className={`${family === 'Clip' ? 'flex h-full min-h-0 flex-col' : ''} overflow-hidden bg-transparent`}>
+    <section role="region" aria-label={label} data-entity-family={family.toLowerCase().replace(' ', '-')} className={`${family === 'Clip' ? 'flex min-h-0 flex-1 flex-col' : ''} overflow-hidden bg-transparent`}>
       {/* Two rows when a summary is present: the actions sit beside the title,
           and the summary then spans the full header width. Sharing one row with
           the action column truncated long Effect descriptions (#363). */}
