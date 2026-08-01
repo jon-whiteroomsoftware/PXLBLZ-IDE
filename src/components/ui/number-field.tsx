@@ -140,14 +140,14 @@ export function NumberField({
 
   return (
     <div className={labelClass} title={help}>
-      <span className={hideLabel ? 'sr-only' : 'flex h-4 items-center justify-between gap-1'}>
+      <span className={hideLabel ? 'sr-only' : `flex ${compact ? 'h-3' : 'h-4'} items-center justify-between gap-1`}>
         <label htmlFor={inputId}>{label}</label>
         {labelAction}
         {normalized && showNormalizedRange && (
           <span className="font-mono text-[8px] tracking-normal text-zinc-700" title="Normalized value from zero to one">0–1</span>
         )}
       </span>
-      <span className={`${hideLabel ? '' : 'mt-1'} flex min-w-0 items-center gap-1`}>
+      <span className={`${hideLabel ? '' : compact ? 'mt-0.5' : 'mt-1'} flex min-w-0 items-center gap-1`}>
         <span className="contents">
           <input
             id={inputId}

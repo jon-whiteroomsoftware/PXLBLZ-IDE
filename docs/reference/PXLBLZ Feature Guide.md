@@ -499,8 +499,11 @@ Selecting an absent Aperture enables it over the Content's visible bounds.
 Drag the focused rectangle, its corners, or Content's rotation handle on the
 pad; grid edges and the other rectangle remain exact magnets. X and Y retain
 exact numeric entry and each grip opens its own position slider, while the pad
-remains the direct two-dimensional manipulation surface. A compact stepper
-adjusts Content zoom, and the `?` control explains the focus-specific gestures.
+remains the direct two-dimensional manipulation surface. Dragging any placement
+slider updates that pad continuously before saving once on release. The Clip
+panel keeps its header and tabs stationary; if a short window cannot show an
+entire tab, only that tab's body scrolls. A compact stepper adjusts Content zoom,
+and the `?` control explains the focus-specific gestures.
 
 **Mirror** appears only in that stack as a visually distinct, fixed first
 Transform row. It remains a placement adaptation rather than an ordered

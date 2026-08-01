@@ -346,13 +346,13 @@ export function BoundedNumberField({
   return (
     <div className={labelClass} title={help}>
       <span
-        className={hideLabel ? 'sr-only' : 'flex h-4 items-center justify-between gap-1'}
+        className={hideLabel ? 'sr-only' : `flex ${compact ? 'h-3' : 'h-4'} items-center justify-between gap-1`}
         title={help}
       >
         <label htmlFor={inputId}>{hideLabel ? accessibleFieldLabel : label}</label>
         {labelAction}
       </span>
-      <span className={`${hideLabel ? '' : 'mt-1'} flex min-w-0 items-center gap-1`}>
+      <span className={`${hideLabel ? '' : compact ? 'mt-0.5' : 'mt-1'} flex min-w-0 items-center gap-1`}>
         <span className={`${fieldHeight} ${fieldBackground} flex min-w-0 flex-1 overflow-hidden rounded border border-zinc-700 focus-within:border-cyan-400/60`}>
           <input
             id={inputId}

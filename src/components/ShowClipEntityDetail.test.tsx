@@ -463,10 +463,19 @@ describe('shared Clip Entity Detail sections (#498)', () => {
 
   it('opens independent X and Y sliders while retaining the adjacent placement pad (#661)', () => {
     const onPatch = vi.fn()
-    render(<ShowClipEntityDetail {...commonProps('scene-main', onPatch)} />)
+    const onPreviewPatch = vi.fn()
+    render(
+      <ShowClipEntityDetail
+        {...commonProps('scene-main', onPatch)}
+        onPreviewPatch={onPreviewPatch}
+      />,
+    )
     showTab('Place')
 
-    expect(screen.getByRole('application', { name: /Placement pad/ })).toBeInTheDocument()
+    const pad = screen.getByRole('application', { name: /Placement pad/ })
+    const content = pad.querySelector('[aria-label="Move content"]')
+    expect(content).not.toBeNull()
+    const committedX = content?.getAttribute('x')
     const xGrip = screen.getByRole('button', {
       name: 'Adjust with position slider',
       description: 'Content X',
@@ -477,6 +486,9 @@ describe('shared Clip Entity Detail sections (#498)', () => {
       description: 'Content X',
     })
     fireEvent.keyDown(xSlider, { key: 'ArrowRight' })
+    expect(content).not.toHaveAttribute('x', committedX)
+    expect(onPreviewPatch).toHaveBeenLastCalledWith({ transform: { positionX: 0.01 } })
+    expect(onPatch).not.toHaveBeenCalled()
     fireEvent.keyDown(xSlider, { key: 'Enter' })
     expect(onPatch).toHaveBeenLastCalledWith({ transform: { positionX: 0.01 } })
 

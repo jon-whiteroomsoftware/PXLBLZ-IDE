@@ -72,6 +72,8 @@ export interface ShowClipEntityDetailHandle {
  */
 const shown = (value: number) => Math.round(value * 1000) / 1000
 
+type PlacementPreviewPatch = Pick<ShowClipInspectorPatch, 'transform' | 'viewport'>
+
 const POSITION_PRESENTATION = {
   ...resolveLinearNumberPresentation({
     kindLabel: 'position',
@@ -128,10 +130,48 @@ export const ShowClipEntityDetail = forwardRef<ShowClipEntityDetailHandle, ShowC
   const headerFieldCount = 1 + (localTiming ? 2 : 0) + (showOpacity ? 1 : 0)
   const controlTargets = value.simulation.controlTargets
   const [placementFocus, setPlacementFocus] = useState<PlacementFocus>('content')
+  const [placementPreview, setPlacementPreview] = useState<PlacementPreviewPatch | null>(null)
   const [effectChooserOpen, setEffectChooserOpen] = useState(false)
   const addEffectButtonRef = useRef<HTMLButtonElement>(null)
   const detailRef = useRef<HTMLElement>(null)
+  const placementCommitPendingRef = useRef(false)
   const activePlacementFocus = placementFocus
+  const previewTransform = placementPreview?.transform
+    ? { ...value.transform, ...placementPreview.transform }
+    : value.transform
+  const previewViewport = placementPreview?.viewport
+    ? { ...value.viewport, ...placementPreview.viewport }
+    : value.viewport
+  const previewPlacementPatch = (patch: ShowClipInspectorPatch) => {
+    if (patch.transform || patch.viewport) {
+      setPlacementPreview({ transform: patch.transform, viewport: patch.viewport })
+    }
+    onPreviewPatch?.(patch)
+  }
+  const endPlacementPreview = () => {
+    onPreviewEnd?.()
+    // Bounded fields end preview immediately before commit, while pad gestures
+    // commit immediately before ending preview. The microtask observes either
+    // order without flashing the pad back to its previous controlled value.
+    queueMicrotask(() => {
+      if (!placementCommitPendingRef.current) setPlacementPreview(null)
+    })
+  }
+  const commitPlacementPatch = (patch: ShowClipInspectorPatch) => {
+    placementCommitPendingRef.current = true
+    const committed = onPatch(patch)
+    if (committed === false) {
+      placementCommitPendingRef.current = false
+      setPlacementPreview(null)
+      return false
+    }
+    void Promise.resolve(committed).finally(() => {
+      placementCommitPendingRef.current = false
+      setPlacementPreview(null)
+    })
+    return committed
+  }
+
   const selectPlacementFocus = (next: PlacementFocus) => setPlacementFocus(next)
   const selectPlacementSummary = (next: PlacementFocus) => {
     selectPlacementFocus(next)
@@ -174,6 +214,7 @@ export const ShowClipEntityDetail = forwardRef<ShowClipEntityDetailHandle, ShowC
   const activeTab = resolveShowClipDetailTab(preferredTab, tabs)
   const selectTab = (tab: ShowClipDetailTabId) => {
     if (animationOverviewOpen) onAnimationOverviewClose?.(false)
+    if (tab !== 'place') setPlacementPreview(null)
     setPreferredTab(tab)
     rememberShowClipDetailTab(panelKey, tab)
   }
@@ -255,7 +296,7 @@ export const ShowClipEntityDetail = forwardRef<ShowClipEntityDetailHandle, ShowC
       role={embedded ? undefined : 'region'}
       aria-label={embedded ? undefined : 'Clip properties'}
       data-entity-family="clip"
-      className="overflow-hidden bg-transparent [&_label]:text-zinc-400"
+      className={`${embedded ? 'flex min-h-0 flex-1 flex-col' : ''} overflow-hidden bg-transparent [&_label]:text-zinc-400`}
     >
       {!embedded && <header className="flex h-10 shrink-0 items-center gap-2 border-b border-zinc-800/90 bg-zinc-950/65 py-1 pl-2.5 pr-10">
         <span className="grid size-6 shrink-0 place-items-center rounded border border-cyan-400/35 bg-cyan-400/10 text-cyan-300">
@@ -268,7 +309,7 @@ export const ShowClipEntityDetail = forwardRef<ShowClipEntityDetailHandle, ShowC
         {actions && <div className="ml-auto flex items-center gap-1">{actions}</div>}
       </header>}
 
-      <div className={embedded ? '' : 'p-2.5'}>
+      <div className={embedded ? 'flex min-h-0 flex-1 flex-col' : 'p-2.5'}>
         {/*
           The persistent zone (#641). Start and Duration are what an author moves
           constantly while composing; Brightness and Opacity describe the whole
@@ -369,7 +410,7 @@ export const ShowClipEntityDetail = forwardRef<ShowClipEntityDetailHandle, ShowC
           role="tablist"
           aria-label="Clip properties sections"
           data-testid="clip-detail-tabs"
-          className="mt-2 flex border-y border-zinc-800/80"
+          className="mt-2 flex shrink-0 border-y border-zinc-800/80"
           onKeyDown={(event) => {
             const available = tabs.filter((tab) => tab.applicable)
             const index = available.findIndex((tab) => tab.id === activeTab)
@@ -437,9 +478,15 @@ export const ShowClipEntityDetail = forwardRef<ShowClipEntityDetailHandle, ShowC
           id={panelId}
           aria-labelledby={tabIdFor(activeTab)}
           data-active-tab={activeTab}
-          className={activeTab === 'effects' && !animationOverviewOpen
-            ? 'flex h-[clamp(180px,calc(100vh-250px),300px)] min-h-0 flex-col overflow-hidden pt-2'
-            : 'min-h-[262px] pt-2'}
+          className={embedded
+            ? activeTab === 'effects' && !animationOverviewOpen
+              ? 'flex min-h-0 flex-1 flex-col overflow-hidden pt-2'
+              : 'min-h-0 flex-1 overflow-y-auto pt-2'
+            : activeTab === 'effects' && !animationOverviewOpen
+              ? 'flex h-[clamp(180px,calc(100vh-250px),300px)] min-h-0 flex-col overflow-hidden pt-2'
+              : activeTab === 'place'
+                ? 'min-h-0 pt-2'
+                : 'min-h-[262px] pt-2'}
         >
 
         {animationOverviewOpen ? (
@@ -513,16 +560,16 @@ export const ShowClipEntityDetail = forwardRef<ShowClipEntityDetailHandle, ShowC
         )}
 
         {activeTab === 'place' && <div role="group" aria-label="Clip Transform" className="min-w-0">
-          <div className="grid min-w-0 grid-cols-[minmax(156px,228px)_minmax(112px,1fr)] items-start gap-2 pb-0.5">
+          <div className="grid min-w-0 grid-cols-[clamp(156px,calc(100vh-564px),228px)_minmax(112px,1fr)] items-start gap-2 pb-0.5">
             <ShowClipPlacementPad
-              transform={value.transform}
-              viewport={value.viewport}
+              transform={previewTransform}
+              viewport={previewViewport}
               readOnly={readOnly}
               focus={activePlacementFocus}
               onFocusChange={selectPlacementFocus}
-              onChange={onPatch}
-              onPreview={onPreviewPatch}
-              onPreviewEnd={onPreviewEnd}
+              onChange={commitPlacementPatch}
+              onPreview={previewPlacementPatch}
+              onPreviewEnd={endPlacementPreview}
             />
             <div className="grid min-w-0 gap-1">
               <PlacementRectangleSummary
@@ -535,9 +582,9 @@ export const ShowClipEntityDetail = forwardRef<ShowClipEntityDetailHandle, ShowC
                 focus={activePlacementFocus}
                 value={value}
                 readOnly={readOnly}
-                onPreviewPatch={onPreviewPatch}
-                onPreviewEnd={onPreviewEnd}
-                onPatch={onPatch}
+                onPreviewPatch={previewPlacementPatch}
+                onPreviewEnd={endPlacementPreview}
+                onPatch={commitPlacementPatch}
               />
             </div>
           </div>
@@ -969,7 +1016,7 @@ function ClipPlacementGeometry({
       aria-label={`${content ? 'Content' : 'Aperture'} geometry`}
       data-show-clip-summary-target={content ? undefined : 'viewport'}
       tabIndex={content ? undefined : -1}
-      className="grid min-w-0 gap-1"
+      className="grid min-w-0 gap-0.5"
     >
       <div data-show-clip-summary-target={content ? 'transform-position-x' : undefined} tabIndex={content ? -1 : undefined}>
         <BoundedNumberField compact label="X" ariaLabel={xLabel} labelAction={animationAction(content ? 'positionX' : 'x', xLabel)} presentation={POSITION_PRESENTATION} value={shown(positionX)} reserveSuffixSpace disabled={readOnly} onPreview={(next) => onPreviewPatch?.(content ? { transform: { positionX: next } } : { viewport: { x: next } })} onPreviewEnd={onPreviewEnd} onChange={(next) => onPatch(content ? { transform: { positionX: next } } : { viewport: { x: next } })} />

@@ -1815,9 +1815,15 @@ therefore resizing the surface does not change stored results. The toolbar
 keeps Content/Aperture focus, grid, focused-rectangle actions, and contextual
 help in one row. Content zoom uses discrete one-commit steps. X/Y exact fields
 use the shared bounded-number interaction with linear position sliders, while
-the adjacent pad remains their direct two-dimensional manipulation surface.
-The pad adds no nested placement dialog; its transient scalar sliders retain
-the owning `ShowEntityDetailPanel`'s Escape and outside-pointer behavior.
+the adjacent pad remains their direct two-dimensional manipulation surface. A
+Clip-local preview projection merges transient Transform or Viewport patches
+into the pad's controlled inputs until the committed inspector value catches
+up, so scalar sliders and pad gestures share continuous visual feedback without
+adding persistence writes. The pad adds no nested placement dialog; its
+transient scalar sliders retain the owning `ShowEntityDetailPanel`'s Escape and
+outside-pointer behavior. Clip panels suppress outer-panel overflow and make the
+active tab body the constrained scroll owner; the persistent header and tabs do
+not move when the viewport is short.
 
 Lowering carries the Viewport with its placement. The routed compiler multiplies
 placement opacity by the Viewport's coordinate predicate after Pattern capture,

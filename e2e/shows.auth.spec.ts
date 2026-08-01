@@ -945,6 +945,37 @@ test.describe('authenticated Show authoring', () => {
     await expect(reloaded.getByRole('textbox', { name: 'Rotation degrees' })).toHaveValue('-90')
   })
 
+  test('previews placement sliders without scrolling the outer detail panel', async ({ page }) => {
+    await page.setViewportSize({ width: 1024, height: 640 })
+    await page.goto('studio/shows')
+    await createInstallationShow(page)
+
+    await selectClip(page, 'TestPattern1D')
+    await showClipTab(page, 'Place')
+    const panel = page.getByRole('dialog', { name: 'Entity Detail Panel' })
+    const transform = page.getByRole('group', { name: 'Clip Transform' })
+    const content = transform.locator('[aria-label="Move content"]')
+    const committedX = await content.getAttribute('x')
+
+    await transform.locator('button[aria-label="Adjust with position slider"][title="Content X"]').click()
+    const slider = page.getByRole('slider', { name: 'Position slider' })
+    await slider.press('ArrowRight')
+    await expect.poll(() => content.getAttribute('x')).not.toBe(committedX)
+    await slider.press('Escape')
+
+    await expect.poll(() => panel.evaluate((element) => ({
+      overflowY: getComputedStyle(element).overflowY,
+      scrollTop: element.scrollTop,
+    }))).toEqual({ overflowY: 'hidden', scrollTop: 0 })
+
+    const tabBody = page.locator('[role="tabpanel"][data-active-tab="place"]')
+    const rotation = transform.getByRole('textbox', { name: 'Rotation degrees' })
+    await rotation.scrollIntoViewIfNeeded()
+    await expect(rotation).toBeVisible()
+    expect(await tabBody.evaluate((element) => getComputedStyle(element).overflowY)).toBe('auto')
+    expect(await panel.evaluate((element) => element.scrollTop)).toBe(0)
+  })
+
   test('keeps inline placement aligned and usable at the panel floor', async ({ page }) => {
     // Layout is its own concern. Bundling it into the persistence test above
     // meant a broken field hid the layout regression and vice versa.
