@@ -276,8 +276,11 @@ e2e validation *before* landing, not the pushing agent:
   reproduce under full-suite timing (#672 reproduced 2/2 in suite order and
   0/2 in isolation).
 - The candidate reviewer emits a P3 advisory when a diff plainly touches one
-  of these flows and the range carries no corresponding e2e evidence. The
-  advisory is a prompt to run the suite, not a substitute for it.
+  of these flows and the range carries no corresponding e2e evidence. It
+  rides the ordinary P2/P3 flow: the range keeps non-terminal advisory
+  coverage, and the exact corrective commit is the one carrying the
+  `X-E2E:` trailer once the suite has run. The advisory is a prompt to run
+  the suite, not a substitute for it.
 
 ### Workspace recovery contract
 
