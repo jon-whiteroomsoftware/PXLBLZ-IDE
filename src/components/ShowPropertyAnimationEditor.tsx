@@ -666,10 +666,10 @@ function AnimationValueField({
       />
     )
   }
-  if (option.presentation === 'degrees' || option.presentation === 'turns') {
+  if (option.presentation === 'degrees' || option.presentation === 'turns' || option.presentation === 'phase') {
     return (
       <AngleField
-        kind={option.presentation === 'degrees' ? 'rotation' : 'cycles'}
+        kind={option.presentation === 'degrees' ? 'rotation' : option.presentation === 'turns' ? 'cycles' : 'phase'}
         label={label}
         ariaLabel={label}
         hideLabel

@@ -4227,7 +4227,7 @@ describe('ShowEditor (#318)', () => {
     const panel = screen.getByRole('dialog', { name: 'Entity Detail Panel' })
     await user.click(within(panel).getByRole('tab', { name: /^Playback/ }))
     await user.click(within(panel).getByRole('button', { name: 'Animate Phase' }))
-    const phaseFrom = screen.getByRole('textbox', { name: 'Phase animation from' })
+    const phaseFrom = screen.getByRole('textbox', { name: 'Phase animation from exact phase' })
     await user.clear(phaseFrom)
     await user.type(phaseFrom, '0.2')
     fireEvent.blur(phaseFrom)

@@ -117,7 +117,12 @@ export function resolveAnglePresentation(
     parse,
     formatDraft,
     toSliderPosition: (turns) => span === 0 ? 0 : clamp((turns - window.min) / span, 0, 1),
-    fromSliderPosition: (position) => window.min + span * clamp(position, 0, 1),
+    // Direction wraps at the presentation boundary so the slider's right
+    // endpoint commits the canonical 0 instead of a phantom full turn the
+    // stored representation would immediately normalize away.
+    fromSliderPosition: kind === 'direction'
+      ? (position) => wrapTurn(window.min + span * clamp(position, 0, 1))
+      : (position) => window.min + span * clamp(position, 0, 1),
   }
 }
 

@@ -77,9 +77,10 @@ describe('resolveAnglePresentation direction', () => {
     expect(direction.parse('1.25t')).toBeCloseTo(0.25, 10)
   })
 
-  it('maps the slider linearly across the cycle', () => {
+  it('maps the slider linearly across the cycle and wraps the far endpoint to canonical zero', () => {
     expect(direction.toSliderPosition(0.25)).toBeCloseTo(0.25, 10)
     expect(direction.fromSliderPosition(0.5)).toBeCloseTo(0.5, 10)
+    expect(direction.fromSliderPosition(1)).toBe(0)
   })
 
   it('marks compass quarters as labeled majors with eighth minors', () => {

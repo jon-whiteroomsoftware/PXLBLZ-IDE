@@ -217,7 +217,7 @@ describe('per-parameter Property animation editor (#648)', () => {
     }))
   })
 
-  it('authors Phase in the raw zero-to-one units taught by the adjacent Clip field', () => {
+  it('authors Phase through the shared phase contract taught by the adjacent Clip field', () => {
     const phase: ShowPropertyAnimationOption = {
       key: 'placement-view:placement-1:phase',
       label: 'Phase',
@@ -226,7 +226,7 @@ describe('per-parameter Property animation editor (#648)', () => {
       min: 0,
       max: 1,
       step: 0.01,
-      presentation: 'number',
+      presentation: 'phase',
     }
     const onChange = vi.fn()
     render(
@@ -243,7 +243,7 @@ describe('per-parameter Property animation editor (#648)', () => {
     )
 
     fireEvent.click(screen.getByRole('button', { name: 'Animate Phase' }))
-    const from = screen.getByRole('textbox', { name: 'Phase animation from' })
+    const from = screen.getByRole('textbox', { name: 'Phase animation from exact phase' })
     expect(from).toHaveValue('0.25')
     fireEvent.change(from, { target: { value: '0.5' } })
     fireEvent.blur(from)

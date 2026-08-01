@@ -22,7 +22,7 @@ import {
 } from './showPropertyAnimation'
 import { materializeShowGroupOccurrences, validateShowGroups } from './showGroupModel'
 
-export type ShowPropertyAnimationValuePresentation = 'number' | 'percentage' | 'multiplier' | 'degrees' | 'turns'
+export type ShowPropertyAnimationValuePresentation = 'number' | 'percentage' | 'multiplier' | 'degrees' | 'turns' | 'phase'
 
 export interface ShowPropertyAnimationOption {
   key: string
@@ -170,7 +170,7 @@ export function buildShowPropertyAnimationOptions(
       0,
       1,
       0.01,
-      'number',
+      'phase',
     ),
     option('Position X', { kind: 'placement-transform', placementId, property: 'positionX' }, value.transform.positionX, -4, 4, 0.01),
     option('Position Y', { kind: 'placement-transform', placementId, property: 'positionY' }, value.transform.positionY, -4, 4, 0.01),
@@ -190,9 +190,11 @@ export function buildShowPropertyAnimationOptions(
           ? 'multiplier'
           : parameter.presentation === 'direction' || parameter.presentation === 'rotation'
             ? 'degrees'
-            : parameter.presentation === 'phase' || parameter.presentation === 'cycles'
-              ? 'turns'
-              : 'number'
+            : parameter.presentation === 'phase'
+              ? 'phase'
+              : parameter.presentation === 'cycles'
+                ? 'turns'
+                : 'number'
       return [option(
         `${effect.kind} - ${parameter.label}`,
         {
@@ -513,7 +515,7 @@ function formatOverviewValue(option: ShowPropertyAnimationOption | undefined, va
   if (option?.presentation === 'percentage') return `${rounded(value * 100)}%`
   if (option?.presentation === 'multiplier') return `${rounded(value)}x`
   if (option?.presentation === 'degrees') return `${rounded(value * 360)}°`
-  if (option?.presentation === 'turns') return `${rounded(value)}t`
+  if (option?.presentation === 'turns' || option?.presentation === 'phase') return `${rounded(value)}t`
   return rounded(value)
 }
 
