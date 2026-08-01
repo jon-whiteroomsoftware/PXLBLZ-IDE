@@ -6137,6 +6137,7 @@ function TimelineRuler({
           className="pointer-events-none absolute inset-y-0 w-px"
           style={{
             left: `${tick.fraction * 100}%`,
+            transform: tick.fraction === 1 ? 'translateX(-100%)' : undefined,
             backgroundColor: tick.kind === 'major' ? 'rgba(113,113,122,.35)' : 'rgba(113,113,122,.18)',
           }}
         />

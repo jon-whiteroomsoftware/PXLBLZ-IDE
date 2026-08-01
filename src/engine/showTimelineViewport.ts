@@ -92,9 +92,12 @@ export interface ShowTimelineRulerTicksResult {
 /**
  * Ruler ticks share the magnetic grid step, so the marks users see are the
  * same times the timeline snaps to. Steps are 1/2/5 x 10^n ms, which keeps
- * every tick on a whole second or a clean decimal fraction at any zoom, and
- * the emitted window is trimmed to the viewport (plus one major step of
- * margin) so a deeply zoomed ruler does not render thousands of marks.
+ * every tick on a whole second or a clean decimal fraction at any zoom.
+ * Ticks span the whole ruler rather than a viewport-trimmed window: the
+ * on-screen time span can exceed the logical viewport (the grid width formula
+ * reserves rail pixels the current rail may not use), and full emission stays
+ * bounded because zoom is clamped, at roughly zoom x visibleWidthPx / 16
+ * ticks.
  */
 export function showTimelineRulerTicks(options: ShowTimelineRulerTicksOptions): ShowTimelineRulerTicksResult {
   const majorStepMs = showTimelineGridStepMs(options.viewport.durationMs, options.visibleWidthPx)
@@ -102,14 +105,8 @@ export function showTimelineRulerTicks(options: ShowTimelineRulerTicksOptions): 
   const minorStepMs = multiplier === 2 ? majorStepMs / 4 : majorStepMs / 5
   if (options.rulerDurationMs <= 0) return { majorStepMs, minorStepMs, ticks: [] }
 
-  const windowStartMs = clamp(options.viewport.startMs - majorStepMs, 0, options.rulerDurationMs)
-  const windowEndMs = clamp(
-    options.viewport.startMs + options.viewport.durationMs + majorStepMs,
-    0,
-    options.rulerDurationMs,
-  )
   const ticks: ShowTimelineRulerTick[] = []
-  for (let index = Math.ceil(windowStartMs / minorStepMs); index * minorStepMs <= windowEndMs; index += 1) {
+  for (let index = 0; index * minorStepMs <= options.rulerDurationMs; index += 1) {
     const timeMs = index * minorStepMs
     const major = timeMs % majorStepMs === 0
     ticks.push({

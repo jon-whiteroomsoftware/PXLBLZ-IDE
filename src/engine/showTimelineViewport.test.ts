@@ -119,7 +119,7 @@ describe('Show timeline ruler ticks (#670)', () => {
     })
   })
 
-  it('refines tick steps with zoom and emits only the visible window plus margin', () => {
+  it('refines tick steps with zoom while still covering the whole ruler', () => {
     const viewport = { totalMs: 60_000, startMs: 14_500, durationMs: 6_000, minDurationMs: 3_750 }
     const { majorStepMs, minorStepMs, ticks } = showTimelineRulerTicks({
       rulerDurationMs: 60_000,
@@ -129,10 +129,11 @@ describe('Show timeline ruler ticks (#670)', () => {
 
     expect(majorStepMs).toBe(1_000)
     expect(minorStepMs).toBe(200)
-    expect(ticks[0].timeMs).toBe(13_600)
-    expect(ticks[ticks.length - 1].timeMs).toBe(21_400)
-    expect(ticks.filter((tick) => tick.kind === 'major').map((tick) => tick.label))
-      .toEqual(['14s', '15s', '16s', '17s', '18s', '19s', '20s', '21s'])
+    expect(ticks[0].timeMs).toBe(0)
+    expect(ticks[ticks.length - 1].timeMs).toBe(60_000)
+    expect(ticks).toHaveLength(301)
+    expect(ticks.filter((tick) => tick.kind === 'major')).toHaveLength(61)
+    expect(ticks.find((tick) => tick.timeMs === 14_000)?.label).toBe('14s')
   })
 
   it('subdivides 2-multiplier steps into quarters so minors stay on clean decimals', () => {
@@ -155,12 +156,13 @@ describe('Show timeline ruler ticks (#670)', () => {
     expect(minorStepMs).toBe(1_000)
   })
 
-  it('clamps the tick window to the ruler bounds', () => {
+  it('covers the whole ruler regardless of viewport position, so on-screen time beyond the logical viewport still has marks', () => {
     const { ticks } = showTimelineRulerTicks({
       rulerDurationMs: 60_000,
       viewport: { totalMs: 60_000, startMs: 54_000, durationMs: 6_000, minDurationMs: 3_750 },
       visibleWidthPx: 600,
     })
+    expect(ticks[0].timeMs).toBe(0)
     expect(ticks[ticks.length - 1].timeMs).toBe(60_000)
     expect(ticks.every((tick) => tick.timeMs >= 0 && tick.timeMs <= 60_000)).toBe(true)
   })
