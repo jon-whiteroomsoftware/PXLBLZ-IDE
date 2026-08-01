@@ -40,7 +40,7 @@ export interface ResolvedAnglePresentation extends AnglePresentationBounds {
   sliderMin: number
   sliderMax: number
   /** Direction wraps every slider-derived value onto the canonical cycle. */
-  snapSliderValue?: (turns: number) => number
+  canonicalizeSliderValue?: (turns: number) => number
   neutralPosition?: number
   sliderMarks: AngleSliderMark[]
   format: (turns: number) => string
@@ -114,7 +114,7 @@ export function resolveAnglePresentation(
     sliderMin: window.min,
     sliderMax: window.max,
     ...(kind === 'direction'
-      ? { snapSliderValue: (turns: number) => wrapTurn(clamp(turns, window.min, window.max)) }
+      ? { canonicalizeSliderValue: (turns: number) => wrapTurn(clamp(turns, window.min, window.max)) }
       : {}),
     neutralPosition: neutralPosition(kind, window),
     sliderMarks: sliderMarks(kind, unit, window),

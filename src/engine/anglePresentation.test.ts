@@ -81,8 +81,8 @@ describe('resolveAnglePresentation direction', () => {
     expect(direction.toSliderPosition(0.25)).toBeCloseTo(0.25, 10)
     expect(direction.fromSliderPosition(0.5)).toBeCloseTo(0.5, 10)
     expect(direction.fromSliderPosition(1)).toBe(0)
-    expect(direction.snapSliderValue?.(1)).toBe(0)
-    expect(direction.snapSliderValue?.(0.75)).toBeCloseTo(0.75, 10)
+    expect(direction.canonicalizeSliderValue?.(1)).toBe(0)
+    expect(direction.canonicalizeSliderValue?.(0.75)).toBeCloseTo(0.75, 10)
   })
 
   it('marks compass quarters as labeled majors with eighth minors', () => {

@@ -36,7 +36,12 @@ export function AngleField({ kind, min, max, step, value, ...props }: AngleField
     step: resolved.step,
     sliderMin: resolved.sliderMin,
     sliderMax: resolved.sliderMax,
-    ...(resolved.snapSliderValue ? { snapSliderValue: resolved.snapSliderValue } : {}),
+    ...(resolved.canonicalizeSliderValue
+      ? {
+          snapSliderValue: resolved.canonicalizeSliderValue,
+          canonicalizeSliderValue: resolved.canonicalizeSliderValue,
+        }
+      : {}),
     sliderMarks: resolved.sliderMarks,
     neutralPosition: resolved.neutralPosition,
     format: resolved.format,

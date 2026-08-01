@@ -39,6 +39,13 @@ export interface BoundedNumberPresentation {
   toSliderPosition: (value: number) => number
   fromSliderPosition: (position: number) => number
   snapSliderValue?: (value: number) => number
+  /**
+   * Canonicalization that must hold for every slider-derived value regardless
+   * of input modality — e.g. direction wrapping a full turn onto zero. Unlike
+   * snapSliderValue, which may implement pointer-only magnetic detents, this
+   * also applies to keyboard steps and endpoints (#612).
+   */
+  canonicalizeSliderValue?: (value: number) => number
 }
 
 export interface BoundedNumberFieldProps {
@@ -101,6 +108,7 @@ export function BoundedNumberField({
     toSliderPosition,
     fromSliderPosition,
     snapSliderValue = (next) => clampPercentageValue(next, sliderMin, sliderMax),
+    canonicalizeSliderValue = (next) => next,
   } = presentation
   const inputId = useId()
   const accessibleFieldLabel = ariaLabel ?? label
@@ -522,10 +530,10 @@ export function BoundedNumberField({
                 if (next === null) return
                 event.preventDefault()
                 event.stopPropagation()
-                // Keyboard-derived values honor the same snap contract as
-                // pointer travel, so wrapped presentations never commit a
-                // noncanonical endpoint (#612).
-                previewSliderValue(Number(snapSliderValue(next).toFixed(10)))
+                // Keyboard values skip pointer-only magnetic snapping but
+                // still honor canonicalization, so wrapped presentations
+                // never commit a noncanonical endpoint (#612).
+                previewSliderValue(Number(canonicalizeSliderValue(next).toFixed(10)))
               }}
               className={`${sliderMarks.length > 0 ? 'absolute inset-x-0 top-0 z-10 h-5' : ''} w-full accent-cyan-400 outline-none focus:outline-none focus-visible:outline-none`}
             />
