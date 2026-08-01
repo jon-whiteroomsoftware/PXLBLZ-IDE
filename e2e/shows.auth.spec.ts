@@ -1364,6 +1364,13 @@ test.describe('authenticated Show authoring', () => {
     await page.getByLabel('Default routing mode').selectOption('split-x')
     await page.keyboard.press('Escape')
     await expect(page.getByRole('dialog', { name: 'Entity Detail Panel' })).toHaveCount(0)
+    // The panel disappears from the accessibility tree before its Escape
+    // ownership markers unmount; a second Escape inside that window is
+    // claimed by the closing panel instead of the Zone Map. Wait for the
+    // ownership to release, as the stacked-dialog dismissals do (#623).
+    await expect(page.locator(
+      '[data-show-detail-owned-portal="true"], [data-show-detail-escape-owned="true"]',
+    )).toHaveCount(0)
     await page.keyboard.press('Escape')
     await expect(page.getByRole('dialog', { name: 'Zone Map' })).toHaveCount(0)
     await page.getByRole('button', { name: 'Close Zones' }).click()
