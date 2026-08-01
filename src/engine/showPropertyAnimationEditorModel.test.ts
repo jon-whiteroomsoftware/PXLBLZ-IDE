@@ -551,9 +551,34 @@ describe('Add-keyframe rotation grid tolerance (#363)', () => {
         { id: 'b', timeMs: 8_000, value: 30 / 360, easing: { curve: 'sine', direction: 'in-out' } },
       ],
     }
-    expect(showPropertyKeyframeInsertion(track, { min: -8, max: 8, step: 1 / 360 })).toMatchObject({
-      timeMs: 4_000,
-      value: 30 / 360,
-    })
+    const insertion = showPropertyKeyframeInsertion(track, { min: -8, max: 8, step: 1 / 360 })
+    expect(insertion?.timeMs).toBe(4_000)
+    // Snapping to the float step grid may differ from the endpoint value by
+    // an ulp; the contract is sub-visual closeness, not bit equality.
+    expect(insertion?.value).toBeCloseTo(30 / 360, 12)
+  })
+})
+
+describe('Add-keyframe odd-duration snapping (#363)', () => {
+  it('snaps a hair-off-grid integer midpoint to the exact integer', () => {
+    const track: ShowPropertyAnimationTrack = {
+      id: 'track',
+      target: {
+        kind: 'placement-effect',
+        placementId: 'p',
+        effectId: 'posterize',
+        effectKind: 'posterize',
+        parameterId: 'levels',
+      },
+      keyframes: [
+        { id: 'a', timeMs: 0, value: 8, easing: { curve: 'linear' } },
+        { id: 'b', timeMs: 1_000_001, value: 10, easing: { curve: 'linear' } },
+      ],
+    }
+    // The float midpoint of an odd-length 8-to-10 ramp evaluates a hair off
+    // 9; the stored value must be the exact integer or validation rejects it.
+    const insertion = showPropertyKeyframeInsertion(track, { min: 2, max: 16, step: 1 })
+    expect(insertion?.value).toBe(9)
+    expect(Number.isInteger(insertion?.value)).toBe(true)
   })
 })
