@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest'
 import { NEUTRAL_SHOW_CLIP_TRANSFORM } from './showClipTransform'
 import { DEFAULT_SHOW_CLIP_VIEWPORT } from './showClipViewport'
 import {
+  resolvePlacementPositionPresentation,
   anchorContent,
   applyContentFit,
   clampPlacementRectToZone,
@@ -377,5 +378,42 @@ describe('framing ignores the lattice', () => {
   it('still snaps an ordinary sweep on the same grid', () => {
     const padContext = context({ scaleX: 0.5, scaleY: 0.5 }, { enabled: true }, 3)
     expect(viewportRect(sweepViewport(padContext, 0.1, 0.1, 0.1, 0.1).viewport!).width).toBeCloseTo(1 / 3)
+  })
+})
+
+describe('resolvePlacementPositionPresentation (#633)', () => {
+  it('windows the slider to two stage units while exact entry keeps the full bounds', () => {
+    const presentation = resolvePlacementPositionPresentation(3)
+    expect(presentation.min).toBe(-4)
+    expect(presentation.max).toBe(4)
+    expect(presentation.sliderMin).toBe(-2)
+    expect(presentation.sliderMax).toBe(2)
+    expect(presentation.neutralPosition).toBe(0.5)
+  })
+
+  it('places detents on the selected grid cells with labeled whole units', () => {
+    const presentation = resolvePlacementPositionPresentation(4)
+    const values = presentation.sliderMarks.map((mark) => mark.value)
+    expect(values[0]).toBe(-2)
+    expect(values[values.length - 1]).toBe(2)
+    expect(values).toContain(0.25)
+    expect(values).toContain(-0.75)
+    expect(values).toHaveLength(17)
+    const majors = presentation.sliderMarks.filter((mark) => mark.major)
+    expect(majors.map((mark) => mark.label)).toEqual(['-2', '-1', '0', '1', '2'])
+  })
+
+  it('magnetizes pointer travel onto the selected grid', () => {
+    const grid3 = resolvePlacementPositionPresentation(3)
+    expect(grid3.snapSliderValue(1 / 3 + 0.01)).toBeCloseTo(1 / 3, 10)
+    const grid12 = resolvePlacementPositionPresentation(12)
+    expect(grid12.snapSliderValue(1 / 12 + 0.004)).toBeCloseTo(1 / 12, 10)
+    expect(grid12.snapSliderValue(1 / 24)).toBeCloseTo(0.04, 1)
+  })
+
+  it('falls back to half-unit detents when the grid is Free', () => {
+    const free = resolvePlacementPositionPresentation(0)
+    const values = free.sliderMarks.map((mark) => mark.value)
+    expect(values).toEqual([-2, -1.5, -1, -0.5, 0, 0.5, 1, 1.5, 2])
   })
 })

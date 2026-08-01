@@ -516,7 +516,11 @@ Selecting an absent Aperture enables it over the Content's visible bounds.
 Drag the focused rectangle, its corners, or Content's rotation handle on the
 pad; grid edges and the other rectangle remain exact magnets. X and Y retain
 exact numeric entry and each grip opens its own position slider, while the pad
-remains the direct two-dimensional manipulation surface. Dragging any placement
+remains the direct two-dimensional manipulation surface. The position slider
+covers the two stage units around center where placement actually happens -
+values beyond that remain reachable by exact entry - and its detents follow
+the pad's selected grid, so slider travel settles on the same cells the pad
+snaps to (half-unit stops when the grid is Free). Dragging any placement
 slider updates that pad continuously before saving once on release. The Clip
 panel keeps its header and tabs stationary; if a short window cannot show an
 entire tab, only that tab's body scrolls. A compact stepper adjusts Content zoom,

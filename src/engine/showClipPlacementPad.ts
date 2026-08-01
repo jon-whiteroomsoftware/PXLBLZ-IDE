@@ -1,4 +1,8 @@
 import type { ShowClipTransform, ShowClipViewport } from './personalContentRecords'
+import {
+  resolveLinearNumberPresentation,
+  type ResolvedLinearNumberPresentation,
+} from './linearNumberPresentation'
 import { normalizeShowClipTransform } from './showClipTransform'
 import { DEFAULT_SHOW_CLIP_VIEWPORT, normalizeShowClipViewport } from './showClipViewport'
 
@@ -504,4 +508,34 @@ export function placementPadView(
   }
   const extent = clamp(reach * 2 + margin * 2, minExtent, maxExtent)
   return { min: 0.5 - extent / 2, max: 0.5 + extent / 2 }
+}
+
+/**
+ * Grid-aware presentation for the placement X/Y fields (#633). The slider
+ * windows onto the two stage units around center where placement actually
+ * happens - beyond one unit the content is already off stage - while exact
+ * entry keeps the full stored bounds. Detents follow the pad's selected grid
+ * so slider travel lands on the same cells the pad snaps to; Free keeps the
+ * legacy half-unit stops. The magnet scales with the cell so dense grids do
+ * not swallow the space between detents.
+ */
+export function resolvePlacementPositionPresentation(
+  grid: number,
+): ResolvedLinearNumberPresentation & { neutralPosition: number } {
+  const detentStep = grid > 0 ? 1 / grid : 0.5
+  return {
+    ...resolveLinearNumberPresentation({
+      kindLabel: 'position',
+      min: -4,
+      max: 4,
+      step: 0.001,
+      sliderMin: -2,
+      sliderMax: 2,
+      sliderStep: 0.005,
+      detentStep,
+      detentMagnet: detentStep * 0.08,
+      labelStep: 1,
+    }),
+    neutralPosition: 0.5,
+  }
 }

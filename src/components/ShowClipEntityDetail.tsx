@@ -1,4 +1,4 @@
-import { forwardRef, useImperativeHandle, useRef, useState, type ReactNode } from 'react'
+import { forwardRef, useImperativeHandle, useMemo, useRef, useState, type ReactNode } from 'react'
 import { NumberField } from './ui/number-field'
 import { BoundedNumberField } from './ui/bounded-number-field'
 import { PercentageField } from './ui/percentage-field'
@@ -15,6 +15,7 @@ import {
 } from './ShowPropertyAnimationEditor'
 import {
   enableViewportForContent,
+  resolvePlacementPositionPresentation,
   type PlacementFocus,
 } from '@/engine/showClipPlacementPad'
 import {
@@ -35,7 +36,6 @@ import { formatPercentageValue } from '@/engine/percentageValue'
 import type { ShowPropertyAnimationTarget } from '@/engine/personalContentRecords'
 import type { ShowPropertyAnimationFieldLocation } from '@/engine/showPropertyAnimationEditorModel'
 import type { ShowClipSummaryDestination } from '@/engine/showClipSummary'
-import { resolveLinearNumberPresentation } from '@/engine/linearNumberPresentation'
 
 export interface ShowClipEntityDetailProps {
   value: ShowClipInspectorValue
@@ -76,22 +76,6 @@ export interface ShowClipEntityDetailHandle {
 const shown = (value: number) => Math.round(value * 1000) / 1000
 
 type PlacementPreviewPatch = Pick<ShowClipInspectorPatch, 'transform' | 'viewport'>
-
-const POSITION_PRESENTATION = {
-  ...resolveLinearNumberPresentation({
-    kindLabel: 'position',
-    min: -4,
-    max: 4,
-    step: 0.001,
-    sliderMin: -4,
-    sliderMax: 4,
-    sliderStep: 0.01,
-    detentStep: 0.5,
-    detentMagnet: 0.04,
-    labelStep: 1,
-  }),
-  neutralPosition: 0.5,
-}
 
 /**
  * Written out rather than interpolated because Tailwind only emits classes it
@@ -134,6 +118,7 @@ export const ShowClipEntityDetail = forwardRef<ShowClipEntityDetailHandle, ShowC
   const headerFieldCount = 1 + (localTiming ? 2 : 0) + (showOpacity ? 1 : 0)
   const controlTargets = value.simulation.controlTargets
   const [placementFocus, setPlacementFocus] = useState<PlacementFocus>('content')
+  const [placementGrid, setPlacementGrid] = useState(3)
   const [placementPreview, setPlacementPreview] = useState<PlacementPreviewPatch | null>(null)
   const [effectChooserOpen, setEffectChooserOpen] = useState(false)
   const addEffectButtonRef = useRef<HTMLButtonElement>(null)
@@ -202,7 +187,7 @@ export const ShowClipEntityDetail = forwardRef<ShowClipEntityDetailHandle, ShowC
         viewport: enableViewportForContent({
           transform: value.transform,
           viewport: value.viewport,
-          grid: 3,
+          grid: placementGrid,
         }),
       })
     }
@@ -259,7 +244,7 @@ export const ShowClipEntityDetail = forwardRef<ShowClipEntityDetailHandle, ShowC
           viewport: enableViewportForContent({
             transform: value.transform,
             viewport: value.viewport,
-            grid: 3,
+            grid: placementGrid,
           }),
         })
       : undefined
@@ -596,6 +581,8 @@ export const ShowClipEntityDetail = forwardRef<ShowClipEntityDetailHandle, ShowC
               readOnly={readOnly}
               focus={activePlacementFocus}
               onFocusChange={selectPlacementFocus}
+              grid={placementGrid}
+              onGridChange={setPlacementGrid}
               onChange={commitPlacementPatch}
               onPreview={previewPlacementPatch}
               onPreviewEnd={endPlacementPreview}
@@ -608,6 +595,7 @@ export const ShowClipEntityDetail = forwardRef<ShowClipEntityDetailHandle, ShowC
                 onSelect={selectPlacementSummary}
               />
               <ClipPlacementGeometry
+                grid={placementGrid}
                 focus={activePlacementFocus}
                 value={value}
                 readOnly={readOnly}
@@ -1001,6 +989,7 @@ function PlacementRectangleSummary({
  * the summary above, preserving comparison without spending a second field row.
  */
 function ClipPlacementGeometry({
+  grid,
   focus,
   value,
   readOnly,
@@ -1008,6 +997,7 @@ function ClipPlacementGeometry({
   onPreviewEnd,
   onPatch,
 }: {
+  grid: number
   focus: PlacementFocus
   value: ShowClipInspectorValue
   readOnly: boolean
@@ -1016,6 +1006,7 @@ function ClipPlacementGeometry({
   onPatch: ShowClipEntityDetailProps['onPatch']
 }) {
   const content = focus === 'content'
+  const positionPresentation = useMemo(() => resolvePlacementPositionPresentation(grid), [grid])
   const xLabel = content ? 'Content X' : 'Viewport X'
   const yLabel = content ? 'Content Y' : 'Viewport Y'
   const widthLabel = content ? 'Content Width' : 'Viewport Width'
@@ -1056,10 +1047,10 @@ function ClipPlacementGeometry({
       className="grid min-w-0 gap-0.5"
     >
       <div className="min-w-0" data-show-clip-summary-target={content ? 'transform-position-x' : undefined} tabIndex={content ? -1 : undefined}>
-        <BoundedNumberField compact label="X" ariaLabel={xLabel} labelAction={animationAction(content ? 'positionX' : 'x', xLabel)} presentation={POSITION_PRESENTATION} value={shown(positionX)} reserveSuffixSpace disabled={readOnly} onPreview={(next) => onPreviewPatch?.(content ? { transform: { positionX: next } } : { viewport: { x: next } })} onPreviewEnd={onPreviewEnd} onChange={(next) => onPatch(content ? { transform: { positionX: next } } : { viewport: { x: next } })} />
+        <BoundedNumberField compact label="X" ariaLabel={xLabel} labelAction={animationAction(content ? 'positionX' : 'x', xLabel)} presentation={positionPresentation} value={shown(positionX)} reserveSuffixSpace disabled={readOnly} onPreview={(next) => onPreviewPatch?.(content ? { transform: { positionX: next } } : { viewport: { x: next } })} onPreviewEnd={onPreviewEnd} onChange={(next) => onPatch(content ? { transform: { positionX: next } } : { viewport: { x: next } })} />
       </div>
       <div className="min-w-0" data-show-clip-summary-target={content ? 'transform-position-y' : undefined} tabIndex={content ? -1 : undefined}>
-        <BoundedNumberField compact label="Y" ariaLabel={yLabel} labelAction={animationAction(content ? 'positionY' : 'y', yLabel)} presentation={POSITION_PRESENTATION} value={shown(positionY)} reserveSuffixSpace disabled={readOnly} onPreview={(next) => onPreviewPatch?.(content ? { transform: { positionY: next } } : { viewport: { y: next } })} onPreviewEnd={onPreviewEnd} onChange={(next) => onPatch(content ? { transform: { positionY: next } } : { viewport: { y: next } })} />
+        <BoundedNumberField compact label="Y" ariaLabel={yLabel} labelAction={animationAction(content ? 'positionY' : 'y', yLabel)} presentation={positionPresentation} value={shown(positionY)} reserveSuffixSpace disabled={readOnly} onPreview={(next) => onPreviewPatch?.(content ? { transform: { positionY: next } } : { viewport: { y: next } })} onPreviewEnd={onPreviewEnd} onChange={(next) => onPatch(content ? { transform: { positionY: next } } : { viewport: { y: next } })} />
       </div>
       <div className="min-w-0" data-show-clip-summary-target={content ? 'transform-scale-x' : undefined} tabIndex={content ? -1 : undefined}>
         <DomainNumberField compact label="Width" ariaLabel={widthLabel} labelAction={animationAction(content ? 'scaleX' : 'width', widthLabel)} presentation="multiplier" value={shown(width)} min={0.01} max={8} step={0.01} reserveSuffixSpace disabled={readOnly} onPreview={(next) => onPreviewPatch?.(content ? { transform: { scaleX: next } } : { viewport: { width: next } })} onPreviewEnd={onPreviewEnd} onChange={(next) => onPatch(content ? { transform: { scaleX: next } } : { viewport: { width: next } })} />

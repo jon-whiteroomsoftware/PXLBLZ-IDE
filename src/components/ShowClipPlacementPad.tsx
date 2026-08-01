@@ -52,6 +52,9 @@ export interface ShowClipPlacementPadProps {
   readOnly?: boolean
   focus?: PlacementFocus
   onFocusChange?: (focus: PlacementFocus) => void
+  /** Controlled grid divisor; the owner can share it with the X/Y fields (#633). */
+  grid?: number
+  onGridChange?: (grid: number) => void
   /** Commits a value. Called once per gesture, not once per pointer move. */
   onChange: (patch: { transform?: ShowClipTransform; viewport?: ShowClipViewport }) => void
   /** Continuous feedback during a gesture. Falls back to onChange when absent. */
@@ -65,11 +68,18 @@ export function ShowClipPlacementPad({
   readOnly = false,
   focus: controlledFocus,
   onFocusChange,
+  grid: controlledGrid,
+  onGridChange,
   onChange,
   onPreview,
   onPreviewEnd,
 }: ShowClipPlacementPadProps) {
-  const [grid, setGrid] = useState(3)
+  const [uncontrolledGrid, setUncontrolledGrid] = useState(3)
+  const grid = controlledGrid ?? uncontrolledGrid
+  const setGrid = (next: number) => {
+    setUncontrolledGrid(next)
+    onGridChange?.(next)
+  }
   const [uncontrolledFocus, setUncontrolledFocus] = useState<PlacementFocus>('content')
   // The pad is controlled, and preview does not flow back through props, so a
   // gesture would show nothing until release without holding its own value.

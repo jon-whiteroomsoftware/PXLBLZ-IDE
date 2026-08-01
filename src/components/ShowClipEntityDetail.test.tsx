@@ -461,6 +461,22 @@ describe('shared Clip Entity Detail sections (#498)', () => {
     expect([...gutters].map((gutter) => gutter.textContent)).toEqual(['', '', 'x', 'x', '°'])
   })
 
+  it('links the X/Y slider window and detents to the selected placement grid (#633)', () => {
+    render(<ShowClipEntityDetail {...commonProps('scene-main')} />)
+    showTab('Place')
+    fireEvent.change(screen.getByRole('combobox', { name: 'Grid' }), { target: { value: '4' } })
+    const xGrip = screen.getByRole('button', {
+      name: 'Adjust with position slider',
+      description: 'Content X',
+    })
+    fireEvent.keyDown(xGrip, { key: 'Enter' })
+    const detents = document.querySelectorAll('[data-testid="bounded-number-detent"]')
+    expect(detents).toHaveLength(17)
+    const labels = Array.from(document.querySelectorAll('[data-testid="bounded-number-detent-label"]'))
+      .map((element) => element.textContent)
+    expect(labels).toEqual(['-2', '-1', '0', '1', '2'])
+  })
+
   it('opens independent X and Y sliders while retaining the adjacent placement pad (#661)', () => {
     const onPatch = vi.fn()
     const onPreviewPatch = vi.fn()
@@ -487,10 +503,10 @@ describe('shared Clip Entity Detail sections (#498)', () => {
     })
     fireEvent.keyDown(xSlider, { key: 'ArrowRight' })
     expect(content).not.toHaveAttribute('x', committedX)
-    expect(onPreviewPatch).toHaveBeenLastCalledWith({ transform: { positionX: 0.01 } })
+    expect(onPreviewPatch).toHaveBeenLastCalledWith({ transform: { positionX: 0.005 } })
     expect(onPatch).not.toHaveBeenCalled()
     fireEvent.keyDown(xSlider, { key: 'Enter' })
-    expect(onPatch).toHaveBeenLastCalledWith({ transform: { positionX: 0.01 } })
+    expect(onPatch).toHaveBeenLastCalledWith({ transform: { positionX: 0.005 } })
 
     const yGrip = screen.getByRole('button', {
       name: 'Adjust with position slider',
