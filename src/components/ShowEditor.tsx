@@ -6117,10 +6117,28 @@ function TimelineRuler({
     useShowTransportStore.getState().requestSeek(show.id, pending.targetMs)
     if (shouldResume && !usePreviewStore.getState().isRunning) usePreviewStore.getState().toggle()
   }
+  const getVisibleWidthRef = useRef(getVisibleWidth)
+  useEffect(() => {
+    getVisibleWidthRef.current = getVisibleWidth
+  })
+  const [visibleWidthPx, setVisibleWidthPx] = useState(() => getVisibleWidth())
+  useEffect(() => {
+    const ruler = rulerRef.current
+    if (!ruler) return
+    const update = () => setVisibleWidthPx(getVisibleWidthRef.current())
+    update()
+    if (typeof ResizeObserver === 'undefined') return
+    // The ruler cell resizes whenever the scroll viewport does (its width is a
+    // function of the viewport width and zoom scale), so observing it keeps
+    // the tick grid in step with the width snapping reads at event time.
+    const observer = new ResizeObserver(update)
+    observer.observe(ruler)
+    return () => observer.disconnect()
+  }, [rulerRef])
   const { ticks } = showTimelineRulerTicks({
     rulerDurationMs: durationMs,
     viewport,
-    visibleWidthPx: getVisibleWidth(),
+    visibleWidthPx,
   })
   return (
     <div
