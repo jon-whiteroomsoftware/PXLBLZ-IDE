@@ -887,6 +887,103 @@ describe('ShowEditor (#318)', () => {
     ]))
   })
 
+  it('lands a dragged-out Marker on the drop grid: whole seconds, tenths with Shift (#667)', async () => {
+    const show = createDefaultShow('show-marker-drag-grid', 'Marker drag grid', 1000)
+    setPersonalContentProvider(memoryProvider([show]))
+    useShowStore.setState({ shows: [show], activeShowId: show.id, showsLoaded: true })
+
+    render(<ShowEditor showId={show.id} />)
+
+    const markerSource = screen.getByRole('button', { name: 'Add Marker at playhead' })
+    const ruler = screen.getByTestId('show-timeline-ruler')
+    vi.spyOn(ruler, 'getBoundingClientRect').mockReturnValue({
+      x: 100, y: 0, left: 100, right: 720, top: 0, bottom: 24, width: 620, height: 24,
+      toJSON: () => ({}),
+    })
+    Object.defineProperty(screen.getByTestId('show-timeline-scroll-region'), 'clientWidth', { value: 620 })
+
+    // The raw pointer time is 14,570ms; the default drop grid lands on 15s.
+    fireEvent.pointerDown(markerSource, { pointerId: 21, clientX: 80 })
+    fireEvent.pointerMove(markerSource, { pointerId: 21, clientX: 245.7 })
+    expect(screen.getByTestId('show-timeline-marker-preview')).toHaveStyle({
+      left: `${15_000 / 62_000 * 100}%`,
+    })
+
+    // Shift mid-drag asks for tenths: the same pointer resolves to 14.6s.
+    fireEvent.pointerMove(markerSource, { pointerId: 21, clientX: 245.7, shiftKey: true })
+    expect(screen.getByTestId('show-timeline-marker-preview')).toHaveStyle({
+      left: `${14_600 / 62_000 * 100}%`,
+    })
+
+    fireEvent.pointerUp(markerSource, { pointerId: 21, clientX: 245.7, shiftKey: true })
+    await waitFor(() => expect(useShowStore.getState().shows[0].composition?.markers).toEqual([
+      expect.objectContaining({ timeMs: 14_600, name: 'Marker 1' }),
+    ]))
+  })
+
+  it('moves a Marker with a live preview onto the drop grid (#667)', async () => {
+    const user = userEvent.setup()
+    const show = createDefaultShow('show-marker-move-grid', 'Marker move grid', 1000)
+    setPersonalContentProvider(memoryProvider([show]))
+    useShowStore.setState({ shows: [show], activeShowId: show.id, showsLoaded: true })
+    useShowTransportStore.setState({ showId: show.id, positionMs: 4_023 })
+
+    render(<ShowEditor showId={show.id} />)
+    await user.click(screen.getByRole('button', { name: 'Add Marker at playhead' }))
+    const marker = await screen.findByRole('button', { name: 'Marker 1 at 4.023 seconds' })
+
+    const surface = screen.getByLabelText('Timeline Markers and Show End')
+    vi.spyOn(surface, 'getBoundingClientRect').mockReturnValue({
+      x: 100, y: 0, left: 100, top: 0, right: 720, bottom: 100, width: 620, height: 100,
+      toJSON: () => ({}),
+    })
+
+    // The raw pointer time is 9,730ms. The handle itself previews at 10s while
+    // the pointer is still down; the document does not change until release.
+    fireEvent.pointerDown(marker, { pointerId: 31, clientX: 140 })
+    fireEvent.pointerMove(marker, { pointerId: 31, clientX: 197.3 })
+    expect(marker).toHaveStyle({ left: `${10_000 / 62_000 * 100}%` })
+    expect(useShowStore.getState().shows[0].composition?.markers?.[0].timeMs).toBe(4_023)
+
+    fireEvent.pointerUp(marker, { pointerId: 31, clientX: 197.3 })
+    await waitFor(() => expect(useShowStore.getState().shows[0].composition?.markers?.[0].timeMs).toBe(10_000))
+
+    // A short Shift-fine nudge must not magnetize back to the Marker's own
+    // previous time: +0.5s of travel lands on 10.5s, not 10s (#667).
+    const movedMarker = await screen.findByRole('button', { name: 'Marker 1 at 10 seconds' })
+    fireEvent.pointerDown(movedMarker, { pointerId: 32, clientX: 200 })
+    fireEvent.pointerMove(movedMarker, { pointerId: 32, clientX: 205, shiftKey: true })
+    expect(movedMarker).toHaveStyle({ left: `${10_500 / 62_000 * 100}%` })
+    fireEvent.pointerUp(movedMarker, { pointerId: 32, clientX: 205, shiftKey: true })
+    await waitFor(() => expect(useShowStore.getState().shows[0].composition?.markers?.[0].timeMs).toBe(10_500))
+  })
+
+  it('lands the Show End handle on the drop grid: whole seconds, tenths with Shift (#667)', async () => {
+    const show = createDefaultShow('show-end-grid', 'Show End grid', 1000)
+    setPersonalContentProvider(memoryProvider([show]))
+    useShowStore.setState({ shows: [show], activeShowId: show.id, showsLoaded: true })
+
+    render(<ShowEditor showId={show.id} />)
+
+    const surface = screen.getByLabelText('Timeline Markers and Show End')
+    vi.spyOn(surface, 'getBoundingClientRect').mockReturnValue({
+      x: 100, y: 0, left: 100, top: 0, right: 720, bottom: 100, width: 620, height: 100,
+      toJSON: () => ({}),
+    })
+    const showEnd = screen.getByRole('button', { name: 'Show End at 62 seconds' })
+    // +63.7px of travel is +6,370ms raw; the default grid previews 68s.
+    fireEvent.pointerDown(showEnd, { pointerId: 41, clientX: 720 })
+    fireEvent.pointerMove(showEnd, { pointerId: 41, clientX: 783.7 })
+    expect(screen.getByRole('button', { name: 'Show End at 68 seconds' })).toBeInTheDocument()
+
+    // Shift mid-drag refines the same travel to 68.4s.
+    fireEvent.pointerMove(showEnd, { pointerId: 41, clientX: 783.7, shiftKey: true })
+    expect(screen.getByRole('button', { name: 'Show End at 68.4 seconds' })).toBeInTheDocument()
+
+    fireEvent.pointerUp(showEnd, { pointerId: 41, clientX: 783.7, shiftKey: true })
+    await waitFor(() => expect(showModel.showLoopDurationMs(useShowStore.getState().shows[0])).toBe(68_400))
+  })
+
   it('confirms a Marker created underneath the playhead without moving its insertion time', async () => {
     const user = userEvent.setup()
     const show = createDefaultShow('show-marker-click-confirmation', 'Marker click confirmation', 1000)
@@ -2442,9 +2539,11 @@ describe('ShowEditor (#318)', () => {
     fireEvent(clip, dragEvent('dragstart', 20, true))
     expect(dataTransfer.effectAllowed).toBe('copy')
 
+    // The drop grid quantizes the duplicate onto a whole second (#667); the
+    // raw pointer time is 12,337ms.
     fireEvent(layer, dragEvent('dragover', 123.37, true))
     expect(screen.getByTestId('show-clip-move-preview')).toHaveStyle({
-      left: `${12_337 / 62_000 * 100}%`,
+      left: `${12_000 / 62_000 * 100}%`,
     })
 
     // Copy mode is chosen when the drag begins. Releasing Option must not turn
@@ -2470,7 +2569,7 @@ describe('ShowEditor (#318)', () => {
       })
       const duplicate = duplicates[0]
       expect(duplicate).toMatchObject({
-        startMs: 12_337,
+        startMs: 12_000,
         durationMs: 4_000,
         view: { mirror: true, phase: 0.25, brightness: 0.6 },
       })

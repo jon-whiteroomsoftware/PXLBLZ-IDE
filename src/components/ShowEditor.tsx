@@ -116,6 +116,7 @@ import {
   fitShowTimelineViewport,
   panShowTimelineViewport,
   resizeShowTimelineViewport,
+  showTimelineQuantizeStepMs,
   showTimelineRulerTicks,
   showTimelineThumb,
   snapShowTimelineTime,
@@ -484,6 +485,11 @@ type ShowClipMovePreview = {
   targetKey: string
   startMs: number
   durationMs: number
+  /**
+   * True only for a boundary-magnetized landing. Grid-quantized landings are
+   * not sticky — the grid exists everywhere, so there is no detent to defend
+   * against a last-moment pointer shake (#667).
+   */
   snapped: boolean
 }
 
@@ -3453,46 +3459,43 @@ function ShowTimelineWorkspace({
     ...markerTimesMs,
   ])]
   const clipMarkerSnapEnabled = markersVisible
+  // Timeline drops are quantized by default: whole seconds, or tenths while
+  // Shift is held (#667). Boundary magnetism (Clip edges, Markers, the
+  // playhead) still wins within its pixel threshold; the Magnet toggle
+  // governs that magnetism only. Alt is the per-gesture escape to raw
+  // milliseconds — it no longer inverts the Magnet toggle.
   const snapClipBoundary = (
     candidateMs: number,
     options: {
       altKey: boolean
+      shiftKey: boolean
       visibleWidthPx: number
       minTimeMs?: number
       maxTimeMs: number
     },
   ) => {
-    const invert = Boolean(options.altKey)
-    const defaultEnabled = snapEnabled || clipMarkerSnapEnabled
     const minTimeMs = options.minTimeMs ?? 0
-    const playheadTimesMs = [positionMsRef.current]
-      .filter((timeMs) => timeMs >= minTimeMs && timeMs <= options.maxTimeMs)
-    if (defaultEnabled === invert) {
+    if (options.altKey) {
       return snapShowTimelineTime(candidateMs, {
         visibleDurationMs: viewport.durationMs,
         visibleWidthPx: options.visibleWidthPx,
-        structuralTimesMs: playheadTimesMs,
+        structuralTimesMs: [],
         gridEnabled: false,
         minTimeMs,
         maxTimeMs: options.maxTimeMs,
       })
     }
-    const invertGlobalSnap = invert && !defaultEnabled
     const activeStructuralTimesMs = [
-      ...playheadTimesMs,
-      ...(invertGlobalSnap
-        ? structuralTimesWithoutMarkersMs
-        : [
-          ...(snapEnabled ? structuralTimesWithoutMarkersMs : []),
-          ...(clipMarkerSnapEnabled ? markerTimesMs : []),
-        ]),
+      positionMsRef.current,
+      ...(snapEnabled ? structuralTimesWithoutMarkersMs : []),
+      ...(clipMarkerSnapEnabled ? markerTimesMs : []),
     ]
       .filter((timeMs) => timeMs >= minTimeMs && timeMs <= options.maxTimeMs)
     return snapShowTimelineTime(candidateMs, {
       visibleDurationMs: viewport.durationMs,
       visibleWidthPx: options.visibleWidthPx,
       structuralTimesMs: activeStructuralTimesMs,
-      gridEnabled: invertGlobalSnap || snapEnabled,
+      quantizeStepMs: showTimelineQuantizeStepMs(options.shiftKey),
       minTimeMs,
       maxTimeMs: options.maxTimeMs,
     })
@@ -3502,6 +3505,7 @@ function ShowTimelineWorkspace({
     durationMs: number,
     options: {
       altKey: boolean
+      shiftKey: boolean
       visibleWidthPx: number
       totalMs: number
     },
@@ -3510,31 +3514,42 @@ function ShowTimelineWorkspace({
     const rawStartMs = Math.max(0, Math.min(maxStartMs, candidateStartMs))
     const startSnap = snapClipBoundary(rawStartMs, {
       altKey: options.altKey,
+      shiftKey: options.shiftKey,
       visibleWidthPx: options.visibleWidthPx,
       maxTimeMs: maxStartMs,
     })
     const rawEndMs = rawStartMs + durationMs
     const endSnap = snapClipBoundary(rawEndMs, {
       altKey: options.altKey,
+      shiftKey: options.shiftKey,
       visibleWidthPx: options.visibleWidthPx,
       minTimeMs: durationMs,
       maxTimeMs: options.totalMs,
     })
-    const startDeltaMs = startSnap.kind ? startSnap.timeMs - rawStartMs : Number.POSITIVE_INFINITY
-    const endDeltaMs = endSnap.kind ? endSnap.timeMs - rawEndMs : Number.POSITIVE_INFINITY
-    if (!Number.isFinite(startDeltaMs) && !Number.isFinite(endDeltaMs)) {
+    // A magnetized boundary on either edge beats the drop grid on the other:
+    // butting against a neighbour is the more deliberate act (#667).
+    const edgeRank = (kind: 'boundary' | 'grid' | undefined, deltaMs: number) =>
+      kind === undefined ? [2, Number.POSITIVE_INFINITY] as const
+        : kind === 'grid' ? [1, Math.abs(deltaMs)] as const
+          : [0, Math.abs(deltaMs)] as const
+    const startDeltaMs = startSnap.timeMs - rawStartMs
+    const endDeltaMs = endSnap.timeMs - rawEndMs
+    const startRank = edgeRank(startSnap.kind, startDeltaMs)
+    const endRank = edgeRank(endSnap.kind, endDeltaMs)
+    if (startSnap.kind === undefined && endSnap.kind === undefined) {
       return { startMs: rawStartMs, snapped: false }
     }
-    const resolvedStartMs = Math.abs(startDeltaMs) <= Math.abs(endDeltaMs)
-      ? startSnap.timeMs
-      : endSnap.timeMs - durationMs
+    const startWins = startRank[0] < endRank[0]
+      || (startRank[0] === endRank[0] && startRank[1] <= endRank[1])
+    const resolvedStartMs = startWins ? startSnap.timeMs : endSnap.timeMs - durationMs
     return {
       startMs: Math.max(0, Math.min(maxStartMs, resolvedStartMs)),
-      snapped: true,
+      snapped: (startWins ? startSnap.kind : endSnap.kind) === 'boundary',
     }
   }
   const updateCompositionClipMovePreview = (input: {
     clientX: number
+    shiftKey: boolean
     element: HTMLElement
     layer: ShowUnifiedTimelineLayerProjection
     zoneId: string
@@ -3561,6 +3576,7 @@ function ShowTimelineWorkspace({
     const releaseThresholdMs = viewport.durationMs / visibleWidthPx * 16
     const freshResolved = resolveClipMoveStart(candidateMs, clip.durationMs, {
       altKey: false,
+      shiftKey: input.shiftKey,
       visibleWidthPx,
       totalMs,
     })
@@ -3915,6 +3931,7 @@ function ShowTimelineWorkspace({
       const maxTimeMs = edge === 'start' ? clip.endMs - 1 : totalMs
       const boundaryMs = snapClipBoundary(rawBoundaryMs, {
         altKey: pointer.altKey,
+        shiftKey: pointer.shiftKey,
         visibleWidthPx: Math.max(1, scrollRef.current?.clientWidth ?? rect.width),
         minTimeMs,
         maxTimeMs,
@@ -4809,6 +4826,7 @@ function ShowTimelineWorkspace({
                   const clipDurationMs = clip?.durationMs ?? 0
                   const globalStartMs = resolveClipMoveStart(candidateMs, clipDurationMs, {
                     altKey: false,
+                    shiftKey: event.shiftKey,
                     visibleWidthPx: Math.max(1, scrollRef.current?.clientWidth ?? rect.width),
                     totalMs,
                   }).startMs
@@ -4901,6 +4919,7 @@ function ShowTimelineWorkspace({
                   const rawGlobalTimeMs = fraction * totalMs
                   const snappedGlobalTimeMs = snapClipBoundary(rawGlobalTimeMs, {
                     altKey: event.altKey,
+                    shiftKey: event.shiftKey,
                     visibleWidthPx: Math.max(1, scrollRef.current?.clientWidth ?? rect.width),
                     maxTimeMs: totalMs,
                   }).timeMs
@@ -4960,6 +4979,7 @@ function ShowTimelineWorkspace({
                   }
                   updateCompositionClipMovePreview({
                     clientX: event.clientX,
+                    shiftKey: event.shiftKey,
                     element: event.currentTarget,
                     layer,
                     zoneId: row.zoneId,
@@ -5155,6 +5175,7 @@ function ShowTimelineWorkspace({
                         if (event.clientX === 0 && event.clientY === 0) return
                         updateCompositionClipMovePreview({
                           clientX: event.clientX,
+                          shiftKey: event.shiftKey,
                           element: activeLayer.element,
                           layer: activeLayer.layer,
                           zoneId: activeLayer.zoneId,
@@ -5989,18 +6010,24 @@ function TimelineMarkerSource({
       confirmationTimerRef.current = null
     }
   }
-  const resolveDragTime = (clientX: number, altKey: boolean): number | null => {
+  // A dragged-out Marker lands on the drop grid — whole seconds, tenths with
+  // Shift — so it no longer needs a post-hoc edit to sit on a clean time
+  // (#667). Alt drops it on raw milliseconds.
+  const resolveDragTime = (
+    clientX: number,
+    modifiers: { altKey: boolean; shiftKey: boolean },
+  ): number | null => {
     const rect = getRulerBounds()
     if (!rect || clientX < rect.left || clientX > rect.right) return null
     const rawTimeMs = (clientX - rect.left) / Math.max(1, rect.width) * durationMs
-    return Math.round(snapEnabled !== altKey
-      ? snapShowTimelineTime(rawTimeMs, {
-          visibleDurationMs: viewport.durationMs,
-          visibleWidthPx: getVisibleWidth(),
-          structuralTimesMs,
-          maxTimeMs: durationMs,
-        }).timeMs
-      : Math.max(0, Math.min(durationMs, rawTimeMs)))
+    if (modifiers.altKey) return Math.round(Math.max(0, Math.min(durationMs, rawTimeMs)))
+    return Math.round(snapShowTimelineTime(rawTimeMs, {
+      visibleDurationMs: viewport.durationMs,
+      visibleWidthPx: getVisibleWidth(),
+      structuralTimesMs: snapEnabled ? structuralTimesMs : [],
+      quantizeStepMs: showTimelineQuantizeStepMs(modifiers.shiftKey),
+      maxTimeMs: durationMs,
+    }).timeMs)
   }
   return (
     <div
@@ -6022,7 +6049,7 @@ function TimelineMarkerSource({
         onPointerMove={(event) => {
           const drag = markerDragRef.current
           if (!drag || drag.pointerId !== event.pointerId || Math.abs(event.clientX - drag.startX) < 3) return
-          const timeMs = resolveDragTime(event.clientX, event.altKey)
+          const timeMs = resolveDragTime(event.clientX, event)
           onMarkerFeedback(timeMs === null ? null : { kind: 'drag', timeMs })
         }}
         onPointerUp={(event) => {
@@ -6032,7 +6059,7 @@ function TimelineMarkerSource({
           suppressMarkerClickRef.current = true
           onMarkerFeedback(null)
           event.currentTarget.releasePointerCapture?.(event.pointerId)
-          const timeMs = resolveDragTime(event.clientX, event.altKey)
+          const timeMs = resolveDragTime(event.clientX, event)
           if (timeMs !== null) void onCreateMarker(timeMs)
         }}
         onPointerCancel={(event) => {
@@ -6484,6 +6511,10 @@ function TimelineMarkers({
   const [showEndAnchor, setShowEndAnchor] = useState<HTMLSpanElement | null>(null)
   const markerSurfaceRef = useRef<HTMLDivElement>(null)
   const markerPointerRef = useRef<{ markerId: string; pointerId: number; startX: number } | null>(null)
+  // A Marker follows the pointer while it is dragged (#667): the handle and
+  // stem render at the resolved (quantized/magnetized) time continuously
+  // instead of jumping only on release.
+  const [markerMovePreview, setMarkerMovePreview] = useState<{ markerId: string; timeMs: number } | null>(null)
   const showEndPointerRef = useRef<{
     pointerId: number
     startX: number
@@ -6503,23 +6534,25 @@ function TimelineMarkers({
     document.addEventListener('pointerdown', closeDetails)
     return () => document.removeEventListener('pointerdown', closeDetails)
   }, [openMarkerId, showEndOpen])
-  const resolvePointerTime = (event: ReactPointerEvent<HTMLElement>, allowBeyondEnd = false) => {
+  // A dragged Marker must not magnetize to its own current time — that would
+  // make any move shorter than the magnet threshold spring back to where the
+  // Marker already is (#667).
+  const resolvePointerTime = (event: ReactPointerEvent<HTMLElement>, excludeTimeMs?: number) => {
     const rect = event.currentTarget
       .closest('[data-show-timeline-marker-surface]')
       ?.getBoundingClientRect()
     if (!rect) return 0
     const rawTimeMs = (event.clientX - rect.left) / Math.max(1, rect.width) * durationMs
-    const maxTimeMs = allowBeyondEnd ? durationMs * 2 : durationMs
-    const minTimeMs = allowBeyondEnd ? minimumShowEndMs : 0
-    return Math.round(snapEnabled !== event.altKey
-      ? snapShowTimelineTime(rawTimeMs, {
-          visibleDurationMs: durationMs,
-          visibleWidthPx: rect.width,
-          structuralTimesMs,
-          minTimeMs,
-          maxTimeMs,
-        }).timeMs
-      : Math.max(minTimeMs, Math.min(maxTimeMs, rawTimeMs)))
+    if (event.altKey) return Math.round(Math.max(0, Math.min(durationMs, rawTimeMs)))
+    return Math.round(snapShowTimelineTime(rawTimeMs, {
+      visibleDurationMs: durationMs,
+      visibleWidthPx: rect.width,
+      structuralTimesMs: snapEnabled
+        ? structuralTimesMs.filter((timeMs) => timeMs !== excludeTimeMs)
+        : [],
+      quantizeStepMs: showTimelineQuantizeStepMs(event.shiftKey),
+      maxTimeMs: durationMs,
+    }).timeMs)
   }
   const resolveShowEndDrag = (
     event: ReactPointerEvent<HTMLElement>,
@@ -6528,15 +6561,24 @@ function TimelineMarkers({
     const rawTimeMs = pointer.startDurationMs
       + (event.clientX - pointer.startX) / Math.max(1, pointer.surfaceWidthPx) * pointer.startDurationMs
     const maxTimeMs = Math.max(pointer.startDurationMs * 16, rawTimeMs, minimumShowEndMs)
-    const timeMs = Math.round(snapEnabled !== event.altKey
-      ? snapShowTimelineTime(rawTimeMs, {
+    // The Show End must not magnetize to itself: its drag-start time and the
+    // live previewed end both re-enter the structural set through the
+    // previewed timeline, and either would pin the handle within the magnet
+    // threshold of wherever it already is (#667).
+    const timeMs = event.altKey
+      ? Math.round(Math.max(minimumShowEndMs, rawTimeMs))
+      : Math.round(snapShowTimelineTime(rawTimeMs, {
           visibleDurationMs: pointer.startDurationMs,
           visibleWidthPx: pointer.surfaceWidthPx,
-          structuralTimesMs,
+          structuralTimesMs: snapEnabled
+            ? structuralTimesMs.filter((candidateMs) => (
+                candidateMs !== pointer.startDurationMs && candidateMs !== durationMs
+              ))
+            : [],
+          quantizeStepMs: showTimelineQuantizeStepMs(event.shiftKey),
           minTimeMs: minimumShowEndMs,
           maxTimeMs,
-        }).timeMs
-      : Math.max(minimumShowEndMs, rawTimeMs))
+        }).timeMs)
     return { timeMs, blocked: rawTimeMs < minimumShowEndMs }
   }
   const beginShowEndDrag = (event: ReactPointerEvent<HTMLElement>) => {
@@ -6634,7 +6676,10 @@ function TimelineMarkers({
         )
       })()}
       {markers.filter((marker) => marker.timeMs <= durationMs).map((marker) => {
-        const left = marker.timeMs / Math.max(1, durationMs) * 100
+        const displayTimeMs = markerMovePreview?.markerId === marker.id
+          ? markerMovePreview.timeMs
+          : marker.timeMs
+        const left = displayTimeMs / Math.max(1, durationMs) * 100
         return (
           <div key={marker.id} className="contents">
           <span
@@ -6656,15 +6701,26 @@ function TimelineMarkers({
               markerPointerRef.current = { markerId: marker.id, pointerId: event.pointerId, startX: event.clientX }
               event.currentTarget.setPointerCapture?.(event.pointerId)
             }}
+            onPointerMove={(event) => {
+              const pointer = markerPointerRef.current
+              if (!pointer || pointer.markerId !== marker.id || pointer.pointerId !== event.pointerId) return
+              if (Math.abs(event.clientX - pointer.startX) < 3 && markerMovePreview === null) return
+              setMarkerMovePreview({ markerId: marker.id, timeMs: resolvePointerTime(event, marker.timeMs) })
+            }}
             onPointerUp={(event) => {
               event.stopPropagation()
               const pointer = markerPointerRef.current
               markerPointerRef.current = null
+              setMarkerMovePreview(null)
               if (!pointer || pointer.markerId !== marker.id || pointer.pointerId !== event.pointerId || Math.abs(event.clientX - pointer.startX) < 3) return
-              const timeMs = resolvePointerTime(event)
+              const timeMs = resolvePointerTime(event, marker.timeMs)
               event.currentTarget.releasePointerCapture?.(event.pointerId)
               suppressMarkerHandleClickRef.current = true
               void onMoveMarker(marker.id, timeMs)
+            }}
+            onPointerCancel={() => {
+              markerPointerRef.current = null
+              setMarkerMovePreview(null)
             }}
             onClick={(event) => {
               event.stopPropagation()

@@ -138,6 +138,15 @@ export interface ShowTimelineSnapOptions {
   visibleWidthPx: number
   structuralTimesMs: number[]
   gridEnabled?: boolean
+  /**
+   * Always-on drop grid (#667). Unlike the magnetic zoom-aware grid, which
+   * only attracts within a pixel threshold and otherwise lets a drop land on
+   * raw milliseconds, a quantize step rounds every non-boundary result onto
+   * the grid. Near boundaries still win, so Clips continue to butt against
+   * neighbours, Markers, and the playhead exactly. When set, the magnetic
+   * grid flag is ignored.
+   */
+  quantizeStepMs?: number
   minTimeMs?: number
   maxTimeMs?: number
 }
@@ -145,6 +154,16 @@ export interface ShowTimelineSnapOptions {
 export interface ShowTimelineSnapResult {
   timeMs: number
   kind?: 'boundary' | 'grid'
+}
+
+/**
+ * Timeline drops land on whole seconds by default; Shift asks for tenths
+ * (#667). The step is fixed rather than zoom-following so values authored at
+ * different zoom levels still line up with each other, and it never goes
+ * below 100ms — the exact textbox owns finer precision.
+ */
+export function showTimelineQuantizeStepMs(fine: boolean): number {
+  return fine ? 100 : 1_000
 }
 
 export function snapShowTimelineTime(
@@ -160,6 +179,14 @@ export function snapShowTimelineTime(
     .filter((timeMs) => Math.abs(timeMs - candidate) <= thresholdMs)
     .sort((left, right) => Math.abs(left - candidate) - Math.abs(right - candidate))[0]
   if (boundary !== undefined) return { timeMs: boundary, kind: 'boundary' }
+
+  if (options.quantizeStepMs !== undefined && options.quantizeStepMs > 0) {
+    // Quantize the raw pointer time, then clamp: a drag pressed past a range
+    // limit rests exactly on the limit rather than jumping to the grid line
+    // beyond it.
+    const stepMs = options.quantizeStepMs
+    return { timeMs: clamp(Math.round(candidateTimeMs / stepMs) * stepMs, min, max), kind: 'grid' }
+  }
 
   if (options.gridEnabled !== false) {
     const gridStepMs = showTimelineGridStepMs(options.visibleDurationMs, options.visibleWidthPx)

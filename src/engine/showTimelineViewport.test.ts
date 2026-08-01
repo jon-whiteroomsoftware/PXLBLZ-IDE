@@ -7,6 +7,7 @@ import {
   showTimelineRulerTicks,
   showTimelineThumb,
   showTimelineGridStepMs,
+  showTimelineQuantizeStepMs,
   snapShowTimelineTime,
   timeToViewportPercent,
   viewportPercentToTime,
@@ -78,6 +79,75 @@ describe('Show timeline viewport (#420)', () => {
       visibleWidthPx: 600,
       structuralTimesMs: [6_000, 30_000],
     })).toEqual({ timeMs: 11_500 })
+  })
+
+  it('quantizes to the requested drop grid when no boundary is near (#667)', () => {
+    expect(snapShowTimelineTime(5_430, {
+      visibleDurationMs: 60_000,
+      visibleWidthPx: 600,
+      structuralTimesMs: [30_000],
+      quantizeStepMs: 1_000,
+    })).toEqual({ timeMs: 5_000, kind: 'grid' })
+
+    expect(snapShowTimelineTime(5_430, {
+      visibleDurationMs: 60_000,
+      visibleWidthPx: 600,
+      structuralTimesMs: [30_000],
+      quantizeStepMs: 100,
+    })).toEqual({ timeMs: 5_400, kind: 'grid' })
+  })
+
+  it('quantizes far from any grid magnet threshold, unlike the magnetic grid (#667)', () => {
+    // 10_650 is 350ms from the nearest 1s line — outside any magnet threshold —
+    // yet a quantizing drop still lands it there.
+    expect(snapShowTimelineTime(10_650, {
+      visibleDurationMs: 60_000,
+      visibleWidthPx: 600,
+      structuralTimesMs: [],
+      quantizeStepMs: 1_000,
+    })).toEqual({ timeMs: 11_000, kind: 'grid' })
+  })
+
+  it('lets a near boundary beat the drop grid (#667)', () => {
+    expect(snapShowTimelineTime(5_930, {
+      visibleDurationMs: 60_000,
+      visibleWidthPx: 600,
+      structuralTimesMs: [6_150],
+      quantizeStepMs: 1_000,
+    })).toEqual({ timeMs: 6_150, kind: 'boundary' })
+  })
+
+  it('clamps a quantized time into the permitted range (#667)', () => {
+    expect(snapShowTimelineTime(180, {
+      visibleDurationMs: 60_000,
+      visibleWidthPx: 600,
+      structuralTimesMs: [],
+      quantizeStepMs: 1_000,
+      minTimeMs: 500,
+    })).toEqual({ timeMs: 500, kind: 'grid' })
+
+    expect(snapShowTimelineTime(59_820, {
+      visibleDurationMs: 60_000,
+      visibleWidthPx: 600,
+      structuralTimesMs: [],
+      quantizeStepMs: 1_000,
+      maxTimeMs: 59_500,
+    })).toEqual({ timeMs: 59_500, kind: 'grid' })
+  })
+
+  it('ignores the magnetic grid flag while a drop grid is active (#667)', () => {
+    expect(snapShowTimelineTime(10_650, {
+      visibleDurationMs: 60_000,
+      visibleWidthPx: 600,
+      structuralTimesMs: [],
+      gridEnabled: false,
+      quantizeStepMs: 1_000,
+    })).toEqual({ timeMs: 11_000, kind: 'grid' })
+  })
+
+  it('picks the drop grid step from the fine modifier (#667)', () => {
+    expect(showTimelineQuantizeStepMs(false)).toBe(1_000)
+    expect(showTimelineQuantizeStepMs(true)).toBe(100)
   })
 
   it('can snap to explicit boundaries without enabling the time grid', () => {
