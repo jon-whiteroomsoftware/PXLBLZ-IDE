@@ -4436,7 +4436,11 @@ function emitRoutedSceneSequenceShowCode(
     `${member.elapsedName} = ${member.adaptation.timeOffsetMs}`,
     ...(member.usesTime ? [`${member.elapsedSecondsName} = ${member.adaptation.timeOffsetMs / 1_000}`] : []),
     ...(member.adaptation.steppedClock
-      ? [`${member.prefix}_step_pending_ms = 0`, `${member.prefix}_step_pending_delta = 0`]
+      ? [
+          `${member.prefix}_step_pending_ms = 0`,
+          `${member.prefix}_step_pending_delta = 0`,
+          `${member.prefix}_step_primed = 0`,
+        ]
       : []),
     ...(member.slotOwnerCount > 1
       ? [
@@ -9542,8 +9546,21 @@ function emitRuntimePrelude(
           `var ${member.prefix}_step_ms = ${steppedClock.stepMs}`,
           `var ${member.prefix}_step_pending_ms = 0`,
           `var ${member.prefix}_step_pending_delta = 0`,
+          `var ${member.prefix}_step_primed = 0`,
+          // #663: activation is boundary zero. Patterns compute render state in
+          // beforeRender, and firmware never renders before delivering it, so
+          // the first advance after activation/restart delivers immediately
+          // with the frame's scaled delta instead of holding for a full step.
           `function ${member.prefix}_advanceStepped(delta) {
   var scaledDelta = delta * ${member.prefix}_adapt_timeScale
+  if (${member.prefix}_step_primed == 0) {
+    ${member.prefix}_step_primed = 1
+    ${member.elapsedName} = ${member.elapsedName} + scaledDelta
+    ${member.usesTime ? `${member.elapsedSecondsName} = ${member.elapsedSecondsName} + scaledDelta / 1000` : ''}
+    ${member.hasBeforeRender ? `${member.beforeRenderName}(scaledDelta)` : ''}
+    ${member.frameInvariantUpdateName ? `${member.frameInvariantUpdateName}()` : ''}
+    return
+  }
   var previousPendingMs = ${member.prefix}_step_pending_ms
   var accumulatedMs = previousPendingMs + delta
   var deliveredCadenceMs = floor(accumulatedMs / ${member.prefix}_step_ms) * ${member.prefix}_step_ms

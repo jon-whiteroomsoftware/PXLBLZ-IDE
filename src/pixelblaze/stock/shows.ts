@@ -725,12 +725,13 @@ function learn203(): StockShow {
 
 // 204 compares five presentations of one drifting palette field. The cast is
 // measured, not chosen by eye: IQPalettes carries the strongest full-channel
-// motion among the Patterns that are safe to Stutter (0.157 mean RGB change
-// over two seconds at the lesson clock), and 203 already establishes it as
-// the level's diagnostic source. Caustics moves harder but is excluded: the
-// stepped clock's documented contract renders before the first beforeRender
-// delivery, and Caustics computes its render state there, so its whole first
-// Stutter window comes out non-finite. The Stutter passage owns a second
+// motion of the candidates (0.157 mean RGB change over two seconds at the
+// lesson clock), and 203 already establishes it as the level's diagnostic
+// source. (The cast originally also dodged a lowering defect: before #663 a
+// stepped clock rendered its whole first window ahead of the first
+// beforeRender delivery, which broke Patterns like Caustics that compute
+// render state there. The priming delivery removed that constraint; every
+// Pattern is now safe to Stutter.) The Stutter passage owns a second
 // instance because Stutter quantizes the Pattern-instance clock itself;
 // giving it the shared instance would stutter every other Clip too.
 function learn204(): StockShow {

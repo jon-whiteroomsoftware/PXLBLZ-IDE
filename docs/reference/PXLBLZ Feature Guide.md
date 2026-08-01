@@ -485,7 +485,8 @@ frame, and **Strobe** periodically captures and holds a new complete frame at
 the chosen cadence. **Blink** gates the Clip output at an authored rate, duty,
 and phase without pausing Pattern time. Stutter is different: it quantizes the
 shared Pattern clock, so every Clip linked to that instance observes the same
-stepped motion.
+stepped motion. A Stutter Clip opens on its entry frame and holds it until the
+first step boundary, matching Freeze's arrival behavior.
 
 Compatible 2D clips expose a canonical **Transform** group for position,
 rotation, and scale, followed by an ordered **Effect stack** grouped into the

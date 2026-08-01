@@ -2610,9 +2610,14 @@ interval therefore never pauses or restarts private Pattern time. Show-score
 stack identity includes both presentation and Blink, so otherwise identical
 stacks cannot be interned when their held-frame or output-gate behavior differs.
 
-`ShowPatternInstance.time.steppedClock` owns Stutter. The compiler accumulates
-real delta and advances that logical instance only in complete authored steps;
-all placements sharing the instance observe the same quantized clock. The
+`ShowPatternInstance.time.steppedClock` owns Stutter. Activation is boundary
+zero: the first advance after the instance activates or restarts (entry, a cut,
+the deterministic loop reset) delivers one priming `beforeRender` with that
+frame's scaled delta, because Patterns compute render state in `beforeRender`
+and firmware never renders before delivering it (#663). After priming, the
+compiler accumulates real delta and advances that logical instance only in
+complete authored steps; all placements sharing the instance observe the same
+quantized clock, and a Stutter Clip opens on its held entry frame. The
 attached Entity Detail panel projects shared-use count, compatible same-Pattern
 instances, Make Pattern Independent, Rejoin Shared Pattern, and the Stutter
 step without creating a second editor surface.
@@ -3374,7 +3379,8 @@ is emitted until Z semantics are explicitly designed.
 Discrete adaptations remain part of member compatibility:
 
 - `timeOffsetMs` initializes private elapsed time;
-- stepped clock accumulates scaled delta and releases it at cadence boundaries;
+- stepped clock delivers one priming `beforeRender` at activation, then
+  accumulates scaled delta and releases it at cadence boundaries;
 - light shutter controls explicit black output and source-renderer evaluation;
 - shutter Continue advances time behind darkness;
 - shutter Freeze integrates only open-time overlap; and

@@ -5292,21 +5292,21 @@ export function render(index) { renders = renders + 1; rgb(elapsed, frames, rend
 
     runtime.handle.beforeRender(40)
     runtime.handle.render(0)
-    expect(runtime.pixel()).toEqual([0, 0, 1])
+    expect(runtime.pixel()).toEqual([40, 1, 1])
     runtime.handle.beforeRender(35)
     runtime.handle.render(0)
-    expect(runtime.pixel()).toEqual([0, 0, 2])
+    expect(runtime.pixel()).toEqual([40, 1, 2])
     runtime.handle.beforeRender(30)
     runtime.handle.render(0)
-    expect(runtime.pixel()).toEqual([100, 1, 3])
+    expect(runtime.pixel()).toEqual([40, 1, 3])
     runtime.handle.beforeRender(195)
     runtime.handle.render(0)
 
-    expect(runtime.pixel()).toEqual([300, 2, 4])
+    expect(runtime.pixel()).toEqual([240, 2, 4])
     expect(runtime.handle.getExports()).toMatchObject({
-      __pxlblz_show_c0_elapsed_ms: 300,
-      __pxlblz_show_c0_step_pending_ms: 0,
-      __pxlblz_show_c0_elapsed: 300,
+      __pxlblz_show_c0_elapsed_ms: 240,
+      __pxlblz_show_c0_step_pending_ms: 60,
+      __pxlblz_show_c0_elapsed: 240,
       __pxlblz_show_c0_frames: 2,
       __pxlblz_show_c0_renders: 4,
     })
@@ -5315,6 +5315,38 @@ export function render(index) { renders = renders + 1; rgb(elapsed, frames, rend
       renderPolicy: 'single-continuous-hold',
       worstInstantRenderersPerPixel: 1,
       clips: [expect.objectContaining({ temporalPolicy: 'stepped-clock', stepMs: 100 })],
+    })
+  })
+
+  it('primes stepped members with one beforeRender at activation before the first render (#663)', () => {
+    const artifact = compileShow({
+      clips: [{
+        id: 'stepped',
+        source: `
+var scale
+export var frames = 0
+export function beforeRender(delta) { frames = frames + 1; scale = 2 + frames }
+export function render(index) { rgb(scale, frames, index) }
+`,
+        adaptation: { steppedClock: { stepMs: 100 } },
+      }],
+    }, {})
+    const runtime = loadShow(artifact.code, artifact.metadata)
+
+    runtime.handle.beforeRender(16)
+    runtime.handle.render(0)
+    expect(runtime.pixel()).toEqual([3, 1, 0])
+    runtime.handle.beforeRender(80)
+    runtime.handle.render(0)
+    expect(runtime.pixel()).toEqual([3, 1, 0])
+    runtime.handle.beforeRender(20)
+    runtime.handle.render(0)
+
+    expect(runtime.pixel()).toEqual([4, 2, 0])
+    expect(runtime.handle.getExports()).toMatchObject({
+      __pxlblz_show_c0_elapsed_ms: 116,
+      __pxlblz_show_c0_step_pending_ms: 0,
+      __pxlblz_show_c0_frames: 2,
     })
   })
 
@@ -5331,11 +5363,12 @@ export function render(index) { rgb(elapsed, index, 0) }
 
     heldRuntime.handle.beforeRender(60)
     heldRuntime.handle.beforeRender(60)
+    heldRuntime.handle.beforeRender(60)
 
     expect(heldRuntime.handle.getExports()).toMatchObject({
-      __pxlblz_show_c0_elapsed_ms: 100,
+      __pxlblz_show_c0_elapsed_ms: 160,
       __pxlblz_show_c0_step_pending_ms: 20,
-      __pxlblz_show_c0_elapsed: 100,
+      __pxlblz_show_c0_elapsed: 160,
     })
 
     const restarted = compileShow({
@@ -5352,10 +5385,10 @@ export function render(index) { rgb(elapsed, index, 0) }
     restartRuntime.handle.beforeRender(40)
 
     expect(restartRuntime.handle.getExports()).toMatchObject({
-      __pxlblz_show_c0_elapsed_ms: 0,
-      __pxlblz_show_c0_step_pending_ms: 60,
-      __pxlblz_show_c1_elapsed_ms: 100,
-      __pxlblz_show_c1_step_pending_ms: 0,
+      __pxlblz_show_c0_elapsed_ms: 60,
+      __pxlblz_show_c0_step_pending_ms: 0,
+      __pxlblz_show_c1_elapsed_ms: 60,
+      __pxlblz_show_c1_step_pending_ms: 40,
     })
     expect(restarted.summary).toMatchObject({
       temporalPolicy: 'stepped-clock',
@@ -5414,12 +5447,17 @@ export function render(index) { rgb(time(1), frames, index) }
     expect(runtime.pixel()).toEqual([250 / 65_536, 0, 3])
     runtime.handle.beforeRender(50)
     runtime.handle.render(3)
-    expect(runtime.pixel()).toEqual([250 / 65_536, 0, 3])
+    expect(runtime.pixel()[0]).toBeCloseTo(300 / 65_536)
+    expect(runtime.pixel().slice(1)).toEqual([1, 3])
+    runtime.handle.beforeRender(50)
+    runtime.handle.render(3)
+    expect(runtime.pixel()[0]).toBeCloseTo(300 / 65_536)
+    expect(runtime.pixel().slice(1)).toEqual([1, 3])
     runtime.handle.beforeRender(50)
     runtime.handle.render(3)
 
-    expect(runtime.pixel()[0]).toBeCloseTo(350 / 65_536)
-    expect(runtime.pixel().slice(1)).toEqual([1, 3])
+    expect(runtime.pixel()[0]).toBeCloseTo(400 / 65_536)
+    expect(runtime.pixel().slice(1)).toEqual([2, 3])
     expect(artifact.summary).toMatchObject({
       timeOffsetPolicy: 'per-clip',
       worstInstantRenderersPerPixel: 1,

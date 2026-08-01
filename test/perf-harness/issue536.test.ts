@@ -52,17 +52,19 @@ describe('Restart-instance global-liveness census (#536)', () => {
   it('applies the 15% gate mechanically without converting it into a product invariant', () => {
     expect(report.decision.threshold).toBe(0.15)
     // Recensused with the #363 Learn recast, again when 106 gained its
-    // second and third Transitions, and again when the Learn 200 lessons
-    // landed. The six new lessons add member globals without adding any
-    // Restart members, so the unweighted percent falls to zero while the
-    // weighted figure still hovers at the threshold; the gate reads the
-    // unweighted percent, so the verdict is unchanged.
+    // second and third Transitions, again when the Learn 200 lessons
+    // landed, and again when #663 gave stepped members a priming flag
+    // (one new global on the corpus's single stepped member). The Learn
+    // lessons add member globals without adding any Restart members, so
+    // the unweighted percent falls to zero while the weighted figure
+    // still hovers at the threshold; the gate reads the unweighted
+    // percent, so the verdict is unchanged.
     expect(report.summary).toMatchObject({
-      representativeMemberGlobals: 2_402,
+      representativeMemberGlobals: 2_403,
       representativeReclaimedGlobals: 371,
     })
     expect(report.decision.representativeReclaimPercent).toBe(0)
-    expect(report.decision.weightedRepresentativeReclaimPercent).toBeCloseTo(0.15445462, 8)
+    expect(report.decision.weightedRepresentativeReclaimPercent).toBeCloseTo(0.15439035, 8)
     expect(report.decision.ceilingRescues).toEqual([])
     expect(report.decision.proceedWithEmission).toBe(false)
     expect(report.decision.proceedWithEmission).toBe(
