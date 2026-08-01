@@ -116,12 +116,9 @@ export function ShowPropertyAnimationAction({
   if (!context || !option) return null
   const accessibleLabel = label ?? option.label
   const animated = Boolean(track)
-  const overviewOnly = Boolean(track && track.keyframes.length !== 2)
   const open = context.activeKey === key
-  const title = overviewOnly
-    ? `View the ${track?.keyframes.length}-keyframe ${accessibleLabel} animation in the Animations overview`
-    : animated
-    ? `Edit the two-point ${accessibleLabel} animation`
+  const title = animated
+    ? `Edit the ${track!.keyframes.length}-keyframe ${accessibleLabel} animation`
     : `Create a two-point ${accessibleLabel} ramp and open its editor`
   return (
     <>
@@ -135,11 +132,6 @@ export function ShowPropertyAnimationAction({
         onClick={(event) => {
           event.preventDefault()
           event.stopPropagation()
-          if (overviewOnly && context.onOpenOverview) {
-            context.setActiveKey(null)
-            context.onOpenOverview()
-            return
-          }
           setAnchor(event.currentTarget)
           context.setActiveKey(open ? null : key)
         }}
@@ -463,7 +455,10 @@ function ShowPropertyAnimationPopover({
                 onTimeChange={(seconds) => changeKeyframe(index, {
                   timeMs: showPropertyAnimationLocalTimeMs(context, seconds),
                 })}
-                onDelete={track && ordered.length > 2
+                onDelete={track && ordered.length > 2 && index > 0 && !isLast
+                  // Interior keyframes only: an endpoint owns the value the
+                  // track holds before its first and after its last keyframe,
+                  // so deleting one silently rewrites the surrounding holds.
                   ? () => context.onChange({
                       kind: 'delete-keyframe',
                       trackId: track.id,
@@ -507,7 +502,7 @@ function ShowPropertyAnimationPopover({
             type="button"
             aria-label={`Add ${option.label} keyframe`}
             onClick={() => {
-              const insertion = keyframeInsertionFor(track)
+              const insertion = keyframeInsertionFor(track, option)
               if (!insertion) return
               context.onChange({ kind: 'add-keyframe', trackId: track.id, keyframe: insertion })
             }}
@@ -537,28 +532,40 @@ function ShowPropertyAnimationPopover({
 }
 
 /**
- * A new keyframe lands at the midpoint of the largest time gap, carrying the
- * curve's evaluated value there and the easing of the segment it splits, so
- * adding a point never changes the rendered animation until it is edited.
+ * A new keyframe lands at the midpoint of the largest splittable time gap,
+ * carrying the curve's evaluated value there. Linear segments are preferred
+ * because splitting one leaves the rendered animation unchanged; splitting a
+ * curved segment re-eases each half over its shorter interval, so it is the
+ * fallback rather than the default. The value is clamped to the property's
+ * bounds because valid easing curves may overshoot them mid-segment, and an
+ * out-of-bounds keyframe would be rejected by validation.
  */
-function keyframeInsertionFor(track: ShowPropertyAnimationTrack): DraftKeyframe | null {
+function keyframeInsertionFor(
+  track: ShowPropertyAnimationTrack,
+  option: ShowPropertyAnimationOption,
+): DraftKeyframe | null {
   const ordered = [...track.keyframes].sort((left, right) => left.timeMs - right.timeMs || left.id.localeCompare(right.id))
-  let bestIndex = -1
-  let bestGap = 1
-  ordered.forEach((keyframe, index) => {
-    if (index === 0) return
-    const gap = keyframe.timeMs - ordered[index - 1].timeMs
-    if (gap > bestGap) {
-      bestGap = gap
-      bestIndex = index
-    }
-  })
+  const largestGapIndex = (linearOnly: boolean): number => {
+    let bestIndex = -1
+    let bestGap = 1
+    ordered.forEach((keyframe, index) => {
+      if (index === 0) return
+      if (linearOnly && ordered[index - 1].easing.curve !== 'linear') return
+      const gap = keyframe.timeMs - ordered[index - 1].timeMs
+      if (gap > bestGap) {
+        bestGap = gap
+        bestIndex = index
+      }
+    })
+    return bestIndex
+  }
+  const bestIndex = largestGapIndex(true) >= 0 ? largestGapIndex(true) : largestGapIndex(false)
   if (bestIndex < 0) return null
   const left = ordered[bestIndex - 1]
-  const timeMs = Math.round(left.timeMs + bestGap / 2)
+  const timeMs = Math.round(left.timeMs + (ordered[bestIndex].timeMs - left.timeMs) / 2)
   return {
     timeMs,
-    value: evaluateShowPropertyTrack(track, timeMs),
+    value: Math.min(option.max, Math.max(option.min, evaluateShowPropertyTrack(track, timeMs))),
     easing: structuredClone(left.easing),
   }
 }

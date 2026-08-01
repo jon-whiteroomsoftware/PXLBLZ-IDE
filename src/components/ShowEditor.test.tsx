@@ -4142,6 +4142,22 @@ describe('ShowEditor (#318)', () => {
         .toMatchObject({ curve: 'steps', steps: 4, position: 'end' })
     })
 
+    // Only the interior keyframe offers deletion: endpoints own the values
+    // the track holds outside its keyframes.
+    expect(screen.getAllByRole('button', { name: /Delete Brightness animation/ }))
+      .toHaveLength(1)
+
+    // A multi-keyframe track reopens the same editor from its field diamond.
+    fireEvent.keyDown(screen.getByRole('dialog', { name: 'Brightness animation' }), { key: 'Escape' })
+    await waitFor(() => {
+      expect(screen.queryByRole('dialog', { name: 'Brightness animation' })).not.toBeInTheDocument()
+    })
+    await user.click(within(panel).getByRole('button', { name: 'Edit Brightness animation' }))
+    await waitFor(() => {
+      expect(screen.getByRole('textbox', { name: 'Brightness animation keyframe 2 exact percentage' }))
+        .toBeInTheDocument()
+    })
+
     await user.click(screen.getByRole('button', { name: 'Delete Brightness animation keyframe 2' }))
     await waitFor(() => {
       const track = useShowStore.getState().shows[0].composition?.scenes[0].propertyTracks?.[0]
