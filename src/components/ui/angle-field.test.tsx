@@ -86,6 +86,22 @@ describe('AngleField', () => {
     expect(onChange).not.toHaveBeenCalled()
   })
 
+  it('wraps the direction slider End key onto canonical zero instead of a phantom full turn', async () => {
+    const user = userEvent.setup()
+    const onChange = vi.fn()
+    render(
+      <AngleField kind="direction" label="Direction" value={0.25} min={0} max={1} step={0.001} onChange={onChange} />,
+    )
+    const grip = screen.getByRole('button', { name: 'Adjust with direction slider' })
+    fireEvent.keyDown(grip, { key: 'Enter' })
+    const slider = await screen.findByRole('slider', { name: 'Direction slider' })
+    await user.keyboard('{End}')
+    expect(slider).toHaveAttribute('aria-valuetext', '0°')
+    await user.keyboard('{Enter}')
+    expect(onChange).toHaveBeenLastCalledWith(0)
+    expect(screen.getByRole('textbox', { name: 'Direction exact direction' })).toHaveValue('0')
+  })
+
   it('reverts an invalid draft on Escape without committing', async () => {
     const user = userEvent.setup()
     const onChange = vi.fn()

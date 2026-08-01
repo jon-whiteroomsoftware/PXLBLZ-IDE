@@ -522,7 +522,10 @@ export function BoundedNumberField({
                 if (next === null) return
                 event.preventDefault()
                 event.stopPropagation()
-                previewSliderValue(Number(next.toFixed(10)))
+                // Keyboard-derived values honor the same snap contract as
+                // pointer travel, so wrapped presentations never commit a
+                // noncanonical endpoint (#612).
+                previewSliderValue(Number(snapSliderValue(next).toFixed(10)))
               }}
               className={`${sliderMarks.length > 0 ? 'absolute inset-x-0 top-0 z-10 h-5' : ''} w-full accent-cyan-400 outline-none focus:outline-none focus-visible:outline-none`}
             />
