@@ -5,13 +5,16 @@ export type ShowEntityDetailRect = {
   height: number
 }
 
-export type ShowEntityDetailPlacement = {
+type ShowEntityDetailPlacementBase = {
   left: number
   top: number
   maxHeight: number
-  placement: 'above' | 'below'
-  stemLeft: number
 }
+
+export type ShowEntityDetailPlacement = ShowEntityDetailPlacementBase & (
+  | { placement: 'above' | 'below'; stemLeft: number }
+  | { placement: 'left' | 'right'; stemTop: number }
+)
 
 export function placeShowEntityDetailPanel({
   anchor,
@@ -31,6 +34,28 @@ export function placeShowEntityDetailPanel({
   collisionGap?: number
 }): ShowEntityDetailPlacement {
   const anchorCenter = anchor.left + anchor.width / 2
+  const anchorMiddle = anchor.top + anchor.height / 2
+  const placeBeside = (side: 'left' | 'right'): ShowEntityDetailPlacement => {
+    const maxHeight = Math.max(1, viewport.height - margin * 2)
+    const renderedHeight = Math.min(panel.height, maxHeight)
+    const top = clamp(anchorMiddle - renderedHeight / 2, margin, viewport.height - renderedHeight - margin)
+    return {
+      left: side === 'right' ? anchor.left + anchor.width + gap : anchor.left - gap - panel.width,
+      top,
+      maxHeight,
+      placement: side,
+      stemTop: clamp(anchorMiddle - top, 16, renderedHeight - 16),
+    }
+  }
+  const roomRight = viewport.width - margin - (anchor.left + anchor.width + gap)
+  const roomLeft = anchor.left - gap - margin
+  for (const side of ['right', 'left'] as const) {
+    if ((side === 'right' ? roomRight : roomLeft) < panel.width) continue
+    const sidePlacement = placeBeside(side)
+    if (!avoid.some((rect) => placementsCollide(sidePlacement, panel.width, panel.height, rect, collisionGap))) {
+      return sidePlacement
+    }
+  }
   const belowTop = anchor.top + anchor.height + gap
   const roomBelow = viewport.height - margin - belowTop
   const roomAbove = anchor.top - gap - margin

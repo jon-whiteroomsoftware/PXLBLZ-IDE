@@ -451,7 +451,7 @@ test.describe('authenticated Show authoring', () => {
   // getByLabel('Brightness') also matched the field's exact textbox, so the
   // edit now targets that control directly rather than tripping strict mode.
 
-  test('anchors the Entity Detail Panel to its Clip without reflowing the timeline', async ({ page }) => {
+  test('places the Entity Detail Panel beside its Clip without reflowing the timeline (#665)', async ({ page }) => {
     await page.setViewportSize({ width: 1440, height: 900 })
     await page.goto('studio/shows')
     await createInstallationShow(page)
@@ -466,10 +466,15 @@ test.describe('authenticated Show authoring', () => {
     const panel = page.getByRole('dialog', { name: 'Entity Detail Panel' })
     await expect(panel).toHaveCount(1)
     await expect(panel).toHaveAttribute('data-owner-key', ownerKey!)
+    await expect(panel).toHaveAttribute('data-placement', 'right')
     expect((await timeline.boundingBox())?.height).toBe(before?.height)
 
+    const clipBounds = await clip.boundingBox()
     const bounds = await panel.boundingBox()
+    expect(clipBounds).not.toBeNull()
     expect(bounds).not.toBeNull()
+    expect(bounds!.x).toBeGreaterThanOrEqual(clipBounds!.x + clipBounds!.width + 9)
+    expect(bounds!.height).toBe(560)
     expect(bounds!.x).toBeGreaterThanOrEqual(0)
     expect(bounds!.x + bounds!.width).toBeLessThanOrEqual(1440)
     expect(bounds!.y + bounds!.height).toBeLessThanOrEqual(900)
@@ -946,7 +951,7 @@ test.describe('authenticated Show authoring', () => {
   })
 
   test('previews placement sliders without scrolling the outer detail panel', async ({ page }) => {
-    await page.setViewportSize({ width: 1024, height: 500 })
+    await page.setViewportSize({ width: 1024, height: 400 })
     await page.goto('studio/shows')
     await createInstallationShow(page)
 

@@ -63,6 +63,27 @@ export function ShowEntityDetailPanel({
     }
   }, [anchor, avoidPinnedPanel, updatePosition])
 
+  const sidePlacement = position?.placement === 'left' || position?.placement === 'right'
+  const panelMaxHeight = position
+    ? Math.min(560, position.maxHeight)
+    : undefined
+  const stemClassName = position?.placement === 'above'
+    ? 'border-b border-r'
+    : position?.placement === 'left'
+      ? 'border-r border-t'
+      : position?.placement === 'right'
+        ? 'border-b border-l'
+        : 'border-l border-t'
+  const stemStyle = position && sidePlacement
+    ? {
+        left: position.placement === 'right' ? -6 : 'calc(100% - 6px)',
+        top: position.stemTop - 6,
+      }
+    : {
+        left: position && 'stemLeft' in position ? position.stemLeft - 6 : 18,
+        top: position?.placement === 'above' ? 'calc(100% - 6px)' : -6,
+      }
+
   return createPortal(
     <div
       ref={panelRef}
@@ -78,8 +99,8 @@ export function ShowEntityDetailPanel({
       style={{
         left: position?.left ?? 8,
         top: position?.top ?? 8,
-        height: bodyOwnsOverflow && position ? Math.min(560, position.maxHeight) : undefined,
-        maxHeight: position ? Math.min(560, position.maxHeight) : undefined,
+        height: bodyOwnsOverflow ? panelMaxHeight : undefined,
+        maxHeight: panelMaxHeight,
         visibility: position ? 'visible' : 'hidden',
       }}
       onClick={(event) => event.stopPropagation()}
@@ -88,13 +109,8 @@ export function ShowEntityDetailPanel({
       <span
         aria-hidden
         data-testid="show-entity-detail-stem"
-        className={position?.placement === 'above'
-          ? 'pointer-events-none absolute z-10 size-3 rotate-45 border-b border-r border-zinc-700 bg-[#08080a]'
-          : 'pointer-events-none absolute z-10 size-3 rotate-45 border-l border-t border-zinc-700 bg-[#08080a]'}
-        style={{
-          left: (position?.stemLeft ?? 24) - 6,
-          top: position?.placement === 'above' ? 'calc(100% - 6px)' : -6,
-        }}
+        className={`pointer-events-none absolute z-10 size-3 rotate-45 border-zinc-700 bg-[#08080a] ${stemClassName}`}
+        style={stemStyle}
       />
       {onPinnedChange && (
         <button

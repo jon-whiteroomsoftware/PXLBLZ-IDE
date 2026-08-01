@@ -1615,9 +1615,13 @@ open owner and anchor.
 `ShowEntityDetailPanel` portals the existing contextual inspector to
 `document.body` as one modeless application overlay. It stops pointer bubbling
 without trapping focus or changing Timeline layout. The pure
-`showEntityDetailPlacement.ts` helper chooses above or below, clamps the panel
-to viewport margins, and keeps the stem aimed at the anchor. Resize, scrolling,
-and anchor/panel size changes recompute placement. New Clips enter through the
+`showEntityDetailPlacement.ts` helper prefers the right side, then the left,
+when the complete panel width fits beside the source. A side placement centers
+vertically on the source and clamps to viewport margins, preserving the panel's
+560-pixel height cap without spending only the smaller region above or below
+the source. When neither side fits, the helper retains the below/above flip.
+Every direction keeps the stem aimed at the anchor. Resize, scrolling, and
+anchor/panel size changes recompute placement. New Clips enter through the
 toolbar's playhead-aware Pattern catalogue or the same pointer-positioned
 chooser after an empty Layer double-click. The latter binds the clicked Layer
 and the Show-global time resolved by the current Snap/Alt state, retaining the
