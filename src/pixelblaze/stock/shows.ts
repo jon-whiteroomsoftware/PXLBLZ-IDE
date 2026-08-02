@@ -1014,6 +1014,8 @@ function learn301(): StockShow {
 // crown's quiet ember state; IQPalettes is its ignition. Every voice was
 // probed calm at the shared lesson clock, and the only change at each
 // junction is the crown's, so the arc stays attributable at playback speed.
+// The two 2-second crossfades are additional timeline intervals, so the
+// 6/8/6-second holds make a 24-second Show and the explicit duration says so.
 function learn302(): StockShow {
   const id = 'stock-show-302-installation-composition'
   const zones = physicalZones(['Crown', 'Left vine', 'Right vine'], [40, 60, 60])
@@ -1071,7 +1073,7 @@ function learn302(): StockShow {
         ],
       },
     ],
-    durationMs: 20_000,
+    durationMs: 24_000,
   }
   return catalogue({
     id, title: 'Installation Composition', track: 'installation', collection: 'learn', level: 300, order: 2,

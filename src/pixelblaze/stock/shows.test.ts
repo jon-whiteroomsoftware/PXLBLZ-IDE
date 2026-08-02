@@ -1179,9 +1179,11 @@ describe('stock Show curriculum (#363)', () => {
       }
     }
 
+    // Crossfades are additional timeline intervals: Establish holds 0-6s,
+    // Bloom holds 8-16s, and Resolve holds 18-24s on the 24-second ruler.
     const establish = frameAt(3_000)   // embers over the bed
     const bloom = frameAt(7_000)       // t=10s: ignition holds the crown
-    const resolve = frameAt(7_000)     // t=17s: afterglow resumes the embers
+    const resolve = frameAt(9_000)     // t=19s: afterglow resumes the embers
 
     // Every role stays alive in every passage, and only the crown carries the
     // arc: ignition differs from embers, and the afterglow differs from the
