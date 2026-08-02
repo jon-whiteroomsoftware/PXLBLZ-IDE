@@ -456,14 +456,16 @@ export function resizeViewportToAnchor(
   })
 }
 
-/** The durable silhouette styling every frame gesture must carry (#591). */
+/** The durable silhouette styling every frame gesture must carry (#591, #678). */
 function apertureStyling(
   viewport: ShowClipViewport,
-): Pick<ShowClipViewport, 'aperture' | 'edge' | 'feather'> {
+): Pick<ShowClipViewport, 'aperture' | 'edge' | 'feather' | 'ringWidth' | 'cornerRadius'> {
   return {
     ...(viewport.aperture !== undefined ? { aperture: viewport.aperture } : {}),
     ...(viewport.edge !== undefined ? { edge: viewport.edge } : {}),
     ...(viewport.feather !== undefined ? { feather: viewport.feather } : {}),
+    ...(viewport.ringWidth !== undefined ? { ringWidth: viewport.ringWidth } : {}),
+    ...(viewport.cornerRadius !== undefined ? { cornerRadius: viewport.cornerRadius } : {}),
   }
 }
 

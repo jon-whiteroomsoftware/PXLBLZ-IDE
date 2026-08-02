@@ -476,6 +476,23 @@ describe('shaped aperture support (#591)', () => {
     expect(swept.viewport).toMatchObject({ aperture: 'ellipse', edge: 'soft', feather: 0.05 })
   })
 
+  it('carries shape parameters through gesture results (#678)', () => {
+    const ringContext = context({}, {
+      enabled: true, x: 0.25, y: 0.25, width: 0.5, height: 0.5,
+      aperture: 'ring', ringWidth: 0.5,
+    })
+    expect(moveViewportTo(ringContext, 0.1, 0.1).viewport)
+      .toMatchObject({ aperture: 'ring', ringWidth: 0.5 })
+    const boxContext = context({}, {
+      enabled: true, x: 0.25, y: 0.25, width: 0.5, height: 0.5,
+      aperture: 'rounded-box', cornerRadius: 0.4,
+    })
+    expect(resizeViewportToAnchor(boxContext, { x: 0.25, y: 0.25 }, 0.9, 0.8).viewport)
+      .toMatchObject({ aperture: 'rounded-box', cornerRadius: 0.4 })
+    expect(resizeViewportToAnchor(boxContext, { x: 0.25, y: 0.25 }, 0.9, 0.8, { square: true }).viewport)
+      .toMatchObject({ aperture: 'rounded-box', cornerRadius: 0.4 })
+  })
+
   it('preserves an authored aperture shape and edge through first enable', () => {
     const padContext = context({}, { aperture: 'ellipse', edge: 'soft', feather: 0.05 })
     expect(enableViewportForContent(padContext)).toMatchObject({
