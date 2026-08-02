@@ -418,9 +418,19 @@ export function resizeViewportToAnchor(
     // snaps only the shared side length. The anchored corner never moves:
     // the Zone bounds cap the side from the anchor instead of translating.
     const cell = context.grid > 0 ? 1 / context.grid : 0
-    const spaceX = pointerX < anchor.x ? anchor.x : 1 - anchor.x
-    const spaceY = pointerY < anchor.y ? anchor.y : 1 - anchor.y
-    const maxSide = Math.max(MIN_SCALE, Math.min(spaceX, spaceY))
+    // Growth follows the pointer, but an axis with no space on that side of
+    // the anchor flips direction instead of inventing out-of-Zone space; the
+    // anchored corner stays the pivot either way.
+    const grow = (pointer: number, pivot: number): { direction: -1 | 1; space: number } => {
+      const direction = pointer < pivot ? -1 as const : 1 as const
+      const space = direction < 0 ? pivot : 1 - pivot
+      if (space >= MIN_SCALE) return { direction, space }
+      const flipped = -direction as -1 | 1
+      return { direction: flipped, space: flipped < 0 ? pivot : 1 - pivot }
+    }
+    const growX = grow(pointerX, anchor.x)
+    const growY = grow(pointerY, anchor.y)
+    const maxSide = Math.max(MIN_SCALE, Math.min(growX.space, growY.space))
     let side = Math.max(Math.abs(pointerX - anchor.x), Math.abs(pointerY - anchor.y))
     if (cell > 0) side = Math.max(cell, Math.round(side / cell) * cell)
     if (side > maxSide) {
@@ -429,8 +439,8 @@ export function resizeViewportToAnchor(
         : maxSide
     }
     side = Math.max(MIN_SCALE, side)
-    const left = pointerX < anchor.x ? anchor.x - side : anchor.x
-    const top = pointerY < anchor.y ? anchor.y - side : anchor.y
+    const left = growX.direction < 0 ? anchor.x - side : anchor.x
+    const top = growY.direction < 0 ? anchor.y - side : anchor.y
     return {
       viewport: {
         ...viewportFromRect({ left, top, width: side, height: side }, true),

@@ -455,6 +455,12 @@ describe('shaped aperture support (#591)', () => {
     expect(result.viewport!.width).toBeCloseTo(1 / 3, 10)
   })
 
+  it('flips growth away from an anchored Zone edge instead of overflowing', () => {
+    const padContext = context({}, { enabled: true, x: 0, y: 0, width: 1, height: 1 })
+    const result = resizeViewportToAnchor(padContext, { x: 1, y: 1 }, 1, 0.5, { square: true })
+    expect(result.viewport).toMatchObject({ x: 0.5, y: 0.5, width: 0.5, height: 0.5 })
+  })
+
   it('carries aperture styling through every gesture result', () => {
     const padContext = context({}, {
       enabled: true, x: 0.25, y: 0.25, width: 0.5, height: 0.5,
