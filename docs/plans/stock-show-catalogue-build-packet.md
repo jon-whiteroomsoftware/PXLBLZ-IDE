@@ -1,8 +1,15 @@
 # Stock Show catalogue build packet
 
 Status: approved curriculum direction; fixture redesign and human review remain.
-The fifteen-lesson course below replaces the Scene-centric 13-Show packet. Issue
-#363 owns implementation and publication.
+The seventeen-lesson course below replaces the Scene-centric 13-Show packet.
+Issue #363 owns implementation and publication.
+
+Amended 2026-08-02 by live review: added **100 Getting Around** (a
+navigation/tools tour before 101) and **207 Aperture Shapes and Edges** (the
+shaped-aperture work from #591/#678/#679 postdates the original approval), and
+replaced the reference-Showcase retention rule with a total rebuild under the
+measured-casting doctrine. Build order for the remaining work: 301-303 first,
+then 100 and 207, then the Showcase repartition, then fresh Redline review.
 
 The previous packet is preserved as
 [`archive/stock-show-catalogue-scene-editor-baseline.md`](archive/stock-show-catalogue-scene-editor-baseline.md).
@@ -96,6 +103,7 @@ catalogue fixture.
 ```text
 Learn
   100 - Foundations
+    100 Getting Around
     101 Clips, Cuts, and Blank Time
     102 Transitions and Values
     103 Clip Transform
@@ -110,6 +118,7 @@ Learn
     204 Presentation Modes
     205 Groups and Linked Reuse
     206 Changing Zone Layouts
+    207 Aperture Shapes and Edges
 
   300 - Output and Delivery
     301 Installation Mapping
@@ -117,13 +126,42 @@ Learn
     303 Compile, Simplify, and Deliver
 ```
 
-The 100 level teaches enough to create a satisfying Portable Show. The 200
-level explains simultaneous composition, spatial apertures, runtime identity,
-presentation, structural reuse, and changing topology. The 300 level introduces
-physical output and the publication boundary. No level assumes the learner
-completed every later lesson before authoring useful work.
+The 100 level opens with a tools tour, then teaches enough to create a
+satisfying Portable Show. The 200 level explains simultaneous composition,
+spatial apertures, runtime identity, presentation, structural reuse, and
+changing topology. The 300 level introduces physical output and the publication
+boundary. No level assumes the learner completed every later lesson before
+authoring useful work.
 
 ## Learn 100: Foundations
+
+### 100 Getting Around
+
+**Governing idea.** The Show editor is a direct-manipulation surface. Transport,
+timeline navigation, and Clip gestures — especially the modifier affordances
+that are easy to miss — are how an author moves, before any composition concept
+matters.
+
+Use a calm pre-built Show whose content never competes with the tools: three or
+four quiet Clips, one with a second Layer available so drag-between-Layers has
+somewhere to go. The lesson is deliberately non-exhaustive; that restraint is
+itself part of the course doctrine. It demonstrates the highest-leverage
+gestures — play/pause and seek, zoom and pan, the Navigator, double-clicking an
+empty Layer to place a Clip, Option-drag to duplicate, dragging between Layers,
+Snap and its temporary Option reversal — and hands everything else to the
+Keyboard Shortcuts reference. No new authoring concept is introduced; whatever
+the learner breaks, Reset restores.
+
+**Try this direction.** Double-click an empty stretch of Layer to place a Clip;
+hold Option and drag an existing Clip to drop an independent duplicate.
+
+**Acceptance focus.** A first-time visitor can play, move around a Show, and
+rearrange Clips confidently without opening documentation, and knows where the
+full shortcut reference lives.
+
+This lesson's guide handoff targets the Keyboard Shortcuts document rather than
+the Visual Effects Guide; the note mechanism must allow a per-lesson document
+target.
 
 ### 101 Clips, Cuts, and Blank Time
 
@@ -320,6 +358,27 @@ Layout boundary and observe the atomic shift.
 **Acceptance focus.** Topology changes remain distinct from visual Transitions,
 Pattern-instance lifecycle, and Stage maps.
 
+### 207 Aperture Shapes and Edges
+
+**Governing idea.** The Clip Viewport aperture has an authored silhouette
+(Rectangle, Ellipse, Diamond, Ring, Rounded-box) and an edge treatment (Hard,
+Soft, Stable Dither). Shape and edge are placement geometry owned by the Clip,
+separate from Content and from authored Effects.
+
+Reuse 202's construction: a lower Layer that makes uncovered pixels obvious,
+one calm upper source. Change only the silhouette across two or three passages,
+then hold one non-rectangular shape and compare edge treatments. Content,
+Pattern time, and aperture position stay constant so the silhouette and edge
+are the only variables. Numbered after 206 so the reviewed 202-206 sequence
+keeps its order; pedagogically it follows directly from 202.
+
+**Try this direction.** Change one Clip's aperture shape; switch its edge
+between Soft and Stable Dither and compare the boundary at playback speed.
+
+**Acceptance focus.** The learner can distinguish silhouette, edge treatment,
+and aperture placement as three authored properties, and knows the full
+shape-by-edge matrix lives in the Aperture Shapes reference.
+
 ## Learn 300: Output and Delivery
 
 ### 301 Installation Mapping
@@ -411,6 +470,15 @@ Patterns and timing constant while one family changes.
 - Property Animation
 - Easing
 
+**Placement**
+
+- Aperture Shapes
+
+The Aperture Shapes reference carries the full silhouette-by-edge matrix that
+lesson 207 deliberately abbreviates: every supported silhouette at a
+representative edge, then one held silhouette across Hard, Soft, and Stable
+Dither, within the six-to-eight passage ceiling.
+
 Property Animation should include representative Clip Transform and Viewport
 targets in addition to scalar Pattern and routing values. Easing keeps one
 motion and one duration constant.
@@ -437,7 +505,7 @@ as LED art independently of the mechanism they demonstrate.
 | 203 Dynamic Zone Layouts | Rebuild as 206. |
 | 204 Installation Mapping | Rebuild as 301. |
 | 205 Installation Composition | Rebuild as 302. |
-| Existing Transition, Property, and Easing references | Repartition into the shorter reference groups above. |
+| Existing Transition, Property, Easing, and Effect references | Rebuild from scratch into the shorter reference groups above; no existing fixture is retained (2026-08-02 decision — none meets the passage ceiling or the measured-casting doctrine). |
 | Redline Installation | Retain as a finished score pending fresh review. |
 
 Lessons 202-205 and 303 are new fixture designs. Exact Pattern casting, passage
@@ -454,11 +522,14 @@ Work in complete, reviewable curriculum slices:
 4. Rebuild 301-302 against a reviewed physical map.
 5. Build 303 after the compiler-cost and delivery copy matches current artifact
    behavior.
-6. Repartition the reference Showcases; retain a current reference only when its
-   existing fixture already satisfies the shorter-family rule.
-7. Review Redline and any other finished scores separately from curriculum
+6. Build 100 Getting Around and 207 Aperture Shapes and Edges after the 300
+   level lands.
+7. Rebuild every reference Showcase from scratch into the repartitioned
+   families, including the new Aperture Shapes reference; no existing fixture
+   is retained.
+8. Review Redline and any other finished scores separately from curriculum
    acceptance.
-8. Run the complete capture, automated, and human-review gates before
+9. Run the complete capture, automated, and human-review gates before
    publication.
 
 Each slice includes its fixture, note, guide handoff, tests, desktop/narrow
@@ -467,7 +538,7 @@ all fixtures first and defer visual review to the end.
 
 ## Acceptance criteria
 
-- [ ] The Learn tree contains the approved fifteen lessons in the documented
+- [ ] The Learn tree contains the approved seventeen lessons in the documented
   order and no user-facing Scene terminology.
 - [ ] Most lessons run for 8-18 seconds and introduce one governing idea; every
   longer exception earns its duration through an intelligible arc.
