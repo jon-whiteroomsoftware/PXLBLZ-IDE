@@ -463,6 +463,12 @@ The working grammar is compact:
   animation; unchanged values after a connected Clip contract to their category
   glyphs. Unavailable commands stay focusable and explain why. Every commit is
   one session-scoped undo step (Cmd/Ctrl+Z).
+- **Transitions from Add.** Select a Clip that touches another Clip at a Cut,
+  then choose **Add > Transition** to open the same Transition catalogue as the
+  timeline junction. The command names the neighbouring Clip. When usable Cuts
+  exist on both sides, it chooses the following Clip; when only the preceding
+  Cut is usable, it names and chooses that one instead. A disabled command shows
+  the same insertion-planner explanation as the junction path.
 - **Selection and detail.** Selecting a Clip, Group, Transition, Zone, or the
   Show opens a compact floating **Entity Detail Panel** beside its source with
   that entity's exact editable fields. Clip Details repeat the complete

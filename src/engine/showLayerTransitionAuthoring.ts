@@ -19,12 +19,25 @@ import { projectShowTimeline, removeShowBoundaryTransition } from './showModel'
 import {
   projectShowUnifiedTimeline,
   type ShowUnifiedTimelineClipProjection,
+  type ShowUnifiedTimelineJunctionProjection,
   type ShowUnifiedTimelineLayerProjection,
 } from './showUnifiedTimelineProjection'
 
 export type ShowLayerTransitionInsertionPlan =
   | { enabled: true; maxDurationMs: number }
   | { enabled: false; maxDurationMs: 0; reason: string }
+
+export type ShowLayerTransitionClipTarget = {
+  junction: ShowUnifiedTimelineJunctionProjection
+  fromName: string
+  toName: string
+  side: 'before' | 'after'
+  groupOccurrenceId?: string
+}
+
+export type ShowLayerTransitionClipInsertionPlan =
+  | { enabled: true; maxDurationMs: number; target: ShowLayerTransitionClipTarget }
+  | { enabled: false; maxDurationMs: 0; reason: string; target: ShowLayerTransitionClipTarget | null }
 
 export function planShowLayerTransitionInsertion(
   show: ShowRecord,
@@ -113,6 +126,65 @@ export function planShowLayerTransitionInsertion(
   return maxDurationMs > 0
     ? { enabled: true, maxDurationMs }
     : { enabled: false, maxDurationMs: 0, reason: 'There is no free time after the last Clip on this Layer. Shorten a Clip or extend Show End, then come back.' }
+}
+
+/**
+ * Resolve the Add-menu command from one selected Clip. An enabled trailing Cut
+ * wins when both sides qualify, matching left-to-right timeline authoring.
+ */
+export function planShowLayerTransitionInsertionForClip(
+  show: ShowRecord,
+  composition: ShowCompositionV1,
+  clipId: string | null,
+): ShowLayerTransitionClipInsertionPlan {
+  if (!clipId) {
+    return { enabled: false, maxDurationMs: 0, reason: 'Select a Clip first.', target: null }
+  }
+  const projection = projectShowUnifiedTimeline(show, composition)
+  const layer = projection.zones.flatMap((zone) => zone.layers)
+    .find((candidate) => candidate.clips.some((clip) => clip.id === clipId))
+  const selectedClip = layer?.clips.find((clip) => clip.id === clipId)
+  if (!layer || !selectedClip) {
+    return { enabled: false, maxDurationMs: 0, reason: 'Select a Clip first.', target: null }
+  }
+  const trailing = layer.junctions.filter((junction) => junction.leftClipId === clipId)
+  const leading = layer.junctions.filter((junction) => junction.rightClipId === clipId)
+  const candidates = [...trailing, ...leading].flatMap((junction) => {
+    const from = layer.clips.find((clip) => clip.id === junction.leftClipId)
+    const to = layer.clips.find((clip) => clip.id === junction.rightClipId)
+    if (!from || !to) return []
+    const target: ShowLayerTransitionClipTarget = {
+      junction,
+      fromName: from.patternName,
+      toName: to.patternName,
+      side: junction.leftClipId === clipId ? 'after' : 'before',
+      ...(selectedClip.groupOccurrenceId ? { groupOccurrenceId: selectedClip.groupOccurrenceId } : {}),
+    }
+    const plan = selectedClip.groupOccurrenceId
+      ? planShowGroupLayerTransitionInsertion(show, composition, {
+          occurrenceId: selectedClip.groupOccurrenceId,
+          fromPlacementId: junction.fromPlacementId,
+          toPlacementId: junction.toPlacementId,
+        })
+      : planShowLayerTransitionInsertion(show, composition, {
+          fromPlacementId: junction.fromPlacementId,
+          toPlacementId: junction.toPlacementId,
+        })
+    return [{ junction, plan, target }]
+  })
+  if (candidates.length === 0) {
+    return {
+      enabled: false,
+      maxDurationMs: 0,
+      reason: 'This Clip does not touch another Clip. Move it next to another Clip first.',
+      target: null,
+    }
+  }
+  const resolved = candidates.find((candidate) => candidate.plan.enabled)
+    ?? candidates.find((candidate) => candidate.junction.kind === 'cut')
+    ?? candidates[0]
+  if (resolved.plan.enabled) return { ...resolved.plan, target: resolved.target }
+  return { ...resolved.plan, target: resolved.target }
 }
 
 export function planShowGroupLayerTransitionInsertion(

@@ -165,6 +165,7 @@ import {
   moveShowConnectedClipInShowAtGlobalTime,
   planShowGroupLayerTransitionInsertion,
   planShowLayerTransitionInsertion,
+  planShowLayerTransitionInsertionForClip,
   resizeShowLayerTransition,
   resizeShowConnectedClipAtGlobalTime,
   resetShowLayerTransitionToCut,
@@ -3322,6 +3323,19 @@ function ShowTimelineWorkspace({
     insertTimeAtMs,
     insertTimeDurationMs,
   )
+  const selectedTransitionClipId = selection.kind === 'clip'
+    ? selection.clipId
+    : selection.kind === 'group-clip'
+      ? `${selection.occurrenceId}:${selection.placementId}`
+      : null
+  const addTransitionPlan = useMemo(() => timelineComposition
+    ? planShowLayerTransitionInsertionForClip(show, timelineComposition, selectedTransitionClipId)
+    : { enabled: false as const, maxDurationMs: 0 as const, reason: 'Select a Clip first.', target: null }, [show, selectedTransitionClipId, timelineComposition])
+  const addTransitionLabel = addTransitionPlan.target
+    ? `Transition ${addTransitionPlan.target.side === 'after' ? 'to' : 'from'} ${addTransitionPlan.target.side === 'after'
+      ? addTransitionPlan.target.toName
+      : addTransitionPlan.target.fromName}`
+    : 'Transition'
 
   const beginGroupMarquee = (event: ReactPointerEvent<HTMLDivElement>) => {
     if (readOnly || !timelineComposition || isolatedGroupOccurrenceId || event.button !== 0) return
@@ -4064,7 +4078,7 @@ function ShowTimelineWorkspace({
                 aria-label="Add to Show"
                 aria-haspopup="menu"
                 aria-expanded={addMenuOpen || addClipOpen || insertTimeOpen || layoutActionsOpen}
-                title="Add a Clip, Layer, Time, or Zone Layout"
+                title="Add a Clip, Layer, Transition, Time, or Zone Layout"
                 className={`px-1.5 text-[11px] ${showTimelineToolbarControlClass({
                   enabled: true,
                   active: addMenuOpen || addClipOpen || insertTimeOpen || layoutActionsOpen,
@@ -4137,6 +4151,42 @@ function ShowTimelineWorkspace({
                     <span>{layerTargetZoneId && hasMultipleZones ? `Layer in ${layerTargetZoneName}` : 'Layer'}</span>
                     {!layerTargetZoneId && (
                       <span className="ml-auto text-[10px] text-zinc-600">No active Zone</span>
+                    )}
+                  </button>
+                  <button
+                    type="button"
+                    role="menuitem"
+                    aria-label={addTransitionPlan.enabled
+                      ? addTransitionLabel
+                      : `Transition unavailable: ${addTransitionPlan.reason}`}
+                    disabled={!addTransitionPlan.enabled}
+                    title={addTransitionPlan.enabled
+                      ? `Add a Transition from ${addTransitionPlan.target.fromName} to ${addTransitionPlan.target.toName}`
+                      : undefined}
+                    className="flex h-8 w-full items-center gap-2 rounded px-2 text-left hover:bg-zinc-800 hover:text-zinc-100 disabled:cursor-not-allowed disabled:opacity-45"
+                    onClick={(event) => {
+                      if (!addTransitionPlan.enabled) return
+                      setAddMenuOpen(false)
+                      onOpenLayerTransition({
+                        junction: addTransitionPlan.target.junction,
+                        fromName: addTransitionPlan.target.fromName,
+                        toName: addTransitionPlan.target.toName,
+                        anchor: addPopoverAnchor ?? event.currentTarget,
+                        ...(addTransitionPlan.target.groupOccurrenceId
+                          ? { groupOccurrenceId: addTransitionPlan.target.groupOccurrenceId }
+                          : {}),
+                      })
+                    }}
+                  >
+                    <Zap size={12} aria-hidden className="text-violet-300/80" />
+                    <span className="min-w-0 truncate">{addTransitionLabel}</span>
+                    {!addTransitionPlan.enabled && (
+                      <span
+                        className="ml-auto min-w-0 max-w-36 truncate text-[10px] text-zinc-600"
+                        title={addTransitionPlan.reason}
+                      >
+                        {addTransitionPlan.reason}
+                      </span>
                     )}
                   </button>
                   <button

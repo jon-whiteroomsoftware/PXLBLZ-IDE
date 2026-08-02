@@ -57,6 +57,48 @@ function changeCommittedNumber(label: string, value: string): void {
   fireEvent.blur(input)
 }
 
+function createTransitionMenuShow(
+  id: string,
+  clips: Array<{ id: string; name: string; startMs: number; durationMs: number }>,
+  transitions: Array<{ id: string; fromClipId: string; toClipId: string; durationMs: number }> = [],
+): ShowRecord {
+  const show = createDefaultShow(id, 'Transition menu fixture', 1000)
+  const zoneId = show.zones[0].id
+  show.composition = {
+    version: 1,
+    patternInstances: clips.map((clip) => ({
+      id: `instance-${clip.id}`,
+      pattern: { ...show.cells[0].pattern },
+      patternName: clip.name,
+      time: { timeScale: 1, timeOffsetMs: 0 },
+    })),
+    scenes: show.scenes.map((scene, index) => ({
+      sceneId: scene.id,
+      zones: [{
+        zoneId,
+        main: index === 0 ? clips.map((clip) => ({
+          id: clip.id,
+          instanceId: `instance-${clip.id}`,
+          startMs: clip.startMs,
+          durationMs: clip.durationMs,
+          view: { mirror: false, phase: 0, brightness: 1 },
+        })) : [],
+        overlays: [],
+      }],
+    })),
+    transitions: transitions.map((transition) => ({
+      id: transition.id,
+      fromPlacementId: transition.fromClipId,
+      toPlacementId: transition.toClipId,
+      kind: 'crossfade',
+      durationMs: transition.durationMs,
+      easing: { curve: 'linear' },
+      crossfadePolicy: 'live-live',
+    })),
+  }
+  return show
+}
+
 function memoryProvider(seedShows: ShowRecord[] = []): PersonalContentProvider {
   const patterns = new Map<string, PatternRecord>()
   const maps = new Map<string, MapRecord>()
@@ -1667,6 +1709,130 @@ describe('ShowEditor (#318)', () => {
       expect(composition.scenes[0].zones[0].main).toEqual([])
     })
     expect(screen.getAllByRole('button', { name: 'Select Group Group' })).toHaveLength(2)
+  })
+
+  it('explains that the Add-menu Transition command needs a selected Clip (#639)', async () => {
+    const user = userEvent.setup()
+    const show = createDefaultShow('show-add-transition-selection', 'Add Transition selection', 1000)
+    useShowStore.setState({ shows: [show], activeShowId: show.id, showsLoaded: true })
+
+    render(<ShowEditor showId={show.id} />)
+
+    await user.click(screen.getByRole('button', { name: 'Add to Show' }))
+    const command = screen.getByRole('menuitem', {
+      name: 'Transition unavailable: Select a Clip first.',
+    })
+    expect(command).toBeDisabled()
+    expect(within(command).getByText('Select a Clip first.')).toHaveClass('text-zinc-600')
+  })
+
+  it('explains when the selected Clip has no touching neighbour (#639)', async () => {
+    const user = userEvent.setup()
+    const show = createTransitionMenuShow('show-add-transition-isolated', [
+      { id: 'clip-solo', name: 'Solo', startMs: 1_000, durationMs: 2_000 },
+    ])
+    useShowStore.setState({ shows: [show], activeShowId: show.id, showsLoaded: true })
+
+    render(<ShowEditor showId={show.id} />)
+
+    await user.click(screen.getByRole('button', { name: 'Select Solo' }))
+    await user.click(screen.getByRole('button', { name: 'Add to Show' }))
+    const reason = 'This Clip does not touch another Clip. Move it next to another Clip first.'
+    const command = screen.getByRole('menuitem', { name: `Transition unavailable: ${reason}` })
+    expect(command).toBeDisabled()
+    expect(within(command).getByText(reason)).toBeInTheDocument()
+  })
+
+  it('reuses the insertion planner explanation when the junction is already a Transition (#639)', async () => {
+    const user = userEvent.setup()
+    const show = createTransitionMenuShow('show-add-transition-existing', [
+      { id: 'clip-outgoing', name: 'Outgoing', startMs: 1_000, durationMs: 2_000 },
+      { id: 'clip-incoming', name: 'Incoming', startMs: 5_000, durationMs: 2_000 },
+    ], [
+      { id: 'existing-crossfade', fromClipId: 'clip-outgoing', toClipId: 'clip-incoming', durationMs: 2_000 },
+    ])
+    useShowStore.setState({ shows: [show], activeShowId: show.id, showsLoaded: true })
+
+    render(<ShowEditor showId={show.id} />)
+
+    await user.click(screen.getByRole('button', { name: 'Select Outgoing' }))
+    await user.click(screen.getByRole('button', { name: 'Add to Show' }))
+    const reason = 'This junction already has a Transition. Edit that one instead of adding another.'
+    const command = screen.getByRole('menuitem', { name: `Transition unavailable: ${reason}` })
+    expect(command).toBeDisabled()
+    expect(within(command).getByText(reason)).toBeInTheDocument()
+  })
+
+  it('reuses the insertion planner explanation when a Cut has no free time (#639)', async () => {
+    const user = userEvent.setup()
+    const show = createTransitionMenuShow('show-add-transition-no-room', [
+      { id: 'clip-penultimate', name: 'Penultimate', startMs: 26_000, durationMs: 2_000 },
+      { id: 'clip-final', name: 'Final', startMs: 28_000, durationMs: 2_000 },
+    ])
+    useShowStore.setState({ shows: [show], activeShowId: show.id, showsLoaded: true })
+
+    render(<ShowEditor showId={show.id} />)
+
+    await user.click(screen.getByRole('button', { name: 'Select Penultimate' }))
+    await user.click(screen.getByRole('button', { name: 'Add to Show' }))
+    const reason = 'There is no free time after the last Clip on this Layer. Shorten a Clip or extend Show End, then come back.'
+    const command = screen.getByRole('menuitem', { name: `Transition unavailable: ${reason}` })
+    expect(command).toBeDisabled()
+    expect(within(command).getByText(reason)).toBeInTheDocument()
+  })
+
+  it('opens the Add-menu Transition command at the preferred trailing Cut (#639)', async () => {
+    const user = userEvent.setup()
+    const show = createTransitionMenuShow('show-add-transition-menu', [
+      { id: 'clip-left', name: 'Left', startMs: 1_000, durationMs: 2_000 },
+      { id: 'clip-middle', name: 'Middle', startMs: 3_000, durationMs: 2_000 },
+      { id: 'clip-right', name: 'Right', startMs: 5_000, durationMs: 2_000 },
+    ])
+    setPersonalContentProvider(memoryProvider([show]))
+    useShowStore.setState({ shows: [show], activeShowId: show.id, showsLoaded: true })
+
+    render(<ShowEditor showId={show.id} />)
+
+    await user.click(screen.getByRole('button', { name: 'Select Middle' }))
+    await user.click(screen.getByRole('button', { name: 'Add to Show' }))
+    const command = screen.getByRole('menuitem', { name: 'Transition to Right' })
+    expect(command).toBeEnabled()
+
+    command.focus()
+    expect(command).toHaveFocus()
+    await user.keyboard('{Enter}')
+
+    const palette = screen.getByRole('dialog', { name: 'Choose Layer Transition' })
+    expect(within(palette).getByText('Middle to Right')).toBeInTheDocument()
+  })
+
+  it('falls back to an enabled leading Cut when the trailing junction already transitions (#639)', async () => {
+    const user = userEvent.setup()
+    const show = createTransitionMenuShow('show-add-transition-leading', [
+      { id: 'clip-leading-left', name: 'Left', startMs: 1_000, durationMs: 2_000 },
+      { id: 'clip-leading-middle', name: 'Middle', startMs: 3_000, durationMs: 2_000 },
+      { id: 'clip-leading-right', name: 'Right', startMs: 7_000, durationMs: 2_000 },
+    ], [
+      {
+        id: 'trailing-crossfade',
+        fromClipId: 'clip-leading-middle',
+        toClipId: 'clip-leading-right',
+        durationMs: 2_000,
+      },
+    ])
+    useShowStore.setState({ shows: [show], activeShowId: show.id, showsLoaded: true })
+
+    render(<ShowEditor showId={show.id} />)
+
+    await user.click(screen.getByRole('button', { name: 'Select Middle' }))
+    await user.click(screen.getByRole('button', { name: 'Add to Show' }))
+    const command = screen.getByRole('menuitem', { name: 'Transition from Left' })
+    expect(command).toBeEnabled()
+
+    await user.click(command)
+
+    const palette = screen.getByRole('dialog', { name: 'Choose Layer Transition' })
+    expect(within(palette).getByText('Left to Middle')).toBeInTheDocument()
   })
 
   it('opens the Transition palette from a Cut and inserts literal duration (#583)', async () => {
@@ -3760,6 +3926,7 @@ describe('ShowEditor (#318)', () => {
     expect(within(menu).getAllByRole('menuitem').map((item) => item.textContent)).toEqual([
       'ClipNo empty Layer',
       'Layer',
+      'TransitionSelect a Clip first.',
       'Time',
       'Zone Layout',
     ])

@@ -1310,6 +1310,14 @@ split retargets an outgoing Transition to the new right half. Its transitive
 closure helper is the authority for marquee and Group selection refinement, so
 a grouping selection cannot retain only one Transition endpoint.
 
+`planShowLayerTransitionInsertionForClip()` is the Add-menu selection boundary.
+It resolves the selected projected Clip's adjacent junctions, evaluates each
+through the same insertion planner as direct junction authoring, prefers an
+enabled trailing Cut, and falls back to an enabled leading Cut. The result owns
+the neighbouring Clip names and planner refusal, so `ShowEditor` only renders
+**Add > Transition** and opens the existing `layerTransitionTarget` palette; it
+does not reproduce Transition eligibility in React.
+
 `moveShowConnectedClipInShowAtGlobalTime()` commits that movement as one
 Show-level edit. It plans against the current Show timing first. If the
 accepted move breaks a visual Scene-boundary junction attached to the moved
