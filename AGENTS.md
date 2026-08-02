@@ -220,8 +220,10 @@ check the local D1 schema first.
 ## Search, issues, and documentation
 
 - Start open-ended code exploration with Morph Warp Grip
-  (`mcp__morph_mcp.codebase_search`). Use `rg` for exact literals, known files,
-  and narrow verification.
+  (`codebase_search`). Use `github_codebase_search` for public upstream
+  repositories and dependency investigations. These MCP tools may be lazily
+  loaded; successful host tool discovery means they are available. Use `rg`
+  for exact literals, known files, and narrow verification.
 - Use GitHub Issues as implementation state. Follow
   `docs/agents/issue-tracker.md`, `docs/agents/triage-labels.md`, and the
   `issue-workflow` skill for claiming, progress, review state, and commits.
