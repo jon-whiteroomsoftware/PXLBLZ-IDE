@@ -114,7 +114,7 @@ const CARDINAL_DIRECTIONS = [
 export const STOCK_SHOWS: StockShow[] = [
   learn101(), learn102(), learn103(), learn104(), learn105(), learn106(),
   learn201(), learn202(), learn203(), learn204(), learn205(), learn206(),
-  learn301(), learn302(),
+  learn301(), learn302(), learn303(),
   effectShowcase('transform'), effectShowcase('distortion'), effectShowcase('color-output'),
   wipeAndMixTransitionReference(), shapeRevealTransitionReference(), motionTransitionReference(),
   propertyAnimationReference(), easingReference(),
@@ -1090,6 +1090,68 @@ function learn302(): StockShow {
       boundary('bloom', 'crossfade', 2_000, SINE_IN_OUT),
     ],
     composition,
+  })
+}
+
+// 303 closes the curriculum at the publication boundary: a Show saves as
+// choreography but ships as one ordinary Pixelblaze Pattern, and the artifact
+// inventory prices every contributor. The score carries one deliberately
+// expensive treatment - the closing weave echo, an independent RibbonLoom
+// instance overlaid on the garden. Measured against the real compiler: the
+// echo does NOT duplicate the executable (one physical machine serves both
+// logical instances, and the slimming tip says so); what it costs is its
+// simultaneous overlay structure - 6,421 bytes of render plans and score
+// data, 15,894 B (23.2% of budget) with the echo against 9,473 B without.
+// Because the echo is independent it also restarts the opening weave from
+// its first frame, which is why the treatment earns those bytes; deleting it
+// and reading the inventory is the note's measured Try-this.
+function learn303(): StockShow {
+  const id = 'stock-show-303-compile-simplify-deliver'
+  const zones = logicalZones(['Main'], PORTABLE_REFERENCE_PIXELS)
+  const scenes: SceneSpec[] = [
+    scene('score', 'Score', 16, [clip('zone-1', 'RibbonLoom', LESSON_TIME_SCALE)]),
+  ]
+  const composition: ShowCompositionV1 = {
+    version: 1,
+    patternInstances: [
+      instance('loom', 'RibbonLoom', LESSON_TIME_SCALE),
+      instance('garden', 'MetaballGarden', LESSON_TIME_SCALE),
+      // Independent on purpose: a fresh instance restarts the weave from its
+      // opening frame and costs a second physical machine, and both facts are
+      // the lesson.
+      instance('loom-echo', 'RibbonLoom', LESSON_TIME_SCALE),
+    ],
+    scenes: [{
+      sceneId: 'score',
+      propertyTracks: [{
+        id: 'track-echo-opacity',
+        target: { kind: 'placement-opacity', placementId: 'clip-echo' },
+        keyframes: [
+          keyframe('echo-arrive', 10, 0),
+          keyframe('echo-hold', 12, 0.6),
+          keyframe('echo-depart', 14, 0.6),
+          keyframe('echo-gone', 15.5, 0),
+        ],
+      }],
+      zones: [{
+        zoneId: 'zone-1',
+        main: [placement('clip-loom', 'loom', 0, 8), placement('clip-garden', 'garden', 8, 8)],
+        overlays: [{
+          id: 'layer-echo',
+          name: 'Weave echo',
+          placements: [{ ...placement('clip-echo', 'loom-echo', 10, 5.5), opacity: 0 }],
+        }],
+      }],
+    }],
+    durationMs: 16_000,
+  }
+  return catalogue({
+    id, title: 'Compile, Simplify, and Deliver', track: 'portable', collection: 'learn', level: 300, order: 3,
+    purpose: 'A Show stays editable choreography, but it publishes as one ordinary Pixelblaze Pattern. The artifact inventory prices what the generated Pattern spends on each Pattern, Effect, and score structure, and its slimming tips name the contributors you can act on.',
+    notice: "The weave echo near the end is an independent RibbonLoom instance - and the inventory shows the compiler reusing one physical machine for both instances rather than shipping a duplicate copy. What the echo really costs is its overlay structure, about six kilobytes of render plans and score data. Independence is also why it restarts the opening weave from its first frame.",
+    prompts: ["Open the artifact inventory: RibbonLoom lists one physical machine for two logical instances, and the render-plan row is what the echo's Layer actually costs. Delete the echo Clip and watch the total fall.", 'Undo the deletion, then export the EPE or open the generated code: everything on the timeline ships inside that one ordinary Pattern.'],
+    guideHeading: 'compile-simplify-and-deliver',
+    output: portableOutput(), zones, layouts: [singleLayout(zones)], scenes, composition,
   })
 }
 

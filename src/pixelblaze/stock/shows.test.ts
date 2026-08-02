@@ -16,6 +16,11 @@ import { SHOW_EASING_OPTIONS, showEasingOptionId } from '@/engine/showEasing'
 import { SHOW_VISUAL_TOOLKIT_REGISTRY } from '@/engine/showVisualToolkit'
 import { applyShowColorEffects, sameShowEffectStructure, type ShowRgb } from '@/engine/showEffects'
 import { showClipEffectStage } from '@/engine/showEffectAuthoring'
+import {
+  buildDeliveredShowSourceInventory,
+  buildShowArtifactInventoryModel,
+  describeShowArtifactPatterns,
+} from '@/engine/showSourceInventory'
 import { getUserDoc } from '@/docs/catalog'
 import { DEMOS } from './patterns'
 import { SOURCE_STOCK_MAPS } from './maps/stockCatalogue'
@@ -23,7 +28,7 @@ import { STOCK_SHOWS, stockShowById } from './shows'
 
 describe('stock Show curriculum (#363)', () => {
   it('ships the stable Learn 100, Learn 200, Learn 300, and showcase catalogue', () => {
-    expect(STOCK_SHOWS).toHaveLength(23)
+    expect(STOCK_SHOWS).toHaveLength(24)
     expect(new Set(STOCK_SHOWS.map((item) => item.id)).size).toBe(STOCK_SHOWS.length)
     expect(STOCK_SHOWS.map((item) => [item.name, item.collection, item.level, item.order])).toEqual([
       ['101 Clips, Cuts, and Blank Time', 'learn', 100, 1],
@@ -40,6 +45,7 @@ describe('stock Show curriculum (#363)', () => {
       ['206 Changing Zone Layouts', 'learn', 200, 6],
       ['301 Installation Mapping', 'learn', 300, 1],
       ['302 Installation Composition', 'learn', 300, 2],
+      ['303 Compile, Simplify, and Deliver', 'learn', 300, 3],
       ['Transform Effects', 'showcases', null, 1],
       ['Distortion Effects', 'showcases', null, 2],
       ['Color and Output Effects', 'showcases', null, 3],
@@ -215,6 +221,7 @@ describe('stock Show curriculum (#363)', () => {
   const OUTPUT_IDS = [
     'stock-show-301-installation-mapping',
     'stock-show-302-installation-composition',
+    'stock-show-303-compile-simplify-deliver',
   ]
   const LESSON_IDS = [...FOUNDATION_IDS, ...COMPOSITION_IDS, ...OUTPUT_IDS]
   // Simultaneity is itself the subject from 105 onward, so those two lessons
@@ -225,6 +232,7 @@ describe('stock Show curriculum (#363)', () => {
   const SINGLE_ZONE_IDS = [
     ...FOUNDATION_IDS.slice(0, 4),
     ...COMPOSITION_IDS.slice(0, 5),
+    'stock-show-303-compile-simplify-deliver',
   ]
   const lessons = () => LESSON_IDS.map((id) => stockShowById(id)!)
   const lessonPatternNames = (item: (typeof STOCK_SHOWS)[number]) => [
@@ -1189,6 +1197,43 @@ describe('stock Show curriculum (#363)', () => {
     expect(lit(establish.crown)).toBe(true)
     expect(lit(bloom.crown)).toBe(true)
     expect(lit(resolve.crown)).toBe(true)
+  })
+
+  it('prices the 303 echo honestly: one shared machine, measurable overlay cost', () => {
+    const item = stockShowById('stock-show-303-compile-simplify-deliver')!
+    const compiled = compileShowForArtifact(item.show, [], undefined, {}, { stageDimension: 2 })
+    expect(compiled.error).toBeNull()
+
+    // The note claims the compiler reuses one physical machine across the two
+    // logical RibbonLoom instances; hold the copy to the compiler's behavior.
+    const exported = buildShowEpeExport(item.show, compiled.artifact!.code, {
+      id: 'lesson-303-inventory',
+      stampedAt: '2026-08-02T00:00:00.000Z',
+    })
+    const inventory = buildDeliveredShowSourceInventory(
+      compiled.artifact!.summary.sourceInventory,
+      compiled.artifact!.code,
+      exported.source,
+    )
+    const model = buildShowArtifactInventoryModel(inventory, {
+      patterns: describeShowArtifactPatterns(item.show, inventory),
+    })
+    const loomRow = model.rows.find((row) => row.category === 'pattern' && row.label === 'RibbonLoom')!
+    expect(loomRow).toMatchObject({ physicalMachineCount: 1, logicalInstanceCount: 2 })
+    expect(model.slimmingTips.some((tip) => tip.message.includes('no duplicate executable copy'))).toBe(true)
+
+    // The note's Try-this: deleting the echo must fall out of the inventory
+    // as a real, sizable saving rather than a rounding error.
+    const stripped = structuredClone(item.show)
+    const strippedScene = stripped.composition!.scenes[0]
+    strippedScene.zones[0].overlays = []
+    strippedScene.propertyTracks = []
+    stripped.composition!.patternInstances = stripped.composition!.patternInstances
+      .filter((entry) => entry.id !== 'loom-echo')
+    const slim = compileShowForArtifact(stripped, [], undefined, {}, { stageDimension: 2 })
+    expect(slim.error).toBeNull()
+    const savedBytes = compiled.artifact!.summary.artifactBytes - slim.artifact!.summary.artifactBytes
+    expect(savedBytes).toBeGreaterThan(4_000)
   })
 
   it('compiles every lesson through the production artifact pipeline', () => {

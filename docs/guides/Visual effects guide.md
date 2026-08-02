@@ -335,6 +335,21 @@ change at each junction - embers, ignition, afterglow. One visual role per
 group is what keeps a physical score decipherable: when every group changes at
 once, correct output reads as noise.
 
+### Compile, simplify, and deliver
+
+A Show never stops being editable choreography, but it publishes as one
+ordinary Pixelblaze Pattern. The artifact inventory prices that generated
+Pattern line by line - each Pattern's executable, the routing and render
+plans, Effects and Transitions, and the score data - and **Ways to slim this
+Show** names the contributors you can act on. The compiler already reuses one
+physical machine across compatible instances of the same Pattern, so the tips
+distinguish real duplicates from structure that simply costs what it costs.
+
+**303 Compile, Simplify, and Deliver** carries one deliberately expensive
+treatment - an independent weave echo overlaid near the end - so the learner
+can price a treatment, remove it, and compare inventories before exporting
+the EPE or reading the generated code.
+
 ### Ruthlessly engineered spectacle
 
 **Redline Installation** treats a fixed Stage as five instruments: one
