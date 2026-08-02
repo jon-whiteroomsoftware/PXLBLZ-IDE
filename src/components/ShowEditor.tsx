@@ -2647,8 +2647,8 @@ export function ShowEditor({
 
 const SHOW_PLAYBACK_RATE_BY_KEY: Readonly<Record<string, number | undefined>> = {
   '1': 1,
-  '2': 1.5,
-  '3': 2,
+  '2': 2,
+  '3': 3,
 }
 
 function ShowTransportControls({

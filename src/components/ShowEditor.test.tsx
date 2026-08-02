@@ -5286,7 +5286,7 @@ describe('ShowEditor (#318)', () => {
     expect(useShowTransportStore.getState().seekRequest).toMatchObject({ targetMs: 62_000 })
   })
 
-  it('maps 1, 2, and 3 to 1x, 1.5x, and 2x without changing playback (#616)', () => {
+  it('maps 1, 2, and 3 to 1x, 2x, and 3x without changing playback (#63)', () => {
     const show = createDefaultShow('show-keyboard-speed', 'Keyboard speed', 1000)
     useShowStore.setState({ shows: [show], activeShowId: show.id, showsLoaded: true })
     usePreviewStore.setState({ isRunning: false, speed: 4 })
@@ -5295,19 +5295,19 @@ describe('ShowEditor (#318)', () => {
     fireEvent.keyDown(document, { key: '1' })
     expect(usePreviewStore.getState()).toMatchObject({ speed: 1, isRunning: false })
     fireEvent.keyDown(document, { key: '2' })
-    expect(usePreviewStore.getState()).toMatchObject({ speed: 1.5, isRunning: false })
+    expect(usePreviewStore.getState()).toMatchObject({ speed: 2, isRunning: false })
     usePreviewStore.setState({ isRunning: true })
     fireEvent.keyDown(document, { key: '3' })
-    expect(usePreviewStore.getState()).toMatchObject({ speed: 2, isRunning: true })
+    expect(usePreviewStore.getState()).toMatchObject({ speed: 3, isRunning: true })
 
     fireEvent.keyDown(document, { key: '1', metaKey: true })
-    expect(usePreviewStore.getState().speed).toBe(2)
+    expect(usePreviewStore.getState().speed).toBe(3)
 
     const input = document.createElement('input')
     input.type = 'text'
     document.body.append(input)
     fireEvent.keyDown(input, { key: '1' })
-    expect(usePreviewStore.getState().speed).toBe(2)
+    expect(usePreviewStore.getState().speed).toBe(3)
     input.remove()
   })
 

@@ -2104,7 +2104,7 @@ settled rather than as an inconsistency to repair.
 
 The Show document handler keeps the same guarded Space behavior as a local
 fallback,
-adds A for Show start, maps 1/2/3 to 1x/1.5x/2x playback, and maps unmodified
+adds A for Show start, maps 1/2/3 to 1x/2x/3x playback, and maps unmodified
 Left/Right to five-second playhead seeks from ordinary Show page content. The
 timeline handler maps Tab/Shift-Tab to deterministic entity traversal when the Show
 workspace or a marked timeline entity owns focus. Focused editable fields and

@@ -114,8 +114,8 @@ editing control.
 | `Space` | Play or pause the Show. |
 | `A` | Return to the start of the Show. |
 | `1` | Set playback speed to 1x. |
-| `2` | Set playback speed to 1.5x. |
-| `3` | Set playback speed to 2x. |
+| `2` | Set playback speed to 2x. |
+| `3` | Set playback speed to 3x. |
 | `Left` or `Right` | Seek backward or forward five seconds. |
 | `Command/Ctrl+Z` | Undo the last Show edit. |
 | `Command/Ctrl+Shift+Z` | Redo the last undone Show edit. |
