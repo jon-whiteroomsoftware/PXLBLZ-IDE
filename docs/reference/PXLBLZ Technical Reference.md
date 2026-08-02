@@ -2684,7 +2684,10 @@ For every accepted candidate, the planner chooses the lowest available physical
 plane numbers. Overlapping lifetimes may partition the arena—for example,
 sample XY on planes `0/1` and a scalar field on plane `2`. Non-overlapping
 lifetimes reuse the same numbers, including two successive three-plane
-Transition snapshots. One authored ownership exception allows Show-lifetime
+Transition snapshots. Compiler-derived intervals carrying one stable
+materialization key coallocate the same planes even when their lifetimes
+overlap; Freeze and Strobe use this path when one placement spans an internal
+Scene boundary. One authored ownership exception allows Show-lifetime
 `previous-rgb` Trails and a required Transition `rgb-snapshot` to bind the same
 three planes: generated code suspends and clears Trails for the complete
 Transition lifetime, then seeds it again after the boundary. Explicit semantic

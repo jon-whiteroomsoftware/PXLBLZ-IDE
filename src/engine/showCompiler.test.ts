@@ -1792,7 +1792,7 @@ export function render2D(index, x, y) { rgb(x, y, 0) }
     expect(second).toEqual(first)
   })
 
-  it('keeps one Freeze capture across derived intervals for the same placement (#586)', () => {
+  it('keeps one Freeze capture across derived intervals for the same placement (#586, #676)', () => {
     const zones = [{ id: 'main', name: 'main', ranges: [{ start: 0, end: 3 }] }]
     const artifact = compileShow({
       clips: [{
@@ -1810,7 +1810,7 @@ export function render2D(index, x, y) { rgb(x, y, 0) }
             clipId: 'shared',
             presentation: { mode: 'freeze' },
           }],
-          transitionOut: { kind: 'cut', durationMs: 0 },
+          transitionOut: { kind: 'crossfade', durationMs: 500, crossfadePolicy: 'live-live' },
         },
         {
           holdMs: 500,
@@ -1822,7 +1822,7 @@ export function render2D(index, x, y) { rgb(x, y, 0) }
           }],
         },
       ] },
-      loopDurationMs: 1_000,
+      loopDurationMs: 1_500,
     }, {})
     const { handle, pixel } = loadShow(artifact.code, artifact.metadata, 4)
     const renderFrame = () => [0, 1, 2, 3].map((index) => {
@@ -1836,6 +1836,91 @@ export function render2D(index, x, y) { rgb(x, y, 0) }
     const afterDerivedBoundary = renderFrame()
 
     expect(afterDerivedBoundary).toEqual(entry)
+  })
+
+  it('keeps one Strobe capture across derived intervals for the same placement (#676)', () => {
+    const zones = [{ id: 'main', name: 'main', ranges: [{ start: 0, end: 3 }] }]
+    const artifact = compileShow({
+      clips: [{
+        id: 'shared',
+        source: 'export var clock = 0\nexport function beforeRender(delta) { clock = clock + delta / 1000 }\nexport function render2D(index, x, y) { rgb(clock, 0, 0) }',
+      }],
+      zones,
+      routingLayouts: [{ id: 'default', name: 'Default', zones }],
+      routedSceneSequence: { scenes: [
+        {
+          holdMs: 500,
+          placements: [{
+            placementId: 'continuous-strobe',
+            zoneName: 'main',
+            clipId: 'shared',
+            presentation: { mode: 'strobe', cadenceMs: 1_000 },
+          }],
+          transitionOut: { kind: 'crossfade', durationMs: 500, crossfadePolicy: 'live-live' },
+        },
+        {
+          holdMs: 500,
+          placements: [{
+            placementId: 'continuous-strobe',
+            zoneName: 'main',
+            clipId: 'shared',
+            presentation: { mode: 'strobe', cadenceMs: 1_000 },
+          }],
+        },
+      ] },
+      loopDurationMs: 1_500,
+    }, {})
+    const { handle, pixel } = loadShow(artifact.code, artifact.metadata, 4)
+    const renderFrame = () => [0, 1, 2, 3].map((index) => {
+      handle.render2D(index, index % 2, Math.floor(index / 2))
+      return pixel()[0]
+    })
+
+    handle.beforeRender(100)
+    const entry = renderFrame()
+    handle.beforeRender(500)
+    const afterDerivedBoundary = renderFrame()
+
+    expect(afterDerivedBoundary).toEqual(entry)
+  })
+
+  it.each([
+    ['Freeze', { mode: 'freeze' } as const],
+    ['Strobe', { mode: 'strobe', cadenceMs: 1_000 } as const],
+  ])('still rejects independent overlapping %s captures (#676)', (label, presentation) => {
+    const zones = [{ id: 'main', name: 'main', ranges: [{ start: 0, end: 3 }] }]
+    const compile = () => compileShow({
+      clips: [
+        { id: 'first', source: 'export function render2D(index, x, y) { rgb(x, y, 0) }' },
+        { id: 'second', source: 'export function render2D(index, x, y) { rgb(0, x, y) }' },
+      ],
+      zones,
+      routingLayouts: [{ id: 'default', name: 'Default', zones }],
+      routedSceneSequence: { scenes: [
+        {
+          holdMs: 500,
+          placements: [{
+            placementId: 'first-capture',
+            zoneName: 'main',
+            clipId: 'first',
+            presentation,
+          }],
+          transitionOut: { kind: 'crossfade', durationMs: 500, crossfadePolicy: 'live-live' },
+        },
+        {
+          holdMs: 500,
+          placements: [{
+            placementId: 'second-capture',
+            zoneName: 'main',
+            clipId: 'second',
+            presentation,
+          }],
+        },
+      ] },
+      loopDurationMs: 1_500,
+    }, {})
+
+    expect(compile).toThrow(new RegExp(`${label} Clip presentation cannot be compiled exactly.*insufficient-overlap-capacity`))
   })
 
   it('does not intern Show-score stacks that differ only by Blink (#586)', () => {

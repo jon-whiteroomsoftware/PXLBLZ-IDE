@@ -61,6 +61,33 @@ describe('Show render-target cache planner (#517)', () => {
     expect(plan.totalEstimatedSavedWork).toBe(264_000)
   })
 
+  it('coallocates overlapping intervals of one materialized cache (#676)', () => {
+    const candidate = (id: string, start: number, end: number) => ({
+      id,
+      kind: 'rgb-snapshot' as const,
+      materializationKey: 'freeze:continuous-placement',
+      lifetime: { kind: 'scene' as const, start, end, key: id },
+      invalidatedBy: ['clip-exit'],
+      exactness: 'authored-snapshot' as const,
+      authorSelected: true,
+      required: true,
+      setupCost: 4_000,
+      perFrameSavings: 4_000,
+      expectedReuseCount: 10,
+      replayCost: 1_000,
+    })
+    const plan = planShowRenderTargetCaches([
+      candidate('freeze:scene-0', 0, 1_000),
+      candidate('freeze:scene-1', 500, 1_500),
+    ])
+
+    expect(plan.assignments.map(({ candidateId, planes }) => ({ candidateId, planes }))).toEqual([
+      { candidateId: 'freeze:scene-0', planes: [0, 1, 2] },
+      { candidateId: 'freeze:scene-1', planes: [0, 1, 2] },
+    ])
+    expect(plan.peakPlaneCount).toBe(3)
+  })
+
   it('partitions overlapping planes and explains a candidate that cannot fit', () => {
     const plan = planShowRenderTargetCaches([
       {

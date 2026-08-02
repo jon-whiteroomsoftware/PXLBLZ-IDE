@@ -1259,9 +1259,15 @@ function buildFreezeAtEntryCandidates(
         estimateShowPatternRenderOperations(member.resourceSource, 'render2D') ?? 0,
         1,
       )
+      const presentationOwnerKey = placement.presentation?.mode === 'freeze' && placement.placementId
+        ? placement.placementId
+        : `scene:${sceneIndex}:placement:${placementIndex}`
       const candidate: ShowRenderTargetCandidate = {
         id: `freeze:routed:${sceneIndex}:${placementIndex}:${clipId}`,
         kind: 'rgb-snapshot',
+        materializationKey: placement.presentation?.mode === 'freeze' && placement.placementId
+          ? `freeze:${presentationOwnerKey}`
+          : undefined,
         lifetime: {
           kind: 'scene',
           start: transitionInclusive ? incomingStart : holdStart,
@@ -1290,9 +1296,7 @@ function buildFreezeAtEntryCandidates(
         clipId,
         placementIndex,
         transitionInclusive,
-        presentationOwnerKey: placement.presentation?.mode === 'freeze' && placement.placementId
-          ? placement.placementId
-          : `scene:${sceneIndex}:placement:${placementIndex}`,
+        presentationOwnerKey,
         member,
         pixelCount,
       })
@@ -1351,9 +1355,15 @@ function buildRefreshCandidates(
       )
       const expectedFrameCount = Math.max(1, Math.ceil(scene.holdMs / (1_000 / 30)))
       const expectedCaptureCount = Math.max(1, Math.ceil(scene.holdMs / cadenceMs))
+      const presentationOwnerKey = placement.presentation?.mode === 'strobe' && placement.placementId
+        ? placement.placementId
+        : `scene:${sceneIndex}:placement:${placementIndex}`
       const candidate: ShowRenderTargetCandidate = {
         id: `refresh:routed:${sceneIndex}:${placementIndex}:${clipId}`,
         kind: 'rgb-snapshot',
+        materializationKey: placement.presentation?.mode === 'strobe' && placement.placementId
+          ? `strobe:${presentationOwnerKey}`
+          : undefined,
         lifetime: {
           kind: 'scene',
           start: transitionInclusive ? incomingStart : holdStart,
@@ -1383,9 +1393,7 @@ function buildRefreshCandidates(
         clipId,
         placementIndex,
         transitionInclusive,
-        presentationOwnerKey: placement.presentation?.mode === 'strobe' && placement.placementId
-          ? placement.placementId
-          : `scene:${sceneIndex}:placement:${placementIndex}`,
+        presentationOwnerKey,
         cadenceMs,
         member,
         pixelCount,

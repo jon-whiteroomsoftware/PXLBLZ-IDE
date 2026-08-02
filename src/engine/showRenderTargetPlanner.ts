@@ -28,6 +28,8 @@ export interface ShowRenderTargetLifetime {
 export interface ShowRenderTargetCandidate {
   id: string
   kind: ShowRenderTargetCandidateKind
+  /** Stable identity for one materialization split across candidate intervals. */
+  materializationKey?: string
   lifetime: ShowRenderTargetLifetime
   invalidatedBy: string[]
   exactness: ShowRenderTargetExactness
@@ -151,6 +153,7 @@ export function planShowRenderTargetCaches(
   const selected: Array<ShowRenderTargetAssignment & {
     inputIndex: number
     declaredConflicts: string[]
+    materializationKey?: string
   }> = []
   for (const item of ranked) {
     if (availablePlaneCount === 0) {
@@ -164,8 +167,17 @@ export function planShowRenderTargetCaches(
       })
       continue
     }
+    const sharesMaterialization = (assignment: ShowRenderTargetAssignment & { materializationKey?: string }) => Boolean(
+      item.candidate.materializationKey
+      && assignment.materializationKey === item.candidate.materializationKey
+      && assignment.kind === item.candidate.kind
+      && assignment.role === item.contract.role
+      && assignment.planes.length === item.contract.planeCount
+    )
+    const sharedMaterialization = selected.find(sharesMaterialization)
     const conflicts = selected.filter((assignment) => (
-      lifetimesOverlap(item.candidate.lifetime, assignment.lifetime)
+      !sharesMaterialization(assignment)
+      && lifetimesOverlap(item.candidate.lifetime, assignment.lifetime)
       && !sharesArenaBySuspendingPreviousRgb(item.candidate, assignment)
     ))
     const explicitConflicts = conflicts
@@ -186,7 +198,9 @@ export function planShowRenderTargetCaches(
       })
       continue
     }
-    const planes = findAvailablePlanes(item.contract.planeCount, conflicts, availablePlaneCount)
+    const planes = sharedMaterialization
+      ? reuseMaterializationPlanes(sharedMaterialization.planes, conflicts)
+      : findAvailablePlanes(item.contract.planeCount, conflicts, availablePlaneCount)
     if (!planes) {
       const conflictsWith = conflicts.map((assignment) => assignment.candidateId).sort()
       decisions.push({
@@ -210,6 +224,7 @@ export function planShowRenderTargetCaches(
       estimatedSavedWork: item.estimatedSavedWork,
       inputIndex: item.inputIndex,
       declaredConflicts: [...(item.candidate.conflictsWith ?? [])],
+      materializationKey: item.candidate.materializationKey,
     })
     decisions.push({
       candidateId: item.candidate.id,
@@ -223,7 +238,7 @@ export function planShowRenderTargetCaches(
 
   const assignments = selected
     .sort((left, right) => left.inputIndex - right.inputIndex)
-    .map(({ inputIndex: _, declaredConflicts: __, ...assignment }) => assignment)
+    .map(({ inputIndex: _, declaredConflicts: __, materializationKey: ___, ...assignment }) => assignment)
   return {
     planeCount: 3,
     availablePlaneCount,
@@ -287,6 +302,16 @@ function findAvailablePlanes(
     .slice(0, availablePlaneCount)
     .filter((plane) => !occupied.has(plane))
   return available.length >= planeCount ? available.slice(0, planeCount) : null
+}
+
+function reuseMaterializationPlanes(
+  materializationPlanes: Array<0 | 1 | 2>,
+  conflicts: ShowRenderTargetAssignment[],
+): Array<0 | 1 | 2> | null {
+  const occupied = new Set(conflicts.flatMap((assignment) => assignment.planes))
+  return materializationPlanes.some((plane) => occupied.has(plane))
+    ? null
+    : [...materializationPlanes]
 }
 
 function peakPlaneCount(assignments: ShowRenderTargetAssignment[]): number {
