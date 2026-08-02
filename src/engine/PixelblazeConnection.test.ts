@@ -528,6 +528,22 @@ describe('PixelblazeConnection', () => {
       })
     })
 
+    it('getConfig survives firmware NaN control values in the activeProgram frame (#679)', async () => {
+      // Observed on 3.x hardware: uninitialized controls serialize as bare
+      // NaN, which is not JSON. The frame must sanitize rather than drop, or
+      // getConfig waits forever for activeProgram.
+      const { conn, socket } = await connected()
+      const promise = conn.getConfig()
+      socket.simulateMessage({ brightness: 0.4, pixelCount: 256 })
+      socket.simulateMessage(
+        '{"activeProgram":{"name":"ClockworkIris","activeProgramId":"pat9","controls":{"sliderSpeed":0,"sliderTeeth":NaN,"sliderColor":2.185689e-38}},"sequencerMode":0}',
+      )
+      await expect(promise).resolves.toMatchObject({
+        activeProgramId: 'pat9',
+        activeControls: { sliderSpeed: 0, sliderTeeth: null, sliderColor: 2.185689e-38 },
+      })
+    })
+
     it('getConfig leaves name undefined when the settings packet carries none', async () => {
       const { conn, socket } = await connected()
       const promise = conn.getConfig()

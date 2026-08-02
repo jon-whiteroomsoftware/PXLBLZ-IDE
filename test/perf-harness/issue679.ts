@@ -140,11 +140,12 @@ async function pushAndMeasure(connection: PixelblazeConnection, bytecode: Uint8A
   await sleep(1800)
   if ((await connection.getConfig()).activeProgramId !== id) throw new Error('program did not activate')
   await sleep(1200)
+  // Every poll is a sample: deduplicating by value change would weight each
+  // distinct FPS once regardless of how long the Controller held it.
   const values: number[] = []
-  let previous = -1
   const end = Date.now() + 2500
   while (Date.now() < end) {
-    if (connection.fps > 0 && connection.fps !== previous) { values.push(connection.fps); previous = connection.fps }
+    if (connection.fps > 0) values.push(connection.fps)
     await sleep(250)
   }
   if (!values.length) throw new Error('no FPS samples')
@@ -245,8 +246,10 @@ silhouette remains cut pending this matrix's verdict on angular SDF cost.
 | --- | --- | --- | --- | --- | --- | --- | --- |
 ${rows}
 `
-  writeFileSync(REPORT, report)
-  console.log(`\nreport -> ${REPORT}`)
+  // Compile-only runs must not clobber the archived hardware measurements.
+  const destination = hardware ? REPORT : 'reports/issue-679-aperture-matrix.compile-only.md'
+  writeFileSync(destination, report)
+  console.log(`\nreport -> ${destination}`)
 }
 
 main().catch((error) => {

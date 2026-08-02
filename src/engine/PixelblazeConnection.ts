@@ -640,7 +640,15 @@ export class PixelblazeConnection {
     try {
       msg = JSON.parse(data)
     } catch {
-      return // ignore malformed frames rather than crash the connection
+      // Firmware emits bare NaN for uninitialized control values (observed on
+      // 3.x activeProgram frames), which is not JSON. Dropping the frame makes
+      // getConfig wait forever for activeProgram, so sanitize and re-parse
+      // before giving up on the frame.
+      try {
+        msg = JSON.parse(data.replace(/(:\s*)(?:NaN|-?Infinity)(\s*[,}\]])/g, '$1null$2'))
+      } catch {
+        return // ignore malformed frames rather than crash the connection
+      }
     }
     // Passively capture the reported frame rate from any status frame.
     if ('fps' in msg && typeof msg.fps === 'number') this._lastFps = msg.fps

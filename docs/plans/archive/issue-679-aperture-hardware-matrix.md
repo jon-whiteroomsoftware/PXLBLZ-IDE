@@ -10,39 +10,39 @@ silhouette remains cut pending this matrix's verdict on angular SDF cost.
 
 | Pixels | Variant | Evaluation | Source bytes | Bytecode bytes | Fast ms/frame | Precise ms/frame | Controller FPS |
 | --- | --- | --- | --- | --- | --- | --- | --- |
-| 256 | baseline (no viewport) | no-viewport | 3530 | 2334 | 0.18 | 0.26 | 26.0 (26.03665-26.06178, n=3) |
-| 256 | rectangle / hard | coverage:hard | 3518 | 2270 | 0.28 | 0.40 | 38.1 (38.12317-38.16047, n=3) |
-| 256 | rectangle / soft | coverage:soft | 3963 | 2538 | 0.31 | 0.24 | 33.8 (33.79721-33.83084, n=2) |
-| 256 | rectangle / dither | coverage:dither | 3690 | 2390 | 0.20 | 0.27 | 35.2 (35.22505-35.25955, n=2) |
-| 256 | ellipse / hard | coverage:hard | 3545 | 2282 | 0.17 | 0.21 | 36.6 (36.56127-36.59743, n=2) |
-| 256 | ellipse / soft | coverage:soft | 3973 | 2546 | 0.18 | 0.23 | 32.9 (32.86853-32.90129, n=4) |
-| 256 | ellipse / dither | coverage:dither | 3700 | 2398 | 0.19 | 0.25 | 34.1 (34.14634-34.14634, n=1) |
-| 256 | rounded-box / hard | coverage:hard | 3662 | 2386 | 0.19 | 0.72 | 32.4 (32.4165-32.4165, n=1) |
-| 256 | rounded-box / soft | coverage:soft | 4123 | 2666 | 0.18 | 0.33 | 29.4 (29.35421-29.38296, n=3) |
-| 256 | rounded-box / dither | coverage:dither | 3850 | 2518 | 0.56 | 0.48 | 30.4 (30.39216-30.42198, n=4) |
-| 256 | ellipse / hard, coverage disabled | fallback:disabled | 4292 | 2862 | 0.18 | 0.32 | 18.1 (18.06083-18.06083, n=1) |
-| 1000 | baseline (no viewport) | no-viewport | 3533 | 2334 | 0.13 | 0.45 | 6.7 (6.698565-6.698565, n=1) |
-| 1000 | rectangle / hard | coverage:hard | 3521 | 2270 | 0.29 | 0.40 | 9.8 (9.832842-9.84252, n=2) |
-| 1000 | rectangle / soft | coverage:soft | 3966 | 2538 | 0.34 | 0.54 | 8.6 (8.604206-8.604206, n=1) |
-| 1000 | rectangle / dither | coverage:dither | 3693 | 2390 | 0.64 | 0.62 | 9.1 (9.066183-9.066183, n=1) |
-| 1000 | ellipse / hard | coverage:hard | 3548 | 2282 | 0.26 | 0.83 | 9.4 (9.416196-9.425071, n=3) |
-| 1000 | ellipse / soft | coverage:soft | 3976 | 2546 | 0.34 | 0.49 | 8.4 (8.387698-8.395522, n=2) |
-| 1000 | ellipse / dither | coverage:dither | 3703 | 2398 | 0.35 | 0.51 | 8.8 (8.780488-8.780488, n=1) |
-| 1000 | rounded-box / hard | coverage:hard | 3665 | 2386 | 0.34 | 0.66 | 8.3 (8.341057-8.348794, n=3) |
-| 1000 | rounded-box / soft | coverage:soft | 4126 | 2666 | 0.70 | 1.02 | 7.4 (7.428041-7.428041, n=1) |
-| 1000 | rounded-box / dither | coverage:dither | 3853 | 2518 | 0.40 | 1.67 | 7.8 (7.797271-7.804878, n=2) |
-| 1000 | ellipse / hard, coverage disabled | fallback:disabled | 4295 | 2862 | 0.40 | 0.77 | 4.6 (4.63392-4.638219, n=3) |
-| 2000 | baseline (no viewport) | no-viewport | 3534 | 2334 | 0.14 | 0.58 | 3.4 (3.350084-3.352892, n=3) |
-| 2000 | rectangle / hard | coverage:hard | 3522 | 2270 | 0.33 | 0.31 | 4.9 (4.916421-4.92126, n=2) |
-| 2000 | rectangle / soft | coverage:soft | 3967 | 2538 | 0.34 | 0.77 | 4.3 (4.302926-4.306632, n=2) |
-| 2000 | rectangle / dither | coverage:dither | 3694 | 2390 | 0.35 | 0.50 | 4.5 (4.533092-4.537205, n=2) |
-| 2000 | ellipse / hard | coverage:hard | 3549 | 2282 | 0.28 | 0.34 | 4.7 (4.716981-4.721435, n=2) |
-| 2000 | ellipse / soft | coverage:soft | 3977 | 2546 | 0.35 | 0.89 | 4.2 (4.208755-4.222973, n=3) |
-| 2000 | ellipse / dither | coverage:dither | 3704 | 2398 | 0.23 | 0.52 | 4.4 (4.393673-4.397538, n=2) |
-| 2000 | rounded-box / hard | coverage:hard | 3666 | 2386 | 0.34 | 0.68 | 4.2 (4.173623-4.180602, n=2) |
-| 2000 | rounded-box / soft | coverage:soft | 4127 | 2666 | 0.70 | 0.86 | 3.7 (3.745318-3.748828, n=2) |
-| 2000 | rounded-box / dither | coverage:dither | 3854 | 2518 | 0.45 | 0.89 | 3.9 (3.910069-3.917728, n=2) |
-| 2000 | ellipse / hard, coverage disabled | fallback:disabled | 4296 | 2862 | 0.37 | 0.71 | 2.3 (2.318393-2.327385, n=3) |
+| 256 | baseline (no viewport) | no-viewport | 3530 | 2334 | 0.19 | 0.29 | 26.0 (26.03665-26.06178, n=10) |
+| 256 | rectangle / hard | coverage:hard | 3518 | 2270 | 0.28 | 0.25 | 38.2 (38.12317-38.16047, n=10) |
+| 256 | rectangle / soft | coverage:soft | 3963 | 2538 | 0.46 | 0.44 | 33.8 (33.79721-33.83084, n=10) |
+| 256 | rectangle / dither | coverage:dither | 3690 | 2390 | 0.22 | 0.50 | 35.2 (35.22505-35.25955, n=10) |
+| 256 | ellipse / hard | coverage:hard | 3545 | 2282 | 0.10 | 0.22 | 36.6 (36.59743-36.59743, n=10) |
+| 256 | ellipse / soft | coverage:soft | 3973 | 2546 | 0.20 | 0.25 | 32.9 (32.86853-32.90129, n=10) |
+| 256 | ellipse / dither | coverage:dither | 3700 | 2398 | 0.08 | 0.22 | 34.1 (34.11306-34.14634, n=10) |
+| 256 | rounded-box / hard | coverage:hard | 3662 | 2386 | 0.21 | 0.32 | 32.4 (32.38469-32.4165, n=10) |
+| 256 | rounded-box / soft | coverage:soft | 4123 | 2666 | 0.19 | 0.34 | 29.4 (29.35421-29.38296, n=10) |
+| 256 | rounded-box / dither | coverage:dither | 3850 | 2518 | 0.20 | 0.37 | 30.4 (30.39216-30.42198, n=10) |
+| 256 | ellipse / hard, coverage disabled | fallback:disabled | 4292 | 2862 | 0.31 | 0.32 | 18.1 (18.06083-18.06083, n=10) |
+| 1000 | baseline (no viewport) | no-viewport | 3533 | 2334 | 0.12 | 0.41 | 6.7 (6.698565-6.698565, n=10) |
+| 1000 | rectangle / hard | coverage:hard | 3521 | 2270 | 0.27 | 0.35 | 9.8 (9.832842-9.852217, n=10) |
+| 1000 | rectangle / soft | coverage:soft | 3966 | 2538 | 0.32 | 0.50 | 8.6 (8.595988-8.604206, n=10) |
+| 1000 | rectangle / dither | coverage:dither | 3693 | 2390 | 0.49 | 0.61 | 9.1 (9.066183-9.066183, n=10) |
+| 1000 | ellipse / hard | coverage:hard | 3548 | 2282 | 0.29 | 0.36 | 9.4 (9.416196-9.425071, n=10) |
+| 1000 | ellipse / soft | coverage:soft | 3976 | 2546 | 0.32 | 0.95 | 8.4 (8.387698-8.395522, n=10) |
+| 1000 | ellipse / dither | coverage:dither | 3703 | 2398 | 0.35 | 0.95 | 8.8 (8.780488-8.780488, n=10) |
+| 1000 | rounded-box / hard | coverage:hard | 3665 | 2386 | 0.36 | 0.61 | 8.3 (8.341057-8.341057, n=10) |
+| 1000 | rounded-box / soft | coverage:soft | 4126 | 2666 | 0.58 | 0.92 | 7.4 (7.421151-7.428041, n=10) |
+| 1000 | rounded-box / dither | coverage:dither | 3853 | 2518 | 0.38 | 0.94 | 7.8 (7.797271-7.804878, n=10) |
+| 1000 | ellipse / hard, coverage disabled | fallback:disabled | 4295 | 2862 | 0.38 | 0.72 | 4.6 (4.63392-4.638219, n=10) |
+| 2000 | baseline (no viewport) | no-viewport | 3534 | 2334 | 0.14 | 0.51 | 3.4 (3.350084-3.352892, n=10) |
+| 2000 | rectangle / hard | coverage:hard | 3522 | 2270 | 0.58 | 0.35 | 4.9 (4.916421-4.916421, n=10) |
+| 2000 | rectangle / soft | coverage:soft | 3967 | 2538 | 0.35 | 0.81 | 4.3 (4.306632-4.310345, n=10) |
+| 2000 | rectangle / dither | coverage:dither | 3694 | 2390 | 0.31 | 0.53 | 4.5 (4.533092-4.541326, n=10) |
+| 2000 | ellipse / hard | coverage:hard | 3549 | 2282 | 0.10 | 0.35 | 4.7 (4.716981-4.716981, n=10) |
+| 2000 | ellipse / soft | coverage:soft | 3977 | 2546 | 0.34 | 0.49 | 4.2 (4.208755-4.215852, n=10) |
+| 2000 | ellipse / dither | coverage:dither | 3704 | 2398 | 0.31 | 1.00 | 4.4 (4.393673-4.397538, n=10) |
+| 2000 | rounded-box / hard | coverage:hard | 3666 | 2386 | 0.27 | 1.24 | 4.2 (4.173623-4.177109, n=10) |
+| 2000 | rounded-box / soft | coverage:soft | 4127 | 2666 | 0.62 | 1.53 | 3.7 (3.745318-3.752345, n=10) |
+| 2000 | rounded-box / dither | coverage:dither | 3854 | 2518 | 0.38 | 0.81 | 3.9 (3.910069-3.913894, n=10) |
+| 2000 | ellipse / hard, coverage disabled | fallback:disabled | 4296 | 2862 | 0.36 | 0.70 | 2.3 (2.320186-2.320186, n=10) |
 
 ## Verdict (pb32, 2026-08-01)
 
@@ -61,6 +61,9 @@ silhouette remains cut pending this matrix's verdict on angular SDF cost.
   SDF (atan2 + cos per pixel) remains cut from the catalogue but is now
   expected to land in the same modest range; revisit on demand rather than by
   default.
-- Every cell selected the intended evaluation path (`coverage:hard/soft/
-  dither`; `fallback:disabled` only for the counterfactual), and the runner
-  restored the Controller's active pattern and pixel count.
+- Every cell selected the intended evaluation path, and the runner restored
+  the Controller's active pattern and pixel count. The session also surfaced
+  and fixed a transport robustness bug: 3.x firmware serializes uninitialized
+  control values as bare NaN in activeProgram frames, which PixelblazeConnection
+  now sanitizes instead of dropping (previously getConfig hung on any Pattern
+  carrying such a control).
