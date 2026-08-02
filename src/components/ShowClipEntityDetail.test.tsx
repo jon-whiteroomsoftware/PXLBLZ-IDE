@@ -941,6 +941,42 @@ describe('per-parameter animation affordances (#648)', () => {
     expect(screen.getByRole('button', { name: 'Animate Phase' })).toBeVisible()
   })
 
+  it('uses the visible geometry field label throughout its keyframe editor (#687)', () => {
+    const props = commonProps('scene-overlay')
+    const value: ShowClipInspectorValue = {
+      ...props.value,
+      viewport: { enabled: true, x: 0.1, y: 0.2, width: 0.8, height: 0.7 },
+    }
+    render(
+      <ShowPropertyAnimationProvider
+        options={buildShowPropertyAnimationOptions(value)}
+        tracks={[]}
+        storageDurationMs={4_000}
+        showTimeOffsetMs={10_000}
+        instanceUseCount={1}
+        onChange={vi.fn()}
+      >
+        <ShowClipEntityDetail {...props} value={value} />
+      </ShowPropertyAnimationProvider>,
+    )
+
+    showTab('Place')
+    fireEvent.click(screen.getByRole('button', { name: 'Animate Content Width' }))
+    const widthEditor = screen.getByRole('dialog', { name: 'Width animation' })
+    expect(widthEditor).toHaveTextContent('Width animates')
+    expect(within(widthEditor).getByRole('textbox', { name: 'Width animation from exact multiplier' }))
+      .toBeVisible()
+    expect(screen.queryByRole('dialog', { name: 'Scale X animation' })).not.toBeInTheDocument()
+    fireEvent.keyDown(widthEditor, { key: 'Escape' })
+
+    fireEvent.click(screen.getByRole('button', { name: 'Aperture summary' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Animate Viewport X' }))
+    const xEditor = screen.getByRole('dialog', { name: 'X animation' })
+    expect(xEditor).toHaveTextContent('X animates')
+    expect(within(xEditor).getByRole('textbox', { name: 'X animation from' })).toBeVisible()
+    expect(screen.queryByRole('dialog', { name: 'Viewport X animation' })).not.toBeInTheDocument()
+  })
+
   it('does not reveal an unavailable Place field or mutate its viewport (#649 review)', () => {
     const onPatch = vi.fn()
     const onAnimationOverviewClose = vi.fn()

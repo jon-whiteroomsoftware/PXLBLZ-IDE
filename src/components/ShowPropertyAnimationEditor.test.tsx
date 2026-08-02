@@ -80,6 +80,8 @@ describe('per-parameter Property animation editor (#648)', () => {
 
     const diamond = screen.getByRole('button', { name: 'Animate Brightness' })
     expect(diamond).toHaveAttribute('data-animated', 'false')
+    expect(diamond).toHaveClass('border-transparent', 'bg-transparent')
+    expect(diamond).not.toHaveClass('border-zinc-800/80', 'bg-zinc-950/50')
     fireEvent.click(diamond)
 
     expect(screen.getByRole('dialog', { name: 'Brightness animation' })).toBeInTheDocument()

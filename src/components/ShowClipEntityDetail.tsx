@@ -1038,9 +1038,12 @@ function ClipPlacementGeometry({
   const animationAction = (
     property: Parameters<typeof animationTarget>[0],
     label: string,
+    fieldLabel?: string,
   ) => {
     const target = animationTarget(property)
-    return target ? <ShowPropertyAnimationAction target={target} label={label} /> : undefined
+    return target
+      ? <ShowPropertyAnimationAction target={target} label={label} fieldLabel={fieldLabel} />
+      : undefined
   }
   return (
     <div
@@ -1051,16 +1054,16 @@ function ClipPlacementGeometry({
       className="grid min-w-0 gap-0.5"
     >
       <div className="min-w-0" data-show-clip-summary-target={content ? 'transform-position-x' : undefined} tabIndex={content ? -1 : undefined}>
-        <BoundedNumberField compact label="X" ariaLabel={xLabel} labelAction={animationAction(content ? 'positionX' : 'x', xLabel)} presentation={positionPresentation} value={shown(positionX)} reserveSuffixSpace disabled={readOnly} onPreview={(next) => onPreviewPatch?.(content ? { transform: { positionX: next } } : { viewport: { x: next } })} onPreviewEnd={onPreviewEnd} onChange={(next) => onPatch(content ? { transform: { positionX: next } } : { viewport: { x: next } })} />
+        <BoundedNumberField compact label="X" ariaLabel={xLabel} labelAction={animationAction(content ? 'positionX' : 'x', xLabel, 'X')} presentation={positionPresentation} value={shown(positionX)} reserveSuffixSpace disabled={readOnly} onPreview={(next) => onPreviewPatch?.(content ? { transform: { positionX: next } } : { viewport: { x: next } })} onPreviewEnd={onPreviewEnd} onChange={(next) => onPatch(content ? { transform: { positionX: next } } : { viewport: { x: next } })} />
       </div>
       <div className="min-w-0" data-show-clip-summary-target={content ? 'transform-position-y' : undefined} tabIndex={content ? -1 : undefined}>
-        <BoundedNumberField compact label="Y" ariaLabel={yLabel} labelAction={animationAction(content ? 'positionY' : 'y', yLabel)} presentation={positionPresentation} value={shown(positionY)} reserveSuffixSpace disabled={readOnly} onPreview={(next) => onPreviewPatch?.(content ? { transform: { positionY: next } } : { viewport: { y: next } })} onPreviewEnd={onPreviewEnd} onChange={(next) => onPatch(content ? { transform: { positionY: next } } : { viewport: { y: next } })} />
+        <BoundedNumberField compact label="Y" ariaLabel={yLabel} labelAction={animationAction(content ? 'positionY' : 'y', yLabel, 'Y')} presentation={positionPresentation} value={shown(positionY)} reserveSuffixSpace disabled={readOnly} onPreview={(next) => onPreviewPatch?.(content ? { transform: { positionY: next } } : { viewport: { y: next } })} onPreviewEnd={onPreviewEnd} onChange={(next) => onPatch(content ? { transform: { positionY: next } } : { viewport: { y: next } })} />
       </div>
       <div className="min-w-0" data-show-clip-summary-target={content ? 'transform-scale-x' : undefined} tabIndex={content ? -1 : undefined}>
-        <BoundedNumberField compact label="Width" ariaLabel={widthLabel} labelAction={animationAction(content ? 'scaleX' : 'width', widthLabel)} presentation={scalePresentation} value={shown(width)} reserveSuffixSpace disabled={readOnly} onPreview={(next) => onPreviewPatch?.(content ? { transform: { scaleX: next } } : { viewport: { width: next } })} onPreviewEnd={onPreviewEnd} onChange={(next) => onPatch(content ? { transform: { scaleX: next } } : { viewport: { width: next } })} />
+        <BoundedNumberField compact label="Width" ariaLabel={widthLabel} labelAction={animationAction(content ? 'scaleX' : 'width', widthLabel, 'Width')} presentation={scalePresentation} value={shown(width)} reserveSuffixSpace disabled={readOnly} onPreview={(next) => onPreviewPatch?.(content ? { transform: { scaleX: next } } : { viewport: { width: next } })} onPreviewEnd={onPreviewEnd} onChange={(next) => onPatch(content ? { transform: { scaleX: next } } : { viewport: { width: next } })} />
       </div>
       <div className="min-w-0" data-show-clip-summary-target={content ? 'transform-scale-y' : undefined} tabIndex={content ? -1 : undefined}>
-        <BoundedNumberField compact label="Height" ariaLabel={heightLabel} labelAction={animationAction(content ? 'scaleY' : 'height', heightLabel)} presentation={scalePresentation} value={shown(height)} reserveSuffixSpace disabled={readOnly} onPreview={(next) => onPreviewPatch?.(content ? { transform: { scaleY: next } } : { viewport: { height: next } })} onPreviewEnd={onPreviewEnd} onChange={(next) => onPatch(content ? { transform: { scaleY: next } } : { viewport: { height: next } })} />
+        <BoundedNumberField compact label="Height" ariaLabel={heightLabel} labelAction={animationAction(content ? 'scaleY' : 'height', heightLabel, 'Height')} presentation={scalePresentation} value={shown(height)} reserveSuffixSpace disabled={readOnly} onPreview={(next) => onPreviewPatch?.(content ? { transform: { scaleY: next } } : { viewport: { height: next } })} onPreviewEnd={onPreviewEnd} onChange={(next) => onPatch(content ? { transform: { scaleY: next } } : { viewport: { height: next } })} />
       </div>
       <div className="min-w-0" data-show-clip-summary-target={content ? 'transform-rotation' : undefined} tabIndex={content ? -1 : undefined}>
         <AngleField compact kind="rotation" label="Rotation" ariaLabel={content ? 'Rotation' : 'Viewport rotation'} labelAction={content ? animationAction('rotation', 'Rotation') : undefined} value={content ? value.transform.rotation : 0} min={-8} max={8} step={1 / 360} reserveSuffixSpace disabled={readOnly || !content} help={content ? undefined : 'Aperture is axis-aligned'} onPreview={content ? (rotation) => onPreviewPatch?.({ transform: { rotation } }) : undefined} onPreviewEnd={onPreviewEnd} onChange={(rotation) => onPatch({ transform: { rotation } })} />

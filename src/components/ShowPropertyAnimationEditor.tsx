@@ -106,9 +106,11 @@ export function ShowPropertyAnimationProvider({
 export function ShowPropertyAnimationAction({
   target,
   label,
+  fieldLabel,
 }: {
   target: ShowPropertyAnimationTarget
   label?: string
+  fieldLabel?: string
 }) {
   const context = useContext(ShowPropertyAnimationEditorContext)
   const [anchor, setAnchor] = useState<HTMLButtonElement | null>(null)
@@ -142,14 +144,16 @@ export function ShowPropertyAnimationAction({
             ? 'border-violet-300/45 bg-violet-300/20 text-violet-100 shadow-inner'
             : animated
               ? 'border-violet-300/20 bg-violet-300/[0.05] text-violet-300'
-              : 'border-zinc-800/80 bg-zinc-950/50 text-zinc-700'
+              : 'border-transparent bg-transparent text-zinc-700'
         }`}
       >
         <Diamond size={8} fill={animated ? 'currentColor' : 'none'} aria-hidden />
       </button>
       {open && (
         <ShowPropertyAnimationPopover
-          option={option}
+          option={fieldLabel && fieldLabel !== option.label
+            ? { ...option, label: fieldLabel }
+            : option}
           track={track}
           anchor={anchor}
           context={context}
