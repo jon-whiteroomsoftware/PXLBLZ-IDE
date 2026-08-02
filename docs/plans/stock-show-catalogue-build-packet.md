@@ -77,6 +77,12 @@ catalogue fixture.
   continuity but must not compete with the lesson.
 - Prefer one reusable diagnostic source when comparing Effects, presentation
   modes, easing, or Property targets.
+- Smooth by default (2026-08-02): wherever a transition, edge, or animation
+  could be smoother, smooth is what fixtures teach. Feathered wipe edges,
+  Soft aperture edges, eased value curves, and blended reveals are the norm;
+  a Hard edge, an atomic change, or a Cut appears only when it is the
+  passage's conscious subject and the note says so. Animated apertures are
+  never hard-edged.
 - Explain ownership in positive terms: Clip, Pattern instance, Transition,
   Group occurrence, Zone Layout, Show, and output contract.
 - Preserve Pattern attribution and use only Built-in Pattern references unless

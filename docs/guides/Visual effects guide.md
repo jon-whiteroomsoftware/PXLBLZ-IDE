@@ -301,6 +301,9 @@ The Clip Viewport aperture has an authored silhouette - Rectangle, Ellipse,
 Diamond, Ring, or Rounded box - and every silhouette carries an edge
 treatment: Hard cuts at the boundary, Soft feathers it, and Stable Dither
 trades the smooth ramp for a fixed texture that survives LED quantization.
+Shaped apertures feather Soft by default, and smooth is almost always the
+right choice - especially when the aperture or its Content moves, where a
+travelling hard edge reads as a rendering artifact. Choose Hard consciously.
 Shape and edge are placement geometry owned by the Clip, exactly like the
 frame's position and size: they change what the Clip may draw without
 touching Content, Pattern time, or Effects. **207 Aperture Shapes and Edges**
@@ -449,10 +452,11 @@ and overshoot can be compared directly.
 ### Aperture shapes reference
 
 **Aperture Shapes** holds one subject behind one frame over one dim bed and
-changes exactly one thing per passage: first each silhouette at a hard edge,
-then the Rounded box at a wide corner radius to show radius is shape rather
-than edge, then the Ring across Hard, Soft, and Stable Dither. It is the full
-matrix that lesson 207 deliberately abbreviates.
+changes exactly one thing per passage: first each silhouette at its Soft
+default, then the Rounded box at a wide corner radius to show radius is shape
+rather than edge, then the Ring across Soft, the deliberate Hard cut, and
+Stable Dither. It is the full matrix that lesson 207 deliberately
+abbreviates.
 
 Every reference Show above uses the expanded header as a live guide. It names
 the current example, explains what changes and what stays constant, and offers a

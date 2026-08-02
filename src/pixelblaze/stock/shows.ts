@@ -657,7 +657,10 @@ function learn202(): StockShow {
   const scenes: SceneSpec[] = [
     scene('viewport', 'Viewport', 16, [clip('zone-1', 'MetaballGarden', LESSON_TIME_SCALE)]),
   ]
-  const aperture = { enabled: true, x: 0.25, y: 0.25, width: 0.5, height: 0.5 }
+  // Soft on purpose: this aperture moves, and a travelling hard edge reads
+  // as a rendering artifact rather than a frame. Smooth is the default the
+  // curriculum teaches; Hard is 207's deliberate exception.
+  const aperture = { enabled: true, x: 0.25, y: 0.25, width: 0.5, height: 0.5, edge: 'soft' as const }
   const composition: ShowCompositionV1 = {
     version: 1,
     patternInstances: [
@@ -731,13 +734,14 @@ function learn202(): StockShow {
 }
 
 // 207 extends 202's construction with the shaped apertures from #591/#678:
-// the same rose behind the same frame over the same dim bed, with the
-// silhouette as the only variable across the first three passages and the
-// edge treatment as the only variable in the last. The Ring passage is the
-// visceral one - the bed shows straight through its center, which no
-// rectangle can do. Everything holds still on purpose: motion belongs to
-// 202, and the full silhouette-by-edge matrix belongs to the Aperture
-// Shapes reference.
+// the same rose behind the same frame over the same dim bed. Shaped
+// apertures feather Soft by default and the lesson keeps that default -
+// smooth is what people want - so the passages run rectangle, soft ellipse,
+// soft ring, and then the one deliberate exception: the same Ring cut Hard.
+// The Ring passage is the visceral one - the bed shows straight through its
+// center, which no rectangle can do. Everything holds still on purpose:
+// motion belongs to 202, and the full silhouette-by-edge matrix belongs to
+// the Aperture Shapes reference.
 function learn207(): StockShow {
   const id = 'stock-show-207-aperture-shapes-edges'
   const zones = logicalZones(['Main'], PORTABLE_REFERENCE_PIXELS)
@@ -763,15 +767,17 @@ function learn207(): StockShow {
           id: 'layer-subject',
           name: 'Subject',
           placements: [
-            // The 202 recap: a plain rectangular frame with its default hard
-            // edge establishes the baseline silhouette.
+            // The 202 recap: a plain rectangular frame establishes the
+            // baseline silhouette.
             { ...placement('clip-rectangle', 'rose', 0, 4), opacity: 1, viewport: { ...frame } },
-            // Shape is the only change; the edge stays explicitly hard so the
-            // silhouette comparison carries one variable.
-            { ...placement('clip-ellipse', 'rose', 4, 4), opacity: 1, viewport: { ...frame, aperture: 'ellipse', edge: 'hard' } },
-            { ...placement('clip-ring', 'rose', 8, 4), opacity: 1, viewport: { ...frame, aperture: 'ring', edge: 'hard' } },
-            // Now the shape holds and only the edge softens.
-            { ...placement('clip-ring-soft', 'rose', 12, 4), opacity: 1, viewport: { ...frame, aperture: 'ring', edge: 'soft' } },
+            // Shaped apertures keep their Soft default: the silhouette
+            // changes and the feather arrives with it, exactly as it does
+            // when an author picks a shape in the inspector.
+            { ...placement('clip-ellipse', 'rose', 4, 4), opacity: 1, viewport: { ...frame, aperture: 'ellipse' } },
+            { ...placement('clip-ring', 'rose', 8, 4), opacity: 1, viewport: { ...frame, aperture: 'ring' } },
+            // The one deliberate exception: the same Ring cut Hard, so the
+            // learner sees what choosing Hard actually means.
+            { ...placement('clip-ring-hard', 'rose', 12, 4), opacity: 1, viewport: { ...frame, aperture: 'ring', edge: 'hard' } },
           ],
         }],
       }],
@@ -780,9 +786,9 @@ function learn207(): StockShow {
   }
   return catalogue({
     id, title: 'Aperture Shapes and Edges', track: 'portable', collection: 'learn', level: 200, order: 7,
-    purpose: 'The aperture from 202 has a shape of its own. Rectangle, Ellipse, Diamond, Ring, and Rounded box are authored silhouettes on the Clip Viewport, and every silhouette carries an edge treatment - Hard, Soft, or Stable Dither. Shape and edge are placement geometry owned by the Clip, separate from Content and from Effects.',
-    notice: 'Nothing moves in this lesson. The same rose sits behind the same frame while only the silhouette changes, and in the last passage only the edge softens. The Ring makes the difference visceral: the bed shows straight through its center, which no rectangle can do.',
-    prompts: ["Change the second Clip's aperture from Ellipse to Diamond - the frame, Content, and Pattern time never notice.", 'On the last Clip, switch the edge from Soft to Stable Dither and compare the boundary at playback speed: Dither trades the smooth ramp for a texture that survives LED quantization.'],
+    purpose: 'The aperture from 202 has a shape of its own. Rectangle, Ellipse, Diamond, Ring, and Rounded box are authored silhouettes on the Clip Viewport, and every silhouette carries an edge treatment. Shaped apertures feather Soft by default - smooth is almost always what you want - and Hard and Stable Dither are the deliberate exceptions. Shape and edge are placement geometry owned by the Clip, separate from Content and from Effects.',
+    notice: 'Nothing moves in this lesson. The same rose sits behind the same frame while only the silhouette changes at its Soft default, and in the last passage only the edge hardens. The Ring makes the difference visceral: the bed shows straight through its center, and cutting it Hard shows exactly what the feather was doing for you.',
+    prompts: ["Change the second Clip's aperture from Ellipse to Diamond - the frame, Content, Pattern time, and the Soft feather never notice.", 'On the last Clip, switch the Hard edge back to Soft, then try Stable Dither: Dither trades the smooth ramp for a texture that survives LED quantization.'],
     guideHeading: 'aperture-shapes-and-edges',
     output: portableOutput(), zones, layouts: [singleLayout(zones)], scenes, composition,
   })
@@ -1647,23 +1653,24 @@ function easingReference(): StockShow {
 }
 
 // The Aperture Shapes reference carries the full silhouette-by-edge matrix
-// that 207 deliberately abbreviates: every supported silhouette at an
-// explicit hard edge, one corner-radius variant, then the Ring across its
-// three edge treatments. The subject, frame, bed, and clocks never change,
-// so each passage has exactly one attributable variable. Eight passages sits
-// at the reference ceiling; anything finer belongs in the inspector.
+// that 207 deliberately abbreviates: every supported silhouette at its Soft
+// default (smooth is the doctrine; Hard is the conscious exception), one
+// corner-radius variant, then the Ring across its three edge treatments.
+// The subject, frame, bed, and clocks never change, so each passage has
+// exactly one attributable variable. Eight passages sits at the reference
+// ceiling; anything finer belongs in the inspector.
 function apertureShapesReference(): StockShow {
   const id = 'stock-show-reference-aperture-shapes'
   const zones = logicalZones(['Main'], PORTABLE_REFERENCE_PIXELS)
   const frame = { enabled: true, x: 0.25, y: 0.25, width: 0.5, height: 0.5 }
   const variants = [
     { id: 'rectangle', label: 'Rectangle', detail: 'The plain frame with its default hard cut.', viewport: { ...frame } },
-    { id: 'ellipse', label: 'Ellipse', detail: 'The inscribed oval; corners of the frame fall away.', viewport: { ...frame, aperture: 'ellipse' as const, edge: 'hard' as const } },
-    { id: 'diamond', label: 'Diamond', detail: 'The inscribed diamond; edges run corner to corner.', viewport: { ...frame, aperture: 'diamond' as const, edge: 'hard' as const } },
-    { id: 'rounded-box', label: 'Rounded box', detail: 'The frame with its corners rounded at the default radius.', viewport: { ...frame, aperture: 'rounded-box' as const, edge: 'hard' as const, cornerRadius: 0.12 } },
-    { id: 'rounded-box-wide', label: 'Rounded box, wide radius', detail: 'The same box at a wide corner radius: radius is a shape parameter, not an edge treatment.', viewport: { ...frame, aperture: 'rounded-box' as const, edge: 'hard' as const, cornerRadius: 0.3 } },
-    { id: 'ring', label: 'Ring', detail: 'An annulus: the bed shows through the center, which no box can do.', viewport: { ...frame, aperture: 'ring' as const, edge: 'hard' as const } },
-    { id: 'ring-soft', label: 'Ring, Soft edge', detail: 'The same Ring with both boundaries feathered.', viewport: { ...frame, aperture: 'ring' as const, edge: 'soft' as const } },
+    { id: 'ellipse', label: 'Ellipse', detail: 'The inscribed oval at its Soft default; corners of the frame fall away.', viewport: { ...frame, aperture: 'ellipse' as const } },
+    { id: 'diamond', label: 'Diamond', detail: 'The inscribed diamond at its Soft default; edges run corner to corner.', viewport: { ...frame, aperture: 'diamond' as const } },
+    { id: 'rounded-box', label: 'Rounded box', detail: 'The frame with its corners rounded at the default radius.', viewport: { ...frame, aperture: 'rounded-box' as const, cornerRadius: 0.12 } },
+    { id: 'rounded-box-wide', label: 'Rounded box, wide radius', detail: 'The same box at a wide corner radius: radius is a shape parameter, not an edge treatment.', viewport: { ...frame, aperture: 'rounded-box' as const, cornerRadius: 0.3 } },
+    { id: 'ring-soft', label: 'Ring, Soft edge', detail: 'An annulus at its Soft default: the bed shows through the center, which no box can do.', viewport: { ...frame, aperture: 'ring' as const, edge: 'soft' as const } },
+    { id: 'ring-hard', label: 'Ring, Hard edge', detail: 'The same Ring cut Hard - the deliberate exception that shows what the feather was doing.', viewport: { ...frame, aperture: 'ring' as const, edge: 'hard' as const } },
     { id: 'ring-dither', label: 'Ring, Stable Dither', detail: 'The same Ring with a stable dithered edge that survives LED quantization.', viewport: { ...frame, aperture: 'ring' as const, edge: 'dither' as const } },
   ]
   const scenes: SceneSpec[] = variants.map((variant) => (
@@ -1698,8 +1705,8 @@ function apertureShapesReference(): StockShow {
   }
   return catalogue({
     id, title: 'Aperture Shapes', track: 'portable', collection: 'showcases', level: null, order: 9,
-    purpose: 'Every Clip Viewport silhouette over one held frame, then one silhouette across its three edge treatments. The subject, bed, frame, and clocks never change, so each passage has exactly one attributable variable.',
-    notice: 'The first five passages change only the silhouette at a hard edge, the wide-radius passage shows corner radius is shape rather than edge, and the last two hold the Ring while only its edge treatment changes.',
+    purpose: 'Every Clip Viewport silhouette over one held frame, then one silhouette across its three edge treatments. Shaped silhouettes keep their Soft default - smooth is almost always what you want. The subject, bed, frame, and clocks never change, so each passage has exactly one attributable variable.',
+    notice: 'The first five passages change only the silhouette at its Soft default, the wide-radius passage shows corner radius is shape rather than edge, and the last three hold the Ring while only its edge treatment changes - Soft, then the deliberate Hard cut, then Stable Dither.',
     prompts: ['Swap the subject Pattern and watch every silhouette keep its geometry.', 'Open any passage and drag the corner radius or edge softness - the reference values are starting points, not limits.'],
     guideHeading: 'aperture-shapes-reference',
     defaultOpen: true,

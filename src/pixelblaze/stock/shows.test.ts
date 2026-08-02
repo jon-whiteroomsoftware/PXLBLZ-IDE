@@ -389,19 +389,21 @@ describe('stock Show curriculum (#363)', () => {
         }
       }
     })
-    // The soft passage rendered hard: at t=14 every difference against the
-    // authored fixture lies in the feather bands and nowhere else.
-    const hardened = variant((entry) => {
-      if (entry.viewport && entry.viewport.edge === 'soft') {
-        entry.viewport = { ...entry.viewport, edge: 'hard' }
+    // The deliberate Hard passage rendered at the Soft default instead: at
+    // t=14 every difference against the authored fixture lies in the feather
+    // bands and nowhere else.
+    const softened = variant((entry) => {
+      if (entry.viewport && entry.viewport.edge === 'hard') {
+        const { edge: _edge, ...rest } = entry.viewport
+        entry.viewport = rest
       }
     })
     const compiledShaped = compileShowForArtifact(item.show, [], undefined, {}, { stageDimension: 2 })
     const compiledFlat = compileShowForArtifact(flattened, [], undefined, {}, { stageDimension: 2 })
-    const compiledHardened = compileShowForArtifact(hardened, [], undefined, {}, { stageDimension: 2 })
+    const compiledSoftened = compileShowForArtifact(softened, [], undefined, {}, { stageDimension: 2 })
     expect(compiledShaped.error).toBeNull()
     expect(compiledFlat.error).toBeNull()
-    expect(compiledHardened.error).toBeNull()
+    expect(compiledSoftened.error).toBeNull()
 
     const mapPoints = SOURCE_STOCK_MAPS.find((map) => map.id === 'plane')!.resolve(1_936)
     const runtime = (code: string, metadata: Parameters<typeof loadPattern>[1]) => {
@@ -425,7 +427,7 @@ describe('stock Show curriculum (#363)', () => {
     }
     const shaped = runtime(compiledShaped.artifact!.code, compiledShaped.artifact!.metadata)
     const flat = runtime(compiledFlat.artifact!.code, compiledFlat.artifact!.metadata)
-    const hard = runtime(compiledHardened.artifact!.code, compiledHardened.artifact!.metadata)
+    const soft = runtime(compiledSoftened.artifact!.code, compiledSoftened.artifact!.metadata)
     const indexAt = (x: number, y: number) => Math.round(y * 43) * 44 + Math.round(x * 43)
     const PIXELS = {
       outside: [indexAt(0.1, 0.1), indexAt(0.9, 0.9)],
@@ -437,25 +439,25 @@ describe('stock Show curriculum (#363)', () => {
     const sampleAll = (deltaMs: number) => {
       shaped.advance(deltaMs)
       flat.advance(deltaMs)
-      hard.advance(deltaMs)
+      soft.advance(deltaMs)
       return Object.fromEntries(Object.entries(PIXELS).map(([key, indices]) => [
         key,
         {
           shaped: indices.map((index) => shaped.sample(index)),
           flat: indices.map((index) => flat.sample(index)),
-          hard: indices.map((index) => hard.sample(index)),
+          soft: indices.map((index) => soft.sample(index)),
         },
       ]))
     }
 
     const rectangle = sampleAll(2_000)   // t=2: all three variants are the plain frame
-    const ellipse = sampleAll(4_000)     // t=6: silhouette is the only change
+    const ellipse = sampleAll(4_000)     // t=6: silhouette changes at its Soft default
     const ring = sampleAll(4_000)        // t=10: the center opens
-    const ringSoft = sampleAll(4_000)    // t=14: only the edge softens
+    const ringHard = sampleAll(4_000)    // t=14: only the edge hardens
 
-    for (const frame of [rectangle, ellipse, ring, ringSoft]) {
+    for (const frame of [rectangle, ellipse, ring, ringHard]) {
       expect(frame.outside.shaped).toEqual(frame.outside.flat)
-      expect(frame.outside.shaped).toEqual(frame.outside.hard)
+      expect(frame.outside.shaped).toEqual(frame.outside.soft)
     }
     expect(rectangle.center.shaped).toEqual(rectangle.center.flat)
     expect(rectangle.frameCorner.shaped).toEqual(rectangle.frameCorner.flat)
@@ -463,16 +465,16 @@ describe('stock Show curriculum (#363)', () => {
     expect(ellipse.frameCorner.shaped).not.toEqual(ellipse.frameCorner.flat)
     expect(ring.center.shaped).not.toEqual(ring.center.flat)
 
-    // Before the soft passage the hardened variant is byte-identical to the
+    // Before the Hard passage the softened variant is byte-identical to the
     // authored fixture; at t=14 its differences must exist and stay confined
     // to the feather region.
     for (const frame of [rectangle, ellipse, ring]) {
       for (const key of ['center', 'frameCorner', 'ringBand'] as const) {
-        expect(frame[key].shaped).toEqual(frame[key].hard)
+        expect(frame[key].shaped).toEqual(frame[key].soft)
       }
     }
-    expect(ringSoft.center.shaped).toEqual(ringSoft.center.hard)
-    expect(ringSoft.ringBand.shaped).not.toEqual(ringSoft.ringBand.hard)
+    expect(ringHard.center.shaped).toEqual(ringHard.center.soft)
+    expect(ringHard.ringBand.shaped).not.toEqual(ringHard.ringBand.soft)
   })
 
   it('keeps the first lesson to Cuts, blank time, and an explicit Show End', () => {
