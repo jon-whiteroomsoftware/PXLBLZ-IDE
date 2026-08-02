@@ -33,17 +33,21 @@ const SIGNATURE_NAME_FIRST_RE = new RegExp(`^(.{1,60}?)\\s+(?:${SIGNATURE_VERSIO
 const SIGNATURE_NAME_MAX_WORDS = 3
 const SIGNATURE_STOP_WORDS = new Set([
   'added', 'adjusted', 'bugfix', 'bugfixes', 'changed', 'cleaned', 'cleanup',
-  'created', 'enhanced', 'final', 'fixed', 'fixes', 'improved', 'initial',
+  'created', 'draft', 'enhanced', 'final', 'fix', 'fixed', 'fixes', 'fixup',
+  'hack', 'improved', 'initial',
   'major', 'merged', 'minor', 'misc', 'modified', 'moved', 'optimized',
-  'polished', 'ported', 'reduced', 'refactored', 'release', 'released',
+  'polished', 'port', 'ported', 'redo', 'reduced', 'refactor', 'refactored',
+  'release', 'released',
   'removed', 'renamed', 'restored', 'reverted', 'revised', 'reworked',
   'rewritten', 'rewrote', 'simplified', 'tweaked', 'update', 'updated',
   'updates', 'various', 'version', 'wip',
 ])
-// Lowercase particles legitimate inside multi-word names ("Ludwig van Beethoven").
+// Lowercase particles legitimate inside multi-word names ("Ludwig van
+// Beethoven"). Ordinary prose words ("the", "of") stay out: a particle is
+// treated as proof of a name, so the set must never overlap plain English.
 const SIGNATURE_NAME_PARTICLES = new Set([
   'bin', 'da', 'de', 'del', 'della', 'di', 'du', 'el', 'ibn', 'la', 'le',
-  'of', 'ten', 'ter', 'the', 'van', 'von',
+  'ten', 'ter', 'van', 'von',
 ])
 
 export function extractPatternAuthors(source: string): string[] {

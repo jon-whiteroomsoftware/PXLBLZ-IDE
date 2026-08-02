@@ -80,6 +80,7 @@ ${body}`)).toEqual(['ZRanger1'])
       expect(extractPatternAuthors(`// 2022-10-09 Alfred Jones${body}`)).toEqual([])
       expect(extractPatternAuthors(`// 2022-10-09 Corrected Render Cache${body}`)).toEqual([])
       expect(extractPatternAuthors(`// 2022-10-09 Reordered Palette${body}`)).toEqual([])
+      expect(extractPatternAuthors(`// 2022-10-09 Fix the Cache${body}`)).toEqual([])
     })
 
     it('accepts a leading version token before the date', () => {
