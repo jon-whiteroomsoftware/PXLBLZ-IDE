@@ -7,7 +7,7 @@ describe('Restart-instance global-liveness census (#536)', () => {
     // Recensused with the #363 Learn recast, when the Learn 200 composition
     // lessons landed (six 100-level plus six 200-level lessons), and again
     // with the three Learn 300 Output and Delivery lessons.
-    expect(report.summary.savedShowCount).toBe(24)
+    expect(report.summary.savedShowCount).toBe(25)
     expect(report.cases.some((entry) => entry.kind === 'five-pattern-acceptance')).toBe(true)
     expect(report.summary.compileFailures).toEqual([])
   })
@@ -55,18 +55,19 @@ describe('Restart-instance global-liveness census (#536)', () => {
     // Recensused with the #363 Learn recast, again when 106 gained its
     // second and third Transitions, again when the Learn 200 lessons
     // landed, again when #663 gave stepped members a priming flag (one new
-    // global on the corpus's single stepped member), and again with the
-    // Learn 300 lessons. Every Learn addition brings member globals without
+    // global on the corpus's single stepped member), again with the Learn
+    // 300 lessons, and again with the 100 Getting Around tour. Every Learn
+    // addition brings member globals without
     // Restart members, so the unweighted percent stays at zero and the
     // weighted figure now falls below the threshold instead of hovering at
     // it; the gate reads the unweighted percent, so the verdict is
     // unchanged.
     expect(report.summary).toMatchObject({
-      representativeMemberGlobals: 2_587,
+      representativeMemberGlobals: 2_666,
       representativeReclaimedGlobals: 373,
     })
     expect(report.decision.representativeReclaimPercent).toBe(0)
-    expect(report.decision.weightedRepresentativeReclaimPercent).toBeCloseTo(0.14418245, 8)
+    expect(report.decision.weightedRepresentativeReclaimPercent).toBeCloseTo(0.13990998, 8)
     expect(report.decision.ceilingRescues).toEqual([])
     expect(report.decision.proceedWithEmission).toBe(false)
     expect(report.decision.proceedWithEmission).toBe(

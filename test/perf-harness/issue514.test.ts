@@ -29,7 +29,7 @@ describe('Show render-target residual-headroom census (#514)', () => {
     // 303 joins as a portable-2d Show, while the two 160-pixel sunflower
     // Installations sit outside this census's 2,000-pixel render-target
     // headroom question by the existing filter.
-    expect(report.summary.savedShowCount).toBe(22)
+    expect(report.summary.savedShowCount).toBe(23)
     expect(report.summary.savedShowRejections).toHaveLength(0)
     expect(report.summary.savedShowRejections.every((entry) => !entry.failsSolelyBecauseOfReservation)).toBe(true)
   })

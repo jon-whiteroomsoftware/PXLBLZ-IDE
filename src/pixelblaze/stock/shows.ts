@@ -34,7 +34,7 @@ export interface StockShowNote {
   notice: string
   prompts: readonly [string, string]
   guide: {
-    documentId: 'show-visual-toolkit'
+    documentId: 'show-visual-toolkit' | 'keyboard-shortcuts'
     heading: string
     label: string
   }
@@ -80,6 +80,8 @@ type CatalogueInput = {
   notice: string
   prompts: readonly [string, string]
   guideHeading: string
+  guideDocumentId?: StockShowNote['guide']['documentId']
+  guideLabel?: string
   defaultOpen?: boolean
   output: { kind: 'portable'; mapId: string; pixelCount: number }
     | { kind: 'installation'; mapId: string; pixelCount: number }
@@ -112,6 +114,7 @@ const CARDINAL_DIRECTIONS = [
 ] as const
 
 export const STOCK_SHOWS: StockShow[] = [
+  learn100(),
   learn101(), learn102(), learn103(), learn104(), learn105(), learn106(),
   learn201(), learn202(), learn203(), learn204(), learn205(), learn206(),
   learn301(), learn302(), learn303(),
@@ -123,6 +126,58 @@ export const STOCK_SHOWS: StockShow[] = [
 
 export function stockShowById(id: string | null | undefined): StockShow | undefined {
   return id ? STOCK_SHOWS.find((item) => item.id === id) : undefined
+}
+
+// 100 is the tour: it exists so the learner can move, not so it can teach an
+// authoring concept. The content is deliberately furniture - the 101 pair
+// carries the main row, GlyphRain (82% dark) sits on a second Layer as a
+// drag target and zoom landmark, and the four-second blank tail is the
+// double-click target the first prompt needs. The note is deliberately
+// non-exhaustive; restraint is part of the course doctrine, and the guide
+// handoff points at the Keyboard Shortcuts reference instead of the visual
+// toolkit because the tools, not the picture, are the lesson.
+function learn100(): StockShow {
+  const id = 'stock-show-100-getting-around'
+  const zones = logicalZones(['Main'], PORTABLE_REFERENCE_PIXELS)
+  const scenes: SceneSpec[] = [
+    scene('tour', 'Tour', 16, [clip('zone-1', 'RibbonLoom', LESSON_TIME_SCALE)]),
+  ]
+  const composition: ShowCompositionV1 = {
+    version: 1,
+    patternInstances: [
+      instance('ribbons', 'RibbonLoom', LESSON_TIME_SCALE),
+      instance('garden', 'MetaballGarden', LESSON_TIME_SCALE),
+      instance('glyphs', 'GlyphRain', LESSON_TIME_SCALE),
+    ],
+    scenes: [{
+      sceneId: 'tour',
+      zones: [{
+        zoneId: 'zone-1',
+        main: [
+          placement('clip-ribbons', 'ribbons', 0, 6),
+          placement('clip-garden', 'garden', 6, 6),
+          // Four seconds of empty Layer before Show End: the double-click
+          // target the first Try-this asks for.
+        ],
+        overlays: [{
+          id: 'layer-upper',
+          name: 'Upper Layer',
+          placements: [{ ...placement('clip-glyphs', 'glyphs', 3, 6), opacity: 0.5 }],
+        }],
+      }],
+    }],
+    durationMs: 16_000,
+  }
+  return catalogue({
+    id, title: 'Getting Around', track: 'portable', collection: 'learn', level: 100, order: 0,
+    purpose: 'This Show is a playground, not a piece: it exists so you can learn to move. Space plays and pauses from almost anywhere. Command/Ctrl+wheel zooms the timeline around the playhead and Shift+wheel pans it. The Navigator strip drags and resizes your view of a long Show. And whatever you break, Reset restores this lesson exactly.',
+    notice: 'The fastest edits hide in plain sight: double-click an empty stretch of a Layer to place a Clip there, hold Option/Alt before dragging a Clip to carry away an independent duplicate, drag a Clip between Layer rows, and hold Option/Alt while resizing or scrubbing to temporarily reverse Snap. This tour is deliberately incomplete - the guide below is the full map.',
+    prompts: ['Double-click the empty stretch after the last Clip and pick any Pattern: the chooser places a Clip right where you clicked.', 'Hold Option/Alt and drag the first Clip anywhere - you get an independent copy and the original never moves. Try dropping it on the upper Layer row, then press Reset.'],
+    guideHeading: 'creating-and-arranging-clips',
+    guideDocumentId: 'keyboard-shortcuts',
+    guideLabel: 'Read the full shortcut reference',
+    output: portableOutput(), zones, layouts: [singleLayout(zones)], scenes, composition,
+  })
 }
 
 // 101 pairs sparse linework against a solid field so the Cut, the gap, and Show
@@ -1754,7 +1809,11 @@ function catalogue(input: CatalogueInput): StockShow {
     label: input.level ? `Learn ${input.level}` : 'Showcases',
     ...(number ? { number } : {}), title: input.title, purpose: input.purpose, notice: input.notice,
     prompts: input.prompts,
-    guide: { documentId: 'show-visual-toolkit', heading: input.guideHeading, label: `Read ${input.title.toLowerCase()}` },
+    guide: {
+      documentId: input.guideDocumentId ?? 'show-visual-toolkit',
+      heading: input.guideHeading,
+      label: input.guideLabel ?? `Read ${input.title.toLowerCase()}`,
+    },
     defaultOpen: input.defaultOpen ?? input.collection === 'learn',
   }
   return {

@@ -28,9 +28,10 @@ import { STOCK_SHOWS, stockShowById } from './shows'
 
 describe('stock Show curriculum (#363)', () => {
   it('ships the stable Learn 100, Learn 200, Learn 300, and showcase catalogue', () => {
-    expect(STOCK_SHOWS).toHaveLength(24)
+    expect(STOCK_SHOWS).toHaveLength(25)
     expect(new Set(STOCK_SHOWS.map((item) => item.id)).size).toBe(STOCK_SHOWS.length)
     expect(STOCK_SHOWS.map((item) => [item.name, item.collection, item.level, item.order])).toEqual([
+      ['100 Getting Around', 'learn', 100, 0],
       ['101 Clips, Cuts, and Blank Time', 'learn', 100, 1],
       ['102 Transitions and Values', 'learn', 100, 2],
       ['103 Clip Transform', 'learn', 100, 3],
@@ -183,7 +184,12 @@ describe('stock Show curriculum (#363)', () => {
       expect(item.note.purpose, item.name).not.toBe('')
       expect(item.note.notice, item.name).not.toBe('')
       expect(item.note.prompts, item.name).toHaveLength(2)
-      expect(item.note.guide.documentId, item.name).toBe('show-visual-toolkit')
+      // 100 Getting Around hands off to the Keyboard Shortcuts reference;
+      // every concept lesson hands off to the visual toolkit guide.
+      expect(
+        item.id === 'stock-show-100-getting-around' ? 'keyboard-shortcuts' : 'show-visual-toolkit',
+        item.name,
+      ).toBe(item.note.guide.documentId)
       expect(item.note.guide.heading, item.name).toMatch(/^[a-z0-9-]+$/)
       const guideHeadings = getUserDoc(item.note.guide.documentId)!.source
         .split('\n')
@@ -203,6 +209,7 @@ describe('stock Show curriculum (#363)', () => {
     'RedlineMachine', 'RedlineMachinePortable',
   ]
   const FOUNDATION_IDS = [
+    'stock-show-100-getting-around',
     'stock-show-101-clips-cuts-blank-time',
     'stock-show-102-transitions-values',
     'stock-show-103-clip-transform',
@@ -225,12 +232,13 @@ describe('stock Show curriculum (#363)', () => {
   ]
   const LESSON_IDS = [...FOUNDATION_IDS, ...COMPOSITION_IDS, ...OUTPUT_IDS]
   // Simultaneity is itself the subject from 105 onward, so those two lessons
-  // are allowed the second Zone the earlier four must do without. At the 200
-  // level simultaneity lives on Layers, so only 206 - where changing routed
-  // topology is the lesson - carries a second Zone. The 300 level is about
-  // physical ownership, and its banks are Zones by definition.
+  // are allowed the second Zone the earlier five must do without (the 100
+  // tour included). At the 200 level simultaneity lives on Layers, so only
+  // 206 - where changing routed topology is the lesson - carries a second
+  // Zone. The 300 level is about physical ownership, and its banks are Zones
+  // by definition.
   const SINGLE_ZONE_IDS = [
-    ...FOUNDATION_IDS.slice(0, 4),
+    ...FOUNDATION_IDS.slice(0, 5),
     ...COMPOSITION_IDS.slice(0, 5),
     'stock-show-303-compile-simplify-deliver',
   ]
@@ -328,6 +336,26 @@ describe('stock Show curriculum (#363)', () => {
           : 2
       expect(item.show.zones, item.name).toHaveLength(expected)
     }
+  })
+
+  it('keeps the 100 tour furnished for its gestures rather than a concept', () => {
+    // The two prompts and the notice need specific furniture: an empty
+    // stretch of Layer to double-click, a second Layer row to drag onto, and
+    // calm content that never competes with the tools.
+    const item = stockShowById('stock-show-100-getting-around')!
+    const composition = item.show.composition!
+    const zone = composition.scenes[0].zones[0]
+    const mainEnd = Math.max(...zone.main.map((entry) => entry.startMs + entry.durationMs))
+    expect(composition.durationMs).toBe(16_000)
+    expect(mainEnd).toBeLessThanOrEqual(16_000 - 3_000)
+    const overlay = zone.overlays[0]
+    expect(zone.overlays).toHaveLength(1)
+    expect(overlay?.placements).toHaveLength(1)
+    // Static half opacity: the overlay is a drag target and zoom landmark,
+    // not a Property-animation preview of 201.
+    expect(overlay?.placements[0]?.opacity).toBe(0.5)
+    expect(item.show.composition!.scenes[0].propertyTracks ?? []).toEqual([])
+    expect(item.show.transitions ?? []).toEqual([])
   })
 
   it('keeps the first lesson to Cuts, blank time, and an explicit Show End', () => {
