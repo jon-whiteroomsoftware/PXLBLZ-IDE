@@ -1496,6 +1496,11 @@ test.describe('authenticated Show authoring', () => {
     await expect(page.getByLabel('Split position duration seconds exact time')).toHaveValue('1.2')
     await expect(page.getByLabel('Split position easing')).toHaveValue('ease-in-out')
     await expect(page.getByText(/moving split: 1 scalar/i)).toBeVisible()
+    // Close the transition Detail panel before reaching for the header: its
+    // anchored placement can cover the View code button and intercept the
+    // click (#683).
+    await page.keyboard.press('Escape')
+    await expect(page.getByRole('dialog', { name: 'Entity Detail Panel' })).toHaveCount(0)
     await page.getByRole('button', { name: 'View code' }).click()
     await expect(page.getByText('Generated pattern - Untitled Show')).toBeVisible()
     await page.getByRole('button', { name: 'Back to show' }).click()
@@ -1937,7 +1942,20 @@ async function addEffect(page: Page, stack: Locator, query: string, label: strin
   await expect(palette).toHaveCount(0)
 }
 
+// The rail toggle and map control render only after the Show editor loads,
+// which can lag a goto or reload under full-suite parallel load. The bare
+// count() checks below decide whether a step is needed; without first waiting
+// for whichever control currently applies, they race that render and silently
+// skip the step (#683).
+async function awaitZoneRailControls(page: Page): Promise<void> {
+  const openZones = page.getByRole('button', { name: 'Open Zones' })
+  const openMap = page.getByRole('button', { name: 'Open Zone Map' })
+  const zoneMap = page.getByRole('dialog', { name: 'Zone Map' })
+  await expect(openZones.or(openMap).or(zoneMap).first()).toBeVisible()
+}
+
 async function openZoneLayout(page: Page, layoutName: string): Promise<void> {
+  await awaitZoneRailControls(page)
   const openZones = page.getByRole('button', { name: 'Open Zones' })
   if (await openZones.count() > 0) await openZones.click()
   // The map control lives in the rail's own column header, so it does not exist
@@ -1950,11 +1968,16 @@ async function openZoneLayout(page: Page, layoutName: string): Promise<void> {
 }
 
 async function addZoneLayout(page: Page, name: string): Promise<void> {
+  await awaitZoneRailControls(page)
   const openZones = page.getByRole('button', { name: 'Open Zones' })
   if (await openZones.count() > 0) await openZones.click()
-  const openMap = page.getByRole('button', { name: 'Open Zone Map' })
-  if (await openMap.count() > 0) await openMap.click()
-  await page.getByRole('dialog', { name: 'Zone Map' }).getByRole('button', { name: 'Add Zone Layout' }).click()
+  const zoneMap = page.getByRole('dialog', { name: 'Zone Map' })
+  if (await zoneMap.count() === 0) {
+    const openMap = page.getByRole('button', { name: 'Open Zone Map' })
+    await expect(openMap).toBeVisible()
+    await openMap.click()
+  }
+  await zoneMap.getByRole('button', { name: 'Add Zone Layout' }).click()
   await page.getByLabel('Zone Layout name New layout').fill(name)
 }
 

@@ -18,6 +18,10 @@ export default defineConfig({
   workers: authenticatedPlaywrightWorkerCount,
   reporter: 'list',
   globalSetup: './e2e/auth.global-setup.ts',
+  // All workers share one wrangler pages dev process, so /api/me and personal
+  // content loads can push a Studio route's first paint past Playwright's 5s
+  // default under full-suite parallel load (#683).
+  expect: { timeout: 15_000 },
   use: {
     baseURL: studioBaseUrl,
     trace: 'on-first-retry',
