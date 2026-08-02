@@ -640,12 +640,22 @@ export class PixelblazeConnection {
     try {
       msg = JSON.parse(data)
     } catch {
-      // Firmware emits bare NaN for uninitialized control values (observed on
-      // 3.x activeProgram frames), which is not JSON. Dropping the frame makes
-      // getConfig wait forever for activeProgram, so sanitize and re-parse
-      // before giving up on the frame.
+      // Firmware emits bare NaN/Infinity for uninitialized control values
+      // (observed on 3.x activeProgram frames), which is not JSON. Dropping
+      // the frame makes getConfig wait forever for activeProgram. Revive the
+      // tokens as real non-finite numbers so controls keep their declared
+      // Record<string, number> shape and panels apply their existing
+      // non-finite handling.
       try {
-        msg = JSON.parse(data.replace(/(:\s*)(?:NaN|-?Infinity)(\s*[,}\]])/g, '$1null$2'))
+        msg = JSON.parse(
+          data.replace(/(:\s*)(-?Infinity|NaN)(\s*[,}\]])/g, '$1"__pxlblz_nonfinite_$2"$3'),
+          (_key, value) => {
+            if (value === '__pxlblz_nonfinite_NaN') return Number.NaN
+            if (value === '__pxlblz_nonfinite_Infinity') return Number.POSITIVE_INFINITY
+            if (value === '__pxlblz_nonfinite_-Infinity') return Number.NEGATIVE_INFINITY
+            return value
+          },
+        )
       } catch {
         return // ignore malformed frames rather than crash the connection
       }

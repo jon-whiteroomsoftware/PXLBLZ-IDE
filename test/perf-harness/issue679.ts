@@ -6,7 +6,7 @@
 // stack, plus a no-viewport baseline and a coverage-disabled counterfactual.
 // The runner is reversible: active pattern and pixel count restore in finally.
 
-import { writeFileSync } from 'node:fs'
+import { mkdirSync, writeFileSync } from 'node:fs'
 import vm from 'node:vm'
 import WebSocket from 'ws'
 import { compileShow } from '../../src/engine/showCompiler'
@@ -248,6 +248,7 @@ ${rows}
 `
   // Compile-only runs must not clobber the archived hardware measurements.
   const destination = hardware ? REPORT : 'reports/issue-679-aperture-matrix.compile-only.md'
+  if (!hardware) mkdirSync('reports', { recursive: true })
   writeFileSync(destination, report)
   console.log(`\nreport -> ${destination}`)
 }

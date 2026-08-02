@@ -538,10 +538,13 @@ describe('PixelblazeConnection', () => {
       socket.simulateMessage(
         '{"activeProgram":{"name":"ClockworkIris","activeProgramId":"pat9","controls":{"sliderSpeed":0,"sliderTeeth":NaN,"sliderColor":2.185689e-38}},"sequencerMode":0}',
       )
-      await expect(promise).resolves.toMatchObject({
-        activeProgramId: 'pat9',
-        activeControls: { sliderSpeed: 0, sliderTeeth: null, sliderColor: 2.185689e-38 },
-      })
+      const config = await promise
+      expect(config.activeProgramId).toBe('pat9')
+      expect(config.activeControls?.sliderSpeed).toBe(0)
+      expect(config.activeControls?.sliderColor).toBe(2.185689e-38)
+      // Non-finite values stay numbers, matching the ControllerConfig
+      // contract; panels already treat them as visible-but-unset sliders.
+      expect(config.activeControls?.sliderTeeth).toBeNaN()
     })
 
     it('getConfig leaves name undefined when the settings packet carries none', async () => {
