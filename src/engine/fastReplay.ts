@@ -50,6 +50,14 @@ export interface CooperativeFastReplayOptions extends FastReplayAdvanceOptions {
   yieldControl?: () => Promise<void>
 }
 
+function replayTargetEpsilonMs(stepMs: number): number {
+  return Math.max(1e-9, stepMs * 1e-9)
+}
+
+function replayTargetReached(elapsedMs: number, targetMs: number, stepMs: number): boolean {
+  return targetMs - elapsedMs <= replayTargetEpsilonMs(stepMs)
+}
+
 export function prepareFastReplay(
   source: string,
   libraries: Record<string, string>,
@@ -139,8 +147,8 @@ export function createFastReplayRuntime(
       if (clearsTemporalFeedback && !handle.setPatternVar(previewSeekModeVar!, 1)) {
         throw new Error(`Fast replay temporal seek variable "${previewSeekModeVar}" is unavailable.`)
       }
-      const epsilonMs = Math.max(1e-9, advance.stepMs * 1e-9)
-      while (targetMs - clock.getTime() > epsilonMs) {
+      const epsilonMs = replayTargetEpsilonMs(advance.stepMs)
+      while (!replayTargetReached(clock.getTime(), targetMs, advance.stepMs)) {
         const remainingMs = targetMs - clock.getTime()
         const finalStep = remainingMs <= advance.stepMs + epsilonMs
         if (finalStep && presentsTargetFrame) {
@@ -168,15 +176,18 @@ export async function advanceFastReplayCooperatively(
   const yieldControl = options.yieldControl ?? (() => new Promise<void>((resolve) => setTimeout(resolve, 0)))
   let result: FastReplayResult | null = null
 
-  while (runtime.getElapsedMs() < targetMs) {
+  while (
+    runtime.getElapsedMs() < targetMs
+    && (result === null || !replayTargetReached(runtime.getElapsedMs(), targetMs, options.stepMs))
+  ) {
     if (!options.isCurrent()) return null
     const chunkTargetMs = Math.min(targetMs, runtime.getElapsedMs() + options.chunkMs)
     result = runtime.advanceTo(chunkTargetMs, {
       stepMs: options.stepMs,
       temporalFeedbackSeek: options.temporalFeedbackSeek,
-      presentTargetFrame: chunkTargetMs >= targetMs,
+      presentTargetFrame: replayTargetReached(chunkTargetMs, targetMs, options.stepMs),
     })
-    if (runtime.getElapsedMs() < targetMs) {
+    if (!replayTargetReached(runtime.getElapsedMs(), targetMs, options.stepMs)) {
       await yieldControl()
       if (!options.isCurrent()) return null
     }

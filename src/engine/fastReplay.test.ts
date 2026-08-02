@@ -220,6 +220,29 @@ describe('Fast replay reconstruction', () => {
     expect(result.outerRendererCalls).toBe(3600)
   })
 
+  it('finishes cooperative replay at an exact fixed-step boundary (#681)', async () => {
+    const prepared = prepareFastReplay(RENDER_MUTATING_PATTERN, {})
+    const options = { mapPoints: lineMap(1), randomSeed: 681 }
+    const targetMs = 10_000
+    const stepMs = 1000 / 60
+    const expected = createFastReplayRuntime(prepared, options).advanceTo(targetMs, { stepMs })
+    const runtime = createFastReplayRuntime(prepared, options)
+    let yields = 0
+
+    const result = await advanceFastReplayCooperatively(runtime, targetMs, {
+      stepMs,
+      chunkMs: 250,
+      isCurrent: () => yields < 50,
+      yieldControl: async () => { yields += 1 },
+    })
+
+    expect(result).not.toBeNull()
+    expect(targetMs - runtime.getElapsedMs()).toBeLessThanOrEqual(stepMs * 1e-9)
+    expect(result?.checksum).toBe(expected.checksum)
+    expect(result?.exports).toEqual(expected.exports)
+    expect(yields).toBeLessThan(50)
+  })
+
   it('matches uninterrupted playback when the same runtime advances in segments', () => {
     const prepared = prepareFastReplay(RANDOM_PATTERN, {})
     const options = { mapPoints: lineMap(16), randomSeed: 412 }
