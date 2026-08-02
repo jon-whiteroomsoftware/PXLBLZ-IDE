@@ -547,6 +547,18 @@ describe('PixelblazeConnection', () => {
       expect(config.activeControls?.sliderTeeth).toBeNaN()
     })
 
+    it('keeps token-like text inside quoted names intact while reviving NaN', async () => {
+      const { conn, socket } = await connected()
+      const promise = conn.getConfig()
+      socket.simulateMessage({ brightness: 0.4, pixelCount: 256 })
+      socket.simulateMessage(
+        '{"activeProgram":{"name":"foo:NaN} -Infinity bar","activeProgramId":"pat10","controls":{"sliderTeeth":NaN}},"sequencerMode":0}',
+      )
+      const config = await promise
+      expect(config.activeProgramId).toBe('pat10')
+      expect(config.activeControls?.sliderTeeth).toBeNaN()
+    })
+
     it('getConfig leaves name undefined when the settings packet carries none', async () => {
       const { conn, socket } = await connected()
       const promise = conn.getConfig()

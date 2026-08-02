@@ -647,15 +647,7 @@ export class PixelblazeConnection {
       // Record<string, number> shape and panels apply their existing
       // non-finite handling.
       try {
-        msg = JSON.parse(
-          data.replace(/(:\s*)(-?Infinity|NaN)(\s*[,}\]])/g, '$1"__pxlblz_nonfinite_$2"$3'),
-          (_key, value) => {
-            if (value === '__pxlblz_nonfinite_NaN') return Number.NaN
-            if (value === '__pxlblz_nonfinite_Infinity') return Number.POSITIVE_INFINITY
-            if (value === '__pxlblz_nonfinite_-Infinity') return Number.NEGATIVE_INFINITY
-            return value
-          },
-        )
+        msg = parseWithNonFiniteTokens(data)
       } catch {
         return // ignore malformed frames rather than crash the connection
       }
@@ -763,4 +755,52 @@ export class PixelblazeConnection {
     this.pending.clear()
     this.emit('close', detail)
   }
+}
+
+/**
+ * JSON.parse for firmware frames carrying bare NaN/Infinity value tokens.
+ * The scan is string-aware, so token-like text inside quoted values (a
+ * Pattern named "foo:NaN}", say) passes through untouched.
+ */
+function parseWithNonFiniteTokens(data: string): Record<string, unknown> {
+  let sanitized = ''
+  let inString = false
+  let escaped = false
+  for (let index = 0; index < data.length; index += 1) {
+    const character = data[index]
+    if (inString) {
+      sanitized += character
+      if (escaped) escaped = false
+      else if (character === '\\') escaped = true
+      else if (character === '"') inString = false
+      continue
+    }
+    if (character === '"') {
+      inString = true
+      sanitized += character
+      continue
+    }
+    if (character === 'N' && data.startsWith('NaN', index)) {
+      sanitized += '"__pxlblz_nonfinite_NaN"'
+      index += 2
+      continue
+    }
+    if (character === 'I' && data.startsWith('Infinity', index)) {
+      sanitized += '"__pxlblz_nonfinite_Infinity"'
+      index += 7
+      continue
+    }
+    if (character === '-' && data.startsWith('-Infinity', index)) {
+      sanitized += '"__pxlblz_nonfinite_-Infinity"'
+      index += 8
+      continue
+    }
+    sanitized += character
+  }
+  return JSON.parse(sanitized, (_key, value) => {
+    if (value === '__pxlblz_nonfinite_NaN') return Number.NaN
+    if (value === '__pxlblz_nonfinite_Infinity') return Number.POSITIVE_INFINITY
+    if (value === '__pxlblz_nonfinite_-Infinity') return Number.NEGATIVE_INFINITY
+    return value
+  })
 }
