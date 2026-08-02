@@ -9,9 +9,14 @@
 // - rotation: signed multi-turn, degrees. The slider covers two turns
 //   centered near the anchor; the full range stays reachable by exact entry.
 // - cycles: signed multi-turn, turns (hue shift, twist).
+import { captureSliderDetent } from './linearNumberPresentation'
+
 const EXACT_NUMBER = /^[+-]?(?:\d+(?:\.\d*)?|\.\d+)(?:e[+-]?\d+)?$/i
 const DEGREE_SUFFIX = /(°|degrees|degree|degs|deg)$/i
 const TURN_SUFFIX = /(turns|turn|t)$/i
+/** Upright and full turns are where authors aim most, so they pull hardest. */
+const WHOLE_TURN_MAGNET = 0.05
+const QUARTER_TURN_MAGNET = 0.02
 
 export type AnglePresentationKind = 'direction' | 'phase' | 'rotation' | 'cycles'
 export type AngleCanonicalUnit = 'degrees' | 'turns'
@@ -41,6 +46,12 @@ export interface ResolvedAnglePresentation extends AnglePresentationBounds {
   sliderMax: number
   /** Direction wraps every slider-derived value onto the canonical cycle. */
   canonicalizeSliderValue?: (turns: number) => number
+  /**
+   * Pointer-only magnetic detents for the multi-turn kinds (#682): every
+   * quarter-turn tick captures, whole turns pull harder, and undetented
+   * travel lands on whole steps.
+   */
+  snapSliderValue?: (turns: number) => number
   neutralPosition?: number
   sliderMarks: AngleSliderMark[]
   format: (turns: number) => string
@@ -116,6 +127,9 @@ export function resolveAnglePresentation(
     ...(kind === 'direction'
       ? { canonicalizeSliderValue: (turns: number) => wrapTurn(clamp(turns, window.min, window.max)) }
       : {}),
+    ...(kind === 'rotation' || kind === 'cycles'
+      ? { snapSliderValue: multiTurnSnap(window, step) }
+      : {}),
     neutralPosition: neutralPosition(kind, window),
     sliderMarks: sliderMarks(kind, unit, window),
     format: (turns) => `${formatDraft(turns)}${suffix}`,
@@ -180,22 +194,41 @@ function sliderMarks(
     const minors = [0.125, 0.375, 0.625, 0.875].map((position) => ({ position, major: false }))
     return [...majors, ...minors]
   }
+  // Every quarter-turn is a tick and every tick is a detent; half turns are
+  // labeled majors so the window reads at a glance (#682).
+  if (span <= 0) return []
   const labelFor = (turns: number) => formatAngleNumber(unit === 'degrees' ? turns * 360 : turns)
-  const majors = [0, 0.5, 1].map((position) => ({
-    position,
-    label: labelFor(window.min + span * position),
-    major: true,
-  }))
-  const quarterTurn = span === 0 ? 0 : 0.25 / span
-  const minors: AngleSliderMark[] = []
-  if (quarterTurn > 0) {
-    for (let position = quarterTurn; position < 1; position += quarterTurn) {
-      if (![0, 0.5, 1].some((major) => Math.abs(position - major) < 1e-9)) {
-        minors.push({ position: Number(position.toFixed(10)), major: false })
-      }
-    }
+  const quarter = 0.25
+  const firstIndex = Math.ceil((window.min - 1e-9) / quarter)
+  const lastIndex = Math.floor((window.max + 1e-9) / quarter)
+  const marks: AngleSliderMark[] = []
+  for (let index = firstIndex; index <= lastIndex; index += 1) {
+    const value = index * quarter
+    const major = index % 2 === 0
+    marks.push({
+      position: Number(((value - window.min) / span).toFixed(10)),
+      ...(major ? { label: labelFor(value) } : {}),
+      major,
+    })
   }
-  return [...majors, ...minors]
+  return marks
+}
+
+function multiTurnSnap(
+  window: { min: number; max: number },
+  step: number,
+): (turns: number) => number {
+  return (turns) => {
+    const bounded = clamp(turns, window.min, window.max)
+    if (bounded === window.min || bounded === window.max) return bounded
+    const candidates = [
+      { value: Math.round(bounded), magnet: WHOLE_TURN_MAGNET },
+      { value: Math.round(bounded / 0.25) * 0.25, magnet: QUARTER_TURN_MAGNET },
+    ].filter((candidate) => candidate.value >= window.min && candidate.value <= window.max)
+    const captured = captureSliderDetent(bounded, candidates)
+    if (captured !== null) return Number(captured.toFixed(10))
+    return Number((Math.round(bounded / step) * step).toFixed(10))
+  }
 }
 
 function turnFractionLabel(turns: number): string {

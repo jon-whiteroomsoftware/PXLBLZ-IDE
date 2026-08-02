@@ -169,7 +169,12 @@ numeric part with a fixed `x` suffix outside the box and accept either `1.5`
 or pasted `1.5x`. Animation speed, Clip Transform Width/Height, Repeat scale,
 and multiplicative Effect or Transition parameters share this presentation.
 Their compact slider marks `1x` and gives extra travel to the useful region
-around neutral while preserving exact endpoints and zero. Compact Clip
+around neutral while preserving exact endpoints and zero. Clip Transform
+Width/Height sliders additionally detent on the placement grid's fractions
+through `2x` (a thirds grid stops at `1/3`, `2/3`, `1x`, `4/3`, `5/3`, `2x`),
+on every whole unit above that, and pull hardest at neutral `1x`; between
+detents pointer travel lands on tenths, while exact entry keeps full
+precision. Compact Clip
 summaries round numeric multiplier values to at most two decimal places
 without changing the stored value.
 
@@ -199,7 +204,10 @@ clockwise from screen east) on their slider. Phase sliders cover the cycle
 containing the current value with quarter-cycle detents and never normalize an
 authored value, so multi-cycle Property animation paths survive editing.
 Rotation sliders cover two turns centered near the current value with a
-neutral `0` marker and quarter-turn detents; the full stored range (for
+neutral `0` marker; every quarter-turn tick is a magnetic detent, whole turns
+pull harder, half turns are labeled (`-360`, `-180`, `0`, `180`, `360` on the
+centered window), and travel between detents lands on whole degrees; the full
+stored range (for
 example ±8 turns on Clip Transform Rotation) stays reachable through exact
 entry, and sign and turn count survive display, editing, animation, and
 compilation — animating `0` to `720°` still spins twice.
@@ -561,7 +569,9 @@ remains the direct two-dimensional manipulation surface. The position slider
 covers the two stage units around center where placement actually happens -
 values beyond that remain reachable by exact entry - and its detents follow
 the pad's selected grid, so slider travel settles on the same cells the pad
-snaps to (half-unit stops when the grid is Free). Dragging any placement
+snaps to (half-unit stops when the grid is Free). Center and the whole units
+`-1` and `1` — where content sits exactly one stage off screen — pull harder
+than the grid cells, and travel between detents lands on tenths of a unit. Dragging any placement
 slider updates that pad continuously before saving once on release. The Clip
 panel keeps its header and tabs stationary; if a short window cannot show an
 entire tab, only that tab's body scrolls. A compact stepper adjusts Content zoom,

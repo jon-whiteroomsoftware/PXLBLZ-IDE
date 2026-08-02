@@ -3,6 +3,7 @@ import { NEUTRAL_SHOW_CLIP_TRANSFORM } from './showClipTransform'
 import { DEFAULT_SHOW_CLIP_VIEWPORT } from './showClipViewport'
 import {
   resolvePlacementPositionPresentation,
+  resolvePlacementScalePresentation,
   anchorContent,
   applyContentFit,
   clampPlacementRectToZone,
@@ -406,16 +407,74 @@ describe('resolvePlacementPositionPresentation (#633)', () => {
 
   it('magnetizes pointer travel onto the selected grid', () => {
     const grid3 = resolvePlacementPositionPresentation(3)
-    expect(grid3.snapSliderValue(1 / 3 + 0.01)).toBeCloseTo(1 / 3, 10)
+    expect(grid3.snapSliderValue(1 / 3 + 0.05)).toBeCloseTo(1 / 3, 10)
     const grid12 = resolvePlacementPositionPresentation(12)
-    expect(grid12.snapSliderValue(1 / 12 + 0.004)).toBeCloseTo(1 / 12, 10)
-    expect(grid12.snapSliderValue(1 / 24)).toBeCloseTo(0.04, 1)
+    expect(grid12.snapSliderValue(1 / 12 + 0.01)).toBeCloseTo(1 / 12, 10)
   })
 
   it('falls back to half-unit detents when the grid is Free', () => {
     const free = resolvePlacementPositionPresentation(0)
     const values = free.sliderMarks.map((mark) => mark.value)
     expect(values).toEqual([-2, -1.5, -1, -0.5, 0, 0.5, 1, 1.5, 2])
+  })
+
+  it('never travels finer than tenths outside a detent (#682)', () => {
+    const free = resolvePlacementPositionPresentation(0)
+    expect(free.sliderStep).toBe(0.1)
+    expect(free.snapSliderValue(0.72)).toBeCloseTo(0.7, 10)
+    const grid12 = resolvePlacementPositionPresentation(12)
+    expect(grid12.snapSliderValue(0.06)).toBeCloseTo(0.1, 10)
+  })
+
+  it('pulls hard toward centre and the just-offstage whole units (#682)', () => {
+    const free = resolvePlacementPositionPresentation(0)
+    expect(free.snapSliderValue(0.12)).toBe(0)
+    expect(free.snapSliderValue(-0.88)).toBe(-1)
+    expect(free.snapSliderValue(1.12)).toBe(1)
+    // The strong stops shrink with the cell so a dense grid stays reachable.
+    const grid12 = resolvePlacementPositionPresentation(12)
+    expect(grid12.snapSliderValue(0.03)).toBe(0)
+    expect(grid12.snapSliderValue(1 / 12 + 0.01)).toBeCloseTo(1 / 12, 10)
+  })
+})
+
+describe('resolvePlacementScalePresentation (#682)', () => {
+  it('presents the multiplier window with 1x neutral and tenth travel', () => {
+    const presentation = resolvePlacementScalePresentation(0)
+    expect(presentation.min).toBe(0.01)
+    expect(presentation.max).toBe(8)
+    expect(presentation.suffix).toBe('x')
+    expect(presentation.neutralPosition).toBeCloseTo(0.5, 10)
+    expect(presentation.sliderStep).toBe(0.1)
+    expect(presentation.format(1.5)).toBe('1.5x')
+    expect(presentation.parseDraft('1.5x')).toBe(1.5)
+    expect(presentation.formatDraft(1.234)).toBe('1.23')
+    expect(presentation.snapSliderValue(0.74)).toBeCloseTo(0.7, 10)
+  })
+
+  it('detents on the grid fractions through two units with a strong 1x stop', () => {
+    const thirds = resolvePlacementScalePresentation(3)
+    const values = thirds.sliderMarks.map((mark) => mark.value)
+    for (const expected of [1 / 3, 2 / 3, 1, 4 / 3, 5 / 3, 2]) {
+      expect(values.some((value) => Math.abs(value - expected) < 1e-9)).toBe(true)
+    }
+    expect(thirds.snapSliderValue(1 / 3 + 0.05)).toBeCloseTo(1 / 3, 10)
+    expect(thirds.snapSliderValue(1.05)).toBe(1)
+    const free = resolvePlacementScalePresentation(0)
+    expect(free.snapSliderValue(1.08)).toBe(1)
+    expect(free.snapSliderValue(1.55)).toBe(1.5)
+  })
+
+  it('keeps whole-unit stops above the fraction band and labels landmarks', () => {
+    const presentation = resolvePlacementScalePresentation(3)
+    const values = presentation.sliderMarks.map((mark) => mark.value)
+    for (const expected of [3, 4, 5, 6, 7, 8]) expect(values).toContain(expected)
+    expect(presentation.snapSliderValue(3.85)).toBe(4)
+    expect(presentation.snapSliderValue(2.5)).toBeCloseTo(2.5, 10)
+    const labels = presentation.sliderMarks.filter((mark) => mark.label).map((mark) => mark.label)
+    expect(labels).toEqual(['1', '2', '4', '8'])
+    const positions = presentation.sliderMarks.map((mark) => mark.position)
+    expect([...positions].sort((a, b) => a - b)).toEqual(positions)
   })
 })
 

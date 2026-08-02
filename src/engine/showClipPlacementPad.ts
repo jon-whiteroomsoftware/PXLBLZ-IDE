@@ -1,8 +1,12 @@
 import type { ShowClipTransform, ShowClipViewport } from './personalContentRecords'
 import {
+  captureSliderDetent,
   resolveLinearNumberPresentation,
+  type LinearNumberSliderMark,
   type ResolvedLinearNumberPresentation,
+  type SliderDetent,
 } from './linearNumberPresentation'
+import { resolveDomainNumberPresentation } from './domainNumberPresentation'
 import { normalizeShowClipTransform } from './showClipTransform'
 import { DEFAULT_SHOW_CLIP_VIEWPORT, normalizeShowClipViewport } from './showClipViewport'
 
@@ -568,6 +572,14 @@ export function placementPadView(
   return { min: 0.5 - extent / 2, max: 0.5 + extent / 2 }
 }
 
+/** Grid-cell magnet reach as a fraction of the cell (#682). */
+const PLACEMENT_CELL_MAGNET_RATIO = 0.2
+
+/** Reach of the strong whole-unit stops, capped so cells stay reachable. */
+function placementUnitMagnet(detentStep: number): number {
+  return Math.min(0.15, detentStep * 0.45)
+}
+
 /**
  * Grid-aware presentation for the placement X/Y fields (#633). The slider
  * windows onto the two stage units around center where placement actually
@@ -575,12 +587,14 @@ export function placementPadView(
  * entry keeps the full stored bounds. Detents follow the pad's selected grid
  * so slider travel lands on the same cells the pad snaps to; Free keeps the
  * legacy half-unit stops. The magnet scales with the cell so dense grids do
- * not swallow the space between detents.
+ * not swallow the space between detents, centre and the just-offstage whole
+ * units pull harder, and undetented travel lands on tenths (#682).
  */
 export function resolvePlacementPositionPresentation(
   grid: number,
 ): ResolvedLinearNumberPresentation & { neutralPosition: number } {
   const detentStep = grid > 0 ? 1 / grid : 0.5
+  const unitMagnet = placementUnitMagnet(detentStep)
   return {
     ...resolveLinearNumberPresentation({
       kindLabel: 'position',
@@ -589,11 +603,101 @@ export function resolvePlacementPositionPresentation(
       step: 0.001,
       sliderMin: -2,
       sliderMax: 2,
-      sliderStep: 0.005,
+      sliderStep: 0.1,
       detentStep,
-      detentMagnet: detentStep * 0.08,
+      detentMagnet: detentStep * PLACEMENT_CELL_MAGNET_RATIO,
+      detents: [-1, 0, 1].map((value) => ({ value, magnet: unitMagnet })),
       labelStep: 1,
     }),
     neutralPosition: 0.5,
+  }
+}
+
+const SCALE_MIN = 0.01
+const SCALE_MAX = 8
+/** Grid fractions stop mattering past two units; whole units carry on to 8x. */
+const SCALE_FRACTION_LIMIT = 2
+const SCALE_INTEGER_MAGNET = 0.2
+const SCALE_LABEL_VALUES: readonly number[] = [1, 2, 4, 8]
+
+/**
+ * Grid-aware presentation for the placement Width/Height fields (#682). The
+ * multiplier curve keeps 1x centred with fine travel around it; on top of it
+ * the slider detents on the pad's grid fractions up to two units (a thirds
+ * grid stops at 1/3, 2/3, 1, 4/3, 5/3, 2), on every whole unit above that,
+ * and pulls hardest at 1x. Undetented travel lands on tenths; exact entry
+ * keeps full precision.
+ */
+export function resolvePlacementScalePresentation(
+  grid: number,
+): ResolvedLinearNumberPresentation & { neutralPosition: number } {
+  const domain = resolveDomainNumberPresentation('multiplier', {
+    min: SCALE_MIN,
+    max: SCALE_MAX,
+    step: 0.01,
+  })
+  const detentStep = grid > 0 ? 1 / grid : 0.5
+  const fractionMagnet = detentStep * PLACEMENT_CELL_MAGNET_RATIO
+  const detents = new Map<number, number>()
+  const addDetent = (value: number, magnet: number) => {
+    const key = Number(value.toFixed(10))
+    detents.set(key, Math.max(detents.get(key) ?? 0, magnet))
+  }
+  for (let index = 1; index * detentStep <= SCALE_FRACTION_LIMIT + 1e-9; index += 1) {
+    addDetent(index * detentStep, fractionMagnet)
+  }
+  for (let value = SCALE_FRACTION_LIMIT + 1; value <= SCALE_MAX; value += 1) {
+    addDetent(value, SCALE_INTEGER_MAGNET)
+  }
+  addDetent(1, Math.max(0.06, fractionMagnet))
+  const stops: SliderDetent[] = [...detents.entries()]
+    .map(([value, magnet]) => ({ value, magnet }))
+    .sort((left, right) => left.value - right.value)
+  const sliderStep = 0.1
+  const snapSliderValue = (value: number) => {
+    const bounded = clamp(value, SCALE_MIN, SCALE_MAX)
+    if (bounded === SCALE_MIN || bounded === SCALE_MAX) return bounded
+    const captured = captureSliderDetent(bounded, stops)
+    if (captured !== null) return captured
+    return Number(clamp(
+      Math.round(bounded / sliderStep) * sliderStep,
+      SCALE_MIN,
+      SCALE_MAX,
+    ).toFixed(10))
+  }
+  const sliderMarks: LinearNumberSliderMark[] = stops.map(({ value }) => {
+    const label = SCALE_LABEL_VALUES.some((landmark) => Math.abs(value - landmark) < 1e-9)
+      ? String(value)
+      : undefined
+    return {
+      value,
+      position: domain.toSliderPosition(value),
+      ...(label !== undefined ? { label } : {}),
+      major: Math.abs(value - Math.round(value)) < 1e-9,
+    }
+  })
+  const formatDraft = (value: number) => {
+    const rounded = Number((Number.isFinite(value) ? value : 0).toFixed(2))
+    return String(Object.is(rounded, -0) ? 0 : rounded)
+  }
+  return {
+    kindLabel: 'multiplier',
+    suffix: 'x',
+    min: domain.min,
+    max: domain.max,
+    step: domain.step,
+    sliderMin: domain.min,
+    sliderMax: domain.max,
+    sliderStep,
+    sliderPositionStep: 0.001,
+    sliderMarks,
+    format: domain.format,
+    parse: domain.parse,
+    formatDraft,
+    parseDraft: domain.parse,
+    toSliderPosition: domain.toSliderPosition,
+    fromSliderPosition: domain.fromSliderPosition,
+    snapSliderValue,
+    neutralPosition: domain.neutralPosition,
   }
 }

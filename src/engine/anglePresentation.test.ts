@@ -187,8 +187,27 @@ describe('resolveAnglePresentation rotation', () => {
     expect(rotation.sliderMax).toBe(1)
     expect(rotation.neutralPosition).toBeCloseTo(0.5, 10)
     const majors = rotation.sliderMarks.filter((mark) => mark.major)
-    expect(majors.map((mark) => mark.position)).toEqual([0, 0.5, 1])
-    expect(majors.map((mark) => mark.label)).toEqual(['-360', '0', '360'])
+    expect(majors.map((mark) => mark.position)).toEqual([0, 0.25, 0.5, 0.75, 1])
+    expect(majors.map((mark) => mark.label)).toEqual(['-360', '-180', '0', '180', '360'])
+    const minors = rotation.sliderMarks.filter((mark) => !mark.major)
+    expect(minors.map((mark) => mark.position)).toEqual([0.125, 0.375, 0.625, 0.875])
+  })
+
+  it('detents every quarter-turn tick and pulls harder at whole turns (#682)', () => {
+    const rotation = resolveAnglePresentation('rotation', {
+      min: -8,
+      max: 8,
+      step: 1 / 360,
+      anchor: 0,
+    })
+    // 10.8 degrees still falls into upright's stronger magnet...
+    expect(rotation.snapSliderValue!(0.03)).toBe(0)
+    // ...while the quarter-turn ticks capture within their own shorter reach.
+    expect(rotation.snapSliderValue!(0.24)).toBe(0.25)
+    expect(rotation.snapSliderValue!(-0.26)).toBe(-0.25)
+    expect(rotation.snapSliderValue!(0.97)).toBe(1)
+    // Between detents, travel lands on whole degrees.
+    expect(rotation.snapSliderValue!(0.34567)).toBeCloseTo(124 / 360, 10)
   })
 
   it('recenters away from zero and drops the neutral marker when out of window', () => {
@@ -243,7 +262,7 @@ describe('resolveAnglePresentation cycles', () => {
     expect(cycles.sliderMin).toBe(-1)
     expect(cycles.sliderMax).toBe(1)
     const majors = cycles.sliderMarks.filter((mark) => mark.major)
-    expect(majors.map((mark) => mark.label)).toEqual(['-1', '0', '1'])
+    expect(majors.map((mark) => mark.label)).toEqual(['-1', '-0.5', '0', '0.5', '1'])
     expect(cycles.formatDraft(1.5)).toBe('1.5')
     expect(cycles.format(1.5)).toBe('1.5t')
     expect(cycles.parse('180°')).toBeCloseTo(0.5, 10)

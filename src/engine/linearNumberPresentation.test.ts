@@ -68,4 +68,36 @@ describe('linear number presentation', () => {
     expect(presentation.snapSliderValue(13.19)).toBe(13)
     expect(presentation.snapSliderValue(13.26)).toBe(13.3)
   })
+
+  it('gives explicit detents their own reach without swallowing nearer lattice stops (#682)', () => {
+    const presentation = resolveLinearNumberPresentation({
+      kindLabel: 'position',
+      min: -4,
+      max: 4,
+      step: 0.001,
+      sliderMin: -2,
+      sliderMax: 2,
+      sliderStep: 0.1,
+      detentStep: 1 / 12,
+      detentMagnet: 1 / 60,
+      detents: [{ value: 0, magnet: 0.3 }],
+    })
+
+    // Outside the lattice magnet but inside the explicit stop's longer reach.
+    expect(presentation.snapSliderValue(0.03)).toBe(0)
+    // Both magnets cover this value; the nearer stop (the lattice cell) wins.
+    expect(presentation.snapSliderValue(1 / 12 + 0.006)).toBeCloseTo(1 / 12, 10)
+    // An explicit detent outside the slider range never captures.
+    const windowed = resolveLinearNumberPresentation({
+      kindLabel: 'position',
+      min: -4,
+      max: 4,
+      step: 0.001,
+      sliderMin: 0.5,
+      sliderMax: 2,
+      sliderStep: 0.1,
+      detents: [{ value: 0, magnet: 4 }],
+    })
+    expect(windowed.snapSliderValue(0.72)).toBeCloseTo(0.7, 10)
+  })
 })

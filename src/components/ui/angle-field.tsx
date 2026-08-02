@@ -42,6 +42,9 @@ export function AngleField({ kind, min, max, step, value, ...props }: AngleField
           canonicalizeSliderValue: resolved.canonicalizeSliderValue,
         }
       : {}),
+    // Multi-turn kinds detent on ticks pointer-side only, so keyboard and
+    // Shift-fine travel keep their exact steps (#682).
+    ...(resolved.snapSliderValue ? { snapSliderValue: resolved.snapSliderValue } : {}),
     sliderMarks: resolved.sliderMarks,
     neutralPosition: resolved.neutralPosition,
     format: resolved.format,

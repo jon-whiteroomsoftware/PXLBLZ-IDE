@@ -16,6 +16,7 @@ import {
 import {
   enableViewportForContent,
   resolvePlacementPositionPresentation,
+  resolvePlacementScalePresentation,
   type PlacementFocus,
 } from '@/engine/showClipPlacementPad'
 import { showClipViewportEffectiveEdge } from '@/engine/showClipViewport'
@@ -1009,6 +1010,7 @@ function ClipPlacementGeometry({
 }) {
   const content = focus === 'content'
   const positionPresentation = useMemo(() => resolvePlacementPositionPresentation(grid), [grid])
+  const scalePresentation = useMemo(() => resolvePlacementScalePresentation(grid), [grid])
   const xLabel = content ? 'Content X' : 'Viewport X'
   const yLabel = content ? 'Content Y' : 'Viewport Y'
   const widthLabel = content ? 'Content Width' : 'Viewport Width'
@@ -1055,10 +1057,10 @@ function ClipPlacementGeometry({
         <BoundedNumberField compact label="Y" ariaLabel={yLabel} labelAction={animationAction(content ? 'positionY' : 'y', yLabel)} presentation={positionPresentation} value={shown(positionY)} reserveSuffixSpace disabled={readOnly} onPreview={(next) => onPreviewPatch?.(content ? { transform: { positionY: next } } : { viewport: { y: next } })} onPreviewEnd={onPreviewEnd} onChange={(next) => onPatch(content ? { transform: { positionY: next } } : { viewport: { y: next } })} />
       </div>
       <div className="min-w-0" data-show-clip-summary-target={content ? 'transform-scale-x' : undefined} tabIndex={content ? -1 : undefined}>
-        <DomainNumberField compact label="Width" ariaLabel={widthLabel} labelAction={animationAction(content ? 'scaleX' : 'width', widthLabel)} presentation="multiplier" value={shown(width)} min={0.01} max={8} step={0.01} reserveSuffixSpace disabled={readOnly} onPreview={(next) => onPreviewPatch?.(content ? { transform: { scaleX: next } } : { viewport: { width: next } })} onPreviewEnd={onPreviewEnd} onChange={(next) => onPatch(content ? { transform: { scaleX: next } } : { viewport: { width: next } })} />
+        <BoundedNumberField compact label="Width" ariaLabel={widthLabel} labelAction={animationAction(content ? 'scaleX' : 'width', widthLabel)} presentation={scalePresentation} value={shown(width)} reserveSuffixSpace disabled={readOnly} onPreview={(next) => onPreviewPatch?.(content ? { transform: { scaleX: next } } : { viewport: { width: next } })} onPreviewEnd={onPreviewEnd} onChange={(next) => onPatch(content ? { transform: { scaleX: next } } : { viewport: { width: next } })} />
       </div>
       <div className="min-w-0" data-show-clip-summary-target={content ? 'transform-scale-y' : undefined} tabIndex={content ? -1 : undefined}>
-        <DomainNumberField compact label="Height" ariaLabel={heightLabel} labelAction={animationAction(content ? 'scaleY' : 'height', heightLabel)} presentation="multiplier" value={shown(height)} min={0.01} max={8} step={0.01} reserveSuffixSpace disabled={readOnly} onPreview={(next) => onPreviewPatch?.(content ? { transform: { scaleY: next } } : { viewport: { height: next } })} onPreviewEnd={onPreviewEnd} onChange={(next) => onPatch(content ? { transform: { scaleY: next } } : { viewport: { height: next } })} />
+        <BoundedNumberField compact label="Height" ariaLabel={heightLabel} labelAction={animationAction(content ? 'scaleY' : 'height', heightLabel)} presentation={scalePresentation} value={shown(height)} reserveSuffixSpace disabled={readOnly} onPreview={(next) => onPreviewPatch?.(content ? { transform: { scaleY: next } } : { viewport: { height: next } })} onPreviewEnd={onPreviewEnd} onChange={(next) => onPatch(content ? { transform: { scaleY: next } } : { viewport: { height: next } })} />
       </div>
       <div className="min-w-0" data-show-clip-summary-target={content ? 'transform-rotation' : undefined} tabIndex={content ? -1 : undefined}>
         <AngleField compact kind="rotation" label="Rotation" ariaLabel={content ? 'Rotation' : 'Viewport rotation'} labelAction={content ? animationAction('rotation', 'Rotation') : undefined} value={content ? value.transform.rotation : 0} min={-8} max={8} step={1 / 360} reserveSuffixSpace disabled={readOnly || !content} help={content ? undefined : 'Aperture is axis-aligned'} onPreview={content ? (rotation) => onPreviewPatch?.({ transform: { rotation } }) : undefined} onPreviewEnd={onPreviewEnd} onChange={(rotation) => onPatch({ transform: { rotation } })} />

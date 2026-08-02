@@ -1788,8 +1788,14 @@ exact endpoints.
 
 `ShowToolkitParameterDescriptor.presentation` selects `multiplier` and `ratio`
 for Effect and Transition parameters just as it selects `percentage`. Explicit
-non-toolkit call sites cover Animation speed, Clip Transform Scale X/Y, Repeat
-scale, and the Preview speed selector. Exact drafts, clamping, cancellation,
+non-toolkit call sites cover Animation speed, Repeat scale, and the Preview
+speed selector. Clip Transform Width/Height instead use
+`resolvePlacementScalePresentation` (#682), which layers grid-aware magnetic
+detents over the same multiplier mapping, formatting, and parsing: stops on
+the placement grid's fractions through two units, on every whole unit above
+that, and hardest at `1x`, with undetented pointer travel quantized to tenths.
+The detents are pointer-only; keyboard steps and Shift-fine travel keep exact
+values, and exact entry keeps full precision. Exact drafts, clamping, cancellation,
 pointer preview, and one-change commit semantics remain owned by the shared
 bounded field. Stored records, Property animation targets, compiler inputs, and
 generated Pixelblaze source remain ordinary real-unit numbers.
@@ -1818,6 +1824,10 @@ clockwise from screen east, matching the stage's y-down orientation);
 `phase` covers the cycle containing the committed value with quarter-cycle
 detents; `rotation` and `cycles` cover two turns centered on the committed
 value's nearest whole turn with a neutral zero marker when zero is in window.
+For the multi-turn kinds every quarter-turn tick is a pointer-only magnetic
+detent, whole turns pull harder, half turns carry labels, and undetented
+pointer travel lands on whole authored steps (#682); keyboard and Shift-fine
+adjustment bypass the magnets.
 The window anchors on the committed value — previews route through the Show
 preview override store — so it never recenters mid-gesture. Values outside
 the window remain reachable through exact entry, and the field's clamp bounds
@@ -1837,7 +1847,12 @@ numbers.
 ### Time presentation contract
 
 `linearNumberPresentation.ts` supplies an invertible linear mapping whose exact
-entry bounds are independent of its adjustment bounds. `TimeField` specializes
+entry bounds are independent of its adjustment bounds. Beyond its uniform
+detent lattice it accepts explicit detents with individual magnet reach;
+capture is nearest-stop-wins, so a long-reach stop extends into undetented
+travel without swallowing a nearer short-reach cell (#682). The placement
+position presentation uses this for hard stops at centre and the offstage
+whole units, with grid-cell magnets and tenth-unit quantized travel. `TimeField` specializes
 that contract for decimal seconds: the numeric draft accepts an optional `s`
 suffix, renders the suffix outside the input, and uses a `0..30s` ruler unless a
 narrower authored range applies. Exact entry may therefore retain a valid value

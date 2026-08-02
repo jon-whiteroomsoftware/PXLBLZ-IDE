@@ -477,6 +477,36 @@ describe('shared Clip Entity Detail sections (#498)', () => {
     expect(labels).toEqual(['-2', '-1', '0', '1', '2'])
   })
 
+  it('links the Width/Height detents to the selected placement grid (#682)', () => {
+    render(<ShowClipEntityDetail {...commonProps('scene-main')} />)
+    showTab('Place')
+    fireEvent.change(screen.getByRole('combobox', { name: 'Grid' }), { target: { value: '4' } })
+    const widthGrip = screen.getByRole('button', {
+      name: 'Adjust with multiplier slider',
+      description: 'Content Width',
+    })
+    fireEvent.keyDown(widthGrip, { key: 'Enter' })
+    // Quarters through 2x plus the whole units 3x..8x.
+    const detents = document.querySelectorAll('[data-testid="bounded-number-detent"]')
+    expect(detents).toHaveLength(14)
+    const labels = Array.from(document.querySelectorAll('[data-testid="bounded-number-detent-label"]'))
+      .map((element) => element.textContent)
+    expect(labels).toEqual(['1', '2', '4', '8'])
+  })
+
+  it('labels the rotation slider every half turn (#682)', () => {
+    render(<ShowClipEntityDetail {...commonProps('scene-main')} />)
+    showTab('Place')
+    const rotationGrip = screen.getByRole('button', {
+      name: 'Adjust with rotation slider',
+      description: 'Rotation',
+    })
+    fireEvent.keyDown(rotationGrip, { key: 'Enter' })
+    const labels = Array.from(document.querySelectorAll('[data-testid="bounded-number-detent-label"]'))
+      .map((element) => element.textContent)
+    expect(labels).toEqual(['-360', '-180', '0', '180', '360'])
+  })
+
   it('keeps placement slider preview local to the adjacent pad until one commit (#680)', () => {
     const onPatch = vi.fn()
     const onPreviewPatch = vi.fn()
@@ -509,7 +539,7 @@ describe('shared Clip Entity Detail sections (#498)', () => {
     expect(onPatch).not.toHaveBeenCalled()
     fireEvent.keyDown(xSlider, { key: 'Enter' })
     expect(onPatch).toHaveBeenCalledOnce()
-    expect(onPatch).toHaveBeenCalledWith({ transform: { positionX: 0.005 } })
+    expect(onPatch).toHaveBeenCalledWith({ transform: { positionX: 0.1 } })
     expect(onPreviewEnd).not.toHaveBeenCalled()
 
     const yGrip = screen.getByRole('button', {

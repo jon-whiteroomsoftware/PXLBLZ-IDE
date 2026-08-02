@@ -12,7 +12,36 @@ export interface LinearNumberPresentationInput {
   sliderStep: number
   detentStep?: number
   detentMagnet?: number
+  /** Extra magnetic stops with their own reach, e.g. strong whole-unit pulls. */
+  detents?: readonly SliderDetent[]
   labelStep?: number
+}
+
+export interface SliderDetent {
+  value: number
+  magnet: number
+}
+
+/**
+ * The nearest stop whose magnet covers the value, or null when none does.
+ * Nearest-wins keeps a long-reach stop from swallowing a closer short-reach
+ * one, so strong detents only extend into otherwise-undetented travel.
+ */
+export function captureSliderDetent(
+  value: number,
+  candidates: readonly SliderDetent[],
+): number | null {
+  let captured: number | null = null
+  let capturedDistance = Infinity
+  for (const candidate of candidates) {
+    const distance = Math.abs(value - candidate.value)
+    const tolerance = Number.EPSILON * Math.max(1, Math.abs(candidate.value)) * 4
+    if (distance <= Math.abs(candidate.magnet) + tolerance && distance < capturedDistance) {
+      captured = candidate.value
+      capturedDistance = distance
+    }
+  }
+  return captured
 }
 
 export interface LinearNumberSliderMark {
@@ -63,21 +92,21 @@ export function resolveLinearNumberPresentation(
   const fromSliderPosition = (position: number) => (
     sliderSpan > 0 ? sliderMin + sliderSpan * clamp(position, 0, 1) : sliderMin
   )
+  const explicitDetents = (input.detents ?? []).filter(
+    (detent) => detent.value >= sliderMin && detent.value <= sliderMax,
+  )
   const snapSliderValue = (value: number) => {
     const bounded = clamp(value, sliderMin, sliderMax)
     if (bounded === sliderMin || bounded === sliderMax) return bounded
+    const candidates = [...explicitDetents]
     if (detentStep > 0 && detentMagnet > 0) {
       const detentValue = Math.round(bounded / detentStep) * detentStep
-      const detentDistance = Math.abs(bounded - detentValue)
-      const detentTolerance = Number.EPSILON * Math.max(1, Math.abs(detentValue)) * 4
-      if (
-        detentValue >= sliderMin
-        && detentValue <= sliderMax
-        && detentDistance <= detentMagnet + detentTolerance
-      ) {
-        return Number(detentValue.toFixed(10))
+      if (detentValue >= sliderMin && detentValue <= sliderMax) {
+        candidates.push({ value: detentValue, magnet: detentMagnet })
       }
     }
+    const captured = captureSliderDetent(bounded, candidates)
+    if (captured !== null) return Number(captured.toFixed(10))
     return Number(clamp(
       Math.round(bounded / sliderStep) * sliderStep,
       sliderMin,
