@@ -1127,6 +1127,9 @@ export function ShowEditor({
     onEscape: () => {
       if (transitionPaletteId !== null) return false
       if (!detailPanelOpen && !pinnedDetail && !isolatedGroupOccurrenceId && selection.kind === 'show') return false
+      // Exiting Group isolation is one surface, not two peels: an open Detail
+      // panel belongs to the isolated context and cannot outlive it, so one
+      // press tears both down together (#587, preserved by #672).
       if (isolatedGroupOccurrenceId) {
         closeDetailPanel(true)
         setPinnedDetail(null)

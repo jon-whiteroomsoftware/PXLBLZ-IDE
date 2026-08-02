@@ -1650,7 +1650,10 @@ exactly one surface regardless of listener registration order or render
 timing. Editor surfaces — the Entity Detail panel, Group-isolation exit, and
 active-selection clearing, in that internal order — rank above toolbar and
 rail popovers such as the Zone Map, Add menu, and Add Clip chooser; ties at
-one rank go to the most recently mounted surface. Surfaces marked
+one rank go to the most recently mounted surface. Group-isolation exit is
+deliberately composite (#587): a Detail panel open inside isolation belongs
+to the isolated context and cannot outlive it, so the same press closes the
+panel, exits isolation, and returns focus to the timeline. Surfaces marked
 `data-show-detail-owned-portal` or `data-show-detail-escape-owned` keep
 claiming Escape with their own listeners: while one is present the registry
 dispatches nothing. The Transition palette keeps its own listener and first
