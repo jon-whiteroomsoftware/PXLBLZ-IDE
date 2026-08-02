@@ -123,6 +123,40 @@ test.describe('authenticated Show authoring', () => {
     await expect(showEnd).toBeHidden()
   })
 
+  test('keeps the Show End diamond aligned when the preview pane resizes the timeline (#63)', async ({ page }) => {
+    await page.setViewportSize({ width: 1440, height: 900 })
+    await page.goto('studio/shows/stock-show-101-clips-cuts-blank-time')
+
+    const showEnd = page.getByRole('button', { name: /Show End at/ })
+    const endAnchor = page.getByTestId('show-timeline-end-anchor')
+    const previewSplitter = page.getByRole('separator', { name: 'Resize preview pane' })
+    await expect(showEnd).toBeVisible()
+
+    const initialAnchor = await endAnchor.boundingBox()
+    expect(initialAnchor).not.toBeNull()
+    await previewSplitter.press('Shift+ArrowLeft')
+
+    await expect.poll(async () => {
+      const anchor = await endAnchor.boundingBox()
+      return anchor?.x ?? initialAnchor!.x
+    }).toBeLessThan(initialAnchor!.x - 40)
+    await expect.poll(async () => {
+      const anchor = await endAnchor.boundingBox()
+      const marker = await showEnd.boundingBox()
+      if (!anchor || !marker) return Number.POSITIVE_INFINITY
+      const horizontalOffset = Math.abs(
+        anchor.x + anchor.width / 2 - (marker.x + marker.width / 2),
+      )
+      const verticalOffset = Math.abs(anchor.y - (marker.y + marker.height / 2))
+      return Math.max(horizontalOffset, verticalOffset)
+    }).toBeLessThan(1)
+    await expect.poll(async () => {
+      const marker = await showEnd.boundingBox()
+      const splitter = await previewSplitter.boundingBox()
+      return Boolean(marker && splitter && marker.x + marker.width <= splitter.x)
+    }).toBe(true)
+  })
+
   test('keeps the compact sparkline gutter and time-zero playhead crisp (#63)', async ({ page }) => {
     await page.setViewportSize({ width: 1440, height: 900 })
     await page.goto('studio/shows/stock-show-reference-property-animation')

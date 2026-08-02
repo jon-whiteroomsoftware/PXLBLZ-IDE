@@ -6536,10 +6536,10 @@ function TimelineEndHandlePortal({
 
   useLayoutEffect(() => {
     if (!anchor) return
+    const viewport = anchor.closest<HTMLElement>('[data-show-timeline-scroll-viewport]')
     const updatePosition = () => {
       const rect = anchor.getBoundingClientRect()
       const center = rect.left + rect.width / 2
-      const viewport = anchor.closest<HTMLElement>('[data-show-timeline-scroll-viewport]')
       const viewportRect = viewport?.getBoundingClientRect()
       setPosition({
         left: center,
@@ -6550,9 +6550,14 @@ function TimelineEndHandlePortal({
     updatePosition()
     window.addEventListener('resize', updatePosition)
     window.addEventListener('scroll', updatePosition, true)
+    const resizeObserver = typeof ResizeObserver === 'undefined'
+      ? null
+      : new ResizeObserver(updatePosition)
+    if (viewport) resizeObserver?.observe(viewport)
     return () => {
       window.removeEventListener('resize', updatePosition)
       window.removeEventListener('scroll', updatePosition, true)
+      resizeObserver?.disconnect()
     }
   }, [anchor, durationMs, layoutScale])
 
