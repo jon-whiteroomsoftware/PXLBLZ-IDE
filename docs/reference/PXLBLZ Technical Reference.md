@@ -361,8 +361,12 @@ layer.
 `parsePatternManifest` owns the format. Catalogue tests require every manifest
 to match its Pattern identity and native dimension and to document every
 exported control. `extractPatternAuthors` also reads standardized `Credit:`
-lines, so upstream authors become structured Show attribution before comments
-can be stripped or transformed. Show compilation removes only this canonical
+lines, keyword author lines (`by:`, `author:`), and the community signature
+convention — a header comment line that is nothing but a date and a short name
+in either order, such as `// 10/09/2022 ZRanger1` — so upstream authors become
+structured Show attribution before comments can be stripped or transformed.
+Signature matching is deliberately shape-restricted; dated changelog prose
+never gains an author. Show compilation removes only this canonical
 reader layer after bundling; implementation notes and arbitrary source comments
 remain intact and the structured attribution is carried by the generated Show.
 

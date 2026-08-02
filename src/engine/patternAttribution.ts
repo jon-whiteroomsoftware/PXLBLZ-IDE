@@ -22,6 +22,20 @@ const MAX_HEADER_SCAN_BYTES = 4096
 const MAX_AUTHORS = 8
 const MAX_AUTHOR_CHARS = 160
 
+// The community signature convention: a header comment line that is nothing but
+// a date and a short name, in either order — "// 10/09/2022 ZRanger1". Matching
+// is deliberately signature-shaped so dated changelog prose never gains an author.
+const SIGNATURE_DATE = String.raw`(?:\d{1,4}[/.\-]\d{1,2}[/.\-]\d{1,4}|(?:jan|feb|mar|apr|may|jun|jul|aug|sep|sept|oct|nov|dec)[a-z]*\.?(?:\s+\d{1,2},?)?\s+\d{4})`
+const SIGNATURE_VERSION = String.raw`(?:v?\d+(?:\.\d+)+)`
+const SIGNATURE_DATE_FIRST_RE = new RegExp(`^(?:${SIGNATURE_VERSION}\\s+)?${SIGNATURE_DATE}\\s+(.{1,60})$`, 'i')
+const SIGNATURE_NAME_FIRST_RE = new RegExp(`^(.{1,60}?)\\s+(?:${SIGNATURE_VERSION}\\s+)?${SIGNATURE_DATE}$`, 'i')
+const SIGNATURE_NAME_MAX_WORDS = 3
+const SIGNATURE_STOP_WORDS = new Set([
+  'added', 'bugfix', 'bugfixes', 'changed', 'cleanup', 'created', 'final', 'fixed',
+  'fixes', 'initial', 'major', 'minor', 'misc', 'ported', 'release', 'released',
+  'removed', 'tweaked', 'update', 'updated', 'updates', 'various', 'version', 'wip',
+])
+
 export function extractPatternAuthors(source: string): string[] {
   const header = source.slice(0, MAX_HEADER_SCAN_BYTES)
   const beforeCode = header.split(/\bexport\s+function\b|\bfunction\s+(?:beforeRender|render|render2D|render3D)\b/, 1)[0] ?? ''
@@ -34,10 +48,35 @@ export function extractPatternAuthors(source: string): string[] {
       continue
     }
     const match = line.match(AUTHOR_LINE_RE)
-    if (!match) continue
-    candidates.push(...splitAuthorList(match[1]))
+    if (match) {
+      candidates.push(...splitAuthorList(match[1]))
+      continue
+    }
+    const signature = signatureAuthor(line)
+    if (signature) candidates.push(signature)
   }
   return normalizePatternAuthors(candidates)
+}
+
+/** Recognize one bare date+name signature comment line, or return null. */
+function signatureAuthor(line: string): string | null {
+  const body = line
+    .replace(COMMENT_LINE_RE, '')
+    .replace(/\s*\*\/\s*$/, '')
+    .trim()
+  if (!body || /https?:\/\//i.test(body)) return null
+  const remainder = body.match(SIGNATURE_DATE_FIRST_RE)?.[1] ?? body.match(SIGNATURE_NAME_FIRST_RE)?.[1]
+  if (!remainder) return null
+  const name = remainder.trim()
+  // Signature-shaped only: a short name or handle, not sentence punctuation,
+  // starting with a letter, and never a changelog verb.
+  if (/[.,:;!?"()<>]/.test(name)) return null
+  const words = name.split(/\s+/)
+  if (words.length > SIGNATURE_NAME_MAX_WORDS) return null
+  if (!/^[a-z]/i.test(words[0])) return null
+  if (words.some((word) => SIGNATURE_STOP_WORDS.has(word.toLowerCase()))) return null
+  if (words.length > 1 && !/^[A-Z0-9]/.test(words[0]) && !words.some((word) => /\d/.test(word))) return null
+  return name
 }
 
 export function normalizePatternAuthors(value: unknown): string[] {
