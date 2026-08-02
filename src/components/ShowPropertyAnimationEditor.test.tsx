@@ -1,4 +1,4 @@
-import { fireEvent, render, screen } from '@testing-library/react'
+import { fireEvent, render, screen, within } from '@testing-library/react'
 import { describe, expect, it, vi } from 'vitest'
 import type { ShowPropertyAnimationTrack } from '@/engine/personalContentRecords'
 import type { ShowPropertyAnimationOption } from '@/engine/showPropertyAnimationEditorModel'
@@ -91,6 +91,26 @@ describe('per-parameter Property animation editor (#648)', () => {
 
     expect(screen.queryByRole('dialog', { name: 'Brightness animation' })).not.toBeInTheDocument()
     expect(onChange).not.toHaveBeenCalled()
+  })
+
+  it('layers a nested exact-value slider above the animation popover (#677)', () => {
+    editor([])
+
+    fireEvent.click(screen.getByRole('button', { name: 'Animate Brightness' }))
+    const popover = screen.getByRole('dialog', { name: 'Brightness animation' })
+    const from = within(popover).getByRole('textbox', {
+      name: 'Brightness animation from exact percentage',
+    })
+    const field = from.parentElement
+    expect(field).not.toBeNull()
+
+    fireEvent.keyDown(within(field!).getByRole('button', {
+      name: 'Adjust with percentage slider',
+    }), { key: 'Enter' })
+
+    expect(popover).toHaveClass('z-[130]')
+    expect(screen.getByRole('dialog', { name: 'Percentage slider controls' }))
+      .toHaveClass('z-[140]')
   })
 
   it('commits the edited two-point draft as one semantic change', () => {

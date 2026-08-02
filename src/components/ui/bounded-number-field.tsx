@@ -454,7 +454,9 @@ export function BoundedNumberField({
           aria-label={`${auxiliaryKindLabel} slider controls`}
           title={`${accessibleFieldLabel} · Shift-drag for fine adjustment · Shift+arrows for big steps`}
           data-bounded-number-slider-ui
-          className="fixed z-[120] flex items-center rounded-md border border-cyan-400/35 bg-zinc-950 px-4 shadow-[0_12px_32px_rgba(0,0,0,0.5)]"
+          // Auxiliary sliders can open from the z-130 Property animation
+          // popover, so their body portal must sit above its owning surface.
+          className="fixed z-[140] flex items-center rounded-md border border-cyan-400/35 bg-zinc-950 px-4 shadow-[0_12px_32px_rgba(0,0,0,0.5)]"
           style={{ left: slider.left, top: slider.top, width: slider.width, height: slider.height }}
         >
           <div className={sliderMarks.length > 0 ? 'relative h-9 w-full' : 'relative flex w-full items-center'}>
