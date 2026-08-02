@@ -17,6 +17,28 @@ test('signed-out visitors can load the public app shell at root', async ({ page 
   await expect(page.getByRole('button', { name: 'Sign in' })).toBeVisible()
 })
 
+test('app icon keeps the live accent color on hover (#674)', async ({ page }) => {
+  await page.goto('/')
+  const homeLink = page.getByRole('link', { name: 'PXLBLZ home' })
+  const icon = homeLink.locator('svg')
+  const liveAccent = await page.locator('html').evaluate((element) => {
+    const probe = document.createElement('span')
+    probe.style.color = 'var(--color-live)'
+    element.append(probe)
+    const color = getComputedStyle(probe).color
+    probe.remove()
+    return color
+  })
+
+  await expect(icon).toHaveCSS('color', liveAccent)
+  await homeLink.hover()
+
+  await expect(homeLink).toHaveCSS('filter', 'none')
+  await expect(icon).toHaveCSS('color', liveAccent)
+  await expect(icon.locator('path')).toHaveCSS('stroke', liveAccent)
+  await expect(icon.locator('circle')).toHaveCSS('fill', liveAccent)
+})
+
 test('gallery Back navigation restores the originating Pattern card', async ({ page }) => {
   await page.goto('/')
   const cards = page.locator('[id^="gallery-"]')
