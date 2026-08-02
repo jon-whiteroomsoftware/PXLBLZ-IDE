@@ -7136,10 +7136,13 @@ function formatSecondsValue(timeMs: number): string {
   return Number((Math.max(0, timeMs) / 1000).toFixed(3)).toString()
 }
 
-const InspectorReadOnlyContext = createContext(false)
+// Exported for the Clip detail matrix suite, which qualifies the production
+// read-only composition: entity detail children receive readOnly={false} and
+// the disabling comes from InspectorPanel's context-controlled fieldset.
+export const InspectorReadOnlyContext = createContext(false)
 const READ_ONLY_INSPECTOR_CLASS = 'contents [&_input:disabled]:cursor-default [&_input:disabled]:border-zinc-800 [&_input:disabled]:bg-zinc-950/35 [&_input:disabled]:text-zinc-300 [&_input:disabled]:opacity-100 [&_select:disabled]:cursor-default [&_select:disabled]:border-zinc-800 [&_select:disabled]:bg-zinc-950/35 [&_select:disabled]:text-zinc-300 [&_select:disabled]:opacity-100 [&_button:disabled]:cursor-not-allowed [&_button:disabled]:opacity-45'
 
-function InspectorPanel({
+export function InspectorPanel({
   family,
   title,
   heading,

@@ -4,6 +4,7 @@ import {
   ShowClipEntityDetail,
   type ShowClipEntityDetailProps,
 } from './ShowClipEntityDetail'
+import { InspectorPanel, InspectorReadOnlyContext } from './ShowEditor'
 import { resetShowClipDetailTabMemory } from '@/engine/showClipDetailTabs'
 import { createDefaultShow } from '@/engine/showModel'
 import { enableViewportForContent } from '@/engine/showClipPlacementPad'
@@ -668,14 +669,12 @@ describe('Clip detail read-only sweep (#658)', () => {
    * an enabled viewport) so the sweep sees the maximal control set, then walks
    * every tab interacting with everything.
    *
-   * The read-only boundary is a composition: the dialog's own fields take
-   * disabled from the readOnly prop, while ShowEditor additionally wraps the
-   * whole panel in <fieldset disabled> (see the tab rationale in the
-   * component), which is what actually disables Effect parameter editors and
-   * their action-menu triggers. The sweep renders inside the same fieldset so
-   * it qualifies the boundary users actually get - and would fail if the
-   * dialog ever moved out from under it without completing per-control
-   * propagation.
+   * The sweep renders the production read-only composition, not a stand-in:
+   * both ShowEditor call sites pass readOnly={false} to the dialog and the
+   * disabling comes entirely from InspectorPanel's context-controlled
+   * fieldset. Rendering through the exported InspectorPanel under the
+   * exported context means removing or relocating that fieldset fails this
+   * sweep, exactly the drift it exists to catch.
    */
   function renderReadOnly(scope: Scope) {
     let show = fixture()
@@ -691,13 +690,16 @@ describe('Clip detail read-only sweep (#658)', () => {
     const onPatch = vi.fn()
     const onMoveLayer = vi.fn()
     render(
-      <fieldset disabled>
-        <ShowClipEntityDetail
-          {...matrixProps(scope, value, onPatch)}
-          onMoveLayer={onMoveLayer}
-          readOnly
-        />
-      </fieldset>,
+      <InspectorReadOnlyContext.Provider value={true}>
+        <InspectorPanel family="Clip" heading={value.patternName} icon={<span aria-hidden />}>
+          <ShowClipEntityDetail
+            {...matrixProps(scope, value, onPatch)}
+            onMoveLayer={onMoveLayer}
+            readOnly={false}
+            embedded
+          />
+        </InspectorPanel>
+      </InspectorReadOnlyContext.Provider>,
     )
     return { onPatch, onMoveLayer }
   }
