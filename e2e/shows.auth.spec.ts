@@ -157,6 +157,45 @@ test.describe('authenticated Show authoring', () => {
     }).toBe(true)
   })
 
+  test('keeps the Stage canvas inside its scrollport across the scrollbar threshold (#686)', async ({ page }) => {
+    await page.setViewportSize({ width: 1950, height: 1196 })
+    await page.goto('studio/shows/stock-show-106-built-from-basics')
+
+    const previewPane = page.getByTestId('preview-pane')
+    const previewSplitter = page.getByRole('separator', { name: 'Resize preview pane' })
+    const geometry = () => previewPane.evaluate((pane) => {
+      const scrollport = pane.firstElementChild as HTMLElement | null
+      const canvas = pane.querySelector('canvas')
+      const canvasContainer = canvas?.parentElement?.parentElement
+      if (!scrollport || !canvas || !canvasContainer) return null
+      const scrollStyle = getComputedStyle(scrollport)
+      return {
+        paneWidth: Math.round(pane.getBoundingClientRect().width),
+        overflowX: scrollStyle.overflowX,
+        scrollbarGutter: scrollStyle.scrollbarGutter,
+        horizontalOverflow: scrollport.scrollWidth - scrollport.clientWidth,
+        canvasOverflow: Math.ceil(
+          canvas.getBoundingClientRect().width - canvasContainer.getBoundingClientRect().width,
+        ),
+      }
+    })
+
+    for (let step = 0; step < 5; step += 1) await previewSplitter.press('Shift+ArrowLeft')
+    await previewSplitter.press('ArrowLeft')
+
+    for (const targetWidth of [720, 740, 760]) {
+      await expect.poll(geometry).toEqual({
+        paneWidth: targetWidth,
+        overflowX: 'hidden',
+        scrollbarGutter: 'stable',
+        horizontalOverflow: 0,
+        canvasOverflow: 0,
+      })
+      await previewSplitter.press('ArrowLeft')
+      await previewSplitter.press('ArrowLeft')
+    }
+  })
+
   test('keeps the compact sparkline gutter and time-zero playhead crisp (#63)', async ({ page }) => {
     await page.setViewportSize({ width: 1440, height: 900 })
     await page.goto('studio/shows/stock-show-reference-property-animation')

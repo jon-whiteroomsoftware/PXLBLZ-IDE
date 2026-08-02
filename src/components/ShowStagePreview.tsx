@@ -592,7 +592,9 @@ export function ShowStagePreview({
   const showZoneInventory = (layout?.projection.zones.length ?? 0) > 1 || installationCoverage?.valid === false
 
   return (
-    <div className="flex h-full min-h-0 flex-col overflow-y-auto bg-zinc-950 font-mono text-xs text-zinc-400">
+    // Reserve classic-scrollbar width before the square canvas changes height,
+    // preventing its ResizeObserver from toggling the scrollbar on and off (#686).
+    <div className="flex h-full min-h-0 flex-col overflow-x-hidden overflow-y-auto [scrollbar-gutter:stable] bg-zinc-950 font-mono text-xs text-zinc-400">
       {import.meta.env.DEV && (
         <output
           ref={performanceOutputRef}
