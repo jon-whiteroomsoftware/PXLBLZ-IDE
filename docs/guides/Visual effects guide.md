@@ -452,11 +452,11 @@ and overshoot can be compared directly.
 ### Aperture shapes reference
 
 **Aperture Shapes** holds one subject behind one frame over one dim bed and
-changes exactly one thing per passage: first each silhouette at its Soft
-default, then the Rounded box at a wide corner radius to show radius is shape
-rather than edge, then the Ring across Soft, the deliberate Hard cut, and
-Stable Dither. It is the full matrix that lesson 207 deliberately
-abbreviates.
+changes exactly one thing per passage: first each silhouette feathered Soft -
+including the rectangle, so the edge treatment never changes mid-comparison -
+then the Rounded box at a wide corner radius to show radius is shape rather
+than edge, then the Ring across Soft, the deliberate Hard cut, and Stable
+Dither. It is the full matrix that lesson 207 deliberately abbreviates.
 
 Every reference Show above uses the expanded header as a live guide. It names
 the current example, explains what changes and what stays constant, and offers a

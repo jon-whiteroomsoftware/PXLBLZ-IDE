@@ -380,12 +380,16 @@ describe('stock Show curriculum (#363)', () => {
       }
       return show
     }
+    // Flatten silhouette only: the Soft edge stays, so every difference
+    // against the authored fixture is attributable to shape, never to a
+    // simultaneous Hard-versus-Soft change (review P2).
     const flattened = variant((entry) => {
       if (entry.viewport) {
         entry.viewport = {
           enabled: entry.viewport.enabled,
           x: entry.viewport.x, y: entry.viewport.y,
           width: entry.viewport.width, height: entry.viewport.height,
+          edge: 'soft',
         }
       }
     })

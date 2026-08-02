@@ -767,12 +767,13 @@ function learn207(): StockShow {
           id: 'layer-subject',
           name: 'Subject',
           placements: [
-            // The 202 recap: a plain rectangular frame establishes the
-            // baseline silhouette.
-            { ...placement('clip-rectangle', 'rose', 0, 4), opacity: 1, viewport: { ...frame } },
-            // Shaped apertures keep their Soft default: the silhouette
-            // changes and the feather arrives with it, exactly as it does
-            // when an author picks a shape in the inspector.
+            // The 202 recap: the same Soft-feathered frame 202 leaves you
+            // with, so the edge treatment is constant from the first passage
+            // and silhouette is genuinely the only variable.
+            { ...placement('clip-rectangle', 'rose', 0, 4), opacity: 1, viewport: { ...frame, edge: 'soft' } },
+            // Shaped apertures keep their Soft default: only the silhouette
+            // changes, exactly as it does when an author picks a shape in
+            // the inspector.
             { ...placement('clip-ellipse', 'rose', 4, 4), opacity: 1, viewport: { ...frame, aperture: 'ellipse' } },
             { ...placement('clip-ring', 'rose', 8, 4), opacity: 1, viewport: { ...frame, aperture: 'ring' } },
             // The one deliberate exception: the same Ring cut Hard, so the
@@ -787,7 +788,7 @@ function learn207(): StockShow {
   return catalogue({
     id, title: 'Aperture Shapes and Edges', track: 'portable', collection: 'learn', level: 200, order: 7,
     purpose: 'The aperture from 202 has a shape of its own. Rectangle, Ellipse, Diamond, Ring, and Rounded box are authored silhouettes on the Clip Viewport, and every silhouette carries an edge treatment. Shaped apertures feather Soft by default - smooth is almost always what you want - and Hard and Stable Dither are the deliberate exceptions. Shape and edge are placement geometry owned by the Clip, separate from Content and from Effects.',
-    notice: 'Nothing moves in this lesson. The same rose sits behind the same frame while only the silhouette changes at its Soft default, and in the last passage only the edge hardens. The Ring makes the difference visceral: the bed shows straight through its center, and cutting it Hard shows exactly what the feather was doing for you.',
+    notice: 'Nothing moves in this lesson. The frame arrives already feathered - the same Soft edge 202 leaves you with - so only the silhouette changes until the last passage hardens the edge on purpose. The Ring makes the difference visceral: the bed shows straight through its center, and cutting it Hard shows exactly what the feather was doing for you.',
     prompts: ["Change the second Clip's aperture from Ellipse to Diamond - the frame, Content, Pattern time, and the Soft feather never notice.", 'On the last Clip, switch the Hard edge back to Soft, then try Stable Dither: Dither trades the smooth ramp for a texture that survives LED quantization.'],
     guideHeading: 'aperture-shapes-and-edges',
     output: portableOutput(), zones, layouts: [singleLayout(zones)], scenes, composition,
@@ -1667,7 +1668,7 @@ function apertureShapesReference(): StockShow {
   const zones = logicalZones(['Main'], PORTABLE_REFERENCE_PIXELS)
   const frame = { enabled: true, x: 0.25, y: 0.25, width: 0.5, height: 0.5 }
   const variants = [
-    { id: 'rectangle', label: 'Rectangle', seconds: 3, detail: 'The plain frame with its default hard cut.', viewport: { ...frame } },
+    { id: 'rectangle', label: 'Rectangle', seconds: 3, detail: 'The plain frame, feathered Soft; the Hard cut appears later as the deliberate exception.', viewport: { ...frame, edge: 'soft' as const } },
     { id: 'ellipse', label: 'Ellipse', seconds: 5, detail: 'The inscribed oval at its Soft default; corners of the frame fall away.', viewport: { ...frame, aperture: 'ellipse' as const } },
     { id: 'diamond', label: 'Diamond', seconds: 2, detail: 'The inscribed diamond at its Soft default; edges run corner to corner.', viewport: { ...frame, aperture: 'diamond' as const } },
     { id: 'rounded-box', label: 'Rounded box', seconds: 2, detail: 'The frame with its corners rounded at the default radius.', viewport: { ...frame, aperture: 'rounded-box' as const, cornerRadius: 0.12 } },
