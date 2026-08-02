@@ -1,22 +1,33 @@
 # PXLBLZ Keyboard Shortcuts
 
-PXLBLZ keeps its global shortcut set small and gives specialized controls their
-own keyboard behavior. This guide collects both kinds of interaction, along
-with modifier-assisted gestures that are useful but easy to miss.
+PXLBLZ keeps its global shortcut set small: a handful of app-wide keys, plus
+specialized keyboard and modifier behavior inside particular controls. This
+guide covers both, with an emphasis on the modifier-assisted gestures that are
+useful but easy to miss.
 
 `Command/Ctrl` means Command on macOS and Ctrl on Windows or Linux.
-`Option/Alt` means Option on macOS and Alt on Windows or Linux. Text fields and
-the code editor retain typing keys. Menus, popovers, sliders, and other focused
-controls retain their normal navigation and editing keys unless a section below
-names an app-level shortcut.
+`Option/Alt` means Option on macOS and Alt on Windows or Linux.
 
-This guide covers PXLBLZ-owned behavior. The code editor retains Monaco's
-standard platform shortcuts, and ordinary browser controls retain their normal
-keyboard behavior.
+Only PXLBLZ-owned behavior appears here. The code editor keeps Monaco's
+standard platform shortcuts, text fields keep their ordinary typing and
+editing keys, and browser-native controls behave the way they do everywhere
+else.
+
+## Conventions that apply everywhere
+
+PXLBLZ controls follow familiar keyboard conventions wherever possible:
+
+- Arrow keys move through menu and combobox choices, and `Home` and `End` jump
+  to the first or last choice when the control supports them.
+- `Enter` chooses, saves, or commits the current value.
+- `Escape` closes or cancels, and returns focus to the control that opened it.
+
+While a menu, popover, dialog, or other focused control is active, its local
+keys take priority over the surrounding Studio or Show shortcuts. On narrow
+screens, Show dialogs keep `Tab` and `Shift+Tab` inside the dialog until you
+close it.
 
 ## Preview
-
-Preview playback uses the same shortcut wherever authoring work happens.
 
 ### Playback
 
@@ -24,25 +35,28 @@ Preview playback uses the same shortcut wherever authoring work happens.
 |---|---|
 | `Space` | Play or pause the active Preview. |
 
-`Space` works throughout Studio and on Pattern detail pages. Text fields and the
-code editor keep it for typing. Outside the Show timeline, buttons, links,
-selectors, sliders, menus, and entity-tree rows delegate Space to Preview
-playback instead of using their native Space action. Inside the Show editor,
-the timeline toolbar, Zone rail, timeline entities, Navigator, and playhead
-also pass Space through to playback. An open timeline menu or popover keeps
-Space so its focused button can still be activated.
+`Space` is the app's most global shortcut. It plays or pauses the Preview
+throughout Studio and on Pattern detail pages, even when something else has
+keyboard focus: outside the Show timeline, buttons, links, selectors, sliders,
+menus, and tree rows all hand `Space` to Preview playback instead of treating
+it as a click. Inside the Show editor, the timeline toolbar, Zone rail,
+timeline entities, Navigator, and playhead pass `Space` through the same way.
+
+The exceptions are places where `Space` means something else: text fields and
+the code editor keep it for typing, and an open timeline menu or popover keeps
+it so you can still activate its focused choice.
 
 ### 3D Preview
 
-Drag directly on a 3D Preview to orbit the camera. Grabbing the Preview pauses
-automatic orbiting; releasing it resumes automatic movement. This interaction
-works wherever a Pattern or Show presents a 3D Preview. Preview playback
-remains controlled by `Space` when the canvas has focus.
+Drag a 3D Preview to orbit the camera. While you hold it, automatic orbiting
+pauses; when you release it, automatic movement resumes. This works wherever a
+Pattern or Show presents a 3D Preview, and `Space` still controls playback
+while the canvas has focus.
 
 ## Studio layout and personal content
 
-The Studio panes and personal-content tree can be operated without precise
-pointer movement.
+You can operate the Studio panes and your personal-content tree entirely from
+the keyboard.
 
 ### Pane dividers
 
@@ -51,8 +65,8 @@ pointer movement.
 | `Left` or `Right` | Move a focused pane divider by 10 pixels. |
 | `Shift+Left` or `Shift+Right` | Move a focused pane divider by 50 pixels. |
 
-Drag a divider to resize the adjacent panes directly. PXLBLZ remembers a
-deliberate divider position for that Studio mode.
+You can also drag a divider to resize the adjacent panes directly. Once you
+set a divider position, PXLBLZ remembers it for that Studio mode.
 
 ### Personal-content tree
 
@@ -65,48 +79,35 @@ deliberate divider position for that Studio mode.
 | `Enter` while renaming | Save the new name. |
 | `Escape` while renaming | Cancel the rename. |
 
-Personal entities and folders can also be dragged to reorder or reorganize
-them. Drop near the upper or lower edge of a row to insert before or after it;
-drop in the center of a folder row to move the item into that folder. The title
-above the center pane is also a rename control for editable personal content.
+You can also drag entities and folders to reorganize them: drop near the upper
+or lower edge of a row to insert before or after it, or drop on the center of
+a folder row to move the item into that folder. To rename editable personal
+content, you can also click its title above the center pane.
 
 ## Exact fields and compact sliders
 
-Many exact numeric fields have a small grip at their right edge. The grip opens
-a compact slider without permanently taking space from the inspector.
+Many exact numeric fields have a small grip at their right edge. The grip
+opens a compact slider, so you can scrub the value without the inspector
+permanently giving up space to a full-size slider.
 
 | Shortcut | Action |
 |---|---|
 | `Enter` or `Space` on the grip | Open and pin the compact slider. |
-| Arrow keys | Adjust by the field's authored step. |
-| `Home` or `End` | Move to the slider's minimum or maximum. |
+| Arrow keys | Adjust by the field's step. |
+| `Home` or `End` | Jump to the slider's minimum or maximum. |
 | `Enter` | Commit the slider value. |
 | `Escape` | Cancel the slider edit and restore the previous value. |
 
-Click the grip without moving to pin the slider. Hold and drag the grip to
-preview values continuously and save once when the pointer is released, even
-if the pointer leaves the slider before release. Exact text fields use `Enter`
-to commit and `Escape` to restore their previous value.
-
-## Menus, dialogs, and other focused controls
-
-PXLBLZ controls follow familiar keyboard conventions wherever possible:
-
-- Arrow keys move through menu and combobox choices.
-- `Home` and `End` move to the first and last choice when the control supports
-  them.
-- `Enter` chooses, saves, or commits the current value.
-- `Escape` closes or cancels and restores focus to the invoking control.
-- Narrow-screen Show dialogs trap `Tab` and `Shift+Tab` until the dialog is
-  closed.
-
-These local behaviors take priority over surrounding Studio or Show shortcuts
-while the control is active.
+Clicking the grip without dragging pins the slider open. Holding and dragging
+the grip previews values continuously and saves once when you release — even
+if the pointer has left the slider by then. In the text field itself, `Enter`
+commits and `Escape` restores the previous value.
 
 ## Show transport and history
 
-Show shortcuts operate when the timeline workspace owns the keyboard. A text
-field or open editing control retains its native keys.
+Show shortcuts work whenever the timeline workspace has the keyboard — that
+is, whenever you are not typing in a text field or working inside an open
+editing control.
 
 | Shortcut | Action |
 |---|---|
@@ -119,39 +120,18 @@ field or open editing control retains its native keys.
 | `Command/Ctrl+Z` | Undo the last Show edit. |
 | `Command/Ctrl+Shift+Z` | Redo the last undone Show edit. |
 
-Changing playback speed does not start or stop playback. Five-second seeking
-clamps at the Show bounds, preserves the current play/pause state, and leaves
-the visible timeline viewport where it is.
+Changing playback speed never starts or stops playback. Five-second seeking
+clamps at the Show bounds, keeps the current play/pause state, and leaves the
+visible timeline viewport where it is.
 
-The focused playhead has finer keyboard scrubbing. `Left` and `Right` move by
-one second at first, by two seconds after the key has been held for half a
-second, and by five seconds after one and a half seconds. Releasing the key
-commits the final position.
-
-## Show selection and editing
-
-Selection shortcuts keep the timeline navigable without putting every Show
-entity into the browser's ordinary Tab order.
-
-| Shortcut | Action |
-|---|---|
-| `Tab` or `Shift+Tab` | Move to the next or previous Clip or Group, wrapping at either end. |
-| `Delete` or `Backspace` | Delete the selected Clip, Group occurrence, Zone, or non-Cut Transition. |
-| `Escape` | Close or back out of the current Show context. |
-
-Tab traversal starts from the timeline workspace or a Clip or Group. A Group
-is one stop until it is isolated; an isolated Group exposes its Group Clips.
-The timeline toolbar and Zone rail retain ordinary browser Tab navigation.
-
-`Escape` gives the most local interaction the first chance to close. It closes
-an active menu, popover, field, or dialog before it exits Group isolation,
-closes Entity Detail, or clears the timeline selection and returns focus to the
-Show workspace.
+The playhead itself offers finer scrubbing when it has focus: `Left` and
+`Right` move by one second at first, speed up to two seconds after the key has
+been held for half a second, and to five seconds after one and a half seconds.
+Releasing the key commits the final position.
 
 ## Show timeline navigation
 
-The timeline combines keyboard modifiers with the pointer for faster movement
-through long Shows.
+Modifier-and-pointer combinations make it faster to move through a long Show.
 
 | Interaction | Action |
 |---|---|
@@ -162,15 +142,36 @@ through long Shows.
 | Drag the Navigator's center | Pan the visible timeline viewport. |
 | Drag a Navigator edge | Resize the visible timeline viewport. |
 
-When the Navigator has keyboard focus, `Left` and `Right` move its pan thumb or
-active edge by five percent of the visible duration. `Space` still controls
-playback from the Navigator and playhead.
+When the Navigator has keyboard focus, `Left` and `Right` move its pan thumb
+or active edge by five percent of the visible duration. `Space` still controls
+playback from the Navigator and the playhead.
+
+## Show selection and editing
+
+`Tab` walks the timeline's Clips and Groups directly, so you can reach every
+entity without tabbing through the whole page.
+
+| Shortcut | Action |
+|---|---|
+| `Tab` or `Shift+Tab` | Move to the next or previous Clip or Group, wrapping at either end. |
+| `Delete` or `Backspace` | Delete the selected Clip, Group occurrence, Zone, or Transition (other than a Cut). |
+| `Escape` | Close or back out of the current Show context. |
+
+Tab traversal starts from the timeline workspace or from a Clip or Group. A
+Group counts as one stop until you isolate it; an isolated Group exposes its
+Group Clips. The timeline toolbar and Zone rail keep ordinary browser Tab
+navigation.
+
+`Escape` gives the most local interaction the first chance to close. It
+dismisses an active menu, popover, field, or dialog before it exits Group
+isolation, closes Entity Detail, or clears the timeline selection and returns
+focus to the Show workspace.
 
 ## Creating and arranging Clips
 
-Clip gestures distinguish moving an existing object from changing timeline
-time. `Option/Alt` duplicates a Clip body, but reverses Snap while resizing a
-Clip edge.
+Clip gestures separate moving an object from changing timeline time. One
+modifier does double duty: `Option/Alt` duplicates when you drag a Clip body,
+but temporarily reverses Snap when you resize a Clip edge.
 
 | Interaction | Action |
 |---|---|
@@ -182,18 +183,18 @@ Clip edge.
 | Hold `Option/Alt` while resizing | Temporarily reverse the current Snap setting. |
 | `Shift`-click a Clip | Add it to or remove it from the current multi-selection. |
 | Drag across empty timeline space | Marquee-select Clips for a multi-selection. |
-| Double-click a Group Clip | Enter modeless Group isolation. |
+| Double-click a Group Clip | Enter Group isolation. |
 | `Escape` while a Group is isolated | Exit isolation and restore the Group selection. |
 
-For duplication, hold `Option/Alt` before the drag begins. PXLBLZ latches the
-duplicate operation at drag start, so releasing the modifier during the drag
-does not turn it back into a move.
+To duplicate, hold `Option/Alt` before the drag begins. The duplicate is
+latched at drag start, so you can release the modifier mid-drag without
+turning the duplicate back into a move.
 
-A connected Clip-and-Transition chain moves rigidly when dragged horizontally.
-Moving it to another Layer removes its attached Transitions. A collapsed Zone
-miniature remains a valid drop target, so a Clip can be moved into that Zone
-without expanding it first. Invalid drops, including collisions and positions
-outside the Show, cancel instead of partially applying the move.
+A connected Clip-and-Transition chain moves rigidly when dragged horizontally;
+moving it to another Layer removes its attached Transitions. A collapsed Zone
+miniature is still a valid drop target, so you can move a Clip into that Zone
+without expanding it first. Invalid drops — collisions, or positions outside
+the Show — cancel cleanly instead of partially applying the move.
 
 ## Markers, Transitions, and Show End
 
@@ -209,15 +210,15 @@ their visible buttons and detail panels.
 | Drag the Show End diamond | Change the Show duration. |
 | Hold `Option/Alt` during a Marker or Show End drag | Temporarily reverse the current Snap setting. |
 
-Show End cannot move before the last authored content. Clicking an already
-selected timeline entity toggles its transient Entity Detail closed; clicking
-the timeline background closes transient details without changing pinned
-details.
+Show End cannot move earlier than the last authored content. Clicking an
+already selected timeline entity toggles its transient Entity Detail closed,
+and clicking the timeline background closes transient details without
+changing pinned ones.
 
 ## Clip placement
 
-The Place pad edits Content and Aperture geometry directly. Its modifier keys
-provide coarse movement, constrained sizing, and coupled motion.
+The Place pad edits Content and Aperture geometry directly. Modifiers give you
+coarse movement, constrained sizing, and coupled motion.
 
 | Interaction | Action |
 |---|---|
@@ -232,15 +233,15 @@ provide coarse movement, constrained sizing, and coupled motion.
 | `Option/Alt`-drag Aperture | Move Aperture and carry Content with it. |
 | Drag an Aperture corner | Resize Aperture. |
 
-When Aperture placement is enabled, Content sizing remains uniform without a
+When Aperture placement is enabled, Content sizing stays uniform without any
 modifier. Dragging bare pad space while Aperture is focused sweeps the visible
-cells. Nearby grid lines and rectangles provide magnetic alignment during
+cells, and nearby grid lines and rectangles snap magnetically during
 placement.
 
 ## Zones and Effects
 
-The Zone spatial selector and Effect stack combine direct manipulation with
-keyboard completion and cancellation.
+The Zone spatial selector and the Effect stack combine direct manipulation
+with keyboard completion and cancellation.
 
 | Interaction | Action |
 |---|---|
@@ -249,5 +250,6 @@ keyboard completion and cancellation.
 | `Escape` in the Zone spatial selector | Cancel the spatial selection. |
 | Drag an Effect's handle | Reorder it within its compiler stage. |
 
-An Effect cannot be dragged across compiler stages. Its action menu provides
-keyboard-accessible move commands when dragging is inconvenient.
+An Effect cannot be dragged across compiler stages. When dragging is
+inconvenient, the Effect's action menu offers the same moves as
+keyboard-accessible commands.
