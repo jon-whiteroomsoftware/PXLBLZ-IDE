@@ -46,12 +46,20 @@ qualifies.
 | Pattern | Speed | Multiplier text to instance `timeScale` |
 | Pattern controls | Enable, disable, target value | Checkbox and percentage to the compacted `controlTargets` map (enable adopts the Studio default; disabling the last target clears the map) |
 | Place content | X, Y, Width, Height, Rotation | Position/multiplier text to transform units; degrees to turns |
-| Place aperture | Summary select, Viewport X | First selection enables the Viewport via `enableViewportForContent`; geometry edits store aperture units |
+| Place aperture | Summary select; Viewport X, Y, Width, Height | First selection enables the Viewport via `enableViewportForContent`; geometry edits store aperture units |
 | Effects | Add, remove | Palette application to a normalized appended Effect; removal to an empty stack |
 | Effects | Mirror | Palette Mirror routes to `view.mirror`, never the Effect stack |
 | Playback | Presentation, Strobe cadence | Mode select to compacted presentation; seconds to rounded `cadenceMs` |
-| Playback | Blink toggle, Blink rate | Default gate adoption; Hz clamp |
+| Playback | Blink toggle, rate, duty, phase | Default gate adoption; Hz clamp; fraction clamps |
 | Playback | Phase, Evaluation | Fraction and policy enum round-trip |
+
+Every row carries a display oracle asserted after re-rendering with the
+re-projected value: the control must show the stored value, not merely accept
+the input. The harness's `onPatch` mirrors
+`ShowEditor.commitClipInspectorPatch` exactly - it applies each patch through
+the real engine and returns `false` on refusal - so the refused row also
+qualifies the field-level contract that a refused commit reverts the draft to
+the stored value.
 
 `onMoveLayer` is a routing callback rather than a patch; its representative
 lives in `ShowClipEntityDetail.test.tsx` (`commits local timing, opacity, and

@@ -17,7 +17,7 @@ import {
   type ShowClipInspectorValue,
 } from '@/engine/showClipInspectorModel'
 import { validateShowComposition } from '@/engine/showCompositionModel'
-import type { ShowCompositionV1, ShowRecord } from '@/engine/personalContentRecords'
+import type { ShowClipEffect, ShowCompositionV1, ShowRecord } from '@/engine/personalContentRecords'
 
 /*
   White-box qualification matrix for the Clip Entity Detail dialog (#658).
@@ -178,8 +178,17 @@ interface RoundTripRow {
   drive: () => void
   /** The expected re-projection, from the pre-state and the emitted patches. */
   expected: (value: ShowClipInspectorValue, patches: ShowClipInspectorPatch[]) => ShowClipInspectorValue
+  /**
+   * Display oracle, asserted after re-rendering with the re-projected value:
+   * the control must show the stored value, not merely accept it.
+   */
+  display: (next: ShowClipInspectorValue) => void
   /** The engine must refuse the commit and preserve the exact prior state. */
   refused?: boolean
+}
+
+function expectValue(name: string, expected: string) {
+  expect(screen.getByRole('textbox', { name })).toHaveValue(expected)
 }
 
 const ROWS: RoundTripRow[] = [
@@ -188,24 +197,28 @@ const ROWS: RoundTripRow[] = [
     scopes: ['scene-overlay'],
     drive: () => typeAndCommit('Start seconds exact time', '2'),
     expected: (value) => ({ ...value, local: { ...value.local!, startMs: 2_000 } }),
+    display: () => expectValue('Start seconds exact time', '2'),
   },
   {
     name: 'header Duration resizes the logical Clip',
     scopes: ['scene-overlay'],
     drive: () => typeAndCommit('Duration seconds exact time', '3'),
     expected: (value) => ({ ...value, local: { ...value.local!, durationMs: 3_000 } }),
+    display: () => expectValue('Duration seconds exact time', '3'),
   },
   {
     name: 'header Brightness stores a placement view fraction',
     scopes: SCOPES,
     drive: () => typeAndCommit('Brightness exact percentage', '35%'),
     expected: (value) => ({ ...value, view: { ...value.view, brightness: 0.35 } }),
+    display: () => expectValue('Brightness exact percentage', '35'),
   },
   {
     name: 'header Opacity stores the overlay source-over fraction',
     scopes: ['scene-overlay'],
     drive: () => typeAndCommit('Opacity exact percentage', '50%'),
     expected: (value) => ({ ...value, local: { ...value.local!, opacity: 0.5 } }),
+    display: () => expectValue('Opacity exact percentage', '50'),
   },
   {
     name: 'Source pattern swaps the Pattern reference and drops stale control targets',
@@ -225,6 +238,9 @@ const ROWS: RoundTripRow[] = [
       // cell has none to begin with, so its projection is unchanged here.
       simulation: { ...value.simulation, controlTargets: undefined },
     }),
+    display: () => {
+      expect(screen.getByRole('combobox', { name: 'Source pattern' })).toHaveValue('CometLoom')
+    },
   },
   {
     name: 'Speed stores the instance time scale',
@@ -232,6 +248,7 @@ const ROWS: RoundTripRow[] = [
     tab: 'Pattern',
     drive: () => typeAndCommit('Animation speed exact multiplier', '2x'),
     expected: (value) => ({ ...value, simulation: { ...value.simulation, timeScale: 2 } }),
+    display: () => expectValue('Animation speed exact multiplier', '2'),
   },
   {
     name: 'enabling a Pattern control target adopts the Studio default',
@@ -242,6 +259,10 @@ const ROWS: RoundTripRow[] = [
       ...value,
       simulation: { ...value.simulation, controlTargets: { sliderSpeed: 0.5 } },
     }),
+    display: () => {
+      expect(screen.getByRole('checkbox', { name: 'Set Speed target' })).toBeChecked()
+      expectValue('Speed target exact percentage', '50')
+    },
   },
   {
     name: 'disabling the last Pattern control target clears the map',
@@ -252,6 +273,10 @@ const ROWS: RoundTripRow[] = [
       ...value,
       simulation: { ...value.simulation, controlTargets: undefined },
     }),
+    display: () => {
+      expect(screen.getByRole('checkbox', { name: 'Set Speed target' })).not.toBeChecked()
+      expect(screen.queryByRole('textbox', { name: 'Speed target exact percentage' })).toBeNull()
+    },
   },
   {
     name: 'a Pattern control target value stores as a clamped fraction',
@@ -262,6 +287,7 @@ const ROWS: RoundTripRow[] = [
       ...value,
       simulation: { ...value.simulation, controlTargets: { sliderSpeed: 0.75 } },
     }),
+    display: () => expectValue('Speed target exact percentage', '75'),
   },
   {
     name: 'Content X stores a placement-unit position',
@@ -269,6 +295,15 @@ const ROWS: RoundTripRow[] = [
     tab: 'Place',
     drive: () => typeAndCommit('Content X exact position', '0.25'),
     expected: (value) => ({ ...value, transform: { ...value.transform, positionX: 0.25 } }),
+    display: () => expectValue('Content X exact position', '0.25'),
+  },
+  {
+    name: 'Content Y stores a placement-unit position',
+    scopes: ['scene-main'],
+    tab: 'Place',
+    drive: () => typeAndCommit('Content Y exact position', '-0.5'),
+    expected: (value) => ({ ...value, transform: { ...value.transform, positionY: -0.5 } }),
+    display: () => expectValue('Content Y exact position', '-0.5'),
   },
   {
     name: 'Content Width stores a placement-unit scale',
@@ -276,6 +311,15 @@ const ROWS: RoundTripRow[] = [
     tab: 'Place',
     drive: () => typeAndCommit('Content Width exact multiplier', '1.5x'),
     expected: (value) => ({ ...value, transform: { ...value.transform, scaleX: 1.5 } }),
+    display: () => expectValue('Content Width exact multiplier', '1.5'),
+  },
+  {
+    name: 'Content Height stores a placement-unit scale',
+    scopes: ['scene-main'],
+    tab: 'Place',
+    drive: () => typeAndCommit('Content Height exact multiplier', '0.5x'),
+    expected: (value) => ({ ...value, transform: { ...value.transform, scaleY: 0.5 } }),
+    display: () => expectValue('Content Height exact multiplier', '0.5'),
   },
   {
     name: 'Rotation displays degrees and stores turns',
@@ -283,6 +327,7 @@ const ROWS: RoundTripRow[] = [
     tab: 'Place',
     drive: () => typeAndCommit('Rotation exact rotation', '90'),
     expected: (value) => ({ ...value, transform: { ...value.transform, rotation: 0.25 } }),
+    display: () => expectValue('Rotation exact rotation', '90'),
   },
   {
     name: 'selecting the Aperture summary enables the Viewport from content bounds',
@@ -297,6 +342,12 @@ const ROWS: RoundTripRow[] = [
         grid: 3,
       }),
     }),
+    display: (next) => {
+      // The click also moved focus to the aperture, so the geometry stack now
+      // edits the enabled Viewport.
+      expectValue('Viewport X exact position', String(next.viewport.x))
+      expectValue('Viewport Y exact position', String(next.viewport.y))
+    },
   },
   {
     name: 'Viewport X stores aperture geometry once enabled',
@@ -306,6 +357,37 @@ const ROWS: RoundTripRow[] = [
     prepare: () => fireEvent.click(screen.getByRole('button', { name: 'Aperture summary' })),
     drive: () => typeAndCommit('Viewport X exact position', '0.25'),
     expected: (value) => ({ ...value, viewport: { ...value.viewport, x: 0.25 } }),
+    display: () => expectValue('Viewport X exact position', '0.25'),
+  },
+  {
+    name: 'Viewport Y stores aperture geometry once enabled',
+    scopes: ['scene-main'],
+    tab: 'Place',
+    seed: { viewport: { enabled: true } },
+    prepare: () => fireEvent.click(screen.getByRole('button', { name: 'Aperture summary' })),
+    drive: () => typeAndCommit('Viewport Y exact position', '0.5'),
+    expected: (value) => ({ ...value, viewport: { ...value.viewport, y: 0.5 } }),
+    display: () => expectValue('Viewport Y exact position', '0.5'),
+  },
+  {
+    name: 'Viewport Width stores aperture geometry once enabled',
+    scopes: ['scene-main'],
+    tab: 'Place',
+    seed: { viewport: { enabled: true } },
+    prepare: () => fireEvent.click(screen.getByRole('button', { name: 'Aperture summary' })),
+    drive: () => typeAndCommit('Viewport Width exact multiplier', '0.5x'),
+    expected: (value) => ({ ...value, viewport: { ...value.viewport, width: 0.5 } }),
+    display: () => expectValue('Viewport Width exact multiplier', '0.5'),
+  },
+  {
+    name: 'Viewport Height stores aperture geometry once enabled',
+    scopes: ['scene-main'],
+    tab: 'Place',
+    seed: { viewport: { enabled: true } },
+    prepare: () => fireEvent.click(screen.getByRole('button', { name: 'Aperture summary' })),
+    drive: () => typeAndCommit('Viewport Height exact multiplier', '2x'),
+    expected: (value) => ({ ...value, viewport: { ...value.viewport, height: 2 } }),
+    display: () => expectValue('Viewport Height exact multiplier', '2'),
   },
   {
     name: 'adding a stack Effect appends one normalized Effect',
@@ -313,10 +395,19 @@ const ROWS: RoundTripRow[] = [
     tab: 'Effects',
     prepare: () => fireEvent.click(screen.getByRole('button', { name: 'Add Effect' })),
     drive: () => fireEvent.click(screen.getByRole('button', { name: 'Add Translate Effect' })),
+    // Only the generated id comes from the patch; the kind and its normalized
+    // defaults are pinned independently, so a palette entry applying the wrong
+    // Effect cannot satisfy its own oracle.
     expected: (value, patches) => ({
       ...value,
-      effects: normalizeShowClipEffects(patches[patches.length - 1].effects ?? []),
+      effects: normalizeShowClipEffects([{
+        id: patches[patches.length - 1].effects?.[0]?.id ?? '',
+        kind: 'translate',
+      } as ShowClipEffect]),
     }),
+    display: () => {
+      expect(screen.getByRole('button', { name: 'More actions for Translate Effect' })).toBeInTheDocument()
+    },
   },
   {
     name: 'removing the only stack Effect empties the stack',
@@ -326,6 +417,9 @@ const ROWS: RoundTripRow[] = [
     prepare: () => fireEvent.click(screen.getByRole('button', { name: 'More actions for Translate Effect' })),
     drive: () => fireEvent.click(screen.getByRole('menuitem', { name: 'Remove Translate Effect' })),
     expected: (value) => ({ ...value, effects: [] }),
+    display: () => {
+      expect(screen.queryByRole('button', { name: 'More actions for Translate Effect' })).toBeNull()
+    },
   },
   {
     name: 'adding Mirror routes to the placement view instead of the stack',
@@ -334,6 +428,9 @@ const ROWS: RoundTripRow[] = [
     prepare: () => fireEvent.click(screen.getByRole('button', { name: 'Add Effect' })),
     drive: () => fireEvent.click(screen.getByRole('button', { name: 'Add Mirror Effect' })),
     expected: (value) => ({ ...value, view: { ...value.view, mirror: true } }),
+    display: () => {
+      expect(screen.getByTestId('show-effect-mirror')).toBeInTheDocument()
+    },
   },
   {
     name: 'Presentation Strobe stores its default cadence',
@@ -341,6 +438,10 @@ const ROWS: RoundTripRow[] = [
     tab: 'Playback',
     drive: () => choose('Clip presentation', 'strobe'),
     expected: (value) => ({ ...value, presentation: { mode: 'strobe', cadenceMs: 1_000 } }),
+    display: () => {
+      expect(screen.getByRole('combobox', { name: 'Clip presentation' })).toHaveValue('strobe')
+      expectValue('Strobe cadence seconds exact time', '1')
+    },
   },
   {
     name: 'Strobe cadence stores rounded milliseconds',
@@ -349,6 +450,7 @@ const ROWS: RoundTripRow[] = [
     seed: { presentation: { mode: 'strobe', cadenceMs: 1_000 } },
     drive: () => typeAndCommit('Strobe cadence seconds exact time', '0.5'),
     expected: (value) => ({ ...value, presentation: { mode: 'strobe', cadenceMs: 500 } }),
+    display: () => expectValue('Strobe cadence seconds exact time', '0.5'),
   },
   {
     name: 'enabling Blink adopts the default gate',
@@ -356,6 +458,10 @@ const ROWS: RoundTripRow[] = [
     tab: 'Playback',
     drive: () => toggle('Blink Clip output'),
     expected: (value) => ({ ...value, blink: { rateHz: 2, duty: 0.5, phase: 0 } }),
+    display: () => {
+      expect(screen.getByRole('checkbox', { name: 'Blink Clip output' })).toBeChecked()
+      expect(screen.getByRole('textbox', { name: 'Blink rate Hz' })).toBeInTheDocument()
+    },
   },
   {
     name: 'Blink rate stores clamped Hz',
@@ -364,6 +470,25 @@ const ROWS: RoundTripRow[] = [
     seed: { blink: { rateHz: 2, duty: 0.5, phase: 0 } },
     drive: () => typeAndCommit('Blink rate Hz', '4'),
     expected: (value) => ({ ...value, blink: { ...value.blink!, rateHz: 4 } }),
+    display: () => expectValue('Blink rate Hz', '4'),
+  },
+  {
+    name: 'Blink duty stores a clamped fraction',
+    scopes: ['scene-main'],
+    tab: 'Playback',
+    seed: { blink: { rateHz: 2, duty: 0.5, phase: 0 } },
+    drive: () => typeAndCommit('Blink duty exact percentage', '25%'),
+    expected: (value) => ({ ...value, blink: { ...value.blink!, duty: 0.25 } }),
+    display: () => expectValue('Blink duty exact percentage', '25'),
+  },
+  {
+    name: 'Blink phase stores a clamped fraction',
+    scopes: ['scene-main'],
+    tab: 'Playback',
+    seed: { blink: { rateHz: 2, duty: 0.5, phase: 0 } },
+    drive: () => typeAndCommit('Blink phase exact phase', '0.5'),
+    expected: (value) => ({ ...value, blink: { ...value.blink!, phase: 0.5 } }),
+    display: () => expectValue('Blink phase exact phase', '0.5'),
   },
   {
     name: 'Phase stores a placement view fraction',
@@ -371,6 +496,7 @@ const ROWS: RoundTripRow[] = [
     tab: 'Playback',
     drive: () => typeAndCommit('Phase exact phase', '0.5'),
     expected: (value) => ({ ...value, view: { ...value.view, phase: 0.5 } }),
+    display: () => expectValue('Phase exact phase', '0.5'),
   },
   {
     name: 'Evaluation stores freeze-at-entry',
@@ -378,6 +504,9 @@ const ROWS: RoundTripRow[] = [
     tab: 'Playback',
     drive: () => choose('Clip evaluation', 'freeze-at-entry'),
     expected: (value) => ({ ...value, evaluationPolicy: 'freeze-at-entry' }),
+    display: () => {
+      expect(screen.getByRole('combobox', { name: 'Clip evaluation' })).toHaveValue('freeze-at-entry')
+    },
   },
   {
     name: 'Evaluation stores rolling-refresh',
@@ -385,12 +514,16 @@ const ROWS: RoundTripRow[] = [
     tab: 'Playback',
     drive: () => choose('Clip evaluation', 'rolling-refresh'),
     expected: (value) => ({ ...value, evaluationPolicy: 'rolling-refresh' }),
+    display: () => {
+      expect(screen.getByRole('combobox', { name: 'Clip evaluation' })).toHaveValue('rolling-refresh')
+    },
   },
   {
     name: 'an impossible Duration is refused without partial state',
     scopes: ['scene-overlay'],
     drive: () => typeAndCommit('Duration seconds exact time', '1000'),
     expected: (value) => value,
+    display: () => expectValue('Duration seconds exact time', '2'),
     refused: true,
   },
 ]
@@ -422,9 +555,16 @@ describe('Clip detail field round-trip matrix (#658)', () => {
       const value = projectShowClipInspector(show, owner)
       expect(value).not.toBeNull()
 
+      // Mirrors ShowEditor.commitClipInspectorPatch exactly: apply through the
+      // real engine, return false on refusal so fields revert their drafts.
+      let current = show
       const patches: ShowClipInspectorPatch[] = []
       const onPatch = vi.fn((patch: ShowClipInspectorPatch) => {
         patches.push(patch)
+        const applied = updateShowClipInspector(current, owner, patch)
+        if (applied === current) return false
+        current = applied
+        return Promise.resolve()
       })
       const props = matrixProps(scope, value!, onPatch)
       const { rerender } = render(<ShowClipEntityDetail {...props} />)
@@ -435,7 +575,7 @@ describe('Clip detail field round-trip matrix (#658)', () => {
       row.drive()
       expect(patches.length, 'the drive must emit at least one patch').toBeGreaterThan(patchesBeforeDrive)
 
-      const next = applyPatches(show, owner, patches)
+      const next = current
       if (row.refused) {
         expect(next, 'a refused edit must return the same ShowRecord reference').toBe(show)
       } else {
@@ -449,8 +589,9 @@ describe('Clip detail field round-trip matrix (#658)', () => {
       expect(nextValue).not.toBeNull()
       expect(nextValue).toEqual(row.expected(value!, patches))
 
-      // The dialog must be able to display exactly what the engine stored.
+      // The dialog must display exactly what the engine stored.
       rerender(<ShowClipEntityDetail {...props} value={nextValue!} />)
+      row.display(nextValue!)
     },
   )
 })
