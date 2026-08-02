@@ -1044,6 +1044,37 @@ test.describe('authenticated Show authoring', () => {
     await expect(reloaded.getByRole('textbox', { name: 'Rotation exact rotation' })).toHaveValue('-90')
   })
 
+  test('keeps a soft ellipse aperture after a reload (#591)', async ({ page }) => {
+    await page.goto('studio/shows')
+    await createInstallationShow(page)
+
+    await selectClip(page, 'TestPattern1D')
+    await showClipTab(page, 'Place')
+    // Selecting the Aperture summary enables the Viewport and focuses it.
+    await page.getByRole('button', { name: 'Aperture summary' }).click()
+    await page.getByLabel('Aperture shape').selectOption('ellipse')
+    await expect(page.getByLabel('Aperture edge', { exact: true })).toHaveValue('soft')
+    const width = page.getByRole('textbox', { name: 'Aperture edge width' })
+    await width.fill('0.1')
+    await width.blur()
+
+    await waitForCurrentShow(page, (show) => show.composition?.scenes.some((scene) => (
+      scene.zones?.some((zone) => zone.main?.some((placement) => (
+        placement.viewport?.enabled === true
+        && placement.viewport.aperture === 'ellipse'
+        && placement.viewport.feather === 0.1
+      )))
+    )) === true)
+
+    await page.reload()
+    await selectClip(page, 'TestPattern1D')
+    await showClipTab(page, 'Place')
+    await page.getByRole('button', { name: 'Aperture summary' }).click()
+    await expect(page.getByLabel('Aperture shape')).toHaveValue('ellipse')
+    await expect(page.getByLabel('Aperture edge', { exact: true })).toHaveValue('soft')
+    await expect(page.getByRole('textbox', { name: 'Aperture edge width' })).toHaveValue('0.1')
+  })
+
   test('previews placement sliders without scrolling the outer detail panel', async ({ page }) => {
     await page.setViewportSize({ width: 1024, height: 400 })
     await page.goto('studio/shows')
@@ -1782,6 +1813,7 @@ type PersistedShow = {
           instanceId: string
           view?: { brightness: number }
           transform?: { positionX: number; positionY: number; rotation: number; scaleX: number; scaleY: number }
+          viewport?: { enabled: boolean; aperture?: string; edge?: string; feather?: number }
         effects?: Array<{ id: string; kind: string; amount?: number; frequency?: number }>
         }>
         overlays: Array<{

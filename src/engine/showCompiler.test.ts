@@ -6415,3 +6415,159 @@ export function render(index) { calls = calls + 1; rgb(0, 1, 0) }
     })
   })
 })
+
+describe('shaped Clip Viewport apertures (#591)', () => {
+  /*
+    The routed zone grid derives pixel coordinates from the index: 25 pixels
+    make a 5x5 grid whose points step by 0.25, so index 11 is (0.25, 0.5),
+    index 12 is (0.5, 0.5), index 13 is (0.75, 0.5), index 0 is (0, 0). The
+    render2D x/y arguments do not feed the Viewport mask. The `pixelCount`
+    global only feeds the density-derived feather default, so tests vary it
+    independently of the sampling grid.
+  */
+  const zones = [{ id: 'main', name: 'main', ranges: [{ start: 0, end: 24 }] }]
+  const stack = (viewport: Record<string, unknown>, propertyTracks?: unknown[]) => ({
+    clips: [
+      { id: 'red', source: 'export function render2D(index, x, y) { rgb(1, 0, 0) }' },
+      { id: 'blue', source: 'export function render2D(index, x, y) { rgb(0, 0, 1) }' },
+    ],
+    zones,
+    routingLayouts: [{ id: 'default', name: 'Default', zones }],
+    routedSceneSequence: {
+      scenes: [{
+        holdMs: 1_000,
+        placements: [
+          { zoneName: 'main', clipId: 'red', stackOrder: 0 },
+          {
+            placementId: 'blue-placement',
+            zoneName: 'main',
+            clipId: 'blue',
+            stackOrder: 1,
+            viewport,
+          },
+        ],
+        ...(propertyTracks ? { propertyTracks } : {}),
+        transitionOut: { kind: 'cut' as const, durationMs: 0 },
+      }, {
+        holdMs: 1_000,
+        placements: [{ zoneName: 'main', clipId: 'red' }],
+      }],
+    },
+    loopDurationMs: 2_000,
+  })
+  // Frame x 0, y 0, width 0.5, height 1: ellipse center (0.25, 0.5), rx 0.25, ry 0.5.
+  const frame = { enabled: true, x: 0, y: 0, width: 0.5, height: 1 }
+
+  it('clips a hard ellipse to the frame-inscribed silhouette', () => {
+    const artifact = compileShow(stack({ ...frame, aperture: 'ellipse', edge: 'hard' }) as never, {})
+    const { handle, pixel } = loadShow(artifact.code, artifact.metadata, 25)
+
+    handle.beforeRender(100)
+    handle.render2D(11, 0.25, 0.5)
+    expect(pixel()).toEqual([0, 0, 1])
+    // (0, 0) is inside the rectangular frame corner but outside the ellipse.
+    handle.render2D(0, 0, 0)
+    expect(pixel()).toEqual([1, 0, 0])
+    // (0.5, 0.5) sits exactly on the boundary, which the hard test includes.
+    handle.render2D(12, 0.5, 0.5)
+    expect(pixel()).toEqual([0, 0, 1])
+  })
+
+  it('feathers the default ellipse edge with a density-derived band', () => {
+    const artifact = compileShow(stack({ ...frame, aperture: 'ellipse' }) as never, {})
+
+    // Dense output: 1.5 / sqrt(10000) = 0.015. The boundary blends at 0.5 and
+    // one grid step outside (signed 0.25) is fully red.
+    const dense = loadShow(artifact.code, artifact.metadata, 10_000)
+    dense.handle.beforeRender(100)
+    dense.handle.render2D(12, 0.5, 0.5)
+    expect(dense.pixel()[2]).toBeCloseTo(0.5, 5)
+    dense.handle.render2D(13, 0.75, 0.5)
+    expect(dense.pixel()).toEqual([1, 0, 0])
+
+    // Sparse output: 1.5 / sqrt(4) = 0.75. The same outside point now blends:
+    // mix = 0.5 - 0.25 / 0.75 = 1/6.
+    const sparse = loadShow(artifact.code, artifact.metadata, 4)
+    sparse.handle.beforeRender(100)
+    sparse.handle.render2D(13, 0.75, 0.5)
+    expect(sparse.pixel()[2]).toBeCloseTo(1 / 6, 5)
+  })
+
+  it('honors an authored feather width over the density default', () => {
+    const artifact = compileShow(stack({ ...frame, aperture: 'ellipse', feather: 0.1 }) as never, {})
+    const { handle, pixel } = loadShow(artifact.code, artifact.metadata, 10_000)
+
+    handle.beforeRender(100)
+    handle.render2D(12, 0.5, 0.5)
+    expect(pixel()[2]).toBeCloseTo(0.5, 5)
+    expect(pixel()[0]).toBeCloseTo(0.5, 5)
+    // signed 0.25 overwhelms the authored 0.1 band despite the huge default.
+    handle.render2D(13, 0.75, 0.5)
+    expect(pixel()).toEqual([1, 0, 0])
+  })
+
+  it('feathers a rectangle only when soft is explicitly authored', () => {
+    const artifact = compileShow(stack({ ...frame, edge: 'soft', feather: 0.1 }) as never, {})
+    const { handle, pixel } = loadShow(artifact.code, artifact.metadata, 25)
+
+    handle.beforeRender(100)
+    // The frame's right edge passes through (0.5, 0.5).
+    handle.render2D(12, 0.5, 0.5)
+    expect(pixel()[2]).toBeCloseTo(0.5, 5)
+    handle.render2D(11, 0.25, 0.5)
+    expect(pixel()).toEqual([0, 0, 1])
+  })
+
+  it('moves the soft ellipse band with an animated frame width', () => {
+    const artifact = compileShow(stack(
+      { ...frame, width: 0.25, aperture: 'ellipse', feather: 0.02 },
+      [{
+        id: 'viewport-width',
+        target: { kind: 'placement-viewport', placementId: 'blue-placement', property: 'width' },
+        keyframes: [
+          { id: 'viewport-a', timeMs: 0, value: 0.25, easing: { curve: 'linear' } },
+          { id: 'viewport-b', timeMs: 1_000, value: 0.75, easing: { curve: 'linear' } },
+        ],
+      }],
+    ) as never, {})
+    const { handle, pixel } = loadShow(artifact.code, artifact.metadata, 25)
+
+    // t = 500ms: width 0.5, so the ellipse centers at x 0.25 with rx 0.25.
+    handle.beforeRender(500)
+    handle.render2D(11, 0.25, 0.5)
+    expect(pixel()).toEqual([0, 0, 1])
+    handle.render2D(13, 0.75, 0.5)
+    expect(pixel()).toEqual([1, 0, 0])
+  })
+
+  it('rejects unknown aperture shapes, edges, and non-positive feathers', () => {
+    expect(() => compileShow(stack({ ...frame, aperture: 'blob' }) as never, {}))
+      .toThrow('aperture')
+    expect(() => compileShow(stack({ ...frame, edge: 'fuzzy' }) as never, {}))
+      .toThrow('aperture')
+    expect(() => compileShow(stack({ ...frame, feather: 0 }) as never, {}))
+      .toThrow('aperture')
+  })
+
+  it('discloses aperture shape, edge, and feather source in the compile summary', () => {
+    const shaped = compileShow(stack({ ...frame, aperture: 'ellipse' }) as never, {})
+    expect(shaped.summary.specializations.apertures).toEqual([{
+      sceneIndex: 0,
+      zoneName: 'main',
+      placementId: 'blue-placement',
+      shape: 'ellipse',
+      edge: 'soft',
+      feather: 'density-default',
+    }])
+
+    const rectangular = compileShow(stack({ ...frame }) as never, {})
+    expect(rectangular.summary.specializations.apertures).toEqual([{
+      sceneIndex: 0,
+      zoneName: 'main',
+      placementId: 'blue-placement',
+      shape: 'rectangle',
+      edge: 'hard',
+      feather: null,
+    }])
+  })
+})

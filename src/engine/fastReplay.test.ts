@@ -77,6 +77,58 @@ describe('Fast replay reconstruction', () => {
     expect(precise.pixels[0][0]).toBeCloseTo(0.3, 4)
   })
 
+  it('agrees between Fast and Precise across a soft aperture band (#591)', () => {
+    const zones = [{ id: 'main', name: 'main', ranges: [{ start: 0, end: 24 }] }]
+    const artifact = compileShow({
+      clips: [
+        { id: 'red', source: 'export function render2D(index, x, y) { rgb(1, 0, 0) }' },
+        { id: 'blue', source: 'export function render2D(index, x, y) { rgb(0, 0, 1) }' },
+      ],
+      zones,
+      routingLayouts: [{ id: 'default', name: 'Default', zones }],
+      routedSceneSequence: {
+        scenes: [{
+          holdMs: 1_000,
+          placements: [
+            { zoneName: 'main', clipId: 'red', stackOrder: 0 },
+            {
+              placementId: 'blue-placement',
+              zoneName: 'main',
+              clipId: 'blue',
+              stackOrder: 1,
+              viewport: { enabled: true, x: 0, y: 0, width: 0.5, height: 1, aperture: 'ellipse', feather: 0.1 },
+            },
+          ],
+          transitionOut: { kind: 'cut' as const, durationMs: 0 },
+        }, {
+          holdMs: 1_000,
+          placements: [{ zoneName: 'main', clipId: 'red' }],
+        }],
+      },
+      loopDurationMs: 2_000,
+    }, {})
+    const prepared = prepareFastReplay(artifact.code, {})
+    const mapPoints = Array.from({ length: 25 }, (_, index) => ({
+      sample: [(index % 5) / 4, Math.floor(index / 5) / 4],
+    }))
+    const options = { mapPoints, randomSeed: 412 }
+
+    const fast = createFastReplayRuntime(prepared, options).renderCurrentFrame()
+    const precise = createFastReplayRuntime(prepared, { ...options, fidelity: 'fidelity' }).renderCurrentFrame()
+
+    // The frame crosses fully-inside, band-interior, and fully-outside pixels;
+    // the 16.16 emulation must land within fixed-point resolution everywhere,
+    // including the fractional band values.
+    expect(fast.pixels).toHaveLength(25)
+    const bandPixels = fast.pixels.filter(([r]) => r > 0.05 && r < 0.95)
+    expect(bandPixels.length).toBeGreaterThan(0)
+    fast.pixels.forEach((pixel, index) => {
+      pixel.forEach((channel, plane) => {
+        expect(precise.pixels[index][plane]).toBeCloseTo(channel, 2)
+      })
+    })
+  })
+
   it('executes every intermediate per-pixel render call while rebuilding', () => {
     const prepared = prepareFastReplay(RENDER_MUTATING_PATTERN, {})
     const result = createFastReplayRuntime(prepared, {

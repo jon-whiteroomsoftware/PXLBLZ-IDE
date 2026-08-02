@@ -391,6 +391,67 @@ const ROWS: RoundTripRow[] = [
     display: () => expectValue('Viewport Height exact multiplier', '2'),
   },
   {
+    name: 'Aperture shape stores the inscribed ellipse',
+    scopes: ['scene-main'],
+    tab: 'Place',
+    seed: { viewport: { enabled: true } },
+    prepare: () => fireEvent.click(screen.getByRole('button', { name: 'Aperture summary' })),
+    drive: () => choose('Aperture shape', 'ellipse'),
+    expected: (value) => ({ ...value, viewport: { ...value.viewport, aperture: 'ellipse' } }),
+    display: () => {
+      expect(screen.getByRole('combobox', { name: 'Aperture shape' })).toHaveValue('ellipse')
+      // Ellipse defaults the edge soft, so the width field appears.
+      expect(screen.getByRole('combobox', { name: 'Aperture edge' })).toHaveValue('soft')
+      expect(screen.getByRole('textbox', { name: 'Aperture edge width' })).toBeInTheDocument()
+    },
+  },
+  {
+    name: 'Aperture shape compacts back to the rectangle default',
+    scopes: ['scene-main'],
+    tab: 'Place',
+    seed: { viewport: { enabled: true, aperture: 'ellipse' } },
+    prepare: () => fireEvent.click(screen.getByRole('button', { name: 'Aperture summary' })),
+    drive: () => choose('Aperture shape', 'rectangle'),
+    expected: (value) => ({ ...value, viewport: { ...value.viewport, aperture: undefined } }),
+    display: () => {
+      expect(screen.getByRole('combobox', { name: 'Aperture shape' })).toHaveValue('rectangle')
+      expect(screen.getByRole('combobox', { name: 'Aperture edge' })).toHaveValue('hard')
+    },
+  },
+  {
+    name: 'Aperture edge stores an explicit hard override',
+    scopes: ['scene-main'],
+    tab: 'Place',
+    seed: { viewport: { enabled: true, aperture: 'ellipse' } },
+    prepare: () => fireEvent.click(screen.getByRole('button', { name: 'Aperture summary' })),
+    drive: () => choose('Aperture edge', 'hard'),
+    expected: (value) => ({ ...value, viewport: { ...value.viewport, edge: 'hard' } }),
+    display: () => {
+      expect(screen.getByRole('combobox', { name: 'Aperture edge' })).toHaveValue('hard')
+      expect(screen.queryByRole('textbox', { name: 'Aperture edge width' })).toBeNull()
+    },
+  },
+  {
+    name: 'Aperture edge width stores an authored feather',
+    scopes: ['scene-main'],
+    tab: 'Place',
+    seed: { viewport: { enabled: true, aperture: 'ellipse' } },
+    prepare: () => fireEvent.click(screen.getByRole('button', { name: 'Aperture summary' })),
+    drive: () => typeAndCommit('Aperture edge width', '0.05'),
+    expected: (value) => ({ ...value, viewport: { ...value.viewport, feather: 0.05 } }),
+    display: () => expectValue('Aperture edge width', '0.05'),
+  },
+  {
+    name: 'a zero edge width restores the density default',
+    scopes: ['scene-main'],
+    tab: 'Place',
+    seed: { viewport: { enabled: true, aperture: 'ellipse', feather: 0.05 } },
+    prepare: () => fireEvent.click(screen.getByRole('button', { name: 'Aperture summary' })),
+    drive: () => typeAndCommit('Aperture edge width', '0'),
+    expected: (value) => ({ ...value, viewport: { ...value.viewport, feather: undefined } }),
+    display: () => expectValue('Aperture edge width', '0'),
+  },
+  {
     name: 'adding a stack Effect appends one normalized Effect',
     scopes: ['scene-main'],
     tab: 'Effects',

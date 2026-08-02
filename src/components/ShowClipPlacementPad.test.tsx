@@ -249,3 +249,23 @@ describe('gesture feedback (#617)', () => {
     })
   })
 })
+
+describe('shaped aperture silhouette (#591)', () => {
+  it('draws the inscribed ellipse and quiets the frame outline', () => {
+    setup({}, { enabled: true, x: 0.25, y: 0.25, width: 0.5, height: 0.5, aperture: 'ellipse' })
+    const ellipse = screen.getByTestId('placement-pad-aperture-ellipse')
+    expect(ellipse.tagName.toLowerCase()).toBe('ellipse')
+    expect(Number(ellipse.getAttribute('rx'))).toBeGreaterThan(0)
+  })
+
+  it('does not draw an ellipse for the rectangle default', () => {
+    setup({}, { enabled: true, x: 0.25, y: 0.25, width: 0.5, height: 0.5 })
+    expect(screen.queryByTestId('placement-pad-aperture-ellipse')).toBeNull()
+  })
+
+  it('punches the scrim hole with the ellipse silhouette', () => {
+    setup({}, { enabled: true, x: 0.25, y: 0.25, width: 0.5, height: 0.5, aperture: 'ellipse' })
+    const scrim = document.querySelector('path[fill-rule="evenodd"]')
+    expect(scrim?.getAttribute('d')).toContain(' a')
+  })
+})

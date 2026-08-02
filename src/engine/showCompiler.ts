@@ -37,7 +37,11 @@ import {
   showClipTransformEffects,
   showClipTransformEffectTarget,
 } from './showClipTransform'
-import { showClipViewportMaskExpression } from './showClipViewport'
+import {
+  normalizeShowClipViewport,
+  showClipViewportEffectiveEdge,
+  showClipViewportMaskExpression,
+} from './showClipViewport'
 import { normalizeShowTransitionColor, showTransitionColorToRgb } from './showFadeThroughColor'
 import { showClipEffectPersistedField } from './showEffectAuthoring'
 import { emitShowPropertyTrackExpression } from './showPropertyAnimation'
@@ -580,6 +584,15 @@ export interface ShowCompileSummary {
       enabled: boolean
       memberIds: string[]
     } | null
+    /** #591: every enabled Clip Viewport's aperture shape and edge treatment. */
+    apertures: Array<{
+      sceneIndex: number
+      zoneName: string
+      placementId?: string
+      shape: 'rectangle' | 'ellipse'
+      edge: 'hard' | 'soft'
+      feather: 'authored' | 'density-default' | null
+    }> | null
     capture: Array<{
       clipId: string
       samplePath: 'identity' | 'mapped'
@@ -3149,6 +3162,26 @@ export function compileShow(
               .map((member) => member.id),
           }
         : null,
+      apertures: (() => {
+        const scenes = expandedRecipe.routedSceneSequence?.scenes ?? []
+        const entries = scenes.flatMap((scene, sceneIndex) => (
+          scene.placements.filter((placement) => placement.viewport?.enabled).map((placement) => {
+            const viewport = normalizeShowClipViewport(placement.viewport)
+            const edge = showClipViewportEffectiveEdge(viewport)
+            return {
+              sceneIndex,
+              zoneName: placement.zoneName,
+              ...(placement.placementId ? { placementId: placement.placementId } : {}),
+              shape: viewport.aperture ?? 'rectangle' as const,
+              edge,
+              feather: edge === 'soft'
+                ? viewport.feather !== undefined ? 'authored' as const : 'density-default' as const
+                : null,
+            }
+          })
+        ))
+        return entries.length > 0 ? entries : null
+      })(),
       capture: captureSpecializations,
       frameInvariants: members.map((member) => ({
         clipId: member.id,
@@ -3473,6 +3506,18 @@ function validateRecipe(recipe: ShowRecipe): void {
           || placement.viewport.height <= 0
         )) {
           throw new Error('compileShow Clip Viewport requires finite coordinates and positive size.')
+        }
+        if (placement.viewport && (
+          (placement.viewport.aperture !== undefined
+            && placement.viewport.aperture !== 'rectangle'
+            && placement.viewport.aperture !== 'ellipse')
+          || (placement.viewport.edge !== undefined
+            && placement.viewport.edge !== 'hard'
+            && placement.viewport.edge !== 'soft')
+          || (placement.viewport.feather !== undefined
+            && (!Number.isFinite(placement.viewport.feather) || placement.viewport.feather <= 0))
+        )) {
+          throw new Error('compileShow Clip Viewport aperture requires a known shape, a known edge, and a positive feather.')
         }
       }
       validateRoutedScenePropertyTracks(recipe, scene)

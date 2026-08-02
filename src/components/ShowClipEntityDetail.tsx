@@ -18,6 +18,7 @@ import {
   resolvePlacementPositionPresentation,
   type PlacementFocus,
 } from '@/engine/showClipPlacementPad'
+import { showClipViewportEffectiveEdge } from '@/engine/showClipViewport'
 import {
   normalizeShowClipEvaluationPolicy,
   showClipInspectorCapabilities,
@@ -1061,6 +1062,59 @@ function ClipPlacementGeometry({
       <div className="min-w-0" data-show-clip-summary-target={content ? 'transform-rotation' : undefined} tabIndex={content ? -1 : undefined}>
         <AngleField compact kind="rotation" label="Rotation" ariaLabel={content ? 'Rotation' : 'Viewport rotation'} labelAction={content ? animationAction('rotation', 'Rotation') : undefined} value={content ? value.transform.rotation : 0} min={-8} max={8} step={1 / 360} reserveSuffixSpace disabled={readOnly || !content} help={content ? undefined : 'Aperture is axis-aligned'} onPreview={content ? (rotation) => onPreviewPatch?.({ transform: { rotation } }) : undefined} onPreviewEnd={onPreviewEnd} onChange={(rotation) => onPatch({ transform: { rotation } })} />
       </div>
+      {!content && <>
+        {/* The aperture silhouette and edge (#591). Shape and edge are durable
+            styling on the Viewport, not frame geometry, so they live with the
+            aperture-focused stack rather than the pad gestures. */}
+        <label className="block min-w-0 text-[8px] uppercase tracking-[0.08em] text-zinc-600">
+          Shape
+          <select
+            aria-label="Aperture shape"
+            value={value.viewport.aperture ?? 'rectangle'}
+            disabled={readOnly}
+            onChange={(event) => onPatch({
+              viewport: { aperture: event.target.value === 'ellipse' ? 'ellipse' : 'rectangle' },
+            })}
+            className="mt-0.5 h-5 w-full border-0 border-b border-zinc-800 bg-transparent px-1 text-[9px] normal-case tracking-normal text-zinc-200 outline-none focus:border-cyan-400/60 disabled:opacity-60"
+          >
+            <option value="rectangle">Rectangle</option>
+            <option value="ellipse">Ellipse</option>
+          </select>
+        </label>
+        <label className="block min-w-0 text-[8px] uppercase tracking-[0.08em] text-zinc-600">
+          Edge
+          <select
+            aria-label="Aperture edge"
+            value={showClipViewportEffectiveEdge(value.viewport)}
+            disabled={readOnly}
+            onChange={(event) => onPatch({
+              viewport: { edge: event.target.value === 'hard' ? 'hard' : 'soft' },
+            })}
+            className="mt-0.5 h-5 w-full border-0 border-b border-zinc-800 bg-transparent px-1 text-[9px] normal-case tracking-normal text-zinc-200 outline-none focus:border-cyan-400/60 disabled:opacity-60"
+          >
+            <option value="soft">Soft</option>
+            <option value="hard">Hard</option>
+          </select>
+        </label>
+        {showClipViewportEffectiveEdge(value.viewport) === 'soft' && (
+          <div className="min-w-0">
+            <ShowInspectorNumberField
+              compact
+              label="Edge width"
+              ariaLabel="Aperture edge width"
+              value={value.viewport.feather ?? 0}
+              min={0}
+              max={1}
+              step={0.01}
+              disabled={readOnly}
+              help="0 uses the automatic width from device density."
+              onChange={(feather) => onPatch({
+                viewport: { feather: feather > 0 ? feather : undefined },
+              })}
+            />
+          </div>
+        )}
+      </>}
     </div>
   )
 }

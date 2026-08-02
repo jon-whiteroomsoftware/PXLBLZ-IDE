@@ -448,12 +448,22 @@ export interface ShowClipTransform {
 }
 
 /** Optional placement-owned, axis-aligned clipping rectangle in normalized Zone coordinates. */
+export type ShowClipApertureShape = 'rectangle' | 'ellipse'
+
+export type ShowClipApertureEdge = 'hard' | 'soft'
+
 export interface ShowClipViewport {
   enabled: boolean
   x: number
   y: number
   width: number
   height: number
+  /** Aperture silhouette inscribed in the frame. Missing = rectangle (#591). */
+  aperture?: ShowClipApertureShape
+  /** Edge treatment. Missing defaults hard for rectangle, soft for ellipse. */
+  edge?: ShowClipApertureEdge
+  /** Authored soft-band width in normalized Zone units. Missing = density default. */
+  feather?: number
 }
 
 export interface ShowMainPlacement {

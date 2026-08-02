@@ -92,6 +92,7 @@ export function ShowClipPlacementPad({
   const viewport = live?.viewport ?? committedViewport
   const context: PlacementPadContext = { transform, viewport, grid }
   const apertureOn = viewport.enabled
+  const ellipseAperture = viewport.aperture === 'ellipse'
   const focus = controlledFocus ?? uncontrolledFocus
   const active = focus
   const contentFocused = active === 'content'
@@ -179,7 +180,7 @@ export function ShowClipPlacementPad({
     } else if (gesture.kind === 'viewport-sweep') {
       previewResult(sweepViewport(context, gesture.originX, gesture.originY, point.x, point.y))
     } else if (gesture.kind === 'viewport-corner') {
-      previewResult(resizeViewportToAnchor(context, gesture.anchor, point.x, point.y))
+      previewResult(resizeViewportToAnchor(context, gesture.anchor, point.x, point.y, { square: event.shiftKey }))
     } else {
       previewResult(moveViewportTo(context, point.x - gesture.grabX, point.y - gesture.grabY, { carryContent: gesture.carry }))
     }
@@ -276,7 +277,7 @@ export function ShowClipPlacementPad({
             ? 'Drag the content or its corners. Grid lines magnetize edges; Shift keeps corner resizing square.'
             : apertureFocused
               ? apertureOn
-                ? 'Drag the Aperture or its corners; drag bare pad to sweep cells. Alt-drag carries Content.'
+                ? 'Drag the Aperture or its corners; Shift keeps corners square, bare pad sweeps cells. Alt-drag carries Content.'
                 : 'This retained Aperture is off. Editing it on the pad enables it.'
               : 'Drag Content or its corners. Its edges magnetize to the Aperture and Zone; only Content rotates.'}
           className="grid size-5 shrink-0 place-items-center rounded text-[9px] text-zinc-600 hover:bg-zinc-800 hover:text-zinc-300 focus-visible:outline focus-visible:outline-1 focus-visible:outline-cyan-300"
@@ -352,7 +353,9 @@ export function ShowClipPlacementPad({
             Handles are re-raised above it so they stay grabbable. */}
         {apertureVisible && <>
           {apertureOn && <path
-              d={`M0,0H${PAD}V${PAD}H0Z M${toPad(window.left)},${toPad(window.top)}V${toPad(window.top + window.height)}H${toPad(window.left + window.width)}V${toPad(window.top)}Z`}
+              d={ellipseAperture
+                ? `M0,0H${PAD}V${PAD}H0Z M${toPad(window.left)},${toPad(window.top + window.height / 2)} a${span(window.width) / 2},${span(window.height) / 2} 0 1 0 ${span(window.width)},0 a${span(window.width) / 2},${span(window.height) / 2} 0 1 0 ${-span(window.width)},0 Z`
+                : `M0,0H${PAD}V${PAD}H0Z M${toPad(window.left)},${toPad(window.top)}V${toPad(window.top + window.height)}H${toPad(window.left + window.width)}V${toPad(window.top)}Z`}
               fill="#09090b"
               fillOpacity="0.72"
               fillRule="evenodd"
@@ -366,11 +369,24 @@ export function ShowClipPlacementPad({
             height={span(window.height)}
             fill="none"
             stroke={APERTURE}
+            strokeWidth={ellipseAperture ? 1 : 1.5}
+            strokeOpacity={ellipseAperture ? (apertureActive ? 0.35 : 0.15) : apertureActive ? 1 : 0.4}
+            strokeDasharray={ellipseAperture ? '2 4' : '6 3'}
+            pointerEvents="none"
+          />
+          {ellipseAperture && <ellipse
+            data-testid="placement-pad-aperture-ellipse"
+            cx={toPad(window.left + window.width / 2)}
+            cy={toPad(window.top + window.height / 2)}
+            rx={span(window.width) / 2}
+            ry={span(window.height) / 2}
+            fill="none"
+            stroke={APERTURE}
             strokeWidth="1.5"
             strokeOpacity={apertureActive ? 1 : 0.4}
             strokeDasharray="6 3"
             pointerEvents="none"
-          />
+          />}
           <rect
             x={toPad(window.left)}
             y={toPad(window.top)}

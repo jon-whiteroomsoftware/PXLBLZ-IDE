@@ -1881,7 +1881,20 @@ its placement; placement-owned animation tracks follow the same lifecycle.
 Missing or disabled Viewports leave the complete Zone visible. First enable
 frames the Content portion already visible inside the Zone, so progressive
 disclosure is a visual no-op; an authored disabled rectangle is restored
-instead of being derived again.
+instead of being derived again, and an authored aperture shape, edge, or
+feather survives first enable as durable styling.
+
+The Viewport carries an optional **aperture** (`ellipse`; missing compacts to
+rectangle), an optional **edge** (`hard`/`soft`; missing defaults hard for
+rectangles and soft for ellipses), and an optional authored **feather** width
+in normalized Zone units (#591). The unedited enabled rectangle emits the
+identical bounded 2D predicate as before, byte for byte. A hard ellipse emits
+a squared-distance predicate without `sqrt`; soft edges emit
+`clamp(0.5 - signed / feather, 0, 1)` over the scaled-space ellipse metric or
+the axis-aligned box distance. The default feather is emitted into the
+artifact as `1.5 / sqrt(pixelCount)`, so the band width tracks the device the
+Pattern actually runs on; Fast and Precise execution agree across the band
+within fixed-point resolution.
 
 The Place tab renders `ShowClipPlacementPad` inline with one geometry column.
 The SVG keeps a stable `384 x 384` coordinate system for gesture math but fills
@@ -1919,10 +1932,14 @@ inside the Pattern tab body rather than as an unbounded sibling of the tabbed
 detail, so that compatibility path retains the same scroll ownership.
 
 Lowering carries the Viewport with its placement. The routed compiler multiplies
-placement opacity by the Viewport's coordinate predicate after Pattern capture,
-revealing lower layers without changing Pattern evaluation or its transformed
-coordinate field. X, Y, Width, and Height may use Scene-local Property tracks;
-enablement remains discrete. Direct-sink and opaque-stack optimizations are
+placement opacity by the Viewport's coverage term after Pattern capture -
+boolean for hard edges, fractional inside a soft band - revealing lower layers
+without changing Pattern evaluation or its transformed coordinate field. X, Y,
+Width, and Height may use Scene-local Property tracks, and the shaped mask
+derives its center and radii from the same animated frame expressions;
+enablement, aperture, and edge remain discrete. The compile summary's
+`specializations.apertures` entry names every enabled Viewport's shape, edge,
+and feather source. Direct-sink and opaque-stack optimizations are
 disabled whenever an enabled Viewport would make their coverage assumptions
 false. An enabled Viewport requires 2D Show output; compilation fails explicitly
 if a later Stage change would otherwise make the Viewport disappear in 1D.

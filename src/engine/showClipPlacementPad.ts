@@ -409,12 +409,23 @@ export function resizeViewportToAnchor(
   anchor: { x: number; y: number },
   pointerX: number,
   pointerY: number,
+  options: { square?: boolean } = {},
 ): PlacementPadResult {
+  let width = Math.abs(pointerX - anchor.x)
+  let height = Math.abs(pointerY - anchor.y)
+  if (options.square) {
+    // A square frame is how an ellipse aperture stays a circle (#591).
+    const side = Math.max(width, height)
+    width = side
+    height = side
+  }
+  width = Math.max(MIN_SCALE, width)
+  height = Math.max(MIN_SCALE, height)
   return setViewportRect(context, {
-    left: Math.min(pointerX, anchor.x),
-    top: Math.min(pointerY, anchor.y),
-    width: Math.max(MIN_SCALE, Math.abs(pointerX - anchor.x)),
-    height: Math.max(MIN_SCALE, Math.abs(pointerY - anchor.y)),
+    left: pointerX < anchor.x ? anchor.x - width : anchor.x,
+    top: pointerY < anchor.y ? anchor.y - height : anchor.y,
+    width,
+    height,
   })
 }
 
@@ -471,7 +482,14 @@ export function enableViewportForContent(context: PlacementPadContext): ShowClip
     && authored.height === DEFAULT_SHOW_CLIP_VIEWPORT.height
   if (!untouched) return { ...authored, enabled: true }
   const visible = visibleContentRect(context.transform) ?? { ...PLACEMENT_ZONE_RECT }
-  return viewportFromRect(visible, true)
+  // The frame is recomputed from content, but an authored aperture shape and
+  // edge are durable styling, not frame geometry - keep them (#591).
+  return {
+    ...viewportFromRect(visible, true),
+    ...(authored.aperture !== undefined ? { aperture: authored.aperture } : {}),
+    ...(authored.edge !== undefined ? { edge: authored.edge } : {}),
+    ...(authored.feather !== undefined ? { feather: authored.feather } : {}),
+  }
 }
 
 /**

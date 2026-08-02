@@ -17,6 +17,7 @@ import {
   placementCornerAnchor,
   placementPadView,
   resizeContentToAnchor,
+  resizeViewportToAnchor,
   setViewportRect,
   snapPlacementRect,
   stickPlacementRect,
@@ -415,5 +416,29 @@ describe('resolvePlacementPositionPresentation (#633)', () => {
     const free = resolvePlacementPositionPresentation(0)
     const values = free.sliderMarks.map((mark) => mark.value)
     expect(values).toEqual([-2, -1.5, -1, -0.5, 0, 0.5, 1, 1.5, 2])
+  })
+})
+
+describe('shaped aperture support (#591)', () => {
+  it('squares a Shift corner resize so an ellipse stays a circle', () => {
+    const padContext = context({}, { enabled: true, x: 0.25, y: 0.25, width: 0.5, height: 0.5 })
+    const result = resizeViewportToAnchor(padContext, { x: 0.25, y: 0.25 }, 0.85, 0.65, { square: true })
+    expect(result.viewport).toMatchObject({ x: 0.25, y: 0.25, width: 0.6, height: 0.6 })
+  })
+
+  it('keeps the free corner resize rectangular without the option', () => {
+    const padContext = context({}, { enabled: true, x: 0.25, y: 0.25, width: 0.5, height: 0.5 })
+    const result = resizeViewportToAnchor(padContext, { x: 0.25, y: 0.25 }, 0.85, 0.65)
+    expect(result.viewport).toMatchObject({ x: 0.25, y: 0.25, width: 0.6, height: 0.4 })
+  })
+
+  it('preserves an authored aperture shape and edge through first enable', () => {
+    const padContext = context({}, { aperture: 'ellipse', edge: 'soft', feather: 0.05 })
+    expect(enableViewportForContent(padContext)).toMatchObject({
+      enabled: true,
+      aperture: 'ellipse',
+      edge: 'soft',
+      feather: 0.05,
+    })
   })
 })

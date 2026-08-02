@@ -538,8 +538,14 @@ square pad sits beside one X, Y, Width, Height, and Rotation stack. The fields
 edit the focused **Content** or **Aperture** rectangle; the other rectangle
 appears as a compact summary above them and switches focus when clicked.
 Selecting an absent Aperture enables it over the Content's visible bounds.
-Drag the focused rectangle, its corners, or Content's rotation handle on the
-pad; grid edges and the other rectangle remain exact magnets. X and Y retain
+With the Aperture focused, a **Shape** control chooses the silhouette inside
+the frame - Rectangle, or an inscribed Ellipse whose soft edge is the default -
+and an **Edge** control switches Soft and Hard. Soft edges feather over a
+width derived from the device's pixel density; entering an explicit **Edge
+width** overrides it, and `0` restores the automatic width. A square frame
+makes the Ellipse a circle; hold Shift while corner-dragging the Aperture to
+keep it square. Drag the focused rectangle, its corners, or Content's rotation
+handle on the pad; grid edges and the other rectangle remain exact magnets. X and Y retain
 exact numeric entry and each grip opens its own position slider, while the pad
 remains the direct two-dimensional manipulation surface. The position slider
 covers the two stage units around center where placement actually happens -
