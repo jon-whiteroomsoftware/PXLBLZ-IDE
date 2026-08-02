@@ -23,7 +23,7 @@ import { STOCK_SHOWS, stockShowById } from './shows'
 
 describe('stock Show curriculum (#363)', () => {
   it('ships the stable Learn 100, Learn 200, Learn 300, and showcase catalogue', () => {
-    expect(STOCK_SHOWS).toHaveLength(22)
+    expect(STOCK_SHOWS).toHaveLength(23)
     expect(new Set(STOCK_SHOWS.map((item) => item.id)).size).toBe(STOCK_SHOWS.length)
     expect(STOCK_SHOWS.map((item) => [item.name, item.collection, item.level, item.order])).toEqual([
       ['101 Clips, Cuts, and Blank Time', 'learn', 100, 1],
@@ -39,6 +39,7 @@ describe('stock Show curriculum (#363)', () => {
       ['205 Groups and Linked Reuse', 'learn', 200, 5],
       ['206 Changing Zone Layouts', 'learn', 200, 6],
       ['301 Installation Mapping', 'learn', 300, 1],
+      ['302 Installation Composition', 'learn', 300, 2],
       ['Transform Effects', 'showcases', null, 1],
       ['Distortion Effects', 'showcases', null, 2],
       ['Color and Output Effects', 'showcases', null, 3],
@@ -213,6 +214,7 @@ describe('stock Show curriculum (#363)', () => {
   ]
   const OUTPUT_IDS = [
     'stock-show-301-installation-mapping',
+    'stock-show-302-installation-composition',
   ]
   const LESSON_IDS = [...FOUNDATION_IDS, ...COMPOSITION_IDS, ...OUTPUT_IDS]
   // Simultaneity is itself the subject from 105 onward, so those two lessons
@@ -313,7 +315,9 @@ describe('stock Show curriculum (#363)', () => {
     // (~1 KB per sequential reprise). No lesson needs a third; at the 200
     // level, simultaneity is taught on Layers, so only 206 routes two Zones.
     for (const item of lessons()) {
-      const expected = SINGLE_ZONE_IDS.includes(item.id) ? 1 : 2
+      const expected = SINGLE_ZONE_IDS.includes(item.id) ? 1
+        : item.id === 'stock-show-302-installation-composition' ? 3
+          : 2
       expect(item.show.zones, item.name).toHaveLength(expected)
     }
   })
@@ -1121,6 +1125,70 @@ describe('stock Show curriculum (#363)', () => {
     expect(traded.right).not.toEqual(establish.right)
     const lit = (bank: number[][]) => bank.some(([r, g, b]) => r + g + b > 0.05)
     expect(lit(establish.left) && lit(establish.right) && lit(traded.left) && lit(traded.right)).toBe(true)
+  })
+
+  it('gives 302 a non-contiguous Crown whose arc is the only change per junction', () => {
+    const item = stockShowById('stock-show-302-installation-composition')!
+    expect(item.show.routingLayouts).toHaveLength(1)
+    expect(item.show.routingLayouts[0].zones).toEqual([
+      { zoneId: 'zone-1', ranges: [{ start: 60, end: 79 }, { start: 140, end: 159 }] },
+      { zoneId: 'zone-2', ranges: [{ start: 0, end: 59 }] },
+      { zoneId: 'zone-3', ranges: [{ start: 80, end: 139 }] },
+    ])
+    expect(validateInstallationCoverage(item.show)).toMatchObject({ valid: true })
+    // The vines share one instance; the crown owns the only content changes.
+    const composition = item.show.composition!
+    const vineInstances = new Set(composition.scenes.flatMap((scene) => scene.zones
+      .filter((zone) => zone.zoneId !== 'zone-1')
+      .flatMap((zone) => zone.main.map((entry) => entry.instanceId))))
+    expect(vineInstances).toEqual(new Set(['garden']))
+
+    const compiled = compileShowForArtifact(item.show, [], undefined, {}, { stageDimension: 2 })
+    expect(compiled.error).toBeNull()
+    const mapPoints = SOURCE_STOCK_MAPS.find((map) => map.id === 'sunflower-pucks-2d')!.resolve(160)
+    let virtualTime = 0
+    const shim = createShim({
+      pixelCount: 160,
+      dimensions: 2,
+      mapPoints,
+      getVirtualTime: () => virtualTime,
+      randomSeed: 302,
+    })
+    const handle = loadPattern(compiled.artifact!.code, compiled.artifact!.metadata, shim.builtins)
+    const groups = { crown: [64, 71, 145, 152], leftVine: [12, 30, 48], rightVine: [92, 110, 128] }
+    const frameAt = (deltaMs: number) => {
+      virtualTime += deltaMs
+      handle.beforeRender(deltaMs)
+      const render = (index: number) => {
+        const [x, y] = mapPoints[index].sample
+        handle.render2D(index, x, y)
+        return shim.capturedPixel()
+      }
+      return {
+        crown: groups.crown.map(render),
+        leftVine: groups.leftVine.map(render),
+        rightVine: groups.rightVine.map(render),
+      }
+    }
+
+    const establish = frameAt(3_000)   // embers over the bed
+    const bloom = frameAt(7_000)       // t=10s: ignition holds the crown
+    const resolve = frameAt(7_000)     // t=17s: afterglow resumes the embers
+
+    // Every role stays alive in every passage, and only the crown carries the
+    // arc: ignition differs from embers, and the afterglow differs from the
+    // held ignition.
+    const lit = (group: number[][]) => group.some(([r, g, b]) => r + g + b > 0.02)
+    for (const frame of [establish, bloom, resolve]) {
+      expect(lit(frame.leftVine) && lit(frame.rightVine), 'vines stay lit').toBe(true)
+    }
+    expect(bloom.crown).not.toEqual(establish.crown)
+    expect(resolve.crown).not.toEqual(bloom.crown)
+    // The embers are deliberately quiet next to the ignition, but a dark
+    // crown would read as a coverage fault, so both states must emit light.
+    expect(lit(establish.crown)).toBe(true)
+    expect(lit(bloom.crown)).toBe(true)
+    expect(lit(resolve.crown)).toBe(true)
   })
 
   it('compiles every lesson through the production artifact pipeline', () => {

@@ -114,7 +114,7 @@ const CARDINAL_DIRECTIONS = [
 export const STOCK_SHOWS: StockShow[] = [
   learn101(), learn102(), learn103(), learn104(), learn105(), learn106(),
   learn201(), learn202(), learn203(), learn204(), learn205(), learn206(),
-  learn301(),
+  learn301(), learn302(),
   effectShowcase('transform'), effectShowcase('distortion'), effectShowcase('color-output'),
   wipeAndMixTransitionReference(), shapeRevealTransitionReference(), motionTransitionReference(),
   propertyAnimationReference(), easingReference(),
@@ -1002,6 +1002,93 @@ function learn301(): StockShow {
     zones,
     layouts: [physicalLayout('layout-banks', 'Two banks', zones, [[[0, 79]], [[80, 159]]])],
     scenes,
+    composition,
+  })
+}
+
+// 302 turns the same measured wall into an instrument with three roles. The
+// Crown owns the top puck of each column through two non-contiguous ranges -
+// the guide's several-ranges case made physical - while each vine column is
+// its own Zone and both share one MetaballGarden instance, so the bed reads
+// as one plant. Murmuration (lum 0.080, flux 0.012 in the 301 probe) is the
+// crown's quiet ember state; IQPalettes is its ignition. Every voice was
+// probed calm at the shared lesson clock, and the only change at each
+// junction is the crown's, so the arc stays attributable at playback speed.
+function learn302(): StockShow {
+  const id = 'stock-show-302-installation-composition'
+  const zones = physicalZones(['Crown', 'Left vine', 'Right vine'], [40, 60, 60])
+  const scenes: SceneSpec[] = [
+    scene('establish', 'Establish', 6, [
+      clip('zone-1', 'Murmuration', LESSON_TIME_SCALE),
+      clip('zone-2', 'MetaballGarden', LESSON_TIME_SCALE),
+      clip('zone-3', 'MetaballGarden', LESSON_TIME_SCALE),
+    ]),
+    scene('bloom', 'Bloom', 8, [
+      clip('zone-1', 'IQPalettes', LESSON_TIME_SCALE),
+      clip('zone-2', 'MetaballGarden', LESSON_TIME_SCALE),
+      clip('zone-3', 'MetaballGarden', LESSON_TIME_SCALE),
+    ]),
+    scene('resolve', 'Resolve', 6, [
+      clip('zone-1', 'Murmuration', LESSON_TIME_SCALE),
+      clip('zone-2', 'MetaballGarden', LESSON_TIME_SCALE),
+      clip('zone-3', 'MetaballGarden', LESSON_TIME_SCALE),
+    ]),
+  ]
+  const composition: ShowCompositionV1 = {
+    version: 1,
+    patternInstances: [
+      instance('flock', 'Murmuration', LESSON_TIME_SCALE),
+      instance('ignition', 'IQPalettes', LESSON_TIME_SCALE),
+      // One shared instance for both vine columns: repeated surfaces share
+      // identity and clock, so the bed reads as one plant split by wiring.
+      instance('garden', 'MetaballGarden', LESSON_TIME_SCALE),
+    ],
+    scenes: [
+      {
+        sceneId: 'establish',
+        zones: [
+          { zoneId: 'zone-1', overlays: [], main: [placement('crown-embers', 'flock', 0, 6)] },
+          { zoneId: 'zone-2', overlays: [], main: [placement('left-bed', 'garden', 0, 6)] },
+          { zoneId: 'zone-3', overlays: [], main: [placement('right-bed', 'garden', 0, 6)] },
+        ],
+      },
+      {
+        sceneId: 'bloom',
+        zones: [
+          { zoneId: 'zone-1', overlays: [], main: [placement('crown-ignition', 'ignition', 0, 8)] },
+          { zoneId: 'zone-2', overlays: [], main: [placement('left-bed-bloom', 'garden', 0, 8)] },
+          { zoneId: 'zone-3', overlays: [], main: [placement('right-bed-bloom', 'garden', 0, 8)] },
+        ],
+      },
+      {
+        sceneId: 'resolve',
+        zones: [
+          // The crown rejoins the shared flock instance, so the embers resume
+          // from where ignition interrupted them instead of restarting.
+          { zoneId: 'zone-1', overlays: [], main: [placement('crown-afterglow', 'flock', 0, 6)] },
+          { zoneId: 'zone-2', overlays: [], main: [placement('left-bed-resolve', 'garden', 0, 6)] },
+          { zoneId: 'zone-3', overlays: [], main: [placement('right-bed-resolve', 'garden', 0, 6)] },
+        ],
+      },
+    ],
+    durationMs: 20_000,
+  }
+  return catalogue({
+    id, title: 'Installation Composition', track: 'installation', collection: 'learn', level: 300, order: 2,
+    purpose: 'A fixed installation is an instrument: the same Clips, junctions, and shared Pattern instances you already know, played over named physical groups. Three Zones give this wall three roles - two vine columns sharing one bed, and a crown that owns the top puck of each column through two separate ranges.',
+    notice: "The Crown is one Zone with two non-contiguous ranges, one atop each column. Its ignition is the only change at each junction: the vines' shared instance never restarts, and the afterglow resumes the embers where ignition interrupted them.",
+    prompts: ['Solo the Crown to see exactly which pucks its two ranges own, then solo one vine and watch its half of the shared bed continue alone.', "Replace the crown's bloom Pattern with another stock Pattern - the ranges and the vines never notice, because the routing contract is separate from the content."],
+    guideHeading: 'composing-a-fixed-installation',
+    output: { kind: 'installation', mapId: 'sunflower-pucks-2d', pixelCount: 160 },
+    zones,
+    layouts: [physicalLayout('layout-roles', 'Three roles', zones, [
+      [[60, 79], [140, 159]], [[0, 59]], [[80, 139]],
+    ])],
+    scenes,
+    transitions: [
+      boundary('establish', 'crossfade', 2_000, SINE_IN_OUT),
+      boundary('bloom', 'crossfade', 2_000, SINE_IN_OUT),
+    ],
     composition,
   })
 }

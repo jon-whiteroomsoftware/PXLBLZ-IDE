@@ -327,6 +327,14 @@ Use physical groupings that match how people perceive the object: pucks, rows,
 arches, panels, or other units. Symmetry in Pattern choice and timing can make
 an irregular measured map read as one intentional composition.
 
+**302 Installation Composition** plays the sunflower wall as an instrument
+with three roles. The two vine columns are separate Zones sharing one Pattern
+instance, so the bed reads as one plant split by wiring; the Crown owns the
+top puck of each column through two non-contiguous ranges and carries the only
+change at each junction - embers, ignition, afterglow. One visual role per
+group is what keeps a physical score decipherable: when every group changes at
+once, correct output reads as noise.
+
 ### Ruthlessly engineered spectacle
 
 **Redline Installation** treats a fixed Stage as five instruments: one
