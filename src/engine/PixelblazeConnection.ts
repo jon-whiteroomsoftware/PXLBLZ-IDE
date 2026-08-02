@@ -647,7 +647,11 @@ export class PixelblazeConnection {
       // Record<string, number> shape and panels apply their existing
       // non-finite handling.
       try {
-        msg = parseWithNonFiniteTokens(data)
+        const revived = parseWithNonFiniteTokens(data)
+        // A bare non-finite root revives to a primitive; that is still a
+        // malformed frame, not a message object.
+        if (typeof revived !== 'object' || revived === null) return
+        msg = revived as Record<string, unknown>
       } catch {
         return // ignore malformed frames rather than crash the connection
       }
@@ -762,7 +766,7 @@ export class PixelblazeConnection {
  * The scan is string-aware, so token-like text inside quoted values (a
  * Pattern named "foo:NaN}", say) passes through untouched.
  */
-function parseWithNonFiniteTokens(data: string): Record<string, unknown> {
+function parseWithNonFiniteTokens(data: string): unknown {
   let sanitized = ''
   let inString = false
   let escaped = false

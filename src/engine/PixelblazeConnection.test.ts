@@ -547,6 +547,12 @@ describe('PixelblazeConnection', () => {
       expect(config.activeControls?.sliderTeeth).toBeNaN()
     })
 
+    it('ignores a bare non-finite root frame as malformed', async () => {
+      const { conn, socket } = await connected()
+      expect(() => socket.simulateMessage('NaN')).not.toThrow()
+      expect(conn.isConnected).toBe(true)
+    })
+
     it('keeps token-like text inside quoted names intact while reviving NaN', async () => {
       const { conn, socket } = await connected()
       const promise = conn.getConfig()
