@@ -380,7 +380,7 @@ export function setViewportRect(
     ? stickPlacementTranslate(snapped, targets)
     : stickPlacementRect(snapped, targets)
   const held = clampPlacementRectToZone(stuck, snapping && !translating ? context.grid : 0)
-  const viewport = viewportFromRect(held, true)
+  const viewport = { ...viewportFromRect(held, true), ...apertureStyling(context.viewport) }
   if (!options.carryContent) return { viewport }
   const dx = viewport.x - context.viewport.x
   const dy = viewport.y - context.viewport.y
@@ -411,22 +411,41 @@ export function resizeViewportToAnchor(
   pointerY: number,
   options: { square?: boolean } = {},
 ): PlacementPadResult {
-  let width = Math.abs(pointerX - anchor.x)
-  let height = Math.abs(pointerY - anchor.y)
   if (options.square) {
-    // A square frame is how an ellipse aperture stays a circle (#591).
-    const side = Math.max(width, height)
-    width = side
-    height = side
+    // A square frame is how an ellipse aperture stays a circle (#591). The
+    // general setViewportRect pipeline snaps and magnetizes each edge
+    // independently, which would un-square the frame, so the square path
+    // snaps only the shared side length and clamps by translation.
+    const cell = context.grid > 0 ? 1 / context.grid : 0
+    let side = Math.max(Math.abs(pointerX - anchor.x), Math.abs(pointerY - anchor.y))
+    if (cell > 0) side = Math.max(cell, Math.round(side / cell) * cell)
+    side = Math.min(1, Math.max(MIN_SCALE, side))
+    const left = clamp(pointerX < anchor.x ? anchor.x - side : anchor.x, 0, 1 - side)
+    const top = clamp(pointerY < anchor.y ? anchor.y - side : anchor.y, 0, 1 - side)
+    return {
+      viewport: {
+        ...viewportFromRect({ left, top, width: side, height: side }, true),
+        ...apertureStyling(context.viewport),
+      },
+    }
   }
-  width = Math.max(MIN_SCALE, width)
-  height = Math.max(MIN_SCALE, height)
   return setViewportRect(context, {
-    left: pointerX < anchor.x ? anchor.x - width : anchor.x,
-    top: pointerY < anchor.y ? anchor.y - height : anchor.y,
-    width,
-    height,
+    left: Math.min(pointerX, anchor.x),
+    top: Math.min(pointerY, anchor.y),
+    width: Math.max(MIN_SCALE, Math.abs(pointerX - anchor.x)),
+    height: Math.max(MIN_SCALE, Math.abs(pointerY - anchor.y)),
   })
+}
+
+/** The durable silhouette styling every frame gesture must carry (#591). */
+function apertureStyling(
+  viewport: ShowClipViewport,
+): Pick<ShowClipViewport, 'aperture' | 'edge' | 'feather'> {
+  return {
+    ...(viewport.aperture !== undefined ? { aperture: viewport.aperture } : {}),
+    ...(viewport.edge !== undefined ? { edge: viewport.edge } : {}),
+    ...(viewport.feather !== undefined ? { feather: viewport.feather } : {}),
+  }
 }
 
 /** Cell sweep: two points anywhere become an inclusive cell span. */

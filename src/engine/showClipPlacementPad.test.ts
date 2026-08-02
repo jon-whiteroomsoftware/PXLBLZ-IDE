@@ -432,6 +432,37 @@ describe('shaped aperture support (#591)', () => {
     expect(result.viewport).toMatchObject({ x: 0.25, y: 0.25, width: 0.6, height: 0.4 })
   })
 
+  it('keeps the Shift square exact under grid snapping and magnets', () => {
+    const padContext = context({}, { enabled: true, x: 0.2, y: 0, width: 0.5, height: 0.5 }, 3)
+    const result = resizeViewportToAnchor(padContext, { x: 0.2, y: 0 }, 0.7, 0.5, { square: true })
+    expect(result.viewport!.width).toBe(result.viewport!.height)
+    // The side still lands on the 3x grid: 0.5 rounds to 2/3.
+    expect(result.viewport!.width).toBeCloseTo(2 / 3, 10)
+  })
+
+  it('keeps the square inside the Zone by translating, not distorting', () => {
+    const padContext = context({}, { enabled: true, x: 0.5, y: 0.5, width: 0.4, height: 0.4 })
+    const result = resizeViewportToAnchor(padContext, { x: 0.5, y: 0.5 }, 1.4, 0.9, { square: true })
+    expect(result.viewport!.width).toBe(result.viewport!.height)
+    expect(result.viewport!.x + result.viewport!.width).toBeLessThanOrEqual(1)
+    expect(result.viewport!.y + result.viewport!.height).toBeLessThanOrEqual(1)
+  })
+
+  it('carries aperture styling through every gesture result', () => {
+    const padContext = context({}, {
+      enabled: true, x: 0.25, y: 0.25, width: 0.5, height: 0.5,
+      aperture: 'ellipse', edge: 'soft', feather: 0.05,
+    })
+    const moved = moveViewportTo(padContext, 0.1, 0.1)
+    expect(moved.viewport).toMatchObject({ aperture: 'ellipse', edge: 'soft', feather: 0.05 })
+    const resized = resizeViewportToAnchor(padContext, { x: 0.25, y: 0.25 }, 0.9, 0.8)
+    expect(resized.viewport).toMatchObject({ aperture: 'ellipse', edge: 'soft', feather: 0.05 })
+    const squared = resizeViewportToAnchor(padContext, { x: 0.25, y: 0.25 }, 0.9, 0.8, { square: true })
+    expect(squared.viewport).toMatchObject({ aperture: 'ellipse', edge: 'soft', feather: 0.05 })
+    const swept = sweepViewport(padContext, 0.1, 0.1, 0.6, 0.6)
+    expect(swept.viewport).toMatchObject({ aperture: 'ellipse', edge: 'soft', feather: 0.05 })
+  })
+
   it('preserves an authored aperture shape and edge through first enable', () => {
     const padContext = context({}, { aperture: 'ellipse', edge: 'soft', feather: 0.05 })
     expect(enableViewportForContent(padContext)).toMatchObject({
