@@ -1658,23 +1658,26 @@ function easingReference(): StockShow {
 // corner-radius variant, then the Ring across its three edge treatments.
 // The subject, frame, bed, and clocks never change, so each passage has
 // exactly one attributable variable. Eight passages sits at the reference
-// ceiling; anything finer belongs in the inspector.
+// ceiling; anything finer belongs in the inspector. Paced like an editor,
+// not a metronome: the ellipse and the ring get study-length beats, sibling
+// silhouettes cut past at two seconds, and the dither keeps three so its
+// texture reads as stable rather than as noise.
 function apertureShapesReference(): StockShow {
   const id = 'stock-show-reference-aperture-shapes'
   const zones = logicalZones(['Main'], PORTABLE_REFERENCE_PIXELS)
   const frame = { enabled: true, x: 0.25, y: 0.25, width: 0.5, height: 0.5 }
   const variants = [
-    { id: 'rectangle', label: 'Rectangle', detail: 'The plain frame with its default hard cut.', viewport: { ...frame } },
-    { id: 'ellipse', label: 'Ellipse', detail: 'The inscribed oval at its Soft default; corners of the frame fall away.', viewport: { ...frame, aperture: 'ellipse' as const } },
-    { id: 'diamond', label: 'Diamond', detail: 'The inscribed diamond at its Soft default; edges run corner to corner.', viewport: { ...frame, aperture: 'diamond' as const } },
-    { id: 'rounded-box', label: 'Rounded box', detail: 'The frame with its corners rounded at the default radius.', viewport: { ...frame, aperture: 'rounded-box' as const, cornerRadius: 0.12 } },
-    { id: 'rounded-box-wide', label: 'Rounded box, wide radius', detail: 'The same box at a wide corner radius: radius is a shape parameter, not an edge treatment.', viewport: { ...frame, aperture: 'rounded-box' as const, cornerRadius: 0.3 } },
-    { id: 'ring-soft', label: 'Ring, Soft edge', detail: 'An annulus at its Soft default: the bed shows through the center, which no box can do.', viewport: { ...frame, aperture: 'ring' as const, edge: 'soft' as const } },
-    { id: 'ring-hard', label: 'Ring, Hard edge', detail: 'The same Ring cut Hard - the deliberate exception that shows what the feather was doing.', viewport: { ...frame, aperture: 'ring' as const, edge: 'hard' as const } },
-    { id: 'ring-dither', label: 'Ring, Stable Dither', detail: 'The same Ring with a stable dithered edge that survives LED quantization.', viewport: { ...frame, aperture: 'ring' as const, edge: 'dither' as const } },
+    { id: 'rectangle', label: 'Rectangle', seconds: 3, detail: 'The plain frame with its default hard cut.', viewport: { ...frame } },
+    { id: 'ellipse', label: 'Ellipse', seconds: 5, detail: 'The inscribed oval at its Soft default; corners of the frame fall away.', viewport: { ...frame, aperture: 'ellipse' as const } },
+    { id: 'diamond', label: 'Diamond', seconds: 2, detail: 'The inscribed diamond at its Soft default; edges run corner to corner.', viewport: { ...frame, aperture: 'diamond' as const } },
+    { id: 'rounded-box', label: 'Rounded box', seconds: 2, detail: 'The frame with its corners rounded at the default radius.', viewport: { ...frame, aperture: 'rounded-box' as const, cornerRadius: 0.12 } },
+    { id: 'rounded-box-wide', label: 'Rounded box, wide radius', seconds: 2, detail: 'The same box at a wide corner radius: radius is a shape parameter, not an edge treatment.', viewport: { ...frame, aperture: 'rounded-box' as const, cornerRadius: 0.3 } },
+    { id: 'ring-soft', label: 'Ring, Soft edge', seconds: 4, detail: 'An annulus at its Soft default: the bed shows through the center, which no box can do.', viewport: { ...frame, aperture: 'ring' as const, edge: 'soft' as const } },
+    { id: 'ring-hard', label: 'Ring, Hard edge', seconds: 2, detail: 'The same Ring cut Hard - the deliberate exception that shows what the feather was doing.', viewport: { ...frame, aperture: 'ring' as const, edge: 'hard' as const } },
+    { id: 'ring-dither', label: 'Ring, Stable Dither', seconds: 3, detail: 'The same Ring with a stable dithered edge that survives LED quantization.', viewport: { ...frame, aperture: 'ring' as const, edge: 'dither' as const } },
   ]
   const scenes: SceneSpec[] = variants.map((variant) => (
-    scene(variant.id, variant.label, 5, [clip('zone-1', 'CompassRose', LESSON_TIME_SCALE)])
+    scene(variant.id, variant.label, variant.seconds, [clip('zone-1', 'CompassRose', LESSON_TIME_SCALE)])
   ))
   const composition: ShowCompositionV1 = {
     version: 1,
@@ -1687,21 +1690,21 @@ function apertureShapesReference(): StockShow {
       zones: [{
         zoneId: 'zone-1',
         main: [{
-          ...placement(`bed-${variant.id}`, 'garden', 0, 5),
+          ...placement(`bed-${variant.id}`, 'garden', 0, variant.seconds),
           view: { mirror: false, phase: 0, brightness: 0.3 },
         }],
         overlays: [{
           id: `layer-subject-${variant.id}`,
           name: 'Subject',
           placements: [{
-            ...placement(`subject-${variant.id}`, 'rose', 0, 5),
+            ...placement(`subject-${variant.id}`, 'rose', 0, variant.seconds),
             opacity: 1,
             viewport: variant.viewport,
           }],
         }],
       }],
     })),
-    durationMs: variants.length * 5_000,
+    durationMs: variants.reduce((sum, variant) => sum + variant.seconds, 0) * 1_000,
   }
   return catalogue({
     id, title: 'Aperture Shapes', track: 'portable', collection: 'showcases', level: null, order: 9,

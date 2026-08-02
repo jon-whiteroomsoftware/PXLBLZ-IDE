@@ -445,6 +445,16 @@ attribute the change without memorizing a long matrix. A reference should
 normally contain no more than six to eight comparison passages; split larger
 families.
 
+Pace references like an editor, not a metronome (2026-08-02): a matrix played
+at one uniform slow tempo is monotonous. Give each family one exemplar
+passage long enough to study, then run its sibling variants as quick cuts -
+one wipe slowly, then the remaining directions in rapid succession - or trim
+to a couple of representative options and leave the rest to the inspector. A
+variant whose character needs time to read (a dither texture, a slow ease)
+may keep a longer beat; uniform five-second passages across a whole matrix
+are what to avoid. Shorter total runtime treats the viewer's attention
+kindly.
+
 ### Reference groups
 
 **Effects**
