@@ -81,10 +81,21 @@ ${body}`)).toEqual(['ZRanger1'])
  */${body}`)).toEqual(['ZRanger1'])
     })
 
+    it('extracts the labeled fixture-form signature with a source link line', () => {
+      expect(extractPatternAuthors(`// Coronal Mass Ejection 2D
+// A demonstration of Pixelblaze's Perlin noise and smoothstep functions.
+//
+// Original Pattern: 10/09/2022 ZRanger1
+// Source: https://electromage.com/patterns/
+${body}`)).toEqual(['ZRanger1'])
+    })
+
     it('rejects dated changelog prose', () => {
       expect(extractPatternAuthors(`// 10/09/2022 fixed flicker on dense strips${body}`)).toEqual([])
       expect(extractPatternAuthors(`// 10/09/2022 Fixed flicker${body}`)).toEqual([])
       expect(extractPatternAuthors(`// updated May 2022 more sparkle${body}`)).toEqual([])
+      expect(extractPatternAuthors(`// 2022-10-09 Improved performance${body}`)).toEqual([])
+      expect(extractPatternAuthors(`// 2022-10-09 Improved Performance${body}`)).toEqual([])
     })
 
     it('rejects bare dates, URLs, digit-led remainders, and title lines', () => {

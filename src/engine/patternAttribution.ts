@@ -27,7 +27,8 @@ const MAX_AUTHOR_CHARS = 160
 // is deliberately signature-shaped so dated changelog prose never gains an author.
 const SIGNATURE_DATE = String.raw`(?:\d{1,4}[/.\-]\d{1,2}[/.\-]\d{1,4}|(?:jan|feb|mar|apr|may|jun|jul|aug|sep|sept|oct|nov|dec)[a-z]*\.?(?:\s+\d{1,2},?)?\s+\d{4})`
 const SIGNATURE_VERSION = String.raw`(?:v?\d+(?:\.\d+)+)`
-const SIGNATURE_DATE_FIRST_RE = new RegExp(`^(?:${SIGNATURE_VERSION}\\s+)?${SIGNATURE_DATE}\\s+(.{1,60})$`, 'i')
+const SIGNATURE_LABEL = String.raw`(?:[a-z][a-z ]{0,24}:\s*)`
+const SIGNATURE_DATE_FIRST_RE = new RegExp(`^${SIGNATURE_LABEL}?(?:${SIGNATURE_VERSION}\\s+)?${SIGNATURE_DATE}\\s+(.{1,60})$`, 'i')
 const SIGNATURE_NAME_FIRST_RE = new RegExp(`^(.{1,60}?)\\s+(?:${SIGNATURE_VERSION}\\s+)?${SIGNATURE_DATE}$`, 'i')
 const SIGNATURE_NAME_MAX_WORDS = 3
 const SIGNATURE_STOP_WORDS = new Set([
@@ -75,7 +76,13 @@ function signatureAuthor(line: string): string | null {
   if (words.length > SIGNATURE_NAME_MAX_WORDS) return null
   if (!/^[a-z]/i.test(words[0])) return null
   if (words.some((word) => SIGNATURE_STOP_WORDS.has(word.toLowerCase()))) return null
-  if (words.length > 1 && !/^[A-Z0-9]/.test(words[0]) && !words.some((word) => /\d/.test(word))) return null
+  if (words.length > 1) {
+    // Multi-word remainders must read as a proper name or handle, not prose:
+    // every word capitalized (or handle-like with a digit), and the first word
+    // not a past/progressive verb — "Improved performance" stays a changelog.
+    if (!words.every((word) => /^[A-Z]/.test(word) || /\d/.test(word))) return null
+    if (words[0].length >= 5 && /(?:ed|ing)$/i.test(words[0])) return null
+  }
   return name
 }
 
