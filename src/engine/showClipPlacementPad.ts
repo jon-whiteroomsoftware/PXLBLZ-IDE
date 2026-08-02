@@ -415,13 +415,22 @@ export function resizeViewportToAnchor(
     // A square frame is how an ellipse aperture stays a circle (#591). The
     // general setViewportRect pipeline snaps and magnetizes each edge
     // independently, which would un-square the frame, so the square path
-    // snaps only the shared side length and clamps by translation.
+    // snaps only the shared side length. The anchored corner never moves:
+    // the Zone bounds cap the side from the anchor instead of translating.
     const cell = context.grid > 0 ? 1 / context.grid : 0
+    const spaceX = pointerX < anchor.x ? anchor.x : 1 - anchor.x
+    const spaceY = pointerY < anchor.y ? anchor.y : 1 - anchor.y
+    const maxSide = Math.max(MIN_SCALE, Math.min(spaceX, spaceY))
     let side = Math.max(Math.abs(pointerX - anchor.x), Math.abs(pointerY - anchor.y))
     if (cell > 0) side = Math.max(cell, Math.round(side / cell) * cell)
-    side = Math.min(1, Math.max(MIN_SCALE, side))
-    const left = clamp(pointerX < anchor.x ? anchor.x - side : anchor.x, 0, 1 - side)
-    const top = clamp(pointerY < anchor.y ? anchor.y - side : anchor.y, 0, 1 - side)
+    if (side > maxSide) {
+      side = cell > 0 && Math.floor(maxSide / cell) >= 1
+        ? Math.floor(maxSide / cell) * cell
+        : maxSide
+    }
+    side = Math.max(MIN_SCALE, side)
+    const left = pointerX < anchor.x ? anchor.x - side : anchor.x
+    const top = pointerY < anchor.y ? anchor.y - side : anchor.y
     return {
       viewport: {
         ...viewportFromRect({ left, top, width: side, height: side }, true),

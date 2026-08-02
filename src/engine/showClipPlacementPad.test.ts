@@ -440,12 +440,19 @@ describe('shaped aperture support (#591)', () => {
     expect(result.viewport!.width).toBeCloseTo(2 / 3, 10)
   })
 
-  it('keeps the square inside the Zone by translating, not distorting', () => {
+  it('caps the square at the Zone without moving the anchored corner', () => {
     const padContext = context({}, { enabled: true, x: 0.5, y: 0.5, width: 0.4, height: 0.4 })
     const result = resizeViewportToAnchor(padContext, { x: 0.5, y: 0.5 }, 1.4, 0.9, { square: true })
+    expect(result.viewport).toMatchObject({ x: 0.5, y: 0.5, width: 0.5, height: 0.5 })
+  })
+
+  it('honors the grid inside the anchor cap when snapping would overflow', () => {
+    const padContext = context({}, { enabled: true, x: 0.5, y: 0.5, width: 0.3, height: 0.3 }, 3)
+    const result = resizeViewportToAnchor(padContext, { x: 0.5, y: 0.5 }, 1.2, 1.2, { square: true })
     expect(result.viewport!.width).toBe(result.viewport!.height)
-    expect(result.viewport!.x + result.viewport!.width).toBeLessThanOrEqual(1)
-    expect(result.viewport!.y + result.viewport!.height).toBeLessThanOrEqual(1)
+    expect(result.viewport!.x).toBe(0.5)
+    expect(result.viewport!.y).toBe(0.5)
+    expect(result.viewport!.width).toBeCloseTo(1 / 3, 10)
   })
 
   it('carries aperture styling through every gesture result', () => {
