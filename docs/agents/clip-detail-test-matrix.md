@@ -27,7 +27,7 @@ for model semantics.
 | Stage | 2D (`transformEnabled`) | Place rows; `offers every tab` sweep |
 | Stage | non-2D | `drops only the Place tab off a 2D Stage` sweep |
 | Mode | editable | Every round-trip row |
-| Mode | read-only | Read-only sweep: every control disabled, tabs navigable, zero patches under any interaction |
+| Mode | read-only | Read-only sweep, rendered inside ShowEditor's disabled-fieldset boundary: every form control (including Effect parameter editors and action-menu triggers) disabled, no action menu can open, tabs navigable, zero patches under any interaction |
 | Commit | accepted | Every non-refused row; accepted scene edits also pass `validateShowComposition` |
 | Commit | refused | `an impossible Duration is refused without partial state` |
 | Commit | typed-edit lifecycle | Lifecycle sweep: no commit while typing, Escape abandons, one blur commits once |

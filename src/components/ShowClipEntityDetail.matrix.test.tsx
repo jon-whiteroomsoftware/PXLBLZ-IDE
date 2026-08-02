@@ -666,9 +666,16 @@ describe('Clip detail read-only sweep (#658)', () => {
   /**
    * Seeds every optional sub-surface (strobe cadence, blink timing, an Effect,
    * an enabled viewport) so the sweep sees the maximal control set, then walks
-   * every tab interacting with everything. The contract: read-only renders
-   * every editable control disabled, keeps the tabs navigable, and no
-   * interaction sequence emits a single patch.
+   * every tab interacting with everything.
+   *
+   * The read-only boundary is a composition: the dialog's own fields take
+   * disabled from the readOnly prop, while ShowEditor additionally wraps the
+   * whole panel in <fieldset disabled> (see the tab rationale in the
+   * component), which is what actually disables Effect parameter editors and
+   * their action-menu triggers. The sweep renders inside the same fieldset so
+   * it qualifies the boundary users actually get - and would fail if the
+   * dialog ever moved out from under it without completing per-control
+   * propagation.
    */
   function renderReadOnly(scope: Scope) {
     let show = fixture()
@@ -684,11 +691,13 @@ describe('Clip detail read-only sweep (#658)', () => {
     const onPatch = vi.fn()
     const onMoveLayer = vi.fn()
     render(
-      <ShowClipEntityDetail
-        {...matrixProps(scope, value, onPatch)}
-        onMoveLayer={onMoveLayer}
-        readOnly
-      />,
+      <fieldset disabled>
+        <ShowClipEntityDetail
+          {...matrixProps(scope, value, onPatch)}
+          onMoveLayer={onMoveLayer}
+          readOnly
+        />
+      </fieldset>,
     )
     return { onPatch, onMoveLayer }
   }
@@ -703,16 +712,35 @@ describe('Clip detail read-only sweep (#658)', () => {
         ...screen.queryAllByRole('textbox'),
         ...screen.queryAllByRole('combobox'),
         ...screen.queryAllByRole('checkbox'),
+        ...screen.queryAllByRole('spinbutton'),
       ]) {
         // Disabled is the whole contract for form controls: a real browser
         // never dispatches change events on a disabled control, so firing one
         // synthetically would only test React, not the dialog.
         expect(control, `${tab}: ${control.getAttribute('aria-label')}`).toBeDisabled()
       }
-      for (const button of screen.queryAllByRole('button')) {
-        if (!button.hasAttribute('disabled')) fireEvent.click(button)
+      // Click whatever is genuinely clickable. The :disabled matcher is the
+      // one a real browser enforces - it includes fieldset-inherited
+      // disabling, which the disabled attribute alone misses. Buttons
+      // revealed by clicks (portal menus) join the walk until nothing new
+      // appears.
+      const clicked = new Set<HTMLElement>()
+      for (;;) {
+        const fresh = screen.queryAllByRole('button')
+          .filter((button) => !button.matches(':disabled') && !clicked.has(button))
+        if (fresh.length === 0) break
+        for (const button of fresh) {
+          clicked.add(button)
+          fireEvent.click(button)
+        }
       }
+      expect(screen.queryAllByRole('menuitem'), `${tab}: no action menu may open`).toEqual([])
     }
+    // The Effect action-menu trigger and parameter editors must be inside the
+    // disabled boundary - the reviewer scenario is a read-only user editing or
+    // removing an Effect through them.
+    showTab('Effects')
+    expect(screen.getByRole('button', { name: 'More actions for Translate Effect' })).toBeDisabled()
     expect(onPatch).not.toHaveBeenCalled()
     expect(onMoveLayer).not.toHaveBeenCalled()
   })
