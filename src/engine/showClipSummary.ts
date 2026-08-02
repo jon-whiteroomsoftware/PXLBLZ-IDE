@@ -23,6 +23,8 @@ export interface ShowClipSummaryItem {
   label: string
   value?: string
   timelineValue?: string
+  /** The value is an animated keyframe range rather than a set value (#666). */
+  animated?: boolean
 }
 
 export interface ShowClipSummarySection {
@@ -91,7 +93,7 @@ export function showClipSummaryDestination(
     if (itemId === 'phase') {
       return { location: 'playback', targetKey: 'phase', destinationLabel: 'Playback Phase field' }
     }
-    if (itemId === 'viewport') {
+    if (itemId === 'viewport' || itemId.startsWith('viewport-')) {
       return { location: 'place', targetKey: 'viewport', destinationLabel: 'Place Viewport fields' }
     }
     if (itemId.startsWith('transform-')) {
@@ -122,7 +124,7 @@ export function projectGlobalShowClipSummary(
   const cell = show.cells.find((candidate) => candidate.id === cellId)
   if (!cell) return []
 
-  return projectClipSummary(cell, controlLabels, animationItems(show, cell, controlLabels))
+  return projectClipSummary(cell, controlLabels, animationItems(show, cell, controlLabels), EMPTY_OVERLAYS)
 }
 
 /** Adapt the authored unified Clip substrate to the retained summary language. */
@@ -164,7 +166,7 @@ export function projectCompositionShowClipSummary(
     ...(placement.transform ? { transform: placement.transform } : {}),
     ...(placement.viewport ? { viewport: placement.viewport } : {}),
     ...(placement.effects ? { effects: placement.effects } : {}),
-  }, controlLabels, compositionAnimationItems(
+  }, controlLabels, [], compositionAnimationOverlays(
     materialized,
     clip,
     segmentIds,
@@ -181,10 +183,32 @@ type ClipSummarySource = Pick<
   opacity?: number
 }
 
+/**
+ * Animated facts merge into the same slot as their set counterpart (#666):
+ * one item per property, identified by the same id and icon whether the value
+ * is set or animated. The `animated` flag plus a min–max range are the only
+ * differences the UI renders.
+ */
+interface ShowClipAnimationOverlays {
+  items: Array<{
+    kind: Exclude<ShowClipSummaryKind, 'animation' | 'effects'>
+    itemId: string
+    label: string
+    /** Timeline prefix matching the static contractions (x, rot, sx…). */
+    tersePrefix?: string
+    range: string
+  }>
+  /** Keyed `${effectId}:${parameterId}`; substituted into the Effect's item. */
+  effectRanges: Map<string, string>
+}
+
+const EMPTY_OVERLAYS: ShowClipAnimationOverlays = { items: [], effectRanges: new Map() }
+
 function projectClipSummary(
   source: ClipSummarySource,
   controlLabels: Record<string, string>,
   authoredAnimationItems: ShowClipSummaryItem[],
+  overlays: ShowClipAnimationOverlays,
 ): ShowClipSummarySection[] {
   const sections: Record<ShowClipSummaryKind, ShowClipSummaryItem[]> = {
     playback: playbackItems(source),
@@ -195,30 +219,56 @@ function projectClipSummary(
     })),
     view: viewItems(source),
     effects: (source.effects ?? []).map((effect) => {
-      const parameters = showClipEffectParameters(effect).map((parameter) => ({
-        label: compactEffectParameterLabel(parameter.label, effect.kind),
-        value: formatToolkitValue(
-          showClipEffectParameterValue(effect, parameter.id),
-          parameter.unit,
-          parameter.presentation,
-          parameter.step,
-        ),
-      }))
+      const parameters = showClipEffectParameters(effect).map((parameter) => {
+        const raw = showClipEffectParameterValue(effect, parameter.id)
+        const range = overlays.effectRanges.get(`${effect.id}:${parameter.id}`)
+        return {
+          label: compactEffectParameterLabel(parameter.label, effect.kind),
+          value: range ?? formatToolkitValue(raw, parameter.unit, parameter.presentation, parameter.step),
+          animated: range !== undefined,
+          authored: range !== undefined || raw !== parameter.defaultValue,
+        }
+      })
       const value = parameters.length === 1
         ? parameters[0].value
         : parameters.map((parameter) => `${parameter.label} ${parameter.value}`).join(', ')
+      // Default-valued parameters say nothing on the Clip row; drop them
+      // there and keep the complete list in the Detail summary (#666).
+      const authored = parameters.filter((parameter) => parameter.authored)
+      const timelineParameters = authored.length > 0 ? authored : parameters
       return {
         id: `effect:${effect.id}`,
         label: humanizeIdentifier(effect.kind),
         value,
         timelineValue: parameters.length === 1
-          ? value
-          : parameters.map((parameter) => (
+          ? parameters[0].value
+          : timelineParameters.map((parameter) => (
               `${contractTimelineParameterLabel(parameter.label)} ${parameter.value}`
-            )).join(', '),
+            )).join(' '),
+        ...(parameters.some((parameter) => parameter.animated) ? { animated: true } : {}),
       }
     }),
     animation: authoredAnimationItems,
+  }
+
+  for (const overlay of overlays.items) {
+    const items = sections[overlay.kind]
+    const timelineValue = overlay.tersePrefix ? `${overlay.tersePrefix} ${overlay.range}` : undefined
+    const existing = items.find((item) => item.id === overlay.itemId)
+    if (existing) {
+      existing.value = overlay.range
+      if (timelineValue) existing.timelineValue = timelineValue
+      else delete existing.timelineValue
+      existing.animated = true
+    } else {
+      items.push({
+        id: overlay.itemId,
+        label: overlay.label,
+        value: overlay.range,
+        ...(timelineValue ? { timelineValue } : {}),
+        animated: true,
+      })
+    }
   }
 
   return (Object.keys(sections) as ShowClipSummaryKind[]).flatMap((kind) => (
@@ -228,24 +278,72 @@ function projectClipSummary(
   ))
 }
 
-function compositionAnimationItems(
+type CompositionAnimationFact = {
+  format: (value: number) => string
+} & (
+  | {
+      kind: Exclude<ShowClipSummaryKind, 'animation' | 'effects'>
+      itemId: string
+      label: string
+      tersePrefix?: string
+    }
+  | { kind: 'effects'; itemId: string }
+)
+
+function compositionAnimationOverlays(
   composition: ShowCompositionV1,
   clip: Pick<ShowUnifiedTimelineClipProjection, 'instanceId'>,
   segmentIds: ReadonlySet<string>,
   sceneIds: ReadonlySet<string>,
   effects: readonly ShowClipEffect[] | undefined,
   controlLabels: Record<string, string>,
-): ShowClipSummaryItem[] {
-  const labels = new Map<string, string>()
+): ShowClipAnimationOverlays {
+  const facts = new Map<string, CompositionAnimationFact & { min: number; max: number }>()
   for (const scene of composition.scenes) {
     if (!sceneIds.has(scene.sceneId)) continue
     for (const track of scene.propertyTracks ?? []) {
       if (!animationTargetBelongsToClip(track.target, clip.instanceId, segmentIds)) continue
-      const item = compositionAnimationItem(track.target, effects, controlLabels)
-      if (item) labels.set(item.id, item.label)
+      const fact = compositionAnimationItem(track.target, effects, controlLabels)
+      if (!fact || track.keyframes.length === 0) continue
+      const entry = facts.get(`${fact.kind}:${fact.itemId}`) ?? { ...fact, min: Infinity, max: -Infinity }
+      for (const keyframe of track.keyframes) {
+        entry.min = Math.min(entry.min, keyframe.value)
+        entry.max = Math.max(entry.max, keyframe.value)
+      }
+      facts.set(`${fact.kind}:${fact.itemId}`, entry)
     }
   }
-  return [...labels].map(([id, label]) => ({ id, label, value: 'animated' }))
+  const overlays: ShowClipAnimationOverlays = { items: [], effectRanges: new Map() }
+  for (const entry of facts.values()) {
+    const range = formatAnimatedRange(entry.format, entry.min, entry.max)
+    if (entry.kind === 'effects') {
+      overlays.effectRanges.set(entry.itemId, range)
+    } else {
+      overlays.items.push({
+        kind: entry.kind,
+        itemId: entry.itemId,
+        label: entry.label,
+        ...(entry.tersePrefix ? { tersePrefix: entry.tersePrefix } : {}),
+        range,
+      })
+    }
+  }
+  return overlays
+}
+
+/**
+ * Absolute bounds for an animated property, in that property's own domain
+ * unit. Sparklines carry the curve's shape; the Clip box carries its scale
+ * (#666). A flat track reads as its single value, and a shared unit suffix
+ * appears once: 0–65%, not 0%–65%.
+ */
+function formatAnimatedRange(format: (value: number) => string, min: number, max: number): string {
+  const high = format(max)
+  if (min === max) return high
+  const low = format(min)
+  const unit = high.match(/\D*$/)?.[0] ?? ''
+  const trimmed = unit && low.endsWith(unit) ? low.slice(0, low.length - unit.length) : low
+  return `${trimmed}–${high}`
 }
 
 function animationTargetBelongsToClip(
@@ -263,29 +361,60 @@ function compositionAnimationItem(
   target: ShowPropertyAnimationTarget,
   effects: readonly ShowClipEffect[] | undefined,
   controlLabels: Record<string, string>,
-): Pick<ShowClipSummaryItem, 'id' | 'label'> | null {
+): CompositionAnimationFact | null {
+  const percentage = (value: number) => formatPercentageValue(value)
+  const multiplier = (value: number) => formatSummaryDomainNumber('multiplier', value, 0.01)
   if (target.kind === 'instance-time-scale') {
-    return { id: 'animation:time-scale', label: 'Animation speed' }
+    return { kind: 'playback', itemId: 'time-scale', label: 'Animation speed', format: multiplier }
   }
   if (target.kind === 'instance-control') {
     return {
-      id: `animation:control:${target.exportName}`,
-      label: controlLabels[target.exportName] ?? humanizeIdentifier(target.exportName.replace(/^slider/, '')),
+      kind: 'controls',
+      itemId: `control:${target.exportName}`,
+      label: controlLabels[target.exportName]
+        ?? humanizeIdentifier(target.exportName.replace(/^slider/, '')),
+      format: percentage,
     }
   }
   if (target.kind === 'placement-opacity') {
-    return { id: 'animation:opacity', label: 'Opacity' }
+    return { kind: 'view', itemId: 'opacity', label: 'Opacity', format: percentage }
   }
   if (target.kind === 'placement-view') {
-    return { id: `animation:view:${target.property}`, label: humanizeIdentifier(target.property) }
+    return {
+      kind: 'view',
+      itemId: target.property,
+      label: humanizeIdentifier(target.property),
+      format: target.property === 'brightness' ? percentage : formatNumber,
+    }
   }
   if (target.kind === 'placement-transform') {
-    return { id: `animation:transform:${target.property}`, label: humanizeIdentifier(target.property) }
+    // Item ids and terse prefixes match the static transform facts exactly.
+    const presentation: Record<string, { itemId: string; tersePrefix?: string; format: (value: number) => string }> = {
+      positionX: { itemId: 'transform-position-x', tersePrefix: 'x', format: formatNumber },
+      positionY: { itemId: 'transform-position-y', tersePrefix: 'y', format: formatNumber },
+      rotation: { itemId: 'transform-rotation', format: (value) => formatAngleValue('rotation', value) },
+      scaleX: { itemId: 'transform-scale-x', tersePrefix: 'sx', format: multiplier },
+      scaleY: { itemId: 'transform-scale-y', tersePrefix: 'sy', format: multiplier },
+    }
+    const transform = presentation[target.property]
+    if (!transform) return null
+    return {
+      kind: 'view',
+      itemId: transform.itemId,
+      label: humanizeIdentifier(target.property),
+      tersePrefix: transform.tersePrefix,
+      format: transform.format,
+    }
   }
   if (target.kind === 'placement-viewport') {
+    // The Viewport icon carries identity on the Clip; the prefix is the axis alone.
+    const short = target.property === 'width' ? 'w' : target.property === 'height' ? 'h' : target.property
     return {
-      id: `animation:viewport:${target.property}`,
+      kind: 'view',
+      itemId: `viewport-${target.property}`,
       label: `Viewport ${humanizeIdentifier(target.property)}`,
+      tersePrefix: short,
+      format: formatNumber,
     }
   }
   const effect = effects?.find((candidate) => (
@@ -296,8 +425,9 @@ function compositionAnimationItem(
     : undefined
   if (!effect || !parameter) return null
   return {
-    id: `animation:effect:${target.effectId}:${target.parameterId}`,
-    label: `${humanizeIdentifier(effect.kind)} ${compactEffectParameterLabel(parameter.label, effect.kind)}`,
+    kind: 'effects',
+    itemId: `${target.effectId}:${target.parameterId}`,
+    format: (value) => formatToolkitValue(value, parameter.unit, parameter.presentation, parameter.step),
   }
 }
 
@@ -307,6 +437,19 @@ export function showClipInlineSummary(summary: readonly ShowClipSummarySection[]
     item.value ? `${item.label} ${item.value}` : item.label
   )))
   return facts.length > 0 ? facts.join(' · ') : 'defaults'
+}
+
+/**
+ * Everything animatable lives in 0..1, so leading zeros dominate the Clip
+ * row without informing: .05 reads as well as 0.05 where horizontal space is
+ * the scarce resource. Once a number has two integer digits its decimals add
+ * precision nobody reads at Clip size: 66.23° rounds to 66°. Timeline display
+ * only — full values stay everywhere else (#666).
+ */
+function compactTimelineNumberText(text: string): string {
+  return text
+    .replace(/-?\d{2,}\.\d+/g, (match) => `${Math.round(Number(match))}`)
+    .replace(/\b0\.(?=\d)/g, '.')
 }
 
 /** Keep timeline copy terse: values appear only when introduced or changed. */
@@ -319,12 +462,15 @@ export function projectShowClipTimelineSummary(
   )))
   return summary.map((section) => ({
     ...section,
-    items: section.items.map((item) => ({
-      ...item,
-      displayValue: item.timelineValue ?? item.value,
-      showValue: item.value !== undefined
-        && previousValues.get(`${section.kind}:${item.id}`) !== item.value,
-    })),
+    items: section.items.map((item) => {
+      const displayValue = item.timelineValue ?? item.value
+      return {
+        ...item,
+        ...(displayValue !== undefined ? { displayValue: compactTimelineNumberText(displayValue) } : {}),
+        showValue: item.value !== undefined
+          && previousValues.get(`${section.kind}:${item.id}`) !== item.value,
+      }
+    }),
   }))
 }
 
@@ -381,7 +527,8 @@ function viewItems(
   const transform = normalizeShowClipTransform(cell.transform)
   if (transform.positionX !== 0) items.push({ id: 'transform-position-x', label: 'Position X', value: formatNumber(transform.positionX), timelineValue: `x ${formatNumber(transform.positionX)}` })
   if (transform.positionY !== 0) items.push({ id: 'transform-position-y', label: 'Position Y', value: formatNumber(transform.positionY), timelineValue: `y ${formatNumber(transform.positionY)}` })
-  if (transform.rotation !== 0) items.push({ id: 'transform-rotation', label: 'Rotation', value: formatAngleValue('rotation', transform.rotation), timelineValue: `rot ${formatAngleValue('rotation', transform.rotation)}` })
+  // The circular-arrow icon names rotation on the Clip row; no text prefix.
+  if (transform.rotation !== 0) items.push({ id: 'transform-rotation', label: 'Rotation', value: formatAngleValue('rotation', transform.rotation) })
   if (transform.scaleX !== 1) {
     const value = formatSummaryDomainNumber('multiplier', transform.scaleX, 0.01)
     items.push({ id: 'transform-scale-x', label: 'Scale X', value, timelineValue: `sx ${value}` })
@@ -397,6 +544,8 @@ function viewItems(
       id: 'viewport',
       label: 'Viewport',
       value: `${viewport.enabled ? 'On' : 'Off'} · x ${formatNumber(viewport.x)}, y ${formatNumber(viewport.y)}, ${formatNumber(viewport.width)} × ${formatNumber(viewport.height)}`,
+      // Whitespace separates well enough on the Clip row; commas cost width.
+      timelineValue: `${viewport.enabled ? 'On' : 'Off'} x ${formatNumber(viewport.x)} y ${formatNumber(viewport.y)} ${formatNumber(viewport.width)}×${formatNumber(viewport.height)}`,
     })
   }
   return items

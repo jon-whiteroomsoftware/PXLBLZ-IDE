@@ -2275,10 +2275,9 @@ describe('ShowEditor (#318)', () => {
     render(<ShowEditor showId={show.id} />)
 
     const clip = screen.getByRole('button', { name: 'Select Summary Rings' })
-    expect(within(clip).getByText('0.5x')).toBeInTheDocument()
+    expect(within(clip).getByText('.5–1x')).toBeInTheDocument()
     expect(within(clip).getByText('75%')).toBeInTheDocument()
-    expect(within(clip).getByText('0.1t')).toBeInTheDocument()
-    expect(within(clip).getByText('animated')).toBeInTheDocument()
+    expect(within(clip).getByText('.1t')).toBeInTheDocument()
 
     await user.click(clip)
 
@@ -2288,7 +2287,7 @@ describe('ShowEditor (#318)', () => {
     expect(header).not.toHaveTextContent('Main Layer')
     expect(header).not.toHaveTextContent('Pattern Clip')
     const summary = within(panel).getByRole('region', { name: 'Clip summary' })
-    expect(summary).toHaveTextContent('Animation speed0.5x')
+    expect(summary).toHaveTextContent('Animation speed0.5–1x')
     expect(summary).toHaveTextContent('Brightness75%')
     expect(summary).toHaveTextContent('Hue0.1t')
     expect(summary).toHaveTextContent('Animations — 1')

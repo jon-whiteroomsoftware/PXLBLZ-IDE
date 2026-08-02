@@ -20,6 +20,7 @@ describe('Show Clip summary', () => {
     ['view', 'phase', { location: 'playback', targetKey: 'phase', destinationLabel: 'Playback Phase field' }],
     ['view', 'transform-position-x', { location: 'place', targetKey: 'transform-position-x', destinationLabel: 'Place Position X field' }],
     ['view', 'viewport', { location: 'place', targetKey: 'viewport', destinationLabel: 'Place Viewport fields' }],
+    ['view', 'viewport-width', { location: 'place', targetKey: 'viewport', destinationLabel: 'Place Viewport fields' }],
     ['effects', 'effect:threshold', { location: 'effects', targetKey: 'effect:threshold', destinationLabel: 'Effects row' }],
   ] as const)('maps the %s/%s summary fact to its owning surface (#650)', (kind, itemId, expected) => {
     expect(showClipSummaryDestination(kind, itemId)).toEqual(expected)
@@ -108,13 +109,17 @@ describe('Show Clip summary', () => {
       'controls',
       'view',
       'effects',
-      'animation',
     ])
+    // Animated facts occupy the same slot as set facts: the range replaces
+    // the value, the animated flag carries the cue (#666).
     expect(showClipInlineSummary(summary)).toBe(
-      'Animation speed 0.5x · Start offset 250 ms · Amount 30% · Brightness 75% · Hue 0.1t · Animation speed animated · Brightness animated',
+      'Animation speed 0.5–1x · Start offset 250 ms · Amount 30% · Brightness 75–100% · Hue 0.1t',
     )
-    expect(summary.find((section) => section.kind === 'animation')?.items).not.toContainEqual(
-      expect.objectContaining({ label: 'Position X' }),
+    expect(summary.find((section) => section.kind === 'playback')?.items).toContainEqual(
+      expect.objectContaining({ id: 'time-scale', value: '0.5–1x', animated: true }),
+    )
+    expect(summary.flatMap((section) => section.items)).not.toContainEqual(
+      expect.objectContaining({ id: 'transform-position-x' }),
     )
   })
 
@@ -165,10 +170,12 @@ describe('Show Clip summary', () => {
     const summary = projectCompositionShowClipSummary(composition, clip)
 
     expect(clip.segmentIds).toEqual(['logical-left', 'logical-right'])
-    expect(summary.find((section) => section.kind === 'animation')?.items).toContainEqual({
-      id: 'animation:effect:hue:turns',
-      label: 'Hue shift',
-      value: 'animated',
+    expect(summary.find((section) => section.kind === 'effects')?.items).toContainEqual({
+      id: 'effect:hue',
+      label: 'Hue',
+      value: '0.1–0.4t',
+      timelineValue: '0.1–0.4t',
+      animated: true,
     })
   })
 
@@ -211,12 +218,268 @@ describe('Show Clip summary', () => {
     const firstSummary = projectCompositionShowClipSummary(composition, clips[0])
     const secondSummary = projectCompositionShowClipSummary(composition, clips[1])
 
-    expect(firstSummary.find((section) => section.kind === 'animation')).toBeUndefined()
-    expect(secondSummary.find((section) => section.kind === 'animation')?.items).toContainEqual({
-      id: 'animation:time-scale',
+    expect(firstSummary.flatMap((section) => section.items)).not.toContainEqual(
+      expect.objectContaining({ animated: true }),
+    )
+    expect(secondSummary.find((section) => section.kind === 'playback')?.items).toContainEqual({
+      id: 'time-scale',
       label: 'Animation speed',
-      value: 'animated',
+      value: '0.5–1x',
+      animated: true,
     })
+  })
+
+  it('shows the absolute keyframe range instead of an animated tag (#666)', () => {
+    const show = createDefaultShow('show-range-summary', 'Range summary', 1_000)
+    const sceneId = show.scenes[0].id
+    const zoneId = show.zones[0].id
+    const composition = {
+      version: 1 as const,
+      patternInstances: [{
+        id: 'instance-range',
+        pattern: { kind: 'stock' as const, id: 'Rings' },
+        patternName: 'Rings',
+        time: { timeScale: 1, timeOffsetMs: 0 },
+      }],
+      scenes: [{
+        sceneId,
+        propertyTracks: [{
+          id: 'track-opacity-range',
+          target: { kind: 'placement-opacity' as const, placementId: 'overlay-range' },
+          keyframes: [
+            { id: 'opacity-0', timeMs: 0, value: 0.65, easing: { curve: 'linear' as const } },
+            { id: 'opacity-1', timeMs: 400, value: 0, easing: { curve: 'linear' as const } },
+            { id: 'opacity-2', timeMs: 1_000, value: 0.3, easing: { curve: 'linear' as const } },
+          ],
+        }],
+        zones: [{
+          zoneId,
+          main: [],
+          overlays: [{
+            id: 'overlay-range-layer',
+            name: 'Overlay',
+            placements: [{
+              id: 'overlay-range',
+              instanceId: 'instance-range',
+              startMs: 0,
+              durationMs: 1_000,
+              opacity: 0.65,
+              view: { mirror: false, phase: 0, brightness: 1 },
+            }],
+          }],
+        }],
+      }],
+    }
+    const clip = projectShowUnifiedTimeline(show, composition).zones[0].layers[0].clips[0]
+
+    const summary = projectCompositionShowClipSummary(composition, clip)
+
+    // Bounds cover every keyframe, not just the endpoints, and read min–max
+    // in the same View slot the set value would occupy.
+    expect(summary.find((section) => section.kind === 'view')?.items).toEqual([{
+      id: 'opacity',
+      label: 'Opacity',
+      value: '0–65%',
+      animated: true,
+    }])
+    expect(summary.find((section) => section.kind === 'animation')).toBeUndefined()
+  })
+
+  it('collapses a flat animated track to its single value (#666)', () => {
+    const show = createDefaultShow('show-flat-range-summary', 'Flat range summary', 1_000)
+    const sceneId = show.scenes[0].id
+    const zoneId = show.zones[0].id
+    const composition = {
+      version: 1 as const,
+      patternInstances: [{
+        id: 'instance-flat',
+        pattern: { kind: 'stock' as const, id: 'Rings' },
+        patternName: 'Rings',
+        time: { timeScale: 1, timeOffsetMs: 0 },
+      }],
+      scenes: [{
+        sceneId,
+        propertyTracks: [{
+          id: 'track-brightness-flat',
+          target: { kind: 'placement-view' as const, placementId: 'placement-flat', property: 'brightness' as const },
+          keyframes: [
+            { id: 'flat-0', timeMs: 0, value: 0.5, easing: { curve: 'linear' as const } },
+            { id: 'flat-1', timeMs: 1_000, value: 0.5, easing: { curve: 'linear' as const } },
+          ],
+        }],
+        zones: [{
+          zoneId,
+          main: [{
+            id: 'placement-flat',
+            instanceId: 'instance-flat',
+            startMs: 0,
+            durationMs: 1_000,
+            view: { mirror: false, phase: 0, brightness: 1 },
+          }],
+          overlays: [],
+        }],
+      }],
+    }
+    const clip = projectShowUnifiedTimeline(show, composition).zones[0].layers[0].clips[0]
+
+    const summary = projectCompositionShowClipSummary(composition, clip)
+
+    expect(summary.find((section) => section.kind === 'view')?.items).toEqual([{
+      id: 'brightness',
+      label: 'Brightness',
+      value: '50%',
+      animated: true,
+    }])
+  })
+
+  it('merges range bounds across every segment of one logical Clip (#666)', () => {
+    const show = createDefaultShow('show-merged-range-summary', 'Merged range summary', 1_000)
+    const zoneId = show.zones[0].id
+    const composition = {
+      version: 1 as const,
+      patternInstances: [{
+        id: 'instance-merged',
+        pattern: { kind: 'stock' as const, id: 'Rings' },
+        patternName: 'Rings',
+        time: { timeScale: 1, timeOffsetMs: 0 },
+      }],
+      scenes: show.scenes.map((scene, sceneIndex) => ({
+        sceneId: scene.id,
+        propertyTracks: [{
+          id: `track-merged-${sceneIndex}`,
+          target: {
+            kind: 'placement-opacity' as const,
+            placementId: sceneIndex === 0 ? 'merged-left' : 'merged-right',
+          },
+          keyframes: sceneIndex === 0
+            ? [
+                { id: 'left-0', timeMs: 0, value: 0, easing: { curve: 'linear' as const } },
+                { id: 'left-1', timeMs: scene.durationMs, value: 0.2, easing: { curve: 'linear' as const } },
+              ]
+            : [
+                { id: 'right-0', timeMs: 0, value: 0.5, easing: { curve: 'linear' as const } },
+                { id: 'right-1', timeMs: scene.durationMs, value: 0.65, easing: { curve: 'linear' as const } },
+              ],
+        }],
+        zones: [{
+          zoneId,
+          main: [],
+          overlays: [{
+            id: `overlay-merged-${sceneIndex}`,
+            name: 'Overlay',
+            placements: [{
+              id: sceneIndex === 0 ? 'merged-left' : 'merged-right',
+              logicalClipId: 'merged-clip',
+              instanceId: 'instance-merged',
+              startMs: 0,
+              durationMs: scene.durationMs,
+              opacity: 0.5,
+              view: { mirror: false, phase: 0, brightness: 1 },
+            }],
+          }],
+        }],
+      })),
+    }
+    const clip = projectShowUnifiedTimeline(show, composition).zones[0].layers[0].clips[0]
+
+    const summary = projectCompositionShowClipSummary(composition, clip)
+
+    expect(clip.segmentIds).toEqual(['merged-left', 'merged-right'])
+    expect(summary.find((section) => section.kind === 'view')?.items).toEqual([{
+      id: 'opacity',
+      label: 'Opacity',
+      value: '0–65%',
+      animated: true,
+    }])
+  })
+
+  it('formats each animated property range in its native domain unit (#666)', () => {
+    const show = createDefaultShow('show-unit-range-summary', 'Unit range summary', 1_000)
+    const sceneId = show.scenes[0].id
+    const zoneId = show.zones[0].id
+    const composition = {
+      version: 1 as const,
+      patternInstances: [{
+        id: 'instance-units',
+        pattern: { kind: 'stock' as const, id: 'Rings' },
+        patternName: 'Rings',
+        time: { timeScale: 1, timeOffsetMs: 0 },
+        controlTargets: { sliderAmount: 0.1 },
+      }],
+      scenes: [{
+        sceneId,
+        propertyTracks: [{
+          id: 'track-rotation',
+          target: { kind: 'placement-transform' as const, placementId: 'placement-units', property: 'rotation' as const },
+          keyframes: [
+            { id: 'rotation-0', timeMs: 0, value: -0.25, easing: { curve: 'linear' as const } },
+            { id: 'rotation-1', timeMs: 1_000, value: 0.25, easing: { curve: 'linear' as const } },
+          ],
+        }, {
+          id: 'track-scale-x',
+          target: { kind: 'placement-transform' as const, placementId: 'placement-units', property: 'scaleX' as const },
+          keyframes: [
+            { id: 'scale-0', timeMs: 0, value: 0.5, easing: { curve: 'linear' as const } },
+            { id: 'scale-1', timeMs: 1_000, value: 2.507072, easing: { curve: 'linear' as const } },
+          ],
+        }, {
+          id: 'track-viewport-width',
+          target: { kind: 'placement-viewport' as const, placementId: 'placement-units', property: 'width' as const },
+          keyframes: [
+            { id: 'width-0', timeMs: 0, value: 1, easing: { curve: 'linear' as const } },
+            { id: 'width-1', timeMs: 1_000, value: 2, easing: { curve: 'linear' as const } },
+          ],
+        }, {
+          id: 'track-phase',
+          target: { kind: 'placement-view' as const, placementId: 'placement-units', property: 'phase' as const },
+          keyframes: [
+            { id: 'phase-0', timeMs: 0, value: 0, easing: { curve: 'linear' as const } },
+            { id: 'phase-1', timeMs: 1_000, value: 0.5, easing: { curve: 'linear' as const } },
+          ],
+        }, {
+          id: 'track-control',
+          target: { kind: 'instance-control' as const, instanceId: 'instance-units', exportName: 'sliderAmount' },
+          keyframes: [
+            { id: 'control-0', timeMs: 0, value: 0.1, easing: { curve: 'linear' as const } },
+            { id: 'control-1', timeMs: 1_000, value: 0.8, easing: { curve: 'linear' as const } },
+          ],
+        }],
+        zones: [{
+          zoneId,
+          main: [{
+            id: 'placement-units',
+            instanceId: 'instance-units',
+            startMs: 0,
+            durationMs: 1_000,
+            view: { mirror: false, phase: 0, brightness: 1 },
+          }],
+          overlays: [],
+        }],
+      }],
+    }
+    const clip = projectShowUnifiedTimeline(show, composition).zones[0].layers[0].clips[0]
+
+    const summary = projectCompositionShowClipSummary(composition, clip, { sliderAmount: 'Amount' })
+
+    expect(summary.find((section) => section.kind === 'view')?.items).toEqual([
+      { id: 'transform-rotation', label: 'Rotation', value: '-90–90°', animated: true },
+      { id: 'transform-scale-x', label: 'Scale X', value: '0.5–2.51x', timelineValue: 'sx 0.5–2.51x', animated: true },
+      { id: 'viewport-width', label: 'Viewport Width', value: '1–2', timelineValue: 'w 1–2', animated: true },
+      { id: 'phase', label: 'Phase', value: '0–0.5', animated: true },
+    ])
+    expect(summary.find((section) => section.kind === 'controls')?.items).toEqual([
+      { id: 'control:sliderAmount', label: 'Amount', value: '10–80%', animated: true },
+    ])
+
+    // The Clip row alone drops leading zeros; full values stay in the model.
+    const timeline = projectShowClipTimelineSummary(summary, null)
+    expect(timeline.flatMap((section) => section.items.map((item) => item.displayValue))).toEqual([
+      '10–80%',
+      '-90–90°',
+      'sx .5–2.51x',
+      'w 1–2',
+      '0–.5',
+    ])
   })
 
   it('includes static overlay opacity and Viewport configuration (#599 review)', () => {
@@ -353,7 +616,7 @@ describe('Show Clip summary', () => {
       expect.objectContaining({
         label: 'Scale',
         value: 'X 2.51x, Y 0.75x',
-        timelineValue: 'x 2.51x, y 0.75x',
+        timelineValue: 'x 2.51x y 0.75x',
       }),
       expect.objectContaining({ label: 'Vignette', value: expect.stringContaining('Aspect 16:9') }),
     ])
@@ -427,6 +690,8 @@ describe('Show Clip summary', () => {
       .find((section) => section.kind === 'effects')?.items[0]
 
     expect(effect?.value).toBe('Amount 0.32, Frequency 4, Phase 0t, Center X 0.5, Center Y 0.5')
-    expect(timelineEffect?.displayValue).toBe('amt 0.32, freq 4, phase 0t, cx 0.5, cy 0.5')
+    // The Clip row keeps only parameters authored away from their defaults;
+    // the complete list above stays for the Detail summary (#666).
+    expect(timelineEffect?.displayValue).toBe('amt .32 freq 4')
   })
 })

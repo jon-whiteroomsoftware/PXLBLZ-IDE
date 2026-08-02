@@ -461,7 +461,14 @@ The working grammar is compact:
   exact decimal-second entry with the shared detented time ruler. Each Clip's second row
   tersely summarizes its authored controls, view changes, Effects, and Property
   animation; unchanged values after a connected Clip contract to their category
-  glyphs. Unavailable commands stay focusable and explain why. Every commit is
+  glyphs, and distinct glyphs mark Brightness, Transform, Rotation, and
+  Viewport facts. An animated Property occupies the same slot as its set value
+  and shows its absolute keyframe bounds in the violet animation tone —
+  `0–65%` — so sparklines carry the shape of a change and the Clip row its
+  scale. The row saves width without losing facts: leading zeros drop
+  (`.05`), wide numbers round to whole units (`66°`), and Effect parameters
+  still at their defaults stay silent; the Detail summary keeps every value
+  complete. Unavailable commands stay focusable and explain why. Every commit is
   one session-scoped undo step (Cmd/Ctrl+Z).
 - **Transitions from Add.** Select a Clip that touches another Clip at a Cut,
   then choose **Add > Transition** to open the same Transition catalogue as the

@@ -1,6 +1,6 @@
 import { Fragment, createContext, useCallback, useContext, useDeferredValue, useEffect, useLayoutEffect, useMemo, useRef, useState, useSyncExternalStore, type CSSProperties, type MouseEvent as ReactMouseEvent, type PointerEvent as ReactPointerEvent, type ReactNode, type RefObject, type SetStateAction } from 'react'
 import { createPortal } from 'react-dom'
-import { Activity, BookOpen, Check, ChevronDown, ChevronRight, Clock3, Code2, Copy, Download, Eye, Flag, Grid2X2, Info, Layers3, Lightbulb, ListChecks, Lock, Magnet, Map as MapIcon, Maximize2, PanelLeft, Pause, Play, Plus, Redo2, Repeat2, RotateCcw, RotateCw, Route, Scissors, Settings2, SkipBack, SlidersHorizontal, SplitSquareHorizontal, Trash2, Undo2, WandSparkles, X, Zap } from 'lucide-react'
+import { Activity, BookOpen, Check, ChevronDown, ChevronRight, Clock3, Code2, Copy, Download, Eye, Flag, Grid2X2, Info, Layers3, Lightbulb, ListChecks, Lock, Magnet, Map as MapIcon, Maximize2, Move, PanelLeft, Pause, Play, Plus, Redo2, Repeat2, RotateCcw, RotateCw, Route, Scissors, Settings2, SkipBack, SlidersHorizontal, SplitSquareHorizontal, Square, Sun, Trash2, Undo2, WandSparkles, X, Zap } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { NumberField as UiNumberField, type NumberFieldProps as UiNumberFieldProps } from '@/components/ui/number-field'
 import { TimeField as UiTimeField, type TimeFieldProps as UiTimeFieldProps } from '@/components/ui/time-field'
@@ -10083,19 +10083,31 @@ function ClipSummaryInline({
       {summary.length === 0 && <span className="show-clip-summary-copy shrink-0">defaults</span>}
       {timelineSummary.map((section) => {
         const visibleItems = section.items.filter((item) => item.showValue)
+        const iconed = visibleItems.map((item) => ({
+          item,
+          icon: clipSummaryItemIcon(section.kind, item.id),
+        }))
+        // The section glyph stands alone when values contract away, and leads
+        // when any visible fact still relies on it; it disappears once every
+        // visible fact carries its own icon (#666).
+        const showSectionIcon = visibleItems.length === 0 || iconed.some(({ icon }) => !icon)
         return (
           <span
             key={section.kind}
             data-show-clip-summary-has-value={visibleItems.length > 0 ? 'true' : 'false'}
-            className={`show-clip-summary-section inline-flex min-w-max items-center gap-1 ${visibleItems.length > 0 ? 'mr-1.5 last:mr-0' : ''}`}
+            className={`show-clip-summary-section inline-flex min-w-max items-center gap-1 ${visibleItems.length > 0 ? 'mr-1.5 last:mr-0' : ''} ${section.kind === 'animation' ? 'text-violet-400/70' : ''}`}
           >
-            <ClipSummaryIcon kind={section.kind} size={10} />
+            {showSectionIcon && <ClipSummaryIcon kind={section.kind} size={10} />}
             {visibleItems.length > 0 && (
-              <span className="show-clip-summary-values inline-flex items-center">
-                {visibleItems.map((item, index) => (
-                  <span key={item.id}>
-                    {index > 0 && <span className="px-0.5 text-zinc-700">·</span>}
-                    <span className="text-zinc-400">{item.displayValue}</span>
+              <span className="show-clip-summary-values inline-flex items-center gap-1.5">
+                {iconed.map(({ item, icon }, index) => (
+                  <span key={item.id} className="inline-flex items-center gap-1">
+                    {index > 0 && !icon && <span className="pr-0.5 text-zinc-700">·</span>}
+                    {icon && <ClipSummaryItemIcon icon={icon} size={10} />}
+                    {/* Violet is the animated cue (#666); the range carries the bounds. */}
+                    <span className={item.animated ? 'text-violet-300/90' : 'text-zinc-400'}>
+                      {item.displayValue}
+                    </span>
                   </span>
                 ))}
               </span>
@@ -10163,11 +10175,21 @@ function ClipConfigurationSummary({
           </span>
           {section.items.map((item, index) => {
             const destination = destinationForItem?.(section, item) ?? null
+            const icon = clipSummaryItemIcon(section.kind, item.id)
             const content = (
               <>
                 {index > 0 && <span aria-hidden className="mr-1.5 text-zinc-700">·</span>}
+                {icon && (
+                  <span aria-hidden className="mr-1 inline-flex translate-y-px text-zinc-500">
+                    <ClipSummaryItemIcon icon={icon} size={11} />
+                  </span>
+                )}
                 <span className="text-zinc-400">{item.label}</span>
-                {item.value && <strong className="ml-1 font-medium text-zinc-100">{item.value}</strong>}
+                {item.value && (
+                  <strong className={`ml-1 font-medium ${item.animated ? 'text-violet-300' : 'text-zinc-100'}`}>
+                    {item.value}
+                  </strong>
+                )}
               </>
             )
             return destination ? (
@@ -10210,6 +10232,30 @@ function ClipSummaryIcon({ kind, size }: { kind: ShowClipSummaryKind; size: numb
   if (kind === 'view') return <Eye size={size} aria-hidden />
   if (kind === 'effects') return <WandSparkles size={size} aria-hidden />
   return <Activity size={size} aria-hidden />
+}
+
+type ClipSummaryItemIconKind = 'brightness' | 'transform' | 'rotation' | 'viewport'
+
+/**
+ * Distinct glyphs inside the View family (#666): Sun for Brightness, Move for
+ * position/scale Transform facts, a circular arrow for Rotation, an empty
+ * rectangle for Viewport. The Eye stays for opacity, mirror, and phase,
+ * whether the fact is set or animated.
+ */
+function clipSummaryItemIcon(kind: ShowClipSummaryKind, itemId: string): ClipSummaryItemIconKind | null {
+  if (kind !== 'view') return null
+  if (itemId === 'brightness') return 'brightness'
+  if (itemId === 'transform-rotation') return 'rotation'
+  if (itemId.startsWith('transform-')) return 'transform'
+  if (itemId === 'viewport' || itemId.startsWith('viewport-')) return 'viewport'
+  return null
+}
+
+function ClipSummaryItemIcon({ icon, size }: { icon: ClipSummaryItemIconKind; size: number }) {
+  if (icon === 'brightness') return <Sun size={size} aria-hidden />
+  if (icon === 'transform') return <Move size={size} aria-hidden />
+  if (icon === 'rotation') return <RotateCw size={size} aria-hidden />
+  return <Square size={size} aria-hidden />
 }
 
 function clipSummaryTone(kind: ShowClipSummaryKind): string {
