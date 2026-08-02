@@ -312,6 +312,15 @@ An Installation output contract fixes both the map and LED count. Every active
 routing layout must assign every output index exactly once, including when one
 named Zone owns several non-contiguous ranges.
 
+**301 Installation Mapping** stages this contract on a measured wall of eight
+sunflower pucks. Each bank is a named Zone whose range follows the map's real
+wiring order, and the map selector edits the same fact spatially: selecting a
+Zone's pixels and editing its range are one operation. When coverage breaks,
+the diagnostics name the exact failure - missing pixels are a gap, doubly
+owned pixels are an overlap, and pixels past the LED count are out of range -
+and the Show cannot publish until the ranges cover the output exactly once
+again.
+
 ### Composing a fixed Installation
 
 Use physical groupings that match how people perceive the object: pucks, rows,

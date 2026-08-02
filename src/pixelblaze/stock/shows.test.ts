@@ -22,8 +22,8 @@ import { SOURCE_STOCK_MAPS } from './maps/stockCatalogue'
 import { STOCK_SHOWS, stockShowById } from './shows'
 
 describe('stock Show curriculum (#363)', () => {
-  it('ships the stable Learn 100, Learn 200, and showcase catalogue', () => {
-    expect(STOCK_SHOWS).toHaveLength(21)
+  it('ships the stable Learn 100, Learn 200, Learn 300, and showcase catalogue', () => {
+    expect(STOCK_SHOWS).toHaveLength(22)
     expect(new Set(STOCK_SHOWS.map((item) => item.id)).size).toBe(STOCK_SHOWS.length)
     expect(STOCK_SHOWS.map((item) => [item.name, item.collection, item.level, item.order])).toEqual([
       ['101 Clips, Cuts, and Blank Time', 'learn', 100, 1],
@@ -38,6 +38,7 @@ describe('stock Show curriculum (#363)', () => {
       ['204 Presentation Modes', 'learn', 200, 4],
       ['205 Groups and Linked Reuse', 'learn', 200, 5],
       ['206 Changing Zone Layouts', 'learn', 200, 6],
+      ['301 Installation Mapping', 'learn', 300, 1],
       ['Transform Effects', 'showcases', null, 1],
       ['Distortion Effects', 'showcases', null, 2],
       ['Color and Output Effects', 'showcases', null, 3],
@@ -210,11 +211,15 @@ describe('stock Show curriculum (#363)', () => {
     'stock-show-205-groups-linked-reuse',
     'stock-show-206-changing-zone-layouts',
   ]
-  const LESSON_IDS = [...FOUNDATION_IDS, ...COMPOSITION_IDS]
+  const OUTPUT_IDS = [
+    'stock-show-301-installation-mapping',
+  ]
+  const LESSON_IDS = [...FOUNDATION_IDS, ...COMPOSITION_IDS, ...OUTPUT_IDS]
   // Simultaneity is itself the subject from 105 onward, so those two lessons
   // are allowed the second Zone the earlier four must do without. At the 200
   // level simultaneity lives on Layers, so only 206 - where changing routed
-  // topology is the lesson - carries a second Zone.
+  // topology is the lesson - carries a second Zone. The 300 level is about
+  // physical ownership, and its banks are Zones by definition.
   const SINGLE_ZONE_IDS = [
     ...FOUNDATION_IDS.slice(0, 4),
     ...COMPOSITION_IDS.slice(0, 5),
@@ -264,10 +269,17 @@ describe('stock Show curriculum (#363)', () => {
     }
   })
 
-  it('declares the 44x44 portable reference for every lesson', () => {
+  it('declares the 44x44 portable reference for every portable lesson', () => {
     // 1,936 is the largest complete square under SHOW_MAX_OUTPUT_PIXELS; 2,000
-    // yields a 45-wide grid with a ragged final row.
+    // yields a 45-wide grid with a ragged final row. The 300 level is the
+    // deliberate exception: its whole subject is a fixed physical output.
     for (const item of lessons()) {
+      if (item.track === 'installation') {
+        expect(item.show.outputContract, item.name).toMatchObject({
+          kind: 'installation', outputMapId: 'sunflower-pucks-2d', pixelCount: 160,
+        })
+        continue
+      }
       expect(item.show.outputContract, item.name).toMatchObject({
         kind: 'portable-2d', referenceMapId: 'plane', referencePixelCount: 1_936,
       })
@@ -1048,16 +1060,67 @@ describe('stock Show curriculum (#363)', () => {
     }
   })
 
-  it('uses one high-density square Stage across the whole curriculum', () => {
-    // Every lesson renders on the same 44x44 square, so a learner comparing
-    // two lessons is comparing choreography, not resolution.
+  it('uses one high-density square Stage across the portable curriculum', () => {
+    // Every portable lesson renders on the same 44x44 square, so a learner
+    // comparing two lessons is comparing choreography, not resolution. The
+    // 300 level renders on its own measured output, and its Zone counts must
+    // instead account for every physical LED.
     for (const item of lessons()) {
+      if (item.track === 'installation') {
+        expect(item.show.zones.reduce((sum, zone) => sum + zone.nominalPixelCount, 0), item.id).toBe(160)
+        continue
+      }
       expect(item.show.outputContract, item.id).toMatchObject({
         kind: 'portable-2d',
         referencePixelCount: 1_936,
       })
       expect(item.show.zones.reduce((sum, zone) => sum + zone.nominalPixelCount, 0), item.id).toBe(1_936)
     }
+  })
+
+  it('routes 301 banks by measured index and trades Patterns at the halfway Cut', () => {
+    const item = stockShowById('stock-show-301-installation-mapping')!
+    expect(item.show.routingLayouts).toHaveLength(1)
+    expect(item.show.routingLayouts[0].zones).toEqual([
+      { zoneId: 'zone-1', ranges: [{ start: 0, end: 79 }] },
+      { zoneId: 'zone-2', ranges: [{ start: 80, end: 159 }] },
+    ])
+    expect(validateInstallationCoverage(item.show)).toMatchObject({ valid: true })
+
+    const compiled = compileShowForArtifact(item.show, [], undefined, {}, { stageDimension: 2 })
+    expect(compiled.error).toBeNull()
+    const mapPoints = SOURCE_STOCK_MAPS.find((map) => map.id === 'sunflower-pucks-2d')!.resolve(160)
+    let virtualTime = 0
+    const shim = createShim({
+      pixelCount: 160,
+      dimensions: 2,
+      mapPoints,
+      getVirtualTime: () => virtualTime,
+      randomSeed: 363,
+    })
+    const handle = loadPattern(compiled.artifact!.code, compiled.artifact!.metadata, shim.builtins)
+    const bankIndices = { left: [8, 34, 55, 71], right: [88, 114, 135, 151] }
+    const frameAt = (deltaMs: number) => {
+      virtualTime += deltaMs
+      handle.beforeRender(deltaMs)
+      const render = (index: number) => {
+        const [x, y] = mapPoints[index].sample
+        handle.render2D(index, x, y)
+        return shim.capturedPixel()
+      }
+      return { left: bankIndices.left.map(render), right: bankIndices.right.map(render) }
+    }
+
+    const establish = frameAt(1_000)
+    const traded = frameAt(7_000)
+
+    // The two banks run visibly different content in both halves, and each
+    // bank changes at the trade even though the ranges never move.
+    expect(establish.left).not.toEqual(establish.right)
+    expect(traded.left).not.toEqual(establish.left)
+    expect(traded.right).not.toEqual(establish.right)
+    const lit = (bank: number[][]) => bank.some(([r, g, b]) => r + g + b > 0.05)
+    expect(lit(establish.left) && lit(establish.right) && lit(traded.left) && lit(traded.right)).toBe(true)
   })
 
   it('compiles every lesson through the production artifact pipeline', () => {

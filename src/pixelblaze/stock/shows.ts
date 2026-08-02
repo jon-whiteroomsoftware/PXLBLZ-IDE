@@ -46,7 +46,7 @@ export interface StockShow {
   name: string
   track: StockShowTrack
   collection: StockShowCollection
-  level: 100 | 200 | null
+  level: 100 | 200 | 300 | null
   order: number
   lesson: string
   description: string
@@ -74,7 +74,7 @@ type CatalogueInput = {
   title: string
   track: StockShowTrack
   collection: StockShowCollection
-  level: 100 | 200 | null
+  level: 100 | 200 | 300 | null
   order: number
   purpose: string
   notice: string
@@ -114,6 +114,7 @@ const CARDINAL_DIRECTIONS = [
 export const STOCK_SHOWS: StockShow[] = [
   learn101(), learn102(), learn103(), learn104(), learn105(), learn106(),
   learn201(), learn202(), learn203(), learn204(), learn205(), learn206(),
+  learn301(),
   effectShowcase('transform'), effectShowcase('distortion'), effectShowcase('color-output'),
   wipeAndMixTransitionReference(), shapeRevealTransitionReference(), motionTransitionReference(),
   propertyAnimationReference(), easingReference(),
@@ -942,6 +943,66 @@ function learn206(): StockShow {
       { id: 'layout-rings', name: 'Rings', zones: [], logical: { kind: 'rings', zoneIds: [zones[0].id, zones[1].id], rings: 2 } },
     ],
     scenes, transitions, composition,
+  })
+}
+
+// 301 moves the curriculum onto physical output. sunflower-pucks-2d is
+// measured hardware geometry: 160 LEDs in eight 20-pixel pucks, indices 0-79
+// filling the left column and 80-159 the right, so the two named banks
+// restate the map's wiring order rather than a normalized split. Casting was
+// probed on that geometry at the lesson clock: IQPalettes and MetaballGarden
+// are the two calmest equally-bright fields (mean luminance 0.36/0.35, flux
+// 0.015/0.016 per 200 ms step) with the widest sustained hue contrast of any
+// such pair - warm palette drift against green metaballs. Pairs scoring
+// higher set a bright field against a near-dark Pattern, and a near-dark bank
+// reads as the coverage fault this lesson teaches the learner to diagnose, so
+// both banks stay unmistakably alive. The halfway trade mirrors 105 exactly:
+// the same authoring the learner already knows, now over owned LEDs.
+function learn301(): StockShow {
+  const id = 'stock-show-301-installation-mapping'
+  const zones = physicalZones(['Left bank', 'Right bank'], [80, 80])
+  const scenes: SceneSpec[] = [
+    scene('wall', 'Two banks', 14, [
+      clip('zone-1', 'IQPalettes', LESSON_TIME_SCALE),
+      clip('zone-2', 'MetaballGarden', LESSON_TIME_SCALE),
+    ]),
+  ]
+  const composition: ShowCompositionV1 = {
+    version: 1,
+    patternInstances: [
+      instance('palettes', 'IQPalettes', LESSON_TIME_SCALE),
+      instance('garden', 'MetaballGarden', LESSON_TIME_SCALE),
+    ],
+    scenes: [{
+      sceneId: 'wall',
+      zones: [
+        {
+          zoneId: 'zone-1',
+          overlays: [],
+          main: [placement('clip-left-palettes', 'palettes', 0, 7), placement('clip-left-garden', 'garden', 7, 7)],
+        },
+        {
+          // The Cut lands at the same instant in both banks, so the Patterns
+          // trade walls in one move while the ranges never change.
+          zoneId: 'zone-2',
+          overlays: [],
+          main: [placement('clip-right-garden', 'garden', 0, 7), placement('clip-right-palettes', 'palettes', 7, 7)],
+        },
+      ],
+    }],
+    durationMs: 14_000,
+  }
+  return catalogue({
+    id, title: 'Installation Mapping', track: 'installation', collection: 'learn', level: 300, order: 1,
+    purpose: 'An Installation Show gives up portability on purpose. It promises one exact output - this wall of eight sunflower pucks, 160 measured LEDs - and in exchange each named Zone owns real pixels: a physical range over the map instead of a share of an abstract surface. Together the ranges must cover the output exactly once.',
+    notice: "The two banks follow the map's actual wiring order: LEDs 0-79 fill the left column of pucks and 80-159 the right. At the halfway junction the two Patterns trade banks, while the ranges themselves never move.",
+    prompts: ['Open the Left bank and edit its pixels in the map selector: the spatial selection and the numeric range are the same fact written two ways.', 'Now break it on purpose - remove a few pixels from one bank and watch the coverage diagnostic count the gap. Repair it, or use Reset to restore the pristine lesson.'],
+    guideHeading: 'installation-output-and-physical-ranges',
+    output: { kind: 'installation', mapId: 'sunflower-pucks-2d', pixelCount: 160 },
+    zones,
+    layouts: [physicalLayout('layout-banks', 'Two banks', zones, [[[0, 79]], [[80, 159]]])],
+    scenes,
+    composition,
   })
 }
 
