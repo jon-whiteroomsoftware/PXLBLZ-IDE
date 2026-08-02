@@ -138,10 +138,11 @@ export const ShowClipEntityDetail = forwardRef<ShowClipEntityDetailHandle, ShowC
       placementPreviewVersionRef.current += 1
       setPlacementPreview({ transform: patch.transform, viewport: patch.viewport })
     }
-    onPreviewPatch?.(patch)
   }
   const endPlacementPreview = () => {
-    onPreviewEnd?.()
+    // Placement gestures stay inside this dialog until their single commit.
+    // Forwarding transient samples would rebuild the complete Show preview and
+    // runtime for every pointer move (#680).
     const previewVersion = placementPreviewVersionRef.current
     // Bounded fields end preview immediately before commit, while pad gestures
     // commit immediately before ending preview. The microtask observes either
