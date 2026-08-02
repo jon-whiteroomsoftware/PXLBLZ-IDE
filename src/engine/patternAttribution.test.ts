@@ -69,9 +69,17 @@ ${body}`)).toEqual(['ZRanger1'])
       expect(extractPatternAuthors(`// ZRanger1 10/09/2022${body}`)).toEqual(['ZRanger1'])
     })
 
-    it('accepts multi-word names, verb-suffixed given names, and particles', () => {
-      expect(extractPatternAuthors(`// 2022-10-09 Alfred Jones${body}`)).toEqual(['Alfred Jones'])
+    it('accepts multi-word names including lowercase particles', () => {
+      expect(extractPatternAuthors(`// 2022-10-09 Jeff Vyduna${body}`)).toEqual(['Jeff Vyduna'])
       expect(extractPatternAuthors(`// 2022-10-09 Ludwig van Beethoven${body}`)).toEqual(['Ludwig van Beethoven'])
+    })
+
+    it('conservatively skips verb-shaped multi-word remainders, losing rare names', () => {
+      // "Alfred" is indistinguishable from an unlisted changelog verb by shape;
+      // the no-false-authors invariant deliberately wins over completeness.
+      expect(extractPatternAuthors(`// 2022-10-09 Alfred Jones${body}`)).toEqual([])
+      expect(extractPatternAuthors(`// 2022-10-09 Corrected Render Cache${body}`)).toEqual([])
+      expect(extractPatternAuthors(`// 2022-10-09 Reordered Palette${body}`)).toEqual([])
     })
 
     it('accepts a leading version token before the date', () => {
