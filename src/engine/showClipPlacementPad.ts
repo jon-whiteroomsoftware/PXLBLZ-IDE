@@ -513,9 +513,10 @@ export function visibleContentRect(transform: ShowClipTransform): PlacementRect 
 
 /**
  * Turning the viewport on hands it the compositional job, so defaulting it to
- * the whole Zone reads as the Clip suddenly growing. It opens on what the Clip
- * already covers instead: visually identical to the moment before, and it
- * rewrites nothing on the content, so placement property lanes are unaffected.
+ * the whole Zone reads as the Clip suddenly growing. It opens on the geometric
+ * bounds the Clip already covers instead. The default Soft edge intentionally
+ * feathers that boundary; it rewrites nothing on the content, so placement
+ * property lanes are unaffected.
  * An authored rectangle is preserved by showClipViewport and comes back as-is.
  */
 export function enableViewportForContent(context: PlacementPadContext): ShowClipViewport {

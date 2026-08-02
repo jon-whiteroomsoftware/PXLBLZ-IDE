@@ -250,10 +250,11 @@ independently positioned, axis-aligned aperture: it decides where on the Stage
 the Clip may draw at all. Pixels outside the aperture fall through to the
 Layer below, which is why a lower Layer makes a Viewport edge easy to read.
 
-Enabling a Viewport for the first time frames the Clip's current result, so
-nothing changes until the aperture is moved or resized. Both rectangles can be
-animated, and they answer different questions: Content answers "which part of
-the Pattern," the Viewport answers "which part of the Stage."
+Enabling a Viewport for the first time frames the Clip's current geometric
+bounds instead of expanding to the whole Stage. Its default Soft edge feathers
+that boundary immediately. Both rectangles can be animated, and they answer
+different questions: Content answers "which part of the Pattern," the Viewport
+answers "which part of the Stage."
 
 ### Pattern instance lifecycle
 

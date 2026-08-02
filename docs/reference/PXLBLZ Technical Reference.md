@@ -1914,8 +1914,9 @@ its placement; placement-owned animation tracks follow the same lifecycle.
 
 `showClipViewport.ts` owns the optional placement-local clipping rectangle.
 Missing or disabled Viewports leave the complete Zone visible. First enable
-frames the Content portion already visible inside the Zone, so progressive
-disclosure is a visual no-op; an authored disabled rectangle is restored
+frames the Content portion already visible inside the Zone, avoiding a sudden
+geometric expansion to the whole Zone. Its default Soft edge intentionally
+feathers that frame boundary. An authored disabled rectangle is restored
 instead of being derived again, and an authored aperture shape, edge, or
 feather survives first enable as durable styling.
 

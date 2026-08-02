@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import { NEUTRAL_SHOW_CLIP_TRANSFORM } from './showClipTransform'
-import { DEFAULT_SHOW_CLIP_VIEWPORT } from './showClipViewport'
+import { DEFAULT_SHOW_CLIP_VIEWPORT, showClipViewportEffectiveEdge } from './showClipViewport'
 import {
   resolvePlacementPositionPresentation,
   resolvePlacementScalePresentation,
@@ -552,7 +552,11 @@ describe('shaped aperture support (#591)', () => {
       .toMatchObject({ aperture: 'rounded-box', cornerRadius: 0.4 })
   })
 
-  it('preserves an authored aperture shape and edge through first enable', () => {
+  it('defaults first enable to Soft and preserves authored aperture styling (#689)', () => {
+    const defaultViewport = enableViewportForContent(context())
+    expect(defaultViewport).toMatchObject({ enabled: true, x: 0, y: 0, width: 1, height: 1 })
+    expect(showClipViewportEffectiveEdge(defaultViewport)).toBe('soft')
+
     const padContext = context({}, { aperture: 'ellipse', edge: 'soft', feather: 0.05 })
     expect(enableViewportForContent(padContext)).toMatchObject({
       enabled: true,
