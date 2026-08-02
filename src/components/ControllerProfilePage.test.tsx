@@ -1,6 +1,7 @@
 import { act, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { ControllerProfilePage } from './ControllerProfilePage'
+import { ControllerProfileHeaderActions } from './ControllerProfileHeaderActions'
 import { ControllerSavedProgramsPane } from './ControllerSavedProgramsPane'
 import { NullControllerProvider, type ControllerStatus } from '@/engine/ControllerProvider'
 import { resetControllerProvider, setControllerProvider } from '@/engine/controllerProviderRegistry'
@@ -217,12 +218,15 @@ describe('ControllerProfilePage', () => {
 
     render(<ControllerProfilePage profileId="ctrl-1" />)
 
-    fireEvent.click(screen.getByRole('button', { name: 'Binding' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Add binding' }))
     expect(useControllerProfileStore.getState().profiles[0].patternBindings).toEqual([])
     expect(scheduleReconciliation).not.toHaveBeenCalled()
 
     const pattern = await screen.findByRole('combobox', { name: 'New binding Pattern' })
-    expect(pattern.closest('tr')?.querySelectorAll('td')).toHaveLength(6)
+    const draftRow = pattern.closest('li')
+    expect(draftRow).not.toBeNull()
+    expect(within(draftRow!).getByText('sliderSpeed')).toBeInTheDocument()
+    expect(within(draftRow!).getByRole('button', { name: 'Cancel new binding' })).toBeInTheDocument()
     expect(pattern).toHaveTextContent('Line Dancer')
     expect(pattern).not.toHaveTextContent('Foreign pattern')
     expect(pattern).not.toHaveTextContent('DEV_MISSING')
@@ -270,7 +274,12 @@ describe('ControllerProfilePage', () => {
     expect(screen.getByText(
       'Transforms take effect when a pattern is pushed. Push saved programs again after changing them.',
     )).toBeInTheDocument()
+
+    // The per-transform coverage details moved behind help hints (#685).
+    fireEvent.click(screen.getByRole('button', { name: 'About hardware-brightness' }))
     expect(screen.getByText(/multiplies brightness for hsv\(\) output/i)).toBeInTheDocument()
+
+    fireEvent.click(screen.getByRole('button', { name: 'About power-cap' }))
     expect(screen.getByText(/limits estimated output duty for hsv\(\) and rgb\(\)/i)).toBeInTheDocument()
     expect(screen.getByText(/paint\(\) output is not covered/i)).toBeInTheDocument()
   })
@@ -282,6 +291,7 @@ describe('ControllerProfilePage', () => {
 
     const select = screen.getByRole('combobox', { name: 'Declared output profile' })
     expect(select).toHaveValue('native-serial')
+    fireEvent.click(screen.getByRole('button', { name: 'About the declared output profile' }))
     expect(screen.getByText(/the device cannot report or verify output wiring/i)).toBeInTheDocument()
 
     fireEvent.change(select, { target: { value: 'pro-expander' } })
@@ -296,7 +306,6 @@ describe('ControllerProfilePage', () => {
     const { rerender } = render(<ControllerProfilePage profileId="ctrl-1" />)
     expect(screen.getByText('Offline')).toBeInTheDocument()
     expect(screen.getByTestId('controller-profile-status-dot')).toHaveClass('bg-zinc-700')
-    expect(screen.getByTitle('Refresh controller metadata')).toBeDisabled()
 
     useControllerStore.setState({
       controllers: {
@@ -313,7 +322,6 @@ describe('ControllerProfilePage', () => {
     expect(screen.getByText('Trying to connect')).toBeInTheDocument()
     expect(screen.getByTestId('controller-profile-status-dot')).toHaveClass('bg-amber-400')
     expect(screen.getByTestId('controller-profile-status-dot')).toHaveClass('animate-blink-connect')
-    expect(screen.getByTitle('Refresh controller metadata')).toBeDisabled()
 
     useControllerStore.setState({
       controllers: {
@@ -330,7 +338,6 @@ describe('ControllerProfilePage', () => {
     rerender(<ControllerProfilePage profileId="ctrl-1" />)
     expect(screen.getByText('Connect failed')).toBeInTheDocument()
     expect(screen.getByTestId('controller-profile-status-dot')).toHaveClass('bg-red-400')
-    expect(screen.getByTitle('Refresh controller metadata')).toBeDisabled()
 
     useControllerStore.setState({
       controllers: {
@@ -346,7 +353,35 @@ describe('ControllerProfilePage', () => {
     rerender(<ControllerProfilePage profileId="ctrl-1" />)
     expect(screen.getByText('Connected')).toBeInTheDocument()
     expect(screen.getByTestId('controller-profile-status-dot')).toHaveClass('bg-ok')
-    expect(screen.getByTitle('Refresh controller metadata')).toBeEnabled()
+  })
+
+  it('gates the pane-header controller actions on connection and refreshes metadata (#685)', () => {
+    const profile = seedProfile()
+    const refreshLiveMetadata = vi.fn(async () => {})
+    useControllerProfileStore.setState({ refreshLiveMetadata })
+
+    const { rerender } = render(<ControllerProfileHeaderActions profile={profile} />)
+    expect(screen.getByTitle('Connect this controller to refresh its metadata')).toBeDisabled()
+    expect(screen.getByTitle('Connect this controller to import its installed pixel map')).toBeDisabled()
+
+    useControllerStore.setState({
+      controllers: {
+        '192.168.8.224': {
+          ip: '192.168.8.224',
+          deviceId: 'pixelblaze_pb32_abc',
+          nickname: 'Burner bag',
+          phase: 'live',
+          mapDim: 2,
+        },
+      },
+    })
+    rerender(<ControllerProfileHeaderActions profile={profile} />)
+    const refresh = screen.getByTitle('Refresh controller metadata')
+    expect(refresh).toBeEnabled()
+    expect(screen.getByTitle('Import installed pixel map')).toBeEnabled()
+
+    fireEvent.click(refresh)
+    expect(refreshLiveMetadata).toHaveBeenCalledWith('ctrl-1')
   })
 
   it('shows the saved-program inventory offline state in its dedicated pane', () => {
@@ -381,7 +416,7 @@ describe('ControllerProfilePage', () => {
 
     expect(screen.getByRole('checkbox', { name: 'Keep PXLBLZ patterns up to date' })).toBeChecked()
     expect(screen.getByText('1 of 3 managed Patterns current')).toBeInTheDocument()
-    expect(screen.getByText(/2 unmanaged programs are completely exempt/i)).toBeInTheDocument()
+    expect(screen.getByText(/2 unmanaged programs are exempt/i)).toBeInTheDocument()
     expect(screen.getByLabelText('Managed Pattern refresh progress')).toHaveTextContent(
       '1 current, 1 updating, 1 queued, 0 failed',
     )
@@ -834,7 +869,7 @@ describe('ControllerProfilePage', () => {
     expect(screen.getByText('sliderSpeed (function-call)')).toBeInTheDocument()
   })
 
-  it('imports the live controller pixel map as a named frozen user map', async () => {
+  it('imports the live controller pixel map as a named frozen user map from the pane header', async () => {
     const profile = seedProfile()
     const created: MapRecord[] = []
     setPersonalContentProvider({
@@ -858,7 +893,7 @@ describe('ControllerProfilePage', () => {
       },
     })
 
-    render(<ControllerProfilePage profileId="ctrl-1" />)
+    render(<ControllerProfileHeaderActions profile={profile} />)
 
     fireEvent.click(screen.getByRole('button', { name: /import map/i }))
     expect(await screen.findByRole('textbox', { name: 'Imported map name' })).toHaveValue('Burner bag map')
@@ -951,7 +986,7 @@ describe('ControllerProfilePage', () => {
       },
     })
 
-    render(<ControllerProfilePage profileId="ctrl-1" />)
+    render(<ControllerProfileHeaderActions profile={useControllerProfileStore.getState().profiles[0]} />)
 
     fireEvent.click(screen.getByRole('button', { name: /import map/i }))
     expect(await screen.findByText(/matches "Existing grid"/i)).toBeInTheDocument()

@@ -2,6 +2,8 @@ import { useEffect, useRef, useState } from 'react'
 import { Download, PanelsTopLeft, RefreshCw } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { IDE_MICROTYPE } from '@/components/ui/ideMicrotype'
+import { HelpHint } from './HelpHint'
+import { sectionActionButtonClass } from './ControllerProfileHeaderActions'
 import {
   AlertDialogRoot,
   AlertDialogContent,
@@ -45,7 +47,7 @@ import { useShowStore } from '@/store/showStore'
 import { useRouterStore } from '@/store/routerStore'
 import type { ArtifactShowOutputContract } from '@/engine/artifactStamp'
 
-const tableHeadClass = 'px-2 py-1 text-left text-[10px] font-semibold uppercase text-zinc-500'
+const tableHeadClass = 'px-2 py-1 text-left text-[10px] font-semibold uppercase text-zinc-400'
 const EMPTY_CONTROLLER_PROGRAMS: ProgramListEntry[] = []
 const tableCellClass = 'border-t border-zinc-800/85 px-2 py-1.5 align-middle'
 
@@ -161,7 +163,7 @@ function ManagedPatternReconciliation({
       <label className="flex cursor-pointer items-start justify-between gap-4">
         <span>
           <span className="block text-xs font-medium text-zinc-200">Keep PXLBLZ patterns up to date</span>
-          <span className="mt-0.5 block max-w-xl text-[11px] leading-4 text-zinc-500">
+          <span className="mt-0.5 block max-w-xl text-[11px] leading-4 text-zinc-400">
             Refresh managed Patterns when Controller settings change.
           </span>
         </span>
@@ -215,9 +217,11 @@ function ManagedPatternReconciliation({
           </div>
         )}
 
-        <p className="mt-1.5 text-[10px] leading-4 text-zinc-500">
-          {unmanagedCount} unmanaged {unmanagedCount === 1 ? 'program is' : 'programs are'} completely exempt from automatic changes.
-        </p>
+        {unmanagedCount > 0 && (
+          <p className="mt-1.5 text-[10px] leading-4 text-zinc-400">
+            {unmanagedCount} unmanaged {unmanagedCount === 1 ? 'program is' : 'programs are'} exempt from automatic changes.
+          </p>
+        )}
       </div>
     </section>
   )
@@ -304,7 +308,7 @@ function ProgramImportButton({
       variant="ghost"
       aria-label={`Import ${program.name}`}
       disabled={disabled}
-      className="bg-zinc-900/60 text-[10px] text-zinc-400 hover:bg-zinc-800 hover:text-zinc-200 disabled:opacity-35"
+      className={`${sectionActionButtonClass} text-[10px]`}
       onClick={() => onImport(program)}
     >
       <Download size={12} aria-hidden />
@@ -367,7 +371,7 @@ function SavedProgramsInventory({
             variant="ghost"
             aria-label="Refresh saved programs"
             disabled={status === 'offline' || status === 'loading'}
-            className="bg-zinc-900/70 text-xs text-zinc-400 hover:bg-zinc-800 hover:text-zinc-200 disabled:opacity-35"
+            className={sectionActionButtonClass}
             onClick={onRefresh}
           >
             <RefreshCw size={13} aria-hidden className={status === 'loading' ? 'animate-spin' : ''} />
@@ -457,9 +461,16 @@ function SavedProgramsInventory({
                 <tr>
                   <td
                     colSpan={5}
-                    className="border-t border-zinc-800 bg-zinc-950/70 px-2 py-2 text-[10px] font-semibold uppercase tracking-wider text-zinc-500"
+                    className="border-t border-zinc-800 bg-zinc-950/70 px-2 py-2 text-[10px] font-semibold uppercase tracking-wider text-zinc-400"
                   >
-                    Foreign programs · {presentedPrograms.foreign.length}
+                    <span className="inline-flex items-center gap-1.5">
+                      Foreign programs · {presentedPrograms.foreign.length}
+                      <HelpHint label="About foreign programs">
+                        <p className="normal-case tracking-normal text-zinc-300">
+                          Foreign means saved on this controller but not linked to a pattern in this Studio.
+                        </p>
+                      </HelpHint>
+                    </span>
                   </td>
                 </tr>
               )}
@@ -483,11 +494,6 @@ function SavedProgramsInventory({
               ))}
             </tbody>
           </table>
-          {presentedPrograms.foreign.length > 0 && (
-            <p className="border-t border-zinc-800/80 px-2 py-2 text-[10px] leading-4 text-zinc-500">
-              Foreign means saved on this controller but not linked to a pattern in this Studio.
-            </p>
-          )}
         </div>
       )}
     </section>

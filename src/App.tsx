@@ -26,6 +26,7 @@ import { PatternActionsMenu } from '@/components/PatternActionsMenu'
 import { GalleryPage } from '@/components/GalleryPage'
 import { PatternDetailPage } from '@/components/PatternDetailPage'
 import { ControllerProfilePage } from '@/components/ControllerProfilePage'
+import { ControllerProfileHeaderActions } from '@/components/ControllerProfileHeaderActions'
 import { ControllerSavedProgramsPane } from '@/components/ControllerSavedProgramsPane'
 import { ShowEditor } from '@/components/ShowEditor'
 import { ShowEditorOverhaulPrototype } from '@/components/ShowEditorOverhaulPrototype'
@@ -947,6 +948,9 @@ function StudioApp() {
                 <span className="hidden rounded border border-zinc-700 px-1.5 py-0.5 text-[10px] uppercase tracking-wide text-structural sm:inline">
                   Controller
                 </span>
+                {activeControllerProfile && (
+                  <ControllerProfileHeaderActions profile={activeControllerProfile} />
+                )}
               </span>
             ) : studioEntityKind === 'controllers' ? (
               <span className="flex-1 min-w-0 flex items-center gap-1.5">
