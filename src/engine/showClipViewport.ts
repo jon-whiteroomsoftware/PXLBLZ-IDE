@@ -77,15 +77,12 @@ export function compactShowClipViewport(
     : undefined
 }
 
-/**
- * The edge defaults from the shape: rectangles keep today's hard cut so
- * existing Shows stay byte-identical, while a newly shaped aperture feathers
- * by default (#591 decision record). An authored edge always wins.
- */
+/** Missing edges feather by default so motion remains continuous on sparse
+ * physical maps. Hard and Dither are deliberate authored treatments. */
 export function showClipViewportEffectiveEdge(
   viewport: Pick<ShowClipViewport, 'aperture' | 'edge'>,
 ): 'hard' | 'soft' | 'dither' {
-  return viewport.edge ?? (viewport.aperture !== undefined ? 'soft' : 'hard')
+  return viewport.edge ?? 'soft'
 }
 
 export function showClipViewportMaskExpression(

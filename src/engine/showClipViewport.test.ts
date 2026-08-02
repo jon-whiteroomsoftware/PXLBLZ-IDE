@@ -25,10 +25,10 @@ describe('Clip Viewport geometry (#585)', () => {
     })
   })
 
-  it('emits no mask while disabled and a bounded 2D predicate while enabled', () => {
+  it('emits no mask while disabled and a density-soft band while enabled', () => {
     expect(showClipViewportMaskExpression(undefined, 'x', 'y')).toBeNull()
     expect(showClipViewportMaskExpression({ enabled: true, x: 0.1, y: 0.2, width: 0.5, height: 0.4 }, 'x', 'y'))
-      .toBe('((x) >= 0.1 && (x) <= 0.6 && (y) >= 0.2 && (y) <= 0.6)')
+      .toBe(`clamp(0.5 - (max(abs((x) - 0.35) - 0.25, abs((y) - 0.4) - 0.2)) / ${SHOW_CLIP_APERTURE_DEFAULT_FEATHER}, 0, 1)`)
   })
 })
 
@@ -61,16 +61,17 @@ describe('Clip Viewport aperture shape and edge (#591)', () => {
     })).toEqual({ enabled: false, x: 0, y: 0, width: 1, height: 1, edge: 'soft' })
   })
 
-  it('defaults the edge from the shape: rectangles hard, ellipses soft', () => {
-    expect(showClipViewportEffectiveEdge(normalizeShowClipViewport(frame))).toBe('hard')
+  it('defaults every aperture edge to soft while preserving explicit choices (#689)', () => {
+    expect(showClipViewportEffectiveEdge(normalizeShowClipViewport(frame))).toBe('soft')
     expect(showClipViewportEffectiveEdge(normalizeShowClipViewport({ ...frame, aperture: 'ellipse' }))).toBe('soft')
     expect(showClipViewportEffectiveEdge(normalizeShowClipViewport({ ...frame, aperture: 'ellipse', edge: 'hard' }))).toBe('hard')
     expect(showClipViewportEffectiveEdge(normalizeShowClipViewport({ ...frame, edge: 'soft' }))).toBe('soft')
+    expect(showClipViewportEffectiveEdge(normalizeShowClipViewport({ ...frame, edge: 'dither' }))).toBe('dither')
   })
 
-  it('keeps the unedited enabled rectangle emission byte-identical', () => {
+  it('defaults an unedited rectangle to Soft and preserves explicit Hard', () => {
     expect(showClipViewportMaskExpression({ ...frame }, 'x', 'y'))
-      .toBe('((x) >= 0.1 && (x) <= 0.6 && (y) >= 0.2 && (y) <= 0.6)')
+      .toBe(`clamp(0.5 - (max(abs((x) - 0.35) - 0.25, abs((y) - 0.4) - 0.2)) / ${SHOW_CLIP_APERTURE_DEFAULT_FEATHER}, 0, 1)`)
     expect(showClipViewportMaskExpression({ ...frame, aperture: 'rectangle', edge: 'hard' }, 'x', 'y'))
       .toBe('((x) >= 0.1 && (x) <= 0.6 && (y) >= 0.2 && (y) <= 0.6)')
   })
@@ -112,8 +113,10 @@ describe('Clip Viewport aperture shape and edge (#591)', () => {
     expect(animated).toContain('0.4')
   })
 
-  it('keeps the animated hard rectangle emission byte-identical', () => {
+  it('animates the default Soft rectangle and preserves explicit Hard emission', () => {
     expect(showClipViewportMaskExpression(frame, 'x', 'y', { x: 'X' }))
+      .toBe(`clamp(0.5 - (max(abs((x) - ((X) + 0.25)) - 0.25, abs((y) - 0.4) - 0.2)) / ${SHOW_CLIP_APERTURE_DEFAULT_FEATHER}, 0, 1)`)
+    expect(showClipViewportMaskExpression({ ...frame, edge: 'hard' }, 'x', 'y', { x: 'X' }))
       .toBe('((x) >= (X) && (x) <= ((X) + (0.5)) && (y) >= (0.2) && (y) <= ((0.2) + (0.4)))')
   })
 })

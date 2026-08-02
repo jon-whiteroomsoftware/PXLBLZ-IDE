@@ -1921,14 +1921,14 @@ feather survives first enable as durable styling.
 
 The Viewport carries an optional **aperture** (`ellipse`, `diamond`, `ring`,
 or `rounded-box`; missing compacts to rectangle), an optional **edge**
-(`hard`/`soft`; missing defaults hard for rectangles and soft for every shaped
-aperture), an optional authored **feather** width in normalized Zone units
+(`hard`/`soft`/`dither`; missing defaults soft for every aperture shape), an
+optional authored **feather** width in normalized Zone units
 (#591), and shape-owned parameters that normalize away with their shape
 (#678): `ringWidth` (band thickness as a fraction of the unit radius) and
 `cornerRadius` (rounding as a fraction of the half-side). Shape parameters are
 never animatable, so their emitted constants always fold even under an
-animated frame. The unedited enabled rectangle emits the identical bounded 2D
-predicate as before, byte for byte. Hard ellipse, diamond, and ring emit
+animated frame. Hard applies only when explicitly authored. Hard rectangle,
+ellipse, diamond, and ring apertures emit
 sqrt-free predicates (squared distance, `|u|+|v|`, and a squared annulus);
 the hard rounded-box uses its signed distance. Soft edges emit
 `clamp(0.5 - signed / feather, 0, 1)` over each shape's scaled-space metric or

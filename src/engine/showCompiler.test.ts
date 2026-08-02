@@ -1358,7 +1358,7 @@ export function render(index) { rgb(ticks, 0, 0) }
               zoneName: 'main',
               clipId: 'blue',
               stackOrder: 1,
-              viewport: { enabled: true, x: 0, y: 0, width: 0.5, height: 1 },
+              viewport: { enabled: true, x: 0, y: 0, width: 0.5, height: 1, edge: 'hard' },
             },
           ],
           transitionOut: { kind: 'cut', durationMs: 0 },
@@ -1396,7 +1396,7 @@ export function render(index) { rgb(ticks, 0, 0) }
         zoneName,
         clipId: 'blue',
         stackOrder: 1,
-        viewport: { enabled: true as const, x: 0, y: 0, width: 0.25, height: 1 },
+        viewport: { enabled: true as const, x: 0, y: 0, width: 0.25, height: 1, edge: 'hard' as const },
       },
     ])
     const artifact = compileShow({
@@ -1432,7 +1432,7 @@ export function render(index) { rgb(ticks, 0, 0) }
 
   it('preserves a flat Clip Viewport through a routed Scene crossfade (#585)', () => {
     const zones = [{ id: 'main', name: 'main', ranges: [{ start: 0, end: 3 }] }]
-    const viewport = { enabled: true as const, x: 0, y: 0, width: 0.5, height: 1 }
+    const viewport = { enabled: true as const, x: 0, y: 0, width: 0.5, height: 1, edge: 'hard' as const }
     const artifact = compileShow({
       clips: [
         { id: 'red', source: 'export function render2D(index, x, y) { rgb(1, 0, 0) }' },
@@ -1479,13 +1479,13 @@ export function render(index) { rgb(ticks, 0, 0) }
             clipId: 'shared',
             stackOrder: 0,
             presentation: { mode: 'freeze' },
-            viewport: { enabled: true, x: 0, y: 0, width: 0.5, height: 1 },
+            viewport: { enabled: true, x: 0, y: 0, width: 0.5, height: 1, edge: 'hard' },
           }, {
             placementId: 'live-right',
             zoneName: 'main',
             clipId: 'shared',
             stackOrder: 1,
-            viewport: { enabled: true, x: 0.5, y: 0, width: 0.5, height: 1 },
+            viewport: { enabled: true, x: 0.5, y: 0, width: 0.5, height: 1, edge: 'hard' },
           }],
           transitionOut: { kind: 'cut', durationMs: 0 },
         }, {
@@ -1529,13 +1529,13 @@ export function render(index) { rgb(ticks, 0, 0) }
             clipId: 'shared',
             stackOrder: 0,
             presentation: { mode: 'strobe', cadenceMs: 150 },
-            viewport: { enabled: true, x: 0, y: 0, width: 0.5, height: 1 },
+            viewport: { enabled: true, x: 0, y: 0, width: 0.5, height: 1, edge: 'hard' },
           }, {
             placementId: 'live-right',
             zoneName: 'main',
             clipId: 'shared',
             stackOrder: 1,
-            viewport: { enabled: true, x: 0.5, y: 0, width: 0.5, height: 1 },
+            viewport: { enabled: true, x: 0.5, y: 0, width: 0.5, height: 1, edge: 'hard' },
           }],
           transitionOut: { kind: 'cut', durationMs: 0 },
         }, { holdMs: 2_000, placements: [{ zoneName: 'main', clipId: 'shared' }] }],
@@ -2021,7 +2021,7 @@ export function render2D(index, x, y) { rgb(x, y, 0) }
               zoneName: 'main',
               clipId: 'blue',
               stackOrder: 1,
-              viewport: { enabled: true, x: 0, y: 0, width: 0.25, height: 1 },
+              viewport: { enabled: true, x: 0, y: 0, width: 0.25, height: 1, edge: 'hard' },
             },
           ],
           propertyTracks: [{
@@ -2049,6 +2049,57 @@ export function render2D(index, x, y) { rgb(x, y, 0) }
     expect(pixel()).toEqual([1, 0, 0])
   })
 
+  it('renders a default rectangular X crawl through a continuous Soft boundary (#689)', () => {
+    const zones = [{ id: 'main', name: 'main', ranges: [{ start: 0, end: 8 }] }]
+    const artifact = compileShow({
+      clips: [
+        { id: 'red', source: 'export function render2D(index, x, y) { rgb(1, 0, 0) }' },
+        { id: 'blue', source: 'export function render2D(index, x, y) { rgb(0, 0, 1) }' },
+      ],
+      zones,
+      routingLayouts: [{ id: 'default', name: 'Default', zones }],
+      routedSceneSequence: {
+        scenes: [{
+          holdMs: 10_000,
+          placements: [
+            { zoneName: 'main', clipId: 'red', stackOrder: 0 },
+            {
+              placementId: 'blue-placement',
+              zoneName: 'main',
+              clipId: 'blue',
+              stackOrder: 1,
+              viewport: { enabled: true, x: -1, y: 0, width: 1, height: 1 },
+            },
+          ],
+          propertyTracks: [{
+            id: 'viewport-x',
+            target: { kind: 'placement-viewport', placementId: 'blue-placement', property: 'x' },
+            keyframes: [
+              { id: 'viewport-a', timeMs: 0, value: -1, easing: { curve: 'linear' } },
+              { id: 'viewport-b', timeMs: 10_000, value: 0, easing: { curve: 'linear' } },
+            ],
+          }],
+          transitionOut: { kind: 'cut', durationMs: 0 },
+        }, {
+          holdMs: 1_000,
+          placements: [{ zoneName: 'main', clipId: 'red' }],
+        }],
+      },
+      loopDurationMs: 11_000,
+    }, {})
+    const { handle, pixel } = loadShow(artifact.code, artifact.metadata, 100)
+
+    handle.beforeRender(4_900)
+    handle.render2D(4, 0.5, 0.5)
+    const before = pixel()
+    expect(before[0]).toBeCloseTo(17 / 30, 5)
+    expect(before[2]).toBeCloseTo(13 / 30, 5)
+
+    handle.beforeRender(100)
+    handle.render2D(4, 0.5, 0.5)
+    expect(pixel()).toEqual([0.5, 0, 0.5])
+  })
+
   it('evaluates a Viewport mask after zone coordinates when Clip opacity is animated (#585)', () => {
     const zones = [
       { id: 'main', name: 'main', ranges: [{ start: 0, end: 0 }, { start: 2, end: 2 }] },
@@ -2068,7 +2119,7 @@ export function render2D(index, x, y) { rgb(x, y, 0) }
               clipId: 'blue',
               stackOrder: 0,
               opacity: 1,
-              viewport: { enabled: true, x: 0, y: 0, width: 0.5, height: 1 },
+              viewport: { enabled: true, x: 0, y: 0, width: 0.5, height: 1, edge: 'hard' },
             },
           ],
           propertyTracks: [{
@@ -6591,8 +6642,8 @@ describe('shaped Clip Viewport apertures (#591)', () => {
     expect(pixel()).toEqual([1, 0, 0])
   })
 
-  it('feathers a rectangle only when soft is explicitly authored', () => {
-    const artifact = compileShow(stack({ ...frame, edge: 'soft', feather: 0.1 }) as never, {})
+  it('feathers a default rectangle with an authored width', () => {
+    const artifact = compileShow(stack({ ...frame, feather: 0.1 }) as never, {})
     const { handle, pixel } = loadShow(artifact.code, artifact.metadata, 25)
 
     handle.beforeRender(100)
@@ -6651,8 +6702,8 @@ describe('shaped Clip Viewport apertures (#591)', () => {
       zoneName: 'main',
       placementId: 'blue-placement',
       shape: 'rectangle',
-      edge: 'hard',
-      feather: null,
+      edge: 'soft',
+      feather: 'density-default',
     }])
   })
 })

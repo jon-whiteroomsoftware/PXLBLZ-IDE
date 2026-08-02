@@ -460,7 +460,7 @@ export interface ShowClipViewport {
   height: number
   /** Aperture silhouette inscribed in the frame. Missing = rectangle (#591). */
   aperture?: ShowClipApertureShape
-  /** Edge treatment. Missing defaults hard for rectangle, soft for ellipse. */
+  /** Edge treatment. Missing defaults Soft for every aperture shape. */
   edge?: ShowClipApertureEdge
   /** Authored soft-band width in normalized Zone units. Missing = density default. */
   feather?: number

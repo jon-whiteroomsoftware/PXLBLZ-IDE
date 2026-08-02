@@ -400,7 +400,7 @@ const ROWS: RoundTripRow[] = [
     expected: (value) => ({ ...value, viewport: { ...value.viewport, aperture: 'ellipse' } }),
     display: () => {
       expect(screen.getByRole('combobox', { name: 'Aperture shape' })).toHaveValue('ellipse')
-      // Ellipse defaults the edge soft, so the width field appears.
+      // Every Aperture defaults the edge Soft, so the width field appears.
       expect(screen.getByRole('combobox', { name: 'Aperture edge' })).toHaveValue('soft')
       expect(screen.getByRole('textbox', { name: 'Aperture edge width' })).toBeInTheDocument()
     },
@@ -415,7 +415,8 @@ const ROWS: RoundTripRow[] = [
     expected: (value) => ({ ...value, viewport: { ...value.viewport, aperture: undefined } }),
     display: () => {
       expect(screen.getByRole('combobox', { name: 'Aperture shape' })).toHaveValue('rectangle')
-      expect(screen.getByRole('combobox', { name: 'Aperture edge' })).toHaveValue('hard')
+      expect(screen.getByRole('combobox', { name: 'Aperture edge' })).toHaveValue('soft')
+      expect(screen.getByRole('textbox', { name: 'Aperture edge width' })).toBeInTheDocument()
     },
   },
   {
