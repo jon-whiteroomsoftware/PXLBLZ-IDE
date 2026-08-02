@@ -1284,6 +1284,64 @@ test.describe('authenticated Show authoring', () => {
     await expect(page.getByLabel('Clip evaluation')).toHaveValue('freeze-at-entry')
   })
 
+  test('authors every Clip detail tab in one pass and reloads (#658)', async ({ page }) => {
+    await page.goto('studio/shows')
+    await createInstallationShow(page)
+
+    // One edit per tab against the same Clip. The per-facet reload tests above
+    // cannot catch a later facet's write clobbering an earlier facet on the
+    // shared placement or instance; this journey exists for that failure.
+    await selectClip(page, 'TestPattern1D')
+    const panel = page.getByRole('dialog', { name: 'Entity Detail Panel' })
+    const speed = panel.getByRole('textbox', { name: 'Animation speed exact multiplier' })
+    await speed.fill('2')
+    await speed.blur()
+
+    await showClipTab(page, 'Place')
+    const transform = page.getByRole('group', { name: 'Clip Transform' })
+    const contentX = transform.getByRole('textbox', { name: 'Content X exact position' })
+    await contentX.fill('0.25')
+    await contentX.blur()
+
+    await showClipTab(page, 'Effects')
+    const stack = panel.getByRole('region', { name: 'Clip Effects' })
+    await expect(stack).toBeVisible()
+    await addEffect(page, stack, 'ripple', 'Ripple')
+
+    await openAdvancedClipControls(page)
+    await page.getByLabel('Clip evaluation').selectOption('freeze-at-entry')
+
+    // Barrier, not oracle: showPersistenceQueues chains writes per Show, so a
+    // later edit's PUT is not dispatched until the earlier ones resolve, and
+    // page.reload() would discard it. Observe all four persisted facets before
+    // navigating; the assertions after the reload stay on visible state.
+    await waitForCurrentShow(page, (show) => {
+      const placement = show.composition?.scenes.flatMap((scene) => (
+        scene.zones?.flatMap((zone) => zone.main ?? []) ?? []
+      )).find((candidate) => candidate.transform?.positionX === 0.25)
+      const instance = show.composition?.patternInstances
+        ?.find((candidate) => candidate.patternName === 'TestPattern1D')
+      return placement !== undefined
+        && (placement.effects ?? []).some((effect) => effect.kind === 'ripple')
+        && instance?.time?.timeScale === 2
+        && instance?.evaluationPolicy === 'freeze-at-entry'
+    })
+
+    await page.reload()
+    await selectClip(page, 'TestPattern1D')
+    const reloaded = page.getByRole('dialog', { name: 'Entity Detail Panel' })
+    await expect(reloaded.getByRole('textbox', { name: 'Animation speed exact multiplier' }))
+      .toHaveValue('2')
+    await showClipTab(page, 'Place')
+    await expect(page.getByRole('group', { name: 'Clip Transform' })
+      .getByRole('textbox', { name: 'Content X exact position' })).toHaveValue('0.25')
+    await showClipTab(page, 'Effects')
+    await expect(reloaded.getByRole('button', { name: 'More actions for Ripple Effect' }))
+      .toBeVisible()
+    await openAdvancedClipControls(page)
+    await expect(page.getByLabel('Clip evaluation')).toHaveValue('freeze-at-entry')
+  })
+
   test('reports the selected evaluation policy in the compile bar', async ({ page }) => {
     await page.goto('studio/shows')
     await createInstallationShow(page)
@@ -1701,7 +1759,12 @@ type PersistedShow = {
   id: string
   composition?: {
     version: number
-    patternInstances?: Array<{ id: string; patternName: string }>
+    patternInstances?: Array<{
+      id: string
+      patternName: string
+      time?: { timeScale: number }
+      evaluationPolicy?: string
+    }>
     groupDefinitions?: Array<{
       id: string
       placements: Array<{ id: string; durationMs: number }>

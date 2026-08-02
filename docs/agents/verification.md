@@ -337,6 +337,17 @@ Changing it runs its fault-sensitivity characterization suite, the central
 matrix, the operation-specific Show-authoring suites, and the persistence
 sequence.
 
+## Clip detail dialog matrix
+
+The Clip Entity Detail dialog qualifies through a field round-trip contract in
+`src/components/ShowClipEntityDetail.matrix.test.tsx`: every editable
+control's emitted patch is applied through the real inspector engine and
+re-projected, and the result must be exactly what the dialog then displays.
+Scope-capability, read-only, and typed-edit lifecycle sweeps walk the surface
+partitions. The declared partitions, field families, layered fault-sensitivity
+map, and maintenance rule live in
+[`clip-detail-test-matrix.md`](clip-detail-test-matrix.md).
+
 ## Show authoring mutation qualification
 
 `npm run test:mutation:show-authoring` checks whether the Show authoring suite
