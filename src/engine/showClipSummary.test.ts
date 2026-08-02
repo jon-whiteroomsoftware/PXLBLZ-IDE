@@ -332,6 +332,41 @@ describe('Show Clip summary', () => {
     }])
   })
 
+  it('keeps a newly animated flat value visible after an identical set value (#666 review)', () => {
+    const previous = [{
+      kind: 'view' as const,
+      label: 'View',
+      items: [{ id: 'brightness', label: 'Brightness', value: '50%' }],
+    }]
+    const current = [{
+      kind: 'view' as const,
+      label: 'View',
+      items: [{ id: 'brightness', label: 'Brightness', value: '50%', animated: true }],
+    }]
+
+    expect(projectShowClipTimelineSummary(current, previous)[0].items[0].showValue).toBe(true)
+    expect(projectShowClipTimelineSummary(previous, current)[0].items[0].showValue).toBe(true)
+    expect(projectShowClipTimelineSummary(current, current)[0].items[0].showValue).toBe(false)
+  })
+
+  it('keeps default-valued Effects silent on the Clip row (#666 review)', () => {
+    const show = createDefaultShow('show-default-effect-summary', 'Default effect summary', 1_000)
+    show.cells[0].effects = [
+      { id: 'hue', kind: 'hue', turns: 0 },
+      { id: 'ripple', kind: 'ripple', amount: 0, frequency: 8, phase: 0, centerX: 0.5, centerY: 0.5 },
+    ]
+
+    const effects = projectGlobalShowClipSummary(show, show.cells[0].id)
+      .find((section) => section.kind === 'effects')?.items
+
+    // The Detail summary keeps the complete values; the Clip row contracts
+    // an all-default Effect to its section glyph alone.
+    expect(effects).toEqual([
+      expect.objectContaining({ label: 'Hue', value: '0t', timelineValue: '' }),
+      expect.objectContaining({ label: 'Ripple', timelineValue: '' }),
+    ])
+  })
+
   it('merges range bounds across every segment of one logical Clip (#666)', () => {
     const show = createDefaultShow('show-merged-range-summary', 'Merged range summary', 1_000)
     const zoneId = show.zones[0].id

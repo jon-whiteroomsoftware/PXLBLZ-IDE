@@ -10082,7 +10082,8 @@ function ClipSummaryInline({
     >
       {summary.length === 0 && <span className="show-clip-summary-copy shrink-0">defaults</span>}
       {timelineSummary.map((section) => {
-        const visibleItems = section.items.filter((item) => item.showValue)
+        // An empty displayValue (an all-default Effect) contracts to the glyph.
+        const visibleItems = section.items.filter((item) => item.showValue && item.displayValue)
         const iconed = visibleItems.map((item) => ({
           item,
           icon: clipSummaryItemIcon(section.kind, item.id),

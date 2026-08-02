@@ -233,16 +233,16 @@ function projectClipSummary(
         ? parameters[0].value
         : parameters.map((parameter) => `${parameter.label} ${parameter.value}`).join(', ')
       // Default-valued parameters say nothing on the Clip row; drop them
-      // there and keep the complete list in the Detail summary (#666).
+      // there and keep the complete list in the Detail summary. An Effect
+      // left entirely at defaults contracts to the section glyph (#666).
       const authored = parameters.filter((parameter) => parameter.authored)
-      const timelineParameters = authored.length > 0 ? authored : parameters
       return {
         id: `effect:${effect.id}`,
         label: humanizeIdentifier(effect.kind),
         value,
         timelineValue: parameters.length === 1
-          ? parameters[0].value
-          : timelineParameters.map((parameter) => (
+          ? (parameters[0].authored ? parameters[0].value : '')
+          : authored.map((parameter) => (
               `${contractTimelineParameterLabel(parameter.label)} ${parameter.value}`
             )).join(' '),
         ...(parameters.some((parameter) => parameter.animated) ? { animated: true } : {}),
@@ -457,8 +457,11 @@ export function projectShowClipTimelineSummary(
   summary: readonly ShowClipSummarySection[],
   previousSummary: readonly ShowClipSummarySection[] | null,
 ): ShowClipTimelineSummarySection[] {
+  // Animation state is part of the fact: a flat animated 50% after a set 50%
+  // formats identically but must stay visible as newly animated.
+  const factKey = (item: ShowClipSummaryItem) => `${item.animated ? 'animated:' : ''}${item.value}`
   const previousValues = new Map((previousSummary ?? []).flatMap((section) => (
-    section.items.map((item) => [`${section.kind}:${item.id}`, item.value] as const)
+    section.items.map((item) => [`${section.kind}:${item.id}`, factKey(item)] as const)
   )))
   return summary.map((section) => ({
     ...section,
@@ -468,7 +471,7 @@ export function projectShowClipTimelineSummary(
         ...item,
         ...(displayValue !== undefined ? { displayValue: compactTimelineNumberText(displayValue) } : {}),
         showValue: item.value !== undefined
-          && previousValues.get(`${section.kind}:${item.id}`) !== item.value,
+          && previousValues.get(`${section.kind}:${item.id}`) !== factKey(item),
       }
     }),
   }))
