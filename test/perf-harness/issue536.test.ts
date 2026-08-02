@@ -4,9 +4,10 @@ describe('Restart-instance global-liveness census (#536)', () => {
   it('covers the full saved-Show catalogue and the acceptance composition', () => {
     expect(report.schemaVersion).toBe(1)
     expect(report.issue).toBe(536)
-    // Recensused with the #363 Learn recast, and again when the Learn 200
-    // composition lessons landed (six 100-level plus six 200-level lessons).
-    expect(report.summary.savedShowCount).toBe(21)
+    // Recensused with the #363 Learn recast, when the Learn 200 composition
+    // lessons landed (six 100-level plus six 200-level lessons), and again
+    // with the three Learn 300 Output and Delivery lessons.
+    expect(report.summary.savedShowCount).toBe(24)
     expect(report.cases.some((entry) => entry.kind === 'five-pattern-acceptance')).toBe(true)
     expect(report.summary.compileFailures).toEqual([])
   })
@@ -53,18 +54,19 @@ describe('Restart-instance global-liveness census (#536)', () => {
     expect(report.decision.threshold).toBe(0.15)
     // Recensused with the #363 Learn recast, again when 106 gained its
     // second and third Transitions, again when the Learn 200 lessons
-    // landed, and again when #663 gave stepped members a priming flag
-    // (one new global on the corpus's single stepped member). The Learn
-    // lessons add member globals without adding any Restart members, so
-    // the unweighted percent falls to zero while the weighted figure
-    // still hovers at the threshold; the gate reads the unweighted
-    // percent, so the verdict is unchanged.
+    // landed, again when #663 gave stepped members a priming flag (one new
+    // global on the corpus's single stepped member), and again with the
+    // Learn 300 lessons. Every Learn addition brings member globals without
+    // Restart members, so the unweighted percent stays at zero and the
+    // weighted figure now falls below the threshold instead of hovering at
+    // it; the gate reads the unweighted percent, so the verdict is
+    // unchanged.
     expect(report.summary).toMatchObject({
-      representativeMemberGlobals: 2_403,
-      representativeReclaimedGlobals: 371,
+      representativeMemberGlobals: 2_587,
+      representativeReclaimedGlobals: 373,
     })
     expect(report.decision.representativeReclaimPercent).toBe(0)
-    expect(report.decision.weightedRepresentativeReclaimPercent).toBeCloseTo(0.15439035, 8)
+    expect(report.decision.weightedRepresentativeReclaimPercent).toBeCloseTo(0.14418245, 8)
     expect(report.decision.ceilingRescues).toEqual([])
     expect(report.decision.proceedWithEmission).toBe(false)
     expect(report.decision.proceedWithEmission).toBe(

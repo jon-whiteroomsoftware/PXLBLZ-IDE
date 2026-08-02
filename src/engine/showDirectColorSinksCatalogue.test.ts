@@ -49,10 +49,15 @@ describe('direct color sinks across the stock Show catalogue (#557)', () => {
         eligible.push(stock.id)
       }
     }
-    // Reviewed expectation: no bundled stock Show currently has a
-    // direct-eligible (member, scene) pair - they all compose, share Pattern
-    // slots, or carry Effects. New stock content that lands here must be
-    // reviewed for the named Precise-mode approximation before being added.
-    expect(eligible).toEqual([])
+    // Reviewed expectation: 302 Installation Composition is the one stock
+    // Show with a direct-eligible (member, scene) pair - its steady scenes
+    // place single opaque members on physical-layout Zones. Reviewed for
+    // #363 against the named Precise-mode approximation (Technical
+    // Reference, "Steady-state direct color sinks"): steady HSV frames may
+    // diverge by at most one 8-bit output step in 0.038% of samples, below
+    // any visible color step, in exchange for the measured ~+69% steady
+    // Controller FPS. Every other stock Show stays byte-for-byte neutral,
+    // and new stock content that lands here must be reviewed the same way.
+    expect(eligible).toEqual(['stock-show-302-installation-composition'])
   })
 })
