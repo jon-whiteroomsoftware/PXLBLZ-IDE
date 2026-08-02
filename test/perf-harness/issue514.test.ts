@@ -25,11 +25,11 @@ describe('Show render-target residual-headroom census (#514)', () => {
       && Array.isArray(entry.rejectionReasons)
     ))).toBe(true)
     // Recensused with the #363 Learn recast, again when the Learn 200
-    // composition lessons landed, and again with the Learn 300 lessons:
-    // 303 joins as a portable-2d Show, while the two 160-pixel sunflower
-    // Installations sit outside this census's 2,000-pixel render-target
-    // headroom question by the existing filter.
-    expect(report.summary.savedShowCount).toBe(23)
+    // composition lessons landed, again with the Learn 300 lessons (303
+    // joins as portable-2d while the two 160-pixel sunflower Installations
+    // sit outside this census's 2,000-pixel render-target question), and
+    // again with the 100 tour, 207, and the Aperture Shapes reference.
+    expect(report.summary.savedShowCount).toBe(25)
     expect(report.summary.savedShowRejections).toHaveLength(0)
     expect(report.summary.savedShowRejections.every((entry) => !entry.failsSolelyBecauseOfReservation)).toBe(true)
   })

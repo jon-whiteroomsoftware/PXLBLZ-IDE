@@ -295,6 +295,19 @@ copies repeat the moves without sharing private state.
 Make Unique detaches an occurrence into its own definition when one copy must
 diverge; Ungroup dissolves the phrase back into ordinary Clips.
 
+### Aperture shapes and edges
+
+The Clip Viewport aperture has an authored silhouette - Rectangle, Ellipse,
+Diamond, Ring, or Rounded box - and every silhouette carries an edge
+treatment: Hard cuts at the boundary, Soft feathers it, and Stable Dither
+trades the smooth ramp for a fixed texture that survives LED quantization.
+Shape and edge are placement geometry owned by the Clip, exactly like the
+frame's position and size: they change what the Clip may draw without
+touching Content, Pattern time, or Effects. **207 Aperture Shapes and Edges**
+holds everything else still so silhouette and edge are the only variables,
+and the **Aperture Shapes** reference carries the full silhouette-by-edge
+matrix.
+
 ### Changing Zone Layouts
 
 Zone names express ownership and Zone Layouts express geometry. The same ruler
@@ -432,6 +445,14 @@ Easing changes when progress happens, not what the Transition does. Every
 example uses the same eastward Linear Wipe, Pattern pair, endpoints, and
 duration. Only the curve changes, so acceleration, deceleration, steps, holds,
 and overshoot can be compared directly.
+
+### Aperture shapes reference
+
+**Aperture Shapes** holds one subject behind one frame over one dim bed and
+changes exactly one thing per passage: first each silhouette at a hard edge,
+then the Rounded box at a wide corner radius to show radius is shape rather
+than edge, then the Ring across Hard, Soft, and Stable Dither. It is the full
+matrix that lesson 207 deliberately abbreviates.
 
 Every reference Show above uses the expanded header as a live guide. It names
 the current example, explains what changes and what stays constant, and offers a

@@ -34,7 +34,8 @@ export function stockShowOrganization(shows: readonly StockShow[]): EntityOrgani
   }))
   const showcaseGroups = [
     { id: 'effects', name: 'Effects', matches: (show: StockShow) => show.collection === 'showcases' && show.track === 'portable' && show.name.includes('Effects') },
-    { id: 'transitions', name: 'Transitions & animation', matches: (show: StockShow) => show.collection === 'showcases' && show.track === 'portable' && !show.name.includes('Effects') },
+    { id: 'transitions', name: 'Transitions & animation', matches: (show: StockShow) => show.collection === 'showcases' && show.track === 'portable' && !show.name.includes('Effects') && !show.name.includes('Aperture') },
+    { id: 'placement', name: 'Placement', matches: (show: StockShow) => show.collection === 'showcases' && show.track === 'portable' && show.name.includes('Aperture') },
     { id: 'installations', name: 'Installations', matches: (show: StockShow) => show.collection === 'showcases' && show.track === 'installation' },
   ]
   const showcases = showcaseGroups.map((group): EntityOrganizationNode => ({

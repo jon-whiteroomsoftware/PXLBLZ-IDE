@@ -28,7 +28,7 @@ import { STOCK_SHOWS, stockShowById } from './shows'
 
 describe('stock Show curriculum (#363)', () => {
   it('ships the stable Learn 100, Learn 200, Learn 300, and showcase catalogue', () => {
-    expect(STOCK_SHOWS).toHaveLength(25)
+    expect(STOCK_SHOWS).toHaveLength(27)
     expect(new Set(STOCK_SHOWS.map((item) => item.id)).size).toBe(STOCK_SHOWS.length)
     expect(STOCK_SHOWS.map((item) => [item.name, item.collection, item.level, item.order])).toEqual([
       ['100 Getting Around', 'learn', 100, 0],
@@ -44,6 +44,7 @@ describe('stock Show curriculum (#363)', () => {
       ['204 Presentation Modes', 'learn', 200, 4],
       ['205 Groups and Linked Reuse', 'learn', 200, 5],
       ['206 Changing Zone Layouts', 'learn', 200, 6],
+      ['207 Aperture Shapes and Edges', 'learn', 200, 7],
       ['301 Installation Mapping', 'learn', 300, 1],
       ['302 Installation Composition', 'learn', 300, 2],
       ['303 Compile, Simplify, and Deliver', 'learn', 300, 3],
@@ -55,6 +56,7 @@ describe('stock Show curriculum (#363)', () => {
       ['Motion Transitions', 'showcases', null, 6],
       ['Property Animation', 'showcases', null, 7],
       ['Easing', 'showcases', null, 8],
+      ['Aperture Shapes', 'showcases', null, 9],
       ['Redline Installation', 'showcases', null, 10],
     ])
     expect(STOCK_SHOWS.every((item) => item.show.id === item.id)).toBe(true)
@@ -68,7 +70,7 @@ describe('stock Show curriculum (#363)', () => {
       .toBe(STOCK_SHOWS.length)
   })
 
-  it('ships five single-family reference Shows with semantic example metadata (#506)', () => {
+  it('ships six single-family reference Shows with semantic example metadata (#506)', () => {
     const referenceShows = STOCK_SHOWS.filter((item) => item.id.startsWith('stock-show-reference-'))
 
     expect(referenceShows.map((item) => item.id)).toEqual([
@@ -77,6 +79,7 @@ describe('stock Show curriculum (#363)', () => {
       'stock-show-reference-motion-transitions',
       'stock-show-reference-property-animation',
       'stock-show-reference-easing',
+      'stock-show-reference-aperture-shapes',
     ])
     expect(referenceShows.every((item) => item.reference!.examples.length >= 8)).toBe(true)
     expect(referenceShows.every((item) => (item.reference?.patternSlots?.cellIds.length ?? 0) > 0)).toBe(true)
@@ -224,6 +227,7 @@ describe('stock Show curriculum (#363)', () => {
     'stock-show-204-presentation-modes',
     'stock-show-205-groups-linked-reuse',
     'stock-show-206-changing-zone-layouts',
+    'stock-show-207-aperture-shapes-edges',
   ]
   const OUTPUT_IDS = [
     'stock-show-301-installation-mapping',
@@ -240,6 +244,7 @@ describe('stock Show curriculum (#363)', () => {
   const SINGLE_ZONE_IDS = [
     ...FOUNDATION_IDS.slice(0, 5),
     ...COMPOSITION_IDS.slice(0, 5),
+    'stock-show-207-aperture-shapes-edges',
     'stock-show-303-compile-simplify-deliver',
   ]
   const lessons = () => LESSON_IDS.map((id) => stockShowById(id)!)
@@ -356,6 +361,118 @@ describe('stock Show curriculum (#363)', () => {
     expect(overlay?.placements[0]?.opacity).toBe(0.5)
     expect(item.show.composition!.scenes[0].propertyTracks ?? []).toEqual([])
     expect(item.show.transitions ?? []).toEqual([])
+  })
+
+  it('shapes only the 207 aperture: silhouette and edge are the sole variables', () => {
+    // Oracle: compile 207 twice - once as authored, once with every subject
+    // viewport flattened to the plain rectangle - and drive both runtimes
+    // identically. Pixels outside the frame must stay bit-identical at every
+    // sampled time; the ellipse may only carve the frame's corners; the Ring
+    // must open the center; and the Soft edge must change a boundary pixel
+    // that the Hard ring left identical.
+    const item = stockShowById('stock-show-207-aperture-shapes-edges')!
+    const variant = (mutate: (entry: { id?: string; viewport?: Record<string, unknown> }) => void) => {
+      const show = structuredClone(item.show)
+      for (const zone of show.composition!.scenes[0].zones) {
+        for (const layer of zone.overlays) {
+          for (const entry of layer.placements) mutate(entry as { id?: string; viewport?: Record<string, unknown> })
+        }
+      }
+      return show
+    }
+    const flattened = variant((entry) => {
+      if (entry.viewport) {
+        entry.viewport = {
+          enabled: entry.viewport.enabled,
+          x: entry.viewport.x, y: entry.viewport.y,
+          width: entry.viewport.width, height: entry.viewport.height,
+        }
+      }
+    })
+    // The soft passage rendered hard: at t=14 every difference against the
+    // authored fixture lies in the feather bands and nowhere else.
+    const hardened = variant((entry) => {
+      if (entry.viewport && entry.viewport.edge === 'soft') {
+        entry.viewport = { ...entry.viewport, edge: 'hard' }
+      }
+    })
+    const compiledShaped = compileShowForArtifact(item.show, [], undefined, {}, { stageDimension: 2 })
+    const compiledFlat = compileShowForArtifact(flattened, [], undefined, {}, { stageDimension: 2 })
+    const compiledHardened = compileShowForArtifact(hardened, [], undefined, {}, { stageDimension: 2 })
+    expect(compiledShaped.error).toBeNull()
+    expect(compiledFlat.error).toBeNull()
+    expect(compiledHardened.error).toBeNull()
+
+    const mapPoints = SOURCE_STOCK_MAPS.find((map) => map.id === 'plane')!.resolve(1_936)
+    const runtime = (code: string, metadata: Parameters<typeof loadPattern>[1]) => {
+      let virtualTime = 0
+      const shim = createShim({
+        pixelCount: 1_936, dimensions: 2, mapPoints,
+        getVirtualTime: () => virtualTime, randomSeed: 207,
+      })
+      const handle = loadPattern(code, metadata, shim.builtins)
+      return {
+        advance(deltaMs: number) {
+          virtualTime += deltaMs
+          handle.beforeRender(deltaMs)
+        },
+        sample(index: number) {
+          const [x, y] = mapPoints[index].sample
+          handle.render2D(index, x, y)
+          return shim.capturedPixel()
+        },
+      }
+    }
+    const shaped = runtime(compiledShaped.artifact!.code, compiledShaped.artifact!.metadata)
+    const flat = runtime(compiledFlat.artifact!.code, compiledFlat.artifact!.metadata)
+    const hard = runtime(compiledHardened.artifact!.code, compiledHardened.artifact!.metadata)
+    const indexAt = (x: number, y: number) => Math.round(y * 43) * 44 + Math.round(x * 43)
+    const PIXELS = {
+      outside: [indexAt(0.1, 0.1), indexAt(0.9, 0.9)],
+      center: [indexAt(0.5, 0.5)],
+      frameCorner: [indexAt(0.28, 0.28)],
+      // A radial line crossing the Ring's outer boundary region at x=0.5.
+      ringBand: [indexAt(0.5, 0.256), indexAt(0.5, 0.279), indexAt(0.5, 0.302)],
+    }
+    const sampleAll = (deltaMs: number) => {
+      shaped.advance(deltaMs)
+      flat.advance(deltaMs)
+      hard.advance(deltaMs)
+      return Object.fromEntries(Object.entries(PIXELS).map(([key, indices]) => [
+        key,
+        {
+          shaped: indices.map((index) => shaped.sample(index)),
+          flat: indices.map((index) => flat.sample(index)),
+          hard: indices.map((index) => hard.sample(index)),
+        },
+      ]))
+    }
+
+    const rectangle = sampleAll(2_000)   // t=2: all three variants are the plain frame
+    const ellipse = sampleAll(4_000)     // t=6: silhouette is the only change
+    const ring = sampleAll(4_000)        // t=10: the center opens
+    const ringSoft = sampleAll(4_000)    // t=14: only the edge softens
+
+    for (const frame of [rectangle, ellipse, ring, ringSoft]) {
+      expect(frame.outside.shaped).toEqual(frame.outside.flat)
+      expect(frame.outside.shaped).toEqual(frame.outside.hard)
+    }
+    expect(rectangle.center.shaped).toEqual(rectangle.center.flat)
+    expect(rectangle.frameCorner.shaped).toEqual(rectangle.frameCorner.flat)
+    expect(ellipse.center.shaped).toEqual(ellipse.center.flat)
+    expect(ellipse.frameCorner.shaped).not.toEqual(ellipse.frameCorner.flat)
+    expect(ring.center.shaped).not.toEqual(ring.center.flat)
+
+    // Before the soft passage the hardened variant is byte-identical to the
+    // authored fixture; at t=14 its differences must exist and stay confined
+    // to the feather region.
+    for (const frame of [rectangle, ellipse, ring]) {
+      for (const key of ['center', 'frameCorner', 'ringBand'] as const) {
+        expect(frame[key].shaped).toEqual(frame[key].hard)
+      }
+    }
+    expect(ringSoft.center.shaped).toEqual(ringSoft.center.hard)
+    expect(ringSoft.ringBand.shaped).not.toEqual(ringSoft.ringBand.hard)
   })
 
   it('keeps the first lesson to Cuts, blank time, and an explicit Show End', () => {
