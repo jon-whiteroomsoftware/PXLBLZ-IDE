@@ -450,7 +450,7 @@ export interface ShowClipTransform {
 /** Optional placement-owned, axis-aligned clipping rectangle in normalized Zone coordinates. */
 export type ShowClipApertureShape = 'rectangle' | 'ellipse' | 'diamond' | 'ring' | 'rounded-box'
 
-export type ShowClipApertureEdge = 'hard' | 'soft'
+export type ShowClipApertureEdge = 'hard' | 'soft' | 'dither'
 
 export interface ShowClipViewport {
   enabled: boolean

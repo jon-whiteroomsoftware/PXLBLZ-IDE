@@ -1937,15 +1937,38 @@ scalar grip reachable in narrow windows. Supplemental flat-Clip controls render
 inside the Pattern tab body rather than as an unbounded sibling of the tabbed
 detail, so that compatibility path retains the same scroll ownership.
 
-Lowering carries the Viewport with its placement. The routed compiler multiplies
-placement opacity by the Viewport's coverage term after Pattern capture -
-boolean for hard edges, fractional inside a soft band - revealing lower layers
-without changing Pattern evaluation or its transformed coordinate field. X, Y,
-Width, and Height may use Scene-local Property tracks, and the shaped mask
-derives its center and radii from the same animated frame expressions;
-enablement, aperture, and edge remain discrete. The compile summary's
-`specializations.apertures` entry names every enabled Viewport's shape, edge,
-and feather source. Direct-sink and opaque-stack optimizations are
+Lowering carries the Viewport with its placement. On the default path the
+routed compiler multiplies placement opacity by the Viewport's coverage term
+after Pattern capture - boolean for hard edges, fractional inside a soft band,
+and a pixel-stable hash-thresholded binary term for the Dither edge -
+revealing lower layers without changing Pattern evaluation or its transformed
+coordinate field. X, Y, Width, and Height may use Scene-local Property tracks,
+and the shaped mask derives its center and radii from the same animated frame
+expressions; enablement, aperture, and edge remain discrete. The compile
+summary's `specializations.apertures` entry names every enabled Viewport's
+shape, edge, and feather source.
+
+Coverage-directed Viewport evaluation (#590, #679) replaces the post-capture
+multiply for an eligible two-layer stack: a live, render-pure, unkeyed,
+opaque top with an enabled Viewport over a live, render-pure lower layer,
+with distinct Pattern instances and 2D output. A Hard aperture then selects
+exactly one Pattern per output pixel: the top inside its predicate, the lower
+outside. A Soft aperture evaluates both Patterns only strictly inside its
+bounded band and one Pattern everywhere else. The Stable Dither edge
+thresholds the band mix against the Portal spatial hash
+(`__pxlblz_show_hash01(index)`), keeping one evaluation per pixel through the
+band with a pixel-stable selection that does not shimmer over time; at
+low pixel densities its speckled band is the least attractive treatment, so
+Soft remains the default. Output is exactly identical to the unoptimized
+path for Hard and Soft; every ineligible case falls back to the post-capture
+multiply with a named reason in `specializations.viewportCoverage`
+(stack depth, non-opaque top, content-key top, repeated instances,
+render-mutating or unknown render state, presentation captures, non-live
+evaluation policies, or the disabled compile option). Freeze and Strobe
+placements are ineligible by that presentation rule, which preserves the
+capture-before-Viewport order. Dither pixel selection near the band's hash
+threshold is an accepted Fast/Precise divergence class; Hard and Soft agree
+within fixed-point resolution. Direct-sink and opaque-stack optimizations are
 disabled whenever an enabled Viewport would make their coverage assumptions
 false. An enabled Viewport requires 2D Show output; compilation fails explicitly
 if a later Stage change would otherwise make the Viewport disappear in 1D.

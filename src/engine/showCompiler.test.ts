@@ -6662,3 +6662,158 @@ describe('Clip Viewport aperture catalogue (#678)', () => {
       .toThrow('aperture')
   })
 })
+
+describe('coverage-directed Viewport evaluation (#590, #679)', () => {
+  const zones = [{ id: 'main', name: 'main', ranges: [{ start: 0, end: 24 }] }]
+  const coverageRecipe = (
+    viewport: Record<string, unknown>,
+    overrides: {
+      lowerSource?: string
+      topOpacity?: number
+      topPresentation?: Record<string, unknown>
+      extraPlacement?: Record<string, unknown>
+      propertyTracks?: unknown[]
+    } = {},
+  ) => ({
+    clips: [
+      {
+        id: 'red',
+        source: overrides.lowerSource ?? 'export function render2D(index, x, y) { rgb(1, 0, 0) }',
+      },
+      { id: 'blue', source: 'export function render2D(index, x, y) { rgb(0, 0, 1) }' },
+      { id: 'green', source: 'export function render2D(index, x, y) { rgb(0, 1, 0) }' },
+    ],
+    zones,
+    routingLayouts: [{ id: 'default', name: 'Default', zones }],
+    routedSceneSequence: {
+      scenes: [{
+        holdMs: 1_000,
+        placements: [
+          { placementId: 'red-placement', zoneName: 'main', clipId: 'red', stackOrder: 0 },
+          {
+            placementId: 'blue-placement',
+            zoneName: 'main',
+            clipId: 'blue',
+            stackOrder: 1,
+            viewport,
+            ...(overrides.topOpacity !== undefined ? { opacity: overrides.topOpacity } : {}),
+            ...(overrides.topPresentation ? { presentation: overrides.topPresentation } : {}),
+          },
+          ...(overrides.extraPlacement ? [overrides.extraPlacement] : []),
+        ],
+        ...(overrides.propertyTracks ? { propertyTracks: overrides.propertyTracks } : {}),
+        transitionOut: { kind: 'cut' as const, durationMs: 0 },
+      }, {
+        holdMs: 1_000,
+        placements: [{ zoneName: 'main', clipId: 'red' }],
+      }],
+    },
+    loopDurationMs: 2_000,
+  })
+  const frame = { enabled: true, x: 0, y: 0, width: 0.5, height: 1 }
+  const coverageStatus = (artifact: ReturnType<typeof compileShow>) => (
+    artifact.summary.specializations.viewportCoverage?.stacks[0]
+  )
+  const sweepPixels = (artifact: ReturnType<typeof compileShow>, timeMs: number) => {
+    const { handle, pixel } = loadShow(artifact.code, artifact.metadata, 10_000)
+    handle.beforeRender(timeMs)
+    return Array.from({ length: 25 }, (_, index) => {
+      handle.render2D(index, (index % 5) / 4, Math.floor(index / 5) / 4)
+      return pixel()
+    })
+  }
+
+  it.each([
+    ['hard rectangle', { ...frame, edge: 'hard' }],
+    ['hard ellipse', { ...frame, aperture: 'ellipse', edge: 'hard' }],
+    ['soft ellipse', { ...frame, aperture: 'ellipse', feather: 0.3 }],
+    ['dither ellipse', { ...frame, aperture: 'ellipse', edge: 'dither', feather: 0.3 }],
+    ['hard ring', { ...frame, aperture: 'ring', ringWidth: 0.5, edge: 'hard' }],
+  ] as const)('matches the unoptimized output exactly for a %s aperture', (_name, viewport) => {
+    const optimized = compileShow(coverageRecipe(viewport) as never, {})
+    const fallback = compileShow(coverageRecipe(viewport) as never, {}, { coverageDirectedComposition: false })
+
+    expect(coverageStatus(optimized)).toMatchObject({ status: 'selected' })
+    expect(coverageStatus(fallback)).toMatchObject({ status: 'rejected', reason: 'disabled' })
+    expect(optimized.code).not.toBe(fallback.code)
+    expect(sweepPixels(optimized, 100)).toEqual(sweepPixels(fallback, 100))
+  })
+
+  it('keeps the animated frame equivalent through the coverage branch', () => {
+    const tracks = [{
+      id: 'viewport-width',
+      target: { kind: 'placement-viewport', placementId: 'blue-placement', property: 'width' },
+      keyframes: [
+        { id: 'a', timeMs: 0, value: 0.25, easing: { curve: 'linear' } },
+        { id: 'b', timeMs: 1_000, value: 0.75, easing: { curve: 'linear' } },
+      ],
+    }]
+    const viewport = { ...frame, aperture: 'ellipse', edge: 'hard' }
+    const optimized = compileShow(coverageRecipe(viewport, { propertyTracks: tracks }) as never, {})
+    const fallback = compileShow(
+      coverageRecipe(viewport, { propertyTracks: tracks }) as never,
+      {},
+      { coverageDirectedComposition: false },
+    )
+    expect(coverageStatus(optimized)).toMatchObject({ status: 'selected' })
+    expect(sweepPixels(optimized, 500)).toEqual(sweepPixels(fallback, 500))
+  })
+
+  it('evaluates one Pattern per pixel where coverage selects', () => {
+    // The folded ellipse constant appears once inside the branch predicate,
+    // against three post-capture opacity multiplications in the fallback.
+    const viewport = { ...frame, aperture: 'ellipse', edge: 'hard' }
+    const optimized = compileShow(coverageRecipe(viewport) as never, {})
+    const fallback = compileShow(coverageRecipe(viewport) as never, {}, { coverageDirectedComposition: false })
+    const occurrences = (code: string) => (code.match(/0\.0625/g) ?? []).length
+    expect(occurrences(optimized.code)).toBeLessThan(occurrences(fallback.code))
+    expect(optimized.code).toMatch(/if \(+.*0\.0625/)
+  })
+
+  it('keeps the dither edge pixel-stable across frames', () => {
+    const viewport = { ...frame, aperture: 'ellipse', edge: 'dither', feather: 0.4 }
+    const artifact = compileShow(coverageRecipe(viewport) as never, {})
+    expect(coverageStatus(artifact)).toMatchObject({ status: 'selected', edge: 'dither' })
+    const first = sweepPixels(artifact, 100)
+    const second = sweepPixels(artifact, 300)
+    expect(second).toEqual(first)
+    // The band actually dithers: pure top and pure lower both appear inside it.
+    const kinds = new Set(first.map(([r, , b]) => `${r},${b}`))
+    expect(kinds.has('1,0')).toBe(true)
+    expect(kinds.has('0,1')).toBe(true)
+  })
+
+  it('preserves every required call for a render-mutating lower layer', () => {
+    // The mutating clip encodes its own call count in its red channel. The
+    // frame covers columns 0..0.5 (15 of 25 grid pixels); if coverage had
+    // incorrectly skipped the covered calls, the final outside pixel would
+    // read 10 calls instead of 25.
+    const artifact = compileShow(coverageRecipe(
+      { ...frame, edge: 'hard' },
+      { lowerSource: 'var calls = 0\nexport function render2D(index, x, y) { calls = calls + 1; rgb(calls / 100, 0, 0) }' },
+    ) as never, {})
+    expect(coverageStatus(artifact)).toMatchObject({
+      status: 'rejected',
+      reason: 'render-mutating-layer',
+    })
+    const { handle, pixel } = loadShow(artifact.code, artifact.metadata, 25)
+    handle.beforeRender(100)
+    let lastOutside: [number, number, number] = [0, 0, 0]
+    for (let index = 0; index < 25; index += 1) {
+      handle.render2D(index, (index % 5) / 4, Math.floor(index / 5) / 4)
+      if (index === 24) lastOutside = pixel()
+    }
+    expect(lastOutside[0]).toBeCloseTo(0.25, 10)
+  })
+
+  it.each([
+    ['translucent top', { topOpacity: 0.5 }, 'top-not-opaque'],
+    ['Freeze capture top', { topPresentation: { mode: 'freeze' } }, 'presentation-capture'],
+    ['three-layer stack', {
+      extraPlacement: { placementId: 'green-placement', zoneName: 'main', clipId: 'green', stackOrder: 2 },
+    }, 'stack-depth'],
+  ] as const)('falls back with an actionable reason for a %s', (_name, overrides, reason) => {
+    const artifact = compileShow(coverageRecipe({ ...frame, edge: 'hard' }, overrides) as never, {})
+    expect(coverageStatus(artifact)).toMatchObject({ status: 'rejected', reason })
+  })
+})

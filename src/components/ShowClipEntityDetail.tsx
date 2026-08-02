@@ -1093,15 +1093,20 @@ function ClipPlacementGeometry({
             value={showClipViewportEffectiveEdge(value.viewport)}
             disabled={readOnly}
             onChange={(event) => onPatch({
-              viewport: { edge: event.target.value === 'hard' ? 'hard' : 'soft' },
+              viewport: {
+                edge: event.target.value === 'hard'
+                  ? 'hard'
+                  : event.target.value === 'dither' ? 'dither' : 'soft',
+              },
             })}
             className="mt-0.5 h-5 w-full border-0 border-b border-zinc-800 bg-transparent px-1 text-[9px] normal-case tracking-normal text-zinc-200 outline-none focus:border-cyan-400/60 disabled:opacity-60"
           >
             <option value="soft">Soft</option>
             <option value="hard">Hard</option>
+            <option value="dither">Dither</option>
           </select>
         </label>
-        {showClipViewportEffectiveEdge(value.viewport) === 'soft' && (
+        {showClipViewportEffectiveEdge(value.viewport) !== 'hard' && (
           <div className="min-w-0">
             <ShowInspectorNumberField
               compact

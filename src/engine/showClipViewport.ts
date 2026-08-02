@@ -36,7 +36,7 @@ export function normalizeShowClipViewport(
     // an authored non-default shape survives. Shape parameters are owned by
     // their shape and normalize away with it.
     ...(aperture !== undefined ? { aperture } : {}),
-    ...(viewport?.edge === 'hard' || viewport?.edge === 'soft' ? { edge: viewport.edge } : {}),
+    ...(viewport?.edge === 'hard' || viewport?.edge === 'soft' || viewport?.edge === 'dither' ? { edge: viewport.edge } : {}),
     ...(feather !== undefined ? { feather } : {}),
     ...(aperture === 'ring' && typeof viewport?.ringWidth === 'number' && Number.isFinite(viewport.ringWidth)
       ? { ringWidth: Math.max(0.05, Math.min(1, viewport.ringWidth)) }
@@ -84,7 +84,7 @@ export function compactShowClipViewport(
  */
 export function showClipViewportEffectiveEdge(
   viewport: Pick<ShowClipViewport, 'aperture' | 'edge'>,
-): 'hard' | 'soft' {
+): 'hard' | 'soft' | 'dither' {
   return viewport.edge ?? (viewport.aperture !== undefined ? 'soft' : 'hard')
 }
 
@@ -93,31 +93,66 @@ export function showClipViewportMaskExpression(
   xExpression: string,
   yExpression: string,
   propertyExpressions: Partial<Record<'x' | 'y' | 'width' | 'height', string>> = {},
+  options: { indexExpression?: string } = {},
 ): string | null {
   const normalized = normalizeShowClipViewport(viewport)
   if (!normalized.enabled) return null
   const edge = showClipViewportEffectiveEdge(normalized)
+  if (edge === 'hard') {
+    return showClipViewportHardPredicateExpression(normalized, xExpression, yExpression, propertyExpressions)
+  }
+  const mix = showClipViewportSoftMixExpression(normalized, xExpression, yExpression, propertyExpressions)!
+  if (edge === 'dither' && options.indexExpression !== undefined) {
+    // Pixel-stable binary selection: the spatial hash thresholds the band mix,
+    // matching the Portal transition's stable-dither policy (#679).
+    return `((${mix}) >= 1 || ((${mix}) > 0 && __pxlblz_show_hash01(${options.indexExpression}) < (${mix})))`
+  }
+  return mix
+}
+
+/** The boolean inside-test for the effective-hard aperture. */
+export function showClipViewportHardPredicateExpression(
+  viewport: Partial<ShowClipViewport> | undefined,
+  xExpression: string,
+  yExpression: string,
+  propertyExpressions: Partial<Record<'x' | 'y' | 'width' | 'height', string>> = {},
+): string | null {
+  const normalized = normalizeShowClipViewport(viewport)
+  if (!normalized.enabled) return null
   const animated = Object.keys(propertyExpressions).length > 0
     ? propertyExpressions
     : undefined
-  if (normalized.aperture === undefined && edge === 'hard') {
+  if (normalized.aperture === undefined) {
     return rectangleHardMask(normalized, xExpression, yExpression, animated)
   }
-  if (edge === 'hard') {
-    // Sqrt-free predicates wherever the shape permits one.
-    if (normalized.aperture === 'ellipse') {
-      return ellipseHardMask(normalized, xExpression, yExpression, animated)
-    }
-    if (normalized.aperture === 'diamond') {
-      return `(${diamondUnitField(normalized, xExpression, yExpression, animated)} <= 1)`
-    }
-    if (normalized.aperture === 'ring') {
-      const quadratic = ellipseQuadratic(normalized, xExpression, yExpression, animated)
-      const inner = 1 - (normalized.ringWidth ?? DEFAULT_SHOW_CLIP_RING_WIDTH)
-      return `(${quadratic} <= 1 && ${quadratic} >= ${numberSource(inner * inner)})`
-    }
-    return `(${roundedBoxSignedDistance(normalized, xExpression, yExpression, animated)} <= 0)`
+  // Sqrt-free predicates wherever the shape permits one.
+  if (normalized.aperture === 'ellipse') {
+    return ellipseHardMask(normalized, xExpression, yExpression, animated)
   }
+  if (normalized.aperture === 'diamond') {
+    return `(${diamondUnitField(normalized, xExpression, yExpression, animated)} <= 1)`
+  }
+  if (normalized.aperture === 'ring') {
+    const quadratic = ellipseQuadratic(normalized, xExpression, yExpression, animated)
+    const inner = 1 - (normalized.ringWidth ?? DEFAULT_SHOW_CLIP_RING_WIDTH)
+    return `(${quadratic} <= 1 && ${quadratic} >= ${numberSource(inner * inner)})`
+  }
+  return `(${roundedBoxSignedDistance(normalized, xExpression, yExpression, animated)} <= 0)`
+}
+
+/** The 0..1 band mix shared by the Soft edge, Stable Dither, and the
+ * coverage-directed emitters. Null while the Viewport is disabled. */
+export function showClipViewportSoftMixExpression(
+  viewport: Partial<ShowClipViewport> | undefined,
+  xExpression: string,
+  yExpression: string,
+  propertyExpressions: Partial<Record<'x' | 'y' | 'width' | 'height', string>> = {},
+): string | null {
+  const normalized = normalizeShowClipViewport(viewport)
+  if (!normalized.enabled) return null
+  const animated = Object.keys(propertyExpressions).length > 0
+    ? propertyExpressions
+    : undefined
   const feather = normalized.feather !== undefined
     ? numberSource(normalized.feather)
     : SHOW_CLIP_APERTURE_DEFAULT_FEATHER

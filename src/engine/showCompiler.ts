@@ -40,7 +40,9 @@ import {
 import {
   normalizeShowClipViewport,
   showClipViewportEffectiveEdge,
+  showClipViewportHardPredicateExpression,
   showClipViewportMaskExpression,
+  showClipViewportSoftMixExpression,
 } from './showClipViewport'
 import { normalizeShowTransitionColor, showTransitionColorToRgb } from './showFadeThroughColor'
 import { showClipEffectPersistedField } from './showEffectAuthoring'
@@ -590,9 +592,20 @@ export interface ShowCompileSummary {
       zoneName: string
       placementId?: string
       shape: 'rectangle' | 'ellipse' | 'diamond' | 'ring' | 'rounded-box'
-      edge: 'hard' | 'soft'
+      edge: 'hard' | 'soft' | 'dither'
       feather: 'authored' | 'density-default' | null
     }> | null
+    /** #590: per-stack coverage-directed Viewport selection decisions. */
+    viewportCoverage: {
+      stacks: Array<{
+        sceneIndex: number
+        zoneName: string
+        placementId?: string
+        edge: 'hard' | 'soft' | 'dither'
+        status: 'selected' | 'rejected'
+        reason: string
+      }>
+    } | null
     capture: Array<{
       clipId: string
       samplePath: 'identity' | 'mapped'
@@ -3174,7 +3187,7 @@ export function compileShow(
               ...(placement.placementId ? { placementId: placement.placementId } : {}),
               shape: viewport.aperture ?? 'rectangle' as const,
               edge,
-              feather: edge === 'soft'
+              feather: edge === 'soft' || edge === 'dither'
                 ? viewport.feather !== undefined ? 'authored' as const : 'density-default' as const
                 : null,
             }
@@ -3224,6 +3237,7 @@ export function compileShow(
         members: generatedEffectKernelPlan.members,
       },
       contentKeys: describeContentKeySpecialization(expandedRecipe, members, routedOutputDimension),
+      viewportCoverage: describeViewportCoverageSpecialization(expandedRecipe, members, routedOutputDimension),
       patternOutputReuse: {
         selectedGroupCount: patternOutputReuseGroupsSummary.filter((group) => group.status === 'selected').length,
         evaluationsAvoidedPerFrame: patternOutputReuseGroupsSummary.reduce((peak, group) => (
@@ -3512,7 +3526,8 @@ function validateRecipe(recipe: ShowRecipe): void {
             && !['rectangle', 'ellipse', 'diamond', 'ring', 'rounded-box'].includes(placement.viewport.aperture))
           || (placement.viewport.edge !== undefined
             && placement.viewport.edge !== 'hard'
-            && placement.viewport.edge !== 'soft')
+            && placement.viewport.edge !== 'soft'
+            && placement.viewport.edge !== 'dither')
           || (placement.viewport.feather !== undefined
             && (!Number.isFinite(placement.viewport.feather) || placement.viewport.feather <= 0))
           || (placement.viewport.ringWidth !== undefined
@@ -4270,6 +4285,12 @@ function emitRoutedSceneSequenceShowCode(
   showScore: ShowCompileSummary['specializations']['showScore']
   directColorSinks: NonNullable<ShowCompileSummary['specializations']['directColorSinks']>
 } {
+  const ditherApertureUsed = sequence.scenes.some((scene) => (
+    scene.placements.some((placement) => (
+      placement.viewport?.enabled
+      && showClipViewportEffectiveEdge(normalizeShowClipViewport(placement.viewport)) === 'dither'
+    ))
+  ))
   const { layouts, switches, propertyRamps } = {
     layouts: emissionOptions.routing.layouts,
     switches: emissionOptions.routing.switches,
@@ -5203,7 +5224,9 @@ function __pxlblz_show_capture_transition_rgb(r, g, b) {
   const baselineCode = [
     emitRuntimePrelude(members, outputDimension, {
       includeHash: transitionBranches.includes('__pxlblz_show_hash01')
-        || transitionHelpers.some((helper) => helper.includes('__pxlblz_show_hash01')),
+        || transitionHelpers.some((helper) => helper.includes('__pxlblz_show_hash01'))
+        || stackWrappers.some((wrapper) => wrapper.includes('__pxlblz_show_hash01'))
+        || ditherApertureUsed,
       includeMix: transitionBranches.length > 0,
       includePhase: false,
       directSinkMemberIds,
@@ -5416,7 +5439,9 @@ ${indentBlock(body, 2)}
     const lastStack = scorePlan.stackPlanIndexByScene[scorePlan.stackPlanIndexByScene.length - 1]
     const candidateCode = [
       emitRuntimePrelude(members, 2, {
-        includeHash: transitionRender.includes('__pxlblz_show_hash01'),
+        includeHash: transitionRender.includes('__pxlblz_show_hash01')
+          || exactStackPlans.some((plan) => plan.wrapper.includes('__pxlblz_show_hash01'))
+          || ditherApertureUsed,
         includeMix: true,
         includePhase: false,
       }),
@@ -5929,7 +5954,7 @@ function emitSharedPhysicalSceneZoneStack(
     propertyTracks,
     localTimeExpression,
     outputDimension === 2
-      ? { x: '__pxlblz_show_route_local_x', y: '__pxlblz_show_route_local_y' }
+      ? { x: '__pxlblz_show_route_local_x', y: '__pxlblz_show_route_local_y', index: 'index' }
       : undefined,
   )
   return [
@@ -6100,7 +6125,7 @@ ${placement.member.prefix}_renderCapture2D(__pxlblz_show_route_local_index, __px
       2,
       propertyTracks,
       localTimeExpression,
-      { x: '__pxlblz_show_scene_local_x', y: '__pxlblz_show_scene_local_y' },
+      { x: '__pxlblz_show_scene_local_x', y: '__pxlblz_show_scene_local_y', index: 'index' },
     )
     return [`${zoneIndex === 0 ? 'if' : 'else if'} (__pxlblz_show_route_id == ${zoneIndex}) {
   var __pxlblz_show_route_side = ceil(sqrt(${domain.pixelCount}))
@@ -6137,7 +6162,7 @@ ${placement.member.prefix}_renderCapture2D(${localIndex}, __pxlblz_show_route_lo
       2,
       propertyTracks,
       localTimeExpression,
-      { x: '__pxlblz_show_route_local_x', y: '__pxlblz_show_route_local_y' },
+      { x: '__pxlblz_show_route_local_x', y: '__pxlblz_show_route_local_y', index: 'index' },
     )
   )
   const fromTarget = '__pxlblz_show_soft_scene_0'
@@ -6487,6 +6512,39 @@ function groupRoutedPlacementsByZone(
   return result
 }
 
+function describeViewportCoverageSpecialization(
+  recipe: ShowRecipe,
+  members: CompiledMember[],
+  outputDimension: ShowOutputDimension,
+): ShowCompileSummary['specializations']['viewportCoverage'] {
+  const memberById = new Map(members.map((member) => [member.id, member]))
+  const stacks = recipe.routedSceneSequence?.scenes.flatMap((scene, sceneIndex) => {
+    const placements = scene.placements.map((placement, placementIndex) => ({
+      ...placement,
+      member: memberById.get(placement.clipId)!,
+      consumerId: patternOutputConsumerId(sceneIndex, placementIndex),
+    }))
+    return [...groupRoutedPlacementsByZone(placements)].flatMap(([zoneName, stack]) => {
+      if (stack.length < 2 || !stack.some((placement) => placement.viewport?.enabled)) return []
+      // Content-key selection owns keyed stacks; report them under contentKeys.
+      if (routedContentKeyStackReason(stack, outputDimension, scene.propertyTracks) === 'selected') return []
+      const reason = outputDimension === 2
+        ? routedViewportCoverageStackReason(stack, outputDimension, scene.propertyTracks)
+        : 'stack-depth'
+      const top = stack[stack.length - 1]
+      return [{
+        sceneIndex,
+        zoneName,
+        ...(top.placementId ? { placementId: top.placementId } : {}),
+        edge: showClipViewportEffectiveEdge(normalizeShowClipViewport(top.viewport)),
+        status: reason === 'selected' ? 'selected' as const : 'rejected' as const,
+        reason,
+      }]
+    })
+  }) ?? []
+  return stacks.length > 0 ? { stacks } : null
+}
+
 function describeContentKeySpecialization(
   recipe: ShowRecipe,
   members: CompiledMember[],
@@ -6645,7 +6703,7 @@ function emitRoutedSceneStackWrapper(
     outputDimension,
     propertyTracks,
     localTimeExpression,
-    outputDimension === 2 ? { x: 'x', y: 'y' } : undefined,
+    outputDimension === 2 ? { x: 'x', y: 'y', index: 'index' } : undefined,
   )
   const captureFunction = outputDimension === 2
     ? `function ${prefix}_renderCapture2D(index, x, y) {
@@ -6763,6 +6821,7 @@ function emitPhysicalSceneZoneStack(
     localTimeExpression,
     outputDimension === 2
       ? {
+          index: 'index',
           x: `__pxlblz_show_scene_zone_${zoneIndex}_x`,
           y: `__pxlblz_show_scene_zone_${zoneIndex}_y`,
         }
@@ -6807,7 +6866,7 @@ function emitRoutedPlacementStackCapture(
   outputDimension: ShowOutputDimension,
   propertyTracks?: ShowPropertyAnimationTrack[],
   localTimeExpression?: string,
-  viewportCoordinates?: { x: string; y: string },
+  viewportCoordinates?: { x: string; y: string; index: string },
 ): string {
   const endpointOptimizationActive = routedStackHasEndpointOptimization(placements, propertyTracks)
   const contentKeySelection = routedContentKeyStackReason(placements, outputDimension, propertyTracks)
@@ -6823,6 +6882,17 @@ function emitRoutedPlacementStackCapture(
   }
   if (contentKeySelection === 'selected') {
     return emitCoverageDirectedPlacementStack(
+      placements,
+      capture,
+      target,
+      propertyTracks,
+      localTimeExpression,
+      viewportCoordinates,
+    )
+  }
+  if (viewportCoordinates
+    && routedViewportCoverageStackReason(placements, outputDimension, propertyTracks) === 'selected') {
+    return emitViewportCoverageStack(
       placements,
       capture,
       target,
@@ -6923,7 +6993,7 @@ function emitTwoLayerContentKeyStack(
   target: string,
   propertyTracks?: ShowPropertyAnimationTrack[],
   localTimeExpression?: string,
-  viewportCoordinates?: { x: string; y: string },
+  viewportCoordinates?: { x: string; y: string; index: string },
 ): string {
   const lower = placements[0]
   const top = placements[1]
@@ -6950,13 +7020,161 @@ function emitTwoLayerContentKeyStack(
   ].join('\n')
 }
 
+type ViewportCoverageReason =
+  | 'selected'
+  | 'stack-depth'
+  | 'viewport-not-top'
+  | 'content-key-top'
+  | 'top-not-opaque'
+  | 'repeated-instance'
+  | 'render-mutating-layer'
+  | 'render-state-unknown-layer'
+  | 'presentation-capture'
+  | 'evaluation-policy'
+  | 'disabled'
+
+/**
+ * Coverage-directed selection keyed on the top placement's Clip Viewport
+ * (#590). The aperture is an analytic coverage predicate: where the opaque
+ * top is inside, the lower layer is invisible; outside, the top contributes
+ * nothing. Eligibility therefore requires an opaque, live, render-pure,
+ * unkeyed top and a live, render-pure lower, so skipping either evaluation
+ * cannot change observable state or the composed RGB.
+ */
+function routedViewportCoverageStackReason(
+  stack: ResolvedRoutedScenePlacement[],
+  outputDimension: ShowOutputDimension,
+  propertyTracks?: ShowPropertyAnimationTrack[],
+): ViewportCoverageReason {
+  if (stack.length !== 2) return 'stack-depth'
+  const top = stack[1]
+  if (!top.viewport?.enabled) return 'viewport-not-top'
+  if (!top.member.coverageDirectedComposition) return 'disabled'
+  if (memberHasContentKey(top.member)) return 'content-key-top'
+  // routedPlacementIsOpaque treats every enabled Viewport as non-opaque
+  // because the mask rides opacity on the default path; here the branch
+  // condition owns the mask, so opacity is judged without it.
+  const topOpaque = (!top.blink || top.blink.duty >= 1)
+    && !routedPlacementHasOpacityTrack(top, propertyTracks)
+    && clampNumber(top.opacity ?? 1, 0, 1) === 1
+  if (!topOpaque) return 'top-not-opaque'
+  if (new Set(stack.map((placement) => placement.member.id)).size !== stack.length) {
+    return 'repeated-instance'
+  }
+  for (const placement of stack) {
+    const state = routedPlacementRenderState(placement, outputDimension)
+    if (state === 'render-mutating') return 'render-mutating-layer'
+    if (state !== 'pure') return 'render-state-unknown-layer'
+    if (placement.presentation && placement.presentation.mode !== 'live') return 'presentation-capture'
+    if (placement.member.evaluationPolicy !== 'live') return 'evaluation-policy'
+  }
+  return 'selected'
+}
+
+function emitViewportCoverageStack(
+  placements: ResolvedRoutedScenePlacement[],
+  capture: (placement: ResolvedRoutedScenePlacement) => string,
+  target: string,
+  propertyTracks?: ShowPropertyAnimationTrack[],
+  localTimeExpression?: string,
+  viewportCoordinates?: { x: string; y: string; index: string },
+): string {
+  const [lower, top] = placements
+  const frameExpressions = localTimeExpression
+    ? Object.fromEntries((propertyTracks ?? []).flatMap((track) => (
+        track.target.kind === 'placement-viewport' && track.target.placementId === top.placementId
+          ? [[track.target.property, emitShowPropertyTrackExpression(track, localTimeExpression)]]
+          : []
+      )))
+    : {}
+  // The branch condition owns the top's aperture, so its own capture drops
+  // the post-capture mask; the lower keeps its ordinary path, including any
+  // Viewport of its own.
+  const topRendered = emitRoutedPlacementCapture(top, capture(top), propertyTracks, localTimeExpression, undefined)
+  const lowerRendered = emitRoutedPlacementCapture(lower, capture(lower), propertyTracks, localTimeExpression, viewportCoordinates)
+  const topAlpha = topRendered.opacity
+  const lowerAlpha = memberHasContentKey(lower.member)
+    ? `(${lowerRendered.opacity}) * ${lower.member.prefix}_alpha`
+    : lowerRendered.opacity
+  const indentBranch = (lines: string[]) => lines.map((line) => `  ${line}`)
+  const topBranch = [
+    ...topRendered.lines,
+    `${target}_r = ${top.member.prefix}_r * (${topAlpha})`,
+    `${target}_g = ${top.member.prefix}_g * (${topAlpha})`,
+    `${target}_b = ${top.member.prefix}_b * (${topAlpha})`,
+  ]
+  const lowerBranch = [
+    ...lowerRendered.lines,
+    `${target}_r = ${lower.member.prefix}_r * (${lowerAlpha})`,
+    `${target}_g = ${lower.member.prefix}_g * (${lowerAlpha})`,
+    `${target}_b = ${lower.member.prefix}_b * (${lowerAlpha})`,
+  ]
+  const header = [
+    `var ${target}_r = 0`,
+    `var ${target}_g = 0`,
+    `var ${target}_b = 0`,
+  ]
+  const edge = showClipViewportEffectiveEdge(normalizeShowClipViewport(top.viewport))
+  if (edge === 'hard') {
+    const predicate = showClipViewportHardPredicateExpression(
+      top.viewport,
+      viewportCoordinates!.x,
+      viewportCoordinates!.y,
+      frameExpressions,
+    )
+    return [
+      ...header,
+      `if ${predicate} {`,
+      ...indentBranch(topBranch),
+      '} else {',
+      ...indentBranch(lowerBranch),
+      '}',
+    ].join('\n')
+  }
+  const mix = showClipViewportSoftMixExpression(
+    top.viewport,
+    viewportCoordinates!.x,
+    viewportCoordinates!.y,
+    frameExpressions,
+  )
+  const mixName = `${target}_aperture_mix`
+  if (edge === 'dither') {
+    return [
+      ...header,
+      `var ${mixName} = ${mix}`,
+      `if (${mixName} >= 1 || (${mixName} > 0 && __pxlblz_show_hash01(${viewportCoordinates!.index}) < ${mixName})) {`,
+      ...indentBranch(topBranch),
+      '} else {',
+      ...indentBranch(lowerBranch),
+      '}',
+    ].join('\n')
+  }
+  return [
+    ...header,
+    `var ${mixName} = ${mix}`,
+    `if (${mixName} >= 1) {`,
+    ...indentBranch(topBranch),
+    `} else if (${mixName} <= 0) {`,
+    ...indentBranch(lowerBranch),
+    '} else {',
+    ...indentBranch([
+      ...topRendered.lines,
+      ...lowerRendered.lines,
+      `${target}_r = ${top.member.prefix}_r * (${topAlpha}) * ${mixName} + ${lower.member.prefix}_r * (${lowerAlpha}) * (1 - ${mixName})`,
+      `${target}_g = ${top.member.prefix}_g * (${topAlpha}) * ${mixName} + ${lower.member.prefix}_g * (${lowerAlpha}) * (1 - ${mixName})`,
+      `${target}_b = ${top.member.prefix}_b * (${topAlpha}) * ${mixName} + ${lower.member.prefix}_b * (${lowerAlpha}) * (1 - ${mixName})`,
+    ]),
+    '}',
+  ].join('\n')
+}
+
 function emitCoverageDirectedPlacementStack(
   placements: ResolvedRoutedScenePlacement[],
   capture: (placement: ResolvedRoutedScenePlacement) => string,
   target: string,
   propertyTracks?: ShowPropertyAnimationTrack[],
   localTimeExpression?: string,
-  viewportCoordinates?: { x: string; y: string },
+  viewportCoordinates?: { x: string; y: string; index: string },
 ): string {
   const remaining = `${target}_remaining`
   const layers = [...placements].reverse().map((placement, index) => {
@@ -7099,7 +7317,7 @@ function emitRoutedPlacementCapture(
   capture: string,
   propertyTracks?: ShowPropertyAnimationTrack[],
   localTimeExpression?: string,
-  viewportCoordinates?: { x: string; y: string },
+  viewportCoordinates?: { x: string; y: string; index: string },
 ): { lines: string[]; opacity: string } {
   const placementTracks = (propertyTracks ?? []).filter((track) => (
     'placementId' in track.target && track.target.placementId === placement.placementId
@@ -7120,6 +7338,7 @@ function emitRoutedPlacementCapture(
                 : []
             )))
           : {},
+        { indexExpression: viewportCoordinates.index },
       )
     : null
   const maskedOpacity = viewportMask ? `(${baseOpacity}) * (${viewportMask})` : baseOpacity

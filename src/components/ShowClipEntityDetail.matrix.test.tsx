@@ -481,6 +481,20 @@ const ROWS: RoundTripRow[] = [
     },
   },
   {
+    name: 'Aperture edge stores the Stable Dither policy',
+    scopes: ['scene-main'],
+    tab: 'Place',
+    seed: { viewport: { enabled: true, aperture: 'ellipse' } },
+    prepare: () => fireEvent.click(screen.getByRole('button', { name: 'Aperture summary' })),
+    drive: () => choose('Aperture edge', 'dither'),
+    expected: (value) => ({ ...value, viewport: { ...value.viewport, edge: 'dither' } }),
+    display: () => {
+      expect(screen.getByRole('combobox', { name: 'Aperture edge' })).toHaveValue('dither')
+      // Dither thresholds the same band, so the width field stays.
+      expect(screen.getByRole('textbox', { name: 'Aperture edge width' })).toBeInTheDocument()
+    },
+  },
+  {
     name: 'Aperture edge width stores an authored feather',
     scopes: ['scene-main'],
     tab: 'Place',
