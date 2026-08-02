@@ -51,6 +51,7 @@
     "issue401": "tsx test/perf-harness/issue316.ts",
     "issue409": "tsx test/perf-harness/issue409.ts",
     "issue410": "tsx test/perf-harness/issue410.ts",
+    "issue679": "tsx test/perf-harness/issue679.ts",
     "issue507:hardware": "ISSUE507_HARDWARE=1 vitest run test/perf-harness/issue507.hardware.test.ts --reporter=verbose",
     "issue412": "tsx test/perf-harness/issue412.ts",
     "issue508": "vitest run test/perf-harness/issue508.test.ts --reporter=verbose",
