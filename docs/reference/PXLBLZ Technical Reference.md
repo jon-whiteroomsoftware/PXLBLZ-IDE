@@ -1643,6 +1643,19 @@ Timeline-background click and Escape close transient Details. Escape restores
 focus to the live anchor. Removing an owner or changing Shows clears both the
 open owner and anchor.
 
+`showEscapeLayers.ts` owns the Show editor's Escape order (#672). A single
+registry-owned document listener offers each press to registered layers from
+the highest rank down and stops at the first consumer, so one press peels
+exactly one surface regardless of listener registration order or render
+timing. Editor surfaces — the Entity Detail panel, Group-isolation exit, and
+active-selection clearing, in that internal order — rank above toolbar and
+rail popovers such as the Zone Map, Add menu, and Add Clip chooser; ties at
+one rank go to the most recently mounted surface. Surfaces marked
+`data-show-detail-owned-portal` or `data-show-detail-escape-owned` keep
+claiming Escape with their own listeners: while one is present the registry
+dispatches nothing. The Transition palette keeps its own listener and first
+claim; the editor layer declines the press while the palette is open.
+
 `ShowEntityDetailPanel` portals the existing contextual inspector to
 `document.body` as one modeless application overlay. It stops pointer bubbling
 without trapping focus or changing Timeline layout. The pure

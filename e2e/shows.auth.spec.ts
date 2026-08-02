@@ -1451,16 +1451,15 @@ test.describe('authenticated Show authoring', () => {
     await page.getByRole('dialog', { name: 'Zone Map' }).getByRole('button', { name: 'Add Zone', exact: true }).click()
     await page.getByRole('dialog', { name: 'Zone Map' }).getByRole('button', { name: 'Open Zone Layout Default' }).click()
     await page.getByLabel('Default routing mode').selectOption('split-x')
+    // Escape peels exactly one layer per press, topmost first (#672): the
+    // Entity Detail panel, then the Zone Layout selection (the editor
+    // confirms by focusing the timeline), then the Zone Map.
     await page.keyboard.press('Escape')
     await expect(page.getByRole('dialog', { name: 'Entity Detail Panel' })).toHaveCount(0)
-    // Escape peels one layer at a time: the Zone Layout selection is still
-    // active after its panel closes, so the next Escape clears it (the
-    // editor confirms by focusing the timeline). Whether that same press
-    // also dismisses the Zone Map depends on document-listener order, so
-    // wait for the selection layer, then dismiss the map with a press that
-    // is a no-op if the map already closed.
+    await expect(page.getByRole('dialog', { name: 'Zone Map' })).toHaveCount(1)
     await page.keyboard.press('Escape')
     await expect(page.getByRole('region', { name: 'Show timeline' })).toBeFocused()
+    await expect(page.getByRole('dialog', { name: 'Zone Map' })).toHaveCount(1)
     await page.keyboard.press('Escape')
     await expect(page.getByRole('dialog', { name: 'Zone Map' })).toHaveCount(0)
     await page.getByRole('button', { name: 'Close Zones' }).click()
@@ -1485,6 +1484,9 @@ test.describe('authenticated Show authoring', () => {
     await expect(page.getByLabel('Default routing mode')).toHaveValue('split-x')
     await page.keyboard.press('Escape')
     await expect(page.getByRole('dialog', { name: 'Entity Detail Panel' })).toHaveCount(0)
+    await expect(page.getByRole('dialog', { name: 'Zone Map' })).toHaveCount(1)
+    await page.keyboard.press('Escape')
+    await expect(page.getByRole('region', { name: 'Show timeline' })).toBeFocused()
     await page.keyboard.press('Escape')
     await expect(page.getByRole('dialog', { name: 'Zone Map' })).toHaveCount(0)
     await page.getByRole('button', { name: /^Edit split position at / }).click()

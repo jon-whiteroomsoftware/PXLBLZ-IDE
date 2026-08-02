@@ -10,6 +10,7 @@ import { formatDomainNumber } from '@/engine/domainNumberPresentation'
 import { formatPercentageValue } from '@/engine/percentageValue'
 import { formatShowTime, showBoundaryClipIdentity } from '@/engine/showClipIdentity'
 import { presentShowDiagnostic } from '@/engine/showDiagnosticPresentation'
+import { SHOW_ESCAPE_LAYER_RANK, registerShowEscapeLayer } from '@/engine/showEscapeLayers'
 import {
   AlertDialogAction,
   AlertDialogCancel,
@@ -1121,38 +1122,29 @@ export function ShowEditor({
     return () => window.clearTimeout(timeout)
   }, [blockedDeleteFeedback])
 
-  useEffect(() => {
-    const handleEscape = (event: KeyboardEvent) => {
-      if (event.key !== 'Escape' || transitionPaletteId !== null) return
-      if (
-        document.querySelector('[data-show-detail-owned-portal="true"]')
-        || document.querySelector('[data-show-detail-escape-owned="true"]')
-        || (event.target instanceof Element
-          && event.target.closest('[data-show-detail-owned-portal="true"], [data-show-detail-escape-owned="true"]'))
-        || (document.activeElement instanceof Element
-          && document.activeElement.closest('[data-show-detail-owned-portal="true"], [data-show-detail-escape-owned="true"]'))
-      ) return
-      if (!detailPanelOpen && !pinnedDetail && !isolatedGroupOccurrenceId && selection.kind === 'show') return
-      event.preventDefault()
+  useEffect(() => registerShowEscapeLayer({
+    rank: SHOW_ESCAPE_LAYER_RANK.editorSurfaces,
+    onEscape: () => {
+      if (transitionPaletteId !== null) return false
+      if (!detailPanelOpen && !pinnedDetail && !isolatedGroupOccurrenceId && selection.kind === 'show') return false
       if (isolatedGroupOccurrenceId) {
         closeDetailPanel(true)
         setPinnedDetail(null)
         setIsolatedGroupOccurrenceId(null)
         setSelection({ kind: 'group', occurrenceId: isolatedGroupOccurrenceId })
         window.setTimeout(() => timelineWorkspaceRef.current?.focus(), 0)
-        return
+        return true
       }
       if (detailPanelOpen || pinnedDetail) {
         closeDetailPanel(true)
         setPinnedDetail(null)
-        return
+        return true
       }
       setSelection({ kind: 'show' })
       window.setTimeout(() => timelineWorkspaceRef.current?.focus(), 0)
-    }
-    document.addEventListener('keydown', handleEscape)
-    return () => document.removeEventListener('keydown', handleEscape)
-  }, [closeDetailPanel, detailPanelOpen, isolatedGroupOccurrenceId, pinnedDetail, selection.kind, transitionPaletteId])
+      return true
+    },
+  }), [closeDetailPanel, detailPanelOpen, isolatedGroupOccurrenceId, pinnedDetail, selection.kind, transitionPaletteId])
   useEffect(() => {
     if (!detailPanelOpen) return
     const handleOutsidePointerDown = (event: PointerEvent) => {
@@ -6452,19 +6444,32 @@ function ShowTimelineToolbarPopover({
       if (popoverRef.current?.contains(event.target) || anchor?.contains(event.target)) return
       onDismiss()
     }
-    const handleKeyDown = (event: KeyboardEvent) => {
-      if (event.key !== 'Escape') return
-      event.preventDefault()
-      onDismiss()
-      anchor?.focus()
-    }
     document.addEventListener('pointerdown', handlePointerDown)
-    document.addEventListener('keydown', handleKeyDown)
-    return () => {
-      document.removeEventListener('pointerdown', handlePointerDown)
-      document.removeEventListener('keydown', handleKeyDown)
-    }
+    return () => document.removeEventListener('pointerdown', handlePointerDown)
   }, [anchor, onDismiss])
+
+  // Escape goes through the shared layer registry (#672). Registration happens
+  // once per mount through refs: onDismiss is usually an inline lambda, and
+  // re-registering per render would make same-rank ordering depend on render
+  // timing again.
+  const dismissRef = useRef({ anchor, onDismiss })
+  useEffect(() => {
+    dismissRef.current = { anchor, onDismiss }
+  })
+  const dismissible = Boolean(onDismiss)
+  useEffect(() => {
+    if (!dismissible) return
+    return registerShowEscapeLayer({
+      rank: SHOW_ESCAPE_LAYER_RANK.toolbarPopover,
+      onEscape: () => {
+        const { anchor: currentAnchor, onDismiss: currentOnDismiss } = dismissRef.current
+        if (!currentOnDismiss) return false
+        currentOnDismiss()
+        currentAnchor?.focus()
+        return true
+      },
+    })
+  }, [dismissible])
 
   if (!anchor || typeof document === 'undefined') return null
   return createPortal(

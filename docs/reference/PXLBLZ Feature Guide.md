@@ -495,7 +495,11 @@ The working grammar is compact:
   content compactly as `15.0: CompassRose`, or
   `1:15.3: CompassRose` at one minute or later; simultaneous incoming Clips add a
   count instead of a decorative list. Clicking elsewhere closes
-  transient Details; one Detail may be pinned for comparison.
+  transient Details; one Detail may be pinned for comparison. Escape peels
+  exactly one surface per press, topmost first: an open Entity Detail Panel
+  closes, then the active selection clears, then an open toolbar popover such
+  as the Zone Map dismisses. Editors open inside the panel keep their own
+  first Escape.
 - **Progressive structure.** **Layer** deliberately adds another compositing
   lane. **Zones** reveals the Zone rail only when routing structure is needed;
   a one-Zone Show otherwise spends the full width on its Clips.

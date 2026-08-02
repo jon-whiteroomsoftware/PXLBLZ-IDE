@@ -462,6 +462,34 @@ describe('ShowEditor (#318)', () => {
     expect(useShowEditorSessionStore.getState().zoneWorkspaceOpenByShowId[show.id]).toBe(true)
   })
 
+  it('peels Escape one layer per press: Detail panel, then selection, then Zone Map (#672)', async () => {
+    const user = userEvent.setup()
+    const show = addShowZone(createDefaultShow('show-escape-layering', 'Escape layering', 1000), {
+      name: 'accent',
+      nominalPixelCount: 24,
+    })
+    useShowStore.setState({ shows: [show], activeShowId: show.id, showsLoaded: true })
+
+    render(<ShowEditor showId={show.id} />)
+    await user.click(screen.getByRole('button', { name: 'Open Zones' }))
+    const grid = screen.getByTestId('show-timeline-grid')
+    await user.click(within(grid).getByRole('button', { name: 'Open Zone Map' }))
+    const map = screen.getByRole('dialog', { name: 'Zone Map' })
+    await user.click(within(map).getByRole('button', { name: 'Open Zone Layout Default' }))
+    expect(screen.getByRole('dialog', { name: 'Entity Detail Panel' })).toBeInTheDocument()
+
+    await user.keyboard('{Escape}')
+    expect(screen.queryByRole('dialog', { name: 'Entity Detail Panel' })).not.toBeInTheDocument()
+    expect(screen.getByRole('dialog', { name: 'Zone Map' })).toBeInTheDocument()
+
+    await user.keyboard('{Escape}')
+    await waitFor(() => expect(screen.getByRole('region', { name: 'Show timeline' })).toHaveFocus())
+    expect(screen.getByRole('dialog', { name: 'Zone Map' })).toBeInTheDocument()
+
+    await user.keyboard('{Escape}')
+    expect(screen.queryByRole('dialog', { name: 'Zone Map' })).not.toBeInTheDocument()
+  })
+
   it('gives each Zone header one disclosure and one properties affordance (#632)', async () => {
     const user = userEvent.setup()
     const show = addShowZone(createDefaultShow('show-zone-header', 'Zone header', 1000), {

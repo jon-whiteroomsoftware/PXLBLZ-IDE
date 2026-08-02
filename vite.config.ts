@@ -22,6 +22,7 @@ const BROWSER_TEST_FILES = [
   'src/analytics/index.test.ts',
   'src/engine/keyboardShortcuts.test.ts',
   'src/engine/renderLoop.test.ts',
+  'src/engine/showEscapeLayers.test.ts',
   'src/engine/renderer.test.ts',
   'src/store/controllerProfileStore.test.ts',
   'src/store/controllerStore.test.ts',
