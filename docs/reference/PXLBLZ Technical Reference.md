@@ -1884,13 +1884,19 @@ disclosure is a visual no-op; an authored disabled rectangle is restored
 instead of being derived again, and an authored aperture shape, edge, or
 feather survives first enable as durable styling.
 
-The Viewport carries an optional **aperture** (`ellipse`; missing compacts to
-rectangle), an optional **edge** (`hard`/`soft`; missing defaults hard for
-rectangles and soft for ellipses), and an optional authored **feather** width
-in normalized Zone units (#591). The unedited enabled rectangle emits the
-identical bounded 2D predicate as before, byte for byte. A hard ellipse emits
-a squared-distance predicate without `sqrt`; soft edges emit
-`clamp(0.5 - signed / feather, 0, 1)` over the scaled-space ellipse metric or
+The Viewport carries an optional **aperture** (`ellipse`, `diamond`, `ring`,
+or `rounded-box`; missing compacts to rectangle), an optional **edge**
+(`hard`/`soft`; missing defaults hard for rectangles and soft for every shaped
+aperture), an optional authored **feather** width in normalized Zone units
+(#591), and shape-owned parameters that normalize away with their shape
+(#678): `ringWidth` (band thickness as a fraction of the unit radius) and
+`cornerRadius` (rounding as a fraction of the half-side). Shape parameters are
+never animatable, so their emitted constants always fold even under an
+animated frame. The unedited enabled rectangle emits the identical bounded 2D
+predicate as before, byte for byte. Hard ellipse, diamond, and ring emit
+sqrt-free predicates (squared distance, `|u|+|v|`, and a squared annulus);
+the hard rounded-box uses its signed distance. Soft edges emit
+`clamp(0.5 - signed / feather, 0, 1)` over each shape's scaled-space metric or
 the axis-aligned box distance. The default feather is emitted into the
 artifact as `1.5 / sqrt(pixelCount)`, so the band width tracks the device the
 Pattern actually runs on; Fast and Precise execution agree across the band

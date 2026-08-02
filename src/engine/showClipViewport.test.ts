@@ -117,3 +117,70 @@ describe('Clip Viewport aperture shape and edge (#591)', () => {
       .toBe('((x) >= (X) && (x) <= ((X) + (0.5)) && (y) >= (0.2) && (y) <= ((0.2) + (0.4)))')
   })
 })
+
+describe('Clip Viewport aperture catalogue (#678)', () => {
+  const frame = { enabled: true, x: 0.1, y: 0.2, width: 0.5, height: 0.4 }
+  // cx 0.35, cy 0.4, rx 0.25, ry 0.2, minR 0.2
+
+  it('normalizes catalogue shapes and drops params that do not belong to the shape', () => {
+    expect(normalizeShowClipViewport({ ...frame, aperture: 'diamond' }).aperture).toBe('diamond')
+    expect(normalizeShowClipViewport({ ...frame, aperture: 'ring', ringWidth: 0.5 }))
+      .toMatchObject({ aperture: 'ring', ringWidth: 0.5 })
+    expect(normalizeShowClipViewport({ ...frame, aperture: 'rounded-box', cornerRadius: 0.3 }))
+      .toMatchObject({ aperture: 'rounded-box', cornerRadius: 0.3 })
+    // Params are shape-owned: they normalize away when the shape leaves.
+    expect(normalizeShowClipViewport({ ...frame, aperture: 'ellipse', ringWidth: 0.5, cornerRadius: 0.3 }))
+      .toEqual({ ...frame, aperture: 'ellipse' })
+    expect(normalizeShowClipViewport({ ...frame, aperture: 'ring', ringWidth: 9 }).ringWidth).toBe(1)
+    expect(normalizeShowClipViewport({ ...frame, aperture: 'rounded-box', cornerRadius: 0 }).cornerRadius).toBe(0.05)
+  })
+
+  it('defaults every shaped aperture to the soft edge', () => {
+    for (const aperture of ['diamond', 'ring', 'rounded-box'] as const) {
+      expect(showClipViewportEffectiveEdge(normalizeShowClipViewport({ ...frame, aperture }))).toBe('soft')
+    }
+  })
+
+  it('emits a sqrt-free hard diamond predicate', () => {
+    expect(showClipViewportMaskExpression({ ...frame, aperture: 'diamond', edge: 'hard' }, 'x', 'y'))
+      .toBe('(abs(((x) - 0.35) / 0.25) + abs(((y) - 0.4) / 0.2) <= 1)')
+  })
+
+  it('emits a soft diamond band scaled toward real distance', () => {
+    expect(showClipViewportMaskExpression({ ...frame, aperture: 'diamond', feather: 0.05 }, 'x', 'y'))
+      .toBe('clamp(0.5 - ((abs(((x) - 0.35) / 0.25) + abs(((y) - 0.4) / 0.2) - 1) * 0.141421356237) / 0.05, 0, 1)')
+  })
+
+  it('emits a sqrt-free hard ring annulus from the squared radius', () => {
+    const quadratic = '((x) - 0.35) * ((x) - 0.35) / 0.0625 + ((y) - 0.4) * ((y) - 0.4) / 0.04'
+    expect(showClipViewportMaskExpression({ ...frame, aperture: 'ring', ringWidth: 0.5, edge: 'hard' }, 'x', 'y'))
+      .toBe(`(${quadratic} <= 1 && ${quadratic} >= 0.25)`)
+  })
+
+  it('emits a soft ring band centred on the annulus midline', () => {
+    expect(showClipViewportMaskExpression({ ...frame, aperture: 'ring', ringWidth: 0.5, feather: 0.05 }, 'x', 'y'))
+      .toBe('clamp(0.5 - ((abs(hypot(((x) - 0.35) / 0.25, ((y) - 0.4) / 0.2) - 0.75) - 0.25) * 0.2) / 0.05, 0, 1)')
+  })
+
+  it('emits the rounded-box signed distance for both edges', () => {
+    const qx = '(abs(((x) - 0.35) / 0.25) - 0.5)'
+    const qy = '(abs(((y) - 0.4) / 0.2) - 0.5)'
+    const signed = `(min(max(${qx}, ${qy}), 0) + hypot(max(${qx}, 0), max(${qy}, 0)) - 0.5) * 0.2`
+    expect(showClipViewportMaskExpression({ ...frame, aperture: 'rounded-box', cornerRadius: 0.5, edge: 'hard' }, 'x', 'y'))
+      .toBe(`(${signed} <= 0)`)
+    expect(showClipViewportMaskExpression({ ...frame, aperture: 'rounded-box', cornerRadius: 0.5, feather: 0.05 }, 'x', 'y'))
+      .toBe(`clamp(0.5 - (${signed}) / 0.05, 0, 1)`)
+  })
+
+  it('keeps catalogue shapes working with animated frame expressions', () => {
+    const animated = showClipViewportMaskExpression(
+      { ...frame, aperture: 'ring', ringWidth: 0.5, feather: 0.05 },
+      'x',
+      'y',
+      { width: 'W' },
+    )
+    expect(animated).toContain('(W) * 0.5')
+    expect(animated).toContain('min(')
+    expect(animated).toContain('0.75')
+  })
+})

@@ -1073,12 +1073,17 @@ function ClipPlacementGeometry({
             value={value.viewport.aperture ?? 'rectangle'}
             disabled={readOnly}
             onChange={(event) => onPatch({
-              viewport: { aperture: event.target.value === 'ellipse' ? 'ellipse' : 'rectangle' },
+              viewport: {
+                aperture: event.target.value as 'rectangle' | 'ellipse' | 'diamond' | 'ring' | 'rounded-box',
+              },
             })}
             className="mt-0.5 h-5 w-full border-0 border-b border-zinc-800 bg-transparent px-1 text-[9px] normal-case tracking-normal text-zinc-200 outline-none focus:border-cyan-400/60 disabled:opacity-60"
           >
             <option value="rectangle">Rectangle</option>
             <option value="ellipse">Ellipse</option>
+            <option value="diamond">Diamond</option>
+            <option value="ring">Ring</option>
+            <option value="rounded-box">Rounded box</option>
           </select>
         </label>
         <label className="block min-w-0 text-[8px] uppercase tracking-[0.08em] text-zinc-600">
@@ -1111,6 +1116,38 @@ function ClipPlacementGeometry({
               onChange={(feather) => onPatch({
                 viewport: { feather: feather > 0 ? feather : undefined },
               })}
+            />
+          </div>
+        )}
+        {value.viewport.aperture === 'ring' && (
+          <div className="min-w-0">
+            <ShowInspectorNumberField
+              compact
+              label="Ring width"
+              ariaLabel="Aperture ring width"
+              value={value.viewport.ringWidth ?? 0.25}
+              min={0.05}
+              max={1}
+              step={0.01}
+              disabled={readOnly}
+              help="Band thickness as a fraction of the radius."
+              onChange={(ringWidth) => onPatch({ viewport: { ringWidth } })}
+            />
+          </div>
+        )}
+        {value.viewport.aperture === 'rounded-box' && (
+          <div className="min-w-0">
+            <ShowInspectorNumberField
+              compact
+              label="Corner radius"
+              ariaLabel="Aperture corner radius"
+              value={value.viewport.cornerRadius ?? 0.25}
+              min={0.05}
+              max={1}
+              step={0.01}
+              disabled={readOnly}
+              help="Corner rounding as a fraction of the half-side."
+              onChange={(cornerRadius) => onPatch({ viewport: { cornerRadius } })}
             />
           </div>
         )}

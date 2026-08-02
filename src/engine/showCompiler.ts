@@ -589,7 +589,7 @@ export interface ShowCompileSummary {
       sceneIndex: number
       zoneName: string
       placementId?: string
-      shape: 'rectangle' | 'ellipse'
+      shape: 'rectangle' | 'ellipse' | 'diamond' | 'ring' | 'rounded-box'
       edge: 'hard' | 'soft'
       feather: 'authored' | 'density-default' | null
     }> | null
@@ -3509,15 +3509,18 @@ function validateRecipe(recipe: ShowRecipe): void {
         }
         if (placement.viewport && (
           (placement.viewport.aperture !== undefined
-            && placement.viewport.aperture !== 'rectangle'
-            && placement.viewport.aperture !== 'ellipse')
+            && !['rectangle', 'ellipse', 'diamond', 'ring', 'rounded-box'].includes(placement.viewport.aperture))
           || (placement.viewport.edge !== undefined
             && placement.viewport.edge !== 'hard'
             && placement.viewport.edge !== 'soft')
           || (placement.viewport.feather !== undefined
             && (!Number.isFinite(placement.viewport.feather) || placement.viewport.feather <= 0))
+          || (placement.viewport.ringWidth !== undefined
+            && (!Number.isFinite(placement.viewport.ringWidth) || placement.viewport.ringWidth <= 0))
+          || (placement.viewport.cornerRadius !== undefined
+            && (!Number.isFinite(placement.viewport.cornerRadius) || placement.viewport.cornerRadius <= 0))
         )) {
-          throw new Error('compileShow Clip Viewport aperture requires a known shape, a known edge, and a positive feather.')
+          throw new Error('compileShow Clip Viewport aperture requires a known shape, a known edge, and positive band parameters.')
         }
       }
       validateRoutedScenePropertyTracks(recipe, scene)

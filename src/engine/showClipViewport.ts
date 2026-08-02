@@ -23,6 +23,9 @@ export function normalizeShowClipViewport(
   const feather = typeof viewport?.feather === 'number' && Number.isFinite(viewport.feather)
     ? Math.max(0.001, Math.min(1, viewport.feather))
     : undefined
+  const aperture = viewport?.aperture !== undefined && SHAPED_APERTURES.includes(viewport.aperture)
+    ? viewport.aperture
+    : undefined
   return {
     enabled: Boolean(viewport?.enabled),
     x: clamp(viewport?.x, -4, 4, 0),
@@ -30,12 +33,29 @@ export function normalizeShowClipViewport(
     width: clamp(viewport?.width, 0.01, 8, 1),
     height: clamp(viewport?.height, 0.01, 8, 1),
     // Rectangle is the compact default, so it normalizes away entirely; only
-    // the authored non-default shape survives.
-    ...(viewport?.aperture === 'ellipse' ? { aperture: 'ellipse' as const } : {}),
+    // an authored non-default shape survives. Shape parameters are owned by
+    // their shape and normalize away with it.
+    ...(aperture !== undefined ? { aperture } : {}),
     ...(viewport?.edge === 'hard' || viewport?.edge === 'soft' ? { edge: viewport.edge } : {}),
     ...(feather !== undefined ? { feather } : {}),
+    ...(aperture === 'ring' && typeof viewport?.ringWidth === 'number' && Number.isFinite(viewport.ringWidth)
+      ? { ringWidth: Math.max(0.05, Math.min(1, viewport.ringWidth)) }
+      : {}),
+    ...(aperture === 'rounded-box' && typeof viewport?.cornerRadius === 'number' && Number.isFinite(viewport.cornerRadius)
+      ? { cornerRadius: Math.max(0.05, Math.min(1, viewport.cornerRadius)) }
+      : {}),
   }
 }
+
+const SHAPED_APERTURES: ReadonlyArray<NonNullable<ShowClipViewport['aperture']>> = [
+  'ellipse', 'diamond', 'ring', 'rounded-box',
+]
+
+/** Ring band thickness default, as a fraction of the unit radius. */
+export const DEFAULT_SHOW_CLIP_RING_WIDTH = 0.25
+
+/** Rounded-box corner radius default, as a fraction of the half-side. */
+export const DEFAULT_SHOW_CLIP_CORNER_RADIUS = 0.25
 
 /** Missing is the compact default. A disabled authored rectangle is retained. */
 export function compactShowClipViewport(
@@ -51,6 +71,8 @@ export function compactShowClipViewport(
     || normalized.aperture !== undefined
     || normalized.edge !== undefined
     || normalized.feather !== undefined
+    || normalized.ringWidth !== undefined
+    || normalized.cornerRadius !== undefined
     ? normalized
     : undefined
 }
@@ -63,7 +85,7 @@ export function compactShowClipViewport(
 export function showClipViewportEffectiveEdge(
   viewport: Pick<ShowClipViewport, 'aperture' | 'edge'>,
 ): 'hard' | 'soft' {
-  return viewport.edge ?? (viewport.aperture === 'ellipse' ? 'soft' : 'hard')
+  return viewport.edge ?? (viewport.aperture !== undefined ? 'soft' : 'hard')
 }
 
 export function showClipViewportMaskExpression(
@@ -78,20 +100,111 @@ export function showClipViewportMaskExpression(
   const animated = Object.keys(propertyExpressions).length > 0
     ? propertyExpressions
     : undefined
-  if (normalized.aperture !== 'ellipse' && edge === 'hard') {
+  if (normalized.aperture === undefined && edge === 'hard') {
     return rectangleHardMask(normalized, xExpression, yExpression, animated)
   }
-  if (normalized.aperture === 'ellipse' && edge === 'hard') {
-    // The squared predicate needs no sqrt.
-    return ellipseHardMask(normalized, xExpression, yExpression, animated)
+  if (edge === 'hard') {
+    // Sqrt-free predicates wherever the shape permits one.
+    if (normalized.aperture === 'ellipse') {
+      return ellipseHardMask(normalized, xExpression, yExpression, animated)
+    }
+    if (normalized.aperture === 'diamond') {
+      return `(${diamondUnitField(normalized, xExpression, yExpression, animated)} <= 1)`
+    }
+    if (normalized.aperture === 'ring') {
+      const quadratic = ellipseQuadratic(normalized, xExpression, yExpression, animated)
+      const inner = 1 - (normalized.ringWidth ?? DEFAULT_SHOW_CLIP_RING_WIDTH)
+      return `(${quadratic} <= 1 && ${quadratic} >= ${numberSource(inner * inner)})`
+    }
+    return `(${roundedBoxSignedDistance(normalized, xExpression, yExpression, animated)} <= 0)`
   }
   const feather = normalized.feather !== undefined
     ? numberSource(normalized.feather)
     : SHOW_CLIP_APERTURE_DEFAULT_FEATHER
   const signed = normalized.aperture === 'ellipse'
     ? ellipseSignedDistance(normalized, xExpression, yExpression, animated)
-    : rectangleSignedDistance(normalized, xExpression, yExpression, animated)
+    : normalized.aperture === 'diamond'
+      ? diamondSignedDistance(normalized, xExpression, yExpression, animated)
+      : normalized.aperture === 'ring'
+        ? ringSignedDistance(normalized, xExpression, yExpression, animated)
+        : normalized.aperture === 'rounded-box'
+          ? roundedBoxSignedDistance(normalized, xExpression, yExpression, animated)
+          : rectangleSignedDistance(normalized, xExpression, yExpression, animated)
   return `clamp(0.5 - (${signed}) / ${feather}, 0, 1)`
+}
+
+type FrameExpressions = Partial<Record<'x' | 'y' | 'width' | 'height', string>>
+
+/** `|u| + |v|` over frame-normalized coordinates; 1 on the diamond boundary. */
+function diamondUnitField(
+  viewport: ShowClipViewport,
+  x: string,
+  y: string,
+  propertyExpressions?: FrameExpressions,
+): string {
+  const { cx, cy, rx, ry } = frameTerms(viewport, propertyExpressions)
+  return `abs(((${x}) - ${wrapTerm(cx)}) / ${wrapTerm(rx)}) + abs(((${y}) - ${wrapTerm(cy)}) / ${wrapTerm(ry)})`
+}
+
+function diamondSignedDistance(
+  viewport: ShowClipViewport,
+  x: string,
+  y: string,
+  propertyExpressions?: FrameExpressions,
+): string {
+  const { rx, ry, rxNumber, ryNumber } = frameTerms(viewport, propertyExpressions)
+  // The unit field grows sqrt(2) faster than distance along the axes; folding
+  // 1/sqrt(2) into the minor radius keeps the band near real width.
+  const scale = rxNumber !== undefined && ryNumber !== undefined
+    ? numberSource(Math.min(rxNumber, ryNumber) * Math.SQRT1_2)
+    : `min(${wrapTerm(rx)}, ${wrapTerm(ry)}) * ${numberSource(Math.SQRT1_2)}`
+  return `(${diamondUnitField(viewport, x, y, propertyExpressions)} - 1) * ${scale}`
+}
+
+/** The ellipse quadratic `u^2 + v^2` shared by the hard ellipse and ring. */
+function ellipseQuadratic(
+  viewport: ShowClipViewport,
+  x: string,
+  y: string,
+  propertyExpressions?: FrameExpressions,
+): string {
+  const { cx, cy, rx, ry, rxNumber, ryNumber } = frameTerms(viewport, propertyExpressions)
+  const dx = `((${x}) - ${wrapTerm(cx)})`
+  const dy = `((${y}) - ${wrapTerm(cy)})`
+  const rxSquared = rxNumber !== undefined ? numberSource(rxNumber * rxNumber) : `((${rx}) * (${rx}))`
+  const rySquared = ryNumber !== undefined ? numberSource(ryNumber * ryNumber) : `((${ry}) * (${ry}))`
+  return `${dx} * ${dx} / ${rxSquared} + ${dy} * ${dy} / ${rySquared}`
+}
+
+function ringSignedDistance(
+  viewport: ShowClipViewport,
+  x: string,
+  y: string,
+  propertyExpressions?: FrameExpressions,
+): string {
+  const { cx, cy, rx, ry, rxNumber, ryNumber } = frameTerms(viewport, propertyExpressions)
+  const width = viewport.ringWidth ?? DEFAULT_SHOW_CLIP_RING_WIDTH
+  const minRadius = rxNumber !== undefined && ryNumber !== undefined
+    ? numberSource(Math.min(rxNumber, ryNumber))
+    : `min(${wrapTerm(rx)}, ${wrapTerm(ry)})`
+  const base = `hypot(((${x}) - ${wrapTerm(cx)}) / ${wrapTerm(rx)}, ((${y}) - ${wrapTerm(cy)}) / ${wrapTerm(ry)})`
+  return `(abs(${base} - ${numberSource(1 - width / 2)}) - ${numberSource(width / 2)}) * ${minRadius}`
+}
+
+function roundedBoxSignedDistance(
+  viewport: ShowClipViewport,
+  x: string,
+  y: string,
+  propertyExpressions?: FrameExpressions,
+): string {
+  const { cx, cy, rx, ry, rxNumber, ryNumber } = frameTerms(viewport, propertyExpressions)
+  const radius = viewport.cornerRadius ?? DEFAULT_SHOW_CLIP_CORNER_RADIUS
+  const minRadius = rxNumber !== undefined && ryNumber !== undefined
+    ? numberSource(Math.min(rxNumber, ryNumber))
+    : `min(${wrapTerm(rx)}, ${wrapTerm(ry)})`
+  const qx = `(abs(((${x}) - ${wrapTerm(cx)}) / ${wrapTerm(rx)}) - ${numberSource(1 - radius)})`
+  const qy = `(abs(((${y}) - ${wrapTerm(cy)}) / ${wrapTerm(ry)}) - ${numberSource(1 - radius)})`
+  return `(min(max(${qx}, ${qy}), 0) + hypot(max(${qx}, 0), max(${qy}, 0)) - ${numberSource(radius)}) * ${minRadius}`
 }
 
 /** Frame-derived center/radius terms, folded to constants when static. */

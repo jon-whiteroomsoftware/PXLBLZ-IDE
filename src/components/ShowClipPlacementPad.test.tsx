@@ -254,8 +254,24 @@ describe('shaped aperture silhouette (#591)', () => {
   it('draws the inscribed ellipse and quiets the frame outline', () => {
     setup({}, { enabled: true, x: 0.25, y: 0.25, width: 0.5, height: 0.5, aperture: 'ellipse' })
     const ellipse = screen.getByTestId('placement-pad-aperture-ellipse')
-    expect(ellipse.tagName.toLowerCase()).toBe('ellipse')
-    expect(Number(ellipse.getAttribute('rx'))).toBeGreaterThan(0)
+    expect(ellipse.getAttribute('d')).toContain(' a')
+  })
+
+  it('draws each catalogue silhouette from the shared hole path (#678)', () => {
+    setup({}, { enabled: true, x: 0.25, y: 0.25, width: 0.5, height: 0.5, aperture: 'diamond' })
+    expect(screen.getByTestId('placement-pad-aperture-diamond').getAttribute('d')).toContain('L')
+  })
+
+  it('draws the ring as an annulus with an inner hole (#678)', () => {
+    setup({}, { enabled: true, x: 0.25, y: 0.25, width: 0.5, height: 0.5, aperture: 'ring', ringWidth: 0.5 })
+    const ring = screen.getByTestId('placement-pad-aperture-ring')
+    // Two closed subpaths: outer and inner boundary.
+    expect(ring.getAttribute('d')?.match(/Z/g)).toHaveLength(2)
+  })
+
+  it('rounds the box silhouette corners (#678)', () => {
+    setup({}, { enabled: true, x: 0.25, y: 0.25, width: 0.5, height: 0.5, aperture: 'rounded-box' })
+    expect(screen.getByTestId('placement-pad-aperture-rounded-box').getAttribute('d')).toContain('A')
   })
 
   it('does not draw an ellipse for the rectangle default', () => {

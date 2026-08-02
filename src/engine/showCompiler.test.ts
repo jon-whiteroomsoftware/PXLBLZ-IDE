@@ -6571,3 +6571,94 @@ describe('shaped Clip Viewport apertures (#591)', () => {
     }])
   })
 })
+
+describe('Clip Viewport aperture catalogue (#678)', () => {
+  const zones = [{ id: 'main', name: 'main', ranges: [{ start: 0, end: 24 }] }]
+  const catalogueStack = (viewport: Record<string, unknown>) => ({
+    clips: [
+      { id: 'red', source: 'export function render2D(index, x, y) { rgb(1, 0, 0) }' },
+      { id: 'blue', source: 'export function render2D(index, x, y) { rgb(0, 0, 1) }' },
+    ],
+    zones,
+    routingLayouts: [{ id: 'default', name: 'Default', zones }],
+    routedSceneSequence: {
+      scenes: [{
+        holdMs: 1_000,
+        placements: [
+          { zoneName: 'main', clipId: 'red', stackOrder: 0 },
+          { placementId: 'blue-placement', zoneName: 'main', clipId: 'blue', stackOrder: 1, viewport },
+        ],
+        transitionOut: { kind: 'cut' as const, durationMs: 0 },
+      }, {
+        holdMs: 1_000,
+        placements: [{ zoneName: 'main', clipId: 'red' }],
+      }],
+    },
+    loopDurationMs: 2_000,
+  })
+  // Frame x 0, y 0, width 0.5, height 1: center (0.25, 0.5), rx 0.25, ry 0.5.
+  const frame = { enabled: true, x: 0, y: 0, width: 0.5, height: 1 }
+
+  it('clips a hard diamond to the inscribed rhombus', () => {
+    const artifact = compileShow(catalogueStack({ ...frame, aperture: 'diamond', edge: 'hard' }) as never, {})
+    const { handle, pixel } = loadShow(artifact.code, artifact.metadata, 25)
+
+    handle.beforeRender(100)
+    handle.render2D(11, 0.25, 0.5)
+    expect(pixel()).toEqual([0, 0, 1])
+    // Frame corner region: inside the rectangle, outside the rhombus.
+    handle.render2D(5, 0, 0.25)
+    expect(pixel()).toEqual([1, 0, 0])
+    // Midline point halfway to the vertex stays inside.
+    handle.render2D(16, 0.25, 0.75)
+    expect(pixel()).toEqual([0, 0, 1])
+  })
+
+  it('cuts the ring hole and keeps the annulus band', () => {
+    const artifact = compileShow(catalogueStack({
+      ...frame, aperture: 'ring', ringWidth: 0.5, edge: 'hard',
+    }) as never, {})
+    const { handle, pixel } = loadShow(artifact.code, artifact.metadata, 25)
+
+    handle.beforeRender(100)
+    // The center falls in the hole.
+    handle.render2D(11, 0.25, 0.5)
+    expect(pixel()).toEqual([1, 0, 0])
+    // The outer boundary belongs to the band.
+    handle.render2D(12, 0.5, 0.5)
+    expect(pixel()).toEqual([0, 0, 1])
+    // The inner boundary (radius 0.5 of unit) also belongs to the band.
+    handle.render2D(16, 0.25, 0.75)
+    expect(pixel()).toEqual([0, 0, 1])
+  })
+
+  it('rounds the box corners away while keeping the faces', () => {
+    const artifact = compileShow(catalogueStack({
+      ...frame, aperture: 'rounded-box', cornerRadius: 0.5, edge: 'hard',
+    }) as never, {})
+    const { handle, pixel } = loadShow(artifact.code, artifact.metadata, 25)
+
+    handle.beforeRender(100)
+    handle.render2D(11, 0.25, 0.5)
+    expect(pixel()).toEqual([0, 0, 1])
+    // The face midpoint stays exactly on the boundary, which hard includes.
+    handle.render2D(10, 0, 0.5)
+    expect(pixel()).toEqual([0, 0, 1])
+    // The square corner is cut off by the radius.
+    handle.render2D(0, 0, 0)
+    expect(pixel()).toEqual([1, 0, 0])
+  })
+
+  it('discloses catalogue shapes and rejects bad band parameters', () => {
+    const artifact = compileShow(catalogueStack({ ...frame, aperture: 'ring', ringWidth: 0.5 }) as never, {})
+    expect(artifact.summary.specializations.apertures).toEqual([expect.objectContaining({
+      shape: 'ring',
+      edge: 'soft',
+      feather: 'density-default',
+    })])
+    expect(() => compileShow(catalogueStack({ ...frame, aperture: 'ring', ringWidth: 0 }) as never, {}))
+      .toThrow('aperture')
+    expect(() => compileShow(catalogueStack({ ...frame, aperture: 'rounded-box', cornerRadius: Number.NaN }) as never, {}))
+      .toThrow('aperture')
+  })
+})

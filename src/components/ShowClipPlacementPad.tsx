@@ -38,6 +38,45 @@ const CONTENT = '#a78bfa'
 const APERTURE = '#e6b85c'
 const CORNERS: readonly PlacementCorner[] = ['nw', 'ne', 'sw', 'se']
 
+/**
+ * The silhouette both the scrim hole and the dashed outline share. The pad is
+ * a stylized proxy, so the rounded-box corner uses one circular radius from
+ * the shorter side rather than the exact per-axis ellipse.
+ */
+function apertureHolePath(
+  window: { left: number; top: number; width: number; height: number },
+  viewport: ShowClipViewport,
+  toPad: (unit: number) => number,
+  span: (unit: number) => number,
+): string {
+  const left = toPad(window.left)
+  const top = toPad(window.top)
+  const width = span(window.width)
+  const height = span(window.height)
+  const cx = left + width / 2
+  const cy = top + height / 2
+  const rx = width / 2
+  const ry = height / 2
+  const ellipsePath = (radiusX: number, radiusY: number) => (
+    `M${cx - radiusX},${cy} a${radiusX},${radiusY} 0 1 0 ${2 * radiusX},0 a${radiusX},${radiusY} 0 1 0 ${-2 * radiusX},0 Z`
+  )
+  if (viewport.aperture === 'ellipse') return ellipsePath(rx, ry)
+  if (viewport.aperture === 'diamond') {
+    return `M${cx},${top}L${left + width},${cy}L${cx},${top + height}L${left},${cy}Z`
+  }
+  if (viewport.aperture === 'ring') {
+    const inner = 1 - (viewport.ringWidth ?? 0.25)
+    return `${ellipsePath(rx, ry)} ${ellipsePath(rx * inner, ry * inner)}`
+  }
+  if (viewport.aperture === 'rounded-box') {
+    const radius = Math.min(rx, ry) * (viewport.cornerRadius ?? 0.25)
+    const right = left + width
+    const bottom = top + height
+    return `M${left + radius},${top}H${right - radius}A${radius},${radius} 0 0 1 ${right},${top + radius}V${bottom - radius}A${radius},${radius} 0 0 1 ${right - radius},${bottom}H${left + radius}A${radius},${radius} 0 0 1 ${left},${bottom - radius}V${top + radius}A${radius},${radius} 0 0 1 ${left + radius},${top}Z`
+  }
+  return `M${left},${top}V${top + height}H${left + width}V${top}Z`
+}
+
 type DragKind =
   | { kind: 'content-move'; grabX: number; grabY: number }
   | { kind: 'content-corner'; anchor: { x: number; y: number } }
@@ -92,7 +131,8 @@ export function ShowClipPlacementPad({
   const viewport = live?.viewport ?? committedViewport
   const context: PlacementPadContext = { transform, viewport, grid }
   const apertureOn = viewport.enabled
-  const ellipseAperture = viewport.aperture === 'ellipse'
+  const apertureShape = viewport.aperture
+  const shapedAperture = apertureShape !== undefined
   const focus = controlledFocus ?? uncontrolledFocus
   const active = focus
   const contentFocused = active === 'content'
@@ -353,9 +393,7 @@ export function ShowClipPlacementPad({
             Handles are re-raised above it so they stay grabbable. */}
         {apertureVisible && <>
           {apertureOn && <path
-              d={ellipseAperture
-                ? `M0,0H${PAD}V${PAD}H0Z M${toPad(window.left)},${toPad(window.top + window.height / 2)} a${span(window.width) / 2},${span(window.height) / 2} 0 1 0 ${span(window.width)},0 a${span(window.width) / 2},${span(window.height) / 2} 0 1 0 ${-span(window.width)},0 Z`
-                : `M0,0H${PAD}V${PAD}H0Z M${toPad(window.left)},${toPad(window.top)}V${toPad(window.top + window.height)}H${toPad(window.left + window.width)}V${toPad(window.top)}Z`}
+              d={`M0,0H${PAD}V${PAD}H0Z ${apertureHolePath(window, viewport, toPad, span)}`}
               fill="#09090b"
               fillOpacity="0.72"
               fillRule="evenodd"
@@ -369,18 +407,16 @@ export function ShowClipPlacementPad({
             height={span(window.height)}
             fill="none"
             stroke={APERTURE}
-            strokeWidth={ellipseAperture ? 1 : 1.5}
-            strokeOpacity={ellipseAperture ? (apertureActive ? 0.35 : 0.15) : apertureActive ? 1 : 0.4}
-            strokeDasharray={ellipseAperture ? '2 4' : '6 3'}
+            strokeWidth={shapedAperture ? 1 : 1.5}
+            strokeOpacity={shapedAperture ? (apertureActive ? 0.35 : 0.15) : apertureActive ? 1 : 0.4}
+            strokeDasharray={shapedAperture ? '2 4' : '6 3'}
             pointerEvents="none"
           />
-          {ellipseAperture && <ellipse
-            data-testid="placement-pad-aperture-ellipse"
-            cx={toPad(window.left + window.width / 2)}
-            cy={toPad(window.top + window.height / 2)}
-            rx={span(window.width) / 2}
-            ry={span(window.height) / 2}
+          {shapedAperture && <path
+            data-testid={`placement-pad-aperture-${apertureShape}`}
+            d={apertureHolePath(window, viewport, toPad, span)}
             fill="none"
+            fillRule="evenodd"
             stroke={APERTURE}
             strokeWidth="1.5"
             strokeOpacity={apertureActive ? 1 : 0.4}

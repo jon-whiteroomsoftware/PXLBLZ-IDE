@@ -539,8 +539,10 @@ edit the focused **Content** or **Aperture** rectangle; the other rectangle
 appears as a compact summary above them and switches focus when clicked.
 Selecting an absent Aperture enables it over the Content's visible bounds.
 With the Aperture focused, a **Shape** control chooses the silhouette inside
-the frame - Rectangle, or an inscribed Ellipse whose soft edge is the default -
-and an **Edge** control switches Soft and Hard. Soft edges feather over a
+the frame - Rectangle, or an inscribed Ellipse, Diamond, Ring, or Rounded box,
+whose soft edge is the default - and an **Edge** control switches Soft and
+Hard. Ring exposes a **Ring width** and Rounded box a **Corner radius**, both
+as fractions of the frame. Soft edges feather over a
 width derived from the device's pixel density; entering an explicit **Edge
 width** overrides it, and `0` restores the automatic width. A square frame
 makes the Ellipse a circle; hold Shift while corner-dragging the Aperture to

@@ -448,7 +448,7 @@ export interface ShowClipTransform {
 }
 
 /** Optional placement-owned, axis-aligned clipping rectangle in normalized Zone coordinates. */
-export type ShowClipApertureShape = 'rectangle' | 'ellipse'
+export type ShowClipApertureShape = 'rectangle' | 'ellipse' | 'diamond' | 'ring' | 'rounded-box'
 
 export type ShowClipApertureEdge = 'hard' | 'soft'
 
@@ -464,6 +464,10 @@ export interface ShowClipViewport {
   edge?: ShowClipApertureEdge
   /** Authored soft-band width in normalized Zone units. Missing = density default. */
   feather?: number
+  /** Ring only: band thickness as a fraction of the unit radius. */
+  ringWidth?: number
+  /** Rounded-box only: corner radius as a fraction of the half-side. */
+  cornerRadius?: number
 }
 
 export interface ShowMainPlacement {

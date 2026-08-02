@@ -419,6 +419,55 @@ const ROWS: RoundTripRow[] = [
     },
   },
   {
+    name: 'Aperture shape stores each catalogue silhouette',
+    scopes: ['scene-main'],
+    tab: 'Place',
+    seed: { viewport: { enabled: true } },
+    prepare: () => fireEvent.click(screen.getByRole('button', { name: 'Aperture summary' })),
+    drive: () => choose('Aperture shape', 'diamond'),
+    expected: (value) => ({ ...value, viewport: { ...value.viewport, aperture: 'diamond' } }),
+    display: () => {
+      expect(screen.getByRole('combobox', { name: 'Aperture shape' })).toHaveValue('diamond')
+      expect(screen.getByRole('combobox', { name: 'Aperture edge' })).toHaveValue('soft')
+    },
+  },
+  {
+    name: 'Ring width stores a clamped band fraction',
+    scopes: ['scene-main'],
+    tab: 'Place',
+    seed: { viewport: { enabled: true, aperture: 'ring' } },
+    prepare: () => fireEvent.click(screen.getByRole('button', { name: 'Aperture summary' })),
+    drive: () => typeAndCommit('Aperture ring width', '0.5'),
+    expected: (value) => ({ ...value, viewport: { ...value.viewport, ringWidth: 0.5 } }),
+    display: () => expectValue('Aperture ring width', '0.5'),
+  },
+  {
+    name: 'Corner radius stores a clamped rounding fraction',
+    scopes: ['scene-main'],
+    tab: 'Place',
+    seed: { viewport: { enabled: true, aperture: 'rounded-box' } },
+    prepare: () => fireEvent.click(screen.getByRole('button', { name: 'Aperture summary' })),
+    drive: () => typeAndCommit('Aperture corner radius', '0.4'),
+    expected: (value) => ({ ...value, viewport: { ...value.viewport, cornerRadius: 0.4 } }),
+    display: () => expectValue('Aperture corner radius', '0.4'),
+  },
+  {
+    name: 'leaving a parametered shape drops its parameter',
+    scopes: ['scene-main'],
+    tab: 'Place',
+    seed: { viewport: { enabled: true, aperture: 'ring', ringWidth: 0.5 } },
+    prepare: () => fireEvent.click(screen.getByRole('button', { name: 'Aperture summary' })),
+    drive: () => choose('Aperture shape', 'ellipse'),
+    expected: (value) => ({
+      ...value,
+      viewport: { ...value.viewport, aperture: 'ellipse', ringWidth: undefined },
+    }),
+    display: () => {
+      expect(screen.getByRole('combobox', { name: 'Aperture shape' })).toHaveValue('ellipse')
+      expect(screen.queryByRole('textbox', { name: 'Aperture ring width' })).toBeNull()
+    },
+  },
+  {
     name: 'Aperture edge stores an explicit hard override',
     scopes: ['scene-main'],
     tab: 'Place',
