@@ -351,6 +351,10 @@ export interface ShowSceneSequenceRecipe {
 export interface ShowRoutedScenePlacementRecipe {
   /** Stable authored placement id used by placement-owned local tracks. */
   placementId?: string
+  /** Logical Clip identity when this placement is one segment of a Clip
+   * spanning authored Scene boundaries; presentation captures coallocate
+   * on it while tracks keep binding to the segment placementId. */
+  logicalClipId?: string
   zoneName: string
   clipId: string
   /** Back-to-front order inside one Zone. Omitted flat placements are order 0. */
@@ -1141,6 +1145,9 @@ function buildShowRenderTargetCandidates(
       exactness: 'authored-snapshot',
       authorSelected: true,
       required: true,
+      // Snapshot/live boundaries degrade to live/live with a warning, so a
+      // hard-required held-Clip capture spanning the boundary wins the arena.
+      degradable: true,
       setupCost: pixelCount,
       perFrameSavings: pixelCount,
       expectedReuseCount: Math.max(1, Math.ceil(duration / (1_000 / 30)) - 1),
@@ -1262,13 +1269,14 @@ function buildFreezeAtEntryCandidates(
         estimateShowPatternRenderOperations(member.resourceSource, 'render2D') ?? 0,
         1,
       )
-      const presentationOwnerKey = placement.presentation?.mode === 'freeze' && placement.placementId
-        ? placement.placementId
+      const presentationOwnerId = placement.logicalClipId ?? placement.placementId
+      const presentationOwnerKey = placement.presentation?.mode === 'freeze' && presentationOwnerId
+        ? presentationOwnerId
         : `scene:${sceneIndex}:placement:${placementIndex}`
       const candidate: ShowRenderTargetCandidate = {
         id: `freeze:routed:${sceneIndex}:${placementIndex}:${clipId}`,
         kind: 'rgb-snapshot',
-        materializationKey: placement.presentation?.mode === 'freeze' && placement.placementId
+        materializationKey: placement.presentation?.mode === 'freeze' && presentationOwnerId
           ? `freeze:${presentationOwnerKey}`
           : undefined,
         lifetime: {
@@ -1358,13 +1366,14 @@ function buildRefreshCandidates(
       )
       const expectedFrameCount = Math.max(1, Math.ceil(scene.holdMs / (1_000 / 30)))
       const expectedCaptureCount = Math.max(1, Math.ceil(scene.holdMs / cadenceMs))
-      const presentationOwnerKey = placement.presentation?.mode === 'strobe' && placement.placementId
-        ? placement.placementId
+      const presentationOwnerId = placement.logicalClipId ?? placement.placementId
+      const presentationOwnerKey = placement.presentation?.mode === 'strobe' && presentationOwnerId
+        ? presentationOwnerId
         : `scene:${sceneIndex}:placement:${placementIndex}`
       const candidate: ShowRenderTargetCandidate = {
         id: `refresh:routed:${sceneIndex}:${placementIndex}:${clipId}`,
         kind: 'rgb-snapshot',
-        materializationKey: placement.presentation?.mode === 'strobe' && placement.placementId
+        materializationKey: placement.presentation?.mode === 'strobe' && presentationOwnerId
           ? `strobe:${presentationOwnerKey}`
           : undefined,
         lifetime: {

@@ -2752,8 +2752,14 @@ lifetimes reuse the same numbers, including two successive three-plane
 Transition snapshots. Compiler-derived intervals carrying one stable
 materialization key coallocate the same planes even when their lifetimes
 overlap; Freeze and Strobe use this path when one placement spans an internal
-Scene boundary. One authored ownership exception allows Show-lifetime
-`previous-rgb` Trails and a required Transition `rgb-snapshot` to bind the same
+Scene boundary, and the key comes from the logical Clip identity, so segments
+of one logical Clip spanning authored Scene boundaries coallocate the same
+way. Snapshot/live Transition snapshots are required but degradable: they rank
+below hard-required presentation captures, so a held Clip spanning the
+boundary keeps its capture and the boundary demotes to live/live with a
+compile warning instead of failing. One authored ownership exception allows
+Show-lifetime `previous-rgb` Trails and a required Transition `rgb-snapshot`
+to bind the same
 three planes: generated code suspends and clears Trails for the complete
 Transition lifetime, then seeds it again after the boundary. Explicit semantic
 conflicts and every other insufficient overlapping-capacity case reject the

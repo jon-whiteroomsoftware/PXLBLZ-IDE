@@ -136,6 +136,8 @@ export interface ShowCompileRecipeSourceLookup {
   compositionLayerByCellId?: Record<string, { stackOrder: number; opacity: number }>
   /** Transient authored placement identity for placement-owned local tracks. */
   compositionPlacementIdByCellId?: Record<string, string>
+  /** Transient logical Clip identity for segments spanning authored Scenes. */
+  compositionLogicalClipIdByCellId?: Record<string, string>
   /** Full source-Scene tracks plus the derived hold's offset into local time. */
   compositionPropertyTracksBySceneId?: Record<string, {
     localTimeOffsetMs: number
@@ -2556,6 +2558,9 @@ function showRecordToRoutedSceneSequenceRecipe(
               return {
                 ...(lookup.compositionPlacementIdByCellId?.[cell.id]
                   ? { placementId: lookup.compositionPlacementIdByCellId[cell.id] }
+                  : {}),
+                ...(lookup.compositionLogicalClipIdByCellId?.[cell.id]
+                  ? { logicalClipId: lookup.compositionLogicalClipIdByCellId[cell.id] }
                   : {}),
                 zoneName: zone.name,
                 clipId: clipIdByCellId.get(cell.id) ?? cell.id,

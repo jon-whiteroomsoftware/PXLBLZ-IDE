@@ -505,4 +505,61 @@ describe('Show composition compiler lowering (#488)', () => {
     expect(target).toBeDefined()
     expect(boundary?.propertyTransitions?.brightness?.fromByCellId).toEqual({ [target!.id]: 0.25 })
   })
+
+  it.each([
+    ['Freeze', { mode: 'freeze' } as const],
+    ['Strobe', { mode: 'strobe', cadenceMs: 1_000 } as const],
+  ])('compiles a held %s logical Clip spanning the authored Scene boundary (#693)', (_label, presentation) => {
+    const show = fixture()
+    show.composition!.scenes = [
+      {
+        sceneId: 'scene-1',
+        zones: [{
+          zoneId: 'zone-1',
+          main: [{
+            id: 'held',
+            instanceId: 'instance-a',
+            startMs: 0,
+            durationMs: 30_000,
+            view: { mirror: false, phase: 0, brightness: 1 },
+            presentation,
+          }],
+          overlays: [],
+        }],
+      },
+      {
+        sceneId: 'scene-2',
+        zones: [{
+          zoneId: 'zone-1',
+          main: [{
+            id: 'held--span-scene-2',
+            logicalClipId: 'held',
+            instanceId: 'instance-a',
+            startMs: 0,
+            durationMs: 10_000,
+            view: { mirror: false, phase: 0, brightness: 1 },
+            presentation,
+          }, {
+            id: 'after',
+            instanceId: 'instance-b',
+            startMs: 10_000,
+            durationMs: 20_000,
+            view: { mirror: false, phase: 0, brightness: 1 },
+          }],
+          overlays: [],
+        }],
+      },
+    ]
+
+    const recipe = showRecordToCompileRecipe(show, lookup(show))
+    const spanPlacement = recipe.routedSceneSequence?.scenes[1].placements[0]
+
+    expect(spanPlacement).toMatchObject({
+      placementId: 'held--span-scene-2',
+      logicalClipId: 'held',
+      clipId: 'instance-a',
+    })
+    expect(recipe.routedSceneSequence?.scenes[0].placements[0].logicalClipId).toBeUndefined()
+    expect(() => compileShow(recipe, {})).not.toThrow()
+  })
 })

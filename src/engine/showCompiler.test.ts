@@ -1924,6 +1924,100 @@ export function render2D(index, x, y) { rgb(x, y, 0) }
     expect(compile).toThrow(new RegExp(`${label} Clip presentation cannot be compiled exactly.*insufficient-overlap-capacity`))
   })
 
+  it.each([
+    ['Freeze', { mode: 'freeze' } as const],
+    ['Strobe', { mode: 'strobe', cadenceMs: 5_000 } as const],
+  ])('keeps one %s capture across an authored Scene boundary for one logical Clip (#693)', (_label, presentation) => {
+    const zones = [{ id: 'main', name: 'main', ranges: [{ start: 0, end: 3 }] }]
+    const artifact = compileShow({
+      clips: [{
+        id: 'shared',
+        source: 'export var clock = 0\nexport function beforeRender(delta) { clock = clock + delta / 1000 }\nexport function render2D(index, x, y) { rgb(clock, 0, 0) }',
+      }],
+      zones,
+      routingLayouts: [{ id: 'default', name: 'Default', zones }],
+      routedSceneSequence: { scenes: [
+        {
+          holdMs: 500,
+          placements: [{
+            placementId: 'held',
+            zoneName: 'main',
+            clipId: 'shared',
+            presentation,
+          }],
+          transitionOut: { kind: 'crossfade', durationMs: 500, crossfadePolicy: 'live-live' },
+        },
+        {
+          holdMs: 500,
+          placements: [{
+            placementId: 'held--span-scene-2',
+            logicalClipId: 'held',
+            zoneName: 'main',
+            clipId: 'shared',
+            presentation,
+          }],
+        },
+      ] },
+      loopDurationMs: 1_500,
+    }, {})
+    const { handle, pixel } = loadShow(artifact.code, artifact.metadata, 4)
+    const renderFrame = () => [0, 1, 2, 3].map((index) => {
+      handle.render2D(index, index % 2, Math.floor(index / 2))
+      return pixel()[0]
+    })
+
+    handle.beforeRender(100)
+    const entry = renderFrame()
+    handle.beforeRender(1_100)
+    const afterAuthoredBoundary = renderFrame()
+
+    expect(afterAuthoredBoundary).toEqual(entry)
+  })
+
+  it.each([
+    ['Freeze', 'freezeAtEntry' as const, { mode: 'freeze' } as const],
+    ['Strobe', 'refresh' as const, { mode: 'strobe', cadenceMs: 1_000 } as const],
+  ])('demotes a snapshot-live boundary spanned by a held %s Clip to live-live (#693)', (_label, family, presentation) => {
+    const zones = [{ id: 'main', name: 'main', ranges: [{ start: 0, end: 3 }] }]
+    const artifact = compileShow({
+      clips: [{
+        id: 'shared',
+        source: 'export function render2D(index, x, y) { rgb(x, y, 0) }',
+      }],
+      zones,
+      routingLayouts: [{ id: 'default', name: 'Default', zones }],
+      routedSceneSequence: { scenes: [
+        {
+          holdMs: 500,
+          placements: [{
+            placementId: 'held',
+            zoneName: 'main',
+            clipId: 'shared',
+            presentation,
+          }],
+          transitionOut: { kind: 'crossfade', durationMs: 500, crossfadePolicy: 'snapshot-live' },
+        },
+        {
+          holdMs: 500,
+          placements: [{
+            placementId: 'held--span-scene-2',
+            logicalClipId: 'held',
+            zoneName: 'main',
+            clipId: 'shared',
+            presentation,
+          }],
+        },
+      ] },
+      loopDurationMs: 1_500,
+    }, {})
+
+    expect(artifact.summary.specializations[family].captures.map((capture) => capture.status))
+      .toEqual(['selected', 'selected'])
+    expect(artifact.summary.warnings).toEqual([expect.stringMatching(
+      /transition:routed:0:snapshot-live fell back to live\/live \(insufficient-overlap-capacity\)/,
+    )])
+  })
+
   it('does not intern Show-score stacks that differ only by Blink (#586)', () => {
     const zones = [{ id: 'main', name: 'main', ranges: [{ start: 0, end: 3 }] }]
     const placement = (brightness: number, blink = false) => ({

@@ -46,6 +46,7 @@ export function lowerShowCompositionForCompile(
   const instanceIdByCellId = { ...(lookup.instanceIdByCellId ?? {}) }
   const compositionLayerByCellId = { ...(lookup.compositionLayerByCellId ?? {}) }
   const compositionPlacementIdByCellId = { ...(lookup.compositionPlacementIdByCellId ?? {}) }
+  const compositionLogicalClipIdByCellId = { ...(lookup.compositionLogicalClipIdByCellId ?? {}) }
   const compositionPropertyTracksBySceneId = { ...(lookup.compositionPropertyTracksBySceneId ?? {}) }
   const cells: ShowCell[] = []
   const scenes: ShowScene[] = []
@@ -179,6 +180,7 @@ export function lowerShowCompositionForCompile(
           instanceIdByCellId[cellId] = instance.id
           compositionLayerByCellId[cellId] = { stackOrder, opacity }
           compositionPlacementIdByCellId[cellId] = placement.id
+          if (placement.logicalClipId) compositionLogicalClipIdByCellId[cellId] = placement.logicalClipId
           if (intervalIndex === 0 && stackOrder === 0) {
             const flatCell = flatCellAtSlot(show, zone.id, scene.id)
             if (flatCell) derivedCellIdByFlatCellId.set(flatCell.id, cellId)
@@ -210,6 +212,7 @@ export function lowerShowCompositionForCompile(
       instanceIdByCellId,
       compositionLayerByCellId,
       compositionPlacementIdByCellId,
+      compositionLogicalClipIdByCellId,
       compositionPropertyTracksBySceneId,
       compositionTransitionZoneIdByTransitionId,
     },

@@ -35,6 +35,8 @@ export interface ShowRenderTargetCandidate {
   exactness: ShowRenderTargetExactness
   authorSelected?: boolean
   required?: boolean
+  /** Required with a documented live fallback; yields planes to hard-required captures. */
+  degradable?: boolean
   setupCost: number
   perFrameSavings: number
   expectedReuseCount: number
@@ -145,6 +147,7 @@ export function planShowRenderTargetCaches(
   const ranked = eligible
     .sort((left, right) => (
       Number(Boolean(right.candidate.required)) - Number(Boolean(left.candidate.required))
+      || Number(Boolean(left.candidate.degradable)) - Number(Boolean(right.candidate.degradable))
       || exactnessRank(left.candidate.exactness) - exactnessRank(right.candidate.exactness)
       || right.estimatedSavedWork - left.estimatedSavedWork
       || left.contract.planeCount - right.contract.planeCount

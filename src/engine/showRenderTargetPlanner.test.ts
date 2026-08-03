@@ -88,6 +88,45 @@ describe('Show render-target cache planner (#517)', () => {
     expect(plan.peakPlaneCount).toBe(3)
   })
 
+  it('lets a hard-required capture displace an overlapping degradable snapshot (#693)', () => {
+    const snapshot = {
+      id: 'transition:routed:0:snapshot-live',
+      kind: 'rgb-snapshot' as const,
+      degradable: true,
+      lifetime: { kind: 'transition' as const, start: 500, end: 1_000, key: 'boundary-0' },
+      invalidatedBy: ['transition-exit', 'show-loop'],
+      exactness: 'authored-snapshot' as const,
+      authorSelected: true,
+      required: true,
+      setupCost: 4_000,
+      perFrameSavings: 400_000,
+      expectedReuseCount: 100,
+      replayCost: 1_000,
+    }
+    const capture = {
+      id: 'refresh:routed:0:0:held',
+      kind: 'rgb-snapshot' as const,
+      materializationKey: 'strobe:held',
+      lifetime: { kind: 'scene' as const, start: 0, end: 1_000, key: 'refresh-scene-0' },
+      invalidatedBy: ['refresh-cadence', 'clip-exit'],
+      exactness: 'authored-snapshot' as const,
+      authorSelected: true,
+      required: true,
+      setupCost: 4_000,
+      perFrameSavings: 4_000,
+      expectedReuseCount: 10,
+      replayCost: 1_000,
+    }
+    const plan = planShowRenderTargetCaches([snapshot, capture])
+
+    expect(plan.assignments.map(({ candidateId }) => candidateId)).toEqual([capture.id])
+    expect(plan.decisions.find((decision) => decision.candidateId === snapshot.id)).toMatchObject({
+      status: 'rejected',
+      reason: 'insufficient-overlap-capacity',
+      conflictsWith: [capture.id],
+    })
+  })
+
   it('partitions overlapping planes and explains a candidate that cannot fit', () => {
     const plan = planShowRenderTargetCaches([
       {
