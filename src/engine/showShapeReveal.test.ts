@@ -122,6 +122,22 @@ describe('common and signature SDF catalogue (#452)', () => {
     })
   })
 
+  it('shapes the Heart with lobes, a cleft, and a sharp point (#692)', () => {
+    const radius = 0.5
+    const metricAt = (angle: number) => showShapeRevealDistance({
+      x: 0.5 + radius * Math.cos(angle), y: 0.5 + radius * Math.sin(angle),
+      centerX: 0.5, centerY: 0.5, shape: 'heart', aspect: 1,
+    })
+    // Cleft: the up-center boundary dips below both lobe peaks.
+    expect(metricAt(-Math.PI / 2)).toBeGreaterThan(metricAt(-Math.PI / 2 - 0.72))
+    expect(metricAt(-Math.PI / 2)).toBeGreaterThan(metricAt(-Math.PI / 2 + 0.72))
+    // Point: down-center reaches farther than the down-diagonals.
+    expect(metricAt(Math.PI / 2)).toBeLessThan(metricAt(Math.PI / 2 - 0.7))
+    expect(metricAt(Math.PI / 2)).toBeLessThan(metricAt(Math.PI / 2 + 0.7))
+    // The point is farther out than the lobes: hearts are bottom-heavy.
+    expect(metricAt(Math.PI / 2)).toBeLessThan(metricAt(-Math.PI / 2 - 0.72))
+  })
+
   it('cuts a real crescent hole while preserving Grow and Shrink polarity', () => {
     const shared = {
       centerX: 0.5, centerY: 0.5, shape: 'crescent' as const,

@@ -64,7 +64,7 @@ const HELPER_SOURCES: ReadonlyArray<{ name: string; source: string }> = [
     name: '__pxlblz_show_gauge_heart',
     source: `function __pxlblz_show_gauge_heart(u, v) {
   var angle = atan2(v, u)
-  return hypot(u, v) / max(0.25, 0.75 + 0.2 * sin(angle) - 0.15 * cos(angle * 2))
+  return hypot(u, v) / (0.54 + 0.32 * (__pxlblz_show_gauge_bump(angle, ${-Math.PI / 2 - 0.72}, 0.9) + __pxlblz_show_gauge_bump(angle, ${-Math.PI / 2 + 0.72}, 0.9)) + 0.46 * __pxlblz_show_gauge_tent(angle, ${Math.PI / 2}, 1.9))
 }`,
   },
   {

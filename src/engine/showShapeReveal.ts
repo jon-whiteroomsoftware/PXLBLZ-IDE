@@ -64,8 +64,15 @@ export function showShapeRevealDistance(input: {
     return radial / (inner + (1 - inner) * spike)
   }
   if (input.shape === 'heart') {
-    const boundary = Math.max(0.25, 0.75 + 0.2 * Math.sin(angle) - 0.15 * Math.cos(angle * 2))
-    return radial / boundary
+    // Two round lobes astride an up-center cleft, and a linear tent for the
+    // sharp bottom point; the old smooth-trig boundary could only make an
+    // egg (#692).
+    const lobes = 0.32 * (
+      smoothAngularBump(angle, -Math.PI / 2 - 0.72, 0.9)
+      + smoothAngularBump(angle, -Math.PI / 2 + 0.72, 0.9)
+    )
+    const point = 0.46 * angularBump(angle, Math.PI / 2, 1.9)
+    return radial / (0.54 + lobes + point)
   }
   if (input.shape === 'cloud') {
     // Cumulus gauge: a taller center lobe flanked by two side lobes (union by
