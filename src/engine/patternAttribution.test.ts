@@ -113,6 +113,12 @@ ${body}`)).toEqual(['ZRanger1'])
       expect(extractPatternAuthors(`// Fixed: 2022-10-09 Render Cache${body}`)).toEqual([])
     })
 
+    it('rejects single-word dated changelog remainders (#684 review)', () => {
+      expect(extractPatternAuthors(`// 2022-10-09 Reordered${body}`)).toEqual([])
+      expect(extractPatternAuthors(`// Tested 10/09/2022${body}`)).toEqual([])
+      expect(extractPatternAuthors(`// 10/09/2022 hotfix${body}`)).toEqual([])
+    })
+
     it('rejects bare dates, URLs, digit-led remainders, and title lines', () => {
       expect(extractPatternAuthors(`// 10/09/2022${body}`)).toEqual([])
       expect(extractPatternAuthors(`// https://github.com/zranger1 10/09/2022${body}`)).toEqual([])

@@ -89,15 +89,15 @@ function signatureAuthor(line: string): string | null {
   if (words.length > SIGNATURE_NAME_MAX_WORDS) return null
   if (!/^[a-z]/i.test(words[0])) return null
   if (words.some((word) => SIGNATURE_STOP_WORDS.has(word.toLowerCase()))) return null
+  // Every remainder must begin like a proper name or handle, never lowercase
+  // prose or an unbounded past/progressive changelog verb.
+  if (!/^[A-Z]/.test(words[0]) && !/\d/.test(words[0])) return null
+  if (words[0].length >= 5 && /(?:ed|ing)$/i.test(words[0])) return null
   if (words.length > 1) {
     // Multi-word remainders must read as a proper name or handle, not prose.
     // The changelog-verb space is unbounded, so the no-false-authors invariant
-    // wins over completeness: a first word shaped like a past/progressive verb
-    // is conservatively skipped even though it loses rare names like "Alfred
-    // Jones", and three words are a name only around a lowercase particle
-    // ("Ludwig van Beethoven"), never plain prose ("Corrected Render Cache").
-    if (!/^[A-Z]/.test(words[0]) && !/\d/.test(words[0])) return null
-    if (words[0].length >= 5 && /(?:ed|ing)$/i.test(words[0])) return null
+    // wins over completeness: three words are a name only around a lowercase
+    // particle ("Ludwig van Beethoven"), never plain prose ("Corrected Render Cache").
     const rest = words.slice(1)
     if (!rest.every((word) => /^[A-Z]/.test(word) || /\d/.test(word) || SIGNATURE_NAME_PARTICLES.has(word))) return null
     if (words.length === 3 && !SIGNATURE_NAME_PARTICLES.has(words[1])) return null
