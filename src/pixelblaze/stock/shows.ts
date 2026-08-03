@@ -1678,6 +1678,11 @@ function propertyAnimationReference(): StockShow {
   }
   const composition: ShowCompositionV1 = {
     version: 1,
+    // Deterministic loop (review P2): the scene-local pairs accumulate
+    // different Pattern time within their passage - that divergence is the
+    // demonstration - so on wrap they must reset rather than resume, or the
+    // twins re-enter already out of phase on every loop after the first.
+    executionModel: 'deterministic-loop',
     patternInstances,
     scenes: properties.map(([sceneId]) => {
       const mainA = {
@@ -1728,7 +1733,11 @@ function propertyAnimationReference(): StockShow {
       summary: 'The Stage and timeline highlight one animatable property at a time. Try with Pattern replaces the constant comparison Pattern while the animated subject and its Property track stay intact.',
       patternSlots: {
         cellIds: properties.map(([sceneId]) => cellId(sceneId, 'zone-2')),
-        instanceIds: ['instance-property-comparison'],
+        instanceIds: [
+          'instance-property-comparison',
+          'instance-property-comparison-speed',
+          'instance-property-comparison-control',
+        ],
       },
       examples: [
         ...properties.slice(0, 7).map(([sceneId, label]) => ({

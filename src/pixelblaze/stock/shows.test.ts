@@ -97,7 +97,11 @@ describe('stock Show curriculum (#363)', () => {
     expect(referenceShows.find((item) => item.id === 'stock-show-reference-property-animation')?.reference?.patternSlots)
       .toMatchObject({
         cellIds: expect.arrayContaining(['cell-animation-speed-zone-2', 'cell-repeat-scale-zone-2']),
-        instanceIds: ['instance-property-comparison'],
+        instanceIds: [
+          'instance-property-comparison',
+          'instance-property-comparison-speed',
+          'instance-property-comparison-control',
+        ],
       })
 
     const referenceSection = STOCK_SHOWS.filter((item) => (

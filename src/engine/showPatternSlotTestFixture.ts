@@ -58,5 +58,10 @@ export function createPropertySlotQualificationShow(): ShowRecord {
     if (!controlledCloneIds.has(instance.id)) delete instance.controlTargets
   }
   composition.patternInstances = expanded
+  // The shipping reference opts into the deterministic loop so its
+  // scene-local twins reset on wrap; this fixture preserves the compile
+  // boundary the #546 exchange was measured under, which predates that
+  // opt-in.
+  delete composition.executionModel
   return show
 }
