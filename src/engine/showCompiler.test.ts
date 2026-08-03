@@ -40,7 +40,8 @@ function loadShow(code: string, metadata: ReturnType<typeof compileShow>['metada
     cos: Math.cos,
     floor: Math.floor,
     frac(v: number) {
-      return v - Math.floor(v)
+      // Firmware-accurate: Pixelblaze frac truncates toward zero (#691).
+      return v - Math.trunc(v)
     },
     max: Math.max,
     min: Math.min,

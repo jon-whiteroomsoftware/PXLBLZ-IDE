@@ -16,7 +16,8 @@ function evaluateGauge(expression: string, u: number, v: number): number {
   const runner = new Function('u', 'v', `
     var abs = Math.abs, max = Math.max, min = Math.min
     var sin = Math.sin, cos = Math.cos, atan2 = Math.atan2, hypot = Math.hypot
-    var frac = function (value) { return value - Math.floor(value) }
+    // Firmware-accurate frac truncates toward zero (#691).
+    var frac = function (value) { return value - Math.trunc(value) }
     var __pxlblz_gauge_result = 0
     ${program}
     return __pxlblz_gauge_result

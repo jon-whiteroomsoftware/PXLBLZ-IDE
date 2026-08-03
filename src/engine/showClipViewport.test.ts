@@ -199,7 +199,8 @@ describe('unified aperture silhouette catalogue (#690)', () => {
     const runner = new Function('x', 'y', 'index', 'pixelCount', `
       var abs = Math.abs, max = Math.max, min = Math.min, sqrt = Math.sqrt
       var sin = Math.sin, cos = Math.cos, atan2 = Math.atan2, hypot = Math.hypot
-      var frac = function (value) { return value - Math.floor(value) }
+      // Firmware-accurate frac truncates toward zero (#691).
+    var frac = function (value) { return value - Math.trunc(value) }
       var clamp = function (value, low, high) { return Math.max(low, Math.min(high, value)) }
       var __pxlblz_mask_result = 0
       ${program}

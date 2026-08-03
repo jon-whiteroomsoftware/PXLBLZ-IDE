@@ -23,16 +23,20 @@ export interface SpatialGaugeParameters {
 
 /** Ordered so dependencies precede dependents in the emitted program. */
 const HELPER_SOURCES: ReadonlyArray<{ name: string; source: string }> = [
+  // Pixelblaze frac() truncates toward zero, so every frac argument below is
+  // shifted by an exact whole period to stay non-negative for any atan2 angle
+  // (#691: the sign-preserving negative branch mirrors the fold and corrupted
+  // upper-half-plane metrics on the firmware-accurate runtime).
   {
     name: '__pxlblz_show_gauge_tent',
     source: `function __pxlblz_show_gauge_tent(angle, target, width) {
-  return max(0, 1 - abs(frac((angle - target + ${PI}) / ${TAU}) * ${TAU} - ${PI}) / width)
+  return max(0, 1 - abs(frac((angle - target + ${PI} + ${TAU}) / ${TAU}) * ${TAU} - ${PI}) / width)
 }`,
   },
   {
     name: '__pxlblz_show_gauge_bump',
     source: `function __pxlblz_show_gauge_bump(angle, target, width) {
-  return 0.5 + 0.5 * cos(${PI} * min(abs(frac((angle - target + ${PI}) / ${TAU}) * ${TAU} - ${PI}) / width, 1))
+  return 0.5 + 0.5 * cos(${PI} * min(abs(frac((angle - target + ${PI} + ${TAU}) / ${TAU}) * ${TAU} - ${PI}) / width, 1))
 }`,
   },
   {
@@ -45,14 +49,14 @@ const HELPER_SOURCES: ReadonlyArray<{ name: string; source: string }> = [
     name: '__pxlblz_show_gauge_polygon',
     source: `function __pxlblz_show_gauge_polygon(u, v, sides) {
   var sector = ${TAU} / sides
-  var local = frac((atan2(v, u) + sector / 2) / sector) * sector - sector / 2
+  var local = frac((atan2(v, u) + sector / 2 + ${TAU}) / sector) * sector - sector / 2
   return hypot(u, v) * cos(local) / cos(${PI} / sides)
 }`,
   },
   {
     name: '__pxlblz_show_gauge_star',
     source: `function __pxlblz_show_gauge_star(u, v, points, inner) {
-  var spike = 1 - 2 * abs(frac(atan2(v, u) / ${TAU} * points) - 0.5)
+  var spike = 1 - 2 * abs(frac((atan2(v, u) / ${TAU} + 1) * points) - 0.5)
   return hypot(u, v) / (inner + (1 - inner) * spike)
 }`,
   },
