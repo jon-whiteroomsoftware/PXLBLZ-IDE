@@ -117,9 +117,18 @@ export function showShapeRevealMaxDistance(input: {
   starInner?: number
   polygonSides?: number
 }): number {
-  return Math.max(...([
-    [0, 0], [1, 0], [0, 1], [1, 1],
-  ] as const).map(([x, y]) => showShapeRevealDistance({ ...input, x, y })))
+  // Concave gauges (the heart cleft, cross and star notches) can peak between
+  // the corners, so the stage boundary is sampled densely; this runs at
+  // compile time, never per pixel (#692 review P2).
+  let maximum = 0
+  const samples = 16
+  for (let step = 0; step <= samples; step += 1) {
+    const t = step / samples
+    for (const [x, y] of [[t, 0], [t, 1], [0, t], [1, t]] as const) {
+      maximum = Math.max(maximum, showShapeRevealDistance({ ...input, x, y }))
+    }
+  }
+  return maximum
 }
 
 export function showShapeRevealSignedDistance(input: {

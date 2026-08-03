@@ -138,6 +138,22 @@ describe('common and signature SDF catalogue (#452)', () => {
     expect(metricAt(Math.PI / 2)).toBeLessThan(metricAt(-Math.PI / 2 - 0.72))
   })
 
+  it('covers the whole stage for off-center concave silhouettes (#692 review P2)', () => {
+    // A heart near the bottom edge points its cleft at the top edge midpoint,
+    // where the gauge peaks between the four corners; a cross's notches do the
+    // same. At full progress every stage point must be revealed.
+    for (const [shape, centerX, centerY] of [
+      ['heart', 0.5, 0.9],
+      ['cross', 0.15, 0.5],
+    ] as const) {
+      for (const [x, y] of [[0.5, 0], [0, 0.5], [1, 0.5], [0.5, 1], [0, 0], [1, 1]] as const) {
+        expect(showShapeRevealSignedDistance({
+          x, y, centerX, centerY, shape, progress: 1, revealMode: 'grow-incoming', aspect: 1,
+        }), `${shape} at ${x},${y}`).toBeLessThanOrEqual(0)
+      }
+    }
+  })
+
   it('cuts a real crescent hole while preserving Grow and Shrink polarity', () => {
     const shared = {
       centerX: 0.5, centerY: 0.5, shape: 'crescent' as const,
