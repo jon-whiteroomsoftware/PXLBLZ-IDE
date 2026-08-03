@@ -548,6 +548,8 @@ export interface ShowCompileSummary {
   steadyStateRenderersPerPixel: number
   worstInstantRenderersPerPixel: number
   routingRepresentation: 'none' | 'range-branches' | 'packed-pixels' | 'generated-formula' | 'coordinate-predicates'
+  /** Zone Layouts the compiled artifact actually pays for, not saved definitions. */
+  routedZoneLayoutCount: number
   routingEstimate: RoutingRepresentationEstimate | null
   routingParameterEstimate: {
     kind: 'moving-split'
@@ -3149,6 +3151,7 @@ export function compileShow(
     steadyStateRenderersPerPixel: rendererPressure.steady,
     worstInstantRenderersPerPixel: rendererPressure.worst,
     routingRepresentation,
+    routedZoneLayoutCount: routingLayouts?.length ?? 0,
     routingEstimate: routingPlan,
     routingParameterEstimate,
     sampleRemappingEstimate: expandedRecipe.samplePropertyRamps

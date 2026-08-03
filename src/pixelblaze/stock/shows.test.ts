@@ -1446,10 +1446,13 @@ describe('stock Show curriculum (#363)', () => {
       compiled.artifact!.code,
       exported.source,
     )
+    // The compiled artifact pays for exactly one Zone Layout here, whatever
+    // the saved definition list holds (#63).
+    expect(compiled.artifact!.summary.routedZoneLayoutCount).toBe(1)
     const model = buildShowArtifactInventoryModel(inventory, {
       patterns: describeShowArtifactPatterns(item.show, inventory),
       budgetBytes: compiled.artifact!.summary.measuredDeviceBudgetBytes,
-      zoneLayoutCount: item.show.routingLayouts.length,
+      zoneLayoutCount: compiled.artifact!.summary.routedZoneLayoutCount,
     })
     const loomRow = model.rows.find((row) => row.category === 'pattern' && row.label === 'RibbonLoom')!
     expect(loomRow).toMatchObject({ physicalMachineCount: 1, logicalInstanceCount: 2 })
@@ -1469,6 +1472,13 @@ describe('stock Show curriculum (#363)', () => {
     expect(slim.error).toBeNull()
     const savedBytes = compiled.artifact!.summary.artifactBytes - slim.artifact!.summary.artifactBytes
     expect(savedBytes).toBeGreaterThan(4_000)
+  })
+
+  it('counts compiled Zone Layouts on the summary (#63)', () => {
+    const multi = stockShowById('stock-show-206-changing-zone-layouts')!
+    const compiled = compileShowForArtifact(multi.show, [], undefined, {}, { stageDimension: 2 })
+    expect(compiled.error).toBeNull()
+    expect(compiled.artifact!.summary.routedZoneLayoutCount).toBeGreaterThan(1)
   })
 
   it('compiles every lesson through the production artifact pipeline', () => {
