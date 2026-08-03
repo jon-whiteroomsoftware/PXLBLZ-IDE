@@ -142,14 +142,37 @@ describe('common and signature SDF catalogue (#452)', () => {
     // A heart near the bottom edge points its cleft at the top edge midpoint,
     // where the gauge peaks between the four corners; a cross's notches do the
     // same. At full progress every stage point must be revealed.
-    for (const [shape, centerX, centerY] of [
-      ['heart', 0.5, 0.9],
-      ['cross', 0.15, 0.5],
+    for (const [shape, settings] of [
+      ['heart', { centerX: 0.5, centerY: 0.9 }],
+      ['cross', { centerX: 0.15, centerY: 0.5 }],
+      // The reviewer's narrow rotated star: a 12-point, 0.2-inner star whose
+      // notch peak defeats any fixed boundary lattice.
+      ['star', { centerX: 0.5, centerY: 0.5, rotation: 0.130859375, starPoints: 12, starInner: 0.2 }],
     ] as const) {
-      for (const [x, y] of [[0.5, 0], [0, 0.5], [1, 0.5], [0.5, 1], [0, 0], [1, 1]] as const) {
-        expect(showShapeRevealSignedDistance({
-          x, y, centerX, centerY, shape, progress: 1, revealMode: 'grow-incoming', aspect: 1,
-        }), `${shape} at ${x},${y}`).toBeLessThanOrEqual(0)
+      for (let step = 0; step <= 64; step += 1) {
+        const t = step / 64
+        for (const [x, y] of [[t, 0], [t, 1], [0, t], [1, t]] as const) {
+          expect(showShapeRevealSignedDistance({
+            x, y, shape, progress: 1, revealMode: 'grow-incoming', aspect: 1, ...settings,
+          }), `${shape} at ${x},${y}`).toBeLessThanOrEqual(0)
+        }
+      }
+    }
+  })
+
+  it('keeps every concave boundary floor at or above its coverage constant (#692)', () => {
+    const floors = [
+      ['heart', 0.54], ['cloud', 0.44],
+      ['cat-head', 0.72], ['cat-side-profile', 0.62], ['bastet', 0.55],
+    ] as const
+    for (const [shape, floor] of floors) {
+      for (let step = 0; step < 720; step += 1) {
+        const angle = (step / 720) * Math.PI * 2
+        const gauge = showShapeRevealDistance({
+          x: Math.cos(angle), y: Math.sin(angle), centerX: 0, centerY: 0, shape, aspect: 1,
+        })
+        // boundary(angle) = radial / gauge with radial 1.
+        expect(1 / gauge, `${shape} at ${angle}`).toBeGreaterThanOrEqual(floor - 1e-9)
       }
     }
   })

@@ -118,17 +118,51 @@ export function showShapeRevealMaxDistance(input: {
   polygonSides?: number
 }): number {
   // Concave gauges (the heart cleft, cross and star notches) can peak between
-  // the corners, so the stage boundary is sampled densely; this runs at
-  // compile time, never per pixel (#692 review P2).
-  let maximum = 0
-  const samples = 16
-  for (let step = 0; step <= samples; step += 1) {
-    const t = step / samples
-    for (const [x, y] of [[t, 0], [t, 1], [0, t], [1, t]] as const) {
-      maximum = Math.max(maximum, showShapeRevealDistance({ ...input, x, y }))
-    }
+  // the stage corners, and no fixed boundary lattice survives arbitrarily
+  // narrow notches (#692 review P2s). The scaled radial is convex, so its
+  // stage maximum sits exactly on a corner; dividing by the shape's provable
+  // minimum boundary bounds the gauge conservatively - coverage is guaranteed
+  // and the reveal merely completes slightly early in notch-aligned cases.
+  // Convex silhouettes keep the exact corner evaluation.
+  const minimumBoundary = CONCAVE_GAUGE_MINIMUM_BOUNDARY(input)
+  if (minimumBoundary === null) {
+    return Math.max(...([
+      [0, 0], [1, 0], [0, 1], [1, 1],
+    ] as const).map(([x, y]) => showShapeRevealDistance({ ...input, x, y })))
   }
-  return maximum
+  const rotationAngle = (input.rotation ?? 0) * TAU
+  const aspect = Math.min(4, Math.max(0.25, input.aspect ?? 1))
+  const rootAspect = Math.sqrt(aspect)
+  const maximumRadial = Math.max(...([
+    [0, 0], [1, 0], [0, 1], [1, 1],
+  ] as const).map(([x, y]) => {
+    const dx = x - input.centerX
+    const dy = y - input.centerY
+    const rx = dx * Math.cos(rotationAngle) + dy * Math.sin(rotationAngle)
+    const ry = -dx * Math.sin(rotationAngle) + dy * Math.cos(rotationAngle)
+    return Math.hypot(rx / rootAspect, ry * rootAspect)
+  }))
+  return maximumRadial / minimumBoundary
+}
+
+/**
+ * The provable minimum of each concave silhouette's polar boundary (or the
+ * cross's arm-width divisor), null for convex silhouettes whose gauge maximum
+ * sits on a stage corner. Guarded against drift by the boundary-floor test.
+ */
+function CONCAVE_GAUGE_MINIMUM_BOUNDARY(input: {
+  shape: ShowSpatialShape
+  crossWidth?: number
+  starInner?: number
+}): number | null {
+  if (input.shape === 'cross') return clamp(input.crossWidth ?? 0.32, 0.1, 0.9)
+  if (input.shape === 'star') return clamp(input.starInner ?? 0.45, 0.2, 0.8)
+  if (input.shape === 'heart') return 0.54
+  if (input.shape === 'cloud') return 0.44
+  if (input.shape === 'cat-head') return 0.72
+  if (input.shape === 'cat-side-profile') return 0.62
+  if (input.shape === 'bastet') return 0.55
+  return null
 }
 
 export function showShapeRevealSignedDistance(input: {
