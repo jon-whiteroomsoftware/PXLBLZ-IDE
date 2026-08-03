@@ -384,54 +384,94 @@ The compiled artifact reports its real cost, but this stock Show is an
 outer-limit production reference rather than a promise that every Controller
 and LED protocol can sustain the same frame rate at the 2,000-pixel ceiling.
 
-### Transform Effects
+### Transform and Address Effects
 
 Mirror flips the source horizontally before the other transforms. In 1D it
 reverses the clip's local pixel order; in 2D it maps the local X coordinate to
 `1 - x`. Translate, Rotate, Scale, and Shear then alter the coordinates used to
-sample a Pattern. The reference Show keeps one affine Effect stack and eases its numeric
-values between examples, so pixels move continuously through Translate, Scale,
-Rotate, and Shear instead of switching or blending rendered frames. Wrap applies
-after the complete transform when samples outside the source domain should
-re-enter from the opposite edge; it remains a discrete example because address
-policy has no fractional state.
+sample a Pattern. The reference Show keeps one affine Effect stack and eases its
+numeric values between examples, so the compass moves continuously through
+Translate, Scale, Rotate, and Shear instead of switching or blending rendered
+frames. Wrap applies after the complete transform when samples outside the
+source domain should re-enter from the opposite edge; it remains a discrete
+example because address policy has no fractional state.
 
 ### Distortion Effects
 
 Ripple, Swirl, Bulge, Pixelate, and Kaleidoscope remap sample positions through
-non-linear geometry. A diagnostic grid makes the center, radius, amount, and
-orientation of that remap visible.
+non-linear geometry. The stained glass's leaded panes bend visibly under each
+remap, making its center, radius, amount, and orientation readable; the Ripple
+runs at study tempo and the rest cut past.
 
-### Color and output Effects
+### Color Adjustment Effects
 
-Opacity, Brightness, Hue, Saturation, Contrast, Invert, Threshold, Posterize,
-and Color map change rendered color without moving geometry. Use a known RGB
-source when comparing operations that can look similar on a black background.
+Brightness, Hue, Saturation, Contrast, Invert, Threshold, Posterize, and Color
+map change rendered color without moving geometry. The glass carries every hue
+at once, so a long reference beat establishes the true colors and each
+adjustment identifies itself in a single look. Opacity and the key Effects
+live in the Compositing and Key reference, where a lower Layer gives them
+something to reveal.
 
-### Wipe and mix Transition reference
+### Compositing and Key Effects
 
-Blends, fades, Wipes, and Dissolves all exchange one Clip for another, but they
-answer different questions. Blends mix complete rendered images; fades pass
-through a color; Wipes move a geometric selector; Dissolves distribute that
-selector across pixels or regions. The reference Show holds the Pattern pair
-constant while it demonstrates every discrete mode and all eight Linear Wipe
-directions.
+Opacity, Luma Key, Chroma Key, and Vignette decide which of a Clip's pixels
+reach the mix, so this reference runs a warm bed underneath a green subject
+for its whole duration. Opacity thins the entire Clip evenly; Luma Key removes
+pixels by darkness so the blobs float alone; Chroma Key removes the garden's
+green so the bed shows through the blob bodies; Vignette closes the frame
+toward the edges without touching the center.
+
+### Blend and Fade Transition reference
+
+Blends mix complete rendered images and fades pass through a color. The
+reference runs the junction vocabulary in ascending drama: a bare Cut, one
+Crossfade slow enough to study both worlds coexisting, then the black and
+white Fades at quicker tempo.
+
+### Wipe Transition reference
+
+Wipes move a geometric selector across the junction. One eastward Linear Wipe
+runs slow enough to study its edge, then the other cardinal directions and
+every patterned Wipe - split, doors, blinds, clock, checker, grid - pass as
+quick cuts. Diagonal directions and center-in modes stay continuous in the
+inspector.
+
+### Dissolve Transition reference
+
+Dissolves distribute the selector across pixels or regions instead of moving
+one edge. The pixel dissolve is the slow exemplar; block, coherent-noise, and
+soft-threshold differ only in the structure of what crumbles.
 
 ### Shape reveal Transition reference
 
 Shape reveals move a signed-distance boundary across the Stage. The shape
 defines that boundary, while reveal mode decides whether the incoming image
-grows or the outgoing image shrinks. Circle demonstrates both modes; the other
-silhouettes alternate them so the catalogue covers the supported shapes without
-turning two independent choices into a combinatorial inventory.
+grows or the outgoing image shrinks. Circle demonstrates both modes at study
+tempo; the other geometric silhouettes - ellipse, box, rounded box, diamond,
+cross, ring - alternate modes as quick cuts so shape stays the only question.
 
-### Motion Transition reference
+### Shape reveal figures reference
 
-Motion Transitions move rendered Clip content rather than a selector edge.
-Cover, Reveal, and Push establish the directional models; Content grow and
-Content shrink establish anchored scaling; Zoom adds optional rotation. Four
-cardinal examples make directional ownership explicit while the inspector
-retains continuous and diagonal values.
+The figurative silhouettes - heart, star, crescent, regular polygon, and the
+three cats - use the same construction as the geometric reference: one slow
+Heart to study, then quick cuts. Splitting the family keeps each reference
+short enough to attribute and each compiled artifact inside the activation
+budget.
+
+### Slide Transition reference
+
+Cover, Reveal, and Push move rendered Clip content rather than a selector
+edge: Cover moves the incoming picture, Reveal moves the outgoing one, Push
+moves both. One slow Cover establishes the model, the three-way comparison
+follows, and the remaining cardinal directions run as quick cuts with
+diagonals left continuous in the inspector.
+
+### Zoom and Spin Transition reference
+
+Content grow and Content shrink scale the picture inside its frame; Zoom
+scales the frame itself and adds optional rotation. Content grow runs at
+study tempo and the zoom and spin presets cut past, differing only in
+rotation.
 
 ### Property animation reference
 

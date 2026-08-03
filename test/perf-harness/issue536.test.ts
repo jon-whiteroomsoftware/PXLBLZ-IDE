@@ -5,9 +5,10 @@ describe('Restart-instance global-liveness census (#536)', () => {
     expect(report.schemaVersion).toBe(1)
     expect(report.issue).toBe(536)
     // Recensused with the #363 Learn recast, when the Learn 200 composition
-    // lessons landed (six 100-level plus six 200-level lessons), and again
-    // with the three Learn 300 Output and Delivery lessons.
-    expect(report.summary.savedShowCount).toBe(27)
+    // lessons landed, with the Learn 300 lessons, with the 100/207/aperture
+    // additions, and again with the showcase repartition (fifteen recast
+    // references replacing nine).
+    expect(report.summary.savedShowCount).toBe(32)
     expect(report.cases.some((entry) => entry.kind === 'five-pattern-acceptance')).toBe(true)
     expect(report.summary.compileFailures).toEqual([])
   })
@@ -56,18 +57,18 @@ describe('Restart-instance global-liveness census (#536)', () => {
     // second and third Transitions, again when the Learn 200 lessons
     // landed, again when #663 gave stepped members a priming flag (one new
     // global on the corpus's single stepped member), again with the Learn
-    // 300 lessons, and again with the 100 tour, 207, and the Aperture Shapes reference. Every Learn
-    // addition brings member globals without
-    // Restart members, so the unweighted percent stays at zero and the
-    // weighted figure now falls below the threshold instead of hovering at
-    // it; the gate reads the unweighted percent, so the verdict is
-    // unchanged.
+    // 300 lessons and the 100/207/aperture additions, and again with the
+    // showcase repartition (fourteen recast references replacing nine; the
+    // retired TestPattern2D/Caustics casts carried most of the reclaimable
+    // Restart globals, so the reclaimed count and the weighted figure both
+    // fall). The unweighted percent stays at zero and the gate reads the
+    // unweighted percent, so the verdict is unchanged.
     expect(report.summary).toMatchObject({
-      representativeMemberGlobals: 2_750,
-      representativeReclaimedGlobals: 373,
+      representativeMemberGlobals: 2_669,
+      representativeReclaimedGlobals: 186,
     })
     expect(report.decision.representativeReclaimPercent).toBe(0)
-    expect(report.decision.weightedRepresentativeReclaimPercent).toBeCloseTo(0.13563636, 8)
+    expect(report.decision.weightedRepresentativeReclaimPercent).toBeCloseTo(0.06968902, 8)
     expect(report.decision.ceilingRescues).toEqual([])
     expect(report.decision.proceedWithEmission).toBe(false)
     expect(report.decision.proceedWithEmission).toBe(

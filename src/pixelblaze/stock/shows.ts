@@ -106,20 +106,16 @@ const CUBIC_IN_OUT: ShowStructuredEasing = { curve: 'cubic', direction: 'in-out'
 const LINEAR: ShowStructuredEasing = { curve: 'linear' }
 const QUADRATIC_IN: ShowStructuredEasing = { curve: 'quadratic', direction: 'in' }
 const COLORS = ['#38bdf8', '#f97316', '#a78bfa', '#22c55e']
-const CARDINAL_DIRECTIONS = [
-  { id: 'east', label: 'east', turns: 0 },
-  { id: 'south', label: 'south', turns: 0.25 },
-  { id: 'west', label: 'west', turns: 0.5 },
-  { id: 'north', label: 'north', turns: 0.75 },
-] as const
 
 export const STOCK_SHOWS: StockShow[] = [
   learn100(),
   learn101(), learn102(), learn103(), learn104(), learn105(), learn106(),
   learn201(), learn202(), learn203(), learn204(), learn205(), learn206(), learn207(),
   learn301(), learn302(), learn303(),
-  effectShowcase('transform'), effectShowcase('distortion'), effectShowcase('color-output'),
-  wipeAndMixTransitionReference(), shapeRevealTransitionReference(), motionTransitionReference(),
+  effectShowcase('transform'), effectShowcase('distortion'),
+  effectShowcase('color-adjustment'), compositingKeyShowcase(),
+  blendAndFadeTransitionReference(), wipeTransitionReference(), dissolveTransitionReference(),
+  shapeRevealGeometricReference(), shapeRevealFigureReference(), slideTransitionReference(), zoomSpinTransitionReference(),
   propertyAnimationReference(), easingReference(), apertureShapesReference(),
   redlineInstallation(),
 ]
@@ -1389,7 +1385,7 @@ function redlineInstallation(): StockShow {
     track: 'installation',
     collection: 'showcases',
     level: null,
-    order: 10,
+    order: 15,
     purpose: 'A sixty-second club-installation score turns one hero panel and four target arrays into a single rhythmic machine.',
     notice: 'One renderer owns each pixel. Shared target instances and cheap transforms create difference; black space, red pressure, white impact, sparse cyan ornaments, and one cyan takeover create the arc.',
     prompts: ['Solo the four target Zones and compare their shared clock.', 'Jump between First drop, Vacuum, and Peak to compare one canvas with five instruments.'],
@@ -1413,96 +1409,167 @@ type TransitionReferenceSpec = {
   variantId: string
   presetId?: string
   changes?: Partial<Omit<ShowBoundaryTransition, 'id' | 'afterSceneId'>>
+  /** Hold after this boundary settles, in seconds. Exemplars study; siblings cut. */
+  holdSeconds?: number
+  /** Transition duration in seconds; defaults to the 1.8s house tempo. */
+  transitionSeconds?: number
 }
 
-function wipeAndMixTransitionReference(): StockShow {
-  const linearDirections = [
-    ['east', 'East'], ['south-east', 'South-east'], ['south', 'South'], ['south-west', 'South-west'],
-    ['west', 'West'], ['north-west', 'North-west'], ['north', 'North'], ['north-east', 'North-east'],
-  ] as const
+// Every Transition reference shares the measured diagnostic pair. Probed on
+// the 44x44 plane at the 0.32 clock, MetaballGarden (green, lum 0.45, flux
+// 0.013/200ms) and IQPalettes (warm, lum 0.41, flux 0.016) are the two
+// calmest equally-bright fields with the widest sustained hue contrast, so
+// every boundary reads as one world replacing another and neither side ever
+// looks dead. The backdrop recasts to Murmuration, the calmest dim voice in
+// the corpus (flux 0.015); the old Caustics backdrop measured 0.53 flux and
+// fought the comparison it was under. Pacing follows the packet's editor
+// rule: one slow exemplar per family, then quick cuts of its siblings.
+
+function blendAndFadeTransitionReference(): StockShow {
   const specs: TransitionReferenceSpec[] = [
-    { id: 'cut', label: 'Cut', familyId: 'blend', variantId: 'cut', changes: { durationMs: 0 } },
-    { id: 'crossfade', label: 'Crossfade', familyId: 'blend', variantId: 'crossfade', presetId: 'smooth' },
-    { id: 'fade-black', label: 'Fade through black', familyId: 'fade', variantId: 'through-color', presetId: 'black' },
-    { id: 'fade-white', label: 'Fade through white', familyId: 'fade', variantId: 'through-color', presetId: 'white' },
-    ...linearDirections.map(([id, label]) => ({
-      id: `wipe-${id}`, label: `Linear wipe ${label.toLowerCase()}`, familyId: 'wipe' as const,
-      variantId: 'linear', presetId: id,
-    })),
-    { id: 'split-out', label: 'Split center out', familyId: 'wipe', variantId: 'split', changes: { wipeMode: 'center-out' } },
-    { id: 'split-in', label: 'Split center in', familyId: 'wipe', variantId: 'split', changes: { wipeMode: 'center-in' } },
-    { id: 'barn-out', label: 'Barn doors out', familyId: 'wipe', variantId: 'barn-doors', changes: { wipeMode: 'center-out' } },
-    { id: 'barn-in', label: 'Barn doors in', familyId: 'wipe', variantId: 'barn-doors', changes: { wipeMode: 'center-in' } },
-    { id: 'blinds-vertical', label: 'Vertical blinds', familyId: 'wipe', variantId: 'blinds', changes: { orientation: 'vertical' } },
-    { id: 'blinds-horizontal', label: 'Horizontal blinds', familyId: 'wipe', variantId: 'blinds', changes: { orientation: 'horizontal' } },
-    { id: 'clock-cw', label: 'Clock clockwise', familyId: 'wipe', variantId: 'clock', changes: { clockwise: true } },
-    { id: 'clock-ccw', label: 'Clock counterclockwise', familyId: 'wipe', variantId: 'clock', changes: { clockwise: false } },
-    { id: 'checker', label: 'Checker', familyId: 'wipe', variantId: 'checker' },
-    { id: 'grid', label: 'Grid', familyId: 'wipe', variantId: 'grid' },
-    { id: 'dissolve-pixel', label: 'Pixel dissolve', familyId: 'dissolve', variantId: 'pixel' },
-    { id: 'dissolve-block', label: 'Block dissolve', familyId: 'dissolve', variantId: 'block' },
-    { id: 'dissolve-noise', label: 'Coherent-noise dissolve', familyId: 'dissolve', variantId: 'coherent-noise' },
-    { id: 'dissolve-soft', label: 'Soft-threshold dissolve', familyId: 'dissolve', variantId: 'soft-threshold' },
+    { id: 'cut', label: 'Cut', familyId: 'blend', variantId: 'cut', changes: { durationMs: 0 }, holdSeconds: 3 },
+    { id: 'crossfade', label: 'Crossfade', familyId: 'blend', variantId: 'crossfade', presetId: 'smooth', holdSeconds: 4, transitionSeconds: 2.5 },
+    { id: 'fade-black', label: 'Fade through black', familyId: 'fade', variantId: 'through-color', presetId: 'black', holdSeconds: 2, transitionSeconds: 2 },
+    { id: 'fade-white', label: 'Fade through white', familyId: 'fade', variantId: 'through-color', presetId: 'white', holdSeconds: 2, transitionSeconds: 2 },
   ]
   return transitionReferenceShow({
-    id: 'stock-show-reference-wipe-mix-transitions', title: 'Wipe and Mix Transitions', order: 4,
-    purpose: 'One pair of Patterns compares blends, fades, directional Wipes, patterned Wipes, and Dissolves without changing the subject.',
-    notice: 'Direction and discrete modes are shown semantically; continuous parameter permutations remain editable in the inspector.',
-    prompts: ['Try the same catalogue with a radial Pattern.', 'Compare hard, dithered, and blended edges on one Wipe.'],
-    guideHeading: 'wipe-and-mix-transition-reference', specs,
+    id: 'stock-show-reference-blend-fade-transitions', title: 'Blend and Fade Transitions', order: 5,
+    purpose: 'The junction vocabulary everyone starts with: a bare Cut, one slow Crossfade to study, and the two through-color Fades.',
+    notice: 'The Crossfade is the exemplar and takes its time; the Fades pass more quickly because their character is the color they pass through.',
+    prompts: ['Stretch the Crossfade and watch the two worlds coexist.', 'Change the Fade color from black to a deep blue in the inspector.'],
+    guideHeading: 'blend-and-fade-transition-reference', specs,
   })
 }
 
-function shapeRevealTransitionReference(): StockShow {
-  const shapes = [
-    ['ellipse', 'Ellipse'], ['box', 'Box'], ['rounded-box', 'Rounded box'], ['diamond', 'Diamond'],
-    ['cross', 'Cross'], ['ring', 'Ring'], ['heart', 'Heart'], ['star', 'Star'], ['crescent', 'Crescent'],
-    ['polygon', 'Regular polygon'], ['cat-head', 'Cat head'], ['cat-side-profile', 'Side-profile cat'], ['bastet', 'Bastet'],
-  ] as const
+function wipeTransitionReference(): StockShow {
+  const quick = { holdSeconds: 1.5, transitionSeconds: 1 }
   const specs: TransitionReferenceSpec[] = [
-    { id: 'circle-grow', label: 'Circle: grow incoming', familyId: 'shape-reveal', variantId: 'circle', changes: { revealMode: 'grow-incoming' } },
-    { id: 'circle-shrink', label: 'Circle: shrink outgoing', familyId: 'shape-reveal', variantId: 'circle', changes: { revealMode: 'shrink-outgoing' } },
-    ...shapes.map(([id, label], index) => ({
-      id: `shape-${id}`,
-      label: `${label}: ${index % 2 === 0 ? 'grow incoming' : 'shrink outgoing'}`,
-      familyId: 'shape-reveal' as const,
-      variantId: id,
-      changes: { revealMode: index % 2 === 0 ? 'grow-incoming' as const : 'shrink-outgoing' as const },
-    })),
+    { id: 'wipe-east', label: 'Linear wipe east', familyId: 'wipe', variantId: 'linear', presetId: 'east', holdSeconds: 3, transitionSeconds: 2.5 },
+    { id: 'wipe-south', label: 'Linear wipe south', familyId: 'wipe', variantId: 'linear', presetId: 'south', ...quick },
+    { id: 'wipe-west', label: 'Linear wipe west', familyId: 'wipe', variantId: 'linear', presetId: 'west', ...quick },
+    { id: 'wipe-north', label: 'Linear wipe north', familyId: 'wipe', variantId: 'linear', presetId: 'north', ...quick },
+    { id: 'split-out', label: 'Split center out', familyId: 'wipe', variantId: 'split', changes: { wipeMode: 'center-out' }, ...quick },
+    { id: 'barn-out', label: 'Barn doors out', familyId: 'wipe', variantId: 'barn-doors', changes: { wipeMode: 'center-out' }, ...quick },
+    { id: 'blinds-vertical', label: 'Vertical blinds', familyId: 'wipe', variantId: 'blinds', changes: { orientation: 'vertical' }, ...quick },
+    { id: 'clock-cw', label: 'Clock clockwise', familyId: 'wipe', variantId: 'clock', changes: { clockwise: true }, ...quick },
+    { id: 'checker', label: 'Checker', familyId: 'wipe', variantId: 'checker', ...quick },
+    { id: 'grid', label: 'Grid', familyId: 'wipe', variantId: 'grid', ...quick },
   ]
   return transitionReferenceShow({
-    id: 'stock-show-reference-shape-reveal-transitions', title: 'Shape Reveal Transitions', order: 5,
-    purpose: 'The shape-reveal family compares every supported silhouette while holding the Pattern pair, center, scale, edge, and timing steady.',
-    notice: 'Circle appears in both reveal modes; the remaining silhouettes alternate modes so shape and direction stay legible without a full cross-product.',
-    prompts: ['Change every shape to shrink outgoing.', 'Move the center away from 0.5, 0.5 and compare asymmetric shapes.'],
+    id: 'stock-show-reference-wipe-transitions', title: 'Wipes', order: 6,
+    purpose: 'One eastward Linear Wipe slow enough to study its edge, then quick cuts through the other cardinal directions and every patterned Wipe.',
+    notice: 'After the exemplar, each sibling changes exactly one idea - direction, split, doors, blinds, clock, checker, grid - at quick-cut tempo. Diagonals and center-in modes stay as inspector edits.',
+    prompts: ['Compare hard, dithered, and blended edges on the exemplar Wipe.', 'Stretch any quick cut back into a slow study.'],
+    guideHeading: 'wipe-transition-reference', specs,
+  })
+}
+
+function dissolveTransitionReference(): StockShow {
+  const quick = { holdSeconds: 2, transitionSeconds: 1.5 }
+  const specs: TransitionReferenceSpec[] = [
+    { id: 'dissolve-pixel', label: 'Pixel dissolve', familyId: 'dissolve', variantId: 'pixel', holdSeconds: 3, transitionSeconds: 2.5 },
+    { id: 'dissolve-block', label: 'Block dissolve', familyId: 'dissolve', variantId: 'block', ...quick },
+    { id: 'dissolve-noise', label: 'Coherent-noise dissolve', familyId: 'dissolve', variantId: 'coherent-noise', ...quick },
+    { id: 'dissolve-soft', label: 'Soft-threshold dissolve', familyId: 'dissolve', variantId: 'soft-threshold', ...quick },
+  ]
+  return transitionReferenceShow({
+    id: 'stock-show-reference-dissolve-transitions', title: 'Dissolves', order: 7,
+    purpose: 'Four ways to take one picture apart and assemble the next: per-pixel, in blocks, along coherent noise, and through a soft threshold.',
+    notice: 'The pixel dissolve is the slow exemplar; the other three differ only in the structure of what crumbles.',
+    prompts: ['Change the block dissolve grid in the inspector.', 'Compare coherent-noise with soft-threshold at the same duration.'],
+    guideHeading: 'dissolve-transition-reference', specs,
+  })
+}
+
+// Shape reveals split into Geometric and Figure silhouettes: the #514 census
+// caught the recast fifteen-boundary matrix 21 KB over the activation source
+// ceiling - portal SDF code scales with silhouette count - and two shorter
+// references also attribute faster than one long one.
+function shapeRevealShapeSpecs(
+  shapes: ReadonlyArray<readonly [string, string]>,
+): TransitionReferenceSpec[] {
+  return shapes.map(([id, label], index) => ({
+    id: `shape-${id}`,
+    label: `${label}: ${index % 2 === 0 ? 'grow incoming' : 'shrink outgoing'}`,
+    familyId: 'shape-reveal' as const,
+    variantId: id,
+    changes: { revealMode: index % 2 === 0 ? 'grow-incoming' as const : 'shrink-outgoing' as const },
+    holdSeconds: 1.5,
+    transitionSeconds: 1.2,
+  }))
+}
+
+function shapeRevealGeometricReference(): StockShow {
+  const specs: TransitionReferenceSpec[] = [
+    { id: 'circle-grow', label: 'Circle: grow incoming', familyId: 'shape-reveal', variantId: 'circle', changes: { revealMode: 'grow-incoming' }, holdSeconds: 3, transitionSeconds: 2.5 },
+    { id: 'circle-shrink', label: 'Circle: shrink outgoing', familyId: 'shape-reveal', variantId: 'circle', changes: { revealMode: 'shrink-outgoing' }, holdSeconds: 1.5, transitionSeconds: 1.2 },
+    ...shapeRevealShapeSpecs([
+      ['ellipse', 'Ellipse'], ['box', 'Box'], ['rounded-box', 'Rounded box'],
+      ['diamond', 'Diamond'], ['cross', 'Cross'],
+    ]),
+  ]
+  return transitionReferenceShow({
+    id: 'stock-show-reference-shape-reveal-transitions', title: 'Shape Reveals: Geometric', order: 8,
+    purpose: 'One slow Circle reveal to study, then quick cuts through the geometric silhouettes while the Pattern pair, center, scale, and edge hold steady.',
+    notice: 'Circle appears in both reveal modes at study tempo; the remaining silhouettes alternate modes at quick-cut tempo so shape stays the only question. The figure silhouettes have their own reference.',
+    prompts: ['Stretch any silhouette back to study tempo.', 'Move the center away from 0.5, 0.5 and compare asymmetric shapes.'],
     guideHeading: 'shape-reveal-transition-reference', specs,
   })
 }
 
-function motionTransitionReference(): StockShow {
+function shapeRevealFigureReference(): StockShow {
   const specs: TransitionReferenceSpec[] = [
-    ...(['cover', 'reveal', 'push'] as const).flatMap((variantId) => CARDINAL_DIRECTIONS.map((direction) => ({
-      id: `${variantId}-${direction.id}`,
-      label: `${variantId[0].toUpperCase()}${variantId.slice(1)} ${direction.label}`,
-      familyId: 'motion' as const,
-      variantId,
-      changes: { direction: direction.turns },
-    }))),
-    { id: 'content-grow', label: 'Content grow', familyId: 'motion', variantId: 'content-grow' },
-    { id: 'content-shrink', label: 'Content shrink', familyId: 'motion', variantId: 'content-shrink' },
-    { id: 'zoom-in', label: 'Zoom in', familyId: 'motion', variantId: 'zoom-in', presetId: 'zoom' },
-    { id: 'spin-cw', label: 'Spin in clockwise', familyId: 'motion', variantId: 'zoom-in', presetId: 'spin-clockwise' },
-    { id: 'spin-ccw', label: 'Spin in counterclockwise', familyId: 'motion', variantId: 'zoom-in', presetId: 'spin-counterclockwise' },
-    { id: 'zoom-spin-cw', label: 'Zoom and spin clockwise', familyId: 'motion', variantId: 'zoom-in', presetId: 'zoom-spin-clockwise' },
-    { id: 'zoom-spin-ccw', label: 'Zoom and spin counterclockwise', familyId: 'motion', variantId: 'zoom-in', presetId: 'zoom-spin-counterclockwise' },
-    { id: 'zoom-out', label: 'Zoom out', familyId: 'motion', variantId: 'zoom-out', presetId: 'zoom' },
+    { id: 'shape-heart', label: 'Heart: grow incoming', familyId: 'shape-reveal', variantId: 'heart', changes: { revealMode: 'grow-incoming' }, holdSeconds: 3, transitionSeconds: 2.5 },
+    ...shapeRevealShapeSpecs([
+      ['ring', 'Ring'], ['star', 'Star'], ['crescent', 'Crescent'], ['polygon', 'Regular polygon'],
+      ['cat-head', 'Cat head'], ['cat-side-profile', 'Side-profile cat'], ['bastet', 'Bastet'],
+    ]),
   ]
   return transitionReferenceShow({
-    id: 'stock-show-reference-motion-transitions', title: 'Motion Transitions', order: 6,
-    purpose: 'Cover, Reveal, Push, content scaling, and zoom/spin transitions share one fixed pair so motion semantics remain easy to compare.',
-    notice: 'Directional motion uses four cardinal examples; diagonal values remain available as continuous direction edits.',
-    prompts: ['Change cardinal motion to diagonal directions.', 'Switch Addressing from Clip to Wrap and compare moving edges.'],
-    guideHeading: 'motion-transition-reference', specs,
+    id: 'stock-show-reference-shape-reveal-figures', title: 'Shape Reveals: Figures', order: 9,
+    purpose: 'The figurative silhouettes - heart, star, crescent, polygon, and the three cats - with one slow Heart to study and the rest as quick cuts.',
+    notice: 'Same construction as the geometric reference: the pair, center, scale, and edge never move, so the silhouette is the only question.',
+    prompts: ['Stretch a cat silhouette to study tempo and watch its edge.', 'Swap the reveal mode on the Bastet silhouette.'],
+    guideHeading: 'shape-reveal-figures-reference', specs,
+  })
+}
+
+function slideTransitionReference(): StockShow {
+  const quick = { holdSeconds: 1.5, transitionSeconds: 1 }
+  const specs: TransitionReferenceSpec[] = [
+    { id: 'cover-east', label: 'Cover east', familyId: 'motion', variantId: 'cover', changes: { direction: 0 }, holdSeconds: 3, transitionSeconds: 2.5 },
+    { id: 'reveal-east', label: 'Reveal east', familyId: 'motion', variantId: 'reveal', changes: { direction: 0 }, holdSeconds: 2, transitionSeconds: 1.5 },
+    { id: 'push-east', label: 'Push east', familyId: 'motion', variantId: 'push', changes: { direction: 0 }, holdSeconds: 2, transitionSeconds: 1.5 },
+    { id: 'cover-south', label: 'Cover south', familyId: 'motion', variantId: 'cover', changes: { direction: 0.25 }, ...quick },
+    { id: 'cover-west', label: 'Cover west', familyId: 'motion', variantId: 'cover', changes: { direction: 0.5 }, ...quick },
+    { id: 'cover-north', label: 'Cover north', familyId: 'motion', variantId: 'cover', changes: { direction: 0.75 }, ...quick },
+  ]
+  return transitionReferenceShow({
+    id: 'stock-show-reference-slide-transitions', title: 'Slide Transitions', order: 10,
+    purpose: 'Cover, Reveal, and Push are the three ways one picture slides over, out from under, or alongside another: one slow Cover, then the family and its directions as quick cuts.',
+    notice: 'Cover moves the incoming picture, Reveal moves the outgoing one, Push moves both. After the three-way comparison the directions run at quick-cut tempo; diagonals stay continuous in the inspector.',
+    prompts: ['Change a quick Cover to a diagonal direction.', 'Switch Addressing from Clip to Wrap and compare moving edges.'],
+    guideHeading: 'slide-transition-reference', specs,
+  })
+}
+
+function zoomSpinTransitionReference(): StockShow {
+  const quick = { holdSeconds: 1.5, transitionSeconds: 1.2 }
+  const specs: TransitionReferenceSpec[] = [
+    { id: 'content-grow', label: 'Content grow', familyId: 'motion', variantId: 'content-grow', holdSeconds: 3, transitionSeconds: 2.5 },
+    { id: 'content-shrink', label: 'Content shrink', familyId: 'motion', variantId: 'content-shrink', ...quick },
+    { id: 'zoom-in', label: 'Zoom in', familyId: 'motion', variantId: 'zoom-in', presetId: 'zoom', ...quick },
+    { id: 'zoom-out', label: 'Zoom out', familyId: 'motion', variantId: 'zoom-out', presetId: 'zoom', ...quick },
+    { id: 'spin-cw', label: 'Spin in clockwise', familyId: 'motion', variantId: 'zoom-in', presetId: 'spin-clockwise', ...quick },
+    { id: 'spin-ccw', label: 'Spin in counterclockwise', familyId: 'motion', variantId: 'zoom-in', presetId: 'spin-counterclockwise', ...quick },
+    { id: 'zoom-spin-cw', label: 'Zoom and spin clockwise', familyId: 'motion', variantId: 'zoom-in', presetId: 'zoom-spin-clockwise', ...quick },
+  ]
+  return transitionReferenceShow({
+    id: 'stock-show-reference-zoom-spin-transitions', title: 'Zoom and Spin Transitions', order: 11,
+    purpose: 'Scaling and spinning arrivals: Content grow at study tempo, then its siblings and the zoom and spin presets as quick cuts.',
+    notice: 'Content transitions scale the picture inside its frame; Zoom transitions scale the frame itself; the spin presets differ only in rotation.',
+    prompts: ['Compare Content grow with Zoom in at the same duration.', 'Stack zoom-and-spin against plain spin at study tempo.'],
+    guideHeading: 'zoom-and-spin-transition-reference', specs,
   })
 }
 
@@ -1513,7 +1580,8 @@ function propertyAnimationReference(): StockShow {
     ['animation-speed', 'Animation speed'],
     ['pattern-control', 'Public Pattern control'],
     ['brightness', 'Brightness'],
-    ['phase', 'Phase'],
+    ['clip-transform', 'Clip Transform'],
+    ['clip-viewport', 'Clip Viewport'],
     ['overlay-opacity', 'Overlay opacity'],
     ['effect-parameter', 'Effect parameter'],
     ['split-position', 'Split position'],
@@ -1523,20 +1591,24 @@ function propertyAnimationReference(): StockShow {
     sceneId,
     label,
     5,
-    [clip('zone-1', 'CompassRose', 0.32), clip('zone-2', 'TestPattern2D', 0.32)],
+    [clip('zone-1', 'CompassRose', 0.32), clip('zone-2', 'CompassRose', 0.32)],
     { splitPosition: sceneId === 'effect-parameter' ? 0.25 : sceneId === 'split-position' ? 0.75 : 0.5 },
     { repeatScale: sceneId === 'repeat-scale' ? 4 : 1 },
   ))
   const transitions = cutBoundaries(scenes).map((item) => {
+    // Cuts, not crossfades: both columns run the same shared instances on
+    // both sides of these boundaries, so a blend would mix two identical
+    // frames - invisible, but paid for in blend machinery the #514 ceiling
+    // has no room for. The eased property tween is the smoothness here.
     if (item.afterSceneId === 'effect-parameter') {
-      return boundary('effect-parameter', 'crossfade', 1_800, SINE_IN_OUT, {
+      return boundary('effect-parameter', 'cut', 0, LINEAR, {
         propertyTransitions: {
           routing: { splitPosition: { from: 0.25, durationMs: 1_800, easing: SINE_IN_OUT } },
         },
       })
     }
     if (item.afterSceneId === 'split-position') {
-      return boundary('split-position', 'crossfade', 1_800, SINE_IN_OUT, {
+      return boundary('split-position', 'cut', 0, LINEAR, {
         propertyTransitions: {
           sample: { repeatScale: { from: 1, durationMs: 1_800, easing: SINE_IN_OUT } },
         },
@@ -1558,31 +1630,48 @@ function propertyAnimationReference(): StockShow {
     ],
   })
   const localTracks = (sceneId: string): ShowPropertyAnimationTrack[] => {
-    const instanceId = `instance-${sceneId}-a`
+    const instanceId = 'instance-property-subject'
     const placementId = `placement-${sceneId}-a`
     if (sceneId === 'animation-speed') return [track('track-animation-speed', { kind: 'instance-time-scale', instanceId }, [0.12, 0.9, 0.12])]
     if (sceneId === 'pattern-control') return [track('track-pattern-control', { kind: 'instance-control', instanceId, exportName: 'sliderSpeed' }, [0.08, 0.92, 0.08])]
     if (sceneId === 'brightness') return [track('track-brightness', { kind: 'placement-view', placementId, property: 'brightness' }, [0.1, 1, 0.1])]
-    if (sceneId === 'phase') return [track('track-phase', { kind: 'placement-view', placementId, property: 'phase' }, [0, 1, 0])]
+    if (sceneId === 'clip-transform') return [track('track-clip-transform', { kind: 'placement-transform', placementId, property: 'positionX' }, [-0.25, 0.25, -0.25])]
+    if (sceneId === 'clip-viewport') return [track('track-clip-viewport', { kind: 'placement-viewport', placementId, property: 'width' }, [0.9, 0.4, 0.9])]
     if (sceneId === 'overlay-opacity') return [track('track-overlay-opacity', { kind: 'placement-opacity', placementId: 'placement-overlay-opacity-overlay' }, [0, 0.85, 0])]
     if (sceneId === 'effect-parameter') return [track('track-effect-parameter', {
       kind: 'placement-effect', placementId, effectId: 'translate-demo', effectKind: 'translate', parameterId: 'translateX',
     }, [-0.35, 0.35, -0.35])]
     return []
   }
-  const patternInstances: ShowCompositionV1['patternInstances'] = properties.flatMap(([sceneId]) => [
-    instance(`instance-${sceneId}-a`, 'CompassRose', 0.32, sceneId === 'pattern-control' ? { sliderSpeed: 0.08 } : undefined),
-    instance(`instance-${sceneId}-b`, 'TestPattern2D', 0.32),
-  ])
-  patternInstances.push(instance('instance-overlay-opacity-overlay', 'SignalMandala', 0.28))
+  // Phase is the one placement-view target left to the inspector: the #514
+  // census prices each passage at roughly five kilobytes of generated scene
+  // structure, Brightness already demonstrates the placement-view kind, and
+  // nine passages is what fits under the activation ceiling.
+  // One shared subject and one shared comparison voice instead of a fresh
+  // pair per passage: the #514 census caught the per-scene pairs blowing the
+  // 256-persistent-global limit (265) and the activation source ceiling.
+  // The comparison column runs the same Pattern as the subject, deliberately
+  // unanimated - an identical twin on an identical clock - so the animated
+  // value is the only difference between the two Zones, and the second
+  // member Pattern the census flagged drops out of the artifact entirely.
+  const patternInstances: ShowCompositionV1['patternInstances'] = [
+    instance('instance-property-subject', 'CompassRose', 0.32, { sliderSpeed: 0.08 }),
+    instance('instance-property-comparison', 'CompassRose', 0.32, { sliderSpeed: 0.08 }),
+    instance('instance-overlay-opacity-overlay', 'SignalMandala', 0.28),
+  ]
   const composition: ShowCompositionV1 = {
     version: 1,
     patternInstances,
     scenes: properties.map(([sceneId]) => {
       const mainA = {
-        ...placement(`placement-${sceneId}-a`, `instance-${sceneId}-a`, 0, 5),
+        ...placement(`placement-${sceneId}-a`, 'instance-property-subject', 0, 5),
         ...(sceneId === 'effect-parameter'
           ? { effects: [{ id: 'translate-demo', kind: 'translate' as const, x: -0.35, y: 0 }] }
+          : {}),
+        // Soft on purpose: the aperture animates, and animated apertures are
+        // never hard-edged (smooth-by-default doctrine).
+        ...(sceneId === 'clip-viewport'
+          ? { viewport: { enabled: true, x: 0.15, y: 0.15, width: 0.9, height: 0.7, edge: 'soft' as const } }
           : {}),
       }
       return {
@@ -1603,7 +1692,7 @@ function propertyAnimationReference(): StockShow {
           },
           {
             zoneId: 'zone-2',
-            main: [placement(`placement-${sceneId}-b`, `instance-${sceneId}-b`, 0, 5)],
+            main: [placement(`placement-${sceneId}-b`, 'instance-property-comparison', 0, 5)],
             overlays: [],
           },
         ],
@@ -1611,9 +1700,9 @@ function propertyAnimationReference(): StockShow {
     }),
   }
   return catalogue({
-    id, title: 'Property Animation', track: 'portable', collection: 'showcases', level: null, order: 7,
-    purpose: 'Eight examples show where values can change over time: Pattern state, placement view, layering, Effect parameters, routing, and sample remapping.',
-    notice: 'The first six examples use Clip-owned sparklines; Split position and Repeat scale use boundary-owned Property transitions.',
+    id, title: 'Property Animation', track: 'portable', collection: 'showcases', level: null, order: 12,
+    purpose: 'Nine examples show where values can change over time: Pattern state, placement view, Clip Transform, the Viewport aperture, layering, Effect parameters, routing, and sample remapping. The right Zone runs the same Pattern unanimated, so the animated value is the only difference between the columns.',
+    notice: "The first seven examples use Clip-owned sparklines - including a Clip Transform pan and a Soft-edged aperture breathing - while Split position and Repeat scale use boundary-owned Property transitions. The unanimated twin is the control: whatever the columns don't share is the property at work.",
     prompts: ['Open each Clip and compare the highlighted sparkline owner.', 'Change one midpoint value while leaving its endpoints fixed.'],
     guideHeading: 'property-animation-reference', output: portableOutput(), zones,
     defaultOpen: true,
@@ -1622,10 +1711,10 @@ function propertyAnimationReference(): StockShow {
       summary: 'The Stage and timeline highlight one animatable property at a time. Try with Pattern replaces the constant comparison Pattern while the animated subject and its Property track stay intact.',
       patternSlots: {
         cellIds: properties.map(([sceneId]) => cellId(sceneId, 'zone-2')),
-        instanceIds: properties.map(([sceneId]) => `instance-${sceneId}-b`),
+        instanceIds: ['instance-property-comparison'],
       },
       examples: [
-        ...properties.slice(0, 6).map(([sceneId, label]) => ({
+        ...properties.slice(0, 7).map(([sceneId, label]) => ({
           id: sceneId, label, detail: 'Clip-owned Property sparkline.', anchor: { kind: 'scene' as const, sceneId },
         })),
         { id: 'split-position', label: 'Split position', detail: 'Boundary-owned routing Property transition.', anchor: { kind: 'boundary', transitionId: 'transition-effect-parameter' } },
@@ -1636,6 +1725,9 @@ function propertyAnimationReference(): StockShow {
 }
 
 function easingReference(): StockShow {
+  // Uniform tempo is the control here, not monotony: easing is a statement
+  // about when progress happens, so every curve must run over an identical
+  // duration to be comparable. The holds shorten to two seconds instead.
   const specs: TransitionReferenceSpec[] = SHOW_EASING_OPTIONS.map((option) => ({
     id: `easing-${option.id}`,
     label: option.label,
@@ -1643,11 +1735,12 @@ function easingReference(): StockShow {
     variantId: 'linear',
     presetId: 'east',
     changes: { easing: option.easing },
+    holdSeconds: 2,
   }))
   return transitionReferenceShow({
-    id: 'stock-show-reference-easing', title: 'Easing', order: 8,
+    id: 'stock-show-reference-easing', title: 'Easing', order: 13,
     purpose: 'One eastward Linear Wipe holds its Patterns, endpoints, direction, and duration constant while every easing curve changes the timing.',
-    notice: 'This isolates easing from Transition geometry. The live header names the current curve and draws its progression.',
+    notice: 'This isolates easing from Transition geometry. Identical durations are deliberate - easing is when progress happens - and the live header names the current curve and draws its progression.',
     prompts: ['Compare quadratic in with quadratic out.', 'Watch where Steps and Hold curves spend their time.'],
     guideHeading: 'easing-reference', specs,
   })
@@ -1708,7 +1801,7 @@ function apertureShapesReference(): StockShow {
     durationMs: variants.reduce((sum, variant) => sum + variant.seconds, 0) * 1_000,
   }
   return catalogue({
-    id, title: 'Aperture Shapes', track: 'portable', collection: 'showcases', level: null, order: 9,
+    id, title: 'Aperture Shapes', track: 'portable', collection: 'showcases', level: null, order: 14,
     purpose: 'Every Clip Viewport silhouette over one held frame, then one silhouette across its three edge treatments. Shaped silhouettes keep their Soft default - smooth is almost always what you want. The subject, bed, frame, and clocks never change, so each passage has exactly one attributable variable.',
     notice: 'The first five passages change only the silhouette at its Soft default, the wide-radius passage shows corner radius is shape rather than edge, and the last three hold the Ring while only its edge treatment changes - Soft, then the deliberate Hard cut, then Stable Dither.',
     prompts: ['Swap the subject Pattern and watch every silhouette keep its geometry.', 'Open any passage and drag the corner radius or edge softness - the reference values are starting points, not limits.'],
@@ -1748,12 +1841,13 @@ function transitionReferenceShow(input: {
   const scenes = Array.from({ length: input.specs.length + 1 }, (_, index) => {
     const selected = index % 2 === 1
     const previousExample = index > 0 ? input.specs[index - 1] : null
-    const holdSeconds = previousExample?.variantId === 'cut' ? 5 : previousExample ? 3.2 : 3
+    const holdSeconds = previousExample?.holdSeconds
+      ?? (previousExample?.variantId === 'cut' ? 5 : previousExample ? 3.2 : 3)
     return scene(
       `reference-${index + 1}`,
       index === 0 ? 'Reference' : input.specs[index - 1].label,
       holdSeconds,
-      [clip('zone-1', selected ? 'CompassRose' : 'TestPattern2D', 0.32)],
+      [clip('zone-1', selected ? 'MetaballGarden' : 'IQPalettes', 0.32)],
     )
   })
   const transitions = cutBoundaries(scenes)
@@ -1764,7 +1858,7 @@ function transitionReferenceShow(input: {
   const composition: ShowCompositionV1 = {
     version: 1,
     patternInstances: [
-      instance('instance-reference-backdrop', 'Caustics', 0.18),
+      instance('instance-reference-backdrop', 'Murmuration', 0.18),
       ...contentInstanceScenes.map((item, index) => instance(
         contentInstanceId(index),
         item.clips[0].pattern,
@@ -1820,7 +1914,9 @@ function transitionReferenceShow(input: {
     const transitionId = transitions[index].id
     show = replaceShowBoundaryTransition(show, transitionId, item, spec.presetId)
     show = updateShowBoundaryTransition(show, transitionId, {
-      durationMs: spec.variantId === 'cut' ? 0 : 1_800,
+      durationMs: spec.transitionSeconds !== undefined
+        ? spec.transitionSeconds * 1_000
+        : spec.variantId === 'cut' ? 0 : 1_800,
       easing: SINE_IN_OUT,
       ...spec.changes,
     })
@@ -1828,8 +1924,15 @@ function transitionReferenceShow(input: {
   return { ...stock, show }
 }
 
-type ShowcaseKind = 'transform' | 'distortion' | 'color-output'
+type ShowcaseKind = 'transform' | 'distortion' | 'color-adjustment'
 
+// Effects references are recast from TestPattern2D to real Patterns that
+// still diagnose. CompassRose's cardinal points make translation, rotation,
+// and address wrap unmistakable; StainedGlassWeather's leaded panes bend
+// visibly under distortion and carry enough distinct hues to expose every
+// color adjustment (probe: lum 0.317, flux 0.069 - the calmest bright
+// multi-hue source in the corpus). Pacing follows the editor rule: a
+// reference beat, one exemplar long enough to study, then quicker cuts.
 function effectShowcase(kind: ShowcaseKind): StockShow {
   const affineEffects = (
     values: {
@@ -1846,60 +1949,67 @@ function effectShowcase(kind: ShowcaseKind): StockShow {
   ]
   const configs = {
     transform: {
-      id: 'stock-show-showcase-transform-effects', title: 'Transform Effects', order: 1, duration: 5,
-      purpose: 'The same diagnostic Pattern moves continuously between affine Effect states, making each coordinate transformation visible.',
-      notice: 'Translate, Scale, Rotate, and Shear interpolate as one stable Effect stack. Wrap is discrete because it changes address policy rather than a numeric coordinate.',
+      id: 'stock-show-showcase-transform-effects', title: 'Transform and Address Effects', order: 1,
+      source: 'CompassRose',
+      purpose: 'The compass moves continuously between affine Effect states, so each coordinate transformation is visible on its cardinal points; Wrap then changes the address policy rather than a coordinate.',
+      notice: 'Translate, Scale, Rotate, and Shear interpolate as one stable Effect stack. Wrap is discrete because it changes where out-of-range samples come from, not where pixels go.',
       prompts: ['Change Rotate from 0.125 to 0.25 turns.', 'Move Wrap before Translate and compare the result.'] as const,
-      heading: 'transform-effects',
+      heading: 'transform-and-address-effects',
       rows: [
-        ['Reference', affineEffects()],
-        ['Translate', affineEffects({ translate: { x: 0.18, y: -0.12 } })],
-        ['Scale', affineEffects({ scale: { x: 0.68, y: 0.82 } })],
-        ['Rotate', affineEffects({ rotate: 0.125 })],
-        ['Shear', affineEffects({ shear: { x: 0.28, y: 0 } })],
-        ['Wrap', [{ id: 'translate', kind: 'translate', x: 0.28, y: 0 }, { id: 'wrap', kind: 'wrap' }]],
-      ] as Array<[string, ShowClipEffect[]]>,
+        ['Reference', affineEffects(), 3],
+        ['Translate', affineEffects({ translate: { x: 0.18, y: -0.12 } }), 4],
+        ['Scale', affineEffects({ scale: { x: 0.68, y: 0.82 } }), 3],
+        ['Rotate', affineEffects({ rotate: 0.125 }), 3],
+        ['Shear', affineEffects({ shear: { x: 0.28, y: 0 } }), 3],
+        ['Wrap', [{ id: 'translate', kind: 'translate', x: 0.28, y: 0 }, { id: 'wrap', kind: 'wrap' }], 3],
+      ] as Array<[string, ShowClipEffect[], number]>,
     },
     distortion: {
-      id: 'stock-show-showcase-distortion-effects', title: 'Distortion Effects', order: 2, duration: 5,
-      purpose: 'Distortions remap where a Clip samples its Pattern. A known grid reveals the shape, center, and strength of each remap.',
-      notice: 'The orbiting white marker makes temporal continuity visible even while space is distorted.',
+      id: 'stock-show-showcase-distortion-effects', title: 'Distortion Effects', order: 2,
+      source: 'StainedGlassWeather',
+      purpose: 'Distortions remap where a Clip samples its Pattern. The leaded panes of the glass bend, ripple, and shatter, so the shape, center, and strength of each remap stays readable.',
+      notice: 'The Ripple is the slow exemplar; the others cut past more quickly because their silhouettes differ at a glance. Every distortion here samples the same unhurried glass.',
       prompts: ['Move the Swirl center to 0.25, 0.50.', 'Reduce Kaleidoscope segments from 6 to 3.'] as const,
       heading: 'distortion-effects',
       rows: [
-        ['Reference', []], ['Ripple', [{ id: 'ripple', kind: 'ripple', amount: 0.32, frequency: 4, phase: 0, centerX: 0.5, centerY: 0.5 }]],
-        ['Swirl', [{ id: 'swirl', kind: 'swirl', amount: 0.36, radius: 0.72, centerX: 0.5, centerY: 0.5 }]],
-        ['Bulge', [{ id: 'bulge', kind: 'bulge', amount: 0.42, radius: 0.58, centerX: 0.5, centerY: 0.5 }]],
-        ['Pixelate', [{ id: 'pixelate', kind: 'pixelate', amount: 0.85, columns: 12, rows: 12 }]],
-        ['Kaleidoscope', [{ id: 'kaleidoscope', kind: 'kaleidoscope', amount: 1, segments: 6, rotation: 0, centerX: 0.5, centerY: 0.5 }]],
-      ] as Array<[string, ShowClipEffect[]]>,
+        ['Reference', [], 3],
+        ['Ripple', [{ id: 'ripple', kind: 'ripple', amount: 0.32, frequency: 4, phase: 0, centerX: 0.5, centerY: 0.5 }], 4],
+        ['Swirl', [{ id: 'swirl', kind: 'swirl', amount: 0.36, radius: 0.72, centerX: 0.5, centerY: 0.5 }], 2.5],
+        ['Bulge', [{ id: 'bulge', kind: 'bulge', amount: 0.42, radius: 0.58, centerX: 0.5, centerY: 0.5 }], 2.5],
+        ['Pixelate', [{ id: 'pixelate', kind: 'pixelate', amount: 0.85, columns: 12, rows: 12 }], 2.5],
+        ['Kaleidoscope', [{ id: 'kaleidoscope', kind: 'kaleidoscope', amount: 1, segments: 6, rotation: 0, centerX: 0.5, centerY: 0.5 }], 2.5],
+      ] as Array<[string, ShowClipEffect[], number]>,
     },
-    'color-output': {
-      id: 'stock-show-showcase-color-output-effects', title: 'Color and Output Effects', order: 3, duration: 4,
-      purpose: 'Color and output Effects change a rendered Clip without changing its geometry. Known RGB corners make each operation easier to identify.',
-      notice: 'Opacity and brightness look related on black, but opacity also matters when the Clip is layered over another image.',
-      prompts: ['Compare Opacity and Brightness over a temporary overlay.', 'Change Posterize from 4 levels to 2.'] as const,
-      heading: 'color-and-output-effects',
+    'color-adjustment': {
+      id: 'stock-show-showcase-color-adjustment-effects', title: 'Color Adjustment Effects', order: 3,
+      source: 'StainedGlassWeather',
+      purpose: 'Color adjustments change a rendered Clip without changing its geometry. The glass carries every hue at once, so each operation identifies itself in a single look.',
+      notice: 'A long reference beat establishes the true colors, then each adjustment cuts past quickly. Opacity and the key Effects live in the Compositing and Key reference, where a lower Layer gives them something to reveal.',
+      prompts: ['Compare Contrast against Brightness on the same pane.', 'Change Posterize from 4 levels to 2.'] as const,
+      heading: 'color-adjustment-effects',
       rows: [
-        ['Reference', []], ['Opacity', [{ id: 'opacity', kind: 'opacity', opacity: 0.45 }]],
-        ['Brightness', [{ id: 'brightness', kind: 'brightness', brightness: 0.45 }]], ['Hue', [{ id: 'hue', kind: 'hue', turns: 0.25 }]],
-        ['Saturation', [{ id: 'saturation', kind: 'saturation', saturation: 0.25 }]], ['Contrast', [{ id: 'contrast', kind: 'contrast', contrast: 0.72 }]],
-        ['Invert', [{ id: 'invert', kind: 'invert', amount: 1 }]], ['Threshold', [{ id: 'threshold', kind: 'threshold', threshold: 0.52, amount: 1 }]],
-        ['Posterize', [{ id: 'posterize', kind: 'posterize', levels: 4, amount: 1 }]],
-        ['Color map', [{ id: 'color-map', kind: 'color-map', amount: 1, shadowR: 0.0745, shadowG: 0.0471, shadowB: 0.1686, highlightR: 0.3098, highlightG: 1, highlightB: 0.8824 }]],
-      ] as Array<[string, ShowClipEffect[]]>,
+        ['Reference', [], 4],
+        ['Brightness', [{ id: 'brightness', kind: 'brightness', brightness: 0.45 }], 2],
+        ['Hue', [{ id: 'hue', kind: 'hue', turns: 0.25 }], 2],
+        ['Saturation', [{ id: 'saturation', kind: 'saturation', saturation: 0.25 }], 2],
+        ['Contrast', [{ id: 'contrast', kind: 'contrast', contrast: 0.72 }], 2],
+        ['Invert', [{ id: 'invert', kind: 'invert', amount: 1 }], 2],
+        ['Threshold', [{ id: 'threshold', kind: 'threshold', threshold: 0.52, amount: 1 }], 2],
+        ['Posterize', [{ id: 'posterize', kind: 'posterize', levels: 4, amount: 1 }], 2],
+        ['Color map', [{ id: 'color-map', kind: 'color-map', amount: 1, shadowR: 0.0745, shadowG: 0.0471, shadowB: 0.1686, highlightR: 0.3098, highlightG: 1, highlightB: 0.8824 }], 2],
+      ] as Array<[string, ShowClipEffect[], number]>,
     },
   } satisfies Record<ShowcaseKind, {
-    id: string; title: string; order: number; duration: number; purpose: string; notice: string;
-    prompts: readonly [string, string]; heading: string; rows: Array<[string, ShowClipEffect[]]>
+    id: string; title: string; order: number; source: string; purpose: string; notice: string;
+    prompts: readonly [string, string]; heading: string; rows: Array<[string, ShowClipEffect[], number]>
   }>
   const config = configs[kind]
   const zones = logicalZones(['Main'], 2_000)
-  const scenes = config.rows.map(([name, effects], index) => scene(
+  const scenes = config.rows.map(([name, effects, seconds], index) => scene(
     `effect-${index + 1}`,
     name,
-    kind === 'transform' && index < 4 ? config.duration - 1 : config.duration,
-    [clip('zone-1', 'TestPattern2D', 0.35, undefined, 0.90, effects.length ? effects : undefined)],
+    seconds,
+    [clip('zone-1', config.source, 0.35, undefined, 0.90, effects.length ? effects : undefined)],
   ))
   const transitions = kind === 'transform'
     ? scenes.slice(0, -1).map((item, index) => (
@@ -1920,6 +2030,80 @@ function effectShowcase(kind: ShowcaseKind): StockShow {
         id: `${kind}-${index + 1}`,
         label: item.name,
         detail: index === 0 ? 'Unmodified Pattern reference.' : `${item.name} applied in isolation.`,
+        anchor: { kind: 'scene', sceneId: item.id },
+      })),
+    },
+  })
+}
+
+// Compositing and key Effects only mean something over a lower Layer, so
+// this reference is built differently from its siblings: a dim warm
+// IQPalettes bed runs underneath while green MetaballGarden carries each
+// Effect. The garden was cast by measurement for exactly this job - bright
+// green blobs on darkness give Luma Key a clean background to remove and
+// Chroma Key a saturated signature color to punch out, and the warm bed
+// (the pair's measured opposite) makes every removed pixel unmistakable.
+function compositingKeyShowcase(): StockShow {
+  const id = 'stock-show-showcase-compositing-key-effects'
+  const zones = logicalZones(['Main'], 2_000)
+  const rows: Array<[string, string, ShowClipEffect[], number]> = [
+    ['Reference', 'The garden fully opaque; the bed is invisible beneath it.', [], 3],
+    ['Opacity', 'The whole Clip becomes translucent and the bed glows through everywhere.', [{ id: 'opacity', kind: 'opacity', opacity: 0.45 }], 4],
+    ['Luma Key', 'Dark pixels vanish: the blobs float alone over the bed.', [{ id: 'luma-key', kind: 'luma-key', target: 0, tolerance: 0.32, softness: 0.18 }], 3],
+    ['Chroma Key', 'Green vanishes: the blob bodies punch out and the bed shows through them.', [{ id: 'chroma-key', kind: 'chroma-key', color: '#22c55e', tolerance: 0.3, softness: 0.2 }], 3],
+    ['Vignette', 'The frame darkens toward the edges while the center stays untouched.', [{ id: 'vignette', kind: 'vignette', amount: 1, radius: 0.42, softness: 0.4, centerX: 0.5, centerY: 0.5, aspect: 1 }], 3],
+  ]
+  const scenes = rows.map(([name, , , seconds], index) => scene(
+    `composite-${index + 1}`,
+    name,
+    seconds,
+    [clip('zone-1', 'MetaballGarden', 0.35, undefined, 0.9)],
+  ))
+  const composition: ShowCompositionV1 = {
+    version: 1,
+    patternInstances: [
+      instance('composite-bed', 'IQPalettes', 0.2),
+      instance('composite-subject', 'MetaballGarden', 0.35),
+    ],
+    scenes: scenes.map((item, index) => ({
+      sceneId: item.id,
+      zones: [{
+        zoneId: 'zone-1',
+        main: [{
+          ...placement(`bed-${index + 1}`, 'composite-bed', 0, item.durationMs / 1_000),
+          view: { mirror: false, phase: 0, brightness: 0.4 },
+        }],
+        overlays: [{
+          id: `layer-subject-${index + 1}`,
+          name: 'Subject',
+          placements: [{
+            ...placement(`subject-${index + 1}`, 'composite-subject', 0, item.durationMs / 1_000),
+            opacity: 1,
+            ...(rows[index][2].length ? { effects: rows[index][2] } : {}),
+          }],
+        }],
+      }],
+    })),
+    durationMs: rows.reduce((sum, [, , , seconds]) => sum + seconds, 0) * 1_000,
+  }
+  return catalogue({
+    id, title: 'Compositing and Key Effects', track: 'portable', collection: 'showcases', level: null, order: 4,
+    purpose: "Opacity, Luma Key, Chroma Key, and Vignette decide which of a Clip's pixels reach the mix, so they only mean something over a lower Layer. A warm bed runs underneath the whole reference; every pixel these Effects remove shows the bed instead.",
+    notice: "Opacity is the slow exemplar - the whole Clip thins evenly. The keys remove pixels selectively: Luma Key by darkness, Chroma Key by the garden's green. Vignette closes the frame without touching the center.",
+    prompts: ['Raise the Luma Key tolerance until only the brightest blob cores survive.', 'Point the Chroma Key at a different color and watch the wrong pixels vanish.'],
+    guideHeading: 'compositing-and-key-effects',
+    defaultOpen: true,
+    output: portableOutput(), zones, layouts: [singleLayout(zones)],
+    scenes,
+    transitions: cutBoundaries(scenes),
+    composition,
+    reference: {
+      summary: 'A constant warm bed under a green subject; each Effect decides which subject pixels reach the mix.',
+      patternSlots: { cellIds: scenes.map((item) => cellId(item.id, 'zone-1')), instanceIds: ['composite-subject'] },
+      examples: scenes.map((item, index) => ({
+        id: `composite-${index + 1}`,
+        label: item.name,
+        detail: rows[index][1],
         anchor: { kind: 'scene', sceneId: item.id },
       })),
     },

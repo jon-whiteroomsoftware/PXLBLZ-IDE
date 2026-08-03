@@ -28,8 +28,12 @@ describe('Show render-target residual-headroom census (#514)', () => {
     // composition lessons landed, again with the Learn 300 lessons (303
     // joins as portable-2d while the two 160-pixel sunflower Installations
     // sit outside this census's 2,000-pixel render-target question), and
-    // again with the 100 tour, 207, and the Aperture Shapes reference.
-    expect(report.summary.savedShowCount).toBe(25)
+    // again with the 100 tour, 207, and the Aperture Shapes reference, and
+    // again with the showcase repartition (fourteen references, every one
+    // clearing the render-target reservation and activation ceiling after
+    // the Shape Reveals split and the Property Animation consolidation that
+    // this census itself forced).
+    expect(report.summary.savedShowCount).toBe(30)
     expect(report.summary.savedShowRejections).toHaveLength(0)
     expect(report.summary.savedShowRejections.every((entry) => !entry.failsSolelyBecauseOfReservation)).toBe(true)
   })

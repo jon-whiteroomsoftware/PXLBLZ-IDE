@@ -28,7 +28,7 @@ import { STOCK_SHOWS, stockShowById } from './shows'
 
 describe('stock Show curriculum (#363)', () => {
   it('ships the stable Learn 100, Learn 200, Learn 300, and showcase catalogue', () => {
-    expect(STOCK_SHOWS).toHaveLength(27)
+    expect(STOCK_SHOWS).toHaveLength(32)
     expect(new Set(STOCK_SHOWS.map((item) => item.id)).size).toBe(STOCK_SHOWS.length)
     expect(STOCK_SHOWS.map((item) => [item.name, item.collection, item.level, item.order])).toEqual([
       ['100 Getting Around', 'learn', 100, 0],
@@ -48,16 +48,21 @@ describe('stock Show curriculum (#363)', () => {
       ['301 Installation Mapping', 'learn', 300, 1],
       ['302 Installation Composition', 'learn', 300, 2],
       ['303 Compile, Simplify, and Deliver', 'learn', 300, 3],
-      ['Transform Effects', 'showcases', null, 1],
+      ['Transform and Address Effects', 'showcases', null, 1],
       ['Distortion Effects', 'showcases', null, 2],
-      ['Color and Output Effects', 'showcases', null, 3],
-      ['Wipe and Mix Transitions', 'showcases', null, 4],
-      ['Shape Reveal Transitions', 'showcases', null, 5],
-      ['Motion Transitions', 'showcases', null, 6],
-      ['Property Animation', 'showcases', null, 7],
-      ['Easing', 'showcases', null, 8],
-      ['Aperture Shapes', 'showcases', null, 9],
-      ['Redline Installation', 'showcases', null, 10],
+      ['Color Adjustment Effects', 'showcases', null, 3],
+      ['Compositing and Key Effects', 'showcases', null, 4],
+      ['Blend and Fade Transitions', 'showcases', null, 5],
+      ['Wipes', 'showcases', null, 6],
+      ['Dissolves', 'showcases', null, 7],
+      ['Shape Reveals: Geometric', 'showcases', null, 8],
+      ['Shape Reveals: Figures', 'showcases', null, 9],
+      ['Slide Transitions', 'showcases', null, 10],
+      ['Zoom and Spin Transitions', 'showcases', null, 11],
+      ['Property Animation', 'showcases', null, 12],
+      ['Easing', 'showcases', null, 13],
+      ['Aperture Shapes', 'showcases', null, 14],
+      ['Redline Installation', 'showcases', null, 15],
     ])
     expect(STOCK_SHOWS.every((item) => item.show.id === item.id)).toBe(true)
     expect(STOCK_SHOWS.every((item) => !/\bscenes?\b/i.test([
@@ -70,23 +75,29 @@ describe('stock Show curriculum (#363)', () => {
       .toBe(STOCK_SHOWS.length)
   })
 
-  it('ships six single-family reference Shows with semantic example metadata (#506)', () => {
+  it('ships the repartitioned single-family reference Shows with semantic example metadata (#506)', () => {
     const referenceShows = STOCK_SHOWS.filter((item) => item.id.startsWith('stock-show-reference-'))
 
     expect(referenceShows.map((item) => item.id)).toEqual([
-      'stock-show-reference-wipe-mix-transitions',
+      'stock-show-reference-blend-fade-transitions',
+      'stock-show-reference-wipe-transitions',
+      'stock-show-reference-dissolve-transitions',
       'stock-show-reference-shape-reveal-transitions',
-      'stock-show-reference-motion-transitions',
+      'stock-show-reference-shape-reveal-figures',
+      'stock-show-reference-slide-transitions',
+      'stock-show-reference-zoom-spin-transitions',
       'stock-show-reference-property-animation',
       'stock-show-reference-easing',
       'stock-show-reference-aperture-shapes',
     ])
-    expect(referenceShows.every((item) => item.reference!.examples.length >= 8)).toBe(true)
+    // The repartition trades everything-matrices for families a viewer can
+    // hold in mind; Blend and Fade and Dissolves are the smallest at four.
+    expect(referenceShows.every((item) => item.reference!.examples.length >= 4)).toBe(true)
     expect(referenceShows.every((item) => (item.reference?.patternSlots?.cellIds.length ?? 0) > 0)).toBe(true)
     expect(referenceShows.find((item) => item.id === 'stock-show-reference-property-animation')?.reference?.patternSlots)
       .toMatchObject({
         cellIds: expect.arrayContaining(['cell-animation-speed-zone-2', 'cell-repeat-scale-zone-2']),
-        instanceIds: expect.arrayContaining(['instance-animation-speed-b', 'instance-repeat-scale-b']),
+        instanceIds: ['instance-property-comparison'],
       })
 
     const referenceSection = STOCK_SHOWS.filter((item) => (
@@ -96,34 +107,57 @@ describe('stock Show curriculum (#363)', () => {
     expect(referenceSection.every((item) => item.note.defaultOpen)).toBe(true)
   })
 
-  it('covers registry variants, eight Wipe directions, all easing curves, and eight Property targets (#506)', () => {
+  it('covers wipe variants, every silhouette, the split motion registry, easing curves, and Property targets (#506)', () => {
     const item = (id: string) => STOCK_SHOWS.find((candidate) => candidate.id === id)!
-    const wipe = item('stock-show-reference-wipe-mix-transitions')
-    const shape = item('stock-show-reference-shape-reveal-transitions')
-    const motion = item('stock-show-reference-motion-transitions')
+    const wipe = item('stock-show-reference-wipe-transitions')
+    const shapeGeometric = item('stock-show-reference-shape-reveal-transitions')
+    const shapeFigures = item('stock-show-reference-shape-reveal-figures')
+    const slide = item('stock-show-reference-slide-transitions')
+    const zoomSpin = item('stock-show-reference-zoom-spin-transitions')
+    const dissolve = item('stock-show-reference-dissolve-transitions')
     const easing = item('stock-show-reference-easing')
     const property = item('stock-show-reference-property-animation')
 
     const transitionVariants = (familyId: string) => SHOW_VISUAL_TOOLKIT_REGISTRY
       .find((family) => family.kind === 'transition' && family.id === familyId)!.variants.map((variant) => variant.id)
-    expect(new Set(shape.show.transitions?.filter((transition) => transition.kind === 'portal').map((transition) => transition.shape)))
-      .toEqual(new Set(transitionVariants('shape-reveal')))
-    expect(new Set(motion.show.transitions?.filter((transition) => transition.kind === 'motion').map((transition) => transition.motionVariant)))
-      .toEqual(new Set(transitionVariants('motion')))
+    // Silhouettes split across the Geometric and Figures references (#514
+    // caught one fifteen-boundary matrix over the activation ceiling);
+    // together they still cover the registry.
+    expect(new Set([
+      ...(shapeGeometric.show.transitions?.filter((transition) => transition.kind === 'portal').map((transition) => transition.shape) ?? []),
+      ...(shapeFigures.show.transitions?.filter((transition) => transition.kind === 'portal').map((transition) => transition.shape) ?? []),
+    ])).toEqual(new Set(transitionVariants('shape-reveal')))
+    expect(new Set(wipe.show.transitions?.filter((transition) => transition.kind === 'wipe').map((transition) => transition.wipeVariant)))
+      .toEqual(new Set(transitionVariants('wipe')))
+    // Motion variants split across the Slide and Zoom-and-Spin references;
+    // together they still cover the registry.
+    expect(new Set([
+      ...(slide.show.transitions?.filter((transition) => transition.kind === 'motion').map((transition) => transition.motionVariant) ?? []),
+      ...(zoomSpin.show.transitions?.filter((transition) => transition.kind === 'motion').map((transition) => transition.motionVariant) ?? []),
+    ])).toEqual(new Set(transitionVariants('motion')))
+    // Cardinal directions only; diagonals stay continuous inspector edits.
     expect(wipe.show.transitions?.filter((transition) => transition.kind === 'wipe' && transition.wipeVariant === 'linear')
-      .map((transition) => transition.direction)).toEqual([0, 0.125, 0.25, 0.375, 0.5, 0.625, 0.75, 0.875])
+      .map((transition) => transition.direction)).toEqual([0, 0.25, 0.5, 0.75])
     expect(easing.show.transitions?.map((transition) => showEasingOptionId(transition.easing)))
       .toEqual(SHOW_EASING_OPTIONS.map((option) => option.id))
 
-    for (const reference of [wipe, shape, motion, easing]) {
-      const starts = projectShowTimeline(reference.show).boundaryTransitions.map((transition) => transition.startMs)
-      expect(starts.slice(1).map((start, index) => start - starts[index]), reference.name)
-        .toEqual(Array.from({ length: starts.length - 1 }, () => 5_000))
+    // Editor pacing: split references lead with a study-tempo exemplar and
+    // run every sibling faster. Easing alone stays uniform, because running
+    // every curve over an identical duration is its control variable.
+    for (const reference of [wipe, shapeGeometric, shapeFigures, slide, zoomSpin, dissolve]) {
+      const durations = reference.show.transitions!.map((transition) => transition.durationMs)
+      expect(Math.max(...durations.slice(1)), reference.name).toBeLessThan(durations[0])
+    }
+    {
+      const starts = projectShowTimeline(easing.show).boundaryTransitions.map((transition) => transition.startMs)
+      const gaps = new Set(starts.slice(1).map((start, index) => start - starts[index]))
+      expect(gaps.size).toBe(1)
     }
 
     const targets = property.show.composition!.scenes.flatMap((scene) => scene.propertyTracks?.map((track) => track.target) ?? [])
     expect(targets.map((target) => target.kind)).toEqual([
-      'instance-time-scale', 'instance-control', 'placement-view', 'placement-view', 'placement-opacity', 'placement-effect',
+      'instance-time-scale', 'instance-control', 'placement-view',
+      'placement-transform', 'placement-viewport', 'placement-opacity', 'placement-effect',
     ])
     expect(property.show.transitions).toEqual(expect.arrayContaining([
       expect.objectContaining({ propertyTransitions: { routing: { splitPosition: expect.anything() } } }),
@@ -133,16 +167,23 @@ describe('stock Show curriculum (#363)', () => {
 
   it('places Transition references over one fixed diagnostic backdrop (#506)', () => {
     const references = [
-      'stock-show-reference-wipe-mix-transitions',
+      'stock-show-reference-blend-fade-transitions',
+      'stock-show-reference-wipe-transitions',
+      'stock-show-reference-dissolve-transitions',
       'stock-show-reference-shape-reveal-transitions',
-      'stock-show-reference-motion-transitions',
+      'stock-show-reference-shape-reveal-figures',
+      'stock-show-reference-slide-transitions',
+      'stock-show-reference-zoom-spin-transitions',
       'stock-show-reference-easing',
     ].map((id) => STOCK_SHOWS.find((candidate) => candidate.id === id)!)
 
     for (const item of references) {
+      // Murmuration by measurement: the calmest dim voice in the corpus
+      // (flux 0.015); the old Caustics backdrop measured 0.53 and fought
+      // the comparison running above it.
       expect(item.show.composition?.patternInstances).toContainEqual(expect.objectContaining({
         id: 'instance-reference-backdrop',
-        patternName: 'Caustics',
+        patternName: 'Murmuration',
       }))
       expect(item.show.composition?.scenes).toHaveLength(item.show.scenes.length)
       expect(item.show.composition?.scenes.every((scene) => (
@@ -156,18 +197,26 @@ describe('stock Show curriculum (#363)', () => {
 
   it('reuses one intentional Pattern pair across every Transition reference', () => {
     const references = [
-      'stock-show-reference-wipe-mix-transitions',
+      'stock-show-reference-blend-fade-transitions',
+      'stock-show-reference-wipe-transitions',
+      'stock-show-reference-dissolve-transitions',
       'stock-show-reference-shape-reveal-transitions',
-      'stock-show-reference-motion-transitions',
+      'stock-show-reference-shape-reveal-figures',
+      'stock-show-reference-slide-transitions',
+      'stock-show-reference-zoom-spin-transitions',
       'stock-show-reference-easing',
     ].map((id) => STOCK_SHOWS.find((candidate) => candidate.id === id)!)
 
     for (const item of references) {
+      // The measured diagnostic pair: probed on the 44x44 plane at the 0.32
+      // clock, IQPalettes and MetaballGarden are the two calmest
+      // equally-bright fields with the widest sustained hue contrast, so
+      // every boundary reads as one world replacing another.
       const composition = item.show.composition!
       expect(composition.patternInstances.map((instance) => instance.patternName), item.name).toEqual([
-        'Caustics',
-        'TestPattern2D',
-        'CompassRose',
+        'Murmuration',
+        'IQPalettes',
+        'MetaballGarden',
       ])
       expect(new Set(composition.scenes.map((scene) => (
         scene.zones[0].overlays[0].placements[0].instanceId
@@ -1150,15 +1199,26 @@ describe('stock Show curriculum (#363)', () => {
     }
   }, 30_000)
 
-  it('covers every Effect kind in the three data-driven showcases', () => {
+  it('covers every Effect kind across the four Effect showcases', () => {
+    // The Compositing and Key reference carries its Effects on overlay
+    // placements (they only mean something over a lower Layer), so the
+    // census reads cells and composition placements alike. The repartition
+    // extends coverage from 19 kinds to all 22, adding luma-key, chroma-key,
+    // and vignette.
     const kinds = STOCK_SHOWS
       .filter((item) => item.id.startsWith('stock-show-showcase-'))
-      .flatMap((item) => item.show.cells.flatMap((cell) => cell.effects?.map((effect) => effect.kind) ?? []))
+      .flatMap((item) => [
+        ...item.show.cells.flatMap((cell) => cell.effects?.map((effect) => effect.kind) ?? []),
+        ...(item.show.composition?.scenes ?? []).flatMap((scene) => scene.zones.flatMap((zone) => [
+          ...zone.main.flatMap((entry) => entry.effects?.map((effect) => effect.kind) ?? []),
+          ...zone.overlays.flatMap((layer) => layer.placements.flatMap((entry) => entry.effects?.map((effect) => effect.kind) ?? [])),
+        ])),
+      ])
 
     expect([...new Set(kinds)].sort()).toEqual([
-      'brightness', 'bulge', 'color-map', 'contrast', 'hue', 'invert', 'kaleidoscope', 'opacity',
-      'pixelate', 'posterize', 'ripple', 'rotate', 'saturation', 'scale', 'shear', 'swirl',
-      'threshold', 'translate', 'wrap',
+      'brightness', 'bulge', 'chroma-key', 'color-map', 'contrast', 'hue', 'invert', 'kaleidoscope',
+      'luma-key', 'opacity', 'pixelate', 'posterize', 'ripple', 'rotate', 'saturation', 'scale',
+      'shear', 'swirl', 'threshold', 'translate', 'vignette', 'wrap',
     ])
   })
 

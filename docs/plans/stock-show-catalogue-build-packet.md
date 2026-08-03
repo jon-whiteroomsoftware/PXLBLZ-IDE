@@ -465,21 +465,27 @@ kindly.
 - Compositing and Key Effects
 
 The split replaces the old overloaded Color & Output matrix. Compositing and Key
-Effects should cover Opacity, Luma Key, Chroma Key, and Vignette against an
-appropriate lower source. Trails remains a Show output Effect and should appear
-inside a finished score until the output-Effect family is large enough to
-justify its own reference.
+Effects covers Opacity, Luma Key, Chroma Key, and Vignette against a lower
+source. Trails remains a Show output Effect and should appear inside a finished
+score until the output-Effect family is large enough to justify its own
+reference.
 
 **Transitions**
 
 - Blend and Fade Transitions
 - Wipes
 - Dissolves
-- Shape Reveals
-- Motion Transitions
+- Shape Reveals: Geometric
+- Shape Reveals: Figures
+- Slide Transitions
+- Zoom and Spin Transitions
 
 This replaces the long combined Wipe and Mix reference. Each Show keeps source
-Patterns and timing constant while one family changes.
+Patterns constant while one family changes. The 2026-08-02 build split Shape
+Reveals and Motion one further step than originally planned: the #514
+activation-ceiling and frozen-vintage #536 censuses priced a fifteen-boundary
+silhouette matrix and a twenty-variant motion matrix over budget, and the
+shorter families also attribute faster.
 
 **Animation**
 
