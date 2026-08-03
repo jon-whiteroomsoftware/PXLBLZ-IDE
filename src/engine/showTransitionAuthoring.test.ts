@@ -17,6 +17,14 @@ describe('Show Transition authoring adapter', () => {
     const transitionId = base.transitions![0].id
 
     expect(items).toHaveLength(36)
+    const cloudItem = items.find((item) => item.key === 'transition:shape-reveal:cloud')!
+    const cloudShow = replaceShowBoundaryTransition(base, transitionId, cloudItem)
+    expect(cloudShow.transitions!.find((candidate) => candidate.id === transitionId))
+      .toMatchObject({ shape: 'cloud', aspect: 1.4 })
+    const sideCatItem = items.find((item) => item.key === 'transition:shape-reveal:cat-side-profile')!
+    const sideCatShow = replaceShowBoundaryTransition(base, transitionId, sideCatItem)
+    expect(sideCatShow.transitions!.find((candidate) => candidate.id === transitionId))
+      .toMatchObject({ shape: 'cat-side-profile', aspect: 1.6 })
     for (const item of items) {
       const changed = replaceShowBoundaryTransition(base, transitionId, item)
       const transition = changed.transitions!.find((candidate) => candidate.id === transitionId)!

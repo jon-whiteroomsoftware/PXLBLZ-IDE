@@ -442,7 +442,18 @@ export const SHOW_VISUAL_TOOLKIT_REGISTRY: ShowToolkitFamilyDescriptor[] = [
           { value: 'shrink-outgoing', label: 'Shrink outgoing' },
         ],
       },
-      { id: 'aspect', label: 'Aspect', kind: 'number', defaultValue: 1, min: 0.25, max: 4, step: 0.01, presentation: 'ratio', variantIds: ['ellipse', 'box', 'rounded-box', 'cross', 'heart', 'star', 'crescent', 'polygon', 'cloud', 'cat-head', 'cat-side-profile', 'bastet'] },
+      {
+        id: 'aspect', label: 'Aspect', kind: 'number', defaultValue: 1, min: 0.25, max: 4, step: 0.01, presentation: 'ratio',
+        variantIds: ['ellipse', 'box', 'rounded-box', 'cross', 'heart', 'star', 'crescent', 'polygon', 'cloud', 'cat-head', 'cat-side-profile', 'bastet'],
+        // Keep the palette's materialized defaults aligned with
+        // normalizeSpatialShapeSettings' per-shape aspect fallbacks (#690 P2).
+        constraintsByVariant: {
+          ellipse: { defaultValue: 1.5 },
+          cloud: { defaultValue: 1.4 },
+          'cat-side-profile': { defaultValue: 1.6 },
+          bastet: { defaultValue: 0.65 },
+        },
+      },
       { id: 'rotation', label: 'Rotation', kind: 'number', defaultValue: 0, min: -1, max: 1, step: 0.01, unit: 'turn', presentation: 'rotation', variantIds: ['ellipse', 'box', 'rounded-box', 'diamond', 'cross', 'heart', 'star', 'crescent', 'polygon', 'cloud', 'cat-head', 'cat-side-profile', 'bastet'] },
       { id: 'spin', label: 'Spin', kind: 'number', defaultValue: 0, min: -4, max: 4, step: 0.01, unit: 'turn', presentation: 'cycles', variantIds: ['diamond'] },
       { id: 'ringWidth', label: 'Ring width', kind: 'number', defaultValue: 0.12, min: 0.02, max: 1, step: 0.01, variantIds: ['ring'] },

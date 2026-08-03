@@ -460,16 +460,27 @@ export function resizeViewportToAnchor(
   })
 }
 
-/** The durable silhouette styling every frame gesture must carry (#591, #678). */
+/** The durable silhouette styling every frame gesture must carry (#591, #678, #690). */
 function apertureStyling(
   viewport: ShowClipViewport,
-): Pick<ShowClipViewport, 'aperture' | 'edge' | 'feather' | 'ringWidth' | 'cornerRadius'> {
+): Pick<
+  ShowClipViewport,
+  | 'aperture' | 'edge' | 'feather' | 'rotation' | 'invert' | 'ringWidth' | 'cornerRadius'
+  | 'crossWidth' | 'starPoints' | 'starInner' | 'crescentOffset' | 'polygonSides'
+> {
   return {
     ...(viewport.aperture !== undefined ? { aperture: viewport.aperture } : {}),
     ...(viewport.edge !== undefined ? { edge: viewport.edge } : {}),
     ...(viewport.feather !== undefined ? { feather: viewport.feather } : {}),
+    ...(viewport.rotation !== undefined ? { rotation: viewport.rotation } : {}),
+    ...(viewport.invert !== undefined ? { invert: viewport.invert } : {}),
     ...(viewport.ringWidth !== undefined ? { ringWidth: viewport.ringWidth } : {}),
     ...(viewport.cornerRadius !== undefined ? { cornerRadius: viewport.cornerRadius } : {}),
+    ...(viewport.crossWidth !== undefined ? { crossWidth: viewport.crossWidth } : {}),
+    ...(viewport.starPoints !== undefined ? { starPoints: viewport.starPoints } : {}),
+    ...(viewport.starInner !== undefined ? { starInner: viewport.starInner } : {}),
+    ...(viewport.crescentOffset !== undefined ? { crescentOffset: viewport.crescentOffset } : {}),
+    ...(viewport.polygonSides !== undefined ? { polygonSides: viewport.polygonSides } : {}),
   }
 }
 

@@ -550,6 +550,18 @@ describe('shaped aperture support (#591)', () => {
       .toMatchObject({ aperture: 'rounded-box', cornerRadius: 0.4 })
     expect(resizeViewportToAnchor(boxContext, { x: 0.25, y: 0.25 }, 0.9, 0.8, { square: true }).viewport)
       .toMatchObject({ aperture: 'rounded-box', cornerRadius: 0.4 })
+    const styledContext = context({}, {
+      enabled: true, x: 0.25, y: 0.25, width: 0.5, height: 0.5,
+      aperture: 'star', starPoints: 7, starInner: 0.3, rotation: 0.125, invert: true,
+    })
+    expect(moveViewportTo(styledContext, 0.1, 0.1).viewport)
+      .toMatchObject({ aperture: 'star', starPoints: 7, starInner: 0.3, rotation: 0.125, invert: true })
+    const crescentContext = context({}, {
+      enabled: true, x: 0.25, y: 0.25, width: 0.5, height: 0.5,
+      aperture: 'crescent', crescentOffset: 0.6,
+    })
+    expect(sweepViewport(crescentContext, 0.1, 0.1, 0.6, 0.6).viewport)
+      .toMatchObject({ aperture: 'crescent', crescentOffset: 0.6 })
   })
 
   it('defaults first enable to Soft and preserves authored aperture styling (#689)', () => {

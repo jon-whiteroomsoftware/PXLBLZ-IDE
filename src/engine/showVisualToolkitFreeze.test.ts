@@ -18,7 +18,7 @@ describe('Show visual-toolkit integration freeze (#459)', () => {
 
     expect(SHOW_VISUAL_TOOLKIT_CONTRACT_VERSION).toBe(13)
     expect(freeze.errors).toEqual([])
-    expect(freeze.fingerprint).toBe('654b72ae')
+    expect(freeze.fingerprint).toBe('b9bb26c5')
     expect(buildShowVisualToolkitFreeze().fingerprint).toBe(freeze.fingerprint)
     expect(freeze.variants.length).toBeGreaterThan(0)
     expect(freeze.variants.every((variant) => variant.fixtureIds.length > 0)).toBe(true)

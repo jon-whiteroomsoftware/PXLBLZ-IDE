@@ -194,7 +194,8 @@ describe('Show Transition authoring UI', () => {
     render(<ShowTransitionParameters transition={show.transitions![0]} item={ellipse} onChange={onChange} />)
 
     const aspect = screen.getByRole('textbox', { name: 'Aspect exact ratio' })
-    expect(aspect).toHaveValue('1:1')
+    // The Ellipse materializes its catalogue default 1.5 aspect (#690 P2).
+    expect(aspect).toHaveValue('3:2')
     await user.clear(aspect)
     await user.type(aspect, '16:9')
     await user.tab()
