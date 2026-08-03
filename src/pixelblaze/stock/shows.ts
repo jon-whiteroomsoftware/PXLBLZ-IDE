@@ -166,8 +166,8 @@ function learn100(): StockShow {
   }
   return catalogue({
     id, title: 'Getting Around', track: 'portable', collection: 'learn', level: 100, order: 0,
-    purpose: 'This Show is a playground, not a piece: it exists so you can learn to move. Space plays and pauses from almost anywhere. Command/Ctrl+wheel zooms the timeline around the playhead and Shift+wheel pans it. The Navigator strip drags and resizes your view of a long Show. And whatever you break, Reset restores this lesson exactly.',
-    notice: 'The fastest edits hide in plain sight: double-click an empty stretch of a Layer to place a Clip there, hold Option/Alt before dragging a Clip to carry away an independent duplicate, drag a Clip between Layer rows, and hold Option/Alt while resizing or scrubbing to temporarily reverse Snap. This tour is deliberately incomplete - the guide below is the full map.',
+    purpose: 'This Show is a playground, not a piece: it exists so you can learn to get around. Space plays and pauses from almost anywhere. Command/Ctrl+wheel zooms the timeline around the playhead and Shift+wheel pans it. The Navigator strip drags and resizes your view of a long Show. And whatever you break, Reset restores this lesson exactly.',
+    notice: 'Four gestures do most of the editing work: double-click an empty stretch of a Layer to place a Clip there, hold Option/Alt and drag a Clip to pull off an independent copy, drag a Clip between Layer rows to move it, and hold Option/Alt while resizing or scrubbing to temporarily reverse Snap. This tour is deliberately incomplete; the guide below covers everything else.',
     prompts: ['Double-click the empty stretch after the last Clip and pick any Pattern: the chooser places a Clip right where you clicked.', 'Hold Option/Alt and drag the first Clip anywhere - you get an independent copy and the original never moves. Try dropping it on the upper Layer row, then press Reset.'],
     guideHeading: 'creating-and-arranging-clips',
     guideDocumentId: 'keyboard-shortcuts',
@@ -633,9 +633,9 @@ function learn201(): StockShow {
   }
   return catalogue({
     id, title: 'Layers and Property Animation', track: 'portable', collection: 'learn', level: 200, order: 1,
-    purpose: 'Layers blend pixels from different Clips into one picture: whatever a higher Layer draws is mixed over the Layers below it. Here GlyphRain plays on its own Layer above Caustics, and one Opacity curve - rise, hold, fade - is the whole story of its arrival and exit.',
-    notice: 'The Caustics Clip never changes. Opacity mixes the two Layers, so the water recedes only while the rain is up, and the rain arrives and leaves on its Opacity curve rather than at its Clip edges.',
-    prompts: ['Open the GlyphRain Clip, click the diamond next to Opacity, and drag both 65% keyframes down to 30% - the rain becomes a tint instead of a voice.', 'Click Add keyframe and pull the new middle point up to 100% for a swell in the middle of the hold.'],
+    purpose: 'Layers blend pixels from different Clips into one picture: whatever a higher Layer draws is mixed over the Layers below it. Here GlyphRain plays on its own Layer above Caustics, and a single Opacity curve - rise, hold, fade - carries its entire arrival and exit.',
+    notice: 'The Caustics Clip never changes. Opacity mixes the two Layers, so the water dims only while the rain is up, and the rain appears and disappears on its Opacity curve rather than at its Clip edges.',
+    prompts: ['Open the GlyphRain Clip, click the diamond next to Opacity, and drag both 65% keyframes down to 30% - the rain drops back to a faint tint over the water.', 'Click Add keyframe and pull the new middle point up to 100% - the rain now swells to full strength in the middle of its hold.'],
     guideHeading: 'layers-and-property-animation',
     output: portableOutput(), zones, layouts: [singleLayout(zones)], scenes, composition,
   })
@@ -787,9 +787,9 @@ function learn207(): StockShow {
   }
   return catalogue({
     id, title: 'Aperture Shapes and Edges', track: 'portable', collection: 'learn', level: 200, order: 7,
-    purpose: 'The aperture from 202 has a shape of its own. The Clip Viewport offers a sectioned silhouette catalogue - Geometric shapes like the Ellipse, Diamond, Ring, and Rounded box, Icons like the Heart, Star, and Cloud, and the Signature cats - and every silhouette carries an edge treatment. A silhouette can also rotate inside its axis-aligned frame, and its Mode can flip from admitting the inside to cutting it out. Shaped apertures feather Soft by default - smooth is almost always what you want - and Hard and Stable Dither are the deliberate exceptions. Shape and edge are placement geometry owned by the Clip, separate from Content and from Effects.',
-    notice: 'Nothing moves in this lesson. The frame arrives already feathered - the same Soft edge 202 leaves you with - so only the silhouette changes until the last passage hardens the edge on purpose. The Star shows the catalogue reaches past geometry, and the Ring makes the edge difference visceral: the bed shows straight through its center, and cutting it Hard shows exactly what the feather was doing for you.',
-    prompts: ["Turn the Star with Aperture rotation, then flip its Mode to Cut out - the frame stays axis-aligned while the silhouette turns, and both Modes share one boundary.", 'On the last Clip, switch the Hard edge back to Soft, then try Stable Dither: Dither trades the smooth ramp for a texture that survives LED quantization.'],
+    purpose: 'The aperture from 202 has a shape of its own. The Clip Viewport picks a silhouette from a catalogue - Geometric shapes like the Ellipse, Diamond, and Ring, Icons like the Heart, Star, and Cloud, and the Signature cats - and every silhouette has an edge: Soft feathering by default, with Hard and Stable Dither as deliberate alternatives. A silhouette can rotate inside its axis-aligned frame, and its Mode can flip from admitting the inside to cutting it out. Shape and edge belong to the Clip, separate from Content and from Effects.',
+    notice: 'Nothing moves in this lesson: the frame stays put and only the silhouette changes, Clip by Clip - Rectangle, Ellipse, Star, then Ring. Every edge is the Soft default until the last Clip, which cuts the same Ring with a Hard edge. The Ring makes the comparison easy: the lower Layer shows through its open center, and hardening the edge shows exactly what the feather was smoothing.',
+    prompts: ['Rotate the Star, then flip its Mode to Cut out - the frame stays axis-aligned while the silhouette turns, and Cut out removes exactly the pixels Admit was showing.', 'On the last Clip, switch the Hard edge back to Soft, then try Stable Dither: it trades the smooth ramp for a per-pixel speckle that never shimmers.'],
     guideHeading: 'aperture-shapes-and-edges',
     output: portableOutput(), zones, layouts: [singleLayout(zones)], scenes, composition,
   })
@@ -896,7 +896,7 @@ function learn204(): StockShow {
     id, title: 'Presentation Modes', track: 'portable', collection: 'learn', level: 200, order: 4,
     purpose: 'Presentation changes how one Clip shows a running Pattern without touching the Pattern itself. Freeze holds the arrival frame, Strobe refreshes it on a fixed beat, and Blink gates visibility on and off while time keeps passing underneath.',
     notice: 'Live, Freeze, Strobe, and Blink all present the same Pattern instance, and its clock never stops. The last Clip is different in kind: Stutter quantizes the instance clock itself, so it owns a second instance.',
-    prompts: ['Compare Freeze with Blink: one holds a picture, the other hides a moving one, and the colors land somewhere different when each ends.', 'Change the Stutter step and watch the whole Clip snap on a different beat.'],
+    prompts: ['Compare Freeze with Blink: Freeze holds a still picture and Blink hides a moving one. The clock never stops in either, so watch where the colors have gotten to when each Clip ends.', 'Change the Stutter step and watch the whole Clip snap on a different beat.'],
     guideHeading: 'presentation-modes',
     output: portableOutput(), zones, layouts: [singleLayout(zones)], scenes, composition,
   })
@@ -978,8 +978,8 @@ function learn205(): StockShow {
   }
   return catalogue({
     id, title: 'Groups and Linked Reuse', track: 'portable', collection: 'learn', level: 200, order: 5,
-    purpose: 'A Group definition is choreography you can reuse. Each occurrence places the whole phrase - here a pulse and its echo across two Layers - and every occurrence gets its own fresh Pattern instances, so linked copies repeat the moves without sharing private state.',
-    notice: 'Both pulses are one definition. Edit the phrase once and both occurrences change; the second is translated, and its mandala runs on its own instance rather than continuing the first one.',
+    purpose: 'A Group definition is choreography you can reuse. Each occurrence places the whole thing - here a mandala pulse and its smaller echo, across two Layers - and every occurrence gets its own fresh Pattern instances, so linked copies repeat the choreography without sharing private state.',
+    notice: 'Both pulses come from one definition. Edit it once and both occurrences change. The second occurrence is moved on the Stage, and its mandala runs on its own instance rather than continuing the first one.',
     prompts: ['Open the Group definition and move the echo one second later - both occurrences pick up the change.', 'Make the second occurrence unique, then change only its echo and compare the two.'],
     guideHeading: 'groups-and-linked-reuse',
     output: portableOutput(), zones, layouts: [singleLayout(zones)], scenes, composition,
@@ -1052,9 +1052,9 @@ function learn206(): StockShow {
   ]
   return catalogue({
     id, title: 'Changing Zone Layouts', track: 'portable', collection: 'learn', level: 200, order: 6,
-    purpose: 'A Zone Layout can be restated partway through a Show: the same ruler carries full surface, a split, and rings as sequential intervals. Zones keep their names and Patterns; only the geometry that routes pixels to them changes.',
+    purpose: 'A Zone Layout can change partway through a Show: this timeline plays full surface, then a split, then rings, one after another. The Zones keep their names and their Patterns; only the geometry that routes pixels to them changes.',
     notice: 'The weave never restarts at a Layout boundary. The first boundary sweeps the split across the Stage; the second switches to Rings in one atomic step. Neither is a visual Transition - pixels are re-routed, not blended.',
-    prompts: ['Drag the split position in the middle interval - the Layout owns that geometry, and the Patterns on either side never notice.', 'Insert time before the Rings boundary: the Layout change moves atomically with the intervals around it.'],
+    prompts: ['Drag the split position in the middle interval - the Layout owns that geometry, and the Patterns on either side never notice.', 'Insert time before the Rings boundary: the Layout change stays attached to the timeline around it and moves along with it.'],
     guideHeading: 'changing-zone-layouts',
     output: portableOutput(), zones,
     layouts: [
@@ -1197,9 +1197,9 @@ function learn302(): StockShow {
   }
   return catalogue({
     id, title: 'Installation Composition', track: 'installation', collection: 'learn', level: 300, order: 2,
-    purpose: 'A fixed installation is an instrument: the same Clips, junctions, and shared Pattern instances you already know, played over named physical groups. Three Zones give this wall three roles - two vine columns sharing one bed, and a crown that owns the top puck of each column through two separate ranges.',
-    notice: "The Crown is one Zone with two non-contiguous ranges, one atop each column. Its ignition is the only change at each junction: the vines' shared instance never restarts, and the afterglow resumes the embers where ignition interrupted them.",
-    prompts: ['Solo the Crown to see exactly which pucks its two ranges own, then solo one vine and watch its half of the shared bed continue alone.', "Replace the crown's bloom Pattern with another stock Pattern - the ranges and the vines never notice, because the routing contract is separate from the content."],
+    purpose: 'Composing for a fixed installation uses the same Clips, junctions, and shared Pattern instances you already know - what changes is that the Zones are physical. Three Zones give this wall three roles: two vine columns that share one MetaballGarden instance, so they read as one plant split by wiring, and a Crown that owns the top puck of each column through two separate ranges.',
+    notice: "The Crown is one Zone with two non-contiguous ranges, one atop each column. It is also the only thing that changes at each junction: the vines' shared instance never restarts, and when the Crown's quiet Murmuration returns at the end, it resumes exactly where the bright middle Clip interrupted it.",
+    prompts: ['Solo the Crown to see exactly which pucks its two ranges own, then solo one vine and watch its half of the shared garden keep playing alone.', "Swap the Crown's bright middle Pattern for any other - the ranges and the vines never notice, because the routing is separate from the content."],
     guideHeading: 'composing-a-fixed-installation',
     output: { kind: 'installation', mapId: 'sunflower-pucks-2d', pixelCount: 160 },
     zones,
@@ -1269,7 +1269,7 @@ function learn303(): StockShow {
   }
   return catalogue({
     id, title: 'Compile, Simplify, and Deliver', track: 'portable', collection: 'learn', level: 300, order: 3,
-    purpose: 'A Show stays editable choreography, but it publishes as one ordinary Pixelblaze Pattern. The artifact inventory prices what the generated Pattern spends on each Pattern, Effect, and score structure, and its slimming tips name the contributors you can act on.',
+    purpose: 'A Show stays editable choreography, but it ships as one ordinary Pixelblaze Pattern. The artifact inventory breaks down what that generated Pattern spends on each Pattern, Effect, and score structure, and its slimming tips name the costs you can actually act on.',
     notice: "The weave echo near the end is an independent RibbonLoom instance - and the inventory shows the compiler reusing one physical machine for both instances rather than shipping a duplicate copy. What the echo really costs is its overlay structure, about six kilobytes of render plans and score data. Independence is also why it restarts the opening weave from its first frame.",
     prompts: ["Open the artifact inventory: RibbonLoom lists one physical machine for two logical instances, and the render-plan row is what the echo's Layer actually costs. Delete the echo Clip and watch the total fall.", 'Undo the deletion, then export the EPE or open the generated code: everything on the timeline ships inside that one ordinary Pattern.'],
     guideHeading: 'compile-simplify-and-deliver',
