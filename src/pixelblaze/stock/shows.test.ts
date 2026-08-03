@@ -28,7 +28,7 @@ import { STOCK_SHOWS, stockShowById } from './shows'
 
 describe('stock Show curriculum (#363)', () => {
   it('ships the stable Learn 100, Learn 200, Learn 300, and showcase catalogue', () => {
-    expect(STOCK_SHOWS).toHaveLength(32)
+    expect(STOCK_SHOWS).toHaveLength(33)
     expect(new Set(STOCK_SHOWS.map((item) => item.id)).size).toBe(STOCK_SHOWS.length)
     expect(STOCK_SHOWS.map((item) => [item.name, item.collection, item.level, item.order])).toEqual([
       ['100 Getting Around', 'learn', 100, 0],
@@ -61,8 +61,9 @@ describe('stock Show curriculum (#363)', () => {
       ['Zoom and Spin Transitions', 'showcases', null, 11],
       ['Property Animation', 'showcases', null, 12],
       ['Easing', 'showcases', null, 13],
-      ['Aperture Shapes', 'showcases', null, 14],
-      ['Redline Installation', 'showcases', null, 15],
+      ['Aperture Shapes: Geometric', 'showcases', null, 14],
+      ['Aperture Icons & Signature', 'showcases', null, 15],
+      ['Redline Installation', 'showcases', null, 16],
     ])
     expect(STOCK_SHOWS.every((item) => item.show.id === item.id)).toBe(true)
     expect(STOCK_SHOWS.every((item) => !/\bscenes?\b/i.test([
@@ -89,6 +90,7 @@ describe('stock Show curriculum (#363)', () => {
       'stock-show-reference-property-animation',
       'stock-show-reference-easing',
       'stock-show-reference-aperture-shapes',
+      'stock-show-reference-aperture-icons',
     ])
     // The repartition trades everything-matrices for families a viewer can
     // hold in mind; Blend and Fade and Dissolves are the smallest at four.
@@ -509,10 +511,11 @@ describe('stock Show curriculum (#363)', () => {
 
     const rectangle = sampleAll(2_000)   // t=2: all three variants are the plain frame
     const ellipse = sampleAll(4_000)     // t=6: silhouette changes at its Soft default
-    const ring = sampleAll(4_000)        // t=10: the center opens
-    const ringHard = sampleAll(4_000)    // t=14: only the edge hardens
+    const star = sampleAll(4_000)        // t=10: an icon silhouette, still at Soft (#691)
+    const ring = sampleAll(4_000)        // t=14: the center opens
+    const ringHard = sampleAll(4_000)    // t=18: only the edge hardens
 
-    for (const frame of [rectangle, ellipse, ring, ringHard]) {
+    for (const frame of [rectangle, ellipse, star, ring, ringHard]) {
       expect(frame.outside.shaped).toEqual(frame.outside.flat)
       expect(frame.outside.shaped).toEqual(frame.outside.soft)
     }
@@ -520,12 +523,14 @@ describe('stock Show curriculum (#363)', () => {
     expect(rectangle.frameCorner.shaped).toEqual(rectangle.frameCorner.flat)
     expect(ellipse.center.shaped).toEqual(ellipse.center.flat)
     expect(ellipse.frameCorner.shaped).not.toEqual(ellipse.frameCorner.flat)
+    expect(star.center.shaped).toEqual(star.center.flat)
+    expect(star.frameCorner.shaped).not.toEqual(star.frameCorner.flat)
     expect(ring.center.shaped).not.toEqual(ring.center.flat)
 
     // Before the Hard passage the softened variant is byte-identical to the
-    // authored fixture; at t=14 its differences must exist and stay confined
+    // authored fixture; at t=18 its differences must exist and stay confined
     // to the feather region.
-    for (const frame of [rectangle, ellipse, ring]) {
+    for (const frame of [rectangle, ellipse, star, ring]) {
       for (const key of ['center', 'frameCorner', 'ringBand'] as const) {
         expect(frame[key].shaped).toEqual(frame[key].soft)
       }

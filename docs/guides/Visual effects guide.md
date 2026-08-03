@@ -298,19 +298,23 @@ diverge; Ungroup dissolves the phrase back into ordinary Clips.
 
 ### Aperture shapes and edges
 
-The Clip Viewport aperture has an authored silhouette - Rectangle, Ellipse,
-Diamond, Ring, or Rounded box - and every silhouette carries an edge
-treatment: Hard cuts at the boundary, Soft feathers it, and Stable Dither
-trades the smooth ramp for a fixed texture that survives LED quantization.
-Shaped apertures feather Soft by default, and smooth is almost always the
-right choice - especially when the aperture or its Content moves, where a
-travelling hard edge reads as a rendering artifact. Choose Hard consciously.
-Shape and edge are placement geometry owned by the Clip, exactly like the
-frame's position and size: they change what the Clip may draw without
-touching Content, Pattern time, or Effects. **207 Aperture Shapes and Edges**
-holds everything else still so silhouette and edge are the only variables,
-and the **Aperture Shapes** reference carries the full silhouette-by-edge
-matrix.
+The Clip Viewport aperture has an authored silhouette from a sectioned
+catalogue - Geometric (Rectangle, Ellipse, Diamond, Ring, Rounded box, Cross,
+Regular polygon), Icons (Heart, Star, Crescent, Cloud), and Signature (the
+three cats) - and every silhouette carries an edge treatment: Hard cuts at
+the boundary, Soft feathers it, and Stable Dither trades the smooth ramp for
+a fixed texture that survives LED quantization. A silhouette can rotate
+inside its frame while the frame itself stays axis-aligned, and its Mode can
+flip from admitting the inside to cutting the silhouette out; both Modes
+share one boundary and one feather. Shaped apertures feather Soft by
+default, and smooth is almost always the right choice - especially when the
+aperture or its Content moves, where a travelling hard edge reads as a
+rendering artifact. Choose Hard consciously. Shape and edge are placement
+geometry owned by the Clip, exactly like the frame's position and size: they
+change what the Clip may draw without touching Content, Pattern time, or
+Effects. **207 Aperture Shapes and Edges** holds everything else still so
+silhouette and edge are the only variables, and the two Aperture references
+carry the full sectioned matrix.
 
 ### Changing Zone Layouts
 
@@ -448,13 +452,13 @@ Shape reveals move a signed-distance boundary across the Stage. The shape
 defines that boundary, while reveal mode decides whether the incoming image
 grows or the outgoing image shrinks. Circle demonstrates both modes at study
 tempo; the other geometric silhouettes - ellipse, box, rounded box, diamond,
-cross, ring - alternate modes as quick cuts so shape stays the only question.
+cross - alternate modes as quick cuts so shape stays the only question.
 
 ### Shape reveal figures reference
 
-The figurative silhouettes - heart, star, crescent, regular polygon, and the
-three cats - use the same construction as the geometric reference: one slow
-Heart to study, then quick cuts. Splitting the family keeps each reference
+The figurative silhouettes - ring, star, crescent, regular polygon, cloud,
+and the three cats, after one slow Heart - use the same construction as the
+geometric reference: one study beat, then quick cuts. Splitting the family keeps each reference
 short enough to attribute and each compiled artifact inside the activation
 budget.
 
@@ -492,12 +496,22 @@ and overshoot can be compared directly.
 
 ### Aperture shapes reference
 
-**Aperture Shapes** holds one subject behind one frame over one dim bed and
-changes exactly one thing per passage: first each silhouette feathered Soft -
-including the rectangle, so the edge treatment never changes mid-comparison -
-then the Rounded box at a wide corner radius to show radius is shape rather
-than edge, then the Ring across Soft, the deliberate Hard cut, and Stable
-Dither. It is the full matrix that lesson 207 deliberately abbreviates.
+**Aperture Shapes: Geometric** holds one subject behind one frame over one
+dim bed and changes exactly one thing per passage: first each geometric
+silhouette feathered Soft - including the rectangle, so the edge treatment
+never changes mid-comparison - then the Rounded box at a wide corner radius
+to show radius is shape rather than edge, then the Ring across Soft, the
+deliberate Hard cut, and Stable Dither. Together with its Icons & Signature
+sibling it is the full matrix that lesson 207 deliberately abbreviates.
+
+### Aperture icons and signature reference
+
+**Aperture Icons & Signature** carries the figurative half of the catalogue
+over the same construction: Heart, Star, Crescent, Cloud, and the three cats
+at their Soft default, then the two controls the geometric reference leaves
+out. The rotated Star shows silhouette rotation inside a frame that never
+turns, and the Cut-out Cloud shows Mode inversion: the same boundary and the
+same feather, with the silhouette becoming the hole.
 
 Every reference Show above uses the expanded header as a live guide. It names
 the current example, explains what changes and what stays constant, and offers a

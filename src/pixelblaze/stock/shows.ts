@@ -116,7 +116,7 @@ export const STOCK_SHOWS: StockShow[] = [
   effectShowcase('color-adjustment'), compositingKeyShowcase(),
   blendAndFadeTransitionReference(), wipeTransitionReference(), dissolveTransitionReference(),
   shapeRevealGeometricReference(), shapeRevealFigureReference(), slideTransitionReference(), zoomSpinTransitionReference(),
-  propertyAnimationReference(), easingReference(), apertureShapesReference(),
+  propertyAnimationReference(), easingReference(), apertureShapesReference(), apertureIconsReference(),
   redlineInstallation(),
 ]
 
@@ -742,7 +742,7 @@ function learn207(): StockShow {
   const id = 'stock-show-207-aperture-shapes-edges'
   const zones = logicalZones(['Main'], PORTABLE_REFERENCE_PIXELS)
   const scenes: SceneSpec[] = [
-    scene('silhouettes', 'Silhouettes', 16, [clip('zone-1', 'MetaballGarden', LESSON_TIME_SCALE)]),
+    scene('silhouettes', 'Silhouettes', 20, [clip('zone-1', 'MetaballGarden', LESSON_TIME_SCALE)]),
   ]
   const frame = { enabled: true, x: 0.25, y: 0.25, width: 0.5, height: 0.5 }
   const composition: ShowCompositionV1 = {
@@ -756,7 +756,7 @@ function learn207(): StockShow {
       zones: [{
         zoneId: 'zone-1',
         main: [{
-          ...placement('clip-garden', 'garden', 0, 16),
+          ...placement('clip-garden', 'garden', 0, 20),
           view: { mirror: false, phase: 0, brightness: 0.3 },
         }],
         overlays: [{
@@ -771,21 +771,25 @@ function learn207(): StockShow {
             // changes, exactly as it does when an author picks a shape in
             // the inspector.
             { ...placement('clip-ellipse', 'rose', 4, 4), opacity: 1, viewport: { ...frame, aperture: 'ellipse' } },
-            { ...placement('clip-ring', 'rose', 8, 4), opacity: 1, viewport: { ...frame, aperture: 'ring' } },
+            // One icon shape shows the catalogue reaches past geometry (#691)
+            // without touring it; the full sectioned matrix belongs to the
+            // two Aperture references.
+            { ...placement('clip-star', 'rose', 8, 4), opacity: 1, viewport: { ...frame, aperture: 'star' } },
+            { ...placement('clip-ring', 'rose', 12, 4), opacity: 1, viewport: { ...frame, aperture: 'ring' } },
             // The one deliberate exception: the same Ring cut Hard, so the
             // learner sees what choosing Hard actually means.
-            { ...placement('clip-ring-hard', 'rose', 12, 4), opacity: 1, viewport: { ...frame, aperture: 'ring', edge: 'hard' } },
+            { ...placement('clip-ring-hard', 'rose', 16, 4), opacity: 1, viewport: { ...frame, aperture: 'ring', edge: 'hard' } },
           ],
         }],
       }],
     }],
-    durationMs: 16_000,
+    durationMs: 20_000,
   }
   return catalogue({
     id, title: 'Aperture Shapes and Edges', track: 'portable', collection: 'learn', level: 200, order: 7,
-    purpose: 'The aperture from 202 has a shape of its own. Rectangle, Ellipse, Diamond, Ring, and Rounded box are authored silhouettes on the Clip Viewport, and every silhouette carries an edge treatment. Shaped apertures feather Soft by default - smooth is almost always what you want - and Hard and Stable Dither are the deliberate exceptions. Shape and edge are placement geometry owned by the Clip, separate from Content and from Effects.',
-    notice: 'Nothing moves in this lesson. The frame arrives already feathered - the same Soft edge 202 leaves you with - so only the silhouette changes until the last passage hardens the edge on purpose. The Ring makes the difference visceral: the bed shows straight through its center, and cutting it Hard shows exactly what the feather was doing for you.',
-    prompts: ["Change the second Clip's aperture from Ellipse to Diamond - the frame, Content, Pattern time, and the Soft feather never notice.", 'On the last Clip, switch the Hard edge back to Soft, then try Stable Dither: Dither trades the smooth ramp for a texture that survives LED quantization.'],
+    purpose: 'The aperture from 202 has a shape of its own. The Clip Viewport offers a sectioned silhouette catalogue - Geometric shapes like the Ellipse, Diamond, Ring, and Rounded box, Icons like the Heart, Star, and Cloud, and the Signature cats - and every silhouette carries an edge treatment. A silhouette can also rotate inside its axis-aligned frame, and its Mode can flip from admitting the inside to cutting it out. Shaped apertures feather Soft by default - smooth is almost always what you want - and Hard and Stable Dither are the deliberate exceptions. Shape and edge are placement geometry owned by the Clip, separate from Content and from Effects.',
+    notice: 'Nothing moves in this lesson. The frame arrives already feathered - the same Soft edge 202 leaves you with - so only the silhouette changes until the last passage hardens the edge on purpose. The Star shows the catalogue reaches past geometry, and the Ring makes the edge difference visceral: the bed shows straight through its center, and cutting it Hard shows exactly what the feather was doing for you.',
+    prompts: ["Turn the Star with Aperture rotation, then flip its Mode to Cut out - the frame stays axis-aligned while the silhouette turns, and both Modes share one boundary.", 'On the last Clip, switch the Hard edge back to Soft, then try Stable Dither: Dither trades the smooth ramp for a texture that survives LED quantization.'],
     guideHeading: 'aperture-shapes-and-edges',
     output: portableOutput(), zones, layouts: [singleLayout(zones)], scenes, composition,
   })
@@ -1385,7 +1389,7 @@ function redlineInstallation(): StockShow {
     track: 'installation',
     collection: 'showcases',
     level: null,
-    order: 15,
+    order: 16,
     purpose: 'A sixty-second club-installation score turns one hero panel and four target arrays into a single rhythmic machine.',
     notice: 'One renderer owns each pixel. Shared target instances and cheap transforms create difference; black space, red pressure, white impact, sparse cyan ornaments, and one cyan takeover create the arc.',
     prompts: ['Solo the four target Zones and compare their shared clock.', 'Jump between First drop, Vacuum, and Peak to compare one canvas with five instruments.'],
@@ -1527,7 +1531,7 @@ function shapeRevealFigureReference(): StockShow {
   ]
   return transitionReferenceShow({
     id: 'stock-show-reference-shape-reveal-figures', title: 'Shape Reveals: Figures', order: 9,
-    purpose: 'The figurative silhouettes - heart, star, crescent, polygon, and the three cats - with one slow Heart to study and the rest as quick cuts.',
+    purpose: 'The figurative silhouettes - heart, star, crescent, polygon, cloud, and the three cats - with one slow Heart to study and the rest as quick cuts.',
     notice: 'Same construction as the geometric reference: the pair, center, scale, and edge never move, so the silhouette is the only question.',
     prompts: ['Stretch a cat silhouette to study tempo and watch its edge.', 'Swap the reveal mode on the Bastet silhouette.'],
     guideHeading: 'shape-reveal-figures-reference', specs,
@@ -1772,16 +1776,16 @@ function easingReference(): StockShow {
   })
 }
 
-// The Aperture Shapes reference carries the full silhouette-by-edge matrix
-// that 207 deliberately abbreviates: every supported silhouette at its Soft
-// default (smooth is the doctrine; Hard is the conscious exception), one
-// corner-radius variant, then the Ring across its three edge treatments.
-// The subject, frame, bed, and clocks never change, so each passage has
-// exactly one attributable variable. Eight passages sits at the reference
-// ceiling; anything finer belongs in the inspector. Paced like an editor,
-// not a metronome: the ellipse and the ring get study-length beats, sibling
-// silhouettes cut past at two seconds, and the dither keeps three so its
-// texture reads as stable rather than as noise.
+// The two aperture references split the #690 catalogue the way the picker
+// sections it: this one carries the geometric silhouettes by edge, its
+// Icons & Signature sibling carries the figurative shapes plus rotation and
+// the Cut-out mode. Same doctrine as the shape-reveal split: each reference
+// stays short enough to attribute, and each compiled artifact stays inside
+// the activation budget (#514). The subject, frame, bed, and clocks never
+// change, so each passage has exactly one attributable variable. Paced like
+// an editor, not a metronome: the ellipse and the ring get study-length
+// beats, sibling silhouettes cut past at two seconds, and the dither keeps
+// three so its texture reads as stable rather than as noise.
 function apertureShapesReference(): StockShow {
   const id = 'stock-show-reference-aperture-shapes'
   const zones = logicalZones(['Main'], PORTABLE_REFERENCE_PIXELS)
@@ -1792,6 +1796,8 @@ function apertureShapesReference(): StockShow {
     { id: 'diamond', label: 'Diamond', seconds: 2, detail: 'The inscribed diamond at its Soft default; edges run corner to corner.', viewport: { ...frame, aperture: 'diamond' as const } },
     { id: 'rounded-box', label: 'Rounded box', seconds: 2, detail: 'The frame with its corners rounded at the default radius.', viewport: { ...frame, aperture: 'rounded-box' as const, cornerRadius: 0.12 } },
     { id: 'rounded-box-wide', label: 'Rounded box, wide radius', seconds: 2, detail: 'The same box at a wide corner radius: radius is a shape parameter, not an edge treatment.', viewport: { ...frame, aperture: 'rounded-box' as const, cornerRadius: 0.3 } },
+    { id: 'cross', label: 'Cross', seconds: 2, detail: 'The inscribed cross at its Soft default; arm width is its shape parameter.', viewport: { ...frame, aperture: 'cross' as const } },
+    { id: 'polygon', label: 'Regular polygon', seconds: 2, detail: 'The inscribed hexagon at its Soft default; Sides is its shape parameter.', viewport: { ...frame, aperture: 'polygon' as const } },
     { id: 'ring-soft', label: 'Ring, Soft edge', seconds: 4, detail: 'An annulus at its Soft default: the bed shows through the center, which no box can do.', viewport: { ...frame, aperture: 'ring' as const, edge: 'soft' as const } },
     { id: 'ring-hard', label: 'Ring, Hard edge', seconds: 2, detail: 'The same Ring cut Hard - the deliberate exception that shows what the feather was doing.', viewport: { ...frame, aperture: 'ring' as const, edge: 'hard' as const } },
     { id: 'ring-dither', label: 'Ring, Stable Dither', seconds: 3, detail: 'The same Ring with a stable dithered edge that survives LED quantization.', viewport: { ...frame, aperture: 'ring' as const, edge: 'dither' as const } },
@@ -1827,10 +1833,10 @@ function apertureShapesReference(): StockShow {
     durationMs: variants.reduce((sum, variant) => sum + variant.seconds, 0) * 1_000,
   }
   return catalogue({
-    id, title: 'Aperture Shapes', track: 'portable', collection: 'showcases', level: null, order: 14,
-    purpose: 'Every Clip Viewport silhouette over one held frame, then one silhouette across its three edge treatments. Shaped silhouettes keep their Soft default - smooth is almost always what you want. The subject, bed, frame, and clocks never change, so each passage has exactly one attributable variable.',
-    notice: 'The first five passages change only the silhouette at its Soft default, the wide-radius passage shows corner radius is shape rather than edge, and the last three hold the Ring while only its edge treatment changes - Soft, then the deliberate Hard cut, then Stable Dither.',
-    prompts: ['Swap the subject Pattern and watch every silhouette keep its geometry.', 'Open any passage and drag the corner radius or edge softness - the reference values are starting points, not limits.'],
+    id, title: 'Aperture Shapes: Geometric', track: 'portable', collection: 'showcases', level: null, order: 14,
+    purpose: 'Every geometric Clip Viewport silhouette over one held frame, then one silhouette across its three edge treatments. Shaped silhouettes keep their Soft default - smooth is almost always what you want. The subject, bed, frame, and clocks never change, so each passage has exactly one attributable variable. The icon and signature silhouettes, rotation, and the Cut-out mode have their own reference.',
+    notice: 'The first seven passages change only the silhouette at its Soft default, the wide-radius passage shows corner radius is shape rather than edge, and the last three hold the Ring while only its edge treatment changes - Soft, then the deliberate Hard cut, then Stable Dither.',
+    prompts: ['Swap the subject Pattern and watch every silhouette keep its geometry.', 'Open any passage and drag the corner radius, arm width, sides, or edge softness - the reference values are starting points, not limits.'],
     guideHeading: 'aperture-shapes-reference',
     defaultOpen: true,
     output: portableOutput(), zones, layouts: [singleLayout(zones)],
@@ -1838,7 +1844,84 @@ function apertureShapesReference(): StockShow {
     transitions: cutBoundaries(scenes),
     composition,
     reference: {
-      summary: 'Silhouettes at one frame, then the Ring across Hard, Soft, and Stable Dither.',
+      summary: 'Geometric silhouettes at one frame, then the Ring across Hard, Soft, and Stable Dither.',
+      patternSlots: {
+        cellIds: variants.map((variant) => cellId(variant.id, 'zone-1')),
+        instanceIds: ['rose'],
+      },
+      examples: variants.map((variant) => ({
+        id: `example-${variant.id}`,
+        label: variant.label,
+        detail: variant.detail,
+        anchor: { kind: 'scene', sceneId: variant.id },
+      })),
+    },
+  })
+}
+
+// The figurative half of the #690 aperture catalogue: the icon and signature
+// silhouettes at their Soft default, then the two controls the geometric
+// reference leaves out - rotation (the silhouette turns while the frame stays
+// axis-aligned) and the Cut-out mode (the same boundary, inverted). The heart
+// and the cloud get study-length beats; the cats cut past at two seconds.
+function apertureIconsReference(): StockShow {
+  const id = 'stock-show-reference-aperture-icons'
+  const zones = logicalZones(['Main'], PORTABLE_REFERENCE_PIXELS)
+  const frame = { enabled: true, x: 0.25, y: 0.25, width: 0.5, height: 0.5 }
+  const variants = [
+    { id: 'heart', label: 'Heart', seconds: 4, detail: 'The inscribed heart at its Soft default: the first icon, held long enough to study its lobes and point.', viewport: { ...frame, aperture: 'heart' as const } },
+    { id: 'star', label: 'Star', seconds: 2, detail: 'A five-point star at its Soft default; Points and Inner radius are its shape parameters.', viewport: { ...frame, aperture: 'star' as const } },
+    { id: 'crescent', label: 'Crescent', seconds: 2, detail: 'The crescent at its Soft default; the cutout offset is its shape parameter.', viewport: { ...frame, aperture: 'crescent' as const } },
+    { id: 'cloud', label: 'Cloud', seconds: 3, detail: 'The cumulus silhouette: a scalloped crown over a flat base, feathered Soft.', viewport: { ...frame, aperture: 'cloud' as const } },
+    { id: 'cat-head', label: 'Cat head', seconds: 2, detail: 'The signature cat head at its Soft default.', viewport: { ...frame, aperture: 'cat-head' as const } },
+    { id: 'cat-side-profile', label: 'Side-profile cat', seconds: 2, detail: 'The seated side profile at its Soft default.', viewport: { ...frame, aperture: 'cat-side-profile' as const } },
+    { id: 'bastet', label: 'Bastet', seconds: 2, detail: 'The upright Bastet silhouette at its Soft default.', viewport: { ...frame, aperture: 'bastet' as const } },
+    { id: 'star-rotated', label: 'Star, rotated', seconds: 3, detail: 'The same star turned inside its frame: rotation is silhouette styling, and the frame stays axis-aligned.', viewport: { ...frame, aperture: 'star' as const, rotation: 0.1 } },
+    { id: 'cloud-cut-out', label: 'Cloud, Cut out', seconds: 3, detail: 'The same cloud in Cut-out mode: the silhouette becomes the hole, and the bed shows through it.', viewport: { ...frame, aperture: 'cloud' as const, invert: true } },
+  ]
+  const scenes: SceneSpec[] = variants.map((variant) => (
+    scene(variant.id, variant.label, variant.seconds, [clip('zone-1', 'CompassRose', LESSON_TIME_SCALE)])
+  ))
+  const composition: ShowCompositionV1 = {
+    version: 1,
+    patternInstances: [
+      instance('garden', 'MetaballGarden', LESSON_TIME_SCALE),
+      instance('rose', 'CompassRose', LESSON_TIME_SCALE),
+    ],
+    scenes: variants.map((variant) => ({
+      sceneId: variant.id,
+      zones: [{
+        zoneId: 'zone-1',
+        main: [{
+          ...placement(`bed-${variant.id}`, 'garden', 0, variant.seconds),
+          view: { mirror: false, phase: 0, brightness: 0.3 },
+        }],
+        overlays: [{
+          id: `layer-subject-${variant.id}`,
+          name: 'Subject',
+          placements: [{
+            ...placement(`subject-${variant.id}`, 'rose', 0, variant.seconds),
+            opacity: 1,
+            viewport: variant.viewport,
+          }],
+        }],
+      }],
+    })),
+    durationMs: variants.reduce((sum, variant) => sum + variant.seconds, 0) * 1_000,
+  }
+  return catalogue({
+    id, title: 'Aperture Icons & Signature', track: 'portable', collection: 'showcases', level: null, order: 15,
+    purpose: 'The icon and signature silhouettes - Heart, Star, Crescent, Cloud, and the three cats - over the same held frame as the geometric reference, then rotation and the Cut-out mode. Shaped silhouettes keep their Soft default, and the subject, bed, frame, and clocks never change, so each passage has exactly one attributable variable.',
+    notice: 'The first seven passages change only the silhouette at its Soft default. The last two hold a silhouette and change one control: rotation turns the star while the frame stays axis-aligned, and Cut out inverts the cloud so the silhouette becomes the hole.',
+    prompts: ['Drag the rotation on the turned star - the frame never moves, only the silhouette.', "Flip any passage's Mode between Admit inside and Cut out - both sides share one boundary and one feather."],
+    guideHeading: 'aperture-icons-and-signature-reference',
+    defaultOpen: true,
+    output: portableOutput(), zones, layouts: [singleLayout(zones)],
+    scenes,
+    transitions: cutBoundaries(scenes),
+    composition,
+    reference: {
+      summary: 'Icon and signature silhouettes at one frame, then rotation and the Cut-out mode.',
       patternSlots: {
         cellIds: variants.map((variant) => cellId(variant.id, 'zone-1')),
         instanceIds: ['rose'],

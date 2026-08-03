@@ -33,7 +33,7 @@ describe('Show render-target residual-headroom census (#514)', () => {
     // clearing the render-target reservation and activation ceiling after
     // the Shape Reveals split and the Property Animation consolidation that
     // this census itself forced).
-    expect(report.summary.savedShowCount).toBe(30)
+    expect(report.summary.savedShowCount).toBe(31)
     expect(report.summary.savedShowRejections).toHaveLength(0)
     expect(report.summary.savedShowRejections.every((entry) => !entry.failsSolelyBecauseOfReservation)).toBe(true)
   })

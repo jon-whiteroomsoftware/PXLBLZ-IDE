@@ -8,7 +8,7 @@ describe('Restart-instance global-liveness census (#536)', () => {
     // lessons landed, with the Learn 300 lessons, with the 100/207/aperture
     // additions, and again with the showcase repartition (fifteen recast
     // references replacing nine).
-    expect(report.summary.savedShowCount).toBe(32)
+    expect(report.summary.savedShowCount).toBe(33)
     expect(report.cases.some((entry) => entry.kind === 'five-pattern-acceptance')).toBe(true)
     expect(report.summary.compileFailures).toEqual([])
   })
@@ -64,11 +64,11 @@ describe('Restart-instance global-liveness census (#536)', () => {
     // fall). The unweighted percent stays at zero and the gate reads the
     // unweighted percent, so the verdict is unchanged.
     expect(report.summary).toMatchObject({
-      representativeMemberGlobals: 2_733,
+      representativeMemberGlobals: 2_775,
       representativeReclaimedGlobals: 186,
     })
     expect(report.decision.representativeReclaimPercent).toBe(0)
-    expect(report.decision.weightedRepresentativeReclaimPercent).toBeCloseTo(0.06805708, 8)
+    expect(report.decision.weightedRepresentativeReclaimPercent).toBeCloseTo(0.06702703, 8)
     expect(report.decision.ceilingRescues).toEqual([])
     expect(report.decision.proceedWithEmission).toBe(false)
     expect(report.decision.proceedWithEmission).toBe(
