@@ -459,7 +459,9 @@ function learn105(): StockShow {
   }
   return catalogue({
     id, title: 'Portable Zones', track: 'portable', collection: 'learn', level: 100, order: 5,
-    purpose: 'The Stage can be split into Zones that each render their own Pattern, so two Patterns play side by side without either one needing to be positioned.',
+    purpose: 'The Stage can be split into Zones that each render their own Pattern, so two Patterns play side by side without either one needing to be positioned.\n'
+      + 'The Zone rail names each Zone and shows its share of the pixels - the panel button in the timeline toolbar opens and closes it.\n'
+      + 'The map icon in the corner above the Zone rows opens the Zone Map: Zones and their Zone Layouts.',
     notice: 'The split never moves. At the halfway Cut the two Patterns simply trade sides, and each Zone keeps its own row on the timeline.',
     prompts: ["The two Clips in each Zone touch, and that junction is a real entity rather than a seam. Drag three seconds off the end of the second Clip, then click the junction and give it a two-second Crossfade.", 'Now drag the second Clip later. The Crossfade travels with it rather than staying put, because the junction belongs to the pair of Clips and not to a moment on the ruler.'],
     guideHeading: 'portable-zones',
