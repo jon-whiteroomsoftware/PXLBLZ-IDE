@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from 'react'
 import { Check, Pencil, X } from 'lucide-react'
 import { nameConflicts } from '@/engine/patternName'
 
-type EntityNoun = 'pattern' | 'map' | 'mixin' | 'library' | 'controller' | 'show'
+type EntityNoun = 'pattern' | 'map' | 'mixin' | 'library' | 'controller' | 'show' | 'zone'
 
 export function InlineEntityTitle({
   name,

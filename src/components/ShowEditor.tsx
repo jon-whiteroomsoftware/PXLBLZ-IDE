@@ -40,6 +40,7 @@ import { getControllerProvider } from '@/engine/controllerProviderRegistry'
 import { makeProgramId } from '@/engine/bytecodePush'
 import { PatternDeploymentActions } from '@/components/PatternDeploymentActions'
 import { PatternCombobox, type PatternComboboxOption } from '@/components/PatternCombobox'
+import { InlineEntityTitle } from '@/components/InlineEntityTitle'
 import { showRecordClipCount } from '@/engine/showClipInvariant'
 import { requestControllerEntryOpen } from '@/components/controllerEntryEvents'
 import { PatternPushChoices } from '@/components/SendToController'
@@ -2309,6 +2310,11 @@ export function ShowEditor({
                 }}
                 onAddZoneLayout={() => addRoutingLayout(activeShow.id)}
                 onUpdateZone={(zoneId, changes) => void updateZone(activeShow.id, zoneId, changes)}
+                onRemoveZone={(zoneId) => {
+                  closeDetailPanel()
+                  closePinnedDetailForSelection({ kind: 'zone', zoneId })
+                  void removeZone(activeShow.id, zoneId)
+                }}
               />
           </section>
 
@@ -3246,6 +3252,7 @@ function ShowTimelineWorkspace({
   onAddZone,
   onAddZoneLayout,
   onUpdateZone,
+  onRemoveZone,
 }: {
   show: ShowRecord
   timelineComposition: ShowCompositionV1 | null
@@ -3306,6 +3313,7 @@ function ShowTimelineWorkspace({
   onAddZone: () => void
   onAddZoneLayout: () => Promise<string | null>
   onUpdateZone: (zoneId: string, changes: Partial<ShowRecord['zones'][number]>) => void
+  onRemoveZone: (zoneId: string) => void
 }) {
   const [showEndPreviewMs, setShowEndPreviewMs] = useState<number | null>(null)
   const [markerFeedback, setMarkerFeedback] = useState<TimelineMarkerFeedback | null>(null)
@@ -5696,11 +5704,11 @@ function ShowTimelineWorkspace({
             })
           }}
           onDismiss={() => setZoneMapOpen(false)}
-          onSelectZone={(zoneId, anchor) => onSelect({ kind: 'zone', zoneId }, anchor)}
           onSelectZoneLayout={(layoutId, anchor) => onSelect({ kind: 'zone-layout', layoutId }, anchor)}
           onToggleZone={(zoneId) => setZoneCollapsed(show.id, zoneId, !collapsedZoneIdSet.has(zoneId))}
           onFocusZone={focusZone}
           onUpdateZone={onUpdateZone}
+          onRemoveZone={onRemoveZone}
         />
       )}
     </div>
@@ -5798,11 +5806,11 @@ function ZoneMapPopover({
   onAddZone,
   onAddZoneLayout,
   onDismiss,
-  onSelectZone,
   onSelectZoneLayout,
   onToggleZone,
   onFocusZone,
   onUpdateZone,
+  onRemoveZone,
 }: {
   anchor: HTMLElement | null
   show: ShowRecord
@@ -5813,11 +5821,11 @@ function ZoneMapPopover({
   onAddZone: () => void
   onAddZoneLayout: (anchor: HTMLElement) => void
   onDismiss: () => void
-  onSelectZone: (zoneId: string, anchor: HTMLElement) => void
   onSelectZoneLayout: (layoutId: string, anchor: HTMLElement) => void
   onToggleZone: (zoneId: string) => void
   onFocusZone: (zoneId: string) => void
   onUpdateZone: (zoneId: string, changes: Partial<ShowRecord['zones'][number]>) => void
+  onRemoveZone: (zoneId: string) => void
 }) {
   return (
     <ShowTimelineToolbarPopover
@@ -5859,19 +5867,31 @@ function ZoneMapPopover({
                   readOnly={readOnly}
                   onPickIcon={(icon) => onUpdateZone(zone.id, { icon })}
                 />
-                <button
-                  type="button"
-                  aria-label={`Select zone ${zone.name}`}
-                  title={`Open ${zone.name} properties`}
-                  className="min-w-0 flex-1 rounded px-1 py-0.5 text-left text-zinc-300 hover:bg-zinc-800/70 hover:text-zinc-100"
-                  onClick={(event) => onSelectZone(zone.id, event.currentTarget)}
-                >
-                  <strong className="block truncate text-[11px] font-medium">{zone.name}</strong>
-                  <span className="block truncate text-[9px] text-zinc-500">{zone.nominalPixelCount} px</span>
-                </button>
+                <span className="min-w-0 flex-1 text-[11px] font-medium">
+                  {/* Rename in place; the Zone rail still opens full properties
+                      (pixel share, Installation ranges) when needed (#63). */}
+                  <InlineEntityTitle
+                    name={zone.name}
+                    noun="zone"
+                    onRename={readOnly ? undefined : (name) => onUpdateZone(zone.id, { name })}
+                    takenNames={show.zones.filter((candidate) => candidate.id !== zone.id).map((candidate) => candidate.name)}
+                  />
+                  <span className="block truncate text-[9px] font-normal text-zinc-500">{zone.nominalPixelCount} px</span>
+                </span>
               </div>
               {show.zones.length > 1 && (
                 <div className="flex items-center gap-0.5">
+                  {!readOnly && (
+                    <button
+                      type="button"
+                      aria-label={`Delete zone ${zone.name}`}
+                      title={`Delete ${zone.name}`}
+                      className="grid size-7 place-items-center rounded text-zinc-600 hover:bg-zinc-800 hover:text-red-300"
+                      onClick={() => onRemoveZone(zone.id)}
+                    >
+                      <Trash2 size={12} aria-hidden />
+                    </button>
+                  )}
                   <button
                     type="button"
                     aria-label={`${collapsed ? 'Expand' : 'Collapse'} zone ${zone.name}`}
