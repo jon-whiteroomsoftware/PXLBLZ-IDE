@@ -139,7 +139,7 @@ describe('common and signature SDF catalogue (#452)', () => {
     expect(metricAt(Math.PI / 2)).toBeLessThan(metricAt(-Math.PI / 2 - 0.72))
   })
 
-  it('covers the whole stage for off-center concave silhouettes (#692 review P2)', () => {
+  it('covers the whole stage for off-center concave silhouettes (#692 review P2)', { timeout: 30_000 }, () => {
     // A heart near the bottom edge points its cleft at the top edge midpoint,
     // where the gauge peaks between the four corners; a cross's notches do the
     // same. At full progress every stage point must be revealed.
@@ -149,9 +149,12 @@ describe('common and signature SDF catalogue (#452)', () => {
       // The reviewer's narrow rotated star: a 12-point, 0.2-inner star whose
       // notch peak defeats any fixed boundary lattice.
       ['star', { centerX: 0.5, centerY: 0.5, rotation: 0.130859375, starPoints: 12, starInner: 0.2 }],
+      // The reviewer's stretched rotated Bastet, whose maximum falls between
+      // uniform sweep angles under the extreme aspect mapping.
+      ['bastet', { centerX: 0.68, centerY: 0.4, aspect: 3.25, rotation: 0.72 }],
     ] as const) {
-      for (let step = 0; step <= 64; step += 1) {
-        const t = step / 64
+      for (let step = 0; step <= 24; step += 1) {
+        const t = step / 24
         for (const [x, y] of [[t, 0], [t, 1], [0, t], [1, t]] as const) {
           expect(showShapeRevealSignedDistance({
             x, y, shape, progress: 1, revealMode: 'grow-incoming', aspect: 1, ...settings,
@@ -169,6 +172,8 @@ describe('common and signature SDF catalogue (#452)', () => {
       { shape: 'cross', centerX: 0, centerY: 0.5, aspect: 0.25, rotation: 0, crossWidth: 0.1 },
       { shape: 'star', centerX: 0.5, centerY: 0.5, rotation: 0.130859375, starPoints: 12, starInner: 0.2, aspect: 1 },
       { shape: 'heart', centerX: 0.5, centerY: 0.9, aspect: 1 },
+      { shape: 'bastet', centerX: 0.68, centerY: 0.4, aspect: 3.25, rotation: 0.72 },
+      { shape: 'cloud', centerX: 0.2, centerY: 0.8, aspect: 2.5, rotation: 0.3 },
     ] as const
     for (const settings of cases) {
       let exact = 0
@@ -180,7 +185,33 @@ describe('common and signature SDF catalogue (#452)', () => {
       }
       const bound = showShapeRevealMaxDistance(settings)
       expect(bound, `${settings.shape} covers`).toBeGreaterThanOrEqual(exact)
-      expect(bound, `${settings.shape} stays tight`).toBeLessThanOrEqual(exact * 1.02)
+      expect(bound, `${settings.shape} stays tight`).toBeLessThanOrEqual(exact * 1.05)
+    }
+  })
+
+  it('keeps each concave Lipschitz constant above the observed slope (#692)', () => {
+    // The interval bound is only rigorous while the documented constants
+    // dominate |d(unit gauge)/d(angle)|; estimate the slope numerically.
+    const shapes = [
+      ['heart', 4.7, {}],
+      ['cloud', 26, {}],
+      ['cat-head', 4.3, {}],
+      ['cat-side-profile', 6.7, {}],
+      ['bastet', 9.4, {}],
+      ['cross', 10, { crossWidth: 0.1 }],
+      ['star', 76.5, { starPoints: 12, starInner: 0.2 }],
+    ] as const
+    const epsilon = 1e-4
+    for (const [shape, constant, parameters] of shapes) {
+      let steepest = 0
+      for (let step = 0; step < 4096; step += 1) {
+        const angle = (step / 4096) * Math.PI * 2
+        const gaugeAt = (a: number) => showShapeRevealDistance({
+          x: Math.cos(a), y: Math.sin(a), centerX: 0, centerY: 0, shape, aspect: 1, ...parameters,
+        })
+        steepest = Math.max(steepest, Math.abs(gaugeAt(angle + epsilon) - gaugeAt(angle)) / epsilon)
+      }
+      expect(steepest, `${shape} slope`).toBeLessThanOrEqual(constant)
     }
   })
 

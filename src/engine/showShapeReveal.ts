@@ -118,40 +118,136 @@ export function showShapeRevealMaxDistance(input: {
   polygonSides?: number
 }): number {
   // Concave gauges (the heart cleft, cross and star notches) can peak
-  // between the stage corners, and no fixed lattice on the stage boundary
-  // survives arbitrarily narrow notches (#692 review P2s). Candidates are
-  // therefore chosen in angle space: the four corners, the shape's exact
-  // notch directions (the cross ridges, every star notch center, the heart
-  // cleft), and a dense angular sweep, each ray-cast to the stage boundary.
-  // A 0.5% margin absorbs sweep quantization; this runs at compile time,
-  // never per pixel. Convex silhouettes keep the exact corner evaluation.
-  const notchAngles = concaveGaugeNotchAngles(input)
-  if (notchAngles === null) {
+  // between the stage corners, and no finite sample set alone is a proof
+  // (#692 review P2s). The bound is therefore interval-rigorous: sample
+  // angles densely in shape space - inserting the exact notch directions and
+  // every corner direction, so within one interval the stage-boundary radial
+  // is quasi-convex and peaks at an endpoint - then bound each interval by
+  // max(endpoint radial) * (max(endpoint unit gauge) + L * gap / 2), where L
+  // is the shape's documented direction-Lipschitz constant (drift-guarded by
+  // test). Runs at compile time, never per pixel. Convex silhouettes keep
+  // the exact corner evaluation.
+  const lipschitz = concaveGaugeDirectionLipschitz(input)
+  if (lipschitz === null) {
     return Math.max(...([
       [0, 0], [1, 0], [0, 1], [1, 1],
     ] as const).map(([x, y]) => showShapeRevealDistance({ ...input, x, y })))
   }
-  const angles = [...notchAngles]
-  const sweep = 256
+  const angles = concaveGaugeNotchAngles(input)
+  const sweep = 128
   for (let step = 0; step < sweep; step += 1) angles.push((step / sweep) * TAU)
-  const candidates: Array<[number, number]> = [[0, 0], [1, 0], [0, 1], [1, 1]]
-  for (const angle of angles) {
-    const point = shapeDirectionStageBoundaryPoint(angle, input)
-    if (point) candidates.push(point)
+  for (const [x, y] of [[0, 0], [1, 0], [0, 1], [1, 1]] as const) {
+    angles.push(shapeSpaceDirectionOf(x, y, input))
   }
-  return 1.005 * Math.max(...candidates.map(([x, y]) => (
-    showShapeRevealDistance({ ...input, x, y })
-  )))
+  // Directions in which the stage ends at the center itself (a center on the
+  // stage boundary) hold no stage points, so they participate as zero-radial
+  // samples and refinement converges across the dead arc.
+  const sampleAt = (rawAngle: number) => {
+    const angle = modulo(rawAngle, TAU)
+    const point = shapeDirectionStageBoundaryPoint(angle, input)
+    if (!point) return { angle, radial: 0, unitGauge: 0, gauge: 0 }
+    const radial = scaledRadialOf(point[0], point[1], input)
+    if (radial <= 1e-9) return { angle, radial: 0, unitGauge: 0, gauge: 0 }
+    const gauge = showShapeRevealDistance({ ...input, x: point[0], y: point[1] })
+    return { angle, radial, unitGauge: gauge / radial, gauge }
+  }
+  type BoundarySample = ReturnType<typeof sampleAt>
+  const seeds = angles
+    .map((angle) => sampleAt(angle))
+    .sort((a, b) => a.angle - b.angle)
+  let best = Math.max(...([
+    [0, 0], [1, 0], [0, 1], [1, 1],
+  ] as const).map(([x, y]) => showShapeRevealDistance({ ...input, x, y })))
+  // Branch and bound: an interval's gauge maximum is at most
+  // max(endpoint radial) * (max(endpoint unit gauge) + L * gap / 2), because
+  // corner directions are seed samples (so the radial is quasi-convex within
+  // each interval) and L dominates the unit gauge's angular slope. Split any
+  // interval whose bound exceeds the best sampled gauge until it converges.
+  const stack: Array<[BoundarySample, BoundarySample]> = []
+  for (let index = 0; index < seeds.length; index += 1) {
+    stack.push([seeds[index], seeds[(index + 1) % seeds.length]])
+  }
+  let residual = 0
+  while (stack.length > 0) {
+    const [here, next] = stack.pop()!
+    best = Math.max(best, here.gauge, next.gauge)
+    const gap = modulo(next.angle - here.angle, TAU)
+    const bound = Math.max(here.radial, next.radial)
+      * (Math.max(here.unitGauge, next.unitGauge) + lipschitz * gap / 2)
+    if (bound <= best * (1 + 1e-6)) continue
+    if (gap < 1e-6) {
+      residual = Math.max(residual, bound)
+      continue
+    }
+    const midpoint = sampleAt(here.angle + gap / 2)
+    stack.push([here, midpoint], [midpoint, next])
+  }
+  return Math.max(best * (1 + 1e-6), residual)
+}
+
+/** The scaled-space radial the gauge metrics normalize against. */
+function scaledRadialOf(
+  x: number,
+  y: number,
+  input: { centerX: number; centerY: number; aspect?: number; rotation?: number },
+): number {
+  const rotationAngle = (input.rotation ?? 0) * TAU
+  const aspect = Math.min(4, Math.max(0.25, input.aspect ?? 1))
+  const rootAspect = Math.sqrt(aspect)
+  const dx = x - input.centerX
+  const dy = y - input.centerY
+  const rx = dx * Math.cos(rotationAngle) + dy * Math.sin(rotationAngle)
+  const ry = -dx * Math.sin(rotationAngle) + dy * Math.cos(rotationAngle)
+  return Math.hypot(rx / rootAspect, ry * rootAspect)
+}
+
+/** The shape-space angle under which a stage point is seen from the center. */
+function shapeSpaceDirectionOf(
+  x: number,
+  y: number,
+  input: { centerX: number; centerY: number; aspect?: number; rotation?: number },
+): number {
+  const rotationAngle = (input.rotation ?? 0) * TAU
+  const aspect = Math.min(4, Math.max(0.25, input.aspect ?? 1))
+  const rootAspect = Math.sqrt(aspect)
+  const dx = x - input.centerX
+  const dy = y - input.centerY
+  const rx = dx * Math.cos(rotationAngle) + dy * Math.sin(rotationAngle)
+  const ry = -dx * Math.sin(rotationAngle) + dy * Math.cos(rotationAngle)
+  return Math.atan2(ry * rootAspect, rx / rootAspect)
 }
 
 /**
- * The shape-space directions of each concave silhouette's boundary minima,
- * null for convex silhouettes whose gauge maximum sits on a stage corner.
+ * A bound on |d(unit-radius gauge)/d(angle)| for each concave silhouette,
+ * null for convex silhouettes. Polar shapes use L_b / b_min^2 from their bump
+ * slopes and boundary floors; the cross's arm metric slope is 1/width. The
+ * constants are drift-guarded by the numeric-derivative test.
  */
+function concaveGaugeDirectionLipschitz(input: {
+  shape: ShowSpatialShape
+  crossWidth?: number
+  starPoints?: number
+  starInner?: number
+}): number | null {
+  if (input.shape === 'cross') return 1 / clamp(input.crossWidth ?? 0.32, 0.1, 0.9)
+  if (input.shape === 'star') {
+    const points = Math.round(clamp(input.starPoints ?? 5, 3, 12))
+    const inner = clamp(input.starInner ?? 0.45, 0.2, 0.8)
+    return ((1 - inner) * 2 * points / TAU) / (inner * inner)
+  }
+  if (input.shape === 'heart') return 4.7
+  if (input.shape === 'cloud') return 26
+  if (input.shape === 'cat-head') return 4.3
+  if (input.shape === 'cat-side-profile') return 6.7
+  if (input.shape === 'bastet') return 9.4
+  return null
+}
+
+/** The shape-space directions of each concave silhouette's boundary minima. */
 function concaveGaugeNotchAngles(input: {
   shape: ShowSpatialShape
   starPoints?: number
-}): number[] | null {
+}): number[] {
   if (input.shape === 'cross') {
     return [Math.PI / 4, (3 * Math.PI) / 4, (5 * Math.PI) / 4, (7 * Math.PI) / 4]
   }
@@ -160,16 +256,8 @@ function concaveGaugeNotchAngles(input: {
     return Array.from({ length: points }, (_, index) => (index / points) * TAU)
   }
   if (input.shape === 'heart') return [-Math.PI / 2]
-  if (
-    input.shape === 'cloud'
-    || input.shape === 'cat-head'
-    || input.shape === 'cat-side-profile'
-    || input.shape === 'bastet'
-  ) {
-    // Bump-built silhouettes have wide valleys; the dense sweep finds them.
-    return []
-  }
-  return null
+  // Bump-built silhouettes have wide valleys; the dense sweep finds them.
+  return []
 }
 
 /**
