@@ -9752,6 +9752,10 @@ function CompileBar({
     worstInstantRenderersPerPixel: summary.worstInstantRenderersPerPixel,
   }) : null
   const estimate = estimateFps(ratio, summary?.renderPolicy)
+  // The gauge shows what actually ships: delivered bytes (generated source
+  // plus the stamped delivery header) against the same source budget.
+  const deliveredBytes = artifactInventory?.inventory.totalBytes ?? summary?.artifactBytes ?? 0
+  const deliveredRatio = summary ? deliveredBytes / summary.measuredDeviceBudgetBytes : 0
   const worstInstant = summary?.transitionCost === 'renderer-window'
     ? 'crossfade'
     : summary?.transitionCost === 'bounded-renderer-window'
@@ -9824,15 +9828,15 @@ function CompileBar({
       <span
         className="h-2 w-28 overflow-hidden rounded-sm bg-zinc-800"
         aria-label={summary
-          ? `Show source ${formatBytes(summary.artifactBytes)} of the ${formatBytes(summary.measuredDeviceBudgetBytes)} source budget. The budget is a source-size proxy, not remaining Controller capacity.`
+          ? `Show source ${formatBytes(deliveredBytes)} of the ${formatBytes(summary.measuredDeviceBudgetBytes)} source budget. The budget is a source-size proxy, not remaining Controller capacity.`
           : undefined}
         title={summary
-          ? `Show source ${formatBytes(summary.artifactBytes)} of the ${formatBytes(summary.measuredDeviceBudgetBytes)} source budget. The budget is a source-size proxy, not remaining Controller capacity.`
+          ? `Show source ${formatBytes(deliveredBytes)} of the ${formatBytes(summary.measuredDeviceBudgetBytes)} source budget. The budget is a source-size proxy, not remaining Controller capacity.`
           : undefined}
       >
         <span
           className={`block h-full ${pressure?.status === 'blocked' ? 'bg-red-500' : pressure?.status === 'warning' ? 'bg-amber-400' : 'bg-live'}`}
-          style={{ width: `${Math.min(100, ratio * 100)}%` }}
+          style={{ width: `${Math.min(100, deliveredRatio * 100)}%` }}
         />
       </span>
       {summary && artifactInventory ? (

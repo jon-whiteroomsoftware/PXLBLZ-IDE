@@ -6428,7 +6428,12 @@ describe('ShowEditor (#318)', () => {
 
     const compileBar = screen.getByTestId('show-compile-bar')
     expect(compileBar).not.toHaveTextContent('generated UTF-8 source')
-    expect(compileBar).toHaveTextContent('/ 66.8 KB')
+    expect(compileBar).toHaveTextContent('67.4 KB / 66.8 KB')
+    // The gauge reports the same delivered total as the inventory trigger,
+    // not the smaller generated-only count (#63 review follow-up).
+    expect(screen.getByLabelText(/The budget is a source-size proxy/i)).toHaveAccessibleName(
+      /Show source 67\.4 KB of the 66\.8 KB source budget/,
+    )
     expect(screen.getByLabelText(/The budget is a source-size proxy/i)).toHaveAccessibleName(
       /not remaining Controller capacity/i,
     )
@@ -6458,6 +6463,16 @@ describe('ShowEditor (#318)', () => {
     expect(inventory).toHaveTextContent('Pattern machines: 19 logical · 7 physical')
     expect(inventory).toHaveTextContent('Ways to slim this Show')
     expect(inventory).toHaveTextContent('Source percentages do not describe Controller bytecode or runtime cost.')
+
+    // Budget-relative segment widths can sum past 100% for an over-budget
+    // Show; fixed (non-shrinking) segments clip instead of silently
+    // renormalizing back to delivered-total proportions (#63 review follow-up).
+    const strip = inventory.querySelector('[aria-hidden].flex')
+    expect(strip).not.toBeNull()
+    expect(strip!.children.length).toBeGreaterThan(0)
+    for (const segment of Array.from(strip!.children)) {
+      expect(segment.className).toContain('shrink-0')
+    }
   })
 
   it('connects table-driven score bytes to their reused stacks and kernels (#545)', async () => {

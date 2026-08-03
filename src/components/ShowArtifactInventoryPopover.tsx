@@ -131,7 +131,7 @@ export function ShowArtifactInventoryPopover({ inventory, model, vmWords, render
         {model.rows.map((row) => (
           <span
             key={row.id}
-            className={`${CATEGORY_COLOR[row.category]} h-full min-w-px border-r border-black/20 last:border-r-0`}
+            className={`${CATEGORY_COLOR[row.category]} h-full min-w-px shrink-0 border-r border-black/20 last:border-r-0`}
             style={{ width: `${row.percentage * 100}%` }}
             title={`${row.label}: ${formatBytes(row.bytes)} (${formatPercent(row.percentage)})`}
           />
