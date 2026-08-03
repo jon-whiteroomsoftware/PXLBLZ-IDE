@@ -67,6 +67,18 @@ export function showShapeRevealDistance(input: {
     const boundary = Math.max(0.25, 0.75 + 0.2 * Math.sin(angle) - 0.15 * Math.cos(angle * 2))
     return radial / boundary
   }
+  if (input.shape === 'cloud') {
+    // Cumulus gauge: a taller center lobe flanked by two side lobes (union by
+    // max keeps the scallops), clipped below by the polar trace of the
+    // straight line `dy = 0.44` for the flat base.
+    const crown = 0.58 + Math.max(
+      0.36 * smoothAngularBump(angle, -Math.PI / 2, 0.9),
+      0.3 * smoothAngularBump(angle, -2.3, 0.85),
+      0.3 * smoothAngularBump(angle, -0.84, 0.85),
+    )
+    const boundary = Math.min(crown, 0.44 / Math.max(Math.sin(angle), 0.05))
+    return radial / boundary
+  }
   if (input.shape === 'cat-head') {
     const ears = 0.42 * (
       angularBump(angle, -2.2, 0.38) + angularBump(angle, -0.94, 0.38)
@@ -150,6 +162,12 @@ export function showShapeRevealSignedDistance(input: {
 function angularBump(angle: number, target: number, width: number): number {
   const distance = Math.abs(modulo(angle - target + Math.PI, TAU) - Math.PI)
   return Math.max(0, 1 - distance / width)
+}
+
+/** Cosine bell over the folded angular distance; 1 at the target, 0 past `width`. */
+function smoothAngularBump(angle: number, target: number, width: number): number {
+  const distance = Math.abs(modulo(angle - target + Math.PI, TAU) - Math.PI)
+  return 0.5 + 0.5 * Math.cos(Math.PI * Math.min(distance / width, 1))
 }
 
 function clamp(value: number, min: number, max: number): number {

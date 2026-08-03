@@ -320,7 +320,7 @@ export function createShowToolkitFixtureRecipes(): ShowToolkitFixtureRecipe[] {
       }))
     )),
     ...(['grow-incoming', 'shrink-outgoing'] as const).flatMap((revealMode) => (
-      (['ellipse', 'rounded-box', 'cross', 'heart', 'star', 'crescent', 'cat-head', 'cat-side-profile', 'bastet'] as const)
+      (['ellipse', 'rounded-box', 'cross', 'heart', 'star', 'crescent', 'cloud', 'cat-head', 'cat-side-profile', 'bastet'] as const)
         .map((shape): ShowToolkitFixtureRecipe => {
           const shapeSettings = catalogueShapeSettings(shape)
           return {
@@ -512,7 +512,7 @@ export function createShowPropertyToolkitFixtureRecipes(): ShowToolkitFixtureRec
 }
 
 function catalogueShapeSettings(
-  shape: 'ellipse' | 'rounded-box' | 'cross' | 'heart' | 'star' | 'crescent' | 'cat-head' | 'cat-side-profile' | 'bastet',
+  shape: 'ellipse' | 'rounded-box' | 'cross' | 'heart' | 'star' | 'crescent' | 'cloud' | 'cat-head' | 'cat-side-profile' | 'bastet',
 ): Partial<Pick<
   ShowBoundaryTransition,
   'aspect' | 'rotation' | 'cornerRadius' | 'crossWidth' | 'starPoints' | 'starInner' | 'crescentOffset'
@@ -522,6 +522,7 @@ function catalogueShapeSettings(
   if (shape === 'cross') return { aspect: 1.2, rotation: 0.125, crossWidth: 0.3 }
   if (shape === 'star') return { aspect: 1, rotation: 0.05, starPoints: 5, starInner: 0.45 }
   if (shape === 'crescent') return { aspect: 1.1, rotation: 0.08, crescentOffset: 0.45 }
+  if (shape === 'cloud') return { aspect: 1.4, rotation: 0 }
   if (shape === 'cat-side-profile') return { aspect: 1.6, rotation: 0 }
   if (shape === 'bastet') return { aspect: 0.65, rotation: 0 }
   return { aspect: 1, rotation: 0 }

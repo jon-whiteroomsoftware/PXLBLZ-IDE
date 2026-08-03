@@ -129,8 +129,11 @@ describe('Show visual-toolkit contract', () => {
     expect(getShowToolkitFamily('transition', 'shape-reveal')?.variants.map((variant) => variant.id))
       .toEqual([
         'circle', 'ellipse', 'box', 'rounded-box', 'diamond', 'cross', 'ring',
-        'heart', 'star', 'crescent', 'polygon', 'cat-head', 'cat-side-profile', 'bastet',
+        'heart', 'star', 'crescent', 'polygon', 'cloud', 'cat-head', 'cat-side-profile', 'bastet',
       ])
+    const cloudParameters = resolveShowToolkitParameters('transition', 'shape-reveal', 'cloud', {}).map((parameter) => parameter.id)
+    expect(cloudParameters).toEqual(expect.arrayContaining(['aspect', 'rotation']))
+    expect(cloudParameters).not.toContain('starPoints')
     expect(resolveShowToolkitParameters('transition', 'shape-reveal', 'star', {}).map((parameter) => parameter.id))
       .toEqual(expect.arrayContaining(['starPoints', 'starInner', 'aspect', 'rotation']))
     expect(resolveShowToolkitParameters('transition', 'shape-reveal', 'crescent', {}).map((parameter) => parameter.id))
@@ -408,9 +411,9 @@ describe('Show visual-toolkit contract', () => {
       'shape-reveal-box-grow-incoming',
       'shape-reveal-circle-shrink-outgoing',
       'shape-reveal-box-shrink-outgoing',
-      ...['ellipse', 'rounded-box', 'cross', 'heart', 'star', 'crescent', 'cat-head', 'cat-side-profile', 'bastet']
+      ...['ellipse', 'rounded-box', 'cross', 'heart', 'star', 'crescent', 'cloud', 'cat-head', 'cat-side-profile', 'bastet']
         .map((shape) => `shape-reveal-${shape}-grow-incoming`),
-      ...['ellipse', 'rounded-box', 'cross', 'heart', 'star', 'crescent', 'cat-head', 'cat-side-profile', 'bastet']
+      ...['ellipse', 'rounded-box', 'cross', 'heart', 'star', 'crescent', 'cloud', 'cat-head', 'cat-side-profile', 'bastet']
         .map((shape) => `shape-reveal-${shape}-shrink-outgoing`),
       ...[3, 4, 5, 6, 7, 8].map((sides) => `shape-reveal-polygon-${sides}-grow-incoming`),
       ...[3, 4, 5, 6, 7, 8].map((sides) => `shape-reveal-polygon-${sides}-shrink-outgoing`),

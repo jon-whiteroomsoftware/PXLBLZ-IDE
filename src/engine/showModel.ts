@@ -1598,7 +1598,7 @@ function normalizeSpatialShapeSettings(transition: {
 >> {
   const shapes: ShowSpatialShape[] = [
     'circle', 'ellipse', 'box', 'rounded-box', 'diamond', 'cross', 'ring',
-    'heart', 'star', 'crescent', 'polygon', 'cat-head', 'cat-side-profile', 'bastet',
+    'heart', 'star', 'crescent', 'polygon', 'cloud', 'cat-head', 'cat-side-profile', 'bastet',
   ]
   if (!shapes.includes(transition.shape as ShowSpatialShape)) return {}
   const base = {
@@ -1647,7 +1647,7 @@ function normalizeSpatialShapeSettings(transition: {
   }
   const shaped = {
     ...base,
-    aspect: clampRange(transition.aspect ?? (transition.shape === 'cat-side-profile' ? 1.6 : transition.shape === 'bastet' ? 0.65 : 1), 0.25, 4),
+    aspect: clampRange(transition.aspect ?? (transition.shape === 'cat-side-profile' ? 1.6 : transition.shape === 'bastet' ? 0.65 : transition.shape === 'cloud' ? 1.4 : 1), 0.25, 4),
     rotation: clampRange(transition.rotation ?? 0, -1, 1),
   }
   if (transition.shape === 'star') {

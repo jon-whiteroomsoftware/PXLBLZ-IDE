@@ -8201,7 +8201,7 @@ function emitPortalRenderBlock(
   const feather = clampNumber(transition.feather ?? 0, 0, 1)
   const supportedShapes: ShowSpatialShape[] = [
     'circle', 'ellipse', 'box', 'rounded-box', 'diamond', 'cross', 'ring',
-    'heart', 'star', 'crescent', 'polygon', 'cat-head', 'cat-side-profile', 'bastet',
+    'heart', 'star', 'crescent', 'polygon', 'cloud', 'cat-head', 'cat-side-profile', 'bastet',
   ]
   const shape = supportedShapes.includes(transition.shape as ShowSpatialShape)
     ? transition.shape as ShowSpatialShape
@@ -8377,6 +8377,13 @@ function portalCatalogueMetricExpression(input: {
       expression: `${radial} / max(0.25, 0.75 + 0.2 * sin(${angle}) - 0.15 * cos(${angle} * 2))`,
     }
   }
+  if (input.shape === 'cloud') {
+    const crown = `0.58 + max(0.36 * ${smoothAngularBumpExpression(angle, -Math.PI / 2, 0.9)}, max(0.3 * ${smoothAngularBumpExpression(angle, -2.3, 0.85)}, 0.3 * ${smoothAngularBumpExpression(angle, -0.84, 0.85)}))`
+    return {
+      prelude: `${prelude}\nvar __pxlblz_show_portal_cloud = ${crown}`,
+      expression: `${radial} / min(__pxlblz_show_portal_cloud, 0.44 / max(sin(${angle}), 0.05))`,
+    }
+  }
   if (input.shape === 'cat-head') {
     const ears = `${angularBumpExpression(angle, -2.2, 0.38)} + ${angularBumpExpression(angle, -0.94, 0.38)}`
     return { prelude, expression: `${radial} / (0.72 + 0.42 * (${ears}))` }
@@ -8397,6 +8404,12 @@ function portalCatalogueMetricExpression(input: {
 function angularBumpExpression(angle: string, target: number, width: number): string {
   const tau = Math.PI * 2
   return `max(0, 1 - abs(frac((${angle} - ${target} + ${Math.PI}) / ${tau}) * ${tau} - ${Math.PI}) / ${width})`
+}
+
+/** Cosine bell over the folded angular distance; 1 at the target, 0 past `width`. */
+function smoothAngularBumpExpression(angle: string, target: number, width: number): string {
+  const tau = Math.PI * 2
+  return `(0.5 + 0.5 * cos(${Math.PI} * min(abs(frac((${angle} - ${target} + ${Math.PI}) / ${tau}) * ${tau} - ${Math.PI}) / ${width}, 1)))`
 }
 
 function resolvePortalEdgePolicy(

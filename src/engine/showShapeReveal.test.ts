@@ -66,7 +66,7 @@ describe('common and signature SDF catalogue (#452)', () => {
   it('evaluates every common, polygon, and signature metric deterministically', () => {
     const shapes = [
       'ellipse', 'rounded-box', 'cross', 'heart', 'star', 'crescent',
-      'polygon', 'cat-head', 'cat-side-profile', 'bastet',
+      'polygon', 'cloud', 'cat-head', 'cat-side-profile', 'bastet',
     ] as const
     const metrics = shapes.map((shape) => showShapeRevealDistance({
       x: 0.76, y: 0.31, centerX: 0.5, centerY: 0.5, shape,
@@ -85,6 +85,41 @@ describe('common and signature SDF catalogue (#452)', () => {
       x: 0.76, y: 0.31, centerX: 0.5, centerY: 0.5,
       shape: 'polygon', polygonSides: 8,
     }))
+  })
+
+  it('shapes the Cloud with a flat bottom under a scalloped crown (#690)', () => {
+    const at = (dx: number, dy: number) => showShapeRevealDistance({
+      x: 0.5 + dx, y: 0.5 + dy, centerX: 0.5, centerY: 0.5, shape: 'cloud', aspect: 1,
+    })
+    // The bottom line sits nearer the center than the crown: straight up
+    // reaches deeper inside than straight down at the same radius.
+    expect(at(0, -0.5)).toBeLessThan(at(0, 0.5))
+    // The bottom edge crosses 1 at the same height across a wide span.
+    expect(at(-0.1, 0.4)).toBeLessThan(1)
+    expect(at(0.1, 0.4)).toBeLessThan(1)
+    expect(at(-0.1, 0.46)).toBeGreaterThan(1)
+    expect(at(0.1, 0.46)).toBeGreaterThan(1)
+    // Scallops: the valley between the top and side lobes sits closer to the
+    // boundary than either adjacent lobe peak at the same radius.
+    const radius = 0.5
+    const metricAt = (angle: number) => showShapeRevealDistance({
+      x: 0.5 + radius * Math.cos(angle), y: 0.5 + radius * Math.sin(angle),
+      centerX: 0.5, centerY: 0.5, shape: 'cloud', aspect: 1,
+    })
+    expect(metricAt(-2.0)).toBeGreaterThan(metricAt(-Math.PI / 2))
+    expect(metricAt(-2.0)).toBeGreaterThan(metricAt(-2.3))
+  })
+
+  it('normalizes the Cloud with a wide default aspect (#690)', () => {
+    const show = { ...createDefaultShow('cloud', 'Cloud', 690), stageMapId: 'plane' }
+    show.transitions[0] = {
+      ...show.transitions[0], kind: 'portal', durationMs: 1000,
+      shape: 'cloud', rotation: 3,
+    }
+    const normalized = normalizeShowTransitionState(show)
+    expect(normalized.transitions![0]).toMatchObject({
+      shape: 'cloud', aspect: 1.4, rotation: 1,
+    })
   })
 
   it('cuts a real crescent hole while preserving Grow and Shrink polarity', () => {

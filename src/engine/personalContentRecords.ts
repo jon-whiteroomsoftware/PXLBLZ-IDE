@@ -84,7 +84,7 @@ export type ShowWipeMode = 'center-out' | 'center-in'
 export type ShowWipeOrientation = 'horizontal' | 'vertical'
 export type ShowSpatialShape =
   | 'circle' | 'ellipse' | 'box' | 'rounded-box' | 'diamond' | 'cross' | 'ring'
-  | 'heart' | 'star' | 'crescent' | 'polygon'
+  | 'heart' | 'star' | 'crescent' | 'polygon' | 'cloud'
   | 'cat-head' | 'cat-side-profile' | 'bastet'
 export type ShowRevealMode = 'grow-incoming' | 'shrink-outgoing'
 export type ShowMotionTransitionVariant =

@@ -6245,6 +6245,7 @@ export function render(index) { rgb(elapsed, time(1), index) }
     ['crescent', { shape: 'crescent', aspect: 1.1, crescentOffset: 0.45, rotation: 0.1 }],
     ['triangle', { shape: 'polygon', polygonSides: 3, rotation: 0.05 }],
     ['octagon', { shape: 'polygon', polygonSides: 8, rotation: 0.05 }],
+    ['cloud', { shape: 'cloud', aspect: 1.4, rotation: 0 }],
     ['cat-head', { shape: 'cat-head', aspect: 1, rotation: 0 }],
     ['cat-side-profile', { shape: 'cat-side-profile', aspect: 1.6, rotation: 0 }],
     ['bastet', { shape: 'bastet', aspect: 0.65, rotation: 0 }],
