@@ -4689,9 +4689,10 @@ describe('ShowEditor (#318)', () => {
     // and the field returns to its read-only selected state.
     expect(within(guide).getByRole('combobox', { name: 'Pattern 2' })).not.toHaveFocus()
     expect(within(guide).getByRole('combobox', { name: 'Pattern 2' })).toHaveAttribute('readonly')
-    // The untouched slot keeps its authored cast; one Reset clears every slot.
+    // The untouched slot keeps its authored cast; the one header Reset
+    // clears every slot along with any draft edits (#63).
     expect(within(guide).getByRole('combobox', { name: 'Pattern 1' })).toHaveValue('Caustics')
-    await user.click(within(guide).getByRole('button', { name: 'Reset Pattern' }))
+    await user.click(screen.getByRole('button', { name: 'Reset built-in Show' }))
     expect(useShowEditorSessionStore.getState().referencePatternsByShowId[stock.id]).toBeUndefined()
 
     // A deliberate Source-pattern edit in Clip Detail supersedes the picker:
@@ -4742,7 +4743,8 @@ describe('ShowEditor (#318)', () => {
     expect(useShowEditorSessionStore.getState().referencePatternsByShowId[stock.id]).toEqual({
       0: { kind: 'stock', id: 'Caustics' },
     })
-    expect(within(guide).getByRole('button', { name: 'Reset Pattern' })).toBeInTheDocument()
+    // One Reset in the header owns all restoration; the guide has none (#63).
+    expect(within(guide).queryByRole('button', { name: 'Reset Pattern' })).toBeNull()
 
     const editedDraft = {
       ...stock.show,
@@ -4777,7 +4779,7 @@ describe('ShowEditor (#318)', () => {
       controlTargets: { speed: 0.42 },
     }))
 
-    await user.click(within(guide).getByRole('button', { name: 'Reset Pattern' }))
+    await user.click(screen.getByRole('button', { name: 'Reset built-in Show' }))
     expect(useShowEditorSessionStore.getState().referencePatternsByShowId[stock.id]).toBeUndefined()
     expect(screen.getAllByRole('button', { name: 'Select MetaballGarden' }).length).toBeGreaterThan(0)
   }, 10_000)
@@ -4828,7 +4830,7 @@ describe('ShowEditor (#318)', () => {
     />)
     expect(screen.getAllByRole('button', { name: 'Select Caustics' }).length).toBeGreaterThan(0)
 
-    await user.click(screen.getByRole('button', { name: 'Reset Pattern' }))
+    await user.click(screen.getByRole('button', { name: 'Reset built-in Show' }))
     expect(screen.getAllByRole('button', { name: 'Select CompassRose' }).length).toBeGreaterThan(0)
   })
 

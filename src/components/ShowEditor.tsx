@@ -564,16 +564,13 @@ function ShowPatternSlotPicker({
   patternOptions,
   selections,
   onSelectPattern,
-  onResetPatterns,
 }: {
   show: ShowRecord
   slotGroups: readonly ShowPatternSlotGroup[]
   patternOptions: ShowPatternOption[]
   selections?: Readonly<Record<number, ShowCell['pattern']>>
   onSelectPattern: (slotIndex: number, pattern: ShowCell['pattern']) => void
-  onResetPatterns: () => void
 }) {
-  const hasSelection = Object.keys(selections ?? {}).length > 0
   return (
     <div className="flex flex-wrap items-end gap-2">
       {slotGroups.map((group, index) => {
@@ -606,17 +603,6 @@ function ShowPatternSlotPicker({
           </label>
         )
       })}
-      <Button
-        size="xs"
-        variant="ghost"
-        aria-label="Reset Pattern"
-        title={slotGroups.length === 1 ? 'Reset to the authored Pattern' : 'Reset every slot to its authored Pattern'}
-        disabled={!hasSelection}
-        className="mb-0 h-6 bg-zinc-900/70 text-[9px] text-zinc-500 hover:bg-zinc-800 hover:text-zinc-200"
-        onClick={onResetPatterns}
-      >
-        <RotateCw size={10} aria-hidden /> Reset
-      </Button>
     </div>
   )
 }
@@ -629,7 +615,6 @@ function ShowNoteDisclosure({
   patternOptions,
   selections,
   onSelectPattern,
-  onResetPatterns,
   onCollapse,
 }: {
   note: StockShowNote
@@ -639,7 +624,6 @@ function ShowNoteDisclosure({
   patternOptions: ShowPatternOption[]
   selections?: Readonly<Record<number, ShowCell['pattern']>>
   onSelectPattern: (slotIndex: number, pattern: ShowCell['pattern']) => void
-  onResetPatterns: () => void
   onCollapse: () => void
 }) {
   const title = note.number ? `${note.number} ${note.title}` : note.title
@@ -703,7 +687,6 @@ function ShowNoteDisclosure({
             patternOptions={patternOptions}
             selections={selections}
             onSelectPattern={onSelectPattern}
-            onResetPatterns={onResetPatterns}
           />
         </div>
       )}
@@ -721,7 +704,6 @@ function ShowNoteDisclosure({
             patternOptions={patternOptions}
             selections={selections}
             onSelectPattern={onSelectPattern}
-            onResetPatterns={onResetPatterns}
           />
         </div>
       )}
@@ -788,14 +770,12 @@ function ShowReferenceInstrument({
   patternOptions,
   selections,
   onSelectPattern,
-  onResetPatterns,
 }: {
   show: ShowRecord
   reference: ShowReferenceGuide
   patternOptions: ShowPatternOption[]
   selections?: Readonly<Record<number, ShowCell['pattern']>>
   onSelectPattern: (slotIndex: number, pattern: ShowCell['pattern']) => void
-  onResetPatterns: () => void
 }) {
   const positionMs = useShowTransportStore((state) => state.showId === show.id ? state.positionMs : 0)
   const current = currentShowReferenceExample(show, reference, positionMs)
@@ -824,7 +804,6 @@ function ShowReferenceInstrument({
             patternOptions={patternOptions}
             selections={selections}
             onSelectPattern={onSelectPattern}
-            onResetPatterns={onResetPatterns}
           />
         )}
       </div>
@@ -2020,7 +1999,6 @@ export function ShowEditor({
           patternOptions={referencePatternOptions}
           selections={selectedReferencePatterns}
           onSelectPattern={(slotIndex, pattern) => setReferencePattern(showId, slotIndex, pattern)}
-          onResetPatterns={() => clearReferencePatterns(showId)}
           onCollapse={() => setShowNoteOpen(showId, false)}
         />
       )}
