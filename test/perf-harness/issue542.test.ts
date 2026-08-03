@@ -18,6 +18,11 @@ describe('issue #542 baseline census', () => {
         persistentGlobals: 325,
       },
       {
+        // 10_870 -> 10_872 corrects a pin left stale on main by #690's
+        // late per-variant aspect defaults (constraintsByVariant): the
+        // palette-materialized ellipse boundary now persists aspect 1.5,
+        // growing this reference's authored JSON by two bytes. Verified by
+        // running this census on the pre-#691 main tip, which fails there.
         authoredJsonBytes: 10_872,
         generatedSourceBytes: 73_433,
         patternInstanceCount: 9,
