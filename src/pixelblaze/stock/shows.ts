@@ -1630,7 +1630,7 @@ function propertyAnimationReference(): StockShow {
     ],
   })
   const localTracks = (sceneId: string): ShowPropertyAnimationTrack[] => {
-    const instanceId = 'instance-property-subject'
+    const instanceId = columnInstanceIds(sceneId).subject
     const placementId = `placement-${sceneId}-a`
     if (sceneId === 'animation-speed') return [track('track-animation-speed', { kind: 'instance-time-scale', instanceId }, [0.12, 0.9, 0.12])]
     if (sceneId === 'pattern-control') return [track('track-pattern-control', { kind: 'instance-control', instanceId, exportName: 'sliderSpeed' }, [0.08, 0.92, 0.08])]
@@ -1654,17 +1654,34 @@ function propertyAnimationReference(): StockShow {
   // unanimated - an identical twin on an identical clock - so the animated
   // value is the only difference between the two Zones, and the second
   // member Pattern the census flagged drops out of the artifact entirely.
+  // The two clock-perturbing passages get their own scene-local pair
+  // (review P2): animating the shared subject's time scale or speed control
+  // would permanently advance its clock relative to the twin, so every later
+  // passage would compare out-of-phase Patterns and the divergence would
+  // grow each loop. Scene-local instances run only while presented, so both
+  // columns of those passages first start at the same instant, stay
+  // phase-identical twins at every loop, and leave the shared pair's clocks
+  // untouched for the other seven passages.
   const patternInstances: ShowCompositionV1['patternInstances'] = [
     instance('instance-property-subject', 'CompassRose', 0.32, { sliderSpeed: 0.08 }),
     instance('instance-property-comparison', 'CompassRose', 0.32, { sliderSpeed: 0.08 }),
+    instance('instance-property-subject-speed', 'CompassRose', 0.32, { sliderSpeed: 0.08 }),
+    instance('instance-property-comparison-speed', 'CompassRose', 0.32, { sliderSpeed: 0.08 }),
+    instance('instance-property-subject-control', 'CompassRose', 0.32, { sliderSpeed: 0.08 }),
+    instance('instance-property-comparison-control', 'CompassRose', 0.32, { sliderSpeed: 0.08 }),
     instance('instance-overlay-opacity-overlay', 'SignalMandala', 0.28),
   ]
+  const columnInstanceIds = (sceneId: string): { subject: string; comparison: string } => {
+    if (sceneId === 'animation-speed') return { subject: 'instance-property-subject-speed', comparison: 'instance-property-comparison-speed' }
+    if (sceneId === 'pattern-control') return { subject: 'instance-property-subject-control', comparison: 'instance-property-comparison-control' }
+    return { subject: 'instance-property-subject', comparison: 'instance-property-comparison' }
+  }
   const composition: ShowCompositionV1 = {
     version: 1,
     patternInstances,
     scenes: properties.map(([sceneId]) => {
       const mainA = {
-        ...placement(`placement-${sceneId}-a`, 'instance-property-subject', 0, 5),
+        ...placement(`placement-${sceneId}-a`, columnInstanceIds(sceneId).subject, 0, 5),
         ...(sceneId === 'effect-parameter'
           ? { effects: [{ id: 'translate-demo', kind: 'translate' as const, x: -0.35, y: 0 }] }
           : {}),
@@ -1692,7 +1709,7 @@ function propertyAnimationReference(): StockShow {
           },
           {
             zoneId: 'zone-2',
-            main: [placement(`placement-${sceneId}-b`, 'instance-property-comparison', 0, 5)],
+            main: [placement(`placement-${sceneId}-b`, columnInstanceIds(sceneId).comparison, 0, 5)],
             overlays: [],
           },
         ],
