@@ -535,19 +535,19 @@ function ShowNoteTrigger({ note, open, onToggle }: {
   const numberLabel = note.number ? `${note.number} ` : ''
   const actionLabel = open ? 'Collapse' : 'Open'
   return (
-    <Button
-      size="icon-xs"
-      variant="ghost"
+    <button
+      type="button"
       aria-label={`${actionLabel} ${numberLabel}${note.title} guide`}
       aria-expanded={open}
       title={`${actionLabel} ${numberLabel}${note.title} guide`}
-      className={`show-note-trigger ${open
-        ? 'aria-expanded:!bg-zinc-800/70 aria-expanded:!text-zinc-300 hover:!bg-zinc-700/70 hover:!text-zinc-100'
-        : 'aria-expanded:!bg-transparent aria-expanded:!text-zinc-500 hover:!bg-zinc-800 hover:!text-zinc-300'}`}
+      className={`show-note-trigger inline-flex h-5 shrink-0 items-center gap-1 rounded border px-1.5 text-[10px] uppercase tracking-wide focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-cyan-200 ${open
+        ? 'border-cyan-200/50 bg-cyan-400/15 text-cyan-100 hover:bg-cyan-400/25'
+        : 'border-cyan-200/30 bg-cyan-400/[0.07] text-cyan-100/80 hover:border-cyan-200/50 hover:bg-cyan-400/15 hover:text-cyan-100'}`}
       onClick={onToggle}
     >
-      <BookOpen size={12} aria-hidden />
-    </Button>
+      <BookOpen size={11} aria-hidden />
+      {note.number ? 'Lesson' : 'Guide'}
+    </button>
   )
 }
 
@@ -3227,7 +3227,9 @@ function ShowTimelineWorkspace({
   const markersVisible = useShowEditorSessionStore((state) => state.markersVisible)
   const setMarkersVisible = useShowEditorSessionStore((state) => state.setMarkersVisible)
   const setMarkerSnapEnabled = useShowEditorSessionStore((state) => state.setMarkerSnapEnabled)
-  const zonesOpen = useShowEditorSessionStore((state) => state.zoneWorkspaceOpenByShowId[show.id] ?? false)
+  const zonesOpen = useShowEditorSessionStore((state) => (
+    state.zoneWorkspaceOpenByShowId[show.id] ?? stockShowById(show.id)?.zonesOpenByDefault ?? false
+  ))
   const collapsedZoneIds = useShowEditorSessionStore((state) => state.collapsedZoneIdsByShowId[show.id]) ?? EMPTY_ZONE_IDS
   const focusedZoneId = useShowEditorSessionStore((state) => state.focusedZoneIdByShowId[show.id] ?? null)
   const setZoneWorkspaceOpen = useShowEditorSessionStore((state) => state.setZoneWorkspaceOpen)

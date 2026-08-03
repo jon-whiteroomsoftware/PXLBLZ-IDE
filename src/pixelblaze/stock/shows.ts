@@ -51,6 +51,9 @@ export interface StockShow {
   lesson: string
   description: string
   note: StockShowNote
+  // Zones-focused lessons open the Zone rail on first visit; everything else
+  // starts collapsed and the session store remembers the user's choice.
+  zonesOpenByDefault?: boolean
   reference?: ShowReferenceGuide
   show: ShowRecord
 }
@@ -83,6 +86,7 @@ type CatalogueInput = {
   guideDocumentId?: StockShowNote['guide']['documentId']
   guideLabel?: string
   defaultOpen?: boolean
+  zonesOpenByDefault?: boolean
   output: { kind: 'portable'; mapId: string; pixelCount: number }
     | { kind: 'installation'; mapId: string; pixelCount: number }
   zones: ShowZone[]
@@ -166,8 +170,8 @@ function learn100(): StockShow {
   }
   return catalogue({
     id, title: 'Getting Around', track: 'portable', collection: 'learn', level: 100, order: 0,
-    purpose: 'This Show is a playground, not a piece: it exists so you can learn to get around. Space plays and pauses from almost anywhere. Command/Ctrl+wheel zooms the timeline around the playhead and Shift+wheel pans it. The Navigator strip drags and resizes your view of a long Show. And whatever you break, Reset restores this lesson exactly.',
-    notice: 'Four gestures do most of the editing work: double-click an empty stretch of a Layer to place a Clip there, hold Option/Alt and drag a Clip to pull off an independent copy, drag a Clip between Layer rows to move it, and hold Option/Alt while resizing or scrubbing to temporarily reverse Snap. This tour is deliberately incomplete; the guide below covers everything else.',
+    purpose: 'This first Show exists to get you familiar with the basics. Space plays and pauses from almost anywhere. Four gestures do most of the editing work: double-click an empty stretch of a Layer to place a Clip there, hold Option/Alt and drag a Clip to pull off an independent copy, drag a Clip between Layer rows to move it, and hold Option/Alt while resizing or scrubbing to temporarily reverse Snap. And whatever you break, Reset restores this lesson exactly.',
+    notice: 'When a Show outgrows the window: Command/Ctrl+wheel zooms the timeline around the playhead, Shift+wheel pans it, and the Navigator strip drags and resizes your view. This tour is deliberately incomplete; the guide below covers everything else.',
     prompts: ['Double-click the empty stretch after the last Clip and pick any Pattern: the chooser places a Clip right where you clicked.', 'Hold Option/Alt and drag the first Clip anywhere - you get an independent copy and the original never moves. Try dropping it on the upper Layer row, then press Reset.'],
     guideHeading: 'creating-and-arranging-clips',
     guideDocumentId: 'keyboard-shortcuts',
@@ -210,7 +214,7 @@ function learn101(): StockShow {
   return catalogue({
     id, title: 'Clips, Cuts, and Blank Time', track: 'portable', collection: 'learn', level: 100, order: 1,
     purpose: 'A Clip occupies a span of Show time on a Layer. Where two Clips touch, the junction between them is a Cut; where none is scheduled, the Show renders black.',
-    notice: 'The two seconds before the final Clip are empty on purpose. Blank time is a valid part of the timeline, not a mistake.',
+    notice: 'The two seconds before the final Clip are empty on purpose. Blank time is a valid part of the timeline, not a mistake. And edit freely: in any Show, Command/Ctrl+Z undoes and Command/Ctrl+Shift+Z redoes, and Reset restores any of the lessons to their original state.',
     prompts: ['Split the first Clip in half without changing the picture.', 'Drag the last Clip left to close the gap, then back to reopen it.'],
     guideHeading: 'clips-cuts-and-blank-time',
     output: portableOutput(), zones, layouts: [singleLayout(zones)], scenes, composition,
@@ -440,6 +444,7 @@ function learn105(): StockShow {
     notice: 'The split never moves. At the halfway Cut the two Patterns simply trade sides, and each Zone keeps its own row on the timeline.',
     prompts: ["The two Clips in each Zone touch, and that junction is a real entity rather than a seam. Drag three seconds off the end of the second Clip, then click the junction and give it a two-second Crossfade.", 'Now drag the second Clip later. The Crossfade travels with it rather than staying put, because the junction belongs to the pair of Clips and not to a moment on the ruler.'],
     guideHeading: 'portable-zones',
+    zonesOpenByDefault: true,
     output: portableOutput(), zones, layouts: [splitLayout('layout-side-by-side', 'Side by side', zones, 'x')], scenes, composition,
   })
 }
@@ -633,8 +638,8 @@ function learn201(): StockShow {
   }
   return catalogue({
     id, title: 'Layers and Property Animation', track: 'portable', collection: 'learn', level: 200, order: 1,
-    purpose: 'Layers blend pixels from different Clips into one picture: whatever a higher Layer draws is mixed over the Layers below it. Here GlyphRain plays on its own Layer above Caustics, and a single Opacity curve - rise, hold, fade - carries its entire arrival and exit.',
-    notice: 'The Caustics Clip never changes. Opacity mixes the two Layers, so the water dims only while the rain is up, and the rain appears and disappears on its Opacity curve rather than at its Clip edges.',
+    purpose: 'Layers blend pixels from different Clips into one picture: whatever a higher Layer draws is mixed over the Layers below it. Here GlyphRain plays on a Layer above Caustics, and one animated Opacity curve controls the mix.',
+    notice: "The GlyphRain Clip starts at 2 s, but its Opacity starts at zero - nothing shows until the curve ramps up to 65%. It holds there, then ramps back to zero by the Clip's end. The Caustics Clip below never changes; the water dims only because the rain is mixed over it.",
     prompts: ['Open the GlyphRain Clip, click the diamond next to Opacity, and drag both 65% keyframes down to 30% - the rain drops back to a faint tint over the water.', 'Click Add keyframe and pull the new middle point up to 100% - the rain now swells to full strength in the middle of its hold.'],
     guideHeading: 'layers-and-property-animation',
     output: portableOutput(), zones, layouts: [singleLayout(zones)], scenes, composition,
@@ -2257,7 +2262,9 @@ function catalogue(input: CatalogueInput): StockShow {
   }
   return {
     id: input.id, name, track: input.track, collection: input.collection, level: input.level, order: input.order,
-    lesson: input.title, description: input.purpose, note, ...(input.reference ? { reference: input.reference } : {}), show,
+    lesson: input.title, description: input.purpose, note,
+    ...(input.zonesOpenByDefault ? { zonesOpenByDefault: true } : {}),
+    ...(input.reference ? { reference: input.reference } : {}), show,
   }
 }
 

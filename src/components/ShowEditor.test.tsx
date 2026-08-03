@@ -4466,8 +4466,10 @@ describe('ShowEditor (#318)', () => {
     expect(screen.queryByRole('region', { name: '101 Clips and Crossfade guide' })).not.toBeInTheDocument()
     expect(useShowEditorSessionStore.getState().showNoteOpenById[stock.id]).toBe(false)
 
+    // The trigger reads as a labeled chip, not an icon-only button (#63):
+    // numbered lessons say "Lesson" without repeating the number in the label.
     const trigger = screen.getByRole('button', { name: 'Open 101 Clips and Crossfade guide' })
-    expect(trigger).toHaveAttribute('data-size', 'icon-xs')
+    expect(within(trigger).getByText('Lesson')).toBeInTheDocument()
     expect(within(trigger).queryByText('101 Guide')).not.toBeInTheDocument()
     await user.click(trigger)
     expect(screen.getByRole('region', { name: '101 Clips and Crossfade guide' })).toBeInTheDocument()

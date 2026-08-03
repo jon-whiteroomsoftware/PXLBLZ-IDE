@@ -670,6 +670,15 @@ describe('stock Show curriculum (#363)', () => {
     ))).toBe(true)
   })
 
+  it('opens the Zone rail by default only where Zones are the first-visit subject', () => {
+    // 105 introduces Zones, so its rail starts open; every other lesson keeps
+    // the collapsed default and the session store remembers the user's choice.
+    for (const item of lessons()) {
+      expect(item.zonesOpenByDefault ?? false, item.name)
+        .toBe(item.id === 'stock-show-105-portable-zones')
+    }
+  })
+
   it('recombines 106 from 101-105 material and nothing newer', () => {
     const item = stockShowById('stock-show-106-built-from-basics')!
     const composition = item.show.composition!
