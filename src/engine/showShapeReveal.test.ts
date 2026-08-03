@@ -1,6 +1,7 @@
 import {
   normalizeShowRevealMode,
   showShapeRevealDistance,
+  showShapeRevealMaxDistance,
   showShapeRevealSignedDistance,
 } from './showShapeReveal'
 import { createDefaultShow, normalizeShowTransitionState, showRecordToCompileRecipe } from './showModel'
@@ -160,20 +161,26 @@ describe('common and signature SDF catalogue (#452)', () => {
     }
   })
 
-  it('keeps every concave boundary floor at or above its coverage constant (#692)', () => {
-    const floors = [
-      ['heart', 0.54], ['cloud', 0.44],
-      ['cat-head', 0.72], ['cat-side-profile', 0.62], ['bastet', 0.55],
+  it('keeps the concave coverage bound tight as well as complete (#692 review P2)', () => {
+    // The reviewer's collapsing-cross scenario: the exact stage maximum is
+    // 2.5, and the bound must stay within the sweep margin of it rather than
+    // falling back to a gross radial-over-floor estimate.
+    const cases = [
+      { shape: 'cross', centerX: 0, centerY: 0.5, aspect: 0.25, rotation: 0, crossWidth: 0.1 },
+      { shape: 'star', centerX: 0.5, centerY: 0.5, rotation: 0.130859375, starPoints: 12, starInner: 0.2, aspect: 1 },
+      { shape: 'heart', centerX: 0.5, centerY: 0.9, aspect: 1 },
     ] as const
-    for (const [shape, floor] of floors) {
-      for (let step = 0; step < 720; step += 1) {
-        const angle = (step / 720) * Math.PI * 2
-        const gauge = showShapeRevealDistance({
-          x: Math.cos(angle), y: Math.sin(angle), centerX: 0, centerY: 0, shape, aspect: 1,
-        })
-        // boundary(angle) = radial / gauge with radial 1.
-        expect(1 / gauge, `${shape} at ${angle}`).toBeGreaterThanOrEqual(floor - 1e-9)
+    for (const settings of cases) {
+      let exact = 0
+      for (let step = 0; step <= 4096; step += 1) {
+        const t = step / 4096
+        for (const [x, y] of [[t, 0], [t, 1], [0, t], [1, t]] as const) {
+          exact = Math.max(exact, showShapeRevealDistance({ ...settings, x, y }))
+        }
       }
+      const bound = showShapeRevealMaxDistance(settings)
+      expect(bound, `${settings.shape} covers`).toBeGreaterThanOrEqual(exact)
+      expect(bound, `${settings.shape} stays tight`).toBeLessThanOrEqual(exact * 1.02)
     }
   })
 

@@ -117,53 +117,92 @@ export function showShapeRevealMaxDistance(input: {
   starInner?: number
   polygonSides?: number
 }): number {
-  // Concave gauges (the heart cleft, cross and star notches) can peak between
-  // the stage corners, and no fixed boundary lattice survives arbitrarily
-  // narrow notches (#692 review P2s). The scaled radial is convex, so its
-  // stage maximum sits exactly on a corner; dividing by the shape's provable
-  // minimum boundary bounds the gauge conservatively - coverage is guaranteed
-  // and the reveal merely completes slightly early in notch-aligned cases.
-  // Convex silhouettes keep the exact corner evaluation.
-  const minimumBoundary = CONCAVE_GAUGE_MINIMUM_BOUNDARY(input)
-  if (minimumBoundary === null) {
+  // Concave gauges (the heart cleft, cross and star notches) can peak
+  // between the stage corners, and no fixed lattice on the stage boundary
+  // survives arbitrarily narrow notches (#692 review P2s). Candidates are
+  // therefore chosen in angle space: the four corners, the shape's exact
+  // notch directions (the cross ridges, every star notch center, the heart
+  // cleft), and a dense angular sweep, each ray-cast to the stage boundary.
+  // A 0.5% margin absorbs sweep quantization; this runs at compile time,
+  // never per pixel. Convex silhouettes keep the exact corner evaluation.
+  const notchAngles = concaveGaugeNotchAngles(input)
+  if (notchAngles === null) {
     return Math.max(...([
       [0, 0], [1, 0], [0, 1], [1, 1],
     ] as const).map(([x, y]) => showShapeRevealDistance({ ...input, x, y })))
   }
-  const rotationAngle = (input.rotation ?? 0) * TAU
-  const aspect = Math.min(4, Math.max(0.25, input.aspect ?? 1))
-  const rootAspect = Math.sqrt(aspect)
-  const maximumRadial = Math.max(...([
-    [0, 0], [1, 0], [0, 1], [1, 1],
-  ] as const).map(([x, y]) => {
-    const dx = x - input.centerX
-    const dy = y - input.centerY
-    const rx = dx * Math.cos(rotationAngle) + dy * Math.sin(rotationAngle)
-    const ry = -dx * Math.sin(rotationAngle) + dy * Math.cos(rotationAngle)
-    return Math.hypot(rx / rootAspect, ry * rootAspect)
-  }))
-  return maximumRadial / minimumBoundary
+  const angles = [...notchAngles]
+  const sweep = 256
+  for (let step = 0; step < sweep; step += 1) angles.push((step / sweep) * TAU)
+  const candidates: Array<[number, number]> = [[0, 0], [1, 0], [0, 1], [1, 1]]
+  for (const angle of angles) {
+    const point = shapeDirectionStageBoundaryPoint(angle, input)
+    if (point) candidates.push(point)
+  }
+  return 1.005 * Math.max(...candidates.map(([x, y]) => (
+    showShapeRevealDistance({ ...input, x, y })
+  )))
 }
 
 /**
- * The provable minimum of each concave silhouette's polar boundary (or the
- * cross's arm-width divisor), null for convex silhouettes whose gauge maximum
- * sits on a stage corner. Guarded against drift by the boundary-floor test.
+ * The shape-space directions of each concave silhouette's boundary minima,
+ * null for convex silhouettes whose gauge maximum sits on a stage corner.
  */
-function CONCAVE_GAUGE_MINIMUM_BOUNDARY(input: {
+function concaveGaugeNotchAngles(input: {
   shape: ShowSpatialShape
-  crossWidth?: number
-  starInner?: number
-}): number | null {
-  if (input.shape === 'cross') return clamp(input.crossWidth ?? 0.32, 0.1, 0.9)
-  if (input.shape === 'star') return clamp(input.starInner ?? 0.45, 0.2, 0.8)
-  if (input.shape === 'heart') return 0.54
-  if (input.shape === 'cloud') return 0.44
-  if (input.shape === 'cat-head') return 0.72
-  if (input.shape === 'cat-side-profile') return 0.62
-  if (input.shape === 'bastet') return 0.55
+  starPoints?: number
+}): number[] | null {
+  if (input.shape === 'cross') {
+    return [Math.PI / 4, (3 * Math.PI) / 4, (5 * Math.PI) / 4, (7 * Math.PI) / 4]
+  }
+  if (input.shape === 'star') {
+    const points = Math.round(clamp(input.starPoints ?? 5, 3, 12))
+    return Array.from({ length: points }, (_, index) => (index / points) * TAU)
+  }
+  if (input.shape === 'heart') return [-Math.PI / 2]
+  if (
+    input.shape === 'cloud'
+    || input.shape === 'cat-head'
+    || input.shape === 'cat-side-profile'
+    || input.shape === 'bastet'
+  ) {
+    // Bump-built silhouettes have wide valleys; the dense sweep finds them.
+    return []
+  }
   return null
 }
+
+/**
+ * Casts a shape-space direction through the inverse aspect/rotation mapping
+ * to its exit point on the unit stage boundary, or null when the center sits
+ * on the boundary pointing outward.
+ */
+function shapeDirectionStageBoundaryPoint(
+  angle: number,
+  input: { centerX: number; centerY: number; aspect?: number; rotation?: number },
+): [number, number] | null {
+  const aspect = Math.min(4, Math.max(0.25, input.aspect ?? 1))
+  const rootAspect = Math.sqrt(aspect)
+  const rotationAngle = (input.rotation ?? 0) * TAU
+  const cosine = Math.cos(rotationAngle)
+  const sine = Math.sin(rotationAngle)
+  // Inverse of the metric's rotate-then-scale: shape direction -> raw delta.
+  const scaledX = Math.cos(angle) * rootAspect
+  const scaledY = Math.sin(angle) / rootAspect
+  const directionX = scaledX * cosine - scaledY * sine
+  const directionY = scaledX * sine + scaledY * cosine
+  let travel = Number.POSITIVE_INFINITY
+  if (directionX > 1e-12) travel = Math.min(travel, (1 - input.centerX) / directionX)
+  if (directionX < -1e-12) travel = Math.min(travel, -input.centerX / directionX)
+  if (directionY > 1e-12) travel = Math.min(travel, (1 - input.centerY) / directionY)
+  if (directionY < -1e-12) travel = Math.min(travel, -input.centerY / directionY)
+  if (!Number.isFinite(travel) || travel <= 0) return null
+  return [
+    Math.min(1, Math.max(0, input.centerX + travel * directionX)),
+    Math.min(1, Math.max(0, input.centerY + travel * directionY)),
+  ]
+}
+
 
 export function showShapeRevealSignedDistance(input: {
   x: number
