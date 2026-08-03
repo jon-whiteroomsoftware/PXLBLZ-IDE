@@ -1395,7 +1395,9 @@ export function ShowEditor({
       model: buildShowArtifactInventoryModel(inventory, {
         patterns: describeShowArtifactPatterns(activeShow, inventory),
         budgetBytes: compiled.artifact.summary.measuredDeviceBudgetBytes,
-        zoneLayoutCount: activeShow.routingLayouts.length,
+        // Count Layouts the timeline actually routes through; unplaced saved
+        // definitions cost no routing source and must not enable the tip.
+        zoneLayoutCount: new Set(projectShowLayoutIntervals(activeShow).map((interval) => interval.layoutId)).size,
       }),
     }
   }, [activeShow, compiled.artifact, inspectableShowExport])
