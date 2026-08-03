@@ -1475,8 +1475,15 @@ remains `null` because automated replay must not impersonate physical evidence;
 `docs/plans/archive/issue-492-scene-composition-freeze.md` records the complete gate.
 
 `showCompilePressure.ts` warns at 80% of the measured artifact budget and blocks
-at 100%. It warns at three or four simultaneous renderers per pixel and blocks
-at five. The five-renderer boundary is the unvalidated side of the four-renderer
+at 100%. Its byte numerator is the delivered source total — compiler-generated
+source plus the provenance/delivery header, the same bytes the compile-bar
+gauge and source inventory report and the bytes that ship in the `.epe` and
+persist to Controller flash — so the gauge label, bar color, and block state
+can never disagree near the boundary (#63). The compiler's resource ledger
+keeps a generated-source-only backstop for the same budget; because generated
+source is strictly smaller than delivered source, that backstop can only fire
+after the delivered rule already blocks. `showCompilePressure.ts` warns at
+three or four simultaneous renderers per pixel and blocks at five. The five-renderer boundary is the unvalidated side of the four-renderer
 release fixture, not a claimed device maximum. Blocked output remains
 previewable and inspectable but cannot be exported, sent, saved, or reconciled
 to a Controller. The compiler derives steady and worst renderer depth from each
@@ -2745,7 +2752,11 @@ owner and purpose: reserved render target, member Pattern, routing, interned
 plan, and auxiliary cache. Persistent globals use their separate 256-global
 limit. Generated UTF-8 source uses a conservative source-size proxy derived
 from the separately observed 68,384-byte compiled-bytecode activation ceiling;
-the proxy is not a Controller-capacity measurement.
+the proxy is not a Controller-capacity measurement. The ledger measures
+generated source alone, before the delivery header, and its blocker message
+says so; the user-facing pressure rule in `showCompilePressure.ts` gates on
+the larger delivered total, so the ledger backstop can never block a Show the
+pressure rule accepts.
 
 The compiler reserves three RGB planes at the Show's output extent. An
 Installation with `N` fixed pixels therefore reserves `3 * (N + 4)` words. A

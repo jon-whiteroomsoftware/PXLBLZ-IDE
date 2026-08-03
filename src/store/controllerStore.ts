@@ -72,6 +72,7 @@ import { compileShowForArtifact } from '@/engine/showPreviewArtifact'
 import { buildShowEpeExport } from '@/engine/showEpeExport'
 import { prepareShowControllerArtifact } from '@/engine/showControllerArtifact'
 import { assessShowCompilePressure } from '@/engine/showCompilePressure'
+import { deliveredShowSourceBytes } from '@/engine/showSourceInventory'
 
 function artifactTransformIds(passes: Array<Pick<PassSummary, 'id' | 'kind'>>): string[] {
   const ids = new Set<string>()
@@ -738,18 +739,19 @@ export const useControllerStore = create<ControllerConnectionState>()(
               },
             )
             if (!compiled.artifact || compiled.artifactBlocker) return []
-            const pressure = assessShowCompilePressure({
-              artifactBytes: compiled.artifact.summary.artifactBytes,
-              budgetBytes: compiled.artifact.summary.measuredDeviceBudgetBytes,
-              worstInstantRenderersPerPixel: compiled.artifact.summary.worstInstantRenderersPerPixel,
-            })
-            if (pressure.status === 'blocked') return []
             try {
               const canonical = buildShowEpeExport(show, compiled.artifact.code, {
                 stampedAt: new Date(show.updatedAt),
                 userMaps: mapState.userMaps,
                 attribution: compiled.artifact.attribution,
               })
+              // Gate on the delivered total the user sees in the editor (#63).
+              const pressure = assessShowCompilePressure({
+                deliveredSourceBytes: deliveredShowSourceBytes(canonical.source),
+                budgetBytes: compiled.artifact.summary.measuredDeviceBudgetBytes,
+                worstInstantRenderersPerPixel: compiled.artifact.summary.worstInstantRenderersPerPixel,
+              })
+              if (pressure.status === 'blocked') return []
               const prepared = prepareShowControllerArtifact(
                 canonical.source,
                 live.mapDim,

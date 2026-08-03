@@ -6376,7 +6376,6 @@ describe('ShowEditor (#318)', () => {
     render(<ShowEditor showId={property.id} showOverride={createPropertySlotQualificationShow()} readOnly />)
 
     const compileBar = screen.getByTestId('show-compile-bar')
-    expect(compileBar).not.toHaveTextContent('generated UTF-8 source')
     expect(compileBar).toHaveTextContent('67.4 KB / 66.8 KB')
     // The gauge reports the same delivered total as the inventory trigger,
     // not the smaller generated-only count (#63 review follow-up).
@@ -6386,6 +6385,15 @@ describe('ShowEditor (#318)', () => {
     expect(screen.getByLabelText(/The budget is a source-size proxy/i)).toHaveAccessibleName(
       /not remaining Controller capacity/i,
     )
+    // Pressure, gauge color, and label share the delivered numerator (#63):
+    // a label past 100% of the budget always reads as blocked, never as an
+    // under-budget green/amber bar. The compiler's generated-only ledger
+    // backstop stays quiet here — generated source alone is under budget.
+    expect(compileBar).toHaveTextContent(
+      'Output blocked: Delivered UTF-8 source meets or exceeds the source-size proxy',
+    )
+    expect(compileBar).not.toHaveTextContent('Generated UTF-8 source alone')
+    expect(screen.getByLabelText(/The budget is a source-size proxy/i).firstElementChild).toHaveClass('bg-red-500')
 
     const trigger = screen.getByRole('button', { name: /show source inventory/i })
     expect(screen.queryByRole('dialog', { name: 'Show source inventory' })).not.toBeInTheDocument()
@@ -6448,7 +6456,7 @@ describe('ShowEditor (#318)', () => {
 
     const rendered = render(<ShowEditor showId={portable.show.id} />)
 
-    expect(screen.queryByText(/Generated UTF-8 source is 80% or more of the source-size proxy/)).not.toBeInTheDocument()
+    expect(screen.queryByText(/Delivered UTF-8 source is 80% or more of the source-size proxy/)).not.toBeInTheDocument()
 
     rendered.unmount()
     useShowStore.setState({ shows: [installation.show], activeShowId: installation.show.id, showsLoaded: true })

@@ -135,7 +135,7 @@ export function buildShowVmResourceLedger(input: ShowVmResourceLedgerInput): Sho
     blockers.push({
       kind: 'artifact-byte-budget',
       owner: 'Whole Show',
-      message: `Generated UTF-8 source is ${overage.toLocaleString('en-US')} ${overage === 1 ? 'byte' : 'bytes'} over the source-size proxy derived from the observed ${SHOW_ARTIFACT_BUDGET_BYTES.toLocaleString('en-US')}-byte compiled-bytecode activation ceiling. Reduce Pattern instances, Effects, routing, or generated specialization.`,
+      message: `Generated UTF-8 source alone, before the delivery header, is ${overage.toLocaleString('en-US')} ${overage === 1 ? 'byte' : 'bytes'} over the source-size proxy derived from the observed ${SHOW_ARTIFACT_BUDGET_BYTES.toLocaleString('en-US')}-byte compiled-bytecode activation ceiling. Reduce Pattern instances, Effects, routing, or generated specialization.`,
     })
   }
 

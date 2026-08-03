@@ -274,6 +274,12 @@ export function describeShowArtifactPatterns(
   return [...groups.values()].filter((group) => group.ownerIds.length > 0)
 }
 
+/** UTF-8 byte length of a delivered Show source string — the numerator the
+ * compile-pressure rule and gauge share (#63). */
+export function deliveredShowSourceBytes(source: string): number {
+  return byteLength(source)
+}
+
 function byteLength(source: string): number {
   return new TextEncoder().encode(source).length
 }

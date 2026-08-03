@@ -207,6 +207,7 @@ import { buildShowEpeExport, type ShowEpeExport } from '@/engine/showEpeExport'
 import {
   buildDeliveredShowSourceInventory,
   buildShowArtifactInventoryModel,
+  deliveredShowSourceBytes,
   describeShowArtifactPatterns,
   type DeliveredShowSourceInventory,
   type ShowArtifactInventoryModel,
@@ -795,6 +796,7 @@ interface ShowCompilationSnapshot {
   show: ShowRecord
   userMaps: MapRecord[]
   artifact: NonNullable<CompiledShowState['artifact']>
+  canonicalExport: ShowEpeExport
 }
 
 function buildControllerCompatibilityContext(
@@ -1224,13 +1226,6 @@ export function ShowEditor({
       : { artifact: null, error: null },
     [effectiveArtifactCompilationInput],
   )
-  const compilePressure = useMemo(() => compiled.artifact
-    ? assessShowCompilePressure({
-        artifactBytes: compiled.artifact.summary.artifactBytes,
-        budgetBytes: compiled.artifact.summary.measuredDeviceBudgetBytes,
-        worstInstantRenderersPerPixel: compiled.artifact.summary.worstInstantRenderersPerPixel,
-      })
-    : null, [compiled.artifact])
   const patternControlsByCellId = useMemo(() => Object.fromEntries((activeShow?.cells ?? []).map((cell) => {
     const saved = cell.pattern.kind === 'user'
       ? userPatterns.find((pattern) => pattern.id === cell.pattern.id)?.controls ?? {}
@@ -1380,6 +1375,17 @@ export function ShowEditor({
       : null,
     [activeShow, compiled.artifact, userMaps],
   )
+  // The pressure numerator is the delivered total (generated source plus
+  // delivery header) — the same bytes the gauge and inventory report (#63).
+  const compilePressure = useMemo(() => compiled.artifact
+    ? assessShowCompilePressure({
+        deliveredSourceBytes: inspectableShowExport
+          ? deliveredShowSourceBytes(inspectableShowExport.source)
+          : compiled.artifact.summary.artifactBytes,
+        budgetBytes: compiled.artifact.summary.measuredDeviceBudgetBytes,
+        worstInstantRenderersPerPixel: compiled.artifact.summary.worstInstantRenderersPerPixel,
+      })
+    : null, [compiled.artifact, inspectableShowExport])
   const showExport = !compiled.artifactBlocker && compilePressure?.status !== 'blocked'
     ? inspectableShowExport
     : null
@@ -1494,8 +1500,13 @@ export function ShowEditor({
       },
     )
     if (!currentCompiled.artifact || currentCompiled.artifactBlocker) return null
+    const canonicalExport = buildShowEpeExport(currentShow, currentCompiled.artifact.code, {
+      stampedAt: new Date(currentShow.updatedAt),
+      userMaps: currentMaps,
+      attribution: currentCompiled.artifact.attribution,
+    })
     const currentPressure = assessShowCompilePressure({
-      artifactBytes: currentCompiled.artifact.summary.artifactBytes,
+      deliveredSourceBytes: deliveredShowSourceBytes(canonicalExport.source),
       budgetBytes: currentCompiled.artifact.summary.measuredDeviceBudgetBytes,
       worstInstantRenderersPerPixel: currentCompiled.artifact.summary.worstInstantRenderersPerPixel,
     })
@@ -1504,6 +1515,7 @@ export function ShowEditor({
       show: currentShow,
       userMaps: currentMaps,
       artifact: currentCompiled.artifact,
+      canonicalExport,
     }
   }
 
@@ -1524,11 +1536,7 @@ export function ShowEditor({
         ? profile.deviceId === currentController.deviceId
         : Boolean(currentActiveIp && profile.lastSeenIp === currentActiveIp)
     )) ?? currentTargetProfile
-    const currentExport = buildShowEpeExport(compilation.show, compilation.artifact.code, {
-      stampedAt: new Date(compilation.show.updatedAt),
-      userMaps: compilation.userMaps,
-      attribution: compilation.artifact.attribution,
-    })
+    const currentExport = compilation.canonicalExport
     try {
       return {
         show: compilation.show,
@@ -9741,17 +9749,20 @@ function CompileBar({
     )
   }
   const summary = compiled.artifact?.summary
+  // Gauge, strips, and gating all share one numerator: delivered bytes
+  // (generated source plus the stamped delivery header) — what actually
+  // ships — against the same source budget (#63).
+  const deliveredBytes = artifactInventory?.inventory.totalBytes ?? summary?.artifactBytes ?? 0
+  const deliveredRatio = summary ? deliveredBytes / summary.measuredDeviceBudgetBytes : 0
   const pressure = summary ? assessShowCompilePressure({
-    artifactBytes: summary.artifactBytes,
+    deliveredSourceBytes: deliveredBytes,
     budgetBytes: summary.measuredDeviceBudgetBytes,
     worstInstantRenderersPerPixel: summary.worstInstantRenderersPerPixel,
   }) : null
-  // The gauge shows what actually ships: delivered bytes (generated source
-  // plus the stamped delivery header) against the same source budget.
-  const deliveredBytes = artifactInventory?.inventory.totalBytes ?? summary?.artifactBytes ?? 0
-  const deliveredRatio = summary ? deliveredBytes / summary.measuredDeviceBudgetBytes : 0
+  // Renderer pressure must not tint the byte gauge, so its color comes from a
+  // bytes-only assessment of the same delivered numerator.
   const sourcePressure = summary ? assessShowCompilePressure({
-    artifactBytes: deliveredBytes,
+    deliveredSourceBytes: deliveredBytes,
     budgetBytes: summary.measuredDeviceBudgetBytes,
     worstInstantRenderersPerPixel: 0,
   }) : null
