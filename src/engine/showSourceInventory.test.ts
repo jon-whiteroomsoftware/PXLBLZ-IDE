@@ -50,6 +50,7 @@ describe('Show source inventory', () => {
     }
     const model = buildShowArtifactInventoryModel(inventory, {
       budgetBytes: 1_000,
+      zoneLayoutCount: 1,
       patterns: [{
         key: 'stock:red',
         name: 'Red pattern',
@@ -70,7 +71,7 @@ describe('Show source inventory', () => {
     })
     expect(model.rows.reduce((sum, row) => sum + row.bytes, 0)).toBe(305)
     expect(model.slimmingTips[0]).toMatchObject({ contributorId: 'pattern:stock:red', currentBytes: 180 })
-    expect(model.slimmingTips[0].message).toContain('2 physical machines')
+    expect(model.slimmingTips[0].message).toBe('Red pattern - run fewer simultaneous instances.')
     // Effects (4%) and score (2%) sit below the 5%-of-budget tip threshold.
     expect(model.slimmingTips).toHaveLength(1)
   })
@@ -95,16 +96,21 @@ describe('Show source inventory', () => {
 
     // Comfortably under budget: a single-machine Pattern and a small routing
     // block leave nothing actionable, so no tips appear at all.
-    const roomy = buildShowArtifactInventoryModel(inventory, { budgetBytes: 10_000, patterns })
+    const roomy = buildShowArtifactInventoryModel(inventory, { budgetBytes: 10_000, zoneLayoutCount: 2, patterns })
     expect(roomy.slimmingTips).toEqual([])
 
     // Against a tight budget the same rows become actionable: the Pattern
     // dominates (>=25% of budget) and routing crosses the 5% threshold.
-    const tight = buildShowArtifactInventoryModel(inventory, { budgetBytes: 200, patterns })
+    const tight = buildShowArtifactInventoryModel(inventory, { budgetBytes: 200, zoneLayoutCount: 2, patterns })
     const patternTip = tight.slimmingTips.find((tip) => tip.contributorId === 'pattern:stock:solo')
     expect(patternTip?.message).toContain('50% of the source budget')
     const routingTip = tight.slimmingTips.find((tip) => tip.contributorId === 'category:routing-render-plans')
-    expect(routingTip?.message).toContain('Zone Layouts')
+    expect(routingTip?.message).toBe('Reduce unique Zone Layouts.')
+
+    // A single Zone Layout leaves no layout variety to reduce, so even a
+    // large routing block gets no advice.
+    const singleLayout = buildShowArtifactInventoryModel(inventory, { budgetBytes: 200, zoneLayoutCount: 1, patterns })
+    expect(singleLayout.slimmingTips.some((tip) => tip.contributorId === 'category:routing-render-plans')).toBe(false)
   })
 
   it('keeps table-driven score and Transition source in stable named categories (#545)', () => {

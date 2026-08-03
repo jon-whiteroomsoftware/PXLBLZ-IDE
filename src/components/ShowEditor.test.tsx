@@ -6456,13 +6456,16 @@ describe('ShowEditor (#318)', () => {
 
     const inventory = screen.getByRole('dialog', { name: 'Show source inventory' })
     expect(inventory).toHaveTextContent('Delivered source')
-    expect(inventory).toHaveTextContent('Generated program')
     expect(inventory).toHaveTextContent('PXLBLZ Show infrastructure')
     expect(inventory).toHaveTextContent('Effects and Transitions')
     expect(inventory).toHaveTextContent('CompassRose')
-    expect(inventory).toHaveTextContent('Pattern machines: 19 logical · 7 physical')
     expect(inventory).toHaveTextContent('Ways to slim this Show')
-    expect(inventory).toHaveTextContent('Source percentages do not describe Controller bytecode or runtime cost.')
+    // Read-only chrome stays deleted: no subtitle, no machine summary, no
+    // generated-program box, no trailing disclaimer (#63).
+    expect(inventory).not.toHaveTextContent('Exact UTF-8 bytes')
+    expect(inventory).not.toHaveTextContent('Pattern machines:')
+    expect(inventory).not.toHaveTextContent('Generated program')
+    expect(inventory).not.toHaveTextContent('Source percentages do not describe')
 
     // Budget-relative segment widths can sum past 100% for an over-budget
     // Show; fixed (non-shrinking) segments clip instead of silently
@@ -6475,7 +6478,7 @@ describe('ShowEditor (#318)', () => {
     }
   })
 
-  it('connects table-driven score bytes to their reused stacks and kernels (#545)', async () => {
+  it('keeps table-driven score bytes as a single-line category row (#545, #63)', async () => {
     const user = userEvent.setup()
     const easing = STOCK_SHOWS.find((candidate) => candidate.id === 'stock-show-reference-easing')!
 
@@ -6484,7 +6487,9 @@ describe('ShowEditor (#318)', () => {
 
     const inventory = screen.getByRole('dialog', { name: 'Show source inventory' })
     expect(inventory).toHaveTextContent('Show score data')
-    expect(inventory).toHaveTextContent('20 boundaries · 2 interned stacks · 1 kernel')
+    // Structural detail (boundaries, interned stacks, kernels) stays in the
+    // compile bar; inventory rows are one line each (#63).
+    expect(inventory).not.toHaveTextContent('interned stacks')
   })
 
   it('identifies an exact-pause clock ramp without changing renderer policy', async () => {

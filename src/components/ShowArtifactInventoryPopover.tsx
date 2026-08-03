@@ -5,6 +5,7 @@ import type {
   DeliveredShowSourceInventory,
   DeliveredShowSourceInventoryCategory,
   ShowArtifactInventoryModel,
+  ShowArtifactInventoryRow,
 } from '@/engine/showSourceInventory'
 
 interface Props {
@@ -14,10 +15,6 @@ interface Props {
   renderers: { steady: number; worst: number }
   structure: {
     transitionCount: number
-    routing: string
-    score: { boundaryCount: number; stackPlanCount: number; kernelCount: number } | null
-    motion: { boundaryCount: number; stackPlanCount: number; kernelCount: number } | null
-    generatedEffectKernelCount: number
   }
 }
 
@@ -32,6 +29,24 @@ const CATEGORY_COLOR: Record<DeliveredShowSourceInventoryCategory, string> = {
   remainder: 'bg-slate-600',
 }
 
+const PANEL_WIDTH = 460
+
+// Inline row annotation: counts of one are the unremarkable default, so only
+// counts that differ from one earn a mention.
+function rowMeta(row: ShowArtifactInventoryRow, transitionCount: number): string {
+  if (row.category === 'pattern') {
+    return [
+      row.logicalInstanceCount !== 1 ? `${row.logicalInstanceCount} logical` : null,
+      row.physicalMachineCount !== 1 ? `${row.physicalMachineCount} physical` : null,
+      row.authoredReferenceCount !== 1 ? `${row.authoredReferenceCount} references` : null,
+    ].filter(Boolean).join(' · ')
+  }
+  if (row.category === 'effects-transitions' && transitionCount > 0) {
+    return `${transitionCount} ${transitionCount === 1 ? 'Transition' : 'Transitions'}`
+  }
+  return ''
+}
+
 export function ShowArtifactInventoryPopover({ inventory, model, vmWords, renderers, structure }: Props) {
   const triggerRef = useRef<HTMLButtonElement>(null)
   const panelRef = useRef<HTMLDivElement>(null)
@@ -39,9 +54,6 @@ export function ShowArtifactInventoryPopover({ inventory, model, vmWords, render
   const [open, setOpen] = useState(false)
   const [pinned, setPinned] = useState(false)
   const [position, setPosition] = useState<CSSProperties>({ left: 8, bottom: 38 })
-  const patternRows = model.rows.filter((row) => row.category === 'pattern')
-  const logicalPatternCount = patternRows.reduce((sum, row) => sum + (row.logicalInstanceCount ?? 0), 0)
-  const physicalPatternCount = patternRows.reduce((sum, row) => sum + (row.physicalMachineCount ?? 0), 0)
 
   function reveal() {
     setOpen(true)
@@ -70,7 +82,7 @@ export function ShowArtifactInventoryPopover({ inventory, model, vmWords, render
       const rect = triggerRef.current?.getBoundingClientRect()
       if (!rect) return
       setPosition({
-        left: Math.max(8, Math.min(rect.left, window.innerWidth - Math.min(620, window.innerWidth - 16) - 8)),
+        left: Math.max(8, Math.min(rect.left, window.innerWidth - Math.min(PANEL_WIDTH, window.innerWidth - 16) - 8)),
         bottom: Math.max(38, window.innerHeight - rect.top + 6),
       })
     }
@@ -96,7 +108,7 @@ export function ShowArtifactInventoryPopover({ inventory, model, vmWords, render
       ref={panelRef}
       role="dialog"
       aria-label="Show source inventory"
-      className="fixed z-[100] max-h-[min(680px,calc(100vh-48px))] w-[min(620px,calc(100vw-16px))] overflow-y-auto rounded-md border border-zinc-700 bg-[#08090b]/[0.99] p-4 font-mono text-[10px] text-zinc-300 shadow-[0_24px_80px_-20px_rgba(0,0,0,.98),0_0_0_1px_rgba(245,158,11,.10)] backdrop-blur-sm"
+      className="fixed z-[100] max-h-[min(680px,calc(100vh-48px))] w-[min(460px,calc(100vw-16px))] overflow-y-auto rounded-md border border-zinc-700 bg-[#08090b]/[0.99] p-3 font-mono text-[10px] text-zinc-300 shadow-[0_24px_80px_-20px_rgba(0,0,0,.98),0_0_0_1px_rgba(245,158,11,.10)] backdrop-blur-sm"
       style={position}
       onPointerEnter={reveal}
       onPointerLeave={() => { if (!pinned) setOpen(false) }}
@@ -107,16 +119,8 @@ export function ShowArtifactInventoryPopover({ inventory, model, vmWords, render
         closeAndFocusTrigger()
       }}
     >
-      <div className="flex items-start justify-between gap-4">
-        <div>
-          <h2 className="text-xs font-semibold tracking-wide text-zinc-100">Show source inventory</h2>
-          <p className="mt-1 max-w-[54ch] leading-relaxed text-zinc-500">
-            Exact UTF-8 bytes sent as source. Widths are shares of the {formatBytes(model.budgetBytes)} source budget.
-          </p>
-          <p className="mt-2 text-[9px] text-amber-200/80">
-            Pattern machines: {logicalPatternCount} logical · {physicalPatternCount} physical
-          </p>
-        </div>
+      <div className="flex items-center justify-between gap-4">
+        <h2 className="text-xs font-semibold tracking-wide text-zinc-100">Show source inventory</h2>
         <button
           type="button"
           aria-label="Close Show source inventory"
@@ -127,7 +131,7 @@ export function ShowArtifactInventoryPopover({ inventory, model, vmWords, render
         </button>
       </div>
 
-      <div className="mt-4 flex h-4 w-full overflow-hidden rounded-sm bg-zinc-900 ring-1 ring-zinc-700/70" aria-hidden>
+      <div className="mt-2 flex h-4 w-full overflow-hidden rounded-sm bg-zinc-900 ring-1 ring-zinc-700/70" aria-hidden>
         {model.rows.map((row) => (
           <span
             key={row.id}
@@ -138,61 +142,37 @@ export function ShowArtifactInventoryPopover({ inventory, model, vmWords, render
         ))}
       </div>
 
-      <div className="mt-3 divide-y divide-zinc-800/80 border-y border-zinc-800/80">
-        {model.rows.map((row) => (
-          <div key={row.id} className="grid grid-cols-[minmax(0,1fr)_auto] gap-4 py-2">
-            <div className="min-w-0">
-              <div className="flex items-center gap-2 text-zinc-200">
-                <span className={`h-2 w-2 shrink-0 rounded-[2px] ${CATEGORY_COLOR[row.category]}`} aria-hidden />
-                <span className="truncate">{row.label}</span>
-                {!row.creatorEditable && row.category === 'runtime-scheduler' && (
-                  <span className="rounded-sm bg-zinc-800 px-1.5 py-0.5 text-[8px] uppercase tracking-wider text-zinc-500">fixed</span>
-                )}
-              </div>
-              {row.category === 'pattern' && (
-                <p className="mt-1 pl-4 text-[9px] text-zinc-500">
-                  {row.logicalInstanceCount} logical · {row.physicalMachineCount} physical · {row.authoredReferenceCount} authored {row.authoredReferenceCount === 1 ? 'reference' : 'references'}
-                </p>
+      <div className="mt-2 divide-y divide-zinc-800/80 border-y border-zinc-800/80">
+        {model.rows.map((row) => {
+          const meta = rowMeta(row, structure.transitionCount)
+          return (
+            <div key={row.id} className="flex items-center gap-2 py-1.5">
+              <span className={`h-2 w-2 shrink-0 rounded-[2px] ${CATEGORY_COLOR[row.category]}`} aria-hidden />
+              <span className="truncate text-zinc-200">{row.label}</span>
+              {!row.creatorEditable && row.category === 'runtime-scheduler' && (
+                <span className="shrink-0 rounded-sm bg-zinc-800 px-1.5 py-0.5 text-[8px] uppercase tracking-wider text-zinc-500">fixed</span>
               )}
-              {row.category === 'routing-render-plans' && (
-                <p className="mt-1 pl-4 text-[9px] text-zinc-500">{structure.routing} routing representation</p>
-              )}
-              {row.category === 'effects-transitions' && (
-                <p className="mt-1 pl-4 text-[9px] text-zinc-500">
-                  {structure.motion
-                    ? `${structure.motion.boundaryCount} boundaries · ${structure.motion.stackPlanCount} interned stacks · ${structure.motion.kernelCount} ${structure.motion.kernelCount === 1 ? 'kernel' : 'kernels'}`
-                    : `${structure.transitionCount} authored Transitions${structure.generatedEffectKernelCount > 0 ? ` · ${structure.generatedEffectKernelCount} shared Effect kernel${structure.generatedEffectKernelCount === 1 ? '' : 's'}` : ''}`}
-                </p>
-              )}
-              {row.category === 'score-data' && structure.score && (
-                <p className="mt-1 pl-4 text-[9px] text-zinc-500">
-                  {structure.score.boundaryCount} boundaries · {structure.score.stackPlanCount} interned stacks · {structure.score.kernelCount} {structure.score.kernelCount === 1 ? 'kernel' : 'kernels'}
-                </p>
-              )}
+              {meta && <span className="truncate text-[9px] text-zinc-500">{meta}</span>}
+              <span className="ml-auto shrink-0 tabular-nums text-zinc-200">{formatBytes(row.bytes)}</span>
             </div>
-            <div className="text-right tabular-nums">
-              <div className="text-zinc-200">{formatBytes(row.bytes)}</div>
-              <div className="text-[9px] text-zinc-600">{formatPercent(row.percentage)}</div>
-            </div>
-          </div>
-        ))}
+          )
+        })}
       </div>
 
-      <div className="mt-4 grid grid-cols-2 gap-px overflow-hidden rounded-sm bg-zinc-800 ring-1 ring-zinc-800 sm:grid-cols-4">
+      <div className="mt-2 grid grid-cols-3 gap-px overflow-hidden rounded-sm bg-zinc-800 ring-1 ring-zinc-800">
         <ResourceAxis
           label="Delivered source"
           value={`${formatBytes(inventory.totalBytes)} / ${formatBytes(model.budgetBytes)}`}
           detail={`${formatPercent(inventory.totalBytes / model.budgetBytes)} of budget`}
         />
-        <ResourceAxis label="Generated program" value={formatBytes(inventory.generatedSourceBytes)} />
         <ResourceAxis label="VM words" value={`${vmWords.used.toLocaleString('en-US')} / ${vmWords.budget.toLocaleString('en-US')}`} detail={`${vmWords.remaining.toLocaleString('en-US')} free`} />
         <ResourceAxis label="Runtime renderers" value={`${renderers.steady} steady`} detail={`${renderers.worst} worst`} />
       </div>
 
       {model.slimmingTips.length > 0 && (
-        <section className="mt-4" aria-labelledby="show-slimming-heading">
+        <section className="mt-3" aria-labelledby="show-slimming-heading">
           <h3 id="show-slimming-heading" className="text-[9px] font-semibold uppercase tracking-[0.14em] text-amber-300/90">Ways to slim this Show</h3>
-          <ol className="mt-2 space-y-2">
+          <ol className="mt-1.5 space-y-1.5">
             {model.slimmingTips.slice(0, 4).map((tip) => (
               <li key={tip.contributorId} className="grid grid-cols-[auto_1fr] gap-2 leading-relaxed text-zinc-400">
                 <span className="tabular-nums text-zinc-200">{formatBytes(tip.currentBytes)}</span>
@@ -202,10 +182,6 @@ export function ShowArtifactInventoryPopover({ inventory, model, vmWords, render
           </ol>
         </section>
       )}
-
-      <p className="mt-4 border-t border-zinc-800 pt-3 leading-relaxed text-zinc-600">
-        Source percentages do not describe Controller bytecode or runtime cost. VM words and renderer depth are independent axes.
-      </p>
     </div>,
     document.body,
   ) : null
@@ -239,9 +215,9 @@ export function ShowArtifactInventoryPopover({ inventory, model, vmWords, render
 function ResourceAxis({ label, value, detail }: { label: string; value: string; detail?: string }) {
   return (
     <div className="bg-zinc-950 px-2.5 py-2">
-      <div className="text-[8px] uppercase tracking-wider text-zinc-600">{label}</div>
+      <div className="text-[9px] uppercase tracking-wider text-zinc-400">{label}</div>
       <div className="mt-1 tabular-nums text-zinc-200">{value}</div>
-      {detail && <div className="text-[8px] text-zinc-600">{detail}</div>}
+      {detail && <div className="text-[9px] text-zinc-500">{detail}</div>}
     </div>
   )
 }

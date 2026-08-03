@@ -1395,6 +1395,7 @@ export function ShowEditor({
       model: buildShowArtifactInventoryModel(inventory, {
         patterns: describeShowArtifactPatterns(activeShow, inventory),
         budgetBytes: compiled.artifact.summary.measuredDeviceBudgetBytes,
+        zoneLayoutCount: activeShow.routingLayouts.length,
       }),
     }
   }, [activeShow, compiled.artifact, inspectableShowExport])
@@ -9854,14 +9855,6 @@ function CompileBar({
           }}
           structure={{
             transitionCount: summary.transitionCount,
-            routing: summary.routingRepresentation,
-            score: summary.specializations.showScore?.selected
-              ? summary.specializations.showScore
-              : null,
-            motion: summary.specializations.motionTransitions?.selected
-              ? summary.specializations.motionTransitions
-              : null,
-            generatedEffectKernelCount: summary.specializations.generatedEffectKernels.kernelCount,
           }}
         />
       ) : (

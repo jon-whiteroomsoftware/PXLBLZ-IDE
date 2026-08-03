@@ -2352,8 +2352,9 @@ narrow widths. Its ranked repair hints appear only for contributors that are
 both changeable and a meaningful share of the budget: duplicated physical
 Pattern machines always qualify, a single-machine Pattern qualifies only when
 it alone crosses a quarter of the budget, and editable categories qualify at
-five percent. They do not claim a savings amount unless a compiler
-counterfactual exists.
+five percent. Routing advice additionally requires more than one Zone Layout,
+because a single-Layout Show has no layout variety to reduce. They do not
+claim a savings amount unless a compiler counterfactual exists.
 
 Delivered source, generated source, VM words, renderer depth, and Controller
 bytecode remain different measurement axes. The inventory never distributes

@@ -98,7 +98,11 @@ export function buildDeliveredShowSourceInventory(
 
 export function buildShowArtifactInventoryModel(
   inventory: DeliveredShowSourceInventory,
-  options: { patterns: readonly ShowArtifactInventoryPattern[]; budgetBytes: number },
+  options: {
+    patterns: readonly ShowArtifactInventoryPattern[]
+    budgetBytes: number
+    zoneLayoutCount: number
+  },
 ): ShowArtifactInventoryModel {
   const budgetBytes = Math.max(1, options.budgetBytes)
   const patternByOwnerId = new Map(options.patterns.flatMap((pattern) => (
@@ -167,11 +171,10 @@ export function buildShowArtifactInventoryModel(
     if (!row.creatorEditable) return []
     if (row.category === 'pattern') {
       const machines = row.physicalMachineCount ?? 1
-      const logical = row.logicalInstanceCount ?? machines
       if (machines > 1) return [{
         contributorId: row.id,
         currentBytes: row.bytes,
-        message: `${row.label} ships ${machines} physical machines for ${logical} logical instances. Reuse compatible configurations or run fewer simultaneous instances.`,
+        message: `${row.label} - run fewer simultaneous instances.`,
       }]
       if (row.percentage >= DOMINANT_PATTERN_BUDGET_SHARE) return [{
         contributorId: row.id,
@@ -191,10 +194,12 @@ export function buildShowArtifactInventoryModel(
       currentBytes: row.bytes,
       message: 'Shorten or simplify data-heavy choreography.',
     }]
-    if (row.category === 'routing-render-plans') return [{
+    // With a single Zone Layout there is no layout variety to reduce, so the
+    // routing row carries no advice.
+    if (row.category === 'routing-render-plans' && options.zoneLayoutCount > 1) return [{
       contributorId: row.id,
       currentBytes: row.bytes,
-      message: 'Reduce unique Zone Layouts and render-plan variety where the choreography permits.',
+      message: 'Reduce unique Zone Layouts.',
     }]
     return []
   }).sort((left, right) => right.currentBytes - left.currentBytes)

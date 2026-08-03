@@ -1449,6 +1449,7 @@ describe('stock Show curriculum (#363)', () => {
     const model = buildShowArtifactInventoryModel(inventory, {
       patterns: describeShowArtifactPatterns(item.show, inventory),
       budgetBytes: compiled.artifact!.summary.measuredDeviceBudgetBytes,
+      zoneLayoutCount: item.show.routingLayouts.length,
     })
     const loomRow = model.rows.find((row) => row.category === 'pattern' && row.label === 'RibbonLoom')!
     expect(loomRow).toMatchObject({ physicalMachineCount: 1, logicalInstanceCount: 2 })
