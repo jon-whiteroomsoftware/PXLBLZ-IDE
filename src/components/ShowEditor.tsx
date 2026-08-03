@@ -5827,6 +5827,14 @@ function ZoneMapPopover({
   onUpdateZone: (zoneId: string, changes: Partial<ShowRecord['zones'][number]>) => void
   onRemoveZone: (zoneId: string) => void
 }) {
+  // Deleting a Zone deletes its Clips with it; a single stray click must
+  // not be enough. The trash arms a red confirm that disarms on its own.
+  const [pendingDeleteZoneId, setPendingDeleteZoneId] = useState<string | null>(null)
+  useEffect(() => {
+    if (!pendingDeleteZoneId) return
+    const timeout = window.setTimeout(() => setPendingDeleteZoneId(null), 2_600)
+    return () => window.clearTimeout(timeout)
+  }, [pendingDeleteZoneId])
   return (
     <ShowTimelineToolbarPopover
       anchor={anchor}
@@ -5882,15 +5890,30 @@ function ZoneMapPopover({
               {show.zones.length > 1 && (
                 <div className="flex items-center gap-0.5">
                   {!readOnly && (
-                    <button
-                      type="button"
-                      aria-label={`Delete zone ${zone.name}`}
-                      title={`Delete ${zone.name}`}
-                      className="grid size-7 place-items-center rounded text-zinc-600 hover:bg-zinc-800 hover:text-red-300"
-                      onClick={() => onRemoveZone(zone.id)}
-                    >
-                      <Trash2 size={12} aria-hidden />
-                    </button>
+                    pendingDeleteZoneId === zone.id ? (
+                      <button
+                        type="button"
+                        aria-label={`Confirm delete zone ${zone.name}`}
+                        title={`Delete ${zone.name} and its Clips`}
+                        className="flex h-7 items-center gap-1 rounded border border-red-400/50 bg-red-500/15 px-1.5 text-[9px] font-semibold uppercase tracking-wide text-red-200 hover:bg-red-500/25"
+                        onClick={() => {
+                          setPendingDeleteZoneId(null)
+                          onRemoveZone(zone.id)
+                        }}
+                      >
+                        <Trash2 size={11} aria-hidden /> Delete?
+                      </button>
+                    ) : (
+                      <button
+                        type="button"
+                        aria-label={`Delete zone ${zone.name}`}
+                        title={`Delete ${zone.name}...`}
+                        className="grid size-7 place-items-center rounded text-zinc-600 hover:bg-zinc-800 hover:text-red-300"
+                        onClick={() => setPendingDeleteZoneId(zone.id)}
+                      >
+                        <Trash2 size={12} aria-hidden />
+                      </button>
+                    )
                   )}
                   <button
                     type="button"

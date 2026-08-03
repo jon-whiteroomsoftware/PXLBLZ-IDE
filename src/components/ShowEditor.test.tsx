@@ -434,6 +434,28 @@ describe('ShowEditor (#318)', () => {
     expect(screen.getAllByRole('button', { name: /^Focus zone / })).toHaveLength(2)
   })
 
+  it('arms Zone Map row deletion behind an explicit confirm (#63)', async () => {
+    const user = userEvent.setup()
+    const show = addShowZone(createDefaultShow('show-zone-delete-confirm', 'Zone delete confirm', 1000), {
+      name: 'accent',
+      nominalPixelCount: 24,
+    })
+    setPersonalContentProvider(memoryProvider([show]))
+    useShowStore.setState({ shows: [show], activeShowId: show.id, showsLoaded: true })
+
+    render(<ShowEditor showId={show.id} />)
+    const timeline = screen.getByRole('region', { name: 'Show timeline' })
+    await user.click(within(timeline).getByRole('button', { name: 'Open Zones' }))
+    await user.click(within(screen.getByTestId('show-timeline-grid')).getByRole('button', { name: 'Open Zone Map' }))
+    const zoneMap = screen.getByRole('dialog', { name: 'Zone Map' })
+
+    // First click only arms; the zone survives until the red confirm.
+    await user.click(within(zoneMap).getByRole('button', { name: 'Delete zone accent' }))
+    expect(useShowStore.getState().shows[0].zones).toHaveLength(2)
+    await user.click(within(zoneMap).getByRole('button', { name: 'Confirm delete zone accent' }))
+    await waitFor(() => expect(useShowStore.getState().shows[0].zones).toHaveLength(1))
+  })
+
   it('dismisses the Zone Map without retiring the Zone rail (#629)', async () => {
     const user = userEvent.setup()
     const show = addShowZone(createDefaultShow('show-zone-map-dismiss', 'Zone map dismiss', 1000), {
