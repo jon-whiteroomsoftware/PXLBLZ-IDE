@@ -30,6 +30,35 @@ export interface ShowReferenceGuide {
   examples: readonly ShowReferenceExample[]
 }
 
+export interface ShowPatternSlotGroup {
+  cellIds: readonly string[]
+  instanceIds: readonly string[]
+}
+
+/**
+ * Applies the user's per-slot Try with Pattern selections in slot order. Each
+ * group swaps as one unit; slots without a selection keep the authored cast.
+ */
+export function applyShowPatternSlotSelections(
+  show: ShowRecord,
+  slotGroups: readonly ShowPatternSlotGroup[],
+  selections: Readonly<Record<number, ShowPatternRef>>,
+  patternNameFor: (ref: ShowPatternRef) => string | undefined,
+): ShowRecord {
+  return slotGroups.reduce((current, group, index) => {
+    const pattern = selections[index]
+    if (!pattern) return current
+    const patternName = patternNameFor(pattern)
+    if (!patternName) return current
+    return applyShowReferencePattern(current, {
+      pattern,
+      patternName,
+      cellIds: group.cellIds,
+      instanceIds: group.instanceIds,
+    })
+  }, show)
+}
+
 /**
  * Builds a session-only reference artifact. Replacing a Pattern also discards
  * authored control targets because export names belong to the previous source.

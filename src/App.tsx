@@ -70,7 +70,7 @@ import { useReferenceNavigationStore } from '@/store/referenceNavigationStore'
 import type { AuthProvider } from '@/engine/authSession'
 import { DEMOS } from '@/pixelblaze/stock/patterns'
 import { stockShowById } from '@/pixelblaze/stock/shows'
-import { applyShowReferencePattern } from '@/engine/showReferenceShow'
+import { applyShowPatternSlotSelections } from '@/engine/showReferenceShow'
 import { useShowEditorSessionStore } from '@/store/showEditorSessionStore'
 import { InlineEntityTitle } from '@/components/InlineEntityTitle'
 import { usePreviewStore } from '@/store/previewStore'
@@ -646,26 +646,24 @@ function StudioApp() {
   const routedStockShow = route.kind === 'studio' && route.entity?.kind === 'shows'
     ? stockShowById(route.entity.id)
     : undefined
-  const selectedReferencePattern = useShowEditorSessionStore((state) => (
-    routedStockShow ? state.referencePatternByShowId[routedStockShow.id] : undefined
+  const selectedReferencePatterns = useShowEditorSessionStore((state) => (
+    routedStockShow ? state.referencePatternsByShowId[routedStockShow.id] : undefined
   ))
   const routedStockShowDraft = useShowStore((state) => (
     routedStockShow ? state.stockShowDrafts[routedStockShow.id] : undefined
   ))
   const routedStockShowOverride = useMemo(() => {
     const base = routedStockShowDraft ?? routedStockShow?.show
-    if (!base || !routedStockShow?.reference?.patternSlots || !selectedReferencePattern) return base
-    const patternName = selectedReferencePattern.kind === 'stock'
-      ? selectedReferencePattern.id
-      : userPatterns.find((pattern) => pattern.id === selectedReferencePattern.id)?.name
-    if (!patternName) return base
-    return applyShowReferencePattern(base, {
-      pattern: selectedReferencePattern,
-      patternName,
-      cellIds: routedStockShow.reference.patternSlots.cellIds,
-      instanceIds: routedStockShow.reference.patternSlots.instanceIds,
-    })
-  }, [routedStockShow, routedStockShowDraft, selectedReferencePattern, userPatterns])
+    // References declare one slot group on the guide; lessons declare ordered
+    // groups on the catalogue entry (#63).
+    const slotGroups = routedStockShow?.reference?.patternSlots
+      ? [routedStockShow.reference.patternSlots]
+      : routedStockShow?.patternSlots
+    if (!base || !slotGroups || !selectedReferencePatterns) return base
+    return applyShowPatternSlotSelections(base, slotGroups, selectedReferencePatterns, (ref) => (
+      ref.kind === 'stock' ? ref.id : userPatterns.find((pattern) => pattern.id === ref.id)?.name
+    ))
+  }, [routedStockShow, routedStockShowDraft, selectedReferencePatterns, userPatterns])
   const activeShow = routedStockShowOverride ?? (activeShowId ? shows.find((show) => show.id === activeShowId) : undefined)
 
   const handleDeletePattern = useCallback(async () => {
@@ -1103,6 +1101,7 @@ function StudioApp() {
                     lesson: routedStockShow.lesson,
                     description: routedStockShow.description,
                     note: routedStockShow.note,
+                    patternSlots: routedStockShow.patternSlots,
                     reference: routedStockShow.reference,
                   } : undefined}
                   headerGuideTarget={showHeaderGuideTarget}

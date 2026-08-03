@@ -219,9 +219,10 @@ import { steppedClockRateHz, steppedClockStepMs } from '@/engine/steppedClock'
 import { showKeyboardSeekStepMs } from '@/engine/showKeyboardSeek'
 import { SHOW_EASING_OPTIONS, showEasingFromOptionId, showEasingOptionId } from '@/engine/showEasing'
 import {
-  applyShowReferencePattern,
+  applyShowPatternSlotSelections,
   currentShowReferenceExample,
   restoreShowReferencePatternSlots,
+  type ShowPatternSlotGroup,
   type ShowReferenceGuide,
 } from '@/engine/showReferenceShow'
 import { exportedDims } from '@/engine/exportedDims'
@@ -553,23 +554,92 @@ function ShowNoteTrigger({ note, open, onToggle }: {
   )
 }
 
+// The Try with Pattern row: one narrow picker per slot group in timeline
+// order plus one Reset, identical for lessons and reference Showcases (#63).
+// A single group keeps the classic "Try with Pattern" label; multiple groups
+// read "Pattern 1..n" and the picked names mirror the Clips on the timeline.
+function ShowPatternSlotPicker({
+  show,
+  slotGroups,
+  patternOptions,
+  selections,
+  onSelectPattern,
+  onResetPatterns,
+}: {
+  show: ShowRecord
+  slotGroups: readonly ShowPatternSlotGroup[]
+  patternOptions: ShowPatternOption[]
+  selections?: Readonly<Record<number, ShowCell['pattern']>>
+  onSelectPattern: (slotIndex: number, pattern: ShowCell['pattern']) => void
+  onResetPatterns: () => void
+}) {
+  const hasSelection = Object.keys(selections ?? {}).length > 0
+  return (
+    <div className="flex flex-wrap items-end gap-2">
+      {slotGroups.map((group, index) => {
+        const authoredPattern = show.cells.find((cell) => group.cellIds.includes(cell.id))?.pattern
+          ?? show.composition?.patternInstances.find((instance) => group.instanceIds.includes(instance.id))?.pattern
+        const activePattern = selections?.[index] ?? authoredPattern
+        const activeValue = activePattern ? `${activePattern.kind}:${activePattern.id}` : null
+        const label = slotGroups.length === 1 ? 'Try with Pattern' : `Pattern ${index + 1}`
+        return (
+          <label
+            key={group.instanceIds.join(':') || index}
+            className="w-44 min-w-0 font-semibold uppercase tracking-[0.09em] text-zinc-500"
+          >
+            {label}
+            <PatternCombobox
+              ariaLabel={label}
+              value={activeValue}
+              options={patternOptions.map((option) => ({
+                value: `${option.ref.kind}:${option.ref.id}`,
+                label: option.label,
+                group: option.group,
+              }))}
+              compact
+              className="mt-1"
+              onChange={(value) => {
+                const option = patternOptions.find((candidate) => `${candidate.ref.kind}:${candidate.ref.id}` === value)
+                if (option) onSelectPattern(index, option.ref)
+              }}
+            />
+          </label>
+        )
+      })}
+      <Button
+        size="xs"
+        variant="ghost"
+        aria-label="Reset Pattern"
+        title={slotGroups.length === 1 ? 'Reset to the authored Pattern' : 'Reset every slot to its authored Pattern'}
+        disabled={!hasSelection}
+        className="mb-0 h-6 bg-zinc-900/70 text-[9px] text-zinc-500 hover:bg-zinc-800 hover:text-zinc-200"
+        onClick={onResetPatterns}
+      >
+        <RotateCw size={10} aria-hidden /> Reset
+      </Button>
+    </div>
+  )
+}
+
 function ShowNoteDisclosure({
   note,
   show,
   reference,
+  patternSlots,
   patternOptions,
-  selectedPattern,
+  selections,
   onSelectPattern,
-  onResetPattern,
+  onResetPatterns,
   onCollapse,
 }: {
   note: StockShowNote
   show: ShowRecord
   reference?: ShowReferenceGuide
+  patternSlots?: readonly ShowPatternSlotGroup[]
   patternOptions: ShowPatternOption[]
-  selectedPattern?: ShowCell['pattern']
-  onSelectPattern: (pattern: ShowCell['pattern']) => void
-  onResetPattern: () => void
+  selections?: Readonly<Record<number, ShowCell['pattern']>>
+  onSelectPattern: (slotIndex: number, pattern: ShowCell['pattern']) => void
+  onResetPatterns: () => void
   onCollapse: () => void
 }) {
   const title = note.number ? `${note.number} ${note.title}` : note.title
@@ -635,9 +705,27 @@ function ShowNoteDisclosure({
             show={show}
             reference={reference}
             patternOptions={patternOptions}
-            selectedPattern={selectedPattern}
+            selections={selections}
             onSelectPattern={onSelectPattern}
-            onResetPattern={onResetPattern}
+            onResetPatterns={onResetPatterns}
+          />
+        </div>
+      )}
+      {!reference && patternSlots && (
+        <div
+          role="group"
+          aria-label={`${title} Pattern slots`}
+          className="show-note-expanded-content border-t border-cyan-200/15 bg-cyan-200/[0.025] px-3 py-2"
+          aria-hidden={compactContentHidden || undefined}
+          inert={compactContentHidden || undefined}
+        >
+          <ShowPatternSlotPicker
+            show={show}
+            slotGroups={patternSlots}
+            patternOptions={patternOptions}
+            selections={selections}
+            onSelectPattern={onSelectPattern}
+            onResetPatterns={onResetPatterns}
           />
         </div>
       )}
@@ -647,7 +735,26 @@ function ShowNoteDisclosure({
         inert={compactContentHidden || undefined}
       >
         <div>
-          <p className="max-w-[72ch] leading-4 text-zinc-300">{note.purpose}</p>
+          {(() => {
+            // A purpose with newlines renders as a lead sentence plus terse
+            // bullets (#63); single-paragraph purposes render as before.
+            const [lead, ...items] = note.purpose.split('\n').filter((line) => line.trim() !== '')
+            return (
+              <>
+                <p className="max-w-[72ch] leading-4 text-zinc-300">{lead}</p>
+                {items.length > 0 && (
+                  <ul className="mt-1 max-w-[72ch] space-y-0.5 text-zinc-300">
+                    {items.map((line) => (
+                      <li key={line} className="flex gap-1.5">
+                        <i aria-hidden className="mt-[5px] size-1 shrink-0 rounded-full bg-zinc-500" />
+                        <span className="leading-4">{line}</span>
+                      </li>
+                    ))}
+                  </ul>
+                )}
+              </>
+            )
+          })()}
           <p className="mt-1.5 flex items-start gap-1.5 leading-4 text-zinc-500">
             <Lightbulb size={11} aria-hidden className="mt-0.5 shrink-0 text-violet-300/70" />
             <span><b className="font-medium text-violet-200/75">Notice:</b> {note.notice}</span>
@@ -683,28 +790,22 @@ function ShowReferenceInstrument({
   show,
   reference,
   patternOptions,
-  selectedPattern,
+  selections,
   onSelectPattern,
-  onResetPattern,
+  onResetPatterns,
 }: {
   show: ShowRecord
   reference: ShowReferenceGuide
   patternOptions: ShowPatternOption[]
-  selectedPattern?: ShowCell['pattern']
-  onSelectPattern: (pattern: ShowCell['pattern']) => void
-  onResetPattern: () => void
+  selections?: Readonly<Record<number, ShowCell['pattern']>>
+  onSelectPattern: (slotIndex: number, pattern: ShowCell['pattern']) => void
+  onResetPatterns: () => void
 }) {
   const positionMs = useShowTransportStore((state) => state.showId === show.id ? state.positionMs : 0)
   const current = currentShowReferenceExample(show, reference, positionMs)
   const currentIndex = current ? reference.examples.findIndex((example) => example.id === current.id) : -1
   const durationMs = showLoopDurationMs(show)
   const progress = durationMs > 0 ? Math.max(0, Math.min(1, positionMs / durationMs)) : 0
-  const authoredPattern = reference.patternSlots
-    ? show.cells.find((cell) => reference.patternSlots?.cellIds.includes(cell.id))?.pattern
-      ?? show.composition?.patternInstances.find((instance) => reference.patternSlots?.instanceIds.includes(instance.id))?.pattern
-    : undefined
-  const activePattern = selectedPattern ?? authoredPattern
-  const activeValue = activePattern ? `${activePattern.kind}:${activePattern.id}` : null
   const easingOption = current?.easing
     ? SHOW_EASING_OPTIONS.find((option) => option.id === showEasingOptionId(current.easing!))
     : undefined
@@ -721,37 +822,14 @@ function ShowReferenceInstrument({
           <p className="mt-0.5 max-w-[80ch] leading-4 text-zinc-400">{reference.summary}</p>
         </div>
         {reference.patternSlots && (
-          <div className="grid grid-cols-[minmax(0,1fr)_auto] items-end gap-1.5">
-            <label className="min-w-0 font-semibold uppercase tracking-[0.09em] text-zinc-500">
-              Try with Pattern
-              <PatternCombobox
-                ariaLabel="Try with Pattern"
-                value={activeValue}
-                options={patternOptions.map((option) => ({
-                  value: `${option.ref.kind}:${option.ref.id}`,
-                  label: option.label,
-                  group: option.group,
-                }))}
-                compact
-                className="mt-1"
-                onChange={(value) => {
-                  const option = patternOptions.find((candidate) => `${candidate.ref.kind}:${candidate.ref.id}` === value)
-                  if (option) onSelectPattern(option.ref)
-                }}
-              />
-            </label>
-            <Button
-              size="xs"
-              variant="ghost"
-              aria-label="Reset Pattern"
-              title="Reset to the authored reference Pattern"
-              disabled={!selectedPattern}
-              className="mb-0 h-6 bg-zinc-900/70 text-[9px] text-zinc-500 hover:bg-zinc-800 hover:text-zinc-200"
-              onClick={onResetPattern}
-            >
-              <RotateCw size={10} aria-hidden /> Reset
-            </Button>
-          </div>
+          <ShowPatternSlotPicker
+            show={show}
+            slotGroups={[reference.patternSlots]}
+            patternOptions={patternOptions}
+            selections={selections}
+            onSelectPattern={onSelectPattern}
+            onResetPatterns={onResetPatterns}
+          />
         )}
       </div>
       <div className="mt-2 grid grid-cols-[auto_minmax(0,1fr)_auto] items-center gap-x-2 gap-y-1 border-l-2 border-cyan-200/45 bg-zinc-950/45 px-2 py-1.5">
@@ -847,6 +925,7 @@ export function ShowEditor({
     lesson: string
     description: string
     note?: StockShowNote
+    patternSlots?: readonly ShowPatternSlotGroup[]
     reference?: ShowReferenceGuide
   }
   headerGuideTarget?: HTMLElement | null
@@ -878,8 +957,9 @@ export function ShowEditor({
     state.showNoteOpenById[showId] ?? builtInContext?.note?.defaultOpen ?? false
   ))
   const setShowNoteOpen = useShowEditorSessionStore((state) => state.setShowNoteOpen)
-  const selectedReferencePattern = useShowEditorSessionStore((state) => state.referencePatternByShowId[showId])
+  const selectedReferencePatterns = useShowEditorSessionStore((state) => state.referencePatternsByShowId[showId])
   const setReferencePattern = useShowEditorSessionStore((state) => state.setReferencePattern)
+  const clearReferencePatterns = useShowEditorSessionStore((state) => state.clearReferencePatterns)
   const addRoutingLayout = useShowStore((state) => state.addRoutingLayout)
   const updateRoutingLayout = useShowStore((state) => state.updateRoutingLayout)
   const removeRoutingLayout = useShowStore((state) => state.removeRoutingLayout)
@@ -1012,30 +1092,58 @@ export function ShowEditor({
 
   const canonicalStockShow = builtInContext ? stockShowById(showId)?.show : undefined
   const editableShow = stockShowDraft ?? savedShow ?? canonicalStockShow ?? showOverride ?? null
-  const referenceProjection = useMemo(() => {
-    const referenceSlots = builtInContext?.reference?.patternSlots
-    if (!selectedReferencePattern || !referenceSlots) return null
-    const patternName = selectedReferencePattern.kind === 'stock'
-      ? selectedReferencePattern.id
-      : userPatterns.find((pattern) => pattern.id === selectedReferencePattern.id)?.name
-    return patternName ? {
-      pattern: selectedReferencePattern,
-      patternName,
-      cellIds: referenceSlots.cellIds,
-      instanceIds: referenceSlots.instanceIds,
-    } : null
-  }, [builtInContext?.reference?.patternSlots, selectedReferencePattern, userPatterns])
+  // References declare one slot group on the guide; lessons declare ordered
+  // groups directly on the catalogue entry (#63). Both feed the same
+  // transient per-slot projection.
+  const builtInSlotGroups = useMemo<readonly ShowPatternSlotGroup[] | undefined>(() => (
+    builtInContext?.reference?.patternSlots
+      ? [builtInContext.reference.patternSlots]
+      : builtInContext?.patternSlots
+  ), [builtInContext?.reference?.patternSlots, builtInContext?.patternSlots])
+  const slotPatternNameFor = useCallback((ref: ShowCell['pattern']) => (
+    ref.kind === 'stock' ? ref.id : userPatterns.find((pattern) => pattern.id === ref.id)?.name
+  ), [userPatterns])
   const activeShow = useMemo(() => (
-    editableShow && referenceProjection
-      ? applyShowReferencePattern(editableShow, referenceProjection)
+    editableShow && builtInSlotGroups && selectedReferencePatterns
+      ? applyShowPatternSlotSelections(editableShow, builtInSlotGroups, selectedReferencePatterns, slotPatternNameFor)
       : editableShow
-  ), [editableShow, referenceProjection])
+  ), [editableShow, builtInSlotGroups, selectedReferencePatterns, slotPatternNameFor])
   const updateShow = useCallback((id: string, next: ShowRecord) => {
-    const persisted = editableShow && referenceProjection
-      ? restoreShowReferencePatternSlots(next, editableShow, referenceProjection)
-      : next
+    let persisted = next
+    if (editableShow && builtInSlotGroups && selectedReferencePatterns) {
+      // A deliberate Pattern reassignment in Clip Detail supersedes the slot
+      // picker: that slot's transient selection clears and the edit persists
+      // as authored. Slots the edit left alone stay transient - restore
+      // strips them back to the authored Pattern before the draft saves.
+      // Restore reads only slot ids, so the kept groups merge into one
+      // projection.
+      const patternAt = (show: ShowRecord | null, instanceId: string) => (
+        show?.composition?.patternInstances.find((instance) => instance.id === instanceId)?.pattern
+      )
+      const keptGroups = builtInSlotGroups.filter((group, index) => {
+        if (!selectedReferencePatterns[index]) return false
+        const reassigned = group.instanceIds.some((instanceId) => {
+          const before = patternAt(activeShow, instanceId)
+          const after = patternAt(next, instanceId)
+          return before && after && (before.kind !== after.kind || before.id !== after.id)
+        })
+        if (reassigned) setReferencePattern(showId, index, null)
+        return !reassigned
+      })
+      const firstSelection = keptGroups
+        .map((group) => selectedReferencePatterns[builtInSlotGroups.indexOf(group)])
+        .find(Boolean)
+      if (keptGroups.length > 0 && firstSelection) {
+        persisted = restoreShowReferencePatternSlots(next, editableShow, {
+          pattern: firstSelection,
+          patternName: slotPatternNameFor(firstSelection) ?? '',
+          cellIds: keptGroups.flatMap((group) => group.cellIds),
+          instanceIds: keptGroups.flatMap((group) => group.instanceIds),
+        })
+      }
+    }
     return persistShow(id, persisted)
-  }, [editableShow, persistShow, referenceProjection])
+  }, [editableShow, persistShow, builtInSlotGroups, selectedReferencePatterns, activeShow, setReferencePattern, showId, slotPatternNameFor])
   useShowTransportClock(activeShow, transportClockActive)
   const targetProfile = activeShow?.outputContract?.kind === 'portable-2d'
     ? undefined
@@ -1460,20 +1568,11 @@ export function ShowEditor({
     const resolvedShow = showState.resolveEditableShow(showId)
     const currentPatterns = usePatternStore.getState().userPatterns
     let currentShow = resolvedShow ?? activeShow
-    const referencePattern = useShowEditorSessionStore.getState().referencePatternByShowId[showId]
-    const referenceSlots = builtInContext?.reference?.patternSlots
-    if (currentShow && referencePattern && referenceSlots) {
-      const patternName = referencePattern.kind === 'stock'
-        ? referencePattern.id
-        : currentPatterns.find((pattern) => pattern.id === referencePattern.id)?.name
-      if (patternName) {
-        currentShow = applyShowReferencePattern(currentShow, {
-          pattern: referencePattern,
-          patternName,
-          cellIds: referenceSlots.cellIds,
-          instanceIds: referenceSlots.instanceIds,
-        })
-      }
+    const referencePatterns = useShowEditorSessionStore.getState().referencePatternsByShowId[showId]
+    if (currentShow && referencePatterns && builtInSlotGroups) {
+      currentShow = applyShowPatternSlotSelections(currentShow, builtInSlotGroups, referencePatterns, (ref) => (
+        ref.kind === 'stock' ? ref.id : currentPatterns.find((pattern) => pattern.id === ref.id)?.name
+      ))
     }
     if (!currentShow) return null
 
@@ -1821,10 +1920,10 @@ export function ShowEditor({
           aria-label="Reset built-in Show"
           title="Discard session edits and restore the built-in definition"
           className="bg-zinc-900/60 text-[11px] text-zinc-500 hover:bg-zinc-800 hover:text-zinc-300 disabled:opacity-40"
-          disabled={!hasStockDraft && !selectedReferencePattern}
+          disabled={!hasStockDraft && !selectedReferencePatterns}
           onClick={() => {
             resetStockShowDraft(showId)
-            setReferencePattern(showId, null)
+            clearReferencePatterns(showId)
           }}
         >
           <RotateCcw size={13} aria-hidden />
@@ -1917,10 +2016,11 @@ export function ShowEditor({
           note={builtInContext.note}
           show={activeShow}
           reference={builtInContext.reference}
+          patternSlots={builtInContext.patternSlots}
           patternOptions={referencePatternOptions}
-          selectedPattern={selectedReferencePattern}
-          onSelectPattern={(pattern) => setReferencePattern(showId, pattern)}
-          onResetPattern={() => setReferencePattern(showId, null)}
+          selections={selectedReferencePatterns}
+          onSelectPattern={(slotIndex, pattern) => setReferencePattern(showId, slotIndex, pattern)}
+          onResetPatterns={() => clearReferencePatterns(showId)}
           onCollapse={() => setShowNoteOpen(showId, false)}
         />
       )}
@@ -5464,6 +5564,19 @@ function ShowTimelineWorkspace({
                       afterSceneId: leftClip.sceneId,
                     } : null)
                   const totalMs = Math.max(1, unifiedCompositionTimeline?.durationMs ?? timeline.durationMs)
+                  // A Transition belongs to its pair of Clips, so during a
+                  // move drag it follows the dragged Clip's previewed position
+                  // instead of waiting for the drop (#63). Duplicate drags
+                  // leave the original pair in place.
+                  const dragPreview = movePreview && movePreview.mode === 'move'
+                    && movePreview.targetKey === `composition:${layer.id}`
+                    ? movePreview
+                    : null
+                  const junctionStartMs = dragPreview && junction.rightClipId === dragPreview.clipId
+                    ? dragPreview.startMs - junction.durationMs
+                    : dragPreview && junction.leftClipId === dragPreview.clipId
+                      ? dragPreview.startMs + dragPreview.durationMs
+                      : junction.startMs
                   if (junction.kind !== 'cut') {
                     const width = Math.max(junction.durationMs / totalMs * 100, 0.35)
                     return (
@@ -5481,7 +5594,7 @@ function ShowTimelineWorkspace({
                         aria-disabled={outsideIsolation || undefined}
                         className={`absolute inset-y-0 z-[15] min-w-4 overflow-hidden bg-transparent outline-none transition-[filter,box-shadow] hover:brightness-125 hover:shadow-[inset_0_0_0_1px_rgba(252,211,77,0.65)] focus-visible:brightness-125 focus-visible:shadow-[inset_0_0_0_1px_rgba(252,211,77,0.85)] ${outsideIsolation ? 'pointer-events-none opacity-25' : ''}`}
                         style={{
-                          left: `${junction.startMs / totalMs * 100}%`,
+                          left: `${junctionStartMs / totalMs * 100}%`,
                           width: `${width}%`,
                         }}
                         onClick={(event) => {
@@ -5508,7 +5621,7 @@ function ShowTimelineWorkspace({
                       data-show-group-occurrence={internalGroup?.id}
                       aria-disabled={outsideIsolation || undefined}
                       className={`group/cut absolute inset-y-0 z-[15] w-4 -translate-x-1/2 bg-transparent outline-none ${outsideIsolation ? 'pointer-events-none opacity-25' : ''}`}
-                      style={{ left: `${junction.startMs / totalMs * 100}%` }}
+                      style={{ left: `${junctionStartMs / totalMs * 100}%` }}
                       onClick={(event) => {
                         event.stopPropagation()
                         if (selectInternalGroup(event.currentTarget)) return

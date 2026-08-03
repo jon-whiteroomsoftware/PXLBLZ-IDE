@@ -651,7 +651,8 @@ describe('Show Clip summary', () => {
       expect.objectContaining({
         label: 'Scale',
         value: 'X 2.51x, Y 0.75x',
-        timelineValue: 'x 2.51x y 0.75x',
+        // The Clip row shows values only; names live in Clip Detail (#63).
+        timelineValue: '2.51x / 0.75x',
       }),
       expect.objectContaining({ label: 'Vignette', value: expect.stringContaining('Aspect 16:9') }),
     ])
@@ -725,8 +726,8 @@ describe('Show Clip summary', () => {
       .find((section) => section.kind === 'effects')?.items[0]
 
     expect(effect?.value).toBe('Amount 0.32, Frequency 4, Phase 0t, Center X 0.5, Center Y 0.5')
-    // The Clip row keeps only parameters authored away from their defaults;
-    // the complete list above stays for the Detail summary (#666).
-    expect(timelineEffect?.displayValue).toBe('amt .32 freq 4')
+    // The Clip row keeps only parameters authored away from their defaults,
+    // as values only - names live in Clip Detail (#666, #63).
+    expect(timelineEffect?.displayValue).toBe('.32 / 4')
   })
 })

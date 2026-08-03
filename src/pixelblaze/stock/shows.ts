@@ -54,6 +54,10 @@ export interface StockShow {
   // Zones-focused lessons open the Zone rail on first visit; everything else
   // starts collapsed and the session store remembers the user's choice.
   zonesOpenByDefault?: boolean
+  // Try with Pattern: ordered slot groups, one picker each, in timeline
+  // order. A group's instances swap together. Same projection machinery as
+  // reference patternSlots, without Reference mode.
+  patternSlots?: readonly { cellIds: readonly string[]; instanceIds: readonly string[] }[]
   reference?: ShowReferenceGuide
   show: ShowRecord
 }
@@ -87,6 +91,12 @@ type CatalogueInput = {
   guideLabel?: string
   defaultOpen?: boolean
   zonesOpenByDefault?: boolean
+  // Ordered Try with Pattern slot groups (timeline order): each inner array
+  // is one picker, and its instance ids swap together. Lessons whose concept
+  // needs two instances of one Pattern (restart, presentation, and machine
+  // sharing comparisons) keep both ids in one group so the swap preserves
+  // the demonstration.
+  patternSlots?: readonly (readonly string[])[]
   output: { kind: 'portable'; mapId: string; pixelCount: number }
     | { kind: 'installation'; mapId: string; pixelCount: number }
   zones: ShowZone[]
@@ -170,10 +180,15 @@ function learn100(): StockShow {
   }
   return catalogue({
     id, title: 'Getting Around', track: 'portable', collection: 'learn', level: 100, order: 0,
-    purpose: 'This first Show exists to get you familiar with the basics. Space plays and pauses from almost anywhere. Four gestures do most of the editing work: double-click an empty stretch of a Layer to place a Clip there, hold Option/Alt and drag a Clip to pull off an independent copy, drag a Clip between Layer rows to move it, and hold Option/Alt while resizing or scrubbing to temporarily reverse Snap. And whatever you break, Reset restores this lesson exactly.',
-    notice: 'When a Show outgrows the window: Command/Ctrl+wheel zooms the timeline around the playhead, Shift+wheel pans it, and the Navigator strip drags and resizes your view. This tour is deliberately incomplete; the guide below covers everything else.',
-    prompts: ['Double-click the empty stretch after the last Clip and pick any Pattern: the chooser places a Clip right where you clicked.', 'Hold Option/Alt and drag the first Clip anywhere - you get an independent copy and the original never moves. Try dropping it on the upper Layer row, then press Reset.'],
+    purpose: 'This first Show exists to get you familiar with the basics, simplest first.\n'
+      + 'Space plays and pauses. Left and Right jump five seconds; A returns to the start.\n'
+      + 'The Navigator strip above the timeline shows the whole Show: drag its window to move your view, drag its edges to zoom.\n'
+      + 'Double-click an empty stretch of a Layer to place a Clip there. Drag a Clip between rows to move it.\n'
+      + 'Whatever you break, Reset restores this lesson exactly.',
+    notice: 'Command/Ctrl+wheel also zooms the timeline around the playhead, and Shift+wheel pans it. This tour is deliberately incomplete; the guide below covers everything else.',
+    prompts: ['Hold Option/Alt and drag a Clip to pull off an independent copy - the original never moves. Try dropping it on the upper Layer row, then press Reset.', 'Hold Option/Alt while resizing or scrubbing a Clip to temporarily reverse Snap.'],
     guideHeading: 'creating-and-arranging-clips',
+    patternSlots: [['ribbons'], ['glyphs'], ['garden']],
     guideDocumentId: 'keyboard-shortcuts',
     guideLabel: 'Read the full shortcut reference',
     output: portableOutput(), zones, layouts: [singleLayout(zones)], scenes, composition,
@@ -217,6 +232,7 @@ function learn101(): StockShow {
     notice: 'The two seconds before the final Clip are empty on purpose. Blank time is a valid part of the timeline, not a mistake. And edit freely: in any Show, Command/Ctrl+Z undoes and Command/Ctrl+Shift+Z redoes, and Reset restores any of the lessons to their original state.',
     prompts: ['Split the first Clip in half without changing the picture.', 'Drag the last Clip left to close the gap, then back to reopen it.'],
     guideHeading: 'clips-cuts-and-blank-time',
+    patternSlots: [['ribbons'], ['garden']],
     output: portableOutput(), zones, layouts: [singleLayout(zones)], scenes, composition,
   })
 }
@@ -280,10 +296,11 @@ function learn102(): StockShow {
   }
   return catalogue({
     id, title: 'Transitions and Values', track: 'portable', collection: 'learn', level: 100, order: 2,
-    purpose: 'A Transition is its own entity at the junction between two Clips. It owns how the picture changes; the destination Clip still owns the values it arrives at.',
-    notice: 'The Crossfade and the Wipe change the picture. The brightness ramp on the last Clip is a separate, Clip-owned curve.',
+    purpose: 'A Transition is its own entity at the junction between two Clips. It owns how the picture changes; the destination Clip still owns the final value.',
+    notice: 'Crossfade and Wipe change the picture. The brightness ramp on the last Clip is a separate, Clip-owned curve.',
     prompts: ['Shorten the Crossfade from 2.0 s to 0.5 s.', "Change where the last Clip's brightness settles from 45% to 100%."],
     guideHeading: 'transitions-and-clip-values',
+    patternSlots: [['iris'], ['horizon'], ['mandala']],
     output: portableOutput(), zones, layouts: [singleLayout(zones)], scenes, composition,
   })
 }
@@ -325,9 +342,10 @@ function learn103(): StockShow {
   return catalogue({
     id, title: 'Clip Transform', track: 'portable', collection: 'learn', level: 100, order: 3,
     purpose: 'A Clip can be moved, turned, resized, or flipped on the Stage. The Pattern inside it keeps playing exactly as before; only where its picture lands changes, and no second copy of the Pattern is started.',
-    notice: 'Every Clip here shares one Pattern instance, so the rose keeps turning at the same rate while only its placement changes.',
+    notice: 'Every Clip here shares one Pattern instance, so the rose keeps turning at the same rate while only its placement changes. A Clip can instead run its own instance on its own clock - that choice gets its own lesson in 203.',
     prompts: ['Center the offset Clip (2) by setting Position back to 0, 0.', 'Rotate the Scale Clip (4) by 72 degrees; because that differs from Clip 3, the timeline gives it its own marker.'],
     guideHeading: 'clip-transform',
+    patternSlots: [['rose']],
     output: portableOutput(), zones, layouts: [singleLayout(zones)], scenes, composition,
   })
 }
@@ -395,6 +413,7 @@ function learn104(): StockShow {
     notice: 'Clips 3 and 4 carry the same Brightness and the same Threshold, swapped. Clip 3 lowers Brightness first, so only the brightest pixels still clear the Threshold and a sparse scatter survives at full strength. Clip 4 applies Threshold first, so the whole shape survives and Brightness then lowers it. Almost the same amount of light, a completely different picture.',
     prompts: ["On Clip 3, open Brightness's action menu and choose Move later so Brightness runs after Threshold, then watch the whole shape come back.", "Leave the order alone on Clip 3 and lower that Clip's Threshold until more of the shape survives."],
     guideHeading: 'clip-effects',
+    patternSlots: [['garden']],
     output: portableOutput(), zones, layouts: [singleLayout(zones)], scenes, composition,
   })
 }
@@ -440,10 +459,11 @@ function learn105(): StockShow {
   }
   return catalogue({
     id, title: 'Portable Zones', track: 'portable', collection: 'learn', level: 100, order: 5,
-    purpose: 'A Zone is a named part of the Stage that holds its share of whatever surface the Show ends up on. Each Zone runs its own Clip, so two Patterns play side by side without either one being told how many LEDs it got.',
+    purpose: 'The Stage can be split into Zones that each render their own Pattern, so two Patterns play side by side without either one needing to be positioned.',
     notice: 'The split never moves. At the halfway Cut the two Patterns simply trade sides, and each Zone keeps its own row on the timeline.',
     prompts: ["The two Clips in each Zone touch, and that junction is a real entity rather than a seam. Drag three seconds off the end of the second Clip, then click the junction and give it a two-second Crossfade.", 'Now drag the second Clip later. The Crossfade travels with it rather than staying put, because the junction belongs to the pair of Clips and not to a moment on the ruler.'],
     guideHeading: 'portable-zones',
+    patternSlots: [['ribbons'], ['water']],
     zonesOpenByDefault: true,
     output: portableOutput(), zones, layouts: [splitLayout('layout-side-by-side', 'Side by side', zones, 'x')], scenes, composition,
   })
@@ -577,6 +597,7 @@ function learn106(): StockShow {
     notice: 'Three junctions, three different Transitions: a Crossfade, a circle opening from the center, and a Dissolve that reassembles the Ground. The garden then turns faster and faster while both Zones fade to black together and hold it.',
     prompts: ['Change the circle Transition in the Sky to a different shape and watch the same junction tell a different story.', 'Drag the two release curves apart so the Zones stop fading together, then put them back.'],
     guideHeading: 'building-a-complete-show',
+    patternSlots: [['bloom'], ['garden'], ['mandala']],
     output: portableOutput(), zones, layouts: [splitLayout('layout-sky-ground', 'Sky and ground', zones, 'y')], scenes, composition,
   })
 }
@@ -640,84 +661,112 @@ function learn201(): StockShow {
     id, title: 'Layers and Property Animation', track: 'portable', collection: 'learn', level: 200, order: 1,
     purpose: 'Layers blend pixels from different Clips into one picture: whatever a higher Layer draws is mixed over the Layers below it. Here GlyphRain plays on a Layer above Caustics, and one animated Opacity curve controls the mix.',
     notice: "The GlyphRain Clip starts at 2 s, but its Opacity starts at zero - nothing shows until the curve ramps up to 65%. It holds there, then ramps back to zero by the Clip's end. The Caustics Clip below never changes; the water dims only because the rain is mixed over it.",
-    prompts: ['Open the GlyphRain Clip, click the diamond next to Opacity, and drag both 65% keyframes down to 30% - the rain drops back to a faint tint over the water.', 'Click Add keyframe and pull the new middle point up to 100% - the rain now swells to full strength in the middle of its hold.'],
+    prompts: ['Open the GlyphRain Clip, click the diamond next to Opacity, and drag both 65% keyframes down to 30% - the rain drops back to a faint tint over the water.', 'Click Add keyframe and pull the new middle point up to 100% - at 100% GlyphRain completely covers Caustics.'],
     guideHeading: 'layers-and-property-animation',
+    patternSlots: [['water'], ['glyphs']],
     output: portableOutput(), zones, layouts: [singleLayout(zones)], scenes, composition,
   })
 }
 
-// 202 needs the learner to predict two different rectangles: where the Pattern
-// is sampled (Content) and where the Clip is allowed to draw (the Viewport
-// aperture). CompassRose is the one Pattern whose cardinal points make a pan
-// direction unmistakable, and a dimmed MetaballGarden bed makes every pixel
-// the aperture does not cover read as "lower Layer showing through" rather
-// than as a rendering hole.
+// 202 teaches the frame (the Clip Viewport) and the picture inside it
+// (Content) as two separately movable things.
+// Harmonograph is the subject: its smooth continuous curves stay coherent
+// while the frame and Content move (CompassRose's radial striations read as
+// swimming under X/Y animation - review feedback), and a dimmed
+// MetaballGarden bed makes every pixel the frame does not cover read as
+// "lower Layer showing through" rather than as a rendering hole. The
+// construction changes exactly one thing per Clip: the full picture, then
+// the frame shrinking to a half-size corner crop, then the frame gliding to
+// the center, then Content panning behind the now-stationary frame. All
+// four Clips share one instance so nothing ever restarts at a junction.
 function learn202(): StockShow {
   const id = 'stock-show-202-content-clip-viewport'
   const zones = logicalZones(['Main'], PORTABLE_REFERENCE_PIXELS)
   const scenes: SceneSpec[] = [
     scene('viewport', 'Viewport', 16, [clip('zone-1', 'MetaballGarden', LESSON_TIME_SCALE)]),
   ]
-  // Soft on purpose: this aperture moves, and a travelling hard edge reads
-  // as a rendering artifact rather than a frame. Smooth is the default the
+  // Soft on purpose: this frame moves, and a travelling hard edge reads as a
+  // rendering artifact rather than a frame. Smooth is the default the
   // curriculum teaches; Hard is 207's deliberate exception.
-  const aperture = { enabled: true, x: 0.25, y: 0.25, width: 0.5, height: 0.5, edge: 'soft' as const }
+  const frame = { enabled: true, width: 0.5, height: 0.5, edge: 'soft' as const }
   const composition: ShowCompositionV1 = {
     version: 1,
     patternInstances: [
       instance('garden', 'MetaballGarden', LESSON_TIME_SCALE),
-      instance('rose', 'CompassRose', LESSON_TIME_SCALE),
+      instance('curve', 'Harmonograph', LESSON_TIME_SCALE),
     ],
     scenes: [{
       sceneId: 'viewport',
       propertyTracks: [
         {
-          // Content pans behind a stationary frame: the aperture holds still
-          // while the sampled field slides west to east underneath it.
-          id: 'track-content-pan',
-          target: { kind: 'placement-transform', placementId: 'clip-content-pan', property: 'positionX' },
+          // The crop animates in: the frame shrinks from the full Stage to
+          // half size while x and y stay pinned at zero.
+          id: 'track-frame-width',
+          target: { kind: 'placement-viewport', placementId: 'clip-frame', property: 'width' },
           keyframes: [
-            keyframe('pan-west', 5, -0.22),
-            keyframe('pan-east', 10, 0.22),
+            keyframe('width-full', 4, 1, SINE_IN_OUT),
+            keyframe('width-half', 5.5, 0.5),
           ],
         },
         {
-          // Then the frame moves while Content holds still: the same rose
-          // stays put and the aperture slides across it.
-          id: 'track-aperture-slide',
-          target: { kind: 'placement-viewport', placementId: 'clip-aperture', property: 'x' },
+          id: 'track-frame-height',
+          target: { kind: 'placement-viewport', placementId: 'clip-frame', property: 'height' },
           keyframes: [
-            keyframe('aperture-west', 10, 0.05),
-            keyframe('aperture-east', 16, 0.45),
+            keyframe('height-full', 4, 1, SINE_IN_OUT),
+            keyframe('height-half', 5.5, 0.5),
+          ],
+        },
+        {
+          // The frame glides from the corner to the center; the picture
+          // underneath holds still.
+          id: 'track-frame-move-x',
+          target: { kind: 'placement-viewport', placementId: 'clip-frame-move', property: 'x' },
+          keyframes: [
+            keyframe('frame-x-corner', 8.5, 0, SINE_IN_OUT),
+            keyframe('frame-x-center', 11.5, 0.25),
+          ],
+        },
+        {
+          id: 'track-frame-move-y',
+          target: { kind: 'placement-viewport', placementId: 'clip-frame-move', property: 'y' },
+          keyframes: [
+            keyframe('frame-y-corner', 8.5, 0, SINE_IN_OUT),
+            keyframe('frame-y-center', 11.5, 0.25),
+          ],
+        },
+        {
+          // Then the opposite: the frame holds the center while Content pans
+          // underneath it. Starting from neutral keeps the junction seamless.
+          id: 'track-content-pan',
+          target: { kind: 'placement-transform', placementId: 'clip-content-pan', property: 'positionX' },
+          keyframes: [
+            keyframe('pan-start', 12.5, 0, SINE_IN_OUT),
+            keyframe('pan-east', 15.5, 0.3),
           ],
         },
       ],
       zones: [{
         zoneId: 'zone-1',
         // The bed is deliberately dim so uncovered pixels are obviously the
-        // lower Layer rather than black.
+        // lower Layer rather than black. 0.15 by measurement: the corner crop
+        // shows the rose's dimmest quadrant (mean luma 0.17), and a 0.3 bed
+        // came within 15% of it, which read as no frame at all.
         main: [{
           ...placement('clip-garden', 'garden', 0, 16),
-          view: { mirror: false, phase: 0, brightness: 0.3 },
+          view: { mirror: false, phase: 0, brightness: 0.15 },
         }],
         overlays: [{
           id: 'layer-subject',
           name: 'Subject',
           placements: [
-            // Establish: the full rose, no aperture, so the subject is known
-            // before anything clips it.
-            { ...placement('clip-establish', 'rose', 0, 5), opacity: 1 },
-            {
-              ...placement('clip-content-pan', 'rose', 5, 5),
-              opacity: 1,
-              viewport: { ...aperture },
-              transform: { ...NEUTRAL_SHOW_CLIP_TRANSFORM, positionX: -0.22 },
-            },
-            {
-              ...placement('clip-aperture', 'rose', 10, 6),
-              opacity: 1,
-              viewport: { ...aperture, x: 0.05 },
-            },
+            // Establish: the full picture, no frame, so the subject is known
+            // before anything crops it.
+            { ...placement('clip-full', 'curve', 0, 4), opacity: 1 },
+            // Width and height only; x and y stay zero, so the shrinking
+            // frame crops the picture to the corner.
+            { ...placement('clip-frame', 'curve', 4, 4), opacity: 1, viewport: { ...frame, x: 0, y: 0 } },
+            { ...placement('clip-frame-move', 'curve', 8, 4), opacity: 1, viewport: { ...frame, x: 0, y: 0 } },
+            { ...placement('clip-content-pan', 'curve', 12, 4), opacity: 1, viewport: { ...frame, x: 0.25, y: 0.25 } },
           ],
         }],
       }],
@@ -726,16 +775,20 @@ function learn202(): StockShow {
   }
   return catalogue({
     id, title: 'Content and Clip Viewport', track: 'portable', collection: 'learn', level: 200, order: 2,
-    purpose: 'Content and the Clip Viewport are two different rectangles. Content decides where the Pattern is sampled; the Viewport is an aperture that decides where the Clip may draw. Wherever the aperture does not cover, the Layer below shows through.',
-    notice: 'The middle Clip pans Content behind a frame that never moves. The last Clip does the opposite: the rose holds still and the aperture slides across it.',
-    prompts: ['On the middle Clip, drag Content up or down and watch the frame stay put while different parts of the rose pass behind it.', 'On the last Clip, widen the aperture until the whole rose fits inside it again.'],
+    purpose: 'Think of a Clip as a picture in a frame. The Clip Viewport is the frame: resize it or move it to choose where on the Stage the Clip shows. Content is the picture: slide it underneath and a different part of the Pattern shows through a frame that stays put. Wherever the frame does not cover, the Layer below shows through.',
+    notice: 'Four Clips, one change at a time. Harmonograph starts by filling the Stage. The frame then shrinks to half size, cropping the picture to the corner. Next the frame glides to the center. Last, the frame holds still while the picture pans underneath it. Harmonograph never restarts - all four Clips show the same Pattern instance.',
+    prompts: ['On the last Clip, drag Content up or down - the frame stays put while a different part of the picture slides into view.', 'On the second Clip, widen the frame until the whole picture fits inside it again.'],
     guideHeading: 'content-and-clip-viewport',
+    patternSlots: [['garden'], ['curve']],
     output: portableOutput(), zones, layouts: [singleLayout(zones)], scenes, composition,
   })
 }
 
-// 207 extends 202's construction with the shaped apertures from #591/#678:
-// the same rose behind the same frame over the same dim bed. Shaped
+// 207 extends 202's frame construction with the shaped apertures from
+// #591/#678: a subject behind a half-size frame over a dim bed. The subject
+// stays CompassRose (unlike 202's Harmonograph recast): nothing moves here,
+// so its striations cannot swim, and its cardinal arms make every
+// silhouette's coverage obvious. Shaped
 // apertures feather Soft by default and the lesson keeps that default -
 // smooth is what people want - so the passages run rectangle, soft ellipse,
 // soft ring, and then the one deliberate exception: the same Ring cut Hard.
@@ -796,6 +849,7 @@ function learn207(): StockShow {
     notice: 'Nothing moves in this lesson: the frame stays put and only the silhouette changes, Clip by Clip - Rectangle, Ellipse, Star, then Ring. Every edge is the Soft default until the last Clip, which cuts the same Ring with a Hard edge. The Ring makes the comparison easy: the lower Layer shows through its open center, and hardening the edge shows exactly what the feather was smoothing.',
     prompts: ['Rotate the Star, then flip its Mode to Cut out - the frame stays axis-aligned while the silhouette turns, and Cut out removes exactly the pixels Admit was showing.', 'On the last Clip, switch the Hard edge back to Soft, then try Stable Dither: it trades the smooth ramp for a per-pixel speckle that never shimmers.'],
     guideHeading: 'aperture-shapes-and-edges',
+    patternSlots: [['garden'], ['rose']],
     output: portableOutput(), zones, layouts: [singleLayout(zones)], scenes, composition,
   })
 }
@@ -849,6 +903,7 @@ function learn203(): StockShow {
     notice: 'The junction at 4 s changes nothing: both Clips share one instance. At 8 s the same Pattern restarts from the beginning, because that Clip owns a fresh instance. At 12 s the shared instance returns and resumes exactly where it was interrupted - an instance clock only runs while a Clip presents it.',
     prompts: ['Select the third Clip and rejoin it to the shared Pattern instance, then watch the 8 s junction stop mattering.', 'Make the last Clip independent instead, and compare where its colors land.'],
     guideHeading: 'pattern-instance-lifecycle',
+    patternSlots: [['palette-shared', 'palette-fresh']],
     output: portableOutput(), zones, layouts: [singleLayout(zones)], scenes, composition,
   })
 }
@@ -903,6 +958,7 @@ function learn204(): StockShow {
     notice: 'Live, Freeze, Strobe, and Blink all present the same Pattern instance, and its clock never stops. The last Clip is different in kind: Stutter quantizes the instance clock itself, so it owns a second instance.',
     prompts: ['Compare Freeze with Blink: Freeze holds a still picture and Blink hides a moving one. The clock never stops in either, so watch where the colors have gotten to when each Clip ends.', 'Change the Stutter step and watch the whole Clip snap on a different beat.'],
     guideHeading: 'presentation-modes',
+    patternSlots: [['palette', 'palette-stuttered']],
     output: portableOutput(), zones, layouts: [singleLayout(zones)], scenes, composition,
   })
 }
@@ -987,6 +1043,7 @@ function learn205(): StockShow {
     notice: 'Both pulses come from one definition. Edit it once and both occurrences change. The second occurrence is moved on the Stage, and its mandala runs on its own instance rather than continuing the first one.',
     prompts: ['Open the Group definition and move the echo one second later - both occurrences pick up the change.', 'Make the second occurrence unique, then change only its echo and compare the two.'],
     guideHeading: 'groups-and-linked-reuse',
+    patternSlots: [['loom']],
     output: portableOutput(), zones, layouts: [singleLayout(zones)], scenes, composition,
   })
 }
@@ -1061,6 +1118,7 @@ function learn206(): StockShow {
     notice: 'The weave never restarts at a Layout boundary. The first boundary sweeps the split across the Stage; the second switches to Rings in one atomic step. Neither is a visual Transition - pixels are re-routed, not blended.',
     prompts: ['Drag the split position in the middle interval - the Layout owns that geometry, and the Patterns on either side never notice.', 'Insert time before the Rings boundary: the Layout change stays attached to the timeline around it and moves along with it.'],
     guideHeading: 'changing-zone-layouts',
+    patternSlots: [['loom'], ['water']],
     output: portableOutput(), zones,
     layouts: [
       { id: 'layout-full', name: 'Full Surface', zones: [], logical: { kind: 'single', zoneIds: [zones[0].id] } },
@@ -1123,6 +1181,7 @@ function learn301(): StockShow {
     notice: "The two banks follow the map's actual wiring order: LEDs 0-79 fill the left column of pucks and 80-159 the right. At the halfway junction the two Patterns trade banks, while the ranges themselves never move.",
     prompts: ['Open the Left bank and edit its pixels in the map selector: the spatial selection and the numeric range are the same fact written two ways.', 'Now break it on purpose - remove a few pixels from one bank and watch the coverage diagnostic count the gap. Repair it, or use Reset to restore the pristine lesson.'],
     guideHeading: 'installation-output-and-physical-ranges',
+    patternSlots: [['palettes'], ['garden']],
     output: { kind: 'installation', mapId: 'sunflower-pucks-2d', pixelCount: 160 },
     zones,
     layouts: [physicalLayout('layout-banks', 'Two banks', zones, [[[0, 79]], [[80, 159]]])],
@@ -1206,6 +1265,7 @@ function learn302(): StockShow {
     notice: "The Crown is one Zone with two non-contiguous ranges, one atop each column. It is also the only thing that changes at each junction: the vines' shared instance never restarts, and when the Crown's quiet Murmuration returns at the end, it resumes exactly where the bright middle Clip interrupted it.",
     prompts: ['Solo the Crown to see exactly which pucks its two ranges own, then solo one vine and watch its half of the shared garden keep playing alone.', "Swap the Crown's bright middle Pattern for any other - the ranges and the vines never notice, because the routing is separate from the content."],
     guideHeading: 'composing-a-fixed-installation',
+    patternSlots: [['flock'], ['garden'], ['ignition']],
     output: { kind: 'installation', mapId: 'sunflower-pucks-2d', pixelCount: 160 },
     zones,
     layouts: [physicalLayout('layout-roles', 'Three roles', zones, [
@@ -1278,6 +1338,7 @@ function learn303(): StockShow {
     notice: "The weave echo near the end is an independent RibbonLoom instance - and the inventory shows the compiler reusing one physical machine for both instances rather than shipping a duplicate copy. What the echo really costs is its overlay structure, about six kilobytes of render plans and score data. Independence is also why it restarts the opening weave from its first frame.",
     prompts: ["Open the artifact inventory: RibbonLoom lists one physical machine for two logical instances, and the render-plan row is what the echo's Layer actually costs. Delete the echo Clip and watch the total fall.", 'Undo the deletion, then export the EPE or open the generated code: everything on the timeline ships inside that one ordinary Pattern.'],
     guideHeading: 'compile-simplify-and-deliver',
+    patternSlots: [['loom', 'loom-echo'], ['garden']],
     output: portableOutput(), zones, layouts: [singleLayout(zones)], scenes, composition,
   })
 }
@@ -2264,6 +2325,9 @@ function catalogue(input: CatalogueInput): StockShow {
     id: input.id, name, track: input.track, collection: input.collection, level: input.level, order: input.order,
     lesson: input.title, description: input.purpose, note,
     ...(input.zonesOpenByDefault ? { zonesOpenByDefault: true } : {}),
+    ...(input.patternSlots ? {
+      patternSlots: input.patternSlots.map((instanceIds) => ({ cellIds: [], instanceIds })),
+    } : {}),
     ...(input.reference ? { reference: input.reference } : {}), show,
   }
 }

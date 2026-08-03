@@ -17,8 +17,11 @@ export interface ShowEditorSessionState {
   setZoneCollapsed: (showId: string, zoneId: string, collapsed: boolean) => void
   focusedZoneIdByShowId: Record<string, string>
   setFocusedZone: (showId: string, zoneId: string | null) => void
-  referencePatternByShowId: Record<string, ShowPatternRef>
-  setReferencePattern: (showId: string, pattern: ShowPatternRef | null) => void
+  // Per-slot Try with Pattern selections, keyed by slot index within the
+  // Show's declared slot groups. Session-only; never persisted.
+  referencePatternsByShowId: Record<string, Record<number, ShowPatternRef>>
+  setReferencePattern: (showId: string, slotIndex: number, pattern: ShowPatternRef | null) => void
+  clearReferencePatterns: (showId: string) => void
   diagnostics: {
     zoneOutlines: boolean
     clipOutlines: boolean
@@ -42,7 +45,7 @@ export const showEditorSessionInitialState = {
   zoneWorkspaceOpenByShowId: {} as Record<string, boolean>,
   collapsedZoneIdsByShowId: {} as Record<string, string[]>,
   focusedZoneIdByShowId: {} as Record<string, string>,
-  referencePatternByShowId: {} as Record<string, ShowPatternRef>,
+  referencePatternsByShowId: {} as Record<string, Record<number, ShowPatternRef>>,
   diagnostics: {
     zoneOutlines: false,
     clipOutlines: false,
@@ -134,13 +137,21 @@ export const useShowEditorSessionStore = create<ShowEditorSessionState>()(
         else delete focusedZoneIdByShowId[showId]
         return { focusedZoneIdByShowId }
       }),
-      setReferencePattern: (showId, pattern) => set((state) => {
-        if (pattern) {
-          return { referencePatternByShowId: { ...state.referencePatternByShowId, [showId]: pattern } }
-        }
-        const referencePatternByShowId = { ...state.referencePatternByShowId }
-        delete referencePatternByShowId[showId]
-        return { referencePatternByShowId }
+      setReferencePattern: (showId, slotIndex, pattern) => set((state) => {
+        const current = state.referencePatternsByShowId[showId] ?? {}
+        const next = { ...current }
+        if (pattern) next[slotIndex] = pattern
+        else delete next[slotIndex]
+        const referencePatternsByShowId = { ...state.referencePatternsByShowId }
+        if (Object.keys(next).length > 0) referencePatternsByShowId[showId] = next
+        else delete referencePatternsByShowId[showId]
+        return { referencePatternsByShowId }
+      }),
+      clearReferencePatterns: (showId) => set((state) => {
+        if (!state.referencePatternsByShowId[showId]) return state
+        const referencePatternsByShowId = { ...state.referencePatternsByShowId }
+        delete referencePatternsByShowId[showId]
+        return { referencePatternsByShowId }
       }),
       setDiagnostic: (kind, enabled) => set((state) => ({
         diagnostics: { ...state.diagnostics, [kind]: enabled },

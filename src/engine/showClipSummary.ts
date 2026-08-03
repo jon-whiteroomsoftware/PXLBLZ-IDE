@@ -235,6 +235,8 @@ function projectClipSummary(
       // Default-valued parameters say nothing on the Clip row; drop them
       // there and keep the complete list in the Detail summary. An Effect
       // left entirely at defaults contracts to the section glyph (#666).
+      // The Clip row is a hint, not a narrative: values only, in parameter
+      // order, with names reserved for Clip Detail (#63).
       const authored = parameters.filter((parameter) => parameter.authored)
       return {
         id: `effect:${effect.id}`,
@@ -242,9 +244,7 @@ function projectClipSummary(
         value,
         timelineValue: parameters.length === 1
           ? (parameters[0].authored ? parameters[0].value : '')
-          : authored.map((parameter) => (
-              `${contractTimelineParameterLabel(parameter.label)} ${parameter.value}`
-            )).join(' '),
+          : authored.map((parameter) => parameter.value).join(' / '),
         ...(parameters.some((parameter) => parameter.animated) ? { animated: true } : {}),
       }
     }),

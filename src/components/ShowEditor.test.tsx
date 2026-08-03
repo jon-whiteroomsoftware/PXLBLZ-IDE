@@ -1574,7 +1574,8 @@ describe('ShowEditor (#318)', () => {
     const panel = screen.getByRole('dialog', { name: 'Entity Detail Panel' })
 
     const source = within(panel).getByRole('combobox', { name: 'Source pattern' })
-    await user.clear(source)
+    // Focusing the picker starts a fresh search over an empty field (#63).
+    await user.click(source)
     await user.type(source, 'Caustics')
     await user.click(screen.getByRole('option', { name: 'Caustics' }))
     await waitFor(() => {
@@ -4656,6 +4657,60 @@ describe('ShowEditor (#318)', () => {
     rect.mockRestore()
   })
 
+  it('offers Try with Pattern on lesson guides through catalogue patternSlots (#63)', async () => {
+    const user = userEvent.setup()
+    const stock = STOCK_SHOWS.find((candidate) => candidate.id === 'stock-show-201-layers-property-animation')!
+
+    render(<ShowEditor
+      showId={stock.id}
+      showOverride={stock.show}
+      builtInContext={{
+        track: stock.track,
+        lesson: stock.lesson,
+        description: stock.description,
+        note: stock.note,
+        patternSlots: stock.patternSlots,
+      }}
+    />)
+
+    const guide = screen.getByRole('region', { name: '201 Layers and Property Animation guide' })
+    // A lesson gets one picker per slot group in timeline order, without
+    // Reference mode: 201 slots the water bed and then the rain overlay.
+    expect(within(guide).queryByText('Reference mode')).not.toBeInTheDocument()
+    expect(within(guide).getByRole('combobox', { name: 'Pattern 1' })).toHaveValue('Caustics')
+    expect(within(guide).getByRole('combobox', { name: 'Pattern 2' })).toHaveValue('GlyphRain')
+
+    await user.click(within(guide).getByRole('combobox', { name: 'Pattern 2' }))
+    await user.click(screen.getByRole('option', { name: 'Murmuration' }))
+    expect(useShowEditorSessionStore.getState().referencePatternsByShowId[stock.id]).toEqual({
+      1: { kind: 'stock', id: 'Murmuration' },
+    })
+    // Picking releases keyboard focus so transport shortcuts work right away,
+    // and the field returns to its read-only selected state.
+    expect(within(guide).getByRole('combobox', { name: 'Pattern 2' })).not.toHaveFocus()
+    expect(within(guide).getByRole('combobox', { name: 'Pattern 2' })).toHaveAttribute('readonly')
+    // The untouched slot keeps its authored cast; one Reset clears every slot.
+    expect(within(guide).getByRole('combobox', { name: 'Pattern 1' })).toHaveValue('Caustics')
+    await user.click(within(guide).getByRole('button', { name: 'Reset Pattern' }))
+    expect(useShowEditorSessionStore.getState().referencePatternsByShowId[stock.id]).toBeUndefined()
+
+    // A deliberate Source-pattern edit in Clip Detail supersedes the picker:
+    // that slot's transient selection clears and the dialog choice persists
+    // into the draft as authored (#63).
+    await user.click(within(guide).getByRole('combobox', { name: 'Pattern 2' }))
+    await user.click(screen.getByRole('option', { name: 'Murmuration' }))
+    await user.click(screen.getAllByRole('button', { name: 'Select Murmuration' })[0])
+    const source = screen.getByRole('combobox', { name: 'Source pattern' })
+    await user.click(source)
+    await user.type(source, 'CometLoom')
+    await user.click(screen.getByRole('option', { name: 'CometLoom' }))
+    await waitFor(() => {
+      expect(useShowStore.getState().stockShowDrafts[stock.id]?.composition?.patternInstances
+        .find((instance) => instance.id === 'glyphs')?.pattern).toEqual({ kind: 'stock', id: 'CometLoom' })
+    })
+    expect(useShowEditorSessionStore.getState().referencePatternsByShowId[stock.id]).toBeUndefined()
+  })
+
   it('turns a reference Show guide into a live Pattern comparison instrument (#506)', async () => {
     const user = userEvent.setup()
     const stock = STOCK_SHOWS.find((candidate) => candidate.id === 'stock-show-reference-blend-fade-transitions')!
@@ -4684,8 +4739,8 @@ describe('ShowEditor (#318)', () => {
     await user.click(within(guide).getByRole('combobox', { name: 'Try with Pattern' }))
     expect(screen.queryByRole('option', { name: 'TestPattern3D' })).not.toBeInTheDocument()
     await user.click(screen.getByRole('option', { name: 'Caustics' }))
-    expect(useShowEditorSessionStore.getState().referencePatternByShowId[stock.id]).toEqual({
-      kind: 'stock', id: 'Caustics',
+    expect(useShowEditorSessionStore.getState().referencePatternsByShowId[stock.id]).toEqual({
+      0: { kind: 'stock', id: 'Caustics' },
     })
     expect(within(guide).getByRole('button', { name: 'Reset Pattern' })).toBeInTheDocument()
 
@@ -4723,7 +4778,7 @@ describe('ShowEditor (#318)', () => {
     }))
 
     await user.click(within(guide).getByRole('button', { name: 'Reset Pattern' }))
-    expect(useShowEditorSessionStore.getState().referencePatternByShowId[stock.id]).toBeUndefined()
+    expect(useShowEditorSessionStore.getState().referencePatternsByShowId[stock.id]).toBeUndefined()
     expect(screen.getAllByRole('button', { name: 'Select MetaballGarden' }).length).toBeGreaterThan(0)
   }, 10_000)
 
@@ -5330,7 +5385,8 @@ describe('ShowEditor (#318)', () => {
 
     const selectedClip = screen.getAllByRole('button', { name: 'Select TestPattern1D' })[0]
     await user.click(selectedClip)
-    await user.clear(screen.getByRole('combobox', { name: 'Source pattern' }))
+    // Focusing the picker starts a fresh search over an empty field (#63).
+    await user.click(screen.getByRole('combobox', { name: 'Source pattern' }))
     await user.type(screen.getByRole('combobox', { name: 'Source pattern' }), 'CometLoom')
     await user.click(screen.getByRole('option', { name: 'CometLoom' }))
 

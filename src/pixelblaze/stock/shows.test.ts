@@ -670,6 +670,41 @@ describe('stock Show curriculum (#363)', () => {
     ))).toBe(true)
   })
 
+  it('declares Try with Pattern slot groups covering every lesson instance (#63)', () => {
+    for (const item of lessons()) {
+      const groups = item.patternSlots
+      expect(groups, item.name).toBeDefined()
+      expect(groups!.length, item.name).toBeGreaterThan(0)
+      expect(groups!.length, item.name).toBeLessThanOrEqual(4)
+      const instances = item.show.composition?.patternInstances ?? []
+      const instanceIds = new Set(instances.map((instance) => instance.id))
+      const slotted = groups!.flatMap((group) => group.instanceIds)
+      expect(new Set(slotted).size, `${item.name} groups are disjoint`).toBe(slotted.length)
+      for (const id of slotted) {
+        expect(instanceIds.has(id), `${item.name} slot ${id} resolves`).toBe(true)
+      }
+      // Every top-level instance is swappable, so the pickers mirror the
+      // timeline completely. (Group-definition instances, like 205's pulse,
+      // are outside the projection machinery and stay authored.)
+      expect(slotted.length, `${item.name} covers every instance`).toBe(instances.length)
+      // A group swaps one source Pattern as a unit, and every instance of
+      // that source lives in that group - so same-source comparisons (203
+      // restart, 204 presentation, 303 machine sharing) survive a swap.
+      for (const group of groups!) {
+        const names = new Set(instances
+          .filter((instance) => group.instanceIds.includes(instance.id))
+          .map((instance) => instance.patternName))
+        expect(names.size, `${item.name} group swaps one source`).toBe(1)
+        const [name] = names
+        const sameSource = instances
+          .filter((instance) => instance.patternName === name)
+          .map((instance) => instance.id)
+        expect([...group.instanceIds].sort(), `${item.name} ${name} instances swap together`)
+          .toEqual(sameSource.sort())
+      }
+    }
+  })
+
   it('opens the Zone rail by default only where Zones are the first-visit subject', () => {
     // 105 introduces Zones, so its rail starts open; every other lesson keeps
     // the collapsed default and the session store remembers the user's choice.
@@ -818,7 +853,7 @@ describe('stock Show curriculum (#363)', () => {
     expect(meanLuma(after)).toBeGreaterThan(meanLuma(during) * 1.4)
   })
 
-  it('separates 202 Content motion from Viewport motion', () => {
+  it('changes exactly one thing per 202 Clip: crop, frame motion, then Content motion', () => {
     const item = stockShowById('stock-show-202-content-clip-viewport')!
     const composition = item.show.composition!
     const zone = composition.scenes[0].zones[0]
@@ -826,34 +861,58 @@ describe('stock Show curriculum (#363)', () => {
 
     // The dim bed is the lower Layer that makes uncovered pixels legible.
     expect(zone.main[0].view.brightness).toBeLessThan(0.5)
-    // Establish, Content pan behind a static aperture, then aperture slide.
+    // Full rose, corner crop, frame glide to center, then Content pan.
     expect(subjects.map((placementItem) => placementItem.id))
-      .toEqual(['clip-establish', 'clip-content-pan', 'clip-aperture'])
+      .toEqual(['clip-full', 'clip-frame', 'clip-frame-move', 'clip-content-pan'])
     expect(subjects[0].viewport).toBeUndefined()
-    expect(subjects[1].viewport).toMatchObject({ enabled: true, x: 0.25, y: 0.25, width: 0.5, height: 0.5 })
-    expect(subjects[2].viewport).toMatchObject({ enabled: true, x: 0.05 })
-    // One instance serves all three Clips: the subject never restarts.
+    // Width and height only: x and y stay zero, so the crop lands in the corner.
+    expect(subjects[1].viewport).toMatchObject({ enabled: true, x: 0, y: 0, width: 0.5, height: 0.5 })
+    expect(subjects[2].viewport).toMatchObject({ enabled: true, x: 0, y: 0 })
+    // The final frame rests where the glide ends, so the junction is seamless.
+    expect(subjects[3].viewport).toMatchObject({ enabled: true, x: 0.25, y: 0.25 })
+    // One instance serves all four Clips: the subject never restarts.
     expect(new Set(subjects.map((placementItem) => placementItem.instanceId)).size).toBe(1)
 
     const tracks = composition.scenes[0].propertyTracks ?? []
-    expect(tracks.map((track) => track.target.kind))
-      .toEqual(['placement-transform', 'placement-viewport'])
-    expect(tracks[0].target).toMatchObject({ placementId: 'clip-content-pan', property: 'positionX' })
-    expect(tracks[1].target).toMatchObject({ placementId: 'clip-aperture', property: 'x' })
+    expect(tracks.map((track) => track.target.kind)).toEqual([
+      'placement-viewport', 'placement-viewport',
+      'placement-viewport', 'placement-viewport',
+      'placement-transform',
+    ])
+    // The crop animates in: width and height shrink from the full Stage.
+    expect(tracks[0].target).toMatchObject({ placementId: 'clip-frame', property: 'width' })
+    expect(tracks[1].target).toMatchObject({ placementId: 'clip-frame', property: 'height' })
+    expect(tracks[2].target).toMatchObject({ placementId: 'clip-frame-move', property: 'x' })
+    expect(tracks[3].target).toMatchObject({ placementId: 'clip-frame-move', property: 'y' })
+    expect(tracks[4].target).toMatchObject({ placementId: 'clip-content-pan', property: 'positionX' })
+    // Every animation starts from the value the previous Clip established -
+    // full-Stage frame, corner position, neutral Content - so each junction
+    // is seamless.
+    expect(tracks[0].keyframes[0].value).toBe(1)
+    expect(tracks[1].keyframes[0].value).toBe(1)
+    expect(tracks[2].keyframes[0].value).toBe(0)
+    expect(tracks[3].keyframes[0].value).toBe(0)
+    expect(tracks[4].keyframes[0].value).toBe(0)
   })
 
-  it('keeps the 202 aperture brighter than the uncovered bed in sampled output', () => {
+  it('keeps the 202 frame brighter than the uncovered bed in sampled output', () => {
     const { mapPoints, frameAt } = lessonReplay('stock-show-202-content-clip-viewport')
-    const at7 = frameAt(7_000)
-    const inside: number[] = []
-    const outside: number[] = []
-    mapPoints.forEach((point, index) => {
-      const [x, y] = point.sample
-      if (x > 0.3 && x < 0.7 && y > 0.3 && y < 0.7) inside.push(luma(at7[index]))
-      if (x < 0.2 || x > 0.8 || y < 0.2 || y > 0.8) outside.push(luma(at7[index]))
-    })
     const average = (values: number[]) => values.reduce((sum, value) => sum + value, 0) / values.length
-    expect(average(inside)).toBeGreaterThan(average(outside) * 1.3)
+    const lumaWhere = (frame: number[][], inRegion: (x: number, y: number) => boolean) => average(
+      mapPoints.flatMap((point, index) => (inRegion(point.sample[0], point.sample[1]) ? [luma(frame[index])] : [])),
+    )
+    // t=2 vs t=6: the crop removes the picture outside the half-size corner
+    // frame, so that region falls to the dim bed. (Harmonograph is
+    // center-weighted, so the framed corner itself carries little light -
+    // the crop is proven by what disappears, not by corner brightness.)
+    const full = frameAt(2_000)
+    const cornered = frameAt(6_000)
+    const outsideFrame = (x: number, y: number) => x > 0.55 || y > 0.55
+    expect(lumaWhere(cornered, outsideFrame)).toBeLessThan(lumaWhere(full, outsideFrame) * 0.75)
+    // t=14: the frame holds the center while Content pans behind it.
+    const centered = frameAt(14_000)
+    expect(lumaWhere(centered, (x, y) => x > 0.3 && x < 0.7 && y > 0.3 && y < 0.7))
+      .toBeGreaterThan(lumaWhere(centered, (x, y) => x < 0.2 || x > 0.8 || y < 0.2 || y > 0.8) * 1.3)
   })
 
   it('proves 203 instance sharing, restart, and resume in sampled output', () => {

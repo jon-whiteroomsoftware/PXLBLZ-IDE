@@ -17,6 +17,7 @@ describe('showEditorSessionStore (#470)', () => {
       setZoneCollapsed: () => {},
       setFocusedZone: () => {},
       setReferencePattern: () => {},
+      clearReferencePatterns: () => {},
       setDiagnostic: () => {},
       setDiagnosticFocus: () => {},
     }
@@ -125,25 +126,37 @@ describe('showEditorSessionStore (#470)', () => {
     })
   })
 
-  it('keeps reference-Show Pattern choices session-only and resets them independently (#506)', () => {
+  it('keeps per-slot Pattern choices session-only and resets them independently (#506, #63)', () => {
     useShowEditorSessionStore.setState(showEditorSessionInitialState)
 
     useShowEditorSessionStore.getState().setReferencePattern(
-      'stock-show-transition-wipes',
+      'stock-show-transition-wipes', 0,
       { kind: 'stock', id: 'CompassRose' },
     )
-    expect(useShowEditorSessionStore.getState().referencePatternByShowId).toEqual({
-      'stock-show-transition-wipes': { kind: 'stock', id: 'CompassRose' },
+    useShowEditorSessionStore.getState().setReferencePattern(
+      'stock-show-transition-wipes', 2,
+      { kind: 'stock', id: 'Caustics' },
+    )
+    expect(useShowEditorSessionStore.getState().referencePatternsByShowId).toEqual({
+      'stock-show-transition-wipes': {
+        0: { kind: 'stock', id: 'CompassRose' },
+        2: { kind: 'stock', id: 'Caustics' },
+      },
     })
 
-    useShowEditorSessionStore.getState().setReferencePattern('stock-show-transition-wipes', null)
-    expect(useShowEditorSessionStore.getState().referencePatternByShowId).toEqual({})
+    // Clearing one slot keeps the other; clearing the last removes the Show.
+    useShowEditorSessionStore.getState().setReferencePattern('stock-show-transition-wipes', 0, null)
+    expect(useShowEditorSessionStore.getState().referencePatternsByShowId).toEqual({
+      'stock-show-transition-wipes': { 2: { kind: 'stock', id: 'Caustics' } },
+    })
+    useShowEditorSessionStore.getState().clearReferencePatterns('stock-show-transition-wipes')
+    expect(useShowEditorSessionStore.getState().referencePatternsByShowId).toEqual({})
 
     const merged = mergePersistedShowEditorSession({
-      referencePatternByShowId: {
-        stale: { kind: 'user', id: 'persisted-by-mistake' },
+      referencePatternsByShowId: {
+        stale: { 0: { kind: 'user', id: 'persisted-by-mistake' } },
       },
     }, useShowEditorSessionStore.getState())
-    expect(merged.referencePatternByShowId).toEqual({})
+    expect(merged.referencePatternsByShowId).toEqual({})
   })
 })
