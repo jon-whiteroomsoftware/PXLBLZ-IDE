@@ -111,7 +111,7 @@ export function ShowArtifactInventoryPopover({ inventory, model, vmWords, render
         <div>
           <h2 className="text-xs font-semibold tracking-wide text-zinc-100">Show source inventory</h2>
           <p className="mt-1 max-w-[54ch] leading-relaxed text-zinc-500">
-            Exact UTF-8 bytes sent as source. Segment width is proportional to delivered source size.
+            Exact UTF-8 bytes sent as source. Widths are shares of the {formatBytes(model.budgetBytes)} source budget.
           </p>
           <p className="mt-2 text-[9px] text-amber-200/80">
             Pattern machines: {logicalPatternCount} logical · {physicalPatternCount} physical
@@ -179,7 +179,11 @@ export function ShowArtifactInventoryPopover({ inventory, model, vmWords, render
       </div>
 
       <div className="mt-4 grid grid-cols-2 gap-px overflow-hidden rounded-sm bg-zinc-800 ring-1 ring-zinc-800 sm:grid-cols-4">
-        <ResourceAxis label="Delivered source" value={formatBytes(inventory.totalBytes)} />
+        <ResourceAxis
+          label="Delivered source"
+          value={`${formatBytes(inventory.totalBytes)} / ${formatBytes(model.budgetBytes)}`}
+          detail={`${formatPercent(inventory.totalBytes / model.budgetBytes)} of budget`}
+        />
         <ResourceAxis label="Generated program" value={formatBytes(inventory.generatedSourceBytes)} />
         <ResourceAxis label="VM words" value={`${vmWords.used.toLocaleString('en-US')} / ${vmWords.budget.toLocaleString('en-US')}`} detail={`${vmWords.remaining.toLocaleString('en-US')} free`} />
         <ResourceAxis label="Runtime renderers" value={`${renderers.steady} steady`} detail={`${renderers.worst} worst`} />
@@ -211,7 +215,7 @@ export function ShowArtifactInventoryPopover({ inventory, model, vmWords, render
       <button
         ref={triggerRef}
         type="button"
-        aria-label={`Show source inventory, ${formatBytes(inventory.totalBytes)} delivered source`}
+        aria-label={`Show source inventory, ${formatBytes(inventory.totalBytes)} of ${formatBytes(model.budgetBytes)} source budget`}
         aria-expanded={open}
         aria-haspopup="dialog"
         className="inline-flex items-center gap-1 rounded-sm px-1 py-0.5 font-semibold tabular-nums text-zinc-300 outline-none transition-colors hover:bg-amber-400/10 hover:text-amber-200 focus-visible:bg-amber-400/10 focus-visible:text-amber-200 focus-visible:ring-1 focus-visible:ring-amber-400/60"
@@ -224,7 +228,7 @@ export function ShowArtifactInventoryPopover({ inventory, model, vmWords, render
           else setOpen(false)
         }}
       >
-        {formatBytes(inventory.totalBytes)}
+        {formatBytes(inventory.totalBytes)} / {formatBytes(model.budgetBytes)}
         <ChevronUp size={11} aria-hidden />
       </button>
       {panel}

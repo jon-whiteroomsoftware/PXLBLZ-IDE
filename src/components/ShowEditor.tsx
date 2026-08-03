@@ -1394,6 +1394,7 @@ export function ShowEditor({
       inventory,
       model: buildShowArtifactInventoryModel(inventory, {
         patterns: describeShowArtifactPatterns(activeShow, inventory),
+        budgetBytes: compiled.artifact.summary.measuredDeviceBudgetBytes,
       }),
     }
   }, [activeShow, compiled.artifact, inspectableShowExport])
@@ -9823,10 +9824,10 @@ function CompileBar({
       <span
         className="h-2 w-28 overflow-hidden rounded-sm bg-zinc-800"
         aria-label={summary
-          ? `Generated UTF-8 source size compared with a source-size proxy derived from the observed ${summary.measuredDeviceBudgetBytes.toLocaleString('en-US')}-byte compiled-bytecode activation ceiling. This is not remaining Controller capacity.`
+          ? `Show source ${formatBytes(summary.artifactBytes)} of the ${formatBytes(summary.measuredDeviceBudgetBytes)} source budget. The budget is a source-size proxy, not remaining Controller capacity.`
           : undefined}
         title={summary
-          ? `Generated UTF-8 source size compared with a source-size proxy derived from the observed ${summary.measuredDeviceBudgetBytes.toLocaleString('en-US')}-byte compiled-bytecode activation ceiling. This is not remaining Controller capacity.`
+          ? `Show source ${formatBytes(summary.artifactBytes)} of the ${formatBytes(summary.measuredDeviceBudgetBytes)} source budget. The budget is a source-size proxy, not remaining Controller capacity.`
           : undefined}
       >
         <span
@@ -9862,10 +9863,6 @@ function CompileBar({
       ) : (
         <b className="text-zinc-300">-</b>
       )}
-      <span>
-        · generated UTF-8 source {summary ? formatBytes(summary.artifactBytes) : '-'}
-        {' · '}source-size proxy against observed compiled-bytecode activation ceiling {summary ? `${summary.measuredDeviceBudgetBytes.toLocaleString('en-US')} B` : '-'}
-      </span>
       {summary?.resources && (
         <span className={summary.resources.remainingWords < 0 ? 'text-red-300' : 'text-sky-200'}>
           VM {summary.resources.totalWords.toLocaleString('en-US')}/{summary.resources.vmWordBudget.toLocaleString('en-US')} words

@@ -6427,9 +6427,9 @@ describe('ShowEditor (#318)', () => {
     render(<ShowEditor showId={property.id} showOverride={createPropertySlotQualificationShow()} readOnly />)
 
     const compileBar = screen.getByTestId('show-compile-bar')
-    expect(compileBar).toHaveTextContent('generated UTF-8 source')
-    expect(compileBar).toHaveTextContent('observed compiled-bytecode activation ceiling 68,384 B')
-    expect(screen.getByLabelText(/source-size proxy derived from the observed 68,384-byte compiled-bytecode activation ceiling/i)).toHaveAccessibleName(
+    expect(compileBar).not.toHaveTextContent('generated UTF-8 source')
+    expect(compileBar).toHaveTextContent('/ 66.8 KB')
+    expect(screen.getByLabelText(/The budget is a source-size proxy/i)).toHaveAccessibleName(
       /not remaining Controller capacity/i,
     )
 

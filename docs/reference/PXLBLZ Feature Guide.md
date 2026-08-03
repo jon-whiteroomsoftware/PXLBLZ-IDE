@@ -780,8 +780,11 @@ without creating a second clock or playback state.
 The compile bar under the timeline is the honest gauge cluster: generated
 code size, renderer policy, transition cost, memory ledger, and warnings, all
 measured from the artifact it just built rather than estimated from menu
-labels. The **Show source** number expands into a byte-level inventory with
-**Ways to slim this Show** ranking the contributors you can actually change.
+labels. **Show source** reads as delivered size against the source budget and
+expands into a byte-level inventory measured on that same budget scale, so a
+Show using a fifth of the budget looks like a fifth in both views. Its
+**Ways to slim this Show** hints list only contributors that are both
+changeable and large enough to matter.
 Other compile-bar facts name the specializations the compiler selected or
 rejected, and why. Clip details do not repeat these Show totals. The mechanisms
 behind those labels are the subject of

@@ -47,9 +47,15 @@ export interface ShowArtifactSlimmingTip {
 
 export interface ShowArtifactInventoryModel {
   totalBytes: number
+  budgetBytes: number
   rows: ShowArtifactInventoryRow[]
   slimmingTips: ShowArtifactSlimmingTip[]
 }
+
+// A tip earns its slot only when acting on it can recover a meaningful share
+// of the source budget; smaller contributors stay in the table without advice.
+const SLIMMING_TIP_MIN_BUDGET_SHARE = 0.05
+const DOMINANT_PATTERN_BUDGET_SHARE = 0.25
 
 export function buildDeliveredShowSourceInventory(
   generatedInventory: ShowSourceInventory,
@@ -92,8 +98,9 @@ export function buildDeliveredShowSourceInventory(
 
 export function buildShowArtifactInventoryModel(
   inventory: DeliveredShowSourceInventory,
-  options: { patterns: readonly ShowArtifactInventoryPattern[] },
+  options: { patterns: readonly ShowArtifactInventoryPattern[]; budgetBytes: number },
 ): ShowArtifactInventoryModel {
+  const budgetBytes = Math.max(1, options.budgetBytes)
   const patternByOwnerId = new Map(options.patterns.flatMap((pattern) => (
     pattern.ownerIds.map((ownerId) => [ownerId, pattern] as const)
   )))
@@ -118,7 +125,7 @@ export function buildShowArtifactInventoryModel(
       category: 'pattern' as const,
       label: pattern.name,
       bytes,
-      percentage: bytes / Math.max(1, inventory.totalBytes),
+      percentage: bytes / budgetBytes,
       creatorEditable: true,
       physicalMachineCount: pattern.ownerIds.length,
       logicalInstanceCount: pattern.logicalInstanceCount,
@@ -151,7 +158,7 @@ export function buildShowArtifactInventoryModel(
       category,
       label: categoryLabels[category],
       bytes,
-      percentage: bytes / Math.max(1, inventory.totalBytes),
+      percentage: bytes / budgetBytes,
       creatorEditable: ['routing-render-plans', 'effects-transitions', 'score-data'].includes(category),
     })
   }
@@ -161,35 +168,38 @@ export function buildShowArtifactInventoryModel(
     if (row.category === 'pattern') {
       const machines = row.physicalMachineCount ?? 1
       const logical = row.logicalInstanceCount ?? machines
-      return [{
+      if (machines > 1) return [{
         contributorId: row.id,
         currentBytes: row.bytes,
-        message: machines > 1
-          ? `${row.label} needs ${machines} physical machines for ${logical} logical instances. Reduce simultaneous independent instances or reuse compatible configurations.`
-          : logical > 1
-            ? `${row.label} already reuses one physical machine across ${logical} logical instances; there is no duplicate executable copy to remove.`
-            : `${row.label} uses one physical machine; there is no duplicate executable copy to remove. Swap, simplify, or remove it only if that visual tradeoff is worthwhile.`,
+        message: `${row.label} ships ${machines} physical machines for ${logical} logical instances. Reuse compatible configurations or run fewer simultaneous instances.`,
       }]
+      if (row.percentage >= DOMINANT_PATTERN_BUDGET_SHARE) return [{
+        contributorId: row.id,
+        currentBytes: row.bytes,
+        message: `${row.label} alone is ${Math.round(row.percentage * 100)}% of the source budget. Simplify its source or swap in a lighter Pattern.`,
+      }]
+      return []
     }
+    if (row.percentage < SLIMMING_TIP_MIN_BUDGET_SHARE) return []
     if (row.category === 'effects-transitions') return [{
       contributorId: row.id,
       currentBytes: row.bytes,
-      message: 'Consolidate unique Effect or Transition variants when the same visual structure can be reused.',
+      message: 'Consolidate Effect and Transition variants that repeat the same visual structure.',
     }]
     if (row.category === 'score-data') return [{
       contributorId: row.id,
       currentBytes: row.bytes,
-      message: 'Shorten or simplify data-heavy choreography if transport size matters more than duration.',
+      message: 'Shorten or simplify data-heavy choreography.',
     }]
     if (row.category === 'routing-render-plans') return [{
       contributorId: row.id,
       currentBytes: row.bytes,
-      message: 'Simplify unique Zone Layout and render-plan structure where the choreography permits it.',
+      message: 'Reduce unique Zone Layouts and render-plan variety where the choreography permits.',
     }]
     return []
   }).sort((left, right) => right.currentBytes - left.currentBytes)
 
-  return { totalBytes: inventory.totalBytes, rows, slimmingTips }
+  return { totalBytes: inventory.totalBytes, budgetBytes, rows, slimmingTips }
 }
 
 export function describeShowArtifactPatterns(

@@ -49,6 +49,7 @@ describe('Show source inventory', () => {
       ],
     }
     const model = buildShowArtifactInventoryModel(inventory, {
+      budgetBytes: 1_000,
       patterns: [{
         key: 'stock:red',
         name: 'Red pattern',
@@ -58,10 +59,11 @@ describe('Show source inventory', () => {
       }],
     })
 
+    expect(model.budgetBytes).toBe(1_000)
     expect(model.rows.find((row) => row.id === 'pattern:stock:red')).toMatchObject({
       label: 'Red pattern',
       bytes: 180,
-      percentage: 180 / 305,
+      percentage: 180 / 1_000,
       physicalMachineCount: 2,
       logicalInstanceCount: 5,
       authoredReferenceCount: 8,
@@ -69,6 +71,40 @@ describe('Show source inventory', () => {
     expect(model.rows.reduce((sum, row) => sum + row.bytes, 0)).toBe(305)
     expect(model.slimmingTips[0]).toMatchObject({ contributorId: 'pattern:stock:red', currentBytes: 180 })
     expect(model.slimmingTips[0].message).toContain('2 physical machines')
+    // Effects (4%) and score (2%) sit below the 5%-of-budget tip threshold.
+    expect(model.slimmingTips).toHaveLength(1)
+  })
+
+  it('omits non-actionable tips and flags only meaningful budget shares (#63)', () => {
+    const inventory: DeliveredShowSourceInventory = {
+      totalBytes: 140,
+      generatedSourceBytes: 140,
+      provenanceBytes: 0,
+      chunks: [
+        { id: 'pattern-a', category: 'pattern', label: 'Solo', ownerId: 'a', bytes: 100, startByte: 0, endByte: 100 },
+        { id: 'routing', category: 'routing-render-plans', label: 'Routing', bytes: 40, startByte: 100, endByte: 140 },
+      ],
+    }
+    const patterns = [{
+      key: 'stock:solo',
+      name: 'Solo',
+      ownerIds: ['a'],
+      logicalInstanceCount: 1,
+      authoredReferenceCount: 1,
+    }]
+
+    // Comfortably under budget: a single-machine Pattern and a small routing
+    // block leave nothing actionable, so no tips appear at all.
+    const roomy = buildShowArtifactInventoryModel(inventory, { budgetBytes: 10_000, patterns })
+    expect(roomy.slimmingTips).toEqual([])
+
+    // Against a tight budget the same rows become actionable: the Pattern
+    // dominates (>=25% of budget) and routing crosses the 5% threshold.
+    const tight = buildShowArtifactInventoryModel(inventory, { budgetBytes: 200, patterns })
+    const patternTip = tight.slimmingTips.find((tip) => tip.contributorId === 'pattern:stock:solo')
+    expect(patternTip?.message).toContain('50% of the source budget')
+    const routingTip = tight.slimmingTips.find((tip) => tip.contributorId === 'category:routing-render-plans')
+    expect(routingTip?.message).toContain('Zone Layouts')
   })
 
   it('keeps table-driven score and Transition source in stable named categories (#545)', () => {

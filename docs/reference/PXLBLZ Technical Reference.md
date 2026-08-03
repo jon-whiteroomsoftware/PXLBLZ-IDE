@@ -2343,11 +2343,16 @@ reference while retaining logical-instance and authored-reference counts. This
 presentation shows executable reuse without multiplying bytes for repeated
 references, interned stacks, or shared kernels.
 
-`ShowArtifactInventoryPopover` renders those exact bytes as one proportional
-strip and an accessible text list. It opens through hover, keyboard focus, or
+`ShowArtifactInventoryPopover` renders those exact bytes as one strip and an
+accessible text list, both scaled to the source budget rather than to the
+delivered total, so the detail view and the compile-bar gauge tell the same
+story about remaining headroom. It opens through hover, keyboard focus, or
 selection, reanchors when the viewport changes, and exposes the same content at
-narrow widths. Its ranked repair hints use the current attributed source cost
-and compiler structure. They do not claim a savings amount unless a compiler
+narrow widths. Its ranked repair hints appear only for contributors that are
+both changeable and a meaningful share of the budget: duplicated physical
+Pattern machines always qualify, a single-machine Pattern qualifies only when
+it alone crosses a quarter of the budget, and editable categories qualify at
+five percent. They do not claim a savings amount unless a compiler
 counterfactual exists.
 
 Delivered source, generated source, VM words, renderer depth, and Controller
