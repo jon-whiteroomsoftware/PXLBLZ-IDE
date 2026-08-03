@@ -19,7 +19,7 @@ describe('issue #542 baseline census', () => {
       },
       {
         authoredJsonBytes: 10_870,
-        generatedSourceBytes: 73_346,
+        generatedSourceBytes: 73_401,
         patternInstanceCount: 9,
         persistentGlobals: 248,
       },
@@ -47,7 +47,7 @@ describe('issue #542 baseline census', () => {
       persistentGlobals: entry.production.persistentGlobals,
     }))).toEqual([
       { patternInstanceCount: 3, generatedSourceBytes: 59_154, persistentGlobals: 122 },
-      { patternInstanceCount: 3, generatedSourceBytes: 49_367, persistentGlobals: 110 },
+      { patternInstanceCount: 3, generatedSourceBytes: 49_420, persistentGlobals: 110 },
       { patternInstanceCount: 3, generatedSourceBytes: 21_406, persistentGlobals: 96 },
       { patternInstanceCount: 3, generatedSourceBytes: 37_624, persistentGlobals: 93 },
     ])
