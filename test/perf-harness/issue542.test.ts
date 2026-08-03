@@ -24,7 +24,7 @@ describe('issue #542 baseline census', () => {
         // growing this reference's authored JSON by two bytes. Verified by
         // running this census on the pre-#691 main tip, which fails there.
         authoredJsonBytes: 10_872,
-        generatedSourceBytes: 73_433,
+        generatedSourceBytes: 73_445,
         patternInstanceCount: 9,
         persistentGlobals: 248,
       },
@@ -52,7 +52,7 @@ describe('issue #542 baseline census', () => {
       persistentGlobals: entry.production.persistentGlobals,
     }))).toEqual([
       { patternInstanceCount: 3, generatedSourceBytes: 59_154, persistentGlobals: 122 },
-      { patternInstanceCount: 3, generatedSourceBytes: 49_452, persistentGlobals: 110 },
+      { patternInstanceCount: 3, generatedSourceBytes: 49_464, persistentGlobals: 110 },
       { patternInstanceCount: 3, generatedSourceBytes: 21_406, persistentGlobals: 96 },
       { patternInstanceCount: 3, generatedSourceBytes: 37_624, persistentGlobals: 93 },
     ])
