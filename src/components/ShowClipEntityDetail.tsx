@@ -551,8 +551,10 @@ export const ShowClipEntityDetail = forwardRef<ShowClipEntityDetailHandle, ShowC
               step={0.1}
               disabled={readOnly}
               help="How quickly Pattern animation advances. Does not change Clip duration or frame rate."
-              onPreview={(timeScale) => onPreviewPatch?.({ simulation: { timeScale } })}
-              onPreviewEnd={onPreviewEnd}
+              // A transient time-scale preview rebuilds the complete Show
+              // artifact for every drag sample, even while playback is paused.
+              // The numeric draft and thumb already update locally; apply the
+              // authored value once on release so this field stays responsive.
               onChange={(timeScale) => onPatch({ simulation: { timeScale } })}
             />
           </div>

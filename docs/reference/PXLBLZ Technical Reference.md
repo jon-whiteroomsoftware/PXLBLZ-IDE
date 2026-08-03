@@ -1698,6 +1698,11 @@ React surface requests one Show update.
 `ShowClipEntityDetail` renders the Pattern chooser, Animation speed,
 Brightness, the inline Clip-placement surface, Mirror, phase, public Pattern
 controls, Effect stack, inline Add Effect takeover, and numeric field behavior.
+Most numeric sliders publish ephemeral Show overrides while they move.
+Animation speed is deliberately commit-on-release: changing a Pattern-instance
+time scale invalidates the compiled Show preview artifact, so transient slider
+samples remain local to the field and one authored Show update rebuilds the
+artifact after release, including while playback is paused.
 The takeover is local to each Detail instance, so a pinned panel does not share
 chooser state with another panel. It replaces only the Effects tab body,
 filters the presentation catalogue by family, compatibility, stage vocabulary,

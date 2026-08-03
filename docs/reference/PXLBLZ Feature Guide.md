@@ -169,7 +169,10 @@ numeric part with a fixed `x` suffix outside the box and accept either `1.5`
 or pasted `1.5x`. Animation speed, Clip Transform Width/Height, Repeat scale,
 and multiplicative Effect or Transition parameters share this presentation.
 Their compact slider marks `1x` and gives extra travel to the useful region
-around neutral while preserving exact endpoints and zero. Clip Transform
+around neutral while preserving exact endpoints and zero. Animation speed
+updates the numeric draft and thumb while dragging, then applies the authored
+speed when the slider is released; this keeps Show editing responsive while
+the resulting preview artifact is rebuilt once. Clip Transform
 Width/Height sliders additionally detent on the placement grid's fractions
 through `2x` (a thirds grid stops at `1/3`, `2/3`, `1x`, `4/3`, `5/3`, `2x`),
 on every whole unit above that, and pull hardest at neutral `1x`; between

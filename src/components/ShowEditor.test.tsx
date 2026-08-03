@@ -2193,6 +2193,57 @@ describe('ShowEditor (#318)', () => {
     expect(slider).toBeInTheDocument()
   })
 
+  it('defers a paused Clip Animation speed edit until the slider is released (#63)', async () => {
+    const user = userEvent.setup()
+    const show = createDefaultShow('show-deferred-speed-slider', 'Deferred speed slider', 1000)
+    const provider = memoryProvider([show])
+    const updateShow = vi.spyOn(provider, 'updateShow')
+    setPersonalContentProvider(provider)
+    useShowStore.setState({ shows: [show], activeShowId: show.id, showsLoaded: true })
+    usePreviewStore.setState({ isRunning: false })
+
+    render(<ShowEditor showId={show.id} />)
+    await user.click(screen.getByRole('button', { name: 'Select TestPattern1D' }))
+
+    const panel = screen.getByRole('dialog', { name: 'Entity Detail Panel' })
+    const grip = within(panel).getByRole('button', {
+      name: 'Adjust with multiplier slider',
+      description: 'Animation speed',
+    })
+    vi.spyOn(grip, 'getBoundingClientRect').mockReturnValue({
+      x: 380, y: 100, left: 380, right: 398, top: 100, bottom: 124, width: 18, height: 24, toJSON: () => ({}),
+    })
+    fireEvent.keyDown(grip, { key: 'Enter' })
+
+    const slider = screen.getByRole('slider', {
+      name: 'Multiplier slider',
+      description: 'Animation speed',
+    })
+    Object.defineProperty(slider, 'setPointerCapture', { configurable: true, value: vi.fn() })
+    Object.defineProperty(slider, 'releasePointerCapture', { configurable: true, value: vi.fn() })
+    fireEvent.pointerDown(slider, { pointerId: 8, clientX: 420, clientY: 112 })
+    fireEvent.input(slider, { target: { value: '650' } })
+    fireEvent.input(slider, { target: { value: '700' } })
+
+    expect(slider).toHaveAttribute('aria-valuetext', '1.48x')
+    expect(within(panel).getByRole('textbox', { name: 'Animation speed exact multiplier' }))
+      .toHaveValue('1.48')
+    expect(useShowPreviewOverrideStore.getState().show).toBeNull()
+    expect(useShowStore.getState().shows[0].cells[0].adaptations.timeScale).toBe(1)
+    expect(updateShow).not.toHaveBeenCalled()
+    expect(usePreviewStore.getState().isRunning).toBe(false)
+
+    fireEvent.pointerUp(slider, { pointerId: 8, clientX: 520, clientY: 112 })
+
+    await waitFor(() => {
+      expect(useShowStore.getState().shows[0].composition?.patternInstances[0].time.timeScale)
+        .toBeCloseTo(1.48, 8)
+    })
+    expect(updateShow).toHaveBeenCalledTimes(1)
+    expect(useShowPreviewOverrideStore.getState().show).toBeNull()
+    expect(usePreviewStore.getState().isRunning).toBe(false)
+  })
+
   it('adds a Clip to the topmost available Layer without asking for a destination (#594)', async () => {
     const user = userEvent.setup()
     const show = createDefaultShow('show-auto-add-layer', 'Automatic Add Layer', 1000)
