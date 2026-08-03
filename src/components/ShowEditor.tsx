@@ -678,10 +678,6 @@ function ShowNoteDisclosure({
           <Info size={12} aria-hidden className="shrink-0 text-cyan-200/80" />
           <span className="shrink-0 font-semibold uppercase tracking-[0.1em] text-cyan-200/85">{note.label}</span>
           <strong className="truncate font-medium text-zinc-200">{note.number ? `${note.number} · ` : ''}{note.title}</strong>
-          <span className="ml-1 hidden items-center gap-1 text-[9px] text-zinc-600 sm:flex">
-            <RotateCcw size={10} aria-hidden />
-            Built-in Show · edits last until reload
-          </span>
           <ChevronDown size={12} aria-hidden className="ml-auto shrink-0 rotate-180 text-zinc-500" />
         </button>
         <button
@@ -1919,7 +1915,11 @@ export function ShowEditor({
           variant="ghost"
           aria-label="Reset built-in Show"
           title="Discard session edits and restore the built-in definition"
-          className="bg-zinc-900/60 text-[11px] text-zinc-500 hover:bg-zinc-800 hover:text-zinc-300 disabled:opacity-40"
+          // Enabled means there are session edits to discard: the amber lift
+          // replaces the old "edits last until reload" header disclaimer (#63).
+          className={hasStockDraft || selectedReferencePatterns
+            ? 'border-amber-300/45 bg-amber-400/10 text-[11px] text-amber-200 hover:bg-amber-400/20 hover:text-amber-100'
+            : 'bg-zinc-900/60 text-[11px] text-zinc-500 disabled:opacity-40'}
           disabled={!hasStockDraft && !selectedReferencePatterns}
           onClick={() => {
             resetStockShowDraft(showId)
@@ -1950,7 +1950,7 @@ export function ShowEditor({
         variant="ghost"
         aria-label="View code"
         title="View final generated code"
-        className="bg-zinc-800/70 text-[11px] text-zinc-400 hover:bg-zinc-700/70 hover:text-zinc-300 disabled:opacity-40"
+        className="bg-zinc-900/60 text-[11px] text-zinc-500 hover:bg-zinc-800 hover:text-zinc-300 disabled:opacity-40"
         disabled={!compiled.artifact || Boolean(compiled.artifactBlocker)}
         onClick={() => {
           const snapshot = buildCurrentCompilationSnapshot()
@@ -3198,7 +3198,7 @@ function ExportShowButton({
       aria-label="Export Show as .epe"
       title={error ?? 'Export Show as .epe'}
       disabled={!exported || exporting}
-      className="bg-zinc-800/70 text-[11px] text-zinc-400 hover:bg-zinc-700/70 hover:text-zinc-300 disabled:opacity-40"
+      className="bg-zinc-900/60 text-[11px] text-zinc-500 hover:bg-zinc-800 hover:text-zinc-300 disabled:opacity-40"
       onClick={() => {
         setExporting(true)
         setError(null)
