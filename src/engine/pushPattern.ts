@@ -218,12 +218,19 @@ export async function pushPattern(deps: PushPatternDeps): Promise<PushPatternRes
   await deps.provider.saveProgram(blob, { id: programId })
 
   // Once persistence succeeds, this id owns the saved artifact even if the
-  // following activation fails. Record a new overwrite binding now so Retry
-  // reuses the same Controller slot instead of orphaning it and minting another.
-  // Push records still describe fully successful Sends and remain downstream of
-  // activation.
+  // following activation fails. Try to record a new overwrite binding now so
+  // Retry reuses the same Controller slot instead of orphaning it and minting
+  // another. A cloud metadata failure must not strand the Controller on a drain,
+  // so activating Saves retry that write after the target is running. Push
+  // records still describe fully successful Sends and remain downstream.
+  let retryBindingAfterActivation = false
   if (isNew) {
-    await deps.saveBindings(withBinding(bindings, deps.controllerId, deps.patternId, programId))
+    try {
+      await deps.saveBindings(withBinding(bindings, deps.controllerId, deps.patternId, programId))
+    } catch (error) {
+      if (deps.activateOnSave === false) throw error
+      retryBindingAfterActivation = true
+    }
   }
 
   // Save-and-run (#238): persisting writes the PBP record to flash but does not make it
@@ -236,6 +243,10 @@ export async function pushPattern(deps: PushPatternDeps): Promise<PushPatternRes
   // program, so its setCode name is no phantom.
   if (deps.activateOnSave !== false) {
     await activateTarget(deps, bytecode, { id: programId, name: deps.name ?? '' })
+  }
+
+  if (retryBindingAfterActivation) {
+    await deps.saveBindings(withBinding(bindings, deps.controllerId, deps.patternId, programId))
   }
 
   await deps.savePushRecords(withPushRecord(pushRecords, deps.controllerId, deps.patternId, {

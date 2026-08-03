@@ -798,10 +798,12 @@ order as **Device** without another Controller request.
 
 Overwrite bindings key `(Controller, Studio Pattern/demo)` to Controller program
 id. Repeated saves reuse the id while it exists; a deleted device record causes
-a new id to be minted. Once a newly minted program persists, its binding is
-recorded before activation so an activation failure retries that same Controller
-slot instead of creating an unmanaged duplicate. Bindings carry identity only,
-never control values.
+a new id to be minted. Once a newly minted program persists, its binding write is
+attempted before activation so an activation failure retries that same Controller
+slot instead of creating an unmanaged duplicate. If the metadata backend rejects
+that write, target activation still proceeds and the binding write is retried
+afterward; a cloud failure never strands the Controller on the black drain.
+Bindings carry identity only, never control values.
 
 A successful Save also writes a push record from the exact embedded banner:
 artifact hash, transform ids, timestamp, name, and optional Show output contract.

@@ -290,6 +290,37 @@ describe('pushPattern — save mode (persist: true)', () => {
     expect(pushRecords).toHaveLength(1)
   })
 
+  it('still activates the target and retries when the pre-activation binding write fails', async () => {
+    const targetBytecode = goodBytecode(40_518)
+    const drainBytecode = goodBytecode(153)
+    const saveBindings = vi.fn().mockRejectedValue(new Error('metadata offline'))
+    const provider = makeProvider({
+      compile: vi.fn(async (source: string) => (
+        source === CONTROLLER_DRAIN_PATTERN_SOURCE ? drainBytecode : targetBytecode
+      )),
+      getActiveProgramBytecodeSize: vi.fn().mockResolvedValue(49_426),
+    })
+    const { deps, pushRecords } = makeDeps({
+      persist: true,
+      provider,
+      saveBindings,
+      mintDrainId: () => 'DRAIN000000000000',
+    })
+
+    await expect(pushPattern(deps)).rejects.toThrow('metadata offline')
+
+    expect(provider.pushBytecode).toHaveBeenNthCalledWith(1, drainBytecode, {
+      id: 'DRAIN000000000000',
+      name: '',
+    })
+    expect(provider.pushBytecode).toHaveBeenNthCalledWith(2, targetBytecode, {
+      id: 'MINTED00000000000',
+      name: 'My Pattern',
+    })
+    expect(saveBindings).toHaveBeenCalledTimes(2)
+    expect(pushRecords).toEqual([])
+  })
+
   it('can overwrite a managed saved program without activating it', async () => {
     const { deps, pushRecords } = makeDeps({
       persist: true,
