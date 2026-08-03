@@ -129,6 +129,7 @@ export class ExtensionControllerProvider implements ControllerProvider {
   // can clear the half-created entry and let the next Connect re-prompt), and halts
   // the reconnect loop.
   private permissionBlocked = false
+  private knownActiveBytecode: { programId: string; bytecodeBytes: number } | null = null
 
   private readonly transport: RelayTransport
   private readonly detectTimeoutMs: number
@@ -294,6 +295,7 @@ export class ExtensionControllerProvider implements ControllerProvider {
   // ── connection lifecycle ───────────────────────────────────────────────────
 
   async connect(target: ControllerTarget): Promise<void> {
+    this.knownActiveBytecode = null
     if (!(await this.detectHelper())) {
       const err = new Error('No Controller helper is installed')
       this.setStatus({ kind: 'error', message: err.message })
@@ -363,6 +365,7 @@ export class ExtensionControllerProvider implements ControllerProvider {
    *  stay up triggers reconnect — a close that follows a failed open (or a
    *  user-driven disconnect) is ignored. */
   private onSocketClosed(): void {
+    this.knownActiveBytecode = null
     if (this.intentionalClose || !this.expectConnected || !this.target) return
     this.expectConnected = false
     this.scheduleReconnect(this.maxReconnectAttempts)
@@ -373,6 +376,7 @@ export class ExtensionControllerProvider implements ControllerProvider {
    *  socket down — its own `close` is gated out by `expectConnected` — then enter
    *  the same bounded reconnect loop a clean drop would. */
   private onSocketStale(): void {
+    this.knownActiveBytecode = null
     if (this.intentionalClose || !this.expectConnected || !this.target) return
     this.expectConnected = false
     this.conn?.close()
@@ -400,6 +404,7 @@ export class ExtensionControllerProvider implements ControllerProvider {
   }
 
   disconnect(): Promise<void> {
+    this.knownActiveBytecode = null
     this.intentionalClose = true
     this.expectConnected = false
     this.target = null
@@ -656,10 +661,24 @@ export class ExtensionControllerProvider implements ControllerProvider {
     })
   }
 
+  getActiveProgramBytecodeSize(): Promise<number | null> {
+    const known = this.knownActiveBytecode
+    if (!known) return Promise.resolve(null)
+    return this.withConn(async (conn) => {
+      const config = await conn.getConfig()
+      if (config.activeProgramId === known.programId) return known.bytecodeBytes
+      this.knownActiveBytecode = null
+      return null
+    })
+  }
+
   /** Push compiled bytecode over the live connection (save + run, overwrite-in-
-   *  place at `id`). Fire-and-forget at the protocol level. */
+   *  place at `id`). Resolves after the Controller reports the id active. */
   pushBytecode(bytecode: Uint8Array, opts: { id: string; name?: string }): Promise<void> {
-    return this.fireAndForget((conn) => conn.pushByteCode(bytecode, opts))
+    return this.withConn(async (conn) => {
+      await conn.pushByteCodeAndWait(bytecode, opts)
+      this.knownActiveBytecode = { programId: opts.id, bytecodeBytes: bytecode.length }
+    })
   }
 
   /** Save a pattern as a persisted PBP record over the live connection (#236) — it

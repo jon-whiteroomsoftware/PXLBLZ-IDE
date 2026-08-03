@@ -79,10 +79,6 @@ are retained under [`archive/`](archive/) as rationale and evidence.
 - **Go-to-market work (#362).** Prepare the community introduction and release
   assets. [`community-introduction.md`](community-introduction.md) owns the
   current narrative and capture plan.
-- **Large Controller replacement safety (#547).** Reproduce and close the unsafe
-  large-program replacement path before treating large artifact delivery as
-  routine. The current documented workaround and size disclosure remain honest
-  until then.
 - **Bug and polish intake (#63).** Only concrete v2 regressions or release polish
   belong in the omnibus issue; product additions should retain their own issue.
 

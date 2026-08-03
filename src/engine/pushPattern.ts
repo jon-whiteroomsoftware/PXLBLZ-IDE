@@ -35,9 +35,34 @@ import {
   type ControllerPushRecords,
 } from './controllerPushRecord'
 
+/** The largest compiled-bytecode footprint observed to activate on the qualified
+ * pb32 / firmware 3.67 Controller. Replacement policy treats the resident and
+ * incoming bytecode as a transient overlap against this measured budget. */
+export const CONTROLLER_REPLACEMENT_OVERLAP_BUDGET_BYTES = 68_384
+
+/** The measured run-only intermediary. It deliberately renders black in every
+ * supported renderer shape and owns no persistent state or Controls. */
+export const CONTROLLER_DRAIN_PATTERN_SOURCE = `export function beforeRender(delta) {}
+export function render(index) { rgb(0, 0, 0) }
+export function render2D(index, x, y) { rgb(0, 0, 0) }`
+
+/** Decide whether a Controller replacement needs the tiny intermediary Pattern.
+ * An exact fit is safe; only a known overlap above the measured budget drains. */
+export function requiresControllerDrain(
+  incomingBytecodeBytes: number,
+  outgoingBytecodeBytes: number | null,
+): boolean {
+  if (outgoingBytecodeBytes == null) return true
+  return incomingBytecodeBytes + outgoingBytecodeBytes
+    > CONTROLLER_REPLACEMENT_OVERLAP_BUDGET_BYTES
+}
+
 export interface PushPatternDeps {
   /** The connected backend — only the push-relevant surface is needed. */
-  provider: Pick<ControllerProvider, 'compile' | 'pushBytecode' | 'saveProgram' | 'listPrograms'>
+  provider: Pick<
+    ControllerProvider,
+    'compile' | 'getActiveProgramBytecodeSize' | 'pushBytecode' | 'saveProgram' | 'listPrograms'
+  >
   /** Stable id of the target Controller (its address/device id) — the binding key.
    *  Used in save mode only. */
   controllerId: string
@@ -67,6 +92,8 @@ export interface PushPatternDeps {
   savePushRecords: (records: ControllerPushRecords) => Promise<void>
   /** Injectable id minter (determinism in tests). Defaults to makeProgramId. */
   mintId?: () => string
+  /** Injectable throwaway id for the transport-only drain Pattern. */
+  mintDrainId?: () => string
   /** Optional JPEG preview bytes for the saved PBP blob (#259). Save mode only —
    *  run-only never persists a record. Omitting it writes an empty preview section
    *  (the pre-#259 behaviour), which stalls the stock app's pattern list. */
@@ -90,6 +117,41 @@ export interface PushPatternResult {
   created: boolean
 }
 
+async function drainBeforeUnsafeActivation(
+  deps: PushPatternDeps,
+  incomingBytecodeBytes: number,
+): Promise<void> {
+  const outgoingBytecodeBytes = await deps.provider.getActiveProgramBytecodeSize()
+  if (!requiresControllerDrain(incomingBytecodeBytes, outgoingBytecodeBytes)) return
+
+  const drainBytecode = await deps.provider.compile(CONTROLLER_DRAIN_PATTERN_SOURCE)
+  if (!bytecodeHeaderReconciles(drainBytecode)) {
+    throw new Error('Compiled drain bytecode failed its header sanity check; not pushing')
+  }
+  try {
+    await deps.provider.pushBytecode(drainBytecode, {
+      id: (deps.mintDrainId ?? makeProgramId)(),
+      name: '',
+    })
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error)
+    throw new Error(`Controller drain activation failed: ${message}`, { cause: error })
+  }
+}
+
+async function activateTarget(
+  deps: PushPatternDeps,
+  bytecode: Uint8Array,
+  opts: { id: string; name: string },
+): Promise<void> {
+  try {
+    await deps.provider.pushBytecode(bytecode, opts)
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error)
+    throw new Error(`Controller target activation failed: ${message}`, { cause: error })
+  }
+}
+
 /** Compile, frame, and push the open pattern to the connected Controller. Run-only
  *  loads + runs under a throwaway id; save mode writes a persisted PBP record,
  *  overwriting in place per the remembered per-Controller binding. Throws on a
@@ -111,7 +173,8 @@ export async function pushPattern(deps: PushPatternDeps): Promise<PushPatternRes
   // inside a saved PBP blob (the persist branch below). #237.
   if (!deps.persist) {
     const programId = mint()
-    await deps.provider.pushBytecode(bytecode, { id: programId, name: '' })
+    await drainBeforeUnsafeActivation(deps, bytecode.length)
+    await activateTarget(deps, bytecode, { id: programId, name: '' })
     return { programId, created: true }
   }
 
@@ -149,6 +212,9 @@ export async function pushPattern(deps: PushPatternDeps): Promise<PushPatternRes
     byteCode: bytecode,
     previewImage: deps.previewImage,
   })
+  if (deps.activateOnSave !== false) {
+    await drainBeforeUnsafeActivation(deps, bytecode.length)
+  }
   await deps.provider.saveProgram(blob, { id: programId })
 
   // Save-and-run (#238): persisting writes the PBP record to flash but does not make it
@@ -160,7 +226,7 @@ export async function pushPattern(deps: PushPatternDeps): Promise<PushPatternRes
   // putSourceCode. Unlike run-only, the run carries the real name — S is a real saved
   // program, so its setCode name is no phantom.
   if (deps.activateOnSave !== false) {
-    await deps.provider.pushBytecode(bytecode, { id: programId, name: deps.name ?? '' })
+    await activateTarget(deps, bytecode, { id: programId, name: deps.name ?? '' })
   }
 
   if (isNew) {

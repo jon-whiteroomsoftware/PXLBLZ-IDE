@@ -663,6 +663,85 @@ describe('PixelblazeConnection', () => {
       conn.pushByteCode(new Uint8Array([0]), { id: 'X' })
       expect(JSON.parse(socket.sent[0]).setCode.name).toBe('')
     })
+
+    it('can wait until getConfig reports the pushed program active', async () => {
+      const { conn, socket } = await connected()
+      let settled = false
+
+      const activation = conn
+        .pushByteCodeAndWait(new Uint8Array([1, 2, 3]), { id: 'TARGET_PROGRAM' })
+        .then(() => {
+          settled = true
+        })
+
+      await Promise.resolve()
+      expect(settled).toBe(false)
+      expect(socket.sent.map((frame) => JSON.parse(frame))).toContainEqual({ getConfig: true })
+
+      socket.simulateMessage({ brightness: 0.5 })
+      socket.simulateMessage({ activeProgram: { activeProgramId: 'TARGET_PROGRAM' } })
+      await activation
+
+      expect(settled).toBe(true)
+    })
+
+    it('polls past a stale active-program report until the pushed program activates', async () => {
+      vi.useFakeTimers()
+      try {
+        const { conn, socket } = await connected({
+          activationPollMs: 10,
+          activationTimeoutMs: 100,
+        })
+        let activationError: unknown
+        const activation = conn
+          .pushByteCodeAndWait(new Uint8Array([1, 2, 3]), { id: 'TARGET_PROGRAM' })
+          .catch((error) => {
+            activationError = error
+          })
+
+        socket.simulateMessage({ brightness: 0.5 })
+        socket.simulateMessage({ activeProgram: { activeProgramId: 'OLD_PROGRAM' } })
+        await Promise.resolve()
+        expect(activationError).toBeUndefined()
+
+        await vi.advanceTimersByTimeAsync(10)
+        expect(socket.lastFrame()).toEqual({ getConfig: true })
+        socket.simulateMessage({ brightness: 0.5 })
+        socket.simulateMessage({ activeProgram: { activeProgramId: 'TARGET_PROGRAM' } })
+        await activation
+
+        expect(activationError).toBeUndefined()
+      } finally {
+        vi.useRealTimers()
+      }
+    })
+
+    it('reports the expected and last active program when activation times out', async () => {
+      vi.useFakeTimers()
+      try {
+        const { conn, socket } = await connected({
+          activationPollMs: 10,
+          activationTimeoutMs: 20,
+        })
+        const activation = conn.pushByteCodeAndWait(
+          new Uint8Array([1, 2, 3]),
+          { id: 'TARGET_PROGRAM' },
+        )
+        const rejection = expect(activation).rejects.toThrow(
+          'Controller program TARGET_PROGRAM did not activate within 20ms (active program: OLD_PROGRAM)',
+        )
+
+        for (let poll = 0; poll < 3; poll += 1) {
+          socket.simulateMessage({ brightness: 0.5 })
+          socket.simulateMessage({ activeProgram: { activeProgramId: 'OLD_PROGRAM' } })
+          if (poll < 2) await vi.advanceTimersByTimeAsync(10)
+        }
+
+        await rejection
+      } finally {
+        vi.useRealTimers()
+      }
+    })
   })
 
   describe('saveProgram', () => {

@@ -133,6 +133,7 @@ class FakeProvider extends NullControllerProvider {
   readonly capabilities: ControllerCapabilities = { push: true, compile: true }
   /** A header-reconciling 16-byte blob (opcode 8, export 0): 8 + 8 + 0 === 16. */
   compileResult: Uint8Array = makeReconcilingBytecode()
+  activeProgramBytecodeSize: number | null = 0
   compileError: Error | null = null
   programs: ProgramListEntry[] = []
   pushed: { bytecode: Uint8Array; opts: { id: string; name?: string } }[] = []
@@ -143,11 +144,15 @@ class FakeProvider extends NullControllerProvider {
     if (this.compileError) return Promise.reject(this.compileError)
     return Promise.resolve(this.compileResult)
   }
+  getActiveProgramBytecodeSize(): Promise<number | null> {
+    return Promise.resolve(this.activeProgramBytecodeSize)
+  }
   listPrograms(): Promise<ProgramListEntry[]> {
     return Promise.resolve(this.programs)
   }
   pushBytecode(bytecode: Uint8Array, opts: { id: string; name?: string }): Promise<void> {
     this.pushed.push({ bytecode, opts })
+    this.activeProgramBytecodeSize = bytecode.length
     return Promise.resolve()
   }
   saved: { blob: Uint8Array; opts: { id: string } }[] = []
@@ -205,9 +210,9 @@ function setControllerProfiles(profiles: ControllerProfile[]): void {
   })
 }
 
-function makeReconcilingBytecode(): Uint8Array {
-  const bytes = new Uint8Array(16)
-  new DataView(bytes.buffer).setUint32(0, 8, true) // opcodeBytes = 8 → 8 + 8 + 0 = 16
+function makeReconcilingBytecode(byteLength = 16): Uint8Array {
+  const bytes = new Uint8Array(byteLength)
+  new DataView(bytes.buffer).setUint32(0, byteLength - 8, true)
   return bytes
 }
 
@@ -768,6 +773,28 @@ describe('controllerStore (keyed)', () => {
       const labels = await getProgramLabels()
       expect(labels['10.0.0.5'][pushedId]).toBe('Twinkle')
       expect(useControllerPanelStore.getState().programLabels[pushedId]).toBe('Twinkle')
+    })
+
+    it('keeps the drain transport-only when a run replaces a known large program', async () => {
+      await store().addController('10.0.0.5')
+      const provider = created.get('10.0.0.5')!
+      provider.activeProgramBytecodeSize = 49_426
+      provider.compileResult = makeReconcilingBytecode(40_518)
+      usePatternStore.setState({ activePatternId: 'pat-1' })
+      useEditorStore.setState({ previewSource: PATTERN_SRC, previewPatternName: 'Twinkle' })
+
+      await store().pushActivePattern()
+
+      expect(provider.pushed).toHaveLength(2)
+      const [drain, target] = provider.pushed
+      expect(drain.opts.name).toBe('')
+      expect(target.opts.name).toBe('')
+      expect(drain.opts.id).not.toBe(target.opts.id)
+      expect((await getProgramLabels())['10.0.0.5']).toEqual({
+        [target.opts.id]: 'Twinkle',
+      })
+      expect(store().lastPushedSource['10.0.0.5']['pat-1']).toBe(PATTERN_SRC)
+      expect((await getControllerBindings())['10.0.0.5']).toBeUndefined()
     })
 
     it('save-armed: writes a persisted PBP record and records the save dirty-gate (#238)', async () => {

@@ -799,9 +799,12 @@ a Show-global Clip schedule, useful Transition and routing facts, and a
 compatibility contract that import and read-back
 recover. Sending never changes the Controller's shared map or pixel count;
 Installation identity mismatches block Send, and Portable compatibility facts
-are advisories. One practical gotcha: hot-replacing one very large resident
-program with another can disconnect before activation — reboot or run a small
-Pattern first; the destination Show itself is fine.
+are advisories. Replacing one very large resident program with another can need
+more transient memory than either Show uses while running. PXLBLZ automatically
+switches through a brief black run-only Pattern when the measured overlap may be
+unsafe, waits for it to activate, and then starts the requested Show. The
+intermediary is never saved and does not change the Show's identity, source,
+Controls, or push record.
 
 ## 18. Built-in Shows to learn from
 

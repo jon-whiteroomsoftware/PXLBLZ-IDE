@@ -176,6 +176,10 @@ export interface PixelblazeConnectionOptions {
   now?: () => number
   /** How long a correlated request waits for its reply before rejecting. */
   requestTimeoutMs?: number
+  /** Maximum wall time to observe a pushed program become active. */
+  activationTimeoutMs?: number
+  /** Delay between active-program polls while activation is pending. */
+  activationPollMs?: number
   /** How long `connect()` waits for the socket `open` event before rejecting and
    *  closing the half-open socket. 0 (or undefined) disables the timeout — open
    *  is then awaited indefinitely. A browser/relay socket pointed at an
@@ -207,7 +211,12 @@ export class PixelblazeConnection {
   private readonly opts: Required<
     Pick<
       PixelblazeConnectionOptions,
-      'pingIntervalMs' | 'requestTimeoutMs' | 'livenessTimeoutMs' | 'connectTimeoutMs'
+      | 'pingIntervalMs'
+      | 'requestTimeoutMs'
+      | 'livenessTimeoutMs'
+      | 'connectTimeoutMs'
+      | 'activationTimeoutMs'
+      | 'activationPollMs'
     >
   > &
     PixelblazeConnectionOptions
@@ -237,6 +246,8 @@ export class PixelblazeConnection {
       requestTimeoutMs: 5000,
       livenessTimeoutMs: 0,
       connectTimeoutMs: 0,
+      activationTimeoutMs: 15_000,
+      activationPollMs: 250,
       ...options,
     }
     this._now = options.now ?? (() => Date.now())
@@ -547,6 +558,32 @@ export class PixelblazeConnection {
     }
     this.sendJson({ setControls: {} })
     this.sendJson({ pause: false })
+  }
+
+  /** Push bytecode and resolve only after the Controller reports the requested
+   * program active. The stronger contract is used when another push depends on
+   * this activation having released the predecessor's runtime allocation. */
+  async pushByteCodeAndWait(
+    bytecode: Uint8Array,
+    opts: { id: string; name?: string },
+  ): Promise<void> {
+    this.pushByteCode(bytecode, opts)
+    const deadline = this._now() + this.opts.activationTimeoutMs
+    let activeProgramId: string | undefined
+    do {
+      const config = await this.getConfig()
+      activeProgramId = config.activeProgramId
+      if (activeProgramId === opts.id) return
+      if (this._now() >= deadline) break
+      await new Promise<void>((resolve) => {
+        this._setTimeout(resolve, Math.max(1, this.opts.activationPollMs))
+      })
+    } while (this._now() <= deadline)
+
+    throw new Error(
+      `Controller program ${opts.id} did not activate within ${this.opts.activationTimeoutMs}ms`
+      + ` (active program: ${activeProgramId ?? 'unknown'})`,
+    )
   }
 
   /** Push a binary pixel-map blob to the device's single shared map slot (H12, issue

@@ -40,6 +40,8 @@ function makeDeviceTransport(
     compileBytecode?: Uint8Array
     /** When set, the fake helper fails compile with this error. */
     compileError?: string
+    /** Close the live socket during the first setCode activation. */
+    dropOnFirstSetCode?: boolean
     /** Map blob the fake helper returns from a `get-map` request (base64-encoded
      *  internally). Absent → the helper replies ok with no map (device has none). */
     mapData?: Uint8Array
@@ -69,6 +71,9 @@ function makeDeviceTransport(
   const binaryWrites: Uint8Array[] = []
   let lastConnId = ''
   let openSocket = false
+  let activeProgramId = 'P1'
+  let pendingProgramId: string | null = null
+  let droppedSetCode = false
   // When silent, the device stops answering frames and never emits a socket
   // close — modelling an abrupt power-off (no FIN/RST). Only the liveness
   // watchdog can detect this.
@@ -166,7 +171,7 @@ function makeDeviceTransport(
           if (cmd.getVars) reply(msg.connId, { vars: { speed: 0.5 } })
           if (cmd.getConfig) {
             reply(msg.connId, { brightness: 0.4, ...opts.settings })
-            reply(msg.connId, { activeProgram: { activeProgramId: 'P1', controls: { sliderX: 0.7 } } })
+            reply(msg.connId, { activeProgram: { activeProgramId, controls: { sliderX: 0.7 } } })
           }
           if (cmd.ping) reply(msg.connId, { ack: 1 })
           if (cmd.listPrograms) {
@@ -178,7 +183,20 @@ function makeDeviceTransport(
           if ('pixelCount' in cmd) writes.push(cmd)
           if ('setVars' in cmd) writes.push(cmd)
           if ('setControls' in cmd) writes.push(cmd)
-          if ('setCode' in cmd) writes.push(cmd)
+          if ('setCode' in cmd) {
+            writes.push(cmd)
+            const setCode = cmd.setCode as { id?: unknown }
+            pendingProgramId = typeof setCode.id === 'string' ? setCode.id : null
+            if (opts.dropOnFirstSetCode && !droppedSetCode) {
+              droppedSetCode = true
+              openSocket = false
+              emit({ source: RELAY_SOURCE, dir: 'from-helper', type: 'close', connId: msg.connId })
+            }
+          }
+          if (cmd.pause === false && pendingProgramId) {
+            activeProgramId = pendingProgramId
+            pendingProgramId = null
+          }
           if ('savePixelMap' in cmd) writes.push(cmd)
           return
         }
@@ -196,6 +214,9 @@ function makeDeviceTransport(
     binaryWrites,
     isOpen: () => openSocket,
     pushFrame: (obj: object) => reply(lastConnId, obj),
+    setActiveProgramId: (programId: string) => {
+      activeProgramId = programId
+    },
     dropSocket: () => emit({ source: RELAY_SOURCE, dir: 'from-helper', type: 'close', connId: lastConnId }),
     goSilent: () => {
       silent = true
@@ -412,6 +433,29 @@ describe('ExtensionControllerProvider', () => {
       expect(d.binaryWrites).toHaveLength(1)
       expect(d.binaryWrites[0][0]).toBe(MessageType.putByteCode)
       expect([...d.binaryWrites[0].subarray(2)]).toEqual([9, 9, 9])
+    })
+
+    it('pushBytecode resolves after activation and remembers the active bytecode size', async () => {
+      const d = makeDeviceTransport()
+      const p = new ExtensionControllerProvider({ transport: d.transport })
+      await p.connect(TARGET)
+
+      await p.pushBytecode(new Uint8Array([9, 9, 9]), { id: 'PROG1', name: 'demo' })
+
+      await expect(p.getActiveProgramBytecodeSize()).resolves.toBe(3)
+    })
+
+    it('invalidates the footprint after an external active-program change', async () => {
+      const d = makeDeviceTransport()
+      const p = new ExtensionControllerProvider({ transport: d.transport })
+      await p.connect(TARGET)
+      await p.pushBytecode(new Uint8Array([9, 9, 9]), { id: 'PROG1' })
+
+      d.setActiveProgramId('FOREIGN_PROGRAM')
+      await expect(p.getActiveProgramBytecodeSize()).resolves.toBeNull()
+
+      d.setActiveProgramId('PROG1')
+      await expect(p.getActiveProgramBytecodeSize()).resolves.toBeNull()
     })
 
     it('pushBytecode rejects when not connected', async () => {
@@ -714,6 +758,54 @@ describe('ExtensionControllerProvider', () => {
       flushTimers() // fire the scheduled reconnect
       await new Promise((r) => setTimeout(r, 0))
       expect(p.getStatus().kind).toBe('connected')
+    })
+
+    it('forgets the active bytecode footprint after reconnecting', async () => {
+      const d = makeDeviceTransport()
+      const p = new ExtensionControllerProvider({
+        transport: d.transport,
+        reconnectDelayMs: 5,
+        setTimeout: ((fn: () => void) => {
+          timers.push(fn)
+          return 0
+        }) as unknown as typeof setTimeout,
+      })
+      await p.connect(TARGET)
+      await p.pushBytecode(new Uint8Array([1, 2, 3]), { id: 'KNOWN_PROGRAM' })
+      await expect(p.getActiveProgramBytecodeSize()).resolves.toBe(3)
+
+      d.dropSocket()
+      await new Promise((resolve) => queueMicrotask(() => resolve(null)))
+      flushTimers()
+      await new Promise((resolve) => setTimeout(resolve, 0))
+
+      expect(p.getStatus().kind).toBe('connected')
+      await expect(p.getActiveProgramBytecodeSize()).resolves.toBeNull()
+    })
+
+    it('reconnects after a push loses the socket during activation and accepts a retry', async () => {
+      const d = makeDeviceTransport({ dropOnFirstSetCode: true })
+      const p = new ExtensionControllerProvider({
+        transport: d.transport,
+        reconnectDelayMs: 5,
+        setTimeout: ((fn: () => void) => {
+          timers.push(fn)
+          return 0
+        }) as unknown as typeof setTimeout,
+      })
+      await p.connect(TARGET)
+
+      await expect(
+        p.pushBytecode(new Uint8Array([1, 2, 3]), { id: 'FIRST_PROGRAM' }),
+      ).rejects.toThrow(/connection closed/i)
+      expect(p.getStatus().kind).toBe('connecting')
+
+      flushTimers()
+      await new Promise((resolve) => setTimeout(resolve, 0))
+      expect(p.getStatus().kind).toBe('connected')
+      await expect(
+        p.pushBytecode(new Uint8Array([4, 5, 6]), { id: 'RETRY_PROGRAM' }),
+      ).resolves.toBeUndefined()
     })
 
     it('keeps reconnecting indefinitely by default while the Controller is gone', async () => {

@@ -230,9 +230,14 @@ export interface ControllerProvider {
    *  pushes the result. */
   compile(source: string): Promise<Uint8Array>
 
+  /** Return the compiled-bytecode size of the program currently known to be
+   * active, or null when the provider cannot prove that footprint. */
+  getActiveProgramBytecodeSize(): Promise<number | null>
+
   /** Push already-compiled bytecode to the connected Controller as the
    *  save-and-run sequence, overwriting the program at `id` in place (reuse an id
-   *  to overwrite, mint one to create). Resolves once the frames are sent. */
+   *  to overwrite, mint one to create). Resolves only after the Controller reports
+   *  that exact program active. */
   pushBytecode(bytecode: Uint8Array, opts: { id: string; name?: string }): Promise<void>
 
   /** Save a pattern to the Controller as a persisted record (#236) so it appears in
@@ -342,6 +347,10 @@ export class NullControllerProvider implements ControllerProvider {
 
   compile(_source: string): Promise<Uint8Array> {
     return Promise.reject(new Error('Not connected to a Controller'))
+  }
+
+  getActiveProgramBytecodeSize(): Promise<number | null> {
+    return Promise.resolve(null)
   }
 
   pushBytecode(_bytecode: Uint8Array, _opts: { id: string; name?: string }): Promise<void> {

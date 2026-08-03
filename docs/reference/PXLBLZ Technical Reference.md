@@ -805,6 +805,39 @@ artifact hash, transform ids, timestamp, name, and optional Show output contract
 This makes transform freshness and saved-Show output facts locally computable
 without downloading every PBP.
 
+### Transient replacement fit
+
+Artifact fit and replacement fit answer different questions. Steady-state fit
+asks whether the requested Pattern's bytecode and VM resources can run by
+themselves. Replacement fit asks whether the Controller can hold enough of the
+resident and incoming bytecode at the same time to complete activation. A
+Pattern may pass every steady-state limit and still fail a direct large-to-large
+replacement.
+
+`pushPattern` uses the observed 68,384-byte compiled-bytecode activation ceiling
+as a conservative transient overlap budget. A known resident footprint plus the
+incoming footprint may use the direct path when their sum is at or below that
+budget. A sum above it requires a drain. An unknown resident footprint also
+requires a drain rather than guessing that the active Pattern is small.
+
+The drain is a run-only black Pattern: 140 bytes of source and 153 bytes of
+Controller bytecode on the qualified pb32 firmware 3.67 compiler. The provider
+must observe the drain id active before `pushPattern` sends the requested target,
+and it must then observe the target id active before the Send succeeds. Run
+continues under its requested throwaway id. Save writes and activates only its
+requested stable id. The drain never enters Saved Patterns, bindings, local
+labels, source stamps, Controls, dirty signatures, or push records.
+
+The Extension provider remembers a bytecode footprint only after confirmed
+activation and associates it with that program id. Before reusing the footprint,
+it reads live configuration; an externally changed active id invalidates the
+cache. Disconnects and reconnects also discard the cache because program identity
+alone cannot prove that the resident bytes stayed unchanged. Both cases return
+the policy to the conservative unknown path. A drain or target failure identifies
+the failed activation stage. Socket-loss handling remains owned by the provider's
+reconnect loop, so a failed Send does not strand the connection in a non-retryable
+state.
+
 ### Inventory and recovery
 
 The live Controller-profile context pane joins `listPrograms` with overwrite
@@ -3786,8 +3819,10 @@ limit that ordinary small Patterns rarely reach. On the qualified pb32 firmware
 predecessor, while a direct large-to-large replacement may reset or wedge the
 WebSocket before activation. A tiny intermediary Pattern makes the same pair
 reliable, supporting a transient replacement-memory peak rather than a runtime
-failure. The current production send path does not yet insert that intermediary;
-issue #547 owns the guarded drain-before-replacement policy.
+failure. The shared `pushPattern` policy now inserts and confirms the black
+run-only drain whenever the known overlap exceeds its measured budget or the
+resident footprint is unknown. Show identity and generated source remain
+unchanged because the drain is transport choreography.
 
 `showControllerArtifact.ts` is the only device-derivation seam. It compares the
 Show's generated renderer capabilities with the connected Controller's installed

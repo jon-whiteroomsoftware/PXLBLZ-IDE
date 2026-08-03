@@ -1,12 +1,20 @@
 import { describe, it, expect, vi } from 'vitest'
-import { pushPattern, type PushPatternDeps } from './pushPattern'
+import {
+  CONTROLLER_DRAIN_PATTERN_SOURCE,
+  CONTROLLER_REPLACEMENT_OVERLAP_BUDGET_BYTES,
+  pushPattern,
+  requiresControllerDrain,
+  type PushPatternDeps,
+} from './pushPattern'
 import { decodePbp } from './pbpEncode'
 import { parsePxlblzBanner, stampArtifact, stripPxlblzBanner } from './artifactStamp'
 import type { BindingStore } from './controllerBinding'
 
 // A reconciling bytecode blob: header declares 0 opcode + 0 export bytes, len 8.
-function goodBytecode(): Uint8Array {
-  return new Uint8Array(8)
+function goodBytecode(byteLength = 8): Uint8Array {
+  const bytecode = new Uint8Array(byteLength)
+  new DataView(bytecode.buffer).setUint32(0, byteLength - 8, true)
+  return bytecode
 }
 
 // A bad blob whose header does not reconcile with its length.
@@ -19,6 +27,7 @@ function badBytecode(): Uint8Array {
 function makeProvider(overrides: Partial<PushPatternDeps['provider']> = {}) {
   return {
     compile: vi.fn().mockResolvedValue(goodBytecode()),
+    getActiveProgramBytecodeSize: vi.fn().mockResolvedValue(0),
     listPrograms: vi.fn().mockResolvedValue([]),
     pushBytecode: vi.fn().mockResolvedValue(undefined),
     saveProgram: vi.fn().mockResolvedValue(undefined),
@@ -54,6 +63,30 @@ function makeDeps(overrides: Partial<PushPatternDeps> = {}): {
   return { deps, saved, pushRecords }
 }
 
+describe('Controller replacement overlap policy (#547)', () => {
+  it('keeps the exact measured overlap budget direct and drains one byte above it', () => {
+    const outgoingBytecodeBytes = 30_000
+
+    expect(requiresControllerDrain(
+      CONTROLLER_REPLACEMENT_OVERLAP_BUDGET_BYTES - outgoingBytecodeBytes,
+      outgoingBytecodeBytes,
+    )).toBe(false)
+    expect(requiresControllerDrain(
+      CONTROLLER_REPLACEMENT_OVERLAP_BUDGET_BYTES - outgoingBytecodeBytes + 1,
+      outgoingBytecodeBytes,
+    )).toBe(true)
+  })
+
+  it('drains conservatively when the outgoing bytecode footprint is unknown', () => {
+    expect(requiresControllerDrain(8, null)).toBe(true)
+  })
+
+  it('keeps the qualified black drain source at the measured 140-byte footprint', () => {
+    expect(new TextEncoder().encode(CONTROLLER_DRAIN_PATTERN_SOURCE)).toHaveLength(140)
+    expect(CONTROLLER_DRAIN_PATTERN_SOURCE).toContain('rgb(0, 0, 0)')
+  })
+})
+
 describe('pushPattern — run-only (default)', () => {
   it('mints a throwaway id and loads + runs via pushBytecode, never touching the binding', async () => {
     const loadPushRecords = vi.fn().mockResolvedValue({})
@@ -69,6 +102,9 @@ describe('pushPattern — run-only (default)', () => {
       id: 'MINTED00000000000',
       name: '',
     })
+    expect(deps.provider.compile).toHaveBeenCalledTimes(1)
+    expect(deps.provider.getActiveProgramBytecodeSize).toHaveBeenCalledTimes(1)
+    expect(deps.provider.pushBytecode).toHaveBeenCalledTimes(1)
     // The #236 reframe: run-only never consults the program list or persists a binding.
     expect(deps.provider.listPrograms).not.toHaveBeenCalled()
     expect(deps.provider.saveProgram).not.toHaveBeenCalled()
@@ -84,6 +120,55 @@ describe('pushPattern — run-only (default)', () => {
     const a = await pushPattern(deps)
     const b = await pushPattern(deps)
     expect(a.programId).not.toBe(b.programId)
+  })
+
+  it('runs the black drain under a separate throwaway id before an unsafe large replacement', async () => {
+    const targetBytecode = goodBytecode(40_518)
+    const drainBytecode = goodBytecode(153)
+    const compile = vi.fn()
+      .mockResolvedValueOnce(targetBytecode)
+      .mockResolvedValueOnce(drainBytecode)
+    const provider = makeProvider({
+      compile,
+      getActiveProgramBytecodeSize: vi.fn().mockResolvedValue(49_426),
+    })
+    const { deps } = makeDeps({
+      provider,
+      mintDrainId: () => 'DRAIN000000000000',
+    })
+
+    await pushPattern(deps)
+
+    expect(compile).toHaveBeenNthCalledWith(1, deps.source)
+    expect(compile).toHaveBeenNthCalledWith(2, CONTROLLER_DRAIN_PATTERN_SOURCE)
+    expect(provider.pushBytecode).toHaveBeenNthCalledWith(1, drainBytecode, {
+      id: 'DRAIN000000000000',
+      name: '',
+    })
+    expect(provider.pushBytecode).toHaveBeenNthCalledWith(2, targetBytecode, {
+      id: 'MINTED00000000000',
+      name: '',
+    })
+  })
+
+  it('surfaces a contextual drain activation error and never sends the target', async () => {
+    const provider = makeProvider({
+      compile: vi.fn()
+        .mockResolvedValueOnce(goodBytecode(40_518))
+        .mockResolvedValueOnce(goodBytecode(153)),
+      getActiveProgramBytecodeSize: vi.fn().mockResolvedValue(49_426),
+      pushBytecode: vi.fn().mockRejectedValueOnce(new Error('socket closed')),
+    })
+    const { deps } = makeDeps({
+      provider,
+      mintDrainId: () => 'DRAIN000000000000',
+    })
+
+    await expect(pushPattern(deps)).rejects.toThrow(
+      'Controller drain activation failed: socket closed',
+    )
+    expect(provider.pushBytecode).toHaveBeenCalledTimes(1)
+    expect(provider.saveProgram).not.toHaveBeenCalled()
   })
 })
 
@@ -121,6 +206,65 @@ describe('pushPattern — save mode (persist: true)', () => {
     expect(runId).toBe('DEVPROG1')
   })
 
+  it('drains before saving and activating a large target without persisting the drain identity', async () => {
+    const targetBytecode = goodBytecode(40_518)
+    const drainBytecode = goodBytecode(153)
+    const provider = makeProvider({
+      compile: vi.fn()
+        .mockResolvedValueOnce(targetBytecode)
+        .mockResolvedValueOnce(drainBytecode),
+      getActiveProgramBytecodeSize: vi.fn().mockResolvedValue(49_426),
+    })
+    const { deps, saved, pushRecords } = makeDeps({
+      persist: true,
+      provider,
+      mintDrainId: () => 'DRAIN000000000000',
+    })
+
+    await pushPattern(deps)
+
+    expect(provider.pushBytecode).toHaveBeenNthCalledWith(1, drainBytecode, {
+      id: 'DRAIN000000000000',
+      name: '',
+    })
+    expect(provider.saveProgram).toHaveBeenCalledTimes(1)
+    expect(provider.saveProgram).toHaveBeenCalledWith(expect.any(Uint8Array), {
+      id: 'MINTED00000000000',
+    })
+    expect(provider.pushBytecode).toHaveBeenNthCalledWith(2, targetBytecode, {
+      id: 'MINTED00000000000',
+      name: 'My Pattern',
+    })
+    expect(vi.mocked(provider.pushBytecode).mock.invocationCallOrder[0])
+      .toBeLessThan(vi.mocked(provider.saveProgram).mock.invocationCallOrder[0])
+    expect(saved).toEqual([{ 'ctrl-A': { 'pat-1': 'MINTED00000000000' } }])
+    expect(pushRecords).toHaveLength(1)
+  })
+
+  it('surfaces a contextual target activation error without changing bindings or push records', async () => {
+    const provider = makeProvider({
+      compile: vi.fn()
+        .mockResolvedValueOnce(goodBytecode(40_518))
+        .mockResolvedValueOnce(goodBytecode(153)),
+      getActiveProgramBytecodeSize: vi.fn().mockResolvedValue(49_426),
+      pushBytecode: vi.fn()
+        .mockResolvedValueOnce(undefined)
+        .mockRejectedValueOnce(new Error('activation timed out')),
+    })
+    const { deps, saved, pushRecords } = makeDeps({
+      persist: true,
+      provider,
+      mintDrainId: () => 'DRAIN000000000000',
+    })
+
+    await expect(pushPattern(deps)).rejects.toThrow(
+      'Controller target activation failed: activation timed out',
+    )
+    expect(provider.saveProgram).toHaveBeenCalledTimes(1)
+    expect(saved).toEqual([])
+    expect(pushRecords).toEqual([])
+  })
+
   it('can overwrite a managed saved program without activating it', async () => {
     const { deps, pushRecords } = makeDeps({
       persist: true,
@@ -138,6 +282,7 @@ describe('pushPattern — save mode (persist: true)', () => {
     expect(result).toEqual({ programId: 'DEVPROG1', created: false })
     expect(deps.provider.saveProgram).toHaveBeenCalledWith(expect.any(Uint8Array), { id: 'DEVPROG1' })
     expect(deps.provider.pushBytecode).not.toHaveBeenCalled()
+    expect(deps.provider.getActiveProgramBytecodeSize).not.toHaveBeenCalled()
     expect(pushRecords[0]).toMatchObject({
       'ctrl-A': { 'pat-1': { profileSignature: 'profile-signature-v2' } },
     })

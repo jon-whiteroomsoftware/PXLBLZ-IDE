@@ -101,6 +101,7 @@
     "issue546:expanded:hardware": "ISSUE546_EXPANDED_HARDWARE=1 vitest run test/perf-harness/issue546.expanded.hardware.test.ts --reporter=verbose",
     "issue546:bytecode:hardware": "ISSUE546_BYTECODE_HARDWARE=1 vitest run test/perf-harness/issue546.bytecode.hardware.test.ts --reporter=verbose",
     "issue546:symbols:hardware": "ISSUE546_SYMBOLS_HARDWARE=1 vitest run test/perf-harness/issue546.symbols.hardware.test.ts --reporter=verbose",
+    "issue547:hardware": "ISSUE547_HARDWARE=1 vitest run test/perf-harness/issue547.hardware.test.ts --reporter=verbose",
     "issue549": "ISSUE549_REPORT=1 vitest run test/perf-harness/issue549.test.ts --reporter=verbose",
     "issue525": "ISSUE525_REPORT=1 vitest run test/perf-harness/issue525.test.ts --reporter=verbose",
     "issue525:hardware": "ISSUE525_HARDWARE=1 vitest run test/perf-harness/issue525.hardware.test.ts --reporter=verbose",
