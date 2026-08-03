@@ -8,11 +8,15 @@ import { nativeDimension } from '../../src/engine/loadPattern'
 import type { ShowRecord } from '../../src/engine/personalContentRecords'
 import type { GeneratedShowArtifact } from '../../src/engine/showCompiler'
 import { compileShowForArtifact } from '../../src/engine/showPreviewArtifact'
-import { STOCK_SHOWS } from '../../src/pixelblaze/stock/shows'
 import { createInstallationCompositionFixture } from '../../src/engine/showInstallationTestFixture'
+import { createPropertySlotQualificationShow } from '../../src/engine/showPatternSlotTestFixture'
 
 export type Issue546FixtureId =
-  | 'stock-show-reference-property-animation'
+  // The 2026-08-02 showcase rebuild consolidated the shipping Property
+  // Animation reference to shared voices (#514/#536 ceilings). Its
+  // per-scene-instance shape lives on as a compiler fixture so this census
+  // keeps measuring the same subject.
+  | 'fixture-property-slot-qualification'
   // The #363 Learn recast removed 205 Installation Composition from the
   // catalogue. Its exact shape lives on as a compiler fixture so this census
   // keeps measuring the same subject.
@@ -88,15 +92,13 @@ export function stripPatternSlotRuntimeForDiagnostic(source: string): string {
 }
 
 const fixtureIds: Issue546FixtureId[] = [
-  'stock-show-reference-property-animation',
+  'fixture-property-slot-qualification',
   'fixture-installation-composition',
 ]
 
 function fixture(id: Issue546FixtureId): ShowRecord {
   if (id === 'fixture-installation-composition') return createInstallationCompositionFixture()
-  const entry = STOCK_SHOWS.find((candidate) => candidate.id === id)
-  if (!entry) throw new Error(`Issue #546 fixture is missing: ${id}`)
-  return entry.show
+  return createPropertySlotQualificationShow()
 }
 
 export function issue546Artifact(

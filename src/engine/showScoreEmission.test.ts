@@ -56,8 +56,10 @@ describe('table-driven routed Show score emission (#542)', () => {
     })
 
     expect(baseline.error).toBeNull()
-    // Refreshed 2026-07-20 after the wave-2 emission changes (#557-#566).
-    expect(baseline.artifact?.summary.artifactBytes).toBe(98_792)
+    // Refreshed 2026-07-20 after the wave-2 emission changes (#557-#566),
+    // and again 2026-08-02 when the reference pair recast to the measured
+    // MetaballGarden/IQPalettes diagnostic over a Murmuration backdrop.
+    expect(baseline.artifact?.summary.artifactBytes).toBe(101_692)
     expect(candidate.error).toBeNull()
     expect(candidate.artifact?.summary.specializations.showScore).toMatchObject({
       selected: true,
@@ -111,46 +113,38 @@ describe('table-driven routed Show score emission (#542)', () => {
   }, 20_000)
 
   it.each([
-    ['stock-show-reference-wipe-mix-transitions', 26],
-    ['stock-show-reference-shape-reveal-transitions', 15],
-  ] as const)('shares stacks and scheduler across the parameterized %s kernels', (id, kernelCount) => {
+    'stock-show-reference-blend-fade-transitions',
+    'stock-show-reference-wipe-transitions',
+    'stock-show-reference-dissolve-transitions',
+    'stock-show-reference-shape-reveal-transitions',
+    'stock-show-reference-shape-reveal-figures',
+    'stock-show-reference-slide-transitions',
+    'stock-show-reference-zoom-spin-transitions',
+  ] as const)('keeps the paced %s on the unrolled emitter under the activation ceiling', (id) => {
+    // Editor pacing (2026-08-02) gives every split Transition reference one
+    // study-tempo exemplar and quick-cut siblings, which makes the boundary
+    // cadence irregular and disqualifies the table-driven score by design.
+    // The trade is deliberate: Easing keeps uniform cadence - identical
+    // durations are its control variable - and keeps the optimization, while
+    // the paced references pay unrolled bytes and must still fit the
+    // activation ceiling.
     const show = reference(id)
     const baseline = compileShowForArtifact(show, [], undefined, {}, {
       stageDimension: 2,
       showScoreSharing: 'none',
     })
-    const candidate = compileShowForArtifact(show, [], undefined, {}, {
+    const forced = compileShowForArtifact(show, [], undefined, {}, {
       stageDimension: 2,
       showScoreSharing: 'force',
     })
 
-    expect(candidate.error).toBeNull()
-    expect(candidate.artifact?.summary.specializations.showScore).toMatchObject({
-      selected: true,
-      representation: 'table-driven',
-      boundaryCount: kernelCount,
-      stackPlanCount: 2,
-      kernelCount,
-      timing: 'regular-cadence',
-      perPixelSceneBranches: 2,
+    expect(forced.artifact?.code).toBe(baseline.artifact?.code)
+    expect(forced.artifact?.summary.specializations.showScore).toMatchObject({
+      selected: false,
+      representation: 'unrolled',
+      reason: 'incompatible',
+      incompatibilityReason: 'transition-family',
     })
-    expect(candidate.artifact!.summary.artifactBytes).toBeLessThan(baseline.artifact!.summary.artifactBytes)
+    expect(forced.artifact!.summary.artifactBytes).toBeLessThanOrEqual(68_384)
   })
-
-  it.each([
-    'stock-show-reference-wipe-mix-transitions',
-    'stock-show-reference-shape-reveal-transitions',
-  ] as const)('matches every %s boundary in Fast and Precise playback', (id) => {
-    const show = reference(id)
-    const compile = (showScoreSharing: 'none' | 'force') => {
-      const result = compileShowForArtifact(show, [], undefined, {}, { stageDimension: 2, showScoreSharing })
-      if (!result.artifact) throw new Error(result.error ?? `${id} did not compile.`)
-      return result.artifact
-    }
-    const baseline = compile('none')
-    const selected = compile('force')
-
-    expect(boundaryChecksums(selected, show, 'fast')).toEqual(boundaryChecksums(baseline, show, 'fast'))
-    expect(boundaryChecksums(selected, show, 'fidelity')).toEqual(boundaryChecksums(baseline, show, 'fidelity'))
-  }, 30_000)
 })

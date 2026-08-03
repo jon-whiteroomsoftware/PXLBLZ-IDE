@@ -570,7 +570,7 @@ describe('routing (#308)', () => {
 
   it('projects a reference Pattern choice through the routed stock Show artifact (#506)', async () => {
     const user = userEvent.setup()
-    const stock = STOCK_SHOWS.find((candidate) => candidate.id === 'stock-show-reference-wipe-mix-transitions')!
+    const stock = STOCK_SHOWS.find((candidate) => candidate.id === 'stock-show-reference-wipe-transitions')!
     window.history.replaceState(null, '', `/studio/shows/${stock.id}`)
     seedSignedInWorkspace()
     useShowStore.setState({ shows: [], showsLoaded: true, activeShowId: null })
@@ -585,7 +585,7 @@ describe('routing (#308)', () => {
     await waitFor(() => {
       expect(within(editorPane).getAllByRole('button', { name: 'Select Caustics' }).length).toBeGreaterThan(0)
     })
-    expect(within(editorPane).queryByRole('button', { name: 'Select CompassRose' })).not.toBeInTheDocument()
+    expect(within(editorPane).queryByRole('button', { name: 'Select MetaballGarden' })).not.toBeInTheDocument()
   }, 15_000)
 
   it('toggles the active Studio preview once with Space outside an editing control', () => {

@@ -5,23 +5,25 @@ import { issue546Artifacts, issue546Report, stripPatternSlotRuntimeForDiagnostic
 
 describe('Restart Pattern machine-slot qualification (#546)', () => {
   it('pins the exact source and VM exchange for the two compatible Shows', () => {
-    // Refreshed 2026-07-20 after the wave-2/3 emission changes; the slot
-    // exchange itself (17 -> 8 and 12 -> 10 machines) is unchanged. The
-    // Property Animation fixture reflects the #559 byte-budget fallback
-    // (shared HSV chain, 2,146 B headroom); the 205 fixture moved from 692 B
-    // over the activation ceiling to 300 B under it.
+    // Refreshed 2026-07-20 after the wave-2/3 emission changes, and
+    // re-measured 2026-08-02 against the preserved per-scene qualification
+    // fixture after the shipping Property Animation reference consolidated
+    // to shared voices (#514/#536 ceilings). The exchange grows to 19 -> 7
+    // machines with the recast; the fixture keeps the #559 byte-budget
+    // fallback (shared HSV chain); the 205 fixture is unchanged at 300 B
+    // under the activation ceiling.
     expect(issue546Report.fixtures).toMatchObject([
       {
-        id: 'stock-show-reference-property-animation',
-        baseline: { sourceBytes: 82_815, physicalMachines: 17 },
+        id: 'fixture-property-slot-qualification',
+        baseline: { sourceBytes: 91_417, physicalMachines: 19 },
         selected: {
-          sourceBytes: 66_238,
-          physicalMachines: 8,
-          auxiliaryCacheWords: 228,
-          persistentGlobals: 197,
-          remainingArtifactBytes: 2_146,
+          sourceBytes: 67_289,
+          physicalMachines: 7,
+          auxiliaryCacheWords: 264,
+          persistentGlobals: 172,
+          remainingArtifactBytes: 1_095,
         },
-        sourceChangePercent: expect.closeTo(-20.02, 1),
+        sourceChangePercent: expect.closeTo(-26.39, 1),
       },
       {
         id: 'fixture-installation-composition',
@@ -48,7 +50,7 @@ describe('Restart Pattern machine-slot qualification (#546)', () => {
   })
 
   it('can isolate the physical-machine remap from all owner-switch runtime', () => {
-    const selected = issue546Artifacts['stock-show-reference-property-animation'].selected
+    const selected = issue546Artifacts['fixture-property-slot-qualification'].selected
     const source = stripPatternSlotRuntimeForDiagnostic(selected.expandedCode)
     const compacted = compactGeneratedShowSymbols(source).code
 

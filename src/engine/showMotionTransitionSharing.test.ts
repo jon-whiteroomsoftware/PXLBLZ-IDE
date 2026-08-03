@@ -5,48 +5,56 @@ import { createFastReplayRuntime } from './fastReplay'
 import { nativeDimension } from './loadPattern'
 import { compileShowForArtifact } from './showPreviewArtifact'
 
-const motionReference = () => {
-  const fixture = STOCK_SHOWS.find((candidate) => candidate.id === 'stock-show-reference-motion-transitions')
-  if (!fixture) throw new Error('Motion Transitions reference Show is missing.')
+// The 2026-08-02 repartition split the twenty-boundary Motion reference into
+// the all-motion Slide (6 boundaries) and Zoom and Spin (7 boundaries)
+// references; both remain fully motion-family sequences and keep the shared
+// kernels. The frozen-vintage pins are re-measured against them.
+const motionReference = (id = 'stock-show-reference-zoom-spin-transitions') => {
+  const fixture = STOCK_SHOWS.find((candidate) => candidate.id === id)
+  if (!fixture) throw new Error(`Motion reference Show ${id} is missing.`)
   return fixture.show
 }
 
 describe('shared routed motion-transition emission (#525)', () => {
-  it('fits the corrected three-instance reference Show under the activation budget', () => {
+  it.each([
+    ['stock-show-reference-slide-transitions', { none: 44_118, structure: 34_478, exact: 33_730, boundaries: 6, exactKernels: 4 }],
+    ['stock-show-reference-zoom-spin-transitions', { none: 50_365, structure: 38_856, exact: 37_624, boundaries: 7, exactKernels: 5 }],
+  ] as const)('fits the three-instance %s under the activation budget', (id, pins) => {
     // Historical #525 boundary: pin passes that postdate its pinned bytes.
-    const baseline = compileShowForArtifact(motionReference(), [], undefined, {}, {
+    const baseline = compileShowForArtifact(motionReference(id), [], undefined, {}, {
       stageDimension: 2,
       motionTransitionSharing: 'none',
       ...compilerVintageOptions('motion-transition-sharing'),
     })
-    const selected = compileShowForArtifact(motionReference(), [], undefined, {}, {
+    const selected = compileShowForArtifact(motionReference(id), [], undefined, {}, {
       stageDimension: 2,
       motionTransitionSharing: 'exact',
       ...compilerVintageOptions('motion-transition-sharing'),
     })
-    const structural = compileShowForArtifact(motionReference(), [], undefined, {}, {
+    const structural = compileShowForArtifact(motionReference(id), [], undefined, {}, {
       stageDimension: 2,
       motionTransitionSharing: 'structure',
       ...compilerVintageOptions('motion-transition-sharing'),
     })
-    const production = compileShowForArtifact(motionReference(), [], undefined, {}, { stageDimension: 2, ...compilerVintageOptions('motion-transition-sharing') })
+    const production = compileShowForArtifact(motionReference(id), [], undefined, {}, { stageDimension: 2, ...compilerVintageOptions('motion-transition-sharing') })
 
     expect(baseline.artifact?.summary.clipCount).toBe(3)
-    expect(baseline.artifact?.summary.artifactBytes).toBe(108_533)
+    expect(baseline.artifact?.summary.artifactBytes).toBe(pins.none)
     expect(structural.error).toBeNull()
-    expect(structural.artifact?.summary.artifactBytes).toBe(73_324)
+    expect(structural.artifact?.summary.artifactBytes).toBe(pins.structure)
     expect(structural.artifact?.summary.specializations.motionTransitions).toMatchObject({
       selected: true,
       representation: 'exact-shared-environment',
-      kernelCount: 20,
+      kernelCount: pins.boundaries,
       parameterScalarGlobals: 0,
     })
     expect(selected.error).toBeNull()
-    expect(selected.artifact?.summary.artifactBytes).toBe(67_694)
+    expect(selected.artifact?.summary.artifactBytes).toBe(pins.exact)
     expect(selected.artifact?.summary.specializations.motionTransitions).toMatchObject({
       selected: true,
       representation: 'exact-family-kernels',
-      boundaryCount: 20,
+      boundaryCount: pins.boundaries,
+      kernelCount: pins.exactKernels,
       stackPlanCount: 2,
       parameterWords: 0,
       dynamicBranchesAddedPerPixel: 0,
@@ -54,8 +62,11 @@ describe('shared routed motion-transition emission (#525)', () => {
     expect(production.artifact?.code).toBe(selected.artifact?.code)
   })
 
-  it('matches every motion boundary in Fast and Precise playback', () => {
-    const show = motionReference()
+  it.each([
+    'stock-show-reference-slide-transitions',
+    'stock-show-reference-zoom-spin-transitions',
+  ] as const)('matches every %s boundary in Fast and Precise playback', (id) => {
+    const show = motionReference(id)
     const compile = (motionTransitionSharing: 'none' | 'structure' | 'exact') => {
       const result = compileShowForArtifact(show, [], undefined, {}, {
         stageDimension: 2,

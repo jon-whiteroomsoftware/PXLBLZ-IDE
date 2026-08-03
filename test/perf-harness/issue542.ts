@@ -6,11 +6,16 @@ import { compilerVintageOptions } from '../../src/engine/showCompilerVintages'
 import type { GeneratedShowArtifact } from '../../src/engine/showCompiler'
 import { STOCK_SHOWS } from '../../src/pixelblaze/stock/shows'
 
+// Re-anchored 2026-08-02: the showcase repartition retired the wipe-mix and
+// motion fixtures this census originally measured. The current references
+// exercise the same mechanisms - Wipes and Shape Reveals carry the unshared
+// counterfactual, Easing is the living table-driven case, and Zoom and Spin
+// is the all-motion control.
 export const ISSUE542_REFERENCE_IDS = [
-  'stock-show-reference-wipe-mix-transitions',
+  'stock-show-reference-wipe-transitions',
   'stock-show-reference-shape-reveal-transitions',
   'stock-show-reference-easing',
-  'stock-show-reference-motion-transitions',
+  'stock-show-reference-zoom-spin-transitions',
 ] as const
 
 export type Issue542ReferenceId = typeof ISSUE542_REFERENCE_IDS[number]
@@ -23,7 +28,7 @@ export function issue542ReferenceShow(id: Issue542ReferenceId) {
 
 function legacyUnsharedCounterfactual(id: Issue542ReferenceId) {
   const show = structuredClone(issue542ReferenceShow(id))
-  if (id === 'stock-show-reference-motion-transitions') return show
+  if (id === 'stock-show-reference-zoom-spin-transitions') return show
   const composition = show.composition
   if (!composition || composition.patternInstances.length > 3) return show
   const instanceById = new Map(composition.patternInstances.map((instance) => [instance.id, instance]))

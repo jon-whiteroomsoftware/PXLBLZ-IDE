@@ -7,7 +7,7 @@ import {
 import type { ShowRecipe } from './showCompiler'
 import { showRecordToCompileRecipe } from './showModel'
 import { sourceForShowPatternRef } from './showPreviewArtifact'
-import { STOCK_SHOWS } from '../pixelblaze/stock/shows'
+import { createPropertySlotQualificationShow } from './showPatternSlotTestFixture'
 
 const source = 'export function render(index) { rgb(index, 0, 0) }'
 
@@ -114,14 +114,17 @@ describe('Show Pattern lifetime slot planner (#546)', () => {
     ])
   })
 
-  it('finds a seven-slot lifetime-only upper bound for Property Animation before structural splitting', () => {
-    const stock = STOCK_SHOWS.find((entry) => entry.id === 'stock-show-reference-property-animation')!
-    const recipe = showRecordToCompileRecipe(stock.show, {
-      byCellId: Object.fromEntries(stock.show.cells.map((cell) => [
+  it('finds a five-slot lifetime-only upper bound for the qualification fixture before structural splitting', () => {
+    // The shipping Property Animation reference consolidated to shared
+    // voices (#514/#536 ceilings), so the planner's realistic stress case is
+    // the preserved per-scene expansion of that fixture.
+    const show = createPropertySlotQualificationShow()
+    const recipe = showRecordToCompileRecipe(show, {
+      byCellId: Object.fromEntries(show.cells.map((cell) => [
         cell.id,
         sourceForShowPatternRef(cell.pattern, []),
       ])),
-      byPatternInstanceId: Object.fromEntries((stock.show.composition?.patternInstances ?? []).map((instance) => [
+      byPatternInstanceId: Object.fromEntries((show.composition?.patternInstances ?? []).map((instance) => [
         instance.id,
         sourceForShowPatternRef(instance.pattern, []),
       ])),
@@ -139,9 +142,9 @@ describe('Show Pattern lifetime slot planner (#546)', () => {
       hasLiveControls: Object.keys(clip.controlTargets ?? {}).length > 0,
     })))
 
-    expect(recipe.clips).toHaveLength(17)
-    expect(new Set(recipe.clips.map((clip) => clip.source))).toHaveLength(3)
-    expect(plan.machineCountAfter).toBe(7)
-    expect(plan.machinesReclaimed).toBe(10)
+    expect(recipe.clips).toHaveLength(19)
+    expect(new Set(recipe.clips.map((clip) => clip.source))).toHaveLength(2)
+    expect(plan.machineCountAfter).toBe(5)
+    expect(plan.machinesReclaimed).toBe(14)
   })
 })

@@ -33,6 +33,7 @@ import { createInstallationShowOutputContract, createPortableShowOutputContract 
 import { showPreviewOverrideInitialState, useShowPreviewOverrideStore } from '@/store/showPreviewOverrideStore'
 import { showEditorSessionInitialState, useShowEditorSessionStore } from '@/store/showEditorSessionStore'
 import { STOCK_SHOWS } from '@/pixelblaze/stock/shows'
+import { createPropertySlotQualificationShow } from '@/engine/showPatternSlotTestFixture'
 import { buildShowCompositionFreezeCases } from '@/engine/showCompositionFreeze'
 import * as showModel from '@/engine/showModel'
 import { DEFAULT_SHOW_TRAILS_RETENTION } from '@/engine/showPreviousRgbFeedback'
@@ -4466,7 +4467,7 @@ describe('ShowEditor (#318)', () => {
 
   it('turns a reference Show guide into a live Pattern comparison instrument (#506)', async () => {
     const user = userEvent.setup()
-    const stock = STOCK_SHOWS.find((candidate) => candidate.id === 'stock-show-reference-wipe-mix-transitions')!
+    const stock = STOCK_SHOWS.find((candidate) => candidate.id === 'stock-show-reference-blend-fade-transitions')!
 
     render(<ShowEditor
       showId={stock.id}
@@ -4480,10 +4481,10 @@ describe('ShowEditor (#318)', () => {
       }}
     />)
 
-    const guide = screen.getByRole('region', { name: 'Wipe and Mix Transitions guide' })
+    const guide = screen.getByRole('region', { name: 'Blend and Fade Transitions guide' })
     expect(within(guide).getByText(stock.reference!.summary)).toBeInTheDocument()
     expect(within(guide).getByText('Reference frame')).toBeInTheDocument()
-    expect(within(guide).getByRole('combobox', { name: 'Try with Pattern' })).toHaveValue('CompassRose')
+    expect(within(guide).getByRole('combobox', { name: 'Try with Pattern' })).toHaveValue('MetaballGarden')
 
     act(() => useShowTransportStore.getState().setPosition(stock.id, 3_050))
     expect(within(guide).getByText('Cut')).toBeInTheDocument()
@@ -4526,13 +4527,13 @@ describe('ShowEditor (#318)', () => {
     fireEvent.blur(brightness)
     await waitFor(() => expect(useShowStore.getState().stockShowDrafts[stock.id].composition
       ?.patternInstances.find((instance) => instance.id === 'instance-reference-content-selected')).toMatchObject({
-      pattern: { kind: 'stock', id: 'CompassRose' },
+      pattern: { kind: 'stock', id: 'MetaballGarden' },
       controlTargets: { speed: 0.42 },
     }))
 
     await user.click(within(guide).getByRole('button', { name: 'Reset Pattern' }))
     expect(useShowEditorSessionStore.getState().referencePatternByShowId[stock.id]).toBeUndefined()
-    expect(screen.getAllByRole('button', { name: 'Select CompassRose' }).length).toBeGreaterThan(0)
+    expect(screen.getAllByRole('button', { name: 'Select MetaballGarden' }).length).toBeGreaterThan(0)
   }, 10_000)
 
   it('keeps a legacy reference Pattern transient after its first composition edit (#619)', async () => {
@@ -4563,7 +4564,7 @@ describe('ShowEditor (#318)', () => {
       const draft = useShowStore.getState().stockShowDrafts[stock.id]
       expect(draft.composition?.patternInstances.length).toBeGreaterThan(0)
       expect(draft.composition?.patternInstances.every((instance) => (
-        instance.pattern.kind === 'stock' && instance.pattern.id === 'TestPattern2D'
+        instance.pattern.kind === 'stock' && instance.pattern.id === 'CompassRose'
       ))).toBe(true)
     })
 
@@ -4582,7 +4583,7 @@ describe('ShowEditor (#318)', () => {
     expect(screen.getAllByRole('button', { name: 'Select Caustics' }).length).toBeGreaterThan(0)
 
     await user.click(screen.getByRole('button', { name: 'Reset Pattern' }))
-    expect(screen.getAllByRole('button', { name: 'Select TestPattern2D' }).length).toBeGreaterThan(0)
+    expect(screen.getAllByRole('button', { name: 'Select CompassRose' }).length).toBeGreaterThan(0)
   })
 
   it('keeps Clip resize grab zones clear of the junction band (#363)', () => {
@@ -6232,12 +6233,12 @@ describe('ShowEditor (#318)', () => {
   })
 
   it('discloses shared Motion transition kernels and their resource tradeoff (#525)', () => {
-    const motion = STOCK_SHOWS.find((candidate) => candidate.id === 'stock-show-reference-motion-transitions')!
+    const motion = STOCK_SHOWS.find((candidate) => candidate.id === 'stock-show-reference-zoom-spin-transitions')!
 
     render(<ShowEditor showId={motion.id} showOverride={motion.show} readOnly />)
 
     expect(screen.getByTestId('show-compile-bar')).toHaveTextContent(
-      'motion sharing: family kernels · 20 boundaries / 11 kernels · 2 stack plans · 80,812 emitted B avoided · 7 scalars · +0 branches/px',
+      'motion sharing: family kernels · 7 boundaries / 5 kernels · 2 stack plans · 25,109 emitted B avoided · 7 scalars · +0 branches/px',
     )
   })
 
@@ -6247,17 +6248,20 @@ describe('ShowEditor (#318)', () => {
     render(<ShowEditor showId={easing.id} showOverride={easing.show} readOnly />)
 
     expect(screen.getByTestId('show-compile-bar')).toHaveTextContent(
-      'show score: table driven · 20 boundaries / 2 stacks / 1 kernel · 104 words · init 100 assignments + 0 ops · 146,105 emitted B avoided · regular cadence · pb32 bytecode -66.6% to -78.9% · runtime neutral',
+      'show score: table driven · 20 boundaries / 2 stacks / 1 kernel · 104 words · init 100 assignments + 0 ops · 146,240 emitted B avoided · regular cadence · pb32 bytecode -66.6% to -78.9% · runtime neutral',
     )
   })
 
   it('discloses selected Restart Pattern machine reuse and its steady-state cost (#546)', () => {
+    // The shipping Property Animation reference consolidated to shared
+    // voices (#514/#536 ceilings) and no longer engages slot sharing; the
+    // preserved per-scene qualification fixture carries this disclosure.
     const property = STOCK_SHOWS.find((candidate) => candidate.id === 'stock-show-reference-property-animation')!
 
-    render(<ShowEditor showId={property.id} showOverride={property.show} readOnly />)
+    render(<ShowEditor showId={property.id} showOverride={createPropertySlotQualificationShow()} readOnly />)
 
     expect(screen.getByTestId('show-compile-bar')).toHaveTextContent(
-      'pattern machines: 17 logical -> 8 physical · 9 reclaimed · 0 steady-state render ops added',
+      'pattern machines: 19 logical -> 7 physical · 12 reclaimed · 0 steady-state render ops added',
     )
   })
 
@@ -6265,7 +6269,7 @@ describe('ShowEditor (#318)', () => {
     const user = userEvent.setup()
     const property = STOCK_SHOWS.find((candidate) => candidate.id === 'stock-show-reference-property-animation')!
 
-    render(<ShowEditor showId={property.id} showOverride={property.show} readOnly />)
+    render(<ShowEditor showId={property.id} showOverride={createPropertySlotQualificationShow()} readOnly />)
 
     const compileBar = screen.getByTestId('show-compile-bar')
     expect(compileBar).toHaveTextContent('generated UTF-8 source')
@@ -6296,7 +6300,7 @@ describe('ShowEditor (#318)', () => {
     expect(inventory).toHaveTextContent('PXLBLZ Show infrastructure')
     expect(inventory).toHaveTextContent('Effects and Transitions')
     expect(inventory).toHaveTextContent('CompassRose')
-    expect(inventory).toHaveTextContent('Pattern machines: 17 logical · 8 physical')
+    expect(inventory).toHaveTextContent('Pattern machines: 19 logical · 7 physical')
     expect(inventory).toHaveTextContent('Ways to slim this Show')
     expect(inventory).toHaveTextContent('Source percentages do not describe Controller bytecode or runtime cost.')
   })

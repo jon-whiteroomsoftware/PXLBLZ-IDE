@@ -12,7 +12,7 @@ import { issue542Artifact, type Issue542ReferenceId } from './issue542'
 const runHardware = process.env.ISSUE542_HARDWARE === '1'
 const ip = process.env.PIXELBLAZE_IP ?? '192.168.8.224'
 const referenceIds: Issue542ReferenceId[] = [
-  'stock-show-reference-wipe-mix-transitions',
+  'stock-show-reference-wipe-transitions',
   'stock-show-reference-shape-reveal-transitions',
   'stock-show-reference-easing',
 ]

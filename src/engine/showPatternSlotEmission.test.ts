@@ -1,12 +1,15 @@
 import { describe, expect, it } from 'vitest'
-import { STOCK_SHOWS } from '../pixelblaze/stock/shows'
 import { createFastReplayRuntime } from './fastReplay'
 import { nativeDimension } from './loadPattern'
 import { compileShow } from './showCompiler'
 import { compileShowForArtifact } from './showPreviewArtifact'
 import { createInstallationCompositionFixture } from './showInstallationTestFixture'
+import { createPropertySlotQualificationShow } from './showPatternSlotTestFixture'
 
-const propertyShow = STOCK_SHOWS.find((entry) => entry.id === 'stock-show-reference-property-animation')!.show
+// The shipping Property Animation reference consolidated to shared voices
+// (#514/#536 ceilings); the preserved per-scene expansion keeps the slot
+// emitter qualified against a realistic Show.
+const propertyShow = createPropertySlotQualificationShow()
 const installationShow = createInstallationCompositionFixture()
 const mapPoints = Array.from({ length: 64 }, (_, index) => ({
   sample: [(index % 8) / 7, Math.floor(index / 8) / 7],
@@ -86,38 +89,40 @@ export function render2D(index, x, y) { hsv(phase + x, 1, initialPixels / pixelC
     expect(artifact.expandedCode).toMatch(/__pxlblz_show_c0_pixelCount = 8\s+__pxlblz_show_c0_switchOwner/)
   })
 
-  it('compiles Property Animation from 17 logical instances into eight physical machines', () => {
+  it('compiles the qualification fixture from 19 logical instances into seven physical machines', () => {
     const baseline = compile(propertyShow, 'none')
     const selected = compile(propertyShow, 'force')
 
-    expect(baseline.summary.clipCount).toBe(17)
-    expect(selected.summary.clipCount).toBe(8)
+    expect(baseline.summary.clipCount).toBe(19)
+    expect(selected.summary.clipCount).toBe(7)
     expect(selected.summary.specializations.patternSlots).toMatchObject({
       selected: true,
       representation: 'lifetime-colored-restart-slots',
-      logicalMemberCount: 17,
-      physicalSlotCount: 8,
-      reclaimedMachineCount: 9,
+      logicalMemberCount: 19,
+      physicalSlotCount: 7,
+      reclaimedMachineCount: 12,
       steadyStateRenderOperationsAdded: 0,
     })
     expect(selected.code).toMatch(/function \w+\(nextOwner\) \{/)
     expect(selected.code).not.toContain('(nextOwner, timeOffsetMs, brightness, phase, timeScale, mirror)')
     expect(selected.summary.artifactBytes).toBeLessThan(baseline.summary.artifactBytes)
-    // Refreshed 2026-07-20 after the wave-2 emission changes (#557-#566).
-    // The per-member HSV conversions alone would cross the activation
-    // ceiling here, so the #559 byte-budget fallback keeps the shared chain.
-    expect(baseline.summary.artifactBytes).toBe(82_815)
-    expect(selected.summary.artifactBytes).toBe(66_238)
+    // Refreshed 2026-07-20 after the wave-2 emission changes (#557-#566),
+    // and re-measured 2026-08-02 against the preserved qualification
+    // fixture. The per-member HSV conversions alone would cross the
+    // activation ceiling here, so the #559 byte-budget fallback keeps the
+    // shared chain.
+    expect(baseline.summary.artifactBytes).toBe(91_417)
+    expect(selected.summary.artifactBytes).toBe(67_289)
     expect(selected.summary.specializations.hsvCaptureChain).toMatchObject({
       policy: 'shared',
       fallbackReason: 'artifact-byte-budget',
     })
     expect(selected.summary.resources).toMatchObject({
-      auxiliaryCacheWords: 228,
-      totalWords: 6_240,
-      remainingWords: 4_000,
-      persistentGlobals: 197,
-      remainingGlobals: 59,
+      auxiliaryCacheWords: 264,
+      totalWords: 6_276,
+      remainingWords: 3_964,
+      persistentGlobals: 172,
+      remainingGlobals: 84,
       blockers: [],
     })
   })

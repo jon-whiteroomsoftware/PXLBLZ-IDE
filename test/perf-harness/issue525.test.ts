@@ -3,25 +3,29 @@ import { report } from './issue525'
 
 describe('issue #525 shared motion-transition harness', () => {
   it('pins both candidates, production fit, and exact output', () => {
+    // Re-measured 2026-08-02 against the Zoom and Spin reference after the
+    // showcase repartition retired the original twenty-boundary Motion
+    // fixture.
     expect(report).toMatchObject({
-      sceneCount: 21,
-      boundaryCount: 20,
+      sceneCount: 8,
+      boundaryCount: 7,
       representations: {
-        baseline: { sourceBytes: 108_533 },
+        baseline: { sourceBytes: 50_365 },
         structural: {
-          sourceBytes: 73_324,
+          sourceBytes: 38_856,
           motionTransitions: {
             representation: 'exact-shared-environment',
             stackPlanCount: 2,
-            kernelCount: 20,
+            kernelCount: 7,
             parameterWords: 0,
           },
         },
         selected: {
-          sourceBytes: 67_694,
+          sourceBytes: 37_624,
           motionTransitions: {
             representation: 'exact-family-kernels',
             stackPlanCount: 2,
+            kernelCount: 5,
             parameterWords: 0,
             parameterScalarGlobals: 7,
             dynamicBranchesAddedPerPixel: 0,
@@ -33,7 +37,7 @@ describe('issue #525 shared motion-transition harness', () => {
         { fidelity: 'fidelity', structuralMatches: true, selectedMatches: true },
       ],
     })
-    expect(report.scoreTimesMs).toHaveLength(60)
+    expect(report.scoreTimesMs).toHaveLength(21)
     expect(report.representations.selected.sourceBytes).toBeLessThanOrEqual(68_384)
   })
 })

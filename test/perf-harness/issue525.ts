@@ -9,8 +9,11 @@ import { compileShowForPreview } from '../../src/engine/showPreviewArtifact'
 import type { GeneratedShowArtifact } from '../../src/engine/showCompiler'
 import { STOCK_SHOWS } from '../../src/pixelblaze/stock/shows'
 
-const fixture = STOCK_SHOWS.find((candidate) => candidate.id === 'stock-show-reference-motion-transitions')
-if (!fixture) throw new Error('Motion Transitions reference Show is missing.')
+// Re-anchored 2026-08-02: the twenty-boundary Motion reference retired with
+// the showcase repartition; Zoom and Spin is the surviving all-motion
+// sequence and carries the harness.
+const fixture = STOCK_SHOWS.find((candidate) => candidate.id === 'stock-show-reference-zoom-spin-transitions')
+if (!fixture) throw new Error('Zoom and Spin reference Show is missing.')
 
 const compile = (motionTransitionSharing: 'none' | 'structure' | 'exact') => {
   const compiled = compileShowForPreview(fixture.show, [], undefined, {}, {
