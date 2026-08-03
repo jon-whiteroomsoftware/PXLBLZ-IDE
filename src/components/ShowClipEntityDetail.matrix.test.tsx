@@ -469,6 +469,42 @@ const ROWS: RoundTripRow[] = [
     },
   },
   {
+    name: 'Aperture shape stores catalogue silhouettes with their parameters (#690)',
+    scopes: ['scene-main'],
+    tab: 'Place',
+    seed: { viewport: { enabled: true, aperture: 'star' } },
+    prepare: () => fireEvent.click(screen.getByRole('button', { name: 'Aperture summary' })),
+    drive: () => typeAndCommit('Aperture star points', '6'),
+    expected: (value) => ({ ...value, viewport: { ...value.viewport, starPoints: 6 } }),
+    display: () => {
+      expectValue('Aperture star points', '6')
+      expect(screen.getByRole('textbox', { name: 'Aperture star inner radius' })).toBeInTheDocument()
+    },
+  },
+  {
+    name: 'Aperture mode stores the cut-out inversion (#690)',
+    scopes: ['scene-main'],
+    tab: 'Place',
+    seed: { viewport: { enabled: true, aperture: 'cloud' } },
+    prepare: () => fireEvent.click(screen.getByRole('button', { name: 'Aperture summary' })),
+    drive: () => choose('Aperture mode', 'cut-out'),
+    expected: (value) => ({ ...value, viewport: { ...value.viewport, invert: true } }),
+    display: () => {
+      expect(screen.getByRole('combobox', { name: 'Aperture mode' })).toHaveValue('cut-out')
+      expect(screen.getByRole('combobox', { name: 'Aperture shape' })).toHaveValue('cloud')
+    },
+  },
+  {
+    name: 'Aperture rotation stores turns on the viewport (#690)',
+    scopes: ['scene-main'],
+    tab: 'Place',
+    seed: { viewport: { enabled: true, aperture: 'diamond' } },
+    prepare: () => fireEvent.click(screen.getByRole('button', { name: 'Aperture summary' })),
+    drive: () => typeAndCommit('Aperture rotation exact rotation', '45'),
+    expected: (value) => ({ ...value, viewport: { ...value.viewport, rotation: 0.125 } }),
+    display: () => expectValue('Aperture rotation exact rotation', '45'),
+  },
+  {
     name: 'Aperture edge stores an explicit hard override',
     scopes: ['scene-main'],
     tab: 'Place',

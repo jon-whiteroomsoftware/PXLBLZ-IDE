@@ -20,6 +20,7 @@ import {
   type PlacementFocus,
 } from '@/engine/showClipPlacementPad'
 import { showClipViewportEffectiveEdge } from '@/engine/showClipViewport'
+import type { ShowClipApertureShape } from '@/engine/personalContentRecords'
 import {
   normalizeShowClipEvaluationPolicy,
   showClipInspectorCapabilities,
@@ -1066,7 +1067,7 @@ function ClipPlacementGeometry({
         <BoundedNumberField compact label="Height" ariaLabel={heightLabel} labelAction={animationAction(content ? 'scaleY' : 'height', heightLabel, 'Height')} presentation={scalePresentation} value={shown(height)} reserveSuffixSpace disabled={readOnly} onPreview={(next) => onPreviewPatch?.(content ? { transform: { scaleY: next } } : { viewport: { height: next } })} onPreviewEnd={onPreviewEnd} onChange={(next) => onPatch(content ? { transform: { scaleY: next } } : { viewport: { height: next } })} />
       </div>
       <div className="min-w-0" data-show-clip-summary-target={content ? 'transform-rotation' : undefined} tabIndex={content ? -1 : undefined}>
-        <AngleField compact kind="rotation" label="Rotation" ariaLabel={content ? 'Rotation' : 'Viewport rotation'} labelAction={content ? animationAction('rotation', 'Rotation') : undefined} value={content ? value.transform.rotation : 0} min={-8} max={8} step={1 / 360} reserveSuffixSpace disabled={readOnly || !content} help={content ? undefined : 'Aperture is axis-aligned'} onPreview={content ? (rotation) => onPreviewPatch?.({ transform: { rotation } }) : undefined} onPreviewEnd={onPreviewEnd} onChange={(rotation) => onPatch({ transform: { rotation } })} />
+        <AngleField compact kind="rotation" label="Rotation" ariaLabel={content ? 'Rotation' : 'Aperture rotation'} labelAction={content ? animationAction('rotation', 'Rotation') : undefined} value={content ? value.transform.rotation : value.viewport.rotation ?? 0} min={content ? -8 : -1} max={content ? 8 : 1} step={1 / 360} reserveSuffixSpace disabled={readOnly} onPreview={(rotation) => onPreviewPatch?.(content ? { transform: { rotation } } : { viewport: { rotation } })} onPreviewEnd={onPreviewEnd} onChange={(rotation) => onPatch(content ? { transform: { rotation } } : { viewport: { rotation } })} />
       </div>
       {!content && <>
         {/* The aperture silhouette and edge (#591). Shape and edge are durable
@@ -1080,16 +1081,46 @@ function ClipPlacementGeometry({
             disabled={readOnly}
             onChange={(event) => onPatch({
               viewport: {
-                aperture: event.target.value as 'rectangle' | 'ellipse' | 'diamond' | 'ring' | 'rounded-box',
+                aperture: event.target.value as ShowClipApertureShape,
               },
             })}
             className="mt-0.5 h-5 w-full border-0 border-b border-zinc-800 bg-transparent px-1 text-[9px] normal-case tracking-normal text-zinc-200 outline-none focus:border-cyan-400/60 disabled:opacity-60"
           >
-            <option value="rectangle">Rectangle</option>
-            <option value="ellipse">Ellipse</option>
-            <option value="diamond">Diamond</option>
-            <option value="ring">Ring</option>
-            <option value="rounded-box">Rounded box</option>
+            <optgroup label="Geometric">
+              <option value="rectangle">Rectangle</option>
+              <option value="ellipse">Ellipse</option>
+              <option value="diamond">Diamond</option>
+              <option value="ring">Ring</option>
+              <option value="rounded-box">Rounded box</option>
+              <option value="cross">Cross</option>
+              <option value="polygon">Regular polygon</option>
+            </optgroup>
+            <optgroup label="Icons">
+              <option value="heart">Heart</option>
+              <option value="star">Star</option>
+              <option value="crescent">Crescent</option>
+              <option value="cloud">Cloud</option>
+            </optgroup>
+            <optgroup label="Signature">
+              <option value="cat-head">Cat head</option>
+              <option value="cat-side-profile">Side-profile cat</option>
+              <option value="bastet">Bastet</option>
+            </optgroup>
+          </select>
+        </label>
+        <label className="block min-w-0 text-[8px] uppercase tracking-[0.08em] text-zinc-600">
+          Mode
+          <select
+            aria-label="Aperture mode"
+            value={value.viewport.invert ? 'cut-out' : 'admit'}
+            disabled={readOnly}
+            onChange={(event) => onPatch({
+              viewport: { invert: event.target.value === 'cut-out' ? true : undefined },
+            })}
+            className="mt-0.5 h-5 w-full border-0 border-b border-zinc-800 bg-transparent px-1 text-[9px] normal-case tracking-normal text-zinc-200 outline-none focus:border-cyan-400/60 disabled:opacity-60"
+          >
+            <option value="admit">Admit inside</option>
+            <option value="cut-out">Cut out</option>
           </select>
         </label>
         <label className="block min-w-0 text-[8px] uppercase tracking-[0.08em] text-zinc-600">
@@ -1159,6 +1190,81 @@ function ClipPlacementGeometry({
               disabled={readOnly}
               help="Corner rounding as a fraction of the half-side."
               onChange={(cornerRadius) => onPatch({ viewport: { cornerRadius } })}
+            />
+          </div>
+        )}
+        {value.viewport.aperture === 'cross' && (
+          <div className="min-w-0">
+            <ShowInspectorNumberField
+              compact
+              label="Arm width"
+              ariaLabel="Aperture arm width"
+              value={value.viewport.crossWidth ?? 0.32}
+              min={0.1}
+              max={0.9}
+              step={0.01}
+              disabled={readOnly}
+              help="Arm width as a fraction of the frame half-extent."
+              onChange={(crossWidth) => onPatch({ viewport: { crossWidth } })}
+            />
+          </div>
+        )}
+        {value.viewport.aperture === 'star' && <>
+          <div className="min-w-0">
+            <ShowInspectorNumberField
+              compact
+              label="Points"
+              ariaLabel="Aperture star points"
+              value={value.viewport.starPoints ?? 5}
+              min={3}
+              max={12}
+              step={1}
+              disabled={readOnly}
+              onChange={(starPoints) => onPatch({ viewport: { starPoints } })}
+            />
+          </div>
+          <div className="min-w-0">
+            <ShowInspectorNumberField
+              compact
+              label="Inner radius"
+              ariaLabel="Aperture star inner radius"
+              value={value.viewport.starInner ?? 0.45}
+              min={0.2}
+              max={0.8}
+              step={0.01}
+              disabled={readOnly}
+              onChange={(starInner) => onPatch({ viewport: { starInner } })}
+            />
+          </div>
+        </>}
+        {value.viewport.aperture === 'crescent' && (
+          <div className="min-w-0">
+            <ShowInspectorNumberField
+              compact
+              label="Cutout offset"
+              ariaLabel="Aperture cutout offset"
+              value={value.viewport.crescentOffset ?? 0.45}
+              min={0.15}
+              max={0.8}
+              step={0.01}
+              disabled={readOnly}
+              help="Cutout offset as a fraction of the unit radius."
+              onChange={(crescentOffset) => onPatch({ viewport: { crescentOffset } })}
+            />
+          </div>
+        )}
+        {value.viewport.aperture === 'polygon' && (
+          <div className="min-w-0">
+            <ShowInspectorNumberField
+              compact
+              label="Sides"
+              ariaLabel="Aperture polygon sides"
+              value={value.viewport.polygonSides ?? 6}
+              min={3}
+              max={8}
+              step={1}
+              disabled={readOnly}
+              onChange={(polygonSides) => onPatch({ viewport: { polygonSides } })}
             />
           </div>
         )}

@@ -1,5 +1,6 @@
 import { useRef, useState, type PointerEvent as ReactPointerEvent, type ReactNode } from 'react'
-import type { ShowClipTransform, ShowClipViewport } from '@/engine/personalContentRecords'
+import type { ShowClipTransform, ShowClipViewport, ShowSpatialShape } from '@/engine/personalContentRecords'
+import { showShapeRevealDistance } from '@/engine/showShapeReveal'
 import {
   anchorContent,
   applyContentFit,
@@ -38,10 +39,16 @@ const CONTENT = '#a78bfa'
 const APERTURE = '#e6b85c'
 const CORNERS: readonly PlacementCorner[] = ['nw', 'ne', 'sw', 'se']
 
+/** Catalogue silhouettes drawn by sampling the shared engine gauge (#690). */
+const GAUGE_PAD_SHAPES: ReadonlyArray<ShowClipViewport['aperture']> = [
+  'cross', 'heart', 'star', 'polygon', 'cloud', 'cat-head', 'cat-side-profile', 'bastet',
+]
+
 /**
  * The silhouette both the scrim hole and the dashed outline share. The pad is
  * a stylized proxy, so the rounded-box corner uses one circular radius from
- * the shorter side rather than the exact per-axis ellipse.
+ * the shorter side rather than the exact per-axis ellipse, and rotated or
+ * gauge-shaped apertures render as sampled polygon loops.
  */
 function apertureHolePath(
   window: { left: number; top: number; width: number; height: number },
@@ -57,6 +64,22 @@ function apertureHolePath(
   const cy = top + height / 2
   const rx = width / 2
   const ry = height / 2
+  const rotation = viewport.rotation ?? 0
+  const loops = apertureUnitLoops(viewport)
+  if (loops) {
+    // Unit-space loops scale by the frame radii, then rotate in world space,
+    // matching the mask's rotate-then-normalize order.
+    const angle = rotation * Math.PI * 2
+    const cosine = Math.cos(angle)
+    const sine = Math.sin(angle)
+    return loops.map((loop) => `M${loop.map(([u, v]) => {
+      const dx = u * rx
+      const dy = v * ry
+      const x = cx + dx * cosine - dy * sine
+      const y = cy + dx * sine + dy * cosine
+      return `${Math.round(x * 100) / 100},${Math.round(y * 100) / 100}`
+    }).join('L')}Z`).join(' ')
+  }
   const ellipsePath = (radiusX: number, radiusY: number) => (
     `M${cx - radiusX},${cy} a${radiusX},${radiusY} 0 1 0 ${2 * radiusX},0 a${radiusX},${radiusY} 0 1 0 ${-2 * radiusX},0 Z`
   )
@@ -75,6 +98,79 @@ function apertureHolePath(
     return `M${left + radius},${top}H${right - radius}A${radius},${radius} 0 0 1 ${right},${top + radius}V${bottom - radius}A${radius},${radius} 0 0 1 ${right - radius},${bottom}H${left + radius}A${radius},${radius} 0 0 1 ${left},${bottom - radius}V${top + radius}A${radius},${radius} 0 0 1 ${left + radius},${top}Z`
   }
   return `M${left},${top}V${top + height}H${left + width}V${top}Z`
+}
+
+/**
+ * Boundary loops in frame-normalized unit space, or null for the analytic
+ * unrotated legacy paths. Gauge silhouettes trace `1 / gauge(direction)`;
+ * the crescent walks its two circular arcs between the intersection points.
+ */
+function apertureUnitLoops(viewport: ShowClipViewport): Array<Array<[number, number]>> | null {
+  const rotated = (viewport.rotation ?? 0) !== 0
+  if (GAUGE_PAD_SHAPES.includes(viewport.aperture)) {
+    const samples = 72
+    return [Array.from({ length: samples }, (_, index): [number, number] => {
+      const angle = (index / samples) * Math.PI * 2
+      const u = Math.cos(angle)
+      const v = Math.sin(angle)
+      const gauge = showShapeRevealDistance({
+        x: u, y: v, centerX: 0, centerY: 0,
+        shape: viewport.aperture as ShowSpatialShape, aspect: 1,
+        crossWidth: viewport.crossWidth ?? 0.32,
+        starPoints: viewport.starPoints ?? 5,
+        starInner: viewport.starInner ?? 0.45,
+        polygonSides: viewport.polygonSides ?? 6,
+      })
+      return [u / gauge, v / gauge]
+    })]
+  }
+  if (viewport.aperture === 'crescent') {
+    const offset = viewport.crescentOffset ?? 0.45
+    const hole = 0.78
+    // Circle-circle intersection of the unit disc and the offset cutout.
+    const along = (offset * offset + 1 - hole * hole) / (2 * offset)
+    const rise = Math.sqrt(Math.max(0, 1 - along * along))
+    const outerStart = Math.atan2(rise, along)
+    const outerSweep = Math.PI * 2 - 2 * outerStart
+    const holeStart = Math.atan2(rise, along - offset)
+    const holeSweep = Math.PI * 2 - 2 * holeStart
+    const outerArc = Array.from({ length: 49 }, (_, index): [number, number] => {
+      const angle = outerStart + (index / 48) * outerSweep
+      return [Math.cos(angle), Math.sin(angle)]
+    })
+    // The cutout's bounding arc is its inside-the-disc side, through PI.
+    const holeArc = Array.from({ length: 33 }, (_, index): [number, number] => {
+      const angle = (Math.PI * 2 - holeStart) - (index / 32) * holeSweep
+      return [offset + hole * Math.cos(angle), hole * Math.sin(angle)]
+    })
+    return [[...outerArc, ...holeArc]]
+  }
+  if (!rotated) return null
+  if (viewport.aperture === 'ellipse' || viewport.aperture === 'ring') {
+    const circle = (radius: number) => Array.from({ length: 48 }, (_, index): [number, number] => {
+      const angle = (index / 48) * Math.PI * 2
+      return [radius * Math.cos(angle), radius * Math.sin(angle)]
+    })
+    return viewport.aperture === 'ring'
+      ? [circle(1), circle(1 - (viewport.ringWidth ?? 0.25))]
+      : [circle(1)]
+  }
+  if (viewport.aperture === 'diamond') {
+    return [[[1, 0], [0, 1], [-1, 0], [0, -1]]]
+  }
+  // Rotated rectangle and rounded-box: corner arcs sampled as short polylines.
+  const radius = viewport.aperture === 'rounded-box' ? (viewport.cornerRadius ?? 0.25) : 0
+  const corners: Array<[number, number]> = [[1, -1], [1, 1], [-1, 1], [-1, -1]]
+  if (radius <= 0) return [corners]
+  return [corners.flatMap(([signU, signV], corner) => {
+    const centerU = signU * (1 - radius)
+    const centerV = signV * (1 - radius)
+    const start = (corner - 1) * (Math.PI / 2)
+    return Array.from({ length: 9 }, (_, index): [number, number] => {
+      const angle = start + (index / 8) * (Math.PI / 2)
+      return [centerU + radius * Math.cos(angle), centerV + radius * Math.sin(angle)]
+    })
+  })]
 }
 
 type DragKind =
@@ -393,7 +489,9 @@ export function ShowClipPlacementPad({
             Handles are re-raised above it so they stay grabbable. */}
         {apertureVisible && <>
           {apertureOn && <path
-              d={`M0,0H${PAD}V${PAD}H0Z ${apertureHolePath(window, viewport, toPad, span)}`}
+              d={viewport.invert
+                ? apertureHolePath(window, viewport, toPad, span)
+                : `M0,0H${PAD}V${PAD}H0Z ${apertureHolePath(window, viewport, toPad, span)}`}
               fill="#09090b"
               fillOpacity="0.72"
               fillRule="evenodd"

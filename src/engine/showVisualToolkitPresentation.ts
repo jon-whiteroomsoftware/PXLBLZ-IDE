@@ -15,6 +15,8 @@ export interface ShowToolkitPresentationItem {
   familyLabel: string
   variantId: string
   label: string
+  /** Picker section label shared by consecutive variants, null when uncategorized (#690). */
+  category: string | null
   summary: string
   searchText: string
   compatible: boolean
@@ -105,11 +107,13 @@ export function buildShowToolkitPresentationCatalogue(input: {
       familyLabel: family.label,
       variantId: variant.id,
       label: variant.label,
+      category: variant.category ?? null,
       summary,
       searchText: [
         variant.id,
         variant.label,
         ...(variant.aliases ?? []),
+        ...(variant.category ? [variant.category] : []),
         family.id,
         family.label,
         summary,

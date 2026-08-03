@@ -269,6 +269,7 @@ function PortalGeometry({
   if (shape === 'crescent') return <><ellipse {...shared} cx="0" cy="0" rx="1" ry="1" /><ellipse cx={Math.max(0.15, Math.min(0.8, transition.crescentOffset ?? 0.45))} cy="-.1" rx=".78" ry=".9" fill={DARK} /></>
   if (shape === 'star') return <polygon {...shared} points={radialPoints(Math.max(3, Math.min(12, Math.round(transition.starPoints ?? 5))), Math.max(0.2, Math.min(0.8, transition.starInner ?? 0.45)))} />
   if (shape === 'polygon') return <polygon {...shared} points={radialPoints(Math.max(3, Math.min(8, Math.round(transition.polygonSides ?? 6))), 1)} />
+  if (shape === 'cloud') return <path {...shared} d="M -.95 .5 Q -1.05 .05 -.66 -.14 Q -.52 -.62 -.05 -.55 Q .4 -.9 .68 -.4 Q 1.05 -.28 .95 .18 Q 1 .5 .6 .5 Z" />
   if (shape === 'cat-head') return <path {...shared} d="M -1 .65 L -.86 -.55 L -.43 -.25 Q 0 -.48 .43 -.25 L .86 -.55 L 1 .65 Q .5 1 0 .94 Q -.5 1 -1 .65 Z" />
   if (shape === 'cat-side-profile') return <path {...shared} d="M -.95 .65 L -.72 -.62 L -.3 -.25 Q .2 -.55 .65 -.12 L 1 .02 L .62 .27 Q .55 .86 -.05 .95 Q -.62 1 -.95 .65 Z" />
   return <path {...shared} d="M -1 .92 L -.76 -.82 L -.34 -.3 L 0 -.94 L .34 -.3 L .76 -.82 L 1 .92 Q .48 .62 0 .78 Q -.48 .62 -1 .92 Z" />

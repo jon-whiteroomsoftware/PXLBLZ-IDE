@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from 'react'
+import { Fragment, useEffect, useMemo, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
 import { Search, X, Zap } from 'lucide-react'
 import type { ShowBoundaryTransition, ShowRecord } from '@/engine/personalContentRecords'
@@ -170,25 +170,31 @@ export function ShowTransitionPalette({
         ))}
       </nav>
       <div className="grid min-h-0 flex-1 auto-rows-min grid-cols-1 gap-px overflow-auto bg-zinc-800 sm:grid-cols-2 lg:grid-cols-3">
-        {items.map((item) => (
-          <button
-            key={item.key}
-            type="button"
-            aria-label={`Use ${item.label} Transition`}
-            disabled={!item.compatible}
-            onPointerEnter={() => previewItem(item)}
-            onPointerLeave={restorePreview}
-            onFocus={() => previewItem(item)}
-            onClick={() => applyItem(item)}
-            className="group flex h-10 min-w-0 items-center gap-2 bg-[#101115] px-2 text-left hover:bg-[#171920] focus-visible:relative focus-visible:z-10 focus-visible:outline focus-visible:outline-1 focus-visible:outline-amber-300 disabled:cursor-not-allowed disabled:opacity-40"
-            title={item.compatible ? item.summary : item.compatibilityReason ?? undefined}
-          >
-            <TransitionMnemonic family={item.familyId} variant={item.variantId} />
-            <span className="min-w-0 flex-1">
-              <span className="block truncate text-[10px] font-medium text-zinc-100">{item.label}</span>
-              <span className="block truncate text-[8px] text-zinc-600">{item.familyLabel} · {item.costPolicies.join(' · ')}</span>
-            </span>
-          </button>
+        {items.map((item, index) => (
+          <Fragment key={item.key}>
+            {item.category !== null && item.category !== items[index - 1]?.category && (
+              <h4 className="col-span-full bg-[#0d0e12] px-2 pb-0.5 pt-1.5 text-[8px] font-semibold uppercase tracking-[0.14em] text-zinc-500">
+                {item.familyLabel} · {item.category}
+              </h4>
+            )}
+            <button
+              type="button"
+              aria-label={`Use ${item.label} Transition`}
+              disabled={!item.compatible}
+              onPointerEnter={() => previewItem(item)}
+              onPointerLeave={restorePreview}
+              onFocus={() => previewItem(item)}
+              onClick={() => applyItem(item)}
+              className="group flex h-10 min-w-0 items-center gap-2 bg-[#101115] px-2 text-left hover:bg-[#171920] focus-visible:relative focus-visible:z-10 focus-visible:outline focus-visible:outline-1 focus-visible:outline-amber-300 disabled:cursor-not-allowed disabled:opacity-40"
+              title={item.compatible ? item.summary : item.compatibilityReason ?? undefined}
+            >
+              <TransitionMnemonic family={item.familyId} variant={item.variantId} />
+              <span className="min-w-0 flex-1">
+                <span className="block truncate text-[10px] font-medium text-zinc-100">{item.label}</span>
+                <span className="block truncate text-[8px] text-zinc-600">{item.familyLabel} · {item.costPolicies.join(' · ')}</span>
+              </span>
+            </button>
+          </Fragment>
         ))}
         {items.length === 0 && <p className="col-span-full p-6 text-center text-[10px] text-zinc-600">No Transitions match.</p>}
       </div>

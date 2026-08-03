@@ -1,4 +1,4 @@
-import { fireEvent, render, screen } from '@testing-library/react'
+import { cleanup, fireEvent, render, screen } from '@testing-library/react'
 import { describe, expect, it, vi } from 'vitest'
 import { NEUTRAL_SHOW_CLIP_TRANSFORM } from '@/engine/showClipTransform'
 import { DEFAULT_SHOW_CLIP_VIEWPORT } from '@/engine/showClipViewport'
@@ -283,5 +283,34 @@ describe('shaped aperture silhouette (#591)', () => {
     setup({}, { enabled: true, x: 0.25, y: 0.25, width: 0.5, height: 0.5, aperture: 'ellipse' })
     const scrim = document.querySelector('path[fill-rule="evenodd"]')
     expect(scrim?.getAttribute('d')).toContain(' a')
+  })
+
+  it('samples gauge silhouettes from the shared engine metric (#690)', () => {
+    setup({}, { enabled: true, x: 0.25, y: 0.25, width: 0.5, height: 0.5, aperture: 'star' })
+    const star = screen.getByTestId('placement-pad-aperture-star')
+    expect(star.getAttribute('d')?.match(/L/g)!.length).toBeGreaterThan(40)
+    cleanup()
+    setup({}, { enabled: true, x: 0.25, y: 0.25, width: 0.5, height: 0.5, aperture: 'cloud' })
+    expect(screen.getByTestId('placement-pad-aperture-cloud')).toBeInTheDocument()
+  })
+
+  it('cuts the crescent from its two circular arcs (#690)', () => {
+    setup({}, { enabled: true, x: 0.25, y: 0.25, width: 0.5, height: 0.5, aperture: 'crescent' })
+    const crescent = screen.getByTestId('placement-pad-aperture-crescent')
+    expect(crescent.getAttribute('d')?.match(/Z/g)).toHaveLength(1)
+  })
+
+  it('rotates the silhouette and keeps the frame axis-aligned (#690)', () => {
+    setup({}, { enabled: true, x: 0.25, y: 0.25, width: 0.5, height: 0.5, aperture: 'diamond', rotation: 0.1 })
+    const straightTip = screen.getByTestId('placement-pad-aperture-diamond').getAttribute('d')
+    cleanup()
+    setup({}, { enabled: true, x: 0.25, y: 0.25, width: 0.5, height: 0.5, aperture: 'diamond' })
+    expect(screen.getByTestId('placement-pad-aperture-diamond').getAttribute('d')).not.toBe(straightTip)
+  })
+
+  it('scrims the silhouette itself when the aperture cuts out (#690)', () => {
+    setup({}, { enabled: true, x: 0.25, y: 0.25, width: 0.5, height: 0.5, aperture: 'ellipse', invert: true })
+    const scrim = document.querySelector('path[fill-rule="evenodd"]')
+    expect(scrim?.getAttribute('d')?.startsWith('M0,0H384')).toBe(false)
   })
 })

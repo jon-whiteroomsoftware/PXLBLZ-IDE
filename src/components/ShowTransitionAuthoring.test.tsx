@@ -50,6 +50,23 @@ describe('Show Transition authoring UI', () => {
     expect(useShowPreviewOverrideStore.getState().show).toBeNull()
   })
 
+  it('sections categorized silhouettes under labeled headers (#690)', () => {
+    const show = createDefaultShow('show-transitions', 'Transitions', 1)
+    render(
+      <ShowTransitionPalette
+        show={show}
+        transitionId={show.transitions![0].id}
+        stageDimensions={2}
+        onApply={vi.fn()}
+        onClose={vi.fn()}
+      />,
+    )
+    expect(screen.getByRole('heading', { name: 'Shape reveal · Geometric' })).toBeInTheDocument()
+    expect(screen.getByRole('heading', { name: 'Shape reveal · Icons' })).toBeInTheDocument()
+    expect(screen.getByRole('heading', { name: 'Shape reveal · Signature' })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Use Cloud Transition' })).toBeInTheDocument()
+  })
+
   it('clears candidate preview and closes on Escape', () => {
     const show = createDefaultShow('show-transitions', 'Transitions', 1)
     const onClose = vi.fn()

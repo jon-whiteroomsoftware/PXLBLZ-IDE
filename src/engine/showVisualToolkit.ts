@@ -100,6 +100,8 @@ export interface ShowToolkitVariantDescriptor {
   label: string
   /** Author-facing synonyms used by searchable toolkit choosers. */
   aliases?: string[]
+  /** Picker section label; consecutive variants sharing one group together (#690). */
+  category?: string
   costPolicies: ShowToolkitCostPolicy[]
   /** Most Effects persist in the ordered stack; placement Mirror reuses its existing view flag. */
   authoringTarget?: ShowEffectAuthoringTarget
@@ -397,21 +399,21 @@ export const SHOW_VISUAL_TOOLKIT_REGISTRY: ShowToolkitFamilyDescriptor[] = [
     id: 'shape-reveal',
     label: 'Shape reveal',
     variants: [
-      { id: 'circle', label: 'Circle', costPolicies: ['selector', 'bounded-blend'], compatibility: { stageDimensions: [2] } },
-      { id: 'ellipse', label: 'Ellipse', costPolicies: ['selector', 'bounded-blend'], compatibility: { stageDimensions: [2] } },
-      { id: 'box', label: 'Box', costPolicies: ['selector', 'bounded-blend'], compatibility: { stageDimensions: [2] } },
-      { id: 'rounded-box', label: 'Rounded box', costPolicies: ['selector', 'bounded-blend'], compatibility: { stageDimensions: [2] } },
-      { id: 'diamond', label: 'Diamond', costPolicies: ['selector', 'bounded-blend'], compatibility: { stageDimensions: [2] } },
-      { id: 'cross', label: 'Cross', costPolicies: ['selector', 'bounded-blend'], compatibility: { stageDimensions: [2] } },
-      { id: 'ring', label: 'Ring', costPolicies: ['selector', 'bounded-blend'], compatibility: { stageDimensions: [2] } },
-      { id: 'heart', label: 'Heart', costPolicies: ['selector', 'bounded-blend'], compatibility: { stageDimensions: [2] } },
-      { id: 'star', label: 'Star', costPolicies: ['selector', 'bounded-blend'], compatibility: { stageDimensions: [2] } },
-      { id: 'crescent', label: 'Crescent', costPolicies: ['selector', 'bounded-blend'], compatibility: { stageDimensions: [2] } },
-      { id: 'polygon', label: 'Regular polygon', costPolicies: ['selector', 'bounded-blend'], compatibility: { stageDimensions: [2] } },
-      { id: 'cloud', label: 'Cloud', costPolicies: ['selector', 'bounded-blend'], compatibility: { stageDimensions: [2] } },
-      { id: 'cat-head', label: 'Cat head', costPolicies: ['selector', 'bounded-blend'], compatibility: { stageDimensions: [2] } },
-      { id: 'cat-side-profile', label: 'Side-profile cat', costPolicies: ['selector', 'bounded-blend'], compatibility: { stageDimensions: [2] } },
-      { id: 'bastet', label: 'Bastet', costPolicies: ['selector', 'bounded-blend'], compatibility: { stageDimensions: [2] } },
+      { id: 'circle', label: 'Circle', category: 'Geometric', costPolicies: ['selector', 'bounded-blend'], compatibility: { stageDimensions: [2] } },
+      { id: 'ellipse', label: 'Ellipse', category: 'Geometric', costPolicies: ['selector', 'bounded-blend'], compatibility: { stageDimensions: [2] } },
+      { id: 'box', label: 'Box', category: 'Geometric', costPolicies: ['selector', 'bounded-blend'], compatibility: { stageDimensions: [2] } },
+      { id: 'rounded-box', label: 'Rounded box', category: 'Geometric', costPolicies: ['selector', 'bounded-blend'], compatibility: { stageDimensions: [2] } },
+      { id: 'diamond', label: 'Diamond', category: 'Geometric', costPolicies: ['selector', 'bounded-blend'], compatibility: { stageDimensions: [2] } },
+      { id: 'cross', label: 'Cross', category: 'Geometric', costPolicies: ['selector', 'bounded-blend'], compatibility: { stageDimensions: [2] } },
+      { id: 'ring', label: 'Ring', category: 'Geometric', costPolicies: ['selector', 'bounded-blend'], compatibility: { stageDimensions: [2] } },
+      { id: 'polygon', label: 'Regular polygon', category: 'Geometric', costPolicies: ['selector', 'bounded-blend'], compatibility: { stageDimensions: [2] } },
+      { id: 'heart', label: 'Heart', category: 'Icons', costPolicies: ['selector', 'bounded-blend'], compatibility: { stageDimensions: [2] } },
+      { id: 'star', label: 'Star', category: 'Icons', costPolicies: ['selector', 'bounded-blend'], compatibility: { stageDimensions: [2] } },
+      { id: 'crescent', label: 'Crescent', category: 'Icons', costPolicies: ['selector', 'bounded-blend'], compatibility: { stageDimensions: [2] } },
+      { id: 'cloud', label: 'Cloud', category: 'Icons', costPolicies: ['selector', 'bounded-blend'], compatibility: { stageDimensions: [2] } },
+      { id: 'cat-head', label: 'Cat head', category: 'Signature', costPolicies: ['selector', 'bounded-blend'], compatibility: { stageDimensions: [2] } },
+      { id: 'cat-side-profile', label: 'Side-profile cat', category: 'Signature', costPolicies: ['selector', 'bounded-blend'], compatibility: { stageDimensions: [2] } },
+      { id: 'bastet', label: 'Bastet', category: 'Signature', costPolicies: ['selector', 'bounded-blend'], compatibility: { stageDimensions: [2] } },
     ],
     parameters: [
       DURATION,

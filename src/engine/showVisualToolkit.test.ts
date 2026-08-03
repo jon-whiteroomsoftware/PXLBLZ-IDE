@@ -128,8 +128,14 @@ describe('Show visual-toolkit contract', () => {
     ]))
     expect(getShowToolkitFamily('transition', 'shape-reveal')?.variants.map((variant) => variant.id))
       .toEqual([
-        'circle', 'ellipse', 'box', 'rounded-box', 'diamond', 'cross', 'ring',
-        'heart', 'star', 'crescent', 'polygon', 'cloud', 'cat-head', 'cat-side-profile', 'bastet',
+        'circle', 'ellipse', 'box', 'rounded-box', 'diamond', 'cross', 'ring', 'polygon',
+        'heart', 'star', 'crescent', 'cloud', 'cat-head', 'cat-side-profile', 'bastet',
+      ])
+    expect(getShowToolkitFamily('transition', 'shape-reveal')?.variants.map((variant) => variant.category))
+      .toEqual([
+        ...Array.from({ length: 8 }, () => 'Geometric'),
+        ...Array.from({ length: 4 }, () => 'Icons'),
+        ...Array.from({ length: 3 }, () => 'Signature'),
       ])
     const cloudParameters = resolveShowToolkitParameters('transition', 'shape-reveal', 'cloud', {}).map((parameter) => parameter.id)
     expect(cloudParameters).toEqual(expect.arrayContaining(['aspect', 'rotation']))
