@@ -425,9 +425,9 @@ ordinary Pixelblaze Pattern whose cost, compatibility, and provenance are
 measured from the generated artifact.
 
 Use a compact Portable score with one optional expensive treatment. The lesson
-should expose compile pressure, Show source inventory, selected/rejected
-specializations, **Ways to slim this Show**, generated code, EPE export, Run,
-and Save without requiring a connected Controller to understand the workflow.
+should expose compile pressure, Show source inventory, **Ways to slim this
+Show**, generated code, EPE export, Run, and Save without requiring a connected
+Controller to understand the workflow.
 Include Freeze at entry or Refresh only when the visual and cost tradeoff is
 measurable and explicit.
 

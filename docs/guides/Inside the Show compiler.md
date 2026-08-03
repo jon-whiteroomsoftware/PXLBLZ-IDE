@@ -36,8 +36,9 @@ of any one of them is fatal on its own:
 These budgets don't trade against each other. A Show can have plenty of free
 memory and still fail to activate because its source is too large; a tiny
 artifact can still crawl because it evaluates three Patterns per pixel. The
-compile bar in the Show editor reports each axis separately for exactly this
-reason.
+compiler keeps these axes separate. The Show editor keeps delivered source and
+VM words visible, surfaces actionable warnings, and leaves deeper breakdowns in
+the source inventory and compiler model.
 
 There's also a limit no compiler pass can touch: the wire. WS281x-family LEDs
 receive data at a fixed 800 kHz, which works out to roughly 30 microseconds
@@ -301,15 +302,15 @@ The program's working rules, in the order they earn their keep:
 
 ## Seeing it yourself
 
-All of this is inspectable in the app, per Show. The compile bar under the
-timeline reports the memory ledger, renderer depth, and support envelope.
-Hovering the **Show source** figure opens an exact byte-level inventory of
-the generated artifact — which Patterns, plans, and score tables own which
-bytes — with **Ways to slim this Show** ranking the levers you actually
-control. The remaining compile-bar facts name selected specializations, the
-caches the planner chose, and candidates it rejected, with the reason. And
-**View code** shows you the whole generated Pattern, because the
-best answer to "what did the compiler do?" is the code it wrote.
+The creator-facing consequences are inspectable per Show. The compile bar under
+the timeline reports delivered source, VM words, and support-envelope warnings.
+Hovering the **Show source** figure opens an exact byte-level inventory of the
+generated artifact — which Patterns, plans, and score tables own which bytes —
+plus steady and worst renderer depth, with **Ways to slim this Show** ranking
+the levers you actually control. Arena assignments, cache choices, and rejected
+specializations stay out of the persistent authoring UI. **View code** shows the
+whole generated Pattern, because the best answer to "what did the compiler do?"
+is the code it wrote.
 
 For the measured evidence behind every number here, see
 [Show Rendering Optimization Results](../reference/Show%20Rendering%20Optimization%20Results.md).

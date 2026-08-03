@@ -777,18 +777,15 @@ without creating a second clock or playback state.
 
 ## 17. Compile, cost, and export
 
-The compile bar under the timeline is the honest gauge cluster: generated
-code size, renderer policy, transition cost, memory ledger, and warnings, all
-measured from the artifact it just built rather than estimated from menu
-labels. **Show source** reads as delivered size against the source budget and
-expands into a byte-level inventory measured on that same budget scale, so a
-Show using a fifth of the budget looks like a fifth in both views. Its
-**Ways to slim this Show** hints list only contributors that are both
-changeable and large enough to matter.
-Other compile-bar facts name the specializations the compiler selected or
-rejected, and why. Clip details do not repeat these Show totals. The mechanisms
-behind those labels are the subject of
-[Inside the Show Compiler](../guides/Inside the Show compiler.md).
+The compile bar under the timeline stays focused on creator-facing limits:
+delivered **Show source**, VM array words, and actionable warnings or blockers.
+The source figure expands into a byte-level inventory measured on the same
+budget scale, so a Show using a fifth of the budget looks like a fifth in both
+views. Its **Ways to slim this Show** hints list only contributors that are both
+changeable and large enough to matter. Arena assignments, cache plans, routing
+representations, and compiler specializations remain implementation details;
+[Inside the Show Compiler](../guides/Inside the Show compiler.md) explains the
+mechanisms without placing them in the persistent authoring UI.
 
 The same bar enforces the support envelope: outputs above 2,000 pixels,
 exhausted memory axes, or five simultaneous renderers per pixel block

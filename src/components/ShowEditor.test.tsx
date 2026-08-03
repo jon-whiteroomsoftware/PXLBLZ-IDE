@@ -12,7 +12,6 @@ import {
   removeShowZone,
   spanShowCellZones,
   updateShowCellAdaptations,
-  updateShowCellPattern,
   updateShowTransition,
 } from '@/engine/showModel'
 import { usePatternStore, patternInitialState } from '@/store/patternStore'
@@ -6349,7 +6348,7 @@ describe('ShowEditor (#318)', () => {
     expect(useControllerStore.getState().pushGeneratedArtifact).not.toHaveBeenCalled()
   })
 
-  it('compiles a library-backed 2D Pattern for generated Show actions', () => {
+  it('keeps the compile bar focused on source, VM capacity, and actionable feedback (#63)', () => {
     const show = createDefaultShow('show-library-pattern', 'Shape study', 1000)
     show.stageMapId = 'plane'
     show.cells = [{
@@ -6365,59 +6364,9 @@ describe('ShowEditor (#318)', () => {
     expect(screen.getByRole('button', { name: 'View code' })).toBeEnabled()
     expect(screen.getByRole('button', { name: 'Export Show as .epe' })).toBeEnabled()
     const compileBar = screen.getByTestId('show-compile-bar')
-    expect(compileBar).toHaveTextContent('arena 192')
-    expect(compileBar).toHaveTextContent('render target: 3 planes · stage-rgb · RGB 0/1/2 · XY 0/1 · scalar 0 · previous RGB 0/1/2')
-    expect(compileBar).toHaveTextContent('cache plan: 1 selected · 0 rejected · peak 3/3 planes')
-    expect(compileBar).not.toHaveTextContent(/invalidates/i)
-    expect(compileBar).not.toHaveTextContent(/scene lifetime/i)
-    expect(compileBar).toHaveTextContent('crossfade: snapshot outgoing · capture frame 2 render paths/px · then 1 live render path/px')
-  })
-
-  it('discloses exact routing and capture specialization for Redline (#512)', () => {
-    const redline = STOCK_SHOWS.find((candidate) => candidate.id === 'stock-show-showcase-redline-installation')!
-
-    render(<ShowEditor showId={redline.id} showOverride={redline.show} readOnly />)
-
-    const compileBar = screen.getByTestId('show-compile-bar')
-    expect(compileBar).toHaveTextContent('routing specialization: complete disjoint short-circuit · max 10 -> 4 comparisons/px · 6 avoided')
-    expect(compileBar).toHaveTextContent('capture specialization: 1 identity sample · 2 clear omitted · up to 7 ops/evaluation avoided')
-    // #565 helper inlining exposes one more Redline frame-invariant
-    // candidate (inline#0): 7 -> 8 hoisted, 18 -> 21 ops avoided.
-    expect(compileBar).toHaveTextContent('frame invariants: 8 hoisted · 21 ops/evaluation avoided')
-    expect(compileBar).toHaveTextContent('kernel specialization: measured-neutral on pb32 · 18 plans / 2 kernels · up to 16 branches/px candidate · source dispatch -2,461 B retained as baseline dispatch')
-  })
-
-  it('discloses shared Motion transition kernels and their resource tradeoff (#525)', () => {
-    const motion = STOCK_SHOWS.find((candidate) => candidate.id === 'stock-show-reference-zoom-spin-transitions')!
-
-    render(<ShowEditor showId={motion.id} showOverride={motion.show} readOnly />)
-
-    expect(screen.getByTestId('show-compile-bar')).toHaveTextContent(
-      'motion sharing: family kernels · 7 boundaries / 5 kernels · 2 stack plans · 25,109 emitted B avoided · 7 scalars · +0 branches/px',
-    )
-  })
-
-  it('discloses the selected table-driven Show score and measured exchange (#542)', () => {
-    const easing = STOCK_SHOWS.find((candidate) => candidate.id === 'stock-show-reference-easing')!
-
-    render(<ShowEditor showId={easing.id} showOverride={easing.show} readOnly />)
-
-    expect(screen.getByTestId('show-compile-bar')).toHaveTextContent(
-      'show score: table driven · 20 boundaries / 2 stacks / 1 kernel · 104 words · init 100 assignments + 0 ops · 146,240 emitted B avoided · regular cadence · pb32 bytecode -66.6% to -78.9% · runtime neutral',
-    )
-  })
-
-  it('discloses selected Restart Pattern machine reuse and its steady-state cost (#546)', () => {
-    // The shipping Property Animation reference consolidated to shared
-    // voices (#514/#536 ceilings) and no longer engages slot sharing; the
-    // preserved per-scene qualification fixture carries this disclosure.
-    const property = STOCK_SHOWS.find((candidate) => candidate.id === 'stock-show-reference-property-animation')!
-
-    render(<ShowEditor showId={property.id} showOverride={createPropertySlotQualificationShow()} readOnly />)
-
-    expect(screen.getByTestId('show-compile-bar')).toHaveTextContent(
-      'pattern machines: 19 logical -> 7 physical · 12 reclaimed · 0 steady-state render ops added',
-    )
+    expect(compileBar).toHaveTextContent('Show source')
+    expect(compileBar).toHaveTextContent(/VM [\d,]+\/10,240 words/)
+    expect(compileBar).not.toHaveTextContent(/arena|free|render target:|cache plan:|crossfade:|est\. \d+ fps|steady state|worst instant:/i)
   })
 
   it('opens an exact proportional Show source inventory from keyboard-equivalent focus (#545)', async () => {
@@ -6487,27 +6436,12 @@ describe('ShowEditor (#318)', () => {
 
     const inventory = screen.getByRole('dialog', { name: 'Show source inventory' })
     expect(inventory).toHaveTextContent('Show score data')
-    // Structural detail (boundaries, interned stacks, kernels) stays in the
-    // compile bar; inventory rows are one line each (#63).
+    // Compiler-structural detail stays internal; inventory rows remain one
+    // line each (#63).
     expect(inventory).not.toHaveTextContent('interned stacks')
   })
 
-  it('identifies an exact-pause clock ramp without changing renderer policy', async () => {
-    const base = createDefaultShow('show-1', 'Opening wash', 1000)
-    const repeated = updateShowCellPattern(base, base.cells[1].id, {
-      pattern: base.cells[0].pattern,
-      patternName: base.cells[0].patternName,
-    })
-    const paused = updateShowCellAdaptations(repeated, repeated.cells[1].id, { timeScale: 0 })
-    useShowStore.setState({ shows: [paused], activeShowId: paused.id, showsLoaded: true })
-
-    render(<ShowEditor showId={paused.id} />)
-
-    expect(screen.getByText('clock: exact pause ramp')).toBeInTheDocument()
-    expect(screen.getByText(/steady state/i)).toHaveTextContent('1 renderer/px')
-  })
-
-  it('reflects compact artifact pressure and discloses dense renderer pressure (#492, #499)', () => {
+  it('surfaces actionable renderer pressure without tinting the source gauge (#63, #492, #499)', () => {
     const [portable, installation] = buildShowCompositionFreezeCases()
     usePatternStore.setState({ userPatterns: portable.patterns })
     useShowStore.setState({ shows: [portable.show], activeShowId: portable.show.id, showsLoaded: true })
@@ -6521,8 +6455,9 @@ describe('ShowEditor (#318)', () => {
     render(<ShowEditor showId={installation.show.id} />)
 
     expect(screen.getByText('Worst instant evaluates 4 simultaneous Pattern sources per pixel.')).toBeInTheDocument()
-    expect(screen.getByText(/worst instant:/i)).toHaveTextContent('4 renderers/px')
-    expect(screen.getByText(/steady state/i)).toHaveTextContent('2 renderers/px')
+    expect(screen.queryByText(/worst instant:/i)).not.toBeInTheDocument()
+    expect(screen.queryByText(/steady state/i)).not.toBeInTheDocument()
+    expect(screen.getByLabelText(/The budget is a source-size proxy/i).firstElementChild).toHaveClass('bg-live')
   })
 
   it('discloses the output contract in Show properties without a Stage mutation control (#434)', async () => {

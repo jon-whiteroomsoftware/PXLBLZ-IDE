@@ -2359,8 +2359,10 @@ savings amount unless a compiler counterfactual exists.
 
 Delivered source, generated source, VM words, renderer depth, and Controller
 bytecode remain different measurement axes. The inventory never distributes
-Controller bytecode across semantic source categories. The compile bar's
-generated-source gauge is a conservative source-size proxy against the
+Controller bytecode across semantic source categories. The persistent compile
+bar exposes delivered source, VM words, and actionable warnings while leaving
+arena assignments and code-generation strategy in the compiler model. Its
+delivered-source gauge is a conservative source-size proxy against the
 separately observed 68,384-byte compiled-bytecode activation ceiling. It is not
 a bytecode percentage or a measurement of remaining Controller capacity.
 
@@ -3753,8 +3755,8 @@ use a packed per-pixel lookup under three #573 gates, each priced from the
   `issue573-repricing-report.json`; `packedRoutingRepricing: false` restores
   the pre-#573 planner (2,048-element cap, 20 bytes/element, runCount >= 64).
 
-The compile summary and compile bar name the selected representation and
-report separate estimated bytecode and permanent-array costs.
+The compile summary names the selected representation and reports separate
+estimated bytecode and permanent-array costs.
 
 ## 24. Deterministic seek replay
 

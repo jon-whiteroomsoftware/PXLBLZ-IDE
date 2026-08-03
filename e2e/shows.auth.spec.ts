@@ -1446,22 +1446,6 @@ test.describe('authenticated Show authoring', () => {
     await expect(page.getByLabel('Clip evaluation')).toHaveValue('freeze-at-entry')
   })
 
-  test('reports the selected evaluation policy in the compile bar', async ({ page }) => {
-    await page.goto('studio/shows')
-    await createInstallationShow(page)
-
-    const compileBar = page.getByTestId('show-compile-bar')
-    await expect(compileBar).toBeVisible()
-
-    await selectClip(page, 'TestPattern1D')
-    await openAdvancedClipControls(page)
-    await page.getByLabel('Clip evaluation').selectOption('freeze-at-entry')
-
-    // The bar reports the policy in prose; match the policy name rather than
-    // pinning the surrounding sentence, which is presentation.
-    await expect(compileBar).toContainText(/freeze at entry/i)
-  })
-
   test('selects, edits, and reloads an appended Zone Layout interval from the timeline (#624)', async ({ page }) => {
     await page.goto('studio/shows')
     await createInstallationShow(page)
@@ -1568,7 +1552,6 @@ test.describe('authenticated Show authoring', () => {
     await expect(page.getByLabel('Split position start')).toHaveValue('0.2')
     await expect(page.getByLabel('Split position duration seconds exact time')).toHaveValue('1.2')
     await expect(page.getByLabel('Split position easing')).toHaveValue('ease-in-out')
-    await expect(page.getByText(/moving split: 1 scalar/i)).toBeVisible()
     // Close the transition Detail panel before reaching for the header: its
     // anchored placement can cover the View code button and intercept the
     // click (#683).

@@ -1,6 +1,6 @@
 import { Fragment, createContext, useCallback, useContext, useDeferredValue, useEffect, useLayoutEffect, useMemo, useRef, useState, useSyncExternalStore, type CSSProperties, type MouseEvent as ReactMouseEvent, type PointerEvent as ReactPointerEvent, type ReactNode, type RefObject, type SetStateAction } from 'react'
 import { createPortal } from 'react-dom'
-import { Activity, BookOpen, Check, ChevronDown, ChevronRight, Clock3, Code2, Copy, Download, Eye, Flag, Grid2X2, Info, Layers3, Lightbulb, ListChecks, Lock, Magnet, Map as MapIcon, Maximize2, Move, PanelLeft, Pause, Play, Plus, Redo2, Repeat2, RotateCcw, RotateCw, Route, Scissors, Settings2, SkipBack, SlidersHorizontal, SplitSquareHorizontal, Square, Sun, Trash2, Undo2, WandSparkles, X, Zap } from 'lucide-react'
+import { Activity, BookOpen, ChevronDown, ChevronRight, Clock3, Code2, Copy, Download, Eye, Flag, Grid2X2, Info, Layers3, Lightbulb, ListChecks, Lock, Magnet, Map as MapIcon, Maximize2, Move, PanelLeft, Pause, Play, Plus, Redo2, Repeat2, RotateCcw, RotateCw, Route, Scissors, Settings2, SkipBack, SlidersHorizontal, SplitSquareHorizontal, Square, Sun, Trash2, Undo2, WandSparkles, X, Zap } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { NumberField as UiNumberField, type NumberFieldProps as UiNumberFieldProps } from '@/components/ui/number-field'
 import { TimeField as UiTimeField, type TimeFieldProps as UiTimeFieldProps } from '@/components/ui/time-field'
@@ -2633,9 +2633,6 @@ export function ShowEditor({
       <CompileBar
         compiled={compiled}
         artifactInventory={artifactInventory}
-        targetPixels={activeShow.outputContract?.kind === 'portable-2d'
-          ? activeShow.outputContract.referencePixelCount
-          : targetProfile?.lastKnownPixelCount ?? zonePixelTotal(activeShow)}
         pushResult={compileBarPushResult}
       />
     </div>
@@ -9726,7 +9723,6 @@ function ZoneBindingStatus({
 function CompileBar({
   compiled,
   artifactInventory,
-  targetPixels,
   pushResult,
 }: {
   compiled: CompiledShowState
@@ -9734,7 +9730,6 @@ function CompileBar({
     inventory: DeliveredShowSourceInventory
     model: ShowArtifactInventoryModel
   } | null
-  targetPixels: number
   pushResult: string | null
 }) {
   if (compiled.error) {
@@ -9746,82 +9741,20 @@ function CompileBar({
     )
   }
   const summary = compiled.artifact?.summary
-  const ratio = summary?.artifactBudgetRatio ?? 0
   const pressure = summary ? assessShowCompilePressure({
     artifactBytes: summary.artifactBytes,
     budgetBytes: summary.measuredDeviceBudgetBytes,
     worstInstantRenderersPerPixel: summary.worstInstantRenderersPerPixel,
   }) : null
-  const estimate = estimateFps(ratio, summary?.renderPolicy)
   // The gauge shows what actually ships: delivered bytes (generated source
   // plus the stamped delivery header) against the same source budget.
   const deliveredBytes = artifactInventory?.inventory.totalBytes ?? summary?.artifactBytes ?? 0
   const deliveredRatio = summary ? deliveredBytes / summary.measuredDeviceBudgetBytes : 0
-  const worstInstant = summary?.transitionCost === 'renderer-window'
-    ? 'crossfade'
-    : summary?.transitionCost === 'bounded-renderer-window'
-      ? 'portal blend (feather band only)'
-    : summary?.transitionCost === 'parameter'
-      ? 'adaptation ramp'
-      : summary?.transitionCost === 'route'
-        ? summary.routePolicy === 'feathered-wipe'
-          ? 'feathered wipe'
-          : summary.routePolicy === 'portal-dithered-feather'
-            ? 'portal dither'
-            : summary.routePolicy === 'portal-hard'
-              ? 'portal'
-              : 'route transition'
-        : 'none'
-  const clockPolicy = summary?.clockPolicy === 'exact-pause-ramp'
-    ? 'exact pause ramp'
-    : summary?.clockPolicy === 'exact-pause'
-      ? 'exact pause'
-      : summary?.clockPolicy === 'scaled-ramp'
-        ? 'scaled ramp'
-        : summary?.clockPolicy === 'scaled'
-          ? 'scaled'
-          : 'real time'
-  const maskedClipFractions = summary?.clips
-    .filter((clip) => clip.evaluationPolicy !== 'full')
-    .map((clip) => `${Math.round(clip.expectedActiveFraction * 100)}%`) ?? []
-  const evaluationLabel = summary?.evaluationPolicy === 'masked-shutter'
-    ? `${Math.round((summary.expectedActiveFraction ?? 0) * 100)}% expected`
-    : summary?.evaluationPolicy === 'mixed'
-      ? `${maskedClipFractions.join(', ')} expected for masked clip`
-      : null
-  const steppedRates = summary?.clips
-    .filter((clip) => clip.temporalPolicy === 'stepped-clock' && clip.stepMs !== null)
-    .map((clip) => formatCadenceRate(steppedClockRateHz(clip.stepMs!))) ?? []
-  const temporalLabel = summary?.temporalPolicy === 'stepped-clock'
-    ? `${[...new Set(steppedRates)].join(', ')}/s stepped`
-    : summary?.temporalPolicy === 'mixed'
-      ? `${[...new Set(steppedRates)].join(', ')}/s stepped clip`
-      : null
-  const timeOffsets = summary?.clips
-    .filter((clip) => clip.timeOffsetMs > 0)
-    .map((clip) => `${Math.round(clip.timeOffsetMs)}ms`) ?? []
-  const timeOffsetLabel = summary?.timeOffsetPolicy === 'per-clip'
-    ? [...new Set(timeOffsets)].join(', ')
-    : null
-  const renderTargetRoleLabels = {
-    'stage-rgb': 'RGB',
-    'sample-xy': 'XY',
-    'scalar-field': 'scalar',
-    'previous-rgb': 'previous RGB',
-  } as const
-  const renderTargetBindings = summary?.renderTarget.roleBindings
-    .map((binding) => `${renderTargetRoleLabels[binding.role]} ${Object.values(binding.channels).join('/')}`)
-    .join(' · ')
-  const rejectedRenderTargetCandidates = summary?.renderTargetPlan.decisions
-    .filter((decision) => decision.status === 'rejected') ?? []
-  const coverage = summary?.specializations.contentKeys
-  const coverageEndpointCount = coverage
-    ? coverage.zeroWeightLayersSkipped
-      + coverage.zeroWeightRequiredCallsRetained
-      + coverage.fullWeightBlendBypasses
-      + coverage.trackedEndpointLayersEligible
-      + coverage.trackedEndpointRequiredCallsRetained
-    : 0
+  const sourcePressure = summary ? assessShowCompilePressure({
+    artifactBytes: deliveredBytes,
+    budgetBytes: summary.measuredDeviceBudgetBytes,
+    worstInstantRenderersPerPixel: 0,
+  }) : null
   return (
     <div data-testid="show-compile-bar" className="scrollbar-hidden min-h-8 shrink-0 overflow-x-auto border-t border-seam bg-zinc-950 px-3 font-mono text-[10px] text-zinc-500">
       <div className="flex min-h-8 min-w-max items-center gap-2 whitespace-nowrap">
@@ -9836,7 +9769,7 @@ function CompileBar({
           : undefined}
       >
         <span
-          className={`block h-full ${pressure?.status === 'blocked' ? 'bg-red-500' : pressure?.status === 'warning' ? 'bg-amber-400' : 'bg-live'}`}
+          className={`block h-full ${sourcePressure?.status === 'blocked' ? 'bg-red-500' : sourcePressure?.status === 'warning' ? 'bg-amber-400' : 'bg-live'}`}
           style={{ width: `${Math.min(100, deliveredRatio * 100)}%` }}
         />
       </span>
@@ -9863,194 +9796,11 @@ function CompileBar({
       {summary?.resources && (
         <span className={summary.resources.remainingWords < 0 ? 'text-red-300' : 'text-sky-200'}>
           VM {summary.resources.totalWords.toLocaleString('en-US')}/{summary.resources.vmWordBudget.toLocaleString('en-US')} words
-          {' · '}arena {summary.resources.renderTargetWords.toLocaleString('en-US')}
-          {' · '}{summary.resources.remainingWords.toLocaleString('en-US')} free
-        </span>
-      )}
-      {summary?.renderTarget && (
-        <span className="text-cyan-200">
-          render target: {summary.renderTarget.planeCount} planes
-          {' · '}{summary.renderTarget.activeRole ?? 'unassigned'}
-          {' · '}{renderTargetBindings}
-        </span>
-      )}
-      {summary?.renderTargetPlan && summary.renderTargetPlan.decisions.length > 0 && (
-        <span className="text-violet-200">
-          cache plan: {summary.renderTargetPlan.assignments.length} selected
-          {' · '}{rejectedRenderTargetCandidates.length} rejected
-          {' · '}peak {summary.renderTargetPlan.peakPlaneCount}/{summary.renderTargetPlan.planeCount} planes
-          {' · '}est. {summary.renderTargetPlan.totalEstimatedSavedWork.toLocaleString('en-US')} work avoided
-        </span>
-      )}
-      {summary && summary.specializations.freezeAtEntry.authoredClipCount > 0 && (
-        <span className={summary.specializations.freezeAtEntry.evaluationsAvoidedPerReplayFrame > 0 ? 'text-emerald-300' : 'text-amber-300'}>
-          freeze at entry: {summary.specializations.freezeAtEntry.evaluationsAvoidedPerReplayFrame.toLocaleString('en-US')} Pattern evaluations/replay frame avoided
-          {' · '}capture once, private clock continues
-        </span>
-      )}
-      {summary && (
-        summary.specializations.patternOutputReuse.groups.length > 0
-        || summary.specializations.patternOutputReuse.excluded.length > 0
-      ) && (
-        <span className={summary.specializations.patternOutputReuse.selectedGroupCount > 0 ? 'text-emerald-300' : 'text-amber-300'}>
-          output reuse: {summary.specializations.patternOutputReuse.selectedGroupCount} selected group{summary.specializations.patternOutputReuse.selectedGroupCount === 1 ? '' : 's'}
-          {' · '}{summary.specializations.patternOutputReuse.evaluationsAvoidedPerFrame.toLocaleString('en-US')} Pattern evaluations/frame avoided
-          {' · '}+{summary.specializations.patternOutputReuse.additionalArrayWords} array words
-          {' · '}{summary.specializations.patternOutputReuse.excluded.length} excluded consumer{summary.specializations.patternOutputReuse.excluded.length === 1 ? '' : 's'}
-        </span>
-      )}
-      {coverage && (coverage.keyedClipCount > 0 || coverageEndpointCount > 0) && (
-        <span className={coverage.selectedStackCount > 0 || coverage.zeroWeightLayersSkipped > 0 ? 'text-emerald-300' : 'text-amber-300'}>
-          coverage: {coverage.keyedClipCount} keyed Pattern{coverage.keyedClipCount === 1 ? '' : 's'}
-          {' · '}{coverage.selectedStackCount} conditional stack{coverage.selectedStackCount === 1 ? '' : 's'}
-          {coverage.evaluationFormula && (
-            <> · {coverage.evaluationFormula} render paths · best {coverage.bestCaseRenderersPerPixel}, worst {coverage.worstCaseRenderersPerPixel} renderers/px</>
-          )}
-          {coverage.zeroWeightLayersSkipped > 0 && ` · ${coverage.zeroWeightLayersSkipped} zero-weight evaluation${coverage.zeroWeightLayersSkipped === 1 ? '' : 's'} skipped`}
-          {coverage.zeroWeightRequiredCallsRetained > 0 && ` · ${coverage.zeroWeightRequiredCallsRetained} zero-weight state call${coverage.zeroWeightRequiredCallsRetained === 1 ? '' : 's'} retained`}
-          {coverage.fullWeightBlendBypasses > 0 && ` · ${coverage.fullWeightBlendBypasses} full-weight blend${coverage.fullWeightBlendBypasses === 1 ? '' : 's'} bypassed`}
-          {coverage.trackedEndpointLayersEligible > 0 && ` · ${coverage.trackedEndpointLayersEligible} animated endpoint${coverage.trackedEndpointLayersEligible === 1 ? '' : 's'} eligible`}
-          {coverage.trackedEndpointRequiredCallsRetained > 0 && ` · ${coverage.trackedEndpointRequiredCallsRetained} animated state call${coverage.trackedEndpointRequiredCallsRetained === 1 ? '' : 's'} retained`}
-          {' · '}{coverage.rejectedStackCount} fallback stack{coverage.rejectedStackCount === 1 ? '' : 's'}
-        </span>
-      )}
-      {summary?.renderPolicy === 'snapshot-outgoing-transition-live-incoming' && (
-        <span className="text-emerald-300">
-          crossfade: snapshot outgoing · capture frame 2 render paths/px · then 1 live render path/px
         </span>
       )}
       {compiled.artifactBlocker && <span className="text-red-300">Output blocked: {compiled.artifactBlocker}</span>}
       {pressure?.blocks.map((block) => <span key={block} className="text-red-300">Output blocked: {block}</span>)}
       {pressure?.warnings.map((warning) => <span key={warning} className="text-amber-300">{warning}</span>)}
-      <span>-</span>
-      <b className="text-zinc-300">est. {estimate} fps @ {targetPixels} px</b>
-      <span>-</span>
-      <span>steady state <span className={summary && summary.steadyStateRenderersPerPixel > 2 ? 'text-amber-300' : 'text-emerald-300'}><Check size={12} className="inline" aria-hidden /> {summary?.steadyStateRenderersPerPixel ?? 1} renderer{summary?.steadyStateRenderersPerPixel === 1 ? '' : 's'}/px</span></span>
-      <span className={summary?.transitionCost === 'renderer-window' || summary?.transitionCost === 'bounded-renderer-window' ? 'text-amber-300' : 'text-emerald-300'}>
-        worst instant: {worstInstant}{summary && summary.worstInstantRenderersPerPixel > 1 ? ` · ${summary.worstInstantRenderersPerPixel} renderers/px` : ''}
-      </span>
-      {summary?.routingRepresentation !== 'none' && (
-        <span className="text-sky-300">
-          routing: {summary?.routingRepresentation === 'packed-pixels'
-            ? 'packed pixels'
-            : summary?.routingRepresentation === 'generated-formula'
-              ? 'generated formula'
-            : summary?.routingRepresentation === 'coordinate-predicates'
-              ? 'coordinate predicates'
-              : 'range branches'}
-          {summary?.routingEstimate && (
-            <> · est. {formatBytes(summary.routingEstimate.estimatedBytecodeBytes)} bytecode
-              {summary.routingEstimate.estimatedArrayBytes > 0
-                ? ` + ${formatBytes(summary.routingEstimate.estimatedArrayBytes)} array`
-                : ''}
-            </>
-          )}
-        </span>
-      )}
-      {summary?.specializations.routing && (
-        <span className="text-emerald-300">
-          routing specialization: complete disjoint short-circuit
-          {' · '}max {summary.specializations.routing.baselineMaxComparisonsPerPixel}
-          {' -> '}{summary.specializations.routing.selectedMaxComparisonsPerPixel} comparisons/px
-          {' · '}{summary.specializations.routing.maxComparisonsAvoidedPerPixel} avoided
-        </span>
-      )}
-      {summary && summary.specializations.capture.length > 0 && (
-        <span className="text-emerald-300">
-          capture specialization: {summary.specializations.capture.filter((item) => item.samplePath === 'identity').length} identity sample
-          {' · '}{summary.specializations.capture.filter((item) => item.clearPolicy === 'omitted-guaranteed-output').length} clear omitted
-          {' · '}up to {Math.max(...summary.specializations.capture.map((item) => item.operationsAvoidedPerEvaluatedPixel))} ops/evaluation avoided
-        </span>
-      )}
-      {summary && summary.specializations.frameInvariants.some((item) => item.selectedCount > 0) && (
-        <span className="text-emerald-300">
-          frame invariants: {summary.specializations.frameInvariants.reduce((sum, item) => sum + item.selectedCount, 0)} hoisted
-          {' · '}{summary.specializations.frameInvariants.reduce((sum, item) => sum + item.operationsAvoidedPerEvaluatedPixel, 0)} ops/evaluation avoided
-          {' · '}{summary.specializations.frameInvariants.flatMap((item) => item.bindings).join(', ')}
-        </span>
-      )}
-      {summary?.specializations.renderKernels && (
-        <span className={summary.specializations.renderKernels.selected ? 'text-emerald-300' : 'text-zinc-500'}>
-          kernel specialization: {summary.specializations.renderKernels.selected
-            ? 'selected'
-            : summary.specializations.renderKernels.reason === 'hardware-profile'
-              ? 'measured-neutral on pb32'
-              : `declined (${summary.specializations.renderKernels.reason})`}
-          {' · '}{summary.specializations.renderKernels.configurationPlanCount} plans / {summary.specializations.renderKernels.kernelCount} kernels
-          {' · '}up to {summary.specializations.renderKernels.avoidedBranchesPerPixel} branches/px candidate
-          {' · '}source dispatch {summary.specializations.renderKernels.sourceByteDelta > 0 ? '+' : ''}{summary.specializations.renderKernels.sourceByteDelta.toLocaleString('en-US')} B
-          {!summary.specializations.renderKernels.selected && ' retained as baseline dispatch'}
-        </span>
-      )}
-      {summary?.specializations.motionTransitions && (
-        <span className={summary.specializations.motionTransitions.selected ? 'text-emerald-300' : 'text-zinc-500'}>
-          motion sharing: {summary.specializations.motionTransitions.representation === 'exact-family-kernels'
-            ? 'family kernels'
-            : summary.specializations.motionTransitions.representation === 'exact-shared-environment'
-              ? 'shared environment'
-              : `unrolled (${summary.specializations.motionTransitions.reason})`}
-          {' · '}{summary.specializations.motionTransitions.boundaryCount} boundaries / {summary.specializations.motionTransitions.kernelCount} kernels
-          {' · '}{summary.specializations.motionTransitions.stackPlanCount} stack plans
-          {' · '}{summary.specializations.motionTransitions.avoidedEmittedBytes.toLocaleString('en-US')} emitted B avoided
-          {' · '}{summary.specializations.motionTransitions.parameterScalarGlobals} scalars
-          {' · '}+{summary.specializations.motionTransitions.dynamicBranchesAddedPerPixel} branches/px
-        </span>
-      )}
-      {summary?.specializations.showScore?.selected && (
-        <span className="text-emerald-300">
-          show score: table driven
-          {' · '}{summary.specializations.showScore.boundaryCount} boundaries
-          {' / '}{summary.specializations.showScore.stackPlanCount} stacks
-          {' / '}{summary.specializations.showScore.kernelCount} {summary.specializations.showScore.kernelCount === 1 ? 'kernel' : 'kernels'}
-          {' · '}{summary.specializations.showScore.scoreWords.toLocaleString('en-US')} words
-          {' · '}init {summary.specializations.showScore.initializationAssignments.toLocaleString('en-US')} assignments
-          {' + '}{summary.specializations.showScore.initializationOperations.toLocaleString('en-US')} ops
-          {' · '}{summary.specializations.showScore.avoidedEmittedBytes.toLocaleString('en-US')} emitted B avoided
-          {' · '}{summary.specializations.showScore.timing === 'regular-cadence' ? 'regular cadence' : 'explicit boundaries'}
-          {' · '}{summary.specializations.showScore.qualification.boardType} bytecode
-          {' '}{summary.specializations.showScore.qualification.controllerBytecodeDeltaPercent.worst}%
-          {' to '}{summary.specializations.showScore.qualification.controllerBytecodeDeltaPercent.best}%
-          {' · '}runtime {summary.specializations.showScore.qualification.runtimeDisposition}
-        </span>
-      )}
-      {summary?.specializations.patternSlots?.selected && (
-        <span className="text-emerald-300">
-          pattern machines: {summary.specializations.patternSlots.logicalMemberCount} logical
-          {' -> '}{summary.specializations.patternSlots.physicalSlotCount} physical
-          {' · '}{summary.specializations.patternSlots.reclaimedMachineCount} reclaimed
-          {' · '}{summary.specializations.patternSlots.steadyStateRenderOperationsAdded} steady-state render ops added
-        </span>
-      )}
-      {summary?.routingParameterEstimate && (
-        <span className="text-sky-200">
-          moving split: 1 scalar · 1 route test/px · avoids {summary.routingParameterEstimate.equivalentEnumeratedArrayElements} table entries
-        </span>
-      )}
-      {summary?.sampleRemappingEstimate && (
-        <span className="text-cyan-200">
-          sample repeat: 1 scalar · up to 2 multiply + 2 frac/px · +0 renderers
-        </span>
-      )}
-      {summary && summary.clockPolicy !== 'real-time' && (
-        <span className={summary.clockPolicy.includes('exact-pause') ? 'text-amber-300' : 'text-zinc-500'}>
-          clock: {clockPolicy}
-        </span>
-      )}
-      {evaluationLabel && (
-        <span className="text-sky-300">
-          Pattern eval: {evaluationLabel} - outer loop + LEDs unchanged
-        </span>
-      )}
-      {temporalLabel && (
-        <span className="text-violet-300">
-          Motion cadence: {temporalLabel} - renderer cost unchanged
-        </span>
-      )}
-      {timeOffsetLabel && (
-        <span className="text-violet-300">
-          Clock offset: {timeOffsetLabel} - renderer cost unchanged
-        </span>
-      )}
       {summary?.warnings.map((warning) => <span key={warning} className="text-amber-300">{presentShowDiagnostic(warning)}</span>)}
       {pushResult && <span className="text-zinc-300">{pushResult}</span>}
       </div>
@@ -10317,15 +10067,6 @@ function formatControlValue(value: number): string {
 function formatBytes(bytes: number): string {
   if (bytes < 1024) return `${bytes} B`
   return `${(bytes / 1024).toFixed(1)} KB`
-}
-
-function estimateFps(ratio: number, policy: string | undefined): number {
-  const base = policy === 'steady-active-transition-both' ? 62 : 70
-  return Math.max(20, Math.round(base - ratio * 12))
-}
-
-function zonePixelTotal(show: ShowRecord): number {
-  return show.zones.reduce((sum, zone) => sum + zone.nominalPixelCount, 0)
 }
 
 export function targetZonePixelTotal(zones: ControllerZone[] | undefined): number {

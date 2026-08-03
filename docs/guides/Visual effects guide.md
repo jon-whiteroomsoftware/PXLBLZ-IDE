@@ -144,10 +144,10 @@ work.
 
 ## Cost: how many Pattern evaluations happen
 
-The Show-level compile bar describes the generated artifact, not a generic
-warning attached to a menu item. Clip details deliberately do not repeat those
-Show totals. Let `N` be the number of output pixels and `E` the pixels inside a
-blended spatial edge.
+Show-level warnings describe the finished artifact, not a generic cost attached
+to a menu item. Clip details deliberately do not repeat those Show totals. Let
+`N` be the number of output pixels and `E` the pixels inside a blended spatial
+edge.
 
 ![Transition cost classes: one renderer per pixel, both renderers inside a feather band, or both renderers everywhere](../images/transition-cost-classes.svg)
 
@@ -163,8 +163,9 @@ blended spatial edge.
 Effects can still add scalar, trigonometric, square-root, or address work around
 that one Pattern evaluation. The current UI does not itemize those per-Effect
 operations. The Add Effect palette exposes broad cost policies while you choose;
-the Show compile bar reports aggregate renderer cost, generated memory, artifact
-bytes, and compatibility warnings for the finished artifact.
+the Show source inventory summarizes steady and worst renderer depth, while the
+compile bar keeps source size, VM words, and compatibility warnings visible for
+the finished artifact.
 
 ## Stock Show companion
 
