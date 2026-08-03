@@ -5725,6 +5725,69 @@ function ZoneGlyph({ icon, size = 12 }: { icon?: string; size?: number }) {
   return <Grid2X2 size={size} aria-hidden />
 }
 
+function ZoneIconSwatch({
+  zoneName,
+  icon,
+  color,
+  readOnly,
+  onPickIcon,
+}: {
+  zoneName: string
+  icon?: string
+  color: string
+  readOnly: boolean
+  onPickIcon: (icon: string) => void
+}) {
+  const [open, setOpen] = useState(false)
+  if (readOnly) {
+    return (
+      <span
+        className="grid size-6 shrink-0 place-items-center rounded border border-current/25 bg-black/30"
+        style={{ color }}
+      >
+        <ZoneGlyph icon={icon} />
+      </span>
+    )
+  }
+  return (
+    <span className="relative shrink-0">
+      <button
+        type="button"
+        aria-label={`Zone icon ${zoneName}`}
+        aria-expanded={open}
+        title={`Icon for ${zoneName}`}
+        className="grid size-6 place-items-center rounded border border-current/25 bg-black/30 hover:border-current/60"
+        style={{ color }}
+        onClick={() => setOpen((current) => !current)}
+      >
+        <ZoneGlyph icon={icon} />
+      </button>
+      {open && (
+        <span className="absolute left-0 top-full z-50 mt-1 flex gap-0.5 rounded border border-zinc-700 bg-zinc-950 p-0.5 shadow-xl">
+          {ZONE_ICON_OPTIONS.map((option) => (
+            <button
+              key={option.id}
+              type="button"
+              aria-label={`${option.label} icon for ${zoneName}`}
+              title={option.label}
+              aria-pressed={(icon ?? 'grid') === option.id}
+              className={`grid size-6 place-items-center rounded ${(icon ?? 'grid') === option.id
+                ? 'bg-zinc-800 text-zinc-100'
+                : 'text-zinc-400 hover:bg-zinc-800 hover:text-zinc-100'}`}
+              onClick={() => {
+                onPickIcon(option.id)
+                setOpen(false)
+              }}
+            >
+              <ZoneGlyph icon={option.id} />
+            </button>
+          ))}
+        </span>
+      )}
+    </span>
+  )
+}
+
 function ZoneMapPopover({
   anchor,
   show,
@@ -5785,35 +5848,28 @@ function ZoneMapPopover({
               key={zone.id}
               className="grid min-h-10 grid-cols-[minmax(0,1fr)_auto_auto] items-center gap-1 border-b border-zinc-900/80 px-1 py-1 last:border-b-0"
             >
-              <button
-                type="button"
-                aria-label={`Select zone ${zone.name}`}
-                title={`Open ${zone.name} properties`}
-                className="flex min-w-0 items-center gap-2 rounded px-1.5 py-1 text-left text-zinc-300 hover:bg-zinc-800/70 hover:text-zinc-100"
-                onClick={(event) => onSelectZone(zone.id, event.currentTarget)}
-              >
-                <span
-                  className="grid size-6 shrink-0 place-items-center rounded border border-current/25 bg-black/30"
-                  style={{ color: zone.color ?? '#38bdf8' }}
+              <div className="flex min-w-0 items-center gap-2 px-0.5 py-1">
+                {/* The swatch is the icon picker: it already shows the glyph,
+                    and the old word-dropdown ("Route", "Map") read as a
+                    semantic per-zone mode it never was (#63). */}
+                <ZoneIconSwatch
+                  zoneName={zone.name}
+                  icon={zone.icon}
+                  color={zone.color ?? '#38bdf8'}
+                  readOnly={readOnly}
+                  onPickIcon={(icon) => onUpdateZone(zone.id, { icon })}
+                />
+                <button
+                  type="button"
+                  aria-label={`Select zone ${zone.name}`}
+                  title={`Open ${zone.name} properties`}
+                  className="min-w-0 flex-1 rounded px-1 py-0.5 text-left text-zinc-300 hover:bg-zinc-800/70 hover:text-zinc-100"
+                  onClick={(event) => onSelectZone(zone.id, event.currentTarget)}
                 >
-                  <ZoneGlyph icon={zone.icon} />
-                </span>
-                <span className="min-w-0">
-                  <strong className="block truncate text-[12px] font-medium">{zone.name}</strong>
-                  <span className="block truncate text-[10px] text-zinc-500">{zone.nominalPixelCount} px</span>
-                </span>
-              </button>
-              {!readOnly && (
-                <select
-                  aria-label={`Zone icon ${zone.name}`}
-                  title={`Icon for ${zone.name}`}
-                  value={zone.icon ?? 'grid'}
-                  className="h-7 w-16 rounded border border-zinc-800 bg-zinc-950 px-1 text-[10px] text-zinc-400 outline-none focus:border-live/60"
-                  onChange={(event) => onUpdateZone(zone.id, { icon: event.currentTarget.value })}
-                >
-                  {ZONE_ICON_OPTIONS.map((option) => <option key={option.id} value={option.id}>{option.label}</option>)}
-                </select>
-              )}
+                  <strong className="block truncate text-[11px] font-medium">{zone.name}</strong>
+                  <span className="block truncate text-[9px] text-zinc-500">{zone.nominalPixelCount} px</span>
+                </button>
+              </div>
               {show.zones.length > 1 && (
                 <div className="flex items-center gap-0.5">
                   <button

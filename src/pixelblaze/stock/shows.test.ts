@@ -36,7 +36,7 @@ describe('stock Show curriculum (#363)', () => {
       ['102 Transitions and Values', 'learn', 100, 2],
       ['103 Clip Transform', 'learn', 100, 3],
       ['104 Effects and Ordering', 'learn', 100, 4],
-      ['105 Portable Zones', 'learn', 100, 5],
+      ['105 Zones', 'learn', 100, 5],
       ['106 Built from Basics', 'learn', 100, 6],
       ['201 Layers and Property Animation', 'learn', 200, 1],
       ['202 Content and Clip Viewport', 'learn', 200, 2],

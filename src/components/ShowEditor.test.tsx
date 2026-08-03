@@ -425,7 +425,9 @@ describe('ShowEditor (#318)', () => {
     expect(within(zoneMap).getByRole('button', { name: 'Add Zone' })).toBeInTheDocument()
     expect(within(zoneMap).queryByRole('button', { name: 'Collapse zone main' })).not.toBeInTheDocument()
 
-    await user.selectOptions(within(zoneMap).getByRole('combobox', { name: 'Zone icon main' }), 'bolt')
+    // The icon picker is the glyph swatch itself, not a word dropdown (#63).
+    await user.click(within(zoneMap).getByRole('button', { name: 'Zone icon main' }))
+    await user.click(within(zoneMap).getByRole('button', { name: 'Bolt icon for main' }))
     await waitFor(() => expect(useShowStore.getState().shows[0].zones[0].icon).toBe('bolt'))
     await user.click(within(zoneMap).getByRole('button', { name: 'Add Zone' }))
     await waitFor(() => expect(useShowStore.getState().shows[0].zones).toHaveLength(2))
