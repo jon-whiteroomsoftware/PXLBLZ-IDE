@@ -16,7 +16,7 @@ describe('Show Transition authoring adapter', () => {
     const base = createDefaultShow('show-transitions', 'Transitions', 1)
     const transitionId = base.transitions![0].id
 
-    expect(items).toHaveLength(35)
+    expect(items).toHaveLength(36)
     for (const item of items) {
       const changed = replaceShowBoundaryTransition(base, transitionId, item)
       const transition = changed.transitions!.find((candidate) => candidate.id === transitionId)!

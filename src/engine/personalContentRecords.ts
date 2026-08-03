@@ -447,8 +447,11 @@ export interface ShowClipTransform {
   scaleY: number
 }
 
-/** Optional placement-owned, axis-aligned clipping rectangle in normalized Zone coordinates. */
-export type ShowClipApertureShape = 'rectangle' | 'ellipse' | 'diamond' | 'ring' | 'rounded-box'
+/** Optional placement-owned clipping frame in normalized Zone coordinates. */
+export type ShowClipApertureShape =
+  | 'rectangle' | 'ellipse' | 'diamond' | 'ring' | 'rounded-box'
+  | 'cross' | 'heart' | 'star' | 'crescent' | 'polygon' | 'cloud'
+  | 'cat-head' | 'cat-side-profile' | 'bastet'
 
 export type ShowClipApertureEdge = 'hard' | 'soft' | 'dither'
 
@@ -464,10 +467,24 @@ export interface ShowClipViewport {
   edge?: ShowClipApertureEdge
   /** Authored soft-band width in normalized Zone units. Missing = density default. */
   feather?: number
+  /** Silhouette rotation in turns within the frame. Missing = axis-aligned (#690). */
+  rotation?: number
+  /** The silhouette cuts out instead of admitting (#690). */
+  invert?: boolean
   /** Ring only: band thickness as a fraction of the unit radius. */
   ringWidth?: number
   /** Rounded-box only: corner radius as a fraction of the half-side. */
   cornerRadius?: number
+  /** Cross only: arm width as a fraction of the frame half-extent. */
+  crossWidth?: number
+  /** Star only. */
+  starPoints?: number
+  /** Star only. */
+  starInner?: number
+  /** Crescent only: cutout offset as a fraction of the unit radius. */
+  crescentOffset?: number
+  /** Polygon only. */
+  polygonSides?: number
 }
 
 export interface ShowMainPlacement {

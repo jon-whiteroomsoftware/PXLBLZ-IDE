@@ -1522,7 +1522,7 @@ function shapeRevealFigureReference(): StockShow {
     { id: 'shape-heart', label: 'Heart: grow incoming', familyId: 'shape-reveal', variantId: 'heart', changes: { revealMode: 'grow-incoming' }, holdSeconds: 3, transitionSeconds: 2.5 },
     ...shapeRevealShapeSpecs([
       ['ring', 'Ring'], ['star', 'Star'], ['crescent', 'Crescent'], ['polygon', 'Regular polygon'],
-      ['cat-head', 'Cat head'], ['cat-side-profile', 'Side-profile cat'], ['bastet', 'Bastet'],
+      ['cloud', 'Cloud'], ['cat-head', 'Cat head'], ['cat-side-profile', 'Side-profile cat'], ['bastet', 'Bastet'],
     ]),
   ]
   return transitionReferenceShow({

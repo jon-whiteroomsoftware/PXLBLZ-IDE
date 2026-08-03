@@ -1,4 +1,5 @@
 import type { ShowClipViewport } from './personalContentRecords'
+import { spatialGaugeCallExpression, type SpatialGaugeShape } from './spatialShapeGauge'
 
 export const DEFAULT_SHOW_CLIP_VIEWPORT: Readonly<ShowClipViewport> = Object.freeze({
   enabled: false,
@@ -26,6 +27,11 @@ export function normalizeShowClipViewport(
   const aperture = viewport?.aperture !== undefined && SHAPED_APERTURES.includes(viewport.aperture)
     ? viewport.aperture
     : undefined
+  const rotation = typeof viewport?.rotation === 'number'
+    && Number.isFinite(viewport.rotation)
+    && viewport.rotation !== 0
+    ? Math.max(-1, Math.min(1, viewport.rotation))
+    : undefined
   return {
     enabled: Boolean(viewport?.enabled),
     x: clamp(viewport?.x, -4, 4, 0),
@@ -34,22 +40,60 @@ export function normalizeShowClipViewport(
     height: clamp(viewport?.height, 0.01, 8, 1),
     // Rectangle is the compact default, so it normalizes away entirely; only
     // an authored non-default shape survives. Shape parameters are owned by
-    // their shape and normalize away with it.
+    // their shape and normalize away with it. Rotation and invert are
+    // silhouette styling shared by every aperture, including the rectangle.
     ...(aperture !== undefined ? { aperture } : {}),
     ...(viewport?.edge === 'hard' || viewport?.edge === 'soft' || viewport?.edge === 'dither' ? { edge: viewport.edge } : {}),
     ...(feather !== undefined ? { feather } : {}),
+    ...(rotation !== undefined ? { rotation } : {}),
+    ...(viewport?.invert === true ? { invert: true } : {}),
     ...(aperture === 'ring' && typeof viewport?.ringWidth === 'number' && Number.isFinite(viewport.ringWidth)
       ? { ringWidth: Math.max(0.05, Math.min(1, viewport.ringWidth)) }
       : {}),
     ...(aperture === 'rounded-box' && typeof viewport?.cornerRadius === 'number' && Number.isFinite(viewport.cornerRadius)
       ? { cornerRadius: Math.max(0.05, Math.min(1, viewport.cornerRadius)) }
       : {}),
+    ...(aperture === 'cross' && typeof viewport?.crossWidth === 'number' && Number.isFinite(viewport.crossWidth)
+      ? { crossWidth: Math.max(0.1, Math.min(0.9, viewport.crossWidth)) }
+      : {}),
+    ...(aperture === 'star' && typeof viewport?.starPoints === 'number' && Number.isFinite(viewport.starPoints)
+      ? { starPoints: Math.round(Math.max(3, Math.min(12, viewport.starPoints))) }
+      : {}),
+    ...(aperture === 'star' && typeof viewport?.starInner === 'number' && Number.isFinite(viewport.starInner)
+      ? { starInner: Math.max(0.2, Math.min(0.8, viewport.starInner)) }
+      : {}),
+    ...(aperture === 'crescent' && typeof viewport?.crescentOffset === 'number' && Number.isFinite(viewport.crescentOffset)
+      ? { crescentOffset: Math.max(0.15, Math.min(0.8, viewport.crescentOffset)) }
+      : {}),
+    ...(aperture === 'polygon' && typeof viewport?.polygonSides === 'number' && Number.isFinite(viewport.polygonSides)
+      ? { polygonSides: Math.round(Math.max(3, Math.min(8, viewport.polygonSides))) }
+      : {}),
   }
 }
 
 const SHAPED_APERTURES: ReadonlyArray<NonNullable<ShowClipViewport['aperture']>> = [
   'ellipse', 'diamond', 'ring', 'rounded-box',
+  'cross', 'heart', 'star', 'crescent', 'polygon', 'cloud',
+  'cat-head', 'cat-side-profile', 'bastet',
 ]
+
+/** Every selectable aperture, rectangle first. Shared with pickers and validation. */
+export const SHOW_CLIP_APERTURE_SHAPES: ReadonlyArray<NonNullable<ShowClipViewport['aperture']>> = [
+  'rectangle', ...SHAPED_APERTURES,
+]
+
+/** Catalogue silhouettes emitted through the shared gauge helpers (#690). */
+const GAUGE_APERTURES: ReadonlyArray<string> = [
+  'cross', 'heart', 'star', 'polygon', 'cloud', 'cat-head', 'cat-side-profile', 'bastet',
+]
+
+/** Cross arm width default, as a fraction of the frame half-extent. */
+export const DEFAULT_SHOW_CLIP_CROSS_WIDTH = 0.32
+export const DEFAULT_SHOW_CLIP_STAR_POINTS = 5
+export const DEFAULT_SHOW_CLIP_STAR_INNER = 0.45
+/** Crescent cutout offset default, as a fraction of the unit radius. */
+export const DEFAULT_SHOW_CLIP_CRESCENT_OFFSET = 0.45
+export const DEFAULT_SHOW_CLIP_POLYGON_SIDES = 6
 
 /** Ring band thickness default, as a fraction of the unit radius. */
 export const DEFAULT_SHOW_CLIP_RING_WIDTH = 0.25
@@ -71,8 +115,15 @@ export function compactShowClipViewport(
     || normalized.aperture !== undefined
     || normalized.edge !== undefined
     || normalized.feather !== undefined
+    || normalized.rotation !== undefined
+    || normalized.invert !== undefined
     || normalized.ringWidth !== undefined
     || normalized.cornerRadius !== undefined
+    || normalized.crossWidth !== undefined
+    || normalized.starPoints !== undefined
+    || normalized.starInner !== undefined
+    || normalized.crescentOffset !== undefined
+    || normalized.polygonSides !== undefined
     ? normalized
     : undefined
 }
@@ -119,6 +170,16 @@ export function showClipViewportHardPredicateExpression(
   const animated = Object.keys(propertyExpressions).length > 0
     ? propertyExpressions
     : undefined
+  const predicate = hardPredicateCore(normalized, xExpression, yExpression, animated)
+  return normalized.invert ? `(!${predicate})` : predicate
+}
+
+function hardPredicateCore(
+  normalized: ShowClipViewport,
+  xExpression: string,
+  yExpression: string,
+  animated?: FrameExpressions,
+): string {
   if (normalized.aperture === undefined) {
     return rectangleHardMask(normalized, xExpression, yExpression, animated)
   }
@@ -133,6 +194,12 @@ export function showClipViewportHardPredicateExpression(
     const quadratic = ellipseQuadratic(normalized, xExpression, yExpression, animated)
     const inner = 1 - (normalized.ringWidth ?? DEFAULT_SHOW_CLIP_RING_WIDTH)
     return `(${quadratic} <= 1 && ${quadratic} >= ${numberSource(inner * inner)})`
+  }
+  if (normalized.aperture === 'crescent') {
+    return `(${crescentSignedDistance(normalized, xExpression, yExpression, animated)} <= 0)`
+  }
+  if (GAUGE_APERTURES.includes(normalized.aperture)) {
+    return `(${gaugeCallExpression(normalized, xExpression, yExpression, animated)} <= 1)`
   }
   return `(${roundedBoxSignedDistance(normalized, xExpression, yExpression, animated)} <= 0)`
 }
@@ -161,11 +228,97 @@ export function showClipViewportSoftMixExpression(
         ? ringSignedDistance(normalized, xExpression, yExpression, animated)
         : normalized.aperture === 'rounded-box'
           ? roundedBoxSignedDistance(normalized, xExpression, yExpression, animated)
-          : rectangleSignedDistance(normalized, xExpression, yExpression, animated)
-  return `clamp(0.5 - (${signed}) / ${feather}, 0, 1)`
+          : normalized.aperture === 'crescent'
+            ? crescentSignedDistance(normalized, xExpression, yExpression, animated)
+            : normalized.aperture !== undefined && GAUGE_APERTURES.includes(normalized.aperture)
+              ? gaugeSignedDistance(normalized, xExpression, yExpression, animated)
+              : rectangleSignedDistance(normalized, xExpression, yExpression, animated)
+  const oriented = normalized.invert ? `-(${signed})` : signed
+  return `clamp(0.5 - (${oriented}) / ${feather}, 0, 1)`
 }
 
 type FrameExpressions = Partial<Record<'x' | 'y' | 'width' | 'height', string>>
+
+/** Frame-centered offsets, rotated into shape space when the aperture is rotated (#690). */
+function frameDeltas(
+  viewport: ShowClipViewport,
+  x: string,
+  y: string,
+  propertyExpressions?: FrameExpressions,
+): { dx: string; dy: string } {
+  const { cx, cy } = frameTerms(viewport, propertyExpressions)
+  const dx = `((${x}) - ${wrapTerm(cx)})`
+  const dy = `((${y}) - ${wrapTerm(cy)})`
+  const rotation = viewport.rotation ?? 0
+  if (rotation === 0) return { dx, dy }
+  const angle = rotation * Math.PI * 2
+  const cosine = numberSource(Math.cos(angle))
+  const sine = numberSource(Math.sin(angle))
+  return {
+    dx: `(${dx} * ${cosine} + ${dy} * ${sine})`,
+    dy: `(${dy} * ${cosine} - ${dx} * ${sine})`,
+  }
+}
+
+/** Frame-normalized shape-space coordinates: the frame boundary is the unit box. */
+function frameUnitCoordinates(
+  viewport: ShowClipViewport,
+  x: string,
+  y: string,
+  propertyExpressions?: FrameExpressions,
+): { u: string; v: string } {
+  const { rx, ry } = frameTerms(viewport, propertyExpressions)
+  const { dx, dy } = frameDeltas(viewport, x, y, propertyExpressions)
+  return { u: `${dx} / ${wrapTerm(rx)}`, v: `${dy} / ${wrapTerm(ry)}` }
+}
+
+/** `min(rx, ry)`, folded when static: the band-width restoring scale. */
+function minRadiusTerm(
+  viewport: ShowClipViewport,
+  propertyExpressions?: FrameExpressions,
+): string {
+  const { rx, ry, rxNumber, ryNumber } = frameTerms(viewport, propertyExpressions)
+  return rxNumber !== undefined && ryNumber !== undefined
+    ? numberSource(Math.min(rxNumber, ryNumber))
+    : `min(${wrapTerm(rx)}, ${wrapTerm(ry)})`
+}
+
+/** The shared gauge-helper call for a catalogue silhouette aperture. */
+function gaugeCallExpression(
+  viewport: ShowClipViewport,
+  x: string,
+  y: string,
+  propertyExpressions?: FrameExpressions,
+): string {
+  const { u, v } = frameUnitCoordinates(viewport, x, y, propertyExpressions)
+  return spatialGaugeCallExpression(viewport.aperture as SpatialGaugeShape, u, v, {
+    crossWidth: viewport.crossWidth ?? DEFAULT_SHOW_CLIP_CROSS_WIDTH,
+    starPoints: viewport.starPoints ?? DEFAULT_SHOW_CLIP_STAR_POINTS,
+    starInner: viewport.starInner ?? DEFAULT_SHOW_CLIP_STAR_INNER,
+    polygonSides: viewport.polygonSides ?? DEFAULT_SHOW_CLIP_POLYGON_SIDES,
+  })
+}
+
+function gaugeSignedDistance(
+  viewport: ShowClipViewport,
+  x: string,
+  y: string,
+  propertyExpressions?: FrameExpressions,
+): string {
+  return `(${gaugeCallExpression(viewport, x, y, propertyExpressions)} - 1) * ${minRadiusTerm(viewport, propertyExpressions)}`
+}
+
+/** Outer disc minus the offset cutout, in frame-normalized space (#690). */
+function crescentSignedDistance(
+  viewport: ShowClipViewport,
+  x: string,
+  y: string,
+  propertyExpressions?: FrameExpressions,
+): string {
+  const { u, v } = frameUnitCoordinates(viewport, x, y, propertyExpressions)
+  const offset = numberSource(viewport.crescentOffset ?? DEFAULT_SHOW_CLIP_CRESCENT_OFFSET)
+  return `max(hypot(${u}, ${v}) - 1, 0.78 - hypot((${u}) - ${offset}, ${v})) * ${minRadiusTerm(viewport, propertyExpressions)}`
+}
 
 /** `|u| + |v|` over frame-normalized coordinates; 1 on the diamond boundary. */
 function diamondUnitField(
@@ -174,8 +327,9 @@ function diamondUnitField(
   y: string,
   propertyExpressions?: FrameExpressions,
 ): string {
-  const { cx, cy, rx, ry } = frameTerms(viewport, propertyExpressions)
-  return `abs(((${x}) - ${wrapTerm(cx)}) / ${wrapTerm(rx)}) + abs(((${y}) - ${wrapTerm(cy)}) / ${wrapTerm(ry)})`
+  const { rx, ry } = frameTerms(viewport, propertyExpressions)
+  const { dx, dy } = frameDeltas(viewport, x, y, propertyExpressions)
+  return `abs(${dx} / ${wrapTerm(rx)}) + abs(${dy} / ${wrapTerm(ry)})`
 }
 
 function diamondSignedDistance(
@@ -200,9 +354,8 @@ function ellipseQuadratic(
   y: string,
   propertyExpressions?: FrameExpressions,
 ): string {
-  const { cx, cy, rx, ry, rxNumber, ryNumber } = frameTerms(viewport, propertyExpressions)
-  const dx = `((${x}) - ${wrapTerm(cx)})`
-  const dy = `((${y}) - ${wrapTerm(cy)})`
+  const { rx, ry, rxNumber, ryNumber } = frameTerms(viewport, propertyExpressions)
+  const { dx, dy } = frameDeltas(viewport, x, y, propertyExpressions)
   const rxSquared = rxNumber !== undefined ? numberSource(rxNumber * rxNumber) : `((${rx}) * (${rx}))`
   const rySquared = ryNumber !== undefined ? numberSource(ryNumber * ryNumber) : `((${ry}) * (${ry}))`
   return `${dx} * ${dx} / ${rxSquared} + ${dy} * ${dy} / ${rySquared}`
@@ -214,13 +367,11 @@ function ringSignedDistance(
   y: string,
   propertyExpressions?: FrameExpressions,
 ): string {
-  const { cx, cy, rx, ry, rxNumber, ryNumber } = frameTerms(viewport, propertyExpressions)
+  const { rx, ry } = frameTerms(viewport, propertyExpressions)
+  const { dx, dy } = frameDeltas(viewport, x, y, propertyExpressions)
   const width = viewport.ringWidth ?? DEFAULT_SHOW_CLIP_RING_WIDTH
-  const minRadius = rxNumber !== undefined && ryNumber !== undefined
-    ? numberSource(Math.min(rxNumber, ryNumber))
-    : `min(${wrapTerm(rx)}, ${wrapTerm(ry)})`
-  const base = `hypot(((${x}) - ${wrapTerm(cx)}) / ${wrapTerm(rx)}, ((${y}) - ${wrapTerm(cy)}) / ${wrapTerm(ry)})`
-  return `(abs(${base} - ${numberSource(1 - width / 2)}) - ${numberSource(width / 2)}) * ${minRadius}`
+  const base = `hypot(${dx} / ${wrapTerm(rx)}, ${dy} / ${wrapTerm(ry)})`
+  return `(abs(${base} - ${numberSource(1 - width / 2)}) - ${numberSource(width / 2)}) * ${minRadiusTerm(viewport, propertyExpressions)}`
 }
 
 function roundedBoxSignedDistance(
@@ -229,14 +380,12 @@ function roundedBoxSignedDistance(
   y: string,
   propertyExpressions?: FrameExpressions,
 ): string {
-  const { cx, cy, rx, ry, rxNumber, ryNumber } = frameTerms(viewport, propertyExpressions)
+  const { rx, ry } = frameTerms(viewport, propertyExpressions)
+  const { dx, dy } = frameDeltas(viewport, x, y, propertyExpressions)
   const radius = viewport.cornerRadius ?? DEFAULT_SHOW_CLIP_CORNER_RADIUS
-  const minRadius = rxNumber !== undefined && ryNumber !== undefined
-    ? numberSource(Math.min(rxNumber, ryNumber))
-    : `min(${wrapTerm(rx)}, ${wrapTerm(ry)})`
-  const qx = `(abs(((${x}) - ${wrapTerm(cx)}) / ${wrapTerm(rx)}) - ${numberSource(1 - radius)})`
-  const qy = `(abs(((${y}) - ${wrapTerm(cy)}) / ${wrapTerm(ry)}) - ${numberSource(1 - radius)})`
-  return `(min(max(${qx}, ${qy}), 0) + hypot(max(${qx}, 0), max(${qy}, 0)) - ${numberSource(radius)}) * ${minRadius}`
+  const qx = `(abs(${dx} / ${wrapTerm(rx)}) - ${numberSource(1 - radius)})`
+  const qy = `(abs(${dy} / ${wrapTerm(ry)}) - ${numberSource(1 - radius)})`
+  return `(min(max(${qx}, ${qy}), 0) + hypot(max(${qx}, 0), max(${qy}, 0)) - ${numberSource(radius)}) * ${minRadiusTerm(viewport, propertyExpressions)}`
 }
 
 /** Frame-derived center/radius terms, folded to constants when static. */
@@ -275,6 +424,11 @@ function rectangleHardMask(
   y: string,
   propertyExpressions?: Partial<Record<'x' | 'y' | 'width' | 'height', string>>,
 ): string {
+  if (viewport.rotation !== undefined && viewport.rotation !== 0) {
+    const { rx, ry } = frameTerms(viewport, propertyExpressions)
+    const { dx, dy } = frameDeltas(viewport, x, y, propertyExpressions)
+    return `(abs(${dx}) <= ${wrapTerm(rx)} && abs(${dy}) <= ${wrapTerm(ry)})`
+  }
   if (!propertyExpressions) {
     const maxX = viewport.x + viewport.width
     const maxY = viewport.y + viewport.height
@@ -295,12 +449,7 @@ function ellipseHardMask(
   y: string,
   propertyExpressions?: Partial<Record<'x' | 'y' | 'width' | 'height', string>>,
 ): string {
-  const { cx, cy, rx, ry, rxNumber, ryNumber } = frameTerms(viewport, propertyExpressions)
-  const dx = `((${x}) - ${wrapTerm(cx)})`
-  const dy = `((${y}) - ${wrapTerm(cy)})`
-  const rxSquared = rxNumber !== undefined ? numberSource(rxNumber * rxNumber) : `((${rx}) * (${rx}))`
-  const rySquared = ryNumber !== undefined ? numberSource(ryNumber * ryNumber) : `((${ry}) * (${ry}))`
-  return `(${dx} * ${dx} / ${rxSquared} + ${dy} * ${dy} / ${rySquared} <= 1)`
+  return `(${ellipseQuadratic(viewport, x, y, propertyExpressions)} <= 1)`
 }
 
 /**
@@ -314,14 +463,12 @@ function ellipseSignedDistance(
   y: string,
   propertyExpressions?: Partial<Record<'x' | 'y' | 'width' | 'height', string>>,
 ): string {
-  const { cx, cy, rx, ry, rxNumber, ryNumber } = frameTerms(viewport, propertyExpressions)
-  const minRadius = rxNumber !== undefined && ryNumber !== undefined
-    ? numberSource(Math.min(rxNumber, ryNumber))
-    : `min(${wrapTerm(rx)}, ${wrapTerm(ry)})`
-  return `(hypot(((${x}) - ${wrapTerm(cx)}) / ${wrapTerm(rx)}, ((${y}) - ${wrapTerm(cy)}) / ${wrapTerm(ry)}) - 1) * ${minRadius}`
+  const { rx, ry } = frameTerms(viewport, propertyExpressions)
+  const { dx, dy } = frameDeltas(viewport, x, y, propertyExpressions)
+  return `(hypot(${dx} / ${wrapTerm(rx)}, ${dy} / ${wrapTerm(ry)}) - 1) * ${minRadiusTerm(viewport, propertyExpressions)}`
 }
 
-/** Axis-aligned box distance: exact in the face regions, conservative at corners. */
+/** Box distance in shape space: exact in the face regions, conservative at corners. */
 function rectangleSignedDistance(
   viewport: ShowClipViewport,
   x: string,
@@ -329,6 +476,10 @@ function rectangleSignedDistance(
   propertyExpressions?: Partial<Record<'x' | 'y' | 'width' | 'height', string>>,
 ): string {
   const { cx, cy, rx, ry } = frameTerms(viewport, propertyExpressions)
+  if (viewport.rotation !== undefined && viewport.rotation !== 0) {
+    const { dx, dy } = frameDeltas(viewport, x, y, propertyExpressions)
+    return `max(abs(${dx}) - ${wrapTerm(rx)}, abs(${dy}) - ${wrapTerm(ry)})`
+  }
   return `max(abs((${x}) - ${wrapTerm(cx)}) - ${wrapTerm(rx)}, abs((${y}) - ${wrapTerm(cy)}) - ${wrapTerm(ry)})`
 }
 

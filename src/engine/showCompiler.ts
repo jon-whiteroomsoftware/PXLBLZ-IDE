@@ -9,6 +9,7 @@ import { emitFixedPoint } from './fxEmit'
 import { emitShowEasingExpression, showCubicBezierRuntimeSource, validateShowEasing } from './showEasing'
 import type {
   ShowClipEffect,
+  ShowClipApertureShape,
   ShowClipBlink,
   ShowClipPresentation,
   ShowClipTransform,
@@ -38,12 +39,14 @@ import {
   showClipTransformEffectTarget,
 } from './showClipTransform'
 import {
+  SHOW_CLIP_APERTURE_SHAPES,
   normalizeShowClipViewport,
   showClipViewportEffectiveEdge,
   showClipViewportHardPredicateExpression,
   showClipViewportMaskExpression,
   showClipViewportSoftMixExpression,
 } from './showClipViewport'
+import { injectSpatialGaugeHelpers, spatialGaugeCallExpression } from './spatialShapeGauge'
 import { normalizeShowTransitionColor, showTransitionColorToRgb } from './showFadeThroughColor'
 import { showClipEffectPersistedField } from './showEffectAuthoring'
 import { emitShowPropertyTrackExpression } from './showPropertyAnimation'
@@ -591,7 +594,7 @@ export interface ShowCompileSummary {
       sceneIndex: number
       zoneName: string
       placementId?: string
-      shape: 'rectangle' | 'ellipse' | 'diamond' | 'ring' | 'rounded-box'
+      shape: ShowClipApertureShape
       edge: 'hard' | 'soft' | 'dither'
       feather: 'authored' | 'density-default' | null
     }> | null
@@ -2710,9 +2713,10 @@ export function compileShow(
   const emittedWithEasingRuntime = emittedWithOutputEffects.includes('__pxlblz_show_cubicBezier(')
     ? `${showCubicBezierRuntimeSource()}\n${emittedWithOutputEffects}`
     : emittedWithOutputEffects
+  const emittedWithGaugeRuntime = injectSpatialGaugeHelpers(emittedWithEasingRuntime)
   const emittedWithSampleRemapping = expandedRecipe.samplePropertyRamps
-    ? injectSampleRemappingUpdate(emittedWithEasingRuntime)
-    : emittedWithEasingRuntime
+    ? injectSampleRemappingUpdate(emittedWithGaugeRuntime)
+    : emittedWithGaugeRuntime
   const emittedWithInstalledMapZ = needsInstalledMapZ
     ? promoteShowRendererToInstalledMap3D(emittedWithSampleRemapping)
     : emittedWithSampleRemapping
@@ -3531,17 +3535,29 @@ function validateRecipe(recipe: ShowRecipe): void {
         }
         if (placement.viewport && (
           (placement.viewport.aperture !== undefined
-            && !['rectangle', 'ellipse', 'diamond', 'ring', 'rounded-box'].includes(placement.viewport.aperture))
+            && !SHOW_CLIP_APERTURE_SHAPES.includes(placement.viewport.aperture))
           || (placement.viewport.edge !== undefined
             && placement.viewport.edge !== 'hard'
             && placement.viewport.edge !== 'soft'
             && placement.viewport.edge !== 'dither')
           || (placement.viewport.feather !== undefined
             && (!Number.isFinite(placement.viewport.feather) || placement.viewport.feather <= 0))
+          || (placement.viewport.rotation !== undefined
+            && !Number.isFinite(placement.viewport.rotation))
           || (placement.viewport.ringWidth !== undefined
             && (!Number.isFinite(placement.viewport.ringWidth) || placement.viewport.ringWidth <= 0))
           || (placement.viewport.cornerRadius !== undefined
             && (!Number.isFinite(placement.viewport.cornerRadius) || placement.viewport.cornerRadius <= 0))
+          || (placement.viewport.crossWidth !== undefined
+            && (!Number.isFinite(placement.viewport.crossWidth) || placement.viewport.crossWidth <= 0))
+          || (placement.viewport.starPoints !== undefined
+            && (!Number.isFinite(placement.viewport.starPoints) || placement.viewport.starPoints <= 0))
+          || (placement.viewport.starInner !== undefined
+            && (!Number.isFinite(placement.viewport.starInner) || placement.viewport.starInner <= 0))
+          || (placement.viewport.crescentOffset !== undefined
+            && (!Number.isFinite(placement.viewport.crescentOffset) || placement.viewport.crescentOffset <= 0))
+          || (placement.viewport.polygonSides !== undefined
+            && (!Number.isFinite(placement.viewport.polygonSides) || placement.viewport.polygonSides <= 0))
         )) {
           throw new Error('compileShow Clip Viewport aperture requires a known shape, a known edge, and positive band parameters.')
         }
@@ -8347,69 +8363,17 @@ function portalCatalogueMetricExpression(input: {
       expression: `${box} * ${1 - input.cornerRadius} + ${radial} * ${input.cornerRadius}`,
     }
   }
-  if (input.shape === 'cross') {
-    return {
-      prelude: '',
-      expression: `min(max(abs(${x}), abs(${y}) / ${input.crossWidth}), max(abs(${x}) / ${input.crossWidth}, abs(${y})))`,
-    }
-  }
-  const angle = '__pxlblz_show_portal_shape_angle'
-  const prelude = `var ${angle} = atan2(${y}, ${x})`
-  if (input.shape === 'polygon') {
-    const sector = Math.PI * 2 / input.polygonSides
-    const local = `(frac((${angle} + ${sector / 2}) / ${sector}) * ${sector} - ${sector / 2})`
-    return {
-      prelude,
-      expression: `${radial} * cos(${local}) / ${Math.cos(Math.PI / input.polygonSides)}`,
-    }
-  }
-  if (input.shape === 'star') {
-    const phase = `frac(${angle} / ${Math.PI * 2} * ${input.starPoints})`
-    const spike = `1 - 2 * abs(${phase} - 0.5)`
-    return {
-      prelude,
-      expression: `${radial} / (${input.starInner} + ${1 - input.starInner} * (${spike}))`,
-    }
-  }
-  if (input.shape === 'heart') {
-    return {
-      prelude,
-      expression: `${radial} / max(0.25, 0.75 + 0.2 * sin(${angle}) - 0.15 * cos(${angle} * 2))`,
-    }
-  }
-  if (input.shape === 'cloud') {
-    const crown = `0.58 + max(0.36 * ${smoothAngularBumpExpression(angle, -Math.PI / 2, 0.9)}, max(0.3 * ${smoothAngularBumpExpression(angle, -2.3, 0.85)}, 0.3 * ${smoothAngularBumpExpression(angle, -0.84, 0.85)}))`
-    return {
-      prelude: `${prelude}\nvar __pxlblz_show_portal_cloud = ${crown}`,
-      expression: `${radial} / min(__pxlblz_show_portal_cloud, 0.44 / max(sin(${angle}), 0.05))`,
-    }
-  }
-  if (input.shape === 'cat-head') {
-    const ears = `${angularBumpExpression(angle, -2.2, 0.38)} + ${angularBumpExpression(angle, -0.94, 0.38)}`
-    return { prelude, expression: `${radial} / (0.72 + 0.42 * (${ears}))` }
-  }
-  if (input.shape === 'cat-side-profile') {
-    return {
-      prelude,
-      expression: `${radial} / (0.62 + 0.3 * ${angularBumpExpression(angle, -0.2, 0.65)} + 0.38 * ${angularBumpExpression(angle, -2.75, 0.42)} + 0.22 * ${angularBumpExpression(angle, 1.35, 0.34)})`,
-    }
-  }
-  const ears = `${angularBumpExpression(angle, -1.96, 0.3)} + ${angularBumpExpression(angle, -1.18, 0.3)}`
+  // Every remaining catalogue silhouette routes through the shared gauge
+  // helpers so Portal reveals and Clip apertures compile one metric (#690).
   return {
-    prelude,
-    expression: `${radial} / (0.55 + 0.34 * (${ears}) + 0.38 * ${angularBumpExpression(angle, Math.PI / 2, 0.68)})`,
+    prelude: '',
+    expression: spatialGaugeCallExpression(
+      input.shape as Parameters<typeof spatialGaugeCallExpression>[0],
+      x,
+      y,
+      input,
+    ),
   }
-}
-
-function angularBumpExpression(angle: string, target: number, width: number): string {
-  const tau = Math.PI * 2
-  return `max(0, 1 - abs(frac((${angle} - ${target} + ${Math.PI}) / ${tau}) * ${tau} - ${Math.PI}) / ${width})`
-}
-
-/** Cosine bell over the folded angular distance; 1 at the target, 0 past `width`. */
-function smoothAngularBumpExpression(angle: string, target: number, width: number): string {
-  const tau = Math.PI * 2
-  return `(0.5 + 0.5 * cos(${Math.PI} * min(abs(frac((${angle} - ${target} + ${Math.PI}) / ${tau}) * ${tau} - ${Math.PI}) / ${width}, 1)))`
 }
 
 function resolvePortalEdgePolicy(

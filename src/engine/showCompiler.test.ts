@@ -6677,6 +6677,62 @@ describe('shaped Clip Viewport apertures (#591)', () => {
     expect(pixel()).toEqual([1, 0, 0])
   })
 
+  it('clips catalogue silhouettes through the shared gauge helpers (#690)', () => {
+    const artifact = compileShow(stack({ ...frame, aperture: 'heart', edge: 'hard' }) as never, {})
+    expect(artifact.expandedCode).toContain('function __pxlblz_show_gauge_heart(')
+    const { handle, pixel } = loadShow(artifact.code, artifact.metadata, 25)
+
+    handle.beforeRender(100)
+    handle.render2D(11, 0.25, 0.5)
+    expect(pixel()).toEqual([0, 0, 1])
+    handle.render2D(0, 0, 0)
+    expect(pixel()).toEqual([1, 0, 0])
+  })
+
+  it('injects dependency-closed gauge helpers exactly when used (#690)', () => {
+    const cloud = compileShow(stack({ ...frame, aperture: 'cloud', edge: 'hard' }) as never, {})
+    expect(cloud.expandedCode).toContain('function __pxlblz_show_gauge_cloud(')
+    expect(cloud.expandedCode).toContain('function __pxlblz_show_gauge_bump(')
+    expect(cloud.expandedCode).not.toContain('function __pxlblz_show_gauge_star(')
+    const plain = compileShow(stack({ ...frame, aperture: 'ellipse' }) as never, {})
+    expect(plain.expandedCode).not.toContain('__pxlblz_show_gauge_')
+  })
+
+  it('inverts a star aperture so the silhouette cuts out (#690)', () => {
+    const artifact = compileShow(stack({
+      ...frame, aperture: 'star', edge: 'hard', invert: true,
+    }) as never, {})
+    const { handle, pixel } = loadShow(artifact.code, artifact.metadata, 25)
+
+    handle.beforeRender(100)
+    handle.render2D(11, 0.25, 0.5)
+    expect(pixel()).toEqual([1, 0, 0])
+    handle.render2D(13, 0.75, 0.5)
+    expect(pixel()).toEqual([0, 0, 1])
+  })
+
+  it('rotates a catalogue aperture inside its frame (#690)', () => {
+    // Frame center (0.25, 0.5), rx 0.25, ry 0.5. The unrotated cross arm
+    // reaches the frame's right edge at (0.5, 0.5) exactly; an eighth turn in
+    // the stretched frame swings the arm off that probe.
+    const unrotated = compileShow(stack({
+      ...frame, aperture: 'cross', edge: 'hard',
+    }) as never, {})
+    const rotated = compileShow(stack({
+      ...frame, aperture: 'cross', edge: 'hard', rotation: 0.125,
+    }) as never, {})
+
+    const straight = loadShow(unrotated.code, unrotated.metadata, 25)
+    straight.handle.beforeRender(100)
+    straight.handle.render2D(12, 0.5, 0.5)
+    expect(straight.pixel()).toEqual([0, 0, 1])
+
+    const eighth = loadShow(rotated.code, rotated.metadata, 25)
+    eighth.handle.beforeRender(100)
+    eighth.handle.render2D(12, 0.5, 0.5)
+    expect(eighth.pixel()).toEqual([1, 0, 0])
+  })
+
   it('rejects unknown aperture shapes, edges, and non-positive feathers', () => {
     expect(() => compileShow(stack({ ...frame, aperture: 'blob' }) as never, {}))
       .toThrow('aperture')

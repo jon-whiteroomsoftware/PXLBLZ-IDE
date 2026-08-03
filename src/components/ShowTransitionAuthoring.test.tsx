@@ -32,7 +32,7 @@ describe('Show Transition authoring UI', () => {
       />,
     )
 
-    expect(screen.getAllByRole('button', { name: /Use .* Transition/ })).toHaveLength(35)
+    expect(screen.getAllByRole('button', { name: /Use .* Transition/ })).toHaveLength(36)
     await user.type(screen.getByRole('searchbox', { name: 'Search Transitions' }), 'star')
     const star = screen.getByRole('button', { name: 'Use Star Transition' })
     expect(screen.getAllByRole('button', { name: /Use .* Transition/ })).toHaveLength(1)

@@ -16,9 +16,9 @@ describe('Show visual-toolkit integration freeze (#459)', () => {
   it('covers every registered variant with a versioned, deterministic fixture contract', () => {
     const freeze = buildShowVisualToolkitFreeze()
 
-    expect(SHOW_VISUAL_TOOLKIT_CONTRACT_VERSION).toBe(12)
+    expect(SHOW_VISUAL_TOOLKIT_CONTRACT_VERSION).toBe(13)
     expect(freeze.errors).toEqual([])
-    expect(freeze.fingerprint).toBe('3bd4e5e0')
+    expect(freeze.fingerprint).toBe('a52d8ba8')
     expect(buildShowVisualToolkitFreeze().fingerprint).toBe(freeze.fingerprint)
     expect(freeze.variants.length).toBeGreaterThan(0)
     expect(freeze.variants.every((variant) => variant.fixtureIds.length > 0)).toBe(true)
@@ -54,8 +54,8 @@ describe('Show visual-toolkit integration freeze (#459)', () => {
   it('measures source size, renderer formulas, memory, and compatibility across the frozen matrix', () => {
     const measurement = measureShowVisualToolkitFreeze()
 
-    expect(measurement.fixtureCount).toBe(108)
-    expect(Object.values(measurement.patternFormulaCounts).reduce((sum, count) => sum + count, 0)).toBe(108)
+    expect(measurement.fixtureCount).toBe(110)
+    expect(Object.values(measurement.patternFormulaCounts).reduce((sum, count) => sum + count, 0)).toBe(110)
     expect(measurement.overBudgetFixtureIds).toEqual([])
     expect(measurement.maxArtifact.artifactBytes).toBeLessThan(measurement.maxArtifact.budgetBytes)
     expect(measurement.maxGeneratedScalarGlobals.value).toBeGreaterThanOrEqual(0)

@@ -6,6 +6,7 @@ import {
   showClipViewportEffectiveEdge,
   showClipViewportMaskExpression,
 } from './showClipViewport'
+import { injectSpatialGaugeHelpers } from './spatialShapeGauge'
 
 describe('Clip Viewport geometry (#585)', () => {
   it('defaults disabled and preserves a disabled authored rectangle', () => {
@@ -185,5 +186,115 @@ describe('Clip Viewport aperture catalogue (#678)', () => {
     expect(animated).toContain('(W) * 0.5')
     expect(animated).toContain('min(')
     expect(animated).toContain('0.75')
+  })
+})
+
+describe('unified aperture silhouette catalogue (#690)', () => {
+  const frame = { enabled: true, x: 0.1, y: 0.2, width: 0.5, height: 0.4 }
+  // cx 0.35, cy 0.4, rx 0.25, ry 0.2, minR 0.2
+
+  /** Runs a mask expression the way the generated program would. */
+  const evaluateMask = (expression: string | null, x: number, y: number): number => {
+    const program = injectSpatialGaugeHelpers(`__pxlblz_mask_result = (${expression})`)
+    const runner = new Function('x', 'y', 'index', 'pixelCount', `
+      var abs = Math.abs, max = Math.max, min = Math.min, sqrt = Math.sqrt
+      var sin = Math.sin, cos = Math.cos, atan2 = Math.atan2, hypot = Math.hypot
+      var frac = function (value) { return value - Math.floor(value) }
+      var clamp = function (value, low, high) { return Math.max(low, Math.min(high, value)) }
+      var __pxlblz_mask_result = 0
+      ${program}
+      return Number(__pxlblz_mask_result)
+    `)
+    return runner(x, y, 0, 10_000) as number
+  }
+
+  it('normalizes catalogue silhouettes with their shape-owned parameters', () => {
+    expect(normalizeShowClipViewport({ ...frame, aperture: 'star', starPoints: 6.4, starInner: 0.9 }))
+      .toMatchObject({ aperture: 'star', starPoints: 6, starInner: 0.8 })
+    expect(normalizeShowClipViewport({ ...frame, aperture: 'polygon', polygonSides: 11 }).polygonSides).toBe(8)
+    expect(normalizeShowClipViewport({ ...frame, aperture: 'cross', crossWidth: 0.05 }).crossWidth).toBe(0.1)
+    expect(normalizeShowClipViewport({ ...frame, aperture: 'crescent', crescentOffset: 0.9 }).crescentOffset).toBe(0.8)
+    expect(normalizeShowClipViewport({ ...frame, aperture: 'cloud' }).aperture).toBe('cloud')
+    // Shape-owned parameters normalize away with a different shape.
+    expect(normalizeShowClipViewport({ ...frame, aperture: 'ellipse', starPoints: 5 }).starPoints).toBeUndefined()
+  })
+
+  it('keeps rotation and invert as durable aperture styling', () => {
+    expect(normalizeShowClipViewport({ ...frame, aperture: 'star', rotation: 0.125, invert: true }))
+      .toMatchObject({ rotation: 0.125, invert: true })
+    expect(normalizeShowClipViewport({ ...frame, rotation: 5 }).rotation).toBe(1)
+    expect(normalizeShowClipViewport({ ...frame, rotation: 0 }).rotation).toBeUndefined()
+    expect(normalizeShowClipViewport({ ...frame, invert: false }).invert).toBeUndefined()
+    expect(compactShowClipViewport({ enabled: false, x: 0, y: 0, width: 1, height: 1, invert: true }))
+      .toMatchObject({ invert: true })
+    expect(compactShowClipViewport({ enabled: false, x: 0, y: 0, width: 1, height: 1, rotation: 0.25 }))
+      .toMatchObject({ rotation: 0.25 })
+  })
+
+  it('emits gauge-helper predicates for the catalogue silhouettes', () => {
+    expect(showClipViewportMaskExpression({ ...frame, aperture: 'star', edge: 'hard' }, 'x', 'y'))
+      .toBe('(__pxlblz_show_gauge_star(((x) - 0.35) / 0.25, ((y) - 0.4) / 0.2, 5, 0.45) <= 1)')
+    expect(showClipViewportMaskExpression({ ...frame, aperture: 'cloud', edge: 'hard' }, 'x', 'y'))
+      .toBe('(__pxlblz_show_gauge_cloud(((x) - 0.35) / 0.25, ((y) - 0.4) / 0.2) <= 1)')
+    expect(showClipViewportMaskExpression({ ...frame, aperture: 'heart', feather: 0.05 }, 'x', 'y'))
+      .toBe('clamp(0.5 - ((__pxlblz_show_gauge_heart(((x) - 0.35) / 0.25, ((y) - 0.4) / 0.2) - 1) * 0.2) / 0.05, 0, 1)')
+  })
+
+  it('cuts the crescent hole inline in frame-normalized space', () => {
+    const u = '((x) - 0.35) / 0.25'
+    const v = '((y) - 0.4) / 0.2'
+    expect(showClipViewportMaskExpression({ ...frame, aperture: 'crescent', edge: 'hard' }, 'x', 'y'))
+      .toBe(`(max(hypot(${u}, ${v}) - 1, 0.78 - hypot((${u}) - 0.45, ${v})) * 0.2 <= 0)`)
+  })
+
+  it('admits inside the silhouette and cuts out when inverted', () => {
+    const star = showClipViewportMaskExpression({ ...frame, aperture: 'star', edge: 'hard' }, 'x', 'y')
+    const inverted = showClipViewportMaskExpression({ ...frame, aperture: 'star', edge: 'hard', invert: true }, 'x', 'y')
+    expect(evaluateMask(star, 0.35, 0.4)).toBe(1)
+    expect(evaluateMask(star, 0.1, 0.2)).toBe(0)
+    expect(evaluateMask(inverted, 0.35, 0.4)).toBe(0)
+    expect(evaluateMask(inverted, 0.1, 0.2)).toBe(1)
+    // The soft band flips around the same boundary.
+    const soft = showClipViewportMaskExpression({ ...frame, aperture: 'star', feather: 0.05 }, 'x', 'y')
+    const softInverted = showClipViewportMaskExpression({ ...frame, aperture: 'star', feather: 0.05, invert: true }, 'x', 'y')
+    expect(evaluateMask(soft, 0.35, 0.4)).toBe(1)
+    expect(evaluateMask(softInverted, 0.35, 0.4)).toBe(0)
+    expect(evaluateMask(soft, 0.35, 0.4) + evaluateMask(softInverted, 0.35, 0.4)).toBeCloseTo(1, 10)
+  })
+
+  it('rotates the silhouette inside its frame', () => {
+    const unrotated = showClipViewportMaskExpression({ ...frame, aperture: 'star', edge: 'hard' }, 'x', 'y')
+    const rotated = showClipViewportMaskExpression({ ...frame, aperture: 'star', edge: 'hard', rotation: 0.15 }, 'x', 'y')
+    const theta = 0.15 * Math.PI * 2
+    for (const [dx, dy] of [[0.2, 0.05], [0.05, -0.15], [-0.18, 0.1]] as const) {
+      const worldX = 0.35 + dx * Math.cos(theta) - dy * Math.sin(theta)
+      const worldY = 0.4 + dx * Math.sin(theta) + dy * Math.cos(theta)
+      expect(evaluateMask(rotated, worldX, worldY)).toBe(evaluateMask(unrotated, 0.35 + dx, 0.4 + dy))
+    }
+    // Rotation reaches the frame default rectangle too.
+    const rectangle = showClipViewportMaskExpression({ ...frame, edge: 'hard', rotation: 0.25 }, 'x', 'y')
+    // A quarter turn swaps the half-extents: x reach shrinks to ry 0.2.
+    expect(evaluateMask(rectangle, 0.35 + 0.24, 0.4)).toBe(0)
+    expect(evaluateMask(rectangle, 0.35 + 0.19, 0.4)).toBe(1)
+  })
+
+  it('keeps gauge silhouettes working with animated frame expressions and dither', () => {
+    const animated = showClipViewportMaskExpression(
+      { ...frame, aperture: 'cloud', feather: 0.05 },
+      'x',
+      'y',
+      { width: 'W' },
+    )
+    expect(animated).toContain('__pxlblz_show_gauge_cloud(')
+    expect(animated).toContain('(W) * 0.5')
+    const dithered = showClipViewportMaskExpression(
+      { ...frame, aperture: 'star', edge: 'dither' },
+      'x',
+      'y',
+      {},
+      { indexExpression: 'index' },
+    )
+    expect(dithered).toContain('__pxlblz_show_hash01(index)')
+    expect(dithered).toContain('__pxlblz_show_gauge_star(')
   })
 })
