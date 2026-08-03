@@ -1,10 +1,47 @@
 import { describe, expect, it } from 'vitest'
-import { createDefaultShow } from './showModel'
+import { compileShow } from './showCompiler'
+import { validateShowComposition } from './showCompositionModel'
+import { createDefaultShow, showRecordToCompileRecipe } from './showModel'
 import {
   projectShowGroupClipInspector,
   updateShowGroupClipInspector,
 } from './showGroupClipInspectorModel'
 import { validateShowGroups } from './showGroupModel'
+import type {
+  ShowPropertyAnimationTarget,
+  ShowPropertyAnimationTrack,
+  ShowRecord,
+} from './personalContentRecords'
+
+const SOURCE = `
+export function sliderOther(value) {}
+export function render(index) { rgb(1, 0, 0) }
+`
+
+function propertyTrack(id: string, target: ShowPropertyAnimationTarget): ShowPropertyAnimationTrack {
+  return {
+    id,
+    target,
+    keyframes: [
+      { id: `${id}-start`, timeMs: 250, value: 0.2, easing: { curve: 'linear' } },
+      { id: `${id}-end`, timeMs: 1_000, value: 0.8, easing: { curve: 'linear' } },
+    ],
+  }
+}
+
+function expectValidAndCompilable(show: ShowRecord): void {
+  expect(validateShowComposition(show, show.composition!)).toEqual([])
+  const definitions = new Map(show.composition?.groupDefinitions?.map((definition) => [definition.id, definition]))
+  const byPatternInstanceId = Object.fromEntries((show.composition?.groupOccurrences ?? []).flatMap((occurrence) => (
+    definitions.get(occurrence.definitionId)?.patternInstances.map((instance) => (
+      [`${occurrence.id}:${instance.id}`, SOURCE]
+    )) ?? []
+  )))
+  expect(() => compileShow(showRecordToCompileRecipe(show, {
+    byCellId: {},
+    byPatternInstanceId,
+  }), {})).not.toThrow()
+}
 
 function fixture() {
   const show = createDefaultShow('group-inspector', 'Group inspector', 100)
@@ -100,6 +137,188 @@ describe('Show Group Clip inspector model', () => {
       placements: [{ durationMs: 1_500, transform: { positionX: 0.2 } }],
     })
     expect(updated.composition?.groupOccurrences).toHaveLength(2)
+  })
+
+  it('removes only the edited Pattern instance control tracks whose authored control disappears (#628)', () => {
+    const show = fixture()
+    const definition = show.composition!.groupDefinitions![0]
+    definition.patternInstances[0].controlTargets = { sliderSpeed: 0.5 }
+    definition.propertyTracks = [
+      propertyTrack('track-control-speed', {
+        kind: 'instance-control', instanceId: 'inside-instance', exportName: 'sliderSpeed',
+      }),
+      propertyTrack('track-brightness', {
+        kind: 'placement-view', placementId: 'inside-clip', property: 'brightness',
+      }),
+    ]
+    const original = structuredClone(show)
+    expect(validateShowComposition(show, show.composition!)).toEqual([])
+
+    const updated = updateShowGroupClipInspector(show, {
+      occurrenceId: 'use-a',
+      placementId: 'inside-clip',
+    }, {
+      pattern: { ref: { kind: 'stock', id: 'Caustics' }, name: 'Caustics' },
+    })
+
+    expect(show).toEqual(original)
+    expect(updated.composition?.groupDefinitions?.[0].propertyTracks?.map((track) => track.id))
+      .toEqual(['track-brightness'])
+    expect(updated.composition?.groupOccurrences?.map((occurrence) => occurrence.definitionId))
+      .toEqual(['phrase', 'phrase'])
+    expectValidAndCompilable(updated)
+  })
+
+  it('removes only control tracks omitted by an authored-control edit (#628)', () => {
+    const show = fixture()
+    const definition = show.composition!.groupDefinitions![0]
+    definition.patternInstances[0].controlTargets = { sliderSpeed: 0.5, sliderOther: 0.4 }
+    definition.propertyTracks = [
+      propertyTrack('track-control-speed', {
+        kind: 'instance-control', instanceId: 'inside-instance', exportName: 'sliderSpeed',
+      }),
+      propertyTrack('track-control-other', {
+        kind: 'instance-control', instanceId: 'inside-instance', exportName: 'sliderOther',
+      }),
+    ]
+    const original = structuredClone(show)
+
+    const updated = updateShowGroupClipInspector(show, {
+      occurrenceId: 'use-a',
+      placementId: 'inside-clip',
+    }, {
+      simulation: { controlTargets: { sliderOther: 0.6 } },
+    })
+
+    expect(show).toEqual(original)
+    expect(updated.composition?.groupDefinitions?.[0].propertyTracks?.map((track) => track.id))
+      .toEqual(['track-control-other'])
+    expectValidAndCompilable(updated)
+  })
+
+  it.each([
+    ['removes', [], ['track-brightness']],
+    ['replaces', [{ id: 'move-new', kind: 'translate' as const, x: 0.1, y: 0.2 }], ['track-brightness']],
+    ['updates', [{ id: 'move', kind: 'translate' as const, x: 0.1, y: 0.2 }], ['track-effect-x', 'track-brightness']],
+  ])('%s only the edited placement Effect tracks whose Effect identity disappears (#628)', (
+    _operation,
+    effects,
+    expectedTrackIds,
+  ) => {
+    const show = fixture()
+    const definition = show.composition!.groupDefinitions![0]
+    definition.placements[0].effects = [{ id: 'move', kind: 'translate', x: 0, y: 0 }]
+    definition.propertyTracks = [
+      propertyTrack('track-effect-x', {
+        kind: 'placement-effect',
+        placementId: 'inside-clip',
+        effectId: 'move',
+        effectKind: 'translate',
+        parameterId: 'translateX',
+      }),
+      propertyTrack('track-brightness', {
+        kind: 'placement-view', placementId: 'inside-clip', property: 'brightness',
+      }),
+    ]
+    const original = structuredClone(show)
+    expect(validateShowComposition(show, show.composition!)).toEqual([])
+
+    const updated = updateShowGroupClipInspector(show, {
+      occurrenceId: 'use-a',
+      placementId: 'inside-clip',
+    }, { effects })
+
+    expect(show).toEqual(original)
+    expect(updated.composition?.groupDefinitions?.[0].propertyTracks?.map((track) => track.id))
+      .toEqual(expectedTrackIds)
+    expectValidAndCompilable(updated)
+  })
+
+  it('preserves tracks owned by other Group Clips and other Group definitions byte-for-byte (#628)', () => {
+    const show = fixture()
+    const definition = show.composition!.groupDefinitions![0]
+    definition.patternInstances[0].controlTargets = { sliderSpeed: 0.5 }
+    definition.patternInstances.push({
+      id: 'other-instance',
+      pattern: { kind: 'stock', id: 'hue-wave' },
+      patternName: 'Other Hue Wave',
+      time: { timeScale: 1, timeOffsetMs: 0 },
+      controlTargets: { sliderOther: 0.4 },
+    })
+    definition.placements[0].effects = [{ id: 'move', kind: 'translate', x: 0, y: 0 }]
+    definition.placements.push({
+      id: 'other-clip',
+      instanceId: 'other-instance',
+      layerOffset: 2,
+      startMs: 250,
+      durationMs: 1_000,
+      opacity: 0.6,
+      view: { mirror: false, phase: 0, brightness: 0.9 },
+      effects: [{ id: 'other-move', kind: 'translate', x: 0, y: 0 }],
+    })
+    definition.propertyTracks = [
+      propertyTrack('remove-control', {
+        kind: 'instance-control', instanceId: 'inside-instance', exportName: 'sliderSpeed',
+      }),
+      propertyTrack('remove-effect', {
+        kind: 'placement-effect',
+        placementId: 'inside-clip',
+        effectId: 'move',
+        effectKind: 'translate',
+        parameterId: 'translateX',
+      }),
+      propertyTrack('keep-transform', {
+        kind: 'placement-transform', placementId: 'inside-clip', property: 'positionX',
+      }),
+      propertyTrack('keep-other-control', {
+        kind: 'instance-control', instanceId: 'other-instance', exportName: 'sliderOther',
+      }),
+      propertyTrack('keep-other-effect', {
+        kind: 'placement-effect',
+        placementId: 'other-clip',
+        effectId: 'other-move',
+        effectKind: 'translate',
+        parameterId: 'translateX',
+      }),
+    ]
+    show.composition!.groupDefinitions!.push({
+      id: 'other-definition',
+      name: 'Other definition',
+      patternInstances: [{
+        id: 'definition-instance',
+        pattern: { kind: 'stock', id: 'hue-wave' },
+        patternName: 'Definition Hue Wave',
+        time: { timeScale: 1, timeOffsetMs: 0 },
+      }],
+      placements: [{
+        id: 'definition-clip',
+        instanceId: 'definition-instance',
+        layerOffset: 0,
+        startMs: 0,
+        durationMs: 1_000,
+        opacity: 1,
+        view: { mirror: false, phase: 0, brightness: 1 },
+      }],
+      propertyTracks: [propertyTrack('definition-brightness', {
+        kind: 'placement-view', placementId: 'definition-clip', property: 'brightness',
+      })],
+    })
+    const preservedTracks = structuredClone(definition.propertyTracks.slice(2))
+    const preservedDefinition = show.composition!.groupDefinitions![1]
+    const original = structuredClone(show)
+
+    const updated = updateShowGroupClipInspector(show, {
+      occurrenceId: 'use-a',
+      placementId: 'inside-clip',
+    }, {
+      pattern: { ref: { kind: 'stock', id: 'Caustics' }, name: 'Caustics' },
+      effects: [],
+    })
+
+    expect(show).toEqual(original)
+    expect(updated.composition?.groupDefinitions?.[0].propertyTracks).toEqual(preservedTracks)
+    expect(updated.composition?.groupDefinitions?.[1]).toBe(preservedDefinition)
+    expectValidAndCompilable(updated)
   })
 
   it('rejects edits when the occurrence, placement, or values are invalid', () => {

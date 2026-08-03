@@ -121,14 +121,36 @@ function updateDefinition(
   instanceId: string,
   patch: ShowClipInspectorPatch,
 ): ShowGroupDefinition {
+  const patternInstances = definition.patternInstances.map((instance) => instance.id === instanceId
+    ? updateInstance(instance, patch)
+    : instance)
+  const placements = definition.placements.map((placement) => placement.id === placementId
+    ? updatePlacement(placement, patch)
+    : placement)
+  let propertyTracks = definition.propertyTracks
+  if (patch.pattern || (patch.simulation && Object.prototype.hasOwnProperty.call(patch.simulation, 'controlTargets'))) {
+    const controlTargets = patternInstances.find((instance) => instance.id === instanceId)?.controlTargets
+    propertyTracks = propertyTracks?.filter((track) => {
+      const target = track.target
+      if (target.kind !== 'instance-control' || target.instanceId !== instanceId) return true
+      return Object.prototype.hasOwnProperty.call(controlTargets ?? {}, target.exportName)
+    })
+  }
+  if (patch.effects) {
+    const effects = placements.find((placement) => placement.id === placementId)?.effects
+    propertyTracks = propertyTracks?.filter((track) => {
+      const target = track.target
+      if (target.kind !== 'placement-effect' || target.placementId !== placementId) return true
+      return (effects ?? []).some((effect) => effect.id === target.effectId && effect.kind === target.effectKind)
+    })
+  }
   return {
     ...definition,
-    patternInstances: definition.patternInstances.map((instance) => instance.id === instanceId
-      ? updateInstance(instance, patch)
-      : instance),
-    placements: definition.placements.map((placement) => placement.id === placementId
-      ? updatePlacement(placement, patch)
-      : placement),
+    patternInstances,
+    placements,
+    ...(propertyTracks === definition.propertyTracks
+      ? {}
+      : propertyTracks?.length ? { propertyTracks } : { propertyTracks: undefined }),
   }
 }
 

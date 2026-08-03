@@ -39,6 +39,7 @@ import * as showModel from '@/engine/showModel'
 import { DEFAULT_SHOW_TRAILS_RETENTION } from '@/engine/showPreviousRgbFeedback'
 import { appendShowLayoutInterval, projectShowLayoutIntervals } from '@/engine/showLayoutIntervals'
 import * as previewThumbnailJpeg from '@/engine/previewThumbnailJpeg'
+import { validateShowComposition } from '@/engine/showCompositionModel'
 
 /**
  * Zone Layout definitions are authored in the Zone Map, reached from the Zone
@@ -1494,6 +1495,107 @@ describe('ShowEditor (#318)', () => {
       expect(useShowStore.getState().shows[0].composition?.groupOccurrences?.map((occurrence) => occurrence.id))
         .toEqual(['phrase-use-b'])
       expect(screen.queryByRole('dialog', { name: 'Entity Detail Panel' })).not.toBeInTheDocument()
+    })
+  })
+
+  it('reconciles Group Property tracks after Pattern and Effect edits in Clip Detail (#628)', async () => {
+    const user = userEvent.setup()
+    const show = createDefaultShow('show-group-property-reconciliation', 'Group Property reconciliation', 1000)
+    const zoneId = show.zones[0].id
+    const sceneId = show.scenes[0].id
+    show.composition = {
+      version: 1,
+      executionModel: 'deterministic-loop',
+      patternInstances: [],
+      scenes: show.scenes.map((scene) => ({
+        sceneId: scene.id,
+        zones: [{ zoneId, main: [], overlays: [] }],
+      })),
+      groupDefinitions: [{
+        id: 'phrase',
+        name: 'Pulse phrase',
+        patternInstances: [{
+          id: 'inside-instance',
+          pattern: { kind: 'stock', id: 'Murmuration' },
+          patternName: 'Murmuration',
+          time: { timeScale: 1, timeOffsetMs: 0 },
+          controlTargets: { sliderSpeed: 0.5 },
+        }],
+        placements: [{
+          id: 'inside-clip',
+          instanceId: 'inside-instance',
+          layerOffset: 0,
+          startMs: 0,
+          durationMs: 1_000,
+          opacity: 1,
+          view: { mirror: false, phase: 0, brightness: 1 },
+          effects: [{ id: 'move', kind: 'translate', x: 0, y: 0 }],
+        }],
+        propertyTracks: [
+          {
+            id: 'track-control-speed',
+            target: { kind: 'instance-control', instanceId: 'inside-instance', exportName: 'sliderSpeed' },
+            keyframes: [
+              { id: 'control-start', timeMs: 0, value: 0.2, easing: { curve: 'linear' } },
+              { id: 'control-end', timeMs: 1_000, value: 0.8, easing: { curve: 'linear' } },
+            ],
+          },
+          {
+            id: 'track-effect-x',
+            target: {
+              kind: 'placement-effect',
+              placementId: 'inside-clip',
+              effectId: 'move',
+              effectKind: 'translate',
+              parameterId: 'translateX',
+            },
+            keyframes: [
+              { id: 'effect-start', timeMs: 0, value: 0, easing: { curve: 'linear' } },
+              { id: 'effect-end', timeMs: 1_000, value: 0.2, easing: { curve: 'linear' } },
+            ],
+          },
+        ],
+      }],
+      groupOccurrences: [{
+        id: 'phrase-use',
+        definitionId: 'phrase',
+        sceneId,
+        zoneId,
+        startMs: 0,
+        baseLayer: 0,
+        translationX: 0,
+        translationY: 0,
+      }],
+    }
+    setPersonalContentProvider(memoryProvider([show]))
+    useShowStore.setState({ shows: [show], activeShowId: show.id, showsLoaded: true })
+
+    render(<ShowEditor showId={show.id} />)
+    fireEvent.doubleClick(screen.getByRole('button', { name: 'Select Group Pulse phrase' }))
+    const panel = screen.getByRole('dialog', { name: 'Entity Detail Panel' })
+
+    const source = within(panel).getByRole('combobox', { name: 'Source pattern' })
+    await user.clear(source)
+    await user.type(source, 'Caustics')
+    await user.click(screen.getByRole('option', { name: 'Caustics' }))
+    await waitFor(() => {
+      const current = useShowStore.getState().shows[0]
+      expect(current.composition?.groupDefinitions?.[0].propertyTracks?.map((track) => track.id))
+        .toEqual(['track-effect-x'])
+      expect(validateShowComposition(current, current.composition!)).toEqual([])
+    })
+
+    await user.click(within(panel).getByRole('tab', { name: /^Effects/ }))
+    await user.click(within(panel).getByRole('button', { name: 'More actions for Translate Effect' }))
+    await user.click(screen.getByRole('menuitem', { name: 'Remove Translate Effect' }))
+    await waitFor(() => {
+      const current = useShowStore.getState().shows[0]
+      expect(current.composition?.groupDefinitions?.[0].propertyTracks).toBeUndefined()
+      expect(validateShowComposition(current, current.composition!)).toEqual([])
+    })
+    await user.click(within(panel).getByRole('tab', { name: /^Pattern/ }))
+    await waitFor(() => {
+      expect(within(panel).getByRole('tab', { name: /^Pattern/ })).toHaveAttribute('aria-selected', 'true')
     })
   })
 
