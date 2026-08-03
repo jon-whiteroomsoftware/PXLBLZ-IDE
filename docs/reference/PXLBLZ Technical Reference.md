@@ -1920,31 +1920,55 @@ feathers that frame boundary. An authored disabled rectangle is restored
 instead of being derived again, and an authored aperture shape, edge, or
 feather survives first enable as durable styling.
 
-The Viewport carries an optional **aperture** (`ellipse`, `diamond`, `ring`,
-or `rounded-box`; missing compacts to rectangle), an optional **edge**
-(`hard`/`soft`/`dither`; missing defaults soft for every aperture shape), an
-optional authored **feather** width in normalized Zone units
-(#591), and shape-owned parameters that normalize away with their shape
-(#678): `ringWidth` (band thickness as a fraction of the unit radius) and
-`cornerRadius` (rounding as a fraction of the half-side). Shape parameters are
-never animatable, so their emitted constants always fold even under an
-animated frame. Hard applies only when explicitly authored. Hard rectangle,
-ellipse, diamond, and ring apertures emit
-sqrt-free predicates (squared distance, `|u|+|v|`, and a squared annulus);
-the hard rounded-box uses its signed distance. Soft edges emit
+The Viewport carries an optional **aperture** covering the full spatial
+silhouette catalogue (#690): `ellipse`, `diamond`, `ring`, `rounded-box`,
+`cross`, `heart`, `star`, `crescent`, `polygon`, `cloud`, `cat-head`,
+`cat-side-profile`, and `bastet`; missing compacts to rectangle. (`circle` and
+`box` stay Portal-only because the frame already expresses them.) It carries
+an optional **edge** (`hard`/`soft`/`dither`; missing defaults soft for every
+aperture shape), an optional authored **feather** width in normalized Zone
+units (#591), an optional **rotation** in turns (silhouette styling shared by
+every aperture including the rectangle; the mask rotates frame deltas before
+normalizing by the radii, matching Portal's rotate-then-stretch order), an
+optional **invert** (the silhouette cuts out instead of admitting: hard
+predicates negate, soft and dither bands flip their signed distance), and
+shape-owned parameters that normalize away with their shape (#678): `ringWidth`
+(band thickness as a fraction of the unit radius), `cornerRadius` (rounding as
+a fraction of the half-side), `crossWidth`, `starPoints`, `starInner`,
+`crescentOffset`, and `polygonSides` with the Portal defaults and ranges.
+Shape parameters and rotation are never animatable, so their emitted constants
+always fold even under an animated frame. Hard applies only when explicitly
+authored. Hard rectangle, ellipse, diamond, and ring apertures emit sqrt-free
+predicates (squared distance, `|u|+|v|`, and a squared annulus); the hard
+rounded-box uses its signed distance; the catalogue silhouettes call the
+shared gauge helpers and compare against 1. Soft edges emit
 `clamp(0.5 - signed / feather, 0, 1)` over each shape's scaled-space metric or
-the axis-aligned box distance. The default feather is emitted into the
-artifact as `1.5 / sqrt(pixelCount)`, so the band width tracks the device the
-Pattern actually runs on; Fast and Precise execution agree across the band
+the axis-aligned box distance, with gauge silhouettes restoring near-real band
+width through `(gauge - 1) * min(rx, ry)`. The default feather is emitted into
+the artifact as `1.5 / sqrt(pixelCount)`, so the band width tracks the device
+the Pattern actually runs on; Fast and Precise execution agree across the band
 within fixed-point resolution.
+
+`spatialShapeGauge.ts` is the single emitted-metric source for those
+silhouettes (#690): each helper (`__pxlblz_show_gauge_star`, `..._cloud`,
+`..._cat_head`, ...) returns the shape's gauge (Minkowski) metric over
+pre-rotated, normalized coordinates - 1 on the boundary, scaling linearly from
+the center - so Portal reveals compare it against the animated radius while
+apertures test the fixed frame. `compileShow` injects the dependency-closed
+helper functions into a generated program exactly when its emitted code
+references them, before symbol compaction, the same way the cubic-bezier
+easing runtime is injected. The float64 preview metric in `showShapeReveal.ts`
+and the emitted helpers are cross-checked sample-for-sample in
+`spatialShapeGauge.test.ts`.
 
 The Place tab renders `ShowClipPlacementPad` inline with one geometry column.
 The SVG keeps a stable `384 x 384` coordinate system for gesture math but fills
 a responsive `156..228px` layout column. Content and Aperture share one editing
 focus: the active rectangle owns the pad handles and the five-field X/Y/Width/
 Height/Rotation stack, while the inactive rectangle becomes a clickable
-read-only summary level with the pad toolbar. Aperture Rotation remains a
-disabled zero because the rectangle is axis-aligned. Every geometry row
+read-only summary level with the pad toolbar. Aperture Rotation edits the
+Viewport's silhouette rotation (+/-1 turn) numerically; the frame itself stays
+axis-aligned and keeps its axis-aligned pad gestures (#690). Every geometry row
 reserves the same unit gutter, including unitless X/Y, so its exact-entry field
 edge remains aligned.
 

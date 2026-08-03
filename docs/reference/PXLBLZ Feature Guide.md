@@ -558,12 +558,20 @@ edit the focused **Content** or **Aperture** rectangle; the other rectangle
 appears as a compact summary above them and switches focus when clicked.
 Selecting an absent Aperture enables it over the Content's visible bounds.
 With the Aperture focused, a **Shape** control chooses the silhouette inside
-the frame - Rectangle, or an inscribed Ellipse, Diamond, Ring, or Rounded box.
+the frame from a sectioned catalogue: **Geometric** (Rectangle, or an
+inscribed Ellipse, Diamond, Ring, Rounded box, Cross, Regular polygon),
+**Icons** (Heart, Star, Crescent, Cloud), and **Signature** (Cat head,
+Side-profile cat, Bastet) - the same silhouettes the Shape-reveal Transition
+family offers. A **Mode** control flips the silhouette between admitting its
+inside and cutting it out, and the Aperture's **Rotation** field turns the
+silhouette inside its axis-aligned frame (up to a full turn either way).
 Every shape defaults to a Soft edge so slow geometry animation remains smooth
 on sparse LED maps. An **Edge** control switches Soft, Hard, and Dither - a
 pixel-stable speckled band that never shimmers, at its
-best on dense outputs. Ring exposes a **Ring width** and Rounded box a
-**Corner radius**, both as fractions of the frame. Soft edges feather over a
+best on dense outputs. Ring exposes a **Ring width**, Rounded box a
+**Corner radius**, Cross an **Arm width**, Star its **Points** and **Inner
+radius**, Crescent a **Cutout offset**, and Regular polygon its **Sides**,
+matching the Shape-reveal Transition parameters. Soft edges feather over a
 width derived from the device's pixel density; entering an explicit **Edge
 width** overrides it, and `0` restores the automatic width. A square frame
 makes the Ellipse a circle; hold Shift while corner-dragging the Aperture to
@@ -622,9 +630,13 @@ A Transition is a visible, selectable junction between two connected Clips on
 one Layer, not a property hidden on either Clip. A
 searchable registry covers Blend, Fade, Wipe, Dissolve, Shape reveal, and
 Motion families; hovering a row previews it on the Stage at that boundary
-without saving. Each variant's Entity Detail exposes only its legal fields —
-duration, easing, geometry, edge policy, and family-specific controls — and
-**Reset to cut** returns to a zero-duration boundary.
+without saving. The Shape-reveal silhouettes group under labeled
+**Geometric**, **Icons**, and **Signature** section headers - Cloud joins the
+Icons alongside Heart, Star, and Crescent - and every silhouette doubles as a
+Clip Aperture with the same parameters. Each variant's Entity Detail exposes
+only its legal fields — duration, easing, geometry, edge policy, and
+family-specific controls — and **Reset to cut** returns to a zero-duration
+boundary.
 
 Dragging a connected Clip horizontally keeps its Transition sequence rigid.
 Dragging that Clip onto another Layer moves the Clip alone and removes the
