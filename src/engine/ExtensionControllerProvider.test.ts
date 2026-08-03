@@ -18,7 +18,7 @@ import {
   type RelayTransport,
 } from './RelayWebSocket'
 import { ControllerPermissionDeniedError } from './ControllerProvider'
-import { encodeBinaryFrames, MessageType } from './PixelblazeConnection'
+import { encodeBinaryFrames, MessageType, PixelblazeConnection } from './PixelblazeConnection'
 import { encodeMapData } from './mapPush'
 import { encodePbp } from './pbpEncode'
 import type { ControllerStatus } from './ControllerProvider'
@@ -443,6 +443,22 @@ describe('ExtensionControllerProvider', () => {
       await p.pushBytecode(new Uint8Array([9, 9, 9]), { id: 'PROG1', name: 'demo' })
 
       await expect(p.getActiveProgramBytecodeSize()).resolves.toBe(3)
+    })
+
+    it('forgets the previous footprint when a later activation fails without disconnecting', async () => {
+      const d = makeDeviceTransport()
+      const p = new ExtensionControllerProvider({ transport: d.transport })
+      await p.connect(TARGET)
+      await p.pushBytecode(new Uint8Array([9, 9, 9]), { id: 'PROG1' })
+      await expect(p.getActiveProgramBytecodeSize()).resolves.toBe(3)
+
+      vi.spyOn(PixelblazeConnection.prototype, 'pushByteCodeAndWait')
+        .mockRejectedValueOnce(new Error('activation timed out'))
+      await expect(
+        p.pushBytecode(new Uint8Array([4, 5, 6, 7]), { id: 'PROG2' }),
+      ).rejects.toThrow('activation timed out')
+
+      await expect(p.getActiveProgramBytecodeSize()).resolves.toBeNull()
     })
 
     it('invalidates the footprint after an external active-program change', async () => {

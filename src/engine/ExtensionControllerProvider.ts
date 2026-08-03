@@ -676,6 +676,10 @@ export class ExtensionControllerProvider implements ControllerProvider {
    *  place at `id`). Resolves after the Controller reports the id active. */
   pushBytecode(bytecode: Uint8Array, opts: { id: string; name?: string }): Promise<void> {
     return this.withConn(async (conn) => {
+      // Once transmission begins, neither the previous nor incoming footprint is
+      // proven resident until activation succeeds. A timeout with the old id still
+      // reported may nevertheless have left incoming bytes allocated (#547).
+      this.knownActiveBytecode = null
       await conn.pushByteCodeAndWait(bytecode, opts)
       this.knownActiveBytecode = { programId: opts.id, bytecodeBytes: bytecode.length }
     })

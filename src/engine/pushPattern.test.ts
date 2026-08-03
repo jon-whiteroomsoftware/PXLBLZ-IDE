@@ -241,19 +241,36 @@ describe('pushPattern — save mode (persist: true)', () => {
     expect(pushRecords).toHaveLength(1)
   })
 
-  it('surfaces a contextual target activation error without changing bindings or push records', async () => {
+  it('binds a persisted target before activation so a retry overwrites instead of duplicating', async () => {
+    const targetId = 'SAVED00000000000'
+    let bindings: BindingStore = {}
+    const bindingWrites: BindingStore[] = []
+    const mintId = vi.fn()
+      .mockReturnValueOnce(targetId)
+      .mockReturnValueOnce('DUPLICATE0000000')
     const provider = makeProvider({
-      compile: vi.fn()
-        .mockResolvedValueOnce(goodBytecode(40_518))
-        .mockResolvedValueOnce(goodBytecode(153)),
+      compile: vi.fn(async (source: string) => (
+        source === CONTROLLER_DRAIN_PATTERN_SOURCE
+          ? goodBytecode(153)
+          : goodBytecode(40_518)
+      )),
       getActiveProgramBytecodeSize: vi.fn().mockResolvedValue(49_426),
+      listPrograms: vi.fn().mockResolvedValue([{ id: targetId, name: 'My Pattern' }]),
       pushBytecode: vi.fn()
         .mockResolvedValueOnce(undefined)
-        .mockRejectedValueOnce(new Error('activation timed out')),
+        .mockRejectedValueOnce(new Error('activation timed out'))
+        .mockResolvedValueOnce(undefined)
+        .mockResolvedValueOnce(undefined),
     })
-    const { deps, saved, pushRecords } = makeDeps({
+    const { deps, pushRecords } = makeDeps({
       persist: true,
       provider,
+      loadBindings: async () => bindings,
+      saveBindings: async (next) => {
+        bindings = next
+        bindingWrites.push(next)
+      },
+      mintId,
       mintDrainId: () => 'DRAIN000000000000',
     })
 
@@ -261,8 +278,16 @@ describe('pushPattern — save mode (persist: true)', () => {
       'Controller target activation failed: activation timed out',
     )
     expect(provider.saveProgram).toHaveBeenCalledTimes(1)
-    expect(saved).toEqual([])
+    expect(bindingWrites).toEqual([{ 'ctrl-A': { 'pat-1': targetId } }])
     expect(pushRecords).toEqual([])
+
+    await expect(pushPattern(deps)).resolves.toEqual({ programId: targetId, created: false })
+    expect(mintId).toHaveBeenCalledTimes(1)
+    expect(provider.saveProgram).toHaveBeenNthCalledWith(2, expect.any(Uint8Array), {
+      id: targetId,
+    })
+    expect(bindingWrites).toHaveLength(1)
+    expect(pushRecords).toHaveLength(1)
   })
 
   it('can overwrite a managed saved program without activating it', async () => {

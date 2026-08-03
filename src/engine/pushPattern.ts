@@ -217,6 +217,15 @@ export async function pushPattern(deps: PushPatternDeps): Promise<PushPatternRes
   }
   await deps.provider.saveProgram(blob, { id: programId })
 
+  // Once persistence succeeds, this id owns the saved artifact even if the
+  // following activation fails. Record a new overwrite binding now so Retry
+  // reuses the same Controller slot instead of orphaning it and minting another.
+  // Push records still describe fully successful Sends and remain downstream of
+  // activation.
+  if (isNew) {
+    await deps.saveBindings(withBinding(bindings, deps.controllerId, deps.patternId, programId))
+  }
+
   // Save-and-run (#238): persisting writes the PBP record to flash but does not make it
   // the active program, so the device keeps running whatever it ran before and the panel
   // never reflects the save. Explicitly run the same bytecode under the *same* stable id
@@ -229,9 +238,6 @@ export async function pushPattern(deps: PushPatternDeps): Promise<PushPatternRes
     await activateTarget(deps, bytecode, { id: programId, name: deps.name ?? '' })
   }
 
-  if (isNew) {
-    await deps.saveBindings(withBinding(bindings, deps.controllerId, deps.patternId, programId))
-  }
   await deps.savePushRecords(withPushRecord(pushRecords, deps.controllerId, deps.patternId, {
     transforms: stamp.transforms,
     ...(deps.profileSignature ? { profileSignature: deps.profileSignature } : {}),

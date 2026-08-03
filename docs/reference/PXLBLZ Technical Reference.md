@@ -798,7 +798,10 @@ order as **Device** without another Controller request.
 
 Overwrite bindings key `(Controller, Studio Pattern/demo)` to Controller program
 id. Repeated saves reuse the id while it exists; a deleted device record causes
-a new id to be minted. Bindings carry identity only, never control values.
+a new id to be minted. Once a newly minted program persists, its binding is
+recorded before activation so an activation failure retries that same Controller
+slot instead of creating an unmanaged duplicate. Bindings carry identity only,
+never control values.
 
 A successful Save also writes a push record from the exact embedded banner:
 artifact hash, transform ids, timestamp, name, and optional Show output contract.
@@ -833,8 +836,11 @@ activation and associates it with that program id. Before reusing the footprint,
 it reads live configuration; an externally changed active id invalidates the
 cache. Disconnects and reconnects also discard the cache because program identity
 alone cannot prove that the resident bytes stayed unchanged. Both cases return
-the policy to the conservative unknown path. A drain or target failure identifies
-the failed activation stage. Socket-loss handling remains owned by the provider's
+the policy to the conservative unknown path. Every activation attempt likewise
+clears the prior footprint before transmission and restores knowledge only after
+the requested id is confirmed active; a timeout can leave incoming bytes resident
+even while the old id is still reported. A drain or target failure identifies the
+failed activation stage. Socket-loss handling remains owned by the provider's
 reconnect loop, so a failed Send does not strand the connection in a non-retryable
 state.
 
