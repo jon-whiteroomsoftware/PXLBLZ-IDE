@@ -47,6 +47,8 @@ Two fun uses for Shows:
 
 ## Quality of life mods
 
+<img src="docs/screenshots/power-card.png" alt="The live power panel actively limiting: duty cap, limiting status, and estimated draw" width="365" align="right">
+
 The PXLBLZ compiler can add code fragments (mixins) to any Pattern on its
 way to the hardware:
 
@@ -55,8 +57,8 @@ way to the hardware:
 - **Physical knobs without code edits.** Bind a potentiometer or button to
   any exported control, function, or variable. The original Pattern source is
   never modified.
-- **Power management.** Monitor power usage and cap it at a target draw,
-  estimated from the active LED duty cycle and per-pixel milliamps.
+- **Power management.** Limit power usage from the controller, estimated
+  from the active LED duty cycle.
 - **A permanent home for Patterns and Shows.** Patterns, Shows, maps, and
   Controller profiles live in a real database on a cloud workspace behind
   GitHub or Google sign-in.
