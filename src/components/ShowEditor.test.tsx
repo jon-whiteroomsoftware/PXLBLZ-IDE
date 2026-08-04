@@ -6437,9 +6437,12 @@ describe('ShowEditor (#318)', () => {
 
   it('keeps a pressure-blocked Show inspectable while export stays gated (#63 review follow-up)', async () => {
     const user = userEvent.setup()
-    const property = STOCK_SHOWS.find((candidate) => candidate.id === 'stock-show-reference-property-animation')!
+    // Seed the over-budget fixture as a real store show so the editor and the
+    // View code snapshot resolve the same blocked content.
+    const blockedShow = { ...createPropertySlotQualificationShow(), id: 'show-over-budget' }
+    useShowStore.setState({ shows: [blockedShow], activeShowId: blockedShow.id, showsLoaded: true })
 
-    render(<ShowEditor showId={property.id} showOverride={createPropertySlotQualificationShow()} readOnly />)
+    render(<ShowEditor showId={blockedShow.id} />)
 
     // Delivered source exceeds the budget, so output is blocked - but blocked
     // output must remain previewable and inspectable (View code).
@@ -6451,6 +6454,9 @@ describe('ShowEditor (#318)', () => {
     expect(viewCode).toBeEnabled()
     await user.click(viewCode)
     expect(screen.getByText(/Generated pattern -/)).toBeInTheDocument()
+    // Inspectable, but not exportable: the generated-code view's export
+    // button obeys the same delivered-pressure gate as the editor's.
+    expect(screen.getByRole('button', { name: 'Export Show as .epe' })).toBeDisabled()
   })
 
   it('keeps table-driven score bytes as a single-line category row (#545, #63)', async () => {

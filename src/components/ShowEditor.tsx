@@ -1631,10 +1631,14 @@ export function ShowEditor({
   }
 
   if (generatedSnapshot?.show.id === showId) {
-    const generatedExport = buildShowEpeExport(generatedSnapshot.show, generatedSnapshot.artifact.code, {
-      stampedAt: new Date(generatedSnapshot.show.updatedAt),
-      userMaps: generatedSnapshot.userMaps,
-      attribution: generatedSnapshot.artifact.attribution,
+    const generatedExport = generatedSnapshot.canonicalExport
+    // The generated-code view exists so a blocked Show stays inspectable; its
+    // export affordance stays gated by the same delivered-pressure rule as
+    // the editor-level Export button (#63 review follow-up).
+    const generatedPressure = assessShowCompilePressure({
+      deliveredSourceBytes: deliveredShowSourceBytes(generatedExport.source),
+      budgetBytes: generatedSnapshot.artifact.summary.measuredDeviceBudgetBytes,
+      worstInstantRenderersPerPixel: generatedSnapshot.artifact.summary.worstInstantRenderersPerPixel,
     })
     const buildGeneratedDownloadExport = async (): Promise<ShowEpeExport> => {
       const preview = await buildPreviewJpeg(generatedSnapshot.artifact)
@@ -1652,7 +1656,7 @@ export function ShowEditor({
         <div className="flex h-9 shrink-0 items-center gap-2 border-b border-seam px-3 font-mono text-xs text-zinc-400">
           <Code2 size={14} aria-hidden />
           <span className="flex-1 truncate text-zinc-200">Generated pattern - {generatedSnapshot.show.name}</span>
-          <ExportShowButton exported={generatedExport} buildExport={buildGeneratedDownloadExport} />
+          <ExportShowButton exported={generatedPressure.status === 'blocked' ? null : generatedExport} buildExport={buildGeneratedDownloadExport} />
           <Button
             size="xs"
             variant="ghost"
