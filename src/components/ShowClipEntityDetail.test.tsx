@@ -872,8 +872,8 @@ describe('shared Clip Entity Detail sections (#498)', () => {
 
     showTab('Place')
     expect(screen.getByRole('dialog', { name: 'Entity Detail Panel' })).toHaveStyle({
-      height: '528px',
-      maxHeight: '528px',
+      height: '532px',
+      maxHeight: '532px',
     })
 
     anchor.remove()

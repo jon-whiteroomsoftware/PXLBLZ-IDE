@@ -94,7 +94,7 @@ const HEADER_COLUMN_CLASS: Record<number, string> = {
 
 const EMBEDDED_PANEL_HEIGHT: Record<ShowClipDetailTabId, number> = {
   pattern: 488,
-  place: 496,
+  place: 500,
   effects: 488,
   playback: 360,
 }

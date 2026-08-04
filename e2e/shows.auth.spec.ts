@@ -1208,7 +1208,7 @@ test.describe('authenticated Show authoring', () => {
     await expect(panel).toHaveCSS('height', '360px')
     await showClipTab(page, 'Place')
     await expect(panel).toHaveAttribute('data-placement', /above|below/)
-    await expect(panel).toHaveCSS('height', '496px')
+    await expect(panel).toHaveCSS('height', '500px')
     const transform = page.getByRole('group', { name: 'Clip Transform' })
     const content = transform.locator('[aria-label="Move content"]')
     const committedX = await content.getAttribute('x')
