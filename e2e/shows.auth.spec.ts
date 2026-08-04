@@ -1571,6 +1571,9 @@ test.describe('authenticated Show authoring', () => {
   })
 
   test('authors, reloads, compiles, and removes a shared moving-split property (#623)', async ({ page }) => {
+    // This full create/edit/reload/compile/narrow-window/remove sequence took
+    // 32.4s under pre-push load; preserve the flow and give it explicit room.
+    test.setTimeout(60_000)
     await page.goto('studio/shows')
     await createInstallationShow(page)
     await page.getByRole('button', { name: 'Open Zones' }).click()
