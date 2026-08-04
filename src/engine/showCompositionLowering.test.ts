@@ -207,7 +207,25 @@ describe('Show composition compiler lowering (#488)', () => {
   it('lowers a Zone-scoped Transition across a coincident Cut in another Zone (#630)', () => {
     const show = structuredClone(stockShowById('stock-show-105-portable-zones')!.show)
     const composition = show.composition!
-    composition.scenes[0].zones[0].main[1].durationMs = 4_000
+    // Rebuild the first scene with two Clips per Zone: both Zones cut at the
+    // same 5s boundary, and the Left Zone's second Clip is shortened so a 2s
+    // crossfade fits inside the 10s scene. (The lesson itself now runs one
+    // Clip per Zone, so the coincident-Cut topology is authored here.)
+    const swapPlacement = (id: string, instanceId: string, startMs: number, durationMs: number) => ({
+      id,
+      instanceId,
+      startMs,
+      durationMs,
+      view: { mirror: false, phase: 0, brightness: 1 },
+    })
+    composition.scenes[0].zones[0].main = [
+      swapPlacement('clip-left-ribbons', 'ribbons', 0, 5_000),
+      swapPlacement('clip-left-water', 'water', 5_000, 3_000),
+    ]
+    composition.scenes[0].zones[1].main = [
+      swapPlacement('clip-right-water', 'water', 0, 5_000),
+      swapPlacement('clip-right-ribbons', 'ribbons', 5_000, 5_000),
+    ]
     const junction = projectShowUnifiedTimeline(show, composition).zones[0].layers[0].junctions[0]
     show.composition = insertShowLayerTransition(show, composition, {
       id: 'transition-left-zone',

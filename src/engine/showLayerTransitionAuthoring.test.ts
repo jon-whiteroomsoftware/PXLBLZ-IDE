@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { createDefaultShow, showLoopDurationMs } from './showModel'
+import { addShowZone, createDefaultShow, showLoopDurationMs } from './showModel'
 import {
   deleteShowClipWithLayerTransitions,
   insertShowLayerTransition,
@@ -153,9 +153,57 @@ describe('literal per-Layer Transition authoring (#583)', () => {
     ]))
   })
 
+  // Two zones swapping Pattern instances at the same 7s boundary — the
+  // geometry the #630 tests exercise. Purpose-built rather than borrowed from
+  // a stock lesson so catalogue rewrites cannot silently change the fixture.
+  function coincidentBoundaryFixture(): {
+    show: ReturnType<typeof createDefaultShow>
+    composition: ShowCompositionV1
+  } {
+    const show = addShowZone(createDefaultShow('show-630-coincident', 'Coincident boundaries', 1_000), { name: 'right' })
+    show.scenes[0].durationMs = 14_000
+    const scene = show.scenes[0]
+    const [left, right] = show.zones
+    const instance = (id: string) => ({
+      id,
+      pattern: { kind: 'stock' as const, id: 'Rings' },
+      patternName: 'Rings',
+      time: { timeScale: 1, timeOffsetMs: 0 },
+    })
+    const placement = (id: string, instanceId: string, startMs: number, durationMs: number) => ({
+      id,
+      instanceId,
+      startMs,
+      durationMs,
+      view: { mirror: false, phase: 0, brightness: 1 },
+    })
+    return {
+      show,
+      composition: {
+        version: 1,
+        patternInstances: [instance('instance-a'), instance('instance-b')],
+        transitions: [],
+        scenes: [{
+          sceneId: scene.id,
+          zones: [
+            {
+              zoneId: left.id,
+              main: [placement('clip-left-a', 'instance-a', 0, 7_000), placement('clip-left-b', 'instance-b', 7_000, 7_000)],
+              overlays: [],
+            },
+            {
+              zoneId: right.id,
+              main: [placement('clip-right-b', 'instance-b', 0, 7_000), placement('clip-right-a', 'instance-a', 7_000, 7_000)],
+              overlays: [],
+            },
+          ],
+        }],
+      },
+    }
+  }
+
   it('inserts a Transition despite a coincident Clip boundary in another Zone (#630)', () => {
-    const show = stockShowById('stock-show-105-portable-zones')!.show
-    const composition = structuredClone(show.composition!)
+    const { show, composition } = coincidentBoundaryFixture()
     composition.scenes[0].zones[0].main[1].durationMs = 4_000
     const original = structuredClone(composition)
     const junction = projectShowUnifiedTimeline(show, composition).zones[0].layers[0].junctions[0]
@@ -185,8 +233,7 @@ describe('literal per-Layer Transition authoring (#583)', () => {
   })
 
   it('caps insertion before a later Clip boundary in another Zone (#630)', () => {
-    const show = stockShowById('stock-show-105-portable-zones')!.show
-    const composition = structuredClone(show.composition!)
+    const { show, composition } = coincidentBoundaryFixture()
     composition.scenes[0].zones[0].main[1].durationMs = 4_000
     composition.scenes[0].zones[1].main[0].durationMs = 8_000
     composition.scenes[0].zones[1].main[1].startMs = 8_000
