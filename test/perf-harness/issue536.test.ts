@@ -61,14 +61,15 @@ describe('Restart-instance global-liveness census (#536)', () => {
     // showcase repartition (fourteen recast references replacing nine; the
     // retired TestPattern2D/Caustics casts carried most of the reclaimable
     // Restart globals, so the reclaimed count and the weighted figure both
-    // fall). The unweighted percent stays at zero and the gate reads the
-    // unweighted percent, so the verdict is unchanged.
+    // fall), and again when 202 recast its subject from CompassRose to
+    // Harmonograph (#63 review). The unweighted percent stays at zero and
+    // the gate reads the unweighted percent, so the verdict is unchanged.
     expect(report.summary).toMatchObject({
-      representativeMemberGlobals: 2_775,
+      representativeMemberGlobals: 2_791,
       representativeReclaimedGlobals: 186,
     })
     expect(report.decision.representativeReclaimPercent).toBe(0)
-    expect(report.decision.weightedRepresentativeReclaimPercent).toBeCloseTo(0.06702703, 8)
+    expect(report.decision.weightedRepresentativeReclaimPercent).toBeCloseTo(0.06664278, 8)
     expect(report.decision.ceilingRescues).toEqual([])
     expect(report.decision.proceedWithEmission).toBe(false)
     expect(report.decision.proceedWithEmission).toBe(

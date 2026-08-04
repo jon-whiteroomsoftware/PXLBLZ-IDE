@@ -45,10 +45,10 @@ import { validateShowComposition } from '@/engine/showCompositionModel'
  * rail on the Timeline, and edited in the Entity Detail panel (#629).
  */
 async function openZoneLayout(user: ReturnType<typeof userEvent.setup>, layoutName: string): Promise<void> {
-  const openZones = screen.queryByRole('button', { name: 'Open Zones' })
-  if (openZones) await user.click(openZones)
-  const openMap = screen.queryByRole('button', { name: 'Open Zone Map' })
-  if (openMap) await user.click(openMap)
+  // Layouts are per-interval now (#694): the inspector opens from the Add
+  // menu's Edit link for the interval under the playhead.
+  await user.click(screen.getByRole('button', { name: 'Add to Show' }))
+  await user.click(screen.getByRole('menuitem', { name: 'Zone Layout' }))
   await user.click(screen.getByRole('button', { name: `Open Zone Layout ${layoutName}` }))
 }
 
@@ -498,21 +498,22 @@ describe('ShowEditor (#318)', () => {
     render(<ShowEditor showId={show.id} />)
     await user.click(screen.getByRole('button', { name: 'Open Zones' }))
     const grid = screen.getByTestId('show-timeline-grid')
-    await user.click(within(grid).getByRole('button', { name: 'Open Zone Map' }))
-    const map = screen.getByRole('dialog', { name: 'Zone Map' })
-    await user.click(within(map).getByRole('button', { name: 'Open Zone Layout Default' }))
+    // The map no longer hosts panel-opening rows (#694), and opening it
+    // dismisses an open panel, so the peel covers the layers that coexist:
+    // panel, then selection, then - separately - the map.
+    await user.click(within(grid).getByRole('button', { name: 'Open zone accent properties' }))
     expect(screen.getByRole('dialog', { name: 'Entity Detail Panel' })).toBeInTheDocument()
 
     await user.keyboard('{Escape}')
     expect(screen.queryByRole('dialog', { name: 'Entity Detail Panel' })).not.toBeInTheDocument()
-    expect(screen.getByRole('dialog', { name: 'Zone Map' })).toBeInTheDocument()
 
     await user.keyboard('{Escape}')
     await waitFor(() => expect(screen.getByRole('region', { name: 'Show timeline' })).toHaveFocus())
-    expect(screen.getByRole('dialog', { name: 'Zone Map' })).toBeInTheDocument()
 
+    await user.click(within(grid).getByRole('button', { name: 'Open Zone Map' }))
+    expect(screen.getByRole('dialog', { name: 'Zone Map' })).toBeInTheDocument()
     await user.keyboard('{Escape}')
-    expect(screen.queryByRole('dialog', { name: 'Zone Map' })).not.toBeInTheDocument()
+    await waitFor(() => expect(screen.queryByRole('dialog', { name: 'Zone Map' })).not.toBeInTheDocument())
   })
 
   it('gives each Zone header one disclosure and one properties affordance (#632)', async () => {
@@ -700,7 +701,7 @@ describe('ShowEditor (#318)', () => {
     expect(screen.getByRole('img', { name: 'Collapsed zone accent timeline' })).toBeInTheDocument()
   })
 
-  it('authors Zone Layout definitions in the Zone Map, not Show properties (#629)', async () => {
+  it('keeps the Zone Map to Zones; Layout intervals own their layout (#694)', async () => {
     const user = userEvent.setup()
     const show = createDefaultShow('show-zone-layout-authoring', 'Zone Layout authoring', 1000)
     setPersonalContentProvider(memoryProvider([show]))
@@ -711,25 +712,21 @@ describe('ShowEditor (#318)', () => {
     await user.click(screen.getByRole('button', { name: 'Show properties' }))
     expect(screen.queryByRole('button', { name: 'Add routing layout' })).not.toBeInTheDocument()
     expect(screen.queryByLabelText('Default routing mode')).not.toBeInTheDocument()
-    expect(screen.getByText(/Zones and Zone Layouts are authored in the Zone Map/i)).toBeInTheDocument()
+    expect(screen.getByText(/Zones are authored in the Zone Map/i)).toBeInTheDocument()
 
+    // The registry is gone: no layout rows, no Add Zone Layout.
     await user.click(screen.getByRole('button', { name: 'Open Zones' }))
     await user.click(screen.getByRole('button', { name: 'Open Zone Map' }))
     const zoneMap = screen.getByRole('dialog', { name: 'Zone Map' })
-    const definition = within(zoneMap).getByRole('button', { name: 'Open Zone Layout Default' })
-    expect(definition).toHaveTextContent('physical pixel ranges')
-    expect(definition).toHaveTextContent('1 interval')
+    expect(within(zoneMap).queryByRole('button', { name: /Open Zone Layout/ })).not.toBeInTheDocument()
+    expect(within(zoneMap).queryByRole('button', { name: 'Add Zone Layout' })).not.toBeInTheDocument()
 
-    await user.click(within(zoneMap).getByRole('button', { name: 'Add Zone Layout' }))
-    await waitFor(() => expect(useShowStore.getState().shows[0].routingLayouts).toHaveLength(2))
-    const added = useShowStore.getState().shows[0].routingLayouts[1]
-    expect(screen.getByRole('region', { name: 'Zone Layout properties' })).toBeInTheDocument()
-    expect(screen.getByText(/not on the timeline yet/i)).toBeInTheDocument()
-
-    const name = screen.getByLabelText(`Zone Layout name ${added.name}`)
-    fireEvent.change(name, { target: { value: 'Split' } })
-    await waitFor(() => expect(useShowStore.getState().shows[0].routingLayouts[1].name).toBe('Split'))
-    expect(within(screen.getByRole('dialog', { name: 'Zone Map' })).getByRole('button', { name: 'Open Zone Layout Split' })).toBeInTheDocument()
+    // The inspector reaches through the interval and has no name field: the
+    // layout's identity is its kind.
+    await openZoneLayout(user, 'Default')
+    const panel = screen.getByRole('region', { name: 'Zone Layout properties' })
+    expect(panel).toBeInTheDocument()
+    expect(screen.queryByLabelText(/Zone Layout name/)).not.toBeInTheDocument()
   })
 
   it('defines and places a Zone Layout in one pass from the Add menu (#629)', async () => {
@@ -744,13 +741,14 @@ describe('ShowEditor (#318)', () => {
     await user.click(screen.getByRole('button', { name: 'Add to Show' }))
     await user.click(screen.getByRole('menuitem', { name: 'Zone Layout' }))
     const dialog = screen.getByRole('dialog', { name: 'Zone Layout at playhead' })
-    await user.selectOptions(within(dialog).getByRole('combobox', { name: 'Zone Layout' }), '__new-zone-layout__')
+    // No registry select: Append copies the layout under the playhead into a
+    // fresh definition and places it in one pass (#694).
+    expect(within(dialog).queryByRole('combobox', { name: 'Zone Layout' })).not.toBeInTheDocument()
+    await user.click(within(dialog).getByRole('button', { name: 'Append' }))
 
     await waitFor(() => expect(useShowStore.getState().shows[0].routingLayouts).toHaveLength(2))
     const added = useShowStore.getState().shows[0].routingLayouts[1]
-    expect(within(dialog).getByRole('combobox', { name: 'Zone Layout' })).toHaveValue(added.id)
-
-    await user.click(within(dialog).getByRole('button', { name: 'Append' }))
+    expect(added.logical).toEqual(useShowStore.getState().shows[0].routingLayouts[0].logical)
     await waitFor(() => {
       const intervals = projectShowLayoutIntervals(useShowStore.getState().shows[0])
       expect(intervals.map((interval) => interval.layoutId)).toEqual([show.routingLayouts[0].id, added.id])
@@ -795,17 +793,20 @@ describe('ShowEditor (#318)', () => {
     let dialog = screen.getByRole('dialog', { name: 'Zone Layout at playhead' })
     expect(screen.getByTestId('show-timeline-toolbar')).not.toContainElement(dialog)
     expect(dialog).toHaveClass('fixed')
-    await user.selectOptions(within(dialog).getByRole('combobox', { name: 'Zone Layout' }), show.routingLayouts[1].id)
     const duration = within(dialog).getByRole('textbox', { name: 'Layout interval duration in seconds exact time' })
     await user.clear(duration)
     await user.type(duration, '3')
     await user.click(within(dialog).getByRole('button', { name: 'Insert here' }))
 
+    // Insert places a fresh copy of the playhead interval's layout (#694).
     await waitFor(() => {
       const saved = useShowStore.getState().shows[0]
+      const copyId = saved.routingLayouts[2]?.id
+      expect(copyId).toBeDefined()
+      expect(saved.routingLayouts[2].logical).toEqual(saved.routingLayouts[0].logical)
       expect(projectShowLayoutIntervals(saved).map((interval) => [interval.layoutId, interval.durationMs])).toEqual([
         ['layout-1', 10_000],
-        [show.routingLayouts[1].id, 3_000],
+        [copyId, 3_000],
         ['layout-1', 52_000],
       ])
     })
@@ -815,8 +816,13 @@ describe('ShowEditor (#318)', () => {
     dialog = screen.getByRole('dialog', { name: 'Zone Layout at playhead' })
     await user.click(within(dialog).getByRole('button', { name: 'Append' }))
     await waitFor(() => {
-      const intervals = projectShowLayoutIntervals(useShowStore.getState().shows[0])
-      expect(intervals[intervals.length - 1]).toMatchObject({ layoutId: show.routingLayouts[1].id, durationMs: 3_000 })
+      const saved = useShowStore.getState().shows[0]
+      const intervals = projectShowLayoutIntervals(saved)
+      const appendedId = intervals[intervals.length - 1].layoutId
+      expect(appendedId).not.toBe('layout-1')
+      expect(intervals[intervals.length - 1].durationMs).toBe(3_000)
+      expect(saved.routingLayouts.find((layout) => layout.id === appendedId)?.logical)
+        .toEqual(saved.routingLayouts[0].logical)
     })
   })
 
@@ -828,12 +834,13 @@ describe('ShowEditor (#318)', () => {
 
     render(<ShowEditor showId={show.id} />)
 
-    await user.click(screen.getByRole('button', { name: 'Add to Show' }))
-    await user.click(screen.getByRole('menuitem', { name: 'Zone Layout' }))
-    const dialog = screen.getByRole('dialog', { name: 'Zone Layout at playhead' })
-    await user.selectOptions(within(dialog).getByRole('combobox', { name: 'Zone Layout' }), show.routingLayouts[1].id)
-    await user.click(within(dialog).getByRole('button', { name: 'Append' }))
-
+    // Arrange the placed interval directly; the Add flow's copy semantics have
+    // their own coverage (#694, #582).
+    act(() => {
+      useShowStore.setState({
+        shows: [appendShowLayoutInterval(show, { layoutId: show.routingLayouts[1].id, durationMs: 4_000 })],
+      })
+    })
     await waitFor(() => expect(projectShowLayoutIntervals(useShowStore.getState().shows[0])).toHaveLength(2))
 
     const interval = await screen.findByRole('button', { name: 'Select Alternate routing interval 1' })

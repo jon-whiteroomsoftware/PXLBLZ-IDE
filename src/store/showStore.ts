@@ -450,7 +450,7 @@ export const useShowStore = create<ShowState>()((set, get) => ({
   addRoutingLayout: async (showId, sourceLayoutId) => {
     const show = get().resolveEditableShow(showId)
     if (!show) return null
-    const next = addShowRoutingLayout(show, 'New layout', sourceLayoutId)
+    const next = addShowRoutingLayout(show, undefined, sourceLayoutId)
     await get().updateShow(showId, next)
     return next.routingLayouts[next.routingLayouts.length - 1]?.id ?? null
   },

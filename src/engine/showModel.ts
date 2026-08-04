@@ -1686,25 +1686,44 @@ export function normalizeShowEntryState(show: ShowRecord): ShowRecord {
   }
 }
 
-export function addShowRoutingLayout(show: ShowRecord, name = 'New layout', sourceLayoutId?: string): ShowRecord {
+// User-facing identity of a layout is its kind (#694); names persist as
+// auto-managed identifiers, seeded from this label for new definitions.
+export function showRoutingLayoutKindLabel(layout: Pick<ShowRoutingLayout, 'logical'>): string {
+  const logical = layout.logical
+  if (!logical) return 'Physical ranges'
+  if (logical.kind === 'single') return 'Full surface'
+  if (logical.kind === 'grid') return 'Grid'
+  if (logical.kind === 'stripes') return logical.axis === 'x' ? 'Left / right stripes' : 'Top / bottom stripes'
+  if (logical.kind === 'checker') return 'Checker'
+  if (logical.kind === 'rings') return 'Rings'
+  if (logical.kind === 'pinwheel') return 'Pinwheel'
+  if (logical.kind === 'wave') return 'Wave'
+  if (logical.kind === 'soft-split') return 'Soft split'
+  if (logical.kind === 'split') return logical.axis === 'x' ? 'Moving split X' : 'Moving split Y'
+  return 'Zone Layout'
+}
+
+export function addShowRoutingLayout(show: ShowRecord, name?: string, sourceLayoutId?: string): ShowRecord {
   const normalized = normalizeShowRoutingState(show)
   const id = nextEntityId('layout-', normalized.routingLayouts)
   const source = sourceLayoutId
     ? normalized.routingLayouts.find((layout) => layout.id === sourceLayoutId)
     : undefined
+  const logical = source?.logical
+    ? cloneLogicalRouting(source.logical)
+    : normalized.outputContract?.kind === 'portable-2d'
+      ? normalized.routingLayouts[0]?.logical
+        ? cloneLogicalRouting(normalized.routingLayouts[0].logical)
+        : { kind: 'single' as const, zoneIds: [normalized.zones[0].id] as [string] }
+      : undefined
+  const autoName = name ?? showRoutingLayoutKindLabel({ logical })
   const layout: ShowRoutingLayout = {
     id,
-    name: uniqueRoutingLayoutName(name, normalized.routingLayouts),
+    name: uniqueRoutingLayoutName(autoName, normalized.routingLayouts),
     zones: source
       ? source.zones.map(cloneRoutingLayoutZone)
-      : routingLayoutFromZones(id, name, normalized.zones).zones,
-    logical: source?.logical
-      ? cloneLogicalRouting(source.logical)
-      : normalized.outputContract?.kind === 'portable-2d'
-        ? normalized.routingLayouts[0]?.logical
-          ? cloneLogicalRouting(normalized.routingLayouts[0].logical)
-          : { kind: 'single', zoneIds: [normalized.zones[0].id] }
-        : undefined,
+      : routingLayoutFromZones(id, autoName, normalized.zones).zones,
+    logical,
   }
   return { ...normalized, routingLayouts: [...normalized.routingLayouts, layout], updatedAt: Date.now() }
 }

@@ -321,7 +321,6 @@ function ShowEasingOptions() {
  * disclosure control, the Zone name with its nominal pixel count, and a
  * properties control; the micro rail holds only the Zone glyph picker.
  */
-const NEW_ZONE_LAYOUT_OPTION = '__new-zone-layout__'
 
 const ZONE_RAIL_OPEN_PX = 108
 const ZONE_RAIL_MICRO_PX = 32
@@ -2274,7 +2273,10 @@ export function ShowEditor({
                 }}
                 onAppendLayoutInterval={async (layoutId, durationMs) => {
                   if (!timelineComposition) return false
-                  const basis = { ...activeShow, composition: timelineComposition }
+                  // Resolve current state: the layout being placed may have
+                  // been created a microtask ago by the same action (#694).
+                  const current = useShowStore.getState().resolveEditableShow(activeShow.id) ?? activeShow
+                  const basis = { ...current, composition: timelineComposition }
                   const next = appendShowLayoutInterval(basis, { layoutId, durationMs })
                   if (next === basis) return false
                   await updateShow(activeShow.id, next)
@@ -2282,7 +2284,8 @@ export function ShowEditor({
                 }}
                 onInsertLayoutInterval={async (layoutId, durationMs, atMs) => {
                   if (!timelineComposition) return false
-                  const basis = { ...activeShow, composition: timelineComposition }
+                  const current = useShowStore.getState().resolveEditableShow(activeShow.id) ?? activeShow
+                  const basis = { ...current, composition: timelineComposition }
                   const next = insertShowLayoutInterval(basis, { layoutId, durationMs, atMs })
                   if (next === basis) return false
                   await updateShow(activeShow.id, next)
@@ -2308,7 +2311,7 @@ export function ShowEditor({
                   timelineWorkspaceRef.current?.focus()
                   void addZone(activeShow.id)
                 }}
-                onAddZoneLayout={() => addRoutingLayout(activeShow.id)}
+                onAddZoneLayout={(sourceLayoutId) => addRoutingLayout(activeShow.id, sourceLayoutId)}
                 onUpdateZone={(zoneId, changes) => void updateZone(activeShow.id, zoneId, changes)}
                 onRemoveZone={(zoneId) => {
                   closeDetailPanel()
@@ -3311,7 +3314,7 @@ function ShowTimelineWorkspace({
   onDuplicateLayoutInterval: (intervalId: string, withContent: boolean) => Promise<boolean>
   onMakeLayoutIntervalUnique: (intervalId: string) => Promise<boolean>
   onAddZone: () => void
-  onAddZoneLayout: () => Promise<string | null>
+  onAddZoneLayout: (sourceLayoutId?: string) => Promise<string | null>
   onUpdateZone: (zoneId: string, changes: Partial<ShowRecord['zones'][number]>) => void
   onRemoveZone: (zoneId: string) => void
 }) {
@@ -3396,7 +3399,6 @@ function ShowTimelineWorkspace({
   const [zoneMapOpen, setZoneMapOpen] = useState(false)
   const [zoneMapAnchor, setZoneMapAnchor] = useState<HTMLButtonElement | null>(null)
   const [layoutActionTimeMs, setLayoutActionTimeMs] = useState(0)
-  const [layoutActionLayoutId, setLayoutActionLayoutId] = useState(show.routingLayouts[0]?.id ?? '')
   const [layoutActionDurationSeconds, setLayoutActionDurationSeconds] = useState(5)
   const [layoutActionError, setLayoutActionError] = useState<string | null>(null)
   const [addClipTimeMs, setAddClipTimeMs] = useState(0)
@@ -4325,9 +4327,7 @@ function ShowTimelineWorkspace({
                     onClick={() => {
                       const transport = useShowTransportStore.getState()
                       const timeMs = transport.showId === show.id ? transport.positionMs : 0
-                      const interval = showLayoutIntervalAtTime(layoutIntervals, timeMs)
                       setLayoutActionTimeMs(timeMs)
-                      setLayoutActionLayoutId(interval?.layoutId ?? show.routingLayouts[0]?.id ?? '')
                       setLayoutActionError(null)
                       setAddMenuOpen(false)
                       setLayoutActionsOpen(true)
@@ -4429,26 +4429,6 @@ function ShowTimelineWorkspace({
                     </div>
                     <span className="shrink-0 font-mono text-[11px] tabular-nums text-zinc-500">{formatShowTime(layoutActionTimeMs)}</span>
                   </div>
-                  <label className="grid grid-cols-[72px_1fr] items-center gap-2 py-1">
-                    <span className="text-zinc-500">Use Layout</span>
-                    <select
-                      aria-label="Zone Layout"
-                      className="h-7 min-w-0 rounded border border-zinc-700 bg-zinc-900 px-2 text-[12px] text-zinc-200 outline-none focus:border-live/70"
-                      value={layoutActionLayoutId}
-                      onChange={(event) => {
-                        if (event.target.value !== NEW_ZONE_LAYOUT_OPTION) {
-                          setLayoutActionLayoutId(event.target.value)
-                          return
-                        }
-                        void onAddZoneLayout().then((layoutId) => {
-                          if (layoutId) setLayoutActionLayoutId(layoutId)
-                        })
-                      }}
-                    >
-                      {show.routingLayouts.map((layout) => <option key={layout.id} value={layout.id}>{layout.name}</option>)}
-                      <option value={NEW_ZONE_LAYOUT_OPTION}>New Zone Layout...</option>
-                    </select>
-                  </label>
                   {layoutActionInterval && (
                     <button
                       type="button"
@@ -4484,14 +4464,23 @@ function ShowTimelineWorkspace({
                     <Button
                       size="sm"
                       variant="secondary"
-                      disabled={!layoutActionDurationValid || !layoutActionLayoutId}
-                      onClick={() => runLayoutAction(() => onAppendLayoutInterval(layoutActionLayoutId, layoutActionDurationMs))}
+                      disabled={!layoutActionDurationValid}
+                      onClick={() => runLayoutAction(async () => {
+                        // A new interval starts as a copy of the layout under
+                        // the playhead - per-interval ownership, no registry
+                        // picking (#694).
+                        const layoutId = await onAddZoneLayout(layoutActionInterval?.layoutId)
+                        return layoutId ? onAppendLayoutInterval(layoutId, layoutActionDurationMs) : false
+                      })}
                     >Append</Button>
                     <Button
                       size="sm"
                       variant="secondary"
-                      disabled={!layoutActionDurationValid || !layoutActionLayoutId}
-                      onClick={() => runLayoutAction(() => onInsertLayoutInterval(layoutActionLayoutId, layoutActionDurationMs, layoutActionTimeMs))}
+                      disabled={!layoutActionDurationValid}
+                      onClick={() => runLayoutAction(async () => {
+                        const layoutId = await onAddZoneLayout(layoutActionInterval?.layoutId)
+                        return layoutId ? onInsertLayoutInterval(layoutId, layoutActionDurationMs, layoutActionTimeMs) : false
+                      })}
                     >Insert here</Button>
                     <Button
                       size="sm"
@@ -5696,15 +5685,8 @@ function ShowTimelineWorkspace({
           collapsedZoneIds={collapsedZoneIdSet}
           focusedZoneId={focusedZoneId}
           readOnly={readOnly}
-          layoutIntervals={layoutIntervals}
           onAddZone={onAddZone}
-          onAddZoneLayout={(anchor) => {
-            void onAddZoneLayout().then((layoutId) => {
-              if (layoutId) onSelect({ kind: 'zone-layout', layoutId }, anchor)
-            })
-          }}
           onDismiss={() => setZoneMapOpen(false)}
-          onSelectZoneLayout={(layoutId, anchor) => onSelect({ kind: 'zone-layout', layoutId }, anchor)}
           onToggleZone={(zoneId) => setZoneCollapsed(show.id, zoneId, !collapsedZoneIdSet.has(zoneId))}
           onFocusZone={focusZone}
           onUpdateZone={onUpdateZone}
@@ -5802,11 +5784,8 @@ function ZoneMapPopover({
   collapsedZoneIds,
   focusedZoneId,
   readOnly,
-  layoutIntervals,
   onAddZone,
-  onAddZoneLayout,
   onDismiss,
-  onSelectZoneLayout,
   onToggleZone,
   onFocusZone,
   onUpdateZone,
@@ -5817,11 +5796,8 @@ function ZoneMapPopover({
   collapsedZoneIds: Set<string>
   focusedZoneId: string | null
   readOnly: boolean
-  layoutIntervals: ShowLayoutInterval[]
   onAddZone: () => void
-  onAddZoneLayout: (anchor: HTMLElement) => void
   onDismiss: () => void
-  onSelectZoneLayout: (layoutId: string, anchor: HTMLElement) => void
   onToggleZone: (zoneId: string) => void
   onFocusZone: (zoneId: string) => void
   onUpdateZone: (zoneId: string, changes: Partial<ShowRecord['zones'][number]>) => void
@@ -5951,46 +5927,6 @@ function ZoneMapPopover({
         >
           <Plus size={12} aria-hidden />
           Add Zone
-        </button>
-      )}
-      <h3 className="mt-2.5 border-t border-zinc-800 px-1.5 pt-2 text-[9px] uppercase tracking-[0.12em] text-zinc-500">
-        Zone Layouts
-        <span className="ml-1 normal-case tracking-normal text-zinc-600">named ways to divide it</span>
-      </h3>
-      <div className="py-1">
-        {show.routingLayouts.map((layout) => {
-          const uses = layoutIntervals.filter((interval) => interval.layoutId === layout.id).length
-          return (
-            <button
-              key={layout.id}
-              type="button"
-              aria-label={`Open Zone Layout ${layout.name}`}
-              title={`Open ${layout.name}`}
-              className="flex min-h-8 w-full min-w-0 items-center gap-2 rounded px-1.5 py-1 text-left text-zinc-300 hover:bg-zinc-800/70 hover:text-zinc-100"
-              onClick={(event) => onSelectZoneLayout(layout.id, event.currentTarget)}
-            >
-              <Route size={12} aria-hidden className="shrink-0 text-zinc-500" />
-              <span className="min-w-0 flex-1">
-                <strong className="block truncate text-[12px] font-medium">{layout.name}</strong>
-                <span className="block truncate text-[10px] text-zinc-500">{routingModeLabel(layout)}</span>
-              </span>
-              <span className="shrink-0 text-[10px] tabular-nums text-zinc-600">
-                {uses === 0 ? 'not placed' : `${uses} interval${uses === 1 ? '' : 's'}`}
-              </span>
-            </button>
-          )
-        })}
-      </div>
-      {!readOnly && (
-        <button
-          type="button"
-          aria-label="Add Zone Layout"
-          title="Define another named Zone Layout"
-          className="flex h-8 w-full items-center justify-center gap-1 rounded border border-dashed border-zinc-800 text-[11px] text-zinc-400 hover:border-zinc-600 hover:text-zinc-100"
-          onClick={(event) => onAddZoneLayout(event.currentTarget)}
-        >
-          <Plus size={12} aria-hidden />
-          Add Zone Layout
         </button>
       )}
     </ShowTimelineToolbarPopover>
@@ -9462,7 +9398,7 @@ function ShowSetupInspector({
         {portable
           ? 'Portable routing uses normalized Stage positions at runtime.'
           : `Using ${targetProfile?.name ?? 'nominal zones'} for compile estimates.`}
-        {' '}Zones and Zone Layouts are authored in the Zone Map, from the Zones rail on the Timeline.
+        {' '}Zones are authored in the Zone Map on the Timeline; each Layout interval owns its Zone Layout there.
       </p>
       <div className="mt-4 border-t border-zinc-800 pt-3">
         <div className="mb-2 flex items-center gap-2">
@@ -9538,14 +9474,8 @@ function ZoneLayoutInspector({
   const portable = show.outputContract?.kind === 'portable-2d' ? show.outputContract : null
   const uses = intervals.filter((interval) => interval.layoutId === layout.id)
   return (
-    <InspectorPanel family="Zone Layout" title={layout.name} icon={<Route size={13} aria-hidden />}>
-      <div className="flex items-center gap-2">
-        <input
-          aria-label={`Zone Layout name ${layout.name}`}
-          value={layout.name}
-          onChange={(event) => onUpdateRoutingLayout(layout.id, { name: event.target.value })}
-          className={`${field} min-w-0 flex-1`}
-        />
+    <InspectorPanel family="Zone Layout" title={routingModeLabel(layout)} icon={<Route size={13} aria-hidden />}>
+      <div className="flex items-center justify-end gap-2">
         <button
           type="button"
           aria-label={`Duplicate Zone Layout ${layout.name}`}
@@ -9568,8 +9498,8 @@ function ZoneLayoutInspector({
       </div>
       <p className="mt-2 text-[10px] leading-4 text-zinc-500">
         {uses.length === 0
-          ? 'This definition is not on the timeline yet. Add > Zone Layout places an interval that uses it.'
-          : `On the timeline for ${uses.length} interval${uses.length === 1 ? '' : 's'}: ${uses.map((interval) => `${formatShowTime(interval.startMs)}-${formatShowTime(interval.endMs)}`).join(', ')}.`}
+          ? 'Not on the timeline.'
+          : `On the timeline ${formatShowTime(uses[0].startMs)}-${formatShowTime(uses[uses.length - 1].endMs)}${uses.length > 1 ? ` across ${uses.length} intervals` : ''}.`}
       </p>
       <label className="mt-2 block text-[9.5px] uppercase text-zinc-600">
         Routing mode
