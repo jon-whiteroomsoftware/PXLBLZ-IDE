@@ -1198,13 +1198,17 @@ test.describe('authenticated Show authoring', () => {
   })
 
   test('keeps the complete Place controls visible without any detail scrollbar', async ({ page }) => {
-    await page.setViewportSize({ width: 1024, height: 600 })
+    await page.setViewportSize({ width: 800, height: 600 })
     await page.goto('studio/shows')
     await createInstallationShow(page)
 
     await selectClip(page, 'TestPattern1D')
-    await showClipTab(page, 'Place')
+    await showClipTab(page, 'Playback')
     const panel = page.getByRole('dialog', { name: 'Entity Detail Panel' })
+    await expect(panel).toHaveCSS('height', '360px')
+    await showClipTab(page, 'Place')
+    await expect(panel).toHaveAttribute('data-placement', /above|below/)
+    await expect(panel).toHaveCSS('height', '496px')
     const transform = page.getByRole('group', { name: 'Clip Transform' })
     const content = transform.locator('[aria-label="Move content"]')
     const committedX = await content.getAttribute('x')

@@ -98,6 +98,7 @@ const EMBEDDED_PANEL_HEIGHT: Record<ShowClipDetailTabId, number> = {
   effects: 488,
   playback: 360,
 }
+const READ_ONLY_PANEL_NOTE_HEIGHT = 32
 
 export const ShowClipEntityDetail = forwardRef<ShowClipEntityDetailHandle, ShowClipEntityDetailProps>(function ShowClipEntityDetail({
   value,
@@ -232,7 +233,10 @@ export const ShowClipEntityDetail = forwardRef<ShowClipEntityDetailHandle, ShowC
   const tabs = projectShowClipDetailTabs({ value, transformEnabled })
   const activeTab = resolveShowClipDetailTab(preferredTab, tabs)
   useShowEntityDetailPanelHeight(
-    embedded ? (animationOverviewOpen ? 488 : EMBEDDED_PANEL_HEIGHT[activeTab]) : undefined,
+    embedded
+      ? (animationOverviewOpen ? 488 : EMBEDDED_PANEL_HEIGHT[activeTab])
+        + (readOnly ? READ_ONLY_PANEL_NOTE_HEIGHT : 0)
+      : undefined,
   )
   const selectTab = (tab: ShowClipDetailTabId) => {
     if (animationOverviewOpen) onAnimationOverviewClose?.(false)
@@ -506,7 +510,7 @@ export const ShowClipEntityDetail = forwardRef<ShowClipEntityDetailHandle, ShowC
           className={embedded
             ? activeTab === 'effects' && !animationOverviewOpen
               ? 'flex h-[clamp(180px,calc(100vh-250px),300px)] min-h-0 shrink-0 flex-col overflow-hidden pt-2'
-              : activeTab === 'place'
+              : activeTab === 'place' && !animationOverviewOpen
                 ? 'min-h-0 flex-1 overflow-hidden pt-2'
                 : 'min-h-0 flex-1 overflow-y-auto pt-2'
             : activeTab === 'effects' && !animationOverviewOpen

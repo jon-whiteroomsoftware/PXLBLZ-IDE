@@ -9,6 +9,7 @@ import { resetShowClipDetailTabMemory } from '@/engine/showClipDetailTabs'
 import { buildShowPropertyAnimationOptions } from '@/engine/showPropertyAnimationEditorModel'
 import { ShowPropertyAnimationProvider } from './ShowPropertyAnimationEditor'
 import type { ShowPropertyAnimationTrack } from '@/engine/personalContentRecords'
+import { ShowEntityDetailPanel } from './ShowEntityDetailPanel'
 
 function value(scope: ShowClipInspectorValue['scope']): ShowClipInspectorValue {
   const scene = scope !== 'global'
@@ -826,6 +827,52 @@ describe('shared Clip Entity Detail sections (#498)', () => {
       'h-[clamp(180px,calc(100vh-250px),300px)]',
       'overflow-y-auto',
     )
+  })
+
+  it('keeps the Animations overview scrollable when it opens from Place', () => {
+    const props = commonProps('scene-main')
+    const { rerender } = render(<ShowClipEntityDetail {...props} embedded />)
+    showTab('Place')
+
+    rerender(
+      <ShowClipEntityDetail
+        {...props}
+        embedded
+        animationOverviewOpen
+        onAnimationOverviewClose={vi.fn()}
+      />,
+    )
+
+    expect(screen.getByRole('tabpanel')).toHaveClass('overflow-y-auto')
+    expect(screen.getByRole('tabpanel')).not.toHaveClass('overflow-hidden')
+  })
+
+  it('includes the read-only note in the requested Place panel height', () => {
+    const props = commonProps('scene-main')
+    const anchor = document.createElement('button')
+    document.body.append(anchor)
+
+    render(
+      <ShowEntityDetailPanel
+        anchor={anchor}
+        ownerKey="clip:test"
+        bodyOwnsOverflow
+        onClose={() => undefined}
+      >
+        <div className="flex h-full min-h-0 flex-col">
+          <div role="note" className="min-h-8 shrink-0">Built-in values</div>
+          <ShowClipEntityDetail {...props} embedded readOnly />
+        </div>
+      </ShowEntityDetailPanel>,
+    )
+
+    showTab('Place')
+    expect(screen.getByRole('dialog', { name: 'Entity Detail Panel' })).toHaveStyle({
+      height: '528px',
+      maxHeight: '528px',
+    })
+
+    anchor.remove()
   })
 
   it('lets a header field consume Escape while the Add Effect takeover is open', () => {

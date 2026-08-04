@@ -48,6 +48,7 @@ export function ShowEntityDetailPanel({
   const requestBodyHeight = useCallback((height: number | undefined) => {
     setRequestedBodyHeight(height)
   }, [])
+  const effectiveBodyHeight = requestedBodyHeight ?? 560
   const updatePosition = useCallback(() => {
     const panel = panelRef.current
     if (!panel || !anchor.isConnected) return
@@ -60,11 +61,14 @@ export function ShowEntityDetailPanel({
       : []
     setPosition(placeShowEntityDetailPanel({
       anchor: anchorRect,
-      panel: panelRect,
+      panel: {
+        width: panelRect.width,
+        height: bodyOwnsOverflow ? effectiveBodyHeight : panelRect.height,
+      },
       viewport: { width: window.innerWidth, height: window.innerHeight },
       avoid,
     }))
-  }, [anchor, avoidPinnedPanel])
+  }, [anchor, avoidPinnedPanel, bodyOwnsOverflow, effectiveBodyHeight])
 
   useLayoutEffect(() => {
     updatePosition()
@@ -88,7 +92,6 @@ export function ShowEntityDetailPanel({
   }, [anchor, avoidPinnedPanel, updatePosition])
 
   const sidePlacement = position?.placement === 'left' || position?.placement === 'right'
-  const effectiveBodyHeight = requestedBodyHeight ?? 560
   const panelMaxHeight = position
     ? Math.min(bodyOwnsOverflow ? effectiveBodyHeight : 560, position.maxHeight)
     : undefined
