@@ -757,8 +757,9 @@ The output contract determines what those Zones mean:
   generated Pattern derives ownership from runtime coordinates, so the same
   rule holds on any compatible surface.
 
-A Show may carry a sequence of Layout intervals on the Timeline, each owning
-its Zone Layout. **Add > Zone Layout** starts a new interval at the playhead as
+A Show may carry a sequence of Layout intervals on the Timeline, each
+presenting a Zone Layout - its own, or one shared with the interval it was
+duplicated from. **Add > Zone Layout** starts a new interval at the playhead as
 a copy of the Layout under it, then Append or Insert here; that popover also
 links to the interval governing the playhead. The boundary between intervals
 carries a selectable route marker in the Layouts lane; selecting it opens the
