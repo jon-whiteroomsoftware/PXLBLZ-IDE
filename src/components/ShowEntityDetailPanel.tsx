@@ -29,6 +29,7 @@ export function ShowEntityDetailPanel({
   pinned = false,
   avoidPinnedPanel = false,
   bodyOwnsOverflow = false,
+  bodyHeightOffset = 0,
   onPinnedChange,
   onClose,
   children,
@@ -38,6 +39,7 @@ export function ShowEntityDetailPanel({
   pinned?: boolean
   avoidPinnedPanel?: boolean
   bodyOwnsOverflow?: boolean
+  bodyHeightOffset?: number
   onPinnedChange?: () => void
   onClose: () => void
   children: ReactNode
@@ -48,7 +50,7 @@ export function ShowEntityDetailPanel({
   const requestBodyHeight = useCallback((height: number | undefined) => {
     setRequestedBodyHeight(height)
   }, [])
-  const effectiveBodyHeight = requestedBodyHeight ?? 560
+  const effectiveBodyHeight = (requestedBodyHeight ?? 560) + bodyHeightOffset
   const updatePosition = useCallback(() => {
     const panel = panelRef.current
     if (!panel || !anchor.isConnected) return

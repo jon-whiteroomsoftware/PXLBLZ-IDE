@@ -2377,6 +2377,7 @@ export function ShowEditor({
               pinned={detail.pinned}
               avoidPinnedPanel={!detail.pinned}
               bodyOwnsOverflow={detailIsClip}
+              bodyHeightOffset={detailIsClip && readOnly ? 32 : 0}
               onPinnedChange={() => {
                 if (detail.pinned) {
                   setPinnedDetail(null)

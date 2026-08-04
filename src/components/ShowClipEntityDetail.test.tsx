@@ -10,6 +10,7 @@ import { buildShowPropertyAnimationOptions } from '@/engine/showPropertyAnimatio
 import { ShowPropertyAnimationProvider } from './ShowPropertyAnimationEditor'
 import type { ShowPropertyAnimationTrack } from '@/engine/personalContentRecords'
 import { ShowEntityDetailPanel } from './ShowEntityDetailPanel'
+import { InspectorReadOnlyContext } from './ShowEditor'
 
 function value(scope: ShowClipInspectorValue['scope']): ShowClipInspectorValue {
   const scene = scope !== 'global'
@@ -857,11 +858,14 @@ describe('shared Clip Entity Detail sections (#498)', () => {
         anchor={anchor}
         ownerKey="clip:test"
         bodyOwnsOverflow
+        bodyHeightOffset={32}
         onClose={() => undefined}
       >
         <div className="flex h-full min-h-0 flex-col">
           <div role="note" className="min-h-8 shrink-0">Built-in values</div>
-          <ShowClipEntityDetail {...props} embedded readOnly />
+          <InspectorReadOnlyContext.Provider value={true}>
+            <ShowClipEntityDetail {...props} embedded readOnly={false} />
+          </InspectorReadOnlyContext.Provider>
         </div>
       </ShowEntityDetailPanel>,
     )

@@ -98,7 +98,6 @@ const EMBEDDED_PANEL_HEIGHT: Record<ShowClipDetailTabId, number> = {
   effects: 488,
   playback: 360,
 }
-const READ_ONLY_PANEL_NOTE_HEIGHT = 32
 
 export const ShowClipEntityDetail = forwardRef<ShowClipEntityDetailHandle, ShowClipEntityDetailProps>(function ShowClipEntityDetail({
   value,
@@ -233,10 +232,7 @@ export const ShowClipEntityDetail = forwardRef<ShowClipEntityDetailHandle, ShowC
   const tabs = projectShowClipDetailTabs({ value, transformEnabled })
   const activeTab = resolveShowClipDetailTab(preferredTab, tabs)
   useShowEntityDetailPanelHeight(
-    embedded
-      ? (animationOverviewOpen ? 488 : EMBEDDED_PANEL_HEIGHT[activeTab])
-        + (readOnly ? READ_ONLY_PANEL_NOTE_HEIGHT : 0)
-      : undefined,
+    embedded ? (animationOverviewOpen ? 488 : EMBEDDED_PANEL_HEIGHT[activeTab]) : undefined,
   )
   const selectTab = (tab: ShowClipDetailTabId) => {
     if (animationOverviewOpen) onAnimationOverviewClose?.(false)
