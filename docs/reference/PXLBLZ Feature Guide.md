@@ -464,9 +464,12 @@ The working grammar is compact:
   places an independent exact duplicate on any valid Layer and time. Copy mode
   is chosen when the drag begins, so releasing Option does not turn the gesture
   into a move. Dropping outside a valid target cancels without changing the
-  Show. Selected Clip edges resize it. **Split** divides the selected Clip at
-  the playhead and **Clone** duplicates it immediately after itself, including
-  across a Cut into the next Scene. **Start** is
+  Show. Selected Clip edges resize it. Moving or resizing an edge away from a
+  Scene-boundary Transition replaces that broken junction with a Cut and
+  removes the Transition's time, so the vacated interval remains available for
+  later moves and resizes. **Split** divides the selected Clip at the playhead
+  and **Clone** duplicates it immediately after itself, including across a Cut
+  into the next Scene. **Start** is
   always measured from the beginning of the Show, including for a Clip inside
   a Group; **Duration** spans the complete logical Clip. Both fields combine
   exact decimal-second entry with the shared detented time ruler. Each Clip's second row

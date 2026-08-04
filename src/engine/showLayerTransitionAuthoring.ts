@@ -357,6 +357,30 @@ export function moveShowConnectedClipAtGlobalTime(
   return normalizeShowComposition(show, changed)
 }
 
+function canonicalizeBrokenSceneBoundaryTransitions(
+  show: ShowRecord,
+  layer: ShowUnifiedTimelineLayerProjection,
+  selectedClipId: string,
+  plannedComposition: ShowCompositionV1,
+): ShowRecord {
+  const plannedJunctions = projectShowUnifiedTimeline(show, plannedComposition).zones
+    .flatMap((zone) => zone.layers.flatMap((candidate) => candidate.junctions))
+  const boundaryTransitionIds = layer.junctions.flatMap((junction) => {
+    if (
+      !junction.boundaryTransition
+      || (junction.leftClipId !== selectedClipId && junction.rightClipId !== selectedClipId)
+    ) return []
+    return plannedJunctions.some((candidate) => (
+      candidate.id === junction.id
+      && (candidate.leftClipId === selectedClipId || candidate.rightClipId === selectedClipId)
+    )) ? [] : [junction.boundaryTransition.id]
+  })
+  return boundaryTransitionIds.reduce(
+    (current, transitionId) => removeShowBoundaryTransition(current, transitionId),
+    show,
+  )
+}
+
 /**
  * Move one Clip as an atomic Show edit. Plan against the original Show timing,
  * then delete a Scene-boundary visual Transition only when the accepted move
@@ -391,22 +415,7 @@ export function moveShowConnectedClipInShowAtGlobalTime(
     ?? moveShowConnectedClipAtGlobalTime(show, composition, input)
   if (moved === composition) return show
 
-  const plannedJunctions = projectShowUnifiedTimeline(show, moved).zones
-    .flatMap((zone) => zone.layers.flatMap((candidate) => candidate.junctions))
-  const boundaryTransitionIds = layer.junctions.flatMap((junction) => {
-    if (
-      !junction.boundaryTransition
-      || (junction.leftClipId !== selected.id && junction.rightClipId !== selected.id)
-    ) return []
-    return plannedJunctions.some((candidate) => (
-      candidate.id === junction.id
-      && (candidate.leftClipId === selected.id || candidate.rightClipId === selected.id)
-    )) ? [] : [junction.boundaryTransition.id]
-  })
-  const canonicalShow = boundaryTransitionIds.reduce(
-    (current, transitionId) => removeShowBoundaryTransition(current, transitionId),
-    show,
-  )
+  const canonicalShow = canonicalizeBrokenSceneBoundaryTransitions(show, layer, selected.id, moved)
   return { ...canonicalShow, composition: moved }
 }
 
@@ -566,6 +575,39 @@ export function resizeShowConnectedClipAtGlobalTime(
   }
 
   return resizeShowClipAtGlobalTime(show, composition, input)
+}
+
+/**
+ * Resize one Clip as an atomic Show edit. Plan against the original Show
+ * timing, then replace a Scene-boundary visual Transition with a Cut only when
+ * the accepted resize breaks its endpoint junction.
+ */
+export function resizeShowConnectedClipInShowAtGlobalTime(
+  show: ShowRecord,
+  composition: ShowCompositionV1,
+  input: {
+    owner: ShowTimelineClipOwner
+    globalStartMs: number
+    durationMs: number
+    plannedComposition?: ShowCompositionV1
+  },
+): ShowRecord {
+  const projection = projectShowUnifiedTimeline(show, composition)
+  const selected = projection.zones
+    .flatMap((zone) => zone.layers.flatMap((layer) => layer.clips))
+    .find((clip) => clip.id === input.owner.placementId)
+  if (!selected) return show
+  const layer = projection.zones
+    .flatMap((zone) => zone.layers)
+    .find((candidate) => candidate.clips.some((clip) => clip.id === selected.id))
+  if (!layer) return show
+
+  const resized = input.plannedComposition
+    ?? resizeShowConnectedClipAtGlobalTime(show, composition, input)
+  if (resized === composition) return show
+
+  const canonicalShow = canonicalizeBrokenSceneBoundaryTransitions(show, layer, selected.id, resized)
+  return { ...canonicalShow, composition: resized }
 }
 
 export function deleteShowClipWithLayerTransitions(

@@ -506,6 +506,52 @@ test.describe('authenticated Show authoring', () => {
     await expect(cometLoom).toHaveCount(0)
   })
 
+  test('reclaims Scene-boundary Transition time after resizing its Clip away (#695)', async ({ page }) => {
+    await page.goto('studio/shows')
+    await createInstallationShow(page)
+
+    const leftClip = page.getByRole('button', { name: 'Select TestPattern1D', exact: true })
+    const rightClip = page.getByRole('button', { name: 'Select CometLoom', exact: true })
+    const startHandle = page.getByRole('separator', { name: 'Resize CometLoom start' })
+    const initialHandle = await startHandle.boundingBox()
+    expect(initialHandle).not.toBeNull()
+
+    await page.keyboard.down('Alt')
+    await page.mouse.move(initialHandle!.x + initialHandle!.width / 2, initialHandle!.y + initialHandle!.height / 2)
+    await page.mouse.down()
+    await page.mouse.move(initialHandle!.x + initialHandle!.width / 2 + 40, initialHandle!.y + initialHandle!.height / 2, { steps: 4 })
+    await page.mouse.up()
+    await page.keyboard.up('Alt')
+
+    await expect(page.getByRole('button', { name: 'Show End at 60 seconds' })).toBeVisible()
+    await expect(page.getByRole('button', {
+      name: 'Edit crossfade Transition between TestPattern1D and CometLoom',
+    })).toHaveCount(0)
+    await waitForCurrentShow(page, (show) => show.transitions?.some((transition) => (
+      transition.id === 'transition-scene-1'
+      && transition.kind === 'cut'
+      && transition.durationMs === 0
+    )) === true)
+
+    const leftBounds = await leftClip.boundingBox()
+    const movedHandle = await startHandle.boundingBox()
+    expect(leftBounds).not.toBeNull()
+    expect(movedHandle).not.toBeNull()
+    expect(movedHandle!.x).toBeGreaterThan(leftBounds!.x + leftBounds!.width)
+
+    await page.mouse.move(movedHandle!.x + movedHandle!.width / 2, movedHandle!.y + movedHandle!.height / 2)
+    await page.mouse.down()
+    await page.mouse.move(leftBounds!.x + leftBounds!.width, movedHandle!.y + movedHandle!.height / 2, { steps: 4 })
+    await page.mouse.up()
+
+    await expect.poll(async () => {
+      const left = await leftClip.boundingBox()
+      const right = await rightClip.boundingBox()
+      return left && right ? Math.abs(right.x - (left.x + left.width)) : Number.POSITIVE_INFINITY
+    }).toBeLessThanOrEqual(1.5)
+    await waitForCurrentShow(page, (show) => show.composition?.scenes[1]?.zones[0]?.main[0]?.startMs === 0)
+  })
+
   test('keeps the Snap preference after a reload', async ({ page }) => {
     await page.goto('studio/shows')
     await createInstallationShow(page)

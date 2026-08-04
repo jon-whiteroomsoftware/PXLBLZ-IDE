@@ -3780,6 +3780,43 @@ describe('ShowEditor (#318)', () => {
     await waitFor(() => expect(screen.getByRole('dialog', { name: 'Entity Detail Panel' })).toBeInTheDocument())
   })
 
+  it('removes hidden Scene-boundary Transition time when resizing a generated Clip (#695)', async () => {
+    const show = createDefaultShow('show-resize-boundary-transition', 'Resize boundary Transition', 1000)
+    setPersonalContentProvider(memoryProvider([show]))
+    useShowStore.setState({ shows: [show], activeShowId: show.id, showsLoaded: true })
+
+    render(<ShowEditor showId={show.id} />)
+    const layer = document.querySelector<HTMLElement>('[data-show-layer-kind="main"]')!
+    Object.defineProperty(layer, 'getBoundingClientRect', {
+      value: () => ({ left: 0, right: 620, top: 0, bottom: 40, width: 620, height: 40, x: 0, y: 0, toJSON: () => ({}) }),
+    })
+    const handle = screen.getByRole('separator', { name: 'Resize CometLoom start' })
+
+    fireEvent.pointerDown(handle, { clientX: 320, pointerId: 1, altKey: true })
+    fireEvent.pointerMove(window, { clientX: 360, pointerId: 1, altKey: true })
+    fireEvent.pointerUp(window, { clientX: 360, pointerId: 1, altKey: true })
+
+    await waitFor(() => {
+      const saved = useShowStore.getState().shows.find((candidate) => candidate.id === show.id)!
+      expect(showModel.showLoopDurationMs(saved)).toBe(60_000)
+      expect(saved.transitions).toContainEqual(expect.objectContaining({
+        id: 'transition-scene-1',
+        kind: 'cut',
+        durationMs: 0,
+      }))
+      expect(saved.composition?.scenes[1].zones[0].main[0]).toMatchObject({
+        id: 'placement-cell-2-scene-2',
+        startMs: 4_000,
+        durationMs: 26_000,
+      })
+      expect(validateShowComposition(saved, saved.composition!)).toEqual([])
+    })
+    expect(screen.getByRole('button', { name: 'Select CometLoom' })).toHaveStyle({
+      left: `${34_000 / 60_000 * 100}%`,
+      width: `${26_000 / 60_000 * 100}%`,
+    })
+  })
+
   it('snaps a Clip start resize across visible Markers without opening Details on release', async () => {
     const show = createDefaultShow('show-resize-start-markers', 'Resize start to Markers', 1000)
     const zoneId = show.zones[0].id

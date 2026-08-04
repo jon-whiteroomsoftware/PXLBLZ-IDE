@@ -1,10 +1,11 @@
 import { describe, expect, it } from 'vitest'
-import { createDefaultShow } from './showModel'
+import { createDefaultShow, showLoopDurationMs } from './showModel'
 import {
   deleteShowClipWithLayerTransitions,
   insertShowLayerTransition,
   moveShowConnectedClipAtGlobalTime,
   moveShowConnectedClipInShowAtGlobalTime,
+  resizeShowConnectedClipInShowAtGlobalTime,
   planShowGroupLayerTransitionInsertion,
   planShowLayerTransitionInsertion,
   resizeShowConnectedClipAtGlobalTime,
@@ -15,7 +16,7 @@ import {
 } from './showLayerTransitionAuthoring'
 import type { ShowCompositionV1 } from './personalContentRecords'
 import { splitShowClipAtGlobalTime } from './showTimelineClipAuthoring'
-import { validateShowComposition } from './showCompositionModel'
+import { projectFlatShowToCompositionV1, validateShowComposition } from './showCompositionModel'
 import { projectShowUnifiedTimeline } from './showUnifiedTimelineProjection'
 import { stockShowById } from '../pixelblaze/stock/shows'
 
@@ -105,6 +106,24 @@ function boundaryMoveFixture(): ReturnType<typeof createDefaultShow> {
     })),
   }
   return show
+}
+
+function projectedDefaultShowFixture(): {
+  show: ReturnType<typeof createDefaultShow>
+  composition: ShowCompositionV1
+} {
+  const show = createDefaultShow('show-boundary-resize', 'Boundary resize', 1_000)
+  const composition = {
+    ...projectFlatShowToCompositionV1(show, {
+      byCellId: Object.fromEntries(show.cells.map((cell) => [
+        cell.id,
+        'export function render(index) { rgb(index / 60, 0.2, 0.4) }',
+      ])),
+      stageDimension: 1,
+    }),
+    executionModel: 'deterministic-loop' as const,
+  }
+  return { show, composition }
 }
 
 describe('literal per-Layer Transition authoring (#583)', () => {
@@ -866,6 +885,84 @@ describe('literal per-Layer Transition authoring (#583)', () => {
     expect(show.transitions).toEqual(expect.arrayContaining([
       expect.objectContaining({ id: 'transition-scene-1', kind: 'crossfade', durationMs: 2_000 }),
     ]))
+  })
+
+  it('removes hidden Scene-boundary Transition time when a Clip edge is resized away (#695)', () => {
+    const { show, composition } = projectedDefaultShowFixture()
+    const zoneId = show.zones[0].id
+    const rightScene = show.scenes[1]
+    const leftClipId = 'placement-cell-1-scene-1'
+    const rightClipId = 'placement-cell-2-scene-2'
+    const before = structuredClone(show)
+
+    const resized = resizeShowConnectedClipInShowAtGlobalTime(show, composition, {
+      owner: { kind: 'main', sceneId: rightScene.id, zoneId, placementId: rightClipId },
+      globalStartMs: 36_000,
+      durationMs: 26_000,
+    })
+
+    expect(show).toEqual(before)
+    expect(resized).not.toBe(show)
+    expect(resized.transitions).toEqual([
+      expect.objectContaining({ id: 'transition-scene-1', kind: 'cut', durationMs: 0 }),
+    ])
+    expect(validateShowComposition(resized, resized.composition!)).toEqual([])
+    expect(showLoopDurationMs(resized)).toBe(60_000)
+    expect(projectShowUnifiedTimeline(resized, resized.composition!).zones[0].layers
+      .find((layer) => layer.kind === 'main')).toMatchObject({
+      clips: [
+        expect.objectContaining({ id: leftClipId, startMs: 0, endMs: 30_000 }),
+        expect.objectContaining({ id: rightClipId, startMs: 34_000, endMs: 60_000 }),
+      ],
+      junctions: [],
+    })
+
+    const reconnected = moveShowConnectedClipInShowAtGlobalTime(resized, resized.composition!, {
+      owner: { kind: 'main', sceneId: rightScene.id, zoneId, placementId: rightClipId },
+      target: { kind: 'main', zoneId, globalStartMs: 30_000 },
+    })
+    expect(validateShowComposition(reconnected, reconnected.composition!)).toEqual([])
+    expect(projectShowUnifiedTimeline(reconnected, reconnected.composition!).zones[0].layers
+      .find((layer) => layer.kind === 'main')?.junctions)
+      .toEqual([expect.objectContaining({ kind: 'cut', startMs: 30_000, endMs: 30_000 })])
+  })
+
+  it('removes a Scene-boundary Transition when its outgoing Clip edge is resized away (#695)', () => {
+    const show = boundaryMoveFixture()
+    const zoneId = show.zones[0].id
+    const leftScene = show.scenes[0]
+
+    const resized = resizeShowConnectedClipInShowAtGlobalTime(show, show.composition!, {
+      owner: { kind: 'main', sceneId: leftScene.id, zoneId, placementId: 'clip-left' },
+      globalStartMs: 0,
+      durationMs: 25_000,
+    })
+
+    expect(resized.transitions).toEqual([
+      expect.objectContaining({ id: 'transition-scene-1', kind: 'cut', durationMs: 0 }),
+      expect.objectContaining({ id: 'routing-scene-1', kind: 'routing' }),
+    ])
+    expect(validateShowComposition(resized, resized.composition!)).toEqual([])
+    expect(projectShowUnifiedTimeline(resized, resized.composition!).zones[0].layers
+      .find((layer) => layer.kind === 'main')?.junctions).toEqual([])
+  })
+
+  it('preserves a Scene-boundary Transition when resize keeps its endpoint junction (#695)', () => {
+    const show = boundaryMoveFixture()
+    const zoneId = show.zones[0].id
+    const rightScene = show.scenes[1]
+
+    const resized = resizeShowConnectedClipInShowAtGlobalTime(show, show.composition!, {
+      owner: { kind: 'main', sceneId: rightScene.id, zoneId, placementId: 'clip-right' },
+      globalStartMs: 32_000,
+      durationMs: 25_000,
+    })
+
+    expect(resized.transitions).toEqual(show.transitions)
+    expect(validateShowComposition(resized, resized.composition!)).toEqual([])
+    expect(projectShowUnifiedTimeline(resized, resized.composition!).zones[0].layers
+      .find((layer) => layer.kind === 'main')?.junctions)
+      .toEqual([expect.objectContaining({ id: 'transition-scene-1', kind: 'crossfade' })])
   })
 
   it('expands a partial selection to the complete transition-connected sequence', () => {

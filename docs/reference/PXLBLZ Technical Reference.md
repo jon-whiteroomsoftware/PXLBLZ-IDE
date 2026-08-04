@@ -1363,14 +1363,17 @@ the neighbouring Clip names and planner refusal, so `ShowEditor` only renders
 **Add > Transition** and opens the existing `layerTransitionTarget` palette; it
 does not reproduce Transition eligibility in React.
 
-`moveShowConnectedClipInShowAtGlobalTime()` commits that movement as one
-Show-level edit. It plans against the current Show timing first. If the
-accepted move breaks a visual Scene-boundary junction attached to the moved
-Clip, that record can no longer identify one Layer's endpoints and is replaced
-by a neutral compiler Cut as the planned Composition is committed. Routing at
-the same boundary and unrelated Layer Transitions remain unchanged. A refused
-or exact no-op move returns the original Show, so transition cleanup cannot
-escape the requested placement change.
+`moveShowConnectedClipInShowAtGlobalTime()` and
+`resizeShowConnectedClipInShowAtGlobalTime()` commit placement changes as one
+Show-level edit. They plan against the current Show timing first. If the
+accepted move or edge resize breaks a visual Scene-boundary junction attached
+to the edited Clip, that record can no longer identify one Layer's endpoints
+and is replaced by a neutral compiler Cut as the planned Composition is
+committed. Its duration collapses with the Transition, so no invisible interval
+continues to block later moves or resizes. Routing at the same boundary and
+unrelated Layer Transitions remain unchanged. A refused or exact no-op edit
+returns the original Show, so transition cleanup cannot escape the requested
+placement change.
 
 `ShowCompositionV1.durationMs` persists the explicit Show End, while
 `ShowCompositionV1.markers` persists sorted, Show-owned alignment guides with

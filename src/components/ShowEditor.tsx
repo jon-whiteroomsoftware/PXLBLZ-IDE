@@ -169,6 +169,7 @@ import {
   planShowLayerTransitionInsertionForClip,
   resizeShowLayerTransition,
   resizeShowConnectedClipAtGlobalTime,
+  resizeShowConnectedClipInShowAtGlobalTime,
   resetShowLayerTransitionToCut,
   showLayerTransitionsConnectedToClip,
 } from '@/engine/showLayerTransitionAuthoring'
@@ -2107,16 +2108,19 @@ export function ShowEditor({
                 }) => {
                   if (!timelineComposition) return false
                   if (sourceComposition && sourceComposition !== timelineComposition) return false
-                  const nextComposition = plannedComposition
-                    ?? resizeShowConnectedClipAtGlobalTime(activeShow, timelineComposition, {
+                  const nextShow = resizeShowConnectedClipInShowAtGlobalTime(
+                    activeShow,
+                    timelineComposition,
+                    {
                       owner,
                       globalStartMs,
                       durationMs,
-                    })
-                  if (nextComposition === timelineComposition) return false
+                      plannedComposition,
+                    },
+                  )
+                  if (nextShow === activeShow) return false
                   await updateShow(activeShow.id, {
-                    ...activeShow,
-                    composition: nextComposition,
+                    ...nextShow,
                     updatedAt: Date.now(),
                   })
                   return true
