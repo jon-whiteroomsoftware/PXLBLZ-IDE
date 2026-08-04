@@ -23,6 +23,7 @@ const showTransitionBoundariesMigrationPath = path.resolve('migrations/0013_show
 const showCompositionMigrationPath = path.resolve('migrations/0016_show_composition.sql')
 const showOutputEffectsMigrationPath = path.resolve('migrations/0017_show_output_effects.sql')
 const betaAccessMigrationPath = path.resolve('migrations/0020_beta_access.sql')
+const betaAccessMultipleEmailsMigrationPath = path.resolve('migrations/0021_beta_access_multiple_emails.sql')
 
 describe('D1 personal storage migration', () => {
   it('creates the storage buckets needed for the Cloudflare personal-storage foundation', () => {
@@ -180,5 +181,15 @@ describe('D1 personal storage migration', () => {
     expect(sql).not.toContain('INSERT INTO beta_access')
     expect(sql).toContain("'beta_access_mode', 'legacy'")
     expect(sql).toContain("VALUES ('schema_version', '20', unixepoch())")
+  })
+
+  it('allows one stable user to retain multiple verified beta emails (#698 review P2)', () => {
+    const sql = fs.readFileSync(betaAccessMultipleEmailsMigrationPath, 'utf8')
+
+    expect(sql).toContain('CREATE TABLE beta_access_next')
+    expect(sql).toContain('user_id TEXT,')
+    expect(sql).not.toContain('user_id TEXT UNIQUE')
+    expect(sql).toContain('CREATE INDEX beta_access_user_id_idx')
+    expect(sql).toContain("VALUES ('schema_version', '21', unixepoch())")
   })
 })

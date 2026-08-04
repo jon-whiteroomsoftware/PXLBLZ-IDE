@@ -36,5 +36,9 @@ export async function onRequest(context: PagesFunctionContext): Promise<Response
 }
 
 function isPublicAuthRoute(request: Request): boolean {
-  return new URL(request.url).pathname.startsWith('/api/auth/')
+  return new Set([
+    '/api/auth/login',
+    '/api/auth/callback',
+    '/api/auth/logout',
+  ]).has(new URL(request.url).pathname)
 }

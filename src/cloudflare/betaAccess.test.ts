@@ -1,6 +1,7 @@
 import {
   authorizeBetaSession,
   claimBetaAccess,
+  claimMatchingBetaAccess,
   decideBetaOAuthAccess,
   normalizeBetaAccessEmail,
   resolveBetaOAuthAdmission,
@@ -61,10 +62,20 @@ describe('beta access', () => {
   })
 
   it('claims one active email for one stable user without stealing an existing claim', async () => {
-    const entries = new Map<string, BetaAccessEntry>([[
-      'friend@example.com',
-      { email: 'friend@example.com', label: 'Friend', enabled: true, userId: null },
-    ]])
+    const entries = new Map<string, BetaAccessEntry>([
+      [
+        'friend@example.com',
+        { email: 'friend@example.com', label: 'Friend', enabled: true, userId: null },
+      ],
+      [
+        'friend-new@example.com',
+        { email: 'friend-new@example.com', label: 'Friend new', enabled: true, userId: null },
+      ],
+      [
+        'other@example.com',
+        { email: 'other@example.com', label: 'Other', enabled: true, userId: 'github:other' },
+      ],
+    ])
     const store: BetaAccessStore = {
       isAuthoritative: async () => true,
       count: async () => entries.size,
@@ -80,6 +91,12 @@ describe('beta access', () => {
 
     await expect(claimBetaAccess(store, 'Friend@Example.com', 'github:friend')).resolves.toBeUndefined()
     expect(entries.get('friend@example.com')?.userId).toBe('github:friend')
+    await expect(claimMatchingBetaAccess(store, 'friend-new@example.com', 'github:friend'))
+      .resolves.toBeUndefined()
+    expect(entries.get('friend-new@example.com')?.userId).toBe('github:friend')
+    await expect(claimMatchingBetaAccess(store, 'other@example.com', 'github:friend'))
+      .resolves.toBeUndefined()
+    expect(entries.get('other@example.com')?.userId).toBe('github:other')
     await expect(claimBetaAccess(store, 'friend@example.com', 'google:someone-else'))
       .rejects.toThrow(/another user/i)
     expect(entries.get('friend@example.com')?.userId).toBe('github:friend')

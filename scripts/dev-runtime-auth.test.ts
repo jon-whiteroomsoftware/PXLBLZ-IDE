@@ -60,5 +60,6 @@ describe('local runtime authentication', () => {
     expect(sql).toContain("'github:local-dev'")
     expect(sql).toContain("'local-agent-32@local.invalid'")
     expect(sql).toContain("'github:local-agent-32'")
+    expect(sql).not.toContain("'beta_access_mode', 'd1'")
   })
 })

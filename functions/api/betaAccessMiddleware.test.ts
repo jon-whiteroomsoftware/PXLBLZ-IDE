@@ -74,7 +74,7 @@ describe('beta access API middleware', () => {
   })
 
   it('leaves public OAuth routes and unauthenticated endpoint behavior alone', async () => {
-    for (const path of ['/api/auth/callback', '/api/patterns']) {
+    for (const path of ['/api/auth/login', '/api/auth/callback', '/api/auth/logout', '/api/patterns']) {
       const response = await apiMiddleware({
         request: await request(path),
         env: { SESSION_SECRET: 'secret', PXLBLZ_DB: betaDb(null) },
@@ -82,5 +82,15 @@ describe('beta access API middleware', () => {
       })
       expect(response.status, path).toBe(418)
     }
+  })
+
+  it('rejects revoked sessions on authenticated identity mutations', async () => {
+    const response = await apiMiddleware({
+      request: await request('/api/auth/disconnect', 'github:123'),
+      env: { SESSION_SECRET: 'secret', PXLBLZ_DB: betaDb(null) },
+      async next() { return new Response('mutated') },
+    })
+
+    expect(response.status).toBe(401)
   })
 })

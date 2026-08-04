@@ -156,7 +156,7 @@ runtimes. The commands require `SESSION_SECRET` in the main checkout's
 
 After deploy, open the Pages URL and smoke-test:
 
-1. Visit `/api/d1/health`; expect `{"ok":true,"schemaVersion":"20"}` for the
+1. Visit `/api/d1/health`; expect `{"ok":true,"schemaVersion":"21"}` for the
    current migration set. This is the latest value written to `schema_meta`, not
    a count of migration files.
 2. Visit `/api/me`; signed out should report `{ "authenticated": false }`.

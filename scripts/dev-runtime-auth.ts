@@ -80,10 +80,7 @@ export function localIdentitySeedSql(manifest: RuntimeManifest): string {
       user_id = excluded.user_id,
       updated_at = excluded.updated_at;`
   }).join('\n')
-  return `${identities}
-    INSERT INTO app_metadata (key, value, updated_at)
-    VALUES ('beta_access_mode', 'd1', unixepoch())
-    ON CONFLICT(key) DO UPDATE SET value = excluded.value, updated_at = excluded.updated_at;`
+  return identities
 }
 
 function sqlLiteral(value: string): string {

@@ -22,12 +22,11 @@ import {
   type OAuthProvider,
 } from '../../../src/cloudflare/auth'
 import {
-  claimBetaAccess,
+  claimMatchingBetaAccess,
   resolveBetaOAuthAdmission,
 } from '../../../src/cloudflare/betaAccess'
 import {
   createD1BetaAccessStore,
-  type D1BetaAccessStore,
 } from '../../../src/cloudflare/d1BetaAccess'
 import {
   findOAuthIdentityUserId,
@@ -202,16 +201,6 @@ async function resolveGoogleUser(
   )
   await claimMatchingBetaAccess(store, verifiedEmail, user.userId)
   return user
-}
-
-async function claimMatchingBetaAccess(
-  store: D1BetaAccessStore,
-  verifiedEmail: string | null,
-  userId: string,
-): Promise<void> {
-  if (!verifiedEmail) return
-  const entry = await store.getByEmail(verifiedEmail)
-  if (entry?.enabled) await claimBetaAccess(store, verifiedEmail, userId)
 }
 
 function oauthProviderFromCookie(value: string | undefined): OAuthProvider {

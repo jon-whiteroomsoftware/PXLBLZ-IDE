@@ -81,3 +81,14 @@ export async function claimBetaAccess(
   }
   if (!entry.userId) await store.bindUser(email, userId)
 }
+
+export async function claimMatchingBetaAccess(
+  store: BetaAccessStore,
+  verifiedEmail: string | null,
+  userId: string,
+): Promise<void> {
+  if (!verifiedEmail) return
+  const entry = await store.getByEmail(verifiedEmail)
+  if (!entry?.enabled || (entry.userId && entry.userId !== userId)) return
+  await claimBetaAccess(store, verifiedEmail, userId)
+}
