@@ -425,13 +425,15 @@ describe('ShowEditor (#318)', () => {
     expect(within(zoneMap).getByRole('button', { name: 'Add Zone' })).toBeInTheDocument()
     expect(within(zoneMap).queryByRole('button', { name: 'Collapse zone main' })).not.toBeInTheDocument()
 
-    // The icon picker is the glyph swatch itself, not a word dropdown (#63).
-    await user.click(within(zoneMap).getByRole('button', { name: 'Zone icon main' }))
-    await user.click(within(zoneMap).getByRole('button', { name: 'Bolt icon for main' }))
-    await waitFor(() => expect(useShowStore.getState().shows[0].zones[0].icon).toBe('bolt'))
+    // The map rows carry the basics only (#63): a color swatch picker,
+    // inline rename, and delete - no icon picker, no focus, no collapse.
+    await user.click(within(zoneMap).getByRole('button', { name: 'Zone color main' }))
+    await user.click(within(zoneMap).getByRole('button', { name: 'main color #f97316' }))
+    await waitFor(() => expect(useShowStore.getState().shows[0].zones[0].color).toBe('#f97316'))
     await user.click(within(zoneMap).getByRole('button', { name: 'Add Zone' }))
     await waitFor(() => expect(useShowStore.getState().shows[0].zones).toHaveLength(2))
-    expect(screen.getAllByRole('button', { name: /^Focus zone / })).toHaveLength(2)
+    expect(within(zoneMap).queryByRole('button', { name: /^Focus zone / })).not.toBeInTheDocument()
+    expect(within(zoneMap).getAllByRole('button', { name: /^Delete zone / })).toHaveLength(2)
   })
 
   it('arms Zone Map row deletion behind an explicit confirm (#63)', async () => {
@@ -676,12 +678,12 @@ describe('ShowEditor (#318)', () => {
     await user.click(within(timeline).getByRole('button', { name: 'Open Zones' }))
     await user.click(within(screen.getByTestId('show-timeline-grid')).getByRole('button', { name: 'Open Zone Map' }))
     const zoneMap = screen.getByRole('dialog', { name: 'Zone Map' })
-    await user.click(within(zoneMap).getByRole('button', { name: 'Collapse zone main' }))
-    await user.click(within(zoneMap).getByRole('button', { name: 'Focus zone accent' }))
+    // Collapse belongs to the Zone rail alone; the map rows stay minimal (#63).
+    expect(within(zoneMap).queryByRole('button', { name: /Collapse zone/ })).not.toBeInTheDocument()
+    await user.click(within(screen.getByTestId('show-timeline-grid')).getByRole('button', { name: 'Collapse zone main' }))
 
     expect(within(screen.getByTestId('show-timeline-grid')).getByRole('button', { name: 'Expand zone main' })).toBeInTheDocument()
     expect(useShowEditorSessionStore.getState().collapsedZoneIdsByShowId[show.id]).toEqual(['zone-1'])
-    expect(useShowEditorSessionStore.getState().focusedZoneIdByShowId[show.id]).toBe('zone-2')
 
     await user.click(within(timeline).getByRole('button', { name: 'Close Zones' }))
     expect(screen.queryByRole('dialog', { name: 'Zone Map' })).not.toBeInTheDocument()

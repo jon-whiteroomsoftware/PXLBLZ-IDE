@@ -61,6 +61,7 @@ import {
   showVisualTransitionAfter,
   transitionCost,
   updateShowBoundaryTransition,
+  ZONE_COLORS,
 } from '@/engine/showModel'
 import {
   compileShowForArtifact,
@@ -3355,7 +3356,6 @@ function ShowTimelineWorkspace({
   const focusedZoneId = useShowEditorSessionStore((state) => state.focusedZoneIdByShowId[show.id] ?? null)
   const setZoneWorkspaceOpen = useShowEditorSessionStore((state) => state.setZoneWorkspaceOpen)
   const setZoneCollapsed = useShowEditorSessionStore((state) => state.setZoneCollapsed)
-  const setFocusedZone = useShowEditorSessionStore((state) => state.setFocusedZone)
   const onSelectRef = useRef(onSelect)
   useEffect(() => {
     onSelectRef.current = onSelect
@@ -3518,10 +3518,6 @@ function ShowTimelineWorkspace({
   const showFullZoneHeaders = zonesOpen
   const showMicroZonePicker = hasMultipleZones && !zonesOpen
   const collapsedZoneIdSet = new Set(hasMultipleZones ? collapsedZoneIds : [])
-  const focusZone = (zoneId: string) => {
-    show.zones.forEach((zone) => setZoneCollapsed(show.id, zone.id, zone.id !== zoneId))
-    setFocusedZone(show.id, zoneId)
-  }
   const addClipPattern = patternOptions.find((option) => (
     `${option.ref.kind}:${option.ref.id}` === addClipPatternKey
   )) ?? null
@@ -4895,7 +4891,8 @@ function ShowTimelineWorkspace({
                 <span className="truncate text-[12px] font-medium leading-4">{row.zoneName}</span>
                 {/* A collapsed Zone owns one 28px row; a second line would overflow
                     it and paint across its neighbours (#632). */}
-                {!collapsed && <span className="truncate text-[10px] leading-3 text-structural transition-colors group-hover:text-zinc-400">{row.nominalPixelCount}px</span>}
+                {!collapsed && show.outputContract?.kind === 'installation'
+                  && <span className="truncate text-[10px] leading-3 text-structural transition-colors group-hover:text-zinc-400">{row.nominalPixelCount}px</span>}
               </span>
               <button
                 type="button"
@@ -5682,13 +5679,9 @@ function ShowTimelineWorkspace({
         <ZoneMapPopover
           anchor={zoneMapAnchor}
           show={show}
-          collapsedZoneIds={collapsedZoneIdSet}
-          focusedZoneId={focusedZoneId}
           readOnly={readOnly}
           onAddZone={onAddZone}
           onDismiss={() => setZoneMapOpen(false)}
-          onToggleZone={(zoneId) => setZoneCollapsed(show.id, zoneId, !collapsedZoneIdSet.has(zoneId))}
-          onFocusZone={focusZone}
           onUpdateZone={onUpdateZone}
           onRemoveZone={onRemoveZone}
         />
@@ -5697,14 +5690,6 @@ function ShowTimelineWorkspace({
   )
 }
 
-const ZONE_ICON_OPTIONS = [
-  { id: 'grid', label: 'Grid' },
-  { id: 'map', label: 'Map' },
-  { id: 'layers', label: 'Layers' },
-  { id: 'route', label: 'Route' },
-  { id: 'pulse', label: 'Pulse' },
-  { id: 'bolt', label: 'Bolt' },
-] as const
 
 function ZoneGlyph({ icon, size = 12 }: { icon?: string; size?: number }) {
   if (icon === 'map') return <MapIcon size={size} aria-hidden />
@@ -5715,27 +5700,22 @@ function ZoneGlyph({ icon, size = 12 }: { icon?: string; size?: number }) {
   return <Grid2X2 size={size} aria-hidden />
 }
 
-function ZoneIconSwatch({
+function ZoneColorSwatch({
   zoneName,
-  icon,
   color,
   readOnly,
-  onPickIcon,
+  onPickColor,
 }: {
   zoneName: string
-  icon?: string
   color: string
   readOnly: boolean
-  onPickIcon: (icon: string) => void
+  onPickColor: (color: string) => void
 }) {
   const [open, setOpen] = useState(false)
   if (readOnly) {
     return (
-      <span
-        className="grid size-6 shrink-0 place-items-center rounded border border-current/25 bg-black/30"
-        style={{ color }}
-      >
-        <ZoneGlyph icon={icon} />
+      <span className="grid size-6 shrink-0 place-items-center rounded border border-current/30 bg-black/30" style={{ color }}>
+        <Grid2X2 size={12} aria-hidden />
       </span>
     )
   }
@@ -5743,34 +5723,33 @@ function ZoneIconSwatch({
     <span className="relative shrink-0">
       <button
         type="button"
-        aria-label={`Zone icon ${zoneName}`}
+        aria-label={`Zone color ${zoneName}`}
         aria-expanded={open}
-        title={`Icon for ${zoneName}`}
-        className="grid size-6 place-items-center rounded border border-current/25 bg-black/30 hover:border-current/60"
+        title={`Color for ${zoneName}`}
+        className="grid size-6 place-items-center rounded border border-current/30 bg-black/30 hover:border-current/70"
         style={{ color }}
         onClick={() => setOpen((current) => !current)}
       >
-        <ZoneGlyph icon={icon} />
+        <Grid2X2 size={12} aria-hidden />
       </button>
       {open && (
-        <span className="absolute left-0 top-full z-50 mt-1 flex gap-0.5 rounded border border-zinc-700 bg-zinc-950 p-0.5 shadow-xl">
-          {ZONE_ICON_OPTIONS.map((option) => (
+        <span className="absolute left-0 top-full z-50 mt-1 flex gap-1 rounded border border-zinc-700 bg-zinc-950 p-1 shadow-xl">
+          {ZONE_COLORS.map((option) => (
             <button
-              key={option.id}
+              key={option}
               type="button"
-              aria-label={`${option.label} icon for ${zoneName}`}
-              title={option.label}
-              aria-pressed={(icon ?? 'grid') === option.id}
-              className={`grid size-6 place-items-center rounded ${(icon ?? 'grid') === option.id
-                ? 'bg-zinc-800 text-zinc-100'
-                : 'text-zinc-400 hover:bg-zinc-800 hover:text-zinc-100'}`}
+              aria-label={`${zoneName} color ${option}`}
+              title={option}
+              aria-pressed={color.toLowerCase() === option.toLowerCase()}
+              className={`size-5 rounded border ${color.toLowerCase() === option.toLowerCase()
+                ? 'border-white/90'
+                : 'border-white/15 hover:border-white/60'}`}
+              style={{ backgroundColor: option }}
               onClick={() => {
-                onPickIcon(option.id)
+                onPickColor(option)
                 setOpen(false)
               }}
-            >
-              <ZoneGlyph icon={option.id} />
-            </button>
+            />
           ))}
         </span>
       )}
@@ -5781,25 +5760,17 @@ function ZoneIconSwatch({
 function ZoneMapPopover({
   anchor,
   show,
-  collapsedZoneIds,
-  focusedZoneId,
   readOnly,
   onAddZone,
   onDismiss,
-  onToggleZone,
-  onFocusZone,
   onUpdateZone,
   onRemoveZone,
 }: {
   anchor: HTMLElement | null
   show: ShowRecord
-  collapsedZoneIds: Set<string>
-  focusedZoneId: string | null
   readOnly: boolean
   onAddZone: () => void
   onDismiss: () => void
-  onToggleZone: (zoneId: string) => void
-  onFocusZone: (zoneId: string) => void
   onUpdateZone: (zoneId: string, changes: Partial<ShowRecord['zones'][number]>) => void
   onRemoveZone: (zoneId: string) => void
 }) {
@@ -5834,22 +5805,17 @@ function ZoneMapPopover({
       </h3>
       <div className="py-1">
         {show.zones.map((zone) => {
-          const collapsed = collapsedZoneIds.has(zone.id)
           return (
             <div
               key={zone.id}
-              className="grid min-h-10 grid-cols-[minmax(0,1fr)_auto_auto] items-center gap-1 border-b border-zinc-900/80 px-1 py-1 last:border-b-0"
+              className="grid min-h-10 grid-cols-[minmax(0,1fr)_auto] items-center gap-1 border-b border-zinc-900/80 px-1 py-1 last:border-b-0"
             >
               <div className="flex min-w-0 items-center gap-2 px-0.5 py-1">
-                {/* The swatch is the icon picker: it already shows the glyph,
-                    and the old word-dropdown ("Route", "Map") read as a
-                    semantic per-zone mode it never was (#63). */}
-                <ZoneIconSwatch
+                <ZoneColorSwatch
                   zoneName={zone.name}
-                  icon={zone.icon}
                   color={zone.color ?? '#38bdf8'}
                   readOnly={readOnly}
-                  onPickIcon={(icon) => onUpdateZone(zone.id, { icon })}
+                  onPickColor={(color) => onUpdateZone(zone.id, { color })}
                 />
                 <span className="min-w-0 flex-1 text-[11px] font-medium">
                   {/* Rename in place; the Zone rail still opens full properties
@@ -5860,7 +5826,9 @@ function ZoneMapPopover({
                     onRename={readOnly ? undefined : (name) => onUpdateZone(zone.id, { name })}
                     takenNames={show.zones.filter((candidate) => candidate.id !== zone.id).map((candidate) => candidate.name)}
                   />
-                  <span className="block truncate text-[9px] font-normal text-zinc-500">{zone.nominalPixelCount} px</span>
+                  {show.outputContract?.kind === 'installation' && (
+                    <span className="block truncate text-[9px] font-normal text-zinc-500">{zone.nominalPixelCount} px</span>
+                  )}
                 </span>
               </div>
               {show.zones.length > 1 && (
@@ -5891,27 +5859,6 @@ function ZoneMapPopover({
                       </button>
                     )
                   )}
-                  <button
-                    type="button"
-                    aria-label={`${collapsed ? 'Expand' : 'Collapse'} zone ${zone.name}`}
-                    title={`${collapsed ? 'Expand' : 'Collapse'} ${zone.name}`}
-                    className="grid size-7 place-items-center rounded text-zinc-500 hover:bg-zinc-800 hover:text-zinc-100"
-                    onClick={() => onToggleZone(zone.id)}
-                  >
-                    {collapsed ? <ChevronRight size={13} /> : <ChevronDown size={13} />}
-                  </button>
-                  <button
-                    type="button"
-                    aria-label={`Focus zone ${zone.name}`}
-                    aria-pressed={focusedZoneId === zone.id}
-                    title={`Focus ${zone.name}`}
-                    className={focusedZoneId === zone.id
-                      ? 'grid size-7 place-items-center rounded bg-live/10 text-live'
-                      : 'grid size-7 place-items-center rounded text-zinc-500 hover:bg-zinc-800 hover:text-zinc-100'}
-                    onClick={() => onFocusZone(zone.id)}
-                  >
-                    <Eye size={13} />
-                  </button>
                 </div>
               )}
             </div>

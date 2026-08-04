@@ -159,7 +159,7 @@ const DEFAULT_ADAPTATIONS: ShowCellAdaptations = {
 const EMPTY_SHOW_PATTERN_ID = '__pxlblz_empty'
 const EMPTY_SHOW_PATTERN_SOURCE = 'export function render(index) { rgb(0, 0, 0) }'
 
-const ZONE_COLORS = ['#38bdf8', '#f97316', '#a78bfa', '#22c55e', '#f43f5e', '#eab308']
+export const ZONE_COLORS = ['#38bdf8', '#f97316', '#a78bfa', '#22c55e', '#f43f5e', '#eab308']
 
 export function createDefaultShow(id: string, name: string, updatedAt = Date.now()): ShowRecord {
   const scenes: ShowScene[] = [
