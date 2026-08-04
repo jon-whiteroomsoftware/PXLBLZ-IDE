@@ -1313,19 +1313,24 @@ describe('stock Show curriculum (#363)', () => {
       }
       expect(item.show.scenes, item.name).toHaveLength(item.show.routingLayouts.length)
 
-      // Every boundary is a routing switch; each passage places exactly the
-      // Zones its Layout routes; and a Zone never changes instance, so every
-      // boundary re-deals geometry without touching Pattern state.
+      // Every boundary is a routing switch; every voice is placed in every
+      // passage - including passages whose Layout routes it no pixels, so
+      // its clock keeps running and the first partition reveals mid-motion
+      // state rather than a restart (review P2); and a Zone never changes
+      // instance. Every boundary therefore re-deals geometry without
+      // touching Pattern state.
       expect(item.show.transitions, item.name).toHaveLength(item.show.scenes.length - 1)
       expect(item.show.transitions.every((transition) => transition.kind === 'routing'), item.name).toBe(true)
       const composition = item.show.composition!
+      const zoneIds = item.show.zones.map((zone) => zone.id)
       const instancesByZone = new Map<string, Set<string>>()
       for (const [index, sceneComposition] of composition.scenes.entries()) {
         const routedZoneIds = item.show.routingLayouts[index].logical!.zoneIds
         const placedZoneIds = sceneComposition.zones
           .filter((zone) => zone.main.length > 0)
           .map((zone) => zone.zoneId)
-        expect(placedZoneIds, `${item.name}: ${sceneComposition.sceneId}`).toEqual([...routedZoneIds])
+        expect(placedZoneIds, `${item.name}: ${sceneComposition.sceneId}`).toEqual(zoneIds)
+        expect(routedZoneIds.every((zoneId) => placedZoneIds.includes(zoneId)), `${item.name}: ${sceneComposition.sceneId}`).toBe(true)
         for (const zone of sceneComposition.zones) {
           for (const entry of zone.main) {
             const seen = instancesByZone.get(zone.zoneId) ?? new Set<string>()
@@ -1393,6 +1398,37 @@ describe('stock Show curriculum (#363)', () => {
       expect(sideContrast(split)).toBeGreaterThan(sideContrast(full) * 2)
       expect(meanLuma(full)).toBeGreaterThan(0.02)
       expect(meanLuma(split)).toBeGreaterThan(0.02)
+
+      // Differential proof that the opener's unrouted Ember placement is
+      // load-bearing (review P2): with it dropped, Ember's first routed
+      // frames land elsewhere in its drift, because presentation - routed
+      // or not - is what runs an instance clock. The Garden half stays
+      // (nearly) identical, so the difference is attributable to Ember.
+      const item = stockShowById('stock-show-showcase-zone-layouts-splits')!
+      const stripped = structuredClone(item.show)
+      stripped.composition!.scenes[0].zones = stripped.composition!.scenes[0].zones
+        .map((zone, index) => (index === 0 ? zone : { ...zone, main: [] }))
+      const compiledStripped = compileShowForArtifact(stripped, [], undefined, {}, { stageDimension: 2 })
+      expect(compiledStripped.error).toBeNull()
+      const strippedRuntime = createFastReplayRuntime({
+        code: compiledStripped.artifact!.code,
+        fxCode: compiledStripped.artifact!.fxCode,
+        metadata: compiledStripped.artifact!.metadata,
+        dimension: nativeDimension(compiledStripped.artifact!.metadata.renderFns),
+      }, { mapPoints, randomSeed: 363, fidelity: 'fast' })
+      const strippedSplit = strippedRuntime.advanceTo(6_500, { stepMs: 100 }).pixels.map((px) => [...px])
+      const halfDiff = (inHalf: (x: number) => boolean) => {
+        const indices = mapPoints.flatMap((point, index) => (inHalf(point.sample[0]) ? [index] : []))
+        return indices.reduce((sum, index) => (
+          sum
+          + Math.abs(split[index][0] - strippedSplit[index][0])
+          + Math.abs(split[index][1] - strippedSplit[index][1])
+          + Math.abs(split[index][2] - strippedSplit[index][2])
+        ), 0) / indices.length
+      }
+      const emberDiff = halfDiff((x) => x > 0.55)
+      expect(emberDiff).toBeGreaterThan(0.02)
+      expect(halfDiff((x) => x < 0.45)).toBeLessThan(emberDiff)
     }
     {
       // Stripes & Grid: full 0-4, stripes 4-9, grid 9-15. The Rain cell

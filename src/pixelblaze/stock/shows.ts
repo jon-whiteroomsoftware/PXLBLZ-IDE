@@ -1419,7 +1419,6 @@ function zoneLayoutShowcase(kind: ZoneLayoutShowcaseKind): StockShow {
     id: string
     label: string
     seconds: number
-    zoneCount: number
     logical: (zoneIds: string[]) => NonNullable<ShowRoutingLayout['logical']>
     sweepMs?: number
     routingTargets?: ShowScene['routingTargets']
@@ -1428,7 +1427,7 @@ function zoneLayoutShowcase(kind: ZoneLayoutShowcaseKind): StockShow {
   // Every sibling opens on the hero voice alone, so each partition that
   // follows is read against the same reference frame.
   const opener: Passage = {
-    id: 'full', label: 'Full surface', seconds: 4, zoneCount: 1,
+    id: 'full', label: 'Full surface', seconds: 4,
     logical: (zoneIds) => ({ kind: 'single', zoneIds: [zoneIds[0]] }),
     detail: 'One Zone owns the complete normalized Stage: the hero voice alone, before any partition exists.',
   }
@@ -1455,20 +1454,17 @@ function zoneLayoutShowcase(kind: ZoneLayoutShowcaseKind): StockShow {
       passages: [
         opener,
         {
-          id: 'moving-split', label: 'Moving split', seconds: 5, zoneCount: 2,
-          logical: (zoneIds) => ({ kind: 'split', zoneIds: [zoneIds[0], zoneIds[1]], axis: 'x' }),
+          id: 'moving-split', label: 'Moving split', seconds: 5,          logical: (zoneIds) => ({ kind: 'split', zoneIds: [zoneIds[0], zoneIds[1]], axis: 'x' }),
           routingTargets: { splitPosition: 0.5 },
           detail: 'The first partition: a hard X boundary whose position is an interval value that can also glide at a junction.',
         },
         {
-          id: 'soft-split', label: 'Soft split', seconds: 4, zoneCount: 2,
-          logical: (zoneIds) => ({ kind: 'soft-split', zoneIds: [zoneIds[0], zoneIds[1]], axis: 'x', feather: 0.3 }),
+          id: 'soft-split', label: 'Soft split', seconds: 4,          logical: (zoneIds) => ({ kind: 'soft-split', zoneIds: [zoneIds[0], zoneIds[1]], axis: 'x', feather: 0.3 }),
           routingTargets: { splitPosition: 0.5 },
           detail: 'The same boundary feathered: inside the band both Zones render and blend - the one Layout without hard ownership.',
         },
         {
-          id: 'checker', label: 'Checker', seconds: 5, zoneCount: 2,
-          logical: (zoneIds) => ({ kind: 'checker', zoneIds: [zoneIds[0], zoneIds[1]], columns: 4, rows: 4 }),
+          id: 'checker', label: 'Checker', seconds: 5,          logical: (zoneIds) => ({ kind: 'checker', zoneIds: [zoneIds[0], zoneIds[1]], columns: 4, rows: 4 }),
           detail: 'The two voices alternate across a 4 x 4 board; columns and rows are the Layout parameters.',
         },
       ],
@@ -1485,13 +1481,11 @@ function zoneLayoutShowcase(kind: ZoneLayoutShowcaseKind): StockShow {
       passages: [
         opener,
         {
-          id: 'stripes', label: 'Stripes', seconds: 5, zoneCount: 4,
-          logical: (zoneIds) => ({ kind: 'stripes', zoneIds: [...zoneIds], axis: 'x' }),
+          id: 'stripes', label: 'Stripes', seconds: 5,          logical: (zoneIds) => ({ kind: 'stripes', zoneIds: [...zoneIds], axis: 'x' }),
           detail: 'All four voices in equal position-based bands - the Layout the fixed-arity kinds fall back to when a Zone joins.',
         },
         {
-          id: 'grid', label: 'Grid', seconds: 6, zoneCount: 4,
-          logical: (zoneIds) => ({ kind: 'grid', zoneIds: [...zoneIds], columns: 2, rows: 2 }),
+          id: 'grid', label: 'Grid', seconds: 6,          logical: (zoneIds) => ({ kind: 'grid', zoneIds: [...zoneIds], columns: 2, rows: 2 }),
           detail: 'One Zone per cell of a 2 x 2 grid; each cell receives its own complete normalized space.',
         },
       ],
@@ -1508,18 +1502,16 @@ function zoneLayoutShowcase(kind: ZoneLayoutShowcaseKind): StockShow {
       passages: [
         opener,
         {
-          id: 'rings', label: 'Rings', seconds: 5, zoneCount: 2, sweepMs: 1_500,
+          id: 'rings', label: 'Rings', seconds: 5, sweepMs: 1_500,
           logical: (zoneIds) => ({ kind: 'rings', zoneIds: [zoneIds[0], zoneIds[1]], rings: 3 }),
           detail: 'Three concentric rings cycle the two voices into a bullseye - and the one switch that sweeps in rather than restating the topology in a single step.',
         },
         {
-          id: 'wave', label: 'Wave', seconds: 4, zoneCount: 2,
-          logical: (zoneIds) => ({ kind: 'wave', zoneIds: [zoneIds[0], zoneIds[1]], axis: 'x', bands: 4, amplitude: 0.3, frequency: 2.5, phase: 0 }),
+          id: 'wave', label: 'Wave', seconds: 4,          logical: (zoneIds) => ({ kind: 'wave', zoneIds: [zoneIds[0], zoneIds[1]], axis: 'x', bands: 4, amplitude: 0.3, frequency: 2.5, phase: 0 }),
           detail: 'Bands displaced by a triangle wave, with amplitude, frequency, and phase as Layout parameters.',
         },
         {
-          id: 'pinwheel', label: 'Pinwheel', seconds: 6, zoneCount: 2,
-          logical: (zoneIds) => ({ kind: 'pinwheel', zoneIds: [zoneIds[0], zoneIds[1]], arms: 6, twist: Math.PI * 2 * 1.35, rotation: 0 }),
+          id: 'pinwheel', label: 'Pinwheel', seconds: 6,          logical: (zoneIds) => ({ kind: 'pinwheel', zoneIds: [zoneIds[0], zoneIds[1]], arms: 6, twist: Math.PI * 2 * 1.35, rotation: 0 }),
           detail: 'The peak: six twisted arms alternate the two voices, with arms, twist, and rotation as Layout parameters.',
         },
       ],
@@ -1534,7 +1526,7 @@ function zoneLayoutShowcase(kind: ZoneLayoutShowcaseKind): StockShow {
     passage.id,
     passage.label,
     passage.seconds,
-    zones.slice(0, passage.zoneCount).map((zone, index) => clip(zone.id, voicePatterns[index], LESSON_TIME_SCALE)),
+    zones.map((zone, index) => clip(zone.id, voicePatterns[index], LESSON_TIME_SCALE)),
     passage.routingTargets,
   ))
   const composition: ShowCompositionV1 = {
@@ -1542,12 +1534,15 @@ function zoneLayoutShowcase(kind: ZoneLayoutShowcaseKind): StockShow {
     patternInstances: voices.map((voice, index) => instance(voice, voicePatterns[index], LESSON_TIME_SCALE)),
     scenes: config.passages.map((passage) => ({
       sceneId: passage.id,
+      // Every voice is placed in every passage, including passages whose
+      // Layout routes it no pixels (review P2): presentation is what runs a
+      // Pattern-instance clock, so an unrouted voice keeps playing silently
+      // and the first partition reveals mid-motion state instead of a
+      // restart. That is the family's central promise.
       zones: zones.map((zone, index) => ({
         zoneId: zone.id,
         overlays: [],
-        main: index < passage.zoneCount
-          ? [placement(`clip-${passage.id}-${voices[index]}`, voices[index], 0, passage.seconds)]
-          : [],
+        main: [placement(`clip-${passage.id}-${voices[index]}`, voices[index], 0, passage.seconds)],
       })),
     })),
     durationMs: config.passages.reduce((sum, passage) => sum + passage.seconds, 0) * 1_000,
@@ -1569,7 +1564,12 @@ function zoneLayoutShowcase(kind: ZoneLayoutShowcaseKind): StockShow {
     guideLabel: 'Read about Zone Layouts',
     defaultOpen: true,
     zonesOpenByDefault: true,
-    patternSlots: voices.map((voice) => [voice]),
+    // One picker, one voice: Try with Pattern recasts the hero Garden only
+    // (review P2). Swapping every voice to one selection would collapse the
+    // partition contrast that makes each Layout legible - the supporting
+    // voices are the fixed backdrop, exactly like the Transition
+    // references' backdrop instance.
+    patternSlots: [['garden']],
     output: portableOutput(), zones,
     layouts: config.passages.map((passage) => ({
       id: `layout-${passage.id}`, name: passage.label, zones: [], logical: passage.logical(zoneIds),
@@ -1579,7 +1579,7 @@ function zoneLayoutShowcase(kind: ZoneLayoutShowcaseKind): StockShow {
       summary: config.summary,
       patternSlots: {
         cellIds: config.passages.map((passage) => cellId(passage.id, zoneIds[0])),
-        instanceIds: voices,
+        instanceIds: [voices[0]],
       },
       examples: config.passages.map((passage) => ({
         id: `example-${passage.id}`,

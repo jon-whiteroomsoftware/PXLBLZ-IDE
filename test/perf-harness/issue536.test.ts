@@ -69,11 +69,11 @@ describe('Restart-instance global-liveness census (#536)', () => {
     // not). The unweighted percent stays at zero and the gate reads the
     // unweighted percent, so the verdict is unchanged.
     expect(report.summary).toMatchObject({
-      representativeMemberGlobals: 2_999,
+      representativeMemberGlobals: 2_972,
       representativeReclaimedGlobals: 186,
     })
     expect(report.decision.representativeReclaimPercent).toBe(0)
-    expect(report.decision.weightedRepresentativeReclaimPercent).toBeCloseTo(0.06202067, 8)
+    expect(report.decision.weightedRepresentativeReclaimPercent).toBeCloseTo(0.06258412, 8)
     expect(report.decision.ceilingRescues).toEqual([])
     expect(report.decision.proceedWithEmission).toBe(false)
     expect(report.decision.proceedWithEmission).toBe(
