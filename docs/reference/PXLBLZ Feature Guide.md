@@ -709,32 +709,31 @@ Zone. With several Zones, closing the rail leaves only a thin icon picker.
 
 Each Zone header carries exactly two affordances. The leading control expands or
 collapses that Zone; the trailing control opens its exact Zone properties, where
-the Zone can also be removed. The header's own colour bar, name, and nominal
-pixel count are labels rather than controls.
+the Zone can also be removed. The header's own colour bar and name - plus, in
+Installation Shows, the nominal pixel count - are labels rather than controls.
 
 The **Zone Map** opens from the map control in the rail's column header, above
 the first Zone header, and closes on outside click, Escape, or the same control.
-Closing the map leaves the rail in place. It is the single home for Zone
-structure, in two sections that match the model:
+Closing the map leaves the rail in place. It is the single home for the Zones
+themselves - the whole output, divided. Rows rename inline, carry the Zone's
+glyph-and-colour swatch, and delete behind an explicit inline confirm; **Add
+Zone** appends one. Zones are Show-wide: a new Zone joins every Zone Layout at
+once. Pixel shares and Installation ranges stay in each Zone's exact
+properties, reached from the rail header.
 
-- **Zones** - the whole output, divided. Add Zone, a stable optional icon,
-  collapse, focus, and links to exact Zone properties. Zones are Show-wide: a
-  new Zone joins every Zone Layout at once.
-- **Zone Layouts** - named ways to divide it. Each definition lists its routing
-  mode and how many Timeline intervals currently use it, including definitions
-  not placed yet. **Add Zone Layout** defines another one and opens it.
-
-Selecting a definition opens **Zone Layout properties**, which owns its name,
-routing mode, shape parameters, physical ranges, duplication, and removal, and
-states where it sits on the Timeline. Defining a Zone Layout and placing it are
-deliberately separate acts: a definition is inert until an interval references
-it.
+Zone Layouts live on the Timeline rather than in the map. The **Layouts lane**
+above the Zone rows labels each stretch of the ruler with the Layout kind that
+owns it, and every interval owns its Zone Layout outright - there is no shared
+registry of named definitions to edit through. Selecting an interval's lane
+chip opens **Zone Layout properties**, which owns its routing mode, shape
+parameters, physical ranges, duplication, and removal, and states where the
+interval sits on the Timeline.
 
 Expanded Zones share the ruler and may collapse independently. A collapsed
 Zone remains a time-accurate miniature: one thin band per Layer retains Clip
 spans and property-event positions, and it remains a snapping and drag target.
-Its rail header keeps the Zone name alone on that single row, and the pixel count
-returns when the Zone expands. The miniature names its Zone only while the rail
+Its rail header keeps the Zone name alone on that single row, and an
+Installation Show's pixel count returns when the Zone expands. The miniature names its Zone only while the rail
 is closed and the header cannot: with the rail open the name would simply repeat
 the header a few pixels to its left. That name is sticky, so it stays legible as
 the timeline scrolls or zooms, and stops at the boundary of the Zone Layout
@@ -755,15 +754,15 @@ The output contract determines what those Zones mean:
   generated Pattern derives ownership from runtime coordinates, so the same
   rule holds on any compatible surface.
 
-A Show may own several named Zone Layouts and reference them from explicit
-Layout intervals on the Timeline. **Add > Zone Layout** places an interval at the
-playhead: choose an existing definition, or **New Zone Layout...** to define and
-place one without leaving the Timeline, then Append or Insert here. That popover
-also links to the definition governing the playhead. Each routed interval has a
-numbered selectable Timeline control; selecting it opens the incoming routing
-transition's destination Layout, transfer duration, easing, and direction. A boundary may
-switch definitions as a Cut; Moving Split and Soft Split animate an owned
-position while every Pattern clock continues. A synchronized **Repeat scale**
+A Show may carry a sequence of Layout intervals on the Timeline, each owning
+its Zone Layout. **Add > Zone Layout** starts a new interval at the playhead as
+a copy of the Layout under it, then Append or Insert here; that popover also
+links to the interval governing the playhead. The boundary between intervals
+carries a selectable route marker in the Layouts lane; selecting it opens the
+incoming routing switch's destination Layout, transfer duration, easing, and
+direction. A switch may restate the topology as a Cut or sweep it across the
+Stage; Moving Split and Soft Split animate an owned position while every
+Pattern clock continues. A synchronized **Repeat scale**
 tiles what Patterns sample without changing Zone ownership or drawn positions
 and appears as an ordinary Property animation band on the unified Timeline.
 Select a visual Transition (or its Repeat scale lane control), expand

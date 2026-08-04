@@ -131,6 +131,7 @@ export const STOCK_SHOWS: StockShow[] = [
   blendAndFadeTransitionReference(), wipeTransitionReference(), dissolveTransitionReference(),
   shapeRevealGeometricReference(), shapeRevealFigureReference(), slideTransitionReference(), zoomSpinTransitionReference(),
   propertyAnimationReference(), easingReference(), apertureShapesReference(), apertureIconsReference(),
+  zoneLayoutShowcase('splits'), zoneLayoutShowcase('bands'), zoneLayoutShowcase('radial'),
   redlineInstallation(),
 ]
 
@@ -419,20 +420,30 @@ function learn104(): StockShow {
 }
 
 // 105 tells Zones and their Layouts as one story: the same two Patterns
-// render as a left/right split for the first half, then as rings for the
-// second. The halfway boundary is a swept routing change, so the learner
-// watches geometry travel while both Pattern clocks run straight through.
-// 206 goes deeper on restating Layouts across a longer arc; here one switch
-// carries the concept.
+// render as a left/right split, then as a bullseye of rings, then as a
+// pinwheel finale. Both boundaries are swept routing changes, so the learner
+// twice watches geometry travel while both Pattern clocks run straight
+// through. The Zones carry material names rather than positions because only
+// the first Layout is positional - the name teaches that Zones own content
+// while Layouts own geometry. Rings is 3 over 2 Zones on purpose: the cycle
+// deals ring index modulo Zone order, so the bullseye reads Weave-Water-Weave
+// and the note's added third Zone inherits the spare ring instead of
+// vanishing (rings 2 would strand it with no pixels). 206 goes deeper on
+// restating Layouts across a longer arc and contrasts swept with atomic
+// switching; the Zone Layouts showcase holds the full geometry vocabulary.
 function learn105(): StockShow {
   const id = 'stock-show-105-portable-zones'
-  const zones = logicalZones(['Left', 'Right'], PORTABLE_REFERENCE_PIXELS)
+  const zones = logicalZones(['Weave', 'Water'], PORTABLE_REFERENCE_PIXELS)
   const scenes: SceneSpec[] = [
-    scene('split', 'Split', 10, [
+    scene('split', 'Split', 8, [
       clip('zone-1', 'RibbonLoom', LESSON_TIME_SCALE),
       clip('zone-2', 'Caustics', LESSON_TIME_SCALE),
     ], { splitPosition: 0.5 }),
-    scene('rings', 'Rings', 10, [
+    scene('rings', 'Rings', 6, [
+      clip('zone-1', 'RibbonLoom', LESSON_TIME_SCALE),
+      clip('zone-2', 'Caustics', LESSON_TIME_SCALE),
+    ]),
+    scene('pinwheel', 'Pinwheel', 6, [
       clip('zone-1', 'RibbonLoom', LESSON_TIME_SCALE),
       clip('zone-2', 'Caustics', LESSON_TIME_SCALE),
     ]),
@@ -447,38 +458,50 @@ function learn105(): StockShow {
       {
         sceneId: 'split',
         zones: [
-          { zoneId: 'zone-1', overlays: [], main: [placement('clip-split-ribbons', 'ribbons', 0, 10)] },
-          { zoneId: 'zone-2', overlays: [], main: [placement('clip-split-water', 'water', 0, 10)] },
+          { zoneId: 'zone-1', overlays: [], main: [placement('clip-split-ribbons', 'ribbons', 0, 8)] },
+          { zoneId: 'zone-2', overlays: [], main: [placement('clip-split-water', 'water', 0, 8)] },
         ],
       },
       {
-        // Same instances on both sides of the boundary: the weave and the
-        // water land in rings mid-motion, which is the demonstration.
+        // Same instances on both sides of every boundary: the weave and the
+        // water land in each new geometry mid-motion, which is the
+        // demonstration.
         sceneId: 'rings',
         zones: [
-          { zoneId: 'zone-1', overlays: [], main: [placement('clip-rings-ribbons', 'ribbons', 0, 10)] },
-          { zoneId: 'zone-2', overlays: [], main: [placement('clip-rings-water', 'water', 0, 10)] },
+          { zoneId: 'zone-1', overlays: [], main: [placement('clip-rings-ribbons', 'ribbons', 0, 6)] },
+          { zoneId: 'zone-2', overlays: [], main: [placement('clip-rings-water', 'water', 0, 6)] },
+        ],
+      },
+      {
+        sceneId: 'pinwheel',
+        zones: [
+          { zoneId: 'zone-1', overlays: [], main: [placement('clip-pinwheel-ribbons', 'ribbons', 0, 6)] },
+          { zoneId: 'zone-2', overlays: [], main: [placement('clip-pinwheel-water', 'water', 0, 6)] },
         ],
       },
     ],
     durationMs: 20_000,
   }
   const transitions: ShowBoundaryTransition[] = [
-    // The halfway switch travels: rings sweep over the split so geometry
-    // visibly changes while both Patterns keep playing.
+    // Both switches travel: each new geometry sweeps over the previous one,
+    // so geometry visibly changes while both Patterns keep playing.
     {
       id: 'routing-split-rings', afterSceneId: 'split', kind: 'routing', durationMs: 1_500,
       easing: SINE_IN_OUT, layoutId: 'layout-rings', routingDirection: 'forward',
+    },
+    {
+      id: 'routing-rings-pinwheel', afterSceneId: 'rings', kind: 'routing', durationMs: 1_500,
+      easing: SINE_IN_OUT, layoutId: 'layout-pinwheel', routingDirection: 'forward',
     },
   ]
   return catalogue({
     id, title: 'Zones', track: 'portable', collection: 'learn', level: 100, order: 5,
     purpose: 'The Stage can be split into Zones that each render their own Pattern, and a Zone Layout decides which pixels every Zone gets.\n'
-      + 'Two Layouts render the same pair very differently here: a left/right split for the first half, rings for the second. The halfway switch re-routes pixels while both Patterns keep playing.\n'
-      + "Click the routing band above the Zone rows to change an interval's Layout kind and its parameters.\n"
-      + 'The Zone Map (map icon above the Zone rows) renames, recolors, adds, and deletes Zones. A new Zone joins the Layout: operators with room take it in, and a fixed split becomes stripes to fit it.',
-    notice: 'Nothing restarts at 10 s: the weave and the water land in rings mid-motion. A Layout switch changes where pixels go, never Pattern state - and this one sweeps, so you can watch the geometry travel.',
-    prompts: ["Select the second half's routing band and change its Routing mode - the rings become a pinwheel without touching either Pattern.", 'Add a third Zone in the Zone Map and give it a Clip. The split half turns into stripes to make room; the rings simply gain a ring.'],
+      + 'Three Layouts render the same pair very differently here: a left/right split, then a bullseye of rings, then a pinwheel. Each switch re-routes pixels while both Patterns keep playing.\n'
+      + "The Layouts lane above the Zone rows shows which Layout owns each stretch of the timeline. Click a chip to change that interval's Routing mode and parameters; the small route markers at its edges are the switches themselves.\n"
+      + 'The Zone Map (map icon above the Zone rows) renames, recolors, adds, and deletes Zones. A new Zone joins every Layout: the rings and the pinwheel deal it in, and the fixed split becomes stripes to fit it.',
+    notice: 'Nothing restarts at a switch: the weave and the water land in the rings, then in the pinwheel, mid-motion. A Layout switch changes where pixels go, never Pattern state - and both switches here sweep, so you can watch the geometry travel.',
+    prompts: ['Select the Pinwheel chip in the Layouts lane and raise its Twist turns - the arms curl tighter while both Patterns play on, because the Layout owns the geometry.', 'Add a third Zone in the Zone Map and give it a Clip. The split becomes stripes to make room; the rings and the pinwheel simply deal the newcomer in.'],
     guideHeading: 'portable-zones',
     guideLabel: 'Read about Zones',
     patternSlots: [['ribbons'], ['water']],
@@ -487,7 +510,8 @@ function learn105(): StockShow {
     output: portableOutput(), zones,
     layouts: [
       splitLayout('layout-side-by-side', 'Side by side', zones, 'x'),
-      { id: 'layout-rings', name: 'Rings', zones: [], logical: { kind: 'rings', zoneIds: [zones[0].id, zones[1].id], rings: 2 } },
+      { id: 'layout-rings', name: 'Rings', zones: [], logical: { kind: 'rings', zoneIds: [zones[0].id, zones[1].id], rings: 3 } },
+      { id: 'layout-pinwheel', name: 'Pinwheel', zones: [], logical: { kind: 'pinwheel', zoneIds: [zones[0].id, zones[1].id], arms: 6, twist: Math.PI * 2 * 0.75, rotation: 0 } },
     ],
     scenes, composition,
   })
@@ -1367,6 +1391,206 @@ function learn303(): StockShow {
   })
 }
 
+// The Zone Layout showcases hold the complete geometry vocabulary - one
+// passage per logical routing kind - split across three sibling Shows the
+// way the Shape Reveals references split (#514). The split is measured, not
+// stylistic: routing render plans price every (Layout, routed Zone) slot at
+// several kilobytes, and the single-Show matrix (nine Layouts, 27 slots)
+// compiled to 259 KB against the 68 KB activation ceiling. The trio
+// compiles at roughly 61% / 51% / 42% of budget, which leaves the
+// session-edit headroom the notes' prompts assume.
+// Casting follows the palette-role doctrine: the green garden is the hero
+// voice that opens every sibling, warm embers is the counter-voice, and the
+// four-voice sibling adds blue water plus the mostly-dark GlyphRain (82%
+// dark at the 44x44 reference) as the negative-space voice that keeps
+// partitions legible. Every boundary is an atomic routing switch except the
+// Radial sibling's entry into rings, the single travelling switch, so both
+// switch styles appear across the family.
+type ZoneLayoutShowcaseKind = 'splits' | 'bands' | 'radial'
+
+function zoneLayoutShowcase(kind: ZoneLayoutShowcaseKind): StockShow {
+  const voiceNames = ['Garden', 'Ember', 'Tide', 'Rain']
+  // Zone chip colors restate each voice's rendered hue, so the Zone rail,
+  // the Layouts lane, and the Stage agree about who owns what.
+  const voiceColors = ['#22c55e', '#f97316', '#38bdf8', '#a78bfa']
+  const voiceIds = ['garden', 'ember', 'tide', 'rain']
+  const voicePatterns = ['MetaballGarden', 'IQPalettes', 'Caustics', 'GlyphRain']
+  type Passage = {
+    id: string
+    label: string
+    seconds: number
+    zoneCount: number
+    logical: (zoneIds: string[]) => NonNullable<ShowRoutingLayout['logical']>
+    sweepMs?: number
+    routingTargets?: ShowScene['routingTargets']
+    detail: string
+  }
+  // Every sibling opens on the hero voice alone, so each partition that
+  // follows is read against the same reference frame.
+  const opener: Passage = {
+    id: 'full', label: 'Full surface', seconds: 4, zoneCount: 1,
+    logical: (zoneIds) => ({ kind: 'single', zoneIds: [zoneIds[0]] }),
+    detail: 'One Zone owns the complete normalized Stage: the hero voice alone, before any partition exists.',
+  }
+  const configs: Record<ZoneLayoutShowcaseKind, {
+    id: string
+    title: string
+    order: number
+    voiceCount: number
+    purpose: string
+    notice: string
+    prompts: [string, string]
+    summary: string
+    passages: Passage[]
+  }> = {
+    splits: {
+      id: 'stock-show-showcase-zone-layouts-splits',
+      title: 'Zone Layouts: Splits & Checker',
+      order: 16,
+      voiceCount: 2,
+      purpose: 'Four ways to hand one Stage to two voices: the full surface, a hard moving split, the same boundary feathered soft, and a 4 x 4 checker. The two Patterns never change - the Layout is the only variable.',
+      notice: 'Every boundary is an atomic routing switch, never a visual Transition: pixels are re-dealt in one step while both Pattern clocks run straight through. The soft split is the one Layout without hard ownership - inside its feather band, both neighbours render and blend.',
+      prompts: ['Drag the split position on the Moving split interval in the Layouts lane - the boundary is an interval value, and neither Pattern notices it move.', 'Select the Soft split chip and widen its feather - the blend band grows while both voices keep playing.'],
+      summary: 'Full surface, moving split, soft split, and checker over two constant voices.',
+      passages: [
+        opener,
+        {
+          id: 'moving-split', label: 'Moving split', seconds: 5, zoneCount: 2,
+          logical: (zoneIds) => ({ kind: 'split', zoneIds: [zoneIds[0], zoneIds[1]], axis: 'x' }),
+          routingTargets: { splitPosition: 0.5 },
+          detail: 'The first partition: a hard X boundary whose position is an interval value that can also glide at a junction.',
+        },
+        {
+          id: 'soft-split', label: 'Soft split', seconds: 4, zoneCount: 2,
+          logical: (zoneIds) => ({ kind: 'soft-split', zoneIds: [zoneIds[0], zoneIds[1]], axis: 'x', feather: 0.3 }),
+          routingTargets: { splitPosition: 0.5 },
+          detail: 'The same boundary feathered: inside the band both Zones render and blend - the one Layout without hard ownership.',
+        },
+        {
+          id: 'checker', label: 'Checker', seconds: 5, zoneCount: 2,
+          logical: (zoneIds) => ({ kind: 'checker', zoneIds: [zoneIds[0], zoneIds[1]], columns: 4, rows: 4 }),
+          detail: 'The two voices alternate across a 4 x 4 board; columns and rows are the Layout parameters.',
+        },
+      ],
+    },
+    bands: {
+      id: 'stock-show-showcase-zone-layouts-stripes-grid',
+      title: 'Zone Layouts: Stripes & Grid',
+      order: 17,
+      voiceCount: 4,
+      purpose: 'One surface dealt to four voices: equal stripes, then a 2 x 2 grid. A green garden, warm embers, blue water, and dark glyph rain never change - only the geometry that routes them does.',
+      notice: 'Both boundaries are atomic routing switches: the surface becomes bands, and the bands become cells, in one step each, while all four Pattern clocks run straight through. The dark rain voice is deliberate negative space - its quiet band and cell are what keep the partitions legible.',
+      prompts: ['Add a fifth Zone in the Zone Map and give it a Clip - the stripes simply deal it in, and the grid becomes stripes to make room.', 'Solo one Zone across the whole timeline - the same voice owns a band, then a cell.'],
+      summary: 'Stripes and a 2 x 2 grid deal four constant voices around the Stage.',
+      passages: [
+        opener,
+        {
+          id: 'stripes', label: 'Stripes', seconds: 5, zoneCount: 4,
+          logical: (zoneIds) => ({ kind: 'stripes', zoneIds: [...zoneIds], axis: 'x' }),
+          detail: 'All four voices in equal position-based bands - the Layout the fixed-arity kinds fall back to when a Zone joins.',
+        },
+        {
+          id: 'grid', label: 'Grid', seconds: 6, zoneCount: 4,
+          logical: (zoneIds) => ({ kind: 'grid', zoneIds: [...zoneIds], columns: 2, rows: 2 }),
+          detail: 'One Zone per cell of a 2 x 2 grid; each cell receives its own complete normalized space.',
+        },
+      ],
+    },
+    radial: {
+      id: 'stock-show-showcase-zone-layouts-radial',
+      title: 'Zone Layouts: Radial',
+      order: 18,
+      voiceCount: 2,
+      purpose: 'The radial half of the vocabulary: rings, a wave, and a pinwheel route the same two voices from the center out. The bullseye reads Garden-Ember-Garden because rings cycle through the Zones in order.',
+      notice: 'The entry into the rings is the one switch in this family that sweeps, so you can watch the geometry travel; the wave and pinwheel switches are atomic. Neither Pattern ever restarts: a Layout switch changes where pixels go, never Pattern state.',
+      prompts: ['Select the Pinwheel chip and raise its Twist turns - the arms curl tighter while both Patterns play on.', 'Give the Rings chip five rings - the bullseye gains bands without touching either Pattern.'],
+      summary: 'Rings, a wave, and a pinwheel route two constant voices radially.',
+      passages: [
+        opener,
+        {
+          id: 'rings', label: 'Rings', seconds: 5, zoneCount: 2, sweepMs: 1_500,
+          logical: (zoneIds) => ({ kind: 'rings', zoneIds: [zoneIds[0], zoneIds[1]], rings: 3 }),
+          detail: 'Three concentric rings cycle the two voices into a bullseye - and the one switch that sweeps in rather than restating the topology in a single step.',
+        },
+        {
+          id: 'wave', label: 'Wave', seconds: 4, zoneCount: 2,
+          logical: (zoneIds) => ({ kind: 'wave', zoneIds: [zoneIds[0], zoneIds[1]], axis: 'x', bands: 4, amplitude: 0.3, frequency: 2.5, phase: 0 }),
+          detail: 'Bands displaced by a triangle wave, with amplitude, frequency, and phase as Layout parameters.',
+        },
+        {
+          id: 'pinwheel', label: 'Pinwheel', seconds: 6, zoneCount: 2,
+          logical: (zoneIds) => ({ kind: 'pinwheel', zoneIds: [zoneIds[0], zoneIds[1]], arms: 6, twist: Math.PI * 2 * 1.35, rotation: 0 }),
+          detail: 'The peak: six twisted arms alternate the two voices, with arms, twist, and rotation as Layout parameters.',
+        },
+      ],
+    },
+  }
+  const config = configs[kind]
+  const zones = logicalZones(voiceNames.slice(0, config.voiceCount), PORTABLE_REFERENCE_PIXELS)
+    .map((zone, index) => ({ ...zone, color: voiceColors[index] }))
+  const zoneIds = zones.map((zone) => zone.id)
+  const voices = voiceIds.slice(0, config.voiceCount)
+  const scenes: SceneSpec[] = config.passages.map((passage) => scene(
+    passage.id,
+    passage.label,
+    passage.seconds,
+    zones.slice(0, passage.zoneCount).map((zone, index) => clip(zone.id, voicePatterns[index], LESSON_TIME_SCALE)),
+    passage.routingTargets,
+  ))
+  const composition: ShowCompositionV1 = {
+    version: 1,
+    patternInstances: voices.map((voice, index) => instance(voice, voicePatterns[index], LESSON_TIME_SCALE)),
+    scenes: config.passages.map((passage) => ({
+      sceneId: passage.id,
+      zones: zones.map((zone, index) => ({
+        zoneId: zone.id,
+        overlays: [],
+        main: index < passage.zoneCount
+          ? [placement(`clip-${passage.id}-${voices[index]}`, voices[index], 0, passage.seconds)]
+          : [],
+      })),
+    })),
+    durationMs: config.passages.reduce((sum, passage) => sum + passage.seconds, 0) * 1_000,
+  }
+  const transitions: ShowBoundaryTransition[] = config.passages.slice(0, -1).map((passage, index) => {
+    const destination = config.passages[index + 1]
+    const sweepMs = destination.sweepMs ?? 0
+    return {
+      id: `routing-${passage.id}-${destination.id}`, afterSceneId: passage.id, kind: 'routing',
+      durationMs: sweepMs, easing: sweepMs > 0 ? SINE_IN_OUT : LINEAR,
+      layoutId: `layout-${destination.id}`,
+      ...(sweepMs > 0 ? { routingDirection: 'forward' as const } : {}),
+    }
+  })
+  return catalogue({
+    id: config.id, title: config.title, track: 'portable', collection: 'showcases', level: null, order: config.order,
+    purpose: config.purpose, notice: config.notice, prompts: config.prompts,
+    guideHeading: 'zone-layouts-reference',
+    guideLabel: 'Read about Zone Layouts',
+    defaultOpen: true,
+    zonesOpenByDefault: true,
+    patternSlots: voices.map((voice) => [voice]),
+    output: portableOutput(), zones,
+    layouts: config.passages.map((passage) => ({
+      id: `layout-${passage.id}`, name: passage.label, zones: [], logical: passage.logical(zoneIds),
+    })),
+    scenes, transitions, composition,
+    reference: {
+      summary: config.summary,
+      patternSlots: {
+        cellIds: config.passages.map((passage) => cellId(passage.id, zoneIds[0])),
+        instanceIds: voices,
+      },
+      examples: config.passages.map((passage) => ({
+        id: `example-${passage.id}`,
+        label: passage.label,
+        detail: passage.detail,
+        anchor: { kind: 'scene' as const, sceneId: passage.id },
+      })),
+    },
+  })
+}
+
 function redlineInstallation(): StockShow {
   const id = 'stock-show-showcase-redline-installation'
   const zones = physicalZones(
@@ -1479,7 +1703,7 @@ function redlineInstallation(): StockShow {
     track: 'installation',
     collection: 'showcases',
     level: null,
-    order: 16,
+    order: 19,
     purpose: 'A sixty-second club-installation score turns one hero panel and four target arrays into a single rhythmic machine.',
     notice: 'One renderer owns each pixel. Shared target instances and cheap transforms create difference; black space, red pressure, white impact, sparse cyan ornaments, and one cyan takeover create the arc.',
     prompts: ['Solo the four target Zones and compare their shared clock.', 'Jump between First drop, Vacuum, and Peak to compare one canvas with five instruments.'],

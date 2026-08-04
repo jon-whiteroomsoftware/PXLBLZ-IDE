@@ -32,8 +32,11 @@ describe('Show render-target residual-headroom census (#514)', () => {
     // again with the showcase repartition (fourteen references, every one
     // clearing the render-target reservation and activation ceiling after
     // the Shape Reveals split and the Property Animation consolidation that
-    // this census itself forced).
-    expect(report.summary.savedShowCount).toBe(31)
+    // this census itself forced), and again with the Zone Layouts showcase
+    // trio (#700: the nine-Layout single-Show matrix measured 259 KB against
+    // the 68 KB ceiling, so the vocabulary ships as three siblings, exactly
+    // the repartition this census forced on Shape Reveals).
+    expect(report.summary.savedShowCount).toBe(34)
     expect(report.summary.savedShowRejections).toHaveLength(0)
     expect(report.summary.savedShowRejections.every((entry) => !entry.failsSolelyBecauseOfReservation)).toBe(true)
   })

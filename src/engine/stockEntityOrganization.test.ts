@@ -29,6 +29,7 @@ describe('built-in entity organization', () => {
         { kind: 'folder', name: 'Effects' },
         { kind: 'folder', name: 'Transitions & animation' },
         { kind: 'folder', name: 'Placement' },
+        { kind: 'folder', name: 'Zones' },
         { kind: 'folder', name: 'Installations' },
       ] },
     ])

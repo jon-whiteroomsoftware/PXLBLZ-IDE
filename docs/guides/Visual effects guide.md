@@ -212,7 +212,10 @@ Effect stack moves with its Clip.
 
 Portable Zones divide normalized space, not fixed LED indexes. The same Show can
 therefore adapt to another compatible 2D surface while each Zone retains an
-independent Pattern instance and clock.
+independent Pattern instance and clock. The Zone Map on the timeline authors
+the Zones themselves - name, color, membership - while the Layouts lane above
+the Zone rows shows which Zone Layout routes them across each stretch of the
+ruler.
 
 ### Building a complete Show
 
@@ -321,12 +324,13 @@ carry the full sectioned matrix.
 
 Zone names express ownership and Zone Layouts express geometry. The same ruler
 can carry a sequence of Layout intervals - full surface, a split, rings -
-while Zones keep their names and their Pattern instances. A Layout boundary
-re-routes pixels rather than blending them: it can restate the topology in one
-atomic step or sweep the new geometry across the Stage, and neither is a
-visual Transition. Pattern instances continue across a Layout boundary without
-restarting, which is what separates changing the Layout from changing the
-content.
+while Zones keep their names and their Pattern instances. Each interval owns
+its Layout outright, so changing one interval's geometry never disturbs
+another's. A Layout boundary re-routes pixels rather than blending them: it
+can restate the topology in one atomic step or sweep the new geometry across
+the Stage, and neither is a visual Transition. Pattern instances continue
+across a Layout boundary without restarting, which is what separates changing
+the Layout from changing the content.
 
 ### Installation output and physical ranges
 
@@ -513,6 +517,25 @@ at their Soft default, then the two controls the geometric reference leaves
 out. The rotated Star shows silhouette rotation inside a frame that never
 turns, and the Cut-out Cloud shows Mode inversion: the same boundary and the
 same feather, with the silhouette becoming the hole.
+
+### Zone Layouts reference
+
+Three sibling references hold the complete geometry vocabulary, one passage
+per Layout kind, over voices that never change so geometry is the only
+variable. **Zone Layouts: Splits & Checker** hands one Stage to two voices
+four ways: full surface, a hard moving split, the same boundary feathered
+soft - the one Layout without hard pixel ownership, blending both neighbours
+inside its feather band - and a 4 x 4 checker. **Zone Layouts: Stripes &
+Grid** deals four voices into equal bands and then a 2 x 2 grid, keeping a
+mostly-dark voice as deliberate negative space so the partitions stay
+legible. **Zone Layouts: Radial** routes the pair from the center out
+through rings, a wave, and a pinwheel; its swept entry into the rings is the
+single switch in the family that travels rather than restating the topology
+in one step. Every other boundary is an atomic routing event, and no Pattern
+instance ever restarts at any of them. The vocabulary is three Shows rather
+than one because compiled routing plans price every routed Zone in every
+Layout; the trio keeps each reference far enough under the activation
+ceiling to survive the session edits its notes invite.
 
 Every reference Show above uses the expanded header as a live guide. It names
 the current example, explains what changes and what stays constant, and offers a

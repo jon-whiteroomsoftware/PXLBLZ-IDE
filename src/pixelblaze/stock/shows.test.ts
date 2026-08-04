@@ -9,6 +9,7 @@ import { loadPattern, nativeDimension } from '@/engine/loadPattern'
 import { createFastReplayRuntime } from '@/engine/fastReplay'
 import { createShim } from '@/engine/shim'
 import { validateShowComposition } from '@/engine/showCompositionModel'
+import { validateShowLogicalRouting } from '@/engine/showLogicalRouting'
 import { materializeShowGroupOccurrences } from '@/engine/showGroupModel'
 import { createInstallationCompositionFixture } from '@/engine/showInstallationTestFixture'
 import { projectShowTimeline } from '@/engine/showModel'
@@ -28,7 +29,7 @@ import { STOCK_SHOWS, stockShowById } from './shows'
 
 describe('stock Show curriculum (#363)', () => {
   it('ships the stable Learn 100, Learn 200, Learn 300, and showcase catalogue', () => {
-    expect(STOCK_SHOWS).toHaveLength(33)
+    expect(STOCK_SHOWS).toHaveLength(36)
     expect(new Set(STOCK_SHOWS.map((item) => item.id)).size).toBe(STOCK_SHOWS.length)
     expect(STOCK_SHOWS.map((item) => [item.name, item.collection, item.level, item.order])).toEqual([
       ['100 Getting Around', 'learn', 100, 0],
@@ -63,7 +64,10 @@ describe('stock Show curriculum (#363)', () => {
       ['Easing', 'showcases', null, 13],
       ['Aperture Shapes: Geometric', 'showcases', null, 14],
       ['Aperture Icons & Signature', 'showcases', null, 15],
-      ['Redline Installation', 'showcases', null, 16],
+      ['Zone Layouts: Splits & Checker', 'showcases', null, 16],
+      ['Zone Layouts: Stripes & Grid', 'showcases', null, 17],
+      ['Zone Layouts: Radial', 'showcases', null, 18],
+      ['Redline Installation', 'showcases', null, 19],
     ])
     expect(STOCK_SHOWS.every((item) => item.show.id === item.id)).toBe(true)
     expect(STOCK_SHOWS.every((item) => !/\bscenes?\b/i.test([
@@ -642,25 +646,32 @@ describe('stock Show curriculum (#363)', () => {
     expect(Math.min(...fourth), 'cutoff before dim keeps it').toBeGreaterThan(0.2)
   })
 
-  it('switches 105 from a split to rings halfway with both instances continuing (#694)', () => {
+  it('carries 105 across split, rings, and pinwheel with both instances continuing (#694, #700)', () => {
     const item = stockShowById('stock-show-105-portable-zones')!
     const composition = item.show.composition!
 
     expect(composition.patternInstances.map((instance) => instance.patternName))
       .toEqual(['RibbonLoom', 'Caustics'])
-    // Two Layouts that render very differently, switched by one swept
-    // routing boundary at the midpoint.
-    expect(item.show.routingLayouts.map((layout) => layout.logical?.kind)).toEqual(['split', 'rings'])
+    // Three Layouts that render very differently, each reached by a swept
+    // routing boundary.
+    expect(item.show.routingLayouts.map((layout) => layout.logical?.kind)).toEqual(['split', 'rings', 'pinwheel'])
     expect(item.show.transitions.map((transition) => [transition.kind, transition.durationMs, transition.layoutId]))
-      .toEqual([['routing', 1_500, 'layout-rings']])
-    expect(item.show.transitions[0].routingDirection).toBe('forward')
+      .toEqual([['routing', 1_500, 'layout-rings'], ['routing', 1_500, 'layout-pinwheel']])
+    expect(item.show.transitions.every((transition) => transition.routingDirection === 'forward')).toBe(true)
 
-    // The same two instances serve both intervals: geometry changes, Pattern
+    // The rings count exceeds the Zone count: the cycle deals rings modulo
+    // Zone order, so the bullseye reads Weave-Water-Weave and the note's
+    // added third Zone inherits the spare ring instead of getting no pixels.
+    const rings = item.show.routingLayouts[1].logical!
+    expect(rings.kind === 'rings' && rings.rings).toBe(3)
+    expect(rings.zoneIds).toHaveLength(2)
+
+    // The same two instances serve every interval: geometry changes, Pattern
     // state does not.
     const instancesByScene = composition.scenes.map((sceneItem) => (
       sceneItem.zones.flatMap((zone) => zone.main.map((placementItem) => placementItem.instanceId)).sort()
     ))
-    expect(instancesByScene).toEqual([['ribbons', 'water'], ['ribbons', 'water']])
+    expect(instancesByScene).toEqual([['ribbons', 'water'], ['ribbons', 'water'], ['ribbons', 'water']])
     expect(composition.durationMs).toBe(20_000)
 
     // Zones and the Layout switch are the whole subject; nothing competes.
@@ -1277,6 +1288,149 @@ describe('stock Show curriculum (#363)', () => {
       expect(redCounts.every((count, index) => count > cyanCounts[index] * 2), fidelity).toBe(true)
     }
   }, 30_000)
+
+  const ZONE_LAYOUT_SHOWCASE_IDS = [
+    'stock-show-showcase-zone-layouts-splits',
+    'stock-show-showcase-zone-layouts-stripes-grid',
+    'stock-show-showcase-zone-layouts-radial',
+  ]
+
+  it('covers every logical Zone Layout kind across the Zone Layout showcase trio (#700)', () => {
+    const trio = ZONE_LAYOUT_SHOWCASE_IDS.map((id) => stockShowById(id)!)
+
+    // The trio, not any single Show, holds the complete geometry
+    // vocabulary: the measured single-Show matrix compiled to 259 KB
+    // against the 68 KB activation ceiling, the same wall that split the
+    // Shape Reveals references (#514).
+    expect(trio.map((item) => item.show.routingLayouts.map((layout) => layout.logical?.kind))).toEqual([
+      ['single', 'split', 'soft-split', 'checker'],
+      ['single', 'stripes', 'grid'],
+      ['single', 'rings', 'wave', 'pinwheel'],
+    ])
+    for (const item of trio) {
+      for (const layout of item.show.routingLayouts) {
+        expect(validateShowLogicalRouting(layout.logical!), `${item.name}: ${layout.name}`).toEqual([])
+      }
+      expect(item.show.scenes, item.name).toHaveLength(item.show.routingLayouts.length)
+
+      // Every boundary is a routing switch; each passage places exactly the
+      // Zones its Layout routes; and a Zone never changes instance, so every
+      // boundary re-deals geometry without touching Pattern state.
+      expect(item.show.transitions, item.name).toHaveLength(item.show.scenes.length - 1)
+      expect(item.show.transitions.every((transition) => transition.kind === 'routing'), item.name).toBe(true)
+      const composition = item.show.composition!
+      const instancesByZone = new Map<string, Set<string>>()
+      for (const [index, sceneComposition] of composition.scenes.entries()) {
+        const routedZoneIds = item.show.routingLayouts[index].logical!.zoneIds
+        const placedZoneIds = sceneComposition.zones
+          .filter((zone) => zone.main.length > 0)
+          .map((zone) => zone.zoneId)
+        expect(placedZoneIds, `${item.name}: ${sceneComposition.sceneId}`).toEqual([...routedZoneIds])
+        for (const zone of sceneComposition.zones) {
+          for (const entry of zone.main) {
+            const seen = instancesByZone.get(zone.zoneId) ?? new Set<string>()
+            seen.add(entry.instanceId)
+            instancesByZone.set(zone.zoneId, seen)
+          }
+        }
+      }
+      expect([...instancesByZone.values()].every((seen) => seen.size === 1), item.name).toBe(true)
+
+      // The reference guide walks the timeline: one example per passage.
+      expect(
+        item.reference!.examples.map((example) => (example.anchor as { sceneId: string }).sceneId),
+        item.name,
+      ).toEqual(item.show.scenes.map((sceneItem) => sceneItem.id))
+    }
+
+    // The single travelling switch lives in the Radial sibling's entry into
+    // rings; every other boundary in the family is atomic.
+    const sweeps = trio.flatMap((item) => item.show.transitions.filter((transition) => transition.durationMs > 0))
+    expect(sweeps.map((transition) => transition.layoutId)).toEqual(['layout-rings'])
+    expect(sweeps[0].routingDirection).toBe('forward')
+
+    // Shared casting: the hero pair opens every sibling, and only the
+    // four-voice sibling extends it.
+    expect(trio.map((item) => item.show.composition!.patternInstances.map((instance) => instance.patternName)))
+      .toEqual([
+        ['MetaballGarden', 'IQPalettes'],
+        ['MetaballGarden', 'IQPalettes', 'Caustics', 'GlyphRain'],
+        ['MetaballGarden', 'IQPalettes'],
+      ])
+  })
+
+  it('keeps each Zone Layout showcase inside the activation ceiling with edit headroom (#700)', () => {
+    // The reason the vocabulary is a trio: routing render plans price every
+    // (Layout, routed Zone) slot, and the notes' prompts invite structural
+    // session edits (adding Zones), so each sibling must leave real room.
+    for (const id of ZONE_LAYOUT_SHOWCASE_IDS) {
+      const item = stockShowById(id)!
+      const compiled = compileShowForArtifact(item.show, [], undefined, {}, { stageDimension: 2 })
+      expect(compiled.error, item.name).toBeNull()
+      const summary = compiled.artifact!.summary
+      const ratio = summary.artifactBytes / summary.measuredDeviceBudgetBytes
+      expect(ratio, `${item.name} uses ${(ratio * 100).toFixed(1)}% of the device budget`).toBeLessThan(0.7)
+    }
+  })
+
+  it('re-deals the Zone Layout showcase Stages measurably at representative passages (#700)', () => {
+    const average = (values: number[]) => values.reduce((sum, value) => sum + value, 0) / values.length
+    const regionLuma = (mapPoints: { sample: number[] }[]) => (frame: number[][], inRegion: (x: number, y: number) => boolean) => average(
+      mapPoints.flatMap((point, index) => (inRegion(point.sample[0], point.sample[1]) ? [luma(frame[index])] : [])),
+    )
+
+    {
+      // Splits & Checker: full 0-4, moving split 4-9, soft split 9-13,
+      // checker 13-18.
+      const { mapPoints, frameAt } = lessonReplay('stock-show-showcase-zone-layouts-splits')
+      const lumaWhere = regionLuma(mapPoints)
+      const sideContrast = (frame: number[][]) => Math.abs(
+        lumaWhere(frame, (x, y) => x < 0.3 && y > 0.4 && y < 0.6)
+        - lumaWhere(frame, (x, y) => x > 0.7 && y > 0.4 && y < 0.6),
+      )
+      const full = frameAt(2_000)
+      const split = frameAt(6_500)
+      expect(sideContrast(split)).toBeGreaterThan(sideContrast(full) * 2)
+      expect(meanLuma(full)).toBeGreaterThan(0.02)
+      expect(meanLuma(split)).toBeGreaterThan(0.02)
+    }
+    {
+      // Stripes & Grid: full 0-4, stripes 4-9, grid 9-15. The Rain cell
+      // (x > 0.5, y > 0.5) is the negative-space voice: GlyphRain leaves
+      // 82% of its field dark, so its quadrant sits well below each lit
+      // neighbour.
+      const { mapPoints, frameAt } = lessonReplay('stock-show-showcase-zone-layouts-stripes-grid')
+      const lumaWhere = regionLuma(mapPoints)
+      const grid = frameAt(12_000)
+      const quadrant = (right: boolean, low: boolean) => lumaWhere(grid, (x, y) => (
+        (right ? x > 0.55 : x < 0.45) && (low ? y > 0.55 : y < 0.45)
+      ))
+      const rain = quadrant(true, true)
+      expect(rain).toBeLessThan(quadrant(false, false) * 0.7)
+      expect(rain).toBeLessThan(quadrant(true, false) * 0.7)
+      expect(rain).toBeLessThan(quadrant(false, true) * 0.7)
+      expect(meanLuma(grid)).toBeGreaterThan(0.02)
+    }
+    {
+      // Radial: full 0-4, rings 4-9 (swept entry to 5.5), wave 9-13,
+      // pinwheel 13-19.
+      const { mapPoints, frameAt } = lessonReplay('stock-show-showcase-zone-layouts-radial')
+      const lumaWhere = regionLuma(mapPoints)
+      const radialContrast = (frame: number[][]) => Math.abs(
+        lumaWhere(frame, (x, y) => Math.hypot(x - 0.5, y - 0.5) < 0.15)
+        - lumaWhere(frame, (x, y) => Math.hypot(x - 0.5, y - 0.5) > 0.45),
+      )
+      // No full-versus-rings comparison: MetaballGarden alone is already
+      // center-weighted (measured radial contrast 0.47 on the full
+      // surface), so the meaningful oracle is the 206-style absolute
+      // center-versus-edge contrast inside the rings interval.
+      const full = frameAt(2_000)
+      const rings = frameAt(7_500)
+      expect(radialContrast(rings)).toBeGreaterThan(0.05)
+      expect(meanLuma(full)).toBeGreaterThan(0.02)
+      expect(meanLuma(rings)).toBeGreaterThan(0.02)
+    }
+  })
 
   it('covers every Effect kind across the four Effect showcases', () => {
     // The Compositing and Key reference carries its Effects on overlay

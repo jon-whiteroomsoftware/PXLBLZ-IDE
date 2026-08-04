@@ -6,9 +6,10 @@ describe('Restart-instance global-liveness census (#536)', () => {
     expect(report.issue).toBe(536)
     // Recensused with the #363 Learn recast, when the Learn 200 composition
     // lessons landed, with the Learn 300 lessons, with the 100/207/aperture
-    // additions, and again with the showcase repartition (fifteen recast
-    // references replacing nine).
-    expect(report.summary.savedShowCount).toBe(33)
+    // additions, again with the showcase repartition (fifteen recast
+    // references replacing nine), and again with the Zone Layouts showcase
+    // trio (#700).
+    expect(report.summary.savedShowCount).toBe(36)
     expect(report.cases.some((entry) => entry.kind === 'five-pattern-acceptance')).toBe(true)
     expect(report.summary.compileFailures).toEqual([])
   })
@@ -62,14 +63,17 @@ describe('Restart-instance global-liveness census (#536)', () => {
     // retired TestPattern2D/Caustics casts carried most of the reclaimable
     // Restart globals, so the reclaimed count and the weighted figure both
     // fall), and again when 202 recast its subject from CompassRose to
-    // Harmonograph (#63 review). The unweighted percent stays at zero and
-    // the gate reads the unweighted percent, so the verdict is unchanged.
+    // Harmonograph (#63 review), and again with the Zone Layouts showcase
+    // trio (#700: their voices all Continue across every routed passage, so
+    // the member-global corpus grows while the reclaimable Restart set does
+    // not). The unweighted percent stays at zero and the gate reads the
+    // unweighted percent, so the verdict is unchanged.
     expect(report.summary).toMatchObject({
-      representativeMemberGlobals: 2_791,
+      representativeMemberGlobals: 2_999,
       representativeReclaimedGlobals: 186,
     })
     expect(report.decision.representativeReclaimPercent).toBe(0)
-    expect(report.decision.weightedRepresentativeReclaimPercent).toBeCloseTo(0.06664278, 8)
+    expect(report.decision.weightedRepresentativeReclaimPercent).toBeCloseTo(0.06202067, 8)
     expect(report.decision.ceilingRescues).toEqual([])
     expect(report.decision.proceedWithEmission).toBe(false)
     expect(report.decision.proceedWithEmission).toBe(
