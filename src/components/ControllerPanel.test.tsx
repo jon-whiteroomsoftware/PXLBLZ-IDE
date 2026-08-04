@@ -198,6 +198,31 @@ describe('ControllerPanel', () => {
     )
   })
 
+  it('keeps the live duty-cap readout compact across the low-value boundary', async () => {
+    const provider = new ConnectedProvider()
+    provider.vars = {
+      __px_powerLimit: 0.109985,
+    }
+    const profile = defaultControllerProfile({ id: 'ctrl-1', deviceId: 'c1', now: 1 })
+    useControllerProfileStore.setState({
+      profiles: [profile],
+      profilesLoaded: true,
+    })
+    setControllerProvider(provider)
+    const { rerender } = render(<ControllerPanel />)
+
+    const dutyCap = await screen.findByLabelText('Live duty cap')
+    expect(dutyCap).toHaveAttribute('aria-valuetext', '11%')
+    expect(screen.getByText('11%')).toBeInTheDocument()
+
+    provider.vars.__px_powerLimit = 0.0254
+    useControllerPanelStore.setState({ vars: provider.vars })
+    rerender(<ControllerPanel />)
+
+    expect(dutyCap).toHaveAttribute('aria-valuetext', '2.5%')
+    expect(screen.getByText('2.5%')).toBeInTheDocument()
+  })
+
   it('shows the pattern-controls help only when the loaded pattern has descriptions', async () => {
     setControllerProvider(new ConnectedProvider())
     // No description metadata loaded → no help affordance on the controls section.

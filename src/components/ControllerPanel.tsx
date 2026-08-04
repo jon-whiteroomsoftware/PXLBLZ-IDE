@@ -10,6 +10,7 @@ import {
   controllerSliderValue,
   describeControllerVars,
   describeControllerPowerTelemetry,
+  formatDutyCapPercent,
 } from '@/engine/controllerPanelView'
 import {
   DeckSection,
@@ -312,6 +313,7 @@ export function ControllerPanel() {
                   max={1}
                   step={0.01}
                   presentation="percentage"
+                  format={formatDutyCapPercent}
                   onChange={setPowerLimit}
                 />
               </div>

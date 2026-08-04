@@ -210,6 +210,14 @@ function formatPercent(value: number): string {
   return `${Math.round(value * 100)}%`
 }
 
+export function formatDutyCapPercent(value: number): string {
+  const percentage = value * 100
+  const rounded = percentage < 3
+    ? Number(percentage.toFixed(1))
+    : Math.round(percentage)
+  return `${Object.is(rounded, -0) ? 0 : rounded}%`
+}
+
 function formatMilliamps(value: number): string {
   return `${Math.round(value)} mA`
 }
