@@ -72,7 +72,9 @@ not dreaming big enough.
 Gallery, documentation, preview, and live Controller access are public.
 Studio uses GitHub or Google sign-in; personal content lives in an
 authenticated cloud workspace rather than fragile browser storage. Signed
-out, the app runs as a non-durable demo. Controller traffic stays between
+out, the app runs as a non-durable demo. Studio sign-in is opening up as
+part of the v2 launch; if you arrive before it fully opens, new sign-ins
+are still invite-only, and everything else works without an account. Controller traffic stays between
 your browser and your local network — the hosted app never proxies it. The
 [privacy page](https://pxlblz-ide.whiteroomsoftware.com/docs/privacy)
 has the details.

@@ -7,8 +7,11 @@ Reference; this document names only work that has not yet shipped or has not yet
 passed its human release gate.
 
 The stable v1 release remains pinned by tag and maintenance branch. Mainline
-documentation describes the v2 development line. `README.md` is the public v1
-entry point and changes only through the owner-controlled launch task.
+documentation describes the v2 development line. `README.md` now describes the
+v2 product as the public entry point; publishing it to the default branch and
+clearing the invite-only Studio access gate remain one owner-controlled
+release action, and the README carries an explicit invite-only caveat until
+that gate clears.
 
 ## Product position
 
