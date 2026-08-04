@@ -290,9 +290,11 @@ test.describe('authenticated Show authoring', () => {
     await page.getByRole('button', { name: 'Collapse zone Water' }).click()
     await page.getByRole('button', { name: 'Close Zones' }).click()
 
-    // Single-zone intervals append their sole Zone to the Layout name.
+    // Kind labels live on the Zone Layouts lane; the split cell also carries
+    // its share percentage, and single-zone intervals append their sole Zone
+    // (#694).
     await expect(page.locator('[data-show-layout-interval]'))
-      .toHaveText(['Full Surface · Weave', 'Moving Split', 'Rings'])
+      .toHaveText(['Full surface · Weave', 'Moving split X50%', 'Rings'])
     await expect(page.getByTestId('collapsed-zone-layout-label'))
       .toHaveText(['Weave', 'Weave', 'Weave', 'Water', 'Water'])
 
@@ -1566,7 +1568,7 @@ test.describe('authenticated Show authoring', () => {
     await page.keyboard.press('Escape')
     await expect(page.getByRole('region', { name: 'Show timeline' })).toBeFocused()
     await page.getByRole('button', { name: 'Close Zones' }).click()
-    await expect(page.getByRole('group', { name: 'Split position lane' })).toBeVisible()
+    await expect(page.getByRole('group', { name: 'Zone Layouts lane' })).toBeVisible()
 
     await page.getByRole('button', { name: /^Edit split position at / }).click()
     await page.getByText('Advanced transition controls').click()
@@ -1605,7 +1607,7 @@ test.describe('authenticated Show authoring', () => {
     await page.getByRole('button', { name: 'Back to show' }).click()
 
     await page.setViewportSize({ width: 720, height: 900 })
-    await expect(page.getByRole('group', { name: 'Split position lane' })).toBeVisible()
+    await expect(page.getByRole('group', { name: 'Zone Layouts lane' })).toBeVisible()
     await expect(page.getByRole('button', { name: /^Edit split position at / })).toBeVisible()
     const pageOverflow = await page.evaluate(() => ({
       scrollWidth: document.documentElement.scrollWidth,
@@ -2058,7 +2060,8 @@ async function openZoneLayout(page: Page, layoutName: string): Promise<void> {
   // Edit link for the interval under the playhead.
   await page.getByRole('button', { name: 'Add to Show' }).click()
   await page.getByRole('menuitem', { name: 'Zone Layout' }).click()
-  await page.getByRole('button', { name: `Open Zone Layout ${layoutName}` }).click()
+  void layoutName
+  await page.getByRole('button', { name: "Open this interval's Zone Layout" }).click()
 }
 
 async function createInstallationShow(page: Page): Promise<void> {

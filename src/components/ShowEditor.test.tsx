@@ -49,7 +49,8 @@ async function openZoneLayout(user: ReturnType<typeof userEvent.setup>, layoutNa
   // menu's Edit link for the interval under the playhead.
   await user.click(screen.getByRole('button', { name: 'Add to Show' }))
   await user.click(screen.getByRole('menuitem', { name: 'Zone Layout' }))
-  await user.click(screen.getByRole('button', { name: `Open Zone Layout ${layoutName}` }))
+  void layoutName
+  await user.click(screen.getByRole('button', { name: "Open this interval's Zone Layout" }))
 }
 
 function changeCommittedNumber(label: string, value: string): void {
@@ -758,7 +759,7 @@ describe('ShowEditor (#318)', () => {
 
     await user.click(screen.getByRole('button', { name: 'Add to Show' }))
     await user.click(screen.getByRole('menuitem', { name: 'Zone Layout' }))
-    await user.click(screen.getByRole('button', { name: 'Open Zone Layout Default' }))
+    await user.click(screen.getByRole('button', { name: "Open this interval's Zone Layout" }))
     expect(screen.queryByRole('dialog', { name: 'Zone Layout at playhead' })).not.toBeInTheDocument()
     const panel = screen.getByRole('dialog', { name: 'Entity Detail Panel' })
     expect(within(panel).getByRole('region', { name: 'Zone Layout properties' })).toBeInTheDocument()
@@ -845,7 +846,7 @@ describe('ShowEditor (#318)', () => {
     })
     await waitFor(() => expect(projectShowLayoutIntervals(useShowStore.getState().shows[0])).toHaveLength(2))
 
-    const interval = await screen.findByRole('button', { name: 'Select Alternate routing interval 1' })
+    const interval = await screen.findByRole('button', { name: 'Select Physical ranges routing interval 1' })
     expect(interval).toHaveAttribute('aria-pressed', 'false')
     await user.click(interval)
 
@@ -874,8 +875,8 @@ describe('ShowEditor (#318)', () => {
 
     render(<ShowEditor showId={show.id} />)
 
-    const first = screen.getByRole('button', { name: 'Select Alternate routing interval 1' })
-    const second = screen.getByRole('button', { name: 'Select Alternate routing interval 2' })
+    const first = screen.getByRole('button', { name: 'Select Physical ranges routing interval 1' })
+    const second = screen.getByRole('button', { name: 'Select Physical ranges routing interval 2' })
     expect(first).toHaveAttribute('data-show-selection-key', 'transition:routing-scene-2')
     expect(second).toHaveAttribute('data-show-selection-key', 'transition:routing-scene-3')
     expect(first).toHaveAttribute('aria-pressed', 'false')
@@ -6133,7 +6134,7 @@ describe('ShowEditor (#318)', () => {
     expect(screen.getByLabelText('Soft Split axis')).toHaveValue('x')
     expect(screen.getByRole('textbox', { name: 'Soft Split feather exact percentage' })).toHaveValue('20')
     expect(screen.getByText(/inside the feather, both patterns render/i)).toBeInTheDocument()
-    expect(screen.getByRole('group', { name: 'Split position lane' })).toBeInTheDocument()
+    expect(screen.getByRole('group', { name: 'Zone Layouts lane' })).toBeInTheDocument()
     await user.selectOptions(screen.getByLabelText('Soft Split axis'), 'y')
     changeCommittedNumber('Soft Split feather', '30%')
 

@@ -1,6 +1,6 @@
 import { Fragment, createContext, useCallback, useContext, useDeferredValue, useEffect, useLayoutEffect, useMemo, useRef, useState, useSyncExternalStore, type CSSProperties, type MouseEvent as ReactMouseEvent, type PointerEvent as ReactPointerEvent, type ReactNode, type RefObject, type SetStateAction } from 'react'
 import { createPortal } from 'react-dom'
-import { Activity, BookOpen, ChevronDown, ChevronRight, Clock3, Code2, Copy, Download, Eye, Flag, Grid2X2, Info, Layers3, Lightbulb, ListChecks, Lock, Magnet, Map as MapIcon, Maximize2, Move, PanelLeft, Pause, Play, Plus, Redo2, Repeat2, RotateCcw, RotateCw, Route, Scissors, Settings2, SkipBack, SlidersHorizontal, SplitSquareHorizontal, Square, Sun, Trash2, Undo2, WandSparkles, X, Zap } from 'lucide-react'
+import { Activity, BookOpen, ChevronDown, ChevronRight, Clock3, Code2, Copy, Download, Eye, Flag, Grid2X2, Info, Layers3, Lightbulb, ListChecks, Lock, Magnet, Map as MapIcon, Maximize2, Move, PanelLeft, Pause, Play, Plus, Redo2, Repeat2, RotateCcw, RotateCw, Route, Scissors, Settings2, SkipBack, SlidersHorizontal, Square, Sun, Trash2, Undo2, WandSparkles, X, Zap } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { NumberField as UiNumberField, type NumberFieldProps as UiNumberFieldProps } from '@/components/ui/number-field'
 import { TimeField as UiTimeField, type TimeFieldProps as UiTimeFieldProps } from '@/components/ui/time-field'
@@ -62,6 +62,7 @@ import {
   transitionCost,
   updateShowBoundaryTransition,
   ZONE_COLORS,
+  showRoutingLayoutKindLabel,
 } from '@/engine/showModel'
 import {
   compileShowForArtifact,
@@ -3898,7 +3899,12 @@ function ShowTimelineWorkspace({
   ))
   const hasSampleRemap = show.scenes.some((scene) => scene.sampleTargets?.repeatScale !== undefined)
     || Boolean(show.transitions?.some((transition) => transition.propertyTransitions?.sample?.repeatScale))
-  const routingLaneRows = (movingSplitLayout ? 1 : 0) + (hasSampleRemap ? 1 : 0)
+  const layoutLaneVisible = Boolean(movingSplitLayout) || layoutIntervals.length > 1
+  const routingLaneRows = (layoutLaneVisible ? 1 : 0) + (hasSampleRemap ? 1 : 0)
+  const layoutKindLabel = (layoutId: string) => {
+    const layout = show.routingLayouts.find((candidate) => candidate.id === layoutId)
+    return layout ? showRoutingLayoutKindLabel(layout) : 'Zone Layout'
+  }
   const rowStrides = strip.rows.map((row) => {
     if (collapsedZoneIdSet.has(row.zoneId)) return 1
     const clipLayerCount = unifiedCompositionTimeline
@@ -4421,14 +4427,14 @@ function ShowTimelineWorkspace({
                   <div className="mb-2 flex items-start justify-between gap-3">
                     <div className="min-w-0">
                       <div className="text-[11px] uppercase tracking-[0.1em] text-zinc-500">Current interval</div>
-                      <div className="truncate text-[13px] font-medium text-zinc-100">{layoutActionInterval?.layoutName ?? 'No Layout'}</div>
+                      <div className="truncate text-[13px] font-medium text-zinc-100">{layoutActionInterval ? layoutKindLabel(layoutActionInterval.layoutId) : 'No Layout'}</div>
                     </div>
                     <span className="shrink-0 font-mono text-[11px] tabular-nums text-zinc-500">{formatShowTime(layoutActionTimeMs)}</span>
                   </div>
                   {layoutActionInterval && (
                     <button
                       type="button"
-                      aria-label={`Open Zone Layout ${layoutActionInterval.layoutName}`}
+                      aria-label="Open this interval's Zone Layout"
                       className="mt-0.5 text-left text-[11px] text-zinc-500 underline decoration-dotted underline-offset-4 hover:text-zinc-200"
                       onClick={() => {
                         // Anchor to the toolbar button, not to this link: closing
@@ -4438,7 +4444,7 @@ function ShowTimelineWorkspace({
                         onSelect({ kind: 'zone-layout', layoutId: layoutActionInterval.layoutId }, addPopoverAnchor)
                       }}
                     >
-                      Edit {layoutActionInterval.layoutName}
+                      Edit {layoutKindLabel(layoutActionInterval.layoutId)}
                     </button>
                   )}
                   <div className="grid grid-cols-[72px_1fr] items-center gap-2 py-1">
@@ -4700,8 +4706,6 @@ function ShowTimelineWorkspace({
           snapEnabled={snapEnabled}
           structuralTimesMs={structuralTimesMs}
           getVisibleWidth={() => Math.max(1, (scrollRef.current?.clientWidth ?? 812) - 212)}
-          layoutIntervals={layoutIntervals}
-          onSelectZoneLayout={(layoutId, anchor) => onSelect({ kind: 'zone-layout', layoutId }, anchor)}
         />
         {timelineComposition && (
           <TimelineMarkers
@@ -4731,7 +4735,6 @@ function ShowTimelineWorkspace({
           gridRow={rulerRow}
           rowSpan={timelineOverlayRowSpan}
           selection={selection}
-          onSelect={onSelect}
         />
         <TimelinePlayhead
           show={displayShow}
@@ -4743,52 +4746,97 @@ function ShowTimelineWorkspace({
           structuralTimesMs={structuralTimesMs}
           getVisibleWidth={() => Math.max(1, (scrollRef.current?.clientWidth ?? 812) - 212)}
         />
-        {movingSplitLayout?.logical && (() => {
-          const logical = movingSplitLayout.logical
-          if (logical.kind !== 'split' && logical.kind !== 'soft-split') return null
-          const [firstZoneId, secondZoneId] = logical.zoneIds
-          const firstColor = show.zones.find((zone) => zone.id === firstZoneId)?.color ?? '#38bdf8'
-          const secondColor = show.zones.find((zone) => zone.id === secondZoneId)?.color ?? '#f97316'
+        {layoutLaneVisible && (() => {
+          const splitLogical = movingSplitLayout?.logical
+          const splitColors = splitLogical && (splitLogical.kind === 'split' || splitLogical.kind === 'soft-split')
+            ? [
+                show.zones.find((zone) => zone.id === splitLogical.zoneIds[0])?.color ?? '#38bdf8',
+                show.zones.find((zone) => zone.id === splitLogical.zoneIds[1])?.color ?? '#f97316',
+              ]
+            : null
           return (
-            <div role="group" aria-label="Split position lane" className="contents">
+            <div role="group" aria-label="Zone Layouts lane" className="contents">
               <div
-                className="sticky left-0 z-30 flex items-center gap-1 border-t border-zinc-900/80 bg-[#060608] px-2 font-mono text-[9px] text-sky-300/80"
+                className="sticky left-0 z-30 flex h-[18px] items-center gap-1 border-t border-zinc-900/80 bg-[#060608] px-2 font-mono text-[9px] uppercase tracking-[0.1em] text-sky-300/80"
                 style={{ gridColumn: 1, gridRow: contentStartRow }}
               >
-                {showMicroZonePicker ? <SplitSquareHorizontal size={12} aria-hidden /> : <>↳ split {logical.axis.toUpperCase()}</>}
+                {showMicroZonePicker ? <Route size={12} aria-hidden /> : 'Layouts'}
               </div>
               {show.scenes.map((scene, sceneIndex) => {
+                const interval = layoutIntervals.find((candidate) => candidate.sceneIds.includes(scene.id))
+                const isFirstSceneOfInterval = interval?.sceneIds[0] === scene.id
+                const isSplitCell = Boolean(interval && movingSplitLayout && splitColors
+                  && interval.layoutId === movingSplitLayout.id)
                 const position = scene.routingTargets?.splitPosition ?? 0.5
-                // Scenes routed by a different Layout (rings, grid, ...) get a
-                // neutral cell: the split share only exists where the split
-                // routes (#63 review).
-                const routedBySplit = layoutIntervals.some((interval) => (
-                  interval.layoutId === movingSplitLayout.id && interval.sceneIds.includes(scene.id)
-                ))
-                if (!routedBySplit) {
-                  return (
-                    <div
-                      key={`split-${scene.id}`}
-                      className="border-t border-zinc-900/80 bg-zinc-950/40"
-                      style={{ gridColumn: 2 + sceneIndex * 2, gridRow: contentStartRow }}
-                    />
-                  )
-                }
+                const soleZone = interval && interval.zoneIds.length === 1
+                  ? show.zones.find((zone) => zone.id === interval.zoneIds[0])
+                  : null
+                const label = interval
+                  ? soleZone
+                    ? `${layoutKindLabel(interval.layoutId)} · ${soleZone.name}`
+                    : layoutKindLabel(interval.layoutId)
+                  : 'Zone Layout'
                 return (
-                  <div
-                    key={`split-${scene.id}`}
-                    className="flex items-center justify-center border-t border-zinc-900/80 font-mono text-[9px] text-zinc-100"
+                  <button
+                    key={`layout-lane-${scene.id}`}
+                    type="button"
+                    aria-label={`Edit ${label} Zone Layout`}
+                    title="Edit this interval's Zone Layout"
+                    data-show-timeline-focus
+                    {...(interval && isFirstSceneOfInterval && layoutIntervals.length > 1
+                      ? { 'data-show-layout-interval': interval.id }
+                      : {})}
+                    {...(interval ? { 'data-show-selection-key': `zone-layout:${interval.layoutId}` } : {})}
+                    className="flex h-[18px] min-w-0 items-center justify-between gap-1 border-t border-zinc-900/80 px-1.5 font-mono text-[9px] text-sky-100/90 outline-none hover:brightness-125 hover:shadow-[inset_0_0_0_1px_rgba(56,189,248,0.5)] focus-visible:shadow-[inset_0_0_0_1px_rgba(56,189,248,0.8)]"
                     style={{
                       gridColumn: 2 + sceneIndex * 2,
                       gridRow: contentStartRow,
-                      background: `linear-gradient(90deg, color-mix(in srgb, ${firstColor} 35%, #08080a) 0 ${position * 100}%, color-mix(in srgb, ${secondColor} 35%, #08080a) ${position * 100}% 100%)`,
+                      background: isSplitCell && splitColors
+                        ? `linear-gradient(90deg, color-mix(in srgb, ${splitColors[0]} 35%, #08080a) 0 ${position * 100}%, color-mix(in srgb, ${splitColors[1]} 35%, #08080a) ${position * 100}% 100%)`
+                        : 'rgba(9,9,11,0.4)',
+                    }}
+                    onClick={(event) => {
+                      event.stopPropagation()
+                      if (interval) onSelect({ kind: 'zone-layout', layoutId: interval.layoutId }, event.currentTarget)
                     }}
                   >
-                    {Math.round(position * 100)}%
-                  </div>
+                    <span className="truncate">{isFirstSceneOfInterval ? label : ''}</span>
+                    {isSplitCell && <span className="shrink-0 text-zinc-100">{Math.round(position * 100)}%</span>}
+                  </button>
                 )
               })}
               {show.scenes.slice(0, -1).map((scene, sceneIndex) => {
+                // The Layout switch lives in the lane with everything else
+                // Layout-shaped (#694 review); the timeline keeps only the
+                // passive full-height divider.
+                const routingSwitch = show.transitions?.find((candidate) => candidate.afterSceneId === scene.id && candidate.kind === 'routing')
+                if (!routingSwitch) return null
+                const nextSceneId = show.scenes[sceneIndex + 1]?.id
+                const intervalIndex = layoutIntervals.findIndex((candidate) => candidate.sceneIds.includes(nextSceneId))
+                const selected = selection.kind === 'transition' && selection.transitionId === routingSwitch.id
+                return (
+                  <button
+                    key={`layout-switch-${scene.id}`}
+                    type="button"
+                    aria-label={`Select ${layoutKindLabel(routingSwitch.layoutId ?? '')} routing interval ${Math.max(1, intervalIndex)}`}
+                    aria-pressed={selected}
+                    title="Edit the Zone Layout switch"
+                    data-show-timeline-focus
+                    data-show-selection-key={`transition:${routingSwitch.id}`}
+                    className={selected
+                      ? 'grid h-[18px] place-items-center border-t border-zinc-900/80 bg-sky-400/30 text-sky-100 outline-none ring-1 ring-inset ring-sky-300/80'
+                      : 'grid h-[18px] place-items-center border-t border-zinc-900/80 bg-sky-400/15 text-sky-200/90 outline-none hover:bg-sky-400/30 focus-visible:bg-sky-400/30'}
+                    style={{ gridColumn: 3 + sceneIndex * 2, gridRow: contentStartRow }}
+                    onClick={(event) => {
+                      event.stopPropagation()
+                      onSelect({ kind: 'transition', transitionId: routingSwitch.id }, event.currentTarget)
+                    }}
+                  >
+                    <Route size={10} aria-hidden />
+                  </button>
+                )
+              })}
+              {movingSplitLayout && show.scenes.slice(0, -1).map((scene, sceneIndex) => {
                 const transition = show.transitions?.find((candidate) => candidate.afterSceneId === scene.id && candidate.kind !== 'routing')
                 const descriptor = transition?.propertyTransitions?.routing?.splitPosition
                 const target = show.scenes[sceneIndex + 1]?.routingTargets?.splitPosition ?? 0.5
@@ -4817,7 +4865,7 @@ function ShowTimelineWorkspace({
           <div role="group" aria-label="Sample repeat lane" className="contents">
             <div
               className="sticky left-0 z-30 flex items-center gap-1 border-t border-zinc-900/80 bg-[#060608] px-2 font-mono text-[9px] text-cyan-300/80"
-              style={{ gridColumn: 1, gridRow: contentStartRow + (movingSplitLayout ? 1 : 0) }}
+              style={{ gridColumn: 1, gridRow: contentStartRow + (layoutLaneVisible ? 1 : 0) }}
             >
               {showMicroZonePicker ? <Repeat2 size={12} aria-hidden /> : '↳ sample repeat'}
             </div>
@@ -4827,7 +4875,7 @@ function ShowTimelineWorkspace({
                 <div
                   key={`sample-repeat-${scene.id}`}
                   className="flex items-center justify-center border-t border-zinc-900/80 bg-[repeating-linear-gradient(135deg,rgba(34,211,238,0.12)_0_3px,transparent_3px_8px)] font-mono text-[9px] text-cyan-100"
-                  style={{ gridColumn: 2 + sceneIndex * 2, gridRow: contentStartRow + (movingSplitLayout ? 1 : 0) }}
+                  style={{ gridColumn: 2 + sceneIndex * 2, gridRow: contentStartRow + (layoutLaneVisible ? 1 : 0) }}
                 >
                   {formatRepeatScale(scale)}
                 </div>
@@ -4845,7 +4893,7 @@ function ShowTimelineWorkspace({
                   data-show-timeline-focus
                   data-show-selection-key={`transition:${transition.id}`}
                   className={descriptor ? 'border-t border-zinc-900/80 bg-cyan-400/10 font-mono text-[9px] text-cyan-200' : 'border-t border-zinc-900/80 font-mono text-[9px] text-zinc-700 hover:text-cyan-300'}
-                  style={{ gridColumn: 3 + sceneIndex * 2, gridRow: contentStartRow + (movingSplitLayout ? 1 : 0) }}
+                  style={{ gridColumn: 3 + sceneIndex * 2, gridRow: contentStartRow + (layoutLaneVisible ? 1 : 0) }}
                   onClick={(event) => {
                     event.stopPropagation()
                     onSelect({ kind: 'transition', transitionId: transition.id }, event.currentTarget)
@@ -6112,7 +6160,6 @@ function TimelineLayoutBoundaries({
   gridRow,
   rowSpan,
   selection,
-  onSelect,
 }: {
   show: ShowRecord
   intervals: ShowLayoutInterval[]
@@ -6121,7 +6168,6 @@ function TimelineLayoutBoundaries({
   gridRow: number
   rowSpan: number
   selection: ShowSelection
-  onSelect: (selection: ShowSelection, anchor?: HTMLElement | null) => void
 }) {
   if (intervals.length <= 1) return null
   return (
@@ -6142,24 +6188,9 @@ function TimelineLayoutBoundaries({
             aria-hidden
             data-show-layout-boundary={interval.id}
             className={selected
-              ? 'pointer-events-none absolute inset-y-0 z-0 w-px -translate-x-1/2 bg-live/70'
-              : 'pointer-events-none absolute inset-y-0 z-0 w-px -translate-x-1/2 bg-live/30'}
+              ? 'pointer-events-none absolute inset-y-0 z-0 w-[2px] -translate-x-1/2 bg-sky-400/80'
+              : 'pointer-events-none absolute inset-y-0 z-0 w-[2px] -translate-x-1/2 bg-sky-400/40'}
             style={{ left: `${left}%` }}
-          />
-          <button
-            type="button"
-            aria-label={`Select ${interval.layoutName} routing interval ${index + 1}`}
-            aria-pressed={selected}
-            data-show-timeline-focus
-            data-show-selection-key={`transition:${transition.id}`}
-            className={selected
-              ? 'pointer-events-auto absolute top-0 z-[1] h-7 w-2 -translate-x-1/2 bg-live/35 outline-none ring-1 ring-live/80'
-              : 'pointer-events-auto absolute top-0 z-[1] h-7 w-2 -translate-x-1/2 bg-live/20 outline-none hover:bg-live/45 focus-visible:bg-live/45'}
-            style={{ left: `${left}%` }}
-            onClick={(event) => {
-              event.stopPropagation()
-              onSelect({ kind: 'transition', transitionId: transition.id }, event.currentTarget)
-            }}
           />
         </Fragment>
       })}
@@ -6289,8 +6320,6 @@ function TimelineRuler({
   snapEnabled,
   structuralTimesMs,
   getVisibleWidth,
-  layoutIntervals,
-  onSelectZoneLayout,
 }: {
   rulerRef: { current: HTMLDivElement | null }
   show: ShowRecord
@@ -6300,8 +6329,6 @@ function TimelineRuler({
   snapEnabled: boolean
   structuralTimesMs: number[]
   getVisibleWidth: () => number
-  layoutIntervals: ShowLayoutInterval[]
-  onSelectZoneLayout: (layoutId: string, anchor: HTMLElement) => void
 }) {
   const durationMs = showLoopDurationMs(show)
   const positionMs = useShowTransportStore((state) => state.showId === show.id ? state.positionMs : 0)
@@ -6389,31 +6416,6 @@ function TimelineRuler({
           }}
         />
       ))}
-      {layoutIntervals.length > 1 && layoutIntervals.map((interval) => {
-        const { left, width } = showLayoutIntervalPercentBounds(interval, durationMs)
-        const soleZone = interval.zoneIds.length === 1
-          ? show.zones.find((zone) => zone.id === interval.zoneIds[0])
-          : null
-        const label = soleZone ? `${interval.layoutName} · ${soleZone.name}` : interval.layoutName
-        return (
-          <button
-            key={interval.id}
-            type="button"
-            aria-label={`Edit ${interval.layoutName} Zone Layout interval`}
-            title={`Edit this interval's Zone Layout`}
-            data-show-layout-interval={interval.id}
-            data-show-selection-key={`zone-layout:${interval.layoutId}`}
-            className="absolute bottom-0 z-[2] h-[13px] overflow-hidden bg-live/[0.035] px-1 text-left text-[11px] leading-[13px] text-zinc-400 hover:bg-live/15 hover:text-zinc-100 focus-visible:bg-live/15 focus-visible:text-zinc-100 focus-visible:outline-none"
-            style={{ left: `${left}%`, width: `${width}%` }}
-            onClick={(event) => {
-              event.stopPropagation()
-              onSelectZoneLayout(interval.layoutId, event.currentTarget)
-            }}
-          >
-            {label}
-          </button>
-        )
-      })}
       {ticks.filter((tick) => tick.kind === 'major').map((tick) => (
         <span
           key={tick.timeMs}
