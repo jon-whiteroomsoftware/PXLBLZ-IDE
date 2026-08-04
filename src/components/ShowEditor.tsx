@@ -4805,37 +4805,45 @@ function ShowTimelineWorkspace({
                   </button>
                 )
               })}
-              {show.scenes.slice(0, -1).map((scene, sceneIndex) => {
-                // The Layout switch lives in the lane with everything else
-                // Layout-shaped (#694 review); the timeline keeps only the
-                // passive full-height divider.
-                const routingSwitch = show.transitions?.find((candidate) => candidate.afterSceneId === scene.id && candidate.kind === 'routing')
-                if (!routingSwitch) return null
-                const nextSceneId = show.scenes[sceneIndex + 1]?.id
-                const intervalIndex = layoutIntervals.findIndex((candidate) => candidate.sceneIds.includes(nextSceneId))
-                const selected = selection.kind === 'transition' && selection.transitionId === routingSwitch.id
-                return (
-                  <button
-                    key={`layout-switch-${scene.id}`}
-                    type="button"
-                    aria-label={`Select ${layoutKindLabel(routingSwitch.layoutId ?? '')} routing interval ${Math.max(1, intervalIndex)}`}
-                    aria-pressed={selected}
-                    title="Edit the Zone Layout switch"
-                    data-show-timeline-focus
-                    data-show-selection-key={`transition:${routingSwitch.id}`}
-                    className={selected
-                      ? 'grid h-[18px] place-items-center border-t border-zinc-900/80 bg-sky-400/30 text-sky-100 outline-none ring-1 ring-inset ring-sky-300/80'
-                      : 'grid h-[18px] place-items-center border-t border-zinc-900/80 bg-sky-400/15 text-sky-200/90 outline-none hover:bg-sky-400/30 focus-visible:bg-sky-400/30'}
-                    style={{ gridColumn: 3 + sceneIndex * 2, gridRow: contentStartRow }}
-                    onClick={(event) => {
-                      event.stopPropagation()
-                      onSelect({ kind: 'transition', transitionId: routingSwitch.id }, event.currentTarget)
-                    }}
-                  >
-                    <Route size={10} aria-hidden />
-                  </button>
-                )
-              })}
+              <div
+                aria-hidden={false}
+                className="pointer-events-none relative"
+                style={{ gridColumn: `2 / ${timeGridEndLine}`, gridRow: contentStartRow }}
+              >
+                {layoutIntervals.slice(1).map((interval, index) => {
+                  // The Layout switch lives in the lane with everything else
+                  // Layout-shaped (#694 review). It anchors at the boundary
+                  // position as an overlay, so a zero-duration switch stays
+                  // clickable even though its grid column has no width.
+                  const precedingInterval = layoutIntervals[index]
+                  const precedingSceneId = precedingInterval.sceneIds[precedingInterval.sceneIds.length - 1]
+                  const routingSwitch = showRoutingTransitionAfter(show, precedingSceneId)
+                  if (!routingSwitch) return null
+                  const { left } = showLayoutIntervalPercentBounds(interval, timeline.durationMs)
+                  const selected = selection.kind === 'transition' && selection.transitionId === routingSwitch.id
+                  return (
+                    <button
+                      key={`layout-switch-${interval.id}`}
+                      type="button"
+                      aria-label={`Select ${layoutKindLabel(interval.layoutId)} routing interval ${index + 1}`}
+                      aria-pressed={selected}
+                      title="Edit the Zone Layout switch"
+                      data-show-timeline-focus
+                      data-show-selection-key={`transition:${routingSwitch.id}`}
+                      className={selected
+                        ? 'pointer-events-auto absolute inset-y-0 z-[2] grid w-4 -translate-x-1/2 place-items-center rounded-sm bg-sky-400/35 text-sky-100 outline-none ring-1 ring-sky-300/80'
+                        : 'pointer-events-auto absolute inset-y-0 z-[2] grid w-4 -translate-x-1/2 place-items-center rounded-sm bg-sky-400/20 text-sky-200/90 outline-none hover:bg-sky-400/40 focus-visible:bg-sky-400/40'}
+                      style={{ left: `${left}%` }}
+                      onClick={(event) => {
+                        event.stopPropagation()
+                        onSelect({ kind: 'transition', transitionId: routingSwitch.id }, event.currentTarget)
+                      }}
+                    >
+                      <Route size={10} aria-hidden />
+                    </button>
+                  )
+                })}
+              </div>
               {movingSplitLayout && show.scenes.slice(0, -1).map((scene, sceneIndex) => {
                 const transition = show.transitions?.find((candidate) => candidate.afterSceneId === scene.id && candidate.kind !== 'routing')
                 const descriptor = transition?.propertyTransitions?.routing?.splitPosition
