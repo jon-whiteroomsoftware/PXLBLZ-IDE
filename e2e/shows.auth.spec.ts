@@ -685,7 +685,7 @@ test.describe('authenticated Show authoring', () => {
     expect(clipBounds).not.toBeNull()
     expect(bounds).not.toBeNull()
     expect(bounds!.x).toBeGreaterThanOrEqual(clipBounds!.x + clipBounds!.width + 9)
-    expect(bounds!.height).toBe(560)
+    expect(bounds!.height).toBe(488)
     expect(bounds!.x).toBeGreaterThanOrEqual(0)
     expect(bounds!.x + bounds!.width).toBeLessThanOrEqual(1440)
     expect(bounds!.y + bounds!.height).toBeLessThanOrEqual(900)
@@ -1197,8 +1197,8 @@ test.describe('authenticated Show authoring', () => {
     await expect(page.getByRole('textbox', { name: 'Aperture edge width' })).toHaveValue('0.1')
   })
 
-  test('previews placement sliders without scrolling the outer detail panel', async ({ page }) => {
-    await page.setViewportSize({ width: 1024, height: 400 })
+  test('keeps the complete Place controls visible without any detail scrollbar', async ({ page }) => {
+    await page.setViewportSize({ width: 1024, height: 600 })
     await page.goto('studio/shows')
     await createInstallationShow(page)
 
@@ -1221,11 +1221,26 @@ test.describe('authenticated Show authoring', () => {
     }))).toEqual({ overflowY: 'hidden', scrollTop: 0 })
 
     const tabBody = page.locator('[role="tabpanel"][data-active-tab="place"]')
+    const footer = transform.getByTestId('placement-pad-footer')
     const rotation = transform.getByRole('textbox', { name: 'Rotation exact rotation' })
-    await rotation.scrollIntoViewIfNeeded()
     await expect(rotation).toBeVisible()
-    expect(await tabBody.evaluate((element) => getComputedStyle(element).overflowY)).toBe('auto')
-    expect(await tabBody.evaluate((element) => element.scrollTop)).toBeGreaterThan(0)
+    await expect(footer).toBeVisible()
+    expect(await tabBody.evaluate((element) => ({
+      overflowY: getComputedStyle(element).overflowY,
+      scrollTop: element.scrollTop,
+      hasOverflow: element.scrollHeight > element.clientHeight,
+    }))).toEqual({
+      overflowY: 'hidden',
+      scrollTop: 0,
+      hasOverflow: false,
+    })
+    const panelBounds = await panel.boundingBox()
+    const footerBounds = await footer.boundingBox()
+    expect(panelBounds).not.toBeNull()
+    expect(footerBounds).not.toBeNull()
+    expect(footerBounds!.y + footerBounds!.height).toBeLessThanOrEqual(
+      panelBounds!.y + panelBounds!.height,
+    )
     expect(await panel.evaluate((element) => element.scrollTop)).toBe(0)
 
     await showClipTab(page, 'Effects')

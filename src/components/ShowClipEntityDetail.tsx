@@ -39,6 +39,7 @@ import { formatPercentageValue } from '@/engine/percentageValue'
 import type { ShowPropertyAnimationTarget } from '@/engine/personalContentRecords'
 import type { ShowPropertyAnimationFieldLocation } from '@/engine/showPropertyAnimationEditorModel'
 import type { ShowClipSummaryDestination } from '@/engine/showClipSummary'
+import { useShowEntityDetailPanelHeight } from './ShowEntityDetailPanel'
 
 export interface ShowClipEntityDetailProps {
   value: ShowClipInspectorValue
@@ -89,6 +90,13 @@ const HEADER_COLUMN_CLASS: Record<number, string> = {
   2: 'grid-cols-2',
   3: 'grid-cols-3',
   4: 'grid-cols-4',
+}
+
+const EMBEDDED_PANEL_HEIGHT: Record<ShowClipDetailTabId, number> = {
+  pattern: 488,
+  place: 496,
+  effects: 488,
+  playback: 360,
 }
 
 export const ShowClipEntityDetail = forwardRef<ShowClipEntityDetailHandle, ShowClipEntityDetailProps>(function ShowClipEntityDetail({
@@ -223,6 +231,9 @@ export const ShowClipEntityDetail = forwardRef<ShowClipEntityDetailHandle, ShowC
   )
   const tabs = projectShowClipDetailTabs({ value, transformEnabled })
   const activeTab = resolveShowClipDetailTab(preferredTab, tabs)
+  useShowEntityDetailPanelHeight(
+    embedded ? (animationOverviewOpen ? 488 : EMBEDDED_PANEL_HEIGHT[activeTab]) : undefined,
+  )
   const selectTab = (tab: ShowClipDetailTabId) => {
     if (animationOverviewOpen) onAnimationOverviewClose?.(false)
     if (tab !== 'place') {
@@ -495,7 +506,9 @@ export const ShowClipEntityDetail = forwardRef<ShowClipEntityDetailHandle, ShowC
           className={embedded
             ? activeTab === 'effects' && !animationOverviewOpen
               ? 'flex h-[clamp(180px,calc(100vh-250px),300px)] min-h-0 shrink-0 flex-col overflow-hidden pt-2'
-              : 'min-h-0 flex-1 overflow-y-auto pt-2'
+              : activeTab === 'place'
+                ? 'min-h-0 flex-1 overflow-hidden pt-2'
+                : 'min-h-0 flex-1 overflow-y-auto pt-2'
             : activeTab === 'effects' && !animationOverviewOpen
               ? 'flex h-[clamp(180px,calc(100vh-250px),300px)] min-h-0 flex-col overflow-hidden pt-2'
               : activeTab === 'place'

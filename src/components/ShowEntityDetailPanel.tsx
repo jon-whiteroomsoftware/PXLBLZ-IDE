@@ -1,7 +1,27 @@
-import { useCallback, useLayoutEffect, useRef, useState, type ReactNode } from 'react'
+import {
+  createContext,
+  useCallback,
+  useContext,
+  useLayoutEffect,
+  useRef,
+  useState,
+  type ReactNode,
+} from 'react'
 import { createPortal } from 'react-dom'
 import { Pin, PinOff } from 'lucide-react'
 import { placeShowEntityDetailPanel, type ShowEntityDetailPlacement } from '@/engine/showEntityDetailPlacement'
+
+const ShowEntityDetailPanelHeightContext = createContext<((height: number | undefined) => void) | null>(null)
+
+/** Lets embedded detail content size its owning floating panel to the active view. */
+export function useShowEntityDetailPanelHeight(height: number | undefined) {
+  const requestHeight = useContext(ShowEntityDetailPanelHeightContext)
+
+  useLayoutEffect(() => {
+    requestHeight?.(height)
+    return () => requestHeight?.(undefined)
+  }, [height, requestHeight])
+}
 
 export function ShowEntityDetailPanel({
   anchor,
@@ -24,6 +44,10 @@ export function ShowEntityDetailPanel({
 }) {
   const panelRef = useRef<HTMLDivElement>(null)
   const [position, setPosition] = useState<ShowEntityDetailPlacement | null>(null)
+  const [requestedBodyHeight, setRequestedBodyHeight] = useState<number>()
+  const requestBodyHeight = useCallback((height: number | undefined) => {
+    setRequestedBodyHeight(height)
+  }, [])
   const updatePosition = useCallback(() => {
     const panel = panelRef.current
     if (!panel || !anchor.isConnected) return
@@ -64,8 +88,9 @@ export function ShowEntityDetailPanel({
   }, [anchor, avoidPinnedPanel, updatePosition])
 
   const sidePlacement = position?.placement === 'left' || position?.placement === 'right'
+  const effectiveBodyHeight = requestedBodyHeight ?? 560
   const panelMaxHeight = position
-    ? Math.min(560, position.maxHeight)
+    ? Math.min(bodyOwnsOverflow ? effectiveBodyHeight : 560, position.maxHeight)
     : undefined
   const stemClassName = position?.placement === 'above'
     ? 'border-b border-r'
@@ -132,7 +157,9 @@ export function ShowEntityDetailPanel({
       >
         ×
       </button>
-      {children}
+      <ShowEntityDetailPanelHeightContext.Provider value={requestBodyHeight}>
+        {children}
+      </ShowEntityDetailPanelHeightContext.Provider>
     </div>,
     document.body,
   )

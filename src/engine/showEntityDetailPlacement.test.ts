@@ -42,6 +42,14 @@ describe('Show Entity Detail Panel placement (#467, #665)', () => {
     })).toEqual({ left: 8, top: 134, maxHeight: 558, placement: 'below', stemLeft: 16 })
   })
 
+  it('uses the full viewport height when neither side of the owner can fit the panel', () => {
+    expect(placeShowEntityDetailPanel({
+      anchor: { left: 200, top: 500, width: 400, height: 40 },
+      panel: { width: 408, height: 496 },
+      viewport: { width: 800, height: 600 },
+    })).toEqual({ left: 196, top: 8, maxHeight: 584, placement: 'above', stemLeft: 204 })
+  })
+
   it('uses the full vertical viewport budget and clamps a tall side panel', () => {
     expect(placeShowEntityDetailPanel({
       anchor: { left: 623, top: 321, width: 289, height: 44 },
