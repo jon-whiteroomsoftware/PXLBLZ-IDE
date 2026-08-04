@@ -5,7 +5,8 @@
 > [!IMPORTANT]
 > **Studio sign-in is invite-only for a few more days** while the v2 launch
 > settles. Email [pxlblz@whiteroomsoftware.com](mailto:pxlblz@whiteroomsoftware.com)
-> for an invite — everything except saving works without an account.
+> for an invite — the Gallery, documentation, previews, and live Controller
+> access are open without an account.
 
 <a href="https://pxlblz-ide.whiteroomsoftware.com/"><img src="docs/screenshots/launch-button.png" alt="Open PXLBLZ-IDE" width="230" align="right"></a>
 
