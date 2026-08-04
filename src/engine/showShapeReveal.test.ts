@@ -139,7 +139,9 @@ describe('common and signature SDF catalogue (#452)', () => {
     expect(metricAt(Math.PI / 2)).toBeLessThan(metricAt(-Math.PI / 2 - 0.72))
   })
 
-  it('covers the whole stage for off-center concave silhouettes (#692 review P2)', { timeout: 30_000 }, () => {
+  // ~17s solo; full-suite worker contention has been observed to stretch it
+  // past 40s, so the allowance carries real headroom (pre-push flake, #672).
+  it('covers the whole stage for off-center concave silhouettes (#692 review P2)', { timeout: 90_000 }, () => {
     // A heart near the bottom edge points its cleft at the top edge midpoint,
     // where the gauge peaks between the four corners; a cross's notches do the
     // same. At full progress every stage point must be revealed.
