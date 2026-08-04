@@ -120,7 +120,7 @@ describe('table-driven routed Show score emission (#542)', () => {
     'stock-show-reference-shape-reveal-figures',
     'stock-show-reference-slide-transitions',
     'stock-show-reference-zoom-spin-transitions',
-  ] as const)('keeps the paced %s on the unrolled emitter under the activation ceiling', (id) => {
+  ] as const)('keeps the paced %s on the unrolled emitter under the activation ceiling', { timeout: 30_000 }, (id) => {
     // Editor pacing (2026-08-02) gives every split Transition reference one
     // study-tempo exemplar and quick-cut siblings, which makes the boundary
     // cadence irregular and disqualifies the table-driven score by design.

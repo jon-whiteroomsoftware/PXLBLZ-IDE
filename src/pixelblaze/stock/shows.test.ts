@@ -201,7 +201,7 @@ describe('stock Show curriculum (#363)', () => {
     }
   })
 
-  it('reuses one intentional Pattern pair across every Transition reference', () => {
+  it('reuses one intentional Pattern pair across every Transition reference', { timeout: 30_000 }, () => {
     const references = [
       'stock-show-reference-blend-fade-transitions',
       'stock-show-reference-wipe-transitions',

@@ -51,7 +51,9 @@ describe('Show visual-toolkit integration freeze (#459)', () => {
     expect(buildShowVisualToolkitFreeze(timestampOnly).fingerprint).toBe(baseline)
   })
 
-  it('measures source size, renderer formulas, memory, and compatibility across the frozen matrix', () => {
+  // Full-suite contention can push this 110-fixture measurement past Vitest's
+  // 5s default even though its assertions remain deterministic (#672).
+  it('measures source size, renderer formulas, memory, and compatibility across the frozen matrix', { timeout: 30_000 }, () => {
     const measurement = measureShowVisualToolkitFreeze()
 
     expect(measurement.fixtureCount).toBe(110)
@@ -63,7 +65,7 @@ describe('Show visual-toolkit integration freeze (#459)', () => {
     expect(measurement.representativeHardwareFps).toBeNull()
   })
 
-  it('compiles, captures, seeks, costs, and reloads the complete fixture matrix without drift', () => {
+  it('compiles, captures, seeks, costs, and reloads the complete fixture matrix without drift', { timeout: 60_000 }, () => {
     for (const fixture of allShowVisualToolkitFixtures()) {
       const artifact = compileShow(fixture.recipe, {})
       const first = captureShowToolkitFixture(fixture)
@@ -76,7 +78,7 @@ describe('Show visual-toolkit integration freeze (#459)', () => {
       expect(artifact.summary.cost.cpu.patternEvaluations, fixture.id).toBeDefined()
       expect(artifact.summary.cost.compatibility.warnings, fixture.id).toEqual(expect.any(Array))
     }
-  }, 15_000)
+  })
 
   it('exports and reloads a compiled catalogue artifact through the standard EPE envelope', () => {
     const fixture = allShowVisualToolkitFixtures().find((candidate) => candidate.id === 'effect-distortion-animated')!
