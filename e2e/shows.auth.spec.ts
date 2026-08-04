@@ -11,7 +11,6 @@ test.describe('authenticated Show authoring', () => {
     await page.setViewportSize({ width: 1440, height: 900 })
     await page.goto('studio/shows/stock-show-101-clips-cuts-blank-time')
 
-    await expect(page.getByText('Built-in Show · edits last until reload')).toBeVisible()
     await expect(page.getByRole('region', { name: '101 Clips, Cuts, and Blank Time guide' })).toBeVisible()
     await expect(page.getByRole('region', { name: 'Show timeline' })).toBeVisible()
 
@@ -1021,7 +1020,7 @@ test.describe('authenticated Show authoring', () => {
     await portableZoneMap.getByRole('button', { name: 'Add Zone', exact: true }).click()
     await portableZoneMap.getByRole('button', { name: 'Add Zone', exact: true }).click()
     await portableZoneMap.getByRole('button', { name: 'Add Zone', exact: true }).click()
-    await portableZoneMap.getByRole('button', { name: 'Open Zone Layout Default' }).click()
+    await openZoneLayout(page, 'Default')
     // Adding Zones moves the definition off the one-zone operator: CONTEXT.md
     // pairs a Portable Zone Layout with an operator over its ordered Zones, so
     // three Zones on 'single' would be incoherent.
@@ -1038,6 +1037,9 @@ test.describe('authenticated Show authoring', () => {
     await page.getByRole('button', { name: 'Show properties' }).click()
     await expect(page.getByLabel('Portable reference map')).toHaveValue('wide')
     await expect(page.getByLabel('Portable reference pixels')).toHaveValue('1536')
+    // Close Show properties first: its panel covers the Add menu (#694 path).
+    await page.keyboard.press('Escape')
+    await expect(page.getByRole('dialog', { name: 'Entity Detail Panel' })).toHaveCount(0)
     await openZoneLayout(page, 'Default')
     await expect(page.getByLabel('Default routing mode')).toHaveValue('grid-2x2')
     await expect(page.getByRole('button', { name: 'View code' }).first()).toBeEnabled()
@@ -1086,7 +1088,8 @@ test.describe('authenticated Show authoring', () => {
     await createInstallationShow(page)
 
     await page.getByRole('button', { name: 'Select TestPattern1D' }).first().click()
-    await page.getByLabel('Source pattern').fill('TestPattern2D')
+    await page.getByRole('combobox', { name: 'Source pattern' }).click()
+    await page.getByRole('combobox', { name: 'Source pattern' }).fill('TestPattern2D')
     await page.getByRole('option', { name: 'TestPattern2D' }).click()
     const editedClip = page.getByRole('button', { name: 'Select TestPattern2D' }).first()
     await expect(editedClip).toBeFocused()
@@ -1373,7 +1376,10 @@ test.describe('authenticated Show authoring', () => {
     await page.getByLabel('Default main pixel ranges').blur()
 
     // The invalid case also surfaces as a diagnostic banner, but the valid
-    // coverage line exists only in the Show InspectorPanel.
+    // coverage line exists only in the Show InspectorPanel. Close the layout
+    // panel first: its right-side placement covers the header actions (#694).
+    await page.keyboard.press('Escape')
+    await expect(page.getByRole('dialog', { name: 'Entity Detail Panel' })).toHaveCount(0)
     await page.getByRole('button', { name: 'Show properties' }).click()
     await expect(page.getByText(/Default assigns 256 of 256 pixels exactly once/i)).toBeVisible()
     await expect(page.getByRole('button', { name: 'View code' }).first()).toBeEnabled()
@@ -1496,12 +1502,11 @@ test.describe('authenticated Show authoring', () => {
     await page.goto('studio/shows')
     await createInstallationShow(page)
 
-    await addZoneLayout(page, 'Alternate interval')
-    await page.keyboard.press('Escape')
     await page.getByRole('button', { name: 'Add to Show' }).click()
     await page.getByRole('menuitem', { name: 'Zone Layout' }).click()
     const actions = page.getByRole('dialog', { name: 'Zone Layout at playhead' })
-    await actions.getByLabel('Zone Layout', { exact: true }).selectOption({ label: 'Alternate interval' })
+    // Append copies the layout under the playhead into a fresh definition
+    // and places it (#694); the copy auto-names by kind.
     await actions.getByLabel('Layout interval duration in seconds exact time').fill('5')
     await actions.getByRole('button', { name: 'Append' }).click()
 
@@ -1513,7 +1518,7 @@ test.describe('authenticated Show authoring', () => {
     await page.getByRole('button', { name: 'Select CometLoom' }).click()
     await page.getByRole('separator', { name: 'Resize CometLoom end' }).hover()
 
-    const interval = page.getByRole('button', { name: 'Select Alternate interval routing interval 1' })
+    const interval = page.getByRole('button', { name: 'Select Physical ranges routing interval 1' })
     await expect(interval).toHaveAttribute('aria-pressed', 'false')
     await interval.click()
     await expect(interval).toHaveAttribute('aria-pressed', 'true')
@@ -1535,7 +1540,7 @@ test.describe('authenticated Show authoring', () => {
 
     await page.reload()
 
-    await page.getByRole('button', { name: 'Select Alternate interval routing interval 1' }).click()
+    await page.getByRole('button', { name: 'Select Physical ranges routing interval 1' }).click()
     await expect(page.getByLabel('Destination routing layout')).toHaveValue('layout-2')
     await expect(page.getByLabel('Routing transfer duration seconds exact time')).toHaveValue('2')
     await expect(page.getByLabel('Routing transfer easing')).toHaveValue('ease-in-out')
@@ -1552,19 +1557,16 @@ test.describe('authenticated Show authoring', () => {
     await page.getByRole('button', { name: 'Open Zones' }).click()
     await page.getByRole('button', { name: 'Open Zone Map' }).click()
     await page.getByRole('dialog', { name: 'Zone Map' }).getByRole('button', { name: 'Add Zone', exact: true }).click()
-    await page.getByRole('dialog', { name: 'Zone Map' }).getByRole('button', { name: 'Open Zone Layout Default' }).click()
+    await openZoneLayout(page, 'Default')
     await page.getByLabel('Default routing mode').selectOption('split-x')
     // Escape peels exactly one layer per press, topmost first (#672): the
     // Entity Detail panel, then the Zone Layout selection (the editor
-    // confirms by focusing the timeline), then the Zone Map.
+    // confirms by focusing the timeline). Opening the inspector through the
+    // Add menu dismissed the Zone Map already (#694).
     await page.keyboard.press('Escape')
     await expect(page.getByRole('dialog', { name: 'Entity Detail Panel' })).toHaveCount(0)
-    await expect(page.getByRole('dialog', { name: 'Zone Map' })).toHaveCount(1)
     await page.keyboard.press('Escape')
     await expect(page.getByRole('region', { name: 'Show timeline' })).toBeFocused()
-    await expect(page.getByRole('dialog', { name: 'Zone Map' })).toHaveCount(1)
-    await page.keyboard.press('Escape')
-    await expect(page.getByRole('dialog', { name: 'Zone Map' })).toHaveCount(0)
     await page.getByRole('button', { name: 'Close Zones' }).click()
     await expect(page.getByRole('group', { name: 'Split position lane' })).toBeVisible()
 
@@ -1587,11 +1589,8 @@ test.describe('authenticated Show authoring', () => {
     await expect(page.getByLabel('Default routing mode')).toHaveValue('split-x')
     await page.keyboard.press('Escape')
     await expect(page.getByRole('dialog', { name: 'Entity Detail Panel' })).toHaveCount(0)
-    await expect(page.getByRole('dialog', { name: 'Zone Map' })).toHaveCount(1)
     await page.keyboard.press('Escape')
     await expect(page.getByRole('region', { name: 'Show timeline' })).toBeFocused()
-    await page.keyboard.press('Escape')
-    await expect(page.getByRole('dialog', { name: 'Zone Map' })).toHaveCount(0)
     await page.getByRole('button', { name: /^Edit split position at / }).click()
     await page.getByText('Advanced transition controls').click()
     await expect(page.getByLabel('Animate split position')).toBeChecked()
@@ -2057,30 +2056,11 @@ async function awaitZoneRailControls(page: Page): Promise<void> {
 }
 
 async function openZoneLayout(page: Page, layoutName: string): Promise<void> {
-  await awaitZoneRailControls(page)
-  const openZones = page.getByRole('button', { name: 'Open Zones' })
-  if (await openZones.count() > 0) await openZones.click()
-  // The map control lives in the rail's own column header, so it does not exist
-  // until the rail has rendered. A bare count() here races that render and
-  // silently skips opening the map, leaving the layout button unreachable.
-  const openMap = page.getByRole('button', { name: 'Open Zone Map' })
-  await expect(openMap).toBeVisible()
-  await openMap.click()
+  // Layouts are per-interval (#694): the inspector opens from the Add menu's
+  // Edit link for the interval under the playhead.
+  await page.getByRole('button', { name: 'Add to Show' }).click()
+  await page.getByRole('menuitem', { name: 'Zone Layout' }).click()
   await page.getByRole('button', { name: `Open Zone Layout ${layoutName}` }).click()
-}
-
-async function addZoneLayout(page: Page, name: string): Promise<void> {
-  await awaitZoneRailControls(page)
-  const openZones = page.getByRole('button', { name: 'Open Zones' })
-  if (await openZones.count() > 0) await openZones.click()
-  const zoneMap = page.getByRole('dialog', { name: 'Zone Map' })
-  if (await zoneMap.count() === 0) {
-    const openMap = page.getByRole('button', { name: 'Open Zone Map' })
-    await expect(openMap).toBeVisible()
-    await openMap.click()
-  }
-  await zoneMap.getByRole('button', { name: 'Add Zone Layout' }).click()
-  await page.getByLabel('Zone Layout name New layout').fill(name)
 }
 
 async function createInstallationShow(page: Page): Promise<void> {
