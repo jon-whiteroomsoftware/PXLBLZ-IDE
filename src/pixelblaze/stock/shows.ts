@@ -418,16 +418,21 @@ function learn104(): StockShow {
   })
 }
 
-// 105 pairs woven linework against a soft liquid field so the split reads as a
-// boundary between two different pictures rather than one picture with a seam.
-// Two instances serve all four Clips: the swap at the halfway Cut is a change of
-// side, not a second pair of Patterns, which is also what keeps the artifact
-// small enough for two Zones to be affordable.
+// 105 tells Zones and their Layouts as one story: the same two Patterns
+// render as a left/right split for the first half, then as rings for the
+// second. The halfway boundary is a swept routing change, so the learner
+// watches geometry travel while both Pattern clocks run straight through.
+// 206 goes deeper on restating Layouts across a longer arc; here one switch
+// carries the concept.
 function learn105(): StockShow {
   const id = 'stock-show-105-portable-zones'
   const zones = logicalZones(['Left', 'Right'], PORTABLE_REFERENCE_PIXELS)
   const scenes: SceneSpec[] = [
-    scene('sides', 'Sides', 14, [
+    scene('split', 'Split', 10, [
+      clip('zone-1', 'RibbonLoom', LESSON_TIME_SCALE),
+      clip('zone-2', 'Caustics', LESSON_TIME_SCALE),
+    ], { splitPosition: 0.5 }),
+    scene('rings', 'Rings', 10, [
       clip('zone-1', 'RibbonLoom', LESSON_TIME_SCALE),
       clip('zone-2', 'Caustics', LESSON_TIME_SCALE),
     ]),
@@ -438,37 +443,53 @@ function learn105(): StockShow {
       instance('ribbons', 'RibbonLoom', LESSON_TIME_SCALE),
       instance('water', 'Caustics', LESSON_TIME_SCALE),
     ],
-    scenes: [{
-      sceneId: 'sides',
-      zones: [
-        {
-          zoneId: 'zone-1',
-          overlays: [],
-          main: [placement('clip-left-ribbons', 'ribbons', 0, 7), placement('clip-left-water', 'water', 7, 7)],
-        },
-        {
-          // The Cut lands at the same instant in both Zones, so the two Patterns
-          // trade sides in one move instead of drifting past each other.
-          zoneId: 'zone-2',
-          overlays: [],
-          main: [placement('clip-right-water', 'water', 0, 7), placement('clip-right-ribbons', 'ribbons', 7, 7)],
-        },
-      ],
-    }],
-    durationMs: 14_000,
+    scenes: [
+      {
+        sceneId: 'split',
+        zones: [
+          { zoneId: 'zone-1', overlays: [], main: [placement('clip-split-ribbons', 'ribbons', 0, 10)] },
+          { zoneId: 'zone-2', overlays: [], main: [placement('clip-split-water', 'water', 0, 10)] },
+        ],
+      },
+      {
+        // Same instances on both sides of the boundary: the weave and the
+        // water land in rings mid-motion, which is the demonstration.
+        sceneId: 'rings',
+        zones: [
+          { zoneId: 'zone-1', overlays: [], main: [placement('clip-rings-ribbons', 'ribbons', 0, 10)] },
+          { zoneId: 'zone-2', overlays: [], main: [placement('clip-rings-water', 'water', 0, 10)] },
+        ],
+      },
+    ],
+    durationMs: 20_000,
   }
+  const transitions: ShowBoundaryTransition[] = [
+    // The halfway switch travels: rings sweep over the split so geometry
+    // visibly changes while both Patterns keep playing.
+    {
+      id: 'routing-split-rings', afterSceneId: 'split', kind: 'routing', durationMs: 1_500,
+      easing: SINE_IN_OUT, layoutId: 'layout-rings', routingDirection: 'forward',
+    },
+  ]
   return catalogue({
     id, title: 'Zones', track: 'portable', collection: 'learn', level: 100, order: 5,
-    purpose: 'The Stage can be split into Zones that each render their own Pattern, so two Patterns play side by side without either one needing to be positioned.\n'
-      + 'The Zone rail names each Zone and shows its share of the pixels - the panel button in the timeline toolbar opens and closes it.\n'
-      + 'The map icon in the corner above the Zone rows opens the Zone Map: Zones and their Zone Layouts.',
-    notice: 'The split never moves. At the halfway Cut the two Patterns simply trade sides, and each Zone keeps its own row on the timeline.',
-    prompts: ["The two Clips in each Zone touch, and that junction is a real entity rather than a seam. Drag three seconds off the end of the second Clip, then click the junction and give it a two-second Crossfade.", 'Now drag the second Clip later. The Crossfade travels with it rather than staying put, because the junction belongs to the pair of Clips and not to a moment on the ruler.'],
+    purpose: 'The Stage can be split into Zones that each render their own Pattern, and a Zone Layout decides which pixels every Zone gets.\n'
+      + 'Two Layouts render the same pair very differently here: a left/right split for the first half, rings for the second. The halfway switch re-routes pixels while both Patterns keep playing.\n'
+      + "Click the routing band above the Zone rows to change an interval's Layout kind and its parameters.\n"
+      + 'The Zone Map (map icon above the Zone rows) renames, recolors, adds, and deletes Zones. A new Zone joins the Layout: operators with room take it in, and a fixed split becomes stripes to fit it.',
+    notice: 'Nothing restarts at 10 s: the weave and the water land in rings mid-motion. A Layout switch changes where pixels go, never Pattern state - and this one sweeps, so you can watch the geometry travel.',
+    prompts: ["Select the second half's routing band and change its Routing mode - the rings become a pinwheel without touching either Pattern.", 'Add a third Zone in the Zone Map and give it a Clip. The split half turns into stripes to make room; the rings simply gain a ring.'],
     guideHeading: 'portable-zones',
     guideLabel: 'Read about Zones',
     patternSlots: [['ribbons'], ['water']],
     zonesOpenByDefault: true,
-    output: portableOutput(), zones, layouts: [splitLayout('layout-side-by-side', 'Side by side', zones, 'x')], scenes, composition,
+    transitions,
+    output: portableOutput(), zones,
+    layouts: [
+      splitLayout('layout-side-by-side', 'Side by side', zones, 'x'),
+      { id: 'layout-rings', name: 'Rings', zones: [], logical: { kind: 'rings', zoneIds: [zones[0].id, zones[1].id], rings: 2 } },
+    ],
+    scenes, composition,
   })
 }
 

@@ -642,32 +642,32 @@ describe('stock Show curriculum (#363)', () => {
     expect(Math.min(...fourth), 'cutoff before dim keeps it').toBeGreaterThan(0.2)
   })
 
-  it('swaps 105 across two Zones at one shared Cut without a third Pattern', () => {
+  it('switches 105 from a split to rings halfway with both instances continuing (#694)', () => {
     const item = stockShowById('stock-show-105-portable-zones')!
     const composition = item.show.composition!
-    const [left, right] = composition.scenes[0].zones
 
     expect(composition.patternInstances.map((instance) => instance.patternName))
       .toEqual(['RibbonLoom', 'Caustics'])
-    expect(item.show.routingLayouts[0].logical).toMatchObject({ kind: 'split', axis: 'x' })
+    // Two Layouts that render very differently, switched by one swept
+    // routing boundary at the midpoint.
+    expect(item.show.routingLayouts.map((layout) => layout.logical?.kind)).toEqual(['split', 'rings'])
+    expect(item.show.transitions.map((transition) => [transition.kind, transition.durationMs, transition.layoutId]))
+      .toEqual([['routing', 1_500, 'layout-rings']])
+    expect(item.show.transitions[0].routingDirection).toBe('forward')
 
-    // Both Zones cut at the same instant, so the Patterns trade sides in one
-    // move instead of drifting past each other.
-    const cutOf = (zone: typeof left) => {
-      const ordered = [...zone.main].sort((a, b) => a.startMs - b.startMs)
-      return ordered[0].startMs + ordered[0].durationMs
-    }
-    expect(cutOf(left)).toBe(cutOf(right))
-    expect(cutOf(left)).toBe(7_000)
-    expect(left.main.map((placement) => placement.instanceId))
-      .toEqual([...right.main].reverse().map((placement) => placement.instanceId))
+    // The same two instances serve both intervals: geometry changes, Pattern
+    // state does not.
+    const instancesByScene = composition.scenes.map((sceneItem) => (
+      sceneItem.zones.flatMap((zone) => zone.main.map((placementItem) => placementItem.instanceId)).sort()
+    ))
+    expect(instancesByScene).toEqual([['ribbons', 'water'], ['ribbons', 'water']])
+    expect(composition.durationMs).toBe(20_000)
 
-    // Zones are the whole subject; nothing else competes for attention.
+    // Zones and the Layout switch are the whole subject; nothing competes.
     expect(composition.transitions ?? []).toEqual([])
-    expect(composition.scenes[0].propertyTracks ?? []).toEqual([])
-    expect([...left.main, ...right.main].every((placement) => (
-      !placement.effects?.length && placement.transform === undefined
-    ))).toBe(true)
+    expect(composition.scenes.every((sceneItem) => (sceneItem.propertyTracks ?? []).length === 0)).toBe(true)
+    expect(composition.scenes.flatMap((sceneItem) => sceneItem.zones.flatMap((zone) => zone.main))
+      .every((placementItem) => !placementItem.effects?.length && placementItem.transform === undefined)).toBe(true)
   })
 
   it('declares Try with Pattern slot groups covering every lesson instance (#63)', () => {
