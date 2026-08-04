@@ -3,7 +3,7 @@ import type {
   RuntimeManifest,
   RuntimeRegistry,
 } from './dev-runtime-core'
-import { localSessionUser } from './dev-runtime-auth'
+import { localIdentitySeedSql, localSessionUser } from './dev-runtime-auth'
 
 const manifest: RuntimeManifest = {
   schemaVersion: 1,
@@ -50,5 +50,15 @@ describe('local runtime authentication', () => {
       githubLogin: 'local-agent-01',
       displayName: 'Local Agent 01',
     })
+  })
+
+  it('admits every managed local identity when D1 beta access is authoritative', () => {
+    const sql = localIdentitySeedSql(manifest)
+
+    expect(sql).toContain('INSERT INTO beta_access')
+    expect(sql).toContain("'local-dev@local.invalid'")
+    expect(sql).toContain("'github:local-dev'")
+    expect(sql).toContain("'local-agent-32@local.invalid'")
+    expect(sql).toContain("'github:local-agent-32'")
   })
 })

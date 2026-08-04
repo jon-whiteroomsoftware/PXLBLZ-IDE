@@ -26,6 +26,7 @@
     "db:create": "wrangler d1 create pxlblz-ide",
     "db:migrate:local": "wrangler d1 migrations apply pxlblz-ide --local",
     "db:migrate:remote": "wrangler d1 migrations apply pxlblz-ide --remote",
+    "beta-access": "npm run check:node && tsx scripts/beta-access.ts",
     "lint": "npm run check:node && eslint src",
     "test": "npm run test:full",
     "test:full": "npm run check:node && vitest run",

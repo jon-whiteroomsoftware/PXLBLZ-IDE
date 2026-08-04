@@ -20,6 +20,8 @@ describe('authenticated Playwright synthetic identities', () => {
 
     expect(sql).toContain("'github:playwright-worker-00'")
     expect(sql).toContain("'github:playwright-worker-01'")
+    expect(sql).toContain("'playwright-worker-00@local.invalid'")
+    expect(sql).toContain('INSERT INTO beta_access')
     expect(sql).not.toContain('github:local-dev')
   })
 })

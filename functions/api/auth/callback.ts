@@ -21,7 +21,20 @@ import {
   type OAuthMode,
   type OAuthProvider,
 } from '../../../src/cloudflare/auth'
-import { upsertGitHubUser, upsertGoogleUser, type D1DatabaseWritableLike } from '../../../src/cloudflare/users'
+import {
+  claimBetaAccess,
+  resolveBetaOAuthAdmission,
+} from '../../../src/cloudflare/betaAccess'
+import {
+  createD1BetaAccessStore,
+  type D1BetaAccessStore,
+} from '../../../src/cloudflare/d1BetaAccess'
+import {
+  findOAuthIdentityUserId,
+  upsertGitHubUser,
+  upsertGoogleUser,
+  type D1DatabaseWritableLike,
+} from '../../../src/cloudflare/users'
 
 interface PagesFunctionContext {
   request: Request
@@ -122,14 +135,32 @@ async function resolveGitHubUser(
     ? { ...githubUser, email: primaryEmail.email, email_verified: primaryEmail.verified }
     : githubUser
 
-  if (!isGitHubUserAllowed(githubUserWithEmail, {
+  const store = createD1BetaAccessStore(context.env.PXLBLZ_DB!)
+  const existingUserId = linkUserId ?? await findOAuthIdentityUserId(
+    context.env.PXLBLZ_DB!,
+    'github',
+    String(githubUser.id),
+  )
+  const admission = await resolveBetaOAuthAdmission(store, {
+    verifiedEmail: primaryEmail?.verified ? primaryEmail.email : null,
+    existingUserId,
+  })
+  const legacyAllowed = isGitHubUserAllowed(githubUserWithEmail, {
     logins: context.env.GITHUB_ALLOWED_LOGINS,
     ids: context.env.GITHUB_ALLOWED_IDS,
-  })) {
+  })
+  if (admission.decision === 'denied' || (admission.decision === 'legacy' && !legacyAllowed)) {
     throw new AuthCallbackError('not-allowed')
   }
 
-  return upsertGitHubUser(context.env.PXLBLZ_DB!, githubUserWithEmail, Math.floor(Date.now() / 1000), linkUserId)
+  const user = await upsertGitHubUser(
+    context.env.PXLBLZ_DB!,
+    githubUserWithEmail,
+    Math.floor(Date.now() / 1000),
+    admission.userId ?? undefined,
+  )
+  await claimMatchingBetaAccess(store, primaryEmail?.verified ? primaryEmail.email : null, user.userId)
+  return user
 }
 
 async function resolveGoogleUser(
@@ -147,14 +178,40 @@ async function resolveGoogleUser(
   })
   const googleUser = await fetchGoogleUser(accessToken)
 
-  if (!isGoogleUserAllowed(googleUser, {
+  const store = createD1BetaAccessStore(context.env.PXLBLZ_DB!)
+  const existingUserId = linkUserId ?? await findOAuthIdentityUserId(
+    context.env.PXLBLZ_DB!,
+    'google',
+    googleUser.sub,
+  )
+  const verifiedEmail = googleUser.email_verified === true ? googleUser.email ?? null : null
+  const admission = await resolveBetaOAuthAdmission(store, { verifiedEmail, existingUserId })
+  const legacyAllowed = isGoogleUserAllowed(googleUser, {
     emails: context.env.GOOGLE_ALLOWED_EMAILS,
     ids: context.env.GOOGLE_ALLOWED_IDS,
-  })) {
+  })
+  if (admission.decision === 'denied' || (admission.decision === 'legacy' && !legacyAllowed)) {
     throw new AuthCallbackError('not-allowed')
   }
 
-  return upsertGoogleUser(context.env.PXLBLZ_DB!, googleUser, Math.floor(Date.now() / 1000), linkUserId)
+  const user = await upsertGoogleUser(
+    context.env.PXLBLZ_DB!,
+    googleUser,
+    Math.floor(Date.now() / 1000),
+    admission.userId ?? undefined,
+  )
+  await claimMatchingBetaAccess(store, verifiedEmail, user.userId)
+  return user
+}
+
+async function claimMatchingBetaAccess(
+  store: D1BetaAccessStore,
+  verifiedEmail: string | null,
+  userId: string,
+): Promise<void> {
+  if (!verifiedEmail) return
+  const entry = await store.getByEmail(verifiedEmail)
+  if (entry?.enabled) await claimBetaAccess(store, verifiedEmail, userId)
 }
 
 function oauthProviderFromCookie(value: string | undefined): OAuthProvider {

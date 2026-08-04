@@ -15,7 +15,8 @@ GOOGLE_OAUTH_REDIRECT_URI=http://localhost:8788/api/auth/callback
 # session cookie. Production omits this and redirects to its own Pages origin.
 APP_REDIRECT_URL=http://localhost:5174/PXLBLZ-IDE/
 
-# Optional local owner allow-list.
+# Transition-only local owner allow-list. It applies only until the first
+# `npm run beta-access -- add ...` activates the local D1 beta gate.
 GITHUB_ALLOWED_LOGINS=
 GITHUB_ALLOWED_IDS=
 GOOGLE_ALLOWED_EMAILS=

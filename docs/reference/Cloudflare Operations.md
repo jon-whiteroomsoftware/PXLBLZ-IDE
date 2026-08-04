@@ -28,8 +28,9 @@ Secrets and operator-specific values are managed in Cloudflare Pages:
 - `GOOGLE_CLIENT_ID`
 - `GOOGLE_CLIENT_SECRET`
 - `SESSION_SECRET`
-- `GITHUB_ALLOWED_LOGINS` or `GITHUB_ALLOWED_IDS` when access should be owner-only
-- `GOOGLE_ALLOWED_EMAILS` or `GOOGLE_ALLOWED_IDS` when access should be owner-only
+- `GITHUB_ALLOWED_LOGINS`, `GITHUB_ALLOWED_IDS`, `GOOGLE_ALLOWED_EMAILS`, and
+  `GOOGLE_ALLOWED_IDS` only as the transition gate before D1 beta access is
+  activated
 - `GITHUB_OAUTH_REDIRECT_URI` only when overriding the default callback URL
 - `GOOGLE_OAUTH_REDIRECT_URI` only when overriding the default callback URL
 - `VITE_GA_MEASUREMENT_ID` as a Pages build variable, not a secret, when
@@ -39,6 +40,30 @@ Secrets and operator-specific values are managed in Cloudflare Pages:
 GitHub OAuth must allow the `read:user user:email` scopes so the callback can
 store a verified primary email when GitHub exposes one. Google OAuth must allow
 `openid email profile`.
+
+## Beta Access
+
+The temporary beta gate is stored in D1 and managed through one npm command:
+
+```bash
+npm run beta-access -- list --remote
+npm run beta-access -- add friend@example.com --label "Friend" --remote
+npm run beta-access -- disable friend@example.com --remote
+npm run beta-access -- remove friend@example.com --remote
+```
+
+Omit `--remote` to operate on the local D1. Production mutations print the
+exact target and change, require typing `yes`, and read the row back after the
+write. Automation may supply `--yes`; interactive use should keep the
+confirmation. Repeating an already-satisfied command is a verified no-op.
+
+Migration 20 starts in `legacy` mode with no implicitly granted users. The
+first `add` changes `beta_access_mode` to `d1` permanently; removing the final
+row does not reactivate the environment allowlists. In D1 mode, OAuth requires
+an active entry matching a provider-verified email or an already-linked active
+user. `disable` preserves the audit row while revoking access; `remove` deletes
+it. Both take effect on the next authenticated API request, including requests
+made with an existing session cookie.
 
 ## Analytics
 
@@ -131,7 +156,7 @@ runtimes. The commands require `SESSION_SECRET` in the main checkout's
 
 After deploy, open the Pages URL and smoke-test:
 
-1. Visit `/api/d1/health`; expect `{"ok":true,"schemaVersion":"17"}` for the
+1. Visit `/api/d1/health`; expect `{"ok":true,"schemaVersion":"20"}` for the
    current migration set. This is the latest value written to `schema_meta`, not
    a count of migration files.
 2. Visit `/api/me`; signed out should report `{ "authenticated": false }`.

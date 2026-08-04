@@ -1,5 +1,6 @@
 import {
   disconnectIdentity,
+  findOAuthIdentityUserId,
   listConnectedIdentities,
   upsertGitHubUser,
   upsertGoogleUser,
@@ -7,6 +8,34 @@ import {
 } from './users'
 
 describe('Cloudflare user persistence', () => {
+  it('finds the durable user already linked to an OAuth identity', async () => {
+    const calls: Array<{ sql: string; values: unknown[] }> = []
+    const db: D1DatabaseWritableLike = {
+      prepare(sql) {
+        return {
+          bind(...values) {
+            calls.push({ sql, values })
+            return this
+          },
+          async first<T>() {
+            return { user_id: 'user-existing' } as T
+          },
+          async all<T>() {
+            return { results: [] as T[] }
+          },
+          async run() {
+            return { success: true }
+          },
+        }
+      },
+    }
+
+    await expect(findOAuthIdentityUserId(db, 'github', '123')).resolves.toBe('user-existing')
+    expect(calls).toHaveLength(1)
+    expect(calls[0].sql).toContain('FROM identities')
+    expect(calls[0].values).toEqual(['github', '123'])
+  })
+
   it('creates a durable user and GitHub identity for a first sign-in', async () => {
     const calls: Array<{ sql: string; values: unknown[] }> = []
     const db: D1DatabaseWritableLike = {

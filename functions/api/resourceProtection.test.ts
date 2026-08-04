@@ -52,9 +52,11 @@ describe('personal-storage API protection (#407)', () => {
           bind() {
             return this
           },
-          async first() {
+          async first<T>() {
+            if (sql.includes('app_metadata')) return { value: 'legacy' } as T
+            if (sql.includes('beta_access')) return { count: 0 } as T
             expect(sql).toContain('personal_patterns')
-            return { entity_count: MAX_PERSONAL_ENTITY_ROWS, content_bytes: 0 }
+            return { entity_count: MAX_PERSONAL_ENTITY_ROWS, content_bytes: 0 } as T
           },
           async all<T>() {
             return { results: [] as T[] }
@@ -95,7 +97,15 @@ describe('personal-storage API protection (#407)', () => {
       headers: { cookie: original.headers.get('cookie')! },
     })
     const db = {
-      prepare() {
+      prepare(sql: string) {
+        if (sql.includes('app_metadata')) {
+          return {
+            bind() { return this },
+            async first<T>() { return { value: 'legacy' } as T },
+            async all<T>() { return { results: [] as T[] } },
+            async run() { return { success: true } },
+          }
+        }
         throw new Error('D1 should not be queried for an unknown key')
       },
     }
@@ -134,7 +144,15 @@ describe('personal-storage API protection (#407)', () => {
       ['PUT', '/api/controller-metadata/controller-bindings', putControllerMetadata, { key: 'controller-bindings' }],
     ] as const
     const db = {
-      prepare() {
+      prepare(sql: string) {
+        if (sql.includes('app_metadata')) {
+          return {
+            bind() { return this },
+            async first<T>() { return { value: 'legacy' } as T },
+            async all<T>() { return { results: [] as T[] } },
+            async run() { return { success: true } },
+          }
+        }
         throw new Error('Oversized writes must be rejected before querying D1')
       },
     }

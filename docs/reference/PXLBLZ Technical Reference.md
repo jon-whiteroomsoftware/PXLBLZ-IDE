@@ -99,8 +99,15 @@ stable user row. Verified matching email may auto-link; an authenticated user
 may explicitly connect another provider and may disconnect one unless it is the
 last login.
 
+During the private beta, D1 `beta_access` rows gate OAuth admission and every
+authenticated API request. A verified email claims one stable user binding;
+linked providers continue through that user binding. Disabling or removing an
+entry therefore revokes an existing session without waiting for its signed
+cookie to expire. The legacy environment allowlists apply only before the
+one-way `beta_access_mode=d1` activation performed by the first explicit add.
+
 `workspaceStore` exposes only resolved/authenticated state to the UI. OAuth,
-cookie signing, identity linking, and owner allow-list enforcement remain in
+cookie signing, identity linking, and beta-access enforcement remain in
 Cloudflare helpers and Pages Functions.
 
 ### Gallery runtime

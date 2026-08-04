@@ -97,6 +97,23 @@ interface ConnectedIdentityRow {
   email_verified: number | null
 }
 
+export async function findOAuthIdentityUserId(
+  db: D1DatabaseWritableLike,
+  provider: OAuthProvider,
+  providerUserId: string,
+): Promise<string | null> {
+  const identity = await db
+    .prepare(`
+      SELECT user_id
+      FROM identities
+      WHERE provider = ? AND provider_user_id = ?
+      LIMIT 1
+    `)
+    .bind(provider, providerUserId)
+    .first<IdentityRow>()
+  return identity?.user_id ?? null
+}
+
 export async function listConnectedIdentities(
   db: D1DatabaseWritableLike,
   userId: string,
@@ -152,15 +169,8 @@ async function resolveOAuthIdentity(
   identity: OAuthIdentityInput,
   options: { linkUserId?: string; now: number },
 ): Promise<SessionUser> {
-  const existingIdentity = await db
-    .prepare(`
-      SELECT user_id
-      FROM identities
-      WHERE provider = ? AND provider_user_id = ?
-      LIMIT 1
-    `)
-    .bind(identity.provider, identity.providerUserId)
-    .first<IdentityRow>()
+  const existingUserId = await findOAuthIdentityUserId(db, identity.provider, identity.providerUserId)
+  const existingIdentity = existingUserId ? { user_id: existingUserId } : null
 
   if (options.linkUserId && existingIdentity && existingIdentity.user_id !== options.linkUserId) {
     throw new Error('OAuth identity is already linked to another user')

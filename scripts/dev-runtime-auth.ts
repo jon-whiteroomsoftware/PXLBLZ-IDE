@@ -57,7 +57,7 @@ export function localIdentitySeedSql(manifest: RuntimeManifest): string {
       ),
     ),
   ]
-  return users.map((userId) => {
+  const identities = users.map((userId) => {
     const localId = userId.replace(/^github:/, '')
     const displayName = localId === 'local-dev'
       ? 'Local Dev'
@@ -69,8 +69,21 @@ export function localIdentitySeedSql(manifest: RuntimeManifest): string {
       '${sqlLiteral(displayName)}', NULL, unixepoch(), unixepoch()
     ) ON CONFLICT(id) DO UPDATE SET
       display_name = excluded.display_name,
+      updated_at = excluded.updated_at;
+    INSERT INTO beta_access (email, label, enabled, user_id, created_at, updated_at)
+    VALUES (
+      '${sqlLiteral(localId)}@local.invalid', '${sqlLiteral(displayName)}', 1,
+      '${sqlLiteral(userId)}', unixepoch(), unixepoch()
+    ) ON CONFLICT(email) DO UPDATE SET
+      label = excluded.label,
+      enabled = 1,
+      user_id = excluded.user_id,
       updated_at = excluded.updated_at;`
   }).join('\n')
+  return `${identities}
+    INSERT INTO app_metadata (key, value, updated_at)
+    VALUES ('beta_access_mode', 'd1', unixepoch())
+    ON CONFLICT(key) DO UPDATE SET value = excluded.value, updated_at = excluded.updated_at;`
 }
 
 function sqlLiteral(value: string): string {
