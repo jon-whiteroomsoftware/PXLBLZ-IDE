@@ -1420,22 +1420,33 @@ export function ShowEditor({
     }
     if (!showExport) return { value: null, error: null }
     try {
-      return {
-        value: prepareShowControllerArtifact(
-          showExport.source,
-          activeControllerMapDim,
-          activeControllerFirmware,
-          controllerCompatibilityContext,
-        ),
-        error: null,
+      const prepared = prepareShowControllerArtifact(
+        showExport.source,
+        activeControllerMapDim,
+        activeControllerFirmware,
+        controllerCompatibilityContext,
+      )
+      // Preparation can append a renderer adapter, so re-measure the source
+      // the Controller actually receives (#63 review follow-up). Bytes only:
+      // renderer pressure was already assessed in compilePressure above.
+      const preparedPressure = compiled.artifact
+        ? assessShowCompilePressure({
+            deliveredSourceBytes: deliveredShowSourceBytes(prepared.source),
+            budgetBytes: compiled.artifact.summary.measuredDeviceBudgetBytes,
+            worstInstantRenderersPerPixel: 0,
+          })
+        : null
+      if (preparedPressure?.status === 'blocked') {
+        return { value: null, error: preparedPressure.blocks.join(' ') }
       }
+      return { value: prepared, error: null }
     } catch (error) {
       return {
         value: null,
         error: error instanceof Error ? error.message : 'Could not prepare Show for Controller',
       }
     }
-  }, [activeControllerFirmware, activeControllerMapDim, compilePressure, compiled.artifactBlocker, controllerCompatibilityContext, showExport])
+  }, [activeControllerFirmware, activeControllerMapDim, compilePressure, compiled.artifact, compiled.artifactBlocker, controllerCompatibilityContext, showExport])
   const compileBarPushResult = preparedControllerArtifact.error
     && preparedControllerArtifact.error !== compiled.artifactBlocker
     ? preparedControllerArtifact.error
@@ -1505,12 +1516,8 @@ export function ShowEditor({
       userMaps: currentMaps,
       attribution: currentCompiled.artifact.attribution,
     })
-    const currentPressure = assessShowCompilePressure({
-      deliveredSourceBytes: deliveredShowSourceBytes(canonicalExport.source),
-      budgetBytes: currentCompiled.artifact.summary.measuredDeviceBudgetBytes,
-      worstInstantRenderersPerPixel: currentCompiled.artifact.summary.worstInstantRenderersPerPixel,
-    })
-    if (currentPressure.status === 'blocked') return null
+    // No pressure gate here: blocked output must stay previewable and
+    // inspectable (View code). Export and delivery paths gate themselves.
     return {
       show: currentShow,
       userMaps: currentMaps,
@@ -1538,16 +1545,26 @@ export function ShowEditor({
     )) ?? currentTargetProfile
     const currentExport = compilation.canonicalExport
     try {
+      const prepared = prepareShowControllerArtifact(
+        currentExport.source,
+        currentController?.mapDim ?? null,
+        currentController?.firmwareVersion,
+        buildControllerCompatibilityContext(currentActiveProfile, compilation.userMaps),
+      )
+      // Gate delivery on what the Controller actually receives: preparation
+      // can append a renderer adapter, so the prepared source is measured,
+      // not the canonical export (#63 review follow-up).
+      const pressure = assessShowCompilePressure({
+        deliveredSourceBytes: deliveredShowSourceBytes(prepared.source),
+        budgetBytes: compilation.artifact.summary.measuredDeviceBudgetBytes,
+        worstInstantRenderersPerPixel: compilation.artifact.summary.worstInstantRenderersPerPixel,
+      })
+      if (pressure.status === 'blocked') return null
       return {
         show: compilation.show,
         controllerIp: currentActiveIp,
         artifact: compilation.artifact,
-        prepared: prepareShowControllerArtifact(
-          currentExport.source,
-          currentController?.mapDim ?? null,
-          currentController?.firmwareVersion,
-          buildControllerCompatibilityContext(currentActiveProfile, compilation.userMaps),
-        ),
+        prepared,
       }
     } catch {
       return null

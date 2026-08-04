@@ -745,13 +745,6 @@ export const useControllerStore = create<ControllerConnectionState>()(
                 userMaps: mapState.userMaps,
                 attribution: compiled.artifact.attribution,
               })
-              // Gate on the delivered total the user sees in the editor (#63).
-              const pressure = assessShowCompilePressure({
-                deliveredSourceBytes: deliveredShowSourceBytes(canonical.source),
-                budgetBytes: compiled.artifact.summary.measuredDeviceBudgetBytes,
-                worstInstantRenderersPerPixel: compiled.artifact.summary.worstInstantRenderersPerPixel,
-              })
-              if (pressure.status === 'blocked') return []
               const prepared = prepareShowControllerArtifact(
                 canonical.source,
                 live.mapDim,
@@ -761,6 +754,15 @@ export const useControllerStore = create<ControllerConnectionState>()(
                   : { pixelCount: profile.lastKnownPixelCount },
               )
               if (prepared.blocked) return []
+              // Gate on what the Controller actually receives: preparation can
+              // append a renderer adapter, so the prepared source is measured,
+              // not the canonical export (#63 review follow-up).
+              const pressure = assessShowCompilePressure({
+                deliveredSourceBytes: deliveredShowSourceBytes(prepared.source),
+                budgetBytes: compiled.artifact.summary.measuredDeviceBudgetBytes,
+                worstInstantRenderersPerPixel: compiled.artifact.summary.worstInstantRenderersPerPixel,
+              })
+              if (pressure.status === 'blocked') return []
               const bindingKey = `show:${show.id}`
               return [{
                 bindingKey,

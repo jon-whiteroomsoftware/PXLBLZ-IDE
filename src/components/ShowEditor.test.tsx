@@ -6435,6 +6435,24 @@ describe('ShowEditor (#318)', () => {
     }
   })
 
+  it('keeps a pressure-blocked Show inspectable while export stays gated (#63 review follow-up)', async () => {
+    const user = userEvent.setup()
+    const property = STOCK_SHOWS.find((candidate) => candidate.id === 'stock-show-reference-property-animation')!
+
+    render(<ShowEditor showId={property.id} showOverride={createPropertySlotQualificationShow()} readOnly />)
+
+    // Delivered source exceeds the budget, so output is blocked - but blocked
+    // output must remain previewable and inspectable (View code).
+    expect(screen.getByTestId('show-compile-bar')).toHaveTextContent(
+      'Output blocked: Delivered UTF-8 source meets or exceeds the source-size proxy',
+    )
+    expect(screen.getByRole('button', { name: 'Export Show as .epe' })).toBeDisabled()
+    const viewCode = screen.getByRole('button', { name: 'View code' })
+    expect(viewCode).toBeEnabled()
+    await user.click(viewCode)
+    expect(screen.getByText(/Generated pattern -/)).toBeInTheDocument()
+  })
+
   it('keeps table-driven score bytes as a single-line category row (#545, #63)', async () => {
     const user = userEvent.setup()
     const easing = STOCK_SHOWS.find((candidate) => candidate.id === 'stock-show-reference-easing')!
