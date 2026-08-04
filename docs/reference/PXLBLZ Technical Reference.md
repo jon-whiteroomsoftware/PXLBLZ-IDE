@@ -1785,10 +1785,11 @@ Viewport does not add, remove, or collapse that catalogue.
 
 `percentageValue.ts` is the framework-free boundary for straight percentage
 values. It parses exact percentage text and normalized decimal text into real
-model units, formats one canonical percentage string, clamps only at an
-explicit field boundary, maps pointer travel at up to one-thousandth of the
-field span, and places the transient slider so its current thumb begins under
-the initiating pointer while the overlay remains inside the viewport.
+model units, formats one canonical percentage string with at most two decimal
+places and no trailing zeroes, clamps only at an explicit field boundary, maps
+pointer travel at up to one-thousandth of the field span, and places the
+transient slider so its current thumb begins under the initiating pointer while
+the overlay remains inside the viewport.
 
 `fineAdjust.ts` is the shared pure helper for modifier-scaled drags: a
 session accumulates per-sample pointer deltas (a tenth of the gain while the

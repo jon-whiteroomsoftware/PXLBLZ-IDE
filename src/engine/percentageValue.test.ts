@@ -20,12 +20,15 @@ describe('authored percentage values (#608)', () => {
     }
   })
 
-  it('formats canonical percentage text across endpoints, gain values, and fine steps', () => {
+  it('formats percentage readouts with at most two decimal places and no trailing zeroes', () => {
     expect(formatPercentageValue(0)).toBe('0%')
     expect(formatPercentageValue(1)).toBe('100%')
     expect(formatPercentageValue(1.5)).toBe('150%')
-    expect(formatPercentageValue(0.725, 0.001)).toBe('72.5%')
-    expect(formatPercentageValue(1 / 3, 0.01)).toBe('33.333333%')
+    expect(formatPercentageValue(0.96000671)).toBe('96%')
+    expect(formatPercentageValue(0.096)).toBe('9.6%')
+    expect(formatPercentageValue(0.001)).toBe('0.1%')
+    expect(formatPercentageValue(0.72526, 0.001)).toBe('72.53%')
+    expect(formatPercentageValue(1 / 3, 0.01)).toBe('33.33%')
     expect(formatPercentageValue(-0)).toBe('0%')
   })
 

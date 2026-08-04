@@ -153,7 +153,9 @@ during a drag, so releasing
 after the pointer leaves the track still saves the final preview. The slider
 popover remains part of its owning detail panel for outside-click behavior.
 Preview and Controller deck sliders keep their full-width layout but use the
-same percentage readout and accessible value text.
+same percentage readout and accessible value text. Percentage readouts show at
+most two decimal places and omit trailing zeroes; stored values retain their
+full precision.
 
 Percentage presentation is semantic, not inferred from a `0..1` range.
 Brightness, opacity, duty, diffusion, public Pattern controls, ordinary Effect

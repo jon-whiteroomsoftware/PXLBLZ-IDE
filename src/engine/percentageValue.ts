@@ -1,4 +1,8 @@
 const EXACT_NUMBER = /^[+-]?(?:\d+(?:\.\d*)?|\.\d+)(?:e[+-]?\d+)?$/i
+const PERCENTAGE_READOUT = new Intl.NumberFormat('en-US', {
+  useGrouping: false,
+  maximumFractionDigits: 2,
+})
 
 export function parsePercentageValue(value: unknown): number | null {
   if (typeof value !== 'string') return null
@@ -19,11 +23,10 @@ export function clampPercentageValue(value: number, min: number, max: number): n
   return Math.max(lower, Math.min(upper, value))
 }
 
-export function formatPercentageValue(value: number, step = 0.01): string {
+export function formatPercentageValue(value: number, _step = 0.01): string {
   const finite = Number.isFinite(value) ? value : 0
-  const precision = Math.max(6, decimalPlaces(Math.abs(step) * 100))
-  const percentage = Number((finite * 100).toFixed(Math.min(10, precision)))
-  return `${Object.is(percentage, -0) ? 0 : percentage}%`
+  const percentage = Object.is(finite, -0) ? 0 : finite * 100
+  return `${PERCENTAGE_READOUT.format(percentage)}%`
 }
 
 export interface PercentageSliderPlacementInput {
@@ -100,13 +103,4 @@ export function percentageValueFromPointer(
   const pointerStep = Math.min(Math.abs(step) || 1, Math.abs(max - min) / 1_000 || 1)
   const snapped = min + Math.round((raw - min) / pointerStep) * pointerStep
   return Number(clampPercentageValue(snapped, min, max).toFixed(10))
-}
-
-function decimalPlaces(value: number): number {
-  if (!Number.isFinite(value) || value === 0) return 0
-  for (let places = 0; places <= 10; places += 1) {
-    const scale = 10 ** places
-    if (Math.abs(Math.round(value * scale) - value * scale) < 1e-9) return places
-  }
-  return 10
 }
