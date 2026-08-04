@@ -3899,7 +3899,10 @@ function ShowTimelineWorkspace({
   ))
   const hasSampleRemap = show.scenes.some((scene) => scene.sampleTargets?.repeatScale !== undefined)
     || Boolean(show.transitions?.some((transition) => transition.propertyTransitions?.sample?.repeatScale))
-  const layoutLaneVisible = Boolean(movingSplitLayout) || layoutIntervals.length > 1
+  const hasNonTrivialLayout = show.routingLayouts.some((layout) => (
+    layout.logical ? layout.logical.kind !== 'single' : layout.zones.length > 1
+  ))
+  const layoutLaneVisible = hasNonTrivialLayout || layoutIntervals.length > 1
   const routingLaneRows = (layoutLaneVisible ? 1 : 0) + (hasSampleRemap ? 1 : 0)
   const layoutKindLabel = (layoutId: string) => {
     const layout = show.routingLayouts.find((candidate) => candidate.id === layoutId)
@@ -3934,7 +3937,7 @@ function ShowTimelineWorkspace({
   const timeGridEndLine = columns.length + 1
   const rows = [
     '28px',
-    ...(movingSplitLayout ? ['26px'] : []),
+    ...(layoutLaneVisible ? ['26px'] : []),
     ...(hasSampleRemap ? ['26px'] : []),
     ...strip.rows.flatMap((row) => collapsedZoneIdSet.has(row.zoneId) ? ['28px'] : [
       ...Array.from({

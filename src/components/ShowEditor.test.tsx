@@ -6148,6 +6148,36 @@ describe('ShowEditor (#318)', () => {
     })
   })
 
+  it('shows the Zone Layouts lane as soon as a second zone makes the layout non-trivial (#694)', () => {
+    let show = createShowWithOutputContract(
+      'show-694-lane-visibility',
+      'Two zones',
+      createPortableShowOutputContract({ referenceMapId: 'plane', referencePixelCount: 1024 }),
+      1000,
+    )
+    show = addShowZone(show, { name: 'alternate' })
+    useShowStore.setState({ shows: [show], activeShowId: show.id, showsLoaded: true })
+
+    render(<ShowEditor showId={show.id} />)
+
+    expect(screen.getByRole('group', { name: 'Zone Layouts lane' })).toBeInTheDocument()
+    expect(screen.getByText('Left / right stripes')).toBeInTheDocument()
+  })
+
+  it('hides the Zone Layouts lane while a show keeps the trivial full-surface layout (#694)', () => {
+    const show = createShowWithOutputContract(
+      'show-694-lane-trivial',
+      'One zone',
+      createPortableShowOutputContract({ referenceMapId: 'plane', referencePixelCount: 1024 }),
+      1000,
+    )
+    useShowStore.setState({ shows: [show], activeShowId: show.id, showsLoaded: true })
+
+    render(<ShowEditor showId={show.id} />)
+
+    expect(screen.queryByRole('group', { name: 'Zone Layouts lane' })).not.toBeInTheDocument()
+  })
+
   it('does not mistake a constant spanning Clip override for property animation (#417)', () => {
     let show = addShowZone(createDefaultShow('show-417-span', 'Spanning time', 1000), {
       name: 'edge',
