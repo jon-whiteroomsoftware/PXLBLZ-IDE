@@ -829,6 +829,26 @@ describe('ShowEditor (#318)', () => {
     })
   })
 
+  it('places a Zone Layout copy as one Show edit that a single Undo removes (#694 review P2)', async () => {
+    const user = userEvent.setup()
+    const show = createDefaultShow('show-layout-atomic-append', 'Atomic layout append', 1000)
+    setPersonalContentProvider(memoryProvider([show]))
+    useShowStore.setState({ shows: [show], activeShowId: show.id, showsLoaded: true })
+    useShowTransportStore.setState({ showId: show.id, positionMs: 0 })
+
+    render(<ShowEditor showId={show.id} />)
+    await user.click(screen.getByRole('button', { name: 'Add to Show' }))
+    await user.click(screen.getByRole('menuitem', { name: 'Zone Layout' }))
+    const dialog = screen.getByRole('dialog', { name: 'Zone Layout at playhead' })
+    await user.click(within(dialog).getByRole('button', { name: 'Append' }))
+    await waitFor(() => expect(useShowStore.getState().shows[0].routingLayouts).toHaveLength(2))
+
+    await act(async () => { await useShowStore.getState().undoShow(show.id) })
+    const restored = useShowStore.getState().shows[0]
+    expect(restored.routingLayouts).toHaveLength(1)
+    expect(projectShowLayoutIntervals(restored)).toHaveLength(1)
+  })
+
   it('selects an appended Zone Layout routing interval from the timeline (#624)', async () => {
     const user = userEvent.setup()
     const show = addShowRoutingLayout(createDefaultShow('show-routing-interval-select', 'Routing interval selection', 1000), 'Alternate')
@@ -4742,6 +4762,46 @@ describe('ShowEditor (#318)', () => {
     await waitFor(() => {
       expect(useShowStore.getState().stockShowDrafts[stock.id]?.composition?.patternInstances
         .find((instance) => instance.id === 'glyphs')?.pattern).toEqual({ kind: 'stock', id: 'CometLoom' })
+    })
+    expect(useShowEditorSessionStore.getState().referencePatternsByShowId[stock.id]).toBeUndefined()
+  })
+
+  it('restores untouched grouped slot instances when one member is reassigned (#63 review P2)', async () => {
+    const user = userEvent.setup()
+    const stock = STOCK_SHOWS.find((candidate) => candidate.id === 'stock-show-303-compile-simplify-deliver')!
+
+    render(<ShowEditor
+      showId={stock.id}
+      showOverride={stock.show}
+      builtInContext={{
+        track: stock.track,
+        lesson: stock.lesson,
+        description: stock.description,
+        note: stock.note,
+        patternSlots: stock.patternSlots,
+      }}
+    />)
+
+    // Slot 1 casts both loom instances at once. Reassigning one of them in
+    // Clip Detail supersedes the slot, but the untouched sibling must strip
+    // back to the authored Pattern instead of persisting the transient cast.
+    const guide = screen.getByRole('region', { name: '303 Compile, Simplify, and Deliver guide' })
+    await user.click(within(guide).getByRole('combobox', { name: 'Pattern 1' }))
+    await user.click(screen.getByRole('option', { name: 'Murmuration' }))
+
+    await user.click(screen.getAllByRole('button', { name: 'Select Murmuration' })[0])
+    const source = screen.getByRole('combobox', { name: 'Source pattern' })
+    await user.click(source)
+    await user.type(source, 'CometLoom')
+    await user.click(screen.getByRole('option', { name: 'CometLoom' }))
+
+    await waitFor(() => {
+      const draft = useShowStore.getState().stockShowDrafts[stock.id]
+      const patternOf = (instanceId: string) => draft?.composition?.patternInstances
+        .find((instance) => instance.id === instanceId)?.pattern
+      const pair = [patternOf('loom'), patternOf('loom-echo')]
+      expect(pair).toContainEqual({ kind: 'stock', id: 'CometLoom' })
+      expect(pair).toContainEqual({ kind: 'stock', id: 'RibbonLoom' })
     })
     expect(useShowEditorSessionStore.getState().referencePatternsByShowId[stock.id]).toBeUndefined()
   })

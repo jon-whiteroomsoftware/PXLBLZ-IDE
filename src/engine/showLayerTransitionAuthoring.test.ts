@@ -18,7 +18,6 @@ import type { ShowCompositionV1 } from './personalContentRecords'
 import { splitShowClipAtGlobalTime } from './showTimelineClipAuthoring'
 import { projectFlatShowToCompositionV1, validateShowComposition } from './showCompositionModel'
 import { projectShowUnifiedTimeline } from './showUnifiedTimelineProjection'
-import { stockShowById } from '../pixelblaze/stock/shows'
 
 function fixture(): {
   show: ReturnType<typeof createDefaultShow>

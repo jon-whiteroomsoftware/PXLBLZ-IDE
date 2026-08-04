@@ -51,6 +51,7 @@ import { assessShowCompilePressure } from '@/engine/showCompilePressure'
 import type { ArtifactMapClass } from '@/engine/artifactStamp'
 import { trackEvent } from '@/analytics'
 import {
+  addShowRoutingLayout,
   projectShowStrip,
   showSplitCapability,
   formatShowRoutingRanges,
@@ -1097,25 +1098,44 @@ export function ShowEditor({
       const patternAt = (show: ShowRecord | null, instanceId: string) => (
         show?.composition?.patternInstances.find((instance) => instance.id === instanceId)?.pattern
       )
-      const keptGroups = builtInSlotGroups.filter((group, index) => {
-        if (!selectedReferencePatterns[index]) return false
+      const cellPatternAt = (show: ShowRecord | null, cellId: string) => (
+        show?.cells.find((cell) => cell.id === cellId)?.pattern
+      )
+      const patternEquals = (a?: ShowCell['pattern'], b?: ShowCell['pattern']) => (
+        Boolean(a && b && a.kind === b.kind && a.id === b.id)
+      )
+      // In a superseded group only the deliberately reassigned member keeps
+      // the edit; sibling members are still transient and must strip back to
+      // the authored Pattern like any kept slot (#63 review P2).
+      const restoreCellIds: string[] = []
+      const restoreInstanceIds: string[] = []
+      let restorePattern: ShowCell['pattern'] | undefined
+      builtInSlotGroups.forEach((group, index) => {
+        const selection = selectedReferencePatterns[index]
+        if (!selection) return
         const reassigned = group.instanceIds.some((instanceId) => {
           const before = patternAt(activeShow, instanceId)
           const after = patternAt(next, instanceId)
-          return before && after && (before.kind !== after.kind || before.id !== after.id)
+          return before && after && !patternEquals(before, after)
         })
         if (reassigned) setReferencePattern(showId, index, null)
-        return !reassigned
+        const untouched = (current: ShowCell['pattern'] | undefined) => (
+          !reassigned || patternEquals(current, selection)
+        )
+        const cellIds = group.cellIds.filter((cellId) => untouched(cellPatternAt(next, cellId)))
+        const instanceIds = group.instanceIds.filter((instanceId) => untouched(patternAt(next, instanceId)))
+        if (cellIds.length > 0 || instanceIds.length > 0) {
+          restorePattern ??= selection
+          restoreCellIds.push(...cellIds)
+          restoreInstanceIds.push(...instanceIds)
+        }
       })
-      const firstSelection = keptGroups
-        .map((group) => selectedReferencePatterns[builtInSlotGroups.indexOf(group)])
-        .find(Boolean)
-      if (keptGroups.length > 0 && firstSelection) {
+      if (restorePattern) {
         persisted = restoreShowReferencePatternSlots(next, editableShow, {
-          pattern: firstSelection,
-          patternName: slotPatternNameFor(firstSelection) ?? '',
-          cellIds: keptGroups.flatMap((group) => group.cellIds),
-          instanceIds: keptGroups.flatMap((group) => group.instanceIds),
+          pattern: restorePattern,
+          patternName: slotPatternNameFor(restorePattern) ?? '',
+          cellIds: restoreCellIds,
+          instanceIds: restoreInstanceIds,
         })
       }
     }
@@ -2273,21 +2293,27 @@ export function ShowEditor({
                   await updateShow(activeShow.id, next)
                   return true
                 }}
-                onAppendLayoutInterval={async (layoutId, durationMs) => {
+                onAppendLayoutInterval={async (sourceLayoutId, durationMs) => {
                   if (!timelineComposition) return false
-                  // Resolve current state: the layout being placed may have
-                  // been created a microtask ago by the same action (#694).
+                  // Copy the layout and place its interval as one Show edit:
+                  // a rejected placement persists nothing, and one Undo
+                  // removes both the interval and the definition (#694
+                  // review P2).
                   const current = useShowStore.getState().resolveEditableShow(activeShow.id) ?? activeShow
-                  const basis = { ...current, composition: timelineComposition }
+                  const withLayout = addShowRoutingLayout(current, undefined, sourceLayoutId)
+                  const layoutId = withLayout.routingLayouts[withLayout.routingLayouts.length - 1].id
+                  const basis = { ...withLayout, composition: timelineComposition }
                   const next = appendShowLayoutInterval(basis, { layoutId, durationMs })
                   if (next === basis) return false
                   await updateShow(activeShow.id, next)
                   return true
                 }}
-                onInsertLayoutInterval={async (layoutId, durationMs, atMs) => {
+                onInsertLayoutInterval={async (sourceLayoutId, durationMs, atMs) => {
                   if (!timelineComposition) return false
                   const current = useShowStore.getState().resolveEditableShow(activeShow.id) ?? activeShow
-                  const basis = { ...current, composition: timelineComposition }
+                  const withLayout = addShowRoutingLayout(current, undefined, sourceLayoutId)
+                  const layoutId = withLayout.routingLayouts[withLayout.routingLayouts.length - 1].id
+                  const basis = { ...withLayout, composition: timelineComposition }
                   const next = insertShowLayoutInterval(basis, { layoutId, durationMs, atMs })
                   if (next === basis) return false
                   await updateShow(activeShow.id, next)
@@ -2313,7 +2339,6 @@ export function ShowEditor({
                   timelineWorkspaceRef.current?.focus()
                   void addZone(activeShow.id)
                 }}
-                onAddZoneLayout={(sourceLayoutId) => addRoutingLayout(activeShow.id, sourceLayoutId)}
                 onUpdateZone={(zoneId, changes) => void updateZone(activeShow.id, zoneId, changes)}
                 onRemoveZone={(zoneId) => {
                   closeDetailPanel()
@@ -3255,7 +3280,6 @@ function ShowTimelineWorkspace({
   onDuplicateLayoutInterval,
   onMakeLayoutIntervalUnique,
   onAddZone,
-  onAddZoneLayout,
   onUpdateZone,
   onRemoveZone,
 }: {
@@ -3311,12 +3335,11 @@ function ShowTimelineWorkspace({
   onUpdateMarker: (markerId: string, patch: Partial<Omit<NonNullable<ShowCompositionV1['markers']>[number], 'id'>>) => Promise<boolean>
   onRemoveMarker: (markerId: string) => Promise<boolean>
   onSetShowEnd: (durationMs: number) => Promise<boolean>
-  onAppendLayoutInterval: (layoutId: string, durationMs: number) => Promise<boolean>
-  onInsertLayoutInterval: (layoutId: string, durationMs: number, atMs: number) => Promise<boolean>
+  onAppendLayoutInterval: (sourceLayoutId: string | undefined, durationMs: number) => Promise<boolean>
+  onInsertLayoutInterval: (sourceLayoutId: string | undefined, durationMs: number, atMs: number) => Promise<boolean>
   onDuplicateLayoutInterval: (intervalId: string, withContent: boolean) => Promise<boolean>
   onMakeLayoutIntervalUnique: (intervalId: string) => Promise<boolean>
   onAddZone: () => void
-  onAddZoneLayout: (sourceLayoutId?: string) => Promise<string | null>
   onUpdateZone: (zoneId: string, changes: Partial<ShowRecord['zones'][number]>) => void
   onRemoveZone: (zoneId: string) => void
 }) {
@@ -4470,22 +4493,20 @@ function ShowTimelineWorkspace({
                       size="sm"
                       variant="secondary"
                       disabled={!layoutActionDurationValid}
-                      onClick={() => runLayoutAction(async () => {
+                      onClick={() => runLayoutAction(() => (
                         // A new interval starts as a copy of the layout under
                         // the playhead - per-interval ownership, no registry
                         // picking (#694).
-                        const layoutId = await onAddZoneLayout(layoutActionInterval?.layoutId)
-                        return layoutId ? onAppendLayoutInterval(layoutId, layoutActionDurationMs) : false
-                      })}
+                        onAppendLayoutInterval(layoutActionInterval?.layoutId, layoutActionDurationMs)
+                      ))}
                     >Append</Button>
                     <Button
                       size="sm"
                       variant="secondary"
                       disabled={!layoutActionDurationValid}
-                      onClick={() => runLayoutAction(async () => {
-                        const layoutId = await onAddZoneLayout(layoutActionInterval?.layoutId)
-                        return layoutId ? onInsertLayoutInterval(layoutId, layoutActionDurationMs, layoutActionTimeMs) : false
-                      })}
+                      onClick={() => runLayoutAction(() => (
+                        onInsertLayoutInterval(layoutActionInterval?.layoutId, layoutActionDurationMs, layoutActionTimeMs)
+                      ))}
                     >Insert here</Button>
                     <Button
                       size="sm"
