@@ -5,6 +5,10 @@
 //
 //   npm run render -- --demo PlasmaNebula --seconds 10
 //   npm run render -- --file path/to/pattern.js --seconds 5 --fps 30
+//   npm run render -- --file aurora-calm.js --demo AuroraSphere
+//
+// With --file, --demo names the mount point whose map/preview config is used
+// (default PlasmaNebula); loadSource then swaps in the file's source.
 //
 // Requires the persistent reviewed-main Vite server (npm run dev:main) — the frames are
 // written by its /__capture sink to /tmp/pxlblz-captures. Output resolution
@@ -18,8 +22,9 @@ import { parseRenderArgs, ffmpegArgs, type RenderConfig } from './render-pattern
 
 const CAPTURES_DIR = '/tmp/pxlblz-captures'
 const RENDERS_DIR = '/tmp/pxlblz-renders'
-// Any stock demo works as the mount point for --file; loadSource replaces the
-// previewed source without touching pattern records.
+// Default mount point when --file is passed without --demo; loadSource
+// replaces the previewed source without touching pattern records. Pass --demo
+// alongside --file to mount a demo whose map matches the file (e.g. a sphere).
 const FILE_MODE_BOOTSTRAP_DEMO = 'PlasmaNebula'
 
 interface PxlblzCaptureApi {
@@ -225,13 +230,15 @@ async function main(): Promise<void> {
     config = parseRenderArgs(process.argv.slice(2))
   } catch (error) {
     fail(String(error instanceof Error ? error.message : error) +
-      '\nUsage: npm run render -- (--demo <DemoName> | --file <pattern.js>) ' +
+      '\nUsage: npm run render -- (--demo <DemoName> | --file <pattern.js> [--demo <MountDemo>]) ' +
       '[--seconds N] [--fps N] [--width PX] [--diffusion 0..1] [--out FILE.mp4] [--name SLUG] [--base-url URL] [--keep-frames]')
   }
   if (config.file && !fs.existsSync(config.file)) fail(`no such file: ${config.file}`)
   await assertServerReachable(config.baseUrl)
   clearStaleFrames(config.name)
-  const target = config.demo ? `demo "${config.demo}"` : `file ${config.file}`
+  const target = config.file
+    ? `file ${config.file} on demo "${config.demo ?? FILE_MODE_BOOTSTRAP_DEMO}"`
+    : `demo "${config.demo}"`
   console.log(`rendering ${target}: ${config.seconds}s @ ${config.fps}fps, width ${config.width}px`)
   const frames = await renderFrames(config)
   assembleVideo(config, frames)

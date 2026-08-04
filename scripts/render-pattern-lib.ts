@@ -2,6 +2,7 @@
 // driver (render-pattern.ts) owns all I/O; everything here is table-testable.
 
 export interface RenderConfig {
+  /** Demo to mount; with --file it only supplies the map/preview config. */
   demo: string | null
   file: string | null
   seconds: number
@@ -82,10 +83,10 @@ export function parseRenderArgs(argv: string[]): RenderConfig {
     }
   }
 
-  if ((demo === null) === (file === null)) {
-    throw new Error('Pass exactly one of --demo <DemoName> or --file <pattern.js>.')
+  if (demo === null && file === null) {
+    throw new Error('Pass --demo <DemoName>, --file <pattern.js>, or both (--demo names the mount point for the file).')
   }
-  const baseName = name ?? (demo ?? fileBasename(file!))
+  const baseName = name ?? (file ? fileBasename(file) : demo!)
   const slug = renderSlug(baseName)
   if (!slug) throw new Error(`Cannot derive a usable name from "${baseName}"; pass --name.`)
   return { demo, file, seconds, fps, width, out, keepFrames, baseUrl, name: slug, diffusion }

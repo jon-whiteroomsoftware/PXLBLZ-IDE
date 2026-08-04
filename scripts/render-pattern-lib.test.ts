@@ -47,9 +47,15 @@ describe('parseRenderArgs', () => {
     expect(() => parseRenderArgs(['--demo', 'A', '--diffusion', 'soft'])).toThrow()
   })
 
-  it('requires exactly one of --demo and --file', () => {
+  it('accepts --file with --demo naming the mount point, keeping the file name', () => {
+    const config = parseRenderArgs(['--file', '/tmp/Aurora Calm.js', '--demo', 'AuroraSphere'])
+    expect(config.file).toBe('/tmp/Aurora Calm.js')
+    expect(config.demo).toBe('AuroraSphere')
+    expect(config.name).toBe('aurora-calm')
+  })
+
+  it('requires at least one of --demo and --file', () => {
     expect(() => parseRenderArgs([])).toThrow(/--demo|--file/)
-    expect(() => parseRenderArgs(['--demo', 'A', '--file', 'b.js'])).toThrow(/--demo|--file/)
   })
 
   it('rejects non-positive or non-numeric seconds, fps, and width', () => {
