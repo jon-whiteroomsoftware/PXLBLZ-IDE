@@ -234,9 +234,8 @@ test.describe('authenticated Show authoring', () => {
 
     await expect(page.locator('[data-show-layout-interval]')).toHaveCount(0)
     await page.getByRole('button', { name: 'Open Zones' }).click()
-    await page.getByRole('button', { name: 'Open Zone Map' }).click()
-    const zoneMap = page.getByRole('dialog', { name: 'Zone Map' })
-    await zoneMap.getByRole('button', { name: 'Collapse zone Sky' }).click()
+    // Collapse lives on the Zone rail; the map rows stay minimal (#63).
+    await page.getByRole('button', { name: 'Collapse zone Sky' }).click()
     await page.getByRole('button', { name: 'Close Zones' }).click()
 
     await expect(page.getByRole('button', { name: 'Expand zone Sky' })).toBeVisible()
@@ -286,10 +285,9 @@ test.describe('authenticated Show authoring', () => {
     await page.goto('studio/shows/stock-show-206-changing-zone-layouts')
 
     await page.getByRole('button', { name: 'Open Zones' }).click()
-    await page.getByRole('button', { name: 'Open Zone Map' }).click()
-    const zoneMap = page.getByRole('dialog', { name: 'Zone Map' })
-    await zoneMap.getByRole('button', { name: 'Collapse zone Weave' }).click()
-    await zoneMap.getByRole('button', { name: 'Collapse zone Water' }).click()
+    // Collapse lives on the Zone rail; the map rows stay minimal (#63).
+    await page.getByRole('button', { name: 'Collapse zone Weave' }).click()
+    await page.getByRole('button', { name: 'Collapse zone Water' }).click()
     await page.getByRole('button', { name: 'Close Zones' }).click()
 
     // Single-zone intervals append their sole Zone to the Layout name.

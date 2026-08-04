@@ -4701,6 +4701,7 @@ function ShowTimelineWorkspace({
           structuralTimesMs={structuralTimesMs}
           getVisibleWidth={() => Math.max(1, (scrollRef.current?.clientWidth ?? 812) - 212)}
           layoutIntervals={layoutIntervals}
+          onSelectZoneLayout={(layoutId, anchor) => onSelect({ kind: 'zone-layout', layoutId }, anchor)}
         />
         {timelineComposition && (
           <TimelineMarkers
@@ -4758,6 +4759,21 @@ function ShowTimelineWorkspace({
               </div>
               {show.scenes.map((scene, sceneIndex) => {
                 const position = scene.routingTargets?.splitPosition ?? 0.5
+                // Scenes routed by a different Layout (rings, grid, ...) get a
+                // neutral cell: the split share only exists where the split
+                // routes (#63 review).
+                const routedBySplit = layoutIntervals.some((interval) => (
+                  interval.layoutId === movingSplitLayout.id && interval.sceneIds.includes(scene.id)
+                ))
+                if (!routedBySplit) {
+                  return (
+                    <div
+                      key={`split-${scene.id}`}
+                      className="border-t border-zinc-900/80 bg-zinc-950/40"
+                      style={{ gridColumn: 2 + sceneIndex * 2, gridRow: contentStartRow }}
+                    />
+                  )
+                }
                 return (
                   <div
                     key={`split-${scene.id}`}
@@ -6274,6 +6290,7 @@ function TimelineRuler({
   structuralTimesMs,
   getVisibleWidth,
   layoutIntervals,
+  onSelectZoneLayout,
 }: {
   rulerRef: { current: HTMLDivElement | null }
   show: ShowRecord
@@ -6284,6 +6301,7 @@ function TimelineRuler({
   structuralTimesMs: number[]
   getVisibleWidth: () => number
   layoutIntervals: ShowLayoutInterval[]
+  onSelectZoneLayout: (layoutId: string, anchor: HTMLElement) => void
 }) {
   const durationMs = showLoopDurationMs(show)
   const positionMs = useShowTransportStore((state) => state.showId === show.id ? state.positionMs : 0)
@@ -6378,15 +6396,22 @@ function TimelineRuler({
           : null
         const label = soleZone ? `${interval.layoutName} · ${soleZone.name}` : interval.layoutName
         return (
-          <span
+          <button
             key={interval.id}
-            aria-hidden
+            type="button"
+            aria-label={`Edit ${interval.layoutName} Zone Layout interval`}
+            title={`Edit this interval's Zone Layout`}
             data-show-layout-interval={interval.id}
-            className="pointer-events-none absolute bottom-0 z-[1] h-[13px] overflow-hidden bg-live/[0.035] px-1 text-[11px] leading-[13px] text-zinc-400"
+            data-show-selection-key={`zone-layout:${interval.layoutId}`}
+            className="absolute bottom-0 z-[2] h-[13px] overflow-hidden bg-live/[0.035] px-1 text-left text-[11px] leading-[13px] text-zinc-400 hover:bg-live/15 hover:text-zinc-100 focus-visible:bg-live/15 focus-visible:text-zinc-100 focus-visible:outline-none"
             style={{ left: `${left}%`, width: `${width}%` }}
+            onClick={(event) => {
+              event.stopPropagation()
+              onSelectZoneLayout(interval.layoutId, event.currentTarget)
+            }}
           >
             {label}
-          </span>
+          </button>
         )
       })}
       {ticks.filter((tick) => tick.kind === 'major').map((tick) => (
