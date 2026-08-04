@@ -324,9 +324,10 @@ carry the full sectioned matrix.
 
 Zone names express ownership and Zone Layouts express geometry. The same ruler
 can carry a sequence of Layout intervals - full surface, a split, rings -
-while Zones keep their names and their Pattern instances. Each interval owns
-its Layout outright, so changing one interval's geometry never disturbs
-another's. A Layout boundary re-routes pixels rather than blending them: it
+while Zones keep their names and their Pattern instances. Each interval
+presents its own Layout, with one deliberate exception: a duplicated interval
+stays linked to its source, so one edit changes both until Make Unique clones
+the Layout for that occurrence. A Layout boundary re-routes pixels rather than blending them: it
 can restate the topology in one atomic step or sweep the new geometry across
 the Stage, and neither is a visual Transition. Pattern instances continue
 across a Layout boundary without restarting, which is what separates changing

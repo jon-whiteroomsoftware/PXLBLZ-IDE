@@ -723,11 +723,14 @@ properties, reached from the rail header.
 
 Zone Layouts live on the Timeline rather than in the map. The **Layouts lane**
 above the Zone rows labels each stretch of the ruler with the Layout kind that
-owns it, and every interval owns its Zone Layout outright - there is no shared
-registry of named definitions to edit through. Selecting an interval's lane
-chip opens **Zone Layout properties**, which owns its routing mode, shape
-parameters, physical ranges, duplication, and removal, and states where the
-interval sits on the Timeline.
+owns it; there is no separate registry of named definitions to manage.
+Selecting an interval's lane chip opens **Zone Layout properties**, which owns
+its routing mode, shape parameters, physical ranges, duplication, and removal,
+and states where the Layout sits on the Timeline - including when several
+intervals present it. A duplicated interval is deliberately linked to its
+source: both present the same Zone Layout, and an edit through either chip
+changes both, until **Make Unique** clones the Layout for that occurrence
+alone, exactly like linked Group occurrences.
 
 Expanded Zones share the ruler and may collapse independently. A collapsed
 Zone remains a time-accurate miniature: one thin band per Layer retains Clip
