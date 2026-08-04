@@ -6,7 +6,7 @@
 > **Studio sign-in is invite-only for a few more days** while the v2 launch
 > settles. Email [pxlblz@whiteroomsoftware.com](mailto:pxlblz@whiteroomsoftware.com)
 > for an invite — the Gallery, documentation, previews, and live Controller
-> access are open without an account.
+> access are open without an account 😺
 
 <a href="https://pxlblz-ide.whiteroomsoftware.com/"><img src="docs/screenshots/launch-button.png" alt="Open PXLBLZ-IDE" width="230" align="right"></a>
 
@@ -141,7 +141,7 @@ Thanks to [Ben Hencke](https://electromage.com/about) and ElectroMage for
 building Pixelblaze. It has been a small box with an outsized effect: a lot of
 fun, and a generous way into making electronics feel approachable. PXLBLZ-IDE
 is an independent project and is not affiliated with or endorsed by
-ElectroMage.
+ElectroMage 😺
 
 ## Previous release
 
