@@ -3,7 +3,7 @@
 For Pixelblaze owners who want the full story on **pixel maps** — what they are,
 how they're authored, what actually reaches the device, and the behaviours worth
 knowing about around them. It assumes the platform basics from the **Pixelblaze Ecosystem Primer**;
-for how the PXLBLZ IDE handles maps, see the **PXLBLZ Feature Guide**.
+for how PXLBLZ-IDE handles maps, see the **PXLBLZ Feature Guide**.
 
 A pixel map records the coordinate each LED samples, decoupling a Pattern's
 domain from wiring order. The map *function* is full JavaScript that runs once

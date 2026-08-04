@@ -25,17 +25,10 @@ Current behavior belongs in:
 
 ## Remaining follow-ups
 
-GitHub Issues owns the remaining work. The direct follow-ups to this arc are:
+The direct follow-ups to this arc are complete: #590 shipped
+coverage-directed Clip Viewport evaluation, and #591/#678/#679 grew it into
+the full shaped-Aperture catalogue with Soft, Hard, and Dither edges.
 
-- #590, which may optimize rectangular Clip Viewport coverage before Pattern
-  evaluation without changing saved behavior or UI; and
-- #591, which may add Circle/Ellipse and later shaped apertures after #590
-  establishes the reusable coverage path.
-
-The Built-in Show curriculum remains a separate unfinished content arc under
-#363. Its revised
-[catalogue build packet](stock-show-catalogue-build-packet.md) defines the
-approved fifteen-lesson unified-editor progression; fixture rebuilding, guide
-handoffs, captures, and human review remain. Broader ideas such as
-multi-selection and clipboard editing (#472) remain post-release product work
-rather than unfinished overhaul scope.
+The Built-in Show curriculum (#363) is built under its revised
+[catalogue build packet](stock-show-catalogue-build-packet.md); its remaining
+work is captures and human release review.

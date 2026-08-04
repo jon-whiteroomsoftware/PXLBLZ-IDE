@@ -1,106 +1,131 @@
 # PXLBLZ-IDE
 
-> [!IMPORTANT]
-> **PXLBLZ-IDE 2.0 is in active development.** The stable 1.0 release remains
-> available below, but you may encounter code or documentation elsewhere in
-> this repository for features that have not reached the public app yet.
-> **A substantial new release is on the way.** 😸
->
-> [Launch PXLBLZ-IDE 1.0](https://jon-whiteroomsoftware.github.io/PXLBLZ-IDE/)
-> · [1.0 Feature Guide](https://github.com/jon-whiteroomsoftware/PXLBLZ-IDE/blob/v1.0.0/docs/reference/PXLBLZ%20Feature%20Guide.md)
-> · [1.0 Technical Reference](https://github.com/jon-whiteroomsoftware/PXLBLZ-IDE/blob/v1.0.0/docs/reference/PXLBLZ%20Technical%20Reference.md)
+PXLBLZ-IDE is a browser-based authoring environment for
+[Pixelblaze](https://electromage.com/) LED controllers. Write and preview
+Patterns with hardware-faithful math, give them real maps and reusable
+libraries, then choreograph complete multi-Pattern **Shows** on a timeline —
+and compile all of it into one ordinary Pixelblaze Pattern that runs on the
+controller by itself.
 
-PXLBLZ-IDE is a browser-based pattern editor for
-[Pixelblaze](https://electromage.com/) LED controllers. It lets you write,
-preview, tune, and export Pixelblaze patterns without needing a controller on
-your desk, then push the result to hardware when you are ready.
+**[Open PXLBLZ-IDE](https://pxlblz-ide.whiteroomsoftware.com/)**
 
-The IDE can be run from the link below and is fully functional. If you later
-want to connect to a controller, install the companion Chrome extension.
+No hardware is required to explore. The Gallery, editor, preview, Show
+timeline, and documentation all run in the browser. When a Pixelblaze is on
+your network, the companion
+[Chrome extension](https://chromewebstore.google.com/detail/pxlblz-ide-controller-hel/hjdkmngopeofakdbjfkaomcmgkcidoeg)
+connects it live.
 
-**[Open PXLBLZ-IDE](https://jon-whiteroomsoftware.github.io/PXLBLZ-IDE/)**
+![The Show editor: a timeline of Pattern Clips compiling into one Pixelblaze Pattern](docs/screenshots/show-visual-toolkit-overview.png)
 
 ## Why it exists
 
-I started this project to address some wishlist features I had for Pixelblaze:
+I built the Pixelblaze tool I wanted for myself. The original wishlist was
+modest:
 
-1. Develop and debug patterns without a controller
-2. Store patterns and maps off-device
+1. Develop and debug Patterns without a controller on my desk
+2. Store Patterns and maps off-device
 3. Reusable code libraries
 4. Benchmarking and optimization tools
 
-The IDE provides these four features, and a few others:
+Getting there meant writing a real parser and compiler for the Pattern
+language, and that foundation kept paying for itself: shared libraries became
+practical, then safe code injection, then combining complete Patterns. The
+compiler grew into a Show system — a video-editor-style timeline that
+transitions between Patterns, animates their controls, and routes different
+work to different zones, while still emitting one plain Pattern for the
+hardware. PXLBLZ has gone well beyond the tool I originally wished for. I was
+not dreaming big enough.
 
-- A rich editor with autocomplete, hover help, background compile errors, and
-  quiet auto-save.
-- A live 1D / 2D / 3D preview that can show patterns rendered as lines, rings,
-  poles, flat 2D maps, cylinders, shells, and volumes.
-- A software renderer with hardware-accurate 16.16 fixed-point math.
-- First-class maps (named, saveable), including stock 2D and 3D maps plus your
-  own.
-- Bundled libraries for SDFs, animation, color, coordinates, noise, and
-  ShaderToy-style porting helpers.
-- Copy / download of a flat, tree-shaken `.js` controller-ready artifact, or push
-  it straight to your controller.
-- Benchmarking scripts that automate perf testing under emulation and on device.
+## What's inside
 
-## What else works today
+- **Gallery** — a public catalogue of built-in Patterns rendered live by the
+  real preview engine, each with a shareable detail page and one-click
+  **Open in Studio**.
+- **Studio** — the signed-in workspace: Patterns, Shows, Maps, Controllers,
+  Mixins, and Libraries in one three-pane environment with folders, search,
+  and Trash. Personal content is saved to your cloud workspace.
+- **The editor** — Monaco configured for the Pixelblaze language: completion,
+  hover help, inline errors, and quiet auto-save. Exported controls and
+  watched variables appear beside the preview, just as Pixelblaze users
+  expect.
+- **Faithful preview** — 1D, 2D, and 3D maps as a WebGL point field. **Fast**
+  mode uses float64 for everyday editing; **Precise** mode emulates the
+  hardware's 16.16 fixed-point math closely enough to expose the overflow bugs
+  that make shader ports look fine on a laptop and explode on a controller.
+- **First-class maps** — stock and custom maps as real Mapper JavaScript, a
+  catalogue organized by physical geometry, and a strict separation between
+  the coordinate a Pattern samples and the position the preview draws.
+- **Libraries** — namespaced, documented, reusable functions (`SDF`, `Anim`,
+  `Color`, `Coord`, `Noise`, `Shader` ship stock). Compilation tree-shakes and
+  flattens only what a Pattern actually calls into its artifact.
+- **Shows** — Clips on Layers and Zones under one proportional timeline, with
+  first-class Transitions, Effects, Property animation, and deterministic
+  seeking. A Show compiles into a single portable Pixelblaze Pattern; close
+  the browser and the controller keeps performing it alone.
+- **Controller integration** — discovery and live connection through the
+  extension, Run/Save with the controller's own compiler, durable per-device
+  profiles, hardware input bindings, power caps, and inspectable generated
+  code. Nothing crosses to hardware except through a deliberate send.
 
-- Connect to a Pixelblaze over the local network through the companion Chrome
-  extension. Run or save patterns and maps to a controller.
-- Uses ElectroMage's discovery service to find controllers on your local network.
-- Edit user patterns in the browser and preview them in the IDE or on a controller.
-- Import `.epe` files exported from Pixelblaze.
-- Clone shipped demos and stock maps into editable copies.
-- Tune preview-only display controls such as light size, diffusion, solidity,
-  playback speed, and Fast / Precise rendering.
-- Use pattern controls and watch exported variables in the preview.
+## Accounts and storage
 
-## What it does not do
+Gallery, documentation, preview, and live Controller access are public.
+Studio uses GitHub or Google sign-in; personal content lives in an
+authenticated cloud workspace rather than fragile browser storage. Signed
+out, the app runs as a non-durable demo. Controller traffic stays between
+your browser and your local network — the hosted app never proxies it. The
+[privacy page](https://pxlblz-ide.whiteroomsoftware.com/docs/privacy)
+has the details.
 
-- It does not manage saved patterns, playlists, WiFi, LED hardware settings, or
-  other device administration. Use the Pixelblaze web UI for that.
-- It does not read patterns back from a controller. Import `.epe` files instead.
+## What it deliberately does not do
+
+- It does not manage WiFi, LED hardware settings, playlists, or other device
+  administration. The Pixelblaze web UI already does that well.
+- It cannot recover source from a saved Pattern that contains only compiled
+  code. Import `.epe` files or source-bearing programs instead.
+- It does not synchronize a Show across several controllers.
+
+## Documentation
+
+The in-app **Docs** workspace is the primary reading surface; the same
+Markdown lives in [`docs/`](docs/) in this repository.
+
+- **[Pixelblaze Ecosystem Primer](https://pxlblz-ide.whiteroomsoftware.com/docs/ecosystem-primer)** —
+  start here if the Pixelblaze platform itself is new to you.
+- **[Feature Guide](https://pxlblz-ide.whiteroomsoftware.com/docs/feature-guide)** —
+  a tour of every PXLBLZ surface, from Gallery to Shows.
+- **[Understanding Maps](https://pxlblz-ide.whiteroomsoftware.com/docs/understanding-maps)** —
+  the full pixel-map mental model.
+- **[Visual Effects Guide](https://pxlblz-ide.whiteroomsoftware.com/docs/show-visual-toolkit)** —
+  Effects, Transitions, and Property animation by example.
+- **[Optimizing Pixelblaze Patterns](https://pxlblz-ide.whiteroomsoftware.com/docs/optimization-guide)** —
+  measured frame costs and porting tactics.
+- **[Inside the Show Compiler](https://pxlblz-ide.whiteroomsoftware.com/docs/show-compiler)** —
+  how a timeline becomes one Pattern.
+- **[Technical Reference](https://pxlblz-ide.whiteroomsoftware.com/docs/technical-reference)** —
+  how the whole thing is built.
 
 ## Acknowledgement
 
 Thanks to [Ben Hencke](https://electromage.com/about) and ElectroMage for
 building Pixelblaze. It has been a small box with an outsized effect: a lot of
-fun, and a generous way into making electronics feel approachable.
+fun, and a generous way into making electronics feel approachable. PXLBLZ-IDE
+is an independent project and is not affiliated with or endorsed by
+ElectroMage.
 
-## Bundled libraries
+## Previous release
 
-Open the **Code** menu in the app header for source and hover summaries.
+The original 1.0 release remains available at
+[jon-whiteroomsoftware.github.io/PXLBLZ-IDE](https://jon-whiteroomsoftware.github.io/PXLBLZ-IDE/),
+with its docs pinned at the
+[v1.0.0 tag](https://github.com/jon-whiteroomsoftware/PXLBLZ-IDE/tree/v1.0.0/docs/reference).
+Version 1 stored its workspace in the browser; version 2 is a new application
+with cloud accounts, and does not migrate v1 browser storage.
 
-| Library  | What it provides                                                                      |
-| -------- | ------------------------------------------------------------------------------------- |
-| `SDF`    | 2D signed distance fields: circles, rects, rings, stars, polygons, smooth boolean ops |
-| `Anim`   | Easing curves, oscillators, phase timing, looping primitives                          |
-| `Color`  | HSV/RGB blends, palette interpolation, color math                                     |
-| `Coord`  | Polar coordinates, rect-to-polar conversion, transforms                               |
-| `Noise`  | Value noise, Voronoi distance, organic variation                                      |
-| `Shader` | GLSL gap-fillers such as `fract`, `step`, `dot`, palettes, and hardware-safe hashes   |
+## License and feedback
 
-## Good to know
-
-- Patterns, maps, and demo setting overrides are stored in this browser's
-  IndexedDB. **Clearing site data clears that local workspace.**
-- If the app does not reconnect to a Pixelblaze Controller when it opens, reload
-  the browser window first. If it still does not pick up, manually disconnect and
-  reconnect from the Controller menu.
-- Preview controls affect only the on-screen preview. Controller variables and
-  brightness live in the Controller menu.
-
-## Documentation
-
-- **[PXLBLZ Feature Guide](https://github.com/jon-whiteroomsoftware/PXLBLZ-IDE/blob/v1.0.0/docs/reference/PXLBLZ%20Feature%20Guide.md)** - start
-  here if you use Pixelblaze and want to know what the IDE does.
-- **[Pixelblaze Ecosystem Primer](https://github.com/jon-whiteroomsoftware/PXLBLZ-IDE/blob/v1.0.0/docs/reference/Pixelblaze%20Ecosystem%20Primer.md)** -
-  background on the Pixelblaze model this project assumes.
-- **[PXLBLZ Technical Reference](https://github.com/jon-whiteroomsoftware/PXLBLZ-IDE/blob/v1.0.0/docs/reference/PXLBLZ%20Technical%20Reference.md)** -
-  how the IDE is built: preview engine, maps, settings cascade, controller
-  connection, storage, and the transpiler.
-
-## Where to from here
-
-Major new features are coming very soon.
+PXLBLZ-IDE is free and open source under the
+[ISC license](LICENSE). Bug reports and suggestions are welcome on the
+[issue tracker](https://github.com/jon-whiteroomsoftware/PXLBLZ-IDE/issues);
+general project mail can go to
+[pxlblz@whiteroomsoftware.com](mailto:pxlblz@whiteroomsoftware.com).

@@ -77,41 +77,29 @@ and the two ingredients can take turns, overlap, or transition into one another
 across the whole installation or within named zones. This is a **Show**, and it
 is the centerpiece of the new PXLBLZ.
 
-One LED strip can be divided into four named sections—four logical zones—and the
-same Pattern repeated across all four without calculating four complete hidden
-strips and combining them afterward. The shared Pattern advances once, each LED
-receives the local coordinates of its own zone, and that LED is rendered once.
-Many transitions are similarly selective: for a wipe, dithered edge, or
-hard-edged portal, decide which Pattern owns this LED, then render only that one.
-The image gets multiplied and rearranged; the expensive Pattern work usually
-does not.
+One LED strip can be divided into four named sections—four Zones—and the same
+Pattern repeated across all four. Zones are not just masks: a Pattern can see a
+Zone as its own normalized canvas, repeat across several physical ranges, or
+span Zones as one domain. Named Zone Layouts can reassign the same physical
+pixels later in the Show without resetting Pattern state. A real 2D map can be
+the Stage, so the preview is the installation rather than a row of anonymous
+strips. (The composition is also deliberately frugal about how much work it
+creates—more on that in the technical section.)
 
-*Crossfade is the deliberately expensive exception: every LED needs the actual
-colour from both Patterns so those colours can be mixed. When a textured blend
-is acceptable, stable dithering is the clever alternative—it assigns each LED
-to one Pattern or the other in a stable pattern, creating the impression of a
-blend while still rendering only one Pattern per LED.*
+The editor is a familiar video-editor timeline: Clips run left to right on
+Layers, Zones stack in rows, and a playhead makes it obvious where the Show is.
+Click or drag to scrub, press play, and watch the Stage or physical lights
+follow. The junctions between Clips are real, selectable Transitions—cut,
+crossfade, wipe, dissolve, shape reveal—and a Clip can carry its own Effects:
+transforms, distortions, keys, and a shaped aperture that clips what it may
+draw through a heart, a star, a ring, or (obviously) a cat.
 
-A Show has scenes, zone rows, Pattern clips, and real boundary objects between
-scenes. A boundary can be a cut, crossfade, wipe, dither, spatial portal, or a
-routing change. Time, brightness, and exported Pattern sliders all use the same
-transition model: start value, destination value, duration, and easing.
-
-A Pattern can run normally while its private time eases down to an exact pause.
-One of its own sliders can continue ramping while the Pattern is frozen; time can
-then resume or the Show can transition into something else. A scene split can
-preserve the motion cleanly or restart it for a deliberate stutter.
-
-The editor uses a familiar video-editor-style timeline: scenes run left to right,
-zones stack in rows, and a playhead makes it obvious where the Show is. Click or
-drag to scrub, press play, and watch the Stage or physical lights follow.
-
-Zones are not just masks. A Pattern can see a zone as its own normalized canvas,
-repeat across several physical ranges, span zones as one domain, or start at a
-different time offset. Named routing layouts can reassign the same physical
-pixels later in the Show without resetting Pattern state. A real 2D or 3D map can
-be the Stage, so the preview is the installation rather than a row of anonymous
-strips.
+Time, brightness, and exported Pattern sliders all use the same animation
+model: start value, destination value, duration, and easing. A Pattern can run
+normally while its private time eases down to an exact pause. One of its own
+sliders can continue ramping while the Pattern is frozen; time can then resume
+or the Show can transition into something else. Splitting a Clip preserves the
+motion cleanly, or a fresh Pattern instance restarts it on purpose.
 
 The completed Show can be previewed, inspected, pushed, or exported as one
 Pattern. No video is streamed from the desktop; close the browser and the little
@@ -142,10 +130,11 @@ one Pattern moving through time automation and several zones; the second shows a
 complete transition/routing sequence on a mapped Stage; the third uses a
 physical input and live power cap on a Controller.
 
-PXLBLZ-IDE 2.0 is still in active development. The source is at
+PXLBLZ-IDE is free and open source, and no hardware is needed to explore it:
+the app is at
+[pxlblz-ide.whiteroomsoftware.com](https://pxlblz-ide.whiteroomsoftware.com/)
+and the source is at
 [github.com/jon-whiteroomsoftware/PXLBLZ-IDE](https://github.com/jon-whiteroomsoftware/PXLBLZ-IDE).
-The public v2 app link belongs here when this development line becomes the
-deployed release.
 
 ## Technical follow-up / first author comment
 
@@ -206,7 +195,7 @@ checkpoint cache, downsampling, or approximate timestep in the first version.
 Zones virtualize the Pattern's domain. The outer renderer maps physical pixel
 ranges into zone-local index and `pixelCount`, optionally spans adjacent zones as
 one canvas, or repeats the same member over separately normalized domains.
-Named routing layouts can change those physical assignments at a boundary while
+Named Zone Layouts can change those physical assignments at a boundary while
 the member's time and state continue. The Stage is separate: it is the map used
 to present and spatially operate on the installation, not another name for
 routing.
@@ -265,7 +254,8 @@ larger.**
 
 [Short Show video]
 
-Source: [github.com/jon-whiteroomsoftware/PXLBLZ-IDE](https://github.com/jon-whiteroomsoftware/PXLBLZ-IDE)
+App: [pxlblz-ide.whiteroomsoftware.com](https://pxlblz-ide.whiteroomsoftware.com/)
+· Source: [github.com/jon-whiteroomsoftware/PXLBLZ-IDE](https://github.com/jon-whiteroomsoftware/PXLBLZ-IDE)
 
 ## Visual proof plan
 
@@ -276,12 +266,12 @@ jump mysteriously.
 
 | Order | Claim | Best proof | What must remain visible |
 |---|---|---|---|
-| 1 | Shows turn Patterns into ingredients | Video: play one Show while its timeline crosses three scenes and two zones | Timeline, moving playhead, Stage, and one visibly continuous Pattern |
+| 1 | Shows turn Patterns into ingredients | Video: play one Show while its timeline crosses several Clips and two Zones | Timeline, moving playhead, Stage, and one visibly continuous Pattern |
 | 2 | Pattern time is an automatable property | Video: normal motion → eased slowdown → exact pause → restart, with the Time lane expanded | Time curve/values and lights in the same frame |
 | 3 | Public Pattern controls can be choreographed | Video: automate a familiar Pattern’s exported slider without opening its source | Slider lane name, source Pattern identity, and resulting visual change |
 | 4 | Zones multiply a Pattern without naïve full-frame duplication | Video: one strip divided into four labeled zones; repeat one Pattern per zone, then span the same zones as one canvas | Zone rows, Stage geometry, mode change, and a restrained `one shared Pattern · one render per LED` annotation |
 | 5 | Transitions have distinct cost/appearance | Video: the same boundary as wipe, stable dither, crossfade, then portal | Transition inspector and Stage; use one pair of high-contrast Patterns |
-| 6 | Routing can change without resetting Pattern state | Video: boundary marker moves semantic zones to different physical ranges | Routing lane/marker and a Pattern whose continuing motion makes state continuity obvious |
+| 6 | Routing can change without resetting Pattern state | Video: a Zone Layout interval moves semantic Zones to different physical ranges | The Layout interval control and a Pattern whose continuing motion makes state continuity obvious |
 | 7 | Hardware can augment unmodified source | Split view/video: turn a physical potentiometer while a bound Pattern slider responds | Potentiometer, live Controller output, binding summary, unchanged source name |
 | 8 | Power behavior is visible and adjustable | Video: lower the live duty cap while telemetry and physical brightness settle | Recent duty, estimated current, live cap, and LEDs |
 | 9 · Layer 2 | Generated behavior is not magic | Screenshot pair: transform summary beside the relevant generated source | Applied passes, warnings, and the small generated section that implements the claim |
@@ -315,8 +305,9 @@ controls light, time, state, and space together.
 
 ## Before publishing
 
-- Replace the development caveat with the actual release status.
-- Add the deployed v2 app URL; do not point a v2 post at the stable v1 app.
+- Confirm the deployed release is live at
+  [pxlblz-ide.whiteroomsoftware.com](https://pxlblz-ide.whiteroomsoftware.com/);
+  do not point a v2 post at the stable v1 app.
 - Record on a Show and physical installation chosen for legibility, not merely
   because it is the most complex available.
 - Confirm every visible Pattern can be redistributed or shown with attribution.

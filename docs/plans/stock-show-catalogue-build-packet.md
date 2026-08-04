@@ -1,15 +1,17 @@
 # Stock Show catalogue build packet
 
-Status: approved curriculum direction; fixture redesign and human review remain.
-The seventeen-lesson course below replaces the Scene-centric 13-Show packet.
-Issue #363 owns implementation and publication.
+Status: built and landed; release review remains. All seventeen lessons
+(100–106, 201–207, 301–303) and the rebuilt reference Showcases are
+implemented. The remaining work is fresh Redline review, captures, and
+normal-speed human review of the complete catalogue before publication
+approval. Issue #363 owns that review and publication. The seventeen-lesson
+course below replaces the Scene-centric 13-Show packet.
 
 Amended 2026-08-02 by live review: added **100 Getting Around** (a
 navigation/tools tour before 101) and **207 Aperture Shapes and Edges** (the
 shaped-aperture work from #591/#678/#679 postdates the original approval), and
 replaced the reference-Showcase retention rule with a total rebuild under the
-measured-casting doctrine. Build order for the remaining work: 301-303 first,
-then 100 and 207, then the Showcase repartition, then fresh Redline review.
+measured-casting doctrine.
 
 The previous packet is preserved as
 [`archive/stock-show-catalogue-scene-editor-baseline.md`](archive/stock-show-catalogue-scene-editor-baseline.md).

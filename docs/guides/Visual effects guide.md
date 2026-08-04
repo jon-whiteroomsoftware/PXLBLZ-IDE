@@ -52,7 +52,7 @@ owner toggles its popover closed; clicking anywhere outside the open popovers
 closes them all. During a drag, popovers hide and then reopen at their owners so
 they never obscure placement.
 
-![The compact Clip Details popover groups one-source Effects by compiler stage while retaining the surrounding timeline.](../screenshots/show-visual-toolkit-entity-detail.png)
+![A Clip's Entity Detail Panel: exact timing and brightness fields, tabbed Pattern/Place/Effects/Playback sections, Pattern controls, and instance sharing, all beside the surrounding timeline.](../screenshots/show-visual-toolkit-entity-detail.png)
 
 ## Choosing an Effect
 
@@ -167,9 +167,9 @@ the Show source inventory summarizes steady and worst renderer depth, while the
 compile bar keeps source size, VM words, and compatibility warnings visible for
 the finished artifact.
 
-## Stock Show companion
+## Built-in Show companion
 
-The stock catalogue uses small executable examples rather than an embedded
+The Built-in catalogue uses small executable examples rather than an embedded
 tutorial system. Each Show note names the idea to notice and two safe changes to
 try; the sections below explain the corresponding mechanism.
 
@@ -385,7 +385,7 @@ counter-rotate, shear, mirror, and answer one another. Cheap block fields,
 target rings, shutters, and glyph masks do the per-pixel work. Black provides
 negative space, red carries pressure, white marks impact, and sparse cyan
 ornaments surface between beats before cyan takes over during the breakdown.
-The compiled artifact reports its real cost, but this stock Show is an
+The compiled artifact reports its real cost, but this Built-in Show is an
 outer-limit production reference rather than a promise that every Controller
 and LED protocol can sustain the same frame rate at the 2,000-pixel ceiling.
 
@@ -518,13 +518,13 @@ Every reference Show above uses the expanded header as a live guide. It names
 the current example, explains what changes and what stays constant, and offers a
 session-only **Try with Pattern** selector plus **Reset**. The selected Pattern is
 projected through the same transient Show used by Stage preview, timeline,
-generated code, export, cost disclosure, and Controller actions; the stock Show
-and personal storage remain unchanged.
+generated code, export, cost disclosure, and Controller actions; the Built-in
+Show and personal storage remain unchanged.
 
 The Transition and Easing references composite their changing subject at 82%
-opacity over one dim, slow Caustics backdrop. The backdrop gives black or sparse
-source regions enough texture to explain spatial movement without competing with
-the Transition. Fade through black and Fade through white still reach the named
+opacity over one dim, slow Murmuration backdrop. The backdrop gives black or
+sparse source regions enough texture to explain spatial movement without
+competing with the Transition. Fade through black and Fade through white still reach the named
 color because that field is authored by the Transition itself.
 
 ## A practical authoring loop

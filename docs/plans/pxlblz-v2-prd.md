@@ -44,26 +44,20 @@ release map, not a second issue tracker.
 
 ### Small product capabilities
 
-- **Keyboard completion (#477).** Reconcile the remaining shortcut gaps against
-  the shipped unified Show keyboard model, then document the complete
-  application-wide grammar.
 - **Show inputs and output controls (#522).** A compiled Show should accept the
   intended user inputs and expose useful output sliders without weakening its
   ordinary Pixelblaze artifact contract.
 
 ### Content and human review
 
-- **Show curriculum (#363).** Build and approve the fifteen-lesson progression
-  now designed for the unified editor. The approved course teaches direct Clip
-  timing, Transitions, Clip Transform, Effects, Portable Zones, Layers,
-  Viewport, Pattern instances, presentation modes, Groups, changing Zone
-  Layouts, Installation output, and artifact delivery in short focused Shows.
-  Exact fixtures and the complete course still need their first human review.
+- **Show curriculum (#363).** The seventeen-lesson Learn course (100–106,
+  201–207, 301–303) and the rebuilt reference Showcases are implemented and
+  landed. What remains is release review: fresh Redline review, captures, and
+  normal-speed human review of the complete catalogue before publication
+  approval.
 - **Visual-toolkit review (#442 and #460).** The engine and production UI are
   implemented. These issues remain human review of naming, examples,
   screenshots, and explanatory copy rather than open technical architecture.
-- **Portable teaser remixes (#544).** This is paused content exploration. It is
-  not a platform blocker unless the owner promotes it into the v2 launch set.
 
 The active catalogue brief remains
 [`stock-show-catalogue-build-packet.md`](stock-show-catalogue-build-packet.md),
@@ -112,9 +106,6 @@ Milestones and issue bodies remain authoritative if this summary drifts.
 - compositional primitive Pattern library (#501);
 - deeper saved-program and Controller-storage management (#485);
 - hidden diagnostic Patterns for mapping, hardware, and Show debugging (#481);
-- rectangular Clip Viewport coverage-directed evaluation (#590);
-- Circle/Ellipse and later shaped Clip Viewport apertures (#591);
-- Show multi-selection and clipboard editing (#472);
 - broader help strategy (#423); and
 - hardware-validated sensor and scheduler Mixins (#319).
 
