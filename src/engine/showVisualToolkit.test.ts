@@ -375,7 +375,10 @@ describe('Show visual-toolkit contract', () => {
       .toMatchObject({ patternEvaluations: 576, expression: '512 + 64' })
   })
 
-  it('builds deterministic compilable fixtures and parameter sweeps for every current Transition family', () => {
+  // Heavy deterministic compile/render sweeps: seconds solo, but concurrent
+  // full-suite runs (multiple agents) have pushed them past the 5s default
+  // (pre-push flake, #672) — explicit headroom, same treatment as #692's test.
+  it('builds deterministic compilable fixtures and parameter sweeps for every current Transition family', { timeout: 30_000 }, () => {
     const fixtures = createShowToolkitFixtureRecipes()
     expect(fixtures.map((fixture) => fixture.id)).toEqual([
       'blend-cut',
@@ -449,7 +452,7 @@ describe('Show visual-toolkit contract', () => {
       ]))
   })
 
-  it('captures deterministic generated preview frames and round-trips persisted fixture records', () => {
+  it('captures deterministic generated preview frames and round-trips persisted fixture records', { timeout: 30_000 }, () => {
     const fixtures = createShowToolkitFixtureRecipes()
     for (const fixture of fixtures) {
       const first = captureShowToolkitFixture(fixture)

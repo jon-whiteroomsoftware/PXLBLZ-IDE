@@ -895,7 +895,9 @@ describe('stock Show curriculum (#363)', () => {
     expect(tracks[4].keyframes[0].value).toBe(0)
   })
 
-  it('keeps the 202 frame brighter than the uncovered bed in sampled output', () => {
+  // Heavy lesson replay; loaded machines have pushed it past the 5s default
+  // (pre-push flake, #672).
+  it('keeps the 202 frame brighter than the uncovered bed in sampled output', { timeout: 30_000 }, () => {
     const { mapPoints, frameAt } = lessonReplay('stock-show-202-content-clip-viewport')
     const average = (values: number[]) => values.reduce((sum, value) => sum + value, 0) / values.length
     const lumaWhere = (frame: number[][], inRegion: (x: number, y: number) => boolean) => average(
