@@ -1,0 +1,203 @@
+{
+  "generatedAt": "2026-08-05T20:13:45.834Z",
+  "device": {
+    "name": "Burner bag",
+    "firmwareVersion": "3.67",
+    "pixelCount": 256
+  },
+  "pricing": [
+    {
+      "n": 256,
+      "label": "baseline",
+      "sourceBytes": 66,
+      "bytecodeBytes": 60,
+      "bytecodePerValue": null,
+      "sourcePerValue": null
+    },
+    {
+      "n": 256,
+      "label": "assign-11bit",
+      "sourceBytes": 3323,
+      "bytecodeBytes": 5180,
+      "bytecodePerValue": 20,
+      "sourcePerValue": 12.98
+    },
+    {
+      "n": 256,
+      "label": "array-literal-11bit",
+      "sourceBytes": 1375,
+      "bytecodeBytes": 1148,
+      "bytecodePerValue": 4.25,
+      "sourcePerValue": 5.37
+    },
+    {
+      "n": 256,
+      "label": "packed2x15-literal+unpack",
+      "sourceBytes": 3340,
+      "bytecodeBytes": 860,
+      "bytecodePerValue": 3.13,
+      "sourcePerValue": 13.05
+    },
+    {
+      "n": 1024,
+      "label": "baseline",
+      "sourceBytes": 67,
+      "bytecodeBytes": 60,
+      "bytecodePerValue": null,
+      "sourcePerValue": null
+    },
+    {
+      "n": 1024,
+      "label": "assign-11bit",
+      "sourceBytes": 13661,
+      "bytecodeBytes": 20540,
+      "bytecodePerValue": 20,
+      "sourcePerValue": 13.34
+    },
+    {
+      "n": 1024,
+      "label": "array-literal-11bit",
+      "sourceBytes": 5544,
+      "bytecodeBytes": 4412,
+      "bytecodePerValue": 4.25,
+      "sourcePerValue": 5.41
+    },
+    {
+      "n": 1024,
+      "label": "packed2x15-literal+unpack",
+      "sourceBytes": 12417,
+      "bytecodeBytes": 2492,
+      "bytecodePerValue": 2.38,
+      "sourcePerValue": 12.13
+    },
+    {
+      "n": 2048,
+      "label": "baseline",
+      "sourceBytes": 67,
+      "bytecodeBytes": 60,
+      "bytecodePerValue": null,
+      "sourcePerValue": null
+    },
+    {
+      "n": 2048,
+      "label": "assign-11bit",
+      "sourceBytes": 28313,
+      "bytecodeBytes": 41020,
+      "bytecodePerValue": 20,
+      "sourcePerValue": 13.82
+    },
+    {
+      "n": 2048,
+      "label": "array-literal-11bit",
+      "sourceBytes": 10980,
+      "bytecodeBytes": 8764,
+      "bytecodePerValue": 4.25,
+      "sourcePerValue": 5.36
+    },
+    {
+      "n": 2048,
+      "label": "packed2x15-literal+unpack",
+      "sourceBytes": 24515,
+      "bytecodeBytes": 4668,
+      "bytecodePerValue": 2.25,
+      "sourcePerValue": 11.97
+    }
+  ],
+  "correctness": {
+    "litsum": 475,
+    "packsum": 475,
+    "expectedLiteral": 475,
+    "expectedPacked": 475,
+    "literalOk": true,
+    "packedOk": true
+  },
+  "activationCeiling": {
+    "probes": [
+      {
+        "elements": 14000,
+        "bytecodeBytes": 59579,
+        "activated": true,
+        "activationMs": 901
+      },
+      {
+        "elements": 22000,
+        "bytecodeBytes": 93579,
+        "activated": false,
+        "activationMs": null
+      },
+      {
+        "elements": 18000,
+        "bytecodeBytes": 76579,
+        "activated": true,
+        "activationMs": 1214
+      },
+      {
+        "elements": 20000,
+        "bytecodeBytes": 85079,
+        "activated": false,
+        "activationMs": null
+      },
+      {
+        "elements": 19000,
+        "bytecodeBytes": 80831,
+        "activated": false,
+        "activationMs": null
+      },
+      {
+        "elements": 18500,
+        "bytecodeBytes": 78707,
+        "activated": false,
+        "activationMs": null
+      },
+      {
+        "elements": 18250,
+        "bytecodeBytes": 77643,
+        "activated": false,
+        "activationMs": null
+      },
+      {
+        "elements": 18125,
+        "bytecodeBytes": 77111,
+        "activated": true,
+        "activationMs": 1126
+      },
+      {
+        "elements": 18188,
+        "bytecodeBytes": 77379,
+        "activated": false,
+        "activationMs": null
+      }
+    ],
+    "largestActivating": {
+      "elements": 18125,
+      "bytecodeBytes": 77111,
+      "activated": true,
+      "activationMs": 1126
+    },
+    "smallestFailing": {
+      "elements": 18188,
+      "bytecodeBytes": 77379,
+      "activated": false,
+      "activationMs": null
+    },
+    "statementFillerCeilingReference": 68384
+  },
+  "unpackCost": {
+    "base": {
+      "label": "no-unpack",
+      "medianFps": 124.502,
+      "samples": 32,
+      "min": 124.502,
+      "max": 124.6261
+    },
+    "everyFrame": {
+      "label": "unpack-512-words-per-frame",
+      "medianFps": 85.65737,
+      "samples": 32,
+      "min": 85.65737,
+      "max": 85.74277
+    },
+    "perFrameMs": 3.642,
+    "perWordMicroseconds": 7.11
+  }
+}
