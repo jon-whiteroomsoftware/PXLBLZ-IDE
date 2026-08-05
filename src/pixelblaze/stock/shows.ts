@@ -15,7 +15,7 @@ import type {
 import { NEUTRAL_SHOW_CLIP_TRANSFORM } from '@/engine/showClipTransform'
 import { SHOW_EASING_OPTIONS } from '@/engine/showEasing'
 import { showEffectNumericValue, showEffectParameterNames } from '@/engine/showEffects'
-import type { ShowReferenceGuide } from '@/engine/showReferenceShow'
+import type { ShowPatternSlotGroup, ShowReferenceGuide } from '@/engine/showReferenceShow'
 import { replaceShowBoundaryTransition } from '@/engine/showTransitionAuthoring'
 import {
   createShowWithOutputContract,
@@ -1793,12 +1793,6 @@ function zoneLayoutShowcase(kind: ZoneLayoutShowcaseKind): StockShow {
     guideLabel: 'Read about Zone Layouts',
     defaultOpen: true,
     zonesOpenByDefault: true,
-    // One picker, one voice: Try with Pattern recasts the hero Garden only
-    // (review P2). Swapping every voice to one selection would collapse the
-    // partition contrast that makes each Layout legible - the supporting
-    // voices are the fixed backdrop, exactly like the Transition
-    // references' backdrop instance.
-    patternSlots: [['garden']],
     output: portableOutput(), zones,
     layouts: config.passages.map((passage) => ({
       id: `layout-${passage.id}`, name: passage.label, zones: [], logical: passage.logical(zoneIds),
@@ -2277,7 +2271,7 @@ function propertyAnimationReference(): StockShow {
     defaultOpen: true,
     layouts: [splitLayout('layout-property-split', 'Property split', zones, 'x')], scenes, transitions, composition,
     reference: {
-      summary: 'The Stage and timeline highlight one animatable property at a time. Try with Pattern replaces the constant comparison Pattern while the animated subject and its Property track stay intact.',
+      summary: 'The Stage and timeline highlight one animatable property at a time. Each chooser recasts one Pattern source everywhere it appears while the Property tracks stay attached.',
       patternSlots: {
         cellIds: properties.map(([sceneId]) => cellId(sceneId, 'zone-2')),
         instanceIds: [
@@ -2537,7 +2531,7 @@ function transitionReferenceShow(input: {
     })),
   }
   const reference: ShowReferenceGuide = {
-    summary: 'Each boundary compares the fixed diagnostic reference with the selected Pattern over a quiet moving backdrop; the arrow names which side is incoming.',
+    summary: 'Each boundary compares two content Patterns over a third quiet moving backdrop; the arrow names which side is incoming, and every source is swappable.',
     patternSlots: {
       cellIds: scenes.filter((_, index) => index % 2 === 1).map((item) => cellId(item.id, 'zone-1')),
       instanceIds: [contentInstanceId(1)],
@@ -2967,6 +2961,9 @@ function catalogue(input: CatalogueInput): StockShow {
     transitions, stageMapId: input.output.mapId, outputContract,
     ...(input.composition ? { composition: input.composition } : {}), updatedAt: UPDATED_AT,
   }
+  const patternSlots = input.reference
+    ? showcasePatternSlotsInFirstAppearance(show)
+    : input.patternSlots?.map((instanceIds) => ({ cellIds: [], instanceIds }))
   const number = input.level ? String(input.level + input.order) : undefined
   const note: StockShowNote = {
     label: input.level ? `Learn ${input.level}` : 'Showcases',
@@ -2983,11 +2980,60 @@ function catalogue(input: CatalogueInput): StockShow {
     id: input.id, name, track: input.track, collection: input.collection, level: input.level, order: input.order,
     lesson: input.title, description: input.purpose, note,
     ...(input.zonesOpenByDefault ? { zonesOpenByDefault: true } : {}),
-    ...(input.patternSlots ? {
-      patternSlots: input.patternSlots.map((instanceIds) => ({ cellIds: [], instanceIds })),
-    } : {}),
+    ...(patternSlots?.length ? { patternSlots } : {}),
     ...(input.reference ? { reference: input.reference } : {}), show,
   }
+}
+
+function showcasePatternSlotsInFirstAppearance(show: ShowRecord): ShowPatternSlotGroup[] {
+  const instances = new Map(
+    show.composition?.patternInstances.map((instance) => [instance.id, instance]) ?? [],
+  )
+  const cellIdsByPattern = new Map<string, string[]>()
+  const instanceIdsByPattern = new Map<string, string[]>()
+  const patternKey = (pattern: ShowCell['pattern']) => `${pattern.kind}:${pattern.id}`
+
+  for (const cell of show.cells) {
+    const key = patternKey(cell.pattern)
+    const ids = cellIdsByPattern.get(key) ?? []
+    ids.push(cell.id)
+    cellIdsByPattern.set(key, ids)
+  }
+  for (const instance of instances.values()) {
+    const key = patternKey(instance.pattern)
+    const ids = instanceIdsByPattern.get(key) ?? []
+    ids.push(instance.id)
+    instanceIdsByPattern.set(key, ids)
+  }
+
+  const orderedPatternKeys: string[] = []
+  const seen = new Set<string>()
+  const addPattern = (pattern: ShowCell['pattern'] | undefined) => {
+    if (!pattern) return
+    const key = patternKey(pattern)
+    if (seen.has(key)) return
+    seen.add(key)
+    orderedPatternKeys.push(key)
+  }
+
+  if (show.composition) {
+    for (const scene of show.composition.scenes) {
+      for (const zone of scene.zones) {
+        const placements = [
+          ...zone.main,
+          ...zone.overlays.flatMap((layer) => layer.placements),
+        ]
+        for (const placement of placements) addPattern(instances.get(placement.instanceId)?.pattern)
+      }
+    }
+  } else {
+    for (const cell of show.cells) addPattern(cell.pattern)
+  }
+
+  return orderedPatternKeys.map((key) => ({
+    cellIds: cellIdsByPattern.get(key) ?? [],
+    instanceIds: instanceIdsByPattern.get(key) ?? [],
+  }))
 }
 
 function scene(

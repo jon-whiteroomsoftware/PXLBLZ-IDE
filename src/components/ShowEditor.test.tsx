@@ -4806,6 +4806,37 @@ describe('ShowEditor (#318)', () => {
     expect(useShowEditorSessionStore.getState().referencePatternsByShowId[stock.id]).toBeUndefined()
   })
 
+  it('reserves the first Showcase guide row for every Pattern slot (#714)', async () => {
+    const user = userEvent.setup()
+    const stock = STOCK_SHOWS.find((candidate) => candidate.id === 'stock-show-reference-aperture-shapes')!
+
+    render(<ShowEditor
+      showId={stock.id}
+      showOverride={stock.show}
+      builtInContext={{
+        track: stock.track,
+        lesson: stock.lesson,
+        description: stock.description,
+        note: stock.note,
+        patternSlots: stock.patternSlots,
+        reference: stock.reference,
+      }}
+    />)
+
+    const guide = screen.getByRole('region', { name: 'Aperture Shapes: Geometric guide' })
+    const slotRow = within(guide).getByRole('group', { name: 'Aperture Shapes: Geometric Pattern slots' })
+    const referenceControls = within(guide).getByRole('group', { name: `${stock.show.name} reference controls` })
+    expect(slotRow.compareDocumentPosition(referenceControls) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
+    expect(within(slotRow).getByRole('combobox', { name: 'Pattern 1' })).toHaveValue('MetaballGarden')
+    expect(within(slotRow).getByRole('combobox', { name: 'Pattern 2' })).toHaveValue('CompassRose')
+
+    await user.click(within(slotRow).getByRole('combobox', { name: 'Pattern 2' }))
+    await user.click(screen.getByRole('option', { name: 'Caustics' }))
+    expect(useShowEditorSessionStore.getState().referencePatternsByShowId[stock.id]).toEqual({
+      1: { kind: 'stock', id: 'Caustics' },
+    })
+  })
+
   it('turns a reference Show guide into a live Pattern comparison instrument (#506)', async () => {
     const user = userEvent.setup()
     const stock = STOCK_SHOWS.find((candidate) => candidate.id === 'stock-show-reference-blend-fade-transitions')!

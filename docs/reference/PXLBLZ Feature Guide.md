@@ -840,10 +840,14 @@ Built-ins use the complete production editor. The first change creates a
 session-only draft with normal Undo/Redo; it does not alter the shipped example
 or create a personal Show. The draft survives navigation during that page
 session. **Reset** or reload restores the built-in definition. Reference
-Showcases also provide **Try with Pattern**, which swaps the comparison source
-through the same timeline, Stage, generated-code, export, cost, and Controller
-paths. The [Visual Effects Guide](../guides/Visual effects guide.md) explains
-the current examples in prose.
+Showcases also reserve a first guide row for **Try with Pattern**.
+A one-Pattern reference has one chooser; a reference using several Patterns
+shows one chooser per distinct source in first-appearance order. Instances of
+the same source change together. Every choice flows through the same timeline,
+Stage, generated-code, export, cost, and Controller paths, while **Reset**
+restores the complete authored cast. The
+[Visual Effects Guide](../guides/Visual effects guide.md) explains the current
+examples in prose.
 
 ---
 

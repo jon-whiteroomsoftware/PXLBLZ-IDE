@@ -578,7 +578,7 @@ describe('routing (#308)', () => {
     expect(usePreviewStore.getState().isRunning).toBe(false)
   })
 
-  it('projects a reference Pattern choice through the routed stock Show artifact (#506)', async () => {
+  it('projects a Showcase Pattern slot choice through the routed stock Show artifact (#506, #714)', async () => {
     const user = userEvent.setup()
     const stock = STOCK_SHOWS.find((candidate) => candidate.id === 'stock-show-reference-wipe-transitions')!
     window.history.replaceState(null, '', `/studio/shows/${stock.id}`)
@@ -588,7 +588,10 @@ describe('routing (#308)', () => {
     render(<App />)
 
     const editorPane = screen.getByTestId('editor-pane')
-    const selector = within(editorPane).getByRole('combobox', { name: 'Try with Pattern' })
+    expect(within(editorPane).getByRole('combobox', { name: 'Pattern 1' })).toHaveValue('Murmuration')
+    expect(within(editorPane).getByRole('combobox', { name: 'Pattern 2' })).toHaveValue('IQPalettes')
+    const selector = within(editorPane).getByRole('combobox', { name: 'Pattern 3' })
+    expect(selector).toHaveValue('MetaballGarden')
     await user.click(selector)
     await user.click(screen.getByRole('option', { name: 'Caustics' }))
 

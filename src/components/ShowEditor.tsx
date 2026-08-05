@@ -678,22 +678,7 @@ function ShowNoteDisclosure({
           <ChevronDown size={10} aria-hidden className={compactExpanded ? 'rotate-180' : ''} />
         </button>
       </div>
-      {reference && (
-        <div
-          className="show-note-expanded-content"
-          aria-hidden={compactContentHidden || undefined}
-          inert={compactContentHidden || undefined}
-        >
-          <ShowReferenceInstrument
-            show={show}
-            reference={reference}
-            patternOptions={patternOptions}
-            selections={selections}
-            onSelectPattern={onSelectPattern}
-          />
-        </div>
-      )}
-      {!reference && patternSlots && (
+      {patternSlots && (
         <div
           role="group"
           aria-label={`${title} Pattern slots`}
@@ -707,6 +692,18 @@ function ShowNoteDisclosure({
             patternOptions={patternOptions}
             selections={selections}
             onSelectPattern={onSelectPattern}
+          />
+        </div>
+      )}
+      {reference && (
+        <div
+          className="show-note-expanded-content"
+          aria-hidden={compactContentHidden || undefined}
+          inert={compactContentHidden || undefined}
+        >
+          <ShowReferenceInstrument
+            show={show}
+            reference={reference}
           />
         </div>
       )}
@@ -770,15 +767,9 @@ function ShowNoteDisclosure({
 function ShowReferenceInstrument({
   show,
   reference,
-  patternOptions,
-  selections,
-  onSelectPattern,
 }: {
   show: ShowRecord
   reference: ShowReferenceGuide
-  patternOptions: ShowPatternOption[]
-  selections?: Readonly<Record<number, ShowCell['pattern']>>
-  onSelectPattern: (slotIndex: number, pattern: ShowCell['pattern']) => void
 }) {
   const positionMs = useShowTransportStore((state) => state.showId === show.id ? state.positionMs : 0)
   const current = currentShowReferenceExample(show, reference, positionMs)
@@ -795,20 +786,9 @@ function ShowReferenceInstrument({
       aria-label={`${show.name} reference controls`}
       className="border-t border-cyan-200/15 bg-cyan-200/[0.025] px-3 py-2"
     >
-      <div className="grid grid-cols-[minmax(0,1fr)_minmax(220px,320px)] items-start gap-4 max-[720px]:grid-cols-1 max-[720px]:gap-2">
-        <div className="min-w-0">
-          <span className="font-semibold uppercase tracking-[0.11em] text-cyan-200/70">Reference mode</span>
-          <p className="mt-0.5 max-w-[80ch] leading-4 text-zinc-400">{reference.summary}</p>
-        </div>
-        {reference.patternSlots && (
-          <ShowPatternSlotPicker
-            show={show}
-            slotGroups={[reference.patternSlots]}
-            patternOptions={patternOptions}
-            selections={selections}
-            onSelectPattern={onSelectPattern}
-          />
-        )}
+      <div className="min-w-0">
+        <span className="font-semibold uppercase tracking-[0.11em] text-cyan-200/70">Reference mode</span>
+        <p className="mt-0.5 max-w-[80ch] leading-4 text-zinc-400">{reference.summary}</p>
       </div>
       <div className="mt-2 grid grid-cols-[auto_minmax(0,1fr)_auto] items-center gap-x-2 gap-y-1 border-l-2 border-cyan-200/45 bg-zinc-950/45 px-2 py-1.5">
         <span className="font-semibold uppercase tracking-[0.1em] text-cyan-200/65">Live example</span>
@@ -1070,13 +1050,11 @@ export function ShowEditor({
 
   const canonicalStockShow = builtInContext ? stockShowById(showId)?.show : undefined
   const editableShow = stockShowDraft ?? savedShow ?? canonicalStockShow ?? showOverride ?? null
-  // References declare one slot group on the guide; lessons declare ordered
-  // groups directly on the catalogue entry (#63). Both feed the same
-  // transient per-slot projection.
+  // Lessons and reference Showcases declare ordered groups on the catalogue
+  // entry. The legacy single reference slot remains a compatibility fallback.
   const builtInSlotGroups = useMemo<readonly ShowPatternSlotGroup[] | undefined>(() => (
-    builtInContext?.reference?.patternSlots
-      ? [builtInContext.reference.patternSlots]
-      : builtInContext?.patternSlots
+    builtInContext?.patternSlots
+      ?? (builtInContext?.reference?.patternSlots ? [builtInContext.reference.patternSlots] : undefined)
   ), [builtInContext?.reference?.patternSlots, builtInContext?.patternSlots])
   const slotPatternNameFor = useCallback((ref: ShowCell['pattern']) => (
     ref.kind === 'stock' ? ref.id : userPatterns.find((pattern) => pattern.id === ref.id)?.name
@@ -2017,7 +1995,7 @@ export function ShowEditor({
           note={builtInContext.note}
           show={activeShow}
           reference={builtInContext.reference}
-          patternSlots={builtInContext.patternSlots}
+          patternSlots={builtInSlotGroups}
           patternOptions={referencePatternOptions}
           selections={selectedReferencePatterns}
           onSelectPattern={(slotIndex, pattern) => setReferencePattern(showId, slotIndex, pattern)}

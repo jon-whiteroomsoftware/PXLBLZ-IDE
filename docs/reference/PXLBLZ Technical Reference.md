@@ -1059,19 +1059,22 @@ both draft and history; reload recreates the store and therefore restores every
 pristine fixture. No built-in mutation calls the personal-content provider,
 creates a D1 row, or changes the checked-in fixture. The expanded guide labels
 this boundary as `Built-in Show · edits last until reload`, and the header Reset
-action becomes available when either a working copy or a reference-Pattern
-selection exists.
+action becomes available when either a working copy or one or more transient
+Pattern-slot selections exist.
 
 Reference-show explanation and interaction live in catalogue-only
-`ShowReferenceGuide` metadata, outside `ShowRecord`. A session store owns the
-optional **Try with Pattern** selection. `applyShowReferencePattern()` immutably
-projects that Pattern into the guide's declared flat-cell and
-composition-instance slots, clears source-specific Control targets, and
-produces a transient override on top of the current fixture or working copy.
-The editor, Stage, compiler, generated-code view, EPE export, cost disclosure,
-and Controller actions all consume that same override. Resetting the selection
-or reloading restores the authored reference Pattern; no stock fixture,
-personal Pattern, Show row, or D1 record is mutated.
+`ShowReferenceGuide` metadata, outside `ShowRecord`. Catalogue construction
+groups every distinct reference-Showcase Pattern source into ordered
+`StockShow.patternSlots`: first placement wins the display order, and all
+instances and compatibility cells with the same source share one group. The
+session store owns optional selections by slot index.
+`applyShowPatternSlotSelections()` projects those selections through the same
+flat-cell and composition-instance replacement used by Learn lessons, clears
+source-specific Control targets, and produces a transient override on top of
+the current fixture or working copy. The editor, Stage, compiler,
+generated-code view, EPE export, cost disclosure, and Controller actions all
+consume that same override. Resetting or reloading restores every authored
+Pattern; no stock fixture, personal Pattern, Show row, or D1 record is mutated.
 
 The Transform Effects reference keeps stable Effect ids and ordering across its
 numeric affine states. Boundary-owned Effect descriptors lower those states as

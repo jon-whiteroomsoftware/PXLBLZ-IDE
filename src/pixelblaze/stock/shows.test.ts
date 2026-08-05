@@ -723,6 +723,35 @@ describe('stock Show curriculum (#363)', () => {
     }
   })
 
+  it('declares every reference Showcase Pattern slot in first-appearance order (#714)', () => {
+    const slotPatternNames = (id: string) => {
+      const item = STOCK_SHOWS.find((candidate) => candidate.id === id)!
+      const instanceNames = new Map(
+        item.show.composition?.patternInstances.map((instance) => [instance.id, instance.patternName]) ?? [],
+      )
+      const cellNames = new Map(item.show.cells.map((cell) => [cell.id, cell.patternName]))
+      return item.patternSlots?.map((group) => {
+        const names = new Set([
+          ...group.instanceIds.map((instanceId) => instanceNames.get(instanceId)),
+          ...group.cellIds.map((cellId) => cellNames.get(cellId)),
+        ].filter((name): name is string => Boolean(name)))
+        expect(names.size, `${item.name} slot swaps one source`).toBe(1)
+        return [...names][0]
+      })
+    }
+
+    expect(slotPatternNames('stock-show-showcase-transform-effects')).toEqual(['CompassRose'])
+    expect(slotPatternNames('stock-show-reference-aperture-shapes')).toEqual([
+      'MetaballGarden',
+      'CompassRose',
+    ])
+    expect(slotPatternNames('stock-show-reference-blend-fade-transitions')).toEqual([
+      'Murmuration',
+      'IQPalettes',
+      'MetaballGarden',
+    ])
+  })
+
   it('opens the Zone rail by default only where Zones are the first-visit subject', () => {
     // 105 introduces Zones, so its rail starts open; every other lesson keeps
     // the collapsed default and the session store remembers the user's choice.

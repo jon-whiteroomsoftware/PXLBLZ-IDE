@@ -669,11 +669,10 @@ function StudioApp() {
   ))
   const routedStockShowOverride = useMemo(() => {
     const base = routedStockShowDraft ?? routedStockShow?.show
-    // References declare one slot group on the guide; lessons declare ordered
-    // groups on the catalogue entry (#63).
-    const slotGroups = routedStockShow?.reference?.patternSlots
-      ? [routedStockShow.reference.patternSlots]
-      : routedStockShow?.patternSlots
+    // Lessons and reference Showcases use the same ordered catalogue groups.
+    // The single reference slot remains a compatibility fallback.
+    const slotGroups = routedStockShow?.patternSlots
+      ?? (routedStockShow?.reference?.patternSlots ? [routedStockShow.reference.patternSlots] : undefined)
     if (!base || !slotGroups || !selectedReferencePatterns) return base
     return applyShowPatternSlotSelections(base, slotGroups, selectedReferencePatterns, (ref) => (
       ref.kind === 'stock' ? ref.id : userPatterns.find((pattern) => pattern.id === ref.id)?.name
