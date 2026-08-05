@@ -59,8 +59,8 @@ describe('five-Pattern acceptance Show qualification (#520)', () => {
   })
 
   it('isolates routed transition execution frames so later field locals cannot poison snapshot capture', () => {
-    expect(acceptanceArtifacts.selected.expandedCode).toContain('function __pxlblz_show_routed_transition_0(')
-    expect(acceptanceArtifacts.selected.expandedCode).toContain('function __pxlblz_show_routed_transition_1(')
+    expect(acceptanceArtifacts.selected.expandedCode).toContain('function __pxlblz_show_routed_transition_k0(')
+    expect(acceptanceArtifacts.selected.expandedCode).toContain('function __pxlblz_show_routed_transition_k1(')
   })
 
   it('retains the unsupported 4,000-pixel Redline evidence separately from production results', () => {

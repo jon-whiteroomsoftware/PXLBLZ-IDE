@@ -5127,8 +5127,16 @@ ${indentBlock(emitRoutedScenePlacements(
   const transitionHelperArguments = outputDimension === 2
     ? `index, x, y, ${snapshotWritingArgument}`
     : `index, ${snapshotWritingArgument}`
-  const unrolledTransitionHelpers = unrolledTransitionSegments.map((segment) => {
-    const helperName = `__pxlblz_show_routed_transition_${segment.sceneIndex}`
+  // #717: transition helpers intern by body. After stack-wrapper interning,
+  // scenes cycling the same transition between the same endpoints produce
+  // byte-identical bodies (per-scene inputs - snapshot targets, scalar
+  // fields, endpoint prefixes - are baked into the body, so string equality
+  // is the safety); each unique body becomes one kernel and the per-segment
+  // dispatch branches call the shared kernel.
+  const transitionKernelIndexByBody = new Map<string, number>()
+  const transitionKernelHelpers: string[] = []
+  const transitionKernelNameBySegment = new Map<number, string>()
+  for (const segment of unrolledTransitionSegments) {
     const body = emitRoutedSceneTransition(
       layouts,
       scenes[segment.sceneIndex].placements,
@@ -5144,13 +5152,20 @@ ${indentBlock(emitRoutedScenePlacements(
         : undefined,
       scalarFields.find((field) => field.transitionKey === `transition:routed:${segment.sceneIndex}`),
     )
-    return `function ${helperName}(${transitionHelperParameters}) {
+    let kernelIndex = transitionKernelIndexByBody.get(body)
+    if (kernelIndex === undefined) {
+      kernelIndex = transitionKernelHelpers.length
+      transitionKernelHelpers.push(`function __pxlblz_show_routed_transition_k${kernelIndex}(${transitionHelperParameters}) {
 ${indentBlock(body, 2)}
-}`
-  })
+}`)
+      transitionKernelIndexByBody.set(body, kernelIndex)
+    }
+    transitionKernelNameBySegment.set(segment.sceneIndex, `__pxlblz_show_routed_transition_k${kernelIndex}`)
+  }
+  const unrolledTransitionHelpers = transitionKernelHelpers
   const unrolledTransitionBranches = unrolledTransitionSegments
     .map((segment, index) => `${index === 0 ? 'if' : 'else if'} (__pxlblz_show_transition == ${segment.sceneIndex}) {
-    __pxlblz_show_routed_transition_${segment.sceneIndex}(${transitionHelperArguments})
+    ${transitionKernelNameBySegment.get(segment.sceneIndex)}(${transitionHelperArguments})
     return
   }`)
     .join(' ')

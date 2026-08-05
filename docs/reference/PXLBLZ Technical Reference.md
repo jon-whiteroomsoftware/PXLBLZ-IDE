@@ -1572,6 +1572,15 @@ reference Shows this removed 1.8–8.0 KB of generated source each (wipe
 87.2% -> 75.5% of the activation budget) and cut wrapper persistent globals;
 the regular-cadence score path already interned its stacks and is unchanged.
 
+Routed transition helpers intern the same way: each unique emitted body
+becomes one `__pxlblz_show_routed_transition_k<n>` kernel and the
+per-segment dispatch branches call the shared kernel. Per-scene inputs -
+snapshot targets, scalar fields, endpoint prefixes - are baked into the
+body, so byte-identical bodies are the merge criterion. The stock
+transition references cycle distinct endpoint pairs and keep one kernel per
+segment; shows built by repeating material (the long-show case) pay one
+kernel per unique transition instead of one helper per scene.
+
 The Clip detail editor projects those local records into a parameter-owned
 authoring surface. Each supported field exposes a hollow diamond until its
 target has a track, then a filled violet diamond. Opening a hollow diamond
