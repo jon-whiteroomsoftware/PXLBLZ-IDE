@@ -198,10 +198,10 @@ describe('mapFromRecord', () => {
 })
 
 describe('seed clouds relocated to stock (#141)', () => {
-  it('exposes measured stock-map counts to output-contract setup (#434)', () => {
-    expect(STOCK_MAP_ITEMS.find((map) => map.id === 'sunflower-pucks')).toMatchObject({ fixedPixelCount: 160 })
-    expect(STOCK_MAP_ITEMS.find((map) => map.id === 'sunflower-pucks-2d')).toMatchObject({ fixedPixelCount: 160 })
-    expect(STOCK_MAP_ITEMS.find((map) => map.id === 'plane')?.fixedPixelCount).toBeUndefined()
+  it('exposes no measured stock-map counts now the catalogue is all-procedural (#434, #707)', () => {
+    // The literal sunflower maps retired with #707; fixedPixelCount now only
+    // ever reaches output-contract setup from a user's baked map.
+    expect(STOCK_MAP_ITEMS.every((map) => map.fixedPixelCount === undefined)).toBe(true)
   })
 
   it('exposes the example clouds as stock maps, not user maps', () => {

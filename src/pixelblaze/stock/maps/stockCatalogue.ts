@@ -200,8 +200,6 @@ export const STOCK_MAP_SPECS: SourceMapSpec[] = [
     source: source('tetra-volume'), positionSource: source('tetra-volume'),
     family: { id: 'tetra-volume', name: 'Tetra volume', view: 'spatial', natural: true },
   },
-  { id: 'sunflower-pucks', name: 'Sunflower pucks', kind: 'custom', dim: 3, source: source('sunflower-pucks') },
-  { id: 'sunflower-pucks-2d', name: 'Sunflower pucks 2D', kind: 'custom', dim: 2, source: source('sunflower-pucks-2d') },
   { id: 'redline-stage-2d', name: 'Redline stage', kind: 'custom', dim: 2, source: source('redline-stage-2d') },
   { id: 'proscenium-stage-2d', name: 'Proscenium stage', kind: 'custom', dim: 2, source: source('proscenium-stage-2d') },
   { id: 'seed-ring-2d', name: 'Ring', kind: 'path', dim: 2, source: source('ring') },

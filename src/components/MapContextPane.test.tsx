@@ -84,19 +84,6 @@ describe('MapContextPane', () => {
     expect(screen.getByText('3D')).toBeInTheDocument()
   })
 
-  it('labels a literal stock map with its fixed size', async () => {
-    useMapStore.setState({
-      editingMap: { kind: 'stock', id: 'sunflower-pucks' },
-      activePixelCount: 1024,
-    })
-
-    render(<MapContextPane />)
-
-    expect(await screen.findByTestId('map-wiring-canvas')).toBeInTheDocument()
-    expect(screen.getByText('Sunflower pucks')).toBeInTheDocument()
-    expect(screen.getByLabelText('Fixed size: 160 pixels')).toHaveTextContent('Fixed size · 160 px')
-  })
-
   it('labels a generated stock map with the active Preview size', async () => {
     useMapStore.setState({
       editingMap: { kind: 'stock', id: 'plane' },

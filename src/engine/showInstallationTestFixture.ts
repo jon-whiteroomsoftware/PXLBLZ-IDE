@@ -141,8 +141,8 @@ export function createInstallationCompositionFixture(): ShowRecord {
       }),
       brightnessBoundary('answer', 'crossfade', 2_000, SINE_IN_OUT, SCENES[2], 1),
     ],
-    stageMapId: 'sunflower-pucks-2d',
-    outputContract: createInstallationShowOutputContract({ outputMapId: 'sunflower-pucks-2d', pixelCount: 160 }),
+    stageMapId: 'proscenium-stage-2d',
+    outputContract: createInstallationShowOutputContract({ outputMapId: 'proscenium-stage-2d', pixelCount: 160 }),
     updatedAt: 363,
   }
 }
