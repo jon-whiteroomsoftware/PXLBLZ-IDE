@@ -1,14 +1,3 @@
-import {
-  FIT_3D_MARGIN,
-  fit3DScale,
-  insetForSpacing,
-  modelHalfExtent,
-  nearestNeighborSpacing2D,
-  posBounds2D,
-  projectOrbit,
-  projectPosInBounds,
-  type OrbitCamera,
-} from './camera'
 import type { GridDims, MapPoint } from './maps'
 
 export type WirePoint2D = [number, number]
@@ -31,11 +20,6 @@ export type WireGeometry = WireGeometry2D | WireGeometry3D
 export interface WireLabel {
   index: number
   label: string
-  x: number
-  y: number
-}
-
-export interface WireViewportPoint {
   x: number
   y: number
 }
@@ -104,88 +88,6 @@ export function wireOrderColors(count: number): [number, number, number][] {
       (WIRE_START[2] + (WIRE_END[2] - WIRE_START[2]) * t) / 255,
     ]
   })
-}
-
-// Fit a physical 2D map into Map view's stable wide frame. The SVG surface is
-// always 2:1, but the map itself is never stretched: a square map receives
-// horizontal breathing room while a wide map fills the frame edge to edge.
-// Values are expressed as percentages so the same geometry scales smoothly as
-// the pane is resized, without depending on a one-time canvas measurement.
-export function wireViewportPoints2D(
-  positions: WirePoint2D[],
-  frameAspect = 2,
-): WireViewportPoint[] {
-  if (positions.length === 0) return []
-  const bounds = posBounds2D(positions)
-  const rangeX = bounds.maxX - bounds.minX
-  const rangeY = bounds.maxY - bounds.minY
-  const safeAspect = frameAspect > 0 ? frameAspect : 2
-  const mapAspect = rangeX > 0 && rangeY > 0 ? rangeX / rangeY : safeAspect
-  const widthScale = rangeX > 0 && rangeY > 0 ? Math.min(1, mapAspect / safeAspect) : 1
-  const heightScale = rangeX > 0 && rangeY > 0 ? Math.min(1, safeAspect / mapAspect) : 1
-
-  return positions.map(([x, y]) => {
-    const normalizedX = rangeX > 0 ? (x - bounds.minX) / rangeX : 0.5
-    const normalizedY = rangeY > 0 ? (y - bounds.minY) / rangeY : 0.5
-    return {
-      x: 50 + (normalizedX - 0.5) * 100 * widthScale,
-      y: 50 + (normalizedY - 0.5) * 100 * heightScale,
-    }
-  })
-}
-
-export function wireLabelIndices(count: number, interval = 32): number[] {
-  if (count <= 0) return []
-  const indices = new Set<number>([0, count - 1])
-  const step = Math.max(1, Math.floor(interval))
-  for (let oneBased = step; oneBased < count; oneBased += step) {
-    indices.add(oneBased - 1)
-  }
-  return [...indices].sort((a, b) => a - b)
-}
-
-export function wireLabels2D(
-  positions: WirePoint2D[],
-  canvasWidth: number,
-  canvasHeight: number,
-  indices = wireLabelIndices(positions.length),
-): WireLabel[] {
-  if (positions.length === 0) return []
-  const bounds = posBounds2D(positions)
-  const spacing = nearestNeighborSpacing2D(positions)
-  const inset = insetForSpacing(spacing)
-  return indices
-    .filter((index) => index >= 0 && index < positions.length)
-    .map((index) => {
-      const [clipX, clipY] = projectPosInBounds(positions[index], bounds, inset)
-      return {
-        index,
-        label: String(index + 1),
-        x: ((clipX + 1) / 2) * canvasWidth,
-        y: ((1 - clipY) / 2) * canvasHeight,
-      }
-    })
-}
-
-export function wireLabels3D(
-  positions: WirePoint3D[],
-  canvasPx: number,
-  camera: OrbitCamera,
-  indices = wireLabelIndices(positions.length),
-): WireLabel[] {
-  if (positions.length === 0) return []
-  const scale = fit3DScale(FIT_3D_MARGIN, modelHalfExtent(positions))
-  return indices
-    .filter((index) => index >= 0 && index < positions.length)
-    .map((index) => {
-      const { clip } = projectOrbit(positions[index], camera, scale)
-      return {
-        index,
-        label: String(index + 1),
-        x: ((clip[0] + 1) / 2) * canvasPx,
-        y: ((1 - clip[1]) / 2) * canvasPx,
-      }
-    })
 }
 
 function axisBounds(values: number[]): string {

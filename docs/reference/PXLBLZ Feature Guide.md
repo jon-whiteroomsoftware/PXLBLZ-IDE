@@ -284,9 +284,13 @@ read-only, use them in preview, send them to a Controller, or clone them into
 an editable custom map. **New Map** opens plain JavaScript — a literal
 coordinate array or a `function(pixelCount)` returning one — and bakes it on
 the sync tick. The map context pane is a wiring check, not a Pattern preview:
-it colors points in wire order, labels indexes, and reports bounds and
-dimensions. A connected Controller can also **Import map** from its installed
-`/pixelmap.dat`; known maps are recognized rather than duplicated.
+it colors points in wire order, preserves the physical aspect of 2D geometry,
+fits 3D geometry around its actual centre, and uses a see-through diagnostic
+draw so depth cannot hide submitted positions. It labels a bounded set of index
+milestones and reports bounds, dimensions, unique positions, and coincident
+coordinate counts. Pattern light size, diffusion, brightness, and solidity do
+not alter this wiring view. A connected Controller can also **Import map** from
+its installed `/pixelmap.dat`; known maps are recognized rather than duplicated.
 
 **Contain** preserves aspect by scaling all axes from one shared range;
 **Fill** stretches each axis independently to `0..1`. Both are real Mapper

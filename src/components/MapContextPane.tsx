@@ -1,17 +1,17 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { Box, GitBranch, Lock, Map as MapIcon, SlidersHorizontal } from 'lucide-react'
-import { createRenderer, type Renderer } from '@/engine/renderer'
 import {
   explicitPatternMapUsers,
   labelStyle,
   mapFacts,
   wireGeometry,
-  wireLabelIndices,
-  wireLabels3D,
   wireOrderColors,
-  wireViewportPoints2D,
-  type WireLabel,
 } from '@/engine/mapContext'
+import {
+  prepareMapDiagnosticGeometry,
+  projectMapDiagnosticGeometry,
+} from '@/engine/mapDiagnosticViewport'
+import { paintMapDiagnosticCanvas } from '@/engine/mapDiagnosticRenderer'
 import type { GridDims, MapPoint } from '@/engine/maps'
 import type { MapImportMetadata } from '@/engine/personalContentRecords'
 import { useCameraStore } from '@/store/cameraStore'
@@ -23,7 +23,6 @@ import {
 } from '@/store/mapStore'
 import { usePatternStore } from '@/store/patternStore'
 import { useControllerProfileStore } from '@/store/controllerProfileStore'
-import { usePreviewStore } from '@/store/previewStore'
 import { OrbitControls } from '@/components/OrbitControls'
 import { advanceAutoOrbit } from '@/engine/camera'
 
@@ -39,16 +38,8 @@ interface OpenMapContext {
   importMetadata?: MapImportMetadata
 }
 
-function canvasSizeFor3D(width: number): number {
-  return Math.max(200, Math.floor(width))
-}
-
 function svgColor([red, green, blue]: [number, number, number]): string {
   return `rgb(${Math.round(red * 255)} ${Math.round(green * 255)} ${Math.round(blue * 255)})`
-}
-
-function wireMarkerRadius(count: number): number {
-  return Math.max(0.18, Math.min(0.5, 10 / Math.sqrt(Math.max(1, count))))
 }
 
 function resolveOpenMapContext(
@@ -194,14 +185,11 @@ function EmptyMapPane() {
 export function MapContextPane() {
   const canvasRef = useRef<HTMLCanvasElement>(null)
   const containerRef = useRef<HTMLDivElement>(null)
-  const rendererRef = useRef<Renderer | null>(null)
   const [containerWidth, setContainerWidth] = useState(0)
   const editingMap = useMapStore((s) => s.editingMap)
   const userMaps = useMapStore((s) => s.userMaps)
   const activePixelCount = useMapStore((s) => s.activePixelCount)
   const mapEvalError = useMapStore((s) => s.mapEvalError)
-  const lightSize = usePreviewStore((s) => s.lightSize)
-  const diffusion = usePreviewStore((s) => s.diffusion)
   const camera = useCameraStore((s) => s.camera)
   const userPatterns = usePatternStore((s) => s.userPatterns)
   const controllerProfiles = useControllerProfileStore((s) => s.profiles)
@@ -221,37 +209,26 @@ export function MapContextPane() {
     () => (context ? explicitPatternMapUsers(userPatterns, context.id) : []),
     [context, userPatterns],
   )
-  const canvasSize = useMemo(() => {
-    if (!geometry || containerWidth <= 0) return { width: 1, height: 1 }
-    if (geometry.kind === '3d') {
-      const px = canvasSizeFor3D(containerWidth)
-      return { width: px, height: px }
-    }
-    return { width: 1, height: 1 }
-  }, [containerWidth, geometry])
-  const viewportPoints = useMemo(
-    () => (geometry?.kind === '2d' ? wireViewportPoints2D(geometry.positions) : []),
-    [geometry],
-  )
+  const diagnosticGeometry = useMemo(() => {
+    if (!geometry) return null
+    return prepareMapDiagnosticGeometry({
+      positions: geometry.positions,
+      displayDimension: geometry.displayDim,
+    })
+  }, [geometry])
+  const diagnosticViewport = useMemo(() => {
+    if (!diagnosticGeometry || containerWidth <= 0) return null
+    return projectMapDiagnosticGeometry({
+      geometry: diagnosticGeometry,
+      containerWidth,
+      camera,
+    })
+  }, [camera, containerWidth, diagnosticGeometry])
   const wireColors = useMemo(
     () => (geometry ? wireOrderColors(geometry.positions.length) : []),
     [geometry],
   )
-  const labels = useMemo<WireLabel[]>(() => {
-    if (!geometry) return []
-    if (geometry.kind === '3d') {
-      const indices = wireLabelIndices(geometry.positions.length)
-      return wireLabels3D(geometry.positions, canvasSize.width, camera, indices)
-    }
-    // These are orientation marks, not the map itself. Keep them sparse enough
-    // that the LED point set remains the primary visual evidence.
-    const interval = Math.max(32, Math.ceil(geometry.positions.length / 256) * 32)
-    return wireLabelIndices(geometry.positions.length, interval).map((index) => ({
-      index,
-      label: String(index + 1),
-      ...viewportPoints[index],
-    }))
-  }, [camera, canvasSize.width, geometry, viewportPoints])
+  const labels = diagnosticViewport?.labels ?? []
 
   useEffect(() => {
     const el = containerRef.current
@@ -269,26 +246,14 @@ export function MapContextPane() {
 
   useEffect(() => {
     const canvas = canvasRef.current
-    if (!canvas || !geometry || geometry.kind !== '3d' || containerWidth <= 0) return
-    const renderer = createRenderer(canvas, { containerWidth, lightSize })
-    renderer.setDiffusion(diffusion)
-    rendererRef.current = renderer
-
-    renderer.set3DPositions(geometry.positions, { canvasPx: canvasSize.width })
-    renderer.setCamera(useCameraStore.getState().camera)
-    renderer.paint(wireColors, 1, context?.evalError !== null)
-    return () => {
-      rendererRef.current = null
-    }
-  }, [canvasSize.width, containerWidth, context?.evalError, diffusion, geometry, lightSize, wireColors])
-
-  useEffect(() => {
-    const renderer = rendererRef.current
-    if (!renderer || !geometry || geometry.kind !== '3d') return
-    renderer.setCamera(camera)
-    renderer.setDiffusion(diffusion)
-    renderer.paint(wireColors, 1, context?.evalError !== null)
-  }, [camera, context?.evalError, diffusion, geometry, wireColors])
+    if (!canvas || !geometry || geometry.kind !== '3d' || !diagnosticViewport) return
+    paintMapDiagnosticCanvas(
+      canvas,
+      diagnosticViewport,
+      wireColors,
+      context?.evalError !== null,
+    )
+  }, [context?.evalError, diagnosticViewport, geometry, wireColors])
 
   useEffect(() => {
     if (!geometry || geometry.kind !== '3d') return
@@ -308,8 +273,8 @@ export function MapContextPane() {
   if (!context) return <EmptyMapPane />
 
   const hasGeometry = geometry !== null && geometry.positions.length > 0
-  const labelBox = geometry?.kind === '2d' ? { width: 100, height: 100 } : canvasSize
-  const markerRadius = wireMarkerRadius(context.points.length)
+  const labelBox = diagnosticViewport ?? { width: 1, height: 1 }
+  const overlapSummary = diagnosticViewport?.coordinateSummary
 
   return (
     <div className="flex h-full min-h-0 flex-col bg-zinc-950 font-mono text-xs text-zinc-500">
@@ -322,25 +287,28 @@ export function MapContextPane() {
       <div
         ref={containerRef}
         data-testid="map-wiring-viewport"
-        className={`relative shrink-0 overflow-hidden border-b border-seam bg-black ${geometry?.kind === '2d' ? 'aspect-[2/1] w-full' : ''}`}
+        className="relative w-full shrink-0 overflow-hidden border-b border-seam bg-black"
+        style={diagnosticViewport
+          ? { aspectRatio: `${diagnosticViewport.width} / ${diagnosticViewport.height}` }
+          : undefined}
       >
-        {hasGeometry ? (
+        {hasGeometry && diagnosticViewport ? (
           geometry?.kind === '2d' ? (
             <>
               <svg
                 data-testid="map-wiring-geometry"
                 aria-label={`Physical map geometry: ${context.points.length.toLocaleString()} LEDs`}
                 className="block size-full"
-                viewBox="0 0 100 50"
+                viewBox={`0 0 ${diagnosticViewport.width} ${diagnosticViewport.height}`}
                 preserveAspectRatio="xMidYMid meet"
               >
                 <title>{`Physical map geometry: ${context.points.length.toLocaleString()} LEDs`}</title>
-                {viewportPoints.map((point, index) => (
+                {diagnosticViewport.points.map((point, index) => (
                   <circle
                     key={index}
                     cx={point.x}
-                    cy={point.y / 2}
-                    r={markerRadius}
+                    cy={point.y}
+                    r={diagnosticViewport.pointDiameterPx / 2}
                     fill={svgColor(wireColors[index])}
                     opacity="0.95"
                   />
@@ -359,8 +327,8 @@ export function MapContextPane() {
               </div>
             </>
           ) : (
-            <div className="relative inline-block max-w-full">
-              <canvas ref={canvasRef} data-testid="map-wiring-canvas" className="block max-w-full rounded-sm" />
+            <div className="relative size-full">
+              <canvas ref={canvasRef} data-testid="map-wiring-canvas" className="block size-full rounded-sm" />
               <OrbitControls canvasRef={canvasRef} showPoleControls={false} />
               <div className="pointer-events-none absolute inset-0">
                 {labels.map((label) => (
@@ -397,6 +365,13 @@ export function MapContextPane() {
         {facts && (
           <div className="mt-1">
             <FactRow label="pixels" value={facts.pixels} />
+            <FactRow label="unique positions" value={overlapSummary?.uniquePointCount ?? facts.pixels} />
+            <FactRow
+              label="overlaps"
+              value={overlapSummary && overlapSummary.overlappingPointCount > 0
+                ? `${overlapSummary.overlappingPointCount} at ${overlapSummary.overlapLocationCount} ${overlapSummary.overlapLocationCount === 1 ? 'position' : 'positions'}`
+                : 'none'}
+            />
             <FactRow label="arity" value={facts.arity} />
             <FactRow label="bounds" value={facts.bounds} />
             <FactRow

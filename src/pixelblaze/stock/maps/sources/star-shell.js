@@ -3,8 +3,8 @@
 // triangular faces, so the surface is 60 slanted triangles. Distinct from the
 // retired wireframe star (lights on the edges) and the filled star-volume. The
 // pixel count is the only knob: points are dealt round-robin across
-// the 60 faces, each placed strictly INSIDE its triangle via a Halton-folded
-// barycentric coordinate (never on a shared edge). Emits raw coords; the shared
+// the 60 faces, each placed at the centroid of a triangular subdivision cell
+// strictly INSIDE its face (never on a shared edge). Emits raw coords; the shared
 // normalize pass maps each axis to [0,1], aspect-preserving (the star is
 // centrally symmetric, so it stays centred). The preview re-derives each point's
 // face normal (starShellNormals) and offers the solidity slider.
@@ -46,28 +46,45 @@ function(pixelCount) {
           tris.push([V[a], V[b], apex], [V[b], V[c], apex], [V[c], V[a], apex])
         }
 
-  // Radical inverse of `i` in `base` — a low-discrepancy fraction in [0,1).
-  function halton(i, base) {
-    var f = 1, r = 0
-    while (i > 0) { f /= base; r += f * (i % base); i = Math.floor(i / base) }
-    return r
+  // Return at least k distinct, strictly interior barycentric centroids. A
+  // rows-way triangular subdivision contains rows^2 small triangles: upward
+  // cells first, then downward cells.
+  function triangleCells(k) {
+    if (k <= 0) return []
+    var rows = Math.ceil(Math.sqrt(k))
+    var cells = []
+    for (var i = 0; i <= rows - 1; i++)
+      for (var j = 0; i + j <= rows - 1; j++)
+        cells.push([
+          (3 * (rows - i - j) - 2) / (3 * rows),
+          (3 * i + 1) / (3 * rows),
+          (3 * j + 1) / (3 * rows),
+        ])
+    for (var i2 = 0; i2 <= rows - 2; i2++)
+      for (var j2 = 0; i2 + j2 <= rows - 2; j2++)
+        cells.push([
+          (3 * (rows - i2 - j2) - 4) / (3 * rows),
+          (3 * i2 + 2) / (3 * rows),
+          (3 * j2 + 2) / (3 * rows),
+        ])
+    return cells
   }
 
   var T = tris.length
+  var base = Math.floor(n / T)
+  var extra = n % T
+  var baseCells = triangleCells(base)
+  var extraCells = triangleCells(base + 1)
   var coords = []
   for (var i = 0; i < n; i++) {
-    var t = tris[i % T]
+    var face = i % T
+    var t = tris[face]
     var rank = Math.floor(i / T)
-    // Halton (2,3) point in the unit square, nudged off the boundary, folded into
-    // the triangle so it lands strictly inside.
-    var s = halton(rank + 1, 2)
-    var u = halton(rank + 1, 3)
-    if (s + u > 1) { s = 1 - s; u = 1 - u }
-    var w = 1 - s - u
+    var w = (face < extra ? extraCells : baseCells)[rank]
     coords.push([
-      t[0][0] * w + t[1][0] * s + t[2][0] * u,
-      t[0][1] * w + t[1][1] * s + t[2][1] * u,
-      t[0][2] * w + t[1][2] * s + t[2][2] * u,
+      t[0][0] * w[0] + t[1][0] * w[1] + t[2][0] * w[2],
+      t[0][1] * w[0] + t[1][1] * w[1] + t[2][1] * w[2],
+      t[0][2] * w[0] + t[1][2] * w[1] + t[2][2] * w[2],
     ])
   }
   return coords

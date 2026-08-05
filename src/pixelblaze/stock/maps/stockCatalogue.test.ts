@@ -422,6 +422,14 @@ describe('star shell (stellated surface)', () => {
     }
   })
 
+  it.each([512, 1024, 1728])('assigns all %i wire indices distinct surface coordinates', (count) => {
+    const coords = rawCoords('star-shell', count)
+    const unique = new Set(coords.map((point) => point.map((value) => value.toFixed(12)).join(',')))
+
+    expect(coords).toHaveLength(count)
+    expect(unique.size).toBe(count)
+  })
+
   it('yields faceted, outward per-face normals (starShellNormals)', () => {
     const samples = mapById('star-shell').resolve(1200).map((p) => p.sample)
     // centroid of the normalized samples

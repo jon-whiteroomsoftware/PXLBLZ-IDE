@@ -516,6 +516,15 @@ fitting, depth cue, and optional normal-based solidity. Renderer caps protect
 against accidental pathological counts (`MAX_PIXEL_COUNT = 65,536`, grid axis
 256).
 
+The Map context pane is deliberately outside that Pattern/Show presentation
+policy. `mapDiagnosticViewport.ts` projects diagnostic positions, sizes 2D from
+physical bounds, centres 3D on the geometry's actual bounds, chooses a
+density-based marker size, deconflicts at most twelve wire-index labels, and
+counts coincident coordinates. `mapDiagnosticRenderer.ts` paints the projected
+3D points additively without a depth test, so every submitted index contributes
+to the x-ray and coordinate piles intensify instead of disappearing. It does not
+read Pattern light size, diffusion, brightness, or solidity.
+
 Changing Stage pane width, light size, or the 3D canvas extent resizes the
 existing renderer in place. It does not construct a new Fast runtime, reset
 Pattern state, or seek through Show time. A Stage map, compiled artifact,
@@ -630,6 +639,22 @@ a saved map. Index is the explicit no-installed-map 1D convention
 Solidity is enabled only when the app owns trustworthy normals. Generated
 Cylinder and shell recipes provide them; a coincidentally sphere-shaped imported
 cloud does not. Normals and solidity remain preview-only.
+
+### Map context diagnostics
+
+Opening source in Map mode never adopts that map into the running Pattern. The
+right pane instead resolves the source or last good bake into a Map-owned
+diagnostic view. One-dimensional maps use a compact strip; two-dimensional maps
+use their measured physical aspect; three-dimensional maps orbit in a square
+frame fitted around their real bounds centre. Wire-order color remains the
+primary encoding.
+
+The diagnostic submits every coordinate and reports both total pixels and unique
+positions. `overlaps` is the number of wire indices beyond the first index at a
+coincident position, together with the number of affected positions. This makes
+a generator defect or stale custom-map pile explicit; no rendering mode can make
+coincident coordinates individually visible. Labels are bounded orientation
+milestones, not an attempt to annotate every LED.
 
 ---
 

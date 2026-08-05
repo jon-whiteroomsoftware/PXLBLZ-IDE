@@ -3,21 +3,11 @@ import {
   labelStyle,
   mapFacts,
   wireGeometry,
-  wireLabelIndices,
-  wireLabels2D,
-  wireLabels3D,
   wireOrderColors,
-  wireViewportPoints2D,
 } from './mapContext'
-import { DEFAULT_ORBIT } from './camera'
 import type { MapPoint } from './maps'
 
 describe('map context wiring helpers', () => {
-  it('builds the mock wire-order label cadence as one-based labels', () => {
-    expect(wireLabelIndices(256)).toEqual([0, 31, 63, 95, 127, 159, 191, 223, 255])
-    expect(wireLabelIndices(33)).toEqual([0, 31, 32])
-  })
-
   it('creates an amber wire-order gradient', () => {
     const colors = wireOrderColors(3)
     expect(colors[0]).toEqual([42 / 255, 42 / 255, 48 / 255])
@@ -46,33 +36,6 @@ describe('map context wiring helpers', () => {
       arity: '2D',
       bounds: '2 x 2',
     })
-  })
-
-  it('projects labels for 2D and 3D geometry into canvas space', () => {
-    const points2d: [number, number][] = [[0, 0], [1, 1]]
-    expect(wireLabels2D(points2d, 100, 100, [0, 1])).toEqual([
-      expect.objectContaining({ label: '1' }),
-      expect.objectContaining({ label: '2' }),
-    ])
-
-    const points3d: [number, number, number][] = [[0, 0, 0], [1, 1, 1]]
-    expect(wireLabels3D(points3d, 100, DEFAULT_ORBIT, [0, 1])).toEqual([
-      expect.objectContaining({ label: '1' }),
-      expect.objectContaining({ label: '2' }),
-    ])
-  })
-
-  it('contains physical 2D geometry in the map view’s wide 2:1 frame', () => {
-    expect(wireViewportPoints2D([[0, 0], [1, 0.5]])).toEqual([
-      { x: 0, y: 0 },
-      { x: 100, y: 100 },
-    ])
-
-    // A square map stays square instead of being stretched to fill the wide frame.
-    expect(wireViewportPoints2D([[0, 0], [1, 1]])).toEqual([
-      { x: 25, y: 0 },
-      { x: 75, y: 100 },
-    ])
   })
 
   it('finds only patterns with explicit map settings', () => {

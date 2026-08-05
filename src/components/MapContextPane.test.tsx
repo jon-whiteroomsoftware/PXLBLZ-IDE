@@ -1,4 +1,4 @@
-import { render, screen } from '@testing-library/react'
+import { render, screen, waitFor } from '@testing-library/react'
 import { MapContextPane } from './MapContextPane'
 import { useMapStore, mapInitialState, type MapRecord } from '@/store/mapStore'
 import { usePatternStore, patternInitialState } from '@/store/patternStore'
@@ -41,7 +41,9 @@ describe('MapContextPane', () => {
     render(<MapContextPane />)
 
     const geometry = await screen.findByTestId('map-wiring-geometry')
-    expect(screen.getByTestId('map-wiring-viewport')).toHaveClass('aspect-[2/1]')
+    await waitFor(() => expect(geometry).toHaveAttribute('viewBox', '0 0 320 320'))
+    expect(screen.getByTestId('map-wiring-viewport')).toHaveStyle({ aspectRatio: '320 / 320' })
+    expect(screen.getByTestId('map-wiring-viewport')).not.toHaveClass('aspect-[2/1]')
     expect(geometry).toHaveClass('size-full')
     expect(geometry.querySelectorAll('circle')).toHaveLength(4)
     expect(screen.getByLabelText('Physical map geometry: 4 LEDs')).toBeInTheDocument()
@@ -66,6 +68,18 @@ describe('MapContextPane', () => {
 
     expect(await screen.findByTestId('map-wiring-geometry')).toBeInTheDocument()
     expect(screen.getByText(/Holding last good bake: boom/)).toBeInTheDocument()
+  })
+
+  it('reports coincident map coordinates in the diagnostic facts', async () => {
+    useMapStore.setState({
+      editingMap: { kind: 'existing', id: CUSTOM_MAP.id },
+      userMaps: [{ ...CUSTOM_MAP, points: [[0, 0], [0, 0], [1, 1]], gridDims: undefined }],
+    })
+
+    render(<MapContextPane />)
+
+    expect(await screen.findByText('unique positions')).toBeInTheDocument()
+    expect(screen.getByText('1 at 1 position')).toBeInTheDocument()
   })
 
   it('uses orbit controls for stock 3D maps without pole-only controls', async () => {
