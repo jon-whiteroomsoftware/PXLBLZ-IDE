@@ -31,16 +31,19 @@ describe('issue #540 Pattern field/shading census', () => {
       .filter((entry) => entry.credibleCandidate)
       .map((entry) => entry.name)
 
+    // Recensused with the CME remix (#704): the bundled CoronalMassEjection
+    // joins beside the community copy this census already reviewed, and
+    // neither is a credible candidate, so the gate verdict is unchanged.
     expect(issue540Report.summary).toMatchObject({
-      patternCount: 62,
-      reviewedCount: 62,
+      patternCount: 63,
+      reviewedCount: 63,
       credibleCandidateCount: 7,
       unreviewedIds: [],
       invalidClassificationIds: [],
       proceedWithPrototype: true,
       decision: 'proceed-prototype',
     })
-    expect(issue540Report.summary.credibleCandidateRatio).toBeCloseTo(7 / 62)
+    expect(issue540Report.summary.credibleCandidateRatio).toBeCloseTo(7 / 63)
     expect(candidates).toEqual([
       'Caustics',
       'GyroidGlow3D',

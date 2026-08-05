@@ -62,6 +62,7 @@ export const FPS_FRIENDLY_DEMOS = [
 export const RADIAL_DEMOS = [
   'ClockworkIris',
   'CompassRose',
+  'CoronalMassEjection',
   'EventHorizon',
   'ShapeShifter',
   'SignalMandala',

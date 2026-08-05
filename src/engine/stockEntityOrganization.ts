@@ -45,9 +45,14 @@ export function stockShowOrganization(shows: readonly StockShow[]): EntityOrgani
     name: group.name,
     children: shows.filter(group.matches).sort((left, right) => left.order - right.order).map((show) => ({ kind: 'entity', entityId: show.id })),
   }))
+  const remixes = shows
+    .filter((show) => show.collection === 'remixes')
+    .sort((left, right) => left.order - right.order)
+    .map((show): EntityOrganizationNode => ({ kind: 'entity', entityId: show.id }))
   const nodes: EntityOrganizationNode[] = [
     { kind: 'folder', id: 'stock-show-learn', name: 'Learn', children: learn },
     { kind: 'folder', id: 'stock-show-showcases', name: 'Showcases', children: showcases },
+    { kind: 'folder', id: 'stock-show-remixes', name: 'Remixes', children: remixes },
   ]
   return normalizeEntityOrganization({ version: 1, nodes, trash: [], collapsedFolderIds: [] }, shows.map((show) => show.id))
 }

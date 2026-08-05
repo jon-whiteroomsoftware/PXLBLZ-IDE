@@ -16,6 +16,7 @@ const INTENTIONAL_LOW_DENSITY = new Set([
 ])
 
 const EXPECTED_UPSTREAM_AUTHORS: Record<string, string[]> = {
+  CoronalMassEjection: ['ZRanger1'],
   IQPalettes: ['Inigo Quilez'],
   IridescentFibers: ['evesira'],
   Kishimisu: ['kishimisu'],

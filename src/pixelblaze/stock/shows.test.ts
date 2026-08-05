@@ -29,7 +29,7 @@ import { STOCK_SHOWS, stockShowById } from './shows'
 
 describe('stock Show curriculum (#363)', () => {
   it('ships the stable Learn 100, Learn 200, Learn 300, and showcase catalogue', () => {
-    expect(STOCK_SHOWS).toHaveLength(36)
+    expect(STOCK_SHOWS).toHaveLength(37)
     expect(new Set(STOCK_SHOWS.map((item) => item.id)).size).toBe(STOCK_SHOWS.length)
     expect(STOCK_SHOWS.map((item) => [item.name, item.collection, item.level, item.order])).toEqual([
       ['100 Getting Around', 'learn', 100, 0],
@@ -68,6 +68,7 @@ describe('stock Show curriculum (#363)', () => {
       ['Zone Layouts: Stripes & Grid', 'showcases', null, 17],
       ['Zone Layouts: Radial', 'showcases', null, 18],
       ['Redline Installation', 'showcases', null, 19],
+      ['Coronal Mass Ejection PXLBLZ remix', 'remixes', null, 1],
     ])
     expect(STOCK_SHOWS.every((item) => item.show.id === item.id)).toBe(true)
     expect(STOCK_SHOWS.every((item) => !/\bscenes?\b/i.test([
@@ -1516,6 +1517,91 @@ describe('stock Show curriculum (#363)', () => {
     expect(compiled.artifact?.summary.cost.cpu.patternEvaluations).toMatchObject({ formula: 'N', basePerPixel: 1 })
     expect(compiled.artifact?.summary.cost.cpu.effects.animatedParametersPerFrame).toBeGreaterThan(0)
     expect(compiled.artifact?.summary.worstInstantRenderersPerPixel).toBe(1)
+  })
+
+  // The Remixes collection ships finished pieces scored over community
+  // Patterns. The CME remix is the teaser gesture from
+  // scripts/promo/cme-teaser.ts, promoted to a built-in (#704).
+  describe('Coronal Mass Ejection remix (#704)', () => {
+    const remix = () => stockShowById('stock-show-remix-coronal-mass-ejection')!
+
+    it('ships the teaser gesture: one held CME instance over a 40s deterministic loop', () => {
+      const item = remix()
+      expect(item.track).toBe('portable')
+      expect(item.note.label).toBe('Remixes')
+      expect([item.note.purpose, item.note.notice].join(' ')).toContain('ZRanger1')
+      const show = item.show
+      expect(show.name).toBe('Coronal Mass Ejection PXLBLZ remix')
+      expect(show.cells).toHaveLength(1)
+      expect(show.cells[0]).toMatchObject({
+        sceneSpan: 2,
+        pattern: { kind: 'stock', id: 'CoronalMassEjection' },
+        adaptations: { timeScale: 0.5, timeOffsetMs: 2_450 },
+        restartOnEntry: false,
+      })
+      expect(show.scenes.map((entry) => entry.durationMs)).toEqual([8_000, 32_000])
+      expect(show.outputContract).toMatchObject({
+        kind: 'portable-2d', referenceMapId: 'plane', referencePixelCount: 1_936,
+      })
+      const composition = show.composition!
+      expect(composition.executionModel).toBe('deterministic-loop')
+      expect(composition.durationMs).toBe(40_000)
+      expect(composition.markers?.map((marker) => marker.timeMs))
+        .toEqual([0, 8_000, 12_000, 24_000, 28_000, 32_000, 35_000, 36_000])
+      expect(composition.patternInstances).toHaveLength(1)
+      expect(composition.patternInstances[0].time).toEqual({ timeScale: 0.5, timeOffsetMs: 2_450 })
+      expect(validateShowComposition(show, composition)).toEqual([])
+    })
+
+    it('scores the gesture on four Property targets and lands every crescendo pulse on a beat', () => {
+      const composition = remix().show.composition!
+      expect(composition.scenes[0].propertyTracks ?? []).toEqual([])
+      const tracks = composition.scenes[1].propertyTracks ?? []
+      // Normalization orders tracks by id, matching the saved teaser record.
+      expect(tracks.map((track) => [track.id, track.target.kind])).toEqual([
+        ['track-brightness', 'placement-view'],
+        ['track-rotation', 'placement-transform'],
+        ['track-scaleX', 'placement-transform'],
+        ['track-scaleY', 'placement-transform'],
+        ['track-speed', 'instance-time-scale'],
+      ])
+      const byId = Object.fromEntries(tracks.map((track) => [track.id, track]))
+      // Speed: half-speed intro, cubic build to 1.75x, dead stop on the Stop marker.
+      expect(byId['track-speed'].keyframes.map((frame) => [frame.timeMs, frame.value])).toEqual([
+        [0, 0.5], [4_000, 0.5], [16_000, 1.75], [20_000, 1.75], [24_000, 0],
+      ])
+      // Rotation: 1.25 signed turns with continuous angular velocity at each join.
+      expect(byId['track-rotation'].keyframes.map((frame) => [frame.timeMs, frame.value])).toEqual([
+        [0, 0], [16_000, 0.75], [20_000, 1.125], [24_000, 1.25],
+      ])
+      // Push-in past sqrt(2) stays ahead of the spin's corner exposure.
+      for (const axis of ['track-scaleX', 'track-scaleY'] as const) {
+        expect(byId[axis].keyframes.map((frame) => [frame.timeMs, frame.value]))
+          .toEqual([[0, 1], [4_000, 1.45]])
+      }
+      // Brightness: on-beat valleys deepen through the crescendo (times are
+      // relative to the 32s Gesture span), then stillness, then black.
+      const brightness = byId['track-brightness'].keyframes
+      for (const [atMs, depth] of [
+        [16_000, 0.05], [17_000, 0.05], [18_000, 0.05], [19_000, 0.05], [20_000, 0.05],
+        [21_000, 0.15], [22_200, 0.3], [23_500, 0.5],
+      ]) {
+        expect(brightness.find((frame) => frame.timeMs === atMs)?.value, `pulse at ${atMs}`).toBe(depth)
+      }
+      expect(brightness[brightness.length - 1]).toMatchObject({ timeMs: 28_000, value: 0 })
+    })
+
+    it('accelerates, pulses, and lands on black in sampled output', { timeout: 30_000 }, () => {
+      const { frameAt } = lessonReplay('stock-show-remix-coronal-mass-ejection')
+      const intro = frameAt(4_000)
+      expect(meanLuma(intro)).toBeGreaterThan(0.005)
+      // First crescendo pulse: absolute 24.0-24.15s holds brightness 0.05.
+      const beforePulse = frameAt(23_000)
+      const pulseValley = frameAt(24_100)
+      expect(meanLuma(pulseValley)).toBeLessThan(meanLuma(beforePulse) * 0.4)
+      // The fade lands at zero at 36s and the loop tail stays black.
+      expect(meanLuma(frameAt(38_000))).toBeLessThanOrEqual(0.001)
+    })
   })
 
   it('uses real stock Patterns and satisfies every output contract', () => {

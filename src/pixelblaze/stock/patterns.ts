@@ -63,6 +63,7 @@ export const RECOMMENDED_SETTINGS: Record<string, Partial<Settings>> = {
   Caustics: { mapId: 'plane', surfaceId: 'flat', pixelCount: 1024, normalize: 'fill', brightness: 0.9, lightSize: 0.85, diffusion: 0.84 },
   ClockworkIris: { mapId: 'plane', surfaceId: 'flat', pixelCount: 1024, normalize: 'contain', brightness: 0.9, lightSize: 0.7, diffusion: 0.5 },
   CompassRose: { mapId: 'plane', surfaceId: 'flat', pixelCount: 1024, normalize: 'fill', brightness: 1, lightSize: 0.75, diffusion: 0.74 },
+  CoronalMassEjection: { mapId: 'plane', surfaceId: 'flat', pixelCount: 1024, normalize: 'fill', brightness: 1, lightSize: 0.75, diffusion: 0.6 },
   EasedSweep: { mapId: 'wide', surfaceId: 'flat', pixelCount: 256, normalize: 'contain', brightness: 0.9, lightSize: 0.45, diffusion: 0.67 },
   EventHorizon: { mapId: 'plane', surfaceId: 'flat', pixelCount: 1024, normalize: 'fill', brightness: 1, lightSize: 0.8, diffusion: 0.62 },
   GlyphRain: { mapId: 'panel-winding', surfaceId: 'flat', pixelCount: 1024, normalize: 'fill', brightness: 0.9, lightSize: 0.55, diffusion: 0.34 },

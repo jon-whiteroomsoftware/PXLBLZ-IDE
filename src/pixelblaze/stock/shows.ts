@@ -4,6 +4,7 @@ import type {
   ShowClipEffect,
   ShowClipTransform,
   ShowCompositionV1,
+  ShowPropertyAnimationTarget,
   ShowPropertyAnimationTrack,
   ShowRecord,
   ShowRoutingLayout,
@@ -16,7 +17,22 @@ import { SHOW_EASING_OPTIONS } from '@/engine/showEasing'
 import { showEffectNumericValue, showEffectParameterNames } from '@/engine/showEffects'
 import type { ShowReferenceGuide } from '@/engine/showReferenceShow'
 import { replaceShowBoundaryTransition } from '@/engine/showTransitionAuthoring'
-import { updateShowBoundaryTransition } from '@/engine/showModel'
+import {
+  createShowWithOutputContract,
+  extendShowCell,
+  removeShowBoundaryTransition,
+  removeShowClip,
+  updateShowBoundaryTransition,
+  updateShowCellAdaptations,
+  updateShowCellPattern,
+  updateShowScene,
+} from '@/engine/showModel'
+import {
+  normalizeShowComposition,
+  projectFlatShowToCompositionV1WithCellOrigins,
+} from '@/engine/showCompositionModel'
+import { addShowPropertyKeyframe, addShowPropertyTrack } from '@/engine/showPropertyAnimation'
+import { DEMOS } from './patterns'
 import { buildShowToolkitPresentationCatalogue } from '@/engine/showVisualToolkitPresentation'
 import {
   createInstallationShowOutputContract,
@@ -24,7 +40,7 @@ import {
 } from '@/engine/showOutputContract'
 
 export type StockShowTrack = 'portable' | 'installation'
-export type StockShowCollection = 'learn' | 'showcases'
+export type StockShowCollection = 'learn' | 'showcases' | 'remixes'
 
 export interface StockShowNote {
   label: string
@@ -116,7 +132,10 @@ const PORTABLE_REFERENCE_PIXELS = 1_936
 // the timeline reads as choreography rather than per-Clip knob work.
 const LESSON_TIME_SCALE = 0.32
 const SINE_IN_OUT: ShowStructuredEasing = { curve: 'sine', direction: 'in-out' }
+const SINE_OUT: ShowStructuredEasing = { curve: 'sine', direction: 'out' }
 const CUBIC_IN_OUT: ShowStructuredEasing = { curve: 'cubic', direction: 'in-out' }
+const CUBIC_IN: ShowStructuredEasing = { curve: 'cubic', direction: 'in' }
+const CUBIC_OUT: ShowStructuredEasing = { curve: 'cubic', direction: 'out' }
 const LINEAR: ShowStructuredEasing = { curve: 'linear' }
 const QUADRATIC_IN: ShowStructuredEasing = { curve: 'quadratic', direction: 'in' }
 const COLORS = ['#38bdf8', '#f97316', '#a78bfa', '#22c55e']
@@ -133,6 +152,7 @@ export const STOCK_SHOWS: StockShow[] = [
   propertyAnimationReference(), easingReference(), apertureShapesReference(), apertureIconsReference(),
   zoneLayoutShowcase('splits'), zoneLayoutShowcase('bands'), zoneLayoutShowcase('radial'),
   redlineInstallation(),
+  remixCoronalMassEjection(),
 ]
 
 export function stockShowById(id: string | null | undefined): StockShow | undefined {
@@ -2531,6 +2551,187 @@ function compositingKeyShowcase(): StockShow {
       })),
     },
   })
+}
+
+
+// --- Remixes -----------------------------------------------------------------
+// Finished pieces scored over community Patterns, shipped beside Learn and
+// Showcases. The CME remix is the v2 teaser gesture, ported from
+// scripts/promo/cme-teaser.ts (#704): the flat record and every Property track
+// are rebuilt through the same engine operations the script used, so the
+// shipped Show matches the published teaser exactly.
+
+type RemixKeyframe = { timeMs: number; value: number; easing: ShowStructuredEasing }
+
+/** One on-beat brightness stab: fast drop, held dark floor, smooth recovery. */
+function remixPulse(atMs: number, depth: number, holdMs = 150, recoverMs = 500): RemixKeyframe[] {
+  return [
+    { timeMs: atMs - 100, value: 1, easing: CUBIC_OUT },
+    { timeMs: atMs, value: depth, easing: LINEAR },
+    { timeMs: atMs + holdMs, value: depth, easing: SINE_IN_OUT },
+    { timeMs: atMs + holdMs + recoverMs, value: 1, easing: LINEAR },
+  ]
+}
+
+function remixTrack(
+  flat: Pick<ShowRecord, 'scenes'>,
+  composition: ShowCompositionV1,
+  sceneId: string,
+  trackId: string,
+  target: ShowPropertyAnimationTarget,
+  keyframes: RemixKeyframe[],
+): ShowCompositionV1 {
+  const mustEdit = (label: string, previous: ShowCompositionV1, next: ShowCompositionV1) => {
+    // A rejected engine edit returns its input; a silent rejection here would
+    // ship a Show missing part of its score, so fail loudly at module load
+    // (the catalogue census compiles and validates every entry in CI).
+    if (next === previous) throw new Error(`CME remix edit rejected: ${label}`)
+    return next
+  }
+  const [first, second, ...rest] = keyframes
+  let next = mustEdit(`${trackId} (track)`, composition, addShowPropertyTrack(flat, composition, sceneId, {
+    id: trackId,
+    target,
+    keyframes: [first, second].map((keyframe, index) => ({ id: `${trackId}-kf-${index + 1}`, ...keyframe })),
+  }))
+  rest.forEach((keyframe, index) => {
+    next = mustEdit(`${trackId} kf@${keyframe.timeMs}`, next, addShowPropertyKeyframe(flat, next, sceneId, trackId, {
+      id: `${trackId}-kf-${index + 3}`,
+      ...keyframe,
+    }))
+  })
+  return next
+}
+
+function remixCoronalMassEjection(): StockShow {
+  const id = 'stock-show-remix-coronal-mass-ejection'
+  const name = 'Coronal Mass Ejection PXLBLZ remix'
+  const INTRO_MS = 8_000
+  /** 36s gesture plus two bars of black before the loop restarts. */
+  const DURATION_MS = 40_000
+  /**
+   * Chosen so the frozen final frame lands in the red/orange band of
+   * t1 = time(.2). The Show elapsed pattern-time is close to two full 13.1s
+   * hue cycles, so this offset warms the opening frames too.
+   */
+  const TIME_OFFSET_MS = 2_450
+
+  // Flat record: two segments cut at the 8s bar line, one CME cell held across
+  // the junction so the Pattern clock never restarts. The Intro is untouched
+  // half-speed CME; the Gesture span owns every Property track.
+  let flat = createShowWithOutputContract(id, name, createPortableShowOutputContract({
+    referenceMapId: 'plane', referencePixelCount: PORTABLE_REFERENCE_PIXELS,
+  }))
+  flat = updateShowScene(flat, 'scene-1', { name: 'Intro', durationMs: INTRO_MS })
+  flat = updateShowScene(flat, 'scene-2', { name: 'Gesture', durationMs: DURATION_MS - INTRO_MS })
+  flat = removeShowBoundaryTransition(flat, 'transition-scene-1')
+  flat = removeShowClip(flat, flat.cells[1].id)
+  const cellId = flat.cells[0].id
+  flat = updateShowCellPattern(flat, cellId, {
+    pattern: { kind: 'stock', id: 'CoronalMassEjection' },
+    patternName: 'CoronalMassEjection',
+  })
+  flat = updateShowCellAdaptations(flat, cellId, { timeScale: 0.5, timeOffsetMs: TIME_OFFSET_MS })
+  flat = extendShowCell(flat, cellId, 2)
+
+  const projection = projectFlatShowToCompositionV1WithCellOrigins(flat, {
+    byCellId: { [cellId]: DEMOS.CoronalMassEjection },
+    stageDimension: 2,
+  })
+  let composition: ShowCompositionV1 = {
+    ...projection.composition,
+    executionModel: 'deterministic-loop',
+    durationMs: DURATION_MS,
+    markers: [
+      { id: 'marker-intro', timeMs: 0, name: 'Intro - half speed' },
+      { id: 'marker-rotation', timeMs: 8_000, name: 'Rotation begins' },
+      { id: 'marker-accel', timeMs: 12_000, name: 'Accelerando' },
+      { id: 'marker-crescendo', timeMs: 24_000, name: 'Crescendo - pulses' },
+      { id: 'marker-winddown', timeMs: 28_000, name: 'Wind-down' },
+      { id: 'marker-stop', timeMs: 32_000, name: 'Stop' },
+      { id: 'marker-fade', timeMs: 35_000, name: 'Fade' },
+      { id: 'marker-black', timeMs: 36_000, name: 'Black' },
+    ],
+  }
+  const gesture = composition.scenes.find((candidate) => candidate.sceneId === 'scene-2')
+  const placementId = gesture?.zones[0]?.main[0]?.id
+  const instanceId = composition.patternInstances[0]?.id
+  if (!placementId || !instanceId || composition.patternInstances.length !== 1) {
+    throw new Error('CME remix projection did not produce one held instance with a Gesture placement')
+  }
+
+  // All track times below are relative to the 32s Gesture span (absolute time
+  // minus the 8s Intro). Speed: half speed, long cubic build to 1.75x, hold,
+  // land at 0 on the Stop marker.
+  composition = remixTrack(flat, composition, 'scene-2', 'track-speed',
+    { kind: 'instance-time-scale', instanceId },
+    [
+      { timeMs: 0, value: 0.5, easing: LINEAR },
+      { timeMs: 4_000, value: 0.5, easing: CUBIC_IN },
+      { timeMs: 16_000, value: 1.75, easing: LINEAR },
+      { timeMs: 20_000, value: 1.75, easing: CUBIC_OUT },
+      { timeMs: 24_000, value: 0, easing: LINEAR },
+    ])
+  // Rotation in signed turns. Quadratic ease-in reads as motion within ~2s of
+  // the cut; the later values keep angular velocity continuous at every join.
+  composition = remixTrack(flat, composition, 'scene-2', 'track-rotation',
+    { kind: 'placement-transform', placementId, property: 'rotation' },
+    [
+      { timeMs: 0, value: 0, easing: QUADRATIC_IN },
+      { timeMs: 16_000, value: 0.75, easing: LINEAR },
+      { timeMs: 20_000, value: 1.125, easing: CUBIC_OUT },
+      { timeMs: 24_000, value: 1.25, easing: LINEAR },
+    ])
+  // Scale: push-in to 1.45 (> sqrt(2)) fast enough to stay ahead of the
+  // quadratic rotation corner exposure at every instant; holds thereafter.
+  for (const axis of ['scaleX', 'scaleY'] as const) {
+    composition = remixTrack(flat, composition, 'scene-2', `track-${axis}`,
+      { kind: 'placement-transform', placementId, property: axis },
+      [
+        { timeMs: 0, value: 1, easing: QUADRATIC_IN },
+        { timeMs: 4_000, value: 1.45, easing: LINEAR },
+      ])
+  }
+  // Brightness: on-beat pulses through the crescendo, spreading apart and
+  // softening through the wind-down; still through the hold; fade to black.
+  composition = remixTrack(flat, composition, 'scene-2', 'track-brightness',
+    { kind: 'placement-view', placementId, property: 'brightness' },
+    [
+      { timeMs: 0, value: 1, easing: LINEAR },
+      ...[16_000, 17_000, 18_000, 19_000, 20_000].flatMap((atMs) => remixPulse(atMs, 0.05)),
+      ...remixPulse(21_000, 0.15),
+      ...remixPulse(22_200, 0.3),
+      ...remixPulse(23_500, 0.5, 100, 400),
+      { timeMs: 27_000, value: 1, easing: SINE_OUT },
+      { timeMs: 28_000, value: 0, easing: LINEAR },
+    ])
+
+  composition = normalizeShowComposition(flat, composition)
+  const show: ShowRecord = { ...flat, composition, updatedAt: UPDATED_AT }
+  const note: StockShowNote = {
+    label: 'Remixes',
+    title: 'Coronal Mass Ejection',
+    purpose: 'One Pattern, one 40-second gesture. ZRanger1\'s Coronal Mass Ejection opens at half speed; '
+      + 'rotation eases in, speed and spin accelerate together into a crescendo of on-beat brightness pulses, '
+      + 'then everything winds down to a dead stop, holds two beats, and fades to black.',
+    notice: 'The Pattern is ZRanger1\'s Coronal Mass Ejection 2D, shipped as-is. Every motion beyond its own '
+      + 'animation is choreography: speed, rotation, scale, and brightness Property tracks over one held Clip. '
+      + 'Remixes are finished pieces rather than lessons, so read the tracks like a score.',
+    prompts: [
+      'Scrub the crescendo between the 24s and 28s markers: each brightness pulse lands on a beat, and the valleys deepen as the spin accelerates.',
+      'Drag the speed track\'s final keyframe up from zero and the dead stop becomes a slow-motion ending.',
+    ],
+    guide: {
+      documentId: 'show-visual-toolkit',
+      heading: 'property-animation',
+      label: 'Read property animation',
+    },
+    defaultOpen: true,
+  }
+  return {
+    id, name, track: 'portable', collection: 'remixes', level: null, order: 1,
+    lesson: note.title, description: note.purpose, note, show,
+  }
 }
 
 function catalogue(input: CatalogueInput): StockShow {

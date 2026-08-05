@@ -8,8 +8,8 @@ describe('Restart-instance global-liveness census (#536)', () => {
     // lessons landed, with the Learn 300 lessons, with the 100/207/aperture
     // additions, again with the showcase repartition (fifteen recast
     // references replacing nine), and again with the Zone Layouts showcase
-    // trio (#700).
-    expect(report.summary.savedShowCount).toBe(36)
+    // trio (#700), and again with the CME remix (#704).
+    expect(report.summary.savedShowCount).toBe(37)
     expect(report.cases.some((entry) => entry.kind === 'five-pattern-acceptance')).toBe(true)
     expect(report.summary.compileFailures).toEqual([])
   })
@@ -67,13 +67,16 @@ describe('Restart-instance global-liveness census (#536)', () => {
     // trio (#700: their voices all Continue across every routed passage, so
     // the member-global corpus grows while the reclaimable Restart set does
     // not). The unweighted percent stays at zero and the gate reads the
-    // unweighted percent, so the verdict is unchanged.
+    // unweighted percent, so the verdict is unchanged. Recensused again
+    // with the CME remix (#704: its one held instance Continues across the
+    // cut, so the member-global corpus grows while the reclaimable Restart
+    // set stays fixed and the weighted figure falls).
     expect(report.summary).toMatchObject({
-      representativeMemberGlobals: 2_972,
+      representativeMemberGlobals: 3_013,
       representativeReclaimedGlobals: 186,
     })
     expect(report.decision.representativeReclaimPercent).toBe(0)
-    expect(report.decision.weightedRepresentativeReclaimPercent).toBeCloseTo(0.06258412, 8)
+    expect(report.decision.weightedRepresentativeReclaimPercent).toBeCloseTo(0.06173249, 8)
     expect(report.decision.ceilingRescues).toEqual([])
     expect(report.decision.proceedWithEmission).toBe(false)
     expect(report.decision.proceedWithEmission).toBe(

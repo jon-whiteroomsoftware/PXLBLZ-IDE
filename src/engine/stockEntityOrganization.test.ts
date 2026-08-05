@@ -32,6 +32,9 @@ describe('built-in entity organization', () => {
         { kind: 'folder', name: 'Zones' },
         { kind: 'folder', name: 'Installations' },
       ] },
+      { kind: 'folder', name: 'Remixes', children: [
+        { kind: 'entity', entityId: 'stock-show-remix-coronal-mass-ejection' },
+      ] },
     ])
     expect(new Set(collectEntityIds(organization.nodes)).size).toBe(STOCK_SHOWS.length)
   })
@@ -45,7 +48,7 @@ describe('built-in entity organization', () => {
 
     expect(learn).toMatchObject({ children: [{ name: '100' }] })
     expect(stockShowOrganization(STOCK_SHOWS.filter((show) => show.collection !== 'learn')).nodes)
-      .toMatchObject([{ kind: 'folder', name: 'Learn', children: [] }, { kind: 'folder', name: 'Showcases' }])
+      .toMatchObject([{ kind: 'folder', name: 'Learn', children: [] }, { kind: 'folder', name: 'Showcases' }, { kind: 'folder', name: 'Remixes' }])
   })
 })
 

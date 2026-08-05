@@ -826,7 +826,10 @@ holds numbered lessons that add one idea at a time — routing, Effects, Propert
 animation, Transitions, and cost techniques. **Showcases** holds reference
 catalogues for Effects, Transitions, Property animation, and easing, plus
 finished scores such as the 2,000-pixel, five-surface **Redline
-Installation**.
+Installation**. **Remixes** holds finished pieces scored over community
+Patterns — currently the Coronal Mass Ejection PXLBLZ remix, a 40-second
+choreographed gesture over ZRanger1's Coronal Mass Ejection 2D, with the
+Pattern shipped as-is and credited in the Patterns gallery.
 
 Built-ins use the complete production editor. The first change creates a
 session-only draft with normal Undo/Redo; it does not alter the shipped example

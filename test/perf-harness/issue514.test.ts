@@ -2,9 +2,9 @@ import { report } from './issue514'
 
 describe('Show render-target residual-headroom census (#514)', () => {
   it('pins the complete stock Pattern corpus and its known array-heavy exceptions', () => {
-    expect(report.summary.stockPatternCount).toBe(59)
-    expect(report.summary.stockPatternsWithNoMemberArrays).toBe(42)
-    expect(report.summary.stockPatternsFittingResidualBudget).toBe(55)
+    expect(report.summary.stockPatternCount).toBe(60)
+    expect(report.summary.stockPatternsWithNoMemberArrays).toBe(43)
+    expect(report.summary.stockPatternsFittingResidualBudget).toBe(56)
     expect(report.summary.stockPatternRejections).toHaveLength(4)
     expect(report.summary.stockPatternRejections.map((entry) => entry.id)).toEqual([
       'pattern:AuroraSphere',
@@ -35,8 +35,10 @@ describe('Show render-target residual-headroom census (#514)', () => {
     // this census itself forced), and again with the Zone Layouts showcase
     // trio (#700: the nine-Layout single-Show matrix measured 259 KB against
     // the 68 KB ceiling, so the vocabulary ships as three siblings, exactly
-    // the repartition this census forced on Shape Reveals).
-    expect(report.summary.savedShowCount).toBe(34)
+    // the repartition this census forced on Shape Reveals), and again with
+    // the CME remix (#704: one array-free community Pattern and one
+    // single-instance portable Show, both clearing every budget).
+    expect(report.summary.savedShowCount).toBe(35)
     expect(report.summary.savedShowRejections).toHaveLength(0)
     expect(report.summary.savedShowRejections.every((entry) => !entry.failsSolelyBecauseOfReservation)).toBe(true)
   })
