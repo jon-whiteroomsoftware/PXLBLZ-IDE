@@ -214,6 +214,16 @@ describe('source regeneration', () => {
     expect(archBounds.maxX).toBeGreaterThan(floorBounds.maxX)
     expect(archBounds.minY).toBeLessThan(floorBounds.minY)
 
+    // The arch walks like its wiring: the left leg climbs from the deck to
+    // the lintel (+y renders downward, so y decreases along its indices),
+    // the lintel crosses left to right, and the right leg descends back.
+    const leftLeg = arch.slice(0, 42)
+    const rightLeg = arch.slice(arch.length - 42)
+    const lintel = arch.slice(42, arch.length - 42)
+    expect(leftLeg[0].pos![1]).toBeGreaterThan(leftLeg[leftLeg.length - 1].pos![1])
+    expect(rightLeg[0].pos![1]).toBeLessThan(rightLeg[rightLeg.length - 1].pos![1])
+    expect(lintel[0].pos![0]).toBeLessThan(lintel[lintel.length - 1].pos![0])
+
     // The towers run the stage's full height, and the whole silhouette keeps
     // the wide preview-filling aspect the Redline stage established (~1.7:1).
     const all = bounds(points)
@@ -227,6 +237,11 @@ describe('source regeneration', () => {
     for (const m of SOURCE_STOCK_MAPS) {
       expect(m.resolve(7)).toHaveLength(7)
       expect(m.resolve(200)).toHaveLength(200)
+    }
+    // The exact-count contract holds down to degenerate counts; the
+    // Proscenium generator honors it without a minimum-count floor.
+    for (const count of [1, 2, 3]) {
+      expect(mapById('proscenium-stage-2d').resolve(count)).toHaveLength(count)
     }
   })
 
