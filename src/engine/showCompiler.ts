@@ -2771,6 +2771,7 @@ export function compileShow(
     generatedAllocations: inspectGeneratedShowVmAllocations(expandedCode),
     persistentGlobals: countShowPersistentGlobals(code),
     artifactBytes,
+    artifactSource: code,
   })
   const renderTargetPlan = planShowRenderTargetCaches(renderTargetCandidates, {
     arena: renderTargetArena,
@@ -10774,6 +10775,12 @@ function showSourceAttributionForSymbol(
     return { category: 'effects-transitions' }
   }
   if (/(?:route|layout|plan|stack|render_target|arena|cache|freeze|field|reuse|coverage)/i.test(symbol)) {
+    // Scene-stack symbols carry their scene index (__pxlblz_show_stack_s3_*);
+    // attributing them per scene makes the marginal plan cost of one more
+    // scene a visible inventory number (#716). Closed-form plan code without
+    // a scene marker stays aggregated as shared.
+    const sceneMarker = symbol.match(/_s(\d+)_/)
+    if (sceneMarker) return { category: 'routing-render-plans', ownerId: `scene-${sceneMarker[1]}` }
     return { category: 'routing-render-plans' }
   }
   return { category: 'runtime-scheduler' }
@@ -10782,7 +10789,11 @@ function showSourceAttributionForSymbol(
 function showSourceChunkLabel(attribution: ShowSourceAttribution): string {
   if (attribution.category === 'pattern') return `Pattern ${attribution.ownerId ?? 'member'}`
   if (attribution.category === 'runtime-scheduler') return 'Show runtime and scheduler'
-  if (attribution.category === 'routing-render-plans') return 'Routing and render plans'
+  if (attribution.category === 'routing-render-plans') {
+    return attribution.ownerId
+      ? `Routing and render plans (${attribution.ownerId.replace('-', ' ')})`
+      : 'Routing and render plans'
+  }
   if (attribution.category === 'effects-transitions') return 'Effects and Transitions'
   if (attribution.category === 'score-data') return 'Show score data'
   if (attribution.category === 'exports') return 'Pixelblaze exports'

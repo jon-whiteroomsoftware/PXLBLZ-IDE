@@ -205,7 +205,13 @@ const LEGACY_PACKED_BYTECODE_BYTES_PER_ELEMENT = 20
 // fw 3.67): a loop line compiles to 80 bytes and a short-run element
 // assignment to 20 bytes over a 128-byte fixed header; loop source lines run
 // ~223 bytes. Short runs (< PACKED_ROUTING_LOOP_MIN_RUN) emit per-element
-// assignments, which is exactly the legacy per-element pricing.
+// assignments, which is exactly the legacy per-element pricing. #715
+// re-confirmed both prices and measured numeric array literals at 4.25
+// bytecode bytes per element (MEASURED_LITERAL_ELEMENT_BYTECODE_BYTES in
+// showVmResourceLedger, docs/plans/issue-715-packed-data-pricing-results.md)
+// — a 4.7x-denser initialization a future emitter can adopt, at which point
+// the FPS gate below, not bytecode, becomes the packed table's binding
+// constraint.
 const PACKED_FIXED_BYTECODE_ESTIMATE = 128
 const PACKED_BYTECODE_BYTES_PER_LOOP_RUN = 80
 const PACKED_BYTECODE_BYTES_PER_SHORT_ELEMENT = 20

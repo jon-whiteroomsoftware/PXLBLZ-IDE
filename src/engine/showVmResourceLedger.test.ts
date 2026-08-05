@@ -1,5 +1,8 @@
 import {
   buildShowVmResourceLedger,
+  estimateShowBytecodeBytes,
+  MEASURED_ELEMENT_ASSIGNMENT_BYTECODE_BYTES,
+  MEASURED_LITERAL_ELEMENT_BYTECODE_BYTES,
   countShowPersistentGlobals,
   inspectGeneratedShowVmAllocations,
   PIXELBLAZE_MAX_PERSISTENT_GLOBALS,
@@ -161,5 +164,62 @@ var __pxlblz_show_coordinate_cache = array(20)
       { owner: 'Compiler scene plans: __pxlblz_show_plans', category: 'plan', elementCount: 8 },
       { owner: 'Compiler auxiliary cache: __pxlblz_show_coordinate_cache', category: 'auxiliary-cache', elementCount: 20 },
     ])
+  })
+})
+
+describe('bytecode-axis artifact estimate (#716)', () => {
+  const byteLength = (text: string) => new TextEncoder().encode(text).length
+
+  it('prices ordinary code at parity with its source bytes', () => {
+    const source = 'var speed = 0.5\nexport function render(index) { rgb(speed, 0, 0) }\n'
+    expect(estimateShowBytecodeBytes(source)).toBe(byteLength(source))
+  })
+
+  it('prices dense per-element table assignments at the measured 20 bytes each', () => {
+    const source = 'var q = array(4)\nq[0] = 1\nq[1] = 22\nq[2] = -3\nq[3] = 4.5\n'
+    const spans = ['q[0] = 1', 'q[1] = 22', 'q[2] = -3', 'q[3] = 4.5'].map((s) => s.length)
+    const expected = Math.ceil(byteLength(source) + spans.reduce((sum, span) => (
+      sum + (MEASURED_ELEMENT_ASSIGNMENT_BYTECODE_BYTES - span)
+    ), 0))
+    expect(estimateShowBytecodeBytes(source)).toBe(expected)
+  })
+
+  it('prices large numeric array literals at the measured 4.25 bytes per element', () => {
+    const values = Array.from({ length: 32 }, (_, i) => i + 100)
+    const literal = `[${values.join(', ')}]`
+    const source = `var q = ${literal}\nexport function render(index) { rgb(0, 0, 0) }\n`
+    const expected = Math.ceil(
+      byteLength(source) + 32 * MEASURED_LITERAL_ELEMENT_BYTECODE_BYTES - literal.length,
+    )
+    expect(estimateShowBytecodeBytes(source)).toBe(expected)
+  })
+
+  it('leaves small array literals at source parity', () => {
+    const source = 'var q = [1, 2, 3]\n'
+    expect(estimateShowBytecodeBytes(source)).toBe(byteLength(source))
+  })
+
+  it('blocks a dense-assignment artifact whose bytecode estimate exceeds the budget its source fits', () => {
+    const assignments = Array.from({ length: 4_500 }, (_, i) => `q[${i}] = ${(i % 90) + 10}`).join('\n')
+    const artifactSource = `var q = array(4500)\n${assignments}\nexport function render(index) { rgb(0, 0, 0) }\n`
+    const artifactBytes = byteLength(artifactSource)
+    expect(artifactBytes).toBeLessThan(SHOW_ARTIFACT_BUDGET_BYTES)
+    const ledger = buildShowVmResourceLedger({
+      pixelCount: 16,
+      members: [],
+      artifactBytes,
+      artifactSource,
+    })
+    expect(ledger.estimatedArtifactBytecodeBytes).toBeGreaterThan(SHOW_ARTIFACT_BUDGET_BYTES)
+    const blocker = ledger.blockers.find((entry) => entry.kind === 'bytecode-byte-budget')
+    expect(blocker).toBeTruthy()
+    expect(blocker!.message).toContain('bytecode')
+    expect(ledger.blockers.some((entry) => entry.kind === 'artifact-byte-budget')).toBe(false)
+  })
+
+  it('keeps the estimate at the source byte count when no artifact source is provided', () => {
+    const ledger = buildShowVmResourceLedger({ pixelCount: 16, members: [], artifactBytes: 1_234 })
+    expect(ledger.estimatedArtifactBytecodeBytes).toBe(1_234)
+    expect(ledger.blockers).toHaveLength(0)
   })
 })

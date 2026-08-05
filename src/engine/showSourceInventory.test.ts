@@ -113,6 +113,25 @@ describe('Show source inventory', () => {
     expect(singleLayout.slimmingTips.some((tip) => tip.contributorId === 'category:routing-render-plans')).toBe(false)
   })
 
+  it('attributes scene-stack plan source to its scene within routing-render-plans (#716)', () => {
+    const wipe = STOCK_SHOWS.find((candidate) => candidate.id === 'stock-show-reference-wipe-transitions')!
+    const compiled = compileShowForPreview(wipe.show, [], undefined, {})
+    const inventory = compiled.artifact!.summary.sourceInventory
+    const sceneChunks = inventory.chunks.filter((chunk) => (
+      chunk.category === 'routing-render-plans' && /^scene-\d+$/.test(chunk.ownerId ?? '')
+    ))
+    const sceneIds = new Set(sceneChunks.map((chunk) => chunk.ownerId))
+    expect(sceneIds.size).toBeGreaterThanOrEqual(4)
+    expect(sceneChunks.reduce((sum, chunk) => sum + chunk.bytes, 0)).toBeGreaterThan(5_000)
+    expect(sceneChunks.every((chunk) => chunk.label.includes('scene'))).toBe(true)
+    // Shared plan code keeps aggregating without a scene owner.
+    expect(inventory.chunks.some((chunk) => (
+      chunk.category === 'routing-render-plans' && chunk.ownerId == null
+    ))).toBe(true)
+    // Whole-inventory reconciliation still holds with the finer chunking.
+    expect(inventory.chunks.reduce((sum, chunk) => sum + chunk.bytes, 0)).toBe(inventory.totalBytes)
+  })
+
   it('keeps table-driven score and Transition source in stable named categories (#545)', () => {
     const easing = STOCK_SHOWS.find((candidate) => candidate.id === 'stock-show-reference-easing')!
     const compiled = compileShowForPreview(easing.show, [], undefined, {})

@@ -7,6 +7,19 @@ export const PIXELBLAZE_MAX_PERSISTENT_GLOBALS = 256
 export const SHOW_ARTIFACT_BUDGET_BYTES = 68_384
 export const SHOW_RENDER_TARGET_PLANES = 3
 
+// Device-compiler pricing measured on the pb32, fw 3.67
+// (docs/plans/issue-715-packed-data-pricing-results.md). A per-element table
+// assignment compiles to five 32-bit VM instruction words; a numeric array
+// literal compiles to one data word per element plus ~6% framing. The packed
+// constant is a reference price for #717 emitters, not used by the estimator.
+export const MEASURED_ELEMENT_ASSIGNMENT_BYTECODE_BYTES = 20
+export const MEASURED_LITERAL_ELEMENT_BYTECODE_BYTES = 4.25
+export const MEASURED_PACKED15_BYTECODE_BYTES_PER_VALUE = 2.25
+
+// Below this count a literal's framing share is unmeasured and the 1:1
+// source price is close enough; corrections only apply to table-sized data.
+const LITERAL_CORRECTION_MIN_ELEMENTS = 16
+
 export type ShowVmAllocationCategory =
   | 'render-target'
   | 'member-pattern'
@@ -28,6 +41,7 @@ export interface ShowVmResourceBlocker {
     | 'vm-word-budget'
     | 'persistent-global-limit'
     | 'artifact-byte-budget'
+    | 'bytecode-byte-budget'
     | 'source-parse'
   owner: string
   message: string
@@ -50,6 +64,7 @@ export interface ShowVmResourceLedger {
   artifactBytes: number
   artifactByteBudget: number
   remainingArtifactBytes: number
+  estimatedArtifactBytecodeBytes: number
   allocations: ShowVmAllocation[]
   blockers: ShowVmResourceBlocker[]
 }
@@ -66,6 +81,9 @@ export interface ShowVmResourceLedgerInput {
   generatedAllocations?: ShowVmGeneratedAllocation[]
   persistentGlobals?: number
   artifactBytes?: number
+  /** Complete delivered source; enables the bytecode-axis estimate. Absent,
+   * the estimate falls back to artifactBytes and adds no blocker. */
+  artifactSource?: string
 }
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -115,6 +133,9 @@ export function buildShowVmResourceLedger(input: ShowVmResourceLedgerInput): Sho
   const remainingGlobals = PIXELBLAZE_MAX_PERSISTENT_GLOBALS - persistentGlobals
   const artifactBytes = normalizeCount(input.artifactBytes ?? 0)
   const remainingArtifactBytes = SHOW_ARTIFACT_BUDGET_BYTES - artifactBytes
+  const estimatedArtifactBytecodeBytes = input.artifactSource != null
+    ? estimateShowBytecodeBytes(input.artifactSource)
+    : artifactBytes
 
   if (remainingWords < 0) {
     blockers.push({
@@ -138,6 +159,14 @@ export function buildShowVmResourceLedger(input: ShowVmResourceLedgerInput): Sho
       message: `Generated UTF-8 source alone, before the delivery header, is ${overage.toLocaleString('en-US')} ${overage === 1 ? 'byte' : 'bytes'} over the source-size proxy derived from the observed ${SHOW_ARTIFACT_BUDGET_BYTES.toLocaleString('en-US')}-byte compiled-bytecode activation ceiling. Reduce Pattern instances, Effects, routing, or generated specialization.`,
     })
   }
+  if (remainingArtifactBytes >= 0 && estimatedArtifactBytecodeBytes > SHOW_ARTIFACT_BUDGET_BYTES) {
+    const overage = estimatedArtifactBytecodeBytes - SHOW_ARTIFACT_BUDGET_BYTES
+    blockers.push({
+      kind: 'bytecode-byte-budget',
+      owner: 'Whole Show',
+      message: `Dense per-element table initialization compiles to an estimated ${estimatedArtifactBytecodeBytes.toLocaleString('en-US')} bytecode bytes, ${overage.toLocaleString('en-US')} over the measured ${SHOW_ARTIFACT_BUDGET_BYTES.toLocaleString('en-US')}-byte activation ceiling, even though the source itself fits (each table assignment compiles to ${MEASURED_ELEMENT_ASSIGNMENT_BYTECODE_BYTES} bytes, #715). Replace per-element assignments with array literals or reduce baked data.`,
+    })
+  }
 
   return {
     pixelCount,
@@ -156,9 +185,71 @@ export function buildShowVmResourceLedger(input: ShowVmResourceLedgerInput): Sho
     artifactBytes,
     artifactByteBudget: SHOW_ARTIFACT_BUDGET_BYTES,
     remainingArtifactBytes,
+    estimatedArtifactBytecodeBytes,
     allocations,
     blockers,
   }
+}
+
+/**
+ * Bytecode-axis estimate of the delivered source. The 68,384-byte budget is a
+ * bytecode measurement that the artifact gate applies to source bytes as a
+ * proxy; #715 measured the proxy diverging per construct, and dangerously so
+ * only for dense per-element table assignments (20 bytecode bytes each,
+ * regardless of source spelling). The estimate reprices exactly the two
+ * measured data constructs and keeps every other byte at source parity:
+ *
+ * - `name[<int>] = <number>` statements: 20 bytes (five VM words).
+ * - all-numeric array literals of table size: 4.25 bytes per element.
+ *
+ * Loops, member code, and generated logic stay 1:1, which #715 measured as
+ * parity-to-conservative for every current emission. Unparsable source falls
+ * back to its byte length.
+ */
+export function estimateShowBytecodeBytes(source: string): number {
+  const sourceBytes = byteLength(source)
+  let ast: Node
+  try {
+    ast = acorn.parse(source, { ecmaVersion: 2020, sourceType: 'module' }) as unknown as Node
+  } catch {
+    return sourceBytes
+  }
+  let correction = 0
+  const isNumeric = (node: Node | undefined): boolean => Boolean(node && (
+    (node.type === 'Literal' && typeof node.value === 'number')
+    || (node.type === 'UnaryExpression' && (node.operator === '-' || node.operator === '+') && isNumeric(node.argument))
+  ))
+  const visit = (value: unknown): void => {
+    if (!value || typeof value !== 'object') return
+    if (Array.isArray(value)) {
+      value.forEach(visit)
+      return
+    }
+    const node = value as Node
+    if (node.type === 'ExpressionStatement'
+      && node.expression?.type === 'AssignmentExpression'
+      && node.expression.operator === '='
+      && node.expression.left?.type === 'MemberExpression'
+      && node.expression.left.computed
+      && node.expression.left.object?.type === 'Identifier'
+      && isNumeric(node.expression.left.property)
+      && isNumeric(node.expression.right)) {
+      correction += MEASURED_ELEMENT_ASSIGNMENT_BYTECODE_BYTES - (node.expression.end - node.expression.start)
+      return
+    }
+    if (node.type === 'ArrayExpression'
+      && node.elements.length >= LITERAL_CORRECTION_MIN_ELEMENTS
+      && (node.elements as Node[]).every((element) => isNumeric(element))) {
+      correction += MEASURED_LITERAL_ELEMENT_BYTECODE_BYTES * node.elements.length - (node.end - node.start)
+      return
+    }
+    for (const [key, child] of Object.entries(node)) {
+      if (key === 'start' || key === 'end' || key === 'loc') continue
+      visit(child)
+    }
+  }
+  visit(ast.body)
+  return Math.ceil(sourceBytes + correction)
 }
 
 export function countShowPersistentGlobals(source: string): number {
@@ -401,6 +492,10 @@ function evaluateConstantNumber(
     if (node.callee.name === 'max' && exact.length > 0) return Math.max(...exact)
   }
   return null
+}
+
+function byteLength(text: string): number {
+  return new TextEncoder().encode(text).length
 }
 
 function normalizeCount(value: number): number {

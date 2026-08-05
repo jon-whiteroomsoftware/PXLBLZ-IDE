@@ -1111,6 +1111,31 @@ export function render(index) { rgb(ticks, 0, 0) }
     expect(inventory.chunks.some((chunk) => chunk.category === 'exports')).toBe(true)
   })
 
+  it('reprices dense member table assignments on the bytecode axis of the delivered artifact (#716)', () => {
+    // Through the real pipeline the #499 compaction floor (__pxlblz_ + letter)
+    // keeps every delivered assignment row at 17-21 source bytes against the
+    // measured 20 bytecode bytes, so leniency is bounded and only the ledger
+    // unit test can exercise the blocker with raw 12-byte rows. This test pins
+    // the delivered-form invariant instead: the estimate is present, tracks
+    // the measured price above the source bytes, and the gate stays quiet
+    // while both axes fit the budget.
+    const assignments = Array.from({ length: 3_000 }, (_, i) => `baked[${i}] = ${(i % 9) + 1}`).join('\n')
+    const artifact = compileShow({
+      clips: [{
+        id: 'baked-table',
+        source: `
+var baked = array(3000)
+${assignments}
+export function render(index) { rgb(baked[index % 3000] / 10, 0, 0) }
+`,
+      }],
+    }, {})
+    const resources = artifact.summary.resources
+    expect(resources.artifactBytes).toBeLessThan(resources.artifactByteBudget)
+    expect(resources.estimatedArtifactBytecodeBytes).toBeGreaterThan(resources.artifactBytes)
+    expect(resources.blockers).toEqual([])
+  })
+
   it('compacts compiler-owned symbols under the PXLBLZ namespace (#499)', () => {
     const artifact = compileShow({
       clips: [{

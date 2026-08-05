@@ -2807,6 +2807,22 @@ says so; the user-facing pressure rule in `showCompilePressure.ts` gates on
 the larger delivered total, so the ledger backstop can never block a Show the
 pressure rule accepts.
 
+The ledger also carries a bytecode-axis estimate of the delivered source
+(#716), because the #715 hardware spike measured the source proxy diverging
+per construct: a per-element table assignment compiles to 20 bytecode bytes
+(five 32-bit VM instruction words) regardless of source spelling, while a
+numeric array literal compiles to 4.25 bytes per element — effectively a data
+segment. `estimateShowBytecodeBytes` reprices exactly those two measured
+constructs and keeps every other byte at source parity, and a
+`bytecode-byte-budget` blocker fires when dense per-element data would exceed
+the activation ceiling a smaller source disguises. Through the real pipeline
+the #499 compaction floor keeps delivered assignment rows near price parity,
+so the blocker guards primarily against pathological member data. The
+measured pricing constants live beside the ledger with the #715 results doc
+cited; `npm run census` reports both axes, the per-category word and byte
+breakdown, and per-scene routing-render-plans bytes for every stock Show, and
+asserts the whole catalogue stays artifact-clean.
+
 The compiler reserves three RGB planes at the Show's output extent. An
 Installation with `N` fixed pixels therefore reserves `3 * (N + 4)` words. A
 Portable artifact reserves against the maximum supported 2,000-pixel runtime

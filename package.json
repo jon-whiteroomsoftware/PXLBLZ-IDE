@@ -44,6 +44,7 @@
     "render": "npm run check:node && tsx scripts/render-pattern.ts",
     "harness": "tsx test/divergence-harness/harness.ts",
     "profile": "tsx test/perf-harness/profiler.ts",
+    "census": "vitest run src/pixelblaze/stock/showResourceCensus.test.ts --reporter=verbose",
     "issue314": "tsx test/perf-harness/issue314.ts",
     "issue317": "tsx test/perf-harness/issue316.ts",
     "issue316": "tsx test/perf-harness/issue316.ts",
