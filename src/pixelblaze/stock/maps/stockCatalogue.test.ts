@@ -40,6 +40,7 @@ describe('stock catalogue', () => {
       'sunflower-pucks',
       'sunflower-pucks-2d',
       'redline-stage-2d',
+      'proscenium-stage-2d',
       'seed-ring-2d',
     ])
     for (const s of STOCK_MAP_SPECS) {
@@ -183,6 +184,45 @@ describe('source regeneration', () => {
     expect(targetCenters[3][0]).toBeGreaterThan(panelBounds.maxX)
     expect(targetCenters[0][1]).toBeLessThan(targetCenters[1][1])
     expect(targetCenters[2][1]).toBeLessThan(targetCenters[3][1])
+  })
+
+  it('builds the 1,000-pixel Proscenium stage as a walk: left tower, floor, arch, right tower', () => {
+    const points = mapById('proscenium-stage-2d').resolve(1_000)
+    const leftTower = points.slice(0, 200)
+    const floor = points.slice(200, 600)
+    const arch = points.slice(600, 800)
+    const rightTower = points.slice(800, 1_000)
+
+    expect(points).toHaveLength(1_000)
+    expect(floor).toHaveLength(400)
+    expect(points.every((point) => point.sample.length === 2 && point.pos?.length === 2)).toBe(true)
+
+    const bounds = (group: typeof points) => ({
+      minX: Math.min(...group.map((point) => point.pos![0])),
+      maxX: Math.max(...group.map((point) => point.pos![0])),
+      minY: Math.min(...group.map((point) => point.pos![1])),
+      maxY: Math.max(...group.map((point) => point.pos![1])),
+    })
+    const floorBounds = bounds(floor)
+    const archBounds = bounds(arch)
+    const leftBounds = bounds(leftTower)
+    const rightBounds = bounds(rightTower)
+
+    // The towers flank everything; the arch frames the floor from above (+y
+    // renders downward) and on both sides; nothing overlaps its neighbour.
+    expect(leftBounds.maxX).toBeLessThan(archBounds.minX)
+    expect(rightBounds.minX).toBeGreaterThan(archBounds.maxX)
+    expect(archBounds.minX).toBeLessThan(floorBounds.minX)
+    expect(archBounds.maxX).toBeGreaterThan(floorBounds.maxX)
+    expect(archBounds.minY).toBeLessThan(floorBounds.minY)
+
+    // The towers run the stage's full height, and the whole silhouette keeps
+    // the wide preview-filling aspect the Redline stage established (~1.7:1).
+    const all = bounds(points)
+    expect(leftBounds.maxY - leftBounds.minY).toBeCloseTo(all.maxY - all.minY, 1)
+    const aspect = (all.maxX - all.minX) / (all.maxY - all.minY)
+    expect(aspect).toBeGreaterThan(1.55)
+    expect(aspect).toBeLessThan(1.85)
   })
 
   it('regenerates exactly pixelCount points for any count (no baked replay)', () => {
