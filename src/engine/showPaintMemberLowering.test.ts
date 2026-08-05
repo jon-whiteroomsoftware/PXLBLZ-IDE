@@ -35,15 +35,56 @@ describe('palette-sink member lowering (#708)', () => {
   it('rewrites paint and setPalette into member sinks and fills the default brightness', () => {
     const member = compileMember({ id: 'coals', source: PAINT_SOURCE }, 0, {})
     expect(member.usesPaint).toBe(true)
-    expect(member.code).toContain('__pxlblz_show_c0_setPalette(')
-    expect(member.code).toContain('__pxlblz_show_c0_paint(')
+    expect(member.code).toContain(`${member.palettePrefix}_setPalette(`)
+    expect(member.code).toContain(`${member.palettePrefix}_paint(`)
     // No raw palette builtins survive in the lowered member body.
     expect(member.code).not.toMatch(/(?<![_a-zA-Z0-9])setPalette\(/)
     expect(member.code).not.toMatch(/(?<![_a-zA-Z0-9])paint\(/)
     // The device VM zero-fills missing arguments, so the single-argument
     // call site gains the firmware default brightness explicitly.
-    expect(member.code).toMatch(/__pxlblz_show_c0_paint\(y\s*,\s*1\)/)
-    expect(member.code).toMatch(/__pxlblz_show_c0_paint\(y\s*,\s*0\.5\)/)
+    expect(member.code).toContain(`${member.palettePrefix}_paint(y, 1)`)
+    expect(member.code).toContain(`${member.palettePrefix}_paint(y, 0.5)`)
+  })
+
+  it('allocates palette runtime names that cannot alias authored bindings', () => {
+    // An authored top-level `palette` variable renames to `${prefix}_palette`;
+    // the generated runtime must live elsewhere or the member's own selector
+    // arithmetic would be clobbered by the palette array.
+    const member = compileMember({
+      id: 'selector',
+      source: `
+var palette = 0
+var warm = [0, 1, 0, 0, 1, 1, 1, 0]
+var cool = [0, 0, 0, 1, 1, 0, 1, 1]
+export function beforeRender(delta) {
+  palette = time(0.1)
+  setPalette(palette < 0.5 ? warm : cool)
+}
+export function render2D(index, x, y) { paint(x) }
+`,
+    }, 0, {})
+    expect(member.usesPaint).toBe(true)
+    expect(member.code).toContain('__pxlblz_show_c0_palette = ')
+    expect(member.palettePrefix).not.toBe('__pxlblz_show_c0')
+    expect(member.code).toContain(`${member.palettePrefix}_setPalette(`)
+    expect(member.code).toContain(`${member.palettePrefix}_paint(x, 1)`)
+  })
+
+  it('leaves an authored top-level paint function its own zero-fill semantics', () => {
+    // A pattern that defines its own paint() is not calling the builtin: the
+    // call renames to the member binding and must NOT gain the firmware
+    // default, because the device VM zero-fills the omitted argument for
+    // authored functions.
+    const member = compileMember({
+      id: 'shadow',
+      source: `
+function paint(pos, level) { hsv(pos, 1, level) }
+export function render2D(index, x, y) { paint(x) }
+`,
+    }, 0, {})
+    expect(member.usesPaint).toBe(false)
+    expect(member.code).toContain('__pxlblz_show_c0_paint(x)')
+    expect(member.code).not.toContain('__pxlblz_show_c0_paint(x, 1)')
   })
 
   it('keeps hsv/rgb members free of palette runtime', () => {

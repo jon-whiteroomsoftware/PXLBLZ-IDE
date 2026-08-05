@@ -165,12 +165,17 @@ export function compileMember(
       : `${prefix}_${name}`,
   ]))
   const coordinateTransformBuiltins = new Set<string>()
+  // #708: allocated against the mapping like the coordinate-transform
+  // prefix, so generated palette runtime names can never alias an authored
+  // top-level binding (var palette, function paint, ...).
+  const palettePrefix = allocateMemberRuntimePrefix(prefix, mapping, 'pal')
   const renamedSource = rewriteMemberSource(
     memberSource,
     memberAst,
     prefix,
     mapping,
     coordinateTransformBuiltins,
+    palettePrefix,
   )
   const coordinateMapBuiltins = new Set<string>()
   const isolatedSource = coordinateTransformBuiltins.size > 0
@@ -180,6 +185,7 @@ export function compileMember(
         prefix,
         new Map(),
         coordinateMapBuiltins,
+        palettePrefix,
         true,
       )
     : renamedSource
@@ -238,7 +244,8 @@ export function compileMember(
     coordinateTransformPrefix,
     usesMapPixels: coordinateMapBuiltins.has('mapPixels'),
     usesHsv: code.includes(`${prefix}_hsv`),
-    usesPaint: code.includes(`${prefix}_paint`) || code.includes(`${prefix}_setPalette`),
+    usesPaint: code.includes(`${palettePrefix}_`),
+    palettePrefix,
     usesTime: code.includes(`${prefix}_time`),
     elapsedName: `${prefix}_elapsed_ms`,
     elapsedSecondsName: `${prefix}_elapsed_s`,
@@ -313,6 +320,7 @@ function allocateMemberRuntimePrefix(
 interface MemberRewriteContext {
   mapping: Map<string, string>
   prefix: string
+  palettePrefix: string
   rewrites: Rewrite[]
   rewrittenBuiltins: Set<string>
   rewriteMapPixels: boolean
@@ -324,11 +332,13 @@ function rewriteMemberSource(
   prefix: string,
   mapping: Map<string, string>,
   coordinateTransformBuiltins: Set<string>,
+  palettePrefix: string,
   rewriteMapPixels = false,
 ): string {
   const context: MemberRewriteContext = {
     mapping,
     prefix,
+    palettePrefix,
     rewrites: [],
     rewrittenBuiltins: coordinateTransformBuiltins,
     rewriteMapPixels,
@@ -463,9 +473,14 @@ function walkForRewrites(
       addReferenceRewrite(node.callee, scope, context, true)
       // #708: paint(pos) defaults brightness to 1 in firmware, but the
       // device VM zero-fills missing arguments, so the lowered call site
-      // carries the default explicitly.
+      // carries the default explicitly. Only when the call resolves to the
+      // BUILTIN: an authored top-level paint lives in the mapping (not the
+      // lexical scope) and keeps its own zero-fill semantics.
       const args = (node.arguments as Node[]) ?? []
-      if (node.callee.name === 'paint' && !isLocallyBound(scope, 'paint') && args.length === 1) {
+      if (node.callee.name === 'paint'
+        && !isLocallyBound(scope, 'paint')
+        && !context.mapping.has('paint')
+        && args.length === 1) {
         const lastArg = args[0]
         context.rewrites.push({ start: lastArg.end, end: lastArg.end, text: ', 1' })
       }
@@ -565,11 +580,15 @@ function addReferenceRewrite(
   }
   // #708: palette sinks. Without these rewrites the raw builtins pass
   // through into the artifact and the member's capture slots stay black.
+  // The names hang off an allocated runtime prefix rather than the bare
+  // member prefix, because authored top-level bindings named paint,
+  // setPalette, or palette are renamed into `${prefix}_<name>` and would
+  // otherwise collide with the generated runtime.
   if (name === 'paint') {
-    context.rewrites.push({ start: node.start, end: node.end, text: `${context.prefix}_paint` })
+    context.rewrites.push({ start: node.start, end: node.end, text: `${context.palettePrefix}_paint` })
   }
   if (name === 'setPalette') {
-    context.rewrites.push({ start: node.start, end: node.end, text: `${context.prefix}_setPalette` })
+    context.rewrites.push({ start: node.start, end: node.end, text: `${context.palettePrefix}_setPalette` })
   }
 }
 

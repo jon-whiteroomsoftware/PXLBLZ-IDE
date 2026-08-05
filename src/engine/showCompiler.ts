@@ -892,6 +892,7 @@ export interface CompiledMember {
   usesMapPixels: boolean
   usesHsv: boolean
   usesPaint: boolean
+  palettePrefix: string
   usesTime: boolean
   elapsedName: string
   elapsedSecondsName: string
@@ -9946,10 +9947,10 @@ ${advanceDelta('delta', '  ')}
     // paint-based members do not respond to phase - firmware-faithful,
     // since firmware paint is an RGB palette lookup.
     ...(member.usesPaint ? [
-      `var ${member.prefix}_palette = []`,
-      `function ${member.prefix}_setPalette(pal) { ${member.prefix}_palette = pal }`,
-      `function ${member.prefix}_paint(pos, v) {
-  var pal = ${member.prefix}_palette
+      `var ${member.palettePrefix}_state = []`,
+      `function ${member.palettePrefix}_setPalette(pal) { ${member.palettePrefix}_state = pal }`,
+      `function ${member.palettePrefix}_paint(pos, v) {
+  var pal = ${member.palettePrefix}_state
   var stops = floor(pal.length / 4)
   if (stops < 2) { return }
   var p = pos - floor(pos)
