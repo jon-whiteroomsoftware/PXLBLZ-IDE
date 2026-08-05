@@ -5050,6 +5050,75 @@ ${indentBlock(emitRoutedScenePlacements(
     directSinkContextForScene(index),
   ), 4)}
   }`).join(' ')
+  const transitionSceneIndices = new Set(segments.flatMap((segment) => (
+    segment.kind === 'transition' ? [segment.sceneIndex, segment.sceneIndex + 1] : []
+  )))
+  // #717: intern stack wrappers by emitted content. Scenes replaying the
+  // same stack (same placements, tracks, and local-time expression) share
+  // one physical wrapper; the registry rewires every prefix reference. A
+  // transition whose from and to scenes interned to the same wrapper gets a
+  // content-identical clone for the to scene, because from and to captures
+  // must keep distinct state exactly as the per-scene emission provided.
+  routedStackPrefixRegistry.clear()
+  const internedStackWrappers: string[] = []
+  const stackPlanIndexByKey = new Map<string, number>()
+  const stackClonePlanIndexByKey = new Map<string, number>()
+  const stackPlanInputs = new Map<string, { scene: (typeof scenes)[number]; stack: ResolvedRoutedScenePlacement[] }>()
+  const internStackWrapper = (
+    scene: (typeof scenes)[number],
+    zoneName: string,
+    stack: ResolvedRoutedScenePlacement[],
+    forceClone: boolean,
+  ): void => {
+    const emitWithPrefix = (prefix: string) => emitRoutedSceneStackWrapper(
+      stack,
+      prefix,
+      outputDimension,
+      scene.propertyTracks,
+      sceneLocalTimeExpression(scene.sceneIndex),
+      motionStackNeedsClear,
+    )
+    const canonicalKey = emitWithPrefix('__pxlblz_show_stack_plan_key')
+    // A clone is the plan's standing alternate, shared by every
+    // self-transition of that plan: any A -> A pair alternates between the
+    // primary and the alternate, so two physical wrappers suffice no matter
+    // how many scenes replay the stack.
+    let planIndex = forceClone
+      ? stackClonePlanIndexByKey.get(canonicalKey)
+      : stackPlanIndexByKey.get(canonicalKey)
+    if (planIndex === undefined) {
+      planIndex = internedStackWrappers.length
+      internedStackWrappers.push(emitWithPrefix(`__pxlblz_show_stack_p${planIndex}`))
+      ;(forceClone ? stackClonePlanIndexByKey : stackPlanIndexByKey).set(canonicalKey, planIndex)
+    }
+    routedStackPrefixRegistry.set(
+      routedStackRegistryKey(scene.sceneIndex, zoneName),
+      `__pxlblz_show_stack_p${planIndex}`,
+    )
+  }
+  for (const scene of scenes) {
+    if (!transitionSceneIndices.has(scene.sceneIndex)) continue
+    for (const [zoneName, stack] of groupRoutedPlacementsByZone(scene.placements).entries()) {
+      if (!routedSceneStackNeedsWrapper(stack)) continue
+      internStackWrapper(scene, zoneName, stack, false)
+      stackPlanInputs.set(routedStackRegistryKey(scene.sceneIndex, zoneName), { scene, stack })
+    }
+  }
+  for (const segment of segments) {
+    if (segment.kind !== 'transition') continue
+    const fromSceneIndex = segment.sceneIndex
+    const toSceneIndex = segment.sceneIndex + 1
+    for (const [key, { scene, stack }] of stackPlanInputs) {
+      const separator = key.indexOf('\u0000')
+      if (Number(key.slice(0, separator)) !== toSceneIndex) continue
+      const zoneName = key.slice(separator + 1)
+      const fromPrefix = routedStackPrefixRegistry.get(routedStackRegistryKey(fromSceneIndex, zoneName))
+      if (fromPrefix != null && fromPrefix === routedStackPrefixRegistry.get(key)) {
+        internStackWrapper(scene, zoneName, stack, true)
+      }
+    }
+  }
+  const unrolledStackWrappers = internedStackWrappers
   const unrolledTransitionSegments = segments.filter((segment) => segment.kind === 'transition')
   const transitionHelperParameters = outputDimension === 2
     ? 'index, x, y, __pxlblz_show_snapshot_writing'
@@ -5085,23 +5154,6 @@ ${indentBlock(body, 2)}
     return
   }`)
     .join(' ')
-  const transitionSceneIndices = new Set(segments.flatMap((segment) => (
-    segment.kind === 'transition' ? [segment.sceneIndex, segment.sceneIndex + 1] : []
-  )))
-  const unrolledStackWrappers = scenes.filter((scene) => transitionSceneIndices.has(scene.sceneIndex)).flatMap((scene) => (
-    [...groupRoutedPlacementsByZone(scene.placements).entries()].flatMap(([zoneName, stack]) => (
-      routedSceneStackNeedsWrapper(stack)
-        ? [emitRoutedSceneStackWrapper(
-            stack,
-            routedSceneStackPrefix(scene.sceneIndex, zoneName),
-            outputDimension,
-            scene.propertyTracks,
-            sceneLocalTimeExpression(scene.sceneIndex),
-            motionStackNeedsClear,
-          )]
-        : []
-    ))
-  ))
   const exactSharedMotionRender = exactSharedMotionPlan
     ? (() => {
         const membersInPlans = [...new Set(scenes.flatMap((scene) => scene.placements.map((placement) => placement.member)))]
@@ -6707,7 +6759,20 @@ function routedSceneStackNeedsWrapper(stack: ResolvedRoutedScenePlacement[]): bo
   ))
 }
 
+/** Interned stack-wrapper prefixes for the current routed-scene-sequence
+ * emission (#717). emitRoutedSceneSequenceShowCode rebuilds the registry
+ * before emitting wrappers; every transition emitter then resolves the same
+ * (scene, zone) pair to the interned wrapper. Compilation is synchronous, so
+ * one module-level registry per emission is safe. */
+const routedStackPrefixRegistry = new Map<string, string>()
+
+function routedStackRegistryKey(sceneIndex: number, zoneName: string): string {
+  return `${sceneIndex} ${zoneName}`
+}
+
 function routedSceneStackPrefix(sceneIndex: number, zoneName: string): string {
+  const interned = routedStackPrefixRegistry.get(routedStackRegistryKey(sceneIndex, zoneName))
+  if (interned) return interned
   return `__pxlblz_show_stack_s${sceneIndex}_${zoneName.replace(/[^a-zA-Z0-9_]/g, '_')}`
 }
 

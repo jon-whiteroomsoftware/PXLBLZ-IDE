@@ -1561,6 +1561,17 @@ endpoint while a top-level Transition is running. Instance tracks apply once per
 advanced Pattern instance. Preview, deterministic Fast replay, artifact output,
 EPE export, and Controller output therefore consume the same emitted evaluator.
 
+Routed-scene stack wrappers intern by emitted content (#717): scenes that
+replay the same stack — identical placements, tracks, and local-time
+expression — share one physical wrapper, so the marginal cost of replaying a
+scene is plan-table rows and a dispatch branch instead of a duplicated
+wrapper. A transition whose from and to scenes interned to the same wrapper
+uses the plan's standing clone for the to scene, keeping from/to capture
+state distinct exactly as the per-scene emission did. On the transition
+reference Shows this removed 1.8–8.0 KB of generated source each (wipe
+87.2% -> 75.5% of the activation budget) and cut wrapper persistent globals;
+the regular-cadence score path already interned its stacks and is unchanged.
+
 The Clip detail editor projects those local records into a parameter-owned
 authoring surface. Each supported field exposes a hollow diamond until its
 target has a track, then a filled violet diamond. Opening a hollow diamond

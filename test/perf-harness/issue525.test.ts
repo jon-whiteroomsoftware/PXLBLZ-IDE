@@ -10,7 +10,7 @@ describe('issue #525 shared motion-transition harness', () => {
       sceneCount: 8,
       boundaryCount: 7,
       representations: {
-        baseline: { sourceBytes: 50_365 },
+        baseline: { sourceBytes: 45_052 },
         structural: {
           sourceBytes: 38_856,
           motionTransitions: {

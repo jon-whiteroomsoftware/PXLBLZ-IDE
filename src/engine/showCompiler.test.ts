@@ -1323,8 +1323,8 @@ export function render(index) { rgb(ticks, 0, 0) }
     handle.beforeRender(1500)
     handle.render2D(0, 0.25, 0.75)
     expect(pixel()).toEqual([0.25, 0.5, 0.25])
-    expect(artifact.expandedCode).toContain('function __pxlblz_show_stack_s0_main_renderCapture2D(index, x, y)')
-    expect(artifact.expandedCode).not.toContain('function __pxlblz_show_stack_s0_main_renderCapture(index)')
+    expect(artifact.expandedCode).toContain('function __pxlblz_show_stack_p0_renderCapture2D(index, x, y)')
+    expect(artifact.expandedCode).not.toContain('function __pxlblz_show_stack_p0_renderCapture(index)')
   })
 
   it('routes a single opaque placement without source-over stack machinery (#499)', () => {

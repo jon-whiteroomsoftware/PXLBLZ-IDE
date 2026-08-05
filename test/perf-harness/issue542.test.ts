@@ -51,8 +51,10 @@ describe('issue #542 baseline census', () => {
       generatedSourceBytes: entry.production.generatedSourceBytes,
       persistentGlobals: entry.production.persistentGlobals,
     }))).toEqual([
-      { patternInstanceCount: 3, generatedSourceBytes: 59_154, persistentGlobals: 122 },
-      { patternInstanceCount: 3, generatedSourceBytes: 49_464, persistentGlobals: 110 },
+      // #717 stack-wrapper interning: shared wrappers cut both generated
+      // bytes and wrapper globals on the transition references.
+      { patternInstanceCount: 3, generatedSourceBytes: 51_201, persistentGlobals: 86 },
+      { patternInstanceCount: 3, generatedSourceBytes: 44_150, persistentGlobals: 86 },
       { patternInstanceCount: 3, generatedSourceBytes: 21_406, persistentGlobals: 96 },
       { patternInstanceCount: 3, generatedSourceBytes: 37_624, persistentGlobals: 93 },
     ])
