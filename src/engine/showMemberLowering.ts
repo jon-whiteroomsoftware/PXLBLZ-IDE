@@ -238,6 +238,7 @@ export function compileMember(
     coordinateTransformPrefix,
     usesMapPixels: coordinateMapBuiltins.has('mapPixels'),
     usesHsv: code.includes(`${prefix}_hsv`),
+    usesPaint: code.includes(`${prefix}_paint`) || code.includes(`${prefix}_setPalette`),
     usesTime: code.includes(`${prefix}_time`),
     elapsedName: `${prefix}_elapsed_ms`,
     elapsedSecondsName: `${prefix}_elapsed_s`,
@@ -460,6 +461,14 @@ function walkForRewrites(
   if (node.type === 'CallExpression') {
     if (node.callee?.type === 'Identifier') {
       addReferenceRewrite(node.callee, scope, context, true)
+      // #708: paint(pos) defaults brightness to 1 in firmware, but the
+      // device VM zero-fills missing arguments, so the lowered call site
+      // carries the default explicitly.
+      const args = (node.arguments as Node[]) ?? []
+      if (node.callee.name === 'paint' && !isLocallyBound(scope, 'paint') && args.length === 1) {
+        const lastArg = args[0]
+        context.rewrites.push({ start: lastArg.end, end: lastArg.end, text: ', 1' })
+      }
     } else {
       walkForRewrites(node.callee, scope, false, context)
     }
@@ -553,6 +562,14 @@ function addReferenceRewrite(
   }
   if (name === 'hsv') {
     context.rewrites.push({ start: node.start, end: node.end, text: `${context.prefix}_hsv` })
+  }
+  // #708: palette sinks. Without these rewrites the raw builtins pass
+  // through into the artifact and the member's capture slots stay black.
+  if (name === 'paint') {
+    context.rewrites.push({ start: node.start, end: node.end, text: `${context.prefix}_paint` })
+  }
+  if (name === 'setPalette') {
+    context.rewrites.push({ start: node.start, end: node.end, text: `${context.prefix}_setPalette` })
   }
 }
 

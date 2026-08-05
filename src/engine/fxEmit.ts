@@ -187,6 +187,12 @@ function gen(node: Node | null, ctx: Ctx): string {
         // Array index: the raw fixed-point value truncates to an integer index.
         return `${gen(node.object, ctx)}[(${gen(node.property, ctx)})>>16]`
       }
+      // Array length is a raw JS integer; scale it so it participates in
+      // fixed-point arithmetic like every other number (#708). Pixelblaze v3
+      // supports .length on arrays, so the emulator must too.
+      if (node.property.name === 'length') {
+        return `((${gen(node.object, ctx)}).length << 16)`
+      }
       return `${gen(node.object, ctx)}.${node.property.name}`
     }
 

@@ -891,6 +891,7 @@ export interface CompiledMember {
   coordinateTransformPrefix: string | null
   usesMapPixels: boolean
   usesHsv: boolean
+  usesPaint: boolean
   usesTime: boolean
   elapsedName: string
   elapsedSecondsName: string
@@ -9937,6 +9938,37 @@ ${advanceDelta('delta', '  ')}
     ...(member.usesHsv
       ? [emitMemberHsvSink(member, index, directSinkMemberIds.has(member.id), hsvCapturePolicy, includeAdaptationMix, functionValuedSinks)]
       : []),
+    // #708: palette sinks. paint() samples the member's own palette
+    // (flat [pos, r, g, b, ...] stops, position wrapped into [0,1)) and
+    // feeds the member rgb sink, so capture, direct, and adaptation
+    // policies apply unchanged. An unset palette paints nothing, matching
+    // the preview shim. Placement phase rides the hsv sink only, so
+    // paint-based members do not respond to phase - firmware-faithful,
+    // since firmware paint is an RGB palette lookup.
+    ...(member.usesPaint ? [
+      `var ${member.prefix}_palette = []`,
+      `function ${member.prefix}_setPalette(pal) { ${member.prefix}_palette = pal }`,
+      `function ${member.prefix}_paint(pos, v) {
+  var pal = ${member.prefix}_palette
+  var stops = floor(pal.length / 4)
+  if (stops < 2) { return }
+  var p = pos - floor(pos)
+  var lo = 0
+  for (var s = 0; s < stops - 1; s++) {
+    if (pal[s * 4] <= p) lo = s
+  }
+  var hi = lo + 1
+  if (hi > stops - 1) hi = stops - 1
+  var span = pal[hi * 4] - pal[lo * 4]
+  var mix = 0
+  if (span > 0) mix = clamp((p - pal[lo * 4]) / span, 0, 1)
+  ${member.prefix}_rgb(
+    (pal[lo * 4 + 1] + (pal[hi * 4 + 1] - pal[lo * 4 + 1]) * mix) * v,
+    (pal[lo * 4 + 2] + (pal[hi * 4 + 2] - pal[lo * 4 + 2]) * mix) * v,
+    (pal[lo * 4 + 3] + (pal[hi * 4 + 3] - pal[lo * 4 + 3]) * mix) * v
+  )
+}`,
+    ] : []),
     ...(member.usesTime
       ? [`function ${member.prefix}_time(interval) { return (${member.elapsedSecondsName} / (interval * 65.536)) % 1 }`]
       : []),
