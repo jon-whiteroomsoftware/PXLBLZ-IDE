@@ -89,6 +89,18 @@ export function render2D(index, x, y) { paint(x) }
     expect(member.code).not.toContain('__pxlblz_show_c0_paint(x, 0, 0)')
   })
 
+  it('zero-fills a zero-argument call to an authored paint function', () => {
+    const member = compileMember({
+      id: 'shadow-empty',
+      source: `
+function paint(pos, level) { hsv(pos, 1, level) }
+export function render2D(index, x, y) { if (x < 0) { paint() } else { paint(x, y) } }
+`,
+    }, 0, {})
+    expect(member.code).toContain('__pxlblz_show_c0_paint(0, 0)')
+    expect(member.code).toContain('__pxlblz_show_c0_paint(x, y)')
+  })
+
   it('keeps hsv/rgb members free of palette runtime', () => {
     const member = compileMember(
       { id: 'plain', source: 'export function render(index) { rgb(index / pixelCount, 0, 0) }' },

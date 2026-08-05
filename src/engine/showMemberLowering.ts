@@ -495,15 +495,22 @@ function walkForRewrites(
       // would otherwise pass undefined and render NaN where hardware
       // renders black.
       const args = (node.arguments as Node[]) ?? []
-      if (node.callee.name === 'paint' && !isLocallyBound(scope, 'paint') && args.length >= 1) {
-        const lastArg = args[args.length - 1]
+      if (node.callee.name === 'paint' && !isLocallyBound(scope, 'paint')) {
         if (!context.mapping.has('paint') && args.length === 1) {
+          const lastArg = args[0]
           context.rewrites.push({ start: lastArg.end, end: lastArg.end, text: ', 1' })
         } else if (context.mapping.has('paint')
           && context.authoredPaintArity !== null
           && args.length < context.authoredPaintArity) {
-          const zeros = ', 0'.repeat(context.authoredPaintArity - args.length)
-          context.rewrites.push({ start: lastArg.end, end: lastArg.end, text: zeros })
+          const missing = context.authoredPaintArity - args.length
+          if (args.length >= 1) {
+            const lastArg = args[args.length - 1]
+            context.rewrites.push({ start: lastArg.end, end: lastArg.end, text: ', 0'.repeat(missing) })
+          } else {
+            // A zero-argument call has no argument to anchor after; insert
+            // the zeros just before the closing parenthesis.
+            context.rewrites.push({ start: node.end - 1, end: node.end - 1, text: `0${', 0'.repeat(missing - 1)}` })
+          }
         }
       }
     } else {
