@@ -113,9 +113,23 @@ test('Studio authoring keeps the rail and editor reachable at 390px (#622)', asy
 test('rail search stays inside the list pane at narrow widths', async ({ page }) => {
   await page.setViewportSize({ width: 507, height: 520 })
   await page.goto('studio/patterns/IridescentFibers')
-  await page.getByRole('button', { name: 'Search by name', exact: true }).click()
+  const search = page.getByRole('button', { name: 'Search by name', exact: true })
+  const searchInput = page.getByRole('textbox', { name: 'Search by name', exact: true })
+  await search.hover()
 
-  const bounds = await page.getByRole('textbox', { name: 'Search by name', exact: true }).evaluate((input) => {
+  const hoverBounds = await searchInput.evaluate((input) => {
+    const inputBounds = input.getBoundingClientRect()
+    const activityBounds = document.querySelector('[aria-label="Studio activity"]')?.getBoundingClientRect()
+    return { inputLeft: inputBounds.left, activityRight: activityBounds?.right }
+  })
+  expect(hoverBounds.inputLeft).toBeGreaterThanOrEqual(hoverBounds.activityRight ?? Number.POSITIVE_INFINITY)
+
+  await page.getByRole('button', { name: 'Dimension filter', exact: true }).click()
+  await expect(page.getByRole('listbox', { name: 'Dimension filter', exact: true })).toBeVisible()
+  await page.keyboard.press('Escape')
+  await search.click()
+
+  const bounds = await searchInput.evaluate((input) => {
     const inputBounds = input.getBoundingClientRect()
     const railBounds = input.closest('[data-testid="studio-rail"]')?.getBoundingClientRect()
     const activityBounds = document.querySelector('[aria-label="Studio activity"]')?.getBoundingClientRect()

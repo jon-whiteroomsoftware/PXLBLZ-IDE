@@ -293,12 +293,21 @@ describe('RailFilterBar', () => {
     expect(selector).toHaveTextContent('All')
     expect(search.compareDocumentPosition(selector) & Node.DOCUMENT_POSITION_FOLLOWING).not.toBe(0)
     const searchInput = screen.getByRole('textbox', { name: 'Search by name' })
-    expect(searchInput.parentElement).toHaveClass('absolute', 'inset-x-0', 'w-full')
+    const filter = searchInput.closest('.rail-filter-bar')
+    expect(filter).toHaveAttribute('data-search-committed-open', 'false')
+    expect(searchInput.parentElement).toHaveClass('absolute', 'right-0', 'rail-search-preview')
     expect(searchInput.parentElement?.parentElement).toHaveClass('min-w-0', 'w-[13px]', 'shrink-0')
     expect(searchInput).toHaveClass('bg-zinc-900', 'border-zinc-700', 'pr-5')
     expect(search).toHaveClass('absolute', 'right-0', 'z-40')
 
+    await user.hover(search)
+    expect(filter).toHaveAttribute('data-search-committed-open', 'false')
+    expect(selector).toBeVisible()
+    expect(searchInput.parentElement?.parentElement).toHaveClass('w-[13px]', 'shrink-0')
+
     await user.click(search)
+    expect(filter).toHaveAttribute('data-search-committed-open', 'true')
+    expect(searchInput.parentElement).toHaveClass('inset-x-0', 'w-full')
     expect(searchInput.parentElement?.parentElement).toHaveClass('w-full', 'max-w-28')
   })
 

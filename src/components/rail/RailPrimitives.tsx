@@ -256,19 +256,20 @@ export function RailFilterBar({
   return (
     <div
       className="rail-filter-bar flex min-w-0 items-center gap-1"
-      data-search-expanded={expanded}
+      data-search-committed-open={committedOpen}
     >
       <div
         className={[
           'rail-search-field relative flex min-w-0 items-center justify-end',
-          expanded ? 'w-full max-w-28' : 'w-[13px] shrink-0',
+          committedOpen ? 'w-full max-w-28' : 'w-[13px] shrink-0',
         ].join(' ')}
         onMouseEnter={() => setHovered(true)}
         onMouseLeave={() => { setHovered(false); setHoverSuppressed(false) }}
       >
         <div
           className={[
-            'absolute inset-x-0 z-30 w-full transition-opacity duration-150',
+            'absolute z-30 transition-opacity duration-150',
+            committedOpen ? 'inset-x-0 w-full' : 'rail-search-preview right-0',
             expanded ? 'pointer-events-auto opacity-100' : 'pointer-events-none opacity-0',
           ].join(' ')}
         >
