@@ -45,6 +45,8 @@ Two fun uses for Shows:
   precisely coordinated moments across the whole piece, without paying a
   separate runtime cost per zone.
 
+[![A Show timeline mid-playback: Sky and Ground zones running Pattern Clips joined by three different Transitions, with brightness and rotation animated by value curves](docs/screenshots/show-timeline.png)](docs/screenshots/show-timeline-full.png)
+
 ## Quality of life mods
 
 <img src="docs/screenshots/power-card.png" alt="The live power panel actively limiting: duty cap, limiting status, and estimated draw" width="365" align="right">
