@@ -124,9 +124,11 @@ test('rail search stays inside the list pane at narrow widths', async ({ page })
   })
   expect(hoverBounds.inputLeft).toBeGreaterThanOrEqual(hoverBounds.activityRight ?? Number.POSITIVE_INFINITY)
 
-  await page.getByRole('button', { name: 'Dimension filter', exact: true }).click()
+  const dimensionFilter = page.getByRole('button', { name: 'Dimension filter', exact: true })
+  await dimensionFilter.click()
   await expect(page.getByRole('listbox', { name: 'Dimension filter', exact: true })).toBeVisible()
-  await page.keyboard.press('Escape')
+  await page.getByRole('option', { name: '2D', exact: true }).click()
+  await expect(dimensionFilter).toContainText('2D')
   await search.click()
 
   const bounds = await searchInput.evaluate((input) => {
@@ -145,6 +147,22 @@ test('rail search stays inside the list pane at narrow widths', async ({ page })
   expect(bounds.inputLeft).toBeGreaterThanOrEqual(bounds.activityRight ?? Number.POSITIVE_INFINITY)
   expect(bounds.inputRight).toBeLessThanOrEqual(bounds.railRight ?? Number.NEGATIVE_INFINITY)
   expect(bounds.inputWidth).toBeGreaterThanOrEqual(80)
+
+  await page.getByRole('button', { name: 'Close search', exact: true }).click()
+  await page.setViewportSize({ width: 1440, height: 720 })
+  const librarySplitter = page.getByRole('separator', { name: 'Resize library pane', exact: true })
+  for (let step = 0; step < 4; step += 1) await librarySplitter.press('Shift+ArrowLeft')
+  await expect(librarySplitter).toHaveAttribute('aria-valuenow', '184')
+  await search.hover()
+
+  const minimumRailHoverBounds = await searchInput.evaluate((input) => {
+    const inputBounds = input.getBoundingClientRect()
+    const activityBounds = document.querySelector('[aria-label="Studio activity"]')?.getBoundingClientRect()
+    return { inputLeft: inputBounds.left, activityRight: activityBounds?.right }
+  })
+  expect(minimumRailHoverBounds.inputLeft).toBeGreaterThanOrEqual(
+    minimumRailHoverBounds.activityRight ?? Number.POSITIVE_INFINITY,
+  )
 })
 
 test('resized Pattern and Show previews keep their controls reachable', async ({ page }) => {
