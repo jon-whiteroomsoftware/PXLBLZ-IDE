@@ -104,7 +104,7 @@ export function ShowStagePreview({
   const previewShow = useShowPreviewOverrideStore((state) => state.show?.id === showId ? state.show : null)
   const resolvedShow = previewShow ?? showOverride ?? savedShow
   const deferredShow = useDeferredValue(resolvedShow)
-  const show = deferredShow?.id === showId ? deferredShow : resolvedShow
+  const show = resolveShowStagePreviewInput(showId, resolvedShow, deferredShow)
   const userPatterns = usePatternStore((state) => state.userPatterns)
   const userMaps = useMapStore((state) => state.userMaps)
   const controllerProfiles = useControllerProfileStore((state) => state.profiles)
@@ -798,6 +798,43 @@ export function ShowStagePreview({
       </div>
     </div>
   )
+}
+
+export function resolveShowStagePreviewInput(
+  showId: string,
+  resolvedShow: ShowRecord | undefined,
+  deferredShow: ShowRecord | undefined,
+): ShowRecord | undefined {
+  return deferredShow?.id === showId
+    && sameShowPatternSources(resolvedShow, deferredShow)
+    ? deferredShow
+    : resolvedShow
+}
+
+function sameShowPatternSources(
+  left: ShowRecord | undefined,
+  right: ShowRecord | undefined,
+): boolean {
+  if (!left || !right) return left === right
+  if (left.cells.length !== right.cells.length) return false
+  const rightCells = new Map(right.cells.map((cell) => [cell.id, cell.pattern]))
+  if (left.cells.some((cell) => !samePatternRef(cell.pattern, rightCells.get(cell.id)))) return false
+
+  const leftInstances = left.composition?.patternInstances ?? []
+  const rightInstances = right.composition?.patternInstances ?? []
+  if (leftInstances.length !== rightInstances.length) return false
+  const rightInstancePatterns = new Map(rightInstances.map((instance) => [instance.id, instance.pattern]))
+  return leftInstances.every((instance) => samePatternRef(
+    instance.pattern,
+    rightInstancePatterns.get(instance.id),
+  ))
+}
+
+function samePatternRef(
+  left: ShowRecord['cells'][number]['pattern'],
+  right: ShowRecord['cells'][number]['pattern'] | undefined,
+): boolean {
+  return Boolean(right && left.kind === right.kind && left.id === right.id)
 }
 
 function StageDiagnosticToggle({ label, active, onChange }: {

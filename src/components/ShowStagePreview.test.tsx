@@ -1,5 +1,5 @@
 import { act, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
-import { ShowStagePreview } from './ShowStagePreview'
+import { resolveShowStagePreviewInput, ShowStagePreview } from './ShowStagePreview'
 import { createDefaultShow, createShowWithOutputContract } from '@/engine/showModel'
 import { createInstallationShowOutputContract, createPortableShowOutputContract } from '@/engine/showOutputContract'
 import { resetPersonalContentProvider, setPersonalContentProvider, type PersonalContentProvider } from '@/engine/personalContentProvider'
@@ -12,6 +12,7 @@ import { showInitialState, useShowStore } from '@/store/showStore'
 import { controllerProfileInitialState, useControllerProfileStore } from '@/store/controllerProfileStore'
 import { showTransportInitialState, useShowTransportStore } from '@/store/showTransportStore'
 import { showEditorSessionInitialState, useShowEditorSessionStore } from '@/store/showEditorSessionStore'
+import { stockShowById } from '@/pixelblaze/stock/shows'
 import * as fastReplay from '@/engine/fastReplay'
 
 function memoryProvider(seedShows: ShowRecord[] = []): PersonalContentProvider {
@@ -71,6 +72,33 @@ beforeEach(() => {
 })
 
 describe('ShowStagePreview (#339)', () => {
+  it('does not defer a same-Show Pattern-source change behind an older snapshot (#710)', () => {
+    const deferred = createDefaultShow('show-pattern-source-change', 'Deferred Show', 1000)
+    const nonPatternEdit = { ...deferred, name: 'Resolved Show' }
+    const resolved = structuredClone(deferred)
+    resolved.cells[0] = {
+      ...resolved.cells[0],
+      pattern: { kind: 'stock', id: 'ZippyZaps' },
+      patternName: 'ZippyZaps',
+    }
+
+    expect(resolveShowStagePreviewInput(deferred.id, resolved, deferred)).toBe(resolved)
+    expect(resolveShowStagePreviewInput(deferred.id, nonPatternEdit, deferred)).toBe(deferred)
+  })
+
+  it('detects an immediate Pattern-source change in a composition instance (#710)', () => {
+    const deferred = structuredClone(stockShowById('stock-show-302-installation-composition')!.show)
+    const resolved = structuredClone(deferred)
+    const instance = resolved.composition!.patternInstances[0]
+    resolved.composition!.patternInstances[0] = {
+      ...instance,
+      pattern: { kind: 'stock', id: 'ZippyZaps' },
+      patternName: 'ZippyZaps',
+    }
+
+    expect(resolveShowStagePreviewInput(deferred.id, resolved, deferred)).toBe(resolved)
+  })
+
   it('resizes the Stage incrementally without rebuilding Pattern runtime state (#508)', async () => {
     let resize: ResizeObserverCallback | null = null
     vi.stubGlobal('ResizeObserver', class {
@@ -120,6 +148,36 @@ describe('ShowStagePreview (#339)', () => {
     rerender(<ShowStagePreview showId={second.id} />)
 
     expect(usePreviewStore.getState().isRunning).toBe(true)
+  })
+
+  it('rebuilds a running same-Show preview immediately when its Pattern changes (#710)', () => {
+    const show = createDefaultShow('show-live-pattern-switch', 'Live Pattern switch', 1000)
+    const switched = structuredClone(show)
+    switched.cells[0] = {
+      ...switched.cells[0],
+      pattern: { kind: 'stock', id: 'ZippyZaps' },
+      patternName: 'ZippyZaps',
+    }
+    usePreviewStore.setState({ ...previewInitialState, isRunning: true })
+    const transport = useShowTransportStore.getState()
+    transport.openShow(show.id, 62_000)
+    transport.setPosition(show.id, 3_000)
+    const createRuntime = vi.spyOn(fastReplay, 'createFastReplayRuntime')
+
+    try {
+      const { rerender } = render(<ShowStagePreview showId={show.id} showOverride={show} />)
+      expect(createRuntime).toHaveBeenCalledTimes(1)
+      const initialCode = createRuntime.mock.calls[0]![0].code
+
+      rerender(<ShowStagePreview showId={show.id} showOverride={switched} />)
+
+      expect(createRuntime).toHaveBeenCalledTimes(2)
+      expect(createRuntime.mock.calls[1]![0].code).not.toBe(initialCode)
+      expect(usePreviewStore.getState().isRunning).toBe(true)
+      expect(useShowTransportStore.getState().positionMs).toBe(3_000)
+    } finally {
+      createRuntime.mockRestore()
+    }
   })
 
   it('puts the primary playback control at the right edge of the preview status row', () => {
