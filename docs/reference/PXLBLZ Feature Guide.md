@@ -285,7 +285,8 @@ an editable custom map. **New Map** opens plain JavaScript — a literal
 coordinate array or a `function(pixelCount)` returning one — and bakes it on
 the sync tick. The map context pane is a wiring check, not a Pattern preview:
 it colors points in wire order, preserves the physical aspect of 2D geometry,
-fits 3D geometry around its actual centre, and uses a see-through diagnostic
+contains extreme aspect ratios without stretching, fits 3D geometry around its
+actual centre, and uses a see-through diagnostic
 draw so depth cannot hide submitted positions. It labels a bounded set of index
 milestones and reports bounds, dimensions, unique positions, and coincident
 coordinate counts. Pattern light size, diffusion, brightness, and solidity do

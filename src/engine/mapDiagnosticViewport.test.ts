@@ -30,6 +30,20 @@ describe('Map diagnostic viewport', () => {
     ])
   })
 
+  it('contains an extreme 2D aspect without stretching the geometry or burying facts', () => {
+    const viewport = buildMapDiagnosticViewport({
+      positions: [[0, 0], [1, 36]],
+      displayDimension: 2,
+      containerWidth: 400,
+    })
+
+    expect(viewport).toMatchObject({ width: 400, height: 500 })
+    expect(viewport.points.map(({ x, y }) => [x, y])).toEqual([
+      [193.75, 475],
+      [206.25, 25],
+    ])
+  })
+
   it('centers and fits 3D geometry around its actual bounds', () => {
     const viewport = buildMapDiagnosticViewport({
       positions: [[0.1, 0.5, 0.1], [0.1, 0.5, 0.3]],

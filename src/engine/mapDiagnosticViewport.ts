@@ -74,12 +74,18 @@ const FIT_MARGIN = 1 - FRAME_INSET * 2
 const COORDINATE_PRECISION = 9
 const MAX_LABELS = 12
 const MIN_LABEL_DISTANCE_PX = 30
+const MIN_2D_FRAME_HEIGHT_PX = 80
+const MAX_2D_FRAME_ASPECT = 1.25
 
-function projectAxis(value: number, min: number, max: number, size: number): number {
-  if (max <= min) return size / 2
+function projectAxis(value: number, min: number, max: number, start: number, end: number): number {
+  if (max <= min) return (start + end) / 2
   const normalized = (value - min) / (max - min)
-  const projected = size * (FRAME_INSET + normalized * (1 - FRAME_INSET * 2))
+  const projected = start + normalized * (end - start)
   return Math.round(projected * 1e6) / 1e6
+}
+
+function positionZ(position: MapDiagnosticPosition): number {
+  return position.length === 3 ? position[2] : 0
 }
 
 function axisBounds3D(
@@ -90,7 +96,7 @@ function axisBounds3D(
   let min = Infinity
   let max = -Infinity
   for (const position of positions) {
-    const value = position[axis] ?? 0
+    const value = axis === 2 ? positionZ(position) : position[axis]
     if (value < min) min = value
     if (value > max) max = value
   }
@@ -106,7 +112,7 @@ function project3D(
     const point: [number, number, number] = [
       position[0] - geometry.center3D[0],
       position[1] - geometry.center3D[1],
-      (position[2] ?? 0) - geometry.center3D[2],
+      positionZ(position) - geometry.center3D[2],
     ]
     return point
   })
@@ -143,6 +149,47 @@ function summarizeCoordinates(
     overlapLocationCount: counts.filter((count) => count > 1).length,
     maxStack: counts.length > 0 ? Math.max(...counts) : 0,
   }
+}
+
+function project2D(
+  geometry: MapDiagnosticGeometry,
+  size: { width: number; height: number },
+): MapDiagnosticPoint[] {
+  const rangeX = geometry.bounds2D.maxX - geometry.bounds2D.minX
+  const rangeY = geometry.bounds2D.maxY - geometry.bounds2D.minY
+  const availableWidth = size.width * FIT_MARGIN
+  const availableHeight = size.height * FIT_MARGIN
+  let plotWidth = availableWidth
+  let plotHeight = availableHeight
+  if (rangeX > 0 && rangeY > 0) {
+    const mapAspect = rangeY / rangeX
+    if (availableHeight / availableWidth > mapAspect) {
+      plotHeight = availableWidth * mapAspect
+    } else {
+      plotWidth = availableHeight / mapAspect
+    }
+  }
+  const left = (size.width - plotWidth) / 2
+  const top = (size.height - plotHeight) / 2
+
+  return geometry.positions.map((position, index) => ({
+    index,
+    x: projectAxis(
+      position[0],
+      geometry.bounds2D.minX,
+      geometry.bounds2D.maxX,
+      left,
+      left + plotWidth,
+    ),
+    y: projectAxis(
+      position[1],
+      geometry.bounds2D.minY,
+      geometry.bounds2D.maxY,
+      top + plotHeight,
+      top,
+    ),
+    depth: 0,
+  }))
 }
 
 function diagnosticLabels(points: readonly MapDiagnosticPoint[]): MapDiagnosticLabel[] {
@@ -187,7 +234,7 @@ export function prepareMapDiagnosticGeometry({
     radius3D = Math.max(radius3D, Math.hypot(
       position[0] - center3D[0],
       position[1] - center3D[1],
-      (position[2] ?? 0) - center3D[2],
+      positionZ(position) - center3D[2],
     ))
   }
   return {
@@ -206,20 +253,22 @@ export function projectMapDiagnosticGeometry({
   camera = DEFAULT_ORBIT,
 }: ProjectMapDiagnosticGeometryInput): MapDiagnosticViewport {
   const width = Math.max(1, Math.round(containerWidth))
+  const natural2DSize = canvasSizeForBounds(containerWidth, geometry.bounds2D)
   const size = geometry.displayDimension === 1
     ? { width, height: Math.max(80, Math.round(width / 4)) }
     : geometry.displayDimension === 2
-      ? canvasSizeForBounds(containerWidth, geometry.bounds2D)
+      ? {
+        width,
+        height: Math.max(
+          MIN_2D_FRAME_HEIGHT_PX,
+          Math.min(Math.round(width * MAX_2D_FRAME_ASPECT), natural2DSize.height),
+        ),
+      }
       : { width, height: width }
 
   const points = geometry.displayDimension === 3
     ? project3D(geometry, size.width, camera)
-    : geometry.positions.map((position, index) => ({
-      index,
-      x: projectAxis(position[0], geometry.bounds2D.minX, geometry.bounds2D.maxX, size.width),
-      y: size.height - projectAxis(position[1], geometry.bounds2D.minY, geometry.bounds2D.maxY, size.height),
-      depth: 0,
-    }))
+    : project2D(geometry, size)
 
   return {
     ...size,

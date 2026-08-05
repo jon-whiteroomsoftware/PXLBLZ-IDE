@@ -518,7 +518,8 @@ against accidental pathological counts (`MAX_PIXEL_COUNT = 65,536`, grid axis
 
 The Map context pane is deliberately outside that Pattern/Show presentation
 policy. `mapDiagnosticViewport.ts` projects diagnostic positions, sizes 2D from
-physical bounds, centres 3D on the geometry's actual bounds, chooses a
+physical bounds within a bounded pane frame without stretching, centres 3D on
+the geometry's actual bounds, chooses a
 density-based marker size, deconflicts at most twelve wire-index labels, and
 counts coincident coordinates. `mapDiagnosticRenderer.ts` paints the projected
 3D points additively without a depth test, so every submitted index contributes
@@ -645,9 +646,9 @@ cloud does not. Normals and solidity remain preview-only.
 Opening source in Map mode never adopts that map into the running Pattern. The
 right pane instead resolves the source or last good bake into a Map-owned
 diagnostic view. One-dimensional maps use a compact strip; two-dimensional maps
-use their measured physical aspect; three-dimensional maps orbit in a square
-frame fitted around their real bounds centre. Wire-order color remains the
-primary encoding.
+use their measured physical aspect and contain extreme tall/wide geometry inside
+a bounded frame; three-dimensional maps orbit in a square frame fitted around
+their real bounds centre. Wire-order color remains the primary encoding.
 
 The diagnostic submits every coordinate and reports both total pixels and unique
 positions. `overlaps` is the number of wire indices beyond the first index at a
