@@ -30,8 +30,11 @@ export interface MapFacts {
   bounds: string
 }
 
-const WIRE_START = [42, 42, 48] as const
-const WIRE_END = [251, 191, 36] as const
+const WIRE_STOPS = [
+  [119, 112, 168],
+  [54, 160, 155],
+  [251, 191, 36],
+] as const
 
 function clamp01(value: number): number {
   return value < 0 ? 0 : value > 1 ? 1 : value
@@ -82,10 +85,15 @@ export function wireOrderColors(count: number): [number, number, number][] {
   if (count <= 0) return []
   return Array.from({ length: count }, (_, index) => {
     const t = count > 1 ? index / (count - 1) : 0
+    const scaled = t * (WIRE_STOPS.length - 1)
+    const stopIndex = Math.min(Math.floor(scaled), WIRE_STOPS.length - 2)
+    const localT = scaled - stopIndex
+    const start = WIRE_STOPS[stopIndex]
+    const end = WIRE_STOPS[stopIndex + 1]
     return [
-      (WIRE_START[0] + (WIRE_END[0] - WIRE_START[0]) * t) / 255,
-      (WIRE_START[1] + (WIRE_END[1] - WIRE_START[1]) * t) / 255,
-      (WIRE_START[2] + (WIRE_END[2] - WIRE_START[2]) * t) / 255,
+      (start[0] + (end[0] - start[0]) * localT) / 255,
+      (start[1] + (end[1] - start[1]) * localT) / 255,
+      (start[2] + (end[2] - start[2]) * localT) / 255,
     ]
   })
 }

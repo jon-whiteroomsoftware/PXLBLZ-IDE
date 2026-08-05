@@ -8,11 +8,11 @@ import {
 import type { MapPoint } from './maps'
 
 describe('map context wiring helpers', () => {
-  it('creates an amber wire-order gradient', () => {
+  it('creates a visible cool-to-warm wire-order gradient', () => {
     const colors = wireOrderColors(3)
-    expect(colors[0]).toEqual([42 / 255, 42 / 255, 48 / 255])
+    expect(colors[0]).toEqual([119 / 255, 112 / 255, 168 / 255])
+    expect(colors[1]).toEqual([54 / 255, 160 / 255, 155 / 255])
     expect(colors[2]).toEqual([251 / 255, 191 / 255, 36 / 255])
-    expect(colors[1][0]).toBeGreaterThan(colors[0][0])
   })
 
   it('converts 1D maps into a horizontal strip geometry', () => {

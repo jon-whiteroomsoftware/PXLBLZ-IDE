@@ -42,6 +42,8 @@ function svgColor([red, green, blue]: [number, number, number]): string {
   return `rgb(${Math.round(red * 255)} ${Math.round(green * 255)} ${Math.round(blue * 255)})`
 }
 
+const WIRE_ORDER_LEGEND = `linear-gradient(to right, ${wireOrderColors(3).map(svgColor).join(', ')})`
+
 function resolveOpenMapContext(
   editingMap: ReturnType<typeof useMapStore.getState>['editingMap'],
   userMaps: ReturnType<typeof useMapStore.getState>['userMaps'],
@@ -356,7 +358,10 @@ export function MapContextPane() {
       </div>
       <div className="wire-legend flex shrink-0 items-center gap-2 border-b border-seam px-3 py-2 text-[10px] text-zinc-500">
         <span>1</span>
-        <span className="h-1.5 flex-1 rounded-full bg-gradient-to-r from-[#2a2a30] to-[#fbbf24]" />
+        <span
+          className="h-1.5 flex-1 rounded-full"
+          style={{ backgroundImage: WIRE_ORDER_LEGEND }}
+        />
         <span>{Math.max(1, context.points.length)}</span>
         <span className="ml-1 text-zinc-500">gradient follows wire order</span>
       </div>
