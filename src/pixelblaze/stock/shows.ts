@@ -1197,47 +1197,57 @@ function learn206(): StockShow {
   })
 }
 
-// 301 moves the curriculum onto physical output. sunflower-pucks-2d is
-// measured hardware geometry: 160 LEDs in eight 20-pixel pucks, indices 0-79
-// filling the left column and 80-159 the right, so the two named banks
-// restate the map's wiring order rather than a normalized split. Casting was
-// probed on that geometry at the lesson clock: IQPalettes and MetaballGarden
-// are the two calmest equally-bright fields (mean luminance 0.36/0.35, flux
-// 0.015/0.016 per 200 ms step) with the widest sustained hue contrast of any
-// such pair - warm palette drift against green metaballs. Pairs scoring
-// higher set a bright field against a near-dark Pattern, and a near-dark bank
-// reads as the coverage fault this lesson teaches the learner to diagnose, so
-// both banks stay unmistakably alive. The halfway trade mirrors 105 exactly:
-// the same authoring the learner already knows, now over owned LEDs.
+// 301 moves the curriculum onto physical output. The Proscenium stage is the
+// installation: 1,000 LEDs walked in wiring order - left tower 0-199, dance
+// floor 200-599, arch 600-799, right tower 800-999 - so the Towers Zone owns
+// two non-contiguous ranges at opposite ends of the index space, the several-
+// ranges case made physical. Casting was probed on this geometry at the
+// lesson clock (#705): MetaballGarden, IQPalettes, and CompassRose are three
+// calm fields from three hue families - green 134°, warm 31°, blue 236° -
+// each unmistakably alive (0.19-0.39 mean luminance, flux ≤ 0.021 per
+// 200 ms step). A near-dark voice reads as the coverage fault this lesson
+// teaches the learner to diagnose, so quiet center-weighted fields
+// (ShapeShifter 0.07, Harmonograph 0.07) were rejected; PlasmaNebula scored
+// well standalone but compiles to black through the Show pipeline (#708),
+// so the blue voice is the show-proven CompassRose. The halfway trade
+// mirrors 105 exactly: floor and towers swap Patterns in one Cut while the
+// arch holds and the ranges never move.
 function learn301(): StockShow {
   const id = 'stock-show-301-installation-mapping'
-  const zones = physicalZones(['Left bank', 'Right bank'], [80, 80])
+  const zones = physicalZones(['Dance floor', 'Arch', 'Towers'], [400, 200, 400])
   const scenes: SceneSpec[] = [
-    scene('wall', 'Two banks', 14, [
-      clip('zone-1', 'IQPalettes', LESSON_TIME_SCALE),
-      clip('zone-2', 'MetaballGarden', LESSON_TIME_SCALE),
+    scene('stage', 'One stage', 14, [
+      clip('zone-1', 'MetaballGarden', LESSON_TIME_SCALE),
+      clip('zone-2', 'IQPalettes', LESSON_TIME_SCALE),
+      clip('zone-3', 'CompassRose', LESSON_TIME_SCALE),
     ]),
   ]
   const composition: ShowCompositionV1 = {
     version: 1,
     patternInstances: [
-      instance('palettes', 'IQPalettes', LESSON_TIME_SCALE),
       instance('garden', 'MetaballGarden', LESSON_TIME_SCALE),
+      instance('palettes', 'IQPalettes', LESSON_TIME_SCALE),
+      instance('rose', 'CompassRose', LESSON_TIME_SCALE),
     ],
     scenes: [{
-      sceneId: 'wall',
+      sceneId: 'stage',
       zones: [
         {
+          // The Cut lands at the same instant on floor and towers, so the
+          // Patterns trade surfaces in one move while the ranges never change.
           zoneId: 'zone-1',
           overlays: [],
-          main: [placement('clip-left-palettes', 'palettes', 0, 7), placement('clip-left-garden', 'garden', 7, 7)],
+          main: [placement('clip-floor-garden', 'garden', 0, 7), placement('clip-floor-rose', 'rose', 7, 7)],
         },
         {
-          // The Cut lands at the same instant in both banks, so the Patterns
-          // trade walls in one move while the ranges never change.
           zoneId: 'zone-2',
           overlays: [],
-          main: [placement('clip-right-garden', 'garden', 0, 7), placement('clip-right-palettes', 'palettes', 7, 7)],
+          main: [placement('clip-arch-palettes', 'palettes', 0, 14)],
+        },
+        {
+          zoneId: 'zone-3',
+          overlays: [],
+          main: [placement('clip-towers-rose', 'rose', 0, 7), placement('clip-towers-garden', 'garden', 7, 7)],
         },
       ],
     }],
@@ -1245,105 +1255,110 @@ function learn301(): StockShow {
   }
   return catalogue({
     id, title: 'Installation Mapping', track: 'installation', collection: 'learn', level: 300, order: 1,
-    purpose: 'An Installation Show gives up portability on purpose. It promises one exact output - this wall of eight sunflower pucks, 160 measured LEDs - and in exchange each named Zone owns real pixels: a physical range over the map instead of a share of an abstract surface. Together the ranges must cover the output exactly once.',
-    notice: "The two banks follow the map's actual wiring order: LEDs 0-79 fill the left column of pucks and 80-159 the right. At the halfway junction the two Patterns trade banks, while the ranges themselves never move.",
-    prompts: ['Open the Left bank and edit its pixels in the map selector: the spatial selection and the numeric range are the same fact written two ways.', 'Now break it on purpose - remove a few pixels from one bank and watch the coverage diagnostic count the gap. Repair it, or use Reset to restore the pristine lesson.'],
+    purpose: 'An Installation Show gives up portability on purpose. It promises one exact output - this proscenium stage, 1,000 measured LEDs - and in exchange each named Zone owns real pixels: a physical range over the map instead of a share of an abstract surface. Together the ranges must cover the output exactly once.',
+    notice: "The ranges restate the installer's walk: left tower first, then the dance floor, the arch, and the right tower last. That walk is why the Towers Zone owns two ranges at opposite ends of the index space - 0-199 and 800-999 - one physical role, two stretches of wire. At the halfway junction the floor and the towers trade Patterns while the arch holds; the ranges themselves never move.",
+    prompts: ['Open the Towers Zone and edit its pixels in the map selector: one Zone, two non-contiguous ranges, and the spatial selection and the numeric ranges are the same fact written two ways.', 'Now break it on purpose - remove a few pixels from one tower and watch the coverage diagnostic count the gap. Repair it, or use Reset to restore the pristine lesson.'],
     guideHeading: 'installation-output-and-physical-ranges',
-    patternSlots: [['palettes'], ['garden']],
-    output: { kind: 'installation', mapId: 'sunflower-pucks-2d', pixelCount: 160 },
+    patternSlots: [['garden'], ['palettes'], ['rose']],
+    output: { kind: 'installation', mapId: 'proscenium-stage-2d', pixelCount: 1_000 },
     zones,
-    layouts: [physicalLayout('layout-banks', 'Two banks', zones, [[[0, 79]], [[80, 159]]])],
+    layouts: [physicalLayout('layout-stage', 'Proscenium stage', zones, [
+      [[200, 599]], [[600, 799]], [[0, 199], [800, 999]],
+    ])],
     scenes,
     composition,
   })
 }
 
-// 302 turns the same measured wall into an instrument with three roles. The
-// Crown owns the top puck of each column through two non-contiguous ranges -
-// the guide's several-ranges case made physical - while each vine column is
-// its own Zone and both share one MetaballGarden instance, so the bed reads
-// as one plant. Murmuration (lum 0.080, flux 0.012 in the 301 probe) is the
-// crown's quiet ember state; IQPalettes is its ignition. Every voice was
-// probed calm at the shared lesson clock, and the only change at each
-// junction is the crown's, so the arc stays attributable at playback speed.
-// The two 2-second crossfades are additional timeline intervals, so the
-// 6/8/6-second holds make a 24-second Show and the explicit duration says so.
+// 302 composes the Redline stage - the hero-and-satellites idiom the
+// showcase performs at full intensity, here slowed to teaching speed. All
+// four satellite targets share one MetaballGarden instance and one clock
+// (brightest calm field on the target geometry in the #705 probe: lum 0.40,
+// flux 0.004 per 200 ms step), and each satellite differs from its siblings
+// by exactly one cheap Effect - reference, mirror, posterize, quarter
+// rotation - so one instance speaks in four visibly different voices. The
+// hero carries the whole arc alone: quiet Murmuration embers (lum 0.14 on
+// the hero panel), a warm IQPalettes ignition (0.40, hue 31° against the
+// satellites' focused green 134°), then the same flock instance
+// resuming where ignition interrupted it. Only the hero changes at each
+// junction, so the arc stays attributable at playback speed. The junctions
+// are Cuts like the showcase's: crossfading five physical Zones was measured
+// at roughly twenty points of device budget per boundary (66% of budget
+// with two crossfades, 27% with Cuts), and a Cut also makes the hero's
+// change the only visible event at the junction. With no transition
+// intervals the 6/8/6-second holds make a 20-second Show.
 function learn302(): StockShow {
   const id = 'stock-show-302-installation-composition'
-  const zones = physicalZones(['Crown', 'Left vine', 'Right vine'], [40, 60, 60])
-  const scenes: SceneSpec[] = [
-    scene('establish', 'Establish', 6, [
-      clip('zone-1', 'Murmuration', LESSON_TIME_SCALE),
-      clip('zone-2', 'MetaballGarden', LESSON_TIME_SCALE),
-      clip('zone-3', 'MetaballGarden', LESSON_TIME_SCALE),
-    ]),
-    scene('bloom', 'Bloom', 8, [
-      clip('zone-1', 'IQPalettes', LESSON_TIME_SCALE),
-      clip('zone-2', 'MetaballGarden', LESSON_TIME_SCALE),
-      clip('zone-3', 'MetaballGarden', LESSON_TIME_SCALE),
-    ]),
-    scene('resolve', 'Resolve', 6, [
-      clip('zone-1', 'Murmuration', LESSON_TIME_SCALE),
-      clip('zone-2', 'MetaballGarden', LESSON_TIME_SCALE),
-      clip('zone-3', 'MetaballGarden', LESSON_TIME_SCALE),
-    ]),
-  ]
+  const zones = physicalZones(
+    ['Hero panel', 'Left upper', 'Left lower', 'Right upper', 'Right lower'],
+    [800, 300, 300, 300, 300],
+  )
+  const heroBySceneId: Record<string, string> = { establish: 'Murmuration', bloom: 'IQPalettes', resolve: 'Murmuration' }
+  const scenes: SceneSpec[] = (['establish', 'bloom', 'resolve'] as const).map((sceneId, index) => (
+    scene(sceneId, sceneId[0].toUpperCase() + sceneId.slice(1), index === 1 ? 8 : 6, [
+      clip('zone-1', heroBySceneId[sceneId], LESSON_TIME_SCALE),
+      ...zones.slice(1).map((zone) => clip(zone.id, 'MetaballGarden', LESSON_TIME_SCALE)),
+    ])
+  ))
+  // One legible difference per satellite; the same four voices hold across
+  // every passage, so difference reads as identity, not as churn.
+  const satelliteVoice = (zoneIndex: number): { mirror: boolean; effects?: ShowClipEffect[] } => [
+    { mirror: false },
+    { mirror: true },
+    { mirror: false, effects: [{ id: 'satellite-posterize', kind: 'posterize' as const, levels: 4, amount: 1 }] },
+    { mirror: false, effects: [{ id: 'satellite-rotate', kind: 'rotate' as const, turns: 0.25 }, { id: 'satellite-wrap', kind: 'wrap' as const }] },
+  ][zoneIndex]
+  const heroInstanceBySceneId: Record<string, string> = { establish: 'flock', bloom: 'ignition', resolve: 'flock' }
   const composition: ShowCompositionV1 = {
     version: 1,
     patternInstances: [
       instance('flock', 'Murmuration', LESSON_TIME_SCALE),
       instance('ignition', 'IQPalettes', LESSON_TIME_SCALE),
-      // One shared instance for both vine columns: repeated surfaces share
-      // identity and clock, so the bed reads as one plant split by wiring.
+      // One shared instance for all four satellites: repeated surfaces share
+      // identity and clock, so the ring reads as one family in four voices.
       instance('garden', 'MetaballGarden', LESSON_TIME_SCALE),
     ],
-    scenes: [
-      {
-        sceneId: 'establish',
-        zones: [
-          { zoneId: 'zone-1', overlays: [], main: [placement('crown-embers', 'flock', 0, 6)] },
-          { zoneId: 'zone-2', overlays: [], main: [placement('left-bed', 'garden', 0, 6)] },
-          { zoneId: 'zone-3', overlays: [], main: [placement('right-bed', 'garden', 0, 6)] },
-        ],
-      },
-      {
-        sceneId: 'bloom',
-        zones: [
-          { zoneId: 'zone-1', overlays: [], main: [placement('crown-ignition', 'ignition', 0, 8)] },
-          { zoneId: 'zone-2', overlays: [], main: [placement('left-bed-bloom', 'garden', 0, 8)] },
-          { zoneId: 'zone-3', overlays: [], main: [placement('right-bed-bloom', 'garden', 0, 8)] },
-        ],
-      },
-      {
-        sceneId: 'resolve',
-        zones: [
-          // The crown rejoins the shared flock instance, so the embers resume
-          // from where ignition interrupted them instead of restarting.
-          { zoneId: 'zone-1', overlays: [], main: [placement('crown-afterglow', 'flock', 0, 6)] },
-          { zoneId: 'zone-2', overlays: [], main: [placement('left-bed-resolve', 'garden', 0, 6)] },
-          { zoneId: 'zone-3', overlays: [], main: [placement('right-bed-resolve', 'garden', 0, 6)] },
-        ],
-      },
-    ],
-    durationMs: 24_000,
+    scenes: scenes.map((sceneSpec) => ({
+      sceneId: sceneSpec.id,
+      zones: zones.map((zone, zoneIndex) => {
+        const seconds = sceneSpec.durationMs / 1_000
+        if (zoneIndex === 0) {
+          // The resolve passage rejoins the shared flock instance, so the
+          // embers resume where ignition interrupted them, not from frame one.
+          return {
+            zoneId: zone.id,
+            overlays: [],
+            main: [placement(`hero-${sceneSpec.id}`, heroInstanceBySceneId[sceneSpec.id], 0, seconds)],
+          }
+        }
+        const voice = satelliteVoice(zoneIndex - 1)
+        return {
+          zoneId: zone.id,
+          overlays: [],
+          main: [{
+            ...placement(`satellite-${zoneIndex}-${sceneSpec.id}`, 'garden', 0, seconds),
+            view: { mirror: voice.mirror, phase: 0, brightness: 1 },
+            ...(voice.effects ? { effects: voice.effects } : {}),
+          }],
+        }
+      }),
+    })),
+    durationMs: 20_000,
   }
   return catalogue({
     id, title: 'Installation Composition', track: 'installation', collection: 'learn', level: 300, order: 2,
-    purpose: 'Composing for a fixed installation uses the same Clips, junctions, and shared Pattern instances you already know - what changes is that the Zones are physical. Three Zones give this wall three roles: two vine columns that share one MetaballGarden instance, so they read as one plant split by wiring, and a Crown that owns the top puck of each column through two separate ranges.',
-    notice: "The Crown is one Zone with two non-contiguous ranges, one atop each column. It is also the only thing that changes at each junction: the vines' shared instance never restarts, and when the Crown's quiet Murmuration returns at the end, it resumes exactly where the bright middle Clip interrupted it.",
-    prompts: ['Solo the Crown to see exactly which pucks its two ranges own, then solo one vine and watch its half of the shared garden keep playing alone.', "Swap the Crown's bright middle Pattern for any other - the ranges and the vines never notice, because the routing is separate from the content."],
+    purpose: 'Composing for a fixed installation uses the same Clips, junctions, and shared Pattern instances you already know - what changes is that the Zones are physical. The Redline stage gives this Show five instruments: a hero panel that always carries something unique, and four satellite targets that share one MetaballGarden instance and one clock. Each satellite differs from its siblings by one cheap Effect - a mirror, a posterize, a quarter rotation - so one instance speaks in four voices.',
+    notice: "Only the hero changes at each junction: quiet Murmuration embers, a warm IQPalettes ignition, then the same Murmuration instance resuming exactly where the ignition interrupted it. The satellites' shared instance never restarts - their differences are routing and Effects, not content.",
+    prompts: ['Solo each satellite Zone in turn: same Pattern, same clock, one Effect apart. Then solo the hero and watch it carry the whole arc alone.', "Swap the satellites' MetaballGarden for any other Pattern - all four voices change together, because the four Clips share one instance."],
     guideHeading: 'composing-a-fixed-installation',
     patternSlots: [['flock'], ['garden'], ['ignition']],
-    output: { kind: 'installation', mapId: 'sunflower-pucks-2d', pixelCount: 160 },
+    output: { kind: 'installation', mapId: 'redline-stage-2d', pixelCount: 2_000 },
     zones,
-    layouts: [physicalLayout('layout-roles', 'Three roles', zones, [
-      [[60, 79], [140, 159]], [[0, 59]], [[80, 139]],
+    layouts: [physicalLayout('layout-redline-stage', 'Redline stage', zones, [
+      [[0, 799]], [[800, 1_099]], [[1_100, 1_399]], [[1_400, 1_699]], [[1_700, 1_999]],
     ])],
     scenes,
-    transitions: [
-      boundary('establish', 'crossfade', 2_000, SINE_IN_OUT),
-      boundary('bloom', 'crossfade', 2_000, SINE_IN_OUT),
-    ],
+    transitions: cutBoundaries(scenes),
     composition,
   })
 }

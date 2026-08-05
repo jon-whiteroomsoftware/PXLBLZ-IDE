@@ -358,9 +358,11 @@ describe('stock Show curriculum (#363)', () => {
     // deliberate exception: its whole subject is a fixed physical output.
     for (const item of lessons()) {
       if (item.track === 'installation') {
-        expect(item.show.outputContract, item.name).toMatchObject({
-          kind: 'installation', outputMapId: 'sunflower-pucks-2d', pixelCount: 160,
-        })
+        expect(item.show.outputContract, item.name).toMatchObject(
+          item.id === 'stock-show-301-installation-mapping'
+            ? { kind: 'installation', outputMapId: 'proscenium-stage-2d', pixelCount: 1_000 }
+            : { kind: 'installation', outputMapId: 'redline-stage-2d', pixelCount: 2_000 },
+        )
         continue
       }
       expect(item.show.outputContract, item.name).toMatchObject({
@@ -393,12 +395,16 @@ describe('stock Show curriculum (#363)', () => {
 
   it('spends a second Zone only where the lesson is about simultaneity', () => {
     // Measured: cost scales with simultaneous Zones, not with Pattern variety
-    // (~1 KB per sequential reprise). No lesson needs a third; at the 200
-    // level, simultaneity is taught on Layers, so only 206 routes two Zones.
+    // (~1 KB per sequential reprise). No portable lesson needs a third; at the
+    // 200 level, simultaneity is taught on Layers, so only 206 routes two
+    // Zones. The installation lessons own their stages' real surfaces: the
+    // Proscenium's three roles and the Redline stage's hero plus four
+    // satellites.
     for (const item of lessons()) {
       const expected = SINGLE_ZONE_IDS.includes(item.id) ? 1
-        : item.id === 'stock-show-302-installation-composition' ? 3
-          : 2
+        : item.id === 'stock-show-302-installation-composition' ? 5
+          : item.id === 'stock-show-301-installation-mapping' ? 3
+            : 2
       expect(item.show.zones, item.name).toHaveLength(expected)
     }
   })
@@ -1645,7 +1651,10 @@ describe('stock Show curriculum (#363)', () => {
     // instead account for every physical LED.
     for (const item of lessons()) {
       if (item.track === 'installation') {
-        expect(item.show.zones.reduce((sum, zone) => sum + zone.nominalPixelCount, 0), item.id).toBe(160)
+        const contract = item.show.outputContract
+        expect(contract.kind, item.id).toBe('installation')
+        expect(item.show.zones.reduce((sum, zone) => sum + zone.nominalPixelCount, 0), item.id)
+          .toBe(contract.kind === 'installation' ? contract.pixelCount : Number.NaN)
         continue
       }
       expect(item.show.outputContract, item.id).toMatchObject({
@@ -1656,80 +1665,31 @@ describe('stock Show curriculum (#363)', () => {
     }
   })
 
-  it('routes 301 banks by measured index and trades Patterns at the halfway Cut', () => {
+  it('routes 301 surfaces by the wiring walk and trades floor and towers at the halfway Cut', () => {
     const item = stockShowById('stock-show-301-installation-mapping')!
     expect(item.show.routingLayouts).toHaveLength(1)
     expect(item.show.routingLayouts[0].zones).toEqual([
-      { zoneId: 'zone-1', ranges: [{ start: 0, end: 79 }] },
-      { zoneId: 'zone-2', ranges: [{ start: 80, end: 159 }] },
+      { zoneId: 'zone-1', ranges: [{ start: 200, end: 599 }] },
+      { zoneId: 'zone-2', ranges: [{ start: 600, end: 799 }] },
+      { zoneId: 'zone-3', ranges: [{ start: 0, end: 199 }, { start: 800, end: 999 }] },
     ])
     expect(validateInstallationCoverage(item.show)).toMatchObject({ valid: true })
 
     const compiled = compileShowForArtifact(item.show, [], undefined, {}, { stageDimension: 2 })
     expect(compiled.error).toBeNull()
-    const mapPoints = SOURCE_STOCK_MAPS.find((map) => map.id === 'sunflower-pucks-2d')!.resolve(160)
+    const mapPoints = SOURCE_STOCK_MAPS.find((map) => map.id === 'proscenium-stage-2d')!.resolve(1_000)
     let virtualTime = 0
     const shim = createShim({
-      pixelCount: 160,
+      pixelCount: 1_000,
       dimensions: 2,
       mapPoints,
       getVirtualTime: () => virtualTime,
       randomSeed: 363,
     })
     const handle = loadPattern(compiled.artifact!.code, compiled.artifact!.metadata, shim.builtins)
-    const bankIndices = { left: [8, 34, 55, 71], right: [88, 114, 135, 151] }
-    const frameAt = (deltaMs: number) => {
-      virtualTime += deltaMs
-      handle.beforeRender(deltaMs)
-      const render = (index: number) => {
-        const [x, y] = mapPoints[index].sample
-        handle.render2D(index, x, y)
-        return shim.capturedPixel()
-      }
-      return { left: bankIndices.left.map(render), right: bankIndices.right.map(render) }
-    }
-
-    const establish = frameAt(1_000)
-    const traded = frameAt(7_000)
-
-    // The two banks run visibly different content in both halves, and each
-    // bank changes at the trade even though the ranges never move.
-    expect(establish.left).not.toEqual(establish.right)
-    expect(traded.left).not.toEqual(establish.left)
-    expect(traded.right).not.toEqual(establish.right)
-    const lit = (bank: number[][]) => bank.some(([r, g, b]) => r + g + b > 0.05)
-    expect(lit(establish.left) && lit(establish.right) && lit(traded.left) && lit(traded.right)).toBe(true)
-  })
-
-  it('gives 302 a non-contiguous Crown whose arc is the only change per junction', () => {
-    const item = stockShowById('stock-show-302-installation-composition')!
-    expect(item.show.routingLayouts).toHaveLength(1)
-    expect(item.show.routingLayouts[0].zones).toEqual([
-      { zoneId: 'zone-1', ranges: [{ start: 60, end: 79 }, { start: 140, end: 159 }] },
-      { zoneId: 'zone-2', ranges: [{ start: 0, end: 59 }] },
-      { zoneId: 'zone-3', ranges: [{ start: 80, end: 139 }] },
-    ])
-    expect(validateInstallationCoverage(item.show)).toMatchObject({ valid: true })
-    // The vines share one instance; the crown owns the only content changes.
-    const composition = item.show.composition!
-    const vineInstances = new Set(composition.scenes.flatMap((scene) => scene.zones
-      .filter((zone) => zone.zoneId !== 'zone-1')
-      .flatMap((zone) => zone.main.map((entry) => entry.instanceId))))
-    expect(vineInstances).toEqual(new Set(['garden']))
-
-    const compiled = compileShowForArtifact(item.show, [], undefined, {}, { stageDimension: 2 })
-    expect(compiled.error).toBeNull()
-    const mapPoints = SOURCE_STOCK_MAPS.find((map) => map.id === 'sunflower-pucks-2d')!.resolve(160)
-    let virtualTime = 0
-    const shim = createShim({
-      pixelCount: 160,
-      dimensions: 2,
-      mapPoints,
-      getVirtualTime: () => virtualTime,
-      randomSeed: 302,
-    })
-    const handle = loadPattern(compiled.artifact!.code, compiled.artifact!.metadata, shim.builtins)
-    const groups = { crown: [64, 71, 145, 152], leftVine: [12, 30, 48], rightVine: [92, 110, 128] }
+    // Both towers belong to one Zone, so a sample from each end of the index
+    // space (left tower, right tower) must carry the same voice.
+    const groups = { floor: [250, 400, 550], arch: [620, 700, 780], towers: [50, 150, 850, 950] }
     const frameAt = (deltaMs: number) => {
       virtualTime += deltaMs
       handle.beforeRender(deltaMs)
@@ -1739,32 +1699,104 @@ describe('stock Show curriculum (#363)', () => {
         return shim.capturedPixel()
       }
       return {
-        crown: groups.crown.map(render),
-        leftVine: groups.leftVine.map(render),
-        rightVine: groups.rightVine.map(render),
+        floor: groups.floor.map(render),
+        arch: groups.arch.map(render),
+        towers: groups.towers.map(render),
       }
     }
 
-    // Crossfades are additional timeline intervals: Establish holds 0-6s,
-    // Bloom holds 8-16s, and Resolve holds 18-24s on the 24-second ruler.
-    const establish = frameAt(3_000)   // embers over the bed
-    const bloom = frameAt(7_000)       // t=10s: ignition holds the crown
-    const resolve = frameAt(9_000)     // t=19s: afterglow resumes the embers
+    const establish = frameAt(1_000)
+    const traded = frameAt(7_000)
 
-    // Every role stays alive in every passage, and only the crown carries the
-    // arc: ignition differs from embers, and the afterglow differs from the
-    // held ignition.
+    // Three surfaces run visibly different content, floor and towers change
+    // at the trade even though the ranges never move, and every surface stays
+    // unmistakably alive in both halves.
+    expect(establish.floor).not.toEqual(establish.towers)
+    expect(establish.floor).not.toEqual(establish.arch)
+    expect(traded.floor).not.toEqual(establish.floor)
+    expect(traded.towers).not.toEqual(establish.towers)
+    const lit = (group: number[][]) => group.some(([r, g, b]) => r + g + b > 0.05)
+    for (const frame of [establish, traded]) {
+      expect(lit(frame.floor) && lit(frame.arch) && lit(frame.towers)).toBe(true)
+    }
+  })
+
+  it('gives 302 four satellite voices from one instance while only the hero carries the arc', () => {
+    const item = stockShowById('stock-show-302-installation-composition')!
+    expect(item.show.routingLayouts).toHaveLength(1)
+    expect(item.show.routingLayouts[0].zones).toEqual([
+      { zoneId: 'zone-1', ranges: [{ start: 0, end: 799 }] },
+      { zoneId: 'zone-2', ranges: [{ start: 800, end: 1_099 }] },
+      { zoneId: 'zone-3', ranges: [{ start: 1_100, end: 1_399 }] },
+      { zoneId: 'zone-4', ranges: [{ start: 1_400, end: 1_699 }] },
+      { zoneId: 'zone-5', ranges: [{ start: 1_700, end: 1_999 }] },
+    ])
+    expect(validateInstallationCoverage(item.show)).toMatchObject({ valid: true })
+    // All four satellites share one instance in every passage; the hero owns
+    // the only content changes (flock, ignition, then the same flock again).
+    const composition = item.show.composition!
+    const satelliteInstances = new Set(composition.scenes.flatMap((scene) => scene.zones
+      .filter((zone) => zone.zoneId !== 'zone-1')
+      .flatMap((zone) => zone.main.map((entry) => entry.instanceId))))
+    expect(satelliteInstances).toEqual(new Set(['garden']))
+    expect(composition.scenes.map((scene) => scene.zones[0].main[0].instanceId))
+      .toEqual(['flock', 'ignition', 'flock'])
+
+    const compiled = compileShowForArtifact(item.show, [], undefined, {}, { stageDimension: 2 })
+    expect(compiled.error).toBeNull()
+    const mapPoints = SOURCE_STOCK_MAPS.find((map) => map.id === 'redline-stage-2d')!.resolve(2_000)
+    let virtualTime = 0
+    const shim = createShim({
+      pixelCount: 2_000,
+      dimensions: 2,
+      mapPoints,
+      getVirtualTime: () => virtualTime,
+      randomSeed: 302,
+    })
+    const handle = loadPattern(compiled.artifact!.code, compiled.artifact!.metadata, shim.builtins)
+    // The same local offsets inside each 300-pixel target, so corresponding
+    // samples compare one shared instance across its four Effect voices.
+    const offsets = [40, 130, 220]
+    const groups = {
+      hero: [150, 400, 650],
+      satellites: [800, 1_100, 1_400, 1_700].map((base) => offsets.map((offset) => base + offset)),
+    }
+    const frameAt = (deltaMs: number) => {
+      virtualTime += deltaMs
+      handle.beforeRender(deltaMs)
+      const render = (index: number) => {
+        const [x, y] = mapPoints[index].sample
+        handle.render2D(index, x, y)
+        return shim.capturedPixel()
+      }
+      return {
+        hero: groups.hero.map(render),
+        satellites: groups.satellites.map((indices) => indices.map(render)),
+      }
+    }
+
+    // Cut junctions add no transition intervals: Establish holds 0-6s, Bloom
+    // holds 6-14s, and Resolve holds 14-20s on the 20-second ruler.
+    const establish = frameAt(3_000)   // embers over the satellite ring
+    const bloom = frameAt(7_000)       // t=10s: ignition holds the hero
+    const resolve = frameAt(7_000)     // t=17s: the flock resumes
+
+    // Every instrument stays alive in every passage, only the hero changes at
+    // the junctions, and the reference satellite differs from each Effect
+    // voice at corresponding local samples of the same shared instance.
     const lit = (group: number[][]) => group.some(([r, g, b]) => r + g + b > 0.02)
     for (const frame of [establish, bloom, resolve]) {
-      expect(lit(frame.leftVine) && lit(frame.rightVine), 'vines stay lit').toBe(true)
+      expect(lit(frame.hero), 'hero stays lit').toBe(true)
+      for (const satellite of frame.satellites) {
+        expect(lit(satellite), 'satellites stay lit').toBe(true)
+      }
     }
-    expect(bloom.crown).not.toEqual(establish.crown)
-    expect(resolve.crown).not.toEqual(bloom.crown)
-    // The embers are deliberately quiet next to the ignition, but a dark
-    // crown would read as a coverage fault, so both states must emit light.
-    expect(lit(establish.crown)).toBe(true)
-    expect(lit(bloom.crown)).toBe(true)
-    expect(lit(resolve.crown)).toBe(true)
+    expect(bloom.hero).not.toEqual(establish.hero)
+    expect(resolve.hero).not.toEqual(bloom.hero)
+    const [reference, mirrored, posterized, rotated] = bloom.satellites
+    expect(mirrored).not.toEqual(reference)
+    expect(posterized).not.toEqual(reference)
+    expect(rotated).not.toEqual(reference)
   })
 
   it('prices the 303 echo honestly: one shared machine, measurable overlay cost', () => {

@@ -339,14 +339,16 @@ An Installation output contract fixes both the map and LED count. Every active
 routing layout must assign every output index exactly once, including when one
 named Zone owns several non-contiguous ranges.
 
-**301 Installation Mapping** stages this contract on a measured wall of eight
-sunflower pucks. Each bank is a named Zone whose range follows the map's real
-wiring order, and the map selector edits the same fact spatially: selecting a
-Zone's pixels and editing its range are one operation. When coverage breaks,
-the diagnostics name the exact failure - missing pixels are a gap, doubly
-owned pixels are an overlap, and pixels past the LED count are out of range -
-and the Show cannot publish until the ranges cover the output exactly once
-again.
+**301 Installation Mapping** stages this contract on the Proscenium stage:
+1,000 LEDs wired in the installer's walk order - left tower, dance floor,
+arch, right tower. Each surface is a named Zone whose ranges restate that
+walk, which is why the Towers Zone owns two non-contiguous ranges at opposite
+ends of the index space: one physical role, two stretches of wire. The map
+selector edits the same fact spatially: selecting a Zone's pixels and editing
+its ranges are one operation. When coverage breaks, the diagnostics name the
+exact failure - missing pixels are a gap, doubly owned pixels are an overlap,
+and pixels past the LED count are out of range - and the Show cannot publish
+until the ranges cover the output exactly once again.
 
 ### Composing a fixed Installation
 
@@ -354,13 +356,15 @@ Use physical groupings that match how people perceive the object: pucks, rows,
 arches, panels, or other units. Symmetry in Pattern choice and timing can make
 an irregular measured map read as one intentional composition.
 
-**302 Installation Composition** plays the sunflower wall as an instrument
-with three roles. The two vine columns are separate Zones sharing one Pattern
-instance, so the bed reads as one plant split by wiring; the Crown owns the
-top puck of each column through two non-contiguous ranges and carries the only
-change at each junction - embers, ignition, afterglow. One visual role per
-group is what keeps a physical score decipherable: when every group changes at
-once, correct output reads as noise.
+**302 Installation Composition** plays the Redline stage as five instruments
+with two roles. The four satellite targets are separate Zones sharing one
+Pattern instance and one clock, each distinguished from its siblings by a
+single cheap Effect - a mirror, a posterize, a quarter rotation - so one
+instance speaks in four voices. The hero panel carries the only change at
+each junction - embers, ignition, afterglow - and the junctions are Cuts, so
+the hero's change is the only visible event at each boundary. One visual role
+per group is what keeps a physical score decipherable: when every group
+changes at once, correct output reads as noise.
 
 ### Compile, simplify, and deliver
 
