@@ -61,7 +61,9 @@ describe('packed-routing selection re-pricing (#573)', () => {
   it('newly qualifies a 2,000-pixel two-layout Show for the packed table', () => {
     const artifact = compileShow(largePackedRecipe(2_000), {})
     expect(artifact.summary.routingRepresentation).toBe('packed-pixels')
-    expect(artifact.expandedCode).toContain('var __pxlblz_show_route_pixels = array(4000)')
+    // #717 cost-based emission: the 16-px interleave's many short runs price
+    // the 4,000-element table cheapest as an array literal.
+    expect(artifact.expandedCode).toContain('var __pxlblz_show_route_pixels = [')
     const counterfactual = compileShow(largePackedRecipe(2_000), {}, { packedRoutingRepricing: false })
     expect(counterfactual.summary.routingRepresentation).toBe('range-branches')
   })

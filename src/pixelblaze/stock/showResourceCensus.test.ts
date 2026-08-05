@@ -91,5 +91,7 @@ describe('stock Show resource census (#716)', () => {
     if (process.env.SHOW_CENSUS_OUT) {
       writeFileSync(process.env.SHOW_CENSUS_OUT, `${JSON.stringify(rows, null, 2)}\n`)
     }
-  })
+    // Compiling all 37 shows takes ~2.5 s alone and can exceed the 5 s
+    // default under full-suite worker contention.
+  }, 30_000)
 })

@@ -6,7 +6,7 @@ exports[`routing representation characterization (#570) > gaps-and-overlaps outp
 
 exports[`routing representation characterization (#570) > generated-formula output is byte-stable 1`] = `"0b1271697bf36d75"`;
 
-exports[`routing representation characterization (#570) > packed-pixels output is byte-stable 1`] = `"6655ed9b3fa0eabd"`;
+exports[`routing representation characterization (#570) > packed-pixels output is byte-stable 1`] = `"f7e1d412c2ad1e6b"`;
 
 exports[`routing representation characterization (#570) > range-branches output is byte-stable 1`] = `"f4382a660cc3f7e7"`;
 

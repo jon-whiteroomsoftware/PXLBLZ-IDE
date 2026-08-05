@@ -2309,7 +2309,9 @@ export function render2D(index, x, y) { rgb(x, y, 0) }
     handle.render2D(2, 0.25, 0.75)
     expect(pixel()).toEqual([1, 0.5, 0.25])
     expect(artifact.expandedCode).toContain('var __pxlblz_show_plan = -1')
-    expect(artifact.expandedCode).toContain('var __pxlblz_show_plans = array(4)')
+    // #717 cost-based emission: the four-element interned plan table is
+    // cheapest as an array literal.
+    expect(artifact.expandedCode).toContain('var __pxlblz_show_plans = [')
     expect(artifact.expandedCode.match(/_renderCapture2D\(__pxlblz_show_route_local_index/g)).toHaveLength(2)
   })
 

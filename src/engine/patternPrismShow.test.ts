@@ -64,7 +64,9 @@ describe('Pattern Prism catalog Show (#401)', () => {
       routingRepresentation: 'packed-pixels',
     })
     expect(compiled.artifact?.code).toContain('export function render2D(index, x, y)')
-    expect(compiled.artifact?.expandedCode).toContain('var __pxlblz_show_route_pixels = array(1024)')
+    // #717 cost-based emission: this 1,024-element irregular table is
+    // cheapest as an array literal.
+    expect(compiled.artifact?.expandedCode).toContain('var __pxlblz_show_route_pixels = [')
 
     const exported = buildShowEpeExport(show, compiled.artifact!.code, {
       id: 'pxb401PatternPrsm',

@@ -62,15 +62,16 @@ describe('packed routing run-length initialization (#569)', () => {
       expect(emitted.length).toBeLessThan(1_024)
     })
 
-    it('compiles a packed Show whose table initialization is O(ranges)', () => {
+    it('compiles a packed Show whose table initialization stays compact', () => {
       const recipe = packedRecipe(1_024)
       const artifact = compileShow(recipe, {})
       expect(artifact.summary.routingRepresentation).toBe('packed-pixels')
-      const initLines = tableInitLines(artifact.expandedCode)
-      // 2 layouts x 1,024 pixels was 2,048 per-pixel lines before #569. The
-      // fixture has ~68 ranges, so the run list stays within that order.
-      expect(initLines.length).toBeLessThan(160)
-      expect(initLines.some((line) => line.startsWith('for ('))).toBe(true)
+      // 2 layouts x 1,024 pixels was 2,048 per-pixel lines before #569 and a
+      // ~130-run loop list after it. With #717 cost-based emission the
+      // chooser prices this many-short-runs shape as an array literal
+      // (2,048 x 4.25 B beats ~130 loops x 80 B), one declaration line.
+      expect(artifact.expandedCode).toContain('var __pxlblz_show_route_pixels = [')
+      expect(tableInitLines(artifact.expandedCode)).toHaveLength(0)
     })
 
     it('produces element-for-element identical table contents', () => {
@@ -226,8 +227,11 @@ function tableInitLines(expandedCode: string): string[] {
 }
 
 function evaluateTable(expandedCode: string): number[] {
+  // #717: the cost-based emitter may declare the table as array(n) plus
+  // init lines, or as a single array literal - both are valid inputs here.
   const declaration = expandedCode.split('\n').find((line) => (
     line.startsWith('var __pxlblz_show_route_pixels = array(')
+    || line.startsWith('var __pxlblz_show_route_pixels = [')
   ))
   if (!declaration) throw new Error('missing packed routing table declaration')
   const runIndex = expandedCode.includes('var __pxlblz_show_route_run_i = 0')

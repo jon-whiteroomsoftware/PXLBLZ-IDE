@@ -92,6 +92,7 @@ import {
   type RoutingRepresentationEstimate,
   type ShowLogicalRoutingRecipe,
 } from './showRoutingRepresentation'
+import { emitIntegerDataTable } from './showDataTableEmission'
 // Re-exported for the #569 test suite and external consumers.
 export { computeLinearRuns, type PackedRoutingRun } from './showRoutingRepresentation'
 export type { ShowLogicalRoutingRecipe } from './showRoutingRepresentation'
@@ -5774,10 +5775,7 @@ function emitSharedPhysicalCutSceneRender(
       })
     })
     const sharedPrelude = [
-      `var __pxlblz_show_plans = array(${tableSize})`,
-      ...tableValues.flatMap((planIndex, index) => (
-        planIndex === 0 ? [] : [`__pxlblz_show_plans[${index}] = ${planIndex}`]
-      )),
+      ...emitIntegerDataTable('__pxlblz_show_plans', tableValues).lines,
       'var __pxlblz_show_plan_config = -1',
     ].join('\n')
     const baselineRenderPlan = planCode.map((plan, planIndex) => (

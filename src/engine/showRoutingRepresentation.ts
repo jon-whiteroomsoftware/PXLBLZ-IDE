@@ -1,3 +1,5 @@
+import { emitIntegerDataTable } from './showDataTableEmission'
+
 export interface RoutingRangeShape {
   start: number
   end: number
@@ -201,22 +203,13 @@ const MAX_PACKED_ARRAY_WORDS = 4_096
 const LEGACY_MAX_PACKED_ARRAY_ELEMENTS = 2_048
 const LEGACY_PACKED_FIXED_BYTECODE_ESTIMATE = 344
 const LEGACY_PACKED_BYTECODE_BYTES_PER_ELEMENT = 20
-// #573 device-compiler measurements of the #569 run-length emission (pb32,
-// fw 3.67): a loop line compiles to 80 bytes and a short-run element
-// assignment to 20 bytes over a 128-byte fixed header; loop source lines run
-// ~223 bytes. Short runs (< PACKED_ROUTING_LOOP_MIN_RUN) emit per-element
-// assignments, which is exactly the legacy per-element pricing. #715
-// re-confirmed both prices and measured numeric array literals at 4.25
-// bytecode bytes per element (MEASURED_LITERAL_ELEMENT_BYTECODE_BYTES in
-// showVmResourceLedger, docs/plans/issue-715-packed-data-pricing-results.md)
-// — a 4.7x-denser initialization a future emitter can adopt, at which point
-// the FPS gate below, not bytecode, becomes the packed table's binding
-// constraint.
+// #573 measured the run-length emission (loop line 80 B, short element 20 B
+// over a 128-byte fixed header); #715 re-confirmed both and measured numeric
+// array literals at 4.25 B/element. The per-construct pricing now lives in
+// showDataTableEmission - the chooser is the emitter, so the plan prices
+// exactly what will be emitted - and with literals available the FPS gate
+// below, not bytecode, is usually the packed table's binding constraint.
 const PACKED_FIXED_BYTECODE_ESTIMATE = 128
-const PACKED_BYTECODE_BYTES_PER_LOOP_RUN = 80
-const PACKED_BYTECODE_BYTES_PER_SHORT_ELEMENT = 20
-const PACKED_SOURCE_BYTES_PER_LOOP_RUN = 224
-const PACKED_SOURCE_BYTES_PER_SHORT_ELEMENT = 48
 // #573 FPS gate. The packed render pays table-read plus route-decode
 // arithmetic on every pixel; the range-branch chain pays ~1.5 us per tested
 // branch (#532) but most pixels of shallow layouts match early. Measured on
@@ -227,43 +220,11 @@ const PACKED_SOURCE_BYTES_PER_SHORT_ELEMENT = 48
 // alternating tails) sit far above it; contiguous zone splits far below.
 const PACKED_MIN_EXPECTED_COMPARISONS = 13
 
-/** Loops only pay off once they replace a few per-pixel lines; shared with
- * the #569 emitter so the plan prices exactly what will be emitted. */
-export const PACKED_ROUTING_LOOP_MIN_RUN = 4
-
-export interface PackedRoutingRun {
-  start: number
-  end: number
-  /** values[i] = base + i for every i in [start, end]. */
-  base: number
-}
-
-/**
- * Extracts maximal slope-one runs of nonzero values: each run covers indices
- * whose value increments by exactly one per index. Zero entries (unrouted
- * pixels) are skipped entirely because `array(n)` zero-initializes. Overlap
- * semantics are already resolved in the value array (first writer wins), so
- * the runs are disjoint by construction and need no runtime guard.
- */
-export function computeLinearRuns(values: readonly number[]): PackedRoutingRun[] {
-  const runs: PackedRoutingRun[] = []
-  let active: PackedRoutingRun | null = null
-  for (let index = 0; index < values.length; index += 1) {
-    const value = values[index]
-    if (value === 0) {
-      active = null
-      continue
-    }
-    const base = value - index
-    if (active && active.base === base) {
-      active.end = index
-      continue
-    }
-    active = { start: index, end: index, base }
-    runs.push(active)
-  }
-  return runs
-}
+// Run extraction and the loop-eligibility threshold moved to
+// showDataTableEmission (#717), the shared cost-based table emitter; the
+// re-exports below keep this module the routing-representation authority.
+export { computeLinearRuns, PACKED_ROUTING_LOOP_MIN_RUN } from './showDataTableEmission'
+export type { PackedRoutingRun } from './showDataTableEmission'
 
 /**
  * The exact per-pixel value array the packed emitter initializes: first
@@ -294,31 +255,17 @@ export function buildPackedRoutingValues(
 }
 
 /**
- * Packed-table initialization: `array(n)` plus the #569 run-length loop
- * list. Identical table contents to the historical per-pixel emission -
- * first writer wins across overlaps, O(ranges) source lines.
+ * Packed-table initialization through the shared cost-based emitter (#717):
+ * array literal, sparse assignments, or the #569 run-length loop list -
+ * whichever prices cheapest for the concrete table. Identical table contents
+ * to the historical per-pixel emission - first writer wins across overlaps.
  */
 export function emitPackedRoutingTable(layouts: RoutingLayoutShape[]): string {
   const pixelCount = routingPixelCount(layouts)
   const values = buildPackedRoutingValues(layouts, pixelCount)
-  const runs = computeLinearRuns(values)
-  const needsLoopIndex = runs.some((run) => run.end - run.start + 1 >= PACKED_ROUTING_LOOP_MIN_RUN)
-  const lines = runs.flatMap((run) => {
-    if (run.end - run.start + 1 >= PACKED_ROUTING_LOOP_MIN_RUN) {
-      const offset = run.base === 0 ? '' : run.base > 0 ? ` + ${run.base}` : ` - ${-run.base}`
-      return [
-        `for (__pxlblz_show_route_run_i = ${run.start}; __pxlblz_show_route_run_i <= ${run.end}; __pxlblz_show_route_run_i = __pxlblz_show_route_run_i + 1) __pxlblz_show_route_pixels[__pxlblz_show_route_run_i] = __pxlblz_show_route_run_i${offset}`,
-      ]
-    }
-    return Array.from({ length: run.end - run.start + 1 }, (_, offset) => (
-      `__pxlblz_show_route_pixels[${run.start + offset}] = ${run.base + run.start + offset}`
-    ))
-  })
-  return [
-    `var __pxlblz_show_route_pixels = array(${values.length})`,
-    ...(needsLoopIndex ? ['var __pxlblz_show_route_run_i = 0'] : []),
-    ...lines,
-  ].join('\n')
+  return emitIntegerDataTable('__pxlblz_show_route_pixels', values, {
+    loopIndexName: '__pxlblz_show_route_run_i',
+  }).lines.join('\n')
 }
 
 /**
@@ -513,24 +460,26 @@ export function planPhysicalRoutingRepresentation(
       estimatedBytecodeBytes: 512 + layoutCount * 32,
     }
   }
+  // Packed table values must fit the 16.16 integer range; a layout whose
+  // routeCount x (pixelCount + 1) stride exceeds 32,767 cannot be packed at
+  // all (pre-#717 this corrupted silently instead of falling back).
+  const packedValues = pixelCount > 0 ? buildPackedRoutingValues(layouts, pixelCount) : []
+  const packedValuesRepresentable = packedValues.length > 0
+    && packedValues.every((value) => value <= 32_767)
   const packed = repriced
     ? (() => {
-        const runs = pixelCount > 0 ? computeLinearRuns(buildPackedRoutingValues(layouts, pixelCount)) : []
-        let loopRuns = 0
-        let shortElements = 0
-        for (const run of runs) {
-          const length = run.end - run.start + 1
-          if (length >= PACKED_ROUTING_LOOP_MIN_RUN) loopRuns += 1
-          else shortElements += length
+        if (!packedValuesRepresentable) {
+          return { maxElements: MAX_PACKED_ARRAY_WORDS, estimatedBytecodeBytes: Infinity, estimatedSourceBytes: Infinity }
         }
+        // The chooser IS the emitter (#717), so the plan prices exactly what
+        // emitPackedRoutingTable will produce - literal, sparse, or loops.
+        const emission = emitIntegerDataTable('__pxlblz_show_route_pixels', packedValues, {
+          loopIndexName: '__pxlblz_show_route_run_i',
+        })
         return {
           maxElements: MAX_PACKED_ARRAY_WORDS,
-          estimatedBytecodeBytes: PACKED_FIXED_BYTECODE_ESTIMATE
-            + loopRuns * PACKED_BYTECODE_BYTES_PER_LOOP_RUN
-            + shortElements * PACKED_BYTECODE_BYTES_PER_SHORT_ELEMENT,
-          estimatedSourceBytes: 96
-            + loopRuns * PACKED_SOURCE_BYTES_PER_LOOP_RUN
-            + shortElements * PACKED_SOURCE_BYTES_PER_SHORT_ELEMENT,
+          estimatedBytecodeBytes: PACKED_FIXED_BYTECODE_ESTIMATE + emission.estimatedBytecodeBytes,
+          estimatedSourceBytes: 96 + emission.lines.reduce((sum, line) => sum + line.length + 1, 0),
         }
       })()
     : {
@@ -546,6 +495,7 @@ export function planPhysicalRoutingRepresentation(
     ? expectedComparisonsPerPixel(layouts) >= PACKED_MIN_EXPECTED_COMPARISONS
     : runCount >= 64
   const packedFits = pixelCount > 0
+    && (!repriced || packedValuesRepresentable)
     && packedArrayElements <= packed.maxElements
     && packed.estimatedBytecodeBytes <= measuredDeviceBudgetBytes
     && rendersFasterPacked
