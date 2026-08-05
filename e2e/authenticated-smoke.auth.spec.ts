@@ -110,6 +110,27 @@ test('Studio authoring keeps the rail and editor reachable at 390px (#622)', asy
   await expect(page.getByRole('button', { name: 'Expand library' })).toBeInViewport()
 })
 
+test('rail search stays inside the list pane at narrow widths', async ({ page }) => {
+  await page.setViewportSize({ width: 507, height: 520 })
+  await page.goto('studio/patterns/IridescentFibers')
+  await page.getByRole('button', { name: 'Search by name', exact: true }).click()
+
+  const bounds = await page.getByRole('textbox', { name: 'Search by name', exact: true }).evaluate((input) => {
+    const inputBounds = input.getBoundingClientRect()
+    const railBounds = input.closest('[data-testid="studio-rail"]')?.getBoundingClientRect()
+    const activityBounds = document.querySelector('[aria-label="Studio activity"]')?.getBoundingClientRect()
+    return {
+      inputLeft: inputBounds.left,
+      inputRight: inputBounds.right,
+      railRight: railBounds?.right,
+      activityRight: activityBounds?.right,
+    }
+  })
+
+  expect(bounds.inputLeft).toBeGreaterThanOrEqual(bounds.activityRight ?? Number.POSITIVE_INFINITY)
+  expect(bounds.inputRight).toBeLessThanOrEqual(bounds.railRight ?? Number.NEGATIVE_INFINITY)
+})
+
 test('resized Pattern and Show previews keep their controls reachable', async ({ page }) => {
   await page.setViewportSize({ width: 1280, height: 720 })
   await page.goto('studio/patterns/IridescentFibers')

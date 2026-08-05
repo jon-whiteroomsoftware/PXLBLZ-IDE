@@ -256,13 +256,16 @@ export function RailFilterBar({
   return (
     <div className="flex min-w-0 items-center gap-1">
       <div
-        className="relative flex shrink-0 items-center"
+        className={[
+          'relative flex min-w-0 items-center justify-end',
+          expanded ? 'w-28' : 'w-[13px] shrink-0',
+        ].join(' ')}
         onMouseEnter={() => setHovered(true)}
         onMouseLeave={() => { setHovered(false); setHoverSuppressed(false) }}
       >
         <div
           className={[
-            'absolute right-0 z-30 w-28 transition-opacity duration-150',
+            'absolute inset-x-0 z-30 w-full transition-opacity duration-150',
             expanded ? 'pointer-events-auto opacity-100' : 'pointer-events-none opacity-0',
           ].join(' ')}
         >
@@ -285,7 +288,7 @@ export function RailFilterBar({
           title={committedOpen ? 'Close search' : 'Search by name'}
           aria-label={committedOpen ? 'Close search' : 'Search by name'}
           className={[
-            'relative z-40 shrink-0 transition-colors',
+            'absolute right-0 z-40 shrink-0 transition-colors',
             expanded ? 'text-zinc-300 hover:text-live' : 'text-zinc-500 hover:text-zinc-300',
           ].join(' ')}
         >

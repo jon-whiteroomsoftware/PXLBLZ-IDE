@@ -292,9 +292,10 @@ describe('RailFilterBar', () => {
     expect(selector).toHaveTextContent('All')
     expect(search.compareDocumentPosition(selector) & Node.DOCUMENT_POSITION_FOLLOWING).not.toBe(0)
     const searchInput = screen.getByRole('textbox', { name: 'Search by name' })
-    expect(searchInput.parentElement).toHaveClass('absolute', 'right-0', 'w-28')
+    expect(searchInput.parentElement).toHaveClass('absolute', 'inset-x-0', 'w-full')
+    expect(searchInput.parentElement?.parentElement).toHaveClass('min-w-0', 'w-[13px]', 'shrink-0')
     expect(searchInput).toHaveClass('bg-zinc-900', 'border-zinc-700', 'pr-5')
-    expect(search).toHaveClass('relative', 'z-40')
+    expect(search).toHaveClass('absolute', 'right-0', 'z-40')
   })
 
   it('opens a dark listbox and changes the active dimension', async () => {
