@@ -41,9 +41,14 @@ source bytes.
 ## Correctness
 
 One pattern initialized a 1,024-element plain literal array and a 512-word
-packed array, unpacked the latter, and exported order-sensitive checksums.
-Both read back exactly (`litsum` 475, `packsum` 475 — coincidental equality;
-the expectations derive from different seeded streams).
+packed array, unpacked the latter, and exported order-sensitive two-lane
+checksums per array: the low lane folds `value % 256`, the high lane folds
+`floor(value / 256)`, covering every bit plane of 15-bit values. The two
+arrays use distinct seeded streams so their expectations are independent.
+All four lanes read back exactly (literal low 475 / high 738, packed low 586
+/ high 261). An earlier single-lane `% 256` checksum was rejected in review:
+it was blind to the upper bits, and its shared seed made the literal and
+packed sums structurally equal.
 
 Two hazards were measured and are load-bearing for any emitter:
 

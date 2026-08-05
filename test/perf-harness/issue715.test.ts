@@ -3,6 +3,8 @@
 // fixtures the hardware run prices are deterministic.
 import { describe, expect, it } from 'vitest'
 import {
+  LITERAL_STREAM_SEED,
+  PACKED_STREAM_SEED,
   buildChecksumFixture,
   buildPricingFixtures,
   buildUnpackFixtures,
@@ -46,15 +48,28 @@ describe('packed15 encoding (#715)', () => {
 })
 
 describe('#715 fixtures', () => {
-  it('keeps the checksum expectations pinned to the measured report values', () => {
+  it('derives independent two-lane checksum expectations from distinct streams', () => {
     const fixture = buildChecksumFixture(1024)
-    // The 2026-08-05 pb32 run read back litsum 475 (n=1024, 11-bit stream)
-    // and packsum 475 (n=1024, 15-bit stream); coincidental equality.
-    expect(fixture.expectedLiteral).toBe(expectedChecksum(seededValues(1024, 11)))
-    expect(fixture.expectedPacked).toBe(475)
-    expect(fixture.expectedLiteral).toBe(475)
-    expect(fixture.source).toContain('export var litsum')
+    expect(fixture.expectedLiteral).toEqual(expectedChecksum(seededValues(1024, 11, LITERAL_STREAM_SEED)))
+    expect(fixture.expectedPacked).toEqual(expectedChecksum(seededValues(1024, 15, PACKED_STREAM_SEED)))
+    // Distinct seeds keep the two expectations independent; a shared seed
+    // collapses both streams to the same bytes modulo 256 (review P2).
+    expect(fixture.expectedLiteral).not.toEqual(fixture.expectedPacked)
+    // The high lane must carry real signal so bit planes above the low byte
+    // are covered on device.
+    expect(fixture.expectedLiteral.high).not.toBe(fixture.expectedLiteral.low)
+    expect(fixture.source).toContain('export var litsumhigh')
     expect(fixture.source).toContain('floor(((w - hi) * 256) * 128)')
+  })
+
+  it('moves at least one checksum lane when any single bit plane is corrupted', () => {
+    const values = seededValues(64, 15, PACKED_STREAM_SEED)
+    const clean = expectedChecksum(values)
+    for (let bit = 0; bit < 15; bit += 1) {
+      const corrupted = [...values]
+      corrupted[13] ^= 1 << bit
+      expect(expectedChecksum(corrupted), `bit ${bit}`).not.toEqual(clean)
+    }
   })
 
   it('builds deterministic pricing fixtures with stable per-encoding shapes', () => {

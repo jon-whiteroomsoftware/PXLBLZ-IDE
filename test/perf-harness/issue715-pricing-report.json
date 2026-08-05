@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-08-05T20:13:45.834Z",
+  "generatedAt": "2026-08-05T20:21:35.443Z",
   "device": {
     "name": "Burner bag",
     "firmwareVersion": "3.67",
@@ -104,10 +104,22 @@
     }
   ],
   "correctness": {
-    "litsum": 475,
-    "packsum": 475,
-    "expectedLiteral": 475,
-    "expectedPacked": 475,
+    "litsum": {
+      "low": 475,
+      "high": 738
+    },
+    "packsum": {
+      "low": 586,
+      "high": 261
+    },
+    "expectedLiteral": {
+      "low": 475,
+      "high": 738
+    },
+    "expectedPacked": {
+      "low": 586,
+      "high": 261
+    },
     "literalOk": true,
     "packedOk": true
   },
@@ -117,7 +129,7 @@
         "elements": 14000,
         "bytecodeBytes": 59579,
         "activated": true,
-        "activationMs": 901
+        "activationMs": 986
       },
       {
         "elements": 22000,
@@ -128,55 +140,55 @@
       {
         "elements": 18000,
         "bytecodeBytes": 76579,
+        "activated": false,
+        "activationMs": null
+      },
+      {
+        "elements": 16000,
+        "bytecodeBytes": 68079,
         "activated": true,
-        "activationMs": 1214
+        "activationMs": 1086
       },
       {
-        "elements": 20000,
-        "bytecodeBytes": 85079,
+        "elements": 17000,
+        "bytecodeBytes": 72331,
         "activated": false,
         "activationMs": null
       },
       {
-        "elements": 19000,
-        "bytecodeBytes": 80831,
-        "activated": false,
-        "activationMs": null
-      },
-      {
-        "elements": 18500,
-        "bytecodeBytes": 78707,
-        "activated": false,
-        "activationMs": null
-      },
-      {
-        "elements": 18250,
-        "bytecodeBytes": 77643,
-        "activated": false,
-        "activationMs": null
-      },
-      {
-        "elements": 18125,
-        "bytecodeBytes": 77111,
+        "elements": 16500,
+        "bytecodeBytes": 70207,
         "activated": true,
-        "activationMs": 1126
+        "activationMs": 1087
       },
       {
-        "elements": 18188,
-        "bytecodeBytes": 77379,
+        "elements": 16750,
+        "bytecodeBytes": 71267,
+        "activated": false,
+        "activationMs": null
+      },
+      {
+        "elements": 16625,
+        "bytecodeBytes": 70739,
+        "activated": true,
+        "activationMs": 1116
+      },
+      {
+        "elements": 16688,
+        "bytecodeBytes": 71003,
         "activated": false,
         "activationMs": null
       }
     ],
     "largestActivating": {
-      "elements": 18125,
-      "bytecodeBytes": 77111,
+      "elements": 16625,
+      "bytecodeBytes": 70739,
       "activated": true,
-      "activationMs": 1126
+      "activationMs": 1116
     },
     "smallestFailing": {
-      "elements": 18188,
-      "bytecodeBytes": 77379,
+      "elements": 16688,
+      "bytecodeBytes": 71003,
       "activated": false,
       "activationMs": null
     },
@@ -192,12 +204,12 @@
     },
     "everyFrame": {
       "label": "unpack-512-words-per-frame",
-      "medianFps": 85.65737,
+      "medianFps": 86.05341,
       "samples": 32,
-      "min": 85.65737,
-      "max": 85.74277
+      "min": 86,
+      "max": 86.05341
     },
-    "perFrameMs": 3.642,
-    "perWordMicroseconds": 7.11
+    "perFrameMs": 3.589,
+    "perWordMicroseconds": 7.01
   }
 }

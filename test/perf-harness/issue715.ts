@@ -47,12 +47,19 @@ export function decodePacked15(word: number, parseErrorUlps = 0): { hi: number; 
   return { hi, lo: Math.floor((parsed - hi * 65536) / 2) }
 }
 
-/** Order-sensitive checksum kept inside safe 16.16 integer range on device:
- * every intermediate stays below 3 * 1023 + 255 < 32768. */
-export function expectedChecksum(values: number[]): number {
-  let checksum = 0
-  for (const value of values) checksum = (checksum * 3 + (value % 256)) % 1024
-  return checksum
+/** Order-sensitive two-lane checksum kept inside safe 16.16 integer range on
+ * device: every intermediate stays below 3 * 1023 + 255 < 32768. The low lane
+ * folds value % 256, the high lane folds floor(value / 256), so together they
+ * cover every bit of values up to 15 bits — a device decode that corrupted
+ * any bit plane would move at least one lane. */
+export function expectedChecksum(values: number[]): { low: number; high: number } {
+  let low = 0
+  let high = 0
+  for (const value of values) {
+    low = (low * 3 + (value % 256)) % 1024
+    high = (high * 3 + Math.floor(value / 256)) % 1024
+  }
+  return { low, high }
 }
 
 const RENDER_TAIL = '\nexport function render(index) { rgb(0, 0, 0) }\n'
@@ -118,35 +125,53 @@ export function buildPricingFixtures(n: number): PricingFixture[] {
 
 export interface ChecksumFixture {
   source: string
-  expectedLiteral: number
-  expectedPacked: number
+  expectedLiteral: { low: number; high: number }
+  expectedPacked: { low: number; high: number }
 }
 
+/** The literal and packed streams use distinct seeds: with a shared seed the
+ * two reduce to the same byte stream modulo 256, which made the original
+ * single-lane checksums structurally equal instead of independent evidence
+ * (review P2 on the first candidate). */
+export const LITERAL_STREAM_SEED = 0x2f6e2b1
+export const PACKED_STREAM_SEED = 0x5ca1ab1
+
 /** One pattern proving both encodings on device: a plain literal array and a
- * guarded packed array, each checksummed into an exported variable. */
+ * guarded packed array, each folded into exported low- and high-lane
+ * checksums covering every bit plane. */
 export function buildChecksumFixture(n: number): ChecksumFixture {
   if (n % 2 !== 0) throw new Error('checksum fixture requires an even element count')
-  const v11 = seededValues(n, 11)
-  const v15 = seededValues(n, 15)
+  const v11 = seededValues(n, 11, LITERAL_STREAM_SEED)
+  const v15 = seededValues(n, 15, PACKED_STREAM_SEED)
   const packed = Array.from({ length: n / 2 }, (_, i) => packed15Literal(v15[2 * i], v15[2 * i + 1]))
+  const checksumLines = (arrayName: string, lowName: string, highName: string) => [
+    '  cslow = 0',
+    '  cshigh = 0',
+    `  for (i = 0; i < ${n}; i++) {`,
+    `    cslow = (cslow * 3 + ${arrayName}[i] % 256) % 1024`,
+    `    cshigh = (cshigh * 3 + floor(${arrayName}[i] / 256)) % 1024`,
+    '  }',
+    `  ${lowName} = cslow`,
+    `  ${highName} = cshigh`,
+  ]
   const source = [
     `var lit = [${v11.join(',')}]`,
     `var p = [${packed.join(',')}]`,
     `var t = array(${n})`,
-    'export var litsum = -1',
-    'export var packsum = -1',
+    'export var litsumlow = -1',
+    'export var litsumhigh = -1',
+    'export var packsumlow = -1',
+    'export var packsumhigh = -1',
     'var done = 0',
     'export function beforeRender(delta) {',
     '  if (done == 1) return',
     '  done = 1',
     '  var i = 0',
-    '  var cs = 0',
-    `  for (i = 0; i < ${n}; i++) cs = (cs * 3 + lit[i] % 256) % 1024`,
-    '  litsum = cs',
+    '  var cslow = 0',
+    '  var cshigh = 0',
+    ...checksumLines('lit', 'litsumlow', 'litsumhigh'),
     ...unpackLoopLines('p', 't', n / 2),
-    '  cs = 0',
-    `  for (i = 0; i < ${n}; i++) cs = (cs * 3 + t[i] % 256) % 1024`,
-    '  packsum = cs',
+    ...checksumLines('t', 'packsumlow', 'packsumhigh'),
     '}',
     'export function render(index) { rgb(0, 0, 0) }',
   ].join('\n')

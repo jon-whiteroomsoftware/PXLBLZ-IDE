@@ -113,12 +113,14 @@ describe('packed-data artifact pricing on the Controller (#715)', () => {
       await sleep(1_500)
       const vars = await connection.getVars()
       const correctness = {
-        litsum: vars.litsum,
-        packsum: vars.packsum,
+        litsum: { low: vars.litsumlow, high: vars.litsumhigh },
+        packsum: { low: vars.packsumlow, high: vars.packsumhigh },
         expectedLiteral: checksumFixture.expectedLiteral,
         expectedPacked: checksumFixture.expectedPacked,
-        literalOk: vars.litsum === checksumFixture.expectedLiteral,
-        packedOk: vars.packsum === checksumFixture.expectedPacked,
+        literalOk: vars.litsumlow === checksumFixture.expectedLiteral.low
+          && vars.litsumhigh === checksumFixture.expectedLiteral.high,
+        packedOk: vars.packsumlow === checksumFixture.expectedPacked.low
+          && vars.packsumhigh === checksumFixture.expectedPacked.high,
       }
 
       const probes: Array<{ elements: number; bytecodeBytes: number; activated: boolean; activationMs: number | null }> = []
