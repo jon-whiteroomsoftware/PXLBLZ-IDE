@@ -61,9 +61,11 @@ Migration 20 starts in `legacy` mode with no implicitly granted users. The
 first `add` changes `beta_access_mode` to `d1` permanently; removing the final
 row does not reactivate the environment allowlists. In D1 mode, OAuth requires
 an active entry matching a provider-verified email or an already-linked active
-user. `disable` preserves the audit row while revoking access; `remove` deletes
-it. Both take effect on the next authenticated API request, including requests
-made with an existing session cookie.
+user. Personal Gmail identities canonicalize `@googlemail.com` to `@gmail.com`
+at every beta-access boundary; other domains remain exact after case and
+whitespace normalization. `disable` preserves the audit row while revoking
+access; `remove` deletes it. Both take effect on the next authenticated API
+request, including requests made with an existing session cookie.
 
 ## Analytics
 

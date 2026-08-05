@@ -107,8 +107,11 @@ During the private beta, D1 `beta_access` rows gate OAuth admission and every
 authenticated API request. A verified email claims one stable user binding;
 linked providers continue through that user binding. Disabling or removing an
 entry therefore revokes an existing session without waiting for its signed
-cookie to expire. The legacy environment allowlists apply only before the
-one-way `beta_access_mode=d1` activation performed by the first explicit add.
+cookie to expire. Personal Gmail identities canonicalize `@googlemail.com` to
+`@gmail.com` at the beta-access boundary so either provider spelling resolves
+the same invite and stable user. The legacy environment allowlists apply only
+before the one-way `beta_access_mode=d1` activation performed by the first
+explicit add.
 
 `workspaceStore` exposes only resolved/authenticated state to the UI. OAuth,
 cookie signing, identity linking, and beta-access enforcement remain in

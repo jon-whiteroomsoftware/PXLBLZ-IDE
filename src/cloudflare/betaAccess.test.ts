@@ -16,6 +16,30 @@ describe('beta access', () => {
     expect(() => normalizeBetaAccessEmail('two@example.com,other@example.com')).toThrow(/valid email/i)
   })
 
+  it('admits Googlemail identities through their canonical Gmail beta access', async () => {
+    const entry: BetaAccessEntry = {
+      email: 'friend@gmail.com',
+      label: 'Friend',
+      enabled: true,
+      userId: 'github:friend',
+    }
+    const store: BetaAccessStore = {
+      isAuthoritative: async () => true,
+      count: async () => 1,
+      getByEmail: async (email) => email === entry.email ? entry : null,
+      findActiveForUser: async () => null,
+      bindUser: async () => undefined,
+    }
+
+    await expect(resolveBetaOAuthAdmission(store, {
+      verifiedEmail: 'Friend@googlemail.com',
+      existingUserId: null,
+    })).resolves.toEqual({ decision: 'allowed', userId: 'github:friend' })
+    expect(normalizeBetaAccessEmail('Friend@googlemail.com')).toBe('friend@gmail.com')
+    expect(normalizeBetaAccessEmail('Friend@gmail.com')).toBe('friend@gmail.com')
+    expect(normalizeBetaAccessEmail('Friend@othermail.com')).toBe('friend@othermail.com')
+  })
+
   it('uses the legacy gate only while empty, then makes disable revoke an existing session', async () => {
     const entries = new Map<string, BetaAccessEntry>()
     let authoritative = false

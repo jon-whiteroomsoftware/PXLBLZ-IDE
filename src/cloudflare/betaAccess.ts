@@ -3,7 +3,10 @@ export function normalizeBetaAccessEmail(input: string): string {
   if (!/^[^\s@,]+@[^\s@,]+\.[^\s@,]+$/.test(email)) {
     throw new Error(`Beta access requires a valid email address; received "${input}".`)
   }
-  return email
+  // Google treats these domains as aliases for the same personal Gmail account.
+  return email.endsWith('@googlemail.com')
+    ? `${email.slice(0, -'@googlemail.com'.length)}@gmail.com`
+    : email
 }
 
 export interface BetaAccessEntry {
