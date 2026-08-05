@@ -184,6 +184,15 @@ describe('bytecode-axis artifact estimate (#716)', () => {
     expect(estimateShowBytecodeBytes(source)).toBe(expected)
   })
 
+  it('prices comma-separated sequence-expression table assignments identically (review P2)', () => {
+    const source = 'var q = array(3)\nq[0] = 1, q[1] = 22, q[2] = -3\n'
+    const spans = ['q[0] = 1', 'q[1] = 22', 'q[2] = -3'].map((s) => s.length)
+    const expected = Math.ceil(byteLength(source) + spans.reduce((sum, span) => (
+      sum + (MEASURED_ELEMENT_ASSIGNMENT_BYTECODE_BYTES - span)
+    ), 0))
+    expect(estimateShowBytecodeBytes(source)).toBe(expected)
+  })
+
   it('prices large numeric array literals at the measured 4.25 bytes per element', () => {
     const values = Array.from({ length: 32 }, (_, i) => i + 100)
     const literal = `[${values.join(', ')}]`

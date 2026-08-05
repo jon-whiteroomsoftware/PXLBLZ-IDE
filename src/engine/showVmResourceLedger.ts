@@ -226,15 +226,17 @@ export function estimateShowBytecodeBytes(source: string): number {
       return
     }
     const node = value as Node
-    if (node.type === 'ExpressionStatement'
-      && node.expression?.type === 'AssignmentExpression'
-      && node.expression.operator === '='
-      && node.expression.left?.type === 'MemberExpression'
-      && node.expression.left.computed
-      && node.expression.left.object?.type === 'Identifier'
-      && isNumeric(node.expression.left.property)
-      && isNumeric(node.expression.right)) {
-      correction += MEASURED_ELEMENT_ASSIGNMENT_BYTECODE_BYTES - (node.expression.end - node.expression.start)
+    // Matched at the AssignmentExpression itself, not its statement wrapper:
+    // comma-separated tables (`q[0] = 1, q[1] = 2, ...`) parse as one
+    // SequenceExpression whose assignments would otherwise stay unpriced.
+    if (node.type === 'AssignmentExpression'
+      && node.operator === '='
+      && node.left?.type === 'MemberExpression'
+      && node.left.computed
+      && node.left.object?.type === 'Identifier'
+      && isNumeric(node.left.property)
+      && isNumeric(node.right)) {
+      correction += MEASURED_ELEMENT_ASSIGNMENT_BYTECODE_BYTES - (node.end - node.start)
       return
     }
     if (node.type === 'ArrayExpression'
