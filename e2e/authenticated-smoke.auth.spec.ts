@@ -122,6 +122,7 @@ test('rail search stays inside the list pane at narrow widths', async ({ page })
     return {
       inputLeft: inputBounds.left,
       inputRight: inputBounds.right,
+      inputWidth: inputBounds.width,
       railRight: railBounds?.right,
       activityRight: activityBounds?.right,
     }
@@ -129,6 +130,7 @@ test('rail search stays inside the list pane at narrow widths', async ({ page })
 
   expect(bounds.inputLeft).toBeGreaterThanOrEqual(bounds.activityRight ?? Number.POSITIVE_INFINITY)
   expect(bounds.inputRight).toBeLessThanOrEqual(bounds.railRight ?? Number.NEGATIVE_INFINITY)
+  expect(bounds.inputWidth).toBeGreaterThanOrEqual(80)
 })
 
 test('resized Pattern and Show previews keep their controls reachable', async ({ page }) => {

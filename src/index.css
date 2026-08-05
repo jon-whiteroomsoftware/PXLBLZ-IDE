@@ -284,6 +284,26 @@
   }
 }
 
+/* Search becomes the header's primary task while open. It keeps the Collapse action
+   reachable, yields secondary filters/actions until close, and uses up to its 7rem
+   design width without crossing into the activity strip. */
+.rail-entity-actions:has(.rail-filter-bar[data-search-expanded='true']) {
+  position: absolute;
+  inset-block: 0;
+  inset-inline: 18px 0;
+  justify-content: flex-end;
+}
+
+.rail-entity-actions:has(.rail-filter-bar[data-search-expanded='true']) > :not(.rail-filter-bar),
+.rail-filter-bar[data-search-expanded='true'] > :not(.rail-search-field) {
+  display: none;
+}
+
+.rail-filter-bar[data-search-expanded='true'] {
+  width: 100%;
+  max-width: 7rem;
+}
+
 /* Left rail list scrolling uses a custom overlay thumb so switching between a long
    pattern list and a short map list never changes the rail's content width. */
 .rail-list-scroll {

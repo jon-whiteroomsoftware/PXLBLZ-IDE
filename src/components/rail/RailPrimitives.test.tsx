@@ -277,7 +277,8 @@ describe('RailEmptyRow', () => {
 })
 
 describe('RailFilterBar', () => {
-  it('uses a compact dimension selector that leaves room for Search', () => {
+  it('uses a compact dimension selector and gives open Search a usable width', async () => {
+    const user = userEvent.setup()
     render(
       <RailFilterBar
         lens="all"
@@ -296,6 +297,9 @@ describe('RailFilterBar', () => {
     expect(searchInput.parentElement?.parentElement).toHaveClass('min-w-0', 'w-[13px]', 'shrink-0')
     expect(searchInput).toHaveClass('bg-zinc-900', 'border-zinc-700', 'pr-5')
     expect(search).toHaveClass('absolute', 'right-0', 'z-40')
+
+    await user.click(search)
+    expect(searchInput.parentElement?.parentElement).toHaveClass('w-full', 'max-w-28')
   })
 
   it('opens a dark listbox and changes the active dimension', async () => {

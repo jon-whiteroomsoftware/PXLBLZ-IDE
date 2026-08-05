@@ -149,7 +149,7 @@ export function RailEntityHeader({
       ? 'flex h-[calc(1.75rem+1px)] shrink-0 items-center border-b border-seam px-[6px]'
       : 'border-b border-seam px-[6px] py-2'}
     >
-      <div className="flex min-h-5 w-full items-center gap-1">
+      <div className="rail-entity-row relative flex min-h-5 w-full items-center gap-1">
         {onCollapse && (
           <HeaderAction
             icon={<PanelLeftClose size={14} />}
@@ -159,7 +159,7 @@ export function RailEntityHeader({
         )}
         <h2 className={`flex-1 truncate font-normal ${IDE_MICROTYPE.header.className}`}>{title}</h2>
         {action && (
-          <div className="flex min-w-0 items-center gap-1.5">
+          <div className="rail-entity-actions flex min-w-0 items-center gap-1.5">
             {action}
           </div>
         )}
@@ -254,11 +254,14 @@ export function RailFilterBar({
   }
 
   return (
-    <div className="flex min-w-0 items-center gap-1">
+    <div
+      className="rail-filter-bar flex min-w-0 items-center gap-1"
+      data-search-expanded={expanded}
+    >
       <div
         className={[
-          'relative flex min-w-0 items-center justify-end',
-          expanded ? 'w-28' : 'w-[13px] shrink-0',
+          'rail-search-field relative flex min-w-0 items-center justify-end',
+          expanded ? 'w-full max-w-28' : 'w-[13px] shrink-0',
         ].join(' ')}
         onMouseEnter={() => setHovered(true)}
         onMouseLeave={() => { setHovered(false); setHoverSuppressed(false) }}
