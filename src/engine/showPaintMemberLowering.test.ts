@@ -70,11 +70,12 @@ export function render2D(index, x, y) { paint(x) }
     expect(member.code).toContain(`${member.palettePrefix}_paint(x, 1)`)
   })
 
-  it('leaves an authored top-level paint function its own zero-fill semantics', () => {
+  it('gives an authored top-level paint function device zero-fill, not the firmware default', () => {
     // A pattern that defines its own paint() is not calling the builtin: the
-    // call renames to the member binding and must NOT gain the firmware
-    // default, because the device VM zero-fills the omitted argument for
-    // authored functions.
+    // call renames to the member binding and must not gain the firmware
+    // default of 1. The device VM zero-fills the omitted argument, and
+    // JavaScript preview would pass undefined (NaN output), so the lowered
+    // call site carries the explicit zero.
     const member = compileMember({
       id: 'shadow',
       source: `
@@ -83,8 +84,9 @@ export function render2D(index, x, y) { paint(x) }
 `,
     }, 0, {})
     expect(member.usesPaint).toBe(false)
-    expect(member.code).toContain('__pxlblz_show_c0_paint(x)')
+    expect(member.code).toContain('__pxlblz_show_c0_paint(x, 0)')
     expect(member.code).not.toContain('__pxlblz_show_c0_paint(x, 1)')
+    expect(member.code).not.toContain('__pxlblz_show_c0_paint(x, 0, 0)')
   })
 
   it('keeps hsv/rgb members free of palette runtime', () => {

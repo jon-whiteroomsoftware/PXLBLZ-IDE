@@ -321,6 +321,7 @@ interface MemberRewriteContext {
   mapping: Map<string, string>
   prefix: string
   palettePrefix: string
+  authoredPaintArity: number | null
   rewrites: Rewrite[]
   rewrittenBuiltins: Set<string>
   rewriteMapPixels: boolean
@@ -339,6 +340,7 @@ function rewriteMemberSource(
     mapping,
     prefix,
     palettePrefix,
+    authoredPaintArity: authoredTopLevelFunctionArity(ast, 'paint'),
     rewrites: [],
     rewrittenBuiltins: coordinateTransformBuiltins,
     rewriteMapPixels,
@@ -346,6 +348,19 @@ function rewriteMemberSource(
   const emptyScope: Scope = { locals: new Set(), parent: null }
   walkForRewrites(ast, emptyScope, true, context)
   return rewriteSource(source, context.rewrites)
+}
+
+// The declared parameter count of a top-level `function <name>(...)`, or null
+// when no such declaration exists (expression-assigned functions stay null:
+// their arity is not statically known).
+function authoredTopLevelFunctionArity(ast: Node, name: string): number | null {
+  for (const child of ((ast.body as Node[]) ?? [])) {
+    const declaration = child.type === 'ExportNamedDeclaration' ? child.declaration : child
+    if (declaration?.type === 'FunctionDeclaration' && declaration.id?.name === name) {
+      return ((declaration.params as Node[]) ?? []).length
+    }
+  }
+  return null
 }
 
 function walkForRewrites(
@@ -472,17 +487,24 @@ function walkForRewrites(
     if (node.callee?.type === 'Identifier') {
       addReferenceRewrite(node.callee, scope, context, true)
       // #708: paint(pos) defaults brightness to 1 in firmware, but the
-      // device VM zero-fills missing arguments, so the lowered call site
-      // carries the default explicitly. Only when the call resolves to the
-      // BUILTIN: an authored top-level paint lives in the mapping (not the
-      // lexical scope) and keeps its own zero-fill semantics.
+      // device VM zero-fills missing arguments, so the lowered builtin call
+      // site carries the default explicitly. An authored top-level paint
+      // (mapping hit, not lexical scope) keeps its own semantics - which on
+      // the device means zero-filled missing arguments, so those call sites
+      // get explicit zeros up to the declared arity; JavaScript preview
+      // would otherwise pass undefined and render NaN where hardware
+      // renders black.
       const args = (node.arguments as Node[]) ?? []
-      if (node.callee.name === 'paint'
-        && !isLocallyBound(scope, 'paint')
-        && !context.mapping.has('paint')
-        && args.length === 1) {
-        const lastArg = args[0]
-        context.rewrites.push({ start: lastArg.end, end: lastArg.end, text: ', 1' })
+      if (node.callee.name === 'paint' && !isLocallyBound(scope, 'paint') && args.length >= 1) {
+        const lastArg = args[args.length - 1]
+        if (!context.mapping.has('paint') && args.length === 1) {
+          context.rewrites.push({ start: lastArg.end, end: lastArg.end, text: ', 1' })
+        } else if (context.mapping.has('paint')
+          && context.authoredPaintArity !== null
+          && args.length < context.authoredPaintArity) {
+          const zeros = ', 0'.repeat(context.authoredPaintArity - args.length)
+          context.rewrites.push({ start: lastArg.end, end: lastArg.end, text: zeros })
+        }
       }
     } else {
       walkForRewrites(node.callee, scope, false, context)
