@@ -2271,7 +2271,7 @@ function propertyAnimationReference(): StockShow {
     defaultOpen: true,
     layouts: [splitLayout('layout-property-split', 'Property split', zones, 'x')], scenes, transitions, composition,
     reference: {
-      summary: 'The Stage and timeline highlight one animatable property at a time. Each chooser recasts one Pattern source everywhere it appears while the Property tracks stay attached.',
+      summary: 'The Stage and timeline highlight one animatable property at a time. Each chooser recasts one Pattern source everywhere it appears; placement and Effect tracks stay attached, while animation tied to a control from the original Pattern yields to the replacement.',
       patternSlots: {
         cellIds: properties.map(([sceneId]) => cellId(sceneId, 'zone-2')),
         instanceIds: [

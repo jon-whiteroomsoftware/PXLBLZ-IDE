@@ -1070,8 +1070,10 @@ instances and compatibility cells with the same source share one group. The
 session store owns optional selections by slot index.
 `applyShowPatternSlotSelections()` projects those selections through the same
 flat-cell and composition-instance replacement used by Learn lessons, clears
-source-specific Control targets, and produces a transient override on top of
-the current fixture or working copy. The editor, Stage, compiler,
+source-specific Control targets and their dependent instance-Control Property
+tracks, and produces a transient override on top of the current fixture or
+working copy. Save-time restoration puts the authored targets and tracks back
+without discarding unrelated edits made against the projected view. The editor, Stage, compiler,
 generated-code view, EPE export, cost disclosure, and Controller actions all
 consume that same override. Resetting or reloading restores every authored
 Pattern; no stock fixture, personal Pattern, Show row, or D1 record is mutated.

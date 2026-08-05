@@ -86,6 +86,15 @@ export function applyShowReferencePattern(
         patternName: resolvedProjection.patternName,
         controlTargets: undefined,
       } : instance),
+      scenes: show.composition.scenes.map((scene) => {
+        const propertyTracks = scene.propertyTracks?.filter((track) => !(
+          track.target.kind === 'instance-control'
+          && instanceIds.has(track.target.instanceId)
+        ))
+        return propertyTracks && propertyTracks.length !== scene.propertyTracks?.length
+          ? { ...scene, propertyTracks }
+          : scene
+      }),
     } : show.composition,
   }
 }
@@ -156,6 +165,9 @@ export function restoreShowReferencePatternSlots(
   const authoredInstances = new Map(
     authored.composition?.patternInstances.map((instance) => [instance.id, instance]) ?? [],
   )
+  const authoredScenes = new Map(
+    authored.composition?.scenes.map((scene) => [scene.sceneId, scene]) ?? [],
+  )
   return {
     ...edited,
     cells: edited.cells.map((cell) => {
@@ -180,6 +192,31 @@ export function restoreShowReferencePatternSlots(
           patternName: source.patternName,
           controlTargets: source.controlTargets,
         } : instance
+      }),
+      scenes: edited.composition.scenes.map((scene) => {
+        const authoredScene = authoredScenes.get(scene.sceneId)
+        const authoredTracks = authoredScene?.propertyTracks ?? []
+        const projectedTrack = (track: (typeof authoredTracks)[number]) => (
+          track.target.kind === 'instance-control'
+          && instanceIds.has(track.target.instanceId)
+        )
+        const tracksToRestore = authoredTracks.filter(projectedTrack)
+        if (tracksToRestore.length === 0) return scene
+
+        const editedTracksById = new Map(
+          (scene.propertyTracks ?? [])
+            .filter((track) => !projectedTrack(track))
+            .map((track) => [track.id, track]),
+        )
+        const propertyTracks = authoredTracks.flatMap((track) => {
+          if (projectedTrack(track)) return [track]
+          const editedTrack = editedTracksById.get(track.id)
+          if (!editedTrack) return []
+          editedTracksById.delete(track.id)
+          return [editedTrack]
+        })
+        propertyTracks.push(...editedTracksById.values())
+        return { ...scene, propertyTracks }
       }),
     } : edited.composition,
   }

@@ -17,6 +17,7 @@ import { SHOW_EASING_OPTIONS, showEasingOptionId } from '@/engine/showEasing'
 import { SHOW_VISUAL_TOOLKIT_REGISTRY } from '@/engine/showVisualToolkit'
 import { applyShowColorEffects, sameShowEffectStructure, type ShowRgb } from '@/engine/showEffects'
 import { showClipEffectStage } from '@/engine/showEffectAuthoring'
+import { applyShowPatternSlotSelections, restoreShowReferencePatternSlots } from '@/engine/showReferenceShow'
 import {
   buildDeliveredShowSourceInventory,
   buildShowArtifactInventoryModel,
@@ -750,6 +751,48 @@ describe('stock Show curriculum (#363)', () => {
       'IQPalettes',
       'MetaballGarden',
     ])
+  })
+
+  it('keeps the Property Animation artifact valid after its controlled Pattern is recast (#714 review P1)', () => {
+    const item = STOCK_SHOWS.find((candidate) => candidate.id === 'stock-show-reference-property-animation')!
+    const group = item.patternSlots![0]
+    const projection = {
+      pattern: { kind: 'stock' as const, id: 'Caustics' },
+      patternName: 'Caustics',
+      ...group,
+    }
+    const projected = applyShowPatternSlotSelections(
+      item.show,
+      item.patternSlots!,
+      { 0: projection.pattern },
+      (pattern) => pattern.id,
+    )
+
+    const projectedControlTracks = projected.composition?.scenes.flatMap((scene) => (
+      (scene.propertyTracks ?? []).filter((track) => track.target.kind === 'instance-control')
+    ))
+    expect(projectedControlTracks).toEqual([])
+    expect(item.show.composition?.scenes.flatMap((scene) => scene.propertyTracks ?? [])
+      .some((track) => track.target.kind === 'instance-control')).toBe(true)
+
+    const compiled = compileShowForArtifact(projected, [], undefined, {}, { stageDimension: 2 })
+    expect(compiled.error).toBeNull()
+    expect(compiled.artifact).not.toBeNull()
+
+    const edited = structuredClone(projected)
+    edited.name = 'Edited while projected'
+    const unrelatedTrack = edited.composition!.scenes.flatMap((scene) => scene.propertyTracks ?? [])
+      .find((track) => track.id === 'track-animation-speed')!
+    unrelatedTrack.keyframes[0].value = 0.21
+    const restored = restoreShowReferencePatternSlots(edited, item.show, projection)
+    expect(restored.name).toBe('Edited while projected')
+    expect(restored.composition?.scenes.flatMap((scene) => scene.propertyTracks ?? [])
+      .find((track) => track.id === 'track-animation-speed')?.keyframes[0].value).toBe(0.21)
+    expect(restored.composition?.scenes.flatMap((scene) => scene.propertyTracks ?? [])
+      .find((track) => track.id === 'track-pattern-control')).toEqual(
+      item.show.composition?.scenes.flatMap((scene) => scene.propertyTracks ?? [])
+        .find((track) => track.id === 'track-pattern-control'),
+    )
   })
 
   it('opens the Zone rail by default only where Zones are the first-visit subject', () => {
