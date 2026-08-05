@@ -494,8 +494,11 @@ export function planPhysicalRoutingRepresentation(
   const rendersFasterPacked = repriced
     ? expectedComparisonsPerPixel(layouts) >= PACKED_MIN_EXPECTED_COMPARISONS
     : runCount >= 64
+  // Representability is unconditional: the emitter is strict in both pricing
+  // modes, so a legacy-mode selection of an unrepresentable table would throw
+  // at emission instead of falling back (review P2 on #717).
   const packedFits = pixelCount > 0
-    && (!repriced || packedValuesRepresentable)
+    && packedValuesRepresentable
     && packedArrayElements <= packed.maxElements
     && packed.estimatedBytecodeBytes <= measuredDeviceBudgetBytes
     && rendersFasterPacked

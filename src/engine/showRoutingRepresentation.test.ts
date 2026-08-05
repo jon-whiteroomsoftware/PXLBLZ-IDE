@@ -96,6 +96,17 @@ describe('planPhysicalRoutingRepresentation', () => {
     )
   })
 
+  it('keeps the representability gate active under legacy repricing mode (review P2)', () => {
+    // The emitter is strict regardless of pricing mode; without the
+    // unconditional gate this selection would throw at emission time.
+    const plan = planPhysicalRoutingRepresentation(
+      contiguousZoneLayouts(2_000, 40),
+      68_384,
+      { repricedPackedTables: false },
+    )
+    expect(plan.representation).toBe('range-branches')
+  })
+
   it('falls back to range branches when packed values overflow the 16.16 integer range (#717)', () => {
     // 40 routes x (2,000 + 1) stride packs values up to ~78,000 - beyond the
     // 32,767 integer ceiling. Pre-#717 the planner admitted this table and
