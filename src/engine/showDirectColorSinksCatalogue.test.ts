@@ -49,15 +49,14 @@ describe('direct color sinks across the stock Show catalogue (#557)', () => {
         eligible.push(stock.id)
       }
     }
-    // Reviewed expectation: 302 Installation Composition is the one stock
-    // Show with a direct-eligible (member, scene) pair - its steady scenes
-    // place single opaque members on physical-layout Zones. Reviewed for
-    // #363 against the named Precise-mode approximation (Technical
-    // Reference, "Steady-state direct color sinks"): steady HSV frames may
-    // diverge by at most one 8-bit output step in 0.038% of samples, below
-    // any visible color step, in exchange for the measured ~+69% steady
-    // Controller FPS. Every other stock Show stays byte-for-byte neutral,
-    // and new stock content that lands here must be reviewed the same way.
-    expect(eligible).toEqual(['stock-show-302-installation-composition'])
+    // Reviewed expectation: no current stock Show carries a direct-eligible
+    // (member, scene) pair. The old sunflower 302 was the one exemplar; its
+    // Redline rebuild (#706) attaches per-satellite Effects to the shared
+    // MetaballGarden member, which disqualifies the pair on purpose - the
+    // Effect voices are the lesson. The specialization keeps its own
+    // mechanism coverage in showDirectColorSinks.test.ts, the whole
+    // catalogue stays byte-for-byte neutral, and new stock content that
+    // lands here must be reviewed the same way as #363's original pass.
+    expect(eligible).toEqual([])
   })
 })

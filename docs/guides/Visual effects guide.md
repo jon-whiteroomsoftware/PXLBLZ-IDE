@@ -356,15 +356,19 @@ Use physical groupings that match how people perceive the object: pucks, rows,
 arches, panels, or other units. Symmetry in Pattern choice and timing can make
 an irregular measured map read as one intentional composition.
 
-**302 Installation Composition** plays the Redline stage as five instruments
-with two roles. The four satellite targets are separate Zones sharing one
-Pattern instance and one clock, each distinguished from its siblings by a
-single cheap Effect - a mirror, a posterize, a quarter rotation - so one
-instance speaks in four voices. The hero panel carries the only change at
-each junction - embers, ignition, afterglow - and the junctions are Cuts, so
-the hero's change is the only visible event at each boundary. One visual role
-per group is what keeps a physical score decipherable: when every group
-changes at once, correct output reads as noise.
+**302 Installation Composition** plays the whole Redline stage from one
+Pattern instance: a single Harmonograph render, one clock, one compiled
+machine. Geometry deals the first difference - the same frame lands as a
+panel in the middle and four radial blooms around it - and each passage adds
+one tier of voice on top: placement phase splits the satellites into a
+four-hue split-complementary family built on the render's own base color
+(the compiled artifact adds one number inside the shared hsv call, the
+cheapest voice in the toolkit), translate-under-wrap
+windows stagger the same frame a quarter width apart, a mirrored pair and a
+posterized pair join, and two property-animated invert pulses flash the
+hero's dark field on scheduled beats. Introducing one tier per junction is
+what keeps a physical score decipherable: when every group changes at once,
+correct output reads as noise.
 
 ### Compile, simplify, and deliver
 

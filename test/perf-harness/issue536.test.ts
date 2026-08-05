@@ -70,13 +70,19 @@ describe('Restart-instance global-liveness census (#536)', () => {
     // unweighted percent, so the verdict is unchanged. Recensused again
     // with the CME remix (#704: its one held instance Continues across the
     // cut, so the member-global corpus grows while the reclaimable Restart
-    // set stays fixed and the weighted figure falls).
+    // set stays fixed and the weighted figure falls). Recensused again with
+    // the 300-series stage rebuild (#705/#706: 301 recast onto the
+    // Proscenium stage adds CompassRose back to the corpus and 302's
+    // Redline rebuild then consolidated onto a single Harmonograph
+    // machine - the "one clock" brief - so its member-global share shrank
+    // again; every 300-level member still Continues, so the reclaimable
+    // Restart set stays fixed).
     expect(report.summary).toMatchObject({
-      representativeMemberGlobals: 3_013,
+      representativeMemberGlobals: 3_032,
       representativeReclaimedGlobals: 186,
     })
     expect(report.decision.representativeReclaimPercent).toBe(0)
-    expect(report.decision.weightedRepresentativeReclaimPercent).toBeCloseTo(0.06173249, 8)
+    expect(report.decision.weightedRepresentativeReclaimPercent).toBeCloseTo(0.06134565, 8)
     expect(report.decision.ceilingRescues).toEqual([])
     expect(report.decision.proceedWithEmission).toBe(false)
     expect(report.decision.proceedWithEmission).toBe(

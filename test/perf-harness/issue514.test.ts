@@ -37,8 +37,12 @@ describe('Show render-target residual-headroom census (#514)', () => {
     // the 68 KB ceiling, so the vocabulary ships as three siblings, exactly
     // the repartition this census forced on Shape Reveals), and again with
     // the CME remix (#704: one array-free community Pattern and one
-    // single-instance portable Show, both clearing every budget).
-    expect(report.summary.savedShowCount).toBe(35)
+    // single-instance portable Show, both clearing every budget), and again
+    // with the 300-series stage rebuild (#705/#706: the sunflower
+    // Installations retired; 302 now scores the Redline stage at the full
+    // 2,000-pixel contract, so it joins the census and clears it, while the
+    // 1,000-pixel Proscenium 301 sits outside the render-target question).
+    expect(report.summary.savedShowCount).toBe(36)
     expect(report.summary.savedShowRejections).toHaveLength(0)
     expect(report.summary.savedShowRejections.every((entry) => !entry.failsSolelyBecauseOfReservation)).toBe(true)
   })

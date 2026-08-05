@@ -1257,7 +1257,7 @@ function learn301(): StockShow {
     id, title: 'Installation Mapping', track: 'installation', collection: 'learn', level: 300, order: 1,
     purpose: 'An Installation Show gives up portability on purpose. It promises one exact output - this proscenium stage, 1,000 measured LEDs - and in exchange each named Zone owns real pixels: a physical range over the map instead of a share of an abstract surface. Together the ranges must cover the output exactly once.',
     notice: "The ranges restate the installer's walk: left tower first, then the dance floor, the arch, and the right tower last. That walk is why the Towers Zone owns two ranges at opposite ends of the index space - 0-199 and 800-999 - one physical role, two stretches of wire. At the halfway junction the floor and the towers trade Patterns while the arch holds; the ranges themselves never move.",
-    prompts: ['Open the Towers Zone and edit its pixels in the map selector: one Zone, two non-contiguous ranges, and the spatial selection and the numeric ranges are the same fact written two ways.', 'Now break it on purpose - remove a few pixels from one tower and watch the coverage diagnostic count the gap. Repair it, or use Reset to restore the pristine lesson.'],
+    prompts: ['Open the Towers Zone in the map selector: one Zone, two separate ranges, and selecting its pixels spatially edits the same fact as the numbers.', 'Now break it on purpose - remove a few pixels from one tower and watch the coverage diagnostic count the gap. Repair it, or use Reset to restore the pristine lesson.'],
     guideHeading: 'installation-output-and-physical-ranges',
     patternSlots: [['garden'], ['palettes'], ['rose']],
     output: { kind: 'installation', mapId: 'proscenium-stage-2d', pixelCount: 1_000 },
@@ -1270,88 +1270,282 @@ function learn301(): StockShow {
   })
 }
 
-// 302 composes the Redline stage - the hero-and-satellites idiom the
-// showcase performs at full intensity, here slowed to teaching speed. All
-// four satellite targets share one MetaballGarden instance and one clock
-// (brightest calm field on the target geometry in the #705 probe: lum 0.40,
-// flux 0.004 per 200 ms step), and each satellite differs from its siblings
-// by exactly one cheap Effect - reference, mirror, posterize, quarter
-// rotation - so one instance speaks in four visibly different voices. The
-// hero carries the whole arc alone: quiet Murmuration embers (lum 0.14 on
-// the hero panel), a warm IQPalettes ignition (0.40, hue 31° against the
-// satellites' focused green 134°), then the same flock instance
-// resuming where ignition interrupted it. Only the hero changes at each
-// junction, so the arc stays attributable at playback speed. The junctions
-// are Cuts like the showcase's: crossfading five physical Zones was measured
-// at roughly twenty points of device budget per boundary (66% of budget
-// with two crossfades, 27% with Cuts), and a Cut also makes the hero's
-// change the only visible event at the junction. With no transition
-// intervals the 6/8/6-second holds make a 20-second Show.
+// 302 spends its whole variety budget on one Pattern instance: a single
+// Harmonograph render drives all five surfaces of the Redline stage (Jon's
+// "one clock" brief, #706). Harmonograph over MetaballGarden for the solo:
+// livelier motion and the tightest single-hue field in the roster
+// (yellow-orange, hue 63°), so placement-phase rotations read as clean new
+// colors - phase is compiled as `hsv(h + adapt_phase, ...)` inside the
+// shared member's sink, the cheapest voice in the toolkit. The arc
+// introduces one tier per junction: geometry alone (the same frame lands as
+// a panel and four radial blooms), then free adaptations (the hue-wheel
+// quartet at 0/0.25/0.5/0.75, a mirror pair), then Effects (quarter-frame
+// translate windows under wrap, a posterize pair), then property animation
+// (two timed invert pulses flashing the hero's dark field on the beat).
+// Clips split mid-passage so each new voice arrives as its own visible
+// event, and from the quartet's arrival the colors never sit still: at each
+// change beat the four phases move corners by a different rule - rotate
+// clockwise, swap diagonals, rotate back - within a split-complementary
+// gold/blue family rather than full-spectrum primaries, and every move GLIDES via
+// placement-view phase tracks with staggered starts, so color travels
+// around the ring as a wave instead of snapping. That glide is also the
+// transition policy: full five-Zone crossfade boundaries measured ~20
+// budget points each, while phase tracks are score data on the same single
+// machine, so the junctions stay Cuts and the color motion carries the ease.
+// Three solo events give single satellites their own moments at different
+// times - an iris breath (vignette radius), a slow half-turn spin (rotate
+// turns), a posterize crush to two levels - all property tracks over the
+// same one machine; trails/persistence effects do not exist in the toolkit
+// (Effects are stateless per-frame). The whole Show runs at twice the curriculum clock (0.64,
+// still under the 0.7 legibility pin) because a solo Harmonograph at lesson
+// speed reads sedate. Junctions are Cuts (crossfading five physical Zones
+// measured ~20 budget points per boundary), so the 6/8/6-second holds make
+// a 20-second Show, and the artifact inventory prices the whole score at
+// one physical machine.
 function learn302(): StockShow {
   const id = 'stock-show-302-installation-composition'
+  // One shared clock for the whole Show, like every lesson - just faster.
+  const SOLO_TIME_SCALE = 0.64
   const zones = physicalZones(
     ['Hero panel', 'Left upper', 'Left lower', 'Right upper', 'Right lower'],
     [800, 300, 300, 300, 300],
   )
-  const heroBySceneId: Record<string, string> = { establish: 'Murmuration', bloom: 'IQPalettes', resolve: 'Murmuration' }
-  const scenes: SceneSpec[] = (['establish', 'bloom', 'resolve'] as const).map((sceneId, index) => (
-    scene(sceneId, sceneId[0].toUpperCase() + sceneId.slice(1), index === 1 ? 8 : 6, [
-      clip('zone-1', heroBySceneId[sceneId], LESSON_TIME_SCALE),
-      ...zones.slice(1).map((zone) => clip(zone.id, 'MetaballGarden', LESSON_TIME_SCALE)),
-    ])
-  ))
-  // One legible difference per satellite; the same four voices hold across
-  // every passage, so difference reads as identity, not as churn.
-  const satelliteVoice = (zoneIndex: number): { mirror: boolean; effects?: ShowClipEffect[] } => [
-    { mirror: false },
-    { mirror: true },
-    { mirror: false, effects: [{ id: 'satellite-posterize', kind: 'posterize' as const, levels: 4, amount: 1 }] },
-    { mirror: false, effects: [{ id: 'satellite-rotate', kind: 'rotate' as const, turns: 0.25 }, { id: 'satellite-wrap', kind: 'wrap' as const }] },
-  ][zoneIndex]
-  const heroInstanceBySceneId: Record<string, string> = { establish: 'flock', bloom: 'ignition', resolve: 'flock' }
+  const scenes: SceneSpec[] = [
+    scene('render', 'One render', 6, [
+      clip('zone-1', 'Harmonograph', SOLO_TIME_SCALE),
+      ...zones.slice(1).map((zone) => clip(zone.id, 'Harmonograph', SOLO_TIME_SCALE)),
+    ]),
+    scene('windows', 'Quarter windows', 8, [
+      clip('zone-1', 'Harmonograph', SOLO_TIME_SCALE),
+      ...zones.slice(1).map((zone) => clip(zone.id, 'Harmonograph', SOLO_TIME_SCALE)),
+    ]),
+    scene('answer', 'Answer', 6, [
+      clip('zone-1', 'Harmonograph', SOLO_TIME_SCALE),
+      ...zones.slice(1).map((zone) => clip(zone.id, 'Harmonograph', SOLO_TIME_SCALE)),
+    ]),
+  ]
+  // The palette quartet in motion. Even quarter turns read as unrelated
+  // primaries, so the four phases are instead a split-complementary family
+  // drawn from Harmonograph's own gold base (~63°): gold, warm yellow
+  // (+0.05), azure (+0.42), and blue-violet (+0.5) - two warms, two cools,
+  // one scheme. Satellites sit LU/LL/RU/RL (zone order); each segment
+  // reassigns the same four phases to corners by a different rule, so the
+  // colors travel at every change beat: the quartet deals clockwise, then
+  // rotates one corner clockwise, then swaps diagonals, then rotates back
+  // counter-clockwise.
+  const GOLD = 0
+  const YELLOW = 0.05
+  const AZURE = 0.42
+  const VIOLET = 0.5
+  const QUARTET_SEGMENTS = {
+    deal: [GOLD, VIOLET, YELLOW, AZURE],
+    rotated: [VIOLET, AZURE, GOLD, YELLOW],
+    swapped: [YELLOW, GOLD, AZURE, VIOLET],
+    returned: [AZURE, YELLOW, VIOLET, GOLD],
+  } as const
+  // Every reassignment GLIDES instead of snapping: a phase track sweeps each
+  // corner from its previous hue to its next one, starts staggered 0.2s per
+  // satellite so the move travels around the ring as a wave. Full five-Zone
+  // crossfade boundaries measured ~20 budget points each; these glides are
+  // score data on the same single machine, and they turn the change beats
+  // themselves into the transition.
+  // One phase track per placement carries that passage's whole color
+  // journey as (time, value) stops; integer milliseconds because the record
+  // validator rejects fractional keyframe times, and 0.2s staggers per
+  // satellite so every move travels around the ring as a wave.
+  const phaseJourney = (
+    placementId: string,
+    satellite: number,
+    stops: ReadonlyArray<readonly [number, number]>,
+  ) => ({
+    id: `glide-${placementId}`,
+    target: { kind: 'placement-view' as const, placementId, property: 'phase' as const },
+    keyframes: stops.map(([seconds, value], index) => ({
+      id: `glide-${placementId}-${index}`,
+      timeMs: seconds * 1_000 + satellite * 200,
+      value,
+      easing: SINE_IN_OUT,
+    })),
+  })
+  const journeys = (
+    idSuffix: string,
+    stopsFor: (satellite: number) => ReadonlyArray<readonly [number, number]>,
+  ) => [0, 1, 2, 3].flatMap((satellite) => {
+    const stops = stopsFor(satellite)
+    return new Set(stops.map(([, value]) => value)).size > 1
+      ? [phaseJourney(`satellite-${satellite + 1}-${idSuffix}`, satellite, stops)]
+      : []
+  })
+  // From the windows passage on, two satellites also carry a structural
+  // identity so their MOTION reads differently, not just their color: the
+  // ripple bends Left-upper into concentric rings, the kaleidoscope folds
+  // Right-upper into six-fold symmetry. Both are coordinate warps on the
+  // same single render - structure is cheated in the address space, never
+  // with a second machine.
+  const windowEffects = (satellite: number): ShowClipEffect[] => [
+    { id: `window-shift-${satellite + 1}`, kind: 'translate', x: satellite * 0.25, y: 0 },
+    { id: `window-wrap-${satellite + 1}`, kind: 'wrap' },
+    ...(satellite === 0 ? [{ id: 'rings-1', kind: 'ripple' as const, amount: 0.34, frequency: 5, phase: 0, centerX: 0.5, centerY: 0.5 }] : []),
+    ...(satellite === 2 ? [{ id: 'kaleido-3', kind: 'kaleidoscope' as const, amount: 1, segments: 6, rotation: 0, centerX: 0.5, centerY: 0.5 }] : []),
+  ]
+  const satellitePlacement = (
+    placementId: string,
+    startSeconds: number,
+    durationSeconds: number,
+    options: { phase?: number; mirror?: boolean; effects?: ShowClipEffect[] } = {},
+  ) => ({
+    ...placement(placementId, 'pendulum', startSeconds, durationSeconds),
+    view: { mirror: options.mirror ?? false, phase: options.phase ?? 0, brightness: 1 },
+    ...(options.effects ? { effects: options.effects } : {}),
+  })
   const composition: ShowCompositionV1 = {
     version: 1,
     patternInstances: [
-      instance('flock', 'Murmuration', LESSON_TIME_SCALE),
-      instance('ignition', 'IQPalettes', LESSON_TIME_SCALE),
-      // One shared instance for all four satellites: repeated surfaces share
-      // identity and clock, so the ring reads as one family in four voices.
-      instance('garden', 'MetaballGarden', LESSON_TIME_SCALE),
+      // The only instance in the Show: one clock, one machine, five surfaces.
+      instance('pendulum', 'Harmonograph', SOLO_TIME_SCALE),
     ],
-    scenes: scenes.map((sceneSpec) => ({
-      sceneId: sceneSpec.id,
-      zones: zones.map((zone, zoneIndex) => {
-        const seconds = sceneSpec.durationMs / 1_000
-        if (zoneIndex === 0) {
-          // The resolve passage rejoins the shared flock instance, so the
-          // embers resume where ignition interrupted them, not from frame one.
-          return {
+    scenes: [
+      {
+        sceneId: 'render',
+        // Plain for three seconds - geometry is the only difference - then
+        // the quartet hues glide in as a staggered wave.
+        propertyTracks: journeys('render', (satellite) => [
+          [3, 0],
+          [4, QUARTET_SEGMENTS.deal[satellite]],
+        ]),
+        zones: [
+          { zoneId: 'zone-1', overlays: [], main: [placement('hero-render', 'pendulum', 0, 6)] },
+          ...zones.slice(1).map((zone, satellite) => ({
             zoneId: zone.id,
             overlays: [],
-            main: [placement(`hero-${sceneSpec.id}`, heroInstanceBySceneId[sceneSpec.id], 0, seconds)],
-          }
-        }
-        const voice = satelliteVoice(zoneIndex - 1)
-        return {
-          zoneId: zone.id,
-          overlays: [],
-          main: [{
-            ...placement(`satellite-${zoneIndex}-${sceneSpec.id}`, 'garden', 0, seconds),
-            view: { mirror: voice.mirror, phase: 0, brightness: 1 },
-            ...(voice.effects ? { effects: voice.effects } : {}),
-          }],
-        }
-      }),
-    })),
+            main: [satellitePlacement(`satellite-${satellite + 1}-render`, 0, 6, {
+              phase: QUARTET_SEGMENTS.deal[satellite],
+            })],
+          })),
+        ],
+      },
+      {
+        sceneId: 'windows',
+        propertyTracks: [
+          // Each satellite's whole color journey for this passage: glide to
+          // the rotated corner on arrival, hold, then the diagonal swap.
+          ...journeys('window', (satellite) => [
+            [0, QUARTET_SEGMENTS.deal[satellite]],
+            [1, QUARTET_SEGMENTS.rotated[satellite]],
+            [4, QUARTET_SEGMENTS.rotated[satellite]],
+            [5, QUARTET_SEGMENTS.swapped[satellite]],
+          ]),
+          // Two solo events, one satellite at a time: Left-lower's iris
+          // breath in the first half, Right-lower's slow half-turn spin in
+          // the second.
+          {
+            id: 'track-iris-breath',
+            target: { kind: 'placement-effect' as const, placementId: 'satellite-2-window', effectId: 'iris-2', effectKind: 'vignette' as const, parameterId: 'radius' },
+            keyframes: [
+              keyframe('iris-open', 0.6, 2),
+              keyframe('iris-closed', 1.8, 0.45),
+              keyframe('iris-reopen', 3.2, 2),
+            ],
+          },
+          {
+            id: 'track-satellite-spin',
+            target: { kind: 'placement-effect' as const, placementId: 'satellite-4-window', effectId: 'window-turn-4', effectKind: 'rotate' as const, parameterId: 'turns' },
+            keyframes: [
+              keyframe('spin-rest', 4.2, 0.25),
+              keyframe('spin-half', 7.8, 0.75),
+            ],
+          },
+        ],
+        zones: [
+          { zoneId: 'zone-1', overlays: [], main: [placement('hero-windows', 'pendulum', 0, 8)] },
+          ...zones.slice(1).map((zone, satellite) => ({
+            zoneId: zone.id,
+            overlays: [],
+            main: [satellitePlacement(`satellite-${satellite + 1}-window`, 0, 8, {
+              phase: QUARTET_SEGMENTS.swapped[satellite],
+              effects: satellite === 1 ? [
+                ...windowEffects(satellite),
+                // Left-lower's solo iris; its three siblings hold steady.
+                { id: 'iris-2', kind: 'vignette' as const, amount: 1, radius: 2, softness: 0.5, centerX: 0.5, centerY: 0.5, aspect: 1 },
+              ] : satellite === 3 ? [
+                ...windowEffects(satellite),
+                { id: 'window-turn-4', kind: 'rotate' as const, turns: 0.25 },
+              ] : windowEffects(satellite),
+            })],
+          })),
+        ],
+      },
+      {
+        sceneId: 'answer',
+        propertyTracks: [...journeys('answer', (satellite) => [
+          [0, QUARTET_SEGMENTS.swapped[satellite]],
+          [1, QUARTET_SEGMENTS.returned[satellite]],
+        ]), {
+          // Right-upper's solo: its posterize crushes to two levels and
+          // recovers between the hero's two pulses.
+          id: 'track-posterize-crush',
+          target: { kind: 'placement-effect' as const, placementId: 'satellite-3-answer', effectId: 'answer-posterize-3', effectKind: 'posterize' as const, parameterId: 'levels' },
+          keyframes: [
+            keyframe('crush-rest', 0.8, 4),
+            keyframe('crush-deep', 2.6, 2),
+            keyframe('crush-recover', 4.4, 4),
+          ],
+        }, {
+          id: 'track-hero-pulse',
+          target: {
+            kind: 'placement-effect',
+            placementId: 'hero-answer',
+            effectId: 'hero-invert',
+            effectKind: 'invert',
+            parameterId: 'amount',
+          },
+          // Two deliberate beats: the dark field snaps to its negative and
+          // back, and the whole stage answers while the render never blinks.
+          keyframes: [
+            keyframe('pulse-rest', 0, 0, LINEAR),
+            keyframe('pulse-one-up', 1.9, 0, LINEAR),
+            keyframe('pulse-one-peak', 2.1, 1, LINEAR),
+            keyframe('pulse-one-down', 2.5, 0, LINEAR),
+            keyframe('pulse-two-up', 3.9, 0, LINEAR),
+            keyframe('pulse-two-peak', 4.1, 1, LINEAR),
+            keyframe('pulse-two-down', 4.5, 0, LINEAR),
+          ],
+        }],
+        zones: [
+          {
+            zoneId: 'zone-1',
+            overlays: [],
+            main: [{
+              ...placement('hero-answer', 'pendulum', 0, 6),
+              effects: [{ id: 'hero-invert', kind: 'invert' as const, amount: 0 }],
+            }],
+          },
+          ...zones.slice(1).map((zone, satellite) => ({
+            zoneId: zone.id,
+            overlays: [],
+            main: [
+              satellitePlacement(`satellite-${satellite + 1}-answer`, 0, 6, {
+                phase: QUARTET_SEGMENTS.returned[satellite],
+                mirror: satellite < 2,
+                effects: satellite < 2 ? windowEffects(satellite) : [
+                  ...windowEffects(satellite),
+                  { id: `answer-posterize-${satellite + 1}`, kind: 'posterize' as const, levels: 4, amount: 1 },
+                ],
+              }),
+            ],
+          })),
+        ],
+      },
+    ],
     durationMs: 20_000,
   }
   return catalogue({
     id, title: 'Installation Composition', track: 'installation', collection: 'learn', level: 300, order: 2,
-    purpose: 'Composing for a fixed installation uses the same Clips, junctions, and shared Pattern instances you already know - what changes is that the Zones are physical. The Redline stage gives this Show five instruments: a hero panel that always carries something unique, and four satellite targets that share one MetaballGarden instance and one clock. Each satellite differs from its siblings by one cheap Effect - a mirror, a posterize, a quarter rotation - so one instance speaks in four voices.',
-    notice: "Only the hero changes at each junction: quiet Murmuration embers, a warm IQPalettes ignition, then the same Murmuration instance resuming exactly where the ignition interrupted it. The satellites' shared instance never restarts - their differences are routing and Effects, not content.",
-    prompts: ['Solo each satellite Zone in turn: same Pattern, same clock, one Effect apart. Then solo the hero and watch it carry the whole arc alone.', "Swap the satellites' MetaballGarden for any other Pattern - all four voices change together, because the four Clips share one instance."],
+    purpose: 'This Show spends its entire variety budget on one Pattern instance: a single Harmonograph render drives all five surfaces of the Redline stage. Geometry deals the first difference - the same frame lands as a panel in the middle and four radial blooms around it - and every further voice costs only a per-Clip adaptation or Effect: a hue phase, a shifted window, a mirror, a posterize, a timed invert.',
+    notice: "Halfway through the first passage the satellites split into a four-hue family - gold, warm yellow, azure, blue-violet, a split-complementary scheme built on the render's own base color - by placement phase alone: the compiled artifact adds one number inside the shared hsv call, the cheapest voice in the toolkit. From then on the colors never sit still: at each change beat the four hues glide to new corners by a different rule - a clockwise rotation, a diagonal swap, a rotation back - each glide starting a beat after its neighbour, while shifted windows, a mirrored pair, a posterized pair, and two invert pulses stack onto the same single machine.",
+    prompts: ['Drag one satellite window\'s Translate X and watch its quarter-frame slide while the other three hold - four windows into one render.', 'Open the artifact inventory: five surfaces, a dozen Effects, one Harmonograph machine. That single-machine line is the whole lesson.'],
     guideHeading: 'composing-a-fixed-installation',
-    patternSlots: [['flock'], ['garden'], ['ignition']],
+    patternSlots: [['pendulum']],
     output: { kind: 'installation', mapId: 'redline-stage-2d', pixelCount: 2_000 },
     zones,
     layouts: [physicalLayout('layout-redline-stage', 'Redline stage', zones, [

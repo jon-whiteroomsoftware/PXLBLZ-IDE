@@ -1721,7 +1721,7 @@ describe('stock Show curriculum (#363)', () => {
     }
   })
 
-  it('gives 302 four satellite voices from one instance while only the hero carries the arc', () => {
+  it('plays all of 302 from one Pattern instance whose voices are adaptations and Effects', () => {
     const item = stockShowById('stock-show-302-installation-composition')!
     expect(item.show.routingLayouts).toHaveLength(1)
     expect(item.show.routingLayouts[0].zones).toEqual([
@@ -1732,15 +1732,82 @@ describe('stock Show curriculum (#363)', () => {
       { zoneId: 'zone-5', ranges: [{ start: 1_700, end: 1_999 }] },
     ])
     expect(validateInstallationCoverage(item.show)).toMatchObject({ valid: true })
-    // All four satellites share one instance in every passage; the hero owns
-    // the only content changes (flock, ignition, then the same flock again).
+    // The entire Show runs on one instance: every placement in every passage
+    // references the single pendulum machine.
     const composition = item.show.composition!
-    const satelliteInstances = new Set(composition.scenes.flatMap((scene) => scene.zones
-      .filter((zone) => zone.zoneId !== 'zone-1')
+    expect(composition.patternInstances).toHaveLength(1)
+    expect(composition.patternInstances[0]).toMatchObject({ id: 'pendulum', patternName: 'Harmonograph' })
+    const placementInstances = new Set(composition.scenes.flatMap((scene) => scene.zones
       .flatMap((zone) => zone.main.map((entry) => entry.instanceId))))
-    expect(satelliteInstances).toEqual(new Set(['garden']))
-    expect(composition.scenes.map((scene) => scene.zones[0].main[0].instanceId))
-      .toEqual(['flock', 'ignition', 'flock'])
+    expect(placementInstances).toEqual(new Set(['pendulum']))
+    // The hue-wheel quartet arrives as a split Clip in the first passage and
+    // then travels: every change beat reassigns the four quarter-turn phases
+    // to corners by a different rule (deal, rotate, diagonal swap, rotate
+    // back), the second passage staggers the same window a quarter frame per
+    // satellite, and the last passage pulses the hero's invert on two
+    // scheduled beats.
+    const renderScene = composition.scenes.find((scene) => scene.sceneId === 'render')!
+    expect(renderScene.zones.slice(1).map((zone) => zone.main.map((entry) => entry.view?.phase ?? 0)))
+      .toEqual([[0], [0.5], [0.05], [0.42]])
+    const windowsScene = composition.scenes.find((scene) => scene.sceneId === 'windows')!
+    expect(windowsScene.zones.slice(1).map((zone) => (
+      zone.main[0].effects?.find((effect) => effect.kind === 'translate')
+    ))).toMatchObject([{ x: 0 }, { x: 0.25 }, { x: 0.5 }, { x: 0.75 }])
+    expect(windowsScene.zones.slice(1).every((zone) => (
+      zone.main.every((entry) => entry.effects?.some((effect) => effect.kind === 'wrap'))
+    ))).toBe(true)
+    // Each segment's phase assignment is a permutation of the same four
+    // quarter turns, and consecutive segments never leave a corner's color
+    // in place - the wheel itself is choreography. Resting values sit on the
+    // placements; the mid-passage rotated assignment lives in the journey
+    // tracks' middle stops.
+    const answerSceneForPhases = composition.scenes.find((scene) => scene.sceneId === 'answer')!
+    const rotated = [1, 2, 3, 4].map((satellite) => {
+      const track = windowsScene.propertyTracks!.find((candidate) => (
+        candidate.target.kind === 'placement-view' && candidate.target.placementId === `satellite-${satellite}-window`
+      ))!
+      return track.keyframes[1].value
+    })
+    const segments = [
+      renderScene.zones.slice(1).map((zone) => zone.main[0].view!.phase),
+      rotated,
+      windowsScene.zones.slice(1).map((zone) => zone.main[0].view!.phase),
+      answerSceneForPhases.zones.slice(1).map((zone) => zone.main[0].view!.phase),
+    ]
+    // The four phases form one split-complementary family, not a
+    // full-spectrum quarter-turn spread.
+    for (const segment of segments) {
+      expect([...segment].sort()).toEqual([0, 0.05, 0.42, 0.5])
+    }
+    for (let step = 1; step < segments.length; step++) {
+      for (let corner = 0; corner < 4; corner++) {
+        expect(segments[step][corner], `segment ${step} corner ${corner} moves`)
+          .not.toBe(segments[step - 1][corner])
+      }
+    }
+    const answerScene = composition.scenes.find((scene) => scene.sceneId === 'answer')!
+    expect(answerScene.zones[0].main[0].effects).toMatchObject([{ kind: 'invert', amount: 0 }])
+    expect(answerScene.propertyTracks?.find((track) => (
+      track.target.kind === 'placement-effect' && track.target.placementId === 'hero-answer'
+    ))).toMatchObject({
+      target: { kind: 'placement-effect', placementId: 'hero-answer', effectKind: 'invert', parameterId: 'amount' },
+    })
+    // Structural voices: rings on Left-upper, six-fold symmetry on
+    // Right-upper, persistent from the windows passage onward.
+    expect(windowsScene.zones[1].main.every((entry) => entry.effects?.some((effect) => effect.kind === 'ripple'))).toBe(true)
+    expect(windowsScene.zones[3].main.every((entry) => entry.effects?.some((effect) => effect.kind === 'kaleidoscope'))).toBe(true)
+    expect(answerScene.zones[1].main[0].effects?.some((effect) => effect.kind === 'ripple')).toBe(true)
+    expect(answerScene.zones[3].main[0].effects?.some((effect) => effect.kind === 'kaleidoscope')).toBe(true)
+    // Every color move glides: each reassigned corner carries a staggered
+    // placement-view phase track (3 arrivals + 4 + 4 in windows + 4 here).
+    const phaseTracksOf = (sceneId: string) => composition.scenes
+      .find((scene) => scene.sceneId === sceneId)!.propertyTracks
+      ?.filter((track) => track.target.kind === 'placement-view' && track.target.property === 'phase') ?? []
+    expect(phaseTracksOf('render')).toHaveLength(3)
+    expect(phaseTracksOf('windows')).toHaveLength(4)
+    expect(phaseTracksOf('answer')).toHaveLength(4)
+    const staggeredStarts = new Set(phaseTracksOf('answer').map((track) => track.keyframes[0].timeMs))
+    expect(staggeredStarts.size).toBe(4)
 
     const compiled = compileShowForArtifact(item.show, [], undefined, {}, { stageDimension: 2 })
     expect(compiled.error).toBeNull()
@@ -1754,13 +1821,13 @@ describe('stock Show curriculum (#363)', () => {
       randomSeed: 302,
     })
     const handle = loadPattern(compiled.artifact!.code, compiled.artifact!.metadata, shim.builtins)
-    // The same local offsets inside each 300-pixel target, so corresponding
-    // samples compare one shared instance across its four Effect voices.
-    const offsets = [40, 130, 220]
-    const groups = {
-      hero: [150, 400, 650],
-      satellites: [800, 1_100, 1_400, 1_700].map((base) => offsets.map((offset) => base + offset)),
-    }
+    // Zone-wide rendering for liveliness (Harmonograph draws thin curves
+    // over a dark field, and the posterized pair keeps only ~16% of its
+    // pixels lit at rest, so point samples flicker), plus the same local
+    // offsets inside each 300-pixel target so corresponding samples compare
+    // the one shared render across its per-Zone voices.
+    const offsets = [15, 55, 95, 135, 175, 215, 255, 295]
+    const bases = [800, 1_100, 1_400, 1_700]
     const frameAt = (deltaMs: number) => {
       virtualTime += deltaMs
       handle.beforeRender(deltaMs)
@@ -1769,34 +1836,42 @@ describe('stock Show curriculum (#363)', () => {
         handle.render2D(index, x, y)
         return shim.capturedPixel()
       }
+      const all = Array.from({ length: 2_000 }, (_, index) => render(index))
       return {
-        hero: groups.hero.map(render),
-        satellites: groups.satellites.map((indices) => indices.map(render)),
+        hero: all.slice(0, 800),
+        satelliteZones: bases.map((base) => all.slice(base, base + 300)),
+        satellites: bases.map((base) => offsets.map((offset) => all[base + offset])),
       }
     }
 
-    // Cut junctions add no transition intervals: Establish holds 0-6s, Bloom
-    // holds 6-14s, and Resolve holds 14-20s on the 20-second ruler.
-    const establish = frameAt(3_000)   // embers over the satellite ring
-    const bloom = frameAt(7_000)       // t=10s: ignition holds the hero
-    const resolve = frameAt(7_000)     // t=17s: the flock resumes
+    // Cut junctions add no transition intervals on the 20-second ruler: One
+    // render holds 0-6s (quartet from 3s), Quarter windows 6-14s, Answer
+    // 14-20s with invert peaks near 16.1s and 18.1s.
+    const plain = frameAt(1_500)
+    const quartet = frameAt(3_000)     // t=4.5s: phases 0/0.25/0.5/0.75
+    const windows = frameAt(5_500)     // t=10s: staggered wrap windows
+    const prePulse = frameAt(5_500)    // t=15.5s: answer passage at rest
+    const pulse = frameAt(600)         // t=16.1s: first invert peak
 
-    // Every instrument stays alive in every passage, only the hero changes at
-    // the junctions, and the reference satellite differs from each Effect
-    // voice at corresponding local samples of the same shared instance.
-    const lit = (group: number[][]) => group.some(([r, g, b]) => r + g + b > 0.02)
-    for (const frame of [establish, bloom, resolve]) {
-      expect(lit(frame.hero), 'hero stays lit').toBe(true)
-      for (const satellite of frame.satellites) {
-        expect(lit(satellite), 'satellites stay lit').toBe(true)
+    const meanLuminance = (group: number[][]) => (
+      group.reduce((sum, [r, g, b]) => sum + r + g + b, 0) / (group.length * 3)
+    )
+    for (const frame of [plain, quartet, windows, prePulse, pulse]) {
+      expect(meanLuminance(frame.hero), 'hero stays lit').toBeGreaterThan(0.01)
+      for (const satellite of frame.satelliteZones) {
+        expect(meanLuminance(satellite), 'satellites stay lit').toBeGreaterThan(0.01)
       }
     }
-    expect(bloom.hero).not.toEqual(establish.hero)
-    expect(resolve.hero).not.toEqual(bloom.hero)
-    const [reference, mirrored, posterized, rotated] = bloom.satellites
-    expect(mirrored).not.toEqual(reference)
-    expect(posterized).not.toEqual(reference)
-    expect(rotated).not.toEqual(reference)
+    // The quartet phases rotate hue only, so each voice differs from the
+    // reference satellite at corresponding local samples of the same frame.
+    const [reference, quarter, half, threeQuarter] = quartet.satellites
+    expect(quarter).not.toEqual(reference)
+    expect(half).not.toEqual(reference)
+    expect(threeQuarter).not.toEqual(reference)
+    // The staggered windows differ too, and the pulse flips the hero's dark
+    // field far more than frame-to-frame drift explains.
+    expect(windows.satellites[1]).not.toEqual(windows.satellites[0])
+    expect(meanLuminance(pulse.hero)).toBeGreaterThan(meanLuminance(prePulse.hero) + 0.3)
   })
 
   it('prices the 303 echo honestly: one shared machine, measurable overlay cost', () => {
