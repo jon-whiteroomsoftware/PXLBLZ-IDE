@@ -1,4 +1,4 @@
-import { render, screen, waitFor } from '@testing-library/react'
+import { render, screen } from '@testing-library/react'
 import { MapContextPane } from './MapContextPane'
 import { useMapStore, mapInitialState, type MapRecord } from '@/store/mapStore'
 import { usePatternStore, patternInitialState } from '@/store/patternStore'
@@ -40,8 +40,9 @@ describe('MapContextPane', () => {
 
     render(<MapContextPane />)
 
-    const geometry = await screen.findByTestId('map-wiring-geometry')
-    await waitFor(() => expect(geometry).toHaveAttribute('viewBox', '0 0 320 320'))
+    const geometry = screen.getByTestId('map-wiring-geometry')
+    expect(geometry).toHaveAttribute('viewBox', '0 0 320 320')
+    expect(screen.queryByText('This map has no successful bake yet.')).not.toBeInTheDocument()
     expect(screen.getByTestId('map-wiring-viewport')).toHaveStyle({ aspectRatio: '320 / 320' })
     expect(screen.getByTestId('map-wiring-viewport')).not.toHaveClass('aspect-[2/1]')
     expect(geometry).toHaveClass('size-full')

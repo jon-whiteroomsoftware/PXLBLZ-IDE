@@ -185,7 +185,7 @@ function EmptyMapPane() {
 export function MapContextPane() {
   const canvasRef = useRef<HTMLCanvasElement>(null)
   const containerRef = useRef<HTMLDivElement>(null)
-  const [containerWidth, setContainerWidth] = useState(0)
+  const [containerWidth, setContainerWidth] = useState(320)
   const editingMap = useMapStore((s) => s.editingMap)
   const userMaps = useMapStore((s) => s.userMaps)
   const activePixelCount = useMapStore((s) => s.activePixelCount)
