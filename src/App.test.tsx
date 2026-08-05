@@ -37,6 +37,15 @@ const authSessionMock = vi.hoisted(() => ({
   getAuthSession: vi.fn(),
 }))
 
+const analyticsMock = vi.hoisted(() => ({
+  trackEvent: vi.fn(),
+}))
+
+vi.mock('@/analytics', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('@/analytics')>()),
+  trackEvent: analyticsMock.trackEvent,
+}))
+
 // Hold the startup auth probe pending by default so the smoke tests exercise
 // the studio shell without the signed-out Gallery redirect kicking in
 // mid-test; focused auth tests replace this implementation.
@@ -45,6 +54,7 @@ vi.mock('@/engine/authSession', () => ({
 }))
 
 beforeEach(() => {
+  analyticsMock.trackEvent.mockReset()
   authSessionMock.getAuthSession.mockReset()
   authSessionMock.getAuthSession.mockImplementation(() => new Promise(() => {}))
   window.localStorage.clear()
@@ -632,6 +642,7 @@ describe('routing (#308)', () => {
     render(<App />)
     expect(window.location.pathname).toBe('/studio-welcome')
     expect(screen.getByTestId('studio-welcome-page')).toHaveTextContent('Sign in to Studio')
+    expect(screen.getByTestId('studio-welcome-page')).toHaveTextContent(/same email .* same workspace/i)
     expect(screen.getByRole('link', { name: /privacy policy/i })).toHaveAttribute('href', '/docs/privacy')
   })
 
@@ -690,6 +701,37 @@ describe('routing (#308)', () => {
     render(<App />)
     expect(window.location.pathname).toBe('/studio')
     expect(screen.getByTestId('editor-pane')).toBeInTheDocument()
+  })
+
+  describe('auth result notices (#701)', () => {
+    it('surfaces an OAuth denial as a dismissible notice and strips the param from the URL', async () => {
+      window.history.replaceState(null, '', '/?auth=not-allowed')
+      render(<App />)
+
+      const notice = screen.getByTestId('auth-result-notice')
+      expect(notice).toHaveTextContent(/invite list/i)
+      expect(window.location.search).toBe('')
+      expect(analyticsMock.trackEvent).toHaveBeenCalledWith('auth_result', {
+        outcome: 'failure',
+        code: 'not-allowed',
+      })
+
+      await userEvent.click(within(notice).getByRole('button', { name: /dismiss/i }))
+      expect(screen.queryByTestId('auth-result-notice')).not.toBeInTheDocument()
+    })
+
+    it('preserves unrelated query params when stripping the auth result', () => {
+      window.history.replaceState(null, '', '/?auth=error&capture=1')
+      render(<App />)
+
+      expect(screen.getByTestId('auth-result-notice')).toHaveTextContent(/try again/i)
+      expect(window.location.search).toBe('?capture=1')
+    })
+
+    it('shows no notice after a clean load', () => {
+      render(<App />)
+      expect(screen.queryByTestId('auth-result-notice')).not.toBeInTheDocument()
+    })
   })
 
   it('opens a pattern addressed by /studio/patterns/<id>', () => {

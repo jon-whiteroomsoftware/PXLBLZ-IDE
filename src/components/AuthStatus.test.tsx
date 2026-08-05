@@ -1,4 +1,4 @@
-import { render, screen, waitFor } from '@testing-library/react'
+import { render, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { describe, expect, it, vi } from 'vitest'
 import { AuthStatus } from './AuthStatus'
@@ -29,7 +29,7 @@ vi.mock('@/engine/authSession', () => ({
 }))
 
 describe('AuthStatus', () => {
-  it('opens a clear logout menu from the signed-in account pill', async () => {
+  it('opens a minimal account menu without provider plumbing (#701)', async () => {
     render(<AuthStatus />)
 
     const account = await screen.findByRole('button', { name: /account menu for voidstar/i })
@@ -39,13 +39,16 @@ describe('AuthStatus', () => {
     await userEvent.click(account)
 
     expect(account).toHaveAttribute('aria-expanded', 'true')
-    expect(screen.getByText('Connected logins')).toBeInTheDocument()
-    expect(screen.getByText('GitHub')).toBeInTheDocument()
-    expect(screen.getByRole('menuitem', { name: /connect google/i })).toHaveAttribute(
-      'href',
-      '/api/auth/login?provider=google&mode=link',
-    )
-    expect(screen.getByRole('menuitem', { name: /disconnect github/i })).toBeDisabled()
+    const menu = screen.getByRole('menu')
+    expect(within(menu).getByText('Signed in')).toBeInTheDocument()
+    expect(within(menu).getByText('voidstar')).toBeInTheDocument()
+
+    // The multi-provider identity machinery stays hidden: no login roster,
+    // no per-provider connect/disconnect items (#701).
+    expect(screen.queryByText(/connected logins/i)).not.toBeInTheDocument()
+    expect(screen.queryByRole('menuitem', { name: /connect /i })).not.toBeInTheDocument()
+    expect(screen.queryByRole('menuitem', { name: /disconnect /i })).not.toBeInTheDocument()
+
     expect(screen.getByRole('menuitem', { name: /privacy & account data/i })).toHaveAttribute(
       'href',
       '/docs/privacy',

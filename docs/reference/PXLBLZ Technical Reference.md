@@ -95,9 +95,13 @@ The Gallery, Documentation workspace, API Reference, and global Controller
 chrome are public. Studio routes wait for
 `/api/me`; signed-out users see GitHub and Google sign-in choices rather than a
 brief flash of authenticated UI. GitHub and Google identities attach to one
-stable user row. Verified matching email may auto-link; an authenticated user
-may explicitly connect another provider and may disconnect one unless it is the
-last login.
+stable user row. Verified matching email auto-links at sign-in. The API keeps
+explicit link (`/api/auth/login?mode=link`) and disconnect
+(`/api/auth/disconnect`) endpoints — the last remaining login cannot be
+disconnected — but the app exposes no linking UI; the account menu carries
+only identity, privacy, and log out (#701). OAuth callback failures redirect
+with `?auth=<code>`, which `src/engine/authResult.ts` maps to a dismissible
+notice below the global header.
 
 During the private beta, D1 `beta_access` rows gate OAuth admission and every
 authenticated API request. A verified email claims one stable user binding;

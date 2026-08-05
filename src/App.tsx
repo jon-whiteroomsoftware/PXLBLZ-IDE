@@ -54,6 +54,7 @@ import { routePath, routesEqual, type Route } from '@/engine/routes'
 import { trackEvent, trackPageView } from '@/analytics'
 import { controllerProfileDisplayName } from '@/engine/controllerProfile'
 import { decideStudioAccess, studioWelcomeAcknowledgedKey } from '@/engine/studioAccess'
+import { readAuthResultNotice, stripAuthResultParam, type AuthResultNotice } from '@/engine/authResult'
 import { useWorkspaceStore } from '@/store/workspaceStore'
 import { forkSettingsSnapshot } from '@/store/settingsCascade'
 import { bundle } from '@/engine/bundle'
@@ -251,6 +252,9 @@ function StudioWelcomePage({
             <p className="mt-3 text-sm leading-6 text-zinc-400">
               Studio is where your saved patterns, maps, and shows live. Sign in seamlessly with GitHub or Google; your workspace is created automatically the first time you arrive.
             </p>
+            <p className="mt-2 text-sm leading-6 text-zinc-400">
+              Use either one — logins with the same email address open the same workspace.
+            </p>
             <div className="mt-6 flex flex-wrap items-center gap-3">
               <Button
                 size="sm"
@@ -357,6 +361,17 @@ function StudioApp() {
       return false
     }
   })
+  // OAuth callbacks land back here with `?auth=<code>` on failure (#701).
+  const [authNotice, setAuthNotice] = useState<AuthResultNotice | null>(() =>
+    readAuthResultNotice(window.location.search),
+  )
+  const initialAuthNoticeRef = useRef(authNotice)
+  useEffect(() => {
+    const notice = initialAuthNoticeRef.current
+    if (notice) trackEvent('auth_result', { outcome: 'failure', code: notice.code })
+    const cleaned = stripAuthResultParam(window.location.href)
+    if (cleaned !== window.location.href) window.history.replaceState(window.history.state, '', cleaned)
+  }, [])
   const [showHeaderActionsTarget, setShowHeaderActionsTarget] = useState<HTMLSpanElement | null>(null)
   const [showHeaderGuideTarget, setShowHeaderGuideTarget] = useState<HTMLSpanElement | null>(null)
   const [showStageOverlayShowId, setShowStageOverlayShowId] = useState<string | null>(null)
@@ -822,6 +837,26 @@ function StudioApp() {
           <AuthStatus />
         </span>
       </header>
+      {authNotice && (
+        <div
+          role="alert"
+          data-testid="auth-result-notice"
+          className="flex shrink-0 items-start gap-3 border-b border-live/30 bg-live/10 px-4 py-2"
+        >
+          <div className="min-w-0 text-sm leading-6">
+            <span className="font-semibold text-live">{authNotice.title}.</span>{' '}
+            <span className="text-zinc-300">{authNotice.detail}</span>
+          </div>
+          <button
+            type="button"
+            aria-label="Dismiss sign-in notice"
+            onClick={() => setAuthNotice(null)}
+            className="ml-auto mt-1 shrink-0 cursor-pointer rounded-sm p-0.5 text-zinc-400 transition-colors hover:text-zinc-100 focus:outline-none focus-visible:ring-2 focus-visible:ring-live/50"
+          >
+            <X size={14} aria-hidden />
+          </button>
+        </div>
+      )}
       {route.kind === 'gallery' ? (
         <GalleryPage />
       ) : route.kind === 'studio-welcome' ? (

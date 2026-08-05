@@ -162,12 +162,16 @@ After deploy, open the Pages URL and smoke-test:
 2. Visit `/api/me`; signed out should report `{ "authenticated": false }`.
 3. Click **Sign in**, complete GitHub OAuth, and confirm `/api/me` reports the
    GitHub user and one connected identity.
-4. Link Google from the account menu and confirm `/api/me` reports both
-   identities on the same `user.id`.
+4. Sign in with a Google account whose verified email matches the GitHub
+   identity and confirm `/api/me` reports both identities on the same
+   `user.id`. Identity linking is automatic by verified email; the account
+   menu exposes no linking UI (#701). `GET /api/auth/login?provider=<p>&mode=link`
+   remains available for a signed-in session when a manual link is needed.
 5. In a fresh session, sign in with a Google account whose verified email already
    belongs to a verified identity and confirm personal content stays under the
    existing `user.id`.
-6. Disconnect one login and confirm the final remaining login cannot be removed.
+6. `POST /api/auth/disconnect?provider=<p>` removes one login; confirm the
+   final remaining login cannot be removed. This endpoint has no UI surface.
 7. Create, edit, reload, and delete a personal pattern.
 8. Create, edit, reload, and delete a custom map.
 9. Create, edit, reload, and delete a personal Mixin.

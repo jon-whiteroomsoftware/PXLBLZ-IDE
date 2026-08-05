@@ -3,6 +3,7 @@ type AnalyticsEnv = Pick<ImportMetaEnv, 'PROD' | 'DEV' | 'VITE_GA_MEASUREMENT_ID
 type EntityCreatedKind = 'pattern' | 'map' | 'mixin' | 'library' | 'show' | 'controller_profile'
 
 type AnalyticsEventName =
+  | 'auth_result'
   | 'catalog_clone'
   | 'send_to_controller'
   | 'sign_in'

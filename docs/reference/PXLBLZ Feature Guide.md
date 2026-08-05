@@ -91,11 +91,16 @@ field or the code editor.
 
 ### Accounts and persistence
 
-Studio requires sign-in with GitHub or Google; both providers can attach to
-one account. Personal content lives in the signed-in cloud workspace. Signed
-out, the app is a non-durable demo: Gallery, built-ins, stock content,
-documentation, preview, and live Controller connections all work, but
-creating and saving personal content requires sign-in.
+Studio requires sign-in with GitHub or Google. Either provider works: logins
+that share a verified email address open the same workspace, so the choice is
+never binding and the app exposes no provider linking controls. The account
+menu holds the signed-in identity, the privacy policy, and log out. When an
+OAuth attempt fails or the account lacks access, a dismissible notice below
+the header explains the outcome. Personal content lives in the signed-in
+cloud workspace. Signed out, the app is a non-durable demo: Gallery,
+built-ins, stock content, documentation, preview, and live Controller
+connections all work, but creating and saving personal content requires
+sign-in.
 
 ## 3. Docs and API reference
 
