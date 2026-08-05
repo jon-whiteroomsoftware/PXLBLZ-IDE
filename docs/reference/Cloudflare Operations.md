@@ -63,9 +63,11 @@ row does not reactivate the environment allowlists. In D1 mode, OAuth requires
 an active entry matching a provider-verified email or an already-linked active
 user. Personal Gmail identities canonicalize `@googlemail.com` to `@gmail.com`
 at every beta-access boundary; other domains remain exact after case and
-whitespace normalization. `disable` preserves the audit row while revoking
-access; `remove` deletes it. Both take effect on the next authenticated API
-request, including requests made with an existing session cookie.
+whitespace normalization. Migration 22 rewrites any stored legacy spelling and
+fails on a conflicting duplicate instead of choosing a user binding silently.
+`disable` preserves the audit row while revoking access; `remove` deletes it.
+Both take effect on the next authenticated API request, including requests made
+with an existing session cookie.
 
 ## Analytics
 

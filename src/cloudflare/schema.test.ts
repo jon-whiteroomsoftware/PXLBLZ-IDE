@@ -24,6 +24,7 @@ const showCompositionMigrationPath = path.resolve('migrations/0016_show_composit
 const showOutputEffectsMigrationPath = path.resolve('migrations/0017_show_output_effects.sql')
 const betaAccessMigrationPath = path.resolve('migrations/0020_beta_access.sql')
 const betaAccessMultipleEmailsMigrationPath = path.resolve('migrations/0021_beta_access_multiple_emails.sql')
+const canonicalGmailBetaAccessMigrationPath = path.resolve('migrations/0022_canonical_gmail_beta_access.sql')
 
 describe('D1 personal storage migration', () => {
   it('creates the storage buckets needed for the Cloudflare personal-storage foundation', () => {
@@ -191,5 +192,15 @@ describe('D1 personal storage migration', () => {
     expect(sql).not.toContain('user_id TEXT UNIQUE')
     expect(sql).toContain('CREATE INDEX beta_access_user_id_idx')
     expect(sql).toContain("VALUES ('schema_version', '21', unixepoch())")
+  })
+
+  it('canonicalizes stored Googlemail beta access without silently merging conflicts (#701 review)', () => {
+    const sql = fs.readFileSync(canonicalGmailBetaAccessMigrationPath, 'utf8')
+
+    expect(sql).toContain("substr(lower(email), -length('@googlemail.com')) = '@googlemail.com'")
+    expect(sql).toContain("|| '@gmail.com'")
+    expect(sql).not.toContain('INSERT INTO beta_access')
+    expect(sql).not.toContain('ON CONFLICT(email)')
+    expect(sql).toContain("VALUES ('schema_version', '22', unixepoch())")
   })
 })

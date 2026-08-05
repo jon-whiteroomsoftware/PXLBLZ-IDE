@@ -62,17 +62,25 @@ export function createD1BetaAccessStore(db: D1BetaAccessDatabaseLike): D1BetaAcc
     },
 
     async findActiveForUser(userId) {
-      const row = await db.prepare(`
-        SELECT DISTINCT access.email, access.label, access.enabled, access.user_id
-        FROM beta_access AS access
-        LEFT JOIN identities AS identity
-          ON lower(identity.email) = lower(access.email)
-          AND identity.email_verified = 1
-        WHERE access.enabled = 1
-          AND (access.user_id = ? OR identity.user_id = ?)
+      const claimed = await db.prepare(`
+        SELECT email, label, enabled, user_id
+        FROM beta_access
+        WHERE enabled = 1 AND user_id = ?
         LIMIT 1
-      `).bind(userId, userId).first<BetaAccessRow>()
-      return row ? betaAccessEntry(row) : null
+      `).bind(userId).first<BetaAccessRow>()
+      if (claimed) return betaAccessEntry(claimed)
+
+      const identities = await db.prepare(`
+        SELECT email
+        FROM identities
+        WHERE user_id = ? AND email_verified = 1 AND email IS NOT NULL
+        ORDER BY provider
+      `).bind(userId).all<{ email: string }>()
+      for (const identity of identities.results) {
+        const entry = await store.getByEmail(identity.email)
+        if (entry?.enabled && (!entry.userId || entry.userId === userId)) return entry
+      }
+      return null
     },
 
     async bindUser(emailInput, userId) {
