@@ -97,10 +97,13 @@ describe('planPhysicalRoutingRepresentation', () => {
   })
 
   it('keeps the representability gate active under legacy repricing mode (review P2)', () => {
-    // The emitter is strict regardless of pricing mode; without the
-    // unconditional gate this selection would throw at emission time.
+    // 1,024 px x 40 routes stays inside every legacy gate - 2,048 elements
+    // at the 2,048 cap, ~41 KB legacy bytecode, 80 ranges >= 64 - while route
+    // 39 packs values above 32,767. The emitter is strict regardless of
+    // pricing mode; without the unconditional gate this selection would
+    // throw at emission time.
     const plan = planPhysicalRoutingRepresentation(
-      contiguousZoneLayouts(2_000, 40),
+      contiguousZoneLayouts(1_024, 40),
       68_384,
       { repricedPackedTables: false },
     )
