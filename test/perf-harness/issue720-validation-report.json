@@ -1,0 +1,216 @@
+{
+  "generatedAt": "2026-08-06T01:45:09.223Z",
+  "device": {
+    "name": "Burner bag",
+    "firmwareVersion": "3.67",
+    "originalPixelCount": 256
+  },
+  "activation": [
+    {
+      "label": "before",
+      "id": "reference-wipe-transitions",
+      "sourceBytes": 59605,
+      "bytecodeBytes": 34690,
+      "activated": true,
+      "activationMs": 4141,
+      "attempts": 1
+    },
+    {
+      "label": "before",
+      "id": "reference-shape-reveal-figures",
+      "sourceBytes": 62302,
+      "bytecodeBytes": 35558,
+      "activated": true,
+      "activationMs": 3339,
+      "attempts": 2
+    },
+    {
+      "label": "before",
+      "id": "reference-property-animation",
+      "sourceBytes": 65822,
+      "bytecodeBytes": 45426,
+      "activated": true,
+      "activationMs": 1612,
+      "attempts": 2
+    },
+    {
+      "label": "before",
+      "id": "qualification-546",
+      "sourceBytes": 67289,
+      "bytecodeBytes": 46274,
+      "activated": true,
+      "activationMs": 1608,
+      "attempts": 2
+    },
+    {
+      "label": "after",
+      "id": "reference-wipe-transitions",
+      "sourceBytes": 33487,
+      "bytecodeBytes": 19254,
+      "activated": true,
+      "activationMs": 3364,
+      "attempts": 1
+    },
+    {
+      "label": "after",
+      "id": "reference-shape-reveal-figures",
+      "sourceBytes": 39085,
+      "bytecodeBytes": 21910,
+      "activated": true,
+      "activationMs": 4341,
+      "attempts": 1
+    },
+    {
+      "label": "after",
+      "id": "reference-property-animation",
+      "sourceBytes": 58946,
+      "bytecodeBytes": 39602,
+      "activated": true,
+      "activationMs": 2735,
+      "attempts": 1
+    },
+    {
+      "label": "after",
+      "id": "qualification-546",
+      "sourceBytes": 59006,
+      "bytecodeBytes": 39814,
+      "activated": true,
+      "activationMs": 1478,
+      "attempts": 2
+    }
+  ],
+  "fpsPairs": [
+    {
+      "id": "reference-wipe-transitions",
+      "before": {
+        "median": 0.688231,
+        "min": 0.678426,
+        "max": 0.73692,
+        "samples": 24
+      },
+      "after": {
+        "median": 0.676133,
+        "min": 0.648088,
+        "max": 0.734214,
+        "samples": 24
+      },
+      "changePercent": -1.76
+    },
+    {
+      "id": "reference-property-animation",
+      "before": {
+        "median": 2.227171,
+        "min": 2.189781,
+        "max": 2.245509,
+        "samples": 24
+      },
+      "after": {
+        "median": 2.421308,
+        "min": 2.405774,
+        "max": 2.42915,
+        "samples": 24
+      },
+      "changePercent": 8.72
+    }
+  ],
+  "schedule": {
+    "sampleCount": 89,
+    "changes": [
+      {
+        "atMs": 2277,
+        "from": 0,
+        "to": 1
+      },
+      {
+        "atMs": 4683,
+        "from": 1,
+        "to": 2
+      },
+      {
+        "atMs": 8270,
+        "from": 2,
+        "to": 3
+      },
+      {
+        "atMs": 10721,
+        "from": 3,
+        "to": 4
+      },
+      {
+        "atMs": 13479,
+        "from": 4,
+        "to": 5
+      },
+      {
+        "atMs": 16983,
+        "from": 5,
+        "to": 6
+      },
+      {
+        "atMs": 19112,
+        "from": 6,
+        "to": 7
+      },
+      {
+        "atMs": 21877,
+        "from": 7,
+        "to": 8
+      },
+      {
+        "atMs": 25422,
+        "from": 8,
+        "to": 9
+      }
+    ],
+    "gapChecks": [
+      {
+        "afterScene": 1,
+        "gap": 2406,
+        "expected": 2800,
+        "deltaMs": -394
+      },
+      {
+        "afterScene": 2,
+        "gap": 3587,
+        "expected": 3500,
+        "deltaMs": 87
+      },
+      {
+        "afterScene": 3,
+        "gap": 2451,
+        "expected": 2100,
+        "deltaMs": 351
+      },
+      {
+        "afterScene": 4,
+        "gap": 2758,
+        "expected": 2800,
+        "deltaMs": -42
+      },
+      {
+        "afterScene": 5,
+        "gap": 3504,
+        "expected": 3500,
+        "deltaMs": 4
+      },
+      {
+        "afterScene": 6,
+        "gap": 2129,
+        "expected": 2100,
+        "deltaMs": 29
+      },
+      {
+        "afterScene": 7,
+        "gap": 2765,
+        "expected": 2800,
+        "deltaMs": -35
+      },
+      {
+        "afterScene": 8,
+        "gap": 3545,
+        "expected": 3500,
+        "deltaMs": 45
+      }
+    ]
+  }
+}
