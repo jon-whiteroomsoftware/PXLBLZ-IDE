@@ -13,6 +13,7 @@ import type { GalleryPattern } from '@/engine/galleryCatalog'
 import { usePreviewStore } from '@/store/previewStore'
 import { usePatternStore } from '@/store/patternStore'
 import { hasActiveOverrides, resetActiveSettings } from '@/store/settingsCascade'
+import { galleryReturnPathFromHistoryState } from '@/engine/routes'
 
 export function PatternDetailPage({
   pattern,
@@ -44,7 +45,13 @@ export function PatternDetailPage({
             size="xs"
             variant="ghost"
             className="h-7 border border-seam bg-panel text-xs text-zinc-400 hover:bg-zinc-800 hover:text-zinc-200"
-            onClick={() => navigate({ kind: 'gallery' })}
+            onClick={() => {
+              if (galleryReturnPathFromHistoryState(window.history.state) !== null) {
+                window.history.back()
+                return
+              }
+              navigate({ kind: 'gallery' })
+            }}
           >
             <ArrowLeft size={13} aria-hidden />
             Gallery

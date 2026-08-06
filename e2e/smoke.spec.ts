@@ -82,6 +82,28 @@ test('filtered Gallery Back navigation restores the directory and Pattern card',
   await expect(page.locator(`#${anchorId}`)).toBeInViewport()
 })
 
+test('Pattern detail Gallery control restores the filtered directory origin', async ({ page }) => {
+  await page.goto('gallery/zranger1')
+  const origin = page.locator('[id^="gallery-"]').first()
+  const anchorId = await origin.getAttribute('id')
+  await origin.dispatchEvent('click')
+
+  await page.getByRole('button', { name: 'Gallery', exact: true }).click()
+
+  await expect(page).toHaveURL(new RegExp(`/gallery/zranger1#${anchorId}$`))
+  await expect(page.getByRole('combobox', { name: 'Directory filter' })).toHaveValue('ZRanger1')
+  await expect(page.locator(`#${anchorId}`)).toBeInViewport()
+})
+
+test('direct Pattern detail Gallery control falls back to the unfiltered Gallery', async ({ page }) => {
+  await page.goto('p/oasis')
+
+  await page.getByRole('button', { name: 'Gallery', exact: true }).click()
+
+  await expect(page).toHaveURL(/\/gallery$/)
+  await expect(page.getByRole('combobox', { name: 'Directory filter' })).toHaveValue('Everything')
+})
+
 test('unknown Gallery directory routes fail gracefully', async ({ page }) => {
   await page.goto('gallery/not-a-directory')
 

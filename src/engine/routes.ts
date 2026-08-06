@@ -26,6 +26,12 @@ export type Route =
   | { kind: 'api-reference'; libraryId: string | null }
   | { kind: 'not-found'; path: string }
 
+export function galleryReturnPathFromHistoryState(state: unknown): string | null {
+  if (typeof state !== 'object' || state === null) return null
+  const returnPath = (state as { galleryReturnPath?: unknown }).galleryReturnPath
+  return typeof returnPath === 'string' ? returnPath : null
+}
+
 function isStudioEntityKind(value: string): value is StudioEntityKind {
   return (STUDIO_ENTITY_KINDS as readonly string[]).includes(value)
 }

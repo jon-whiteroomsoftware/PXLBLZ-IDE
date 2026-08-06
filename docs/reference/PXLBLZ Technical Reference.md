@@ -125,8 +125,9 @@ unique slugs for its built-in directories. The pure route codec carries an
 optional Gallery directory slug; `App.tsx` resolves it through the catalogue,
 rejects unknown slugs, and passes the resolved directory into the controlled
 Gallery filter. Selecting **Everything** returns to `/gallery`; selecting a
-directory navigates to `/gallery/<directory-slug>`, so reload, detail-page Back,
-and copied URLs preserve that directory. Dimension and name filters remain
+directory navigates to `/gallery/<directory-slug>`, so reload, browser Back,
+the Pattern detail **Gallery** control, and copied URLs preserve that directory.
+Direct Pattern detail visits still send that control to `/gallery`. Dimension and name filters remain
 page-local. Gallery cards use the real bundle/shim/render pipeline at bounded
 pixel counts, with a global animation slot limit, IntersectionObserver pausing,
 staggered startup, and a static frame

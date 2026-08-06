@@ -62,7 +62,10 @@ function GalleryCard({ pattern, index }: { pattern: GalleryPattern; index: numbe
       onClick={() => {
         const galleryUrl = `${window.location.pathname}${window.location.search}#${anchorId}`
         window.history.replaceState(window.history.state, '', galleryUrl)
-        navigate({ kind: 'pattern-detail', slug: pattern.slug })
+        navigate(
+          { kind: 'pattern-detail', slug: pattern.slug },
+          { historyState: { galleryReturnPath: galleryUrl } },
+        )
       }}
       onFocus={() => setAttended(true)}
       onBlur={() => setAttended(false)}

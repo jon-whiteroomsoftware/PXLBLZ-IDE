@@ -14,7 +14,7 @@ import {
 
 interface RouterState {
   route: Route
-  navigate: (route: Route, opts?: { replace?: boolean }) => void
+  navigate: (route: Route, opts?: { replace?: boolean; historyState?: unknown }) => void
   syncFromLocation: () => void
 }
 
@@ -34,8 +34,8 @@ export const useRouterStore = create<RouterState>()((set, get) => ({
       const path = routePath(route, base()) + window.location.search
       const current = window.location.pathname + window.location.search
       if (path !== current) {
-        if (opts?.replace) window.history.replaceState(null, '', path)
-        else window.history.pushState(null, '', path)
+        if (opts?.replace) window.history.replaceState(opts.historyState ?? null, '', path)
+        else window.history.pushState(opts?.historyState ?? null, '', path)
       }
     }
     if (!routesEqual(get().route, route)) set({ route })

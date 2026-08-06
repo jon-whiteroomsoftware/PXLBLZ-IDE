@@ -61,6 +61,16 @@ describe('navigate', () => {
     expect(window.history.length).toBe(before)
   })
 
+  it('stores caller-provided state on a new history entry', () => {
+    useRouterStore.getState().syncFromLocation()
+    useRouterStore.getState().navigate(
+      { kind: 'pattern-detail', slug: 'oasis' },
+      { historyState: { galleryOrigin: true } },
+    )
+
+    expect(window.history.state).toEqual({ galleryOrigin: true })
+  })
+
   it('does not touch history when the route is unchanged', () => {
     setLocation('/gallery')
     useRouterStore.getState().syncFromLocation()
