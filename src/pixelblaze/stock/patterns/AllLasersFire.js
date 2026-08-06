@@ -32,6 +32,12 @@ var dHyp = hypot(colorSpacing,colorSpacing);
 var dT = .04;              // timebase offset between colors
 var wr,wg,wb;              // offset envelopes for each color
 var zap;
+var epsilon = 0.00001;
+
+function nonzero(v) {
+  if (abs(v) >= epsilon) return v;
+  return v < 0 ? -epsilon : epsilon;
+}
 
 // UI Sliders
 export function sliderSpeed(v) {
@@ -64,27 +70,27 @@ export function render2D(index,x,y) {
   y = 1-y;
 
   // render color layers - red
-  len = hypot(x,y)
+  len = nonzero(hypot(x,y))
   px = x; py = y;
   z = time2;
-  tmp =  len * wr * (tan(len * zap- z));
-  r = 0.075/hypot(mod(px/tmp,1)-0.55,mod(py/tmp,1)-0.55) / len
+  tmp = nonzero(len * wr * (tan(len * zap- z)));
+  r = 0.075/nonzero(hypot(mod(px/tmp,1)-0.55,mod(py/tmp,1)-0.55)) / len
   r = r * r * r ;
 
   // green
   px -= colorSpacing;  py -= colorSpacing;
-  len -= dHyp;
+  len = nonzero(len - dHyp);
   z += dT;
-  tmp =  len * wg * (tan(len * zap - z));
-  g = 0.075/hypot(mod(px/tmp,1)-0.55,mod(py/tmp,1)-0.55) / len
+  tmp = nonzero(len * wg * (tan(len * zap - z)));
+  g = 0.075/nonzero(hypot(mod(px/tmp,1)-0.55,mod(py/tmp,1)-0.55)) / len
   g = g * g * g;
 
   // blue
   px -= colorSpacing;  py -= colorSpacing;
-  len -= dHyp;
+  len = nonzero(len - dHyp);
   z += dT;
-  tmp =  len * wb * (tan(len * zap - z));
-  b = 0.075/hypot(mod(px/tmp,1)-0.55,mod(py/tmp,1)-0.55) / len
+  tmp = nonzero(len * wb * (tan(len * zap - z)));
+  b = 0.075/nonzero(hypot(mod(px/tmp,1)-0.55,mod(py/tmp,1)-0.55)) / len
   b = b * b * b;
 
   rgb(r,g,b);

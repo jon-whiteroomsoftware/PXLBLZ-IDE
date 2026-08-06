@@ -57,7 +57,8 @@ test('Gallery directory routes are shareable and stay in sync with the filter', 
 
   const directoryFilter = page.getByRole('combobox', { name: 'Directory filter' })
   await expect(directoryFilter).toHaveValue('ZRanger1')
-  await expect(page.locator('[id^="gallery-"]')).toHaveCount(10)
+  // galleryCatalog.test.ts owns exact membership; this pins the rendered directory count.
+  await expect(page.locator('[id^="gallery-"]')).toHaveCount(33)
 
   await directoryFilter.selectOption('Living 1D')
   await expect(page).toHaveURL(/\/gallery\/living-1d$/)

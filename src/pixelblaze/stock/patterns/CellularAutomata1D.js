@@ -160,7 +160,7 @@ export function beforeRender(delta) {
 
 // draw current generation
 export function render(index) {
-  x = hues[index] / nGens;
+  x = nGens ? hues[index] / nGens : 0;
   hsv(palOffset+(x * palWidth),1,x * x);
 }
 

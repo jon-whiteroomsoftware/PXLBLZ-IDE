@@ -36,7 +36,7 @@ var petalShape;                   // rough width of petal
 var petalLength;                  // radius of each petal
 var centerHue;                    // color of flower center
 var centerSize;                   // radius of flower center
-var centerBri;                    // max brightness of flower center
+var centerBri = 0;                // max brightness of flower center
 var colorVariant;                 // enables additional petal coloring
 var petals = array(maxPetals);    // holds information on each petal
 var p1 = array(2);                // scratch x,y point array for calculation
@@ -104,7 +104,7 @@ function renderFirstPass(index,x,y) {
 
 
 function renderNormal(index,x,y) {
-  var h,v,pWidth;
+  var h = 0, v = 0, pWidth;
 
 // if pixel is outside max radius, nothing to do
   if (radius[index] > petalLength) {

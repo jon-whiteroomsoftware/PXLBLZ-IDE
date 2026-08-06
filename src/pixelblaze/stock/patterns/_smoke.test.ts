@@ -168,6 +168,7 @@ function runDimensionedDemo(
 
   let anyLit = false
   let firstFrameLit = false
+  let allFinite = true
   const frames = new Set<string>()
   const litMasks = new Set<string>()
   let maxBrightPixels = 0
@@ -185,6 +186,7 @@ function runDimensionedDemo(
       else if (dimensions === 2) handle.render2D(enc(index), x, y)
       else handle.render3D(enc(index), x, y, z)
       const [r, g, b] = shim.capturedPixel()
+      if (![r, g, b].every(Number.isFinite)) allFinite = false
       if (r + g + b > 0.01) {
         anyLit = true
         if (frame === 0) firstFrameLit = true
@@ -199,7 +201,7 @@ function runDimensionedDemo(
     litMasks.add(litIndices.join(','))
     maxBrightPixels = Math.max(maxBrightPixels, brightPixels)
   }
-  return { anyLit, firstFrameLit, distinctFrames: frames.size, distinctLitMasks: litMasks.size, maxBrightPixels }
+  return { anyLit, firstFrameLit, allFinite, distinctFrames: frames.size, distinctLitMasks: litMasks.size, maxBrightPixels }
 }
 
 describe('demo smoke tests', () => {
@@ -232,6 +234,7 @@ describe('demo smoke tests', () => {
         if (!WARMUP_FRAME_COUNTS.has(name)) {
           expect(result.firstFrameLit).toBe(true)
         }
+        expect(result.allFinite).toBe(true)
         expect(result.anyLit).toBe(true)
       })
     }
