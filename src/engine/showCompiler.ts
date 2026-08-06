@@ -1068,10 +1068,11 @@ export interface ShowCompileOptions {
   showScoreSharing?: 'auto' | 'none' | 'force'
   /** Exact whole-machine reuse for non-overlapping Restart Pattern lifetimes. */
   patternSlotSharing?: 'auto' | 'none' | 'force'
-  /** #717 scheduler emission. 'auto' (default) selects table or unrolled by
-   * emitted size with a blocker-triggered retry; 'none' forces the unrolled
-   * chain. */
-  schedulerTable?: 'auto' | 'none'
+  /** #717 scheduler emission. 'auto' (the default) selects table or
+   * unrolled by emitted size with a blocker-triggered retry; 'none' forces
+   * the unrolled chain; 'sized' is the internal recursion mode - size
+   * selection without the retry wrapper. */
+  schedulerTable?: 'auto' | 'none' | 'sized'
   /** Benchmark-only counterfactual; production uses exact profitable reuse when available. */
   patternOutputReuse?: boolean
   /** Benchmark-only counterfactual; production uses exact profitable scalar fields when available. */
@@ -1988,13 +1989,13 @@ export function compileShow(
   libraries: Record<string, string>,
   options: ShowCompileOptions = {},
 ): GeneratedShowArtifact {
-  if (options.schedulerTable === undefined) {
+  if (options.schedulerTable === undefined || options.schedulerTable === 'auto') {
     // #717 review P2: the size-selected table scheduler adds four table
     // globals and two pointers, which can push a Show already at the
     // 256-global (or VM-word) ceiling into a blocker the unrolled chain
     // avoids. Selection is byte-first, hard-resource-second: retry without
     // the table only when the table was chosen and a hard budget blocked.
-    const primary = compileShow(recipe, libraries, { ...options, schedulerTable: 'auto' })
+    const primary = compileShow(recipe, libraries, { ...options, schedulerTable: 'sized' })
     const hardBlocked = primary.summary.resources.blockers.some((blocker) => (
       blocker.kind === 'persistent-global-limit' || blocker.kind === 'vm-word-budget'
     ))
@@ -4309,7 +4310,7 @@ ${scene.member.prefix}_emit()`
  * list (the pre-#570 form had 22 positional parameters). */
 interface RoutedSceneSequenceEmissionOptions {
   /** #717: 'none' forces the unrolled scheduler chain (blocker retry). */
-  schedulerTable?: 'auto' | 'none'
+  schedulerTable?: 'auto' | 'none' | 'sized'
   routing: {
     layouts: ShowRoutingLayoutRecipe[]
     switches: ShowRoutingSwitchRecipe[]
