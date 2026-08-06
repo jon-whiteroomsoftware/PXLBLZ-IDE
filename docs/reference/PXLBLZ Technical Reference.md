@@ -80,6 +80,7 @@ after personal collections resolve.
 | Route | Surface |
 |---|---|
 | `/`, `/gallery` | Public Gallery |
+| `/gallery/<directory-slug>` | Public Gallery filtered to one built-in directory |
 | `/p/<slug>` | Built-in Pattern detail |
 | `/studio` | Studio home/current entity |
 | `/studio/<kind>/<id>` | Patterns, maps, mixins, libraries, Controllers, or Shows |
@@ -119,9 +120,16 @@ Cloudflare helpers and Pages Functions.
 
 ### Gallery runtime
 
-`galleryCatalog.ts` is the built-in Pattern catalogue. Gallery cards use the
-real bundle/shim/render pipeline at bounded pixel counts, with a global animation
-slot limit, IntersectionObserver pausing, staggered startup, and a static frame
+`galleryCatalog.ts` is the built-in Pattern catalogue and owns the stable,
+unique slugs for its built-in directories. The pure route codec carries an
+optional Gallery directory slug; `App.tsx` resolves it through the catalogue,
+rejects unknown slugs, and passes the resolved directory into the controlled
+Gallery filter. Selecting **Everything** returns to `/gallery`; selecting a
+directory navigates to `/gallery/<directory-slug>`, so reload, detail-page Back,
+and copied URLs preserve that directory. Dimension and name filters remain
+page-local. Gallery cards use the real bundle/shim/render pipeline at bounded
+pixel counts, with a global animation slot limit, IntersectionObserver pausing,
+staggered startup, and a static frame
 for reduced-motion users. Cards, Pattern detail, and Studio resolve one shared
 recommended presentation per Pattern; cards may reduce only its count. Layout
 resolution enforces the Gallery ceiling after grid realization, so a Cube cannot

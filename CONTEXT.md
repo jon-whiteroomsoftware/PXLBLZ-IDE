@@ -38,7 +38,7 @@ A browser extension the user installs that lets the deployed (https) IDE reach a
 _Avoid_: server, backend, daemon, proxy, bridge, Node process — there is no separate process the user runs; it is a browser extension.
 
 **Gallery**:
-The public, signed-out-friendly surface at `/gallery` (also the landing page): a browsable grid of live animated cards for the built-in patterns, each linking to a **pattern detail page**. Gallery cards are performance-bounded lower-density realizations of each Pattern's shared **recommended settings**; detail and Studio use that same familiar presentation without a Gallery-only multiplier. Gallery rendering is capped at 2,048 realized LEDs, including lattice rounding. The Gallery is the browse home for built-in patterns; personal patterns never appear in it.
+The public, signed-out-friendly surface at `/gallery` (also the landing page): a browsable grid of live animated cards for the built-in patterns, each linking to a **pattern detail page**. Each built-in directory also has a shareable filtered route at `/gallery/<directory-slug>`; changing the directory filter updates that route, while dimension and name filters remain local to the open page. Gallery cards are performance-bounded lower-density realizations of each Pattern's shared **recommended settings**; detail and Studio use that same familiar presentation without a Gallery-only multiplier. Gallery rendering is capped at 2,048 realized LEDs, including lattice rounding. The Gallery is the browse home for built-in patterns; personal patterns never appear in it.
 _Avoid_: catalog as a synonym; calling it a store or marketplace.
 
 **Studio**:

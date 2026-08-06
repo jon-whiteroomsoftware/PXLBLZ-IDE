@@ -64,7 +64,12 @@ import { LIBRARIES } from '@/pixelblaze/libs'
 import { uniquePatternName } from '@/engine/patternName'
 import { newPersonalContentId } from '@/engine/personalContentMetadata'
 import { exportedDims } from '@/engine/exportedDims'
-import { galleryPatternBySlug, patternSlug, type GalleryPattern } from '@/engine/galleryCatalog'
+import {
+  galleryDirectoryBySlug,
+  galleryPatternBySlug,
+  patternSlug,
+  type GalleryPattern,
+} from '@/engine/galleryCatalog'
 import { docExternalHref, getUserDoc, isDocId } from '@/docs/catalog'
 import { buildApiReferenceCatalog } from '@/engine/apiReferenceCatalog'
 import { useReferenceNavigationStore } from '@/store/referenceNavigationStore'
@@ -739,6 +744,11 @@ function StudioApp() {
     ? apiReferenceDocuments.find((document) => document.id === (route.libraryId ?? 'PixelBlaze')) ?? null
     : null
   const invalidApiReferenceRoute = route.kind === 'api-reference' && activeApiReference === null
+  const galleryDirectory = route.kind === 'gallery' && route.directorySlug !== undefined
+    ? galleryDirectoryBySlug(route.directorySlug)
+    : undefined
+  const invalidGalleryDirectoryRoute =
+    route.kind === 'gallery' && route.directorySlug !== undefined && galleryDirectory === undefined
   const browseRoute = route.kind === 'gallery' || route.kind === 'pattern-detail'
   const studioRoute = route.kind === 'studio'
   const studioAccessUnavailable = studioRoute && personalWorkspaceUnavailable
@@ -857,7 +867,16 @@ function StudioApp() {
         </div>
       )}
       {route.kind === 'gallery' ? (
-        <GalleryPage />
+        invalidGalleryDirectoryRoute ? (
+          <RouteMessage
+            title="Gallery directory not found"
+            detail={`There's no built-in Gallery directory with slug "${route.directorySlug}".`}
+            actionLabel="Browse the Gallery"
+            onAction={() => navigate({ kind: 'gallery' }, { replace: true })}
+          />
+        ) : (
+          <GalleryPage directory={galleryDirectory} />
+        )
       ) : route.kind === 'studio-welcome' ? (
         <StudioWelcomePage
           onSignIn={continueFromStudioWelcome}

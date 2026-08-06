@@ -18,7 +18,7 @@ export interface StudioEntitySection {
 export type StudioEntityRoute = StudioEntityRef | StudioEntitySection
 
 export type Route =
-  | { kind: 'gallery' }
+  | { kind: 'gallery'; directorySlug?: string }
   | { kind: 'studio-welcome' }
   | { kind: 'studio'; entity: StudioEntityRoute | null }
   | { kind: 'pattern-detail'; slug: string }
@@ -52,7 +52,8 @@ export function parseRoute(pathname: string, base: string): Route {
   const [head, ...rest] = segments
   switch (head) {
     case 'gallery':
-      return rest.length === 0 ? { kind: 'gallery' } : notFound
+      if (rest.length === 0) return { kind: 'gallery' }
+      return rest.length === 1 ? { kind: 'gallery', directorySlug: rest[0] } : notFound
     case 'studio-welcome':
       return rest.length === 0 ? { kind: 'studio-welcome' } : notFound
     case 'studio':
@@ -81,7 +82,9 @@ export function routePath(route: Route, base: string): string {
   const join = (...segments: string[]) => base + segments.map(encodeURIComponent).join('/')
   switch (route.kind) {
     case 'gallery':
-      return join('gallery')
+      return route.directorySlug === undefined
+        ? join('gallery')
+        : join('gallery', route.directorySlug)
     case 'studio-welcome':
       return join('studio-welcome')
     case 'studio':
@@ -105,7 +108,7 @@ export function routesEqual(a: Route, b: Route): boolean {
   if (a.kind !== b.kind) return false
   switch (a.kind) {
     case 'gallery':
-      return true
+      return a.directorySlug === (b as Extract<Route, { kind: 'gallery' }>).directorySlug
     case 'studio-welcome':
       return true
     case 'studio': {

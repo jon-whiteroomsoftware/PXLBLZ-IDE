@@ -52,6 +52,43 @@ test('gallery Back navigation restores the originating Pattern card', async ({ p
   await expect(page.locator(`#${anchorId}`)).toBeInViewport()
 })
 
+test('Gallery directory routes are shareable and stay in sync with the filter', async ({ page }) => {
+  await page.goto('gallery/zranger1')
+
+  const directoryFilter = page.getByRole('combobox', { name: 'Directory filter' })
+  await expect(directoryFilter).toHaveValue('ZRanger1')
+  await expect(page.locator('[id^="gallery-"]')).toHaveCount(10)
+
+  await directoryFilter.selectOption('Living 1D')
+  await expect(page).toHaveURL(/\/gallery\/living-1d$/)
+
+  await page.reload()
+  await expect(directoryFilter).toHaveValue('Living 1D')
+
+  await directoryFilter.selectOption('Everything')
+  await expect(page).toHaveURL(/\/gallery$/)
+})
+
+test('filtered Gallery Back navigation restores the directory and Pattern card', async ({ page }) => {
+  await page.goto('gallery/zranger1')
+  const origin = page.locator('[id^="gallery-"]').first()
+  const anchorId = await origin.getAttribute('id')
+  await origin.dispatchEvent('click')
+
+  await page.goBack()
+
+  await expect(page).toHaveURL(new RegExp(`/gallery/zranger1#${anchorId}$`))
+  await expect(page.getByRole('combobox', { name: 'Directory filter' })).toHaveValue('ZRanger1')
+  await expect(page.locator(`#${anchorId}`)).toBeInViewport()
+})
+
+test('unknown Gallery directory routes fail gracefully', async ({ page }) => {
+  await page.goto('gallery/not-a-directory')
+
+  await expect(page.getByTestId('route-message')).toContainText('Gallery directory not found')
+  await expect(page.getByRole('button', { name: 'Browse the Gallery' })).toBeVisible()
+})
+
 test('Pattern detail uses the shared recommended presentation', async ({ page }) => {
   await page.goto('/')
   await page.locator('#gallery-lattice-warp3-d').dispatchEvent('click')

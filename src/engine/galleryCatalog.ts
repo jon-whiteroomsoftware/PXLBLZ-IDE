@@ -134,6 +134,27 @@ export function patternSlug(name: string): string {
     .toLowerCase()
 }
 
+export interface GalleryDirectory {
+  label: string
+  slug: string
+}
+
+export function galleryDirectorySlug(label: string): string {
+  return label
+    .replace(/[^a-zA-Z0-9]+/g, '-')
+    .replace(/^-+|-+$/g, '')
+    .toLowerCase()
+}
+
+export const GALLERY_DIRECTORIES: GalleryDirectory[] = DEMO_SECTIONS.map((section) => ({
+  label: section.label,
+  slug: galleryDirectorySlug(section.label),
+}))
+
+export function galleryDirectoryBySlug(slug: string): GalleryDirectory | undefined {
+  return GALLERY_DIRECTORIES.find((directory) => directory.slug === slug)
+}
+
 export const GALLERY_PATTERNS: GalleryPattern[] = DEMO_NAMES.map((name) => {
   const sections = DEMO_SECTIONS.filter((section) => section.names.includes(name)).map((section) => section.label)
   return {

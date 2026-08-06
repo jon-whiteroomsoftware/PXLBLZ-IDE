@@ -16,6 +16,13 @@ describe('parseRoute', () => {
     expect(parseRoute('/gallery', '/')).toEqual({ kind: 'gallery' })
   })
 
+  it('parses a Gallery directory route', () => {
+    expect(parseRoute('/gallery/zranger1', '/')).toEqual({
+      kind: 'gallery',
+      directorySlug: 'zranger1',
+    })
+  })
+
   it('parses /studio as plain studio', () => {
     expect(parseRoute('/studio', '/')).toEqual({ kind: 'studio', entity: null })
   })
@@ -97,6 +104,10 @@ describe('parseRoute', () => {
   it('strips a non-root base path', () => {
     expect(parseRoute('/PXLBLZ-IDE/', '/PXLBLZ-IDE/')).toEqual({ kind: 'gallery' })
     expect(parseRoute('/PXLBLZ-IDE/gallery', '/PXLBLZ-IDE/')).toEqual({ kind: 'gallery' })
+    expect(parseRoute('/PXLBLZ-IDE/gallery/zranger1', '/PXLBLZ-IDE/')).toEqual({
+      kind: 'gallery',
+      directorySlug: 'zranger1',
+    })
     expect(parseRoute('/PXLBLZ-IDE/studio/patterns/x', '/PXLBLZ-IDE/')).toEqual({
       kind: 'studio',
       entity: { kind: 'patterns', id: 'x' },
@@ -122,6 +133,9 @@ describe('parseRoute', () => {
 describe('routePath', () => {
   it('formats each route kind', () => {
     expect(routePath({ kind: 'gallery' }, '/')).toBe('/gallery')
+    expect(routePath({ kind: 'gallery', directorySlug: 'living-1d' }, '/')).toBe(
+      '/gallery/living-1d',
+    )
     expect(routePath({ kind: 'studio-welcome' }, '/')).toBe('/studio-welcome')
     expect(routePath({ kind: 'studio', entity: null }, '/')).toBe('/studio')
     expect(routePath({ kind: 'studio', entity: { kind: 'maps', id: null } }, '/')).toBe(
@@ -152,6 +166,7 @@ describe('routePath', () => {
   it('round-trips through parseRoute', () => {
     const routes: Route[] = [
       { kind: 'gallery' },
+      { kind: 'gallery', directorySlug: 'fps-friendly' },
       { kind: 'studio-welcome' },
       { kind: 'studio', entity: null },
       { kind: 'studio', entity: { kind: 'controllers', id: null } },
@@ -185,6 +200,12 @@ describe('routesEqual', () => {
       routesEqual(
         { kind: 'studio', entity: { kind: 'patterns', id: 'x' } },
         { kind: 'studio', entity: { kind: 'patterns', id: 'y' } },
+      ),
+    ).toBe(false)
+    expect(
+      routesEqual(
+        { kind: 'gallery', directorySlug: 'zranger1' },
+        { kind: 'gallery', directorySlug: 'living-1d' },
       ),
     ).toBe(false)
     expect(routesEqual({ kind: 'gallery' }, { kind: 'studio', entity: null })).toBe(false)

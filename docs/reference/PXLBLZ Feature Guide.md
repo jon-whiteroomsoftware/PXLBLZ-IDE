@@ -39,7 +39,9 @@ tools.
 ## 1. Gallery
 
 `/gallery` is the landing page and the public Pattern catalogue. Its cards run
-the real preview engine; filter them by dimension, category, or name, and open
+the real preview engine; filter them by dimension, directory, or name. Every
+built-in directory has a shareable route at `/gallery/<directory-slug>` — for
+example, `/gallery/zranger1` — and selecting a directory updates the URL. Open
 a card for a shareable detail page at `/p/<slug>`. A detail page gives the
 Pattern room to breathe: a large live preview with the Pattern's exported
 controls, a Preview/Code switch with read-only source, **Run** and **Save**

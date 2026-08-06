@@ -3,8 +3,10 @@ import { ArrowRight, ChevronDown, Hourglass, Images, Search, X } from 'lucide-re
 import {
   GALLERY_ALL_CATEGORY,
   GALLERY_CATEGORIES,
+  GALLERY_DIRECTORIES,
   GALLERY_PATTERNS,
   filterGalleryPatterns,
+  type GalleryDirectory,
   type GalleryPattern,
 } from '@/engine/galleryCatalog'
 import type { DimLens } from '@/engine/dimLens'
@@ -101,10 +103,11 @@ function GalleryCard({ pattern, index }: { pattern: GalleryPattern; index: numbe
   )
 }
 
-export function GalleryPage() {
+export function GalleryPage({ directory }: { directory?: GalleryDirectory }) {
   const [lens, setLens] = useState<DimLens>('all')
-  const [category, setCategory] = useState(GALLERY_ALL_CATEGORY)
   const [query, setQuery] = useState('')
+  const navigate = useRouterStore((state) => state.navigate)
+  const category = directory?.label ?? GALLERY_ALL_CATEGORY
 
   const patterns = useMemo(
     () => filterGalleryPatterns(GALLERY_PATTERNS, { lens, category, query }),
@@ -155,8 +158,17 @@ export function GalleryPage() {
         <label className="relative flex w-full min-w-0 items-center rounded-md border border-seam bg-zinc-950 font-mono text-[11.5px] text-zinc-300 focus-within:border-zinc-600 sm:w-auto sm:min-w-[190px]">
           <select
             value={category}
-            onChange={(e) => setCategory(e.target.value)}
-            aria-label="Category filter"
+            onChange={(event) => {
+              const selected = GALLERY_DIRECTORIES.find(
+                (candidate) => candidate.label === event.target.value,
+              )
+              navigate(
+                selected
+                  ? { kind: 'gallery', directorySlug: selected.slug }
+                  : { kind: 'gallery' },
+              )
+            }}
+            aria-label="Directory filter"
             className="w-full appearance-none bg-transparent py-1 pl-2.5 pr-8 outline-none"
           >
             {GALLERY_CATEGORIES.map((option) => (

@@ -1,8 +1,10 @@
 import {
   DEMO_SECTIONS,
   GALLERY_ALL_CATEGORY,
+  GALLERY_DIRECTORIES,
   GALLERY_PATTERNS,
   filterGalleryPatterns,
+  galleryDirectoryBySlug,
   galleryPatternBySlug,
   patternSlug,
 } from './galleryCatalog'
@@ -18,6 +20,17 @@ describe('galleryCatalog (#309)', () => {
     expect(sectionNames).toContain('ShaderToy Ports')
     expect(sectionNames).toContain('FPS Friendly')
     expect(sectionNames).toContain('Living 1D')
+  })
+
+  it('gives every built-in Gallery directory one unique shareable slug', () => {
+    expect(GALLERY_DIRECTORIES.map((directory) => directory.slug)).toHaveLength(
+      new Set(GALLERY_DIRECTORIES.map((directory) => directory.slug)).size,
+    )
+    expect(galleryDirectoryBySlug('zranger1')).toEqual({
+      label: 'ZRanger1',
+      slug: 'zranger1',
+    })
+    expect(galleryDirectoryBySlug('living-1d')?.label).toBe('Living 1D')
   })
 
   it('AND-combines dimension, category, and name filters', () => {
