@@ -162,16 +162,49 @@ test('Docs and API header buttons preserve one public return origin', async ({ p
   await expect(page).toHaveURL(/\/gallery$/)
 })
 
-test('reference workspaces keep navigation and content reachable in a narrow window', async ({ page }) => {
-  await page.setViewportSize({ width: 390, height: 844 })
-  await page.goto('docs/about')
+test('reference workspaces keep navigation and long content reachable on a phone', async ({ page }) => {
+  await page.setViewportSize({ width: 320, height: 568 })
+  await page.goto('docs/feature-guide')
   await expect(page.getByRole('button', { name: 'Docs' })).toBeVisible()
   await expect(page.getByRole('button', { name: 'API' })).toBeVisible()
   await expect(page.getByTestId('top-bar')).toBeInViewport()
   await expect(page.getByTestId('docs-catalog')).toBeVisible()
-  await expect(page.getByTestId('docs-catalog').getByRole('link', { name: /About PXLBLZ/ })).toBeInViewport()
-  await expect(page.getByTestId('docs-reader')).toContainText('About PXLBLZ')
-  await expect(page.getByTestId('docs-reader').getByRole('heading', { name: 'About PXLBLZ', exact: true })).toBeInViewport()
+  await expect(page.getByTestId('docs-catalog').getByRole('link', { name: /Feature Guide/ })).toBeInViewport()
+
+  const docsArticle = page.getByTestId('docs-reader').locator('article')
+  await expect.poll(() => docsArticle.evaluate((element) => element.scrollHeight > element.clientHeight)).toBe(true)
+  await docsArticle.evaluate((element) => { element.scrollTop = 400 })
+  await expect.poll(() => docsArticle.evaluate((element) => element.scrollTop)).toBeGreaterThan(0)
+
+  await page.goto('reference/PixelBlaze')
+  await expect(page.getByTestId('api-reference-catalog')).toBeVisible()
+  const apiArticle = page.getByTestId('api-reference-reader').locator('article')
+  await expect.poll(() => apiArticle.evaluate((element) => element.scrollHeight > element.clientHeight)).toBe(true)
+  await apiArticle.evaluate((element) => { element.scrollTop = 400 })
+  await expect.poll(() => apiArticle.evaluate((element) => element.scrollTop)).toBeGreaterThan(0)
+})
+
+test('the Studio welcome gate remains reachable on a short phone', async ({ page }) => {
+  await page.setViewportSize({ width: 320, height: 568 })
+  await page.goto('studio-welcome')
+
+  const welcome = page.getByTestId('studio-welcome-page')
+  const card = welcome.locator('section')
+  const [welcomeBox, cardBox] = await Promise.all([welcome.boundingBox(), card.boundingBox()])
+  expect(welcomeBox).not.toBeNull()
+  expect(cardBox).not.toBeNull()
+  expect(cardBox!.y).toBeGreaterThanOrEqual(welcomeBox!.y)
+
+  const horizontalOverflow = await page.evaluate(
+    () => document.documentElement.scrollWidth - document.documentElement.clientWidth,
+  )
+  expect(horizontalOverflow).toBeLessThanOrEqual(0)
+
+  for (const name of ['Continue with GitHub', 'Continue with Google', 'Back to Gallery']) {
+    const action = page.getByRole('button', { name })
+    await action.scrollIntoViewIfNeeded()
+    await expect(action).toBeInViewport()
+  }
 })
 
 test('unknown paths fail gracefully', async ({ page }) => {

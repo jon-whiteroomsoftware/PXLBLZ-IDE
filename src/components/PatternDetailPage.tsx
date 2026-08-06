@@ -38,7 +38,7 @@ export function PatternDetailPage({
 
   return (
     <main className="flex-1 overflow-auto bg-zinc-950" data-testid="pattern-detail-page">
-      <div className="mx-auto flex max-w-[1280px] flex-col gap-4 px-[22px] py-[18px]">
+      <div className="mx-auto flex max-w-[1280px] flex-col gap-4 px-4 py-[18px] sm:px-[22px]">
         <div className="flex flex-wrap items-center gap-2 font-mono">
           <Button
             size="xs"
@@ -71,7 +71,7 @@ export function PatternDetailPage({
             <div
               className={`bg-zinc-950 ${
                 stageView === 'code'
-                  ? 'relative h-[70vh] min-h-[360px] md:absolute md:inset-0 md:h-auto md:min-h-0'
+                  ? 'relative h-[70dvh] min-h-[360px] sm:h-[70vh] md:absolute md:inset-0 md:h-auto md:min-h-0'
                   : 'hidden'
               }`}
               aria-hidden={stageView !== 'code'}

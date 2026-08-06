@@ -240,9 +240,9 @@ function StudioWelcomePage({
   onBack: () => void
 }) {
   return (
-    <div data-testid="studio-welcome-page" className="flex flex-1 min-h-0 items-center justify-center px-5">
-      <section className="w-full max-w-xl border border-seam bg-panel/90 px-6 py-6 shadow-2xl shadow-black/30 sm:px-8 sm:py-7">
-        <div className="flex items-start gap-4">
+    <div data-testid="studio-welcome-page" className="flex min-h-0 flex-1 items-start justify-center overflow-y-auto px-4 py-4 sm:items-center sm:px-5 sm:py-5">
+      <section className="w-full max-w-xl border border-seam bg-panel/90 px-4 py-5 shadow-2xl shadow-black/30 sm:px-8 sm:py-7">
+        <div className="flex flex-col items-stretch gap-4 min-[360px]:flex-row min-[360px]:items-start">
           <div className="mt-0.5 flex size-10 shrink-0 items-center justify-center rounded-md border border-live/40 bg-live/10 text-live">
             <Code2 size={20} aria-hidden />
           </div>
@@ -255,10 +255,10 @@ function StudioWelcomePage({
             <p className="mt-2 text-sm leading-6 text-zinc-400">
               Use either one — logins with the same email address open the same workspace.
             </p>
-            <div className="mt-6 flex flex-wrap items-center gap-3">
+            <div className="mt-6 flex flex-col items-stretch gap-2.5 sm:flex-row sm:flex-wrap sm:items-center sm:gap-3">
               <Button
                 size="sm"
-                className="border border-live/50 bg-live/15 px-3 font-mono text-xs text-live hover:bg-live/25 hover:text-amber-100"
+                className="w-full border border-live/50 bg-live/15 px-3 font-mono text-xs text-live hover:bg-live/25 hover:text-amber-100 sm:w-auto"
                 onClick={() => onSignIn('github')}
               >
                 <LogIn data-icon="inline-start" />
@@ -267,7 +267,7 @@ function StudioWelcomePage({
               <Button
                 size="sm"
                 variant="outline"
-                className="border-zinc-700 bg-zinc-900 px-3 font-mono text-xs text-zinc-300 hover:border-zinc-500 hover:bg-zinc-900 hover:text-zinc-100"
+                className="w-full border-zinc-700 bg-zinc-900 px-3 font-mono text-xs text-zinc-300 hover:border-zinc-500 hover:bg-zinc-900 hover:text-zinc-100 sm:w-auto"
                 onClick={() => onSignIn('google')}
               >
                 <LogIn data-icon="inline-start" />
@@ -276,7 +276,7 @@ function StudioWelcomePage({
               <Button
                 size="sm"
                 variant="ghost"
-                className="px-3 font-mono text-xs text-zinc-400 hover:bg-zinc-800/70 hover:text-zinc-200"
+                className="w-full px-3 font-mono text-xs text-zinc-400 hover:bg-zinc-800/70 hover:text-zinc-200 sm:w-auto"
                 onClick={onBack}
               >
                 Back to Gallery
@@ -775,7 +775,7 @@ function StudioApp() {
   }, [])
 
   return (
-    <div className="flex flex-col h-screen bg-zinc-950 text-zinc-100">
+    <div className="flex h-dvh flex-col bg-zinc-950 text-zinc-100 sm:h-screen">
       <header data-testid="top-bar" className="flex min-h-10 shrink-0 flex-wrap items-center gap-y-1 border-b border-seam bg-panel px-3 py-1 sm:h-10 sm:flex-nowrap sm:px-4 sm:py-0">
         <a
           href={import.meta.env.BASE_URL}

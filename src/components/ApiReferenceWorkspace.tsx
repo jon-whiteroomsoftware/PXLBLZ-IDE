@@ -15,7 +15,7 @@ export function ApiReferenceWorkspace({
       className="flex min-h-0 flex-1 flex-col overflow-hidden sm:flex-row"
     >
       <ApiReferenceCatalog documents={documents} activeId={activeDocument.id} />
-      <div className="min-w-0 flex-1">
+      <div className="min-h-0 min-w-0 flex-1">
         <ApiReferenceReader document={activeDocument} />
       </div>
     </main>

@@ -122,7 +122,7 @@ export function GalleryPage() {
 
   return (
     <main className="flex-1 overflow-auto bg-zinc-950" data-testid="gallery-page">
-      <div className="mx-auto max-w-[1180px] px-[22px] pt-[14px]">
+      <div className="mx-auto max-w-[1180px] px-4 pt-[14px] sm:px-[22px]">
         <div
           data-testid="studio-coming-soon-banner"
           className="flex items-start gap-2.5 rounded-lg border border-live/25 bg-live/[0.06] px-3.5 py-2.5"
@@ -134,7 +134,7 @@ export function GalleryPage() {
           </p>
         </div>
       </div>
-      <div className="mx-auto flex max-w-[1180px] flex-wrap items-center gap-x-5 gap-y-2 px-[22px] pb-2 pt-[18px]">
+      <div className="mx-auto flex max-w-[1180px] flex-wrap items-center gap-x-5 gap-y-2 px-4 pb-2 pt-[18px] sm:px-[22px]">
         <div className="mr-auto">
           <h1 className="flex items-center gap-2 font-mono text-[19px] font-semibold tracking-normal text-zinc-100">
             <Images size={18} aria-hidden className="text-live" />
@@ -152,7 +152,7 @@ export function GalleryPage() {
             </FilterChip>
           ))}
         </div>
-        <label className="relative flex min-w-[190px] items-center rounded-md border border-seam bg-zinc-950 font-mono text-[11.5px] text-zinc-300 focus-within:border-zinc-600">
+        <label className="relative flex w-full min-w-0 items-center rounded-md border border-seam bg-zinc-950 font-mono text-[11.5px] text-zinc-300 focus-within:border-zinc-600 sm:w-auto sm:min-w-[190px]">
           <select
             value={category}
             onChange={(e) => setCategory(e.target.value)}
@@ -171,7 +171,7 @@ export function GalleryPage() {
             className="pointer-events-none absolute right-2 text-structural"
           />
         </label>
-        <label className="relative flex h-[27px] min-w-[170px] max-w-[230px] flex-1 items-center gap-2 rounded-md border border-seam bg-zinc-950 px-2.5 pr-6 font-mono text-[11.5px] text-structural focus-within:border-zinc-600 sm:flex-none">
+        <label className="relative flex h-[27px] w-full min-w-0 max-w-none flex-1 items-center gap-2 rounded-md border border-seam bg-zinc-950 px-2.5 pr-6 font-mono text-[11.5px] text-structural focus-within:border-zinc-600 sm:w-auto sm:min-w-[170px] sm:max-w-[230px] sm:flex-none">
           <Search size={13} aria-hidden className="shrink-0" />
           <input
             value={query}
@@ -195,13 +195,13 @@ export function GalleryPage() {
       </div>
 
       {patterns.length > 0 ? (
-        <div className="mx-auto grid max-w-[1180px] grid-cols-1 gap-4 px-[22px] pb-[26px] pt-4 md:grid-cols-2">
+        <div className="mx-auto grid max-w-[1180px] grid-cols-1 gap-4 px-4 pb-[26px] pt-4 sm:px-[22px] md:grid-cols-2">
           {patterns.map((pattern, index) => (
             <GalleryCard key={pattern.name} pattern={pattern} index={index} />
           ))}
         </div>
       ) : (
-        <div className="mx-auto max-w-[1180px] px-[22px] py-10 font-mono text-sm text-structural">
+        <div className="mx-auto max-w-[1180px] px-4 py-10 font-mono text-sm text-structural sm:px-[22px]">
           No patterns match those filters.
         </div>
       )}

@@ -29,7 +29,7 @@ export function DocsCatalog({ activeDocId }: { activeDocId: DocId }) {
   return (
     <aside
       data-testid="docs-catalog"
-      className="flex max-h-52 w-full shrink-0 flex-col border-b border-seam bg-panel/70 font-mono sm:max-h-none sm:h-full sm:w-72 sm:border-b-0 sm:border-r"
+      className="flex max-h-[min(13rem,34dvh)] w-full shrink-0 flex-col border-b border-seam bg-panel/70 font-mono sm:h-full sm:max-h-none sm:w-72 sm:border-b-0 sm:border-r"
     >
       <div className="flex items-center gap-2 border-b border-seam px-3 py-2.5">
         <BookOpen size={15} aria-hidden className="text-zinc-500" />
