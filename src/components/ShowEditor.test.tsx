@@ -4737,10 +4737,11 @@ describe('ShowEditor (#318)', () => {
 
     const guide = screen.getByRole('region', { name: '201 Layers and Property Animation guide' })
     // A lesson gets one picker per slot group in timeline order, without
-    // Reference mode: 201 slots the water bed and then the rain overlay.
+    // Reference mode: 201 slots the water bed and then the firefly overlay
+    // (TimeFlies2D since the #727 ZRanger recast).
     expect(within(guide).queryByText('Reference mode')).not.toBeInTheDocument()
     expect(within(guide).getByRole('combobox', { name: 'Pattern 1' })).toHaveValue('Caustics')
-    expect(within(guide).getByRole('combobox', { name: 'Pattern 2' })).toHaveValue('GlyphRain')
+    expect(within(guide).getByRole('combobox', { name: 'Pattern 2' })).toHaveValue('TimeFlies2D')
 
     await user.click(within(guide).getByRole('combobox', { name: 'Pattern 2' }))
     await user.click(screen.getByRole('option', { name: 'Murmuration' }))
@@ -4769,7 +4770,7 @@ describe('ShowEditor (#318)', () => {
     await user.click(screen.getByRole('option', { name: 'CometLoom' }))
     await waitFor(() => {
       expect(useShowStore.getState().stockShowDrafts[stock.id]?.composition?.patternInstances
-        .find((instance) => instance.id === 'glyphs')?.pattern).toEqual({ kind: 'stock', id: 'CometLoom' })
+        .find((instance) => instance.id === 'flies')?.pattern).toEqual({ kind: 'stock', id: 'CometLoom' })
     })
     expect(useShowEditorSessionStore.getState().referencePatternsByShowId[stock.id]).toBeUndefined()
   })

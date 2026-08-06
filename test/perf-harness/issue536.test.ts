@@ -76,13 +76,18 @@ describe('Restart-instance global-liveness census (#536)', () => {
     // Redline rebuild then consolidated onto a single Harmonograph
     // machine - the "one clock" brief - so its member-global share shrank
     // again; every 300-level member still Continues, so the reclaimable
-    // Restart set stays fixed).
+    // Restart set stays fixed). Recensused again with the #727 ZRanger
+    // recasts (201's overlay to TimeFlies2D, 105/206's water voice to
+    // IceFloes2D: the new members carry eight fewer globals at this frozen
+    // vintage, all three lessons still Continue every member, so the
+    // reclaimable Restart set stays fixed and the weighted figure rises a
+    // hair with the smaller corpus).
     expect(report.summary).toMatchObject({
-      representativeMemberGlobals: 3_032,
+      representativeMemberGlobals: 3_024,
       representativeReclaimedGlobals: 186,
     })
     expect(report.decision.representativeReclaimPercent).toBe(0)
-    expect(report.decision.weightedRepresentativeReclaimPercent).toBeCloseTo(0.06134565, 8)
+    expect(report.decision.weightedRepresentativeReclaimPercent).toBeCloseTo(0.06150794, 8)
     expect(report.decision.ceilingRescues).toEqual([])
     expect(report.decision.proceedWithEmission).toBe(false)
     expect(report.decision.proceedWithEmission).toBe(

@@ -658,8 +658,11 @@ describe('stock Show curriculum (#363)', () => {
     const item = stockShowById('stock-show-105-portable-zones')!
     const composition = item.show.composition!
 
+    // Water voice recast to ZRanger1's IceFloes2D (#727): split separation
+    // re-proven by probe (83-degree boundary hue contrast at matched
+    // luminance, flux 0.097 vs the replaced Caustics 0.096).
     expect(composition.patternInstances.map((instance) => instance.patternName))
-      .toEqual(['RibbonLoom', 'Caustics'])
+      .toEqual(['RibbonLoom', 'IceFloes2D'])
     // Three Layouts that render very differently, each reached by a swept
     // routing boundary.
     expect(item.show.routingLayouts.map((layout) => layout.logical?.kind)).toEqual(['split', 'rings', 'pinwheel'])
@@ -911,17 +914,19 @@ describe('stock Show curriculum (#363)', () => {
     const composition = item.show.composition!
     const zone = composition.scenes[0].zones[0]
 
-    // One continuous Main Clip owns the bed; the glyphs live on an overlay
-    // Layer whose placement starts at rest opacity zero.
+    // One continuous Main Clip owns the bed; the swarm lives on an overlay
+    // Layer whose placement starts at rest opacity zero. (Overlay recast to
+    // ZRanger1's TimeFlies2D, #727: 93% dark vs GlyphRain's 91%, and the
+    // measured dip/recovery arc is unchanged.)
     expect(zone.main).toHaveLength(1)
     expect(zone.main[0]).toMatchObject({ instanceId: 'water', startMs: 0, durationMs: 14_000 })
     expect(zone.overlays).toHaveLength(1)
     expect(zone.overlays[0].placements).toHaveLength(1)
-    expect(zone.overlays[0].placements[0]).toMatchObject({ instanceId: 'glyphs', opacity: 0 })
+    expect(zone.overlays[0].placements[0]).toMatchObject({ instanceId: 'flies', opacity: 0 })
 
     const tracks = composition.scenes[0].propertyTracks ?? []
     expect(tracks).toHaveLength(1)
-    expect(tracks[0].target).toEqual({ kind: 'placement-opacity', placementId: 'clip-glyphs' })
+    expect(tracks[0].target).toEqual({ kind: 'placement-opacity', placementId: 'clip-flies' })
     expect(tracks[0].keyframes.map((frame) => [frame.timeMs, frame.value])).toEqual([
       [2_000, 0], [4_000, 0.65], [9_000, 0.65], [12_000, 0],
     ])

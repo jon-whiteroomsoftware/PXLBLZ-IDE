@@ -451,28 +451,33 @@ function learn104(): StockShow {
 // vanishing (rings 2 would strand it with no pixels). 206 goes deeper on
 // restating Layouts across a longer arc and contrasts swept with atomic
 // switching; the Zone Layouts showcase holds the full geometry vocabulary.
+// The water voice is ZRanger1's IceFloes2D (#727): probed against the weave
+// on the 44x44 plane at the lesson clock it separates as cleanly as the
+// Caustics it replaced (split-side luminance 0.205 vs 0.209, boundary hue
+// contrast 83 degrees, flux 0.097 vs 0.096) and its drifting floes give the
+// re-routed geometry visible blocks to deal into rings and arms.
 function learn105(): StockShow {
   const id = 'stock-show-105-portable-zones'
   const zones = logicalZones(['Weave', 'Water'], PORTABLE_REFERENCE_PIXELS)
   const scenes: SceneSpec[] = [
     scene('split', 'Split', 8, [
       clip('zone-1', 'RibbonLoom', LESSON_TIME_SCALE),
-      clip('zone-2', 'Caustics', LESSON_TIME_SCALE),
+      clip('zone-2', 'IceFloes2D', LESSON_TIME_SCALE),
     ], { splitPosition: 0.5 }),
     scene('rings', 'Rings', 6, [
       clip('zone-1', 'RibbonLoom', LESSON_TIME_SCALE),
-      clip('zone-2', 'Caustics', LESSON_TIME_SCALE),
+      clip('zone-2', 'IceFloes2D', LESSON_TIME_SCALE),
     ]),
     scene('pinwheel', 'Pinwheel', 6, [
       clip('zone-1', 'RibbonLoom', LESSON_TIME_SCALE),
-      clip('zone-2', 'Caustics', LESSON_TIME_SCALE),
+      clip('zone-2', 'IceFloes2D', LESSON_TIME_SCALE),
     ]),
   ]
   const composition: ShowCompositionV1 = {
     version: 1,
     patternInstances: [
       instance('ribbons', 'RibbonLoom', LESSON_TIME_SCALE),
-      instance('water', 'Caustics', LESSON_TIME_SCALE),
+      instance('water', 'IceFloes2D', LESSON_TIME_SCALE),
     ],
     scenes: [
       {
@@ -671,14 +676,18 @@ function learn106(): StockShow {
 }
 
 // 201 casts the sparsest moving Pattern in the 2D catalogue over the calmest
-// full field. Measured at the 44x44 reference, GlyphRain leaves 82% of the
-// Stage dark while still visibly moving, and Caustics fills every pixel with
-// continuous motion, so the overlay's whole contribution is carried by its
-// Opacity curve: when the curve is at zero the water is provably untouched,
-// and everything that appears between 2s and 12s belongs to the second Layer.
-// The peak stops at 0.65 because Opacity is a mix, not an addition - at 0.85
-// the mostly-black rain replaced the water almost completely (measured mean
-// luminance fell from 0.24 to 0.06), which read as the bed failing rather
+// full field. Measured at the 44x44 reference, ZRanger1's TimeFlies2D leaves
+// 93% of the Stage dark (luma under 0.1) while its bugs stay visibly on the move (flux 0.111
+// per 200 ms step), and Caustics fills every pixel with continuous motion, so
+// the overlay's whole contribution is carried by its Opacity curve: when the
+// curve is at zero the water is provably untouched, and everything that
+// appears between 2s and 12s belongs to the second Layer. (The slot ran
+// GlyphRain, 91% dark, before #727; the swarm is sparser still and the swap
+// is measurement-neutral - mid-hold mix 0.098 vs 0.097 mean luminance,
+// recovery 1.97x vs 1.99x through the same compile + replay probe.) The peak
+// stops at 0.65 because Opacity is a mix, not an addition - at 0.85 the
+// mostly-black swarm replaced the water almost completely (measured mean
+// luminance fell from 0.24 to 0.065), which read as the bed failing rather
 // than a second voice joining.
 //
 // The four-point curve is deliberate: this lesson is the working proof of the
@@ -694,21 +703,21 @@ function learn201(): StockShow {
     version: 1,
     patternInstances: [
       instance('water', 'Caustics', LESSON_TIME_SCALE),
-      instance('glyphs', 'GlyphRain', LESSON_TIME_SCALE),
+      instance('flies', 'TimeFlies2D', LESSON_TIME_SCALE),
     ],
     scenes: [{
       sceneId: 'layers',
       propertyTracks: [{
         // Arrival, hold, departure. The Clip occupies 2s-12s; the curve, not
         // the Clip boundary, is what the eye sees. Both Pattern clocks keep
-        // running the whole time, so fading back in never rewinds the rain.
-        id: 'track-glyph-opacity',
-        target: { kind: 'placement-opacity', placementId: 'clip-glyphs' },
+        // running the whole time, so fading back in never rewinds the swarm.
+        id: 'track-fly-opacity',
+        target: { kind: 'placement-opacity', placementId: 'clip-flies' },
         keyframes: [
-          keyframe('glyphs-arrive', 2, 0),
-          keyframe('glyphs-hold', 4, 0.65),
-          keyframe('glyphs-depart', 9, 0.65),
-          keyframe('glyphs-gone', 12, 0),
+          keyframe('flies-arrive', 2, 0),
+          keyframe('flies-hold', 4, 0.65),
+          keyframe('flies-depart', 9, 0.65),
+          keyframe('flies-gone', 12, 0),
         ],
       }],
       zones: [{
@@ -717,9 +726,9 @@ function learn201(): StockShow {
         // Show so every visible change is attributable to the overlay Layer.
         main: [placement('clip-water', 'water', 0, 14)],
         overlays: [{
-          id: 'layer-glyphs',
-          name: 'Glyph overlay',
-          placements: [{ ...placement('clip-glyphs', 'glyphs', 2, 10), opacity: 0 }],
+          id: 'layer-flies',
+          name: 'Firefly overlay',
+          placements: [{ ...placement('clip-flies', 'flies', 2, 10), opacity: 0 }],
         }],
       }],
     }],
@@ -727,11 +736,11 @@ function learn201(): StockShow {
   }
   return catalogue({
     id, title: 'Layers and Property Animation', track: 'portable', collection: 'learn', level: 200, order: 1,
-    purpose: 'Layers blend pixels from different Clips into one picture: whatever a higher Layer draws is mixed over the Layers below it. Here GlyphRain plays on a Layer above Caustics, and one animated Opacity curve controls the mix.',
-    notice: "The GlyphRain Clip starts at 2 s, but its Opacity starts at zero - nothing shows until the curve ramps up to 65%. It holds there, then ramps back to zero by the Clip's end. The Caustics Clip below never changes; the water dims only because the rain is mixed over it.",
-    prompts: ['Open the GlyphRain Clip, click the diamond next to Opacity, and drag both 65% keyframes down to 30% - the rain drops back to a faint tint over the water.', 'Click Add keyframe and pull the new middle point up to 100% - at 100% GlyphRain completely covers Caustics.'],
+    purpose: 'Layers blend pixels from different Clips into one picture: whatever a higher Layer draws is mixed over the Layers below it. Here TimeFlies2D plays on a Layer above Caustics, and one animated Opacity curve controls the mix.',
+    notice: "The TimeFlies2D Clip starts at 2 s, but its Opacity starts at zero - nothing shows until the curve ramps up to 65%. It holds there, then ramps back to zero by the Clip's end. The Caustics Clip below never changes; the water dims only because the swarm is mixed over it.",
+    prompts: ['Open the TimeFlies2D Clip, click the diamond next to Opacity, and drag both 65% keyframes down to 30% - the bugs drop back to a faint flicker over the water.', 'Click Add keyframe and pull the new middle point up to 100% - at 100% TimeFlies2D completely covers Caustics.'],
     guideHeading: 'layers-and-property-animation',
-    patternSlots: [['water'], ['glyphs']],
+    patternSlots: [['water'], ['flies']],
     output: portableOutput(), zones, layouts: [singleLayout(zones)], scenes, composition,
   })
 }
@@ -1118,12 +1127,13 @@ function learn205(): StockShow {
 
 // 206 restates topology on the same ruler: full surface, an axis-aligned
 // split, and rings. The 105 pairing returns because it is already proven to
-// separate cleanly at a boundary; what is new here is only the Layout, which
-// is the point. The loom instance runs through every interval without
-// restarting, so the learner can see that changing the Layout re-routes
-// pixels without touching Pattern state. The two boundaries deliberately
-// differ: the first sweeps the new Layout across the Stage, the second
-// restates it in one atomic step.
+// separate cleanly at a boundary (re-proven for the IceFloes2D water voice by
+// the #727 probe: 83-degree boundary hue contrast at matched luminance); what
+// is new here is only the Layout, which is the point. The loom instance runs
+// through every interval without restarting, so the learner can see that
+// changing the Layout re-routes pixels without touching Pattern state. The
+// two boundaries deliberately differ: the first sweeps the new Layout across
+// the Stage, the second restates it in one atomic step.
 function learn206(): StockShow {
   const id = 'stock-show-206-changing-zone-layouts'
   const zones = logicalZones(['Weave', 'Water'], PORTABLE_REFERENCE_PIXELS)
@@ -1131,18 +1141,18 @@ function learn206(): StockShow {
     scene('full', 'Full surface', 5, [clip('zone-1', 'RibbonLoom', LESSON_TIME_SCALE)]),
     scene('split', 'Split', 6, [
       clip('zone-1', 'RibbonLoom', LESSON_TIME_SCALE),
-      clip('zone-2', 'Caustics', LESSON_TIME_SCALE),
+      clip('zone-2', 'IceFloes2D', LESSON_TIME_SCALE),
     ], { splitPosition: 0.5 }),
     scene('rings', 'Rings', 6, [
       clip('zone-1', 'RibbonLoom', LESSON_TIME_SCALE),
-      clip('zone-2', 'Caustics', LESSON_TIME_SCALE),
+      clip('zone-2', 'IceFloes2D', LESSON_TIME_SCALE),
     ]),
   ]
   const composition: ShowCompositionV1 = {
     version: 1,
     patternInstances: [
       instance('loom', 'RibbonLoom', LESSON_TIME_SCALE),
-      instance('water', 'Caustics', LESSON_TIME_SCALE),
+      instance('water', 'IceFloes2D', LESSON_TIME_SCALE),
     ],
     scenes: [
       {
