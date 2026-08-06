@@ -117,6 +117,11 @@ dropped commits, overlapping files, annotated-tag tips, or receipts
 predating content-id recording all fall through to a fresh review. Carried
 receipts keep the original reviewer, coverage, advisories, and authorship,
 and record `carriedFrom` provenance rooted at the originally reviewed range.
+Every carry attempt appends one JSON line to `.git/wrsp/carry-log.jsonl`
+(#725) -- carried, refused with a typed reason such as `files-overlap` or
+`content-mismatch`, or no candidate -- so the cost of rebase-driven
+re-reviews is measurable before any carry-policy tuning. The log is
+observational only; a telemetry write failure warns and never blocks review.
 
 Accepted residual, decided on #637: path disjointness cannot prove semantic
 independence -- an intervening commit can change behavior a carried patch
