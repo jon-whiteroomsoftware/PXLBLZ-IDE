@@ -195,13 +195,13 @@ function ctToRGB(ct){
 
 export function beforeRender(delta) {
 
+  preLight[nCurrentLight](delta);
+
   // a few timers we can use for internal variation
   t1 = time(speed *.16);
   t2 = time(speed *.1);
   t3 = time(speed *.14);
   t4 = time(speed *.11);
-
-  preLight[nCurrentLight](delta);
 }
 
 export function render(index) {

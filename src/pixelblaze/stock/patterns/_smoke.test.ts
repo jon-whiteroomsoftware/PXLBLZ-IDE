@@ -4,7 +4,9 @@ import { bundle } from '@/engine/bundle'
 import { nativeDim } from '@/engine/dimLens'
 import { ZRANGER1_DEMOS } from '@/engine/galleryCatalog'
 import { loadPattern } from '@/engine/loadPattern'
+import { createRenderLoop } from '@/engine/renderLoop'
 import { createShim, createFxShim, planeShimConfig } from '@/engine/shim'
+import { createVirtualClock } from '@/engine/virtualClock'
 import { LIBRARIES } from '@/pixelblaze/libs'
 
 const here = join(process.cwd(), 'src/pixelblaze/stock/patterns')
@@ -95,6 +97,7 @@ function runDimensionedDemo(
   }
 
   let anyLit = false
+  let firstFrameLit = false
   const frames = new Set<string>()
   for (let frame = 0; frame < 4; frame++) {
     vt += 33 * 65.536
@@ -107,12 +110,15 @@ function runDimensionedDemo(
       else if (dimensions === 2) handle.render2D(enc(index), x, y)
       else handle.render3D(enc(index), x, y, z)
       const [r, g, b] = shim.capturedPixel()
-      if (r + g + b > 0.01) anyLit = true
+      if (r + g + b > 0.01) {
+        anyLit = true
+        if (frame === 0) firstFrameLit = true
+      }
       pixels.push(`${r.toFixed(4)},${g.toFixed(4)},${b.toFixed(4)}`)
     }
     frames.add(pixels.join(';'))
   }
-  return { anyLit, distinctFrames: frames.size }
+  return { anyLit, firstFrameLit, distinctFrames: frames.size }
 }
 
 describe('demo smoke tests', () => {
@@ -136,6 +142,7 @@ describe('demo smoke tests', () => {
       it(`${name} bundles, runs its transformed native renderer, and lights pixels in ${mode} mode`, () => {
         let result!: ReturnType<typeof runDimensionedDemo>
         expect(() => { result = runDimensionedDemo(`${name}.js`, mode) }).not.toThrow()
+        expect(result.firstFrameLit).toBe(true)
         expect(result.anyLit).toBe(true)
       })
     }
@@ -144,6 +151,41 @@ describe('demo smoke tests', () => {
   it('RealWorldLights candlelight changes over time in Fast preview', () => {
     const result = runDimensionedDemo('RealWorldLights.js', 'fast', 0)
     expect(result.distinctFrames).toBeGreaterThan(1)
+  })
+
+  it('RealWorldLights lights its default candle on the Gallery preview frame', () => {
+    const src = readFileSync(join(here, 'RealWorldLights.js'), 'utf8')
+    const { code, metadata } = bundle(src, LIBRARIES)
+    const pixelCount = 128
+    const mapPoints = Array.from({ length: pixelCount }, (_, index) => {
+      const x = index / (pixelCount - 1)
+      return { sample: [x] as [number], pos: [x, 0] as [number, number] }
+    })
+    const clock = createVirtualClock()
+    const shim = createShim({
+      mapPoints,
+      pixelCount,
+      dimensions: 1,
+      getVirtualTime: () => clock.getTime(),
+    })
+    const handle = loadPattern(code, metadata, shim.builtins)
+    let previewPixels: [number, number, number][] = []
+    const loop = createRenderLoop({
+      handle,
+      shim,
+      clock,
+      mapPoints,
+      pixelCount,
+      getSpeed: () => 1,
+      getBrightness: () => 1,
+      isDimmed: () => false,
+      paint: (pixels) => { previewPixels = pixels },
+    })
+
+    loop.renderPreviewFrame()
+
+    expect(previewPixels).toHaveLength(pixelCount)
+    expect(previewPixels.some(([r, g, b]) => r + g + b > 0.01)).toBe(true)
   })
 
   it('RedlineMachine combines the three materials in one cheap scored renderer', () => {
