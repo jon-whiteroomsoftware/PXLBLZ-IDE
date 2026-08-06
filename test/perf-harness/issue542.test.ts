@@ -13,9 +13,9 @@ describe('issue #542 baseline census', () => {
     expect(issue542Census.map((entry) => entry.baseline)).toMatchObject([
       {
         authoredJsonBytes: 13_760,
-        generatedSourceBytes: 96_208,
+        generatedSourceBytes: 96_227,
         patternInstanceCount: 12,
-        persistentGlobals: 325,
+        persistentGlobals: 331,
       },
       {
         // 10_870 -> 10_872 corrects a pin left stale on main by #690's
@@ -30,15 +30,15 @@ describe('issue #542 baseline census', () => {
       },
       {
         authoredJsonBytes: 25_650,
-        generatedSourceBytes: 178_412,
+        generatedSourceBytes: 177_864,
         patternInstanceCount: 22,
-        persistentGlobals: 595,
+        persistentGlobals: 601,
       },
       {
         authoredJsonBytes: 9_963,
-        generatedSourceBytes: 29_880,
+        generatedSourceBytes: 28_208,
         patternInstanceCount: 3,
-        persistentGlobals: 93,
+        persistentGlobals: 99,
         motionTransitions: {
           representation: 'exact-family-kernels',
           stackPlanCount: 2,
@@ -53,10 +53,10 @@ describe('issue #542 baseline census', () => {
     }))).toEqual([
       // #717 stack-wrapper interning: shared wrappers cut both generated
       // bytes and wrapper globals on the transition references.
-      { patternInstanceCount: 3, generatedSourceBytes: 39_612, persistentGlobals: 86 },
-      { patternInstanceCount: 3, generatedSourceBytes: 36_408, persistentGlobals: 86 },
+      { patternInstanceCount: 3, generatedSourceBytes: 33_035, persistentGlobals: 92 },
+      { patternInstanceCount: 3, generatedSourceBytes: 32_337, persistentGlobals: 92 },
       { patternInstanceCount: 3, generatedSourceBytes: 21_406, persistentGlobals: 96 },
-      { patternInstanceCount: 3, generatedSourceBytes: 29_880, persistentGlobals: 93 },
+      { patternInstanceCount: 3, generatedSourceBytes: 28_208, persistentGlobals: 99 },
     ])
   })
 })

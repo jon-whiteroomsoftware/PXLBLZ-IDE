@@ -88,12 +88,16 @@ describe('routed steady-state scene branch grouping (#717)', () => {
     expect(sceneEqualityBranches.length).toBeLessThanOrEqual(4)
   })
 
-  it('keeps the marginal cost of a replayed scene under 1.2 KB', () => {
+  it('keeps the marginal cost of a replayed scene under 250 bytes', () => {
+    // Wrapper interning + kernel interning + branch grouping + the table
+    // scheduler leave a replayed scene costing schedule-table rows plus
+    // dispatch conditions: measured 169.9 B/scene on this fixture
+    // (1,736 B/scene before the #717 slices).
     const bytesAt = (sceneCount: number) => {
       const order = Array.from({ length: sceneCount }, (_, i) => (i % 2 === 0 ? 'red' : 'blue'))
       return compileShow(sequenceRecipe(order), {}).summary.artifactBytes
     }
     const marginalBytes = (bytesAt(40) - bytesAt(10)) / 30
-    expect(marginalBytes).toBeLessThan(1_200)
+    expect(marginalBytes).toBeLessThan(250)
   })
 })

@@ -17,8 +17,8 @@ const motionReference = (id = 'stock-show-reference-zoom-spin-transitions') => {
 
 describe('shared routed motion-transition emission (#525)', () => {
   it.each([
-    ['stock-show-reference-slide-transitions', { none: 33_260, structure: 28_038, exact: 27_286, boundaries: 6, exactKernels: 4 }],
-    ['stock-show-reference-zoom-spin-transitions', { none: 37_313, structure: 31_110, exact: 29_880, boundaries: 7, exactKernels: 5 }],
+    ['stock-show-reference-slide-transitions', { none: 30_598, structure: 25_383, exact: 26_363, boundaries: 6, exactKernels: 4 }],
+    ['stock-show-reference-zoom-spin-transitions', { none: 33_913, structure: 27_719, exact: 28_208, boundaries: 7, exactKernels: 5 }],
   ] as const)('fits the three-instance %s under the activation budget', (id, pins) => {
     // Historical #525 boundary: pin passes that postdate its pinned bytes.
     const baseline = compileShowForArtifact(motionReference(id), [], undefined, {}, {

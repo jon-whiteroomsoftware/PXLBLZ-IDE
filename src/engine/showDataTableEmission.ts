@@ -144,3 +144,27 @@ export function emitIntegerDataTable(
   ]
   return { representation: 'run-length', lines, estimatedBytecodeBytes: runCost }
 }
+
+/**
+ * Literal-only table for fractional values such as schedule boundaries in
+ * seconds. The device parser can emit a fractional literal one ulp low
+ * (#715, ~0.5% of words); at 2^-16 that is a 15-microsecond error on a time
+ * boundary, which schedule consumers tolerate by construction. Data that
+ * must round-trip exactly belongs in emitIntegerDataTable or a guarded
+ * packed encoding instead.
+ */
+export function emitFractionalDataTable(
+  name: string,
+  values: readonly number[],
+): DataTableEmission {
+  for (const value of values) {
+    if (!Number.isFinite(value) || value <= -32_768 || value >= 32_768) {
+      throw new Error(`emitFractionalDataTable(${name}) requires finite 16.16-range values; got ${value}`)
+    }
+  }
+  return {
+    representation: 'literal',
+    lines: [`var ${name} = [${values.join(',')}]`],
+    estimatedBytecodeBytes: Math.ceil(values.length * MEASURED_LITERAL_ELEMENT_BYTECODE_BYTES),
+  }
+}

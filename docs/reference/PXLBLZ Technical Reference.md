@@ -1582,6 +1582,20 @@ replayed scene bodies byte-identical - and together with wrapper and kernel
 interning removed 166 KB across 22 stock Shows (zone-layout showcases
 60% -> 27% of the activation budget, wipe 87% -> 59%).
 
+The unrolled scheduler itself is table-driven when that is smaller (#717):
+four literal tables (segment end boundaries in seconds, scene/kind codes,
+transition starts and durations) walked by an incremental segment pointer
+replace the per-segment else-if chain, and the remaining per-segment bodies
+(easing over a generic progress variable, snapshot/motion specials, placement
+setup) group by body identity on mutually exclusive segment conditions. The
+boundary tables are range-guarded by emitFractionalDataTable, whose one-ulp
+literal tolerance is 15 microseconds on a time boundary. Heterogeneous
+schedules that would not repay the fixed table overhead keep the unrolled
+chain - the smaller emission wins per Show, which protects near-ceiling
+Shows such as the #546 installation qualification fixture. A replayed scene
+costs ~170 bytes end to end (schedule rows plus dispatch conditions),
+measured against 1,736 before the #717 slices.
+
 Routed transition helpers intern the same way: each unique emitted body
 becomes one `__pxlblz_show_routed_transition_k<n>` kernel and the
 per-segment dispatch branches call the shared kernel. Per-scene inputs -

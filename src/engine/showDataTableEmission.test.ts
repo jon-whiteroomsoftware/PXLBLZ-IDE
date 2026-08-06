@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { emitIntegerDataTable } from './showDataTableEmission'
+import { emitFractionalDataTable, emitIntegerDataTable } from './showDataTableEmission'
 import {
   MEASURED_ELEMENT_ASSIGNMENT_BYTECODE_BYTES,
   MEASURED_LITERAL_ELEMENT_BYTECODE_BYTES,
@@ -87,5 +87,20 @@ describe('cost-based integer data table emission (#717)', () => {
     const run = emitIntegerDataTable('t', Array.from({ length: 2_000 }, (_, i) => i + 1), { loopIndexName: 'i' })
     expect(run.representation).toBe('run-length')
     expect(run.estimatedBytecodeBytes).toBeLessThan(2_000 * MEASURED_LITERAL_ELEMENT_BYTECODE_BYTES)
+  })
+})
+
+describe('fractional data table emission (#717)', () => {
+  it('emits seconds-valued tables as a literal with millisecond-exact decimals', () => {
+    const emission = emitFractionalDataTable('t', [0, 1.5, 2.833, 30.75])
+    expect(emission.representation).toBe('literal')
+    expect(emission.lines).toEqual(['var t = [0,1.5,2.833,30.75]'])
+    expect(materialize(emission.lines, 't')).toEqual([0, 1.5, 2.833, 30.75])
+  })
+
+  it('rejects values outside the 16.16 magnitude range and non-finite values', () => {
+    expect(() => emitFractionalDataTable('t', [32_768])).toThrow()
+    expect(() => emitFractionalDataTable('t', [-32_768])).toThrow()
+    expect(() => emitFractionalDataTable('t', [Number.NaN])).toThrow()
   })
 })

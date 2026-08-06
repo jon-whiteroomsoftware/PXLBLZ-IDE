@@ -112,6 +112,11 @@ describe('Scene-composition release freeze (#492)', () => {
     ).artifact!
     expect(compiled.expandedCode).toContain('var __pxlblz_show_elapsed_s = 0')
     expect(compiled.expandedCode).toContain('__pxlblz_show_elapsed_s = (__pxlblz_show_elapsed_s + delta / 1000) % 62')
+    // This heterogeneous three-segment schedule selects the unrolled chain
+    // (#717 size selection), so the boundaries appear as second-valued chain
+    // constants; table-selected schedules carry them in
+    // __pxlblz_show_sched_end instead, range-guarded by
+    // emitFractionalDataTable.
     expect(compiled.expandedCode).toContain('__pxlblz_show_elapsed_s < 30')
     expect(compiled.expandedCode).toContain('__pxlblz_show_elapsed_s < 32')
     expect(compiled.expandedCode).toContain('__pxlblz_show_elapsed_s < 62')

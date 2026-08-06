@@ -92,7 +92,7 @@ import {
   type RoutingRepresentationEstimate,
   type ShowLogicalRoutingRecipe,
 } from './showRoutingRepresentation'
-import { emitIntegerDataTable } from './showDataTableEmission'
+import { emitFractionalDataTable, emitIntegerDataTable } from './showDataTableEmission'
 // Re-exported for the #569 test suite and external consumers.
 export { computeLinearRuns, type PackedRoutingRun } from './showRoutingRepresentation'
 export type { ShowLogicalRoutingRecipe } from './showRoutingRepresentation'
@@ -4878,7 +4878,16 @@ ${advancedFlag(member)} = 1` : ''}`
     return `${sceneSelection}
 ${setupGroups}`
   }
-  const schedulerBranches = canSharePhysicalCutRouting ? canonicalCutScheduler() : segments.map((segment, index) => {
+  // #717: table-driven scheduler for the unrolled path. Per-segment scalar
+  // state (scene, transition, start, duration) moves into four literal
+  // tables walked by an incremental segment pointer; the remaining
+  // per-segment bodies (easing, snapshot/motion/scalar-field specials, and
+  // placement setup) group by body identity on mutually exclusive segment
+  // conditions. Boundary semantics match the old else-if chain exactly:
+  // segment i is active while elapsed < end[i], the pointer resets when
+  // elapsed moves backwards (loop wrap or deterministic seek), and holds
+  // reset the snapshot flags every frame as before.
+  const unrolledSchedulerChain = () => segments.map((segment, index) => {
     const condition = `${index === 0 ? 'if' : 'else if'} (__pxlblz_show_elapsed_s < ${segment.endMs / 1000})`
     if (segment.kind === 'hold') {
       return `${condition} {
@@ -4953,6 +4962,117 @@ ${setupForPlacements(
   }
 `
   }).join(' ')
+
+  // The table scheduler pays a fixed overhead (four tables, two pointer
+  // globals, the generic prologue) that only repetition repays. Near-ceiling
+  // Shows without repeated segments (the #546 installation qualification
+  // fixture rides at ~300 bytes of headroom and 251 globals) must keep the
+  // unrolled chain, so the smaller emission wins per Show.
+  const schedulerTableDeclarations: string[] = []
+  const schedulerBranches = canSharePhysicalCutRouting ? canonicalCutScheduler() : (() => {
+    if (segments.length === 0) return ''
+    schedulerTableDeclarations.push(
+      ...emitFractionalDataTable('__pxlblz_show_sched_end', segments.map((segment) => segment.endMs / 1000)).lines,
+      ...emitIntegerDataTable('__pxlblz_show_sched_code', segments.map((segment) => (
+        segment.sceneIndex * 2 + (segment.kind === 'transition' ? 1 : 0)
+      ))).lines,
+      ...emitFractionalDataTable('__pxlblz_show_sched_tstart', segments.map((segment) => (
+        segment.kind === 'transition' ? segment.startMs / 1000 : 0
+      ))).lines,
+      ...emitFractionalDataTable('__pxlblz_show_sched_tdur', segments.map((segment) => (
+        segment.kind === 'transition' ? segment.transition!.durationMs / 1000 : 0
+      ))).lines,
+      'var __pxlblz_show_sched_seg = 0',
+      'var __pxlblz_show_sched_prev = -1',
+    )
+    const prologue = `if (__pxlblz_show_elapsed_s < __pxlblz_show_sched_prev) __pxlblz_show_sched_seg = 0
+  __pxlblz_show_sched_prev = __pxlblz_show_elapsed_s
+  while (__pxlblz_show_sched_seg < ${segments.length - 1} && __pxlblz_show_elapsed_s >= __pxlblz_show_sched_end[__pxlblz_show_sched_seg]) __pxlblz_show_sched_seg = __pxlblz_show_sched_seg + 1
+  var __pxlblz_show_sched_is_t = __pxlblz_show_sched_code[__pxlblz_show_sched_seg] % 2
+  __pxlblz_show_scene = (__pxlblz_show_sched_code[__pxlblz_show_sched_seg] - __pxlblz_show_sched_is_t) / 2
+  __pxlblz_show_transition = -1
+  __pxlblz_show_mix = 0
+  var __pxlblz_show_sched_progress = 0
+  if (__pxlblz_show_sched_is_t == 1) {
+    __pxlblz_show_transition = __pxlblz_show_scene
+    __pxlblz_show_transition_start_s = __pxlblz_show_sched_tstart[__pxlblz_show_sched_seg]
+    __pxlblz_show_sched_progress = (__pxlblz_show_elapsed_s - __pxlblz_show_sched_tstart[__pxlblz_show_sched_seg]) / __pxlblz_show_sched_tdur[__pxlblz_show_sched_seg]
+  }${usesSnapshot ? ` else {
+    __pxlblz_show_snapshot_transition = -1
+    __pxlblz_show_snapshot_ready = 0
+  }` : ''}`
+    const bodies = segments.map((segment) => {
+      if (segment.kind === 'hold') {
+        return setupForPlacements(
+          scenes[segment.sceneIndex].placements,
+          undefined,
+          scenes[segment.sceneIndex].propertyTracks
+            ? [{ tracks: scenes[segment.sceneIndex].propertyTracks!, localTimeExpression: sceneLocalTimeExpression(segment.sceneIndex) }]
+            : undefined,
+        ).trim()
+      }
+      const from = scenes[segment.sceneIndex].placements
+      const to = scenes[segment.sceneIndex + 1].placements
+      const scalarField = scalarFields.find((field) => (
+        field.transitionKey === `transition:routed:${segment.sceneIndex}`
+      ))
+      const snapshotEntry = usesSnapshot
+        && segment.transition?.kind === 'crossfade'
+        && segment.transition.crossfadePolicy === 'snapshot-live'
+        && selectedRenderTargetCandidates.has(sequenceSnapshotCandidateId('routed', segment.sceneIndex))
+        ? `
+if (__pxlblz_show_snapshot_transition != ${segment.sceneIndex}) {
+  __pxlblz_show_snapshot_transition = ${segment.sceneIndex}
+  __pxlblz_show_snapshot_ready = 0
+}`
+        : ''
+      const directionKernelIndex = familyKernelEnabled
+        ? directionSharedMotionPlan?.groupIndexByScene.get(segment.sceneIndex)
+        : undefined
+      const zoomInGroupIndex = familyKernelEnabled
+        ? zoomInSharedMotionPlan?.groupIndexByScene.get(segment.sceneIndex)
+        : undefined
+      const motionKernelAssignments = directionKernelIndex !== undefined
+        ? (() => {
+            const vector = showMotionTransitionVector(normalizeShowMotionTransition(segment.transition!).direction)
+            return `
+__pxlblz_show_motion_kernel = ${directionKernelIndex}
+__pxlblz_show_motion_direction_x = ${vector.x}
+__pxlblz_show_motion_direction_y = ${vector.y}`
+          })()
+        : zoomInGroupIndex !== undefined
+          ? (() => {
+              const settings = normalizeShowMotionTransition(segment.transition!)
+              const rotation = (settings.spinDirection === 'counterclockwise' ? -1 : 1) * settings.rotation
+              const kernelId = zoomInSharedMotionPlan!.groups[zoomInGroupIndex].id
+              return `
+__pxlblz_show_motion_kernel = ${kernelId}
+__pxlblz_show_motion_content_scale = ${settings.contentScale}
+__pxlblz_show_motion_anchor_x = ${settings.anchorX}
+__pxlblz_show_motion_anchor_y = ${settings.anchorY}
+__pxlblz_show_motion_rotation_value = ${rotation}`
+            })()
+          : familyKernelEnabled ? '\n__pxlblz_show_motion_kernel = -1' : ''
+      return `__pxlblz_show_mix = ${emitRoutedTransitionEasing(segment.transition!, '__pxlblz_show_sched_progress')}${snapshotEntry}${motionKernelAssignments}${scalarField ? `\n${emitScalarFieldLifecycle(scalarField)}` : ''}
+${setupForPlacements(
+        [...from, ...to],
+        scenes[segment.sceneIndex].transitionRamps,
+        [segment.sceneIndex, segment.sceneIndex + 1].flatMap((sceneIndex) => (
+          scenes[sceneIndex].propertyTracks
+            ? [{ tracks: scenes[sceneIndex].propertyTracks!, localTimeExpression: sceneLocalTimeExpression(sceneIndex) }]
+            : []
+        )),
+      ).trim()}`.trim()
+    })
+    const tableForm = `${prologue}
+  ${groupSceneBranchesByBody(bodies, 4, (index) => `__pxlblz_show_sched_seg == ${index}`)}`
+    const chainForm = unrolledSchedulerChain()
+    if (byteLength(chainForm) <= byteLength(tableForm) + schedulerTableDeclarations.reduce((sum, line) => sum + byteLength(line) + 1, 0)) {
+      schedulerTableDeclarations.length = 0
+      return chainForm
+    }
+    return tableForm
+  })()
 
   const layoutSelectLines = [...switches]
     .sort((left, right) => left.atMs - right.atMs)
@@ -5352,6 +5472,7 @@ function __pxlblz_show_capture_transition_rgb(r, g, b) {
       : []),
     ...(softSplitTransitionCaptureRuntime ? [softSplitTransitionCaptureRuntime] : []),
     ...transitionHelpers,
+    ...schedulerTableDeclarations,
     'var __pxlblz_show_scene = 0',
     ...(freezeAtEntryCaptures.length > 0
       ? [
@@ -6784,15 +6905,20 @@ function routedSceneStackNeedsWrapper(stack: ResolvedRoutedScenePlacement[]): bo
  * byte-identical, which lets the slotted candidate win the #546 size
  * selection more often.
  */
-function groupSceneBranchesByBody(bodies: string[], indent: number): string {
-  const sceneIndicesByBody = new Map<string, number[]>()
-  bodies.forEach((body, sceneIndex) => {
-    const group = sceneIndicesByBody.get(body)
-    if (group) group.push(sceneIndex)
-    else sceneIndicesByBody.set(body, [sceneIndex])
+function groupSceneBranchesByBody(
+  bodies: string[],
+  indent: number,
+  conditionFor: (index: number) => string = (index) => `__pxlblz_show_scene == ${index}`,
+): string {
+  const indicesByBody = new Map<string, number[]>()
+  bodies.forEach((body, index) => {
+    const group = indicesByBody.get(body)
+    if (group) group.push(index)
+    else indicesByBody.set(body, [index])
   })
-  return [...sceneIndicesByBody.entries()].map(([body, sceneIndices], groupIndex) => (
-    `${groupIndex === 0 ? 'if' : 'else if'} (${sceneIndices.map((sceneIndex) => `__pxlblz_show_scene == ${sceneIndex}`).join(' || ')}) {
+  const groups = [...indicesByBody.entries()].filter(([body]) => body.trim().length > 0)
+  return groups.map(([body, indices], groupIndex) => (
+    `${groupIndex === 0 ? 'if' : 'else if'} (${indices.map(conditionFor).join(' || ')}) {
 ${indentBlock(body, indent)}
   }`
   )).join(' ')
