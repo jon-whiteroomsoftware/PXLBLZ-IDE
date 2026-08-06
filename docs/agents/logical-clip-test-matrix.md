@@ -138,5 +138,5 @@ requires valid state produced by an earlier edit.
 
 Changing `showAuthoringContract.ts` runs the central matrix, the four
 operation-specific authoring suites, and the persistence sequence through
-`scripts/test-selection.mjs`. Before handoff, run those targeted suites, the
+the `wrsp.config.mjs` boundary map. Before handoff, run those targeted suites, the
 full Vitest suite, and the relevant Playwright smoke suite.

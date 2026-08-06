@@ -21,10 +21,6 @@
     "scripts/dev-runtime-core.ts",
     "scripts/dev-runtime-store.ts",
     "scripts/local-session-cookie.ts",
-    "scripts/run-authenticated-playwright.ts",
-    "scripts/push-review.ts",
-    "scripts/review-approvals.ts",
-    "scripts/review-candidate.ts",
-    "scripts/review-status.ts"
+    "scripts/run-authenticated-playwright.ts"
   ]
 }

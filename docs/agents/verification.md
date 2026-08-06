@@ -6,6 +6,14 @@ that exact approved history before running the comprehensive automated suite.
 Review happens once, before landing on local `main`; publication reuses that
 evidence instead of reviewing an expanding stack again.
 
+Since #724 the gate implementation lives in the shared
+`@whiteroom/software-process` package (vendored as a release tarball under `vendor/`, a `file:` devDependency in
+`package.json`); the npm script names are unchanged. This repository supplies
+its project policy, staged-test selection boundaries, and e2e meta-check
+paths in `wrsp.config.mjs`. The reviewer prompt's project-specific advisory
+paragraph is `review.projectPolicy` there and participates in the policy
+fingerprint, so editing it invalidates receipts exactly like a prompt change.
+
 ## Gate ownership
 
 | Moment | Gate | Purpose |
@@ -71,7 +79,7 @@ A clean pass or P2/P3-only review writes a receipt below the repository's
 common Git directory:
 
 ```text
-.git/pxlblz/review-approvals/v1/
+.git/wrsp/review-approvals/v1/
 ```
 
 Worktrees share this directory. Receipts are deliberately outside source
@@ -127,7 +135,7 @@ annotated-tag contents with the commit series, so new tags and retagging can
 receive exact coverage without hiding metadata or publishing an unreviewed
 target commit.
 
-Concurrent reviews serialize on `.git/pxlblz/review.lock` (#637): the lock
+Concurrent reviews serialize on `.git/wrsp/review.lock` (#637): the lock
 directory lives in the shared git common directory so worktrees queue
 against each other instead of contending for reviewer quota. The claim
 primitive is `mkdir` -- the one POSIX create-if-absent that refuses even an
@@ -229,8 +237,8 @@ pre-commit close the awareness gap without paying browser time:
   source no longer produces. Labels are usually assembled from templates, so it
   matches a name against each template's static segments in order, honouring the
   template's own anchoring. Re-record with
-  `npm run check:e2e-locators -- --record`; `scripts/check-e2e-locators.test.ts`
-  pins the behaviour.
+  `npm run check:e2e-locators -- --record`; the packaged
+  `check-e2e-locators` test suite pins the behaviour.
 
   `e2e/known-stale-locators.json` keeps two buckets, and the distinction is the
   point:
@@ -386,12 +394,13 @@ routine gates.
 
 ## Staged-test selection
 
-`scripts/test-staged.mjs` reads added, copied, modified, and renamed paths from
+`wrsp-test-staged` (the packaged staged-test driver) reads added, copied,
+modified, and renamed paths from
 the Git index. When those paths can affect either configured TypeScript project,
 it first runs `tsc -b --pretty false`; a type-invalid source or test change
 therefore cannot be committed even when ESLint and Vitest accept the file. It
 then selects a staged test directly or the colocated test for a staged
-JavaScript or TypeScript source file. `scripts/test-selection.mjs` also adds
+JavaScript or TypeScript source file. The boundary map in `wrsp.config.mjs` also adds
 fixed regression suites when a changed path touches a boundary where a
 colocated test is not a sufficient safety net:
 
