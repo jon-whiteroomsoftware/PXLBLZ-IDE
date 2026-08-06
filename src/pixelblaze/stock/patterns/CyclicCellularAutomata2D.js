@@ -159,6 +159,7 @@ function seedCCA() {
 // TODO - rework this to shuffle instead of generating random coord pairs.
 function seedGH(probX,probR) {
   var x,y,i;
+  var cellCount = width * height;
 
   pb1 = buffer1;
   pb2 = buffer2;
@@ -172,7 +173,7 @@ function seedGH(probX,probR) {
   }
 
 // distribute excited cells
-  probX = floor(pixelCount * probX)
+  probX = floor(cellCount * probX)
   for (i = 0; i < probX;) {
     x = random(width); y = random(height);
     if (pb2[x][y] == 0) {
@@ -182,7 +183,7 @@ function seedGH(probX,probR) {
   }
 
 // distribute refactory cells
-  probR = floor(pixelCount * probR)
+  probR = floor(cellCount * probR)
   for (i = 0; i < probR;) {
     x = random(width); y = random(height)
     if (pb2[x][y] == 0) {

@@ -1,5 +1,6 @@
 import { readFileSync } from 'node:fs'
 import { join } from 'node:path'
+import { Worker } from 'node:worker_threads'
 import { bundle } from '@/engine/bundle'
 import { nativeDim } from '@/engine/dimLens'
 import { ZRANGER1_DEMOS } from '@/engine/galleryCatalog'
@@ -42,6 +43,42 @@ function withoutLeakedPatternGlobals<T>(run: () => T): T {
       Object.defineProperty(globalThis, name, descriptor)
     }
   }
+}
+
+async function runCyclicCellularAutomataInitialization(pixelCount: number): Promise<void> {
+  const source = readFileSync(join(here, 'CyclicCellularAutomata2D.js'), 'utf8')
+  const workerSource = `
+    const { parentPort, workerData } = require('node:worker_threads')
+    const pixelCount = workerData.pixelCount
+    const floor = Math.floor
+    const max = Math.max
+    let randomState = 1
+    function random(limit) {
+      randomState = (1664525 * randomState + 1013904223) >>> 0
+      return Math.floor((randomState / 4294967296) * limit)
+    }
+    function array(length) { return Array(Math.floor(length)).fill(0) }
+    eval(workerData.source.replace(/\\bexport\\s+/g, '') + '\\nbeforeRender(33)')
+    parentPort.postMessage('done')
+  `
+  const worker = new Worker(workerSource, { eval: true, workerData: { pixelCount, source } })
+
+  await new Promise<void>((resolve, reject) => {
+    const timeout = setTimeout(() => {
+      void worker.terminate()
+      reject(new Error(`CyclicCellularAutomata2D initialization did not terminate at ${pixelCount} pixels`))
+    }, 1_000)
+    worker.once('message', () => {
+      clearTimeout(timeout)
+      void worker.terminate()
+      resolve()
+    })
+    worker.once('error', (error) => {
+      clearTimeout(timeout)
+      void worker.terminate()
+      reject(error)
+    })
+  })
 }
 
 function runDemo(file: string, mode: 'fast' | 'fidelity' = 'fast') {
@@ -166,6 +203,10 @@ function runDimensionedDemo(
 }
 
 describe('demo smoke tests', () => {
+  it('CyclicCellularAutomata2D initializes against its fixed grid at high output counts', async () => {
+    await expect(runCyclicCellularAutomataInitialization(2_000)).resolves.toBeUndefined()
+  })
+
   it('Bouncer3D renders an empty background when ball size is zero', () => {
     const src = readFileSync(join(here, 'Bouncer3D.js'), 'utf8')
     const { code, metadata } = bundle(src, LIBRARIES)
