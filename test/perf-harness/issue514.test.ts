@@ -2,9 +2,9 @@ import { report } from './issue514'
 
 describe('Show render-target residual-headroom census (#514)', () => {
   it('pins the complete stock Pattern corpus and its known array-heavy exceptions', () => {
-    expect(report.summary.stockPatternCount).toBe(60)
-    expect(report.summary.stockPatternsWithNoMemberArrays).toBe(43)
-    expect(report.summary.stockPatternsFittingResidualBudget).toBe(56)
+    expect(report.summary.stockPatternCount).toBe(69)
+    expect(report.summary.stockPatternsWithNoMemberArrays).toBe(46)
+    expect(report.summary.stockPatternsFittingResidualBudget).toBe(65)
     expect(report.summary.stockPatternRejections).toHaveLength(4)
     expect(report.summary.stockPatternRejections.map((entry) => entry.id)).toEqual([
       'pattern:AuroraSphere',
@@ -16,7 +16,7 @@ describe('Show render-target residual-headroom census (#514)', () => {
   })
 
   it('records every resource axis required by the headroom decision', () => {
-    expect(report.cases.length).toBeGreaterThan(59)
+    expect(report.cases.length).toBeGreaterThan(68)
     expect(report.cases.every((entry) => (
       Number.isInteger(entry.memberPatternWords)
       && Number.isInteger(entry.generatedOverheadWords)

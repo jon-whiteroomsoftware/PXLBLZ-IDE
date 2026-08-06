@@ -21,6 +21,23 @@ export const GALLERY_ALL_CATEGORY = 'Everything'
 export const OPENGL_DEMOS = ['Kishimisu', 'NeonSquircles', 'ZippyZaps', 'IQPalettes', 'PhantomStar', 'IridescentFibers']
 export const BRAND_NEW_DEMOS = ['PlasmaNebula', 'Caustics', 'ShaderShowcase', 'RedlineMachinePortable']
 
+// ZRanger1's ten most-favorited original Patterns in the public Pixelblaze
+// Pattern Library as of 2026-08-06. Favorites break the primary tie by
+// downloads, and third-party remixes are excluded. Keep this declared order so
+// the author folder reads from most to least popular rather than alphabetically.
+export const ZRANGER1_DEMOS = [
+  'Oasis',
+  'LineDancer2D',
+  'CoronalMassEjection',
+  'PerlinKaleidoscope2D',
+  'VoronoiMix2D',
+  'DoomFireV20_2D',
+  'Bouncer3D',
+  'RealWorldLights',
+  'WavyBands',
+  'PerlinFireWindTunnel',
+]
+
 // Everything whose native renderer is render3D, regardless of cost class.
 // TestPattern3D stays with the other diagnostic patterns.
 export const THREE_D_DEMOS = [
@@ -62,7 +79,6 @@ export const FPS_FRIENDLY_DEMOS = [
 export const RADIAL_DEMOS = [
   'ClockworkIris',
   'CompassRose',
-  'CoronalMassEjection',
   'EventHorizon',
   'ShapeShifter',
   'SignalMandala',
@@ -81,6 +97,7 @@ const DEMO_NAMES = Object.keys(DEMOS).sort()
 const GROUPED_DEMOS = new Set([
   ...OPENGL_DEMOS,
   ...BRAND_NEW_DEMOS,
+  ...ZRANGER1_DEMOS,
   ...THREE_D_DEMOS,
   ...FPS_FRIENDLY_DEMOS,
   ...RADIAL_DEMOS,
@@ -92,6 +109,7 @@ const demoSectionNames = (names: string[]) =>
   names.filter((n) => DEMO_NAMES.includes(n)).sort((a, b) => a.localeCompare(b))
 
 export const DEMO_SECTIONS: { label: string; names: string[] }[] = [
+  { label: 'ZRanger1', names: ZRANGER1_DEMOS.filter((name) => DEMO_NAMES.includes(name)) },
   { label: 'ShaderToy Ports', names: demoSectionNames(OPENGL_DEMOS) },
   { label: 'FPS Heavyweights', names: demoSectionNames(BRAND_NEW_DEMOS) },
   // FPS Friendly doubles as the catch-all: any pattern not claimed by another

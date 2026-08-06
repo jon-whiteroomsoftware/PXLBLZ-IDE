@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { DEMO_SECTIONS, GALLERY_PATTERNS } from './galleryCatalog'
+import { DEMO_SECTIONS, GALLERY_PATTERNS, ZRANGER1_DEMOS } from './galleryCatalog'
 import { STOCK_SHOWS } from '@/pixelblaze/stock/shows'
 import { stockPatternOrganization, stockShowOrganization } from './stockEntityOrganization'
 
@@ -18,6 +18,28 @@ describe('built-in entity organization', () => {
     const folderNames = organization.nodes.flatMap((node) => node.kind === 'folder' ? [node.name] : [])
 
     expect(folderNames).toEqual(DEMO_SECTIONS.map((section) => section.label).filter((label) => folderNames.includes(label)))
+  })
+
+  it('keeps the popularity-ranked ZRanger1 collection together', () => {
+    const organization = stockPatternOrganization(GALLERY_PATTERNS)
+    const folder = organization.nodes.find((node) => node.kind === 'folder' && node.name === 'ZRanger1')
+
+    expect(folder).toMatchObject({
+      kind: 'folder',
+      children: ZRANGER1_DEMOS.map((entityId) => ({ kind: 'entity', entityId })),
+    })
+    expect(ZRANGER1_DEMOS).toEqual([
+      'Oasis',
+      'LineDancer2D',
+      'CoronalMassEjection',
+      'PerlinKaleidoscope2D',
+      'VoronoiMix2D',
+      'DoomFireV20_2D',
+      'Bouncer3D',
+      'RealWorldLights',
+      'WavyBands',
+      'PerlinFireWindTunnel',
+    ])
   })
 
   it('organizes built-in Shows into Learn and Showcases subtrees', () => {

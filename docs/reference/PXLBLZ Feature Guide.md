@@ -81,7 +81,9 @@ outgrow the Pattern rail, a slim bar at its bottom scrolls to the hidden text.
 The rail's personal content lives in compact trees with folders, drag
 reordering, search that sees into collapsed branches, and a Trash that appears
 only when something is in it. Built-in and stock catalogues sit below in fixed
-folders. Their shipped definitions never change; Built-in Shows alone accept
+folders. The built-in Pattern tree includes a **ZRanger1** folder containing
+his ten most-favorited original community Patterns, with third-party remixes
+excluded. Their shipped definitions never change; Built-in Shows alone accept
 session edits that Reset or reload discard. A brand-new workspace opens with
 one editable **Start Here** example of each kind, so the first visit lands on
 runnable source instead of four empty lists. The center-pane title doubles as

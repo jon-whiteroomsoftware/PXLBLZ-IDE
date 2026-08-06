@@ -34,6 +34,7 @@ export const RECOMMENDED_SETTINGS: Record<string, Partial<Settings>> = {
   // preview (256-2048), use a bright but not clipped baseline, and vary maps /
   // embeddings so the catalogue shows the preview system's range at first open.
   AuroraSphere: { mapId: 'seed-sphere-3d', pixelCount: 2048, normalize: 'fill', brightness: 1, lightSize: 0.85, diffusion: 0.74, solidity: 0.08 },
+  Bouncer3D: { mapId: 'cube', pixelCount: 512, normalize: 'fill', brightness: 0.9, lightSize: 0.82, diffusion: 0.55, solidity: 0.62 },
   NebulaSphere: { mapId: 'seed-sphere-3d', pixelCount: 1024, normalize: 'fill', brightness: 0.9, lightSize: 0.55, diffusion: 0.55, solidity: 0.59 },
   CorePulse3D: { mapId: 'tetra-shell', pixelCount: 1536, normalize: 'fill', brightness: 0.9, lightSize: 0.65, diffusion: 0.36, solidity: 0.41 },
   CrystalLattice3D: { mapId: 'star-volume', pixelCount: 1728, normalize: 'contain', brightness: 1, lightSize: 0.75, diffusion: 0.49, solidity: 1 },
@@ -58,12 +59,15 @@ export const RECOMMENDED_SETTINGS: Record<string, Partial<Settings>> = {
   PendulumWave: { shapeId: 'line', pixelCount: 256, brightness: 0.9, lightSize: 0.7, diffusion: 0.5 },
   PulseLoom: { shapeId: 'pole', pixelCount: 256, brightness: 0.9, lightSize: 0.78, diffusion: 0.62, solidity: 1 },
   RivalryRing: { shapeId: 'ring', pixelCount: 320, brightness: 0.9, lightSize: 0.7, diffusion: 0.42 },
+  Oasis: { shapeId: 'line', pixelCount: 384, brightness: 0.9, lightSize: 0.72, diffusion: 0.58 },
+  RealWorldLights: { shapeId: 'line', pixelCount: 256, brightness: 0.9, lightSize: 0.82, diffusion: 0.7 },
   StandingWaveOrgan: { shapeId: 'line', pixelCount: 256, brightness: 0.9, lightSize: 0.72, diffusion: 0.55 },
 
   Caustics: { mapId: 'plane', surfaceId: 'flat', pixelCount: 1024, normalize: 'fill', brightness: 0.9, lightSize: 0.85, diffusion: 0.84 },
   ClockworkIris: { mapId: 'plane', surfaceId: 'flat', pixelCount: 1024, normalize: 'contain', brightness: 0.9, lightSize: 0.7, diffusion: 0.5 },
   CompassRose: { mapId: 'plane', surfaceId: 'flat', pixelCount: 1024, normalize: 'fill', brightness: 1, lightSize: 0.75, diffusion: 0.74 },
   CoronalMassEjection: { mapId: 'plane', surfaceId: 'flat', pixelCount: 1024, normalize: 'fill', brightness: 1, lightSize: 0.75, diffusion: 0.6 },
+  DoomFireV20_2D: { mapId: 'plane', surfaceId: 'flat', pixelCount: 256, normalize: 'fill', brightness: 1, lightSize: 0.78, diffusion: 0.64 },
   EasedSweep: { mapId: 'wide', surfaceId: 'flat', pixelCount: 256, normalize: 'contain', brightness: 0.9, lightSize: 0.45, diffusion: 0.67 },
   EventHorizon: { mapId: 'plane', surfaceId: 'flat', pixelCount: 1024, normalize: 'fill', brightness: 1, lightSize: 0.8, diffusion: 0.62 },
   GlyphRain: { mapId: 'panel-winding', surfaceId: 'flat', pixelCount: 1024, normalize: 'fill', brightness: 0.9, lightSize: 0.55, diffusion: 0.34 },
@@ -79,6 +83,9 @@ export const RECOMMENDED_SETTINGS: Record<string, Partial<Settings>> = {
   Murmuration: { mapId: 'plane', surfaceId: 'flat', pixelCount: 1024, normalize: 'fill', brightness: 0.9, lightSize: 0.75, diffusion: 0.62 },
   NeonCircuitBoard: { mapId: 'plane', surfaceId: 'flat', pixelCount: 1024, normalize: 'fill', brightness: 0.9, lightSize: 0.85, diffusion: 0.61 },
   NeonSquircles: { mapId: 'wide', surfaceId: 'cylinder', pixelCount: 1024, normalize: 'fill', brightness: 0.9, lightSize: 0.75, diffusion: 0.50, solidity: 1 },
+  LineDancer2D: { mapId: 'plane', surfaceId: 'flat', pixelCount: 1024, normalize: 'fill', brightness: 0.9, lightSize: 0.72, diffusion: 0.6 },
+  PerlinFireWindTunnel: { mapId: 'plane', surfaceId: 'flat', pixelCount: 1024, normalize: 'fill', brightness: 1, lightSize: 0.76, diffusion: 0.7 },
+  PerlinKaleidoscope2D: { mapId: 'plane', surfaceId: 'flat', pixelCount: 1024, normalize: 'fill', brightness: 0.9, lightSize: 0.72, diffusion: 0.56 },
   PhantomStar: { mapId: 'plane', surfaceId: 'flat', pixelCount: 1024, normalize: 'fill', brightness: 0.9, lightSize: 0.85, diffusion: 0.68 },
   PlasmaNebula: { mapId: 'panel-winding', surfaceId: 'flat', pixelCount: 1024, normalize: 'fill', brightness: 1, lightSize: 0.85, diffusion: 0.84 },
   RibbonLoom: { mapId: 'plane', surfaceId: 'flat', pixelCount: 1536, normalize: 'fill', brightness: 0.9, lightSize: 0.85, diffusion: 0.73 },
@@ -91,6 +98,8 @@ export const RECOMMENDED_SETTINGS: Record<string, Partial<Settings>> = {
   StainedGlassWeather: { mapId: 'plane', surfaceId: 'cylinder', pixelCount: 1024, normalize: 'contain', brightness: 0.9, lightSize: 0.55, diffusion: 0.75, solidity: 0.82 },
   TempestVolume3D: { mapId: 'cube', pixelCount: 1728, normalize: 'fill', brightness: 0.9, lightSize: 0.66, diffusion: 0.72, solidity: 1 },
   TopographicBloom: { mapId: 'plane', surfaceId: 'flat', pixelCount: 1024, normalize: 'fill', brightness: 0.9, lightSize: 0.85, diffusion: 0.64 },
+  VoronoiMix2D: { mapId: 'plane', surfaceId: 'flat', pixelCount: 1024, normalize: 'fill', brightness: 0.9, lightSize: 0.74, diffusion: 0.62 },
+  WavyBands: { mapId: 'plane', surfaceId: 'flat', pixelCount: 1024, normalize: 'fill', brightness: 0.9, lightSize: 0.75, diffusion: 0.66 },
   ZippyZaps: { mapId: 'plane', surfaceId: 'flat', pixelCount: 1024, normalize: 'fill', brightness: 0.9, lightSize: 0.85, diffusion: 0.72 },
 
   TestPattern1D: { shapeId: 'line', pixelCount: 256, brightness: 0.9, lightSize: 0.68, diffusion: 0.24 },

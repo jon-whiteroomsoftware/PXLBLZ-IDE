@@ -20,6 +20,11 @@ export const CONTROL_DESCRIPTIONS: Record<string, Record<string, string>> = {
     sliderSpin: 'How fast the bright great-ring orbits — centered is still, higher spins faster.',
     sliderSpeed: 'How often the rings ratchet up a level — the tick rate of the bloom.',
   },
+  Bouncer3D: {
+    sliderBalls: 'Number of independently moving balls in the map.',
+    sliderSize: 'Radius of each ball.',
+    sliderSpeed: 'How fast the balls move and bounce.',
+  },
   Caustics: {
     sliderSpeed: 'How fast the water moves.',
     sliderDensity: 'Size of the light pools — higher packs in more, smaller cells.',
@@ -55,6 +60,13 @@ export const CONTROL_DESCRIPTIONS: Record<string, Record<string, string>> = {
     sliderDensity: 'Density of repeated rain columns.',
     sliderLength: 'Length of each falling crystal streak.',
     sliderHue: 'Base colour of the crystal rain.',
+  },
+  DoomFireV20_2D: {
+    hsvPickerHue: 'Base colour of the flame.',
+    sliderFlameHeight: 'How far the flame rises from its source row.',
+    sliderWind: 'Strength and direction of the horizontal flame drift.',
+    sliderDragonMode: 'Blends from classic fire into the enhanced dragon-breath mode.',
+    sliderSpeed: 'How quickly the fire simulation advances.',
   },
   ClockworkIris: {
     sliderSpeed: 'How fast the escapement beats.',
@@ -151,6 +163,11 @@ export const CONTROL_DESCRIPTIONS: Record<string, Record<string, string>> = {
     sliderColor: 'Wax colour, swept around the colour wheel.',
     sliderGlow: 'Strength of the lamp light at the base and the rim light on the goo.',
   },
+  LineDancer2D: {
+    sliderSpeed: 'How fast the twisting line moves.',
+    sliderTwist: 'Strength of the line distortion.',
+    sliderReflections: 'Number of kaleidoscopic reflection segments.',
+  },
   Kishimisu: {
     rgbPickerPaletteA: 'Palette base colour — the midpoint the gradient cycles around.',
     rgbPickerPaletteB: 'Palette contrast — how far the colours swing from the base.',
@@ -212,6 +229,25 @@ export const CONTROL_DESCRIPTIONS: Record<string, Record<string, string>> = {
     sliderPulse: 'Brightness of packet glints travelling through the board.',
     sliderHue: 'Base colour of the neon traces.',
   },
+  Oasis: {
+    sliderHue: 'Shifts the water palette around the colour wheel.',
+    sliderSpeed: 'How fast the layered waves move.',
+    sliderWhitecaps: 'Brightness and frequency of the wave crests.',
+    sliderDepth: 'Contrast between deep water and bright highlights.',
+    sliderWavelength: 'Spatial scale of the layered waves.',
+  },
+  PerlinFireWindTunnel: {
+    sliderHue: 'Base colour of the flame.',
+    sliderMode: 'Selects the Perlin noise algorithm that shapes the fire.',
+    sliderdensity: 'Density of the flame field.',
+    sliderWind: 'Strength of the spiral wind distortion.',
+    sliderSpeed: 'How fast the flame field moves.',
+  },
+  PerlinKaleidoscope2D: {
+    sliderSpeed: 'How fast the noise field moves.',
+    sliderLineWidth: 'Width of the RGB lines in the base texture.',
+    sliderReflections: 'Number of kaleidoscopic reflection segments.',
+  },
   NebulaSphere: {
     sliderSpeed: 'How fast the gas drifts through the volume.',
     sliderZoom: 'Detail scale — higher is finer and busier.',
@@ -233,6 +269,9 @@ export const CONTROL_DESCRIPTIONS: Record<string, Record<string, string>> = {
     sliderIntensity: 'Overall pressure of the score, from restrained negative space to full-impact output.',
     sliderSpeed: 'Pace of the complete 32-bar score, from half speed to one-and-a-half speed.',
     sliderCyan: 'Strength of the sparse cyan ornaments and the full cyan takeover during Vacuum and Rebuild.',
+  },
+  RealWorldLights: {
+    sliderLightType: 'Selects the real-world light source to emulate.',
   },
   Orrery3D: {
     sliderSpeed: 'How fast the clockwork turns — inner planets always orbit quickest.',
@@ -331,6 +370,12 @@ export const CONTROL_DESCRIPTIONS: Record<string, Record<string, string>> = {
     sliderLayers: 'Strength and density of the contour bands.',
     sliderSpacing: 'Distance between topographic contour lines.',
     sliderColor: 'Base colour of the bloom.',
+  },
+  VoronoiMix2D: {
+    sliderNumberOfPoints: 'Number of moving sites in the Voronoi field.',
+    sliderDistanceMethod: 'Selects the distance function used to find each pixel’s nearest site.',
+    sliderDrawingMode: 'Selects how site distance becomes colour and brightness.',
+    sliderSpeed: 'How fast the Voronoi sites move.',
   },
   VoxelFireflies3D: {
     sliderSpeed: 'How fast fireflies drift within their volume cells.',

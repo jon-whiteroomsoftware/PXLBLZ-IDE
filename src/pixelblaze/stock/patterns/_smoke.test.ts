@@ -1,6 +1,8 @@
 import { readFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { bundle } from '@/engine/bundle'
+import { nativeDim } from '@/engine/dimLens'
+import { ZRANGER1_DEMOS } from '@/engine/galleryCatalog'
 import { loadPattern } from '@/engine/loadPattern'
 import { createShim, createFxShim, planeShimConfig } from '@/engine/shim'
 import { LIBRARIES } from '@/pixelblaze/libs'
@@ -52,7 +54,78 @@ function runDemo(file: string, mode: 'fast' | 'fidelity' = 'fast') {
   return { anyLit, controlCount: metadata.controls.length }
 }
 
+function runDimensionedDemo(file: string) {
+  const src = readFileSync(join(here, file), 'utf8')
+  const { code, metadata } = bundle(src, LIBRARIES)
+  const dimensions = nativeDim(src)
+  const side = dimensions === 3 ? 5 : dimensions === 2 ? 16 : 128
+  const pixelCount = dimensions === 3 ? side ** 3 : dimensions === 2 ? side ** 2 : side
+  const mapPoints = Array.from({ length: pixelCount }, (_, index) => {
+    if (dimensions === 1) {
+      const x = index / (pixelCount - 1)
+      return { sample: [x] as [number], pos: [x, 0] as [number, number] }
+    }
+    if (dimensions === 2) {
+      const x = (index % side) / (side - 1)
+      const y = Math.floor(index / side) / (side - 1)
+      return { sample: [x, y] as [number, number], pos: [x, y] as [number, number] }
+    }
+    const x = (index % side) / (side - 1)
+    const y = (Math.floor(index / side) % side) / (side - 1)
+    const z = Math.floor(index / (side * side)) / (side - 1)
+    return { sample: [x, y, z] as [number, number, number], pos: [x, y, z] as [number, number, number] }
+  })
+  let vt = 0
+  const shim = createShim({ mapPoints, pixelCount, dimensions, getVirtualTime: () => vt })
+  const handle = loadPattern(code, metadata, shim.builtins)
+  const enc = shim.encodeScalar
+
+  for (const control of metadata.controls) {
+    const fn = handle.controls[control.exportName]
+    if (control.kind === 'rgbPicker' || control.kind === 'hsvPicker') fn?.(enc(0.5), enc(0.5), enc(0.5))
+    else fn?.(enc(0.5))
+  }
+
+  let anyLit = false
+  for (let frame = 0; frame < 4; frame++) {
+    vt += 33 * 65.536
+    handle.beforeRender(enc(33))
+    for (let index = 0; index < mapPoints.length; index++) {
+      const sample = mapPoints[index].sample
+      if (dimensions === 1) handle.render(enc(index))
+      else if (dimensions === 2) handle.render2D(enc(index), enc(sample[0]), enc(sample[1] ?? 0))
+      else handle.render3D(enc(index), enc(sample[0]), enc(sample[1] ?? 0), enc(sample[2] ?? 0))
+      const [r, g, b] = shim.capturedPixel()
+      if (r + g + b > 0.01) anyLit = true
+    }
+  }
+  return anyLit
+}
+
 describe('demo smoke tests', () => {
+  it('Bouncer3D renders an empty background when ball size is zero', () => {
+    const src = readFileSync(join(here, 'Bouncer3D.js'), 'utf8')
+    const { code, metadata } = bundle(src, LIBRARIES)
+    const mapPoints = [{ sample: [0, 0, 0] as [number, number, number], pos: [0, 0, 0] as [number, number, number] }]
+    const shim = createShim({ mapPoints, pixelCount: 1, dimensions: 3, getVirtualTime: () => 0 })
+    const handle = loadPattern(code, metadata, shim.builtins)
+    const enc = shim.encodeScalar
+
+    handle.controls.sliderSize(enc(0))
+    handle.beforeRender(enc(33))
+
+    expect(() => handle.render3D(enc(0), enc(0), enc(0), enc(0))).not.toThrow()
+    expect(shim.capturedPixel()).toEqual([0, 0, 0])
+  })
+
+  for (const name of ZRANGER1_DEMOS) {
+    it(`${name} bundles, runs its native renderer, and lights pixels`, () => {
+      let anyLit = false
+      expect(() => { anyLit = runDimensionedDemo(`${name}.js`) }).not.toThrow()
+      expect(anyLit).toBe(true)
+    })
+  }
+
   it('RedlineMachine combines the three materials in one cheap scored renderer', () => {
     const source = readFileSync(join(here, 'RedlineMachine.js'), 'utf8')
     let result!: ReturnType<typeof runDemo>

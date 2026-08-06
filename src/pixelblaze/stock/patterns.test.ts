@@ -8,6 +8,8 @@ import { STOCK_MAPS, isMapWrappable } from '@/store/mapStore'
 import { DEMO_AUTHORS, DEMOS, RECOMMENDED_SETTINGS } from './patterns'
 
 const INTENTIONAL_LOW_DENSITY = new Set([
+  'Bouncer3D',
+  'DoomFireV20_2D',
   'EasedSweep',
   'IQPalettes',
   'MetaballGarden',
@@ -16,13 +18,22 @@ const INTENTIONAL_LOW_DENSITY = new Set([
 ])
 
 const EXPECTED_UPSTREAM_AUTHORS: Record<string, string[]> = {
+  Bouncer3D: ['ZRanger1'],
   CoronalMassEjection: ['ZRanger1'],
+  DoomFireV20_2D: ['ZRanger1'],
   IQPalettes: ['Inigo Quilez'],
   IridescentFibers: ['evesira'],
   Kishimisu: ['kishimisu'],
+  LineDancer2D: ['ZRanger1'],
   NeonSquircles: ['kishimisu'],
+  Oasis: ['ZRanger1'],
+  PerlinFireWindTunnel: ['ZRanger1'],
+  PerlinKaleidoscope2D: ['ZRanger1'],
   PhantomStar: ['aiekick'],
   ShaderShowcase: ['Inigo Quilez'],
+  RealWorldLights: ['ZRanger1'],
+  VoronoiMix2D: ['ZRanger1'],
+  WavyBands: ['ZRanger1'],
   ZippyZaps: ['SnoopethDuckDuck'],
 }
 

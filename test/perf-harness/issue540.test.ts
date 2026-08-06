@@ -31,19 +31,20 @@ describe('issue #540 Pattern field/shading census', () => {
       .filter((entry) => entry.credibleCandidate)
       .map((entry) => entry.name)
 
-    // Recensused with the CME remix (#704): the bundled CoronalMassEjection
-    // joins beside the community copy this census already reviewed, and
-    // neither is a credible candidate, so the gate verdict is unchanged.
+    // Recensused with the ZRanger1 collection (#721): nine newly bundled
+    // originals join the existing CoronalMassEjection. None introduces the
+    // reusable expensive scalar producer this historical prototype gate asks
+    // for, so the larger denominator now falls just below its 10% threshold.
     expect(issue540Report.summary).toMatchObject({
-      patternCount: 63,
-      reviewedCount: 63,
+      patternCount: 72,
+      reviewedCount: 72,
       credibleCandidateCount: 7,
       unreviewedIds: [],
       invalidClassificationIds: [],
-      proceedWithPrototype: true,
-      decision: 'proceed-prototype',
+      proceedWithPrototype: false,
+      decision: 'stop-insufficient-incidence',
     })
-    expect(issue540Report.summary.credibleCandidateRatio).toBeCloseTo(7 / 63)
+    expect(issue540Report.summary.credibleCandidateRatio).toBeCloseTo(7 / 72)
     expect(candidates).toEqual([
       'Caustics',
       'GyroidGlow3D',

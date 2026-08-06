@@ -127,7 +127,9 @@ recommended presentation per Pattern; cards may reduce only its count. Layout
 resolution enforces the Gallery ceiling after grid realization, so a Cube cannot
 round a bounded request above 2,048 LEDs. Pattern detail uses the ordinary preview
 stores and Controller push flow without a count multiplier; its Code view is
-read-only Monaco.
+read-only Monaco. `DEMO_SECTIONS` also drives the immutable Pattern folders in
+the Studio rail. Ordinary sections are alphabetical; the `ZRanger1` author
+section keeps its declared popularity order from the public Pattern Library.
 
 ### Analytics
 

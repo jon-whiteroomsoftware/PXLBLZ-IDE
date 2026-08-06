@@ -12,9 +12,16 @@ export function stockPatternOrganization(patterns: readonly GalleryPattern[]): E
     name: label,
     children: patterns
       .filter((pattern) => pattern.sections.includes(label))
+      .sort((left, right) => sectionOrder(label, left.name) - sectionOrder(label, right.name))
       .map((pattern) => ({ kind: 'entity', entityId: pattern.name })),
   }))
   return normalizeEntityOrganization({ version: 1, nodes, trash: [], collapsedFolderIds: [] }, patterns.map((pattern) => pattern.name))
+}
+
+function sectionOrder(label: string, patternName: string): number {
+  const section = DEMO_SECTIONS.find((candidate) => candidate.label === label)
+  const index = section?.names.indexOf(patternName) ?? -1
+  return index < 0 ? Number.MAX_SAFE_INTEGER : index
 }
 
 export function stockShowOrganization(shows: readonly StockShow[]): EntityOrganizationV1 {
