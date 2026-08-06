@@ -1,55 +1,71 @@
-# Feature PRD Draft: WLED Matrix Integration
+# Feature PRD Draft: Standalone PXLBLZ Runtime and WLED Matrix Integration
 
-Status: product and technical direction draft, 2026-07-18. This document records
-the current WLED integration thesis and the decisions reached through ecosystem
-and source research. It is not approved implementation scope, an issue plan, or
-part of the remaining PXLBLZ v2 release commitment.
+Status: product and technical direction draft, updated 2026-08-05. This document
+records the current standalone-runtime and WLED-integration thesis. It is not
+approved implementation scope, an issue plan, or part of the remaining PXLBLZ v2
+release commitment.
 
 This draft supersedes the broader speculative WLED Pattern Lab note and two
 intermediate backend proposals. The first proposed lowering Pixelblaze source
 directly into generated WLED C++. The second proposed interpreting Pixelblaze's
-undocumented bytecode inside WLED. The current direction preserves compatibility
-with Pixelblaze source while making PXLBLZ's own visual intermediate representation,
-program format, and runtime authoritative. Realtime streaming remains the
-stock-firmware preview path; a portable PXLBLZ runtime is the product center; and
-native C++ is an optional maximum-performance backend from the same representation.
+undocumented bytecode inside WLED. The current direction treats Pixelblaze as a
+compatibility frontend and design reference while making PXLBLZ's own visual
+semantics, intermediate representation, program format, and runtime authoritative.
+Realtime streaming remains the stock-WLED preview path. A portable embedded
+runtime and a more capable Pi-class Linux appliance become complementary targets
+from the same representation rather than competing definitions of the product.
 
 ## 1. Decision
 
-PXLBLZ should explore WLED first as a **Portable 2D Show target for WLED
-matrices**. WLED remains responsible for controller configuration, networking,
-segments, persistence, power management, LED protocols, and physical output.
-PXLBLZ supplies the visual authoring, mapping, choreography, compilation, and
+PXLBLZ should build a **target-neutral standalone visual platform**, with WLED as
+its first embedded integration and matrix-market wedge. WLED remains responsible
+for controller configuration, networking, Segments, persistence, power
+management, LED protocols, and physical output on ESP devices. PXLBLZ supplies
+the visual semantics, authoring, mapping, choreography, compilation, and
 installation workflow that WLED does not currently provide.
 
-The first standalone backend should compile the supported Pixelblaze-compatible
-source profile and authored PXLBLZ Show model into a compact PXLBLZ Program. A
-target-neutral typed visual IR separates frame work, pixel kernels, composition,
-state, and choreography before any hardware backend is selected. The portable
-backend emits uploadable PXLBLZ bytecode for a flash-once WLED usermod. A later
-native backend may emit specialized C++ for installations whose measured workload
-justifies rebuilding firmware.
+The platform should also preserve a first-class path to a Pi-class Linux
+appliance. That controller runs the complete PXLBLZ service locally, continues
+playback without a browser or remote server, and can use substantially more CPU,
+memory, storage, audio processing, and GPU execution. It may drive panels through
+a direct adapter, send completed frames to an internal deterministic output
+coprocessor, or use WLED devices as network output nodes. Multiple ESP devices are
+therefore an output-topology choice before they are a rendering strategy.
+
+Every standalone backend should consume the same PXLBLZ Program. A target-neutral
+typed visual IR separates frame work, pixel kernels, composition, state,
+resources, and choreography before hardware selection. An ESP/WLED backend may
+execute compact uploadable bytecode from a flash-once usermod. A Linux backend may
+interpret the same program, compile it to native code or WebAssembly, and lower
+eligible pixel or image kernels to GPU shaders. Specialized C++ remains available
+where a measured embedded workload justifies rebuilding firmware.
 
 The durable compilation model is:
 
 ```text
 Pixelblaze-compatible Pattern source --\
-PXLBLZ Pattern and library source ------> typed visual IR
-PXLBLZ Show model ---------------------/       |
-                                                +--> portable PXLBLZ Program
-                                                +--> native WLED C++
-                                                +--> Pixelblaze source artifact
+Native PXLBLZ authoring ----------------> typed visual IR --> PXLBLZ Program
+PXLBLZ Show model ---------------------/                         |
+                                                                +--> ESP/WLED VM
+                                                                +--> native ESP C++
+                                                                +--> Linux CPU/WASM
+                                                                +--> Linux GPU kernels
+                                                                +--> Pixelblaze artifact
 ```
 
 Pixelblaze bytecode remains useful as a behavioral oracle and empirical reference,
-but it is not the shipping program format and does not constrain PXLBLZ's runtime
-design. Patterns and complete Shows become uploadable data rather than new firmware
-builds while PXLBLZ retains the freedom to optimize its own semantics.
+but neither it nor Pixelblaze source semantics defines the new platform. PXLBLZ
+preserves the qualities worth carrying forward: compact generative authorship,
+immediate feedback, resolution independence, approachable controls, standalone
+playback, and easy deployment. Fixed-point assumptions, one-pixel-at-a-time
+execution, implicit lifecycle rules, and severe state and memory limits remain
+compatibility concerns rather than native design constraints.
 
 DDP provides the preceding live-preview path: authors can validate orientation,
 mapping, color, and performance on stock WLED before installing the runtime.
 
-The initial product promise is deliberately narrower than general WLED support:
+The initial WLED product promise remains deliberately narrow even though the
+architecture is broader:
 
 > Design or import a resolution-independent 2D Pattern or Show in PXLBLZ, preview
 > it on a WLED matrix, and upload it to a flash-once PXLBLZ runtime as a self-running
@@ -298,22 +314,36 @@ renderer metadata, and transforms. Every accepted construct lowers into explicit
 typed semantics. Unsupported dynamic behavior fails at compile time with a source
 diagnostic instead of leaking into the embedded runtime.
 
+This profile is an import and migration surface, not the native language
+specification. Native PXLBLZ semantics may add explicit resources, buffers,
+passes, structured simulation state, typed coordinate spaces, richer controls,
+audio inputs, and color processing that Pixelblaze hardware could not support.
+Compatibility code may preserve a Pixelblaze lifecycle or numeric profile when
+needed; new work should not inherit those limits by default.
+
 ### 7.2 Typed visual IR
 
 The visual IR is the durable boundary between authoring and execution. It models
 what the program means without encoding browser JavaScript, Pixelblaze bytecode,
 WLED APIs, or a particular processor. The first profile needs explicit forms for:
 
-- Pattern kernels, functions, controls, globals, arrays, and private instance state;
+- Pattern kernels, functions, typed controls, globals, structured collections,
+  arrays, and private instance state;
 - frame, row or zone, and per-pixel computations;
-- 1D, 2D, and later 3D renderer coordinates;
-- color, palette, noise, waveform, and random operations;
+- declared render targets, persistent buffers, textures, and pass dependencies;
+- typed 1D, 2D, and later 3D coordinate spaces and transformations between them;
+- color, palette, linear-light blend, noise, waveform, audio-feature, and
+  deterministic random operations;
 - Show score, Pattern identity, Continue/Restart, routing, layers, transitions,
   and render targets; and
-- static resource sizes, output contracts, and provenance.
+- static resource sizes, scalable quality policies, output contracts, and
+  provenance.
 
-The IR is not a new author-facing language. It is a compiler model that allows
-one source frontend and several measured backends.
+The IR is not initially a new author-facing language. It is the semantic model
+that allows compatibility source, future native authoring, visual operations, and
+the Show editor to produce one program for several measured backends. The model
+should make expensive behavior visible enough for compilation, capability checks,
+and graceful target-specific scaling without exposing hardware APIs to Patterns.
 
 ### 7.3 Execution phases
 
@@ -331,7 +361,30 @@ per frame should not execute 4,096 times merely because the source placed it nea
 a renderer. Compile-time, installation, frame, zone or row, and pixel invariants
 should be hoisted to the narrowest valid frequency.
 
-### 7.4 Program optimization
+### 7.4 Derived zones and compositional transforms
+
+A Show should be able to derive one Zone's output from another Zone's rendered
+result. The simplest form makes Zone X display whatever Zone Y currently displays
+without duplicating or re-running Y's Pattern. The same operation can attach a
+transform chain such as mirror, rotate, scale, offset, crop, palette or color
+shift, opacity, mask, or blend.
+
+This is more than an editor shortcut. It establishes a reusable visual-source
+primitive in the Show model and IR:
+
+```text
+Zone Y render target --> spatial transform --> color transform --> Zone X
+```
+
+The compiler represents the relationship as a render-target reference and
+transform chain. It shares Y's computed pixels where the target permits sampling,
+then specializes or fuses the chain for smaller devices. Zone dependencies form
+an acyclic graph by default. A deliberate cycle is a feedback effect and requires
+an explicit delayed buffer, bounded storage, and a target that advertises that
+capability. Copy, mirror, and color shift should not accidentally become a second
+Pattern instance with divergent state.
+
+### 7.5 Program optimization
 
 The compiler can optimize a complete Show more aggressively than a general
 Pattern VM because it knows the Stage, topology, active Pattern instances, zones,
@@ -350,7 +403,7 @@ layers, and transitions. The first optimizer should prioritize structural wins:
 Instruction-dispatch tricks come after these reductions. Avoiding work has more
 leverage than interpreting unnecessary work faster.
 
-### 7.5 Portable WLED runtime
+### 7.6 Portable WLED runtime
 
 One C++ usermod implements the versioned PXLBLZ Program VM and registers a PXLBLZ
 Effect with WLED. WLED's scheduler invokes the adapter once per active Segment.
@@ -370,7 +423,7 @@ bound memory and execution, but it still shares the WLED process, heap, and
 watchdog. Every frame receives an instruction or work budget and a cooperative
 abort path.
 
-### 7.6 Show representation
+### 7.7 Show representation
 
 Simple WLED presets and playlists cannot preserve the complete PXLBLZ Show model.
 The PXLBLZ Program therefore represents the Show directly as a kernel table,
@@ -383,19 +436,73 @@ property animation, spatial transitions, and logical routing remain explicit
 runtime semantics rather than generated source conventions. Native WLED presets
 may select or configure the PXLBLZ Effect but are not the Show's canonical model.
 
-### 7.7 Portable and native backends
+### 7.8 Target backends
 
-The portable backend emits compact, uploadable PXLBLZ bytecode. It supports rapid
+The PXLBLZ Program is the portable semantic artifact; bytecode is one execution
+format rather than the abstraction itself. A package may retain source and typed
+IR, carry a compact baseline executable, and cache target-specific artifacts that
+can always be rebuilt from the authoritative representation.
+
+The ESP portable backend emits compact, uploadable bytecode. It supports rapid
 iteration, program catalogues, compatibility validation, and installation without
-firmware rebuilds.
+firmware rebuilds. The ESP native backend lowers the same optimized IR into C++
+specialized for an exact board, resolution, and Show. It removes interpreter
+dispatch and may fuse more operations, but it requires a new firmware build.
 
-The native backend lowers the same optimized IR into C++ specialized for an exact
-board, resolution, and Show. It removes interpreter dispatch and may fuse more
-operations, but it requires a new firmware build. Native output is an optimization
-tier for measured workloads, not a second semantic implementation. Deterministic
-fixtures must compare both backends against the same reference interpreter.
+A Linux CPU backend may begin as a reference interpreter, then compile eligible
+code to native ARM64 or WebAssembly after profiling. A Linux GPU backend lowers
+pure pixel and image-space kernels to a supported shader representation while the
+CPU retains Show scheduling, stateful simulation, audio analysis, resource
+management, and output orchestration. GPU execution is an optimization of the
+same semantics, not a second authoring model.
 
-### 7.8 Numeric and visual parity
+Every backend is an optimization tier for measured workloads. Deterministic
+fixtures must compare each retained backend against the same reference interpreter.
+
+### 7.9 Pi-class Linux appliance
+
+The higher-capacity standalone target is a local Linux ARM64 appliance rather
+than a remote rendering service. Compute Module 5 is the current reference shape,
+but the contract is a capability profile rather than one permanent board. The
+device boots directly into PXLBLZ, serves its authoring and control surface over
+the local network, stores Programs and Shows locally, and continues playback when
+the browser disconnects or the wider network disappears.
+
+The appliance may use direct HUB75 hardware, an internal real-time output
+coprocessor for parallel addressable-pixel lanes, or WLED devices receiving
+completed frames over a private wired or wireless network. WLED remains a useful
+output substrate in the last case, but it does not define Linux runtime semantics.
+Local USB or I2S audio capture supplies waveform and derived audio resources
+without a PC or cloud service.
+
+A productized unit requires appliance concerns beyond raw compute: durable eMMC
+storage, read-only or atomic system updates, watchdog and recovery behavior,
+thermal management, predictable startup, and a small carrier or output board.
+Those requirements belong to the target package and do not leak into the visual
+program.
+
+### 7.10 Shadertoy and shader-shaped authoring
+
+Shadertoy demonstrates the most GPU-friendly subset of this model. It compiles a
+GLSL fragment function, supplies uniform inputs such as time and resolution, and
+runs the function independently for the pixels of a full-screen image. Texture
+channels and additional buffers allow multi-pass composition and frame-to-frame
+feedback. The GPU driver compiles the shader source; JavaScript primarily owns the
+editor, uniforms, resources, and draw loop.
+
+PXLBLZ should use Shadertoy as an execution and authoring precedent, not adopt it
+as the complete runtime. A Shadertoy-like kernel maps naturally to the IR's
+pixel-kernel phase and a Pi GPU backend. It does not by itself model stateful Show
+choreography, Zone routing, controls, CPU-side simulations, arbitrary installation
+topology, output devices, or bounded execution on ESP hardware.
+
+Direct Shadertoy or Interactive Shader Format import can remain outside the first
+increment while the IR preserves the required shapes: typed vectors, uniforms,
+samplers, render targets, pass dependencies, and explicit feedback buffers. A
+future native PXLBLZ syntax may offer a shader-shaped kernel without making GLSL
+the canonical language.
+
+### 7.11 Numeric and visual parity
 
 PXLBLZ Fast preview remains the responsive authoring runtime. A typed IR reference
 interpreter becomes the target-neutral conformance oracle. Precise preview and real
@@ -407,12 +514,15 @@ Pixelblaze-compatibility profile may preserve fixed-point behavior when a Patter
 depends on it. Accepted backend differences are measured and reported rather than
 silently described as identical execution.
 
-### 7.9 Output and color
+### 7.12 Output and color
 
-The portable or native runtime writes logical RGB or RGBW values through WLED's
-Segment pixel API. WLED retains authority over Segment transforms, address mapping,
-global brightness, automatic brightness limiting, bus selection, chipset timing,
-and physical transmission.
+Every runtime produces logical RGB or RGBW frames behind a target adapter. The
+WLED adapter writes through the Segment pixel API; WLED retains authority over
+Segment transforms, address mapping, global brightness, automatic brightness
+limiting, bus selection, chipset timing, and physical transmission. A Linux
+adapter may write directly to HUB75 hardware, transfer complete frames to an
+internal output coprocessor, or stream them to WLED nodes. Pattern and Show
+semantics do not change with that choice.
 
 Initial RGB qualification may leave the white channel unused. RGBW support
 requires an authored or documented white-extraction policy; it must not emerge
@@ -473,9 +583,10 @@ evidence, and separate product validation.
 
 ## 10. Runtime and program packages
 
-Distribution has two artifacts with different compatibility boundaries.
+Distribution separates the portable Program from target runtime packages with
+different compatibility boundaries.
 
-The reproducible **runtime firmware package** should contain:
+The reproducible **WLED runtime firmware package** should contain:
 
 - PXLBLZ runtime usermod source and its WLED Effect registration;
 - supported PXLBLZ Program ABI, operations, and numeric profiles;
@@ -485,10 +596,21 @@ The reproducible **runtime firmware package** should contain:
   and
 - an optional prebuilt firmware image for the exact named board.
 
+The reproducible **Linux appliance package** should contain:
+
+- supported PXLBLZ Program ABI, operations, numeric profiles, and CPU/GPU
+  capabilities;
+- the local PXLBLZ service, target adapters, browser application, and startup
+  configuration;
+- operating-system image, update and rollback policy, watchdog and recovery
+  behavior, and exact board or module profile;
+- audio and output-driver support with named compatible interfaces; and
+- build identity, source, licenses, integrity metadata, and recovery image.
+
 The uploadable **program package** should contain:
 
-- the validated PXLBLZ Program header, portable bytecode, code table, and state
-  layout;
+- the validated PXLBLZ Program header, authoritative typed representation or
+  portable executable, code table, and state layout;
 - compiler, optimizer, Program ABI, and operation-profile identity;
 - Pattern or Show identity, controls, output dimension, and numeric contract;
 - Show score, Pattern-instance table, routing, transitions, and render-target plan
@@ -496,13 +618,20 @@ The uploadable **program package** should contain:
 - optional compiled coordinate or address-map resources;
 - source Pattern, Show, library, and map provenance;
 - resource requirements, integrity hash, and compatibility warnings; and
-- optional WLED preset and Segment configuration assistance.
+- optional rebuildable target artifacts such as ESP bytecode, native ARM64 or
+  WebAssembly modules, GPU shaders, and WLED preset or Segment assistance.
 
-Program packages are portable across WLED boards whose installed runtime advertises
-the same ABI and sufficient resources. They must not encode a PlatformIO target or
-pretend that installing a program can repair incompatible firmware.
+Program packages are portable across runtimes that advertise the same semantic
+ABI, required operations, and sufficient resources. Target caches may name an
+exact environment but must not become the only retained representation. Installing
+a Program cannot repair incompatible WLED firmware or an incompatible appliance
+image.
 
-## 11. Deployment ladder
+## 11. Deployment paths
+
+WLED and the Linux appliance are parallel standalone targets after a shared
+authoring and compilation path. The numbered WLED levels describe adoption
+friction rather than a sequence that must culminate in Linux.
 
 ### Level 1: Stock-WLED preview
 
@@ -533,43 +662,61 @@ presets or runtime state without further flashing.
 Native C++ remains an optional performance tier from the same visual IR. It is
 not a required rung in the preferred deployment ladder.
 
+### Pi-class appliance path
+
+A development image runs the reference or CPU backend on a named Raspberry Pi,
+stores Programs locally, accepts local browser connections, captures local audio,
+and drives one qualified output adapter. A later Compute Module carrier and
+appliance image package power, storage, recovery, audio, and output into a turnkey
+controller. CPU-native and GPU backends replace or supplement interpretation only
+after the shared Program and conformance fixtures work.
+
+The appliance requires no remote server for compilation, playback, audio, or
+ordinary control. Optional network output nodes remain part of the installation,
+not an external source of animation horsepower.
+
 ## 12. Delivery sequence
 
 ### Phase 0: Semantic and runtime feasibility spike
 
-The first gate proves that one deliberately narrow source profile can travel
-through a PXLBLZ-owned compiler and execute efficiently on WLED. It should:
+The first gate proves that one deliberately narrow semantic profile can travel
+through a PXLBLZ-owned compiler and execute on materially different targets. It
+should:
 
 1. select a representative corpus from current PXLBLZ content: one stateless
    Pattern, one stateful Pattern with arrays, one coordinate-heavy 2D Pattern,
    and one small Portable 2D Show with two Pattern identities, Continue/Restart,
-   property animation, and one spatial transition;
-2. define the minimum accepted Pixelblaze-compatible source semantics and typed
-   visual IR required by that corpus, with explicit diagnostics for everything
-   outside the profile;
+   property animation, one spatial transition, and one derived Zone that mirrors
+   and color-shifts another Zone;
+2. define the minimum accepted Pixelblaze-compatible source semantics and native
+   typed visual IR required by that corpus, with explicit diagnostics for
+   everything outside the compatibility profile;
 3. lower the corpus into the IR and execute it in a pure TypeScript reference
    interpreter, comparing deterministic frames with Fast preview, Precise
    preview, and real Pixelblaze output where applicable;
 4. emit the first PXLBLZ Program and execute it through the portable WLED runtime
-   on an ESP32-S3 HUB75 target; and
-5. measure the same IR through a minimal native C++ emitter only after the
-   portable path works, so the project has evidence for whether a second backend
-   earns its complexity.
+   on an ESP32-S3 HUB75 target;
+5. execute the same Program through a headless Linux CPU runner on a Pi-class
+   ARM64 target without changing its semantics; and
+6. lower one eligible stateless pixel kernel to a fragment shader as a bounded
+   feasibility test, not as a commitment to shader-first authoring.
 
 The spike records accepted source features, IR operations, Program bytes,
 runtime flash, static state and render-target memory, operations per frame,
 frame rate, watchdog behavior, compilation time, and frame parity. ESP32-S3 with
-PSRAM is the preferred first runtime target; one conventional ESP32 profile
-should follow before the architecture is treated as portable.
+PSRAM remains the preferred first embedded runtime target. Raspberry Pi 5 or
+Compute Module 5 is the initial Linux development reference, not a permanent
+hardware decision.
 
-The go bar is execution of the representative stateful 2D Show at 64x32, or
-2,048 pixels, without Pattern-specific C++, source flattening, manual binary
-patching, or a host connection. Every material visual difference must be
-explained, and measured CPU and memory headroom must support the next product
-increment. If the slice requires a general JavaScript runtime, or the portable
-Program cannot meet its frame budget despite structural optimization, narrow the
-source profile or use the native backend for that complexity class. Do not turn
-the spike into an open-ended language implementation.
+The embedded go bar is execution of the representative stateful 2D Show at
+64x32, or 2,048 pixels, without Pattern-specific C++, source flattening, manual
+binary patching, or a host connection. The Linux go bar is autonomous playback
+of the same Program with local storage and one qualified output path; it does not
+yet require a product enclosure or a retained GPU backend. Every material visual
+difference must be explained. If the ESP Program cannot meet its frame budget
+despite structural optimization, narrow that target's capability profile or use
+its native backend rather than shrinking the platform's canonical semantics. Do
+not turn the spike into an open-ended language implementation.
 
 This gate addresses the plan's most consequential blind spot: an imagined IR can
 become a new platform before it has proven one useful visual. The smallest useful
@@ -605,15 +752,17 @@ Compile a complete Show directly from the Show model into the visual IR and
 PXLBLZ Program. Prove that distinct Pattern kernels are stored once, instances
 retain private state, choreography remains data, and render targets are allocated
 from the resource plan. Qualify deterministic timing, Continue/Restart, zones,
-property animation, and selected transitions at 32x32 and 64x32.
+property animation, selected transitions, and a derived-Zone transform chain at
+32x32 and 64x32.
 
-### Phase 4: Packaging, dual-backend evidence, and adoption
+### Phase 4: Packaging, multi-backend evidence, and adoption
 
 Define the runtime capability handshake and versioned Program-package format.
 Upload and replace Programs without reflashing the runtime. Compare portable and
-native C++ output generated from the same IR, and retain the native tier only for
-target profiles or complexity classes with a material measured benefit. Run the
-installation-friction probe before broadening hardware support.
+native C++, Linux CPU, and any GPU output generated from the same IR. Retain each
+optimization tier only for target profiles or complexity classes with a material
+measured benefit. Run the WLED installation-friction probe before broadening its
+hardware support.
 
 ### Phase 5: Mapping, HUB75 expansion, and turnkey runtime
 
@@ -621,6 +770,12 @@ Add address-map import/export, gaps, exact Installation coordinates, presets,
 Segment setup assistance, compatibility manifests, and guided runtime installation.
 Qualify one 64x64 HUB75 profile at 4,096 pixels on suitable ESP32-S3 hardware only
 after the 2,048-pixel profile has measured CPU and memory headroom.
+
+In parallel, package the Linux runner as a local appliance prototype with audio
+input and one direct or coprocessor-backed output adapter. Measure higher
+resolution, multi-pass, persistent-buffer, and audio-reactive workloads before
+choosing interpretation, native compilation, WebAssembly, or GPU lowering as its
+production execution strategy.
 
 ## 13. Acceptance criteria for the first product increment
 
@@ -654,8 +809,9 @@ investment expands:
   behavior;
 - the shared runtime and program artifacts fit named ESP32 and ESP32-S3 profiles
   with measured headroom;
-- reference, portable, and any retained native output agree under deterministic
-  fixtures;
+- the same Program executes autonomously through a Pi-class Linux CPU runner;
+- reference, portable, Linux, and any retained native or GPU output agree under
+  deterministic fixtures;
 - device setup does not require a PXLBLZ-specific WLED fork; and
 - source-profile, IR, Program ABI, runtime, and WLED version changes are rejected
   or isolated behind declared compatibility layers.
@@ -690,6 +846,18 @@ dynamic evaluation, prototypes, reflective property access, and other features
 outside the visual model; and expand only when a concrete authored behavior
 justifies the cost.
 
+### Smallest-common-denominator semantics
+
+Using one Program across ESP and Linux targets can tempt the language and Show
+model to preserve every limit of the smallest controller. That would reproduce
+the compromises this platform is intended to escape.
+
+**Mitigation:** make native PXLBLZ semantics authoritative; give each target an
+explicit capability and resource profile; permit compile-time rejection or
+quality scaling on constrained devices; and keep Pixelblaze behavior in a named
+compatibility profile. Portability means a shared meaning and honest capability
+check, not guaranteed execution of every Program on every device.
+
 ### Premature IR lock-in
 
 An instruction set designed from imagined future needs may preserve the wrong
@@ -712,15 +880,26 @@ invariants; precompute topology and routing; cull inactive work; add measured
 visual superinstructions; use exact static resource plans; and compare a native
 C++ backend from the same IR before raising target limits.
 
-### Dual-backend divergence
+### Multi-backend divergence
 
-Portable Program and native C++ output can drift in numeric policy, lifecycle,
-control behavior, or optimization semantics.
+Portable Program, native C++, Linux CPU, and GPU output can drift in numeric
+policy, lifecycle, control behavior, sampling, or optimization semantics.
 
 **Mitigation:** keep one authoritative typed IR and reference interpreter; run
-the same deterministic fixtures against every backend; specify numeric profiles
-in the artifact; and retain the native tier only where measured performance
-justifies its permanent conformance burden.
+the same deterministic fixtures against every backend; specify numeric, texture,
+and color profiles in the artifact; and retain an optimization tier only where
+measured performance justifies its permanent conformance burden.
+
+### GPU boundary and shader-shaped scope
+
+GPU throughput can encourage a second shader language or force stateful Show
+behavior into a per-pixel execution model that cannot represent it cleanly.
+
+**Mitigation:** lower only pure pixel and image-space kernels to the GPU; keep
+Show scheduling, structured simulation, resource ownership, and output on the
+CPU; treat Shadertoy as a precedent and possible import surface rather than the
+canonical runtime; and qualify multi-pass and feedback through explicit render
+targets in the shared IR.
 
 ### WLED resource limits
 
@@ -730,6 +909,27 @@ current and outgoing Effects in one frame.
 
 **Mitigation:** target ESP32-class boards, retain the Show compiler's resource
 ledger, add WLED-specific CPU/heap/flash budgets, and qualify named matrix sizes.
+
+### Physical output throughput
+
+A Pi-class renderer can produce frames faster than a single serial pixel lane or
+network node can transmit them. More CPU or GPU does not remove LED protocol,
+panel refresh, wiring-distance, or network-bandwidth limits.
+
+**Mitigation:** model output bandwidth separately from render cost; qualify named
+parallel-lane and HUB75 adapters; use an internal real-time coprocessor where Linux
+timing is unsuitable; and use WLED nodes as distributed output only when physical
+topology justifies the network boundary.
+
+### Linux appliance operations
+
+Linux adds storage corruption, updates, boot time, thermal behavior, service
+recovery, and driver qualification that do not exist in the same form on an ESP.
+
+**Mitigation:** define the product as an appliance rather than a general-purpose
+computer; prefer eMMC, atomic or read-only system images, watchdog recovery, and
+named audio and output adapters; and keep playback independent of the browser,
+internet, and remote services.
 
 ### WLED version coupling
 
@@ -791,8 +991,9 @@ Broad WLED support could distract from the coherent Matrix-first value and from
 finishing the current PXLBLZ release.
 
 **Mitigation:** keep this work outside the current release commitment, validate
-one target profile, and require evidence before expanding into general strips,
-multi-device output, shader authoring, or other ecosystems.
+one complete Program across the reference interpreter and narrow embedded and
+Linux runners, and require evidence before productionizing broad strip support,
+distributed output, shader import, or other ecosystems.
 
 ### Reach versus installability
 
@@ -816,6 +1017,8 @@ runtime build as a likely distribution requirement rather than optional polish.
 - import or execution of source-less Pixelblaze bytecode;
 - arbitrary C++ or WLED usermod ingestion;
 - shader or ISF import;
+- a production Pi-class carrier board or finished appliance image;
+- a general-purpose GLSL, Vulkan, or WebGPU programming environment;
 - xLights or FPP choreography export;
 - multi-device synchronization;
 - every WLED board, panel driver, or custom build;
@@ -830,19 +1033,32 @@ runtime build as a likely distribution requirement rather than optional polish.
 - Matrices, especially dense 2D panels, are the initial market and technical
   wedge.
 - Portable 2D Show is the initial authored contract.
-- WLED 16+ on ESP32-class hardware is the initial controller family.
+- WLED 16+ on ESP32-class hardware is the initial embedded controller family.
+- A Pi-class Linux ARM64 appliance is a first-class prospective target from the
+  same Program; Raspberry Pi 5 and Compute Module 5 are development references,
+  not permanent hardware commitments.
 - DDP is the stock-firmware preview path, not the installed artifact format.
-- Pixelblaze-compatible source, not Pixelblaze bytecode, is the compatibility
-  boundary.
+- Pixelblaze-compatible source is an import and migration boundary, not the
+  native PXLBLZ language or semantic specification.
 - A typed PXLBLZ visual IR is the authoritative executable model shared by all
   new backends.
-- A flash-once PXLBLZ runtime executing compact, uploadable Programs is the
-  preferred standalone backend.
+- A PXLBLZ Program is the portable semantic artifact. Compact bytecode, native
+  code, WebAssembly, and GPU shaders are possible execution forms rather than the
+  cross-target abstraction.
+- A flash-once WLED runtime executing compact, uploadable Programs is the
+  preferred embedded standalone backend.
+- A Linux appliance runs locally and remains independent of a browser, remote PC,
+  cloud service, or external animation server during playback.
 - Native WLED C++ generated from the same IR is an optional measured performance
   tier, not a separate compiler architecture.
 - A complete PXLBLZ Show compiles structurally from the Show model into shared
   code, private instance state, choreography, routing, transitions, and an exact
   resource plan rather than first flattening into duplicated Pattern source.
+- A Zone may derive its image from another Zone through explicit spatial, color,
+  mask, opacity, and blend transforms without duplicating the source Pattern or
+  its state.
+- Shadertoy's fragment-kernel and buffer model informs GPU lowering, but GLSL and
+  Shadertoy do not define the complete PXLBLZ runtime.
 - WLED Segment runtime state hosts independent PXLBLZ Program instances where
   possible.
 - The same frontend can continue emitting ordinary Pixelblaze source artifacts
@@ -856,20 +1072,35 @@ runtime build as a likely distribution requirement rather than optional polish.
   a server may later cache builds or produce board-specific native firmware.
 - Turnkey runtime firmware and uploadable program catalogues are later deployment
   layers.
+- WLED devices may serve as network output nodes for a central appliance; using
+  several devices as independent renderers is not the default scaling strategy.
 - WLED Effect import into PXLBLZ is not part of this direction.
 
 ## 18. Open decisions
 
 - Which exact ESP32 and ESP32-S3 boards form the first support matrix?
 - Which Pixelblaze-compatible language features define source profile 1?
+- What native PXLBLZ authoring syntax or structured model should expose features
+  that have no Pixelblaze equivalent?
 - Which typed forms and operations define visual IR version 1, and how are saved
   sources and Programs migrated across later versions?
-- Should Program version 1 use a stack, registers, or a mixed representation,
-  and which operand encodings should be fixed-width versus variable-length?
+- Does a Program retain typed IR as its portable executable representation, carry
+  a custom bytecode baseline, or contain both? If bytecode is retained, should it
+  use a stack, registers, or a mixed representation?
 - Which common visual operations deserve purpose-built superinstructions only
   after profiling?
 - Which numeric profile is the default, and which Patterns genuinely require a
   Pixelblaze-like 16.16 compatibility mode?
+- Which workload and deployment evidence should choose interpretation, native
+  ARM64, WebAssembly, or GPU lowering for the Linux appliance?
+- Which IR kernels can lower safely to fragment or compute shaders, and which
+  texture, sampling, feedback, and numeric rules form the conformance contract?
+- Which direct HUB75, internal output-coprocessor, and WLED-network paths form the
+  first Pi-class output profile?
+- Which local audio interfaces and derived waveform, spectrum, loudness, onset,
+  beat, and tempo resources belong in the first native input profile?
+- Which derived-Zone transforms belong in the core Show model, and how should an
+  explicit feedback dependency declare its delayed buffer and resource cost?
 - What minimum frame rate qualifies 1,024- and 2,048-pixel Shows by complexity
   class?
 - Which native controls map automatically, and which require explicit author
@@ -946,3 +1177,16 @@ independent choreography and exact Installation topology.
 - Adafruit MatrixPortal S3 and representative panels:
   https://www.adafruit.com/product/5778 and
   https://www.adafruit.com/product/5362
+- Raspberry Pi 5 architecture and GPU capabilities:
+  https://www.raspberrypi.com/news/introducing-raspberry-pi-5/
+- Compute Module 5 hardware and productization model:
+  https://www.raspberrypi.com/documentation/computers/compute-module.html
+- Raspberry Pi HUB75 output and Pi 5 GPU-rendering prior art:
+  https://github.com/hzeller/rpi-rgb-led-matrix and
+  https://github.com/bitslip6/rpi-gpu-hub75-matrix
+- RP2040 parallel addressable-pixel output precedent:
+  https://learn.adafruit.com/introducing-feather-rp2040-scorpio
+- Shadertoy uniform and fragment-kernel reference:
+  https://www.shadertoy.com/view/MsySzy
+- OpenGL fragment-shader execution model:
+  https://www.khronos.org/opengl/wiki/Fragment_Shader
