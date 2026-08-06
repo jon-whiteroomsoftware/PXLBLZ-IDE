@@ -53,7 +53,7 @@ var halfSize = size / 2;
 
 // speed control.  How many milliseconds do we wait between
 // pixel movements?
-var frameTime;
+var frameTime = 0;
 var msPerFrame = 10
 
 // Slider UI

@@ -19,6 +19,7 @@ var timebase = 0;
 var t1,t2;
 var cosT,sinT;
 var outX,outY;
+var h = 0;
 
 // initialization. Calculate
 // sine and cosine for rotation so we

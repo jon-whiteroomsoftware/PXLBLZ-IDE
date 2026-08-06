@@ -22,6 +22,28 @@ const WARMUP_FRAME_COUNTS = new Map<string, number>([
   ['TunnelOfSquares2D', 4],
 ])
 
+function withoutLeakedPatternGlobals<T>(run: () => T): T {
+  const coldPageNames = ['h', 's'] as const
+  const saved = new Map<string, PropertyDescriptor>()
+  for (const name of coldPageNames) {
+    const descriptor = Object.getOwnPropertyDescriptor(globalThis, name)
+    if (descriptor) saved.set(name, descriptor)
+    Reflect.deleteProperty(globalThis, name)
+  }
+  const baseline = new Set(Reflect.ownKeys(globalThis))
+
+  try {
+    return run()
+  } finally {
+    for (const key of Reflect.ownKeys(globalThis)) {
+      if (!baseline.has(key)) Reflect.deleteProperty(globalThis, key)
+    }
+    for (const [name, descriptor] of saved) {
+      Object.defineProperty(globalThis, name, descriptor)
+    }
+  }
+}
+
 function runDemo(file: string, mode: 'fast' | 'fidelity' = 'fast') {
   const src = readFileSync(join(here, file), 'utf8')
   const { code, fxCode, metadata } = bundle(src, LIBRARIES)
@@ -110,11 +132,15 @@ function runDimensionedDemo(
   let anyLit = false
   let firstFrameLit = false
   const frames = new Set<string>()
+  const litMasks = new Set<string>()
+  let maxBrightPixels = 0
   const frameCount = WARMUP_FRAME_COUNTS.get(file.replace(/\.js$/, '')) ?? 4
   for (let frame = 0; frame < frameCount; frame++) {
     vt += 33 * 65.536
     handle.beforeRender(enc(33))
     const pixels: string[] = []
+    const litIndices: number[] = []
+    let brightPixels = 0
     for (let index = 0; index < mapPoints.length; index++) {
       const sample = mapPoints[index].sample
       const [x, y, z] = shim.transformPoint(sample[0], sample[1] ?? 0, sample[2] ?? 0)
@@ -126,11 +152,17 @@ function runDimensionedDemo(
         anyLit = true
         if (frame === 0) firstFrameLit = true
       }
+      if (r + g + b > 0.05) {
+        litIndices.push(index)
+        brightPixels++
+      }
       pixels.push(`${r.toFixed(4)},${g.toFixed(4)},${b.toFixed(4)}`)
     }
     frames.add(pixels.join(';'))
+    litMasks.add(litIndices.join(','))
+    maxBrightPixels = Math.max(maxBrightPixels, brightPixels)
   }
-  return { anyLit, firstFrameLit, distinctFrames: frames.size }
+  return { anyLit, firstFrameLit, distinctFrames: frames.size, distinctLitMasks: litMasks.size, maxBrightPixels }
 }
 
 describe('demo smoke tests', () => {
@@ -153,13 +185,27 @@ describe('demo smoke tests', () => {
     for (const name of ZRANGER1_DEMOS) {
       it(`${name} bundles, runs its transformed native renderer, and lights pixels in ${mode} mode`, () => {
         let result!: ReturnType<typeof runDimensionedDemo>
-        expect(() => { result = runDimensionedDemo(`${name}.js`, mode) }).not.toThrow()
+        expect(() => {
+          result = withoutLeakedPatternGlobals(() => runDimensionedDemo(`${name}.js`, mode))
+        }).not.toThrow()
         if (!WARMUP_FRAME_COUNTS.has(name)) {
           expect(result.firstFrameLit).toBe(true)
         }
         expect(result.anyLit).toBe(true)
       })
     }
+  }
+
+  for (const mode of ['fast', 'fidelity'] as const) {
+    it(`BlueHolidayCandle2D renders its flame, not only its background, in ${mode} mode`, () => {
+      const result = withoutLeakedPatternGlobals(() => runDimensionedDemo('BlueHolidayCandle2D.js', mode))
+      expect(result.maxBrightPixels).toBeGreaterThan(10)
+    })
+
+    it(`Stacker advances its travelling blocks in ${mode} mode`, () => {
+      const result = withoutLeakedPatternGlobals(() => runDimensionedDemo('Stacker.js', mode))
+      expect(result.distinctLitMasks).toBeGreaterThan(1)
+    })
   }
 
   it('RealWorldLights candlelight changes over time in Fast preview', () => {

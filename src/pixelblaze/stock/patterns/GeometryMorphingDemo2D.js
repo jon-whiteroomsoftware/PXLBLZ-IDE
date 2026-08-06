@@ -152,6 +152,8 @@ export function beforeRender(delta) {
 export function render2D(index,x,y) {
   var d;
   var v = 0;
+  var h = 0;
+  var s = 0;
 
   // draw one our shapes, interpolating between two SDFs when switching shapes
   if (wait) {

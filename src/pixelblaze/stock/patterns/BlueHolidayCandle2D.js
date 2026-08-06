@@ -21,7 +21,7 @@ export var tPos = 0;
 export var twinklers = array(numTwinklers);
 var twinkleState = array(numTwinklers);
 var twinkleIncrement = array(numTwinklers);
-var timebase;
+var timebase = 0;
 
 // move coordinate origin to 0 and flip y axis so we can
 // put the candle at the bottom (comment out the scale() statement if
