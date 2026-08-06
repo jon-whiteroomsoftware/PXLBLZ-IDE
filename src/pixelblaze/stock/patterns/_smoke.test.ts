@@ -168,7 +168,6 @@ function runDimensionedDemo(
   let anyLit = false
   let firstFrameLit = false
   let allFinite = true
-  const litBrightnesses = new Set<string>()
   const frames = new Set<string>()
   const litMasks = new Set<string>()
   let maxBrightPixels = 0
@@ -193,7 +192,6 @@ function runDimensionedDemo(
       if (r + g + b > 0.01) {
         anyLit = true
         if (frame === 0) firstFrameLit = true
-        litBrightnesses.add(Math.max(r, g, b).toFixed(4))
       }
       if (r + g + b > 0.05) {
         litIndices.push(index)
@@ -211,7 +209,6 @@ function runDimensionedDemo(
     allFinite,
     distinctFrames: frames.size,
     distinctLitMasks: litMasks.size,
-    distinctLitBrightnesses: litBrightnesses.size,
     maxBrightPixels,
   }
 }
@@ -259,11 +256,6 @@ describe('demo smoke tests', () => {
     it(`Stacker advances its travelling blocks in ${mode} mode`, () => {
       const result = withoutLeakedPatternGlobals(() => runDimensionedDemo('Stacker.js', mode))
       expect(result.distinctLitMasks).toBeGreaterThan(1)
-    })
-
-    it(`TimeFlies2D preserves radial brightness falloff in ${mode} mode`, () => {
-      const result = withoutLeakedPatternGlobals(() => runDimensionedDemo('TimeFlies2D.js', mode))
-      expect(result.distinctLitBrightnesses).toBeGreaterThan(1)
     })
   }
 

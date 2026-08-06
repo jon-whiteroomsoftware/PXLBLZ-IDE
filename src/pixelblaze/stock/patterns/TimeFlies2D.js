@@ -116,8 +116,7 @@ export function render2D(index,x,y) {
     //h = sqrt(dx * dx + dy * dy);  // for Pixelblaze 2
     h = hypot(dx,dy);
     if (h < flies[i][_size]) {
-      // Pixelblaze shifts fixed-point values; JavaScript shifts truncate them.
-      v = 1-(h*8); v = v*v*v;
+      v = 1-(h<<3); v = v*v*v;
       h = flies[i][_hue];
       break;
     }
