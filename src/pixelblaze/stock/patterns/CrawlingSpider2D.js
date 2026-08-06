@@ -59,7 +59,8 @@ function drawLeg(r,x1,y1,px,py,plen,pcol) {
   return 1-(z/lineWidth)
 }
 
-var timebase = 0;
+// Start on-panel so the Gallery's static preview shows the spider immediately.
+var timebase = 4.5;
 var lastPos = 0;
 export function beforeRender(delta) {
   timebase = (timebase + delta / 1000) % 3600;

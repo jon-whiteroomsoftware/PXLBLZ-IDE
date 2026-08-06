@@ -50,7 +50,8 @@ export var __boot = 0;     // set to 0 by automation driver after setting segmen
 export var __state = 0;    // currently running transition state.
 
 // GLOBAL VARIABLES
-var fadeTime = 0         // accumulator for timing fade transitions
+// Begin midway through the fade so a single static Gallery frame is visible.
+var fadeTime = 1000      // accumulator for timing fade transitions
 var fadeLength = 2000    // fade in/out time in milliseconds
 var fadeLevel = 0        // transition brightness multiplier
 var segBri = array(__max_segments)   // final segment brightness after all adjustments

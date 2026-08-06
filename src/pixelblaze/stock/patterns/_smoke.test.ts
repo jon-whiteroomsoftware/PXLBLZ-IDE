@@ -12,9 +12,8 @@ import { LIBRARIES } from '@/pixelblaze/libs'
 
 const here = join(process.cwd(), 'src/pixelblaze/stock/patterns')
 
-// These simulations intentionally use their first renderer pass to seed or
-// advance state. They must light within the four-frame preview window, but the
-// first pass itself is legitimately dark.
+// Give stateful simulations enough frames to exercise their initialized and
+// advancing states after the required static Gallery preview frame.
 const WARMUP_FRAME_COUNTS = new Map<string, number>([
   ['CellularAutomata1D', 12],
   ['CrawlingSpider2D', 128],
@@ -169,13 +168,17 @@ function runDimensionedDemo(
   let anyLit = false
   let firstFrameLit = false
   let allFinite = true
+  const litBrightnesses = new Set<string>()
   const frames = new Set<string>()
   const litMasks = new Set<string>()
   let maxBrightPixels = 0
-  const frameCount = WARMUP_FRAME_COUNTS.get(file.replace(/\.js$/, '')) ?? 4
+  // The first frame matches Gallery's delta-0 paint; retain four advancing
+  // frames afterward for the existing motion assertions.
+  const frameCount = WARMUP_FRAME_COUNTS.get(file.replace(/\.js$/, '')) ?? 5
   for (let frame = 0; frame < frameCount; frame++) {
-    vt += 33 * 65.536
-    handle.beforeRender(enc(33))
+    const delta = frame === 0 ? 0 : 33
+    vt += delta * 65.536
+    handle.beforeRender(enc(delta))
     const pixels: string[] = []
     const litIndices: number[] = []
     let brightPixels = 0
@@ -190,6 +193,7 @@ function runDimensionedDemo(
       if (r + g + b > 0.01) {
         anyLit = true
         if (frame === 0) firstFrameLit = true
+        litBrightnesses.add(Math.max(r, g, b).toFixed(4))
       }
       if (r + g + b > 0.05) {
         litIndices.push(index)
@@ -201,7 +205,15 @@ function runDimensionedDemo(
     litMasks.add(litIndices.join(','))
     maxBrightPixels = Math.max(maxBrightPixels, brightPixels)
   }
-  return { anyLit, firstFrameLit, allFinite, distinctFrames: frames.size, distinctLitMasks: litMasks.size, maxBrightPixels }
+  return {
+    anyLit,
+    firstFrameLit,
+    allFinite,
+    distinctFrames: frames.size,
+    distinctLitMasks: litMasks.size,
+    distinctLitBrightnesses: litBrightnesses.size,
+    maxBrightPixels,
+  }
 }
 
 describe('demo smoke tests', () => {
@@ -231,9 +243,7 @@ describe('demo smoke tests', () => {
         expect(() => {
           result = withoutLeakedPatternGlobals(() => runDimensionedDemo(`${name}.js`, mode))
         }).not.toThrow()
-        if (!WARMUP_FRAME_COUNTS.has(name)) {
-          expect(result.firstFrameLit).toBe(true)
-        }
+        expect(result.firstFrameLit).toBe(true)
         expect(result.allFinite).toBe(true)
         expect(result.anyLit).toBe(true)
       })
@@ -249,6 +259,11 @@ describe('demo smoke tests', () => {
     it(`Stacker advances its travelling blocks in ${mode} mode`, () => {
       const result = withoutLeakedPatternGlobals(() => runDimensionedDemo('Stacker.js', mode))
       expect(result.distinctLitMasks).toBeGreaterThan(1)
+    })
+
+    it(`TimeFlies2D preserves radial brightness falloff in ${mode} mode`, () => {
+      const result = withoutLeakedPatternGlobals(() => runDimensionedDemo('TimeFlies2D.js', mode))
+      expect(result.distinctLitBrightnesses).toBeGreaterThan(1)
     })
   }
 

@@ -98,7 +98,10 @@ function initialize(n) {
 
 // special case -- if only one starting cell, set the one in the center
   if (n == 1) {
-    currState[pixelCount / 2] = 1;
+    var center = floor(pixelCount / 2);
+    currState[center] = 1;
+    hues[center] = 1;
+    nGens = 1;
     return;
   }
 
@@ -107,7 +110,10 @@ function initialize(n) {
 // possible that slightly fewer than n cells may be set.  For the sake
 // of expediency, that's ok for now.
   for (i = 0; i < n; i++ ) {
-     currState[floor(pixelCount * random(1))] = 1;
+     var seed = floor(pixelCount * random(1));
+     currState[seed] = 1;
+     hues[seed] = 1;
+     nGens = 1;
   }
 }
 

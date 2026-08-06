@@ -99,6 +99,8 @@ function renderFirstPass(index,x,y) {
   x -= 0.5; y -= 0.5;
   radius[index] = hypot((x),(y));
   angle[index] = positiveAtan2(x,y);
+  // Paint while caching geometry so the Gallery's static preview is not blank.
+  renderNormal(index,x,y);
   if (index == (pixelCount - 1)) drawFrame = renderNormal;
 }
 
