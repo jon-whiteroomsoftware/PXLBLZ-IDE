@@ -1068,6 +1068,10 @@ export interface ShowCompileOptions {
   showScoreSharing?: 'auto' | 'none' | 'force'
   /** Exact whole-machine reuse for non-overlapping Restart Pattern lifetimes. */
   patternSlotSharing?: 'auto' | 'none' | 'force'
+  /** #717 scheduler emission. 'auto' (default) selects table or unrolled by
+   * emitted size with a blocker-triggered retry; 'none' forces the unrolled
+   * chain. */
+  schedulerTable?: 'auto' | 'none'
   /** Benchmark-only counterfactual; production uses exact profitable reuse when available. */
   patternOutputReuse?: boolean
   /** Benchmark-only counterfactual; production uses exact profitable scalar fields when available. */
@@ -1984,6 +1988,25 @@ export function compileShow(
   libraries: Record<string, string>,
   options: ShowCompileOptions = {},
 ): GeneratedShowArtifact {
+  if (options.schedulerTable === undefined) {
+    // #717 review P2: the size-selected table scheduler adds four table
+    // globals and two pointers, which can push a Show already at the
+    // 256-global (or VM-word) ceiling into a blocker the unrolled chain
+    // avoids. Selection is byte-first, hard-resource-second: retry without
+    // the table only when the table was chosen and a hard budget blocked.
+    const primary = compileShow(recipe, libraries, { ...options, schedulerTable: 'auto' })
+    const hardBlocked = primary.summary.resources.blockers.some((blocker) => (
+      blocker.kind === 'persistent-global-limit' || blocker.kind === 'vm-word-budget'
+    ))
+    if (hardBlocked && primary.code.includes('__pxlblz_show_sched_end')) {
+      const fallback = compileShow(recipe, libraries, { ...options, schedulerTable: 'none' })
+      const fallbackBlocked = fallback.summary.resources.blockers.some((blocker) => (
+        blocker.kind === 'persistent-global-limit' || blocker.kind === 'vm-word-budget'
+      ))
+      if (!fallbackBlocked) return fallback
+    }
+    return primary
+  }
   const requestedPatternSlotSharing = options.patternSlotSharing ?? 'auto'
   const potentialPatternSlotReuse = Boolean(recipe.routedSceneSequence)
     && new Set(recipe.clips.map((clip) => clip.source)).size < recipe.clips.length
@@ -2631,6 +2654,7 @@ export function compileShow(
   for (const member of members) member.binding = bindingPolicies.get(member.id)
   const routedSceneEmission = expandedRecipe.routedSceneSequence
       ? emitRoutedSceneSequenceShowCode(members, expandedRecipe.routedSceneSequence, {
+        schedulerTable: options.schedulerTable,
         routing: {
           layouts: expandedRecipe.routingLayouts ?? [],
           switches: expandedRecipe.routingSwitches ?? [],
@@ -4284,6 +4308,8 @@ ${scene.member.prefix}_emit()`
  * toggles - grouped so a new selection or toggle never widens a positional
  * list (the pre-#570 form had 22 positional parameters). */
 interface RoutedSceneSequenceEmissionOptions {
+  /** #717: 'none' forces the unrolled scheduler chain (blocker retry). */
+  schedulerTable?: 'auto' | 'none'
   routing: {
     layouts: ShowRoutingLayoutRecipe[]
     switches: ShowRoutingSwitchRecipe[]
@@ -4971,6 +4997,7 @@ ${setupForPlacements(
   const schedulerTableDeclarations: string[] = []
   const schedulerBranches = canSharePhysicalCutRouting ? canonicalCutScheduler() : (() => {
     if (segments.length === 0) return ''
+    if (emissionOptions.schedulerTable === 'none') return unrolledSchedulerChain()
     schedulerTableDeclarations.push(
       ...emitFractionalDataTable('__pxlblz_show_sched_end', segments.map((segment) => segment.endMs / 1000)).lines,
       ...emitIntegerDataTable('__pxlblz_show_sched_code', segments.map((segment) => (

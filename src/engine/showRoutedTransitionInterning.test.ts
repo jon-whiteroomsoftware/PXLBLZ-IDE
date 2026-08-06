@@ -101,3 +101,38 @@ describe('routed steady-state scene branch grouping (#717)', () => {
     expect(marginalBytes).toBeLessThan(250)
   })
 })
+
+describe('scheduler hard-resource fallback (#717 review P2)', () => {
+  it('keeps a globals-heavy repetitive Show unblocked by falling back to the unrolled chain', () => {
+    // Two 106-global Patterns across 40 alternating scenes: the byte-smaller
+    // table scheduler would add six globals and cross the 256 limit; the
+    // fallback keeps the unrolled chain and the Show compiles clean.
+    const globalsHeavy = (color: string) => `${Array.from({ length: 106 }, (_, i) => `var g${i} = ${i / 200}`).join('\n')}
+export function render2D(index, x, y) { rgb(${color}, g7) }`
+    const artifact = compileShow({
+      clips: [
+        { id: 'red', source: globalsHeavy('1, 0') },
+        { id: 'blue', source: globalsHeavy('0, 1') },
+      ],
+      routingLayouts: [{
+        id: 'normalized',
+        name: 'Normalized',
+        zones: [],
+        logical: { kind: 'single', zoneNames: ['main'] },
+      }],
+      routedSceneSequence: {
+        scenes: Array.from({ length: 40 }, (_, i) => ({
+          holdMs: 1_000 + (i % 7) * 137,
+          placements: [
+            { zoneName: 'main', clipId: i % 2 === 0 ? 'red' : 'blue' },
+            { zoneName: 'main', clipId: i % 2 === 0 ? 'blue' : 'red', stackOrder: 1 },
+          ],
+          ...(i < 39 ? { transitionOut: { kind: 'crossfade' as const, durationMs: 400, crossfadePolicy: 'live-live' as const } } : {}),
+        })),
+      },
+      loopDurationMs: 80_000,
+    }, {})
+    expect(artifact.summary.resources.blockers).toEqual([])
+    expect(artifact.code).not.toContain('__pxlblz_show_sched_end')
+  })
+})
