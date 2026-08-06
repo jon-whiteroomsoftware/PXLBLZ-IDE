@@ -116,10 +116,8 @@ Milestones and issue bodies remain authoritative if this summary drifts.
 
 - trustworthy account metrics beyond the shipped privacy page and coarse GA4
   integration (#500);
-- simulated audio inputs and beat-synchronous Shows (#475);
-- AI Show direction and evolving showcraft (#441); and
-- the WLED matrix direction in
-  [`wled-matrix-integration-prd-draft.md`](wled-matrix-integration-prd-draft.md).
+- simulated audio inputs and beat-synchronous Shows (#475); and
+- AI Show direction and evolving showcraft (#441).
 
 None of these should reopen the v2 Show model, generated-artifact contract, or
 2,000-pixel support envelope without a new measured design decision.
