@@ -49,13 +49,16 @@ byte-neutral render paths.
 ## Table-scheduler wall clock
 
 A 16-scene table-scheduled probe with irregular holds (1.5/2.2/2.9 s
-cycling, 600 ms crossfades) exported its scene variable; getVars sampling at
-~120 ms resolution observed 9 scene changes over 26 s. After the first-cycle
-detection jitter (one boundary detected ~350 ms late, compensated exactly by
-the neighboring gap), steady-state boundary errors were -42, +4, +29, -35,
-and +45 ms - within sampling resolution. The one-ulp fractional-literal
-tolerance (15 us) is invisible, as predicted; the schedule tables keep
-wall-clock choreography.
+cycling, 600 ms crossfades) exported its scene variable. The sampling loop
+slept 120 ms per iteration, but each getVars round-trip added latency: the
+report records 89 samples over 26 s, an effective cadence of ~295 ms, which
+is the timing oracle's true resolution. Nine scene changes were observed.
+One early boundary was detected ~350 ms late - about one sampling interval -
+and the neighboring gap compensates exactly. Steady-state boundary errors of
+-42, +4, +29, -35, and +45 ms all sit well inside a single ~295 ms sampling
+interval, so the boundaries are correct to the precision this oracle can
+resolve. The one-ulp fractional-literal tolerance (15 us) is far below that
+floor, as predicted; the schedule tables keep wall-clock choreography.
 
 ## Program verdict
 
