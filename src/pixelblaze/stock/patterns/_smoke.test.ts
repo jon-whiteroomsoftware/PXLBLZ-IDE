@@ -54,9 +54,13 @@ function runDemo(file: string, mode: 'fast' | 'fidelity' = 'fast') {
   return { anyLit, controlCount: metadata.controls.length }
 }
 
-function runDimensionedDemo(file: string) {
+function runDimensionedDemo(
+  file: string,
+  mode: 'fast' | 'fidelity' = 'fast',
+  controlValue = 0.5,
+) {
   const src = readFileSync(join(here, file), 'utf8')
-  const { code, metadata } = bundle(src, LIBRARIES)
+  const { code, fxCode, metadata } = bundle(src, LIBRARIES)
   const dimensions = nativeDim(src)
   const side = dimensions === 3 ? 5 : dimensions === 2 ? 16 : 128
   const pixelCount = dimensions === 3 ? side ** 3 : dimensions === 2 ? side ** 2 : side
@@ -76,30 +80,39 @@ function runDimensionedDemo(file: string) {
     return { sample: [x, y, z] as [number, number, number], pos: [x, y, z] as [number, number, number] }
   })
   let vt = 0
-  const shim = createShim({ mapPoints, pixelCount, dimensions, getVirtualTime: () => vt })
-  const handle = loadPattern(code, metadata, shim.builtins)
+  const config = { mapPoints, pixelCount, dimensions, getVirtualTime: () => vt }
+  const shim = mode === 'fidelity' ? createFxShim(config) : createShim(config)
+  const handle = loadPattern(mode === 'fidelity' ? fxCode : code, metadata, shim.builtins)
   const enc = shim.encodeScalar
 
   for (const control of metadata.controls) {
     const fn = handle.controls[control.exportName]
-    if (control.kind === 'rgbPicker' || control.kind === 'hsvPicker') fn?.(enc(0.5), enc(0.5), enc(0.5))
-    else fn?.(enc(0.5))
+    if (control.kind === 'rgbPicker' || control.kind === 'hsvPicker') {
+      fn?.(enc(controlValue), enc(controlValue), enc(controlValue))
+    } else {
+      fn?.(enc(controlValue))
+    }
   }
 
   let anyLit = false
+  const frames = new Set<string>()
   for (let frame = 0; frame < 4; frame++) {
     vt += 33 * 65.536
     handle.beforeRender(enc(33))
+    const pixels: string[] = []
     for (let index = 0; index < mapPoints.length; index++) {
       const sample = mapPoints[index].sample
+      const [x, y, z] = shim.transformPoint(sample[0], sample[1] ?? 0, sample[2] ?? 0)
       if (dimensions === 1) handle.render(enc(index))
-      else if (dimensions === 2) handle.render2D(enc(index), enc(sample[0]), enc(sample[1] ?? 0))
-      else handle.render3D(enc(index), enc(sample[0]), enc(sample[1] ?? 0), enc(sample[2] ?? 0))
+      else if (dimensions === 2) handle.render2D(enc(index), x, y)
+      else handle.render3D(enc(index), x, y, z)
       const [r, g, b] = shim.capturedPixel()
       if (r + g + b > 0.01) anyLit = true
+      pixels.push(`${r.toFixed(4)},${g.toFixed(4)},${b.toFixed(4)}`)
     }
+    frames.add(pixels.join(';'))
   }
-  return anyLit
+  return { anyLit, distinctFrames: frames.size }
 }
 
 describe('demo smoke tests', () => {
@@ -118,13 +131,20 @@ describe('demo smoke tests', () => {
     expect(shim.capturedPixel()).toEqual([0, 0, 0])
   })
 
-  for (const name of ZRANGER1_DEMOS) {
-    it(`${name} bundles, runs its native renderer, and lights pixels`, () => {
-      let anyLit = false
-      expect(() => { anyLit = runDimensionedDemo(`${name}.js`) }).not.toThrow()
-      expect(anyLit).toBe(true)
-    })
+  for (const mode of ['fast', 'fidelity'] as const) {
+    for (const name of ZRANGER1_DEMOS) {
+      it(`${name} bundles, runs its transformed native renderer, and lights pixels in ${mode} mode`, () => {
+        let result!: ReturnType<typeof runDimensionedDemo>
+        expect(() => { result = runDimensionedDemo(`${name}.js`, mode) }).not.toThrow()
+        expect(result.anyLit).toBe(true)
+      })
+    }
   }
+
+  it('RealWorldLights candlelight changes over time in Fast preview', () => {
+    const result = runDimensionedDemo('RealWorldLights.js', 'fast', 0)
+    expect(result.distinctFrames).toBeGreaterThan(1)
+  })
 
   it('RedlineMachine combines the three materials in one cheap scored renderer', () => {
     const source = readFileSync(join(here, 'RedlineMachine.js'), 'utf8')

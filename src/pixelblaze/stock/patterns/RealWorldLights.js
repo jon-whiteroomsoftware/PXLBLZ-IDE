@@ -68,43 +68,59 @@ var r,g,b,h,s,v;
 // Tables of functions for the light sources
 //////
 
-preLight[cool_white] = (delta) => ctToRGB(66);   // Cool white incandescent
-renderLight[cool_white] = (index) => rgb(r,g,b);
+function preCoolWhite(delta) { ctToRGB(66); }
+function preWarmWhite(delta) { ctToRGB(29); }
+function preSoftWhite(delta) { ctToRGB(40); }
+function preGrowLight(delta) { ; }
+function preWarmFluorescent(delta) { r=1;g=0.8;b=0.8; }
+function preCoolFluorescent(delta) { r=.831;g=0.922;b=1; }
+function preUltraviolet(delta) { r=0.655;g=0;b=1; }
+function preMercury(delta) { r=0.55;g=1;b=.58; }
+function preUraniumGlass(delta) { speed = 0.85;h = 0.2673;s = 1;v = 1; }
+function preSodiumVapor(delta) { h = 0.08;s=0.902; }
+function preCandleLight(delta) { speed = 0.4;h = 0.05;s=0.98;v=1; }
+function preHighPressureSodium(delta) { h = 0.04;s=0.969; }
+function preCherenkov(delta) { speed = 0.85;h = 0.591;s = 0.997;v = 1; }
+function renderRgb(index) { rgb(r,g,b); }
+function renderHsv(index) { hsv(h,s,1); }
 
-preLight[warm_white] = (delta) => ctToRGB(29);   // Warm White incandescent
-renderLight[warm_white] = (index) => rgb(r,g,b);
+preLight[cool_white] = preCoolWhite;   // Cool white incandescent
+renderLight[cool_white] = renderRgb;
 
-preLight[soft_white] = (delta) => ctToRGB(40);   // Soft white incandescent
-renderLight[soft_white] = (index) => rgb(r,g,b);
+preLight[warm_white] = preWarmWhite;   // Warm White incandescent
+renderLight[warm_white] = renderRgb;
 
-preLight[fl_grow] = (delta) => { ;};   // Fluorescent grow light
+preLight[soft_white] = preSoftWhite;   // Soft white incandescent
+renderLight[soft_white] = renderRgb;
+
+preLight[fl_grow] = preGrowLight;   // Fluorescent grow light
 renderLight[fl_grow] = renderGrowLight;
 
-preLight[warm_fl] = (delta) => {r=1;g=0.8;b=0.8;};   // Warm fluorescent tube
-renderLight[warm_fl] = (index) => rgb(r,g,b);
+preLight[warm_fl] = preWarmFluorescent;   // Warm fluorescent tube
+renderLight[warm_fl] = renderRgb;
 
-preLight[cool_fl] = (delta) => {r=.831;g=0.922;b=1;};   // Cool fluorescent tube
-renderLight[cool_fl] = (index) => rgb(r,g,b);
+preLight[cool_fl] = preCoolFluorescent;   // Cool fluorescent tube
+renderLight[cool_fl] = renderRgb;
 
-preLight[ultraviolet] = (delta) => {r=0.655;g=0;b=1;};  // black light tube
-renderLight[ultraviolet] = (index) => rgb(r,g,b);
+preLight[ultraviolet] = preUltraviolet;  // black light tube
+renderLight[ultraviolet] = renderRgb;
 
-preLight[mercury] = (delta) => {r=0.55;g=1;b=.58;};   // mercury vapor lamp
-renderLight[mercury] = (index) => rgb(r,g,b);
+preLight[mercury] = preMercury;   // mercury vapor lamp
+renderLight[mercury] = renderRgb;
 
-preLight[uranium_glass] = (delta) => {speed = 0.85;h = 0.2673;s = 1;v = 1};
+preLight[uranium_glass] = preUraniumGlass;
 renderLight[uranium_glass] = renderUraniumGlass;
 
-preLight[sodium_vapor] = (delta) => {h = 0.08;s=0.902};     // sodium vapor
-renderLight[sodium_vapor] = (index) => hsv(h,s,1);
+preLight[sodium_vapor] = preSodiumVapor;     // sodium vapor
+renderLight[sodium_vapor] = renderHsv;
 
-preLight[candle] = (delta) => {speed = 0.4;h = 0.05;s=0.98;v=1} // candlelight
+preLight[candle] = preCandleLight; // candlelight
 renderLight[candle] = renderCandle;
 
-preLight[hp_sodium] = (delta) => {h = 0.04;s=0.969;};   // high pressure sodium
-renderLight[hp_sodium] = (index) => hsv(h,s,1);
+preLight[hp_sodium] = preHighPressureSodium;   // high pressure sodium
+renderLight[hp_sodium] = renderHsv;
 
-preLight[cherenkov] = (delta) => {speed = 0.85;h = 0.591;s = 0.997;v = 1};
+preLight[cherenkov] = preCherenkov;
 renderLight[cherenkov] = renderCherenkov;
 
 // UI controls
@@ -118,11 +134,11 @@ export function sliderLightType(v) {
 function noise(index) {
   var x,v;
   x = index/pixelCount;
-  v =  (wave((33 * x) - t1) - 0.5) << 1;
-  v += (wave((45 * x) + t2) - 0.5) << 1;
-  v += (wave((21 * x) + t3) - 0.5) << 1;
-  v += (wave((15 * x) - t4) - 0.5) << 1;
-  return v >> 2;
+  v =  2 * (wave((33 * x) - t1) - 0.5);
+  v += 2 * (wave((45 * x) + t2) - 0.5);
+  v += 2 * (wave((21 * x) + t3) - 0.5);
+  v += 2 * (wave((15 * x) - t4) - 0.5);
+  return v / 4;
 }
 
 // candle renderer adds a little movement

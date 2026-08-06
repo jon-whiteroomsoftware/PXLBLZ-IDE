@@ -18,12 +18,12 @@
  6/2024 - ZRanger1
 */
 
-modes = [
-  (x,y,z) => (2 * abs(perlin(x, y, z, 0))),
-  (x,y,z) => abs(perlinRidge(x, y, z, 1.75, .75, 1, 3)),
-  (x,y,z) => abs(perlinFbm(x, y, z, 1.5, 1, 3)),
-  (x,y,z) => abs(perlinTurbulence(x, y, z, 1.65, .78, 3)),
-]
+function perlinMode(x,y,z) { return 2 * abs(perlin(x, y, z, 0)); }
+function ridgeMode(x,y,z) { return abs(perlinRidge(x, y, z, 1.75, .75, 1, 3)); }
+function fbmMode(x,y,z) { return abs(perlinFbm(x, y, z, 1.5, 1, 3)); }
+function turbulenceMode(x,y,z) { return abs(perlinTurbulence(x, y, z, 1.65, .78, 3)); }
+
+modes = [perlinMode, ridgeMode, fbmMode, turbulenceMode]
 var mode = 1
 export var density = 1
 var speed = 5
