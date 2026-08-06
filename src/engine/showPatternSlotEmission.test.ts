@@ -112,10 +112,11 @@ export function render2D(index, x, y) { hsv(phase + x, 1, initialPixels / pixelC
     // activation ceiling here, so the #559 byte-budget fallback keeps the
     // shared chain.
     expect(baseline.summary.artifactBytes).toBe(91_417)
-    expect(selected.summary.artifactBytes).toBe(67_289)
+    expect(selected.summary.artifactBytes).toBe(65_970)
+    // #717 interning shrank the fixture enough that the #559 byte-budget
+    // fallback no longer binds: the faster per-member HSV chain fits.
     expect(selected.summary.specializations.hsvCaptureChain).toMatchObject({
-      policy: 'shared',
-      fallbackReason: 'artifact-byte-budget',
+      policy: 'per-member',
     })
     expect(selected.summary.resources).toMatchObject({
       auxiliaryCacheWords: 264,

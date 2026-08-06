@@ -79,3 +79,21 @@ describe('routed transition helper interning (#717)', () => {
     }
   })
 })
+
+describe('routed steady-state scene branch grouping (#717)', () => {
+  it('emits one render branch per unique scene body with OR-grouped conditions', () => {
+    const artifact = compileShow(sequenceRecipe(['red', 'blue', 'red', 'blue', 'red', 'blue']), {})
+    expect(artifact.expandedCode).toMatch(/__pxlblz_show_scene == 0 \|\| __pxlblz_show_scene == 2/)
+    const sceneEqualityBranches = (artifact.expandedCode.match(/if \((?:__pxlblz_show_scene == \d+(?: \|\| )?)+\) \{/g) ?? [])
+    expect(sceneEqualityBranches.length).toBeLessThanOrEqual(4)
+  })
+
+  it('keeps the marginal cost of a replayed scene under 1.2 KB', () => {
+    const bytesAt = (sceneCount: number) => {
+      const order = Array.from({ length: sceneCount }, (_, i) => (i % 2 === 0 ? 'red' : 'blue'))
+      return compileShow(sequenceRecipe(order), {}).summary.artifactBytes
+    }
+    const marginalBytes = (bytesAt(40) - bytesAt(10)) / 30
+    expect(marginalBytes).toBeLessThan(1_200)
+  })
+})

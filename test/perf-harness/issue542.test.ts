@@ -36,7 +36,7 @@ describe('issue #542 baseline census', () => {
       },
       {
         authoredJsonBytes: 9_963,
-        generatedSourceBytes: 37_624,
+        generatedSourceBytes: 29_880,
         patternInstanceCount: 3,
         persistentGlobals: 93,
         motionTransitions: {
@@ -53,10 +53,10 @@ describe('issue #542 baseline census', () => {
     }))).toEqual([
       // #717 stack-wrapper interning: shared wrappers cut both generated
       // bytes and wrapper globals on the transition references.
-      { patternInstanceCount: 3, generatedSourceBytes: 51_201, persistentGlobals: 86 },
-      { patternInstanceCount: 3, generatedSourceBytes: 44_150, persistentGlobals: 86 },
+      { patternInstanceCount: 3, generatedSourceBytes: 39_612, persistentGlobals: 86 },
+      { patternInstanceCount: 3, generatedSourceBytes: 36_408, persistentGlobals: 86 },
       { patternInstanceCount: 3, generatedSourceBytes: 21_406, persistentGlobals: 96 },
-      { patternInstanceCount: 3, generatedSourceBytes: 37_624, persistentGlobals: 93 },
+      { patternInstanceCount: 3, generatedSourceBytes: 29_880, persistentGlobals: 93 },
     ])
   })
 })

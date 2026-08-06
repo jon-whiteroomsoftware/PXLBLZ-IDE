@@ -1572,6 +1572,16 @@ reference Shows this removed 1.8–8.0 KB of generated source each (wipe
 87.2% -> 75.5% of the activation budget) and cut wrapper persistent globals;
 the regular-cadence score path already interned its stacks and is unchanged.
 
+Steady-state scene render branches group by body identity: scenes whose
+emitted bodies are byte-identical share one inline branch whose condition ORs
+their scene indices, so a replayed scene costs ~18 bytes of condition instead
+of a duplicated body. Bodies stay inline rather than becoming shared
+functions because the per-pixel user-call boundary costs 1.9-3.4 us (#532).
+Grouping compounds with #546 slot sharing - shared physical machines make
+replayed scene bodies byte-identical - and together with wrapper and kernel
+interning removed 166 KB across 22 stock Shows (zone-layout showcases
+60% -> 27% of the activation budget, wipe 87% -> 59%).
+
 Routed transition helpers intern the same way: each unique emitted body
 becomes one `__pxlblz_show_routed_transition_k<n>` kernel and the
 per-segment dispatch branches call the shared kernel. Per-scene inputs -

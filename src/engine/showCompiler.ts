@@ -4248,10 +4248,10 @@ ${indentBlock(
   }`
     })
     .join(' ')
-  const sceneBranches = scenes.map((scene, index) => `${index === 0 ? 'if' : 'else if'} (__pxlblz_show_scene == ${index}) {
-    ${memberRenderCapture(scene.member, outputDimension)}
-    ${scene.member.prefix}_emit()
-  }`).join(' ')
+  const sceneBranches = groupSceneBranchesByBody(scenes.map((scene) => (
+    `${memberRenderCapture(scene.member, outputDimension)}
+${scene.member.prefix}_emit()`
+  )), 4)
 
   return [
     emitRuntimePrelude(members, outputDimension, {
@@ -5040,16 +5040,14 @@ ${setupForPlacements(
       : undefined
   )
   const sceneBranches = sharedPhysicalCut?.render
-    ?? scenes.map((scene, index) => `${index === 0 ? 'if' : 'else if'} (__pxlblz_show_scene == ${index}) {
-${indentBlock(emitRoutedScenePlacements(
-    layouts,
-    scene.placements,
-    outputDimension,
-    scene.propertyTracks,
-    sceneLocalTimeExpression(index),
-    directSinkContextForScene(index),
-  ), 4)}
-  }`).join(' ')
+    ?? groupSceneBranchesByBody(scenes.map((scene, index) => emitRoutedScenePlacements(
+      layouts,
+      scene.placements,
+      outputDimension,
+      scene.propertyTracks,
+      sceneLocalTimeExpression(index),
+      directSinkContextForScene(index),
+    )), 4)
   const transitionSceneIndices = new Set(segments.flatMap((segment) => (
     segment.kind === 'transition' ? [segment.sceneIndex, segment.sceneIndex + 1] : []
   )))
@@ -6772,6 +6770,32 @@ function routedSceneStackNeedsWrapper(stack: ResolvedRoutedScenePlacement[]): bo
   return stack.length > 1 || stack.some((placement) => (
     Boolean(placement.placementId) || placement.viewport?.enabled
   ))
+}
+
+/**
+ * Steady-state scene render branches grouped by body identity (#717): scenes
+ * whose emitted bodies are byte-identical share one branch whose condition
+ * ORs their scene indices. The conditions are mutually exclusive equality
+ * tests, so grouping preserves dispatch semantics while a replayed scene
+ * costs ~18 bytes of condition instead of a duplicated body. Bodies stay
+ * inline - no shared function - because the per-pixel user-call boundary
+ * costs 1.9-3.4 us (#532) that inlining avoids. Grouping compounds with
+ * #546 slot sharing: shared physical machines make replayed scene bodies
+ * byte-identical, which lets the slotted candidate win the #546 size
+ * selection more often.
+ */
+function groupSceneBranchesByBody(bodies: string[], indent: number): string {
+  const sceneIndicesByBody = new Map<string, number[]>()
+  bodies.forEach((body, sceneIndex) => {
+    const group = sceneIndicesByBody.get(body)
+    if (group) group.push(sceneIndex)
+    else sceneIndicesByBody.set(body, [sceneIndex])
+  })
+  return [...sceneIndicesByBody.entries()].map(([body, sceneIndices], groupIndex) => (
+    `${groupIndex === 0 ? 'if' : 'else if'} (${sceneIndices.map((sceneIndex) => `__pxlblz_show_scene == ${sceneIndex}`).join(' || ')}) {
+${indentBlock(body, indent)}
+  }`
+  )).join(' ')
 }
 
 /** Interned stack-wrapper prefixes for the current routed-scene-sequence

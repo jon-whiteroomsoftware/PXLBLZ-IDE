@@ -195,10 +195,16 @@ describe('compileShowForPreview temporal adaptations (#379)', () => {
     const compiled = compileShowForPreview(show, patterns, undefined, {})
 
     expect(compiled.error).toBeNull()
+    // Both occurrences resolve and compile; with #717 branch grouping the
+    // slotted candidate (#546) now wins the size selection, so the two
+    // disjoint-lifetime occurrence machines legally share one physical slot.
     expect(compiled.artifact?.summary.clips.map((clip) => clip.id).filter((id) => id !== '__pxlblz_empty-routed')).toEqual([
       'use-a:inside-instance',
-      'use-b:inside-instance',
     ])
+    expect(compiled.artifact?.summary.specializations.patternSlots).toMatchObject({
+      selected: true,
+      reclaimedMachineCount: 1,
+    })
     expect(compiled.artifact?.expandedCode).toContain('__pxlblz_show_c0_rgb(0.2')
   })
 

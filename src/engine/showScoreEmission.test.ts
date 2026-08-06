@@ -59,7 +59,7 @@ describe('table-driven routed Show score emission (#542)', () => {
     // Refreshed 2026-07-20 after the wave-2 emission changes (#557-#566),
     // and again 2026-08-02 when the reference pair recast to the measured
     // MetaballGarden/IQPalettes diagnostic over a Murmuration backdrop.
-    expect(baseline.artifact?.summary.artifactBytes).toBe(65_044)
+    expect(baseline.artifact?.summary.artifactBytes).toBe(40_652)
     expect(candidate.error).toBeNull()
     expect(candidate.artifact?.summary.specializations.showScore).toMatchObject({
       selected: true,

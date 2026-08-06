@@ -33,6 +33,14 @@ import { showPreviewOverrideInitialState, useShowPreviewOverrideStore } from '@/
 import { showEditorSessionInitialState, useShowEditorSessionStore } from '@/store/showEditorSessionStore'
 import { STOCK_SHOWS } from '@/pixelblaze/stock/shows'
 import { createPropertySlotQualificationShow } from '@/engine/showPatternSlotTestFixture'
+
+// The pressure/blocked compile-bar tests need a show decisively over the
+// activation budget. Real fixtures keep shrinking as the compiler improves
+// (#716/#717), so the budget is mocked down instead of inflating content.
+vi.mock('@/engine/showVmResourceLedger', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('@/engine/showVmResourceLedger')>()
+  return { ...actual, SHOW_ARTIFACT_BUDGET_BYTES: 30_000 }
+})
 import { buildShowCompositionFreezeCases } from '@/engine/showCompositionFreeze'
 import * as showModel from '@/engine/showModel'
 import { DEFAULT_SHOW_TRAILS_RETENTION } from '@/engine/showPreviousRgbFeedback'
@@ -6626,11 +6634,11 @@ describe('ShowEditor (#318)', () => {
     render(<ShowEditor showId={property.id} showOverride={createPropertySlotQualificationShow()} readOnly />)
 
     const compileBar = screen.getByTestId('show-compile-bar')
-    expect(compileBar).toHaveTextContent('67.4 KB / 66.8 KB')
+    expect(compileBar).toHaveTextContent('66.1 KB / 29.3 KB')
     // The gauge reports the same delivered total as the inventory trigger,
     // not the smaller generated-only count (#63 review follow-up).
     expect(screen.getByLabelText(/The budget is a source-size proxy/i)).toHaveAccessibleName(
-      /Show source 67\.4 KB of the 66\.8 KB source budget/,
+      /Show source 66\.1 KB of the 29\.3 KB source budget/,
     )
     expect(screen.getByLabelText(/The budget is a source-size proxy/i)).toHaveAccessibleName(
       /not remaining Controller capacity/i,
