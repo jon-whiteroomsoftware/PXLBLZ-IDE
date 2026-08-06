@@ -2,12 +2,16 @@ import { report } from './issue514'
 
 describe('Show render-target residual-headroom census (#514)', () => {
   it('pins the complete stock Pattern corpus and its known array-heavy exceptions', () => {
-    expect(report.summary.stockPatternCount).toBe(69)
-    expect(report.summary.stockPatternsWithNoMemberArrays).toBe(46)
-    expect(report.summary.stockPatternsFittingResidualBudget).toBe(65)
-    expect(report.summary.stockPatternRejections).toHaveLength(4)
+    // Recensused with the published ZRanger1 3+-favorite collection (#723).
+    // CellularAutomata1D adds one expected 2,000-pixel array-budget rejection;
+    // the other 22 additions fit the residual budget.
+    expect(report.summary.stockPatternCount).toBe(92)
+    expect(report.summary.stockPatternsWithNoMemberArrays).toBe(53)
+    expect(report.summary.stockPatternsFittingResidualBudget).toBe(87)
+    expect(report.summary.stockPatternRejections).toHaveLength(5)
     expect(report.summary.stockPatternRejections.map((entry) => entry.id)).toEqual([
       'pattern:AuroraSphere',
+      'pattern:CellularAutomata1D',
       'pattern:FireflyChoir',
       'pattern:PulseLoom',
       'pattern:RivalryRing',
@@ -16,7 +20,7 @@ describe('Show render-target residual-headroom census (#514)', () => {
   })
 
   it('records every resource axis required by the headroom decision', () => {
-    expect(report.cases.length).toBeGreaterThan(68)
+    expect(report.cases.length).toBeGreaterThan(91)
     expect(report.cases.every((entry) => (
       Number.isInteger(entry.memberPatternWords)
       && Number.isInteger(entry.generatedOverheadWords)

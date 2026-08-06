@@ -15,6 +15,10 @@ type Controls = PatternMetadata['controls']
 // here, once. User/imported patterns have no entry and fall back to the
 // humanized control label.
 export const CONTROL_DESCRIPTIONS: Record<string, Record<string, string>> = {
+  AllLasersFire: {
+    sliderSpeed: 'How quickly the converging laser blasts cycle.',
+    sliderBlastScale: 'Length and spread of each laser blast.',
+  },
   AuroraSphere: {
     sliderRingCount: 'Number of glowing latitude rings wrapped around the sphere.',
     sliderSpin: 'How fast the bright great-ring orbits — centered is still, higher spins faster.',
@@ -24,6 +28,16 @@ export const CONTROL_DESCRIPTIONS: Record<string, Record<string, string>> = {
     sliderBalls: 'Number of independently moving balls in the map.',
     sliderSize: 'Radius of each ball.',
     sliderSpeed: 'How fast the balls move and bounce.',
+  },
+  BlueHolidayStar2D: {
+    sliderSpeed: 'How quickly the blue holiday star rotates and pulses.',
+  },
+  BubbleColumn: {
+    hsvPickerFluidHue: 'Base colour of the fluid surrounding the bubbles.',
+    sliderBubbleValve: 'How frequently new bubbles enter the column.',
+  },
+  CarriesHolidayStar2D: {
+    sliderSpeed: 'How quickly the multicolour holiday star rotates and pulses.',
   },
   Caustics: {
     sliderSpeed: 'How fast the water moves.',
@@ -36,6 +50,14 @@ export const CONTROL_DESCRIPTIONS: Record<string, Record<string, string>> = {
     sliderComets: 'Number of active comet trails.',
     sliderTail: 'Length of each comet tail.',
     sliderPalette: 'Base colour of the comet palette.',
+  },
+  CellularAutomata1D: {
+    sliderStartingCells: 'Number of live cells used to seed each new automaton.',
+    sliderRule: 'Wolfram rule number that determines how each generation evolves.',
+    sliderLifetime: 'Time before the strip is reseeded; zero lets a generation run indefinitely.',
+    sliderColorMode: 'Colours cells by age or by the rule neighbourhood that produced them.',
+    sliderPaletteWidth: 'Width of the hue range used to colour active cells.',
+    sliderPaletteOffset: 'Rotates the cellular palette around the colour wheel.',
   },
   CompassRose: {
     sliderSpeed: 'How fast the rose rotates.',
@@ -60,6 +82,17 @@ export const CONTROL_DESCRIPTIONS: Record<string, Record<string, string>> = {
     sliderDensity: 'Density of repeated rain columns.',
     sliderLength: 'Length of each falling crystal streak.',
     sliderHue: 'Base colour of the crystal rain.',
+  },
+  CyclicCellularAutomata2D: {
+    sliderSpeed: 'Delay between simulation generations — higher advances more slowly.',
+    sliderLifetime: 'Time before the field is randomized again; zero runs indefinitely.',
+    sliderMode: 'Switches between Greenberg–Hastings and ordinary cyclic cellular automata.',
+  },
+  DoomFire: {
+    hsvPickerHue: 'Base colour and brightness of the flame.',
+    sliderFlameHeight: 'How far the flame rises from its source row.',
+    sliderDragonMode: 'Switches between classic fire and enhanced dragon-breath mode.',
+    sliderSpeed: 'Delay between fire simulation steps — higher advances more slowly.',
   },
   DoomFireV20_2D: {
     hsvPickerHue: 'Base colour of the flame.',
@@ -94,6 +127,11 @@ export const CONTROL_DESCRIPTIONS: Record<string, Record<string, string>> = {
     sliderColor: 'Base colour of the fireflies.',
     sliderVariance: 'Per-firefly colour jitter — low makes them identical, high scatters their tints.',
   },
+  GeometryMorphingDemo2D: {
+    sliderSize: 'Size of the rotating shape.',
+    sliderFilled: 'Switches between a filled shape and an outlined contour.',
+    sliderLineWidth: 'Thickness of the shape edge or outline.',
+  },
   GlyphRain: {
     sliderSpeed: 'How fast the code streams fall.',
     sliderDensity: 'Number of rain columns — a few fat streams up to a fine drizzle.',
@@ -126,6 +164,9 @@ export const CONTROL_DESCRIPTIONS: Record<string, Record<string, string>> = {
   },
   IQPalettes: {
     sliderSpeed: 'How fast the palette parameter scrolls across the bands.',
+  },
+  IceFloes2D: {
+    sliderSpeed: 'How quickly the drifting ice cells move across the field.',
   },
   ImpactEngine: {
     sliderSpeed: 'How quickly each collision cycle plays out.',
@@ -184,6 +225,9 @@ export const CONTROL_DESCRIPTIONS: Record<string, Record<string, string>> = {
     sliderGlow: 'Brightness of the glowing filaments.',
     sliderContrast: 'Sharpness of the field lines.',
   },
+  Mandelbrot2D: {
+    sliderIterations: 'Maximum fractal iterations — higher reveals finer boundary detail at greater cost.',
+  },
   MandelbulbHeartbeat: {
     sliderSpeed: 'How fast the fractal rotates and its heartbeat pulses.',
     sliderPower: 'Fractal power — continuously reshapes the lobes into spikes and petals.',
@@ -195,6 +239,10 @@ export const CONTROL_DESCRIPTIONS: Record<string, Record<string, string>> = {
     sliderBlobCount: 'How many cells are active in the garden.',
     sliderSoftness: 'How smoothly neighbouring cells merge together.',
     sliderPalette: 'Base colour of the luminous cells.',
+  },
+  MetaballsOfFire2D: {
+    sliderNumberOfPoints: 'Number of moving heat points that merge into fiery blobs.',
+    sliderSpeed: 'How quickly the heat points move.',
   },
   MetroLines: {
     sliderSpeed: 'How fast route pulses move around the line.',
@@ -214,6 +262,16 @@ export const CONTROL_DESCRIPTIONS: Record<string, Record<string, string>> = {
     sliderBirds: 'Number of birds in the flock.',
     sliderColor: 'Base colour of the birds and their wakes.',
   },
+  MultisegmentDemo: {
+    sliderActiveSegment: 'Selects the strip segment edited by the remaining controls.',
+    sliderState: 'Turns the selected segment off or on.',
+    sliderEffect: 'Chooses the animation effect for the selected segment.',
+    sliderSpeed: 'Animation speed of the selected segment.',
+    sliderSize: 'Length of the selected segment in pixels.',
+    hsvPickerColor: 'Colour and brightness of the selected segment.',
+    sliderSegments: 'Number of independently controlled segments in the strip.',
+    sliderEnableWebUI: 'Enables these web controls instead of external home-automation control.',
+  },
   NebulaShells3D: {
     sliderSpeed: 'How quickly the spherical shells drift.',
     sliderShellCount: 'Number of nested aurora shells.',
@@ -228,6 +286,13 @@ export const CONTROL_DESCRIPTIONS: Record<string, Record<string, string>> = {
     sliderDensity: 'Density of the repeated circuit cells.',
     sliderPulse: 'Brightness of packet glints travelling through the board.',
     sliderHue: 'Base colour of the neon traces.',
+  },
+  Newfire: {
+    hsvPickerColor: 'Base colour, saturation, and brightness of the flame.',
+    sliderFlameHeight: 'How far the flame rises from the heat source.',
+    sliderHeat: 'Amount of heat injected at the base of the flame.',
+    sliderSparks: 'Random variation that breaks the flame into sparks and tongues.',
+    sliderMode: 'Selects one of the fire simulation and rendering modes.',
   },
   Oasis: {
     sliderHue: 'Shifts the water palette around the colour wheel.',
@@ -305,6 +370,9 @@ export const CONTROL_DESCRIPTIONS: Record<string, Record<string, string>> = {
     sliderPalette: 'Spins the four-colour complementary palette around the wheel.',
     toggleAccent: 'Flash the whole strip on the downbeat when every voice lands together.',
   },
+  Raindrops2D: {
+    sliderRaindrops: 'How frequently new raindrops disturb the simulated pool.',
+  },
   RivalryRing: {
     sliderSpeed: 'How fast the battlefronts advance.',
     sliderSpecies: 'Number of rival factions — three up to five.',
@@ -352,6 +420,14 @@ export const CONTROL_DESCRIPTIONS: Record<string, Record<string, string>> = {
     sliderRings: 'Density of circular signal rings.',
     sliderColor: 'Base colour of the mandala.',
   },
+  Stacker: {
+    hsvPickerColor1: 'Colour of blocks already stacked in each segment.',
+    hsvPickerColor2: 'Colour of blocks travelling toward each stack.',
+    sliderSpeed: 'How quickly blocks move toward the centre of each segment.',
+    sliderSize: 'Size of each travelling block in pixels.',
+    sliderSegments: 'Number of equal strip segments that stack independently.',
+    sliderColorMode: 'Selects solid, animated-rainbow, or colour-band rendering.',
+  },
   StainedGlassWeather: {
     sliderSpeed: 'How fast the rain and lightning move.',
     sliderPaneSize: 'Density of stained-glass panes.',
@@ -370,6 +446,10 @@ export const CONTROL_DESCRIPTIONS: Record<string, Record<string, string>> = {
     sliderLayers: 'Strength and density of the contour bands.',
     sliderSpacing: 'Distance between topographic contour lines.',
     sliderColor: 'Base colour of the bloom.',
+  },
+  TunnelOfSquares2D: {
+    sliderSpeed: 'How quickly the square tunnel spirals inward.',
+    sliderSquarocity: 'Number of nested square bands shaping the tunnel.',
   },
   VoronoiMix2D: {
     sliderNumberOfPoints: 'Number of moving sites in the Voronoi field.',

@@ -138,7 +138,10 @@ round a bounded request above 2,048 LEDs. Pattern detail uses the ordinary previ
 stores and Controller push flow without a count multiplier; its Code view is
 read-only Monaco. `DEMO_SECTIONS` also drives the immutable Pattern folders in
 the Studio rail. Ordinary sections are alphabetical; the `ZRanger1` author
-section keeps its declared popularity order from the public Pattern Library.
+section keeps its declared popularity order from the public Pattern Library and
+includes original published entries with at least three favorites as recensused
+on August 6, 2026. Third-party remixes remain excluded, while distinct versions
+published by ZRanger1 remain distinct.
 
 ### Analytics
 

@@ -31,20 +31,20 @@ describe('issue #540 Pattern field/shading census', () => {
       .filter((entry) => entry.credibleCandidate)
       .map((entry) => entry.name)
 
-    // Recensused with the ZRanger1 collection (#721): nine newly bundled
-    // originals join the existing CoronalMassEjection. None introduces the
-    // reusable expensive scalar producer this historical prototype gate asks
-    // for, so the larger denominator now falls just below its 10% threshold.
+    // Recensused with the published ZRanger1 3+-favorite collection (#723):
+    // 23 more originals join the first ten (#721). None introduces the reusable
+    // expensive scalar producer this historical prototype gate asks for, so
+    // the larger denominator remains below its 10% threshold.
     expect(issue540Report.summary).toMatchObject({
-      patternCount: 72,
-      reviewedCount: 72,
+      patternCount: 95,
+      reviewedCount: 95,
       credibleCandidateCount: 7,
       unreviewedIds: [],
       invalidClassificationIds: [],
       proceedWithPrototype: false,
       decision: 'stop-insufficient-incidence',
     })
-    expect(issue540Report.summary.credibleCandidateRatio).toBeCloseTo(7 / 72)
+    expect(issue540Report.summary.credibleCandidateRatio).toBeCloseTo(7 / 95)
     expect(candidates).toEqual([
       'Caustics',
       'GyroidGlow3D',

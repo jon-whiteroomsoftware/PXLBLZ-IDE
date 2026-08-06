@@ -21,10 +21,11 @@ export const GALLERY_ALL_CATEGORY = 'Everything'
 export const OPENGL_DEMOS = ['Kishimisu', 'NeonSquircles', 'ZippyZaps', 'IQPalettes', 'PhantomStar', 'IridescentFibers']
 export const BRAND_NEW_DEMOS = ['PlasmaNebula', 'Caustics', 'ShaderShowcase', 'RedlineMachinePortable']
 
-// ZRanger1's ten most-favorited original Patterns in the public Pixelblaze
-// Pattern Library as of 2026-08-06. Favorites break the primary tie by
-// downloads, and third-party remixes are excluded. Keep this declared order so
-// the author folder reads from most to least popular rather than alphabetically.
+// ZRanger1's original Patterns with at least three favorites in the public
+// Pixelblaze Pattern Library as of 2026-08-06. Favorites break the primary tie
+// by downloads, and third-party remixes are excluded. Distinct published
+// versions remain distinct entries. Keep this declared popularity order rather
+// than alphabetizing the author folder.
 export const ZRANGER1_DEMOS = [
   'Oasis',
   'LineDancer2D',
@@ -36,6 +37,29 @@ export const ZRANGER1_DEMOS = [
   'RealWorldLights',
   'WavyBands',
   'PerlinFireWindTunnel',
+  'IceFloes2D',
+  'Stacker',
+  'FastPaletteBlending',
+  'MultisegmentDemo',
+  'Mandelbrot2D',
+  'Newfire',
+  'BlueHolidayCandle2D',
+  'Stairmaster2D',
+  'AllLasersFire',
+  'DoomFire',
+  'CrawlingSpider2D',
+  'BubbleColumn',
+  'Raindrops2D',
+  'TunnelOfSquares2D',
+  'InfinityFlower2D',
+  'GeometryMorphingDemo2D',
+  'BlueHolidayStar2D',
+  'CyclicCellularAutomata2D',
+  'CellularAutomata1D',
+  'MetaballsOfFire2D',
+  'Butterfly2D',
+  'TimeFlies2D',
+  'CarriesHolidayStar2D',
 ]
 
 // Everything whose native renderer is render3D, regardless of cost class.
