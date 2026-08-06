@@ -1596,6 +1596,14 @@ Shows such as the #546 installation qualification fixture. A replayed scene
 costs ~170 bytes end to end (schedule rows plus dispatch conditions),
 measured against 1,736 before the #717 slices.
 
+Static-but-shaped placement opacities (aperture and viewport envelopes,
+baked keyframe ternaries) hoist into one local per placement before the
+channel blend (#719); the previous inline emission repeated the envelope six
+times per placement and evaluated it six times per pixel. The
+animated-opacity branch always hoisted; the static branches now match. This
+removed 39.5 KB across five envelope-heavy stock Shows (content-clip-viewport
+53% -> 34% of the activation budget, Property Animation 96% -> 86%).
+
 Routed transition helpers intern the same way: each unique emitted body
 becomes one `__pxlblz_show_routed_transition_k<n>` kernel and the
 per-segment dispatch branches call the shared kernel. Per-scene inputs -

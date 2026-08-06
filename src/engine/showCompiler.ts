@@ -7263,17 +7263,30 @@ function emitRoutedPlacementStackCapture(
               '}',
             ]
       }
+      // #719: a static-but-shaped opacity (aperture and viewport envelopes,
+      // baked keyframe ternaries) can run to kilobytes; inlining it into the
+      // channel blend repeated it six times per placement and evaluated it
+      // six times per pixel. Hoist any non-trivial expression into one local
+      // exactly as the animated-opacity branch above always has.
+      const hoistOpacity = rendered.opacity.length > 24
+      const hoistedName = `${target}_opacity_${placementIndex}`
+      const opacityDeclaration = hoistOpacity ? [`var ${hoistedName} = ${rendered.opacity}`] : []
       if (!memberHasContentKey(member)) {
+        const opacity = hoistOpacity ? hoistedName : `(${rendered.opacity})`
         return [
           ...rendered.lines,
-          `${target}_r = ${member.prefix}_r * (${rendered.opacity}) + ${target}_r * (1 - (${rendered.opacity}))`,
-          `${target}_g = ${member.prefix}_g * (${rendered.opacity}) + ${target}_g * (1 - (${rendered.opacity}))`,
-          `${target}_b = ${member.prefix}_b * (${rendered.opacity}) + ${target}_b * (1 - (${rendered.opacity}))`,
+          ...opacityDeclaration,
+          `${target}_r = ${member.prefix}_r * ${opacity} + ${target}_r * (1 - ${opacity})`,
+          `${target}_g = ${member.prefix}_g * ${opacity} + ${target}_g * (1 - ${opacity})`,
+          `${target}_b = ${member.prefix}_b * ${opacity} + ${target}_b * (1 - ${opacity})`,
         ]
       }
-      const opacity = `(${rendered.opacity}) * ${member.prefix}_alpha`
+      const opacity = hoistOpacity
+        ? `${hoistedName} * ${member.prefix}_alpha`
+        : `(${rendered.opacity}) * ${member.prefix}_alpha`
       return [
         ...rendered.lines,
+        ...opacityDeclaration,
         `${target}_r = ${member.prefix}_r * ${opacity} + ${target}_r * (1 - ${opacity})`,
         `${target}_g = ${member.prefix}_g * ${opacity} + ${target}_g * (1 - ${opacity})`,
         `${target}_b = ${member.prefix}_b * ${opacity} + ${target}_b * (1 - ${opacity})`,

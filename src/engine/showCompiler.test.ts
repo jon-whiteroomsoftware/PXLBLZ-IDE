@@ -7075,14 +7075,15 @@ describe('coverage-directed Viewport evaluation (#590, #679)', () => {
   })
 
   it('evaluates one Pattern per pixel where coverage selects', () => {
-    // The folded ellipse constant appears once inside the branch predicate,
-    // against three post-capture opacity multiplications in the fallback.
+    // The folded ellipse constant guards a branch predicate in the
+    // coverage-directed build; the fallback multiplies a hoisted opacity
+    // local instead of branching (#719 collapsed its former repeated
+    // occurrences into one, so the discriminator is the guard, not counts).
     const viewport = { ...frame, aperture: 'ellipse', edge: 'hard' }
     const optimized = compileShow(coverageRecipe(viewport) as never, {})
     const fallback = compileShow(coverageRecipe(viewport) as never, {}, { coverageDirectedComposition: false })
-    const occurrences = (code: string) => (code.match(/0\.0625/g) ?? []).length
-    expect(occurrences(optimized.code)).toBeLessThan(occurrences(fallback.code))
     expect(optimized.code).toMatch(/if \(+.*0\.0625/)
+    expect(fallback.code).not.toMatch(/if \(+.*0\.0625/)
   })
 
   it('keeps the dither edge pixel-stable across frames', () => {

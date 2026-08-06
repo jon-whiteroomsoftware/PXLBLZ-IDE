@@ -111,8 +111,8 @@ export function render2D(index, x, y) { hsv(phase + x, 1, initialPixels / pixelC
     // fixture. The per-member HSV conversions alone would cross the
     // activation ceiling here, so the #559 byte-budget fallback keeps the
     // shared chain.
-    expect(baseline.summary.artifactBytes).toBe(91_417)
-    expect(selected.summary.artifactBytes).toBe(65_970)
+    expect(baseline.summary.artifactBytes).toBe(84_452)
+    expect(selected.summary.artifactBytes).toBe(59_006)
     // #717 interning shrank the fixture enough that the #559 byte-budget
     // fallback no longer binds: the faster per-member HSV chain fits.
     expect(selected.summary.specializations.hsvCaptureChain).toMatchObject({
