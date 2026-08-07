@@ -412,6 +412,7 @@ describe('ControllerProfilePage', () => {
 
     expect(screen.getByText(/connect this controller to inspect its saved Patterns/i)).toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'Refresh saved Patterns' })).toBeDisabled()
+    expect(screen.queryByRole('heading', { name: /Other Patterns/ })).not.toBeInTheDocument()
   })
 
   it('keeps reconciliation progress while reducing the update control to one concise line', () => {
@@ -626,6 +627,25 @@ describe('ControllerProfilePage', () => {
     rerender(<ControllerSavedProgramsPane profile={changedProfile} />)
     expect(within(savedInventory).getAllByText('STALE')).toHaveLength(2)
     expect(provider.listCalls).toBe(0)
+
+    useControllerStore.setState({
+      controllerReconciliations: {
+        'ctrl-1': {
+          phase: 'attention',
+          managedCount: 3,
+          unmanagedCount: 1,
+          completedCount: 0,
+          programs: [
+            { programId: 'DEV1', bindingKey: 'pat-1', name: 'Twinkle', state: 'queued' },
+            { programId: 'DEV2', bindingKey: 'demo:AuroraSphere', name: 'AuroraSphere', state: 'updating' },
+            { programId: 'SHOW1', bindingKey: 'show:show-1', name: 'Measured wall Show', state: 'failed' },
+          ],
+        },
+      },
+    })
+    for (const label of ['QUEUED', 'SYNCING', 'FAILED']) {
+      expect(await screen.findByText(label)).toHaveClass('w-[4.75rem]')
+    }
 
     fireEvent.click(screen.getByRole('button', { name: 'Twinkle' }))
     expect(useRouterStore.getState().route).toEqual({

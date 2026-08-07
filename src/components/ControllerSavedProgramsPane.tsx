@@ -441,50 +441,54 @@ function SavedProgramsInventory({
           </table>
         </div>
       )}
-      <h2 className="mb-2 mt-5 font-mono text-xs font-semibold uppercase tracking-wide text-zinc-300">
-        Other Patterns <span className="text-zinc-500">({presentedPrograms.foreign.length})</span>
-      </h2>
-      {status === 'ready' && (presentedPrograms.foreign.length === 0 ? (
-        <EmptyState>No other Patterns are saved on this Controller.</EmptyState>
-      ) : (
-        <div className="overflow-hidden border border-zinc-800/80 bg-zinc-950/25">
-          <table className="w-full table-fixed border-collapse text-xs" aria-label="Other Patterns">
-            <colgroup>
-              <col className="w-[42%]" />
-              <col className="w-[28%]" />
-              <col className="w-[17%]" />
-              <col className="w-[13%]" />
-            </colgroup>
-            <thead>
-              <tr>
-                <SortableTableHead field="pattern" label="Pattern" sort={sort} onSort={updateSort} />
-                <SortableTableHead field="pattern-id" label="Pattern ID" sort={sort} onSort={updateSort} />
-                <SortableTableHead field="status" label="Status" sort={sort} onSort={updateSort} />
-                <th className={tableHeadClass}><span className="sr-only">Actions</span></th>
-              </tr>
-            </thead>
-            <tbody>
-              {presentedPrograms.foreign.map((program) => (
-                <tr key={program.programId} className="bg-zinc-950/40">
-                  <td title={program.name} className={`${tableCellClass} truncate text-zinc-500`}>{program.name}</td>
-                  <td title={program.programId} className={`${tableCellClass} truncate font-mono text-zinc-500`}>{program.programId}</td>
-                  <td className={tableCellClass}>
-                    <PatternStatusBadge status={statusFor(program)} />
-                  </td>
-                  <td className={`${tableCellClass} text-right`}>
-                    <ProgramImportButton
-                      program={program}
-                      disabled={importingProgramId !== null}
-                      importing={importingProgramId === program.programId}
-                      onImport={onImport}
-                    />
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-      ))}
+      {status === 'ready' && (
+        <>
+          <h2 className="mb-2 mt-5 font-mono text-xs font-semibold uppercase tracking-wide text-zinc-300">
+            Other Patterns <span className="text-zinc-500">({presentedPrograms.foreign.length})</span>
+          </h2>
+          {presentedPrograms.foreign.length === 0 ? (
+            <EmptyState>No other Patterns are saved on this Controller.</EmptyState>
+          ) : (
+            <div className="overflow-hidden border border-zinc-800/80 bg-zinc-950/25">
+              <table className="w-full table-fixed border-collapse text-xs" aria-label="Other Patterns">
+                <colgroup>
+                  <col className="w-[42%]" />
+                  <col className="w-[28%]" />
+                  <col className="w-[17%]" />
+                  <col className="w-[13%]" />
+                </colgroup>
+                <thead>
+                  <tr>
+                    <SortableTableHead field="pattern" label="Pattern" sort={sort} onSort={updateSort} />
+                    <SortableTableHead field="pattern-id" label="Pattern ID" sort={sort} onSort={updateSort} />
+                    <SortableTableHead field="status" label="Status" sort={sort} onSort={updateSort} />
+                    <th className={tableHeadClass}><span className="sr-only">Actions</span></th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {presentedPrograms.foreign.map((program) => (
+                    <tr key={program.programId} className="bg-zinc-950/40">
+                      <td title={program.name} className={`${tableCellClass} truncate text-zinc-500`}>{program.name}</td>
+                      <td title={program.programId} className={`${tableCellClass} truncate font-mono text-zinc-500`}>{program.programId}</td>
+                      <td className={tableCellClass}>
+                        <PatternStatusBadge status={statusFor(program)} />
+                      </td>
+                      <td className={`${tableCellClass} text-right`}>
+                        <ProgramImportButton
+                          program={program}
+                          disabled={importingProgramId !== null}
+                          importing={importingProgramId === program.programId}
+                          onImport={onImport}
+                        />
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </>
+      )}
     </section>
   )
 }
