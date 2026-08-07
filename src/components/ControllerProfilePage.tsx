@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
 import type React from 'react'
-import { useNumberFieldDraft } from '@/components/ui/number-field'
+import { NumberField as UiNumberField } from '@/components/ui/number-field'
+import { DraftTextField } from '@/components/ui/draft-text-field'
 import { PercentageField as UiPercentageField } from '@/components/ui/percentage-field'
 import { CircleArrowUp, Plus, Trash2, X } from 'lucide-react'
 import { Button } from '@/components/ui/button'
@@ -153,14 +154,14 @@ function TextField({
   ariaLabel: string
 }) {
   return (
-    <input
-      aria-label={ariaLabel}
+    <DraftTextField
+      ariaLabel={ariaLabel}
       value={value}
-      onClick={stopFieldPropagation}
-      onPointerDown={stopFieldPropagation}
-      onKeyDown={stopFieldPropagation}
-      onChange={(event) => onChange(event.target.value)}
-      className={`${fieldClass} w-full`}
+      onApply={onChange}
+      rootProps={{ onClick: stopFieldPropagation, onPointerDown: stopFieldPropagation }}
+      inputProps={{ onKeyDown: stopFieldPropagation }}
+      className="w-full"
+      inputClassName={`${fieldClass} w-full`}
     />
   )
 }
@@ -180,24 +181,20 @@ function NumberField({
   max?: number
   step?: number
 }) {
-  const { inputProps } = useNumberFieldDraft({ value, min, max, onChange })
-
   return (
-    <input
-      aria-label={ariaLabel}
-      type="number"
-      min={min}
-      max={max}
-      step={step}
-      onClick={stopFieldPropagation}
-      onPointerDown={stopFieldPropagation}
-      {...inputProps}
-      onKeyDown={(event) => {
-        stopFieldPropagation(event)
-        inputProps.onKeyDown(event)
-      }}
-      className={`${fieldClass} w-full tabular-nums`}
-    />
+    <div onClick={stopFieldPropagation} onPointerDown={stopFieldPropagation} onKeyDown={stopFieldPropagation}>
+      <UiNumberField
+        label={ariaLabel}
+        ariaLabel={ariaLabel}
+        hideLabel
+        variant="editor"
+        value={value}
+        min={min}
+        max={max}
+        step={step}
+        onChange={onChange}
+      />
+    </div>
   )
 }
 
@@ -218,25 +215,21 @@ function OptionalNumberField({
   step?: number
   placeholder?: string
 }) {
-  const { inputProps } = useNumberFieldDraft({ value, min, max, onChange })
-
   return (
-    <input
-      aria-label={ariaLabel}
-      type="number"
-      min={min}
-      max={max}
-      step={step}
-      placeholder={placeholder}
-      onClick={stopFieldPropagation}
-      onPointerDown={stopFieldPropagation}
-      {...inputProps}
-      onKeyDown={(event) => {
-        stopFieldPropagation(event)
-        inputProps.onKeyDown(event)
-      }}
-      className={`${fieldClass} w-full tabular-nums`}
-    />
+    <div onClick={stopFieldPropagation} onPointerDown={stopFieldPropagation} onKeyDown={stopFieldPropagation}>
+      <UiNumberField
+        label={ariaLabel}
+        ariaLabel={ariaLabel}
+        hideLabel
+        variant="editor"
+        value={value}
+        min={min}
+        max={max}
+        step={step}
+        placeholder={placeholder}
+        onChange={onChange}
+      />
+    </div>
   )
 }
 
@@ -1376,31 +1369,29 @@ function RangesField({
   onChange: (ranges: ControllerZoneRange[]) => void
 }) {
   const formatted = formatControllerZoneRanges(zone)
-  const [draftState, setDraftState] = useState<{
-    source: string
-    draft: string
-    error: string | null
-  }>({ source: formatted, draft: formatted, error: null })
-  const draft = draftState.source === formatted ? draftState.draft : formatted
-  const error = draftState.source === formatted ? draftState.error : null
+  const [error, setError] = useState<string | null>(null)
+  const parseRanges = (draft: string) => {
+    const parsed = parseControllerZoneRanges(draft)
+    return parsed.ok ? parsed.ranges : null
+  }
 
   return (
     <div className="space-y-1">
-      <input
-        aria-label={`${zone.name} zone ranges`}
-        value={draft}
-        placeholder="0-63, 96-127"
-        onChange={(event) => {
-          const next = event.target.value
-          const parsed = parseControllerZoneRanges(next)
-          if (parsed.ok) {
-            setDraftState({ source: formatted, draft: next, error: null })
-            onChange(parsed.ranges)
-          } else {
-            setDraftState({ source: formatted, draft: next, error: parsed.message })
-          }
+      <DraftTextField
+        ariaLabel={`${zone.name} zone ranges`}
+        value={formatted}
+        parse={parseRanges}
+        onApply={(ranges) => {
+          setError(null)
+          onChange(ranges)
         }}
-        className={`${fieldClass} w-full font-mono tabular-nums ${error ? 'border-amber-400/70' : ''}`}
+        onCancel={() => setError(null)}
+        onDraftChange={(next) => {
+          const parsed = parseControllerZoneRanges(next)
+          setError(parsed.ok ? null : parsed.message)
+        }}
+        inputProps={{ placeholder: '0-63, 96-127' }}
+        inputClassName={`${fieldClass} w-full font-mono tabular-nums ${error ? 'border-amber-400/70' : ''}`}
       />
       {error && <div className="text-[10px] text-amber-300">{error}</div>}
     </div>

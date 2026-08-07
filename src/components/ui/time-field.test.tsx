@@ -45,7 +45,7 @@ describe('TimeField (#614)', () => {
     expect(document.querySelector('[data-unit-suffix="s"]')).toBeInTheDocument()
     await user.clear(exact)
     await user.type(exact, '90.125s')
-    await user.tab()
+    await user.keyboard('{Enter}')
 
     expect(onChange).toHaveBeenCalledOnce()
     expect(onChange).toHaveBeenCalledWith(90.125)
@@ -267,7 +267,7 @@ describe('TimeField (#614)', () => {
 
     const exact = screen.getByRole('textbox', { name: 'Start exact time' })
     fireEvent.change(exact, { target: { value: '7' } })
-    fireEvent.blur(exact)
+    fireEvent.keyDown(exact, { key: 'Enter' })
 
     expect(onChange).toHaveBeenCalledWith(7)
     expect(exact).toHaveValue('0')

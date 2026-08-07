@@ -22,7 +22,7 @@ test.describe('authenticated Show authoring', () => {
     await expect(clipPanel).toBeVisible()
     const brightness = clipPanel.getByRole('textbox', { name: 'Brightness exact percentage' })
     await brightness.fill('75')
-    await brightness.blur()
+    await brightness.press('Enter')
 
     // Reset removes the draft, and reload leaves no session-only edit behind.
     await expect(resetButton).toBeEnabled()
@@ -34,7 +34,7 @@ test.describe('authenticated Show authoring', () => {
     const editedAgainBrightness = page.getByRole('dialog', { name: 'Entity Detail Panel' })
       .getByRole('textbox', { name: 'Brightness exact percentage' })
     await editedAgainBrightness.fill('50')
-    await editedAgainBrightness.blur()
+    await editedAgainBrightness.press('Enter')
     await expect(resetButton).toBeEnabled()
     await page.reload()
     await expect(page.getByRole('button', { name: 'Reset built-in Show' })).toBeDisabled()
@@ -699,7 +699,7 @@ test.describe('authenticated Show authoring', () => {
     const brightness = page.getByRole('dialog', { name: 'Entity Detail Panel' })
       .getByRole('textbox', { name: /^Brightness exact/ })
     await brightness.fill('63')
-    await brightness.blur()
+    await brightness.press('Enter')
 
     // Barrier, not oracle.
     await waitForCurrentShow(page, (show) => show.composition?.scenes.some((scene) => (
@@ -798,8 +798,8 @@ test.describe('authenticated Show authoring', () => {
 
     const stack = await openClipEffects(page, 'TestPattern1D')
     await addEffect(page, stack, 'ripple', 'Ripple')
-    await stack.getByRole('spinbutton', { name: 'Amount' }).fill('0.2')
-    await stack.getByRole('spinbutton', { name: 'Amount' }).blur()
+    await stack.getByRole('textbox', { name: 'Amount' }).fill('0.2')
+    await stack.getByRole('textbox', { name: 'Amount' }).press('Enter')
 
     // Barrier, not oracle: showPersistenceQueues chains writes per Show, so a
     // second edit's PUT is not dispatched until the first resolves, and
@@ -813,7 +813,7 @@ test.describe('authenticated Show authoring', () => {
 
     await page.reload()
     const reloaded = await openClipEffects(page, 'TestPattern1D')
-    await expect(reloaded.getByRole('spinbutton', { name: 'Amount' })).toHaveValue('0.2')
+    await expect(reloaded.getByRole('textbox', { name: 'Amount' })).toHaveValue('0.2')
   })
 
   test('browsing the Effect palette does not commit an Effect', async ({ page }) => {
@@ -940,10 +940,10 @@ test.describe('authenticated Show authoring', () => {
     // labelled "Duration (s)" and 3400 ms is entered as 3.4.
     const duration = panel.getByRole('textbox', { name: /^Duration/ })
     await duration.fill('3.4')
-    await duration.blur()
+    await duration.press('Enter')
     const points = panel.getByRole('textbox', { name: /^Points/ })
     await points.fill('7')
-    await points.blur()
+    await points.press('Enter')
 
     // Barrier, not oracle: showPersistenceQueues chains writes per Show, so a
     // second edit's PUT is not dispatched until the first resolves, and
@@ -1011,8 +1011,9 @@ test.describe('authenticated Show authoring', () => {
     await expect(page.getByText(/pixel ranges/i)).toHaveCount(0)
 
     await page.getByLabel('Portable reference map').selectOption('wide')
-    await page.getByLabel('Portable reference pixels').fill('1536')
-    await page.getByLabel('Portable reference pixels').blur()
+    const portablePixels = page.getByRole('textbox', { name: 'Portable reference pixels' })
+    await portablePixels.fill('1536')
+    await portablePixels.press('Enter')
     await page.getByRole('button', { name: 'Show properties' }).click()
     await page.getByRole('button', { name: 'Open Zones' }).click()
     await page.getByRole('button', { name: 'Open Zone Map' }).click()
@@ -1144,9 +1145,9 @@ test.describe('authenticated Show authoring', () => {
     await page.getByRole('slider', { name: 'Position slider' }).press('Escape')
 
     await transform.getByRole('textbox', { name: 'Content X exact position' }).fill('0.25')
-    await transform.getByRole('textbox', { name: 'Content X exact position' }).blur()
+    await transform.getByRole('textbox', { name: 'Content X exact position' }).press('Enter')
     await transform.getByRole('textbox', { name: 'Rotation exact rotation' }).fill('-90')
-    await transform.getByRole('textbox', { name: 'Rotation exact rotation' }).blur()
+    await transform.getByRole('textbox', { name: 'Rotation exact rotation' }).press('Enter')
 
     // Barrier, not oracle: showPersistenceQueues chains writes per Show, so a
     // second edit's PUT is not dispatched until the first resolves, and
@@ -1178,7 +1179,7 @@ test.describe('authenticated Show authoring', () => {
     await expect(page.getByLabel('Aperture edge', { exact: true })).toHaveValue('soft')
     const width = page.getByRole('textbox', { name: 'Aperture edge width' })
     await width.fill('0.1')
-    await width.blur()
+    await width.press('Enter')
 
     await waitForCurrentShow(page, (show) => show.composition?.scenes.some((scene) => (
       scene.zones?.some((zone) => zone.main?.some((placement) => (
@@ -1381,18 +1382,19 @@ test.describe('authenticated Show authoring', () => {
     await createInstallationShow(page)
 
     await openZoneLayout(page, 'Default')
-    const ranges = page.getByLabel('Default main pixel ranges')
+    const ranges = page.getByRole('textbox', { name: 'Default main pixel ranges' })
     await ranges.fill('0-199')
-    await ranges.blur()
+    await ranges.press('Enter')
     await expect(page.getByText(/Default assigns 200 of 256 pixels \(56 missing\)/i).first()).toBeVisible()
     await expect(page.getByRole('button', { name: 'View code' })).toBeDisabled()
     await expect(page.getByRole('button', { name: 'Export Show as .epe' })).toBeDisabled()
 
     await page.reload()
     await openZoneLayout(page, 'Default')
-    await expect(page.getByLabel('Default main pixel ranges')).toHaveValue('0-199')
-    await page.getByLabel('Default main pixel ranges').fill('0-255')
-    await page.getByLabel('Default main pixel ranges').blur()
+    await expect(page.getByRole('textbox', { name: 'Default main pixel ranges' })).toHaveValue('0-199')
+    const repairedRanges = page.getByRole('textbox', { name: 'Default main pixel ranges' })
+    await repairedRanges.fill('0-255')
+    await repairedRanges.press('Enter')
 
     // The invalid case also surfaces as a diagnostic banner, but the valid
     // coverage line exists only in the Show InspectorPanel. Close the layout
@@ -1470,13 +1472,13 @@ test.describe('authenticated Show authoring', () => {
     const panel = page.getByRole('dialog', { name: 'Entity Detail Panel' })
     const speed = panel.getByRole('textbox', { name: 'Animation speed exact multiplier' })
     await speed.fill('2')
-    await speed.blur()
+    await speed.press('Enter')
 
     await showClipTab(page, 'Place')
     const transform = page.getByRole('group', { name: 'Clip Transform' })
     const contentX = transform.getByRole('textbox', { name: 'Content X exact position' })
     await contentX.fill('0.25')
-    await contentX.blur()
+    await contentX.press('Enter')
 
     await showClipTab(page, 'Effects')
     const stack = panel.getByRole('region', { name: 'Clip Effects' })
@@ -1526,7 +1528,9 @@ test.describe('authenticated Show authoring', () => {
     const actions = page.getByRole('dialog', { name: 'Zone Layout at playhead' })
     // Append copies the layout under the playhead into a fresh definition
     // and places it (#694); the copy auto-names by kind.
-    await actions.getByLabel('Layout interval duration in seconds exact time').fill('5')
+    const intervalDuration = actions.getByRole('textbox', { name: 'Layout interval duration in seconds exact time' })
+    await intervalDuration.fill('5')
+    await intervalDuration.press('Enter')
     await actions.getByRole('button', { name: 'Append' }).click()
 
     const adjacentCrossfade = page.getByRole('button', { name: 'Edit crossfade Transition between TestPattern1D and CometLoom' })
@@ -1541,10 +1545,10 @@ test.describe('authenticated Show authoring', () => {
     await expect(interval).toHaveAttribute('aria-pressed', 'false')
     await interval.click()
     await expect(interval).toHaveAttribute('aria-pressed', 'true')
-    const duration = page.getByLabel('Routing transfer duration seconds exact time')
+    const duration = page.getByRole('textbox', { name: 'Routing transfer duration seconds exact time' })
     const easing = page.getByLabel('Routing transfer easing')
     await duration.fill('2')
-    await duration.press('Tab')
+    await duration.press('Enter')
     await expect(easing).toBeEnabled()
     await easing.selectOption('ease-in-out')
     await page.getByLabel('Routing transfer direction').selectOption('reverse')
@@ -1595,8 +1599,12 @@ test.describe('authenticated Show authoring', () => {
     await page.getByRole('button', { name: /^Edit split position at / }).click()
     await page.getByText('Advanced transition controls').click()
     await page.getByLabel('Animate split position').check()
-    await page.getByLabel('Split position start').fill('0.2')
-    await page.getByLabel('Split position duration seconds exact time').fill('1.2')
+    const splitStart = page.getByRole('textbox', { name: 'Split position start' })
+    await splitStart.fill('0.2')
+    await splitStart.press('Enter')
+    const splitDuration = page.getByRole('textbox', { name: 'Split position duration seconds exact time' })
+    await splitDuration.fill('1.2')
+    await splitDuration.press('Enter')
     await page.getByLabel('Split position easing').selectOption('ease-in-out')
 
     await waitForCurrentShow(page, (show) => (
@@ -1660,10 +1668,12 @@ test.describe('authenticated Show authoring', () => {
     await expect(repeatLane).toBeVisible()
     await expect(repeatLane.getByRole('button', { name: /^Edit repeat scale at / })).toContainText('1x→1x')
 
-    await panel.getByLabel('Repeat scale start exact multiplier').fill('2x')
-    await panel.getByLabel('Repeat scale start exact multiplier').press('Tab')
-    await panel.getByLabel('Repeat scale duration seconds exact time').fill('0.8')
-    await panel.getByLabel('Repeat scale duration seconds exact time').press('Tab')
+    const repeatStart = panel.getByRole('textbox', { name: 'Repeat scale start exact multiplier' })
+    await repeatStart.fill('2x')
+    await repeatStart.press('Enter')
+    const repeatDuration = panel.getByRole('textbox', { name: 'Repeat scale duration seconds exact time' })
+    await repeatDuration.fill('0.8')
+    await repeatDuration.press('Enter')
     await panel.getByLabel('Repeat scale easing').selectOption('ease-in-out')
 
     await waitForCurrentShow(page, (show) => {
@@ -1706,7 +1716,7 @@ test.describe('authenticated Show authoring', () => {
     await diamond.click()
     const from = page.getByRole('textbox', { name: 'Brightness animation from exact percentage' })
     await from.fill('60%')
-    await from.blur()
+    await from.press('Enter')
     await waitForCurrentShow(page, (show) => {
       const track = show.composition?.scenes[0]?.propertyTracks?.[0]
       return track?.target.kind === 'placement-view'
@@ -1734,8 +1744,9 @@ test.describe('authenticated Show authoring', () => {
     const clipPanel = page.getByRole('dialog', { name: 'Entity Detail Panel' })
     await expect(clipPanel.getByRole('region', { name: 'Clip properties' })).toBeVisible()
     await clipPanel.getByRole('button', { name: 'Animate Brightness' }).click()
-    await page.getByRole('textbox', { name: 'Brightness animation to exact percentage' }).fill('42%')
-    await page.getByRole('textbox', { name: 'Brightness animation to exact percentage' }).blur()
+    const brightnessTo = page.getByRole('textbox', { name: 'Brightness animation to exact percentage' })
+    await brightnessTo.fill('42%')
+    await brightnessTo.press('Enter')
     await page.getByRole('combobox', { name: 'Brightness animation easing' }).selectOption('steps-4-end')
 
     await waitForCurrentShow(page, (show) => {
@@ -1796,8 +1807,9 @@ test.describe('authenticated Show authoring', () => {
 
     const panel = await openTransition(page)
     await chooseTransition(page, panel, 'ring', 'Ring')
-    await page.getByLabel('Ring width').fill('0.2')
-    await page.getByLabel('Ring width').blur()
+    const ringWidthField = page.getByRole('textbox', { name: 'Ring width' })
+    await ringWidthField.fill('0.2')
+    await ringWidthField.press('Enter')
 
     // Barrier, not oracle: the write must land before the reload discards it.
     await waitForCurrentShow(page, (show) => show.transitions?.[0]?.ringWidth === 0.2)

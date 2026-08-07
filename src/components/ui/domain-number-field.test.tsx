@@ -50,7 +50,7 @@ describe('DomainNumberField (#610)', () => {
     expect(exact).toHaveValue('1.')
     expect(onChange).not.toHaveBeenCalled()
     await user.type(exact, '5x')
-    await user.tab()
+    await user.keyboard('{Enter}')
     expect(onChange).toHaveBeenCalledOnce()
     expect(onChange).toHaveBeenCalledWith(1.5)
     expect(exact).toHaveValue('1.5')
@@ -58,7 +58,7 @@ describe('DomainNumberField (#610)', () => {
     await user.click(exact)
     await user.clear(exact)
     await user.type(exact, '9x')
-    await user.tab()
+    await user.keyboard('{Enter}')
     expect(onChange).toHaveBeenLastCalledWith(4)
   })
 
@@ -81,14 +81,14 @@ describe('DomainNumberField (#610)', () => {
     await user.click(exact)
     await user.clear(exact)
     await user.type(exact, '16:9')
-    await user.tab()
+    await user.keyboard('{Enter}')
     expect(onChange).toHaveBeenLastCalledWith(16 / 9)
     expect(exact).toHaveValue('16:9')
 
     await user.click(exact)
     await user.clear(exact)
     await user.type(exact, '3:0')
-    await user.tab()
+    await user.click(document.body)
     expect(onChange).toHaveBeenCalledOnce()
     expect(exact).toHaveValue('16:9')
 
@@ -100,7 +100,7 @@ describe('DomainNumberField (#610)', () => {
     expect(exact).toHaveValue('16:9')
   })
 
-  it('keeps focused drafts stable across external values and synchronizes after blur', async () => {
+  it('keeps focused drafts stable across external values and restores the latest value on blur', async () => {
     const user = userEvent.setup()
     const onChange = vi.fn()
     const { rerender } = render(
@@ -130,9 +130,9 @@ describe('DomainNumberField (#610)', () => {
       />,
     )
     expect(exact).toHaveValue('1.')
-    await user.tab()
-    expect(onChange).toHaveBeenCalledWith(1)
-    expect(exact).toHaveValue('1')
+    await user.click(document.body)
+    expect(onChange).not.toHaveBeenCalled()
+    expect(exact).toHaveValue('2')
   })
 
   it('marks neutral, previews a neutral-aware pointer gesture, and commits once', () => {

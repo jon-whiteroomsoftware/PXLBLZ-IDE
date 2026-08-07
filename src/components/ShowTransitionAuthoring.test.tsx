@@ -137,11 +137,11 @@ describe('Show Transition authoring UI', () => {
     expect(within(controls).getByRole('combobox', { name: 'Reveal mode' })).toHaveValue('grow-incoming')
     const points = within(controls).getByRole('textbox', { name: 'Points' })
     fireEvent.change(points, { target: { value: '7' } })
-    fireEvent.blur(points)
+    fireEvent.keyDown(points, { key: 'Enter' })
     expect(onChange).toHaveBeenCalledWith('starPoints', 7)
   })
 
-  it('buffers numeric edits so deletion works and commit happens once on blur', async () => {
+  it('buffers numeric edits so deletion works and commit happens once on Enter', async () => {
     const user = userEvent.setup()
     const catalogue = buildShowToolkitPresentationCatalogue({ stageDimensions: 2 })
     const crossfade = catalogue.find((item) => item.key === 'transition:blend:crossfade')!
@@ -160,7 +160,7 @@ describe('Show Transition authoring UI', () => {
     await user.type(duration, '2.5')
     expect(onChange).not.toHaveBeenCalled()
 
-    await user.tab()
+    await user.keyboard('{Enter}')
     expect(onChange).toHaveBeenCalledTimes(1)
     expect(onChange).toHaveBeenCalledWith('durationMs', 2500)
   })
@@ -178,7 +178,7 @@ describe('Show Transition authoring UI', () => {
     expect(feather).toHaveValue('0')
     await user.clear(feather)
     await user.type(feather, '12.5%')
-    await user.tab()
+    await user.keyboard('{Enter}')
 
     expect(onChange).toHaveBeenCalledOnce()
     expect(onChange).toHaveBeenCalledWith('feather', 0.125)
@@ -198,7 +198,7 @@ describe('Show Transition authoring UI', () => {
     expect(aspect).toHaveValue('3:2')
     await user.clear(aspect)
     await user.type(aspect, '16:9')
-    await user.tab()
+    await user.keyboard('{Enter}')
 
     expect(onChange).toHaveBeenCalledWith('aspect', 16 / 9)
   })
@@ -216,7 +216,7 @@ describe('Show Transition authoring UI', () => {
     expect(scale).toHaveValue('0.01')
     await user.clear(scale)
     await user.type(scale, '0.25x')
-    await user.tab()
+    await user.keyboard('{Enter}')
 
     expect(onChange).toHaveBeenCalledWith('contentScale', 0.25)
   })

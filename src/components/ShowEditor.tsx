@@ -3,6 +3,7 @@ import { createPortal } from 'react-dom'
 import { Activity, BookOpen, ChevronDown, ChevronRight, Clock3, Code2, Copy, Download, Eye, Flag, Grid2X2, Info, Layers3, Lightbulb, ListChecks, Lock, Magnet, Map as MapIcon, Maximize2, Move, PanelLeft, Pause, Play, Plus, Redo2, Repeat2, RotateCcw, RotateCw, Route, Scissors, Settings2, SkipBack, SlidersHorizontal, Square, Sun, Trash2, Undo2, WandSparkles, X, Zap } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { NumberField as UiNumberField, type NumberFieldProps as UiNumberFieldProps } from '@/components/ui/number-field'
+import { DraftTextField } from '@/components/ui/draft-text-field'
 import { TimeField as UiTimeField, type TimeFieldProps as UiTimeFieldProps } from '@/components/ui/time-field'
 import { PercentageField as UiPercentageField, type PercentageFieldProps as UiPercentageFieldProps } from '@/components/ui/percentage-field'
 import { DomainNumberField as UiDomainNumberField, type DomainNumberFieldProps as UiDomainNumberFieldProps } from '@/components/ui/domain-number-field'
@@ -7102,11 +7103,12 @@ function TimelineMarkers({
               </div>
               <label className="grid grid-cols-[44px_1fr] items-center gap-2 py-1">
                 <span>Name</span>
-                <input
-                  aria-label="Marker name"
-                  className="min-w-0 rounded border border-zinc-800 bg-zinc-900 px-1.5 py-1 text-zinc-200"
-                  defaultValue={marker.name ?? ''}
-                  onBlur={(event) => void onUpdateMarker(marker.id, { name: event.target.value.trim() || undefined })}
+                <DraftTextField
+                  ariaLabel="Marker name"
+                  value={marker.name ?? ''}
+                  formatApplied={(_, draft) => draft.trim()}
+                  onApply={(name) => { void onUpdateMarker(marker.id, { name: name.trim() || undefined }) }}
+                  inputClassName="min-w-0 rounded border border-zinc-800 bg-zinc-900 px-1.5 py-1 text-zinc-200"
                 />
               </label>
               <div className="grid grid-cols-[44px_1fr] items-center gap-2 py-1">
@@ -9359,15 +9361,14 @@ function ShowSetupInspector({
                 <option value="">Choose 2D map</option>
                 {portableMaps.map((map) => <option key={map.id} value={map.id}>{map.name}</option>)}
               </select>
-              <input
-                key={portable.referencePixelCount}
-                aria-label="Portable reference pixels"
-                type="number"
+              <NumberField
+                label="Portable reference pixels"
+                hideLabel
                 min={1}
                 max={2000}
-                defaultValue={portable.referencePixelCount}
-                onBlur={(event) => onUpdatePortableReference(portable.referenceMapId, Number(event.currentTarget.value))}
-                className={field}
+                step={1}
+                value={portable.referencePixelCount}
+                onChange={(referencePixelCount) => onUpdatePortableReference(portable.referenceMapId, referencePixelCount)}
               />
             </div>
             <div className="mt-1 normal-case text-zinc-500">Preview only; changing it does not rewrite choreography.</div>
@@ -9538,114 +9539,83 @@ function ZoneLayoutInspector({
       </label>
       {layout.logical?.kind === 'checker' && (
         <div className="mt-2 grid max-w-xs grid-cols-2 gap-2">
-          <label className="text-[9.5px] uppercase text-zinc-600">
-            Columns
-            <input
-              key={layout.logical.columns}
-              aria-label="Checker columns"
-              type="number"
-              min={1}
-              step={1}
-              defaultValue={layout.logical.columns}
-              onBlur={(event) => onUpdateRoutingLayout(layout.id, {
-                logical: patchLogicalRouting(layout.logical!, 'checker', {
-                  columns: Math.max(1, Math.round(Number(event.currentTarget.value) || 1)),
-                }),
-              })}
-              className={`${field} mt-1 w-full`}
-            />
-          </label>
-          <label className="text-[9.5px] uppercase text-zinc-600">
-            Rows
-            <input
-              key={layout.logical.rows}
-              aria-label="Checker rows"
-              type="number"
-              min={1}
-              step={1}
-              defaultValue={layout.logical.rows}
-              onBlur={(event) => onUpdateRoutingLayout(layout.id, {
-                logical: patchLogicalRouting(layout.logical!, 'checker', {
-                  rows: Math.max(1, Math.round(Number(event.currentTarget.value) || 1)),
-                }),
-              })}
-              className={`${field} mt-1 w-full`}
-            />
-          </label>
+          <NumberField
+            label="Columns"
+            ariaLabel="Checker columns"
+            min={1}
+            step={1}
+            value={layout.logical.columns}
+            onChange={(columns) => onUpdateRoutingLayout(layout.id, {
+              logical: patchLogicalRouting(layout.logical!, 'checker', {
+                columns: Math.max(1, Math.round(columns)),
+              }),
+            })}
+          />
+          <NumberField
+            label="Rows"
+            ariaLabel="Checker rows"
+            min={1}
+            step={1}
+            value={layout.logical.rows}
+            onChange={(rows) => onUpdateRoutingLayout(layout.id, {
+              logical: patchLogicalRouting(layout.logical!, 'checker', {
+                rows: Math.max(1, Math.round(rows)),
+              }),
+            })}
+          />
         </div>
       )}
       {layout.logical?.kind === 'rings' && (
         <div className="mt-2 max-w-[9.5rem]">
-          <label className="text-[9.5px] uppercase text-zinc-600">
-            Ring count
-            <input
-              key={layout.logical.rings}
-              aria-label="Ring count"
-              type="number"
-              min={1}
-              step={1}
-              defaultValue={layout.logical.rings}
-              onBlur={(event) => onUpdateRoutingLayout(layout.id, {
-                logical: patchLogicalRouting(layout.logical!, 'rings', {
-                  rings: Math.max(1, Math.round(Number(event.currentTarget.value) || 1)),
-                }),
-              })}
-              className={`${field} mt-1 w-full`}
-            />
-          </label>
+          <NumberField
+            label="Ring count"
+            min={1}
+            step={1}
+            value={layout.logical.rings}
+            onChange={(rings) => onUpdateRoutingLayout(layout.id, {
+              logical: patchLogicalRouting(layout.logical!, 'rings', {
+                rings: Math.max(1, Math.round(rings)),
+              }),
+            })}
+          />
         </div>
       )}
       {layout.logical?.kind === 'pinwheel' && (
         <div className="mt-2 grid max-w-xl grid-cols-3 gap-2">
-          <label className="text-[9.5px] uppercase text-zinc-600">
-            Arms
-            <input
-              key={layout.logical.arms ?? layout.logical.zoneIds.length}
-              aria-label="Pinwheel arms"
-              type="number"
-              min={1}
-              step={1}
-              defaultValue={layout.logical.arms ?? layout.logical.zoneIds.length}
-              onBlur={(event) => onUpdateRoutingLayout(layout.id, {
-                logical: patchLogicalRouting(layout.logical!, 'pinwheel', {
-                  arms: Math.max(1, Math.round(Number(event.currentTarget.value) || 1)),
-                }),
-              })}
-              className={`${field} mt-1 w-full`}
-            />
-          </label>
-          <label className="text-[9.5px] uppercase text-zinc-600">
-            Twist turns
-            <input
-              key={layout.logical.twist}
-              aria-label="Pinwheel twist turns"
-              type="number"
-              step={0.05}
-              defaultValue={Number((layout.logical.twist / (Math.PI * 2)).toFixed(3))}
-              onBlur={(event) => onUpdateRoutingLayout(layout.id, {
-                logical: patchLogicalRouting(layout.logical!, 'pinwheel', {
-                  twist: (Number(event.currentTarget.value) || 0) * Math.PI * 2,
-                }),
-              })}
-              className={`${field} mt-1 w-full`}
-            />
-          </label>
-          <label className="text-[9.5px] uppercase text-zinc-600">
-            Rotation °
-            <input
-              key={layout.logical.rotation ?? 0}
-              aria-label="Pinwheel rotation degrees"
-              type="number"
-              step={1}
-              defaultValue={Number((((layout.logical.rotation ?? 0) * 180) / Math.PI).toFixed(2))}
-              onBlur={(event) => onUpdateRoutingLayout(layout.id, {
-                logical: patchLogicalRouting(layout.logical!, 'pinwheel', {
-                  rotation: (Number(event.currentTarget.value) || 0) * Math.PI / 180,
-                }),
-              })}
-              className={`${field} mt-1 w-full`}
-            />
-          </label>
+          <NumberField
+            label="Arms"
+            ariaLabel="Pinwheel arms"
+            min={1}
+            step={1}
+            value={layout.logical.arms ?? layout.logical.zoneIds.length}
+            onChange={(arms) => onUpdateRoutingLayout(layout.id, {
+              logical: patchLogicalRouting(layout.logical!, 'pinwheel', {
+                arms: Math.max(1, Math.round(arms)),
+              }),
+            })}
+          />
+          <NumberField
+            label="Twist turns"
+            ariaLabel="Pinwheel twist turns"
+            step={0.05}
+            value={Number((layout.logical.twist / (Math.PI * 2)).toFixed(3))}
+            onChange={(twistTurns) => onUpdateRoutingLayout(layout.id, {
+              logical: patchLogicalRouting(layout.logical!, 'pinwheel', {
+                twist: twistTurns * Math.PI * 2,
+              }),
+            })}
+          />
+          <NumberField
+            label="Rotation °"
+            ariaLabel="Pinwheel rotation degrees"
+            step={1}
+            value={Number((((layout.logical.rotation ?? 0) * 180) / Math.PI).toFixed(2))}
+            onChange={(rotationDegrees) => onUpdateRoutingLayout(layout.id, {
+              logical: patchLogicalRouting(layout.logical!, 'pinwheel', {
+                rotation: rotationDegrees * Math.PI / 180,
+              }),
+            })}
+          />
         </div>
       )}
       {layout.logical?.kind === 'wave' && (
@@ -9664,21 +9634,16 @@ function ZoneLayoutInspector({
               <option value="y">Y</option>
             </select>
           </label>
-          <label className="text-[9.5px] uppercase text-zinc-600">
-            Bands
-            <input
-              key={layout.logical.bands}
-              aria-label="Wave band count"
-              type="number"
-              min={1}
-              step={1}
-              defaultValue={layout.logical.bands}
-              onBlur={(event) => onUpdateRoutingLayout(layout.id, {
-                logical: patchLogicalRouting(layout.logical!, 'wave', { bands: Math.max(1, Math.round(Number(event.currentTarget.value) || 1)) }),
-              })}
-              className={`${field} mt-1 w-full`}
-            />
-          </label>
+          <NumberField
+            label="Bands"
+            ariaLabel="Wave band count"
+            min={1}
+            step={1}
+            value={layout.logical.bands}
+            onChange={(bands) => onUpdateRoutingLayout(layout.id, {
+              logical: patchLogicalRouting(layout.logical!, 'wave', { bands: Math.max(1, Math.round(bands)) }),
+            })}
+          />
           <PercentageField
             key={layout.logical.amplitude}
             label="Wave amplitude"
@@ -9690,35 +9655,25 @@ function ZoneLayoutInspector({
               logical: patchLogicalRouting(layout.logical!, 'wave', { amplitude }),
             })}
           />
-          <label className="text-[9.5px] uppercase text-zinc-600">
-            Frequency
-            <input
-              key={layout.logical.frequency}
-              aria-label="Wave frequency"
-              type="number"
-              min={0}
-              step={0.1}
-              defaultValue={layout.logical.frequency}
-              onBlur={(event) => onUpdateRoutingLayout(layout.id, {
-                logical: patchLogicalRouting(layout.logical!, 'wave', { frequency: Math.max(0, Number(event.currentTarget.value) || 0) }),
-              })}
-              className={`${field} mt-1 w-full`}
-            />
-          </label>
-          <label className="text-[9.5px] uppercase text-zinc-600">
-            Phase
-            <input
-              key={layout.logical.phase}
-              aria-label="Wave phase"
-              type="number"
-              step={0.05}
-              defaultValue={layout.logical.phase}
-              onBlur={(event) => onUpdateRoutingLayout(layout.id, {
-                logical: patchLogicalRouting(layout.logical!, 'wave', { phase: Number(event.currentTarget.value) || 0 }),
-              })}
-              className={`${field} mt-1 w-full`}
-            />
-          </label>
+          <NumberField
+            label="Frequency"
+            ariaLabel="Wave frequency"
+            min={0}
+            step={0.1}
+            value={layout.logical.frequency}
+            onChange={(frequency) => onUpdateRoutingLayout(layout.id, {
+              logical: patchLogicalRouting(layout.logical!, 'wave', { frequency: Math.max(0, frequency) }),
+            })}
+          />
+          <NumberField
+            label="Phase"
+            ariaLabel="Wave phase"
+            step={0.05}
+            value={layout.logical.phase}
+            onChange={(phase) => onUpdateRoutingLayout(layout.id, {
+              logical: patchLogicalRouting(layout.logical!, 'wave', { phase }),
+            })}
+          />
         </div>
       )}
       {layout.logical?.kind === 'soft-split' && (
@@ -9761,24 +9716,20 @@ function ZoneLayoutInspector({
           return (
             <label key={zone.id} className="text-[9.5px] uppercase text-zinc-600">
               {zone.name} ranges
-              <input
-                key={formatShowRoutingRanges(layoutZone?.ranges ?? [])}
-                aria-label={`${layout.name} ${zone.name} pixel ranges`}
-                defaultValue={formatShowRoutingRanges(layoutZone?.ranges ?? [])}
-                placeholder="0-63, 128-191"
-                onBlur={(event) => {
-                  const ranges = parseShowRoutingRanges(event.currentTarget.value)
-                  if (ranges === null) {
-                    event.currentTarget.value = formatShowRoutingRanges(layoutZone?.ranges ?? [])
-                    return
-                  }
+              <DraftTextField
+                ariaLabel={`${layout.name} ${zone.name} pixel ranges`}
+                value={formatShowRoutingRanges(layoutZone?.ranges ?? [])}
+                parse={parseShowRoutingRanges}
+                onApply={(ranges) => {
                   onUpdateRoutingLayout(layout.id, {
                     zones: layout.zones.map((candidate) => candidate.zoneId === zone.id
                       ? { ...candidate, ranges }
                       : candidate),
                   })
                 }}
-                className={`${field} mt-1 w-full font-mono`}
+                className="mt-1 w-full"
+                inputClassName={`${field} w-full font-mono`}
+                inputProps={{ placeholder: '0-63, 128-191' }}
               />
             </label>
           )
@@ -9813,11 +9764,13 @@ function ZoneInspector({
       <div className="grid gap-2 rounded border border-zinc-800 bg-zinc-950/55 p-2 md:grid-cols-[minmax(140px,1fr)_96px_36px]">
         <label className="flex min-w-0 items-center gap-2">
           <span className="h-2 w-2 shrink-0 rounded-full" style={{ backgroundColor: zone.color ?? '#38bdf8' }} />
-          <input
-            aria-label={`Zone name ${zone.name}`}
+          <DraftTextField
+            ariaLabel={`Zone name ${zone.name}`}
             value={zone.name}
-            onChange={(event) => onUpdateZone({ name: event.target.value })}
-            className={`${field} w-full`}
+            formatApplied={(_, draft) => draft.trim() || zone.name}
+            onApply={(name) => onUpdateZone({ name: name.trim() || zone.name })}
+            className="min-w-0 flex-1"
+            inputClassName={`${field} w-full`}
           />
         </label>
         {show.outputContract?.kind !== 'portable-2d' && (
@@ -9973,7 +9926,7 @@ function CompileBar({
 }
 
 // Shared draft-buffered numeric field (#577) in the editor-panel style.
-function NumberField(props: Omit<UiNumberFieldProps, 'variant' | 'align' | 'ariaLabel' | 'disabled'>) {
+function NumberField(props: Omit<UiNumberFieldProps, 'variant' | 'align' | 'disabled'>) {
   return <UiNumberField variant="editor" {...props} />
 }
 

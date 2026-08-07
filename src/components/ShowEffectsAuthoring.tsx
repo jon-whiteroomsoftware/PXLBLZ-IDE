@@ -1,6 +1,6 @@
 import { useEffect, useId, useMemo, useRef, useState, type Ref } from 'react'
 import { createPortal } from 'react-dom'
-import { useNumberFieldDraft } from '@/components/ui/number-field'
+import { NumberField } from '@/components/ui/number-field'
 import { PercentageField } from '@/components/ui/percentage-field'
 import { AngleField } from '@/components/ui/angle-field'
 import { anglePresentationKind } from '@/engine/anglePresentation'
@@ -745,16 +745,17 @@ function EffectParameterField({ label, value, min, max, step, onCommit }: {
   step?: number
   onCommit: (value: number) => void
 }) {
-  const { inputProps } = useNumberFieldDraft({ value, min, max, onChange: onCommit })
   return (
-    <input
-      type="number"
-      aria-label={label}
+    <NumberField
+      label={label}
+      hideLabel
+      compact
+      variant="inspector"
+      value={value}
       min={min}
       max={max}
       step={step}
-      {...inputProps}
-      className="mt-0.5 h-5 w-full rounded border border-zinc-700 bg-zinc-950 px-1 text-right text-[9px] tabular-nums text-zinc-200 outline-none focus:border-cyan-400/60"
+      onChange={onCommit}
     />
   )
 }

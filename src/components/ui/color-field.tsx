@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState, type FormEvent, type KeyboardEvent } from 'react'
 import { formatColorValue, parseColorValue } from '@/engine/colorValue'
+import { DraftFieldActions } from './draft-field-actions'
 
 export interface ColorFieldProps {
   label: string
@@ -27,7 +28,9 @@ export function ColorField({
 }: ColorFieldProps) {
   const canonicalValue = formatColorValue(value)
   const [draft, setDraft] = useState(canonicalValue)
+  const [exactDirty, setExactDirty] = useState(false)
   const exactFocusedRef = useRef(false)
+  const committedValueRef = useRef(canonicalValue)
   const pickerCommittedRef = useRef(false)
   const pickerRef = useRef<HTMLInputElement>(null)
   const pickerPreviewActiveRef = useRef(false)
@@ -48,7 +51,11 @@ export function ColorField({
   }
 
   useEffect(() => {
-    if (!exactFocusedRef.current) setDraft(canonicalValue)
+    if (!exactFocusedRef.current) {
+      committedValueRef.current = canonicalValue
+      setDraft(canonicalValue)
+      setExactDirty(false)
+    }
   }, [canonicalValue])
 
   useEffect(() => {
@@ -58,6 +65,7 @@ export function ColorField({
       const parsed = parseColorValue(picker.value)
       if (!parsed) return
       pickerCommittedRef.current = true
+      committedValueRef.current = parsed
       setDraft(parsed)
       endPickerPreview()
       if (parsed !== canonicalValue) onChange(parsed)
@@ -67,7 +75,9 @@ export function ColorField({
   }, [canonicalValue, onChange])
 
   const revert = (endPreview = false) => {
-    setDraft(canonicalValue)
+    exactFocusedRef.current = false
+    setExactDirty(false)
+    setDraft(committedValueRef.current)
     if (endPreview) endPickerPreview()
   }
   const commitExact = (raw: string) => {
@@ -77,6 +87,8 @@ export function ColorField({
       revert()
       return
     }
+    committedValueRef.current = parsed
+    setExactDirty(false)
     setDraft(parsed)
     if (parsed !== canonicalValue) onChange(parsed)
   }
@@ -88,12 +100,13 @@ export function ColorField({
     onPreview?.(parsed)
   }
   const onExactKeyDown = (event: KeyboardEvent<HTMLInputElement>) => {
-    if (event.key === 'Enter') event.currentTarget.blur()
+    if (event.key === 'Enter') {
+      event.preventDefault()
+      commitExact(event.currentTarget.value)
+    }
     if (event.key === 'Escape') {
-      exactFocusedRef.current = false
-      event.currentTarget.value = canonicalValue
+      event.preventDefault()
       revert()
-      event.currentTarget.blur()
     }
   }
   const onPickerKeyDown = (event: KeyboardEvent<HTMLInputElement>) => {
@@ -113,7 +126,13 @@ export function ColorField({
   return (
     <label className={labelClass}>
       <span className={hideLabel ? 'sr-only' : ''}>{label}</span>
-      <span className={`${hideLabel ? '' : 'mt-1'} ${fieldHeight} flex min-w-0 overflow-hidden rounded border border-zinc-700 ${fieldBackground} focus-within:border-cyan-400/60 disabled:opacity-60`}>
+      <span
+        className={`${hideLabel ? '' : 'mt-1'} ${fieldHeight} flex min-w-0 overflow-hidden rounded border border-zinc-700 ${fieldBackground} focus-within:border-cyan-400/60 disabled:opacity-60`}
+        onBlur={(event) => {
+          if (event.currentTarget.contains(event.relatedTarget as Node | null)) return
+          if (exactDirty) revert()
+        }}
+      >
         <span
           className="relative w-8 shrink-0 border-r border-zinc-700"
           style={{ backgroundColor: swatch }}
@@ -127,7 +146,10 @@ export function ColorField({
           aria-label={`${label} picker`}
           value={swatch}
           disabled={disabled}
-          onFocus={() => { pickerCommittedRef.current = false }}
+          onFocus={() => {
+            pickerCommittedRef.current = false
+            if (exactDirty) revert()
+          }}
           onInput={previewPicker}
           onBlur={() => {
             if (!pickerCommittedRef.current && draft !== canonicalValue) revert(true)
@@ -144,11 +166,23 @@ export function ColorField({
           spellCheck={false}
           autoCapitalize="none"
           onFocus={() => { exactFocusedRef.current = true }}
-          onChange={(event) => setDraft(event.currentTarget.value)}
-          onBlur={(event) => commitExact(event.currentTarget.value)}
+          onChange={(event) => {
+            exactFocusedRef.current = true
+            setExactDirty(true)
+            setDraft(event.currentTarget.value)
+          }}
           onKeyDown={onExactKeyDown}
           className="min-w-0 flex-1 bg-transparent px-1.5 text-left font-mono text-[9.5px] normal-case tracking-normal text-zinc-200 outline-none disabled:cursor-default disabled:opacity-60"
         />
+        {exactDirty && (
+          <DraftFieldActions
+            label={label}
+            canApply={parseColorValue(draft) !== null}
+            contained
+            onApply={() => commitExact(draft)}
+            onCancel={revert}
+          />
+        )}
       </span>
     </label>
   )

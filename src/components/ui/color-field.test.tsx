@@ -4,7 +4,7 @@ import { describe, expect, it, vi } from 'vitest'
 import { ColorField } from './color-field'
 
 describe('ColorField', () => {
-  it('commits a canonical exact value once on blur', async () => {
+  it('applies a canonical exact value once and cancels valid drafts on blur (#751)', async () => {
     const user = userEvent.setup()
     const onChange = vi.fn()
     render(<ColorField label="Target color" value="#00ff00" onChange={onChange} />)
@@ -14,7 +14,14 @@ describe('ColorField', () => {
     await user.clear(exact)
     await user.type(exact, '#ABCDEF')
     expect(onChange).not.toHaveBeenCalled()
-    await user.tab()
+    await user.click(document.body)
+    expect(onChange).not.toHaveBeenCalled()
+    expect(exact).toHaveValue('#00ff00')
+
+    await user.click(exact)
+    await user.clear(exact)
+    await user.type(exact, '#ABCDEF')
+    await user.click(screen.getByRole('button', { name: 'Apply Target color' }))
 
     expect(onChange).toHaveBeenCalledOnce()
     expect(onChange).toHaveBeenCalledWith('#abcdef')
@@ -30,7 +37,7 @@ describe('ColorField', () => {
     await user.click(exact)
     await user.clear(exact)
     await user.type(exact, '#xyz')
-    await user.tab()
+    await user.click(document.body)
     expect(exact).toHaveValue('#123456')
     expect(onChange).not.toHaveBeenCalled()
 

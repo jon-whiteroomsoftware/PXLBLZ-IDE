@@ -19,6 +19,7 @@ import { nameConflicts } from '@/engine/patternName'
 import { sanitizeLibraryNameInput } from '@/engine/libraries'
 import type { DimLens } from '@/engine/dimLens'
 import { IDE_MICROTYPE } from '@/components/ui/ideMicrotype'
+import { DraftFieldActions } from '@/components/ui/draft-field-actions'
 import { DeckSelect } from '@/components/DeckSelect'
 import {
   AlertDialogRoot,
@@ -384,7 +385,11 @@ export function EditableListItem({
   }
 
   function onKeyDown(e: React.KeyboardEvent) {
-    if (e.key === 'Enter') commitRename()
+    e.stopPropagation()
+    if (e.key === 'Enter') {
+      e.preventDefault()
+      commitRename()
+    }
     if (e.key === 'Escape') setEditing(false)
   }
 
@@ -420,25 +425,38 @@ export function EditableListItem({
         {active && <ActiveBar />}
         <EntityIcon noun={noun} />
         {editing ? (
-          <input
-            ref={inputRef}
-            autoFocus
-            value={draft}
-            onBeforeInput={handleBeforeInput}
-            onChange={handleDraftChange}
-            onBlur={commitRename}
-            onKeyDown={onKeyDown}
-            onClick={(e) => e.stopPropagation()}
-            className={[
-              'flex-1 min-w-0 text-xs px-1 rounded outline-none',
-              conflict
-                ? 'bg-red-900/60 text-red-200 ring-1 ring-red-500'
-                : validationMessage
+          <span
+            className="flex min-w-0 flex-1 items-stretch"
+            onBlur={(event) => {
+              if (event.currentTarget.contains(event.relatedTarget as Node | null)) return
+              setEditing(false)
+            }}
+          >
+            <input
+              ref={inputRef}
+              autoFocus
+              value={draft}
+              onBeforeInput={handleBeforeInput}
+              onChange={handleDraftChange}
+              onKeyDown={onKeyDown}
+              onClick={(e) => e.stopPropagation()}
+              className={[
+                'flex-1 min-w-0 text-xs px-1 rounded-l outline-none',
+                conflict || validationMessage
                   ? 'bg-red-900/60 text-red-200 ring-1 ring-red-500'
-                : 'bg-zinc-700 text-zinc-100',
-            ].join(' ')}
-            title={validationMessage ?? (conflict ? `A ${noun} with that name already exists` : undefined)}
-          />
+                  : 'bg-zinc-700 text-zinc-100',
+              ].join(' ')}
+              title={validationMessage ?? (conflict ? `A ${noun} with that name already exists` : undefined)}
+            />
+            {draft !== name && (
+              <DraftFieldActions
+                label={`${noun} rename`}
+                canApply={draft.trim().length > 0}
+                onApply={commitRename}
+                onCancel={() => setEditing(false)}
+              />
+            )}
+          </span>
         ) : (
           <>
             <span className="line-clamp-2 min-w-0 flex-1 break-words" title={name}>{name}</span>

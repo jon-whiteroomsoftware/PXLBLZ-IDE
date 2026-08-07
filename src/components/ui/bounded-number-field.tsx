@@ -19,6 +19,7 @@ import {
   moveFineAdjust,
   type FineAdjustDrag,
 } from '@/engine/fineAdjust'
+import { DraftFieldActions } from './draft-field-actions'
 
 export interface BoundedNumberPresentation {
   kindLabel: string
@@ -146,6 +147,7 @@ export function BoundedNumberField({
   const sliderDirtyRef = useRef(false)
   const focusedRef = useRef(false)
   const dirtyRef = useRef(false)
+  const [draftDirty, setDraftDirty] = useState(false)
   const sliderRef = useRef<HTMLInputElement>(null)
   const previewActiveRef = useRef(false)
   const onPreviewEndRef = useRef(onPreviewEnd)
@@ -201,6 +203,7 @@ export function BoundedNumberField({
   }
   const revert = () => {
     dirtyRef.current = false
+    setDraftDirty(false)
     setDraft(formatDraft(interactionValue))
   }
   const commit = (raw: string) => {
@@ -216,6 +219,7 @@ export function BoundedNumberField({
     }
     const bounded = clampPercentageValue(parsed, min, max)
     dirtyRef.current = false
+    setDraftDirty(false)
     setDraft(formatDraft(bounded))
     if (bounded !== interactionValue) {
       const accepted = onChange(bounded) !== false
@@ -224,12 +228,13 @@ export function BoundedNumberField({
     }
   }
   const onExactKeyDown = (event: KeyboardEvent<HTMLInputElement>) => {
-    if (event.key === 'Enter') event.currentTarget.blur()
+    if (event.key === 'Enter') {
+      event.preventDefault()
+      commit(event.currentTarget.value)
+    }
     if (event.key === 'Escape') {
-      focusedRef.current = false
-      event.currentTarget.value = formatDraft(interactionValue)
+      event.preventDefault()
       revert()
-      event.currentTarget.blur()
     }
   }
   const previewSliderValue = (next: number) => {
@@ -315,6 +320,7 @@ export function BoundedNumberField({
   }
   const openSlider = (event: PointerEvent<HTMLButtonElement>) => {
     if (disabled) return
+    revert()
     const rect = event.currentTarget.getBoundingClientRect()
     const placement = placeSlider(rect, event.clientX, interactionValue)
     pointerSessionRef.current = {
@@ -366,6 +372,7 @@ export function BoundedNumberField({
     if (disabled || (event.key !== 'Enter' && event.key !== ' ')) return
     event.preventDefault()
     event.stopPropagation()
+    revert()
     const rect = event.currentTarget.getBoundingClientRect()
     const placement = placeSlider(rect, rect.left + rect.width / 2, interactionValue)
     pointerSessionRef.current = null
@@ -396,7 +403,13 @@ export function BoundedNumberField({
         {labelAction}
       </span>
       <span className={`${hideLabel ? '' : compact ? 'mt-0.5' : 'mt-1'} flex min-w-0 items-center gap-1`}>
-        <span className={`${fieldHeight} ${fieldBackground} flex min-w-0 flex-1 overflow-hidden rounded border border-zinc-700 focus-within:border-cyan-400/60`}>
+        <span
+          className={`${fieldHeight} ${fieldBackground} flex min-w-0 flex-1 overflow-hidden rounded border border-zinc-700 focus-within:border-cyan-400/60`}
+          onBlur={(event) => {
+            if (event.currentTarget.contains(event.relatedTarget as Node | null)) return
+            revert()
+          }}
+        >
           <input
             id={inputId}
             type="text"
@@ -410,13 +423,23 @@ export function BoundedNumberField({
               dirtyRef.current = false
             }}
             onChange={(event) => {
+              focusedRef.current = true
               dirtyRef.current = true
+              setDraftDirty(true)
               setDraft(event.currentTarget.value)
             }}
-            onBlur={(event) => commit(event.currentTarget.value)}
             onKeyDown={onExactKeyDown}
             className={`min-w-0 flex-1 bg-transparent px-1.5 tabular-nums normal-case tracking-normal text-zinc-200 outline-none disabled:cursor-default disabled:opacity-60 ${textSize} ${resolvedAlign === 'left' ? 'text-left' : 'text-right'}`}
           />
+          {draftDirty && (
+            <DraftFieldActions
+              label={accessibleFieldLabel}
+              canApply={parseDraft(draft) !== null}
+              contained
+              onApply={() => commit(draft)}
+              onCancel={revert}
+            />
+          )}
           <button
             type="button"
             aria-label={`Adjust with ${kindLabel} slider`}

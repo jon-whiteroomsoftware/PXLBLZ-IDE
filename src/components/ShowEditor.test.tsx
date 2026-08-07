@@ -64,7 +64,7 @@ async function openZoneLayout(user: ReturnType<typeof userEvent.setup>, layoutNa
 function changeCommittedNumber(label: string, value: string): void {
   const input = screen.getByLabelText(label)
   fireEvent.change(input, { target: { value } })
-  fireEvent.blur(input)
+  fireEvent.keyDown(input, { key: 'Enter' })
 }
 
 function createTransitionMenuShow(
@@ -400,7 +400,7 @@ describe('ShowEditor (#318)', () => {
     await user.click(screen.getAllByRole('button', { name: 'Select TestPattern1D' })[0])
     const brightness = screen.getByRole('textbox', { name: 'Brightness exact percentage' })
     fireEvent.change(brightness, { target: { value: '75%' } })
-    fireEvent.blur(brightness)
+    fireEvent.keyDown(brightness, { key: 'Enter' })
 
     await waitFor(() => expect(useShowStore.getState().shows[0].composition?.executionModel).toBe('deterministic-loop'))
   })
@@ -807,6 +807,7 @@ describe('ShowEditor (#318)', () => {
     const duration = within(dialog).getByRole('textbox', { name: 'Layout interval duration in seconds exact time' })
     await user.clear(duration)
     await user.type(duration, '3')
+    await user.keyboard('{Enter}')
     await user.click(within(dialog).getByRole('button', { name: 'Insert here' }))
 
     // Insert places a fresh copy of the playhead interval's layout (#694).
@@ -966,7 +967,7 @@ describe('ShowEditor (#318)', () => {
     fireEvent.keyDown(screen.getByRole('slider', { name: 'Time slider', description: 'Marker time in seconds' }), { key: 'Escape' })
     await user.clear(markerTime)
     await user.type(markerTime, '4.125')
-    fireEvent.blur(markerTime)
+    fireEvent.keyDown(markerTime, { key: 'Enter' })
 
     await waitFor(() => expect(useShowStore.getState().shows[0].composition?.markers?.[0].timeMs).toBe(4_125))
     expect(screen.getByRole('button', { name: 'Marker 1 at 4.125 seconds' })).toBeInTheDocument()
@@ -1274,7 +1275,7 @@ describe('ShowEditor (#318)', () => {
     fireEvent.keyDown(screen.getByRole('slider', { name: 'Time slider', description: 'Show End time in seconds' }), { key: 'Escape' })
     await user.clear(showEnd)
     await user.type(showEnd, '65.5')
-    fireEvent.blur(showEnd)
+    fireEvent.keyDown(showEnd, { key: 'Enter' })
 
     await waitFor(() => expect(showModel.showLoopDurationMs(useShowStore.getState().shows[0])).toBe(65_500))
     expect(screen.getByRole('button', { name: 'Show End at 65.5 seconds' })).toBeInTheDocument()
@@ -2318,7 +2319,7 @@ describe('ShowEditor (#318)', () => {
     const start = screen.getByRole('textbox', { name: 'Start seconds exact time' })
     expect(start).toHaveValue('0')
     fireEvent.change(start, { target: { value: '7' } })
-    fireEvent.blur(start)
+    fireEvent.keyDown(start, { key: 'Enter' })
 
     expect(useShowStore.getState().shows[0].composition?.scenes[0].zones[0].main[0].startMs).toBe(0)
     expect(start).toHaveValue('0')
@@ -4512,7 +4513,7 @@ describe('ShowEditor (#318)', () => {
     const brightness = screen.getByRole('textbox', { name: 'Brightness exact percentage' })
     await user.clear(brightness)
     await user.type(brightness, '75%')
-    fireEvent.blur(brightness)
+    await user.keyboard('{Enter}')
 
     await waitFor(() => expect(reset).toBeEnabled())
     expect(useShowStore.getState().shows).toEqual([])
@@ -4906,7 +4907,7 @@ describe('ShowEditor (#318)', () => {
     const brightness = screen.getByRole('textbox', { name: 'Brightness exact percentage' })
     await user.clear(brightness)
     await user.type(brightness, '60%')
-    fireEvent.blur(brightness)
+    await user.keyboard('{Enter}')
     await waitFor(() => expect(useShowStore.getState().stockShowDrafts[stock.id].composition
       ?.patternInstances.find((instance) => instance.id === 'instance-reference-content-selected')).toMatchObject({
       pattern: { kind: 'stock', id: 'MetaballGarden' },
@@ -4940,7 +4941,7 @@ describe('ShowEditor (#318)', () => {
     const brightness = screen.getByRole('textbox', { name: 'Brightness exact percentage' })
     await user.clear(brightness)
     await user.type(brightness, '60%')
-    fireEvent.blur(brightness)
+    await user.keyboard('{Enter}')
 
     await waitFor(() => {
       const draft = useShowStore.getState().stockShowDrafts[stock.id]
@@ -5046,7 +5047,7 @@ describe('ShowEditor (#318)', () => {
     const toValue = screen.getByRole('textbox', { name: 'Brightness animation to exact percentage' })
     await user.clear(toValue)
     await user.type(toValue, '42%')
-    fireEvent.blur(toValue)
+    await user.keyboard('{Enter}')
     await user.selectOptions(
       screen.getByRole('combobox', { name: 'Brightness animation easing' }),
       'steps-4-end',
@@ -5112,7 +5113,7 @@ describe('ShowEditor (#318)', () => {
     const toValue = screen.getByRole('textbox', { name: 'Brightness animation to exact percentage' })
     await user.clear(toValue)
     await user.type(toValue, '42%')
-    fireEvent.blur(toValue)
+    await user.keyboard('{Enter}')
     await waitFor(() => {
       expect(useShowStore.getState().shows[0].composition?.scenes[0].propertyTracks?.[0].keyframes).toHaveLength(2)
     })
@@ -5133,7 +5134,7 @@ describe('ShowEditor (#318)', () => {
     const middleValue = screen.getByRole('textbox', { name: 'Brightness animation keyframe 2 exact percentage' })
     await user.clear(middleValue)
     await user.type(middleValue, '20%')
-    fireEvent.blur(middleValue)
+    await user.keyboard('{Enter}')
     await waitFor(() => {
       expect(useShowStore.getState().shows[0].composition?.scenes[0].propertyTracks?.[0].keyframes[1].value).toBe(0.2)
     })
@@ -5194,7 +5195,7 @@ describe('ShowEditor (#318)', () => {
     const from = screen.getByRole('textbox', { name: 'Brightness animation from exact percentage' })
     await user.clear(from)
     await user.type(from, '60%')
-    fireEvent.blur(from)
+    await user.keyboard('{Enter}')
 
     await waitFor(() => {
       const current = useShowStore.getState()
@@ -5235,7 +5236,7 @@ describe('ShowEditor (#318)', () => {
     const phaseFrom = screen.getByRole('textbox', { name: 'Phase animation from exact phase' })
     await user.clear(phaseFrom)
     await user.type(phaseFrom, '0.2')
-    fireEvent.blur(phaseFrom)
+    await user.keyboard('{Enter}')
     fireEvent.keyDown(screen.getByRole('dialog', { name: 'Phase animation' }), { key: 'Escape' })
     await user.click(within(panel).getByRole('tab', { name: /^Pattern/ }))
 
@@ -5269,14 +5270,14 @@ describe('ShowEditor (#318)', () => {
     const widthFrom = screen.getByRole('textbox', { name: 'Width animation from exact multiplier' })
     await user.clear(widthFrom)
     await user.type(widthFrom, '0.8x')
-    fireEvent.blur(widthFrom)
+    await user.keyboard('{Enter}')
     fireEvent.keyDown(screen.getByRole('dialog', { name: 'Width animation' }), { key: 'Escape' })
     await user.click(within(panel).getByRole('button', { name: 'Content summary' }))
     await user.click(within(panel).getByRole('button', { name: 'Animate Content X' }))
     const positionFrom = screen.getByRole('textbox', { name: 'X animation from' })
     await user.clear(positionFrom)
     await user.type(positionFrom, '0.2')
-    fireEvent.blur(positionFrom)
+    await user.keyboard('{Enter}')
     fireEvent.keyDown(screen.getByRole('dialog', { name: 'X animation' }), { key: 'Escape' })
     await user.click(within(panel).getByRole('button', { name: 'Aperture summary' }))
     await user.click(within(panel).getByRole('tab', { name: /^Pattern/ }))
@@ -6097,8 +6098,8 @@ describe('ShowEditor (#318)', () => {
     await openZoneLayout(user, 'Default')
     await user.selectOptions(screen.getByLabelText('Default routing mode'), 'checker')
 
-    expect(screen.getByLabelText('Checker columns')).toHaveValue(4)
-    expect(screen.getByLabelText('Checker rows')).toHaveValue(4)
+    expect(screen.getByLabelText('Checker columns')).toHaveValue('4')
+    expect(screen.getByLabelText('Checker rows')).toHaveValue('4')
     changeCommittedNumber('Checker columns', '6')
     changeCommittedNumber('Checker rows', '3')
 
@@ -6129,7 +6130,7 @@ describe('ShowEditor (#318)', () => {
     await openZoneLayout(user, 'Default')
     await user.selectOptions(screen.getByLabelText('Default routing mode'), 'rings')
 
-    expect(screen.getByLabelText('Ring count')).toHaveValue(5)
+    expect(screen.getByLabelText('Ring count')).toHaveValue('5')
     changeCommittedNumber('Ring count', '7')
     await waitFor(() => {
       expect(useShowStore.getState().shows[0].routingLayouts[0].logical).toEqual({
@@ -6157,9 +6158,9 @@ describe('ShowEditor (#318)', () => {
     await openZoneLayout(user, 'Default')
     await user.selectOptions(screen.getByLabelText('Default routing mode'), 'pinwheel')
 
-    expect(screen.getByLabelText('Pinwheel arms')).toHaveValue(6)
-    expect(screen.getByLabelText('Pinwheel twist turns')).toHaveValue(1.35)
-    expect(screen.getByLabelText('Pinwheel rotation degrees')).toHaveValue(0)
+    expect(screen.getByLabelText('Pinwheel arms')).toHaveValue('6')
+    expect(screen.getByLabelText('Pinwheel twist turns')).toHaveValue('1.35')
+    expect(screen.getByLabelText('Pinwheel rotation degrees')).toHaveValue('0')
     changeCommittedNumber('Pinwheel arms', '8')
     changeCommittedNumber('Pinwheel twist turns', '0.75')
     changeCommittedNumber('Pinwheel rotation degrees', '30')
@@ -6192,10 +6193,10 @@ describe('ShowEditor (#318)', () => {
     await user.selectOptions(screen.getByLabelText('Default routing mode'), 'wave')
 
     expect(screen.getByLabelText('Wave axis')).toHaveValue('x')
-    expect(screen.getByLabelText('Wave band count')).toHaveValue(4)
+    expect(screen.getByLabelText('Wave band count')).toHaveValue('4')
     expect(screen.getByRole('textbox', { name: 'Wave amplitude exact percentage' })).toHaveValue('30')
-    expect(screen.getByLabelText('Wave frequency')).toHaveValue(2.5)
-    expect(screen.getByLabelText('Wave phase')).toHaveValue(0)
+    expect(screen.getByLabelText('Wave frequency')).toHaveValue('2.5')
+    expect(screen.getByLabelText('Wave phase')).toHaveValue('0')
     await user.selectOptions(screen.getByLabelText('Wave axis'), 'y')
     changeCommittedNumber('Wave band count', '6')
     changeCommittedNumber('Wave amplitude', '40%')
@@ -6843,12 +6844,12 @@ describe('ShowEditor (#318)', () => {
     expect(screen.queryByLabelText('Target controller')).not.toBeInTheDocument()
     expect(screen.queryByText(/pixel ranges/i)).not.toBeInTheDocument()
     expect(screen.getByLabelText('Portable reference map')).toHaveValue('plane')
-    expect(screen.getByLabelText('Portable reference pixels')).toHaveValue(1024)
-    expect(screen.getByLabelText('Portable reference pixels')).toHaveAttribute('max', '2000')
+    expect(screen.getByLabelText('Portable reference pixels')).toHaveValue('1024')
+    expect(screen.getByLabelText('Portable reference pixels')).toHaveAttribute('inputmode', 'decimal')
 
     await user.selectOptions(screen.getByLabelText('Portable reference map'), 'wide')
     fireEvent.change(screen.getByLabelText('Portable reference pixels'), { target: { value: '1536' } })
-    fireEvent.blur(screen.getByLabelText('Portable reference pixels'))
+    fireEvent.keyDown(screen.getByLabelText('Portable reference pixels'), { key: 'Enter' })
     await openZoneLayout(user, 'Default')
     await user.selectOptions(screen.getByLabelText('Default routing mode'), 'grid-2x2')
 
@@ -6893,7 +6894,7 @@ describe('ShowEditor (#318)', () => {
     const ranges = screen.getByLabelText('Default main pixel ranges')
     await user.clear(ranges)
     await user.type(ranges, '0-7')
-    await user.tab()
+    await user.click(screen.getByRole('button', { name: 'Apply Default main pixel ranges' }))
 
     await waitFor(() => {
       expect(screen.getByRole('button', { name: 'View code' })).toBeEnabled()

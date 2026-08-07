@@ -269,12 +269,12 @@ describe('persistent Clip header fields (#641)', () => {
 
     const brightness = screen.getByRole('textbox', { name: 'Brightness exact percentage' })
     fireEvent.change(brightness, { target: { value: '35%' } })
-    fireEvent.blur(brightness)
+    fireEvent.keyDown(brightness, { key: 'Enter' })
     expect(onPatch).toHaveBeenCalledWith({ view: { brightness: 0.35 } })
 
     const opacity = screen.getByRole('textbox', { name: 'Opacity exact percentage' })
     fireEvent.change(opacity, { target: { value: '50%' } })
-    fireEvent.blur(opacity)
+    fireEvent.keyDown(opacity, { key: 'Enter' })
     expect(onPatch).toHaveBeenCalledWith({ local: { opacity: 0.5 } })
   })
 })
@@ -329,18 +329,18 @@ describe('shared Clip Entity Detail sections (#498)', () => {
 
     const speed = screen.getByRole('textbox', { name: 'Animation speed exact multiplier' })
     fireEvent.change(speed, { target: { value: '0x' } })
-    fireEvent.blur(speed)
+    fireEvent.keyDown(speed, { key: 'Enter' })
     expect(onPatch).toHaveBeenCalledWith({ simulation: { timeScale: 0 } })
 
     const brightness = screen.getByRole('textbox', { name: 'Brightness exact percentage' })
     fireEvent.change(brightness, { target: { value: '35%' } })
-    fireEvent.blur(brightness)
+    fireEvent.keyDown(brightness, { key: 'Enter' })
     expect(onPatch).toHaveBeenCalledWith({ view: { brightness: 0.35 } })
 
     showTab('Playback')
     const phase = screen.getByRole('textbox', { name: 'Phase exact phase' })
     fireEvent.change(phase, { target: { value: '0.5' } })
-    fireEvent.blur(phase)
+    fireEvent.keyDown(phase, { key: 'Enter' })
     expect(onPatch).toHaveBeenCalledWith({ view: { phase: 0.5 } })
 
     fireEvent.change(screen.getByRole('combobox', { name: 'Clip evaluation' }), {
@@ -365,7 +365,7 @@ describe('shared Clip Entity Detail sections (#498)', () => {
     const phase = screen.getByRole('textbox', { name: 'Phase exact phase' })
     expect(phase).toHaveValue('0.25')
     fireEvent.change(phase, { target: { value: '0.5' } })
-    fireEvent.blur(phase)
+    fireEvent.keyDown(phase, { key: 'Enter' })
     expect(onPatch).toHaveBeenCalledWith({ view: { phase: 0.5 } })
   })
 
@@ -388,7 +388,7 @@ describe('shared Clip Entity Detail sections (#498)', () => {
     />)
     const cadence = screen.getByRole('textbox', { name: 'Strobe cadence seconds exact time' })
     fireEvent.change(cadence, { target: { value: '0.5' } })
-    fireEvent.blur(cadence)
+    fireEvent.keyDown(cadence, { key: 'Enter' })
     expect(onPatch).toHaveBeenCalledWith({ presentation: { mode: 'strobe', cadenceMs: 500 } })
 
     fireEvent.click(screen.getByRole('checkbox', { name: 'Blink Clip output' }))
@@ -403,19 +403,19 @@ describe('shared Clip Entity Detail sections (#498)', () => {
     expect(screen.getByRole('group', { name: 'Clip Transform' })).toBeInTheDocument()
     const positionX = screen.getByRole('textbox', { name: 'Content X exact position' })
     fireEvent.change(positionX, { target: { value: '0.25' } })
-    fireEvent.blur(positionX)
+    fireEvent.keyDown(positionX, { key: 'Enter' })
     expect(onPatch).toHaveBeenCalledWith({ transform: { positionX: 0.25 } })
 
     const width = screen.getByRole('textbox', { name: 'Content Width exact multiplier' })
     expect(width).toHaveValue('1')
     expect(screen.getByRole('textbox', { name: 'Content Height exact multiplier' })).toHaveValue('1')
     fireEvent.change(width, { target: { value: '1.5x' } })
-    fireEvent.blur(width)
+    fireEvent.keyDown(width, { key: 'Enter' })
     expect(onPatch).toHaveBeenCalledWith({ transform: { scaleX: 1.5 } })
 
     const rotation = screen.getByRole('textbox', { name: 'Rotation exact rotation' })
     fireEvent.change(rotation, { target: { value: '90' } })
-    fireEvent.blur(rotation)
+    fireEvent.keyDown(rotation, { key: 'Enter' })
     expect(onPatch).toHaveBeenCalledWith({ transform: { rotation: 0.25 } })
   })
 
@@ -437,7 +437,7 @@ describe('shared Clip Entity Detail sections (#498)', () => {
 
     const viewportX = screen.getByRole('textbox', { name: 'Viewport X exact position' })
     fireEvent.change(viewportX, { target: { value: '0.25' } })
-    fireEvent.blur(viewportX)
+    fireEvent.keyDown(viewportX, { key: 'Enter' })
     expect(onPatch).toHaveBeenCalledWith({ viewport: { x: 0.25 } })
   })
 
@@ -625,7 +625,7 @@ describe('shared Clip Entity Detail sections (#498)', () => {
 
     const rotation = screen.getByRole('textbox', { name: 'Rotation exact rotation' })
     fireEvent.change(rotation, { target: { value: '90' } })
-    fireEvent.blur(rotation)
+    fireEvent.keyDown(rotation, { key: 'Enter' })
 
     expect(content).toHaveAttribute('x', previewX)
     await act(async () => finishFirstSave?.())
@@ -770,7 +770,7 @@ describe('shared Clip Entity Detail sections (#498)', () => {
 
       const brightness = screen.getByRole('textbox', { name: 'Brightness exact percentage' })
       fireEvent.change(brightness, { target: { value: '45%' } })
-      fireEvent.blur(brightness)
+      fireEvent.keyDown(brightness, { key: 'Enter' })
       showTab('Effects')
       fireEvent.click(screen.getByRole('button', { name: 'More actions for Mirror Effect' }))
       expect(screen.getAllByRole('menuitem')).toHaveLength(1)
@@ -901,12 +901,12 @@ describe('shared Clip Entity Detail sections (#498)', () => {
 
     const duration = screen.getByRole('textbox', { name: 'Duration seconds exact time' })
     fireEvent.change(duration, { target: { value: '75.5' } })
-    fireEvent.blur(duration)
+    fireEvent.keyDown(duration, { key: 'Enter' })
     expect(onPatch).toHaveBeenCalledWith({ local: { durationMs: 75_500 } })
 
     const opacity = screen.getByRole('textbox', { name: 'Opacity exact percentage' })
     fireEvent.change(opacity, { target: { value: '40%' } })
-    fireEvent.blur(opacity)
+    fireEvent.keyDown(opacity, { key: 'Enter' })
     expect(onPatch).toHaveBeenCalledWith({ local: { opacity: 0.4 } })
 
     fireEvent.change(screen.getByRole('combobox', { name: 'Overlay target layer' }), { target: { value: 'layer-2' } })

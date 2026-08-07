@@ -1012,10 +1012,10 @@ describe('ControllerProfilePage', () => {
 
     fireEvent.click(screen.getByRole('button', { name: 'Configure electrical model' }))
     onAncestorClick.mockClear()
-    const budgetInput = await screen.findByRole('spinbutton', { name: 'Continuous LED supply budget' })
-    expect(budgetInput).toHaveValue(3)
+    const budgetInput = await screen.findByRole('textbox', { name: 'Continuous LED supply budget' })
+    expect(budgetInput).toHaveValue('3')
     fireEvent.change(budgetInput, { target: { value: '4.5' } })
-    fireEvent.blur(budgetInput)
+    fireEvent.keyDown(budgetInput, { key: 'Enter' })
 
     await waitFor(() => {
       const profile = useControllerProfileStore.getState().profiles[0]
@@ -1033,7 +1033,7 @@ describe('ControllerProfilePage', () => {
     expect(onAncestorKeyDown).not.toHaveBeenCalled()
 
     fireEvent.change(input, { target: { value: '35%' } })
-    fireEvent.blur(input)
+    fireEvent.keyDown(input, { key: 'Enter' })
 
     await waitFor(() => {
       const profile = useControllerProfileStore.getState().profiles[0]
@@ -1057,13 +1057,13 @@ describe('ControllerProfilePage', () => {
 
     render(<ControllerProfilePage profileId="ctrl-1" />)
     fireEvent.click(screen.getByRole('button', { name: 'Configure electrical model' }))
-    await screen.findByRole('spinbutton', { name: 'Continuous LED supply budget' })
+    await screen.findByRole('textbox', { name: 'Continuous LED supply budget' })
     fireEvent.change(screen.getByRole('combobox', { name: 'Continuous LED supply budget unit' }), {
       target: { value: 'watts' },
     })
-    const budget = screen.getByRole('spinbutton', { name: 'Continuous LED supply budget' })
+    const budget = screen.getByRole('textbox', { name: 'Continuous LED supply budget' })
     fireEvent.change(budget, { target: { value: '36' } })
-    fireEvent.blur(budget)
+    fireEvent.keyDown(budget, { key: 'Enter' })
     await waitFor(() => expect(screen.getByText('50%')).toBeInTheDocument())
     fireEvent.click(screen.getByRole('button', { name: 'From electrical profile' }))
 
@@ -1241,10 +1241,10 @@ describe('ControllerProfilePage', () => {
     render(<ControllerProfilePage profileId="ctrl-1" />)
     fireEvent.click(screen.getByText('Advanced: measured or manufacturer-rated total'))
 
-    const voltage = screen.getByRole('spinbutton', { name: 'Electrical supply voltage' })
-    expect(voltage).toHaveValue(null)
+    const voltage = screen.getByRole('textbox', { name: 'Electrical supply voltage' })
+    expect(voltage).toHaveValue('')
     fireEvent.change(voltage, { target: { value: '5' } })
-    fireEvent.blur(voltage)
+    fireEvent.keyDown(voltage, { key: 'Enter' })
 
     await waitFor(() => {
       expect(useControllerProfileStore.getState().profiles[0].electricalProfile?.voltageOverride).toBe(5)

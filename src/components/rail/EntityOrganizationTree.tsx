@@ -29,6 +29,7 @@ import {
 import { newPersonalContentId } from '@/engine/personalContentMetadata'
 import { sanitizeLibraryNameInput } from '@/engine/libraries'
 import { IDE_MICROTYPE } from '@/components/ui/ideMicrotype'
+import { DraftTextField } from '@/components/ui/draft-text-field'
 import { EntityIcon, RailEmptyRow, type EntityNoun } from '@/components/rail/RailPrimitives'
 
 export interface EntityOrganizationTreeItem {
@@ -483,30 +484,21 @@ function SearchResultRow({ name, path, active, noun, allowHorizontalOverflow, on
 }
 
 function InlineName({ name, sanitizeAsIdentifier, onCommit, onCancel }: { name: string; sanitizeAsIdentifier: boolean; onCommit: (name: string) => void; onCancel: () => void }) {
-  const [draft, setDraft] = useState(name)
-  const settled = useRef(false)
-  function commit() {
-    if (settled.current) return
-    settled.current = true
-    onCommit(draft.trim() || name)
-  }
   return (
-    <input
-      autoFocus
-      value={draft}
-      onChange={(event) => setDraft(sanitizeAsIdentifier ? sanitizeLibraryNameInput(event.target.value) : event.target.value)}
-      onClick={(event) => event.stopPropagation()}
-      onBlur={commit}
-      onKeyDown={(event) => {
-        event.stopPropagation()
-        if (event.key === 'Enter') event.currentTarget.blur()
-        if (event.key === 'Escape') {
-          settled.current = true
-          onCancel()
-        }
+    <DraftTextField
+      ariaLabel="Rename item"
+      value={name}
+      sanitize={sanitizeAsIdentifier ? sanitizeLibraryNameInput : undefined}
+      formatApplied={(_, draft) => draft.trim() || name}
+      onApply={(draft) => onCommit(draft.trim() || name)}
+      onCancel={onCancel}
+      rootProps={{ onClick: (event) => event.stopPropagation() }}
+      inputProps={{
+        autoFocus: true,
+        onKeyDown: (event) => event.stopPropagation(),
       }}
-      className="h-[18px] min-w-0 flex-1 border border-live/60 bg-zinc-950 px-1 text-[11px] text-zinc-100 outline-none"
-      aria-label="Rename item"
+      className="min-w-0 flex-1"
+      inputClassName="h-[18px] min-w-0 flex-1 border border-live/60 bg-zinc-950 px-1 text-[11px] text-zinc-100 outline-none"
     />
   )
 }

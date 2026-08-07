@@ -167,6 +167,13 @@ same percentage readout and accessible value text. Percentage readouts show at
 most two decimal places and omit trailing zeroes; stored values retain their
 full precision.
 
+Typing in a scalar or inline text field changes only a local draft. A check
+action appears beside the dirty field; select it or press Enter to apply the
+complete value once. Select X, press Escape, or leave the field to cancel and
+restore the saved value. Invalid drafts keep the check disabled. Sliders,
+pickers, selects, checkboxes, and direct manipulation remain atomic and do not
+add a second confirmation step.
+
 Percentage presentation is semantic, not inferred from a `0..1` range.
 Brightness, opacity, duty, diffusion, public Pattern controls, ordinary Effect
 amounts, thresholds, softness, and feather use it; gain controls may extend

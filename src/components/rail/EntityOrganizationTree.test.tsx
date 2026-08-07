@@ -300,6 +300,13 @@ describe('EntityOrganizationTree', () => {
     fireEvent.change(input, { target: { value: 'Library Name-1' } })
     expect(input).toHaveValue('LibraryName1')
     fireEvent.blur(input)
+    expect(onRenameEntity).not.toHaveBeenCalled()
+
+    fireEvent.click(screen.getByRole('button', { name: 'More actions for LibraryA' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Rename' }))
+    const reopenedInput = screen.getByRole('textbox', { name: 'Rename item' })
+    fireEvent.change(reopenedInput, { target: { value: 'Library Name-1' } })
+    fireEvent.click(screen.getByRole('button', { name: 'Apply Rename item' }))
     expect(onRenameEntity).toHaveBeenCalledWith('library-a', 'LibraryName1')
   })
 

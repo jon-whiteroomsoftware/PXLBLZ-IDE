@@ -1466,8 +1466,10 @@ calling one persisted update, so a pointer drop is one semantic undo operation.
 Layer handles use the same ordering callback for pointer and Arrow-key input.
 Main
 placements and placements inside one overlay layer may leave gaps but cannot
-overlap; placements in different overlay layers may overlap. Exact numeric
-fields commit on blur or Enter. Normalized fields clamp to `0..1`. Split
+overlap; placements in different overlay layers may overlap. Typed scalar and
+text fields keep a local draft until Enter or their check action applies it;
+Escape, the X action, or focus leaving the complete field cancels the draft.
+Normalized fields clamp to `0..1`. Split
 preserves the explicit Pattern-instance id. Make Pattern Independent clones the
 instance record and its Scene-local instance tracks for one placement. Rejoin
 Shared Pattern accepts only another instance of the same Pattern, repoints the
@@ -2027,6 +2029,9 @@ implicitly and the value never jumps, and the accumulated position stays
 unclamped so overshoot unwinds over the travel that produced it. Grip
 scrubs, popover slider drags, and both playhead scrub surfaces build on it.
 
+`DraftFieldActions` owns the compact check/X affordance shared by typed draft
+fields. `NumberField` applies the plain decimal contract, and `DraftTextField`
+applies the same lifecycle to direct text and parsed-range fields.
 `BoundedNumberField` owns the buffered exact draft, a small ordered queue of
 pending numeric commits, the compact grip, and the portaled horizontal range
 input shared by domain-aware scalar fields. Shift-fine scrubbing applies a
@@ -2045,8 +2050,11 @@ before emitting at most one persisted change. Pointer cancellation, lost
 capture, Escape, and unmount end preview and restore the committed value. A
 click without movement pins the range; Enter and Space also open it from the
 grip, Arrow keys use the authored semantic step, Home/End select endpoints,
-Enter commits, and Escape cancels. Invalid or incomplete exact drafts remain
-local until blur and then revert.
+Enter or the visible check action commits exact entry. Escape, the visible X
+action, or focus leaving the complete field cancels it; focus may move between
+the input and its own actions without discarding the draft. Invalid or
+incomplete drafts remain local and keep apply disabled. Slider and native
+picker selection retain their atomic commit behavior.
 
 Percentage semantics are opt-in. `ShowToolkitParameterDescriptor.presentation`
 marks eligible Effect and Transition parameters; the frozen visual-toolkit

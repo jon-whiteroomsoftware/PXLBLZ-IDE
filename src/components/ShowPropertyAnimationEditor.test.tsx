@@ -121,7 +121,7 @@ describe('per-parameter Property animation editor (#648)', () => {
 
     const from = screen.getByRole('textbox', { name: 'Brightness animation from exact percentage' })
     fireEvent.change(from, { target: { value: '60%' } })
-    fireEvent.blur(from)
+    fireEvent.keyDown(from, { key: 'Enter' })
 
     expect(onChange).toHaveBeenCalledOnce()
     expect(onChange).toHaveBeenCalledWith({
@@ -158,7 +158,7 @@ describe('per-parameter Property animation editor (#648)', () => {
     fireEvent.click(filled)
     const toTime = screen.getByRole('textbox', { name: 'Brightness animation to time exact time' })
     fireEvent.change(toTime, { target: { value: '15.5' } })
-    fireEvent.blur(toTime)
+    fireEvent.keyDown(toTime, { key: 'Enter' })
     expect(onChange).toHaveBeenCalledWith({
       kind: 'update-keyframe',
       trackId: 'track-brightness',
@@ -228,7 +228,7 @@ describe('per-parameter Property animation editor (#648)', () => {
     const from = screen.getByRole('textbox', { name: 'Rotation animation from exact rotation' })
     expect(from).toHaveValue('90')
     fireEvent.change(from, { target: { value: '180' } })
-    fireEvent.blur(from)
+    fireEvent.keyDown(from, { key: 'Enter' })
 
     expect(onChange).toHaveBeenCalledWith(expect.objectContaining({
       kind: 'add-track',
@@ -268,7 +268,7 @@ describe('per-parameter Property animation editor (#648)', () => {
     const from = screen.getByRole('textbox', { name: 'Phase animation from exact phase' })
     expect(from).toHaveValue('0.25')
     fireEvent.change(from, { target: { value: '0.5' } })
-    fireEvent.blur(from)
+    fireEvent.keyDown(from, { key: 'Enter' })
 
     expect(onChange).toHaveBeenCalledWith(expect.objectContaining({
       kind: 'add-track',

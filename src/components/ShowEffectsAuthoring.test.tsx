@@ -17,7 +17,7 @@ describe('Show Effect authoring UI', () => {
     render(<ShowEffectStack effects={effects} onChange={vi.fn()} onAdd={vi.fn()} />)
 
     expect(screen.getByRole('textbox', { name: 'Amount exact percentage' })).toBeVisible()
-    expect(screen.getByRole('spinbutton', { name: 'Radius' })).toBeVisible()
+    expect(screen.getByRole('textbox', { name: 'Radius' })).toBeVisible()
     expect(screen.queryByRole('button', { name: 'Edit Vignette Effect' })).not.toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'More actions for Vignette Effect' }))
       .toHaveAttribute('data-show-effect-id', 'edge')
@@ -235,7 +235,7 @@ describe('Show Effect authoring UI', () => {
     expect(screen.getByLabelText('Target color picker')).toHaveValue('#00ff00')
     await user.clear(color)
     await user.type(color, '#ff00aa')
-    await user.tab()
+    await user.keyboard('{Enter}')
     expect(onChange).toHaveBeenLastCalledWith([
       { id: 'green-key', kind: 'chroma-key', color: '#ff00aa', tolerance: 0.05, softness: 0.05 },
     ])
@@ -278,7 +278,7 @@ describe('Show Effect authoring UI', () => {
     const highlight = screen.getByRole('textbox', { name: 'Highlight Color exact value' })
     await user.clear(highlight)
     await user.type(highlight, '#123456')
-    await user.tab()
+    await user.keyboard('{Enter}')
     expect(onChange).toHaveBeenCalledWith([{
       ...effects[0],
       highlightR: 0x12 / 255,
@@ -300,17 +300,17 @@ describe('Show Effect authoring UI', () => {
     expect(screen.getByRole('textbox', { name: 'Softness exact percentage' })).toHaveValue('35')
     expect(screen.getByRole('textbox', { name: 'Aspect exact ratio' })).toHaveValue('1:1')
     for (const label of ['Radius', 'Center X', 'Center Y']) {
-      expect(screen.getByRole('spinbutton', { name: label })).toBeVisible()
+      expect(screen.getByRole('textbox', { name: label })).toBeVisible()
     }
     const aspect = screen.getByRole('textbox', { name: 'Aspect exact ratio' })
     await user.clear(aspect)
     await user.type(aspect, '16:9')
-    await user.tab()
+    await user.keyboard('{Enter}')
     expect(onChange).toHaveBeenLastCalledWith([
       expect.objectContaining({ id: 'edge', kind: 'vignette', aspect: 16 / 9 }),
     ])
-    fireEvent.change(screen.getByRole('spinbutton', { name: 'Radius' }), { target: { value: '0.48' } })
-    fireEvent.blur(screen.getByRole('spinbutton', { name: 'Radius' }))
+    fireEvent.change(screen.getByRole('textbox', { name: 'Radius' }), { target: { value: '0.48' } })
+    fireEvent.keyDown(screen.getByRole('textbox', { name: 'Radius' }), { key: 'Enter' })
     expect(onChange).toHaveBeenLastCalledWith([
       expect.objectContaining({ id: 'edge', kind: 'vignette', radius: 0.48 }),
     ])
@@ -327,7 +327,7 @@ describe('Show Effect authoring UI', () => {
     expect(screen.getByRole('textbox', { name: 'Y scale exact multiplier' })).toHaveValue('0.75')
     await user.clear(xScale)
     await user.type(xScale, '1.5x')
-    await user.tab()
+    await user.keyboard('{Enter}')
 
     expect(onChange).toHaveBeenCalledWith([
       { id: 'size', kind: 'scale', x: 1.5, y: 0.75 },
@@ -422,9 +422,9 @@ describe('Show Effect authoring UI', () => {
 
     expect(screen.getAllByTestId('show-effect-stage')).toHaveLength(2)
     const translate = screen.getByTestId('show-effect-move')
-    fireEvent.change(within(translate).getByRole('spinbutton', { name: 'X' }), { target: { value: '0.35' } })
+    fireEvent.change(within(translate).getByRole('textbox', { name: 'X' }), { target: { value: '0.35' } })
     expect(onChange).not.toHaveBeenCalled()
-    fireEvent.blur(within(translate).getByRole('spinbutton', { name: 'X' }))
+    fireEvent.keyDown(within(translate).getByRole('textbox', { name: 'X' }), { key: 'Enter' })
     expect(onChange).toHaveBeenLastCalledWith(expect.arrayContaining([
       expect.objectContaining({ id: 'move', x: 0.35 }),
     ]))

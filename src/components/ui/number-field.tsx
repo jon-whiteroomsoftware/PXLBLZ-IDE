@@ -8,17 +8,25 @@ import {
   type KeyboardEvent,
   type ReactNode,
 } from 'react'
+import { DraftFieldActions } from './draft-field-actions'
 
 // The one simple numeric-entry contract for the app (#577, #656): this is a
 // decimal textbox, deliberately not a native number input/spinbutton. Keystrokes
 // edit a local string draft (so deletion and partial numbers survive
-// re-renders), the parsed value is bounded and committed once on blur or Enter,
-// Escape reverts the draft, and external value changes only sync in while the
-// field is not focused. Domain, time, and percentage values use the specialized
-// BoundedNumberField wrappers instead.
+// re-renders), the parsed value is bounded and committed only through Enter or
+// the explicit apply action, and blur/Escape cancel. External value changes only
+// sync while the field is not focused. Domain, time, and percentage values use
+// the specialized BoundedNumberField wrappers instead.
 
 export interface NumberFieldDraft {
   draft: string
+  dirty: boolean
+  canApply: boolean
+  apply: () => void
+  cancel: () => void
+  fieldProps: {
+    onBlur: (event: FocusEvent<HTMLElement>) => void
+  }
   inputProps: {
     value: string
     onFocus: (event: FocusEvent<HTMLInputElement>) => void
@@ -36,40 +44,73 @@ export function useNumberFieldDraft({ value, min, max, onChange }: {
 }): NumberFieldDraft {
   const renderedValue = value == null ? '' : String(value)
   const [draft, setDraft] = useState(renderedValue)
+  const [dirty, setDirty] = useState(false)
   const focusedRef = useRef(false)
+  const focusControlledDraftRef = useRef(renderedValue)
+  const committedDraftRef = useRef(renderedValue)
 
   useEffect(() => {
-    if (!focusedRef.current) setDraft(renderedValue)
+    if (!focusedRef.current) {
+      committedDraftRef.current = renderedValue
+      setDraft(renderedValue)
+      setDirty(false)
+    } else if (renderedValue !== focusControlledDraftRef.current) {
+      committedDraftRef.current = renderedValue
+    }
   }, [renderedValue])
 
-  const commit = (raw: string) => {
+  const parsed = Number(draft)
+  const parsedDraft = draft.trim() === '' || !Number.isFinite(parsed)
+    ? null
+    : Math.max(min ?? Number.NEGATIVE_INFINITY, Math.min(max ?? Number.POSITIVE_INFINITY, parsed))
+
+  const cancel = () => {
     focusedRef.current = false
-    const parsed = Number(raw)
-    if (raw.trim() === '' || !Number.isFinite(parsed)) {
-      setDraft(renderedValue)
-      return
-    }
-    const bounded = Math.max(min ?? Number.NEGATIVE_INFINITY, Math.min(max ?? Number.POSITIVE_INFINITY, parsed))
+    setDirty(false)
+    setDraft(committedDraftRef.current)
+  }
+  const apply = () => {
+    if (!dirty || parsedDraft == null) return
+    focusedRef.current = false
+    const bounded = parsedDraft
+    committedDraftRef.current = String(bounded)
+    setDirty(false)
     setDraft(String(bounded))
     if (bounded !== value) onChange(bounded)
   }
 
   return {
     draft,
+    dirty,
+    canApply: dirty && parsedDraft != null,
+    apply,
+    cancel,
+    fieldProps: {
+      onBlur: (event) => {
+        if (event.currentTarget.contains(event.relatedTarget as Node | null)) return
+        cancel()
+      },
+    },
     inputProps: {
       value: draft,
-      onFocus: () => { focusedRef.current = true },
-      onChange: (event) => setDraft(event.target.value),
-      onBlur: (event) => commit(event.currentTarget.value),
+      onFocus: () => {
+        focusedRef.current = true
+        focusControlledDraftRef.current = renderedValue
+      },
+      onChange: (event) => {
+        focusedRef.current = true
+        setDirty(true)
+        setDraft(event.target.value)
+      },
+      onBlur: () => {},
       onKeyDown: (event) => {
-        if (event.key === 'Enter') event.currentTarget.blur()
+        if (event.key === 'Enter') {
+          event.preventDefault()
+          apply()
+        }
         if (event.key === 'Escape') {
-          setDraft(renderedValue)
-          // blur() runs the commit handler synchronously, before React
-          // repaints the reverted draft - reset the DOM value first so the
-          // commit sees the pristine value and Escape never saves the edit.
-          event.currentTarget.value = renderedValue
-          event.currentTarget.blur()
+          event.preventDefault()
+          cancel()
         }
       },
     },
@@ -86,10 +127,11 @@ const editorCompactField =
 export interface NumberFieldProps {
   label: string
   ariaLabel?: string
-  value: number
+  value?: number
   min?: number
   max?: number
   step?: number
+  placeholder?: string
   suffix?: string
   reserveSuffixSpace?: boolean
   help?: string
@@ -109,6 +151,7 @@ export function NumberField({
   value,
   min,
   max,
+  placeholder,
   suffix,
   reserveSuffixSpace = false,
   help,
@@ -121,7 +164,8 @@ export function NumberField({
   variant = 'inspector',
   onChange,
 }: NumberFieldProps) {
-  const { inputProps } = useNumberFieldDraft({ value, min, max, onChange })
+  const draftField = useNumberFieldDraft({ value, min, max, onChange })
+  const { inputProps } = draftField
   const inputId = useId()
   const normalized = min === 0 && max === 1
   const inspector = variant === 'inspector'
@@ -149,17 +193,26 @@ export function NumberField({
         )}
       </span>
       <span className={`${hideLabel ? '' : compact ? 'mt-0.5' : 'mt-1'} flex min-w-0 items-center gap-1`}>
-        <span className="contents">
+        <span className="flex min-w-0 flex-1 items-stretch" {...draftField.fieldProps}>
           <input
             id={inputId}
             aria-label={ariaLabel ?? label}
             title={help}
             type="text"
             inputMode="decimal"
+            placeholder={placeholder}
             disabled={disabled}
             {...inputProps}
-            className={`${inputClass} min-w-0 w-full flex-1 ${resolvedAlign === 'left' ? 'text-left' : 'text-right'}`}
+            className={`${inputClass} min-w-0 w-full flex-1 ${draftField.dirty ? 'rounded-r-none' : ''} ${resolvedAlign === 'left' ? 'text-left' : 'text-right'}`}
           />
+          {draftField.dirty && (
+            <DraftFieldActions
+              label={ariaLabel ?? label}
+              canApply={draftField.canApply}
+              onApply={draftField.apply}
+              onCancel={draftField.cancel}
+            />
+          )}
         </span>
         {(suffix !== undefined || reserveSuffixSpace) && (
           <span

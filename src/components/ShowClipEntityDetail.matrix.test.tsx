@@ -157,7 +157,7 @@ function showTab(name: TabName) {
 function typeAndCommit(name: string, text: string) {
   const field = screen.getByRole('textbox', { name })
   fireEvent.change(field, { target: { value: text } })
-  fireEvent.blur(field)
+  fireEvent.keyDown(field, { key: 'Enter' })
 }
 
 function choose(name: string, optionValue: string) {
@@ -912,8 +912,8 @@ describe('Clip detail read-only sweep (#658)', () => {
 describe('Clip detail typed-edit lifecycle sweep (#658)', () => {
   /**
    * One representative textbox per tab family. Typing must not commit,
-   * Escape must abandon the draft without a patch, and one blur must commit
-   * exactly once - the per-field double-commit and drift regressions all
+   * Escape and blur must abandon the draft without a patch, and Enter must
+   * commit exactly once - the per-field double-commit and drift regressions all
    * violate one of these three.
    */
   const FIELDS: Array<{ name: string; tab?: TabName; field: string; draft: string }> = [
@@ -924,7 +924,7 @@ describe('Clip detail typed-edit lifecycle sweep (#658)', () => {
   ]
 
   it.each(FIELDS.map((row) => [row.name, row] as const))(
-    '%s commits once on blur, never while typing, and abandons on Escape',
+    '%s commits once on Enter, never while typing, and abandons on blur or Escape',
     (_title, { tab, field, draft }) => {
       const show = fixture()
       const owner = ownerFor(show, 'scene-main')
@@ -945,7 +945,13 @@ describe('Clip detail typed-edit lifecycle sweep (#658)', () => {
 
       fireEvent.change(control, { target: { value: draft } })
       fireEvent.blur(control)
-      expect(onPatch, 'blur must commit exactly once').toHaveBeenCalledTimes(1)
+      expect(onPatch, 'blur must abandon the draft').not.toHaveBeenCalled()
+      expect(control).toHaveValue(committed)
+
+      fireEvent.focus(control)
+      fireEvent.change(control, { target: { value: draft } })
+      fireEvent.keyDown(control, { key: 'Enter' })
+      expect(onPatch, 'Enter must commit exactly once').toHaveBeenCalledTimes(1)
     },
   )
 })

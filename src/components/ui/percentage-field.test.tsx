@@ -4,7 +4,7 @@ import { describe, expect, it, vi } from 'vitest'
 import { PercentageField } from './percentage-field'
 
 describe('PercentageField', () => {
-  it('presents canonical percentage text and commits percentage or normalized exact entry once', async () => {
+  it('presents canonical percentage text and applies exact drafts only through explicit actions', async () => {
     const user = userEvent.setup()
     const onChange = vi.fn()
     render(<PercentageField label="Opacity" value={0.72} min={0} max={1} step={0.01} onChange={onChange} />)
@@ -16,14 +16,13 @@ describe('PercentageField', () => {
     await user.clear(exact)
     await user.type(exact, '85')
     expect(onChange).not.toHaveBeenCalled()
-    await user.tab()
+    await user.click(screen.getByRole('button', { name: 'Apply Opacity' }))
     expect(onChange).toHaveBeenLastCalledWith(0.85)
     expect(exact).toHaveValue('85')
 
     await user.click(exact)
     await user.clear(exact)
-    await user.type(exact, '40%')
-    await user.tab()
+    await user.type(exact, '40%{Enter}')
     expect(onChange).toHaveBeenLastCalledWith(0.4)
     expect(onChange).toHaveBeenCalledTimes(2)
     expect(exact).toHaveValue('40')
@@ -378,13 +377,13 @@ describe('PercentageField', () => {
     await user.type(exact, '-')
     expect(exact).toHaveValue('-')
     expect(onChange).not.toHaveBeenCalled()
-    await user.tab()
+    await user.click(document.body)
     expect(exact).toHaveValue('40')
 
     await user.click(exact)
     await user.clear(exact)
     await user.type(exact, '175%')
-    await user.tab()
+    await user.click(screen.getByRole('button', { name: 'Apply Opacity' }))
     expect(onChange).toHaveBeenCalledOnce()
     expect(onChange).toHaveBeenCalledWith(1)
     expect(exact).toHaveValue('100')
@@ -423,12 +422,12 @@ describe('PercentageField', () => {
 
     fireEvent.focus(exact)
     fireEvent.change(exact, { target: { value: '100' } })
-    fireEvent.blur(exact)
+    fireEvent.keyDown(exact, { key: 'Enter' })
     expect(onChange).toHaveBeenLastCalledWith(1)
 
     fireEvent.focus(exact)
     fireEvent.change(exact, { target: { value: '40' } })
-    fireEvent.blur(exact)
+    fireEvent.keyDown(exact, { key: 'Enter' })
 
     expect(onChange.mock.calls).toEqual([[1], [0.4]])
     expect(exact).toHaveValue('40')
@@ -443,10 +442,10 @@ describe('PercentageField', () => {
 
     fireEvent.focus(exact)
     fireEvent.change(exact, { target: { value: '100' } })
-    fireEvent.blur(exact)
+    fireEvent.keyDown(exact, { key: 'Enter' })
     fireEvent.focus(exact)
     fireEvent.change(exact, { target: { value: '60' } })
-    fireEvent.blur(exact)
+    fireEvent.keyDown(exact, { key: 'Enter' })
     expect(onChange.mock.calls).toEqual([[1], [0.6]])
 
     rerender(<PercentageField label="Opacity" value={1} min={0} max={1} step={0.01} onChange={onChange} />)
@@ -473,10 +472,10 @@ describe('PercentageField', () => {
 
     fireEvent.focus(exact)
     fireEvent.change(exact, { target: { value: '100' } })
-    fireEvent.blur(exact)
+    fireEvent.keyDown(exact, { key: 'Enter' })
     fireEvent.focus(exact)
     fireEvent.change(exact, { target: { value: '40' } })
-    fireEvent.blur(exact)
+    fireEvent.keyDown(exact, { key: 'Enter' })
     expect(onChange.mock.calls).toEqual([[1], [0.4]])
     expect(exact).toHaveValue('40')
 

@@ -172,6 +172,25 @@ describe('EditableListItem', () => {
     expect(input).toHaveValue('Bad Name-1')
   })
 
+  it('requires an explicit action and cancels a rename on blur', async () => {
+    const user = userEvent.setup()
+    const { onRename } = renderEditableListItem({ name: 'Pattern 1', noun: 'pattern' })
+
+    await user.click(screen.getByRole('button', { name: 'Rename' }))
+    const input = screen.getByDisplayValue('Pattern 1')
+    await user.clear(input)
+    await user.type(input, 'Pattern 2')
+    await user.click(document.body)
+    expect(onRename).not.toHaveBeenCalled()
+
+    await user.click(screen.getByRole('button', { name: 'Rename' }))
+    const reopenedInput = screen.getByDisplayValue('Pattern 1')
+    await user.clear(reopenedInput)
+    await user.type(reopenedInput, 'Pattern 2')
+    await user.click(screen.getByRole('button', { name: 'Apply pattern rename' }))
+    expect(onRename).toHaveBeenCalledWith('Pattern 2')
+  })
+
   it.each([
     ['pattern', 'lucide-file-code-corner'],
     ['show', 'lucide-panels-top-left'],
