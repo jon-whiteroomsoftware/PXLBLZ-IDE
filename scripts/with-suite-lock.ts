@@ -21,7 +21,6 @@ const OWNER_FILE = 'owner.json'
 
 export interface SuiteLockOwner {
   pid: number
-  suitePid?: number
   label: string
   startedAt: string
 }
@@ -32,23 +31,28 @@ function positivePid(value: unknown): value is number {
 
 export function parseSuiteLockOwner(value: unknown): SuiteLockOwner | null {
   if (!value || typeof value !== 'object') return null
-  const { pid, suitePid, label, startedAt } = value as Record<string, unknown>
+  const { pid, label, startedAt } = value as Record<string, unknown>
   if (!positivePid(pid)) return null
-  if (suitePid !== undefined && !positivePid(suitePid)) return null
   if (typeof label !== 'string' || typeof startedAt !== 'string') return null
-  return {
-    pid,
-    ...(suitePid !== undefined ? { suitePid } : {}),
-    label,
-    startedAt,
-  }
+  return { pid, label, startedAt }
 }
 
-// A holder is dead only when the wrapper AND its recorded suite process are
-// both gone: a SIGKILLed wrapper leaves the heavy suite running as an
-// orphan, and admitting a second suite alongside it is exactly what this
-// lock exists to prevent. An unreadable owner is stale only after it
-// persists across consecutive polls: mkdir claims the lock before
+// Ownership hands off to the suite process itself once it starts: `pid`
+// always names the live holder (wrapper while claiming, suite while
+// running), so every revision's pid-liveness check honours an orphaned
+// suite even when the wrapper was SIGKILLed. A separate field would only
+// protect contenders new enough to read it; worktrees routinely run mixed
+// revisions of this script against the same lock.
+export function suiteOwnerAfterSpawn(
+  owner: SuiteLockOwner,
+  childPid: number | undefined,
+): SuiteLockOwner {
+  if (!positivePid(childPid)) return owner
+  return { ...owner, pid: childPid }
+}
+
+// A dead holder is stale immediately. An unreadable owner is stale only
+// after it persists across consecutive polls: mkdir claims the lock before
 // owner.json is written, so a momentarily ownerless lock is usually a fresh
 // claim mid-write, and reaping it instantly would admit two suites at once.
 export function suiteLockOwnerIsStale(
@@ -57,9 +61,7 @@ export function suiteLockOwnerIsStale(
   pidIsAlive: (pid: number) => boolean,
 ): boolean {
   if (!owner) return consecutiveOwnerlessReads >= 2
-  if (pidIsAlive(owner.pid)) return false
-  if (owner.suitePid !== undefined && pidIsAlive(owner.suitePid)) return false
-  return true
+  return !pidIsAlive(owner.pid)
 }
 
 function pidIsAlive(pid: number): boolean {
@@ -150,9 +152,9 @@ async function main(): Promise<void> {
   }
 }
 
-// The suite pid is recorded in owner.json while the command runs, so a
-// contender can honour the running suite even when the wrapper itself was
-// killed without cleanup.
+// Ownership follows the suite: once the command starts, owner.json names
+// its pid, so a contender of any revision honours the running suite even
+// when the wrapper itself died without cleanup.
 function runSuite(
   lock: string,
   owner: SuiteLockOwner,
@@ -161,7 +163,7 @@ function runSuite(
   return new Promise((resolve, reject) => {
     const child = spawn(command[0], command.slice(1), { stdio: 'inherit' })
     child.once('spawn', () => {
-      if (positivePid(child.pid)) writeOwner(lock, { ...owner, suitePid: child.pid })
+      writeOwner(lock, suiteOwnerAfterSpawn(owner, child.pid))
     })
     child.once('error', reject)
     child.once('close', (code) => resolve(code ?? 1))
