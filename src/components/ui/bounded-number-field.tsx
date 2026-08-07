@@ -202,6 +202,7 @@ export function BoundedNumberField({
     ))
   }
   const revert = () => {
+    focusedRef.current = false
     dirtyRef.current = false
     setDraftDirty(false)
     setDraft(formatDraft(interactionValue))

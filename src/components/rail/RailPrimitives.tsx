@@ -427,6 +427,7 @@ export function EditableListItem({
         {editing ? (
           <span
             className="flex min-w-0 flex-1 items-stretch"
+            onClick={(event) => event.stopPropagation()}
             onBlur={(event) => {
               if (event.currentTarget.contains(event.relatedTarget as Node | null)) return
               setEditing(false)

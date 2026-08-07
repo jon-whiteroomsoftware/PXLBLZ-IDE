@@ -122,10 +122,12 @@ describe('railScrollMetrics', () => {
 function renderEditableListItem({
   name = 'Lib1',
   noun = 'library',
+  onSelect = vi.fn(),
   onRename = vi.fn(),
 }: {
   name?: string
   noun?: Parameters<typeof EditableListItem>[0]['noun']
+  onSelect?: () => void
   onRename?: (name: string) => void
 } = {}) {
   const rendered = render(
@@ -135,13 +137,13 @@ function renderEditableListItem({
         noun={noun}
         active={false}
         takenNames={[]}
-        onSelect={vi.fn()}
+        onSelect={onSelect}
         onRename={onRename}
         onDelete={vi.fn()}
       />
     </ul>,
   )
-  return { onRename, ...rendered }
+  return { onSelect, onRename, ...rendered }
 }
 
 describe('EditableListItem', () => {
@@ -188,6 +190,25 @@ describe('EditableListItem', () => {
     await user.clear(reopenedInput)
     await user.type(reopenedInput, 'Pattern 2')
     await user.click(screen.getByRole('button', { name: 'Apply pattern rename' }))
+    expect(onRename).toHaveBeenCalledWith('Pattern 2')
+  })
+
+  it('keeps rename Apply and Cancel actions from selecting the row', async () => {
+    const user = userEvent.setup()
+    const { onSelect, onRename } = renderEditableListItem({ name: 'Pattern 1', noun: 'pattern' })
+
+    await user.click(screen.getByRole('button', { name: 'Rename' }))
+    await user.clear(screen.getByDisplayValue('Pattern 1'))
+    await user.type(screen.getByRole('textbox'), 'Pattern 2')
+    await user.click(screen.getByRole('button', { name: 'Cancel pattern rename edit' }))
+    expect(onSelect).not.toHaveBeenCalled()
+    expect(onRename).not.toHaveBeenCalled()
+
+    await user.click(screen.getByRole('button', { name: 'Rename' }))
+    await user.clear(screen.getByDisplayValue('Pattern 1'))
+    await user.type(screen.getByRole('textbox'), 'Pattern 2')
+    await user.click(screen.getByRole('button', { name: 'Apply pattern rename' }))
+    expect(onSelect).not.toHaveBeenCalled()
     expect(onRename).toHaveBeenCalledWith('Pattern 2')
   })
 

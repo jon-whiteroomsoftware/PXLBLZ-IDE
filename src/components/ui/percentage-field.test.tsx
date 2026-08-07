@@ -407,6 +407,11 @@ describe('PercentageField', () => {
     expect(exact).toHaveValue('60')
 
     fireEvent.focus(exact)
+    fireEvent.blur(exact)
+    rerender(<PercentageField label="Opacity" value={0.7} min={0} max={1} step={0.01} onChange={onChange} />)
+    expect(exact).toHaveValue('70')
+
+    fireEvent.focus(exact)
     fireEvent.change(exact, { target: { value: '7' } })
     rerender(<PercentageField label="Opacity" value={0.8} min={0} max={1} step={0.01} onChange={onChange} />)
     expect(exact).toHaveValue('7')
