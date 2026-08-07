@@ -51,7 +51,12 @@ import type { ArtifactShowOutputContract } from '@/engine/artifactStamp'
 const tableHeadClass = 'px-2 py-1 text-left text-[10px] font-semibold uppercase text-zinc-400'
 const EMPTY_CONTROLLER_PROGRAMS: ProgramListEntry[] = []
 const tableCellClass = 'border-t border-zinc-800/85 px-2 py-1.5 align-middle'
-const patternInventoryColumnClasses = ['w-[44%]', 'w-[18%]', 'w-[18%]', 'w-[20%]'] as const
+const patternInventoryColumns = [
+  { id: 'pattern', className: 'w-[44%]' },
+  { id: 'pattern-id', className: 'w-[18%]' },
+  { id: 'status', className: 'w-[18%]' },
+  { id: 'output-or-action', className: 'w-[20%]' },
+] as const
 
 type SavedProgramsRead = {
   controllerId: string | null
@@ -128,7 +133,9 @@ function EmptyState({ children }: { children: React.ReactNode }) {
 function PatternInventoryColumns() {
   return (
     <colgroup>
-      {patternInventoryColumnClasses.map((className) => <col key={className} className={className} />)}
+      {patternInventoryColumns.map((column) => (
+        <col key={column.id} className={column.className} />
+      ))}
     </colgroup>
   )
 }

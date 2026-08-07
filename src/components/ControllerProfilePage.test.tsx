@@ -533,6 +533,7 @@ describe('ControllerProfilePage', () => {
   })
 
   it('groups saved programs by Studio ownership, links owned rows, and refreshes', async () => {
+    const consoleError = vi.spyOn(console, 'error').mockImplementation(() => {})
     const profile = seedProfile()
     const provider = new ProgramListProvider()
     provider.programs = [
@@ -726,6 +727,8 @@ describe('ControllerProfilePage', () => {
     expect(await screen.findByText('New Pattern 14')).toBeInTheDocument()
     expect(screen.getByRole('heading', { name: 'Other Patterns (2)' })).toBeInTheDocument()
     expect(provider.listCalls).toBe(1)
+    expect(consoleError.mock.calls.flat().join(' ')).not.toContain('same key')
+    consoleError.mockRestore()
   })
 
   it('links a compiled built-in Show to its full Studio Show source', async () => {
