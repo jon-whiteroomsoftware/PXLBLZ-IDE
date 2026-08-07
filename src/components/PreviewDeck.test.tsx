@@ -122,6 +122,47 @@ describe('PreviewDeck (smoke)', () => {
     ).toBeInTheDocument()
   })
 
+  it('collapses Pixelblaze and Preview independently while their info buttons stay independent', () => {
+    render(<PreviewDeck />)
+
+    const pixelblazeToggle = screen.getByRole('button', { name: 'Pixelblaze' })
+    const previewToggle = screen.getByRole('button', { name: 'Preview' })
+    expect(pixelblazeToggle).toHaveAttribute('aria-expanded', 'true')
+    expect(previewToggle).toHaveAttribute('aria-expanded', 'true')
+
+    fireEvent.click(screen.getByRole('button', { name: 'About the Pixelblaze section' }))
+    expect(pixelblazeToggle).toHaveAttribute('aria-expanded', 'true')
+    expect(screen.getByRole('slider', { name: 'Brightness' })).toBeInTheDocument()
+
+    fireEvent.click(pixelblazeToggle)
+    expect(pixelblazeToggle).toHaveAttribute('aria-expanded', 'false')
+    expect(screen.queryByRole('slider', { name: 'Brightness' })).not.toBeInTheDocument()
+    expect(screen.getByRole('slider', { name: 'Light size' })).toBeInTheDocument()
+
+    fireEvent.click(pixelblazeToggle)
+    fireEvent.click(previewToggle)
+    expect(screen.getByRole('slider', { name: 'Brightness' })).toBeInTheDocument()
+    expect(screen.queryByRole('slider', { name: 'Light size' })).not.toBeInTheDocument()
+  })
+
+  it('removes expanded-content spacing when a deck section is collapsed', () => {
+    render(<PreviewDeck />)
+
+    const toggle = screen.getByRole('button', { name: 'Pixelblaze' })
+    const section = toggle.closest('[data-expanded]')
+    const header = toggle.closest('h4')?.parentElement
+
+    expect(section).toHaveAttribute('data-expanded', 'true')
+    expect(section).toHaveClass('pb-2')
+    expect(header).toHaveClass('mb-1.5')
+
+    fireEvent.click(toggle)
+
+    expect(section).toHaveAttribute('data-expanded', 'false')
+    expect(section).toHaveClass('pb-0')
+    expect(header).toHaveClass('mb-0')
+  })
+
   it('opens a focused pixel-count drawer and applies the preview count explicitly', async () => {
     useEditorStore.setState({ nativeDim: 1 })
     useMapStore.setState({ activeMapId: AUTO_MAP_ID })

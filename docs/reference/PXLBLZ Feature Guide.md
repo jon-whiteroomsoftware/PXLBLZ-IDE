@@ -253,6 +253,12 @@ renderer, playback speed, light size, diffusion, and solidity — describe how
 the browser draws it. Most settings are remembered per Pattern; light size and
 diffusion have a global comfort baseline with per-Pattern overrides.
 
+The **PIXELBLAZE**, **PREVIEW**, **PATTERN CONTROLS**, and **WATCH VARIABLES**
+headers collapse their sections when clicked; each adjacent info icon remains a
+separate help control. Collapsed headers pack together so lower controls stay
+reachable in a short pane. The LED canvas remains fixed, and the Pattern Preview
+pane never becomes a vertical scroll surface.
+
 None of these settings ride along with **Send to Controller**. In particular,
 preview brightness is not a safe substitute for physical brightness: a monitor
 and several amps of LEDs are different animals.

@@ -1,7 +1,7 @@
-import { ChevronDown } from 'lucide-react'
 import { usePreviewStore } from '@/store/previewStore'
 import { useEditorStore } from '@/store/editorStore'
 import { formatWatchValue, isWatchArrayValue } from '@/engine/watchValue'
+import { DeckDisclosureHeader } from '@/components/Deck'
 
 // Variables (#150): the bottom-most deck section — a single all-or-nothing turn-down
 // that reveals every exported pattern variable (no per-variable or sensor-builtin
@@ -16,18 +16,15 @@ export function Variables() {
   if (patternVars.length === 0) return null
 
   return (
-    <section className="font-mono text-xs mt-1 pt-1.5 pb-3 pr-3">
-      <button
-        aria-expanded={watchPatternVars}
-        onClick={() => setWatchPatternVars(!watchPatternVars)}
-        className="flex items-center gap-1 text-[11px] font-semibold text-structural uppercase tracking-wider hover:text-live transition-colors"
-      >
-        <span>Watch variables</span>
-        <ChevronDown
-          size={17}
-          className={`shrink-0 transition-transform ${watchPatternVars ? '' : '-rotate-90'}`}
-        />
-      </button>
+    <section
+      data-expanded={watchPatternVars}
+      className={`font-mono text-xs mt-1 pt-1.5 pr-3 ${watchPatternVars ? 'pb-3' : 'pb-0'}`}
+    >
+      <DeckDisclosureHeader
+        label="Watch variables"
+        expanded={watchPatternVars}
+        onToggle={() => setWatchPatternVars(!watchPatternVars)}
+      />
       {watchPatternVars && (
         <div className="grid grid-cols-2 gap-x-4 gap-y-0.5 mt-1">
           {patternVars.map((name) => {

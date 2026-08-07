@@ -22,9 +22,11 @@ describe('Variables pattern-variable watch', () => {
     expect(screen.queryByText('t1')).not.toBeInTheDocument()
     const toggle = screen.getByRole('button', { name: /variables/i })
     expect(toggle).toHaveAttribute('aria-expanded', 'false')
+    expect(toggle.closest('[data-expanded]')).toHaveClass('pb-0')
 
     await user.click(toggle)
     expect(usePreviewStore.getState().watchPatternVars).toBe(true)
+    expect(toggle.closest('[data-expanded]')).toHaveClass('pb-3')
     expect(screen.getByText('t1')).toBeInTheDocument()
     expect(screen.getByText('hue')).toBeInTheDocument()
   })

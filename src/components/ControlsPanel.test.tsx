@@ -29,4 +29,34 @@ describe('ControlsPanel help hint', () => {
     render(<ControlsPanel />)
     expect(screen.queryByRole('button', { name: /about these controls/i })).not.toBeInTheDocument()
   })
+
+  it('collapses Pattern controls while keeping its help button independent', async () => {
+    const user = userEvent.setup()
+    useEditorStore.getState().setControls([
+      { exportName: 'sliderSpeed', kind: 'slider', label: 'Speed', description: 'How fast it goes.' },
+    ])
+    render(<ControlsPanel />)
+
+    const toggle = screen.getByRole('button', { name: 'Pattern controls' })
+    const section = toggle.closest('[data-expanded]')
+    const header = toggle.closest('h4')?.parentElement
+    expect(toggle).toHaveAttribute('aria-expanded', 'true')
+    expect(section).toHaveClass('pb-3')
+    expect(header).toHaveClass('mb-2')
+
+    await user.click(screen.getByRole('button', { name: /about these controls/i }))
+    expect(toggle).toHaveAttribute('aria-expanded', 'true')
+    expect(screen.getByRole('slider', { name: /speed/i })).toBeInTheDocument()
+
+    await user.click(toggle)
+    expect(toggle).toHaveAttribute('aria-expanded', 'false')
+    expect(section).toHaveAttribute('data-expanded', 'false')
+    expect(section).toHaveClass('pb-0')
+    expect(header).toHaveClass('mb-0')
+    expect(screen.queryByRole('slider', { name: /speed/i })).not.toBeInTheDocument()
+
+    toggle.focus()
+    await user.keyboard('{Enter}')
+    expect(screen.getByRole('slider', { name: /speed/i })).toBeInTheDocument()
+  })
 })

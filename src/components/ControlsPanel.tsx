@@ -1,7 +1,9 @@
+import { useState } from 'react'
 import { useEditorStore } from '@/store/editorStore'
 import { useControlStore, type ControlValue } from '@/store/controlStore'
 import { DeckSlider } from '@/components/DeckSlider'
 import { HelpHint } from '@/components/HelpHint'
+import { DeckDisclosureHeader } from '@/components/Deck'
 
 function hsvToRgb(h: number, s: number, v: number): [number, number, number] {
   const i = Math.floor(h * 6)
@@ -53,6 +55,7 @@ function tripletToHex(kind: string, value: ControlValue): string {
 }
 
 export function ControlsPanel() {
+  const [expanded, setExpanded] = useState(true)
   const controls = useEditorStore((s) => s.controls)
   const controlValues = useControlStore((s) => s.controlValues)
   const setControlValue = useControlStore((s) => s.setControlValue)
@@ -122,10 +125,16 @@ export function ControlsPanel() {
   }
 
   return (
-    <div className="font-mono text-xs mt-1 pt-1.5 pb-3 pr-3">
-      <h4 className="flex items-center gap-1.5 text-[11px] font-semibold text-structural uppercase tracking-wider mb-2">
-        Pattern controls
-        {hasDescriptions && (
+    <div
+      data-expanded={expanded}
+      className={`font-mono text-xs mt-1 pt-1.5 pr-3 ${expanded ? 'pb-3' : 'pb-0'}`}
+    >
+      <DeckDisclosureHeader
+        label="Pattern controls"
+        expanded={expanded}
+        onToggle={() => setExpanded((value) => !value)}
+        className={expanded ? 'mb-2' : 'mb-0'}
+        hint={hasDescriptions && (
           <HelpHint label="About these controls" width={300}>
             <div className="flex flex-col gap-1.5 normal-case tracking-normal">
               {controls.map((c) => (
@@ -139,18 +148,20 @@ export function ControlsPanel() {
             </div>
           </HelpHint>
         )}
-      </h4>
-      <div className="flex flex-col gap-2">
-        {sliders.length > 0 && (
-          <div className="grid grid-cols-2 gap-x-4 gap-y-0.5">{sliders.map(renderSlider)}</div>
-        )}
-        {toggles.length > 0 && (
-          <div className="grid grid-cols-2 gap-x-4 gap-y-0.5">{toggles.map(renderToggle)}</div>
-        )}
-        {pickers.length > 0 && (
-          <div className="grid grid-cols-2 gap-x-4 gap-y-0.5">{pickers.map(renderPicker)}</div>
-        )}
-      </div>
+      />
+      {expanded && (
+        <div className="flex flex-col gap-2">
+          {sliders.length > 0 && (
+            <div className="grid grid-cols-2 gap-x-4 gap-y-0.5">{sliders.map(renderSlider)}</div>
+          )}
+          {toggles.length > 0 && (
+            <div className="grid grid-cols-2 gap-x-4 gap-y-0.5">{toggles.map(renderToggle)}</div>
+          )}
+          {pickers.length > 0 && (
+            <div className="grid grid-cols-2 gap-x-4 gap-y-0.5">{pickers.map(renderPicker)}</div>
+          )}
+        </div>
+      )}
     </div>
   )
 }

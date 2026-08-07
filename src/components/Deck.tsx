@@ -1,4 +1,5 @@
-import { type ReactNode } from 'react'
+import { useState, type ReactNode } from 'react'
+import { ChevronDown } from 'lucide-react'
 import { HelpHint } from '@/components/HelpHint'
 
 // The shared dashboard-deck template (#198). These presentational primitives were
@@ -43,25 +44,81 @@ export function DeckSectionHint({
 export function DeckSection({
   label,
   hint,
+  collapsible = false,
   children,
 }: {
   label: string
   hint?: ReactNode
+  collapsible?: boolean
   children: ReactNode
 }) {
+  const [expanded, setExpanded] = useState(true)
+  const contentVisible = !collapsible || expanded
+
   return (
-    <div className="mt-1 pt-1.5 pb-2">
-      <div className="flex items-center gap-1.5 mb-1.5 h-5">
-        <h4 className="text-[11px] font-semibold text-structural uppercase tracking-wider">
-          {label}
-        </h4>
-        {hint && (
-          <HelpHint label={`About the ${label} section`} width={320}>
-            {hint}
-          </HelpHint>
-        )}
-      </div>
-      {children}
+    <div
+      data-expanded={contentVisible}
+      className={`mt-1 pt-1.5 ${contentVisible ? 'pb-2' : 'pb-0'}`}
+    >
+      {collapsible ? (
+        <DeckDisclosureHeader
+          label={label}
+          expanded={expanded}
+          onToggle={() => setExpanded((value) => !value)}
+          hint={hint && (
+            <HelpHint label={`About the ${label} section`} width={320}>
+              {hint}
+            </HelpHint>
+          )}
+          className={`${expanded ? 'mb-1.5' : 'mb-0'} h-5`}
+        />
+      ) : (
+        <div className="flex items-center gap-1.5 mb-1.5 h-5">
+          <h4 className="text-[11px] font-semibold text-structural uppercase tracking-wider">
+            {label}
+          </h4>
+          {hint && (
+            <HelpHint label={`About the ${label} section`} width={320}>
+              {hint}
+            </HelpHint>
+          )}
+        </div>
+      )}
+      {contentVisible && children}
+    </div>
+  )
+}
+
+export function DeckDisclosureHeader({
+  label,
+  expanded,
+  onToggle,
+  hint,
+  className = '',
+}: {
+  label: string
+  expanded: boolean
+  onToggle: () => void
+  hint?: ReactNode
+  className?: string
+}) {
+  return (
+    <div className={`flex items-center gap-1.5 ${className}`}>
+      <h4 className="min-w-0 flex-1">
+        <button
+          type="button"
+          aria-expanded={expanded}
+          onClick={onToggle}
+          className="flex h-full w-full items-center gap-1 text-left text-[11px] font-semibold uppercase tracking-wider text-structural transition-colors hover:text-live"
+        >
+          <span>{label}</span>
+          <ChevronDown
+            size={17}
+            className={`shrink-0 transition-transform ${expanded ? '' : '-rotate-90'}`}
+          />
+        </button>
+      </h4>
+      {hint}
     </div>
   )
 }

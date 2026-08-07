@@ -242,7 +242,7 @@ function SecondaryBand() {
 
   return (
     <div className="text-xs pr-3">
-      <DeckSection label="Pixelblaze" hint={PIXELBLAZE_HINT}>
+      <DeckSection label="Pixelblaze" hint={PIXELBLAZE_HINT} collapsible>
         <DeckGrid>
           {/* Row 1 is the two controls that want room: map (stacked, so its dropdown
               gets the full column width for long map names) and brightness (the stacked
@@ -335,7 +335,11 @@ export function PreviewViewportSection({ profile }: { profile: 'pattern' | 'show
   }
 
   return (
-    <DeckSection label="Preview" hint={pattern ? PREVIEW_HINT : SHOW_PREVIEW_HINT}>
+    <DeckSection
+      label="Preview"
+      hint={pattern ? PREVIEW_HINT : SHOW_PREVIEW_HINT}
+      collapsible={pattern}
+    >
       <DeckGrid className="mb-2">
         <DeckSlider
           label="light size"
