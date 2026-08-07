@@ -63,10 +63,11 @@ describe('NumberField accessibility contract (#656)', () => {
     await user.clear(input)
     await user.type(input, '7')
     view.rerender(<NumberField label="Points" value={6} onChange={onChange} />)
+    view.rerender(<NumberField label="Points" value={5} onChange={onChange} />)
     expect(input).toHaveValue('7')
 
     await user.click(document.body)
-    expect(input).toHaveValue('6')
+    expect(input).toHaveValue('5')
     expect(onChange).not.toHaveBeenCalled()
   })
 })

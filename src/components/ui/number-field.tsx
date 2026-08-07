@@ -46,7 +46,6 @@ export function useNumberFieldDraft({ value, min, max, onChange }: {
   const [draft, setDraft] = useState(renderedValue)
   const [dirty, setDirty] = useState(false)
   const focusedRef = useRef(false)
-  const focusControlledDraftRef = useRef(renderedValue)
   const committedDraftRef = useRef(renderedValue)
 
   useEffect(() => {
@@ -54,7 +53,7 @@ export function useNumberFieldDraft({ value, min, max, onChange }: {
       committedDraftRef.current = renderedValue
       setDraft(renderedValue)
       setDirty(false)
-    } else if (renderedValue !== focusControlledDraftRef.current) {
+    } else {
       committedDraftRef.current = renderedValue
     }
   }, [renderedValue])
@@ -95,7 +94,6 @@ export function useNumberFieldDraft({ value, min, max, onChange }: {
       value: draft,
       onFocus: () => {
         focusedRef.current = true
-        focusControlledDraftRef.current = renderedValue
       },
       onChange: (event) => {
         focusedRef.current = true

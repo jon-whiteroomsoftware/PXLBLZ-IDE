@@ -40,13 +40,12 @@ export function DraftTextField<T = string>({
   const [draft, setDraft] = useState(value)
   const [dirty, setDirty] = useState(false)
   const focusedRef = useRef(false)
-  const focusControlledDraftRef = useRef(value)
   const committedDraftRef = useRef(value)
   const parsed = parse ? parse(draft) : draft as unknown as T
 
   useEffect(() => {
     if (focusedRef.current) {
-      if (value !== focusControlledDraftRef.current) committedDraftRef.current = value
+      committedDraftRef.current = value
       return
     }
     committedDraftRef.current = value
@@ -100,7 +99,6 @@ export function DraftTextField<T = string>({
         value={draft}
         onFocus={(event) => {
           focusedRef.current = true
-          focusControlledDraftRef.current = value
           inputProps?.onFocus?.(event)
         }}
         onChange={(event) => {

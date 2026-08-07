@@ -58,10 +58,11 @@ describe('DraftTextField', () => {
     await user.clear(input)
     await user.type(input, 'Bridge')
     view.rerender(<DraftTextField ariaLabel="Marker name" value="Chorus" onApply={onApply} />)
+    view.rerender(<DraftTextField ariaLabel="Marker name" value="Verse" onApply={onApply} />)
     expect(input).toHaveValue('Bridge')
 
     await user.click(document.body)
-    expect(input).toHaveValue('Chorus')
+    expect(input).toHaveValue('Verse')
     expect(onApply).not.toHaveBeenCalled()
   })
 })

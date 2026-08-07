@@ -51,11 +51,12 @@ export function ColorField({
   }
 
   useEffect(() => {
-    if (!exactFocusedRef.current) {
-      committedValueRef.current = canonicalValue
-      setDraft(canonicalValue)
-      setExactDirty(false)
+    committedValueRef.current = canonicalValue
+    if (exactFocusedRef.current) {
+      return
     }
+    setDraft(canonicalValue)
+    setExactDirty(false)
   }, [canonicalValue])
 
   useEffect(() => {
@@ -130,7 +131,7 @@ export function ColorField({
         className={`${hideLabel ? '' : 'mt-1'} ${fieldHeight} flex min-w-0 overflow-hidden rounded border border-zinc-700 ${fieldBackground} focus-within:border-cyan-400/60 disabled:opacity-60`}
         onBlur={(event) => {
           if (event.currentTarget.contains(event.relatedTarget as Node | null)) return
-          if (exactDirty) revert()
+          revert()
         }}
       >
         <span

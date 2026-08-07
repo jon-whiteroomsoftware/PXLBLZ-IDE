@@ -87,11 +87,20 @@ describe('ColorField', () => {
 
     view.rerender(<ColorField label="Color" value="#222222" onChange={onChange} />)
     expect(exact).toHaveValue('#222222')
+
+    await user.click(exact)
+    await user.click(document.body)
+    view.rerender(<ColorField label="Color" value="#252525" onChange={onChange} />)
+    expect(exact).toHaveValue('#252525')
+
     await user.click(exact)
     await user.clear(exact)
     await user.type(exact, '#333333')
     view.rerender(<ColorField label="Color" value="#444444" onChange={onChange} />)
     expect(exact).toHaveValue('#333333')
+    await user.click(document.body)
+    expect(exact).toHaveValue('#444444')
+    expect(onChange).not.toHaveBeenCalled()
   })
 
   it('disables both exact entry and the native picker with accessible names', () => {
