@@ -849,7 +849,7 @@ describe('ControllerProfilePage', () => {
         lastKnownPixelCount: 301,
         electricalProfile: {
           ledPresetId: 'ws2812-5v-individual',
-          supplyBudget: { value: 36, unit: 'watts' },
+          supplyBudget: { value: 3, unit: 'amps' },
           loadOverride: {
             fullWhite: { value: 60, unit: 'watts' },
             source: 'measured',
@@ -876,7 +876,8 @@ describe('ControllerProfilePage', () => {
       const savedProfile = useControllerProfileStore.getState().profiles[0]
       expect(savedProfile.electricalProfile).toMatchObject({
         ledPresetId: 'custom',
-        supplyBudget: { value: 36, unit: 'watts' },
+        voltageOverride: 5,
+        supplyBudget: { value: 3, unit: 'amps' },
         loadOverride: {
           fullWhite: { value: 60, unit: 'watts' },
           source: 'measured',

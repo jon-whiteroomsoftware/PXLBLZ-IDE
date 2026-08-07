@@ -538,7 +538,11 @@ function ElectricalProfileEditor({
     }
     if (!pixelCount) return
     if (override) {
-      onChange({ ...profile, ledPresetId })
+      onChange({
+        ...profile,
+        ledPresetId,
+        ...(resolved.voltageVolts ? { voltageOverride: resolved.voltageVolts } : {}),
+      })
       return
     }
     const fullWhiteWatts = resolved.fullWhiteWatts
