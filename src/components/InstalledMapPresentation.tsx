@@ -1,4 +1,22 @@
+import { useMemo } from 'react'
 import type { InstalledMapPresentation as InstalledMapPresentationView } from '@/engine/installedMapObservation'
+import {
+  buildStudioMapFingerprintCandidates,
+  type StudioMapFingerprintCandidate,
+} from '@/engine/mapFingerprint'
+import type { MapRecord } from '@/engine/personalContentRecords'
+
+export function useInstalledMapCandidates(
+  userMaps: MapRecord[],
+  pointCount: number | null,
+): StudioMapFingerprintCandidate[] {
+  return useMemo(
+    () => pointCount === null
+      ? []
+      : buildStudioMapFingerprintCandidates({ userMaps, pixelCount: pointCount }),
+    [pointCount, userMaps],
+  )
+}
 
 export function InstalledMapPresentation({
   presentation,

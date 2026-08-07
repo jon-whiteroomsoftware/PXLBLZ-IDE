@@ -24,9 +24,11 @@ import { PixelCountPopover } from '@/components/PixelCountPopover'
 import { findProfileForLiveController } from '@/engine/controllerProfilePassRecipe'
 import { useControllerProfileStore } from '@/store/controllerProfileStore'
 import { useMapStore } from '@/store/mapStore'
-import { buildStudioMapFingerprintCandidates } from '@/engine/mapFingerprint'
 import { describeInstalledMap } from '@/engine/installedMapObservation'
-import { InstalledMapPresentation } from '@/components/InstalledMapPresentation'
+import {
+  InstalledMapPresentation,
+  useInstalledMapCandidates,
+} from '@/components/InstalledMapPresentation'
 
 // The live Controller panel (H6, issue #198). A dashboard built from the *same*
 // shared deck template as the preview control deck — read-only telemetry (active
@@ -158,6 +160,10 @@ export function ControllerPanel() {
   // different pattern (or a user/imported one with no descriptions) nothing matches
   // and the controls section shows no help affordance at all.
   const editorControls = useEditorStore((s) => s.controls)
+  const installedMapPointCount = controllerEntry?.installedMap?.status === 'present'
+    ? controllerEntry.installedMap.pointCount
+    : null
+  const installedMapCandidates = useInstalledMapCandidates(userMaps, installedMapPointCount)
 
   if (!connected) return null
 
@@ -175,12 +181,7 @@ export function ControllerPanel() {
   const installedMapPresentation = describeInstalledMap({
     observation: installedMap,
     profile: activeProfile,
-    candidates: installedMap.status === 'present'
-      ? buildStudioMapFingerprintCandidates({
-          userMaps,
-          pixelCount: installedMap.pointCount,
-        })
-      : [],
+    candidates: installedMapCandidates,
   })
   const { fpsLabel, pixelsLabel, mapPointsLabel, mapCountMismatch } =
     describeControllerPanel({

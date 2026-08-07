@@ -1,6 +1,10 @@
-import { render, screen } from '@testing-library/react'
+import { render, renderHook, screen } from '@testing-library/react'
 import { describe, expect, it } from 'vitest'
-import { InstalledMapPresentation } from './InstalledMapPresentation'
+import type { MapRecord } from '@/engine/personalContentRecords'
+import {
+  InstalledMapPresentation,
+  useInstalledMapCandidates,
+} from './InstalledMapPresentation'
 
 describe('InstalledMapPresentation', () => {
   it.each(['Reading map...', 'No installed map', 'Map unavailable', '-'] as const)(
@@ -34,5 +38,20 @@ describe('InstalledMapPresentation', () => {
       pointCount: 1,
     }} />)
     expect(screen.getByText('· 1 point')).toBeInTheDocument()
+  })
+
+  it('reuses baked candidates across unrelated rerenders', () => {
+    const userMaps: MapRecord[] = []
+    const { result, rerender } = renderHook(
+      ({ pointCount }) => useInstalledMapCandidates(userMaps, pointCount),
+      { initialProps: { pointCount: 2 } },
+    )
+    const first = result.current
+
+    rerender({ pointCount: 2 })
+    expect(result.current).toBe(first)
+
+    rerender({ pointCount: 3 })
+    expect(result.current).not.toBe(first)
   })
 })

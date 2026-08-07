@@ -55,12 +55,14 @@ import { usePatternStore } from '@/store/patternStore'
 import { useControllerPanelStore } from '@/store/controllerPanelStore'
 import { useMapStore } from '@/store/mapStore'
 import { DEMOS } from '@/pixelblaze/stock/patterns'
-import { buildStudioMapFingerprintCandidates } from '@/engine/mapFingerprint'
 import {
   describeInstalledMap,
   type InstalledMapPresentation as InstalledMapPresentationView,
 } from '@/engine/installedMapObservation'
-import { InstalledMapPresentation } from './InstalledMapPresentation'
+import {
+  InstalledMapPresentation,
+  useInstalledMapCandidates,
+} from './InstalledMapPresentation'
 import { StatusDot, type StatusTone } from './StatusDot'
 import { HelpHint } from './HelpHint'
 import { TransformInspectionPanel } from './TransformInspectionPanel'
@@ -1487,6 +1489,16 @@ export function ControllerProfilePage({ profileId }: { profileId: string }) {
     }
   }, [controllerPrograms, liveIp])
 
+  const installedMapObservation = profile
+    ? profileController?.phase === 'live'
+      ? profileController.installedMap ?? { status: 'loading' as const }
+      : profile.lastKnownInstalledMap
+    : undefined
+  const installedMapPointCount = installedMapObservation?.status === 'present'
+    ? installedMapObservation.pointCount
+    : null
+  const installedMapCandidates = useInstalledMapCandidates(userMaps, installedMapPointCount)
+
   if (!profile) {
     return (
       <div className="flex h-full items-center justify-center px-6 text-sm text-zinc-500">
@@ -1522,18 +1534,10 @@ export function ControllerProfilePage({ profileId }: { profileId: string }) {
   const bindingPatternOptions = liveIp
     ? installedBindingPatternOptions
     : offlineBindingPatternOptions
-  const installedMapObservation = profileController?.phase === 'live'
-    ? profileController.installedMap ?? { status: 'loading' as const }
-    : profile.lastKnownInstalledMap
   const installedMapPresentation = describeInstalledMap({
     observation: installedMapObservation,
     profile,
-    candidates: installedMapObservation?.status === 'present'
-      ? buildStudioMapFingerprintCandidates({
-          userMaps,
-          pixelCount: installedMapObservation.pointCount,
-        })
-      : [],
+    candidates: installedMapCandidates,
   })
 
   return (
