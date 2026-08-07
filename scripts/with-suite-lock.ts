@@ -21,6 +21,9 @@ const OWNER_FILE = 'owner.json'
 
 export interface SuiteLockOwner {
   pid: number
+  // Legacy read-only field: revision 208aa7b recorded the running suite
+  // here instead of handing pid over. Honoured on read, never written.
+  suitePid?: number
   label: string
   startedAt: string
 }
@@ -31,10 +34,16 @@ function positivePid(value: unknown): value is number {
 
 export function parseSuiteLockOwner(value: unknown): SuiteLockOwner | null {
   if (!value || typeof value !== 'object') return null
-  const { pid, label, startedAt } = value as Record<string, unknown>
+  const { pid, suitePid, label, startedAt } = value as Record<string, unknown>
   if (!positivePid(pid)) return null
+  if (suitePid !== undefined && !positivePid(suitePid)) return null
   if (typeof label !== 'string' || typeof startedAt !== 'string') return null
-  return { pid, label, startedAt }
+  return {
+    pid,
+    ...(suitePid !== undefined ? { suitePid } : {}),
+    label,
+    startedAt,
+  }
 }
 
 // Ownership hands off to the suite process itself once it starts: `pid`
@@ -48,20 +57,26 @@ export function suiteOwnerAfterSpawn(
   childPid: number | undefined,
 ): SuiteLockOwner {
   if (!positivePid(childPid)) return owner
-  return { ...owner, pid: childPid }
+  const { suitePid: _legacy, ...rest } = owner
+  return { ...rest, pid: childPid }
 }
 
-// A dead holder is stale immediately. An unreadable owner is stale only
-// after it persists across consecutive polls: mkdir claims the lock before
-// owner.json is written, so a momentarily ownerless lock is usually a fresh
-// claim mid-write, and reaping it instantly would admit two suites at once.
+// A dead holder is stale immediately, and a holder is dead only when every
+// recorded process is gone: pid, plus the legacy suitePid a coexisting
+// 208aa7b-revision wrapper may have written before being SIGKILLed. An
+// unreadable owner is stale only after it persists across consecutive
+// polls: mkdir claims the lock before owner.json is written, so a
+// momentarily ownerless lock is usually a fresh claim mid-write, and
+// reaping it instantly would admit two suites at once.
 export function suiteLockOwnerIsStale(
   owner: SuiteLockOwner | null,
   consecutiveOwnerlessReads: number,
   pidIsAlive: (pid: number) => boolean,
 ): boolean {
   if (!owner) return consecutiveOwnerlessReads >= 2
-  return !pidIsAlive(owner.pid)
+  if (pidIsAlive(owner.pid)) return false
+  if (owner.suitePid !== undefined && pidIsAlive(owner.suitePid)) return false
+  return true
 }
 
 function pidIsAlive(pid: number): boolean {

@@ -25,6 +25,14 @@ describe('suite lock owner parsing', () => {
       expect(parseSuiteLockOwner({ pid, label: 'a', startedAt: 'b' })).toBeNull()
     }
   })
+
+  it('keeps a legacy suitePid on read and rejects an invalid one', () => {
+    expect(parseSuiteLockOwner({ pid: 4242, suitePid: 4243, label: 'a', startedAt: 'b' }))
+      .toEqual({ pid: 4242, suitePid: 4243, label: 'a', startedAt: 'b' })
+    for (const suitePid of [0, -1, 'nope', 1.5]) {
+      expect(parseSuiteLockOwner({ pid: 4242, suitePid, label: 'a', startedAt: 'b' })).toBeNull()
+    }
+  })
 })
 
 describe('ownership handoff to the running suite', () => {
@@ -32,6 +40,11 @@ describe('ownership handoff to the running suite', () => {
 
   it('moves pid to the spawned suite so any revision honours the real holder', () => {
     expect(suiteOwnerAfterSpawn(owner, 4243))
+      .toEqual({ pid: 4243, label: 'test:full', startedAt: '2026-08-07T18:00:00.000Z' })
+  })
+
+  it('drops a legacy suitePid when handing off: the new record is single-field', () => {
+    expect(suiteOwnerAfterSpawn({ ...owner, suitePid: 9999 }, 4243))
       .toEqual({ pid: 4243, label: 'test:full', startedAt: '2026-08-07T18:00:00.000Z' })
   })
 
@@ -51,6 +64,16 @@ describe('suite lock staleness', () => {
 
   it('reaps a dead holder immediately', () => {
     expect(suiteLockOwnerIsStale(owner, 0, () => false)).toBe(true)
+  })
+
+  it('honours a live legacy suite past its dead wrapper', () => {
+    const legacy = { ...owner, suitePid: 4243 }
+    expect(suiteLockOwnerIsStale(legacy, 0, (pid) => pid === 4243)).toBe(false)
+  })
+
+  it('reaps a legacy record once wrapper and suite are both gone', () => {
+    const legacy = { ...owner, suitePid: 4243 }
+    expect(suiteLockOwnerIsStale(legacy, 0, () => false)).toBe(true)
   })
 
   it('tolerates a momentarily ownerless lock: a fresh claim has not written its owner yet', () => {
