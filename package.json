@@ -150,7 +150,7 @@
     "@types/ws": "^8.18.1",
     "@vitejs/plugin-react": "^6.0.2",
     "@vitest/coverage-v8": "^4.1.7",
-    "@whiteroom/software-process": "file:vendor/whiteroom-software-process-0.2.0.tgz",
+    "@whiteroom/software-process": "file:vendor/whiteroom-software-process-0.3.0.tgz",
     "eslint": "^10.4.0",
     "eslint-plugin-react-hooks": "^7.1.1",
     "husky": "^9.1.7",
