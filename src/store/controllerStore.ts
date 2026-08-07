@@ -500,6 +500,18 @@ export const useControllerStore = create<ControllerConnectionState>()(
         })
       }
 
+      const retainRendererResumeRecovery = (ip: string) => {
+        set((s) => {
+          if (!s.controllers[ip]) return s
+          return {
+            rendererPausedByPxlblz: {
+              ...s.rendererPausedByPxlblz,
+              [ip]: true,
+            },
+          }
+        })
+      }
+
       const assumeRendererPlaying = (ip: string) => {
         set((s) => {
           if (!s.controllers[ip]) return s
@@ -1085,6 +1097,7 @@ export const useControllerStore = create<ControllerConnectionState>()(
                   }
                 : undefined
               invalidateRendererState(live.ip)
+              if (activate) retainRendererResumeRecovery(live.ip)
               await queueControllerDeviceWrite(live.ip, () => pushPattern({
                 provider,
                 controllerId: live.ip,
@@ -1132,6 +1145,7 @@ export const useControllerStore = create<ControllerConnectionState>()(
 
           set({ pushing: true, pushResult: null })
           invalidateRendererState(controllerId)
+          retainRendererResumeRecovery(controllerId)
           try {
             const { created, programId } = await queueControllerDeviceWrite(
               controllerId,
@@ -1426,6 +1440,7 @@ export const useControllerStore = create<ControllerConnectionState>()(
 
           set({ pushing: true, pushResult: null })
           invalidateRendererState(controllerId)
+          retainRendererResumeRecovery(controllerId)
           try {
             // Push the bundled artifact (library-inlined) — the same code Copy/Download
             // emit — never raw editor source. Use the last *clean* preview source so a

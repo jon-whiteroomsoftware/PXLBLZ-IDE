@@ -150,6 +150,7 @@ class FakeProvider extends NullControllerProvider {
   programs: ProgramListEntry[] = []
   pushed: { bytecode: Uint8Array; opts: { id: string; name?: string } }[] = []
   compiledSources: string[] = []
+  pushBytecodeError: Error | null = null
 
   compile(source: string): Promise<Uint8Array> {
     this.compiledSources.push(source)
@@ -165,7 +166,9 @@ class FakeProvider extends NullControllerProvider {
   pushBytecode(bytecode: Uint8Array, opts: { id: string; name?: string }): Promise<void> {
     this.pushed.push({ bytecode, opts })
     this.activeProgramBytecodeSize = bytecode.length
-    return Promise.resolve()
+    return this.pushBytecodeError
+      ? Promise.reject(this.pushBytecodeError)
+      : Promise.resolve()
   }
   saved: { blob: Uint8Array; opts: { id: string } }[] = []
   saveProgram(blob: Uint8Array, opts: { id: string }): Promise<void> {
@@ -975,6 +978,27 @@ describe('controllerStore (keyed)', () => {
       expect(store().rendererPausedByPxlblz).toEqual({})
     })
 
+    it('retains Resume recovery across reconnect when Pattern activation fails (#737)', async () => {
+      await store().addController('10.0.0.5')
+      created.get('10.0.0.5')!.pushBytecodeError = new Error('socket gone during activation')
+      usePatternStore.setState({ activePatternId: 'pat-1' })
+      useEditorStore.setState({ previewSource: PATTERN_SRC, previewPatternName: 'Twinkle' })
+
+      await store().pushActivePattern()
+      await store().removeController('10.0.0.5')
+      await store().addController('10.0.0.5')
+
+      expect(store().pushResult).toEqual({
+        ok: false,
+        message: 'Controller target activation failed: socket gone during activation',
+      })
+      expect(store().rendererPausedByPxlblz).toEqual({ '10.0.0.5': true })
+      expect(store().rendererStates['10.0.0.5']).toEqual({
+        acknowledged: 'unknown',
+        pending: null,
+      })
+    })
+
     it('keeps the drain transport-only when a run replaces a known large program', async () => {
       await store().addController('10.0.0.5')
       const provider = created.get('10.0.0.5')!
@@ -1074,6 +1098,25 @@ describe('controllerStore (keyed)', () => {
 
       expect(created.get('10.0.0.5')!.pushed).toHaveLength(0)
       expect(store().pushResult).toEqual({ ok: false, message: 'Show compile failed on device' })
+    })
+
+    it('retains Resume recovery when generated-artifact activation fails (#737)', async () => {
+      await store().addController('10.0.0.5')
+      created.get('10.0.0.5')!.pushBytecodeError = new Error('activation timed out')
+
+      await store().pushGeneratedArtifact({
+        artifactId: 'show:show-1',
+        source: PATTERN_SRC,
+        name: 'Opening Night',
+        persist: false,
+        artifactStamp: { kind: 'show', id: 'show-1', name: 'Opening Night' },
+      })
+
+      expect(store().rendererPausedByPxlblz).toEqual({ '10.0.0.5': true })
+      expect(store().rendererStates['10.0.0.5']).toEqual({
+        acknowledged: 'unknown',
+        pending: null,
+      })
     })
 
     it('is a no-op when no pattern is active', async () => {
