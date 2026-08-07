@@ -48,7 +48,15 @@ import {
 // orbiting model is as large as possible (fidelity over breathing room, #146), and
 // the bounding-sphere fit (engine) guarantees it never clips at any angle.
 function cube3DCanvasPx(containerWidth: number, containerHeight: number): number {
-  return Math.max(200, Math.floor(Math.min(containerWidth, containerHeight)))
+  return Math.max(1, Math.floor(Math.min(containerWidth, containerHeight)))
+}
+
+// Keep the transport and collapsed disclosure stack reachable when a wide
+// preview would otherwise let its width-sized canvas consume the full pane.
+const PREVIEW_CONTROLS_MIN_HEIGHT_PX = 180
+
+function availableCanvasHeight(paneHeight: number, showDeck: boolean): number {
+  return Math.max(1, Math.floor(paneHeight - (showDeck ? PREVIEW_CONTROLS_MIN_HEIGHT_PX : 0)))
 }
 
 export function Preview({
@@ -60,6 +68,8 @@ export function Preview({
 }) {
   const canvasRef = useRef<HTMLCanvasElement>(null)
   const containerRef = useRef<HTMLDivElement>(null)
+  const rootRef = useRef<HTMLDivElement>(null)
+  const canvas3DPxRef = useRef<number | null>(null)
   const loopRef = useRef<RenderLoop | null>(null)
   const rendererRef = useRef<ReturnType<typeof createRenderer> | null>(null)
   // Dev-only (`?capture`): snapshots the frame from inside paint(); inert otherwise.
@@ -96,14 +106,14 @@ export function Preview({
   )
   const handleRef = useRef<ReturnType<typeof loadPattern> | null>(null)
   const shimRef = useRef<ShimContext | null>(null)
-  // The 2D viewport the renderer fits to: the container width + the live light
-  // size. The layout's extent/aspect come from the active map's `pos`,
-  // measured inside the renderer — not from any stored grid.
-  const [viewport, setViewport] = useState<{ containerWidth: number; lightSize: number } | null>(null)
-  // The square 3D viewport size (CSS px) when a 3D layout is active, else null.
-  // Sizes the square 3D canvas; the renderer owns the diffusion glow internally
-  // (it measures the projected neighbour pitch from the layout it was handed).
-  const [canvas3DPx, setCanvas3DPx] = useState<number | null>(null)
+  // The 2D viewport the renderer fits within: the pane width, the height left
+  // after reserving the reachable deck, and the live light size. The layout's
+  // extent/aspect come from the active map's `pos`, measured inside the renderer.
+  const [viewport, setViewport] = useState<{
+    containerWidth: number
+    containerHeight: number
+    lightSize: number
+  } | null>(null)
   const [runtimeError, setRuntimeError] = useState<string | null>(null)
 
   // Track the container width so the renderer fits the canvas to the pane. Also
@@ -113,28 +123,40 @@ export function Preview({
   // resolved inside the renderer; light size scales the drawn sources only.
   useEffect(() => {
     const el = containerRef.current
-    if (!el) return
-    const ro = new ResizeObserver(([entry]) => {
-      const { width } = entry.contentRect
-      const containerWidth = Math.max(1, width)
+    const root = rootRef.current
+    if (!el || !root) return
+    const fitPreview = () => {
+      const containerWidth = Math.max(1, el.getBoundingClientRect().width)
+      const containerHeight = availableCanvasHeight(root.getBoundingClientRect().height, showDeck)
       const lightSize = usePreviewStore.getState().lightSize
-      setViewport({ containerWidth, lightSize })
+      const nextViewport = { containerWidth, containerHeight, lightSize }
+      setViewport(nextViewport)
       if (rendererRef.current) {
-        rendererRef.current.resize2D({ containerWidth, lightSize })
+        rendererRef.current.resize2D(nextViewport)
+        const canvasPx = cube3DCanvasPx(containerWidth, containerHeight)
+        rendererRef.current.resize3D(canvasPx)
+        if (useEditorStore.getState().displayDim === 3) canvas3DPxRef.current = canvasPx
         if (!usePreviewStore.getState().isRunning) loopRef.current?.renderPreviewFrame()
       }
-    })
+    }
+    const ro = new ResizeObserver(fitPreview)
     ro.observe(el)
+    ro.observe(root)
     return () => ro.disconnect()
-  }, [])
+  }, [showDeck])
 
   // Re-fit when the light size changes without a resize.
   useEffect(() => {
     const el = containerRef.current
-    if (!el) return
+    const root = rootRef.current
+    if (!el || !root) return
     const { width } = el.getBoundingClientRect()
-    setViewport({ containerWidth: Math.max(1, width), lightSize })
-  }, [lightSize])
+    setViewport({
+      containerWidth: Math.max(1, width),
+      containerHeight: availableCanvasHeight(root.getBoundingClientRect().height, showDeck),
+      lightSize,
+    })
+  }, [lightSize, showDeck])
 
   // Rebuild the loop whenever source or the viewport changes
   useEffect(() => {
@@ -291,22 +313,17 @@ export function Preview({
     // 3D layout: hand the orbit renderer the cube's [0,1]³ positions, a square
     // canvas, and a base dot size; seed the camera from the ephemeral store.
     if (positions3D) {
-      // The canvas container now wraps only the canvas (deck sits below), so its
-      // height is circular with the canvas size. Size the square 3D viewport off
-      // the pane width alone — the dominant constraint for the narrow preview pane.
-      const rect = containerRef.current?.getBoundingClientRect()
-      const width = rect?.width ?? 400
-      const px = cube3DCanvasPx(width, width)
+      const px = cube3DCanvasPx(viewport.containerWidth, viewport.containerHeight)
       renderer.set3DPositions(positions3D, { canvasPx: px, normals: normals3D })
       renderer.setCamera(useCameraStore.getState().camera)
       renderer.setSolidity(useMapStore.getState().activeSolidity)
-      setCanvas3DPx(px)
+      canvas3DPxRef.current = px
     } else {
       // Every 2D layout — stock plane, ring/cloud, or a 1D shape embedding — draws
       // through the single pos channel; the renderer measures extent + neighbour
       // pitch from these points. An empty array is a valid no-op layout.
       renderer.set2DPositions(shapePositions ?? [], viewport)
-      setCanvas3DPx(null)
+      canvas3DPxRef.current = null
     }
     renderer.setDiffusion(usePreviewStore.getState().diffusion)
 
@@ -442,6 +459,7 @@ export function Preview({
   // on the pole being the live layout (a 3D shape over the square 3D viewport).
   const poleCols = useCameraStore((s) => s.poleCols)
   useEffect(() => {
+    const canvas3DPx = canvas3DPxRef.current
     if (activeShapeId !== 'pole' || displayDim !== 3 || canvas3DPx == null) return
     const renderer = rendererRef.current
     if (!renderer) return
@@ -453,7 +471,7 @@ export function Preview({
     renderer.setDiffusion(usePreviewStore.getState().diffusion)
     renderer.setSolidity(useMapStore.getState().activeSolidity)
     if (!usePreviewStore.getState().isRunning) loopRef.current?.renderPreviewFrame()
-  }, [poleCols, activeShapeId, displayDim, canvas3DPx, previewPixelCount])
+  }, [poleCols, activeShapeId, displayDim, previewPixelCount])
 
   // Auto-orbit drive: an independent rAF that advances the turntable whenever a
   // 3D layout is active and auto-orbit is armed — decoupled from the pattern's
@@ -562,11 +580,11 @@ export function Preview({
   }, [])
 
   return (
-    <div className="h-full min-h-0 bg-zinc-950 flex flex-col overflow-clip">
+    <div ref={rootRef} className="h-full min-h-0 bg-zinc-950 flex flex-col overflow-clip">
       {/* Canvas flush at the top of the pane (#150): no header strip above it. The
           container drives the ResizeObserver fit; the deck stacks below. */}
       <div ref={containerRef} className="relative w-full shrink-0">
-        <div className="relative inline-block">
+        <div className="relative block w-fit">
           <canvas ref={canvasRef} className="rounded-sm" />
           {/* Orbit viewport controls — gated on the active layout's display
               dimension (#129), so a 1D pattern on a 3D shape still gets them. Now
@@ -584,7 +602,7 @@ export function Preview({
         </div>
       </div>
       {showDeck && (
-        <div data-testid="preview-controls-region" className="min-h-0 flex-1 overflow-clip">
+        <div data-testid="preview-controls-region" className="min-h-[180px] flex-1 overflow-clip">
           <ZonePreviewStrips />
           <PreviewDeck />
         </div>

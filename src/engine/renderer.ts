@@ -24,12 +24,13 @@ import {
   type Inset2D,
 } from './camera'
 
-// The 2D viewport knobs the renderer needs from the UI: the container width it
-// fits the canvas to, and the preview light size (the drawn source
+// The 2D viewport knobs the renderer needs from the UI: the container bounds it
+// fits the canvas within, and the preview light size (the drawn source
 // diameter as a fraction of the measured neighbour pitch). The layout's extent
 // and aspect come from the `pos` handed to `set2DPositions`, not from here.
 export interface Viewport2D {
   containerWidth: number
+  containerHeight?: number
   lightSize?: number
 }
 
@@ -150,6 +151,7 @@ export function createRenderer(canvas: HTMLCanvasElement, initialViewport: Viewp
   let spacingNorm2D = 0
   let inset2D: Inset2D = { x: 0, y: 0 }
   let containerWidth = Math.max(1, initialViewport.containerWidth)
+  let containerHeight = initialViewport.containerHeight
   let lightSize = initialViewport.lightSize ?? 1
   // Glowing LEDs are additive light, so the draw uses additive blending — which
   // is order-independent, so there is no painter's-order depth sort. The CSS
@@ -166,7 +168,7 @@ export function createRenderer(canvas: HTMLCanvasElement, initialViewport: Viewp
   })
 
   function applySize(): void {
-    const { width, height } = canvasSizeForBounds(containerWidth, bounds2D)
+    const { width, height } = canvasSizeForBounds(containerWidth, bounds2D, containerHeight)
     canvas.width = width
     canvas.height = height
   }
@@ -191,12 +193,14 @@ export function createRenderer(canvas: HTMLCanvasElement, initialViewport: Viewp
       set2DPositions(positions, viewport) {
         pos2D = positions
         containerWidth = Math.max(1, viewport.containerWidth)
+        containerHeight = viewport.containerHeight
         lightSize = viewport.lightSize ?? lightSize
         measure2D()
         applySize()
       },
       resize2D(viewport) {
         containerWidth = Math.max(1, viewport.containerWidth)
+        containerHeight = viewport.containerHeight
         lightSize = viewport.lightSize ?? lightSize
         applySize()
       },
@@ -453,6 +457,7 @@ export function createRenderer(canvas: HTMLCanvasElement, initialViewport: Viewp
   function set2DPositions(p: [number, number][], viewport: Viewport2D): void {
     pos2D = p
     containerWidth = Math.max(1, viewport.containerWidth)
+    containerHeight = viewport.containerHeight
     lightSize = viewport.lightSize ?? lightSize
     measure2D()
     if (pos3D) return // 3D mode owns its own square canvas size; stash for restore
@@ -463,6 +468,7 @@ export function createRenderer(canvas: HTMLCanvasElement, initialViewport: Viewp
 
   function resize2D(viewport: Viewport2D): void {
     containerWidth = Math.max(1, viewport.containerWidth)
+    containerHeight = viewport.containerHeight
     lightSize = viewport.lightSize ?? lightSize
     if (pos3D) return // 3D mode owns its own square canvas size
     applySize()

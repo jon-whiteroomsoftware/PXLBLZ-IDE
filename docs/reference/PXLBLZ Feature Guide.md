@@ -256,8 +256,9 @@ diffusion have a global comfort baseline with per-Pattern overrides.
 The **PIXELBLAZE**, **PREVIEW**, **PATTERN CONTROLS**, and **WATCH VARIABLES**
 headers collapse their sections when clicked; each adjacent info icon remains a
 separate help control. Collapsed headers pack together so lower controls stay
-reachable in a short pane. The LED canvas remains fixed, and the Pattern Preview
-pane never becomes a vertical scroll surface.
+reachable in a short pane. The LED canvas remains fixed and scales down when a
+wide pane needs to preserve the transport and collapsed header stack; the
+Pattern Preview pane never becomes a vertical scroll surface.
 
 None of these settings ride along with **Send to Controller**. In particular,
 preview brightness is not a safe substitute for physical brightness: a monitor

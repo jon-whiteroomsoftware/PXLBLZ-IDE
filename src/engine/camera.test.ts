@@ -107,6 +107,15 @@ describe('camera — pos-bounds 2D extent & sizing', () => {
     })
   })
 
+  it('fits the canvas within both viewport dimensions while preserving aspect', () => {
+    expect(
+      canvasSizeForBounds(640, { minX: 0, minY: 0, maxX: 1, maxY: 1 }, 480),
+    ).toEqual({ width: 480, height: 480 })
+    expect(
+      canvasSizeForBounds(640, { minX: 0, minY: 0, maxX: 1, maxY: 0.5 }, 200),
+    ).toEqual({ width: 400, height: 200 })
+  })
+
   it('falls back to a square canvas for a degenerate (zero-range) axis', () => {
     // A horizontal 1D line embedding (no y extent) must not collapse the height.
     expect(canvasSizeForBounds(640, { minX: 0, minY: 0.5, maxX: 1, maxY: 0.5 })).toEqual({

@@ -22,6 +22,6 @@ describe('Preview (smoke)', () => {
     expect(root.className).not.toContain('overflow-x-auto')
 
     const controlsRegion = container.querySelector('[data-testid="preview-controls-region"]')
-    expect(controlsRegion).toHaveClass('min-h-0', 'flex-1', 'overflow-clip')
+    expect(controlsRegion).toHaveClass('min-h-[180px]', 'flex-1', 'overflow-clip')
   })
 })

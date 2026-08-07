@@ -85,20 +85,25 @@ export function posBounds2D(
   return { minX, minY, maxX, maxY }
 }
 
-// Canvas size in CSS pixels: the container width, with the height set to the
-// bounds' aspect (rangeY / rangeX) so a square layout draws square and a true
-// rectangle (post-#116) draws to proportion. A degenerate axis (a 1D line
-// embedding with zero range on one axis) falls back to a square canvas so the
-// height never collapses to zero.
+// Canvas size in CSS pixels: fit the bounds' aspect inside the available width
+// and optional height. A degenerate axis (a 1D line embedding with zero range
+// on one axis) falls back to a square canvas so the height never collapses to
+// zero.
 export function canvasSizeForBounds(
   containerWidth: number,
   bounds: Bounds2D,
+  containerHeight?: number,
 ): { width: number; height: number } {
-  const w = Math.max(1, Math.round(containerWidth))
+  const availableWidth = Math.max(1, Math.round(containerWidth))
   const rangeX = bounds.maxX - bounds.minX
   const rangeY = bounds.maxY - bounds.minY
   const aspect = rangeX > 0 && rangeY > 0 ? rangeY / rangeX : 1
-  return { width: w, height: Math.max(1, Math.round(w * aspect)) }
+  const availableHeight = containerHeight == null
+    ? Number.POSITIVE_INFINITY
+    : Math.max(1, Math.floor(containerHeight))
+  const width = Math.max(1, Math.min(availableWidth, Math.floor(availableHeight / aspect)))
+  const height = Math.max(1, Math.min(availableHeight, Math.round(width * aspect)))
+  return { width, height }
 }
 
 // Project a `pos` into WebGL clip space [-1,1]² (y axis up), normalizing it

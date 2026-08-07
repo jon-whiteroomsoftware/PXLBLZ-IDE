@@ -25,6 +25,10 @@ describe('renderer — no GL context', () => {
     renderer.resize2D({ containerWidth: 320, lightSize: 0.5 })
     expect(canvas.width).toBe(320)
     expect(canvas.height).toBe(320)
+
+    renderer.resize2D({ containerWidth: 640, containerHeight: 240, lightSize: 0.5 })
+    expect(canvas.width).toBe(240)
+    expect(canvas.height).toBe(240)
   })
 
   it('sizes a non-square layout to its bounds aspect', () => {

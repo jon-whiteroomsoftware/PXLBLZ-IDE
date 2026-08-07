@@ -181,8 +181,19 @@ test('resized Pattern and Show previews keep their controls reachable', async ({
   await page.mouse.up()
 
   await expect.poll(async () => (await previewPane.boundingBox())?.width ?? 0).toBeGreaterThan(680)
-  await previewPane.hover()
-  await page.mouse.wheel(0, 1200)
+  const patternCanvas = previewPane.locator('canvas')
+  const patternControls = previewPane.getByTestId('preview-controls-region')
+  await expect(
+    previewPane.getByRole('button', { name: 'Pixelblaze', exact: true }),
+  ).toBeInViewport()
+  await expect.poll(async () => {
+    const canvasBounds = await patternCanvas.boundingBox()
+    const controlsBounds = await patternControls.boundingBox()
+    return canvasBounds && controlsBounds ? canvasBounds.y + canvasBounds.height <= controlsBounds.y : false
+  }).toBe(true)
+  await previewPane.getByRole('button', { name: 'Pixelblaze', exact: true }).click()
+  await previewPane.getByRole('button', { name: 'Preview', exact: true }).click()
+  await previewPane.getByRole('button', { name: 'Pattern controls', exact: true }).click()
   await expect(page.getByRole('button', { name: 'Watch variables' })).toBeInViewport()
 
   await page.goto('studio/shows/stock-show-showcase-redline-installation')
