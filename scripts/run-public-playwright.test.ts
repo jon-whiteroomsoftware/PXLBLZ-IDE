@@ -25,12 +25,15 @@ describe('public Playwright runtime', () => {
       PLAYWRIGHT_PUBLIC_VITE_PORT: '5183',
       PLAYWRIGHT_PUBLIC_API_PROXY_TARGET: 'http://localhost:8788',
       PLAYWRIGHT_STUDIO_URL: 'http://localhost:5183/PXLBLZ-IDE/',
+      VITE_BASE_PATH: '/PXLBLZ-IDE/',
     })
   })
 
-  it('derives the Studio URL from the manifest base path', () => {
-    expect(publicPlaywrightEnvironment(assignment, '/other-base/'))
-      .toMatchObject({ PLAYWRIGHT_STUDIO_URL: 'http://localhost:5183/other-base/' })
+  it('derives the Studio URL and served base from the manifest base path', () => {
+    expect(publicPlaywrightEnvironment(assignment, '/other-base/')).toMatchObject({
+      PLAYWRIGHT_STUDIO_URL: 'http://localhost:5183/other-base/',
+      VITE_BASE_PATH: '/other-base/',
+    })
   })
 })
 

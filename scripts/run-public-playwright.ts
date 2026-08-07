@@ -26,10 +26,14 @@ export function publicPlaywrightEnvironment(
   assignment: RuntimeAssignment,
   basePath = '/PXLBLZ-IDE/',
 ): Record<string, string> {
+  // VITE_BASE_PATH must bind to the same manifest base the Studio URL is
+  // built from; an inherited shell or .env value would otherwise make
+  // Playwright target one base while the spawned Vite serves another.
   return {
     PLAYWRIGHT_PUBLIC_VITE_PORT: String(assignment.uiPort),
     PLAYWRIGHT_PUBLIC_API_PROXY_TARGET: assignment.apiTarget,
     PLAYWRIGHT_STUDIO_URL: `http://localhost:${assignment.uiPort}${basePath}`,
+    VITE_BASE_PATH: basePath,
   }
 }
 
