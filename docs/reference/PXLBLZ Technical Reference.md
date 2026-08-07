@@ -50,6 +50,32 @@ Zustand is the shared state seam because render loops, Controller providers, and
 other non-React code need synchronous access. Stores may orchestrate engine
 functions and persistence, but reusable transformations remain pure.
 
+### Icon size and weight are tiers, not per-call-site numbers
+
+`src/components/iconScale.ts` fixes the size and stroke weight of every chrome
+glyph by the role it plays. Lucide draws on a 24-unit grid at stroke 2, so a
+glyph rendered at N pixels carries an N/12 px stroke; below the rail's size that
+falls near a single device pixel and the glyph greys out beside the 11px mono
+labels around it. Each tier therefore pairs a size with the weight that holds it
+level with its neighbours:
+
+| Tier | Size | Role |
+|---|---|---|
+| `railIcon` | 17 | Navigation rail; the app's legibility reference |
+| `controlIcon` | 15 | Inside a button, link, or menu item |
+| `denseIcon` | 13 | Inside a 20px rail-row hover button |
+| `inlineIcon` | 12 | Beside text: section titles, row markers, punctuation |
+
+`transportIcon` is the one exception the tiers cannot express: Play and Pause
+carry enough empty area to read light at any weight the compensation cap allows,
+so they take extra stroke at control size. Transports at 20px and above keep
+Lucide's own weight, where the outline already resolves.
+
+Controller connection glyphs are drawn in `ControllerGlyphs.tsx` rather than
+taken from Lucide, on a 16-unit grid at stroke 1.5 so they match a Lucide glyph
+of the same size. Lucide's `Cpu` and `Unplug` carry more interior detail than
+these sizes resolve.
+
 ### Hardware artifacts stay Pixelblaze code
 
 The transpiler inlines and renames; it does not translate Pixelblaze into a
