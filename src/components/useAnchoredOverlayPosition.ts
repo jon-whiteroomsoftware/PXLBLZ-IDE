@@ -77,7 +77,12 @@ export function useAnchoredOverlayPosition(
     margin?: number
   } = {},
 ): CSSProperties {
-  const [placement, setPlacement] = useState<AnchoredOverlayPlacement | null>(null)
+  const [state, setState] = useState<{
+    open: boolean
+    placement: AnchoredOverlayPlacement | null
+  }>({ open, placement: null })
+  if (state.open !== open) setState({ open, placement: null })
+  const placement = state.open === open ? state.placement : null
 
   const update = useCallback(() => {
     const anchor = triggerRef.current?.getBoundingClientRect()
@@ -86,7 +91,7 @@ export function useAnchoredOverlayPosition(
     const resolvedSide = preferredSide === 'responsive'
       ? window.matchMedia?.('(min-width: 640px)').matches ? 'bottom' : 'top'
       : preferredSide
-    setPlacement(placeAnchoredOverlay({
+    const nextPlacement = placeAnchoredOverlay({
       anchor,
       overlay: {
         width: overlay.width || anchor.width || 1,
@@ -97,7 +102,8 @@ export function useAnchoredOverlayPosition(
       preferredSide: resolvedSide,
       gap,
       margin,
-    }))
+    })
+    setState({ open: true, placement: nextPlacement })
   }, [align, gap, margin, overlayRef, preferredSide, triggerRef])
 
   useLayoutEffect(() => {

@@ -105,7 +105,7 @@ export function useEmbeddingSelectMeta() {
 // The MAP control (#253): real Pixelblaze state, rendered bare so the PIXELBLAZE
 // block can wrap it in a labeled deck cell paired with `fit`. Renders nothing only
 // when Index is literally the sole available option.
-export function MapSelect() {
+export function MapSelect({ portaled = false }: { portaled?: boolean } = {}) {
   const { mapDim, maps, mapValue, route } = useLayoutControls()
   if (!mapSelectMeta(mapDim, maps).hasMapChoice) return null
   // The trigger stays aligned with `fit`; its menu opens rightward at two trigger
@@ -127,12 +127,13 @@ export function MapSelect() {
         menuAlign="left"
         menuSide="responsive"
         block
+        portaled={portaled}
       />
     </div>
   )
 }
 
-export function CoordinateViewSelect() {
+export function CoordinateViewSelect({ portaled = false }: { portaled?: boolean } = {}) {
   const { coordinateViews, activeMapId, route } = useLayoutControls()
   if (coordinateViews.length < 2) return null
   return (
@@ -154,6 +155,7 @@ export function CoordinateViewSelect() {
           mapDim: option.dim,
         })))}
         menuWidthClass="w-28"
+        portaled={portaled}
       />
     </div>
   )
@@ -163,7 +165,10 @@ export function CoordinateViewSelect() {
 // for 2D — that stays in the play-button row. Shows only when it carries a real
 // choice: a single option (an irregular cloud's Flat-only set, or 3D with none) is
 // not a choice, so it is hidden ("show only when needed").
-export function EmbeddingSelect({ showLabel = false }: { showLabel?: boolean } = {}) {
+export function EmbeddingSelect({
+  showLabel = false,
+  portaled = false,
+}: { showLabel?: boolean; portaled?: boolean } = {}) {
   const { mapDim, embeddings, embeddingValue, route } = useLayoutControls()
   const showEmbedding = embeddings.length > 1
   if (!showEmbedding) return null
@@ -185,6 +190,7 @@ export function EmbeddingSelect({ showLabel = false }: { showLabel?: boolean } =
         }))}
         onChange={(id) => route(id, embeddings)}
         menuWidthClass="w-28"
+        portaled={portaled}
       />
     </div>
   )

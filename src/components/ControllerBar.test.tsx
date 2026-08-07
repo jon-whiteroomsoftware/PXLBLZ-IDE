@@ -376,6 +376,23 @@ describe('ControllerBar', () => {
     expect(pending.querySelector('.lucide-rotate-cw')).toBeInTheDocument()
   })
 
+  it('keeps the Controller panel open while its pixel-count editor is used', async () => {
+    setControllerProvider(new ConnectedProvider())
+    seedLiveController()
+    useControllerStore.setState({
+      setActive: (ip) => useControllerStore.setState({ activeIp: ip }),
+    })
+    render(<ControllerBar />)
+    fireEvent.click(screen.getByRole('button', { name: 'Toggle Desk panel' }))
+
+    fireEvent.click(await screen.findByRole('button', { name: 'Edit controller pixel count' }))
+    const input = await screen.findByRole('textbox', { name: 'Controller pixel count' })
+    fireEvent.mouseDown(input)
+
+    expect(screen.getByTestId('controller-panel-popover')).toBeInTheDocument()
+    expect(input).toBeInTheDocument()
+  })
+
   it('places an explicit Resume recovery immediately right of Disconnect when renderer state is unknown', () => {
     const setRendererPaused = vi.fn(async () => {})
     useControllerStore.setState({

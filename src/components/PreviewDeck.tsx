@@ -139,7 +139,7 @@ function PrimaryBand() {
           <RotateCcw size={14} />
         </button>
       )}
-      <EmbeddingSelect />
+      <EmbeddingSelect portaled />
       <button
         aria-label={hasPattern ? (isRunning ? 'Pause' : 'Run') : 'No pattern loaded'}
         title={hasPattern ? (isRunning ? 'Pause preview' : 'Run preview') : 'No pattern loaded'}
@@ -205,6 +205,7 @@ function PixelCountInput() {
       value={effectiveCount}
       triggerLabel="Edit pixel count"
       inputLabel="Pixel count"
+      portaled
       quickSelect={resolutionSteps.length > 0 ? {
         steps: resolutionSteps,
         dimensionsFor: (count) => mapDim === 1 ? null : activeMap.gridDims(count),
@@ -252,8 +253,8 @@ function SecondaryBand() {
           {hasMapChoice && (
             <DeckField label="map">
               <div className="flex flex-col items-end">
-                <MapSelect />
-                <CoordinateViewSelect />
+                <MapSelect portaled />
+                <CoordinateViewSelect portaled />
               </div>
             </DeckField>
           )}
@@ -285,6 +286,7 @@ function SecondaryBand() {
                   writeCascadedOverride('normalize', mode)
                 }}
                 menuWidthClass="w-28"
+                portaled
               />
             </DeckCell>
           )}
@@ -387,11 +389,12 @@ export function PreviewViewportSection({ profile }: { profile: 'pattern' | 'show
             ]}
             onChange={setFidelity}
             menuWidthClass="w-28"
+            portaled={pattern}
           />
         </DeckCell>
         {pattern ? (
           <DeckCell label="speed">
-            <SpeedSelector />
+            <SpeedSelector portaled />
           </DeckCell>
         ) : (
           <DeckTelemetry label="fps" value={fps === null ? '—' : fps.toFixed(1)} />

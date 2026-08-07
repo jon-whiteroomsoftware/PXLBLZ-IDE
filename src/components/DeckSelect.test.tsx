@@ -16,6 +16,7 @@ describe('DeckSelect keyboard navigation', () => {
             { value: 'cube', label: 'Cube' },
           ]}
           onChange={vi.fn()}
+          portaled
         />
       </div>,
     )
@@ -111,5 +112,44 @@ describe('DeckSelect keyboard navigation', () => {
     await user.click(screen.getByRole('option', { name: 'Strand' }))
 
     expect(onChange).toHaveBeenCalledWith('strand')
+  })
+
+  it('remeasures an unclamped menu after it closes and reopens', async () => {
+    const user = userEvent.setup()
+    let triggerTop = 140
+    let viewportHeight = 300
+    vi.spyOn(HTMLElement.prototype, 'getBoundingClientRect').mockImplementation(function (this: HTMLElement) {
+      if (this.getAttribute('aria-label') === 'Map' && this.getAttribute('role') === 'listbox') {
+        const maxHeight = Number.parseFloat((this as HTMLElement).style.maxHeight)
+        const height = Number.isFinite(maxHeight) ? Math.min(500, maxHeight) : 500
+        return DOMRect.fromRect({ width: 352, height })
+      }
+      if (this.getAttribute('aria-label') === 'Map') {
+        return DOMRect.fromRect({ x: 900, y: triggerTop, width: 80, height: 20 })
+      }
+      return DOMRect.fromRect()
+    })
+    vi.spyOn(window, 'innerWidth', 'get').mockReturnValue(1000)
+    vi.spyOn(window, 'innerHeight', 'get').mockImplementation(() => viewportHeight)
+
+    render(
+      <DeckSelect
+        ariaLabel="Map"
+        value="square"
+        options={[{ value: 'square', label: 'Square' }]}
+        onChange={vi.fn()}
+        menuSide="top"
+        portaled
+      />,
+    )
+
+    await user.click(screen.getByRole('button', { name: 'Map' }))
+    expect(screen.getByRole('listbox')).toHaveStyle({ top: '8px', maxHeight: '128px' })
+    await user.click(screen.getByRole('button', { name: 'Map' }))
+
+    triggerTop = 650
+    viewportHeight = 720
+    await user.click(screen.getByRole('button', { name: 'Map' }))
+    expect(screen.getByRole('listbox')).toHaveStyle({ top: '146px', maxHeight: '638px' })
   })
 })

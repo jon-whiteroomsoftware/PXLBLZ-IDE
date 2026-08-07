@@ -34,6 +34,7 @@ export function DeckSelect<T extends string | number>({
   menuAlign = 'right',
   menuSide = 'bottom',
   block = false,
+  portaled = false,
 }: {
   ariaLabel: string
   value: T
@@ -53,6 +54,9 @@ export function DeckSelect<T extends string | number>({
   // with a wrapper and right-align it — e.g. the stacked `map` cell, which grows to
   // the column width and aligns its right edge with the `fit` dropdown below.
   block?: boolean
+  // Preview controls live inside an overflow-clipped region. Opt those callers
+  // into document-level placement without changing containment for other decks.
+  portaled?: boolean
 }) {
   const [isOpen, setIsOpen] = useState(false)
   const containerRef = useRef<HTMLDivElement>(null)
@@ -63,10 +67,15 @@ export function DeckSelect<T extends string | number>({
   const indexedOptions = options.map((option, index) => ({ option, index }))
   const columns = Array.from(new Set(options.map((option) => option.column).filter((column): column is string => Boolean(column))))
   const showColumns = columns.length > 1
-  const menuStyle = useAnchoredOverlayPosition(triggerRef, menuRef, isOpen, {
+  const menuStyle = useAnchoredOverlayPosition(triggerRef, menuRef, isOpen && portaled, {
     align: menuAlign,
     preferredSide: menuSide,
   })
+  const menuSideClass = menuSide === 'top'
+    ? 'bottom-full mb-1'
+    : menuSide === 'responsive'
+      ? 'bottom-full mb-1 sm:bottom-auto sm:top-full sm:mb-0 sm:mt-1'
+      : 'top-full mt-1'
   // Only show subgroup headers when the options actually span more than one group;
   // a lone group (the common no-user-maps case) reads cleaner with no header.
   const showGroups = new Set(options.map((o) => o.group).filter(Boolean)).size > 1
@@ -160,6 +169,32 @@ export function DeckSelect<T extends string | number>({
     })
   }
 
+  const menu = isOpen ? (
+    <div
+      ref={menuRef}
+      role="listbox"
+      aria-label={ariaLabel}
+      style={portaled ? menuStyle : undefined}
+      className={`${portaled ? '' : `absolute ${menuSideClass} ${menuAlign === 'left' ? 'left-0' : 'right-0'} z-50`} ${menuWidthClass} max-h-[calc(100vh-2rem)] overflow-y-auto overflow-x-hidden bg-zinc-900 border border-zinc-800 rounded-md shadow-xl ${showColumns ? 'grid grid-cols-2' : 'py-1'}`}
+    >
+      {showColumns
+        ? columns.map((column, columnIndex) => (
+            <div
+              key={column}
+              role="group"
+              aria-label={column}
+              className={`min-w-0 py-1 ${columnIndex > 0 ? 'border-l border-zinc-800' : ''}`}
+            >
+              <div role="presentation" className="px-3 pb-1 text-[10px] font-semibold uppercase tracking-wider text-zinc-300 select-none">
+                {column}
+              </div>
+              {renderOptions(indexedOptions.filter(({ option }) => option.column === column), true)}
+            </div>
+          ))
+        : renderOptions(indexedOptions)}
+    </div>
+  ) : null
+
   return (
     <div ref={containerRef} className={`relative ${block ? 'w-full' : ''}`}>
       <button
@@ -185,32 +220,7 @@ export function DeckSelect<T extends string | number>({
         </span>
       </button>
 
-      {isOpen && createPortal(
-        <div
-          ref={menuRef}
-          role="listbox"
-          aria-label={ariaLabel}
-          style={menuStyle}
-          className={`${menuWidthClass} overflow-y-auto overflow-x-hidden bg-zinc-900 border border-zinc-800 rounded-md shadow-xl ${showColumns ? 'grid grid-cols-2' : 'py-1'}`}
-        >
-          {showColumns
-            ? columns.map((column, columnIndex) => (
-                <div
-                  key={column}
-                  role="group"
-                  aria-label={column}
-                  className={`min-w-0 py-1 ${columnIndex > 0 ? 'border-l border-zinc-800' : ''}`}
-                >
-                  <div role="presentation" className="px-3 pb-1 text-[10px] font-semibold uppercase tracking-wider text-zinc-300 select-none">
-                    {column}
-                  </div>
-                  {renderOptions(indexedOptions.filter(({ option }) => option.column === column), true)}
-                </div>
-              ))
-            : renderOptions(indexedOptions)}
-        </div>,
-        document.body,
-      )}
+      {portaled && menu ? createPortal(menu, document.body) : menu}
     </div>
   )
 }

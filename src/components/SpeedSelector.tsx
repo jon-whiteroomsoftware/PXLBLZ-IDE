@@ -16,7 +16,7 @@ function nearestTimeScale(speed: number): number {
   return TIME_SCALES[best].value
 }
 
-export function SpeedSelector() {
+export function SpeedSelector({ portaled = false }: { portaled?: boolean } = {}) {
   const speed = usePreviewStore((s) => s.speed)
   const setSpeed = usePreviewStore((s) => s.setSpeed)
 
@@ -25,6 +25,7 @@ export function SpeedSelector() {
       ariaLabel="Speed"
       value={nearestTimeScale(speed)}
       options={TIME_SCALES}
+      portaled={portaled}
       onChange={(v) => {
         setSpeed(v)
         writeCascadedOverride('speed', v)
