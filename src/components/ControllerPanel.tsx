@@ -181,7 +181,12 @@ export function ControllerPanel() {
   const powerTelemetry = describeControllerPowerTelemetry(
     vars,
     powerCapSettings && pixelCount != null && brightness != null
-      ? { settings: powerCapSettings, pixelCount, brightness }
+      ? {
+          settings: powerCapSettings,
+          pixelCount,
+          brightness,
+          electricalProfile: activeProfile?.electricalProfile,
+        }
       : undefined,
   )
   const watchedVars = describeControllerVars(vars)

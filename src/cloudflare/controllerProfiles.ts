@@ -11,6 +11,7 @@ import {
   type PatternBinding,
   type ControllerZone,
 } from '../engine/controllerProfile'
+import type { ControllerElectricalProfile } from '../engine/controllerElectricalProfile'
 
 export interface D1DatabaseControllerProfilesLike {
   prepare(sql: string): D1ControllerProfileStatementLike
@@ -35,6 +36,7 @@ export interface D1ControllerProfileRow {
   board_json: string
   inputs_json: string
   global_transforms_json: string
+  electrical_profile_json: string | null
   keep_patterns_up_to_date: number | null
   output_profile: string | null
   output_profile_note: string | null
@@ -60,6 +62,9 @@ export function controllerProfileFromRow(row: D1ControllerProfileRow): Controlle
     board: parseJson<ControllerBoardProfile>(row.board_json),
     inputs: parseJson<ControllerInput[]>(row.inputs_json),
     globalTransforms: parseJson<GlobalTransform[]>(row.global_transforms_json),
+    ...(row.electrical_profile_json
+      ? { electricalProfile: parseJson<ControllerElectricalProfile>(row.electrical_profile_json) }
+      : {}),
     keepPatternsUpToDate: row.keep_patterns_up_to_date === 1,
     ...(row.output_profile ? { outputProfile: row.output_profile as ControllerOutputProfile } : {}),
     ...(row.output_profile_note ? { outputProfileNote: row.output_profile_note } : {}),
@@ -75,7 +80,7 @@ export async function listD1ControllerProfiles(
 ): Promise<ControllerProfile[]> {
   const { results } = await db
     .prepare(`
-      SELECT id, name, device_id, board_json, inputs_json, global_transforms_json,
+      SELECT id, name, device_id, board_json, inputs_json, global_transforms_json, electrical_profile_json,
              keep_patterns_up_to_date, output_profile, output_profile_note,
              pattern_bindings_json, zones_json, last_known_device_name, last_seen_ip,
              last_known_pixel_count, last_known_map_dim, map_fingerprints_json, updated_at
@@ -95,7 +100,7 @@ export async function getD1ControllerProfile(
 ): Promise<ControllerProfile | undefined> {
   const row = await db
     .prepare(`
-      SELECT id, name, device_id, board_json, inputs_json, global_transforms_json,
+      SELECT id, name, device_id, board_json, inputs_json, global_transforms_json, electrical_profile_json,
              keep_patterns_up_to_date, output_profile, output_profile_note,
              pattern_bindings_json, zones_json, last_known_device_name, last_seen_ip,
              last_known_pixel_count, last_known_map_dim, map_fingerprints_json, updated_at
@@ -120,11 +125,11 @@ export async function createD1ControllerProfile(
       INSERT INTO controller_profiles (
         user_id, id, name, device_id, last_known_device_name, last_seen_ip,
         last_known_pixel_count, last_known_map_dim, map_fingerprints_json, board_json, inputs_json,
-        global_transforms_json, keep_patterns_up_to_date, output_profile, output_profile_note,
+        global_transforms_json, electrical_profile_json, keep_patterns_up_to_date, output_profile, output_profile_note,
         pattern_bindings_json, zones_json,
         created_at, updated_at
       )
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     `)
     .bind(
       userId,
@@ -139,6 +144,7 @@ export async function createD1ControllerProfile(
       JSON.stringify(profile.board),
       JSON.stringify(profile.inputs),
       JSON.stringify(profile.globalTransforms),
+      profile.electricalProfile ? JSON.stringify(profile.electricalProfile) : null,
       profile.keepPatternsUpToDate ? 1 : 0,
       profile.outputProfile ?? null,
       profile.outputProfileNote ?? null,
@@ -168,6 +174,14 @@ export async function updateD1ControllerProfile(
   addAssignment(assignments, values, 'board_json', changes.board, true)
   addAssignment(assignments, values, 'inputs_json', changes.inputs, true)
   addAssignment(assignments, values, 'global_transforms_json', changes.globalTransforms, true)
+  addAssignment(
+    assignments,
+    values,
+    'electrical_profile_json',
+    changes.electricalProfile ?? null,
+    true,
+    changes.electricalProfile !== undefined,
+  )
   addAssignment(
     assignments,
     values,

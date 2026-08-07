@@ -152,10 +152,11 @@ describe('controllerProfileStore', () => {
           type: 'power-cap',
           mode: 'direct',
           maxDuty: 0.25,
-          milliampsPerPixel: 60,
         }),
       ]),
     })
+    expect(profile.globalTransforms.find((transform) => transform.type === 'power-cap'))
+      .not.toHaveProperty('milliampsPerPixel')
     expect(validateControllerProfile(profile)).toEqual({ ok: true, errors: [] })
   })
 

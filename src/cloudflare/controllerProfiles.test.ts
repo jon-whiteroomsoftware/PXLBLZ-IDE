@@ -67,6 +67,10 @@ const profile: ControllerProfile = {
       milliampsPerPixel: 60,
     },
   ],
+  electricalProfile: {
+    ledPresetId: 'ws2811-12v-grouped',
+    supplyBudget: { value: 20, unit: 'amps' },
+  },
   keepPatternsUpToDate: true,
   patternBindings: [
     {
@@ -127,6 +131,7 @@ describe('D1 controller profile persistence', () => {
       board_json: JSON.stringify(profile.board),
       inputs_json: JSON.stringify(profile.inputs),
       global_transforms_json: JSON.stringify(profile.globalTransforms),
+      electrical_profile_json: JSON.stringify(profile.electricalProfile),
       keep_patterns_up_to_date: 1,
       output_profile: 'pro-expander',
       output_profile_note: '8-way, 250 px per lane',
@@ -153,6 +158,7 @@ describe('D1 controller profile persistence', () => {
       board_json: JSON.stringify(profile.board),
       inputs_json: JSON.stringify([]),
       global_transforms_json: JSON.stringify([]),
+      electrical_profile_json: null,
       keep_patterns_up_to_date: 0,
       output_profile: null,
       output_profile_note: null,
@@ -186,6 +192,10 @@ describe('D1 controller profile persistence', () => {
       lastKnownMapDim: 3,
       mapFingerprints: [],
       globalTransforms: profile.globalTransforms,
+      electricalProfile: {
+        ledPresetId: 'ws2812-5v-individual',
+        supplyBudget: { value: 15, unit: 'watts' },
+      },
       keepPatternsUpToDate: false,
       outputProfile: 'output-expander',
       outputProfileNote: 'bench rig',
@@ -194,7 +204,7 @@ describe('D1 controller profile persistence', () => {
     await deleteD1ControllerProfile(db, 'github:123', 'ctrl-1')
 
     expect(calls[0].values.slice(0, 2)).toEqual(['github:123', 'ctrl-1'])
-    expect(calls[0].values).toHaveLength(19)
+    expect(calls[0].values).toHaveLength(20)
     expect(calls[0].values).toContain('Pixelblaze shelf')
     expect(calls[0].values).toContain('192.168.8.224')
     expect(calls[0].values).toContain(256)
@@ -206,6 +216,7 @@ describe('D1 controller profile persistence', () => {
     expect(calls[1].sql).toContain('last_known_map_dim = ?')
     expect(calls[1].sql).toContain('map_fingerprints_json = ?')
     expect(calls[1].sql).toContain('global_transforms_json = ?')
+    expect(calls[1].sql).toContain('electrical_profile_json = ?')
     expect(calls[1].sql).toContain('keep_patterns_up_to_date = ?')
     expect(calls[1].sql).toContain('output_profile = ?')
     expect(calls[1].sql).toContain('output_profile_note = ?')
@@ -217,6 +228,10 @@ describe('D1 controller profile persistence', () => {
     expect(calls[1].values).toContain(3)
     expect(calls[1].values).toContain(JSON.stringify([]))
     expect(calls[1].values).toContain(JSON.stringify(profile.globalTransforms))
+    expect(calls[1].values).toContain(JSON.stringify({
+      ledPresetId: 'ws2812-5v-individual',
+      supplyBudget: { value: 15, unit: 'watts' },
+    }))
     expect(calls[1].values.slice(-2)).toEqual(['github:123', 'ctrl-1'])
     expect(calls[2].values).toEqual(['github:123', 'ctrl-1'])
   })

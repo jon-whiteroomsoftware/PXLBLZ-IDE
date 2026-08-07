@@ -1,5 +1,6 @@
 import type { PowerCapSettings } from './powerCap'
 import type { FirmwareUpdateState } from './firmwareUpdate'
+import type { ControllerElectricalProfile } from './controllerElectricalProfile'
 
 export type ControllerBoardKind = 'pixelblaze-v3-standard'
 
@@ -210,6 +211,9 @@ export interface ControllerProfile {
   board: ControllerBoardProfile
   inputs: ControllerInput[]
   globalTransforms: GlobalTransform[]
+  /** Optional installation-level electrical model. It remains useful for
+   * telemetry even when the power-cap transform is disabled. */
+  electricalProfile?: ControllerElectricalProfile
   /** Opt-in non-destructive reconciliation of PXLBLZ-managed saved artifacts.
    * Missing on legacy records and therefore treated as false. */
   keepPatternsUpToDate?: boolean
@@ -405,6 +409,8 @@ export function validateControllerProfile(
     }
   }
 
+  validateElectricalProfile(profile.electricalProfile, errors)
+
   for (const binding of profile.patternBindings) {
     if (!inputIds.has(binding.inputId)) {
       errors.push({
@@ -483,6 +489,82 @@ export function validateControllerProfile(
   }
 
   return { ok: errors.length === 0, errors }
+}
+
+function validateElectricalProfile(
+  profile: ControllerElectricalProfile | undefined,
+  errors: ControllerProfileValidationIssue[],
+): void {
+  if (!profile) return
+  const presetIds = [
+    'ws2812-5v-individual',
+    'ws2811-12v-grouped',
+    'ws2815-12v-individual',
+    'custom',
+  ]
+  if (!presetIds.includes(profile.ledPresetId)) {
+    errors.push({
+      path: 'electricalProfile.ledPresetId',
+      message: `Electrical LED preset "${profile.ledPresetId}" is not supported.`,
+    })
+  }
+  if (!isPositive(profile.supplyBudget.value)) {
+    errors.push({
+      path: 'electricalProfile.supplyBudget.value',
+      message: 'Electrical supply budget must be greater than 0.',
+    })
+  }
+  if (!isElectricalUnit(profile.supplyBudget.unit)) {
+    errors.push({
+      path: 'electricalProfile.supplyBudget.unit',
+      message: 'Electrical supply budget unit must be amps or watts.',
+    })
+  }
+  if (profile.voltageOverride !== undefined && !isPositive(profile.voltageOverride)) {
+    errors.push({
+      path: 'electricalProfile.voltageOverride',
+      message: 'Electrical voltage override must be greater than 0.',
+    })
+  }
+  if (profile.ledPresetId === 'custom' && !profile.loadOverride) {
+    errors.push({
+      path: 'electricalProfile.loadOverride',
+      message: 'A custom electrical profile needs a full-white load override.',
+    })
+  }
+  if (!profile.loadOverride) return
+  if (!isPositive(profile.loadOverride.fullWhite.value)) {
+    errors.push({
+      path: 'electricalProfile.loadOverride.fullWhite.value',
+      message: 'Electrical load override must be greater than 0.',
+    })
+  }
+  if (!isElectricalUnit(profile.loadOverride.fullWhite.unit)) {
+    errors.push({
+      path: 'electricalProfile.loadOverride.fullWhite.unit',
+      message: 'Electrical load override unit must be amps or watts.',
+    })
+  }
+  if (!['manufacturer-rated', 'measured', 'custom'].includes(profile.loadOverride.source)) {
+    errors.push({
+      path: 'electricalProfile.loadOverride.source',
+      message: 'Electrical load override source is not supported.',
+    })
+  }
+  if (!Number.isInteger(profile.loadOverride.atPixelCount) || profile.loadOverride.atPixelCount <= 0) {
+    errors.push({
+      path: 'electricalProfile.loadOverride.atPixelCount',
+      message: 'Electrical load override pixel count must be a positive whole number.',
+    })
+  }
+}
+
+function isPositive(value: number): boolean {
+  return Number.isFinite(value) && value > 0
+}
+
+function isElectricalUnit(value: string): boolean {
+  return value === 'amps' || value === 'watts'
 }
 
 export function controllerProfileValidationErrors(

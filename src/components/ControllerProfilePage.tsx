@@ -32,15 +32,16 @@ import type { ProgramListEntry } from '@/engine/PixelblazeConnection'
 import type { BindingStore } from '@/engine/controllerBinding'
 import { getControllerBindings } from '@/engine/controllerMetadataStorage'
 import { installedControllerPatternChoices } from '@/engine/controllerSavedPrograms'
+import type { PowerCapSettings } from '@/engine/powerCap'
 import {
-  derivedPowerCapSettings,
-  directPowerCapSettings,
-  estimatePowerCapAmps,
-  powerCapElectricalInputs,
-  withPowerCapMilliamps,
-  type PowerCapSettings,
-} from '@/engine/powerCap'
-import { getControllerProvider } from '@/engine/controllerProviderRegistry'
+  LED_CONSTRUCTION_PRESETS,
+  findLedConstructionPreset,
+  resolveControllerElectricalProfile,
+  type ControllerElectricalProfile,
+  type ElectricalLoadSource,
+  type ElectricalUnit,
+  type LedConstructionPresetId,
+} from '@/engine/controllerElectricalProfile'
 import { controllerForProfile } from '@/engine/controllerProfileConnection'
 import { selectTransformArtifactInspection } from '@/engine/transformInspection'
 import { useControllerStore, type ControllerEntry } from '@/store/controllerStore'
@@ -67,6 +68,7 @@ const EMPTY_CONTROLLER_PROGRAMS: ProgramListEntry[] = []
 type SelectOption<T extends string | number> = {
   value: T
   label: string
+  disabled?: boolean
 }
 
 function formatMaybe(value: string | number | undefined | null, fallback = 'Unknown') {
@@ -262,7 +264,7 @@ function SelectField<T extends string | number>({
       className={`${fieldClass} disabled:opacity-40`}
     >
       {options.map((option) => (
-        <option key={String(option.value)} value={option.value}>
+        <option key={String(option.value)} value={option.value} disabled={option.disabled}>
           {option.label}
         </option>
       ))}
@@ -421,6 +423,314 @@ function ProfileStatus({
   )
 }
 
+function defaultElectricalProfile(): ControllerElectricalProfile {
+  return {
+    ledPresetId: 'ws2812-5v-individual',
+    supplyBudget: { value: 3, unit: 'amps' },
+  }
+}
+
+function synchronizeDerivedPowerCaps(
+  transforms: GlobalTransform[],
+  electricalProfile: ControllerElectricalProfile,
+  pixelCount?: number,
+): GlobalTransform[] {
+  const maxDuty = resolveControllerElectricalProfile(electricalProfile, { pixelCount }).maxDuty
+  if (maxDuty == null) return transforms
+  return transforms.map((transform) => transform.type === 'power-cap' && transform.mode === 'derived'
+    ? { ...transform, maxDuty }
+    : transform)
+}
+
+function formatElectricalPair(amps: number | null, watts: number | null): string {
+  if (amps != null && watts != null) return `${amps.toFixed(1)} A · ${watts.toFixed(1)} W`
+  if (amps != null) return `${amps.toFixed(1)} A`
+  if (watts != null) return `${watts.toFixed(1)} W`
+  return 'Needs more information'
+}
+
+function ElectricalProfileEditor({
+  electricalProfile,
+  pixelCount,
+  onChange,
+}: {
+  electricalProfile?: ControllerElectricalProfile
+  pixelCount?: number
+  onChange: (profile: ControllerElectricalProfile) => void
+}) {
+  if (!electricalProfile) {
+    return (
+      <div className="flex flex-wrap items-center justify-between gap-3 border border-dashed border-zinc-700/80 bg-zinc-950/30 px-3 py-3">
+        <div>
+          <div className="text-xs text-zinc-300">Describe the installed LEDs once.</div>
+          <p className="mt-0.5 text-[11px] text-zinc-500">
+            PXLBLZ can then express the same supply budget in amps, watts, and duty.
+          </p>
+        </div>
+        <Button type="button" size="xs" variant="outline" onClick={() => onChange(defaultElectricalProfile())}>
+          Configure electrical model
+        </Button>
+      </div>
+    )
+  }
+
+  const profile = electricalProfile
+  const resolved = resolveControllerElectricalProfile(electricalProfile, { pixelCount })
+  const selectedPreset = findLedConstructionPreset(electricalProfile.ledPresetId)
+  const override = electricalProfile.loadOverride
+  const presetOptions: SelectOption<LedConstructionPresetId>[] = [
+    ...LED_CONSTRUCTION_PRESETS.map((preset) => ({ value: preset.id, label: preset.label })),
+    {
+      value: 'custom',
+      label: pixelCount ? 'Custom / measured installation' : 'Custom / measured (needs address count)',
+      disabled: !pixelCount && electricalProfile.ledPresetId !== 'custom',
+    },
+  ]
+
+  function update(changes: Partial<ControllerElectricalProfile>) {
+    onChange({ ...profile, ...changes })
+  }
+
+  function changePreset(ledPresetId: LedConstructionPresetId) {
+    if (ledPresetId !== 'custom') {
+      onChange({ ledPresetId, supplyBudget: profile.supplyBudget })
+      return
+    }
+    if (!pixelCount) return
+    const fullWhiteWatts = resolved.fullWhiteWatts
+      ?? resolved.budgetWatts
+      ?? profile.supplyBudget.value
+    onChange({
+      ledPresetId,
+      supplyBudget: profile.supplyBudget,
+      ...(resolved.voltageVolts ? { voltageOverride: resolved.voltageVolts } : {}),
+      loadOverride: {
+        fullWhite: { value: fullWhiteWatts, unit: 'watts' },
+        source: 'custom',
+        atPixelCount: pixelCount,
+      },
+    })
+  }
+
+  function changeBudgetUnit(unit: ElectricalUnit) {
+    const equivalent = unit === 'amps' ? resolved.budgetAmps : resolved.budgetWatts
+    update({
+      supplyBudget: {
+        value: equivalent ?? profile.supplyBudget.value,
+        unit,
+      },
+    })
+  }
+
+  function enableOverride() {
+    if (!pixelCount) return
+    update({
+      loadOverride: {
+        fullWhite: {
+          value: resolved.fullWhiteWatts ?? resolved.budgetWatts ?? 1,
+          unit: 'watts',
+        },
+        source: 'measured',
+        atPixelCount: pixelCount,
+      },
+    })
+  }
+
+  return (
+    <div className="overflow-hidden border border-zinc-800 bg-zinc-950/40">
+      <div className="grid gap-3 px-3 py-3 [grid-template-columns:repeat(auto-fit,minmax(min(100%,13rem),1fr))]">
+        <LabeledField label="LED construction">
+          <SelectField
+            ariaLabel="LED construction preset"
+            value={electricalProfile.ledPresetId}
+            options={presetOptions}
+            onChange={changePreset}
+          />
+          {selectedPreset ? (
+            <span className="text-[10px] leading-4 text-zinc-500">
+              {selectedPreset.description}. Preset estimate: {selectedPreset.assumption}.{' '}
+              <a
+                href={selectedPreset.sourceUrl}
+                target="_blank"
+                rel="noreferrer"
+                className="text-zinc-400 underline decoration-zinc-700 underline-offset-2 hover:text-zinc-200"
+              >
+                Worldsemi reference
+              </a>
+            </span>
+          ) : (
+            <span className="text-[10px] leading-4 text-zinc-500">
+              A measured or manufacturer-rated installation total.
+            </span>
+          )}
+        </LabeledField>
+        <LabeledField label="Continuous LED supply budget">
+          <div className="grid grid-cols-[minmax(0,1fr)_5.5rem] gap-1.5">
+            <NumberField
+              ariaLabel="Continuous LED supply budget"
+              min={0.01}
+              step={0.1}
+              value={electricalProfile.supplyBudget.value}
+              onChange={(value) => update({
+                supplyBudget: { ...electricalProfile.supplyBudget, value },
+              })}
+            />
+            <SelectField
+              ariaLabel="Continuous LED supply budget unit"
+              value={electricalProfile.supplyBudget.unit}
+              options={[
+                { value: 'amps', label: 'Amps' },
+                { value: 'watts', label: 'Watts' },
+              ]}
+              onChange={changeBudgetUnit}
+            />
+          </div>
+          <span className="text-[10px] leading-4 text-zinc-500">
+            Use the continuous rating available to the LEDs, after other loads.
+          </span>
+        </LabeledField>
+      </div>
+
+      <div className="grid gap-px border-y border-zinc-800 bg-zinc-800 [grid-template-columns:repeat(auto-fit,minmax(min(100%,8rem),1fr))]">
+        <ElectricalMetric label="Addresses" value={pixelCount ? String(pixelCount) : 'Waiting for controller'} />
+        <ElectricalMetric
+          label={override ? 'Full-white load (override)' : 'Full-white load (estimate)'}
+          value={formatElectricalPair(resolved.fullWhiteAmps, resolved.fullWhiteWatts)}
+        />
+        <ElectricalMetric
+          label="Derived duty cap"
+          value={resolved.maxDuty == null ? 'Unavailable' : `${Math.round(resolved.maxDuty * 100)}%`}
+          accent={resolved.maxDuty != null}
+        />
+      </div>
+
+      {resolved.overrideStale && pixelCount && (
+        <div className="flex flex-wrap items-center justify-between gap-2 border-b border-amber-500/25 bg-amber-950/20 px-3 py-2 text-[11px] text-amber-200">
+          <span>This total was recorded at {override?.atPixelCount} addresses; the controller now reports {pixelCount}.</span>
+          <Button
+            type="button"
+            size="xs"
+            variant="outline"
+            onClick={() => override && update({ loadOverride: { ...override, atPixelCount: pixelCount } })}
+          >
+            Confirm for {pixelCount}
+          </Button>
+        </div>
+      )}
+
+      {!pixelCount && (
+        <div className="border-b border-amber-500/20 bg-amber-950/10 px-3 py-2 text-[11px] text-amber-200/90">
+          Connect or configure this controller to supply its address count. PXLBLZ will not invent one for power calculations.
+        </div>
+      )}
+
+      <details className="group px-3 py-2.5">
+        <summary className="cursor-pointer select-none text-[11px] font-medium text-zinc-400 hover:text-zinc-200">
+          Advanced: measured or manufacturer-rated total
+        </summary>
+        <div className="mt-3 grid gap-3 border-l border-zinc-800 pl-3 [grid-template-columns:repeat(auto-fit,minmax(min(100%,11rem),1fr))]">
+          <label className="flex items-center gap-2 text-[11px] text-zinc-300 [grid-column:1/-1]">
+            <input
+              type="checkbox"
+              aria-label="Override estimated full-white load"
+              checked={Boolean(override)}
+              disabled={!pixelCount || electricalProfile.ledPresetId === 'custom'}
+              onChange={(event) => event.target.checked
+                ? enableOverride()
+                : onChange({
+                    ledPresetId: electricalProfile.ledPresetId,
+                    supplyBudget: electricalProfile.supplyBudget,
+                  })}
+              className="accent-live disabled:opacity-40"
+            />
+            Override the estimated full-white installation load
+          </label>
+          {override && (
+            <>
+              <LabeledField label="Full-white total">
+                <div className="grid grid-cols-[minmax(0,1fr)_5.5rem] gap-1.5">
+                  <NumberField
+                    ariaLabel="Full-white installation total"
+                    min={0.01}
+                    step={0.1}
+                    value={override.fullWhite.value}
+                    onChange={(value) => update({
+                      loadOverride: {
+                        ...override,
+                        fullWhite: { ...override.fullWhite, value },
+                      },
+                    })}
+                  />
+                  <SelectField
+                    ariaLabel="Full-white installation total unit"
+                    value={override.fullWhite.unit}
+                    options={[
+                      { value: 'amps', label: 'Amps' },
+                      { value: 'watts', label: 'Watts' },
+                    ]}
+                    onChange={(unit) => update({
+                      loadOverride: {
+                        ...override,
+                        fullWhite: {
+                          value: (unit === 'amps' ? resolved.fullWhiteAmps : resolved.fullWhiteWatts)
+                            ?? override.fullWhite.value,
+                          unit,
+                        },
+                      },
+                    })}
+                  />
+                </div>
+              </LabeledField>
+              <LabeledField label="Source">
+                <SelectField<ElectricalLoadSource>
+                  ariaLabel="Full-white load source"
+                  value={override.source}
+                  options={[
+                    { value: 'measured', label: 'Measured' },
+                    { value: 'manufacturer-rated', label: 'Manufacturer-rated' },
+                    { value: 'custom', label: 'Custom estimate' },
+                  ]}
+                  onChange={(source) => update({ loadOverride: { ...override, source } })}
+                />
+              </LabeledField>
+              <LabeledField label="Supply voltage (for A/W conversion)">
+                <NumberField
+                  ariaLabel="Electrical supply voltage"
+                  min={0.1}
+                  step={0.1}
+                  value={electricalProfile.voltageOverride ?? resolved.voltageVolts ?? 5}
+                  onChange={(voltageOverride) => update({ voltageOverride })}
+                />
+              </LabeledField>
+            </>
+          )}
+        </div>
+      </details>
+
+      <div className="border-t border-zinc-800 px-3 py-2 text-[10px] leading-4 text-zinc-500">
+        Estimates are planning aids, not measurements. Size wire, fusing, injection, and supply headroom for the actual installation.
+      </div>
+    </div>
+  )
+}
+
+function ElectricalMetric({
+  label,
+  value,
+  accent = false,
+}: {
+  label: string
+  value: string
+  accent?: boolean
+}) {
+  return (
+    <div className="bg-zinc-950/90 px-3 py-2">
+      <div className="text-[9px] font-semibold uppercase tracking-wider text-zinc-500">{label}</div>
+      <div className={`mt-0.5 font-mono text-xs ${accent ? 'text-amber-300' : 'text-zinc-300'}`}>{value}</div>
+    </div>
+  )
+}
+
 function InputsList({
   profile,
   onUpdateInput,
@@ -548,11 +858,9 @@ const transformHelp: Record<GlobalTransform['type'], string> = {
 function GlobalTransformsList({
   profile,
   onUpdateTransforms,
-  liveBrightness,
 }: {
   profile: ControllerProfile
   onUpdateTransforms: (transforms: GlobalTransform[]) => void
-  liveBrightness?: number | null
 }) {
   function updateTransform(transformId: string, changes: Partial<GlobalTransform>) {
     onUpdateTransforms(profile.globalTransforms.map((transform) =>
@@ -604,8 +912,8 @@ function GlobalTransformsList({
             <div className="mt-2">
               <PowerCapEditor
                 transform={transform}
-                pixelCount={profile.lastKnownPixelCount ?? 256}
-                liveBrightness={liveBrightness}
+                electricalProfile={profile.electricalProfile}
+                pixelCount={profile.lastKnownPixelCount}
                 onChange={(settings) => updateTransform(transform.id, settings)}
               />
             </div>
@@ -618,46 +926,37 @@ function GlobalTransformsList({
 
 function PowerCapEditor({
   transform,
+  electricalProfile,
   pixelCount,
-  liveBrightness,
   onChange,
 }: {
   transform: PowerCapTransform
-  pixelCount: number
-  liveBrightness?: number | null
+  electricalProfile?: ControllerElectricalProfile
+  pixelCount?: number
   onChange: (settings: PowerCapSettings) => void
 }) {
-  const electrical = powerCapElectricalInputs(transform, pixelCount, liveBrightness)
-  const estimatedAmps = estimatePowerCapAmps(transform, pixelCount)
-
-  function applyDerived(changes: Partial<Omit<typeof electrical, 'pixelCount'>> = {}) {
-    onChange(derivedPowerCapSettings({ ...electrical, ...changes, pixelCount }))
-  }
-
-  function applyMilliampsPerPixel(milliampsPerPixel: number) {
-    if (transform.mode === 'derived') {
-      applyDerived({ milliampsPerPixel })
-    } else {
-      onChange(withPowerCapMilliamps(transform, milliampsPerPixel))
-    }
-  }
+  const resolved = electricalProfile
+    ? resolveControllerElectricalProfile(electricalProfile, { pixelCount })
+    : null
+  const derivedDuty = resolved?.maxDuty ?? null
 
   return (
     <div className="w-full min-w-0 max-w-[32rem] rounded border border-zinc-800 bg-zinc-950/70">
       <div className="border-b border-zinc-800/80 px-3 py-2">
         <div className="inline-flex items-center rounded border border-zinc-800 bg-zinc-950/60 p-0.5" aria-label="Power cap mode">
           {([
-            ['derived', 'From power budget'],
+            ['derived', 'From electrical profile'],
             ['direct', 'Set duty directly'],
           ] as const).map(([mode, label]) => (
             <button
               key={mode}
               type="button"
               aria-pressed={transform.mode === mode}
-              onClick={() => mode === 'derived'
-                ? applyDerived()
-                : onChange(directPowerCapSettings(transform, transform.maxDuty))}
-              className={`rounded-sm px-2 py-1 text-[11px] transition-colors ${
+              disabled={mode === 'derived' && derivedDuty == null}
+              onClick={() => mode === 'derived' && derivedDuty != null
+                ? onChange({ ...transform, mode: 'derived', maxDuty: derivedDuty })
+                : onChange({ ...transform, mode: 'direct' })}
+              className={`rounded-sm px-2 py-1 text-[11px] transition-colors disabled:cursor-not-allowed disabled:opacity-40 ${
                 transform.mode === mode ? 'bg-zinc-800 text-zinc-200' : 'text-zinc-500 hover:text-zinc-300'
               }`}
             >
@@ -667,42 +966,13 @@ function PowerCapEditor({
         </div>
       </div>
 
-      <div className="grid gap-2 px-3 py-2.5">
-        <PowerCapField label="LED full-white current" unit="mA/px">
-          <NumberField
-            ariaLabel="LED full-white current"
-            min={1}
-            step={1}
-            value={electrical.milliampsPerPixel}
-            onChange={applyMilliampsPerPixel}
-          />
-        </PowerCapField>
-      </div>
-
       {transform.mode === 'derived' ? (
-        <div className="grid gap-2 border-t border-zinc-800/80 px-3 py-2.5">
-          <PowerCapField
-            label="controller brightness"
-            hint={!transform.provenance && liveBrightness != null ? 'read from device' : undefined}
-          >
-            <PercentageField
-              ariaLabel="Controller brightness percent"
-              min={0}
-              max={1}
-              step={0.01}
-              value={electrical.brightness}
-              onChange={(brightness) => applyDerived({ brightness })}
-            />
-          </PowerCapField>
-          <PowerCapField label="power budget" unit="A">
-            <NumberField
-              ariaLabel="Power budget amps"
-              min={0}
-              step={0.1}
-              value={electrical.targetAmps}
-              onChange={(targetAmps) => applyDerived({ targetAmps })}
-            />
-          </PowerCapField>
+        <div className="border-t border-zinc-800/80 px-3 py-2.5 text-[11px] leading-4 text-zinc-400">
+          {derivedDuty != null ? (
+            <>Uses the installation load and supply budget above. Editing either keeps this cap synchronized.</>
+          ) : (
+            <>Add a complete electrical profile above to derive this cap. The stored legacy duty remains unchanged.</>
+          )}
         </div>
       ) : (
         <div className="border-t border-zinc-800/80 px-3 py-2.5">
@@ -713,7 +983,7 @@ function PowerCapEditor({
               max={1}
               step={0.01}
               value={transform.maxDuty}
-              onChange={(maxDuty) => onChange(directPowerCapSettings(transform, maxDuty))}
+              onChange={(maxDuty) => onChange({ ...transform, mode: 'direct', maxDuty })}
             />
           </PowerCapField>
         </div>
@@ -721,8 +991,8 @@ function PowerCapEditor({
 
       <div className="border-t border-zinc-800/80 px-3 py-2 font-mono text-[11px] leading-relaxed text-zinc-400">
         <span className="block font-semibold text-amber-300">{Math.round(transform.maxDuty * 100)}% duty cap</span>
-        {estimatedAmps != null && (
-          <span className="block">≈ {estimatedAmps.toFixed(1)} A at the current {pixelCount} px</span>
+        {resolved?.budgetAmps != null && resolved.budgetWatts != null && (
+          <span className="block">budget {resolved.budgetAmps.toFixed(1)} A · {resolved.budgetWatts.toFixed(1)} W</span>
         )}
       </div>
     </div>
@@ -1110,7 +1380,6 @@ export function ControllerProfilePage({ profileId }: { profileId: string }) {
   const removePatternBinding = useControllerProfileStore((state) => state.removePatternBinding)
   const refreshLiveMetadata = useControllerProfileStore((state) => state.refreshLiveMetadata)
   const controllers = useControllerStore((state) => state.controllers)
-  const activeIp = useControllerStore((state) => state.activeIp)
   const transformArtifacts = useControllerStore((state) => state.lastTransformArtifacts)
   const userPatterns = usePatternStore((state) => state.userPatterns)
   const profile = profiles.find((item) => item.id === profileId)
@@ -1120,34 +1389,15 @@ export function ControllerProfilePage({ profileId }: { profileId: string }) {
     liveIp ? state.programsByController[liveIp] ?? EMPTY_CONTROLLER_PROGRAMS : EMPTY_CONTROLLER_PROGRAMS
   ))
   const profileRefreshId = profile?.id
-  const [liveBrightnessRead, setLiveBrightnessRead] = useState<{ ip: string; value: number } | null>(null)
   const [controllerBindingsRead, setControllerBindingsRead] = useState<{
     controllerId: string
     bindings: BindingStore
   } | null>(null)
   const [bindingDraftOpen, setBindingDraftOpen] = useState(false)
-  const liveBrightness = liveBrightnessRead && liveBrightnessRead.ip === liveIp
-    ? liveBrightnessRead.value
-    : null
 
   useEffect(() => {
     if (profileRefreshId && liveIp) void refreshLiveMetadata(profileRefreshId)
   }, [liveIp, profileRefreshId, refreshLiveMetadata])
-
-  useEffect(() => {
-    let cancelled = false
-    if (!liveIp || activeIp !== liveIp) return
-    void getControllerProvider().getConfig()
-      .then((config) => {
-        if (!cancelled && typeof config.brightness === 'number') {
-          setLiveBrightnessRead({ ip: liveIp, value: config.brightness })
-        }
-      })
-      .catch(() => {})
-    return () => {
-      cancelled = true
-    }
-  }, [activeIp, liveIp])
 
   useEffect(() => {
     let cancelled = false
@@ -1210,6 +1460,20 @@ export function ControllerProfilePage({ profileId }: { profileId: string }) {
           {validation.errors.map((error) => error.message).join(' ')}
         </div>
       )}
+      <Section title="Electrical">
+        <ElectricalProfileEditor
+          electricalProfile={profile.electricalProfile}
+          pixelCount={profile.lastKnownPixelCount}
+          onChange={(electricalProfile) => void updateProfile(profile.id, {
+            electricalProfile,
+            globalTransforms: synchronizeDerivedPowerCaps(
+              profile.globalTransforms,
+              electricalProfile,
+              profile.lastKnownPixelCount,
+            ),
+          })}
+        />
+      </Section>
       <Section
         title="Hardware inputs"
         action={
@@ -1229,7 +1493,6 @@ export function ControllerProfilePage({ profileId }: { profileId: string }) {
       <Section title="Global transforms">
         <GlobalTransformsList
           profile={profile}
-          liveBrightness={liveBrightness}
           onUpdateTransforms={(globalTransforms) => void updateProfile(profile.id, { globalTransforms })}
         />
       </Section>

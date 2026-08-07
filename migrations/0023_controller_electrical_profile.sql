@@ -1,0 +1,7 @@
+ALTER TABLE controller_profiles ADD COLUMN electrical_profile_json TEXT;
+
+INSERT INTO app_metadata (key, value, updated_at)
+VALUES ('schema_version', '23', unixepoch())
+ON CONFLICT(key) DO UPDATE SET
+  value = excluded.value,
+  updated_at = excluded.updated_at;

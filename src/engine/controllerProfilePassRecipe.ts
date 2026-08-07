@@ -14,6 +14,7 @@ import {
   POWER_SINCE_START_MAX_FRAMES,
 } from './powerTelemetry'
 import type { MapDimension } from './renderCompatibility'
+import { resolveControllerElectricalProfile } from './controllerElectricalProfile'
 
 export interface LiveControllerIdentity {
   ip: string
@@ -39,7 +40,7 @@ export function controllerProfileArtifactSignature(
       transforms.push({
         type: transform.type,
         mixinId: transform.mixinId,
-        maxDuty: transform.maxDuty,
+        maxDuty: effectivePowerCapMaxDuty(profile, transform),
       })
       continue
     }
@@ -67,7 +68,10 @@ export function controllerProfileArtifactSignature(
  * to be scheduled; each Pattern still gets its narrower artifact signature. */
 export function controllerProfileReconciliationSignature(profile: ControllerProfile): string {
   return JSON.stringify({
-    globalTransforms: profile.globalTransforms,
+    globalTransforms: profile.globalTransforms.map((transform) =>
+      transform.type === 'power-cap'
+        ? { ...transform, maxDuty: effectivePowerCapMaxDuty(profile, transform) }
+        : transform),
     inputs: profile.inputs,
     patternBindings: profile.patternBindings,
   })
@@ -169,7 +173,7 @@ export function controllerProfilePassRecipe(
           rgb: '__px_cappedRgb',
         },
         params: {
-          MAX_DUTY: powerCap.maxDuty,
+          MAX_DUTY: effectivePowerCapMaxDuty(profile, powerCap),
           RECENT_WINDOW_MS: POWER_RECENT_WINDOW_MS,
           CAP_RESPONSE_MS: POWER_CAP_RESPONSE_MS,
           SINCE_START_MAX_FRAMES: POWER_SINCE_START_MAX_FRAMES,
@@ -191,6 +195,16 @@ export function controllerProfilePassRecipe(
   }
 
   return recipe
+}
+
+function effectivePowerCapMaxDuty(
+  profile: ControllerProfile | null | undefined,
+  transform: PowerCapTransform,
+): number {
+  if (transform.mode !== 'derived' || !profile?.electricalProfile) return transform.maxDuty
+  return resolveControllerElectricalProfile(profile.electricalProfile, {
+    pixelCount: profile.lastKnownPixelCount,
+  }).maxDuty ?? transform.maxDuty
 }
 
 function patternBindingSamplePass(

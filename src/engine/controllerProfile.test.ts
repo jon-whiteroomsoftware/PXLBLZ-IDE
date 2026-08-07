@@ -141,6 +141,28 @@ describe('ControllerProfile validation', () => {
     ])
   })
 
+  it('validates the installation electrical model independently of the power cap', () => {
+    const profile: ControllerProfile = {
+      ...baseProfile,
+      electricalProfile: {
+        ledPresetId: 'custom',
+        supplyBudget: { value: -1, unit: 'watts' },
+        voltageOverride: 0,
+        loadOverride: {
+          fullWhite: { value: 4, unit: 'amps' },
+          source: 'measured',
+          atPixelCount: 0,
+        },
+      },
+    }
+
+    expect(controllerProfileValidationErrors(validateControllerProfile(profile))).toEqual([
+      'Electrical supply budget must be greater than 0.',
+      'Electrical voltage override must be greater than 0.',
+      'Electrical load override pixel count must be a positive whole number.',
+    ])
+  })
+
   it('parses and formats named zones as lists of pixel-index ranges', () => {
     const parsed = parseControllerZoneRanges('0-3, 28-31 · 64')
 

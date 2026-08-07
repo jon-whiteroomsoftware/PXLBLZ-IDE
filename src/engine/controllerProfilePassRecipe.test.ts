@@ -116,6 +116,39 @@ describe('controller profile pass recipe', () => {
     ])
   })
 
+  it('resolves a derived cap from the current installation electrical profile', () => {
+    const profile: ControllerProfile = {
+      ...defaultControllerProfile({ id: 'ctrl-electrical', now: 1 }),
+      lastKnownPixelCount: 100,
+      electricalProfile: {
+        ledPresetId: 'ws2812-5v-individual',
+        supplyBudget: { value: 15, unit: 'watts' },
+      },
+      globalTransforms: [{
+        id: 'power-cap',
+        type: 'power-cap',
+        enabled: true,
+        mixinId: 'builtin:power-cap',
+        mode: 'derived',
+        maxDuty: 0.42,
+      }],
+    }
+
+    const recipe = controllerProfilePassRecipe(
+      profile,
+      'export function render(i) { hsv(i, 1, 1) }',
+    )
+    expect(recipe[0]).toHaveProperty('params.MAX_DUTY', 0.5)
+
+    const changedCount = { ...profile, lastKnownPixelCount: 200 }
+    expect(controllerProfileArtifactSignature(changedCount)).not.toBe(
+      controllerProfileArtifactSignature(profile),
+    )
+    expect(controllerProfileReconciliationSignature(changedCount)).not.toBe(
+      controllerProfileReconciliationSignature(profile),
+    )
+  })
+
   it('builds the same power-cap recipe for rgb output patterns', () => {
     const profile = {
       ...defaultControllerProfile({ id: 'ctrl-rgb', now: 1 }),

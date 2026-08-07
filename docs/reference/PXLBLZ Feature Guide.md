@@ -395,7 +395,8 @@ keyed by its stable device id rather than its IP. Profiles appear when signed
 in and connected hardware reports that id, and stay editable while the
 hardware is offline. A profile holds the last-seen device facts, hardware
 inputs, global transforms, per-Pattern bindings, named zones used by Shows,
-map fingerprints, and your declared output wiring.
+map fingerprints, your declared output wiring, and an optional installation
+electrical model.
 
 The Firmware fact also keeps the last conclusive update state reported while
 the Controller was connected. **Update available** remains visible there after
@@ -414,10 +415,14 @@ The interesting part is what a profile can do to generated code:
 - **Hardware brightness** samples an input each frame and scales supported
   output calls, separate from the Controller's native brightness, which
   remains the final physical safety control.
-- **Power cap** limits output duty, either set directly or derived from
-  per-pixel milliamps and a target draw. The live panel shows an estimated
-  draw and a volatile live duty slider; PXLBLZ does not pretend to be an
-  ammeter.
+- **Electrical profile and power cap.** Choose the installed LED construction
+  and enter the continuous LED supply budget in amps or watts. PXLBLZ uses the
+  Controller's known address count to estimate full-white load and can derive a
+  duty cap from that budget. Advanced setup accepts a measured,
+  manufacturer-rated, or custom installation total in either unit and warns if
+  the address count later changes. A direct duty cap remains available. The live
+  panel reports contextual A/W estimates; PXLBLZ does not pretend to be an
+  ammeter or replace physical power-system design.
 
 Missing binding targets produce transform warnings rather than silent partial
 behavior, and **View generated artifact** always shows exactly what was

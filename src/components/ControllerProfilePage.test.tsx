@@ -64,12 +64,6 @@ class MapReadbackProvider extends NullControllerProvider {
   }
 }
 
-class LiveBrightnessProvider extends MapReadbackProvider {
-  getConfig() {
-    return Promise.resolve({ brightness: 0.5, pixelCount: 240 })
-  }
-}
-
 class ProgramListProvider extends MapReadbackProvider {
   programs: Array<{ id: string; name: string }> = []
   recoveredPrograms = new Map<string, RecoveredSavedProgram>()
@@ -746,17 +740,18 @@ describe('ControllerProfilePage', () => {
       </div>,
     )
 
-    const milliampsInput = screen.getByRole('spinbutton', { name: 'LED full-white current' })
-    expect(milliampsInput).toHaveValue(60)
-    fireEvent.change(milliampsInput, { target: { value: '45' } })
-    fireEvent.blur(milliampsInput)
+    fireEvent.click(screen.getByRole('button', { name: 'Configure electrical model' }))
+    onAncestorClick.mockClear()
+    const budgetInput = await screen.findByRole('spinbutton', { name: 'Continuous LED supply budget' })
+    expect(budgetInput).toHaveValue(3)
+    fireEvent.change(budgetInput, { target: { value: '4.5' } })
+    fireEvent.blur(budgetInput)
 
     await waitFor(() => {
       const profile = useControllerProfileStore.getState().profiles[0]
-      expect(profile.globalTransforms.find((transform) => transform.id === 'power-cap')).toMatchObject({
-        mode: 'direct',
-        maxDuty: 0.25,
-        milliampsPerPixel: 45,
+      expect(profile.electricalProfile).toEqual({
+        ledPresetId: 'ws2812-5v-individual',
+        supplyBudget: { value: 4.5, unit: 'amps' },
       })
     })
 
@@ -791,58 +786,49 @@ describe('ControllerProfilePage', () => {
     })
 
     render(<ControllerProfilePage profileId="ctrl-1" />)
-    fireEvent.click(screen.getByRole('button', { name: 'From power budget' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Configure electrical model' }))
+    await screen.findByRole('spinbutton', { name: 'Continuous LED supply budget' })
+    fireEvent.change(screen.getByRole('combobox', { name: 'Continuous LED supply budget unit' }), {
+      target: { value: 'watts' },
+    })
+    const budget = screen.getByRole('spinbutton', { name: 'Continuous LED supply budget' })
+    fireEvent.change(budget, { target: { value: '36' } })
+    fireEvent.blur(budget)
+    await waitFor(() => expect(screen.getByText('50%')).toBeInTheDocument())
+    fireEvent.click(screen.getByRole('button', { name: 'From electrical profile' }))
 
-    expect(await screen.findByRole('spinbutton', { name: 'LED full-white current' })).toHaveValue(60)
-    expect(screen.getByRole('textbox', { name: 'Controller brightness percent exact percentage' })).toHaveValue('100')
-    expect(screen.getByRole('spinbutton', { name: 'Power budget amps' })).toHaveValue(3.6)
     expect(screen.queryByRole('spinbutton', { name: 'Pixel count' })).not.toBeInTheDocument()
 
-    fireEvent.change(screen.getByRole('textbox', { name: 'Controller brightness percent exact percentage' }), {
-      target: { value: '50%' },
-    })
-    fireEvent.blur(screen.getByRole('textbox', { name: 'Controller brightness percent exact percentage' }))
-
     await waitFor(() => {
-      const transform = useControllerProfileStore.getState().profiles[0].globalTransforms
+      const savedProfile = useControllerProfileStore.getState().profiles[0]
+      const transform = savedProfile.globalTransforms
         .find((candidate) => candidate.type === 'power-cap')
       expect(transform).toMatchObject({
         mode: 'derived',
         maxDuty: 0.5,
-        milliampsPerPixel: 60,
-        provenance: {
-          targetAmps: 3.6,
-          brightness: 0.5,
-        },
+      })
+      expect(savedProfile.electricalProfile).toMatchObject({
+        ledPresetId: 'ws2812-5v-individual',
+        supplyBudget: { value: 36, unit: 'watts' },
       })
     })
   })
 
-  it('prefills missing calculator provenance from the active live Controller brightness', async () => {
+  it('does not invent an address count for an offline electrical profile', async () => {
     const profile = seedProfile()
     useControllerProfileStore.setState({
       profiles: [{
         ...profile,
-        lastKnownPixelCount: 240,
+        electricalProfile: {
+          ledPresetId: 'ws2815-12v-individual',
+          supplyBudget: { value: 24, unit: 'watts' },
+        },
         globalTransforms: profile.globalTransforms.map((transform) => (
           transform.type === 'power-cap' ? { ...transform, mode: 'derived' as const } : transform
         )),
       }],
       profilesLoaded: true,
     })
-    useControllerStore.setState({
-      activeIp: '192.168.8.224',
-      controllers: {
-        '192.168.8.224': {
-          ip: '192.168.8.224',
-          deviceId: 'pixelblaze_pb32_abc',
-          nickname: 'Burner bag',
-          phase: 'live',
-          mapDim: 2,
-        },
-      },
-    })
-    setControllerProvider(new LiveBrightnessProvider())
     setPersonalContentProvider({
       ...demoPersonalContentProvider,
       updateControllerProfile: async () => {},
@@ -850,10 +836,9 @@ describe('ControllerProfilePage', () => {
 
     render(<ControllerProfilePage profileId="ctrl-1" />)
 
-    await waitFor(() => {
-      expect(screen.getByRole('textbox', { name: 'Controller brightness percent exact percentage' })).toHaveValue('50')
-    })
-    expect(screen.getByText(/read from device/i)).toBeInTheDocument()
+    expect(screen.getByText('Waiting for controller')).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'From electrical profile' })).toBeDisabled()
+    expect(screen.queryByRole('spinbutton', { name: 'Pixel count' })).not.toBeInTheDocument()
   })
 
   it('shows the latest generated artifact inspection for the controller profile', () => {

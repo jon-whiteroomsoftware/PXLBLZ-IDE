@@ -10,6 +10,10 @@ import {
   type PowerCapSettings,
 } from './powerCap'
 import { POWER_LIMIT_VARIABLE_NAME } from './powerTelemetry'
+import {
+  resolveControllerElectricalProfile,
+  type ControllerElectricalProfile,
+} from './controllerElectricalProfile'
 
 export interface ControllerPanelTelemetry {
   /** Id of the program the Controller is currently running, if any. */
@@ -184,6 +188,7 @@ export interface ControllerPowerTelemetryContext {
   pixelCount: number
   brightness: number
   settings: PowerCapSettings
+  electricalProfile?: ControllerElectricalProfile
 }
 
 export const CONTROLLER_POWER_TELEMETRY_KEYS = {
@@ -224,6 +229,10 @@ function formatMilliamps(value: number): string {
 
 function formatEstimatedAmps(value: number): string {
   return `≈ ${value.toFixed(1)} A`
+}
+
+function formatEstimatedElectricalDraw(amps: number, watts: number): string {
+  return `≈ ${amps.toFixed(1)} A · ${watts.toFixed(1)} W`
 }
 
 /** Format the device's exported variables for the read-only watch list. Skips
@@ -268,10 +277,20 @@ export function describeControllerPowerTelemetry(
     return null
   }
 
-  const estimatedAmps = context && typeof duty === 'number'
+  const effectiveDuty = typeof duty === 'number'
+    ? duty * (typeof scale === 'number' ? scale : 1)
+    : null
+  const electricalResolution = context?.electricalProfile && effectiveDuty != null
+    ? resolveControllerElectricalProfile(context.electricalProfile, {
+        pixelCount: context.pixelCount,
+        duty: effectiveDuty,
+        brightness: context.brightness,
+      })
+    : null
+  const estimatedAmps = context && effectiveDuty != null
     ? estimatePowerCapAmps({
         ...context.settings,
-        maxDuty: duty * (typeof scale === 'number' ? scale : 1),
+        maxDuty: effectiveDuty,
       }, context.pixelCount, context.brightness)
     : null
   const milliampsPerPixel = context
@@ -300,12 +319,24 @@ export function describeControllerPowerTelemetry(
       : null,
     scaleLabel: typeof scale === 'number' ? formatPercent(scale) : PLACEHOLDER,
     clippingLabel: typeof clipping === 'number' && clipping > 0 ? 'yes' : 'no',
-    estimatedDrawLabel: estimatedAmps != null
+    estimatedDrawLabel: electricalResolution?.estimatedDrawAmps != null
+      && electricalResolution.estimatedDrawWatts != null
+      ? formatEstimatedElectricalDraw(
+          electricalResolution.estimatedDrawAmps,
+          electricalResolution.estimatedDrawWatts,
+        )
+      : estimatedAmps != null
       ? formatEstimatedAmps(estimatedAmps)
       : typeof milliamps === 'number'
         ? formatEstimatedAmps(milliamps / 1000)
         : PLACEHOLDER,
-    ...(context && milliampsPerPixel != null ? {
+    ...(context && electricalResolution ? {
+      estimatedDrawAssumptions: [
+        ...electricalResolution.assumptions.map(assumption => assumption.replace(': ', ' · ')),
+        `${context.pixelCount} addresses`,
+        `${formatPercent(context.brightness)} brightness`,
+      ].join(' · '),
+    } : context && milliampsPerPixel != null ? {
       estimatedDrawAssumptions: `at ${formatVarValue(milliampsPerPixel)} mA/px × ${context.pixelCount} px × ${formatPercent(context.brightness)} brightness`,
     } : {}),
   }

@@ -25,6 +25,7 @@ const showOutputEffectsMigrationPath = path.resolve('migrations/0017_show_output
 const betaAccessMigrationPath = path.resolve('migrations/0020_beta_access.sql')
 const betaAccessMultipleEmailsMigrationPath = path.resolve('migrations/0021_beta_access_multiple_emails.sql')
 const canonicalGmailBetaAccessMigrationPath = path.resolve('migrations/0022_canonical_gmail_beta_access.sql')
+const controllerElectricalProfileMigrationPath = path.resolve('migrations/0023_controller_electrical_profile.sql')
 
 describe('D1 personal storage migration', () => {
   it('creates the storage buckets needed for the Cloudflare personal-storage foundation', () => {
@@ -202,5 +203,12 @@ describe('D1 personal storage migration', () => {
     expect(sql).not.toContain('INSERT INTO beta_access')
     expect(sql).not.toContain('ON CONFLICT(email)')
     expect(sql).toContain("VALUES ('schema_version', '22', unixepoch())")
+  })
+
+  it('adds the optional installation electrical model to controller profiles (#733)', () => {
+    const sql = fs.readFileSync(controllerElectricalProfileMigrationPath, 'utf8')
+
+    expect(sql).toContain('ALTER TABLE controller_profiles ADD COLUMN electrical_profile_json TEXT')
+    expect(sql).toContain("VALUES ('schema_version', '23', unixepoch())")
   })
 })

@@ -777,6 +777,8 @@ A profile contains:
   firmware-update observation tied to an installed firmware version;
 - typed hardware inputs with board-safe pin validation;
 - enabled global transforms;
+- an optional installation electrical model with LED construction, supply
+  budget, and an optional full-white load override;
 - the opt-in managed-artifact reconciliation preference;
 - per-Pattern bindings;
 - named, possibly multi-range zones;
@@ -834,16 +836,39 @@ Hardware brightness samples a configured input once per frame. Power cap wraps
 supported HSV/RGB calls, estimates emitted duty, and scales output against the
 mutable exported `__px_powerLimit`.
 
+The Controller electrical profile is independent of that transform. Normal
+setup selects the installed LED construction and enters the continuous LED
+supply budget in amps or watts. The model uses the Controller's live or
+last-known address count; it never asks for a second power-specific count and
+never substitutes an invented count. The initial construction presets cover 5V
+individual RGB (WS2812/WS2813 class), typical 12V three-LED WS2811 segments, and
+12V individual RGB with backup data (WS2815 class). Each preset carries an
+explicit conservative full-white assumption rather than treating a chip-family
+name as an exact electrical specification.
+
+Advanced setup can replace the preset estimate with a total full-white
+installation draw in amps or watts and records whether that total was measured,
+manufacturer-rated, or custom. The authored unit and address count remain
+durable provenance. A changed address count makes the override stale until the
+user confirms it for the new installation. Custom models can omit voltage when
+the budget and load use the same unit; voltage is required to convert between
+amps and watts.
+
 Power telemetry separates three jobs:
 
 - a roughly two-second recent block average for a calm display;
 - a fixed-point-bounded since-start average; and
 - a roughly 250 ms internal response signal for limiting.
 
-The cap setpoint is normalized output duty. Electrical values are derivation
-provenance, not measurement. The Controller panel estimates amps from emitted
-duty after limiting, live native brightness, live pixel count, and stored
-full-white mA/pixel. Native brightness remains the final device-side cap.
+The cap setpoint remains normalized output duty, including for legacy and direct
+profiles. A pure resolver converts the electrical profile into full-white load,
+supply budget, and a derived duty setpoint; equivalent A/W inputs resolve to the
+same duty. Direct duty edits preserve their exact value. Electrical values are
+planning assumptions unless explicitly marked measured, not live measurement.
+The Controller panel applies emitted duty after limiting and live native
+brightness to the profile load, then reports both amps and watts when voltage is
+known. Native brightness remains the final device-side cap. None of this
+replaces installation wire, fuse, injection, supply-headroom, or thermal design.
 
 Reserved `__px_power*` exports render as structured power telemetry instead of
 ordinary watched vars. The live limit slider writes `setVars` and is volatile;

@@ -270,4 +270,25 @@ describe('describeControllerPowerTelemetry', () => {
       estimatedDrawAssumptions: 'at 60 mA/px × 240 px × 30% brightness',
     })
   })
+
+  it('shows amps and watts from the matching Controller electrical profile', () => {
+    expect(describeControllerPowerTelemetry({
+      __px_powerDutyRecent: 0.5,
+      __px_powerDutySinceStart: 0.4,
+      __px_powerLimit: 0.5,
+      __px_powerScale: 0.8,
+      __px_powerClipping: 1,
+    }, {
+      pixelCount: 100,
+      brightness: 0.5,
+      settings: { mode: 'derived', maxDuty: 0.5 },
+      electricalProfile: {
+        ledPresetId: 'ws2811-12v-grouped',
+        supplyBudget: { value: 3, unit: 'amps' },
+      },
+    })).toMatchObject({
+      estimatedDrawLabel: '≈ 1.2 A · 14.4 W',
+      estimatedDrawAssumptions: '12V 3-LED segments · 60 mA per address at 12V full white · 100 addresses · 50% brightness',
+    })
+  })
 })
