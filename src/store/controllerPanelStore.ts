@@ -63,11 +63,6 @@ interface ControllerPanelState {
    *  deliberate rather than janky (#213 follow-up). The poll ignores the device's
    *  reported count until it matches this, so the input never flashes back. */
   pixelCountPending: number | null
-  /** Number of coordinates in the device's installed pixel map, read back once on
-   *  start (H13, #205); null until read or when the device has no map. Surfaced
-   *  next to pixelCount so a count mismatch — silently dropped by firmware (#204) —
-   *  is visible. */
-  mapPointCount: number | null
   /** The running pattern's live controls (name → value). Seeded from the device,
    *  then slider-owned until the active pattern changes (so a scrub never fights
    *  the poll); reseeded when `activeProgramId` changes. */
@@ -75,7 +70,7 @@ interface ControllerPanelState {
   /** The running pattern's exported variables (name → value), read-only. Refreshed
    *  every poll. */
   vars: Record<string, number>
-  /** One-shot warm fetch: program list + installed map + a single poll, without
+  /** One-shot warm fetch: program list + a single poll, without
    *  starting the interval. Called on connect (#225) so the panel opens populated
    *  instead of empty-then-jumping, and reused by `start()` as its first tick. FPS
    *  is published only when `start()` owns an open-panel polling session. The
@@ -121,7 +116,6 @@ export const controllerPanelInitialState = {
   fpsSourceIp: null,
   pixelCount: null,
   pixelCountPending: null,
-  mapPointCount: null,
   activeControls: {} as Record<string, number>,
   vars: {} as Record<string, number>,
   programLabels: {} as Record<string, string>,
@@ -134,7 +128,6 @@ type ControllerPanelSnapshot = Pick<
   | 'programs'
   | 'pixelCount'
   | 'pixelCountPending'
-  | 'mapPointCount'
   | 'activeControls'
   | 'vars'
   | 'programLabels'
@@ -170,7 +163,6 @@ function snapshotFromState(state: ControllerPanelState): ControllerPanelSnapshot
     programs: state.programs,
     pixelCount: state.pixelCount,
     pixelCountPending: state.pixelCountPending,
-    mapPointCount: state.mapPointCount,
     activeControls: state.activeControls,
     vars: state.vars,
     programLabels: state.programLabels,
@@ -202,14 +194,6 @@ export const useControllerPanelStore = create<ControllerPanelState>()((set, get)
     const session = panelSession
     // Program names rarely change; fetch the list once and tolerate failure.
     void get().refreshPrograms(ip)
-    // The installed map rarely changes and read-back is a one-off HTTP fetch, so
-    // read it once (not every poll) to surface its point count (#205).
-    getControllerProvider()
-      .getPixelMap()
-      .then((map) => {
-        if (session === panelSession) set({ mapPointCount: map ? map.length : null })
-      })
-      .catch(() => {})
     // Load this Controller's program label cache (#237) so a previously run-only push
     // resolves to its name on reopen rather than the raw id. Keyed by Controller ip;
     // an unknown ip yields an empty cache (only the device list resolves names then).

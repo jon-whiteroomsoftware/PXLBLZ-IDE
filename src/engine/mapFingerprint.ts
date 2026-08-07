@@ -5,6 +5,7 @@ import type { ControllerMapFingerprint, ControllerProfile } from './controllerPr
 import type { MapRecord } from './personalContentRecords'
 
 export type StudioMapKind = 'stock' | 'user'
+export type InstalledMapIdentityKind = StudioMapKind | 'historical'
 
 export interface StudioMapFingerprintCandidate {
   id: string
@@ -16,7 +17,7 @@ export interface StudioMapFingerprintCandidate {
 export interface MapFingerprintMatch {
   id: string
   name: string
-  kind: StudioMapKind
+  kind: InstalledMapIdentityKind
   hash: string
   via: 'profile-record' | 'candidate'
 }
@@ -72,10 +73,17 @@ export function matchInstalledMapFingerprint(args: {
   if (profileRecord) {
     const candidate = byId.get(profileRecord.mapId)
     if (candidate) return { ...candidate, hash: args.hash, via: 'profile-record' }
+    return {
+      id: profileRecord.mapId,
+      name: profileRecord.mapName,
+      kind: 'historical',
+      hash: args.hash,
+      via: 'profile-record',
+    }
   }
 
-  const candidate = args.candidates.find((item) => item.hash === args.hash)
-  return candidate ? { ...candidate, via: 'candidate' } : null
+  const matches = args.candidates.filter((item) => item.hash === args.hash)
+  return matches.length === 1 ? { ...matches[0], via: 'candidate' } : null
 }
 
 function hashSourceAtPixelCount(source: string, pixelCount: number): string | null {

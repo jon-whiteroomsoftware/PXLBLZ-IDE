@@ -16,7 +16,11 @@ import {
   type DiscoveredController,
 } from '@/engine/ControllerProvider'
 import type { FirmwareUpdateState } from '@/engine/firmwareUpdate'
-import { mapDimension, type MapDimension } from '@/engine/sendToController'
+import type { MapDimension } from '@/engine/sendToController'
+import {
+  inspectInstalledMapData,
+  type LiveInstalledMapState,
+} from '@/engine/installedMapObservation'
 import { describePreflight, type PreflightWarning } from '@/engine/preflight'
 import { recommendedMapRemedy, type RecommendedMapRemedy } from '@/engine/patternMapRemedy'
 import { encodeMapData, resolveMapPushPoints } from '@/engine/mapPush'
@@ -120,6 +124,10 @@ export interface ControllerEntry {
   error?: string
   /** Non-null while Chrome is waiting for the helper popup's per-IP grant (#235). */
   authorizationNeededIp?: string | null
+  /** Canonical live `/pixelmap.dat` observation. Present facts and raw bytes come
+   * from one read; absent and read failure remain distinct. Optional only for
+   * legacy persisted entries created before installed-map observations existed. */
+  installedMap?: LiveInstalledMapState
   mapDim: MapDimension
 }
 
@@ -261,6 +269,12 @@ interface ControllerConnectionState {
   removeController: (ip: string) => Promise<void>
   /** Make `ip` the active Controller (points the registry's active provider at it). */
   setActive: (ip: string) => void
+  /** Refresh one Controller's canonical installed-map observation without adding
+   * the map read to telemetry polling. */
+  refreshInstalledMap: (
+    ip: string,
+    options?: { expectedFingerprint?: string },
+  ) => Promise<void>
   /** Send an acknowledged device-wide renderer command to exactly one Controller. */
   setRendererPaused: (ip: string, paused: boolean) => Promise<void>
   /** Startup auto-reconnect: try only the remembered last-connected Controller. */
@@ -370,6 +384,7 @@ export const controllerInitialState = {
 const providers = new Map<string, ControllerProvider>()
 const unsubscribers = new Map<string, () => void>()
 const rendererCommandGenerations = new Map<string, number>()
+const installedMapReadGenerations = new Map<string, number>()
 const firmwareUpdateCheckedAt = new Map<string, number>()
 const reconciliationTimers = new Map<string, ReturnType<typeof setTimeout>>()
 const FIRMWARE_UPDATE_CHECK_INTERVAL_MS = 60 * 60 * 1000
@@ -409,7 +424,7 @@ function phaseFromStatus(status: ControllerStatus): Partial<ControllerEntry> | n
 // preview size — is what the map must match) and write it. The hardware count is left
 // untouched. Throws on an unknown id, an unreadable device count, or any transport failure
 // so the caller can surface it.
-async function installStockMap(remedy: RecommendedMapRemedy): Promise<void> {
+async function installStockMap(remedy: RecommendedMapRemedy): Promise<string> {
   const spec = stockMapSpec(remedy.mapId)
   if (!spec) throw new Error(`Unknown map: ${remedy.mapId}`)
   const provider = getControllerProvider()
@@ -419,6 +434,7 @@ async function installStockMap(remedy: RecommendedMapRemedy): Promise<void> {
     throw new Error("Couldn't read the Controller's pixel count to size the map")
   }
   await provider.setPixelMap(points)
+  return mapDataHash(encodeMapData(points))
 }
 
 function withTransformSummary(
@@ -563,6 +579,41 @@ export const useControllerStore = create<ControllerConnectionState>()(
           setControllerProvider(providers.get(ip) ?? new NullControllerProvider())
         },
 
+        refreshInstalledMap: async (ip, options = {}) => {
+          const provider = providers.get(ip) ?? (get().activeIp === ip ? getControllerProvider() : null)
+          if (!provider || !get().controllers[ip]) return
+          const generation = (installedMapReadGenerations.get(ip) ?? 0) + 1
+          installedMapReadGenerations.set(ip, generation)
+          patchController(ip, { installedMap: { status: 'loading' } })
+
+          let observation: LiveInstalledMapState = { status: 'error', message: 'Map unavailable' }
+          const attempts = options.expectedFingerprint ? 3 : 1
+          for (let attempt = 0; attempt < attempts; attempt++) {
+            try {
+              observation = inspectInstalledMapData(await provider.getPixelMapData())
+            } catch (error) {
+              observation = {
+                status: 'error',
+                message: error instanceof Error ? error.message : String(error),
+              }
+            }
+            const settled = !options.expectedFingerprint
+              || (observation.status === 'present'
+                && observation.fingerprint === options.expectedFingerprint)
+            if (settled || attempt === attempts - 1) break
+            await new Promise((resolve) => setTimeout(resolve, 150 * (attempt + 1)))
+          }
+
+          if (
+            installedMapReadGenerations.get(ip) !== generation
+            || !get().controllers[ip]
+          ) return
+          patchController(ip, {
+            installedMap: observation,
+            mapDim: observation.status === 'present' ? observation.dimension : null,
+          })
+        },
+
         addController: async (controllerTarget, seedNickname) => {
           const { ip: target, connectTarget, seedNickname: targetSeed } =
             normalizeControllerTarget(controllerTarget, seedNickname)
@@ -606,6 +657,7 @@ export const useControllerStore = create<ControllerConnectionState>()(
                 ip: target,
                 deviceId: connectTarget.deviceId ?? null,
                 phase: 'pending',
+                installedMap: { status: 'loading' },
                 mapDim: null,
                 nickname: seed || undefined,
                 firmwareVersion: connectTarget.firmwareVersion,
@@ -633,10 +685,10 @@ export const useControllerStore = create<ControllerConnectionState>()(
           }
           if (initialConnection) assumeRendererPlaying(target)
 
-          // Live: read the nickname + installed-map dimensionality, remember the IP.
-          const [config, map] = await Promise.all([
+          // Live: read config and the one canonical raw installed-map observation.
+          const [config] = await Promise.all([
             provider.getConfig().catch(() => null),
-            provider.getPixelMap().catch(() => null),
+            get().refreshInstalledMap(target),
           ])
           const liveDeviceId = get().controllers[target]?.deviceId ?? connectTarget.deviceId ?? null
           const reportedName = config?.name ?? connectTarget.name
@@ -649,7 +701,6 @@ export const useControllerStore = create<ControllerConnectionState>()(
             // pill back to the bare IP. Keep the seeded/last-known name instead.
             ...(config?.name ? { nickname: config.name } : {}),
             ...(reportedFirmwareVersion ? { firmwareVersion: reportedFirmwareVersion } : {}),
-            mapDim: mapDimension(map),
           })
           // Remember the IP *and* the freshly-read name (#215). A device rename since
           // last session lands here, so the persisted nickname reflects the device's
@@ -717,6 +768,7 @@ export const useControllerStore = create<ControllerConnectionState>()(
         },
 
         removeController: async (ip) => {
+          installedMapReadGenerations.set(ip, (installedMapReadGenerations.get(ip) ?? 0) + 1)
           const provider = providers.get(ip)
           unsubscribers.get(ip)?.()
           unsubscribers.delete(ip)
@@ -1277,21 +1329,14 @@ export const useControllerStore = create<ControllerConnectionState>()(
           // the pattern push — surfaced through the same pushResult the button reads.
           set({ pushing: true, pushResult: null })
           try {
-            await installStockMap(remedy)
+            const expectedFingerprint = await installStockMap(remedy)
+            if (controllerId) {
+              await get().refreshInstalledMap(controllerId, { expectedFingerprint })
+            }
           } catch (err) {
             const message = err instanceof Error ? err.message : String(err)
             set({ pushing: false, pushResult: { ok: false, message } })
             return
-          }
-          // Reflect the now-installed map's dimensionality so the warning doesn't recur on
-          // the next push of this (or another matching-dim) pattern.
-          if (controllerId) {
-            set((s) => {
-              const entry = s.controllers[controllerId]
-              return entry
-                ? { controllers: { ...s.controllers, [controllerId]: { ...entry, mapDim: remedy.mapDim } } }
-                : {}
-            })
           }
           await get().pushActivePattern()
         },
@@ -1389,6 +1434,7 @@ export const useControllerStore = create<ControllerConnectionState>()(
             const config = await getControllerProvider().getConfig().catch(() => null)
             const points = resolveMapPushPoints(map.source, map.points, config?.pixelCount ?? null)
             await getControllerProvider().setPixelMap(points)
+            const pushedFingerprint = mapDataHash(encodeMapData(points))
             const profiles = await getPersonalContentProvider().listControllerProfiles().catch(() => [])
             const activeController = get().controllers[controllerId]
             const profile = activeController
@@ -1398,7 +1444,7 @@ export const useControllerStore = create<ControllerConnectionState>()(
               const pushedAt = Date.now()
               await getPersonalContentProvider().updateControllerProfile(profile.id, {
                 mapFingerprints: withMapFingerprintRecord(profile.mapFingerprints, {
-                  hash: mapDataHash(encodeMapData(points)),
+                  hash: pushedFingerprint,
                   mapId: map.id,
                   mapName: map.name,
                   devicePixelCount: points.length,
@@ -1407,6 +1453,9 @@ export const useControllerStore = create<ControllerConnectionState>()(
                 updatedAt: pushedAt,
               }).catch(() => {})
             }
+            await get().refreshInstalledMap(controllerId, {
+              expectedFingerprint: pushedFingerprint,
+            })
             set((s) => ({
               pushing: false,
               // A Controller has one map slot — a push always overwrites it in place,
@@ -1602,5 +1651,6 @@ export function __resetControllerProviders(): void {
   unsubscribers.clear()
   providers.clear()
   rendererCommandGenerations.clear()
+  installedMapReadGenerations.clear()
   firmwareUpdateCheckedAt.clear()
 }

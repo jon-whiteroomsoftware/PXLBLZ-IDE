@@ -26,6 +26,9 @@ const betaAccessMigrationPath = path.resolve('migrations/0020_beta_access.sql')
 const betaAccessMultipleEmailsMigrationPath = path.resolve('migrations/0021_beta_access_multiple_emails.sql')
 const canonicalGmailBetaAccessMigrationPath = path.resolve('migrations/0022_canonical_gmail_beta_access.sql')
 const controllerElectricalProfileMigrationPath = path.resolve('migrations/0023_controller_electrical_profile.sql')
+const installedMapObservationMigrationPath = path.resolve(
+  'migrations/0024_controller_installed_map_observation.sql',
+)
 
 describe('D1 personal storage migration', () => {
   it('creates the storage buckets needed for the Cloudflare personal-storage foundation', () => {
@@ -210,5 +213,14 @@ describe('D1 personal storage migration', () => {
 
     expect(sql).toContain('ALTER TABLE controller_profiles ADD COLUMN electrical_profile_json TEXT')
     expect(sql).toContain("VALUES ('schema_version', '23', unixepoch())")
+  })
+
+  it('adds the last successful installed-map observation to controller profiles (#740)', () => {
+    const sql = fs.readFileSync(installedMapObservationMigrationPath, 'utf8')
+
+    expect(sql).toContain(
+      'ALTER TABLE controller_profiles ADD COLUMN last_known_installed_map_json TEXT',
+    )
+    expect(sql).toContain("VALUES ('schema_version', '24', unixepoch())")
   })
 })

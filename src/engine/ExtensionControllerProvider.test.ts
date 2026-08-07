@@ -591,19 +591,19 @@ describe('ExtensionControllerProvider', () => {
       await expect(p.getPixelMap()).resolves.toBeNull()
     })
 
-    it('resolves null (never throws) on a helper read error', async () => {
-      const d = makeDeviceTransport({ mapError: '404 not found' })
+    it('rejects on a helper read error', async () => {
+      const d = makeDeviceTransport({ mapError: 'helper authorization failed' })
       const p = new ExtensionControllerProvider({ transport: d.transport })
       await p.connect(TARGET)
-      await expect(p.getPixelMap()).resolves.toBeNull()
+      await expect(p.getPixelMapData()).rejects.toThrow('helper authorization failed')
     })
 
-    it('resolves null when not connected (no target)', async () => {
+    it('rejects when not connected (no target)', async () => {
       const p = new ExtensionControllerProvider({ transport: makeDeviceTransport().transport })
-      await expect(p.getPixelMap()).resolves.toBeNull()
+      await expect(p.getPixelMapData()).rejects.toThrow('Not connected to a Controller')
     })
 
-    it('resolves null on timeout when the helper never answers', async () => {
+    it('rejects on timeout when the helper never answers', async () => {
       const d = makeDeviceTransport()
       const orig = d.transport.post
       d.transport.post = (m) => {
@@ -611,7 +611,7 @@ describe('ExtensionControllerProvider', () => {
       }
       const p = new ExtensionControllerProvider({ transport: d.transport, getMapTimeoutMs: 10 })
       await p.connect(TARGET)
-      await expect(p.getPixelMap()).resolves.toBeNull()
+      await expect(p.getPixelMapData()).rejects.toThrow('Installed map read timed out')
     })
   })
 

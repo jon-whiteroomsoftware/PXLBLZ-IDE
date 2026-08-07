@@ -4,7 +4,11 @@ import { getControllerProvider } from '@/engine/controllerProviderRegistry'
 import { getPersonalContentProvider } from '@/engine/personalContentProvider'
 import { newPersonalContentId } from '@/engine/personalContentMetadata'
 import { queueControllerProfileWrite } from '@/engine/controllerProfileWriteQueue'
-import { mapDimension } from '@/engine/sendToController'
+import {
+  toInstalledMapSnapshot,
+  type InstalledMapSnapshot,
+  type LiveInstalledMapState,
+} from '@/engine/installedMapObservation'
 import { controllerProfileReconciliationSignature } from '@/engine/controllerProfilePassRecipe'
 import {
   controllerProfileCreateSeed,
@@ -39,7 +43,11 @@ interface ControllerProfileState {
   }) => Promise<ControllerProfile>
   removeProfile: (id: string) => Promise<void>
   ensureProfileForLiveController: (
-    target: ControllerProfileJoinTarget & { phase: string; mapDim?: unknown },
+    target: ControllerProfileJoinTarget & {
+      phase: string
+      mapDim?: unknown
+      installedMap?: LiveInstalledMapState
+    },
   ) => Promise<ControllerProfile | null>
   updateProfile: (id: string, changes: Partial<Omit<ControllerProfile, 'id'>>) => Promise<void>
   addInput: (profileId: string) => Promise<void>
@@ -145,6 +153,23 @@ function patchProfile(
   return { ...profile, ...changes, updatedAt: changes.updatedAt ?? Date.now() }
 }
 
+function sameInstalledMapSnapshot(
+  left: InstalledMapSnapshot | undefined,
+  right: InstalledMapSnapshot | undefined,
+): boolean {
+  if (!left || !right || left.status !== right.status) return left === right
+  if (left.status === 'absent' && right.status === 'absent') {
+    return left.observedAt === right.observedAt
+  }
+  if (left.status === 'present' && right.status === 'present') {
+    return left.fingerprint === right.fingerprint
+      && left.dimension === right.dimension
+      && left.pointCount === right.pointCount
+      && left.observedAt === right.observedAt
+  }
+  return false
+}
+
 async function persistPatch(id: string, changes: Partial<Omit<ControllerProfile, 'id'>>): Promise<void> {
   await queueControllerProfileWrite(id, () =>
     getPersonalContentProvider().updateControllerProfile(id, changes),
@@ -180,6 +205,9 @@ export const useControllerProfileStore = create<ControllerProfileState>()((set, 
 
     const existing = findControllerProfileForDevice(get().profiles, target.deviceId)
     if (existing) {
+      const installedMap = target.installedMap
+        ? toInstalledMapSnapshot(target.installedMap)
+        : undefined
       const firmwareVersion = target.firmwareVersion
       const board = withControllerFirmwareUpdateReport(existing.board, {
         firmwareVersion,
@@ -195,6 +223,14 @@ export const useControllerProfileStore = create<ControllerProfileState>()((set, 
         ...(board !== existing.board
           ? { board }
           : {}),
+        ...(installedMap && !sameInstalledMapSnapshot(existing.lastKnownInstalledMap, installedMap)
+          ? {
+              lastKnownInstalledMap: installedMap,
+              ...(installedMap.status === 'present'
+                ? { lastKnownMapDim: installedMap.dimension }
+                : {}),
+            }
+          : {}),
       }
       if (Object.keys(changes).length > 0) await get().updateProfile(existing.id, changes)
       return get().profiles.find((profile) => profile.id === existing.id) ?? existing
@@ -205,8 +241,19 @@ export const useControllerProfileStore = create<ControllerProfileState>()((set, 
 
     const creation = (async () => {
       const baseProfile = defaultControllerProfile(controllerProfileCreateSeed(target))
+      const installedMap = target.installedMap
+        ? toInstalledMapSnapshot(target.installedMap)
+        : undefined
       const profile = {
         ...baseProfile,
+        ...(installedMap
+          ? {
+              lastKnownInstalledMap: installedMap,
+              ...(installedMap.status === 'present'
+                ? { lastKnownMapDim: installedMap.dimension }
+                : {}),
+            }
+          : {}),
         board: withControllerFirmwareUpdateReport(baseProfile.board, {
           firmwareVersion: target.firmwareVersion,
           state: target.firmwareUpdateState,
@@ -377,11 +424,14 @@ export const useControllerProfileStore = create<ControllerProfileState>()((set, 
     if (profile.deviceId && active.deviceId !== profile.deviceId) return
 
     const provider = getControllerProvider()
-    const [config, map] = await Promise.all([
+    const [config] = await Promise.all([
       provider.getConfig().catch(() => null),
-      provider.getPixelMap().catch(() => null),
+      live.refreshInstalledMap(active.ip),
     ])
-    const mapDim = mapDimension(map)
+    const refreshedInstalledMap = useControllerStore.getState().controllers[active.ip]?.installedMap
+    const installedMapSnapshot = refreshedInstalledMap
+      ? toInstalledMapSnapshot(refreshedInstalledMap)
+      : undefined
     const firmwareVersion = config?.firmwareVersion ?? active.firmwareVersion
     const liveName = config?.name ?? active.nickname
     const board = withControllerFirmwareUpdateReport(profile.board, { firmwareVersion })
@@ -392,7 +442,14 @@ export const useControllerProfileStore = create<ControllerProfileState>()((set, 
         : {}),
       ...(profile.lastSeenIp !== active.ip ? { lastSeenIp: active.ip } : {}),
       ...(typeof config?.pixelCount === 'number' ? { lastKnownPixelCount: config.pixelCount } : {}),
-      ...(mapDim ? { lastKnownMapDim: mapDim } : {}),
+      ...(installedMapSnapshot
+        ? {
+            lastKnownInstalledMap: installedMapSnapshot,
+            ...(installedMapSnapshot.status === 'present'
+              ? { lastKnownMapDim: installedMapSnapshot.dimension }
+              : {}),
+          }
+        : {}),
       ...(board !== profile.board
         ? { board }
         : {}),

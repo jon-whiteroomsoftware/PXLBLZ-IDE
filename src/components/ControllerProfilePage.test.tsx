@@ -154,6 +154,45 @@ function renderLiveProgramInventory(
 }
 
 describe('ControllerProfilePage', () => {
+  it('shows the durable installed-map snapshot while the Controller is offline', () => {
+    const base = seedProfile()
+    useControllerProfileStore.setState({
+      profiles: [{
+        ...base,
+        lastKnownInstalledMap: {
+          status: 'present',
+          fingerprint: '9a0c9e7f',
+          dimension: 2,
+          pointCount: 256,
+          observedAt: 1,
+        },
+        mapFingerprints: [{
+          hash: '9a0c9e7f',
+          mapId: 'deleted-square',
+          mapName: 'Square',
+          devicePixelCount: 256,
+          pushedAt: 1,
+        }],
+      }],
+    })
+
+    render(<ControllerProfilePage profileId="ctrl-1" />)
+
+    expect(screen.getByTestId('installed-map-presentation')).toHaveTextContent(
+      'Square2D· 256 points',
+    )
+    expect(screen.getByLabelText('Installed map dimension: 2D')).toBeInTheDocument()
+  })
+
+  it('shows a dash offline when no installed-map observation has succeeded', () => {
+    seedProfile()
+
+    render(<ControllerProfilePage profileId="ctrl-1" />)
+
+    const mapLabel = screen.getByText('Map')
+    expect(mapLabel.parentElement).toHaveTextContent('Map-')
+  })
+
   it('shows the current hardware input direction and persists inversion', async () => {
     const profile = seedProfile()
     useControllerProfileStore.setState({

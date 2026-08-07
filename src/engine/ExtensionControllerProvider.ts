@@ -500,25 +500,25 @@ export class ExtensionControllerProvider implements ControllerProvider {
    *  plain HTTP GET of `/pixelmap.dat`, which only the helper can do (mixed-content
    *  / CORS) — so, like compile, it's a one-off reqId-keyed relay round-trip, not a
    *  ws call. The helper returns the raw blob as base64; we decode it to the baked
-   *  [0,1] coordinate array. A device with no map, a read failure, or a timeout all
-   *  resolve null (never throw) — the connect path stays fast and failure-tolerant,
-   *  and the Send gate degrades to connected-only rather than blocking. */
+   *  [0,1] coordinate array. A successful response with no blob means the device has
+   *  no installed map; helper failures, malformed replies, and timeouts reject so the
+   *  observation layer can keep absence distinct from an unavailable read. */
   getPixelMap(): Promise<number[][] | null> {
     return this.getPixelMapData().then((bytes) => decodeMapData(bytes))
   }
 
   getPixelMapData(): Promise<Uint8Array | null> {
     const target = this.target
-    if (!target) return Promise.resolve(null)
+    if (!target) return Promise.reject(new Error('Not connected to a Controller'))
     const reqId = `get-map-${this.mapSeq++}`
-    return new Promise<Uint8Array | null>((resolve) => {
+    return new Promise<Uint8Array | null>((resolve, reject) => {
       let settled = false
-      const finish = (value: Uint8Array | null) => {
+      const finish = (fn: () => void) => {
         if (settled) return
         settled = true
         unsubscribe()
         this._clearTimeout(timer)
-        resolve(value)
+        fn()
       }
       const unsubscribe = this.transport.subscribe((msg) => {
         if (
@@ -527,15 +527,28 @@ export class ExtensionControllerProvider implements ControllerProvider {
           msg.type === 'map-data' &&
           msg.reqId === reqId
         ) {
-          if (msg.ok && msg.mapData != null) {
-            finish(base64ToBytes(msg.mapData))
+          if (!msg.ok) {
+            finish(() => reject(new Error(msg.error || 'Installed map could not be read')))
+          } else if (msg.mapData == null) {
+            finish(() => resolve(null))
+          } else if (typeof msg.mapData !== 'string') {
+            finish(() => reject(new Error('Malformed installed map response')))
           } else {
-            // No map on the device, or a read failure — both are "no usable map".
-            finish(null)
+            try {
+              const bytes = base64ToBytes(msg.mapData)
+              finish(() => resolve(bytes.length === 0 ? null : bytes))
+            } catch (error) {
+              finish(() => reject(
+                error instanceof Error ? error : new Error('Malformed installed map response'),
+              ))
+            }
           }
         }
       })
-      const timer = this._setTimeout(() => finish(null), this.getMapTimeoutMs)
+      const timer = this._setTimeout(
+        () => finish(() => reject(new Error('Installed map read timed out'))),
+        this.getMapTimeoutMs,
+      )
       this.transport.post({
         source: RELAY_SOURCE,
         dir: 'to-helper',

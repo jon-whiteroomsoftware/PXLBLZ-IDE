@@ -17,6 +17,13 @@ const profile: ControllerProfile = {
   lastSeenIp: '192.168.8.224',
   lastKnownPixelCount: 256,
   lastKnownMapDim: 2,
+  lastKnownInstalledMap: {
+    status: 'present',
+    fingerprint: 'abcd1234',
+    dimension: 2,
+    pointCount: 256,
+    observedAt: 95,
+  },
   mapFingerprints: [
     {
       hash: 'abcd1234',
@@ -127,6 +134,7 @@ describe('D1 controller profile persistence', () => {
       last_seen_ip: '192.168.8.224',
       last_known_pixel_count: 256,
       last_known_map_dim: 2,
+      last_known_installed_map_json: JSON.stringify(profile.lastKnownInstalledMap),
       map_fingerprints_json: JSON.stringify(profile.mapFingerprints),
       board_json: JSON.stringify(profile.board),
       inputs_json: JSON.stringify(profile.inputs),
@@ -154,6 +162,7 @@ describe('D1 controller profile persistence', () => {
       last_seen_ip: null,
       last_known_pixel_count: null,
       last_known_map_dim: null,
+      last_known_installed_map_json: null,
       map_fingerprints_json: null,
       board_json: JSON.stringify(profile.board),
       inputs_json: JSON.stringify([]),
@@ -190,6 +199,7 @@ describe('D1 controller profile persistence', () => {
       lastSeenIp: '192.168.8.99',
       lastKnownPixelCount: 512,
       lastKnownMapDim: 3,
+      lastKnownInstalledMap: { status: 'absent', observedAt: 200 },
       mapFingerprints: [],
       globalTransforms: profile.globalTransforms,
       electricalProfile: {
@@ -204,7 +214,7 @@ describe('D1 controller profile persistence', () => {
     await deleteD1ControllerProfile(db, 'github:123', 'ctrl-1')
 
     expect(calls[0].values.slice(0, 2)).toEqual(['github:123', 'ctrl-1'])
-    expect(calls[0].values).toHaveLength(20)
+    expect(calls[0].values).toHaveLength(21)
     expect(calls[0].values).toContain('Pixelblaze shelf')
     expect(calls[0].values).toContain('192.168.8.224')
     expect(calls[0].values).toContain(256)
@@ -214,6 +224,7 @@ describe('D1 controller profile persistence', () => {
     expect(calls[1].sql).toContain('last_seen_ip = ?')
     expect(calls[1].sql).toContain('last_known_pixel_count = ?')
     expect(calls[1].sql).toContain('last_known_map_dim = ?')
+    expect(calls[1].sql).toContain('last_known_installed_map_json = ?')
     expect(calls[1].sql).toContain('map_fingerprints_json = ?')
     expect(calls[1].sql).toContain('global_transforms_json = ?')
     expect(calls[1].sql).toContain('electrical_profile_json = ?')
@@ -226,6 +237,7 @@ describe('D1 controller profile persistence', () => {
     expect(calls[1].values).toContain('192.168.8.99')
     expect(calls[1].values).toContain(512)
     expect(calls[1].values).toContain(3)
+    expect(calls[1].values).toContain(JSON.stringify({ status: 'absent', observedAt: 200 }))
     expect(calls[1].values).toContain(JSON.stringify([]))
     expect(calls[1].values).toContain(JSON.stringify(profile.globalTransforms))
     expect(calls[1].values).toContain(JSON.stringify({

@@ -1,6 +1,7 @@
 import type { PowerCapSettings } from './powerCap'
 import type { FirmwareUpdateState } from './firmwareUpdate'
 import type { ControllerElectricalProfile } from './controllerElectricalProfile'
+import type { InstalledMapSnapshot } from './installedMapObservation'
 
 export type ControllerBoardKind = 'pixelblaze-v3-standard'
 
@@ -206,6 +207,9 @@ export interface ControllerProfile {
   lastKnownPixelCount?: number
   /** Last installed map dimensionality for offline display on the profile page. */
   lastKnownMapDim?: 1 | 2 | 3
+  /** Last successful present/absent `/pixelmap.dat` observation. Errors never
+   * replace it; identity is resolved against current maps when displayed. */
+  lastKnownInstalledMap?: InstalledMapSnapshot
   /** Encoded `/pixelmap.dat` fingerprints for maps this IDE pushed to the device. */
   mapFingerprints?: ControllerMapFingerprint[]
   board: ControllerBoardProfile

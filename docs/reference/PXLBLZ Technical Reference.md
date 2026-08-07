@@ -717,11 +717,20 @@ MAC, with discovery as fallback. IP and device name are mutable transport/displa
 facts. A connection without stable id is unclaimed but fully usable.
 
 `controllerStore` owns connection phase, discovery, active selection,
-reconnection, and push state. The last connected IP/nickname is persisted for a
-warm reconnect. `controllerPanelStore` polls the active Controller for config,
-telemetry, vars, controls, programs, map point count, and FPS. Same-Controller
+reconnection, push state, and the installed-map observation keyed by Controller
+IP. The last connected IP/nickname is persisted for a warm reconnect.
+`controllerPanelStore` polls the active Controller for config, telemetry, vars,
+controls, programs, and FPS; it does not read or own the installed map. Same-Controller
 reopen retains last-known panel values except FPS; FPS is a connection-session
 heartbeat and returns to unknown until the current provider reports it again.
+
+The connection enters map loading on connect and reads `/pixelmap.dat` once as
+raw bytes. `installedMapObservation.ts` validates the complete blob and derives
+its CRC-32 fingerprint, dimension, and point count together. The keyed live state
+then becomes present, confirmed absent, or failed. Panel/Profile opens and the
+Profile Refresh action request another one-off observation; map reads never join
+the one-second telemetry poll. Per-Controller generations discard superseded or
+late responses without redirecting them into whichever Controller is active.
 
 Device-wide renderer transport crosses the same provider boundary:
 `ControllerBar` calls the IP-keyed `controllerStore`, which selects that
@@ -806,6 +815,7 @@ A profile contains:
 - per-Pattern bindings;
 - named, possibly multi-range zones;
 - map fingerprint records;
+- the last successful present/absent installed-map snapshot for offline display;
 - a user-declared output profile (`native-serial` when absent, or
   `output-expander`, `pro-expander`, `clocked`) with an optional note; and
 - metadata used to join saved Controller programs to Studio source.
@@ -825,6 +835,13 @@ together.
 Profile edits update Zustand optimistically, serialize durable writes per
 profile, roll back the latest failed write, and expose a drain barrier. Pattern
 push waits for that barrier before deriving generated code.
+
+While a profile's Controller is live, its Map fact consumes that Controller's
+live observation. Offline, it uses `lastKnownInstalledMap`; a failed refresh
+does not replace this snapshot. The profile persists fingerprint, dimension,
+point count, status, and observation time, not raw bytes or a copied `MapRecord`.
+Identity is resolved at read time so current names and later-loaded personal maps
+can improve the display without another Controller round trip.
 
 ### Hardware inputs and bindings
 
@@ -1057,10 +1074,22 @@ Map transfer rules:
 - map read-back is HTTP `/pixelmap.dat`, not a WebSocket message.
 
 The format has no metadata field. Provenance is therefore a hash of exact
-encoded bytes. Successful send stores `{hash, mapId, mapName, devicePixelCount,
-pushedAt}`. Import first checks recorded fingerprints, then bakes and hashes
-current stock/personal candidates at the read count. A match opens existing
-source; a miss becomes a frozen imported map.
+encoded bytes. `getPixelMapData()` returns bytes for a successful read and
+`null` only for a confirmed 404/empty response; helper, authorization,
+disconnection, malformed-response, and timeout failures reject. Successful send
+stores `{hash, mapId, mapName, devicePixelCount, pushedAt}` as push provenance,
+then invalidates the live observation and performs bounded read-back retries.
+The final readable bytes remain authoritative even when they differ from the
+send.
+
+Identity resolution first checks the matching Controller profile's push records.
+An existing map id contributes its current name; an edited or deleted map still
+uses the stored push-time name. Otherwise the resolver bakes current stock and
+personal candidates at the observed count and compares exact encoded-byte
+fingerprints. Exactly one match supplies a name. Zero or multiple matches produce
+`Unknown map`. The Controller panel, Controller Profile, map import, and live Show
+compatibility consume this same observation and resolver; push history alone is
+never interpreted as the currently installed map.
 
 ---
 

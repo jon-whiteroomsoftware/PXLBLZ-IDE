@@ -23,6 +23,7 @@ import {
 import { validateControllerProfile } from '@/engine/controllerProfile'
 import { controllerInitialState, useControllerStore } from './controllerStore'
 import { __resetControllerProfileWriteQueue } from '@/engine/controllerProfileWriteQueue'
+import { encodeMapData } from '@/engine/mapPush'
 
 class FakeControllerProvider extends NullControllerProvider {
   config: ControllerConfig = {
@@ -40,6 +41,13 @@ class FakeControllerProvider extends NullControllerProvider {
       [0, 0, 0],
       [1, 1, 1],
     ])
+  }
+
+  getPixelMapData(): Promise<Uint8Array | null> {
+    return Promise.resolve(encodeMapData([
+      [0, 0, 0],
+      [1, 1, 1],
+    ]))
   }
 }
 
@@ -401,6 +409,82 @@ describe('controllerProfileStore', () => {
       board: {
         firmwareVersion: '3.68',
       },
+    })
+  })
+
+  it('persists successful installed-map snapshots and preserves them across read failure', async () => {
+    const profile = defaultControllerProfile({
+      id: 'ctrl-1',
+      deviceId: 'pixelblaze_pb32_3cd4ee549434',
+      now: 1,
+    })
+    const provider = memoryProvider([profile])
+    setPersonalContentProvider(provider)
+    await useControllerProfileStore.getState().loadProfiles()
+
+    await useControllerProfileStore.getState().ensureProfileForLiveController({
+      ip: '192.168.8.224',
+      deviceId: 'pixelblaze_pb32_3cd4ee549434',
+      phase: 'live',
+      mapDim: 2,
+      installedMap: {
+        status: 'present',
+        bytes: encodeMapData([[0, 0], [1, 1]]),
+        fingerprint: '9a0c9e7f',
+        dimension: 2,
+        pointCount: 2,
+        observedAt: 100,
+      },
+    })
+    await useControllerProfileStore.getState().ensureProfileForLiveController({
+      ip: '192.168.8.224',
+      deviceId: 'pixelblaze_pb32_3cd4ee549434',
+      phase: 'live',
+      mapDim: null,
+      installedMap: { status: 'error', message: 'timeout' },
+    })
+
+    useControllerProfileStore.setState(controllerProfileInitialState)
+    await useControllerProfileStore.getState().loadProfiles()
+    expect(useControllerProfileStore.getState().profiles[0].lastKnownInstalledMap).toEqual({
+      status: 'present',
+      fingerprint: '9a0c9e7f',
+      dimension: 2,
+      pointCount: 2,
+      observedAt: 100,
+    })
+  })
+
+  it('persists confirmed installed-map absence over the previous snapshot', async () => {
+    const profile = {
+      ...defaultControllerProfile({
+        id: 'ctrl-1',
+        deviceId: 'pixelblaze_pb32_3cd4ee549434',
+        now: 1,
+      }),
+      lastKnownInstalledMap: {
+        status: 'present' as const,
+        fingerprint: 'old',
+        dimension: 2 as const,
+        pointCount: 256,
+        observedAt: 1,
+      },
+    }
+    const provider = memoryProvider([profile])
+    setPersonalContentProvider(provider)
+    await useControllerProfileStore.getState().loadProfiles()
+
+    await useControllerProfileStore.getState().ensureProfileForLiveController({
+      ip: '192.168.8.224',
+      deviceId: 'pixelblaze_pb32_3cd4ee549434',
+      phase: 'live',
+      mapDim: null,
+      installedMap: { status: 'absent', observedAt: 200 },
+    })
+
+    expect(useControllerProfileStore.getState().profiles[0].lastKnownInstalledMap).toEqual({
+      status: 'absent',
+      observedAt: 200,
     })
   })
 

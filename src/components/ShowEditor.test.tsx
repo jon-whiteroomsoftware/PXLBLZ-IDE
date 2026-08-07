@@ -6607,6 +6607,62 @@ describe('ShowEditor (#318)', () => {
     expect(useControllerStore.getState().pushGeneratedArtifact).not.toHaveBeenCalled()
   })
 
+  it('does not reinterpret map push history as the live installed map', async () => {
+    const user = userEvent.setup()
+    const show = createShowWithOutputContract(
+      'show-live-map-truth',
+      'Live map truth',
+      createInstallationShowOutputContract({ outputMapId: 'plane', pixelCount: 8 }),
+      1000,
+    )
+    useShowStore.setState({ shows: [show], activeShowId: show.id, showsLoaded: true })
+    useControllerProfileStore.setState({
+      profilesLoaded: true,
+      profiles: [{
+        id: 'profile-live',
+        name: 'Bench PB',
+        lastSeenIp: '10.0.0.5',
+        lastKnownPixelCount: 8,
+        mapFingerprints: [{
+          hash: 'historical-only',
+          mapId: 'wide',
+          mapName: 'Wide 2:1',
+          devicePixelCount: 8,
+          pushedAt: 1,
+        }],
+        board: { kind: 'pixelblaze-v3-standard' },
+        inputs: [],
+        globalTransforms: [],
+        patternBindings: [],
+        zones: [],
+        updatedAt: 1,
+      }],
+    })
+    useControllerStore.setState({
+      controllers: {
+        '10.0.0.5': {
+          ip: '10.0.0.5',
+          nickname: 'Bench PB',
+          phase: 'live',
+          mapDim: 2,
+          firmwareVersion: '3.67',
+          installedMap: { status: 'absent', observedAt: 2 },
+        },
+      },
+      activeIp: '10.0.0.5',
+      pushGeneratedArtifact: vi.fn().mockResolvedValue(undefined),
+    })
+    setControllerProvider(new ConnectedControllerProvider())
+
+    render(<ShowEditor showId={show.id} />)
+    await user.click(screen.getByRole('button', { name: 'Run on Bench PB' }))
+
+    const dialog = screen.getByTestId('show-preflight-dialog')
+    expect(dialog).toHaveTextContent('This Installation Show expects its authored map')
+    expect(dialog).not.toHaveTextContent('Wide 2:1')
+    expect(screen.getByRole('button', { name: 'Send anyway' })).toBeInTheDocument()
+  })
+
   it('keeps the compile bar focused on source, VM capacity, and actionable feedback (#63)', () => {
     const show = createDefaultShow('show-library-pattern', 'Shape study', 1000)
     show.stageMapId = 'plane'

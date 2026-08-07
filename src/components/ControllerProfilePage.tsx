@@ -53,7 +53,14 @@ import {
 } from '@/store/controllerProfileStore'
 import { usePatternStore } from '@/store/patternStore'
 import { useControllerPanelStore } from '@/store/controllerPanelStore'
+import { useMapStore } from '@/store/mapStore'
 import { DEMOS } from '@/pixelblaze/stock/patterns'
+import { buildStudioMapFingerprintCandidates } from '@/engine/mapFingerprint'
+import {
+  describeInstalledMap,
+  type InstalledMapPresentation as InstalledMapPresentationView,
+} from '@/engine/installedMapObservation'
+import { InstalledMapPresentation } from './InstalledMapPresentation'
 import { StatusDot, type StatusTone } from './StatusDot'
 import { HelpHint } from './HelpHint'
 import { TransformInspectionPanel } from './TransformInspectionPanel'
@@ -74,10 +81,6 @@ type SelectOption<T extends string | number> = {
 
 function formatMaybe(value: string | number | undefined | null, fallback = 'Unknown') {
   return value === undefined || value === null || value === '' ? fallback : String(value)
-}
-
-function formatMapDim(dim: 1 | 2 | 3 | undefined) {
-  return dim ? `${dim}D` : 'Unknown'
 }
 
 const PROFILE_STATUS_TONE: Record<ControllerStatusTone, StatusTone> = {
@@ -384,10 +387,12 @@ function EmptyState({ children }: { children: React.ReactNode }) {
 function ProfileStatus({
   profile,
   controller,
+  installedMapPresentation,
   onDeclareOutputProfile,
 }: {
   profile: ControllerProfile
   controller: ControllerEntry | null
+  installedMapPresentation: InstalledMapPresentationView
   onDeclareOutputProfile: (outputProfile: ControllerOutputProfile) => void
 }) {
   const status = controller ? describeControllerPill(controller) : null
@@ -416,9 +421,12 @@ function ProfileStatus({
           <FieldLabel>Pixels</FieldLabel>{' '}
           <span className="font-mono text-zinc-300">{formatMaybe(profile.lastKnownPixelCount)}</span>
         </span>
-        <span>
-          <FieldLabel>Map</FieldLabel>{' '}
-          <span className="font-mono text-zinc-300">{formatMapDim(profile.lastKnownMapDim)}</span>
+        <span className="flex min-w-0 max-w-full items-center gap-1">
+          <FieldLabel>Map</FieldLabel>
+          <InstalledMapPresentation
+            presentation={installedMapPresentation}
+            className="min-w-0 flex-1 font-mono text-zinc-300"
+          />
         </span>
         <span>
           <FieldLabel>Firmware</FieldLabel>{' '}
@@ -1448,6 +1456,7 @@ export function ControllerProfilePage({ profileId }: { profileId: string }) {
   const controllers = useControllerStore((state) => state.controllers)
   const transformArtifacts = useControllerStore((state) => state.lastTransformArtifacts)
   const userPatterns = usePatternStore((state) => state.userPatterns)
+  const userMaps = useMapStore((state) => state.userMaps)
   const profile = profiles.find((item) => item.id === profileId)
   const profileController = profile ? controllerForProfile(profile, controllers) : null
   const liveIp = profileController?.phase === 'live' ? profileController.ip : undefined
@@ -1513,12 +1522,26 @@ export function ControllerProfilePage({ profileId }: { profileId: string }) {
   const bindingPatternOptions = liveIp
     ? installedBindingPatternOptions
     : offlineBindingPatternOptions
+  const installedMapObservation = profileController?.phase === 'live'
+    ? profileController.installedMap ?? { status: 'loading' as const }
+    : profile.lastKnownInstalledMap
+  const installedMapPresentation = describeInstalledMap({
+    observation: installedMapObservation,
+    profile,
+    candidates: installedMapObservation?.status === 'present'
+      ? buildStudioMapFingerprintCandidates({
+          userMaps,
+          pixelCount: installedMapObservation.pointCount,
+        })
+      : [],
+  })
 
   return (
     <div data-testid="controller-profile-page" className="h-full overflow-y-auto bg-zinc-950 text-zinc-200">
       <ProfileStatus
         profile={profile}
         controller={profileController}
+        installedMapPresentation={installedMapPresentation}
         onDeclareOutputProfile={(outputProfile) => void updateProfile(profile.id, { outputProfile })}
       />
       {!validation.ok && (

@@ -23,6 +23,10 @@ import { DeckSlider } from '@/components/DeckSlider'
 import { PixelCountPopover } from '@/components/PixelCountPopover'
 import { findProfileForLiveController } from '@/engine/controllerProfilePassRecipe'
 import { useControllerProfileStore } from '@/store/controllerProfileStore'
+import { useMapStore } from '@/store/mapStore'
+import { buildStudioMapFingerprintCandidates } from '@/engine/mapFingerprint'
+import { describeInstalledMap } from '@/engine/installedMapObservation'
+import { InstalledMapPresentation } from '@/components/InstalledMapPresentation'
 
 // The live Controller panel (H6, issue #198). A dashboard built from the *same*
 // shared deck template as the preview control deck — read-only telemetry (active
@@ -39,7 +43,7 @@ const PANEL_HINT = (
     items={[
       ['pattern', 'the pattern the Controller is currently running'],
       ['brightness', 'master output level on the device — applied live'],
-      ['map points', 'number of coordinates in the device’s installed pixel map'],
+      ['map', 'the installed map’s exact-byte identity, dimension, and point count'],
       ['pixel count', 'number of pixels configured on the device — editable; saved to the device so it survives a reboot'],
       ['IP', 'the device’s address on the local network'],
       ['fps', 'frame rate the device reports'],
@@ -125,14 +129,16 @@ export function ControllerPanel() {
 
   const start = useControllerPanelStore((s) => s.start)
   const stop = useControllerPanelStore((s) => s.stop)
+  const refreshInstalledMap = useControllerStore((s) => s.refreshInstalledMap)
   // Poll only while connected; tear the polling down on disconnect/unmount. Keyed
   // on the active Controller so switching pills restarts polling against the new
   // device (a fresh seed of brightness/controls) rather than fighting stale state.
   useEffect(() => {
     if (!connected) return
     start(activeIp ?? undefined)
+    if (activeIp) void refreshInstalledMap(activeIp)
     return () => stop()
-  }, [connected, activeIp, start, stop])
+  }, [connected, activeIp, refreshInstalledMap, start, stop])
 
   const brightness = useControllerPanelStore((s) => s.brightness)
   const activeProgramId = useControllerPanelStore((s) => s.activeProgramId)
@@ -140,13 +146,13 @@ export function ControllerPanel() {
   const programLabels = useControllerPanelStore((s) => s.programLabels)
   const fps = useControllerPanelStore((s) => s.fps)
   const pixelCount = useControllerPanelStore((s) => s.pixelCount)
-  const mapPointCount = useControllerPanelStore((s) => s.mapPointCount)
   const activeControls = useControllerPanelStore((s) => s.activeControls)
   const vars = useControllerPanelStore((s) => s.vars)
   const setBrightness = useControllerPanelStore((s) => s.setBrightness)
   const setControl = useControllerPanelStore((s) => s.setControl)
   const setPowerLimit = useControllerPanelStore((s) => s.setPowerLimit)
   const controllerProfiles = useControllerProfileStore((s) => s.profiles)
+  const userMaps = useMapStore((s) => s.userMaps)
   // Control help text isn't reported by the device; borrow it from the loaded
   // pattern's metadata, matched by control name (#190). When the editor holds a
   // different pattern (or a user/imported one with no descriptions) nothing matches
@@ -160,6 +166,22 @@ export function ControllerPanel() {
     if (c.description) controlDescriptions[c.exportName] = c.description
   }
 
+  const activeProfile = findProfileForLiveController(controllerProfiles, {
+    ip: status.controller.address,
+    deviceId: status.controller.deviceId,
+  })
+  const installedMap = controllerEntry?.installedMap ?? { status: 'loading' as const }
+  const mapPointCount = installedMap.status === 'present' ? installedMap.pointCount : null
+  const installedMapPresentation = describeInstalledMap({
+    observation: installedMap,
+    profile: activeProfile,
+    candidates: installedMap.status === 'present'
+      ? buildStudioMapFingerprintCandidates({
+          userMaps,
+          pixelCount: installedMap.pointCount,
+        })
+      : [],
+  })
   const { fpsLabel, pixelsLabel, mapPointsLabel, mapCountMismatch } =
     describeControllerPanel({
       activeProgramId,
@@ -171,10 +193,6 @@ export function ControllerPanel() {
     })
   const controls = shapeControllerControls(activeControls, controlDescriptions)
   const controlsHint = buildControlsHint(controls)
-  const activeProfile = findProfileForLiveController(controllerProfiles, {
-    ip: status.controller.address,
-    deviceId: status.controller.deviceId,
-  })
   const powerCapSettings = activeProfile?.globalTransforms.find(
     (transform) => transform.type === 'power-cap',
   )
@@ -229,17 +247,20 @@ export function ControllerPanel() {
         <div className="flex gap-x-4 items-start">
           <div className="flex-1 min-w-0 flex flex-col gap-y-2">
             <DeckTelemetry label="fps" value={fpsLabel} />
-            <DeckCell label="map points">
+            <DeckCell label="map">
               <span
-                className={`tabular-nums truncate ${mapCountMismatch ? 'text-amber-400' : 'text-live'}`}
+                className={`min-w-0 ${mapCountMismatch ? 'text-amber-400' : 'text-live'}`}
                 title={
                   mapCountMismatch
                     ? `Map has ${mapPointsLabel} points but the Controller has ${pixelsLabel} pixels — the firmware silently drops a mismatched map (#204).`
                     : undefined
                 }
-                data-testid="controller-map-points"
+                data-testid="controller-installed-map"
               >
-                {mapPointsLabel}
+                <InstalledMapPresentation
+                  presentation={installedMapPresentation}
+                  className="w-full"
+                />
               </span>
             </DeckCell>
             <DeckTelemetry label="IP" value={status.controller.address} />

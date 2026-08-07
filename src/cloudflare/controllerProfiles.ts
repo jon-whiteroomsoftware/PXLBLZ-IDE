@@ -12,6 +12,7 @@ import {
   type ControllerZone,
 } from '../engine/controllerProfile'
 import type { ControllerElectricalProfile } from '../engine/controllerElectricalProfile'
+import type { InstalledMapSnapshot } from '../engine/installedMapObservation'
 
 export interface D1DatabaseControllerProfilesLike {
   prepare(sql: string): D1ControllerProfileStatementLike
@@ -32,6 +33,7 @@ export interface D1ControllerProfileRow {
   last_seen_ip: string | null
   last_known_pixel_count: number | null
   last_known_map_dim: number | null
+  last_known_installed_map_json: string | null
   map_fingerprints_json: string | null
   board_json: string
   inputs_json: string
@@ -58,6 +60,9 @@ export function controllerProfileFromRow(row: D1ControllerProfileRow): Controlle
     ...(row.last_known_map_dim === 1 || row.last_known_map_dim === 2 || row.last_known_map_dim === 3
       ? { lastKnownMapDim: row.last_known_map_dim }
       : {}),
+    ...(row.last_known_installed_map_json
+      ? { lastKnownInstalledMap: parseJson<InstalledMapSnapshot>(row.last_known_installed_map_json) }
+      : {}),
     mapFingerprints: parseJson<ControllerMapFingerprint[]>(row.map_fingerprints_json, []),
     board: parseJson<ControllerBoardProfile>(row.board_json),
     inputs: parseJson<ControllerInput[]>(row.inputs_json),
@@ -83,7 +88,8 @@ export async function listD1ControllerProfiles(
       SELECT id, name, device_id, board_json, inputs_json, global_transforms_json, electrical_profile_json,
              keep_patterns_up_to_date, output_profile, output_profile_note,
              pattern_bindings_json, zones_json, last_known_device_name, last_seen_ip,
-             last_known_pixel_count, last_known_map_dim, map_fingerprints_json, updated_at
+             last_known_pixel_count, last_known_map_dim, last_known_installed_map_json,
+             map_fingerprints_json, updated_at
       FROM controller_profiles
       WHERE user_id = ?
       ORDER BY updated_at DESC
@@ -103,7 +109,8 @@ export async function getD1ControllerProfile(
       SELECT id, name, device_id, board_json, inputs_json, global_transforms_json, electrical_profile_json,
              keep_patterns_up_to_date, output_profile, output_profile_note,
              pattern_bindings_json, zones_json, last_known_device_name, last_seen_ip,
-             last_known_pixel_count, last_known_map_dim, map_fingerprints_json, updated_at
+             last_known_pixel_count, last_known_map_dim, last_known_installed_map_json,
+             map_fingerprints_json, updated_at
       FROM controller_profiles
       WHERE user_id = ? AND id = ?
       LIMIT 1
@@ -124,12 +131,13 @@ export async function createD1ControllerProfile(
     .prepare(`
       INSERT INTO controller_profiles (
         user_id, id, name, device_id, last_known_device_name, last_seen_ip,
-        last_known_pixel_count, last_known_map_dim, map_fingerprints_json, board_json, inputs_json,
+        last_known_pixel_count, last_known_map_dim, last_known_installed_map_json,
+        map_fingerprints_json, board_json, inputs_json,
         global_transforms_json, electrical_profile_json, keep_patterns_up_to_date, output_profile, output_profile_note,
         pattern_bindings_json, zones_json,
         created_at, updated_at
       )
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     `)
     .bind(
       userId,
@@ -140,6 +148,7 @@ export async function createD1ControllerProfile(
       profile.lastSeenIp ?? null,
       profile.lastKnownPixelCount ?? null,
       profile.lastKnownMapDim ?? null,
+      profile.lastKnownInstalledMap ? JSON.stringify(profile.lastKnownInstalledMap) : null,
       JSON.stringify(profile.mapFingerprints ?? []),
       JSON.stringify(profile.board),
       JSON.stringify(profile.inputs),
@@ -170,6 +179,13 @@ export async function updateD1ControllerProfile(
   addAssignment(assignments, values, 'last_seen_ip', changes.lastSeenIp ?? null, false, changes.lastSeenIp !== undefined)
   addAssignment(assignments, values, 'last_known_pixel_count', changes.lastKnownPixelCount ?? null, false, changes.lastKnownPixelCount !== undefined)
   addAssignment(assignments, values, 'last_known_map_dim', changes.lastKnownMapDim ?? null, false, changes.lastKnownMapDim !== undefined)
+  addAssignment(
+    assignments,
+    values,
+    'last_known_installed_map_json',
+    changes.lastKnownInstalledMap,
+    true,
+  )
   addAssignment(assignments, values, 'map_fingerprints_json', changes.mapFingerprints, true)
   addAssignment(assignments, values, 'board_json', changes.board, true)
   addAssignment(assignments, values, 'inputs_json', changes.inputs, true)

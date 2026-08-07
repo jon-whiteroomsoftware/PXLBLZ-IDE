@@ -18,14 +18,12 @@ import {
 } from '@/engine/importedMap'
 import {
   buildStudioMapFingerprintCandidates,
-  mapDataHash,
-  matchInstalledMapFingerprint,
   type MapFingerprintMatch,
 } from '@/engine/mapFingerprint'
+import { resolveInstalledMapIdentity } from '@/engine/installedMapObservation'
 import { decodeMapData } from '@/engine/mapPush'
 import { newPersonalContentId } from '@/engine/personalContentMetadata'
 import { uniquePatternName } from '@/engine/patternName'
-import { getControllerProvider } from '@/engine/controllerProviderRegistry'
 import { controllerForProfile } from '@/engine/controllerProfileConnection'
 import { useControllerStore } from '@/store/controllerStore'
 import { useControllerProfileStore } from '@/store/controllerProfileStore'
@@ -153,22 +151,31 @@ export function ControllerProfileHeaderActions({ profile }: { profile: Controlle
     setImportingMap(true)
     try {
       if (activeIp !== profileController.ip) setActiveController(profileController.ip)
-      const bytes = await getControllerProvider().getPixelMapData()
-      const points = decodeMapData(bytes)
+      let observation = useControllerStore.getState().controllers[profileController.ip]?.installedMap
+      if (observation?.status !== 'present') {
+        await useControllerStore.getState().refreshInstalledMap(profileController.ip)
+        observation = useControllerStore.getState().controllers[profileController.ip]?.installedMap
+      }
+      if (observation?.status !== 'present') {
+        throw new Error(
+          observation?.status === 'absent'
+            ? 'This controller has no installed pixel map.'
+            : 'The installed pixel map is unavailable. Refresh the profile and try again.',
+        )
+      }
+      const points = decodeMapData(observation.bytes)
       if (!points || points.length === 0) {
         throw new Error('No installed pixel map was returned by this controller.')
       }
-      const hash = bytes ? mapDataHash(bytes) : undefined
-      const match = hash
-        ? matchInstalledMapFingerprint({
-            hash,
-            profile,
-            candidates: buildStudioMapFingerprintCandidates({
-              userMaps,
-              pixelCount: points.length,
-            }),
-          }) ?? undefined
-        : undefined
+      const identity = resolveInstalledMapIdentity({
+        observation,
+        profile,
+        candidates: buildStudioMapFingerprintCandidates({
+          userMaps,
+          pixelCount: observation.pointCount,
+        }),
+      })
+      const match = identity?.kind === 'historical' ? undefined : identity ?? undefined
       const controllerName =
         profile.lastKnownDeviceName ??
         profileController.nickname ??
@@ -185,7 +192,7 @@ export function ControllerProfileHeaderActions({ profile }: { profile: Controlle
         controllerName,
         deviceId: profile.deviceId ?? profileController.deviceId ?? null,
         ip: profileController.ip,
-        mapHash: hash,
+        mapHash: observation.fingerprint,
         match,
       })
       setImportName(defaultName)

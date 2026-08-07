@@ -20,6 +20,7 @@ import {
   useControllerProfileStore,
 } from '@/store/controllerProfileStore'
 import { controllerInitialState, useControllerStore } from '@/store/controllerStore'
+import { encodeMapData } from '@/engine/mapPush'
 
 class ConnectedProvider extends NullControllerProvider {
   config: ControllerConfig = {
@@ -53,6 +54,9 @@ class ConnectedProvider extends NullControllerProvider {
   }
   getVars() {
     return Promise.resolve(this.vars)
+  }
+  getPixelMapData(): Promise<Uint8Array | null> {
+    return Promise.resolve(encodeMapData([[0, 0], [1, 1]]))
   }
   setBrightness(value: number, save = false): Promise<void> {
     this.brightnessWrites.push({ value, save })
@@ -127,6 +131,111 @@ describe('ControllerPanel', () => {
     const link = screen.getByRole('link', { name: 'Open Pixelblaze' })
     expect(link).toHaveAttribute('href', 'http://10.0.0.9/')
     expect(link).toHaveAttribute('target', '_blank')
+  })
+
+  it('shows the installed map name, map dimension, and point count in order', async () => {
+    const bytes = encodeMapData([[0, 0], [1, 1]])
+    const profile = {
+      ...defaultControllerProfile({ id: 'ctrl-1', deviceId: 'c1', now: 1 }),
+      mapFingerprints: [{
+        hash: '9a0c9e7f',
+        mapId: 'square',
+        mapName: 'Square',
+        devicePixelCount: 2,
+        pushedAt: 1,
+      }],
+    }
+    useControllerProfileStore.setState({ profiles: [profile], profilesLoaded: true })
+    useControllerStore.setState({
+      activeIp: '10.0.0.9',
+      controllers: {
+        '10.0.0.9': {
+          ip: '10.0.0.9',
+          deviceId: 'c1',
+          phase: 'live',
+          mapDim: 2,
+          installedMap: {
+            status: 'present',
+            bytes,
+            fingerprint: '9a0c9e7f',
+            dimension: 2,
+            pointCount: 2,
+            observedAt: 1,
+          },
+        },
+      },
+    })
+    setControllerProvider(new ConnectedProvider())
+
+    render(<ControllerPanel />)
+
+    const presentation = await screen.findByTestId('installed-map-presentation')
+    expect(presentation).toHaveTextContent('Square2D· 2 points')
+    expect(screen.getByLabelText('Installed map dimension: 2D')).toBeInTheDocument()
+  })
+
+  it('renders reading, unknown, absent, and unavailable from the shared live state', async () => {
+    const provider = new ConnectedProvider()
+    provider.getPixelMapData = () => new Promise<Uint8Array | null>(() => {})
+    useControllerStore.setState({
+      activeIp: '10.0.0.9',
+      controllers: {
+        '10.0.0.9': {
+          ip: '10.0.0.9',
+          deviceId: 'c1',
+          phase: 'live',
+          mapDim: null,
+          installedMap: { status: 'loading' },
+        },
+      },
+    })
+    setControllerProvider(provider)
+    render(<ControllerPanel />)
+    expect(screen.getByText('Reading map...')).toBeInTheDocument()
+
+    act(() => useControllerStore.setState((state) => ({
+      controllers: {
+        ...state.controllers,
+        '10.0.0.9': {
+          ...state.controllers['10.0.0.9'],
+          mapDim: 2,
+          installedMap: {
+            status: 'present',
+            bytes: encodeMapData([[0, 0], [1, 1]]),
+            fingerprint: 'unmatched',
+            dimension: 2,
+            pointCount: 2,
+            observedAt: 1,
+          },
+        },
+      },
+    })))
+    expect(screen.getByTestId('installed-map-presentation')).toHaveTextContent(
+      'Unknown map2D· 2 points',
+    )
+
+    act(() => useControllerStore.setState((state) => ({
+      controllers: {
+        ...state.controllers,
+        '10.0.0.9': {
+          ...state.controllers['10.0.0.9'],
+          mapDim: null,
+          installedMap: { status: 'absent', observedAt: 2 },
+        },
+      },
+    })))
+    expect(screen.getByText('No installed map')).toBeInTheDocument()
+
+    act(() => useControllerStore.setState((state) => ({
+      controllers: {
+        ...state.controllers,
+        '10.0.0.9': {
+          ...state.controllers['10.0.0.9'],
+          installedMap: { status: 'error', message: 'timeout' },
+        },
+      },
+    })))
+    expect(screen.getByText('Map unavailable')).toBeInTheDocument()
   })
 
   it('renders the running pattern controls and watched vars when connected', async () => {

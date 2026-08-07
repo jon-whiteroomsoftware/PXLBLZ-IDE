@@ -52,6 +52,7 @@ import { stampArtifact } from '@/engine/artifactStamp'
 import { showInitialState, useShowStore } from '@/store/showStore'
 import { createShowWithOutputContract } from '@/engine/showModel'
 import { createPortableShowOutputContract } from '@/engine/showOutputContract'
+import { encodeMapData } from '@/engine/mapPush'
 
 // A fake per-Controller provider with a real (if minimal) status machine, so we
 // can assert the keyed store's orchestration end-to-end. detectHelper acks true
@@ -130,6 +131,9 @@ class FakeProvider extends NullControllerProvider {
   getPixelMap(): Promise<number[][] | null> {
     return Promise.resolve(this.pixelMap)
   }
+  getPixelMapData(): Promise<Uint8Array | null> {
+    return Promise.resolve(this.pixelMap ? encodeMapData(this.pixelMap) : null)
+  }
   checkFirmwareUpdate(): Promise<FirmwareUpdateState> {
     this.firmwareUpdateChecks++
     return Promise.resolve(this.firmwareUpdateState)
@@ -182,6 +186,7 @@ class FakeProvider extends NullControllerProvider {
   setPixelMap(points: number[][], opts?: { save?: boolean }): Promise<void> {
     if (this.setPixelMapError) return Promise.reject(this.setPixelMapError)
     this.pushedMaps.push({ points, opts })
+    this.pixelMap = points
     return Promise.resolve()
   }
 
@@ -232,6 +237,16 @@ function makeReconcilingBytecode(byteLength = 16): Uint8Array {
 }
 
 const created = new Map<string, FakeProvider>()
+
+function deferred<T>() {
+  let resolve!: (value: T) => void
+  let reject!: (reason?: unknown) => void
+  const promise = new Promise<T>((res, rej) => {
+    resolve = res
+    reject = rej
+  })
+  return { promise, resolve, reject }
+}
 
 beforeEach(async () => {
   localStorage.clear()
@@ -377,15 +392,114 @@ describe('controllerStore (keyed)', () => {
     expect(store().extensionPresent).toBe(true)
   })
 
-  it('addController connects, becomes the active live pill, reads nickname + mapDim', async () => {
+  it('addController connects and derives the installed-map observation from one raw read', async () => {
     await store().addController('10.0.0.5')
     const entry = store().controllers['10.0.0.5']
     expect(entry.phase).toBe('live')
     expect(entry.deviceId).toBeNull()
     expect(entry.nickname).toBe('pixel-1')
     expect(entry.mapDim).toBe(2)
+    expect(entry.installedMap).toMatchObject({
+      status: 'present',
+      fingerprint: '9a0c9e7f',
+      dimension: 2,
+      pointCount: 2,
+    })
     expect(store().activeIp).toBe('10.0.0.5')
     expect(created.get('10.0.0.5')!.connects).toEqual([{ address: '10.0.0.5' }])
+  })
+
+  it('keeps confirmed absence distinct from a read failure', async () => {
+    setControllerProviderFactory((ip) => {
+      const provider = new FakeProvider()
+      provider.pixelMap = null
+      created.set(ip, provider)
+      return provider
+    })
+    await store().addController('10.0.0.5')
+    expect(store().controllers['10.0.0.5'].installedMap).toMatchObject({ status: 'absent' })
+
+    await store().removeController('10.0.0.5')
+    setControllerProviderFactory((ip) => {
+      const provider = new FakeProvider()
+      provider.getPixelMapData = () => Promise.reject(new Error('read failed'))
+      created.set(ip, provider)
+      return provider
+    })
+    await store().addController('10.0.0.5')
+    expect(store().controllers['10.0.0.5'].installedMap).toEqual({
+      status: 'error',
+      message: 'read failed',
+    })
+  })
+
+  it('publishes loading immediately and settles from the canonical raw read', async () => {
+    const read = deferred<Uint8Array | null>()
+    setControllerProviderFactory((ip) => {
+      const provider = new FakeProvider()
+      provider.getPixelMapData = () => read.promise
+      created.set(ip, provider)
+      return provider
+    })
+
+    const connecting = store().addController('10.0.0.5')
+    await Promise.resolve()
+    await Promise.resolve()
+    expect(store().controllers['10.0.0.5'].installedMap).toEqual({ status: 'loading' })
+
+    read.resolve(encodeMapData([[0], [1]]))
+    await connecting
+    expect(store().controllers['10.0.0.5'].installedMap).toMatchObject({
+      status: 'present',
+      dimension: 1,
+      pointCount: 2,
+    })
+  })
+
+  it('isolates Controller observations when an earlier Controller responds late', async () => {
+    const firstRead = deferred<Uint8Array | null>()
+    setControllerProviderFactory((ip) => {
+      const provider = new FakeProvider()
+      if (ip === '10.0.0.5') provider.getPixelMapData = () => firstRead.promise
+      created.set(ip, provider)
+      return provider
+    })
+
+    const firstConnect = store().addController('10.0.0.5')
+    await Promise.resolve()
+    await store().addController('10.0.0.9')
+    const secondObservation = store().controllers['10.0.0.9'].installedMap
+
+    firstRead.resolve(encodeMapData([[0, 0, 0], [1, 1, 1]]))
+    await firstConnect
+
+    expect(store().activeIp).toBe('10.0.0.9')
+    expect(store().controllers['10.0.0.9'].installedMap).toBe(secondObservation)
+    expect(store().controllers['10.0.0.5'].installedMap).toMatchObject({
+      status: 'present',
+      dimension: 3,
+    })
+  })
+
+  it('retries a post-push read until the expected installed map becomes visible', async () => {
+    await store().addController('10.0.0.5')
+    const provider = created.get('10.0.0.5')!
+    const stale = encodeMapData([[0], [1]])
+    const installed = encodeMapData([[0, 0], [1, 1]])
+    const reads = [stale, installed]
+    provider.getPixelMapData = () => Promise.resolve(reads.shift() ?? installed)
+
+    const refreshing = store().refreshInstalledMap('10.0.0.5', {
+      expectedFingerprint: '9a0c9e7f',
+    })
+
+    expect(store().controllers['10.0.0.5'].installedMap).toEqual({ status: 'loading' })
+    await refreshing
+    expect(store().controllers['10.0.0.5'].installedMap).toMatchObject({
+      status: 'present',
+      fingerprint: '9a0c9e7f',
+      dimension: 2,
+    })
   })
 
   it('schedules opted-in managed Pattern reconciliation when a Controller reconnects', async () => {
@@ -542,22 +656,21 @@ describe('controllerStore (keyed)', () => {
     expect(store().lastKnownControllerIps.pixelblaze_pb32_same_device).toBe('10.0.0.9')
   })
 
-  it('warms the panel store on connect so it opens populated (#225)', async () => {
+  it('owns the installed-map observation before the panel ever opens', async () => {
     await store().addController('10.0.0.5')
-    // seed() fires the program-list/map/poll fetches; let their promises settle.
-    await new Promise((r) => setTimeout(r, 0))
-    // The installed map (2 coords on the fake) lands without the panel ever opening.
-    expect(useControllerPanelStore.getState().mapPointCount).toBe(2)
+    expect(store().controllers['10.0.0.5'].installedMap).toMatchObject({
+      status: 'present',
+      pointCount: 2,
+    })
   })
 
-  it('keeps warmed panel values when the panel later starts polling that Controller (#225)', async () => {
+  it('does not move installed-map ownership into panel polling', async () => {
     await store().addController('10.0.0.5')
-    await new Promise((r) => setTimeout(r, 0))
-    expect(useControllerPanelStore.getState().mapPointCount).toBe(2)
+    const observation = store().controllers['10.0.0.5'].installedMap
 
     useControllerPanelStore.getState().start('10.0.0.5')
 
-    expect(useControllerPanelStore.getState().mapPointCount).toBe(2)
+    expect(store().controllers['10.0.0.5'].installedMap).toBe(observation)
   })
 
   it('a nameless device leaves the nickname unset (pill falls back to IP)', async () => {
@@ -1704,13 +1817,27 @@ describe('controllerStore (keyed)', () => {
         [0.6, 0],
         [0.7, 0],
       ]
-      useControllerPanelStore.setState({ pixelCount: 8, mapPointCount: 8 })
+      const installedMap = {
+        status: 'present' as const,
+        bytes: encodeMapData(provider.pixelMap),
+        fingerprint: 'existing-map',
+        dimension: 2 as const,
+        pointCount: 8,
+        observedAt: 1,
+      }
+      useControllerPanelStore.setState({ pixelCount: 8 })
+      useControllerStore.setState((state) => ({
+        controllers: {
+          ...state.controllers,
+          '10.0.0.5': { ...state.controllers['10.0.0.5'], installedMap },
+        },
+      }))
       await store().requestMapPush()
       await store().confirmSetPixelCountOnly()
 
       expect(provider.setPixelCounts).toEqual([2])
       expect(provider.pushedMaps).toHaveLength(0)
-      expect(useControllerPanelStore.getState().mapPointCount).toBe(8)
+      expect(store().controllers['10.0.0.5'].installedMap).toBe(installedMap)
       expect(store().pushResult).toEqual({ ok: true, created: false })
     })
 
@@ -1746,6 +1873,29 @@ describe('controllerStore (keyed)', () => {
       expect(store().pushResult).toEqual({ ok: true, created: false })
       // The pushed map signature is remembered (dirty gate).
       expect(store().lastPushedMap['10.0.0.5']['m1']).toBe(MAP.source)
+    })
+
+    it('shows loading after send and settles only from authoritative read-back', async () => {
+      await armMap(2)
+      await store().requestMapPush()
+      const readBack = deferred<Uint8Array | null>()
+      const provider = created.get('10.0.0.5')!
+      provider.getPixelMapData = () => readBack.promise
+
+      const pushing = store().confirmMapPush()
+      for (let i = 0; i < 10 && store().controllers['10.0.0.5'].installedMap?.status !== 'loading'; i++) {
+        await Promise.resolve()
+      }
+      expect(store().controllers['10.0.0.5'].installedMap).toEqual({ status: 'loading' })
+
+      readBack.resolve(encodeMapData(MAP.points!))
+      await pushing
+      expect(store().controllers['10.0.0.5'].installedMap).toMatchObject({
+        status: 'present',
+        fingerprint: '9a0c9e7f',
+        dimension: 2,
+        pointCount: 2,
+      })
     })
 
     it('cancelPush dismisses the map dialog without writing', async () => {

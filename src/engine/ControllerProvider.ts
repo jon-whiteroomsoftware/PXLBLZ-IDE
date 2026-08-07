@@ -200,16 +200,13 @@ export interface ControllerProvider {
   setRendererPaused(paused: boolean): Promise<void>
 
   /** Read back the Controller's installed pixel map as coordinate tuples —
-   *  `[[x],…]` (1D), `[[x,y],…]` (2D) or `[[x,y,z],…]` (3D) — or `null` when the
-   *  device reports no map. Map read-back is an unconfirmed firmware capability
-   *  (the H13 spike) that the Send-to-Controller gate pulls forward to check
-   *  dimensionality: a backend that cannot read it resolves `null`, so the gate
-   *  degrades to connected-only rather than blocking on an unknowable mismatch. */
+   *  `[[x],…]` (1D), `[[x,y],…]` (2D) or `[[x,y,z],…]` (3D) — or `null` only when
+   *  the Controller conclusively reports no map. Transport/read failures reject. */
   getPixelMap(): Promise<number[][] | null>
 
   /** Read back the raw `/pixelmap.dat` blob exactly as stored on the device.
-   *  Used when provenance needs byte-exact identity; callers that only need
-   *  coordinates should keep using `getPixelMap()`. */
+   *  Returns `null` only for confirmed absence; helper, authorization,
+   *  disconnection, malformed-response, and timeout failures reject. */
   getPixelMapData(): Promise<Uint8Array | null>
 
   /** Set UI control values on the active pattern. `save` persists to flash

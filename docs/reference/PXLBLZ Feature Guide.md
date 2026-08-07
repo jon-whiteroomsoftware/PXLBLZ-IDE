@@ -304,6 +304,9 @@ milestones and reports bounds, dimensions, unique positions, and coincident
 coordinate counts. Pattern light size, diffusion, brightness, and solidity do
 not alter this wiring view. A connected Controller can also **Import map** from
 its installed `/pixelmap.dat`; known maps are recognized rather than duplicated.
+Recognition compares the exact installed bytes with that Controller's push
+history and current Studio maps. One match opens the existing map; unmatched or
+ambiguous bytes import as a frozen map.
 
 The **Clustered helical mast** stock family demonstrates grouped 12 V WS2811
 hardware. Its three physical emitters share one addressable pixel, so the map
@@ -377,11 +380,19 @@ state.
 
 Clicking the active pill opens the live panel: Run/Save/Profile actions, the
 active Pattern and native brightness, pixel count with map mismatches
-flagged, the running Pattern's controls and watched variables, and power
+flagged, the installed map identity, the running Pattern's controls and watched
+variables, and power
 telemetry when the generated Pattern exposes it. Brightness and live control
 writes are volatile; pixel count is a deliberate saved hardware write with an
 explicit apply. PXLBLZ never installs firmware — when an update is available
 it points to the Controller's own **Settings → Updates**.
+
+The map value is shared with the Controller Profile and appears as map name,
+one installed-map dimension pill, then point count. A byte-exact match shows the
+name; otherwise readable bytes show **Unknown map**. **Reading map...**, **No
+installed map**, and **Map unavailable** distinguish an active read, confirmed
+absence, and read failure. Opening the panel refreshes the map once; ordinary
+telemetry polling does not.
 
 The header's **Play/Pause** control freezes or resumes the Controller's active
 renderer. It acts on the Controller, not the open Studio artifact, so it works
@@ -419,6 +430,13 @@ hardware is offline. A profile holds the last-seen device facts, hardware
 inputs, global transforms, per-Pattern bindings, named zones used by Shows,
 map fingerprints, your declared output wiring, and an optional installation
 electrical model.
+
+Its Map fact uses the same presentation as the live panel. While connected it
+shows the current read-back state. Offline it shows the last successful named,
+unknown, or absent observation, and `-` when no read has ever succeeded. A failed
+live refresh does not erase that last-known snapshot. **Refresh** retries the
+live read; finishing an in-app map send also returns the value to **Reading
+map...** until authoritative read-back completes.
 
 The Firmware fact also keeps the last conclusive update state reported while
 the Controller was connected. **Update available** remains visible there after

@@ -247,6 +247,12 @@ import { useControllerStore } from '@/store/controllerStore'
 import { useControllerProfileStore } from '@/store/controllerProfileStore'
 import { resolveMap, STOCK_MAPS, useMapStore } from '@/store/mapStore'
 import { applyNormalizeMode } from '@/engine/maps'
+import { buildStudioMapFingerprintCandidates } from '@/engine/mapFingerprint'
+import {
+  resolveInstalledMapIdentity,
+  type InstalledMapSnapshot,
+  type LiveInstalledMapState,
+} from '@/engine/installedMapObservation'
 import { usePreviewStore } from '@/store/previewStore'
 import {
   canAdvanceShowPlayback,
@@ -839,25 +845,33 @@ interface ShowCompilationSnapshot {
 function buildControllerCompatibilityContext(
   profile: ControllerProfile | undefined,
   maps: MapRecord[],
+  observation: InstalledMapSnapshot | LiveInstalledMapState | undefined,
 ) {
   const pixelCount = profile?.lastKnownPixelCount
-  const fingerprint = profile?.mapFingerprints?.find((record) => (
-    pixelCount === undefined || record.devicePixelCount === pixelCount
-  )) ?? profile?.mapFingerprints?.[0]
-  const installedMap = fingerprint
-    ? [...STOCK_MAPS, ...maps].find((map) => map.id === fingerprint.mapId)
+  const identity = observation?.status === 'present'
+    ? resolveInstalledMapIdentity({
+        observation,
+        profile,
+        candidates: buildStudioMapFingerprintCandidates({
+          userMaps: maps,
+          pixelCount: observation.pointCount,
+        }),
+      })
+    : null
+  const installedMap = identity && identity.kind !== 'historical'
+    ? [...STOCK_MAPS, ...maps].find((map) => map.id === identity.id)
     : undefined
   const mapClass = installedMap
     ? ('kind' in installedMap ? installedMap.kind : 'custom') as ArtifactMapClass
     : undefined
   return {
     ...(pixelCount !== undefined ? { pixelCount } : {}),
-    ...(fingerprint
+    ...(observation?.status === 'present'
       ? {
           map: {
-            id: fingerprint.mapId,
-            name: fingerprint.mapName,
-            fingerprint: fingerprint.hash,
+            ...(identity?.id ? { id: identity.id } : {}),
+            ...(identity?.name ? { name: identity.name } : {}),
+            fingerprint: observation.fingerprint,
             ...(mapClass ? { mapClass } : {}),
           },
         }
@@ -1491,9 +1505,12 @@ export function ShowEditor({
   }, [activeShow, compiled.artifact, inspectableShowExport])
   const activeControllerMapDim = activeController?.mapDim ?? null
   const activeControllerFirmware = activeController?.firmwareVersion
+  const activeInstalledMap = activeController?.phase === 'live'
+    ? activeController.installedMap
+    : activeControllerProfile?.lastKnownInstalledMap
   const controllerCompatibilityContext = useMemo(
-    () => buildControllerCompatibilityContext(activeControllerProfile, userMaps),
-    [activeControllerProfile, userMaps],
+    () => buildControllerCompatibilityContext(activeControllerProfile, userMaps, activeInstalledMap),
+    [activeControllerProfile, activeInstalledMap, userMaps],
   )
   const preparedControllerArtifact = useMemo(() => {
     if (compiled.artifactBlocker) {
@@ -1624,7 +1641,13 @@ export function ShowEditor({
         currentExport.source,
         currentController?.mapDim ?? null,
         currentController?.firmwareVersion,
-        buildControllerCompatibilityContext(currentActiveProfile, compilation.userMaps),
+        buildControllerCompatibilityContext(
+          currentActiveProfile,
+          compilation.userMaps,
+          currentController?.phase === 'live'
+            ? currentController.installedMap
+            : currentActiveProfile?.lastKnownInstalledMap,
+        ),
       )
       // Gate delivery on what the Controller actually receives: preparation
       // can append a renderer adapter, so the prepared source is measured,
