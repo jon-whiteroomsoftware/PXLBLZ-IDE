@@ -372,6 +372,27 @@ describe('ControllerBar', () => {
     expect(setRendererPaused).toHaveBeenCalledWith('10.0.0.5', false)
   })
 
+  it('offers Pause for a newly connected Controller without claiming an acknowledgement (#737)', () => {
+    const setRendererPaused = vi.fn(async () => {})
+    useControllerStore.setState({
+      extensionPresent: true,
+      activeIp: '10.0.0.5',
+      controllers: { '10.0.0.5': { ip: '10.0.0.5', nickname: 'Desk', phase: 'live', mapDim: 2 } },
+      rendererStates: {
+        '10.0.0.5': { acknowledged: 'unknown', assumedPlaying: true, pending: null },
+      },
+      setRendererPaused,
+    })
+    render(<ControllerBar />)
+    fireEvent.click(screen.getByRole('button', { name: 'Toggle Desk panel' }))
+
+    const pause = screen.getByRole('button', { name: 'Pause Desk renderer' })
+    expect(pause.querySelector('.lucide-pause')).toBeInTheDocument()
+
+    fireEvent.click(pause)
+    expect(setRendererPaused).toHaveBeenCalledWith('10.0.0.5', true)
+  })
+
   it('uses honest accessible names, icons, and disablement for acknowledged, pending, and disconnected states', () => {
     useControllerStore.setState({
       extensionPresent: true,

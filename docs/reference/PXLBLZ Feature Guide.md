@@ -382,11 +382,15 @@ for managed, foreign, transient, and saved Patterns without changing Pattern
 selection or sequencer playback. The command is volatile and never writes
 flash.
 
-Play/Pause changes only after the Controller acknowledges the command. A
-reconnect makes the displayed state unknown because Pixelblaze does not report
-authoritative paused state; **Resume** remains available as the safe recovery
-action. A failed or lost acknowledgement appears in the panel without changing
-the Controller's connection status.
+Play/Pause changes only after the Controller acknowledges a direct transport
+command. A fresh connection begins at **Pause** because connecting does not
+alter the Controller's normal running renderer. A successful Pattern Run or Save
+also returns the control to **Pause** because activation resumes the renderer.
+These expected-running transitions are kept distinct from command
+acknowledgements. A reconnect makes the displayed state unknown because
+Pixelblaze does not report authoritative paused state; **Resume** remains
+available as the safe recovery action. A failed or lost acknowledgement appears
+in the panel without changing the Controller's connection status.
 
 ## 10. Controller profiles
 

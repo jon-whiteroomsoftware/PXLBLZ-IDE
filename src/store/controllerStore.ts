@@ -131,6 +131,11 @@ export interface ControllerRendererState {
    *  Unknown is honest after connect/reconnect because firmware exposes no
    *  authoritative paused-state readback. */
   acknowledged: ControllerRendererAcknowledgement
+  /** A fresh connection does not alter the Controller's normal running renderer,
+   *  and a successful Pattern activation ends by resuming it. The transport offers
+   *  Pause for either case without claiming an acknowledgement. Ownership loss and
+   *  the first command attempt clear this assumption. */
+  assumedPlaying?: boolean
   pending: ControllerRendererCommand | null
   error?: string
 }
@@ -490,6 +495,22 @@ export const useControllerStore = create<ControllerConnectionState>()(
         })
       }
 
+      const assumeRendererPlaying = (ip: string) => {
+        set((s) => {
+          if (!s.controllers[ip]) return s
+          return {
+            rendererStates: {
+              ...s.rendererStates,
+              [ip]: {
+                acknowledged: 'unknown',
+                assumedPlaying: true,
+                pending: null,
+              },
+            },
+          }
+        })
+      }
+
       return {
         ...controllerInitialState,
 
@@ -526,6 +547,7 @@ export const useControllerStore = create<ControllerConnectionState>()(
           const { ip: target, connectTarget, seedNickname: targetSeed } =
             normalizeControllerTarget(controllerTarget, seedNickname)
           if (!target) return
+          const initialConnection = get().controllers[target] === undefined
 
           // Reconnecting to the controller we last connected to? Seed the pending pill
           // from the cached name so it never flashes the bare IP before getConfig lands
@@ -588,6 +610,7 @@ export const useControllerStore = create<ControllerConnectionState>()(
             if (e instanceof ControllerPermissionDeniedError) await get().removeController(target)
             return
           }
+          if (initialConnection) assumeRendererPlaying(target)
 
           // Live: read the nickname + installed-map dimensionality, remember the IP.
           const [config, map] = await Promise.all([
@@ -1061,6 +1084,7 @@ export const useControllerStore = create<ControllerConnectionState>()(
                 loadPushRecords: getPushRecords,
                 savePushRecords: setPushRecords,
               }))
+              if (activate) assumeRendererPlaying(live.ip)
             },
           })
           set((state) => {
@@ -1109,6 +1133,7 @@ export const useControllerStore = create<ControllerConnectionState>()(
               savePushRecords: setPushRecords,
               }),
             )
+            assumeRendererPlaying(controllerId)
 
             if (artifact.name) {
               const labels = withProgramLabel(
@@ -1462,6 +1487,7 @@ export const useControllerStore = create<ControllerConnectionState>()(
               savePushRecords: setPushRecords,
               }),
             )
+            assumeRendererPlaying(controllerId)
             // Record the name we pushed against the device program id (#237) so the
             // panel resolves a run-only program — which never enters the device's
             // program list — to the pattern's name instead of the raw generated id.

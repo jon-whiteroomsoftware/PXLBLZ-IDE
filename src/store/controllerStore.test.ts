@@ -623,6 +623,31 @@ describe('controllerStore (keyed)', () => {
     expect(localStorage.getItem('pixelblaze-controller')).toContain('10.0.0.5')
   })
 
+  it('presents a newly connected Controller as playing before metadata settles and without a renderer command (#737)', async () => {
+    let finishConfig!: () => void
+    setControllerProviderFactory((ip) => {
+      const provider = new FakeProvider()
+      provider.getConfig = () => new Promise<ControllerConfig>((resolve) => {
+        finishConfig = () => resolve({ name: provider.name })
+      })
+      created.set(ip, provider)
+      return provider
+    })
+
+    const connection = store().addController('10.0.0.5')
+    await vi.waitFor(() => expect(finishConfig).toBeTypeOf('function'))
+
+    expect(store().rendererStates['10.0.0.5']).toEqual({
+      acknowledged: 'unknown',
+      assumedPlaying: true,
+      pending: null,
+    })
+    expect(created.get('10.0.0.5')!.rendererCommands).toEqual([])
+
+    finishConfig()
+    await connection
+  })
+
   it('supports a second Controller: it becomes active, the first stays connected', async () => {
     await store().addController('10.0.0.5')
     await store().addController('10.0.0.6')
@@ -652,6 +677,7 @@ describe('controllerStore (keyed)', () => {
     })
     expect(store().rendererStates['10.0.0.6']).toEqual({
       acknowledged: 'unknown',
+      assumedPlaying: true,
       pending: null,
     })
 
@@ -670,6 +696,7 @@ describe('controllerStore (keyed)', () => {
     expect(created.get('10.0.0.5')!.rendererCommands).toEqual([])
     expect(store().rendererStates['10.0.0.5']).toEqual({
       acknowledged: 'unknown',
+      assumedPlaying: true,
       pending: null,
     })
   })
@@ -906,7 +933,7 @@ describe('controllerStore (keyed)', () => {
       expect(useControllerPanelStore.getState().programLabels[pushedId]).toBe('Twinkle')
     })
 
-    it('returns renderer transport knowledge to unknown when Send controls renderer state internally', async () => {
+    it('presents the renderer as playing after Send resumes a previously paused Controller (#737)', async () => {
       await store().addController('10.0.0.5')
       await store().setRendererPaused('10.0.0.5', true)
       usePatternStore.setState({ activePatternId: 'pat-1' })
@@ -916,6 +943,7 @@ describe('controllerStore (keyed)', () => {
 
       expect(store().rendererStates['10.0.0.5']).toEqual({
         acknowledged: 'unknown',
+        assumedPlaying: true,
         pending: null,
       })
     })
@@ -1035,6 +1063,7 @@ describe('controllerStore (keyed)', () => {
 
     it('surfaces a compile failure as an error result without pushing', async () => {
       await store().addController('10.0.0.5')
+      await store().setRendererPaused('10.0.0.5', true)
       created.get('10.0.0.5')!.compileError = new Error('compiler offline')
       usePatternStore.setState({ activePatternId: 'pat-1' })
       useEditorStore.setState({ previewSource: PATTERN_SRC })
@@ -1044,6 +1073,10 @@ describe('controllerStore (keyed)', () => {
       expect(created.get('10.0.0.5')!.pushed).toHaveLength(0)
       expect(store().pushing).toBe(false)
       expect(store().pushResult).toEqual({ ok: false, message: 'compiler offline' })
+      expect(store().rendererStates['10.0.0.5']).toEqual({
+        acknowledged: 'unknown',
+        pending: null,
+      })
     })
 
     it('keeps the compiled artifact unchanged when the active profile has hardware brightness off', async () => {

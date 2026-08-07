@@ -94,21 +94,25 @@ function ControllerPillButton({
   }
   const rendererDisconnected = phase !== 'live'
   const rendererPending = renderer.pending
+  const rendererAssumedPlaying = renderer.acknowledged === 'unknown'
+    && renderer.assumedPlaying === true
+  const rendererPlaying = renderer.acknowledged === 'playing' || rendererAssumedPlaying
+  const rendererStateUnknown = renderer.acknowledged === 'unknown' && !rendererAssumedPlaying
   const rendererTargetPaused = rendererPending === 'pause'
-    || (rendererPending === null && renderer.acknowledged === 'playing')
-  const rendererAction = renderer.acknowledged === 'playing' ? 'Pause' : 'Resume'
+    || (rendererPending === null && rendererPlaying)
+  const rendererAction = rendererPlaying ? 'Pause' : 'Resume'
   const rendererLabel = rendererPending
     ? `${rendererPending === 'pause' ? 'Pausing' : 'Resuming'} ${label} renderer`
     : rendererDisconnected
       ? `Resume ${label} renderer (disconnected; state unknown)`
       : rendererBlockedByPush
-        ? `${rendererAction} ${label} renderer (Send in progress${renderer.acknowledged === 'unknown' ? '; state unknown' : ''})`
-        : renderer.acknowledged === 'unknown'
+        ? `${rendererAction} ${label} renderer (Send in progress${rendererStateUnknown ? '; state unknown' : ''})`
+        : rendererStateUnknown
           ? `Resume ${label} renderer (state unknown)`
           : `${rendererAction} ${label} renderer`
   const rendererText = rendererPending
     ? rendererPending === 'pause' ? 'Pausing…' : 'Resuming…'
-    : renderer.acknowledged === 'playing'
+    : rendererPlaying
       ? 'Pause'
       : renderer.acknowledged === 'paused'
         ? 'Play'
@@ -119,9 +123,9 @@ function ControllerPillButton({
       ? 'Wait for Send to finish before controlling the renderer'
     : rendererPending
       ? `${rendererPending === 'pause' ? 'Pause' : 'Resume'} command awaiting Controller acknowledgement`
-      : renderer.acknowledged === 'unknown'
+      : rendererStateUnknown
         ? 'Renderer state is unknown; send Resume to recover safely'
-        : renderer.acknowledged === 'playing'
+        : rendererPlaying
           ? 'Pause the active renderer'
           : 'Resume the active renderer'
   return (
@@ -224,7 +228,7 @@ function ControllerPillButton({
               >
                 {rendererPending
                   ? <RotateCw size={12} className="animate-spin" aria-hidden="true" />
-                  : renderer.acknowledged === 'playing'
+                  : rendererPlaying
                     ? <Pause size={12} aria-hidden="true" />
                     : <Play size={12} aria-hidden="true" />}
                 {rendererText}

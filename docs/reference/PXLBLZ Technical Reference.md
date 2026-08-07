@@ -734,6 +734,11 @@ unmanaged saved Patterns.
 Firmware `getConfig` exposes no paused-state field. Each keyed Controller entry
 therefore records the last command acknowledged through its current connection,
 plus pending and error state, rather than claiming authoritative device truth.
+A first successful connection separately records the Controller's normal
+expected-running baseline because establishing the connection does not alter the
+renderer. Successful Pattern activation records the same expectation because
+the push protocol ends with resume. Neither expected-running transition is
+represented as a command acknowledgement.
 Connection-generation invalidation discards late acknowledgements after a drop,
 disconnect, or reconnect. An unknown live entry offers **Resume** explicitly;
 command failure preserves the previous acknowledgement and does not change the
@@ -742,9 +747,10 @@ with Pattern writes, and the control is disabled during an active Send so an
 unrelated `setCode` acknowledgement cannot report false success. The protocol
 connection also skips keepalive pings while any acknowledgement-based request
 is pending because firmware acknowledgements carry no request identifier. Send also
-returns renderer knowledge to unknown because its internal pause/resume frames
-are not acknowledgement-tracked. Commands issued by another client remain
-unknowable.
+returns renderer knowledge to unknown while in flight because its internal
+pause/resume frames are not acknowledgement-tracked; successful activation then
+records the protocol's expected playing outcome. Commands issued by another
+client remain unknowable.
 
 Live brightness and controls are volatile writes, throttled with leading and
 trailing delivery. Pixel-count edits are saved and hold an optimistic pending
