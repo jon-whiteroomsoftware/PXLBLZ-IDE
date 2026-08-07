@@ -235,6 +235,10 @@ function formatEstimatedElectricalDraw(amps: number, watts: number): string {
   return `≈ ${amps.toFixed(1)} A · ${watts.toFixed(1)} W`
 }
 
+function formatEstimatedWatts(value: number): string {
+  return `≈ ${value.toFixed(1)} W`
+}
+
 /** Format the device's exported variables for the read-only watch list. Skips
  *  non-numeric values and reserved IDE telemetry names; preserves the device's
  *  reported order. */
@@ -319,17 +323,23 @@ export function describeControllerPowerTelemetry(
       : null,
     scaleLabel: typeof scale === 'number' ? formatPercent(scale) : PLACEHOLDER,
     clippingLabel: typeof clipping === 'number' && clipping > 0 ? 'yes' : 'no',
-    estimatedDrawLabel: electricalResolution?.estimatedDrawAmps != null
-      && electricalResolution.estimatedDrawWatts != null
-      ? formatEstimatedElectricalDraw(
-          electricalResolution.estimatedDrawAmps,
-          electricalResolution.estimatedDrawWatts,
-        )
+    estimatedDrawLabel: context?.electricalProfile
+      ? electricalResolution?.estimatedDrawAmps != null
+        && electricalResolution.estimatedDrawWatts != null
+        ? formatEstimatedElectricalDraw(
+            electricalResolution.estimatedDrawAmps,
+            electricalResolution.estimatedDrawWatts,
+          )
+        : electricalResolution?.estimatedDrawAmps != null
+          ? formatEstimatedAmps(electricalResolution.estimatedDrawAmps)
+          : electricalResolution?.estimatedDrawWatts != null
+            ? formatEstimatedWatts(electricalResolution.estimatedDrawWatts)
+            : PLACEHOLDER
       : estimatedAmps != null
-      ? formatEstimatedAmps(estimatedAmps)
-      : typeof milliamps === 'number'
-        ? formatEstimatedAmps(milliamps / 1000)
-        : PLACEHOLDER,
+        ? formatEstimatedAmps(estimatedAmps)
+        : typeof milliamps === 'number'
+          ? formatEstimatedAmps(milliamps / 1000)
+          : PLACEHOLDER,
     ...(context && electricalResolution ? {
       estimatedDrawAssumptions: [
         ...electricalResolution.assumptions.map(assumption => assumption.replace(': ', ' · ')),

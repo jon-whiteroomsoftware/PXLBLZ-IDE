@@ -96,6 +96,16 @@ export function findLedConstructionPreset(
   return LED_CONSTRUCTION_PRESETS.find(preset => preset.id === id) ?? null
 }
 
+export function convertElectricalQuantity(
+  quantity: ElectricalQuantity,
+  unit: ElectricalUnit,
+  voltageVolts: number | null,
+): ElectricalQuantity | null {
+  const normalized = normalizeQuantity(quantity)
+  const value = asUnit(normalized, unit, positive(voltageVolts))
+  return value == null ? null : { value, unit }
+}
+
 export function resolveControllerElectricalProfile(
   profile: ControllerElectricalProfile,
   context: ElectricalResolutionContext,

@@ -1,4 +1,5 @@
 import {
+  convertElectricalQuantity,
   type ControllerElectricalProfile,
   LED_CONSTRUCTION_PRESETS,
   resolveControllerElectricalProfile,
@@ -114,5 +115,17 @@ describe('controller electrical profile', () => {
     expect(resolved.pixelCount).toBeNull()
     expect(resolved.fullWhiteWatts).toBeNull()
     expect(resolved.maxDuty).toBeNull()
+  })
+
+  it('converts authored quantities only when voltage makes the units comparable', () => {
+    expect(convertElectricalQuantity({ value: 48, unit: 'watts' }, 'amps', 12)).toEqual({
+      value: 4,
+      unit: 'amps',
+    })
+    expect(convertElectricalQuantity({ value: 4, unit: 'amps' }, 'watts', null)).toBeNull()
+    expect(convertElectricalQuantity({ value: 4, unit: 'amps' }, 'amps', null)).toEqual({
+      value: 4,
+      unit: 'amps',
+    })
   })
 })

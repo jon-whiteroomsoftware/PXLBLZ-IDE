@@ -291,4 +291,50 @@ describe('describeControllerPowerTelemetry', () => {
       estimatedDrawAssumptions: '12V 3-LED segments · 60 mA per address at 12V full white · 100 addresses · 50% brightness',
     })
   })
+
+  it('uses an available electrical unit instead of falling back to legacy per-pixel current', () => {
+    expect(describeControllerPowerTelemetry({
+      __px_powerDutyRecent: 0.5,
+      __px_powerScale: 1,
+    }, {
+      pixelCount: 50,
+      brightness: 0.5,
+      settings: { mode: 'direct', maxDuty: 0.5 },
+      electricalProfile: {
+        ledPresetId: 'custom',
+        supplyBudget: { value: 4, unit: 'amps' },
+        loadOverride: {
+          fullWhite: { value: 8, unit: 'amps' },
+          source: 'measured',
+          atPixelCount: 50,
+        },
+      },
+    })).toMatchObject({
+      estimatedDrawLabel: '≈ 2.0 A',
+      estimatedDrawAssumptions: 'Measured full-white installation total · 50 addresses · 50% brightness',
+    })
+  })
+
+  it('suppresses draw when a measured total is stale instead of substituting a legacy estimate', () => {
+    expect(describeControllerPowerTelemetry({
+      __px_powerDutyRecent: 0.5,
+      __px_powerScale: 1,
+    }, {
+      pixelCount: 301,
+      brightness: 0.5,
+      settings: { mode: 'derived', maxDuty: 0.5 },
+      electricalProfile: {
+        ledPresetId: 'ws2811-12v-grouped',
+        supplyBudget: { value: 24, unit: 'watts' },
+        loadOverride: {
+          fullWhite: { value: 48, unit: 'watts' },
+          source: 'measured',
+          atPixelCount: 300,
+        },
+      },
+    })).toMatchObject({
+      estimatedDrawLabel: '—',
+      estimatedDrawAssumptions: expect.stringContaining('override recorded at 300 addresses'),
+    })
+  })
 })

@@ -35,6 +35,7 @@ import { installedControllerPatternChoices } from '@/engine/controllerSavedProgr
 import type { PowerCapSettings } from '@/engine/powerCap'
 import {
   LED_CONSTRUCTION_PRESETS,
+  convertElectricalQuantity,
   findLedConstructionPreset,
   resolveControllerElectricalProfile,
   type ControllerElectricalProfile,
@@ -513,13 +514,12 @@ function ElectricalProfileEditor({
   }
 
   function changeBudgetUnit(unit: ElectricalUnit) {
-    const equivalent = unit === 'amps' ? resolved.budgetAmps : resolved.budgetWatts
-    update({
-      supplyBudget: {
-        value: equivalent ?? profile.supplyBudget.value,
-        unit,
-      },
-    })
+    const converted = convertElectricalQuantity(
+      profile.supplyBudget,
+      unit,
+      resolved.voltageVolts,
+    )
+    if (converted) update({ supplyBudget: converted })
   }
 
   function enableOverride() {
@@ -579,8 +579,16 @@ function ElectricalProfileEditor({
               ariaLabel="Continuous LED supply budget unit"
               value={electricalProfile.supplyBudget.unit}
               options={[
-                { value: 'amps', label: 'Amps' },
-                { value: 'watts', label: 'Watts' },
+                {
+                  value: 'amps',
+                  label: 'Amps',
+                  disabled: profile.supplyBudget.unit !== 'amps' && resolved.voltageVolts == null,
+                },
+                {
+                  value: 'watts',
+                  label: 'Watts',
+                  disabled: profile.supplyBudget.unit !== 'watts' && resolved.voltageVolts == null,
+                },
               ]}
               onChange={changeBudgetUnit}
             />
@@ -665,19 +673,27 @@ function ElectricalProfileEditor({
                     ariaLabel="Full-white installation total unit"
                     value={override.fullWhite.unit}
                     options={[
-                      { value: 'amps', label: 'Amps' },
-                      { value: 'watts', label: 'Watts' },
-                    ]}
-                    onChange={(unit) => update({
-                      loadOverride: {
-                        ...override,
-                        fullWhite: {
-                          value: (unit === 'amps' ? resolved.fullWhiteAmps : resolved.fullWhiteWatts)
-                            ?? override.fullWhite.value,
-                          unit,
-                        },
+                      {
+                        value: 'amps',
+                        label: 'Amps',
+                        disabled: override.fullWhite.unit !== 'amps' && resolved.voltageVolts == null,
                       },
-                    })}
+                      {
+                        value: 'watts',
+                        label: 'Watts',
+                        disabled: override.fullWhite.unit !== 'watts' && resolved.voltageVolts == null,
+                      },
+                    ]}
+                    onChange={(unit) => {
+                      const converted = convertElectricalQuantity(
+                        override.fullWhite,
+                        unit,
+                        resolved.voltageVolts,
+                      )
+                      if (converted) update({
+                        loadOverride: { ...override, fullWhite: converted },
+                      })
+                    }}
                   />
                 </div>
               </LabeledField>

@@ -841,6 +841,35 @@ describe('ControllerProfilePage', () => {
     expect(screen.queryByRole('spinbutton', { name: 'Pixel count' })).not.toBeInTheDocument()
   })
 
+  it('disables A/W reinterpretation when a custom model has no conversion voltage', () => {
+    const profile = seedProfile()
+    useControllerProfileStore.setState({
+      profiles: [{
+        ...profile,
+        lastKnownPixelCount: 50,
+        electricalProfile: {
+          ledPresetId: 'custom',
+          supplyBudget: { value: 4, unit: 'amps' },
+          loadOverride: {
+            fullWhite: { value: 8, unit: 'amps' },
+            source: 'measured',
+            atPixelCount: 50,
+          },
+        },
+      }],
+      profilesLoaded: true,
+    })
+
+    render(<ControllerProfilePage profileId="ctrl-1" />)
+
+    const budgetUnit = screen.getByRole('combobox', { name: 'Continuous LED supply budget unit' })
+    expect(within(budgetUnit).getByRole('option', { name: 'Watts' })).toBeDisabled()
+
+    fireEvent.click(screen.getByText('Advanced: measured or manufacturer-rated total'))
+    const loadUnit = screen.getByRole('combobox', { name: 'Full-white installation total unit' })
+    expect(within(loadUnit).getByRole('option', { name: 'Watts' })).toBeDisabled()
+  })
+
   it('shows the latest generated artifact inspection for the controller profile', () => {
     seedProfile()
     useControllerStore.setState({
