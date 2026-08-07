@@ -240,14 +240,43 @@ describe('PixelblazeConnection', () => {
       await expect(promise).resolves.toBeUndefined()
     })
 
-    it('fires automatic keepalive pings on the configured interval', async () => {
+    it('fires automatic keepalive pings without stacking another ack request', async () => {
       vi.useFakeTimers()
       try {
         const { socket } = await connected({ pingIntervalMs: 5000 })
         vi.advanceTimersByTime(5000)
         expect(socket.lastFrame()).toEqual({ ping: true })
         vi.advanceTimersByTime(5000)
+        expect(socket.sent.filter((f) => f.includes('ping')).length).toBe(1)
+        socket.simulateMessage({ ack: 1 })
+        vi.advanceTimersByTime(5000)
         expect(socket.sent.filter((f) => f.includes('ping')).length).toBe(2)
+      } finally {
+        vi.useRealTimers()
+      }
+    })
+
+    it('does not let a keepalive acknowledgement settle a lost renderer command', async () => {
+      vi.useFakeTimers()
+      try {
+        const { conn, socket } = await connected({
+          pingIntervalMs: 1000,
+          requestTimeoutMs: 5000,
+          livenessTimeoutMs: 0,
+        })
+        const settled = conn.setRendererPaused(true).then(
+          () => 'resolved',
+          (error: Error) => error.message,
+        )
+
+        await vi.advanceTimersByTimeAsync(4000)
+        expect(socket.sent.map((frame) => JSON.parse(frame))).toEqual([{ pause: true }])
+
+        await vi.advanceTimersByTimeAsync(1000)
+        await expect(settled).resolves.toContain('timed out waiting for "ack"')
+
+        await vi.advanceTimersByTimeAsync(1000)
+        expect(socket.lastFrame()).toEqual({ ping: true })
       } finally {
         vi.useRealTimers()
       }

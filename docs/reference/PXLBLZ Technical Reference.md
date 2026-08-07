@@ -739,7 +739,9 @@ disconnect, or reconnect. An unknown live entry offers **Resume** explicitly;
 command failure preserves the previous acknowledgement and does not change the
 connection phase. Renderer commands share the per-Controller device-write queue
 with Pattern writes, and the control is disabled during an active Send so an
-unrelated `setCode` acknowledgement cannot report false success. Send also
+unrelated `setCode` acknowledgement cannot report false success. The protocol
+connection also skips keepalive pings while any acknowledgement-based request
+is pending because firmware acknowledgements carry no request identifier. Send also
 returns renderer knowledge to unknown because its internal pause/resume frames
 are not acknowledgement-tracked. Commands issued by another client remain
 unknowable.

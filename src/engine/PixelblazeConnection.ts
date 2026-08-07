@@ -765,6 +765,10 @@ export class PixelblazeConnection {
       // Pixelblaze answers pings AND streams fps, so a quiet window past the
       // watchdog means it is gone even if the socket never closed.
       if (this.checkStale()) return
+      // Firmware ack packets carry no request id. Never enqueue a keepalive
+      // behind another ack-based command: if that command's acknowledgement is
+      // lost, the ping reply would otherwise report false success for it.
+      if (this.pending.has('ack')) return
       // Swallow keepalive failures — the lifecycle close/error path reports them.
       this.ping().catch(() => undefined)
     }, this.opts.pingIntervalMs)

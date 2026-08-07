@@ -96,17 +96,16 @@ function ControllerPillButton({
   const rendererPending = renderer.pending
   const rendererTargetPaused = rendererPending === 'pause'
     || (rendererPending === null && renderer.acknowledged === 'playing')
+  const rendererAction = renderer.acknowledged === 'playing' ? 'Pause' : 'Resume'
   const rendererLabel = rendererPending
     ? `${rendererPending === 'pause' ? 'Pausing' : 'Resuming'} ${label} renderer`
     : rendererDisconnected
       ? `Resume ${label} renderer (disconnected; state unknown)`
       : rendererBlockedByPush
-        ? `Resume ${label} renderer (Send in progress; state unknown)`
-      : renderer.acknowledged === 'playing'
-        ? `Pause ${label} renderer`
-        : renderer.acknowledged === 'paused'
-          ? `Resume ${label} renderer`
-          : `Resume ${label} renderer (state unknown)`
+        ? `${rendererAction} ${label} renderer (Send in progress${renderer.acknowledged === 'unknown' ? '; state unknown' : ''})`
+        : renderer.acknowledged === 'unknown'
+          ? `Resume ${label} renderer (state unknown)`
+          : `${rendererAction} ${label} renderer`
   const rendererText = rendererPending
     ? rendererPending === 'pause' ? 'Pausing…' : 'Resuming…'
     : renderer.acknowledged === 'playing'

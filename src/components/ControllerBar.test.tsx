@@ -427,6 +427,25 @@ describe('ControllerBar', () => {
     })).toBeDisabled()
   })
 
+  it('preserves known renderer semantics in the accessible name during a map-only Send', () => {
+    useControllerStore.setState({
+      extensionPresent: true,
+      activeIp: '10.0.0.5',
+      pushing: true,
+      controllers: { '10.0.0.5': { ip: '10.0.0.5', nickname: 'Desk', phase: 'live', mapDim: 2 } },
+      rendererStates: { '10.0.0.5': { acknowledged: 'playing', pending: null } },
+    })
+    render(<ControllerBar />)
+    fireEvent.click(screen.getByRole('button', { name: 'Toggle Desk panel' }))
+
+    const pause = screen.getByRole('button', {
+      name: 'Pause Desk renderer (Send in progress)',
+    })
+    expect(pause).toBeDisabled()
+    expect(pause).toHaveTextContent('Pause')
+    expect(pause.querySelector('.lucide-pause')).toBeInTheDocument()
+  })
+
   it('renders acknowledged success and surfaces failure without hiding the recovery action', async () => {
     const setRendererPaused = vi.fn(async (ip: string, paused: boolean) => {
       act(() => useControllerStore.setState({
