@@ -349,6 +349,132 @@ describe('ControllerBar', () => {
     expect(screen.getByTestId('controller-pill-remove')).toHaveAccessibleName('Disconnect Desk')
   })
 
+  it('places an explicit Resume recovery immediately right of Disconnect when renderer state is unknown', () => {
+    const setRendererPaused = vi.fn(async () => {})
+    useControllerStore.setState({
+      extensionPresent: true,
+      activeIp: '10.0.0.5',
+      controllers: { '10.0.0.5': { ip: '10.0.0.5', nickname: 'Desk', phase: 'live', mapDim: 2 } },
+      rendererStates: {
+        '10.0.0.5': { acknowledged: 'unknown', pending: null },
+      },
+      setRendererPaused,
+    })
+    render(<ControllerBar />)
+    fireEvent.click(screen.getByRole('button', { name: 'Toggle Desk panel' }))
+
+    const disconnect = screen.getByRole('button', { name: 'Disconnect Desk' })
+    const resume = screen.getByRole('button', { name: 'Resume Desk renderer (state unknown)' })
+    expect(disconnect.compareDocumentPosition(resume) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
+    expect(resume.querySelector('.lucide-play')).toBeInTheDocument()
+
+    fireEvent.click(resume)
+    expect(setRendererPaused).toHaveBeenCalledWith('10.0.0.5', false)
+  })
+
+  it('uses honest accessible names, icons, and disablement for acknowledged, pending, and disconnected states', () => {
+    useControllerStore.setState({
+      extensionPresent: true,
+      activeIp: '10.0.0.5',
+      controllers: { '10.0.0.5': { ip: '10.0.0.5', nickname: 'Desk', phase: 'live', mapDim: 2 } },
+      rendererStates: {
+        '10.0.0.5': { acknowledged: 'playing', pending: null },
+      },
+    })
+    render(<ControllerBar />)
+    fireEvent.click(screen.getByRole('button', { name: 'Toggle Desk panel' }))
+
+    const pause = screen.getByRole('button', { name: 'Pause Desk renderer' })
+    expect(pause).toBeEnabled()
+    expect(pause.querySelector('.lucide-pause')).toBeInTheDocument()
+
+    act(() => useControllerStore.setState({
+      rendererStates: { '10.0.0.5': { acknowledged: 'paused', pending: null } },
+    }))
+    const play = screen.getByRole('button', { name: 'Resume Desk renderer' })
+    expect(play).toHaveTextContent('Play')
+    expect(play.querySelector('.lucide-play')).toBeInTheDocument()
+
+    act(() => useControllerStore.setState({
+      rendererStates: { '10.0.0.5': { acknowledged: 'paused', pending: 'resume' } },
+    }))
+    const resuming = screen.getByRole('button', { name: 'Resuming Desk renderer' })
+    expect(resuming).toBeDisabled()
+    expect(resuming.querySelector('.lucide-rotate-cw')).toBeInTheDocument()
+
+    act(() => useControllerStore.setState({
+      controllers: { '10.0.0.5': { ip: '10.0.0.5', nickname: 'Desk', phase: 'error', mapDim: 2 } },
+      rendererStates: { '10.0.0.5': { acknowledged: 'unknown', pending: null } },
+    }))
+    expect(screen.getByRole('button', {
+      name: 'Resume Desk renderer (disconnected; state unknown)',
+    })).toBeDisabled()
+  })
+
+  it('disables renderer transport while Send may produce an unrelated firmware acknowledgement', () => {
+    useControllerStore.setState({
+      extensionPresent: true,
+      activeIp: '10.0.0.5',
+      pushing: true,
+      controllers: { '10.0.0.5': { ip: '10.0.0.5', nickname: 'Desk', phase: 'live', mapDim: 2 } },
+      rendererStates: { '10.0.0.5': { acknowledged: 'unknown', pending: null } },
+    })
+    render(<ControllerBar />)
+    fireEvent.click(screen.getByRole('button', { name: 'Toggle Desk panel' }))
+
+    expect(screen.getByRole('button', {
+      name: 'Resume Desk renderer (Send in progress; state unknown)',
+    })).toBeDisabled()
+  })
+
+  it('renders acknowledged success and surfaces failure without hiding the recovery action', async () => {
+    const setRendererPaused = vi.fn(async (ip: string, paused: boolean) => {
+      act(() => useControllerStore.setState({
+        rendererStates: {
+          [ip]: { acknowledged: 'unknown', pending: paused ? 'pause' : 'resume' },
+        },
+      }))
+      await Promise.resolve()
+      act(() => useControllerStore.setState({
+        rendererStates: {
+          [ip]: { acknowledged: paused ? 'paused' : 'playing', pending: null },
+        },
+      }))
+    })
+    useControllerStore.setState({
+      extensionPresent: true,
+      activeIp: '10.0.0.5',
+      controllers: { '10.0.0.5': { ip: '10.0.0.5', nickname: 'Desk', phase: 'live', mapDim: 2 } },
+      rendererStates: { '10.0.0.5': { acknowledged: 'playing', pending: null } },
+      setRendererPaused,
+    })
+    render(<ControllerBar />)
+    fireEvent.click(screen.getByRole('button', { name: 'Toggle Desk panel' }))
+
+    fireEvent.click(screen.getByRole('button', { name: 'Pause Desk renderer' }))
+    await waitFor(() => expect(
+      screen.getByRole('button', { name: 'Resume Desk renderer' }),
+    ).toHaveTextContent('Play'))
+
+    act(() => useControllerStore.setState({
+      rendererStates: {
+        '10.0.0.5': {
+          acknowledged: 'unknown',
+          pending: null,
+          error: 'renderer acknowledgement lost',
+        },
+      },
+    }))
+
+    expect(screen.getByRole('alert')).toHaveTextContent(
+      'Renderer command failed: renderer acknowledgement lost',
+    )
+    expect(screen.getByRole('button', {
+      name: 'Resume Desk renderer (state unknown)',
+    })).toBeEnabled()
+    expect(useControllerStore.getState().controllers['10.0.0.5'].phase).toBe('live')
+  })
+
   it('toggles the panel popover closed on a second pill click', () => {
     useControllerStore.setState({
       extensionPresent: true,

@@ -722,6 +722,28 @@ warm reconnect. `controllerPanelStore` polls the active Controller for config,
 telemetry, vars, controls, programs, map point count, and FPS. Same-Controller
 reopen retains last-known panel values; switching Controllers clears ownership.
 
+Device-wide renderer transport crosses the same provider boundary:
+`ControllerBar` calls the IP-keyed `controllerStore`, which selects that
+Controller's provider; `ExtensionControllerProvider` delegates to
+`PixelblazeConnection`; and the protocol core sends exactly `{"pause":true}` or
+`{"pause":false}` and waits for `{"ack":...}`. Neither frame includes `save`,
+so renderer transport never requests persistence. The command is independent
+of active Pattern identity and therefore also applies to foreign or otherwise
+unmanaged saved Patterns.
+
+Firmware `getConfig` exposes no paused-state field. Each keyed Controller entry
+therefore records the last command acknowledged through its current connection,
+plus pending and error state, rather than claiming authoritative device truth.
+Connection-generation invalidation discards late acknowledgements after a drop,
+disconnect, or reconnect. An unknown live entry offers **Resume** explicitly;
+command failure preserves the previous acknowledgement and does not change the
+connection phase. Renderer commands share the per-Controller device-write queue
+with Pattern writes, and the control is disabled during an active Send so an
+unrelated `setCode` acknowledgement cannot report false success. Send also
+returns renderer knowledge to unknown because its internal pause/resume frames
+are not acknowledgement-tracked. Commands issued by another client remain
+unknowable.
+
 Live brightness and controls are volatile writes, throttled with leading and
 trailing delivery. Pixel-count edits are saved and hold an optimistic pending
 value until the Controller confirms. Reducing count goes through the shared

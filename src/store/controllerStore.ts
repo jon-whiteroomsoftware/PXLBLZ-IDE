@@ -120,6 +120,18 @@ export interface ControllerEntry {
   mapDim: MapDimension
 }
 
+export type ControllerRendererAcknowledgement = 'unknown' | 'playing' | 'paused'
+export type ControllerRendererCommand = 'pause' | 'resume'
+
+export interface ControllerRendererState {
+  /** Last command this PXLBLZ connection observed the Controller acknowledge.
+   *  Unknown is honest after connect/reconnect because firmware exposes no
+   *  authoritative paused-state readback. */
+  acknowledged: ControllerRendererAcknowledgement
+  pending: ControllerRendererCommand | null
+  error?: string
+}
+
 export type ControllerReconciliationProgramState = 'current' | 'queued' | 'updating' | 'failed'
 
 export interface ControllerReconciliationProgram {
@@ -144,6 +156,8 @@ interface ControllerConnectionState {
   extensionPresent: boolean
   /** Connected (or connecting/errored) Controllers, keyed by IP. */
   controllers: Record<string, ControllerEntry>
+  /** Volatile renderer transport state keyed by Controller IP. */
+  rendererStates: Record<string, ControllerRendererState>
   /** The IP of the active Controller — the one Send + the panel target. */
   activeIp: string | null
   /** The last Controller to reach `live`, persisted so it alone auto-connects on
@@ -235,6 +249,8 @@ interface ControllerConnectionState {
   removeController: (ip: string) => Promise<void>
   /** Make `ip` the active Controller (points the registry's active provider at it). */
   setActive: (ip: string) => void
+  /** Send an acknowledged device-wide renderer command to exactly one Controller. */
+  setRendererPaused: (ip: string, paused: boolean) => Promise<void>
   /** Startup auto-reconnect: try only the remembered last-connected Controller. */
   autoConnect: () => Promise<void>
   /** Compile + push the active pattern to the active Controller, overwrite-in-place
@@ -311,6 +327,7 @@ export type PushResult =
 export const controllerInitialState = {
   extensionPresent: false,
   controllers: {} as Record<string, ControllerEntry>,
+  rendererStates: {} as Record<string, ControllerRendererState>,
   activeIp: null as string | null,
   lastConnectedIp: null as string | null,
   lastConnectedNickname: null as string | null,
@@ -339,6 +356,7 @@ export const controllerInitialState = {
 // module-local so they never serialise and a stale render never holds a socket.
 const providers = new Map<string, ControllerProvider>()
 const unsubscribers = new Map<string, () => void>()
+const rendererCommandGenerations = new Map<string, number>()
 const firmwareUpdateCheckedAt = new Map<string, number>()
 const reconciliationTimers = new Map<string, ReturnType<typeof setTimeout>>()
 const FIRMWARE_UPDATE_CHECK_INTERVAL_MS = 60 * 60 * 1000
@@ -456,6 +474,19 @@ export const useControllerStore = create<ControllerConnectionState>()(
           return { controllers: { ...s.controllers, [ip]: { ...existing, ...patch } } }
         })
 
+      const invalidateRendererState = (ip: string) => {
+        rendererCommandGenerations.set(ip, (rendererCommandGenerations.get(ip) ?? 0) + 1)
+        set((s) => {
+          if (!s.controllers[ip]) return s
+          return {
+            rendererStates: {
+              ...s.rendererStates,
+              [ip]: { acknowledged: 'unknown', pending: null },
+            },
+          }
+        })
+      }
+
       return {
         ...controllerInitialState,
 
@@ -510,11 +541,18 @@ export const useControllerStore = create<ControllerConnectionState>()(
               provider.subscribe((status) => {
                 const patch = phaseFromStatus(status)
                 if (patch) patchController(target, patch)
+                if (status.kind === 'connecting' || status.kind === 'error') {
+                  invalidateRendererState(target)
+                }
               }),
             )
           }
 
           // Born pending + active the instant the add is submitted.
+          rendererCommandGenerations.set(
+            target,
+            (rendererCommandGenerations.get(target) ?? 0) + 1,
+          )
           set((s) => ({
             controllers: {
               ...s.controllers,
@@ -528,6 +566,10 @@ export const useControllerStore = create<ControllerConnectionState>()(
                 firmwareUpdateState: s.controllers[target]?.firmwareUpdateState,
                 authorizationNeededIp: null,
               },
+            },
+            rendererStates: {
+              ...s.rendererStates,
+              [target]: { acknowledged: 'unknown', pending: null },
             },
           }))
           get().setActive(target)
@@ -626,20 +668,82 @@ export const useControllerStore = create<ControllerConnectionState>()(
 
           set((s) => {
             const controllers = { ...s.controllers }
+            const rendererStates = { ...s.rendererStates }
             delete controllers[ip]
+            delete rendererStates[ip]
             const nextActive =
               s.activeIp === ip ? (Object.keys(controllers)[0] ?? null) : s.activeIp
             return {
               controllers,
+              rendererStates,
               activeIp: nextActive,
               lastConnectedIp: s.lastConnectedIp === ip ? null : s.lastConnectedIp,
               lastConnectedNickname:
                 s.lastConnectedIp === ip ? null : s.lastConnectedNickname,
             }
           })
+          rendererCommandGenerations.set(ip, (rendererCommandGenerations.get(ip) ?? 0) + 1)
           // Re-point the active provider at the new active Controller (or none).
           const { activeIp } = get()
           setControllerProvider(activeIp ? providers.get(activeIp)! : new NullControllerProvider())
+        },
+
+        setRendererPaused: async (ip, paused) => {
+          const provider = providers.get(ip)
+          const entry = get().controllers[ip]
+          if (
+            !provider ||
+            entry?.phase !== 'live' ||
+            (get().pushing && get().activeIp === ip)
+          ) return
+
+          const pending: ControllerRendererCommand = paused ? 'pause' : 'resume'
+          const generation = (rendererCommandGenerations.get(ip) ?? 0) + 1
+          rendererCommandGenerations.set(ip, generation)
+          set((s) => ({
+            rendererStates: {
+              ...s.rendererStates,
+              [ip]: {
+                acknowledged: s.rendererStates[ip]?.acknowledged ?? 'unknown',
+                pending,
+              },
+            },
+          }))
+
+          try {
+            await queueControllerDeviceWrite(ip, () => provider.setRendererPaused(paused))
+            if (
+              rendererCommandGenerations.get(ip) !== generation ||
+              providers.get(ip) !== provider ||
+              get().controllers[ip]?.phase !== 'live'
+            ) return
+            set((s) => ({
+              rendererStates: {
+                ...s.rendererStates,
+                [ip]: {
+                  acknowledged: paused ? 'paused' : 'playing',
+                  pending: null,
+                },
+              },
+            }))
+          } catch (error) {
+            if (
+              rendererCommandGenerations.get(ip) !== generation ||
+              providers.get(ip) !== provider ||
+              get().controllers[ip]?.phase !== 'live'
+            ) return
+            const message = error instanceof Error ? error.message : String(error)
+            set((s) => ({
+              rendererStates: {
+                ...s.rendererStates,
+                [ip]: {
+                  acknowledged: s.rendererStates[ip]?.acknowledged ?? 'unknown',
+                  pending: null,
+                  error: message,
+                },
+              },
+            }))
+          }
         },
 
         autoConnect: async () => {
@@ -925,6 +1029,7 @@ export const useControllerStore = create<ControllerConnectionState>()(
                     ])],
                   }
                 : undefined
+              invalidateRendererState(live.ip)
               await queueControllerDeviceWrite(live.ip, () => pushPattern({
                 provider,
                 controllerId: live.ip,
@@ -970,6 +1075,7 @@ export const useControllerStore = create<ControllerConnectionState>()(
           if (!controllerId || artifact.source.length === 0) return
 
           set({ pushing: true, pushResult: null })
+          invalidateRendererState(controllerId)
           try {
             const { created, programId } = await queueControllerDeviceWrite(
               controllerId,
@@ -1262,6 +1368,7 @@ export const useControllerStore = create<ControllerConnectionState>()(
           const persist = get().saveArmed
 
           set({ pushing: true, pushResult: null })
+          invalidateRendererState(controllerId)
           try {
             // Push the bundled artifact (library-inlined) — the same code Copy/Download
             // emit — never raw editor source. Use the last *clean* preview source so a
@@ -1420,5 +1527,6 @@ export function __resetControllerProviders(): void {
   unsubscribers.forEach((u) => u())
   unsubscribers.clear()
   providers.clear()
+  rendererCommandGenerations.clear()
   firmwareUpdateCheckedAt.clear()
 }

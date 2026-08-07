@@ -492,6 +492,40 @@ describe('PixelblazeConnection', () => {
   })
 
   describe('controls / brightness / activeProgram', () => {
+    it('sends the exact renderer pause frame and resolves only after acknowledgement', async () => {
+      const { conn, socket } = await connected()
+      let settled = false
+
+      const command = conn.setRendererPaused(true).then(() => {
+        settled = true
+      })
+
+      expect(socket.lastFrame()).toEqual({ pause: true })
+      await Promise.resolve()
+      expect(settled).toBe(false)
+
+      socket.simulateMessage({ ack: 1 })
+      await command
+      expect(settled).toBe(true)
+    })
+
+    it('sends the exact renderer resume frame and resolves only after acknowledgement', async () => {
+      const { conn, socket } = await connected()
+      let settled = false
+
+      const command = conn.setRendererPaused(false).then(() => {
+        settled = true
+      })
+
+      expect(socket.lastFrame()).toEqual({ pause: false })
+      await Promise.resolve()
+      expect(settled).toBe(false)
+
+      socket.simulateMessage({ ack: 1 })
+      await command
+      expect(settled).toBe(true)
+    })
+
     it('getControls sends {getControls} and resolves with the reply object', async () => {
       const { conn, socket } = await connected()
       const promise = conn.getControls('pat1')

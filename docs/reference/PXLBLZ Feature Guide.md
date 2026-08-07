@@ -367,6 +367,18 @@ writes are volatile; pixel count is a deliberate saved hardware write with an
 explicit apply. PXLBLZ never installs firmware — when an update is available
 it points to the Controller's own **Settings → Updates**.
 
+The header's **Play/Pause** control freezes or resumes the Controller's active
+renderer. It acts on the Controller, not the open Studio artifact, so it works
+for managed, foreign, transient, and saved Patterns without changing Pattern
+selection or sequencer playback. The command is volatile and never writes
+flash.
+
+Play/Pause changes only after the Controller acknowledges the command. A
+reconnect makes the displayed state unknown because Pixelblaze does not report
+authoritative paused state; **Resume** remains available as the safe recovery
+action. A failed or lost acknowledgement appears in the panel without changing
+the Controller's connection status.
+
 ## 10. Controller profiles
 
 A Controller profile is durable configuration for one physical Controller,

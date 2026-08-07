@@ -57,6 +57,8 @@ function makeDeviceTransport(
     discovered?: { id: string; localIp: string; name?: string; version?: string; boardType?: string }[]
     /** When set, the fake helper fails discover with this error. */
     discoverError?: string
+    /** Whether device-wide renderer commands receive the firmware ack. */
+    acknowledgeRendererCommands?: boolean
     /** Fields the fake device reports in the websocket settings packet. */
     settings?: { boardType?: string; chipId?: number; name?: string; pixelCount?: number }
     /** JSON the fake helper returns from `/wifistatus`. Absent means no MAC known. */
@@ -183,6 +185,10 @@ function makeDeviceTransport(
           if ('pixelCount' in cmd) writes.push(cmd)
           if ('setVars' in cmd) writes.push(cmd)
           if ('setControls' in cmd) writes.push(cmd)
+          if ('pause' in cmd && !('setCode' in cmd)) {
+            writes.push(cmd)
+            if (opts.acknowledgeRendererCommands ?? true) reply(msg.connId, { ack: 1 })
+          }
           if ('setCode' in cmd) {
             writes.push(cmd)
             const setCode = cmd.setCode as { id?: unknown }
@@ -708,6 +714,34 @@ describe('ExtensionControllerProvider', () => {
       { setVars: { __px_powerLimit: 0.2 } },
       { setControls: { sliderX: 0.9 }, save: true },
     ])
+  })
+
+  it('round-trips acknowledged renderer pause and resume through the provider boundary', async () => {
+    const d = makeDeviceTransport()
+    const p = new ExtensionControllerProvider({ transport: d.transport })
+    await p.connect(TARGET)
+
+    await expect(p.setRendererPaused(true)).resolves.toBeUndefined()
+    await expect(p.setRendererPaused(false)).resolves.toBeUndefined()
+
+    expect(d.writes.filter((write) => 'pause' in write)).toEqual([
+      { pause: true },
+      { pause: false },
+    ])
+  })
+
+  it('rejects an unacknowledged renderer command without poisoning connection status', async () => {
+    const d = makeDeviceTransport({ acknowledgeRendererCommands: false })
+    const p = new ExtensionControllerProvider({
+      transport: d.transport,
+      requestTimeoutMs: 10,
+      pingIntervalMs: 0,
+      livenessTimeoutMs: 0,
+    })
+    await p.connect(TARGET)
+
+    await expect(p.setRendererPaused(true)).rejects.toThrow('timed out waiting for "ack"')
+    expect(p.getStatus().kind).toBe('connected')
   })
 
   it('sends a saved pixelCount write to the device', async () => {

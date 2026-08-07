@@ -194,6 +194,11 @@ export interface ControllerProvider {
    *  resolves once the fire-and-forget command has been sent. */
   setVars(vars: Record<string, number>): Promise<void>
 
+  /** Pause or resume the active renderer. Volatile, device-wide, and independent
+   *  of Pattern identity. Resolves only after the Controller acknowledges the
+   *  command; never requests persistence or writes flash. */
+  setRendererPaused(paused: boolean): Promise<void>
+
   /** Read back the Controller's installed pixel map as coordinate tuples —
    *  `[[x],…]` (1D), `[[x,y],…]` (2D) or `[[x,y,z],…]` (3D) — or `null` when the
    *  device reports no map. Map read-back is an unconfirmed firmware capability
@@ -322,6 +327,10 @@ export class NullControllerProvider implements ControllerProvider {
   }
 
   setVars(_vars: Record<string, number>): Promise<void> {
+    return Promise.reject(new Error('Not connected to a Controller'))
+  }
+
+  setRendererPaused(_paused: boolean): Promise<void> {
     return Promise.reject(new Error('Not connected to a Controller'))
   }
 

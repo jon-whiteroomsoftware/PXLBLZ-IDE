@@ -492,6 +492,10 @@ export class ExtensionControllerProvider implements ControllerProvider {
     return this.fireAndForget((conn) => conn.setVars(vars))
   }
 
+  setRendererPaused(paused: boolean): Promise<void> {
+    return this.withConn((conn) => conn.setRendererPaused(paused))
+  }
+
   /** Read the device's installed pixel map (H13, issue #205). The current map is a
    *  plain HTTP GET of `/pixelmap.dat`, which only the helper can do (mixed-content
    *  / CORS) — so, like compile, it's a one-off reqId-keyed relay round-trip, not a

@@ -386,6 +386,12 @@ export class PixelblazeConnection {
     return this.request('ack', { ping: true }).then(() => undefined)
   }
 
+  /** Pause the active renderer and resolve only after the Controller acknowledges
+   *  the command. Renderer transport is volatile and never writes flash. */
+  setRendererPaused(paused: boolean): Promise<void> {
+    return this.request('ack', { pause: paused }).then(() => undefined)
+  }
+
   /** Ask the Controller's own update service whether compatible firmware exists.
    *  PXLBLZ deliberately does not compare versions or install the update. */
   async checkFirmwareUpdate(): Promise<FirmwareUpdateState> {

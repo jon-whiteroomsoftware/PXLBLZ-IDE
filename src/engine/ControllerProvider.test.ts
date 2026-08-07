@@ -70,6 +70,7 @@ describe('NullControllerProvider', () => {
     await expect(p.readSavedProgram('PROGRAM_01')).rejects.toThrow(/not connected/i)
     await expect(p.getVars()).rejects.toThrow(/not connected/i)
     await expect(p.setVars({ __px_powerLimit: 0.25 })).rejects.toThrow(/not connected/i)
+    await expect(p.setRendererPaused(false)).rejects.toThrow(/not connected/i)
     await expect(p.getPixelMap()).rejects.toThrow(/not connected/i)
     await expect(p.setControls({ sliderX: 0.5 })).rejects.toThrow(/not connected/i)
     await expect(p.setBrightness(0.66)).rejects.toThrow(/not connected/i)

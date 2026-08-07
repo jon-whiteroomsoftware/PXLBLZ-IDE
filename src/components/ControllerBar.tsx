@@ -1,8 +1,9 @@
 import { useCallback, useEffect, useRef, useState, type ReactNode } from 'react'
-import { CircleArrowUp, RotateCw } from 'lucide-react'
+import { CircleArrowUp, Pause, Play, RotateCw } from 'lucide-react'
 import {
   useControllerStore,
   type ControllerReconciliationState,
+  type ControllerRendererState,
 } from '@/store/controllerStore'
 import { useControllerProfileStore } from '@/store/controllerProfileStore'
 import { useRouterStore } from '@/store/routerStore'
@@ -65,6 +66,9 @@ function ControllerPillButton({
   onManagedRefresh,
   onActivate,
   onRemove,
+  rendererState,
+  rendererBlockedByPush,
+  onRendererPaused,
   actionRow,
 }: {
   ip: string
@@ -78,9 +82,46 @@ function ControllerPillButton({
   onManagedRefresh: () => void
   onActivate: () => void
   onRemove: () => void
+  rendererState?: ControllerRendererState
+  rendererBlockedByPush: boolean
+  onRendererPaused: (paused: boolean) => void
   actionRow: ReactNode
 }) {
   const { label, tone, showDot } = describeControllerPill({ ip, nickname, phase })
+  const renderer = rendererState ?? { acknowledged: 'unknown', pending: null }
+  const rendererDisconnected = phase !== 'live'
+  const rendererPending = renderer.pending
+  const rendererTargetPaused = rendererPending === 'pause'
+    || (rendererPending === null && renderer.acknowledged === 'playing')
+  const rendererLabel = rendererPending
+    ? `${rendererPending === 'pause' ? 'Pausing' : 'Resuming'} ${label} renderer`
+    : rendererDisconnected
+      ? `Resume ${label} renderer (disconnected; state unknown)`
+      : rendererBlockedByPush
+        ? `Resume ${label} renderer (Send in progress; state unknown)`
+      : renderer.acknowledged === 'playing'
+        ? `Pause ${label} renderer`
+        : renderer.acknowledged === 'paused'
+          ? `Resume ${label} renderer`
+          : `Resume ${label} renderer (state unknown)`
+  const rendererText = rendererPending
+    ? rendererPending === 'pause' ? 'Pausing…' : 'Resuming…'
+    : renderer.acknowledged === 'playing'
+      ? 'Pause'
+      : renderer.acknowledged === 'paused'
+        ? 'Play'
+        : 'Resume'
+  const rendererTitle = rendererDisconnected
+    ? 'Reconnect this Controller to resume its renderer'
+    : rendererBlockedByPush
+      ? 'Wait for Send to finish before controlling the renderer'
+    : rendererPending
+      ? `${rendererPending === 'pause' ? 'Pause' : 'Resume'} command awaiting Controller acknowledgement`
+      : renderer.acknowledged === 'unknown'
+        ? 'Renderer state is unknown; send Resume to recover safely'
+        : renderer.acknowledged === 'playing'
+          ? 'Pause the active renderer'
+          : 'Resume the active renderer'
   return (
     <span className="relative inline-flex">
       {/* The whole pill is one toggle target — clicking anywhere on it (chip,
@@ -159,16 +200,44 @@ function ControllerPillButton({
                 name + dimensionality, not the device name (which already labels the
                 pill this popover hangs from). */}
             <ControllerPanelTitle />
-            <button
-              type="button"
-              onClick={onRemove}
-              aria-label={`Disconnect ${label}`}
-              data-testid="controller-pill-remove"
-              className="shrink-0 rounded border border-zinc-700 px-2 py-0.5 text-zinc-400 hover:border-zinc-500 hover:text-zinc-200 focus:outline-none"
-            >
-              Disconnect
-            </button>
+            <div className="flex shrink-0 items-center gap-1">
+              <button
+                type="button"
+                onClick={onRemove}
+                aria-label={`Disconnect ${label}`}
+                data-testid="controller-pill-remove"
+                className="shrink-0 rounded border border-zinc-700 px-2 py-0.5 text-zinc-400 hover:border-zinc-500 hover:text-zinc-200 focus:outline-none"
+              >
+                Disconnect
+              </button>
+              <button
+                type="button"
+                onClick={() => onRendererPaused(rendererTargetPaused)}
+                disabled={rendererDisconnected || rendererBlockedByPush || rendererPending !== null}
+                aria-label={rendererLabel}
+                aria-busy={rendererPending !== null}
+                data-testid="controller-renderer-transport"
+                title={rendererTitle}
+                className="inline-flex shrink-0 items-center gap-1 rounded border border-zinc-700 px-2 py-0.5 text-zinc-300 hover:border-zinc-500 hover:text-zinc-100 focus:outline-none disabled:cursor-not-allowed disabled:opacity-40"
+              >
+                {rendererPending
+                  ? <RotateCw size={12} className="animate-spin" aria-hidden="true" />
+                  : renderer.acknowledged === 'playing'
+                    ? <Pause size={12} aria-hidden="true" />
+                    : <Play size={12} aria-hidden="true" />}
+                {rendererText}
+              </button>
+            </div>
           </div>
+          {renderer.error && (
+            <p
+              role="alert"
+              data-testid="controller-renderer-error"
+              className="border-b border-red-400/20 bg-red-500/5 px-3 py-1.5 text-[10px] leading-4 text-red-300"
+            >
+              Renderer command failed: {renderer.error}
+            </p>
+          )}
           {actionRow}
           <div className="py-2 pr-3">
             <ControllerPanel />
@@ -205,7 +274,9 @@ export function ControllerBar({ reloadPage = () => window.location.reload() }: {
   const extensionPresent = useControllerStore((s) => s.extensionPresent)
   const controllers = useControllerStore((s) => s.controllers)
   const controllerReconciliations = useControllerStore((s) => s.controllerReconciliations)
+  const rendererStates = useControllerStore((s) => s.rendererStates)
   const activeIp = useControllerStore((s) => s.activeIp)
+  const pushing = useControllerStore((s) => s.pushing)
   const detectExtension = useControllerStore((s) => s.detectExtension)
   const discover = useControllerStore((s) => s.discover)
   const discovered = useControllerStore((s) => s.discovered)
@@ -213,6 +284,7 @@ export function ControllerBar({ reloadPage = () => window.location.reload() }: {
   const addController = useControllerStore((s) => s.addController)
   const removeController = useControllerStore((s) => s.removeController)
   const setActive = useControllerStore((s) => s.setActive)
+  const setRendererPaused = useControllerStore((s) => s.setRendererPaused)
   const controllerProfiles = useControllerProfileStore((s) => s.profiles)
   const controllerProfilesLoaded = useControllerProfileStore((s) => s.profilesLoaded)
   const loadControllerProfiles = useControllerProfileStore((s) => s.loadProfiles)
@@ -450,6 +522,9 @@ export function ControllerBar({ reloadPage = () => window.location.reload() }: {
             onActivate={() => onPillClick(ip)}
             onManagedRefresh={() => void openProfileForController(ip)}
             onRemove={() => onPillRemove(ip)}
+            rendererState={rendererStates[ip]}
+            rendererBlockedByPush={pushing && activeIp === ip}
+            onRendererPaused={(paused) => void setRendererPaused(ip, paused)}
             actionRow={actionRowFor(ip)}
           />
         )

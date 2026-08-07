@@ -42,6 +42,10 @@ import {
   __resetControllerProfileWriteQueue,
   queueControllerProfileWrite,
 } from '@/engine/controllerProfileWriteQueue'
+import {
+  __resetControllerDeviceWriteQueue,
+  queueControllerDeviceWrite,
+} from '@/engine/controllerDeviceWriteQueue'
 import { defaultControllerProfile, type ControllerProfile } from './controllerProfileStore'
 import type { FirmwareUpdateState } from '@/engine/firmwareUpdate'
 import { stampArtifact } from '@/engine/artifactStamp'
@@ -71,6 +75,8 @@ class FakeProvider extends NullControllerProvider {
   disconnects = 0
   firmwareUpdateState: FirmwareUpdateState = 'current'
   firmwareUpdateChecks = 0
+  rendererCommands: boolean[] = []
+  rendererCommandError: Error | null = null
 
   detectHelper(): Promise<boolean> {
     return Promise.resolve(true)
@@ -127,6 +133,12 @@ class FakeProvider extends NullControllerProvider {
   checkFirmwareUpdate(): Promise<FirmwareUpdateState> {
     this.firmwareUpdateChecks++
     return Promise.resolve(this.firmwareUpdateState)
+  }
+  setRendererPaused(paused: boolean): Promise<void> {
+    this.rendererCommands.push(paused)
+    return this.rendererCommandError
+      ? Promise.reject(this.rendererCommandError)
+      : Promise.resolve()
   }
 
   // ── push surface (#202) ─────────────────────────────────────────────────────
@@ -223,6 +235,7 @@ beforeEach(async () => {
   __resetControllerProviders()
   resetPersonalContentProvider()
   __resetControllerProfileWriteQueue()
+  __resetControllerDeviceWriteQueue()
   resetControllerMetadataStorage()
   setControllerMetadataStorage(memoryControllerMetadataStorage())
   useControllerStore.setState(controllerInitialState)
@@ -615,6 +628,113 @@ describe('controllerStore (keyed)', () => {
     expect(getControllerProvider()).toBe(created.get('10.0.0.5'))
   })
 
+  it('keeps acknowledged renderer state and commands independent per Controller', async () => {
+    await store().addController('10.0.0.5')
+    await store().addController('10.0.0.6')
+
+    await store().setRendererPaused('10.0.0.5', true)
+    expect(created.get('10.0.0.5')!.rendererCommands).toEqual([true])
+    expect(created.get('10.0.0.6')!.rendererCommands).toEqual([])
+    expect(store().rendererStates['10.0.0.5']).toEqual({
+      acknowledged: 'paused',
+      pending: null,
+    })
+    expect(store().rendererStates['10.0.0.6']).toEqual({
+      acknowledged: 'unknown',
+      pending: null,
+    })
+
+    await store().setRendererPaused('10.0.0.6', false)
+    expect(created.get('10.0.0.6')!.rendererCommands).toEqual([false])
+    expect(store().rendererStates['10.0.0.5'].acknowledged).toBe('paused')
+    expect(store().rendererStates['10.0.0.6'].acknowledged).toBe('playing')
+  })
+
+  it('does not start renderer transport while the same Controller is receiving a Pattern push', async () => {
+    await store().addController('10.0.0.5')
+    useControllerStore.setState({ pushing: true })
+
+    await store().setRendererPaused('10.0.0.5', true)
+
+    expect(created.get('10.0.0.5')!.rendererCommands).toEqual([])
+    expect(store().rendererStates['10.0.0.5']).toEqual({
+      acknowledged: 'unknown',
+      pending: null,
+    })
+  })
+
+  it('serializes renderer transport behind other queued writes for the same Controller', async () => {
+    await store().addController('10.0.0.5')
+    let finishWrite!: () => void
+    const existingWrite = queueControllerDeviceWrite(
+      '10.0.0.5',
+      () => new Promise<void>((resolve) => { finishWrite = resolve }),
+    )
+    await vi.waitFor(() => expect(finishWrite).toBeTypeOf('function'))
+
+    const rendererCommand = store().setRendererPaused('10.0.0.5', false)
+    expect(created.get('10.0.0.5')!.rendererCommands).toEqual([])
+
+    finishWrite()
+    await existingWrite
+    await rendererCommand
+    expect(created.get('10.0.0.5')!.rendererCommands).toEqual([false])
+  })
+
+  it('shows a pending renderer command but ignores its late acknowledgement after disconnect', async () => {
+    await store().addController('10.0.0.5')
+    const provider = created.get('10.0.0.5')!
+    let acknowledge!: () => void
+    provider.setRendererPaused = vi.fn(() => new Promise<void>((resolve) => {
+      acknowledge = resolve
+    }))
+
+    const command = store().setRendererPaused('10.0.0.5', true)
+    expect(store().rendererStates['10.0.0.5']).toEqual({
+      acknowledged: 'unknown',
+      pending: 'pause',
+    })
+
+    await store().removeController('10.0.0.5')
+    acknowledge()
+    await command
+
+    expect(store().controllers['10.0.0.5']).toBeUndefined()
+    expect(store().rendererStates['10.0.0.5']).toBeUndefined()
+  })
+
+  it('preserves the last acknowledgement and connection phase when a renderer command fails', async () => {
+    await store().addController('10.0.0.5')
+    const provider = created.get('10.0.0.5')!
+    await store().setRendererPaused('10.0.0.5', false)
+    provider.rendererCommandError = new Error('renderer acknowledgement lost')
+
+    await store().setRendererPaused('10.0.0.5', true)
+
+    expect(store().rendererStates['10.0.0.5']).toEqual({
+      acknowledged: 'playing',
+      pending: null,
+      error: 'renderer acknowledgement lost',
+    })
+    expect(store().controllers['10.0.0.5'].phase).toBe('live')
+  })
+
+  it('resets renderer knowledge on reconnect and still allows an explicit Resume recovery', async () => {
+    await store().addController('10.0.0.5')
+    await store().setRendererPaused('10.0.0.5', true)
+    expect(store().rendererStates['10.0.0.5'].acknowledged).toBe('paused')
+
+    await store().addController('10.0.0.5')
+    expect(store().rendererStates['10.0.0.5']).toEqual({
+      acknowledged: 'unknown',
+      pending: null,
+    })
+
+    await store().setRendererPaused('10.0.0.5', false)
+    expect(store().rendererStates['10.0.0.5'].acknowledged).toBe('playing')
+    expect(created.get('10.0.0.5')!.rendererCommands).toEqual([true, false])
+  })
+
   it('removeController drops the entry, disconnects, and re-points active', async () => {
     await store().addController('10.0.0.5')
     await store().addController('10.0.0.6')
@@ -773,6 +893,20 @@ describe('controllerStore (keyed)', () => {
       const labels = await getProgramLabels()
       expect(labels['10.0.0.5'][pushedId]).toBe('Twinkle')
       expect(useControllerPanelStore.getState().programLabels[pushedId]).toBe('Twinkle')
+    })
+
+    it('returns renderer transport knowledge to unknown when Send controls renderer state internally', async () => {
+      await store().addController('10.0.0.5')
+      await store().setRendererPaused('10.0.0.5', true)
+      usePatternStore.setState({ activePatternId: 'pat-1' })
+      useEditorStore.setState({ previewSource: PATTERN_SRC, previewPatternName: 'Twinkle' })
+
+      await store().pushActivePattern()
+
+      expect(store().rendererStates['10.0.0.5']).toEqual({
+        acknowledged: 'unknown',
+        pending: null,
+      })
     })
 
     it('keeps the drain transport-only when a run replaces a known large program', async () => {
