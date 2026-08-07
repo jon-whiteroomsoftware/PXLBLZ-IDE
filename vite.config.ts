@@ -4,6 +4,7 @@ import tailwindcss from '@tailwindcss/vite'
 import { defaultExclude } from 'vitest/config'
 import path from 'path'
 import fs from 'fs'
+import { execFileSync } from 'child_process'
 
 const DEFAULT_BASE = '/PXLBLZ-IDE/'
 const DEFAULT_API_PROXY_TARGET = 'http://localhost:8788'
@@ -73,6 +74,35 @@ function captureSink() {
   }
 }
 
+// Dev-only: report which worktree (and commit) this dev server serves, at
+// GET /__identity outside the base path like /__capture. The public
+// Playwright suite refuses to run against a server that cannot answer or
+// that serves a different worktree (#746) — the stable main runtime always
+// occupies 5174, so an unverified target means a candidate gate could pass
+// against old main. Never registered in a production build.
+function identityEndpoint() {
+  return {
+    name: 'pxlblz-identity',
+    configureServer(server: import('vite').ViteDevServer) {
+      server.middlewares.use((req, res, next) => {
+        const pathname = (req.url ?? '').split('?')[0]
+        if (pathname !== '/__identity' || req.method !== 'GET') return next()
+        let commit: string | null
+        try {
+          commit = execFileSync('git', ['rev-parse', 'HEAD'], {
+            cwd: __dirname,
+            encoding: 'utf8',
+          }).trim()
+        } catch {
+          commit = null
+        }
+        res.setHeader('Content-Type', 'application/json')
+        res.end(JSON.stringify({ project: 'pxlblz-ide', worktree: __dirname, commit }))
+      })
+    },
+  }
+}
+
 // Dev-only: redirect a non-root base path without a trailing slash to the
 // canonical trailing-slash form, so http://localhost:5174/PXLBLZ-IDE loads
 // instead of 404ing.
@@ -111,6 +141,7 @@ export default defineConfig(({ mode }) => {
     plugins: [
       redirectBaseTrailingSlash(base),
       captureSink(),
+      identityEndpoint(),
       react(),
       tailwindcss(),
     ],

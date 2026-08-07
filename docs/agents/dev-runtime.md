@@ -86,7 +86,7 @@ Release checks listener ownership before sending a signal. It refuses to stop a
 port that now belongs to another process. Never release or stop the stable main
 pair during ordinary task cleanup.
 
-## Authenticated Playwright
+## Playwright suites
 
 Authenticated suites reserve an isolated Vite/Wrangler pair from the same
 registry, use an explicit temporary D1 persistence directory, migrate and seed
@@ -97,8 +97,20 @@ npm run test:e2e:auth-smoke
 npm run test:e2e:shows
 ```
 
+The public suite reserves a shared-profile UI port from the registry and
+starts a candidate-owned dev server, because the stable main pair on `5174`
+would otherwise be silently reused and test old main instead of the worktree
+under test (#746). Its global setup verifies the served worktree through the
+dev-only `/__identity` endpoint and fails closed on any mismatch:
+
+```bash
+npm run test:e2e
+```
+
 This keeps parallel test runs away from main, issue runtimes, and each other.
 The wrapper owns port selection; do not set fixed Playwright ports manually.
+To run the public suite against a managed issue runtime that already serves
+the same worktree, set `PLAYWRIGHT_STUDIO_URL` to that runtime's URL.
 
 ## Recovery rules
 

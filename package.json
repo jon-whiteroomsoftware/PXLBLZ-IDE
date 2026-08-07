@@ -33,7 +33,7 @@
     "test:staged": "npm run check:node && wrsp-test-staged",
     "test:mutation:show-authoring": "npm run check:node && tsx scripts/run-show-authoring-mutation.ts",
     "test:watch": "npm run check:node && vitest",
-    "test:e2e": "npm run check:node && playwright test",
+    "test:e2e": "npm run check:node && tsx scripts/run-public-playwright.ts",
     "test:e2e:auth-smoke": "npm run check:node && tsx scripts/run-authenticated-playwright.ts e2e/authenticated-smoke.auth.spec.ts e2e/artifact-import.auth.spec.ts",
     "test:e2e:shows": "npm run check:node && tsx scripts/run-authenticated-playwright.ts e2e/shows.auth.spec.ts",
     "test:e2e:auth-full": "npm run check:node && tsx scripts/run-authenticated-playwright.ts e2e/authenticated-smoke.auth.spec.ts e2e/artifact-import.auth.spec.ts e2e/entity-title-rename.auth.spec.ts e2e/shows.auth.spec.ts e2e/workspace-recovery.auth.spec.ts",

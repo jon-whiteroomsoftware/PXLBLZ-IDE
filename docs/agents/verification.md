@@ -210,6 +210,33 @@ ports and D1 persistence through the managed runtime registry, seed before
 server startup, and release their state after the run. See
 [`dev-runtime.md`](dev-runtime.md) for the shared-versus-isolated contract.
 
+### Public suite targeting (#746)
+
+The public suite is candidate-aware for the same reason the authenticated
+suites own their ports: the stable reviewed-main runtime intentionally always
+occupies Vite `5174`, so the old config — hard-coded `5174` with
+`reuseExistingServer: true` — let a worktree gate run pass "20/20" against
+old main instead of the candidate under test. The suite now refuses to run
+against an unverified server:
+
+- `npm run test:e2e` (`scripts/run-public-playwright.ts`) reserves a
+  shared-profile UI port from the managed runtime registry, starts a
+  candidate-owned dev server (`reuseExistingServer: false`), and releases
+  the reservation after the run.
+- To reuse a managed issue runtime that is already serving the same
+  worktree, set `PLAYWRIGHT_STUDIO_URL` to its URL; the wrapper then
+  reserves nothing and tests that server.
+- `playwright.config.ts` requires an explicit target: a bare
+  `npx playwright test` fails with instructions instead of silently
+  falling back to `5174`.
+- Before any spec runs, `e2e/public.global-setup.ts` fetches the dev-only
+  `/__identity` endpoint and fails closed unless the served worktree is the
+  worktree under test — a server that does not answer, answers malformed, or
+  serves a different worktree refuses the run. The verified target line
+  (`Public e2e verified target: <url> serving <worktree> @ <commit>`) is the
+  run's identity evidence; include it with the suite counts when recording
+  e2e results.
+
 Each authenticated run seeds four synthetic worker identities and runs its
 specs fully parallel. A worker signs in as the identity derived from its stable
 parallel index, and the automatic fixture cleanup lists and deletes records
@@ -284,7 +311,10 @@ e2e validation *before* landing, not the pushing agent:
   the landing coordinator, and as an `X-E2E:` trailer on the slice's final
   commit (for example `X-E2E: test:e2e:shows 52/52`, before the
   `X-Authored-Model:` trailer) — the candidate reviewer sees only the commit
-  range, so the trailer is what clears its advisory.
+  range, so the trailer is what clears its advisory. For `test:e2e`, the
+  wrapper's `Public e2e verified target:` line names the URL and worktree the
+  suite actually exercised; copy it into the Tests section alongside the
+  counts.
 - Run the whole affected suite, not a filtered test: several failures only
   reproduce under full-suite timing (#672 reproduced 2/2 in suite order and
   0/2 in isolation).

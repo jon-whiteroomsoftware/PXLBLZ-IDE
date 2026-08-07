@@ -12,8 +12,10 @@
   },
   "include": [
     "vite.config.ts",
+    "playwright.config.ts",
     "playwright.auth.config.ts",
     "e2e/auth.global-setup.ts",
+    "e2e/public.global-setup.ts",
     "e2e/fixtures/authenticated.ts",
     "scripts/dev-runtime.ts",
     "scripts/authenticated-playwright-user.ts",
@@ -21,6 +23,7 @@
     "scripts/dev-runtime-core.ts",
     "scripts/dev-runtime-store.ts",
     "scripts/local-session-cookie.ts",
-    "scripts/run-authenticated-playwright.ts"
+    "scripts/run-authenticated-playwright.ts",
+    "scripts/run-public-playwright.ts"
   ]
 }
