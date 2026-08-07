@@ -298,6 +298,13 @@ coordinate counts. Pattern light size, diffusion, brightness, and solidity do
 not alter this wiring view. A connected Controller can also **Import map** from
 its installed `/pixelmap.dat`; known maps are recognized rather than duplicated.
 
+The **Clustered helical mast** stock family demonstrates grouped 12 V WS2811
+hardware. Its three physical emitters share one addressable pixel, so the map
+places that pixel at the middle emitter and cannot give the other two independent
+coordinates or colours. Strand, Surface, and Spatial views all retain that same
+measured helical position; changing view changes what the Pattern samples, not
+where the preview draws the logical pixel.
+
 **Contain** preserves aspect by scaling all axes from one shared range;
 **Fill** stretches each axis independently to `0..1`. Both are real Mapper
 behaviors. For map theory from first principles, read **Understanding Maps**.

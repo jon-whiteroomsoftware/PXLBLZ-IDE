@@ -21,6 +21,9 @@ describe('stock catalogue', () => {
       'cylinder-strand',
       'cylinder-surface',
       'cylinder-spatial',
+      'clustered-helical-mast-strand',
+      'clustered-helical-mast-surface',
+      'clustered-helical-mast-spatial',
       'cube-volume-strand',
       'cube',
       'cube-shell-strand',
@@ -54,9 +57,21 @@ describe('stock catalogue', () => {
     expect(views.map((spec) => spec.dim)).toEqual([1, 2, 3])
   })
 
+  it('catalogues the clustered helical mast as three views of one physical path', () => {
+    const views = STOCK_MAP_SPECS.filter((spec) => spec.family?.id === 'clustered-helical-mast')
+    expect(views.map((spec) => spec.family?.view)).toEqual(['strand', 'surface', 'spatial'])
+    expect(views.find((spec) => spec.family?.natural)?.id).toBe('clustered-helical-mast-surface')
+
+    const resolved = views.map((spec) => mapById(spec.id).resolve(52))
+    expect(resolved.map((points) => points[0].sample.length)).toEqual([1, 2, 3])
+    expect(resolved[0].map((point) => point.pos)).toEqual(resolved[1].map((point) => point.pos))
+    expect(resolved[1].map((point) => point.pos)).toEqual(resolved[2].map((point) => point.pos))
+  })
+
   it('declares physical catalogue classification explicitly on every stock entry', () => {
     expect(STOCK_MAP_SPECS.every((spec) => spec.kind)).toBe(true)
     expect(stockMapSpec('seed-ring-2d')?.kind).toBe('path')
+    expect(stockMapSpec('clustered-helical-mast-surface')?.kind).toBe('path')
     expect(stockMapSpec('plane')?.kind).toBe('surface')
     expect(stockMapSpec('seed-sphere-3d')?.kind).toBe('shell')
     expect(stockMapSpec('sphere-volume')?.kind).toBe('volume')
@@ -65,7 +80,7 @@ describe('stock catalogue', () => {
 
   it('declares the supported view matrix from generator capabilities', () => {
     const matrix = Object.fromEntries(
-      ['square-grid', 'wide-grid', 'panel-winding', 'cube-volume', 'cube-shell', 'star-shell', 'star-volume', 'sphere-shell', 'sphere-volume', 'tetra-shell', 'tetra-volume']
+      ['square-grid', 'wide-grid', 'panel-winding', 'clustered-helical-mast', 'cube-volume', 'cube-shell', 'star-shell', 'star-volume', 'sphere-shell', 'sphere-volume', 'tetra-shell', 'tetra-volume']
         .map((familyId) => [
           familyId,
           STOCK_MAP_SPECS
@@ -77,6 +92,7 @@ describe('stock catalogue', () => {
       'square-grid': ['surface', 'strand'],
       'wide-grid': ['surface', 'strand'],
       'panel-winding': ['surface', 'strand'],
+      'clustered-helical-mast': ['strand', 'surface', 'spatial'],
       'cube-volume': ['strand', 'spatial'],
       'cube-shell': ['strand', 'spatial'],
       'star-shell': ['strand', 'spatial'],
@@ -146,6 +162,24 @@ describe('stock catalogue', () => {
 })
 
 describe('source regeneration', () => {
+  it('places clustered helical mast pixels at each three-emitter group centre', () => {
+    const spec = stockMapSpec('clustered-helical-mast-spatial')
+    expect(spec).toBeDefined()
+
+    const raw = evalMapSource(spec!.source, 52)
+    expect(raw).toHaveLength(52)
+    expect(raw[0][1]).toBeCloseTo(5.559370, 6)
+    expect(raw[1][1] - raw[0][1]).toBeCloseTo(16.678110, 6)
+    expect(raw[raw.length - 1][1] - raw[0][1]).toBeCloseTo(850.583620, 6)
+    expect(Math.hypot(raw[0][0] - 11, raw[0][2] - 11)).toBeCloseTo(11, 6)
+    expect(raw[0][2]).toBeLessThan(11)
+
+    const points = mapById('clustered-helical-mast-spatial').resolve(52)
+    expect(points).toHaveLength(52)
+    expect(points.every((point) => point.sample.length === 3)).toBe(true)
+    expect(points[0].sample[1]).toBeLessThan(points[points.length - 1].sample[1])
+  })
+
   it('builds the 2,000-pixel Redline installation as one panel and four targets', () => {
     const points = mapById('redline-stage-2d').resolve(2_000)
     const center = points.slice(0, 800)
