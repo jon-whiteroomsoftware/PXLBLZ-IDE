@@ -841,6 +841,84 @@ describe('ControllerProfilePage', () => {
     expect(screen.queryByRole('spinbutton', { name: 'Pixel count' })).not.toBeInTheDocument()
   })
 
+  it('preserves a stale authored load when switching to a custom construction', async () => {
+    const profile = seedProfile()
+    useControllerProfileStore.setState({
+      profiles: [{
+        ...profile,
+        lastKnownPixelCount: 301,
+        electricalProfile: {
+          ledPresetId: 'ws2812-5v-individual',
+          supplyBudget: { value: 36, unit: 'watts' },
+          loadOverride: {
+            fullWhite: { value: 60, unit: 'watts' },
+            source: 'measured',
+            atPixelCount: 300,
+          },
+        },
+        globalTransforms: profile.globalTransforms.map((transform) => (
+          transform.type === 'power-cap'
+            ? { ...transform, mode: 'derived' as const, maxDuty: 0.6 }
+            : transform
+        )),
+      }],
+      profilesLoaded: true,
+    })
+
+    render(<ControllerProfilePage profileId="ctrl-1" />)
+    expect(screen.getByText(/recorded at 300 addresses/)).toBeInTheDocument()
+
+    fireEvent.change(screen.getByRole('combobox', { name: 'LED construction preset' }), {
+      target: { value: 'custom' },
+    })
+
+    await waitFor(() => {
+      const savedProfile = useControllerProfileStore.getState().profiles[0]
+      expect(savedProfile.electricalProfile).toMatchObject({
+        ledPresetId: 'custom',
+        supplyBudget: { value: 36, unit: 'watts' },
+        loadOverride: {
+          fullWhite: { value: 60, unit: 'watts' },
+          source: 'measured',
+          atPixelCount: 300,
+        },
+      })
+      expect(savedProfile.globalTransforms.find((transform) => transform.type === 'power-cap')).toMatchObject({
+        mode: 'derived',
+        maxDuty: 0.6,
+      })
+    })
+  })
+
+  it('shows the effective derived duty after the address count changes', async () => {
+    const profile = seedProfile()
+    const configuredProfile = {
+      ...profile,
+      lastKnownPixelCount: 240,
+      electricalProfile: {
+        ledPresetId: 'ws2812-5v-individual' as const,
+        supplyBudget: { value: 36, unit: 'watts' as const },
+      },
+      globalTransforms: profile.globalTransforms.map((transform) => (
+        transform.type === 'power-cap'
+          ? { ...transform, mode: 'derived' as const, maxDuty: 0.5 }
+          : transform
+      )),
+    }
+    useControllerProfileStore.setState({ profiles: [configuredProfile], profilesLoaded: true })
+
+    render(<ControllerProfilePage profileId="ctrl-1" />)
+    expect(screen.getByText('50% duty cap')).toBeInTheDocument()
+
+    act(() => {
+      useControllerProfileStore.setState({
+        profiles: [{ ...configuredProfile, lastKnownPixelCount: 120 }],
+      })
+    })
+
+    await waitFor(() => expect(screen.getByText('100% duty cap')).toBeInTheDocument())
+  })
+
   it('disables A/W reinterpretation when a custom model has no conversion voltage', () => {
     const profile = seedProfile()
     useControllerProfileStore.setState({
@@ -868,6 +946,41 @@ describe('ControllerProfilePage', () => {
     fireEvent.click(screen.getByText('Advanced: measured or manufacturer-rated total'))
     const loadUnit = screen.getByRole('combobox', { name: 'Full-white installation total unit' })
     expect(within(loadUnit).getByRole('option', { name: 'Watts' })).toBeDisabled()
+  })
+
+  it('commits the displayed conversion voltage for a custom no-voltage model', async () => {
+    const profile = seedProfile()
+    useControllerProfileStore.setState({
+      profiles: [{
+        ...profile,
+        lastKnownPixelCount: 50,
+        electricalProfile: {
+          ledPresetId: 'custom',
+          supplyBudget: { value: 4, unit: 'amps' },
+          loadOverride: {
+            fullWhite: { value: 8, unit: 'amps' },
+            source: 'measured',
+            atPixelCount: 50,
+          },
+        },
+      }],
+      profilesLoaded: true,
+    })
+
+    render(<ControllerProfilePage profileId="ctrl-1" />)
+    fireEvent.click(screen.getByText('Advanced: measured or manufacturer-rated total'))
+
+    const voltage = screen.getByRole('spinbutton', { name: 'Electrical supply voltage' })
+    expect(voltage).toHaveValue(null)
+    fireEvent.change(voltage, { target: { value: '5' } })
+    fireEvent.blur(voltage)
+
+    await waitFor(() => {
+      expect(useControllerProfileStore.getState().profiles[0].electricalProfile?.voltageOverride).toBe(5)
+      expect(within(screen.getByRole('combobox', {
+        name: 'Continuous LED supply budget unit',
+      })).getByRole('option', { name: 'Watts' })).toBeEnabled()
+    })
   })
 
   it('shows the latest generated artifact inspection for the controller profile', () => {

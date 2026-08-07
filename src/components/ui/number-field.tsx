@@ -29,23 +29,24 @@ export interface NumberFieldDraft {
 }
 
 export function useNumberFieldDraft({ value, min, max, onChange }: {
-  value: number
+  value?: number
   min?: number
   max?: number
   onChange: (value: number) => void
 }): NumberFieldDraft {
-  const [draft, setDraft] = useState(String(value))
+  const renderedValue = value == null ? '' : String(value)
+  const [draft, setDraft] = useState(renderedValue)
   const focusedRef = useRef(false)
 
   useEffect(() => {
-    if (!focusedRef.current) setDraft(String(value))
-  }, [value])
+    if (!focusedRef.current) setDraft(renderedValue)
+  }, [renderedValue])
 
   const commit = (raw: string) => {
     focusedRef.current = false
     const parsed = Number(raw)
     if (raw.trim() === '' || !Number.isFinite(parsed)) {
-      setDraft(String(value))
+      setDraft(renderedValue)
       return
     }
     const bounded = Math.max(min ?? Number.NEGATIVE_INFINITY, Math.min(max ?? Number.POSITIVE_INFINITY, parsed))
@@ -63,11 +64,11 @@ export function useNumberFieldDraft({ value, min, max, onChange }: {
       onKeyDown: (event) => {
         if (event.key === 'Enter') event.currentTarget.blur()
         if (event.key === 'Escape') {
-          setDraft(String(value))
+          setDraft(renderedValue)
           // blur() runs the commit handler synchronously, before React
           // repaints the reverted draft - reset the DOM value first so the
           // commit sees the pristine value and Escape never saves the edit.
-          event.currentTarget.value = String(value)
+          event.currentTarget.value = renderedValue
           event.currentTarget.blur()
         }
       },

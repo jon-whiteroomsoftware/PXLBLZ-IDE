@@ -196,6 +196,45 @@ function NumberField({
   )
 }
 
+function OptionalNumberField({
+  value,
+  onChange,
+  ariaLabel,
+  min,
+  max,
+  step = 1,
+  placeholder,
+}: {
+  value?: number
+  onChange: (value: number) => void
+  ariaLabel: string
+  min?: number
+  max?: number
+  step?: number
+  placeholder?: string
+}) {
+  const { inputProps } = useNumberFieldDraft({ value, min, max, onChange })
+
+  return (
+    <input
+      aria-label={ariaLabel}
+      type="number"
+      min={min}
+      max={max}
+      step={step}
+      placeholder={placeholder}
+      onClick={stopFieldPropagation}
+      onPointerDown={stopFieldPropagation}
+      {...inputProps}
+      onKeyDown={(event) => {
+        stopFieldPropagation(event)
+        inputProps.onKeyDown(event)
+      }}
+      className={`${fieldClass} w-full tabular-nums`}
+    />
+  )
+}
+
 function PercentageField({
   value,
   onChange,
@@ -498,9 +537,12 @@ function ElectricalProfileEditor({
       return
     }
     if (!pixelCount) return
+    if (override) {
+      onChange({ ...profile, ledPresetId })
+      return
+    }
     const fullWhiteWatts = resolved.fullWhiteWatts
-      ?? resolved.budgetWatts
-      ?? profile.supplyBudget.value
+    if (fullWhiteWatts == null) return
     onChange({
       ledPresetId,
       supplyBudget: profile.supplyBudget,
@@ -710,11 +752,12 @@ function ElectricalProfileEditor({
                 />
               </LabeledField>
               <LabeledField label="Supply voltage (for A/W conversion)">
-                <NumberField
+                <OptionalNumberField
                   ariaLabel="Electrical supply voltage"
                   min={0.1}
                   step={0.1}
-                  value={electricalProfile.voltageOverride ?? resolved.voltageVolts ?? 5}
+                  value={electricalProfile.voltageOverride ?? resolved.voltageVolts ?? undefined}
+                  placeholder="Enter voltage"
                   onChange={(voltageOverride) => update({ voltageOverride })}
                 />
               </LabeledField>
@@ -955,6 +998,9 @@ function PowerCapEditor({
     ? resolveControllerElectricalProfile(electricalProfile, { pixelCount })
     : null
   const derivedDuty = resolved?.maxDuty ?? null
+  const displayedDuty = transform.mode === 'derived' && derivedDuty != null
+    ? derivedDuty
+    : transform.maxDuty
 
   return (
     <div className="w-full min-w-0 max-w-[32rem] rounded border border-zinc-800 bg-zinc-950/70">
@@ -1006,7 +1052,7 @@ function PowerCapEditor({
       )}
 
       <div className="border-t border-zinc-800/80 px-3 py-2 font-mono text-[11px] leading-relaxed text-zinc-400">
-        <span className="block font-semibold text-amber-300">{Math.round(transform.maxDuty * 100)}% duty cap</span>
+        <span className="block font-semibold text-amber-300">{Math.round(displayedDuty * 100)}% duty cap</span>
         {resolved?.budgetAmps != null && resolved.budgetWatts != null && (
           <span className="block">budget {resolved.budgetAmps.toFixed(1)} A · {resolved.budgetWatts.toFixed(1)} W</span>
         )}
