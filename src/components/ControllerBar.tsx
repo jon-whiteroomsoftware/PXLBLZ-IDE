@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState, type ReactNode } from 'react'
-import { CircleArrowUp, Pause, Play, RotateCw } from 'lucide-react'
+import { CircleArrowUp, Pause, Play, RotateCw, Unplug } from 'lucide-react'
 import {
   useControllerStore,
   type ControllerReconciliationState,
@@ -110,13 +110,6 @@ function ControllerPillButton({
         : rendererStateUnknown
           ? `Resume ${label} renderer (state unknown)`
           : `${rendererAction} ${label} renderer`
-  const rendererText = rendererPending
-    ? rendererPending === 'pause' ? 'Pausing…' : 'Resuming…'
-    : rendererPlaying
-      ? 'Pause'
-      : renderer.acknowledged === 'paused'
-        ? 'Play'
-        : 'Resume'
   const rendererTitle = rendererDisconnected
     ? 'Reconnect this Controller to resume its renderer'
     : rendererBlockedByPush
@@ -211,10 +204,11 @@ function ControllerPillButton({
                 type="button"
                 onClick={onRemove}
                 aria-label={`Disconnect ${label}`}
+                title={`Disconnect ${label}`}
                 data-testid="controller-pill-remove"
-                className="shrink-0 rounded border border-zinc-700 px-2 py-0.5 text-zinc-400 hover:border-zinc-500 hover:text-zinc-200 focus:outline-none"
+                className="inline-flex h-6 w-6 shrink-0 items-center justify-center rounded border border-zinc-700 text-zinc-400 hover:border-zinc-500 hover:text-zinc-200 focus:outline-none"
               >
-                Disconnect
+                <Unplug size={13} aria-hidden="true" />
               </button>
               <button
                 type="button"
@@ -224,14 +218,13 @@ function ControllerPillButton({
                 aria-busy={rendererPending !== null}
                 data-testid="controller-renderer-transport"
                 title={rendererTitle}
-                className="inline-flex shrink-0 items-center gap-1 rounded border border-zinc-700 px-2 py-0.5 text-zinc-300 hover:border-zinc-500 hover:text-zinc-100 focus:outline-none disabled:cursor-not-allowed disabled:opacity-40"
+                className="inline-flex h-6 w-6 shrink-0 items-center justify-center rounded border border-zinc-700 text-zinc-300 hover:border-zinc-500 hover:text-zinc-100 focus:outline-none disabled:cursor-not-allowed disabled:opacity-40"
               >
                 {rendererPending
                   ? <RotateCw size={12} className="animate-spin" aria-hidden="true" />
                   : rendererPlaying
                     ? <Pause size={12} aria-hidden="true" />
                     : <Play size={12} aria-hidden="true" />}
-                {rendererText}
               </button>
             </div>
           </div>

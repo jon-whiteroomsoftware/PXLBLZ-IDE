@@ -349,6 +349,33 @@ describe('ControllerBar', () => {
     expect(screen.getByTestId('controller-pill-remove')).toHaveAccessibleName('Disconnect Desk')
   })
 
+  it('keeps the panel header actions icon-only and fixed-size across renderer states', () => {
+    useControllerStore.setState({
+      extensionPresent: true,
+      activeIp: '10.0.0.5',
+      controllers: { '10.0.0.5': { ip: '10.0.0.5', nickname: 'Desk', phase: 'live', mapDim: 2 } },
+      rendererStates: { '10.0.0.5': { acknowledged: 'playing', pending: null } },
+    })
+    render(<ControllerBar />)
+    fireEvent.click(screen.getByRole('button', { name: 'Toggle Desk panel' }))
+
+    const disconnect = screen.getByRole('button', { name: 'Disconnect Desk' })
+    const transport = screen.getByRole('button', { name: 'Pause Desk renderer' })
+    expect(disconnect).toHaveClass('h-6', 'w-6')
+    expect(transport).toHaveClass('h-6', 'w-6')
+    expect(disconnect).not.toHaveTextContent('Disconnect')
+    expect(transport).not.toHaveTextContent('Pause')
+    expect(disconnect.querySelector('.lucide-unplug')).toBeInTheDocument()
+
+    act(() => useControllerStore.setState({
+      rendererStates: { '10.0.0.5': { acknowledged: 'playing', pending: 'pause' } },
+    }))
+    const pending = screen.getByRole('button', { name: 'Pausing Desk renderer' })
+    expect(pending).toHaveClass('h-6', 'w-6')
+    expect(pending).not.toHaveTextContent('Pausing')
+    expect(pending.querySelector('.lucide-rotate-cw')).toBeInTheDocument()
+  })
+
   it('places an explicit Resume recovery immediately right of Disconnect when renderer state is unknown', () => {
     const setRendererPaused = vi.fn(async () => {})
     useControllerStore.setState({
@@ -413,7 +440,6 @@ describe('ControllerBar', () => {
       rendererStates: { '10.0.0.5': { acknowledged: 'paused', pending: null } },
     }))
     const play = screen.getByRole('button', { name: 'Resume Desk renderer' })
-    expect(play).toHaveTextContent('Play')
     expect(play.querySelector('.lucide-play')).toBeInTheDocument()
 
     act(() => useControllerStore.setState({
@@ -463,7 +489,6 @@ describe('ControllerBar', () => {
       name: 'Pause Desk renderer (Send in progress)',
     })
     expect(pause).toBeDisabled()
-    expect(pause).toHaveTextContent('Pause')
     expect(pause.querySelector('.lucide-pause')).toBeInTheDocument()
   })
 
@@ -493,8 +518,9 @@ describe('ControllerBar', () => {
 
     fireEvent.click(screen.getByRole('button', { name: 'Pause Desk renderer' }))
     await waitFor(() => expect(
-      screen.getByRole('button', { name: 'Resume Desk renderer' }),
-    ).toHaveTextContent('Play'))
+      screen.getByRole('button', { name: 'Resume Desk renderer' })
+        .querySelector('.lucide-play'),
+    ).toBeInTheDocument())
 
     act(() => useControllerStore.setState({
       rendererStates: {
