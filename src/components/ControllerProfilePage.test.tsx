@@ -355,6 +355,33 @@ describe('ControllerProfilePage', () => {
     expect(screen.getByTestId('controller-profile-status-dot')).toHaveClass('bg-ok')
   })
 
+  it('shows the last-known firmware update state read-only while the Controller is offline', () => {
+    const profile = seedProfile()
+    useControllerProfileStore.setState({
+      profiles: [{
+        ...profile,
+        board: {
+          ...profile.board,
+          firmwareVersion: '3.67',
+          firmwareUpdate: {
+            state: 'available',
+            checkedAt: 123_456,
+            firmwareVersion: '3.67',
+          },
+        },
+      }],
+    })
+
+    render(<ControllerProfilePage profileId="ctrl-1" />)
+
+    expect(screen.getByText('Offline')).toBeInTheDocument()
+    expect(screen.getByText('Update available')).toHaveAttribute(
+      'title',
+      'Last checked while this Controller was connected',
+    )
+    expect(screen.queryByRole('link', { name: 'Open Pixelblaze' })).not.toBeInTheDocument()
+  })
+
   it('gates the pane-header controller actions on connection and refreshes metadata (#685)', () => {
     const profile = seedProfile()
     const refreshLiveMetadata = vi.fn(async () => {})

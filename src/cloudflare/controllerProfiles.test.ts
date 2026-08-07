@@ -26,7 +26,16 @@ const profile: ControllerProfile = {
       pushedAt: 90,
     },
   ],
-  board: { kind: 'pixelblaze-v3-standard', hardwareRevision: 3.5, firmwareVersion: '3.67' },
+  board: {
+    kind: 'pixelblaze-v3-standard',
+    hardwareRevision: 3.5,
+    firmwareVersion: '3.67',
+    firmwareUpdate: {
+      state: 'available',
+      checkedAt: 90,
+      firmwareVersion: '3.67',
+    },
+  },
   inputs: [
     {
       id: 'pot0',

@@ -1,11 +1,73 @@
 import type { PowerCapSettings } from './powerCap'
+import type { FirmwareUpdateState } from './firmwareUpdate'
 
 export type ControllerBoardKind = 'pixelblaze-v3-standard'
+
+export interface ControllerFirmwareUpdateObservation {
+  state: 'available' | 'current'
+  checkedAt: number
+  firmwareVersion?: string
+}
 
 export interface ControllerBoardProfile {
   kind: ControllerBoardKind
   hardwareRevision?: number
   firmwareVersion?: string
+  /** Last conclusive result from the Controller's own update service. */
+  firmwareUpdate?: ControllerFirmwareUpdateObservation
+}
+
+export function withControllerFirmwareUpdateReport(
+  board: ControllerBoardProfile,
+  report: {
+    firmwareVersion?: string
+    state?: FirmwareUpdateState
+    checkedAt?: number
+    observedFirmwareVersion?: string
+  },
+): ControllerBoardProfile {
+  const firmwareVersion = report.firmwareVersion ?? board.firmwareVersion
+  const observedFirmwareVersion = report.observedFirmwareVersion ?? report.firmwareVersion
+  const observationMatchesInstalled = !observedFirmwareVersion
+    || !firmwareVersion
+    || observedFirmwareVersion === firmwareVersion
+  const conclusiveState = report.state === 'available'
+    ? 'available'
+    : report.state === 'current' || report.state === 'complete'
+      ? 'current'
+      : null
+
+  let firmwareUpdate = board.firmwareUpdate
+  if (
+    conclusiveState
+    && typeof report.checkedAt === 'number'
+    && observationMatchesInstalled
+  ) {
+    firmwareUpdate = {
+      state: conclusiveState,
+      checkedAt: report.checkedAt,
+      ...(observedFirmwareVersion ? { firmwareVersion: observedFirmwareVersion } : {}),
+    }
+  } else if (
+    firmwareUpdate
+    && firmwareVersion
+    && (!firmwareUpdate.firmwareVersion || firmwareUpdate.firmwareVersion !== firmwareVersion)
+  ) {
+    firmwareUpdate = undefined
+  }
+
+  const unchanged = firmwareVersion === board.firmwareVersion
+    && firmwareUpdate?.state === board.firmwareUpdate?.state
+    && firmwareUpdate?.checkedAt === board.firmwareUpdate?.checkedAt
+    && firmwareUpdate?.firmwareVersion === board.firmwareUpdate?.firmwareVersion
+  if (unchanged) return board
+
+  const { firmwareUpdate: _previousFirmwareUpdate, ...rest } = board
+  return {
+    ...rest,
+    ...(firmwareVersion ? { firmwareVersion } : {}),
+    ...(firmwareUpdate ? { firmwareUpdate } : {}),
+  }
 }
 
 /** User-declared LED output topology. The device protocol cannot report or

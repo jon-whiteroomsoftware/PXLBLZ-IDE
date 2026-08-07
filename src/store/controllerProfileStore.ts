@@ -12,15 +12,16 @@ import {
   findControllerProfileForDevice,
   type ControllerProfileJoinTarget,
 } from '@/engine/controllerProfileJoin'
-import type {
-  ControllerBindingTarget,
-  ControllerInput,
-  ControllerInputRole,
-  ControllerInputSignal,
-  ControllerProfile,
-  ControllerZone,
-  GlobalTransform,
-  PatternBinding,
+import {
+  withControllerFirmwareUpdateReport,
+  type ControllerBindingTarget,
+  type ControllerInput,
+  type ControllerInputRole,
+  type ControllerInputSignal,
+  type ControllerProfile,
+  type ControllerZone,
+  type GlobalTransform,
+  type PatternBinding,
 } from '@/engine/controllerProfile'
 import { useControllerStore } from '@/store/controllerStore'
 
@@ -182,13 +183,19 @@ export const useControllerProfileStore = create<ControllerProfileState>()((set, 
     const existing = findControllerProfileForDevice(get().profiles, target.deviceId)
     if (existing) {
       const firmwareVersion = target.firmwareVersion
+      const board = withControllerFirmwareUpdateReport(existing.board, {
+        firmwareVersion,
+        state: target.firmwareUpdateState,
+        checkedAt: target.firmwareUpdateCheckedAt,
+        observedFirmwareVersion: target.firmwareUpdateObservedVersion,
+      })
       const changes: Partial<Omit<ControllerProfile, 'id'>> = {
         ...(target.nickname && (existing.lastKnownDeviceName !== target.nickname || existing.name !== target.nickname)
           ? { name: target.nickname, lastKnownDeviceName: target.nickname }
           : {}),
         ...(existing.lastSeenIp !== target.ip ? { lastSeenIp: target.ip } : {}),
-        ...(firmwareVersion && existing.board.firmwareVersion !== firmwareVersion
-          ? { board: { ...existing.board, firmwareVersion } }
+        ...(board !== existing.board
+          ? { board }
           : {}),
       }
       if (Object.keys(changes).length > 0) await get().updateProfile(existing.id, changes)
@@ -199,7 +206,16 @@ export const useControllerProfileStore = create<ControllerProfileState>()((set, 
     if (pending) return pending
 
     const creation = (async () => {
-      const profile = defaultControllerProfile(controllerProfileCreateSeed(target))
+      const baseProfile = defaultControllerProfile(controllerProfileCreateSeed(target))
+      const profile = {
+        ...baseProfile,
+        board: withControllerFirmwareUpdateReport(baseProfile.board, {
+          firmwareVersion: target.firmwareVersion,
+          state: target.firmwareUpdateState,
+          checkedAt: target.firmwareUpdateCheckedAt,
+          observedFirmwareVersion: target.firmwareUpdateObservedVersion,
+        }),
+      }
       await getPersonalContentProvider().createControllerProfile(profile)
       trackEntityCreated('controller_profile', { has_device_id: true })
       set((s) => ({ profiles: [profile, ...s.profiles], profilesLoaded: true }))
@@ -370,6 +386,7 @@ export const useControllerProfileStore = create<ControllerProfileState>()((set, 
     const mapDim = mapDimension(map)
     const firmwareVersion = config?.firmwareVersion ?? active.firmwareVersion
     const liveName = config?.name ?? active.nickname
+    const board = withControllerFirmwareUpdateReport(profile.board, { firmwareVersion })
     const changes: Partial<Omit<ControllerProfile, 'id'>> = {
       ...(active.deviceId && profile.deviceId !== active.deviceId ? { deviceId: active.deviceId } : {}),
       ...(liveName && (profile.name !== liveName || profile.lastKnownDeviceName !== liveName)
@@ -378,8 +395,8 @@ export const useControllerProfileStore = create<ControllerProfileState>()((set, 
       ...(profile.lastSeenIp !== active.ip ? { lastSeenIp: active.ip } : {}),
       ...(typeof config?.pixelCount === 'number' ? { lastKnownPixelCount: config.pixelCount } : {}),
       ...(mapDim ? { lastKnownMapDim: mapDim } : {}),
-      ...(firmwareVersion && profile.board.firmwareVersion !== firmwareVersion
-        ? { board: { ...profile.board, firmwareVersion } }
+      ...(board !== profile.board
+        ? { board }
         : {}),
     }
     if (Object.keys(changes).length > 0) await get().updateProfile(profileId, changes)

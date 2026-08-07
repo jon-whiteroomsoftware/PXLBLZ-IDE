@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react'
 import type React from 'react'
 import { useNumberFieldDraft } from '@/components/ui/number-field'
 import { PercentageField as UiPercentageField } from '@/components/ui/percentage-field'
-import { Plus, Trash2, X } from 'lucide-react'
+import { CircleArrowUp, Plus, Trash2, X } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { IDE_MICROTYPE } from '@/components/ui/ideMicrotype'
 import {
@@ -350,6 +350,11 @@ function ProfileStatus({
 }) {
   const status = controller ? describeControllerPill(controller) : null
   const statusTone = status?.tone ? PROFILE_STATUS_TONE[status.tone] : 'absent'
+  const firmwareUpdateAvailable = profile.board.firmwareUpdate?.state === 'available'
+    && (
+      !profile.board.firmwareUpdate.firmwareVersion
+      || profile.board.firmwareUpdate.firmwareVersion === profile.board.firmwareVersion
+    )
   return (
     <div className="border-b border-seam bg-zinc-950/35 px-4 py-3">
       <div className="flex flex-wrap items-center gap-x-5 gap-y-2 text-xs">
@@ -375,7 +380,19 @@ function ProfileStatus({
         </span>
         <span>
           <FieldLabel>Firmware</FieldLabel>{' '}
-          <span className="font-mono text-zinc-300">{formatMaybe(profile.board.firmwareVersion)}</span>
+          <span className="inline-flex items-center gap-1.5 font-mono text-zinc-300">
+            {formatMaybe(profile.board.firmwareVersion)}
+            {firmwareUpdateAvailable && (
+              <span
+                role="status"
+                title="Last checked while this Controller was connected"
+                className="inline-flex items-center gap-1 text-[10px] font-semibold text-amber-300"
+              >
+                <CircleArrowUp size={12} aria-hidden />
+                Update available
+              </span>
+            )}
+          </span>
         </span>
         <label className="flex items-center gap-2">
           <FieldLabel>Output</FieldLabel>

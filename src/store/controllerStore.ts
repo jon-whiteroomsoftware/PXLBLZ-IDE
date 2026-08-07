@@ -112,6 +112,9 @@ export interface ControllerEntry {
   firmwareVersion?: string
   /** Result of the Controller's own update-service check. Session-only. */
   firmwareUpdateState?: FirmwareUpdateState
+  /** Timestamp and installed version associated with that update-service result. */
+  firmwareUpdateCheckedAt?: number
+  firmwareUpdateObservedVersion?: string
   phase: ControllerPhase
   /** Last error message when `phase === 'error'`. */
   error?: string
@@ -651,11 +654,21 @@ export const useControllerStore = create<ControllerConnectionState>()(
             lastFirmwareCheck == null ||
             Date.now() - lastFirmwareCheck >= FIRMWARE_UPDATE_CHECK_INTERVAL_MS
           ) {
-            firmwareUpdateCheckedAt.set(firmwareCheckKey, Date.now())
+            const checkedAt = Date.now()
+            const observedVersion = get().controllers[target]?.firmwareVersion
+            firmwareUpdateCheckedAt.set(firmwareCheckKey, checkedAt)
             void provider
               .checkFirmwareUpdate()
-              .then((firmwareUpdateState) => patchController(target, { firmwareUpdateState }))
-              .catch(() => patchController(target, { firmwareUpdateState: 'unknown' }))
+              .then((firmwareUpdateState) => patchController(target, {
+                firmwareUpdateState,
+                firmwareUpdateCheckedAt: checkedAt,
+                ...(observedVersion ? { firmwareUpdateObservedVersion: observedVersion } : {}),
+              }))
+              .catch(() => patchController(target, {
+                firmwareUpdateState: 'unknown',
+                firmwareUpdateCheckedAt: checkedAt,
+                ...(observedVersion ? { firmwareUpdateObservedVersion: observedVersion } : {}),
+              }))
           }
         },
 

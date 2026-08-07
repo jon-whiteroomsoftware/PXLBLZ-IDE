@@ -262,11 +262,23 @@ describe('controllerProfileStore', () => {
   })
 
   it('refreshes the durable profile name and last-known metadata from the active live controller', async () => {
-    const profile = defaultControllerProfile({
+    const baseProfile = defaultControllerProfile({
       id: 'ctrl-1',
       deviceId: 'pixelblaze_pb32_3cd4ee549434',
+      firmwareVersion: '3.67',
       now: 1,
     })
+    const profile = {
+      ...baseProfile,
+      board: {
+        ...baseProfile.board,
+        firmwareUpdate: {
+          state: 'available' as const,
+          checkedAt: 100,
+          firmwareVersion: '3.67',
+        },
+      },
+    }
     setPersonalContentProvider(memoryProvider([profile]))
     setControllerProvider(new FakeControllerProvider())
     useControllerStore.setState({
@@ -295,6 +307,7 @@ describe('controllerProfileStore', () => {
         firmwareVersion: '3.68',
       },
     })
+    expect(useControllerProfileStore.getState().profiles[0].board.firmwareUpdate).toBeUndefined()
   })
 
   it('auto-creates a default profile for a signed-in live controller with a stable device id', async () => {
@@ -387,6 +400,119 @@ describe('controllerProfileStore', () => {
       board: {
         firmwareVersion: '3.68',
       },
+    })
+  })
+
+  it('persists an available firmware observation for the offline Controller Profile', async () => {
+    const profile = defaultControllerProfile({
+      id: 'ctrl-1',
+      deviceId: 'pixelblaze_pb32_3cd4ee549434',
+      firmwareVersion: '3.67',
+      now: 1,
+    })
+    const provider = memoryProvider([profile])
+    setPersonalContentProvider(provider)
+    await useControllerProfileStore.getState().loadProfiles()
+
+    await useControllerProfileStore.getState().ensureProfileForLiveController({
+      ip: '192.168.8.224',
+      deviceId: 'pixelblaze_pb32_3cd4ee549434',
+      firmwareVersion: '3.67',
+      firmwareUpdateState: 'available',
+      firmwareUpdateCheckedAt: 123_456,
+      phase: 'live',
+      mapDim: 2,
+    })
+
+    useControllerProfileStore.setState(controllerProfileInitialState)
+    await useControllerProfileStore.getState().loadProfiles()
+    expect(useControllerProfileStore.getState().profiles[0].board.firmwareUpdate).toEqual({
+      state: 'available',
+      checkedAt: 123_456,
+      firmwareVersion: '3.67',
+    })
+  })
+
+  it('includes an already-observed firmware update when auto-creating a Controller Profile', async () => {
+    const provider = memoryProvider()
+    setPersonalContentProvider(provider)
+
+    await useControllerProfileStore.getState().ensureProfileForLiveController({
+      ip: '192.168.8.224',
+      deviceId: 'pixelblaze_pb32_3cd4ee549434',
+      nickname: 'Pixelblaze shelf',
+      firmwareVersion: '3.67',
+      firmwareUpdateState: 'available',
+      firmwareUpdateCheckedAt: 123_456,
+      firmwareUpdateObservedVersion: '3.67',
+      phase: 'live',
+      mapDim: 2,
+    })
+
+    useControllerProfileStore.setState(controllerProfileInitialState)
+    await useControllerProfileStore.getState().loadProfiles()
+    expect(useControllerProfileStore.getState().profiles[0].board.firmwareUpdate).toEqual({
+      state: 'available',
+      checkedAt: 123_456,
+      firmwareVersion: '3.67',
+    })
+  })
+
+  it('preserves only firmware observations that remain conclusive for the installed version', async () => {
+    const profile = defaultControllerProfile({
+      id: 'ctrl-1',
+      deviceId: 'pixelblaze_pb32_3cd4ee549434',
+      firmwareVersion: '3.67',
+      now: 1,
+    })
+    setPersonalContentProvider(memoryProvider([profile]))
+    await useControllerProfileStore.getState().loadProfiles()
+    const ensure = useControllerProfileStore.getState().ensureProfileForLiveController
+    const target = {
+      ip: '192.168.8.224',
+      deviceId: 'pixelblaze_pb32_3cd4ee549434',
+      firmwareVersion: '3.67',
+      firmwareUpdateObservedVersion: '3.67',
+      phase: 'live' as const,
+      mapDim: 2 as const,
+    }
+
+    await ensure({
+      ...target,
+      firmwareUpdateState: 'available',
+      firmwareUpdateCheckedAt: 100,
+    })
+    await ensure({
+      ...target,
+      firmwareUpdateState: 'unknown',
+      firmwareUpdateCheckedAt: 200,
+    })
+    expect(useControllerProfileStore.getState().profiles[0].board.firmwareUpdate).toEqual({
+      state: 'available',
+      checkedAt: 100,
+      firmwareVersion: '3.67',
+    })
+
+    await ensure({
+      ...target,
+      firmwareUpdateState: 'current',
+      firmwareUpdateCheckedAt: 300,
+    })
+    expect(useControllerProfileStore.getState().profiles[0].board.firmwareUpdate).toEqual({
+      state: 'current',
+      checkedAt: 300,
+      firmwareVersion: '3.67',
+    })
+
+    await ensure({
+      ...target,
+      firmwareVersion: '3.68',
+      firmwareUpdateState: 'current',
+      firmwareUpdateCheckedAt: 300,
+    })
+    expect(useControllerProfileStore.getState().profiles[0].board).toEqual({
+      kind: 'pixelblaze-v3-standard',
+      firmwareVersion: '3.68',
     })
   })
 

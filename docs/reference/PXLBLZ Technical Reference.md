@@ -753,10 +753,16 @@ blackout helper: set brightness to zero, wait one full old-length frame, save th
 smaller count, then restore brightness so tail LEDs do not freeze lit.
 
 Firmware availability comes from the Controller's first-party update protocol,
-cached in memory for one hour per stable identity. Only an available result
-changes UI. Unknown, unsupported, timeout, and update-service failure do not
-become connection errors. PXLBLZ links to the Controller web UI and never
-installs firmware.
+cached in memory for one hour per stable identity. Each result carries its check
+time and the installed firmware version observed for that check. Available and
+current/complete are conclusive: the Controller-profile synchronizer stores the
+observation in the profile's board JSON, so an available result remains visible
+read-only beside Firmware after an app restart with the Controller offline.
+Unknown, checking, in-progress, error, timeout, and update-service failure leave
+the last conclusive profile observation unchanged and do not become connection
+errors. A changed installed firmware version invalidates an observation tied to
+the previous version. The live panel links to the Controller web UI; the Profile
+does not offer an update action, and PXLBLZ never installs firmware.
 
 ## 16. Controller profiles
 
@@ -767,7 +773,8 @@ suppresses same-session recreation after explicit deletion.
 
 A profile contains:
 
-- board and last-seen Controller facts;
+- board and last-seen Controller facts, including the last conclusive
+  firmware-update observation tied to an installed firmware version;
 - typed hardware inputs with board-safe pin validation;
 - enabled global transforms;
 - the opt-in managed-artifact reconciliation preference;

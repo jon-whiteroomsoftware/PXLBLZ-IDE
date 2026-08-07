@@ -1,10 +1,14 @@
 import type { ControllerProfile } from './controllerProfile'
+import type { FirmwareUpdateState } from './firmwareUpdate'
 
 export interface ControllerProfileJoinTarget {
   ip: string
   deviceId?: string | null
   nickname?: string
   firmwareVersion?: string
+  firmwareUpdateState?: FirmwareUpdateState
+  firmwareUpdateCheckedAt?: number
+  firmwareUpdateObservedVersion?: string
 }
 
 export function findControllerProfileForDevice(

@@ -401,6 +401,7 @@ describe('controllerStore (keyed)', () => {
   })
 
   it('records an available firmware update after the Controller becomes live', async () => {
+    const clock = vi.spyOn(Date, 'now').mockReturnValue(123_456)
     setControllerProviderFactory((ip) => {
       const provider = new FakeProvider()
       provider.firmwareUpdateState = 'available'
@@ -408,12 +409,22 @@ describe('controllerStore (keyed)', () => {
       return provider
     })
 
-    await store().addController('10.0.0.5')
+    await store().addController({
+      id: 'pixelblaze_pb32_known',
+      address: '10.0.0.5',
+      name: 'Desk',
+      version: '3.67',
+    })
 
     await vi.waitFor(() => {
       expect(store().controllers['10.0.0.5'].firmwareUpdateState).toBe('available')
     })
+    expect(store().controllers['10.0.0.5']).toMatchObject({
+      firmwareUpdateCheckedAt: 123_456,
+      firmwareUpdateObservedVersion: '3.67',
+    })
     expect(created.get('10.0.0.5')!.firmwareUpdateChecks).toBe(1)
+    clock.mockRestore()
   })
 
   it('reuses the firmware result when the same Controller reconnects within an hour', async () => {

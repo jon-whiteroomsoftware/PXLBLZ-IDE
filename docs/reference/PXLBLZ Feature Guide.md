@@ -397,6 +397,13 @@ hardware is offline. A profile holds the last-seen device facts, hardware
 inputs, global transforms, per-Pattern bindings, named zones used by Shows,
 map fingerprints, and your declared output wiring.
 
+The Firmware fact also keeps the last conclusive update state reported while
+the Controller was connected. **Update available** remains visible there after
+the Controller goes offline or the app restarts, but it is read-only; connect
+the Controller and use the live panel to open Pixelblaze **Settings → Updates**.
+An inconclusive check does not erase the last known result, and observing a new
+installed firmware version invalidates the old result.
+
 The interesting part is what a profile can do to generated code:
 
 - **Inputs and bindings.** A potentiometer or button becomes a normalized
