@@ -77,7 +77,8 @@ interface ControllerPanelState {
   vars: Record<string, number>
   /** One-shot warm fetch: program list + installed map + a single poll, without
    *  starting the interval. Called on connect (#225) so the panel opens populated
-   *  instead of empty-then-jumping, and reused by `start()` as its first tick. The
+   *  instead of empty-then-jumping, and reused by `start()` as its first tick. FPS
+   *  is published only when `start()` owns an open-panel polling session. The
    *  optional `ip` identifies which Controller the state belongs to: reseeding the
    *  *same* device keeps the last-known values (no blank flash on a panel reopen),
    *  while a *different* device clears stale values first. */
@@ -142,6 +143,10 @@ type ControllerPanelSnapshot = Pick<
 // Interval handle kept module-local (not in store state) so it never serializes
 // and a stale render never holds a timer reference.
 let pollTimer: ReturnType<typeof setInterval> | null = null
+// A connect-time seed also calls poll(), but it must not publish FPS: only an open
+// panel session owns a current renderer heartbeat. Capture this at poll invocation
+// so closing the panel cannot turn a background warm-up into transport evidence.
+let panelPollingActive = false
 
 // Which program's controls the local `activeControls` currently belong to. Kept
 // module-local (bookkeeping, not rendered): the poll adopts the device's controls
@@ -218,11 +223,13 @@ export const useControllerPanelStore = create<ControllerPanelState>()((set, get)
 
   start: (ip) => {
     if (pollTimer !== null) return
+    panelPollingActive = true
     get().seed(ip)
     pollTimer = setInterval(() => void get().poll(), CONTROLLER_POLL_INTERVAL_MS)
   },
 
   stop: () => {
+    panelPollingActive = false
     if (pollTimer !== null) {
       clearInterval(pollTimer)
       pollTimer = null
@@ -244,6 +251,8 @@ export const useControllerPanelStore = create<ControllerPanelState>()((set, get)
 
   poll: async () => {
     const session = panelSession
+    const acceptsFps = panelPollingActive
+    const fpsSourceIp = acceptsFps ? seededForIp ?? null : null
     const provider = getControllerProvider()
     const [config, telemetry, vars] = await Promise.all([
       provider.getConfig().catch(() => null),
@@ -275,7 +284,7 @@ export const useControllerPanelStore = create<ControllerPanelState>()((set, get)
         }
       })
     }
-    if (telemetry) set({ fps: telemetry.fps, fpsSourceIp: seededForIp ?? null })
+    if (telemetry && acceptsFps) set({ fps: telemetry.fps, fpsSourceIp })
     if (vars) set({ vars })
   },
 

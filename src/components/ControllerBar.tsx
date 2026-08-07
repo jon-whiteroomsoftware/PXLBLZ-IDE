@@ -97,10 +97,12 @@ function ControllerPillButton({
   }
   const rendererDisconnected = phase !== 'live'
   const rendererPending = renderer.pending
+  const rendererHeartbeatUsable = !rendererDisconnected && !rendererBlockedByPush
   const rendererAssumedPlaying = renderer.acknowledged === 'unknown'
     && renderer.assumedPlaying === true
   const rendererObservedPlaying = renderer.acknowledged === 'unknown'
     && !rendererAssumedPlaying
+    && rendererHeartbeatUsable
     && rendererFps !== null
     && rendererFps > 0
   const rendererPlaying = renderer.acknowledged === 'playing'
@@ -108,6 +110,7 @@ function ControllerPillButton({
     || rendererObservedPlaying
   const rendererNoHeartbeat = renderer.acknowledged === 'unknown'
     && !rendererAssumedPlaying
+    && rendererHeartbeatUsable
     && rendererFps === 0
   const rendererStateUnknown = renderer.acknowledged === 'unknown'
     && !rendererAssumedPlaying

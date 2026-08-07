@@ -739,10 +739,12 @@ A fresh FPS sample from the open panel refines only an otherwise-unknown action:
 positive FPS proves the renderer is producing frames and offers **Pause**, while
 zero FPS offers **Resume** as "no render heartbeat" without claiming an
 authoritative pause. Direct acknowledgements and the expected-running baseline
-take precedence over that proxy. `controllerPanelStore` excludes FPS from its
-per-Controller snapshots, tags each sample with the active Controller, clears it
-when polling stops, and invalidates late reads from the closing session so cached
-or cross-Controller telemetry cannot drive transport.
+take precedence over that proxy. `controllerPanelStore` publishes FPS only from
+an actively open panel polling session, excludes it from per-Controller snapshots,
+tags each sample with the active Controller, clears it when polling stops, and
+invalidates late reads from the closing session. Connect-time warm seeding still
+caches the panel's other values but does not own a heartbeat, so cached,
+background, or cross-Controller telemetry cannot drive transport.
 A first successful connection separately records the Controller's normal
 expected-running baseline because establishing the connection does not alter the
 renderer. Successful Pattern activation records the same expectation because

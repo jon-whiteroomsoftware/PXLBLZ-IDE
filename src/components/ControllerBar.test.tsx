@@ -475,6 +475,26 @@ describe('ControllerBar', () => {
     expect(resume).toHaveAttribute('title', 'No render heartbeat; send Resume to recover safely')
   })
 
+  it('ignores a stale positive FPS heartbeat after the Controller disconnects (#749)', () => {
+    useControllerPanelStore.setState({ fps: 36, fpsSourceIp: '10.0.0.5' })
+    useControllerStore.setState({
+      extensionPresent: true,
+      activeIp: '10.0.0.5',
+      controllers: { '10.0.0.5': { ip: '10.0.0.5', nickname: 'Desk', phase: 'error', mapDim: 2 } },
+      rendererStates: {
+        '10.0.0.5': { acknowledged: 'unknown', pending: null },
+      },
+    })
+    render(<ControllerBar />)
+    fireEvent.click(screen.getByRole('button', { name: 'Toggle Desk panel' }))
+
+    const resume = screen.getByRole('button', {
+      name: 'Resume Desk renderer (disconnected; state unknown)',
+    })
+    expect(resume).toBeDisabled()
+    expect(resume.querySelector('.lucide-play')).toBeInTheDocument()
+  })
+
   it('offers Pause for a newly connected Controller without claiming an acknowledgement (#737)', () => {
     const setRendererPaused = vi.fn(async () => {})
     useControllerStore.setState({
@@ -535,6 +555,7 @@ describe('ControllerBar', () => {
   })
 
   it('disables renderer transport while Send may produce an unrelated firmware acknowledgement', () => {
+    useControllerPanelStore.setState({ fps: 48, fpsSourceIp: '10.0.0.5' })
     useControllerStore.setState({
       extensionPresent: true,
       activeIp: '10.0.0.5',

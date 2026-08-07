@@ -105,19 +105,20 @@ describe('controllerPanelStore', () => {
     expect(s.programs).toHaveLength(2)
   })
 
-  it('seed() warms config + telemetry + program list without starting the interval', async () => {
+  it('seed() warms panel content without publishing an FPS heartbeat outside an open session (#749)', async () => {
     useControllerPanelStore.getState().seed('192.168.8.224')
     await flush()
     const s = useControllerPanelStore.getState()
     expect(s.brightness).toBe(0.5)
     expect(s.activeProgramId).toBe('def')
-    expect(s.fps).toBe(30)
+    expect(s.fps).toBeNull()
+    expect(s.fpsSourceIp).toBeNull()
     expect(s.programs).toHaveLength(2)
     expect(s.programsByController['192.168.8.224']).toEqual(provider.programs)
     // No interval was started: a later device change is not picked up.
     provider.telemetry = { fps: 99 }
     await vi.advanceTimersByTimeAsync(CONTROLLER_POLL_INTERVAL_MS * 3)
-    expect(useControllerPanelStore.getState().fps).toBe(30)
+    expect(useControllerPanelStore.getState().fps).toBeNull()
   })
 
   it('reads the installed map point count once on start (#205)', async () => {
