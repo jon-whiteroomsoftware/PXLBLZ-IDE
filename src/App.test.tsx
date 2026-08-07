@@ -1070,7 +1070,7 @@ describe('routing (#308)', () => {
     expect(screen.getByTestId('controller-profile-page')).toHaveTextContent('Pixelblaze shelf')
     expect(screen.getByTestId('editor-pane')).toHaveTextContent('Pixelblaze shelf')
     expect(screen.getByTestId('editor-pane')).not.toHaveTextContent('Burner bag')
-    expect(screen.getByTestId('preview-pane')).toHaveTextContent('Saved programs')
+    expect(screen.getByTestId('preview-pane')).toHaveTextContent('Saved PXLBLZ Patterns (0)')
     expect(screen.getByTestId('editor-pane')).not.toHaveTextContent('Saved programs')
   })
 

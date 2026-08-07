@@ -886,7 +886,7 @@ Reserved `__px_power*` exports render as structured power telemetry instead of
 ordinary watched vars. The live limit slider writes `setVars` and is volatile;
 the next push reinitializes it from the profile.
 
-## 17. Pattern push, PBP storage, and saved programs
+## 17. Pattern push, PBP storage, and Saved Patterns
 
 Before every Pattern push, the store:
 
@@ -914,9 +914,10 @@ Save stamps generated source, encodes a normal PBP, writes the saved program,
 then activates matching bytecode under the same id. The PBP contains the name,
 optional JPEG, bytecode, and compressed `{"main": source}` section.
 
-The cached program inventory retains firmware order. Presentation may sort
-owned and foreign rows case-insensitively for **A–Z** or expose the original
-order as **Device** without another Controller request.
+The cached Pattern inventory retains firmware order. Presentation partitions
+it into Saved PXLBLZ Patterns and Other Patterns, then sorts both partitions by
+Pattern name, Pattern ID, or effective Status in ascending or descending order
+without another Controller request.
 
 Overwrite bindings key `(Controller, Studio Pattern/demo)` to Controller program
 id. Repeated saves reuse the id while it exists; a deleted device record causes
@@ -971,10 +972,13 @@ state.
 ### Inventory and recovery
 
 The live Controller-profile context pane joins `listPrograms` with overwrite
-bindings, push records, personal Patterns, and built-ins. Bound entries link to
-Studio; foreign entries remain visible. Transform sets compare order-independently
-as current, stale, or unmanaged. A saved Show row also reports Installation versus
-Portable plus fixed count/map or variable-resolution class from its push record.
+bindings, push records, personal Patterns, and built-ins. Bound entries appear
+under Saved PXLBLZ Patterns and link to Studio; unbound entries appear under
+Other Patterns. Transform sets compare order-independently as current, stale,
+or unmanaged, which the UI labels OK, STALE, or UNKNOWN. Queued work, active
+updates, and failures render as QUEUED, SYNCING, and FAILED. A saved Show row
+also reports Installation versus Portable plus fixed count/map or
+variable-resolution class from its push record.
 
 `readSavedProgram` fetches `/p/<id>`, decodes PBP, retains the device-stored name,
 separates PXLBLZ provenance from stripped source, and permits source-less records.
@@ -986,7 +990,7 @@ Import then chooses one of four outcomes:
 - explain that source recovery is unavailable.
 
 Import never mutates the Controller program.
-The inventory renders Import only for foreign rows; managed rows navigate to
+The inventory renders Import only for Other Patterns; managed rows navigate to
 their existing Studio source. Its fixed table layout truncates long device ids
 inside their cells so the Controller context rail does not acquire horizontal
 scrolling.

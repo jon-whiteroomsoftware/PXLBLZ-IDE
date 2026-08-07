@@ -442,14 +442,17 @@ transient bytecode; Save writes a durable saved Pattern and activates it,
 overwriting the same Controller-bound program on later saves. The two have
 independent dirty state: a clean Run does not pretend the Pattern was saved.
 
-The profile's right pane lists the Controller's saved programs while it is
-live. Studio-owned rows link back to their source; foreign rows stay visible
-and untouched. Each Studio row reports transform freshness — current, stale,
-or unmanaged. **Keep PXLBLZ patterns up to date** is an opt-in that rebuilds
-provably managed programs when a code-affecting profile edit lands; its scope
-is deliberately narrow, and foreign programs are never modified, renamed, or
-deleted. Import is offered for foreign programs that contain source; compiled
-code without source cannot be reconstructed.
+The profile's right pane splits the live Controller inventory into **Saved
+PXLBLZ Patterns** and **Other Patterns**, with a count in each heading. Saved
+rows link back to their source; Other rows stay visible and untouched. The
+Pattern, Pattern ID, and Status headers sort both sections in either direction.
+Status uses compact fixed-width labels: OK, STALE, UNKNOWN, QUEUED, SYNCING,
+or FAILED. Saved Show rows retain their output contract summary, including an
+Installation map binding when one was recorded. **Keep PXLBLZ Patterns up to
+date when Controller settings change** is an opt-in that rebuilds provably
+managed artifacts after a code-affecting profile edit; Other Patterns are never
+modified, renamed, or deleted. Import is offered for Other Patterns that
+contain source; compiled code without source cannot be reconstructed.
 
 A Controller has one shared map slot, so **Send map to Controller** is a
 confirm-first configuration action, not a per-Pattern preference. PXLBLZ

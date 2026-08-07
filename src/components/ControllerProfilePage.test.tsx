@@ -266,7 +266,7 @@ describe('ControllerProfilePage', () => {
     render(<ControllerProfilePage profileId="ctrl-1" />)
 
     expect(screen.getByText(
-      'Transforms take effect when a pattern is pushed. Push saved programs again after changing them.',
+      'Transforms take effect when a Pattern is pushed. Push saved Patterns again after changing them.',
     )).toBeInTheDocument()
 
     // The per-transform coverage details moved behind help hints (#685).
@@ -410,11 +410,11 @@ describe('ControllerProfilePage', () => {
 
     render(<ControllerSavedProgramsPane profile={profile} />)
 
-    expect(screen.getByText(/connect this controller to inspect its saved programs/i)).toBeInTheDocument()
-    expect(screen.getByRole('button', { name: 'Refresh saved programs' })).toBeDisabled()
+    expect(screen.getByText(/connect this controller to inspect its saved Patterns/i)).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Refresh saved Patterns' })).toBeDisabled()
   })
 
-  it('makes managed reconciliation explicit while keeping unmanaged programs exempt', () => {
+  it('keeps reconciliation progress while reducing the update control to one concise line', () => {
     const profile = { ...seedProfile(), keepPatternsUpToDate: true }
     useControllerProfileStore.setState({ profiles: [profile] })
     useControllerStore.setState({
@@ -435,14 +435,16 @@ describe('ControllerProfilePage', () => {
 
     render(<ControllerSavedProgramsPane profile={profile} />)
 
-    expect(screen.getByRole('checkbox', { name: 'Keep PXLBLZ patterns up to date' })).toBeChecked()
-    expect(screen.getByText('1 of 3 managed Patterns current')).toBeInTheDocument()
-    expect(screen.getByText(/2 unmanaged programs are exempt/i)).toBeInTheDocument()
+    const updateLabel = 'Keep PXLBLZ Patterns up to date when Controller settings change'
+    expect(screen.getByRole('checkbox', { name: updateLabel })).toBeChecked()
+    expect(screen.getByText(updateLabel)).toBeInTheDocument()
+    expect(screen.queryByText(/managed Patterns current/i)).not.toBeInTheDocument()
+    expect(screen.queryByText(/unmanaged programs are exempt/i)).not.toBeInTheDocument()
     expect(screen.getByLabelText('Managed Pattern refresh progress')).toHaveTextContent(
       '1 current, 1 updating, 1 queued, 0 failed',
     )
 
-    fireEvent.click(screen.getByRole('checkbox', { name: 'Keep PXLBLZ patterns up to date' }))
+    fireEvent.click(screen.getByRole('checkbox', { name: updateLabel }))
     expect(useControllerProfileStore.getState().profiles[0].keepPatternsUpToDate).toBe(false)
   })
 
@@ -465,7 +467,7 @@ describe('ControllerProfilePage', () => {
     })
     const { rerender } = render(<ControllerSavedProgramsPane profile={profile} />)
 
-    expect(screen.getByText('2 updates pending - reconnect to continue')).toBeInTheDocument()
+    expect(screen.queryByText(/updates pending/i)).not.toBeInTheDocument()
     expect(screen.getByLabelText('Managed Pattern refresh progress')).toBeInTheDocument()
 
     useControllerStore.setState({
@@ -484,7 +486,7 @@ describe('ControllerProfilePage', () => {
     })
     rerender(<ControllerSavedProgramsPane profile={profile} />)
 
-    expect(screen.getByText('2 of 2 managed Patterns current')).toBeInTheDocument()
+    expect(screen.queryByText(/managed Patterns current/i)).not.toBeInTheDocument()
     expect(screen.queryByLabelText('Managed Pattern refresh progress')).not.toBeInTheDocument()
   })
 
@@ -562,7 +564,9 @@ describe('ControllerProfilePage', () => {
 
     expect(await screen.findByRole('button', { name: 'Twinkle' })).toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'AuroraSphere' })).toBeInTheDocument()
-    expect(screen.getByText('Foreign programs · 1')).toBeInTheDocument()
+    expect(screen.getByRole('heading', { name: 'Saved PXLBLZ Patterns (3)' })).toBeInTheDocument()
+    expect(screen.getByRole('heading', { name: 'Other Patterns (1)' })).toBeInTheDocument()
+    expect(screen.queryByText(/foreign programs/i)).not.toBeInTheDocument()
     expect(screen.getByText('sound bar kit')).toBeInTheDocument()
     expect(screen.getByText('DEV1')).toBeInTheDocument()
     expect(screen.getByText('FOREIGN1')).toBeInTheDocument()
@@ -570,29 +574,48 @@ describe('ControllerProfilePage', () => {
     expect(screen.getByLabelText('Saved from a Show')).toBeInTheDocument()
     expect(screen.getByText('Studio Show missing')).toBeInTheDocument()
     expect(screen.queryByText('Studio pattern missing')).not.toBeInTheDocument()
-    expect(screen.getByRole('columnheader', { name: 'Program' })).toBeInTheDocument()
-    expect(screen.queryByRole('columnheader', { name: 'Pattern' })).not.toBeInTheDocument()
+    const savedInventory = screen.getByRole('table', { name: 'Saved PXLBLZ Patterns' })
+    const otherInventory = screen.getByRole('table', { name: 'Other Patterns' })
+    expect(within(savedInventory).getByRole('columnheader', { name: 'Pattern' })).toBeInTheDocument()
+    expect(within(savedInventory).getByRole('columnheader', { name: 'Pattern ID' })).toBeInTheDocument()
+    expect(within(savedInventory).getByRole('columnheader', { name: 'Status' })).toBeInTheDocument()
+    expect(within(savedInventory).getByRole('columnheader', { name: 'Output' })).toBeInTheDocument()
     expect(screen.getByTitle('Map fingerprint 11111111')).toBeInTheDocument()
-    expect(screen.getByTitle('Current: pushed with the transforms enabled on this profile.')).toHaveTextContent('current')
-    expect(screen.getAllByTitle('Unmanaged: no Studio push record is available for this saved program.')).toHaveLength(2)
+    expect(screen.getByText('OK')).toBeInTheDocument()
+    expect(screen.getByText('STALE')).toBeInTheDocument()
+    expect(screen.getAllByText('UNKNOWN')).toHaveLength(2)
+    for (const badge of screen.getAllByText(/^(OK|STALE|UNKNOWN)$/)) {
+      expect(badge).toHaveClass('w-[4.75rem]')
+    }
     expect(provider.listCalls).toBe(0)
 
-    const inventory = screen.getByRole('table', { name: 'Saved programs inventory' })
-    expect(inventory).toHaveClass('table-fixed')
+    expect(savedInventory).toHaveClass('table-fixed')
+    expect(otherInventory).toHaveClass('table-fixed')
     expect(screen.queryByRole('button', { name: 'Import Twinkle' })).not.toBeInTheDocument()
     expect(screen.queryByRole('button', { name: 'Import AuroraSphere' })).not.toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'Import sound bar kit' })).toBeInTheDocument()
-    const rowText = () => within(inventory).getAllByRole('row').map((row) => row.textContent ?? '')
-    expect(screen.getByRole('button', { name: 'A–Z' })).toHaveAttribute('aria-pressed', 'true')
-    expect(rowText().findIndex((text) => text.includes('AuroraSphere'))).toBeLessThan(
-      rowText().findIndex((text) => text.includes('Twinkle')),
-    )
+    expect(screen.queryByRole('button', { name: 'A–Z' })).not.toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'Device' })).not.toBeInTheDocument()
 
-    fireEvent.click(screen.getByRole('button', { name: 'Device' }))
-    expect(screen.getByRole('button', { name: 'Device' })).toHaveAttribute('aria-pressed', 'true')
-    expect(rowText().findIndex((text) => text.includes('Twinkle'))).toBeLessThan(
-      rowText().findIndex((text) => text.includes('AuroraSphere')),
-    )
+    const savedRows = () => within(savedInventory).getAllByRole('row').slice(1).map((row) => row.textContent ?? '')
+    const patternHeader = within(savedInventory).getByRole('columnheader', { name: 'Pattern' })
+    expect(patternHeader).toHaveAttribute('aria-sort', 'ascending')
+    fireEvent.click(within(patternHeader).getByRole('button', { name: 'Pattern' }))
+    expect(patternHeader).toHaveAttribute('aria-sort', 'descending')
+    expect(savedRows()[0]).toContain('Twinkle')
+
+    const idHeader = within(savedInventory).getByRole('columnheader', { name: 'Pattern ID' })
+    fireEvent.click(within(idHeader).getByRole('button', { name: 'Pattern ID' }))
+    expect(idHeader).toHaveAttribute('aria-sort', 'ascending')
+    expect(savedRows().map((row) => row.match(/DEV1|DEV2|SHOW1/)?.[0])).toEqual(['DEV1', 'DEV2', 'SHOW1'])
+
+    const statusHeader = within(savedInventory).getByRole('columnheader', { name: 'Status' })
+    fireEvent.click(within(statusHeader).getByRole('button', { name: 'Status' }))
+    expect(statusHeader).toHaveAttribute('aria-sort', 'ascending')
+    expect(savedRows().map((row) => row.match(/OK|STALE|UNKNOWN/)?.[0])).toEqual(['OK', 'STALE', 'UNKNOWN'])
+    fireEvent.click(within(statusHeader).getByRole('button', { name: 'Status' }))
+    expect(statusHeader).toHaveAttribute('aria-sort', 'descending')
+    expect(savedRows().map((row) => row.match(/OK|STALE|UNKNOWN/)?.[0])).toEqual(['UNKNOWN', 'STALE', 'OK'])
 
     const changedProfile = {
       ...profile,
@@ -601,9 +624,7 @@ describe('ControllerProfilePage', () => {
       ),
     }
     rerender(<ControllerSavedProgramsPane profile={changedProfile} />)
-    expect(screen.getAllByTitle(
-      'Stale: profile transforms changed since this program was pushed. Push it again to update.',
-    )).toHaveLength(2)
+    expect(within(savedInventory).getAllByText('STALE')).toHaveLength(2)
     expect(provider.listCalls).toBe(0)
 
     fireEvent.click(screen.getByRole('button', { name: 'Twinkle' }))
@@ -613,8 +634,9 @@ describe('ControllerProfilePage', () => {
     })
 
     provider.programs = [...provider.programs, { id: 'FOREIGN2', name: 'New Pattern 14' }]
-    fireEvent.click(screen.getByRole('button', { name: 'Refresh saved programs' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Refresh saved Patterns' }))
     expect(await screen.findByText('New Pattern 14')).toBeInTheDocument()
+    expect(screen.getByRole('heading', { name: 'Other Patterns (2)' })).toBeInTheDocument()
     expect(provider.listCalls).toBe(1)
   })
 
@@ -691,7 +713,9 @@ describe('ControllerProfilePage', () => {
 
     render(<ControllerSavedProgramsPane profile={profile} />)
 
-    expect(await screen.findByText(/no saved programs are installed/i)).toBeInTheDocument()
+    expect(await screen.findByText(/no PXLBLZ Patterns are saved/i)).toBeInTheDocument()
+    expect(screen.getByRole('heading', { name: 'Saved PXLBLZ Patterns (0)' })).toBeInTheDocument()
+    expect(screen.getByRole('heading', { name: 'Other Patterns (0)' })).toBeInTheDocument()
   })
 
   it('shows controller zones as editable range lists with pixel totals', () => {

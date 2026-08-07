@@ -4,6 +4,16 @@ import type { ControllerPushRecord, ControllerPushRecords } from './controllerPu
 import type { ArtifactShowOutputContract } from './artifactStamp'
 
 export type TransformFreshness = 'current' | 'stale' | 'unmanaged'
+export type ControllerSavedPatternStatus = TransformFreshness | 'queued' | 'updating' | 'failed'
+
+export const CONTROLLER_SAVED_PATTERN_STATUS_LABELS: Record<ControllerSavedPatternStatus, string> = {
+  current: 'OK',
+  stale: 'STALE',
+  unmanaged: 'UNKNOWN',
+  queued: 'QUEUED',
+  updating: 'SYNCING',
+  failed: 'FAILED',
+}
 
 export function enabledControllerTransformIds(
   transforms: readonly { id: string; enabled: boolean }[],
@@ -49,7 +59,10 @@ export interface ControllerSavedProgramsView {
   foreign: ControllerSavedProgramRow[]
 }
 
-export type ControllerSavedProgramSort = 'device' | 'alphabetical'
+export type ControllerSavedProgramSort = {
+  field: 'pattern' | 'pattern-id' | 'status'
+  direction: 'ascending' | 'descending'
+}
 
 export interface InstalledControllerPatternChoice {
   patternId: string
@@ -60,14 +73,35 @@ function compareProgramNames(a: ControllerSavedProgramRow, b: ControllerSavedPro
   return a.name.localeCompare(b.name, undefined, { sensitivity: 'base' })
 }
 
+function compareText(a: string, b: string): number {
+  return a.localeCompare(b, undefined, { sensitivity: 'base' })
+}
+
 export function sortControllerSavedPrograms(
   view: ControllerSavedProgramsView,
   sort: ControllerSavedProgramSort,
+  statusByProgramId: Readonly<Partial<Record<string, ControllerSavedPatternStatus>>> = {},
 ): ControllerSavedProgramsView {
-  if (sort === 'device') return view
+  const direction = sort.direction === 'ascending' ? 1 : -1
+  const compare = (a: ControllerSavedProgramRow, b: ControllerSavedProgramRow) => {
+    let result: number
+    if (sort.field === 'pattern-id') {
+      result = compareText(a.programId, b.programId)
+    } else if (sort.field === 'status') {
+      const aStatus = statusByProgramId[a.programId] ?? a.freshness
+      const bStatus = statusByProgramId[b.programId] ?? b.freshness
+      result = compareText(
+        CONTROLLER_SAVED_PATTERN_STATUS_LABELS[aStatus],
+        CONTROLLER_SAVED_PATTERN_STATUS_LABELS[bStatus],
+      )
+    } else {
+      result = compareProgramNames(a, b)
+    }
+    return (result || compareProgramNames(a, b)) * direction
+  }
   return {
-    owned: [...view.owned].sort(compareProgramNames),
-    foreign: [...view.foreign].sort(compareProgramNames),
+    owned: [...view.owned].sort(compare),
+    foreign: [...view.foreign].sort(compare),
   }
 }
 

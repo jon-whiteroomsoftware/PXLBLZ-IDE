@@ -78,7 +78,10 @@ describe('describeControllerSavedPrograms', () => {
       enabledTransforms: ['power-cap'],
     })
 
-    const alphabetical = sortControllerSavedPrograms(view, 'alphabetical')
+    const alphabetical = sortControllerSavedPrograms(view, {
+      field: 'pattern',
+      direction: 'ascending',
+    })
 
     expect(alphabetical.owned).toEqual([
       {
@@ -151,7 +154,7 @@ describe('describeControllerSavedPrograms', () => {
     expect(view.foreign.map((row) => row.programId)).toEqual(['F2', 'F1'])
   })
 
-  it('can present saved programs alphabetically without losing device order', () => {
+  it('sorts each inventory by Pattern in both directions without mutating source order', () => {
     const view = {
       owned: [
         savedProgramRow('B2', 'Beta'),
@@ -163,11 +166,52 @@ describe('describeControllerSavedPrograms', () => {
       ],
     }
 
-    const alphabetical = sortControllerSavedPrograms(view, 'alphabetical')
+    const ascending = sortControllerSavedPrograms(view, {
+      field: 'pattern',
+      direction: 'ascending',
+    })
+    const descending = sortControllerSavedPrograms(view, {
+      field: 'pattern',
+      direction: 'descending',
+    })
 
-    expect(alphabetical.owned.map((row) => row.programId)).toEqual(['B1', 'B2'])
-    expect(alphabetical.foreign.map((row) => row.programId)).toEqual(['F1', 'F2'])
+    expect(ascending.owned.map((row) => row.programId)).toEqual(['B1', 'B2'])
+    expect(ascending.foreign.map((row) => row.programId)).toEqual(['F1', 'F2'])
+    expect(descending.owned.map((row) => row.programId)).toEqual(['B2', 'B1'])
+    expect(descending.foreign.map((row) => row.programId)).toEqual(['F2', 'F1'])
     expect(view.owned.map((row) => row.programId)).toEqual(['B2', 'B1'])
+    expect(view.foreign.map((row) => row.programId)).toEqual(['F2', 'F1'])
+  })
+
+  it('sorts by Pattern ID and effective Status in both directions', () => {
+    const view = {
+      owned: [
+        { ...savedProgramRow('B2', 'Mike'), freshness: 'unmanaged' as const },
+        { ...savedProgramRow('C3', 'Alpha'), freshness: 'stale' as const },
+        savedProgramRow('A1', 'Zulu'),
+      ],
+      foreign: [savedProgramRow('F2', 'Apple', 'foreign'), savedProgramRow('F1', 'Zebra', 'foreign')],
+    }
+    const statuses = { B2: 'updating', A1: 'failed', C3: 'queued' } as const
+
+    expect(sortControllerSavedPrograms(view, {
+      field: 'pattern-id',
+      direction: 'ascending',
+    }, statuses).owned.map((row) => row.programId)).toEqual(['A1', 'B2', 'C3'])
+    expect(sortControllerSavedPrograms(view, {
+      field: 'pattern-id',
+      direction: 'descending',
+    }, statuses).foreign.map((row) => row.programId)).toEqual(['F2', 'F1'])
+
+    expect(sortControllerSavedPrograms(view, {
+      field: 'status',
+      direction: 'ascending',
+    }, statuses).owned.map((row) => row.programId)).toEqual(['A1', 'C3', 'B2'])
+    expect(sortControllerSavedPrograms(view, {
+      field: 'status',
+      direction: 'descending',
+    }, statuses).owned.map((row) => row.programId)).toEqual(['B2', 'C3', 'A1'])
+    expect(view.owned.map((row) => row.programId)).toEqual(['B2', 'C3', 'A1'])
   })
 
   it('carries decisive Show output facts from the saved push record (#437)', () => {

@@ -934,7 +934,7 @@ function GlobalTransformsList({
   return (
     <div className="grid gap-2">
       <p className="border-l-2 border-live/35 bg-zinc-900/45 px-2.5 py-2 text-[11px] leading-4 text-zinc-400">
-        Transforms take effect when a pattern is pushed. Push saved programs again after changing them.
+        Transforms take effect when a Pattern is pushed. Push saved Patterns again after changing them.
       </p>
       {profile.globalTransforms.map((transform) => (
         <div key={transform.id} className={rowCardClass}>
