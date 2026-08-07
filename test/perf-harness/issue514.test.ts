@@ -4,10 +4,10 @@ describe('Show render-target residual-headroom census (#514)', () => {
   it('pins the complete stock Pattern corpus and its known array-heavy exceptions', () => {
     // Recensused with the published ZRanger1 3+-favorite collection (#723).
     // CellularAutomata1D adds one expected 2,000-pixel array-budget rejection;
-    // the other 22 additions fit the residual budget.
-    expect(report.summary.stockPatternCount).toBe(92)
-    expect(report.summary.stockPatternsWithNoMemberArrays).toBe(53)
-    expect(report.summary.stockPatternsFittingResidualBudget).toBe(87)
+    // the other 22 additions and the array-free map diagnostic fit the budget.
+    expect(report.summary.stockPatternCount).toBe(93)
+    expect(report.summary.stockPatternsWithNoMemberArrays).toBe(54)
+    expect(report.summary.stockPatternsFittingResidualBudget).toBe(88)
     expect(report.summary.stockPatternRejections).toHaveLength(5)
     expect(report.summary.stockPatternRejections.map((entry) => entry.id)).toEqual([
       'pattern:AuroraSphere',

@@ -305,6 +305,15 @@ coordinates or colours. Strand, Surface, and Spatial views all retain that same
 measured helical position; changing view changes what the Pattern samples, not
 where the preview draws the logical pixel.
 
+The built-in **MapAlignmentDiagnostic** Pattern in **Test Patterns** checks any
+1D, 2D, or 3D map with red X, green Y, and blue Z bands. Its controls switch
+between moving scans, centred axes, and a repeating grid, adjust scan speed and
+band width, and pause motion. Intersections add toward white. Its Gallery
+recommendation opens the clustered mast's Surface view with Fill normalization
+and 52 logical pixels; the three physical emitters in each WS2811 group still
+light together, so this diagnostic exposes that addressability limit rather
+than pretending the 156 emitters can occupy independent map coordinates.
+
 **Contain** preserves aspect by scaling all axes from one shared range;
 **Fill** stretches each axis independently to `0..1`. Both are real Mapper
 behaviors. For map theory from first principles, read **Understanding Maps**.

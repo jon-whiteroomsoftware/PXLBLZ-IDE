@@ -14,6 +14,7 @@ const INTENTIONAL_LOW_DENSITY = new Set([
   'DoomFireV20_2D',
   'EasedSweep',
   'IQPalettes',
+  'MapAlignmentDiagnostic',
   'MetaballGarden',
   'Raindrops2D',
   'TestPattern2D',

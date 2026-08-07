@@ -128,6 +128,14 @@ export const RECOMMENDED_SETTINGS: Record<string, Partial<Settings>> = {
   TestPattern1D: { shapeId: 'line', pixelCount: 256, brightness: 0.9, lightSize: 0.68, diffusion: 0.24 },
   TestPattern2D: { mapId: 'plane', surfaceId: 'flat', pixelCount: 1024, brightness: 0.9, lightSize: 0.68, diffusion: 0.28 },
   TestPattern3D: { mapId: 'cube', pixelCount: 512, brightness: 0.9, lightSize: 0.62, diffusion: 0.30, solidity: 1 },
+  MapAlignmentDiagnostic: {
+    mapId: 'clustered-helical-mast-surface',
+    pixelCount: 52,
+    normalize: 'fill',
+    brightness: 1,
+    lightSize: 0.82,
+    diffusion: 0.12,
+  },
 }
 
 // The recommended settings for a demo (cascade layer 2), or an empty object for a

@@ -219,6 +219,12 @@ export const CONTROL_DESCRIPTIONS: Record<string, Record<string, string>> = {
     sliderSharpness: 'How tight and crisp the rings are.',
     sliderOctaves: 'How many layers of folded detail are stacked.',
   },
+  MapAlignmentDiagnostic: {
+    sliderMode: 'Selects moving scans, centred axes, or a repeating coordinate grid.',
+    sliderSpeed: 'How quickly the moving scan crosses the mapped domain.',
+    sliderWidth: 'Thickness of each red, green, or blue diagnostic band.',
+    toggleMotion: 'Pauses or resumes the moving scan.',
+  },
   MagneticFilaments: {
     sliderSpeed: 'How quickly the invisible magnets drift.',
     sliderSpacing: 'Density of the magnetic field-line contours.',

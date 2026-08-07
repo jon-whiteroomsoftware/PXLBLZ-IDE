@@ -115,7 +115,13 @@ export const LIVING_1D_DEMOS = ['PulseLoom', 'FireflyChoir', 'CometLoom', 'Metro
 
 // Minimal patterns - one per render dimensionality - for visually verifying
 // 1D / 2D / 3D preview behavior.
-export const TEST_PATTERNS = ['EasedSweep', 'TestPattern1D', 'TestPattern2D', 'TestPattern3D']
+export const TEST_PATTERNS = [
+  'EasedSweep',
+  'MapAlignmentDiagnostic',
+  'TestPattern1D',
+  'TestPattern2D',
+  'TestPattern3D',
+]
 
 const DEMO_NAMES = Object.keys(DEMOS).sort()
 const GROUPED_DEMOS = new Set([

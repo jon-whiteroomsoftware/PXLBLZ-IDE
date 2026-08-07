@@ -8,6 +8,7 @@ import {
   galleryPatternBySlug,
   patternSlug,
 } from './galleryCatalog'
+import { RECOMMENDED_SETTINGS } from '@/pixelblaze/stock/patterns'
 
 describe('galleryCatalog (#309)', () => {
   it('creates stable lowercase slugs for built-in pattern names', () => {
@@ -52,6 +53,20 @@ describe('galleryCatalog (#309)', () => {
     expect(GALLERY_PATTERNS.find((pattern) => pattern.name === 'ClockworkIris')?.sections).toContain('Radial')
     expect(GALLERY_PATTERNS.find((pattern) => pattern.name === 'SceneSplice')?.sections).toContain('FPS Friendly')
     expect(GALLERY_PATTERNS.find((pattern) => pattern.name === 'SceneSplice3D')?.sections).toContain('3D')
+  })
+
+  it('catalogues the universal map diagnostic with the measured mast presentation', () => {
+    const pattern = galleryPatternBySlug('map-alignment-diagnostic')
+    expect(pattern).toMatchObject({
+      name: 'MapAlignmentDiagnostic',
+      dim: 3,
+      sections: ['Test Patterns'],
+    })
+    expect(RECOMMENDED_SETTINGS.MapAlignmentDiagnostic).toMatchObject({
+      mapId: 'clustered-helical-mast-surface',
+      pixelCount: 52,
+      normalize: 'fill',
+    })
   })
 
   it('treats Everything and an empty query as no-ops', () => {
