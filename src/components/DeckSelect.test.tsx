@@ -4,6 +4,27 @@ import { vi } from 'vitest'
 import { DeckSelect } from './DeckSelect'
 
 describe('DeckSelect keyboard navigation', () => {
+  it('portals its menu beyond a clipped controls container', async () => {
+    const user = userEvent.setup()
+    render(
+      <div data-testid="clipped-controls" className="overflow-clip">
+        <DeckSelect
+          ariaLabel="Map"
+          value="square"
+          options={[
+            { value: 'square', label: 'Square' },
+            { value: 'cube', label: 'Cube' },
+          ]}
+          onChange={vi.fn()}
+        />
+      </div>,
+    )
+
+    await user.click(screen.getByRole('button', { name: 'Map' }))
+
+    expect(screen.getByRole('listbox', { name: 'Map' }).parentElement).toBe(document.body)
+  })
+
   it('renders explicit option columns while preserving each column group order', async () => {
     const user = userEvent.setup()
     render(
@@ -69,5 +90,26 @@ describe('DeckSelect keyboard navigation', () => {
     await user.keyboard('{Escape}')
     expect(trigger).toHaveFocus()
     expect(screen.queryByRole('listbox')).not.toBeInTheDocument()
+  })
+
+  it('still treats a click in the portaled menu as internal interaction', async () => {
+    const user = userEvent.setup()
+    const onChange = vi.fn()
+    render(
+      <DeckSelect
+        ariaLabel="View"
+        value="surface"
+        options={[
+          { value: 'strand', label: 'Strand' },
+          { value: 'surface', label: 'Surface' },
+        ]}
+        onChange={onChange}
+      />,
+    )
+
+    await user.click(screen.getByRole('button', { name: 'View' }))
+    await user.click(screen.getByRole('option', { name: 'Strand' }))
+
+    expect(onChange).toHaveBeenCalledWith('strand')
   })
 })

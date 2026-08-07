@@ -1,5 +1,7 @@
 import { useState, useRef, useEffect } from 'react'
+import { createPortal } from 'react-dom'
 import { ChevronDown } from 'lucide-react'
+import { useAnchoredOverlayPosition } from './useAnchoredOverlayPosition'
 
 export interface DeckOption<T> {
   value: T
@@ -55,16 +57,16 @@ export function DeckSelect<T extends string | number>({
   const [isOpen, setIsOpen] = useState(false)
   const containerRef = useRef<HTMLDivElement>(null)
   const triggerRef = useRef<HTMLButtonElement>(null)
+  const menuRef = useRef<HTMLDivElement>(null)
   const optionRefs = useRef<Array<HTMLButtonElement | null>>([])
   const current = options.find((o) => o.value === value) ?? options[0]
   const indexedOptions = options.map((option, index) => ({ option, index }))
   const columns = Array.from(new Set(options.map((option) => option.column).filter((column): column is string => Boolean(column))))
   const showColumns = columns.length > 1
-  const menuSideClass = menuSide === 'top'
-    ? 'bottom-full mb-1'
-    : menuSide === 'responsive'
-      ? 'bottom-full mb-1 sm:bottom-auto sm:top-full sm:mb-0 sm:mt-1'
-      : 'top-full mt-1'
+  const menuStyle = useAnchoredOverlayPosition(triggerRef, menuRef, isOpen, {
+    align: menuAlign,
+    preferredSide: menuSide,
+  })
   // Only show subgroup headers when the options actually span more than one group;
   // a lone group (the common no-user-maps case) reads cleaner with no header.
   const showGroups = new Set(options.map((o) => o.group).filter(Boolean)).size > 1
@@ -72,7 +74,11 @@ export function DeckSelect<T extends string | number>({
   useEffect(() => {
     if (!isOpen) return
     const handleMouseDown = (e: MouseEvent) => {
-      if (containerRef.current && !containerRef.current.contains(e.target as Node)) {
+      if (
+        containerRef.current &&
+        !containerRef.current.contains(e.target as Node) &&
+        !menuRef.current?.contains(e.target as Node)
+      ) {
         setIsOpen(false)
       }
     }
@@ -179,11 +185,13 @@ export function DeckSelect<T extends string | number>({
         </span>
       </button>
 
-      {isOpen && (
+      {isOpen && createPortal(
         <div
+          ref={menuRef}
           role="listbox"
           aria-label={ariaLabel}
-          className={`absolute ${menuSideClass} ${menuAlign === 'left' ? 'left-0' : 'right-0'} ${menuWidthClass} max-h-[calc(100vh-2rem)] overflow-y-auto overflow-x-hidden bg-zinc-900 border border-zinc-800 rounded-md shadow-xl z-50 ${showColumns ? 'grid grid-cols-2' : 'py-1'}`}
+          style={menuStyle}
+          className={`${menuWidthClass} overflow-y-auto overflow-x-hidden bg-zinc-900 border border-zinc-800 rounded-md shadow-xl ${showColumns ? 'grid grid-cols-2' : 'py-1'}`}
         >
           {showColumns
             ? columns.map((column, columnIndex) => (
@@ -200,7 +208,8 @@ export function DeckSelect<T extends string | number>({
                 </div>
               ))
             : renderOptions(indexedOptions)}
-        </div>
+        </div>,
+        document.body,
       )}
     </div>
   )

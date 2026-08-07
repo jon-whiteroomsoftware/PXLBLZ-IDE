@@ -169,6 +169,7 @@ describe('PreviewDeck (smoke)', () => {
     render(<PreviewDeck />)
 
     fireEvent.click(screen.getByRole('button', { name: 'Edit pixel count' }))
+    expect(screen.getByRole('dialog', { name: 'Pixel count editor' }).parentElement).toBe(document.body)
     const input = screen.getByRole('textbox', { name: 'Pixel count' }) as HTMLInputElement
     await waitFor(() => expect(input).toHaveFocus())
     expect(input.value).toBe('100')

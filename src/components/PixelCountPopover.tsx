@@ -1,8 +1,10 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
+import { createPortal } from 'react-dom'
 import { Check, Minus, Plus, X } from 'lucide-react'
 import { parsePixelCountDraft, sanitizePixelCountDraft } from '@/engine/pixelCountDraft'
 import { adjacentPreviewResolution, resolutionStepIndex } from '@/engine/previewResolution'
 import type { GridDims } from '@/engine/maps'
+import { useAnchoredOverlayPosition } from './useAnchoredOverlayPosition'
 
 function formatPixelCount(value: number | null): string {
   return value == null ? '' : String(value)
@@ -33,6 +35,8 @@ export function PixelCountPopover({
   const [open, setOpen] = useState(false)
   const [draft, setDraft] = useState(formatPixelCount(value))
   const rootRef = useRef<HTMLSpanElement>(null)
+  const triggerRef = useRef<HTMLButtonElement>(null)
+  const popoverRef = useRef<HTMLDivElement>(null)
   const inputRef = useRef<HTMLInputElement>(null)
   const parsed = parsePixelCountDraft(draft)
   const stepIndex = quickSelect ? resolutionStepIndex(quickSelect.steps, value) : null
@@ -42,6 +46,11 @@ export function PixelCountPopover({
   const realizedCount = value != null && quickSelect
     ? quickSelect.realizedCountFor?.(value, dimensions) ?? value
     : value
+  const popoverStyle = useAnchoredOverlayPosition(triggerRef, popoverRef, open, {
+    align: 'right',
+    preferredSide: 'bottom',
+    gap: 4,
+  })
 
   const [lastValue, setLastValue] = useState(value)
   if (value !== lastValue) {
@@ -68,7 +77,11 @@ export function PixelCountPopover({
       inputRef.current?.select()
     }, 0)
     const onDown = (e: MouseEvent) => {
-      if (rootRef.current && !rootRef.current.contains(e.target as Node)) close()
+      if (
+        rootRef.current &&
+        !rootRef.current.contains(e.target as Node) &&
+        !popoverRef.current?.contains(e.target as Node)
+      ) close()
     }
     const onKey = (e: KeyboardEvent) => {
       if (e.key === 'Escape') close()
@@ -85,6 +98,7 @@ export function PixelCountPopover({
   return (
     <span ref={rootRef} className="relative inline-flex">
       <button
+        ref={triggerRef}
         type="button"
         aria-label={triggerLabel}
         aria-haspopup="dialog"
@@ -96,11 +110,13 @@ export function PixelCountPopover({
         {pending ? '...' : value ?? '-'}
       </button>
 
-      {open && (
+      {open && createPortal(
         <div
+          ref={popoverRef}
           role="dialog"
           aria-label={`${inputLabel} editor`}
-          className={`absolute -right-2 top-6 z-50 rounded-lg border border-zinc-700 bg-zinc-900 p-2 shadow-2xl font-mono text-xs text-zinc-300 ${quickSelect ? 'w-60' : 'w-36'}`}
+          style={popoverStyle}
+          className={`overflow-y-auto rounded-lg border border-zinc-700 bg-zinc-900 p-2 shadow-2xl font-mono text-xs text-zinc-300 ${quickSelect ? 'w-60' : 'w-36'}`}
         >
           {quickSelect && (
             <div className="mb-2 border-b border-zinc-700/80 pb-2">
@@ -191,7 +207,8 @@ export function PixelCountPopover({
               <Check size={14} />
             </button>
           </div>
-        </div>
+        </div>,
+        document.body,
       )}
     </span>
   )
