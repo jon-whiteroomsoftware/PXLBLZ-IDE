@@ -47,7 +47,8 @@ import {
 // canvas — no margin, which previously made 3D layouts ~40px shorter than 2D. The
 // orbiting model is as large as possible (fidelity over breathing room, #146), and
 // the bounding-sphere fit (engine) guarantees it never clips at any angle.
-function cube3DCanvasPx(containerWidth: number, containerHeight: number): number {
+function cube3DCanvasPx(containerWidth: number, containerHeight?: number): number {
+  if (containerHeight == null) return Math.max(200, Math.floor(containerWidth))
   return Math.max(1, Math.floor(Math.min(containerWidth, containerHeight)))
 }
 
@@ -55,8 +56,9 @@ function cube3DCanvasPx(containerWidth: number, containerHeight: number): number
 // preview would otherwise let its width-sized canvas consume the full pane.
 const PREVIEW_CONTROLS_MIN_HEIGHT_PX = 180
 
-function availableCanvasHeight(paneHeight: number, showDeck: boolean): number {
-  return Math.max(1, Math.floor(paneHeight - (showDeck ? PREVIEW_CONTROLS_MIN_HEIGHT_PX : 0)))
+function availableCanvasHeight(paneHeight: number, constrainHeight: boolean): number | undefined {
+  if (!constrainHeight) return undefined
+  return Math.max(1, Math.floor(paneHeight - PREVIEW_CONTROLS_MIN_HEIGHT_PX))
 }
 
 export function Preview({
@@ -66,6 +68,7 @@ export function Preview({
   showDeck?: boolean
   pixelCountCap?: number | null
 }) {
+  const constrainCanvasHeight = showDeck && !captureEnabled()
   const canvasRef = useRef<HTMLCanvasElement>(null)
   const containerRef = useRef<HTMLDivElement>(null)
   const rootRef = useRef<HTMLDivElement>(null)
@@ -111,7 +114,7 @@ export function Preview({
   // extent/aspect come from the active map's `pos`, measured inside the renderer.
   const [viewport, setViewport] = useState<{
     containerWidth: number
-    containerHeight: number
+    containerHeight?: number
     lightSize: number
   } | null>(null)
   const [runtimeError, setRuntimeError] = useState<string | null>(null)
@@ -127,7 +130,10 @@ export function Preview({
     if (!el || !root) return
     const fitPreview = () => {
       const containerWidth = Math.max(1, el.getBoundingClientRect().width)
-      const containerHeight = availableCanvasHeight(root.getBoundingClientRect().height, showDeck)
+      const containerHeight = availableCanvasHeight(
+        root.getBoundingClientRect().height,
+        constrainCanvasHeight,
+      )
       const lightSize = usePreviewStore.getState().lightSize
       const nextViewport = { containerWidth, containerHeight, lightSize }
       setViewport(nextViewport)
@@ -143,7 +149,7 @@ export function Preview({
     ro.observe(el)
     ro.observe(root)
     return () => ro.disconnect()
-  }, [showDeck])
+  }, [constrainCanvasHeight])
 
   // Re-fit when the light size changes without a resize.
   useEffect(() => {
@@ -153,10 +159,13 @@ export function Preview({
     const { width } = el.getBoundingClientRect()
     setViewport({
       containerWidth: Math.max(1, width),
-      containerHeight: availableCanvasHeight(root.getBoundingClientRect().height, showDeck),
+      containerHeight: availableCanvasHeight(
+        root.getBoundingClientRect().height,
+        constrainCanvasHeight,
+      ),
       lightSize,
     })
-  }, [lightSize, showDeck])
+  }, [lightSize, constrainCanvasHeight])
 
   // Rebuild the loop whenever source or the viewport changes
   useEffect(() => {
@@ -580,7 +589,11 @@ export function Preview({
   }, [])
 
   return (
-    <div ref={rootRef} className="h-full min-h-0 bg-zinc-950 flex flex-col overflow-clip">
+    <div
+      ref={rootRef}
+      data-height-constrained={constrainCanvasHeight}
+      className="h-full min-h-0 bg-zinc-950 flex flex-col overflow-clip"
+    >
       {/* Canvas flush at the top of the pane (#150): no header strip above it. The
           container drives the ResizeObserver fit; the deck stacks below. */}
       <div ref={containerRef} className="relative w-full shrink-0">

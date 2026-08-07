@@ -119,6 +119,23 @@ test('Pattern detail uses the shared recommended presentation', async ({ page })
   await expect(page.getByRole('button', { name: 'Map', exact: true })).toContainText('Cube volume')
   await expect(page.getByRole('button', { name: 'Edit pixel count' })).toHaveText('1728')
   await expect(page.getByText('12×12×12')).toBeVisible()
+
+  const detail = page.getByTestId('pattern-detail-page')
+  const canvas = detail.locator('[data-height-constrained] canvas')
+  await expect.poll(async () => canvas.evaluate((element) => {
+    const root = element.closest('[data-height-constrained]')
+    return root ? element.width / root.getBoundingClientRect().width : 0
+  }), { timeout: 15_000 }).toBeGreaterThanOrEqual(0.99)
+
+  await page.getByRole('button', { name: 'Pattern actions' }).click()
+  await page.getByRole('menuitem', { name: 'View code' }).click()
+  await page.getByRole('button', { name: 'Pattern actions' }).click()
+  await page.getByRole('menuitem', { name: 'View preview' }).click()
+
+  await expect.poll(async () => canvas.evaluate((element) => {
+    const root = element.closest('[data-height-constrained]')
+    return root ? element.width / root.getBoundingClientRect().width : 0
+  }), { timeout: 15_000 }).toBeGreaterThanOrEqual(0.99)
 })
 
 test('Preview resolution moves through natural geometry stops', async ({ page }) => {

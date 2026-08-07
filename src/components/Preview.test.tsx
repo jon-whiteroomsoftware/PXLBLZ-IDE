@@ -20,8 +20,27 @@ describe('Preview (smoke)', () => {
     expect(root.className).not.toContain('overflow-y-auto')
     expect(root.className).not.toContain('overflow-auto')
     expect(root.className).not.toContain('overflow-x-auto')
+    expect(root).toHaveAttribute('data-height-constrained', 'true')
 
     const controlsRegion = container.querySelector('[data-testid="preview-controls-region"]')
     expect(controlsRegion).toHaveClass('min-h-[180px]', 'flex-1', 'overflow-clip')
+  })
+
+  it('keeps a deckless Gallery preview width-authoritative', () => {
+    const { container } = render(<Preview showDeck={false} />)
+
+    expect(container.firstElementChild).toHaveAttribute('data-height-constrained', 'false')
+    expect(container.querySelector('[data-testid="preview-controls-region"]')).not.toBeInTheDocument()
+  })
+
+  it('keeps deterministic capture width-authoritative', () => {
+    const previousUrl = window.location.href
+    window.history.pushState({}, '', '?capture')
+    try {
+      const { container } = render(<Preview />)
+      expect(container.firstElementChild).toHaveAttribute('data-height-constrained', 'false')
+    } finally {
+      window.history.pushState({}, '', previousUrl)
+    }
   })
 })
