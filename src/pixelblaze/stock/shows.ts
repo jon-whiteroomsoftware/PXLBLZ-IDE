@@ -59,6 +59,8 @@ export interface StockShowNote {
 
 export interface StockShow {
   id: string
+  /** Earlier source IDs that may still identify compiled Controller artifacts. */
+  legacySourceIds?: readonly string[]
   name: string
   track: StockShowTrack
   collection: StockShowCollection
@@ -2942,7 +2944,8 @@ function remixCoronalMassEjection(): StockShow {
     defaultOpen: true,
   }
   return {
-    id, name, track: 'portable', collection: 'remixes', level: null, order: 1,
+    id, legacySourceIds: ['teaser-cme-01'], name,
+    track: 'portable', collection: 'remixes', level: null, order: 1,
     lesson: note.title, description: note.purpose, note, show,
   }
 }

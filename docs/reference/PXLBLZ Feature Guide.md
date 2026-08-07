@@ -457,7 +457,8 @@ Status uses compact fixed-width labels: OK, STALE, UNKNOWN, QUEUED, SYNCING,
 or FAILED. The two tables share one column layout and wrap complete Pattern
 names so statuses and Import actions stay inside their cells. Saved Show rows
 are labeled **Show output**, link to personal or built-in Shows (including
-Installation Shows), and retain their output contract summary, including an
+Installation Shows), resolve earlier built-in source IDs to the current Show,
+and retain their output contract summary, including an
 Installation map binding when one was recorded. A deleted or otherwise
 unavailable source does not imply that its compiled Pattern is missing from the
 Controller. **Keep PXLBLZ Patterns up to date when Controller settings change**

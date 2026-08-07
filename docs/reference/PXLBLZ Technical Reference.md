@@ -974,15 +974,17 @@ state.
 The live Controller-profile context pane joins `listPrograms` with overwrite
 bindings, push records, personal and built-in Patterns, and the complete personal
 and built-in Show catalog. A session-edited built-in Show draft takes precedence
-over its pristine fixture. Bound entries appear under Saved PXLBLZ Patterns and
-link to Studio; unbound entries appear under Other Patterns. Transform sets
-compare order-independently as current, stale, or unmanaged, which the UI labels
-OK, STALE, or UNKNOWN. Queued work, active updates, and failures render as
-QUEUED, SYNCING, and FAILED. A saved Show row is identified as Show output and
-also reports Installation versus Portable plus fixed count/map or
-variable-resolution class from its push record. A bound artifact whose source
-can no longer be resolved remains on the Controller and reports that its source
-is unavailable.
+over its pristine fixture. Stock Shows may declare earlier source IDs retained
+by already-compiled Controller artifacts; those bindings resolve to the current
+canonical Show route and display name. Bound entries appear under Saved PXLBLZ
+Patterns and link to Studio; unbound entries appear under Other Patterns.
+Transform sets compare order-independently as current, stale, or unmanaged,
+which the UI labels OK, STALE, or UNKNOWN. Queued work, active updates, and
+failures render as QUEUED, SYNCING, and FAILED. A saved Show row is identified
+as Show output and also reports Installation versus Portable plus fixed
+count/map or variable-resolution class from its push record. A bound artifact
+whose source can no longer be resolved remains on the Controller and reports
+that its source is unavailable.
 
 `readSavedProgram` fetches `/p/<id>`, decodes PBP, retains the device-stored name,
 separates PXLBLZ provenance from stripped source, and permits source-less records.

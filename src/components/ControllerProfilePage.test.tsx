@@ -731,16 +731,16 @@ describe('ControllerProfilePage', () => {
     consoleError.mockRestore()
   })
 
-  it('links a compiled built-in Show to its full Studio Show source', async () => {
+  it('links a compiled legacy built-in Show artifact to its canonical Studio Show source', async () => {
     const profile = seedProfile()
     renderLiveProgramInventory(profile, {
       storageId: 'built-in-show-inventory-test',
       programs: [{ id: 'REMIX1', name: 'Coronal Mass Ejection' }],
       bindings: {
-        'show:stock-show-remix-coronal-mass-ejection': 'REMIX1',
+        'show:teaser-cme-01': 'REMIX1',
       },
       pushRecords: {
-        'show:stock-show-remix-coronal-mass-ejection': {
+        'show:teaser-cme-01': {
           transforms: [],
           artifactHash: 'remix-hash',
           stampedAt: '2026-08-07T00:00:00.000Z',
@@ -768,6 +768,37 @@ describe('ControllerProfilePage', () => {
     expect(useRouterStore.getState().route).toEqual({
       kind: 'studio',
       entity: { kind: 'shows', id: 'stock-show-remix-coronal-mass-ejection' },
+    })
+  })
+
+  it('prefers an exact personal Show source over a built-in legacy alias', async () => {
+    const profile = seedProfile()
+    const personalShow = {
+      ...stockShowById('stock-show-remix-coronal-mass-ejection')!.show,
+      id: 'teaser-cme-01',
+      name: 'My original CME Show',
+    }
+    useShowStore.setState({ shows: [personalShow], showsLoaded: true })
+    renderLiveProgramInventory(profile, {
+      storageId: 'personal-show-alias-precedence-test',
+      programs: [{ id: 'REMIX1', name: 'Coronal Mass Ejection' }],
+      bindings: { 'show:teaser-cme-01': 'REMIX1' },
+      pushRecords: {
+        'show:teaser-cme-01': {
+          transforms: [],
+          artifactHash: 'personal-remix-hash',
+          stampedAt: '2026-08-07T00:00:00.000Z',
+          name: personalShow.name,
+        },
+      },
+    })
+
+    const showLink = await screen.findByRole('button', { name: personalShow.name })
+    fireEvent.click(showLink)
+
+    expect(useRouterStore.getState().route).toEqual({
+      kind: 'studio',
+      entity: { kind: 'shows', id: personalShow.id },
     })
   })
 

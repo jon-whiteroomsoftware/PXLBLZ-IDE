@@ -591,19 +591,20 @@ export function ControllerSavedProgramsPane({ profile }: { profile: ControllerPr
         routeId: name,
         name,
       })),
+      ...STOCK_SHOWS.flatMap((item) => {
+        const show = stockShowDrafts[item.id] ?? item.show
+        return [item.id, ...(item.legacySourceIds ?? [])].map((sourceId) => ({
+          bindingKey: `show:${sourceId}`,
+          routeId: `show:${item.id}`,
+          name: show.name,
+        }))
+      }),
+      // An exact personal Show id wins over a built-in's legacy source alias.
       ...shows.map((show) => ({
         bindingKey: `show:${show.id}`,
         routeId: `show:${show.id}`,
         name: show.name,
       })),
-      ...STOCK_SHOWS.map((item) => {
-        const show = stockShowDrafts[item.id] ?? item.show
-        return {
-          bindingKey: `show:${show.id}`,
-          routeId: `show:${show.id}`,
-          name: show.name,
-        }
-      }),
     ],
   })
   const inventoryManagedCount = programs.owned.filter((program) => program.freshness !== 'unmanaged').length
