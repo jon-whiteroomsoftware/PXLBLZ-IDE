@@ -389,8 +389,11 @@ also returns the control to **Pause** because activation resumes the renderer.
 These expected-running transitions are kept distinct from command
 acknowledgements. A reconnect makes the displayed state unknown because
 Pixelblaze does not report authoritative paused state; **Resume** remains
-available as the safe recovery action. A failed or lost acknowledgement appears
-in the panel without changing the Controller's connection status.
+available as the safe recovery action. When PXLBLZ may have left the Controller
+paused, that recovery condition survives disconnect or reload until Resume is
+acknowledged or a successful Pattern activation resumes the renderer. A failed
+or lost acknowledgement appears in the panel without changing the Controller's
+connection status.
 
 ## 10. Controller profiles
 

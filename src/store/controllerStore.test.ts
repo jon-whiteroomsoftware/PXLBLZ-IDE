@@ -648,6 +648,32 @@ describe('controllerStore (keyed)', () => {
     await connection
   })
 
+  it('keeps Resume recovery after disconnect until PXLBLZ acknowledges Resume (#737)', async () => {
+    await store().addController('10.0.0.5')
+    await store().setRendererPaused('10.0.0.5', true)
+    await store().removeController('10.0.0.5')
+
+    await store().addController('10.0.0.5')
+
+    expect(store().rendererStates['10.0.0.5']).toEqual({
+      acknowledged: 'unknown',
+      pending: null,
+    })
+    expect(store().rendererPausedByPxlblz).toEqual({ '10.0.0.5': true })
+    expect(localStorage.getItem('pixelblaze-controller')).toContain('rendererPausedByPxlblz')
+
+    await store().setRendererPaused('10.0.0.5', false)
+    await store().removeController('10.0.0.5')
+    await store().addController('10.0.0.5')
+
+    expect(store().rendererPausedByPxlblz).toEqual({})
+    expect(store().rendererStates['10.0.0.5']).toEqual({
+      acknowledged: 'unknown',
+      assumedPlaying: true,
+      pending: null,
+    })
+  })
+
   it('supports a second Controller: it becomes active, the first stays connected', async () => {
     await store().addController('10.0.0.5')
     await store().addController('10.0.0.6')
@@ -946,6 +972,7 @@ describe('controllerStore (keyed)', () => {
         assumedPlaying: true,
         pending: null,
       })
+      expect(store().rendererPausedByPxlblz).toEqual({})
     })
 
     it('keeps the drain transport-only when a run replaces a known large program', async () => {

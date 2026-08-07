@@ -166,6 +166,10 @@ interface ControllerConnectionState {
   controllers: Record<string, ControllerEntry>
   /** Volatile renderer transport state keyed by Controller IP. */
   rendererStates: Record<string, ControllerRendererState>
+  /** Persisted safety marker for Controllers PXLBLZ may have left paused. A Pause
+   *  attempt sets it before transport; acknowledged Resume or successful Pattern
+   *  activation clears it. It gates only the optimistic first-connect display. */
+  rendererPausedByPxlblz: Record<string, true>
   /** The IP of the active Controller — the one Send + the panel target. */
   activeIp: string | null
   /** The last Controller to reach `live`, persisted so it alone auto-connects on
@@ -336,6 +340,7 @@ export const controllerInitialState = {
   extensionPresent: false,
   controllers: {} as Record<string, ControllerEntry>,
   rendererStates: {} as Record<string, ControllerRendererState>,
+  rendererPausedByPxlblz: {} as Record<string, true>,
   activeIp: null as string | null,
   lastConnectedIp: null as string | null,
   lastConnectedNickname: null as string | null,
@@ -498,7 +503,10 @@ export const useControllerStore = create<ControllerConnectionState>()(
       const assumeRendererPlaying = (ip: string) => {
         set((s) => {
           if (!s.controllers[ip]) return s
+          const rendererPausedByPxlblz = { ...s.rendererPausedByPxlblz }
+          delete rendererPausedByPxlblz[ip]
           return {
+            rendererPausedByPxlblz,
             rendererStates: {
               ...s.rendererStates,
               [ip]: {
@@ -548,6 +556,7 @@ export const useControllerStore = create<ControllerConnectionState>()(
             normalizeControllerTarget(controllerTarget, seedNickname)
           if (!target) return
           const initialConnection = get().controllers[target] === undefined
+            && get().rendererPausedByPxlblz[target] !== true
 
           // Reconnecting to the controller we last connected to? Seed the pending pill
           // from the cached name so it never flashes the bare IP before getConfig lands
@@ -736,15 +745,20 @@ export const useControllerStore = create<ControllerConnectionState>()(
           const pending: ControllerRendererCommand = paused ? 'pause' : 'resume'
           const generation = (rendererCommandGenerations.get(ip) ?? 0) + 1
           rendererCommandGenerations.set(ip, generation)
-          set((s) => ({
-            rendererStates: {
-              ...s.rendererStates,
-              [ip]: {
-                acknowledged: s.rendererStates[ip]?.acknowledged ?? 'unknown',
-                pending,
+          set((s) => {
+            const rendererPausedByPxlblz = { ...s.rendererPausedByPxlblz }
+            if (paused) rendererPausedByPxlblz[ip] = true
+            return {
+              rendererPausedByPxlblz,
+              rendererStates: {
+                ...s.rendererStates,
+                [ip]: {
+                  acknowledged: s.rendererStates[ip]?.acknowledged ?? 'unknown',
+                  pending,
+                },
               },
-            },
-          }))
+            }
+          })
 
           try {
             await queueControllerDeviceWrite(ip, () => provider.setRendererPaused(paused))
@@ -753,15 +767,20 @@ export const useControllerStore = create<ControllerConnectionState>()(
               providers.get(ip) !== provider ||
               get().controllers[ip]?.phase !== 'live'
             ) return
-            set((s) => ({
-              rendererStates: {
-                ...s.rendererStates,
-                [ip]: {
-                  acknowledged: paused ? 'paused' : 'playing',
-                  pending: null,
+            set((s) => {
+              const rendererPausedByPxlblz = { ...s.rendererPausedByPxlblz }
+              if (!paused) delete rendererPausedByPxlblz[ip]
+              return {
+                rendererPausedByPxlblz,
+                rendererStates: {
+                  ...s.rendererStates,
+                  [ip]: {
+                    acknowledged: paused ? 'paused' : 'playing',
+                    pending: null,
+                  },
                 },
-              },
-            }))
+              }
+            })
           } catch (error) {
             if (
               rendererCommandGenerations.get(ip) !== generation ||
@@ -1555,6 +1574,7 @@ export const useControllerStore = create<ControllerConnectionState>()(
       partialize: (s) => ({
         lastConnectedIp: s.lastConnectedIp,
         lastConnectedNickname: s.lastConnectedNickname,
+        rendererPausedByPxlblz: s.rendererPausedByPxlblz,
         saveArmed: s.saveArmed,
       }),
     },

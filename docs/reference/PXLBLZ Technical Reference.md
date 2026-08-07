@@ -739,6 +739,10 @@ expected-running baseline because establishing the connection does not alter the
 renderer. Successful Pattern activation records the same expectation because
 the push protocol ends with resume. Neither expected-running transition is
 represented as a command acknowledgement.
+Before sending Pause, the store persists a small per-IP recovery marker because
+firmware may apply the command even when its acknowledgement is lost. Disconnect
+and reload retain that marker, so a later connection stays unknown and offers
+**Resume**. An acknowledged Resume or successful Pattern activation clears it.
 Connection-generation invalidation discards late acknowledgements after a drop,
 disconnect, or reconnect. An unknown live entry offers **Resume** explicitly;
 command failure preserves the previous acknowledgement and does not change the
