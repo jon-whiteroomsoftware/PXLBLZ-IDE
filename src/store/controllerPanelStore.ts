@@ -51,6 +51,9 @@ interface ControllerPanelState {
   programLabels: Record<string, string>
   /** Device-reported frame rate; null until reported. */
   fps: number | null
+  /** Controller whose current open-panel session produced `fps`. Never cached;
+   *  renderer transport may use the heartbeat only when this matches its target. */
+  fpsSourceIp: string | null
   /** The device's configured pixel count; null until read. Editable via
    *  `setPixelCount` (#213) and refreshed from the device each poll. */
   pixelCount: number | null
@@ -114,6 +117,7 @@ export const controllerPanelInitialState = {
   programs: [] as ProgramListEntry[],
   programsByController: {} as Record<string, ProgramListEntry[]>,
   fps: null,
+  fpsSourceIp: null,
   pixelCount: null,
   pixelCountPending: null,
   mapPointCount: null,
@@ -127,7 +131,6 @@ type ControllerPanelSnapshot = Pick<
   | 'brightness'
   | 'activeProgramId'
   | 'programs'
-  | 'fps'
   | 'pixelCount'
   | 'pixelCountPending'
   | 'mapPointCount'
@@ -160,7 +163,6 @@ function snapshotFromState(state: ControllerPanelState): ControllerPanelSnapshot
     brightness: state.brightness,
     activeProgramId: state.activeProgramId,
     programs: state.programs,
-    fps: state.fps,
     pixelCount: state.pixelCount,
     pixelCountPending: state.pixelCountPending,
     mapPointCount: state.mapPointCount,
@@ -225,11 +227,18 @@ export const useControllerPanelStore = create<ControllerPanelState>()((set, get)
       clearInterval(pollTimer)
       pollTimer = null
     }
-    // Deliberately keep the visible state and `seededForIp`: closing the panel must
-    // not wipe the populated UI, so the next open of the same device shows its values
-    // immediately (a device switch resets them in seed()). `controlsSeededFor` is
-    // cleared so the next poll re-adopts the device's controls — those equal the last
-    // local values (we wrote them through), so it's identical on screen, no flash.
+    // Invalidate reads started by the closing session before clearing its FPS.
+    // A reconnect can otherwise let an old provider's late telemetry repopulate
+    // the heartbeat after the control has deliberately returned to unknown.
+    panelSession += 1
+    // Deliberately keep the visible panel content and `seededForIp`: closing the
+    // panel must not wipe controls, vars, or config. FPS is different: it is a
+    // connection-session heartbeat, so discard it until the next live poll rather
+    // than presenting a cached value as current renderer evidence (#749).
+    set({ fps: null, fpsSourceIp: null })
+    // `controlsSeededFor` is cleared so the next poll re-adopts the device's
+    // controls — those equal the last local values (we wrote them through), so
+    // reopening remains identical on screen apart from the intentionally fresh FPS.
     controlsSeededFor = undefined
   },
 
@@ -266,7 +275,7 @@ export const useControllerPanelStore = create<ControllerPanelState>()((set, get)
         }
       })
     }
-    if (telemetry) set({ fps: telemetry.fps })
+    if (telemetry) set({ fps: telemetry.fps, fpsSourceIp: seededForIp ?? null })
     if (vars) set({ vars })
   },
 

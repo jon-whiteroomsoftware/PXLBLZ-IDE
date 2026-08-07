@@ -402,6 +402,14 @@ acknowledged or a successful Pattern activation resumes the renderer. A failed
 or lost acknowledgement appears in the panel without changing the Controller's
 connection status.
 
+The panel refines that recovery state from the Controller's live FPS heartbeat.
+A fresh positive FPS reading offers **Pause** because frames are demonstrably
+running. A fresh zero reading keeps **Resume** and explains that there is no
+render heartbeat, without claiming that Pixelblaze reported a paused flag. FPS
+briefly returns to its placeholder whenever the panel opens or reconnects; the
+rest of the panel's last-known controls and device facts remain warm while FPS is
+reacquired from the current connection.
+
 ## 10. Controller profiles
 
 A Controller profile is durable configuration for one physical Controller,

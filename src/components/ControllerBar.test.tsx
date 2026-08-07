@@ -16,6 +16,10 @@ import { useRouterStore, routerInitialState } from '@/store/routerStore'
 import { useWorkspaceStore, workspaceInitialState } from '@/store/workspaceStore'
 import { useEditorStore, editorInitialState } from '@/store/editorStore'
 import { usePatternStore, patternInitialState } from '@/store/patternStore'
+import {
+  controllerPanelInitialState,
+  useControllerPanelStore,
+} from '@/store/controllerPanelStore'
 import type { MapRecord, PatternRecord, ShowRecord } from '@/engine/personalContentRecords'
 import {
   resetPersonalContentProvider,
@@ -23,9 +27,17 @@ import {
   type PersonalContentProvider,
 } from '@/engine/personalContentProvider'
 import { resetControllerProvider, setControllerProvider } from '@/engine/controllerProviderRegistry'
-import { NullControllerProvider, type ControllerStatus } from '@/engine/ControllerProvider'
+import {
+  NullControllerProvider,
+  type ControllerStatus,
+  type ControllerTelemetry,
+} from '@/engine/ControllerProvider'
 
 class ConnectedProvider extends NullControllerProvider {
+  constructor(private readonly reportedFps = 36) {
+    super()
+  }
+
   private status: ControllerStatus = {
     kind: 'connected',
     controller: { id: 'c1', address: '10.0.0.5', deviceId: 'pixelblaze_pb32_3cd4ee549434' },
@@ -33,6 +45,10 @@ class ConnectedProvider extends NullControllerProvider {
 
   getStatus(): ControllerStatus {
     return this.status
+  }
+
+  getTelemetry(): Promise<ControllerTelemetry> {
+    return Promise.resolve({ fps: this.reportedFps })
   }
 }
 
@@ -46,10 +62,13 @@ beforeEach(() => {
   useWorkspaceStore.setState(workspaceInitialState)
   useEditorStore.setState(editorInitialState)
   usePatternStore.setState(patternInitialState)
+  useControllerPanelStore.getState().stop()
+  useControllerPanelStore.setState(controllerPanelInitialState)
   window.history.replaceState(null, '', '/studio')
 })
 
 afterEach(() => {
+  useControllerPanelStore.getState().stop()
   __resetControllerProviders()
   resetControllerProvider()
   resetPersonalContentProvider()
@@ -414,6 +433,46 @@ describe('ControllerBar', () => {
 
     fireEvent.click(resume)
     expect(setRendererPaused).toHaveBeenCalledWith('10.0.0.5', false)
+  })
+
+  it('offers Pause when fresh FPS proves an otherwise-unknown renderer is running (#749)', async () => {
+    setControllerProvider(new ConnectedProvider())
+    const setRendererPaused = vi.fn(async () => {})
+    useControllerStore.setState({
+      extensionPresent: true,
+      activeIp: '10.0.0.5',
+      controllers: { '10.0.0.5': { ip: '10.0.0.5', nickname: 'Desk', phase: 'live', mapDim: 2 } },
+      rendererStates: {
+        '10.0.0.5': { acknowledged: 'unknown', pending: null },
+      },
+      setRendererPaused,
+    })
+    render(<ControllerBar />)
+    fireEvent.click(screen.getByRole('button', { name: 'Toggle Desk panel' }))
+
+    const pause = await screen.findByRole('button', { name: 'Pause Desk renderer' })
+    expect(pause).toHaveAttribute('title', 'Live render heartbeat: 36 FPS; pause the active renderer')
+    fireEvent.click(pause)
+    expect(setRendererPaused).toHaveBeenCalledWith('10.0.0.5', true)
+  })
+
+  it('keeps Resume and explains a fresh zero-FPS heartbeat (#749)', async () => {
+    setControllerProvider(new ConnectedProvider(0))
+    useControllerStore.setState({
+      extensionPresent: true,
+      activeIp: '10.0.0.5',
+      controllers: { '10.0.0.5': { ip: '10.0.0.5', nickname: 'Desk', phase: 'live', mapDim: 2 } },
+      rendererStates: {
+        '10.0.0.5': { acknowledged: 'unknown', pending: null },
+      },
+    })
+    render(<ControllerBar />)
+    fireEvent.click(screen.getByRole('button', { name: 'Toggle Desk panel' }))
+
+    const resume = await screen.findByRole('button', {
+      name: 'Resume Desk renderer (no render heartbeat)',
+    })
+    expect(resume).toHaveAttribute('title', 'No render heartbeat; send Resume to recover safely')
   })
 
   it('offers Pause for a newly connected Controller without claiming an acknowledgement (#737)', () => {

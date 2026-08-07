@@ -8,6 +8,7 @@ import {
 import { useControllerProfileStore } from '@/store/controllerProfileStore'
 import { useRouterStore } from '@/store/routerStore'
 import { useWorkspaceStore } from '@/store/workspaceStore'
+import { useControllerPanelStore } from '@/store/controllerPanelStore'
 import { describeControllerPill, type ControllerPhase } from '@/engine/controllerPillView'
 import type { ControllerStatusTone } from '@/engine/controllerStatusView'
 import {
@@ -67,6 +68,7 @@ function ControllerPillButton({
   onActivate,
   onRemove,
   rendererState,
+  rendererFps,
   rendererBlockedByPush,
   onRendererPaused,
   actionRow,
@@ -83,6 +85,7 @@ function ControllerPillButton({
   onActivate: () => void
   onRemove: () => void
   rendererState?: ControllerRendererState
+  rendererFps: number | null
   rendererBlockedByPush: boolean
   onRendererPaused: (paused: boolean) => void
   actionRow: ReactNode
@@ -96,8 +99,19 @@ function ControllerPillButton({
   const rendererPending = renderer.pending
   const rendererAssumedPlaying = renderer.acknowledged === 'unknown'
     && renderer.assumedPlaying === true
-  const rendererPlaying = renderer.acknowledged === 'playing' || rendererAssumedPlaying
-  const rendererStateUnknown = renderer.acknowledged === 'unknown' && !rendererAssumedPlaying
+  const rendererObservedPlaying = renderer.acknowledged === 'unknown'
+    && !rendererAssumedPlaying
+    && rendererFps !== null
+    && rendererFps > 0
+  const rendererPlaying = renderer.acknowledged === 'playing'
+    || rendererAssumedPlaying
+    || rendererObservedPlaying
+  const rendererNoHeartbeat = renderer.acknowledged === 'unknown'
+    && !rendererAssumedPlaying
+    && rendererFps === 0
+  const rendererStateUnknown = renderer.acknowledged === 'unknown'
+    && !rendererAssumedPlaying
+    && !rendererObservedPlaying
   const rendererTargetPaused = rendererPending === 'pause'
     || (rendererPending === null && rendererPlaying)
   const rendererAction = rendererPlaying ? 'Pause' : 'Resume'
@@ -105,9 +119,11 @@ function ControllerPillButton({
     ? `${rendererPending === 'pause' ? 'Pausing' : 'Resuming'} ${label} renderer`
     : rendererDisconnected
       ? `Resume ${label} renderer (disconnected; state unknown)`
-      : rendererBlockedByPush
-        ? `${rendererAction} ${label} renderer (Send in progress${rendererStateUnknown ? '; state unknown' : ''})`
-        : rendererStateUnknown
+    : rendererBlockedByPush
+      ? `${rendererAction} ${label} renderer (Send in progress${rendererStateUnknown ? '; state unknown' : ''})`
+      : rendererNoHeartbeat
+        ? `Resume ${label} renderer (no render heartbeat)`
+      : rendererStateUnknown
           ? `Resume ${label} renderer (state unknown)`
           : `${rendererAction} ${label} renderer`
   const rendererTitle = rendererDisconnected
@@ -116,6 +132,10 @@ function ControllerPillButton({
       ? 'Wait for Send to finish before controlling the renderer'
     : rendererPending
       ? `${rendererPending === 'pause' ? 'Pause' : 'Resume'} command awaiting Controller acknowledgement`
+      : rendererObservedPlaying
+        ? `Live render heartbeat: ${rendererFps} FPS; pause the active renderer`
+      : rendererNoHeartbeat
+        ? 'No render heartbeat; send Resume to recover safely'
       : rendererStateUnknown
         ? 'Renderer state is unknown; send Resume to recover safely'
         : rendererPlaying
@@ -274,6 +294,8 @@ export function ControllerBar({ reloadPage = () => window.location.reload() }: {
   const controllers = useControllerStore((s) => s.controllers)
   const controllerReconciliations = useControllerStore((s) => s.controllerReconciliations)
   const rendererStates = useControllerStore((s) => s.rendererStates)
+  const controllerFps = useControllerPanelStore((s) => s.fps)
+  const controllerFpsSourceIp = useControllerPanelStore((s) => s.fpsSourceIp)
   const activeIp = useControllerStore((s) => s.activeIp)
   const pushing = useControllerStore((s) => s.pushing)
   const detectExtension = useControllerStore((s) => s.detectExtension)
@@ -522,6 +544,7 @@ export function ControllerBar({ reloadPage = () => window.location.reload() }: {
             onManagedRefresh={() => void openProfileForController(ip)}
             onRemove={() => onPillRemove(ip)}
             rendererState={rendererStates[ip]}
+            rendererFps={panelOpenIp === ip && controllerFpsSourceIp === ip ? controllerFps : null}
             rendererBlockedByPush={pushing && activeIp === ip}
             onRendererPaused={(paused) => void setRendererPaused(ip, paused)}
             actionRow={actionRowFor(ip)}

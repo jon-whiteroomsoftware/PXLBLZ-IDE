@@ -720,7 +720,8 @@ facts. A connection without stable id is unclaimed but fully usable.
 reconnection, and push state. The last connected IP/nickname is persisted for a
 warm reconnect. `controllerPanelStore` polls the active Controller for config,
 telemetry, vars, controls, programs, map point count, and FPS. Same-Controller
-reopen retains last-known panel values; switching Controllers clears ownership.
+reopen retains last-known panel values except FPS; FPS is a connection-session
+heartbeat and returns to unknown until the current provider reports it again.
 
 Device-wide renderer transport crosses the same provider boundary:
 `ControllerBar` calls the IP-keyed `controllerStore`, which selects that
@@ -734,6 +735,14 @@ unmanaged saved Patterns.
 Firmware `getConfig` exposes no paused-state field. Each keyed Controller entry
 therefore records the last command acknowledged through its current connection,
 plus pending and error state, rather than claiming authoritative device truth.
+A fresh FPS sample from the open panel refines only an otherwise-unknown action:
+positive FPS proves the renderer is producing frames and offers **Pause**, while
+zero FPS offers **Resume** as "no render heartbeat" without claiming an
+authoritative pause. Direct acknowledgements and the expected-running baseline
+take precedence over that proxy. `controllerPanelStore` excludes FPS from its
+per-Controller snapshots, tags each sample with the active Controller, clears it
+when polling stops, and invalidates late reads from the closing session so cached
+or cross-Controller telemetry cannot drive transport.
 A first successful connection separately records the Controller's normal
 expected-running baseline because establishing the connection does not alter the
 renderer. Successful Pattern activation records the same expectation because

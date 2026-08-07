@@ -326,16 +326,37 @@ describe('controllerPanelStore', () => {
     expect(useControllerPanelStore.getState().pixelCount).toBe(8)
   })
 
-  it('stop() halts polling but keeps the last values for a seamless reopen', async () => {
+  it('stop() halts polling, keeps panel content, and discards the FPS heartbeat (#749)', async () => {
     useControllerPanelStore.getState().start('1.2.3.4')
     await flush()
-    expect(useControllerPanelStore.getState().fps).toBe(30)
+    expect(useControllerPanelStore.getState()).toMatchObject({
+      activeProgramId: 'def',
+      fps: 30,
+      programs: provider.programs,
+    })
     useControllerPanelStore.getState().stop()
-    // State is preserved (no blank flash on reopen), but no further polls run.
-    expect(useControllerPanelStore.getState().fps).toBe(30)
+    // Expensive panel content remains warm, but FPS is a connection-session
+    // heartbeat and must be observed again before transport consumes it.
+    expect(useControllerPanelStore.getState()).toMatchObject({
+      activeProgramId: 'def',
+      fps: null,
+      programs: provider.programs,
+    })
     provider.telemetry = { fps: 99 }
     await vi.advanceTimersByTimeAsync(CONTROLLER_POLL_INTERVAL_MS * 3)
-    expect(useControllerPanelStore.getState().fps).toBe(30)
+    expect(useControllerPanelStore.getState().fps).toBeNull()
+  })
+
+  it('ignores an FPS poll that completes after the panel session stops (#749)', async () => {
+    const telemetry = deferred<ControllerTelemetry>()
+    provider.getTelemetry = () => telemetry.promise
+
+    useControllerPanelStore.getState().start('1.2.3.4')
+    useControllerPanelStore.getState().stop()
+    telemetry.resolve({ fps: 72 })
+    await flush()
+
+    expect(useControllerPanelStore.getState().fps).toBeNull()
   })
 
   it('reopening the same device keeps values; a never-opened different device clears first', async () => {
@@ -343,10 +364,15 @@ describe('controllerPanelStore', () => {
     await flush()
     useControllerPanelStore.getState().stop()
 
-    // Reopen the SAME device: values survive into the new session immediately.
+    // Reopen the SAME device: panel content survives, but FPS waits for a fresh poll.
     useControllerPanelStore.getState().start('1.2.3.4')
-    expect(useControllerPanelStore.getState().fps).toBe(30)
+    expect(useControllerPanelStore.getState()).toMatchObject({
+      activeProgramId: 'def',
+      fps: null,
+      programs: provider.programs,
+    })
     await flush()
+    expect(useControllerPanelStore.getState().fps).toBe(30)
     useControllerPanelStore.getState().stop()
 
     // Open a DIFFERENT device: stale values are cleared before the warm fetch lands.
@@ -391,11 +417,13 @@ describe('controllerPanelStore', () => {
 
     expect(useControllerPanelStore.getState()).toMatchObject({
       activeProgramId: 'a-program',
-      fps: 24,
+      fps: null,
       pixelCount: 32,
       activeControls: { sliderA: 0.7 },
       programs: [{ id: 'a-program', name: 'A Pattern' }],
     })
+    await flush()
+    expect(useControllerPanelStore.getState().fps).toBe(24)
   })
 
   it('ignores late async results from a previously active controller after switching devices', async () => {
