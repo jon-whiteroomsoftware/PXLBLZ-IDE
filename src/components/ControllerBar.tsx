@@ -88,7 +88,10 @@ function ControllerPillButton({
   actionRow: ReactNode
 }) {
   const { label, tone, showDot } = describeControllerPill({ ip, nickname, phase })
-  const renderer = rendererState ?? { acknowledged: 'unknown', pending: null }
+  const renderer: ControllerRendererState = rendererState ?? {
+    acknowledged: 'unknown',
+    pending: null,
+  }
   const rendererDisconnected = phase !== 'live'
   const rendererPending = renderer.pending
   const rendererTargetPaused = rendererPending === 'pause'
