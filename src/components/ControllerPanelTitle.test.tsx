@@ -63,6 +63,44 @@ describe('ControllerPanelTitle', () => {
     expect(screen.getByText('2D')).toBeInTheDocument()
   })
 
+  it.each([
+    {
+      source: [
+        'export function render(index) {}',
+        'export function render2D(index, x, y) {}',
+      ].join('\n'),
+      label: '1, 2D',
+    },
+    {
+      source: [
+        'export function render(index) {}',
+        'export function render2D(index, x, y) {}',
+        'export function render3D(index, x, y, z) {}',
+      ].join('\n'),
+      label: '1, 2, 3D',
+    },
+  ])('shows supported render dimensions as one compact $label pill', ({ source, label }) => {
+    useControllerPanelStore.setState({
+      activeProgramId: 'def',
+      programs: [{ id: 'def', name: 'My Multi-Dimensional Sketch' }],
+    })
+    usePatternStore.setState({
+      userPatterns: [
+        {
+          id: 'u1',
+          name: 'My Multi-Dimensional Sketch',
+          src: source,
+          controls: {},
+          updatedAt: 0,
+        },
+      ],
+    })
+
+    render(<ControllerPanelTitle />)
+
+    expect(screen.getByText(label)).toBeInTheDocument()
+  })
+
   it('omits the dim pill when the running pattern is not held locally', () => {
     useControllerPanelStore.setState({
       activeProgramId: 'def',
