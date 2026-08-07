@@ -972,13 +972,17 @@ state.
 ### Inventory and recovery
 
 The live Controller-profile context pane joins `listPrograms` with overwrite
-bindings, push records, personal Patterns, and built-ins. Bound entries appear
-under Saved PXLBLZ Patterns and link to Studio; unbound entries appear under
-Other Patterns. Transform sets compare order-independently as current, stale,
-or unmanaged, which the UI labels OK, STALE, or UNKNOWN. Queued work, active
-updates, and failures render as QUEUED, SYNCING, and FAILED. A saved Show row
+bindings, push records, personal and built-in Patterns, and the complete personal
+and built-in Show catalog. A session-edited built-in Show draft takes precedence
+over its pristine fixture. Bound entries appear under Saved PXLBLZ Patterns and
+link to Studio; unbound entries appear under Other Patterns. Transform sets
+compare order-independently as current, stale, or unmanaged, which the UI labels
+OK, STALE, or UNKNOWN. Queued work, active updates, and failures render as
+QUEUED, SYNCING, and FAILED. A saved Show row is identified as Show output and
 also reports Installation versus Portable plus fixed count/map or
-variable-resolution class from its push record.
+variable-resolution class from its push record. A bound artifact whose source
+can no longer be resolved remains on the Controller and reports that its source
+is unavailable.
 
 `readSavedProgram` fetches `/p/<id>`, decodes PBP, retains the device-stored name,
 separates PXLBLZ provenance from stripped source, and permits source-less records.
@@ -991,9 +995,9 @@ Import then chooses one of four outcomes:
 
 Import never mutates the Controller program.
 The inventory renders Import only for Other Patterns; managed rows navigate to
-their existing Studio source. Its fixed table layout truncates long device ids
-inside their cells so the Controller context rail does not acquire horizontal
-scrolling.
+their existing Studio source. Both inventories use one fixed column geometry,
+wrap complete Pattern names, and truncate long device ids inside their cells so
+status and action controls remain contained in the Controller context rail.
 
 ### Managed-artifact reconciliation
 

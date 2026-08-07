@@ -454,12 +454,17 @@ PXLBLZ Patterns** and **Other Patterns**, with a count in each heading. Saved
 rows link back to their source; Other rows stay visible and untouched. The
 Pattern, Pattern ID, and Status headers sort both sections in either direction.
 Status uses compact fixed-width labels: OK, STALE, UNKNOWN, QUEUED, SYNCING,
-or FAILED. Saved Show rows retain their output contract summary, including an
-Installation map binding when one was recorded. **Keep PXLBLZ Patterns up to
-date when Controller settings change** is an opt-in that rebuilds provably
-managed artifacts after a code-affecting profile edit; Other Patterns are never
-modified, renamed, or deleted. Import is offered for Other Patterns that
-contain source; compiled code without source cannot be reconstructed.
+or FAILED. The two tables share one column layout and wrap complete Pattern
+names so statuses and Import actions stay inside their cells. Saved Show rows
+are labeled **Show output**, link to personal or built-in Shows (including
+Installation Shows), and retain their output contract summary, including an
+Installation map binding when one was recorded. A deleted or otherwise
+unavailable source does not imply that its compiled Pattern is missing from the
+Controller. **Keep PXLBLZ Patterns up to date when Controller settings change**
+is an opt-in that rebuilds provably managed artifacts after a code-affecting
+profile edit; Other Patterns are never modified, renamed, or deleted. Import is
+offered for Other Patterns that contain source; compiled code without source
+cannot be reconstructed.
 
 A Controller has one shared map slot, so **Send map to Controller** is a
 confirm-first configuration action, not a per-Pattern preference. PXLBLZ

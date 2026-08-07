@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
-import { ChevronDown, ChevronUp, Download, PanelsTopLeft, RefreshCw } from 'lucide-react'
+import { ChevronDown, ChevronUp, Download, RefreshCw } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { IDE_MICROTYPE } from '@/components/ui/ideMicrotype'
 import { sectionActionButtonClass } from './ControllerProfileHeaderActions'
@@ -36,6 +36,7 @@ import {
 } from '@/engine/savedProgramImport'
 import { newPersonalContentId } from '@/engine/personalContentMetadata'
 import { DEMOS } from '@/pixelblaze/stock/patterns'
+import { STOCK_SHOWS } from '@/pixelblaze/stock/shows'
 import {
   useControllerStore,
   type ControllerReconciliationState,
@@ -50,6 +51,7 @@ import type { ArtifactShowOutputContract } from '@/engine/artifactStamp'
 const tableHeadClass = 'px-2 py-1 text-left text-[10px] font-semibold uppercase text-zinc-400'
 const EMPTY_CONTROLLER_PROGRAMS: ProgramListEntry[] = []
 const tableCellClass = 'border-t border-zinc-800/85 px-2 py-1.5 align-middle'
+const patternInventoryColumnClasses = ['w-[44%]', 'w-[18%]', 'w-[18%]', 'w-[20%]'] as const
 
 type SavedProgramsRead = {
   controllerId: string | null
@@ -96,7 +98,7 @@ function PatternStatusBadge({ status }: { status: ControllerSavedPatternStatus }
   return (
     <span
       title={presentation.title}
-      className={`inline-flex w-[4.75rem] justify-center whitespace-nowrap border px-1.5 py-0.5 font-mono font-semibold uppercase tracking-wide ${IDE_MICROTYPE.required.sizeClassName} ${presentation.className}`}
+      className={`inline-flex w-[4.75rem] max-w-full justify-center whitespace-nowrap border px-1 py-0.5 font-mono font-semibold uppercase tracking-wide ${IDE_MICROTYPE.required.sizeClassName} ${presentation.className}`}
     >
       {CONTROLLER_SAVED_PATTERN_STATUS_LABELS[status]}
     </span>
@@ -120,6 +122,27 @@ function EmptyState({ children }: { children: React.ReactNode }) {
     <div className="border border-dashed border-zinc-700/80 bg-zinc-950/30 px-3 py-3 text-xs text-zinc-500">
       {children}
     </div>
+  )
+}
+
+function PatternInventoryColumns() {
+  return (
+    <colgroup>
+      {patternInventoryColumnClasses.map((className) => <col key={className} className={className} />)}
+    </colgroup>
+  )
+}
+
+function SavedProgramSourceNote({ program }: { program: ControllerSavedProgramRow }) {
+  const available = program.routeId !== null
+  const label = program.sourceKind === 'show'
+    ? (available ? 'Show output' : 'Source Show unavailable')
+    : (!available ? 'Source Pattern unavailable' : null)
+  if (!label) return null
+  return (
+    <span className={`block text-[10px] ${available ? 'text-zinc-500' : 'text-amber-400/65'}`}>
+      {label}
+    </span>
   )
 }
 
@@ -274,7 +297,7 @@ function ProgramImportButton({
       variant="ghost"
       aria-label={`Import ${program.name}`}
       disabled={disabled}
-      className={`${sectionActionButtonClass} text-[10px]`}
+      className={`${sectionActionButtonClass} w-full min-w-0 max-w-full px-1 text-[10px]`}
       onClick={() => onImport(program)}
     >
       <Download size={12} aria-hidden />
@@ -378,14 +401,9 @@ function SavedProgramsInventory({
       ) : presentedPrograms.owned.length === 0 ? (
         <EmptyState>No PXLBLZ Patterns are saved on this Controller.</EmptyState>
       ) : (
-        <div className="overflow-hidden border border-zinc-800/80 bg-zinc-950/25">
+        <div className="overflow-x-auto border border-zinc-800/80 bg-zinc-950/25">
           <table className="w-full table-fixed border-collapse text-xs" aria-label="Saved PXLBLZ Patterns">
-            <colgroup>
-              <col className="w-[36%]" />
-              <col className="w-[25%]" />
-              <col className="w-[17%]" />
-              <col className="w-[22%]" />
-            </colgroup>
+            <PatternInventoryColumns />
             <thead>
               <tr>
                 <SortableTableHead field="pattern" label="Pattern" sort={sort} onSort={updateSort} />
@@ -398,34 +416,20 @@ function SavedProgramsInventory({
               {presentedPrograms.owned.map((program) => (
                 <tr key={program.programId} className="bg-zinc-900/20">
                   <td className={`${tableCellClass} overflow-hidden`}>
-                    <span className="flex max-w-full items-center gap-1.5">
-                      {program.sourceKind === 'show' && (
-                        <span
-                          role="img"
-                          aria-label="Saved from a Show"
-                          title="Saved from a Show"
-                          className="shrink-0 text-zinc-500"
-                        >
-                          <PanelsTopLeft size={12} aria-hidden />
-                        </span>
-                      )}
+                    <span className="block min-w-0">
                       {program.routeId ? (
                         <button
                           type="button"
                           title={program.name}
-                          className="block max-w-full truncate text-left font-medium text-live transition-colors hover:text-amber-300"
+                          className="block max-w-full whitespace-normal break-words text-left font-medium leading-snug text-live transition-colors hover:text-amber-300"
                           onClick={() => onOpen(program.routeId!)}
                         >
                           {program.name}
                         </button>
                       ) : (
-                        <span className="min-w-0">
-                          <span className="block truncate text-zinc-300">{program.name}</span>
-                          <span className="block text-[10px] text-amber-400/65">
-                            {program.sourceKind === 'show' ? 'Studio Show missing' : 'Studio Pattern missing'}
-                          </span>
-                        </span>
+                        <span className="block whitespace-normal break-words leading-snug text-zinc-300">{program.name}</span>
                       )}
+                      <SavedProgramSourceNote program={program} />
                     </span>
                   </td>
                   <td title={program.programId} className={`${tableCellClass} truncate font-mono text-zinc-400`}>{program.programId}</td>
@@ -449,14 +453,9 @@ function SavedProgramsInventory({
           {presentedPrograms.foreign.length === 0 ? (
             <EmptyState>No other Patterns are saved on this Controller.</EmptyState>
           ) : (
-            <div className="overflow-hidden border border-zinc-800/80 bg-zinc-950/25">
+            <div className="overflow-x-auto border border-zinc-800/80 bg-zinc-950/25">
               <table className="w-full table-fixed border-collapse text-xs" aria-label="Other Patterns">
-                <colgroup>
-                  <col className="w-[42%]" />
-                  <col className="w-[28%]" />
-                  <col className="w-[17%]" />
-                  <col className="w-[13%]" />
-                </colgroup>
+                <PatternInventoryColumns />
                 <thead>
                   <tr>
                     <SortableTableHead field="pattern" label="Pattern" sort={sort} onSort={updateSort} />
@@ -468,7 +467,7 @@ function SavedProgramsInventory({
                 <tbody>
                   {presentedPrograms.foreign.map((program) => (
                     <tr key={program.programId} className="bg-zinc-950/40">
-                      <td title={program.name} className={`${tableCellClass} truncate text-zinc-500`}>{program.name}</td>
+                      <td title={program.name} className={`${tableCellClass} whitespace-normal break-words leading-snug text-zinc-500`}>{program.name}</td>
                       <td title={program.programId} className={`${tableCellClass} truncate font-mono text-zinc-500`}>{program.programId}</td>
                       <td className={tableCellClass}>
                         <PatternStatusBadge status={statusFor(program)} />
@@ -500,6 +499,7 @@ export function ControllerSavedProgramsPane({ profile }: { profile: ControllerPr
   const reconcileControllerProfile = useControllerStore((state) => state.reconcileControllerProfile)
   const userPatterns = usePatternStore((state) => state.userPatterns)
   const shows = useShowStore((state) => state.shows)
+  const stockShowDrafts = useShowStore((state) => state.stockShowDrafts)
   const addPattern = usePatternStore((state) => state.addPattern)
   const navigate = useRouterStore((state) => state.navigate)
   const profileController = controllerForProfile(profile, controllers)
@@ -589,6 +589,14 @@ export function ControllerSavedProgramsPane({ profile }: { profile: ControllerPr
         routeId: `show:${show.id}`,
         name: show.name,
       })),
+      ...STOCK_SHOWS.map((item) => {
+        const show = stockShowDrafts[item.id] ?? item.show
+        return {
+          bindingKey: `show:${show.id}`,
+          routeId: `show:${show.id}`,
+          name: show.name,
+        }
+      }),
     ],
   })
   const inventoryManagedCount = programs.owned.filter((program) => program.freshness !== 'unmanaged').length

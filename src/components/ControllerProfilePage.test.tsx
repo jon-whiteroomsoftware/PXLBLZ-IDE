@@ -13,6 +13,7 @@ import {
 } from '@/engine/personalContentProvider'
 import type { MapRecord, PatternRecord } from '@/engine/personalContentRecords'
 import type { RecoveredSavedProgram } from '@/engine/controllerSavedProgramRead'
+import type { ControllerPushRecord } from '@/engine/controllerPushRecord'
 import {
   demoControllerMetadataStorage,
   resetControllerMetadataStorage,
@@ -31,6 +32,8 @@ import {
 import { mapInitialState, useMapStore } from '@/store/mapStore'
 import { routerInitialState, useRouterStore } from '@/store/routerStore'
 import { patternInitialState, usePatternStore } from '@/store/patternStore'
+import { showInitialState, useShowStore } from '@/store/showStore'
+import { stockShowById } from '@/pixelblaze/stock/shows'
 
 const READBACK_POINTS = [
   [0, 0],
@@ -86,6 +89,7 @@ beforeEach(() => {
   useMapStore.setState(mapInitialState)
   useRouterStore.setState(routerInitialState)
   usePatternStore.setState(patternInitialState)
+  useShowStore.setState(showInitialState)
   resetControllerProvider()
   resetControllerMetadataStorage()
   setPersonalContentProvider({
@@ -110,6 +114,43 @@ function seedProfile() {
   })
   useControllerProfileStore.setState({ profiles: [profile], profilesLoaded: true })
   return profile
+}
+
+function renderLiveProgramInventory(
+  profile: ReturnType<typeof seedProfile>,
+  fixture: {
+    storageId: string
+    programs: ProgramListProvider['programs']
+    bindings: Record<string, string>
+    pushRecords: Record<string, ControllerPushRecord>
+  },
+) {
+  const provider = new ProgramListProvider()
+  provider.programs = fixture.programs
+  setControllerMetadataStorage({
+    ...demoControllerMetadataStorage,
+    id: fixture.storageId,
+    getControllerBindings: async () => ({ '192.168.8.224': fixture.bindings }),
+    getPushRecords: async () => ({ '192.168.8.224': fixture.pushRecords }),
+  })
+  setControllerProvider(provider)
+  useControllerPanelStore.setState({
+    programs: provider.programs,
+    programsByController: { '192.168.8.224': provider.programs },
+  })
+  useControllerStore.setState({
+    activeIp: '192.168.8.224',
+    controllers: {
+      '192.168.8.224': {
+        ip: '192.168.8.224',
+        deviceId: profile.deviceId,
+        nickname: 'Burner bag',
+        phase: 'live',
+        mapDim: 2,
+      },
+    },
+  })
+  render(<ControllerSavedProgramsPane profile={profile} />)
 }
 
 describe('ControllerProfilePage', () => {
@@ -561,7 +602,12 @@ describe('ControllerProfilePage', () => {
       },
     })
 
-    const { rerender } = render(<ControllerSavedProgramsPane profile={profile} />)
+    const pane = (currentProfile: typeof profile) => (
+      <div style={{ width: 520 }}>
+        <ControllerSavedProgramsPane profile={currentProfile} />
+      </div>
+    )
+    const { rerender } = render(pane(profile))
 
     expect(await screen.findByRole('button', { name: 'Twinkle' })).toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'AuroraSphere' })).toBeInTheDocument()
@@ -572,9 +618,9 @@ describe('ControllerProfilePage', () => {
     expect(screen.getByText('DEV1')).toBeInTheDocument()
     expect(screen.getByText('FOREIGN1')).toBeInTheDocument()
     expect(screen.getByText('Installation · 256 px · Measured wall')).toBeInTheDocument()
-    expect(screen.getByLabelText('Saved from a Show')).toBeInTheDocument()
-    expect(screen.getByText('Studio Show missing')).toBeInTheDocument()
-    expect(screen.queryByText('Studio pattern missing')).not.toBeInTheDocument()
+    expect(screen.queryByLabelText('Saved from a Show')).not.toBeInTheDocument()
+    expect(screen.getByText('Source Show unavailable')).toBeInTheDocument()
+    expect(screen.queryByText('Source Pattern unavailable')).not.toBeInTheDocument()
     const savedInventory = screen.getByRole('table', { name: 'Saved PXLBLZ Patterns' })
     const otherInventory = screen.getByRole('table', { name: 'Other Patterns' })
     expect(within(savedInventory).getByRole('columnheader', { name: 'Pattern' })).toBeInTheDocument()
@@ -592,6 +638,28 @@ describe('ControllerProfilePage', () => {
 
     expect(savedInventory).toHaveClass('table-fixed')
     expect(otherInventory).toHaveClass('table-fixed')
+    const columnClasses = (table: HTMLElement) => (
+      Array.from(table.querySelectorAll('col')).map((column) => column.className)
+    )
+    expect(columnClasses(savedInventory)).toEqual(columnClasses(otherInventory))
+    const headerWidths = (table: HTMLElement) => (
+      within(table).getAllByRole('columnheader').map((header) => header.getBoundingClientRect().width)
+    )
+    headerWidths(savedInventory).forEach((width, index) => {
+      expect(Math.abs(width - headerWidths(otherInventory)[index])).toBeLessThan(1)
+    })
+    for (const badge of screen.getAllByText(/^(OK|STALE|UNKNOWN)$/)) {
+      expect(badge).toHaveClass('max-w-full')
+      const badgeBounds = badge.getBoundingClientRect()
+      const cellBounds = badge.closest('td')!.getBoundingClientRect()
+      expect(badgeBounds.left).toBeGreaterThanOrEqual(cellBounds.left)
+      expect(badgeBounds.right).toBeLessThanOrEqual(cellBounds.right)
+    }
+    const importButton = screen.getByRole('button', { name: 'Import sound bar kit' })
+    expect(importButton).toHaveClass('w-full')
+    expect(importButton.getBoundingClientRect().right).toBeLessThanOrEqual(
+      importButton.closest('td')!.getBoundingClientRect().right,
+    )
     expect(screen.queryByRole('button', { name: 'Import Twinkle' })).not.toBeInTheDocument()
     expect(screen.queryByRole('button', { name: 'Import AuroraSphere' })).not.toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'Import sound bar kit' })).toBeInTheDocument()
@@ -624,7 +692,7 @@ describe('ControllerProfilePage', () => {
         transform.type === 'power-cap' ? { ...transform, enabled: true } : transform,
       ),
     }
-    rerender(<ControllerSavedProgramsPane profile={changedProfile} />)
+    rerender(pane(changedProfile))
     expect(within(savedInventory).getAllByText('STALE')).toHaveLength(2)
     expect(provider.listCalls).toBe(0)
 
@@ -658,6 +726,91 @@ describe('ControllerProfilePage', () => {
     expect(await screen.findByText('New Pattern 14')).toBeInTheDocument()
     expect(screen.getByRole('heading', { name: 'Other Patterns (2)' })).toBeInTheDocument()
     expect(provider.listCalls).toBe(1)
+  })
+
+  it('links a compiled built-in Show to its full Studio Show source', async () => {
+    const profile = seedProfile()
+    renderLiveProgramInventory(profile, {
+      storageId: 'built-in-show-inventory-test',
+      programs: [{ id: 'REMIX1', name: 'Coronal Mass Ejection' }],
+      bindings: {
+        'show:stock-show-remix-coronal-mass-ejection': 'REMIX1',
+      },
+      pushRecords: {
+        'show:stock-show-remix-coronal-mass-ejection': {
+          transforms: [],
+          artifactHash: 'remix-hash',
+          stampedAt: '2026-08-07T00:00:00.000Z',
+          name: 'Coronal Mass Ejection PXLBLZ remix',
+          showOutputContract: {
+            version: 1,
+            kind: 'portable-2d',
+            dimensions: [2],
+            mapClasses: ['surface'],
+            resolution: 'variable',
+          },
+        },
+      },
+    })
+
+    const showLink = await screen.findByRole('button', {
+      name: 'Coronal Mass Ejection PXLBLZ remix',
+    })
+    expect(showLink).not.toHaveClass('truncate')
+    expect(screen.getByText('Show output')).toBeInTheDocument()
+    expect(screen.queryByText('Studio Show missing')).not.toBeInTheDocument()
+
+    fireEvent.click(showLink)
+
+    expect(useRouterStore.getState().route).toEqual({
+      kind: 'studio',
+      entity: { kind: 'shows', id: 'stock-show-remix-coronal-mass-ejection' },
+    })
+  })
+
+  it('resolves an edited built-in Installation Show through the same Show source path', async () => {
+    const profile = seedProfile()
+    const showId = 'stock-show-showcase-redline-installation'
+    const pristine = stockShowById(showId)!.show
+    useShowStore.setState({
+      stockShowDrafts: {
+        [showId]: { ...pristine, name: 'Redline Installation - tuned' },
+      },
+    })
+    renderLiveProgramInventory(profile, {
+      storageId: 'built-in-installation-inventory-test',
+      programs: [{ id: 'REDLINE1', name: 'Redline Installation' }],
+      bindings: { [`show:${showId}`]: 'REDLINE1' },
+      pushRecords: {
+        [`show:${showId}`]: {
+          transforms: [],
+          artifactHash: 'redline-hash',
+          stampedAt: '2026-08-07T00:00:00.000Z',
+          name: 'Redline Installation - tuned',
+          showOutputContract: {
+            version: 1,
+            kind: 'installation',
+            pixelCount: 2_000,
+            outputMap: {
+              kind: 'custom',
+              name: 'Redline stage',
+              fingerprint: '22222222',
+            },
+          },
+        },
+      },
+    })
+
+    const showLink = await screen.findByRole('button', { name: 'Redline Installation - tuned' })
+    expect(screen.getByText('Show output')).toBeInTheDocument()
+    expect(screen.getByText('Installation · 2000 px · Redline stage')).toBeInTheDocument()
+
+    fireEvent.click(showLink)
+
+    expect(useRouterStore.getState().route).toEqual({
+      kind: 'studio',
+      entity: { kind: 'shows', id: showId },
+    })
   })
 
   it('imports recovered foreign source as a new Studio pattern', async () => {
