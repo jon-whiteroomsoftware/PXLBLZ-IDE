@@ -80,5 +80,6 @@ export function render2D(index, x, y) {
   g = 2-abs(y - lg) / lineWidth;
   b = 2-abs(y - lb) / lineWidth;
 
-  rgb(r, g, b);
+  // Show Effects consume these values before the Controller output sink.
+  rgb(clamp(r, 0, 1), clamp(g, 0, 1), clamp(b, 0, 1));
 }

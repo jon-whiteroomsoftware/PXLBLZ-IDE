@@ -169,5 +169,6 @@ export function render2D(index,x,y) {
     h = d + time(0.1);
   }
 
-  hsv(h, s, v*v)
+  // Show Effects consume these values before the Controller output sink.
+  hsv(h, clamp(s, 0, 1), clamp(v*v, 0, 1))
 }

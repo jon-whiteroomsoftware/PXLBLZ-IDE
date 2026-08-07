@@ -93,7 +93,8 @@ export function render2D(index,x,y) {
   b = 0.075/nonzero(hypot(mod(px/tmp,1)-0.55,mod(py/tmp,1)-0.55)) / len
   b = b * b * b;
 
-  rgb(r,g,b);
+  // Show Effects consume these values before the Controller output sink.
+  rgb(clamp(r,0,1),clamp(g,0,1),clamp(b,0,1));
 }
 
 // for use on 1D strips
