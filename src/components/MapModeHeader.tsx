@@ -1,5 +1,6 @@
 import { useState } from 'react'
 import { Trash2 } from 'lucide-react'
+import { controlIcon } from '@/components/iconScale'
 import { CompileStatusBadge } from '@/components/CompileStatusBadge'
 import {
   AlertDialogRoot,
@@ -95,7 +96,7 @@ export function MapModeHeader() {
           className="shrink-0 h-6 px-2 rounded border border-zinc-800 text-[11px] text-zinc-500 hover:border-red-900/80 hover:text-red-300 transition-colors flex items-center gap-1"
           title="Delete map"
         >
-          <Trash2 size={12} aria-hidden />
+          <Trash2 {...controlIcon} aria-hidden />
           Delete
         </button>
       )}

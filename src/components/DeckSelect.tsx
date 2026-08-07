@@ -1,6 +1,7 @@
 import { useState, useRef, useEffect } from 'react'
 import { createPortal } from 'react-dom'
 import { ChevronDown } from 'lucide-react'
+import { inlineIcon } from '@/components/iconScale'
 import { useAnchoredOverlayPosition } from './useAnchoredOverlayPosition'
 
 export interface DeckOption<T> {
@@ -216,7 +217,7 @@ export function DeckSelect<T extends string | number>({
               {current.badge}
             </span>
           )}
-          <ChevronDown size={12} className="shrink-0 text-zinc-500" />
+          <ChevronDown {...inlineIcon} className="shrink-0 text-zinc-500" />
         </span>
       </button>
 

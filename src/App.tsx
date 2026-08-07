@@ -1,5 +1,6 @@
 import { useState, useCallback, useMemo, useRef, useEffect, useLayoutEffect } from 'react'
 import { Braces, Code2, Cpu, Images, Lock, LogIn, Map as MapIcon, PanelsTopLeft, X } from 'lucide-react'
+import { controlIcon } from '@/components/iconScale'
 import { Button } from '@/components/ui/button'
 import {
   AlertDialogRoot,
@@ -862,7 +863,7 @@ function StudioApp() {
             onClick={() => setAuthNotice(null)}
             className="ml-auto mt-1 shrink-0 cursor-pointer rounded-sm p-0.5 text-zinc-400 transition-colors hover:text-zinc-100 focus:outline-none focus-visible:ring-2 focus-visible:ring-live/50"
           >
-            <X size={14} aria-hidden />
+            <X {...controlIcon} aria-hidden />
           </button>
         </div>
       )}
@@ -1288,7 +1289,7 @@ function StudioApp() {
                 className="text-zinc-400 hover:text-zinc-100"
                 onClick={closeShowStageOverlay}
               >
-                <X size={14} aria-hidden />
+                <X {...controlIcon} aria-hidden />
               </Button>
             </header>
             <div className="min-h-0 flex-1">

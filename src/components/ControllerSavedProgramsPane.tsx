@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
 import { ChevronDown, ChevronUp, Download, RefreshCw } from 'lucide-react'
+import { controlIcon, inlineIcon } from '@/components/iconScale'
 import { Button } from '@/components/ui/button'
 import { IDE_MICROTYPE } from '@/components/ui/ideMicrotype'
 import { sectionActionButtonClass } from './ControllerProfileHeaderActions'
@@ -307,7 +308,7 @@ function ProgramImportButton({
       className={`${sectionActionButtonClass} w-full min-w-0 max-w-full px-1 text-[10px]`}
       onClick={() => onImport(program)}
     >
-      <Download size={12} aria-hidden />
+      <Download {...inlineIcon} aria-hidden />
       {importing ? 'Reading' : 'Import'}
     </Button>
   )
@@ -334,8 +335,8 @@ function SortableTableHead({
       >
         {label}
         {active && (sort.direction === 'ascending'
-          ? <ChevronUp size={11} aria-hidden />
-          : <ChevronDown size={11} aria-hidden />)}
+          ? <ChevronUp {...inlineIcon} aria-hidden />
+          : <ChevronDown {...inlineIcon} aria-hidden />)}
       </button>
     </th>
   )
@@ -390,7 +391,7 @@ function SavedProgramsInventory({
           className={sectionActionButtonClass}
           onClick={onRefresh}
         >
-          <RefreshCw size={13} aria-hidden className={status === 'loading' ? 'animate-spin' : ''} />
+          <RefreshCw {...controlIcon} aria-hidden className={status === 'loading' ? 'animate-spin' : ''} />
           Refresh
         </Button>
       </div>

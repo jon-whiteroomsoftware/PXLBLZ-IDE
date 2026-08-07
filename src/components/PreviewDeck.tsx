@@ -1,5 +1,6 @@
 import { useEffect } from 'react'
 import { Lock, Play, Pause, RotateCcw } from 'lucide-react'
+import { controlIcon } from '@/components/iconScale'
 import { usePreviewStore, MIN_LIGHT_SIZE, MAX_LIGHT_SIZE } from '@/store/previewStore'
 import { useEditorStore } from '@/store/editorStore'
 import { useMapStore, defaultPixelCountForDim, resolveMap } from '@/store/mapStore'
@@ -136,7 +137,7 @@ function PrimaryBand() {
           onClick={() => void resetActiveSettings()}
           className="flex items-center justify-center h-5 w-5 shrink-0 rounded text-zinc-500 hover:text-amber-400 hover:bg-zinc-800/80 transition-colors"
         >
-          <RotateCcw size={14} />
+          <RotateCcw {...controlIcon} />
         </button>
       )}
       <EmbeddingSelect portaled />

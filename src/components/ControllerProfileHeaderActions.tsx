@@ -1,5 +1,6 @@
 import { useState } from 'react'
 import { Download, Map as MapIcon, RefreshCw } from 'lucide-react'
+import { controlIcon, inlineIcon } from '@/components/iconScale'
 import { Button } from '@/components/ui/button'
 import {
   AlertDialogRoot,
@@ -95,7 +96,7 @@ function ImportMapDialog({
           )}
           <div className="rounded border border-zinc-800 bg-zinc-950/70 px-3 py-2 font-mono text-[11px] text-zinc-400">
             <div className="flex items-center gap-2 text-zinc-300">
-              <MapIcon size={13} aria-hidden />
+              <MapIcon {...inlineIcon} aria-hidden />
               {pending.summary.pixelCount} px / {pending.summary.dim}D / {formatGridDims(pending.summary.gridDims)}
             </div>
             <div className="mt-1 text-zinc-500">Source device: {pending.controllerName}</div>
@@ -248,7 +249,7 @@ export function ControllerProfileHeaderActions({ profile }: { profile: Controlle
           ? 'Refresh controller metadata'
           : 'Connect this controller to refresh its metadata'}
       >
-        <RefreshCw size={13} aria-hidden />
+        <RefreshCw {...controlIcon} aria-hidden />
         Refresh
       </Button>
       <Button
@@ -262,7 +263,7 @@ export function ControllerProfileHeaderActions({ profile }: { profile: Controlle
           ? 'Import installed pixel map'
           : 'Connect this controller to import its installed pixel map'}
       >
-        <Download size={13} aria-hidden />
+        <Download {...controlIcon} aria-hidden />
         {importingMap ? 'Reading' : 'Import map'}
       </Button>
       <ImportMapDialog

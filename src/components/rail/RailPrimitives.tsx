@@ -15,6 +15,7 @@ import {
   Trash2,
   X,
 } from 'lucide-react'
+import { denseIcon } from '@/components/iconScale'
 import { nameConflicts } from '@/engine/patternName'
 import { sanitizeLibraryNameInput } from '@/engine/libraries'
 import type { DimLens } from '@/engine/dimLens'
@@ -297,7 +298,7 @@ export function RailFilterBar({
             expanded ? 'text-zinc-300 hover:text-live' : 'text-zinc-500 hover:text-zinc-300',
           ].join(' ')}
         >
-          {committedOpen ? <X size={13} /> : <Search size={13} />}
+          {committedOpen ? <X {...denseIcon} /> : <Search {...denseIcon} />}
         </button>
       </div>
 
@@ -478,7 +479,7 @@ export function EditableListItem({
                   title="Rename"
                   aria-label="Rename"
                 >
-                  <Pencil size={13} aria-hidden />
+                  <Pencil {...denseIcon} aria-hidden />
                 </button>
               )}
               <AlertDialogTrigger asChild>
@@ -488,7 +489,7 @@ export function EditableListItem({
                   title="Delete"
                   aria-label="Delete"
                 >
-                  <Trash2 size={13} aria-hidden />
+                  <Trash2 {...denseIcon} aria-hidden />
                 </button>
               </AlertDialogTrigger>
             </span>

@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
 import { Check, Pencil, X } from 'lucide-react'
+import { controlIcon } from '@/components/iconScale'
 import { nameConflicts } from '@/engine/patternName'
 
 type EntityNoun = 'pattern' | 'map' | 'mixin' | 'library' | 'controller' | 'show' | 'zone'
@@ -133,7 +134,7 @@ export function InlineEntityTitle({
               disabled={saving}
               className="grid size-6 shrink-0 place-items-center rounded border border-live/60 bg-live/10 text-live transition-colors hover:bg-live/20 disabled:opacity-50"
             >
-              <Check size={13} aria-hidden />
+              <Check {...controlIcon} aria-hidden />
             </button>
             <button
               type="button"
@@ -143,7 +144,7 @@ export function InlineEntityTitle({
               onClick={cancel}
               className="grid size-6 shrink-0 place-items-center rounded border border-zinc-700 bg-zinc-950 text-zinc-500 transition-colors hover:border-zinc-500 hover:bg-zinc-800 hover:text-zinc-200 disabled:opacity-50"
             >
-              <X size={13} aria-hidden />
+              <X {...controlIcon} aria-hidden />
             </button>
           </span>
           {error && (

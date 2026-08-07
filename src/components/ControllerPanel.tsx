@@ -1,5 +1,6 @@
 import { useEffect, useSyncExternalStore } from 'react'
 import { ExternalLink } from 'lucide-react'
+import { inlineIcon } from '@/components/iconScale'
 import { getControllerProvider } from '@/engine/controllerProviderRegistry'
 import { useControllerStore } from '@/store/controllerStore'
 import { useControllerPanelStore } from '@/store/controllerPanelStore'
@@ -235,7 +236,7 @@ export function ControllerPanel() {
             className="inline-flex shrink-0 items-center gap-1 text-[11px] text-amber-300 hover:text-amber-200 focus:outline-none focus:underline"
           >
             Open Pixelblaze
-            <ExternalLink size={12} aria-hidden />
+            <ExternalLink {...inlineIcon} aria-hidden />
           </a>
         </div>
       )}

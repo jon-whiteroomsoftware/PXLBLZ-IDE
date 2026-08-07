@@ -1,5 +1,6 @@
 import { useSyncExternalStore } from 'react'
 import { Check, ChevronRight, Play, RotateCw, Save } from 'lucide-react'
+import { controlIcon, inlineIcon, transportIcon } from '@/components/iconScale'
 import { trackEvent } from '@/analytics'
 import { describeControllerActionRow } from '@/engine/controllerActionRow'
 import { getControllerProvider } from '@/engine/controllerProviderRegistry'
@@ -95,14 +96,14 @@ export function ControllerActionRow({
 
   const glyph = (mode: SendMode) => {
     if (pushing && saveArmed === (mode === 'save')) {
-      return <RotateCw size={13} className="animate-spin text-amber-400" aria-hidden />
+      return <RotateCw {...controlIcon} className="animate-spin text-amber-400" aria-hidden />
     }
     if (pushResult?.ok && saveArmed === (mode === 'save')) {
-      return <Check size={13} aria-hidden />
+      return <Check {...controlIcon} aria-hidden />
     }
     return mode === 'save'
-      ? <Save size={13} aria-hidden />
-      : <Play size={13} aria-hidden />
+      ? <Save {...controlIcon} aria-hidden />
+      : <Play {...transportIcon} aria-hidden />
   }
 
   const actionClass =
@@ -141,7 +142,7 @@ export function ControllerActionRow({
           className="ml-auto inline-flex h-7 items-center gap-0.5 px-1 text-[11px] text-zinc-400 transition-colors hover:text-zinc-100 focus:outline-none focus:text-zinc-100"
         >
           Profile
-          <ChevronRight size={13} aria-hidden className="text-zinc-600" />
+          <ChevronRight {...inlineIcon} aria-hidden className="text-zinc-600" />
         </a>
       </div>
       <p className="mt-1 truncate text-[10px] leading-4 text-zinc-500" title={view.caption}>

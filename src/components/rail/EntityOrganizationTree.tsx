@@ -8,6 +8,7 @@ import {
   Trash2,
   X,
 } from 'lucide-react'
+import { controlIcon, inlineIcon } from '@/components/iconScale'
 import {
   collectTrashedEntityOrganizationIds,
   createEntityOrganizationFolder,
@@ -529,9 +530,9 @@ function MoveDialog({ organization, nodeKey, nodeName: name, rootLabel, onClose,
     <div className="fixed inset-0 z-50 grid place-items-center bg-black/60 p-4" role="presentation" onMouseDown={(event) => { if (event.target === event.currentTarget) onClose() }}>
       <section role="dialog" aria-modal="true" aria-label={`Move ${name}`} className="w-full max-w-sm border border-zinc-700 bg-[#101115] shadow-2xl shadow-black/70">
         <header className="flex items-center gap-2 border-b border-zinc-800 px-3 py-2">
-          <Folder size={13} className="text-live" />
+          <Folder {...inlineIcon} className="text-live" />
           <span className="min-w-0 flex-1 truncate text-[12px] text-zinc-100">Move {name}</span>
-          <button type="button" onClick={onClose} className="grid size-6 place-items-center text-zinc-500 hover:text-zinc-200" aria-label="Close"><X size={13} /></button>
+          <button type="button" onClick={onClose} className="grid size-6 place-items-center text-zinc-500 hover:text-zinc-200" aria-label="Close"><X {...controlIcon} /></button>
         </header>
         <div className="max-h-72 overflow-auto p-2">
           <MoveDestination label={rootLabel} depth={0} selected={folderId === null} onSelect={() => setFolderId(null)} />

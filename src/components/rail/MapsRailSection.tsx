@@ -1,4 +1,5 @@
 import { Map as MapIcon } from 'lucide-react'
+import { inlineIcon } from '@/components/iconScale'
 import { useRef, type RefObject } from 'react'
 import type { DimLens } from '@/engine/dimLens'
 import type { EntityOrganizationV1 } from '@/engine/entityOrganization'
@@ -161,7 +162,7 @@ export function MapsRailSection({
                             onClick={() => onOpenStockMap(item.id)}
                             className={`flex cursor-pointer list-none items-center gap-1 hover:text-zinc-200 [&::-webkit-details-marker]:hidden ${IDE_MICROTYPE.entity.className}`}
                           >
-                            <MapIcon size={12} aria-hidden className="shrink-0 text-zinc-600" />
+                            <MapIcon {...inlineIcon} aria-hidden className="shrink-0 text-zinc-600" />
                             <span className="min-w-0 flex-1 truncate">{item.name}</span>
                             <span className={IDE_MICROTYPE.secondary.className}>{item.views.length} views</span>
                           </summary>

@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
 import { ChevronDown, CircleUser, LogIn, LogOut, ShieldCheck } from 'lucide-react'
+import { controlIcon } from '@/components/iconScale'
 import { Button } from '@/components/ui/button'
 import { docExternalHref } from '@/docs/catalog'
 import { getAuthSession, type AuthSession } from '@/engine/authSession'
@@ -104,7 +105,7 @@ export function AuthStatus() {
               role="menuitem"
               className="mt-1 flex w-full items-center gap-2 whitespace-nowrap px-3 py-1.5 text-left font-mono text-xs text-zinc-300 transition-colors hover:bg-zinc-800/70 hover:text-zinc-100 focus:bg-zinc-800/70 focus:text-zinc-100 focus:outline-none"
             >
-              <ShieldCheck size={13} strokeWidth={2.4} className="shrink-0 text-zinc-500" aria-hidden />
+              <ShieldCheck {...controlIcon} className="shrink-0 text-zinc-500" aria-hidden />
               Privacy &amp; account data
             </a>
             <a
@@ -112,7 +113,7 @@ export function AuthStatus() {
               role="menuitem"
               className="flex w-full items-center gap-2 whitespace-nowrap px-3 py-1.5 text-left font-mono text-xs text-zinc-300 transition-colors hover:bg-zinc-800/70 hover:text-zinc-100 focus:bg-zinc-800/70 focus:text-zinc-100 focus:outline-none"
             >
-              <LogOut size={13} strokeWidth={2.4} className="shrink-0 text-zinc-500" aria-hidden />
+              <LogOut {...controlIcon} className="shrink-0 text-zinc-500" aria-hidden />
               Log out
             </a>
           </div>

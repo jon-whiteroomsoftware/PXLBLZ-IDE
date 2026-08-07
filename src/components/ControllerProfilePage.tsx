@@ -4,6 +4,7 @@ import { NumberField as UiNumberField } from '@/components/ui/number-field'
 import { DraftTextField } from '@/components/ui/draft-text-field'
 import { PercentageField as UiPercentageField } from '@/components/ui/percentage-field'
 import { CircleArrowUp, Plus, Trash2, X } from 'lucide-react'
+import { controlIcon, inlineIcon } from '@/components/iconScale'
 import { Button } from '@/components/ui/button'
 import { IDE_MICROTYPE } from '@/components/ui/ideMicrotype'
 import {
@@ -351,7 +352,7 @@ function SectionAddButton({
       onClick={onClick}
       title={title}
     >
-      <Plus size={13} aria-hidden />
+      <Plus {...controlIcon} aria-hidden />
       {label}
     </Button>
   )
@@ -366,7 +367,7 @@ function RemoveRowButton({ label, onClick }: { label: string; onClick: () => voi
       onClick={onClick}
       className="absolute right-2 top-2 rounded p-1 text-zinc-500 transition-colors hover:bg-zinc-900 hover:text-red-300"
     >
-      <Trash2 size={14} aria-hidden />
+      <Trash2 {...controlIcon} aria-hidden />
     </button>
   )
 }
@@ -433,7 +434,7 @@ function ProfileStatus({
                 title="Last checked while this Controller was connected"
                 className="inline-flex items-center gap-1 text-[10px] font-semibold text-amber-300"
               >
-                <CircleArrowUp size={12} aria-hidden />
+                <CircleArrowUp {...inlineIcon} aria-hidden />
                 Update available
               </span>
             )}
@@ -1113,7 +1114,7 @@ function BindingDraftRow({
         onClick={onCancelDraft}
         className="absolute right-2 top-2 rounded p-1 text-zinc-500 transition-colors hover:bg-zinc-900 hover:text-red-300"
       >
-        <X size={14} aria-hidden />
+        <X {...controlIcon} aria-hidden />
       </button>
       <div className="flex flex-wrap items-start gap-x-3 gap-y-2">
         <LabeledField label="Pattern" className="w-56 grow">
@@ -1350,7 +1351,7 @@ function ZonesTable({
                   onClick={() => onRemoveZone(zone.id)}
                   className="text-zinc-500 hover:text-red-300"
                 >
-                  <Trash2 size={14} aria-hidden />
+                  <Trash2 {...controlIcon} aria-hidden />
                 </button>
               </td>
             </tr>

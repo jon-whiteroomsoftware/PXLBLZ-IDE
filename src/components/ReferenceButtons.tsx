@@ -1,4 +1,5 @@
 import { ArrowLeft, BookOpen, Braces } from 'lucide-react'
+import { controlIcon } from '@/components/iconScale'
 import type { Route } from '@/engine/routes'
 import { useReferenceNavigationStore } from '@/store/referenceNavigationStore'
 import { useRouterStore } from '@/store/routerStore'
@@ -60,20 +61,20 @@ export function ReferenceButtons() {
           onClick={returnToOrigin}
           className="inline-flex h-6 items-center gap-1.5 rounded border border-zinc-700 bg-zinc-900 px-2 font-mono text-xs text-zinc-300 transition-colors select-none hover:border-zinc-500 hover:text-zinc-100 focus:outline-none focus-visible:ring-2 focus-visible:ring-live/60"
         >
-          <ArrowLeft size={14} aria-hidden className="shrink-0 text-current" />
+          <ArrowLeft {...controlIcon} aria-hidden className="shrink-0 text-current" />
           <span>Back</span>
         </button>
       )}
       <ReferenceButton
         label="Docs"
         active={routeKind === 'docs'}
-        icon={<BookOpen size={14} aria-hidden className="shrink-0 text-current" />}
+        icon={<BookOpen {...controlIcon} aria-hidden className="shrink-0 text-current" />}
         onClick={toggleDocs}
       />
       <ReferenceButton
         label="API"
         active={routeKind === 'api-reference'}
-        icon={<Braces size={14} aria-hidden className="shrink-0 text-current" />}
+        icon={<Braces {...controlIcon} aria-hidden className="shrink-0 text-current" />}
         onClick={toggleApi}
       />
     </div>

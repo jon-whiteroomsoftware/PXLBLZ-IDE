@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from 'react'
 import { ArrowRight, ChevronDown, Hourglass, Images, Search, X } from 'lucide-react'
+import { inlineIcon } from '@/components/iconScale'
 import {
   GALLERY_ALL_CATEGORY,
   GALLERY_CATEGORIES,
@@ -203,7 +204,7 @@ export function GalleryPage({ directory }: { directory?: GalleryDirectory }) {
               onClick={() => setQuery('')}
               className="absolute right-1 top-1/2 grid size-4 -translate-y-1/2 place-items-center rounded text-structural transition-colors hover:bg-zinc-800 hover:text-zinc-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-live/70"
             >
-              <X size={12} aria-hidden />
+              <X {...inlineIcon} aria-hidden />
             </button>
           )}
         </label>

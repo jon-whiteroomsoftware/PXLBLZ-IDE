@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useRef, useState, type ReactNode } from 'react'
-import { CircleArrowUp, Pause, Play, RotateCw, Unplug } from 'lucide-react'
+import { CircleArrowUp, Pause, Play, RotateCw } from 'lucide-react'
+import { controlIcon, iconProps, transportIcon } from '@/components/iconScale'
 import {
   useControllerStore,
   type ControllerReconciliationState,
@@ -20,7 +21,7 @@ import {
   getPersonalContentProvider,
   initializePersonalContentProvider,
 } from '@/engine/personalContentProvider'
-import { ChipGlyph, ConnectGlyph } from './ControllerGlyphs'
+import { ChipGlyph, ConnectGlyph, DisconnectGlyph } from './ControllerGlyphs'
 import { StatusDot, type StatusTone } from './StatusDot'
 import { ControllerPanel } from './ControllerPanel'
 import { ControllerPanelTitle } from './ControllerPanelTitle'
@@ -175,7 +176,7 @@ function ControllerPillButton({
             title="Firmware update available"
             className="shrink-0 text-amber-400"
           >
-            <CircleArrowUp size={13} aria-hidden />
+            <CircleArrowUp {...controlIcon} aria-hidden />
           </span>
         )}
         {showDot && tone && <StatusDot tone={PILL_TONE[tone]} testId="controller-pill-dot" />}
@@ -231,7 +232,7 @@ function ControllerPillButton({
                 data-testid="controller-pill-remove"
                 className="inline-flex h-6 w-6 shrink-0 items-center justify-center rounded border border-zinc-700 text-zinc-400 hover:border-zinc-500 hover:text-zinc-200 focus:outline-none"
               >
-                <Unplug size={13} aria-hidden="true" />
+                <DisconnectGlyph />
               </button>
               <button
                 type="button"
@@ -244,10 +245,10 @@ function ControllerPillButton({
                 className="inline-flex h-6 w-6 shrink-0 items-center justify-center rounded border border-zinc-700 text-zinc-300 hover:border-zinc-500 hover:text-zinc-100 focus:outline-none disabled:cursor-not-allowed disabled:opacity-40"
               >
                 {rendererPending
-                  ? <RotateCw size={12} className="animate-spin" aria-hidden="true" />
+                  ? <RotateCw {...transportIcon} className="animate-spin" aria-hidden="true" />
                   : rendererPlaying
-                    ? <Pause size={12} aria-hidden="true" />
-                    : <Play size={12} aria-hidden="true" />}
+                    ? <Pause {...transportIcon} aria-hidden="true" />
+                    : <Play {...transportIcon} aria-hidden="true" />}
               </button>
             </div>
           </div>
@@ -641,7 +642,9 @@ export function ControllerBar({ reloadPage = () => window.location.reload() }: {
                     }`}
                   >
                     <RotateCw
-                      size={16}
+                      {...iconProps(16)}
+                      /* Sparse glyph in a roomier button: takes the same extra
+                         weight the transport pair does. */
                       strokeWidth={2.75}
                       className={rescanSpinning ? RESCAN_SPIN_CLASS : ''}
                       aria-hidden

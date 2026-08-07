@@ -1,4 +1,5 @@
 import { Check, Play, RotateCw, Save } from 'lucide-react'
+import { controlIcon, transportIcon } from '@/components/iconScale'
 import { ChipGlyph, ConnectGlyph } from '@/components/ControllerGlyphs'
 import type { SendGate, SendMode } from '@/engine/sendToController'
 import type { PushResult } from '@/store/controllerStore'
@@ -40,12 +41,12 @@ export function PatternDeploymentActions({
 
   const actionIcon = (mode: SendMode) => {
     if (pushing && activeMode === mode) {
-      return <RotateCw size={13} className="animate-spin text-amber-400" aria-hidden />
+      return <RotateCw {...controlIcon} className="animate-spin text-amber-400" aria-hidden />
     }
-    if (pushResult?.ok && activeMode === mode) return <Check size={13} aria-hidden />
+    if (pushResult?.ok && activeMode === mode) return <Check {...controlIcon} aria-hidden />
     return mode === 'save'
-      ? <Save size={13} aria-hidden />
-      : <Play size={13} aria-hidden />
+      ? <Save {...controlIcon} aria-hidden />
+      : <Play {...transportIcon} aria-hidden />
   }
 
   const actionLabel = (mode: SendMode) => (

@@ -384,7 +384,7 @@ describe('ControllerBar', () => {
     expect(transport).toHaveClass('h-6', 'w-6')
     expect(disconnect).not.toHaveTextContent('Disconnect')
     expect(transport).not.toHaveTextContent('Pause')
-    expect(disconnect.querySelector('.lucide-unplug')).toBeInTheDocument()
+    expect(disconnect.querySelector('[data-glyph="disconnect"]')).toBeInTheDocument()
 
     act(() => useControllerStore.setState({
       rendererStates: { '10.0.0.5': { acknowledged: 'playing', pending: 'pause' } },

@@ -1,5 +1,6 @@
 import { useEffect, useRef, type MouseEvent } from 'react'
 import { BookOpen, Bug, ExternalLink } from 'lucide-react'
+import { inlineIcon } from '@/components/iconScale'
 import { USER_DOCS, docExternalHref, type DocId } from '@/docs/catalog'
 import { useRouterStore } from '@/store/routerStore'
 
@@ -70,7 +71,7 @@ export function DocsCatalog({ activeDocId }: { activeDocId: DocId }) {
           rel="noreferrer"
           className="inline-flex items-center gap-1 hover:text-zinc-300"
         >
-          <ExternalLink size={11} aria-hidden /> View source
+          <ExternalLink {...inlineIcon} aria-hidden /> View source
         </a>
         <a
           href="https://github.com/jon-whiteroomsoftware/PXLBLZ-IDE/issues"
@@ -78,7 +79,7 @@ export function DocsCatalog({ activeDocId }: { activeDocId: DocId }) {
           rel="noreferrer"
           className="inline-flex items-center gap-1 hover:text-zinc-300"
         >
-          <Bug size={11} aria-hidden /> Report a bug
+          <Bug {...inlineIcon} aria-hidden /> Report a bug
         </a>
       </div>
     </aside>

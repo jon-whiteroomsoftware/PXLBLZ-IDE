@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react'
 import { ArrowLeft, Code2, Pause, Play, RotateCcw } from 'lucide-react'
+import { controlIcon } from '@/components/iconScale'
 import { Button } from '@/components/ui/button'
 import { Preview } from '@/components/Preview'
 import { PreviewDeck } from '@/components/PreviewDeck'
@@ -53,7 +54,7 @@ export function PatternDetailPage({
               navigate({ kind: 'gallery' })
             }}
           >
-            <ArrowLeft size={13} aria-hidden />
+            <ArrowLeft {...controlIcon} aria-hidden />
             Gallery
           </Button>
           <span className="min-w-0 truncate text-xs text-structural">/p/{pattern.slug}</span>
@@ -135,7 +136,7 @@ export function PatternDetailPage({
                       onClick={() => void resetActiveSettings()}
                       className="flex h-5 shrink-0 items-center gap-1 rounded border border-zinc-700 px-1.5 text-xs text-zinc-400 transition-colors hover:border-zinc-500 hover:bg-zinc-800/70 hover:text-amber-400"
                     >
-                      <RotateCcw size={13} aria-hidden />
+                      <RotateCcw {...controlIcon} aria-hidden />
                       Reset
                     </button>
                   )}

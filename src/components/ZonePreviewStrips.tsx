@@ -1,4 +1,5 @@
 import { Eye, EyeOff } from 'lucide-react'
+import { controlIcon } from '@/components/iconScale'
 import { usePreviewStore } from '@/store/previewStore'
 import type { PixelColor } from '@/engine/zonePreview'
 
@@ -53,7 +54,7 @@ export function ZonePreviewStrips() {
                     : 'text-zinc-500 hover:text-zinc-100 hover:bg-zinc-800'
                 }`}
               >
-                {active ? <EyeOff size={14} /> : <Eye size={14} />}
+                {active ? <EyeOff {...controlIcon} /> : <Eye {...controlIcon} />}
               </button>
               <div className="w-24 shrink-0 min-w-0">
                 <div className="flex items-center gap-1.5 min-w-0">

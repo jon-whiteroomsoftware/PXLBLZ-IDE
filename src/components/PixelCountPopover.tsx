@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useRef, useState, type ReactNode } from 'react'
 import { createPortal } from 'react-dom'
 import { Check, Minus, Plus, X } from 'lucide-react'
+import { controlIcon, inlineIcon } from '@/components/iconScale'
 import { parsePixelCountDraft, sanitizePixelCountDraft } from '@/engine/pixelCountDraft'
 import { adjacentPreviewResolution, resolutionStepIndex } from '@/engine/previewResolution'
 import type { GridDims } from '@/engine/maps'
@@ -143,7 +144,7 @@ export function PixelCountPopover({
                       onClick={close}
                       className="grid size-5 place-items-center rounded text-zinc-600 transition-colors hover:bg-zinc-800 hover:text-zinc-300 focus:outline-none focus:text-zinc-200"
                     >
-                      <X size={11} aria-hidden />
+                      <X {...inlineIcon} aria-hidden />
                     </button>
                   </span>
                 </div>
@@ -156,7 +157,7 @@ export function PixelCountPopover({
                     onClick={() => { if (previous != null) quickSelect.onSelect(previous) }}
                     className="grid size-7 shrink-0 place-items-center rounded border border-zinc-700 text-zinc-400 transition-colors hover:border-zinc-500 hover:text-zinc-100 disabled:opacity-30"
                   >
-                    <Minus size={13} aria-hidden />
+                    <Minus {...controlIcon} aria-hidden />
                   </button>
                   <input
                     type="range"
@@ -177,7 +178,7 @@ export function PixelCountPopover({
                     onClick={() => { if (next != null) quickSelect.onSelect(next) }}
                     className="grid size-7 shrink-0 place-items-center rounded border border-zinc-700 text-zinc-400 transition-colors hover:border-zinc-500 hover:text-zinc-100 disabled:opacity-30"
                   >
-                    <Plus size={13} aria-hidden />
+                    <Plus {...controlIcon} aria-hidden />
                   </button>
                 </div>
                 <div className="mt-1.5 flex items-baseline justify-between gap-2 text-[10px] tabular-nums">
@@ -214,7 +215,7 @@ export function PixelCountPopover({
                 className="flex h-7 w-7 shrink-0 items-center justify-center rounded border border-live bg-live/10 text-live transition-colors hover:bg-live/20 disabled:border-zinc-700 disabled:bg-transparent disabled:text-zinc-600"
                 title="Apply"
               >
-                <Check size={14} />
+                <Check {...controlIcon} />
               </button>
             </div>
           </div>

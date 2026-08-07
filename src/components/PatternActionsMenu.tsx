@@ -8,6 +8,7 @@ import {
   Eye,
   Trash2,
 } from 'lucide-react'
+import { controlIcon } from '@/components/iconScale'
 
 type PatternActionsMenuProps = {
   copied: boolean
@@ -97,7 +98,7 @@ export function PatternActionsMenu({
               onClick={() => select(onToggleStage)}
               className={itemClass}
             >
-              <Eye size={13} className="text-zinc-500" aria-hidden />
+              <Eye {...controlIcon} className="text-zinc-500" aria-hidden />
               {stageView === 'code' ? 'View preview' : 'View code'}
             </button>
           )}
@@ -108,7 +109,7 @@ export function PatternActionsMenu({
               onClick={() => select(onViewInGallery)}
               className={itemClass}
             >
-              <ExternalLink size={13} className="text-zinc-500" aria-hidden />
+              <ExternalLink {...controlIcon} className="text-zinc-500" aria-hidden />
               View in Gallery
             </button>
           )}
@@ -119,7 +120,7 @@ export function PatternActionsMenu({
               onClick={() => select(onClone)}
               className={itemClass}
             >
-              <CopyPlus size={13} className="text-zinc-500" aria-hidden />
+              <CopyPlus {...controlIcon} className="text-zinc-500" aria-hidden />
               Clone into Patterns
             </button>
           )}
@@ -131,7 +132,7 @@ export function PatternActionsMenu({
               onClick={() => select(onCopy)}
               className={itemClass}
             >
-              <Copy size={13} className="text-zinc-500" aria-hidden />
+              <Copy {...controlIcon} className="text-zinc-500" aria-hidden />
               {copied ? 'Copied' : 'Copy code'}
             </button>
           )}
@@ -143,7 +144,7 @@ export function PatternActionsMenu({
               onClick={() => select(onDownload)}
               className={itemClass}
             >
-              <Download size={13} className="text-zinc-500" aria-hidden />
+              <Download {...controlIcon} className="text-zinc-500" aria-hidden />
               Download .epe
             </button>
           )}
@@ -154,7 +155,7 @@ export function PatternActionsMenu({
               onClick={() => select(onDelete)}
               className={`${itemClass} mt-1 border-t border-zinc-800 text-red-300 hover:bg-red-950/45 hover:text-red-200`}
             >
-              <Trash2 size={13} className="text-red-400/70" aria-hidden />
+              <Trash2 {...controlIcon} className="text-red-400/70" aria-hidden />
               Delete pattern
             </button>
           )}
