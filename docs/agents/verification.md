@@ -237,6 +237,22 @@ against an unverified server:
   run's identity evidence; include it with the suite counts when recording
   e2e results.
 
+### Suite serialization (#748)
+
+The heavy suites (`test:full`, every `test:e2e*`, and the mutation run)
+serialize on `.git/pxlblz/suite.lock` through
+`scripts/with-suite-lock.ts`. The lock lives in the common git directory, so
+concurrent agents in different worktrees queue instead of stacking Vitest
+worker pools and Playwright fleets — stacked suites drove load average to 56
+on 2026-08-07 and produced contention timeouts plus wall-clock skew failures
+in timing-sensitive tests, which measure scheduler starvation rather than
+the code under test. A waiting run reports the holder and its suite label; a
+dead holder's lock is reaped automatically by pid-liveness (unlike the
+review lock, an unlikely reap race costs one overlapped suite run, not a
+corrupted approval, so self-healing is the right trade). Focused
+`npx vitest run path/to/test.ts` runs stay unserialized: the red-green loop
+must never queue behind a full suite.
+
 Each authenticated run seeds four synthetic worker identities and runs its
 specs fully parallel. A worker signs in as the identity derived from its stable
 parallel index, and the automatic fixture cleanup lists and deletes records

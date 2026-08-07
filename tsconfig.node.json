@@ -24,6 +24,7 @@
     "scripts/dev-runtime-store.ts",
     "scripts/local-session-cookie.ts",
     "scripts/run-authenticated-playwright.ts",
-    "scripts/run-public-playwright.ts"
+    "scripts/run-public-playwright.ts",
+    "scripts/with-suite-lock.ts"
   ]
 }
