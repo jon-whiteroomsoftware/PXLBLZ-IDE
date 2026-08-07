@@ -15,6 +15,18 @@ describe('suite lock owner parsing', () => {
       expect(parseSuiteLockOwner(value)).toBeNull()
     }
   })
+
+  it('rejects non-positive pids: kill(0) probes the whole process group and always looks alive', () => {
+    for (const pid of [0, -1, -4242]) {
+      expect(parseSuiteLockOwner({ pid, label: 'a', startedAt: 'b' })).toBeNull()
+      expect(parseSuiteLockOwner({ pid: 4242, suitePid: pid, label: 'a', startedAt: 'b' })).toBeNull()
+    }
+  })
+
+  it('carries an optional positive suitePid for the running command', () => {
+    expect(parseSuiteLockOwner({ pid: 4242, suitePid: 4243, label: 'a', startedAt: 'b' }))
+      .toEqual({ pid: 4242, suitePid: 4243, label: 'a', startedAt: 'b' })
+  })
 })
 
 describe('suite lock staleness', () => {
@@ -26,6 +38,16 @@ describe('suite lock staleness', () => {
 
   it('reaps a dead holder immediately', () => {
     expect(suiteLockOwnerIsStale(owner, 0, () => false)).toBe(true)
+  })
+
+  it('honours the running suite when only the wrapper died: an orphaned suite still owns the machine', () => {
+    const orphaned = { ...owner, suitePid: 4243 }
+    expect(suiteLockOwnerIsStale(orphaned, 0, (pid) => pid === 4243)).toBe(false)
+  })
+
+  it('reaps the lock once wrapper and suite are both gone', () => {
+    const orphaned = { ...owner, suitePid: 4243 }
+    expect(suiteLockOwnerIsStale(orphaned, 0, () => false)).toBe(true)
   })
 
   it('tolerates a momentarily ownerless lock: a fresh claim has not written its owner yet', () => {

@@ -9,7 +9,7 @@
 // not a corrupted approval, so self-healing is the right trade here.
 //
 // Usage: tsx scripts/with-suite-lock.ts <label> -- <command> [args...]
-import { spawnSync, execFileSync } from 'node:child_process'
+import { spawn, execFileSync } from 'node:child_process'
 import { mkdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { pathToFileURL } from 'node:url'
@@ -21,20 +21,34 @@ const OWNER_FILE = 'owner.json'
 
 export interface SuiteLockOwner {
   pid: number
+  suitePid?: number
   label: string
   startedAt: string
 }
 
-export function parseSuiteLockOwner(value: unknown): SuiteLockOwner | null {
-  if (!value || typeof value !== 'object') return null
-  const { pid, label, startedAt } = value as Record<string, unknown>
-  if (!Number.isInteger(pid)) return null
-  if (typeof label !== 'string' || typeof startedAt !== 'string') return null
-  return { pid: pid as number, label, startedAt }
+function positivePid(value: unknown): value is number {
+  return Number.isInteger(value) && (value as number) > 0
 }
 
-// A dead holder is stale immediately. An unreadable owner is stale only
-// after it persists across consecutive polls: mkdir claims the lock before
+export function parseSuiteLockOwner(value: unknown): SuiteLockOwner | null {
+  if (!value || typeof value !== 'object') return null
+  const { pid, suitePid, label, startedAt } = value as Record<string, unknown>
+  if (!positivePid(pid)) return null
+  if (suitePid !== undefined && !positivePid(suitePid)) return null
+  if (typeof label !== 'string' || typeof startedAt !== 'string') return null
+  return {
+    pid,
+    ...(suitePid !== undefined ? { suitePid } : {}),
+    label,
+    startedAt,
+  }
+}
+
+// A holder is dead only when the wrapper AND its recorded suite process are
+// both gone: a SIGKILLed wrapper leaves the heavy suite running as an
+// orphan, and admitting a second suite alongside it is exactly what this
+// lock exists to prevent. An unreadable owner is stale only after it
+// persists across consecutive polls: mkdir claims the lock before
 // owner.json is written, so a momentarily ownerless lock is usually a fresh
 // claim mid-write, and reaping it instantly would admit two suites at once.
 export function suiteLockOwnerIsStale(
@@ -43,7 +57,9 @@ export function suiteLockOwnerIsStale(
   pidIsAlive: (pid: number) => boolean,
 ): boolean {
   if (!owner) return consecutiveOwnerlessReads >= 2
-  return !pidIsAlive(owner.pid)
+  if (pidIsAlive(owner.pid)) return false
+  if (owner.suitePid !== undefined && pidIsAlive(owner.suitePid)) return false
+  return true
 }
 
 function pidIsAlive(pid: number): boolean {
@@ -63,19 +79,24 @@ function readOwner(lock: string): SuiteLockOwner | null {
   }
 }
 
-async function acquire(lock: string, label: string): Promise<void> {
+function writeOwner(lock: string, owner: SuiteLockOwner): void {
+  writeFileSync(join(lock, OWNER_FILE), `${JSON.stringify(owner)}\n`)
+}
+
+async function acquire(lock: string, label: string): Promise<SuiteLockOwner> {
   const startedWaiting = Date.now()
   let lastReport = 0
   let ownerlessReads = 0
   while (true) {
     try {
       mkdirSync(lock)
-      writeFileSync(join(lock, OWNER_FILE), `${JSON.stringify({
+      const owner: SuiteLockOwner = {
         pid: process.pid,
         label,
         startedAt: new Date().toISOString(),
-      })}\n`)
-      return
+      }
+      writeOwner(lock, owner)
+      return owner
     } catch (error) {
       if ((error as NodeJS.ErrnoException).code !== 'EEXIST') throw error
     }
@@ -121,14 +142,30 @@ async function main(): Promise<void> {
   mkdirSync(join(gitCommon, 'pxlblz'), { recursive: true })
   const lock = join(gitCommon, 'pxlblz', 'suite.lock')
 
-  await acquire(lock, label)
+  const owner = await acquire(lock, label)
   try {
-    const result = spawnSync(command[0], command.slice(1), { stdio: 'inherit' })
-    if (result.error) throw result.error
-    process.exitCode = result.status ?? 1
+    process.exitCode = await runSuite(lock, owner, command)
   } finally {
     rmSync(lock, { recursive: true, force: true })
   }
+}
+
+// The suite pid is recorded in owner.json while the command runs, so a
+// contender can honour the running suite even when the wrapper itself was
+// killed without cleanup.
+function runSuite(
+  lock: string,
+  owner: SuiteLockOwner,
+  command: string[],
+): Promise<number> {
+  return new Promise((resolve, reject) => {
+    const child = spawn(command[0], command.slice(1), { stdio: 'inherit' })
+    child.once('spawn', () => {
+      if (positivePid(child.pid)) writeOwner(lock, { ...owner, suitePid: child.pid })
+    })
+    child.once('error', reject)
+    child.once('close', (code) => resolve(code ?? 1))
+  })
 }
 
 const invokedPath = process.argv[1] ? pathToFileURL(process.argv[1]).href : ''
