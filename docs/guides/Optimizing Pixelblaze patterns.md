@@ -166,13 +166,13 @@ which fail quietly rather than erroring:
   the stock Noise library, whose `noise2D`/`gradNoise2D` helpers used `fx`/`fy`
   for fractional coordinates; they are `tx`/`ty` now. Avoid clashing with other
   injected built-ins for the same reason.
-- **Bit-shift counts get scaled too.** `h >> 13` emits a shift by `13 << 16`,
-  which is effectively a shift by zero — a silent no-op. Avoid `<<` and `>>` for
-  fixed shift amounts.
 - **Constants must stay within ±32767.** Larger literals overflow when scaled by
   65536 into a raw int32.
-- **`x | 0` does not truncate** under fidelity; it returns `x` unchanged. Use
-  `floor(x)`.
+
+Bitwise and shift operators do *not* need special handling: `fx.shl`, `fx.shr`,
+`fx.and`, `fx.or`, and `fx.xor` de-scale **both** operands before operating and
+re-scale the result, so `h >> 13` shifts by 13 as written, and `x | 0` truncates
+to an integer exactly as it would in plain JavaScript.
 
 ---
 

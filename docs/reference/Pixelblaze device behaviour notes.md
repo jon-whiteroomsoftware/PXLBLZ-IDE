@@ -89,14 +89,16 @@ render. Verified by pulling every preview off the bench device: all exactly
   100 wide.
 - **Height is 150 rows** — 150 successive frame iterations, time flowing top to
   bottom.
-- **Higher-dimension Patterns** mirror the device's own dispatch: it uses the
-  highest render function the Pattern exports, fed strip coordinates, with X
-  varying across the 100 pixels and Y/Z pinned. A 2D-only Pattern previews as
-  `render2D(i, x = i/n, y = 0)` across 150 frames.
+- **Higher-dimension Patterns** are fed strip coordinates, with X varying across
+  the 100 pixels and the missing axes supplied as a constant.
 
-This falls out for free in our engine: feed each of 100 strip pixels a
-three-coordinate sample `[x, 0, 0]` and dispatch through `render3D`, and
-`loadPattern`'s fallback chain cascades to the Pattern's actual highest function.
+Our implementation lives in `src/engine/previewThumbnail.ts`, which builds a
+synthetic 100-pixel 1D strip and then applies the **same firmware-compatible
+renderer policy as the live preview**: `selectRenderCompatibility` picks the
+compatible exported render function, and missing Y/Z are **centred at 0.5**, not
+pinned to 0. Do not reach for `render3D` directly on the assumption that a
+fallback chain will cascade — `loadPattern` leaves absent render slots as no-ops,
+so dispatching to a function the Pattern does not export renders black.
 
 Over the wire, `{"getPreviewImg": id}` returns binary packets of type `04`, framed
 as `[type, flags, ...payload]` with bit 1 marking first and bit 4 marking last.
