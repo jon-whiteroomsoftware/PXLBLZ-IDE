@@ -218,6 +218,28 @@ because feedback means reading and writing the previous frame per pixel. It
 adds zero memory — it borrows the same three planes — and we disclose the
 cost rather than pretending an effect that touches every pixel twice is free.
 
+## Phase is the cheapest voice; crossfades are the expensive one
+
+Placement `phase` is a **hue rotation, not a time offset**. It compiles inside
+the member's sink — `emitMemberHsvSink` in `showCompiler.ts` — to `h` plus the
+member's `_adapt_phase` global, so it costs one add per pixel. That makes it the
+cheapest way to give a zone its own visual identity. It is property-animatable
+through a placement-view track on `phase`, with values clamped to 0..1 and
+keyframe times in whole milliseconds.
+
+Crossfade boundaries are the opposite. Measured across five physical zones, each
+crossfade boundary costs roughly 20 device-budget points: the same Show landed at
+66% of budget with two crossfades against 27% with cuts. Where a Show needs the
+*feel* of a transition without that price, staggered phase-glide tracks deliver
+it as score data instead of as compiled crossfade machinery.
+
+Two related facts fall out of the same measurements. Effects are stateless per
+frame — there are no trails or persistence in the toolkit — so structural variety
+comes from the distort family re-rendering a shared instance rather than from
+accumulation. And `paint()`/`setPalette()` members lower through their own
+palette sinks, so placement phase does **not** affect them; that is
+firmware-faithful, because paint is an RGB lookup rather than an HSV emission.
+
 ## Capacity wins: smaller, not faster
 
 Some optimizations never show up in an FPS counter but decide whether a Show

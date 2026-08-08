@@ -155,6 +155,25 @@ Everything above applies; GLSL ports add these:
   64×32). Iterate on Fast; do final correctness in Precise and final perf on
   hardware.
 
+### Identifiers and literals that break silently under the fidelity engine
+
+The Precise path rewrites every operator into fixed-point helper calls and
+injects a helper object named `fx` as a parameter. Four consequences, all of
+which fail quietly rather than erroring:
+
+- **Never name a variable or parameter `fx`.** It shadows the injected helper and
+  corrupts every arithmetic operation in that scope with no diagnostic. This bit
+  the stock Noise library, whose `noise2D`/`gradNoise2D` helpers used `fx`/`fy`
+  for fractional coordinates; they are `tx`/`ty` now. Avoid clashing with other
+  injected built-ins for the same reason.
+- **Bit-shift counts get scaled too.** `h >> 13` emits a shift by `13 << 16`,
+  which is effectively a shift by zero — a silent no-op. Avoid `<<` and `>>` for
+  fixed shift amounts.
+- **Constants must stay within ±32767.** Larger literals overflow when scaled by
+  65536 into a raw int32.
+- **`x | 0` does not truncate** under fidelity; it returns `x` unchanged. Use
+  `floor(x)`.
+
 ---
 
 # Part 2 — Toolchain
@@ -333,6 +352,28 @@ octave sums, kaleidoscope folds). Two flavours:
 > path, so swapping per-pixel `sin`/`cos` for array reads makes the *emulator*
 > slower even as the *device* gets much faster. Trust the checksum and
 > `devbench`, not the bench stopwatch.
+
+### Two hoisting traps that drift the Precise checksum [bench-verifiable]
+
+An output-preserving hoist must mirror the original's exact operation grouping,
+or the Precise bench checksum moves while Fast holds — which hides the problem
+until hardware. Both traps below were hit in NeonSquircles and again in Caustics.
+
+**Negate the product, not the operand.** In 16.16, `-(c * 0.5)` is not
+`(-c) * 0.5`; multiply rounding of a negated value differs by a ULP. Unary minus
+binds tighter than `*`, so `-cos(x) * 0.5` parses as `(-cos(x)) * 0.5`. To match
+an original that subtracts `cos(x) * 0.5`, precompute `-(cos(x) * 0.5)`.
+
+**Re-associating multiplies drifts; re-associating adds is exact.** Fixed-point
+multiply is not associative, so `(x * SCALE) * 1.3` differs from
+`x * (SCALE * 1.3)` — do not fold a scale constant into another constant.
+Fixed-point addition is a plain integer add, exact and associative, so folding
+`a + A + B` into `a + (A + B)` **is** output-preserving. Likewise keep the
+per-pixel accumulate's multiply order: table the operands rather than folding
+them into a single weight product.
+
+After each hoist, run `npm run bench -- <demo>` and confirm **both** checksums
+hold. A Precise-only drift means one of these two.
 
 ### Memoize position-only transcendentals per pixel [bench-verifiable after the change]
 

@@ -12,6 +12,13 @@ and reference docs for current product and architecture detail.
 - Use `docs/reference/PXLBLZ Feature Guide.md` for current user-visible behavior.
 - Use `docs/reference/Pixelblaze Ecosystem Primer.md` and
   `docs/reference/Understanding Maps.md` for Pixelblaze platform semantics.
+- Use `docs/reference/Pixelblaze device behaviour notes.md` for firmware
+  behaviours proven on hardware that fail silently: map/pixelCount matching,
+  the lit tail after a count reduction, drifted live control values, the preview
+  JPEG format, and cloud discovery.
+- Use `docs/agents/stock-content.md` before touching the stock Pattern or Show
+  catalogue, or the Show visual toolkit; those edits fan out across census and
+  capacity suites.
 - Use `docs/plans/` only for forward-looking designs and open decisions.
 - Ask before editing `README.md`; it is the public entry point for the published
   v1 release and intentionally changes on a different cadence.

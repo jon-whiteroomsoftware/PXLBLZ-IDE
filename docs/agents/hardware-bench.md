@@ -81,3 +81,17 @@ detect.
 To exercise a real drop, unplug the board itself or drop WiFi. Once it truly goes
 silent the liveness watchdog in `PixelblazeConnection` fires `stale` and
 reconnects. Confirm the board is unpowered before treating stuck status as a bug.
+
+## The bench panel is wired column-serpentine
+
+The 16×16 (256 pixel) test panel snakes its data in **vertical** strips with
+every other strip reversed. The stock row-major Plane map therefore renders
+rotated and torn on it, which looks like a broken Pattern and is not.
+
+A custom serpentine map fixes it, verified on hardware across several Patterns
+with column snaking and serpentine reversal enabled and no axis flips. Stock maps
+live in `src/pixelblaze/stock/maps/`; reuse the column-serpentine generator
+rather than re-deriving one.
+
+When a Pattern looks rotated or torn on the physical panel, suspect the map
+winding before the Pattern.
