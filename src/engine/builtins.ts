@@ -1,3 +1,5 @@
+import { GPIO_BUILTIN_CONSTANTS, GPIO_BUILTIN_FUNCTIONS } from './gpioBuiltins'
+
 export interface BuiltinFn {
   name: string
   params: string[]
@@ -145,12 +147,15 @@ export const BUILTIN_FUNCTIONS: readonly BuiltinFn[] = [
     doc: 'Turbulence noise: absolute-value Perlin octaves for rough, fiery texture.' },
   { name: 'setPerlinWrap', params: ['x', 'y', 'z'],
     doc: 'Set the wrap period on each axis so Perlin noise tiles seamlessly.' },
+  // Hardware I/O
+  ...GPIO_BUILTIN_FUNCTIONS,
 ]
 
 export const BUILTIN_CONSTANTS: readonly BuiltinConst[] = [
   { name: 'PI',         doc: 'π — ratio of a circle\'s circumference to its diameter (≈ 3.14159).' },
   { name: 'E',          doc: 'Euler\'s number e, the base of the natural logarithm (≈ 2.71828).' },
   { name: 'pixelCount', doc: 'Number of LEDs in the current strip or matrix.' },
+  ...GPIO_BUILTIN_CONSTANTS.map(({ name, doc }) => ({ name, doc })),
 ]
 
 // ── Signature context resolution ────────────────────────────────────────────

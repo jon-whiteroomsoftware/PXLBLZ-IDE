@@ -21,6 +21,17 @@ describe('monaco providers (#350)', () => {
     expect(hover?.doc).toContain('Set')
   })
 
+  it('recognizes GPIO functions and constants in built-in hover docs', () => {
+    expect(resolvePixelblazeHover('pinMode(33, ANALOG)', 1, 'pinMode', {})).toMatchObject({
+      signature: 'pinMode(pin, mode)',
+      doc: expect.stringContaining('GPIO'),
+    })
+    expect(resolvePixelblazeHover('pinMode(33, ANALOG)', 13, 'ANALOG', {})).toMatchObject({
+      signature: 'ANALOG',
+      doc: expect.stringContaining('Analog input'),
+    })
+  })
+
   it('resolves the inline call-site form for eligible library functions', () => {
     const docs = buildLibraryDocIndex({
       MathLib: '// Squares a value\n// @inline\nfunction square(v) { return v * v }',

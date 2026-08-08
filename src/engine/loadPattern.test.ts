@@ -1,6 +1,9 @@
 import { describe, it, expect } from 'vitest'
+import { bundle } from './bundle'
 import { loadPattern, nativeDimension } from './loadPattern'
 import type { PatternMetadata, RenderFns } from './loadPattern'
+import { createPlaneMap } from './maps'
+import { createShim } from './shim'
 
 // Minimal built-ins that let patterns run without reference errors
 const minimalBuiltins: Record<string, unknown> = {
@@ -21,6 +24,32 @@ function meta(patternVars: string[], controls: PatternMetadata['controls'] = [])
 // ── handle shape ──────────────────────────────────────────────────────────────
 
 describe('loadPattern handle', () => {
+  it('previews a Pattern that reads a V3 analog GPIO pin', () => {
+    const source = `
+      export var raw = 1
+
+      export function beforeRender(delta) {
+        pinMode(33, ANALOG)
+        raw = analogRead(33)
+      }
+
+      export function render(index) {
+        hsv(0, 0, 0)
+      }
+    `
+    const { code, metadata } = bundle(source, {})
+    const { builtins } = createShim({
+      mapPoints: createPlaneMap({ rows: 1, cols: 1 }).resolve(1),
+      pixelCount: 1,
+      dimensions: 2,
+      getVirtualTime: () => 0,
+    })
+    const handle = loadPattern(code, metadata, builtins)
+
+    expect(() => handle.beforeRender(16)).not.toThrow()
+    expect(handle.getExports().raw).toBe(0)
+  })
+
   it('returns a handle with callable beforeRender and render2D', () => {
     const code = `
       export var x = 0;

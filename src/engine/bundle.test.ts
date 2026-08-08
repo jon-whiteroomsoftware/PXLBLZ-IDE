@@ -9,6 +9,16 @@ describe('bundle — no library refs', () => {
     expect(code).toBe(src)
   })
 
+  it('preserves authored GPIO identifiers and calls for Controller artifacts', () => {
+    const src = `export var raw = 0
+export function beforeRender(delta) {
+  pinMode(33, ANALOG)
+  raw = analogRead(33)
+}`
+
+    expect(bundle(src, {}).code).toBe(src)
+  })
+
   it('extracts exported vars from the pattern', () => {
     const { metadata } = bundle('export var speed = 0.5\nexport var hue = 0', {})
     expect(metadata.exportedVars).toEqual(['speed', 'hue'])

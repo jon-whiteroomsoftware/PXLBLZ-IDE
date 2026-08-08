@@ -1,4 +1,5 @@
 import { fx } from './fixedpoint'
+import { GPIO_PREVIEW_CONSTANTS } from './gpioBuiltins'
 // Leaf-module imports (not the maps/ barrel): the barrel pulls in
 // stockCatalogue, whose Vite import.meta.glob breaks plain-Node consumers like
 // the tsx-run perf bench (test/perf-harness). plane/types carry no such dep.
@@ -256,6 +257,7 @@ export function createShim(config: ShimConfig): ShimContext {
     },
 
     // ── Hardware I/O stubs ─────────────────────────────────────────────────
+    ...GPIO_PREVIEW_CONSTANTS,
     analogRead: () => 0,
     digitalWrite: noop,
     digitalRead: () => 0,

@@ -1,4 +1,32 @@
 import { resolveSignatureContext, BUILTIN_FUNCTIONS, BUILTIN_CONSTANTS } from './builtins'
+import { createPlaneMap } from './maps'
+import { createFxShim, createShim } from './shim'
+
+const GPIO_FUNCTIONS = [
+  { name: 'readAdc', params: [] },
+  { name: 'analogRead', params: ['pin'] },
+  { name: 'pinMode', params: ['pin', 'mode'] },
+  { name: 'digitalWrite', params: ['pin', 'state'] },
+  { name: 'digitalRead', params: ['pin'] },
+  { name: 'touchRead', params: ['pin'] },
+] as const
+
+const GPIO_CONSTANTS = [
+  'INPUT',
+  'INPUT_PULLUP',
+  'INPUT_PULLDOWN',
+  'OUTPUT',
+  'OUTPUT_OPEN_DRAIN',
+  'ANALOG',
+  'INPUT_PULLDOWN_16',
+  'LOW',
+  'HIGH',
+  'T0',
+  'T2',
+  'T4',
+  'T6',
+  'T7',
+] as const
 
 // ── Manifest shape ───────────────────────────────────────────────────────────
 
@@ -25,6 +53,39 @@ describe('BUILTIN_CONSTANTS', () => {
   it('has no duplicate names', () => {
     const names = BUILTIN_CONSTANTS.map((c) => c.name)
     expect(new Set(names).size).toBe(names.length)
+  })
+})
+
+describe('GPIO built-in contract', () => {
+  it('keeps the documented GPIO family aligned between preview and the editor catalogue', () => {
+    const config = {
+      mapPoints: createPlaneMap({ rows: 1, cols: 1 }).resolve(1),
+      pixelCount: 1,
+      dimensions: 2 as const,
+      getVirtualTime: () => 0,
+    }
+    const previewBuiltins = [createShim(config).builtins, createFxShim(config).builtins]
+
+    for (const expected of GPIO_FUNCTIONS) {
+      expect(BUILTIN_FUNCTIONS.find(({ name }) => name === expected.name)).toMatchObject({
+        name: expected.name,
+        params: [...expected.params],
+        doc: expect.any(String),
+      })
+      for (const builtins of previewBuiltins) {
+        expect(builtins[expected.name]).toEqual(expect.any(Function))
+      }
+    }
+
+    for (const name of GPIO_CONSTANTS) {
+      expect(BUILTIN_CONSTANTS.find((constant) => constant.name === name)).toMatchObject({
+        name,
+        doc: expect.any(String),
+      })
+      for (const builtins of previewBuiltins) {
+        expect(builtins[name]).toEqual(expect.any(Number))
+      }
+    }
   })
 })
 
