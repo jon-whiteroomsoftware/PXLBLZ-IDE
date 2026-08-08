@@ -135,6 +135,7 @@ export function PatternList({
   const liveControllers = useControllerStore((s) => s.controllers)
   const navigate = useRouterStore((s) => s.navigate)
   const route = useRouterStore((s) => s.route)
+  const showsEnabled = useRouterStore((s) => s.featureAccess.shows)
   const activeStockShowId = route.kind === 'studio' && route.entity?.kind === 'shows'
     && STOCK_SHOWS.some((item) => item.id === route.entity?.id)
     ? route.entity.id
@@ -825,6 +826,7 @@ export function PatternList({
       <ActivityStrip
         mode={railMode}
         onModeChange={handleRailModeChange}
+        showsEnabled={showsEnabled}
         collapsed={collapsed}
         onToggleCollapsed={onCollapsedChange ? () => onCollapsedChange(!collapsed) : undefined}
       />

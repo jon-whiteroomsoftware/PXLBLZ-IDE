@@ -42,6 +42,10 @@ export const test = base.extend<AuthenticatedFixtures>({
 
 export { expect }
 
+export function showtimePath(path: string): string {
+  return `${path}${path.includes('?') ? '&' : '?'}showtime`
+}
+
 function requiredEnvironment(name: string): string {
   const value = process.env[name]?.trim()
   if (!value) throw new Error(`${name} is required for authenticated Playwright.`)

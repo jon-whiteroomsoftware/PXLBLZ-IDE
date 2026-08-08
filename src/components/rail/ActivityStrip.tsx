@@ -22,11 +22,13 @@ const ACTIVITY_ENTRIES: Array<{
 export function ActivityStrip({
   mode,
   onModeChange,
+  showsEnabled = false,
   collapsed = false,
   onToggleCollapsed,
 }: {
   mode: RailMode
   onModeChange: (mode: RailMode) => void
+  showsEnabled?: boolean
   collapsed?: boolean
   onToggleCollapsed?: () => void
 }) {
@@ -36,7 +38,7 @@ export function ActivityStrip({
       aria-label="Studio activity"
       className="relative flex w-[46px] shrink-0 flex-col items-center border-r border-seam bg-zinc-950/35 py-2"
     >
-      {ACTIVITY_ENTRIES.map((entry) => {
+      {ACTIVITY_ENTRIES.filter((entry) => entry.kind !== 'shows' || showsEnabled).map((entry) => {
         const active = mode === entry.kind
         return (
           <div key={entry.kind} className="relative w-full">

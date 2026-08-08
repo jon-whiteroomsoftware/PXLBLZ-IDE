@@ -28,6 +28,41 @@ describe('syncFromLocation', () => {
     })
   })
 
+  it('replaces a direct Show route with Patterns when showtime is absent', () => {
+    setLocation('/studio/shows/opening-night?capture')
+    useRouterStore.getState().syncFromLocation()
+
+    expect(useRouterStore.getState().route).toEqual({
+      kind: 'studio',
+      entity: { kind: 'patterns', id: null },
+    })
+    expect(useRouterStore.getState().featureAccess).toEqual({ shows: false })
+    expect(window.location.pathname).toBe('/studio/patterns')
+    expect(window.location.search).toBe('?capture')
+  })
+
+  it('allows Show routes while showtime is present and revokes access when history removes it', () => {
+    setLocation('/studio/shows/opening-night?capture&showtime')
+    useRouterStore.getState().syncFromLocation()
+
+    expect(useRouterStore.getState().route).toEqual({
+      kind: 'studio',
+      entity: { kind: 'shows', id: 'opening-night' },
+    })
+    expect(useRouterStore.getState().featureAccess).toEqual({ shows: true })
+
+    setLocation('/studio/shows/opening-night?capture')
+    useRouterStore.getState().syncFromLocation()
+
+    expect(useRouterStore.getState().route).toEqual({
+      kind: 'studio',
+      entity: { kind: 'patterns', id: null },
+    })
+    expect(useRouterStore.getState().featureAccess).toEqual({ shows: false })
+    expect(window.location.pathname).toBe('/studio/patterns')
+    expect(window.location.search).toBe('?capture')
+  })
+
   it('redirects legacy #/docs/<id> hash links to the path route', () => {
     setLocation('/#/docs/feature-guide')
     useRouterStore.getState().syncFromLocation()
@@ -88,5 +123,37 @@ describe('navigate', () => {
     })
     expect(window.location.pathname).toBe('/studio/patterns/x')
     expect(window.location.search).toBe('?capture')
+  })
+
+  it('blocks internal navigation to Shows when showtime is absent', () => {
+    setLocation('/studio?capture')
+    useRouterStore.getState().syncFromLocation()
+    useRouterStore.getState().navigate({
+      kind: 'studio',
+      entity: { kind: 'shows', id: 'opening-night' },
+    })
+
+    expect(useRouterStore.getState().route).toEqual({
+      kind: 'studio',
+      entity: { kind: 'patterns', id: null },
+    })
+    expect(window.location.pathname).toBe('/studio/patterns')
+    expect(window.location.search).toBe('?capture')
+  })
+
+  it('allows internal navigation to Shows when showtime is present', () => {
+    setLocation('/studio?capture&showtime')
+    useRouterStore.getState().syncFromLocation()
+    useRouterStore.getState().navigate({
+      kind: 'studio',
+      entity: { kind: 'shows', id: 'opening-night' },
+    })
+
+    expect(useRouterStore.getState().route).toEqual({
+      kind: 'studio',
+      entity: { kind: 'shows', id: 'opening-night' },
+    })
+    expect(window.location.pathname).toBe('/studio/shows/opening-night')
+    expect(window.location.search).toBe('?capture&showtime')
   })
 })

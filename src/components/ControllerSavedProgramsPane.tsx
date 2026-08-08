@@ -345,6 +345,7 @@ function SortableTableHead({
 function SavedProgramsInventory({
   status,
   programs,
+  showsEnabled,
   onRefresh,
   onOpen,
   onImport,
@@ -354,6 +355,7 @@ function SavedProgramsInventory({
 }: {
   status: SavedProgramsRead['status']
   programs: ControllerSavedProgramsView
+  showsEnabled: boolean
   onRefresh: () => void
   onOpen: (routeId: string) => void
   onImport: (program: ControllerSavedProgramRow) => void
@@ -425,7 +427,7 @@ function SavedProgramsInventory({
                 <tr key={program.programId} className="bg-zinc-900/20">
                   <td className={`${tableCellClass} overflow-hidden`}>
                     <span className="block min-w-0">
-                      {program.routeId ? (
+                      {program.routeId && (program.sourceKind !== 'show' || showsEnabled) ? (
                         <button
                           type="button"
                           title={program.name}
@@ -510,6 +512,7 @@ export function ControllerSavedProgramsPane({ profile }: { profile: ControllerPr
   const stockShowDrafts = useShowStore((state) => state.stockShowDrafts)
   const addPattern = usePatternStore((state) => state.addPattern)
   const navigate = useRouterStore((state) => state.navigate)
+  const showsEnabled = useRouterStore((state) => state.featureAccess.shows)
   const profileController = controllerForProfile(profile, controllers)
   const liveIp = profileController?.phase === 'live' ? profileController.ip : undefined
   const controllerPrograms = useControllerPanelStore((state) => (
@@ -688,6 +691,7 @@ export function ControllerSavedProgramsPane({ profile }: { profile: ControllerPr
       <SavedProgramsInventory
         status={read.status}
         programs={programs}
+        showsEnabled={showsEnabled}
         onRefresh={() => setRefresh((value) => value + 1)}
         onOpen={(routeId) => navigate({
           kind: 'studio',
