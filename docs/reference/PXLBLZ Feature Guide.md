@@ -252,8 +252,9 @@ restores the default angle, re-arms auto-orbit, and returns to 1x. Opening
 different geometry returns magnification to 1x without persisting it. Pole wrap
 density remains a separate vertical control below zoom. Passive Gallery card
 previews do not show the rail. Wheel input over an interactive 3D preview moves
-through the same zoom range in coarse 0.25x steps for quick inspection; the
-slider retains 0.05x precision. Zoom does not add panning.
+through the same zoom range in coarse 0.25x steps for quick inspection; smooth
+scroll deltas accumulate into those stops, while browser pinch zoom remains
+untouched. The slider retains 0.05x precision. Zoom does not add panning.
 
 Pixelblaze hardware computes in 16.16 fixed-point; browsers compute in
 float64. The preview therefore offers two renderers:

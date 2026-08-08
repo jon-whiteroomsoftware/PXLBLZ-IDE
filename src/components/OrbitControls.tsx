@@ -3,6 +3,7 @@ import { CircleDashed, Play, Pause, RotateCcw, ZoomIn } from 'lucide-react'
 import { useCameraStore } from '@/store/cameraStore'
 import { useMapStore, DEFAULT_SHAPE_PIXEL_COUNT } from '@/store/mapStore'
 import {
+  accumulateViewZoomWheelSteps,
   applyOrbitDrag,
   clampPixelCount,
   DEFAULT_VIEW_ZOOM,
@@ -77,6 +78,7 @@ export function OrbitControls({
     let dragging = false
     let lastX = 0
     let lastY = 0
+    let wheelRemainder = 0
 
     const onDown = (e: PointerEvent) => {
       dragging = true
@@ -104,11 +106,20 @@ export function OrbitControls({
       if (canvas.hasPointerCapture(e.pointerId)) canvas.releasePointerCapture(e.pointerId)
     }
     const onWheel = (e: WheelEvent) => {
-      if (e.deltaY === 0) return
+      // Browser pinch-to-zoom arrives as ctrl+wheel; it is not viewport zoom.
+      if (e.ctrlKey || e.deltaY === 0) return
+      const wheel = accumulateViewZoomWheelSteps(
+        wheelRemainder,
+        e.deltaY,
+        e.deltaMode,
+        canvas.clientHeight,
+      )
+      wheelRemainder = wheel.remainder
       e.preventDefault()
+      if (wheel.steps === 0) return
       const { zoom, setZoom } = useCameraStore.getState()
       setZoom(
-        Number((zoom + (e.deltaY < 0 ? VIEW_ZOOM_WHEEL_STEP : -VIEW_ZOOM_WHEEL_STEP)).toFixed(2)),
+        Number((zoom - wheel.steps * VIEW_ZOOM_WHEEL_STEP).toFixed(2)),
       )
     }
 
@@ -124,7 +135,7 @@ export function OrbitControls({
       canvas.removeEventListener('wheel', onWheel)
       canvas.style.cursor = ''
     }
-  }, [canvasRef])
+  }, [canvasRef, viewKey])
 
   return (
     <div

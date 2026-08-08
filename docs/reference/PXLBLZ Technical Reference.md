@@ -563,8 +563,10 @@ positions and point/light size grow together while depth values, Pattern
 sampling, and hardware output remain unchanged. A zoom change repaints even
 when playback is paused. The compact vertical slider moves in 0.05x increments,
 while wheel input over the interactive canvas uses coarse 0.25x steps for quick
-inspection. Only a nonzero wheel gesture on a zoom-capable canvas suppresses
-ordinary page scrolling.
+inspection. Pixel, line, and page deltas normalize into one accumulated wheel
+distance so smooth scrolling does not make event frequency control zoom.
+Nonzero unmodified wheel input on a zoom-capable canvas suppresses ordinary
+page scrolling; `ctrl+wheel` remains browser-owned pinch/page zoom.
 Reset View restores the default orbit, 1x, and auto-orbit; changing the active
 Map, embedding, or Stage resets only magnification. Native 3D geometry and
 promoted Pole/Cylinder presentations use the same path. The setting is neither

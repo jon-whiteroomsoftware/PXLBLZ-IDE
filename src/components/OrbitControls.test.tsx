@@ -57,6 +57,26 @@ describe('OrbitControls', () => {
     expect(useCameraStore.getState().zoom).toBe(1)
   })
 
+  it('accumulates smooth-scroll deltas and leaves ctrl-wheel to browser zoom', () => {
+    const canvasRef = createRef<HTMLCanvasElement>()
+    render(
+      <div>
+        <canvas ref={canvasRef} />
+        <OrbitControls canvasRef={canvasRef} viewKey="pattern:cube" />
+      </div>,
+    )
+
+    for (let event = 0; event < 9; event += 1) {
+      expect(fireEvent.wheel(canvasRef.current!, { deltaY: -10 })).toBe(false)
+      expect(useCameraStore.getState().zoom).toBe(1)
+    }
+    expect(fireEvent.wheel(canvasRef.current!, { deltaY: -10 })).toBe(false)
+    expect(useCameraStore.getState().zoom).toBe(1.25)
+
+    expect(fireEvent.wheel(canvasRef.current!, { deltaY: -100, ctrlKey: true })).toBe(true)
+    expect(useCameraStore.getState().zoom).toBe(1.25)
+  })
+
   it('keeps Pole wrap density in the same vertical tool rail', () => {
     useMapStore.setState({ activeShapeId: 'pole', activePixelCount: 144 })
     const canvasRef = createRef<HTMLCanvasElement>()

@@ -220,6 +220,8 @@ export interface OrbitCamera {
 export const MIN_VIEW_ZOOM = 0.5
 export const DEFAULT_VIEW_ZOOM = 1
 export const MAX_VIEW_ZOOM = 2
+const VIEW_ZOOM_WHEEL_STEP_PIXELS = 100
+const VIEW_ZOOM_WHEEL_LINE_PIXELS = 40
 
 export function clampViewZoom(zoom: number): number {
   if (!Number.isFinite(zoom)) return DEFAULT_VIEW_ZOOM
@@ -228,6 +230,41 @@ export function clampViewZoom(zoom: number): number {
 
 export function viewZoomTrackFraction(zoom: number): number {
   return (clampViewZoom(zoom) - MIN_VIEW_ZOOM) / (MAX_VIEW_ZOOM - MIN_VIEW_ZOOM)
+}
+
+export interface ViewZoomWheelSteps {
+  steps: number
+  remainder: number
+}
+
+// Browsers report physical wheels as one large pixel/line delta, while smooth
+// scrolling reports the same gesture as many small pixel deltas. Accumulate the
+// latter so both inputs reach the same coarse zoom stops without event-rate
+// controlling the camera. A direction reversal discards residual momentum.
+export function accumulateViewZoomWheelSteps(
+  remainder: number,
+  deltaY: number,
+  deltaMode: number,
+  pagePixels: number,
+): ViewZoomWheelSteps {
+  if (!Number.isFinite(deltaY) || deltaY === 0) return { steps: 0, remainder }
+
+  const scale = deltaMode === 1
+    ? VIEW_ZOOM_WHEEL_LINE_PIXELS
+    : deltaMode === 2
+      ? Math.max(VIEW_ZOOM_WHEEL_STEP_PIXELS, Number.isFinite(pagePixels) ? pagePixels : 0)
+      : 1
+  const scaledDelta = deltaY * scale
+  const carried = remainder !== 0 && Math.sign(remainder) !== Math.sign(scaledDelta)
+    ? 0
+    : remainder
+  const total = carried + scaledDelta
+  const steps = Math.trunc(total / VIEW_ZOOM_WHEEL_STEP_PIXELS) || 0
+
+  return {
+    steps,
+    remainder: total - steps * VIEW_ZOOM_WHEEL_STEP_PIXELS,
+  }
 }
 
 export function applyViewZoom(autoFitScale: number, zoom: number): number {

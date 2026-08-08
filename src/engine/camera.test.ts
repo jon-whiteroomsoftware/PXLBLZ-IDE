@@ -34,6 +34,7 @@ import {
   DEFAULT_VIEW_ZOOM,
   MAX_VIEW_ZOOM,
   MIN_VIEW_ZOOM,
+  accumulateViewZoomWheelSteps,
   applyViewZoom,
   clampViewZoom,
   viewZoomTrackFraction,
@@ -96,6 +97,35 @@ describe('camera — 3D viewport zoom', () => {
     expect(viewZoomTrackFraction(MIN_VIEW_ZOOM)).toBe(0)
     expect(viewZoomTrackFraction(DEFAULT_VIEW_ZOOM)).toBeCloseTo(1 / 3)
     expect(viewZoomTrackFraction(MAX_VIEW_ZOOM)).toBe(1)
+  })
+
+  it('accumulates smooth pixel deltas before emitting a coarse zoom step', () => {
+    let accumulator = 0
+    for (let event = 0; event < 9; event += 1) {
+      const result = accumulateViewZoomWheelSteps(accumulator, -10, 0, 600)
+      expect(result.steps).toBe(0)
+      accumulator = result.remainder
+    }
+
+    expect(accumulateViewZoomWheelSteps(accumulator, -10, 0, 600)).toEqual({
+      steps: -1,
+      remainder: 0,
+    })
+  })
+
+  it('normalizes line/page deltas and drops momentum when direction reverses', () => {
+    expect(accumulateViewZoomWheelSteps(0, -3, 1, 600)).toEqual({
+      steps: -1,
+      remainder: -20,
+    })
+    expect(accumulateViewZoomWheelSteps(0, 1, 2, 250)).toEqual({
+      steps: 2,
+      remainder: 50,
+    })
+    expect(accumulateViewZoomWheelSteps(-90, 100, 0, 600)).toEqual({
+      steps: 1,
+      remainder: 0,
+    })
   })
 })
 
