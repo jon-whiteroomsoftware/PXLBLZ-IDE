@@ -19,6 +19,8 @@ import { useRouterStore, routerInitialState } from '@/store/routerStore'
 import { showInitialState, useShowStore } from '@/store/showStore'
 import { entityOrganizationInitialState, useEntityOrganizationStore } from '@/store/entityOrganizationStore'
 import { stampArtifact } from '@/engine/artifactStamp'
+import { createDefaultShow } from '@/engine/showModel'
+import type { LastActive } from '@/engine/personalContentProvider'
 
 vi.mock('@/engine/authSession', () => ({
   getAuthSession: vi.fn(),
@@ -30,6 +32,8 @@ let mockMaps: MapRecord[] = []
 let mockMixins: MixinRecord[] = []
 let mockLibraries: LibraryRecord[] = []
 let mockControllers: ControllerProfile[] = []
+let mockShows: ReturnType<typeof createDefaultShow>[] = []
+let mockLastActive: LastActive | undefined
 let requests: Array<{ url: string; init?: RequestInit }> = []
 
 beforeEach(() => {
@@ -39,6 +43,8 @@ beforeEach(() => {
   mockMixins = []
   mockLibraries = []
   mockControllers = []
+  mockShows = []
+  mockLastActive = undefined
   requests = []
   vi.mocked(getAuthSession).mockResolvedValue({
     authenticated: true,
@@ -95,7 +101,10 @@ beforeEach(() => {
       return Response.json({ controllers: mockControllers })
     }
     if (String(url) === '/api/shows' && init?.method === undefined) {
-      return Response.json({ shows: [] })
+      return Response.json({ shows: mockShows })
+    }
+    if (String(url) === '/api/settings/lastActive' && init?.method === undefined) {
+      return Response.json({ value: mockLastActive })
     }
     if (String(url).startsWith('/api/settings/') && init?.method === undefined) {
       return Response.json({})
@@ -284,6 +293,35 @@ describe('PatternList', () => {
     expect(useEditorStore.getState().isReadOnly).toBe(true)
     expect(requests.some((request) => request.init?.method === 'POST')).toBe(false)
     expect(await screen.findByText('Sign in')).toBeInTheDocument()
+  })
+
+  it('falls back to the default Pattern when a gated session last opened a Show', async () => {
+    const show = createDefaultShow('saved-show', 'Saved Show', 1000)
+    mockShows = [show]
+    mockLastActive = { type: 'show', id: show.id }
+
+    render(<PatternList />)
+
+    await waitFor(() => {
+      expect(usePatternStore.getState().activeDemoName).toBe('IridescentFibers')
+    })
+    expect(useShowStore.getState().activeShowId).toBeNull()
+    expect(useEditorStore.getState().previewPatternName).toBe('IridescentFibers')
+    expect(useEditorStore.getState().previewSource).toBe(DEMOS.IridescentFibers)
+  })
+
+  it('restores the last-active Show when showtime access is available', async () => {
+    const show = createDefaultShow('saved-show', 'Saved Show', 1000)
+    mockShows = [show]
+    mockLastActive = { type: 'show', id: show.id }
+    enableShowtime()
+
+    render(<PatternList />)
+
+    await waitFor(() => {
+      expect(useShowStore.getState().activeShowId).toBe(show.id)
+    })
+    expect(usePatternStore.getState().activeDemoName).toBeNull()
   })
 
   it('lists built-in patterns in a collapsible Patterns section and opens them read-only', async () => {

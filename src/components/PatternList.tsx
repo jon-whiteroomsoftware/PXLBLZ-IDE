@@ -513,7 +513,9 @@ export function PatternList({
       const { userLibraries, openExistingLibrary } = useLibraryStore.getState()
       const { shows, openShow } = useShowStore.getState()
       const { setSource, setEditorFlavor, setIsReadOnly, setPreviewSource, setPreviewPatternName } = useEditorStore.getState()
-      if (!last) {
+      const lastShowIsGated = last?.type === 'show'
+        && !useRouterStore.getState().featureAccess.shows
+      if (!last || lastShowIsGated) {
         setActiveDemo(DEFAULT_DEMO_NAME)
         setEditorFlavor('pattern')
         setSource(DEMOS[DEFAULT_DEMO_NAME])
