@@ -516,7 +516,15 @@ export function PatternList({
       const lastShowIsGated = last?.type === 'show'
         && !useRouterStore.getState().featureAccess.shows
       if (!last || lastShowIsGated) {
-        setActiveDemo(DEFAULT_DEMO_NAME)
+        if (lastShowIsGated) {
+          usePatternStore.setState({
+            activeDemoName: DEFAULT_DEMO_NAME,
+            activeLibraryName: null,
+            activePatternId: null,
+          })
+        } else {
+          setActiveDemo(DEFAULT_DEMO_NAME)
+        }
         setEditorFlavor('pattern')
         setSource(DEMOS[DEFAULT_DEMO_NAME])
         setPreviewSource(DEMOS[DEFAULT_DEMO_NAME])

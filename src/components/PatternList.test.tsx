@@ -308,6 +308,9 @@ describe('PatternList', () => {
     expect(useShowStore.getState().activeShowId).toBeNull()
     expect(useEditorStore.getState().previewPatternName).toBe('IridescentFibers')
     expect(useEditorStore.getState().previewSource).toBe(DEMOS.IridescentFibers)
+    expect(requests.some((request) => (
+      request.url === '/api/settings/lastActive' && request.init?.method === 'PUT'
+    ))).toBe(false)
   })
 
   it('restores the last-active Show when showtime access is available', async () => {
