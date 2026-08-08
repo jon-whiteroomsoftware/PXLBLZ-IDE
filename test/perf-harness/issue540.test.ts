@@ -32,20 +32,20 @@ describe('issue #540 Pattern field/shading census', () => {
       .map((entry) => entry.name)
 
     // Recensused with the published ZRanger1 3+-favorite collection (#723):
-    // 23 more originals join the first ten (#721), followed by the map
-    // diagnostic. None introduces the reusable expensive scalar producer this
-    // historical prototype gate asks for, so the larger denominator remains
-    // below its 10% threshold.
+    // 23 more originals join the first ten (#721), followed by the map and
+    // analog diagnostics. Neither introduces the reusable expensive scalar
+    // producer this historical prototype gate asks for, so the larger
+    // denominator remains below its 10% threshold.
     expect(issue540Report.summary).toMatchObject({
-      patternCount: 96,
-      reviewedCount: 96,
+      patternCount: 97,
+      reviewedCount: 97,
       credibleCandidateCount: 7,
       unreviewedIds: [],
       invalidClassificationIds: [],
       proceedWithPrototype: false,
       decision: 'stop-insufficient-incidence',
     })
-    expect(issue540Report.summary.credibleCandidateRatio).toBeCloseTo(7 / 96)
+    expect(issue540Report.summary.credibleCandidateRatio).toBeCloseTo(7 / 97)
     expect(candidates).toEqual([
       'Caustics',
       'GyroidGlow3D',

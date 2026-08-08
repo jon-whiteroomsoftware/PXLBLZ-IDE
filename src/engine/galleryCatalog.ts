@@ -116,6 +116,7 @@ export const LIVING_1D_DEMOS = ['PulseLoom', 'FireflyChoir', 'CometLoom', 'Metro
 // Minimal patterns - one per render dimensionality - for visually verifying
 // 1D / 2D / 3D preview behavior.
 export const TEST_PATTERNS = [
+  'AnalogWiggleFinder',
   'EasedSweep',
   'MapAlignmentDiagnostic',
   'TestPattern1D',

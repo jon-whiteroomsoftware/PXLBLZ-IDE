@@ -299,6 +299,15 @@ describe('demo smoke tests', () => {
     expect(previewPixels.some(([r, g, b]) => r + g + b > 0.01)).toBe(true)
   })
 
+  for (const mode of ['fast', 'fidelity'] as const) {
+    it(`AnalogWiggleFinder shows finite wiring meters with preview GPIO stubs in ${mode} mode`, () => {
+      const result = runDimensionedDemo('AnalogWiggleFinder.js', mode)
+      expect(result.firstFrameLit).toBe(true)
+      expect(result.allFinite).toBe(true)
+      expect(result.anyLit).toBe(true)
+    })
+  }
+
   it('RedlineMachine combines the three materials in one cheap scored renderer', () => {
     const source = readFileSync(join(here, 'RedlineMachine.js'), 'utf8')
     let result!: ReturnType<typeof runDemo>

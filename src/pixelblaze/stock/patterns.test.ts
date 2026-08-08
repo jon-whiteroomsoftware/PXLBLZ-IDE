@@ -8,6 +8,7 @@ import { STOCK_MAPS, isMapWrappable } from '@/store/mapStore'
 import { DEMO_AUTHORS, DEMOS, RECOMMENDED_SETTINGS } from './patterns'
 
 const INTENTIONAL_LOW_DENSITY = new Set([
+  'AnalogWiggleFinder',
   'Bouncer3D',
   'CyclicCellularAutomata2D',
   'DoomFire',

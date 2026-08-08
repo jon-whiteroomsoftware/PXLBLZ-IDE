@@ -476,6 +476,16 @@ The interesting part is what a profile can do to generated code:
   remains available. The live panel reports contextual A/W estimates; PXLBLZ
   does not pretend to be an ammeter or replace physical power-system design.
 
+The built-in **AnalogWiggleFinder** Pattern in **Test Patterns** identifies an
+unknown potentiometer connection before a profile binding exists. Run it on a
+Pixelblaze V3 Standard HW >= 3.5, then sweep the potentiometer back and forth.
+Its five wiring-order bands represent IO33, IO34, IO35, IO36, and IO39; a band
+pulses after deliberate reversals while static input and small line noise stay
+quiet. The Controller panel exposes each raw reading, each motion-confidence
+score, and the winning GPIO through watched vars. The browser preview cannot
+sample physical GPIO, so this diagnostic becomes meaningful after **Run** sends
+it to the Controller.
+
 Missing binding targets produce transform warnings rather than silent partial
 behavior, and **View generated artifact** always shows exactly what was
 inserted, wrapped, or bound.

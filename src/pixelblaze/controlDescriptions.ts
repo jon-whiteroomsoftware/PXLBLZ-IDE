@@ -15,6 +15,9 @@ type Controls = PatternMetadata['controls']
 // here, once. User/imported patterns have no entry and fall back to the
 // humanized control label.
 export const CONTROL_DESCRIPTIONS: Record<string, Record<string, string>> = {
+  AnalogWiggleFinder: {
+    toggleReset: 'Clears accumulated motion confidence when changed in either direction.',
+  },
   AllLasersFire: {
     sliderSpeed: 'How quickly the converging laser blasts cycle.',
     sliderBlastScale: 'Length and spread of each laser blast.',

@@ -69,6 +69,20 @@ describe('galleryCatalog (#309)', () => {
     })
   })
 
+  it('catalogues the analog input diagnostic as a wiring-order Test Pattern', () => {
+    const pattern = galleryPatternBySlug('analog-wiggle-finder')
+    expect(pattern).toMatchObject({
+      name: 'AnalogWiggleFinder',
+      dim: 3,
+      sections: ['Test Patterns'],
+    })
+    expect(RECOMMENDED_SETTINGS.AnalogWiggleFinder).toMatchObject({
+      mapId: 'plane-strand',
+      pixelCount: 100,
+      brightness: 1,
+    })
+  })
+
   it('treats Everything and an empty query as no-ops', () => {
     const all = filterGalleryPatterns(GALLERY_PATTERNS, {
       lens: 'all',
