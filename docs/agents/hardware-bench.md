@@ -39,7 +39,12 @@ PIXELBLAZE_IP=192.168.8.224 npm run devbench -- Kishimisu
 PIXELBLAZE_IP=192.168.8.224 npm run devbench -- /tmp/base.js Kishimisu   # before/after
 ```
 
-Capture a baseline with `git show HEAD:src/pixelblaze/demos/X.js > /tmp/base.js`.
+Stock Patterns live in `src/pixelblaze/stock/patterns/`, which is the directory
+devbench resolves demo names against. Capture a baseline from there:
+
+```bash
+git show HEAD:src/pixelblaze/stock/patterns/Kishimisu.js > /tmp/base.js
+```
 
 Two operational notes. The post-push settle must stay at roughly two seconds: at
 400 ms the device is still loading fresh bytecode and will not answer the
