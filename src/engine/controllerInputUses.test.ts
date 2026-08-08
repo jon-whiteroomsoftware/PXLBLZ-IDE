@@ -3,10 +3,18 @@ import {
   controllerPatternPushStates,
   controllerUseDetailText,
   describeControllerInputUses,
+  type ControllerInputCorrection,
   type ControllerInputUse,
+  type ControllerPushRecordsRead,
 } from './controllerInputUses'
+import type { ControllerPushRecord } from './controllerPushRecord'
 import { controllerProfileArtifactSignature } from './controllerProfilePassRecipe'
-import type { ControllerProfile, GlobalTransform } from './controllerProfile'
+import {
+  controllerProfileRecordIssues,
+  validateControllerProfile,
+  type ControllerProfile,
+  type GlobalTransform,
+} from './controllerProfile'
 
 function brightnessTransform(changes: Partial<{ enabled: boolean; inputId: string }> = {}): GlobalTransform {
   return {
@@ -46,6 +54,24 @@ function profileWith(changes: Partial<ControllerProfile> = {}): ControllerProfil
 
 function useKinds(uses: ControllerInputUse[]): string[] {
   return uses.map((use) => use.kind)
+}
+
+function issueKey(issue: { path: string; message: string }): string {
+  return `${issue.path}: ${issue.message}`
+}
+
+/** Apply an offered correction exactly as the input card does. */
+function applyCorrection(
+  profile: ControllerProfile,
+  inputId: string,
+  correction: ControllerInputCorrection,
+): ControllerProfile {
+  return {
+    ...profile,
+    inputs: profile.inputs.map((input) => (
+      input.id === inputId ? { ...input, ...correction.change } : input
+    )),
+  }
 }
 
 describe('describeControllerInputUses', () => {
@@ -232,6 +258,92 @@ describe('describeControllerInputUses', () => {
     expect(view.inputs[1].state).toBe('error')
   })
 
+  it('moves the input to an analog pin when analog alone would not repair it', () => {
+    // IO25 cannot be read as analog on any v3 board, so switching the signal
+    // without also moving the pin trades one error for another and the write is
+    // rejected outright (#772).
+    const profile = profileWith({
+      inputs: [
+        { id: 'pot0', name: 'Panel button', pin: 25, signal: 'digital', smoothing: 0, fallback: 0, invert: false },
+      ],
+    })
+
+    const [input] = describeControllerInputUses(profile).inputs
+
+    expect(input.issues[0].correction).toEqual({
+      label: 'Switch to analog on IO33',
+      change: { signal: 'analog', pin: 33 },
+    })
+  })
+
+  it('offers no one-click repair when the board has no analog pin left to take', () => {
+    const profile = profileWith({
+      board: { kind: 'pixelblaze-v3-standard', hardwareRevision: 3.4 },
+      inputs: [
+        { id: 'pot0', name: 'Panel button', pin: 25, signal: 'digital', smoothing: 0, fallback: 0, invert: false },
+        { id: 'pot1', name: 'Front pot', pin: 33, signal: 'analog', smoothing: 0.2, fallback: 0.5, invert: false },
+      ],
+    })
+
+    const [button] = describeControllerInputUses(profile).inputs
+
+    // Pre-3.5 boards read only IO33, and the other input already holds it.
+    expect(button.issues[0]).toMatchObject({ path: 'inputs.pot0.signal', correction: null })
+    expect(button.issues[0].message).toContain('needs an analog signal')
+  })
+
+  it('never offers a correction that leaves the profile unwritable', () => {
+    const brokenProfiles = [
+      // Brightness on a digital input that is also on a pin the board cannot read.
+      profileWith({
+        inputs: [
+          { id: 'pot0', name: 'Panel button', pin: 25, signal: 'digital', smoothing: 0, fallback: 0, invert: false },
+        ],
+      }),
+      // Brightness on a digital input whose pin is already analog-capable.
+      profileWith({
+        inputs: [
+          { id: 'pot0', name: 'Panel button', pin: 33, signal: 'digital', smoothing: 0, fallback: 0, invert: false },
+        ],
+      }),
+      // An analog input on a pin the board cannot read.
+      profileWith({
+        globalTransforms: [brightnessTransform({ enabled: false, inputId: '' }), powerCap],
+        inputs: [
+          { id: 'pot0', name: 'Rear pot', pin: 26, signal: 'analog', smoothing: 0.2, fallback: 0.5, invert: false },
+        ],
+      }),
+      // Both at once, on a board with a single analog pin.
+      profileWith({
+        board: { kind: 'pixelblaze-v3-standard', hardwareRevision: 3.4 },
+        inputs: [
+          { id: 'pot0', name: 'Panel button', pin: 25, signal: 'digital', smoothing: 0, fallback: 0, invert: false },
+          { id: 'pot1', name: 'Rear pot', pin: 34, signal: 'analog', smoothing: 0.2, fallback: 0.5, invert: false },
+        ],
+      }),
+    ]
+
+    for (const profile of brokenProfiles) {
+      const before = new Set(validateControllerProfile(profile).errors.map(issueKey))
+      for (const input of describeControllerInputUses(profile).inputs) {
+        for (const issue of input.issues) {
+          if (!issue.correction) continue
+          const after = validateControllerProfile(
+            applyCorrection(profile, input.inputId, issue.correction),
+          )
+          // The persistence gate blocks record issues, so a correction that
+          // introduces one is a repair the user can never apply: it is written
+          // optimistically, refused, and rolled back to where it started.
+          expect(controllerProfileRecordIssues(after)
+            .map(issueKey)
+            .filter((key) => !before.has(key))).toEqual([])
+          // And it has to actually clear what it was offered against.
+          expect(after.errors.map((error) => error.path)).not.toContain(issue.path)
+        }
+      }
+    }
+  })
+
   it('keeps profile-level errors out of the input cards', () => {
     const profile = profileWith({
       globalTransforms: [brightnessTransform({ inputId: 'ghost' }), powerCap],
@@ -297,7 +409,7 @@ describe('controllerPatternPushStates', () => {
     expect(controllerPatternPushStates({
       profile,
       patternIds: ['p'],
-      pushRecords: { p: { transforms: [], artifactHash: 'h', stampedAt: 's', name: 'p' } },
+      pushRecords: read({ p: { transforms: [], artifactHash: 'h', stampedAt: 's', name: 'p' } }),
       mapDim: null,
       live: false,
     })).toEqual({})
@@ -309,9 +421,9 @@ describe('controllerPatternPushStates', () => {
     expect(controllerPatternPushStates({
       profile,
       patternIds: ['p'],
-      pushRecords: {
+      pushRecords: read({
         p: { transforms: [], artifactHash: 'h', stampedAt: 's', name: 'p', profileSignature: signature },
-      },
+      }),
       mapDim: 2,
       live: true,
     })).toEqual({ p: 'current' })
@@ -321,9 +433,9 @@ describe('controllerPatternPushStates', () => {
     expect(controllerPatternPushStates({
       profile,
       patternIds: ['p'],
-      pushRecords: {
+      pushRecords: read({
         p: { transforms: [], artifactHash: 'h', stampedAt: 's', name: 'p', profileSignature: 'older' },
-      },
+      }),
       mapDim: 2,
       live: true,
     })).toEqual({ p: 'stale' })
@@ -333,7 +445,7 @@ describe('controllerPatternPushStates', () => {
     expect(controllerPatternPushStates({
       profile,
       patternIds: ['p'],
-      pushRecords: { p: { transforms: [], artifactHash: 'h', stampedAt: 's', name: 'p' } },
+      pushRecords: read({ p: { transforms: [], artifactHash: 'h', stampedAt: 's', name: 'p' } }),
       mapDim: 2,
       live: true,
     })).toEqual({ p: 'stale' })
@@ -343,10 +455,21 @@ describe('controllerPatternPushStates', () => {
     expect(controllerPatternPushStates({
       profile,
       patternIds: ['p'],
-      pushRecords: null,
+      // A completed read that found nothing for this Pattern is real evidence.
+      pushRecords: read({}),
       mapDim: 2,
       live: true,
     })).toEqual({ p: 'not-pushed' })
+  })
+
+  it('claims nothing while the metadata read is still pending', () => {
+    expect(controllerPatternPushStates({
+      profile,
+      patternIds: ['p'],
+      pushRecords: { status: 'unknown' },
+      mapDim: 2,
+      live: true,
+    })).toEqual({ p: 'unknown' })
   })
 
   it('separates the map dimension the signature was taken at', () => {
@@ -355,9 +478,9 @@ describe('controllerPatternPushStates', () => {
     expect(controllerPatternPushStates({
       profile,
       patternIds: ['p'],
-      pushRecords: {
+      pushRecords: read({
         p: { transforms: [], artifactHash: 'h', stampedAt: 's', name: 'p', profileSignature: signature },
-      },
+      }),
       mapDim: 3,
       live: true,
     })).toEqual({ p: 'stale' })
@@ -367,5 +490,9 @@ describe('controllerPatternPushStates', () => {
   // JSON shape in the test would only duplicate the implementation.
   function signatureFor(patternId: string, mapDim: 1 | 2 | 3): string {
     return controllerProfileArtifactSignature(profile, patternId, { mapDim })
+  }
+
+  function read(records: Record<string, ControllerPushRecord>): ControllerPushRecordsRead {
+    return { status: 'read', records }
   }
 })

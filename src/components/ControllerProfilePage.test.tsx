@@ -11,6 +11,7 @@ import {
   resetPersonalContentProvider,
   setPersonalContentProvider,
 } from '@/engine/personalContentProvider'
+import { assertValidControllerProfile } from '@/cloudflare/controllerProfiles'
 import type { MapRecord, PatternRecord } from '@/engine/personalContentRecords'
 import type { RecoveredSavedProgram } from '@/engine/controllerSavedProgramRead'
 import type { ControllerPushRecord } from '@/engine/controllerPushRecord'
@@ -508,6 +509,49 @@ describe('ControllerProfilePage', () => {
     expect(screen.queryByText(/needs an analog signal/)).not.toBeInTheDocument()
   })
 
+  it('repairs a digital brightness input on a non-analog pin in one click (#772)', async () => {
+    const base = seedProfile()
+    const broken = {
+      ...base,
+      inputs: [{
+        id: 'btn0',
+        name: 'Panel button',
+        pin: 25,
+        signal: 'digital' as const,
+        smoothing: 0,
+        fallback: 0,
+        invert: false,
+      }],
+      globalTransforms: base.globalTransforms.map((transform) =>
+        transform.type === 'hardware-brightness'
+          ? { ...transform, enabled: true, inputId: 'btn0' }
+          : transform,
+      ),
+    }
+    useControllerProfileStore.setState({ profiles: [broken], profilesLoaded: true })
+    // Persist through the real record gate. A correction that only switches the
+    // signal leaves IO25 unreadable, the PATCH is refused, and the store rolls
+    // the optimistic edit back to digital (#772).
+    setPersonalContentProvider({
+      ...demoPersonalContentProvider,
+      updateControllerProfile: async (_id, changes) => {
+        assertValidControllerProfile({ ...broken, ...changes })
+      },
+    })
+
+    render(<ControllerProfilePage profileId="ctrl-1" />)
+
+    fireEvent.click(screen.getByRole('button', { name: 'Switch to analog on IO33' }))
+
+    await waitFor(() => {
+      expect(useControllerProfileStore.getState().profiles[0].inputs[0]).toMatchObject({
+        signal: 'analog',
+        pin: 33,
+      })
+    })
+    expect(screen.queryByText(/needs an analog signal/)).not.toBeInTheDocument()
+  })
+
   it('badges the Pattern, not the use, when a live push predates the current profile (#772)', async () => {
     const base = seedProfile()
     const profile = {
@@ -583,6 +627,100 @@ describe('ControllerProfilePage', () => {
       'title',
       'This Pattern was pushed before the current Controller settings.',
     )
+  })
+
+  it('claims no push state while the Controller metadata read is unfinished (#772)', async () => {
+    const base = seedProfile()
+    const profile = {
+      ...base,
+      inputs: [{
+        id: 'pot0',
+        name: 'Front pot',
+        pin: 33,
+        signal: 'analog' as const,
+        smoothing: 0.2,
+        fallback: 0.5,
+        invert: false,
+      }],
+      patternBindings: [{
+        id: 'b1',
+        patternId: 'pat-line',
+        inputId: 'pot0',
+        target: { kind: 'call-exported-slider' as const, name: 'sliderSpeed' },
+      }],
+    }
+    const goLive = () => {
+      useControllerPanelStore.setState({
+        programsByController: { '192.168.8.224': [{ id: 'DEV_LINE', name: 'Line Dancer' }] },
+      })
+      useControllerStore.setState({
+        activeIp: '192.168.8.224',
+        controllers: {
+          '192.168.8.224': {
+            ip: '192.168.8.224',
+            deviceId: profile.deviceId,
+            nickname: 'Burner bag',
+            phase: 'live',
+            mapDim: 2,
+          },
+        },
+      })
+    }
+    useControllerProfileStore.setState({ profiles: [profile], profilesLoaded: true })
+    usePatternStore.setState({
+      userPatterns: [{
+        id: 'pat-line',
+        name: 'Line Dancer',
+        src: 'export function render(index) { hsv(0, 1, 1) }',
+        controls: {},
+        updatedAt: 1,
+      }],
+      patternsLoaded: true,
+    })
+
+    // A read that never settles is not evidence that nothing was pushed.
+    setControllerMetadataStorage({
+      ...demoControllerMetadataStorage,
+      id: 'push-records-pending',
+      getControllerBindings: async () => ({ '192.168.8.224': { 'pat-line': 'DEV_LINE' } }),
+      getPushRecords: () => new Promise(() => {}),
+    })
+    goLive()
+    const pending = render(<ControllerProfilePage profileId="ctrl-1" />)
+
+    expect(await screen.findByText('Line Dancer')).toBeInTheDocument()
+    expect(screen.queryByText('not pushed')).not.toBeInTheDocument()
+    pending.unmount()
+
+    // Neither is a read that failed outright.
+    setControllerMetadataStorage({
+      ...demoControllerMetadataStorage,
+      id: 'push-records-rejected',
+      getControllerBindings: async () => ({ '192.168.8.224': { 'pat-line': 'DEV_LINE' } }),
+      getPushRecords: async () => {
+        throw new Error('metadata storage unavailable')
+      },
+    })
+    goLive()
+    const rejected = render(<ControllerProfilePage profileId="ctrl-1" />)
+
+    expect(await screen.findByText('Line Dancer')).toBeInTheDocument()
+    await waitFor(() => {
+      expect(screen.queryByText('not pushed')).not.toBeInTheDocument()
+    })
+    rejected.unmount()
+
+    // A completed read that genuinely holds no record for this Pattern does say so.
+    setControllerMetadataStorage({
+      ...demoControllerMetadataStorage,
+      id: 'push-records-empty',
+      getControllerBindings: async () => ({ '192.168.8.224': { 'pat-line': 'DEV_LINE' } }),
+      getPushRecords: async () => ({ '192.168.8.224': {} }),
+    })
+    goLive()
+    render(<ControllerProfilePage profileId="ctrl-1" />)
+
+    expect(await screen.findByText('not pushed')).toBeInTheDocument()
   })
 
   it('lays the input list out as ragged two-up columns, not a shared-height grid (#772)', () => {
@@ -1407,6 +1545,52 @@ describe('ControllerProfilePage', () => {
         mode: 'direct',
         maxDuty: 0.35,
       })
+    })
+  })
+
+  it('keeps an enforced direct duty cap visible and operable with no power model (#772)', async () => {
+    const profile = seedProfile()
+    useControllerProfileStore.setState({
+      profiles: [{
+        ...profile,
+        globalTransforms: profile.globalTransforms.map((transform) => (
+          transform.type === 'power-cap'
+            ? { ...transform, enabled: true, mode: 'direct' as const, maxDuty: 0.4 }
+            : transform
+        )),
+      }],
+      profilesLoaded: true,
+    })
+
+    render(<ControllerProfilePage profileId="ctrl-1" />)
+
+    // The cap already changes every generated Pattern, so it has to be visible
+    // and reversible without first configuring an unrelated power model (#772).
+    const enforce = screen.getByRole('checkbox', { name: 'Enforce the duty cap' })
+    expect(enforce).toBeChecked()
+    const duty = screen.getByRole('textbox', { name: 'Power cap duty percent exact percentage' })
+    expect(duty).toHaveValue('40')
+    // Only the estimate is missing, and deriving the cap stays unavailable.
+    expect(screen.getByText('No power model yet, so PXLBLZ cannot estimate the installation load.'))
+      .toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Configure power model' })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Calculate from load and budget' })).toBeDisabled()
+
+    fireEvent.change(duty, { target: { value: '15%' } })
+    fireEvent.keyDown(duty, { key: 'Enter' })
+
+    await waitFor(() => {
+      expect(useControllerProfileStore.getState().profiles[0].globalTransforms
+        .find((transform) => transform.type === 'power-cap'))
+        .toMatchObject({ enabled: true, mode: 'direct', maxDuty: 0.15 })
+    })
+
+    fireEvent.click(enforce)
+
+    await waitFor(() => {
+      expect(useControllerProfileStore.getState().profiles[0].globalTransforms
+        .find((transform) => transform.type === 'power-cap'))
+        .toMatchObject({ enabled: false, maxDuty: 0.15 })
     })
   })
 

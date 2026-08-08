@@ -15,8 +15,17 @@ import type { MapDimension } from './renderCompatibility'
 export type ControllerInputUseState = 'live' | 'blocked'
 
 /** Level 2: whether the Pattern on the Controller was built from this profile.
- * It is a (Controller, Pattern) fact and is therefore reported per Pattern. */
-export type ControllerPatternPushState = 'current' | 'stale' | 'not-pushed'
+ * It is a (Controller, Pattern) fact and is therefore reported per Pattern.
+ * `unknown` is the absence of a claim, not a claim about the Pattern. */
+export type ControllerPatternPushState = 'current' | 'stale' | 'not-pushed' | 'unknown'
+
+/** The push-record metadata behind a Level 2 comparison. `read` carries what a
+ * completed read found, and an empty record set is then real evidence that
+ * nothing was pushed. `unknown` covers a read still in flight and a read that
+ * failed: neither says anything about the Controller (#772). */
+export type ControllerPushRecordsRead =
+  | { status: 'unknown' }
+  | { status: 'read'; records: Record<string, ControllerPushRecord> }
 
 /** A use sentence split so the component can set identifiers in mono and the
  * surrounding prose in sans. */
@@ -181,14 +190,18 @@ export function describeControllerInputUses(
 export function controllerPatternPushStates(args: {
   profile: ControllerProfile
   patternIds: readonly string[]
-  pushRecords: Record<string, ControllerPushRecord> | null | undefined
+  pushRecords: ControllerPushRecordsRead
   mapDim: MapDimension | null
   live: boolean
 }): Record<string, ControllerPatternPushState> {
   if (!args.live) return {}
   const states: Record<string, ControllerPatternPushState> = {}
   for (const patternId of distinct(args.patternIds)) {
-    const record = args.pushRecords?.[patternId]
+    if (args.pushRecords.status === 'unknown') {
+      states[patternId] = 'unknown'
+      continue
+    }
+    const record = args.pushRecords.records[patternId]
     if (!record) {
       states[patternId] = 'not-pushed'
       continue
@@ -246,13 +259,26 @@ function inputIdForPath(path: string, profile: ControllerProfile): string | null
   return profile.inputs.some((input) => input.id === inputId) ? inputId : null
 }
 
+/** A correction has to satisfy every validation rule at once, not just the one
+ * it is offered against: the persistence gate refuses a profile that still holds
+ * a record issue, so a partial repair is optimistically applied and then rolled
+ * straight back. When no change can satisfy them all, offer none (#772). */
 function correctionFor(
   path: string,
   profile: ControllerProfile,
   inputId: string,
 ): ControllerInputCorrection | null {
+  const input = profile.inputs.find((candidate) => candidate.id === inputId)
+  if (!input) return null
+
   if (path === `inputs.${inputId}.signal`) {
-    return { label: 'Switch this input to analog', change: { signal: 'analog' } }
+    if (analogPinsForBoard(profile.board).includes(input.pin)) {
+      return { label: 'Switch this input to analog', change: { signal: 'analog' } }
+    }
+    // The pin cannot be read as analog either, so the signal alone is not a
+    // repair. Move the input in the same change and say so on the button.
+    const pin = firstFreeAnalogPin(profile, inputId)
+    return pin == null ? null : { label: `Switch to analog on IO${pin}`, change: { signal: 'analog', pin } }
   }
   if (path === `inputs.${inputId}.pin`) {
     const pin = firstFreeAnalogPin(profile, inputId)
@@ -261,12 +287,14 @@ function correctionFor(
   return null
 }
 
+/** An analog pin this board can read that no other input already holds. Taking
+ * an occupied pin would silently put two inputs on one wire, so a board with
+ * nothing free reports none and the caller offers no repair. */
 function firstFreeAnalogPin(profile: ControllerProfile, inputId: string): number | null {
-  const analogPins = analogPinsForBoard(profile.board)
   const taken = new Set(
     profile.inputs.filter((input) => input.id !== inputId).map((input) => input.pin),
   )
-  return analogPins.find((pin) => !taken.has(pin)) ?? analogPins[0] ?? null
+  return analogPinsForBoard(profile.board).find((pin) => !taken.has(pin)) ?? null
 }
 
 function patternLabel(patternId: string, names: Record<string, string> | undefined): string {

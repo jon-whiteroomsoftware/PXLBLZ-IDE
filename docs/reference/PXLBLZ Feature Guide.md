@@ -509,13 +509,20 @@ separate bindings list; what the page shows is what the next push will generate.
 Hardware brightness needs a varying signal, so assigning it to a `digital` input
 is an error. It reports on that input's own card with a one-click correction
 rather than only in a banner at the top of the page. Existing profiles in that
-state will now surface the error; they were previously silent no-ops.
+state will now surface the error; they were previously silent no-ops. The
+correction repairs the whole input at once: on a pin the board cannot read as
+analog it also moves the input to a free analog pin and names it. When the board
+has no analog pin left to take, no one-click repair is offered and the input is
+corrected by hand under **Adjust**.
 
 While the Controller is connected, a Pattern whose saved artifact predates the
 current profile is badged **push again**, and one this profile has never pushed
 is badged **not pushed**. The badge belongs to the Pattern, not to a single use,
 because it compares that Pattern's whole generated artifact. Offline the exact
-map dimensionality is unknown, so no badge is claimed at all.
+map dimensionality is unknown, so no badge is claimed at all. Neither badge
+appears before the Controller's push metadata has actually been read: a read
+still in flight, or one that failed, claims nothing rather than reporting every
+Pattern as never pushed.
 
 ### Power
 
@@ -530,7 +537,11 @@ the physical LED count when it differs from the address count.
 
 The duty cap is the section's headline value. A switch enforces it or not, and
 one button moves between **Calculate from load and budget** and **Set a fixed
-cap**, with a sub-line naming which is in force. The live panel reports
+cap**, with a sub-line naming which is in force. The cap is independent of the
+power model: it changes every generated Pattern whether or not an installation
+load has been modelled, so the switch and the fixed value stay visible and
+editable without one. Only the estimate and the derived mode need a model, and
+the section says so where the chain would otherwise be. The live panel reports
 contextual A/W estimates; PXLBLZ does not pretend to be an ammeter or replace
 physical power-system design.
 

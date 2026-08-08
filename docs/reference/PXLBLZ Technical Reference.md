@@ -911,16 +911,24 @@ Two levels of state are distinguished, and the module never conflates them:
   offline.
 - **Level 2, per-Pattern re-push.** `controllerPatternPushStates` compares
   `controllerProfileArtifactSignature(profile, patternId, { mapDim })` against
-  each `ControllerPushRecord.profileSignature` and returns `current`, `stale`, or
-  `not-pushed` **per Pattern**, not per use: the signature covers every
-  transform, every input those transforms touch, all of that Pattern's bindings,
-  and the renderer `mapDim`, so it is a (Controller, Pattern) fact and attaching
-  it to one input's use would assert a cause the data does not support. The page
-  loads `getPushRecords()` alongside the existing `getControllerBindings()`
-  effect. `mapDim` comes from the live Controller, so the function returns an
-  empty map while offline rather than guessing from `lastKnownMapDim`. Records
-  are keyed by IP, so a changed IP orphans them and the Pattern reads
-  `not-pushed` — the same conclusion the Send button reaches.
+  each `ControllerPushRecord.profileSignature` and returns `current`, `stale`,
+  `not-pushed`, or `unknown` **per Pattern**, not per use: the signature covers
+  every transform, every input those transforms touch, all of that Pattern's
+  bindings, and the renderer `mapDim`, so it is a (Controller, Pattern) fact and
+  attaching it to one input's use would assert a cause the data does not
+  support. The page loads `getPushRecords()` alongside the existing
+  `getControllerBindings()` effect. `mapDim` comes from the live Controller, so
+  the function returns an empty map while offline rather than guessing from
+  `lastKnownMapDim`. Records are keyed by IP, so a changed IP orphans them and
+  the Pattern reads `not-pushed` — the same conclusion the Send button reaches.
+
+  The records argument is a `ControllerPushRecordsRead`, not a bare record map:
+  `{ status: 'read', records }` is a completed read, where an absent record is
+  real evidence of `not-pushed`, and `{ status: 'unknown' }` is a read still in
+  flight or one that failed. `unknown` yields no badge, which is not the same
+  claim as `not-pushed`. The distinction is in the argument type because the
+  page previously passed an empty record map for both and reported every bound
+  Pattern as never pushed while its metadata was still loading (#772).
 
 Input-scoped validation errors are partitioned out of
 `validateControllerProfile` by their `inputs.<id>.` path prefix and rendered on
@@ -930,6 +938,16 @@ input is one of those errors (#772): `controllerProfilePassRecipe` gates the
 sample and intercept passes on `input.signal === 'analog'`, so that configuration
 emitted nothing and was previously unreported. Profile-level errors still render
 in the page banner.
+
+A correction is qualified against the whole profile, not against the rule it is
+offered for. `assertValidControllerProfile` refuses a profile that still holds a
+record issue, and the store applies an input edit optimistically, so a change
+that trades one error for another is written, refused, and rolled straight back
+— an advertised repair that visibly does nothing. Switching a digital brightness
+input to analog therefore also moves it to an analog-capable pin whenever its
+current pin is not one, and the label names the pin it will take.
+`firstFreeAnalogPin` returns only a pin no other input holds; with none free
+there is no correction to offer, and the error stands with its message alone.
 
 Brightness assignment goes through `assignHardwareBrightness(profileId, inputId
 | null)`, which writes the single seeded `hardware-brightness` transform's
