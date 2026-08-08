@@ -40,6 +40,60 @@ describe('InstalledMapPresentation', () => {
     expect(screen.getByText('· 1 point')).toBeInTheDocument()
   })
 
+  // The panel variant (#757). In a 352px popover the spelled-out count is 95px of
+  // unshrinkable width that the *name* needs, and it duplicates the `pixel count` row a
+  // band below — so it earns its place only when the two disagree, which is the #204
+  // silent-drop trap.
+  describe('mismatch count mode', () => {
+    const present = { kind: 'present', name: 'Square', dimension: 2, pointCount: 256 } as const
+
+    it('spends no width on the count while it agrees with the pixel count', () => {
+      render(
+        <InstalledMapPresentation presentation={present} count={{ mode: 'mismatch', pixelCount: 256 }} />,
+      )
+
+      const value = screen.getByTestId('installed-map-presentation')
+      expect(value).toHaveTextContent('Square2D')
+      expect(value).not.toHaveTextContent('points')
+      expect(screen.queryByTestId('installed-map-count-mismatch')).not.toBeInTheDocument()
+    })
+
+    it('raises an amber chip naming both counts when they disagree', () => {
+      render(
+        <InstalledMapPresentation presentation={present} count={{ mode: 'mismatch', pixelCount: 300 }} />,
+      )
+
+      const chip = screen.getByTestId('installed-map-count-mismatch')
+      expect(chip).toHaveTextContent('256≠300')
+      expect(chip).toHaveAccessibleName('Map has 256 points but the Controller has 300 pixels')
+      expect(chip.className).toContain('text-amber-400')
+      // The name goes amber with it: the chip explains a warning the whole row carries.
+      expect(screen.getByTitle('Square').className).toContain('text-amber-400')
+      expect(screen.getByTestId('installed-map-presentation')).not.toHaveTextContent('points')
+    })
+
+    it('treats an unread pixel count as no conflict rather than a disagreement', () => {
+      render(
+        <InstalledMapPresentation presentation={present} count={{ mode: 'mismatch', pixelCount: null }} />,
+      )
+
+      expect(screen.queryByTestId('installed-map-count-mismatch')).not.toBeInTheDocument()
+      expect(screen.getByTitle('Square').className).not.toContain('text-amber-400')
+    })
+
+    it('still reduces to the shared state copy with no count at all', () => {
+      render(
+        <InstalledMapPresentation
+          presentation={{ kind: 'state', label: 'No installed map' }}
+          count={{ mode: 'mismatch', pixelCount: 300 }}
+        />,
+      )
+
+      expect(screen.getByText('No installed map')).toBeInTheDocument()
+      expect(screen.queryByTestId('installed-map-count-mismatch')).not.toBeInTheDocument()
+    })
+  })
+
   it('reuses baked candidates across unrelated rerenders', () => {
     const userMaps: MapRecord[] = []
     const { result, rerender } = renderHook(

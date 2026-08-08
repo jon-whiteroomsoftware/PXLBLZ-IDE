@@ -18,6 +18,7 @@ import {
   DeckSectionHint,
   DeckGrid,
   DeckCell,
+  DeckField,
   DeckTelemetry,
 } from '@/components/Deck'
 import { DeckSlider } from '@/components/DeckSlider'
@@ -46,7 +47,7 @@ const PANEL_HINT = (
     items={[
       ['pattern', 'the pattern the Controller is currently running'],
       ['brightness', 'master output level on the device — applied live'],
-      ['map', 'the installed map’s exact-byte identity, dimension, and point count'],
+      ['map', 'the installed map’s exact-byte identity and dimension; its point count appears only when it disagrees with the pixel count'],
       ['pixel count', 'number of pixels configured on the device — editable; saved to the device so it survives a reboot'],
       ['IP', 'the device’s address on the local network'],
       ['fps', 'frame rate the device reports'],
@@ -241,52 +242,70 @@ export function ControllerPanel() {
         </div>
       )}
       <DeckSection label="Pixelblaze" hint={PANEL_HINT}>
-        {/* Two columns of unequal height (#consistency): the title moved up, so the
-            old row-paired grid no longer lined up. Right column emulates the preview
-            deck — the stacked brightness slider over the editable pixel count. Left
-            column collects the three read-only one-liners (fps, map points, IP). The
-            columns top-align; their differing heights are accepted. */}
-        <div className="flex gap-x-4 items-start">
-          <div className="flex-1 min-w-0 flex flex-col gap-y-2">
-            <DeckTelemetry label="fps" value={fpsLabel} />
-            <DeckCell label="map">
-              <span
-                className={`min-w-0 ${mapCountMismatch ? 'text-amber-400' : 'text-live'}`}
-                title={
-                  mapCountMismatch
-                    ? `Map has ${mapPointsLabel} points but the Controller has ${pixelsLabel} pixels — the firmware silently drops a mismatched map (#204).`
-                    : undefined
-                }
-                data-testid="controller-installed-map"
-              >
-                <InstalledMapPresentation
-                  presentation={installedMapPresentation}
-                  className="w-full"
-                />
-              </span>
-            </DeckCell>
-            <DeckTelemetry label="IP" value={status.controller.address} />
-          </div>
-          <div className="flex-1 min-w-0 flex flex-col gap-y-2">
-            {/* Stretch the stacked slider to exactly two single-line rows tall
-                (h-10 = 16px line + 8px gap + 16px line), label pinned top and track
-                pinned bottom, so brightness + pixel count == the left column's three
-                one-liners and the two columns bottom-align cleanly (#consistency). */}
-            <DeckSlider
-              label="brightness"
-              ariaLabel="Controller brightness"
-              value={brightness}
-              min={0}
-              max={1}
-              step={0.01}
-              presentation="percentage"
-              curve={2}
-              onChange={setBrightness}
-              className="h-10 justify-between"
-            />
-            <DeckCell label="pixel count">
-              <ControllerPixelCountInput />
-            </DeckCell>
+        {/* Three bands, each given the width its content actually needs (#757). The
+            section holds three different kinds of thing, and the old single 2-column
+            grid treated them all as short label/value one-liners:
+
+              1. an *identity* — the installed map's name, a free-form user string of
+                 unbounded length. In a ~147px half-column its unshrinkable siblings (the
+                 dimension pill, the spelled-out point count) left the name 0px at every
+                 name length, so the name never rendered — the whole point of showing an
+                 installed map. Full width gives it ~250px (~31 chars), and the point
+                 count now shows only when it disagrees with the pixel count below.
+              2. the section's primary *control* — brightness. Full width takes its travel
+                 from ~90px to ~250px, which is the granularity the shared DeckSlider was
+                 introduced to give every slider.
+              3. short read-only *scalars* — fps, IP, pixel count. A half-column always
+                 fit these, and they keep it.
+
+            Band 3's two columns are each genuinely two lines tall, so they bottom-align
+            on their own — retiring the hand-tuned `h-10` stretch the old layout needed to
+            fake it. */}
+        <div className="flex flex-col gap-y-2">
+          <DeckCell label="map" labelClassName="shrink-0">
+            <span
+              className="min-w-0 text-live"
+              title={
+                mapCountMismatch
+                  ? `Map has ${mapPointsLabel} points but the Controller has ${pixelsLabel} pixels — the firmware silently drops a mismatched map (#204).`
+                  : undefined
+              }
+              data-testid="controller-installed-map"
+            >
+              <InstalledMapPresentation
+                presentation={installedMapPresentation}
+                className="w-full"
+                count={{ mode: 'mismatch', pixelCount }}
+              />
+            </span>
+          </DeckCell>
+
+          <div className="h-px bg-seam" />
+
+          <DeckSlider
+            label="brightness"
+            ariaLabel="Controller brightness"
+            value={brightness}
+            min={0}
+            max={1}
+            step={0.01}
+            presentation="percentage"
+            curve={2}
+            onChange={setBrightness}
+          />
+
+          <div className="h-px bg-seam" />
+
+          <div className="flex gap-x-4 items-start">
+            <div className="flex-1 min-w-0 flex flex-col gap-y-2">
+              <DeckTelemetry label="fps" value={fpsLabel} />
+              <DeckTelemetry label="IP" value={status.controller.address} />
+            </div>
+            <div className="flex-1 min-w-0">
+              <DeckField label="pixel count">
+                <ControllerPixelCountInput />
+              </DeckField>
+            </div>
           </div>
         </div>
       </DeckSection>

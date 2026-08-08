@@ -394,9 +394,13 @@ writes are volatile; pixel count is a deliberate saved hardware write with an
 explicit apply. PXLBLZ never installs firmware — when an update is available
 it points to the Controller's own **Settings → Updates**.
 
-The map value is shared with the Controller Profile and appears as map name,
-one installed-map dimension pill, then point count. A byte-exact match shows the
-name; otherwise readable bytes show **Unknown map**. **Reading map...**, **No
+The map value is shared with the Controller Profile and appears as map name
+followed by one installed-map dimension pill. The Controller Profile, which has
+room to spell it out, then shows the point count; the live Controller panel
+instead shows it only when it disagrees with the panel's own pixel count, as an
+amber `256≠300` chip — a silent disagreement is the case worth the width,
+because the firmware drops a mismatched map without saying so. A byte-exact
+match shows the name; otherwise readable bytes show **Unknown map**. **Reading map...**, **No
 installed map**, and **Map unavailable** distinguish an active read, confirmed
 absence, and read failure. Opening the panel refreshes the map once; ordinary
 telemetry polling does not.

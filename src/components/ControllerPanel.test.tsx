@@ -170,8 +170,71 @@ describe('ControllerPanel', () => {
     render(<ControllerPanel />)
 
     const presentation = await screen.findByTestId('installed-map-presentation')
-    expect(presentation).toHaveTextContent('Square2D· 2 points')
+    expect(presentation).toHaveTextContent('Square')
     expect(screen.getByLabelText('Installed map dimension: 2D')).toBeInTheDocument()
+    // The device reports 256 pixels against this map's 2 points — the #204 trap, so the
+    // count surfaces as a chip rather than as neutral trailing text (#757).
+    await waitFor(() =>
+      expect(screen.getByTestId('installed-map-count-mismatch')).toHaveTextContent('2≠256'),
+    )
+  })
+
+  // #757: the name is the payload. The old row spent its width on a spelled-out point
+  // count that merely restated `pixel count` from the same section, and in the 352px
+  // popover that left the name nothing at all.
+  it('gives the map row no unshrinkable count once the counts agree', async () => {
+    const provider = new ConnectedProvider()
+    provider.config = { ...provider.config, pixelCount: 2 }
+    const profile = {
+      ...defaultControllerProfile({ id: 'ctrl-1', deviceId: 'c1', now: 1 }),
+      mapFingerprints: [{
+        hash: '9a0c9e7f',
+        mapId: 'square',
+        mapName: 'Square',
+        devicePixelCount: 2,
+        pushedAt: 1,
+      }],
+    }
+    useControllerProfileStore.setState({ profiles: [profile], profilesLoaded: true })
+    useControllerStore.setState({
+      activeIp: '10.0.0.9',
+      controllers: {
+        '10.0.0.9': {
+          ip: '10.0.0.9',
+          deviceId: 'c1',
+          phase: 'live',
+          mapDim: 2,
+          installedMap: {
+            status: 'present',
+            bytes: encodeMapData([[0, 0], [1, 1]]),
+            fingerprint: '9a0c9e7f',
+            dimension: 2,
+            pointCount: 2,
+            observedAt: 1,
+          },
+        },
+      },
+    })
+    setControllerProvider(provider)
+
+    render(<ControllerPanel />)
+
+    await waitFor(() => expect(useControllerPanelStore.getState().pixelCount).toBe(2))
+    const presentation = screen.getByTestId('installed-map-presentation')
+    expect(presentation).toHaveTextContent('Square')
+    expect(presentation).not.toHaveTextContent('points')
+    expect(screen.queryByTestId('installed-map-count-mismatch')).not.toBeInTheDocument()
+  })
+
+  // The mechanism behind #757: the value collapsed to zero and the overflow then ate the
+  // label, rendering the row as "m..". A shrink-0 label makes the name the only child
+  // that can give — which is the point of the row.
+  it('keeps the map label from shrinking into the name', async () => {
+    setControllerProvider(new ConnectedProvider())
+    render(<ControllerPanel />)
+
+    const label = await screen.findByText('map')
+    expect(label.className).toContain('shrink-0')
   })
 
   it('renders reading, unknown, absent, and unavailable from the shared live state', async () => {
@@ -210,9 +273,7 @@ describe('ControllerPanel', () => {
         },
       },
     })))
-    expect(screen.getByTestId('installed-map-presentation')).toHaveTextContent(
-      'Unknown map2D· 2 points',
-    )
+    expect(screen.getByTestId('installed-map-presentation')).toHaveTextContent('Unknown map2D')
 
     act(() => useControllerStore.setState((state) => ({
       controllers: {

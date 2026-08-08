@@ -145,15 +145,22 @@ export function DeckGrid({
 export function DeckCell({
   label,
   className = '',
+  labelClassName = '',
   children,
 }: {
   label: string
   className?: string
+  /** Extra classes for the label span. Pass `shrink-0` on a row whose *value* is the
+   *  payload and has to win the width fight — otherwise the label, being the only other
+   *  shrinkable child, gets chewed down to "m.." once the value has already hit zero
+   *  (#757). The default stays shrinkable: in the pattern-controls grid a long
+   *  user-authored control label truncating is the right outcome. */
+  labelClassName?: string
   children: ReactNode
 }) {
   return (
     <div className={`flex justify-between items-center gap-2 min-w-0 ${className}`}>
-      <span className="text-zinc-400 truncate">{label}</span>
+      <span className={`text-zinc-400 truncate ${labelClassName}`}>{label}</span>
       {children}
     </div>
   )
