@@ -226,6 +226,10 @@ export function clampViewZoom(zoom: number): number {
   return Math.max(MIN_VIEW_ZOOM, Math.min(MAX_VIEW_ZOOM, zoom))
 }
 
+export function viewZoomTrackFraction(zoom: number): number {
+  return (clampViewZoom(zoom) - MIN_VIEW_ZOOM) / (MAX_VIEW_ZOOM - MIN_VIEW_ZOOM)
+}
+
 export function applyViewZoom(autoFitScale: number, zoom: number): number {
   return autoFitScale * clampViewZoom(zoom)
 }

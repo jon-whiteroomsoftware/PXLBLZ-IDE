@@ -36,6 +36,7 @@ import {
   MIN_VIEW_ZOOM,
   applyViewZoom,
   clampViewZoom,
+  viewZoomTrackFraction,
   type OrbitCamera,
 } from './camera'
 
@@ -89,6 +90,12 @@ describe('camera — 3D viewport zoom', () => {
     expect(applyViewZoom(0.8, 1)).toBe(0.8)
     expect(applyViewZoom(0.8, 2)).toBe(1.6)
     expect(applyViewZoom(0.8, 9)).toBe(1.6)
+  })
+
+  it('places the fitted-default landmark from the current zoom range', () => {
+    expect(viewZoomTrackFraction(MIN_VIEW_ZOOM)).toBe(0)
+    expect(viewZoomTrackFraction(DEFAULT_VIEW_ZOOM)).toBeCloseTo(1 / 3)
+    expect(viewZoomTrackFraction(MAX_VIEW_ZOOM)).toBe(1)
   })
 })
 

@@ -5,13 +5,16 @@ import { useMapStore, DEFAULT_SHAPE_PIXEL_COUNT } from '@/store/mapStore'
 import {
   applyOrbitDrag,
   clampPixelCount,
+  DEFAULT_VIEW_ZOOM,
   MAX_VIEW_ZOOM,
   MIN_VIEW_ZOOM,
+  viewZoomTrackFraction,
 } from '@/engine/camera'
 import { poleMaxCols, defaultPoleCols, clampPoleCols } from '@/engine/shapes'
 
 const VIEW_ZOOM_SLIDER_STEP = 0.05
 const VIEW_ZOOM_WHEEL_STEP = 0.25
+const DEFAULT_VIEW_ZOOM_TRACK_PERCENT = viewZoomTrackFraction(DEFAULT_VIEW_ZOOM) * 100
 
 // 3D-display-only orbit viewport controls (#129). The component is a thin UI
 // shell over the 3D viewport: all camera math is the pure `@/engine/camera`
@@ -155,7 +158,8 @@ export function OrbitControls({
         <span className="relative flex h-7 w-5 items-center justify-center">
           <span
             aria-hidden
-            className="pointer-events-none absolute bottom-1/4 left-1/2 h-px w-3 -translate-x-1/2 bg-zinc-500/80"
+            style={{ bottom: `${DEFAULT_VIEW_ZOOM_TRACK_PERCENT}%` }}
+            className="pointer-events-none absolute left-1/2 h-px w-3 -translate-x-1/2 bg-zinc-500/80"
           />
           <input
             type="range"
