@@ -29,6 +29,9 @@ const controllerElectricalProfileMigrationPath = path.resolve('migrations/0023_c
 const installedMapObservationMigrationPath = path.resolve(
   'migrations/0024_controller_installed_map_observation.sql',
 )
+const removeControllerOutputProfileMigrationPath = path.resolve(
+  'migrations/0025_remove_controller_output_profile.sql',
+)
 
 describe('D1 personal storage migration', () => {
   it('creates the storage buckets needed for the Cloudflare personal-storage foundation', () => {
@@ -222,5 +225,13 @@ describe('D1 personal storage migration', () => {
       'ALTER TABLE controller_profiles ADD COLUMN last_known_installed_map_json TEXT',
     )
     expect(sql).toContain("VALUES ('schema_version', '24', unixepoch())")
+  })
+
+  it('removes the unused Controller output declaration (#743)', () => {
+    const sql = fs.readFileSync(removeControllerOutputProfileMigrationPath, 'utf8')
+
+    expect(sql).toContain('ALTER TABLE controller_profiles DROP COLUMN output_profile')
+    expect(sql).toContain('ALTER TABLE controller_profiles DROP COLUMN output_profile_note')
+    expect(sql).toContain("VALUES ('schema_version', '25', unixepoch())")
   })
 })

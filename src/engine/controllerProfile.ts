@@ -72,32 +72,6 @@ export function withControllerFirmwareUpdateReport(
   }
 }
 
-/** User-declared LED output topology. The device protocol cannot report or
- * verify this (getConfig is silent on output hardware), so it is an honest
- * declaration only: it changes the physical output floor the perf harness and
- * performance guidance reason about, never compiled artifacts. */
-export type ControllerOutputProfile = 'native-serial' | 'output-expander' | 'pro-expander' | 'clocked'
-
-export const CONTROLLER_OUTPUT_PROFILES: readonly ControllerOutputProfile[] = [
-  'native-serial',
-  'output-expander',
-  'pro-expander',
-  'clocked',
-]
-
-export const CONTROLLER_OUTPUT_PROFILE_LABELS: Record<ControllerOutputProfile, string> = {
-  'native-serial': 'Native serial (WS281x)',
-  'output-expander': 'Output Expander',
-  'pro-expander': 'Pro Output Expander',
-  clocked: 'Clocked LEDs (APA102/SK9822)',
-}
-
-/** Harness/report stamp for a declared profile; absent declarations are
- * explicitly assumptions, never silent defaults. */
-export function controllerOutputProfileStamp(profile?: ControllerOutputProfile | null): string {
-  return profile ?? 'native-serial (assumed)'
-}
-
 export type ControllerInputSignal = 'analog' | 'digital'
 export type ControllerInputRole = 'brightness' | 'assignable' | 'next-pattern'
 
@@ -215,16 +189,12 @@ export interface ControllerProfile {
   board: ControllerBoardProfile
   inputs: ControllerInput[]
   globalTransforms: GlobalTransform[]
-  /** Optional installation-level electrical model. It remains useful for
+  /** Optional installation-level power model. It remains useful for
    * telemetry even when the power-cap transform is disabled. */
   electricalProfile?: ControllerElectricalProfile
   /** Opt-in non-destructive reconciliation of PXLBLZ-managed saved artifacts.
    * Missing on legacy records and therefore treated as false. */
   keepPatternsUpToDate?: boolean
-  /** User-declared output topology; absent means native-serial is assumed. */
-  outputProfile?: ControllerOutputProfile
-  /** Free-text note beside the declaration ("8-way expander, 250 px/lane"). */
-  outputProfileNote?: string
   patternBindings: PatternBinding[]
   zones: ControllerZone[]
   updatedAt: number
@@ -438,22 +408,6 @@ export function validateControllerProfile(
     }
   }
 
-  if (
-    profile.outputProfile !== undefined
-    && !CONTROLLER_OUTPUT_PROFILES.includes(profile.outputProfile)
-  ) {
-    errors.push({
-      path: 'outputProfile',
-      message: `Output profile "${profile.outputProfile}" must be one of ${CONTROLLER_OUTPUT_PROFILES.join(', ')}.`,
-    })
-  }
-  if (profile.outputProfileNote !== undefined && profile.outputProfileNote.length > 500) {
-    errors.push({
-      path: 'outputProfileNote',
-      message: 'Output profile note must be 500 characters or fewer.',
-    })
-  }
-
   collectDuplicateZoneNames(zones, errors)
 
   for (const zone of zones) {
@@ -509,56 +463,56 @@ function validateElectricalProfile(
   if (!presetIds.includes(profile.ledPresetId)) {
     errors.push({
       path: 'electricalProfile.ledPresetId',
-      message: `Electrical LED preset "${profile.ledPresetId}" is not supported.`,
+      message: `Power LED construction preset "${profile.ledPresetId}" is not supported.`,
     })
   }
   if (!isPositive(profile.supplyBudget.value)) {
     errors.push({
       path: 'electricalProfile.supplyBudget.value',
-      message: 'Electrical supply budget must be greater than 0.',
+      message: 'Power supply budget must be greater than 0.',
     })
   }
   if (!isElectricalUnit(profile.supplyBudget.unit)) {
     errors.push({
       path: 'electricalProfile.supplyBudget.unit',
-      message: 'Electrical supply budget unit must be amps or watts.',
+      message: 'Power supply budget unit must be amps or watts.',
     })
   }
   if (profile.voltageOverride !== undefined && !isPositive(profile.voltageOverride)) {
     errors.push({
       path: 'electricalProfile.voltageOverride',
-      message: 'Electrical voltage override must be greater than 0.',
+      message: 'Power voltage override must be greater than 0.',
     })
   }
   if (profile.ledPresetId === 'custom' && !profile.loadOverride) {
     errors.push({
       path: 'electricalProfile.loadOverride',
-      message: 'A custom electrical profile needs a full-white load override.',
+      message: 'A custom power profile needs a full-white load override.',
     })
   }
   if (!profile.loadOverride) return
   if (!isPositive(profile.loadOverride.fullWhite.value)) {
     errors.push({
       path: 'electricalProfile.loadOverride.fullWhite.value',
-      message: 'Electrical load override must be greater than 0.',
+      message: 'Power load override must be greater than 0.',
     })
   }
   if (!isElectricalUnit(profile.loadOverride.fullWhite.unit)) {
     errors.push({
       path: 'electricalProfile.loadOverride.fullWhite.unit',
-      message: 'Electrical load override unit must be amps or watts.',
+      message: 'Power load override unit must be amps or watts.',
     })
   }
   if (!['manufacturer-rated', 'measured', 'custom'].includes(profile.loadOverride.source)) {
     errors.push({
       path: 'electricalProfile.loadOverride.source',
-      message: 'Electrical load override source is not supported.',
+      message: 'Power load override source is not supported.',
     })
   }
   if (!Number.isInteger(profile.loadOverride.atPixelCount) || profile.loadOverride.atPixelCount <= 0) {
     errors.push({
       path: 'electricalProfile.loadOverride.atPixelCount',
-      message: 'Electrical load override pixel count must be a positive whole number.',
+      message: 'Power load override address count must be a positive whole number.',
     })
   }
 }

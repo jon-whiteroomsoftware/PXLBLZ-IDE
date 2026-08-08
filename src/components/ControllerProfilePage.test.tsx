@@ -358,20 +358,79 @@ describe('ControllerProfilePage', () => {
     expect(screen.getByText(/paint\(\) output is not covered/i)).toBeInTheDocument()
   })
 
-  it('declares the output profile as an unverifiable user statement (#567)', async () => {
+  it('does not expose the retired output declaration (#743)', () => {
     seedProfile()
 
     render(<ControllerProfilePage profileId="ctrl-1" />)
 
-    const select = screen.getByRole('combobox', { name: 'Declared output profile' })
-    expect(select).toHaveValue('native-serial')
-    fireEvent.click(screen.getByRole('button', { name: 'About the declared output profile' }))
-    expect(screen.getByText(/the device cannot report or verify output wiring/i)).toBeInTheDocument()
+    expect(screen.queryByRole('combobox', { name: 'Declared output profile' })).not.toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'About the declared output profile' })).not.toBeInTheDocument()
+  })
 
-    fireEvent.change(select, { target: { value: 'pro-expander' } })
-    await waitFor(() => {
-      expect(useControllerProfileStore.getState().profiles[0].outputProfile).toBe('pro-expander')
+  it('uses Power vocabulary and only calls out physical LEDs when they differ from addresses (#743)', async () => {
+    const profile = seedProfile()
+    const configuredProfile = {
+      ...profile,
+      lastKnownPixelCount: 256,
+      electricalProfile: {
+        ledPresetId: 'ws2812-5v-individual' as const,
+        supplyBudget: { value: 10, unit: 'watts' as const },
+      },
+    }
+    useControllerProfileStore.setState({ profiles: [configuredProfile], profilesLoaded: true })
+
+    render(<ControllerProfilePage profileId="ctrl-1" />)
+
+    const powerSection = screen.getByRole('heading', { name: 'Power' }).closest('section')
+    expect(powerSection).not.toBeNull()
+    expect(screen.queryByRole('heading', { name: 'Electrical' })).not.toBeInTheDocument()
+    expect(within(powerSection!).getByText('Addresses')).toBeInTheDocument()
+    expect(within(powerSection!).queryByText('LEDs')).not.toBeInTheDocument()
+    expect(screen.queryByRole('link', { name: 'Worldsemi reference' })).not.toBeInTheDocument()
+    expect(screen.queryByText(/Use the continuous rating available to the LEDs/i)).not.toBeInTheDocument()
+
+    act(() => {
+      useControllerProfileStore.setState({
+        profiles: [{
+          ...configuredProfile,
+          electricalProfile: {
+            ...configuredProfile.electricalProfile,
+            ledPresetId: 'ws2811-12v-grouped',
+          },
+        }],
+      })
     })
+
+    await waitFor(() => {
+      expect(within(powerSection!).getByText('LEDs')).toBeInTheDocument()
+      expect(within(powerSection!).getByText('768')).toBeInTheDocument()
+    })
+  })
+
+  it('reveals the full-white override fields directly from the Power editor checkbox (#743)', async () => {
+    const profile = seedProfile()
+    useControllerProfileStore.setState({
+      profiles: [{
+        ...profile,
+        lastKnownPixelCount: 256,
+        electricalProfile: {
+          ledPresetId: 'ws2812-5v-individual',
+          supplyBudget: { value: 10, unit: 'watts' },
+        },
+      }],
+      profilesLoaded: true,
+    })
+
+    render(<ControllerProfilePage profileId="ctrl-1" />)
+
+    const override = screen.getByRole('checkbox', { name: 'Override the estimated full-white load' })
+    expect(override).not.toBeChecked()
+    expect(screen.queryByText(/Advanced: measured or manufacturer-rated total/i)).not.toBeInTheDocument()
+    expect(screen.queryByRole('textbox', { name: 'Full-white installation total' })).not.toBeInTheDocument()
+
+    fireEvent.click(override)
+
+    expect(await screen.findByRole('textbox', { name: 'Full-white installation total' })).toBeInTheDocument()
   })
 
   it('uses the shared controller traffic-light vocabulary for profile status', () => {
@@ -1010,7 +1069,7 @@ describe('ControllerProfilePage', () => {
       </div>,
     )
 
-    fireEvent.click(screen.getByRole('button', { name: 'Configure electrical model' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Configure power model' }))
     onAncestorClick.mockClear()
     const budgetInput = await screen.findByRole('textbox', { name: 'Continuous LED supply budget' })
     expect(budgetInput).toHaveValue('3')
@@ -1056,7 +1115,7 @@ describe('ControllerProfilePage', () => {
     })
 
     render(<ControllerProfilePage profileId="ctrl-1" />)
-    fireEvent.click(screen.getByRole('button', { name: 'Configure electrical model' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Configure power model' }))
     await screen.findByRole('textbox', { name: 'Continuous LED supply budget' })
     fireEvent.change(screen.getByRole('combobox', { name: 'Continuous LED supply budget unit' }), {
       target: { value: 'watts' },
@@ -1065,7 +1124,7 @@ describe('ControllerProfilePage', () => {
     fireEvent.change(budget, { target: { value: '36' } })
     fireEvent.keyDown(budget, { key: 'Enter' })
     await waitFor(() => expect(screen.getByText('50%')).toBeInTheDocument())
-    fireEvent.click(screen.getByRole('button', { name: 'From electrical profile' }))
+    fireEvent.click(screen.getByRole('button', { name: 'From power profile' }))
 
     expect(screen.queryByRole('spinbutton', { name: 'Pixel count' })).not.toBeInTheDocument()
 
@@ -1107,7 +1166,7 @@ describe('ControllerProfilePage', () => {
     render(<ControllerProfilePage profileId="ctrl-1" />)
 
     expect(screen.getByText('Waiting for controller')).toBeInTheDocument()
-    expect(screen.getByRole('button', { name: 'From electrical profile' })).toBeDisabled()
+    expect(screen.getByRole('button', { name: 'From power profile' })).toBeDisabled()
     expect(screen.queryByRole('spinbutton', { name: 'Pixel count' })).not.toBeInTheDocument()
   })
 
@@ -1214,7 +1273,6 @@ describe('ControllerProfilePage', () => {
     const budgetUnit = screen.getByRole('combobox', { name: 'Continuous LED supply budget unit' })
     expect(within(budgetUnit).getByRole('option', { name: 'Watts' })).toBeDisabled()
 
-    fireEvent.click(screen.getByText('Advanced: measured or manufacturer-rated total'))
     const loadUnit = screen.getByRole('combobox', { name: 'Full-white installation total unit' })
     expect(within(loadUnit).getByRole('option', { name: 'Watts' })).toBeDisabled()
   })
@@ -1239,9 +1297,7 @@ describe('ControllerProfilePage', () => {
     })
 
     render(<ControllerProfilePage profileId="ctrl-1" />)
-    fireEvent.click(screen.getByText('Advanced: measured or manufacturer-rated total'))
-
-    const voltage = screen.getByRole('textbox', { name: 'Electrical supply voltage' })
+    const voltage = screen.getByRole('textbox', { name: 'Power supply voltage' })
     expect(voltage).toHaveValue('')
     fireEvent.change(voltage, { target: { value: '5' } })
     fireEvent.keyDown(voltage, { key: 'Enter' })

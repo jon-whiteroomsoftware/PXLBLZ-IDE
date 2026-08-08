@@ -9,8 +9,6 @@ import { Button } from '@/components/ui/button'
 import { IDE_MICROTYPE } from '@/components/ui/ideMicrotype'
 import {
   analogPinsForBoard,
-  CONTROLLER_OUTPUT_PROFILE_LABELS,
-  CONTROLLER_OUTPUT_PROFILES,
   controllerZonePixelCount,
   formatControllerZoneRanges,
   parseControllerZoneRanges,
@@ -20,7 +18,6 @@ import {
   type ControllerInput,
   type ControllerInputRole,
   type ControllerInputSignal,
-  type ControllerOutputProfile,
   type ControllerProfile,
   type PowerCapTransform,
   type ControllerZone,
@@ -38,7 +35,6 @@ import type { PowerCapSettings } from '@/engine/powerCap'
 import {
   LED_CONSTRUCTION_PRESETS,
   convertElectricalQuantity,
-  findLedConstructionPreset,
   resolveControllerElectricalProfile,
   type ControllerElectricalProfile,
   type ElectricalLoadSource,
@@ -384,12 +380,10 @@ function ProfileStatus({
   profile,
   controller,
   installedMapPresentation,
-  onDeclareOutputProfile,
 }: {
   profile: ControllerProfile
   controller: ControllerEntry | null
   installedMapPresentation: InstalledMapPresentationView
-  onDeclareOutputProfile: (outputProfile: ControllerOutputProfile) => void
 }) {
   const status = controller ? describeControllerPill(controller) : null
   const statusTone = status?.tone ? PROFILE_STATUS_TONE[status.tone] : 'absent'
@@ -440,28 +434,6 @@ function ProfileStatus({
             )}
           </span>
         </span>
-        <label className="flex items-center gap-2">
-          <FieldLabel>Output</FieldLabel>
-          <SelectField
-            ariaLabel="Declared output profile"
-            value={profile.outputProfile ?? 'native-serial'}
-            options={CONTROLLER_OUTPUT_PROFILES.map((value) => ({
-              value,
-              label: CONTROLLER_OUTPUT_PROFILE_LABELS[value],
-            }))}
-            onChange={(value) => onDeclareOutputProfile(value)}
-          />
-        </label>
-        <HelpHint label="About the declared output profile">
-          <div className="space-y-1.5 text-zinc-300">
-            <p>Your declaration - the device cannot report or verify output wiring.</p>
-            <p className="text-zinc-400">
-              It changes nothing in pushed code. It labels performance measurements:
-              serial, expander, and clocked outputs have different frame-rate ceilings,
-              so results are only comparable within one declared profile.
-            </p>
-          </div>
-        </HelpHint>
       </div>
     </div>
   )
@@ -512,7 +484,7 @@ function ElectricalProfileEditor({
           </p>
         </div>
         <Button type="button" size="xs" variant="outline" onClick={() => onChange(defaultElectricalProfile())}>
-          Configure electrical model
+          Configure power model
         </Button>
       </div>
     )
@@ -520,7 +492,6 @@ function ElectricalProfileEditor({
 
   const profile = electricalProfile
   const resolved = resolveControllerElectricalProfile(electricalProfile, { pixelCount })
-  const selectedPreset = findLedConstructionPreset(electricalProfile.ledPresetId)
   const override = electricalProfile.loadOverride
   const presetOptions: SelectOption<LedConstructionPresetId>[] = [
     ...LED_CONSTRUCTION_PRESETS.map((preset) => ({ value: preset.id, label: preset.label })),
@@ -596,23 +567,6 @@ function ElectricalProfileEditor({
             options={presetOptions}
             onChange={changePreset}
           />
-          {selectedPreset ? (
-            <span className="text-[10px] leading-4 text-zinc-500">
-              {selectedPreset.description}. Preset estimate: {selectedPreset.assumption}.{' '}
-              <a
-                href={selectedPreset.sourceUrl}
-                target="_blank"
-                rel="noreferrer"
-                className="text-zinc-400 underline decoration-zinc-700 underline-offset-2 hover:text-zinc-200"
-              >
-                Worldsemi reference
-              </a>
-            </span>
-          ) : (
-            <span className="text-[10px] leading-4 text-zinc-500">
-              A measured or manufacturer-rated installation total.
-            </span>
-          )}
         </LabeledField>
         <LabeledField label="Continuous LED supply budget">
           <div className="grid grid-cols-[minmax(0,1fr)_5.5rem] gap-1.5">
@@ -643,14 +597,14 @@ function ElectricalProfileEditor({
               onChange={changeBudgetUnit}
             />
           </div>
-          <span className="text-[10px] leading-4 text-zinc-500">
-            Use the continuous rating available to the LEDs, after other loads.
-          </span>
         </LabeledField>
       </div>
 
       <div className="grid gap-px border-y border-zinc-800 bg-zinc-800 [grid-template-columns:repeat(auto-fit,minmax(min(100%,8rem),1fr))]">
         <ElectricalMetric label="Addresses" value={pixelCount ? String(pixelCount) : 'Waiting for controller'} />
+        {resolved.physicalLedCount != null
+          && resolved.physicalLedCount !== resolved.pixelCount
+          && <ElectricalMetric label="LEDs" value={String(resolved.physicalLedCount)} />}
         <ElectricalMetric
           label={override ? 'Full-white load (override)' : 'Full-white load (estimate)'}
           value={formatElectricalPair(resolved.fullWhiteAmps, resolved.fullWhiteWatts)}
@@ -682,100 +636,91 @@ function ElectricalProfileEditor({
         </div>
       )}
 
-      <details className="group px-3 py-2.5">
-        <summary className="cursor-pointer select-none text-[11px] font-medium text-zinc-400 hover:text-zinc-200">
-          Advanced: measured or manufacturer-rated total
-        </summary>
-        <div className="mt-3 grid gap-3 border-l border-zinc-800 pl-3 [grid-template-columns:repeat(auto-fit,minmax(min(100%,11rem),1fr))]">
-          <label className="flex items-center gap-2 text-[11px] text-zinc-300 [grid-column:1/-1]">
-            <input
-              type="checkbox"
-              aria-label="Override estimated full-white load"
-              checked={Boolean(override)}
-              disabled={!pixelCount || electricalProfile.ledPresetId === 'custom'}
-              onChange={(event) => event.target.checked
-                ? enableOverride()
-                : onChange({
-                    ledPresetId: electricalProfile.ledPresetId,
-                    supplyBudget: electricalProfile.supplyBudget,
-                  })}
-              className="accent-live disabled:opacity-40"
-            />
-            Override the estimated full-white installation load
-          </label>
-          {override && (
-            <>
-              <LabeledField label="Full-white total">
-                <div className="grid grid-cols-[minmax(0,1fr)_5.5rem] gap-1.5">
-                  <NumberField
-                    ariaLabel="Full-white installation total"
-                    min={0.01}
-                    step={0.1}
-                    value={override.fullWhite.value}
-                    onChange={(value) => update({
-                      loadOverride: {
-                        ...override,
-                        fullWhite: { ...override.fullWhite, value },
-                      },
-                    })}
-                  />
-                  <SelectField
-                    ariaLabel="Full-white installation total unit"
-                    value={override.fullWhite.unit}
-                    options={[
-                      {
-                        value: 'amps',
-                        label: 'Amps',
-                        disabled: override.fullWhite.unit !== 'amps' && resolved.voltageVolts == null,
-                      },
-                      {
-                        value: 'watts',
-                        label: 'Watts',
-                        disabled: override.fullWhite.unit !== 'watts' && resolved.voltageVolts == null,
-                      },
-                    ]}
-                    onChange={(unit) => {
-                      const converted = convertElectricalQuantity(
-                        override.fullWhite,
-                        unit,
-                        resolved.voltageVolts,
-                      )
-                      if (converted) update({
-                        loadOverride: { ...override, fullWhite: converted },
-                      })
-                    }}
-                  />
-                </div>
-              </LabeledField>
-              <LabeledField label="Source">
-                <SelectField<ElectricalLoadSource>
-                  ariaLabel="Full-white load source"
-                  value={override.source}
-                  options={[
-                    { value: 'measured', label: 'Measured' },
-                    { value: 'manufacturer-rated', label: 'Manufacturer-rated' },
-                    { value: 'custom', label: 'Custom estimate' },
-                  ]}
-                  onChange={(source) => update({ loadOverride: { ...override, source } })}
-                />
-              </LabeledField>
-              <LabeledField label="Supply voltage (for A/W conversion)">
-                <OptionalNumberField
-                  ariaLabel="Electrical supply voltage"
-                  min={0.1}
+      <div className="px-3 py-2.5">
+        <label className="flex items-center gap-2 text-[11px] text-zinc-300">
+          <input
+            type="checkbox"
+            aria-label="Override the estimated full-white load"
+            checked={Boolean(override)}
+            disabled={!pixelCount || electricalProfile.ledPresetId === 'custom'}
+            onChange={(event) => event.target.checked
+              ? enableOverride()
+              : onChange({
+                  ledPresetId: electricalProfile.ledPresetId,
+                  supplyBudget: electricalProfile.supplyBudget,
+                })}
+            className="accent-live disabled:opacity-40"
+          />
+          Override the estimated full-white load
+        </label>
+        {override && (
+          <div className="mt-3 grid gap-3 border-l border-zinc-800 pl-3 [grid-template-columns:repeat(auto-fit,minmax(min(100%,11rem),1fr))]">
+            <LabeledField label="Full-white total">
+              <div className="grid grid-cols-[minmax(0,1fr)_5.5rem] gap-1.5">
+                <NumberField
+                  ariaLabel="Full-white installation total"
+                  min={0.01}
                   step={0.1}
-                  value={electricalProfile.voltageOverride ?? resolved.voltageVolts ?? undefined}
-                  placeholder="Enter voltage"
-                  onChange={(voltageOverride) => update({ voltageOverride })}
+                  value={override.fullWhite.value}
+                  onChange={(value) => update({
+                    loadOverride: {
+                      ...override,
+                      fullWhite: { ...override.fullWhite, value },
+                    },
+                  })}
                 />
-              </LabeledField>
-            </>
-          )}
-        </div>
-      </details>
-
-      <div className="border-t border-zinc-800 px-3 py-2 text-[10px] leading-4 text-zinc-500">
-        Estimates are planning aids, not measurements. Size wire, fusing, injection, and supply headroom for the actual installation.
+                <SelectField
+                  ariaLabel="Full-white installation total unit"
+                  value={override.fullWhite.unit}
+                  options={[
+                    {
+                      value: 'amps',
+                      label: 'Amps',
+                      disabled: override.fullWhite.unit !== 'amps' && resolved.voltageVolts == null,
+                    },
+                    {
+                      value: 'watts',
+                      label: 'Watts',
+                      disabled: override.fullWhite.unit !== 'watts' && resolved.voltageVolts == null,
+                    },
+                  ]}
+                  onChange={(unit) => {
+                    const converted = convertElectricalQuantity(
+                      override.fullWhite,
+                      unit,
+                      resolved.voltageVolts,
+                    )
+                    if (converted) update({
+                      loadOverride: { ...override, fullWhite: converted },
+                    })
+                  }}
+                />
+              </div>
+            </LabeledField>
+            <LabeledField label="Source">
+              <SelectField<ElectricalLoadSource>
+                ariaLabel="Full-white load source"
+                value={override.source}
+                options={[
+                  { value: 'measured', label: 'Measured' },
+                  { value: 'manufacturer-rated', label: 'Manufacturer-rated' },
+                  { value: 'custom', label: 'Custom estimate' },
+                ]}
+                onChange={(source) => update({ loadOverride: { ...override, source } })}
+              />
+            </LabeledField>
+            <LabeledField label="Supply voltage (for A/W conversion)">
+              <OptionalNumberField
+                ariaLabel="Power supply voltage"
+                min={0.1}
+                step={0.1}
+                value={electricalProfile.voltageOverride ?? resolved.voltageVolts ?? undefined}
+                placeholder="Enter voltage"
+                onChange={(voltageOverride) => update({ voltageOverride })}
+              />
+            </LabeledField>
+          </div>
+        )}
       </div>
     </div>
   )
@@ -1015,7 +960,7 @@ function PowerCapEditor({
       <div className="border-b border-zinc-800/80 px-3 py-2">
         <div className="inline-flex items-center rounded border border-zinc-800 bg-zinc-950/60 p-0.5" aria-label="Power cap mode">
           {([
-            ['derived', 'From electrical profile'],
+            ['derived', 'From power profile'],
             ['direct', 'Set duty directly'],
           ] as const).map(([mode, label]) => (
             <button
@@ -1041,7 +986,7 @@ function PowerCapEditor({
           {derivedDuty != null ? (
             <>Uses the installation load and supply budget above. Editing either keeps this cap synchronized.</>
           ) : (
-            <>Add a complete electrical profile above to derive this cap. The stored legacy duty remains unchanged.</>
+            <>Add a complete power profile above to derive this cap. The stored legacy duty remains unchanged.</>
           )}
         </div>
       ) : (
@@ -1538,14 +1483,13 @@ export function ControllerProfilePage({ profileId }: { profileId: string }) {
         profile={profile}
         controller={profileController}
         installedMapPresentation={installedMapPresentation}
-        onDeclareOutputProfile={(outputProfile) => void updateProfile(profile.id, { outputProfile })}
       />
       {!validation.ok && (
         <div className="border-b border-amber-500/30 bg-amber-950/20 px-4 py-2 text-xs text-amber-200">
           {validation.errors.map((error) => error.message).join(' ')}
         </div>
       )}
-      <Section title="Electrical">
+      <Section title="Power">
         <ElectricalProfileEditor
           electricalProfile={profile.electricalProfile}
           pixelCount={profile.lastKnownPixelCount}

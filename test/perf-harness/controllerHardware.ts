@@ -2,12 +2,15 @@ import vm from 'node:vm'
 import WebSocket from 'ws'
 import { bytecodeHeaderReconciles, makeProgramId } from '../../src/engine/bytecodePush'
 import { buildCompilerEnv, missingComponents, v3AdapterV3 } from '../../src/engine/compilerExtraction'
-import {
-  CONTROLLER_OUTPUT_PROFILES,
-  controllerOutputProfileStamp,
-} from '../../src/engine/controllerProfile'
 import { PixelblazeConnection, type WebSocketLike } from '../../src/engine/PixelblazeConnection'
 import type { GeneratedShowArtifact } from '../../src/engine/showCompiler'
+
+const PERFORMANCE_OUTPUT_PROFILES = [
+  'native-serial',
+  'output-expander',
+  'pro-expander',
+  'clocked',
+] as const
 
 /**
  * The output profile stamped into every measurement header (#567). Runners
@@ -19,10 +22,10 @@ import type { GeneratedShowArtifact } from '../../src/engine/showCompiler'
 export function declaredOutputProfileStamp(
   declared = process.env.PIXELBLAZE_OUTPUT_PROFILE,
 ): string {
-  if (!declared) return controllerOutputProfileStamp()
-  if ((CONTROLLER_OUTPUT_PROFILES as readonly string[]).includes(declared)) return declared
+  if (!declared) return 'native-serial (assumed)'
+  if ((PERFORMANCE_OUTPUT_PROFILES as readonly string[]).includes(declared)) return declared
   throw new Error(
-    `PIXELBLAZE_OUTPUT_PROFILE must be one of ${CONTROLLER_OUTPUT_PROFILES.join(', ')}; got "${declared}".`,
+    `PIXELBLAZE_OUTPUT_PROFILE must be one of ${PERFORMANCE_OUTPUT_PROFILES.join(', ')}; got "${declared}".`,
   )
 }
 

@@ -835,28 +835,14 @@ A profile contains:
   firmware-update observation tied to an installed firmware version;
 - typed hardware inputs with board-safe pin validation;
 - enabled global transforms;
-- an optional installation electrical model with LED construction, supply
+- an optional installation power model with LED construction, supply
   budget, and an optional full-white load override;
 - the opt-in managed-artifact reconciliation preference;
 - per-Pattern bindings;
 - named, possibly multi-range zones;
 - map fingerprint records;
 - the last successful present/absent installed-map snapshot for offline display;
-- a user-declared output profile (`native-serial` when absent, or
-  `output-expander`, `pro-expander`, `clocked`) with an optional note; and
 - metadata used to join saved Controller programs to Studio source.
-
-The output profile is a declaration, not an observation: the device protocol
-does not expose output topology (`getConfig` is silent on it), so the IDE
-cannot detect or verify what is wired. The declaration changes no compiled
-artifact. Its consumers are the perf harness and performance guidance: on
-native serial output, WS281x physics (~30 us/pixel at the 800 kHz data rate)
-puts the measured trivial-output floor at 60.353 ms/frame at 2,000 pixels,
-capping any 2,000-pixel native-serial Show near 16.6 FPS regardless of
-compiler work. Output Expander / Pro Output Expander parallel lanes and
-clocked LED families change that floor, so measurements taken under different
-declared profiles are different qualification envelopes and are never averaged
-together.
 
 Profile edits update Zustand optimistically, serialize durable writes per
 profile, roll back the latest failed write, and expose a drain barrier. Pattern
@@ -902,7 +888,7 @@ Hardware brightness samples a configured input once per frame. Power cap wraps
 supported HSV/RGB calls, estimates emitted duty, and scales output against the
 mutable exported `__px_powerLimit`.
 
-The Controller electrical profile is independent of that transform. Normal
+The Controller power profile is independent of that transform. Normal
 setup selects the installed LED construction and enters the continuous LED
 supply budget in amps or watts. The model uses the Controller's live or
 last-known address count; it never asks for a second power-specific count and
@@ -910,9 +896,10 @@ never substitutes an invented count. The initial construction presets cover 5V
 individual RGB (WS2812/WS2813 class), typical 12V three-LED WS2811 segments, and
 12V individual RGB with backup data (WS2815 class). Each preset carries an
 explicit conservative full-white assumption rather than treating a chip-family
-name as an exact electrical specification.
+name as an exact power specification. Grouped constructions also resolve a
+physical LED count for display when it differs from the address count.
 
-Advanced setup can replace the preset estimate with a total full-white
+An optional override can replace the preset estimate with a total full-white
 installation draw in amps or watts and records whether that total was measured,
 manufacturer-rated, or custom. The authored unit and address count remain
 durable provenance. A changed address count makes the override stale until the
@@ -927,9 +914,9 @@ Power telemetry separates three jobs:
 - a roughly 250 ms internal response signal for limiting.
 
 The cap setpoint remains normalized output duty, including for legacy and direct
-profiles. A pure resolver converts the electrical profile into full-white load,
+profiles. A pure resolver converts the power profile into full-white load,
 supply budget, and a derived duty setpoint; equivalent A/W inputs resolve to the
-same duty. Direct duty edits preserve their exact value. Electrical values are
+same duty. Direct duty edits preserve their exact value. Power values are
 planning assumptions unless explicitly marked measured, not live measurement.
 The Controller panel applies emitted duty after limiting and live native
 brightness to the profile load, then reports both amps and watts when voltage is

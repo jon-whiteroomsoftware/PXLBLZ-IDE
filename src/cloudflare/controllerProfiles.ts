@@ -5,7 +5,6 @@ import {
   type ControllerBoardProfile,
   type ControllerInput,
   type ControllerMapFingerprint,
-  type ControllerOutputProfile,
   type ControllerProfile,
   type GlobalTransform,
   type PatternBinding,
@@ -40,8 +39,6 @@ export interface D1ControllerProfileRow {
   global_transforms_json: string
   electrical_profile_json: string | null
   keep_patterns_up_to_date: number | null
-  output_profile: string | null
-  output_profile_note: string | null
   pattern_bindings_json: string
   zones_json: string
   updated_at: number
@@ -71,8 +68,6 @@ export function controllerProfileFromRow(row: D1ControllerProfileRow): Controlle
       ? { electricalProfile: parseJson<ControllerElectricalProfile>(row.electrical_profile_json) }
       : {}),
     keepPatternsUpToDate: row.keep_patterns_up_to_date === 1,
-    ...(row.output_profile ? { outputProfile: row.output_profile as ControllerOutputProfile } : {}),
-    ...(row.output_profile_note ? { outputProfileNote: row.output_profile_note } : {}),
     patternBindings: parseJson<PatternBinding[]>(row.pattern_bindings_json),
     zones: normalizeControllerZones(parseJson<ControllerZone[]>(row.zones_json)),
     updatedAt: row.updated_at,
@@ -86,7 +81,7 @@ export async function listD1ControllerProfiles(
   const { results } = await db
     .prepare(`
       SELECT id, name, device_id, board_json, inputs_json, global_transforms_json, electrical_profile_json,
-             keep_patterns_up_to_date, output_profile, output_profile_note,
+             keep_patterns_up_to_date,
              pattern_bindings_json, zones_json, last_known_device_name, last_seen_ip,
              last_known_pixel_count, last_known_map_dim, last_known_installed_map_json,
              map_fingerprints_json, updated_at
@@ -107,7 +102,7 @@ export async function getD1ControllerProfile(
   const row = await db
     .prepare(`
       SELECT id, name, device_id, board_json, inputs_json, global_transforms_json, electrical_profile_json,
-             keep_patterns_up_to_date, output_profile, output_profile_note,
+             keep_patterns_up_to_date,
              pattern_bindings_json, zones_json, last_known_device_name, last_seen_ip,
              last_known_pixel_count, last_known_map_dim, last_known_installed_map_json,
              map_fingerprints_json, updated_at
@@ -133,11 +128,11 @@ export async function createD1ControllerProfile(
         user_id, id, name, device_id, last_known_device_name, last_seen_ip,
         last_known_pixel_count, last_known_map_dim, last_known_installed_map_json,
         map_fingerprints_json, board_json, inputs_json,
-        global_transforms_json, electrical_profile_json, keep_patterns_up_to_date, output_profile, output_profile_note,
+        global_transforms_json, electrical_profile_json, keep_patterns_up_to_date,
         pattern_bindings_json, zones_json,
         created_at, updated_at
       )
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     `)
     .bind(
       userId,
@@ -155,8 +150,6 @@ export async function createD1ControllerProfile(
       JSON.stringify(profile.globalTransforms),
       profile.electricalProfile ? JSON.stringify(profile.electricalProfile) : null,
       profile.keepPatternsUpToDate ? 1 : 0,
-      profile.outputProfile ?? null,
-      profile.outputProfileNote ?? null,
       JSON.stringify(profile.patternBindings),
       JSON.stringify(profile.zones),
       now,
@@ -206,8 +199,6 @@ export async function updateD1ControllerProfile(
     false,
     changes.keepPatternsUpToDate !== undefined,
   )
-  addAssignment(assignments, values, 'output_profile', changes.outputProfile ?? null, false, changes.outputProfile !== undefined)
-  addAssignment(assignments, values, 'output_profile_note', changes.outputProfileNote ?? null, false, changes.outputProfileNote !== undefined)
   addAssignment(assignments, values, 'pattern_bindings_json', changes.patternBindings, true)
   addAssignment(assignments, values, 'zones_json', changes.zones, true)
   addAssignment(assignments, values, 'updated_at', changes.updatedAt)

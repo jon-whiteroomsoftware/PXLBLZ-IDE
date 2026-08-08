@@ -45,6 +45,30 @@ describe('controller electrical profile', () => {
     ])
   })
 
+  it('separates Controller addresses from physical LEDs for grouped strips', () => {
+    const individual = resolveControllerElectricalProfile(
+      presetProfile('ws2812-5v-individual', 15, 'watts'),
+      { pixelCount: 100 },
+    )
+    const grouped = resolveControllerElectricalProfile(
+      presetProfile('ws2811-12v-grouped', 36, 'watts'),
+      { pixelCount: 100 },
+    )
+    const custom = resolveControllerElectricalProfile({
+      ledPresetId: 'custom',
+      supplyBudget: { value: 4, unit: 'amps' },
+      loadOverride: {
+        fullWhite: { value: 8, unit: 'amps' },
+        source: 'measured',
+        atPixelCount: 100,
+      },
+    }, { pixelCount: 100 })
+
+    expect(individual).toMatchObject({ pixelCount: 100, physicalLedCount: 100 })
+    expect(grouped).toMatchObject({ pixelCount: 100, physicalLedCount: 300 })
+    expect(custom).toMatchObject({ pixelCount: 100, physicalLedCount: null })
+  })
+
   it('reports both units for the estimated live draw', () => {
     const resolved = resolveControllerElectricalProfile(
       presetProfile('ws2811-12v-grouped', 36, 'watts'),

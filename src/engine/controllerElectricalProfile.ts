@@ -28,11 +28,10 @@ export interface ControllerElectricalProfile {
 export interface LedConstructionPreset {
   id: Exclude<LedConstructionPresetId, 'custom'>
   label: string
-  description: string
+  physicalLedsPerAddress: number
   voltageVolts: number
   wattsPerAddress: number
   assumption: string
-  sourceUrl: string
 }
 
 /**
@@ -44,29 +43,26 @@ export const LED_CONSTRUCTION_PRESETS: readonly LedConstructionPreset[] = [
   {
     id: 'ws2812-5v-individual',
     label: '5V individual RGB',
-    description: 'WS2812 / WS2813 class; one RGB LED per address',
+    physicalLedsPerAddress: 1,
     voltageVolts: 5,
     wattsPerAddress: 0.3,
     assumption: '60 mA per address at 5V full white',
-    sourceUrl: 'https://www.world-semi.com/solution/list-4-1.html',
   },
   {
     id: 'ws2811-12v-grouped',
     label: '12V 3-LED segments',
-    description: 'Typical WS2811 strip; three RGB LEDs share each address',
+    physicalLedsPerAddress: 3,
     voltageVolts: 12,
     wattsPerAddress: 0.72,
     assumption: '60 mA per address at 12V full white',
-    sourceUrl: 'https://www.world-semi.com/solution/list-4-1.html',
   },
   {
     id: 'ws2815-12v-individual',
     label: '12V individual RGB, backup data',
-    description: 'WS2815 class; one RGB LED per address with redundant data',
+    physicalLedsPerAddress: 1,
     voltageVolts: 12,
     wattsPerAddress: 0.432,
     assumption: '36 mA per address at 12V full white',
-    sourceUrl: 'https://www.world-semi.com/solution/list-5-1.html',
   },
 ] as const
 
@@ -79,6 +75,7 @@ export interface ElectricalResolutionContext {
 export interface ResolvedControllerElectricalProfile {
   voltageVolts: number | null
   pixelCount: number | null
+  physicalLedCount: number | null
   fullWhiteAmps: number | null
   fullWhiteWatts: number | null
   budgetAmps: number | null
@@ -152,6 +149,9 @@ export function resolveControllerElectricalProfile(
   return {
     voltageVolts,
     pixelCount,
+    physicalLedCount: preset && pixelCount != null
+      ? pixelCount * preset.physicalLedsPerAddress
+      : null,
     fullWhiteAmps,
     fullWhiteWatts,
     budgetAmps,

@@ -1,13 +1,10 @@
 import {
-  CONTROLLER_OUTPUT_PROFILES,
-  controllerOutputProfileStamp,
   controllerZonePixelCount,
   controllerProfileValidationErrors,
   formatControllerZoneRanges,
   normalizeControllerZone,
   parseControllerZoneRanges,
   validateControllerProfile,
-  type ControllerOutputProfile,
   type ControllerProfile,
 } from './controllerProfile'
 
@@ -157,9 +154,9 @@ describe('ControllerProfile validation', () => {
     }
 
     expect(controllerProfileValidationErrors(validateControllerProfile(profile))).toEqual([
-      'Electrical supply budget must be greater than 0.',
-      'Electrical voltage override must be greater than 0.',
-      'Electrical load override pixel count must be a positive whole number.',
+      'Power supply budget must be greater than 0.',
+      'Power voltage override must be greater than 0.',
+      'Power load override address count must be a positive whole number.',
     ])
   })
 
@@ -277,37 +274,5 @@ describe('ControllerProfile validation', () => {
       'Zone "Bad zone" range 1 start must be less than or equal to end.',
       'Zone "Bad zone" needs at least one pixel range.',
     ])
-  })
-})
-
-describe('declared output profile (#567)', () => {
-  it('accepts every declared output profile and an optional note', () => {
-    for (const outputProfile of CONTROLLER_OUTPUT_PROFILES) {
-      const result = validateControllerProfile({
-        ...baseProfile,
-        outputProfile,
-        outputProfileNote: '8-way expander, 250 px per lane',
-      })
-      expect(result.ok).toBe(true)
-    }
-    expect(validateControllerProfile(baseProfile).ok).toBe(true)
-  })
-
-  it('rejects unknown declarations and oversized notes', () => {
-    const result = validateControllerProfile({
-      ...baseProfile,
-      outputProfile: 'quantum-fiber' as ControllerOutputProfile,
-      outputProfileNote: 'x'.repeat(501),
-    })
-    expect(controllerProfileValidationErrors(result)).toEqual([
-      'Output profile "quantum-fiber" must be one of native-serial, output-expander, pro-expander, clocked.',
-      'Output profile note must be 500 characters or fewer.',
-    ])
-  })
-
-  it('stamps absent declarations as an explicit assumption', () => {
-    expect(controllerOutputProfileStamp(undefined)).toBe('native-serial (assumed)')
-    expect(controllerOutputProfileStamp(null)).toBe('native-serial (assumed)')
-    expect(controllerOutputProfileStamp('pro-expander')).toBe('pro-expander')
   })
 })
