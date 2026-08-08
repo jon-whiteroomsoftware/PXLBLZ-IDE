@@ -105,6 +105,9 @@ interface ControllerPanelState {
    *  (#237). The push path persists the cache to storage; this only mirrors it into the
    *  live slice so the panel resolves the new name without waiting for a reseed. */
   noteProgramLabel: (programId: string, label: string) => void
+  /** Publish a program activation already confirmed by the push protocol. The next
+   *  panel poll remains authoritative and can replace it after an external switch. */
+  noteProgramActivated: (programId: string) => void
 }
 
 export const controllerPanelInitialState = {
@@ -337,5 +340,9 @@ export const useControllerPanelStore = create<ControllerPanelState>()((set, get)
 
   noteProgramLabel: (programId, label) => {
     set((s) => ({ programLabels: { ...s.programLabels, [programId]: label } }))
+  },
+
+  noteProgramActivated: (programId) => {
+    set({ activeProgramId: programId })
   },
 }))

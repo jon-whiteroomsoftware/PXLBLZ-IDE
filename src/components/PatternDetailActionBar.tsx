@@ -7,6 +7,7 @@ import { getControllerProvider } from '@/engine/controllerProviderRegistry'
 import { describeSendToController, isAlreadyPushed } from '@/engine/sendToController'
 import { requestControllerEntryOpen } from '@/components/controllerEntryEvents'
 import { useControllerStore } from '@/store/controllerStore'
+import { useControllerPanelStore } from '@/store/controllerPanelStore'
 import { useControllerProfileStore } from '@/store/controllerProfileStore'
 import { useEditorStore } from '@/store/editorStore'
 import { activePushKey, usePatternStore } from '@/store/patternStore'
@@ -34,6 +35,7 @@ export function PatternDetailActionBar({ stageView, onToggleStage }: PatternDeta
   const pushing = useControllerStore((s) => s.pushing)
   const pushResult = useControllerStore((s) => s.pushResult)
   const lastPushedSource = useControllerStore((s) => s.lastPushedSource)
+  const lastRunProgramId = useControllerStore((s) => s.lastRunProgramId)
   const lastSavedSource = useControllerStore((s) => s.lastSavedSource)
   const lastPushedProfileSignature = useControllerStore((s) => s.lastPushedProfileSignature)
   const lastSavedProfileSignature = useControllerStore((s) => s.lastSavedProfileSignature)
@@ -47,6 +49,7 @@ export function PatternDetailActionBar({ stageView, onToggleStage }: PatternDeta
   const patternMapRemedy = useControllerStore((s) => s.patternMapRemedy)
   const patternPushBlocked = useControllerStore((s) => s.patternPushBlocked)
   const clearPushResult = useControllerStore((s) => s.clearPushResult)
+  const activeProgramId = useControllerPanelStore((s) => s.activeProgramId)
 
   const controllerProfile = active
     ? findProfileForLiveController(controllerProfiles, active)
@@ -74,6 +77,8 @@ export function PatternDetailActionBar({ stageView, onToggleStage }: PatternDeta
       profileSignature,
       lastRunProfileSignature: lastPushedProfileSignature[activeIp]?.[patternId],
       lastSavedProfileSignature: lastSavedProfileSignature[activeIp]?.[patternId],
+      lastRunProgramId: lastRunProgramId[activeIp]?.[patternId],
+      activeProgramId,
     })
   const saveAlreadyPushed =
     !!activeIp &&
@@ -86,6 +91,8 @@ export function PatternDetailActionBar({ stageView, onToggleStage }: PatternDeta
       profileSignature,
       lastRunProfileSignature: lastPushedProfileSignature[activeIp]?.[patternId],
       lastSavedProfileSignature: lastSavedProfileSignature[activeIp]?.[patternId],
+      lastRunProgramId: lastRunProgramId[activeIp]?.[patternId],
+      activeProgramId,
     })
   const runGate = describeSendToController({ status, compileStatus, alreadyPushed: runAlreadyPushed })
   const saveGate = describeSendToController({ status, compileStatus, alreadyPushed: saveAlreadyPushed })

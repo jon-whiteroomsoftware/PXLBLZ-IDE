@@ -11,6 +11,7 @@ import {
 import { describeSendAction, isAlreadyPushed, type SendMode } from '@/engine/sendToController'
 import { useControllerProfileStore } from '@/store/controllerProfileStore'
 import { useControllerStore } from '@/store/controllerStore'
+import { useControllerPanelStore } from '@/store/controllerPanelStore'
 import { useEditorStore } from '@/store/editorStore'
 import { activePushKey, usePatternStore } from '@/store/patternStore'
 import { useRouterStore } from '@/store/routerStore'
@@ -37,10 +38,12 @@ export function ControllerActionRow() {
   const saveArmed = useControllerStore((state) => state.saveArmed)
   const setSaveArmed = useControllerStore((state) => state.setSaveArmed)
   const lastPushedSource = useControllerStore((state) => state.lastPushedSource)
+  const lastRunProgramId = useControllerStore((state) => state.lastRunProgramId)
   const lastSavedSource = useControllerStore((state) => state.lastSavedSource)
   const lastPushedProfileSignature = useControllerStore((state) => state.lastPushedProfileSignature)
   const lastSavedProfileSignature = useControllerStore((state) => state.lastSavedProfileSignature)
   const controllerProfiles = useControllerProfileStore((state) => state.profiles)
+  const activeProgramId = useControllerPanelStore((state) => state.activeProgramId)
 
   const patternName = activeDemoName
     ?? userPatterns.find((pattern) => pattern.id === activePatternId)?.name
@@ -64,6 +67,8 @@ export function ControllerActionRow() {
       profileSignature,
       lastRunProfileSignature: lastPushedProfileSignature[activeIp]?.[patternId],
       lastSavedProfileSignature: lastSavedProfileSignature[activeIp]?.[patternId],
+      lastRunProgramId: lastRunProgramId[activeIp]?.[patternId],
+      activeProgramId,
     })
   )
   const working = pushing || !!pushResult?.ok

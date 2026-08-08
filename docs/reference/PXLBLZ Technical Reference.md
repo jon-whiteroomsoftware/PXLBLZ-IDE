@@ -943,6 +943,14 @@ Run/Save dirty signatures include source, relevant profile configuration, and
 installed map dimension. Descriptive profile changes do not re-arm generated
 code; transforms and bindings do.
 
+Run-mode cleanliness also pairs the returned transient program id with the
+Controller panel's live `activeProgramId`. A confirmed push publishes that id
+optimistically; normal polling remains authoritative and replaces it after an
+external Pattern switch. When both ids are known they must match for Run to
+remain clean. An unknown live identity preserves the source/profile clean state
+instead of spuriously re-arming during connection warm-up. Save-mode cleanliness
+does not consult active program identity.
+
 ### Run
 
 Run pushes transient bytecode under a fresh id and does not create a Saved

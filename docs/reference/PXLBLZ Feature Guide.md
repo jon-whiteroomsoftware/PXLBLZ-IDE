@@ -496,6 +496,10 @@ inserted, wrapped, or bound.
 transient bytecode; Save writes a durable saved Pattern and activates it,
 overwriting the same Controller-bound program on later saves. The two have
 independent dirty state: a clean Run does not pretend the Pattern was saved.
+A clean Run stays disabled only while the Controller is known to be running
+that exact transient artifact. When live Controller state reports another
+active Pattern, Run re-enables without requiring a source edit. If live program
+identity is temporarily unknown, the last known clean Run state is preserved.
 
 The profile's right pane splits the live Controller inventory into **Saved
 PXLBLZ Patterns** and **Other Patterns**, with a count in each heading. Saved

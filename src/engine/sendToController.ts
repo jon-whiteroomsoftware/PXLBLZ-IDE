@@ -91,6 +91,10 @@ export interface DirtyGateInput {
   lastRunProfileSignature?: string
   /** Profile artifact signature used by the last save-mode push. */
   lastSavedProfileSignature?: string
+  /** Controller program id activated by the last run-mode push. */
+  lastRunProgramId?: string
+  /** Live Controller program id when it has been observed. */
+  activeProgramId?: string
 }
 
 /** Decide whether the current source already matches what was last pushed *in the
@@ -104,13 +108,24 @@ export function isAlreadyPushed({
   profileSignature,
   lastRunProfileSignature,
   lastSavedProfileSignature,
+  lastRunProgramId,
+  activeProgramId,
 }: DirtyGateInput): boolean {
   if (source.length === 0) return false
   const last = mode === 'save' ? lastSavedSource : lastRunSource
   if (last !== source) return false
-  if (profileSignature === undefined) return true
-  const lastProfile = mode === 'save' ? lastSavedProfileSignature : lastRunProfileSignature
-  return (lastProfile ?? '') === profileSignature
+  if (profileSignature !== undefined) {
+    const lastProfile = mode === 'save' ? lastSavedProfileSignature : lastRunProfileSignature
+    if ((lastProfile ?? '') !== profileSignature) return false
+  }
+  // Save cleanliness describes durable Controller storage, not which Pattern happens
+  // to be active. Run cleanliness is different: once both ids are known, the exact
+  // transient artifact from that Run must still be active. Unknown live identity stays
+  // conservative so a missing/failed poll cannot create a redundant push affordance.
+  if (mode === 'run' && lastRunProgramId !== undefined && activeProgramId !== undefined) {
+    return lastRunProgramId === activeProgramId
+  }
+  return true
 }
 
 /** The verb the Send button surfaces for the armed mode, used for its tooltip when

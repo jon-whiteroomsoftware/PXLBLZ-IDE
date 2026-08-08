@@ -3,6 +3,7 @@ import { PatternDeploymentActions } from '@/components/PatternDeploymentActions'
 import { requestControllerEntryOpen } from '@/components/controllerEntryEvents'
 import { getControllerProvider } from '@/engine/controllerProviderRegistry'
 import { useControllerStore } from '@/store/controllerStore'
+import { useControllerPanelStore } from '@/store/controllerPanelStore'
 import { useControllerProfileStore } from '@/store/controllerProfileStore'
 import { useEditorStore } from '@/store/editorStore'
 import { usePatternStore, activePushKey } from '@/store/patternStore'
@@ -113,6 +114,7 @@ export function SendToController() {
   const pushing = useControllerStore((s) => s.pushing)
   const pushResult = useControllerStore((s) => s.pushResult)
   const lastPushedSource = useControllerStore((s) => s.lastPushedSource)
+  const lastRunProgramId = useControllerStore((s) => s.lastRunProgramId)
   const lastSavedSource = useControllerStore((s) => s.lastSavedSource)
   const lastPushedProfileSignature = useControllerStore((s) => s.lastPushedProfileSignature)
   const lastSavedProfileSignature = useControllerStore((s) => s.lastSavedProfileSignature)
@@ -127,10 +129,11 @@ export function SendToController() {
   const patternMapRemedy = useControllerStore((s) => s.patternMapRemedy)
   const patternPushBlocked = useControllerStore((s) => s.patternPushBlocked)
   const clearPushResult = useControllerStore((s) => s.clearPushResult)
+  const activeProgramId = useControllerPanelStore((s) => s.activeProgramId)
 
   // Hold the just-pushed check on screen (button inert) for a few seconds, then let
-  // it settle back to the idle arrow — which the dirty gate then keeps disabled
-  // until the pattern is edited again.
+  // it settle back to the idle arrow. The dirty gate remains disabled until the
+  // artifact changes or live Controller state reports another active program.
   useEffect(() => {
     if (!pushResult) return
     const t = setTimeout(clearPushResult, 3500)
@@ -157,6 +160,8 @@ export function SendToController() {
       profileSignature,
       lastRunProfileSignature: lastPushedProfileSignature[activeIp]?.[patternId],
       lastSavedProfileSignature: lastSavedProfileSignature[activeIp]?.[patternId],
+      lastRunProgramId: lastRunProgramId[activeIp]?.[patternId],
+      activeProgramId,
     })
   )
 

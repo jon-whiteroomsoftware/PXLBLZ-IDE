@@ -198,9 +198,12 @@ interface ControllerConnectionState {
   /** Last push outcome, surfaced transiently on the Send button. `null` = idle. */
   pushResult: PushResult | null
   /** The pattern source last successfully pushed, keyed controllerId → patternId.
-   *  Drives the dirty gate: Send is inert until the source differs from this. Not
+   *  Drives the run-mode dirty gate together with the active program identity. Not
    *  persisted — a fresh session re-enables a push (the device may have changed). */
   lastPushedSource: Record<string, Record<string, string>>
+  /** Program id activated by the last successful run-mode push, keyed like
+   *  `lastPushedSource`. Session-only: live identity must be re-observed after reload. */
+  lastRunProgramId: Record<string, Record<string, string>>
   /** The pattern source last successfully *saved* (persist mode, #238), keyed
    *  controllerId → patternId. The save-mode analogue of `lastPushedSource`: run and
    *  save are distinct acts, so the dirty gate compares against this when Save is
@@ -363,6 +366,7 @@ export const controllerInitialState = {
   pushing: false,
   pushResult: null as PushResult | null,
   lastPushedSource: {} as Record<string, Record<string, string>>,
+  lastRunProgramId: {} as Record<string, Record<string, string>>,
   lastSavedSource: {} as Record<string, Record<string, string>>,
   lastPushedProfileSignature: {} as Record<string, Record<string, string>>,
   lastSavedProfileSignature: {} as Record<string, Record<string, string>>,
@@ -1219,6 +1223,7 @@ export const useControllerStore = create<ControllerConnectionState>()(
               }),
             )
             assumeRendererPlaying(controllerId)
+            useControllerPanelStore.getState().noteProgramActivated(programId)
 
             if (artifact.name) {
               const labels = withProgramLabel(
@@ -1243,6 +1248,17 @@ export const useControllerStore = create<ControllerConnectionState>()(
                   [artifact.artifactId]: artifact.source,
                 },
               },
+              ...(!artifact.persist
+                ? {
+                    lastRunProgramId: {
+                      ...state.lastRunProgramId,
+                      [controllerId]: {
+                        ...state.lastRunProgramId[controllerId],
+                        [artifact.artifactId]: programId,
+                      },
+                    },
+                  }
+                : {}),
             }))
           } catch (error) {
             const message = error instanceof Error ? error.message : String(error)
@@ -1571,6 +1587,7 @@ export const useControllerStore = create<ControllerConnectionState>()(
               }),
             )
             assumeRendererPlaying(controllerId)
+            useControllerPanelStore.getState().noteProgramActivated(programId)
             // Record the name we pushed against the device program id (#237) so the
             // panel resolves a run-only program — which never enters the device's
             // program list — to the pattern's name instead of the raw generated id.
@@ -1592,9 +1609,9 @@ export const useControllerStore = create<ControllerConnectionState>()(
             if (persist) {
               void useControllerPanelStore.getState().refreshPrograms()
             }
-            // Remember the clean source we just pushed so the dirty gate disables a
-            // redundant re-push until the pattern is edited again — into the run or save
-            // record per the armed mode (#238), so flipping the toggle re-enables Send.
+            // Remember the clean artifact. Run also records the exact transient program
+            // id, so observing another active program re-arms it without a source edit.
+            // Save remains independent and uses its own source/profile record (#238).
             const recordKey = persist ? 'lastSavedSource' : 'lastPushedSource'
             const profileRecordKey = persist
               ? 'lastSavedProfileSignature'
@@ -1613,6 +1630,17 @@ export const useControllerStore = create<ControllerConnectionState>()(
                   [patternId]: profileSignature,
                 },
               },
+              ...(!persist
+                ? {
+                    lastRunProgramId: {
+                      ...s.lastRunProgramId,
+                      [controllerId]: {
+                        ...s.lastRunProgramId[controllerId],
+                        [patternId]: programId,
+                      },
+                    },
+                  }
+                : {}),
               lastTransformSummary: withTransformSummary(
                 s.lastTransformSummary,
                 controllerId,

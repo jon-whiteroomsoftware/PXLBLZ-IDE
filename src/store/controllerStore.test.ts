@@ -1064,6 +1064,8 @@ describe('controllerStore (keyed)', () => {
       expect(store().pushResult).toEqual({ ok: true, created: true })
       // The pushed source is remembered (dirty gate) so a re-push is a no-op.
       expect(store().lastPushedSource['10.0.0.5']['pat-1']).toBe(PATTERN_SRC)
+      expect(store().lastRunProgramId['10.0.0.5']['pat-1']).toBe(pushedId)
+      expect(useControllerPanelStore.getState().activeProgramId).toBe(pushedId)
       // Run-only push mints a throwaway id and records NO overwrite binding (the #236
       // reframe — overwrite-in-place applies only to saved patterns, not run-only pushes).
       const bindings = await getControllerBindings()
@@ -1153,6 +1155,8 @@ describe('controllerStore (keyed)', () => {
       // toggle back to run leaves run-mode Send enabled.
       expect(store().lastSavedSource['10.0.0.5']['pat-1']).toBe(PATTERN_SRC)
       expect(store().lastPushedSource['10.0.0.5']).toBeUndefined()
+      expect(store().lastRunProgramId['10.0.0.5']).toBeUndefined()
+      expect(useControllerPanelStore.getState().activeProgramId).toBe(provider.saved[0].opts.id)
       // Save mode records the overwrite binding (#236).
       const bindings = await getControllerBindings()
       expect(bindings['10.0.0.5']['pat-1']).toBe(provider.saved[0].opts.id)
@@ -1185,6 +1189,8 @@ describe('controllerStore (keyed)', () => {
       const runId = provider.pushed[0].opts.id
       expect(provider.compiledSources[0]).toBe(source)
       expect(store().lastPushedSource['10.0.0.5']['show:show-1']).toBe(source)
+      expect(store().lastRunProgramId['10.0.0.5']['show:show-1']).toBe(runId)
+      expect(useControllerPanelStore.getState().activeProgramId).toBe(runId)
       expect((await getProgramLabels())['10.0.0.5'][runId]).toBe('Opening Night')
 
       await store().pushGeneratedArtifact({ ...artifact, persist: true })
@@ -1194,6 +1200,8 @@ describe('controllerStore (keyed)', () => {
 
       expect(provider.saved.map((entry) => entry.opts.id)).toEqual([savedId, savedId])
       expect(store().lastSavedSource['10.0.0.5']['show:show-1']).toBe(source)
+      expect(store().lastRunProgramId['10.0.0.5']['show:show-1']).toBe(runId)
+      expect(useControllerPanelStore.getState().activeProgramId).toBe(savedId)
       expect((await getControllerBindings())['10.0.0.5']['show:show-1']).toBe(savedId)
     })
 

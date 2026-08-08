@@ -5,6 +5,10 @@ import { useControllerStore, controllerInitialState } from '@/store/controllerSt
 import { useEditorStore, editorInitialState } from '@/store/editorStore'
 import { usePatternStore, patternInitialState } from '@/store/patternStore'
 import {
+  controllerPanelInitialState,
+  useControllerPanelStore,
+} from '@/store/controllerPanelStore'
+import {
   controllerProfileInitialState,
   defaultControllerProfile,
   useControllerProfileStore,
@@ -33,10 +37,15 @@ beforeEach(() => {
   useEditorStore.setState(editorInitialState)
   usePatternStore.setState(patternInitialState)
   useControllerProfileStore.setState(controllerProfileInitialState)
+  useControllerPanelStore.getState().stop()
+  useControllerPanelStore.setState(controllerPanelInitialState)
   vi.clearAllMocks()
 })
 
-afterEach(() => resetControllerProvider())
+afterEach(() => {
+  useControllerPanelStore.getState().stop()
+  resetControllerProvider()
+})
 
 describe('SendToController', () => {
   it('shows Controller identity and Connect when no Controller is connected', () => {
@@ -263,22 +272,27 @@ describe('SendToController', () => {
     expect(screen.getByTestId('save-to-controller')).toHaveAttribute('title', 'Save to Desk')
   })
 
-  it('keeps Save enabled after a clean Run push', () => {
+  it('re-enables Run when the Controller switches away while keeping Save independent', () => {
     connectActive()
     useEditorStore.setState({ previewSource: 'export function render() {}' })
-    // A clean run push: the run record matches the current source, so run-mode Send
-    // is inert — but save-mode Send must stay enabled (saving is not yet done).
     useControllerStore.setState({
       lastPushedSource: { '10.0.0.9': { p1: 'export function render() {}' } },
+      lastRunProgramId: { '10.0.0.9': { p1: 'run-p1' } },
       lastPushedProfileSignature: {
         '10.0.0.9': {
           p1: controllerProfileArtifactSignature(null, 'p1', { mapDim: 2 }),
         },
       },
     })
+    useControllerPanelStore.setState({ activeProgramId: 'run-p1' })
     usePatternStore.setState({ activePatternId: 'p1' })
     render(<SendToController />)
     expect(screen.getByTestId('run-on-controller')).toBeDisabled()
+    expect(screen.getByTestId('save-to-controller')).toBeEnabled()
+
+    act(() => useControllerPanelStore.setState({ activeProgramId: 'doom-fire' }))
+
+    expect(screen.getByTestId('run-on-controller')).toBeEnabled()
     expect(screen.getByTestId('save-to-controller')).toBeEnabled()
   })
 

@@ -129,6 +129,16 @@ describe('controllerPanelStore', () => {
     expect(useControllerPanelStore.getState().fps).toBe(45)
   })
 
+  it('publishes a confirmed activation immediately and lets polling replace it', async () => {
+    useControllerPanelStore.getState().noteProgramActivated('run-pattern-1')
+    expect(useControllerPanelStore.getState().activeProgramId).toBe('run-pattern-1')
+
+    provider.config = { brightness: 0.5, activeProgramId: 'doom-fire' }
+    await useControllerPanelStore.getState().poll()
+
+    expect(useControllerPanelStore.getState().activeProgramId).toBe('doom-fire')
+  })
+
   it('seeds brightness once and does not overwrite it on later polls', async () => {
     useControllerPanelStore.getState().start()
     await flush()

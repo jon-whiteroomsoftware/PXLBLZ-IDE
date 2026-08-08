@@ -66,7 +66,13 @@ describe('isAlreadyPushed (mode-split dirty gate)', () => {
   })
 
   it('matches the run record only in run mode', () => {
-    const args = { source: 'abc', lastRunSource: 'abc', lastSavedSource: undefined }
+    const args = {
+      source: 'abc',
+      lastRunSource: 'abc',
+      lastSavedSource: undefined,
+      lastRunProgramId: 'run-abc',
+      activeProgramId: 'run-abc',
+    }
     expect(isAlreadyPushed({ ...args, mode: 'run' })).toBe(true)
     // A clean run does not satisfy a pending save — arming save re-enables Send.
     expect(isAlreadyPushed({ ...args, mode: 'save' })).toBe(false)
@@ -80,6 +86,35 @@ describe('isAlreadyPushed (mode-split dirty gate)', () => {
 
   it('does not match when the source has changed since the push', () => {
     expect(isAlreadyPushed({ mode: 'run', source: 'xyz', lastRunSource: 'abc' })).toBe(false)
+  })
+
+  it('does not match run mode when the Controller is known to be running another Pattern', () => {
+    expect(isAlreadyPushed({
+      mode: 'run',
+      source: 'abc',
+      lastRunSource: 'abc',
+      lastRunProgramId: 'run-abc',
+      activeProgramId: 'doom-fire',
+    })).toBe(false)
+  })
+
+  it('preserves the clean run when live program identity is not known', () => {
+    expect(isAlreadyPushed({
+      mode: 'run',
+      source: 'abc',
+      lastRunSource: 'abc',
+      lastRunProgramId: 'run-abc',
+      activeProgramId: undefined,
+    })).toBe(true)
+  })
+
+  it('keeps save cleanliness independent of the Controller active Pattern', () => {
+    expect(isAlreadyPushed({
+      mode: 'save',
+      source: 'abc',
+      lastSavedSource: 'abc',
+      activeProgramId: 'doom-fire',
+    })).toBe(true)
   })
 
   it('does not match when the Controller profile artifact configuration changed', () => {

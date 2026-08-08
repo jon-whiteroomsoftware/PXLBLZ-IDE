@@ -32,6 +32,7 @@ import {
   type ControllerStatus,
   type ControllerTelemetry,
 } from '@/engine/ControllerProvider'
+import { controllerProfileArtifactSignature } from '@/engine/controllerProfilePassRecipe'
 
 class ConnectedProvider extends NullControllerProvider {
   constructor(private readonly reportedFps = 36) {
@@ -742,6 +743,50 @@ describe('ControllerBar', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Save' }))
     expect(useControllerStore.getState().saveArmed).toBe(true)
     expect(requestPush).toHaveBeenCalledTimes(2)
+  })
+
+  it('re-enables the popover Run action when the Controller switches programs', () => {
+    setControllerProvider(new ConnectedProvider())
+    seedLiveController()
+    const activeProfile = profile('profile-1', 'pixelblaze_pb32_3cd4ee549434', 1)
+    seedSignedInProfiles([activeProfile])
+    useRouterStore.setState({
+      route: { kind: 'studio', entity: { kind: 'patterns', id: 'pattern-1' } },
+    })
+    usePatternStore.setState({
+      activePatternId: 'pattern-1',
+      userPatterns: [{
+        id: 'pattern-1',
+        name: 'Aurora Drift',
+        src: 'export function render() {}',
+        controls: {},
+        updatedAt: 1,
+      }],
+    })
+    useEditorStore.setState({
+      compileStatus: 'good',
+      previewSource: 'export function render() {}',
+    })
+    useControllerStore.setState({
+      setActive: (ip) => useControllerStore.setState({ activeIp: ip }),
+      lastPushedSource: { '10.0.0.5': { 'pattern-1': 'export function render() {}' } },
+      lastRunProgramId: { '10.0.0.5': { 'pattern-1': 'run-pattern-1' } },
+      lastPushedProfileSignature: {
+        '10.0.0.5': {
+          'pattern-1': controllerProfileArtifactSignature(activeProfile, 'pattern-1', { mapDim: 2 }),
+        },
+      },
+    })
+    render(<ControllerBar />)
+    fireEvent.click(screen.getByRole('button', { name: 'Toggle Desk panel' }))
+    act(() => useControllerPanelStore.setState({ activeProgramId: 'run-pattern-1' }))
+    expect(screen.getByRole('button', { name: 'Run' })).toBeDisabled()
+    expect(screen.getByRole('button', { name: 'Save' })).toBeEnabled()
+
+    act(() => useControllerPanelStore.setState({ activeProgramId: 'doom-fire' }))
+
+    expect(screen.getByRole('button', { name: 'Run' })).toBeEnabled()
+    expect(screen.getByRole('button', { name: 'Save' })).toBeEnabled()
   })
 
   it('dims Run and Save outside the Studio pattern surface and keeps the reason in tooltips', () => {

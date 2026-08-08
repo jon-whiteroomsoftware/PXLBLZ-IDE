@@ -47,6 +47,7 @@ import { requestControllerEntryOpen } from '@/components/controllerEntryEvents'
 import { PatternPushChoices } from '@/components/SendToController'
 import { PushConfirmPopover } from '@/components/PushConfirmPopover'
 import { describeSendToController, isAlreadyPushed, type SendMode } from '@/engine/sendToController'
+import { useControllerPanelStore } from '@/store/controllerPanelStore'
 import { prepareShowControllerArtifact } from '@/engine/showControllerArtifact'
 import { assessShowCompilePressure } from '@/engine/showCompilePressure'
 import type { ArtifactMapClass } from '@/engine/artifactStamp'
@@ -944,7 +945,9 @@ export function ShowEditor({
   const controllerPushing = useControllerStore((state) => state.pushing)
   const controllerPushResult = useControllerStore((state) => state.pushResult)
   const lastPushedSource = useControllerStore((state) => state.lastPushedSource)
+  const lastRunProgramId = useControllerStore((state) => state.lastRunProgramId)
   const lastSavedSource = useControllerStore((state) => state.lastSavedSource)
+  const activeProgramId = useControllerPanelStore((state) => state.activeProgramId)
   const pushGeneratedArtifact = useControllerStore((state) => state.pushGeneratedArtifact)
   const clearPushResult = useControllerStore((state) => state.clearPushResult)
   const [selection, setSelection] = useState<ShowSelection>({ kind: 'show' })
@@ -1785,6 +1788,8 @@ export function ShowEditor({
     source: preparedSource,
     lastRunSource: activeIp ? lastPushedSource[activeIp]?.[showArtifactId] : undefined,
     lastSavedSource: activeIp ? lastSavedSource[activeIp]?.[showArtifactId] : undefined,
+    lastRunProgramId: activeIp ? lastRunProgramId[activeIp]?.[showArtifactId] : undefined,
+    activeProgramId,
   })
   const runGate = describeSendToController({
     status: controllerStatus,
