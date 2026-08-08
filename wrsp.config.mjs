@@ -132,6 +132,7 @@ export default {
           'scripts/run-public-playwright.ts',
           'scripts/with-suite-lock.ts',
           'scripts/vitest-project-identity.ts',
+          'scripts/qualify-layout-757.mjs',
           'src/test/setup.ts',
           'src/test/layout.setup.ts',
         ],
@@ -144,12 +145,34 @@ export default {
           'scripts/run-public-playwright.test.ts',
           'scripts/with-suite-lock.test.ts',
           'scripts/vitest-discovery.test.ts',
-          'src/test/layoutEnvironment.layout.test.tsx',
           'scripts/update-issues.test.ts',
           'scripts/show-authoring-mutation.test.ts',
           'src/engine/showEasing.test.ts',
           'src/components/HelpHint.test.tsx',
         ],
+      },
+      {
+        name: 'layout-contract',
+        exact: [
+          'vite.config.ts',
+          'scripts/qualify-layout-757.mjs',
+          'src/components/ControllerPanel.tsx',
+          'src/components/ControllerProfilePage.tsx',
+          'src/components/InstalledMapPresentation.tsx',
+          'src/components/PreviewDeck.tsx',
+          'src/components/ui/bounded-number-field.tsx',
+          'src/test/layout.setup.ts',
+          'src/test/layoutCanary.layout.test.ts',
+          'src/test/layoutEnvironment.layout.test.tsx',
+          'src/test/layoutSurfaceManifest.tsx',
+          'src/test/layoutSurfaces.layout.test.tsx',
+        ],
+        tests: [
+          'src/test/layoutCanary.layout.test.ts',
+          'src/test/layoutEnvironment.layout.test.tsx',
+          'src/test/layoutSurfaces.layout.test.tsx',
+        ],
+        runner: 'chromium-layout',
       },
       {
         name: 'show-authoring-contract',
@@ -164,5 +187,24 @@ export default {
         ],
       },
     ],
+    runners: {
+      'chromium-layout': ['npm', 'run', 'test:layout', '--', '--reporter=verbose'],
+    },
+    advisories: [
+      {
+        name: 'unmapped-layout-sensitive-change',
+        pathPatterns: ['^src/.*\\.(css|tsx)$'],
+        diffPatterns: [
+          'className',
+          '@media',
+          '(?:^|[^a-z-])(?:display|position|overflow|width|height|min-width|max-width|grid|flex)',
+        ],
+        message: 'Layout-sensitive UI change is outside the authoritative layout surface map; add or justify coverage.',
+      },
+    ],
+  },
+  layout: {
+    runner: 'chromium-layout',
+    canaryTest: 'src/test/layoutCanary.layout.test.ts',
   },
 }

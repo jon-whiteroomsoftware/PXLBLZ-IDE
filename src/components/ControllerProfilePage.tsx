@@ -299,7 +299,12 @@ function SelectField<T extends string | number>({
       className={`${fieldClass} disabled:opacity-40`}
     >
       {options.map((option) => (
-        <option key={String(option.value)} value={option.value} disabled={option.disabled}>
+        <option
+          key={String(option.value)}
+          value={option.value}
+          disabled={option.disabled}
+          data-layout-ignore=""
+        >
           {option.label}
         </option>
       ))}

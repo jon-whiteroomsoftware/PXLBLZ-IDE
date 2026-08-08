@@ -223,7 +223,23 @@ export default defineConfig(({ mode }) => {
       dedupe: ['react', 'react-dom'],
     },
     optimizeDeps: {
-      include: ['@monaco-editor/react', 'zustand'],
+      // Browser Mode discovers component-test dependencies after its worker has
+      // started. Pre-bundle the layout suite's graph so Vite never reloads the
+      // browser mid-run and silently drops the product-surface tests (#765).
+      include: [
+        '@monaco-editor/react',
+        '@testing-library/react',
+        '@whiteroom/software-process/layout-faults',
+        'acorn',
+        'class-variance-authority',
+        'clsx',
+        'lucide-react',
+        'lz-string',
+        'radix-ui',
+        'tailwind-merge',
+        'zustand',
+        'zustand/middleware',
+      ],
     },
     test: {
       globals: true,

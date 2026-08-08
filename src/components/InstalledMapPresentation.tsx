@@ -66,6 +66,8 @@ export function InstalledMapPresentation({
       <span
         className={`min-w-0 truncate ${mismatch ? 'text-amber-400' : ''}`}
         title={presentation.name}
+        data-testid="installed-map-name"
+        data-layout-allow="overflow-x"
       >
         {presentation.name}
       </span>

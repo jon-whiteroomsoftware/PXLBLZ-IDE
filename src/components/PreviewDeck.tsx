@@ -124,7 +124,11 @@ function PrimaryBand() {
   return (
     <div className="flex items-center gap-3 py-2 pr-3 border-b border-zinc-800">
       <div className="flex-1 min-w-0 flex items-center gap-2">
-        <span className="min-w-0 truncate text-sm text-zinc-200" title={previewPatternName || 'No pattern'}>
+        <span
+          className="min-w-0 truncate text-sm text-zinc-200"
+          title={previewPatternName || 'No pattern'}
+          data-layout-allow="overflow-x"
+        >
           {previewPatternName || '—'}
         </span>
         <DimPills dims={exportedDims(previewSource)} />

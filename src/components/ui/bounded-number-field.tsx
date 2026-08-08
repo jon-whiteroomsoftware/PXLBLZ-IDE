@@ -399,6 +399,7 @@ export function BoundedNumberField({
       <span
         className={hideLabel ? 'sr-only' : `flex ${compact ? 'h-3' : 'h-4'} items-center justify-between gap-1`}
         title={help}
+        data-layout-ignore={hideLabel ? '' : undefined}
       >
         <label htmlFor={inputId}>{hideLabel ? accessibleFieldLabel : label}</label>
         {labelAction}

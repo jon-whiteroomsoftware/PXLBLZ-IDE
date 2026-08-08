@@ -239,7 +239,10 @@ export function ControllerPanel() {
         >
           <div className="min-w-0 leading-tight">
             <div className="font-semibold text-amber-300">Firmware update available</div>
-            <div className="mt-0.5 truncate text-[10px] text-zinc-500">
+            <div
+              className="mt-0.5 truncate text-[10px] text-zinc-500"
+              data-layout-allow="overflow-x"
+            >
               {installedFirmware ? `${installedFirmware} installed · ` : ''}Settings → Updates
             </div>
           </div>

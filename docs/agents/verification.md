@@ -212,7 +212,9 @@ measure anything. Run it directly with `npm run test:layout`. The unfiltered
 `npm test` command also discovers this project, so the pre-push full suite
 includes real-browser layout coverage while ordinary component tests stay in
 the faster `jsdom` project. Run `npm run check:playwright` before diagnosing a
-browser-startup failure.
+browser-startup failure. The product surface manifest, policy annotations,
+stable fault locations, gate canary, and #757 mutation qualification are
+documented in [`layout-verification.md`](layout-verification.md).
 
 Candidate review transmits the exact private diff and supplied engineering
 context to Anthropic under the developer's authenticated Claude session. A
