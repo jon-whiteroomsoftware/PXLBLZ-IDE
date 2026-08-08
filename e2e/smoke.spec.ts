@@ -146,13 +146,20 @@ test('3D Pattern detail offers ephemeral zoom and Reset View framing (#739)', as
   await expect(zoom).toHaveAttribute('aria-orientation', 'vertical')
   await expect(zoom).toHaveValue('1')
 
-  await zoom.fill('2.25')
-  await expect(zoom).toHaveValue('2.25')
-  await expect(zoom).toHaveAttribute('aria-valuetext', '2.25×')
+  await zoom.fill('2')
+  await expect(zoom).toHaveValue('2')
+  await expect(zoom).toHaveAttribute('aria-valuetext', '2×')
 
   await page.getByRole('button', { name: 'Reset view' }).click()
   await expect(zoom).toHaveValue('1')
   await expect(zoom).toHaveAttribute('aria-valuetext', '1×')
+
+  const canvas = page.getByTestId('pattern-detail-page').locator('[data-height-constrained] canvas')
+  await canvas.hover()
+  await page.mouse.wheel(0, -100)
+  await expect(zoom).toHaveValue('1.25')
+  await page.mouse.wheel(0, 100)
+  await expect(zoom).toHaveValue('1')
 
   await page.reload()
   await expect(page.getByRole('slider', { name: '3D view zoom' })).toHaveValue('1')

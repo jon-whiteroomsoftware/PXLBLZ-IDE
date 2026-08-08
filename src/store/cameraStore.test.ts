@@ -13,7 +13,7 @@ describe('camera store viewport zoom', () => {
     store.setAutoOrbit(false)
     store.setZoom(9)
 
-    expect(useCameraStore.getState()).toMatchObject({ zoom: 2.5, autoOrbit: false })
+    expect(useCameraStore.getState()).toMatchObject({ zoom: 2, autoOrbit: false })
 
     useCameraStore.getState().resetView()
 

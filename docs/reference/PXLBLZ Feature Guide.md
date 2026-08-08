@@ -247,11 +247,13 @@ Every interactive 3D presentation has the same vertical tool rail at the top
 right, including native 3D geometry, a 1D **Pole**, a 2D **Cylinder wrap**, the
 Show Stage, and a 3D Map context view. The rail pauses or resumes auto-orbit,
 resets the view, and magnifies the automatically fitted geometry from **0.5x**
-to **2.5x**; **1x** is the fitted default marked on the slider. **Reset view**
+to **2x**; **1x** is the fitted default marked on the slider. **Reset view**
 restores the default angle, re-arms auto-orbit, and returns to 1x. Opening
 different geometry returns magnification to 1x without persisting it. Pole wrap
 density remains a separate vertical control below zoom. Passive Gallery card
-previews do not show the rail, and zoom does not add panning or wheel gestures.
+previews do not show the rail. Wheel input over an interactive 3D preview moves
+through the same zoom range in coarse 0.25x steps for quick inspection; the
+slider retains 0.05x precision. Zoom does not add panning.
 
 Pixelblaze hardware computes in 16.16 fixed-point; browsers compute in
 float64. The preview therefore offers two renderers:

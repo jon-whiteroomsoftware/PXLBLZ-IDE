@@ -556,15 +556,19 @@ fitting, depth cue, and optional normal-based solidity. Renderer caps protect
 against accidental pathological counts (`MAX_PIXEL_COUNT = 65,536`, grid axis
 256).
 
-Interactive 3D surfaces share an ephemeral `0.5x..2.5x` viewport magnification
+Interactive 3D surfaces share an ephemeral `0.5x..2x` viewport magnification
 contract through `cameraStore`; `1x` means the surface's automatic fit. Pattern
 Preview and Show Stage apply magnification after `fit3DScale`, so projected
 positions and point/light size grow together while depth values, Pattern
 sampling, and hardware output remain unchanged. A zoom change repaints even
-when playback is paused. Reset View restores the default orbit, 1x, and
-auto-orbit; changing the active Map, embedding, or Stage resets only
-magnification. Native 3D geometry and promoted Pole/Cylinder presentations use
-the same path. The setting is neither cascaded nor persisted.
+when playback is paused. The compact vertical slider moves in 0.05x increments,
+while wheel input over the interactive canvas uses coarse 0.25x steps for quick
+inspection. Only a nonzero wheel gesture on a zoom-capable canvas suppresses
+ordinary page scrolling.
+Reset View restores the default orbit, 1x, and auto-orbit; changing the active
+Map, embedding, or Stage resets only magnification. Native 3D geometry and
+promoted Pole/Cylinder presentations use the same path. The setting is neither
+cascaded nor persisted.
 
 The Map context pane is deliberately outside that Pattern/Show presentation
 policy. `mapDiagnosticViewport.ts` projects diagnostic positions, sizes 2D from

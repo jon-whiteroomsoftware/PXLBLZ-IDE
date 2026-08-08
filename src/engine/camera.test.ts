@@ -77,18 +77,18 @@ describe('camera — 3D viewport zoom', () => {
     expect({ min: MIN_VIEW_ZOOM, default: DEFAULT_VIEW_ZOOM, max: MAX_VIEW_ZOOM }).toEqual({
       min: 0.5,
       default: 1,
-      max: 2.5,
+      max: 2,
     })
     expect(clampViewZoom(0.1)).toBe(0.5)
     expect(clampViewZoom(1.35)).toBe(1.35)
-    expect(clampViewZoom(9)).toBe(2.5)
+    expect(clampViewZoom(9)).toBe(2)
     expect(clampViewZoom(Number.NaN)).toBe(1)
   })
 
   it('multiplies an automatic fit without changing the 1x projection', () => {
     expect(applyViewZoom(0.8, 1)).toBe(0.8)
     expect(applyViewZoom(0.8, 2)).toBe(1.6)
-    expect(applyViewZoom(0.8, 9)).toBe(2)
+    expect(applyViewZoom(0.8, 9)).toBe(1.6)
   })
 })
 

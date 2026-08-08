@@ -219,7 +219,7 @@ export interface OrbitCamera {
 // one interaction contract without merging their distinct fitting policies.
 export const MIN_VIEW_ZOOM = 0.5
 export const DEFAULT_VIEW_ZOOM = 1
-export const MAX_VIEW_ZOOM = 2.5
+export const MAX_VIEW_ZOOM = 2
 
 export function clampViewZoom(zoom: number): number {
   if (!Number.isFinite(zoom)) return DEFAULT_VIEW_ZOOM

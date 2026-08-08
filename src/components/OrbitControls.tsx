@@ -10,6 +10,9 @@ import {
 } from '@/engine/camera'
 import { poleMaxCols, defaultPoleCols, clampPoleCols } from '@/engine/shapes'
 
+const VIEW_ZOOM_SLIDER_STEP = 0.05
+const VIEW_ZOOM_WHEEL_STEP = 0.25
+
 // 3D-display-only orbit viewport controls (#129). The component is a thin UI
 // shell over the 3D viewport: all camera math is the pure `@/engine/camera`
 // helpers, and the ephemeral angle/zoom/auto-orbit state lives in `cameraStore`.
@@ -24,6 +27,7 @@ import { poleMaxCols, defaultPoleCols, clampPoleCols } from '@/engine/shapes'
 //   • grabbing the model holds the spin still; it resumes on release. Only the
 //     play/pause control toggles the persistent spinning/stopped state.
 //   • zoom         → magnifies the fitted 3D presentation around its centre
+//                    (slider or wheel over the interactive canvas)
 //   • reset        → returns to the default angle and 1x, then re-arms auto-orbit
 export function OrbitControls({
   canvasRef,
@@ -96,15 +100,25 @@ export function OrbitControls({
       useCameraStore.getState().setDragging(false)
       if (canvas.hasPointerCapture(e.pointerId)) canvas.releasePointerCapture(e.pointerId)
     }
+    const onWheel = (e: WheelEvent) => {
+      if (e.deltaY === 0) return
+      e.preventDefault()
+      const { zoom, setZoom } = useCameraStore.getState()
+      setZoom(
+        Number((zoom + (e.deltaY < 0 ? VIEW_ZOOM_WHEEL_STEP : -VIEW_ZOOM_WHEEL_STEP)).toFixed(2)),
+      )
+    }
 
     canvas.addEventListener('pointerdown', onDown)
     canvas.addEventListener('pointermove', onMove)
     canvas.addEventListener('pointerup', onUp)
+    canvas.addEventListener('wheel', onWheel, { passive: false })
     canvas.style.cursor = 'grab'
     return () => {
       canvas.removeEventListener('pointerdown', onDown)
       canvas.removeEventListener('pointermove', onMove)
       canvas.removeEventListener('pointerup', onUp)
+      canvas.removeEventListener('wheel', onWheel)
       canvas.style.cursor = ''
     }
   }, [canvasRef])
@@ -135,10 +149,10 @@ export function OrbitControls({
       <label
         data-testid="3d-view-zoom-control"
         title={`Zoom: ${zoomLabel}`}
-        className="relative flex w-7 flex-col items-center gap-1 rounded bg-zinc-900/70 py-1.5 text-zinc-500"
+        className="relative flex w-7 flex-col items-center gap-0.5 rounded bg-zinc-900/70 py-1 text-zinc-500"
       >
-        <ZoomIn size={11} aria-hidden />
-        <span className="relative flex h-16 w-5 items-center justify-center">
+        <ZoomIn size={10} aria-hidden />
+        <span className="relative flex h-7 w-5 items-center justify-center">
           <span
             aria-hidden
             className="pointer-events-none absolute bottom-1/4 left-1/2 h-px w-3 -translate-x-1/2 bg-zinc-500/80"
@@ -150,11 +164,11 @@ export function OrbitControls({
             aria-valuetext={zoomLabel}
             min={MIN_VIEW_ZOOM}
             max={MAX_VIEW_ZOOM}
-            step={0.05}
+            step={VIEW_ZOOM_SLIDER_STEP}
             value={zoom}
             onChange={(event) => setZoom(Number(event.target.value))}
             style={{ writingMode: 'vertical-lr', direction: 'rtl' }}
-            className="h-16 w-4 cursor-pointer accent-amber-400"
+            className="h-7 w-3 cursor-pointer accent-amber-400"
           />
         </span>
       </label>
