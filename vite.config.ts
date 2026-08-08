@@ -66,6 +66,7 @@ export function createVitestTestProjects() {
     },
     {
       extends: true as const,
+      server: { strictPort: false },
       test: {
         name: 'chromium-layout',
         globals: true,

@@ -37,6 +37,17 @@ describe('real browser layout environment', () => {
   })
 
   it('waits for production fonts before measurements begin', () => {
-    expect(document.fonts.status).toBe('loaded')
+    const sans = mount('font-sans')
+    const mono = mount('font-mono')
+    sans.textContent = 'Pixelblaze sans metrics'
+    mono.textContent = 'Pixelblaze mono metrics'
+
+    expect(document.documentElement.dataset.layoutFontsReady).toBe(
+      '400 1rem "Geist Variable"|400 1rem "IBM Plex Mono"',
+    )
+    expect(getComputedStyle(sans).fontFamily).toContain('Geist Variable')
+    expect(getComputedStyle(mono).fontFamily).toContain('IBM Plex Mono')
+    expect(document.fonts.check('400 1rem "Geist Variable"', sans.textContent)).toBe(true)
+    expect(document.fonts.check('400 1rem "IBM Plex Mono"', mono.textContent)).toBe(true)
   })
 })

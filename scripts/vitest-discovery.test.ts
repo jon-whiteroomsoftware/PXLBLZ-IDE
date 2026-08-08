@@ -43,13 +43,16 @@ describe('Vitest discovery boundaries', () => {
     const layout = projects.find((project) => project.test.name === 'chromium-layout')
     const emulated = projects.filter((project) => project.test.name !== 'chromium-layout')
 
-    expect(layout?.test).toMatchObject({
-      include: ['**/*.layout.test.ts', '**/*.layout.test.tsx'],
-      setupFiles: ['./src/test/layout.setup.ts'],
-      browser: {
-        enabled: true,
-        headless: true,
-        instances: [{ browser: 'chromium' }],
+    expect(layout).toMatchObject({
+      server: { strictPort: false },
+      test: {
+        include: ['**/*.layout.test.ts', '**/*.layout.test.tsx'],
+        setupFiles: ['./src/test/layout.setup.ts'],
+        browser: {
+          enabled: true,
+          headless: true,
+          instances: [{ browser: 'chromium' }],
+        },
       },
     })
     expect(emulated).toHaveLength(2)
