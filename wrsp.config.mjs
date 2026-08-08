@@ -155,6 +155,8 @@ export default {
         name: 'layout-contract',
         exact: [
           'vite.config.ts',
+          'package.json',
+          'package-lock.json',
           'scripts/qualify-layout-757.mjs',
           'src/components/ControllerPanel.tsx',
           'src/components/ControllerProfilePage.tsx',

@@ -86,8 +86,12 @@ The qualifier temporarily adds the historical failure mechanism to
 `ControllerFactRow`: a fixed narrow width starves the installed-map identity
 beside non-shrinking metadata. It runs the product layout contract and succeeds
 only when Chromium reports `installed-map-name` as a must-fit fault at 0px. A
-`finally` block restores `ControllerPanel.tsx` byte-for-byte; the command also
-verifies the restored content before reporting success.
+`finally` block and explicit SIGINT/SIGTERM handlers restore
+`ControllerPanel.tsx` byte-for-byte; the command also verifies the restored
+content before reporting success. The npm entrypoint holds the repository-wide
+suite lock while the production source is mutated, so no other heavy suite can
+compile the temporary fault. Expected-failure screenshots are disabled for this
+qualification and the command leaves no generated artifacts behind.
 
 Run this qualification after changing the installed-map row, its presentation,
 the manifest policy, or the generalized auditor. It is targeted evidence that

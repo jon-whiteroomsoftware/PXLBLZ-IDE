@@ -33,7 +33,7 @@
     "test:full": "npm run check:node && tsx scripts/with-suite-lock.ts test:full -- npx vitest run",
     "test:staged": "npm run check:node && wrsp-test-staged",
     "test:layout": "npm run check:node && vitest run --project chromium-layout",
-    "test:mutation:layout-757": "npm run check:node && node scripts/qualify-layout-757.mjs",
+    "test:mutation:layout-757": "npm run check:node && tsx scripts/with-suite-lock.ts test:mutation:layout-757 -- node scripts/qualify-layout-757.mjs",
     "test:mutation:show-authoring": "npm run check:node && tsx scripts/with-suite-lock.ts test:mutation:show-authoring -- tsx scripts/run-show-authoring-mutation.ts",
     "test:watch": "npm run check:node && vitest",
     "test:e2e": "npm run check:node && tsx scripts/with-suite-lock.ts test:e2e -- tsx scripts/run-public-playwright.ts",

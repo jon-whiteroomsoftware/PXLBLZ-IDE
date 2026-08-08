@@ -76,6 +76,9 @@ export function createVitestTestProjects() {
         browser: {
           enabled: true,
           headless: true,
+          // The #757 qualification expects one failure and consumes its
+          // structured fault report; do not leave failure screenshots behind.
+          screenshotFailures: process.env.PXLBLZ_LAYOUT_MUTATION !== '1',
           provider: playwright(),
           instances: [{ browser: 'chromium' as const }],
         },
