@@ -324,7 +324,9 @@ export function Preview({
     if (positions3D) {
       const px = cube3DCanvasPx(viewport.containerWidth, viewport.containerHeight)
       renderer.set3DPositions(positions3D, { canvasPx: px, normals: normals3D })
-      renderer.setCamera(useCameraStore.getState().camera)
+      const view = useCameraStore.getState()
+      renderer.setCamera(view.camera)
+      renderer.setZoom(view.zoom)
       renderer.setSolidity(useMapStore.getState().activeSolidity)
       canvas3DPxRef.current = px
     } else {
@@ -341,7 +343,11 @@ export function Preview({
     // spin is decoupled from the pattern's play/pause. Read via getState so it
     // never churns React.
     const paint = (pixels: [number, number, number][], brightness: number, dimmed: boolean) => {
-      if (positions3D) renderer.setCamera(useCameraStore.getState().camera)
+      if (positions3D) {
+        const view = useCameraStore.getState()
+        renderer.setCamera(view.camera)
+        renderer.setZoom(view.zoom)
+      }
       let displayPixels = pixels
       if (activeZones.length > 0) {
         usePreviewStore.getState().setZonePreviewStrips(
@@ -457,6 +463,7 @@ export function Preview({
       const r = rendererRef.current
       if (!r) return
       r.setCamera(state.camera)
+      r.setZoom(state.zoom)
       if (!usePreviewStore.getState().isRunning) loopRef.current?.renderPreviewFrame()
     })
   }, [])
@@ -602,7 +609,12 @@ export function Preview({
           {/* Orbit viewport controls — gated on the active layout's display
               dimension (#129), so a 1D pattern on a 3D shape still gets them. Now
               at the top-right, clear of the navigation deck below the canvas. */}
-          {displayDim === 3 && <OrbitControls canvasRef={canvasRef} />}
+          {displayDim === 3 && (
+            <OrbitControls
+              canvasRef={canvasRef}
+              viewKey={`pattern:${activeMapId ?? ''}:${activeShapeId ?? ''}:${activeSurfaceId ?? ''}`}
+            />
+          )}
           {runtimeError && (
             <div className="absolute inset-0 flex items-center justify-center p-4 pointer-events-none">
               <div className="bg-zinc-900/80 rounded-lg px-4 py-3 max-w-[90%]">

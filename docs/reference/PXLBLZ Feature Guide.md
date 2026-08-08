@@ -243,6 +243,16 @@ The preview executes the transpiled Pattern in the browser and draws its
 pixels as a WebGL point field, handling 1D, 2D, and 3D maps, including 3D
 orbiting, depth, and glow.
 
+Every interactive 3D presentation has the same vertical tool rail at the top
+right, including native 3D geometry, a 1D **Pole**, a 2D **Cylinder wrap**, the
+Show Stage, and a 3D Map context view. The rail pauses or resumes auto-orbit,
+resets the view, and magnifies the automatically fitted geometry from **0.5x**
+to **2.5x**; **1x** is the fitted default marked on the slider. **Reset view**
+restores the default angle, re-arms auto-orbit, and returns to 1x. Opening
+different geometry returns magnification to 1x without persisting it. Pole wrap
+density remains a separate vertical control below zoom. Passive Gallery card
+previews do not show the rail, and zoom does not add panning or wheel gestures.
+
 Pixelblaze hardware computes in 16.16 fixed-point; browsers compute in
 float64. The preview therefore offers two renderers:
 
@@ -309,8 +319,10 @@ actual centre, and uses a see-through diagnostic
 draw so depth cannot hide submitted positions. It labels a bounded set of index
 milestones and reports bounds, dimensions, unique positions, and coincident
 coordinate counts. Pattern light size, diffusion, brightness, and solidity do
-not alter this wiring view. A connected Controller can also **Import map** from
-its installed `/pixelmap.dat`; known maps are recognized rather than duplicated.
+not alter this wiring view. Its 3D tool rail can magnify the diagnostic without
+changing the coordinates, wire-order analysis, or see-through draw. A connected
+Controller can also **Import map** from its installed `/pixelmap.dat`; known maps
+are recognized rather than duplicated.
 Recognition compares the exact installed bytes with that Controller's push
 history and current Studio maps. One match opens the existing map; unmatched or
 ambiguous bytes import as a frozen map.

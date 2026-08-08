@@ -1,15 +1,24 @@
 import { create } from 'zustand'
-import { DEFAULT_ORBIT, type OrbitCamera } from '@/engine/camera'
+import {
+  DEFAULT_ORBIT,
+  DEFAULT_VIEW_ZOOM,
+  clampViewZoom,
+  type OrbitCamera,
+} from '@/engine/camera'
 
-// Ephemeral 3D-orbit camera state (#129): never persisted. The angle and the
-// auto-orbit armed/paused flag live only for the session — reset-view restores
-// the default angle and auto-orbit re-arms whenever a 3D layout opens.
+// Ephemeral 3D viewport state (#129, #739): never persisted. Angle and
+// auto-orbit intent live only for the session and carry between 3D surfaces.
+// Magnification is also viewport-only, but each new geometry resets it to
+// automatic fit; Reset View restores every camera default.
 //
 // Kept in a framework-agnostic store (not React state) because the render loop
 // reads/advances it outside React, exactly like previewStore.
 
 interface CameraState {
   camera: OrbitCamera
+  // Viewport-only magnification over the active surface's automatic 3D fit.
+  // Shared by interactive 3D presentation surfaces and never persisted.
+  zoom: number
   // Auto-orbit armed: a slow azimuth turntable spin, on by default. This is the
   // persistent intent — ONLY the play/pause control and reset change it. Grabbing
   // the model does NOT disarm it; it pauses transiently via `dragging` instead.
@@ -24,6 +33,8 @@ interface CameraState {
   // like the camera — a view affordance, never persisted.
   poleCols: number | null
   setCamera: (camera: OrbitCamera) => void
+  setZoom: (zoom: number) => void
+  resetZoom: () => void
   setAutoOrbit: (on: boolean) => void
   setDragging: (on: boolean) => void
   setPoleCols: (cols: number | null) => void
@@ -34,6 +45,7 @@ interface CameraState {
 
 export const cameraInitialState = {
   camera: DEFAULT_ORBIT,
+  zoom: DEFAULT_VIEW_ZOOM,
   autoOrbit: true,
   dragging: false,
   poleCols: null as number | null,
@@ -42,8 +54,10 @@ export const cameraInitialState = {
 export const useCameraStore = create<CameraState>((set) => ({
   ...cameraInitialState,
   setCamera: (camera) => set({ camera }),
+  setZoom: (zoom) => set({ zoom: clampViewZoom(zoom) }),
+  resetZoom: () => set({ zoom: DEFAULT_VIEW_ZOOM }),
   setAutoOrbit: (autoOrbit) => set({ autoOrbit }),
   setDragging: (dragging) => set({ dragging }),
   setPoleCols: (poleCols) => set({ poleCols }),
-  resetView: () => set({ camera: DEFAULT_ORBIT, autoOrbit: true }),
+  resetView: () => set({ camera: DEFAULT_ORBIT, zoom: DEFAULT_VIEW_ZOOM, autoOrbit: true }),
 }))

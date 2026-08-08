@@ -95,6 +95,7 @@ describe('MapContextPane', () => {
     expect(await screen.findByTestId('map-wiring-canvas')).toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'Pause auto-orbit' })).toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'Reset view' })).toBeInTheDocument()
+    expect(screen.getByRole('slider', { name: '3D view zoom' })).toBeInTheDocument()
     expect(screen.queryByRole('slider', { name: 'Pole wrap density' })).not.toBeInTheDocument()
     expect(screen.getByText('3D')).toBeInTheDocument()
   })

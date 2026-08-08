@@ -193,6 +193,7 @@ export function MapContextPane() {
   const activePixelCount = useMapStore((s) => s.activePixelCount)
   const mapEvalError = useMapStore((s) => s.mapEvalError)
   const camera = useCameraStore((s) => s.camera)
+  const zoom = useCameraStore((s) => s.zoom)
   const userPatterns = usePatternStore((s) => s.userPatterns)
   const controllerProfiles = useControllerProfileStore((s) => s.profiles)
   const context = useMemo(
@@ -224,8 +225,9 @@ export function MapContextPane() {
       geometry: diagnosticGeometry,
       containerWidth,
       camera,
+      zoom,
     })
-  }, [camera, containerWidth, diagnosticGeometry])
+  }, [camera, containerWidth, diagnosticGeometry, zoom])
   const wireColors = useMemo(
     () => (geometry ? wireOrderColors(geometry.positions.length) : []),
     [geometry],
@@ -331,7 +333,11 @@ export function MapContextPane() {
           ) : (
             <div className="relative size-full">
               <canvas ref={canvasRef} data-testid="map-wiring-canvas" className="block size-full rounded-sm" />
-              <OrbitControls canvasRef={canvasRef} showPoleControls={false} />
+              <OrbitControls
+                canvasRef={canvasRef}
+                viewKey={`map:${context.id}`}
+                showPoleControls={false}
+              />
               <div className="pointer-events-none absolute inset-0">
                 {labels.map((label) => (
                   <span

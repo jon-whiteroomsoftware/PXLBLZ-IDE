@@ -19,6 +19,9 @@ import {
   modelHalfExtent,
   FIT_3D_MARGIN,
   DEFAULT_ORBIT,
+  DEFAULT_VIEW_ZOOM,
+  applyViewZoom,
+  clampViewZoom,
   type OrbitCamera,
   type Bounds2D,
   type Inset2D,
@@ -61,6 +64,8 @@ export interface Renderer {
   resize3D(canvasPx: number): void
   // Update the orbit camera (auto-orbit advance, drag, reset). No-op in 2D mode.
   setCamera(camera: OrbitCamera): void
+  // Magnify the active 3D projection over its automatic fit. No-op in 2D mode.
+  setZoom(zoom: number): void
   // Set the solidity (0–1): a back-face terminator fade folded into the
   // 3D per-vertex brightness when the active layout supplies per-point normals
   // (set via set3DPositions). 0 leaves the draw bit-identical to see-through; 1
@@ -217,6 +222,7 @@ export function createRenderer(canvas: HTMLCanvasElement, initialViewport: Viewp
         canvas.height = px
       },
       setCamera: () => undefined,
+      setZoom: () => undefined,
       setSolidity: () => undefined,
       setDiffusion: () => undefined,
     }
@@ -254,6 +260,7 @@ export function createRenderer(canvas: HTMLCanvasElement, initialViewport: Viewp
   let normals3D: [number, number, number][] | null = null
   let solidity = 0
   let camera: OrbitCamera = DEFAULT_ORBIT
+  let zoom = DEFAULT_VIEW_ZOOM
   // Diffusion amount (0–1) and the kernel params it resolves to for the active
   // mode. `coreFrac`/`peak` are frame-uniform (one diffusion + one pitch per
   // layout), so the shader reads them as uniforms; only the per-vertex quad size
@@ -325,7 +332,7 @@ export function createRenderer(canvas: HTMLCanvasElement, initialViewport: Viewp
     // size, the 3D analogue of the 2D pointSize; depth cueing then
     // scales it per-dot (nearer = larger). Diffusion never touches it — the blur
     // that merges sources is a CSS filter applied by the UI layer.
-    const scale = fit3DScale(FIT_3D_MARGIN, lattice3DHalfExtent)
+    const scale = applyViewZoom(fit3DScale(FIT_3D_MARGIN, lattice3DHalfExtent), zoom)
     const ls = lightSize
     const baseSize = point3DSize(canvas.width, lattice3DSpacing, ls, scale)
     // Grow the orb quad to hold the diffusion glow tail (the core stays baseSize);
@@ -513,6 +520,10 @@ export function createRenderer(canvas: HTMLCanvasElement, initialViewport: Viewp
     camera = c
   }
 
+  function setZoom(z: number): void {
+    zoom = clampViewZoom(z)
+  }
+
   function setSolidity(s: number): void {
     solidity = s < 0 ? 0 : s > 1 ? 1 : s
   }
@@ -525,7 +536,7 @@ export function createRenderer(canvas: HTMLCanvasElement, initialViewport: Viewp
     if (!pos3D) apply2DGlow()
   }
 
-  return { paint, set2DPositions, resize2D, set3DPositions, resize3D, setCamera, setSolidity, setDiffusion }
+  return { paint, set2DPositions, resize2D, set3DPositions, resize3D, setCamera, setZoom, setSolidity, setDiffusion }
 }
 
 function clamp01(v: number): number {

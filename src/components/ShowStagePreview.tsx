@@ -300,7 +300,11 @@ export function ShowStagePreview({
   const paintFastFrame = useCallback((result: FastReplayResult) => {
     const renderer = rendererRef.current
     if (!renderer || !layout || !stageMaskPlan) return
-    if (layout.draw.kind === '3d') renderer.setCamera(useCameraStore.getState().camera)
+    if (layout.draw.kind === '3d') {
+      const view = useCameraStore.getState()
+      renderer.setCamera(view.camera)
+      renderer.setZoom(view.zoom)
+    }
     const maskStarted = performance.now()
     const maskedFrame = applyShowStageMaskPacked(result.frame, stageMaskPlan, effectiveSoloZoneIdRef.current)
     const maskEnded = performance.now()
@@ -350,7 +354,9 @@ export function ShowStagePreview({
     if (layout.draw.kind === '3d') {
       const px = cube3DCanvasPx(currentViewportWidth)
       renderer.set3DPositions(layout.draw.positions, { canvasPx: px })
-      renderer.setCamera(useCameraStore.getState().camera)
+      const view = useCameraStore.getState()
+      renderer.setCamera(view.camera)
+      renderer.setZoom(view.zoom)
     } else {
       renderer.set2DPositions(layout.draw.positions, {
         containerWidth: currentViewportWidth,
@@ -557,6 +563,7 @@ export function ShowStagePreview({
       const renderer = rendererRef.current
       if (!renderer) return
       renderer.setCamera(state.camera)
+      renderer.setZoom(state.zoom)
       const runtime = replayRef.current
       if (!usePreviewStore.getState().isRunning && runtime) {
         paintFastFrame(runtime.advanceTo(runtime.getElapsedMs(), { stepMs: 1000 / 60 }))
@@ -662,7 +669,13 @@ export function ShowStagePreview({
               <LoaderCircle size={14} aria-hidden className="animate-spin motion-reduce:animate-none" />
             </div>
           )}
-          {layout?.draw.kind === '3d' && <OrbitControls canvasRef={canvasRef} showPoleControls={false} />}
+          {layout?.draw.kind === '3d' && (
+            <OrbitControls
+              canvasRef={canvasRef}
+              viewKey={`show:${showId}:${selectedStageMap?.id ?? 'strips'}`}
+              showPoleControls={false}
+            />
+          )}
           {error && (
             <div className="absolute inset-0 flex items-center justify-center p-4 pointer-events-none">
               <div className="max-w-[90%] rounded-md bg-zinc-950/90 px-3 py-2 text-amber-300">

@@ -317,6 +317,12 @@ export function render2D(index, x, y) { rgb(x, y, 0) }
           },
         },
       })
+      if (expectedDimension === 3) {
+        expect(screen.getByRole('slider', { name: '3D view zoom' })).toHaveValue('1')
+        expect(screen.queryByRole('slider', { name: 'Pole wrap density' })).not.toBeInTheDocument()
+      } else {
+        expect(screen.queryByRole('slider', { name: '3D view zoom' })).not.toBeInTheDocument()
+      }
     } finally {
       createRuntime.mockRestore()
     }

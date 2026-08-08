@@ -138,6 +138,26 @@ test('Pattern detail uses the shared recommended presentation', async ({ page })
   }), { timeout: 15_000 }).toBeGreaterThanOrEqual(0.99)
 })
 
+test('3D Pattern detail offers ephemeral zoom and Reset View framing (#739)', async ({ page }) => {
+  await page.goto('/')
+  await page.locator('#gallery-lattice-warp3-d').dispatchEvent('click')
+
+  const zoom = page.getByRole('slider', { name: '3D view zoom' })
+  await expect(zoom).toHaveAttribute('aria-orientation', 'vertical')
+  await expect(zoom).toHaveValue('1')
+
+  await zoom.fill('2.25')
+  await expect(zoom).toHaveValue('2.25')
+  await expect(zoom).toHaveAttribute('aria-valuetext', '2.25×')
+
+  await page.getByRole('button', { name: 'Reset view' }).click()
+  await expect(zoom).toHaveValue('1')
+  await expect(zoom).toHaveAttribute('aria-valuetext', '1×')
+
+  await page.reload()
+  await expect(page.getByRole('slider', { name: '3D view zoom' })).toHaveValue('1')
+})
+
 test('Preview resolution moves through natural geometry stops', async ({ page }) => {
   await page.goto('/')
   await page.locator('#gallery-lattice-warp3-d').dispatchEvent('click')

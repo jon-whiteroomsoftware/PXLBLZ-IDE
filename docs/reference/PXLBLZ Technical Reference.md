@@ -255,7 +255,7 @@ Major Zustand stores:
 | `editorStore` | Source, last clean preview source, validation, metadata, editor flavor |
 | `previewStore` | Playback, visual settings, telemetry, watched vars, zone solo |
 | `controlStore` | Current Pattern control values |
-| `cameraStore` | Orbit state, auto-orbit, Pole density |
+| `cameraStore` | Ephemeral orbit, 3D magnification, auto-orbit, Pole density |
 | `controllerStore` | Multi-Controller connections and Pattern/map push orchestration |
 | `controllerPanelStore` | Polled live state for the active Controller |
 | `controllerProfileStore` | Durable Controller profile CRUD and live refresh |
@@ -556,6 +556,16 @@ fitting, depth cue, and optional normal-based solidity. Renderer caps protect
 against accidental pathological counts (`MAX_PIXEL_COUNT = 65,536`, grid axis
 256).
 
+Interactive 3D surfaces share an ephemeral `0.5x..2.5x` viewport magnification
+contract through `cameraStore`; `1x` means the surface's automatic fit. Pattern
+Preview and Show Stage apply magnification after `fit3DScale`, so projected
+positions and point/light size grow together while depth values, Pattern
+sampling, and hardware output remain unchanged. A zoom change repaints even
+when playback is paused. Reset View restores the default orbit, 1x, and
+auto-orbit; changing the active Map, embedding, or Stage resets only
+magnification. Native 3D geometry and promoted Pole/Cylinder presentations use
+the same path. The setting is neither cascaded nor persisted.
+
 The Map context pane is deliberately outside that Pattern/Show presentation
 policy. `mapDiagnosticViewport.ts` projects diagnostic positions, sizes 2D from
 physical bounds within a bounded pane frame without stretching, centres 3D on
@@ -564,7 +574,10 @@ density-based marker size, deconflicts at most twelve wire-index labels, and
 counts coincident coordinates. `mapDiagnosticRenderer.ts` paints the projected
 3D points additively without a depth test, so every submitted index contributes
 to the x-ray and coordinate piles intensify instead of disappearing. It does not
-read Pattern light size, diffusion, brightness, or solidity.
+read Pattern light size, diffusion, brightness, or solidity. It accepts the
+shared viewport magnification only after its own actual-bounds fit, enlarges
+diagnostic markers with the geometry, and omits labels whose points move outside
+the clipped frame; depth and coordinate analysis are unchanged.
 
 Changing Stage pane width, light size, or the 3D canvas extent resizes the
 existing renderer in place. It does not construct a new Fast runtime, reset
@@ -688,7 +701,8 @@ right pane instead resolves the source or last good bake into a Map-owned
 diagnostic view. One-dimensional maps use a compact strip; two-dimensional maps
 use their measured physical aspect and contain extreme tall/wide geometry inside
 a bounded frame; three-dimensional maps orbit in a square frame fitted around
-their real bounds centre. Wire-order color remains the primary encoding.
+their real bounds centre. The shared 3D tool rail can magnify that fitted view
+without changing its x-ray policy. Wire-order color remains the primary encoding.
 
 The diagnostic submits every coordinate and reports both total pixels and unique
 positions. `overlaps` is the number of wire indices beyond the first index at a

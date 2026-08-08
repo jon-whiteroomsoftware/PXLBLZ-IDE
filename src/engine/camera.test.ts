@@ -31,6 +31,11 @@ import {
   TERMINATOR_WIDTH,
   applyOrbitDrag,
   advanceAutoOrbit,
+  DEFAULT_VIEW_ZOOM,
+  MAX_VIEW_ZOOM,
+  MIN_VIEW_ZOOM,
+  applyViewZoom,
+  clampViewZoom,
   type OrbitCamera,
 } from './camera'
 
@@ -64,6 +69,26 @@ describe('camera — freeze guard', () => {
     expect(clampGridDim(0)).toBe(1)
     expect(clampGridDim(NaN)).toBe(1)
     expect(clampPixelCount(0)).toBe(1)
+  })
+})
+
+describe('camera — 3D viewport zoom', () => {
+  it('normalizes viewport magnification into the supported range', () => {
+    expect({ min: MIN_VIEW_ZOOM, default: DEFAULT_VIEW_ZOOM, max: MAX_VIEW_ZOOM }).toEqual({
+      min: 0.5,
+      default: 1,
+      max: 2.5,
+    })
+    expect(clampViewZoom(0.1)).toBe(0.5)
+    expect(clampViewZoom(1.35)).toBe(1.35)
+    expect(clampViewZoom(9)).toBe(2.5)
+    expect(clampViewZoom(Number.NaN)).toBe(1)
+  })
+
+  it('multiplies an automatic fit without changing the 1x projection', () => {
+    expect(applyViewZoom(0.8, 1)).toBe(0.8)
+    expect(applyViewZoom(0.8, 2)).toBe(1.6)
+    expect(applyViewZoom(0.8, 9)).toBe(2)
   })
 })
 

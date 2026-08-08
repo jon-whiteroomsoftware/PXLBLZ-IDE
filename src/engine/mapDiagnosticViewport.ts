@@ -1,4 +1,6 @@
 import {
+  DEFAULT_VIEW_ZOOM,
+  applyViewZoom,
   DEFAULT_ORBIT,
   canvasSizeForBounds,
   orbitRotate,
@@ -47,6 +49,7 @@ export interface MapDiagnosticViewportInput {
   displayDimension: 1 | 2 | 3
   containerWidth: number
   camera?: OrbitCamera
+  zoom?: number
 }
 
 export interface MapDiagnosticGeometry {
@@ -67,6 +70,7 @@ export interface ProjectMapDiagnosticGeometryInput {
   geometry: MapDiagnosticGeometry
   containerWidth: number
   camera?: OrbitCamera
+  zoom?: number
 }
 
 const FRAME_INSET = 0.05
@@ -107,6 +111,7 @@ function project3D(
   geometry: MapDiagnosticGeometry,
   size: number,
   camera: OrbitCamera,
+  zoom: number,
 ): MapDiagnosticPoint[] {
   const centered = geometry.positions.map((position) => {
     const point: [number, number, number] = [
@@ -116,7 +121,8 @@ function project3D(
     ]
     return point
   })
-  const scale = geometry.radius3D > 0 ? FIT_MARGIN / geometry.radius3D : 1
+  const autoFitScale = geometry.radius3D > 0 ? FIT_MARGIN / geometry.radius3D : 1
+  const scale = applyViewZoom(autoFitScale, zoom)
 
   return centered.map((point, index) => {
     const [x, y, depth] = orbitRotate(point, camera)
@@ -192,7 +198,11 @@ function project2D(
   }))
 }
 
-function diagnosticLabels(points: readonly MapDiagnosticPoint[]): MapDiagnosticLabel[] {
+function diagnosticLabels(
+  points: readonly MapDiagnosticPoint[],
+  width: number,
+  height: number,
+): MapDiagnosticLabel[] {
   if (points.length === 0) return []
   const candidateCount = Math.min(MAX_LABELS, points.length)
   const candidateIndices = new Set<number>()
@@ -206,6 +216,7 @@ function diagnosticLabels(points: readonly MapDiagnosticPoint[]): MapDiagnosticL
   const labels: MapDiagnosticLabel[] = []
   for (const index of candidateIndices) {
     const point = points[index]
+    if (point.x < 0 || point.x > width || point.y < 0 || point.y > height) continue
     const clear = labels.every((label) => (
       Math.hypot(point.x - label.x, point.y - label.y) >= MIN_LABEL_DISTANCE_PX
     ))
@@ -251,6 +262,7 @@ export function projectMapDiagnosticGeometry({
   geometry,
   containerWidth,
   camera = DEFAULT_ORBIT,
+  zoom = DEFAULT_VIEW_ZOOM,
 }: ProjectMapDiagnosticGeometryInput): MapDiagnosticViewport {
   const width = Math.max(1, Math.round(containerWidth))
   const natural2DSize = canvasSizeForBounds(containerWidth, geometry.bounds2D)
@@ -267,15 +279,16 @@ export function projectMapDiagnosticGeometry({
       : { width, height: width }
 
   const points = geometry.displayDimension === 3
-    ? project3D(geometry, size.width, camera)
+    ? project3D(geometry, size.width, camera, zoom)
     : project2D(geometry, size)
+  const markerZoom = geometry.displayDimension === 3 ? applyViewZoom(1, zoom) : 1
 
   return {
     ...size,
     points,
-    labels: diagnosticLabels(points),
+    labels: diagnosticLabels(points, size.width, size.height),
     coordinateSummary: geometry.coordinateSummary,
-    pointDiameterPx: Math.max(
+    pointDiameterPx: markerZoom * Math.max(
       2,
       Math.min(6, (size.width / Math.sqrt(Math.max(1, geometry.positions.length))) * 0.35),
     ),
@@ -287,10 +300,12 @@ export function buildMapDiagnosticViewport({
   displayDimension,
   containerWidth,
   camera,
+  zoom,
 }: MapDiagnosticViewportInput): MapDiagnosticViewport {
   return projectMapDiagnosticGeometry({
     geometry: prepareMapDiagnosticGeometry({ positions, displayDimension }),
     containerWidth,
     camera,
+    zoom,
   })
 }

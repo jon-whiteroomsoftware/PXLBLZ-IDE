@@ -214,6 +214,22 @@ export interface OrbitCamera {
   roll: number // about the view (Z) axis, radians; only a trackball sets this
 }
 
+// Ephemeral viewport magnification applied after a 3D surface's automatic fit.
+// Keeping the range here gives Pattern, Show, and Map diagnostic presentation
+// one interaction contract without merging their distinct fitting policies.
+export const MIN_VIEW_ZOOM = 0.5
+export const DEFAULT_VIEW_ZOOM = 1
+export const MAX_VIEW_ZOOM = 2.5
+
+export function clampViewZoom(zoom: number): number {
+  if (!Number.isFinite(zoom)) return DEFAULT_VIEW_ZOOM
+  return Math.max(MIN_VIEW_ZOOM, Math.min(MAX_VIEW_ZOOM, zoom))
+}
+
+export function applyViewZoom(autoFitScale: number, zoom: number): number {
+  return autoFitScale * clampViewZoom(zoom)
+}
+
 // Default three-quarter view: a gentle yaw and downward tilt so all three axes
 // read on open. reset-view returns here; auto-orbit advances `azimuth` from it.
 export const DEFAULT_ORBIT: OrbitCamera = { azimuth: 0.6, elevation: 0.5, roll: 0 }

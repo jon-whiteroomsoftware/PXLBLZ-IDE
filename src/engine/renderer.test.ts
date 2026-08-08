@@ -45,6 +45,7 @@ describe('renderer — no GL context', () => {
     const renderer = createRenderer(canvas, { containerWidth: 640 })
 
     renderer.set3DPositions([[0, 0, 0], [1, 1, 1]], { canvasPx: 640 })
+    expect(() => renderer.setZoom(2)).not.toThrow()
     renderer.resize3D(320)
 
     expect(canvas.width).toBe(320)

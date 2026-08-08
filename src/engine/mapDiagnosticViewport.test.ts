@@ -59,6 +59,33 @@ describe('Map diagnostic viewport', () => {
     ])
   })
 
+  it('magnifies 3D geometry and markers over the diagnostic auto-fit', () => {
+    const geometry = prepareMapDiagnosticGeometry({
+      positions: [[0.1, 0.5, 0.1], [0.1, 0.5, 0.3]],
+      displayDimension: 3,
+    })
+    const fitted = projectMapDiagnosticGeometry({
+      geometry,
+      containerWidth: 460,
+      camera: { azimuth: Math.PI / 2, elevation: 0, roll: 0 },
+    })
+    const zoomed = projectMapDiagnosticGeometry({
+      geometry,
+      containerWidth: 460,
+      camera: { azimuth: Math.PI / 2, elevation: 0, roll: 0 },
+      zoom: 2,
+    })
+
+    expect(zoomed.points.map(({ x, y }) => [x, y])).toEqual([
+      [-184, 230],
+      [644, 230],
+    ])
+    expect(zoomed.pointDiameterPx).toBe(12)
+    expect(zoomed.labels).toEqual([])
+    expect(zoomed.points.map(({ depth }) => depth)).toEqual(fitted.points.map(({ depth }) => depth))
+    expect(zoomed.coordinateSummary).toBe(fitted.coordinateSummary)
+  })
+
   it('accounts for coincident coordinates instead of making them look missing', () => {
     const viewport = buildMapDiagnosticViewport({
       positions: [[0, 0], [0, 0], [1, 1], [0, 0]],
