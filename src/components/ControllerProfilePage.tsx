@@ -86,6 +86,47 @@ const rulePercentSizeClass = '[&_input]:h-6 [&_input]:text-xs [&_span>span]:h-6'
 const traceGutter = '1.75rem'
 const EMPTY_CONTROLLER_PROGRAMS: ProgramListEntry[] = []
 
+/** Names everything a read taken from a live Controller is an answer *about*:
+ *  which Controller, which connection to it, and the program list it was read
+ *  alongside. Null when there is no live Controller to read from.
+ *
+ *  Each live read below stores the key it was taken under and is current only
+ *  while that key is still the one this render would read for. One value carries
+ *  the whole question, so what re-triggers a read and what retires the previous
+ *  answer cannot come to differ, and a term added here is added to both at once.
+ *  That drift is the defect this replaced: currentness was a hand-kept list of
+ *  identity checks, and each round found one more way to satisfy all of
+ *  them (#772).
+ *
+ *  The connection is the term the others cannot stand in for. A reconnect leaves
+ *  the IP identical, and the panel store keeps a Controller's program list under
+ *  its IP across the gap, so both look unchanged while everything read during
+ *  the previous connection is unverified. `liveEpoch` is the store's
+ *  per-connection stamp; it is `undefined` only when a test drives the store
+ *  directly instead of through a connection. Keying on program *content* rather
+ *  than array identity is deliberate: a poll that re-reads the same list is not
+ *  a new question, and re-asking on every poll is what made the stale answer
+ *  visible in the first place. */
+function liveControllerReadKey(input: {
+  liveIp: string | undefined
+  liveEpoch: number | undefined
+  programs: readonly ProgramListEntry[]
+}): string | null {
+  if (!input.liveIp) return null
+  return JSON.stringify([input.liveIp, input.liveEpoch ?? null, input.programs])
+}
+
+/** A result stored from a live read, back only while the key it was read under
+ *  is still the key on screen. Anything else — a read in flight, a read that
+ *  failed, a read taken from another Controller, a read taken during an earlier
+ *  connection to this one — is the same absence of evidence. */
+function currentRead<T extends { readKey: string }>(
+  stored: T | null,
+  liveReadKey: string | null,
+): T | null {
+  return stored && stored.readKey === liveReadKey ? stored : null
+}
+
 type SelectOption<T extends string | number> = {
   value: T
   label: string
@@ -1448,22 +1489,19 @@ export function ControllerProfilePage({ profileId }: { profileId: string }) {
   const profile = profiles.find((item) => item.id === profileId)
   const profileController = profile ? controllerForProfile(profile, controllers) : null
   const liveIp = profileController?.phase === 'live' ? profileController.ip : undefined
+  const liveEpoch = profileController?.phase === 'live' ? profileController.liveEpoch : undefined
   const liveMapDim = profileController?.phase === 'live' ? profileController.mapDim ?? null : null
   const controllerPrograms = useControllerPanelStore((state) => (
     liveIp ? state.programsByController[liveIp] ?? EMPTY_CONTROLLER_PROGRAMS : EMPTY_CONTROLLER_PROGRAMS
   ))
+  const liveReadKey = liveControllerReadKey({ liveIp, liveEpoch, programs: controllerPrograms })
   const profileRefreshId = profile?.id
   const [controllerBindingsRead, setControllerBindingsRead] = useState<{
-    controllerId: string
+    readKey: string
     bindings: BindingStore
   } | null>(null)
-  // A completed push-records read answers exactly one question: what this
-  // Controller had stored as of this program list. Storing that question with
-  // the answer is what retires the answer — the moment either changes, the
-  // records describe a read the page is no longer making (#772).
   const [pushRecordsRead, setPushRecordsRead] = useState<{
-    controllerId: string
-    programs: readonly ProgramListEntry[]
+    readKey: string
     records: Record<string, ControllerPushRecord>
   } | null>(null)
 
@@ -1471,35 +1509,37 @@ export function ControllerProfilePage({ profileId }: { profileId: string }) {
     if (profileRefreshId && liveIp) void refreshLiveMetadata(profileRefreshId)
   }, [liveIp, profileRefreshId, refreshLiveMetadata])
 
+  // `liveIp` is in the dependencies because the read needs it, not because it
+  // decides anything: the key already covers it, so the extra dependency can
+  // only make the effect run more often, never less. Currentness is decided by
+  // the key alone, below.
   useEffect(() => {
     let cancelled = false
-    if (!liveIp) return
+    if (!liveReadKey || !liveIp) return
     void getControllerBindings()
       .then((bindings) => {
-        if (!cancelled) setControllerBindingsRead({ controllerId: liveIp, bindings })
+        if (!cancelled) setControllerBindingsRead({ readKey: liveReadKey, bindings })
       })
-      .catch(() => {})
+      .catch(() => {
+        if (!cancelled) setControllerBindingsRead(null)
+      })
     return () => {
       cancelled = true
     }
-  }, [controllerPrograms, liveIp])
+  }, [liveIp, liveReadKey])
 
   // Level 2 re-push staleness needs the saved artifact records for this
   // Controller. They are keyed by IP, so this mirrors the bindings read. Only a
-  // completed read stores anything, and it stores the question it answers; a
-  // read that fails drops what it superseded rather than leaving it behind to
-  // be read as current.
+  // completed read stores anything, and it stores the key it answers for; a read
+  // that fails drops what it superseded rather than leaving it behind to be read
+  // as current.
   useEffect(() => {
     let cancelled = false
-    if (!liveIp) return
+    if (!liveReadKey || !liveIp) return
     void getPushRecords()
       .then((records) => {
         if (cancelled) return
-        setPushRecordsRead({
-          controllerId: liveIp,
-          programs: controllerPrograms,
-          records: records[liveIp] ?? {},
-        })
+        setPushRecordsRead({ readKey: liveReadKey, records: records[liveIp] ?? {} })
       })
       .catch(() => {
         if (!cancelled) setPushRecordsRead(null)
@@ -1507,16 +1547,10 @@ export function ControllerProfilePage({ profileId }: { profileId: string }) {
     return () => {
       cancelled = true
     }
-  }, [controllerPrograms, liveIp])
+  }, [liveIp, liveReadKey])
 
-  // Non-null only while the stored records still answer the read this render
-  // would make. A read in flight, a read that failed, and a read taken against
-  // another Controller are the same absence of evidence (#772).
-  const pushRecordsCurrent = pushRecordsRead
-    && pushRecordsRead.controllerId === liveIp
-    && pushRecordsRead.programs === controllerPrograms
-    ? pushRecordsRead
-    : null
+  const currentBindings = currentRead(controllerBindingsRead, liveReadKey)?.bindings ?? null
+  const pushRecordsCurrent = currentRead(pushRecordsRead, liveReadKey)
 
   const installedMapObservation = profile
     ? profileController?.phase === 'live'
@@ -1545,9 +1579,7 @@ export function ControllerProfilePage({ profileId }: { profileId: string }) {
     ? installedControllerPatternChoices({
         controllerId: liveIp,
         programs: controllerPrograms,
-        bindings: controllerBindingsRead?.controllerId === liveIp
-          ? controllerBindingsRead.bindings
-          : {},
+        bindings: currentBindings ?? {},
       }).map((choice) => ({ value: choice.patternId, label: choice.name }))
     : []
   const localPatternNameById = new Map<string, string>([

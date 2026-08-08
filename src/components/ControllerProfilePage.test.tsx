@@ -837,6 +837,122 @@ describe('ControllerProfilePage', () => {
     expect(pushReadIndex).toBe(4)
   })
 
+  it('does not resurrect the previous connection\'s push read on reconnect (#772)', async () => {
+    const base = seedProfile()
+    const profile = {
+      ...base,
+      inputs: [{
+        id: 'pot0',
+        name: 'Front pot',
+        pin: 33,
+        signal: 'analog' as const,
+        smoothing: 0.2,
+        fallback: 0.5,
+        invert: false,
+      }],
+      patternBindings: [{
+        id: 'b1',
+        patternId: 'pat-line',
+        inputId: 'pot0',
+        target: { kind: 'call-exported-slider' as const, name: 'sliderSpeed' },
+      }],
+    }
+    useControllerProfileStore.setState({ profiles: [profile], profilesLoaded: true })
+    usePatternStore.setState({
+      userPatterns: [{
+        id: 'pat-line',
+        name: 'Line Dancer',
+        src: 'export function render(index) { hsv(0, 1, 1) }',
+        controls: {},
+        updatedAt: 1,
+      }],
+      patternsLoaded: true,
+    })
+
+    const stalePushRecords = {
+      '192.168.8.224': {
+        'pat-line': {
+          transforms: [],
+          artifactHash: 'h',
+          stampedAt: '2026-08-07T00:00:00.000Z',
+          name: 'Line Dancer',
+          profileSignature: 'an-older-signature',
+        },
+      },
+    }
+    // Two whole reads: the one this connection completed, and the replacement
+    // the reconnect starts and never finishes.
+    const pushReads: Array<() => Promise<Record<string, Record<string, ControllerPushRecord>>>> = [
+      () => Promise.resolve(stalePushRecords),
+      () => new Promise(() => {}),
+    ]
+    let pushReadIndex = 0
+    setControllerMetadataStorage({
+      ...demoControllerMetadataStorage,
+      id: 'push-records-across-connections',
+      getControllerBindings: async () => ({ '192.168.8.224': { 'pat-line': 'DEV_LINE' } }),
+      getPushRecords: () => pushReads[pushReadIndex++](),
+    })
+
+    // The panel store keeps a Controller's program list under its IP across a
+    // disconnect and only replaces it when a new list arrives, so a reconnect
+    // to the same Controller finds the very same array waiting. Seeded once,
+    // never replaced — exactly what the page sees.
+    act(() => {
+      useControllerPanelStore.setState({
+        programsByController: { '192.168.8.224': [{ id: 'DEV_LINE', name: 'Line Dancer' }] },
+      })
+    })
+    const connect = (liveEpoch: number) => {
+      act(() => {
+        useControllerStore.setState({
+          activeIp: '192.168.8.224',
+          controllers: {
+            '192.168.8.224': {
+              ip: '192.168.8.224',
+              deviceId: profile.deviceId,
+              nickname: 'Burner bag',
+              phase: 'live',
+              liveEpoch,
+              mapDim: 2,
+            },
+          },
+        })
+      })
+    }
+    connect(1)
+    render(<ControllerProfilePage profileId="ctrl-1" />)
+
+    expect(await screen.findByText('push again')).toBeInTheDocument()
+    const retainedPrograms = useControllerPanelStore.getState().programsByController['192.168.8.224']
+
+    // Disconnect. The entry goes; the records the page already read do not.
+    act(() => {
+      useControllerStore.setState({ activeIp: null, controllers: {} })
+    })
+    expect(screen.queryByText('push again')).not.toBeInTheDocument()
+
+    // Reconnect to the same Controller, same retained program list. Every value
+    // the page used to key the old read is identical again — only the
+    // connection is new, and the replacement read has not landed.
+    connect(2)
+    expect(useControllerPanelStore.getState().programsByController['192.168.8.224'])
+      .toBe(retainedPrograms)
+    await act(async () => {
+      await new Promise((resolve) => setTimeout(resolve, 0))
+    })
+    expect(pushReadIndex).toBe(2)
+    expect(screen.queryByText('push again')).not.toBeInTheDocument()
+    expect(screen.queryByText('not pushed')).not.toBeInTheDocument()
+
+    // The replacement never resolves, so the page never regains an answer.
+    await act(async () => {
+      await new Promise((resolve) => setTimeout(resolve, 10))
+    })
+    expect(screen.queryByText('push again')).not.toBeInTheDocument()
+    expect(screen.queryByText('not pushed')).not.toBeInTheDocument()
+  })
+
   it('lays the input list out as ragged two-up columns, not a shared-height grid (#772)', () => {
     const profile = seedProfile()
     useControllerProfileStore.setState({

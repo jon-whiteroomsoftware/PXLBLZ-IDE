@@ -915,6 +915,41 @@ describe('controllerStore (keyed)', () => {
     expect(created.get('10.0.0.5')!.rendererCommands).toEqual([true, false])
   })
 
+  it('stamps every arrival at live with a fresh liveEpoch (#772)', async () => {
+    // Readers that cache something read from a live Controller cannot tell one
+    // connection from the next by IP: the IP is the same, and so is every
+    // per-IP collection retained across the gap. The epoch is the difference.
+    await store().addController('10.0.0.5')
+    const first = store().controllers['10.0.0.5'].liveEpoch
+    expect(typeof first).toBe('number')
+
+    await store().addController('10.0.0.5')
+    const second = store().controllers['10.0.0.5'].liveEpoch!
+    expect(second).toBeGreaterThan(first!)
+
+    await store().removeController('10.0.0.5')
+    await store().addController('10.0.0.5')
+    const third = store().controllers['10.0.0.5'].liveEpoch!
+    expect(third).toBeGreaterThan(second)
+
+    // Only arriving at live is a new connection. Anything else the store learns
+    // about a Controller it is already connected to leaves the epoch alone, or
+    // every reader keyed to it would re-read on every observation.
+    await store().refreshInstalledMap('10.0.0.5')
+    expect(store().controllers['10.0.0.5'].liveEpoch).toBe(third)
+
+    // Connecting re-asserts `live` more than once — the status subscription and
+    // the post-getConfig patch both do — and that is one connection, not two.
+    const seen = new Set<number>()
+    const unsubscribe = useControllerStore.subscribe((s) => {
+      const epoch = s.controllers['10.0.0.5']?.liveEpoch
+      if (typeof epoch === 'number') seen.add(epoch)
+    })
+    await store().addController('10.0.0.5')
+    unsubscribe()
+    expect(seen.size).toBe(1)
+  })
+
   it('removeController drops the entry, disconnects, and re-points active', async () => {
     await store().addController('10.0.0.5')
     await store().addController('10.0.0.6')

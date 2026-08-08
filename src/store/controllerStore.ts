@@ -120,6 +120,14 @@ export interface ControllerEntry {
   firmwareUpdateCheckedAt?: number
   firmwareUpdateObservedVersion?: string
   phase: ControllerPhase
+  /** Names the connection this entry is currently living in. Fresh on every
+   *  arrival at `live`, absent otherwise, and never reused. Anything cached from
+   *  a live read — here or in a component — is only about the connection whose
+   *  epoch it was taken under: the IP is identical across a reconnect, and so is
+   *  every per-IP collection retained across the gap, so nothing else in the
+   *  entry distinguishes one session from the next (#772). Session-scoped and
+   *  not persisted, like the entry itself. */
+  liveEpoch?: number
   /** Last error message when `phase === 'error'`. */
   error?: string
   /** Non-null while Chrome is waiting for the helper popup's per-IP grant (#235). */
@@ -393,6 +401,12 @@ const firmwareUpdateCheckedAt = new Map<string, number>()
 const reconciliationTimers = new Map<string, ReturnType<typeof setTimeout>>()
 const FIRMWARE_UPDATE_CHECK_INTERVAL_MS = 60 * 60 * 1000
 
+// Source of `ControllerEntry.liveEpoch`. Module-local and monotonic for the life
+// of the page, so no two connections — to the same Controller or different ones
+// — ever share an epoch. Entries are not persisted, so this never has to survive
+// a reload or agree with a restored value.
+let liveEpochCounter = 0
+
 /** Map a provider status to the keyed entry's mirrored fields. The nickname is
  *  only ever *set* (when the status carries a device name), never cleared — it is
  *  fetched once via getConfig on connect and must survive a transient reconnect,
@@ -500,11 +514,21 @@ export const useControllerStore = create<ControllerConnectionState>()(
       }
 
       // Fold a per-Controller patch into the keyed map without dropping siblings.
+      // Arriving at `live` from anywhere else opens a new connection, and this is
+      // the only path an entry can take to get there — `addController` builds its
+      // entry `pending` — so stamping the epoch here covers every arrival,
+      // including any added later. Re-asserting `live` while already live is the
+      // same connection and keeps its epoch: minting one for every observation
+      // would make readers keyed to the epoch re-read continuously (#772).
       const patchController = (ip: string, patch: Partial<ControllerEntry>) =>
         set((s) => {
           const existing = s.controllers[ip]
           if (!existing) return s
-          return { controllers: { ...s.controllers, [ip]: { ...existing, ...patch } } }
+          const arrivingLive = patch.phase === 'live' && existing.phase !== 'live'
+          const next = arrivingLive
+            ? { ...existing, ...patch, liveEpoch: ++liveEpochCounter }
+            : { ...existing, ...patch }
+          return { controllers: { ...s.controllers, [ip]: next } }
         })
 
       const invalidateRendererState = (ip: string) => {
