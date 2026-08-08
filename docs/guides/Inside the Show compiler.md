@@ -224,8 +224,11 @@ Placement `phase` is a **hue rotation, not a time offset**. It compiles inside
 the member's sink — `emitMemberHsvSink` in `showCompiler.ts` — to `h` plus the
 member's `_adapt_phase` global, so it costs one add per pixel. That makes it the
 cheapest way to give a zone its own visual identity. It is property-animatable
-through a placement-view track on `phase`, with values clamped to 0..1 and
-keyframe times in whole milliseconds.
+through a placement-view track on `phase`, with keyframe times in whole
+milliseconds and values **validated** to 0..1 rather than clamped into it: an
+out-of-range keyframe raises an `out-of-bounds` issue, the authoring helpers
+return the composition unchanged, and an imported record carrying one fails to
+compile. Clamp before you write, not after.
 
 Crossfade boundaries are the opposite. Measured across five physical zones, each
 crossfade boundary costs roughly 20 device-budget points: the same Show landed at

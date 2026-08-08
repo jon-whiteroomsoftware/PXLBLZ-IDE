@@ -16,17 +16,20 @@ agent's call; each cohort should contrast technically with the previous one.
 Shipped themes have included per-pixel field evaluation, living simulations,
 emergent collectives, and clockwork mechanics.
 
-A new demo needs all four of these. Missing any one fails `npm test`:
+A new demo needs all five of these. Missing any one fails `npm test`:
 
 1. `src/pixelblaze/stock/patterns/<Name>.js` in the Pixelblaze dialect. Respect
    the fixed-point authoring traps in
    [`Optimizing Pixelblaze patterns.md`](../guides/Optimizing%20Pixelblaze%20patterns.md)
-   — the `fx` identifier shadow, shift and constant emit limits, and the device
-   array rules. Keep 16.16 magnitudes under 32768 in hash constants and wrap
-   accumulating clocks with `mod`.
-2. A `RECOMMENDED_SETTINGS` entry in `src/pixelblaze/stock/patterns.ts`.
-3. Smoke coverage in `src/pixelblaze/stock/patterns/_smoke.test.ts`.
-4. A `CONTROL_DESCRIPTIONS` entry in `src/pixelblaze/controlDescriptions.ts` for
+   — the `fx` identifier shadow and the ±32767 constant limit — along with the
+   device array rules. Keep 16.16 magnitudes under 32768 in hash constants and
+   wrap accumulating clocks with `mod`.
+2. A parseable **manifest** in that source file. `patterns.test.ts` requires one
+   for every stock Pattern, with a name matching the file, a `runsOn` that
+   includes the Pattern's native dimensionality, and documented controls.
+3. A `RECOMMENDED_SETTINGS` entry in `src/pixelblaze/stock/patterns.ts`.
+4. Smoke coverage in `src/pixelblaze/stock/patterns/_smoke.test.ts`.
+5. A `CONTROL_DESCRIPTIONS` entry in `src/pixelblaze/controlDescriptions.ts` for
    **every** slider. The first cohort missed this one and left the suite red.
 
 The preview y-axis increases bottom to top.
