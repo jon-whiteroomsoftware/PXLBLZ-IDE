@@ -1,7 +1,9 @@
 import {
   controllerZonePixelCount,
+  controllerProfileRecordIssues,
   controllerProfileValidationErrors,
   formatControllerZoneRanges,
+  normalizeControllerInputs,
   normalizeControllerZone,
   parseControllerZoneRanges,
   validateControllerProfile,
@@ -23,7 +25,6 @@ const baseProfile: ControllerProfile = {
       name: 'Brightness pot',
       pin: 33,
       signal: 'analog',
-      role: 'brightness',
       smoothing: 0.2,
       fallback: 0.5,
       invert: false,
@@ -33,7 +34,6 @@ const baseProfile: ControllerProfile = {
       name: 'Next button',
       pin: 25,
       signal: 'digital',
-      role: 'next-pattern',
       smoothing: 0,
       fallback: 0,
       invert: false,
@@ -102,6 +102,48 @@ const baseProfile: ControllerProfile = {
 describe('ControllerProfile validation', () => {
   it('accepts a durable controller profile with inputs, transforms, bindings, and zones', () => {
     expect(validateControllerProfile(baseProfile)).toEqual({ ok: true, errors: [] })
+  })
+
+  it('rejects hardware brightness assigned to a digital input (#772)', () => {
+    const profile: ControllerProfile = {
+      ...baseProfile,
+      globalTransforms: baseProfile.globalTransforms.map((transform) => (
+        transform.type === 'hardware-brightness' ? { ...transform, inputId: 'btn0' } : transform
+      )),
+      patternBindings: [],
+    }
+
+    const result = validateControllerProfile(profile)
+
+    expect(result.ok).toBe(false)
+    expect(result.errors).toContainEqual({
+      path: 'inputs.btn0.signal',
+      // Coherent and storable, so it must not block the write that repairs it.
+      kind: 'configuration',
+      message:
+        'Input "btn0" drives hardware brightness, which needs an analog signal. A digital input emits nothing.',
+    })
+    expect(controllerProfileRecordIssues(result)).toEqual([])
+  })
+
+  it('ignores the signal of an input that hardware brightness does not use (#772)', () => {
+    const profile: ControllerProfile = { ...baseProfile, patternBindings: [] }
+
+    expect(validateControllerProfile(profile)).toEqual({ ok: true, errors: [] })
+  })
+
+  it('does not flag a digital input while hardware brightness is disabled (#772)', () => {
+    const profile: ControllerProfile = {
+      ...baseProfile,
+      globalTransforms: baseProfile.globalTransforms.map((transform) => (
+        transform.type === 'hardware-brightness'
+          ? { ...transform, enabled: false, inputId: 'btn0' }
+          : transform
+      )),
+      patternBindings: [],
+    }
+
+    expect(validateControllerProfile(profile)).toEqual({ ok: true, errors: [] })
   })
 
   it('rejects a duty cap outside the normalized 0..1 range', () => {
@@ -190,6 +232,44 @@ describe('ControllerProfile validation', () => {
       name: 'Legacy',
       ranges: [{ start: 10, end: 12 }],
     })
+  })
+
+  it('drops the retired role annotation when reading stored inputs (#772)', () => {
+    const stored: Array<ControllerProfile['inputs'][number] & { role?: string }> = [
+      {
+        id: 'pot0',
+        name: 'Brightness pot',
+        pin: 33,
+        signal: 'analog',
+        role: 'brightness',
+        smoothing: 0.2,
+        fallback: 0.5,
+        invert: false,
+      },
+      {
+        id: 'btn0',
+        name: 'Next button',
+        pin: 25,
+        signal: 'digital',
+        role: 'next-pattern',
+        smoothing: 0,
+        fallback: 0,
+        invert: true,
+      },
+    ]
+
+    const normalized = normalizeControllerInputs(stored)
+
+    expect(normalized).toEqual([
+      { id: 'pot0', name: 'Brightness pot', pin: 33, signal: 'analog', smoothing: 0.2, fallback: 0.5, invert: false },
+      { id: 'btn0', name: 'Next button', pin: 25, signal: 'digital', smoothing: 0, fallback: 0, invert: true },
+    ])
+    for (const input of normalized) expect(input).not.toHaveProperty('role')
+    expect(stored[0]).toHaveProperty('role')
+  })
+
+  it('keeps well-formed inputs referentially stable so reads do not churn state (#772)', () => {
+    expect(normalizeControllerInputs(baseProfile.inputs)).toBe(baseProfile.inputs)
   })
 
   it('rejects analog bindings on digital-only through-hole pins with a human-readable board error', () => {

@@ -1,4 +1,5 @@
 import {
+  assertValidControllerProfile,
   createD1ControllerProfile,
   deleteD1ControllerProfile,
   getD1ControllerProfile,
@@ -49,7 +50,6 @@ const profile: ControllerProfile = {
       name: 'Brightness pot',
       pin: 33,
       signal: 'analog',
-      role: 'brightness',
       smoothing: 0.2,
       fallback: 0.5,
       invert: false,
@@ -145,6 +145,60 @@ describe('D1 controller profile persistence', () => {
       zones_json: JSON.stringify(profile.zones),
       updated_at: 100,
     })).toEqual(profile)
+  })
+
+  it('drops the retired input role annotation when reading D1 rows (#772)', () => {
+    const legacyInputs = profile.inputs.map((input) => ({ ...input, role: 'brightness' }))
+
+    const read = controllerProfileFromRow({
+      id: 'ctrl-1',
+      name: 'Burner bag',
+      device_id: null,
+      last_known_device_name: null,
+      last_seen_ip: null,
+      last_known_pixel_count: null,
+      last_known_map_dim: null,
+      last_known_installed_map_json: null,
+      map_fingerprints_json: null,
+      board_json: JSON.stringify(profile.board),
+      inputs_json: JSON.stringify(legacyInputs),
+      global_transforms_json: JSON.stringify([]),
+      electrical_profile_json: null,
+      keep_patterns_up_to_date: 0,
+      pattern_bindings_json: JSON.stringify([]),
+      zones_json: JSON.stringify([]),
+      updated_at: 100,
+    })
+
+    expect(read.inputs).toEqual(profile.inputs)
+    for (const input of read.inputs) expect(input).not.toHaveProperty('role')
+  })
+
+  it('stores a profile whose configuration is coherent but does nothing (#772)', () => {
+    // Hardware brightness on a digital input is a validation error the user must
+    // see and repair. Blocking the write would trap the profile: every later
+    // edit, including the repair itself, would be rejected too.
+    const stuck: ControllerProfile = {
+      ...profile,
+      inputs: [{ ...profile.inputs[0], signal: 'digital' }],
+      patternBindings: [],
+    }
+
+    expect(() => assertValidControllerProfile(stuck)).not.toThrow()
+  })
+
+  it('still refuses a profile the record model cannot represent', () => {
+    const broken: ControllerProfile = {
+      ...profile,
+      globalTransforms: profile.globalTransforms.map((transform) =>
+        transform.type === 'hardware-brightness'
+          ? { ...transform, inputId: 'ghost' }
+          : transform),
+      patternBindings: [],
+    }
+
+    expect(() => assertValidControllerProfile(broken))
+      .toThrow(/references missing input "ghost"/)
   })
 
   it('normalizes legacy single-range zones when reading D1 rows', () => {

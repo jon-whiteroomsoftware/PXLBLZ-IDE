@@ -73,17 +73,31 @@ export function withControllerFirmwareUpdateReport(
 }
 
 export type ControllerInputSignal = 'analog' | 'digital'
-export type ControllerInputRole = 'brightness' | 'assignable' | 'next-pattern'
 
 export interface ControllerInput {
   id: string
   name: string
   pin: number
   signal: ControllerInputSignal
-  role: ControllerInputRole
   smoothing: number
   fallback: number
   invert: boolean
+}
+
+/** Records written before #772 carry a `role` annotation that nothing ever
+ * consumed. Drop it on read so a later write does not persist it again. The
+ * array identity is preserved when there is nothing to strip, so ordinary
+ * reads do not churn store state. */
+export function normalizeControllerInputs(
+  inputs: readonly (ControllerInput & { role?: unknown })[],
+): ControllerInput[] {
+  const stray = inputs.some((input) => 'role' in input)
+  if (!stray) return inputs as ControllerInput[]
+  return inputs.map((input) => {
+    if (!('role' in input)) return input
+    const { role: _retiredRole, ...rest } = input as ControllerInput & { role?: unknown }
+    return rest
+  })
 }
 
 export interface PowerCapTransform extends PowerCapSettings {
@@ -207,6 +221,12 @@ export function controllerProfileDisplayName(profile: ControllerProfile): string
 export interface ControllerProfileValidationIssue {
   path: string
   message: string
+  /** `record` (the default) means the profile cannot be stored: duplicate ids,
+   * dangling references, out-of-range numbers. `configuration` means a coherent,
+   * storable state that simply does not do what the user intended. Configuration
+   * issues must stay persistable, or a profile already in that state could never
+   * be saved — including the save that repairs it (#772). */
+  kind?: 'record' | 'configuration'
 }
 
 export interface ControllerProfileValidationResult {
@@ -340,6 +360,19 @@ export function validateControllerProfile(
         path: `globalTransforms.${transform.id}.inputId`,
         message: `Global transform "${transform.id}" references missing input "${transform.inputId}".`,
       })
+    }
+    // The pass recipe only samples analog inputs, so brightness on a digital
+    // input silently emits nothing. Name the input, not the transform: the
+    // correction belongs on the input's card (#772).
+    if (transform.type === 'hardware-brightness' && transform.enabled) {
+      const input = profile.inputs.find((candidate) => candidate.id === transform.inputId)
+      if (input && input.signal !== 'analog') {
+        errors.push({
+          path: `inputs.${input.id}.signal`,
+          message: `Input "${input.id}" drives hardware brightness, which needs an analog signal. A digital input emits nothing.`,
+          kind: 'configuration',
+        })
+      }
     }
     if (
       transform.type === 'power-cap'
@@ -529,6 +562,15 @@ export function controllerProfileValidationErrors(
   result: ControllerProfileValidationResult,
 ): string[] {
   return result.errors.map((error) => error.message)
+}
+
+/** The subset of validation that decides whether the record may be stored.
+ * Configuration issues are deliberately excluded: they are shown and corrected
+ * in the UI, and blocking the write would trap the profile in its bad state. */
+export function controllerProfileRecordIssues(
+  result: ControllerProfileValidationResult,
+): ControllerProfileValidationIssue[] {
+  return result.errors.filter((error) => error.kind !== 'configuration')
 }
 
 function collectDuplicateIds(

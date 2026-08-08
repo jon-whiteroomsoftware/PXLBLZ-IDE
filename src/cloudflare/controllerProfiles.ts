@@ -1,5 +1,6 @@
 import {
-  controllerProfileValidationErrors,
+  controllerProfileRecordIssues,
+  normalizeControllerInputs,
   normalizeControllerZones,
   validateControllerProfile,
   type ControllerBoardProfile,
@@ -62,7 +63,7 @@ export function controllerProfileFromRow(row: D1ControllerProfileRow): Controlle
       : {}),
     mapFingerprints: parseJson<ControllerMapFingerprint[]>(row.map_fingerprints_json, []),
     board: parseJson<ControllerBoardProfile>(row.board_json),
-    inputs: parseJson<ControllerInput[]>(row.inputs_json),
+    inputs: normalizeControllerInputs(parseJson<ControllerInput[]>(row.inputs_json)),
     globalTransforms: parseJson<GlobalTransform[]>(row.global_transforms_json),
     ...(row.electrical_profile_json
       ? { electricalProfile: parseJson<ControllerElectricalProfile>(row.electrical_profile_json) }
@@ -226,8 +227,11 @@ export async function deleteD1ControllerProfile(
 }
 
 export function assertValidControllerProfile(profile: ControllerProfile): void {
-  const result = validateControllerProfile(profile)
-  if (!result.ok) throw new Error(controllerProfileValidationErrors(result).join('\n'))
+  // Only record-level issues block the write. A configuration issue such as
+  // hardware brightness on a digital input is coherent and storable; refusing it
+  // would lock an affected profile out of every edit, including its repair.
+  const issues = controllerProfileRecordIssues(validateControllerProfile(profile))
+  if (issues.length > 0) throw new Error(issues.map((issue) => issue.message).join('\n'))
 }
 
 function addAssignment(

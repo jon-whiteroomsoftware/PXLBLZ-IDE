@@ -16,10 +16,10 @@ import {
   type ControllerProfileJoinTarget,
 } from '@/engine/controllerProfileJoin'
 import {
+  normalizeControllerInputs,
   withControllerFirmwareUpdateReport,
   type ControllerBindingTarget,
   type ControllerInput,
-  type ControllerInputRole,
   type ControllerInputSignal,
   type ControllerProfile,
   type ControllerZone,
@@ -57,7 +57,10 @@ interface ControllerProfileState {
   updateZone: (profileId: string, zoneId: string, changes: Partial<ControllerZone>) => Promise<void>
   removeZone: (profileId: string, zoneId: string) => Promise<void>
   toggleGlobalTransform: (profileId: string, transformId: string, enabled: boolean) => Promise<void>
-  addPatternBinding: (profileId: string, patternId: string) => Promise<void>
+  /** Point the profile's single hardware-brightness transform at an input, or
+   * disable it with `null`. One transform per profile makes this exclusive. */
+  assignHardwareBrightness: (profileId: string, inputId: string | null) => Promise<void>
+  addPatternBinding: (profileId: string, patternId: string, inputId: string) => Promise<void>
   updatePatternBinding: (
     profileId: string,
     bindingId: string,
@@ -181,7 +184,15 @@ export const useControllerProfileStore = create<ControllerProfileState>()((set, 
 
   loadProfiles: async () => {
     const profiles = await getPersonalContentProvider().listControllerProfiles()
-    set({ profiles: profiles.sort((a, b) => b.updatedAt - a.updatedAt), profilesLoaded: true })
+    set({
+      profiles: profiles
+        .map((profile) => {
+          const inputs = normalizeControllerInputs(profile.inputs)
+          return inputs === profile.inputs ? profile : { ...profile, inputs }
+        })
+        .sort((a, b) => b.updatedAt - a.updatedAt),
+      profilesLoaded: true,
+    })
   },
 
   createProfile: async (seed = {}) => {
@@ -316,7 +327,6 @@ export const useControllerProfileStore = create<ControllerProfileState>()((set, 
       name: `Input ${profile.inputs.length + 1}`,
       pin: 33,
       signal: 'analog',
-      role: 'assignable',
       smoothing: 0.2,
       fallback: 0.5,
       invert: false,
@@ -378,10 +388,23 @@ export const useControllerProfileStore = create<ControllerProfileState>()((set, 
     })
   },
 
-  addPatternBinding: async (profileId, patternId) => {
+  assignHardwareBrightness: async (profileId, inputId) => {
     const profile = get().profiles.find((p) => p.id === profileId)
     if (!profile) return
-    if (!profile.inputs[0]) return
+    if (inputId !== null && !profile.inputs.some((input) => input.id === inputId)) return
+    await get().updateProfile(profileId, {
+      globalTransforms: profile.globalTransforms.map((transform) =>
+        transform.type === 'hardware-brightness'
+          ? { ...transform, enabled: inputId !== null, inputId: inputId ?? '' }
+          : transform,
+      ),
+    })
+  },
+
+  addPatternBinding: async (profileId, patternId, inputId) => {
+    const profile = get().profiles.find((p) => p.id === profileId)
+    if (!profile) return
+    if (!profile.inputs.some((input) => input.id === inputId)) return
     if (!patternId.trim()) return
     const id = nextId('binding', profile.patternBindings)
     const target: ControllerBindingTarget = { kind: 'call-exported-slider', name: 'sliderSpeed' }
@@ -391,7 +414,7 @@ export const useControllerProfileStore = create<ControllerProfileState>()((set, 
         {
           id,
           patternId,
-          inputId: profile.inputs[0].id,
+          inputId,
           target,
         },
       ],
@@ -457,11 +480,5 @@ export const useControllerProfileStore = create<ControllerProfileState>()((set, 
     if (Object.keys(changes).length > 0) await get().updateProfile(profileId, changes)
   },
 }))
-
-export const CONTROLLER_INPUT_ROLES: ControllerInputRole[] = [
-  'brightness',
-  'assignable',
-  'next-pattern',
-]
 
 export const CONTROLLER_INPUT_SIGNALS: ControllerInputSignal[] = ['analog', 'digital']

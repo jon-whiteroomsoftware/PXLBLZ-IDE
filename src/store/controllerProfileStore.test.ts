@@ -260,7 +260,7 @@ describe('controllerProfileStore', () => {
     setPersonalContentProvider(memoryProvider([profile]))
     await useControllerProfileStore.getState().loadProfiles()
     await useControllerProfileStore.getState().addInput('ctrl-1')
-    await useControllerProfileStore.getState().addPatternBinding('ctrl-1', 'pat-1')
+    await useControllerProfileStore.getState().addPatternBinding('ctrl-1', 'pat-1', 'input0')
 
     expect(useControllerProfileStore.getState().profiles[0].patternBindings).toHaveLength(1)
 
@@ -268,6 +268,109 @@ describe('controllerProfileStore', () => {
 
     expect(useControllerProfileStore.getState().profiles[0].inputs).toEqual([])
     expect(useControllerProfileStore.getState().profiles[0].patternBindings).toEqual([])
+  })
+
+  it('drops the retired input role on load so later writes cannot persist it (#772)', async () => {
+    const base = defaultControllerProfile({ id: 'ctrl-1', now: 1 })
+    const legacy = {
+      ...base,
+      inputs: [{
+        id: 'input0',
+        name: 'Front pot',
+        pin: 33,
+        signal: 'analog',
+        role: 'brightness',
+        smoothing: 0.2,
+        fallback: 0.5,
+        invert: false,
+      }],
+    } as unknown as ControllerProfile
+    const provider = memoryProvider([legacy])
+    setPersonalContentProvider(provider)
+
+    await useControllerProfileStore.getState().loadProfiles()
+    expect(useControllerProfileStore.getState().profiles[0].inputs[0]).not.toHaveProperty('role')
+
+    await useControllerProfileStore.getState().updateInput('ctrl-1', 'input0', { name: 'Renamed' })
+
+    const stored = (await provider.listControllerProfiles())[0]
+    expect(stored.inputs[0]).toEqual({
+      id: 'input0',
+      name: 'Renamed',
+      pin: 33,
+      signal: 'analog',
+      smoothing: 0.2,
+      fallback: 0.5,
+      invert: false,
+    })
+  })
+
+  it('assigns, moves, and clears hardware brightness through the real transform (#772)', async () => {
+    const profile = defaultControllerProfile({ id: 'ctrl-1', now: 1 })
+    setPersonalContentProvider(memoryProvider([profile]))
+    await useControllerProfileStore.getState().loadProfiles()
+    const store = () => useControllerProfileStore.getState()
+    await store().addInput('ctrl-1')
+    await store().addInput('ctrl-1')
+    await store().updateInput('ctrl-1', 'input1', { pin: 34 })
+    const brightness = () => store().profiles[0].globalTransforms
+      .find((transform) => transform.type === 'hardware-brightness')
+
+    expect(brightness()).toMatchObject({ enabled: false, inputId: '' })
+
+    await store().assignHardwareBrightness('ctrl-1', 'input0')
+    expect(brightness()).toMatchObject({ enabled: true, inputId: 'input0' })
+    expect(validateControllerProfile(store().profiles[0])).toEqual({ ok: true, errors: [] })
+
+    // Exactly one hardware-brightness transform exists, so moving it to another
+    // input is inherently exclusive: the first input stops driving brightness.
+    await store().assignHardwareBrightness('ctrl-1', 'input1')
+    expect(brightness()).toMatchObject({ enabled: true, inputId: 'input1' })
+
+    await store().assignHardwareBrightness('ctrl-1', null)
+    expect(brightness()).toMatchObject({ enabled: false, inputId: '' })
+    expect(validateControllerProfile(store().profiles[0])).toEqual({ ok: true, errors: [] })
+  })
+
+  it('leaves unrelated Pattern uses untouched across a brightness and binding sequence (#772)', async () => {
+    const profile = defaultControllerProfile({ id: 'ctrl-1', now: 1 })
+    setPersonalContentProvider(memoryProvider([profile]))
+    await useControllerProfileStore.getState().loadProfiles()
+    const store = () => useControllerProfileStore.getState()
+    await store().addInput('ctrl-1')
+    await store().addInput('ctrl-1')
+    await store().updateInput('ctrl-1', 'input1', { pin: 34 })
+    await store().addPatternBinding('ctrl-1', 'pat-other', 'input1')
+    const untouched = store().profiles[0].patternBindings[0]
+
+    await store().assignHardwareBrightness('ctrl-1', 'input0')
+    await store().addPatternBinding('ctrl-1', 'pat-caustics', 'input0')
+    expect(store().profiles[0].patternBindings).toMatchObject([
+      { patternId: 'pat-other', inputId: 'input1' },
+      { patternId: 'pat-caustics', inputId: 'input0' },
+    ])
+    expect(validateControllerProfile(store().profiles[0])).toEqual({ ok: true, errors: [] })
+
+    const override = store().profiles[0].patternBindings[1]
+    await store().removePatternBinding('ctrl-1', override.id)
+
+    expect(store().profiles[0].patternBindings).toEqual([untouched])
+    expect(store().profiles[0].globalTransforms
+      .find((transform) => transform.type === 'hardware-brightness'))
+      .toMatchObject({ enabled: true, inputId: 'input0' })
+    expect(validateControllerProfile(store().profiles[0])).toEqual({ ok: true, errors: [] })
+  })
+
+  it('ignores a brightness assignment naming an input the profile does not have (#772)', async () => {
+    const profile = defaultControllerProfile({ id: 'ctrl-1', now: 1 })
+    setPersonalContentProvider(memoryProvider([profile]))
+    await useControllerProfileStore.getState().loadProfiles()
+
+    await useControllerProfileStore.getState().assignHardwareBrightness('ctrl-1', 'ghost')
+
+    expect(useControllerProfileStore.getState().profiles[0].globalTransforms
+      .find((transform) => transform.type === 'hardware-brightness'))
+      .toMatchObject({ enabled: false, inputId: '' })
   })
 
   it('refreshes the durable profile name and last-known metadata from the active live controller', async () => {

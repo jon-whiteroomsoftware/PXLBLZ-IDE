@@ -199,7 +199,7 @@ describe('ControllerProfilePage', () => {
     expect(mapLabel.parentElement).toHaveTextContent('Map-')
   })
 
-  it('shows the current hardware input direction and persists inversion', async () => {
+  it('keeps set-once physical parameters behind Adjust and persists inversion (#772)', async () => {
     const profile = seedProfile()
     useControllerProfileStore.setState({
       profiles: [{
@@ -209,7 +209,6 @@ describe('ControllerProfilePage', () => {
           name: 'Brightness knob',
           pin: 33,
           signal: 'analog',
-          role: 'brightness',
           smoothing: 0.2,
           fallback: 0.5,
           invert: false,
@@ -219,19 +218,26 @@ describe('ControllerProfilePage', () => {
 
     render(<ControllerProfilePage profileId="ctrl-1" />)
 
+    // The resting card states what the input is and what it does, not its knobs.
+    expect(screen.getByText('IO33')).toBeInTheDocument()
+    expect(screen.getByText('analog')).toBeInTheDocument()
+    expect(screen.getByText('smooth 20%')).toBeInTheDocument()
+    expect(screen.getByText('fallback 50%')).toBeInTheDocument()
+    expect(screen.queryByRole('checkbox', { name: 'Brightness knob invert' })).not.toBeInTheDocument()
+
+    fireEvent.click(screen.getByRole('button', { name: 'Adjust Brightness knob' }))
+
     const invert = screen.getByRole('checkbox', { name: 'Brightness knob invert' })
     expect(invert).not.toBeChecked()
-    expect(screen.getByText('0 → 1')).toBeInTheDocument()
-
     fireEvent.click(invert)
 
     await waitFor(() => {
       expect(useControllerProfileStore.getState().profiles[0].inputs[0].invert).toBe(true)
-      expect(screen.getByText('1 → 0')).toBeInTheDocument()
+      expect(screen.getAllByText('1 -> 0').length).toBeGreaterThan(0)
     })
   })
 
-  it('creates a Pattern binding only after choosing an installed managed Pattern', async () => {
+  it('creates a per-Pattern use inside the input that drives it (#772)', async () => {
     const base = seedProfile()
     const profile = {
       ...base,
@@ -241,7 +247,6 @@ describe('ControllerProfilePage', () => {
         name: 'Green pot',
         pin: 36,
         signal: 'analog' as const,
-        role: 'brightness' as const,
         smoothing: 0.2,
         fallback: 0.5,
         invert: false,
@@ -298,15 +303,16 @@ describe('ControllerProfilePage', () => {
 
     render(<ControllerProfilePage profileId="ctrl-1" />)
 
-    fireEvent.click(screen.getByRole('button', { name: 'Add binding' }))
+    // Brightness states its own scope; there is no Pattern exception yet.
+    expect(screen.getByText('Brightness')).toBeInTheDocument()
+    expect(screen.getByText('every Pattern')).toBeInTheDocument()
+
+    fireEvent.click(screen.getByRole('button', { name: 'Use Green pot for one Pattern' }))
     expect(useControllerProfileStore.getState().profiles[0].patternBindings).toEqual([])
     expect(scheduleReconciliation).not.toHaveBeenCalled()
 
-    const pattern = await screen.findByRole('combobox', { name: 'New binding Pattern' })
-    const draftRow = pattern.closest('li')
-    expect(draftRow).not.toBeNull()
-    expect(within(draftRow!).getByText('sliderSpeed')).toBeInTheDocument()
-    expect(within(draftRow!).getByRole('button', { name: 'Cancel new binding' })).toBeInTheDocument()
+    const pattern = await screen.findByRole('combobox', { name: 'Pattern for Green pot' })
+    expect(screen.getByRole('button', { name: 'Cancel new use for Green pot' })).toBeInTheDocument()
     expect(pattern).toHaveTextContent('Line Dancer')
     expect(pattern).not.toHaveTextContent('Foreign pattern')
     expect(pattern).not.toHaveTextContent('DEV_MISSING')
@@ -319,15 +325,244 @@ describe('ControllerProfilePage', () => {
       ])
       expect(scheduleReconciliation).toHaveBeenCalledTimes(1)
     })
-    const override = await screen.findByText('Brightness override')
-    expect(override).toHaveAttribute(
-      'title',
-      'This input controls the Pattern binding instead of hardware brightness while this Pattern runs.',
-    )
-    expect(override).toHaveClass('border', 'uppercase')
-    expect(override).not.toHaveClass('text-amber-300/85')
 
+    // The override is stated once, in the scope of the use it overrides.
+    expect(await screen.findByText('every Pattern except Line Dancer')).toBeInTheDocument()
+    expect(screen.getByText('Line Dancer')).toBeInTheDocument()
+    expect(screen.getByText(/drives exported slider/)).toBeInTheDocument()
+    expect(screen.getByText('sliderSpeed')).toBeInTheDocument()
+    expect(screen.queryByText('Brightness override')).not.toBeInTheDocument()
+
+    fireEvent.click(screen.getByRole('button', { name: 'Edit Line Dancer use of Green pot' }))
     expect(screen.getByRole('combobox', { name: 'Binding Pattern' })).toHaveTextContent('Line Dancer')
+  })
+
+  it('no longer presents a separate Pattern bindings or Global transforms section (#772)', () => {
+    seedProfile()
+
+    render(<ControllerProfilePage profileId="ctrl-1" />)
+
+    expect(screen.queryByRole('heading', { name: 'Pattern bindings' })).not.toBeInTheDocument()
+    expect(screen.queryByRole('heading', { name: 'Global transforms' })).not.toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'Add binding' })).not.toBeInTheDocument()
+    expect(screen.queryByRole('combobox', { name: 'Hardware brightness input' })).not.toBeInTheDocument()
+  })
+
+  it('removes the Zones editor from the Controller profile page (#772, follow-up #775)', () => {
+    const profile = seedProfile()
+    useControllerProfileStore.setState({
+      profiles: [{
+        ...profile,
+        lastKnownPixelCount: 256,
+        zones: [{ id: 'quad-1', name: 'quad-1', ranges: [{ start: 0, end: 63 }] }],
+      }],
+      profilesLoaded: true,
+    })
+
+    render(<ControllerProfilePage profileId="ctrl-1" />)
+
+    expect(screen.queryByRole('heading', { name: 'Zones' })).not.toBeInTheDocument()
+    expect(screen.queryByRole('textbox', { name: 'quad-1 zone ranges' })).not.toBeInTheDocument()
+    // The field itself stays persisted for Show compilation.
+    expect(useControllerProfileStore.getState().profiles[0].zones).toHaveLength(1)
+  })
+
+  it('shows no role control anywhere on the redesigned page (#772)', () => {
+    const profile = seedProfile()
+    useControllerProfileStore.setState({
+      profiles: [{
+        ...profile,
+        inputs: [{
+          id: 'pot0',
+          name: 'Front pot',
+          pin: 33,
+          signal: 'analog',
+          smoothing: 0.2,
+          fallback: 0.5,
+          invert: false,
+        }],
+      }],
+    })
+
+    render(<ControllerProfilePage profileId="ctrl-1" />)
+    fireEvent.click(screen.getByRole('button', { name: 'Adjust Front pot' }))
+
+    expect(screen.queryByRole('combobox', { name: 'Front pot role' })).not.toBeInTheDocument()
+    expect(screen.queryByText('Role')).not.toBeInTheDocument()
+  })
+
+  it('assigns and clears hardware brightness from the input it belongs to (#772)', async () => {
+    const profile = seedProfile()
+    useControllerProfileStore.setState({
+      profiles: [{
+        ...profile,
+        inputs: [{
+          id: 'pot0',
+          name: 'Front pot',
+          pin: 33,
+          signal: 'analog',
+          smoothing: 0.2,
+          fallback: 0.5,
+          invert: false,
+        }],
+      }],
+    })
+
+    render(<ControllerProfilePage profileId="ctrl-1" />)
+
+    expect(screen.getByText('Nothing yet')).toBeInTheDocument()
+    expect(screen.getByText('no Pattern reads it yet')).toBeInTheDocument()
+
+    fireEvent.click(screen.getByRole('checkbox', { name: 'Front pot controls brightness' }))
+
+    await waitFor(() => {
+      expect(useControllerProfileStore.getState().profiles[0].globalTransforms
+        .find((transform) => transform.type === 'hardware-brightness'))
+        .toMatchObject({ enabled: true, inputId: 'pot0' })
+    })
+    expect(await screen.findByText('Brightness')).toBeInTheDocument()
+
+    fireEvent.click(screen.getByRole('checkbox', { name: 'Front pot controls brightness' }))
+
+    await waitFor(() => {
+      expect(useControllerProfileStore.getState().profiles[0].globalTransforms
+        .find((transform) => transform.type === 'hardware-brightness'))
+        .toMatchObject({ enabled: false, inputId: '' })
+    })
+  })
+
+  it('keeps brightness reachable on an input that already drives a Pattern (#772)', async () => {
+    const base = seedProfile()
+    useControllerProfileStore.setState({
+      profiles: [{
+        ...base,
+        inputs: [{
+          id: 'pot0',
+          name: 'Front pot',
+          pin: 33,
+          signal: 'analog',
+          smoothing: 0.2,
+          fallback: 0.5,
+          invert: false,
+        }],
+        patternBindings: [{
+          id: 'b1',
+          patternId: 'pat-line',
+          inputId: 'pot0',
+          target: { kind: 'call-function', name: 'triggerBurst' },
+        }],
+      }],
+    })
+
+    render(<ControllerProfilePage profileId="ctrl-1" />)
+
+    // With a Pattern use present there is no "Nothing yet" row to carry the
+    // switch, so the add row has to offer brightness instead.
+    expect(screen.queryByText('Nothing yet')).not.toBeInTheDocument()
+    expect(screen.queryByRole('checkbox', { name: 'Front pot controls brightness' })).not.toBeInTheDocument()
+
+    fireEvent.click(screen.getByRole('button', { name: 'Use Front pot for brightness' }))
+
+    await waitFor(() => {
+      expect(useControllerProfileStore.getState().profiles[0].globalTransforms
+        .find((transform) => transform.type === 'hardware-brightness'))
+        .toMatchObject({ enabled: true, inputId: 'pot0' })
+    })
+    expect(await screen.findByText('every Pattern except pat-line')).toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'Use Front pot for brightness' })).not.toBeInTheDocument()
+  })
+
+  it('reports brightness on a digital input on that input with a direct correction (#772)', async () => {
+    const base = seedProfile()
+    useControllerProfileStore.setState({
+      profiles: [{
+        ...base,
+        inputs: [{
+          id: 'btn0',
+          name: 'Panel button',
+          pin: 33,
+          signal: 'digital',
+          smoothing: 0,
+          fallback: 0,
+          invert: false,
+        }],
+        globalTransforms: base.globalTransforms.map((transform) =>
+          transform.type === 'hardware-brightness'
+            ? { ...transform, enabled: true, inputId: 'btn0' }
+            : transform,
+        ),
+      }],
+    })
+
+    render(<ControllerProfilePage profileId="ctrl-1" />)
+
+    expect(screen.getByText(
+      'Input "btn0" drives hardware brightness, which needs an analog signal. A digital input emits nothing.',
+    )).toBeInTheDocument()
+
+    fireEvent.click(screen.getByRole('button', { name: 'Switch this input to analog' }))
+
+    await waitFor(() => {
+      expect(useControllerProfileStore.getState().profiles[0].inputs[0].signal).toBe('analog')
+    })
+    expect(screen.queryByText(/needs an analog signal/)).not.toBeInTheDocument()
+  })
+
+  it('badges the Pattern, not the use, when a live push predates the current profile (#772)', async () => {
+    const base = seedProfile()
+    const profile = {
+      ...base,
+      inputs: [{
+        id: 'pot0',
+        name: 'Front pot',
+        pin: 33,
+        signal: 'analog' as const,
+        smoothing: 0.2,
+        fallback: 0.5,
+        invert: false,
+      }],
+      patternBindings: [{
+        id: 'b1',
+        patternId: 'pat-line',
+        inputId: 'pot0',
+        target: { kind: 'call-exported-slider' as const, name: 'sliderSpeed' },
+      }],
+    }
+    useControllerProfileStore.setState({ profiles: [profile] })
+    usePatternStore.setState({
+      userPatterns: [{
+        id: 'pat-line',
+        name: 'Line Dancer',
+        src: 'export function render(index) { hsv(0, 1, 1) }',
+        controls: {},
+        updatedAt: 1,
+      }],
+      patternsLoaded: true,
+    })
+    setControllerMetadataStorage({
+      ...demoControllerMetadataStorage,
+      id: 'push-staleness',
+      getControllerBindings: async () => ({ '192.168.8.224': { 'pat-line': 'DEV_LINE' } }),
+      getPushRecords: async () => ({
+        '192.168.8.224': {
+          'pat-line': {
+            transforms: [],
+            artifactHash: 'h',
+            stampedAt: '2026-08-07T00:00:00.000Z',
+            name: 'Line Dancer',
+            profileSignature: 'an-older-signature',
+          },
+        },
+      }),
+    })
+
+    // Offline the map dimension is unknown, so no badge may be claimed.
+    const { rerender } = render(<ControllerProfilePage profileId="ctrl-1" />)
+    expect(screen.queryByText('push again')).not.toBeInTheDocument()
+
+    useControllerPanelStore.setState({
+      programsByController: { '192.168.8.224': [{ id: 'DEV_LINE', name: 'Line Dancer' }] },
+    })
     act(() => {
       useControllerStore.setState({
         activeIp: '192.168.8.224',
@@ -336,32 +571,81 @@ describe('ControllerProfilePage', () => {
             ip: '192.168.8.224',
             deviceId: profile.deviceId,
             nickname: 'Burner bag',
-            phase: 'error',
+            phase: 'live',
             mapDim: 2,
           },
         },
       })
     })
-    expect(screen.getByRole('combobox', { name: 'Binding Pattern' })).toHaveTextContent('Line Dancer')
-    expect(screen.getByRole('combobox', { name: 'Binding Pattern' })).not.toHaveTextContent('pat-line')
+    rerender(<ControllerProfilePage profileId="ctrl-1" />)
+
+    expect(await screen.findByText('push again')).toHaveAttribute(
+      'title',
+      'This Pattern was pushed before the current Controller settings.',
+    )
   })
 
-  it('explains when profile transforms apply and which output calls they cover', () => {
-    seedProfile()
+  it('lays the input list out as ragged two-up columns, not a shared-height grid (#772)', () => {
+    const profile = seedProfile()
+    useControllerProfileStore.setState({
+      profiles: [{
+        ...profile,
+        inputs: [
+          { id: 'pot0', name: 'Front pot', pin: 33, signal: 'analog', smoothing: 0.2, fallback: 0.5, invert: false },
+          { id: 'pot1', name: 'Spare pot', pin: 34, signal: 'analog', smoothing: 0.2, fallback: 0.5, invert: false },
+        ],
+      }],
+    })
 
     render(<ControllerProfilePage profileId="ctrl-1" />)
 
-    expect(screen.getByText(
-      'Transforms take effect when a Pattern is pushed. Push saved Patterns again after changing them.',
-    )).toBeInTheDocument()
+    const card = screen.getByText('IO33').closest('article')
+    expect(card).not.toBeNull()
+    expect(card).toHaveClass('break-inside-avoid')
+    // Two columns only while each still gets 24rem: this pane narrows
+    // independently of the viewport, so the breakpoint cannot be viewport-based.
+    expect(card!.parentElement).toHaveClass('[columns:24rem_2]')
+    expect(card!.parentElement?.className).not.toMatch(/\blg:/)
+  })
 
-    // The per-transform coverage details moved behind help hints (#685).
-    fireEvent.click(screen.getByRole('button', { name: 'About hardware-brightness' }))
-    expect(screen.getByText(/multiplies brightness for hsv\(\) output/i)).toBeInTheDocument()
+  it('keeps every input control reachable and operable from the keyboard (#772)', async () => {
+    const profile = seedProfile()
+    useControllerProfileStore.setState({
+      profiles: [{
+        ...profile,
+        inputs: [{
+          id: 'pot0',
+          name: 'Front pot',
+          pin: 33,
+          signal: 'analog',
+          smoothing: 0.2,
+          fallback: 0.5,
+          invert: false,
+        }],
+      }],
+    })
 
-    fireEvent.click(screen.getByRole('button', { name: 'About power-cap' }))
-    expect(screen.getByText(/limits estimated output duty for hsv\(\) and rgb\(\)/i)).toBeInTheDocument()
-    expect(screen.getByText(/paint\(\) output is not covered/i)).toBeInTheDocument()
+    render(<ControllerProfilePage profileId="ctrl-1" />)
+
+    // The brightness control is a real checkbox, so Space toggles it without a
+    // pointer and it carries its own accessible name.
+    const brightness = screen.getByRole('checkbox', { name: 'Front pot controls brightness' })
+    expect(brightness).not.toHaveAttribute('tabindex', '-1')
+    brightness.focus()
+    expect(brightness).toHaveFocus()
+    fireEvent.click(brightness)
+    await waitFor(() => {
+      expect(useControllerProfileStore.getState().profiles[0].globalTransforms
+        .find((transform) => transform.type === 'hardware-brightness'))
+        .toMatchObject({ enabled: true })
+    })
+
+    const adjust = screen.getByRole('button', { name: 'Adjust Front pot' })
+    adjust.focus()
+    expect(adjust).toHaveFocus()
+    fireEvent.click(adjust)
+    expect(screen.getByRole('combobox', { name: 'Front pot pin' })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Done adjusting Front pot' })).toBeInTheDocument()
   })
 
   it('does not expose the retired output declaration (#743)', () => {
@@ -390,8 +674,12 @@ describe('ControllerProfilePage', () => {
     const powerSection = screen.getByRole('heading', { name: 'Power' }).closest('section')
     expect(powerSection).not.toBeNull()
     expect(screen.queryByRole('heading', { name: 'Electrical' })).not.toBeInTheDocument()
-    expect(within(powerSection!).getByText('Addresses')).toBeInTheDocument()
-    expect(within(powerSection!).queryByText('LEDs')).not.toBeInTheDocument()
+    // One terse readout chain carries the preset assumption exactly once (#772).
+    expect(within(powerSection!).getByText('256 addr')).toBeInTheDocument()
+    expect(within(powerSection!).getByText('60 mA/addr @ 5V')).toBeInTheDocument()
+    expect(within(powerSection!).getByText('76.8 W')).toBeInTheDocument()
+    expect(within(powerSection!).getByText('10.0 W')).toBeInTheDocument()
+    expect(within(powerSection!).queryByText(/LEDs/)).not.toBeInTheDocument()
     expect(screen.queryByRole('link', { name: 'Worldsemi reference' })).not.toBeInTheDocument()
     expect(screen.queryByText(/Use the continuous rating available to the LEDs/i)).not.toBeInTheDocument()
 
@@ -408,12 +696,11 @@ describe('ControllerProfilePage', () => {
     })
 
     await waitFor(() => {
-      expect(within(powerSection!).getByText('LEDs')).toBeInTheDocument()
-      expect(within(powerSection!).getByText('768')).toBeInTheDocument()
+      expect(within(powerSection!).getByText('768 LEDs')).toBeInTheDocument()
     })
   })
 
-  it('reveals the full-white override fields directly from the Power editor checkbox (#743)', async () => {
+  it('treats the full-white override as an action on the value it overrides (#772)', async () => {
     const profile = seedProfile()
     useControllerProfileStore.setState({
       profiles: [{
@@ -429,14 +716,23 @@ describe('ControllerProfilePage', () => {
 
     render(<ControllerProfilePage profileId="ctrl-1" />)
 
-    const override = screen.getByRole('checkbox', { name: 'Override the estimated full-white load' })
-    expect(override).not.toBeChecked()
-    expect(screen.queryByText(/Advanced: measured or manufacturer-rated total/i)).not.toBeInTheDocument()
+    expect(screen.queryByRole('checkbox', { name: 'Override the estimated full-white load' }))
+      .not.toBeInTheDocument()
+    expect(screen.getByText('60 mA/addr @ 5V')).toBeInTheDocument()
     expect(screen.queryByRole('textbox', { name: 'Full-white installation total' })).not.toBeInTheDocument()
 
-    fireEvent.click(override)
+    fireEvent.click(screen.getByRole('button', { name: 'Override load' }))
 
     expect(await screen.findByRole('textbox', { name: 'Full-white installation total' })).toBeInTheDocument()
+    expect(screen.getByRole('combobox', { name: 'Full-white load source' })).toHaveValue('measured')
+    // The preset assumption is no longer claimed once a real total replaces it.
+    expect(screen.queryByText('60 mA/addr @ 5V')).not.toBeInTheDocument()
+
+    fireEvent.click(screen.getByRole('button', { name: 'Use estimate' }))
+
+    await waitFor(() => {
+      expect(screen.queryByRole('textbox', { name: 'Full-white installation total' })).not.toBeInTheDocument()
+    })
   })
 
   it('uses the shared controller traffic-light vocabulary for profile status', () => {
@@ -1065,38 +1361,7 @@ describe('ControllerProfilePage', () => {
     expect(screen.getByRole('heading', { name: 'Other Patterns (0)' })).toBeInTheDocument()
   })
 
-  it('shows controller zones as editable range lists with pixel totals', () => {
-    const profile = seedProfile()
-    useControllerProfileStore.setState({
-      profiles: [
-        {
-          ...profile,
-          lastKnownPixelCount: 256,
-          zones: [
-            { id: 'quad-1', name: 'quad-1', ranges: [{ start: 0, end: 63 }] },
-            {
-              id: 'top-band',
-              name: 'top-band',
-              ranges: [
-                { start: 0, end: 3 },
-                { start: 28, end: 31 },
-              ],
-            },
-          ],
-        },
-      ],
-      profilesLoaded: true,
-    })
-
-    render(<ControllerProfilePage profileId="ctrl-1" />)
-
-    expect(screen.getByRole('textbox', { name: 'quad-1 zone ranges' })).toHaveValue('0-63')
-    expect(screen.getByRole('textbox', { name: 'top-band zone ranges' })).toHaveValue('0-3, 28-31')
-    expect(screen.getByText('64')).toBeInTheDocument()
-    expect(screen.getByText('8')).toBeInTheDocument()
-  })
-
-  it('keeps global transform field interactions from bubbling to selectable ancestors', async () => {
+  it('keeps Power field interactions from bubbling to selectable ancestors', async () => {
     seedProfile()
     setPersonalContentProvider({
       ...demoPersonalContentProvider,
@@ -1165,8 +1430,12 @@ describe('ControllerProfilePage', () => {
     const budget = screen.getByRole('textbox', { name: 'Continuous LED supply budget' })
     fireEvent.change(budget, { target: { value: '36' } })
     fireEvent.keyDown(budget, { key: 'Enter' })
+    await waitFor(() => {
+      expect(screen.getByText('72.0 W')).toBeInTheDocument()
+    })
+    fireEvent.click(screen.getByRole('button', { name: 'Calculate from load and budget' }))
     await waitFor(() => expect(screen.getByText('50%')).toBeInTheDocument())
-    fireEvent.click(screen.getByRole('button', { name: 'From power profile' }))
+    expect(screen.getByText('calculated from the load and budget')).toBeInTheDocument()
 
     expect(screen.queryByRole('spinbutton', { name: 'Pixel count' })).not.toBeInTheDocument()
 
@@ -1207,8 +1476,10 @@ describe('ControllerProfilePage', () => {
 
     render(<ControllerProfilePage profileId="ctrl-1" />)
 
-    expect(screen.getByText('Waiting for controller')).toBeInTheDocument()
-    expect(screen.getByRole('button', { name: 'From power profile' })).toBeDisabled()
+    expect(screen.getByText('addresses unknown')).toBeInTheDocument()
+    expect(screen.getByText(/PXLBLZ will not invent one/)).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Set a fixed cap' })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Override load' })).toBeDisabled()
     expect(screen.queryByRole('spinbutton', { name: 'Pixel count' })).not.toBeInTheDocument()
   })
 
@@ -1280,7 +1551,7 @@ describe('ControllerProfilePage', () => {
     useControllerProfileStore.setState({ profiles: [configuredProfile], profilesLoaded: true })
 
     render(<ControllerProfilePage profileId="ctrl-1" />)
-    expect(screen.getByText('50% duty cap')).toBeInTheDocument()
+    expect(screen.getByText('50%')).toBeInTheDocument()
 
     act(() => {
       useControllerProfileStore.setState({
@@ -1288,7 +1559,7 @@ describe('ControllerProfilePage', () => {
       })
     })
 
-    await waitFor(() => expect(screen.getByText('100% duty cap')).toBeInTheDocument())
+    await waitFor(() => expect(screen.getByText('100%')).toBeInTheDocument())
   })
 
   it('disables A/W reinterpretation when a custom model has no conversion voltage', () => {
@@ -1313,10 +1584,10 @@ describe('ControllerProfilePage', () => {
     render(<ControllerProfilePage profileId="ctrl-1" />)
 
     const budgetUnit = screen.getByRole('combobox', { name: 'Continuous LED supply budget unit' })
-    expect(within(budgetUnit).getByRole('option', { name: 'Watts' })).toBeDisabled()
+    expect(within(budgetUnit).getByRole('option', { name: 'watts' })).toBeDisabled()
 
     const loadUnit = screen.getByRole('combobox', { name: 'Full-white installation total unit' })
-    expect(within(loadUnit).getByRole('option', { name: 'Watts' })).toBeDisabled()
+    expect(within(loadUnit).getByRole('option', { name: 'watts' })).toBeDisabled()
   })
 
   it('commits the displayed conversion voltage for a custom no-voltage model', async () => {
@@ -1348,7 +1619,7 @@ describe('ControllerProfilePage', () => {
       expect(useControllerProfileStore.getState().profiles[0].electricalProfile?.voltageOverride).toBe(5)
       expect(within(screen.getByRole('combobox', {
         name: 'Continuous LED supply budget unit',
-      })).getByRole('option', { name: 'Watts' })).toBeEnabled()
+      })).getByRole('option', { name: 'watts' })).toBeEnabled()
     })
   })
 

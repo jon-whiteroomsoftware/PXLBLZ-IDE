@@ -244,3 +244,121 @@ test('resized Pattern and Show previews keep their controls reachable', async ({
   await page.mouse.wheel(0, 1200)
   await expect(previewPane.getByRole('button', { name: 'Renderer' })).toBeInViewport()
 })
+
+test('edits a Controller input use, persists it, and changes what a push would generate (#772)', async ({ page }) => {
+  // A complete profile, seeded through the same API the Studio uses. Two analog
+  // inputs and no configured uses: the starting state the redesign has to make
+  // legible.
+  const created = await page.context().request.post('/api/controllers', {
+    data: {
+      id: 'e2e-772-controller',
+      name: 'Analog bench',
+      deviceId: 'pixelblaze_pb32_e2e772',
+      lastKnownDeviceName: 'Analog bench',
+      lastSeenIp: '192.168.8.224',
+      lastKnownPixelCount: 256,
+      board: { kind: 'pixelblaze-v3-standard', hardwareRevision: 3.5, firmwareVersion: '3.67' },
+      inputs: [
+        { id: 'pot0', name: 'Front pot', pin: 33, signal: 'analog', smoothing: 0.2, fallback: 0.5, invert: false },
+        { id: 'btn0', name: 'Panel button', pin: 34, signal: 'digital', smoothing: 0, fallback: 0, invert: false },
+      ],
+      globalTransforms: [
+        {
+          id: 'hardware-brightness',
+          type: 'hardware-brightness',
+          enabled: false,
+          mixinId: 'builtin:hardware-brightness',
+          inputId: '',
+          mode: 'multiply-output',
+        },
+        {
+          id: 'power-cap',
+          type: 'power-cap',
+          enabled: false,
+          mixinId: 'builtin:power-cap',
+          mode: 'direct',
+          maxDuty: 0.25,
+        },
+      ],
+      keepPatternsUpToDate: false,
+      patternBindings: [],
+      zones: [],
+      updatedAt: Date.now(),
+    },
+  })
+  expect(created.ok(), `POST /api/controllers -> ${created.status()}`).toBe(true)
+
+  await page.goto('studio/controllers/e2e-772-controller')
+
+  // The page is exactly Power, Inputs, and the artifact readout. Behaviour now
+  // lives on the input that drives it, and zones moved off this page (#775).
+  // These read the rendered names as plain strings rather than as locators for
+  // affordances that no longer exist, which the stale-locator gate would
+  // reasonably flag.
+  const profilePage = page.getByTestId('controller-profile-page')
+  await expect(profilePage).toBeVisible()
+  expect(await profilePage.getByRole('heading').allTextContents())
+    .toEqual(['Power', 'Inputs', 'Last generated artifact'])
+
+  // No control anywhere still presents a semantic annotation as behaviour.
+  const selectLabels = await profilePage.locator('select')
+    .evaluateAll((nodes) => nodes.map((node) => node.getAttribute('aria-label') ?? ''))
+  expect(selectLabels.filter((label) => label.endsWith(' role'))).toEqual([])
+
+  // An input driving nothing says so rather than showing an empty card.
+  await expect(page.getByText('Nothing yet').first()).toBeVisible()
+
+  // Assigning brightness on the input row writes the real transform.
+  await page.getByRole('checkbox', { name: 'Front pot controls brightness' }).check()
+  await expect(page.getByText('Brightness', { exact: true })).toBeVisible()
+  await expect(page.getByText('every Pattern', { exact: true })).toBeVisible()
+
+  const brightnessTransform = async () => {
+    const response = await page.context().request.get('/api/controllers')
+    if (!response.ok()) return null
+    const { controllers } = await response.json() as {
+      controllers: Array<{
+        id: string
+        inputs: Array<Record<string, unknown>>
+        globalTransforms: Array<{ type: string; enabled?: boolean; inputId?: string }>
+      }>
+    }
+    const profile = controllers.find((controller) => controller.id === 'e2e-772-controller')
+    return profile
+      ? {
+          transform: profile.globalTransforms.find((transform) => transform.type === 'hardware-brightness'),
+          inputs: profile.inputs,
+        }
+      : null
+  }
+
+  // This is the change that makes a saved Pattern need pushing again: the
+  // profile's generated-code inputs, not a display-only annotation.
+  await expect.poll(async () => (await brightnessTransform())?.transform)
+    .toMatchObject({ enabled: true, inputId: 'pot0' })
+  await expect.poll(async () => (await brightnessTransform())?.inputs.every((input) => !('role' in input)))
+    .toBe(true)
+
+  await page.reload()
+  await expect(page.getByRole('checkbox', { name: 'Front pot controls brightness' })).toBeChecked()
+
+  // Exactly one hardware-brightness transform exists, so moving brightness to a
+  // digital input is inherently exclusive - and now an error on that input, with
+  // the correction offered where the fault is.
+  await page.getByRole('checkbox', { name: 'Panel button controls brightness' }).check()
+  await expect(page.getByRole('checkbox', { name: 'Front pot controls brightness' })).not.toBeChecked()
+  await expect(page.getByText('Nothing yet', { exact: true })).toBeVisible()
+  await expect(page.getByText(/needs an analog signal/)).toBeVisible()
+
+  await page.getByRole('button', { name: 'Switch this input to analog' }).click()
+  await expect(page.getByText(/needs an analog signal/)).toHaveCount(0)
+  await expect.poll(async () => (await brightnessTransform())?.transform)
+    .toMatchObject({ enabled: true, inputId: 'btn0' })
+  await expect.poll(async () => (await brightnessTransform())?.inputs
+    .find((input) => input.id === 'btn0')?.signal)
+    .toBe('analog')
+
+  await page.reload()
+  await expect(page.getByRole('checkbox', { name: 'Panel button controls brightness' })).toBeChecked()
+  await expect(page.getByText(/needs an analog signal/)).toHaveCount(0)
+})

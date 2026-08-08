@@ -3,38 +3,38 @@ import type React from 'react'
 import { NumberField as UiNumberField } from '@/components/ui/number-field'
 import { DraftTextField } from '@/components/ui/draft-text-field'
 import { PercentageField as UiPercentageField } from '@/components/ui/percentage-field'
-import { CircleArrowUp, Plus, Trash2, X } from 'lucide-react'
+import { CircleArrowUp, Plus } from 'lucide-react'
 import { controlIcon, inlineIcon } from '@/components/iconScale'
 import { Button } from '@/components/ui/button'
-import { IDE_MICROTYPE } from '@/components/ui/ideMicrotype'
 import {
-  analogPinsForBoard,
-  controllerZonePixelCount,
-  formatControllerZoneRanges,
-  parseControllerZoneRanges,
-  patternBindingOverridesHardwareBrightness,
-  validateControllerProfile,
   type ControllerBindingTarget,
   type ControllerInput,
-  type ControllerInputRole,
   type ControllerInputSignal,
   type ControllerProfile,
   type PowerCapTransform,
-  type ControllerZone,
-  type ControllerZoneRange,
   type GlobalTransform,
   type PatternBinding,
 } from '@/engine/controllerProfile'
+import {
+  controllerPatternPushStates,
+  describeControllerInputUses,
+  type ControllerInputPresentation,
+  type ControllerInputUse,
+  type ControllerPatternPushState,
+  type ControllerUseDetail,
+} from '@/engine/controllerInputUses'
 import { describeControllerPill } from '@/engine/controllerPillView'
 import type { ControllerStatusTone } from '@/engine/controllerStatusView'
 import type { ProgramListEntry } from '@/engine/PixelblazeConnection'
 import type { BindingStore } from '@/engine/controllerBinding'
-import { getControllerBindings } from '@/engine/controllerMetadataStorage'
+import type { ControllerPushRecord } from '@/engine/controllerPushRecord'
+import { getControllerBindings, getPushRecords } from '@/engine/controllerMetadataStorage'
 import { installedControllerPatternChoices } from '@/engine/controllerSavedPrograms'
 import type { PowerCapSettings } from '@/engine/powerCap'
 import {
   LED_CONSTRUCTION_PRESETS,
   convertElectricalQuantity,
+  findLedConstructionPreset,
   resolveControllerElectricalProfile,
   type ControllerElectricalProfile,
   type ElectricalLoadSource,
@@ -45,7 +45,6 @@ import { controllerForProfile } from '@/engine/controllerProfileConnection'
 import { selectTransformArtifactInspection } from '@/engine/transformInspection'
 import { useControllerStore, type ControllerEntry } from '@/store/controllerStore'
 import {
-  CONTROLLER_INPUT_ROLES,
   CONTROLLER_INPUT_SIGNALS,
   useControllerProfileStore,
 } from '@/store/controllerProfileStore'
@@ -62,16 +61,31 @@ import {
   useInstalledMapCandidates,
 } from './InstalledMapPresentation'
 import { StatusDot, type StatusTone } from './StatusDot'
-import { HelpHint } from './HelpHint'
 import { TransformInspectionPanel } from './TransformInspectionPanel'
 import { sectionActionButtonClass } from './ControllerProfileHeaderActions'
 
-const fieldClass =
-  'h-7 min-w-0 rounded border border-zinc-700 bg-zinc-900 px-2 text-xs text-zinc-200 outline-none focus:border-live/70'
-const tableHeadClass = 'px-2 py-1 text-left text-[10px] font-semibold uppercase text-zinc-400'
-const tableCellClass = 'border-t border-zinc-800/85 px-2 py-1.5 align-middle'
-const rowCardClass = 'relative border border-zinc-800/80 bg-zinc-950/25 px-3 py-2.5'
+// Hierarchy on this page comes from whitespace, typography, and a section seam,
+// never from a box drawn around a row (#772). Fields are rule-under: transparent
+// background, hairline bottom border, amber on focus.
+const microLabelClass = 'font-mono text-[9px] uppercase tracking-[0.14em] text-zinc-500'
+const ruleSelectClass =
+  'h-6 w-full min-w-0 appearance-none rounded-none border-0 border-b border-zinc-800 bg-transparent pr-3 font-mono text-xs text-zinc-200 outline-none hover:border-zinc-600 focus:border-live'
+// The shared draft fields own their own chrome; scope the rule-under treatment
+// to this page instead of changing every editor field in the app.
+const ruleFieldWrapClass =
+  'min-w-0 [&_input]:h-6 [&_input]:min-w-0 [&_input]:rounded-none [&_input]:border-0 [&_input]:border-b [&_input]:border-zinc-800 [&_input]:bg-transparent [&_input]:px-0 [&_input]:font-mono [&_input]:text-xs [&_input:hover]:border-zinc-600 [&_input:focus]:border-live'
+// The bounded percentage field draws its border on the wrapper around the input
+// and its slider grip, so the rule-under treatment has to move there instead.
+// Size is deliberately absent here: callers set it, and two competing
+// arbitrary-variant font sizes would be decided by stylesheet order.
+const rulePercentWrapClass =
+  'min-w-0 [&_input]:bg-transparent [&_input]:px-0 [&_input]:font-mono '
+  + '[&_span>span]:rounded-none [&_span>span]:border-0 [&_span>span]:border-b [&_span>span]:border-zinc-800 [&_span>span]:bg-transparent [&_span>span]:hover:border-zinc-600 [&_span>span]:focus-within:border-live '
+  + '[&_span>span>button]:border-l-0 [&_span>span>button]:w-3'
+const rulePercentSizeClass = '[&_input]:h-6 [&_input]:text-xs [&_span>span]:h-6'
+const traceGutter = '1.75rem'
 const EMPTY_CONTROLLER_PROGRAMS: ProgramListEntry[] = []
+const EMPTY_PUSH_RECORDS: Record<string, ControllerPushRecord> = {}
 
 type SelectOption<T extends string | number> = {
   value: T
@@ -115,12 +129,10 @@ function targetForKind(kind: ControllerBindingTarget['kind'], current?: Controll
 }
 
 function FieldLabel({ children }: { children: React.ReactNode }) {
-  return <span className="text-[10px] uppercase tracking-wide text-zinc-400">{children}</span>
+  return <span className={microLabelClass}>{children}</span>
 }
 
-// Stacked-row field: microlabel above its control, so wide column headers are
-// never needed and rows can wrap instead of scrolling sideways (#685).
-function LabeledField({
+function RuleField({
   label,
   className = '',
   children,
@@ -130,7 +142,7 @@ function LabeledField({
   children: React.ReactNode
 }) {
   return (
-    <div className={`grid min-w-0 content-start gap-1 ${className}`}>
+    <div className={`grid min-w-0 content-start gap-0.5 ${className}`}>
       <FieldLabel>{label}</FieldLabel>
       {children}
     </div>
@@ -145,10 +157,12 @@ function TextField({
   value,
   onChange,
   ariaLabel,
+  inputClassName,
 }: {
   value: string
   onChange: (value: string) => void
   ariaLabel: string
+  inputClassName?: string
 }) {
   return (
     <DraftTextField
@@ -158,44 +172,13 @@ function TextField({
       rootProps={{ onClick: stopFieldPropagation, onPointerDown: stopFieldPropagation }}
       inputProps={{ onKeyDown: stopFieldPropagation }}
       className="w-full"
-      inputClassName={`${fieldClass} w-full`}
+      inputClassName={inputClassName
+        ?? 'h-6 w-full min-w-0 rounded-none border-0 border-b border-zinc-800 bg-transparent px-0 font-mono text-xs text-zinc-200 outline-none hover:border-zinc-600 focus:border-live'}
     />
   )
 }
 
 function NumberField({
-  value,
-  onChange,
-  ariaLabel,
-  min,
-  max,
-  step = 1,
-}: {
-  value: number
-  onChange: (value: number) => void
-  ariaLabel: string
-  min?: number
-  max?: number
-  step?: number
-}) {
-  return (
-    <div onClick={stopFieldPropagation} onPointerDown={stopFieldPropagation} onKeyDown={stopFieldPropagation}>
-      <UiNumberField
-        label={ariaLabel}
-        ariaLabel={ariaLabel}
-        hideLabel
-        variant="editor"
-        value={value}
-        min={min}
-        max={max}
-        step={step}
-        onChange={onChange}
-      />
-    </div>
-  )
-}
-
-function OptionalNumberField({
   value,
   onChange,
   ariaLabel,
@@ -213,7 +196,12 @@ function OptionalNumberField({
   placeholder?: string
 }) {
   return (
-    <div onClick={stopFieldPropagation} onPointerDown={stopFieldPropagation} onKeyDown={stopFieldPropagation}>
+    <div
+      className={ruleFieldWrapClass}
+      onClick={stopFieldPropagation}
+      onPointerDown={stopFieldPropagation}
+      onKeyDown={stopFieldPropagation}
+    >
       <UiNumberField
         label={ariaLabel}
         ariaLabel={ariaLabel}
@@ -237,6 +225,7 @@ function PercentageField({
   min = 0,
   max = 1,
   step = 0.01,
+  sizeClassName = rulePercentSizeClass,
 }: {
   value: number
   onChange: (value: number) => void
@@ -244,13 +233,14 @@ function PercentageField({
   min?: number
   max?: number
   step?: number
+  sizeClassName?: string
 }) {
   return (
     // [&_input]:w-0 zeroes the draft input's intrinsic width so its flex-1 fill
     // decides the rendered width; without it the field's min-content (~13rem)
     // blows out the narrow stacked-row columns (#685).
     <div
-      className="min-w-0 grow [&_input]:w-0"
+      className={`grow ${rulePercentWrapClass} [&_input]:w-0 ${sizeClassName}`}
       onClick={stopFieldPropagation}
       onPointerDown={stopFieldPropagation}
       onKeyDown={stopFieldPropagation}
@@ -296,7 +286,7 @@ function SelectField<T extends string | number>({
         const sample = options[0]?.value
         onChange((typeof sample === 'number' ? Number(raw) : raw) as T)
       }}
-      className={`${fieldClass} disabled:opacity-40`}
+      className={`${ruleSelectClass} disabled:opacity-40`}
     >
       {options.map((option) => (
         <option
@@ -314,70 +304,97 @@ function SelectField<T extends string | number>({
 
 function Section({
   title,
+  lede,
   action,
   children,
 }: {
   title: string
+  lede?: React.ReactNode
   action?: React.ReactNode
   children: React.ReactNode
 }) {
   return (
-    <section className="border-b border-seam px-4 py-4">
-      <div className="mb-2 flex items-center justify-between gap-3">
-        <h2 className="font-mono text-xs font-semibold uppercase tracking-wide text-zinc-300">{title}</h2>
+    <section className="border-b border-seam px-4 pb-6 pt-7">
+      <div className="flex items-baseline gap-3">
+        <h2 className="font-mono text-[10px] font-medium uppercase tracking-[0.18em] text-zinc-400">{title}</h2>
+        <span className="flex-1" />
         {action}
       </div>
+      {lede && <p className="mb-6 mt-2.5 max-w-[62ch] text-xs leading-5 text-zinc-500">{lede}</p>}
+      {!lede && <div className="mt-4" />}
       {children}
     </section>
   )
 }
 
-function SectionAddButton({
+function SmallButton({
   label,
   onClick,
   disabled,
   title,
+  ariaLabel,
+  icon,
+  danger = false,
 }: {
   label: string
   onClick: () => void
   disabled?: boolean
-  title: string
+  title?: string
+  ariaLabel?: string
+  icon?: React.ReactNode
+  danger?: boolean
 }) {
   return (
     <Button
       type="button"
       size="xs"
       variant="ghost"
-      className={sectionActionButtonClass}
+      aria-label={ariaLabel}
+      className={danger
+        ? 'border border-zinc-700 bg-zinc-900/70 text-xs text-zinc-300 hover:border-red-400/55 hover:bg-red-950/25 hover:text-red-300 disabled:opacity-35'
+        : sectionActionButtonClass}
       disabled={disabled}
       onClick={onClick}
-      title={title}
+      title={title ?? label}
     >
-      <Plus {...controlIcon} aria-hidden />
+      {icon}
       {label}
     </Button>
   )
 }
 
-function RemoveRowButton({ label, onClick }: { label: string; onClick: () => void }) {
+function Switch({
+  checked,
+  onChange,
+  ariaLabel,
+  label,
+}: {
+  checked: boolean
+  onChange: (checked: boolean) => void
+  ariaLabel: string
+  label: string
+}) {
   return (
-    <button
-      type="button"
-      aria-label={label}
-      title={label}
-      onClick={onClick}
-      className="absolute right-2 top-2 rounded p-1 text-zinc-500 transition-colors hover:bg-zinc-900 hover:text-red-300"
-    >
-      <Trash2 {...controlIcon} aria-hidden />
-    </button>
-  )
-}
-
-function EmptyState({ children }: { children: React.ReactNode }) {
-  return (
-    <div className="border border-dashed border-zinc-700/80 bg-zinc-950/30 px-3 py-3 text-xs text-zinc-500">
-      {children}
-    </div>
+    <label className="relative inline-flex cursor-pointer select-none items-center gap-2">
+      {/* The real checkbox covers the whole switch, so the click, focus, and
+          keyboard all land on the control itself rather than on decoration. */}
+      <input
+        type="checkbox"
+        className="peer absolute inset-0 z-10 m-0 h-full w-full cursor-pointer appearance-none opacity-0"
+        aria-label={ariaLabel}
+        checked={checked}
+        onChange={(event) => onChange(event.target.checked)}
+      />
+      <span
+        aria-hidden
+        className="relative h-3.5 w-[26px] shrink-0 rounded-full bg-zinc-800 transition-colors after:absolute after:left-0.5 after:top-0.5 after:h-2.5 after:w-2.5 after:rounded-full after:bg-zinc-500 after:transition-transform after:content-[''] peer-checked:bg-live/25 peer-checked:after:translate-x-3 peer-checked:after:bg-live peer-focus-visible:outline peer-focus-visible:outline-2 peer-focus-visible:outline-offset-2 peer-focus-visible:outline-live"
+      />
+      <span
+        className={`font-mono text-[10px] uppercase tracking-[0.1em] ${checked ? 'text-live' : 'text-zinc-500'}`}
+      >
+        {label}
+      </span>
+    </label>
   )
 }
 
@@ -463,41 +480,60 @@ function synchronizeDerivedPowerCaps(
     : transform)
 }
 
-function formatElectricalPair(amps: number | null, watts: number | null): string {
-  if (amps != null && watts != null) return `${amps.toFixed(1)} A · ${watts.toFixed(1)} W`
-  if (amps != null) return `${amps.toFixed(1)} A`
-  if (watts != null) return `${watts.toFixed(1)} W`
-  return 'Needs more information'
+function formatQuantity(value: number | null, unit: string): string | null {
+  return value == null ? null : `${value.toFixed(1)} ${unit}`
 }
 
-function ElectricalProfileEditor({
-  electricalProfile,
-  pixelCount,
-  onChange,
+function milliampsPerAddress(presetId: LedConstructionPresetId): string | null {
+  const preset = findLedConstructionPreset(presetId)
+  if (!preset) return null
+  const milliamps = Math.round((preset.wattsPerAddress / preset.voltageVolts) * 1000)
+  return `${milliamps} mA/addr @ ${preset.voltageVolts}V`
+}
+
+const LOAD_SOURCE_LABELS: Record<ElectricalLoadSource, string> = {
+  measured: 'measured',
+  'manufacturer-rated': 'manufacturer-rated',
+  custom: 'custom estimate',
+}
+
+/** The Power section carries the whole installation power policy: the model,
+ * its one-line derivation chain, and the duty cap that enforces it. `power-cap`
+ * lives here rather than in a separate transform list — it never touches an
+ * input (#772). */
+function PowerSection({
+  profile,
+  onChangeElectrical,
+  onChangePowerCap,
 }: {
-  electricalProfile?: ControllerElectricalProfile
-  pixelCount?: number
-  onChange: (profile: ControllerElectricalProfile) => void
+  profile: ControllerProfile
+  onChangeElectrical: (electricalProfile: ControllerElectricalProfile) => void
+  onChangePowerCap: (settings: Partial<PowerCapTransform>) => void
 }) {
+  const electricalProfile = profile.electricalProfile
+  const pixelCount = profile.lastKnownPixelCount
+  const powerCap = profile.globalTransforms.find(
+    (transform): transform is PowerCapTransform => transform.type === 'power-cap',
+  )
+
   if (!electricalProfile) {
     return (
-      <div className="flex flex-wrap items-center justify-between gap-3 border border-dashed border-zinc-700/80 bg-zinc-950/30 px-3 py-3">
-        <div>
-          <div className="text-xs text-zinc-300">Describe the installed LEDs once.</div>
-          <p className="mt-0.5 text-[11px] text-zinc-500">
-            PXLBLZ can then express the same supply budget in amps, watts, and duty.
-          </p>
-        </div>
-        <Button type="button" size="xs" variant="outline" onClick={() => onChange(defaultElectricalProfile())}>
-          Configure power model
-        </Button>
+      <div className="flex flex-wrap items-center gap-x-4 gap-y-2 text-xs text-zinc-500">
+        <span>No power model yet, so PXLBLZ cannot estimate the installation load.</span>
+        <SmallButton
+          label="Configure power model"
+          onClick={() => onChangeElectrical(defaultElectricalProfile())}
+        />
       </div>
     )
   }
 
-  const profile = electricalProfile
   const resolved = resolveControllerElectricalProfile(electricalProfile, { pixelCount })
   const override = electricalProfile.loadOverride
+  const derivedDuty = resolved.maxDuty
+  const capMode = powerCap?.mode ?? 'direct'
+  const displayedDuty = capMode === 'derived' && derivedDuty != null ? derivedDuty : powerCap?.maxDuty ?? 0
+  const capEnabled = powerCap?.enabled ?? false
   const presetOptions: SelectOption<LedConstructionPresetId>[] = [
     ...LED_CONSTRUCTION_PRESETS.map((preset) => ({ value: preset.id, label: preset.label })),
     {
@@ -508,18 +544,19 @@ function ElectricalProfileEditor({
   ]
 
   function update(changes: Partial<ControllerElectricalProfile>) {
-    onChange({ ...profile, ...changes })
+    onChangeElectrical({ ...electricalProfile!, ...changes })
   }
 
   function changePreset(ledPresetId: LedConstructionPresetId) {
+    const profileValue = electricalProfile!
     if (ledPresetId !== 'custom') {
-      onChange({ ledPresetId, supplyBudget: profile.supplyBudget })
+      onChangeElectrical({ ledPresetId, supplyBudget: profileValue.supplyBudget })
       return
     }
     if (!pixelCount) return
     if (override) {
-      onChange({
-        ...profile,
+      onChangeElectrical({
+        ...profileValue,
         ledPresetId,
         ...(resolved.voltageVolts ? { voltageOverride: resolved.voltageVolts } : {}),
       })
@@ -527,9 +564,9 @@ function ElectricalProfileEditor({
     }
     const fullWhiteWatts = resolved.fullWhiteWatts
     if (fullWhiteWatts == null) return
-    onChange({
+    onChangeElectrical({
       ledPresetId,
-      supplyBudget: profile.supplyBudget,
+      supplyBudget: profileValue.supplyBudget,
       ...(resolved.voltageVolts ? { voltageOverride: resolved.voltageVolts } : {}),
       loadOverride: {
         fullWhite: { value: fullWhiteWatts, unit: 'watts' },
@@ -537,15 +574,6 @@ function ElectricalProfileEditor({
         atPixelCount: pixelCount,
       },
     })
-  }
-
-  function changeBudgetUnit(unit: ElectricalUnit) {
-    const converted = convertElectricalQuantity(
-      profile.supplyBudget,
-      unit,
-      resolved.voltageVolts,
-    )
-    if (converted) update({ supplyBudget: converted })
   }
 
   function enableOverride() {
@@ -562,202 +590,427 @@ function ElectricalProfileEditor({
     })
   }
 
+  const chain: React.ReactNode[] = []
+  chain.push(pixelCount ? `${pixelCount} addr` : 'addresses unknown')
+  if (resolved.physicalLedCount != null && resolved.physicalLedCount !== resolved.pixelCount) {
+    chain.push(`${resolved.physicalLedCount} LEDs`)
+  }
+  if (!override) {
+    const perAddress = milliampsPerAddress(electricalProfile.ledPresetId)
+    if (perAddress) chain.push(perAddress)
+  }
+  const fullWhite = formatQuantity(resolved.fullWhiteWatts, 'W') ?? formatQuantity(resolved.fullWhiteAmps, 'A')
+  chain.push(
+    <>
+      <b className="font-medium text-zinc-200">{fullWhite ?? 'unknown'}</b> full white
+    </>,
+  )
+  if (override) chain.push(LOAD_SOURCE_LABELS[override.source])
+  const budget = formatQuantity(resolved.budgetWatts, 'W') ?? formatQuantity(resolved.budgetAmps, 'A')
+  chain.push(
+    <>
+      <b className="font-medium text-zinc-200">{budget ?? 'unknown'}</b> budget
+    </>,
+  )
+
   return (
-    <div className="overflow-hidden border border-zinc-800 bg-zinc-950/40">
-      <div className="grid gap-3 px-3 py-3 [grid-template-columns:repeat(auto-fit,minmax(min(100%,13rem),1fr))]">
-        <LabeledField label="LED construction">
+    <div>
+      <div className="mb-7 flex flex-wrap items-end gap-x-8 gap-y-4">
+        <RuleField label="LED construction" className="max-w-[22rem] flex-[1_1_16rem]">
           <SelectField
             ariaLabel="LED construction preset"
             value={electricalProfile.ledPresetId}
             options={presetOptions}
             onChange={changePreset}
           />
-        </LabeledField>
-        <LabeledField label="Continuous LED supply budget">
-          <div className="grid grid-cols-[minmax(0,1fr)_5.5rem] gap-1.5">
-            <NumberField
-              ariaLabel="Continuous LED supply budget"
-              min={0.01}
-              step={0.1}
-              value={electricalProfile.supplyBudget.value}
-              onChange={(value) => update({
-                supplyBudget: { ...electricalProfile.supplyBudget, value },
-              })}
-            />
-            <SelectField
-              ariaLabel="Continuous LED supply budget unit"
-              value={electricalProfile.supplyBudget.unit}
-              options={[
-                {
-                  value: 'amps',
-                  label: 'Amps',
-                  disabled: profile.supplyBudget.unit !== 'amps' && resolved.voltageVolts == null,
-                },
-                {
-                  value: 'watts',
-                  label: 'Watts',
-                  disabled: profile.supplyBudget.unit !== 'watts' && resolved.voltageVolts == null,
-                },
-              ]}
-              onChange={changeBudgetUnit}
-            />
-          </div>
-        </LabeledField>
-      </div>
-
-      <div className="grid gap-px border-y border-zinc-800 bg-zinc-800 [grid-template-columns:repeat(auto-fit,minmax(min(100%,8rem),1fr))]">
-        <ElectricalMetric label="Addresses" value={pixelCount ? String(pixelCount) : 'Waiting for controller'} />
-        {resolved.physicalLedCount != null
-          && resolved.physicalLedCount !== resolved.pixelCount
-          && <ElectricalMetric label="LEDs" value={String(resolved.physicalLedCount)} />}
-        <ElectricalMetric
-          label={override ? 'Full-white load (override)' : 'Full-white load (estimate)'}
-          value={formatElectricalPair(resolved.fullWhiteAmps, resolved.fullWhiteWatts)}
-        />
-        <ElectricalMetric
-          label="Derived duty cap"
-          value={resolved.maxDuty == null ? 'Unavailable' : `${Math.round(resolved.maxDuty * 100)}%`}
-          accent={resolved.maxDuty != null}
-        />
-      </div>
-
-      {resolved.overrideStale && pixelCount && (
-        <div className="flex flex-wrap items-center justify-between gap-2 border-b border-amber-500/25 bg-amber-950/20 px-3 py-2 text-[11px] text-amber-200">
-          <span>This total was recorded at {override?.atPixelCount} addresses; the controller now reports {pixelCount}.</span>
-          <Button
-            type="button"
-            size="xs"
-            variant="outline"
-            onClick={() => override && update({ loadOverride: { ...override, atPixelCount: pixelCount } })}
-          >
-            Confirm for {pixelCount}
-          </Button>
-        </div>
-      )}
-
-      {!pixelCount && (
-        <div className="border-b border-amber-500/20 bg-amber-950/10 px-3 py-2 text-[11px] text-amber-200/90">
-          Connect or configure this controller to supply its address count. PXLBLZ will not invent one for power calculations.
-        </div>
-      )}
-
-      <div className="px-3 py-2.5">
-        <label className="flex items-center gap-2 text-[11px] text-zinc-300">
-          <input
-            type="checkbox"
-            aria-label="Override the estimated full-white load"
-            checked={Boolean(override)}
-            disabled={!pixelCount || electricalProfile.ledPresetId === 'custom'}
-            onChange={(event) => event.target.checked
-              ? enableOverride()
-              : onChange({
-                  ledPresetId: electricalProfile.ledPresetId,
-                  supplyBudget: electricalProfile.supplyBudget,
-                })}
-            className="accent-live disabled:opacity-40"
+        </RuleField>
+        <RuleField label="Supply budget" className="flex-[0_1_8rem]">
+          <NumberField
+            ariaLabel="Continuous LED supply budget"
+            min={0.01}
+            step={0.1}
+            value={electricalProfile.supplyBudget.value}
+            onChange={(value) => update({
+              supplyBudget: { ...electricalProfile.supplyBudget, value },
+            })}
           />
-          Override the estimated full-white load
-        </label>
-        {override && (
-          <div className="mt-3 grid gap-3 border-l border-zinc-800 pl-3 [grid-template-columns:repeat(auto-fit,minmax(min(100%,11rem),1fr))]">
-            <LabeledField label="Full-white total">
-              <div className="grid grid-cols-[minmax(0,1fr)_5.5rem] gap-1.5">
+        </RuleField>
+        <RuleField label="Unit" className="flex-[0_1_7rem]">
+          <SelectField
+            ariaLabel="Continuous LED supply budget unit"
+            value={electricalProfile.supplyBudget.unit}
+            options={[
+              {
+                value: 'amps',
+                label: 'amps',
+                disabled: electricalProfile.supplyBudget.unit !== 'amps' && resolved.voltageVolts == null,
+              },
+              {
+                value: 'watts',
+                label: 'watts',
+                disabled: electricalProfile.supplyBudget.unit !== 'watts' && resolved.voltageVolts == null,
+              },
+            ]}
+            onChange={(unit: ElectricalUnit) => {
+              const converted = convertElectricalQuantity(
+                electricalProfile.supplyBudget,
+                unit,
+                resolved.voltageVolts,
+              )
+              if (converted) update({ supplyBudget: converted })
+            }}
+          />
+        </RuleField>
+        <RuleField label="Supply voltage" className="flex-[0_1_8rem]">
+          <NumberField
+            ariaLabel="Power supply voltage"
+            min={0.1}
+            step={0.1}
+            value={electricalProfile.voltageOverride ?? resolved.voltageVolts ?? undefined}
+            placeholder="Enter voltage"
+            onChange={(voltageOverride) => update({ voltageOverride })}
+          />
+        </RuleField>
+      </div>
+
+      <div className="flex flex-wrap items-start gap-x-8 gap-y-4 border-t border-zinc-800/80 pt-4">
+        <div className={`min-w-[9.5rem] shrink-0 ${capEnabled ? '' : 'opacity-45'}`}>
+          <span className={`${microLabelClass} block`}>Duty cap</span>
+          {capMode === 'direct' && powerCap ? (
+            /* A typed cap keeps the same visual weight as a derived one. */
+            <div className="mt-0.5 max-w-[7rem]">
+              <PercentageField
+                ariaLabel="Power cap duty percent"
+                min={0}
+                max={1}
+                step={0.01}
+                value={powerCap.maxDuty}
+                onChange={(maxDuty) => onChangePowerCap({ mode: 'direct', maxDuty })}
+                sizeClassName="[&_input]:h-9 [&_input]:text-2xl [&_input]:font-medium [&_input]:tracking-tight [&_input]:text-live [&_span>span]:h-9"
+              />
+            </div>
+          ) : (
+            <span className="mt-0.5 block font-mono text-2xl font-medium leading-tight tracking-tight text-live">
+              {`${Math.round(displayedDuty * 100)}%`}
+            </span>
+          )}
+          <span className="mt-1.5 block text-xs text-zinc-500">
+            {capMode === 'derived' ? 'calculated from the load and budget' : 'a fixed cap you set'}
+          </span>
+        </div>
+
+        <div className={`min-w-0 flex-[1_1_22rem] pt-0.5 ${capEnabled ? '' : 'opacity-45'}`}>
+          <div className="flex flex-wrap items-center gap-x-2.5 gap-y-1 font-mono text-xs text-zinc-400">
+            {chain.map((item, index) => (
+              <span key={index} className="flex items-center gap-2.5">
+                {index > 0 && <span className="text-zinc-700">·</span>}
+                <span>{item}</span>
+              </span>
+            ))}
+            <span className="ml-1.5">
+              {override ? (
+                <SmallButton
+                  label="Use estimate"
+                  title="Return to the preset full-white estimate"
+                  onClick={() => onChangeElectrical({
+                    ledPresetId: electricalProfile.ledPresetId,
+                    supplyBudget: electricalProfile.supplyBudget,
+                  })}
+                  disabled={electricalProfile.ledPresetId === 'custom'}
+                />
+              ) : (
+                <SmallButton
+                  label="Override load"
+                  title="Replace the estimate with a measured or rated installation total"
+                  onClick={enableOverride}
+                  disabled={!pixelCount}
+                />
+              )}
+            </span>
+          </div>
+
+          {override && (
+            <div className="mt-3.5 flex flex-wrap items-end gap-x-7 gap-y-3">
+              <RuleField label="Full-white total" className="flex-[0_1_8rem]">
                 <NumberField
                   ariaLabel="Full-white installation total"
                   min={0.01}
                   step={0.1}
                   value={override.fullWhite.value}
                   onChange={(value) => update({
-                    loadOverride: {
-                      ...override,
-                      fullWhite: { ...override.fullWhite, value },
-                    },
+                    loadOverride: { ...override, fullWhite: { ...override.fullWhite, value } },
                   })}
                 />
+              </RuleField>
+              <RuleField label="Unit" className="flex-[0_1_7rem]">
                 <SelectField
                   ariaLabel="Full-white installation total unit"
                   value={override.fullWhite.unit}
                   options={[
                     {
                       value: 'amps',
-                      label: 'Amps',
+                      label: 'amps',
                       disabled: override.fullWhite.unit !== 'amps' && resolved.voltageVolts == null,
                     },
                     {
                       value: 'watts',
-                      label: 'Watts',
+                      label: 'watts',
                       disabled: override.fullWhite.unit !== 'watts' && resolved.voltageVolts == null,
                     },
                   ]}
-                  onChange={(unit) => {
+                  onChange={(unit: ElectricalUnit) => {
                     const converted = convertElectricalQuantity(
                       override.fullWhite,
                       unit,
                       resolved.voltageVolts,
                     )
-                    if (converted) update({
-                      loadOverride: { ...override, fullWhite: converted },
-                    })
+                    if (converted) update({ loadOverride: { ...override, fullWhite: converted } })
                   }}
                 />
-              </div>
-            </LabeledField>
-            <LabeledField label="Source">
-              <SelectField<ElectricalLoadSource>
-                ariaLabel="Full-white load source"
-                value={override.source}
-                options={[
-                  { value: 'measured', label: 'Measured' },
-                  { value: 'manufacturer-rated', label: 'Manufacturer-rated' },
-                  { value: 'custom', label: 'Custom estimate' },
-                ]}
-                onChange={(source) => update({ loadOverride: { ...override, source } })}
+              </RuleField>
+              <RuleField label="Source" className="flex-[0_1_10rem]">
+                <SelectField<ElectricalLoadSource>
+                  ariaLabel="Full-white load source"
+                  value={override.source}
+                  options={[
+                    { value: 'measured', label: 'measured' },
+                    { value: 'manufacturer-rated', label: 'manufacturer-rated' },
+                    { value: 'custom', label: 'custom estimate' },
+                  ]}
+                  onChange={(source) => update({ loadOverride: { ...override, source } })}
+                />
+              </RuleField>
+            </div>
+          )}
+
+          {resolved.overrideStale && pixelCount && override && (
+            <div className="mt-3 flex flex-wrap items-center gap-x-3 gap-y-1.5 text-xs text-amber-300">
+              <span>
+                This total was recorded at {override.atPixelCount} addresses; the controller now reports {pixelCount}.
+              </span>
+              <SmallButton
+                label={`Confirm for ${pixelCount}`}
+                onClick={() => update({ loadOverride: { ...override, atPixelCount: pixelCount } })}
               />
-            </LabeledField>
-            <LabeledField label="Supply voltage (for A/W conversion)">
-              <OptionalNumberField
-                ariaLabel="Power supply voltage"
-                min={0.1}
-                step={0.1}
-                value={electricalProfile.voltageOverride ?? resolved.voltageVolts ?? undefined}
-                placeholder="Enter voltage"
-                onChange={(voltageOverride) => update({ voltageOverride })}
-              />
-            </LabeledField>
-          </div>
-        )}
+            </div>
+          )}
+
+          {!pixelCount && (
+            <p className="mt-3 text-xs text-amber-200/85">
+              Connect this Controller to supply its address count. PXLBLZ will not invent one.
+            </p>
+          )}
+        </div>
+
+        <div className="ml-auto flex shrink-0 items-center gap-3 pt-0.5">
+          <SmallButton
+            label={capMode === 'derived' ? 'Set a fixed cap' : 'Calculate from load and budget'}
+            disabled={capMode === 'direct' && derivedDuty == null}
+            onClick={() => (capMode === 'derived'
+              ? onChangePowerCap({ mode: 'direct' })
+              : derivedDuty != null && onChangePowerCap({ mode: 'derived', maxDuty: derivedDuty }))}
+          />
+          <Switch
+            ariaLabel="Enforce the duty cap"
+            checked={capEnabled}
+            label={capEnabled ? 'on' : 'off'}
+            onChange={(enabled) => onChangePowerCap({ enabled })}
+          />
+        </div>
       </div>
     </div>
   )
 }
 
-function ElectricalMetric({
-  label,
-  value,
-  accent = false,
-}: {
-  label: string
-  value: string
-  accent?: boolean
-}) {
+function UseDetail({ detail }: { detail: ControllerUseDetail }) {
   return (
-    <div className="bg-zinc-950/90 px-3 py-2">
-      <div className="text-[9px] font-semibold uppercase tracking-wider text-zinc-500">{label}</div>
-      <div className={`mt-0.5 font-mono text-xs ${accent ? 'text-amber-300' : 'text-zinc-300'}`}>{value}</div>
+    <span>
+      {detail.lead} <code className="font-mono text-zinc-400">{detail.code}</code>
+      {detail.trail ? ` ${detail.trail}` : ''}
+    </span>
+  )
+}
+
+const PUSH_TAG_LABELS: Record<ControllerPatternPushState, string | null> = {
+  current: null,
+  stale: 'push again',
+  'not-pushed': 'not pushed',
+}
+
+const PUSH_TAG_TITLES: Record<ControllerPatternPushState, string> = {
+  current: '',
+  stale: 'This Pattern was pushed before the current Controller settings.',
+  'not-pushed': 'No artifact from this Controller profile has been pushed for this Pattern.',
+}
+
+function traceColorFor(inputState: ControllerInputPresentation['state'], live: boolean): string {
+  if (inputState === 'error') return 'rgba(248,113,113,0.85)'
+  return live ? 'rgba(251,191,36,0.8)' : '#52525b'
+}
+
+/** One continuous trace down the gutter with a stub into each row: the uses of
+ * an input fan out from its pin. Rows are placed explicitly rather than with
+ * :first-child/:last-child because the add-use row follows the real uses. */
+function UseRow({
+  index,
+  count,
+  traceColor,
+  children,
+  right,
+}: {
+  index: number
+  count: number
+  traceColor: string
+  children: React.ReactNode
+  right?: React.ReactNode
+}) {
+  const first = index === 0
+  const last = index === count - 1
+  return (
+    <div
+      style={{ '--trace': traceColor } as React.CSSProperties}
+      className="relative grid items-baseline gap-x-4 py-[5px] [grid-template-columns:var(--gut)_minmax(0,1fr)_auto]"
+    >
+      {/* The first row's line fades up out of the pin instead of butting into it. */}
+      <span
+        aria-hidden
+        className={`absolute left-1.5 w-px ${
+          first
+            ? '-top-8 [background-image:linear-gradient(to_bottom,transparent_0,var(--trace)_26px)]'
+            : 'top-0 bg-[var(--trace)]'
+        } ${last ? 'bottom-[calc(100%-15px)]' : 'bottom-0'}`}
+      />
+      <span aria-hidden className="absolute left-1.5 top-[15px] h-px w-[13px] bg-[var(--trace)]" />
+      <span />
+      <div className="min-w-0">{children}</div>
+      <div className="flex items-center gap-3 whitespace-nowrap">{right}</div>
     </div>
   )
 }
 
-function InputsList({
+function PatternUseEditor({
+  binding,
+  patternOptions,
+  online,
+  onUpdate,
+}: {
+  binding: PatternBinding
+  patternOptions: SelectOption<string>[]
+  online: boolean
+  onUpdate: (changes: Partial<PatternBinding>) => void
+}) {
+  return (
+    <div className="mt-1 flex flex-wrap items-end gap-x-6 gap-y-3 border-t border-zinc-800/70 pt-3">
+      <RuleField label="Pattern" className="flex-[1_1_11rem]">
+        <SelectField
+          ariaLabel="Binding Pattern"
+          value={binding.patternId}
+          options={patternOptions.some((option) => option.value === binding.patternId)
+            ? patternOptions
+            : [
+                { value: binding.patternId, label: `${binding.patternId} (not installed)` },
+                ...patternOptions,
+              ]}
+          onChange={(patternId) => onUpdate({ patternId })}
+          disabled={!online}
+        />
+      </RuleField>
+      <RuleField label="Target" className="flex-[0_1_9rem]">
+        <SelectField
+          ariaLabel="Binding target kind"
+          value={binding.target.kind}
+          options={[
+            { value: 'call-exported-slider', label: 'exported slider' },
+            { value: 'call-function', label: 'function' },
+            { value: 'assign-variable', label: 'variable' },
+          ]}
+          onChange={(kind) => onUpdate({ target: targetForKind(kind, binding.target) })}
+        />
+      </RuleField>
+      <RuleField label="Name" className="flex-[0_1_9rem]">
+        <TextField
+          ariaLabel="Binding target name"
+          value={binding.target.name}
+          onChange={(name) => onUpdate({ target: { ...binding.target, name } })}
+        />
+      </RuleField>
+      {binding.target.kind === 'assign-variable' && (
+        <>
+          <RuleField label="Min" className="flex-[0_1_5rem]">
+            <NumberField
+              ariaLabel="Binding minimum"
+              value={binding.target.min}
+              step={0.01}
+              onChange={(min) => {
+                if (binding.target.kind === 'assign-variable') {
+                  onUpdate({ target: { ...binding.target, min } })
+                }
+              }}
+            />
+          </RuleField>
+          <RuleField label="Max" className="flex-[0_1_5rem]">
+            <NumberField
+              ariaLabel="Binding maximum"
+              value={binding.target.max}
+              step={0.01}
+              onChange={(max) => {
+                if (binding.target.kind === 'assign-variable') {
+                  onUpdate({ target: { ...binding.target, max } })
+                }
+              }}
+            />
+          </RuleField>
+          <RuleField label="Quantize" className="flex-[0_1_5rem]">
+            <NumberField
+              ariaLabel="Binding quantize"
+              value={binding.target.quantize ?? 0}
+              step={0.01}
+              onChange={(quantize) => {
+                if (binding.target.kind === 'assign-variable') {
+                  onUpdate({
+                    target: {
+                      ...binding.target,
+                      ...(quantize > 0 ? { quantize } : { quantize: undefined }),
+                    },
+                  })
+                }
+              }}
+            />
+          </RuleField>
+        </>
+      )}
+    </div>
+  )
+}
+
+function InputCard({
   profile,
+  input,
+  presentation,
+  patternOptions,
+  online,
   onUpdateInput,
   onRemoveInput,
+  onAssignBrightness,
+  onAddPatternUse,
+  onUpdateBinding,
+  onRemoveBinding,
 }: {
   profile: ControllerProfile
-  onUpdateInput: (inputId: string, changes: Partial<ControllerInput>) => void
-  onRemoveInput: (inputId: string) => void
+  input: ControllerInput
+  presentation: ControllerInputPresentation
+  patternOptions: SelectOption<string>[]
+  online: boolean
+  onUpdateInput: (changes: Partial<ControllerInput>) => void
+  onRemoveInput: () => void
+  onAssignBrightness: (inputId: string | null) => void
+  onAddPatternUse: (patternId: string) => void
+  onUpdateBinding: (bindingId: string, changes: Partial<PatternBinding>) => void
+  onRemoveBinding: (bindingId: string) => void
 }) {
-  const analogPins = analogPinsForBoard(profile.board)
+  const [adjusting, setAdjusting] = useState(false)
+  const [draftOpen, setDraftOpen] = useState(false)
+  const [editingBindingId, setEditingBindingId] = useState<string | null>(null)
   const pinOptions: SelectOption<number>[] = [0, 25, 26, 33, 34, 35, 36, 39].map((pin) => ({
     value: pin,
     label: `IO${pin}`,
@@ -766,620 +1019,351 @@ function InputsList({
     value: signal,
     label: signal,
   }))
-  const roleOptions: SelectOption<ControllerInputRole>[] = CONTROLLER_INPUT_ROLES.map((role) => ({
-    value: role,
-    label: role,
-  }))
-
-  if (profile.inputs.length === 0) {
-    return <EmptyState>No hardware inputs have been assigned to this controller profile.</EmptyState>
-  }
-
-  return (
-    <ul className="grid gap-2">
-      {profile.inputs.map((input) => {
-        const pinWarn = input.signal === 'analog' && !analogPins.includes(input.pin)
-        return (
-          <li key={input.id} className={`${rowCardClass} pr-9`}>
-            <RemoveRowButton label={`Remove ${input.name}`} onClick={() => onRemoveInput(input.id)} />
-            <div className="flex flex-wrap items-start gap-x-3 gap-y-2">
-              <LabeledField label="Name" className="w-36 grow">
-                <TextField
-                  ariaLabel={`${input.name} input name`}
-                  value={input.name}
-                  onChange={(name) => onUpdateInput(input.id, { name })}
-                />
-              </LabeledField>
-              <LabeledField label="Pin" className="w-20">
-                <SelectField
-                  ariaLabel={`${input.name} pin`}
-                  value={input.pin}
-                  options={pinOptions}
-                  onChange={(pin) => onUpdateInput(input.id, { pin })}
-                />
-                {pinWarn && (
-                  <span className="whitespace-nowrap text-[10px] text-amber-300">
-                    analog unavailable
-                  </span>
-                )}
-              </LabeledField>
-              <LabeledField label="Signal" className="w-24">
-                <SelectField
-                  ariaLabel={`${input.name} signal`}
-                  value={input.signal}
-                  options={signalOptions}
-                  onChange={(signal) => onUpdateInput(input.id, { signal })}
-                />
-              </LabeledField>
-              <LabeledField label="Role" className="w-28">
-                <SelectField
-                  ariaLabel={`${input.name} role`}
-                  value={input.role}
-                  options={roleOptions}
-                  onChange={(role) => onUpdateInput(input.id, { role })}
-                />
-              </LabeledField>
-              <LabeledField label="Smoothing" className="w-24">
-                <PercentageField
-                  ariaLabel={`${input.name} smoothing`}
-                  min={0}
-                  max={1}
-                  step={0.01}
-                  value={input.smoothing}
-                  onChange={(smoothing) => onUpdateInput(input.id, { smoothing })}
-                />
-              </LabeledField>
-              <LabeledField label="Fallback" className="w-24">
-                <PercentageField
-                  ariaLabel={`${input.name} fallback`}
-                  min={0}
-                  max={1}
-                  step={0.01}
-                  value={input.fallback}
-                  onChange={(fallback) => onUpdateInput(input.id, { fallback })}
-                />
-              </LabeledField>
-              <LabeledField label="Direction">
-                <div className="flex h-7 items-center gap-2 whitespace-nowrap">
-                  <span className="font-mono text-xs text-zinc-300">
-                    {input.invert ? '1 → 0' : '0 → 1'}
-                  </span>
-                  <label
-                    className="flex cursor-pointer items-center gap-1.5 text-xs text-zinc-400"
-                    title="Invert the normalized hardware input direction"
-                  >
-                    <input
-                      type="checkbox"
-                      aria-label={`${input.name} invert`}
-                      checked={input.invert}
-                      onChange={(event) => onUpdateInput(input.id, { invert: event.target.checked })}
-                      className="accent-live"
-                    />
-                    <span>Invert</span>
-                  </label>
-                </div>
-              </LabeledField>
-            </div>
-          </li>
-        )
-      })}
-    </ul>
-  )
-}
-
-const transformHelp: Record<GlobalTransform['type'], string> = {
-  'hardware-brightness': 'Samples this input once per frame and multiplies brightness for hsv() output.',
-  'power-cap': 'Limits estimated output duty for hsv() and rgb(). paint() output is not covered.',
-}
-
-function GlobalTransformsList({
-  profile,
-  onUpdateTransforms,
-}: {
-  profile: ControllerProfile
-  onUpdateTransforms: (transforms: GlobalTransform[]) => void
-}) {
-  function updateTransform(transformId: string, changes: Partial<GlobalTransform>) {
-    onUpdateTransforms(profile.globalTransforms.map((transform) =>
-      transform.id === transformId ? { ...transform, ...changes } as GlobalTransform : transform,
-    ))
-  }
+  const pinTone = presentation.state === 'error'
+    ? 'text-red-400'
+    : presentation.state === 'live'
+      ? 'text-live'
+      : 'text-zinc-500'
+  const rowCount = presentation.uses.length
+  const showBrightnessAddAction = !presentation.brightnessAssigned
+    && presentation.uses[0]?.kind !== 'none'
 
   return (
-    <div className="grid gap-2">
-      <p className="border-l-2 border-live/35 bg-zinc-900/45 px-2.5 py-2 text-[11px] leading-4 text-zinc-400">
-        Transforms take effect when a Pattern is pushed. Push saved Patterns again after changing them.
-      </p>
-      {profile.globalTransforms.map((transform) => (
-        <div key={transform.id} className={rowCardClass}>
-          <div className="flex flex-wrap items-center gap-x-3 gap-y-2">
-            <label className="flex cursor-pointer items-center gap-2 font-mono text-xs text-zinc-300">
-              <input
-                type="checkbox"
-                aria-label={`${transform.type} enabled`}
-                checked={transform.enabled}
-                disabled={transform.type === 'hardware-brightness' && profile.inputs.length === 0}
-                onChange={(event) => updateTransform(transform.id, { enabled: event.target.checked })}
-                className="accent-live disabled:opacity-40"
-              />
-              {transform.type}
-            </label>
-            <HelpHint label={`About ${transform.type}`}>
-              <div className="space-y-1.5">
-                <div className="text-[10px] uppercase tracking-wide text-zinc-400">{transform.mixinId}</div>
-                <p className="text-zinc-300">{transformHelp[transform.type]}</p>
-              </div>
-            </HelpHint>
-            {transform.type === 'hardware-brightness' && (
-              <div className="ml-auto w-56 max-w-full">
-                <SelectField
-                  ariaLabel="Hardware brightness input"
-                  value={transform.inputId}
-                  disabled={profile.inputs.length === 0}
-                  options={[
-                    { value: '', label: 'Choose input' },
-                    ...profile.inputs.map((input) => ({ value: input.id, label: input.name })),
-                  ]}
-                  onChange={(inputId) => updateTransform(transform.id, { inputId })}
-                />
-              </div>
-            )}
-          </div>
-          {transform.type === 'power-cap' && (
-            <div className="mt-2">
-              <PowerCapEditor
-                transform={transform}
-                electricalProfile={profile.electricalProfile}
-                pixelCount={profile.lastKnownPixelCount}
-                onChange={(settings) => updateTransform(transform.id, settings)}
-              />
-            </div>
-          )}
+    <article
+      className="break-inside-avoid border-t border-zinc-800/70 py-4 first:border-t-0"
+      style={{ '--gut': traceGutter } as React.CSSProperties}
+    >
+      <div className="grid items-start gap-x-4 [grid-template-columns:var(--gut)_minmax(0,1fr)_auto]">
+        <div className={`whitespace-nowrap pt-2 font-mono text-[13px] font-medium tracking-tight ${pinTone}`}>
+          {presentation.pin}
         </div>
-      ))}
-    </div>
-  )
-}
-
-function PowerCapEditor({
-  transform,
-  electricalProfile,
-  pixelCount,
-  onChange,
-}: {
-  transform: PowerCapTransform
-  electricalProfile?: ControllerElectricalProfile
-  pixelCount?: number
-  onChange: (settings: PowerCapSettings) => void
-}) {
-  const resolved = electricalProfile
-    ? resolveControllerElectricalProfile(electricalProfile, { pixelCount })
-    : null
-  const derivedDuty = resolved?.maxDuty ?? null
-  const displayedDuty = transform.mode === 'derived' && derivedDuty != null
-    ? derivedDuty
-    : transform.maxDuty
-
-  return (
-    <div className="w-full min-w-0 max-w-[32rem] rounded border border-zinc-800 bg-zinc-950/70">
-      <div className="border-b border-zinc-800/80 px-3 py-2">
-        <div className="inline-flex items-center rounded border border-zinc-800 bg-zinc-950/60 p-0.5" aria-label="Power cap mode">
-          {([
-            ['derived', 'From power profile'],
-            ['direct', 'Set duty directly'],
-          ] as const).map(([mode, label]) => (
-            <button
-              key={mode}
-              type="button"
-              aria-pressed={transform.mode === mode}
-              disabled={mode === 'derived' && derivedDuty == null}
-              onClick={() => mode === 'derived' && derivedDuty != null
-                ? onChange({ ...transform, mode: 'derived', maxDuty: derivedDuty })
-                : onChange({ ...transform, mode: 'direct' })}
-              className={`rounded-sm px-2 py-1 text-[11px] transition-colors disabled:cursor-not-allowed disabled:opacity-40 ${
-                transform.mode === mode ? 'bg-zinc-800 text-zinc-200' : 'text-zinc-500 hover:text-zinc-300'
-              }`}
-            >
-              {label}
-            </button>
-          ))}
+        <div className="min-w-0">
+          <div className="max-w-[22ch]">
+            <TextField
+              ariaLabel={`${input.name} input name`}
+              value={input.name}
+              onChange={(name) => onUpdateInput({ name })}
+              inputClassName="w-full min-w-0 rounded-none border-0 border-b border-transparent bg-transparent px-0 py-0.5 text-base font-medium tracking-tight text-zinc-100 outline-none hover:border-zinc-800 focus:border-live"
+            />
+          </div>
+          <div className="mt-0.5 flex flex-wrap items-baseline gap-x-2.5 font-mono text-[11.5px] text-zinc-500">
+            {presentation.physical.map((fact, index) => (
+              <span key={fact} className="flex items-baseline gap-2.5">
+                {index > 0 && <span className="text-zinc-700">·</span>}
+                <span>{fact}</span>
+              </span>
+            ))}
+          </div>
+        </div>
+        <div className="flex items-center gap-2 pt-1">
+          <SmallButton
+            label={adjusting ? 'Done' : 'Adjust'}
+            ariaLabel={adjusting ? `Done adjusting ${input.name}` : `Adjust ${input.name}`}
+            onClick={() => setAdjusting((open) => !open)}
+          />
+          <SmallButton label="Remove" ariaLabel={`Remove ${input.name}`} danger onClick={onRemoveInput} />
         </div>
       </div>
 
-      {transform.mode === 'derived' ? (
-        <div className="border-t border-zinc-800/80 px-3 py-2.5 text-[11px] leading-4 text-zinc-400">
-          {derivedDuty != null ? (
-            <>Uses the installation load and supply budget above. Editing either keeps this cap synchronized.</>
-          ) : (
-            <>Add a complete power profile above to derive this cap. The stored legacy duty remains unchanged.</>
-          )}
-        </div>
-      ) : (
-        <div className="border-t border-zinc-800/80 px-3 py-2.5">
-          <PowerCapField label="duty cap">
-            <PercentageField
-              ariaLabel="Power cap duty percent"
-              min={0}
-              max={1}
-              step={0.01}
-              value={transform.maxDuty}
-              onChange={(maxDuty) => onChange({ ...transform, mode: 'direct', maxDuty })}
-            />
-          </PowerCapField>
+      {adjusting && (
+        <div className="grid gap-x-4 [grid-template-columns:var(--gut)_minmax(0,1fr)]">
+          <span />
+          <div className="mt-4 flex flex-wrap items-end gap-x-7 gap-y-4 border-t border-zinc-800/70 pt-3.5">
+            <RuleField label="Pin" className="flex-[0_1_5.5rem]">
+              <SelectField
+                ariaLabel={`${input.name} pin`}
+                value={input.pin}
+                options={pinOptions}
+                onChange={(pin) => onUpdateInput({ pin })}
+              />
+            </RuleField>
+            <RuleField label="Signal" className="flex-[0_1_6.5rem]">
+              <SelectField
+                ariaLabel={`${input.name} signal`}
+                value={input.signal}
+                options={signalOptions}
+                onChange={(signal) => onUpdateInput({ signal })}
+              />
+            </RuleField>
+            <RuleField label="Smoothing" className="flex-[0_1_6.5rem]">
+              <PercentageField
+                ariaLabel={`${input.name} smoothing`}
+                min={0}
+                max={1}
+                step={0.01}
+                value={input.smoothing}
+                onChange={(smoothing) => onUpdateInput({ smoothing })}
+              />
+            </RuleField>
+            <RuleField label="Fallback" className="flex-[0_1_6.5rem]">
+              <PercentageField
+                ariaLabel={`${input.name} fallback`}
+                min={0}
+                max={1}
+                step={0.01}
+                value={input.fallback}
+                onChange={(fallback) => onUpdateInput({ fallback })}
+              />
+            </RuleField>
+            <div className="flex items-baseline gap-3 font-mono text-xs text-zinc-400">
+              <span>{input.invert ? '1 -> 0' : '0 -> 1'}</span>
+              <label
+                className="flex cursor-pointer items-center gap-1.5 font-sans text-xs text-zinc-400"
+                title="Invert the normalized hardware input direction"
+              >
+                <input
+                  type="checkbox"
+                  aria-label={`${input.name} invert`}
+                  checked={input.invert}
+                  onChange={(event) => onUpdateInput({ invert: event.target.checked })}
+                  className="accent-live"
+                />
+                <span>Invert</span>
+              </label>
+            </div>
+          </div>
         </div>
       )}
 
-      <div className="border-t border-zinc-800/80 px-3 py-2 font-mono text-[11px] leading-relaxed text-zinc-400">
-        <span className="block font-semibold text-amber-300">{Math.round(displayedDuty * 100)}% duty cap</span>
-        {resolved?.budgetAmps != null && resolved.budgetWatts != null && (
-          <span className="block">budget {resolved.budgetAmps.toFixed(1)} A · {resolved.budgetWatts.toFixed(1)} W</span>
+      <div className="mt-2 grid">
+        {presentation.uses.map((use, index) => (
+          <UseBlock
+            key={rowKeyForUse(use, index)}
+            use={use}
+            index={index}
+            count={rowCount}
+            inputName={input.name}
+            inputState={presentation.state}
+            profile={profile}
+            patternOptions={patternOptions}
+            online={online}
+            editing={use.kind === 'pattern' && editingBindingId === use.bindingId}
+            onToggleEditing={(bindingId) => setEditingBindingId((current) => (
+              current === bindingId ? null : bindingId
+            ))}
+            onAssignBrightness={onAssignBrightness}
+            onUpdateBinding={onUpdateBinding}
+            onRemoveBinding={onRemoveBinding}
+            inputId={presentation.inputId}
+          />
+        ))}
+
+        {presentation.issues.map((issue) => (
+          <div
+            key={issue.path}
+            className="mt-2 grid gap-x-4 [grid-template-columns:var(--gut)_minmax(0,1fr)]"
+          >
+            <span />
+            <div className="flex flex-wrap items-baseline gap-x-3 gap-y-1 text-xs text-red-300">
+              <span>{issue.message}</span>
+              {issue.correction && (
+                <button
+                  type="button"
+                  onClick={() => onUpdateInput(issue.correction!.change)}
+                  className="border-b border-live/40 font-mono text-[11.5px] text-live outline-none hover:border-live focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-live"
+                >
+                  {issue.correction.label}
+                </button>
+              )}
+            </div>
+          </div>
+        ))}
+
+        {draftOpen ? (
+          <div className="mt-2 grid gap-x-4 [grid-template-columns:var(--gut)_minmax(0,1fr)]">
+            <span />
+            <div className="flex flex-wrap items-end gap-x-4 gap-y-2">
+              <RuleField label="Pattern" className="flex-[1_1_14rem]">
+                <select
+                  aria-label={`Pattern for ${input.name}`}
+                  defaultValue=""
+                  disabled={!online || patternOptions.length === 0}
+                  onClick={stopFieldPropagation}
+                  onPointerDown={stopFieldPropagation}
+                  onKeyDown={stopFieldPropagation}
+                  onChange={(event) => {
+                    if (event.target.value) {
+                      setDraftOpen(false)
+                      onAddPatternUse(event.target.value)
+                    }
+                  }}
+                  className={`${ruleSelectClass} disabled:opacity-40`}
+                >
+                  <option value="">
+                    {!online
+                      ? 'Connect this Controller to add a use'
+                      : patternOptions.length > 0
+                      ? 'Choose an installed managed Pattern'
+                      : 'No managed saved Patterns are installed'}
+                  </option>
+                  {patternOptions.map((option) => (
+                    <option key={option.value} value={option.value}>{option.label}</option>
+                  ))}
+                </select>
+              </RuleField>
+              <SmallButton
+                label="Cancel"
+                ariaLabel={`Cancel new use for ${input.name}`}
+                onClick={() => setDraftOpen(false)}
+              />
+            </div>
+          </div>
+        ) : (
+          <div className="mt-2 grid gap-x-4 [grid-template-columns:var(--gut)_minmax(0,1fr)]">
+            <span />
+            <div className="flex flex-wrap items-center gap-2">
+              {showBrightnessAddAction && (
+                <SmallButton
+                  label="Use for brightness"
+                  ariaLabel={`Use ${input.name} for brightness`}
+                  icon={<Plus {...controlIcon} aria-hidden />}
+                  onClick={() => onAssignBrightness(presentation.inputId)}
+                />
+              )}
+              <SmallButton
+                label="Use for one Pattern"
+                ariaLabel={`Use ${input.name} for one Pattern`}
+                icon={<Plus {...controlIcon} aria-hidden />}
+                onClick={() => setDraftOpen(true)}
+              />
+            </div>
+          </div>
         )}
       </div>
-    </div>
+    </article>
   )
 }
 
-function PowerCapField({
-  label,
-  unit,
-  hint,
-  children,
-}: {
-  label: string
-  unit?: string
-  hint?: string
-  children: React.ReactNode
-}) {
-  return (
-    <label className="grid grid-cols-[minmax(0,1fr)_minmax(6.5rem,8rem)_auto] items-center gap-1.5">
-      <span className="min-w-0 text-[10px] leading-tight text-zinc-400">{label}</span>
-      <span className="flex min-w-0 items-center gap-1.5">
-        {children}
-        {unit && <span className="shrink-0 text-[10px] text-zinc-400">{unit}</span>}
-      </span>
-      {hint && <span className="col-span-full text-[10px] text-amber-300/80">⚡ {hint}</span>}
-    </label>
-  )
+function rowKeyForUse(use: ControllerInputUse, index: number): string {
+  if (use.kind === 'pattern') return use.bindingId
+  return `${use.kind}-${index}`
 }
 
-function BindingDraftRow({
+function UseBlock({
+  use,
+  index,
+  count,
+  inputId,
+  inputName,
+  inputState,
   profile,
   patternOptions,
   online,
-  onAddBinding,
-  onCancelDraft,
-}: {
-  profile: ControllerProfile
-  patternOptions: SelectOption<string>[]
-  online: boolean
-  onAddBinding: (patternId: string) => void
-  onCancelDraft: () => void
-}) {
-  return (
-    <li className={`${rowCardClass} pr-9`}>
-      <button
-        type="button"
-        aria-label="Cancel new binding"
-        title="Cancel new binding"
-        onClick={onCancelDraft}
-        className="absolute right-2 top-2 rounded p-1 text-zinc-500 transition-colors hover:bg-zinc-900 hover:text-red-300"
-      >
-        <X {...controlIcon} aria-hidden />
-      </button>
-      <div className="flex flex-wrap items-start gap-x-3 gap-y-2">
-        <LabeledField label="Pattern" className="w-56 grow">
-          <select
-            aria-label="New binding Pattern"
-            defaultValue=""
-            disabled={!online || patternOptions.length === 0}
-            onClick={stopFieldPropagation}
-            onPointerDown={stopFieldPropagation}
-            onKeyDown={stopFieldPropagation}
-            onChange={(event) => {
-              if (event.target.value) onAddBinding(event.target.value)
-            }}
-            className={`${fieldClass} w-full disabled:opacity-40`}
-          >
-            <option value="">
-              {!online
-                ? 'Connect this controller to add a binding'
-                : patternOptions.length > 0
-                ? 'Choose an installed managed Pattern'
-                : 'No managed saved Patterns are installed'}
-            </option>
-            {patternOptions.map((option) => (
-              <option key={option.value} value={option.value}>{option.label}</option>
-            ))}
-          </select>
-        </LabeledField>
-        <LabeledField label="Input">
-          <span className="flex h-7 items-center text-xs text-zinc-500">
-            {profile.inputs[0]?.name ?? '-'}
-          </span>
-        </LabeledField>
-        <LabeledField label="Target">
-          <span className="flex h-7 items-center text-xs text-zinc-500">exported slider</span>
-        </LabeledField>
-        <LabeledField label="Name">
-          <span className="flex h-7 items-center font-mono text-xs text-zinc-500">sliderSpeed</span>
-        </LabeledField>
-      </div>
-    </li>
-  )
-}
-
-function PatternBindingsList({
-  profile,
-  patternOptions,
-  online,
-  draftOpen,
-  onAddBinding,
-  onCancelDraft,
+  editing,
+  onToggleEditing,
+  onAssignBrightness,
   onUpdateBinding,
   onRemoveBinding,
 }: {
+  use: ControllerInputUse
+  index: number
+  count: number
+  inputId: string
+  inputName: string
+  inputState: ControllerInputPresentation['state']
   profile: ControllerProfile
   patternOptions: SelectOption<string>[]
   online: boolean
-  draftOpen: boolean
-  onAddBinding: (patternId: string) => void
-  onCancelDraft: () => void
+  editing: boolean
+  onToggleEditing: (bindingId: string) => void
+  onAssignBrightness: (inputId: string | null) => void
   onUpdateBinding: (bindingId: string, changes: Partial<PatternBinding>) => void
   onRemoveBinding: (bindingId: string) => void
 }) {
-  if (profile.patternBindings.length === 0 && !draftOpen) {
-    return <EmptyState>No pattern bindings are configured for this controller.</EmptyState>
+  if (use.kind === 'none') {
+    return (
+      <UseRow
+        index={index}
+        count={count}
+        traceColor={traceColorFor(inputState, false)}
+        right={(
+          <Switch
+            ariaLabel={`${inputName} controls brightness`}
+            checked={false}
+            label="brightness"
+            onChange={() => onAssignBrightness(inputId)}
+          />
+        )}
+      >
+        <div className="text-[13.5px] text-zinc-400">{use.label}</div>
+        <div className="mt-px font-mono text-[11.5px] text-zinc-500">{use.detail}</div>
+      </UseRow>
+    )
   }
 
+  if (use.kind === 'brightness') {
+    return (
+      <UseRow
+        index={index}
+        count={count}
+        traceColor={traceColorFor(inputState, use.state === 'live')}
+        right={(
+          <Switch
+            ariaLabel={`${inputName} controls brightness`}
+            checked
+            label="on"
+            onChange={() => onAssignBrightness(null)}
+          />
+        )}
+      >
+        <div className="text-[13.5px] font-medium tracking-[-0.005em] text-zinc-100">{use.label}</div>
+        <div className="mt-px font-mono text-[11.5px] text-zinc-500">{use.scope}</div>
+      </UseRow>
+    )
+  }
+
+  const binding = profile.patternBindings.find((candidate) => candidate.id === use.bindingId)
+  const pushLabel = use.push ? PUSH_TAG_LABELS[use.push] : null
+
   return (
-    <ul className="grid gap-2">
-      {draftOpen && (
-        <BindingDraftRow
-          profile={profile}
-          patternOptions={patternOptions}
-          online={online}
-          onAddBinding={onAddBinding}
-          onCancelDraft={onCancelDraft}
-        />
-      )}
-      {profile.patternBindings.map((binding) => (
-        <li key={binding.id} className={`${rowCardClass} pr-9`}>
-          <RemoveRowButton label="Remove binding" onClick={() => onRemoveBinding(binding.id)} />
-          <div className="flex flex-wrap items-start gap-x-3 gap-y-2">
-            <LabeledField label="Pattern" className="w-48 grow">
-              <SelectField
-                ariaLabel="Binding Pattern"
-                value={binding.patternId}
-                options={patternOptions.some((option) => option.value === binding.patternId)
-                  ? patternOptions
-                  : [
-                      { value: binding.patternId, label: `${binding.patternId} (not installed)` },
-                      ...patternOptions,
-                    ]}
-                onChange={(patternId) => onUpdateBinding(binding.id, { patternId })}
-                disabled={!online}
-              />
-            </LabeledField>
-            <LabeledField label="Input" className="w-32">
-              <SelectField
-                ariaLabel="Binding input"
-                value={binding.inputId}
-                options={profile.inputs.map((input) => ({ value: input.id, label: input.name }))}
-                onChange={(inputId) => onUpdateBinding(binding.id, { inputId })}
-              />
-            </LabeledField>
-            <LabeledField label="Target" className="w-32">
-              <SelectField
-                ariaLabel="Binding target kind"
-                value={binding.target.kind}
-                options={[
-                  { value: 'call-exported-slider', label: 'exported slider' },
-                  { value: 'call-function', label: 'function' },
-                  { value: 'assign-variable', label: 'variable' },
-                ]}
-                onChange={(kind) => onUpdateBinding(binding.id, { target: targetForKind(kind, binding.target) })}
-              />
-            </LabeledField>
-            <LabeledField label="Name" className="w-32">
-              <TextField
-                ariaLabel="Binding target name"
-                value={binding.target.name}
-                onChange={(name) => onUpdateBinding(binding.id, { target: { ...binding.target, name } })}
-              />
-            </LabeledField>
-            {binding.target.kind === 'assign-variable' && (
-              <LabeledField label="Min / max / quantize" className="w-44">
-                <div className="grid grid-cols-3 gap-1">
-                  <NumberField
-                    ariaLabel="Binding minimum"
-                    value={binding.target.min}
-                    step={0.01}
-                    onChange={(min) => {
-                      if (binding.target.kind === 'assign-variable') {
-                        onUpdateBinding(binding.id, { target: { ...binding.target, min } })
-                      }
-                    }}
-                  />
-                  <NumberField
-                    ariaLabel="Binding maximum"
-                    value={binding.target.max}
-                    step={0.01}
-                    onChange={(max) => {
-                      if (binding.target.kind === 'assign-variable') {
-                        onUpdateBinding(binding.id, { target: { ...binding.target, max } })
-                      }
-                    }}
-                  />
-                  <NumberField
-                    ariaLabel="Binding quantize"
-                    value={binding.target.quantize ?? 0}
-                    step={0.01}
-                    onChange={(quantize) => {
-                      if (binding.target.kind === 'assign-variable') {
-                        onUpdateBinding(binding.id, {
-                          target: {
-                            ...binding.target,
-                            ...(quantize > 0 ? { quantize } : { quantize: undefined }),
-                          },
-                        })
-                      }
-                    }}
-                  />
-                </div>
-              </LabeledField>
-            )}
-            {patternBindingOverridesHardwareBrightness(profile, binding) && (
-              <span className="flex h-7 items-center self-end">
-                <span
-                  title="This input controls the Pattern binding instead of hardware brightness while this Pattern runs."
-                  className={`inline-flex whitespace-nowrap border border-zinc-700/80 bg-zinc-900/70 px-1.5 py-0.5 font-mono font-semibold uppercase tracking-wide text-zinc-400 ${IDE_MICROTYPE.required.sizeClassName}`}
-                >
-                  Brightness override
-                </span>
+    <>
+      <UseRow
+        index={index}
+        count={count}
+        traceColor={traceColorFor(inputState, use.state === 'live')}
+        right={(
+          <>
+            {pushLabel && (
+              <span
+                title={use.push ? PUSH_TAG_TITLES[use.push] : undefined}
+                className="font-mono text-[9.5px] uppercase tracking-[0.1em] text-live"
+              >
+                {pushLabel}
               </span>
             )}
-          </div>
-        </li>
-      ))}
-    </ul>
-  )
-}
-
-function ZonesTable({
-  profile,
-  onUpdateZone,
-  onRemoveZone,
-}: {
-  profile: ControllerProfile
-  onUpdateZone: (zoneId: string, changes: Partial<ControllerZone>) => void
-  onRemoveZone: (zoneId: string) => void
-}) {
-  if (profile.zones.length === 0) return <EmptyState>No zones have been defined for this controller.</EmptyState>
-
-  return (
-    <div className="space-y-3">
-      <ZoneRibbon profile={profile} />
-      <table className="w-full table-fixed border-collapse text-xs">
-        <colgroup>
-          <col className="w-[30%]" />
-          <col />
-          <col className="w-16" />
-          <col className="w-10" />
-        </colgroup>
-        <thead>
-          <tr>
-            <th className={tableHeadClass}>Zone</th>
-            <th className={tableHeadClass}>Ranges</th>
-            <th className={tableHeadClass}>Pixels</th>
-            <th className={tableHeadClass} />
-          </tr>
-        </thead>
-        <tbody>
-          {profile.zones.map((zone) => (
-            <tr key={zone.id}>
-              <td className={tableCellClass}>
-                <TextField
-                  ariaLabel={`${zone.name} zone name`}
-                  value={zone.name}
-                  onChange={(name) => onUpdateZone(zone.id, { name })}
-                />
-              </td>
-              <td className={tableCellClass}>
-                <RangesField
-                  zone={zone}
-                  onChange={(ranges) => onUpdateZone(zone.id, { ranges })}
-                />
-              </td>
-              <td className={`${tableCellClass} font-mono text-zinc-300`}>
-                {controllerZonePixelCount(zone)}
-              </td>
-              <td className={tableCellClass}>
-                <button
-                  type="button"
-                  aria-label={`Remove ${zone.name}`}
-                  title="Remove zone"
-                  onClick={() => onRemoveZone(zone.id)}
-                  className="text-zinc-500 hover:text-red-300"
-                >
-                  <Trash2 {...controlIcon} aria-hidden />
-                </button>
-              </td>
-            </tr>
-          ))}
-        </tbody>
-      </table>
-    </div>
-  )
-}
-
-function RangesField({
-  zone,
-  onChange,
-}: {
-  zone: ControllerZone
-  onChange: (ranges: ControllerZoneRange[]) => void
-}) {
-  const formatted = formatControllerZoneRanges(zone)
-  const [error, setError] = useState<string | null>(null)
-  const parseRanges = (draft: string) => {
-    const parsed = parseControllerZoneRanges(draft)
-    return parsed.ok ? parsed.ranges : null
-  }
-
-  return (
-    <div className="space-y-1">
-      <DraftTextField
-        ariaLabel={`${zone.name} zone ranges`}
-        value={formatted}
-        parse={parseRanges}
-        onApply={(ranges) => {
-          setError(null)
-          onChange(ranges)
-        }}
-        onCancel={() => setError(null)}
-        onDraftChange={(next) => {
-          const parsed = parseControllerZoneRanges(next)
-          setError(parsed.ok ? null : parsed.message)
-        }}
-        inputProps={{ placeholder: '0-63, 96-127' }}
-        inputClassName={`${fieldClass} w-full font-mono tabular-nums ${error ? 'border-amber-400/70' : ''}`}
-      />
-      {error && <div className="text-[10px] text-amber-300">{error}</div>}
-    </div>
-  )
-}
-
-function ZoneRibbon({ profile }: { profile: ControllerProfile }) {
-  const maxEnd = Math.max(
-    0,
-    ...profile.zones.flatMap((zone) => zone.ranges.map((range) => range.end)),
-  )
-  const totalPixels = profile.lastKnownPixelCount ?? maxEnd + 1
-  if (totalPixels <= 0) return null
-
-  return (
-    <div>
-      <div className="flex h-2 overflow-hidden rounded-sm border border-zinc-800 bg-zinc-900">
-        {profile.zones.map((zone, index) => {
-          const width = Math.max(1, (controllerZonePixelCount(zone) / totalPixels) * 100)
-          return (
-            <span
-              key={zone.id}
-              title={`${zone.name}: ${formatControllerZoneRanges(zone)}`}
-              className={index % 3 === 0 ? 'bg-live/70' : index % 3 === 1 ? 'bg-ok/70' : 'bg-amber-400/70'}
-              style={{ width: `${width}%` }}
+            <SmallButton
+              label={editing ? 'Done' : 'Edit'}
+              ariaLabel={editing
+                ? `Done editing ${use.label} use of ${inputName}`
+                : `Edit ${use.label} use of ${inputName}`}
+              onClick={() => onToggleEditing(use.bindingId)}
             />
-          )
-        })}
-      </div>
-      <div className="mt-1 flex flex-wrap gap-x-4 gap-y-1 text-[10px] text-zinc-400">
-        {profile.zones.map((zone) => (
-          <span key={zone.id}>
-            <span className="font-mono text-zinc-400">{zone.name}</span> {controllerZonePixelCount(zone)} px
-          </span>
-        ))}
-      </div>
-    </div>
+            <SmallButton
+              label="Remove"
+              ariaLabel={`Remove ${use.label} use of ${inputName}`}
+              danger
+              onClick={() => onRemoveBinding(use.bindingId)}
+            />
+          </>
+        )}
+      >
+        <div className="text-[13.5px] font-medium tracking-[-0.005em] text-zinc-100">{use.label}</div>
+        <div className="mt-px font-mono text-[11.5px] text-zinc-500">
+          <UseDetail detail={use.detail} />
+        </div>
+      </UseRow>
+      {editing && binding && (
+        <div className="grid gap-x-4 [grid-template-columns:var(--gut)_minmax(0,1fr)]">
+          <span />
+          <PatternUseEditor
+            binding={binding}
+            patternOptions={patternOptions}
+            online={online}
+            onUpdate={(changes) => onUpdateBinding(binding.id, changes)}
+          />
+        </div>
+      )}
+    </>
   )
 }
 
@@ -1390,9 +1374,7 @@ export function ControllerProfilePage({ profileId }: { profileId: string }) {
   const addInput = useControllerProfileStore((state) => state.addInput)
   const updateInput = useControllerProfileStore((state) => state.updateInput)
   const removeInput = useControllerProfileStore((state) => state.removeInput)
-  const addZone = useControllerProfileStore((state) => state.addZone)
-  const updateZone = useControllerProfileStore((state) => state.updateZone)
-  const removeZone = useControllerProfileStore((state) => state.removeZone)
+  const assignHardwareBrightness = useControllerProfileStore((state) => state.assignHardwareBrightness)
   const addPatternBinding = useControllerProfileStore((state) => state.addPatternBinding)
   const updatePatternBinding = useControllerProfileStore((state) => state.updatePatternBinding)
   const removePatternBinding = useControllerProfileStore((state) => state.removePatternBinding)
@@ -1404,6 +1386,7 @@ export function ControllerProfilePage({ profileId }: { profileId: string }) {
   const profile = profiles.find((item) => item.id === profileId)
   const profileController = profile ? controllerForProfile(profile, controllers) : null
   const liveIp = profileController?.phase === 'live' ? profileController.ip : undefined
+  const liveMapDim = profileController?.phase === 'live' ? profileController.mapDim ?? null : null
   const controllerPrograms = useControllerPanelStore((state) => (
     liveIp ? state.programsByController[liveIp] ?? EMPTY_CONTROLLER_PROGRAMS : EMPTY_CONTROLLER_PROGRAMS
   ))
@@ -1412,7 +1395,10 @@ export function ControllerProfilePage({ profileId }: { profileId: string }) {
     controllerId: string
     bindings: BindingStore
   } | null>(null)
-  const [bindingDraftOpen, setBindingDraftOpen] = useState(false)
+  const [pushRecordsRead, setPushRecordsRead] = useState<{
+    controllerId: string
+    records: Record<string, ControllerPushRecord>
+  } | null>(null)
 
   useEffect(() => {
     if (profileRefreshId && liveIp) void refreshLiveMetadata(profileRefreshId)
@@ -1424,6 +1410,21 @@ export function ControllerProfilePage({ profileId }: { profileId: string }) {
     void getControllerBindings()
       .then((bindings) => {
         if (!cancelled) setControllerBindingsRead({ controllerId: liveIp, bindings })
+      })
+      .catch(() => {})
+    return () => {
+      cancelled = true
+    }
+  }, [controllerPrograms, liveIp])
+
+  // Level 2 re-push staleness needs the saved artifact records for this
+  // Controller. They are keyed by IP, so this mirrors the bindings read.
+  useEffect(() => {
+    let cancelled = false
+    if (!liveIp) return
+    void getPushRecords()
+      .then((records) => {
+        if (!cancelled) setPushRecordsRead({ controllerId: liveIp, records: records[liveIp] ?? {} })
       })
       .catch(() => {})
     return () => {
@@ -1449,7 +1450,6 @@ export function ControllerProfilePage({ profileId }: { profileId: string }) {
     )
   }
 
-  const validation = validateControllerProfile(profile)
   const transformArtifact = selectTransformArtifactInspection(
     transformArtifacts,
     profileController?.ip ?? profile.lastSeenIp ?? null,
@@ -1476,11 +1476,26 @@ export function ControllerProfilePage({ profileId }: { profileId: string }) {
   const bindingPatternOptions = liveIp
     ? installedBindingPatternOptions
     : offlineBindingPatternOptions
+  const patternNames: Record<string, string> = {}
+  for (const [patternId, name] of localPatternNameById) patternNames[patternId] = name
+  for (const option of installedBindingPatternOptions) patternNames[option.value] = option.label
   const installedMapPresentation = describeInstalledMap({
     observation: installedMapObservation,
     profile,
     candidates: installedMapCandidates,
   })
+
+  const patternPushStates = controllerPatternPushStates({
+    profile,
+    patternIds: profile.patternBindings.map((binding) => binding.patternId),
+    pushRecords: pushRecordsRead && pushRecordsRead.controllerId === liveIp
+      ? pushRecordsRead.records
+      : EMPTY_PUSH_RECORDS,
+    mapDim: liveMapDim,
+    live: Boolean(liveIp),
+  })
+  const usesView = describeControllerInputUses(profile, { patternNames, patternPushStates })
+  const presentationById = new Map(usesView.inputs.map((entry) => [entry.inputId, entry]))
 
   return (
     <div data-testid="controller-profile-page" className="h-full overflow-y-auto bg-zinc-950 text-zinc-200">
@@ -1489,16 +1504,18 @@ export function ControllerProfilePage({ profileId }: { profileId: string }) {
         controller={profileController}
         installedMapPresentation={installedMapPresentation}
       />
-      {!validation.ok && (
+      {usesView.profileIssues.length > 0 && (
         <div className="border-b border-amber-500/30 bg-amber-950/20 px-4 py-2 text-xs text-amber-200">
-          {validation.errors.map((error) => error.message).join(' ')}
+          {usesView.profileIssues.map((error) => error.message).join(' ')}
         </div>
       )}
-      <Section title="Power">
-        <ElectricalProfileEditor
-          electricalProfile={profile.electricalProfile}
-          pixelCount={profile.lastKnownPixelCount}
-          onChange={(electricalProfile) => void updateProfile(profile.id, {
+      <Section
+        title="Power"
+        lede="The Controller estimates draw live from the duty cycle of the running Pattern."
+      >
+        <PowerSection
+          profile={profile}
+          onChangeElectrical={(electricalProfile) => void updateProfile(profile.id, {
             electricalProfile,
             globalTransforms: synchronizeDerivedPowerCaps(
               profile.globalTransforms,
@@ -1506,54 +1523,65 @@ export function ControllerProfilePage({ profileId }: { profileId: string }) {
               profile.lastKnownPixelCount,
             ),
           })}
+          onChangePowerCap={(settings: Partial<PowerCapSettings & { enabled: boolean }>) => void updateProfile(
+            profile.id,
+            {
+              globalTransforms: profile.globalTransforms.map((transform) => (
+                transform.type === 'power-cap' ? { ...transform, ...settings } : transform
+              )),
+            },
+          )}
         />
       </Section>
       <Section
-        title="Hardware inputs"
+        title="Inputs"
+        lede={(
+          <>
+            One entry per physical control wired to the board, with everything it drives.{' '}
+            <span className="text-zinc-400">Changes reach the hardware when a Pattern is pushed.</span>
+          </>
+        )}
         action={
-          <SectionAddButton
+          <SmallButton
             label="Add input"
             title="Add hardware input"
+            icon={<Plus {...controlIcon} aria-hidden />}
             onClick={() => void addInput(profile.id)}
           />
         }
       >
-        <InputsList
-          profile={profile}
-          onUpdateInput={(inputId, changes) => void updateInput(profile.id, inputId, changes)}
-          onRemoveInput={(inputId) => void removeInput(profile.id, inputId)}
-        />
-      </Section>
-      <Section title="Global transforms">
-        <GlobalTransformsList
-          profile={profile}
-          onUpdateTransforms={(globalTransforms) => void updateProfile(profile.id, { globalTransforms })}
-        />
-      </Section>
-      <Section
-        title="Pattern bindings"
-        action={
-          <SectionAddButton
-            label="Add binding"
-            title="Add pattern binding"
-            disabled={profile.inputs.length === 0}
-            onClick={() => setBindingDraftOpen(true)}
-          />
-        }
-      >
-        <PatternBindingsList
-          profile={profile}
-          patternOptions={bindingPatternOptions}
-          online={Boolean(liveIp)}
-          draftOpen={bindingDraftOpen}
-          onAddBinding={(patternId) => {
-            setBindingDraftOpen(false)
-            void addPatternBinding(profile.id, patternId)
-          }}
-          onCancelDraft={() => setBindingDraftOpen(false)}
-          onUpdateBinding={(bindingId, changes) => void updatePatternBinding(profile.id, bindingId, changes)}
-          onRemoveBinding={(bindingId) => void removePatternBinding(profile.id, bindingId)}
-        />
+        {profile.inputs.length === 0 ? (
+          <p className="text-xs text-zinc-500">
+            No hardware inputs are wired to this Controller profile yet.
+          </p>
+        ) : (
+          // Ragged two-up columns, not a grid: inputs have different heights and
+          // must not be forced to share a row height (#772). The shorthand is
+          // container-relative — two columns only while each still gets 24rem —
+          // because this pane narrows independently of the viewport.
+          <div className="gap-x-13 [column-rule:1px_solid_rgb(39_39_42)] [columns:24rem_2]">
+            {profile.inputs.map((input) => {
+              const presentation = presentationById.get(input.id)
+              if (!presentation) return null
+              return (
+                <InputCard
+                  key={input.id}
+                  profile={profile}
+                  input={input}
+                  presentation={presentation}
+                  patternOptions={bindingPatternOptions}
+                  online={Boolean(liveIp)}
+                  onUpdateInput={(changes) => void updateInput(profile.id, input.id, changes)}
+                  onRemoveInput={() => void removeInput(profile.id, input.id)}
+                  onAssignBrightness={(inputId) => void assignHardwareBrightness(profile.id, inputId)}
+                  onAddPatternUse={(patternId) => void addPatternBinding(profile.id, patternId, input.id)}
+                  onUpdateBinding={(bindingId, changes) => void updatePatternBinding(profile.id, bindingId, changes)}
+                  onRemoveBinding={(bindingId) => void removePatternBinding(profile.id, bindingId)}
+                />
+              )
+            })}
+          </div>
+        )}
       </Section>
       <Section title="Last generated artifact">
         <TransformInspectionPanel
@@ -1561,22 +1589,10 @@ export function ControllerProfilePage({ profileId }: { profileId: string }) {
           empty="No profile-enabled push has generated an inspectable artifact for this controller yet."
         />
       </Section>
-      <Section
-        title="Zones"
-        action={
-          <SectionAddButton
-            label="Add zone"
-            title="Add zone"
-            onClick={() => void addZone(profile.id)}
-          />
-        }
-      >
-        <ZonesTable
-          profile={profile}
-          onUpdateZone={(zoneId, changes) => void updateZone(profile.id, zoneId, changes)}
-          onRemoveZone={(zoneId) => void removeZone(profile.id, zoneId)}
-        />
-      </Section>
+      {/* Zones are Installation Show setup, not Controller hardware setup, so
+          they are no longer edited here. `ControllerProfile.zones` stays
+          persisted and stays live in Show compilation; the replacement editing
+          surface is tracked as #775. */}
     </div>
   )
 }
