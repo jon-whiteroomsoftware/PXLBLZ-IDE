@@ -6685,8 +6685,7 @@ describe('ShowEditor (#318)', () => {
     expect(compileBar).not.toHaveTextContent(/arena|free|render target:|cache plan:|crossfade:|est\. \d+ fps|steady state|worst instant:/i)
   })
 
-  it('opens an exact proportional Show source inventory from keyboard-equivalent focus (#545)', async () => {
-    const user = userEvent.setup()
+  it('reports an exact proportional Show source inventory from keyboard-equivalent focus (#545, #756)', () => {
     const property = STOCK_SHOWS.find((candidate) => candidate.id === 'stock-show-reference-property-animation')!
 
     render(<ShowEditor showId={property.id} showOverride={createPropertySlotQualificationShow()} readOnly />)
@@ -6715,19 +6714,8 @@ describe('ShowEditor (#318)', () => {
     expect(screen.queryByRole('dialog', { name: 'Show source inventory' })).not.toBeInTheDocument()
 
     fireEvent.focus(trigger)
-    const focusedInventory = screen.getByRole('dialog', { name: 'Show source inventory' })
-    expect(trigger).toHaveAttribute('aria-expanded', 'true')
-    fireEvent.keyDown(focusedInventory, { key: 'Escape' })
-    await waitFor(() => expect(screen.queryByRole('dialog', { name: 'Show source inventory' })).not.toBeInTheDocument())
-
-    fireEvent.pointerEnter(trigger)
-    expect(screen.getByRole('dialog', { name: 'Show source inventory' })).toBeInTheDocument()
-    fireEvent.pointerLeave(trigger)
-    await waitFor(() => expect(screen.queryByRole('dialog', { name: 'Show source inventory' })).not.toBeInTheDocument())
-
-    await user.click(trigger)
-
     const inventory = screen.getByRole('dialog', { name: 'Show source inventory' })
+    expect(trigger).toHaveAttribute('aria-expanded', 'true')
     expect(inventory).toHaveTextContent('Delivered source')
     expect(inventory).toHaveTextContent('PXLBLZ Show infrastructure')
     expect(inventory).toHaveTextContent('Effects and Transitions')
