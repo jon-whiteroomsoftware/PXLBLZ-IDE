@@ -1,4 +1,4 @@
-import { useEffect, useSyncExternalStore } from 'react'
+import { useEffect, useSyncExternalStore, type ReactNode } from 'react'
 import { ExternalLink } from 'lucide-react'
 import { inlineIcon } from '@/components/iconScale'
 import { getControllerProvider } from '@/engine/controllerProviderRegistry'
@@ -114,6 +114,19 @@ function ControllerPixelCountInput() {
       pending={pending}
       onApply={commit}
     />
+  )
+}
+
+// Map, FPS, and IP are the panel's compact identity/telemetry facts. A shared
+// label track keeps their values on one left-aligned axis; unlike DeckCell's
+// general-purpose right alignment, this lets the full-width map value spend the
+// rest of its row while preserving the two-column fact band below.
+function ControllerFactRow({ label, children }: { label: string; children: ReactNode }) {
+  return (
+    <div className="grid min-w-0 grid-cols-[2.75rem_minmax(0,1fr)] items-center">
+      <span className="text-zinc-400">{label}</span>
+      <div className="min-w-0">{children}</div>
+    </div>
   )
 }
 
@@ -253,9 +266,9 @@ export function ControllerPanel() {
                  unbounded length. In a ~147px half-column its unshrinkable siblings (the
                  dimension pill, the spelled-out point count) left the name 0px at every
                  name length, so the name never rendered — the whole point of showing an
-                 installed map. Its full-width row uses a fixed label gap and gives every
-                 remaining pixel to the value, while the point count shows only when it
-                 disagrees with the pixel count below.
+                 installed map. Its full-width row shares a fixed label track with the
+                 short facts below and gives every remaining pixel to the value, while
+                 the point count shows only when it disagrees with the pixel count below.
               3. short read-only *scalars* — fps, IP, pixel count. A half-column always
                  fit these, and they keep it.
 
@@ -275,10 +288,9 @@ export function ControllerPanel() {
             onChange={setBrightness}
           />
 
-          <div className="flex min-w-0 items-center gap-7">
-            <span className="shrink-0 text-zinc-400">map</span>
+          <ControllerFactRow label="map">
             <span
-              className="min-w-0 flex-1 text-live"
+              className="min-w-0 text-live"
               title={
                 mapCountMismatch
                   ? `Map has ${mapPointsLabel} points but the Controller has ${pixelsLabel} pixels — the firmware silently drops a mismatched map (#204).`
@@ -288,18 +300,23 @@ export function ControllerPanel() {
             >
               <InstalledMapPresentation
                 presentation={installedMapPresentation}
-                className="w-full"
                 count={{ mode: 'mismatch', pixelCount }}
               />
             </span>
-          </div>
+          </ControllerFactRow>
 
-          <div className="flex gap-x-4 items-start">
-            <div className="flex-1 min-w-0 flex flex-col gap-y-2">
-              <DeckTelemetry label="fps" value={fpsLabel} />
-              <DeckTelemetry label="IP" value={status.controller.address} />
+          <div className="grid grid-cols-[minmax(0,3fr)_minmax(0,2fr)] gap-x-4 items-start">
+            <div className="min-w-0 flex flex-col gap-y-2">
+              <ControllerFactRow label="fps">
+                <span className="block truncate text-live tabular-nums">{fpsLabel}</span>
+              </ControllerFactRow>
+              <ControllerFactRow label="IP">
+                <span className="block truncate text-live tabular-nums">
+                  {status.controller.address}
+                </span>
+              </ControllerFactRow>
             </div>
-            <div className="flex-1 min-w-0">
+            <div className="min-w-0">
               <DeckField label="pixel count">
                 <ControllerPixelCountInput />
               </DeckField>

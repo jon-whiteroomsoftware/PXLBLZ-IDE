@@ -239,14 +239,17 @@ describe('ControllerPanel', () => {
   })
 
   // The mechanism behind #757: the value collapsed to zero and the overflow then ate the
-  // label, rendering the row as "m..". A shrink-0 label makes the name the only child
-  // that can give — which is the point of the row.
-  it('keeps the map label from shrinking into the name', async () => {
+  // label, rendering the row as "m..". The compact facts now share one fixed label track,
+  // so their values stay left-aligned without putting the map back in a half-width cell.
+  it('aligns map, fps, and IP on the same fixed label track', async () => {
     setControllerProvider(new ConnectedProvider())
     render(<ControllerPanel />)
 
-    const label = await screen.findByText('map')
-    expect(label.className).toContain('shrink-0')
+    for (const label of ['map', 'fps', 'IP']) {
+      const row = (await screen.findByText(label)).parentElement
+      expect(row).toHaveClass('grid-cols-[2.75rem_minmax(0,1fr)]')
+      expect(row?.children).toHaveLength(2)
+    }
   })
 
   it('renders reading, unknown, absent, and unavailable from the shared live state', async () => {
