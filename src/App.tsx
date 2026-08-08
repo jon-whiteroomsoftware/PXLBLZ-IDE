@@ -978,16 +978,14 @@ function StudioApp() {
         )}
         <div
           data-testid={studioEntityKind === 'shows' ? 'show-workspace' : undefined}
-          className={studioEntityKind === 'shows'
-            ? 'show-workspace grid min-h-0 min-w-0 flex-1 grid-rows-[auto_minmax(0,1fr)] max-[980px]:grid-cols-1'
-            : 'contents'}
+          className="contents"
         >
         <main
           data-testid="editor-pane"
-          className={studioEntityKind === 'shows' ? 'contents' : 'flex-1 min-w-0 flex flex-col overflow-hidden'}
+          className="flex-1 min-w-0 flex flex-col overflow-hidden"
         >
           <div className={studioEntityKind === 'shows'
-            ? 'show-pane-header-container col-span-full row-start-1 min-w-0 shrink-0'
+            ? 'show-pane-header-container min-w-0 shrink-0'
             : 'shrink-0'}>
             <PaneHeader className={studioEntityKind === 'shows' ? 'show-pane-header' : ''}>
             {activeControllerProfileId !== null ? (
@@ -1124,9 +1122,7 @@ function StudioApp() {
             )}
             </PaneHeader>
           </div>
-          <div className={studioEntityKind === 'shows'
-            ? 'col-start-1 row-start-2 min-h-0 min-w-0 overflow-hidden'
-            : 'flex-1 overflow-hidden'}>
+          <div className="flex-1 overflow-hidden">
             {activeControllerProfileId !== null ? (
               <ControllerProfilePage profileId={activeControllerProfileId} />
             ) : studioEntityKind === 'controllers' ? (
@@ -1202,7 +1198,7 @@ function StudioApp() {
           valueMin={STUDIO_PREVIEW_MIN_WIDTH}
           onDrag={handleRightDrag}
           className={studioEntityKind === 'shows'
-            ? 'col-start-2 row-start-2 h-full max-[980px]:hidden'
+            ? 'studio-preview-splitter max-[980px]:hidden'
             : 'studio-preview-splitter'}
         />
         {/* The preview is an output/instrument surface (#150): no header strip — the
@@ -1210,7 +1206,7 @@ function StudioApp() {
         <aside
           data-testid="preview-pane"
           className={studioEntityKind === 'shows'
-            ? 'col-start-3 row-start-2 flex min-h-0 min-w-0 flex-col max-[980px]:hidden'
+            ? 'studio-preview-pane flex min-h-0 shrink-0 flex-col max-[980px]:hidden'
             : 'studio-preview-pane flex min-h-0 shrink-0 flex-col'}
           style={{ width: rightWidth, minWidth: STUDIO_PREVIEW_MIN_WIDTH }}
         >

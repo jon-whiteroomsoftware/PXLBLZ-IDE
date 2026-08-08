@@ -63,6 +63,32 @@ test('shared Studio chrome remains legible, dense, and reachable across routes (
     .toBe(46)
 })
 
+test('keeps the Shows header inside the center editor pane (#758)', async ({ page }) => {
+  await page.setViewportSize({ width: 1440, height: 900 })
+  await page.goto('studio/shows/stock-show-101-clips-cuts-blank-time')
+
+  const geometry = await page.locator('.show-pane-header').evaluate((header) => {
+    const editor = header.closest('[data-testid="editor-pane"]')
+    const preview = document.querySelector('[data-testid="preview-pane"]')
+    if (!editor || !preview) return null
+
+    const headerBounds = header.getBoundingClientRect()
+    const editorBounds = editor.getBoundingClientRect()
+    const previewBounds = preview.getBoundingClientRect()
+    return {
+      editorWidth: editorBounds.width,
+      headerRight: Math.round(headerBounds.right),
+      editorRight: Math.round(editorBounds.right),
+      previewLeft: Math.round(previewBounds.left),
+    }
+  })
+
+  expect(geometry).not.toBeNull()
+  expect(geometry!.editorWidth).toBeGreaterThan(0)
+  expect(geometry!.headerRight).toBe(geometry!.editorRight)
+  expect(geometry!.headerRight).toBeLessThanOrEqual(geometry!.previewLeft)
+})
+
 test('Studio authoring keeps the rail and editor reachable at 390px (#622)', async ({ page }) => {
   await page.setViewportSize({ width: 1440, height: 900 })
   await page.goto('studio/shows')
