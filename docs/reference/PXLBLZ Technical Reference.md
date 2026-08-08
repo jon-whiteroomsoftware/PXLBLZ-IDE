@@ -854,12 +854,13 @@ A profile contains:
 - board and last-seen Controller facts, including the last conclusive
   firmware-update observation tied to an installed firmware version;
 - typed hardware inputs with board-safe pin validation;
-- enabled global transforms;
+- enabled global transforms (hardware brightness and the power cap);
 - an optional installation power model with LED construction, supply
   budget, and an optional full-white load override;
 - the opt-in managed-artifact reconciliation preference;
 - per-Pattern bindings;
-- named, possibly multi-range zones;
+- named, possibly multi-range zones (still persisted and still consumed by Show
+  compilation, but no longer edited on the profile page — see #775);
 - map fingerprint records;
 - the last successful present/absent installed-map snapshot for offline display;
 - metadata used to join saved Controller programs to Studio source.
@@ -875,14 +876,67 @@ point count, status, and observation time, not raw bytes or a copied `MapRecord`
 Identity is resolved at read time so current names and later-loaded personal maps
 can improve the display without another Controller round trip.
 
-### Hardware inputs and bindings
+### Hardware inputs and effective uses
 
-Input records describe pin, signal, semantic role, smoothing, fallback, and
-inversion. The user-facing Direction control shows the current normalized
-mapping (`0 → 1` or `1 → 0`) beside **Invert**. Pattern bindings target an
-exported slider, named function, or variable with optional min/max/quantize. The
-pass recipe samples the input once per frame and applies the target without
-editing original Pattern source.
+Input records describe pin, signal, smoothing, fallback, and inversion. The
+user-facing Direction control shows the current normalized mapping (`0 -> 1` or
+`1 -> 0`) beside **Invert**. Pattern bindings target an exported slider, named
+function, or variable with optional min/max/quantize. The pass recipe samples the
+input once per frame and applies the target without editing original Pattern
+source.
+
+`ControllerInput.role` was removed in #772. All three of its values were inert:
+nothing consumed the field, `next-pattern` never had an implementation, and a
+user could select `Role: brightness` while the hardware-brightness transform was
+disabled. `inputs` persists as a JSON blob, so no D1 migration was needed;
+`normalizeControllerInputs` strips the stray key on read, in
+`controllerProfileFromRow` and again in the store's `loadProfiles`, so an
+ordinary edit cannot write it back. That function preserves array identity when
+there is nothing to strip.
+
+`controllerInputUses.ts` is the pure derivation the profile page consumes.
+`describeControllerInputUses(profile, { patternNames, patternPushStates })`
+returns one presentation per input — pin, formatted physical facts, whether
+brightness is assigned to it, its ordered uses, and its input-scoped issues —
+plus the profile-level validation errors that do not belong to any one input. It
+reads the profile and never mutates it.
+
+Two levels of state are distinguished, and the module never conflates them:
+
+- **Level 1, effective behaviour.** A pure function of the profile: would this
+  configuration emit code right now? A brightness use is `live` or `blocked`; an
+  input with no uses gets an explicit `none` row rather than an empty list. The
+  per-Pattern exception is carried in the brightness row's scope string, so a
+  precedence fact appears exactly once. This needs no async data and works
+  offline.
+- **Level 2, per-Pattern re-push.** `controllerPatternPushStates` compares
+  `controllerProfileArtifactSignature(profile, patternId, { mapDim })` against
+  each `ControllerPushRecord.profileSignature` and returns `current`, `stale`, or
+  `not-pushed` **per Pattern**, not per use: the signature covers every
+  transform, every input those transforms touch, all of that Pattern's bindings,
+  and the renderer `mapDim`, so it is a (Controller, Pattern) fact and attaching
+  it to one input's use would assert a cause the data does not support. The page
+  loads `getPushRecords()` alongside the existing `getControllerBindings()`
+  effect. `mapDim` comes from the live Controller, so the function returns an
+  empty map while offline rather than guessing from `lastKnownMapDim`. Records
+  are keyed by IP, so a changed IP orphans them and the Pattern reads
+  `not-pushed` — the same conclusion the Send button reaches.
+
+Input-scoped validation errors are partitioned out of
+`validateControllerProfile` by their `inputs.<id>.` path prefix and rendered on
+the affected input's card with a direct correction expressed as the
+`Partial<ControllerInput>` change to apply. Hardware brightness on a non-analog
+input is one of those errors (#772): `controllerProfilePassRecipe` gates the
+sample and intercept passes on `input.signal === 'analog'`, so that configuration
+emitted nothing and was previously unreported. Profile-level errors still render
+in the page banner.
+
+Brightness assignment goes through `assignHardwareBrightness(profileId, inputId
+| null)`, which writes the single seeded `hardware-brightness` transform's
+`enabled` and `inputId`. Exactly one such transform exists per profile, so
+exclusivity across inputs is inherent rather than enforced. `addPatternBinding`
+takes the owning `inputId` because uses are created inside the input that drives
+them.
 
 The Controller panel retains program inventories by Controller IP after the
 connection-time read. Controller-profile views consume that cache and only
@@ -897,9 +951,9 @@ For a concrete Pattern artifact, bindings are resolved before global-input
 precedence. If an active Pattern binding and enabled hardware-brightness
 transform name the same input, the recipe omits the hardware-brightness sample
 and intercept passes and emits only the Pattern binding for that input. The
-profile UI derives its neutral `Brightness override` status pill from the same
-predicate. Other Patterns and bindings on other inputs retain global hardware
-brightness.
+profile UI states that precedence once, in the brightness row's scope
+(`every Pattern except Caustics`), from the same predicate. Other Patterns and
+bindings on other inputs retain global hardware brightness.
 
 ### Power model
 
@@ -908,7 +962,9 @@ Hardware brightness samples a configured input once per frame. Power cap wraps
 supported HSV/RGB calls, estimates emitted duty, and scales output against the
 mutable exported `__px_powerLimit`.
 
-The Controller power profile is independent of that transform. Normal
+The power cap is edited in the profile page's **Power** section rather than a
+separate transform list: it is an installation power policy and never touches an
+input. The Controller power profile is independent of that transform. Normal
 setup selects the installed LED construction and enters the continuous LED
 supply budget in amps or watts. The model uses the Controller's live or
 last-known address count; it never asks for a second power-specific count and

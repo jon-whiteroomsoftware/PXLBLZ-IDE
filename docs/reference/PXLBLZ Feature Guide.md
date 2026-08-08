@@ -454,8 +454,13 @@ A Controller profile is durable configuration for one physical Controller,
 keyed by its stable device id rather than its IP. Profiles appear when signed
 in and connected hardware reports that id, and stay editable while the
 hardware is offline. A profile holds the last-seen device facts, hardware
-inputs, global transforms, per-Pattern bindings, named zones used by Shows,
-map fingerprints, and an optional installation power model.
+inputs and their uses, the installation power policy, named zones used by
+Shows, map fingerprints, and an optional installation power model.
+
+The page has three sections: **Power**, **Inputs**, and **Last generated
+artifact**. Zones are still stored on the profile and still compile into Shows,
+but they are Installation Show setup rather than Controller hardware setup, so
+they are no longer edited here (#775).
 
 Its Map fact uses the same presentation as the live panel. While connected it
 shows the current read-back state. Offline it shows the last successful named,
@@ -471,25 +476,63 @@ the Controller and use the live panel to open Pixelblaze **Settings → Updates*
 An inconclusive check does not erase the last known result, and observing a new
 installed firmware version invalidates the old result.
 
-The interesting part is what a profile can do to generated code:
+### Inputs and their effective uses
 
-- **Inputs and bindings.** A potentiometer or button becomes a normalized
-  input; a binding routes it to an exported slider, a named function, or a
-  variable, applied once per frame without editing Pattern source. (A linear
-  10k pot across 3.3V and GND is the standard part — never feed 5V into a
-  Pixelblaze analog input.)
-- **Hardware brightness** samples an input each frame and scales supported
-  output calls, separate from the Controller's native brightness, which
-  remains the final physical safety control.
-- **Power profile and power cap.** Choose the installed LED construction
-  and enter the continuous LED supply budget in amps or watts. PXLBLZ uses the
-  Controller's known address count to estimate full-white load and can derive a
-  duty cap from that budget. An optional override accepts a measured,
-  manufacturer-rated, or custom installation total in either unit and warns if
-  the address count later changes. Grouped LED constructions show physical LED
-  count separately when it differs from the address count. A direct duty cap
-  remains available. The live panel reports contextual A/W estimates; PXLBLZ
-  does not pretend to be an ammeter or replace physical power-system design.
+**The input is the unit of the interface.** Each entry is one physical control
+wired to the board — a potentiometer or a button — and it owns both its physical
+definition and the complete list of everything it drives. (A linear 10k pot
+across 3.3V and GND is the standard part — never feed 5V into a Pixelblaze
+analog input.)
+
+An input's resting card shows what it *is* and what it *does*: its `IOxx` pin,
+one terse line of physical facts, and one row per effective use. Two kinds of
+use exist, and each fact appears exactly once:
+
+- **Brightness** samples the input each frame and scales supported output calls,
+  separate from the Controller's native brightness, which remains the final
+  physical safety control. Its row states its own scope — `every Pattern`, or
+  `every Pattern except Caustics` when a Pattern use on the same input takes
+  precedence while that Pattern runs.
+- **A Pattern use** routes the input to an exported slider, a named function, or
+  a variable for one Pattern, applied once per frame without editing Pattern
+  source. Its row says what it does to that Pattern.
+
+An input driving nothing says so — *Nothing yet / no Pattern reads it yet* —
+rather than showing an empty card. Set-once physical parameters (pin, signal,
+smoothing, fallback, inversion) live behind **Adjust**.
+
+The brightness switch writes the profile's single hardware-brightness transform,
+so assignment is exclusive by construction: switching it on for one input moves
+it off whichever input held it. There is no separate role annotation and no
+separate bindings list; what the page shows is what the next push will generate.
+
+Hardware brightness needs a varying signal, so assigning it to a `digital` input
+is an error. It reports on that input's own card with a one-click correction
+rather than only in a banner at the top of the page. Existing profiles in that
+state will now surface the error; they were previously silent no-ops.
+
+While the Controller is connected, a Pattern whose saved artifact predates the
+current profile is badged **push again**, and one this profile has never pushed
+is badged **not pushed**. The badge belongs to the Pattern, not to a single use,
+because it compares that Pattern's whole generated artifact. Offline the exact
+map dimensionality is unknown, so no badge is claimed at all.
+
+### Power
+
+The Controller estimates draw live from the duty cycle of the running Pattern.
+Choose the installed LED construction and enter the continuous LED supply budget
+in amps or watts. One readout chain states the whole derivation once — addresses,
+the preset's per-address assumption, full-white load, and budget. **Override
+load** replaces the preset estimate with a measured, manufacturer-rated, or
+custom installation total in either unit, and warns if the address count later
+changes; **Use estimate** returns to the preset. Grouped LED constructions add
+the physical LED count when it differs from the address count.
+
+The duty cap is the section's headline value. A switch enforces it or not, and
+one button moves between **Calculate from load and budget** and **Set a fixed
+cap**, with a sub-line naming which is in force. The live panel reports
+contextual A/W estimates; PXLBLZ does not pretend to be an ammeter or replace
+physical power-system design.
 
 The built-in **AnalogWiggleFinder** Pattern in **Test Patterns** identifies an
 unknown potentiometer connection before a profile binding exists. Run it on a
