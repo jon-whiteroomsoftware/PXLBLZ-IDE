@@ -1457,8 +1457,13 @@ export function ControllerProfilePage({ profileId }: { profileId: string }) {
     controllerId: string
     bindings: BindingStore
   } | null>(null)
+  // A completed push-records read answers exactly one question: what this
+  // Controller had stored as of this program list. Storing that question with
+  // the answer is what retires the answer — the moment either changes, the
+  // records describe a read the page is no longer making (#772).
   const [pushRecordsRead, setPushRecordsRead] = useState<{
     controllerId: string
+    programs: readonly ProgramListEntry[]
     records: Record<string, ControllerPushRecord>
   } | null>(null)
 
@@ -1480,19 +1485,38 @@ export function ControllerProfilePage({ profileId }: { profileId: string }) {
   }, [controllerPrograms, liveIp])
 
   // Level 2 re-push staleness needs the saved artifact records for this
-  // Controller. They are keyed by IP, so this mirrors the bindings read.
+  // Controller. They are keyed by IP, so this mirrors the bindings read. Only a
+  // completed read stores anything, and it stores the question it answers; a
+  // read that fails drops what it superseded rather than leaving it behind to
+  // be read as current.
   useEffect(() => {
     let cancelled = false
     if (!liveIp) return
     void getPushRecords()
       .then((records) => {
-        if (!cancelled) setPushRecordsRead({ controllerId: liveIp, records: records[liveIp] ?? {} })
+        if (cancelled) return
+        setPushRecordsRead({
+          controllerId: liveIp,
+          programs: controllerPrograms,
+          records: records[liveIp] ?? {},
+        })
       })
-      .catch(() => {})
+      .catch(() => {
+        if (!cancelled) setPushRecordsRead(null)
+      })
     return () => {
       cancelled = true
     }
   }, [controllerPrograms, liveIp])
+
+  // Non-null only while the stored records still answer the read this render
+  // would make. A read in flight, a read that failed, and a read taken against
+  // another Controller are the same absence of evidence (#772).
+  const pushRecordsCurrent = pushRecordsRead
+    && pushRecordsRead.controllerId === liveIp
+    && pushRecordsRead.programs === controllerPrograms
+    ? pushRecordsRead
+    : null
 
   const installedMapObservation = profile
     ? profileController?.phase === 'live'
@@ -1550,10 +1574,8 @@ export function ControllerProfilePage({ profileId }: { profileId: string }) {
   const patternPushStates = controllerPatternPushStates({
     profile,
     patternIds: profile.patternBindings.map((binding) => binding.patternId),
-    // No read for this Controller yet — still in flight, or it failed — is not
-    // evidence that nothing was pushed, so it must claim nothing (#772).
-    pushRecords: pushRecordsRead && pushRecordsRead.controllerId === liveIp
-      ? { status: 'read', records: pushRecordsRead.records }
+    pushRecords: pushRecordsCurrent
+      ? { status: 'read', records: pushRecordsCurrent.records }
       : { status: 'unknown' },
     mapDim: liveMapDim,
     live: Boolean(liveIp),

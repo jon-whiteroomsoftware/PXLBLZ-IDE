@@ -723,6 +723,120 @@ describe('ControllerProfilePage', () => {
     expect(await screen.findByText('not pushed')).toBeInTheDocument()
   })
 
+  it('retires a completed push read as soon as a later read is in flight or fails (#772)', async () => {
+    const base = seedProfile()
+    const profile = {
+      ...base,
+      inputs: [{
+        id: 'pot0',
+        name: 'Front pot',
+        pin: 33,
+        signal: 'analog' as const,
+        smoothing: 0.2,
+        fallback: 0.5,
+        invert: false,
+      }],
+      patternBindings: [{
+        id: 'b1',
+        patternId: 'pat-line',
+        inputId: 'pot0',
+        target: { kind: 'call-exported-slider' as const, name: 'sliderSpeed' },
+      }],
+    }
+    useControllerProfileStore.setState({ profiles: [profile], profilesLoaded: true })
+    usePatternStore.setState({
+      userPatterns: [{
+        id: 'pat-line',
+        name: 'Line Dancer',
+        src: 'export function render(index) { hsv(0, 1, 1) }',
+        controls: {},
+        updatedAt: 1,
+      }],
+      patternsLoaded: true,
+    })
+
+    // Each entry is one whole read of the push records, taken in order. The
+    // effect re-runs on every program-list change, so the sequence is what a
+    // Controller that stops answering looks like from this page.
+    const stalePushRecords = {
+      '192.168.8.224': {
+        'pat-line': {
+          transforms: [],
+          artifactHash: 'h',
+          stampedAt: '2026-08-07T00:00:00.000Z',
+          name: 'Line Dancer',
+          profileSignature: 'an-older-signature',
+        },
+      },
+    }
+    const pushReads: Array<() => Promise<Record<string, Record<string, ControllerPushRecord>>>> = [
+      () => Promise.resolve(stalePushRecords),
+      () => new Promise(() => {}),
+      () => Promise.reject(new Error('metadata storage unavailable')),
+      () => Promise.resolve({ '192.168.8.224': {} }),
+    ]
+    let pushReadIndex = 0
+    setControllerMetadataStorage({
+      ...demoControllerMetadataStorage,
+      id: 'push-records-resequenced',
+      getControllerBindings: async () => ({ '192.168.8.224': { 'pat-line': 'DEV_LINE' } }),
+      getPushRecords: () => pushReads[pushReadIndex++](),
+    })
+
+    const retriggerWithPrograms = (count: number) => {
+      act(() => {
+        useControllerPanelStore.setState({
+          programsByController: {
+            '192.168.8.224': Array.from({ length: count }, (_unused, index) => (
+              index === 0
+                ? { id: 'DEV_LINE', name: 'Line Dancer' }
+                : { id: `DEV_${index}`, name: `Other ${index}` }
+            )),
+          },
+        })
+      })
+    }
+    retriggerWithPrograms(1)
+    act(() => {
+      useControllerStore.setState({
+        activeIp: '192.168.8.224',
+        controllers: {
+          '192.168.8.224': {
+            ip: '192.168.8.224',
+            deviceId: profile.deviceId,
+            nickname: 'Burner bag',
+            phase: 'live',
+            mapDim: 2,
+          },
+        },
+      })
+    })
+    render(<ControllerProfilePage profileId="ctrl-1" />)
+
+    expect(await screen.findByText('push again')).toBeInTheDocument()
+
+    // A second read is in flight. The first read's records described the same
+    // Controller a moment ago, but they are no longer what the page has read.
+    retriggerWithPrograms(2)
+    await waitFor(() => {
+      expect(screen.queryByText('push again')).not.toBeInTheDocument()
+    })
+
+    // A read that rejects leaves nothing to claim, and leaves it that way.
+    retriggerWithPrograms(3)
+    await act(async () => {
+      await new Promise((resolve) => setTimeout(resolve, 0))
+    })
+    expect(screen.queryByText('push again')).not.toBeInTheDocument()
+    expect(screen.queryByText('not pushed')).not.toBeInTheDocument()
+
+    // And a later read that completes is still evidence: no record for this
+    // Pattern now means it was never pushed from this profile.
+    retriggerWithPrograms(4)
+    expect(await screen.findByText('not pushed')).toBeInTheDocument()
+    expect(pushReadIndex).toBe(4)
+  })
+
   it('lays the input list out as ragged two-up columns, not a shared-height grid (#772)', () => {
     const profile = seedProfile()
     useControllerProfileStore.setState({
