@@ -515,14 +515,18 @@ analog it also moves the input to a free analog pin and names it. When the board
 has no analog pin left to take, no one-click repair is offered and the input is
 corrected by hand under **Adjust**.
 
-While the Controller is connected, a Pattern whose saved artifact predates the
-current profile is badged **push again**, and one this profile has never pushed
-is badged **not pushed**. The badge belongs to the Pattern, not to a single use,
-because it compares that Pattern's whole generated artifact. Offline the exact
-map dimensionality is unknown, so no badge is claimed at all. Neither badge
-appears before the Controller's push metadata has actually been read: a read
-still in flight, or one that failed, claims nothing rather than reporting every
-Pattern as never pushed.
+An input card states what this profile would generate, not what is currently
+loaded on the Controller. It deliberately says nothing about whether a Pattern's
+saved artifact predates the current profile: that is a fact about a whole
+Pattern on a specific Controller, and it is being designed as one signal rather
+than a badge on each use.
+
+**Keep Patterns up to date** continues to rewrite managed artifacts by itself
+after a profile edit that changes generated code. An edit that cannot change
+generated code never triggers a rewrite — and neither does an upgrade that only
+changes how a profile is stored. Upgrading to a release that drops an unused
+profile field does not make every input-driven Pattern look out of date or
+rewrite anything on the Controller.
 
 ### Power
 

@@ -14,6 +14,7 @@ import {
 import { assertValidControllerProfile } from '@/cloudflare/controllerProfiles'
 import type { MapRecord, PatternRecord } from '@/engine/personalContentRecords'
 import type { RecoveredSavedProgram } from '@/engine/controllerSavedProgramRead'
+import type { BindingStore } from '@/engine/controllerBinding'
 import type { ControllerPushRecord } from '@/engine/controllerPushRecord'
 import {
   demoControllerMetadataStorage,
@@ -552,178 +553,7 @@ describe('ControllerProfilePage', () => {
     expect(screen.queryByText(/needs an analog signal/)).not.toBeInTheDocument()
   })
 
-  it('badges the Pattern, not the use, when a live push predates the current profile (#772)', async () => {
-    const base = seedProfile()
-    const profile = {
-      ...base,
-      inputs: [{
-        id: 'pot0',
-        name: 'Front pot',
-        pin: 33,
-        signal: 'analog' as const,
-        smoothing: 0.2,
-        fallback: 0.5,
-        invert: false,
-      }],
-      patternBindings: [{
-        id: 'b1',
-        patternId: 'pat-line',
-        inputId: 'pot0',
-        target: { kind: 'call-exported-slider' as const, name: 'sliderSpeed' },
-      }],
-    }
-    useControllerProfileStore.setState({ profiles: [profile] })
-    usePatternStore.setState({
-      userPatterns: [{
-        id: 'pat-line',
-        name: 'Line Dancer',
-        src: 'export function render(index) { hsv(0, 1, 1) }',
-        controls: {},
-        updatedAt: 1,
-      }],
-      patternsLoaded: true,
-    })
-    setControllerMetadataStorage({
-      ...demoControllerMetadataStorage,
-      id: 'push-staleness',
-      getControllerBindings: async () => ({ '192.168.8.224': { 'pat-line': 'DEV_LINE' } }),
-      getPushRecords: async () => ({
-        '192.168.8.224': {
-          'pat-line': {
-            transforms: [],
-            artifactHash: 'h',
-            stampedAt: '2026-08-07T00:00:00.000Z',
-            name: 'Line Dancer',
-            profileSignature: 'an-older-signature',
-          },
-        },
-      }),
-    })
-
-    // Offline the map dimension is unknown, so no badge may be claimed.
-    const { rerender } = render(<ControllerProfilePage profileId="ctrl-1" />)
-    expect(screen.queryByText('push again')).not.toBeInTheDocument()
-
-    useControllerPanelStore.setState({
-      programsByController: { '192.168.8.224': [{ id: 'DEV_LINE', name: 'Line Dancer' }] },
-    })
-    act(() => {
-      useControllerStore.setState({
-        activeIp: '192.168.8.224',
-        controllers: {
-          '192.168.8.224': {
-            ip: '192.168.8.224',
-            deviceId: profile.deviceId,
-            nickname: 'Burner bag',
-            phase: 'live',
-            mapDim: 2,
-          },
-        },
-      })
-    })
-    rerender(<ControllerProfilePage profileId="ctrl-1" />)
-
-    expect(await screen.findByText('push again')).toHaveAttribute(
-      'title',
-      'This Pattern was pushed before the current Controller settings.',
-    )
-  })
-
-  it('claims no push state while the Controller metadata read is unfinished (#772)', async () => {
-    const base = seedProfile()
-    const profile = {
-      ...base,
-      inputs: [{
-        id: 'pot0',
-        name: 'Front pot',
-        pin: 33,
-        signal: 'analog' as const,
-        smoothing: 0.2,
-        fallback: 0.5,
-        invert: false,
-      }],
-      patternBindings: [{
-        id: 'b1',
-        patternId: 'pat-line',
-        inputId: 'pot0',
-        target: { kind: 'call-exported-slider' as const, name: 'sliderSpeed' },
-      }],
-    }
-    const goLive = () => {
-      useControllerPanelStore.setState({
-        programsByController: { '192.168.8.224': [{ id: 'DEV_LINE', name: 'Line Dancer' }] },
-      })
-      useControllerStore.setState({
-        activeIp: '192.168.8.224',
-        controllers: {
-          '192.168.8.224': {
-            ip: '192.168.8.224',
-            deviceId: profile.deviceId,
-            nickname: 'Burner bag',
-            phase: 'live',
-            mapDim: 2,
-          },
-        },
-      })
-    }
-    useControllerProfileStore.setState({ profiles: [profile], profilesLoaded: true })
-    usePatternStore.setState({
-      userPatterns: [{
-        id: 'pat-line',
-        name: 'Line Dancer',
-        src: 'export function render(index) { hsv(0, 1, 1) }',
-        controls: {},
-        updatedAt: 1,
-      }],
-      patternsLoaded: true,
-    })
-
-    // A read that never settles is not evidence that nothing was pushed.
-    setControllerMetadataStorage({
-      ...demoControllerMetadataStorage,
-      id: 'push-records-pending',
-      getControllerBindings: async () => ({ '192.168.8.224': { 'pat-line': 'DEV_LINE' } }),
-      getPushRecords: () => new Promise(() => {}),
-    })
-    goLive()
-    const pending = render(<ControllerProfilePage profileId="ctrl-1" />)
-
-    expect(await screen.findByText('Line Dancer')).toBeInTheDocument()
-    expect(screen.queryByText('not pushed')).not.toBeInTheDocument()
-    pending.unmount()
-
-    // Neither is a read that failed outright.
-    setControllerMetadataStorage({
-      ...demoControllerMetadataStorage,
-      id: 'push-records-rejected',
-      getControllerBindings: async () => ({ '192.168.8.224': { 'pat-line': 'DEV_LINE' } }),
-      getPushRecords: async () => {
-        throw new Error('metadata storage unavailable')
-      },
-    })
-    goLive()
-    const rejected = render(<ControllerProfilePage profileId="ctrl-1" />)
-
-    expect(await screen.findByText('Line Dancer')).toBeInTheDocument()
-    await waitFor(() => {
-      expect(screen.queryByText('not pushed')).not.toBeInTheDocument()
-    })
-    rejected.unmount()
-
-    // A completed read that genuinely holds no record for this Pattern does say so.
-    setControllerMetadataStorage({
-      ...demoControllerMetadataStorage,
-      id: 'push-records-empty',
-      getControllerBindings: async () => ({ '192.168.8.224': { 'pat-line': 'DEV_LINE' } }),
-      getPushRecords: async () => ({ '192.168.8.224': {} }),
-    })
-    goLive()
-    render(<ControllerProfilePage profileId="ctrl-1" />)
-
-    expect(await screen.findByText('not pushed')).toBeInTheDocument()
-  })
-
-  it('retires a completed push read as soon as a later read is in flight or fails (#772)', async () => {
+  it('does not resurrect the previous connection\'s metadata read on reconnect (#772)', async () => {
     const base = seedProfile()
     const profile = {
       ...base,
@@ -755,143 +585,17 @@ describe('ControllerProfilePage', () => {
       patternsLoaded: true,
     })
 
-    // Each entry is one whole read of the push records, taken in order. The
-    // effect re-runs on every program-list change, so the sequence is what a
-    // Controller that stops answering looks like from this page.
-    const stalePushRecords = {
-      '192.168.8.224': {
-        'pat-line': {
-          transforms: [],
-          artifactHash: 'h',
-          stampedAt: '2026-08-07T00:00:00.000Z',
-          name: 'Line Dancer',
-          profileSignature: 'an-older-signature',
-        },
-      },
-    }
-    const pushReads: Array<() => Promise<Record<string, Record<string, ControllerPushRecord>>>> = [
-      () => Promise.resolve(stalePushRecords),
-      () => new Promise(() => {}),
-      () => Promise.reject(new Error('metadata storage unavailable')),
-      () => Promise.resolve({ '192.168.8.224': {} }),
-    ]
-    let pushReadIndex = 0
-    setControllerMetadataStorage({
-      ...demoControllerMetadataStorage,
-      id: 'push-records-resequenced',
-      getControllerBindings: async () => ({ '192.168.8.224': { 'pat-line': 'DEV_LINE' } }),
-      getPushRecords: () => pushReads[pushReadIndex++](),
-    })
-
-    const retriggerWithPrograms = (count: number) => {
-      act(() => {
-        useControllerPanelStore.setState({
-          programsByController: {
-            '192.168.8.224': Array.from({ length: count }, (_unused, index) => (
-              index === 0
-                ? { id: 'DEV_LINE', name: 'Line Dancer' }
-                : { id: `DEV_${index}`, name: `Other ${index}` }
-            )),
-          },
-        })
-      })
-    }
-    retriggerWithPrograms(1)
-    act(() => {
-      useControllerStore.setState({
-        activeIp: '192.168.8.224',
-        controllers: {
-          '192.168.8.224': {
-            ip: '192.168.8.224',
-            deviceId: profile.deviceId,
-            nickname: 'Burner bag',
-            phase: 'live',
-            mapDim: 2,
-          },
-        },
-      })
-    })
-    render(<ControllerProfilePage profileId="ctrl-1" />)
-
-    expect(await screen.findByText('push again')).toBeInTheDocument()
-
-    // A second read is in flight. The first read's records described the same
-    // Controller a moment ago, but they are no longer what the page has read.
-    retriggerWithPrograms(2)
-    await waitFor(() => {
-      expect(screen.queryByText('push again')).not.toBeInTheDocument()
-    })
-
-    // A read that rejects leaves nothing to claim, and leaves it that way.
-    retriggerWithPrograms(3)
-    await act(async () => {
-      await new Promise((resolve) => setTimeout(resolve, 0))
-    })
-    expect(screen.queryByText('push again')).not.toBeInTheDocument()
-    expect(screen.queryByText('not pushed')).not.toBeInTheDocument()
-
-    // And a later read that completes is still evidence: no record for this
-    // Pattern now means it was never pushed from this profile.
-    retriggerWithPrograms(4)
-    expect(await screen.findByText('not pushed')).toBeInTheDocument()
-    expect(pushReadIndex).toBe(4)
-  })
-
-  it('does not resurrect the previous connection\'s push read on reconnect (#772)', async () => {
-    const base = seedProfile()
-    const profile = {
-      ...base,
-      inputs: [{
-        id: 'pot0',
-        name: 'Front pot',
-        pin: 33,
-        signal: 'analog' as const,
-        smoothing: 0.2,
-        fallback: 0.5,
-        invert: false,
-      }],
-      patternBindings: [{
-        id: 'b1',
-        patternId: 'pat-line',
-        inputId: 'pot0',
-        target: { kind: 'call-exported-slider' as const, name: 'sliderSpeed' },
-      }],
-    }
-    useControllerProfileStore.setState({ profiles: [profile], profilesLoaded: true })
-    usePatternStore.setState({
-      userPatterns: [{
-        id: 'pat-line',
-        name: 'Line Dancer',
-        src: 'export function render(index) { hsv(0, 1, 1) }',
-        controls: {},
-        updatedAt: 1,
-      }],
-      patternsLoaded: true,
-    })
-
-    const stalePushRecords = {
-      '192.168.8.224': {
-        'pat-line': {
-          transforms: [],
-          artifactHash: 'h',
-          stampedAt: '2026-08-07T00:00:00.000Z',
-          name: 'Line Dancer',
-          profileSignature: 'an-older-signature',
-        },
-      },
-    }
-    // Two whole reads: the one this connection completed, and the replacement
-    // the reconnect starts and never finishes.
-    const pushReads: Array<() => Promise<Record<string, Record<string, ControllerPushRecord>>>> = [
-      () => Promise.resolve(stalePushRecords),
+    // Two whole reads of the Controller's bindings: the one this connection
+    // completed, and the replacement the reconnect starts and never finishes.
+    const bindingReads: Array<() => Promise<BindingStore>> = [
+      () => Promise.resolve({ '192.168.8.224': { 'pat-line': 'DEV_LINE' } }),
       () => new Promise(() => {}),
     ]
-    let pushReadIndex = 0
+    let bindingReadIndex = 0
     setControllerMetadataStorage({
       ...demoControllerMetadataStorage,
-      id: 'push-records-across-connections',
-      getControllerBindings: async () => ({ '192.168.8.224': { 'pat-line': 'DEV_LINE' } }),
-      getPushRecords: () => pushReads[pushReadIndex++](),
+      id: 'bindings-across-connections',
+      getControllerBindings: () => bindingReads[bindingReadIndex++](),
     })
 
     // The panel store keeps a Controller's program list under its IP across a
@@ -923,14 +627,17 @@ describe('ControllerProfilePage', () => {
     connect(1)
     render(<ControllerProfilePage profileId="ctrl-1" />)
 
-    expect(await screen.findByText('push again')).toBeInTheDocument()
+    // The installed-Pattern choices offered for a new use are exactly what the
+    // completed bindings read found, so they are what this connection knows.
+    fireEvent.click(screen.getByLabelText('Use Front pot for one Pattern'))
+    expect(await screen.findByText('Choose an installed managed Pattern')).toBeInTheDocument()
     const retainedPrograms = useControllerPanelStore.getState().programsByController['192.168.8.224']
 
-    // Disconnect. The entry goes; the records the page already read do not.
+    // Disconnect. The entry goes; the bindings the page already read do not.
     act(() => {
       useControllerStore.setState({ activeIp: null, controllers: {} })
     })
-    expect(screen.queryByText('push again')).not.toBeInTheDocument()
+    expect(screen.getByText('Connect this Controller to add a use')).toBeInTheDocument()
 
     // Reconnect to the same Controller, same retained program list. Every value
     // the page used to key the old read is identical again — only the
@@ -941,16 +648,15 @@ describe('ControllerProfilePage', () => {
     await act(async () => {
       await new Promise((resolve) => setTimeout(resolve, 0))
     })
-    expect(pushReadIndex).toBe(2)
-    expect(screen.queryByText('push again')).not.toBeInTheDocument()
-    expect(screen.queryByText('not pushed')).not.toBeInTheDocument()
+    expect(bindingReadIndex).toBe(2)
+    expect(screen.getByText('No managed saved Patterns are installed')).toBeInTheDocument()
 
     // The replacement never resolves, so the page never regains an answer.
     await act(async () => {
       await new Promise((resolve) => setTimeout(resolve, 10))
     })
-    expect(screen.queryByText('push again')).not.toBeInTheDocument()
-    expect(screen.queryByText('not pushed')).not.toBeInTheDocument()
+    expect(screen.getByText('No managed saved Patterns are installed')).toBeInTheDocument()
+    expect(screen.queryByText('Choose an installed managed Pattern')).not.toBeInTheDocument()
   })
 
   it('lays the input list out as ragged two-up columns, not a shared-height grid (#772)', () => {

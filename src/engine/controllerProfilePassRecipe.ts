@@ -63,6 +63,54 @@ export function controllerProfileArtifactSignature(
   return JSON.stringify({ transforms, inputs, bindings, ...(renderer ? { renderer } : {}) })
 }
 
+/** Read a *stored* artifact signature in today's terms, so it can be compared
+ * against one computed now.
+ *
+ * The signature serializes whole `ControllerInput` objects, and inputs written
+ * before #772 carried a `role` that never reached a byte of generated code.
+ * Retiring `role` therefore changed every stored signature for an input-driven
+ * Pattern while the emitted Pattern stayed identical. Left alone, that reads as
+ * staleness: a profile with `keepPatternsUpToDate` would rewrite artifacts on
+ * the physical Controller on every reconnect, for nothing.
+ *
+ * The rule this establishes: a field that cannot change generated code must
+ * never change the signature, and when one is retired its removal is normalized
+ * here rather than paid for in device writes.
+ *
+ * Only the compared value is adjusted — the stored record is left as written,
+ * and the next real push replaces it in the current shape.
+ *
+ * A signature this cannot parse, or whose shape it does not recognise, is
+ * returned verbatim. That is the pre-#772 comparison exactly: it may differ
+ * from a freshly computed signature and cost one re-push, which is the safe
+ * direction, and it can never be mistaken for current. Never throws. */
+export function normalizeStoredArtifactSignature(signature: string): string {
+  let parsed: unknown
+  try {
+    parsed = JSON.parse(signature)
+  } catch {
+    return signature
+  }
+  if (typeof parsed !== 'object' || parsed === null || Array.isArray(parsed)) return signature
+  const record = parsed as { inputs?: unknown }
+  if (!Array.isArray(record.inputs)) return signature
+
+  let strayRole = false
+  const inputs = record.inputs.map((input) => {
+    if (typeof input !== 'object' || input === null || Array.isArray(input)) return input
+    if (!('role' in input)) return input
+    strayRole = true
+    const { role: _retiredRole, ...rest } = input as Record<string, unknown>
+    return rest
+  })
+  // Nothing to strip: hand back the exact bytes rather than re-serializing, so
+  // a signature this code wrote can never be perturbed by passing through here.
+  if (!strayRole) return signature
+  // Spreading over an existing key keeps its original position, which is what
+  // makes the result byte-identical to the fresh computation.
+  return JSON.stringify({ ...record, inputs })
+}
+
 /** Stable signature of every profile field that can change at least one
  * generated Pattern. It is used only to decide whether reconciliation needs
  * to be scheduled; each Pattern still gets its narrower artifact signature. */

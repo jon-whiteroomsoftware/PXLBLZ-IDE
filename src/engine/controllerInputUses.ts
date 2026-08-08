@@ -6,26 +6,10 @@ import {
   type ControllerProfileValidationIssue,
   type PatternBinding,
 } from './controllerProfile'
-import { controllerProfileArtifactSignature } from './controllerProfilePassRecipe'
-import type { ControllerPushRecord } from './controllerPushRecord'
-import type { MapDimension } from './renderCompatibility'
 
 /** Whether a configured use would emit code for the profile as it stands.
  * This is a pure statement about configuration, never about live hardware. */
 export type ControllerInputUseState = 'live' | 'blocked'
-
-/** Level 2: whether the Pattern on the Controller was built from this profile.
- * It is a (Controller, Pattern) fact and is therefore reported per Pattern.
- * `unknown` is the absence of a claim, not a claim about the Pattern. */
-export type ControllerPatternPushState = 'current' | 'stale' | 'not-pushed' | 'unknown'
-
-/** The push-record metadata behind a Level 2 comparison. `read` carries what a
- * completed read found, and an empty record set is then real evidence that
- * nothing was pushed. `unknown` covers a read still in flight and a read that
- * failed: neither says anything about the Controller (#772). */
-export type ControllerPushRecordsRead =
-  | { status: 'unknown' }
-  | { status: 'read'; records: Record<string, ControllerPushRecord> }
 
 /** A use sentence split so the component can set identifiers in mono and the
  * surrounding prose in sans. */
@@ -55,7 +39,6 @@ export interface ControllerPatternUse {
   detail: ControllerUseDetail
   overridesBrightness: boolean
   state: ControllerInputUseState
-  push: ControllerPatternPushState | null
 }
 
 export interface ControllerNoUse {
@@ -100,8 +83,6 @@ export interface ControllerInputUsesView {
 export interface DescribeControllerInputUsesOptions {
   /** Display names for bound Pattern ids. Missing ids fall back to the id. */
   patternNames?: Record<string, string>
-  /** Level 2 states, keyed by Pattern id. Absent means "say nothing". */
-  patternPushStates?: Record<string, ControllerPatternPushState>
 }
 
 export function controllerUseDetailText(detail: ControllerUseDetail): string {
@@ -162,7 +143,6 @@ export function describeControllerInputUses(
         detail: describeBindingTarget(binding),
         overridesBrightness: brightnessAssigned,
         state: 'live',
-        push: options.patternPushStates?.[binding.patternId] ?? null,
       })
     }
 
@@ -182,36 +162,6 @@ export function describeControllerInputUses(
   })
 
   return { inputs, profileIssues }
-}
-
-/** Compare each Pattern's saved artifact against the code this profile would
- * generate now. `mapDim` comes from the live Controller, so an offline page
- * reports nothing rather than guessing from `lastKnownMapDim`. */
-export function controllerPatternPushStates(args: {
-  profile: ControllerProfile
-  patternIds: readonly string[]
-  pushRecords: ControllerPushRecordsRead
-  mapDim: MapDimension | null
-  live: boolean
-}): Record<string, ControllerPatternPushState> {
-  if (!args.live) return {}
-  const states: Record<string, ControllerPatternPushState> = {}
-  for (const patternId of distinct(args.patternIds)) {
-    if (args.pushRecords.status === 'unknown') {
-      states[patternId] = 'unknown'
-      continue
-    }
-    const record = args.pushRecords.records[patternId]
-    if (!record) {
-      states[patternId] = 'not-pushed'
-      continue
-    }
-    const signature = controllerProfileArtifactSignature(args.profile, patternId, {
-      mapDim: args.mapDim,
-    })
-    states[patternId] = record.profileSignature === signature ? 'current' : 'stale'
-  }
-  return states
 }
 
 export function describePhysicalInput(input: ControllerInput): string[] {

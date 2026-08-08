@@ -4,6 +4,13 @@ import {
   planControllerReconciliation,
   type ControllerReconciliationJob,
 } from './controllerReconciliation'
+import { controllerProfileArtifactSignature } from './controllerProfilePassRecipe'
+import {
+  LEGACY_ARTIFACT_SIGNATURE_WITH_ROLE,
+  LEGACY_SIGNATURE_MAP_DIM,
+  LEGACY_SIGNATURE_PATTERN_ID,
+  legacySignatureProfile,
+} from './controllerLegacySignatureTestFixture'
 
 function pushRecord(profileSignature?: string) {
   return {
@@ -99,6 +106,85 @@ describe('planControllerReconciliation', () => {
     expect(plan.current.map((artifact) => artifact.programId)).toEqual(['CURRENT1'])
     expect(plan.jobs.map((job) => job.programId)).toEqual(['STALE1', 'LEGACY1'])
     expect(plan.managedCount).toBe(3)
+  })
+
+  it('schedules nothing for a record whose signature only predates the role retirement (#772)', () => {
+    // The profile did not change; #772 changed how its inputs are serialized.
+    // Reading that as staleness would rewrite the physical Controller over a
+    // difference that never reached a byte of generated code — and a profile
+    // with keepPatternsUpToDate would do it again on every reconnect.
+    const profile = legacySignatureProfile()
+
+    const plan = planControllerReconciliation({
+      controllerId: 'ctrl-A',
+      programs: [{ id: 'DEV_LINE', name: 'Line Dancer' }],
+      bindings: { 'ctrl-A': { [LEGACY_SIGNATURE_PATTERN_ID]: 'DEV_LINE' } },
+      pushRecords: {
+        'ctrl-A': {
+          [LEGACY_SIGNATURE_PATTERN_ID]: pushRecord(LEGACY_ARTIFACT_SIGNATURE_WITH_ROLE),
+        },
+      },
+      artifacts: [{
+        bindingKey: LEGACY_SIGNATURE_PATTERN_ID,
+        name: 'Line Dancer',
+        source: 'export function render(index) { hsv(index, 1, 1) }',
+        profileSignature: controllerProfileArtifactSignature(
+          profile,
+          LEGACY_SIGNATURE_PATTERN_ID,
+          { mapDim: LEGACY_SIGNATURE_MAP_DIM },
+        ),
+      }],
+    })
+
+    expect(plan.jobs).toEqual([])
+    expect(plan.current.map((artifact) => artifact.programId)).toEqual(['DEV_LINE'])
+    expect(plan.unmanaged).toEqual([])
+  })
+
+  it('still queues a legacy record once the profile itself changed (#772)', () => {
+    const changed = legacySignatureProfile()
+    changed.globalTransforms[0] = { ...changed.globalTransforms[0], enabled: false }
+
+    const plan = planControllerReconciliation({
+      controllerId: 'ctrl-A',
+      programs: [{ id: 'DEV_LINE', name: 'Line Dancer' }],
+      bindings: { 'ctrl-A': { [LEGACY_SIGNATURE_PATTERN_ID]: 'DEV_LINE' } },
+      pushRecords: {
+        'ctrl-A': {
+          [LEGACY_SIGNATURE_PATTERN_ID]: pushRecord(LEGACY_ARTIFACT_SIGNATURE_WITH_ROLE),
+        },
+      },
+      artifacts: [{
+        bindingKey: LEGACY_SIGNATURE_PATTERN_ID,
+        name: 'Line Dancer',
+        source: 'export function render(index) { hsv(index, 1, 1) }',
+        profileSignature: controllerProfileArtifactSignature(
+          changed,
+          LEGACY_SIGNATURE_PATTERN_ID,
+          { mapDim: LEGACY_SIGNATURE_MAP_DIM },
+        ),
+      }],
+    })
+
+    expect(plan.jobs.map((job) => job.programId)).toEqual(['DEV_LINE'])
+    expect(plan.current).toEqual([])
+  })
+
+  it('compares a stored signature it cannot parse verbatim instead of failing the plan (#772)', () => {
+    const plan = planControllerReconciliation({
+      controllerId: 'ctrl-A',
+      programs: [{ id: 'DEV_LINE', name: 'Line Dancer' }],
+      bindings: { 'ctrl-A': { 'pat-line': 'DEV_LINE' } },
+      pushRecords: { 'ctrl-A': { 'pat-line': pushRecord('{"inputs":[') } },
+      artifacts: [{
+        bindingKey: 'pat-line',
+        name: 'Line Dancer',
+        source: 'export function render(index) { hsv(index, 1, 1) }',
+        profileSignature: '{"transforms":[],"inputs":[],"bindings":[]}',
+      }],
+    })
+
+    expect(plan.jobs.map((job) => job.programId)).toEqual(['DEV_LINE'])
   })
 })
 

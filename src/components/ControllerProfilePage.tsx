@@ -16,19 +16,16 @@ import {
   type PatternBinding,
 } from '@/engine/controllerProfile'
 import {
-  controllerPatternPushStates,
   describeControllerInputUses,
   type ControllerInputPresentation,
   type ControllerInputUse,
-  type ControllerPatternPushState,
   type ControllerUseDetail,
 } from '@/engine/controllerInputUses'
 import { describeControllerPill } from '@/engine/controllerPillView'
 import type { ControllerStatusTone } from '@/engine/controllerStatusView'
 import type { ProgramListEntry } from '@/engine/PixelblazeConnection'
 import type { BindingStore } from '@/engine/controllerBinding'
-import type { ControllerPushRecord } from '@/engine/controllerPushRecord'
-import { getControllerBindings, getPushRecords } from '@/engine/controllerMetadataStorage'
+import { getControllerBindings } from '@/engine/controllerMetadataStorage'
 import { installedControllerPatternChoices } from '@/engine/controllerSavedPrograms'
 import type { PowerCapSettings } from '@/engine/powerCap'
 import {
@@ -930,22 +927,6 @@ function UseDetail({ detail }: { detail: ControllerUseDetail }) {
   )
 }
 
-// `current` and `unknown` both render nothing: one has nothing to report, the
-// other has nothing to report it from (#772).
-const PUSH_TAG_LABELS: Record<ControllerPatternPushState, string | null> = {
-  current: null,
-  unknown: null,
-  stale: 'push again',
-  'not-pushed': 'not pushed',
-}
-
-const PUSH_TAG_TITLES: Record<ControllerPatternPushState, string> = {
-  current: '',
-  unknown: '',
-  stale: 'This Pattern was pushed before the current Controller settings.',
-  'not-pushed': 'No artifact from this Controller profile has been pushed for this Pattern.',
-}
-
 function traceColorFor(inputState: ControllerInputPresentation['state'], live: boolean): string {
   if (inputState === 'error') return 'rgba(248,113,113,0.85)'
   return live ? 'rgba(251,191,36,0.8)' : '#52525b'
@@ -1416,7 +1397,6 @@ function UseBlock({
   }
 
   const binding = profile.patternBindings.find((candidate) => candidate.id === use.bindingId)
-  const pushLabel = use.push ? PUSH_TAG_LABELS[use.push] : null
 
   return (
     <>
@@ -1425,15 +1405,12 @@ function UseBlock({
         count={count}
         traceColor={traceColorFor(inputState, use.state === 'live')}
         right={(
+          // A per-Pattern re-push tag sat here: whether the artifact on the
+          // Controller predates the current profile. It is a live-hardware
+          // claim rather than a statement about configuration, and it belongs
+          // with the rest of the re-push signal — see #777, where it is being
+          // designed as one signal instead of a badge per use.
           <>
-            {pushLabel && (
-              <span
-                title={use.push ? PUSH_TAG_TITLES[use.push] : undefined}
-                className="font-mono text-[9.5px] uppercase tracking-[0.1em] text-live"
-              >
-                {pushLabel}
-              </span>
-            )}
             <SmallButton
               label={editing ? 'Done' : 'Edit'}
               ariaLabel={editing
@@ -1490,7 +1467,6 @@ export function ControllerProfilePage({ profileId }: { profileId: string }) {
   const profileController = profile ? controllerForProfile(profile, controllers) : null
   const liveIp = profileController?.phase === 'live' ? profileController.ip : undefined
   const liveEpoch = profileController?.phase === 'live' ? profileController.liveEpoch : undefined
-  const liveMapDim = profileController?.phase === 'live' ? profileController.mapDim ?? null : null
   const controllerPrograms = useControllerPanelStore((state) => (
     liveIp ? state.programsByController[liveIp] ?? EMPTY_CONTROLLER_PROGRAMS : EMPTY_CONTROLLER_PROGRAMS
   ))
@@ -1499,10 +1475,6 @@ export function ControllerProfilePage({ profileId }: { profileId: string }) {
   const [controllerBindingsRead, setControllerBindingsRead] = useState<{
     readKey: string
     bindings: BindingStore
-  } | null>(null)
-  const [pushRecordsRead, setPushRecordsRead] = useState<{
-    readKey: string
-    records: Record<string, ControllerPushRecord>
   } | null>(null)
 
   useEffect(() => {
@@ -1528,29 +1500,11 @@ export function ControllerProfilePage({ profileId }: { profileId: string }) {
     }
   }, [liveIp, liveReadKey])
 
-  // Level 2 re-push staleness needs the saved artifact records for this
-  // Controller. They are keyed by IP, so this mirrors the bindings read. Only a
-  // completed read stores anything, and it stores the key it answers for; a read
-  // that fails drops what it superseded rather than leaving it behind to be read
-  // as current.
-  useEffect(() => {
-    let cancelled = false
-    if (!liveReadKey || !liveIp) return
-    void getPushRecords()
-      .then((records) => {
-        if (cancelled) return
-        setPushRecordsRead({ readKey: liveReadKey, records: records[liveIp] ?? {} })
-      })
-      .catch(() => {
-        if (!cancelled) setPushRecordsRead(null)
-      })
-    return () => {
-      cancelled = true
-    }
-  }, [liveIp, liveReadKey])
-
+  // A second read of this Controller's saved-artifact push records sat here,
+  // feeding the per-Pattern re-push tag. It goes with the tag; #777 owns what
+  // replaces it. `liveReadKey` stays: the bindings read above needs the same
+  // guarantee that a reconnect cannot pass off the previous connection's answer.
   const currentBindings = currentRead(controllerBindingsRead, liveReadKey)?.bindings ?? null
-  const pushRecordsCurrent = currentRead(pushRecordsRead, liveReadKey)
 
   const installedMapObservation = profile
     ? profileController?.phase === 'live'
@@ -1603,16 +1557,7 @@ export function ControllerProfilePage({ profileId }: { profileId: string }) {
     candidates: installedMapCandidates,
   })
 
-  const patternPushStates = controllerPatternPushStates({
-    profile,
-    patternIds: profile.patternBindings.map((binding) => binding.patternId),
-    pushRecords: pushRecordsCurrent
-      ? { status: 'read', records: pushRecordsCurrent.records }
-      : { status: 'unknown' },
-    mapDim: liveMapDim,
-    live: Boolean(liveIp),
-  })
-  const usesView = describeControllerInputUses(profile, { patternNames, patternPushStates })
+  const usesView = describeControllerInputUses(profile, { patternNames })
   const presentationById = new Map(usesView.inputs.map((entry) => [entry.inputId, entry]))
 
   return (

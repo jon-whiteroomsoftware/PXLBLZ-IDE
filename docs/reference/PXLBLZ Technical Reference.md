@@ -895,40 +895,35 @@ ordinary edit cannot write it back. That function preserves array identity when
 there is nothing to strip.
 
 `controllerInputUses.ts` is the pure derivation the profile page consumes.
-`describeControllerInputUses(profile, { patternNames, patternPushStates })`
-returns one presentation per input — pin, formatted physical facts, whether
-brightness is assigned to it, its ordered uses, and its input-scoped issues —
-plus the profile-level validation errors that do not belong to any one input. It
-reads the profile and never mutates it.
+`describeControllerInputUses(profile, { patternNames })` returns one
+presentation per input — pin, formatted physical facts, whether brightness is
+assigned to it, its ordered uses, and its input-scoped issues — plus the
+profile-level validation errors that do not belong to any one input. It reads
+the profile and never mutates it.
 
-Two levels of state are distinguished, and the module never conflates them:
+It states one thing and only that: **effective behaviour**, a pure function of
+the profile. Would this configuration emit code right now? A brightness use is
+`live` or `blocked`; an input with no uses gets an explicit `none` row rather
+than an empty list. The per-Pattern exception is carried in the brightness row's
+scope string, so a precedence fact appears exactly once. This needs no async
+data and works offline.
 
-- **Level 1, effective behaviour.** A pure function of the profile: would this
-  configuration emit code right now? A brightness use is `live` or `blocked`; an
-  input with no uses gets an explicit `none` row rather than an empty list. The
-  per-Pattern exception is carried in the brightness row's scope string, so a
-  precedence fact appears exactly once. This needs no async data and works
-  offline.
-- **Level 2, per-Pattern re-push.** `controllerPatternPushStates` compares
-  `controllerProfileArtifactSignature(profile, patternId, { mapDim })` against
-  each `ControllerPushRecord.profileSignature` and returns `current`, `stale`,
-  `not-pushed`, or `unknown` **per Pattern**, not per use: the signature covers
-  every transform, every input those transforms touch, all of that Pattern's
-  bindings, and the renderer `mapDim`, so it is a (Controller, Pattern) fact and
-  attaching it to one input's use would assert a cause the data does not
-  support. The page loads `getPushRecords()` alongside the existing
-  `getControllerBindings()` effect. `mapDim` comes from the live Controller, so
-  the function returns an empty map while offline rather than guessing from
-  `lastKnownMapDim`. Records are keyed by IP, so a changed IP orphans them and
-  the Pattern reads `not-pushed` — the same conclusion the Send button reaches.
+Whether the artifact already on the Controller predates the current profile is
+deliberately *not* stated here. That is a live-hardware claim about a
+(Controller, Pattern) pair rather than a statement about configuration, and the
+per-use badge that once carried it attached it to one input's row while its
+cause spanned every transform, every input those transforms touch, all of that
+Pattern's bindings, and the renderer `mapDim`. The badge and its
+`getPushRecords()` read were cut from #772; #777 designs the re-push signal once,
+as a whole. Managed-artifact reconciliation still acts on the same comparison,
+without any per-use UI claim.
 
-  The records argument is a `ControllerPushRecordsRead`, not a bare record map:
-  `{ status: 'read', records }` is a completed read, where an absent record is
-  real evidence of `not-pushed`, and `{ status: 'unknown' }` is a read still in
-  flight or one that failed. `unknown` yields no badge, which is not the same
-  claim as `not-pushed`. The distinction is in the argument type because the
-  page previously passed an empty record map for both and reported every bound
-  Pattern as never pushed while its metadata was still loading (#772).
+The page does still read `getControllerBindings()` under
+`liveControllerReadKey`, which combines the live IP, the connection's
+`liveEpoch`, and the program list *content*. The epoch is the term the others
+cannot stand in for: a reconnect leaves the IP identical and the panel store
+retains a Controller's program list across the gap, so without it a reconnect
+would pass off the previous connection's answer as current.
 
 Input-scoped validation errors are partitioned out of
 `validateControllerProfile` by their `inputs.<id>.` path prefix and rendered on
@@ -1158,6 +1153,31 @@ profile write completes. Descriptive edits do not. The planner compares each
 eligible push record with a per-artifact signature covering global transforms,
 referenced inputs and bindings, and the installed map dimension. Ordinary
 Pattern source edits remain on explicit Run/Save.
+
+The signature is compared against records written by earlier releases, so it
+carries a compatibility rule: **a field that cannot change generated code must
+never change the signature, and when such a field is retired its removal is
+normalized on read rather than paid for in device writes.**
+`controllerProfileArtifactSignature` serializes whole `ControllerInput` objects,
+so retiring the inert `role` in #772 changed every stored signature for an
+input-driven Pattern while the emitted Pattern stayed byte-identical. Left
+alone, a profile with `keepPatternsUpToDate` would have rewritten artifacts on
+the physical Controller on every reconnect, for nothing.
+`normalizeStoredArtifactSignature` therefore reads a *stored* signature in
+today's terms — parse, drop `role` from each entry of `inputs`, re-serialize —
+before it is compared with one computed now. It adjusts only the compared value;
+the record is left as written, and the next real push replaces it in the current
+shape. A signature it cannot parse, or whose shape it does not recognise, is
+returned verbatim: that is exactly the pre-#772 comparison, which may cost one
+re-push but can never read as current. It never throws.
+
+Normalization belongs at every site that compares a *persisted* signature with a
+freshly computed one — today, `planControllerReconciliation`. Comparisons where
+both sides are computed in the same session need none: the Send dirty gate's
+`lastPushedProfileSignature` and `lastSavedProfileSignature` live in the
+Controller store and are outside its `partialize`, so they never survive a
+reload. The push-record write path always writes a freshly computed signature
+and so is already in the current shape.
 
 Reconciliation processes stale artifacts serially through the same per-
 Controller device-write queue as explicit pushes. It saves over the existing id

@@ -2,6 +2,7 @@ import type { ProgramListEntry } from './PixelblazeConnection'
 import type { BindingStore } from './controllerBinding'
 import type { ControllerPushRecords } from './controllerPushRecord'
 import type { ArtifactStampMeta } from './artifactStamp'
+import { normalizeStoredArtifactSignature } from './controllerProfilePassRecipe'
 
 export interface ReconciliationArtifact {
   bindingKey: string
@@ -69,7 +70,13 @@ export function planControllerReconciliation(input: {
       unmanaged.push({ programId: program.id, bindingKey, reason: 'missing-source' })
       continue
     }
-    if (pushRecord.profileSignature === artifact.profileSignature) {
+    // The record is persisted while the artifact signature is computed now, so
+    // the stored side is read in today's terms first (#772). A record carrying
+    // no signature at all stays eligible for one reconciliation, as before.
+    const storedSignature = pushRecord.profileSignature === undefined
+      ? undefined
+      : normalizeStoredArtifactSignature(pushRecord.profileSignature)
+    if (storedSignature === artifact.profileSignature) {
       current.push({ ...artifact, programId: program.id, state: 'current' })
     } else {
       jobs.push({ ...artifact, programId: program.id, state: 'queued' })

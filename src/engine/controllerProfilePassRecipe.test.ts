@@ -4,8 +4,15 @@ import {
   controllerProfileReconciliationSignature,
   controllerProfilePassRecipe,
   findProfileForLiveController,
+  normalizeStoredArtifactSignature,
 } from './controllerProfilePassRecipe'
 import type { ControllerProfile } from './controllerProfile'
+import {
+  LEGACY_ARTIFACT_SIGNATURE_WITH_ROLE,
+  LEGACY_SIGNATURE_MAP_DIM,
+  LEGACY_SIGNATURE_PATTERN_ID,
+  legacySignatureProfile,
+} from './controllerLegacySignatureTestFixture'
 
 describe('controller profile pass recipe', () => {
   it('matches a live controller by stable device id before last-seen IP', () => {
@@ -350,6 +357,90 @@ describe('controller profile pass recipe', () => {
 
     expect(controllerProfilePassRecipe(profile, 'export function render(i) {}')).toEqual([])
     expect(controllerProfilePassRecipe(profile, 'export function render(i) {}', 'pat-2')).toEqual([])
+  })
+})
+
+describe('normalizeStoredArtifactSignature', () => {
+  it('reads a pre-#772 stored signature as the signature the same profile produces now (#772)', () => {
+    // Guard the fixture itself: a legacy signature that no longer carries a
+    // `role` would make the assertion below pass for the wrong reason.
+    expect(LEGACY_ARTIFACT_SIGNATURE_WITH_ROLE).toContain('"role":"brightness"')
+
+    expect(normalizeStoredArtifactSignature(LEGACY_ARTIFACT_SIGNATURE_WITH_ROLE)).toBe(
+      controllerProfileArtifactSignature(
+        legacySignatureProfile(),
+        LEGACY_SIGNATURE_PATTERN_ID,
+        { mapDim: LEGACY_SIGNATURE_MAP_DIM },
+      ),
+    )
+  })
+
+  it('leaves a signature this code wrote exactly as it found it (#772)', () => {
+    const current = controllerProfileArtifactSignature(
+      legacySignatureProfile(),
+      LEGACY_SIGNATURE_PATTERN_ID,
+      { mapDim: LEGACY_SIGNATURE_MAP_DIM },
+    )
+
+    expect(normalizeStoredArtifactSignature(current)).toBe(current)
+  })
+
+  it('strips a stray role wherever it sits among the inputs, and nowhere else (#772)', () => {
+    const stored = JSON.stringify({
+      transforms: [{ type: 'power-cap', mixinId: 'builtin:power-cap', maxDuty: 0.25 }],
+      inputs: [
+        { id: 'a', pin: 33, role: 'assignable', invert: false },
+        { id: 'b', pin: 34, invert: true },
+        { id: 'c', pin: 35, signal: 'digital', role: 'next-pattern' },
+      ],
+      // A `role` outside `inputs` is not the retired annotation and must survive.
+      bindings: [{ id: 'b1', patternId: 'p', inputId: 'a', target: { kind: 'call-function', name: 'role' } }],
+      renderer: { mapDim: null },
+    })
+
+    expect(normalizeStoredArtifactSignature(stored)).toBe(JSON.stringify({
+      transforms: [{ type: 'power-cap', mixinId: 'builtin:power-cap', maxDuty: 0.25 }],
+      inputs: [
+        { id: 'a', pin: 33, invert: false },
+        { id: 'b', pin: 34, invert: true },
+        { id: 'c', pin: 35, signal: 'digital' },
+      ],
+      bindings: [{ id: 'b1', patternId: 'p', inputId: 'a', target: { kind: 'call-function', name: 'role' } }],
+      renderer: { mapDim: null },
+    }))
+  })
+
+  it('hands back anything it cannot recognise rather than throwing (#772)', () => {
+    // An unrecognised stored signature is compared verbatim, exactly as it was
+    // before this normalization existed: it can differ from a freshly computed
+    // signature and cost one re-push, but it can never be mistaken for current.
+    for (const stored of [
+      '',
+      'not json at all',
+      '{"inputs":[{"id":"a","role":"brightness"}]',
+      'null',
+      '42',
+      '"a bare string"',
+      '[{"inputs":[]}]',
+      '{"transforms":[]}',
+      '{"inputs":"not an array"}',
+      '{"inputs":[null,"text",7]}',
+    ]) {
+      expect(normalizeStoredArtifactSignature(stored)).toBe(stored)
+    }
+  })
+
+  it('never reports a legacy signature as current for a profile that really changed (#772)', () => {
+    const changed = legacySignatureProfile()
+    changed.inputs[0].smoothing = 0.9
+
+    expect(normalizeStoredArtifactSignature(LEGACY_ARTIFACT_SIGNATURE_WITH_ROLE)).not.toBe(
+      controllerProfileArtifactSignature(
+        changed,
+        LEGACY_SIGNATURE_PATTERN_ID,
+        { mapDim: LEGACY_SIGNATURE_MAP_DIM },
+      ),
+    )
   })
 })
 

@@ -1,14 +1,10 @@
 import { describe, expect, it } from 'vitest'
 import {
-  controllerPatternPushStates,
   controllerUseDetailText,
   describeControllerInputUses,
   type ControllerInputCorrection,
   type ControllerInputUse,
-  type ControllerPushRecordsRead,
 } from './controllerInputUses'
-import type { ControllerPushRecord } from './controllerPushRecord'
-import { controllerProfileArtifactSignature } from './controllerProfilePassRecipe'
 import {
   controllerProfileRecordIssues,
   validateControllerProfile,
@@ -369,130 +365,4 @@ describe('describeControllerInputUses', () => {
     expect(view.inputs[0].uses[1]).toMatchObject({ label: 'pat-gone', patternUnknown: true })
     expect(view.inputs[0].uses[0]).toMatchObject({ scope: 'every Pattern except pat-gone' })
   })
-
-  it('attaches the per-Pattern push state supplied by the caller', () => {
-    const profile = profileWith({
-      patternBindings: [
-        { id: 'b1', patternId: 'p', inputId: 'pot0', target: { kind: 'call-function', name: 'burst' } },
-      ],
-    })
-
-    const view = describeControllerInputUses(profile, {
-      patternNames: { p: 'Line Dancer' },
-      patternPushStates: { p: 'stale' },
-    })
-
-    expect(view.inputs[0].uses[1]).toMatchObject({ push: 'stale' })
-  })
-
-  it('reports no push state when the caller supplies none', () => {
-    const profile = profileWith({
-      patternBindings: [
-        { id: 'b1', patternId: 'p', inputId: 'pot0', target: { kind: 'call-function', name: 'burst' } },
-      ],
-    })
-
-    const view = describeControllerInputUses(profile)
-
-    expect(view.inputs[0].uses[1]).toMatchObject({ push: null })
-  })
-})
-
-describe('controllerPatternPushStates', () => {
-  const profile = profileWith({
-    patternBindings: [
-      { id: 'b1', patternId: 'p', inputId: 'pot0', target: { kind: 'call-function', name: 'burst' } },
-    ],
-  })
-
-  it('says nothing at all while the Controller is offline', () => {
-    expect(controllerPatternPushStates({
-      profile,
-      patternIds: ['p'],
-      pushRecords: read({ p: { transforms: [], artifactHash: 'h', stampedAt: 's', name: 'p' } }),
-      mapDim: null,
-      live: false,
-    })).toEqual({})
-  })
-
-  it('calls a Pattern current when its record matches the live artifact signature', () => {
-    const signature = signatureFor('p', 2)
-
-    expect(controllerPatternPushStates({
-      profile,
-      patternIds: ['p'],
-      pushRecords: read({
-        p: { transforms: [], artifactHash: 'h', stampedAt: 's', name: 'p', profileSignature: signature },
-      }),
-      mapDim: 2,
-      live: true,
-    })).toEqual({ p: 'current' })
-  })
-
-  it('calls a Pattern stale when the profile changed since its record', () => {
-    expect(controllerPatternPushStates({
-      profile,
-      patternIds: ['p'],
-      pushRecords: read({
-        p: { transforms: [], artifactHash: 'h', stampedAt: 's', name: 'p', profileSignature: 'older' },
-      }),
-      mapDim: 2,
-      live: true,
-    })).toEqual({ p: 'stale' })
-  })
-
-  it('treats a legacy record without a signature as stale', () => {
-    expect(controllerPatternPushStates({
-      profile,
-      patternIds: ['p'],
-      pushRecords: read({ p: { transforms: [], artifactHash: 'h', stampedAt: 's', name: 'p' } }),
-      mapDim: 2,
-      live: true,
-    })).toEqual({ p: 'stale' })
-  })
-
-  it('reads an orphaned or missing record as not pushed rather than stale', () => {
-    expect(controllerPatternPushStates({
-      profile,
-      patternIds: ['p'],
-      // A completed read that found nothing for this Pattern is real evidence.
-      pushRecords: read({}),
-      mapDim: 2,
-      live: true,
-    })).toEqual({ p: 'not-pushed' })
-  })
-
-  it('claims nothing while the metadata read is still pending', () => {
-    expect(controllerPatternPushStates({
-      profile,
-      patternIds: ['p'],
-      pushRecords: { status: 'unknown' },
-      mapDim: 2,
-      live: true,
-    })).toEqual({ p: 'unknown' })
-  })
-
-  it('separates the map dimension the signature was taken at', () => {
-    const signature = signatureFor('p', 2)
-
-    expect(controllerPatternPushStates({
-      profile,
-      patternIds: ['p'],
-      pushRecords: read({
-        p: { transforms: [], artifactHash: 'h', stampedAt: 's', name: 'p', profileSignature: signature },
-      }),
-      mapDim: 3,
-      live: true,
-    })).toEqual({ p: 'stale' })
-  })
-
-  // The shipped signature is the oracle for "same generated code"; restating its
-  // JSON shape in the test would only duplicate the implementation.
-  function signatureFor(patternId: string, mapDim: 1 | 2 | 3): string {
-    return controllerProfileArtifactSignature(profile, patternId, { mapDim })
-  }
-
-  function read(records: Record<string, ControllerPushRecord>): ControllerPushRecordsRead {
-    return { status: 'read', records }
-  }
 })
