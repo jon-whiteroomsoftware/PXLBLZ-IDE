@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
 
-describe('browser-test canvas substitute (#603)', () => {
+describe('jsdom canvas substitute (#603)', () => {
   afterEach(() => {
     vi.restoreAllMocks()
   })

@@ -3,6 +3,35 @@ import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import path from 'node:path'
 import { describe, expect, it } from 'vitest'
+import { assertVitestProjectIdentity } from './vitest-project-identity.js'
+
+describe('Vitest project identity', () => {
+  it('rejects a browser-oriented name when Browser Mode is disabled', () => {
+    expect(() => assertVitestProjectIdentity([{
+      test: {
+        name: 'browser',
+        environment: 'jsdom',
+      },
+    }])).toThrow(/browser.*Browser Mode/i)
+  })
+
+  it('accepts jsdom identity and a later real Chromium project', () => {
+    expect(() => assertVitestProjectIdentity([
+      {
+        test: {
+          name: 'jsdom',
+          environment: 'jsdom',
+        },
+      },
+      {
+        test: {
+          name: 'chromium',
+          browser: { enabled: true },
+        },
+      },
+    ])).not.toThrow()
+  })
+})
 
 describe('Vitest discovery boundaries', () => {
   it('ignores tests below nested worktrees and node_modules directories', () => {

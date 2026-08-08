@@ -5,6 +5,7 @@ import { defaultExclude } from 'vitest/config'
 import path from 'path'
 import fs from 'fs'
 import { execFileSync } from 'child_process'
+import { assertVitestProjectIdentity } from './scripts/vitest-project-identity.js'
 
 const DEFAULT_BASE = '/PXLBLZ-IDE/'
 const DEFAULT_API_PROXY_TARGET = 'http://localhost:8788'
@@ -16,10 +17,10 @@ const TEST_DISCOVERY_EXCLUDES = [
   '**/worktrees/**',
 ]
 
-// Keep browser-dependent files explicit. Every other .test.ts file runs in the
-// cheaper Node project; the browser project retains jsdom isolation because
+// Keep DOM-dependent files explicit. Every other .test.ts file runs in the
+// cheaper Node project; the jsdom project retains isolation because
 // sharing its global DOM made the suite slower and allowed state to accumulate.
-const BROWSER_TEST_FILES = [
+const JSDOM_TEST_FILES = [
   'src/analytics/index.test.ts',
   'src/engine/keyboardShortcuts.test.ts',
   'src/engine/renderLoop.test.ts',
@@ -136,6 +137,34 @@ export default defineConfig(({ mode }) => {
   const apiProxyTarget = env.VITE_API_PROXY_TARGET?.trim() || DEFAULT_API_PROXY_TARGET
   const port = Number(env.VITE_PORT ?? 5174)
 
+  const testProjects = [
+    {
+      extends: true as const,
+      test: {
+        name: 'node',
+        environment: 'node',
+        globals: true,
+        isolate: false,
+        include: ['**/*.test.ts'],
+        exclude: [...TEST_DISCOVERY_EXCLUDES, ...JSDOM_TEST_FILES],
+      },
+    },
+    {
+      extends: true as const,
+      test: {
+        name: 'jsdom',
+        environment: 'jsdom',
+        globals: true,
+        isolate: true,
+        setupFiles: ['./src/test/setup.ts'],
+        include: ['**/*.test.tsx', ...JSDOM_TEST_FILES],
+        // Playwright E2E specs live in e2e/ and are run by Playwright.
+        exclude: TEST_DISCOVERY_EXCLUDES,
+      },
+    },
+  ]
+  assertVitestProjectIdentity(testProjects)
+
   return {
     base,
     plugins: [
@@ -175,32 +204,7 @@ export default defineConfig(({ mode }) => {
     test: {
       globals: true,
       maxWorkers: 4,
-      projects: [
-        {
-          extends: true,
-          test: {
-            name: 'node',
-            environment: 'node',
-            globals: true,
-            isolate: false,
-            include: ['**/*.test.ts'],
-            exclude: [...TEST_DISCOVERY_EXCLUDES, ...BROWSER_TEST_FILES],
-          },
-        },
-        {
-          extends: true,
-          test: {
-            name: 'browser',
-            environment: 'jsdom',
-            globals: true,
-            isolate: true,
-            setupFiles: ['./src/test/setup.ts'],
-            include: ['**/*.test.tsx', ...BROWSER_TEST_FILES],
-            // Playwright E2E specs live in e2e/ and are run by Playwright.
-            exclude: TEST_DISCOVERY_EXCLUDES,
-          },
-        },
-      ],
+      projects: testProjects,
     },
   }
 })

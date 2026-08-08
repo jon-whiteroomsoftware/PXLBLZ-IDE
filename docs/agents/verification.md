@@ -197,6 +197,13 @@ or Codex lifecycle hook, it applies equally to agent and terminal pushes.
 same full suite, so a separate full run immediately before pushing normally adds
 delay without adding coverage.
 
+Vitest reports the DOM component suite as `|jsdom|`: it provides DOM APIs but
+does not compute layout or run browser rendering. A project name containing
+`browser`, `chromium`, `firefox`, `webkit`, or `playwright` is reserved for a
+project with Vitest Browser Mode explicitly enabled. The configuration loads
+`assertVitestProjectIdentity` and fails before discovery if a project label
+overstates that execution environment.
+
 Candidate review transmits the exact private diff and supplied engineering
 context to Anthropic under the developer's authenticated Claude session. A
 fallback transmits the same material to OpenAI under the authenticated Codex

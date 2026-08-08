@@ -29,6 +29,7 @@ export default {
       'scripts/run-authenticated-playwright.ts',
       'scripts/run-public-playwright.ts',
       'scripts/with-suite-lock.ts',
+      'scripts/vitest-project-identity.ts',
     ],
     typecheckPatterns: ['^(src|functions)/.*\\.[cm]?[jt]sx?$'],
     typecheckArgs: [
@@ -129,7 +130,8 @@ export default {
           'scripts/local-session-cookie.ts',
           'scripts/run-authenticated-playwright.ts',
           'scripts/run-public-playwright.ts',
-      'scripts/with-suite-lock.ts',
+          'scripts/with-suite-lock.ts',
+          'scripts/vitest-project-identity.ts',
           'src/test/setup.ts',
         ],
         tests: [
