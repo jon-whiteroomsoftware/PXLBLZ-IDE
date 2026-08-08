@@ -51,6 +51,16 @@ Task title: 627:5175 - managed local runtime
 Rename the Codex or Claude task to that exact shape so the running build is
 discoverable without interrupting the agent.
 
+### Worktree prerequisites
+
+Run `dev:issue` **from inside the worktree** it is meant to serve. The command
+roots Vite at `process.cwd()`, so running it from the shared checkout silently
+serves main's code while appearing to serve the branch under test.
+
+A fresh worktree has no `node_modules`. Run `npm ci` inside it before anything
+else, or Vitest fails to load `vite.config.ts` and the failure looks unrelated to
+the missing install.
+
 ## Status, authentication, and cleanup
 
 Use the registry instead of guessing ports:
@@ -122,3 +132,29 @@ the same worktree, set `PLAYWRIGHT_STUDIO_URL` to that runtime's URL.
   reservation. Registry locks recover automatically when their owner exits.
 - Logs and isolated D1 state live under `.git/pxlblz/dev-runtime/v1/` in the
   repository's common Git directory.
+
+### A hanging dev:issue is usually a wedged main Wrangler
+
+`npm run dev:issue` sitting silent for minutes generally means the main Wrangler
+on `8788` is wedged: the port still accepts TCP but never answers `/api/me`, and
+its log under `.git/pxlblz/dev-runtime/v1/logs/` typically ends in a failed
+esbuild rebuild. The coordinator's health probe is a `fetch` with no timeout, so
+it waits rather than reporting.
+
+`npm run dev:status` will not reveal this. It reports "API listening" from port
+occupancy alone and does not make an HTTP request. Probe the API directly:
+
+```bash
+curl -s -m 3 http://localhost:8788/api/me
+```
+
+The UI can answer in milliseconds while the API behind it is dead. To recover,
+`kill -9` the Wrangler trio (`wrangler.js`, its Pages child, and `workerd`), run
+`npm run dev:main` from the stable checkout to rebuild and restart the pair, then
+re-run the `dev:issue` command — it completes in seconds once `8788` is healthy.
+
+Treat any dev-runtime command exceeding about 30 seconds as a signal to probe
+rather than keep waiting, and run these commands unsandboxed: the sandbox cannot
+reach host localhost, so a sandboxed failure proves nothing about service health.
+Never pipe a possibly-hanging command through `tail`, which hides all output
+until the command finishes.

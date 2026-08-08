@@ -189,6 +189,11 @@ check the local D1 schema first.
 
 ## Browser and visual checks
 
+- Read `docs/agents/browser-verification.md` before debugging a failed capture.
+  It covers the preview-canvas selector trap, the wedged-extension signature, and
+  driving the UI without a screenshot. Hardware work is in
+  `docs/agents/hardware-bench.md`; agent roles and the Pixelblaze design skills
+  are in `docs/agents/collaboration.md`.
 - Use the Codex in-app browser first for UI work, then repo Playwright. A missing
   in-app-browser skill entry is never sufficient reason to switch tools. Before
   any fallback, bootstrap `scripts/browser-client.mjs` from an installed Browser

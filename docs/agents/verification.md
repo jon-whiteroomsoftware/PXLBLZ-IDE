@@ -359,6 +359,29 @@ The authenticated fixture removes only its synthetic records, across every
 personal-content resource, even when a test fails. It never cleans or mutates
 the persistent shared development identity.
 
+### Flake probing and host load
+
+The authenticated suites funnel all four workers through a single
+`wrangler pages dev` process, which makes results sensitive to host load. An open
+browser pane running the app's WebGL preview measurably raises the flake rate.
+Idle or close app tabs before a full-suite run, and read a single-spec failure
+carrying a "Checking Studio access" snapshot as load rather than a product
+defect.
+
+The suite wrappers pass extra flags through to Playwright, so repeat probes are
+cheap:
+
+```bash
+npm run test:e2e:shows -- -g "<pattern>" --repeat-each 6 --workers 4
+```
+
+Do not edit a spec while the wrapper's build phase is running. Workers may load
+either version, and `error-context.md` renders the *current* file against the
+executed run's positions — add a unique marker line before trusting which version
+failed. Run whole suites rather than filtered tests when validating a
+gate-covered surface, and never run two authenticated suites concurrently: they
+collide on ports and shared D1.
+
 ## Show authoring edit contracts
 
 Pure Show composition edits use
@@ -395,6 +418,23 @@ The staged-test selector treats the shared helper as an invariant boundary.
 Changing it runs its fault-sensitivity characterization suite, the central
 matrix, the operation-specific Show-authoring suites, and the persistence
 sequence.
+
+### Identity-keyed compiler fixes need a lowering-level regression
+
+A compiler fix that keys on placement or Clip identity must be regression-tested
+through the real lowering, not only against hand-authored recipe fixtures.
+Composition lowering rewrites identities — segment placement ids, `instanceId`
+Clip ids, `@scene` cell ids — so a recipe-level fixture can encode an identity
+assumption that the actual lowering violates.
+
+The #676 capture-coallocation fix keyed on `placementId` and was covered only by
+fixtures with stable ids, so it silently never engaged for logical Clips spanning
+authored Scene boundaries, where segments are `X` and `X--span-<sceneId>` linked
+by `logicalClipId`. #693 was the resulting sibling bug.
+
+Add at least one model-level regression running ShowRecord plus composition
+through `showRecordToCompileRecipe` and then `compileShow`; the #693 tests at the
+end of `showCompositionLowering.test.ts` are the template.
 
 ## Clip detail dialog matrix
 
