@@ -2,6 +2,7 @@ import { defineConfig, loadEnv } from 'vite'
 import react from '@vitejs/plugin-react'
 import tailwindcss from '@tailwindcss/vite'
 import { defaultExclude } from 'vitest/config'
+import { playwright } from '@vitest/browser-playwright'
 import path from 'path'
 import fs from 'fs'
 import { execFileSync } from 'child_process'
@@ -16,6 +17,7 @@ const TEST_DISCOVERY_EXCLUDES = [
   'e2e/**',
   '**/worktrees/**',
 ]
+const LAYOUT_TEST_FILES = ['**/*.layout.test.ts', '**/*.layout.test.tsx']
 
 // Keep DOM-dependent files explicit. Every other .test.ts file runs in the
 // cheaper Node project; the jsdom project retains isolation because
@@ -35,6 +37,53 @@ const JSDOM_TEST_FILES = [
   'src/store/routerStore.test.ts',
   'src/store/showStore.test.ts',
 ]
+
+export function createVitestTestProjects() {
+  const testProjects = [
+    {
+      extends: true as const,
+      test: {
+        name: 'node',
+        environment: 'node',
+        globals: true,
+        isolate: false,
+        include: ['**/*.test.ts'],
+        exclude: [...TEST_DISCOVERY_EXCLUDES, ...JSDOM_TEST_FILES, ...LAYOUT_TEST_FILES],
+      },
+    },
+    {
+      extends: true as const,
+      test: {
+        name: 'jsdom',
+        environment: 'jsdom',
+        globals: true,
+        isolate: true,
+        setupFiles: ['./src/test/setup.ts'],
+        include: ['**/*.test.tsx', ...JSDOM_TEST_FILES],
+        // Playwright E2E specs live in e2e/ and are run by Playwright.
+        exclude: [...TEST_DISCOVERY_EXCLUDES, ...LAYOUT_TEST_FILES],
+      },
+    },
+    {
+      extends: true as const,
+      test: {
+        name: 'chromium-layout',
+        globals: true,
+        setupFiles: ['./src/test/layout.setup.ts'],
+        include: LAYOUT_TEST_FILES,
+        exclude: TEST_DISCOVERY_EXCLUDES,
+        browser: {
+          enabled: true,
+          headless: true,
+          provider: playwright(),
+          instances: [{ browser: 'chromium' as const }],
+        },
+      },
+    },
+  ]
+  assertVitestProjectIdentity(testProjects)
+  return testProjects
+}
 
 // Dev-only: a sink for in-page canvas captures. The running app can POST raw
 // PNG bytes to `/__capture?name=foo.png` and this writes them to disk, so
@@ -137,33 +186,7 @@ export default defineConfig(({ mode }) => {
   const apiProxyTarget = env.VITE_API_PROXY_TARGET?.trim() || DEFAULT_API_PROXY_TARGET
   const port = Number(env.VITE_PORT ?? 5174)
 
-  const testProjects = [
-    {
-      extends: true as const,
-      test: {
-        name: 'node',
-        environment: 'node',
-        globals: true,
-        isolate: false,
-        include: ['**/*.test.ts'],
-        exclude: [...TEST_DISCOVERY_EXCLUDES, ...JSDOM_TEST_FILES],
-      },
-    },
-    {
-      extends: true as const,
-      test: {
-        name: 'jsdom',
-        environment: 'jsdom',
-        globals: true,
-        isolate: true,
-        setupFiles: ['./src/test/setup.ts'],
-        include: ['**/*.test.tsx', ...JSDOM_TEST_FILES],
-        // Playwright E2E specs live in e2e/ and are run by Playwright.
-        exclude: TEST_DISCOVERY_EXCLUDES,
-      },
-    },
-  ]
-  assertVitestProjectIdentity(testProjects)
+  const testProjects = createVitestTestProjects()
 
   return {
     base,

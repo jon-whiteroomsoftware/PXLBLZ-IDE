@@ -3,6 +3,7 @@ import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import path from 'node:path'
 import { describe, expect, it } from 'vitest'
+import { createVitestTestProjects } from '../vite.config.js'
 import { assertVitestProjectIdentity } from './vitest-project-identity.js'
 
 describe('Vitest project identity', () => {
@@ -37,6 +38,27 @@ describe('Vitest project identity', () => {
 })
 
 describe('Vitest discovery boundaries', () => {
+  it('routes opt-in layout tests only through the Chromium Browser Mode project', () => {
+    const projects = createVitestTestProjects()
+    const layout = projects.find((project) => project.test.name === 'chromium-layout')
+    const emulated = projects.filter((project) => project.test.name !== 'chromium-layout')
+
+    expect(layout?.test).toMatchObject({
+      include: ['**/*.layout.test.ts', '**/*.layout.test.tsx'],
+      setupFiles: ['./src/test/layout.setup.ts'],
+      browser: {
+        enabled: true,
+        headless: true,
+        instances: [{ browser: 'chromium' }],
+      },
+    })
+    expect(emulated).toHaveLength(2)
+    expect(emulated.every((project) => (
+      project.test.exclude.includes('**/*.layout.test.ts')
+      && project.test.exclude.includes('**/*.layout.test.tsx')
+    ))).toBe(true)
+  })
+
   it('ignores tests below nested worktrees and node_modules directories', () => {
     const workspaceRoot = process.cwd()
     const nestedRoot = mkdtempSync(path.join(tmpdir(), 'pxlblz-vitest-discovery-'))

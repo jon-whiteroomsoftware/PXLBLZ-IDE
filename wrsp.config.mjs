@@ -133,6 +133,7 @@ export default {
           'scripts/with-suite-lock.ts',
           'scripts/vitest-project-identity.ts',
           'src/test/setup.ts',
+          'src/test/layout.setup.ts',
         ],
         tests: [
           'scripts/dev-runtime-auth.test.ts',
@@ -143,6 +144,7 @@ export default {
           'scripts/run-public-playwright.test.ts',
           'scripts/with-suite-lock.test.ts',
           'scripts/vitest-discovery.test.ts',
+          'src/test/layoutEnvironment.layout.test.tsx',
           'scripts/update-issues.test.ts',
           'scripts/show-authoring-mutation.test.ts',
           'src/engine/showEasing.test.ts',

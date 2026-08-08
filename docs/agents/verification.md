@@ -204,6 +204,16 @@ project with Vitest Browser Mode explicitly enabled. The configuration loads
 `assertVitestProjectIdentity` and fails before discovery if a project label
 overstates that execution environment.
 
+Files named `*.layout.test.ts` or `*.layout.test.tsx` run only in the
+`chromium-layout` project. That project uses Vitest Browser Mode with the
+Playwright provider and headless Chromium; it imports the production
+`src/index.css` entrypoint and waits for `document.fonts.ready` before tests
+measure anything. Run it directly with `npm run test:layout`. The unfiltered
+`npm test` command also discovers this project, so the pre-push full suite
+includes real-browser layout coverage while ordinary component tests stay in
+the faster `jsdom` project. Run `npm run check:playwright` before diagnosing a
+browser-startup failure.
+
 Candidate review transmits the exact private diff and supplied engineering
 context to Anthropic under the developer's authenticated Claude session. A
 fallback transmits the same material to OpenAI under the authenticated Codex
