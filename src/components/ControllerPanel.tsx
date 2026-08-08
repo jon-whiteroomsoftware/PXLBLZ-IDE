@@ -253,8 +253,9 @@ export function ControllerPanel() {
                  unbounded length. In a ~147px half-column its unshrinkable siblings (the
                  dimension pill, the spelled-out point count) left the name 0px at every
                  name length, so the name never rendered — the whole point of showing an
-                 installed map. Full width gives it ~250px (~31 chars), and the point
-                 count now shows only when it disagrees with the pixel count below.
+                 installed map. Its full-width row uses a fixed label gap and gives every
+                 remaining pixel to the value, while the point count shows only when it
+                 disagrees with the pixel count below.
               3. short read-only *scalars* — fps, IP, pixel count. A half-column always
                  fit these, and they keep it.
 
@@ -274,9 +275,10 @@ export function ControllerPanel() {
             onChange={setBrightness}
           />
 
-          <DeckCell label="map" labelClassName="shrink-0">
+          <div className="flex min-w-0 items-center gap-7">
+            <span className="shrink-0 text-zinc-400">map</span>
             <span
-              className="min-w-0 text-live"
+              className="min-w-0 flex-1 text-live"
               title={
                 mapCountMismatch
                   ? `Map has ${mapPointsLabel} points but the Controller has ${pixelsLabel} pixels — the firmware silently drops a mismatched map (#204).`
@@ -290,7 +292,7 @@ export function ControllerPanel() {
                 count={{ mode: 'mismatch', pixelCount }}
               />
             </span>
-          </DeckCell>
+          </div>
 
           <div className="flex gap-x-4 items-start">
             <div className="flex-1 min-w-0 flex flex-col gap-y-2">
