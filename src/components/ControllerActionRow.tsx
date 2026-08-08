@@ -1,6 +1,6 @@
 import { useSyncExternalStore } from 'react'
-import { Check, ChevronRight, Play, RotateCw, Save } from 'lucide-react'
-import { controlIcon, inlineIcon, transportIcon } from '@/components/iconScale'
+import { Check, Play, RotateCw, Save } from 'lucide-react'
+import { controlIcon, transportIcon } from '@/components/iconScale'
 import { trackEvent } from '@/analytics'
 import { describeControllerActionRow } from '@/engine/controllerActionRow'
 import { getControllerProvider } from '@/engine/controllerProviderRegistry'
@@ -15,13 +15,7 @@ import { useEditorStore } from '@/store/editorStore'
 import { activePushKey, usePatternStore } from '@/store/patternStore'
 import { useRouterStore } from '@/store/routerStore'
 
-export function ControllerActionRow({
-  profileHref,
-  onProfile,
-}: {
-  profileHref: string
-  onProfile: () => void
-}) {
+export function ControllerActionRow() {
   const provider = getControllerProvider()
   const status = useSyncExternalStore(
     (onChange) => provider.subscribe(onChange),
@@ -111,7 +105,7 @@ export function ControllerActionRow({
 
   return (
     <div data-testid="controller-action-row" className="border-b border-seam px-3 py-2">
-      <div className="flex items-center gap-1">
+      <div className="flex min-w-0 items-center gap-1">
         <button
           type="button"
           disabled={!view.run.enabled}
@@ -132,22 +126,13 @@ export function ControllerActionRow({
           {glyph('save')}
           Save
         </button>
-        <a
-          href={profileHref}
-          onClick={(event) => {
-            if (event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) return
-            event.preventDefault()
-            onProfile()
-          }}
-          className="ml-auto inline-flex h-7 items-center gap-0.5 px-1 text-[11px] text-zinc-400 transition-colors hover:text-zinc-100 focus:outline-none focus:text-zinc-100"
+        <span
+          className="ml-1.5 min-w-0 truncate text-[10px] text-zinc-500"
+          title={view.subject ?? undefined}
         >
-          Profile
-          <ChevronRight {...inlineIcon} aria-hidden className="text-zinc-600" />
-        </a>
+          {view.subject ?? '—'}
+        </span>
       </div>
-      <p className="mt-1 truncate text-[10px] leading-4 text-zinc-500" title={view.caption}>
-        {view.caption}
-      </p>
     </div>
   )
 }

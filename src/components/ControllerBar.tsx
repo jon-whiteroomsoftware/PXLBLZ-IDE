@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState, type ReactNode } from 'react'
-import { CircleArrowUp, Pause, Play, RotateCw } from 'lucide-react'
+import { CircleArrowUp, Cpu, Pause, Play, RotateCw } from 'lucide-react'
 import { controlIcon, iconProps, transportIcon } from '@/components/iconScale'
 import {
   useControllerStore,
@@ -68,6 +68,8 @@ function ControllerPillButton({
   onManagedRefresh,
   onActivate,
   onRemove,
+  profileHref,
+  onProfile,
   rendererState,
   rendererFps,
   rendererBlockedByPush,
@@ -85,6 +87,8 @@ function ControllerPillButton({
   onManagedRefresh: () => void
   onActivate: () => void
   onRemove: () => void
+  profileHref: string
+  onProfile: () => void
   rendererState?: ControllerRendererState
   rendererFps: number | null
   rendererBlockedByPush: boolean
@@ -234,6 +238,19 @@ function ControllerPillButton({
               >
                 <DisconnectGlyph />
               </button>
+              <a
+                href={profileHref}
+                onClick={(event) => {
+                  if (event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) return
+                  event.preventDefault()
+                  onProfile()
+                }}
+                aria-label={`Open ${label} profile`}
+                title={`Open ${label} profile`}
+                className="inline-flex h-6 w-6 shrink-0 items-center justify-center rounded border border-zinc-700 text-zinc-400 hover:border-zinc-500 hover:text-zinc-200 focus:outline-none"
+              >
+                <Cpu {...controlIcon} aria-hidden />
+              </a>
               <button
                 type="button"
                 onClick={() => onRendererPaused(rendererTargetPaused)}
@@ -475,23 +492,6 @@ export function ControllerBar({ reloadPage = () => window.location.reload() }: {
     openControllerProfile(created.id)
   }
 
-  const actionRowFor = (ip: string) => {
-    const entry = controllers[ip]
-    const profile = entry
-      ? findControllerProfileForDevice(controllerProfiles, entry.deviceId)
-      : null
-    const profileRoute = {
-      kind: 'studio' as const,
-      entity: { kind: 'controllers' as const, id: profile?.id ?? null },
-    }
-    return (
-      <ControllerActionRow
-        profileHref={routePath(profileRoute, import.meta.env.BASE_URL)}
-        onProfile={() => void openProfileForController(ip)}
-      />
-    )
-  }
-
   const openDropdown = useCallback(() => {
     // Re-probe presence each time the affordance opens, so installing the
     // extension mid-session flips the dropdown from pitch to IP form.
@@ -531,6 +531,10 @@ export function ControllerBar({ reloadPage = () => window.location.reload() }: {
           controllerProfiles,
           controllers[ip].deviceId,
         )
+        const profileRoute = {
+          kind: 'studio' as const,
+          entity: { kind: 'controllers' as const, id: controllerProfile?.id ?? null },
+        }
         return (
           <ControllerPillButton
             key={ip}
@@ -547,11 +551,13 @@ export function ControllerBar({ reloadPage = () => window.location.reload() }: {
             onActivate={() => onPillClick(ip)}
             onManagedRefresh={() => void openProfileForController(ip)}
             onRemove={() => onPillRemove(ip)}
+            profileHref={routePath(profileRoute, import.meta.env.BASE_URL)}
+            onProfile={() => void openProfileForController(ip)}
             rendererState={rendererStates[ip]}
             rendererFps={panelOpenIp === ip && controllerFpsSourceIp === ip ? controllerFps : null}
             rendererBlockedByPush={pushing && activeIp === ip}
             onRendererPaused={(paused) => void setRendererPaused(ip, paused)}
-            actionRow={actionRowFor(ip)}
+            actionRow={<ControllerActionRow />}
           />
         )
       })}

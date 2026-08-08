@@ -385,14 +385,15 @@ IP; Chrome asks once per LAN host. Several Controllers may stay connected with
 one active at a time, and a compact traffic-light pill tracks connection
 state.
 
-Clicking the active pill opens the live panel: Run/Save/Profile actions, the
-active Pattern and native brightness, pixel count with map mismatches
-flagged, the installed map identity, the running Pattern's controls and watched
-variables, and power
-telemetry when the generated Pattern exposes it. Brightness and live control
-writes are volatile; pixel count is a deliberate saved hardware write with an
-explicit apply. PXLBLZ never installs firmware — when an update is available
-it points to the Controller's own **Settings → Updates**.
+Clicking the active pill opens the live panel. Its header holds Disconnect,
+Controller Profile, and Play/Pause icon actions. The compact Run/Save row names
+the open Studio Pattern, or shows a dash when no Pattern is active. Below it are
+native brightness, installed map identity, FPS, IP, pixel count with map
+mismatches flagged, the running Pattern's controls and watched variables, and
+power telemetry when the generated Pattern exposes it. Brightness and live
+control writes are volatile; pixel count is a deliberate saved hardware write
+with an explicit apply. PXLBLZ never installs firmware — when an update is
+available it points to the Controller's own **Settings → Updates**.
 
 The map value is shared with the Controller Profile and appears as map name
 followed by one installed-map dimension pill. The Controller Profile, which has

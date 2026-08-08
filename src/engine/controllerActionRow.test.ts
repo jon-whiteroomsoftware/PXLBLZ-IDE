@@ -21,7 +21,7 @@ describe('describeControllerActionRow', () => {
       saveAlreadyPushed: false,
       working: false,
     })).toEqual({
-      caption: 'Acts on the open pattern — Aurora Drift',
+      subject: 'Aurora Drift',
       run: { enabled: true },
       save: { enabled: true },
     })
@@ -42,7 +42,7 @@ describe('describeControllerActionRow', () => {
       working: false,
     })
 
-    expect(view.caption).toBe('Open a pattern to push it to this Controller.')
+    expect(view.subject).toBeNull()
     expect(view.run).toEqual({
       enabled: false,
       reason: 'Open a pattern to push it to this Controller',
@@ -65,7 +65,7 @@ describe('describeControllerActionRow', () => {
     expect(view.save).toEqual({ enabled: true })
   })
 
-  it('puts a compile failure in the caption and both action gates', () => {
+  it('keeps the pattern subject visible while a compile failure gates both actions', () => {
     const view = describeControllerActionRow({
       route: studioPattern,
       patternName: 'Broken Glass',
@@ -76,7 +76,7 @@ describe('describeControllerActionRow', () => {
       working: false,
     })
 
-    expect(view.caption).toBe("Fix the pattern's errors before sending.")
+    expect(view.subject).toBe('Broken Glass')
     expect(view.run).toEqual({
       enabled: false,
       reason: "Fix the pattern's errors before sending",
@@ -95,7 +95,7 @@ describe('describeControllerActionRow', () => {
       working: true,
     })
 
-    expect(view.caption).toBe('Sending Aurora Drift…')
+    expect(view.subject).toBe('Aurora Drift')
     expect(view.run).toEqual({ enabled: false, reason: 'Sending…' })
     expect(view.save).toEqual(view.run)
   })

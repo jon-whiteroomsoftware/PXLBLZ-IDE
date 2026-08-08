@@ -246,15 +246,15 @@ export function ControllerPanel() {
             section holds three different kinds of thing, and the old single 2-column
             grid treated them all as short label/value one-liners:
 
-              1. an *identity* — the installed map's name, a free-form user string of
+              1. the section's primary *control* — brightness. Full width takes its travel
+                 from ~90px to ~250px, which is the granularity the shared DeckSlider was
+                 introduced to give every slider.
+              2. an *identity* — the installed map's name, a free-form user string of
                  unbounded length. In a ~147px half-column its unshrinkable siblings (the
                  dimension pill, the spelled-out point count) left the name 0px at every
                  name length, so the name never rendered — the whole point of showing an
                  installed map. Full width gives it ~250px (~31 chars), and the point
                  count now shows only when it disagrees with the pixel count below.
-              2. the section's primary *control* — brightness. Full width takes its travel
-                 from ~90px to ~250px, which is the granularity the shared DeckSlider was
-                 introduced to give every slider.
               3. short read-only *scalars* — fps, IP, pixel count. A half-column always
                  fit these, and they keep it.
 
@@ -262,6 +262,18 @@ export function ControllerPanel() {
             on their own — retiring the hand-tuned `h-10` stretch the old layout needed to
             fake it. */}
         <div className="flex flex-col gap-y-2">
+          <DeckSlider
+            label="brightness"
+            ariaLabel="Controller brightness"
+            value={brightness}
+            min={0}
+            max={1}
+            step={0.01}
+            presentation="percentage"
+            curve={2}
+            onChange={setBrightness}
+          />
+
           <DeckCell label="map" labelClassName="shrink-0">
             <span
               className="min-w-0 text-live"
@@ -279,22 +291,6 @@ export function ControllerPanel() {
               />
             </span>
           </DeckCell>
-
-          <div className="h-px bg-seam" />
-
-          <DeckSlider
-            label="brightness"
-            ariaLabel="Controller brightness"
-            value={brightness}
-            min={0}
-            max={1}
-            step={0.01}
-            presentation="percentage"
-            curve={2}
-            onChange={setBrightness}
-          />
-
-          <div className="h-px bg-seam" />
 
           <div className="flex gap-x-4 items-start">
             <div className="flex-1 min-w-0 flex flex-col gap-y-2">

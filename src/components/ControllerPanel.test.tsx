@@ -109,6 +109,18 @@ describe('ControllerPanel', () => {
     expect(screen.queryByLabelText('Live duty cap')).not.toBeInTheDocument()
   })
 
+  it('orders the compact Pixelblaze controls as brightness, map, then fps', async () => {
+    setControllerProvider(new ConnectedProvider())
+    render(<ControllerPanel />)
+
+    const brightness = screen.getByLabelText('Controller brightness')
+    const map = screen.getByTestId('controller-installed-map')
+    const fps = await screen.findByText('fps')
+
+    expect(brightness.compareDocumentPosition(map) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
+    expect(map.compareDocumentPosition(fps) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
+  })
+
   it('shows where to install available firmware in the Controller web UI', () => {
     setControllerProvider(new ConnectedProvider())
     useControllerStore.setState({

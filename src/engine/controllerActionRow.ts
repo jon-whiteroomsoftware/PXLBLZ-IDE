@@ -13,7 +13,7 @@ export interface ControllerActionRowInput {
 }
 
 export interface ControllerActionRowView {
-  caption: string
+  subject: string | null
   run: SendGate
   save: SendGate
 }
@@ -45,24 +45,19 @@ export function describeControllerActionRow({
 }: ControllerActionRowInput): ControllerActionRowView {
   if (!isStudioPatternRoute(route) || !patternName) {
     const gate = disabled(OPEN_PATTERN_REASON)
-    return { caption: `${OPEN_PATTERN_REASON}.`, run: gate, save: gate }
+    return { subject: null, run: gate, save: gate }
   }
 
   if (working) {
     const gate = disabled('Sending…')
-    return { caption: `Sending ${patternName}…`, run: gate, save: gate }
+    return { subject: patternName, run: gate, save: gate }
   }
 
   const run = describeSendToController({ status, compileStatus, alreadyPushed: runAlreadyPushed })
   const save = describeSendToController({ status, compileStatus, alreadyPushed: saveAlreadyPushed })
-  const sharedReason = !run.enabled && !save.enabled && run.reason === save.reason
-    ? run.reason
-    : undefined
 
   return {
-    caption: sharedReason && sharedReason !== 'No changes since the last send'
-      ? `${sharedReason}.`
-      : `Acts on the open pattern — ${patternName}`,
+    subject: patternName,
     run,
     save,
   }

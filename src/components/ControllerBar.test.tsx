@@ -680,12 +680,12 @@ describe('ControllerBar', () => {
     expect(screen.queryByTestId('controller-panel-popover')).not.toBeInTheDocument()
   })
 
-  it('keeps Profile navigation available when signed out and retires the join-row copy', () => {
+  it('keeps profile navigation in the panel header when signed out and retires the join-row copy', () => {
     seedLiveController()
     render(<ControllerBar />)
     fireEvent.click(screen.getByRole('button', { name: 'Toggle Desk panel' }))
 
-    expect(screen.getByRole('link', { name: 'Profile' })).toBeInTheDocument()
+    expect(screen.getByRole('link', { name: 'Open Desk profile' })).toBeInTheDocument()
     expect(screen.queryByText('Controller profile')).not.toBeInTheDocument()
     expect(screen.queryByText('Create profile for this device')).not.toBeInTheDocument()
   })
@@ -721,8 +721,17 @@ describe('ControllerBar', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Toggle Desk panel' }))
 
     const actionRow = screen.getByTestId('controller-action-row')
-    expect(actionRow).toHaveTextContent('Acts on the open pattern — Aurora Drift')
-    expect(screen.getByRole('link', { name: 'Profile' })).toBeInTheDocument()
+    expect(actionRow).toHaveTextContent('Aurora Drift')
+    expect(actionRow).not.toHaveTextContent('Acts on the open pattern')
+    const disconnect = screen.getByRole('button', { name: 'Disconnect Desk' })
+    const profileLink = screen.getByRole('link', { name: 'Open Desk profile' })
+    const transport = screen.getByTestId('controller-renderer-transport')
+    expect(
+      disconnect.compareDocumentPosition(profileLink) & Node.DOCUMENT_POSITION_FOLLOWING,
+    ).toBeTruthy()
+    expect(
+      profileLink.compareDocumentPosition(transport) & Node.DOCUMENT_POSITION_FOLLOWING,
+    ).toBeTruthy()
     expect(
       actionRow.compareDocumentPosition(screen.getByTestId('controller-panel'))
         & Node.DOCUMENT_POSITION_FOLLOWING,
@@ -735,7 +744,7 @@ describe('ControllerBar', () => {
     expect(requestPush).toHaveBeenCalledTimes(2)
   })
 
-  it('dims Run and Save outside the Studio pattern surface and explains why', () => {
+  it('dims Run and Save outside the Studio pattern surface and keeps the reason in tooltips', () => {
     setControllerProvider(new ConnectedProvider())
     seedLiveController()
     useRouterStore.setState({ route: { kind: 'gallery' } })
@@ -758,10 +767,9 @@ describe('ControllerBar', () => {
 
     expect(screen.getByRole('button', { name: 'Run' })).toBeDisabled()
     expect(screen.getByRole('button', { name: 'Save' })).toBeDisabled()
-    expect(screen.getByTestId('controller-action-row')).toHaveTextContent(
-      'Open a pattern to push it to this Controller.',
-    )
-    expect(screen.getByRole('link', { name: 'Profile' })).toBeEnabled()
+    expect(screen.getByTestId('controller-action-row')).toHaveTextContent('—')
+    expect(screen.queryByText('Open a pattern to push it to this Controller.')).not.toBeInTheDocument()
+    expect(screen.getByRole('link', { name: 'Open Desk profile' })).toBeEnabled()
   })
 
   it('links to the newest matching controller profile by device id when signed in', () => {
@@ -773,7 +781,7 @@ describe('ControllerBar', () => {
     render(<ControllerBar />)
     fireEvent.click(screen.getByRole('button', { name: 'Toggle Desk panel' }))
 
-    fireEvent.click(screen.getByRole('link', { name: 'Profile' }))
+    fireEvent.click(screen.getByRole('link', { name: 'Open Desk profile' }))
 
     expect(window.location.pathname).toBe('/studio/controllers/new')
   })
@@ -793,7 +801,7 @@ describe('ControllerBar', () => {
     })
 
     fireEvent.click(screen.getByRole('button', { name: 'Toggle Desk panel' }))
-    fireEvent.click(screen.getByRole('link', { name: 'Profile' }))
+    fireEvent.click(screen.getByRole('link', { name: 'Open Desk profile' }))
     expect(window.location.pathname).toBe(`/studio/controllers/${created.id}`)
   })
 
@@ -803,7 +811,7 @@ describe('ControllerBar', () => {
     render(<ControllerBar />)
     fireEvent.click(screen.getByRole('button', { name: 'Toggle Desk panel' }))
 
-    fireEvent.click(screen.getByRole('link', { name: 'Profile' }))
+    fireEvent.click(screen.getByRole('link', { name: 'Open Desk profile' }))
 
     await waitFor(() => expect(useControllerProfileStore.getState().profiles).toHaveLength(1))
     expect(useControllerProfileStore.getState().profiles[0]).toMatchObject({
