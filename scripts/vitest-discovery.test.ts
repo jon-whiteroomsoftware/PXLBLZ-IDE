@@ -6,14 +6,17 @@ import { describe, expect, it } from 'vitest'
 import { assertVitestProjectIdentity } from './vitest-project-identity.js'
 
 describe('Vitest project identity', () => {
-  it('rejects a browser-oriented name when Browser Mode is disabled', () => {
-    expect(() => assertVitestProjectIdentity([{
-      test: {
-        name: 'browser',
-        environment: 'jsdom',
-      },
-    }])).toThrow(/browser.*Browser Mode/i)
-  })
+  it.each(['browser', 'browsers', 'chromium-ui'])(
+    'rejects browser-oriented name %s when Browser Mode is disabled',
+    (name) => {
+      expect(() => assertVitestProjectIdentity([{
+        test: {
+          name,
+          environment: 'jsdom',
+        },
+      }])).toThrow(/browser.*Browser Mode/i)
+    },
+  )
 
   it('accepts jsdom identity and a later real Chromium project', () => {
     expect(() => assertVitestProjectIdentity([

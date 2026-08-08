@@ -8,7 +8,7 @@ export interface VitestProjectIdentity {
   }
 }
 
-const REAL_BROWSER_NAME = /(?:^|[-_ ])(?:browser|chromium|firefox|webkit|playwright)(?:$|[-_ ])/i
+const REAL_BROWSER_NAME = /browser|chromium|firefox|webkit|playwright/i
 
 /**
  * Keeps project labels honest: browser-oriented names are evidence claims and
