@@ -362,11 +362,11 @@ describe('ControllerPanel', () => {
     expect(screen.getByText('84%')).toBeInTheDocument()
     expect(screen.getByText('yes')).toBeInTheDocument()
     expect(screen.getByText('≈ 4.0 A')).toBeInTheDocument()
-    expect(screen.getByText('at 60 mA/px × 256 px × 40% brightness')).toBeInTheDocument()
+    expect(screen.getByText('60 mA/px · 256 px · 40%')).toBeInTheDocument()
 
     act(() => useControllerPanelStore.getState().setBrightness(0.3))
     expect(screen.getByText('≈ 3.0 A')).toBeInTheDocument()
-    expect(screen.getByText('at 60 mA/px × 256 px × 30% brightness')).toBeInTheDocument()
+    expect(screen.getByText('60 mA/px · 256 px · 30%')).toBeInTheDocument()
     expect(screen.getByText('phase')).toBeInTheDocument()
     expect(screen.queryByText('__px_powerDutyRecent')).not.toBeInTheDocument()
 

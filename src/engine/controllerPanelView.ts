@@ -11,8 +11,10 @@ import {
 } from './powerCap'
 import { POWER_LIMIT_VARIABLE_NAME } from './powerTelemetry'
 import {
+  findLedConstructionPreset,
   resolveControllerElectricalProfile,
   type ControllerElectricalProfile,
+  type ResolvedControllerElectricalProfile,
 } from './controllerElectricalProfile'
 
 export interface ControllerPanelTelemetry {
@@ -191,6 +193,45 @@ export interface ControllerPowerTelemetryContext {
   electricalProfile?: ControllerElectricalProfile
 }
 
+const COMPACT_PRESET_LABELS = {
+  'ws2812-5v-individual': 'RGB',
+  'ws2811-12v-grouped': '3-LED segments',
+  'ws2815-12v-individual': 'RGB + backup',
+} as const
+
+function formatControllerPowerAssumptions(
+  context: ControllerPowerTelemetryContext,
+  resolution: ResolvedControllerElectricalProfile,
+): string {
+  const profile = context.electricalProfile
+  const preset = profile ? findLedConstructionPreset(profile.ledPresetId) : null
+  if (profile && preset && !profile.loadOverride) {
+    const countUnit = preset.physicalLedsPerAddress === 1 ? 'px' : 'addr'
+    const load = preset.assumption
+      .replace(' mA per address at ', ` mA/${countUnit} @ `)
+    return [
+      COMPACT_PRESET_LABELS[preset.id],
+      load,
+      `${context.pixelCount} ${countUnit}`,
+      formatPercent(context.brightness),
+    ].join(' · ')
+  }
+
+  return [
+    ...resolution.assumptions.map(assumption => assumption
+      .replace('Manufacturer-rated full-white installation total', 'Mfr-rated full-white total')
+      .replace('Measured full-white installation total', 'Measured full-white total')
+      .replace('Custom full-white installation total', 'Custom full-white total')
+      .replace('custom construction requires a full-white installation total', 'Custom needs full-white total')
+      .replace(
+        /override recorded at (\d+) addresses; controller now reports (\d+)/,
+        'override: $1 addr → $2',
+      )),
+    `${context.pixelCount} addr`,
+    formatPercent(context.brightness),
+  ].join(' · ')
+}
+
 export const CONTROLLER_POWER_TELEMETRY_KEYS = {
   dutyRecent: '__px_powerDutyRecent',
   dutySinceStart: '__px_powerDutySinceStart',
@@ -341,13 +382,9 @@ export function describeControllerPowerTelemetry(
           ? formatEstimatedAmps(milliamps / 1000)
           : PLACEHOLDER,
     ...(context && electricalResolution ? {
-      estimatedDrawAssumptions: [
-        ...electricalResolution.assumptions.map(assumption => assumption.replace(': ', ' · ')),
-        `${context.pixelCount} addresses`,
-        `${formatPercent(context.brightness)} brightness`,
-      ].join(' · '),
+      estimatedDrawAssumptions: formatControllerPowerAssumptions(context, electricalResolution),
     } : context && milliampsPerPixel != null ? {
-      estimatedDrawAssumptions: `at ${formatVarValue(milliampsPerPixel)} mA/px × ${context.pixelCount} px × ${formatPercent(context.brightness)} brightness`,
+      estimatedDrawAssumptions: `${formatVarValue(milliampsPerPixel)} mA/px · ${context.pixelCount} px · ${formatPercent(context.brightness)}`,
     } : {}),
   }
 }

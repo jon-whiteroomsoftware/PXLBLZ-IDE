@@ -267,7 +267,24 @@ describe('describeControllerPowerTelemetry', () => {
       scaleLabel: '84%',
       clippingLabel: 'yes',
       estimatedDrawLabel: '≈ 2.8 A',
-      estimatedDrawAssumptions: 'at 60 mA/px × 240 px × 30% brightness',
+      estimatedDrawAssumptions: '60 mA/px · 240 px · 30%',
+    })
+  })
+
+  it('compresses an individual RGB power profile into terse live telemetry', () => {
+    expect(describeControllerPowerTelemetry({
+      __px_powerDutyRecent: 0.5,
+      __px_powerScale: 1,
+    }, {
+      pixelCount: 256,
+      brightness: 0.06,
+      settings: { mode: 'direct', maxDuty: 1 },
+      electricalProfile: {
+        ledPresetId: 'ws2812-5v-individual',
+        supplyBudget: { value: 8, unit: 'amps' },
+      },
+    })).toMatchObject({
+      estimatedDrawAssumptions: 'RGB · 60 mA/px @ 5V full white · 256 px · 6%',
     })
   })
 
@@ -288,7 +305,7 @@ describe('describeControllerPowerTelemetry', () => {
       },
     })).toMatchObject({
       estimatedDrawLabel: '≈ 1.2 A · 14.4 W',
-      estimatedDrawAssumptions: '12V 3-LED segments · 60 mA per address at 12V full white · 100 addresses · 50% brightness',
+      estimatedDrawAssumptions: '3-LED segments · 60 mA/addr @ 12V full white · 100 addr · 50%',
     })
   })
 
@@ -311,7 +328,7 @@ describe('describeControllerPowerTelemetry', () => {
       },
     })).toMatchObject({
       estimatedDrawLabel: '≈ 2.0 A',
-      estimatedDrawAssumptions: 'Measured full-white installation total · 50 addresses · 50% brightness',
+      estimatedDrawAssumptions: 'Measured full-white total · 50 addr · 50%',
     })
   })
 
@@ -334,7 +351,7 @@ describe('describeControllerPowerTelemetry', () => {
       },
     })).toMatchObject({
       estimatedDrawLabel: '—',
-      estimatedDrawAssumptions: expect.stringContaining('override recorded at 300 addresses'),
+      estimatedDrawAssumptions: expect.stringContaining('override: 300 addr → 301'),
     })
   })
 })
