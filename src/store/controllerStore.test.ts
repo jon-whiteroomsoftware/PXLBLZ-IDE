@@ -1120,6 +1120,10 @@ describe('controllerStore (keyed)', () => {
 
   describe('pushActivePattern (#202)', () => {
     const PATTERN_SRC = 'export function render(index) {\n  hsv(index, 1, 1)\n}\n'
+    const GENERATED_ARTIFACT_PRESSURE = {
+      budgetBytes: 1_000_000,
+      worstInstantRenderersPerPixel: 1,
+    }
 
     it('compiles + pushes the active pattern and records a created binding', async () => {
       await store().addController('10.0.0.5')
@@ -1250,6 +1254,7 @@ describe('controllerStore (keyed)', () => {
         artifactId: 'show:show-1',
         source,
         name: 'Opening Night',
+        compilePressure: GENERATED_ARTIFACT_PRESSURE,
         artifactStamp: {
           kind: 'show' as const,
           id: 'show-1',
@@ -1318,6 +1323,7 @@ describe('controllerStore (keyed)', () => {
         source,
         name: 'Opening Night',
         persist: true,
+        compilePressure: GENERATED_ARTIFACT_PRESSURE,
         artifactStamp: {
           kind: 'show',
           id: 'show-1',
@@ -1329,6 +1335,7 @@ describe('controllerStore (keyed)', () => {
 
       const controller = store().controllers['10.0.0.5']
       expect(created.get('10.0.0.5')!.compiledSources[0]).toContain('__px_cappedHsv')
+      expect(store().lastSavedSource['10.0.0.5']['show:show-1']).toBe(source)
       expect((await getPushRecords())['10.0.0.5']['show:show-1']).toMatchObject({
         transforms: ['show', 'power-cap'],
         profileSignature: controllerProfileArtifactSignature(
@@ -1336,6 +1343,56 @@ describe('controllerStore (keyed)', () => {
           'show:show-1',
           { mapDim: controller.mapDim ?? null },
         ),
+      })
+      expect(store().lastSavedProfileSignature['10.0.0.5']['show:show-1']).toBe(
+        controllerProfileArtifactSignature(
+          profile,
+          'show:show-1',
+          { mapDim: controller.mapDim ?? null },
+        ),
+      )
+    })
+
+    it('blocks a generated Show when profile transforms push delivered source over budget (#777)', async () => {
+      await store().addController({
+        id: 'pixelblaze_pb32_show',
+        address: '10.0.0.5',
+        name: 'Show Controller',
+      })
+      const profile = {
+        ...defaultControllerProfile({
+          id: 'show-profile',
+          deviceId: 'pixelblaze_pb32_show',
+          now: 1,
+        }),
+        globalTransforms: defaultControllerProfile().globalTransforms.map((transform) => (
+          transform.type === 'power-cap' ? { ...transform, enabled: true } : transform
+        )),
+      }
+      setControllerProfiles([profile])
+      const source = stampArtifact(PATTERN_SRC, {
+        kind: 'show',
+        id: 'show-1',
+        name: 'Opening Night',
+        transforms: ['show'],
+      })
+
+      await store().pushGeneratedArtifact({
+        artifactId: 'show:show-1',
+        source,
+        name: 'Opening Night',
+        persist: false,
+        compilePressure: {
+          budgetBytes: source.length + 1,
+          worstInstantRenderersPerPixel: 1,
+        },
+        artifactStamp: { kind: 'show', id: 'show-1', name: 'Opening Night', transforms: ['show'] },
+      })
+
+      expect(created.get('10.0.0.5')!.compiledSources).toEqual([])
+      expect(store().pushResult).toMatchObject({
+        ok: false,
+        message: expect.stringContaining('source-size proxy'),
       })
     })
 
@@ -1348,6 +1405,7 @@ describe('controllerStore (keyed)', () => {
         source: PATTERN_SRC,
         name: 'Opening Night',
         persist: false,
+        compilePressure: GENERATED_ARTIFACT_PRESSURE,
         artifactStamp: { kind: 'show', id: 'show-1', name: 'Opening Night' },
       })
 
@@ -1364,6 +1422,7 @@ describe('controllerStore (keyed)', () => {
         source: PATTERN_SRC,
         name: 'Opening Night',
         persist: false,
+        compilePressure: GENERATED_ARTIFACT_PRESSURE,
         artifactStamp: { kind: 'show', id: 'show-1', name: 'Opening Night' },
       })
 

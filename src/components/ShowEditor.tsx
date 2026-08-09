@@ -49,6 +49,7 @@ import { PushConfirmPopover } from '@/components/PushConfirmPopover'
 import { describeSendToController, isAlreadyPushed, type SendMode } from '@/engine/sendToController'
 import { useControllerPanelStore } from '@/store/controllerPanelStore'
 import { prepareShowControllerArtifact } from '@/engine/showControllerArtifact'
+import { controllerProfileArtifactSignature } from '@/engine/controllerProfilePassRecipe'
 import { assessShowCompilePressure } from '@/engine/showCompilePressure'
 import type { ArtifactMapClass } from '@/engine/artifactStamp'
 import { trackEvent } from '@/analytics'
@@ -947,6 +948,8 @@ export function ShowEditor({
   const lastPushedSource = useControllerStore((state) => state.lastPushedSource)
   const lastRunProgramId = useControllerStore((state) => state.lastRunProgramId)
   const lastSavedSource = useControllerStore((state) => state.lastSavedSource)
+  const lastPushedProfileSignature = useControllerStore((state) => state.lastPushedProfileSignature)
+  const lastSavedProfileSignature = useControllerStore((state) => state.lastSavedProfileSignature)
   const activeProgramId = useControllerPanelStore((state) => state.activeProgramId)
   const pushGeneratedArtifact = useControllerStore((state) => state.pushGeneratedArtifact)
   const clearPushResult = useControllerStore((state) => state.clearPushResult)
@@ -1783,11 +1786,23 @@ export function ShowEditor({
     ? pendingDeliveryRef.current
     : null
   const preparedSource = preparedControllerArtifact.value?.source ?? ''
+  const preparedProfileSignature = controllerProfileArtifactSignature(
+    activeControllerProfile,
+    showArtifactId,
+    { mapDim: activeControllerMapDim },
+  )
   const alreadySent = (mode: SendMode) => isAlreadyPushed({
     mode,
     source: preparedSource,
     lastRunSource: activeIp ? lastPushedSource[activeIp]?.[showArtifactId] : undefined,
     lastSavedSource: activeIp ? lastSavedSource[activeIp]?.[showArtifactId] : undefined,
+    profileSignature: preparedProfileSignature,
+    lastRunProfileSignature: activeIp
+      ? lastPushedProfileSignature[activeIp]?.[showArtifactId]
+      : undefined,
+    lastSavedProfileSignature: activeIp
+      ? lastSavedProfileSignature[activeIp]?.[showArtifactId]
+      : undefined,
     lastRunProgramId: activeIp ? lastRunProgramId[activeIp]?.[showArtifactId] : undefined,
     activeProgramId,
   })
@@ -1835,6 +1850,10 @@ export function ShowEditor({
         source: prepared.source,
         name: delivery.show.name,
         persist: mode === 'save',
+        compilePressure: {
+          budgetBytes: delivery.artifact.summary.measuredDeviceBudgetBytes,
+          worstInstantRenderersPerPixel: delivery.artifact.summary.worstInstantRenderersPerPixel,
+        },
         artifactStamp: prepared.artifactStamp,
         previewImage,
       })

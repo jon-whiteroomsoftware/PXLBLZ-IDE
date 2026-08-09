@@ -75,7 +75,10 @@ import { useShowStore } from '@/store/showStore'
 import { compileShowForArtifact } from '@/engine/showPreviewArtifact'
 import { buildShowEpeExport } from '@/engine/showEpeExport'
 import { prepareShowControllerArtifact } from '@/engine/showControllerArtifact'
-import { assessShowCompilePressure } from '@/engine/showCompilePressure'
+import {
+  assessShowCompilePressure,
+  type ShowCompilePressureInput,
+} from '@/engine/showCompilePressure'
 import { deliveredShowSourceBytes } from '@/engine/showSourceInventory'
 
 function artifactTransformIds(passes: Array<Pick<PassSummary, 'id' | 'kind'>>): string[] {
@@ -352,6 +355,7 @@ export interface GeneratedArtifactPush {
   source: string
   name: string
   persist: boolean
+  compilePressure: Omit<ShowCompilePressureInput, 'deliveredSourceBytes'>
   artifactStamp: ArtifactStampMeta
   previewImage?: Uint8Array
 }
@@ -1272,6 +1276,13 @@ export const useControllerStore = create<ControllerConnectionState>()(
             )
             if (adapterCollision) throw new Error(adapterCollision.message)
             const source = bundled?.code ?? artifact.source
+            const pressure = assessShowCompilePressure({
+              deliveredSourceBytes: deliveredShowSourceBytes(source),
+              ...artifact.compilePressure,
+            })
+            if (pressure.status === 'blocked') {
+              throw new Error(pressure.blocks.join(' '))
+            }
             const transforms = bundled ? artifactTransformIds(bundled.summary.passes) : []
             const artifactStamp = {
               ...artifact.artifactStamp,
@@ -1316,6 +1327,9 @@ export const useControllerStore = create<ControllerConnectionState>()(
             if (artifact.persist) void useControllerPanelStore.getState().refreshPrograms()
 
             const recordKey = artifact.persist ? 'lastSavedSource' : 'lastPushedSource'
+            const profileRecordKey = artifact.persist
+              ? 'lastSavedProfileSignature'
+              : 'lastPushedProfileSignature'
             set((state) => ({
               pushing: false,
               pushResult: { ok: true, created },
@@ -1323,7 +1337,14 @@ export const useControllerStore = create<ControllerConnectionState>()(
                 ...state[recordKey],
                 [controllerId]: {
                   ...state[recordKey][controllerId],
-                  [artifact.artifactId]: source,
+                  [artifact.artifactId]: artifact.source,
+                },
+              },
+              [profileRecordKey]: {
+                ...state[profileRecordKey],
+                [controllerId]: {
+                  ...state[profileRecordKey][controllerId],
+                  [artifact.artifactId]: profileSignature,
                 },
               },
               ...(!artifact.persist
