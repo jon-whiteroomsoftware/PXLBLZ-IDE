@@ -21,6 +21,20 @@ beforeEach(() => {
 })
 
 describe('MixinProvenancePane', () => {
+  it('uses quiet copy for unused bindings and an absent transform artifact', () => {
+    useEditorStore.setState({ source: MIXIN.src })
+    useMixinStore.setState({ editingMixin: { kind: 'existing', id: MIXIN.id }, userMixins: [MIXIN] })
+
+    render(<MixinProvenancePane />)
+
+    for (const copy of [
+      screen.getByText('No Controller or Show bindings use this mixin yet.'),
+      screen.getByText('No generated artifact has been recorded for this mixin yet.'),
+    ]) {
+      expect(copy).not.toHaveClass('border', 'border-dashed', 'bg-zinc-950/25')
+    }
+  })
+
   it('shows the last generated transform summary for the active controller and pattern', () => {
     useEditorStore.setState({ source: MIXIN.src })
     useMixinStore.setState({ editingMixin: { kind: 'existing', id: MIXIN.id }, userMixins: [MIXIN] })

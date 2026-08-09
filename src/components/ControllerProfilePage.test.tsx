@@ -975,7 +975,9 @@ describe('ControllerProfilePage', () => {
 
     render(<ControllerSavedProgramsPane profile={profile} />)
 
-    expect(screen.getByText(/connect this controller to inspect its saved Patterns/i)).toBeInTheDocument()
+    const empty = screen.getByText(/nothing to show while offline/i)
+    expect(empty).not.toHaveClass('border', 'border-dashed', 'bg-zinc-950/30')
+    expect(screen.getByRole('button', { name: 'Connect this Controller' })).toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'Refresh saved Patterns' })).toBeDisabled()
     expect(screen.queryByRole('heading', { name: /Other Patterns/ })).not.toBeInTheDocument()
   })
@@ -1153,16 +1155,25 @@ describe('ControllerProfilePage', () => {
     expect(within(savedInventory).getByRole('columnheader', { name: 'Status' })).toBeInTheDocument()
     expect(within(savedInventory).getByRole('columnheader', { name: 'Output' })).toBeInTheDocument()
     expect(screen.getByTitle('Map fingerprint 11111111')).toBeInTheDocument()
-    expect(screen.getByText('OK')).toBeInTheDocument()
+    expect(screen.getByText('CURRENT')).toBeInTheDocument()
     expect(screen.getByText('STALE')).toBeInTheDocument()
     expect(screen.getAllByText('UNKNOWN')).toHaveLength(2)
-    for (const badge of screen.getAllByText(/^(OK|STALE|UNKNOWN)$/)) {
-      expect(badge).toHaveClass('w-[4.75rem]')
+    for (const badge of screen.getAllByText(/^(CURRENT|STALE|UNKNOWN)$/)) {
+      expect(badge).not.toHaveClass('w-[4.75rem]', 'border', 'bg-zinc-900/70')
+      expect(badge).toHaveClass('font-mono', 'uppercase')
     }
     expect(provider.listCalls).toBe(0)
 
     expect(savedInventory).toHaveClass('table-fixed')
     expect(otherInventory).toHaveClass('table-fixed')
+    expect(savedInventory.parentElement).not.toHaveClass('border', 'bg-zinc-950/25')
+    expect(otherInventory.parentElement).not.toHaveClass('border', 'bg-zinc-950/25')
+    expect(within(savedInventory).getByRole('columnheader', { name: 'Pattern' })).toHaveClass(
+      'border-b',
+      'text-[9px]',
+      'tracking-[0.16em]',
+    )
+    expect(within(savedInventory).getByRole('button', { name: 'Twinkle' })).toHaveClass('font-sans')
     const columnClasses = (table: HTMLElement) => (
       Array.from(table.querySelectorAll('col')).map((column) => column.className)
     )
@@ -1173,12 +1184,8 @@ describe('ControllerProfilePage', () => {
     headerWidths(savedInventory).forEach((width, index) => {
       expect(Math.abs(width - headerWidths(otherInventory)[index])).toBeLessThan(1)
     })
-    for (const badge of screen.getAllByText(/^(OK|STALE|UNKNOWN)$/)) {
-      expect(badge).toHaveClass('max-w-full')
-      const badgeBounds = badge.getBoundingClientRect()
-      const cellBounds = badge.closest('td')!.getBoundingClientRect()
-      expect(badgeBounds.left).toBeGreaterThanOrEqual(cellBounds.left)
-      expect(badgeBounds.right).toBeLessThanOrEqual(cellBounds.right)
+    for (const badge of screen.getAllByText(/^(CURRENT|STALE|UNKNOWN)$/)) {
+      expect(badge).not.toHaveClass('max-w-full', 'justify-center')
     }
     const importButton = screen.getByRole('button', { name: 'Import sound bar kit' })
     expect(importButton).toHaveClass('w-full')
@@ -1206,10 +1213,10 @@ describe('ControllerProfilePage', () => {
     const statusHeader = within(savedInventory).getByRole('columnheader', { name: 'Status' })
     fireEvent.click(within(statusHeader).getByRole('button', { name: 'Status' }))
     expect(statusHeader).toHaveAttribute('aria-sort', 'ascending')
-    expect(savedRows().map((row) => row.match(/OK|STALE|UNKNOWN/)?.[0])).toEqual(['OK', 'STALE', 'UNKNOWN'])
+    expect(savedRows().map((row) => row.match(/CURRENT|STALE|UNKNOWN/)?.[0])).toEqual(['CURRENT', 'STALE', 'UNKNOWN'])
     fireEvent.click(within(statusHeader).getByRole('button', { name: 'Status' }))
     expect(statusHeader).toHaveAttribute('aria-sort', 'descending')
-    expect(savedRows().map((row) => row.match(/OK|STALE|UNKNOWN/)?.[0])).toEqual(['UNKNOWN', 'STALE', 'OK'])
+    expect(savedRows().map((row) => row.match(/CURRENT|STALE|UNKNOWN/)?.[0])).toEqual(['UNKNOWN', 'STALE', 'CURRENT'])
 
     const changedProfile = {
       ...profile,
@@ -1237,7 +1244,7 @@ describe('ControllerProfilePage', () => {
       },
     })
     for (const label of ['QUEUED', 'SYNCING', 'FAILED']) {
-      expect(await screen.findByText(label)).toHaveClass('w-[4.75rem]')
+      expect(await screen.findByText(label)).not.toHaveClass('w-[4.75rem]', 'border')
     }
 
     fireEvent.click(screen.getByRole('button', { name: 'Twinkle' }))

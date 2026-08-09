@@ -65,7 +65,8 @@ describe('LibraryContextPane (#350)', () => {
 
     render(<LibraryContextPane />)
 
-    expect(screen.getByText('No documented functions yet.')).toBeInTheDocument()
+    const empty = screen.getByText('No documented functions yet.')
+    expect(empty).not.toHaveClass('border', 'border-dashed', 'bg-zinc-950/25')
     expect(screen.getByText('functions')).toBeInTheDocument()
     expect(screen.getByText('1')).toBeInTheDocument()
   })

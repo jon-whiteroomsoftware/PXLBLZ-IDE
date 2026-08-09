@@ -4,6 +4,7 @@ import { controlIcon, inlineIcon } from '@/components/iconScale'
 import { Button } from '@/components/ui/button'
 import { IDE_MICROTYPE } from '@/components/ui/ideMicrotype'
 import { sectionActionButtonClass } from './ControllerProfileHeaderActions'
+import { requestControllerEntryOpen } from '@/components/controllerEntryEvents'
 import {
   AlertDialogRoot,
   AlertDialogContent,
@@ -49,9 +50,10 @@ import { useShowStore } from '@/store/showStore'
 import { useRouterStore } from '@/store/routerStore'
 import type { ArtifactShowOutputContract } from '@/engine/artifactStamp'
 
-const tableHeadClass = 'px-2 py-1 text-left text-[10px] font-semibold uppercase text-zinc-400'
+const tableHeadClass = 'border-b border-seam pb-2 pr-2 text-left font-mono text-[9px] font-medium uppercase tracking-[0.16em] text-zinc-500'
 const EMPTY_CONTROLLER_PROGRAMS: ProgramListEntry[] = []
-const tableCellClass = 'border-t border-zinc-800/85 px-2 py-1.5 align-middle'
+const tableCellClass = 'border-t border-zinc-900/85 py-2 pr-2 align-baseline'
+const tableClass = 'w-full table-fixed border-collapse text-xs [&_tbody_tr:first-child_td]:border-t-0'
 const patternInventoryColumns = [
   { id: 'pattern', className: 'w-[44%]' },
   { id: 'pattern-id', className: 'w-[18%]' },
@@ -75,27 +77,27 @@ type PendingProgramImport = {
 const statusPresentation: Record<ControllerSavedPatternStatus, { title: string; className: string }> = {
   current: {
     title: 'OK: saved with the transforms enabled on this profile.',
-    className: 'border-emerald-700/55 bg-emerald-950/55 text-emerald-300',
+    className: 'text-emerald-300',
   },
   stale: {
     title: 'Stale: profile transforms changed since this Pattern was saved. Save it again to update.',
-    className: 'border-amber-700/60 bg-amber-950/50 text-amber-300',
+    className: 'text-amber-300',
   },
   unmanaged: {
     title: 'Unknown: no PXLBLZ push record is available for this saved Pattern.',
-    className: 'border-zinc-700/80 bg-zinc-900/70 text-zinc-500',
+    className: 'text-zinc-500',
   },
   queued: {
     title: 'Queued: waiting to sync with this Controller profile.',
-    className: 'border-zinc-700/80 bg-zinc-900/70 text-zinc-400',
+    className: 'text-zinc-500',
   },
   updating: {
     title: 'Syncing: updating this saved Pattern for the Controller profile.',
-    className: 'animate-pulse border-amber-700/60 bg-amber-950/50 text-amber-300',
+    className: 'animate-pulse text-amber-300',
   },
   failed: {
     title: 'Failed: PXLBLZ could not update this saved Pattern.',
-    className: 'border-red-700/60 bg-red-950/45 text-red-300',
+    className: 'text-red-300',
   },
 }
 
@@ -104,7 +106,7 @@ function PatternStatusBadge({ status }: { status: ControllerSavedPatternStatus }
   return (
     <span
       title={presentation.title}
-      className={`inline-flex w-[4.75rem] max-w-full justify-center whitespace-nowrap border px-1 py-0.5 font-mono font-semibold uppercase tracking-wide ${IDE_MICROTYPE.required.sizeClassName} ${presentation.className}`}
+      className={`whitespace-nowrap font-mono font-medium uppercase tracking-[0.12em] ${IDE_MICROTYPE.required.sizeClassName} ${presentation.className}`}
     >
       {CONTROLLER_SAVED_PATTERN_STATUS_LABELS[status]}
     </span>
@@ -125,9 +127,9 @@ function SavedProgramOutputContract({ contract }: { contract?: ArtifactShowOutpu
 
 function EmptyState({ children }: { children: React.ReactNode }) {
   return (
-    <div className="border border-dashed border-zinc-700/80 bg-zinc-950/30 px-3 py-3 text-xs text-zinc-500">
+    <p className="text-xs leading-5 text-zinc-500">
       {children}
-    </div>
+    </p>
   )
 }
 
@@ -403,7 +405,16 @@ function SavedProgramsInventory({
         </div>
       )}
       {status === 'offline' ? (
-        <EmptyState>Connect this Controller to inspect its saved Patterns.</EmptyState>
+        <EmptyState>
+          Nothing to show while offline.{' '}
+          <button
+            type="button"
+            onClick={requestControllerEntryOpen}
+            className="border-b border-live/40 font-mono text-[11.5px] text-live transition-colors hover:border-live hover:text-amber-300 focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-live/70"
+          >
+            Connect this Controller
+          </button>
+        </EmptyState>
       ) : status === 'loading' ? (
         <EmptyState>Reading saved Patterns from the Controller…</EmptyState>
       ) : status === 'error' ? (
@@ -411,8 +422,8 @@ function SavedProgramsInventory({
       ) : presentedPrograms.owned.length === 0 ? (
         <EmptyState>No PXLBLZ Patterns are saved on this Controller.</EmptyState>
       ) : (
-        <div className="overflow-x-auto border border-zinc-800/80 bg-zinc-950/25">
-          <table className="w-full table-fixed border-collapse text-xs" aria-label="Saved PXLBLZ Patterns">
+        <div className="overflow-x-auto">
+          <table className={tableClass} aria-label="Saved PXLBLZ Patterns">
             <PatternInventoryColumns />
             <thead>
               <tr>
@@ -424,20 +435,20 @@ function SavedProgramsInventory({
             </thead>
             <tbody>
               {presentedPrograms.owned.map((program) => (
-                <tr key={program.programId} className="bg-zinc-900/20">
+                <tr key={program.programId}>
                   <td className={`${tableCellClass} overflow-hidden`}>
                     <span className="block min-w-0">
                       {program.routeId && (program.sourceKind !== 'show' || showsEnabled) ? (
                         <button
                           type="button"
                           title={program.name}
-                          className="block max-w-full whitespace-normal break-words text-left font-medium leading-snug text-live transition-colors hover:text-amber-300"
+                          className="block max-w-full whitespace-normal break-words text-left font-sans font-medium leading-snug text-live transition-colors hover:text-amber-300"
                           onClick={() => onOpen(program.routeId!)}
                         >
                           {program.name}
                         </button>
                       ) : (
-                        <span className="block whitespace-normal break-words leading-snug text-zinc-300">{program.name}</span>
+                        <span className="block whitespace-normal break-words font-sans leading-snug text-zinc-300">{program.name}</span>
                       )}
                       <SavedProgramSourceNote program={program} />
                     </span>
@@ -446,7 +457,7 @@ function SavedProgramsInventory({
                   <td className={tableCellClass}>
                     <PatternStatusBadge status={statusFor(program)} />
                   </td>
-                  <td className={`${tableCellClass} truncate text-[10px] text-zinc-400`}>
+                  <td className={`${tableCellClass} truncate font-mono text-[11.5px] text-zinc-400`}>
                     <SavedProgramOutputContract contract={program.showOutputContract} />
                   </td>
                 </tr>
@@ -463,8 +474,8 @@ function SavedProgramsInventory({
           {presentedPrograms.foreign.length === 0 ? (
             <EmptyState>No other Patterns are saved on this Controller.</EmptyState>
           ) : (
-            <div className="overflow-x-auto border border-zinc-800/80 bg-zinc-950/25">
-              <table className="w-full table-fixed border-collapse text-xs" aria-label="Other Patterns">
+            <div className="overflow-x-auto">
+              <table className={tableClass} aria-label="Other Patterns">
                 <PatternInventoryColumns />
                 <thead>
                   <tr>
@@ -476,8 +487,8 @@ function SavedProgramsInventory({
                 </thead>
                 <tbody>
                   {presentedPrograms.foreign.map((program) => (
-                    <tr key={program.programId} className="bg-zinc-950/40">
-                      <td title={program.name} className={`${tableCellClass} whitespace-normal break-words leading-snug text-zinc-500`}>{program.name}</td>
+                    <tr key={program.programId}>
+                      <td title={program.name} className={`${tableCellClass} whitespace-normal break-words font-sans leading-snug text-zinc-500`}>{program.name}</td>
                       <td title={program.programId} className={`${tableCellClass} truncate font-mono text-zinc-500`}>{program.programId}</td>
                       <td className={tableCellClass}>
                         <PatternStatusBadge status={statusFor(program)} />

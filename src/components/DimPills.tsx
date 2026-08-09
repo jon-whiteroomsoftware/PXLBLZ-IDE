@@ -11,7 +11,7 @@ export function DimPills({ dims }: { dims: (1 | 2 | 3)[] }) {
   return (
     <span
       title={`Supported render dimensions: ${dims.map((dimension) => `${dimension}D`).join(', ')}`}
-      className="shrink-0 px-1.5 py-0.5 rounded text-[9px] font-medium tracking-wide uppercase text-zinc-400 border border-zinc-700 leading-none"
+      className="shrink-0 font-mono text-[10px] uppercase tracking-[0.08em] text-structural"
     >
       {label}
     </span>

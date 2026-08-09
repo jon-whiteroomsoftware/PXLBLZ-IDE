@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react'
-import { ArrowRight, ChevronDown, Hourglass, Images, Search, X } from 'lucide-react'
+import { ArrowRight, ChevronDown, Images, Search, X } from 'lucide-react'
 import { inlineIcon } from '@/components/iconScale'
 import {
   GALLERY_ALL_CATEGORY,
@@ -72,9 +72,9 @@ function GalleryCard({ pattern, index }: { pattern: GalleryPattern; index: numbe
       onBlur={() => setAttended(false)}
       onMouseEnter={() => setAttended(true)}
       onMouseLeave={() => setAttended(false)}
-      className="group overflow-hidden rounded-lg border border-seam bg-panel text-left transition-colors hover:border-structural focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-live/70"
+      className="group min-w-0 text-left focus-visible:outline-none"
     >
-      <div className="relative aspect-[16/10] bg-black">
+      <div className="relative aspect-square overflow-hidden rounded-[4px] bg-black transition-shadow group-hover:ring-1 group-hover:ring-live/60 group-focus-visible:ring-2 group-focus-visible:ring-live/70">
         <GalleryLivePreview
           name={pattern.name}
           src={pattern.src}
@@ -87,21 +87,22 @@ function GalleryCard({ pattern, index }: { pattern: GalleryPattern; index: numbe
           <ArrowRight size={12} aria-hidden />
         </span>
       </div>
-      <div className="px-[11px] pb-[10px] pt-2">
-        <div className="flex min-w-0 items-center gap-[7px] font-mono text-[12.5px] text-zinc-100">
-          <span className="truncate">{pattern.name}</span>
-          <span className="shrink-0 rounded border border-zinc-700 px-1.5 py-px text-[10px] uppercase tracking-wide text-structural">
+      <div className="flex min-w-0 items-baseline gap-2 px-px pt-2 font-mono">
+          <span className="min-w-0 truncate text-[12.5px] text-zinc-100">{pattern.name}</span>
+          <span
+            data-pattern-dimension
+            className="shrink-0 text-[10px] uppercase tracking-[0.08em] text-structural"
+          >
             {pattern.dim}D
           </span>
-        </div>
-        <div className="mt-1 flex flex-wrap gap-[5px] font-mono text-[9.5px] tracking-wide text-structural">
+        <span className="ml-auto flex min-w-0 shrink gap-[5px] text-[9.5px] tracking-wide text-structural">
           {(pattern.sections.length ? pattern.sections : [GALLERY_ALL_CATEGORY]).slice(0, 2).map((section, i) => (
             <span key={section} className="inline-flex gap-[5px]">
               {i > 0 && <span aria-hidden>·</span>}
-              <span>{section.toLowerCase()}</span>
+              <span className="truncate">{section.toLowerCase()}</span>
             </span>
           ))}
-        </div>
+        </span>
       </div>
     </button>
   )
@@ -132,12 +133,14 @@ export function GalleryPage({ directory }: { directory?: GalleryDirectory }) {
       <div className="mx-auto max-w-[1180px] px-4 pt-[14px] sm:px-[22px]">
         <div
           data-testid="studio-coming-soon-banner"
-          className="flex items-start gap-2.5 rounded-lg border border-live/25 bg-live/[0.06] px-3.5 py-2.5"
+          className="flex flex-wrap items-baseline gap-x-3 gap-y-1"
         >
-          <Hourglass size={14} aria-hidden className="mt-[3px] shrink-0 text-live" />
-          <p className="font-mono text-[11.5px] leading-5 text-zinc-300">
-            <span className="text-live">Studio opens soon.</span> Everything in the Gallery works
-            without an account; Studio sign-in is invite-only while we finish the last pieces.
+          <span className="shrink-0 font-mono text-[9.5px] uppercase tracking-[0.14em] text-live">
+            Studio opens soon
+          </span>
+          <p className="text-[12.5px] leading-5 text-zinc-500">
+            Everything in the Gallery works without an account; Studio sign-in is invite-only while we
+            finish the last pieces.
           </p>
         </div>
       </div>
@@ -159,7 +162,7 @@ export function GalleryPage({ directory }: { directory?: GalleryDirectory }) {
             </FilterChip>
           ))}
         </div>
-        <label className="relative flex w-full min-w-0 items-center rounded-md border border-seam bg-zinc-950 font-mono text-[11.5px] text-zinc-300 focus-within:border-zinc-600 sm:w-auto sm:min-w-[190px]">
+        <label className="relative flex w-full min-w-0 items-center rounded-none border-b border-zinc-800 bg-transparent font-mono text-[11.5px] text-zinc-300 transition-colors focus-within:border-live sm:w-auto sm:min-w-[120px]">
           <select
             value={category}
             onChange={(event) => {
@@ -187,7 +190,7 @@ export function GalleryPage({ directory }: { directory?: GalleryDirectory }) {
             className="pointer-events-none absolute right-2 text-structural"
           />
         </label>
-        <label className="relative flex h-[27px] w-full min-w-0 max-w-none flex-1 items-center gap-2 rounded-md border border-seam bg-zinc-950 px-2.5 pr-6 font-mono text-[11.5px] text-structural focus-within:border-zinc-600 sm:w-auto sm:min-w-[170px] sm:max-w-[230px] sm:flex-none">
+        <label className="relative flex h-[27px] w-full min-w-0 max-w-none flex-1 items-center gap-2 rounded-none border-b border-zinc-800 bg-transparent pr-6 font-mono text-[11.5px] text-structural transition-colors focus-within:border-live sm:w-auto sm:min-w-[170px] sm:max-w-[230px] sm:flex-none">
           <Search size={13} aria-hidden className="shrink-0" />
           <input
             value={query}
@@ -211,7 +214,7 @@ export function GalleryPage({ directory }: { directory?: GalleryDirectory }) {
       </div>
 
       {patterns.length > 0 ? (
-        <div className="mx-auto grid max-w-[1180px] grid-cols-1 gap-4 px-4 pb-[26px] pt-4 sm:px-[22px] md:grid-cols-2">
+        <div className="mx-auto grid max-w-[1180px] grid-cols-1 gap-x-4 gap-y-5 px-4 pb-[26px] pt-4 sm:px-[22px] md:grid-cols-2">
           {patterns.map((pattern, index) => (
             <GalleryCard key={pattern.name} pattern={pattern} index={index} />
           ))}

@@ -57,9 +57,9 @@ export function MixinProvenancePane() {
 
         <section className="mt-5">
           <h3 className="font-mono text-[11px] uppercase tracking-wide text-zinc-500">Used by</h3>
-          <div className="mt-2 border border-dashed border-zinc-700/80 bg-zinc-950/25 px-3 py-3 text-[11px] leading-relaxed text-zinc-500">
+          <p className="mt-2 text-[11px] leading-relaxed text-zinc-500">
             No Controller or Show bindings use this mixin yet.
-          </div>
+          </p>
         </section>
 
         <section className="mt-5">

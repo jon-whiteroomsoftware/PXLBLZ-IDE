@@ -3,6 +3,14 @@ import { TransformInspectionPanel } from './TransformInspectionPanel'
 import type { TransformArtifactInspection } from '@/engine/transformInspection'
 
 describe('TransformInspectionPanel', () => {
+  it('renders an absent artifact as quiet section copy', () => {
+    render(<TransformInspectionPanel artifact={null} />)
+
+    const empty = screen.getByText('No generated artifact has been recorded yet.')
+    expect(empty.tagName).toBe('P')
+    expect(empty).not.toHaveClass('border', 'border-dashed', 'bg-zinc-950/25')
+  })
+
   it('renders transform summary details and opens the generated artifact read-only', () => {
     render(<TransformInspectionPanel artifact={artifact()} />)
 

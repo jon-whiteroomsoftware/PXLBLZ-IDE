@@ -408,18 +408,18 @@ export function MapContextPane() {
         <SectionTitle icon={<GitBranch size={12} aria-hidden />}>Used by</SectionTitle>
         <div className="mt-1 space-y-1.5">
           {controllerProfiles.length === 0 ? (
-            <div className="rounded border border-zinc-900 bg-zinc-950/50 px-2 py-2 text-[11px] text-zinc-500">
+            <p className="text-[11px] leading-relaxed text-zinc-500">
               No controller profiles yet.
-            </div>
+            </p>
           ) : (
-            <div className="rounded border border-zinc-900 bg-zinc-950/50 px-2 py-2 text-[11px] text-zinc-500">
+            <p className="text-[11px] leading-relaxed text-zinc-500">
               Controller profiles do not record map identity yet.
-            </div>
+            </p>
           )}
           {patternUsers.length === 0 ? (
-            <div className="rounded border border-zinc-900 bg-zinc-950/50 px-2 py-2 text-[11px] text-zinc-500">
+            <p className="text-[11px] leading-relaxed text-zinc-500">
               No saved patterns explicitly select this map.
-            </div>
+            </p>
           ) : (
             <div className="space-y-1">
               {patternUsers.slice(0, 5).map((pattern) => (

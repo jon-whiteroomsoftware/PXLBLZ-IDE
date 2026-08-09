@@ -13,9 +13,9 @@ export function TransformInspectionPanel({
   const [artifactOpen, setArtifactOpen] = useState(false)
   if (!artifact) {
     return (
-      <div className="border border-dashed border-zinc-700/80 bg-zinc-950/25 px-3 py-3 text-[11px] leading-relaxed text-zinc-500">
+      <p className="text-[11px] leading-relaxed text-zinc-500">
         {empty}
-      </div>
+      </p>
     )
   }
 

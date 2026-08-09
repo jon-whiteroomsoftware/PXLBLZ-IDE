@@ -324,6 +324,7 @@ test('edits and persists a Controller input use across responsive and keyboard f
   // Assigning brightness from the keyboard writes the real transform.
   const frontBrightness = page.getByRole('checkbox', { name: 'Front pot controls brightness' })
   await frontBrightness.focus()
+  await expect(frontBrightness).toBeFocused()
   await frontBrightness.press('Space')
   await expect(frontBrightness).toBeChecked()
   await expect(page.getByText('Brightness', { exact: true })).toBeVisible()

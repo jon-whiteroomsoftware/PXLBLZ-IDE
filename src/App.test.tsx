@@ -1340,14 +1340,27 @@ describe('routing (#308)', () => {
   it('shows pattern source in a read-only detail-stage code view', async () => {
     window.history.replaceState(null, '', '/p/iridescent-fibers')
     render(<App />)
-    await userEvent.click(screen.getByRole('button', { name: 'Pattern actions' }))
-    await userEvent.click(screen.getByRole('menuitem', { name: 'View code' }))
+    expect(screen.queryByRole('button', { name: 'Pattern actions' })).not.toBeInTheDocument()
+    await userEvent.click(screen.getByRole('button', { name: 'View code' }))
     expect(window.location.pathname).toBe('/p/iridescent-fibers')
     expect(screen.getByTestId('pattern-code-stage')).toBeInTheDocument()
     expect(screen.queryByText(/read-only/i)).not.toBeInTheDocument()
-    await userEvent.click(screen.getByRole('button', { name: 'Pattern actions' }))
-    expect(screen.getByRole('menuitem', { name: 'View preview' })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'View preview' })).toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'Open in Studio' })).toBeInTheDocument()
+  })
+
+  it('uses the unenclosed Pattern-detail rail and informational dimension fact', () => {
+    window.history.replaceState(null, '', '/p/iridescent-fibers')
+    render(<App />)
+
+    const page = screen.getByTestId('pattern-detail-page')
+    const rail = page.querySelector('aside')
+    expect(rail).not.toHaveClass('rounded-lg', 'border', 'bg-panel')
+    expect(rail?.querySelector('[data-pattern-dimension]')).not.toHaveClass('rounded', 'border')
+    expect(within(rail as HTMLElement).getByTestId('pattern-detail-preview-band')).toHaveClass(
+      'border-y',
+      'border-seam',
+    )
   })
 
   it('toggles the preview with Space on the pattern detail page but not in the Gallery grid', async () => {

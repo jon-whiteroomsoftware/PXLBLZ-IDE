@@ -6,11 +6,11 @@ import { useRouterStore } from '@/store/routerStore'
 
 function EmptyReference({ reason }: { reason: ApiReferenceDocument['emptyReason'] }) {
   return (
-    <div className="mt-6 max-w-xl border border-dashed border-zinc-700/80 bg-zinc-950/25 px-4 py-4 text-sm leading-6 text-zinc-500">
+    <p className="mt-6 max-w-xl text-sm leading-6 text-zinc-500">
       {reason === 'undocumented'
         ? 'No API documentation yet. This library has functions, but none have doc comments. Add comments above them to make their API documentation available here.'
         : 'This library does not declare any functions to document.'}
-    </div>
+    </p>
   )
 }
 

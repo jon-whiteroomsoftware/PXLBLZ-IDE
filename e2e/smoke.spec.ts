@@ -127,10 +127,8 @@ test('Pattern detail uses the shared recommended presentation', async ({ page })
     return root ? element.width / root.getBoundingClientRect().width : 0
   }), { timeout: 15_000 }).toBeGreaterThanOrEqual(0.99)
 
-  await page.getByRole('button', { name: 'Pattern actions' }).click()
-  await page.getByRole('menuitem', { name: 'View code' }).click()
-  await page.getByRole('button', { name: 'Pattern actions' }).click()
-  await page.getByRole('menuitem', { name: 'View preview' }).click()
+  await page.getByRole('button', { name: 'View code' }).click()
+  await page.getByRole('button', { name: 'View preview' }).click()
 
   await expect.poll(async () => canvas.evaluate((element) => {
     const root = element.closest('[data-height-constrained]')

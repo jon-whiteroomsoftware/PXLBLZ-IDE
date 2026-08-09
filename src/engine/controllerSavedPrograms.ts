@@ -7,7 +7,7 @@ export type TransformFreshness = 'current' | 'stale' | 'unmanaged'
 export type ControllerSavedPatternStatus = TransformFreshness | 'queued' | 'updating' | 'failed'
 
 export const CONTROLLER_SAVED_PATTERN_STATUS_LABELS: Record<ControllerSavedPatternStatus, string> = {
-  current: 'OK',
+  current: 'CURRENT',
   stale: 'STALE',
   unmanaged: 'UNKNOWN',
   queued: 'QUEUED',

@@ -28,7 +28,14 @@ afterEach(() => resetControllerProvider())
 
 describe('PatternDetailActionBar', () => {
   it('renders Connect instead of disabled Run/Save when disconnected', () => {
-    render(<PatternDetailActionBar stageView="preview" onToggleStage={() => {}} />)
+    render(<PatternDetailActionBar />)
+    expect(screen.getByTestId('pattern-deployment-actions')).not.toHaveClass(
+      'overflow-hidden',
+      'rounded-md',
+      'border',
+      'bg-zinc-950',
+    )
+    expect(screen.getByTestId('controller-status-dot')).toHaveClass('bg-amber-500')
     expect(screen.getByRole('button', { name: 'Connect' })).toBeInTheDocument()
     expect(screen.queryByRole('button', { name: 'Run' })).not.toBeInTheDocument()
     expect(screen.queryByRole('button', { name: 'Save' })).not.toBeInTheDocument()
@@ -45,7 +52,7 @@ describe('PatternDetailActionBar', () => {
       requestPush,
     })
 
-    render(<PatternDetailActionBar stageView="preview" onToggleStage={() => {}} />)
+    render(<PatternDetailActionBar />)
 
     expect(screen.queryByRole('button', { name: 'Connect' })).not.toBeInTheDocument()
     expect(screen.getByTestId('controller-deployment-identity')).toHaveTextContent(/^Desk$/)

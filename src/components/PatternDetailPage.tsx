@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { ArrowLeft, Code2, Pause, Play, RotateCcw } from 'lucide-react'
+import { ArrowLeft, Code2, Eye, Pause, Play, RotateCcw } from 'lucide-react'
 import { controlIcon } from '@/components/iconScale'
 import { Button } from '@/components/ui/button'
 import { Preview } from '@/components/Preview'
@@ -91,14 +91,17 @@ export function PatternDetailPage({
             </div>
           </section>
 
-          <aside className="rounded-lg border border-seam bg-panel font-mono">
-            <div className="border-b border-seam px-4 py-3">
+          <aside className="min-w-0">
+            <div className="pb-2">
               <div className="flex min-w-0 items-center gap-3">
                 <div className="flex min-w-0 flex-1 items-center gap-2">
                   <h1 className="min-w-0 truncate text-lg font-semibold text-zinc-100">
                     {pattern.name}
                   </h1>
-                  <span className="shrink-0 rounded border border-zinc-700 px-1.5 py-px text-[10px] uppercase tracking-wide text-structural">
+                  <span
+                    data-pattern-dimension
+                    className="shrink-0 font-mono text-[10px] uppercase tracking-[0.08em] text-structural"
+                  >
                     {pattern.dim}D
                   </span>
                 </div>
@@ -113,6 +116,17 @@ export function PatternDetailPage({
                     <RotateCcw size={15} aria-hidden />
                   </button>
                 )}
+                <button
+                  type="button"
+                  aria-label={stageView === 'code' ? 'View preview' : 'View code'}
+                  title={stageView === 'code' ? 'View preview' : 'View code'}
+                  onClick={() => setStageView((view) => (view === 'code' ? 'preview' : 'code'))}
+                  className="grid size-8 shrink-0 place-items-center rounded text-zinc-500 transition-colors hover:bg-zinc-800 hover:text-zinc-200 focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-live/70"
+                >
+                  {stageView === 'code'
+                    ? <Eye size={15} aria-hidden />
+                    : <Code2 size={15} aria-hidden />}
+                </button>
                 <button
                   type="button"
                   aria-label={isRunning ? 'Pause preview' : 'Run preview'}
@@ -144,11 +158,11 @@ export function PatternDetailPage({
               )}
             </div>
 
-            <div className="border-b border-seam py-1 pr-1">
+            <div data-testid="pattern-detail-preview-band" className="border-y border-seam py-1 pr-1">
               <PreviewDeck showPrimaryBand={false} />
             </div>
 
-            <div className="space-y-2 border-b border-seam px-4 py-3">
+            <div className="space-y-3 pt-3">
               <Button
                 size="sm"
                 className="w-full justify-center border border-live/50 bg-live/15 font-mono text-xs text-live hover:bg-live/25 hover:text-amber-100"
@@ -157,10 +171,7 @@ export function PatternDetailPage({
                 <Code2 data-icon="inline-start" />
                 Open in Studio
               </Button>
-              <PatternDetailActionBar
-                stageView={stageView}
-                onToggleStage={() => setStageView((view) => (view === 'code' ? 'preview' : 'code'))}
-              />
+              <PatternDetailActionBar />
             </div>
 
           </aside>

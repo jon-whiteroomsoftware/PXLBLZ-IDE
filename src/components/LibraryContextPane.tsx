@@ -71,18 +71,18 @@ function ApiEntry({ namespace, fn }: { namespace: string; fn: LibraryApiReferenc
 function ApiReference({ reference }: { reference: LibraryApiReference }) {
   if (reference.functions.length === 0) {
     return (
-      <div className="mt-2 border border-dashed border-zinc-700/80 bg-zinc-950/25 px-3 py-3 text-[11px] leading-relaxed text-zinc-500">
+      <p className="mt-2 text-[11px] leading-relaxed text-zinc-500">
         No function declarations.
-      </div>
+      </p>
     )
   }
 
   const documented = reference.functions.filter((fn) => fn.doc.length > 0)
   if (documented.length === 0) {
     return (
-      <div className="mt-2 border border-dashed border-zinc-700/80 bg-zinc-950/25 px-3 py-3 text-[11px] leading-relaxed text-zinc-500">
+      <p className="mt-2 text-[11px] leading-relaxed text-zinc-500">
         No documented functions yet.
-      </div>
+      </p>
     )
   }
 

@@ -1,6 +1,5 @@
 import { useEffect, useSyncExternalStore } from 'react'
 import { PatternDeploymentActions } from '@/components/PatternDeploymentActions'
-import { PatternActionsMenu } from '@/components/PatternActionsMenu'
 import { PatternPushChoices } from '@/components/SendToController'
 import { PushConfirmPopover } from '@/components/PushConfirmPopover'
 import { getControllerProvider } from '@/engine/controllerProviderRegistry'
@@ -16,12 +15,7 @@ import {
   findProfileForLiveController,
 } from '@/engine/controllerProfilePassRecipe'
 
-type PatternDetailActionBarProps = {
-  stageView: 'preview' | 'code'
-  onToggleStage: () => void
-}
-
-export function PatternDetailActionBar({ stageView, onToggleStage }: PatternDetailActionBarProps) {
+export function PatternDetailActionBar() {
   const provider = getControllerProvider()
   const status = useSyncExternalStore(
     (onChange) => provider.subscribe(onChange),
@@ -118,6 +112,7 @@ export function PatternDetailActionBar({ stageView, onToggleStage }: PatternDeta
       pushing={pushing}
       pushResult={pushResult}
       fill
+      presentation="facts"
       onConnect={requestControllerEntryOpen}
       onRun={runPattern}
       onSave={savePattern}
@@ -125,22 +120,14 @@ export function PatternDetailActionBar({ stageView, onToggleStage }: PatternDeta
   )
 
   return (
-    <div className="flex min-w-0 items-stretch gap-1 font-mono">
-      <PatternActionsMenu
-        copied={false}
-        compileBroken={false}
-        stageView={stageView}
-        density="regular"
-        side="above"
-        onToggleStage={onToggleStage}
-      />
+    <div className="flex min-w-0 items-center font-mono">
       <PushConfirmPopover
         open={patternWarnings.length > 0}
         onCancel={cancelPush}
         title="Send pattern"
         testId="pattern-preflight-dialog"
         className="min-w-0 flex-1"
-        anchor={<span className="flex min-w-0 w-full items-stretch">{hardwareGroup}</span>}
+        anchor={<span className="flex min-w-0 w-full items-center">{hardwareGroup}</span>}
       >
         <PatternPushChoices
           warnings={patternWarnings}

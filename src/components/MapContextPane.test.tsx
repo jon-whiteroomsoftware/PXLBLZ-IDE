@@ -58,6 +58,22 @@ describe('MapContextPane', () => {
     expect(screen.getByLabelText('Baked size: 4 pixels')).toHaveTextContent('Baked size · 4 px')
   })
 
+  it('states unused-map provenance without advisory cards', () => {
+    useMapStore.setState({
+      editingMap: { kind: 'existing', id: CUSTOM_MAP.id },
+      userMaps: [CUSTOM_MAP],
+    })
+
+    render(<MapContextPane />)
+
+    for (const copy of [
+      screen.getByText('No controller profiles yet.'),
+      screen.getByText('No saved patterns explicitly select this map.'),
+    ]) {
+      expect(copy).not.toHaveClass('rounded', 'border', 'bg-zinc-950/50')
+    }
+  })
+
   it('holds the last successful custom map bake when eval fails', async () => {
     useMapStore.setState({
       editingMap: { kind: 'existing', id: CUSTOM_MAP.id },
