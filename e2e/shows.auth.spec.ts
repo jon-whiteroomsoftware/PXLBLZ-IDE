@@ -1744,6 +1744,7 @@ test.describe('authenticated Show authoring', () => {
     const clipPanel = page.getByRole('dialog', { name: 'Entity Detail Panel' })
     await expect(clipPanel.getByRole('region', { name: 'Clip properties' })).toBeVisible()
     await clipPanel.getByRole('button', { name: 'Animate Brightness' }).click()
+    await expect(page.getByRole('textbox', { name: 'Brightness animation from exact percentage' })).toBeFocused()
     const brightnessTo = page.getByRole('textbox', { name: 'Brightness animation to exact percentage' })
     await brightnessTo.fill('42%')
     await expect(brightnessTo).toBeFocused()
