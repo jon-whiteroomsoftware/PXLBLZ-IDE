@@ -356,18 +356,43 @@ test.describe('authenticated Show authoring', () => {
   // promises that actually matter: the groups exist, labels disclose as width
   // allows, and nothing overlaps or overflows when space runs out (#638).
 
-  test('timeline toolbar exposes transport, view, and command groups', async ({ page }) => {
+  test('timeline toolbar keeps transport, time, edit, and view in one visible desktop row', async ({ page }) => {
     await page.setViewportSize({ width: 2200, height: 900 })
     await page.goto(showtimePath('studio/shows'))
     await createInstallationShow(page)
 
     const toolbar = page.getByTestId('show-timeline-toolbar')
-    await expect(toolbar.getByRole('group', { name: 'Show transport controls' })).toBeVisible()
-    await expect(toolbar.getByRole('group', { name: 'Timeline view controls' })).toBeVisible()
-    await expect(toolbar.getByRole('group', { name: 'Timeline commands' })).toBeVisible()
+    const transport = toolbar.getByRole('group', { name: 'Show transport controls' })
+    const time = toolbar.getByRole('group', { name: 'Timeline position' })
+    const commands = toolbar.getByRole('group', { name: 'Show authoring commands' })
+    const view = toolbar.getByRole('group', { name: 'Timeline view controls' })
+    await expect(transport).toBeVisible()
+    await expect(time).toBeVisible()
+    await expect(commands).toBeVisible()
+    await expect(view).toBeVisible()
     await expect(toolbar.getByRole('button', { name: 'Go to Show start' })).toBeVisible()
     await expect(toolbar.getByRole('slider', { name: 'Pan visible timeline range' })).toBeVisible()
     await expect(toolbar.getByLabel('Show time')).toHaveText(/^\d{2}:\d{2}\.\d\/\d{2}:\d{2}\.\d$/)
+
+    const [toolbarBox, transportBox, timeBox, commandsBox, viewBox] = await Promise.all([
+      toolbar.boundingBox(),
+      transport.boundingBox(),
+      time.boundingBox(),
+      commands.boundingBox(),
+      view.boundingBox(),
+    ])
+    expect(toolbarBox).not.toBeNull()
+    expect(transportBox).not.toBeNull()
+    expect(timeBox).not.toBeNull()
+    expect(commandsBox).not.toBeNull()
+    expect(viewBox).not.toBeNull()
+    expect(transportBox!.x).toBeLessThan(timeBox!.x)
+    expect(timeBox!.x).toBeLessThan(commandsBox!.x)
+    expect(commandsBox!.x).toBeLessThan(viewBox!.x)
+    for (const cluster of [transportBox!, timeBox!, commandsBox!, viewBox!]) {
+      expect(cluster.y).toBeGreaterThanOrEqual(toolbarBox!.y)
+      expect(cluster.y + cluster.height).toBeLessThanOrEqual(toolbarBox!.y + toolbarBox!.height)
+    }
   })
 
   test('toolbar command labels disclose as width allows', async ({ page }) => {

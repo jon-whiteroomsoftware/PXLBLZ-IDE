@@ -2801,7 +2801,12 @@ describe('ShowEditor (#318)', () => {
     const speed = within(advanced).getByRole('region', { name: 'Animation speed transition' })
     expect(speed).toHaveClass('border-t', 'bg-transparent')
     expect(speed).not.toHaveClass('rounded', 'bg-violet-400/[0.035]')
-    expect(within(speed).getByTestId('advanced-property-columns')).toHaveTextContent('FromToDurationEasing')
+    const sharedPropertyColumns = within(speed).getByTestId('advanced-property-columns')
+    expect(sharedPropertyColumns).toHaveClass('grid-cols-2')
+    expect(within(sharedPropertyColumns).getAllByText(/^(Duration|Easing)$/).map((label) => label.textContent))
+      .toEqual(['Duration', 'Easing'])
+    expect(within(speed).getByRole('textbox', { name: 'Animation speed duration seconds exact time' })).toBeVisible()
+    expect(within(speed).getByRole('combobox', { name: 'Animation speed easing' })).toBeVisible()
     expect(within(speed).getByRole('checkbox', { name: 'Animate speed for main' })).toHaveClass('accent-live')
 
     expect(screen.getByRole('textbox', { name: 'Animation speed start main exact multiplier' })).toHaveValue('0.5')

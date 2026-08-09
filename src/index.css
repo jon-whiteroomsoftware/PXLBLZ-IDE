@@ -384,8 +384,8 @@
 }
 
 /* The Show header responds to the authoring pane, not the browser viewport.
-   Preserve transport, zoom, and command priority as the library/Stage consume
-   different amounts of horizontal space. */
+   Preserve the transport, time, edit, and view sequence as the library/Stage
+   consume different amounts of horizontal space. */
 .show-timeline-toolbar {
   container-type: inline-size;
 }
@@ -397,19 +397,27 @@
 @container (min-width: 1240px) {
   .show-timeline-toolbar {
     display: grid;
-    grid-template-columns: minmax(0, 1fr) 210px minmax(0, 1fr);
+    grid-template-columns: max-content max-content minmax(0, 1fr) 210px;
   }
 
   .show-timeline-toolbar .timeline-transport-cluster {
+    grid-column: 1;
+    justify-self: start;
+  }
+
+  .show-timeline-toolbar .timeline-time-cluster {
+    grid-column: 2;
     justify-self: start;
   }
 
   .show-timeline-toolbar .timeline-view-cluster {
+    grid-column: 4;
     width: 210px;
-    justify-self: center;
+    justify-self: end;
   }
 
   .show-timeline-toolbar .timeline-command-cluster {
+    grid-column: 3;
     margin-left: 0;
     justify-self: end;
   }

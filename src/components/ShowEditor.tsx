@@ -8968,8 +8968,8 @@ function PropertyTransitionEditor({
       <div className="mb-2 text-[10px] uppercase tracking-[0.12em] text-zinc-400">{title}</div>
       {descriptor && (
         <>
-        <div data-testid="advanced-property-columns" className="mb-1 grid grid-cols-4 gap-2 font-mono text-[8px] uppercase tracking-[0.1em] text-zinc-600">
-          <span>From</span><span>To</span><span>Duration</span><span>Easing</span>
+        <div data-testid="advanced-property-columns" className="mb-1 grid grid-cols-2 gap-2 font-mono text-[8px] uppercase tracking-[0.1em] text-zinc-600">
+          <span>Duration</span><span>Easing</span>
         </div>
         <div className="mb-2 grid grid-cols-2 gap-2">
           <TimeField
