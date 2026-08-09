@@ -2872,8 +2872,8 @@ describe('ShowEditor (#318)', () => {
     const clips = screen.getAllByRole('button', { name: 'Select Summary Rings' })
     expect(within(clips[0]).getByText('75%')).toBeInTheDocument()
     expect(within(clips[1]).queryByText('75%')).not.toBeInTheDocument()
-    expect(within(clips[1]).getByText('defaults')).toBeInTheDocument()
-    expect(clips[1].querySelector('.show-clip-summary-inline svg')).not.toBeInTheDocument()
+    expect(within(clips[1]).queryByText('defaults')).not.toBeInTheDocument()
+    expect(clips[1].querySelector('.show-clip-summary-inline svg')).toBeInTheDocument()
   })
 
   it('moves a composition Clip by dragging its unified Layer and restores Detail (#580)', async () => {

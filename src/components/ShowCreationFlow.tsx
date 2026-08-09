@@ -141,6 +141,7 @@ export function ShowCreationFlow({
                 value={selection.pixelCountLocked ? selection.pixelCount : requestedPixelCount}
                 presentation={pixelCountPresentation}
                 variant="editor"
+                commitOnBlur
                 disabled={selection.pixelCountLocked}
                 onChange={(next) => updatePixelCount(String(Math.round(next)))}
               />

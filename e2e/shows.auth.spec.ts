@@ -1017,7 +1017,6 @@ test.describe('authenticated Show authoring', () => {
     await page.getByLabel('Show name').fill('Touring field')
     const previewPixels = page.getByRole('textbox', { name: 'Preview pixels exact pixel count' })
     await previewPixels.fill('1024')
-    await previewPixels.press('Enter')
     await page.getByRole('button', { name: 'Create Show' }).click()
 
     await expect(page).toHaveURL(/\/studio\/shows\/[a-z0-9-]+\?showtime$/)

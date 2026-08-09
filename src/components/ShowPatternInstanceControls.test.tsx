@@ -86,9 +86,23 @@ describe('Show Pattern instance controls (#586)', () => {
     })).toBeInTheDocument()
     expect(screen.getByText('every 500 ms')).toBeInTheDocument()
 
-    fireEvent.change(rate, { target: { value: '4' } })
+    fireEvent.change(rate, { target: { value: '3' } })
     fireEvent.keyDown(rate, { key: 'Enter' })
-    expect(onSteppedClockChange).toHaveBeenLastCalledWith({ stepMs: 250 })
+    expect(onSteppedClockChange).toHaveBeenLastCalledWith({ stepMs: 333 })
+  })
+
+  it('rounds fractional Stutter milliseconds in the compact readout (#779 review)', () => {
+    render(
+      <ShowPatternInstanceControls
+        ownership={{ instanceId: 'instance-a', useCount: 1, compatibleTargets: [] }}
+        steppedClock={{ stepMs: 1_000 / 3 }}
+        onMakeIndependent={vi.fn()}
+        onRejoin={vi.fn()}
+        onSteppedClockChange={vi.fn()}
+      />,
+    )
+
+    expect(screen.getByText('every 333 ms')).toBeInTheDocument()
   })
 
   it('uses the same compact three-column rows as Advanced Clip controls (#63)', () => {

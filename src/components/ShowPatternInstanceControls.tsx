@@ -100,7 +100,7 @@ export function ShowPatternInstanceControls({
           )}
           {steppedClock && (
             <span className="ml-auto flex min-w-44 max-w-56 items-center gap-2 text-zinc-500">
-              <span className="tabular-nums text-[8px] text-zinc-600">every {steppedClock.stepMs} ms</span>
+              <span className="tabular-nums text-[8px] text-zinc-600">every {Math.round(steppedClock.stepMs)} ms</span>
               <span className="min-w-28 flex-1">
                 <BoundedNumberField
                   label="Jumps per second"
@@ -109,7 +109,7 @@ export function ShowPatternInstanceControls({
                   presentation={JUMPS_PER_SECOND_PRESENTATION}
                   compact
                   variant="editor"
-                  onChange={(rate) => onSteppedClockChange({ stepMs: steppedClockStepMs(rate) })}
+                  onChange={(rate) => onSteppedClockChange({ stepMs: Math.round(steppedClockStepMs(rate)) })}
                 />
               </span>
             </span>

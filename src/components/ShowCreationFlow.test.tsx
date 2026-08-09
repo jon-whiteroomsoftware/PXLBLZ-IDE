@@ -36,7 +36,7 @@ describe('ShowCreationFlow (#434)', () => {
     const previewPixels = screen.getByRole('textbox', { name: 'Preview pixels exact pixel count' })
     expect(screen.getByRole('button', { name: 'Adjust with pixel count slider' })).toBeInTheDocument()
     await user.clear(previewPixels)
-    await user.type(previewPixels, '5000{Enter}')
+    await user.type(previewPixels, '5000')
     await user.click(screen.getByRole('button', { name: 'Create Show' }))
 
     expect(onCreate).toHaveBeenCalledWith(expect.objectContaining({

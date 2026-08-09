@@ -9970,22 +9970,31 @@ function ClipSummaryInline({
   previousSummary: ShowClipSummarySection[] | null
 }) {
   const timelineSummary = projectShowClipTimelineSummary(summary, previousSummary)
-  const values = timelineSummary.flatMap((section) => (
-    section.items.filter((item) => item.showValue && item.displayValue)
-  ))
   return (
     <span
       aria-hidden
       title={showClipInlineSummary(summary)}
       className="show-clip-summary-inline relative z-10 flex min-w-0 items-center gap-0.5 overflow-hidden whitespace-nowrap text-[10px] text-zinc-500 [text-shadow:0_1px_2px_rgba(0,0,0,0.95)]"
     >
-      {values.length === 0 && <span className="show-clip-summary-copy shrink-0">defaults</span>}
-      {values.map((item, index) => (
-        <span key={`${item.id}:${index}`} className="show-clip-summary-value inline-flex items-center gap-1 font-mono text-zinc-400">
-          {index > 0 && <span className="text-zinc-700">·</span>}
-          <span>{item.displayValue}</span>
-        </span>
-      ))}
+      {summary.length === 0 && <span className="show-clip-summary-copy shrink-0">defaults</span>}
+      {timelineSummary.map((section) => {
+        const values = section.items.filter((item) => item.showValue && item.displayValue)
+        return (
+          <span
+            key={section.kind}
+            data-show-clip-summary-has-value={values.length > 0 ? 'true' : 'false'}
+            className={`show-clip-summary-section inline-flex min-w-max items-center gap-1 ${values.length > 0 ? 'mr-1.5 last:mr-0' : ''}`}
+          >
+            {values.length === 0 && <ClipSummaryIcon kind={section.kind} size={10} />}
+            {values.map((item, index) => (
+              <span key={item.id} className="show-clip-summary-value inline-flex items-center gap-1 font-mono text-zinc-400">
+                {index > 0 && <span className="text-zinc-700">·</span>}
+                <span>{item.displayValue}</span>
+              </span>
+            ))}
+          </span>
+        )
+      })}
     </span>
   )
 }

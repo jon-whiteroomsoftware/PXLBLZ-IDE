@@ -66,6 +66,8 @@ export interface BoundedNumberFieldProps {
   align?: 'left' | 'right'
   disabled?: boolean
   variant?: 'inspector' | 'editor'
+  /** Commit a valid exact draft when focus leaves the field instead of cancelling it. */
+  commitOnBlur?: boolean
   onPreview?: (value: number) => void
   onPreviewEnd?: () => void
   /** Return false synchronously when the controlled owner refuses the commit. */
@@ -90,6 +92,7 @@ export function BoundedNumberField({
   align,
   disabled = false,
   variant = 'inspector',
+  commitOnBlur = false,
   onPreview,
   onPreviewEnd,
   onChange,
@@ -408,7 +411,8 @@ export function BoundedNumberField({
           className={`${fieldHeight} flex min-w-0 flex-1 overflow-hidden rounded-none border-0 border-b border-zinc-700 bg-transparent focus-within:border-live/70`}
           onBlur={(event) => {
             if (event.currentTarget.contains(event.relatedTarget as Node | null)) return
-            revert()
+            if (commitOnBlur) commit(draft)
+            else revert()
           }}
         >
           <input
