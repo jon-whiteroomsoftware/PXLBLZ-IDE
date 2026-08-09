@@ -7,6 +7,8 @@ import {
   resolveShowOutputMapSelection,
 } from '@/engine/showOutputContract'
 import type { ShowOutputContract } from '@/engine/personalContentRecords'
+import { BoundedNumberField } from '@/components/ui/bounded-number-field'
+import { resolveLinearNumberPresentation } from '@/engine/linearNumberPresentation'
 
 export interface ShowCreationMapOption {
   id: string
@@ -35,6 +37,19 @@ export function ShowCreationFlow({
   const [mapId, setMapId] = useState<string | null>(maps.find((map) => map.dim === 2)?.id ?? maps[0]?.id ?? null)
   const requestedPixelCount = Number(pixelCountText) || 1
   const selection = resolveShowOutputMapSelection(mapId, requestedPixelCount, maps)
+  const pixelCountMax = kind === 'portable-2d' ? MAX_PORTABLE_PREVIEW_PIXELS : 65_536
+  const pixelCountPresentation = useMemo(() => resolveLinearNumberPresentation({
+    kindLabel: 'pixel count',
+    min: 1,
+    max: pixelCountMax,
+    step: 1,
+    sliderMin: 1,
+    sliderMax: Math.min(2_000, pixelCountMax),
+    sliderStep: 1,
+    detentStep: 64,
+    detentMagnet: 10,
+    labelStep: 512,
+  }), [pixelCountMax])
 
   useEffect(() => {
     const handleEscape = (event: KeyboardEvent) => {
@@ -117,28 +132,22 @@ export function ShowCreationFlow({
                 aria-label="Show name"
                 value={name}
                 onChange={(event) => setName(event.target.value)}
-                className="mt-1 block h-9 w-full rounded border border-zinc-700 bg-zinc-900 px-3 text-sm normal-case tracking-normal text-zinc-100 outline-none focus:border-live/70"
+                className="mt-1 block h-9 w-full border-0 border-b border-zinc-700 bg-transparent px-1.5 text-sm normal-case tracking-normal text-zinc-100 outline-none focus:border-live/70"
               />
             </label>
-            <label className="text-[10px] uppercase tracking-[0.12em] text-zinc-500">
-              {portable ? 'Preview pixels' : 'Pixels'}
-              {/* Safe controlled input: value is the raw pixelCountText string
-                  state, so keystrokes and deletion round-trip losslessly. */}
-              {/* eslint-disable-next-line no-restricted-syntax */}
-              <input
-                aria-label={portable ? 'Preview pixels' : 'Pixels'}
-                type="number"
-                min={1}
-                max={portable ? MAX_PORTABLE_PREVIEW_PIXELS : 65536}
+            <div className="text-[10px] uppercase tracking-[0.12em] text-zinc-500">
+              <BoundedNumberField
+                label={portable ? 'Preview pixels' : 'Pixels'}
+                value={selection.pixelCountLocked ? selection.pixelCount : requestedPixelCount}
+                presentation={pixelCountPresentation}
+                variant="editor"
                 disabled={selection.pixelCountLocked}
-                value={selection.pixelCountLocked ? selection.pixelCount : pixelCountText}
-                onChange={(event) => updatePixelCount(event.target.value)}
-                className="mt-1 block h-9 w-full rounded border border-zinc-700 bg-zinc-900 px-3 text-sm normal-case tracking-normal text-zinc-100 outline-none focus:border-live/70 disabled:cursor-not-allowed disabled:text-zinc-500"
+                onChange={(next) => updatePixelCount(String(Math.round(next)))}
               />
               {selection.pixelCountLocked && (
                 <span className="mt-1 block normal-case tracking-normal text-zinc-600">Measured by the fixed map.</span>
               )}
-            </label>
+            </div>
             <label className="text-[10px] uppercase tracking-[0.12em] text-zinc-500">
               {portable ? 'Reference map' : 'Output map'}
               <select

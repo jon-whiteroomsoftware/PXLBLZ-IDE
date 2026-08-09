@@ -66,6 +66,31 @@ describe('Show Pattern instance controls (#586)', () => {
     expect(screen.getByRole('group', { name: 'Pattern instance' })).toHaveTextContent('Affects 2 linked Clips')
   })
 
+  it('authors Stutter as jumps per second with an exact field and transient slider (#779)', () => {
+    const onSteppedClockChange = vi.fn()
+    render(
+      <ShowPatternInstanceControls
+        ownership={{ instanceId: 'instance-a', useCount: 1, compatibleTargets: [] }}
+        steppedClock={{ stepMs: 500 }}
+        onMakeIndependent={vi.fn()}
+        onRejoin={vi.fn()}
+        onSteppedClockChange={onSteppedClockChange}
+      />,
+    )
+
+    const rate = screen.getByRole('textbox', { name: 'Jumps per second exact rate' })
+    expect(rate).toHaveValue('2')
+    expect(screen.getByRole('button', {
+      name: 'Adjust with rate slider',
+      description: 'Jumps per second',
+    })).toBeInTheDocument()
+    expect(screen.getByText('every 500 ms')).toBeInTheDocument()
+
+    fireEvent.change(rate, { target: { value: '4' } })
+    fireEvent.keyDown(rate, { key: 'Enter' })
+    expect(onSteppedClockChange).toHaveBeenLastCalledWith({ stepMs: 250 })
+  })
+
   it('uses the same compact three-column rows as Advanced Clip controls (#63)', () => {
     render(
       <ShowPatternInstanceControls

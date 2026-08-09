@@ -10,9 +10,25 @@ import {
   AlertDialogTitle,
 } from '@/components/ui/alert-dialog'
 import { Button } from '@/components/ui/button'
+import { BoundedNumberField } from '@/components/ui/bounded-number-field'
 import type { ShowClipPatternInstanceOwnership } from '@/engine/showTimelineClipAuthoring'
 import type { ShowSteppedClock } from '@/engine/personalContentRecords'
-import { TimeField } from '@/components/ui/time-field'
+import { resolveLinearNumberPresentation } from '@/engine/linearNumberPresentation'
+import { steppedClockRateHz, steppedClockStepMs } from '@/engine/steppedClock'
+
+const JUMPS_PER_SECOND_PRESENTATION = resolveLinearNumberPresentation({
+  kindLabel: 'rate',
+  suffix: '/s',
+  min: 1 / 60,
+  max: 62.5,
+  step: 0.001,
+  sliderMin: 0.25,
+  sliderMax: 30,
+  sliderStep: 0.25,
+  detentStep: 1,
+  detentMagnet: 0.12,
+  labelStep: 5,
+})
 
 export function ShowPatternInstanceControls({
   ownership,
@@ -73,7 +89,7 @@ export function ShowPatternInstanceControls({
             type="checkbox"
             aria-label="Stutter Pattern clock"
             checked={steppedClock !== undefined}
-            className="h-3 w-3 accent-cyan-400"
+            className="h-3 w-3 accent-live"
             onChange={(event) => onSteppedClockChange(event.target.checked ? { stepMs: 250 } : undefined)}
           />
         </span>
@@ -83,18 +99,19 @@ export function ShowPatternInstanceControls({
             <span className="truncate text-cyan-300/70">Affects {ownership.useCount} linked Clips</span>
           )}
           {steppedClock && (
-            <span className="ml-auto flex min-w-24 max-w-32 items-center gap-1 text-zinc-500 [&_input]:!border-0">
-              Step
-              <TimeField
-                label="Stutter step seconds"
-                hideLabel
-                value={steppedClock.stepMs / 1_000}
-                min={0.016}
-                max={60}
-                step={0.05}
-                compact
-                onChange={(seconds) => onSteppedClockChange({ stepMs: Math.round(seconds * 1_000) })}
-              />
+            <span className="ml-auto flex min-w-44 max-w-56 items-center gap-2 text-zinc-500">
+              <span className="tabular-nums text-[8px] text-zinc-600">every {steppedClock.stepMs} ms</span>
+              <span className="min-w-28 flex-1">
+                <BoundedNumberField
+                  label="Jumps per second"
+                  hideLabel
+                  value={steppedClockRateHz(steppedClock.stepMs)}
+                  presentation={JUMPS_PER_SECOND_PRESENTATION}
+                  compact
+                  variant="editor"
+                  onChange={(rate) => onSteppedClockChange({ stepMs: steppedClockStepMs(rate) })}
+                />
+              </span>
             </span>
           )}
           {!steppedClock && ownership.useCount === 1 && <span aria-hidden className="text-zinc-700">—</span>}
@@ -110,7 +127,7 @@ export function ShowPatternInstanceControls({
               aria-label="Shared Pattern instance"
               value={selectedTarget?.instanceId ?? ''}
               onChange={(event) => setTargetInstanceId(event.target.value)}
-              className="h-5 min-w-0 flex-1 border-0 border-b border-zinc-800 bg-transparent px-1 text-[9px] text-zinc-300 outline-none focus:border-cyan-400/60"
+              className="h-5 min-w-0 flex-1 border-0 border-b border-zinc-800 bg-transparent px-1 text-[9px] text-zinc-300 outline-none focus:border-live/70"
             >
               {ownership.compatibleTargets.map((target, index) => (
                 <option key={target.instanceId} value={target.instanceId}>

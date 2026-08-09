@@ -391,7 +391,6 @@ export function BoundedNumberField({
     ? 'min-w-0 text-[9px] uppercase tracking-[0.1em] text-zinc-600'
     : `min-w-0 uppercase text-zinc-600 ${compact ? 'text-[9px] tracking-[0.08em]' : 'text-[10px]'}`
   const fieldHeight = inspector ? 'h-5' : compact ? 'h-6' : 'h-7'
-  const fieldBackground = inspector || compact ? 'bg-zinc-950' : 'bg-zinc-900'
   const textSize = inspector ? (compact ? 'text-[9px]' : 'text-[9.5px]') : (compact ? 'text-[9.5px]' : 'text-xs')
 
   return (
@@ -406,7 +405,7 @@ export function BoundedNumberField({
       </span>
       <span className={`${hideLabel ? '' : compact ? 'mt-0.5' : 'mt-1'} flex min-w-0 items-center gap-1`}>
         <span
-          className={`${fieldHeight} ${fieldBackground} flex min-w-0 flex-1 overflow-hidden rounded border border-zinc-700 focus-within:border-cyan-400/60`}
+          className={`${fieldHeight} flex min-w-0 flex-1 overflow-hidden rounded-none border-0 border-b border-zinc-700 bg-transparent focus-within:border-live/70`}
           onBlur={(event) => {
             if (event.currentTarget.contains(event.relatedTarget as Node | null)) return
             revert()
@@ -456,7 +455,7 @@ export function BoundedNumberField({
             onLostPointerCapture={() => {
               if (pointerSessionRef.current) cancelSlider()
             }}
-            className="grid w-[18px] shrink-0 touch-none place-items-center border-l border-zinc-700 text-zinc-600 hover:bg-zinc-800 hover:text-cyan-300 focus:outline-none focus-visible:bg-zinc-800 focus-visible:text-cyan-300 disabled:cursor-default disabled:opacity-40"
+            className="grid w-[18px] shrink-0 touch-none place-items-center text-zinc-700 opacity-70 hover:bg-live/[0.06] hover:text-live hover:opacity-100 focus:outline-none focus-visible:bg-live/[0.06] focus-visible:text-live focus-visible:opacity-100 disabled:cursor-default disabled:opacity-40"
           >
             <GripVertical size={12} aria-hidden />
           </button>
@@ -481,7 +480,7 @@ export function BoundedNumberField({
           data-bounded-number-slider-ui
           // Auxiliary sliders can open from the z-130 Property animation
           // popover, so their body portal must sit above its owning surface.
-          className="fixed z-[140] flex items-center rounded-md border border-cyan-400/35 bg-zinc-950 px-4 shadow-[0_12px_32px_rgba(0,0,0,0.5)]"
+          className="fixed z-[140] flex items-center rounded-md border border-live/35 bg-zinc-950 px-4 shadow-[0_12px_32px_rgba(0,0,0,0.5)]"
           style={{ left: slider.left, top: slider.top, width: slider.width, height: slider.height }}
         >
           <div className={sliderMarks.length > 0 ? 'relative h-9 w-full' : 'relative flex w-full items-center'}>
@@ -489,7 +488,7 @@ export function BoundedNumberField({
               <span
                 data-testid="domain-number-neutral"
                 aria-hidden
-                className="pointer-events-none absolute top-1/2 z-10 h-3 w-px -translate-x-1/2 -translate-y-1/2 bg-cyan-200/75 shadow-[0_0_4px_rgba(165,243,252,0.55)]"
+                className="pointer-events-none absolute top-1/2 z-10 h-3 w-px -translate-x-1/2 -translate-y-1/2 bg-live/75 shadow-[0_0_4px_color-mix(in_srgb,var(--color-live)_55%,transparent)]"
                 style={{ left: `${neutralPosition * 100}%` }}
               />
             )}
@@ -630,7 +629,7 @@ export function BoundedNumberField({
                 // never commit a noncanonical endpoint (#612).
                 previewSliderValue(Number(canonicalizeSliderValue(next).toFixed(10)))
               }}
-              className={`${sliderMarks.length > 0 ? 'absolute inset-x-0 top-0 z-10 h-5' : ''} w-full accent-cyan-400 outline-none focus:outline-none focus-visible:outline-none`}
+              className={`${sliderMarks.length > 0 ? 'absolute inset-x-0 top-0 z-10 h-5' : ''} w-full accent-live outline-none focus:outline-none focus-visible:outline-none`}
             />
           </div>
         </div>,

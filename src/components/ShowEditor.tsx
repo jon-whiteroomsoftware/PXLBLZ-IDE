@@ -7,7 +7,9 @@ import { DraftTextField } from '@/components/ui/draft-text-field'
 import { TimeField as UiTimeField, type TimeFieldProps as UiTimeFieldProps } from '@/components/ui/time-field'
 import { PercentageField as UiPercentageField, type PercentageFieldProps as UiPercentageFieldProps } from '@/components/ui/percentage-field'
 import { DomainNumberField as UiDomainNumberField, type DomainNumberFieldProps as UiDomainNumberFieldProps } from '@/components/ui/domain-number-field'
+import { BoundedNumberField } from '@/components/ui/bounded-number-field'
 import { formatDomainNumber } from '@/engine/domainNumberPresentation'
+import { resolveLinearNumberPresentation } from '@/engine/linearNumberPresentation'
 import { formatPercentageValue } from '@/engine/percentageValue'
 import { formatShowTime, showBoundaryClipIdentity } from '@/engine/showClipIdentity'
 import { presentShowDiagnostic } from '@/engine/showDiagnosticPresentation'
@@ -302,24 +304,36 @@ const field =
   'h-7 rounded border border-zinc-700 bg-zinc-900 px-2 text-xs text-zinc-200 outline-none focus:border-live/70'
 const compactField =
   'h-6 rounded border border-zinc-700 bg-zinc-950 px-1.5 text-[9.5px] text-zinc-200 outline-none focus:border-live/70'
+const transitionRuleUnderField =
+  'h-7 border-0 border-b border-zinc-700 bg-transparent px-1 text-xs text-zinc-200 outline-none focus:border-live/70'
 const EMPTY_ZONE_IDS: string[] = []
+const JUMPS_PER_SECOND_PRESENTATION = resolveLinearNumberPresentation({
+  kindLabel: 'rate',
+  suffix: '/s',
+  min: 0.25,
+  max: 30,
+  step: 0.25,
+  sliderMin: 0.25,
+  sliderMax: 30,
+  sliderStep: 0.25,
+  detentStep: 1,
+  detentMagnet: 0.12,
+  labelStep: 5,
+})
 const clipBase =
-  'show-timeline-clip z-10 flex flex-col justify-center gap-px overflow-hidden rounded-[5px] border-0 border-l-[3px] px-2 py-0.5 text-left transition-colors focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-live'
+  'show-timeline-clip z-10 flex flex-col justify-center gap-px overflow-hidden rounded-none border-0 border-l-2 px-2 py-0.5 text-left transition-colors focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-live'
 
 function showTimelineToolbarControlClass(input: {
   enabled: boolean
   active?: boolean
-  surface?: boolean
 }): string {
   if (!input.enabled) {
-    const background = input.surface ? 'bg-zinc-900/60' : 'bg-transparent'
-    const hoverBackground = input.surface ? 'hover:bg-zinc-900/60' : 'hover:bg-transparent'
-    return `${background} ${hoverBackground} cursor-not-allowed text-zinc-700 opacity-100 hover:text-zinc-700 disabled:pointer-events-auto disabled:opacity-100`
+    return 'bg-transparent hover:bg-transparent cursor-not-allowed text-zinc-700 opacity-100 hover:text-zinc-700 disabled:pointer-events-auto disabled:opacity-100'
   }
   if (input.active) {
     return 'bg-amber-400/10 text-amber-300 hover:bg-amber-400/15 hover:text-amber-200 active:bg-amber-400/20 active:text-amber-100 aria-expanded:bg-amber-400/10 aria-expanded:text-amber-300'
   }
-  return `${input.surface ? 'bg-zinc-800/70' : 'bg-transparent'} text-zinc-400 hover:bg-amber-400/10 hover:text-amber-200 active:bg-amber-400/20 active:text-amber-100 aria-expanded:bg-amber-400/10 aria-expanded:text-amber-300`
+  return 'bg-transparent text-zinc-400 hover:bg-amber-400/10 hover:text-amber-200 active:bg-amber-400/20 active:text-amber-100 aria-expanded:bg-amber-400/10 aria-expanded:text-amber-300'
 }
 
 function ShowEasingOptions() {
@@ -743,18 +757,18 @@ function ShowNoteDisclosure({
             )
           })()}
           <p className="mt-1.5 flex items-start gap-1.5 leading-4 text-zinc-500">
-            <Lightbulb size={11} aria-hidden className="mt-0.5 shrink-0 text-violet-300/70" />
-            <span><b className="font-medium text-violet-200/75">Notice:</b> {note.notice}</span>
+            <Lightbulb size={11} aria-hidden className="mt-0.5 shrink-0 text-zinc-500" />
+            <span><b className="font-medium text-zinc-400">Notice:</b> {note.notice}</span>
           </p>
         </div>
         <div className="border-l border-zinc-800 pl-3 max-[720px]:border-l-0 max-[720px]:border-t max-[720px]:pl-0 max-[720px]:pt-2">
           <span className="flex items-center gap-1 font-semibold uppercase tracking-[0.09em] text-zinc-400">
-            <ListChecks size={10} aria-hidden className="text-cyan-200/75" /> Try this
+            <ListChecks size={10} aria-hidden className="text-zinc-500" /> Try this
           </span>
           <ul className="mt-1.5 space-y-1 text-zinc-400">
             {note.prompts.map((prompt) => (
               <li key={prompt} className="flex gap-1.5">
-                <i aria-hidden className="mt-[5px] size-1 shrink-0 rounded-full bg-cyan-200/60" />
+                <i aria-hidden className="mt-[5px] size-1 shrink-0 rounded-full bg-zinc-600" />
                 <span>{prompt}</span>
               </li>
             ))}
@@ -2824,10 +2838,8 @@ function ShowTransportControls({
 }: {
   show: ShowRecord
 }) {
-  const durationMs = showLoopDurationMs(show)
   const isRunning = usePreviewStore((state) => state.isRunning)
   const toggle = usePreviewStore((state) => state.toggle)
-  const positionMs = useShowTransportStore((state) => state.showId === show.id ? state.positionMs : 0)
 
   useEffect(() => {
     const onKeyDown = (event: KeyboardEvent) => {
@@ -2873,9 +2885,9 @@ function ShowTransportControls({
         variant="ghost"
         aria-label={isRunning ? 'Pause Show preview' : 'Play Show preview'}
         title={isRunning ? 'Pause Show preview (Space)' : 'Play Show preview (Space)'}
-        className={`bg-zinc-900/70 hover:bg-amber-400/10 ${
-          isRunning ? 'text-green-400 hover:text-green-300' : 'text-red-400 hover:text-red-300'
-        }`}
+        className={isRunning
+          ? 'bg-amber-400/10 text-amber-300 hover:bg-amber-400/15 hover:text-amber-200'
+          : 'bg-transparent text-zinc-400 hover:bg-amber-400/10 hover:text-amber-200'}
         onClick={toggle}
       >
         {isRunning ? <Play size={20} aria-hidden className="size-[20px]" /> : <Pause size={20} aria-hidden className="size-[20px]" />}
@@ -2885,14 +2897,23 @@ function ShowTransportControls({
         variant="ghost"
         aria-label="Go to Show start"
         title="Go to Show start (A)"
-        className="bg-zinc-900/70 text-zinc-500 hover:bg-zinc-800 hover:text-zinc-100"
+        className="bg-transparent text-zinc-500 hover:bg-amber-400/10 hover:text-amber-200"
         onPointerUp={(event) => event.currentTarget.blur()}
         onClick={() => requestShowSeek(show.id, 0)}
       >
         <SkipBack size={18} aria-hidden className="size-[18px]" />
       </Button>
+    </div>
+  )
+}
+
+function ShowTimeDisplay({ show }: { show: ShowRecord }) {
+  const durationMs = showLoopDurationMs(show)
+  const positionMs = useShowTransportStore((state) => state.showId === show.id ? state.positionMs : 0)
+  return (
+    <div className="timeline-time-cluster flex shrink-0 items-center border-l border-zinc-800/80 px-2" role="group" aria-label="Timeline position">
       <output
-        className="timeline-time-display ml-1 flex min-w-[118px] items-baseline gap-0.5 whitespace-nowrap text-xs tabular-nums"
+        className="timeline-time-display flex min-w-[118px] items-baseline gap-0.5 whitespace-nowrap text-xs tabular-nums"
         aria-live="off"
         aria-label="Show time"
       >
@@ -3089,7 +3110,6 @@ function ShowTimelineCommands({
           title={splitCapability.reason}
           className={`px-1.5 text-[10px] ${showTimelineToolbarControlClass({
             enabled: splitEnabled,
-            surface: true,
           })}`}
           onFocus={() => {
             if (!splitCapability.enabled) setSplitReasonOpen(true)
@@ -3143,7 +3163,6 @@ function ShowTimelineCommands({
         disabled={readOnly || !cloneCapability.enabled}
         className={`px-1.5 text-[10px] ${showTimelineToolbarControlClass({
           enabled: cloneEnabled,
-          surface: true,
         })}`}
         onClick={() => void cloneSelection()}
       >
@@ -3161,7 +3180,6 @@ function ShowTimelineCommands({
           aria-describedby={!groupPlan.enabled && groupReasonOpen ? groupReasonId : undefined}
           className={`px-1.5 text-[10px] ${showTimelineToolbarControlClass({
             enabled: groupEnabled,
-            surface: true,
           })}`}
           onFocus={() => {
             if (!groupPlan.enabled) setGroupReasonOpen(true)
@@ -4223,24 +4241,11 @@ function ShowTimelineWorkspace({
         aria-label="Show timeline controls"
         onClick={(event) => event.stopPropagation()}
       >
-        <div className="timeline-transport-cluster mr-1 min-w-0 shrink-0">
+        <div className="timeline-transport-cluster min-w-0 shrink-0 px-1">
           {transportActive && <ShowTransportControls show={show} />}
         </div>
-        <div className="timeline-view-cluster flex min-w-[120px] max-w-[210px] flex-[0_1_180px] shrink items-center gap-1 border-l border-zinc-800/80 px-1" role="group" aria-label="Timeline view controls">
-            <TimelineNavigator showId={show.id} viewport={viewport} onChange={updateViewport} compact />
-            <Button
-              size="icon-xs"
-              variant="ghost"
-              aria-label="Fit timeline to Show"
-              title="Fit the complete Show"
-              disabled={timelineIsFitted}
-              className="shrink-0 bg-transparent text-zinc-500 hover:bg-zinc-800/60 hover:text-zinc-100"
-              onClick={() => updateViewport(fitShowTimelineViewport(timeline.durationMs))}
-            >
-              <Maximize2 size={12} aria-hidden />
-            </Button>
-        </div>
-        <div className="timeline-command-cluster relative ml-auto flex min-w-0 shrink-0 items-center justify-end gap-[1.5px]" role="group" aria-label="Show authoring commands">
+        {transportActive && <ShowTimeDisplay show={show} />}
+        <div className="timeline-command-cluster relative ml-auto flex min-w-0 shrink-0 items-center justify-end gap-[1.5px] border-l border-zinc-800/80 px-1" role="group" aria-label="Show authoring commands">
           {!readOnly && (
             <>
               <Button
@@ -4254,7 +4259,6 @@ function ShowTimelineWorkspace({
                 className={`px-1.5 text-[11px] ${showTimelineToolbarControlClass({
                   enabled: true,
                   active: addMenuOpen || addClipOpen || insertTimeOpen || layoutActionsOpen,
-                  surface: true,
                 })}`}
                 onClick={() => {
                   const transport = useShowTransportStore.getState()
@@ -4590,19 +4594,31 @@ function ShowTimelineWorkspace({
               <PanelLeft size={12} aria-hidden />
             </Button>
           )}
-          <Button
-            size="icon-xs"
-            variant="ghost"
-            aria-label="Snap playhead"
-            aria-pressed={snapEnabled}
-            title="Magnetize drags to nearby Clip, Transition, Marker, Show-end, and playhead boundaries. Drops always land on the time grid: whole seconds, finer as you zoom in · Shift for tenths · Alt for free placement."
-            className={showTimelineToolbarControlClass({ enabled: true, active: snapEnabled })}
-            onClick={() => setSnapEnabled(!snapEnabled)}
-          >
-            <Magnet size={12} aria-hidden />
-          </Button>
-          {!readOnly && (
-            <>
+          <div className="ml-1 flex shrink-0 items-center gap-[1.5px] border-l border-zinc-800/80 pl-1" role="group" aria-label="Marker controls">
+            <Button
+              size="icon-xs"
+              variant="ghost"
+              aria-label="Snap playhead"
+              aria-pressed={snapEnabled}
+              title="Magnetize drags to nearby Clip, Transition, Marker, Show-end, and playhead boundaries. Drops always land on the time grid: whole seconds, finer as you zoom in · Shift for tenths · Alt for free placement."
+              className={showTimelineToolbarControlClass({ enabled: true, active: snapEnabled })}
+              onClick={() => setSnapEnabled(!snapEnabled)}
+            >
+              <Magnet size={12} aria-hidden />
+            </Button>
+            {!readOnly && (
+              <TimelineMarkerSource
+                show={displayShow}
+                viewport={viewport}
+                snapEnabled={snapEnabled}
+                structuralTimesMs={structuralTimesMs}
+                getVisibleWidth={() => Math.max(1, scrollRef.current?.clientWidth ?? 812)}
+                getRulerBounds={() => timelineRulerRef.current?.getBoundingClientRect() ?? null}
+                onCreateMarker={onAddMarker}
+                onMarkerFeedback={setMarkerFeedback}
+              />
+            )}
+            {!readOnly && (
               <Button
                 size="icon-xs"
                 variant="ghost"
@@ -4620,8 +4636,22 @@ function ShowTimelineWorkspace({
               >
                 <Flag size={12} aria-hidden />
               </Button>
-            </>
-          )}
+            )}
+          </div>
+        </div>
+        <div className="timeline-view-cluster flex min-w-[120px] max-w-[210px] flex-[0_1_180px] shrink items-center gap-1 border-l border-zinc-800/80 px-1" role="group" aria-label="Timeline view controls">
+          <TimelineNavigator showId={show.id} viewport={viewport} onChange={updateViewport} compact />
+          <Button
+            size="icon-xs"
+            variant="ghost"
+            aria-label="Fit timeline to Show"
+            title="Fit the complete Show"
+            disabled={timelineIsFitted}
+            className="shrink-0 bg-transparent text-zinc-500 hover:bg-amber-400/10 hover:text-amber-200"
+            onClick={() => updateViewport(fitShowTimelineViewport(timeline.durationMs))}
+          >
+            <Maximize2 size={12} aria-hidden />
+          </Button>
         </div>
       </div>
       {isolatedGroupOccurrence && isolatedGroupDefinition && (
@@ -4644,18 +4674,6 @@ function ShowTimelineWorkspace({
         </div>
       )}
       <div className="relative">
-        {!readOnly && (
-          <TimelineMarkerSource
-            show={displayShow}
-            viewport={viewport}
-            snapEnabled={snapEnabled}
-            structuralTimesMs={structuralTimesMs}
-            getVisibleWidth={() => Math.max(1, scrollRef.current?.clientWidth ?? 812)}
-            getRulerBounds={() => timelineRulerRef.current?.getBoundingClientRect() ?? null}
-            onCreateMarker={onAddMarker}
-            onMarkerFeedback={setMarkerFeedback}
-          />
-        )}
         <div
           ref={scrollRef}
           data-show-timeline-scroll-viewport
@@ -5176,7 +5194,7 @@ function ShowTimelineWorkspace({
               <div
                 key={layer.id}
                 className={[
-                  'relative min-w-0 border-b border-zinc-900/80 bg-[#18181b] transition-colors',
+                  'relative min-w-0 border-b border-zinc-900/80 bg-transparent transition-colors',
                   dropTargetKey === `composition:${layer.id}` ? 'bg-live/[0.07] ring-1 ring-inset ring-live/40' : '',
                 ].join(' ')}
                 style={{
@@ -5544,11 +5562,9 @@ function ShowTimelineWorkspace({
                         left: `${left}%`,
                         width: `${width}%`,
                         minWidth: 2,
-                        borderLeftColor: row.color ?? '#38bdf8',
-                        background: `linear-gradient(color-mix(in srgb, ${row.color ?? '#38bdf8'} 18%, #101013), color-mix(in srgb, ${row.color ?? '#38bdf8'} 11%, #0c0c0e))`,
-                        boxShadow: selected
-                          ? `0 0 0 1.5px var(--color-live), inset 0 1px 0 color-mix(in srgb, ${row.color ?? '#38bdf8'} 38%, transparent), 0 8px 18px -10px rgba(0,0,0,0.9)`
-                          : `inset 0 1px 0 color-mix(in srgb, ${row.color ?? '#38bdf8'} 38%, transparent), 0 1px 5px rgba(0,0,0,0.32)`,
+                        borderLeftColor: selected ? 'var(--color-live)' : row.color ?? '#38bdf8',
+                        background: `color-mix(in srgb, ${row.color ?? '#38bdf8'} 9%, transparent)`,
+                        boxShadow: 'none',
                       } as CSSProperties}
                     >
                       {deleteBlocked && (
@@ -5563,16 +5579,8 @@ function ShowTimelineWorkspace({
                           </span>
                         </span>
                       )}
-                      <span
-                        aria-hidden
-                        className="pointer-events-none absolute inset-0 opacity-40"
-                        style={{
-                          background: `radial-gradient(circle at 22% 15%, color-mix(in srgb, ${row.color ?? '#38bdf8'} 62%, transparent), transparent 38%), linear-gradient(110deg, transparent 35%, color-mix(in srgb, ${row.color ?? '#38bdf8'} 28%, transparent) 56%, transparent 75%)`,
-                        }}
-                      />
                       <span className="relative z-10 flex min-w-0 items-center gap-1.5">
-                        <Grid2X2 size={11} aria-hidden className="show-clip-pattern-icon shrink-0 text-zinc-500" />
-                        <span className="show-clip-pattern-name truncate text-[12px] font-normal text-zinc-100 [text-shadow:0_1px_2px_rgba(0,0,0,0.95)]">{clip.patternName}</span>
+                        <span className={`show-clip-pattern-name truncate text-[12px] font-normal [text-shadow:0_1px_2px_rgba(0,0,0,0.95)] ${selected ? 'text-live' : 'text-zinc-100'}`}>{clip.patternName}</span>
                       </span>
                       <ClipSummaryInline summary={summary} previousSummary={previousSummary} />
                       {!readOnly && !group && (
@@ -6313,13 +6321,13 @@ function TimelineMarkerSource({
   return (
     <div
       data-show-marker-source-gutter
-      className="pointer-events-none absolute -left-[18px] top-0 z-40 flex h-7 w-4 items-start justify-center pt-1"
+      className="pointer-events-none flex h-6 w-5 shrink-0 items-center justify-center"
     >
       <button
         type="button"
         aria-label="Add Marker at playhead"
         title="Click to add at the playhead, or drag onto the ruler · lands on the time grid, Shift for tenths, Alt for free placement"
-        className="pointer-events-auto flex h-4 w-4 cursor-ew-resize items-center justify-center rounded-sm text-amber-300/75 hover:bg-amber-300/10 hover:text-amber-200 focus-visible:outline focus-visible:outline-1 focus-visible:outline-amber-300"
+        className="pointer-events-auto flex h-6 w-5 cursor-ew-resize items-center justify-center rounded-sm text-zinc-500 hover:bg-amber-300/10 hover:text-amber-200 focus-visible:outline focus-visible:outline-1 focus-visible:outline-amber-300"
         onPointerDown={(event) => {
           event.stopPropagation()
           clearConfirmation()
@@ -8293,7 +8301,6 @@ function MotionCadenceControl({
 }) {
   const stepped = stepMs !== undefined
   const rateHz = steppedClockRateHz(stepMs ?? 125)
-  const rateLabel = formatCadenceRate(rateHz)
   return (
     <section className="mt-1 max-w-2xl border-t border-zinc-800/65 pt-1">
       <div
@@ -8349,23 +8356,17 @@ function MotionCadenceControl({
       </div>
       {stepped && (
         <>
-          <div className="mt-1.5 grid grid-cols-[minmax(0,1fr)_auto] items-center gap-3 border-t border-zinc-800/55 pt-1.5">
-            <label className="grid min-w-0 grid-cols-[auto_minmax(5rem,1fr)] items-center gap-3 text-[9px] uppercase text-zinc-600">
-              Jumps per second
-              <input
-                aria-label="Jumps per second"
-                className="w-full accent-violet-400"
-                type="range"
-                min={0.25}
-                max={30}
-                step={0.25}
-                value={rateHz}
-                onChange={(event) => onChange(steppedClockStepMs(Number(event.target.value)))}
-              />
-            </label>
-            <div className="text-right tabular-nums">
-              <b className="text-[10px] font-medium text-zinc-200">{rateLabel}/s</b>
-              <span className="ml-2 text-[8px] text-zinc-600">every {Math.round(stepMs)} ms</span>
+          <div className="mt-1.5 grid grid-cols-[minmax(7rem,10rem)_1fr] items-end gap-3 border-t border-zinc-800/55 pt-1.5">
+            <BoundedNumberField
+              compact
+              label="Jumps per second"
+              value={rateHz}
+              presentation={JUMPS_PER_SECOND_PRESENTATION}
+              variant="editor"
+              onChange={(next) => onChange(steppedClockStepMs(next))}
+            />
+            <div className="pb-0.5 text-[8px] tabular-nums text-zinc-600">
+              every {Math.round(stepMs)} ms
             </div>
           </div>
           <p className="mt-1 text-[8px] text-zinc-600">
@@ -8421,7 +8422,7 @@ function TransitionInspector({
               aria-label="Destination routing layout"
               value={transition.layoutId ?? ''}
               onChange={(event) => onUpdate(transition.id, { layoutId: event.target.value || undefined })}
-              className={`${field} mt-1 w-full`}
+              className={`${transitionRuleUnderField} mt-1 w-full`}
             >
               {show.routingLayouts.map((layout) => (
                 <option key={layout.id} value={layout.id}>{layout.name}</option>
@@ -8448,7 +8449,7 @@ function TransitionInspector({
               onChange={(event) => onUpdate(transition.id, {
                 easing: showEasingFromOptionId(event.target.value),
               })}
-              className={`${field} mt-1 w-full disabled:opacity-40`}
+              className={`${transitionRuleUnderField} mt-1 w-full disabled:opacity-40`}
             >
               <ShowEasingOptions />
             </select>
@@ -8462,7 +8463,7 @@ function TransitionInspector({
               onChange={(event) => onUpdate(transition.id, {
                 routingDirection: event.target.value === 'reverse' ? 'reverse' : 'forward',
               })}
-              className={`${field} mt-1 w-full disabled:opacity-40`}
+              className={`${transitionRuleUnderField} mt-1 w-full disabled:opacity-40`}
             >
               <option value="forward">forward</option>
               <option value="reverse">reverse</option>
@@ -8474,7 +8475,7 @@ function TransitionInspector({
               : 'Directional transfer: a stable spatial threshold moves pixel ownership to the destination layout.'}
             {' '}Each pixel invokes one Pattern renderer, and all Pattern clocks continue.
           </p>
-          <output aria-label="Routing transfer cost" className="col-span-2 text-[10px] text-emerald-300/80">
+          <output aria-label="Routing transfer cost" className="col-span-2 text-[10px] text-zinc-500">
             Cost tier: {transition.durationMs > 0 ? 'cheap' : 'free'} · one renderer per physical pixel
           </output>
         </div>
@@ -8543,7 +8544,7 @@ function TransitionInspector({
         />
       )}
       {transition.kind === 'crossfade' && (
-        <div className="mt-2 rounded border border-zinc-800 bg-zinc-950/55 p-2">
+        <div data-crossfade-source className="mt-2 border-t border-zinc-800/80 bg-transparent py-2">
           <label className="text-[10px] uppercase text-zinc-600">
             Crossfade source
             <select
@@ -8552,7 +8553,7 @@ function TransitionInspector({
               onChange={(event) => onUpdate(transition.id, {
                 crossfadePolicy: event.target.value === 'live-live' ? 'live-live' : 'snapshot-live',
               })}
-              className={`${field} mt-1 w-full`}
+              className={`${transitionRuleUnderField} mt-1 w-full`}
             >
               <option value="snapshot-live">Snapshot outgoing (recommended)</option>
               <option value="live-live">Keep both Patterns live</option>
@@ -8563,16 +8564,21 @@ function TransitionInspector({
               ? 'Freezes the fully composited outgoing Stage at the boundary; incoming motion stays live.'
               : 'Keeps outgoing and incoming visuals live for the whole blend.'}
           </p>
-          <output aria-label="Crossfade evaluation cost" className="mt-1 block text-[9px] text-emerald-300/80">
+          <output aria-label="Crossfade evaluation cost" className="mt-1 block text-[9px] text-zinc-500">
             {transition.crossfadePolicy === 'snapshot-live'
               ? 'Capture frame: two Pattern render paths · then one live Pattern renderer per pixel after capture'
               : 'Two live Pattern render paths per pixel throughout the transition'}
           </output>
         </div>
       )}
-      <details className="mt-2 rounded border border-zinc-800 bg-zinc-950/35">
-        <summary className="cursor-pointer px-2 py-1.5 text-[9px] uppercase tracking-[0.12em] text-zinc-500">Advanced transition controls</summary>
-        <div className="grid grid-cols-2 gap-2 border-t border-zinc-800 p-2">
+      <details className="mt-2 border-t border-zinc-800 bg-transparent">
+        <summary className="flex cursor-pointer items-center py-1.5 text-[9px] uppercase tracking-[0.12em] text-zinc-500">
+          <span>Advanced transition controls</span>
+          <span data-testid="transition-cost-tag" className={`ml-auto font-mono normal-case tracking-normal ${cost === 'expensive' ? 'text-amber-300' : 'text-zinc-500'}`}>
+            cost · {cost}
+          </span>
+        </summary>
+        <div className="grid grid-cols-2 gap-0 border-t border-zinc-800">
           {(['timeScale', 'brightness'] as const).map((property) => (
             <PropertyTransitionEditor
               key={property}
@@ -8622,12 +8628,6 @@ function TransitionInspector({
               onUpdateControlTarget={onUpdateControlTarget}
             />
           ))}
-          <div className="rounded border border-zinc-800 bg-zinc-950/55 p-2 text-[10px] text-zinc-500">
-            Cost tier:{' '}
-            <span className={cost === 'expensive' ? 'text-amber-300' : cost === 'cheap' ? 'text-emerald-300' : 'text-zinc-300'}>
-              {cost}
-            </span>
-          </div>
         </div>
       </details>
     </InspectorPanel>
@@ -8672,14 +8672,14 @@ function SampleRepeatTransitionEditor({
     })
   }
   return (
-    <section className="col-span-2 rounded border border-cyan-900/50 bg-cyan-950/10 p-2">
-      <label className="flex items-center gap-2 text-[10px] uppercase text-cyan-300/80">
+    <section className="col-span-2 border-t border-zinc-800/70 bg-transparent py-2">
+      <label className="flex items-center gap-2 text-[10px] uppercase text-zinc-400">
         <input
           type="checkbox"
           aria-label="Animate repeat scale"
           checked={Boolean(descriptor)}
           onChange={(event) => event.target.checked ? updateDescriptor({}) : removeDescriptor()}
-          className="h-3.5 w-3.5 accent-cyan-400"
+          className="h-3.5 w-3.5 accent-live"
         />
         Repeat scale
         <span className="ml-auto font-mono text-zinc-500">{formatRepeatScale(fromTarget)} → {formatRepeatScale(toTarget)}</span>
@@ -8709,7 +8709,7 @@ function SampleRepeatTransitionEditor({
               aria-label="Repeat scale easing"
               value={showEasingOptionId(descriptor.easing ?? transition.easing)}
               onChange={(event) => updateDescriptor({ easing: showEasingFromOptionId(event.target.value) })}
-              className={`${field} mt-1 w-full`}
+              className={`${transitionRuleUnderField} mt-1 w-full`}
             >
               <ShowEasingOptions />
             </select>
@@ -8780,8 +8780,8 @@ function TransformTransitionEditor({
   }
 
   return (
-    <section aria-label="Transform transition" className="col-span-2 rounded border border-cyan-400/15 bg-cyan-400/[0.035] p-2">
-      <div className="mb-1 text-[10px] uppercase tracking-[0.12em] text-cyan-300/80">Transform</div>
+    <section aria-label="Transform transition" className="col-span-2 border-t border-zinc-800/70 bg-transparent py-2">
+      <div className="mb-1 text-[10px] uppercase tracking-[0.12em] text-zinc-400">Transform</div>
       <p className="mb-2 text-[9px] text-zinc-600">Canonical placement pose. Additional Transform Effects still run afterward.</p>
       <div className="divide-y divide-zinc-900">
         {SHOW_TRANSFORM_PROPERTY_PRESENTATION.map(({ property, label, format }) => {
@@ -8798,7 +8798,7 @@ function TransformTransitionEditor({
                   aria-label={`Animate ${label} transform`}
                   checked={Boolean(descriptor)}
                   onChange={(event) => updateProperty(property, event.target.checked)}
-                  className="size-3.5 accent-cyan-400"
+                  className="size-3.5 accent-live"
                 />
                 <span>{label}</span>
                 <span className="ml-auto font-mono text-zinc-600">{format(from)} to {format(to)}</span>
@@ -8819,7 +8819,7 @@ function TransformTransitionEditor({
                       aria-label={`${label} transform easing`}
                       value={showEasingOptionId(descriptor.easing ?? transition.easing)}
                       onChange={(event) => updateProperty(property, true, { easing: showEasingFromOptionId(event.target.value) })}
-                      className={`${field} mt-1 w-full`}
+                      className={`${transitionRuleUnderField} mt-1 w-full`}
                     >
                       <ShowEasingOptions />
                     </select>
@@ -8872,14 +8872,14 @@ function RoutingSplitTransitionEditor({
     })
   }
   return (
-    <section className="col-span-2 rounded border border-sky-900/50 bg-sky-950/10 p-2">
-      <label className="flex items-center gap-2 text-[10px] uppercase text-sky-300/80">
+    <section className="col-span-2 border-t border-zinc-800/70 bg-transparent py-2">
+      <label className="flex items-center gap-2 text-[10px] uppercase text-zinc-400">
         <input
           type="checkbox"
           aria-label="Animate split position"
           checked={Boolean(descriptor)}
           onChange={(event) => event.target.checked ? updateDescriptor({}) : removeDescriptor()}
-          className="h-3.5 w-3.5 accent-sky-400"
+          className="h-3.5 w-3.5 accent-live"
         />
         Split position
         <span className="ml-auto font-mono text-zinc-500">{Math.round(fromTarget * 100)}% → {Math.round(toTarget * 100)}%</span>
@@ -8908,7 +8908,7 @@ function RoutingSplitTransitionEditor({
               aria-label="Split position easing"
               value={showEasingOptionId(descriptor.easing ?? transition.easing)}
               onChange={(event) => updateDescriptor({ easing: showEasingFromOptionId(event.target.value) })}
-              className={`${field} mt-1 w-full`}
+              className={`${transitionRuleUnderField} mt-1 w-full`}
             >
               <ShowEasingOptions />
             </select>
@@ -8962,15 +8962,15 @@ function PropertyTransitionEditor({
   }
   return (
     <section
-      className={isTime
-        ? 'col-span-2 rounded border border-violet-400/15 bg-violet-400/[0.035] p-2'
-        : 'col-span-2 rounded border border-amber-400/15 bg-amber-400/[0.035] p-2'}
+      className="col-span-2 border-t border-zinc-800/70 bg-transparent py-2"
       aria-label={`${title} transition`}
     >
-      <div className={isTime
-        ? 'mb-2 text-[10px] uppercase tracking-[0.12em] text-violet-300/80'
-        : 'mb-2 text-[10px] uppercase tracking-[0.12em] text-amber-300/80'}>{title}</div>
+      <div className="mb-2 text-[10px] uppercase tracking-[0.12em] text-zinc-400">{title}</div>
       {descriptor && (
+        <>
+        <div data-testid="advanced-property-columns" className="mb-1 grid grid-cols-4 gap-2 font-mono text-[8px] uppercase tracking-[0.1em] text-zinc-600">
+          <span>From</span><span>To</span><span>Duration</span><span>Easing</span>
+        </div>
         <div className="mb-2 grid grid-cols-2 gap-2">
           <TimeField
             label={`${title} duration seconds`}
@@ -8986,12 +8986,13 @@ function PropertyTransitionEditor({
               aria-label={`${title} easing`}
               value={showEasingOptionId(descriptor.easing ?? transition.easing)}
               onChange={(event) => updateDescriptor({ easing: showEasingFromOptionId(event.target.value) })}
-              className={`${field} mt-1 w-full`}
+              className={`${transitionRuleUnderField} mt-1 w-full`}
             >
               <ShowEasingOptions />
             </select>
           </label>
         </div>
+        </>
       )}
       <div className="grid gap-2 sm:grid-cols-2">
         {destinationCells.map(({ zone, cell }) => {
@@ -9004,7 +9005,7 @@ function PropertyTransitionEditor({
           }
           const max = isTime ? 4 : 1
           return (
-            <div key={cell.id} className="rounded border border-zinc-800 bg-zinc-950/45 p-2">
+            <div key={cell.id} className="border-t border-zinc-900 bg-transparent py-2">
               <label className="flex items-center gap-2 text-[10px] text-zinc-300">
                 <input
                   type="checkbox"
@@ -9012,7 +9013,7 @@ function PropertyTransitionEditor({
                   checked={enabled}
                   disabled={transition.kind === 'cut'}
                   onChange={(event) => updateFrom(event.target.checked ? outgoing?.adaptations[property] ?? 1 : undefined)}
-                  className={isTime ? 'h-3.5 w-3.5 accent-violet-400' : 'h-3.5 w-3.5 accent-amber-400'}
+                  className="h-3.5 w-3.5 accent-live"
                 />
                 {zone.name}
               </label>
@@ -9117,8 +9118,8 @@ function PatternControlTransitionEditor({
     onUpdate(transition.id, { propertyTransitions: Object.keys(propertyTransitions).length > 0 ? propertyTransitions : undefined })
   }
   return (
-    <section className="col-span-2 rounded border border-cyan-400/15 bg-cyan-400/[0.035] p-2" aria-label={`${control.label} control transition`}>
-      <div className="mb-1 text-[10px] uppercase tracking-[0.12em] text-cyan-300/80">{control.label} · Pattern control</div>
+    <section className="col-span-2 border-t border-zinc-800/70 bg-transparent py-2" aria-label={`${control.label} control transition`}>
+      <div className="mb-1 text-[10px] uppercase tracking-[0.12em] text-zinc-400">{control.label} · Pattern control</div>
       <div className="mb-2 text-[9px] text-zinc-600">{control.exportName} · 0–100% · default {formatPercentageValue(control.defaultValue)}</div>
       {descriptor && (
         <div className="mb-2 grid grid-cols-2 gap-2">
@@ -9136,7 +9137,7 @@ function PatternControlTransitionEditor({
               aria-label={`${control.label} easing`}
               value={showEasingOptionId(descriptor.easing ?? transition.easing)}
               onChange={(event) => updateDescriptor({ easing: showEasingFromOptionId(event.target.value) })}
-              className={`${field} mt-1 w-full`}
+              className={`${transitionRuleUnderField} mt-1 w-full`}
             >
               <ShowEasingOptions />
             </select>
@@ -9150,7 +9151,7 @@ function PatternControlTransitionEditor({
           const enabled = from !== undefined
           const bothTargets = outgoing?.controlTargets?.[control.exportName] !== undefined && cell.controlTargets?.[control.exportName] !== undefined
           return (
-            <div key={cell.id} className="rounded border border-zinc-800 bg-zinc-950/45 p-2">
+            <div key={cell.id} className="border-t border-zinc-900 bg-transparent py-2">
               <label className="flex items-center gap-2 text-[10px] text-zinc-300">
                 <input
                   type="checkbox"
@@ -9162,7 +9163,7 @@ function PatternControlTransitionEditor({
                     if (!event.target.checked) return removeCell(cell.id)
                     updateDescriptor({}, { ...(descriptor?.fromByCellId ?? {}), [cell.id]: outgoing?.controlTargets?.[control.exportName] ?? control.defaultValue })
                   }}
-                  className="h-3.5 w-3.5 accent-cyan-400"
+                  className="h-3.5 w-3.5 accent-live"
                 />
                 {zone.name}
               </label>
@@ -9448,31 +9449,26 @@ function ShowSetupInspector({
                 onChange={(event) => onUpdateOutputEffects(event.target.checked
                   ? [{ id: 'trails', kind: 'trails', retention: DEFAULT_SHOW_TRAILS_RETENTION }]
                   : [])}
-                className="accent-cyan-400"
+                className="accent-live"
               />
               Trails
             </label>
             {trails && (
-              <label className="flex min-w-0 flex-1 items-center gap-2 text-[9px] uppercase tracking-[0.08em] text-zinc-600">
-                Retention
-                <input
-                  aria-label="Trails retention"
-                  aria-valuetext={formatPercentageValue(trails.retention, 0.015625)}
-                  type="range"
+              <div className="w-32 min-w-0">
+                <PercentageField
+                  compact
+                  label="Retention"
+                  ariaLabel="Trails retention"
                   min={0}
                   max={1}
                   step={0.015625}
                   value={trails.retention}
-                  onChange={(event) => onUpdateOutputEffects([{
+                  onChange={(retention) => onUpdateOutputEffects([{
                     ...trails,
-                    retention: Number(event.currentTarget.value),
+                    retention,
                   }])}
-                  className="min-w-20 flex-1 accent-cyan-400"
                 />
-                <span className="w-10 text-right font-mono text-[10px] tabular-nums text-cyan-300">
-                  {formatPercentageValue(trails.retention, 0.015625)}
-                </span>
-              </label>
+              </div>
             )}
           </div>
           <p className="mt-1.5 text-[9px] leading-4 text-zinc-500">
@@ -9958,7 +9954,7 @@ function TimeField(props: Omit<UiTimeFieldProps, 'variant' | 'align' | 'ariaLabe
   return <UiTimeField variant="editor" {...props} />
 }
 
-function PercentageField(props: Omit<UiPercentageFieldProps, 'variant' | 'align' | 'ariaLabel' | 'disabled'>) {
+function PercentageField(props: Omit<UiPercentageFieldProps, 'variant' | 'align' | 'disabled'>) {
   return <UiPercentageField variant="editor" {...props} />
 }
 
@@ -9974,48 +9970,22 @@ function ClipSummaryInline({
   previousSummary: ShowClipSummarySection[] | null
 }) {
   const timelineSummary = projectShowClipTimelineSummary(summary, previousSummary)
+  const values = timelineSummary.flatMap((section) => (
+    section.items.filter((item) => item.showValue && item.displayValue)
+  ))
   return (
     <span
       aria-hidden
       title={showClipInlineSummary(summary)}
       className="show-clip-summary-inline relative z-10 flex min-w-0 items-center gap-0.5 overflow-hidden whitespace-nowrap text-[10px] text-zinc-500 [text-shadow:0_1px_2px_rgba(0,0,0,0.95)]"
     >
-      {summary.length === 0 && <span className="show-clip-summary-copy shrink-0">defaults</span>}
-      {timelineSummary.map((section) => {
-        // An empty displayValue (an all-default Effect) contracts to the glyph.
-        const visibleItems = section.items.filter((item) => item.showValue && item.displayValue)
-        const iconed = visibleItems.map((item) => ({
-          item,
-          icon: clipSummaryItemIcon(section.kind, item.id),
-        }))
-        // The section glyph stands alone when values contract away, and leads
-        // when any visible fact still relies on it; it disappears once every
-        // visible fact carries its own icon (#666).
-        const showSectionIcon = visibleItems.length === 0 || iconed.some(({ icon }) => !icon)
-        return (
-          <span
-            key={section.kind}
-            data-show-clip-summary-has-value={visibleItems.length > 0 ? 'true' : 'false'}
-            className={`show-clip-summary-section inline-flex min-w-max items-center gap-1 ${visibleItems.length > 0 ? 'mr-1.5 last:mr-0' : ''} ${section.kind === 'animation' ? 'text-violet-400/70' : ''}`}
-          >
-            {showSectionIcon && <ClipSummaryIcon kind={section.kind} size={10} />}
-            {visibleItems.length > 0 && (
-              <span className="show-clip-summary-values inline-flex items-center gap-1.5">
-                {iconed.map(({ item, icon }, index) => (
-                  <span key={item.id} className="inline-flex items-center gap-1">
-                    {index > 0 && !icon && <span className="pr-0.5 text-zinc-700">·</span>}
-                    {icon && <ClipSummaryItemIcon icon={icon} size={10} />}
-                    {/* Violet is the animated cue (#666); the range carries the bounds. */}
-                    <span className={item.animated ? 'text-violet-300/90' : 'text-zinc-400'}>
-                      {item.displayValue}
-                    </span>
-                  </span>
-                ))}
-              </span>
-            )}
-          </span>
-        )
-      })}
+      {values.length === 0 && <span className="show-clip-summary-copy shrink-0">defaults</span>}
+      {values.map((item, index) => (
+        <span key={`${item.id}:${index}`} className="show-clip-summary-value inline-flex items-center gap-1 font-mono text-zinc-400">
+          {index > 0 && <span className="text-zinc-700">·</span>}
+          <span>{item.displayValue}</span>
+        </span>
+      ))}
     </span>
   )
 }
@@ -10165,10 +10135,6 @@ function clipSummaryTone(kind: ShowClipSummaryKind): string {
   if (kind === 'effects') return 'text-emerald-300/75'
   if (kind === 'animation') return 'text-violet-300/85'
   return 'text-zinc-400'
-}
-
-function formatCadenceRate(rateHz: number): string {
-  return Number.isInteger(rateHz) ? rateHz.toFixed(0) : rateHz.toFixed(2).replace(/0+$/, '').replace(/\.$/, '')
 }
 
 function formatDuration(ms: number): string {

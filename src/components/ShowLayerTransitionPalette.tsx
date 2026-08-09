@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from 'react'
 import { createPortal } from 'react-dom'
 import { Search, X, Zap } from 'lucide-react'
 import { TimeField } from '@/components/ui/time-field'
+import { ShowTransitionFamilyPictogram } from '@/components/ShowTransitionAuthoring'
 import {
   buildShowToolkitPresentationCatalogue,
   filterShowToolkitPresentationCatalogue,
@@ -84,7 +85,7 @@ export function ShowLayerTransitionPalette({
             value={query}
             onChange={(event) => setQuery(event.target.value)}
             placeholder="Search Transitions"
-            className="h-8 w-full rounded border border-zinc-700 bg-zinc-950 pl-7 pr-2 text-xs text-zinc-200 outline-none focus:border-amber-400/60"
+            className="h-8 w-full border-0 border-b border-zinc-700 bg-transparent pl-7 pr-2 text-xs text-zinc-200 outline-none focus:border-live/70"
           />
         </label>
         {/* No Duration control when nothing can be applied. A slider that snaps
@@ -110,8 +111,15 @@ export function ShowLayerTransitionPalette({
         )}
       </div>
       {(disabledReason || applyError) && (
-        <p role="alert" className="shrink-0 border-b border-amber-300/25 bg-amber-300/[0.06] px-3 py-2 text-[11px] leading-4 text-amber-200/90">
-          {applyError ?? disabledReason}
+        <p role="alert" className="flex shrink-0 items-baseline gap-2 border-b border-zinc-800 px-3 py-2 text-[11px] leading-4 text-zinc-500">
+          <span className="shrink-0 font-semibold uppercase tracking-[0.1em] text-amber-300">
+            {applyError ? 'could not apply' : disabledReason?.startsWith('There is no free time') ? 'no free time' : 'unavailable'}
+          </span>
+          <span>
+            {applyError ?? (disabledReason?.startsWith('There is no free time')
+              ? disabledReason.replace(/^There is no free time[^.]*\.\s*/, '')
+              : disabledReason)}
+          </span>
         </p>
       )}
       <div className="grid min-h-0 flex-1 auto-rows-min grid-cols-1 gap-px overflow-auto bg-zinc-800 sm:grid-cols-2 lg:grid-cols-3">
@@ -123,10 +131,15 @@ export function ShowLayerTransitionPalette({
             disabled={!item.compatible || maxDurationMs < 1}
             title={item.compatible ? item.summary : item.compatibilityReason ?? undefined}
             onClick={() => onApply(item, durationMs)}
-            className="group flex min-h-14 min-w-0 flex-col justify-center bg-[#101115] px-3 text-left hover:bg-[#171920] focus-visible:relative focus-visible:z-10 focus-visible:outline focus-visible:outline-1 focus-visible:outline-amber-300 disabled:cursor-not-allowed disabled:opacity-40"
+            className="group flex min-h-14 min-w-0 items-center gap-2 bg-[#101115] px-3 text-left hover:bg-[#171920] focus-visible:relative focus-visible:z-10 focus-visible:outline focus-visible:outline-1 focus-visible:outline-amber-300 disabled:cursor-not-allowed disabled:opacity-40"
           >
-            <span className="truncate text-xs font-medium text-zinc-100">{item.label}</span>
-            <span className="truncate text-[11px] text-zinc-500">{item.familyLabel} - {item.costPolicies.join(' - ')}</span>
+            <ShowTransitionFamilyPictogram family={item.familyId} variant={item.variantId} />
+            <span className="min-w-0 flex-1">
+              <span className="block truncate text-xs font-medium text-zinc-100">{item.label}</span>
+              <span data-transition-taxonomy className="block font-mono text-[10px] lowercase text-zinc-500">
+                {[item.familyLabel, ...item.costPolicies].slice(0, 2).join(' · ').toLowerCase()}
+              </span>
+            </span>
           </button>
         ))}
       </div>

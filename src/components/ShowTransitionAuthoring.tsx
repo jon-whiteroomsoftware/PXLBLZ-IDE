@@ -155,7 +155,7 @@ export function ShowTransitionPalette({
             value={query}
             onChange={(event) => setQuery(event.target.value)}
             placeholder="Search Transitions and presets"
-            className="h-7 w-full rounded border border-zinc-700 bg-zinc-950 pl-7 pr-2 text-[10px] text-zinc-200 outline-none focus:border-amber-400/60"
+            className="h-7 w-full border-0 border-b border-zinc-700 bg-transparent pl-7 pr-2 text-[10px] text-zinc-200 outline-none focus:border-live/70"
           />
         </label>
         <label className="flex h-7 shrink-0 items-center gap-1.5 rounded border border-zinc-800 px-2 text-[9px] text-zinc-500">
@@ -188,10 +188,12 @@ export function ShowTransitionPalette({
               className="group flex h-10 min-w-0 items-center gap-2 bg-[#101115] px-2 text-left hover:bg-[#171920] focus-visible:relative focus-visible:z-10 focus-visible:outline focus-visible:outline-1 focus-visible:outline-amber-300 disabled:cursor-not-allowed disabled:opacity-40"
               title={item.compatible ? item.summary : item.compatibilityReason ?? undefined}
             >
-              <TransitionMnemonic family={item.familyId} variant={item.variantId} />
+              <ShowTransitionFamilyPictogram family={item.familyId} variant={item.variantId} />
               <span className="min-w-0 flex-1">
                 <span className="block truncate text-[10px] font-medium text-zinc-100">{item.label}</span>
-                <span className="block truncate text-[8px] text-zinc-600">{item.familyLabel} · {item.costPolicies.join(' · ')}</span>
+                <span data-transition-taxonomy className="block font-mono text-[8px] lowercase text-zinc-600">
+                  {[item.familyLabel, ...item.costPolicies].slice(0, 2).join(' · ').toLowerCase()}
+                </span>
               </span>
             </button>
           </Fragment>
@@ -255,7 +257,7 @@ export function ShowTransitionParameters({
           return (
             <label key={parameter.id} className="text-[8px] uppercase tracking-wide text-zinc-600">
               {parameter.label}
-              <select aria-label={parameter.label} value={String(value)} onChange={(event) => onChange(parameter.id, event.target.value)} className="mt-0.5 h-7 w-full rounded border border-zinc-700 bg-zinc-900 px-1.5 text-[10px] normal-case tracking-normal text-zinc-200 outline-none focus:border-amber-400/60">
+              <select aria-label={parameter.label} value={String(value)} onChange={(event) => onChange(parameter.id, event.target.value)} className="mt-0.5 h-7 w-full border-0 border-b border-zinc-700 bg-transparent px-1 text-[10px] normal-case tracking-normal text-zinc-200 outline-none focus:border-live/70">
                 {options?.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}
               </select>
             </label>
@@ -364,16 +366,26 @@ export function ShowTransitionParameters({
   )
 }
 
-function TransitionMnemonic({ family, variant }: { family: string; variant: string }) {
-  const color = family === 'blend' ? '#a1a1aa' : family === 'fade' ? '#fbbf24' : family === 'wipe' ? '#38bdf8' : family === 'dissolve' ? '#a78bfa' : family === 'shape-reveal' ? '#34d399' : '#fb7185'
+export function ShowTransitionFamilyPictogram({ family }: { family: string; variant?: string }) {
+  const vocabulary = family === 'shape-reveal' ? 'shape' : family === 'motion' ? 'slide-zoom' : family
   return (
-    <svg viewBox="0 0 24 16" className="h-4 w-6 shrink-0" aria-hidden>
+    <svg
+      viewBox="0 0 24 16"
+      data-transition-pictogram={vocabulary}
+      className="h-4 w-6 shrink-0 text-zinc-500 transition-colors group-hover:text-live group-focus-visible:text-live"
+      aria-hidden
+    >
       <rect x="0.5" y="0.5" width="23" height="15" rx="2" fill="#09090b" stroke="#3f3f46" />
-      {family === 'dissolve' ? <path d="M4 4h2v2H4zm5 1h2v2H9zm5-2h2v2h-2zm3 5h2v2h-2zM6 10h2v2H6zm6 1h2v2h-2z" fill={color} />
-        : family === 'shape-reveal' ? <circle cx="12" cy="8" r={variant === 'ring' ? 4 : 3} fill={variant === 'ring' ? 'none' : color} stroke={color} strokeWidth="1.5" />
-          : family === 'wipe' ? <path d="M4 12 10 4v8l6-8v8h4" fill="none" stroke={color} strokeWidth="1.5" />
-            : family === 'motion' ? <path d="m5 8 5-4v3h8v2h-8v3z" fill={color} />
-              : <path d="M3 3h8v10H3zm10 0h8v10h-8z" fill={color} fillOpacity={family === 'blend' ? 0.55 : 0.8} />}
+      {vocabulary === 'blend' && <path d="M4 3h9v10H4zm7 2h9v8h-9z" fill="currentColor" fillOpacity="0.6" />}
+      {vocabulary === 'fade' && <>
+        <rect x="4" y="3" width="5" height="10" fill="currentColor" fillOpacity="0.25" />
+        <rect x="9.5" y="3" width="5" height="10" fill="currentColor" fillOpacity="0.5" />
+        <rect x="15" y="3" width="5" height="10" fill="currentColor" fillOpacity="0.8" />
+      </>}
+      {vocabulary === 'wipe' && <path d="M4 12 10 4v8l6-8v8h4" fill="none" stroke="currentColor" strokeWidth="1.5" />}
+      {vocabulary === 'dissolve' && <path d="M4 4h2v2H4zm5 1h2v2H9zm5-2h2v2h-2zm3 5h2v2h-2zM6 10h2v2H6zm6 1h2v2h-2z" fill="currentColor" />}
+      {vocabulary === 'shape' && <circle cx="12" cy="8" r="3.5" fill="none" stroke="currentColor" strokeWidth="1.5" />}
+      {vocabulary === 'slide-zoom' && <path d="m4 8 5-4v3h7V4l4 4-4 4V9H9v3z" fill="currentColor" />}
     </svg>
   )
 }

@@ -427,9 +427,9 @@ test.describe('authenticated Show authoring', () => {
     await expect(enabled).not.toBeChecked()
     await enabled.check()
 
-    const retention = page.getByRole('slider', { name: 'Trails retention' })
-    await retention.fill('0.75')
-    await retention.blur()
+    const retention = page.getByRole('textbox', { name: 'Trails retention exact percentage' })
+    await retention.fill('75')
+    await retention.press('Enter')
 
     // Barrier, not oracle.
     await waitForCurrentShow(page, (show) => show.outputEffects?.[0]?.kind === 'trails'
@@ -438,7 +438,7 @@ test.describe('authenticated Show authoring', () => {
     await page.reload()
     await page.getByRole('button', { name: 'Show properties' }).click()
     await expect(page.getByRole('checkbox', { name: 'Enable Trails' })).toBeChecked()
-    await expect(page.getByRole('slider', { name: 'Trails retention' })).toHaveValue('0.75')
+    await expect(page.getByRole('textbox', { name: 'Trails retention exact percentage' })).toHaveValue('75')
   })
 
   test('keeps vertical scroll, horizontal trackpad pan, and Shift-wheel pan distinct (#476)', async ({ page }) => {
@@ -990,7 +990,9 @@ test.describe('authenticated Show authoring', () => {
     await expect(page.getByText('Exact pixel and map identity')).toBeVisible()
     await page.getByRole('button', { name: 'Create Portable Show' }).click()
     await page.getByLabel('Show name').fill('Touring field')
-    await page.getByLabel('Preview pixels').fill('1024')
+    const previewPixels = page.getByRole('textbox', { name: 'Preview pixels exact pixel count' })
+    await previewPixels.fill('1024')
+    await previewPixels.press('Enter')
     await page.getByRole('button', { name: 'Create Show' }).click()
 
     await expect(page).toHaveURL(/\/studio\/shows\/[a-z0-9-]+\?showtime$/)

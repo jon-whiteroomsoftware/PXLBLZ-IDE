@@ -382,7 +382,8 @@ with a shared ruler, playhead, transport, and Navigator. The essentials:
   Dragging moves without overwriting, Option-drag duplicates, edges resize,
   **Split** divides at the playhead, **Clone** duplicates in place. Each
   Clip's second row summarizes its authored controls, view changes, Effects,
-  and animation. Every commit is one undo step (Cmd/Ctrl+Z).
+  and animation as compact dot-separated values. Every commit is one undo
+  step (Cmd/Ctrl+Z).
 - **Selection and detail.** Selecting a Clip, Group, Transition, Zone, or the
   Show opens a floating Entity Detail Panel with that entity's exact editable
   fields. Summary facts are shortcuts: select one to open the owning tab and
@@ -390,6 +391,10 @@ with a shared ruler, playhead, transport, and Navigator. The essentials:
   pinned for comparison.
 - **Progressive structure.** **Layer** adds a compositing lane. **Zones**
   reveals the Zone rail only when routing structure is needed.
+
+The toolbar keeps transport, time, editing, and view controls in distinct
+clusters. Marker creation and marker visibility stay together, and active
+states use the same amber accent as timeline selection.
 
 ### Groups
 

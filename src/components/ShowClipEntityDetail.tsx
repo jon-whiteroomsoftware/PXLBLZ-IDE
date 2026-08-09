@@ -660,7 +660,7 @@ export const ShowClipEntityDetail = forwardRef<ShowClipEntityDetailHandle, ShowC
         <div data-testid="clip-control-trays">
           {activeTab === 'pattern' && patternControls.length > 0 && (
             <div className="mt-2 min-w-0 border-t border-zinc-800/80" aria-label="Pattern automation targets">
-              <p className="py-1 text-[9px] uppercase tracking-[0.12em] text-cyan-300/80">Pattern controls</p>
+              <p className="py-1 font-mono text-[9px] uppercase tracking-[0.14em] text-zinc-500">Pattern controls</p>
               <div className="overflow-x-auto border-t border-zinc-800/70">
                 <table aria-label="Pattern controls" className="w-full table-fixed border-collapse text-left text-[9px]">
                   <colgroup>
@@ -670,7 +670,7 @@ export const ShowClipEntityDetail = forwardRef<ShowClipEntityDetailHandle, ShowC
                     <col className="w-16" />
                     <col className="w-5" />
                   </colgroup>
-                  <thead className="text-[8px] uppercase tracking-[0.1em] text-zinc-700">
+                  <thead className="font-mono text-[9px] uppercase tracking-[0.16em] text-zinc-500">
                     <tr>
                       <th className="py-0.5 pr-2"><span className="sr-only">Use</span></th>
                       <th className="whitespace-nowrap py-0.5 pr-3 font-normal">Control</th>
@@ -699,7 +699,7 @@ export const ShowClipEntityDetail = forwardRef<ShowClipEntityDetailHandle, ShowC
                                 ),
                               },
                             })}
-                            className="h-3 w-3 accent-cyan-400"
+                            className="h-3 w-3 accent-live"
                           />
                           </td>
                           <th

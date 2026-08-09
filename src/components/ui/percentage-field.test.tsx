@@ -4,6 +4,23 @@ import { describe, expect, it, vi } from 'vitest'
 import { PercentageField } from './percentage-field'
 
 describe('PercentageField', () => {
+  it('uses rule-under amber chrome while keeping the transient slider boxed (#779)', () => {
+    render(<PercentageField label="Opacity" value={0.72} min={0} max={1} step={0.01} onChange={vi.fn()} />)
+
+    const exact = screen.getByRole('textbox', { name: 'Opacity exact percentage' })
+    const field = exact.parentElement!
+    const grip = screen.getByRole('button', { name: 'Adjust with percentage slider' })
+    expect(field).toHaveClass('rounded-none', 'border-0', 'border-b', 'border-zinc-700', 'bg-transparent', 'focus-within:border-live/70')
+    expect(field).not.toHaveClass('rounded', 'bg-zinc-950', 'bg-zinc-900', 'focus-within:border-cyan-400/60')
+    expect(grip).not.toHaveClass('border-l', 'border-zinc-700', 'hover:text-cyan-300')
+    expect(grip).toHaveClass('hover:text-live', 'focus-visible:text-live')
+
+    fireEvent.keyDown(grip, { key: 'Enter' })
+    const sliderDialog = screen.getByRole('dialog', { name: 'Percentage slider controls' })
+    expect(sliderDialog).toHaveClass('rounded-md', 'border', 'border-live/35', 'bg-zinc-950')
+    expect(screen.getByRole('slider', { name: 'Percentage slider' })).toHaveClass('accent-live')
+  })
+
   it('presents canonical percentage text and applies exact drafts only through explicit actions', async () => {
     const user = userEvent.setup()
     const onChange = vi.fn()

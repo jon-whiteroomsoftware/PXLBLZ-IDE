@@ -701,7 +701,7 @@ describe('shared Clip Entity Detail sections (#498)', () => {
     )
     expect(screen.getByRole('textbox', { name: 'Animation speed exact multiplier' }).parentElement).toHaveClass('h-5')
     expect(screen.getByRole('textbox', { name: 'Speed target exact percentage' }).parentElement)
-      .toHaveClass('h-5', 'border', 'border-zinc-700')
+      .toHaveClass('h-5', 'border-0', 'border-b', 'border-zinc-700')
 
     showTab('Playback')
     expect(screen.getByRole('table', { name: 'Playback controls' })).toBeInTheDocument()
@@ -720,6 +720,13 @@ describe('shared Clip Entity Detail sections (#498)', () => {
     expect(screen.queryByText('Add or edit pattern controls')).not.toBeInTheDocument()
 
     const table = screen.getByRole('table', { name: 'Pattern controls' })
+    expect(screen.getByText('Pattern controls')).toHaveClass('font-mono', 'text-[9px]', 'text-zinc-500')
+    expect(table.querySelector('thead')).toHaveClass(
+      'font-mono',
+      'text-[9px]',
+      'tracking-[0.16em]',
+      'text-zinc-500',
+    )
     const columns = table.querySelectorAll('col')
     expect(columns[1]).toHaveStyle({ width: '24%' })
     expect(columns[3]).toHaveClass('w-16')

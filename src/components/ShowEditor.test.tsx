@@ -224,7 +224,7 @@ describe('ShowEditor (#318)', () => {
     expect(inspector).not.toHaveTextContent(/scene boundary/i)
   })
 
-  it('orders the unified toolbar as transport, Navigator/Fit, then authoring commands (#592, #63)', () => {
+  it('groups the unified toolbar as transport, time, edit, then view with Marker actions together (#779)', () => {
     const show = createDefaultShow('show-unified-toolbar', 'Unified toolbar', 1000)
     useShowStore.setState({ shows: [show], activeShowId: show.id, showsLoaded: true })
 
@@ -232,12 +232,13 @@ describe('ShowEditor (#318)', () => {
 
     const toolbar = screen.getByRole('toolbar', { name: 'Show timeline controls' })
     const transport = within(toolbar).getByRole('group', { name: 'Show transport controls' })
-    const view = within(toolbar).getByRole('group', { name: 'Timeline view controls' })
+    const time = within(toolbar).getByRole('group', { name: 'Timeline position' })
     const authoring = within(toolbar).getByRole('group', { name: 'Show authoring commands' })
+    const view = within(toolbar).getByRole('group', { name: 'Timeline view controls' })
+    const markers = within(authoring).getByRole('group', { name: 'Marker controls' })
 
     expect(transport).toHaveClass('gap-1')
-    expect(transport.parentElement).toHaveClass('mr-1')
-    expect(within(transport).getByLabelText('Show time')).toHaveClass('ml-1', 'gap-0.5')
+    expect(within(time).getByLabelText('Show time')).toHaveClass('gap-0.5')
     expect(within(view).getByRole('group', { name: 'Show navigator' })).toBeInTheDocument()
     expect(within(view).getByRole('button', { name: 'Fit timeline to Show' })).toBeDisabled()
     expect(view).toHaveClass('max-w-[210px]', 'flex-[0_1_180px]', 'gap-1')
@@ -254,6 +255,11 @@ describe('ShowEditor (#318)', () => {
     expect(within(authoring).getByRole('button', { name: 'Open Zones' })).toHaveAttribute('data-size', 'icon-xs')
     expect(authoring).toHaveClass('ml-auto')
     expect(within(authoring).getByRole('button', { name: 'Snap playhead' })).toHaveAttribute('data-size', 'icon-xs')
+    expect(within(markers).getAllByRole('button').map((button) => button.getAttribute('aria-label'))).toEqual([
+      'Snap playhead',
+      'Add Marker at playhead',
+      'Hide Markers',
+    ])
     expect(within(authoring).getAllByRole('button').map((button) => button.getAttribute('aria-label'))).toEqual([
       'Add to Show',
       'Split at playhead',
@@ -263,10 +269,35 @@ describe('ShowEditor (#318)', () => {
       'Redo Show edit',
       'Open Zones',
       'Snap playhead',
+      'Add Marker at playhead',
       'Hide Markers',
     ])
-    expect(transport.compareDocumentPosition(view) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
-    expect(view.compareDocumentPosition(authoring) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
+    expect(transport.compareDocumentPosition(time) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
+    expect(time.compareDocumentPosition(authoring) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
+    expect(authoring.compareDocumentPosition(view) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
+    for (const cluster of [time, authoring, view]) expect(cluster).toHaveClass('border-l')
+  })
+
+  it('renders flat timeline rows and Clips with a single selected accent (#779)', async () => {
+    const user = userEvent.setup()
+    const show = createDefaultShow('show-flat-timeline', 'Flat timeline', 1000)
+    useShowStore.setState({ shows: [show], activeShowId: show.id, showsLoaded: true })
+
+    render(<ShowEditor showId={show.id} />)
+
+    const clip = screen.getByRole('button', { name: 'Select TestPattern1D' })
+    const layer = clip.closest('[data-show-layer-kind]')!
+    expect(layer).toHaveClass('bg-transparent', 'border-b')
+    expect(layer).not.toHaveClass('bg-[#18181b]')
+    expect(clip).toHaveClass('rounded-none', 'border-l-2')
+    expect(clip).not.toHaveClass('rounded-[5px]', 'border-l-[3px]')
+    expect(clip.style.background).toContain('9%')
+    expect(clip.style.boxShadow).toBe('none')
+    expect(clip.querySelector('.show-clip-pattern-icon')).not.toBeInTheDocument()
+
+    await user.click(clip)
+    expect(clip).toHaveStyle({ borderLeftColor: 'var(--color-live)' })
+    expect(clip.querySelector('.show-clip-pattern-name')).toHaveClass('text-live')
   })
 
   it('uses one visual state language for Show authoring toolbar controls', () => {
@@ -2465,7 +2496,7 @@ describe('ShowEditor (#318)', () => {
     })
   })
 
-  it('keeps the selected Clip ring above the lit Clip surface (#592)', async () => {
+  it('keeps the selected Clip accent on its left strip and Pattern name (#592, #779)', async () => {
     const user = userEvent.setup()
     const show = createDefaultShow('show-selected-clip-ring', 'Selected Clip ring', 1000)
     useShowStore.setState({ shows: [show], activeShowId: show.id, showsLoaded: true })
@@ -2475,7 +2506,8 @@ describe('ShowEditor (#318)', () => {
     await user.click(clip)
 
     expect(clip).toHaveAttribute('aria-pressed', 'true')
-    expect(clip.style.boxShadow).toContain('var(--color-live)')
+    expect(clip).toHaveStyle({ borderLeftColor: 'var(--color-live)', boxShadow: 'none' })
+    expect(clip.querySelector('.show-clip-pattern-name')).toHaveClass('text-live')
   })
 
   it('restores unified Clip summaries in the timeline and Entity Detail (#599)', async () => {
@@ -2755,6 +2787,23 @@ describe('ShowEditor (#318)', () => {
     }))
     await user.click(screen.getByText('Advanced transition controls'))
 
+    const inspector = screen.getByRole('region', { name: 'Transition properties' })
+    const crossfadeSource = within(inspector).getByRole('combobox', { name: 'Crossfade source' })
+    expect(crossfadeSource).toHaveClass('border-0', 'border-b', 'bg-transparent')
+    expect(crossfadeSource.closest('[data-crossfade-source]')).toHaveClass('border-t', 'bg-transparent')
+    expect(within(inspector).getByLabelText('Crossfade evaluation cost')).toHaveClass('text-zinc-500')
+    expect(within(inspector).getByLabelText('Crossfade evaluation cost')).not.toHaveClass('text-emerald-300/80')
+    const advanced = screen.getByText('Advanced transition controls').closest('details')!
+    expect(advanced).toHaveClass('border-t', 'bg-transparent')
+    expect(advanced).not.toHaveClass('rounded', 'bg-zinc-950/35')
+    expect(within(advanced).getByTestId('transition-cost-tag')).toHaveTextContent('cost · expensive')
+    expect(within(advanced).queryByTestId('transition-cost-footer')).not.toBeInTheDocument()
+    const speed = within(advanced).getByRole('region', { name: 'Animation speed transition' })
+    expect(speed).toHaveClass('border-t', 'bg-transparent')
+    expect(speed).not.toHaveClass('rounded', 'bg-violet-400/[0.035]')
+    expect(within(speed).getByTestId('advanced-property-columns')).toHaveTextContent('FromToDurationEasing')
+    expect(within(speed).getByRole('checkbox', { name: 'Animate speed for main' })).toHaveClass('accent-live')
+
     expect(screen.getByRole('textbox', { name: 'Animation speed start main exact multiplier' })).toHaveValue('0.5')
     expect(screen.getByRole('textbox', { name: 'Animation speed target main exact multiplier' })).toHaveValue('0.25')
     expect(screen.getByRole('textbox', { name: 'Repeat scale start exact multiplier' })).toHaveValue('1.5')
@@ -2818,7 +2867,8 @@ describe('ShowEditor (#318)', () => {
     const clips = screen.getAllByRole('button', { name: 'Select Summary Rings' })
     expect(within(clips[0]).getByText('75%')).toBeInTheDocument()
     expect(within(clips[1]).queryByText('75%')).not.toBeInTheDocument()
-    expect(clips[1].querySelector('.show-clip-summary-section svg')).toBeInTheDocument()
+    expect(within(clips[1]).getByText('defaults')).toBeInTheDocument()
+    expect(clips[1].querySelector('.show-clip-summary-inline svg')).not.toBeInTheDocument()
   })
 
   it('moves a composition Clip by dragging its unified Layer and restores Detail (#580)', async () => {
@@ -3560,8 +3610,8 @@ describe('ShowEditor (#318)', () => {
     const clip = screen.getByRole('button', { name: 'Select Layer Traveler' })
     const targetLayer = document.querySelector<HTMLElement>('[data-show-layer-kind="overlay"]')!
     const mainLayer = document.querySelector<HTMLElement>('[data-show-layer-kind="main"]')!
-    expect(targetLayer).toHaveClass('bg-[#18181b]')
-    expect(mainLayer).toHaveClass('bg-[#18181b]')
+    expect(targetLayer).toHaveClass('bg-transparent')
+    expect(mainLayer).toHaveClass('bg-transparent')
     expect(clip).toHaveClass('inset-y-1')
     expect(clip).not.toHaveClass('inset-y-0')
     Object.defineProperty(clip, 'getBoundingClientRect', {
@@ -4249,8 +4299,8 @@ describe('ShowEditor (#318)', () => {
     })
     const overlayLayer = document.querySelector<HTMLElement>('[data-show-layer-kind="overlay"]')
     const mainLayer = document.querySelector<HTMLElement>('[data-show-layer-kind="main"]')
-    expect(overlayLayer).toHaveClass('bg-[#18181b]')
-    expect(mainLayer).toHaveClass('bg-[#18181b]')
+    expect(overlayLayer).toHaveClass('bg-transparent')
+    expect(mainLayer).toHaveClass('bg-transparent')
     expect(screen.queryByRole('dialog', { name: 'Add Clip at playhead' })).not.toBeInTheDocument()
     const saved = useShowStore.getState().shows.find((candidate) => candidate.id === show.id)
     expect(saved?.composition?.scenes.every((scene) => (
@@ -4434,9 +4484,11 @@ describe('ShowEditor (#318)', () => {
       { id: 'trails', kind: 'trails', retention: DEFAULT_SHOW_TRAILS_RETENTION },
     ]))
 
-    const retention = screen.getByRole('slider', { name: 'Trails retention' })
-    expect(retention).toHaveValue(String(DEFAULT_SHOW_TRAILS_RETENTION))
-    fireEvent.change(retention, { target: { value: '0.75' } })
+    const retention = screen.getByRole('textbox', { name: 'Trails retention exact percentage' })
+    expect(retention).toHaveValue('93.75')
+    expect(screen.getByRole('button', { name: 'Adjust with percentage slider', description: 'Trails retention' })).toBeInTheDocument()
+    fireEvent.change(retention, { target: { value: '75' } })
+    fireEvent.keyDown(retention, { key: 'Enter' })
     await waitFor(() => expect(useShowStore.getState().shows[0].outputEffects).toEqual([
       { id: 'trails', kind: 'trails', retention: 0.75 },
     ]))
@@ -4466,6 +4518,26 @@ describe('ShowEditor (#318)', () => {
     expect(screen.getByRole('button', { name: 'Split at playhead' })).toBeDisabled()
     expect(screen.getByRole('button', { name: 'Clone selection' })).toBeDisabled()
     expect(useShowStore.getState().shows).toEqual([])
+  })
+
+  it('authors stepped cadence through an exact rate field with a transient slider (#779)', async () => {
+    const user = userEvent.setup()
+    const stock = STOCK_SHOWS.find((candidate) => candidate.id === 'stock-show-204-presentation-modes')!
+
+    render(<ShowEditor showId={stock.id} showOverride={stock.show} />)
+    const stutter = screen.getAllByRole('button', { name: 'Select IQPalettes' })
+      .find((button) => button.getAttribute('data-show-selection-key') === 'clip:clip-stutter')!
+    await user.click(stutter)
+
+    const rate = screen.getByRole('textbox', { name: 'Jumps per second exact rate' })
+    expect(rate).toHaveValue('2')
+    expect(screen.getByRole('button', { name: 'Adjust with rate slider', description: 'Jumps per second' })).toBeInTheDocument()
+    expect(screen.getByText('every 500 ms')).toBeInTheDocument()
+
+    await user.clear(rate)
+    await user.type(rate, '4{Enter}')
+    await waitFor(() => expect(useShowStore.getState().stockShowDrafts[stock.id]?.composition?.patternInstances
+      .find((instance) => instance.id === 'palette-stuttered')?.time.steppedClock).toEqual({ stepMs: 250 }))
   })
 
   it('renders the current built-in session draft and enables Reset for it (#619)', async () => {
@@ -4654,6 +4726,12 @@ describe('ShowEditor (#318)', () => {
     expect(guide.querySelector('.show-note-expanded-content')).toBeInTheDocument()
     expect(within(guide).getByText(builtInContext.note.purpose)).toBeInTheDocument()
     expect(within(guide).getByText(builtInContext.note.notice)).toBeInTheDocument()
+    const notice = within(guide).getByText('Notice:')
+    const tryThis = within(guide).getByText('Try this')
+    expect(notice).toHaveClass('text-zinc-400')
+    expect(notice).not.toHaveClass('text-violet-200/75')
+    expect(tryThis.querySelector('svg')).toHaveClass('text-zinc-500')
+    expect(tryThis.querySelector('svg')).not.toHaveClass('text-cyan-200/75')
     expect(within(guide).getByRole('link', { name: builtInContext.note.guide.label })).toHaveAttribute(
       'href',
       expect.stringContaining('/docs/show-visual-toolkit#clips-scenes-and-boundaries'),

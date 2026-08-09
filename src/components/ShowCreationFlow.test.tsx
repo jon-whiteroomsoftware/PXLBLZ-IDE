@@ -29,12 +29,14 @@ describe('ShowCreationFlow (#434)', () => {
     expect(screen.getByRole('img', { name: /installation shows address/i }).tagName).toBe('svg')
 
     await user.click(portableAction)
-    await user.clear(screen.getByLabelText('Show name'))
-    await user.type(screen.getByLabelText('Show name'), 'Touring field')
-    const previewPixels = screen.getByLabelText('Preview pixels')
-    expect(previewPixels).toHaveAttribute('max', '2000')
+    const showName = screen.getByLabelText('Show name')
+    expect(showName).toHaveClass('border-0', 'border-b', 'border-zinc-700', 'bg-transparent', 'focus:border-live/70')
+    await user.clear(showName)
+    await user.type(showName, 'Touring field')
+    const previewPixels = screen.getByRole('textbox', { name: 'Preview pixels exact pixel count' })
+    expect(screen.getByRole('button', { name: 'Adjust with pixel count slider' })).toBeInTheDocument()
     await user.clear(previewPixels)
-    await user.type(previewPixels, '5000')
+    await user.type(previewPixels, '5000{Enter}')
     await user.click(screen.getByRole('button', { name: 'Create Show' }))
 
     expect(onCreate).toHaveBeenCalledWith(expect.objectContaining({
@@ -58,8 +60,8 @@ describe('ShowCreationFlow (#434)', () => {
     expect(screen.getByRole('option', { name: 'Measured sculpture · Fixed size · 384 px' })).toBeInTheDocument()
     await user.selectOptions(screen.getByLabelText('Output map'), 'measured')
 
-    expect(screen.getByLabelText('Pixels')).toHaveValue(384)
-    expect(screen.getByLabelText('Pixels')).toBeDisabled()
+    expect(screen.getByRole('textbox', { name: 'Pixels exact pixel count' })).toHaveValue('384')
+    expect(screen.getByRole('textbox', { name: 'Pixels exact pixel count' })).toBeDisabled()
 
     fireEvent.keyDown(window, { key: 'Escape' })
     expect(onCancel).toHaveBeenCalledOnce()

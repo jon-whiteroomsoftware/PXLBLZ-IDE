@@ -7,6 +7,7 @@ import { buildShowToolkitPresentationCatalogue } from '@/engine/showVisualToolki
 import { showPreviewOverrideInitialState, useShowPreviewOverrideStore } from '@/store/showPreviewOverrideStore'
 import { showTransportInitialState, useShowTransportStore } from '@/store/showTransportStore'
 import { ShowTransitionPalette, ShowTransitionParameters } from './ShowTransitionAuthoring'
+import { ShowLayerTransitionPalette } from './ShowLayerTransitionPalette'
 
 describe('Show Transition authoring UI', () => {
   beforeEach(() => {
@@ -65,6 +66,68 @@ describe('Show Transition authoring UI', () => {
     expect(screen.getByRole('heading', { name: 'Shape reveal · Icons' })).toBeInTheDocument()
     expect(screen.getByRole('heading', { name: 'Shape reveal · Signature' })).toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'Use Cloud Transition' })).toBeInTheDocument()
+  })
+
+  it('uses rule-under search, six quiet pictograms, and compact lowercase taxonomy (#779)', () => {
+    const show = createDefaultShow('show-transition-language', 'Transition language', 1)
+    render(
+      <ShowTransitionPalette
+        show={show}
+        transitionId={show.transitions![0].id}
+        stageDimensions={2}
+        onApply={vi.fn()}
+        onClose={vi.fn()}
+      />,
+    )
+
+    const dialog = screen.getByRole('dialog', { name: 'Choose Transition' })
+    expect(within(dialog).getByRole('searchbox', { name: 'Search Transitions' })).toHaveClass(
+      'border-0',
+      'border-b',
+      'bg-transparent',
+    )
+    const pictograms = [...dialog.querySelectorAll<SVGElement>('[data-transition-pictogram]')]
+    expect(new Set(pictograms.map((glyph) => glyph.dataset.transitionPictogram))).toEqual(new Set([
+      'blend',
+      'fade',
+      'wipe',
+      'dissolve',
+      'shape',
+      'slide-zoom',
+    ]))
+    pictograms.forEach((glyph) => expect(glyph).toHaveClass('text-zinc-500', 'group-hover:text-live'))
+    const taxonomy = within(dialog).getByRole('button', { name: 'Use Crossfade Transition' })
+      .querySelector<HTMLElement>('[data-transition-taxonomy]')!
+    expect(taxonomy.textContent).toBe(taxonomy.textContent?.toLowerCase())
+    expect(taxonomy.textContent?.split('·')).toHaveLength(2)
+    expect(taxonomy).not.toHaveClass('truncate')
+  })
+
+  it('presents a no-free-time warning as an amber tag plus a quiet sentence (#779)', () => {
+    render(
+      <ShowLayerTransitionPalette
+        stageDimensions={2}
+        maxDurationMs={0}
+        disabledReason="There is no free time after the last Clip on this Layer. Shorten a Clip or extend Show End, then come back."
+        fromName="Outgoing"
+        toName="Incoming"
+        onApply={vi.fn()}
+        onClose={vi.fn()}
+      />,
+    )
+
+    const dialog = screen.getByRole('dialog', { name: 'Choose Layer Transition' })
+    expect(within(dialog).getByRole('searchbox', { name: 'Search Layer Transitions' })).toHaveClass(
+      'border-0',
+      'border-b',
+      'bg-transparent',
+    )
+    const warning = within(dialog).getByRole('alert')
+    expect(within(warning).getByText('no free time')).toHaveClass('text-amber-300')
+    expect(warning).toHaveTextContent('Shorten a Clip or extend Show End, then come back.')
+    expect(warning).not.toHaveClass('bg-amber-300/[0.06]')
+    expect(within(dialog).getByRole('button', { name: 'Use Crossfade Transition' })
+      .querySelector('[data-transition-pictogram="blend"]')).toBeInTheDocument()
   })
 
   it('clears candidate preview and closes on Escape', () => {
