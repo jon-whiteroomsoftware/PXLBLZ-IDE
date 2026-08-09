@@ -345,6 +345,7 @@ function SortableTableHead({
 function SavedProgramsInventory({
   status,
   programs,
+  hasSnapshot,
   showsEnabled,
   onRefresh,
   onOpen,
@@ -355,6 +356,7 @@ function SavedProgramsInventory({
 }: {
   status: SavedProgramsReadStatus
   programs: ControllerSavedProgramsView
+  hasSnapshot: boolean
   showsEnabled: boolean
   onRefresh: () => void
   onOpen: (routeId: string) => void
@@ -371,6 +373,7 @@ function SavedProgramsInventory({
     (reconciliation?.programs ?? []).map((program) => [program.programId, program.state]),
   ) as Partial<Record<string, ControllerSavedPatternStatus>>
   const presentedPrograms = sortControllerSavedPrograms(programs, sort, statusByProgramId)
+  const showInventory = status === 'ready' || (status === 'loading' && hasSnapshot)
   const statusFor = (program: ControllerSavedProgramRow): ControllerSavedPatternStatus => (
     statusByProgramId[program.programId] ?? program.freshness
   )
@@ -413,7 +416,7 @@ function SavedProgramsInventory({
             Connect this Controller
           </button>
         </EmptyState>
-      ) : status === 'loading' ? (
+      ) : status === 'loading' && !showInventory ? (
         <EmptyState>Reading saved Patterns from the Controller…</EmptyState>
       ) : status === 'error' ? (
         <EmptyState>Saved Patterns could not be read. Check the connection, then refresh.</EmptyState>
@@ -464,7 +467,7 @@ function SavedProgramsInventory({
           </table>
         </div>
       )}
-      {status === 'ready' && (
+      {showInventory && (
         <>
           <h2 className="mb-2 mt-5 font-mono text-xs font-semibold uppercase tracking-wide text-zinc-300">
             Other Patterns <span className="text-zinc-500">({presentedPrograms.foreign.length})</span>
@@ -595,17 +598,26 @@ export function ControllerSavedProgramsPane({ profile }: { profile: ControllerPr
 
   useEffect(() => () => clearSavedPrograms(profile.id), [clearSavedPrograms, profile.id])
 
-  const readyRead = readStatus === 'ready' && savedProgramsRead?.phase === 'ready'
+  const readMatchesLiveConnection = savedProgramsRead?.controllerId === liveIp
+    && savedProgramsRead?.liveEpoch === liveEpoch
+  const inventoryRead = savedProgramsRead && readMatchesLiveConnection
+    && (readStatus === 'ready' || savedProgramsRead.hasSnapshot)
     ? savedProgramsRead
     : null
+  const hasInventorySnapshot = inventoryRead?.hasSnapshot === true
+  const installedMapStatus = profileController?.installedMap?.status
+  const profileSignatureReady = readStatus === 'ready'
+    && installedMapStatus !== 'loading'
+    && installedMapStatus !== 'error'
 
   const programs = describeControllerSavedPrograms({
     controllerId: liveIp ?? '',
-    programs: readyRead?.programs ?? EMPTY_CONTROLLER_PROGRAMS,
-    bindings: readyRead?.bindings ?? {},
-    pushRecords: readyRead?.pushRecords ?? {},
+    programs: inventoryRead?.programs ?? EMPTY_CONTROLLER_PROGRAMS,
+    bindings: inventoryRead?.bindings ?? {},
+    pushRecords: inventoryRead?.pushRecords ?? {},
     profile,
     mapDim: profileController?.mapDim ?? null,
+    profileSignatureReady,
     studioPatterns: [
       ...userPatterns.map((pattern) => ({
         bindingKey: pattern.id,
@@ -713,6 +725,7 @@ export function ControllerSavedProgramsPane({ profile }: { profile: ControllerPr
       <SavedProgramsInventory
         status={readStatus}
         programs={programs}
+        hasSnapshot={hasInventorySnapshot}
         showsEnabled={showsEnabled}
         onRefresh={() => requestSavedProgramsRefresh(profile.id)}
         onOpen={(routeId) => navigate({

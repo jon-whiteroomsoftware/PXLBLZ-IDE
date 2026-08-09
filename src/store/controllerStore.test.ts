@@ -25,6 +25,7 @@ import { useMapStore, mapInitialState, type MapRecord } from '@/store/mapStore'
 import { useControllerPanelStore, controllerPanelInitialState } from '@/store/controllerPanelStore'
 import {
   getControllerBindings,
+  getPushRecords,
   setControllerBindings,
   setPushRecords,
   getProgramLabels,
@@ -508,6 +509,37 @@ describe('controllerStore (keyed)', () => {
       fingerprint: '9a0c9e7f',
       dimension: 2,
     })
+  })
+
+  it('preserves the last successful map dimension when a later map read fails', async () => {
+    await store().addController('10.0.0.5')
+    const provider = created.get('10.0.0.5')!
+    useControllerStore.setState((state) => ({
+      controllers: {
+        ...state.controllers,
+        '10.0.0.5': {
+          ...state.controllers['10.0.0.5'],
+          mapDim: 2,
+          installedMap: {
+            status: 'present',
+            bytes: encodeMapData([[0, 0], [1, 1]]),
+            fingerprint: '9a0c9e7f',
+            dimension: 2,
+            pointCount: 2,
+            observedAt: 100,
+          },
+        },
+      },
+    }))
+    provider.getPixelMapData = () => Promise.reject(new Error('map read timed out'))
+
+    await store().refreshInstalledMap('10.0.0.5')
+
+    expect(store().controllers['10.0.0.5'].installedMap).toEqual({
+      status: 'error',
+      message: 'map read timed out',
+    })
+    expect(store().controllers['10.0.0.5'].mapDim).toBe(2)
   })
 
   it('schedules opted-in managed Pattern reconciliation when a Controller reconnects', async () => {
@@ -1218,6 +1250,7 @@ describe('controllerStore (keyed)', () => {
         artifactId: 'show:show-1',
         source,
         name: 'Opening Night',
+        profileSignature: 'show-profile-signature',
         artifactStamp: {
           kind: 'show' as const,
           id: 'show-1',
@@ -1246,6 +1279,8 @@ describe('controllerStore (keyed)', () => {
       expect(store().lastRunProgramId['10.0.0.5']['show:show-1']).toBe(runId)
       expect(useControllerPanelStore.getState().activeProgramId).toBe(savedId)
       expect((await getControllerBindings())['10.0.0.5']['show:show-1']).toBe(savedId)
+      expect((await getPushRecords())['10.0.0.5']['show:show-1'].profileSignature)
+        .toBe('show-profile-signature')
     })
 
     it('surfaces a generated Show compile failure without pushing (#429)', async () => {
@@ -1257,6 +1292,7 @@ describe('controllerStore (keyed)', () => {
         source: PATTERN_SRC,
         name: 'Opening Night',
         persist: false,
+        profileSignature: 'show-profile-signature',
         artifactStamp: { kind: 'show', id: 'show-1', name: 'Opening Night' },
       })
 
@@ -1273,6 +1309,7 @@ describe('controllerStore (keyed)', () => {
         source: PATTERN_SRC,
         name: 'Opening Night',
         persist: false,
+        profileSignature: 'show-profile-signature',
         artifactStamp: { kind: 'show', id: 'show-1', name: 'Opening Night' },
       })
 

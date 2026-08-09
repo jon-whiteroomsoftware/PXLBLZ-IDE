@@ -1746,7 +1746,11 @@ test.describe('authenticated Show authoring', () => {
     await clipPanel.getByRole('button', { name: 'Animate Brightness' }).click()
     const brightnessTo = page.getByRole('textbox', { name: 'Brightness animation to exact percentage' })
     await brightnessTo.fill('42%')
+    await expect(brightnessTo).toBeFocused()
     await brightnessTo.press('Enter')
+    await waitForCurrentShow(page, (show) => (
+      show.composition?.scenes[0]?.propertyTracks?.[0]?.keyframes[1]?.value === 0.42
+    ))
     await page.getByRole('combobox', { name: 'Brightness animation easing' }).selectOption('steps-4-end')
 
     await waitForCurrentShow(page, (show) => {

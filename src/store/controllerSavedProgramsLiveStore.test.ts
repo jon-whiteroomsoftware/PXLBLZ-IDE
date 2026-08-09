@@ -110,7 +110,10 @@ describe('controllerSavedProgramsLiveStore', () => {
   })
 
   it('invalidates an unchanged program list when the durable push-record revision advances', async () => {
-    const getPushRecords = vi.fn(async () => ({}))
+    const pendingReads: Array<(records: ControllerPushRecords) => void> = []
+    const getPushRecords = vi.fn(() => getPushRecords.mock.calls.length === 1
+      ? Promise.resolve({})
+      : new Promise<ControllerPushRecords>((resolve) => { pendingReads.push(resolve) }))
     setControllerMetadataStorage({
       ...demoControllerMetadataStorage,
       id: 'saved-program-revision',
@@ -126,14 +129,32 @@ describe('controllerSavedProgramsLiveStore', () => {
       useControllerSavedProgramsLiveStore.getState(),
       'ctrl-1',
       controllerSavedProgramsReadKey(second),
-    ).phase).toBe('loading')
-    await reread
+    )).toMatchObject({
+      phase: 'loading',
+      programs,
+    })
 
-    expect(getPushRecords).toHaveBeenCalledTimes(2)
+    const third = request({ pushRecordsRevision: 6 })
+    const latestRead = useControllerSavedProgramsLiveStore.getState().syncProfile('ctrl-1', third)
     expect(selectControllerSavedProgramsRead(
       useControllerSavedProgramsLiveStore.getState(),
       'ctrl-1',
-      controllerSavedProgramsReadKey(second),
+      controllerSavedProgramsReadKey(third),
+    )).toMatchObject({
+      phase: 'loading',
+      programs,
+    })
+
+    pendingReads[0]({})
+    await reread
+    pendingReads[1]({})
+    await latestRead
+
+    expect(getPushRecords).toHaveBeenCalledTimes(3)
+    expect(selectControllerSavedProgramsRead(
+      useControllerSavedProgramsLiveStore.getState(),
+      'ctrl-1',
+      controllerSavedProgramsReadKey(third),
     ).phase).toBe('ready')
   })
 

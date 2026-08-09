@@ -6335,6 +6335,7 @@ describe('ShowEditor (#318)', () => {
       artifactId: 'show:show-send',
       name: 'Opening Night',
       persist: false,
+      profileSignature: expect.stringContaining('"renderer":{"mapDim":1}'),
       artifactStamp: expect.objectContaining({ kind: 'show', id: 'show-send' }),
     }))
 
@@ -6342,6 +6343,7 @@ describe('ShowEditor (#318)', () => {
     expect(pushGeneratedArtifact).toHaveBeenLastCalledWith(expect.objectContaining({
       artifactId: 'show:show-send',
       persist: true,
+      profileSignature: expect.stringContaining('"renderer":{"mapDim":1}'),
     }))
   })
 

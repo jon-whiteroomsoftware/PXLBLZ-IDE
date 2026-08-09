@@ -352,6 +352,7 @@ export interface GeneratedArtifactPush {
   source: string
   name: string
   persist: boolean
+  profileSignature: string
   artifactStamp: ArtifactStampMeta
   previewImage?: Uint8Array
 }
@@ -638,7 +639,11 @@ export const useControllerStore = create<ControllerConnectionState>()(
           ) return
           patchController(ip, {
             installedMap: observation,
-            mapDim: observation.status === 'present' ? observation.dimension : null,
+            ...(observation.status === 'present'
+              ? { mapDim: observation.dimension }
+              : observation.status === 'absent'
+                ? { mapDim: null }
+                : {}),
           })
         },
 
@@ -1238,6 +1243,7 @@ export const useControllerStore = create<ControllerConnectionState>()(
               persist: artifact.persist,
               previewImage: artifact.previewImage,
               artifactStamp: artifact.artifactStamp,
+              profileSignature: artifact.profileSignature,
               transforms: artifact.artifactStamp.transforms,
               stampedAt: artifact.artifactStamp.stampedAt,
               loadBindings: getControllerBindings,

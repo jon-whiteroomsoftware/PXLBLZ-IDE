@@ -15,6 +15,9 @@ export interface ControllerSavedProgramsReadRequest {
 
 export interface ControllerSavedProgramsRead {
   readKey: string
+  controllerId: string
+  liveEpoch: number | undefined
+  hasSnapshot: boolean
   phase: 'loading' | 'ready' | 'failed'
   programs: ProgramListEntry[]
   bindings: BindingStore
@@ -52,10 +55,13 @@ export function selectControllerSavedProgramsRead(
   state: Pick<ControllerSavedProgramsLiveState, 'readsByProfile'>,
   profileId: string,
   readKey: string,
-): Omit<ControllerSavedProgramsRead, 'readKey' | 'refreshGeneration'> {
+): Omit<
+  ControllerSavedProgramsRead,
+  'readKey' | 'controllerId' | 'liveEpoch' | 'refreshGeneration'
+> {
   const read = state.readsByProfile[profileId]
   if (read?.readKey === readKey) return read
-  return { phase: 'loading', programs: [], bindings: {}, pushRecords: {} }
+  return { hasSnapshot: false, phase: 'loading', programs: [], bindings: {}, pushRecords: {} }
 }
 
 /** Owns the evidence lifecycle for the Controller profile's saved inventory.
@@ -72,16 +78,22 @@ export const useControllerSavedProgramsLiveStore = create<ControllerSavedProgram
     const refreshPrograms = request.refreshGeneration > (current?.refreshGeneration ?? 0)
       ? request.refreshPrograms
       : undefined
+    const retainCurrent = current?.hasSnapshot === true
+      && current.controllerId === request.controllerId
+      && current.liveEpoch === request.liveEpoch
 
     set((state) => ({
       readsByProfile: {
         ...state.readsByProfile,
         [profileId]: {
           readKey: initialReadKey,
+          controllerId: request.controllerId,
+          liveEpoch: request.liveEpoch,
+          hasSnapshot: retainCurrent,
           phase: 'loading',
-          programs: [],
-          bindings: {},
-          pushRecords: {},
+          programs: retainCurrent ? current.programs : [],
+          bindings: retainCurrent ? current.bindings : {},
+          pushRecords: retainCurrent ? current.pushRecords : {},
           refreshGeneration: request.refreshGeneration,
         },
       },
@@ -100,10 +112,13 @@ export const useControllerSavedProgramsLiveStore = create<ControllerSavedProgram
                   ...state.readsByProfile,
                   [profileId]: {
                     readKey,
+                    controllerId: request.controllerId,
+                    liveEpoch: request.liveEpoch,
+                    hasSnapshot: retainCurrent,
                     phase: 'loading',
-                    programs: [],
-                    bindings: {},
-                    pushRecords: {},
+                    programs: retainCurrent ? current.programs : [],
+                    bindings: retainCurrent ? current.bindings : {},
+                    pushRecords: retainCurrent ? current.pushRecords : {},
                     refreshGeneration: request.refreshGeneration,
                   },
                 },
@@ -121,6 +136,9 @@ export const useControllerSavedProgramsLiveStore = create<ControllerSavedProgram
               ...state.readsByProfile,
               [profileId]: {
                 readKey,
+                controllerId: request.controllerId,
+                liveEpoch: request.liveEpoch,
+                hasSnapshot: true,
                 phase: 'ready',
                 programs,
                 bindings,
@@ -137,6 +155,9 @@ export const useControllerSavedProgramsLiveStore = create<ControllerSavedProgram
               ...state.readsByProfile,
               [profileId]: {
                 readKey,
+                controllerId: request.controllerId,
+                liveEpoch: request.liveEpoch,
+                hasSnapshot: false,
                 phase: 'failed',
                 programs: [],
                 bindings: {},

@@ -328,11 +328,12 @@ Saved PXLBLZ Patterns is the only profile surface that claims whether a saved
 artifact still matches its code-affecting Controller profile and live map
 dimension. **CURRENT** means its recognized durable signature matches exactly;
 **PUSH AGAIN** means both signatures are known and differ; **UNKNOWN** means
-there is not enough recognized evidence for either claim. Offline, loading, and
-failed reads make no freshness claim. **QUEUED**, **SYNCING**, and **FAILED**
-temporarily replace the steady status while automatic refresh work is active.
-**Import** is offered for Other Patterns that contain source; compiled code
-without source cannot be reconstructed.
+there is not enough recognized evidence for either claim. A same-connection
+metadata refresh keeps the rows visible but retires their earlier steady claim
+to UNKNOWN; offline, reconnecting, and failed reads make no freshness claim.
+**QUEUED**, **SYNCING**, and **FAILED** remain visible while automatic refresh
+work is active. **Import** is offered for Other Patterns that contain source;
+compiled code without source cannot be reconstructed.
 
 A Controller has one shared map slot, so **Send map to Controller** is a
 confirm-first configuration action, not a per-Pattern preference. PXLBLZ

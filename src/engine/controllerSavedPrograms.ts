@@ -23,9 +23,9 @@ export const CONTROLLER_SAVED_PATTERN_STATUS_LABELS: Record<ControllerSavedPatte
 
 export function describeProfileFreshness(
   pushRecord: ControllerPushRecord | undefined,
-  currentProfileSignature: string,
+  currentProfileSignature: string | null,
 ): ControllerSavedPatternFreshness {
-  if (!pushRecord?.profileSignature) return 'unmanaged'
+  if (!pushRecord?.profileSignature || currentProfileSignature === null) return 'unmanaged'
   const stored = readStoredArtifactSignature(pushRecord.profileSignature)
   if (stored.kind !== 'recognized') return 'unmanaged'
   return stored.normalized === currentProfileSignature ? 'current' : 'stale'
@@ -126,6 +126,8 @@ export function describeControllerSavedPrograms(input: {
   pushRecords: ControllerPushRecords
   profile: ControllerProfile
   mapDim: MapDimension | null
+  /** False while the live map or metadata evidence is being refreshed. */
+  profileSignatureReady?: boolean
 }): ControllerSavedProgramsView {
   const bindingByProgramId = new Map<string, string>()
   for (const [bindingKey, programId] of Object.entries(input.bindings[input.controllerId] ?? {})) {
@@ -166,7 +168,9 @@ export function describeControllerSavedPrograms(input: {
       sourceKind: bindingKey.startsWith('show:') ? 'show' : 'pattern',
       freshness: describeProfileFreshness(
         pushRecord,
-        controllerProfileArtifactSignature(input.profile, bindingKey, { mapDim: input.mapDim }),
+        input.profileSignatureReady === false
+          ? null
+          : controllerProfileArtifactSignature(input.profile, bindingKey, { mapDim: input.mapDim }),
       ),
       ...(pushRecord?.showOutputContract ? { showOutputContract: pushRecord.showOutputContract } : {}),
     })

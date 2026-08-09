@@ -28,7 +28,11 @@ import {
   defaultControllerProfile,
   useControllerProfileStore,
 } from '@/store/controllerProfileStore'
-import { controllerInitialState, useControllerStore } from '@/store/controllerStore'
+import {
+  controllerInitialState,
+  useControllerStore,
+  type ControllerEntry,
+} from '@/store/controllerStore'
 import {
   controllerPanelInitialState,
   useControllerPanelStore,
@@ -143,6 +147,8 @@ function renderLiveProgramInventory(
     programs: ProgramListProvider['programs']
     bindings: Record<string, string>
     pushRecords: Record<string, ControllerPushRecord>
+    mapDim?: ControllerEntry['mapDim']
+    installedMap?: ControllerEntry['installedMap']
   },
 ) {
   const provider = new ProgramListProvider()
@@ -166,7 +172,8 @@ function renderLiveProgramInventory(
         deviceId: profile.deviceId,
         nickname: 'Burner bag',
         phase: 'live',
-        mapDim: 2,
+        mapDim: fixture.mapDim ?? 2,
+        ...(fixture.installedMap ? { installedMap: fixture.installedMap } : {}),
       },
     },
   })
@@ -1323,6 +1330,20 @@ describe('ControllerProfilePage', () => {
     render(<ControllerSavedProgramsPane profile={profile} />)
     expect(await screen.findByText('CURRENT')).toBeInTheDocument()
 
+    useControllerStore.setState({
+      controllerReconciliations: {
+        'ctrl-1': {
+          phase: 'running',
+          managedCount: 1,
+          unmanagedCount: 0,
+          completedCount: 0,
+          programs: [
+            { programId: 'DEV1', bindingKey: 'pat-1', name: 'Twinkle', state: 'updating' },
+          ],
+        },
+      },
+    })
+
     await act(async () => {
       await setPushRecords({
         '192.168.8.224': {
@@ -1330,12 +1351,39 @@ describe('ControllerProfilePage', () => {
         },
       })
     })
-    expect(await screen.findByText(/reading saved Patterns/i)).toBeInTheDocument()
+    expect(screen.queryByText(/reading saved Patterns/i)).not.toBeInTheDocument()
+    expect(screen.getByRole('table', { name: 'Saved PXLBLZ Patterns' })).toBeInTheDocument()
+    expect(screen.getByText('SYNCING')).toBeInTheDocument()
     expect(screen.queryByText('CURRENT')).not.toBeInTheDocument()
 
     resolveReread(records)
+    useControllerStore.setState({ controllerReconciliations: {} })
     expect(await screen.findByText('CURRENT')).toBeInTheDocument()
     expect(readCount).toBe(2)
+  })
+
+  it('does not claim a saved Pattern needs another push while the installed map is unknown', async () => {
+    const profile = seedProfile()
+    renderLiveProgramInventory(profile, {
+      storageId: 'saved-program-map-read-error',
+      programs: [{ id: 'DEV1', name: 'Twinkle' }],
+      bindings: { 'pat-1': 'DEV1' },
+      pushRecords: {
+        'pat-1': {
+          transforms: [],
+          artifactHash: 'twinkle-hash',
+          stampedAt: '2026-08-08T00:00:00.000Z',
+          name: 'Twinkle',
+          profileSignature: controllerProfileArtifactSignature(profile, 'pat-1', { mapDim: 2 }),
+        },
+      },
+      mapDim: 2,
+      installedMap: { status: 'error', message: 'map read timed out' },
+    })
+
+    expect(await screen.findByText('UNKNOWN')).toBeInTheDocument()
+    expect(screen.queryByText('PUSH AGAIN')).not.toBeInTheDocument()
+    expect(screen.queryByText('CURRENT')).not.toBeInTheDocument()
   })
 
   it('links a compiled legacy built-in Show artifact to its canonical Studio Show source', async () => {
