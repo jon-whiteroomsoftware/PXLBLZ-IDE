@@ -170,7 +170,7 @@ input.ru::placeholder{color:var(--ink4)}
     hierarchy from whitespace and type, boxes only for floating surfaces, and the
     <b>#656 hybrid field</b> (exact value + transient slider) adopted everywhere a value is a number.
     The floating panels themselves keep their borders — a dialog needs an edge; the furniture inside it does not.
-    <b>Status: all seven approved 2026-08-08.</b> A zones-lane assessment is pending and may add one section.
+    <b>Status: sections 1&ndash;7 approved 2026-08-08; section 8 (zones) added by the follow-up assessment.</b>
   </p>
   <div class="rules">
     <span>no boxes as grouping</span>
@@ -477,6 +477,66 @@ input.ru::placeholder{color:var(--ink4)}
     &ldquo;transient slider&rdquo; from &ldquo;committed value.&rdquo; The rule-under restyle already
     makes that separation structurally (underline vs. floating slider), so the second color stops
     earning its place. Zone colors are untouched everywhere — they identify data, not chrome.</p>
+  </div>
+</section>
+
+<!-- 8 ──────────────────────────────────────────────────────────────── -->
+<section class="prop">
+  <div class="prop-head">
+    <span class="n">8</span>
+    <h2>Zones chrome — data keeps its color, chrome loses it</h2>
+    <span class="where">ShowEditor.tsx (Layouts lane, ~4790) · ZonePreviewStrips.tsx</span>
+  </div>
+  <p class="prop-why">
+    Zone <em>identity</em> is color-coded data — dots, spines, sample strips — and stays untouched.
+    But the zones <em>chrome</em> speaks its own sky dialect: the Layouts lane label and cell text,
+    hover and focus rings, the layout-switch pills, boundary lines, and the solo-zone state are all
+    sky-tinted, and split cells mix their two zone colors at 35% — nearly 4&times; louder than the
+    proposed clip fills. Chrome joins the app language; the lane's fills drop to data-tint levels.
+  </p>
+  <div class="demo">
+    <p class="demo-label">Now</p>
+    <div class="tl">
+      <div style="display:grid;grid-template-columns:64px 1fr;border-top:1px solid rgba(24,24,27,.9)">
+        <div style="display:flex;align-items:center;padding:0 8px;height:18px;background:#060608;font-family:var(--mono);font-size:9px;letter-spacing:.1em;text-transform:uppercase;color:rgba(125,211,252,.8)">Layouts</div>
+        <div style="position:relative;display:grid;grid-template-columns:1fr 1fr;height:18px">
+          <span style="display:flex;align-items:center;justify-content:space-between;padding:0 6px;font-family:var(--mono);font-size:9px;color:rgba(224,242,254,.9);background:linear-gradient(90deg,color-mix(in srgb,#fbbf24 35%,#08080a) 0 50%,color-mix(in srgb,#38bdf8 35%,#08080a) 50% 100%)">Split 50/50<span style="color:#f4f4f5">50%</span></span>
+          <span style="display:flex;align-items:center;padding:0 6px;font-family:var(--mono);font-size:9px;color:rgba(224,242,254,.9);background:rgba(9,9,11,.4)">Checker &middot; 24</span>
+          <span style="position:absolute;left:50%;top:0;bottom:0;width:16px;transform:translateX(-50%);display:grid;place-items:center;border-radius:2px;background:rgba(56,189,248,.35);color:#e0f2fe;font-size:8px;box-shadow:inset 0 0 0 1px rgba(125,211,252,.8)">&#8646;</span>
+        </div>
+      </div>
+      <div style="display:flex;align-items:center;gap:8px;margin-top:14px">
+        <span style="display:grid;place-items:center;width:26px;height:26px;border-radius:4px;background:rgba(14,165,233,.2);color:#7dd3fc;box-shadow:0 0 0 1px rgba(56,189,248,.5)">&#128065;</span>
+        <span style="width:10px;height:10px;border-radius:50%;background:#fbbf24"></span>
+        <span style="font-family:var(--mono);font-size:11px;color:#e4e4e7;width:64px">Garden</span>
+        <span style="flex:1;height:18px;border:1px solid rgba(56,189,248,.6);border-radius:2px;background:linear-gradient(90deg,#f00,#ff0,#0f0,#0ff,#00f,#f0f);filter:saturate(.8) brightness(.85)"></span>
+      </div>
+    </div>
+  </div>
+  <div class="demo">
+    <p class="demo-label after">Proposed</p>
+    <div class="tl">
+      <div style="display:grid;grid-template-columns:64px 1fr;border-top:1px solid var(--hair)">
+        <div style="display:flex;align-items:center;padding:0 8px;height:18px;font-family:var(--mono);font-size:9px;letter-spacing:.14em;text-transform:uppercase;color:var(--ink4)">Layouts</div>
+        <div style="position:relative;display:grid;grid-template-columns:1fr 1fr;height:18px">
+          <span style="display:flex;align-items:center;justify-content:space-between;padding:0 6px;font-family:var(--mono);font-size:9px;color:var(--ink2);background:linear-gradient(90deg,color-mix(in srgb,#fbbf24 12%,transparent) 0 50%,color-mix(in srgb,#38bdf8 12%,transparent) 50% 100%)">Split 50/50<span style="color:var(--ink3)">50%</span></span>
+          <span style="display:flex;align-items:center;padding:0 6px;font-family:var(--mono);font-size:9px;color:var(--ink2)">Checker &middot; 24</span>
+          <span style="position:absolute;left:50%;top:0;bottom:0;width:16px;transform:translateX(-50%);display:grid;place-items:center;color:var(--ink3);font-size:8px">&#8646;</span>
+        </div>
+      </div>
+      <div style="display:flex;align-items:center;gap:8px;margin-top:14px">
+        <span style="display:grid;place-items:center;width:26px;height:26px;border-radius:4px;color:var(--live);background:rgba(251,191,36,.1)">&#128065;&#xFE0E;</span>
+        <span style="width:10px;height:10px;border-radius:50%;background:#fbbf24"></span>
+        <span style="font-family:var(--mono);font-size:11px;color:var(--ink);width:64px">Garden</span>
+        <span style="flex:1;height:18px;border-radius:2px;background:linear-gradient(90deg,#f00,#ff0,#0f0,#0ff,#00f,#f0f);filter:saturate(.8) brightness(.85)"></span>
+      </div>
+    </div>
+    <p class="note">The lane label takes the standard 9px letterspaced caps in quiet ink; cell text is
+    mono ink2 with the split position as an ink3 fact; the split gradient drops to 12% mix — still two
+    zone colors meeting, no longer a highlight. Layout-switch pills and boundary lines go quiet ink,
+    amber when selected, matching every other selection in the pass. The solo-zone eye and the active
+    strip state go amber; the sample strip loses its border — it is an image of the installation, and
+    its edge is its own. Zone dots, spines, and strip colors are untouched everywhere.</p>
   </div>
 </section>
 
