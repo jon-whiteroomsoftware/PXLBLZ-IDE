@@ -17,7 +17,7 @@ functionality to existing ones, and recombine complete Patterns into
 **Shows** on a timeline (like iMovie or CapCut). Everything compiles down
 to a regular Pixelblaze Pattern you can run on the controller.
 
-Everything in the IDE runs in the browser, so you can write Patterns, create
+The whole IDE runs in the browser, so you can write Patterns, create
 Shows, and see it all running — no Pixelblaze controller required. If you
 have a controller, install the companion
 [Chrome extension](https://chromewebstore.google.com/detail/pxlblz-ide-controller-hel/hjdkmngopeofakdbjfkaomcmgkcidoeg)
@@ -37,9 +37,9 @@ Pixelblaze controller just like any other Pattern.
 Two fun uses for Shows:
 
 - **Remix your favorite Pattern.** You have a Pattern you love. Put it on
-  the timeline and remix it into a two-minute set: animate its controls over
-  time, layer Effects over it, crossfade between variants of it. The
-  ten-second Pattern becomes a performance.
+  the timeline and remix it into a two-minute set: animate its controls,
+  layer Effects, crossfade between variants. The ten-second Pattern becomes
+  a performance.
 - **Stage a light show.** Divide your custom map into named zones, each
   running its own Pattern — or its own variant of one Pattern — with
   precisely coordinated moments across the whole piece, without paying a
@@ -61,9 +61,6 @@ way to the hardware:
   never modified.
 - **Power management.** Limit power usage from the controller, estimated
   from the active LED duty cycle.
-- **A permanent home for Patterns and Shows.** Patterns, Shows, maps, and
-  Controller profiles live in a real database on a cloud workspace behind
-  GitHub or Google sign-in.
 
 You can always see the final code that PXLBLZ generates — **View generated
 artifact** shows exactly what will run.
@@ -97,6 +94,9 @@ tool I originally wished for. I was not dreaming big enough.
 - **Libraries** — built-in libraries of reusable functions, plus your own.
   Compilation tree-shakes only what a Pattern actually calls into its
   artifact.
+- **A permanent home for your work** — Patterns, Shows, maps, and Controller
+  profiles live in a real database on a cloud workspace behind GitHub or
+  Google sign-in.
 - **Controller integration** — discovery and live connection through the
   extension, Run/Save with the controller's own compiler, and durable
   per-device profiles.
@@ -125,7 +125,7 @@ throughout the repo, starting in [`docs/agents/`](docs/agents/).
 
 Start with the
 **[Feature Guide](https://pxlblz-ide.whiteroomsoftware.com/docs/feature-guide)**
-for a tour of every surface, read
+for an introduction to every surface, read
 **[Inside the Show Compiler](https://pxlblz-ide.whiteroomsoftware.com/docs/show-compiler)**
 for how a timeline becomes one Pattern, and reach for the
 **[Pixelblaze Ecosystem Primer](https://pxlblz-ide.whiteroomsoftware.com/docs/ecosystem-primer)**

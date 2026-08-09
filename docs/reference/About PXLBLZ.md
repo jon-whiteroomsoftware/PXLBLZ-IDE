@@ -1,8 +1,11 @@
 # About PXLBLZ
 
-PXLBLZ-IDE brings the familiar workflow of video editing to Pixelblaze.
-Individual Patterns become clips you can arrange, transition, animate, and
-choreograph into a Show—then compile into one portable Pixelblaze Pattern.
+PXLBLZ-IDE is an IDE for Pixelblaze LED controllers, built around one idea:
+do more with Patterns without editing code. Write and preview Patterns, add
+functionality to existing ones, and recombine complete Patterns into Shows on
+a timeline, the way a video editor arranges clips. Everything compiles into
+one ordinary Pixelblaze Pattern, and the whole IDE runs in the browser — no
+controller required.
 
 ## Why it exists
 
@@ -35,8 +38,11 @@ The [source code](https://github.com/jon-whiteroomsoftware/PXLBLZ-IDE) and
 [public issue tracker](https://github.com/jon-whiteroomsoftware/PXLBLZ-IDE/issues)
 are on GitHub.
 
-Agentic development tools have been used extensively in building PXLBLZ. Jon
-remains responsible for its product design, operation, and releases.
+The codebase was written using Claude and Codex in roughly equal amounts,
+working under a documented process: test-driven slices, cross-model code
+review on every commit, mutation testing on the high-risk engines, and full
+end-to-end suites before anything ships. Jon remains responsible for product
+design, operation, and releases.
 
 ## Accounts, data, and Controllers
 
