@@ -379,6 +379,27 @@ test('edits and persists a Controller input use across responsive and keyboard f
   await expect(page.getByRole('checkbox', { name: 'Panel button controls brightness' })).toBeChecked()
   await expect(page.getByText(/needs an analog signal/)).toHaveCount(0)
 
+  // The browser stays wide while the authoring pane narrows, matching a user
+  // dragging the adjacent pane splitter. Column count must follow this pane,
+  // not a viewport media query (#772).
+  const inputColumns = page.getByTestId('controller-profile-input-columns')
+  await expect.poll(
+    () => inputColumns.evaluate((node) => getComputedStyle(node).columnCount),
+    'Controller inputs should use two ragged columns when the center pane is wide',
+  ).toBe('2')
+  await profilePage.evaluate((node) => {
+    node.style.width = '600px'
+    node.style.flex = 'none'
+  })
+  await expect.poll(
+    () => inputColumns.evaluate((node) => getComputedStyle(node).columnCount),
+    'Controller inputs should collapse to one column when only the center pane narrows',
+  ).toBe('1')
+  await profilePage.evaluate((node) => {
+    node.style.removeProperty('width')
+    node.style.removeProperty('flex')
+  })
+
   await page.setViewportSize({ width: 390, height: 844 })
   await expect.poll(
     () => page.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth),

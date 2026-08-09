@@ -43,6 +43,24 @@ describe('controllerProfileLiveStore', () => {
     expect(useControllerProfileStore.getState().refreshLiveMetadata).toHaveBeenCalledWith('ctrl-1')
   })
 
+  it('refreshes live metadata on every sync while reusing an identical bindings read', async () => {
+    const getControllerBindings = vi.fn(async () => ({
+      '192.168.8.224': { 'pat-line': 'DEV_LINE' },
+    }))
+    setControllerMetadataStorage({
+      ...demoControllerMetadataStorage,
+      id: 'profile-live-reopen',
+      getControllerBindings,
+    })
+    const request = { liveIp: '192.168.8.224', liveEpoch: 1, programs }
+
+    await useControllerProfileLiveStore.getState().syncProfile('ctrl-1', request)
+    await useControllerProfileLiveStore.getState().syncProfile('ctrl-1', request)
+
+    expect(getControllerBindings).toHaveBeenCalledTimes(1)
+    expect(useControllerProfileStore.getState().refreshLiveMetadata).toHaveBeenCalledTimes(2)
+  })
+
   it('retires an earlier connection immediately and ignores its late answer', async () => {
     let resolveFirst!: (bindings: BindingStore) => void
     let resolveSecond!: (bindings: BindingStore) => void

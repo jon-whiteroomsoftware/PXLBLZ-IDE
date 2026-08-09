@@ -1456,30 +1456,37 @@ export function ControllerProfilePage({ profileId }: { profileId: string }) {
           </p>
         ) : (
           // Ragged two-up columns, not a grid: inputs have different heights and
-          // must not be forced to share a row height (#772). The shorthand is
-          // container-relative — two columns only while each still gets 24rem —
-          // because this pane narrows independently of the viewport.
-          <div className="columns-1 gap-x-13 [column-rule:1px_solid_rgb(39_39_42)] md:columns-2">
-            {profile.inputs.map((input) => {
-              const presentation = presentationById.get(input.id)
-              if (!presentation) return null
-              return (
-                <InputCard
-                  key={input.id}
-                  profile={profile}
-                  input={input}
-                  presentation={presentation}
-                  patternOptions={bindingPatternOptions}
-                  online={Boolean(liveIp)}
-                  onUpdateInput={(changes) => void updateInput(profile.id, input.id, changes)}
-                  onRemoveInput={() => void removeInput(profile.id, input.id)}
-                  onAssignBrightness={(inputId) => void assignHardwareBrightness(profile.id, inputId)}
-                  onAddPatternUse={(patternId) => void addPatternBinding(profile.id, patternId, input.id)}
-                  onUpdateBinding={(bindingId, changes) => void updatePatternBinding(profile.id, bindingId, changes)}
-                  onRemoveBinding={(bindingId) => void removePatternBinding(profile.id, bindingId)}
-                />
-              )
-            })}
+          // must not be forced to share a row height (#772). The named container
+          // follows this pane rather than the independently resizable viewport.
+          <div
+            className="controller-profile-input-columns-container"
+            data-testid="controller-profile-input-columns-container"
+          >
+            <div
+              className="controller-profile-input-columns gap-x-13 [column-rule:1px_solid_rgb(39_39_42)]"
+              data-testid="controller-profile-input-columns"
+            >
+              {profile.inputs.map((input) => {
+                const presentation = presentationById.get(input.id)
+                if (!presentation) return null
+                return (
+                  <InputCard
+                    key={input.id}
+                    profile={profile}
+                    input={input}
+                    presentation={presentation}
+                    patternOptions={bindingPatternOptions}
+                    online={Boolean(liveIp)}
+                    onUpdateInput={(changes) => void updateInput(profile.id, input.id, changes)}
+                    onRemoveInput={() => void removeInput(profile.id, input.id)}
+                    onAssignBrightness={(inputId) => void assignHardwareBrightness(profile.id, inputId)}
+                    onAddPatternUse={(patternId) => void addPatternBinding(profile.id, patternId, input.id)}
+                    onUpdateBinding={(bindingId, changes) => void updatePatternBinding(profile.id, bindingId, changes)}
+                    onRemoveBinding={(bindingId) => void removePatternBinding(profile.id, bindingId)}
+                  />
+                )
+              })}
+            </div>
           </div>
         )}
       </Section>

@@ -57,10 +57,12 @@ export const useControllerProfileLiveStore = create<ControllerProfileLiveState>(
 
   syncProfile: async (profileId, request) => {
     const readKey = controllerProfileLiveReadKey(request)
+    // Metadata is a one-off observation requested every time the profile route
+    // opens. It is independent of the connection-scoped bindings cache below.
+    void useControllerProfileStore.getState().refreshLiveMetadata(profileId)
     const current = get().readsByProfile[profileId]
     if (current?.readKey === readKey && current.phase !== 'failed') return
 
-    void useControllerProfileStore.getState().refreshLiveMetadata(profileId)
     set((state) => ({
       readsByProfile: {
         ...state.readsByProfile,

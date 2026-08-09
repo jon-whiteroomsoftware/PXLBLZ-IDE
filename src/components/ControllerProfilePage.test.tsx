@@ -167,6 +167,31 @@ function renderLiveProgramInventory(
 }
 
 describe('ControllerProfilePage', () => {
+  it('keys ragged input columns to the center pane instead of the viewport (#772)', () => {
+    const profile = seedProfile()
+    useControllerProfileStore.setState({
+      profiles: [{
+        ...profile,
+        inputs: [{
+          id: 'brightness-pot',
+          name: 'Brightness knob',
+          pin: 33,
+          signal: 'analog',
+          smoothing: 0.2,
+          fallback: 0.5,
+          invert: false,
+        }],
+      }],
+    })
+
+    render(<ControllerProfilePage profileId="ctrl-1" />)
+
+    expect(screen.getByTestId('controller-profile-input-columns-container'))
+      .toHaveClass('controller-profile-input-columns-container')
+    expect(screen.getByTestId('controller-profile-input-columns'))
+      .toHaveClass('controller-profile-input-columns')
+  })
+
   it('shows the durable installed-map snapshot while the Controller is offline', () => {
     const base = seedProfile()
     useControllerProfileStore.setState({

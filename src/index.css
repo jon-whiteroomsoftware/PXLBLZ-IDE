@@ -366,6 +366,23 @@
   background: transparent;
 }
 
+/* Controller input cards respond to the center pane, which can narrow while
+   the browser viewport stays wide. The approved two-up prototype is the
+   default presentation; only a genuinely narrow pane collapses the trace. */
+.controller-profile-input-columns-container {
+  container: controller-profile-inputs / inline-size;
+}
+
+.controller-profile-input-columns {
+  column-count: 1;
+}
+
+@container controller-profile-inputs (min-width: 40rem) {
+  .controller-profile-input-columns {
+    column-count: 2;
+  }
+}
+
 /* The Show header responds to the authoring pane, not the browser viewport.
    Preserve transport, zoom, and command priority as the library/Stage consume
    different amounts of horizontal space. */
