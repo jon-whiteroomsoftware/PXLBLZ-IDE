@@ -2,35 +2,33 @@ import type { ProgramListEntry } from './PixelblazeConnection'
 import type { BindingStore } from './controllerBinding'
 import type { ControllerPushRecord, ControllerPushRecords } from './controllerPushRecord'
 import type { ArtifactShowOutputContract } from './artifactStamp'
+import type { ControllerProfile } from './controllerProfile'
+import type { MapDimension } from './renderCompatibility'
+import {
+  controllerProfileArtifactSignature,
+  readStoredArtifactSignature,
+} from './controllerProfilePassRecipe'
 
-export type TransformFreshness = 'current' | 'stale' | 'unmanaged'
-export type ControllerSavedPatternStatus = TransformFreshness | 'queued' | 'updating' | 'failed'
+export type ControllerSavedPatternFreshness = 'current' | 'stale' | 'unmanaged'
+export type ControllerSavedPatternStatus = ControllerSavedPatternFreshness | 'queued' | 'updating' | 'failed'
 
 export const CONTROLLER_SAVED_PATTERN_STATUS_LABELS: Record<ControllerSavedPatternStatus, string> = {
   current: 'CURRENT',
-  stale: 'STALE',
+  stale: 'PUSH AGAIN',
   unmanaged: 'UNKNOWN',
   queued: 'QUEUED',
   updating: 'SYNCING',
   failed: 'FAILED',
 }
 
-export function enabledControllerTransformIds(
-  transforms: readonly { id: string; enabled: boolean }[],
-): string[] {
-  return transforms.filter((transform) => transform.enabled).map((transform) => transform.id)
-}
-
-export function describeTransformFreshness(
+export function describeProfileFreshness(
   pushRecord: ControllerPushRecord | undefined,
-  enabledTransforms: readonly string[],
-): TransformFreshness {
-  if (!pushRecord) return 'unmanaged'
-  const pushed = [...new Set(pushRecord.transforms)].sort()
-  const enabled = [...new Set(enabledTransforms)].sort()
-  return pushed.length === enabled.length && pushed.every((value, index) => value === enabled[index])
-    ? 'current'
-    : 'stale'
+  currentProfileSignature: string,
+): ControllerSavedPatternFreshness {
+  if (!pushRecord?.profileSignature) return 'unmanaged'
+  const stored = readStoredArtifactSignature(pushRecord.profileSignature)
+  if (stored.kind !== 'recognized') return 'unmanaged'
+  return stored.normalized === currentProfileSignature ? 'current' : 'stale'
 }
 
 export interface StudioPatternIdentity {
@@ -50,7 +48,7 @@ export interface ControllerSavedProgramRow {
   studioPatternMissing: boolean
   /** Which Studio entity produced this program; foreign rows default to pattern. */
   sourceKind: 'pattern' | 'show'
-  freshness: TransformFreshness
+  freshness: ControllerSavedPatternFreshness
   showOutputContract?: ArtifactShowOutputContract
 }
 
@@ -126,7 +124,8 @@ export function describeControllerSavedPrograms(input: {
   bindings: BindingStore
   studioPatterns: readonly StudioPatternIdentity[]
   pushRecords: ControllerPushRecords
-  enabledTransforms: readonly string[]
+  profile: ControllerProfile
+  mapDim: MapDimension | null
 }): ControllerSavedProgramsView {
   const bindingByProgramId = new Map<string, string>()
   for (const [bindingKey, programId] of Object.entries(input.bindings[input.controllerId] ?? {})) {
@@ -165,9 +164,9 @@ export function describeControllerSavedPrograms(input: {
       routeId: studioPattern?.routeId ?? null,
       studioPatternMissing: !studioPattern,
       sourceKind: bindingKey.startsWith('show:') ? 'show' : 'pattern',
-      freshness: describeTransformFreshness(
+      freshness: describeProfileFreshness(
         pushRecord,
-        input.enabledTransforms,
+        controllerProfileArtifactSignature(input.profile, bindingKey, { mapDim: input.mapDim }),
       ),
       ...(pushRecord?.showOutputContract ? { showOutputContract: pushRecord.showOutputContract } : {}),
     })

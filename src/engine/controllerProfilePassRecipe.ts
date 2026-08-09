@@ -63,8 +63,7 @@ export function controllerProfileArtifactSignature(
   return JSON.stringify({ version: 1, transforms, inputs, bindings, ...(renderer ? { renderer } : {}) })
 }
 
-/** Read a *stored* artifact signature in today's terms, so it can be compared
- * against one computed now.
+/** Stored artifact signatures must be read in today's terms before comparison.
  *
  * The signature serializes whole `ControllerInput` objects, and inputs written
  * before #772 carried a `role` that never reached a byte of generated code.
@@ -80,25 +79,36 @@ export function controllerProfileArtifactSignature(
  * Only the compared value is adjusted — the stored record is left as written,
  * and the next real push replaces it in the current shape.
  *
- * A signature this cannot parse, or whose shape it does not recognise, is
- * returned verbatim. That is the pre-#772 comparison exactly: it may differ
- * from a freshly computed signature and cost one re-push, which is the safe
- * direction, and it can never be mistaken for current. Never throws. */
-export function normalizeStoredArtifactSignature(signature: string): string {
+ * A signature this cannot parse, or whose shape it does not recognize, remains
+ * explicitly unrecognized. The compatibility wrapper below can still return
+ * its original bytes for the reconciliation planner's conservative re-push
+ * behavior. Neither path can mistake malformed or future data for current. */
+export type StoredArtifactSignatureRead =
+  | { kind: 'recognized'; normalized: string }
+  | { kind: 'unrecognized' }
+
+/** Classifies a stored signature before it is allowed to support a freshness
+ * claim. Compatibility migrations are recognized; malformed and unknown
+ * future envelopes are not. */
+export function readStoredArtifactSignature(signature: string): StoredArtifactSignatureRead {
   let parsed: unknown
   try {
     parsed = JSON.parse(signature)
   } catch {
-    return signature
+    return { kind: 'unrecognized' }
   }
-  if (!isRecord(parsed)) return signature
+  if (!isRecord(parsed)) return { kind: 'unrecognized' }
   const record = parsed as Record<string, unknown>
-  if (record.version !== undefined && record.version !== 1) return signature
-  if (Object.keys(record).some((key) => !ARTIFACT_SIGNATURE_KEYS.has(key))) return signature
-  if (!isTransformSignatureList(record.transforms)) return signature
-  if (!isInputSignatureList(record.inputs)) return signature
-  if (!isBindingSignatureList(record.bindings)) return signature
-  if (record.renderer !== undefined && !isRendererSignature(record.renderer)) return signature
+  if (record.version !== undefined && record.version !== 1) return { kind: 'unrecognized' }
+  if (Object.keys(record).some((key) => !ARTIFACT_SIGNATURE_KEYS.has(key))) {
+    return { kind: 'unrecognized' }
+  }
+  if (!isTransformSignatureList(record.transforms)) return { kind: 'unrecognized' }
+  if (!isInputSignatureList(record.inputs)) return { kind: 'unrecognized' }
+  if (!isBindingSignatureList(record.bindings)) return { kind: 'unrecognized' }
+  if (record.renderer !== undefined && !isRendererSignature(record.renderer)) {
+    return { kind: 'unrecognized' }
+  }
 
   let strayRole = false
   const inputs = record.inputs.map((input) => {
@@ -110,18 +120,25 @@ export function normalizeStoredArtifactSignature(signature: string): string {
   // A current signature with nothing to migrate stays byte-exact. An
   // unversioned signature is a recognised pre-version envelope and is promoted
   // without changing its generated-code meaning.
-  if (!strayRole && record.version === 1) return signature
+  if (!strayRole && record.version === 1) {
+    return { kind: 'recognized', normalized: signature }
+  }
   try {
-    return JSON.stringify({
+    return { kind: 'recognized', normalized: JSON.stringify({
       version: 1,
       transforms: record.transforms,
       inputs,
       bindings: record.bindings,
       ...(record.renderer !== undefined ? { renderer: record.renderer } : {}),
-    })
+    }) }
   } catch {
-    return signature
+    return { kind: 'unrecognized' }
   }
+}
+
+export function normalizeStoredArtifactSignature(signature: string): string {
+  const read = readStoredArtifactSignature(signature)
+  return read.kind === 'recognized' ? read.normalized : signature
 }
 
 const ARTIFACT_SIGNATURE_KEYS = new Set(['version', 'transforms', 'inputs', 'bindings', 'renderer'])

@@ -321,10 +321,18 @@ saved.
 
 The profile's right pane splits the live Controller inventory into **Saved
 PXLBLZ Patterns** and **Other Patterns**. Saved rows link back to their
-source, including Show outputs; Other rows stay visible and untouched — never
-modified, renamed, or deleted. Status labels are OK, STALE, UNKNOWN, QUEUED,
-SYNCING, and FAILED. **Import** is offered for Other Patterns that contain
-source; compiled code without source cannot be reconstructed.
+source, including Show outputs; Other rows stay visible and untouched - never
+modified, renamed, or deleted.
+
+Saved PXLBLZ Patterns is the only profile surface that claims whether a saved
+artifact still matches its code-affecting Controller profile and live map
+dimension. **CURRENT** means its recognized durable signature matches exactly;
+**PUSH AGAIN** means both signatures are known and differ; **UNKNOWN** means
+there is not enough recognized evidence for either claim. Offline, loading, and
+failed reads make no freshness claim. **QUEUED**, **SYNCING**, and **FAILED**
+temporarily replace the steady status while automatic refresh work is active.
+**Import** is offered for Other Patterns that contain source; compiled code
+without source cannot be reconstructed.
 
 A Controller has one shared map slot, so **Send map to Controller** is a
 confirm-first configuration action, not a per-Pattern preference. PXLBLZ

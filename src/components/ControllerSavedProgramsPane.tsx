@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useState, useSyncExternalStore } from 'react'
 import { ChevronDown, ChevronUp, Download, RefreshCw } from 'lucide-react'
 import { controlIcon, inlineIcon } from '@/components/iconScale'
 import { Button } from '@/components/ui/button'
@@ -15,15 +15,15 @@ import {
   AlertDialogAction,
 } from '@/components/ui/alert-dialog'
 import type { ProgramListEntry } from '@/engine/PixelblazeConnection'
-import type { BindingStore } from '@/engine/controllerBinding'
-import { getControllerBindings, getPushRecords } from '@/engine/controllerMetadataStorage'
+import {
+  getControllerPushRecordsRevision,
+  subscribeControllerPushRecordsRevision,
+} from '@/engine/controllerMetadataStorage'
 import type { ControllerProfile } from '@/engine/controllerProfile'
-import type { ControllerPushRecords } from '@/engine/controllerPushRecord'
 import { controllerForProfile } from '@/engine/controllerProfileConnection'
 import { getControllerProvider } from '@/engine/controllerProviderRegistry'
 import {
   describeControllerSavedPrograms,
-  enabledControllerTransformIds,
   CONTROLLER_SAVED_PATTERN_STATUS_LABELS,
   sortControllerSavedPrograms,
   type ControllerSavedPatternStatus,
@@ -49,6 +49,10 @@ import { usePatternStore } from '@/store/patternStore'
 import { useShowStore } from '@/store/showStore'
 import { useRouterStore } from '@/store/routerStore'
 import type { ArtifactShowOutputContract } from '@/engine/artifactStamp'
+import {
+  controllerSavedProgramsReadKey,
+  useControllerSavedProgramsLiveStore,
+} from '@/store/controllerSavedProgramsLiveStore'
 
 const tableHeadClass = 'border-b border-seam pb-2 pr-2 text-left font-mono text-[9px] font-medium uppercase tracking-[0.16em] text-zinc-500'
 const EMPTY_CONTROLLER_PROGRAMS: ProgramListEntry[] = []
@@ -61,13 +65,7 @@ const patternInventoryColumns = [
   { id: 'output-or-action', className: 'w-[20%]' },
 ] as const
 
-type SavedProgramsRead = {
-  controllerId: string | null
-  status: 'offline' | 'loading' | 'ready' | 'error'
-  programs: ProgramListEntry[]
-  bindings: BindingStore
-  pushRecords: ControllerPushRecords
-}
+type SavedProgramsReadStatus = 'offline' | 'loading' | 'ready' | 'error'
 
 type PendingProgramImport = {
   program: ControllerSavedProgramRow
@@ -76,15 +74,15 @@ type PendingProgramImport = {
 
 const statusPresentation: Record<ControllerSavedPatternStatus, { title: string; className: string }> = {
   current: {
-    title: 'OK: saved with the transforms enabled on this profile.',
+    title: 'Current: the saved Pattern matches this Controller profile and renderer.',
     className: 'text-emerald-300',
   },
   stale: {
-    title: 'Stale: profile transforms changed since this Pattern was saved. Save it again to update.',
+    title: 'Push again: a code-affecting profile or renderer setting changed since this Pattern was saved.',
     className: 'text-amber-300',
   },
   unmanaged: {
-    title: 'Unknown: no PXLBLZ push record is available for this saved Pattern.',
+    title: 'Unknown: no recognized durable profile signature is available for this saved Pattern.',
     className: 'text-zinc-500',
   },
   queued: {
@@ -355,7 +353,7 @@ function SavedProgramsInventory({
   error,
   reconciliation,
 }: {
-  status: SavedProgramsRead['status']
+  status: SavedProgramsReadStatus
   programs: ControllerSavedProgramsView
   showsEnabled: boolean
   onRefresh: () => void
@@ -530,71 +528,84 @@ export function ControllerSavedProgramsPane({ profile }: { profile: ControllerPr
     liveIp ? state.programsByController[liveIp] ?? EMPTY_CONTROLLER_PROGRAMS : EMPTY_CONTROLLER_PROGRAMS
   ))
   const refreshControllerPrograms = useControllerPanelStore((state) => state.refreshPrograms)
-  const requestRef = useRef(0)
-  const [refresh, setRefresh] = useState(0)
+  const pushRecordsRevision = useSyncExternalStore(
+    subscribeControllerPushRecordsRevision,
+    getControllerPushRecordsRevision,
+    getControllerPushRecordsRevision,
+  )
+  const refreshGeneration = useControllerSavedProgramsLiveStore((state) => (
+    state.refreshGenerationsByProfile[profile.id] ?? 0
+  ))
+  const savedProgramsRead = useControllerSavedProgramsLiveStore((state) => state.readsByProfile[profile.id])
+  const syncSavedPrograms = useControllerSavedProgramsLiveStore((state) => state.syncProfile)
+  const requestSavedProgramsRefresh = useControllerSavedProgramsLiveStore((state) => state.requestRefresh)
+  const clearSavedPrograms = useControllerSavedProgramsLiveStore((state) => state.clearProfile)
   const [pendingImport, setPendingImport] = useState<PendingProgramImport | null>(null)
   const [importingProgramId, setImportingProgramId] = useState<string | null>(null)
   const [importError, setImportError] = useState<string | null>(null)
-  const [read, setRead] = useState<SavedProgramsRead>({
-    controllerId: null,
-    status: 'offline',
-    programs: [],
-    bindings: {},
-    pushRecords: {},
-  })
+  const liveEpoch = profileController?.phase === 'live' ? profileController.liveEpoch : undefined
+  const readKey = liveIp
+    ? controllerSavedProgramsReadKey({
+        controllerId: liveIp,
+        liveEpoch,
+        programs: controllerPrograms,
+        pushRecordsRevision,
+        refreshGeneration,
+      })
+    : ''
+  const readIsCurrent = savedProgramsRead?.readKey === readKey
+  const readStatus: SavedProgramsReadStatus = !liveIp
+    ? 'offline'
+    : !readIsCurrent || savedProgramsRead.phase === 'loading'
+      ? 'loading'
+      : savedProgramsRead.phase === 'failed'
+        ? 'error'
+        : 'ready'
 
   useEffect(() => {
-    const request = ++requestRef.current
-    let cancelled = false
-    void (async () => {
-      await Promise.resolve()
-      if (cancelled || requestRef.current !== request) return
-      if (!liveIp) {
-        setRead((current) => current.status === 'offline' && current.controllerId === null
-          ? current
-          : { controllerId: null, status: 'offline', programs: [], bindings: {}, pushRecords: {} })
-        return
-      }
-
-      setRead((current) => ({
-        controllerId: liveIp,
-        status: 'loading',
-        programs: current.controllerId === liveIp ? current.programs : [],
-        bindings: current.controllerId === liveIp ? current.bindings : {},
-        pushRecords: current.controllerId === liveIp ? current.pushRecords : {},
-      }))
-      if (useControllerStore.getState().activeIp !== liveIp) setActiveController(liveIp)
-
-      try {
-        const [, bindings, pushRecords] = await Promise.all([
-          refresh > 0 ? refreshControllerPrograms(liveIp) : Promise.resolve(),
-          getControllerBindings(),
-          getPushRecords(),
-        ])
-        if (cancelled || requestRef.current !== request) return
-        setRead({
-          controllerId: liveIp,
-          status: 'ready',
-          programs: useControllerPanelStore.getState().programs,
-          bindings,
-          pushRecords,
-        })
-      } catch {
-        if (cancelled || requestRef.current !== request) return
-        setRead((current) => ({ ...current, controllerId: liveIp, status: 'error' }))
-      }
-    })()
-    return () => {
-      cancelled = true
+    if (!liveIp) {
+      clearSavedPrograms(profile.id)
+      return
     }
-  }, [liveIp, refresh, refreshControllerPrograms, setActiveController])
+    if (useControllerStore.getState().activeIp !== liveIp) setActiveController(liveIp)
+    void syncSavedPrograms(profile.id, {
+      controllerId: liveIp,
+      liveEpoch,
+      programs: controllerPrograms,
+      pushRecordsRevision,
+      refreshGeneration,
+      refreshPrograms: async () => {
+        await refreshControllerPrograms(liveIp)
+        return useControllerPanelStore.getState().programsByController[liveIp]
+          ?? EMPTY_CONTROLLER_PROGRAMS
+      },
+    })
+  }, [
+    clearSavedPrograms,
+    controllerPrograms,
+    liveEpoch,
+    liveIp,
+    profile.id,
+    pushRecordsRevision,
+    refreshControllerPrograms,
+    refreshGeneration,
+    setActiveController,
+    syncSavedPrograms,
+  ])
+
+  useEffect(() => () => clearSavedPrograms(profile.id), [clearSavedPrograms, profile.id])
+
+  const readyRead = readStatus === 'ready' && savedProgramsRead?.phase === 'ready'
+    ? savedProgramsRead
+    : null
 
   const programs = describeControllerSavedPrograms({
-    controllerId: read.controllerId ?? liveIp ?? '',
-    programs: liveIp ? controllerPrograms : read.programs,
-    bindings: read.bindings,
-    pushRecords: read.pushRecords,
-    enabledTransforms: enabledControllerTransformIds(profile.globalTransforms),
+    controllerId: liveIp ?? '',
+    programs: readyRead?.programs ?? EMPTY_CONTROLLER_PROGRAMS,
+    bindings: readyRead?.bindings ?? {},
+    pushRecords: readyRead?.pushRecords ?? {},
+    profile,
+    mapDim: profileController?.mapDim ?? null,
     studioPatterns: [
       ...userPatterns.map((pattern) => ({
         bindingKey: pattern.id,
@@ -700,10 +711,10 @@ export function ControllerSavedProgramsPane({ profile }: { profile: ControllerPr
         onRetry={() => void reconcileControllerProfile(profile.id)}
       />
       <SavedProgramsInventory
-        status={read.status}
+        status={readStatus}
         programs={programs}
         showsEnabled={showsEnabled}
-        onRefresh={() => setRefresh((value) => value + 1)}
+        onRefresh={() => requestSavedProgramsRefresh(profile.id)}
         onOpen={(routeId) => navigate({
           kind: 'studio',
           entity: routeId.startsWith('show:')

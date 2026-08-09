@@ -1,46 +1,53 @@
 import {
   describeControllerSavedPrograms,
-  describeTransformFreshness,
-  enabledControllerTransformIds,
+  describeProfileFreshness,
   sortControllerSavedPrograms,
 } from './controllerSavedPrograms'
+import { controllerProfileArtifactSignature } from './controllerProfilePassRecipe'
+import { defaultControllerProfile } from '@/store/controllerProfileStore'
 
-function pushRecord(transforms: string[]) {
+const profile = defaultControllerProfile({ id: 'ctrl-profile', now: 1 })
+
+function signature(bindingKey: string, mapDim: 1 | 2 | 3 | null = 2) {
+  return controllerProfileArtifactSignature(profile, bindingKey, { mapDim })
+}
+
+function pushRecord(transforms: string[], profileSignature?: string) {
   return {
     transforms,
     artifactHash: 'hash',
     stampedAt: '2026-07-09T00:00:00.000Z',
     name: 'Saved pattern',
+    ...(profileSignature === undefined ? {} : { profileSignature }),
   }
 }
 
-describe('describeTransformFreshness', () => {
-  it('marks a push record current when its transforms match the enabled profile transforms', () => {
-    expect(describeTransformFreshness(
-      {
-        transforms: ['power-cap', 'hardware-brightness'],
-        artifactHash: 'hash',
-        stampedAt: '2026-07-09T00:00:00.000Z',
-        name: 'Aurora',
-      },
-      ['hardware-brightness', 'power-cap'],
+describe('describeProfileFreshness', () => {
+  it('marks a push record current only when its normalized full profile signature matches', () => {
+    expect(describeProfileFreshness(
+      pushRecord(['power-cap'], signature('pat-1')),
+      signature('pat-1'),
     )).toBe('current')
   })
 
-  it('marks a push record stale when the enabled transform set changed', () => {
-    expect(describeTransformFreshness(pushRecord([]), ['power-cap'])).toBe('stale')
-    expect(describeTransformFreshness(pushRecord(['power-cap']), [])).toBe('stale')
+  it('marks a recognized signature stale when any code-affecting profile fact changed', () => {
+    expect(describeProfileFreshness(
+      pushRecord([], signature('pat-1', 2)),
+      signature('pat-1', 3),
+    )).toBe('stale')
   })
 
-  it('marks a saved program without a push record unmanaged', () => {
-    expect(describeTransformFreshness(undefined, ['power-cap'])).toBe('unmanaged')
-  })
-
-  it('derives enabled transform ids from profile state', () => {
-    expect(enabledControllerTransformIds([
-      { id: 'hardware-brightness', enabled: false },
-      { id: 'power-cap', enabled: true },
-    ])).toEqual(['power-cap'])
+  it('does not claim freshness without a recognized durable signature', () => {
+    expect(describeProfileFreshness(undefined, signature('pat-1'))).toBe('unmanaged')
+    expect(describeProfileFreshness(pushRecord([]), signature('pat-1'))).toBe('unmanaged')
+    expect(describeProfileFreshness(
+      pushRecord([], 'not-json'),
+      signature('pat-1'),
+    )).toBe('unmanaged')
+    expect(describeProfileFreshness(
+      pushRecord([], JSON.stringify({ version: 99, transforms: [], inputs: [], bindings: [] })),
+      signature('pat-1'),
+    )).toBe('unmanaged')
   })
 })
 
@@ -71,11 +78,12 @@ describe('describeControllerSavedPrograms', () => {
       ],
       pushRecords: {
         'ctrl-A': {
-          'pat-1': pushRecord(['power-cap']),
-          'demo:AuroraSphere': pushRecord([]),
+          'pat-1': pushRecord(['power-cap'], signature('pat-1')),
+          'demo:AuroraSphere': pushRecord([], signature('demo:AuroraSphere', 3)),
         },
       },
-      enabledTransforms: ['power-cap'],
+      profile,
+      mapDim: 2,
     })
 
     const alphabetical = sortControllerSavedPrograms(view, {
@@ -147,7 +155,8 @@ describe('describeControllerSavedPrograms', () => {
         { bindingKey: 'pat-2', routeId: 'pat-2', name: 'Beta' },
       ],
       pushRecords: {},
-      enabledTransforms: [],
+      profile,
+      mapDim: 2,
     })
 
     expect(view.owned.map((row) => row.programId)).toEqual(['B2', 'B1'])
@@ -224,6 +233,7 @@ describe('describeControllerSavedPrograms', () => {
         'ctrl-A': {
           'show:show-1': {
             ...pushRecord(['show']),
+            profileSignature: signature('show:show-1'),
             showOutputContract: {
               version: 1,
               kind: 'installation',
@@ -233,7 +243,8 @@ describe('describeControllerSavedPrograms', () => {
           },
         },
       },
-      enabledTransforms: ['show'],
+      profile,
+      mapDim: 2,
     })
 
     expect(view.owned[0].showOutputContract).toMatchObject({
@@ -259,7 +270,8 @@ describe('describeControllerSavedPrograms', () => {
         { bindingKey: 'demo:AuroraSphere', routeId: 'AuroraSphere', name: 'AuroraSphere' },
       ],
       pushRecords: {},
-      enabledTransforms: [],
+      profile,
+      mapDim: 2,
     })
 
     expect(view.owned.map((row) => [row.name, row.sourceKind])).toEqual([

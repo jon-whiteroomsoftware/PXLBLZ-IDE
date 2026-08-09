@@ -461,9 +461,22 @@ on external switches, disconnects, and every new attempt.
 **Inventory and recovery.** The profile's context pane joins `listPrograms`
 with bindings, push records, and the personal and built-in Pattern/Show
 catalogs. Bound entries appear under Saved PXLBLZ Patterns and link to Studio;
-unbound entries are Other Patterns, never modified. Transform sets compare
-order-independently as OK/STALE/UNKNOWN, with QUEUED/SYNCING/FAILED for active
-work. Saved Show rows are labeled Show output with their contract summary.
+unbound entries are Other Patterns, never modified. Saved PXLBLZ Patterns is
+the sole profile-freshness surface. Each bound row compares the recognized,
+compatibility-normalized signature in its push record with a fresh full-profile
+signature for that binding and the live map dimension: exact matches are
+CURRENT, recognized differences are PUSH AGAIN, and missing or unrecognized
+evidence is UNKNOWN. Saved Show rows use the same signature and are labeled
+Show output with their contract summary.
+
+The read identity includes the connection epoch, push-record revision, and
+manual-refresh generation. Reconnects, successful push-record writes, and
+manual refreshes retire earlier freshness evidence even when the Controller's
+program list is unchanged; late superseded answers cannot publish. Same-
+connection refresh may retain the rows so QUEUED/SYNCING/FAILED work remains
+visible, but steady freshness becomes UNKNOWN until the new read completes.
+Offline, failed, and new-connection reads make no freshness claim.
+
 `readSavedProgram` decodes a PBP and separates PXLBLZ provenance from source;
 Import opens the existing Studio Pattern, restores a deleted one, creates a
 personal Pattern from foreign source, or explains that recovery is impossible.
@@ -479,7 +492,7 @@ compatibility rule: **a field that cannot change generated code must never
 change the signature, and a retired field is normalized on read rather than
 paid for in device writes.** `normalizeStoredArtifactSignature` re-reads
 stored signatures in today's terms (drop `role`, promote to the version-1
-envelope) and returns unrecognized bytes verbatim — the safe direction, which
+envelope) and returns unrecognized bytes verbatim - the safe direction, which
 can cost one re-push but can never read stale data as current. Reconciliation
 runs serially through the per-Controller write queue, updates the active
 program last, and stops cleanly on newer edits or disable.

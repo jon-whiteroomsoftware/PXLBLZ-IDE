@@ -71,6 +71,8 @@ export function createRemoteControllerMetadataStorage(
 }
 
 let activeStorage: ControllerMetadataStorage = demoControllerMetadataStorage
+let pushRecordsRevision = 0
+const pushRecordsRevisionListeners = new Set<() => void>()
 
 export function getControllerMetadataStorage(): ControllerMetadataStorage {
   return activeStorage
@@ -132,8 +134,19 @@ export function getPushRecords(): Promise<ControllerPushRecords> {
   return activeStorage.getPushRecords()
 }
 
-export function setPushRecords(records: ControllerPushRecords): Promise<void> {
-  return activeStorage.setPushRecords(records)
+export function getControllerPushRecordsRevision(): number {
+  return pushRecordsRevision
+}
+
+export function subscribeControllerPushRecordsRevision(listener: () => void): () => void {
+  pushRecordsRevisionListeners.add(listener)
+  return () => pushRecordsRevisionListeners.delete(listener)
+}
+
+export async function setPushRecords(records: ControllerPushRecords): Promise<void> {
+  await activeStorage.setPushRecords(records)
+  pushRecordsRevision += 1
+  for (const listener of pushRecordsRevisionListeners) listener()
 }
 
 async function getControllerMetadata<T>(

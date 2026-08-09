@@ -5,6 +5,7 @@ import {
   controllerProfilePassRecipe,
   findProfileForLiveController,
   normalizeStoredArtifactSignature,
+  readStoredArtifactSignature,
 } from './controllerProfilePassRecipe'
 import type { ControllerProfile } from './controllerProfile'
 import {
@@ -361,6 +362,30 @@ describe('controller profile pass recipe', () => {
 })
 
 describe('normalizeStoredArtifactSignature', () => {
+  it('distinguishes recognized current and legacy envelopes from unsafe unknown values (#777)', () => {
+    const current = controllerProfileArtifactSignature(
+      legacySignatureProfile(),
+      LEGACY_SIGNATURE_PATTERN_ID,
+      { mapDim: LEGACY_SIGNATURE_MAP_DIM },
+    )
+
+    expect(readStoredArtifactSignature(current)).toEqual({
+      kind: 'recognized',
+      normalized: current,
+    })
+    expect(readStoredArtifactSignature(LEGACY_ARTIFACT_SIGNATURE_WITH_ROLE)).toEqual({
+      kind: 'recognized',
+      normalized: current,
+    })
+    expect(readStoredArtifactSignature('not-json')).toEqual({ kind: 'unrecognized' })
+    expect(readStoredArtifactSignature(JSON.stringify({
+      version: 99,
+      transforms: [],
+      inputs: [],
+      bindings: [],
+    }))).toEqual({ kind: 'unrecognized' })
+  })
+
   it('writes an explicit schema version into current artifact signatures (#772)', () => {
     const current = controllerProfileArtifactSignature(
       legacySignatureProfile(),

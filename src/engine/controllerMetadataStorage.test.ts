@@ -3,6 +3,7 @@ import {
   demoControllerMetadataStorage,
   getControllerBindings,
   getControllerMetadataStorage,
+  getControllerPushRecordsRevision,
   getProgramLabels,
   getPushRecords,
   initializeControllerMetadataStorage,
@@ -12,6 +13,7 @@ import {
   setControllerMetadataStorage,
   setProgramLabels,
   setPushRecords,
+  subscribeControllerPushRecordsRevision,
   type ControllerMetadataStorage,
 } from './controllerMetadataStorage'
 
@@ -41,6 +43,28 @@ function memoryStorage(): ControllerMetadataStorage {
 }
 
 describe('controller metadata storage seam', () => {
+  it('publishes a new push-record revision only after durable writes succeed (#777)', async () => {
+    const onRevision = vi.fn()
+    const unsubscribe = subscribeControllerPushRecordsRevision(onRevision)
+    setControllerMetadataStorage(memoryStorage())
+
+    const before = getControllerPushRecordsRevision()
+    await setPushRecords({})
+    expect(getControllerPushRecordsRevision()).toBe(before + 1)
+    expect(onRevision).toHaveBeenCalledTimes(1)
+
+    setControllerMetadataStorage({
+      ...memoryStorage(),
+      id: 'failing-push-record-write',
+      setPushRecords: async () => { throw new Error('metadata offline') },
+    })
+    const beforeFailure = getControllerPushRecordsRevision()
+    await expect(setPushRecords({})).rejects.toThrow('metadata offline')
+    expect(getControllerPushRecordsRevision()).toBe(beforeFailure)
+    expect(onRevision).toHaveBeenCalledTimes(1)
+    unsubscribe()
+  })
+
   it('uses non-durable demo storage by default and allows one active storage override', async () => {
     expect(getControllerMetadataStorage()).toBe(demoControllerMetadataStorage)
     const storage = memoryStorage()

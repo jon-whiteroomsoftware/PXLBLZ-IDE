@@ -15,12 +15,14 @@ import { assertValidControllerProfile } from '@/cloudflare/controllerProfiles'
 import type { MapRecord, PatternRecord } from '@/engine/personalContentRecords'
 import type { RecoveredSavedProgram } from '@/engine/controllerSavedProgramRead'
 import type { BindingStore } from '@/engine/controllerBinding'
-import type { ControllerPushRecord } from '@/engine/controllerPushRecord'
+import type { ControllerPushRecord, ControllerPushRecords } from '@/engine/controllerPushRecord'
 import {
   demoControllerMetadataStorage,
   resetControllerMetadataStorage,
   setControllerMetadataStorage,
+  setPushRecords,
 } from '@/engine/controllerMetadataStorage'
+import { controllerProfileArtifactSignature } from '@/engine/controllerProfilePassRecipe'
 import {
   controllerProfileInitialState,
   defaultControllerProfile,
@@ -35,6 +37,10 @@ import {
   controllerProfileLiveInitialState,
   useControllerProfileLiveStore,
 } from '@/store/controllerProfileLiveStore'
+import {
+  controllerSavedProgramsLiveInitialState,
+  useControllerSavedProgramsLiveStore,
+} from '@/store/controllerSavedProgramsLiveStore'
 import { mapInitialState, useMapStore } from '@/store/mapStore'
 import { routerInitialState, useRouterStore } from '@/store/routerStore'
 import { patternInitialState, usePatternStore } from '@/store/patternStore'
@@ -92,6 +98,7 @@ beforeEach(() => {
   window.history.replaceState(null, '', '/')
   useControllerProfileStore.setState(controllerProfileInitialState)
   useControllerProfileLiveStore.setState(controllerProfileLiveInitialState)
+  useControllerSavedProgramsLiveStore.setState(controllerSavedProgramsLiveInitialState)
   useControllerStore.setState(controllerInitialState)
   useControllerPanelStore.setState(controllerPanelInitialState)
   useMapStore.setState(mapInitialState)
@@ -1095,12 +1102,14 @@ describe('ControllerProfilePage', () => {
             artifactHash: 'twinkle-hash',
             stampedAt: '2026-07-09T00:00:00.000Z',
             name: 'Twinkle',
+            profileSignature: controllerProfileArtifactSignature(profile, 'pat-1', { mapDim: 2 }),
           },
           'show:show-1': {
             transforms: ['show'],
             artifactHash: 'show-hash',
             stampedAt: '2026-07-12T00:00:00.000Z',
             name: 'Measured wall Show',
+            profileSignature: controllerProfileArtifactSignature(profile, 'show:show-1', { mapDim: 3 }),
             showOutputContract: {
               version: 1,
               kind: 'installation',
@@ -1156,9 +1165,9 @@ describe('ControllerProfilePage', () => {
     expect(within(savedInventory).getByRole('columnheader', { name: 'Output' })).toBeInTheDocument()
     expect(screen.getByTitle('Map fingerprint 11111111')).toBeInTheDocument()
     expect(screen.getByText('CURRENT')).toBeInTheDocument()
-    expect(screen.getByText('STALE')).toBeInTheDocument()
+    expect(screen.getByText('PUSH AGAIN')).toBeInTheDocument()
     expect(screen.getAllByText('UNKNOWN')).toHaveLength(2)
-    for (const badge of screen.getAllByText(/^(CURRENT|STALE|UNKNOWN)$/)) {
+    for (const badge of screen.getAllByText(/^(CURRENT|PUSH AGAIN|UNKNOWN)$/)) {
       expect(badge).not.toHaveClass('w-[4.75rem]', 'border', 'bg-zinc-900/70')
       expect(badge).toHaveClass('font-mono', 'uppercase')
     }
@@ -1184,7 +1193,7 @@ describe('ControllerProfilePage', () => {
     headerWidths(savedInventory).forEach((width, index) => {
       expect(Math.abs(width - headerWidths(otherInventory)[index])).toBeLessThan(1)
     })
-    for (const badge of screen.getAllByText(/^(CURRENT|STALE|UNKNOWN)$/)) {
+    for (const badge of screen.getAllByText(/^(CURRENT|PUSH AGAIN|UNKNOWN)$/)) {
       expect(badge).not.toHaveClass('max-w-full', 'justify-center')
     }
     const importButton = screen.getByRole('button', { name: 'Import sound bar kit' })
@@ -1213,10 +1222,10 @@ describe('ControllerProfilePage', () => {
     const statusHeader = within(savedInventory).getByRole('columnheader', { name: 'Status' })
     fireEvent.click(within(statusHeader).getByRole('button', { name: 'Status' }))
     expect(statusHeader).toHaveAttribute('aria-sort', 'ascending')
-    expect(savedRows().map((row) => row.match(/CURRENT|STALE|UNKNOWN/)?.[0])).toEqual(['CURRENT', 'STALE', 'UNKNOWN'])
+    expect(savedRows().map((row) => row.match(/CURRENT|PUSH AGAIN|UNKNOWN/)?.[0])).toEqual(['CURRENT', 'PUSH AGAIN', 'UNKNOWN'])
     fireEvent.click(within(statusHeader).getByRole('button', { name: 'Status' }))
     expect(statusHeader).toHaveAttribute('aria-sort', 'descending')
-    expect(savedRows().map((row) => row.match(/CURRENT|STALE|UNKNOWN/)?.[0])).toEqual(['UNKNOWN', 'STALE', 'CURRENT'])
+    expect(savedRows().map((row) => row.match(/CURRENT|PUSH AGAIN|UNKNOWN/)?.[0])).toEqual(['UNKNOWN', 'PUSH AGAIN', 'CURRENT'])
 
     const changedProfile = {
       ...profile,
@@ -1225,7 +1234,7 @@ describe('ControllerProfilePage', () => {
       ),
     }
     rerender(pane(changedProfile))
-    expect(within(savedInventory).getAllByText('STALE')).toHaveLength(2)
+    expect(within(savedInventory).getAllByText('PUSH AGAIN')).toHaveLength(2)
     expect(provider.listCalls).toBe(0)
 
     useControllerStore.setState({
@@ -1260,6 +1269,73 @@ describe('ControllerProfilePage', () => {
     expect(provider.listCalls).toBe(1)
     expect(consoleError.mock.calls.flat().join(' ')).not.toContain('same key')
     consoleError.mockRestore()
+  })
+
+  it('retires a CURRENT claim while an unchanged saved-program id rereads its new push record (#777)', async () => {
+    const profile = seedProfile()
+    const provider = new ProgramListProvider()
+    provider.programs = [{ id: 'DEV1', name: 'Twinkle' }]
+    const currentRecords: ControllerPushRecords = {
+      '192.168.8.224': {
+        'pat-1': {
+          transforms: [],
+          artifactHash: 'first-hash',
+          stampedAt: '2026-08-08T00:00:00.000Z',
+          name: 'Twinkle',
+          profileSignature: controllerProfileArtifactSignature(profile, 'pat-1', { mapDim: 2 }),
+        },
+      },
+    }
+    let records = currentRecords
+    let readCount = 0
+    let resolveReread!: (records: ControllerPushRecords) => void
+    setControllerMetadataStorage({
+      ...demoControllerMetadataStorage,
+      id: 'saved-program-write-revision',
+      getControllerBindings: async () => ({ '192.168.8.224': { 'pat-1': 'DEV1' } }),
+      getPushRecords: () => {
+        readCount += 1
+        return readCount === 1
+          ? Promise.resolve(records)
+          : new Promise((resolve) => { resolveReread = resolve })
+      },
+      setPushRecords: async (next) => { records = next },
+    })
+    setControllerProvider(provider)
+    useControllerPanelStore.setState({
+      programs: provider.programs,
+      programsByController: { '192.168.8.224': provider.programs },
+    })
+    useControllerStore.setState({
+      activeIp: '192.168.8.224',
+      controllers: {
+        '192.168.8.224': {
+          ip: '192.168.8.224',
+          deviceId: profile.deviceId,
+          nickname: 'Burner bag',
+          phase: 'live',
+          mapDim: 2,
+          liveEpoch: 7,
+        },
+      },
+    })
+
+    render(<ControllerSavedProgramsPane profile={profile} />)
+    expect(await screen.findByText('CURRENT')).toBeInTheDocument()
+
+    await act(async () => {
+      await setPushRecords({
+        '192.168.8.224': {
+          'pat-1': { ...currentRecords['192.168.8.224']['pat-1'], artifactHash: 'second-hash' },
+        },
+      })
+    })
+    expect(await screen.findByText(/reading saved Patterns/i)).toBeInTheDocument()
+    expect(screen.queryByText('CURRENT')).not.toBeInTheDocument()
+
+    resolveReread(records)
+    expect(await screen.findByText('CURRENT')).toBeInTheDocument()
+    expect(readCount).toBe(2)
   })
 
   it('links a compiled legacy built-in Show artifact to its canonical Studio Show source', async () => {

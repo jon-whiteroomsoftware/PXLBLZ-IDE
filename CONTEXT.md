@@ -89,10 +89,15 @@ _Avoid_: "deploy" or "upload" as the canonical verb (the verb is push / Send to 
 Durable IDE-side metadata written after each successful **Save** push, keyed by
 the same `(Controller, IDE Pattern/demo/Show)` pair as the overwrite binding. It
 copies the exact artifact banner facts embedded in the saved PBP — transforms,
-artifact hash, stamp time, pushed name, and any **Show output contract** — and
-overwrites the previous record on re-push. **Run** pushes never create records.
-The record makes transform freshness and saved-Show output facts locally
-computable without reading Pattern source back from hardware.
+artifact hash, stamp time, pushed name, and any **Show output contract** — plus
+the complete generated-artifact profile signature, then overwrites the previous
+record on re-push. **Run** pushes never create records. The signature covers the
+code-affecting Controller profile, the Pattern's referenced input bindings, and
+live renderer adaptation. It makes Saved PXLBLZ Patterns the canonical
+(Controller, Pattern) freshness surface without reading Pattern source back from
+hardware: exact recognized equality is **CURRENT**, recognized inequality is
+**PUSH AGAIN**, and missing or unrecognized evidence is **UNKNOWN**. The record
+also makes saved-Show output facts locally computable.
 
 **Managed saved artifact**:
 An installed Controller program eligible for PXLBLZ's opt-in automatic derivative reconciliation. Eligibility requires three independent facts: a PXLBLZ overwrite binding to that exact Controller program id, a successful **push record**, and regenerable Studio source for the bound Pattern, demo, or Show. Reconciliation overwrites the same id with current Controller-profile transforms and renderer adaptation, without activating each program in sequence. Missing bindings, missing push records, missing source, foreign programs, and programs deleted from the Controller are unmanaged: PXLBLZ never modifies, recreates, renames, or deletes them automatically.

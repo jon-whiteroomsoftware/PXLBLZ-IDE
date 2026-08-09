@@ -1,4 +1,7 @@
 import { expect, showtimePath, test } from './fixtures/authenticated'
+import { installFakeControllerHelper } from './fixtures/fakeControllerHelper'
+import { controllerProfileArtifactSignature } from '../src/engine/controllerProfilePassRecipe'
+import type { ControllerProfile } from '../src/engine/controllerProfile'
 
 test('gates functional Show access behind the showtime query parameter', async ({ page }) => {
   await page.goto('studio')
@@ -416,4 +419,137 @@ test('edits and persists a Controller input use across responsive and keyboard f
   const adjustFrontPot = page.getByRole('button', { name: 'Adjust Front pot' })
   await adjustFrontPot.scrollIntoViewIfNeeded()
   await expect(adjustFrontPot).toBeInViewport({ ratio: 1 })
+})
+
+test('saved Pattern freshness follows the full profile through a real managed overwrite (#777)', async ({ page }) => {
+  const profile: ControllerProfile = {
+    id: 'e2e-777-controller',
+    name: 'Freshness bench',
+    deviceId: 'pixelblaze_pb32_3cd4ee549434',
+    lastKnownDeviceName: 'Freshness bench',
+    lastSeenIp: '192.168.8.224',
+    lastKnownPixelCount: 64,
+    board: { kind: 'pixelblaze-v3-standard', hardwareRevision: 3.5, firmwareVersion: '3.67' },
+    electricalProfile: null,
+    inputs: [],
+    globalTransforms: [
+      {
+        id: 'hardware-brightness',
+        type: 'hardware-brightness',
+        enabled: false,
+        mixinId: 'builtin:hardware-brightness',
+        inputId: '',
+        mode: 'multiply-output',
+      },
+      {
+        id: 'power-cap',
+        type: 'power-cap',
+        enabled: false,
+        mixinId: 'builtin:power-cap',
+        mode: 'direct',
+        maxDuty: 0.25,
+      },
+    ],
+    keepPatternsUpToDate: false,
+    patternBindings: [],
+    zones: [],
+    updatedAt: Date.now(),
+  }
+  const pattern = {
+    id: 'e2e-777-pattern',
+    name: 'Freshness spiral',
+    src: 'export function render(index) { hsv(index / pixelCount, 1, 1) }',
+    controls: {},
+    updatedAt: Date.now(),
+  }
+  const enabledProfile: ControllerProfile = {
+    ...profile,
+    globalTransforms: profile.globalTransforms.map((transform) => (
+      transform.type === 'power-cap' ? { ...transform, enabled: true } : transform
+    )),
+  }
+  const controllerId = '192.168.8.224'
+  const programId = 'E2E777PROGRAM00001'
+  const bindingKey = pattern.id
+  const initialSignature = controllerProfileArtifactSignature(profile, bindingKey, { mapDim: null })
+  const enabledSignature = controllerProfileArtifactSignature(enabledProfile, bindingKey, { mapDim: null })
+
+  for (const [resource, data] of [
+    ['controllers', profile],
+    ['patterns', pattern],
+  ] as const) {
+    const response = await page.context().request.post(`/api/${resource}`, { data })
+    expect(response.ok(), `POST /api/${resource} -> ${response.status()}`).toBe(true)
+  }
+  for (const [key, value] of [
+    ['controller-bindings', { [controllerId]: { [bindingKey]: programId } }],
+    ['controller-push-records', {
+      [controllerId]: {
+        [bindingKey]: {
+          transforms: [],
+          artifactHash: 'before-profile-edit',
+          stampedAt: '2026-08-08T00:00:00.000Z',
+          name: pattern.name,
+          profileSignature: initialSignature,
+        },
+      },
+    }],
+  ] as const) {
+    const response = await page.context().request.put(`/api/controller-metadata/${key}`, {
+      data: { value },
+    })
+    expect(response.ok(), `PUT /api/controller-metadata/${key} -> ${response.status()}`).toBe(true)
+  }
+
+  await installFakeControllerHelper(page, {
+    programs: [{ id: programId, name: pattern.name }],
+    activeProgramId: programId,
+    deviceName: profile.name,
+    boardType: 'pb32',
+    mac: '34:94:54:ee:d4:3c',
+    pixelCount: 64,
+  })
+  await page.setViewportSize({ width: 1440, height: 900 })
+  await page.goto(`studio/patterns/${pattern.id}`)
+
+  await page.getByRole('button', { name: 'Connect a Controller' }).click()
+  await page.getByRole('textbox', { name: 'Controller IP address' }).fill(controllerId)
+  await page.getByTestId('controller-go').click()
+  const controllerPill = page.getByTestId('controller-pill')
+  await expect(controllerPill).toHaveAttribute('data-phase', 'live')
+  await controllerPill.click()
+  await page.getByRole('link', { name: `Open ${profile.name} profile` }).click()
+
+  await expect(page).toHaveURL(new RegExp(`/studio/controllers/${profile.id}$`))
+  await expect(page.getByRole('table', { name: 'Saved PXLBLZ Patterns' })).toBeVisible()
+  await expect(page.getByText('CURRENT', { exact: true })).toBeVisible()
+
+  await page.getByRole('checkbox', { name: 'Enforce the duty cap' }).check()
+  const pushAgain = page.getByText('PUSH AGAIN', { exact: true })
+  await expect(pushAgain).toBeVisible()
+  const badgeGeometry = await pushAgain.evaluate((badge) => {
+    const badgeBounds = badge.getBoundingClientRect()
+    const cellBounds = badge.closest('td')?.getBoundingClientRect()
+    return cellBounds
+      ? { badgeLeft: badgeBounds.left, badgeRight: badgeBounds.right, cellLeft: cellBounds.left, cellRight: cellBounds.right }
+      : null
+  })
+  expect(badgeGeometry).not.toBeNull()
+  expect(badgeGeometry!.badgeLeft).toBeGreaterThanOrEqual(badgeGeometry!.cellLeft)
+  expect(badgeGeometry!.badgeRight).toBeLessThanOrEqual(badgeGeometry!.cellRight)
+
+  await page.getByText(
+    'Keep PXLBLZ Patterns up to date when Controller settings change',
+    { exact: true },
+  ).click()
+  await expect.poll(async () => {
+    const response = await page.context().request.get('/api/controller-metadata/controller-push-records')
+    if (!response.ok()) return null
+    const body = await response.json() as {
+      value?: Record<string, Record<string, { profileSignature?: string }>>
+    }
+    return body.value?.[controllerId]?.[bindingKey]?.profileSignature ?? null
+  }).toBe(enabledSignature)
+  await expect(page.getByText('CURRENT', { exact: true })).toBeVisible()
+  await expect(page.getByText('PUSH AGAIN', { exact: true })).toHaveCount(0)
 })
