@@ -49,7 +49,6 @@ import { PushConfirmPopover } from '@/components/PushConfirmPopover'
 import { describeSendToController, isAlreadyPushed, type SendMode } from '@/engine/sendToController'
 import { useControllerPanelStore } from '@/store/controllerPanelStore'
 import { prepareShowControllerArtifact } from '@/engine/showControllerArtifact'
-import { controllerProfileArtifactSignature } from '@/engine/controllerProfilePassRecipe'
 import { assessShowCompilePressure } from '@/engine/showCompilePressure'
 import type { ArtifactMapClass } from '@/engine/artifactStamp'
 import { trackEvent } from '@/analytics'
@@ -836,7 +835,6 @@ interface ShowDeliverySnapshot {
   controllerIp: string | null
   artifact: NonNullable<CompiledShowState['artifact']>
   prepared: ReturnType<typeof prepareShowControllerArtifact>
-  profileSignature: string
 }
 
 interface ShowCompilationSnapshot {
@@ -1669,11 +1667,6 @@ export function ShowEditor({
         controllerIp: currentActiveIp,
         artifact: compilation.artifact,
         prepared,
-        profileSignature: controllerProfileArtifactSignature(
-          currentActiveProfile,
-          `show:${compilation.show.id}`,
-          { mapDim: currentController?.mapDim ?? null },
-        ),
       }
     } catch {
       return null
@@ -1842,7 +1835,6 @@ export function ShowEditor({
         source: prepared.source,
         name: delivery.show.name,
         persist: mode === 'save',
-        profileSignature: delivery.profileSignature,
         artifactStamp: prepared.artifactStamp,
         previewImage,
       })

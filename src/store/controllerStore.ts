@@ -352,7 +352,6 @@ export interface GeneratedArtifactPush {
   source: string
   name: string
   persist: boolean
-  profileSignature: string
   artifactStamp: ArtifactStampMeta
   previewImage?: Uint8Array
 }
@@ -1232,19 +1231,68 @@ export const useControllerStore = create<ControllerConnectionState>()(
           invalidateRendererState(controllerId)
           retainRendererResumeRecovery(controllerId)
           try {
+            const activeController = get().controllers[controllerId]
+            await waitForControllerProfileWrites()
+            const profiles = await getPersonalContentProvider().listControllerProfiles().catch(() => [])
+            const profile = activeController
+              ? findProfileForLiveController(profiles, activeController)
+              : null
+            const profileSignature = controllerProfileArtifactSignature(
+              profile,
+              artifact.artifactId,
+              { mapDim: activeController?.mapDim ?? null },
+            )
+            const recipe = controllerProfilePassRecipe(profile, artifact.source, artifact.artifactId)
+            if (activeController?.mapDim && artifact.artifactStamp.kind !== 'show') {
+              recipe.push({
+                id: 'renderer-adapter',
+                kind: 'renderer-adapter',
+                mapDim: activeController.mapDim,
+              })
+            }
+            const bundled = recipe.length > 0
+              ? bundleWithPasses(
+                  artifact.source,
+                  compileLibraries(LIBRARIES, useLibraryStore.getState().userLibraries),
+                  recipe,
+                )
+              : null
+            if (bundled && activeController?.mapDim) {
+              const hardwarePlan = planHardwareRenderer(
+                activeController.mapDim,
+                bundled.metadata.renderFns,
+                activeController.firmwareVersion,
+              )
+              if (hardwarePlan.firmwareSupport === 'unsupported') {
+                throw new Error(hardwarePlan.reason ?? 'Unsupported Controller renderer/map combination')
+              }
+            }
+            const adapterCollision = bundled?.warnings.find(
+              (warning) => warning.code === 'renderer-adapter-name-collision',
+            )
+            if (adapterCollision) throw new Error(adapterCollision.message)
+            const source = bundled?.code ?? artifact.source
+            const transforms = bundled ? artifactTransformIds(bundled.summary.passes) : []
+            const artifactStamp = {
+              ...artifact.artifactStamp,
+              transforms: [...new Set([
+                ...(artifact.artifactStamp.transforms ?? []),
+                ...transforms,
+              ])],
+            }
             const { created, programId } = await queueControllerDeviceWrite(
               controllerId,
               () => pushPattern({
               provider: getControllerProvider(),
               controllerId,
               patternId: artifact.artifactId,
-              source: artifact.source,
+              source,
               name: artifact.name,
               persist: artifact.persist,
               previewImage: artifact.previewImage,
-              artifactStamp: artifact.artifactStamp,
-              profileSignature: artifact.profileSignature,
-              transforms: artifact.artifactStamp.transforms,
+              artifactStamp,
+              profileSignature,
+              transforms: artifactStamp.transforms,
               stampedAt: artifact.artifactStamp.stampedAt,
               loadBindings: getControllerBindings,
               saveBindings: setControllerBindings,
@@ -1275,7 +1323,7 @@ export const useControllerStore = create<ControllerConnectionState>()(
                 ...state[recordKey],
                 [controllerId]: {
                   ...state[recordKey][controllerId],
-                  [artifact.artifactId]: artifact.source,
+                  [artifact.artifactId]: source,
                 },
               },
               ...(!artifact.persist

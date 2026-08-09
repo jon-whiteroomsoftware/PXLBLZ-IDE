@@ -1250,7 +1250,6 @@ describe('controllerStore (keyed)', () => {
         artifactId: 'show:show-1',
         source,
         name: 'Opening Night',
-        profileSignature: 'show-profile-signature',
         artifactStamp: {
           kind: 'show' as const,
           id: 'show-1',
@@ -1280,7 +1279,64 @@ describe('controllerStore (keyed)', () => {
       expect(useControllerPanelStore.getState().activeProgramId).toBe(savedId)
       expect((await getControllerBindings())['10.0.0.5']['show:show-1']).toBe(savedId)
       expect((await getPushRecords())['10.0.0.5']['show:show-1'].profileSignature)
-        .toBe('show-profile-signature')
+        .toBe(controllerProfileArtifactSignature(
+          null,
+          'show:show-1',
+          { mapDim: store().controllers['10.0.0.5'].mapDim ?? null },
+        ))
+    })
+
+    it('applies active profile transforms before signing a generated Show (#777)', async () => {
+      await store().addController({
+        id: 'pixelblaze_pb32_show',
+        address: '10.0.0.5',
+        name: 'Show Controller',
+      })
+      const profile = {
+        ...defaultControllerProfile({
+          id: 'show-profile',
+          deviceId: 'pixelblaze_pb32_show',
+          now: 1,
+        }),
+        globalTransforms: defaultControllerProfile().globalTransforms.map((transform) => (
+          transform.type === 'power-cap'
+            ? { ...transform, enabled: true, maxDuty: 0.25 }
+            : transform
+        )),
+      }
+      setControllerProfiles([profile])
+      const source = stampArtifact(PATTERN_SRC, {
+        kind: 'show',
+        id: 'show-1',
+        name: 'Opening Night',
+        transforms: ['show'],
+        stampedAt: '2026-07-11T12:00:00.000Z',
+      })
+
+      await store().pushGeneratedArtifact({
+        artifactId: 'show:show-1',
+        source,
+        name: 'Opening Night',
+        persist: true,
+        artifactStamp: {
+          kind: 'show',
+          id: 'show-1',
+          name: 'Opening Night',
+          transforms: ['show'],
+          stampedAt: '2026-07-11T12:00:00.000Z',
+        },
+      })
+
+      const controller = store().controllers['10.0.0.5']
+      expect(created.get('10.0.0.5')!.compiledSources[0]).toContain('__px_cappedHsv')
+      expect((await getPushRecords())['10.0.0.5']['show:show-1']).toMatchObject({
+        transforms: ['show', 'power-cap'],
+        profileSignature: controllerProfileArtifactSignature(
+          profile,
+          'show:show-1',
+          { mapDim: controller.mapDim ?? null },
+        ),
+      })
     })
 
     it('surfaces a generated Show compile failure without pushing (#429)', async () => {
@@ -1292,7 +1348,6 @@ describe('controllerStore (keyed)', () => {
         source: PATTERN_SRC,
         name: 'Opening Night',
         persist: false,
-        profileSignature: 'show-profile-signature',
         artifactStamp: { kind: 'show', id: 'show-1', name: 'Opening Night' },
       })
 
@@ -1309,7 +1364,6 @@ describe('controllerStore (keyed)', () => {
         source: PATTERN_SRC,
         name: 'Opening Night',
         persist: false,
-        profileSignature: 'show-profile-signature',
         artifactStamp: { kind: 'show', id: 'show-1', name: 'Opening Night' },
       })
 
