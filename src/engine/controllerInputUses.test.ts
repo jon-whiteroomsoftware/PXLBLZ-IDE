@@ -100,6 +100,45 @@ describe('describeControllerInputUses', () => {
     expect(view.inputs[0].brightnessAssigned).toBe(true)
   })
 
+  it('does not revive a retired role annotation when no transform assigns brightness', () => {
+    const legacyInput = {
+      ...profileWith().inputs[0],
+      role: 'brightness',
+    } as ControllerProfile['inputs'][number] & { role: string }
+    const profile = profileWith({
+      inputs: [legacyInput],
+      globalTransforms: [brightnessTransform({ enabled: false, inputId: '' }), powerCap],
+    })
+
+    expect(useKinds(describeControllerInputUses(profile).inputs[0].uses)).toEqual(['none'])
+  })
+
+  it('treats the transform as authoritative when legacy input roles disagree', () => {
+    const oldBrightnessInput = {
+      ...profileWith().inputs[0],
+      role: 'brightness',
+    } as ControllerProfile['inputs'][number] & { role: string }
+    const assignedInput = {
+      id: 'pot1',
+      name: 'Rear pot',
+      pin: 34,
+      signal: 'analog' as const,
+      role: 'next-pattern',
+      smoothing: 0.2,
+      fallback: 0.5,
+      invert: false,
+    }
+    const profile = profileWith({
+      inputs: [oldBrightnessInput, assignedInput],
+      globalTransforms: [brightnessTransform({ inputId: 'pot1' }), powerCap],
+    })
+
+    const view = describeControllerInputUses(profile)
+
+    expect(view.inputs.map((input) => input.brightnessAssigned)).toEqual([false, true])
+    expect(view.inputs.map((input) => useKinds(input.uses))).toEqual([['none'], ['brightness']])
+  })
+
   it('states the Pattern exception in the brightness scope instead of repeating it', () => {
     const profile = profileWith({
       patternBindings: [
@@ -351,6 +390,39 @@ describe('describeControllerInputUses', () => {
     expect(view.profileIssues.map((issue) => issue.message)).toEqual([
       'Global transform "hardware-brightness" references missing input "ghost".',
     ])
+  })
+
+  it.each([
+    {
+      name: 'reversed assignment range',
+      target: { kind: 'assign-variable' as const, name: 'speed', min: 1, max: 1 },
+      issuePath: 'patternBindings.b1.target',
+    },
+    {
+      name: 'non-positive quantization',
+      target: { kind: 'assign-variable' as const, name: 'steps', min: 0, max: 8, quantize: 0 },
+      issuePath: 'patternBindings.b1.target.quantize',
+    },
+  ])('puts an invalid Pattern use on its owning input: $name', ({ target, issuePath }) => {
+    const profile = profileWith({
+      globalTransforms: [brightnessTransform({ enabled: false, inputId: '' }), powerCap],
+      patternBindings: [{ id: 'b1', patternId: 'pat-line', inputId: 'pot0', target }],
+    })
+
+    const view = describeControllerInputUses(profile, { patternNames: { 'pat-line': 'Line Dancer' } })
+    const [input] = view.inputs
+
+    expect(input.state).toBe('error')
+    expect(input.issues).toEqual([
+      expect.objectContaining({ path: issuePath, correction: null }),
+    ])
+    expect(input.uses[0]).toMatchObject({
+      kind: 'pattern',
+      bindingId: 'b1',
+      label: 'Line Dancer',
+      state: 'blocked',
+    })
+    expect(view.profileIssues).toEqual([])
   })
 
   it('falls back to the stored Pattern id when no name is known', () => {

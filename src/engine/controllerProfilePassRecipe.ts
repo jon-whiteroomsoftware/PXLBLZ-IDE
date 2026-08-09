@@ -60,7 +60,7 @@ export function controllerProfileArtifactSignature(
   }
   for (const binding of bindings) inputIds.add(binding.inputId)
   const inputs = (profile?.inputs ?? []).filter((input) => inputIds.has(input.id))
-  return JSON.stringify({ transforms, inputs, bindings, ...(renderer ? { renderer } : {}) })
+  return JSON.stringify({ version: 1, transforms, inputs, bindings, ...(renderer ? { renderer } : {}) })
 }
 
 /** Read a *stored* artifact signature in today's terms, so it can be compared
@@ -91,24 +91,87 @@ export function normalizeStoredArtifactSignature(signature: string): string {
   } catch {
     return signature
   }
-  if (typeof parsed !== 'object' || parsed === null || Array.isArray(parsed)) return signature
-  const record = parsed as { inputs?: unknown }
-  if (!Array.isArray(record.inputs)) return signature
+  if (!isRecord(parsed)) return signature
+  const record = parsed as Record<string, unknown>
+  if (record.version !== undefined && record.version !== 1) return signature
+  if (Object.keys(record).some((key) => !ARTIFACT_SIGNATURE_KEYS.has(key))) return signature
+  if (!isTransformSignatureList(record.transforms)) return signature
+  if (!isInputSignatureList(record.inputs)) return signature
+  if (!isBindingSignatureList(record.bindings)) return signature
+  if (record.renderer !== undefined && !isRendererSignature(record.renderer)) return signature
 
   let strayRole = false
   const inputs = record.inputs.map((input) => {
-    if (typeof input !== 'object' || input === null || Array.isArray(input)) return input
     if (!('role' in input)) return input
     strayRole = true
-    const { role: _retiredRole, ...rest } = input as Record<string, unknown>
+    const { role: _retiredRole, ...rest } = input
     return rest
   })
-  // Nothing to strip: hand back the exact bytes rather than re-serializing, so
-  // a signature this code wrote can never be perturbed by passing through here.
-  if (!strayRole) return signature
-  // Spreading over an existing key keeps its original position, which is what
-  // makes the result byte-identical to the fresh computation.
-  return JSON.stringify({ ...record, inputs })
+  // A current signature with nothing to migrate stays byte-exact. An
+  // unversioned signature is a recognised pre-version envelope and is promoted
+  // without changing its generated-code meaning.
+  if (!strayRole && record.version === 1) return signature
+  try {
+    return JSON.stringify({
+      version: 1,
+      transforms: record.transforms,
+      inputs,
+      bindings: record.bindings,
+      ...(record.renderer !== undefined ? { renderer: record.renderer } : {}),
+    })
+  } catch {
+    return signature
+  }
+}
+
+const ARTIFACT_SIGNATURE_KEYS = new Set(['version', 'transforms', 'inputs', 'bindings', 'renderer'])
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === 'object' && value !== null && !Array.isArray(value)
+}
+
+function isTransformSignatureList(value: unknown): value is Array<Record<string, unknown>> {
+  return Array.isArray(value) && value.every((transform) => {
+    if (!isRecord(transform) || typeof transform.type !== 'string' || typeof transform.mixinId !== 'string') {
+      return false
+    }
+    return transform.type === 'power-cap'
+      ? typeof transform.maxDuty === 'number'
+      : transform.type === 'hardware-brightness'
+        && typeof transform.inputId === 'string'
+        && typeof transform.mode === 'string'
+  })
+}
+
+function isInputSignatureList(value: unknown): value is Array<Record<string, unknown>> {
+  return Array.isArray(value) && value.every((input) => (
+    isRecord(input)
+      && typeof input.id === 'string'
+      && typeof input.name === 'string'
+      && typeof input.pin === 'number'
+      && (input.signal === 'analog' || input.signal === 'digital')
+      && typeof input.smoothing === 'number'
+      && typeof input.fallback === 'number'
+      && typeof input.invert === 'boolean'
+  ))
+}
+
+function isBindingSignatureList(value: unknown): value is Array<Record<string, unknown>> {
+  return Array.isArray(value) && value.every((binding) => (
+    isRecord(binding)
+      && typeof binding.id === 'string'
+      && typeof binding.patternId === 'string'
+      && typeof binding.inputId === 'string'
+      && isRecord(binding.target)
+      && typeof binding.target.kind === 'string'
+      && typeof binding.target.name === 'string'
+  ))
+}
+
+function isRendererSignature(value: unknown): boolean {
+  return isRecord(value)
+    && Object.keys(value).every((key) => key === 'mapDim')
+    && (value.mapDim === null || value.mapDim === 1 || value.mapDim === 2 || value.mapDim === 3)
 }
 
 /** Stable signature of every profile field that can change at least one

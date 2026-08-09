@@ -245,7 +245,7 @@ test('resized Pattern and Show previews keep their controls reachable', async ({
   await expect(previewPane.getByRole('button', { name: 'Renderer' })).toBeInViewport()
 })
 
-test('edits a Controller input use, persists it, and changes what a push would generate (#772)', async ({ page }) => {
+test('edits and persists a Controller input use across responsive and keyboard flows (#772)', async ({ page }) => {
   // A complete profile, seeded through the same API the Studio uses. Two analog
   // inputs and no configured uses: the starting state the redesign has to make
   // legible.
@@ -288,6 +288,7 @@ test('edits a Controller input use, persists it, and changes what a push would g
   })
   expect(created.ok(), `POST /api/controllers -> ${created.status()}`).toBe(true)
 
+  await page.setViewportSize({ width: 1440, height: 900 })
   await page.goto('studio/controllers/e2e-772-controller')
 
   // The page is exactly Power, Inputs, and the artifact readout. Behaviour now
@@ -300,6 +301,18 @@ test('edits a Controller input use, persists it, and changes what a push would g
   expect(await profilePage.getByRole('heading').allTextContents())
     .toEqual(['Power', 'Inputs', 'Last generated artifact'])
 
+  // The approved two-up trace is a rendered-geometry requirement. A class-name
+  // assertion passed while the real Studio pane still stacked both inputs.
+  const inputGeometry = await profilePage.locator('article').evaluateAll((cards) => cards.map((card) => {
+    // Multicolumn layout fragments block boxes. getBoundingClientRect() returns
+    // the union of those fragments and can misleadingly span both columns.
+    const bounds = card.getClientRects()[0] ?? card.getBoundingClientRect()
+    return { x: Math.round(bounds.x), y: Math.round(bounds.y), width: Math.round(bounds.width) }
+  }))
+  expect(inputGeometry).toHaveLength(2)
+  expect(Math.abs(inputGeometry[0].y - inputGeometry[1].y)).toBeLessThanOrEqual(2)
+  expect(inputGeometry[1].x).toBeGreaterThan(inputGeometry[0].x + inputGeometry[0].width)
+
   // No control anywhere still presents a semantic annotation as behaviour.
   const selectLabels = await profilePage.locator('select')
     .evaluateAll((nodes) => nodes.map((node) => node.getAttribute('aria-label') ?? ''))
@@ -308,8 +321,11 @@ test('edits a Controller input use, persists it, and changes what a push would g
   // An input driving nothing says so rather than showing an empty card.
   await expect(page.getByText('Nothing yet').first()).toBeVisible()
 
-  // Assigning brightness on the input row writes the real transform.
-  await page.getByRole('checkbox', { name: 'Front pot controls brightness' }).check()
+  // Assigning brightness from the keyboard writes the real transform.
+  const frontBrightness = page.getByRole('checkbox', { name: 'Front pot controls brightness' })
+  await frontBrightness.focus()
+  await frontBrightness.press('Space')
+  await expect(frontBrightness).toBeChecked()
   await expect(page.getByText('Brightness', { exact: true })).toBeVisible()
   await expect(page.getByText('every Pattern', { exact: true })).toBeVisible()
 
@@ -332,8 +348,9 @@ test('edits a Controller input use, persists it, and changes what a push would g
       : null
   }
 
-  // This is the change that makes a saved Pattern need pushing again: the
-  // profile's generated-code inputs, not a display-only annotation.
+  // Persistence proves this edits generated-code input state rather than a
+  // display-only annotation. The send-dirty and generated-source oracle lives
+  // in the Controller-store integration suite, which owns that runtime seam.
   await expect.poll(async () => (await brightnessTransform())?.transform)
     .toMatchObject({ enabled: true, inputId: 'pot0' })
   await expect.poll(async () => (await brightnessTransform())?.inputs.every((input) => !('role' in input)))
@@ -361,4 +378,20 @@ test('edits a Controller input use, persists it, and changes what a push would g
   await page.reload()
   await expect(page.getByRole('checkbox', { name: 'Panel button controls brightness' })).toBeChecked()
   await expect(page.getByText(/needs an analog signal/)).toHaveCount(0)
+
+  await page.setViewportSize({ width: 390, height: 844 })
+  await expect.poll(
+    () => page.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth),
+    'Controller Profile should not create document-level horizontal overflow at 390px',
+  ).toBeLessThanOrEqual(1)
+  await expect.poll(
+    () => profilePage.evaluate((node) => node.scrollWidth - node.clientWidth),
+    'Controller Profile content should fit its center pane at 390px',
+  ).toBeLessThanOrEqual(1)
+  const enforceDutyCap = page.getByRole('checkbox', { name: 'Enforce the duty cap' })
+  await enforceDutyCap.scrollIntoViewIfNeeded()
+  await expect(enforceDutyCap).toBeInViewport({ ratio: 1 })
+  const adjustFrontPot = page.getByRole('button', { name: 'Adjust Front pot' })
+  await adjustFrontPot.scrollIntoViewIfNeeded()
+  await expect(adjustFrontPot).toBeInViewport({ ratio: 1 })
 })

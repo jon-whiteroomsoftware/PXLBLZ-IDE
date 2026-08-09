@@ -134,6 +134,7 @@ export function describeControllerInputUses(
 
     for (const binding of bindings) {
       const label = patternLabel(binding.patternId, options.patternNames)
+      const blocked = issues.some((issue) => issue.path.startsWith(`patternBindings.${binding.id}.`))
       uses.push({
         kind: 'pattern',
         bindingId: binding.id,
@@ -142,7 +143,7 @@ export function describeControllerInputUses(
         patternUnknown: label === binding.patternId,
         detail: describeBindingTarget(binding),
         overridesBrightness: brightnessAssigned,
-        state: 'live',
+        state: blocked ? 'blocked' : 'live',
       })
     }
 
@@ -203,10 +204,15 @@ function inputState(
 }
 
 function inputIdForPath(path: string, profile: ControllerProfile): string | null {
-  const match = /^inputs\.(.+)\.[^.]+$/.exec(path)
-  if (!match) return null
-  const inputId = match[1]
-  return profile.inputs.some((input) => input.id === inputId) ? inputId : null
+  const inputMatch = /^inputs\.([^.]+)\./.exec(path)
+  if (inputMatch) {
+    const inputId = inputMatch[1]
+    return profile.inputs.some((input) => input.id === inputId) ? inputId : null
+  }
+  const bindingMatch = /^patternBindings\.([^.]+)\./.exec(path)
+  if (!bindingMatch) return null
+  const inputId = profile.patternBindings.find((binding) => binding.id === bindingMatch[1])?.inputId
+  return inputId && profile.inputs.some((input) => input.id === inputId) ? inputId : null
 }
 
 /** A correction has to satisfy every validation rule at once, not just the one

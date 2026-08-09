@@ -501,6 +501,11 @@ An input driving nothing says so — *Nothing yet / no Pattern reads it yet* —
 rather than showing an empty card. Set-once physical parameters (pin, signal,
 smoothing, fallback, inversion) live behind **Adjust**.
 
+At desktop width, input cards flow through two ragged columns separated by a
+light rule; at narrow width they return to one column without hiding their
+actions. Brightness uses a native checkbox switch, so keyboard focus and Space
+activation follow the browser's ordinary control behavior.
+
 The brightness switch writes the profile's single hardware-brightness transform,
 so assignment is exclusive by construction: switching it on for one input moves
 it off whichever input held it. There is no separate role annotation and no
@@ -514,6 +519,10 @@ correction repairs the whole input at once: on a pin the board cannot read as
 analog it also moves the input to a free analog pin and names it. When the board
 has no analog pin left to take, no one-click repair is offered and the input is
 corrected by hand under **Adjust**.
+
+An invalid Pattern use stays on the input that owns it rather than moving into a
+page-level banner. The use is marked blocked, and **Fix** opens its binding
+fields so the target, range, or quantization can be corrected in place.
 
 An input card states what this profile would generate, not what is currently
 loaded on the Controller. It deliberately says nothing about whether a Pattern's

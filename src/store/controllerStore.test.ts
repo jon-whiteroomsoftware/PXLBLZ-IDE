@@ -46,7 +46,14 @@ import {
   __resetControllerDeviceWriteQueue,
   queueControllerDeviceWrite,
 } from '@/engine/controllerDeviceWriteQueue'
-import { defaultControllerProfile, type ControllerProfile } from './controllerProfileStore'
+import {
+  controllerProfileInitialState,
+  defaultControllerProfile,
+  useControllerProfileStore,
+  type ControllerProfile,
+} from './controllerProfileStore'
+import { controllerProfileArtifactSignature } from '@/engine/controllerProfilePassRecipe'
+import { isAlreadyPushed } from '@/engine/sendToController'
 import type { FirmwareUpdateState } from '@/engine/firmwareUpdate'
 import { stampArtifact } from '@/engine/artifactStamp'
 import { showInitialState, useShowStore } from '@/store/showStore'
@@ -262,6 +269,7 @@ beforeEach(async () => {
   useLibraryStore.setState(libraryInitialState)
   useMapStore.setState(mapInitialState)
   useControllerPanelStore.setState(controllerPanelInitialState)
+  useControllerProfileStore.setState(controllerProfileInitialState)
   useShowStore.setState(showInitialState)
   await setControllerBindings({})
   created.clear()
@@ -1600,6 +1608,78 @@ describe('controllerStore (keyed)', () => {
       expect(provider.compiledSources[0]).toContain('__pxlblz_hardware_brightness_hsv(index, 1, 1)')
       expect(provider.compiledSources[0]).not.toBe(bundle(PATTERN_SRC, {}).code)
       expect(store().lastTransformSummary['10.0.0.5']['pat-1'].callSitesWrapped).toEqual({ hsv: 1 })
+    })
+
+    it('re-arms Send after a persisted brightness edit and pushes the changed artifact (#772)', async () => {
+      await store().addController({
+        id: 'pixelblaze_pb32_abc',
+        address: '10.0.0.5',
+        name: 'Desk PB',
+      })
+      let persistedProfile: ControllerProfile = {
+        ...defaultControllerProfile({
+          id: 'ctrl-1',
+          deviceId: 'pixelblaze_pb32_abc',
+          now: 1,
+        }),
+        inputs: [{
+          id: 'brightness-pot',
+          name: 'Brightness pot',
+          pin: 33,
+          signal: 'analog',
+          smoothing: 0.2,
+          fallback: 0.4,
+          invert: false,
+        }],
+      }
+      setPersonalContentProvider({
+        ...demoPersonalContentProvider,
+        id: 'mutable-controller-profile-test',
+        listControllerProfiles: async () => [persistedProfile],
+        updateControllerProfile: async (id, changes) => {
+          if (id === persistedProfile.id) persistedProfile = { ...persistedProfile, ...changes }
+        },
+      })
+      useControllerProfileStore.setState({ profiles: [persistedProfile], profilesLoaded: true })
+      usePatternStore.setState({ activePatternId: 'pat-1' })
+      useEditorStore.setState({ previewSource: PATTERN_SRC, previewPatternName: 'Twinkle' })
+
+      await store().pushActivePattern()
+
+      const provider = created.get('10.0.0.5')!
+      expect(provider.compiledSources[0]).not.toContain('analogRead(33)')
+      const firstSignature = store().lastPushedProfileSignature['10.0.0.5']['pat-1']
+      const firstProgramId = store().lastRunProgramId['10.0.0.5']['pat-1']
+
+      await useControllerProfileStore.getState().assignHardwareBrightness(
+        persistedProfile.id,
+        'brightness-pot',
+      )
+
+      const activeController = store().controllers['10.0.0.5']
+      const editedSignature = controllerProfileArtifactSignature(
+        persistedProfile,
+        'pat-1',
+        { mapDim: activeController.mapDim ?? null },
+      )
+      expect(editedSignature).not.toBe(firstSignature)
+      expect(isAlreadyPushed({
+        mode: 'run',
+        source: PATTERN_SRC,
+        lastRunSource: store().lastPushedSource['10.0.0.5']['pat-1'],
+        profileSignature: editedSignature,
+        lastRunProfileSignature: firstSignature,
+        lastRunProgramId: firstProgramId,
+        activeProgramId: useControllerPanelStore.getState().activeProgramId,
+      })).toBe(false)
+
+      await store().pushActivePattern()
+
+      expect(provider.compiledSources[1]).toContain('analogRead(33)')
+      expect(provider.compiledSources[1]).toContain('__px_hardwareBrightness(a, b, c)')
+      expect(store().lastPushedProfileSignature['10.0.0.5']['pat-1']).toBe(editedSignature)
+      expect(store().lastTransformArtifacts['10.0.0.5']['pat-1'].generatedSource)
+        .toContain('__pxlblz_hardware_brightness_hsv(index, 1, 1)')
     })
   })
 

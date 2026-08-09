@@ -31,6 +31,10 @@ import {
   controllerPanelInitialState,
   useControllerPanelStore,
 } from '@/store/controllerPanelStore'
+import {
+  controllerProfileLiveInitialState,
+  useControllerProfileLiveStore,
+} from '@/store/controllerProfileLiveStore'
 import { mapInitialState, useMapStore } from '@/store/mapStore'
 import { routerInitialState, useRouterStore } from '@/store/routerStore'
 import { patternInitialState, usePatternStore } from '@/store/patternStore'
@@ -87,6 +91,7 @@ class ProgramListProvider extends MapReadbackProvider {
 beforeEach(() => {
   window.history.replaceState(null, '', '/')
   useControllerProfileStore.setState(controllerProfileInitialState)
+  useControllerProfileLiveStore.setState(controllerProfileLiveInitialState)
   useControllerStore.setState(controllerInitialState)
   useControllerPanelStore.setState(controllerPanelInitialState)
   useMapStore.setState(mapInitialState)
@@ -337,6 +342,49 @@ describe('ControllerProfilePage', () => {
 
     fireEvent.click(screen.getByRole('button', { name: 'Edit Line Dancer use of Green pot' }))
     expect(screen.getByRole('combobox', { name: 'Binding Pattern' })).toHaveTextContent('Line Dancer')
+  })
+
+  it('opens the owning Pattern-use editor directly from an invalid use (#772)', () => {
+    const base = seedProfile()
+    useControllerProfileStore.setState({
+      profiles: [{
+        ...base,
+        inputs: [{
+          id: 'green-pot',
+          name: 'Green pot',
+          pin: 36,
+          signal: 'analog',
+          smoothing: 0.2,
+          fallback: 0.5,
+          invert: false,
+        }],
+        patternBindings: [{
+          id: 'bad-range',
+          patternId: 'pat-line',
+          inputId: 'green-pot',
+          target: { kind: 'assign-variable', name: 'speed', min: 1, max: 1 },
+        }],
+      }],
+      profilesLoaded: true,
+    })
+    usePatternStore.setState({
+      userPatterns: [{
+        id: 'pat-line',
+        name: 'Line Dancer',
+        src: 'export function render(index) { hsv(0, 1, 1) }',
+        controls: {},
+        updatedAt: 1,
+      }],
+      patternsLoaded: true,
+    })
+
+    render(<ControllerProfilePage profileId="ctrl-1" />)
+
+    const issue = screen.getByText(/assignment min must be less than max/)
+    expect(issue.closest('article')).toContainElement(screen.getByText('Line Dancer'))
+    fireEvent.click(screen.getByRole('button', { name: 'Fix Line Dancer use of Green pot' }))
+    expect(screen.getByRole('textbox', { name: 'Binding minimum' })).toBeInTheDocument()
+    expect(screen.getByRole('textbox', { name: 'Binding maximum' })).toBeInTheDocument()
   })
 
   it('no longer presents a separate Pattern bindings or Global transforms section (#772)', () => {
@@ -659,30 +707,7 @@ describe('ControllerProfilePage', () => {
     expect(screen.queryByText('Choose an installed managed Pattern')).not.toBeInTheDocument()
   })
 
-  it('lays the input list out as ragged two-up columns, not a shared-height grid (#772)', () => {
-    const profile = seedProfile()
-    useControllerProfileStore.setState({
-      profiles: [{
-        ...profile,
-        inputs: [
-          { id: 'pot0', name: 'Front pot', pin: 33, signal: 'analog', smoothing: 0.2, fallback: 0.5, invert: false },
-          { id: 'pot1', name: 'Spare pot', pin: 34, signal: 'analog', smoothing: 0.2, fallback: 0.5, invert: false },
-        ],
-      }],
-    })
-
-    render(<ControllerProfilePage profileId="ctrl-1" />)
-
-    const card = screen.getByText('IO33').closest('article')
-    expect(card).not.toBeNull()
-    expect(card).toHaveClass('break-inside-avoid')
-    // Two columns only while each still gets 24rem: this pane narrows
-    // independently of the viewport, so the breakpoint cannot be viewport-based.
-    expect(card!.parentElement).toHaveClass('[columns:24rem_2]')
-    expect(card!.parentElement?.className).not.toMatch(/\blg:/)
-  })
-
-  it('keeps every input control reachable and operable from the keyboard (#772)', async () => {
+  it('keeps input actions focusable and exposes native checkbox semantics (#772)', async () => {
     const profile = seedProfile()
     useControllerProfileStore.setState({
       profiles: [{
@@ -701,8 +726,8 @@ describe('ControllerProfilePage', () => {
 
     render(<ControllerProfilePage profileId="ctrl-1" />)
 
-    // The brightness control is a real checkbox, so Space toggles it without a
-    // pointer and it carries its own accessible name.
+    // The browser flow proves native Space activation. This lighter component
+    // oracle checks the semantic control, accessible name, focus, and action.
     const brightness = screen.getByRole('checkbox', { name: 'Front pot controls brightness' })
     expect(brightness).not.toHaveAttribute('tabindex', '-1')
     brightness.focus()

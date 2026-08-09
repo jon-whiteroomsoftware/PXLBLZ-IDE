@@ -361,6 +361,16 @@ describe('controller profile pass recipe', () => {
 })
 
 describe('normalizeStoredArtifactSignature', () => {
+  it('writes an explicit schema version into current artifact signatures (#772)', () => {
+    const current = controllerProfileArtifactSignature(
+      legacySignatureProfile(),
+      LEGACY_SIGNATURE_PATTERN_ID,
+      { mapDim: LEGACY_SIGNATURE_MAP_DIM },
+    )
+
+    expect(JSON.parse(current)).toMatchObject({ version: 1 })
+  })
+
   it('reads a pre-#772 stored signature as the signature the same profile produces now (#772)', () => {
     // Guard the fixture itself: a legacy signature that no longer carries a
     // `role` would make the assertion below pass for the wrong reason.
@@ -385,13 +395,25 @@ describe('normalizeStoredArtifactSignature', () => {
     expect(normalizeStoredArtifactSignature(current)).toBe(current)
   })
 
+  it('promotes a complete pre-version signature without making the artifact stale (#772)', () => {
+    const current = controllerProfileArtifactSignature(
+      legacySignatureProfile(),
+      LEGACY_SIGNATURE_PATTERN_ID,
+      { mapDim: LEGACY_SIGNATURE_MAP_DIM },
+    )
+    const { version: _version, ...unversioned } = JSON.parse(current) as Record<string, unknown>
+    const stored = JSON.stringify(unversioned)
+
+    expect(normalizeStoredArtifactSignature(stored)).toBe(current)
+  })
+
   it('strips a stray role wherever it sits among the inputs, and nowhere else (#772)', () => {
     const stored = JSON.stringify({
       transforms: [{ type: 'power-cap', mixinId: 'builtin:power-cap', maxDuty: 0.25 }],
       inputs: [
-        { id: 'a', pin: 33, role: 'assignable', invert: false },
-        { id: 'b', pin: 34, invert: true },
-        { id: 'c', pin: 35, signal: 'digital', role: 'next-pattern' },
+        { id: 'a', name: 'A', pin: 33, signal: 'analog', role: 'assignable', smoothing: 0.2, fallback: 0.5, invert: false },
+        { id: 'b', name: 'B', pin: 34, signal: 'analog', smoothing: 0.2, fallback: 0.5, invert: true },
+        { id: 'c', name: 'C', pin: 35, signal: 'digital', role: 'next-pattern', smoothing: 0, fallback: 0, invert: false },
       ],
       // A `role` outside `inputs` is not the retired annotation and must survive.
       bindings: [{ id: 'b1', patternId: 'p', inputId: 'a', target: { kind: 'call-function', name: 'role' } }],
@@ -399,11 +421,12 @@ describe('normalizeStoredArtifactSignature', () => {
     })
 
     expect(normalizeStoredArtifactSignature(stored)).toBe(JSON.stringify({
+      version: 1,
       transforms: [{ type: 'power-cap', mixinId: 'builtin:power-cap', maxDuty: 0.25 }],
       inputs: [
-        { id: 'a', pin: 33, invert: false },
-        { id: 'b', pin: 34, invert: true },
-        { id: 'c', pin: 35, signal: 'digital' },
+        { id: 'a', name: 'A', pin: 33, signal: 'analog', smoothing: 0.2, fallback: 0.5, invert: false },
+        { id: 'b', name: 'B', pin: 34, signal: 'analog', smoothing: 0.2, fallback: 0.5, invert: true },
+        { id: 'c', name: 'C', pin: 35, signal: 'digital', smoothing: 0, fallback: 0, invert: false },
       ],
       bindings: [{ id: 'b1', patternId: 'p', inputId: 'a', target: { kind: 'call-function', name: 'role' } }],
       renderer: { mapDim: null },
@@ -418,6 +441,7 @@ describe('normalizeStoredArtifactSignature', () => {
       '',
       'not json at all',
       '{"inputs":[{"id":"a","role":"brightness"}]',
+      '{"inputs":[{"id":"a","role":"brightness"}]}',
       'null',
       '42',
       '"a bare string"',
@@ -428,6 +452,20 @@ describe('normalizeStoredArtifactSignature', () => {
     ]) {
       expect(normalizeStoredArtifactSignature(stored)).toBe(stored)
     }
+  })
+
+  it('leaves unknown versions unchanged and never throws while canonicalizing deep input data (#772)', () => {
+    const unknown = JSON.stringify({ version: 2, transforms: [], inputs: [], bindings: [] })
+    expect(normalizeStoredArtifactSignature(unknown)).toBe(unknown)
+
+    const depth = 20_000
+    const deep = '{"version":1,"transforms":[],"inputs":[{"id":"a","name":"A","pin":33,"signal":"analog","smoothing":0.2,"fallback":0.5,"invert":false,"role":"brightness","extra":'
+      + '['.repeat(depth)
+      + '0'
+      + ']'.repeat(depth)
+      + '}],"bindings":[]}'
+    expect(() => normalizeStoredArtifactSignature(deep)).not.toThrow()
+    expect(normalizeStoredArtifactSignature(deep)).toBe(deep)
   })
 
   it('never reports a legacy signature as current for a profile that really changed (#772)', () => {

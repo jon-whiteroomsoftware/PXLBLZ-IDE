@@ -918,21 +918,27 @@ Pattern's bindings, and the renderer `mapDim`. The badge and its
 as a whole. Managed-artifact reconciliation still acts on the same comparison,
 without any per-use UI claim.
 
-The page does still read `getControllerBindings()` under
-`liveControllerReadKey`, which combines the live IP, the connection's
-`liveEpoch`, and the program list *content*. The epoch is the term the others
-cannot stand in for: a reconnect leaves the IP identical and the panel store
-retains a Controller's program list across the gap, so without it a reconnect
-would pass off the previous connection's answer as current.
+`controllerProfileLiveStore` owns the profile route's connection-bound read of
+`getControllerBindings()` and its installed Pattern choices. Its
+`controllerProfileLiveReadKey` combines the live IP, the connection's
+`liveEpoch`, and the program list *content*. The store retires the previous
+answer synchronously when that key changes and rejects a late result from any
+superseded read. The epoch is the term the others cannot stand in for: a
+reconnect leaves the IP identical and the panel store retains a Controller's
+program list across the gap, so without it a reconnect would pass off the
+previous connection's answer as current.
 
 Input-scoped validation errors are partitioned out of
 `validateControllerProfile` by their `inputs.<id>.` path prefix and rendered on
 the affected input's card with a direct correction expressed as the
-`Partial<ControllerInput>` change to apply. Hardware brightness on a non-analog
-input is one of those errors (#772): `controllerProfilePassRecipe` gates the
-sample and intercept passes on `input.signal === 'analog'`, so that configuration
-emitted nothing and was previously unreported. Profile-level errors still render
-in the page banner.
+`Partial<ControllerInput>` change to apply. A `patternBindings.<id>.*` error
+follows that binding's `inputId` to the same owning card, marks the corresponding
+use blocked, and opens the binding editor from **Fix**. Hardware brightness on a
+non-analog input is one of the input errors (#772):
+`controllerProfilePassRecipe` gates the sample and intercept passes on
+`input.signal === 'analog'`, so that configuration emitted nothing and was
+previously unreported. Errors with no resolvable input owner still render in the
+page banner.
 
 A correction is qualified against the whole profile, not against the rule it is
 offered for. `assertValidControllerProfile` refuses a profile that still holds a
@@ -987,6 +993,14 @@ individual RGB (WS2812/WS2813 class), typical 12V three-LED WS2811 segments, and
 explicit conservative full-white assumption rather than treating a chip-family
 name as an exact power specification. Grouped constructions also resolve a
 physical LED count for display when it differs from the address count.
+
+`controllerPowerAuthoring.ts` owns the pure power-authoring transition. The page
+emits one typed edit intent; `controllerProfileStore.editPower` applies it and
+persists the resulting electrical profile and global transforms through the
+ordinary optimistic write path. This keeps unit conversion, derived/direct cap
+mode, override provenance, count confirmation, and cap synchronization out of
+the React component and makes a complete authoring sequence testable without a
+rendered page.
 
 An optional override can replace the preset estimate with a total full-white
 installation draw in amps or watts and records whether that total was measured,
@@ -1157,19 +1171,24 @@ Pattern source edits remain on explicit Run/Save.
 The signature is compared against records written by earlier releases, so it
 carries a compatibility rule: **a field that cannot change generated code must
 never change the signature, and when such a field is retired its removal is
-normalized on read rather than paid for in device writes.**
+normalized on read rather than paid for in device writes.** Current signatures
+use a version-1 envelope around transforms, complete referenced inputs,
+bindings, and the optional renderer dimension.
 `controllerProfileArtifactSignature` serializes whole `ControllerInput` objects,
 so retiring the inert `role` in #772 changed every stored signature for an
 input-driven Pattern while the emitted Pattern stayed byte-identical. Left
 alone, a profile with `keepPatternsUpToDate` would have rewritten artifacts on
 the physical Controller on every reconnect, for nothing.
 `normalizeStoredArtifactSignature` therefore reads a *stored* signature in
-today's terms — parse, drop `role` from each entry of `inputs`, re-serialize —
-before it is compared with one computed now. It adjusts only the compared value;
-the record is left as written, and the next real push replaces it in the current
-shape. A signature it cannot parse, or whose shape it does not recognise, is
-returned verbatim: that is exactly the pre-#772 comparison, which may cost one
-re-push but can never read as current. It never throws.
+today's terms — validate the complete recognized envelope, drop `role` from
+each entry of `inputs`, promote an unversioned recognized envelope to version 1,
+and re-serialize — before it is compared with one computed now. It adjusts only
+the compared value; the record is left as written, and the next real push
+replaces it in the current shape. A signature it cannot parse, whose required
+members are incomplete, or whose keys or version it does not recognise is
+returned verbatim: that is the safe direction, which may cost one re-push but
+can never read malformed or future data as current. Parse and serialization
+failures both return the original bytes; normalization never throws.
 
 Normalization belongs at every site that compares a *persisted* signature with a
 freshly computed one — today, `planControllerReconciliation`. Comparisons where

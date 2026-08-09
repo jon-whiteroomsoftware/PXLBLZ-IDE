@@ -11,6 +11,10 @@ import {
 } from '@/engine/installedMapObservation'
 import { controllerProfileReconciliationSignature } from '@/engine/controllerProfilePassRecipe'
 import {
+  applyControllerPowerEdit,
+  type ControllerPowerEdit,
+} from '@/engine/controllerPowerAuthoring'
+import {
   controllerProfileCreateSeed,
   findControllerProfileForDevice,
   type ControllerProfileJoinTarget,
@@ -67,6 +71,9 @@ interface ControllerProfileState {
     changes: Partial<PatternBinding>,
   ) => Promise<void>
   removePatternBinding: (profileId: string, bindingId: string) => Promise<void>
+  /** Apply one pure Controller power-policy operation and persist its resulting
+   * profile fields through the ordinary optimistic write path. */
+  editPower: (profileId: string, edit: ControllerPowerEdit) => Promise<void>
   refreshLiveMetadata: (profileId: string) => Promise<void>
 }
 
@@ -436,6 +443,17 @@ export const useControllerProfileStore = create<ControllerProfileState>()((set, 
     if (!profile) return
     await get().updateProfile(profileId, {
       patternBindings: profile.patternBindings.filter((binding) => binding.id !== bindingId),
+    })
+  },
+
+  editPower: async (profileId, edit) => {
+    const profile = get().profiles.find((candidate) => candidate.id === profileId)
+    if (!profile) return
+    const edited = applyControllerPowerEdit(profile, edit)
+    if (edited === profile) return
+    await get().updateProfile(profileId, {
+      globalTransforms: edited.globalTransforms,
+      ...(edited.electricalProfile ? { electricalProfile: edited.electricalProfile } : {}),
     })
   },
 

@@ -361,6 +361,38 @@ describe('controllerProfileStore', () => {
     expect(validateControllerProfile(store().profiles[0])).toEqual({ ok: true, errors: [] })
   })
 
+  it('persists power authoring through the store while preserving unrelated profile state (#772)', async () => {
+    const base = defaultControllerProfile({ id: 'ctrl-1', now: 1 })
+    const profile: ControllerProfile = {
+      ...base,
+      lastKnownPixelCount: 100,
+      globalTransforms: base.globalTransforms.map((transform) => (
+        transform.type === 'power-cap'
+          ? { ...transform, enabled: true, mode: 'derived', maxDuty: 0.25 }
+          : transform
+      )),
+    }
+    const provider = memoryProvider([profile])
+    setPersonalContentProvider(provider)
+    await useControllerProfileStore.getState().loadProfiles()
+
+    await useControllerProfileStore.getState().editPower('ctrl-1', { type: 'configure-model' })
+
+    const edited = useControllerProfileStore.getState().profiles[0]
+    expect(edited.electricalProfile).toEqual({
+      ledPresetId: 'ws2812-5v-individual',
+      supplyBudget: { value: 3, unit: 'amps' },
+    })
+    expect(edited.globalTransforms.find((transform) => transform.type === 'power-cap'))
+      .toMatchObject({ mode: 'derived', maxDuty: 0.5 })
+    expect(edited.globalTransforms.find((transform) => transform.type === 'hardware-brightness'))
+      .toEqual(profile.globalTransforms[0])
+    expect((await provider.listControllerProfiles())[0]).toMatchObject({
+      electricalProfile: edited.electricalProfile,
+      globalTransforms: edited.globalTransforms,
+    })
+  })
+
   it('ignores a brightness assignment naming an input the profile does not have (#772)', async () => {
     const profile = defaultControllerProfile({ id: 'ctrl-1', now: 1 })
     setPersonalContentProvider(memoryProvider([profile]))

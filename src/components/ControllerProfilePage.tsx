@@ -12,7 +12,6 @@ import {
   type ControllerInputSignal,
   type ControllerProfile,
   type PowerCapTransform,
-  type GlobalTransform,
   type PatternBinding,
 } from '@/engine/controllerProfile'
 import {
@@ -24,13 +23,8 @@ import {
 import { describeControllerPill } from '@/engine/controllerPillView'
 import type { ControllerStatusTone } from '@/engine/controllerStatusView'
 import type { ProgramListEntry } from '@/engine/PixelblazeConnection'
-import type { BindingStore } from '@/engine/controllerBinding'
-import { getControllerBindings } from '@/engine/controllerMetadataStorage'
-import { installedControllerPatternChoices } from '@/engine/controllerSavedPrograms'
-import type { PowerCapSettings } from '@/engine/powerCap'
 import {
   LED_CONSTRUCTION_PRESETS,
-  convertElectricalQuantity,
   findLedConstructionPreset,
   resolveControllerElectricalProfile,
   type ControllerElectricalProfile,
@@ -38,6 +32,7 @@ import {
   type ElectricalUnit,
   type LedConstructionPresetId,
 } from '@/engine/controllerElectricalProfile'
+import type { ControllerPowerEdit } from '@/engine/controllerPowerAuthoring'
 import { controllerForProfile } from '@/engine/controllerProfileConnection'
 import { selectTransformArtifactInspection } from '@/engine/transformInspection'
 import { useControllerStore, type ControllerEntry } from '@/store/controllerStore'
@@ -47,6 +42,10 @@ import {
 } from '@/store/controllerProfileStore'
 import { usePatternStore } from '@/store/patternStore'
 import { useControllerPanelStore } from '@/store/controllerPanelStore'
+import {
+  controllerProfileLiveReadKey,
+  useControllerProfileLiveStore,
+} from '@/store/controllerProfileLiveStore'
 import { useMapStore } from '@/store/mapStore'
 import { DEMOS } from '@/pixelblaze/stock/patterns'
 import {
@@ -82,47 +81,6 @@ const rulePercentWrapClass =
 const rulePercentSizeClass = '[&_input]:h-6 [&_input]:text-xs [&_span>span]:h-6'
 const traceGutter = '1.75rem'
 const EMPTY_CONTROLLER_PROGRAMS: ProgramListEntry[] = []
-
-/** Names everything a read taken from a live Controller is an answer *about*:
- *  which Controller, which connection to it, and the program list it was read
- *  alongside. Null when there is no live Controller to read from.
- *
- *  Each live read below stores the key it was taken under and is current only
- *  while that key is still the one this render would read for. One value carries
- *  the whole question, so what re-triggers a read and what retires the previous
- *  answer cannot come to differ, and a term added here is added to both at once.
- *  That drift is the defect this replaced: currentness was a hand-kept list of
- *  identity checks, and each round found one more way to satisfy all of
- *  them (#772).
- *
- *  The connection is the term the others cannot stand in for. A reconnect leaves
- *  the IP identical, and the panel store keeps a Controller's program list under
- *  its IP across the gap, so both look unchanged while everything read during
- *  the previous connection is unverified. `liveEpoch` is the store's
- *  per-connection stamp; it is `undefined` only when a test drives the store
- *  directly instead of through a connection. Keying on program *content* rather
- *  than array identity is deliberate: a poll that re-reads the same list is not
- *  a new question, and re-asking on every poll is what made the stale answer
- *  visible in the first place. */
-function liveControllerReadKey(input: {
-  liveIp: string | undefined
-  liveEpoch: number | undefined
-  programs: readonly ProgramListEntry[]
-}): string | null {
-  if (!input.liveIp) return null
-  return JSON.stringify([input.liveIp, input.liveEpoch ?? null, input.programs])
-}
-
-/** A result stored from a live read, back only while the key it was read under
- *  is still the key on screen. Anything else — a read in flight, a read that
- *  failed, a read taken from another Controller, a read taken during an earlier
- *  connection to this one — is the same absence of evidence. */
-function currentRead<T extends { readKey: string }>(
-  stored: T | null,
-  liveReadKey: string | null,
-): T | null {
-  return stored && stored.readKey === liveReadKey ? stored : null
-}
 
 type SelectOption<T extends string | number> = {
   value: T
@@ -498,25 +456,6 @@ function ProfileStatus({
   )
 }
 
-function defaultElectricalProfile(): ControllerElectricalProfile {
-  return {
-    ledPresetId: 'ws2812-5v-individual',
-    supplyBudget: { value: 3, unit: 'amps' },
-  }
-}
-
-function synchronizeDerivedPowerCaps(
-  transforms: GlobalTransform[],
-  electricalProfile: ControllerElectricalProfile,
-  pixelCount?: number,
-): GlobalTransform[] {
-  const maxDuty = resolveControllerElectricalProfile(electricalProfile, { pixelCount }).maxDuty
-  if (maxDuty == null) return transforms
-  return transforms.map((transform) => transform.type === 'power-cap' && transform.mode === 'derived'
-    ? { ...transform, maxDuty }
-    : transform)
-}
-
 function formatQuantity(value: number | null, unit: string): string | null {
   return value == null ? null : `${value.toFixed(1)} ${unit}`
 }
@@ -545,12 +484,10 @@ const LOAD_SOURCE_LABELS: Record<ElectricalLoadSource, string> = {
  * and the derived mode need a model. */
 function PowerSection({
   profile,
-  onChangeElectrical,
-  onChangePowerCap,
+  onEdit,
 }: {
   profile: ControllerProfile
-  onChangeElectrical: (electricalProfile: ControllerElectricalProfile) => void
-  onChangePowerCap: (settings: Partial<PowerCapTransform>) => void
+  onEdit: (edit: ControllerPowerEdit) => void
 }) {
   const electricalProfile = profile.electricalProfile
   const pixelCount = profile.lastKnownPixelCount
@@ -570,7 +507,7 @@ function PowerSection({
         <PowerModelFields
           electricalProfile={electricalProfile}
           pixelCount={pixelCount}
-          onChangeElectrical={onChangeElectrical}
+          onEdit={onEdit}
         />
       )}
 
@@ -586,7 +523,7 @@ function PowerSection({
                 max={1}
                 step={0.01}
                 value={powerCap.maxDuty}
-                onChange={(maxDuty) => onChangePowerCap({ mode: 'direct', maxDuty })}
+                onChange={(maxDuty) => onEdit({ type: 'set-cap-duty', maxDuty })}
                 sizeClassName="[&_input]:h-9 [&_input]:text-2xl [&_input]:font-medium [&_input]:tracking-tight [&_input]:text-live [&_span>span]:h-9"
               />
             </div>
@@ -607,7 +544,7 @@ function PowerSection({
               <PowerModelDerivation
                 electricalProfile={electricalProfile}
                 pixelCount={pixelCount}
-                onChangeElectrical={onChangeElectrical}
+                onEdit={onEdit}
               />
             </div>
           ) : (
@@ -616,25 +553,25 @@ function PowerSection({
               <span>No power model yet, so PXLBLZ cannot estimate the installation load.</span>
               <SmallButton
                 label="Configure power model"
-                onClick={() => onChangeElectrical(defaultElectricalProfile())}
+                onClick={() => onEdit({ type: 'configure-model' })}
               />
             </div>
           )}
         </div>
 
-        <div className="ml-auto flex shrink-0 items-center gap-3 pt-0.5">
+        <div className="ml-auto flex w-full flex-wrap items-center justify-end gap-x-3 gap-y-2 pt-0.5">
           <SmallButton
             label={capMode === 'derived' ? 'Set a fixed cap' : 'Calculate from load and budget'}
             disabled={capMode === 'direct' && derivedDuty == null}
             onClick={() => (capMode === 'derived'
-              ? onChangePowerCap({ mode: 'direct' })
-              : derivedDuty != null && onChangePowerCap({ mode: 'derived', maxDuty: derivedDuty }))}
+              ? onEdit({ type: 'set-cap-mode', mode: 'direct' })
+              : onEdit({ type: 'set-cap-mode', mode: 'derived' }))}
           />
           <Switch
             ariaLabel="Enforce the duty cap"
             checked={capEnabled}
             label={capEnabled ? 'on' : 'off'}
-            onChange={(enabled) => onChangePowerCap({ enabled })}
+            onChange={(enabled) => onEdit({ type: 'set-cap-enabled', enabled })}
           />
         </div>
       </div>
@@ -646,14 +583,13 @@ function PowerSection({
 function PowerModelFields({
   electricalProfile,
   pixelCount,
-  onChangeElectrical,
+  onEdit,
 }: {
   electricalProfile: ControllerElectricalProfile
   pixelCount: number | undefined
-  onChangeElectrical: (electricalProfile: ControllerElectricalProfile) => void
+  onEdit: (edit: ControllerPowerEdit) => void
 }) {
   const resolved = resolveControllerElectricalProfile(electricalProfile, { pixelCount })
-  const override = electricalProfile.loadOverride
   const presetOptions: SelectOption<LedConstructionPresetId>[] = [
     ...LED_CONSTRUCTION_PRESETS.map((preset) => ({ value: preset.id, label: preset.label })),
     {
@@ -663,39 +599,6 @@ function PowerModelFields({
     },
   ]
 
-  function update(changes: Partial<ControllerElectricalProfile>) {
-    onChangeElectrical({ ...electricalProfile, ...changes })
-  }
-
-  function changePreset(ledPresetId: LedConstructionPresetId) {
-    const profileValue = electricalProfile
-    if (ledPresetId !== 'custom') {
-      onChangeElectrical({ ledPresetId, supplyBudget: profileValue.supplyBudget })
-      return
-    }
-    if (!pixelCount) return
-    if (override) {
-      onChangeElectrical({
-        ...profileValue,
-        ledPresetId,
-        ...(resolved.voltageVolts ? { voltageOverride: resolved.voltageVolts } : {}),
-      })
-      return
-    }
-    const fullWhiteWatts = resolved.fullWhiteWatts
-    if (fullWhiteWatts == null) return
-    onChangeElectrical({
-      ledPresetId,
-      supplyBudget: profileValue.supplyBudget,
-      ...(resolved.voltageVolts ? { voltageOverride: resolved.voltageVolts } : {}),
-      loadOverride: {
-        fullWhite: { value: fullWhiteWatts, unit: 'watts' },
-        source: 'custom',
-        atPixelCount: pixelCount,
-      },
-    })
-  }
-
   return (
     <div className="mb-7 flex flex-wrap items-end gap-x-8 gap-y-4">
       <RuleField label="LED construction" className="max-w-[22rem] flex-[1_1_16rem]">
@@ -703,7 +606,7 @@ function PowerModelFields({
           ariaLabel="LED construction preset"
           value={electricalProfile.ledPresetId}
           options={presetOptions}
-          onChange={changePreset}
+          onChange={(presetId) => onEdit({ type: 'set-led-preset', presetId })}
         />
       </RuleField>
       <RuleField label="Supply budget" className="flex-[0_1_8rem]">
@@ -712,9 +615,7 @@ function PowerModelFields({
           min={0.01}
           step={0.1}
           value={electricalProfile.supplyBudget.value}
-          onChange={(value) => update({
-            supplyBudget: { ...electricalProfile.supplyBudget, value },
-          })}
+          onChange={(value) => onEdit({ type: 'set-supply-value', value })}
         />
       </RuleField>
       <RuleField label="Unit" className="flex-[0_1_7rem]">
@@ -733,14 +634,7 @@ function PowerModelFields({
               disabled: electricalProfile.supplyBudget.unit !== 'watts' && resolved.voltageVolts == null,
             },
           ]}
-          onChange={(unit: ElectricalUnit) => {
-            const converted = convertElectricalQuantity(
-              electricalProfile.supplyBudget,
-              unit,
-              resolved.voltageVolts,
-            )
-            if (converted) update({ supplyBudget: converted })
-          }}
+          onChange={(unit: ElectricalUnit) => onEdit({ type: 'set-supply-unit', unit })}
         />
       </RuleField>
       <RuleField label="Supply voltage" className="flex-[0_1_8rem]">
@@ -750,7 +644,7 @@ function PowerModelFields({
           step={0.1}
           value={electricalProfile.voltageOverride ?? resolved.voltageVolts ?? undefined}
           placeholder="Enter voltage"
-          onChange={(voltageOverride) => update({ voltageOverride })}
+          onChange={(voltage) => onEdit({ type: 'set-voltage', voltage })}
         />
       </RuleField>
     </div>
@@ -762,32 +656,14 @@ function PowerModelFields({
 function PowerModelDerivation({
   electricalProfile,
   pixelCount,
-  onChangeElectrical,
+  onEdit,
 }: {
   electricalProfile: ControllerElectricalProfile
   pixelCount: number | undefined
-  onChangeElectrical: (electricalProfile: ControllerElectricalProfile) => void
+  onEdit: (edit: ControllerPowerEdit) => void
 }) {
   const resolved = resolveControllerElectricalProfile(electricalProfile, { pixelCount })
   const override = electricalProfile.loadOverride
-
-  function update(changes: Partial<ControllerElectricalProfile>) {
-    onChangeElectrical({ ...electricalProfile, ...changes })
-  }
-
-  function enableOverride() {
-    if (!pixelCount) return
-    update({
-      loadOverride: {
-        fullWhite: {
-          value: resolved.fullWhiteWatts ?? resolved.budgetWatts ?? 1,
-          unit: 'watts',
-        },
-        source: 'measured',
-        atPixelCount: pixelCount,
-      },
-    })
-  }
 
   const chain: React.ReactNode[] = []
   chain.push(pixelCount ? `${pixelCount} addr` : 'addresses unknown')
@@ -826,17 +702,14 @@ function PowerModelDerivation({
             <SmallButton
               label="Use estimate"
               title="Return to the preset full-white estimate"
-              onClick={() => onChangeElectrical({
-                ledPresetId: electricalProfile.ledPresetId,
-                supplyBudget: electricalProfile.supplyBudget,
-              })}
+              onClick={() => onEdit({ type: 'disable-load-override' })}
               disabled={electricalProfile.ledPresetId === 'custom'}
             />
           ) : (
             <SmallButton
               label="Override load"
               title="Replace the estimate with a measured or rated installation total"
-              onClick={enableOverride}
+              onClick={() => onEdit({ type: 'enable-load-override' })}
               disabled={!pixelCount}
             />
           )}
@@ -851,9 +724,7 @@ function PowerModelDerivation({
               min={0.01}
               step={0.1}
               value={override.fullWhite.value}
-              onChange={(value) => update({
-                loadOverride: { ...override, fullWhite: { ...override.fullWhite, value } },
-              })}
+              onChange={(value) => onEdit({ type: 'set-load-value', value })}
             />
           </RuleField>
           <RuleField label="Unit" className="flex-[0_1_7rem]">
@@ -872,14 +743,7 @@ function PowerModelDerivation({
                   disabled: override.fullWhite.unit !== 'watts' && resolved.voltageVolts == null,
                 },
               ]}
-              onChange={(unit: ElectricalUnit) => {
-                const converted = convertElectricalQuantity(
-                  override.fullWhite,
-                  unit,
-                  resolved.voltageVolts,
-                )
-                if (converted) update({ loadOverride: { ...override, fullWhite: converted } })
-              }}
+              onChange={(unit: ElectricalUnit) => onEdit({ type: 'set-load-unit', unit })}
             />
           </RuleField>
           <RuleField label="Source" className="flex-[0_1_10rem]">
@@ -891,7 +755,7 @@ function PowerModelDerivation({
                 { value: 'manufacturer-rated', label: 'manufacturer-rated' },
                 { value: 'custom', label: 'custom estimate' },
               ]}
-              onChange={(source) => update({ loadOverride: { ...override, source } })}
+              onChange={(source) => onEdit({ type: 'set-load-source', source })}
             />
           </RuleField>
         </div>
@@ -904,7 +768,7 @@ function PowerModelDerivation({
           </span>
           <SmallButton
             label={`Confirm for ${pixelCount}`}
-            onClick={() => update({ loadOverride: { ...override, atPixelCount: pixelCount } })}
+            onClick={() => onEdit({ type: 'confirm-load-address-count' })}
           />
         </div>
       )}
@@ -953,7 +817,7 @@ function UseRow({
   return (
     <div
       style={{ '--trace': traceColor } as React.CSSProperties}
-      className="relative grid items-baseline gap-x-4 py-[5px] [grid-template-columns:var(--gut)_minmax(0,1fr)_auto]"
+      className="relative grid items-baseline gap-x-4 py-[5px] [grid-template-columns:var(--gut)_minmax(0,1fr)] md:[grid-template-columns:var(--gut)_minmax(0,1fr)_auto]"
     >
       {/* The first row's line fades up out of the pin instead of butting into it. */}
       <span
@@ -967,7 +831,7 @@ function UseRow({
       <span aria-hidden className="absolute left-1.5 top-[15px] h-px w-[13px] bg-[var(--trace)]" />
       <span />
       <div className="min-w-0">{children}</div>
-      <div className="flex items-center gap-3 whitespace-nowrap">{right}</div>
+      <div className="col-start-2 flex items-center gap-3 whitespace-nowrap pt-1 md:col-start-auto md:pt-0">{right}</div>
     </div>
   )
 }
@@ -1117,7 +981,7 @@ function InputCard({
       className="break-inside-avoid border-t border-zinc-800/70 py-4 first:border-t-0"
       style={{ '--gut': traceGutter } as React.CSSProperties}
     >
-      <div className="grid items-start gap-x-4 [grid-template-columns:var(--gut)_minmax(0,1fr)_auto]">
+      <div className="grid items-start gap-x-4 [grid-template-columns:var(--gut)_minmax(0,1fr)] md:[grid-template-columns:var(--gut)_minmax(0,1fr)_auto]">
         <div className={`whitespace-nowrap pt-2 font-mono text-[13px] font-medium tracking-tight ${pinTone}`}>
           {presentation.pin}
         </div>
@@ -1139,7 +1003,7 @@ function InputCard({
             ))}
           </div>
         </div>
-        <div className="flex items-center gap-2 pt-1">
+        <div className="col-start-2 flex items-center gap-2 pt-2 md:col-start-auto md:pt-1">
           <SmallButton
             label={adjusting ? 'Done' : 'Adjust'}
             ariaLabel={adjusting ? `Done adjusting ${input.name}` : `Adjust ${input.name}`}
@@ -1412,10 +1276,12 @@ function UseBlock({
           // designed as one signal instead of a badge per use.
           <>
             <SmallButton
-              label={editing ? 'Done' : 'Edit'}
+              label={editing ? 'Done' : use.state === 'blocked' ? 'Fix' : 'Edit'}
               ariaLabel={editing
                 ? `Done editing ${use.label} use of ${inputName}`
-                : `Edit ${use.label} use of ${inputName}`}
+                : use.state === 'blocked'
+                  ? `Fix ${use.label} use of ${inputName}`
+                  : `Edit ${use.label} use of ${inputName}`}
               onClick={() => onToggleEditing(use.bindingId)}
             />
             <SmallButton
@@ -1450,7 +1316,6 @@ function UseBlock({
 export function ControllerProfilePage({ profileId }: { profileId: string }) {
   const profiles = useControllerProfileStore((state) => state.profiles)
   const profilesLoaded = useControllerProfileStore((state) => state.profilesLoaded)
-  const updateProfile = useControllerProfileStore((state) => state.updateProfile)
   const addInput = useControllerProfileStore((state) => state.addInput)
   const updateInput = useControllerProfileStore((state) => state.updateInput)
   const removeInput = useControllerProfileStore((state) => state.removeInput)
@@ -1458,7 +1323,7 @@ export function ControllerProfilePage({ profileId }: { profileId: string }) {
   const addPatternBinding = useControllerProfileStore((state) => state.addPatternBinding)
   const updatePatternBinding = useControllerProfileStore((state) => state.updatePatternBinding)
   const removePatternBinding = useControllerProfileStore((state) => state.removePatternBinding)
-  const refreshLiveMetadata = useControllerProfileStore((state) => state.refreshLiveMetadata)
+  const editPower = useControllerProfileStore((state) => state.editPower)
   const controllers = useControllerStore((state) => state.controllers)
   const transformArtifacts = useControllerStore((state) => state.lastTransformArtifacts)
   const userPatterns = usePatternStore((state) => state.userPatterns)
@@ -1470,41 +1335,30 @@ export function ControllerProfilePage({ profileId }: { profileId: string }) {
   const controllerPrograms = useControllerPanelStore((state) => (
     liveIp ? state.programsByController[liveIp] ?? EMPTY_CONTROLLER_PROGRAMS : EMPTY_CONTROLLER_PROGRAMS
   ))
-  const liveReadKey = liveControllerReadKey({ liveIp, liveEpoch, programs: controllerPrograms })
+  const liveReadKey = liveIp
+    ? controllerProfileLiveReadKey({ liveIp, liveEpoch, programs: controllerPrograms })
+    : null
   const profileRefreshId = profile?.id
-  const [controllerBindingsRead, setControllerBindingsRead] = useState<{
-    readKey: string
-    bindings: BindingStore
-  } | null>(null)
+  const syncLiveProfile = useControllerProfileLiveStore((state) => state.syncProfile)
+  const clearLiveProfile = useControllerProfileLiveStore((state) => state.clearProfile)
+  const liveProfileRead = useControllerProfileLiveStore((state) => (
+    profileRefreshId ? state.readsByProfile[profileRefreshId] : undefined
+  ))
 
   useEffect(() => {
-    if (profileRefreshId && liveIp) void refreshLiveMetadata(profileRefreshId)
-  }, [liveIp, profileRefreshId, refreshLiveMetadata])
-
-  // `liveIp` is in the dependencies because the read needs it, not because it
-  // decides anything: the key already covers it, so the extra dependency can
-  // only make the effect run more often, never less. Currentness is decided by
-  // the key alone, below.
-  useEffect(() => {
-    let cancelled = false
-    if (!liveReadKey || !liveIp) return
-    void getControllerBindings()
-      .then((bindings) => {
-        if (!cancelled) setControllerBindingsRead({ readKey: liveReadKey, bindings })
-      })
-      .catch(() => {
-        if (!cancelled) setControllerBindingsRead(null)
-      })
-    return () => {
-      cancelled = true
+    if (profileRefreshId && liveIp) {
+      void syncLiveProfile(profileRefreshId, { liveIp, liveEpoch, programs: controllerPrograms })
+    } else if (profileRefreshId) {
+      clearLiveProfile(profileRefreshId)
     }
-  }, [liveIp, liveReadKey])
-
-  // A second read of this Controller's saved-artifact push records sat here,
-  // feeding the per-Pattern re-push tag. It goes with the tag; #777 owns what
-  // replaces it. `liveReadKey` stays: the bindings read above needs the same
-  // guarantee that a reconnect cannot pass off the previous connection's answer.
-  const currentBindings = currentRead(controllerBindingsRead, liveReadKey)?.bindings ?? null
+  }, [
+    clearLiveProfile,
+    controllerPrograms,
+    liveEpoch,
+    liveIp,
+    profileRefreshId,
+    syncLiveProfile,
+  ])
 
   const installedMapObservation = profile
     ? profileController?.phase === 'live'
@@ -1529,12 +1383,10 @@ export function ControllerProfilePage({ profileId }: { profileId: string }) {
     profileController?.ip ?? profile.lastSeenIp ?? null,
     null,
   )
-  const installedBindingPatternOptions = liveIp
-    ? installedControllerPatternChoices({
-        controllerId: liveIp,
-        programs: controllerPrograms,
-        bindings: currentBindings ?? {},
-      }).map((choice) => ({ value: choice.patternId, label: choice.name }))
+  const installedBindingPatternOptions = liveReadKey
+    && liveProfileRead?.readKey === liveReadKey
+    && liveProfileRead.phase === 'ready'
+    ? liveProfileRead.patternChoices.map((choice) => ({ value: choice.patternId, label: choice.name }))
     : []
   const localPatternNameById = new Map<string, string>([
     ...userPatterns.map((pattern) => [pattern.id, pattern.name] as const),
@@ -1578,22 +1430,7 @@ export function ControllerProfilePage({ profileId }: { profileId: string }) {
       >
         <PowerSection
           profile={profile}
-          onChangeElectrical={(electricalProfile) => void updateProfile(profile.id, {
-            electricalProfile,
-            globalTransforms: synchronizeDerivedPowerCaps(
-              profile.globalTransforms,
-              electricalProfile,
-              profile.lastKnownPixelCount,
-            ),
-          })}
-          onChangePowerCap={(settings: Partial<PowerCapSettings & { enabled: boolean }>) => void updateProfile(
-            profile.id,
-            {
-              globalTransforms: profile.globalTransforms.map((transform) => (
-                transform.type === 'power-cap' ? { ...transform, ...settings } : transform
-              )),
-            },
-          )}
+          onEdit={(edit) => void editPower(profile.id, edit)}
         />
       </Section>
       <Section
@@ -1622,7 +1459,7 @@ export function ControllerProfilePage({ profileId }: { profileId: string }) {
           // must not be forced to share a row height (#772). The shorthand is
           // container-relative — two columns only while each still gets 24rem —
           // because this pane narrows independently of the viewport.
-          <div className="gap-x-13 [column-rule:1px_solid_rgb(39_39_42)] [columns:24rem_2]">
+          <div className="columns-1 gap-x-13 [column-rule:1px_solid_rgb(39_39_42)] md:columns-2">
             {profile.inputs.map((input) => {
               const presentation = presentationById.get(input.id)
               if (!presentation) return null

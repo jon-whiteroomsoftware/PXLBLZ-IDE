@@ -42,6 +42,18 @@ describe('studioControlOwnsKeyboardEvent', () => {
     expect(studioControlOwnsKeyboardEvent(document.body)).toBe(false)
   })
 
+  it.each(['checkbox', 'radio'])(
+    'keeps Space with native %s activation',
+    (type) => {
+      const target = document.createElement('input')
+      target.type = type
+      document.body.append(target)
+
+      expect(studioControlOwnsKeyboardEvent(target)).toBe(true)
+      target.remove()
+    },
+  )
+
   it('lets entity chooser rows delegate Space to preview transport', () => {
     const target = document.createElement('li')
     target.setAttribute('role', 'button')
