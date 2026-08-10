@@ -5607,18 +5607,20 @@ function ShowTimelineWorkspace({
                                 data-resize-joined={joined ? 'true' : undefined}
                                 className={[
                                   'absolute inset-y-0 z-20 cursor-ew-resize',
-                                  // Inset + handle stay within 33% per side so a
-                                  // narrow Clip keeps a selectable middle third
-                                  // instead of resize zones meeting at its center
-                                  // (#787). The 8px inset matches the Cut band's
-                                  // half-width: the band (z-15, #363) deliberately
-                                  // owns the pointer over the seam, so the handle
-                                  // starts where the Clip's own surface begins and
-                                  // the 6px floor covers all of that strip on short
-                                  // Clips. A Clip at or under 8px has no surface
-                                  // beyond the band; its edges resize via timeline
-                                  // zoom, by design.
-                                  joined ? 'w-3.5 max-w-[max(6px,calc(33%-8px))]' : 'w-2.5 max-w-[33%]',
+                                  // Narrow-Clip pointer priority (#787): the Cut
+                                  // band (z-15, 8px per side, #363) owns the seam,
+                                  // then a >=6px selectable body, then resize.
+                                  // The first cap term keeps handles out of the
+                                  // middle third of ordinary Clips; the second
+                                  // (50% - 11px) shrinks them so a 6px center
+                                  // survives down to 22px Clips, below which
+                                  // handles yield entirely and edges resize via
+                                  // timeline zoom or the Clip properties panel.
+                                  // Clips 42px and wider are unchanged by the
+                                  // second term.
+                                  joined
+                                    ? 'w-3.5 max-w-[min(max(6px,calc(33%-8px)),max(0px,calc(50%-11px)))]'
+                                    : 'w-2.5 max-w-[33%]',
                                   edge === 'start'
                                     ? (joined ? 'left-2' : 'left-0')
                                     : (joined ? 'right-2' : 'right-0'),
