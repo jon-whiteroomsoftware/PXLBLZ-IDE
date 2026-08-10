@@ -32,6 +32,7 @@ import { showTransportInitialState, useShowTransportStore } from '@/store/showTr
 import { showEditorSessionInitialState, useShowEditorSessionStore } from '@/store/showEditorSessionStore'
 import { entityOrganizationInitialState, useEntityOrganizationStore } from '@/store/entityOrganizationStore'
 import { STOCK_SHOWS } from '@/pixelblaze/stock/shows'
+import { openDemoPattern } from '@/store/openPattern'
 
 const authSessionMock = vi.hoisted(() => ({
   getAuthSession: vi.fn(),
@@ -1336,6 +1337,20 @@ describe('routing (#308)', () => {
 
     expect(editorPane.queryByRole('menuitem', { name: 'View in Gallery' })).not.toBeInTheDocument()
     expect(editorPane.getByRole('menuitem', { name: 'Clone into Patterns' })).toBeInTheDocument()
+  })
+
+  it('does not show an empty actions menu for a signed-out Test Pattern (#785)', async () => {
+    window.history.replaceState(null, '', '/studio/patterns/TestPattern1D')
+    useWorkspaceStore.setState({
+      personalWorkspaceAuthenticated: false,
+      personalWorkspaceResolved: true,
+    })
+    openDemoPattern('TestPattern1D')
+    render(<App />)
+
+    await waitFor(() => expect(usePatternStore.getState().activeDemoName).toBe('TestPattern1D'))
+    expect(screen.getByTestId('editor-pane')).toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'Pattern actions' })).not.toBeInTheDocument()
   })
 
   it('opens a Gallery pattern in Studio signed out without queuing a clone', async () => {

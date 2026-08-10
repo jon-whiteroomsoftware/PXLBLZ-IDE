@@ -653,6 +653,10 @@ function StudioApp() {
   const activeGalleryPattern = activeDemoName !== null
     ? galleryPatternBySlug(patternSlug(activeDemoName))
     : undefined
+  const hasPatternActions =
+    activePatternId !== null ||
+    activeGalleryPattern !== undefined ||
+    (activeDemoName !== null && personalWorkspaceAuthenticated)
   const studioEntityKind = route.kind === 'studio' ? (route.entity?.kind ?? null) : null
   const rightPaneKind = studioEntityKind ?? 'patterns'
   const visibleLibraryWidth = libraryCollapsed
@@ -1089,7 +1093,7 @@ function StudioApp() {
               <DimPills dims={exportedDims(source)} />
               {activePatternId !== null && <CompileStatusBadge />}
             </span>
-            {(activePatternId !== null || activeDemoName !== null) && (
+            {hasPatternActions && (
               <PatternActionsMenu
                 copied={copied}
                 compileBroken={compileStatus === 'broken'}
