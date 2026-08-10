@@ -5609,14 +5609,19 @@ function ShowTimelineWorkspace({
                                   'absolute inset-y-0 z-20 cursor-ew-resize',
                                   // Inset + handle stay within 33% per side so a
                                   // narrow Clip keeps a selectable middle third
-                                  // instead of resize zones meeting at its center;
-                                  // the 6px handle floor and the inset collapsing
-                                  // below 40px keep short Clips resizable inside
-                                  // their overflow-hidden bounds (#787).
+                                  // instead of resize zones meeting at its center
+                                  // (#787). The 8px inset matches the Cut band's
+                                  // half-width: the band (z-15, #363) deliberately
+                                  // owns the pointer over the seam, so the handle
+                                  // starts where the Clip's own surface begins and
+                                  // the 6px floor covers all of that strip on short
+                                  // Clips. A Clip at or under 8px has no surface
+                                  // beyond the band; its edges resize via timeline
+                                  // zoom, by design.
                                   joined ? 'w-3.5 max-w-[max(6px,calc(33%-8px))]' : 'w-2.5 max-w-[33%]',
                                   edge === 'start'
-                                    ? (joined ? 'left-[min(8px,20%)]' : 'left-0')
-                                    : (joined ? 'right-[min(8px,20%)]' : 'right-0'),
+                                    ? (joined ? 'left-2' : 'left-0')
+                                    : (joined ? 'right-2' : 'right-0'),
                                 ].join(' ')}
                                 onClick={(event) => event.stopPropagation()}
                                 onPointerDown={(event) => beginCompositionResize(clip, edge, event)}

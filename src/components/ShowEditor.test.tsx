@@ -5070,10 +5070,9 @@ describe('ShowEditor (#318)', () => {
     expect(joined.length, 'each Zone has one Cut, joining two Clip edges').toBeGreaterThan(0)
     expect(free.length, 'the outer edges of the row are free').toBeGreaterThan(0)
 
-    // Joined edges step inward past the band (the inset collapses only on
-    // Clips narrower than 40px, #787); free edges stay flush.
+    // Joined edges step inward past the band; free edges stay flush.
     for (const handle of joined) {
-      expect(handle.className, handle.getAttribute('aria-label') ?? '').toMatch(/(left|right)-\[min\(8px,20%\)\]/)
+      expect(handle.className, handle.getAttribute('aria-label') ?? '').toMatch(/(left|right)-2\b/)
     }
     for (const handle of free) {
       expect(handle.className, handle.getAttribute('aria-label') ?? '').toMatch(/(left|right)-0\b/)
