@@ -5610,12 +5610,13 @@ function ShowTimelineWorkspace({
                                   // Inset + handle stay within 33% per side so a
                                   // narrow Clip keeps a selectable middle third
                                   // instead of resize zones meeting at its center;
-                                  // the 6px floor keeps short Clips resizable
-                                  // (#787).
+                                  // the 6px handle floor and the inset collapsing
+                                  // below 40px keep short Clips resizable inside
+                                  // their overflow-hidden bounds (#787).
                                   joined ? 'w-3.5 max-w-[max(6px,calc(33%-8px))]' : 'w-2.5 max-w-[33%]',
                                   edge === 'start'
-                                    ? (joined ? 'left-2' : 'left-0')
-                                    : (joined ? 'right-2' : 'right-0'),
+                                    ? (joined ? 'left-[min(8px,20%)]' : 'left-0')
+                                    : (joined ? 'right-[min(8px,20%)]' : 'right-0'),
                                 ].join(' ')}
                                 onClick={(event) => event.stopPropagation()}
                                 onPointerDown={(event) => beginCompositionResize(clip, edge, event)}
