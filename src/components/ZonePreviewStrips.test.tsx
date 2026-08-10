@@ -53,6 +53,10 @@ describe('ZonePreviewStrips', () => {
 
     fireEvent.click(screen.getByRole('button', { name: 'Solo zone Arch left' }))
     expect(usePreviewStore.getState().zoneSoloId).toBe('arch-left')
+    expect(screen.getByRole('button', { name: 'Unsolo zone Arch left' }))
+      .toHaveClass('bg-live/10', 'text-live', 'ring-live/50')
+    expect(screen.getByTestId('zone-preview-sample').parentElement).not.toHaveClass('border')
+    expect(screen.getByText('Arch left').previousElementSibling).toHaveStyle({ backgroundColor: '#38bdf8' })
 
     fireEvent.click(screen.getByRole('button', { name: 'Show all zones' }))
     expect(usePreviewStore.getState().zoneSoloId).toBeNull()

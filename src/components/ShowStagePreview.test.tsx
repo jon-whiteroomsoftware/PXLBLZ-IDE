@@ -214,6 +214,8 @@ describe('ShowStagePreview (#339)', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Solo zone main' }))
     expect(usePreviewStore.getState().isRunning).toBe(true)
     expect(showAll).toBeEnabled()
+    expect(screen.getByRole('button', { name: 'Unsolo zone main' }))
+      .toHaveClass('bg-live/10', 'text-live', 'ring-live/50')
     fireEvent.click(showAll)
     expect(usePreviewStore.getState().isRunning).toBe(true)
     expect(showAll).toBeDisabled()

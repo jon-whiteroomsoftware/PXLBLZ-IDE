@@ -797,7 +797,7 @@ export function ShowStagePreview({
                   onClick={() => setSoloZoneId(active ? null : zone.id)}
                   className={`grid h-7 w-7 place-items-center rounded transition-colors ${
                     active
-                      ? 'bg-sky-500/20 text-sky-300 ring-1 ring-sky-400/50'
+                      ? 'bg-live/10 text-live ring-1 ring-live/50'
                       : 'text-zinc-500 hover:bg-zinc-800 hover:text-zinc-100'
                   }`}
                 >

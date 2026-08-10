@@ -139,8 +139,8 @@ export function ShowZoneSpatialSelector({
                   y={Math.min(drag.from.y, drag.to.y) * 100}
                   width={Math.abs(drag.to.x - drag.from.x) * 100}
                   height={Math.abs(drag.to.y - drag.from.y) * 100}
-                  fill="rgba(34,211,238,.12)"
-                  stroke="#22d3ee"
+                  fill="rgba(251,191,36,.12)"
+                  stroke="#fbbf24"
                   strokeWidth=".45"
                   strokeDasharray="1.5 1"
                 />

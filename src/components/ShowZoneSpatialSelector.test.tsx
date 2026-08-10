@@ -48,6 +48,8 @@ describe('ShowZoneSpatialSelector (#340)', () => {
 
     fireEvent.pointerDown(surface, { pointerId: 1, clientX: 120, clientY: 120 })
     fireEvent.pointerMove(surface, { pointerId: 1, clientX: 200, clientY: 200 })
+    expect(surface.querySelector('rect[stroke="#fbbf24"]')).toBeInTheDocument()
+    expect(surface.querySelector('circle[data-index="0"]')).toHaveAttribute('fill', show.zones[0].color)
     fireEvent.pointerUp(surface, { pointerId: 1, clientX: 200, clientY: 200 })
     expect(screen.getByText('Indexes 2-3')).toBeInTheDocument()
 

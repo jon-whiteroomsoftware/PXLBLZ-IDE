@@ -908,9 +908,13 @@ describe('ShowEditor (#318)', () => {
 
     const interval = await screen.findByRole('button', { name: 'Select Physical ranges routing interval 1' })
     expect(interval).toHaveAttribute('aria-pressed', 'false')
+    expect(interval).toHaveClass('text-zinc-500', 'hover:text-live', 'focus-visible:text-live')
+    expect(document.querySelector('[data-show-layout-boundary]')).toHaveClass('bg-zinc-700/70')
     await user.click(interval)
 
     expect(interval).toHaveAttribute('aria-pressed', 'true')
+    expect(interval).toHaveClass('bg-live/10', 'text-live', 'ring-live/70')
+    expect(document.querySelector('[data-show-layout-boundary]')).toHaveClass('bg-live/80')
     expect(screen.getByRole('dialog', { name: 'Entity Detail Panel' })).toBeInTheDocument()
     expect(screen.getByLabelText('Destination routing layout')).toHaveValue(show.routingLayouts[1].id)
     changeCommittedNumber('Routing transfer duration seconds exact time', '2')
@@ -6350,6 +6354,39 @@ describe('ShowEditor (#318)', () => {
 
     expect(screen.getByRole('group', { name: 'Zone Layouts lane' })).toBeInTheDocument()
     expect(screen.getByText('Left / right stripes')).toBeInTheDocument()
+  })
+
+  it('renders Zone Layout chrome in quiet ink and preserves split colors as low data tints (#780)', () => {
+    let show = createShowWithOutputContract(
+      'show-780-zone-layout-chrome',
+      'Zone chrome',
+      createPortableShowOutputContract({ referenceMapId: 'plane', referencePixelCount: 1024 }),
+      1000,
+    )
+    show = addShowZone(show, { name: 'alternate', color: '#22c55e' })
+    show.zones[0].color = '#e11d48'
+    show.routingLayouts[0].logical = {
+      kind: 'split',
+      zoneIds: [show.zones[0].id, show.zones[1].id],
+      axis: 'x',
+    }
+    show.scenes[0].routingTargets = { splitPosition: 0.37 }
+    useShowStore.setState({ shows: [show], activeShowId: show.id, showsLoaded: true })
+
+    render(<ShowEditor showId={show.id} />)
+
+    const lane = screen.getByRole('group', { name: 'Zone Layouts lane' })
+    expect(lane.firstElementChild).toHaveClass('tracking-[0.14em]', 'text-zinc-600')
+    expect(lane.firstElementChild).not.toHaveClass('bg-[#060608]')
+    const cell = within(lane).getAllByRole('button', { name: /Edit Moving split X Zone Layout/ })[0]
+    expect(cell).toHaveClass(
+      'text-zinc-300',
+      'hover:ring-live/50',
+      'focus-visible:ring-live/80',
+    )
+    expect(cell.getAttribute('style')).toContain('rgb(225, 29, 72) 12%, transparent')
+    expect(cell.getAttribute('style')).toContain('rgb(34, 197, 94) 12%, transparent')
+    expect(within(cell).getByText('37%')).toHaveClass('text-zinc-500')
   })
 
   it('hides the Zone Layouts lane while a show keeps the trivial full-surface layout (#694)', () => {

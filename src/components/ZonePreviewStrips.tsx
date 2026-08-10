@@ -50,7 +50,7 @@ export function ZonePreviewStrips() {
                 onClick={() => setSoloId(active ? null : strip.id)}
                 className={`h-7 w-7 shrink-0 rounded flex items-center justify-center transition-colors ${
                   active
-                    ? 'bg-sky-500/20 text-sky-300 ring-1 ring-sky-400/50'
+                    ? 'bg-live/10 text-live ring-1 ring-live/50'
                     : 'text-zinc-500 hover:text-zinc-100 hover:bg-zinc-800'
                 }`}
               >
@@ -70,9 +70,7 @@ export function ZonePreviewStrips() {
                 <div className="text-[10px] text-zinc-500 leading-tight">{strip.pixelCount} px</div>
               </div>
               <div
-                className={`grid flex-1 min-w-0 h-5 rounded-sm overflow-hidden border ${
-                  active ? 'border-sky-400/60' : 'border-zinc-800'
-                }`}
+                className="grid flex-1 min-w-0 h-5 rounded-sm overflow-hidden"
                 style={{ gridTemplateColumns: `repeat(${strip.samples.length}, minmax(2px, 1fr))` }}
                 aria-hidden="true"
               >

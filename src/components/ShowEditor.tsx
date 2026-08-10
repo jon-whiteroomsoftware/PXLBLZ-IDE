@@ -4826,7 +4826,7 @@ function ShowTimelineWorkspace({
           return (
             <div role="group" aria-label="Zone Layouts lane" className="contents">
               <div
-                className="sticky left-0 z-30 flex h-[18px] items-center gap-1 border-t border-zinc-900/80 bg-[#060608] px-2 font-mono text-[9px] uppercase tracking-[0.1em] text-sky-300/80"
+                className="sticky left-0 z-30 flex h-[18px] items-center gap-1 border-t border-zinc-900/80 px-2 font-mono text-[9px] uppercase tracking-[0.14em] text-zinc-600"
                 style={{ gridColumn: 1, gridRow: contentStartRow }}
               >
                 {showMicroZonePicker ? <Route size={12} aria-hidden /> : 'Layouts'}
@@ -4856,13 +4856,13 @@ function ShowTimelineWorkspace({
                       ? { 'data-show-layout-interval': interval.id }
                       : {})}
                     {...(interval ? { 'data-show-selection-key': `zone-layout:${interval.layoutId}` } : {})}
-                    className="flex h-[18px] min-w-0 items-center justify-between gap-1 border-t border-zinc-900/80 px-1.5 font-mono text-[9px] text-sky-100/90 outline-none hover:brightness-125 hover:shadow-[inset_0_0_0_1px_rgba(56,189,248,0.5)] focus-visible:shadow-[inset_0_0_0_1px_rgba(56,189,248,0.8)]"
+                    className="flex h-[18px] min-w-0 items-center justify-between gap-1 border-t border-zinc-900/80 px-1.5 font-mono text-[9px] text-zinc-300 outline-none hover:ring-1 hover:ring-inset hover:ring-live/50 focus-visible:ring-1 focus-visible:ring-inset focus-visible:ring-live/80"
                     style={{
                       gridColumn: 2 + sceneIndex * 2,
                       gridRow: contentStartRow,
                       background: isSplitCell && splitColors
-                        ? `linear-gradient(90deg, color-mix(in srgb, ${splitColors[0]} 35%, #08080a) 0 ${position * 100}%, color-mix(in srgb, ${splitColors[1]} 35%, #08080a) ${position * 100}% 100%)`
-                        : 'rgba(9,9,11,0.4)',
+                        ? `linear-gradient(90deg, color-mix(in srgb, ${splitColors[0]} 12%, transparent) 0 ${position * 100}%, color-mix(in srgb, ${splitColors[1]} 12%, transparent) ${position * 100}% 100%)`
+                        : 'transparent',
                     }}
                     onClick={(event) => {
                       event.stopPropagation()
@@ -4870,7 +4870,7 @@ function ShowTimelineWorkspace({
                     }}
                   >
                     <span className="truncate">{isFirstSceneOfInterval ? label : ''}</span>
-                    {isSplitCell && <span className="shrink-0 text-zinc-100">{Math.round(position * 100)}%</span>}
+                    {isSplitCell && <span className="shrink-0 text-zinc-500">{Math.round(position * 100)}%</span>}
                   </button>
                 )
               })}
@@ -4900,8 +4900,8 @@ function ShowTimelineWorkspace({
                       data-show-timeline-focus
                       data-show-selection-key={`transition:${routingSwitch.id}`}
                       className={selected
-                        ? 'pointer-events-auto absolute inset-y-0 z-[2] grid w-4 -translate-x-1/2 place-items-center rounded-sm bg-sky-400/35 text-sky-100 outline-none ring-1 ring-sky-300/80'
-                        : 'pointer-events-auto absolute inset-y-0 z-[2] grid w-4 -translate-x-1/2 place-items-center rounded-sm bg-sky-400/20 text-sky-200/90 outline-none hover:bg-sky-400/40 focus-visible:bg-sky-400/40'}
+                        ? 'pointer-events-auto absolute inset-y-0 z-[2] grid w-4 -translate-x-1/2 place-items-center rounded-sm bg-live/10 text-live outline-none ring-1 ring-live/70'
+                        : 'pointer-events-auto absolute inset-y-0 z-[2] grid w-4 -translate-x-1/2 place-items-center rounded-sm text-zinc-500 outline-none hover:bg-live/10 hover:text-live focus-visible:bg-live/10 focus-visible:text-live focus-visible:ring-1 focus-visible:ring-live/60'}
                       style={{ left: `${left}%` }}
                       onClick={(event) => {
                         event.stopPropagation()
@@ -4924,7 +4924,7 @@ function ShowTimelineWorkspace({
                     aria-label={`Edit split position at ${showBoundaryClipIdentity(show, scene.id)}`}
                     data-show-timeline-focus
                     data-show-selection-key={`transition:${transition.id}`}
-                    className={descriptor ? 'border-t border-zinc-900/80 bg-sky-400/10 font-mono text-[9px] text-sky-200' : 'border-t border-zinc-900/80 font-mono text-[9px] text-zinc-700 hover:text-sky-300'}
+                    className={descriptor ? 'border-t border-zinc-900/80 bg-live/[0.07] font-mono text-[9px] text-live' : 'border-t border-zinc-900/80 font-mono text-[9px] text-zinc-700 hover:text-live'}
                     style={{ gridColumn: 3 + sceneIndex * 2, gridRow: contentStartRow }}
                     onClick={(event) => {
                       event.stopPropagation()
@@ -5358,7 +5358,7 @@ function ShowTimelineWorkspace({
                     data-drag-mode={movePreview.mode}
                     className={`pointer-events-none absolute inset-y-1 z-[9] rounded-[5px] border ${
                       movePreview.mode === 'duplicate'
-                        ? 'border-dashed border-sky-300/90 bg-sky-300/10 shadow-[3px_3px_0_-1px_rgba(125,211,252,0.28)]'
+                        ? 'border-dashed border-amber-200/90 bg-live/10 shadow-[3px_3px_0_-1px_rgba(251,191,36,0.28)]'
                         : 'border-amber-300/80 bg-amber-300/10 shadow-[0_0_0_1px_rgba(251,191,36,0.12)]'
                     }`}
                     style={{
@@ -6268,8 +6268,8 @@ function TimelineLayoutBoundaries({
             aria-hidden
             data-show-layout-boundary={interval.id}
             className={selected
-              ? 'pointer-events-none absolute inset-y-0 z-0 w-[2px] -translate-x-1/2 bg-sky-400/80'
-              : 'pointer-events-none absolute inset-y-0 z-0 w-[2px] -translate-x-1/2 bg-sky-400/40'}
+              ? 'pointer-events-none absolute inset-y-0 z-0 w-[2px] -translate-x-1/2 bg-live/80'
+              : 'pointer-events-none absolute inset-y-0 z-0 w-[2px] -translate-x-1/2 bg-zinc-700/70'}
             style={{ left: `${left}%` }}
           />
         </Fragment>
@@ -7445,8 +7445,8 @@ export function InspectorPanel({
     Clip: 'border-cyan-400/35 bg-cyan-400/10 text-cyan-300',
     Group: 'border-emerald-400/35 bg-emerald-400/10 text-emerald-300',
     Transition: 'border-violet-400/35 bg-violet-400/10 text-violet-300',
-    Zone: 'border-sky-400/35 bg-sky-400/10 text-sky-300',
-    'Zone Layout': 'border-sky-400/25 bg-sky-400/[0.07] text-sky-200',
+    Zone: 'border-live/35 bg-live/10 text-live',
+    'Zone Layout': 'border-live/35 bg-live/10 text-live',
     Show: 'border-zinc-600 bg-zinc-800/80 text-amber-300',
   }[family]
   return (
@@ -9378,7 +9378,7 @@ function ShowSetupInspector({
           )}
         </div>
         {portable && (
-          <div className="rounded border border-sky-900/50 bg-sky-950/15 p-2 text-[10px] uppercase text-sky-500">
+          <div className="rounded border border-zinc-800 bg-zinc-950/30 p-2 text-[10px] uppercase text-zinc-600">
             Artifact promise
             <div className="mt-1 text-xs normal-case text-zinc-200">
               Compatible 2D mapped surfaces at variable resolution.
@@ -9739,7 +9739,7 @@ function ZoneLayoutInspector({
         </div>
       )}
       {layout.logical ? (
-        <p className="mt-2 rounded border border-sky-900/40 bg-sky-950/10 px-2 py-1.5 text-[10px] leading-4 text-zinc-500">
+        <p className="mt-2 rounded border border-zinc-800 bg-zinc-950/30 px-2 py-1.5 text-[10px] leading-4 text-zinc-500">
           {logicalRoutingDescription(layout, show)}
         </p>
       ) : (
@@ -9828,7 +9828,7 @@ function ZoneInspector({
         </button>
         <div className="text-[10px] uppercase tracking-wider md:col-span-3">
           {show.outputContract?.kind === 'portable-2d'
-            ? <span className="text-sky-400">logical - normalized position membership</span>
+            ? <span className="text-zinc-400">logical - normalized position membership</span>
             : <ZoneBindingStatus zone={zone} targetZones={targetZones} />}
         </div>
         {show.outputContract?.kind === 'installation' && (
@@ -9944,7 +9944,7 @@ function CompileBar({
         <b className="text-zinc-300">-</b>
       )}
       {summary?.resources && (
-        <span className={summary.resources.remainingWords < 0 ? 'text-red-300' : 'text-sky-200'}>
+        <span className={summary.resources.remainingWords < 0 ? 'text-red-300' : 'text-zinc-300'}>
           VM {summary.resources.totalWords.toLocaleString('en-US')}/{summary.resources.vmWordBudget.toLocaleString('en-US')} words
         </span>
       )}
