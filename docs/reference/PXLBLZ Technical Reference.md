@@ -81,8 +81,11 @@ OAuth failures redirect with `?auth=<code>`, mapped to a dismissible notice by
 OAuth admission and every authenticated request; disabling an entry revokes an
 existing session. Gmail spellings canonicalize at the beta-access boundary.
 
-**Gallery runtime.** `galleryCatalog.ts` owns the built-in catalogue, its
-directory slugs, and (as `DEMO_SECTIONS`) the immutable Studio rail folders.
+**Gallery runtime.** `galleryCatalog.ts` owns the complete built-in
+`STOCK_PATTERNS` catalogue, its public `GALLERY_PATTERNS` subset and directory
+slugs, and (as `DEMO_SECTIONS`) the immutable Studio rail folders. Patterns in
+the `Test Patterns` section stay in the Studio catalogue but are absent from
+the public subset, so they have no Gallery card, directory, or detail route.
 Cards run the real bundle/shim/render pipeline at bounded pixel counts with an
 animation slot limit, IntersectionObserver pausing, and a reduced-motion static
 frame. Cards, Pattern detail, and Studio resolve one shared recommended

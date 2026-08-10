@@ -35,6 +35,10 @@ shareable routes (`/gallery/zranger1`), and each Pattern has a detail page at
 Preview/Code switch with read-only source, **Run** and **Save** when a
 Controller is connected, and **Open in Studio**.
 
+Diagnostic Patterns in the **Test Patterns** folder remain available in Studio
+but are excluded from the public Gallery, including its directories and detail
+routes.
+
 Each built-in Pattern carries one recommended presentation — map, LED count,
 light size, diffusion — so it displays consistently everywhere. Built-in slugs
 are public; personal Patterns do not have public detail pages yet.

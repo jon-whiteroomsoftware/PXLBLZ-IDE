@@ -7,7 +7,7 @@ import { parseEpe } from '@/engine/epeImport'
 import { extractPatternAuthors } from '@/engine/patternAttribution'
 import { resolveArtifactPreferredMap } from '@/engine/artifactMapCompatibility'
 import { nativeDim, matchesLens, matchesQuery, type DimLens } from '@/engine/dimLens'
-import { GALLERY_PATTERNS } from '@/engine/galleryCatalog'
+import { STOCK_PATTERNS } from '@/engine/galleryCatalog'
 import {
   demoPersonalContentProvider,
   getPersonalContentProvider,
@@ -349,7 +349,7 @@ export function PatternList({
     }
     const last = lastEntityByModeRef.current[next]
     const id = next === 'patterns'
-      ? (userPatterns.some((p) => p.id === last) || GALLERY_PATTERNS.some((p) => p.name === last) ? last : null)
+      ? (userPatterns.some((p) => p.id === last) || STOCK_PATTERNS.some((p) => p.name === last) ? last : null)
       : next === 'maps'
         ? (userMaps.some((m) => m.id === last) || STOCK_MAP_ITEMS.some((m) => m.id === last) ? last : null)
       : next === 'mixins'
@@ -809,7 +809,7 @@ export function PatternList({
   const visibleUserPatterns = userPatterns.filter(
     (pattern) => matchesLens(nativeDim(pattern.src), dimLens),
   )
-  const visibleStockPatterns = GALLERY_PATTERNS.filter(
+  const visibleStockPatterns = STOCK_PATTERNS.filter(
     (pattern) => matchesLens(pattern.dim, dimLens),
   )
 

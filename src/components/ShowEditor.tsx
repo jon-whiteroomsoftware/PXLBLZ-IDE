@@ -247,7 +247,7 @@ import {
   type ControllerProfile,
   type ControllerZone,
 } from '@/engine/controllerProfile'
-import { GALLERY_PATTERNS } from '@/engine/galleryCatalog'
+import { STOCK_PATTERNS } from '@/engine/galleryCatalog'
 import { useControllerStore } from '@/store/controllerStore'
 import { useControllerProfileStore } from '@/store/controllerProfileStore'
 import { resolveMap, STOCK_MAPS, useMapStore } from '@/store/mapStore'
@@ -1894,7 +1894,7 @@ export function ShowEditor({
       ref: { kind: 'user' as const, id: pattern.id },
       group: 'Personal' as const,
     })),
-    ...GALLERY_PATTERNS.map((pattern) => ({
+    ...STOCK_PATTERNS.map((pattern) => ({
       label: pattern.name,
       ref: { kind: 'stock' as const, id: pattern.name },
       group: 'Built-in' as const,
@@ -1903,7 +1903,7 @@ export function ShowEditor({
   const referencePatternOptions = patternOptions.filter((option) => {
     const source = option.ref.kind === 'user'
       ? userPatterns.find((pattern) => pattern.id === option.ref.id)?.src
-      : GALLERY_PATTERNS.find((pattern) => pattern.name === option.ref.id)?.src
+      : STOCK_PATTERNS.find((pattern) => pattern.name === option.ref.id)?.src
     return source ? exportedDims(source).some((dimension) => dimension === 1 || dimension === 2) : false
   })
 

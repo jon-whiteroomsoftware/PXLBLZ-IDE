@@ -1,27 +1,27 @@
 import { describe, expect, it } from 'vitest'
-import { DEMO_SECTIONS, GALLERY_PATTERNS, ZRANGER1_DEMOS } from './galleryCatalog'
+import { DEMO_SECTIONS, STOCK_PATTERNS, ZRANGER1_DEMOS } from './galleryCatalog'
 import { STOCK_SHOWS } from '@/pixelblaze/stock/shows'
 import { stockPatternOrganization, stockShowOrganization } from './stockEntityOrganization'
 
 describe('built-in entity organization', () => {
   it('gives every built-in Pattern exactly one curated folder location', () => {
-    const organization = stockPatternOrganization(GALLERY_PATTERNS)
+    const organization = stockPatternOrganization(STOCK_PATTERNS)
     const ids = collectEntityIds(organization.nodes)
 
-    expect(ids).toHaveLength(GALLERY_PATTERNS.length)
-    expect(new Set(ids).size).toBe(GALLERY_PATTERNS.length)
+    expect(ids).toHaveLength(STOCK_PATTERNS.length)
+    expect(new Set(ids).size).toBe(STOCK_PATTERNS.length)
     expect(organization.nodes.map((node) => node.kind === 'folder' ? node.name : '')).toContain('FPS Friendly')
   })
 
   it('orders built-in Pattern folders by the declared section order, not first encounter', () => {
-    const organization = stockPatternOrganization(GALLERY_PATTERNS)
+    const organization = stockPatternOrganization(STOCK_PATTERNS)
     const folderNames = organization.nodes.flatMap((node) => node.kind === 'folder' ? [node.name] : [])
 
     expect(folderNames).toEqual(DEMO_SECTIONS.map((section) => section.label).filter((label) => folderNames.includes(label)))
   })
 
   it('keeps the popularity-ranked ZRanger1 collection together', () => {
-    const organization = stockPatternOrganization(GALLERY_PATTERNS)
+    const organization = stockPatternOrganization(STOCK_PATTERNS)
     const folder = organization.nodes.find((node) => node.kind === 'folder' && node.name === 'ZRanger1')
 
     expect(folder).toMatchObject({

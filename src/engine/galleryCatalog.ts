@@ -152,9 +152,11 @@ export const DEMO_SECTIONS: { label: string; names: string[] }[] = [
   { label: 'Test Patterns', names: demoSectionNames(TEST_PATTERNS) },
 ]
 
+const GALLERY_SECTIONS = DEMO_SECTIONS.filter((section) => section.label !== 'Test Patterns')
+
 export const GALLERY_CATEGORIES = [
   GALLERY_ALL_CATEGORY,
-  ...DEMO_SECTIONS.map((section) => section.label),
+  ...GALLERY_SECTIONS.map((section) => section.label),
 ]
 
 export function patternSlug(name: string): string {
@@ -177,7 +179,7 @@ export function galleryDirectorySlug(label: string): string {
     .toLowerCase()
 }
 
-export const GALLERY_DIRECTORIES: GalleryDirectory[] = DEMO_SECTIONS.map((section) => ({
+export const GALLERY_DIRECTORIES: GalleryDirectory[] = GALLERY_SECTIONS.map((section) => ({
   label: section.label,
   slug: galleryDirectorySlug(section.label),
 }))
@@ -186,7 +188,7 @@ export function galleryDirectoryBySlug(slug: string): GalleryDirectory | undefin
   return GALLERY_DIRECTORIES.find((directory) => directory.slug === slug)
 }
 
-export const GALLERY_PATTERNS: GalleryPattern[] = DEMO_NAMES.map((name) => {
+export const STOCK_PATTERNS: GalleryPattern[] = DEMO_NAMES.map((name) => {
   const sections = DEMO_SECTIONS.filter((section) => section.names.includes(name)).map((section) => section.label)
   return {
     name,
@@ -197,6 +199,10 @@ export const GALLERY_PATTERNS: GalleryPattern[] = DEMO_NAMES.map((name) => {
     sections,
   }
 })
+
+export const GALLERY_PATTERNS = STOCK_PATTERNS.filter(
+  (pattern) => !pattern.sections.includes('Test Patterns'),
+)
 
 export function galleryPatternBySlug(slug: string): GalleryPattern | undefined {
   return GALLERY_PATTERNS.find((pattern) => pattern.slug === slug)

@@ -1,8 +1,11 @@
 import {
   DEMO_SECTIONS,
   GALLERY_ALL_CATEGORY,
+  GALLERY_CATEGORIES,
   GALLERY_DIRECTORIES,
   GALLERY_PATTERNS,
+  STOCK_PATTERNS,
+  TEST_PATTERNS,
   filterGalleryPatterns,
   galleryDirectoryBySlug,
   galleryPatternBySlug,
@@ -56,7 +59,7 @@ describe('galleryCatalog (#309)', () => {
   })
 
   it('catalogues the universal map diagnostic with the measured mast presentation', () => {
-    const pattern = galleryPatternBySlug('map-alignment-diagnostic')
+    const pattern = STOCK_PATTERNS.find((candidate) => candidate.name === 'MapAlignmentDiagnostic')
     expect(pattern).toMatchObject({
       name: 'MapAlignmentDiagnostic',
       dim: 3,
@@ -70,7 +73,7 @@ describe('galleryCatalog (#309)', () => {
   })
 
   it('catalogues the analog input diagnostic as a wiring-order Test Pattern', () => {
-    const pattern = galleryPatternBySlug('analog-wiggle-finder')
+    const pattern = STOCK_PATTERNS.find((candidate) => candidate.name === 'AnalogWiggleFinder')
     expect(pattern).toMatchObject({
       name: 'AnalogWiggleFinder',
       dim: 3,
@@ -81,6 +84,20 @@ describe('galleryCatalog (#309)', () => {
       pixelCount: 100,
       brightness: 1,
     })
+  })
+
+  it('keeps the entire Test Patterns section out of the public Gallery (#785)', () => {
+    const galleryNames = new Set(GALLERY_PATTERNS.map((pattern) => pattern.name))
+    const testPatternNames = STOCK_PATTERNS
+      .filter((pattern) => pattern.sections.includes('Test Patterns'))
+      .map((pattern) => pattern.name)
+
+    expect(testPatternNames).toEqual([...TEST_PATTERNS].sort((a, b) => a.localeCompare(b)))
+    expect(TEST_PATTERNS.every((name) => !galleryNames.has(name))).toBe(true)
+    expect(galleryPatternBySlug('map-alignment-diagnostic')).toBeUndefined()
+    expect(GALLERY_CATEGORIES).not.toContain('Test Patterns')
+    expect(GALLERY_DIRECTORIES.map((directory) => directory.label)).not.toContain('Test Patterns')
+    expect(GALLERY_PATTERNS.some((pattern) => pattern.name === 'IridescentFibers')).toBe(true)
   })
 
   it('treats Everything and an empty query as no-ops', () => {
