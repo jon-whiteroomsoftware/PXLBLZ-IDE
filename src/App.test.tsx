@@ -1321,6 +1321,23 @@ describe('routing (#308)', () => {
     expect(editorPane.getByRole('menuitem', { name: 'Clone into Patterns' })).toBeInTheDocument()
   })
 
+  it('does not offer a Gallery route for a Studio-only Test Pattern (#785)', async () => {
+    window.history.replaceState(null, '', '/studio/patterns/TestPattern1D')
+    useWorkspaceStore.setState({
+      personalWorkspaceAuthenticated: true,
+      personalWorkspaceResolved: true,
+    })
+    stubRemotePatterns()
+    render(<App />)
+
+    await waitFor(() => expect(usePatternStore.getState().activeDemoName).toBe('TestPattern1D'))
+    const editorPane = within(screen.getByTestId('editor-pane'))
+    await userEvent.click(editorPane.getByRole('button', { name: 'Pattern actions' }))
+
+    expect(editorPane.queryByRole('menuitem', { name: 'View in Gallery' })).not.toBeInTheDocument()
+    expect(editorPane.getByRole('menuitem', { name: 'Clone into Patterns' })).toBeInTheDocument()
+  })
+
   it('opens a Gallery pattern in Studio signed out without queuing a clone', async () => {
     window.history.replaceState(null, '', '/p/iridescent-fibers')
     useWorkspaceStore.setState({

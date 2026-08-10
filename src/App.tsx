@@ -650,6 +650,9 @@ function StudioApp() {
   const activeFileName =
     activeLibraryName ?? activeDemoName ?? userPatterns.find((p) => p.id === activePatternId)?.name ?? '—'
   const activePattern = activePatternId ? userPatterns.find((p) => p.id === activePatternId) : undefined
+  const activeGalleryPattern = activeDemoName !== null
+    ? galleryPatternBySlug(patternSlug(activeDemoName))
+    : undefined
   const studioEntityKind = route.kind === 'studio' ? (route.entity?.kind ?? null) : null
   const rightPaneKind = studioEntityKind ?? 'patterns'
   const visibleLibraryWidth = libraryCollapsed
@@ -1090,8 +1093,8 @@ function StudioApp() {
               <PatternActionsMenu
                 copied={copied}
                 compileBroken={compileStatus === 'broken'}
-                onViewInGallery={activeDemoName !== null
-                  ? () => navigate({ kind: 'pattern-detail', slug: patternSlug(activeDemoName) })
+                onViewInGallery={activeGalleryPattern
+                  ? () => navigate({ kind: 'pattern-detail', slug: activeGalleryPattern.slug })
                   : undefined}
                 onClone={activeDemoName !== null && personalWorkspaceAuthenticated
                   ? handleForkDemo
