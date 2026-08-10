@@ -5606,8 +5606,12 @@ function ShowTimelineWorkspace({
                                 aria-label={`Resize ${clip.patternName} ${edge}`}
                                 data-resize-joined={joined ? 'true' : undefined}
                                 className={[
-                                  'absolute inset-y-0 z-20 max-w-[33%] cursor-ew-resize',
-                                  joined ? 'w-3.5' : 'w-2.5',
+                                  'absolute inset-y-0 z-20 cursor-ew-resize',
+                                  // Inset + handle stay within 33% per side so a
+                                  // narrow Clip keeps a selectable middle third
+                                  // instead of resize zones meeting at its center
+                                  // (#787).
+                                  joined ? 'w-3.5 max-w-[calc(33%-8px)]' : 'w-2.5 max-w-[33%]',
                                   edge === 'start'
                                     ? (joined ? 'left-2' : 'left-0')
                                     : (joined ? 'right-2' : 'right-0'),

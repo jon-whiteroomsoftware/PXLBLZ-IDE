@@ -33,6 +33,10 @@ import { IDE_MICROTYPE } from '@/components/ui/ideMicrotype'
 import { DraftTextField } from '@/components/ui/draft-text-field'
 import { EntityIcon, RailEmptyRow, type EntityNoun } from '@/components/rail/RailPrimitives'
 
+// Shallow VS Code-style step (#787): chevrons and entity icons already carry
+// the hierarchy signal, so deep rows keep their width for names.
+const INDENT_PER_LEVEL = 8
+
 export interface EntityOrganizationTreeItem {
   id: string
   name: string
@@ -397,7 +401,7 @@ function OrganizationTreeNode(props: {
           event.stopPropagation()
           props.onDrop({ key, placement: placement(event) })
         }}
-        style={{ paddingLeft: 6 + props.depth * 14 }}
+        style={{ paddingLeft: 6 + props.depth * INDENT_PER_LEVEL }}
         className={`group relative flex min-h-[20px] cursor-pointer items-center gap-1 py-px pr-1.5 outline-none transition-opacity focus-visible:ring-1 focus-visible:ring-live/70 focus-visible:ring-inset ${IDE_MICROTYPE.entity.sizeClassName} ${dragging ? 'bg-zinc-900/40 text-zinc-600 opacity-40' : active ? 'bg-live/5 text-live' : 'bg-[#0b0c0f] text-zinc-400 hover:bg-zinc-800/60 hover:text-zinc-300'}`}
       >
         {active && !dragging && <span aria-hidden className="absolute inset-y-0 left-0 w-0.5 bg-live" />}
@@ -548,7 +552,7 @@ function MoveDialog({ organization, nodeKey, nodeName: name, rootLabel, onClose,
 }
 
 function MoveDestination({ label, depth, selected, onSelect }: { label: string; depth: number; selected: boolean; onSelect: () => void }) {
-  return <button type="button" onClick={onSelect} style={{ paddingLeft: 8 + depth * 14 }} className={`flex min-h-[26px] w-full items-center gap-1.5 pr-2 text-left text-[11px] hover:bg-zinc-800/60 ${selected ? 'bg-live/5 text-live' : 'text-zinc-400'}`}><Folder size={12} /><span className="truncate">{label}</span></button>
+  return <button type="button" onClick={onSelect} style={{ paddingLeft: 8 + depth * INDENT_PER_LEVEL }} className={`flex min-h-[26px] w-full items-center gap-1.5 pr-2 text-left text-[11px] hover:bg-zinc-800/60 ${selected ? 'bg-live/5 text-live' : 'text-zinc-400'}`}><Folder size={12} /><span className="truncate">{label}</span></button>
 }
 
 function focusAdjacentTreeItem(tree: HTMLUListElement | null, current: HTMLElement, direction: -1 | 1) {

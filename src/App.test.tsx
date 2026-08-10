@@ -172,7 +172,7 @@ describe('App smoke test', () => {
     render(<App />)
 
     const pane = screen.getByTestId('left-pane')
-    expect(pane).toHaveStyle({ width: '216px', maxWidth: '34vw' })
+    expect(pane).toHaveStyle({ width: '288px', maxWidth: '34vw' })
     expect(screen.queryByRole('button', { name: 'Catalog' })).not.toBeInTheDocument()
 
     await userEvent.click(screen.getByRole('button', { name: 'Collapse rail' }))
@@ -198,7 +198,7 @@ describe('App smoke test', () => {
     expect(pane).toHaveStyle({ width: '46px' })
 
     await userEvent.click(screen.getByRole('button', { name: 'Expand library' }))
-    expect(pane).toHaveStyle({ width: '216px', maxWidth: '34vw' })
+    expect(pane).toHaveStyle({ width: '288px', maxWidth: '34vw' })
     expect(screen.getByRole('button', { name: 'Collapse rail' })).toBeInTheDocument()
   })
 
@@ -234,7 +234,7 @@ describe('App smoke test', () => {
     vi.stubGlobal('innerWidth', 1000)
     fireEvent(window, new Event('resize'))
 
-    expect(screen.getByTestId('preview-pane')).toHaveStyle({ width: '387px' })
+    expect(screen.getByTestId('preview-pane')).toHaveStyle({ width: '351px' })
   })
 
   it('remembers right-pane width per Studio mode instead of leaking it across modes (#63)', async () => {
