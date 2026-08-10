@@ -6376,7 +6376,7 @@ describe('ShowEditor (#318)', () => {
     render(<ShowEditor showId={show.id} />)
 
     const lane = screen.getByRole('group', { name: 'Zone Layouts lane' })
-    expect(lane.firstElementChild).toHaveClass('tracking-[0.14em]', 'text-zinc-600')
+    expect(lane.firstElementChild).toHaveClass('bg-zinc-950', 'tracking-[0.14em]', 'text-zinc-600')
     expect(lane.firstElementChild).not.toHaveClass('bg-[#060608]')
     const cell = within(lane).getAllByRole('button', { name: /Edit Moving split X Zone Layout/ })[0]
     expect(cell).toHaveClass(

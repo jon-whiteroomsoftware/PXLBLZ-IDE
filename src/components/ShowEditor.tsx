@@ -4826,7 +4826,7 @@ function ShowTimelineWorkspace({
           return (
             <div role="group" aria-label="Zone Layouts lane" className="contents">
               <div
-                className="sticky left-0 z-30 flex h-[18px] items-center gap-1 border-t border-zinc-900/80 px-2 font-mono text-[9px] uppercase tracking-[0.14em] text-zinc-600"
+                className="sticky left-0 z-30 flex h-[18px] items-center gap-1 border-t border-zinc-900/80 bg-zinc-950 px-2 font-mono text-[9px] uppercase tracking-[0.14em] text-zinc-600"
                 style={{ gridColumn: 1, gridRow: contentStartRow }}
               >
                 {showMicroZonePicker ? <Route size={12} aria-hidden /> : 'Layouts'}
