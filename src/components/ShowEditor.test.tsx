@@ -5970,11 +5970,15 @@ describe('ShowEditor (#318)', () => {
     expect(screen.getByRole('region', { name: 'Show timeline' })).toBeInTheDocument()
     expect(screen.getByRole('slider', { name: 'Show playhead' })).toHaveAttribute('max', '62000')
     expect(screen.getByRole('status', { name: 'Show time' })).toHaveTextContent('00:00.0/01:02.0')
-    expect(screen.getByRole('button', { name: 'Play Show preview' })).toBeInTheDocument()
+    expect(
+      screen.getByRole('button', { name: 'Play Show preview' }).querySelector('.lucide-play'),
+    ).toBeInTheDocument()
 
     await user.click(screen.getByRole('button', { name: 'Play Show preview' }))
     expect(usePreviewStore.getState().isRunning).toBe(true)
-    expect(screen.getByRole('button', { name: 'Pause Show preview' })).toBeInTheDocument()
+    expect(
+      screen.getByRole('button', { name: 'Pause Show preview' }).querySelector('.lucide-pause'),
+    ).toBeInTheDocument()
     await user.click(screen.getByRole('button', { name: 'Pause Show preview' }))
     expect(usePreviewStore.getState().isRunning).toBe(false)
     expect(screen.getByRole('button', { name: 'Play Show preview' })).toBeInTheDocument()

@@ -189,10 +189,15 @@ describe('ShowStagePreview (#339)', () => {
     const statusRow = screen.getByText(/show paused · Fast/i).parentElement!
     const playback = within(statusRow).getByRole('button', { name: 'Play Show preview' })
     expect(statusRow.lastElementChild).toBe(playback)
+    expect(playback.querySelector('.lucide-play')).toBeInTheDocument()
 
     fireEvent.click(playback)
     expect(usePreviewStore.getState().isRunning).toBe(true)
-    expect(within(statusRow).getByRole('button', { name: 'Pause Show preview' })).toBeInTheDocument()
+    expect(
+      within(statusRow)
+        .getByRole('button', { name: 'Pause Show preview' })
+        .querySelector('.lucide-pause'),
+    ).toBeInTheDocument()
   })
 
   it('keeps Zone isolation independent from playback and reserves a stable reset control', () => {

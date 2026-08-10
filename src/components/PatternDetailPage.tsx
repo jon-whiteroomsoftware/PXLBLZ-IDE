@@ -136,7 +136,7 @@ export function PatternDetailPage({
                     isRunning ? 'text-green-500 hover:text-green-400' : 'text-red-500 hover:text-red-400'
                   }`}
                 >
-                  {isRunning ? <Play size={21} aria-hidden /> : <Pause size={21} aria-hidden />}
+                  {isRunning ? <Pause size={21} aria-hidden /> : <Play size={21} aria-hidden />}
                 </button>
               </div>
               {hasEmbeddingChoice && (

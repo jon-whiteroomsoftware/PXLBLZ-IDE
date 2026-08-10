@@ -703,7 +703,7 @@ export function ShowStagePreview({
                 : 'text-red-400 hover:text-red-300'
             }`}
           >
-            {isRunning ? <Play size={20} aria-hidden /> : <Pause size={20} aria-hidden />}
+            {isRunning ? <Pause size={20} aria-hidden /> : <Play size={20} aria-hidden />}
           </button>
         </div>
         <div aria-label="Show stage" className="text-[10px] text-zinc-500">

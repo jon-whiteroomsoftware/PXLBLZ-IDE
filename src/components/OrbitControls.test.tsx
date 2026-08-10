@@ -11,6 +11,24 @@ describe('OrbitControls', () => {
     useMapStore.setState(mapInitialState)
   })
 
+  it('shows the auto-orbit action available on the next press', () => {
+    const canvasRef = createRef<HTMLCanvasElement>()
+    render(
+      <div>
+        <canvas ref={canvasRef} />
+        <OrbitControls canvasRef={canvasRef} viewKey="map:cube" />
+      </div>,
+    )
+
+    const pause = screen.getByRole('button', { name: 'Pause auto-orbit' })
+    expect(pause.querySelector('.lucide-pause')).toBeInTheDocument()
+
+    fireEvent.click(pause)
+
+    const play = screen.getByRole('button', { name: 'Resume auto-orbit' })
+    expect(play.querySelector('.lucide-play')).toBeInTheDocument()
+  })
+
   it('offers the agreed vertical zoom range and Reset View sequence', () => {
     const canvasRef = createRef<HTMLCanvasElement>()
     render(

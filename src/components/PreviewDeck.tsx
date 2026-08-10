@@ -158,7 +158,7 @@ function PrimaryBand() {
               : 'cursor-default text-red-500/45'
         }`}
       >
-        {displayRunning ? <Play size={20} /> : <Pause size={20} />}
+        {displayRunning ? <Pause size={20} /> : <Play size={20} />}
       </button>
     </div>
   )

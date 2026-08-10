@@ -2890,7 +2890,7 @@ function ShowTransportControls({
           : 'bg-transparent text-zinc-400 hover:bg-amber-400/10 hover:text-amber-200'}
         onClick={toggle}
       >
-        {isRunning ? <Play size={20} aria-hidden className="size-[20px]" /> : <Pause size={20} aria-hidden className="size-[20px]" />}
+        {isRunning ? <Pause size={20} aria-hidden className="size-[20px]" /> : <Play size={20} aria-hidden className="size-[20px]" />}
       </Button>
       <Button
         size="icon-xs"

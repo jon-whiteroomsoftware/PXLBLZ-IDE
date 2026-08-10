@@ -16,14 +16,29 @@ beforeEach(() => {
 })
 
 describe('PreviewDeck (smoke)', () => {
-  it('shows a disabled paused state when no Pattern is loaded', () => {
+  it('shows a disabled Play action when no Pattern is loaded', () => {
     usePreviewStore.setState({ ...previewInitialState, isRunning: true })
 
     render(<PreviewDeck />)
 
     const transport = screen.getByRole('button', { name: 'No pattern loaded' })
     expect(transport).toBeDisabled()
-    expect(transport.querySelector('.lucide-pause')).toBeInTheDocument()
+    expect(transport.querySelector('.lucide-play')).toBeInTheDocument()
+  })
+
+  it('shows the action available on the next press', () => {
+    useEditorStore.setState({ previewPatternName: 'Demo' })
+    usePreviewStore.setState({ ...previewInitialState, isRunning: true })
+
+    render(<PreviewDeck />)
+
+    const pause = screen.getByRole('button', { name: 'Pause' })
+    expect(pause.querySelector('.lucide-pause')).toBeInTheDocument()
+
+    fireEvent.click(pause)
+
+    const play = screen.getByRole('button', { name: 'Run' })
+    expect(play.querySelector('.lucide-play')).toBeInTheDocument()
   })
 
   it('renders the deck sections inline (no dialog over the canvas)', () => {
