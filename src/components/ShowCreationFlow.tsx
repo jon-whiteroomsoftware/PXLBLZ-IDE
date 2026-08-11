@@ -148,6 +148,13 @@ export function ShowCreationFlow({
               {selection.pixelCountLocked && (
                 <span className="mt-1 block normal-case tracking-normal text-zinc-600">Measured by the fixed map.</span>
               )}
+              {!portable && !selection.pixelCountLocked && (
+                // No stock map carries a measured count (#798): say how the
+                // locked state is reached instead of leaving it undiscoverable.
+                <span className="mt-1 block normal-case tracking-normal leading-4 text-zinc-600">
+                  Stock maps scale to any count. To lock a measured count, import your Controller's installed pixel map. Imported maps list here as Fixed size.
+                </span>
+              )}
             </div>
             <label className="text-[10px] uppercase tracking-[0.12em] text-zinc-500">
               {portable ? 'Reference map' : 'Output map'}
