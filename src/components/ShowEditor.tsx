@@ -966,6 +966,7 @@ export function ShowEditor({
   const selectedReferencePatterns = useShowEditorSessionStore((state) => state.referencePatternsByShowId[showId])
   const setReferencePattern = useShowEditorSessionStore((state) => state.setReferencePattern)
   const clearReferencePatterns = useShowEditorSessionStore((state) => state.clearReferencePatterns)
+  const setDiagnosticFocus = useShowEditorSessionStore((state) => state.setDiagnosticFocus)
   const addRoutingLayout = useShowStore((state) => state.addRoutingLayout)
   const updateRoutingLayout = useShowStore((state) => state.updateRoutingLayout)
   const removeRoutingLayout = useShowStore((state) => state.removeRoutingLayout)
@@ -1421,6 +1422,52 @@ export function ShowEditor({
     }
   }, [activeShow, stageDimension, userPatterns])
   const timelineComposition = timelineProjection?.composition ?? null
+  useEffect(() => {
+    if (!activeShow) {
+      setDiagnosticFocus(null)
+      return
+    }
+
+    if (selection.kind === 'clip') {
+      const owner = findTimelineClipOwner(timelineComposition, selection.clipId)
+      const sourceCellId = timelineProjection?.sourceCellIdByPlacementId[selection.clipId]
+      const cell = activeShow.cells.find((candidate) => candidate.id === (sourceCellId ?? selection.clipId))
+      if (owner) {
+        setDiagnosticFocus({
+          showId: activeShow.id,
+          sceneId: owner.sceneId,
+          zoneId: owner.zoneId,
+          placementId: sourceCellId ?? owner.placementId,
+        })
+        return
+      }
+      if (cell) {
+        setDiagnosticFocus({
+          showId: activeShow.id,
+          sceneId: cell.sceneId,
+          zoneId: cell.zoneId,
+          placementId: cell.id,
+        })
+        return
+      }
+    }
+
+    if (selection.kind === 'group-clip') {
+      const occurrence = timelineComposition?.groupOccurrences
+        ?.find((candidate) => candidate.id === selection.occurrenceId)
+      if (occurrence) {
+        setDiagnosticFocus({
+          showId: activeShow.id,
+          sceneId: occurrence.sceneId,
+          zoneId: occurrence.zoneId,
+          placementId: `${occurrence.id}:${selection.placementId}`,
+        })
+        return
+      }
+    }
+
+    setDiagnosticFocus(null)
+  }, [activeShow, selection, setDiagnosticFocus, timelineComposition, timelineProjection?.sourceCellIdByPlacementId])
   const patternControlsByInstanceId = useMemo(() => Object.fromEntries((timelineComposition
     ? [
         ...timelineComposition.patternInstances,

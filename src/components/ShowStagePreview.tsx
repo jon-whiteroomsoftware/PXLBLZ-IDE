@@ -33,10 +33,11 @@ import {
   installationPhysicalZones,
   validateInstallationCoverage,
 } from '@/engine/showInstallationCoverage'
-import type { ShowRecord } from '@/engine/personalContentRecords'
+import type { ShowClipTransform, ShowRecord } from '@/engine/personalContentRecords'
 import { PreviewViewportSection } from '@/components/PreviewDeck'
 import { useShowEditorSessionStore } from '@/store/showEditorSessionStore'
-import { buildShowStageDiagnosticRects } from '@/engine/showStageDiagnostics'
+import { buildShowStageClipDiagnosticPoints, buildShowStageDiagnosticRects } from '@/engine/showStageDiagnostics'
+import { materializeShowGroupOccurrences } from '@/engine/showGroupModel'
 import {
   createShowStagePerformanceProbe,
   type ShowStagePerformanceProbe,
@@ -78,6 +79,27 @@ function stableShowSeed(showId: string): number {
     hash = Math.imul((hash ^ showId.charCodeAt(index)) >>> 0, 0x01000193)
   }
   return hash >>> 0
+}
+
+function focusedClipTransform(
+  show: ShowRecord,
+  focus: { sceneId: string; zoneId: string; placementId: string | null } | null,
+): ShowClipTransform | undefined {
+  if (!focus?.placementId) return undefined
+  const cell = show.cells.find((candidate) => candidate.id === focus.placementId)
+  if (cell) return cell.transform
+
+  const composition = show.composition ? materializeShowGroupOccurrences(show.composition) : null
+  const zone = composition?.scenes
+    .find((scene) => scene.sceneId === focus.sceneId)?.zones
+    .find((candidate) => candidate.zoneId === focus.zoneId)
+  return zone?.main.find((placement) => placement.id === focus.placementId)?.transform
+    ?? zone?.overlays.flatMap((layer) => layer.placements)
+      .find((placement) => placement.id === focus.placementId)?.transform
+}
+
+function diagnosticPointList(points: [number, number][]): string {
+  return points.map(([x, y]) => `${x.toFixed(4)},${y.toFixed(4)}`).join(' ')
 }
 
 export function ShowStagePreview({
@@ -272,6 +294,12 @@ export function ShowStagePreview({
   const focusedDiagnosticRect = diagnosticFocus
     ? diagnosticRects.find((rect) => rect.zoneId === diagnosticFocus.zoneId)
     : undefined
+  const focusedDiagnosticPoints = show && focusedDiagnosticRect
+    ? buildShowStageClipDiagnosticPoints(
+        focusedDiagnosticRect,
+        focusedClipTransform(show, diagnosticFocus),
+      )
+    : null
   const durationMs = show ? showLoopDurationMs(show) : 0
   const stageMaskPlan = useMemo(
     () => layout ? createShowStageMaskPlan(layout.projection, layout.mapPoints.length) : null,
@@ -638,7 +666,7 @@ export function ShowStagePreview({
               ))}
             </svg>
           )}
-          {layout?.draw.kind === '2d' && diagnostics.clipOutlines && diagnosticFocus?.placementId && focusedDiagnosticRect && (
+          {layout?.draw.kind === '2d' && diagnostics.clipOutlines && diagnosticFocus?.placementId && focusedDiagnosticPoints && (
             <svg
               data-testid="show-stage-clip-outline"
               aria-label="Selected Clip outline"
@@ -646,11 +674,8 @@ export function ShowStagePreview({
               preserveAspectRatio="none"
               className="pointer-events-none absolute inset-0 size-full overflow-visible"
             >
-              <rect
-                x={focusedDiagnosticRect.x}
-                y={focusedDiagnosticRect.y}
-                width={focusedDiagnosticRect.width}
-                height={focusedDiagnosticRect.height}
+              <polygon
+                points={diagnosticPointList(focusedDiagnosticPoints)}
                 fill="rgba(103,232,249,0.025)"
                 stroke="#67e8f9"
                 strokeWidth="0.007"

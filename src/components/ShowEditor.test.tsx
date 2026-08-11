@@ -177,6 +177,22 @@ beforeEach(() => {
 afterEach(() => resetControllerProvider())
 
 describe('ShowEditor (#318)', () => {
+  it('publishes the selected Clip as the Stage diagnostic focus (#791)', async () => {
+    const user = userEvent.setup()
+    const show = createDefaultShow('show-clip-diagnostic-focus', 'Clip diagnostic focus', 1000)
+    useShowStore.setState({ shows: [show], activeShowId: show.id, showsLoaded: true })
+
+    render(<ShowEditor showId={show.id} />)
+    await user.click(screen.getByRole('button', { name: 'Select TestPattern1D' }))
+
+    expect(useShowEditorSessionStore.getState().diagnosticFocus).toEqual({
+      showId: show.id,
+      sceneId: 'scene-1',
+      zoneId: 'zone-1',
+      placementId: 'cell-1',
+    })
+  })
+
   it('renders the production Show as one unified timeline workspace (#579)', () => {
     const show = createDefaultShow('show-unified-workspace', 'Unified workspace', 1000)
     useShowStore.setState({ shows: [show], activeShowId: show.id, showsLoaded: true })

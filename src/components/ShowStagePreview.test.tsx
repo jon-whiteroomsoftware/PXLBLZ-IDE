@@ -434,6 +434,31 @@ export function render2D(index, x, y) { rgb(x, y, 0) }
     expect(usePreviewStore.getState().isRunning).toBe(true)
   })
 
+  it('draws and removes the selected transformed Clip content bounds (#791)', () => {
+    const show = createDefaultShow('show-transformed-clip-outline', 'Transformed outline', 1000)
+    show.stageMapId = 'map-1'
+    show.cells[0] = {
+      ...show.cells[0],
+      transform: { positionX: 0.1, positionY: -0.15, rotation: 0.125, scaleX: 0.5, scaleY: 0.25 },
+    }
+    useShowStore.setState({ shows: [show], activeShowId: show.id, showsLoaded: true })
+    useMapStore.setState({ userMaps: [importedMap], mapsLoaded: true })
+    useShowEditorSessionStore.setState({
+      diagnosticFocus: { showId: show.id, sceneId: 'scene-1', zoneId: 'zone-1', placementId: 'cell-1' },
+    })
+
+    render(<ShowStagePreview showId={show.id} />)
+    fireEvent.click(screen.getByRole('button', { name: 'Show Clip outline' }))
+
+    const outline = screen.getByTestId('show-stage-clip-outline')
+    const polygon = outline.querySelector('polygon')
+    expect(polygon).toBeInTheDocument()
+    expect(polygon).toHaveAttribute('points', '0.5116,0.0848 0.8652,0.4384 0.6884,0.6152 0.3348,0.2616')
+
+    fireEvent.click(screen.getByRole('button', { name: 'Hide Clip outline' }))
+    expect(screen.queryByTestId('show-stage-clip-outline')).not.toBeInTheDocument()
+  })
+
   it('names an Installation output map once without presenting a faux input (#484)', () => {
     const show = createShowWithOutputContract(
       'show-stage-identity',
