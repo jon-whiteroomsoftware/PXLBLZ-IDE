@@ -131,6 +131,7 @@ import {
 import {
   fitShowTimelineViewport,
   panShowTimelineViewport,
+  resolveShowTimelineClipDragPlacement,
   resizeShowTimelineViewport,
   showTimelineQuantizeStepMs,
   showTimelineRulerTicks,
@@ -3811,6 +3812,11 @@ function ShowTimelineWorkspace({
     ...markerTimesMs,
   ])]
   const clipMarkerSnapEnabled = markersVisible
+  const clipDragStructuralTimesMs = () => [
+    positionMsRef.current,
+    ...(snapEnabled ? structuralTimesWithoutMarkersMs : []),
+    ...(clipMarkerSnapEnabled ? markerTimesMs : []),
+  ]
   // Timeline drops are quantized by default: whole seconds, or tenths while
   // Shift is held (#667). Boundary magnetism (Clip edges, Markers, the
   // playhead) still wins within its pixel threshold; the Magnet toggle
@@ -3852,53 +3858,6 @@ function ShowTimelineWorkspace({
       maxTimeMs: options.maxTimeMs,
     })
   }
-  const resolveClipMoveStart = (
-    candidateStartMs: number,
-    durationMs: number,
-    options: {
-      altKey: boolean
-      shiftKey: boolean
-      visibleWidthPx: number
-      totalMs: number
-    },
-  ) => {
-    const maxStartMs = Math.max(0, options.totalMs - durationMs)
-    const rawStartMs = Math.max(0, Math.min(maxStartMs, candidateStartMs))
-    const startSnap = snapClipBoundary(rawStartMs, {
-      altKey: options.altKey,
-      shiftKey: options.shiftKey,
-      visibleWidthPx: options.visibleWidthPx,
-      maxTimeMs: maxStartMs,
-    })
-    const rawEndMs = rawStartMs + durationMs
-    const endSnap = snapClipBoundary(rawEndMs, {
-      altKey: options.altKey,
-      shiftKey: options.shiftKey,
-      visibleWidthPx: options.visibleWidthPx,
-      minTimeMs: durationMs,
-      maxTimeMs: options.totalMs,
-    })
-    // A magnetized boundary on either edge beats the drop grid on the other:
-    // butting against a neighbour is the more deliberate act (#667).
-    const edgeRank = (kind: 'boundary' | 'grid' | undefined, deltaMs: number) =>
-      kind === undefined ? [2, Number.POSITIVE_INFINITY] as const
-        : kind === 'grid' ? [1, Math.abs(deltaMs)] as const
-          : [0, Math.abs(deltaMs)] as const
-    const startDeltaMs = startSnap.timeMs - rawStartMs
-    const endDeltaMs = endSnap.timeMs - rawEndMs
-    const startRank = edgeRank(startSnap.kind, startDeltaMs)
-    const endRank = edgeRank(endSnap.kind, endDeltaMs)
-    if (startSnap.kind === undefined && endSnap.kind === undefined) {
-      return { startMs: rawStartMs, snapped: false }
-    }
-    const startWins = startRank[0] < endRank[0]
-      || (startRank[0] === endRank[0] && startRank[1] <= endRank[1])
-    const resolvedStartMs = startWins ? startSnap.timeMs : endSnap.timeMs - durationMs
-    return {
-      startMs: Math.max(0, Math.min(maxStartMs, resolvedStartMs)),
-      snapped: (startWins ? startSnap.kind : endSnap.kind) === 'boundary',
-    }
-  }
   const updateCompositionClipMovePreview = (input: {
     clientX: number
     altKey: boolean
@@ -3922,26 +3881,22 @@ function ShowTimelineWorkspace({
       .find((candidate) => candidate.id === draggedClip.clipId)
     if (!clip) return
     const candidateMs = fraction * totalMs - draggedClip.grabOffsetMs
-    const visibleWidthPx = Math.max(1, scrollRef.current?.clientWidth ?? rect.width)
-    const maxStartMs = Math.max(0, totalMs - clip.durationMs)
-    const rawStartMs = Math.max(0, Math.min(maxStartMs, candidateMs))
+    const visibleWidthPx = Math.max(1, scrollRef.current?.clientWidth || rect.width)
     const previousPreview = movePlanRef.current?.preview
-    const releaseThresholdMs = viewport.durationMs / visibleWidthPx * 16
-    const freshResolved = resolveClipMoveStart(candidateMs, clip.durationMs, {
+    const resolved = resolveShowTimelineClipDragPlacement(candidateMs, {
+      durationMs: clip.durationMs,
+      totalMs,
+      visibleDurationMs: viewport.durationMs,
+      visibleWidthPx,
+      structuralTimesMs: clipDragStructuralTimesMs(),
+      excludedStructuralTimesMs: [clip.startMs, clip.endMs],
       altKey: input.altKey,
       shiftKey: input.shiftKey,
-      visibleWidthPx,
-      totalMs,
+      previousPlacement: previousPreview?.clipId === clip.id
+        && previousPreview.targetKey === input.targetKey
+        ? { startMs: previousPreview.startMs, magnetized: previousPreview.snapped }
+        : undefined,
     })
-    const retainPreviousSnap = previousPreview?.clipId === clip.id
-      && previousPreview.targetKey === input.targetKey
-      && previousPreview.snapped
-      && !input.altKey
-      && !freshResolved.snapped
-      && Math.abs(rawStartMs - previousPreview.startMs) <= releaseThresholdMs
-    const resolved = retainPreviousSnap
-      ? { startMs: previousPreview.startMs, snapped: true }
-      : freshResolved
     const target: ShowTimelineClipMoveTarget = input.layer.kind === 'main'
       ? { kind: 'main', zoneId: input.zoneId, globalStartMs: resolved.startMs }
       : {
@@ -3986,7 +3941,7 @@ function ShowTimelineWorkspace({
       targetKey: input.targetKey,
       startMs: plannedClip.startMs,
       durationMs: plannedClip.durationMs,
-      snapped: resolved.snapped,
+      snapped: resolved.magnetized,
     }
     movePlanRef.current = {
       preview: nextPreview,
@@ -5313,11 +5268,15 @@ function ShowTimelineWorkspace({
                     .find((candidate) => candidate.id === draggedClip.clipId)
                   const candidateMs = Math.min(1, Math.max(0, (event.clientX - rect.left) / Math.max(1, rect.width))) * totalMs - draggedClip.grabOffsetMs
                   const clipDurationMs = clip?.durationMs ?? 0
-                  const globalStartMs = resolveClipMoveStart(candidateMs, clipDurationMs, {
+                  const globalStartMs = resolveShowTimelineClipDragPlacement(candidateMs, {
+                    durationMs: clipDurationMs,
+                    totalMs,
+                    visibleDurationMs: viewport.durationMs,
+                    visibleWidthPx: Math.max(1, scrollRef.current?.clientWidth || rect.width),
+                    structuralTimesMs: clipDragStructuralTimesMs(),
+                    excludedStructuralTimesMs: clip ? [clip.startMs, clip.endMs] : [],
                     altKey: event.altKey,
                     shiftKey: event.shiftKey,
-                    visibleWidthPx: Math.max(1, scrollRef.current?.clientWidth ?? rect.width),
-                    totalMs,
                   }).startMs
                   const target = { kind: 'main' as const, zoneId: row.zoneId, globalStartMs }
                   const plannedComposition = draggedClip.mode === 'duplicate' && timelineComposition

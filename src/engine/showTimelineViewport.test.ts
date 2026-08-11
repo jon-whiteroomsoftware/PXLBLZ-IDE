@@ -3,6 +3,7 @@ import {
   formatShowTimelineRulerTime,
   panShowTimelineViewport,
   rangeThumbCenterOffsetPx,
+  resolveShowTimelineClipDragPlacement,
   resizeShowTimelineViewport,
   showTimelineRulerTicks,
   showTimelineThumb,
@@ -162,6 +163,55 @@ describe('Show timeline viewport (#420)', () => {
     expect(showTimelineQuantizeStepMs(false, 1_000, 600)).toBe(200)
     // Shift stays a fixed 0.1s at every zoom.
     expect(showTimelineQuantizeStepMs(true, 6_000, 600)).toBe(100)
+  })
+
+  it('applies live Clip drag modifiers without magnetizing to the moved Clip itself (#789)', () => {
+    const options = {
+      durationMs: 4_000,
+      totalMs: 62_000,
+      visibleDurationMs: 62_000,
+      visibleWidthPx: 620,
+      structuralTimesMs: [12_300, 16_300, 30_000],
+      excludedStructuralTimesMs: [12_300, 16_300],
+    }
+
+    const dragStart = resolveShowTimelineClipDragPlacement(12_300, {
+      ...options,
+      altKey: false,
+      shiftKey: false,
+    })
+    expect(dragStart).toEqual({ startMs: 12_000, magnetized: false })
+
+    const defaultPlacement = resolveShowTimelineClipDragPlacement(12_337, {
+      ...options,
+      altKey: false,
+      shiftKey: false,
+      previousPlacement: dragStart,
+    })
+    expect(defaultPlacement).toEqual({ startMs: 12_000, magnetized: false })
+
+    const altMidDrag = resolveShowTimelineClipDragPlacement(12_337, {
+      ...options,
+      altKey: true,
+      shiftKey: false,
+      previousPlacement: defaultPlacement,
+    })
+    expect(altMidDrag).toEqual({ startMs: 12_337, magnetized: false })
+
+    const shiftMidDrag = resolveShowTimelineClipDragPlacement(12_337, {
+      ...options,
+      altKey: false,
+      shiftKey: true,
+      previousPlacement: altMidDrag,
+    })
+    expect(shiftMidDrag).toEqual({ startMs: 12_300, magnetized: false })
+
+    expect(resolveShowTimelineClipDragPlacement(12_337, {
+      ...options,
+      altKey: false,
+      shiftKey: false,
+      previousPlacement: altMidDrag,
+    })).toEqual({ startMs: 12_000, magnetized: false })
   })
 
   it('can snap to explicit boundaries without enabling the time grid', () => {

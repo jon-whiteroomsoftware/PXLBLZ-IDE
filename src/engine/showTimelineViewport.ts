@@ -156,6 +156,23 @@ export interface ShowTimelineSnapResult {
   kind?: 'boundary' | 'grid'
 }
 
+export interface ShowTimelineClipDragPlacement {
+  startMs: number
+  magnetized: boolean
+}
+
+export interface ShowTimelineClipDragPlacementOptions {
+  durationMs: number
+  totalMs: number
+  visibleDurationMs: number
+  visibleWidthPx: number
+  structuralTimesMs: number[]
+  excludedStructuralTimesMs?: number[]
+  altKey: boolean
+  shiftKey: boolean
+  previousPlacement?: ShowTimelineClipDragPlacement
+}
+
 /**
  * Timeline drops land on whole seconds by default; Shift asks for a fixed
  * 0.1s at any zoom (#667). Zooming in refines the default grid along the
@@ -205,6 +222,71 @@ export function snapShowTimelineTime(
     if (Math.abs(gridTimeMs - candidate) <= thresholdMs) return { timeMs: gridTimeMs, kind: 'grid' }
   }
   return { timeMs: candidate }
+}
+
+/**
+ * Resolves one live Clip-drag sample. The moved Clip's own old boundaries are
+ * excluded so they cannot seed magnetic hysteresis and pin the next gesture
+ * to a prior Shift/free-placement time (#789).
+ */
+export function resolveShowTimelineClipDragPlacement(
+  candidateStartMs: number,
+  options: ShowTimelineClipDragPlacementOptions,
+): ShowTimelineClipDragPlacement {
+  const durationMs = Math.max(0, options.durationMs)
+  const totalMs = Math.max(0, options.totalMs)
+  const maxStartMs = Math.max(0, totalMs - durationMs)
+  const rawStartMs = clamp(candidateStartMs, 0, maxStartMs)
+  const excludedStructuralTimesMs = new Set(options.excludedStructuralTimesMs ?? [])
+  const structuralTimesMs = options.altKey
+    ? []
+    : options.structuralTimesMs.filter((timeMs) => (
+        timeMs >= 0
+        && timeMs <= totalMs
+        && !excludedStructuralTimesMs.has(timeMs)
+      ))
+  const snapBoundary = (candidateMs: number, minTimeMs: number, maxTimeMs: number) => (
+    snapShowTimelineTime(candidateMs, {
+      visibleDurationMs: options.visibleDurationMs,
+      visibleWidthPx: options.visibleWidthPx,
+      structuralTimesMs: structuralTimesMs.filter((timeMs) => timeMs >= minTimeMs && timeMs <= maxTimeMs),
+      gridEnabled: !options.altKey,
+      quantizeStepMs: options.altKey
+        ? undefined
+        : showTimelineQuantizeStepMs(options.shiftKey, options.visibleDurationMs, options.visibleWidthPx),
+      minTimeMs,
+      maxTimeMs,
+    })
+  )
+  const startSnap = snapBoundary(rawStartMs, 0, maxStartMs)
+  const rawEndMs = rawStartMs + durationMs
+  const endSnap = snapBoundary(rawEndMs, durationMs, totalMs)
+
+  // A magnetic boundary on either edge beats the drop grid on the other.
+  const edgeRank = (kind: 'boundary' | 'grid' | undefined, deltaMs: number) =>
+    kind === undefined ? [2, Number.POSITIVE_INFINITY] as const
+      : kind === 'grid' ? [1, Math.abs(deltaMs)] as const
+        : [0, Math.abs(deltaMs)] as const
+  const startDeltaMs = startSnap.timeMs - rawStartMs
+  const endDeltaMs = endSnap.timeMs - rawEndMs
+  const startRank = edgeRank(startSnap.kind, startDeltaMs)
+  const endRank = edgeRank(endSnap.kind, endDeltaMs)
+  const startWins = startRank[0] < endRank[0]
+    || (startRank[0] === endRank[0] && startRank[1] <= endRank[1])
+  const winningSnap = startWins ? startSnap : endSnap
+  const freshPlacement = {
+    startMs: clamp(startWins ? winningSnap.timeMs : winningSnap.timeMs - durationMs, 0, maxStartMs),
+    magnetized: winningSnap.kind === 'boundary',
+  }
+
+  const releaseThresholdMs = options.visibleDurationMs / Math.max(1, options.visibleWidthPx) * 16
+  if (options.previousPlacement?.magnetized
+    && !options.altKey
+    && !freshPlacement.magnetized
+    && Math.abs(rawStartMs - options.previousPlacement.startMs) <= releaseThresholdMs) {
+    return options.previousPlacement
+  }
+  return freshPlacement
 }
 
 function clamp(value: number, min: number, max: number): number {

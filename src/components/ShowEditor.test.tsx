@@ -3143,6 +3143,8 @@ describe('ShowEditor (#318)', () => {
     Object.defineProperty(document, 'elementFromPoint', { configurable: true, value: elementFromPoint })
 
     fireEvent(clip, dragEvent('dragstart', 20))
+    fireEvent(layer, dragEvent('dragover', 123.37))
+    expect(screen.getByTestId('show-clip-move-preview-time')).toHaveTextContent('12s')
     fireEvent(layer, dragEvent('dragover', 123.37, { altKey: true }))
     expect(screen.getByTestId('show-clip-move-preview-time')).toHaveTextContent('12.337s')
     fireEvent(layer, dragEvent('drop', 123.37, { altKey: true }))
