@@ -222,6 +222,17 @@ export const CONTROL_DESCRIPTIONS: Record<string, Record<string, string>> = {
     sliderAngle: 'Compass origin of travel — 0 comes from the top, 0.25 from the right.',
     toggleInvert: 'Swaps figure and ground — bright bands on black, or dark bands on white.',
   },
+  LumaChevron: {
+    sliderLoopInterval: 'Exact cycle length, 0.25 to 8 seconds — one loop advances exactly one band.',
+    sliderDirection: 'Left third reverses, middle holds still, right third travels forward.',
+    sliderSpacing: 'Distance from one chevron band to the next.',
+    sliderWidth: 'Lit fraction of each band cycle — thin zigzag lines to fat chevrons.',
+    sliderFeather: 'Edge softness — hard chevrons at zero, sine-smooth swells wide open.',
+    sliderLean: 'Band asymmetry — centered is symmetric, either end is a full sawtooth ramp.',
+    sliderAngle: 'Compass origin of travel — 0 comes from the top, 0.25 from the right.',
+    sliderFold: 'Width of each 45-degree zigzag leg — fine herringbone to broad chevrons.',
+    toggleInvert: 'Swaps figure and ground — bright chevrons on black, or dark chevrons on white.',
+  },
   LumaRings: {
     sliderLoopInterval: 'Exact cycle length, 0.25 to 8 seconds — one loop advances exactly one ring.',
     sliderDirection: 'Left third travels inward, middle holds still, right third travels outward.',

@@ -37,10 +37,10 @@ Controller is connected, and **Open in Studio**.
 
 Diagnostic Patterns in the **Test Patterns** folder remain available in Studio
 but are excluded from the public Gallery, including its directories and detail
-routes. The **Luma Sources** folder works the same way: six grayscale
-key-source Patterns — Luma Stripes, Luma Rings, Luma Pinwheel, Luma Dots,
-Luma Weave, and Luma Spiral — that are Show ingredients rather than finished
-pieces. Every member tiles endlessly, loops exactly (one loop advances one
+routes. The **Luma Sources** folder works the same way: seven grayscale
+key-source Patterns — Luma Stripes, Luma Chevron, Luma Rings, Luma Pinwheel,
+Luma Dots, Luma Weave, and Luma Spiral — that are Show ingredients rather
+than finished pieces. Every member tiles endlessly, loops exactly (one loop advances one
 period, so a Show can lock the cycle to a beat), and shares one control set:
 Loop Interval, Direction, Spacing, Width, Feather, Lean, and Invert, plus
 Angle on the members with a travel heading. Width, Feather, and Lean together

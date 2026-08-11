@@ -36,20 +36,20 @@ describe('issue #540 Pattern field/shading census', () => {
     // analog diagnostics. Neither introduces the reusable expensive scalar
     // producer this historical prototype gate asks for, so the larger
     // denominator remains below its 10% threshold.
-    // Recensused with the six Luma key-source Patterns (#819): cheap periodic
-    // crest fields, none a credible expensive-scalar candidate, so the
-    // candidate list holds at 7 over a 103-Pattern denominator and the stop
-    // verdict is unchanged.
+    // Recensused with the seven Luma key-source Patterns (#819): cheap
+    // periodic crest fields, none a credible expensive-scalar candidate, so
+    // the candidate list holds at 7 over a 104-Pattern denominator and the
+    // stop verdict is unchanged.
     expect(issue540Report.summary).toMatchObject({
-      patternCount: 103,
-      reviewedCount: 103,
+      patternCount: 104,
+      reviewedCount: 104,
       credibleCandidateCount: 7,
       unreviewedIds: [],
       invalidClassificationIds: [],
       proceedWithPrototype: false,
       decision: 'stop-insufficient-incidence',
     })
-    expect(issue540Report.summary.credibleCandidateRatio).toBeCloseTo(7 / 103)
+    expect(issue540Report.summary.credibleCandidateRatio).toBeCloseTo(7 / 104)
     expect(candidates).toEqual([
       'Caustics',
       'GyroidGlow3D',

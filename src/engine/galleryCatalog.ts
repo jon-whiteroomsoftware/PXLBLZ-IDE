@@ -118,6 +118,7 @@ export const LIVING_1D_DEMOS = ['PulseLoom', 'FireflyChoir', 'CometLoom', 'Metro
 // Test Patterns they live in the rail but never in the gallery.
 export const LUMA_DEMOS = [
   'LumaStripes',
+  'LumaChevron',
   'LumaRings',
   'LumaPinwheel',
   'LumaDots',

@@ -20,6 +20,7 @@ const here = join(process.cwd(), 'src/pixelblaze/stock/patterns')
 // ingredients: they appear in the pattern rail but never in the gallery.
 const FAMILY = [
   'LumaStripes',
+  'LumaChevron',
   'LumaRings',
   'LumaPinwheel',
   'LumaDots',
@@ -36,7 +37,7 @@ const SHARED_SLIDERS = [
   'sliderFeather',
   'sliderLean',
 ] as const
-const HEADING_MEMBERS = new Set(['LumaStripes', 'LumaDots', 'LumaWeave'])
+const HEADING_MEMBERS = new Set(['LumaStripes', 'LumaChevron', 'LumaDots', 'LumaWeave'])
 
 interface Harness {
   handle: ReturnType<typeof loadPattern>

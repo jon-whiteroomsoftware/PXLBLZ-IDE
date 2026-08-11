@@ -72,6 +72,7 @@ export const RECOMMENDED_SETTINGS: Record<string, Partial<Settings>> = {
   // Luma family (#819): grayscale key-source ingredients. Presented on the
   // plain flat plane so the grayscale field reads exactly as a Show will key it.
   LumaStripes: { mapId: 'plane', surfaceId: 'flat', pixelCount: 1024, normalize: 'fill', brightness: 0.9, lightSize: 0.75, diffusion: 0.6 },
+  LumaChevron: { mapId: 'plane', surfaceId: 'flat', pixelCount: 1024, normalize: 'fill', brightness: 0.9, lightSize: 0.75, diffusion: 0.6 },
   LumaRings: { mapId: 'plane', surfaceId: 'flat', pixelCount: 1024, normalize: 'fill', brightness: 0.9, lightSize: 0.75, diffusion: 0.6 },
   LumaPinwheel: { mapId: 'plane', surfaceId: 'flat', pixelCount: 1024, normalize: 'fill', brightness: 0.9, lightSize: 0.75, diffusion: 0.6 },
   LumaDots: { mapId: 'plane', surfaceId: 'flat', pixelCount: 1024, normalize: 'fill', brightness: 0.9, lightSize: 0.75, diffusion: 0.6 },

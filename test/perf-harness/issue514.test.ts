@@ -7,12 +7,12 @@ describe('Show render-target residual-headroom census (#514)', () => {
     // the other 22 additions, the array-free map diagnostic, and the analog
     // diagnostic fit the budget. AnalogWiggleFinder adds ten five-word arrays
     // (90 VM words including headers) and retains 4,138 residual words.
-    // Recensused with the six Luma key-source Patterns (#819): all six are
-    // array-free scalar fields and fit the residual budget, so every summary
-    // count moves by exactly +6 and the rejection list is unchanged.
-    expect(report.summary.stockPatternCount).toBe(100)
-    expect(report.summary.stockPatternsWithNoMemberArrays).toBe(60)
-    expect(report.summary.stockPatternsFittingResidualBudget).toBe(95)
+    // Recensused with the seven Luma key-source Patterns (#819): all seven
+    // are array-free scalar fields and fit the residual budget, so every
+    // summary count moves by exactly +7 and the rejection list is unchanged.
+    expect(report.summary.stockPatternCount).toBe(101)
+    expect(report.summary.stockPatternsWithNoMemberArrays).toBe(61)
+    expect(report.summary.stockPatternsFittingResidualBudget).toBe(96)
     expect(report.summary.stockPatternRejections).toHaveLength(5)
     expect(report.summary.stockPatternRejections.map((entry) => entry.id)).toEqual([
       'pattern:AuroraSphere',
