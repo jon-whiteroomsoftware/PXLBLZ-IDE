@@ -1,19 +1,41 @@
-import { fireEvent, render, screen, waitFor } from '@testing-library/react'
+import { act, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { GalleryPage } from './GalleryPage'
 import { routerInitialState, useRouterStore } from '@/store/routerStore'
+import { useWorkspaceStore, workspaceInitialState } from '@/store/workspaceStore'
 
 beforeEach(() => {
   window.history.replaceState(null, '', '/gallery')
   useRouterStore.setState(routerInitialState)
+  useWorkspaceStore.setState({
+    ...workspaceInitialState,
+    personalWorkspaceAuthenticated: false,
+    personalWorkspaceResolved: true,
+  })
   vi.restoreAllMocks()
 })
 
 describe('Studio coming-soon notice', () => {
-  it('shows the Studio coming-soon banner to every visitor', () => {
+  it('shows the Studio coming-soon banner to resolved signed-out visitors', () => {
     render(<GalleryPage />)
 
     expect(screen.getByTestId('studio-coming-soon-banner')).toHaveTextContent(/Studio opens soon/i)
+  })
+
+  it('tracks the access gate from unresolved through signed-out and signed-in states', () => {
+    useWorkspaceStore.setState({
+      personalWorkspaceResolved: false,
+      personalWorkspaceAuthenticated: false,
+    })
+    render(<GalleryPage />)
+    expect(screen.queryByText(/Studio opens soon/i)).not.toBeInTheDocument()
+
+    act(() => useWorkspaceStore.setState({ personalWorkspaceResolved: true }))
+    expect(screen.getByText(/Studio opens soon/i)).toBeInTheDocument()
+
+    act(() => useWorkspaceStore.setState({ personalWorkspaceAuthenticated: true }))
+    expect(screen.queryByText(/Studio opens soon/i)).not.toBeInTheDocument()
+    expect(screen.queryByText(/sign-in is invite-only/i)).not.toBeInTheDocument()
   })
 
   it('uses the approved unenclosed Gallery language', () => {

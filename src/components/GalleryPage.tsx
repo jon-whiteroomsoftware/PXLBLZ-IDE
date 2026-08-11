@@ -12,6 +12,7 @@ import {
 } from '@/engine/galleryCatalog'
 import type { DimLens } from '@/engine/dimLens'
 import { useRouterStore } from '@/store/routerStore'
+import { useWorkspaceStore } from '@/store/workspaceStore'
 import { GalleryLivePreview } from './GalleryLivePreview'
 
 const DIM_OPTIONS: { label: string; value: DimLens }[] = [
@@ -112,6 +113,8 @@ export function GalleryPage({ directory }: { directory?: GalleryDirectory }) {
   const [lens, setLens] = useState<DimLens>('all')
   const [query, setQuery] = useState('')
   const navigate = useRouterStore((state) => state.navigate)
+  const personalWorkspaceAuthenticated = useWorkspaceStore((state) => state.personalWorkspaceAuthenticated)
+  const personalWorkspaceResolved = useWorkspaceStore((state) => state.personalWorkspaceResolved)
   const category = directory?.label ?? GALLERY_ALL_CATEGORY
 
   const patterns = useMemo(
@@ -131,18 +134,20 @@ export function GalleryPage({ directory }: { directory?: GalleryDirectory }) {
   return (
     <main className="flex-1 overflow-auto bg-zinc-950" data-testid="gallery-page">
       <div className="mx-auto max-w-[1180px] px-4 pt-[14px] sm:px-[22px]">
-        <div
-          data-testid="studio-coming-soon-banner"
-          className="flex flex-wrap items-baseline gap-x-3 gap-y-1"
-        >
-          <span className="shrink-0 font-mono text-[9.5px] uppercase tracking-[0.14em] text-live">
-            Studio opens soon
-          </span>
-          <p className="text-[12.5px] leading-5 text-zinc-500">
-            Everything in the Gallery works without an account; Studio sign-in is invite-only while we
-            finish the last pieces.
-          </p>
-        </div>
+        {personalWorkspaceResolved && !personalWorkspaceAuthenticated && (
+          <div
+            data-testid="studio-coming-soon-banner"
+            className="flex flex-wrap items-baseline gap-x-3 gap-y-1"
+          >
+            <span className="shrink-0 font-mono text-[9.5px] uppercase tracking-[0.14em] text-live">
+              Studio opens soon
+            </span>
+            <p className="text-[12.5px] leading-5 text-zinc-500">
+              Everything in the Gallery works without an account; Studio sign-in is invite-only while we
+              finish the last pieces.
+            </p>
+          </div>
+        )}
       </div>
       <div className="mx-auto flex max-w-[1180px] flex-wrap items-center gap-x-5 gap-y-2 px-4 pb-2 pt-[18px] sm:px-[22px]">
         <div className="mr-auto">
