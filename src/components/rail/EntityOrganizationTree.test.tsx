@@ -1,11 +1,47 @@
 // @vitest-environment jsdom
 import { createRef } from 'react'
 import { act, fireEvent, render, screen, within } from '@testing-library/react'
+import userEvent from '@testing-library/user-event'
 import { describe, expect, it, vi } from 'vitest'
 import type { EntityOrganizationV1 } from '@/engine/entityOrganization'
 import { EntityOrganizationTree, type EntityOrganizationTreeHandle } from './EntityOrganizationTree'
 
 describe('EntityOrganizationTree', () => {
+  it('keeps row facts off the menu hit-test path and opens the menu from the keyboard (#807)', async () => {
+    const user = userEvent.setup()
+    const organization: EntityOrganizationV1 = {
+      version: 1,
+      nodes: [{
+        kind: 'folder',
+        id: 'controllers',
+        name: 'Controllers',
+        children: [{ kind: 'entity', entityId: 'controller-1' }],
+      }],
+      trash: [],
+      collapsedFolderIds: [],
+    }
+    render(
+      <EntityOrganizationTree
+        organization={organization}
+        items={[{ id: 'controller-1', name: 'Burner bag', meta: 'IDLE' }]}
+        activeEntityId="controller-1"
+        query=""
+        noun="controller"
+        onSelect={vi.fn()}
+        onRenameEntity={vi.fn()}
+        onOrganizationChange={vi.fn()}
+      />,
+    )
+
+    expect(screen.getByText('1')).toHaveClass('pointer-events-none')
+    expect(screen.getByText('IDLE')).toHaveClass('pointer-events-none')
+
+    const menuButton = screen.getByRole('button', { name: 'More actions for Burner bag' })
+    menuButton.focus()
+    await user.keyboard('{Enter}')
+    expect(screen.getByRole('button', { name: 'Rename' })).toBeVisible()
+  })
+
   it('keeps the Pattern action menu in the row stacking context while names overflow (#662)', () => {
     const organization: EntityOrganizationV1 = {
       version: 1,

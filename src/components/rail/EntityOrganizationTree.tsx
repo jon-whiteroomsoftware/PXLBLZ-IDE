@@ -471,11 +471,12 @@ function OrganizationTreeNode(props: {
         ) : (
           <span className={`min-w-0 flex-1 ${props.allowHorizontalOverflow ? 'whitespace-nowrap' : 'truncate'}`} title={name}>{name}</span>
         )}
-        {folder && <span className="relative z-10 shrink-0 bg-inherit pl-1 text-[9px] text-zinc-600 group-hover:opacity-0">{props.editable ? countEntities(folder.children) : visibleEntityCount(folder.children, props.itemsById)}</span>}
-        {item?.meta && active && <span className="relative z-10 shrink-0 bg-inherit pl-1 text-[8px] uppercase text-zinc-500 group-hover:opacity-0">{item.meta}</span>}
+        {folder && <span className="pointer-events-none relative z-10 shrink-0 bg-inherit pl-1 text-[9px] text-zinc-600 group-hover:opacity-0">{props.editable ? countEntities(folder.children) : visibleEntityCount(folder.children, props.itemsById)}</span>}
+        {item?.meta && active && <span className="pointer-events-none relative z-10 shrink-0 bg-inherit pl-1 text-[8px] uppercase text-zinc-500 group-hover:opacity-0">{item.meta}</span>}
         {props.editable && !dragging && (
           <button
             type="button"
+            onKeyDown={(event) => event.stopPropagation()}
             onClick={(event) => {
               event.stopPropagation()
               props.onMenu(props.menuKey === key ? null : key)

@@ -202,7 +202,7 @@ function DimPill({ dim }: { dim: string }) {
   return (
     <span
       aria-hidden
-      className={`mt-[2px] shrink-0 rounded border border-zinc-700 px-1 font-mono uppercase tracking-wide transition-opacity group-hover:opacity-0 ${IDE_MICROTYPE.secondary.className}`}
+      className={`pointer-events-none mt-[2px] shrink-0 rounded border border-zinc-700 px-1 font-mono uppercase tracking-wide transition-opacity group-hover:opacity-0 ${IDE_MICROTYPE.secondary.className}`}
     >
       {dim}
     </span>
@@ -465,7 +465,7 @@ export function EditableListItem({
             {badge && (
               <span
                 title={badge}
-                className={`mt-[2px] shrink-0 rounded border border-live/25 bg-live/10 px-1 font-mono uppercase text-live/90 transition-opacity group-hover:opacity-0 ${IDE_MICROTYPE.secondary.sizeClassName}`}
+                className={`pointer-events-none mt-[2px] shrink-0 rounded border border-live/25 bg-live/10 px-1 font-mono uppercase text-live/90 transition-opacity group-hover:opacity-0 ${IDE_MICROTYPE.secondary.sizeClassName}`}
               >
                 {badge}
               </span>

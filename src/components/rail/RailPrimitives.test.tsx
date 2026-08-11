@@ -147,6 +147,27 @@ function renderEditableListItem({
 }
 
 describe('EditableListItem', () => {
+  it('keeps status and dimension decorations off the action hit-test path (#807)', () => {
+    render(
+      <ul>
+        <EditableListItem
+          name="Controller profile"
+          noun="controller"
+          active={false}
+          badge="IDLE"
+          dim="2D"
+          takenNames={[]}
+          onSelect={vi.fn()}
+          onRename={vi.fn()}
+          onDelete={vi.fn()}
+        />
+      </ul>,
+    )
+
+    expect(screen.getByText('IDLE')).toHaveClass('pointer-events-none')
+    expect(screen.getByText('2D')).toHaveClass('pointer-events-none')
+  })
+
   it('keeps library namespace edits inside the Pixelblaze identifier character set', async () => {
     const user = userEvent.setup()
     const { onRename } = renderEditableListItem()
@@ -226,6 +247,12 @@ describe('EditableListItem', () => {
 })
 
 describe('StockListItem', () => {
+  it('keeps its dimension decoration off the row hit-test path (#807)', () => {
+    render(<ul><StockListItem name="Square" noun="map" active={false} meta="2D" onSelect={vi.fn()} /></ul>)
+
+    expect(screen.getByText('2D')).toHaveClass('pointer-events-none')
+  })
+
   it('opens from the keyboard', async () => {
     const user = userEvent.setup()
     const onSelect = vi.fn()

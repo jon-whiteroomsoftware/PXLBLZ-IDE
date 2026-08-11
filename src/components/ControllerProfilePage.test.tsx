@@ -1018,7 +1018,11 @@ describe('ControllerProfilePage', () => {
     render(<ControllerSavedProgramsPane profile={profile} />)
 
     const updateLabel = 'Keep PXLBLZ Patterns up to date when Controller settings change'
-    expect(screen.getByRole('checkbox', { name: updateLabel })).toBeChecked()
+    const updateControl = screen.getByRole('checkbox', { name: updateLabel })
+    expect(updateControl).toBeChecked()
+    for (const decoration of updateControl.parentElement?.querySelectorAll('span') ?? []) {
+      expect(decoration).toHaveClass('pointer-events-none')
+    }
     expect(screen.getByText(updateLabel)).toBeInTheDocument()
     expect(screen.queryByText(/managed Patterns current/i)).not.toBeInTheDocument()
     expect(screen.queryByText(/unmanaged programs are exempt/i)).not.toBeInTheDocument()
