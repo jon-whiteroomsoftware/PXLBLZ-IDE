@@ -2095,6 +2095,49 @@ describe('ControllerProfilePage', () => {
     })
   })
 
+  it('keeps a pending slider commit on its own profile across rapid navigation (#786)', async () => {
+    const profileA = seedProfile()
+    const profileB = {
+      ...defaultControllerProfile({ id: 'ctrl-2', name: 'Second' }),
+      deviceId: 'dev-2',
+    }
+    const withEnabledDirectCap = (profile: typeof profileA) => ({
+      ...profile,
+      globalTransforms: profile.globalTransforms.map((transform) => (
+        transform.type === 'power-cap'
+          ? { ...transform, enabled: true, mode: 'direct' as const, maxDuty: 0.25 }
+          : transform
+      )),
+    })
+    useControllerProfileStore.setState({
+      profiles: [withEnabledDirectCap(profileA), withEnabledDirectCap(profileB)],
+      profilesLoaded: true,
+    })
+    setPersonalContentProvider({
+      ...demoPersonalContentProvider,
+      updateControllerProfile: async () => {},
+    })
+
+    const { rerender, unmount } = render(<ControllerProfilePage profileId="ctrl-1" />)
+    fireEvent.change(screen.getByRole('slider', { name: 'Power cap duty percent' }), {
+      target: { value: '0.6' },
+    })
+    // Switching profiles inside the debounce window flushes the drag to the
+    // profile it belonged to, never to the newly selected one.
+    rerender(<ControllerProfilePage profileId="ctrl-2" />)
+    unmount()
+
+    await waitFor(() => {
+      const profiles = useControllerProfileStore.getState().profiles
+      expect(profiles.find((profile) => profile.id === 'ctrl-1')?.globalTransforms
+        .find((transform) => transform.type === 'power-cap'))
+        .toMatchObject({ maxDuty: 0.6 })
+      expect(profiles.find((profile) => profile.id === 'ctrl-2')?.globalTransforms
+        .find((transform) => transform.type === 'power-cap'))
+        .toMatchObject({ maxDuty: 0.25 })
+    })
+  })
+
   it('collapses to a summary while power is not limited (#786)', () => {
     seedProfile()
 

@@ -1639,7 +1639,10 @@ export function ControllerProfilePage({ profileId }: { profileId: string }) {
         title="Power"
         lede="The Controller estimates draw live from the duty cycle of the running Pattern."
       >
+        {/* Keyed by profile so a pending slider commit (draft + flush-on-unmount)
+            can never cross into another profile after rapid navigation. */}
         <PowerSection
+          key={profile.id}
           profile={profile}
           onEdit={(edit) => void editPower(profile.id, edit)}
         />
