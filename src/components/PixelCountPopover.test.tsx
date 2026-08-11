@@ -111,7 +111,6 @@ describe('PixelCountPopover', () => {
 
     fireEvent.pointerMove(slider, { pointerId: 17, clientX: 80 })
     fireEvent.pointerMove(slider, { pointerId: 17, clientX: 180, shiftKey: true })
-    fireEvent.pointerMove(slider, { pointerId: 17, clientX: 280, shiftKey: true })
 
     expect(onSelect).toHaveBeenLastCalledWith(1000)
   })
