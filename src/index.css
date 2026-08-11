@@ -377,7 +377,7 @@
   column-count: 1;
 }
 
-@container controller-profile-inputs (min-width: 40rem) {
+@container controller-profile-inputs (min-width: 36rem) {
   .controller-profile-input-columns {
     column-count: 2;
   }
