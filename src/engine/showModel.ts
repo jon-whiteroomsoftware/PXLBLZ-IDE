@@ -62,6 +62,7 @@ import {
   type ControllerProfile,
   type ControllerZone,
 } from './controllerProfile'
+import { resolveShowZonePixelCount } from './showInstallationCoverage'
 
 export interface ShowStripTransitionProjection {
   afterSceneId: string
@@ -86,6 +87,7 @@ export interface ShowStripRowProjection {
   zoneId: string
   zoneName: string
   nominalPixelCount: number
+  pixelCount: number
   color?: string
   cells: ShowStripCellProjection[]
 }
@@ -403,6 +405,7 @@ export function projectShowStrip(show: ShowRecord): ShowStripProjection {
       zoneId: zone.id,
       zoneName: zone.name,
       nominalPixelCount: zone.nominalPixelCount,
+      pixelCount: resolveShowZonePixelCount(show, zone.id)?.pixelCount ?? zone.nominalPixelCount,
       color: zone.color,
       cells: show.cells
         .filter((cell) => cell.zoneId === zone.id)

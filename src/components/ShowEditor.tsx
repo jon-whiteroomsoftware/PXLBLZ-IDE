@@ -87,7 +87,7 @@ import {
   projectGlobalShowPropertyLane,
   projectGlobalShowScenePropertyLanes,
 } from '@/engine/showPropertyLaneProjection'
-import { validateInstallationCoverage } from '@/engine/showInstallationCoverage'
+import { resolveShowZonePixelCount, validateInstallationCoverage } from '@/engine/showInstallationCoverage'
 import { updateShowPhysicalZoneSelection } from '@/engine/showSpatialSelection'
 import { createPortableShowOutputContract } from '@/engine/showOutputContract'
 import { discoverAutomatablePatternControls, type AutomatablePatternControl } from '@/engine/showPatternControls'
@@ -5178,7 +5178,7 @@ function ShowTimelineWorkspace({
                 {/* A collapsed Zone owns one 28px row; a second line would overflow
                     it and paint across its neighbours (#632). */}
                 {!collapsed && show.outputContract?.kind === 'installation'
-                  && <span className="truncate text-[10px] leading-3 text-structural transition-colors group-hover:text-zinc-400">{row.nominalPixelCount}px</span>}
+                  && <span className="truncate text-[10px] leading-3 text-structural transition-colors group-hover:text-zinc-400">{row.pixelCount}px</span>}
               </span>
               <button
                 type="button"
@@ -6139,7 +6139,7 @@ function ZoneMapPopover({
                     takenNames={show.zones.filter((candidate) => candidate.id !== zone.id).map((candidate) => candidate.name)}
                   />
                   {show.outputContract?.kind === 'installation' && (
-                    <span className="block truncate text-[9px] font-normal text-zinc-500">{zone.nominalPixelCount} px</span>
+                    <span className="block truncate text-[9px] font-normal text-zinc-500">{resolveShowZonePixelCount(show, zone.id)?.pixelCount ?? zone.nominalPixelCount} px</span>
                   )}
                 </span>
               </div>
@@ -10041,7 +10041,7 @@ function ZoneInspector({
         <div className="text-[10px] uppercase tracking-wider md:col-span-3">
           {show.outputContract?.kind === 'portable-2d'
             ? <span className="text-zinc-400">logical - normalized position membership</span>
-            : <ZoneBindingStatus zone={zone} targetZones={targetZones} />}
+            : <ZoneBindingStatus show={show} zone={zone} targetZones={targetZones} />}
         </div>
         {show.outputContract?.kind === 'installation' && (
           <div className="flex flex-wrap items-center gap-2 md:col-span-3">
@@ -10063,12 +10063,18 @@ function ZoneInspector({
 }
 
 function ZoneBindingStatus({
+  show,
   zone,
   targetZones,
 }: {
+  show: ShowRecord
   zone: ShowRecord['zones'][number]
   targetZones: ControllerZone[]
 }) {
+  const authored = resolveShowZonePixelCount(show, zone.id)
+  if (authored?.source === 'physical') {
+    return <span className="text-green-400">bound - {authored.pixelCount} px</span>
+  }
   const bound = findControllerZoneByName(targetZones, zone.name)
   if (!targetZones.length) {
     return <span className="text-zinc-500">nominal - {zone.nominalPixelCount} px</span>

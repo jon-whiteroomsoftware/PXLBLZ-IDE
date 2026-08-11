@@ -1,5 +1,5 @@
 import type { ShowRecord, ShowRoutingLayout } from './personalContentRecords'
-import type { ControllerZone } from './controllerProfile'
+import { controllerZonePixelCount, type ControllerZone } from './controllerProfile'
 
 export interface InstallationLayoutCoverage {
   layoutId: string
@@ -57,6 +57,21 @@ export function installationPhysicalZones(
     name: zone.name,
     ranges: (layout.zones.find((entry) => entry.zoneId === zone.id)?.ranges ?? []).map((range) => ({ ...range })),
   }))
+}
+
+export function resolveShowZonePixelCount(
+  show: Pick<ShowRecord, 'outputContract' | 'zones' | 'routingLayouts'>,
+  zoneId: string,
+  layoutId = show.routingLayouts.find((candidate) => !candidate.logical)?.id,
+): { source: 'physical' | 'nominal'; pixelCount: number } | null {
+  const zone = show.zones.find((candidate) => candidate.id === zoneId)
+  if (!zone) return null
+  const physicalZone = layoutId
+    ? installationPhysicalZones(show, layoutId)?.find((candidate) => candidate.id === `${layoutId}:${zoneId}`)
+    : undefined
+  return physicalZone
+    ? { source: 'physical', pixelCount: controllerZonePixelCount(physicalZone) }
+    : { source: 'nominal', pixelCount: zone.nominalPixelCount }
 }
 
 function validateLayout(layout: ShowRoutingLayout, pixelCount: number): InstallationLayoutCoverage {

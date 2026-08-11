@@ -1609,7 +1609,10 @@ test.describe('authenticated Show authoring', () => {
     await page.mouse.up()
 
     await expect(page.getByText(/^Indexes (?!none)/)).toBeVisible()
-    await expect(page.getByText(/selected.*assigned of 256 total.*missing/i)).toBeVisible()
+    const selectionSummary = page.getByText(/selected.*assigned of 256 total.*missing/i)
+    await expect(selectionSummary).toBeVisible()
+    const selectedCount = Number((await selectionSummary.textContent())?.match(/(\d+) selected/)?.[1])
+    expect(selectedCount).toBeGreaterThan(0)
     await page.setViewportSize({ width: 720, height: 900 })
     expect(await page.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth)).toBeLessThanOrEqual(8)
     await expect(page.getByRole('button', { name: 'Save physical zone' })).toBeVisible()
@@ -1619,7 +1622,17 @@ test.describe('authenticated Show authoring', () => {
       show.routingLayouts[0]?.zones[0]?.ranges.length > 1
       && show.routingLayouts[0].zones[0].ranges.every((range) => range.start <= range.end)
     ))
+    await page.setViewportSize({ width: 1440, height: 900 })
+    await expect(page.getByRole('region', { name: 'Show timeline' }).getByText(`${selectedCount}px`)).toBeVisible()
+    await expect(page.getByText(`bound - ${selectedCount} px`)).toBeVisible()
     await expect(page.getByText(/missing/i).first()).toBeVisible()
+
+    await page.reload()
+    const reopenZonesRail = page.getByRole('button', { name: 'Open Zones' })
+    if (await reopenZonesRail.count() > 0) await reopenZonesRail.click()
+    await expect(page.getByRole('region', { name: 'Show timeline' }).getByText(`${selectedCount}px`)).toBeVisible()
+    await page.getByRole('button', { name: 'Open zone main properties' }).click()
+    await expect(page.getByText(`bound - ${selectedCount} px`)).toBeVisible()
   })
 
   test('persists invalid Installation coverage and unblocks artifacts after repair', async ({ page }) => {

@@ -7233,6 +7233,48 @@ describe('ShowEditor (#318)', () => {
     expect(screen.getByText(/Default assigns 8 of 8 pixels exactly once/i)).toBeInTheDocument()
   })
 
+  it('reports persisted Installation Zone assignments across timeline and properties (#790)', async () => {
+    const user = userEvent.setup()
+    const show = createShowWithOutputContract(
+      'show-zone-assignment-count',
+      'Bound wall',
+      createInstallationShowOutputContract({ outputMapId: 'plane', pixelCount: 60 }),
+      1000,
+    )
+    show.targetControllerProfileId = 'profile-target'
+    show.routingLayouts[0].zones[0].ranges = [{ start: 0, end: 55 }]
+    setPersonalContentProvider(memoryProvider([show]))
+    useShowStore.setState({ shows: [show], activeShowId: show.id, showsLoaded: true })
+    useControllerProfileStore.setState({
+      profilesLoaded: true,
+      profiles: [{
+        id: 'profile-target',
+        name: 'Target Controller',
+        board: { kind: 'pixelblaze-v3-standard' },
+        inputs: [],
+        globalTransforms: [],
+        patternBindings: [],
+        zones: [{ id: 'controller-accent', name: 'accent', ranges: [{ start: 0, end: 59 }] }],
+        updatedAt: 1,
+      }],
+    })
+
+    const view = render(<ShowEditor showId={show.id} />)
+    const timeline = screen.getByRole('region', { name: 'Show timeline' })
+    await user.click(within(timeline).getByRole('button', { name: 'Open Zones' }))
+    expect(within(timeline).getByText('56px')).toBeInTheDocument()
+    await user.click(within(timeline).getByRole('button', { name: 'Open zone main properties' }))
+    expect(screen.getByText('bound - 56 px')).toBeInTheDocument()
+
+    view.unmount()
+    useShowStore.setState({ ...showInitialState, shows: [structuredClone(show)], activeShowId: show.id, showsLoaded: true })
+    useShowEditorSessionStore.setState(showEditorSessionInitialState)
+    render(<ShowEditor showId={show.id} />)
+    const reloadedTimeline = screen.getByRole('region', { name: 'Show timeline' })
+    await user.click(within(reloadedTimeline).getByRole('button', { name: 'Open Zones' }))
+    expect(within(reloadedTimeline).getByText('56px')).toBeInTheDocument()
+  })
+
   it('keeps an over-limit legacy Installation editable while blocking generated artifacts (#514)', () => {
     const show = createShowWithOutputContract(
       'show-installation-over-limit',
