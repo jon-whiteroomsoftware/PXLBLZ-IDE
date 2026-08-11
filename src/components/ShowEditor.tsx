@@ -1155,10 +1155,11 @@ export function ShowEditor({
         })
       }
     }
-    // A failed write already rolled back and recorded showSaveFailure (#792);
-    // swallowing here keeps the editor's fire-and-forget call sites from
-    // surfacing the same failure again as an unhandled rejection.
-    return persistShow(id, persisted).catch(() => {})
+    // Persistence failures must stay observable here: awaited callers gate
+    // follow-up work (selecting a created placement, closing an Add flow) on
+    // this promise. The rollback and showSaveFailure notice (#792) own
+    // user-facing reporting.
+    return persistShow(id, persisted)
   }, [editableShow, persistShow, builtInSlotGroups, selectedReferencePatterns, activeShow, setReferencePattern, showId, slotPatternNameFor])
   useShowTransportClock(activeShow, transportClockActive)
   const targetProfile = activeShow?.outputContract?.kind === 'portable-2d'
