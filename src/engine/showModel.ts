@@ -278,7 +278,8 @@ export function importedStageMapIdForController(
     if (!metadata) return false
     if (controller.deviceId && metadata.deviceId === controller.deviceId) return true
     if (controller.lastSeenIp && metadata.ip === controller.lastSeenIp) return true
-    return metadata.controllerName === displayName || metadata.controllerName === controller.name
+    return metadata.controllerName === displayName
+      || metadata.controllerName === controller.lastKnownDeviceName
   })
   candidates.sort(
     (a, b) =>

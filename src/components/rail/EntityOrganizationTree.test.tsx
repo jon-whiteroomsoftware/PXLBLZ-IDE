@@ -9,6 +9,7 @@ import { EntityOrganizationTree, type EntityOrganizationTreeHandle } from './Ent
 describe('EntityOrganizationTree', () => {
   it('keeps row facts off the menu hit-test path and opens the menu from the keyboard (#807)', async () => {
     const user = userEvent.setup()
+    const onSelect = vi.fn()
     const organization: EntityOrganizationV1 = {
       version: 1,
       nodes: [{
@@ -27,7 +28,7 @@ describe('EntityOrganizationTree', () => {
         activeEntityId="controller-1"
         query=""
         noun="controller"
-        onSelect={vi.fn()}
+        onSelect={onSelect}
         onRenameEntity={vi.fn()}
         onOrganizationChange={vi.fn()}
       />,
@@ -39,7 +40,13 @@ describe('EntityOrganizationTree', () => {
     const menuButton = screen.getByRole('button', { name: 'More actions for Burner bag' })
     menuButton.focus()
     await user.keyboard('{Enter}')
-    expect(screen.getByRole('button', { name: 'Rename' })).toBeVisible()
+    const renameButton = screen.getByRole('button', { name: 'Rename' })
+    expect(renameButton).toBeVisible()
+
+    renameButton.focus()
+    await user.keyboard('{Enter}')
+    expect(screen.getByRole('textbox', { name: 'Rename item' })).toBeVisible()
+    expect(onSelect).not.toHaveBeenCalled()
   })
 
   it('keeps the Pattern action menu in the row stacking context while names overflow (#662)', () => {

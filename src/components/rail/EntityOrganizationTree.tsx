@@ -571,7 +571,11 @@ function RowActionMenu(props: { onRename?: () => void; onDuplicate?: () => void;
     ['Move to Trash', props.onTrash],
   ] as const
   return (
-    <div className="absolute right-1 top-full z-30 min-w-28 border border-zinc-700 bg-zinc-950 py-1 shadow-xl shadow-black/70" onClick={(event) => event.stopPropagation()}>
+    <div
+      className="absolute right-1 top-full z-30 min-w-28 border border-zinc-700 bg-zinc-950 py-1 shadow-xl shadow-black/70"
+      onClick={(event) => event.stopPropagation()}
+      onKeyDown={(event) => event.stopPropagation()}
+    >
       {actions.map(([label, action]) => (
         <button key={label} type="button" onClick={action} className="block h-6 w-full px-2 text-left text-[10px] text-zinc-300 hover:bg-zinc-800">
           {label}

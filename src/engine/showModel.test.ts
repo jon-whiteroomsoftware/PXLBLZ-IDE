@@ -9,6 +9,7 @@ import {
   createShowWithOutputContract,
   extendShowCell,
   formatShowRoutingRanges,
+  importedStageMapIdForController,
   normalizeShowTransitionState,
   normalizeShowRoutingState,
   parseShowRoutingRanges,
@@ -59,6 +60,39 @@ function expectHoleFreeStrip(show: ShowRecord): void {
 }
 
 describe('showModel (#318)', () => {
+  it('matches a pre-rename Controller map by the last-known device name', () => {
+    const mapId = importedStageMapIdForController({
+      id: 'controller-1',
+      name: 'Renamed Controller',
+      lastKnownDeviceName: 'Original device name',
+      lastSeenIp: '192.0.2.20',
+      board: { kind: 'pixelblaze-v3-standard' },
+      inputs: [],
+      globalTransforms: [],
+      patternBindings: [],
+      zones: [],
+      updatedAt: 2,
+    }, [{
+      id: 'map-before-rename',
+      name: 'Imported map',
+      dim: 2,
+      generator: 'custom',
+      params: {},
+      points: [[0, 0]],
+      importMetadata: {
+        kind: 'controller',
+        controllerName: 'Original device name',
+        ip: '192.0.2.10',
+        pixelCount: 1,
+        importedAt: 1,
+        normalization: 'device-fill-normalized',
+      },
+      updatedAt: 1,
+    }])
+
+    expect(mapId).toBe('map-before-rename')
+  })
+
   it('preserves the canonical Clip Transform as first-class compiler input (#529)', () => {
     const base = createDefaultShow('show-529-transform', 'Transform', 1)
     const show: ShowRecord = {
