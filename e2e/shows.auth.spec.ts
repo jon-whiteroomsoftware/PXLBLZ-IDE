@@ -1110,6 +1110,37 @@ test.describe('authenticated Show authoring', () => {
     expect(shows).toEqual([])
   })
 
+  test('empties the Shows Trash from inside the drawer only after confirmation (#793)', async ({ page }) => {
+    await page.goto(showtimePath('studio/shows'))
+    await createInstallationShow(page)
+
+    await page.getByRole('treeitem', { name: /Untitled Show/ }).hover()
+    await page.getByRole('button', { name: 'More actions for Untitled Show' }).click()
+    await page.getByRole('button', { name: 'Move to Trash' }).click()
+
+    // Empty Trash is reachable from inside the drawer, where the items are.
+    await page.getByRole('button', { name: 'Open Trash (1 item)' }).click()
+    await page.getByRole('button', { name: 'Empty Trash' }).click()
+
+    // Cancel keeps the trashed Show and its record.
+    const dialog = page.getByRole('alertdialog', { name: 'Empty Trash?' })
+    await expect(dialog.getByText('1 item will be permanently deleted and cannot be recovered.')).toBeVisible()
+    await dialog.getByRole('button', { name: 'Cancel' }).click()
+    await expect(dialog).not.toBeVisible()
+    await expect(page.getByRole('button', { name: 'Restore Untitled Show' })).toBeVisible()
+    const afterCancel = await page.context().request.get('/api/shows')
+    expect(((await afterCancel.json()) as { shows: PersistedShow[] }).shows).toHaveLength(1)
+
+    // Confirm permanently deletes the record and closes the drawer.
+    await page.getByRole('button', { name: 'Empty Trash' }).click()
+    await dialog.getByRole('button', { name: 'Empty Trash' }).click()
+    await expect(page.getByRole('button', { name: /Open Trash/ })).not.toBeVisible()
+    await expect.poll(async () => {
+      const response = await page.context().request.get('/api/shows')
+      return ((await response.json()) as { shows: PersistedShow[] }).shows.length
+    }).toBe(0)
+  })
+
   test('returns timeline focus after a discrete edit and supports keyboard preview, start, and five-second seek', async ({ page }) => {
     await page.goto(showtimePath('studio/shows'))
     await createInstallationShow(page)

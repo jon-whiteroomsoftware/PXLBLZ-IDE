@@ -30,6 +30,15 @@ import {
 import { newPersonalContentId } from '@/engine/personalContentMetadata'
 import { sanitizeLibraryNameInput } from '@/engine/libraries'
 import { IDE_MICROTYPE } from '@/components/ui/ideMicrotype'
+import {
+  AlertDialogRoot,
+  AlertDialogContent,
+  AlertDialogTitle,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogCancel,
+  AlertDialogAction,
+} from '@/components/ui/alert-dialog'
 import { DraftTextField } from '@/components/ui/draft-text-field'
 import { EntityIcon, RailEmptyRow, type EntityNoun } from '@/components/rail/RailPrimitives'
 
@@ -91,6 +100,7 @@ export const EntityOrganizationTree = forwardRef<EntityOrganizationTreeHandle, E
   const [dropTarget, setDropTarget] = useState<DropTarget | null>(null)
   const [trashOpen, setTrashOpen] = useState(false)
   const [emptyingTrash, setEmptyingTrash] = useState(false)
+  const [confirmEmptyTrashOpen, setConfirmEmptyTrashOpen] = useState(false)
   const [moveKey, setMoveKey] = useState<EntityOrganizationNodeKey | null>(null)
   const treeRef = useRef<HTMLUListElement>(null)
   const itemsById = useMemo(() => new Map(items.map((item) => [item.id, item])), [items])
@@ -155,6 +165,26 @@ export const EntityOrganizationTree = forwardRef<EntityOrganizationTreeHandle, E
     }
   }
 
+  // Emptying the Trash is the only permanent-loss action in the rail (#793),
+  // so both entry points route through the same confirmation dialog.
+  const trashCount = organization.trash.length
+  const emptyTrashConfirmDialog = (
+    <AlertDialogRoot open={confirmEmptyTrashOpen} onOpenChange={setConfirmEmptyTrashOpen}>
+      <AlertDialogContent>
+        <AlertDialogTitle>Empty Trash?</AlertDialogTitle>
+        <AlertDialogDescription>
+          {trashCount === 1
+            ? '1 item will be permanently deleted and cannot be recovered.'
+            : `${trashCount} items will be permanently deleted and cannot be recovered.`}
+        </AlertDialogDescription>
+        <AlertDialogFooter>
+          <AlertDialogCancel>Cancel</AlertDialogCancel>
+          <AlertDialogAction onClick={() => void handleEmptyTrash()}>Empty Trash</AlertDialogAction>
+        </AlertDialogFooter>
+      </AlertDialogContent>
+    </AlertDialogRoot>
+  )
+
   if (trimmedQuery) {
     const namesByEntityId = Object.fromEntries(items.map((item) => [item.id, item.name]))
     const results = searchEntityOrganization(organization, namesByEntityId, trimmedQuery)
@@ -206,7 +236,19 @@ export const EntityOrganizationTree = forwardRef<EntityOrganizationTreeHandle, E
             )
           })}
           {organization.trash.length === 0 && <p className="px-3 py-3 text-[10px] text-zinc-600">Trash is empty</p>}
+          {organization.trash.length > 0 && (
+            <button
+              type="button"
+              onClick={() => setConfirmEmptyTrashOpen(true)}
+              disabled={emptyingTrash}
+              className="mt-1 flex min-h-[24px] w-full items-center gap-1.5 px-2 text-left text-[11px] text-zinc-500 hover:bg-zinc-900/60 hover:text-red-300 disabled:opacity-30"
+            >
+              <Trash2 size={12} className="shrink-0" />
+              Empty Trash
+            </button>
+          )}
         </div>
+        {emptyTrashConfirmDialog}
       </>
     )
   }
@@ -274,7 +316,7 @@ export const EntityOrganizationTree = forwardRef<EntityOrganizationTreeHandle, E
             type="button"
             onClick={(event) => {
               event.stopPropagation()
-              void handleEmptyTrash()
+              setConfirmEmptyTrashOpen(true)
             }}
             disabled={emptyingTrash}
             aria-label="Empty Trash"
@@ -285,6 +327,7 @@ export const EntityOrganizationTree = forwardRef<EntityOrganizationTreeHandle, E
           </button>
         </div>
       )}
+      {emptyTrashConfirmDialog}
       {moveKey && (
         <MoveDialog
           organization={organization}

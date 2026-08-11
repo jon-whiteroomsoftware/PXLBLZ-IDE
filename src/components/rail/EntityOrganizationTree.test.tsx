@@ -345,7 +345,7 @@ describe('EntityOrganizationTree', () => {
     expect(onRenameEntity).toHaveBeenCalledWith('library-a', 'LibraryName1')
   })
 
-  it('hides empty Trash, then permanently empties populated Trash through its hover action', async () => {
+  it('hides empty Trash, then empties populated Trash only after confirmation (#793)', async () => {
     const empty: EntityOrganizationV1 = {
       version: 1,
       nodes: [{ kind: 'entity', entityId: 'live' }],
@@ -401,8 +401,92 @@ describe('EntityOrganizationTree', () => {
     expect(screen.getByRole('button', { name: 'Open Trash (1 item)' })).toBeVisible()
     fireEvent.click(screen.getByRole('button', { name: 'Empty Trash' }))
 
+    expect(onEmptyTrash).not.toHaveBeenCalled()
+    const dialog = screen.getByRole('alertdialog', { name: 'Empty Trash?' })
+    fireEvent.click(within(dialog).getByRole('button', { name: 'Empty Trash' }))
+
     await vi.waitFor(() => expect(onEmptyTrash).toHaveBeenCalledWith(['gone']))
     expect(onOrganizationChange).not.toHaveBeenCalled()
+  })
+
+  it('cancels Empty Trash without deleting anything (#793)', () => {
+    const organization: EntityOrganizationV1 = {
+      version: 1,
+      nodes: [],
+      trash: [{
+        node: { kind: 'entity', entityId: 'gone' },
+        parentFolderId: null,
+        index: 0,
+        collapsedFolderIds: [],
+      }],
+      collapsedFolderIds: [],
+    }
+    const onEmptyTrash = vi.fn(async () => {})
+    render(
+      <EntityOrganizationTree
+        organization={organization}
+        items={[{ id: 'gone', name: 'Gone' }]}
+        activeEntityId={null}
+        query=""
+        noun="map"
+        onSelect={vi.fn()}
+        onRenameEntity={vi.fn()}
+        onEmptyTrash={onEmptyTrash}
+        onOrganizationChange={vi.fn()}
+      />,
+    )
+
+    fireEvent.click(screen.getByRole('button', { name: 'Empty Trash' }))
+    const dialog = screen.getByRole('alertdialog', { name: 'Empty Trash?' })
+    fireEvent.click(within(dialog).getByRole('button', { name: 'Cancel' }))
+
+    expect(onEmptyTrash).not.toHaveBeenCalled()
+    expect(screen.queryByRole('alertdialog')).not.toBeInTheDocument()
+  })
+
+  it('offers Empty Trash inside the Trash drawer, behind the same confirmation (#793)', async () => {
+    const organization: EntityOrganizationV1 = {
+      version: 1,
+      nodes: [],
+      trash: [
+        {
+          node: { kind: 'entity', entityId: 'gone' },
+          parentFolderId: null,
+          index: 0,
+          collapsedFolderIds: [],
+        },
+        {
+          node: { kind: 'entity', entityId: 'lost' },
+          parentFolderId: null,
+          index: 1,
+          collapsedFolderIds: [],
+        },
+      ],
+      collapsedFolderIds: [],
+    }
+    const onEmptyTrash = vi.fn(async () => {})
+    render(
+      <EntityOrganizationTree
+        organization={organization}
+        items={[{ id: 'gone', name: 'Gone' }, { id: 'lost', name: 'Lost' }]}
+        activeEntityId={null}
+        query=""
+        noun="show"
+        onSelect={vi.fn()}
+        onRenameEntity={vi.fn()}
+        onEmptyTrash={onEmptyTrash}
+        onOrganizationChange={vi.fn()}
+      />,
+    )
+
+    fireEvent.click(screen.getByRole('button', { name: 'Open Trash (2 items)' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Empty Trash' }))
+
+    const dialog = screen.getByRole('alertdialog', { name: 'Empty Trash?' })
+    expect(within(dialog).getByText('2 items will be permanently deleted and cannot be recovered.')).toBeVisible()
+    fireEvent.click(within(dialog).getByRole('button', { name: 'Empty Trash' }))
+
+    await vi.waitFor(() => expect(onEmptyTrash).toHaveBeenCalledWith(['gone', 'lost']))
   })
 
   it('clears a drag cue when the pointer leaves the tree', () => {
