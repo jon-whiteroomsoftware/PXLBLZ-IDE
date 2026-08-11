@@ -45,13 +45,18 @@ export function sliderLean(v) { lean = v }
 export function toggleInvert(v) { invert = v }
 
 var phase = 0
+var clockMs = 0
 var spokes = 6
 
 export function beforeRender(delta) {
-  var seconds = 0.25 + 7.75 * loopInterval * loopInterval
+  // Exact loop: accumulate whole milliseconds and derive phase with one
+  // division, so 16.16 Precise mode carries no per-frame rate bias and the
+  // clock wraps exactly at the loop length.
+  var loopMs = 250 + 7750 * loopInterval * loopInterval
   var dir = direction < 1 / 3 ? -1 : direction < 2 / 3 ? 0 : 1
-  phase = frac(phase + dir * delta * 0.001 / seconds + 1)
-  spokes = 1 + floor(spacing * 10.999)
+  clockMs = mod(clockMs + dir * delta + loopMs, loopMs)
+  phase = clockMs / loopMs
+  spokes = 1 + floor(spacing * 11.999)
 }
 
 // Family crest waveform: a triangle with a movable peak (Lean), cut at the
@@ -73,7 +78,9 @@ function finish(v) {
 }
 
 export function render2D(index, x, y) {
-  var a = atan2(y - 0.5, x - 0.5) / PI2
+  // Sample y increases top to bottom on screen, so atan2 grows clockwise;
+  // negating it makes forward travel counterclockwise as documented.
+  var a = -atan2(y - 0.5, x - 0.5) / PI2
   var p = a * spokes - phase
   hsv(0, 0, finish(crest(p)))
 }

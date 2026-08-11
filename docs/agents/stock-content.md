@@ -32,7 +32,11 @@ A new demo needs all five of these. Missing any one fails `npm test`:
 5. A `CONTROL_DESCRIPTIONS` entry in `src/pixelblaze/controlDescriptions.ts` for
    **every** slider. The first cohort missed this one and left the suite red.
 
-The preview y-axis increases bottom to top.
+For `render2D` sample coordinates on the stock plane map, y = 0 is the top of
+the frame and y increases downward (`camera.ts` flips pos y into clip space;
+verified with a `hsv(0, 0, y)` gradient capture, #819). An earlier note here
+claimed the opposite and cost a review cycle — probe with a gradient before
+relying on either axis for directional behaviour.
 
 ## Changing the stock Show catalogue
 

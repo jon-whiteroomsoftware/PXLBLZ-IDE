@@ -9,7 +9,7 @@ import {
   LUMA_DEMOS,
 } from '@/engine/galleryCatalog'
 import { loadPattern } from '@/engine/loadPattern'
-import { createShim, planeShimConfig } from '@/engine/shim'
+import { createFxShim, createShim, planeShimConfig } from '@/engine/shim'
 import { LIBRARIES } from '@/pixelblaze/libs'
 
 const here = join(process.cwd(), 'src/pixelblaze/stock/patterns')
@@ -46,12 +46,13 @@ interface Harness {
   frame: () => number[]
 }
 
-function makeHarness(name: string): Harness {
+function makeHarness(name: string, mode: 'fast' | 'fidelity' = 'fast'): Harness {
   const src = readFileSync(join(here, `${name}.js`), 'utf8')
-  const { code, metadata } = bundle(src, LIBRARIES)
+  const { code, fxCode, metadata } = bundle(src, LIBRARIES)
   let vt = 0
-  const shim = createShim({ ...planeShimConfig({ rows: 16, cols: 16 }), getVirtualTime: () => vt })
-  const handle = loadPattern(code, metadata, shim.builtins)
+  const config = { ...planeShimConfig({ rows: 16, cols: 16 }), getVirtualTime: () => vt }
+  const shim = mode === 'fidelity' ? createFxShim(config) : createShim(config)
+  const handle = loadPattern(mode === 'fidelity' ? fxCode : code, metadata, shim.builtins)
   const enc = shim.encodeScalar
   const advance = (deltaMs: number) => {
     vt += deltaMs * 65.536
@@ -134,21 +135,79 @@ describe('Luma family output contract (#819)', () => {
 })
 
 describe('Luma family motion contract (#819)', () => {
-  it.each(FAMILY)('%s closes its loop exactly', (name) => {
-    const { handle, enc, advance, frame } = makeHarness(name)
-    // sliderLoopInterval maps v -> 0.25 + 7.75 * v * v seconds; v = 0.6 gives
-    // 3.04 s. Any value works: the contract is closure at the mapped length.
+  // Closure must hold in both numeric modes: the fidelity (16.16 Precise)
+  // pass is what catches a rate-biased clock constant, which float64 hides.
+  for (const mode of ['fast', 'fidelity'] as const) {
+    it.each(FAMILY)(`%s closes its loop exactly in ${mode} mode`, (name) => {
+      const { handle, enc, advance, frame } = makeHarness(name, mode)
+      // sliderLoopInterval maps v -> 250 + 7750 * v * v ms; v = 0.6 gives
+      // 3040 ms, which divides into whole-millisecond steps.
+      handle.controls.sliderLoopInterval(enc(0.6))
+      const loopMs = 250 + 7750 * 0.6 * 0.6
+      advance(0)
+      advance(50)
+      const before = frame()
+      const steps = 40
+      for (let i = 0; i < steps; i++) advance(loopMs / steps)
+      const after = frame()
+      for (let i = 0; i < before.length; i++) {
+        expect(after[i], `${name} pixel ${i}`).toBeCloseTo(before[i], mode === 'fast' ? 4 : 2)
+      }
+    })
+  }
+
+  it('LumaStripes travels from the compass origin: Angle 0 moves crests down-screen', () => {
+    const { handle, enc, advance, shim } = makeHarness('LumaStripes')
+    handle.controls.sliderAngle(enc(0))
     handle.controls.sliderLoopInterval(enc(0.6))
-    const loopMs = (0.25 + 7.75 * 0.6 * 0.6) * 1000
     advance(0)
-    advance(50)
-    const before = frame()
-    const steps = 40
-    for (let i = 0; i < steps; i++) advance(loopMs / steps)
-    const after = frame()
-    for (let i = 0; i < before.length; i++) {
-      expect(after[i], `${name} pixel ${i}`).toBeCloseTo(before[i], 4)
+    const sample = (y: number) => {
+      handle.render2D(enc(0), enc(0.5), enc(y))
+      return shim.capturedPixel()[0]
     }
+    // At phase 0 the crest peak (lean 0.5) sits at y = 0.5 + pitch * (c + k);
+    // default spacing 0.5 -> pitch 0.425, k = -1 -> y = 0.2875.
+    const pitch = 0.05 + 0.5 * 0.75
+    const y0 = 0.5 + pitch * (0.5 - 1)
+    expect(sample(y0)).toBeGreaterThan(0.99)
+    // Advance a quarter loop: with Angle 0 (from the top) the crest must move
+    // DOWN-screen, i.e. toward larger sample y.
+    advance(760)
+    const y1 = y0 + pitch * 0.25
+    expect(sample(y1)).toBeGreaterThan(0.99)
+    expect(sample(y0)).toBeLessThan(0.9)
+  })
+
+  it('LumaPinwheel rotates counterclockwise on screen when forward', () => {
+    const { handle, enc, advance, shim } = makeHarness('LumaPinwheel')
+    handle.controls.sliderLoopInterval(enc(0.6))
+    handle.controls.sliderFeather(enc(0))
+    advance(0)
+    const ringMax = () => {
+      let bestAngle = 0
+      let best = -1
+      for (let i = 0; i < 720; i++) {
+        const theta = (i / 720) * 2 * Math.PI
+        const x = 0.5 + 0.35 * Math.cos(theta)
+        const y = 0.5 + 0.35 * Math.sin(theta)
+        handle.render2D(enc(0), enc(x), enc(y))
+        const v = shim.capturedPixel()[0]
+        if (v > best) {
+          best = v
+          bestAngle = theta
+        }
+      }
+      return bestAngle
+    }
+    const a0 = ringMax()
+    advance(760) // quarter loop = 1/4 spoke period
+    const a1 = ringMax()
+    // Screen y grows downward, so counterclockwise on screen means the
+    // brightest spoke's atan2 angle DECREASES (mod one spoke period of 60deg).
+    const spokePeriod = (2 * Math.PI) / 6
+    const delta = ((a1 - a0) % spokePeriod + spokePeriod * 1.5) % spokePeriod - spokePeriod / 2
+    expect(delta).toBeLessThan(0)
+    expect(delta).toBeGreaterThan(-spokePeriod / 2)
   })
 
   it.each(FAMILY)('%s holds still and reverses under Direction', (name) => {
@@ -198,14 +257,43 @@ describe('Luma family motion contract (#819)', () => {
     advance(33)
     // Values inside one quantization band render identically; crossing a band
     // boundary re-tessellates to a new whole spoke count.
-    handle.controls.sliderSpacing(enc(0.5))
+    handle.controls.sliderSpacing(enc(0.45))
     advance(0)
     const six = frame()
-    handle.controls.sliderSpacing(enc(0.52))
+    handle.controls.sliderSpacing(enc(0.5))
     advance(0)
     expect(frame()).toEqual(six)
-    handle.controls.sliderSpacing(enc(0.6))
+    handle.controls.sliderSpacing(enc(0.55))
     advance(0)
     expect(frame()).not.toEqual(six)
+  })
+
+  it('LumaPinwheel reaches both documented spoke endpoints', () => {
+    const { handle, enc, advance, shim } = makeHarness('LumaPinwheel')
+    handle.controls.sliderDirection(enc(0.5))
+    handle.controls.sliderFeather(enc(0))
+    handle.controls.sliderWidth(enc(0.5))
+    advance(0)
+    advance(33)
+    const countSpokes = () => {
+      // Rising edges around a mid-radius circle count the spokes exactly once
+      // each (hard edges via Feather 0).
+      let rises = 0
+      let previous = 0
+      for (let i = 0; i <= 1440; i++) {
+        const theta = (i / 1440) * 2 * Math.PI
+        handle.render2D(enc(0), enc(0.5 + 0.35 * Math.cos(theta)), enc(0.5 + 0.35 * Math.sin(theta)))
+        const v = shim.capturedPixel()[0]
+        if (i > 0 && previous < 0.5 && v >= 0.5) rises++
+        previous = v
+      }
+      return rises
+    }
+    handle.controls.sliderSpacing(enc(1))
+    advance(0)
+    expect(countSpokes(), 'Spacing 1 reaches 12 spokes').toBe(12)
+    handle.controls.sliderSpacing(enc(0))
+    advance(0)
+    expect(countSpokes(), 'Spacing 0 is a single spoke').toBe(1)
   })
 })

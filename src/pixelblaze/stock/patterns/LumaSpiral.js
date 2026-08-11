@@ -47,12 +47,17 @@ export function sliderLean(v) { lean = v }
 export function toggleInvert(v) { invert = v }
 
 var phase = 0
+var clockMs = 0
 var pitch = 0.5
 
 export function beforeRender(delta) {
-  var seconds = 0.25 + 7.75 * loopInterval * loopInterval
+  // Exact loop: accumulate whole milliseconds and derive phase with one
+  // division, so 16.16 Precise mode carries no per-frame rate bias and the
+  // clock wraps exactly at the loop length.
+  var loopMs = 250 + 7750 * loopInterval * loopInterval
   var dir = direction < 1 / 3 ? -1 : direction < 2 / 3 ? 0 : 1
-  phase = frac(phase + dir * delta * 0.001 / seconds + 1)
+  clockMs = mod(clockMs + dir * delta + loopMs, loopMs)
+  phase = clockMs / loopMs
   pitch = 0.05 + spacing * 0.75
 }
 
@@ -77,6 +82,9 @@ function finish(v) {
 export function render2D(index, x, y) {
   var dx = x - 0.5
   var dy = y - 0.5
-  var p = hypot(dx, dy) / pitch + atan2(dy, dx) / PI2 - phase
+  // Sample y increases top to bottom on screen, so atan2 grows clockwise;
+  // subtracting it makes forward travel outward-counterclockwise as
+  // documented. The angle enters in whole periods, so the wrap is seamless.
+  var p = hypot(dx, dy) / pitch - atan2(dy, dx) / PI2 - phase
   hsv(0, 0, finish(crest(p)))
 }

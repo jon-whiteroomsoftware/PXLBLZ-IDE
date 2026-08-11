@@ -47,18 +47,24 @@ export function sliderAngle(v) { angle = v }
 export function toggleInvert(v) { invert = v }
 
 var phase = 0
+var clockMs = 0
 var pitch = 0.4
 var hx = 0, hy = -1
 
 export function beforeRender(delta) {
-  var seconds = 0.25 + 7.75 * loopInterval * loopInterval
+  // Exact loop: accumulate whole milliseconds and derive phase with one
+  // division, so 16.16 Precise mode carries no per-frame rate bias and the
+  // clock wraps exactly at the loop length.
+  var loopMs = 250 + 7750 * loopInterval * loopInterval
   var dir = direction < 1 / 3 ? -1 : direction < 2 / 3 ? 0 : 1
-  phase = frac(phase + dir * delta * 0.001 / seconds + 1)
+  clockMs = mod(clockMs + dir * delta + loopMs, loopMs)
+  phase = clockMs / loopMs
   pitch = 0.05 + spacing * 0.75
   // Angle names the compass origin of travel (a north wind blows from the
-  // north): 0 comes from the top. Preview y increases bottom to top.
+  // north): 0 comes from the top. Plane-map sample y increases top to bottom
+  // on screen, so from-the-top travel is the +y direction.
   hx = -sin(angle * PI2)
-  hy = -cos(angle * PI2)
+  hy = cos(angle * PI2)
 }
 
 // Family crest waveform: a triangle with a movable peak (Lean), cut at the
