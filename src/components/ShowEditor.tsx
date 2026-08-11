@@ -1161,6 +1161,12 @@ export function ShowEditor({
     // user-facing reporting.
     return persistShow(id, persisted)
   }, [editableShow, persistShow, builtInSlotGroups, selectedReferencePatterns, activeShow, setReferencePattern, showId, slotPatternNameFor])
+  // Fire-and-forget edits discard the promise; consuming the rejection here
+  // keeps a routine offline save (already rolled back and reported through
+  // showSaveFailure, #792) from doubling as an uncaught browser error.
+  const updateShowInBackground = useCallback((id: string, next: ShowRecord) => {
+    updateShow(id, next).catch(() => {})
+  }, [updateShow])
   useShowTransportClock(activeShow, transportClockActive)
   const targetProfile = activeShow?.outputContract?.kind === 'portable-2d'
     ? undefined
@@ -1216,13 +1222,13 @@ export function ShowEditor({
         if (composition === activeShow.composition) return false
         closeDetailPanel()
         closePinnedDetailForSelection(targetSelection)
-        void updateShow(activeShow.id, { ...activeShow, composition, updatedAt: Date.now() })
+        updateShowInBackground(activeShow.id, { ...activeShow, composition, updatedAt: Date.now() })
         return true
       }
       if (!legacyClipExists) return false
       closeDetailPanel()
       closePinnedDetailForSelection(targetSelection)
-      void removeClip(activeShow.id, legacyClipId!)
+      void removeClip(activeShow.id, legacyClipId!).catch(() => {})
       return true
     }
     if (targetSelection.kind === 'group') {
@@ -1232,18 +1238,18 @@ export function ShowEditor({
       closeDetailPanel()
       closePinnedDetailForSelection(targetSelection)
       setSelection({ kind: 'show' })
-      void updateShow(activeShow.id, { ...activeShow, composition, updatedAt: Date.now() })
+      updateShowInBackground(activeShow.id, { ...activeShow, composition, updatedAt: Date.now() })
       return true
     }
     if (targetSelection.kind === 'zone') {
       if (activeShow.zones.length <= 1 || !activeShow.zones.some((zone) => zone.id === targetSelection.zoneId)) return false
       closeDetailPanel()
       closePinnedDetailForSelection(targetSelection)
-      void removeZone(activeShow.id, targetSelection.zoneId)
+      void removeZone(activeShow.id, targetSelection.zoneId).catch(() => {})
       return true
     }
     return false
-  }, [activeShow, closeDetailPanel, closePinnedDetailForSelection, readOnly, removeBoundaryTransition, removeClip, removeZone, updateShow])
+  }, [activeShow, closeDetailPanel, closePinnedDetailForSelection, readOnly, removeBoundaryTransition, removeClip, removeZone, updateShowInBackground])
   useEffect(() => {
     if (!blockedDeleteFeedback) return
     const timeout = window.setTimeout(() => setBlockedDeleteFeedback(null), 1100)
@@ -1749,7 +1755,7 @@ export function ShowEditor({
               indexes,
             )
             setSpatialZoneSelection(null)
-            void updateShow(activeShow.id, next)
+            updateShowInBackground(activeShow.id, next)
           }}
         />
       )
@@ -2410,13 +2416,13 @@ export function ShowEditor({
                 }}
                 onAddZone={() => {
                   timelineWorkspaceRef.current?.focus()
-                  void addZone(activeShow.id)
+                  void addZone(activeShow.id).catch(() => {})
                 }}
-                onUpdateZone={(zoneId, changes) => void updateZone(activeShow.id, zoneId, changes)}
+                onUpdateZone={(zoneId, changes) => void updateZone(activeShow.id, zoneId, changes).catch(() => {})}
                 onRemoveZone={(zoneId) => {
                   closeDetailPanel()
                   closePinnedDetailForSelection({ kind: 'zone', zoneId })
-                  void removeZone(activeShow.id, zoneId)
+                  void removeZone(activeShow.id, zoneId).catch(() => {})
                 }}
               />
           </section>
@@ -2499,18 +2505,18 @@ export function ShowEditor({
                       setSpatialZoneSelection({ zoneId, layoutId: spatialRoutingLayout.id })
                     }
                   }}
-                  onUpdateTargetProfile={(targetControllerProfileId) => void updateShow(activeShow.id, {
+                  onUpdateTargetProfile={(targetControllerProfileId) => updateShowInBackground(activeShow.id, {
                     ...activeShow,
                     targetControllerProfileId: targetControllerProfileId || undefined,
                     updatedAt: Date.now(),
                   })}
-                  onUpdatePortableReference={(referenceMapId, referencePixelCount) => void updateShow(activeShow.id, {
+                  onUpdatePortableReference={(referenceMapId, referencePixelCount) => updateShowInBackground(activeShow.id, {
                     ...activeShow,
                     stageMapId: referenceMapId,
                     outputContract: createPortableShowOutputContract({ referenceMapId, referencePixelCount }),
                     updatedAt: Date.now(),
                   })}
-                  onUpdateOutputEffects={(outputEffects) => void updateShow(activeShow.id, {
+                  onUpdateOutputEffects={(outputEffects) => updateShowInBackground(activeShow.id, {
                     ...activeShow,
                     outputEffects: normalizeShowOutputEffects(outputEffects),
                     updatedAt: Date.now(),
@@ -2519,7 +2525,7 @@ export function ShowEditor({
                   onRemoveClip={(clip) => {
                     closeDetailPanel()
                     closePinnedDetailForSelection({ kind: 'clip', clipId: clip.id })
-                    void removeClip(activeShow.id, clip.id)
+                    void removeClip(activeShow.id, clip.id).catch(() => {})
                   }}
                   onUpdateAdaptations={(cell, changes) => void updateCellAdaptations(activeShow.id, cell.id, changes)}
                   onUpdateClipInspector={commitClipInspectorPatch}
@@ -2559,7 +2565,7 @@ export function ShowEditor({
                               : deleteShowPropertyTrack(composition, owner.sceneId, change.trackId)
                     }
                     if (next === composition) return false
-                    void updateShow(activeShow.id, { ...activeShow, composition: next, updatedAt: Date.now() })
+                    updateShowInBackground(activeShow.id, { ...activeShow, composition: next, updatedAt: Date.now() })
                     return true
                   }}
                   onUpdateGroupClipInspector={commitGroupClipInspectorPatch}
@@ -2575,7 +2581,7 @@ export function ShowEditor({
                       newInstanceId: newPersonalContentId(),
                     })
                     if (composition === timelineComposition) return
-                    void updateShow(activeShow.id, { ...activeShow, composition, updatedAt: Date.now() })
+                    updateShowInBackground(activeShow.id, { ...activeShow, composition, updatedAt: Date.now() })
                   }}
                   onRejoinCompositionPattern={(owner, targetInstanceId) => {
                     if (!timelineComposition) return
@@ -2586,7 +2592,7 @@ export function ShowEditor({
                       targetInstanceId,
                     })
                     if (composition === timelineComposition) return
-                    void updateShow(activeShow.id, { ...activeShow, composition, updatedAt: Date.now() })
+                    updateShowInBackground(activeShow.id, { ...activeShow, composition, updatedAt: Date.now() })
                   }}
                   onRemoveCompositionClip={(owner) => {
                     if (!timelineComposition) return
@@ -2620,7 +2626,7 @@ export function ShowEditor({
                     if (timelineOwner) {
                       closePinnedDetailForSelection({ kind: 'clip', clipId: timelineOwner.placementId })
                     }
-                    void updateShow(activeShow.id, { ...activeShow, composition, updatedAt: Date.now() })
+                    updateShowInBackground(activeShow.id, { ...activeShow, composition, updatedAt: Date.now() })
                   }}
                   onDuplicateGroup={(occurrenceId) => {
                     if (!activeShow.composition) return
@@ -2635,8 +2641,9 @@ export function ShowEditor({
                       startMs: occurrence.startMs + durationMs,
                     })
                     if (validateShowGroups(activeShow, composition).length > 0) return
-                    void updateShow(activeShow.id, { ...activeShow, composition, updatedAt: Date.now() })
+                    updateShow(activeShow.id, { ...activeShow, composition, updatedAt: Date.now() })
                       .then(() => selectTimeline({ kind: 'group', occurrenceId: newOccurrenceId }))
+                      .catch(() => {})
                   }}
                   onMakeGroupUnique={(occurrenceId) => {
                     if (!activeShow.composition) return
@@ -2645,19 +2652,19 @@ export function ShowEditor({
                       newDefinitionId: newPersonalContentId(),
                     })
                     if (composition === activeShow.composition) return
-                    void updateShow(activeShow.id, { ...activeShow, composition, updatedAt: Date.now() })
+                    updateShowInBackground(activeShow.id, { ...activeShow, composition, updatedAt: Date.now() })
                   }}
                   onTranslateGroup={(occurrenceId, translationX, translationY) => {
                     if (!activeShow.composition) return
                     const composition = translateShowGroupOccurrence(activeShow.composition, { occurrenceId, translationX, translationY })
                     if (composition === activeShow.composition) return
-                    void updateShow(activeShow.id, { ...activeShow, composition, updatedAt: Date.now() })
+                    updateShowInBackground(activeShow.id, { ...activeShow, composition, updatedAt: Date.now() })
                   }}
                   onUpdateGroupPlacement={(occurrenceId, patch) => {
                     if (!activeShow.composition) return
                     const composition = updateShowGroupOccurrencePlacement(activeShow.composition, { occurrenceId, ...patch })
                     if (composition === activeShow.composition || validateShowGroups(activeShow, composition).length > 0) return
-                    void updateShow(activeShow.id, { ...activeShow, composition, updatedAt: Date.now() })
+                    updateShowInBackground(activeShow.id, { ...activeShow, composition, updatedAt: Date.now() })
                   }}
                   onDeleteGroup={(occurrenceId) => {
                     requestDeleteSelection({ kind: 'group', occurrenceId })
@@ -2668,11 +2675,11 @@ export function ShowEditor({
                     if (composition === activeShow.composition) return
                     closeDetailPanel()
                     closePinnedDetailForSelection({ kind: 'group', occurrenceId })
-                    void updateShow(activeShow.id, { ...activeShow, composition, updatedAt: Date.now() })
+                    updateShowInBackground(activeShow.id, { ...activeShow, composition, updatedAt: Date.now() })
                   }}
                   onUpdateControlTarget={(cell, exportName, value) => void updateCellControlTarget(activeShow.id, cell.id, exportName, value)}
                   onUpdateRestartOnEntry={(cell, restartOnEntry) => void updateCellRestartOnEntry(activeShow.id, cell.id, restartOnEntry)}
-                  onSpanZones={(cell, zoneSpan) => void spanCellZones(activeShow.id, cell.id, zoneSpan)}
+                  onSpanZones={(cell, zoneSpan) => void spanCellZones(activeShow.id, cell.id, zoneSpan).catch(() => {})}
                   onUpdateCellZoneMode={(cell, zoneMode) => void updateCellZoneMode(activeShow.id, cell.id, zoneMode)}
                   onUpdateBoundaryTransition={(transitionId, changes) => void updateBoundaryTransition(activeShow.id, transitionId, changes)}
                   onOpenTransitions={(transitionId) => setTransitionPaletteId(transitionId)}
@@ -2683,15 +2690,15 @@ export function ShowEditor({
                   }}
                   onAddZone={() => {
                     timelineWorkspaceRef.current?.focus()
-                    void addZone(activeShow.id)
+                    void addZone(activeShow.id).catch(() => {})
                   }}
-                  onUpdateZone={(zoneId, changes) => void updateZone(activeShow.id, zoneId, changes)}
+                  onUpdateZone={(zoneId, changes) => void updateZone(activeShow.id, zoneId, changes).catch(() => {})}
                   onRemoveZone={(zoneId) => {
                     closeDetailPanel()
                     closePinnedDetailForSelection({ kind: 'zone', zoneId })
-                    void removeZone(activeShow.id, zoneId)
+                    void removeZone(activeShow.id, zoneId).catch(() => {})
                   }}
-                  onAddRoutingLayout={(sourceLayoutId) => void addRoutingLayout(activeShow.id, sourceLayoutId)}
+                  onAddRoutingLayout={(sourceLayoutId) => void addRoutingLayout(activeShow.id, sourceLayoutId).catch(() => {})}
                   onUpdateRoutingLayout={(layoutId, changes) => void updateRoutingLayout(activeShow.id, layoutId, changes)}
                   onRemoveRoutingLayout={(layoutId) => void removeRoutingLayout(activeShow.id, layoutId)}
                   />
@@ -2749,7 +2756,7 @@ export function ShowEditor({
                 }
                 setLayerTransitionApplyError(null)
                 setLayerTransitionTarget(null)
-                void updateShow(activeShow.id, {
+                updateShowInBackground(activeShow.id, {
                   ...activeShow,
                   composition: nextComposition,
                   updatedAt: Date.now(),
@@ -2783,7 +2790,7 @@ export function ShowEditor({
                     )
                 if (nextComposition === timelineComposition) return
                 setLayerTransitionTarget(null)
-                void updateShow(activeShow.id, {
+                updateShowInBackground(activeShow.id, {
                   ...activeShow,
                   composition: nextComposition,
                   updatedAt: Date.now(),
@@ -2804,7 +2811,7 @@ export function ShowEditor({
                     )
                 if (nextComposition === timelineComposition) return
                 setLayerTransitionTarget(null)
-                void updateShow(activeShow.id, {
+                updateShowInBackground(activeShow.id, {
                   ...activeShow,
                   composition: nextComposition,
                   updatedAt: Date.now(),
@@ -2834,7 +2841,7 @@ export function ShowEditor({
                       if (nextComposition !== timelineComposition) {
                         closeDetailPanel()
                         closePinnedDetailForSelection({ kind: 'clip', clipId: compositionClipPendingDelete.placementId })
-                        void updateShow(activeShow.id, {
+                        updateShowInBackground(activeShow.id, {
                           ...activeShow,
                           composition: nextComposition,
                           updatedAt: Date.now(),
@@ -3031,7 +3038,7 @@ function ShowTimelineHistoryCommands({
       title="Undo Show edit (Command/Ctrl+Z)"
       disabled={!undoEnabled}
       className={showTimelineToolbarControlClass({ enabled: undoEnabled })}
-      onClick={() => void undoShow(show.id)}
+      onClick={() => void undoShow(show.id).catch(() => {})}
     >
       <Undo2 size={12} aria-hidden />
     </Button>
@@ -3042,7 +3049,7 @@ function ShowTimelineHistoryCommands({
       title="Redo Show edit (Command/Ctrl+Shift+Z)"
       disabled={!redoEnabled}
       className={showTimelineToolbarControlClass({ enabled: redoEnabled })}
-      onClick={() => void redoShow(show.id)}
+      onClick={() => void redoShow(show.id).catch(() => {})}
     >
       <Redo2 size={12} aria-hidden />
     </Button>
@@ -3157,9 +3164,9 @@ function ShowTimelineCommands({
             if (compositionOwner) {
               void onSplitCompositionClip(compositionOwner, positionMs).then((placementId) => {
                 if (placementId) onSelect({ kind: 'clip', clipId: placementId })
-              })
+              }).catch(() => {})
             } else {
-              void splitAtTime(show.id, positionMs)
+              void splitAtTime(show.id, positionMs).catch(() => {})
             }
           }}
         >
@@ -3642,7 +3649,7 @@ function ShowTimelineWorkspace({
       setAddClipOpen(false)
       setAddClipPointerContext(null)
       onSelect({ kind: 'clip', clipId: placementId })
-    }).finally(() => setAddClipSubmitting(false))
+    }).catch(() => {}).finally(() => setAddClipSubmitting(false))
   }
   const layoutActionInterval = showLayoutIntervalAtTime(layoutIntervals, layoutActionTimeMs)
   const layoutActionDurationMs = Math.round(layoutActionDurationSeconds * 1000)
@@ -3655,7 +3662,7 @@ function ShowTimelineWorkspace({
     void action().then((changed) => {
       if (changed) setLayoutActionsOpen(false)
       else setLayoutActionError('That operation is not available at this time. Move the playhead outside a Transition and leave enough room to split occupied Clips.')
-    })
+    }).catch(() => {})
   }
   let viewport = storedViewport
   if (viewport.totalMs !== fittedViewport.totalMs) {
@@ -4500,7 +4507,7 @@ function ShowTimelineWorkspace({
                         if (!insertTimePlan.enabled) return
                         void onInsertTime(insertTimeAtMs, insertTimeDurationMs).then((changed) => {
                           if (changed) setInsertTimeOpen(false)
-                        })
+                        }).catch(() => {})
                       }}
                     >Insert</Button>
                   </div>
@@ -5182,7 +5189,7 @@ function ShowTimelineWorkspace({
                       : draggedClip.clipId
                     if (draggedClip.mode === 'duplicate') onSelect({ kind: 'clip', clipId })
                     onReanchorDetails({ kind: 'clip', clipId })
-                  }).finally(() => {
+                  }).catch(() => {}).finally(() => {
                     activeMoveLayerRef.current = null
                     draggingCompositionClipRef.current = null
                     setDraggingCompositionClip(null)
@@ -5368,7 +5375,7 @@ function ShowTimelineWorkspace({
                       : draggedClip.clipId
                     if (activePlan.mode === 'duplicate') onSelect({ kind: 'clip', clipId })
                     onReanchorDetails({ kind: 'clip', clipId })
-                  }).finally(() => {
+                  }).catch(() => {}).finally(() => {
                     activeMoveLayerRef.current = null
                     draggingCompositionClipRef.current = null
                     setDraggingCompositionClip(null)
