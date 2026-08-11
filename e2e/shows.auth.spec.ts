@@ -1214,6 +1214,29 @@ test.describe('authenticated Show authoring', () => {
     await expect(reason).not.toBeVisible()
     await clone.focus()
     await expect(reason).toBeVisible()
+  test('duplicates a Show from its rail row and forks a built-in with Save a copy (#794)', async ({ page }) => {
+    await page.goto(showtimePath('studio/shows'))
+    await createInstallationShow(page)
+    const sourceId = new URL(page.url()).pathname.split('/').at(-1)
+
+    // Rail row Duplicate persists a copy and opens it.
+    await page.getByRole('treeitem', { name: /Untitled Show/ }).first().hover()
+    await page.getByRole('button', { name: 'More actions for Untitled Show' }).click()
+    await page.getByRole('button', { name: 'Duplicate' }).click()
+    await expect(page.getByRole('treeitem', { name: /Untitled Show copy/ })).toBeVisible()
+    await expect.poll(() => new URL(page.url()).pathname.split('/').at(-1)).not.toBe(sourceId)
+    const shows = ((await (await page.context().request.get('/api/shows')).json()) as { shows: PersistedShow[] }).shows
+    expect(shows).toHaveLength(2)
+    expect(shows.map((show) => show.name).sort()).toEqual(['Untitled Show', 'Untitled Show copy'])
+
+    // A built-in forks through Save a copy, keeping the work as personal.
+    await page.goto(showtimePath('studio/shows/stock-show-101-clips-cuts-blank-time'))
+    await page.getByRole('button', { name: 'Save a copy' }).click()
+    await expect.poll(async () => (
+      ((await (await page.context().request.get('/api/shows')).json()) as { shows: PersistedShow[] }).shows.length
+    )).toBe(3)
+    await expect.poll(() => new URL(page.url()).pathname.split('/').at(-1)).not.toContain('stock-')
+    await expect(page.getByRole('region', { name: 'Show timeline' })).toBeVisible()
   })
 
   test('returns timeline focus after a discrete edit and supports keyboard preview, start, and five-second seek', async ({ page }) => {

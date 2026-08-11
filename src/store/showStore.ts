@@ -99,6 +99,12 @@ interface ShowState {
   addShow: (record: ShowRecord) => Promise<void>
   renameShow: (id: string, name: string) => Promise<void>
   removeShow: (id: string) => Promise<void>
+  /**
+   * Persists a copy of a personal Show or of a built-in's current session
+   * draft under a fresh identity (#794). Resolves null when the source is
+   * unknown or the create fails.
+   */
+  duplicateShow: (sourceId: string) => Promise<ShowRecord | null>
   updateShow: (id: string, next: ShowRecord) => Promise<void>
   // Resolves the record an edit operation should start from: a personal
   // record, an in-memory built-in draft, or the pristine built-in fixture.
@@ -297,6 +303,23 @@ export const useShowStore = create<ShowState>()((set, get) => ({
       shows: remaining,
       activeShowId: activeShowId === id ? null : activeShowId,
     })
+  },
+
+  duplicateShow: async (sourceId) => {
+    const source = get().resolveEditableShow(sourceId)
+    if (!source) return null
+    const record = {
+      ...source,
+      id: newPersonalContentId(),
+      name: uniquePatternName(`${source.name} copy`, get().shows.map((show) => show.name)),
+      updatedAt: Date.now(),
+    }
+    try {
+      await get().addShow(record)
+    } catch {
+      return null
+    }
+    return record
   },
 
   resolveEditableShow: (id) => {

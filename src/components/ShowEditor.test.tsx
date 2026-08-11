@@ -4635,6 +4635,23 @@ describe('ShowEditor (#318)', () => {
     expect(useShowStore.getState().shows).toEqual([])
   })
 
+  it('saves a built-in Show copy into the personal workspace and opens it (#794)', async () => {
+    const user = userEvent.setup()
+    const stock = STOCK_SHOWS[0]
+    setPersonalContentProvider(memoryProvider([]))
+    useShowStore.setState({ shows: [], showsLoaded: true })
+
+    render(<ShowEditor showId={stock.id} showOverride={stock.show} readOnly />)
+
+    await user.click(screen.getByRole('button', { name: 'Save a copy' }))
+
+    await waitFor(() => expect(useShowStore.getState().shows).toHaveLength(1))
+    const copy = useShowStore.getState().shows[0]
+    expect(copy.id).not.toBe(stock.id)
+    expect(copy.name).toBe(`${stock.show.name} copy`)
+    expect(useShowStore.getState().activeShowId).toBe(copy.id)
+  })
+
   it('authors stepped cadence through an exact rate field with a transient slider (#779)', async () => {
     const user = userEvent.setup()
     const stock = STOCK_SHOWS.find((candidate) => candidate.id === 'stock-show-204-presentation-modes')!

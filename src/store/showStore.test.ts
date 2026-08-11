@@ -1,6 +1,6 @@
 import { showInitialState, useShowStore } from './showStore'
 import { mapInitialState, useMapStore } from './mapStore'
-import { stockShowById } from '@/pixelblaze/stock/shows'
+import { STOCK_SHOWS, stockShowById } from '@/pixelblaze/stock/shows'
 import { createDefaultShow } from '@/engine/showModel'
 import { validateShowComposition } from '@/engine/showCompositionModel'
 import {
@@ -162,6 +162,44 @@ describe('showStore (#318)', () => {
     releaseFirst()
     await Promise.all([first, second])
     expect(writes.map((write) => write.name)).toEqual(['First', 'Second'])
+  })
+
+  it('duplicates a personal Show as a persisted copy with a fresh identity (#794)', async () => {
+    const show = createDefaultShow('show-duplicate-source', 'Tour opener', 1)
+    const provider = memoryProvider([show])
+    setPersonalContentProvider(provider)
+    useShowStore.setState({ shows: [show], activeShowId: show.id, showsLoaded: true })
+
+    const copy = await useShowStore.getState().duplicateShow(show.id)
+
+    expect(copy).not.toBeNull()
+    expect(copy!.id).not.toBe(show.id)
+    expect(copy!.name).toBe('Tour opener copy')
+    expect(copy!.scenes).toEqual(show.scenes)
+    expect(useShowStore.getState().shows.map((candidate) => candidate.id)).toContain(copy!.id)
+    const persisted = (await provider.listShows()).find((candidate) => candidate.id === copy!.id)
+    expect(persisted?.name).toBe('Tour opener copy')
+
+    const second = await useShowStore.getState().duplicateShow(show.id)
+    expect(second?.name).toBe('Tour opener copy 1')
+  })
+
+  it('saves a built-in Show copy from its session draft, not the pristine catalogue (#794)', async () => {
+    const stock = stockShowById(STOCK_SHOWS[0].id)!
+    const provider = memoryProvider([])
+    setPersonalContentProvider(provider)
+    const draft = { ...stock.show, scenes: stock.show.scenes.map((scene, index) => (
+      index === 0 ? { ...scene, name: 'Authored on top' } : scene
+    )) }
+    useShowStore.setState({ shows: [], showsLoaded: true, stockShowDrafts: { [stock.id]: draft } })
+
+    const copy = await useShowStore.getState().duplicateShow(stock.id)
+
+    expect(copy).not.toBeNull()
+    expect(copy!.id).not.toBe(stock.id)
+    expect(copy!.scenes[0].name).toBe('Authored on top')
+    const persisted = (await provider.listShows()).find((candidate) => candidate.id === copy!.id)
+    expect(persisted?.scenes[0].name).toBe('Authored on top')
   })
 
   it('updateShow itself still rejects for callers that gate on persistence (#792)', async () => {

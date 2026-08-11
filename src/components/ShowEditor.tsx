@@ -267,6 +267,7 @@ import {
 } from '@/store/showTransportStore'
 import { usePatternStore } from '@/store/patternStore'
 import { useShowStore } from '@/store/showStore'
+import { useRouterStore } from '@/store/routerStore'
 import { useShowPreviewOverrideStore } from '@/store/showPreviewOverrideStore'
 import { useShowEditorSessionStore } from '@/store/showEditorSessionStore'
 import { docExternalHref } from '@/docs/catalog'
@@ -937,6 +938,9 @@ export function ShowEditor({
   const stockShowDraft = useShowStore((state) => state.stockShowDrafts[showId])
   const hasStockDraft = stockShowDraft !== undefined
   const resetStockShowDraft = useShowStore((state) => state.resetStockShowDraft)
+  const duplicateShow = useShowStore((state) => state.duplicateShow)
+  const openShow = useShowStore((state) => state.openShow)
+  const routerNavigate = useRouterStore((state) => state.navigate)
   const persistShow = useShowStore((state) => state.updateShow)
   const showSaveFailure = useShowStore((state) => state.showSaveFailure)
   const dismissShowSaveFailure = useShowStore((state) => state.dismissShowSaveFailure)
@@ -2000,6 +2004,23 @@ export function ShowEditor({
         >
           <RotateCcw size={13} aria-hidden />
           <span className="show-header-action-label">Reset</span>
+        </Button>
+      )}
+      {stockShowById(showId) !== undefined && (
+        <Button
+          size="xs"
+          variant="ghost"
+          aria-label="Save a copy"
+          title="Save this built-in (including session edits) as a personal Show"
+          className="bg-zinc-900/60 text-[11px] text-zinc-400 hover:bg-zinc-800 hover:text-zinc-200"
+          onClick={() => void duplicateShow(showId).then((copy) => {
+            if (!copy) return
+            void openShow(copy.id)
+            routerNavigate({ kind: 'studio', entity: { kind: 'shows', id: copy.id } })
+          })}
+        >
+          <Copy size={13} aria-hidden />
+          <span className="show-header-action-label">Save a copy</span>
         </Button>
       )}
       <Button

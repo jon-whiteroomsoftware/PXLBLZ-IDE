@@ -118,6 +118,7 @@ export function PatternList({
   const openShow = useShowStore((s) => s.openShow)
   const renameShow = useShowStore((s) => s.renameShow)
   const removeShow = useShowStore((s) => s.removeShow)
+  const duplicateShow = useShowStore((s) => s.duplicateShow)
   const patternOrganization = useEntityOrganizationStore((s) => s.organizations.patterns)
   const showOrganization = useEntityOrganizationStore((s) => s.organizations.shows)
   const mapOrganization = useEntityOrganizationStore((s) => s.organizations.maps)
@@ -703,6 +704,11 @@ export function PatternList({
     navigate({ kind: 'studio', entity: { kind: 'shows', id: show.id } })
   }
 
+  async function handleDuplicateShow(id: string) {
+    const copy = await duplicateShow(id)
+    if (copy) openUserShow(copy)
+  }
+
   function openUserShow(show: ShowRecord) {
     closeMapEditor()
     closeMixinEditor()
@@ -995,6 +1001,7 @@ export function PatternList({
             onOpenStockShow={openStockShowRoute}
             onToggleStockShows={() => setShowStockShows((visible) => !visible)}
             onRenameShow={renameShow}
+            onDuplicateShow={(id) => void handleDuplicateShow(id)}
             onEmptyTrash={handleRemoveShows}
             onQueryChange={setQuery}
             personalOrganization={showOrganization}

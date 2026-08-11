@@ -74,6 +74,8 @@ interface EntityOrganizationTreeProps {
   emptyMessage?: string
   onSelect: (entityId: string) => void
   onRenameEntity: (entityId: string, name: string) => void
+  /** Offers Duplicate on entity rows (#794); folders never duplicate. */
+  onDuplicateEntity?: (entityId: string) => void
   onEmptyTrash?: (entityIds: string[]) => void | Promise<void>
   onOrganizationChange: (organization: EntityOrganizationV1) => void
 }
@@ -91,6 +93,7 @@ export const EntityOrganizationTree = forwardRef<EntityOrganizationTreeHandle, E
   emptyMessage,
   onSelect,
   onRenameEntity,
+  onDuplicateEntity,
   onEmptyTrash,
   onOrganizationChange,
 }, ref) {
@@ -292,6 +295,7 @@ export const EntityOrganizationTree = forwardRef<EntityOrganizationTreeHandle, E
             onMenu={setMenuKey}
             onReorder={reorder}
             onMove={setMoveKey}
+            onDuplicateEntity={onDuplicateEntity}
             onTrash={(key) => change(trashEntityOrganizationNode(organization, key))}
             onDragStart={setDraggedKey}
             onDragOver={(target) => setDropTarget(target)}
@@ -367,6 +371,7 @@ function OrganizationTreeNode(props: {
   onMenu: (key: EntityOrganizationNodeKey | null) => void
   onReorder: (key: EntityOrganizationNodeKey, direction: -1 | 1) => void
   onMove: (key: EntityOrganizationNodeKey) => void
+  onDuplicateEntity?: (entityId: string) => void
   onTrash: (key: EntityOrganizationNodeKey) => void
   onDragStart: (key: EntityOrganizationNodeKey) => void
   onDragOver: (target: DropTarget) => void
@@ -487,6 +492,10 @@ function OrganizationTreeNode(props: {
               props.onMenu(null)
               props.onEdit(key)
             } : undefined}
+            onDuplicate={item && props.onDuplicateEntity ? () => {
+              props.onMenu(null)
+              props.onDuplicateEntity!(item.id)
+            } : undefined}
             onMoveUp={() => props.onReorder(key, -1)}
             onMoveDown={() => props.onReorder(key, 1)}
             onMoveTo={() => props.onMove(key)}
@@ -551,9 +560,10 @@ function InlineName({ name, sanitizeAsIdentifier, onCommit, onCancel }: { name: 
   )
 }
 
-function RowActionMenu(props: { onRename?: () => void; onMoveUp: () => void; onMoveDown: () => void; onMoveTo: () => void; onTrash: () => void }) {
+function RowActionMenu(props: { onRename?: () => void; onDuplicate?: () => void; onMoveUp: () => void; onMoveDown: () => void; onMoveTo: () => void; onTrash: () => void }) {
   const actions = [
     ...(props.onRename ? [['Rename', props.onRename] as const] : []),
+    ...(props.onDuplicate ? [['Duplicate', props.onDuplicate] as const] : []),
     ['Move up', props.onMoveUp],
     ['Move down', props.onMoveDown],
     ['Move to...', props.onMoveTo],

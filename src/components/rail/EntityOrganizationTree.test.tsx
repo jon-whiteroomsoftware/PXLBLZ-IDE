@@ -345,6 +345,40 @@ describe('EntityOrganizationTree', () => {
     expect(onRenameEntity).toHaveBeenCalledWith('library-a', 'LibraryName1')
   })
 
+  it('offers Duplicate on entity rows when a handler is provided (#794)', () => {
+    const organization: EntityOrganizationV1 = {
+      version: 1,
+      nodes: [
+        { kind: 'folder', id: 'folder-1', name: 'Sets', children: [] },
+        { kind: 'entity', entityId: 'show-a' },
+      ],
+      trash: [],
+      collapsedFolderIds: [],
+    }
+    const onDuplicateEntity = vi.fn()
+    render(
+      <EntityOrganizationTree
+        organization={organization}
+        items={[{ id: 'show-a', name: 'Tour opener' }]}
+        activeEntityId={null}
+        query=""
+        noun="show"
+        onSelect={vi.fn()}
+        onRenameEntity={vi.fn()}
+        onDuplicateEntity={onDuplicateEntity}
+        onOrganizationChange={vi.fn()}
+      />,
+    )
+
+    fireEvent.click(screen.getByRole('button', { name: 'More actions for Tour opener' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Duplicate' }))
+    expect(onDuplicateEntity).toHaveBeenCalledWith('show-a')
+
+    // Folders cannot duplicate.
+    fireEvent.click(screen.getByRole('button', { name: 'More actions for Sets' }))
+    expect(screen.queryByRole('button', { name: 'Duplicate' })).not.toBeInTheDocument()
+  })
+
   it('hides empty Trash, then empties populated Trash only after confirmation (#793)', async () => {
     const empty: EntityOrganizationV1 = {
       version: 1,

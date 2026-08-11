@@ -32,6 +32,7 @@ export function ShowsRailSection({
   onOpenStockShow,
   onToggleStockShows,
   onRenameShow,
+  onDuplicateShow,
   onEmptyTrash,
   onQueryChange,
   personalOrganization,
@@ -55,6 +56,7 @@ export function ShowsRailSection({
   onOpenStockShow: (show: StockShow) => void
   onToggleStockShows: () => void
   onRenameShow: (id: string, name: string) => void
+  onDuplicateShow: (id: string) => void
   onEmptyTrash: (entityIds: string[]) => void | Promise<void>
   onQueryChange: (query: string) => void
   personalOrganization: EntityOrganizationV1
@@ -112,6 +114,7 @@ export function ShowsRailSection({
                 if (show) onOpenShow(show)
               }}
               onRenameEntity={onRenameShow}
+              onDuplicateEntity={onDuplicateShow}
               onEmptyTrash={onEmptyTrash}
               onOrganizationChange={onPersonalOrganizationChange}
           />
