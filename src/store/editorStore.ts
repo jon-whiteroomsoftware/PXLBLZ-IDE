@@ -13,15 +13,18 @@ export type EditorFlavor = 'pattern' | 'map' | 'mixin' | 'library'
 
 // A draft whose navigation-time flush failed after its editor was already
 // left (#810): the buffer is gone, so this holds the only copy for the Studio
-// notice's Retry. recordUpdatedAt is the record timestamp when the write was
-// attempted; Retry drops the draft instead of writing once the record has
-// advanced past it.
+// notice's Retry. baseSrc is the record source the draft was typed over;
+// Retry drops the draft instead of writing once the record's source has moved
+// past it (metadata writes such as renames never discard a draft).
 export interface NavigationSaveDraft {
   flavor: EditorFlavor
   id: string
   name: string
   source: string
-  recordUpdatedAt: number
+  baseSrc: string
+  // For map drafts: the bake count in effect when the draft was captured, so
+  // Retry bakes the geometry the author saw.
+  mapBakeCount?: number
 }
 
 interface EditorState {

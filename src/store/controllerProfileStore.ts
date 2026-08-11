@@ -327,7 +327,16 @@ export const useControllerProfileStore = create<ControllerProfileState>()((set, 
       }))
       throw error
     }
-    set((s) => (s.profileSaveFailure?.profileId === id ? { profileSaveFailure: null } : {}))
+    // Clear the failure only when this write covers the failed edit's keys
+    // (the retry, or the user re-doing that edit). An unrelated write to the
+    // same profile leaves the notice up: the failed changes are still not
+    // durable.
+    set((s) => (
+      s.profileSaveFailure?.profileId === id
+        && Object.keys(s.profileSaveFailure.changes).every((changedKey) => changedKey in changes)
+        ? { profileSaveFailure: null }
+        : {}
+    ))
     if (previous && optimistic) {
       const optInChanged = previous.keepPatternsUpToDate !== optimistic.keepPatternsUpToDate
       const generatedCodeChanged =

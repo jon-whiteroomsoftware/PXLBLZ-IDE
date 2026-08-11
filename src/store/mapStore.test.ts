@@ -675,7 +675,7 @@ describe('persistMapSource (#810 navigation retry)', () => {
     })()
     const id = useMapStore.getState().userMaps[0].id
 
-    await useMapStore.getState().persistMapSource(id, '[[0,0],[1,1],[2,0]]')
+    await useMapStore.getState().persistMapSource(id, '[[0,0],[1,1],[2,0]]', 8)
 
     const record = useMapStore.getState().userMaps.find((m) => m.id === id)!
     expect(record.source).toBe('[[0,0],[1,1],[2,0]]')
@@ -691,10 +691,39 @@ describe('persistMapSource (#810 navigation retry)', () => {
     await useMapStore.getState().bakeEditingMap()
     const id = useMapStore.getState().userMaps[0].id
 
-    await useMapStore.getState().persistMapSource(id, `function(n){ throw new Error('boom') }`)
+    await useMapStore.getState().persistMapSource(id, `function(n){ throw new Error('boom') }`, 8)
 
     const record = useMapStore.getState().userMaps.find((m) => m.id === id)!
     expect(record.source).toBe(`function(n){ throw new Error('boom') }`)
     expect(record.points).toEqual([])
+  })
+})
+
+describe('persistMapSource guards (#810 review round 3)', () => {
+  it('bakes at the captured count, not the default', async () => {
+    const provider = memoryProvider()
+    setPersonalContentProvider(provider)
+    await useMapStore.getState().createNewMap()
+    const id = useMapStore.getState().userMaps[0].id
+
+    await useMapStore.getState().persistMapSource(id, GRID_SRC, 12)
+
+    expect(useMapStore.getState().userMaps.find((m) => m.id === id)!.points).toHaveLength(12)
+  })
+
+  it('resets the active layout when an eval failure clears the active map bake', async () => {
+    const provider = memoryProvider()
+    setPersonalContentProvider(provider)
+    await useMapStore.getState().createNewMap()
+    useEditorStore.getState().setSource(GRID_SRC)
+    useMapStore.setState({ activePixelCount: 8 })
+    await useMapStore.getState().bakeEditingMap()
+    const id = useMapStore.getState().userMaps[0].id
+    useMapStore.setState({ activeMapId: id })
+
+    await useMapStore.getState().persistMapSource(id, `function(n){ throw new Error('boom') }`, 8)
+
+    expect(useMapStore.getState().activeMapId).toBe(DEFAULT_MAP_ID)
+    // A non-active map with the same failure keeps the selection untouched.
   })
 })

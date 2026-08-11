@@ -834,3 +834,34 @@ describe('profile save-failure notice state (#810)', () => {
     expect(useControllerProfileStore.getState().profiles[0].name).toBe('Road case')
   })
 })
+
+describe('profile save-failure clearing scope (#810 review round 3)', () => {
+  it('an unrelated successful write leaves a still-valid failure notice up', async () => {
+    const profile = defaultControllerProfile({ id: 'ctrl-1', name: 'Original', now: 1 })
+    const provider = memoryProvider([profile])
+    const durableUpdate = provider.updateControllerProfile
+    let failRenames = true
+    provider.updateControllerProfile = async (id, changes) => {
+      if (failRenames && 'name' in changes) throw new Error('save failed')
+      await durableUpdate(id, changes)
+    }
+    setPersonalContentProvider(provider)
+    await useControllerProfileStore.getState().loadProfiles()
+
+    await useControllerProfileStore.getState().updateProfile('ctrl-1', { name: 'Unsaved' }).catch(() => {})
+    expect(useControllerProfileStore.getState().profileSaveFailure).not.toBeNull()
+
+    // A different, successful edit to the same profile: the rename is still
+    // not durable, so its notice must survive.
+    await useControllerProfileStore.getState().updateProfile('ctrl-1', { keepPatternsUpToDate: true })
+    expect(useControllerProfileStore.getState().profileSaveFailure).toMatchObject({
+      profileId: 'ctrl-1',
+      changes: { name: 'Unsaved' },
+    })
+
+    // Re-doing the failed edit (manually or via Retry) clears it.
+    failRenames = false
+    await useControllerProfileStore.getState().updateProfile('ctrl-1', { name: 'Unsaved' })
+    expect(useControllerProfileStore.getState().profileSaveFailure).toBeNull()
+  })
+})

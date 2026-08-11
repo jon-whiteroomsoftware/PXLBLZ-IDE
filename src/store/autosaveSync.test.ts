@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest'
-import { flushPendingAutosave, activeStuckSaveStatus, retryNavigationSaveFailure } from './autosaveSync'
+import { __resetAutosaveSyncForTests, flushPendingAutosave, activeStuckSaveStatus, retryNavigationSaveFailure } from './autosaveSync'
 import { usePatternStore, patternInitialState } from './patternStore'
 import { useEditorStore, editorInitialState } from './editorStore'
 import { useMapStore, mapInitialState } from './mapStore'
@@ -69,6 +69,7 @@ async function settled(): Promise<void> {
 }
 
 beforeEach(() => {
+  __resetAutosaveSyncForTests()
   usePatternStore.setState(patternInitialState)
   useEditorStore.setState(editorInitialState)
   useMapStore.setState(mapInitialState)
@@ -208,7 +209,7 @@ describe('navigation save failure (#810 review P1)', () => {
         id: PATTERN.id,
         name: PATTERN.name,
         source: 'held draft source',
-        recordUpdatedAt: PATTERN.updatedAt,
+        baseSrc: PATTERN.src,
       }),
     ])
 
@@ -265,10 +266,10 @@ describe('navigation save failure (#810 review P1)', () => {
     // overwrite the newer durable content.
     const provider = memoryProvider([PATTERN])
     let rejectS1!: (cause: Error) => void
-    provider.updatePattern = async () =>
-      new Promise<void>((_resolve, reject) => {
-        rejectS1 = reject
-      })
+    const s1Gate = new Promise<void>((_resolve, reject) => {
+      rejectS1 = reject
+    })
+    provider.updatePattern = async () => s1Gate
     setPersonalContentProvider(provider)
     openDirtyPattern('older draft S1')
     flushPendingAutosave()
@@ -292,10 +293,10 @@ describe('navigation save failure (#810 review P1)', () => {
     // source), then the original write fails: the draft exists nowhere else.
     const provider = memoryProvider([PATTERN])
     let rejectWrite!: (cause: Error) => void
-    provider.updatePattern = async () =>
-      new Promise<void>((_resolve, reject) => {
-        rejectWrite = reject
-      })
+    const writeGate = new Promise<void>((_resolve, reject) => {
+      rejectWrite = reject
+    })
+    provider.updatePattern = async () => writeGate
     setPersonalContentProvider(provider)
     openDirtyPattern('reopened-lost draft')
     flushPendingAutosave()
@@ -362,7 +363,7 @@ describe('navigation save failure (#810 review P1)', () => {
         id: PATTERN.id,
         name: PATTERN.name,
         source: 'stale held copy',
-        recordUpdatedAt: 1000,
+        baseSrc: PATTERN.src,
       }],
     })
     openDirtyPattern('edited source')
@@ -398,6 +399,84 @@ describe('navigation save failure (#810 review P1)', () => {
 
     expect(update).toHaveBeenCalledTimes(2)
     expect(update.mock.calls.map((call) => call[0]).sort()).toEqual(['pat-b', PATTERN.id].sort())
+  })
+})
+
+describe('held draft supersession and ordering (#810 review round 3)', () => {
+  it('a no-op save of unchanged source never discards a held draft', async () => {
+    // Reopen a record with a held draft: the buffer loads the persisted
+    // source and the tick's save resolves without writing. The held draft is
+    // still the only copy and must survive that no-op.
+    const provider = memoryProvider([PATTERN])
+    setPersonalContentProvider(provider)
+    useEditorStore.setState({
+      navigationSaveFailures: [{
+        flavor: 'pattern',
+        id: PATTERN.id,
+        name: PATTERN.name,
+        source: 'held-only draft',
+        baseSrc: PATTERN.src,
+      }],
+    })
+    openDirtyPattern(PATTERN.src)
+
+    flushPendingAutosave()
+    await settled()
+
+    expect(useEditorStore.getState().navigationSaveFailures).toHaveLength(1)
+  })
+
+  it('a rename never supersedes a held source draft', async () => {
+    const provider = memoryProvider([PATTERN])
+    let offline = true
+    const durableUpdate = provider.updatePattern
+    provider.updatePattern = async (id, changes) => {
+      if (offline) throw new Error('offline')
+      await durableUpdate(id, changes)
+    }
+    setPersonalContentProvider(provider)
+    openDirtyPattern('held draft source')
+    usePatternStore.getState().setActivePattern('pat-2')
+    await settled()
+
+    // A metadata write advances updatedAt without touching src.
+    usePatternStore.setState((s) => ({
+      userPatterns: s.userPatterns.map((p) =>
+        p.id === PATTERN.id ? { ...p, name: 'Renamed', updatedAt: 9999 } : p,
+      ),
+    }))
+    offline = false
+    await retryNavigationSaveFailure('pattern', PATTERN.id)
+
+    expect(useEditorStore.getState().navigationSaveFailures).toEqual([])
+    expect(usePatternStore.getState().userPatterns[0].src).toBe('held draft source')
+  })
+
+  it('serializes saves per record so a slow older write cannot clobber a newer one', async () => {
+    const provider = memoryProvider([PATTERN])
+    let releaseFirst!: () => void
+    const firstGate = new Promise<void>((resolve) => {
+      releaseFirst = resolve
+    })
+    const written: string[] = []
+    let call = 0
+    provider.updatePattern = async (_id, changes) => {
+      call += 1
+      if (call === 1) await firstGate
+      if (typeof changes.src === 'string') written.push(changes.src)
+    }
+    setPersonalContentProvider(provider)
+
+    openDirtyPattern('slow older S1')
+    flushPendingAutosave()
+    useEditorStore.setState({ source: 'newer S2' })
+    usePatternStore.getState().setActivePattern('pat-2')
+    // S1 is still pending; S2 must queue behind it, not race it.
+    releaseFirst()
+    await settled()
+
+    expect(written).toEqual(['slow older S1', 'newer S2'])
+    expect(usePatternStore.getState().userPatterns[0].src).toBe('newer S2')
   })
 })
 
