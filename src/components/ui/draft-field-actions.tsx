@@ -29,7 +29,7 @@ export function DraftFieldActions({
 
   return (
     <span data-draft-field-actions className="inline-flex min-h-0 shrink-0 self-stretch">
-      <span className="group/reason relative inline-flex">
+      <span className="inline-flex">
         <button
           type="button"
           aria-label={`Apply ${label}`}

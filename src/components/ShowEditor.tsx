@@ -3194,7 +3194,7 @@ function ShowTimelineCommands({
           </span>
         )}
       </span>
-      <span className="group/reason relative inline-flex">
+      <span className="inline-flex">
         <Button
           size="xs"
           variant="ghost"
@@ -8064,7 +8064,7 @@ function CompositionClipInspector({
       )}
       icon={<Grid2X2 size={13} aria-hidden />}
       actions={onRemove ? (
-        <span className="group/reason relative inline-flex">
+        <span className="inline-flex">
           <Button
             size="icon-xs"
             variant="ghost"
@@ -8221,7 +8221,7 @@ function ClipInspector({
       )}
       icon={<Grid2X2 size={13} aria-hidden />}
       actions={(
-        <span className="group/reason relative inline-flex">
+        <span className="inline-flex">
           <Button
             size="icon-xs"
             variant="ghost"
@@ -9883,7 +9883,7 @@ function ZoneInspector({
             onChange={(nominalPixelCount) => onUpdateZone({ nominalPixelCount })}
           />
         )}
-        <span className="group/reason relative inline-flex">
+        <span className="inline-flex">
           <button
             type="button"
             aria-label={`Remove zone ${zone.name}`}

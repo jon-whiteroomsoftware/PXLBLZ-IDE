@@ -1204,6 +1204,10 @@ test.describe('authenticated Show authoring', () => {
     await expect(reason).not.toBeVisible()
     await clone.hover()
     await expect(reason).toBeVisible()
+    // The tip portals out of the scrolling toolbar, so nothing clips it: it
+    // must occupy its full rendered size, not a sliver.
+    const box = await reason.boundingBox()
+    expect(box !== null && box.height >= 12 && box.width >= 100).toBe(true)
 
     // The reason also appears on keyboard focus, not only for mouse users.
     await page.mouse.move(0, 0)
