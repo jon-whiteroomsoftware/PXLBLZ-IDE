@@ -186,8 +186,9 @@ export interface ControllerProfile {
   id: string
   name: string
   deviceId?: string
-  /** Last mutable name reported by the physical Pixelblaze. Claimed profiles
-   *  mirror this into `name`; older records may still need this as display fallback. */
+  /** Last mutable name reported by the physical Pixelblaze. A user may rename
+   *  `name` between observations; the next live metadata sync deliberately
+   *  mirrors this device name back into `name`. */
   lastKnownDeviceName?: string
   /** Last transport IP seen for this physical device. Convenience only, not identity. */
   lastSeenIp?: string
@@ -215,7 +216,7 @@ export interface ControllerProfile {
 }
 
 export function controllerProfileDisplayName(profile: ControllerProfile): string {
-  return profile.lastKnownDeviceName ?? profile.name
+  return profile.name
 }
 
 export interface ControllerProfileValidationIssue {

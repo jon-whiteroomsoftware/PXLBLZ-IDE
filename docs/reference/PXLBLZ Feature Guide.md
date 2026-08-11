@@ -267,6 +267,11 @@ setup and are no longer edited here (#775).
 Map and firmware facts keep their last conclusive observation while offline; a
 failed refresh never erases a last-known value.
 
+Rename a profile from its row menu or by selecting its name in the page header.
+The authored name remains while the profile is offline. When that physical
+Controller is seen again, its current Pixelblaze device name becomes the profile
+name; the separate last-known device-name fact records that same observation.
+
 ### Inputs and their effective uses
 
 The input is the unit of the interface. Each entry is one physical control

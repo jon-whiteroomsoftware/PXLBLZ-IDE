@@ -1,4 +1,5 @@
 import {
+  controllerProfileDisplayName,
   controllerZonePixelCount,
   controllerProfileRecordIssues,
   controllerProfileValidationErrors,
@@ -98,6 +99,16 @@ const baseProfile: ControllerProfile = {
   ],
   updatedAt: 100,
 }
+
+describe('ControllerProfile display name', () => {
+  it('shows an authored profile rename instead of the last observed device name (#808)', () => {
+    expect(controllerProfileDisplayName({
+      ...baseProfile,
+      name: 'Road case',
+      lastKnownDeviceName: 'Pixelblaze shelf',
+    })).toBe('Road case')
+  })
+})
 
 describe('ControllerProfile validation', () => {
   it('accepts a durable controller profile with inputs, transforms, bindings, and zones', () => {

@@ -347,6 +347,7 @@ function StudioApp() {
   const editingLibrary = useLibraryStore((s) => s.editingLibrary)
   const controllerProfiles = useControllerProfileStore((s) => s.profiles)
   const controllerProfilesLoaded = useControllerProfileStore((s) => s.profilesLoaded)
+  const updateControllerProfile = useControllerProfileStore((s) => s.updateProfile)
   const activeShowId = useShowStore((s) => s.activeShowId)
   const shows = useShowStore((s) => s.shows)
   const showsLoaded = useShowStore((s) => s.showsLoaded)
@@ -1001,6 +1002,12 @@ function StudioApp() {
                 <InlineEntityTitle
                   name={activeControllerProfile ? controllerProfileDisplayName(activeControllerProfile) : 'Controller profile'}
                   noun="controller"
+                  onRename={activeControllerProfile
+                    ? (nextName) => updateControllerProfile(activeControllerProfile.id, { name: nextName })
+                    : undefined}
+                  takenNames={controllerProfiles
+                    .filter((profile) => profile.id !== activeControllerProfile?.id)
+                    .map(controllerProfileDisplayName)}
                 />
                 <span className="hidden rounded border border-zinc-700 px-1.5 py-0.5 text-[10px] uppercase tracking-wide text-structural sm:inline">
                   Controller

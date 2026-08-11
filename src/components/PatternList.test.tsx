@@ -523,17 +523,21 @@ describe('PatternList', () => {
 
   it('lists durable controller profiles under Controllers', async () => {
     mockControllers = [CONTROLLER_PROFILE]
+    const updateControllerProfile = vi.fn(async () => {})
+    useControllerProfileStore.setState({ updateProfile: updateControllerProfile })
     const user = userEvent.setup()
     render(<PatternList />)
 
     await user.click(screen.getByRole('radio', { name: 'Controllers' }))
 
-    expect(await screen.findByText('Burner bag')).toBeInTheDocument()
-    expect(screen.queryByText('Old alias')).not.toBeInTheDocument()
+    expect(await screen.findByText('Old alias')).toBeInTheDocument()
+    expect(screen.queryByText('Burner bag')).not.toBeInTheDocument()
     expect(screen.queryByRole('button', { name: 'New controller profile' })).not.toBeInTheDocument()
-    await user.click(screen.getByRole('button', { name: 'More actions for Burner bag' }))
-    expect(screen.queryByRole('button', { name: 'Rename' })).not.toBeInTheDocument()
-    expect(screen.getByRole('button', { name: 'Move to Trash' })).toBeInTheDocument()
+    await user.click(screen.getByRole('button', { name: 'More actions for Old alias' }))
+    await user.click(screen.getByRole('button', { name: 'Rename' }))
+    await user.clear(screen.getByRole('textbox', { name: 'Rename item' }))
+    await user.type(screen.getByRole('textbox', { name: 'Rename item' }), 'Road case{Enter}')
+    expect(updateControllerProfile).toHaveBeenCalledWith('ctrl-1', { name: 'Road case' })
     expect(screen.queryByRole('textbox', { name: /search by name/i })).not.toBeInTheDocument()
   })
 

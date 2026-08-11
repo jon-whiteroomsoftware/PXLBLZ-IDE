@@ -30,6 +30,54 @@ test('authenticated Studio renames a Pattern from the middle-pane title', async 
   await expect(page.getByRole('button', { name: 'Rename pattern Header Renamed Pattern' })).toBeVisible()
 })
 
+test('authenticated Studio renames a Controller profile from its header and rail', async ({ page }) => {
+  const id = `controller-title-rename-${Date.now()}`
+  const originalName = `Bench ${Date.now()}`
+  const headerName = `${originalName} Header`
+  const railName = `${originalName} Rail`
+  const request = page.context().request
+  const created = await request.post('/api/controllers', {
+    data: {
+      id,
+      name: originalName,
+      deviceId: `pixelblaze_pb32_${Date.now()}`,
+      lastKnownDeviceName: 'Last hardware name',
+      board: { kind: 'pixelblaze-v3-standard' },
+      inputs: [],
+      globalTransforms: [],
+      patternBindings: [],
+      zones: [],
+      updatedAt: Date.now(),
+    },
+  })
+  expect(created.ok()).toBe(true)
+
+  try {
+    await page.goto(`studio/controllers/${id}`)
+    await page.getByRole('button', { name: `Rename controller ${originalName}` }).click()
+    await page.getByRole('textbox', { name: 'Controller name' }).fill(headerName)
+    await page.getByRole('textbox', { name: 'Controller name' }).press('Enter')
+    await expect(page.getByRole('button', { name: `Rename controller ${headerName}` })).toBeVisible()
+
+    await page.getByRole('button', { name: `More actions for ${headerName}` }).click()
+    await page.getByRole('button', { name: 'Rename' }).click()
+    await page.getByRole('textbox', { name: 'Rename item' }).fill(railName)
+    await page.getByRole('textbox', { name: 'Rename item' }).press('Enter')
+
+    await expect.poll(async () => {
+      const response = await request.get('/api/controllers')
+      if (!response.ok()) return false
+      const { controllers } = await response.json() as { controllers: Array<{ id: string; name: string }> }
+      return controllers.some((controller) => controller.id === id && controller.name === railName)
+    }).toBe(true)
+
+    await page.reload()
+    await expect(page.getByRole('button', { name: `Rename controller ${railName}` })).toBeVisible()
+  } finally {
+    await request.delete(`/api/controllers/${encodeURIComponent(id)}`)
+  }
+})
+
 test('authenticated Studio renames a Library from the middle-pane title with Apply and Enter', async ({ page }) => {
   const id = `library-title-rename-${Date.now()}`
   const originalName = `LaunchLib${Date.now()}`

@@ -335,16 +335,20 @@ describe('routing (#308)', () => {
     expect(renameShow).toHaveBeenCalledWith(show.id, 'Night Show')
   })
 
-  it('keeps Controller profile titles non-editable', () => {
+  it('renames a Controller profile from the middle-pane title', async () => {
+    const user = userEvent.setup()
+    const updateProfile = vi.fn(async () => {})
     window.history.replaceState(null, '', '/studio/controllers/ctrl-1')
     seedSignedInWorkspace()
-    useControllerProfileStore.setState({ profiles: [controllerProfile], profilesLoaded: true })
+    useControllerProfileStore.setState({ profiles: [controllerProfile], profilesLoaded: true, updateProfile })
 
     render(<App />)
 
     const editorPane = screen.getByTestId('editor-pane')
-    expect(within(editorPane).getAllByText('Pixelblaze shelf').length).toBeGreaterThan(0)
-    expect(within(editorPane).queryByRole('button', { name: /Rename controller/ })).not.toBeInTheDocument()
+    await user.click(within(editorPane).getByRole('button', { name: 'Rename controller Burner bag' }))
+    await user.clear(within(editorPane).getByRole('textbox', { name: 'Controller name' }))
+    await user.type(within(editorPane).getByRole('textbox', { name: 'Controller name' }), 'Road case{Enter}')
+    expect(updateProfile).toHaveBeenCalledWith('ctrl-1', { name: 'Road case' })
   })
 
   it('puts Show details and quiet Show metadata in the title row', async () => {
@@ -1073,8 +1077,8 @@ describe('routing (#308)', () => {
     render(<App />)
 
     expect(screen.getByTestId('controller-profile-page')).toHaveTextContent('Pixelblaze shelf')
+    expect(screen.getByTestId('editor-pane')).toHaveTextContent('Burner bag')
     expect(screen.getByTestId('editor-pane')).toHaveTextContent('Pixelblaze shelf')
-    expect(screen.getByTestId('editor-pane')).not.toHaveTextContent('Burner bag')
     expect(screen.getByTestId('preview-pane')).toHaveTextContent('Saved PXLBLZ Patterns (0)')
     expect(screen.getByTestId('editor-pane')).not.toHaveTextContent('Saved programs')
   })

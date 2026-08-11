@@ -76,7 +76,7 @@ export function ControllersRailSection({
             activeEntityId={activeControllerProfileId}
             query=""
             noun="controller"
-            canRenameEntity={false}
+            canRenameEntity
             sectionLabel="Controllers"
             emptyMessage="Connect a Controller to create its profile"
             onSelect={onOpenControllerProfile}
