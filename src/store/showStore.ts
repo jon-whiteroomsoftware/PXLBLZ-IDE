@@ -58,6 +58,9 @@ import { normalizeShowComposition } from '@/engine/showCompositionModel'
 import { stockShowById } from '@/pixelblaze/stock/shows'
 
 const showPersistenceQueues = new Map<string, Promise<void>>()
+// The in-flight loadShows, so record creation can wait for hydration to
+// apply instead of racing a stale list snapshot (#794).
+let showsHydration: Promise<void> | null = null
 // The last record each Show is known to hold durably, paired with the undo
 // history that belongs to it (#792): rollback after a failed write restores
 // this pair, never an unpersisted optimistic intermediate or a history that
@@ -101,10 +104,12 @@ interface ShowState {
   removeShow: (id: string) => Promise<void>
   /**
    * Persists a copy of a personal Show or of a built-in's current session
-   * draft under a fresh identity (#794). Resolves null when the source is
+   * draft under a fresh identity (#794). Callers displaying a transient
+   * projection (built-in Pattern-slot selections) pass it as sourceRecord so
+   * the copy keeps what the user sees. Resolves null when the source is
    * unknown or the create fails.
    */
-  duplicateShow: (sourceId: string) => Promise<ShowRecord | null>
+  duplicateShow: (sourceId: string, sourceRecord?: ShowRecord) => Promise<ShowRecord | null>
   updateShow: (id: string, next: ShowRecord) => Promise<void>
   // Resolves the record an edit operation should start from: a personal
   // record, an in-memory built-in draft, or the pristine built-in fixture.
@@ -210,6 +215,7 @@ export const useShowStore = create<ShowState>()((set, get) => ({
   ...showInitialState,
 
   loadShows: async () => {
+    const hydration = (async () => {
     const shows = (await getPersonalContentProvider().listShows())
       .map(normalizeShowRecord)
     // Mid-session re-hydration (Gallery -> Studio remount) must not discard
@@ -233,6 +239,13 @@ export const useShowStore = create<ShowState>()((set, get) => ({
         Object.entries(state.showHistories).filter(([id]) => !staleHistoryIds.has(id)),
       ),
     }))
+    })()
+    showsHydration = hydration
+    try {
+      await hydration
+    } finally {
+      if (showsHydration === hydration) showsHydration = null
+    }
   },
 
   createNewShow: async (input) => {
@@ -281,6 +294,9 @@ export const useShowStore = create<ShowState>()((set, get) => ({
   },
 
   addShow: async (record) => {
+    // A stale list snapshot resolving after this create would drop the new
+    // record from state; wait for the hydration to apply first (#794).
+    if (showsHydration) await showsHydration.catch(() => {})
     await getPersonalContentProvider().createShow(record)
     lastPersistedShowRecords.set(record.id, { record: normalizeShowRecord(record), history: { past: [], future: [] } })
     trackEntityCreated('show')
@@ -305,8 +321,9 @@ export const useShowStore = create<ShowState>()((set, get) => ({
     })
   },
 
-  duplicateShow: async (sourceId) => {
-    const source = get().resolveEditableShow(sourceId)
+  duplicateShow: async (sourceId, sourceRecord) => {
+    if (showsHydration) await showsHydration.catch(() => {})
+    const source = sourceRecord ?? get().resolveEditableShow(sourceId)
     if (!source) return null
     const record = {
       ...source,

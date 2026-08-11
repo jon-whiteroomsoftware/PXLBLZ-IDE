@@ -2013,7 +2013,9 @@ export function ShowEditor({
           aria-label="Save a copy"
           title="Save this built-in (including session edits) as a personal Show"
           className="bg-zinc-900/60 text-[11px] text-zinc-400 hover:bg-zinc-800 hover:text-zinc-200"
-          onClick={() => void duplicateShow(showId).then((copy) => {
+          // activeShow carries the displayed projection, including transient
+          // built-in Pattern-slot selections; the copy keeps what is on screen.
+          onClick={() => void duplicateShow(showId, activeShow).then((copy) => {
             if (!copy) return
             void openShow(copy.id)
             routerNavigate({ kind: 'studio', entity: { kind: 'shows', id: copy.id } })

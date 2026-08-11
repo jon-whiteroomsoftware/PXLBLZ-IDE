@@ -202,6 +202,55 @@ describe('showStore (#318)', () => {
     expect(persisted?.scenes[0].name).toBe('Authored on top')
   })
 
+  it('duplicates an explicit source record when the caller displays transient state (#794)', async () => {
+    const stock = stockShowById(STOCK_SHOWS[0].id)!
+    const provider = memoryProvider([])
+    setPersonalContentProvider(provider)
+    useShowStore.setState({ shows: [], showsLoaded: true })
+
+    // "Try with Pattern" selections apply only to the displayed record; the
+    // caller passes that projection so the copy keeps what the user sees.
+    const displayed = { ...stock.show, scenes: stock.show.scenes.map((scene, index) => (
+      index === 0 ? { ...scene, name: 'Displayed projection' } : scene
+    )) }
+    const copy = await useShowStore.getState().duplicateShow(stock.id, displayed)
+
+    expect(copy?.scenes[0].name).toBe('Displayed projection')
+    const persisted = (await provider.listShows()).find((candidate) => candidate.id === copy!.id)
+    expect(persisted?.scenes[0].name).toBe('Displayed projection')
+  })
+
+  it('does not let an in-flight hydration clobber a fresh duplicate (#794)', async () => {
+    const seed = createDefaultShow('show-hydration-seed', 'Seeded', 1)
+    const provider = memoryProvider([seed])
+    const realList = provider.listShows
+    let releaseList!: () => void
+    const listGate = new Promise<void>((resolve) => { releaseList = resolve })
+    provider.listShows = async () => {
+      // The stale snapshot: captured before the duplicate exists, delivered
+      // after it was created.
+      const snapshot = await realList()
+      await listGate
+      return snapshot
+    }
+    setPersonalContentProvider(provider)
+    useShowStore.setState({ shows: [seed], showsLoaded: false })
+
+    const hydration = useShowStore.getState().loadShows()
+    await Promise.resolve()
+    const duplication = useShowStore.getState().duplicateShow(seed.id)
+    await Promise.resolve()
+    releaseList()
+    await hydration
+    const copy = await duplication
+
+    expect(copy).not.toBeNull()
+    const ids = useShowStore.getState().shows.map((candidate) => candidate.id)
+    expect(ids).toContain(seed.id)
+    expect(ids).toContain(copy!.id)
+    expect(ids).toHaveLength(2)
+  })
+
   it('updateShow itself still rejects for callers that gate on persistence (#792)', async () => {
     const show = createDefaultShow('show-save-primitive', 'Save primitive', 1)
     const provider = memoryProvider([show])
