@@ -180,6 +180,35 @@ describe('showStore (#318)', () => {
     expect(useShowStore.getState().showSaveFailure?.showId).toBe(show.id)
   })
 
+  it('resolves a superseded failed write without rollback or failure notice (#792)', async () => {
+    const show = createDefaultShow('show-superseded-write', 'Superseded', 1)
+    const provider = memoryProvider([show])
+    const realUpdate = provider.updateShow
+    let rejectFirst!: (cause: Error) => void
+    const firstPending = new Promise<void>((_, reject) => { rejectFirst = reject })
+    let calls = 0
+    provider.updateShow = async (id, changes) => {
+      calls += 1
+      if (calls === 1) return firstPending
+      await realUpdate(id, changes)
+    }
+    setPersonalContentProvider(provider)
+    useShowStore.setState({ shows: [show], activeShowId: show.id, showsLoaded: true })
+
+    const first = useShowStore.getState().updateShow(show.id, { ...show, name: 'First', updatedAt: 2 })
+    const second = useShowStore.getState().updateShow(show.id, { ...show, name: 'Second', updatedAt: 3 })
+    rejectFirst(new Error('offline'))
+
+    // The newer optimistic record owns the outcome: the superseded write
+    // neither rejects nor rolls anything back.
+    await expect(first).resolves.toBeUndefined()
+    await expect(second).resolves.toBeUndefined()
+    expect(useShowStore.getState().shows[0].name).toBe('Second')
+    expect(useShowStore.getState().showSaveFailure).toBeNull()
+    const persisted = (await provider.listShows()).find((candidate) => candidate.id === show.id)
+    expect(persisted?.name).toBe('Second')
+  })
+
   it('records a save failure alongside the rollback and clears it on dismiss (#792)', async () => {
     const show = createDefaultShow('show-save-notice', 'Save notice', 1)
     const provider = memoryProvider([show])

@@ -3656,9 +3656,17 @@ function ShowTimelineWorkspace({
     : 0
   const runLayoutAction = (action: () => Promise<boolean>) => {
     setLayoutActionError(null)
+    const failureBefore = useShowStore.getState().showSaveFailure
     void action().then((changed) => {
-      if (changed) setLayoutActionsOpen(false)
-      else setLayoutActionError('That operation is not available at this time. Move the playhead outside a Transition and leave enough room to split occupied Clips.')
+      if (changed) {
+        setLayoutActionsOpen(false)
+        return
+      }
+      // A fresh save failure means persistence refused the edit, not the
+      // timeline structure; the rollback notice owns that report (#792).
+      const failureAfter = useShowStore.getState().showSaveFailure
+      if (failureAfter && failureAfter !== failureBefore) return
+      setLayoutActionError('That operation is not available at this time. Move the playhead outside a Transition and leave enough room to split occupied Clips.')
     }).catch(() => {})
   }
   let viewport = storedViewport

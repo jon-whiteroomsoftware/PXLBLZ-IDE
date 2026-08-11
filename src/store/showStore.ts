@@ -305,16 +305,21 @@ export const useShowStore = create<ShowState>()((set, get) => ({
       await persistShowRecord(normalizedNext)
       if (get().showSaveFailure?.showId === id) set({ showSaveFailure: null })
     } catch (cause) {
+      // A newer optimistic record already superseded this write; its own
+      // persistence outcome is authoritative, so nothing rolls back and the
+      // caller's edit still reads as applied (#792).
+      let rolledBack = false
       set((state) => {
         const current = state.shows.find((show) => show.id === id)
         if (current !== normalizedNext) return state
+        rolledBack = true
         return {
           shows: replaceShowRecord(state.shows, previous),
           showHistories: { ...state.showHistories, [id]: previousHistory },
           showSaveFailure: { showId: id, record: normalizedNext },
         }
       })
-      throw cause
+      if (rolledBack) throw cause
     }
   },
 
