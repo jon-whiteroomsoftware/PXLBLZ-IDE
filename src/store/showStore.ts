@@ -64,6 +64,19 @@ const showPersistenceQueues = new Map<string, Promise<void>>()
 // could replay one.
 const lastPersistedShowRecords = new Map<string, { record: ShowRecord; history: ShowHistory }>()
 
+// Advance the durable baseline for a completed write, but never past a newer
+// record another client persisted while this response was in flight (#792).
+// An equal timestamp means loadShows observed this same write and reset its
+// history; the richer history from the write wins.
+function advanceDurableBaseline(id: string, record: ShowRecord, history: ShowHistory): void {
+  const baseline = lastPersistedShowRecords.get(id)
+  if (!baseline || baseline.record.updatedAt < record.updatedAt) {
+    lastPersistedShowRecords.set(id, { record, history })
+  } else if (baseline.record.updatedAt === record.updatedAt) {
+    lastPersistedShowRecords.set(id, { record: baseline.record, history })
+  }
+}
+
 interface ShowState {
   shows: ShowRecord[]
   showsLoaded: boolean
@@ -331,12 +344,14 @@ export const useShowStore = create<ShowState>()((set, get) => ({
     }))
     try {
       await persistShowRecord(normalizedNext)
-      lastPersistedShowRecords.set(id, { record: normalizedNext, history: optimisticHistory })
+      advanceDurableBaseline(id, normalizedNext, optimisticHistory)
       set((state) => ({
         ...(state.showSaveFailure?.showId === id ? { showSaveFailure: null } : {}),
         // A loadShows that raced this write saw the durable record before the
-        // promise resolved and cleared its history as stale; restore the pair.
+        // promise resolved and cleared its history as stale; restore the pair,
+        // but only while this write's record is still the one loaded.
         ...(state.showHistories[id] === undefined
+          && state.shows.find((show) => show.id === id)?.updatedAt === normalizedNext.updatedAt
           ? { showHistories: { ...state.showHistories, [id]: optimisticHistory } }
           : {}),
       }))
@@ -572,10 +587,11 @@ export const useShowStore = create<ShowState>()((set, get) => ({
     }))
     try {
       await persistShowRecord(next)
-      lastPersistedShowRecords.set(showId, { record: next, history: nextHistory })
+      advanceDurableBaseline(showId, next, nextHistory)
       set((state) => ({
         ...(state.showSaveFailure?.showId === showId ? { showSaveFailure: null } : {}),
         ...(state.showHistories[showId] === undefined
+          && state.shows.find((show) => show.id === showId)?.updatedAt === next.updatedAt
           ? { showHistories: { ...state.showHistories, [showId]: nextHistory } }
           : {}),
       }))
@@ -616,10 +632,11 @@ export const useShowStore = create<ShowState>()((set, get) => ({
     }))
     try {
       await persistShowRecord(next)
-      lastPersistedShowRecords.set(showId, { record: next, history: nextHistory })
+      advanceDurableBaseline(showId, next, nextHistory)
       set((state) => ({
         ...(state.showSaveFailure?.showId === showId ? { showSaveFailure: null } : {}),
         ...(state.showHistories[showId] === undefined
+          && state.shows.find((show) => show.id === showId)?.updatedAt === next.updatedAt
           ? { showHistories: { ...state.showHistories, [showId]: nextHistory } }
           : {}),
       }))

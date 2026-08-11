@@ -300,6 +300,44 @@ describe('showStore (#318)', () => {
     expect(useShowStore.getState().shows[0].scenes[0].name).toBe('Scene 1')
   })
 
+  it('does not resurrect an older write over a newer record loaded mid-flight (#792)', async () => {
+    const show = createDefaultShow('show-remote-newer', 'Remote base', 1)
+    const provider = memoryProvider([show])
+    const realUpdate = provider.updateShow
+    let releaseWrite!: () => void
+    const writeGate = new Promise<void>((resolve) => { releaseWrite = resolve })
+    let gateFirst = true
+    provider.updateShow = async (id, changes) => {
+      await realUpdate(id, changes)
+      if (gateFirst) {
+        gateFirst = false
+        await writeGate
+      }
+    }
+    setPersonalContentProvider(provider)
+    useShowStore.setState({ shows: [show], activeShowId: show.id, showsLoaded: true })
+
+    const edit = useShowStore.getState().updateScene(show.id, 'scene-1', { name: 'Mine' })
+    await Promise.resolve()
+    await Promise.resolve()
+    // Another client saves a newer record while our response is in flight.
+    await realUpdate(show.id, { name: 'Theirs', updatedAt: Date.now() + 60_000 })
+    await useShowStore.getState().loadShows()
+    releaseWrite()
+    await edit
+
+    // The newer loaded record wins: no history is restored that undo could
+    // use to replay our superseded write over it.
+    expect(useShowStore.getState().shows[0].name).toBe('Theirs')
+    await expect(useShowStore.getState().undoShow(show.id)).resolves.toBe(false)
+    expect(useShowStore.getState().shows[0].name).toBe('Theirs')
+
+    // A later failed write still rolls back to the newer durable record.
+    provider.updateShow = async () => { throw new Error('offline') }
+    await useShowStore.getState().updateScene(show.id, 'scene-1', { name: 'Lost' })
+    expect(useShowStore.getState().shows[0].name).toBe('Theirs')
+  })
+
   it('records a save failure alongside the rollback and clears it on dismiss (#792)', async () => {
     const show = createDefaultShow('show-save-notice', 'Save notice', 1)
     const provider = memoryProvider([show])
