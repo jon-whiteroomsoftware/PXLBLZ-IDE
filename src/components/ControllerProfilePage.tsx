@@ -596,16 +596,35 @@ function PowerSection({
 
   // The slider commits through the profile store; a drag emits a burst of
   // changes, so the draft value renders live and the edit lands debounced.
+  // `set-cap-duty` always forces direct mode, so the pending commit must be
+  // cancelled when the user leaves the fixed branch (or it would revert a
+  // quick mode switch) and flushed — not discarded — on unmount.
   const [draftDuty, setDraftDuty] = useState<number | null>(null)
   const commitTimerRef = useRef<number | null>(null)
+  const pendingDutyRef = useRef<number | null>(null)
+  const onEditRef = useRef(onEdit)
+  onEditRef.current = onEdit
   useEffect(() => () => {
-    if (commitTimerRef.current != null) window.clearTimeout(commitTimerRef.current)
+    if (commitTimerRef.current != null) {
+      window.clearTimeout(commitTimerRef.current)
+      if (pendingDutyRef.current != null) {
+        onEditRef.current({ type: 'set-cap-duty', maxDuty: pendingDutyRef.current })
+      }
+    }
   }, [])
+  const cancelPendingDuty = () => {
+    if (commitTimerRef.current != null) window.clearTimeout(commitTimerRef.current)
+    commitTimerRef.current = null
+    pendingDutyRef.current = null
+    setDraftDuty(null)
+  }
   const handleDutyChange = (maxDuty: number) => {
     setDraftDuty(maxDuty)
+    pendingDutyRef.current = maxDuty
     if (commitTimerRef.current != null) window.clearTimeout(commitTimerRef.current)
     commitTimerRef.current = window.setTimeout(() => {
       commitTimerRef.current = null
+      pendingDutyRef.current = null
       onEdit({ type: 'set-cap-duty', maxDuty })
       setDraftDuty(null)
     }, 250)
@@ -648,6 +667,9 @@ function PowerSection({
               if (source === 'fixed') {
                 onEdit({ type: 'set-cap-mode', mode: 'direct' })
               } else {
+                // A pending slider commit would force direct mode after the
+                // fact; the drag belonged to the branch being left.
+                cancelPendingDuty()
                 if (!electricalProfile) onEdit({ type: 'configure-model' })
                 onEdit({ type: 'set-cap-mode', mode: 'derived' })
               }

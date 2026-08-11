@@ -2020,6 +2020,81 @@ describe('ControllerProfilePage', () => {
     })
   })
 
+  it('drops a pending slider commit when the user switches to the derived cap (#786)', async () => {
+    const profile = seedProfile()
+    useControllerProfileStore.setState({
+      profiles: [{
+        ...profile,
+        lastKnownPixelCount: 240,
+        electricalProfile: {
+          ledPresetId: 'ws2812-5v-individual',
+          supplyBudget: { value: 3, unit: 'amps' },
+        },
+        globalTransforms: profile.globalTransforms.map((transform) => (
+          transform.type === 'power-cap'
+            ? { ...transform, enabled: true, mode: 'direct' as const, maxDuty: 0.25 }
+            : transform
+        )),
+      }],
+      profilesLoaded: true,
+    })
+    setPersonalContentProvider({
+      ...demoPersonalContentProvider,
+      updateControllerProfile: async () => {},
+    })
+
+    render(<ControllerProfilePage profileId="ctrl-1" />)
+
+    // Drag, then switch modes inside the debounce window: the pending
+    // set-cap-duty must not fire later and force the mode back to direct.
+    fireEvent.change(screen.getByRole('slider', { name: 'Power cap duty percent' }), {
+      target: { value: '0.6' },
+    })
+    fireEvent.click(screen.getByRole('radio', { name: 'From load and budget' }))
+
+    await waitFor(() => {
+      expect(useControllerProfileStore.getState().profiles[0].globalTransforms
+        .find((transform) => transform.type === 'power-cap'))
+        .toMatchObject({ mode: 'derived' })
+    })
+    await new Promise((resolve) => setTimeout(resolve, 350))
+    expect(useControllerProfileStore.getState().profiles[0].globalTransforms
+      .find((transform) => transform.type === 'power-cap'))
+      .toMatchObject({ mode: 'derived' })
+  })
+
+  it('flushes a pending slider commit on unmount instead of losing it (#786)', async () => {
+    const profile = seedProfile()
+    useControllerProfileStore.setState({
+      profiles: [{
+        ...profile,
+        globalTransforms: profile.globalTransforms.map((transform) => (
+          transform.type === 'power-cap'
+            ? { ...transform, enabled: true, mode: 'direct' as const, maxDuty: 0.25 }
+            : transform
+        )),
+      }],
+      profilesLoaded: true,
+    })
+    setPersonalContentProvider({
+      ...demoPersonalContentProvider,
+      updateControllerProfile: async () => {},
+    })
+
+    const { unmount } = render(<ControllerProfilePage profileId="ctrl-1" />)
+
+    fireEvent.change(screen.getByRole('slider', { name: 'Power cap duty percent' }), {
+      target: { value: '0.15' },
+    })
+    unmount()
+
+    await waitFor(() => {
+      expect(useControllerProfileStore.getState().profiles[0].globalTransforms
+        .find((transform) => transform.type === 'power-cap'))
+        .toMatchObject({ mode: 'direct', maxDuty: 0.15 })
+    })
+  })
+
   it('collapses to a summary while power is not limited (#786)', () => {
     seedProfile()
 
