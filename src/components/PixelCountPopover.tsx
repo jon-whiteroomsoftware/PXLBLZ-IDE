@@ -4,6 +4,7 @@ import { Check, Minus, Plus, X } from 'lucide-react'
 import { controlIcon, inlineIcon } from '@/components/iconScale'
 import { parsePixelCountDraft, sanitizePixelCountDraft } from '@/engine/pixelCountDraft'
 import { adjacentPreviewResolution, resolutionStepIndex } from '@/engine/previewResolution'
+import { beginFineAdjust, moveFineAdjust, type FineAdjustDrag } from '@/engine/fineAdjust'
 import type { GridDims } from '@/engine/maps'
 import { useAnchoredOverlayPosition } from './useAnchoredOverlayPosition'
 
@@ -48,6 +49,11 @@ export function PixelCountPopover({
   const triggerRef = useRef<HTMLButtonElement>(null)
   const popoverRef = useRef<HTMLDivElement>(null)
   const inputRef = useRef<HTMLInputElement>(null)
+  const resolutionPointerRef = useRef<number | null>(null)
+  const resolutionDragRef = useRef<FineAdjustDrag | null>(null)
+  const resolutionWidthRef = useRef(1)
+  const resolutionFineEngagedRef = useRef(false)
+  const [resolutionFineActive, setResolutionFineActive] = useState(false)
   const parsed = parsePixelCountDraft(draft)
   const stepIndex = quickSelect ? resolutionStepIndex(quickSelect.steps, value) : null
   const previous = quickSelect ? adjacentPreviewResolution(quickSelect.steps, value, -1) : null
@@ -78,6 +84,13 @@ export function PixelCountPopover({
     onApply(parsed)
     setDraft(String(parsed))
     setOpen(false)
+  }
+
+  function finishResolutionDrag() {
+    resolutionPointerRef.current = null
+    resolutionDragRef.current = null
+    resolutionFineEngagedRef.current = false
+    setResolutionFineActive(false)
   }
 
   useEffect(() => {
@@ -134,6 +147,9 @@ export function PixelCountPopover({
                 <div className="mb-1 flex items-center justify-between text-[10px] uppercase tracking-wide text-zinc-500">
                   <span>Resolution</span>
                   <span className="flex items-center gap-1">
+                    {resolutionFineActive && (
+                      <span className="text-amber-300" aria-live="polite">Fine</span>
+                    )}
                     <span className={stepIndex == null ? 'text-zinc-500' : 'text-live'}>
                       {stepIndex == null ? '—' : value?.toLocaleString()}
                     </span>
@@ -167,8 +183,53 @@ export function PixelCountPopover({
                     max={quickSelect.steps.length - 1}
                     step={1}
                     value={stepIndex ?? (quickSelect.steps.length - 1) / 2}
-                    onChange={(event) => quickSelect.onSelect(quickSelect.steps[Math.round(Number(event.target.value))])}
-                    className={`min-w-0 flex-1 ${stepIndex == null ? 'deck-slider-unset' : 'accent-live'}`}
+                    onChange={(event) => {
+                      if (resolutionPointerRef.current !== null && resolutionFineEngagedRef.current) return
+                      quickSelect.onSelect(quickSelect.steps[Math.round(Number(event.target.value))])
+                    }}
+                    onPointerDown={(event) => {
+                      resolutionPointerRef.current = event.pointerId
+                      resolutionFineEngagedRef.current = event.shiftKey
+                      setResolutionFineActive(event.shiftKey)
+                      resolutionWidthRef.current = Math.max(1, event.currentTarget.getBoundingClientRect().width)
+                      resolutionDragRef.current = beginFineAdjust(
+                        event.clientX,
+                        stepIndex ?? (quickSelect.steps.length - 1) / 2,
+                      )
+                      event.currentTarget.setPointerCapture?.(event.pointerId)
+                    }}
+                    onPointerMove={(event) => {
+                      if (resolutionPointerRef.current !== event.pointerId) return
+                      if (event.shiftKey) resolutionFineEngagedRef.current = true
+                      setResolutionFineActive(event.shiftKey)
+                      const drag = resolutionDragRef.current
+                      if (drag === null) return
+                      if (!resolutionFineEngagedRef.current) {
+                        resolutionDragRef.current = beginFineAdjust(
+                          event.clientX,
+                          stepIndex ?? (quickSelect.steps.length - 1) / 2,
+                        )
+                        return
+                      }
+                      resolutionDragRef.current = moveFineAdjust(drag, event.clientX, {
+                        fine: event.shiftKey,
+                        scale: (quickSelect.steps.length - 1) / resolutionWidthRef.current,
+                      })
+                      const index = Math.max(
+                        0,
+                        Math.min(quickSelect.steps.length - 1, Math.round(resolutionDragRef.current.position)),
+                      )
+                      quickSelect.onSelect(quickSelect.steps[index])
+                    }}
+                    onPointerUp={(event) => {
+                      if (resolutionPointerRef.current !== event.pointerId) return
+                      event.currentTarget.releasePointerCapture?.(event.pointerId)
+                      finishResolutionDrag()
+                    }}
+                    onPointerCancel={finishResolutionDrag}
+                    data-fine-adjusting={resolutionFineActive ? 'true' : undefined}
+                    title={resolutionFineActive ? 'Fine adjustment engaged' : 'Shift-drag for fine adjustment'}
+                    className={`min-w-0 flex-1 ${resolutionFineActive ? 'ring-1 ring-amber-300/70' : ''} ${stepIndex == null ? 'deck-slider-unset' : 'accent-live'}`}
                   />
                   <button
                     type="button"
