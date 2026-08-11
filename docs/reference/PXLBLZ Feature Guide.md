@@ -517,10 +517,11 @@ transport owns time; Pattern-level speed and controls stay out of the Stage.
 
 The compile bar under the timeline reports creator-facing limits: delivered
 **Show source**, VM array words, and actionable warnings or blockers. The
-source figure expands into a byte-level inventory of contributors; when any
-contributor is both changeable and large enough to matter, the inventory adds
-a **Ways to slim this Show** section — a lean Show shows no such section. The
-same bar enforces the support envelope — outputs above 2,000
+source figure expands into a byte-level inventory of contributors; when the
+inventory finds actionable savings — an oversized contributor, or a Pattern
+compiled into more than one machine — it adds a **Ways to slim this Show**
+section, and stays silent when there is nothing actionable. The same
+bar enforces the support envelope — outputs above 2,000
 pixels, exhausted memory axes, or more than five simultaneous renderers per
 pixel block outbound actions with a named cause, while editing and preview
 continue.
