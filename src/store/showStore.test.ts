@@ -132,7 +132,7 @@ describe('showStore (#318)', () => {
     setPersonalContentProvider(provider)
     useShowStore.setState({ shows: [show], activeShowId: show.id, showsLoaded: true })
 
-    await expect(useShowStore.getState().updateScene(show.id, 'scene-1', { name: 'Lost edit' })).rejects.toThrow('offline')
+    await useShowStore.getState().updateScene(show.id, 'scene-1', { name: 'Lost edit' })
 
     const restored = useShowStore.getState().shows[0]
     expect(restored.scenes[0].name).toBe('Scene 1')
@@ -164,6 +164,22 @@ describe('showStore (#318)', () => {
     expect(writes.map((write) => write.name)).toEqual(['First', 'Second'])
   })
 
+  it('updateShow itself still rejects for callers that gate on persistence (#792)', async () => {
+    const show = createDefaultShow('show-save-primitive', 'Save primitive', 1)
+    const provider = memoryProvider([show])
+    provider.updateShow = async () => { throw new Error('offline') }
+    setPersonalContentProvider(provider)
+    useShowStore.setState({ shows: [show], activeShowId: show.id, showsLoaded: true })
+
+    await expect(useShowStore.getState().updateShow(show.id, {
+      ...show,
+      name: 'Primitive edit',
+      updatedAt: show.updatedAt + 1,
+    })).rejects.toThrow('offline')
+    expect(useShowStore.getState().shows[0].name).toBe('Save primitive')
+    expect(useShowStore.getState().showSaveFailure?.showId).toBe(show.id)
+  })
+
   it('records a save failure alongside the rollback and clears it on dismiss (#792)', async () => {
     const show = createDefaultShow('show-save-notice', 'Save notice', 1)
     const provider = memoryProvider([show])
@@ -171,7 +187,7 @@ describe('showStore (#318)', () => {
     setPersonalContentProvider(provider)
     useShowStore.setState({ shows: [show], activeShowId: show.id, showsLoaded: true })
 
-    await expect(useShowStore.getState().updateScene(show.id, 'scene-1', { name: 'Lost edit' })).rejects.toThrow('offline')
+    await useShowStore.getState().updateScene(show.id, 'scene-1', { name: 'Lost edit' })
 
     const failure = useShowStore.getState().showSaveFailure
     expect(failure?.showId).toBe(show.id)
@@ -194,7 +210,7 @@ describe('showStore (#318)', () => {
     setPersonalContentProvider(provider)
     useShowStore.setState({ shows: [show], activeShowId: show.id, showsLoaded: true })
 
-    await expect(useShowStore.getState().updateScene(show.id, 'scene-1', { name: 'Lost edit' })).rejects.toThrow('offline')
+    await useShowStore.getState().updateScene(show.id, 'scene-1', { name: 'Lost edit' })
 
     // A retry while still offline keeps the notice without rejecting the caller.
     await useShowStore.getState().retryShowSaveFailure()
@@ -221,7 +237,7 @@ describe('showStore (#318)', () => {
     setPersonalContentProvider(provider)
     useShowStore.setState({ shows: [show], activeShowId: show.id, showsLoaded: true })
 
-    await expect(useShowStore.getState().updateScene(show.id, 'scene-1', { name: 'Lost edit' })).rejects.toThrow('offline')
+    await useShowStore.getState().updateScene(show.id, 'scene-1', { name: 'Lost edit' })
     expect(useShowStore.getState().showSaveFailure).not.toBeNull()
 
     offline = false
