@@ -1,25 +1,23 @@
-// The Studio-level bars for drafts whose navigation-time flush failed after
-// their editor was already left (#810): each held draft in
-// editorStore.navigationSaveFailures is the only copy of those edits. Retry
-// re-attempts the id-addressed write (dropped if the record has advanced past
-// the held timestamp); Dismiss discards that draft. Renders nothing while
-// every navigation flush has landed.
+// The Studio-level bars for edits lost to failed navigation flushes (#810):
+// the buffer had already moved on when the save failed, so the edit is gone.
+// Each bar states which record's edit was lost and offers Dismiss; nothing is
+// retained or retried (draft retention with Retry is #818). Renders nothing
+// while every navigation flush has landed.
 import { useEditorStore } from '@/store/editorStore'
-import { dismissNavigationSaveFailure, retryNavigationSaveFailure } from '@/store/autosaveSync'
+import { dismissNavigationSaveLoss } from '@/store/autosaveSync'
 import { SaveFailureNotice } from '@/components/SaveFailureNotice'
 
 export function NavigationSaveFailureNotice() {
-  const failures = useEditorStore((s) => s.navigationSaveFailures)
-  if (failures.length === 0) return null
+  const losses = useEditorStore((s) => s.navigationSaveLosses)
+  if (losses.length === 0) return null
   return (
     <>
-      {failures.map((draft) => (
+      {losses.map((loss) => (
         <SaveFailureNotice
-          key={`${draft.flavor}:${draft.id}`}
+          key={`${loss.flavor}:${loss.id}`}
           testId="navigation-save-failure"
-          message={`Couldn't save "${draft.name}" before switching. The unsaved edits are held here.`}
-          onRetry={() => void retryNavigationSaveFailure(draft.flavor, draft.id)}
-          onDismiss={() => dismissNavigationSaveFailure(draft.flavor, draft.id)}
+          message={`Couldn't save "${loss.name}" before switching. That edit wasn't saved.`}
+          onDismiss={() => dismissNavigationSaveLoss(loss.flavor, loss.id)}
         />
       ))}
     </>

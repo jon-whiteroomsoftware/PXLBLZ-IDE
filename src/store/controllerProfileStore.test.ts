@@ -940,3 +940,66 @@ describe('key-level profile rollback (#810 review round 5)', () => {
     })
   })
 })
+
+describe('durable-baseline profile rollback (#810 review round 6)', () => {
+  it('two failed edits to the same field revert to the durable value, not each other', async () => {
+    const profile = defaultControllerProfile({ id: 'ctrl-1', name: 'Original', now: 1 })
+    const provider = memoryProvider([profile])
+    let offline = true
+    const durableUpdate = provider.updateControllerProfile
+    provider.updateControllerProfile = async (id, changes) => {
+      if (offline) throw new Error('save failed')
+      await durableUpdate(id, changes)
+    }
+    setPersonalContentProvider(provider)
+    await useControllerProfileStore.getState().loadProfiles()
+
+    await Promise.allSettled([
+      useControllerProfileStore.getState().updateProfile('ctrl-1', { name: 'First fail' }),
+      useControllerProfileStore.getState().updateProfile('ctrl-1', { name: 'Second fail' }),
+    ])
+
+    // Neither optimistic value may survive: both writes failed, so the field
+    // shows the durable value while the notice retains the latest intent.
+    expect(useControllerProfileStore.getState().profiles[0].name).toBe('Original')
+    expect(useControllerProfileStore.getState().profileSaveFailure).toMatchObject({
+      profileId: 'ctrl-1',
+      changes: { name: 'Second fail' },
+    })
+
+    offline = false
+    await useControllerProfileStore.getState().retryProfileSaveFailure()
+    expect(useControllerProfileStore.getState().profiles[0].name).toBe('Second fail')
+    expect(useControllerProfileStore.getState().profileSaveFailure).toBeNull()
+  })
+
+  it('Retry skips a field a newer pending edit owns instead of clobbering it', async () => {
+    const profile = defaultControllerProfile({ id: 'ctrl-1', name: 'Original', now: 1 })
+    const provider = memoryProvider([profile])
+    let releaseNewer!: () => void
+    const newerGate = new Promise<void>((resolve) => {
+      releaseNewer = resolve
+    })
+    const durableUpdate = provider.updateControllerProfile
+    let call = 0
+    provider.updateControllerProfile = async (id, changes) => {
+      call += 1
+      if (call === 1) throw new Error('save failed')
+      if (call === 2) await newerGate
+      await durableUpdate(id, changes)
+    }
+    setPersonalContentProvider(provider)
+    await useControllerProfileStore.getState().loadProfiles()
+
+    await useControllerProfileStore.getState().updateProfile('ctrl-1', { name: 'Old fail' }).catch(() => {})
+    // A newer edit to the same field is pending when the user clicks Retry.
+    const newerPending = useControllerProfileStore.getState().updateProfile('ctrl-1', { name: 'Newer intent' })
+    const retried = useControllerProfileStore.getState().retryProfileSaveFailure()
+    releaseNewer()
+    await newerPending
+    await retried
+
+    expect(useControllerProfileStore.getState().profiles[0].name).toBe('Newer intent')
+    expect(useControllerProfileStore.getState().profileSaveFailure).toBeNull()
+  })
+})

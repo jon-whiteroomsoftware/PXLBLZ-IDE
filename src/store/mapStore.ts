@@ -238,12 +238,11 @@ interface MapState {
   // tick when the parse badge is green. An eval failure persists source only,
   // records mapEvalError, and leaves any prior bake intact — never crashes.
   bakeEditingMap: () => Promise<void>
-  // Source-only durable write for a map that is no longer open in the editor,
-  // used by the navigation-save Retry (#810). Bakes at the count captured when
-  // the draft was made; an eval failure persists the source with an empty
-  // bake so old geometry never renders under new source (the next open
-  // re-bakes and surfaces the error). Rejects on persistence failure without
-  // touching the local record.
+  // Persist a captured draft for a map that no longer owns the editor buffer
+  // (a queued navigation flush, #810), baked at the count captured with it.
+  // An eval-failing draft is not persisted — only clean content auto-saves —
+  // so no record can acquire a degenerate bake through this path. Rejects on
+  // persistence failure without touching the local record.
   persistMapSource: (id: string, source: string, bakeCount: number) => Promise<void>
   // Legacy map-to-preview action. Kept as an inert compatibility no-op; assigning
   // a map to a pattern now happens only through the preview Map control.
@@ -497,30 +496,21 @@ export const useMapStore = create<MapState>()((set, get) => ({
 
   persistMapSource: async (id, source, bakeCount) => {
     const updatedAt = Date.now()
-    let patch: Partial<MapRecord>
-    let evalFailed = false
-    try {
-      const baked = bakeMapSource(source, bakeCount)
-      patch = {
-        source,
-        points: baked.points,
-        dim: baked.dim,
-        gridDims: baked.gridDims ?? undefined,
-        updatedAt,
-      }
-    } catch {
-      // Eval failure with no editor open to surface it: persist the source and
-      // drop the stale bake so old geometry never renders under new source.
-      // The next open re-bakes and surfaces the error.
-      evalFailed = true
-      patch = { source, points: [], updatedAt }
+    // A captured draft that fails eval is refused rather than persisted:
+    // bakeMapSource's throw rejects this write with no editor open to hold a
+    // banner, and the caller reports the edit as not saved. Only clean
+    // content auto-saves.
+    const baked = bakeMapSource(source, bakeCount)
+    const patch: Partial<MapRecord> = {
+      source,
+      points: baked.points,
+      dim: baked.dim,
+      gridDims: baked.gridDims ?? undefined,
+      updatedAt,
     }
     await getPersonalContentProvider().updateMap(id, patch)
     set((s) => ({
       userMaps: s.userMaps.map((m) => (m.id === id ? { ...m, ...patch } : m)),
-      // A layout can't resolve from an empty bake; fall back to the default
-      // map rather than letting the preview resolve a 0-point custom map.
-      ...(evalFailed && s.activeMapId === id ? { activeMapId: DEFAULT_MAP_ID } : {}),
     }))
   },
 

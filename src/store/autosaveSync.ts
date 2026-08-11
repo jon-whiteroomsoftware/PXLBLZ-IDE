@@ -3,20 +3,18 @@
 // The Editor's persistence tick calls flushPendingAutosave every SYNC_TICK_MS;
 // the buffer-replacing seams (pattern/demo/library activation, entering or
 // leaving map/mixin/library mode, Editor unmount) call it directly so up to one
-// tick's worth of typing is not dropped on navigation. Every write — tick,
-// seam, and Retry — runs through a per-record chain, so two saves for one
-// record can never land out of order and the newest draft always wins.
+// tick's worth of typing is not dropped on navigation. Every write — tick and
+// seam — runs through a per-record chain, so two saves for one record can
+// never land out of order and the newest content always wins.
 //
 // Outcomes: a failure while the buffer still holds the draft records the
 // entity in editorStore.autosaveFailedEntity (the glyph; the next tick
-// retries), while a failure after the buffer moved on holds the draft in
-// editorStore.navigationSaveFailures for the Studio notice's Retry — that
-// held entry is the only remaining copy of the draft. Supersession is judged
-// by record *source* captured when the chained write actually starts (queued
-// writes re-base on whatever the previous write landed), never by updatedAt:
-// metadata writes such as renames must not discard a draft.
+// retries), while a failure after the buffer moved on records the loss in
+// editorStore.navigationSaveLosses — the Studio notice reports which edit
+// could not be saved. Nothing is retained or retried for a lost edit; draft
+// retention with Retry is deliberately out of scope here (#818).
 
-import { useEditorStore, type EditorFlavor, type NavigationSaveDraft } from './editorStore'
+import { useEditorStore, type EditorFlavor } from './editorStore'
 import { usePatternStore } from './patternStore'
 import { useMapStore, DEFAULT_MAP_BAKE_COUNT } from './mapStore'
 import { useMixinStore } from './mixinStore'
@@ -72,29 +70,13 @@ export function flushPendingAutosave(): void {
     const failedEntityMatches = editor.autosaveFailedEntity?.flavor === editorFlavor
       && editor.autosaveFailedEntity.id === attempt.id
     if (!failed) {
-      // Drop a held draft for this record only when this save carried it, or
-      // when the record's source moved past the draft's base (a newer edit
-      // landed). A no-op save of unchanged source proves nothing about the
-      // draft and must not discard it.
-      const held = heldDraft(editorFlavor, attempt.id)
-      if (held && (!record || held.source === source || record.src !== held.baseSrc)) {
-        dropHeldDraft(editorFlavor, attempt.id)
-      }
       if (failedEntityMatches) editor.setAutosaveFailedEntity(null)
-      if (entityActive && baseSrcAtRun !== null && source !== baseSrcAtRun
-        && editor.source === baseSrcAtRun) {
-        // The record was reopened while this save was pending: the buffer
-        // shows the stale pre-save content this write just replaced. Refresh
-        // it to the saved draft so the next tick cannot write the stale
-        // buffer back over the successful save.
-        editor.setSource(source)
-      }
       return
     }
     if (!record || baseSrcAtRun === null || record.src !== baseSrcAtRun) {
       // The record's source advanced while this write was in flight (a newer
       // save landed) or the record was deleted: the newer durable content
-      // supersedes this draft.
+      // supersedes this write, so there is nothing to report.
       return
     }
     if (entityActive && editor.source !== record.src) {
@@ -104,121 +86,31 @@ export function flushPendingAutosave(): void {
       editor.setAutosaveFailedEntity({ flavor: editorFlavor, id: attempt.id })
       return
     }
-    // The draft survives nowhere else: the buffer moved to another record, or
-    // the record was reopened clean from its stale persisted source. Hold the
-    // draft for the Studio notice's Retry (#810).
-    holdDraft({
-      flavor: editorFlavor,
-      id: attempt.id,
-      name: record.name,
-      source,
-      baseSrc: baseSrcAtRun,
-      ...(attempt.mapBakeCount !== undefined ? { mapBakeCount: attempt.mapBakeCount } : {}),
-    })
+    // The buffer moved on (or was reopened clean), so this edit is gone:
+    // report the loss instead of failing silently (#810).
+    editor.setNavigationSaveLosses([
+      ...editor.navigationSaveLosses.filter(
+        (loss) => !(loss.flavor === editorFlavor && loss.id === attempt.id),
+      ),
+      { flavor: editorFlavor, id: attempt.id, name: record.name },
+    ])
   }
   chainWrite(`${editorFlavor} ${attempt.id}`, () => {
     const recordAtRun = attempt.record()
-    // Deleted while queued: nothing to write, and settling as success lets
-    // the held-draft bookkeeping clean itself up.
+    // Deleted while queued: nothing to write.
     if (!recordAtRun) return Promise.resolve()
     baseSrcAtRun = recordAtRun.src
     return attempt.run()
   }).then(() => settle(false), () => settle(true))
 }
 
-// Re-attempts a held navigation draft against its record, through the same
-// per-record chain as the autosave writes. The held draft and its
-// supersession are revalidated when the chained write actually executes — a
-// newer save already in flight lands first, and a newer failed draft that
-// replaced the held entry while this Retry queued is what gets written. The
-// record list is refreshed from durable storage before validating, so a
-// newer save from another tab supersedes the draft instead of being
-// overwritten; cross-client races beyond that read remain #802 territory
-// (server-side versioning), matching the Show retry (#792). A still-failing
-// write keeps the notice up.
-export async function retryNavigationSaveFailure(flavor: EditorFlavor, id: string): Promise<void> {
-  if (!heldDraft(flavor, id)) return
-  let handled: NavigationSaveDraft | null = null
-  try {
-    await chainWrite(`${flavor} ${id}`, async () => {
-      const current = heldDraft(flavor, id)
-      if (!current) return
-      // Offline the refresh fails quietly — the write itself fails anyway.
-      await refreshRecords(flavor).catch(() => {})
-      handled = current
-      const write = navigationSaveWrite(current)
-      // Superseded (or deleted) by the time this write ran: drop, not write.
-      if (!write) return
-      await write()
-    })
-    // Drop only the entry this Retry actually handled; a draft held anew
-    // while the write settled stays up.
-    if (handled !== null && heldDraft(flavor, id) === handled) dropHeldDraft(flavor, id)
-  } catch {
-    // Keep the notice; the draft is still held.
-  }
-}
-
-function refreshRecords(flavor: EditorFlavor): Promise<void> {
-  if (flavor === 'map') return useMapStore.getState().loadMaps()
-  if (flavor === 'mixin') return useMixinStore.getState().loadMixins()
-  if (flavor === 'library') return useLibraryStore.getState().loadLibraries()
-  return usePatternStore.getState().loadPatterns()
-}
-
-export function dismissNavigationSaveFailure(flavor: EditorFlavor, id: string): void {
-  dropHeldDraft(flavor, id)
-}
-
-function heldDraft(flavor: EditorFlavor, id: string): NavigationSaveDraft | undefined {
-  return useEditorStore.getState().navigationSaveFailures
-    .find((draft) => draft.flavor === flavor && draft.id === id)
-}
-
-function holdDraft(draft: NavigationSaveDraft): void {
+export function dismissNavigationSaveLoss(flavor: EditorFlavor, id: string): void {
   const editor = useEditorStore.getState()
-  editor.setNavigationSaveFailures([
-    ...editor.navigationSaveFailures.filter(
-      (held) => !(held.flavor === draft.flavor && held.id === draft.id),
+  editor.setNavigationSaveLosses(
+    editor.navigationSaveLosses.filter(
+      (loss) => !(loss.flavor === flavor && loss.id === id),
     ),
-    draft,
-  ])
-}
-
-function dropHeldDraft(flavor: EditorFlavor, id: string): void {
-  const editor = useEditorStore.getState()
-  const remaining = editor.navigationSaveFailures.filter(
-    (held) => !(held.flavor === flavor && held.id === id),
   )
-  if (remaining.length !== editor.navigationSaveFailures.length) {
-    editor.setNavigationSaveFailures(remaining)
-  }
-}
-
-function navigationSaveWrite(failure: NavigationSaveDraft): (() => Promise<void>) | null {
-  const { flavor, id, source, baseSrc } = failure
-  if (flavor === 'map') {
-    const { userMaps, persistMapSource } = useMapStore.getState()
-    const record = userMaps.find((m) => m.id === id)
-    if (!record || (record.source ?? '') !== baseSrc) return null
-    return () => persistMapSource(id, source, failure.mapBakeCount ?? DEFAULT_MAP_BAKE_COUNT)
-  }
-  if (flavor === 'mixin') {
-    const { userMixins, updateMixinSrc } = useMixinStore.getState()
-    const record = userMixins.find((m) => m.id === id)
-    if (!record || record.src !== baseSrc) return null
-    return () => updateMixinSrc(id, source)
-  }
-  if (flavor === 'library') {
-    const { userLibraries, updateLibrarySrc } = useLibraryStore.getState()
-    const record = userLibraries.find((library) => library.id === id)
-    if (!record || record.src !== baseSrc) return null
-    return () => updateLibrarySrc(id, source)
-  }
-  const { userPatterns, updatePatternSrc } = usePatternStore.getState()
-  const record = userPatterns.find((p) => p.id === id)
-  if (!record || record.src !== baseSrc) return null
-  return () => updatePatternSrc(id, source)
 }
 
 // The durable entity the editor buffer belongs to right now, or null.
@@ -243,9 +135,6 @@ function activeDurableEntity(): { id: string } | null {
 
 interface AutosaveAttempt {
   id: string
-  /** For map attempts: the bake count in effect when the attempt was created,
-   * so a late or retried persist bakes the geometry the author saw. */
-  mapBakeCount?: number
   run: () => Promise<void>
   /** Current name/src of the target record, read at run and settle time. */
   record: () => { name: string; src: string } | undefined
@@ -263,7 +152,6 @@ function autosaveAttempt(flavor: EditorFlavor, source: string): AutosaveAttempt 
     const bakeCount = activePixelCount ?? DEFAULT_MAP_BAKE_COUNT
     return {
       id,
-      mapBakeCount: bakeCount,
       run: () => {
         // bakeEditingMap reads the live editor buffer, so it is only valid
         // while this map still owns the buffer AND the buffer still holds the

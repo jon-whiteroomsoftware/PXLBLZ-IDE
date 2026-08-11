@@ -97,6 +97,12 @@ export const controllerProfileInitialState = {
 const autoCreateSuppressedDeviceIds = new Set<string>()
 const autoCreatePendingProfiles = new Map<string, Promise<ControllerProfile>>()
 
+// The last durably persisted state of each profile (#810), mirroring the Show
+// editor's durable baseline (#792). Rollback restores these values — never a
+// pre-write snapshot, which can contain another failed write's optimistic
+// state — and Retry validates against them.
+const lastDurableProfiles = new Map<string, ControllerProfile>()
+
 export function __resetControllerProfileAutoCreateGuards(): void {
   autoCreateSuppressedDeviceIds.clear()
   autoCreatePendingProfiles.clear()
@@ -177,18 +183,19 @@ function patchProfile(
 
 // Revert only the failed patch's keys, and only where the current value is
 // still that patch's optimistic value (patchProfile spreads the patch values
-// by reference). Keys a later queued edit already overwrote keep that newer
-// optimistic state, so a failed edit really reverts instead of surviving
-// locally as never-durable content (#810).
+// by reference); each reverts to its last durably persisted value. Keys a
+// later queued edit already overwrote keep that newer optimistic state, so a
+// failed edit really reverts instead of surviving locally as never-durable
+// content (#810).
 function revertFailedPatch(
   current: ControllerProfile,
-  previous: ControllerProfile,
+  durable: ControllerProfile,
   patch: Partial<Omit<ControllerProfile, 'id'>>,
 ): ControllerProfile {
   let reverted: ControllerProfile = current
   for (const key of Object.keys(patch) as Array<keyof Omit<ControllerProfile, 'id'>>) {
     if (Object.is(reverted[key], patch[key])) {
-      reverted = { ...reverted, [key]: previous[key] }
+      reverted = { ...reverted, [key]: durable[key] }
     }
   }
   return reverted
@@ -222,6 +229,8 @@ export const useControllerProfileStore = create<ControllerProfileState>()((set, 
 
   loadProfiles: async () => {
     const profiles = await getPersonalContentProvider().listControllerProfiles()
+    lastDurableProfiles.clear()
+    for (const profile of profiles) lastDurableProfiles.set(profile.id, profile)
     set({
       profiles: profiles
         .map((profile) => {
@@ -236,6 +245,7 @@ export const useControllerProfileStore = create<ControllerProfileState>()((set, 
   createProfile: async (seed = {}) => {
     const profile = defaultControllerProfile(seed)
     await getPersonalContentProvider().createControllerProfile(profile)
+    lastDurableProfiles.set(profile.id, profile)
     trackEntityCreated('controller_profile', { has_device_id: Boolean(profile.deviceId) })
     set((s) => ({ profiles: [profile, ...s.profiles], profilesLoaded: true }))
     return profile
@@ -245,6 +255,7 @@ export const useControllerProfileStore = create<ControllerProfileState>()((set, 
     const profile = get().profiles.find((item) => item.id === id)
     if (profile?.deviceId) autoCreateSuppressedDeviceIds.add(profile.deviceId)
     await getPersonalContentProvider().deleteControllerProfile(id)
+    lastDurableProfiles.delete(id)
     set((s) => ({ profiles: s.profiles.filter((profile) => profile.id !== id) }))
   },
 
@@ -311,6 +322,7 @@ export const useControllerProfileStore = create<ControllerProfileState>()((set, 
         }),
       }
       await getPersonalContentProvider().createControllerProfile(profile)
+      lastDurableProfiles.set(profile.id, profile)
       trackEntityCreated('controller_profile', { has_device_id: true })
       set((s) => ({ profiles: [profile, ...s.profiles], profilesLoaded: true }))
       return profile
@@ -338,15 +350,15 @@ export const useControllerProfileStore = create<ControllerProfileState>()((set, 
     try {
       await persistPatch(id, patch)
     } catch (error) {
+      const durable = lastDurableProfiles.get(id) ?? previous
       set((s) => ({
         profiles: s.profiles.map((profile) =>
-          profile.id === id && previous ? revertFailedPatch(profile, previous, patch) : profile,
+          profile.id === id && durable ? revertFailedPatch(profile, durable, patch) : profile,
         ),
         // Merge into an existing failure for this profile: with queued edits,
-        // an earlier rejection may have been unable to roll back past a later
-        // optimistic state, so Retry must re-apply every failed change
-        // together. A different profile's failure is replaced — its rollback
-        // already ran, so only its notice is superseded, never its data.
+        // Retry must re-apply every failed change together. A different
+        // profile's failure is replaced — its rollback already ran, so only
+        // its notice is superseded, never its data.
         profileSaveFailure: {
           profileId: id,
           changes: s.profileSaveFailure?.profileId === id
@@ -356,6 +368,7 @@ export const useControllerProfileStore = create<ControllerProfileState>()((set, 
       }))
       throw error
     }
+    lastDurableProfiles.set(id, patchProfile(lastDurableProfiles.get(id) ?? previous ?? optimistic!, patch))
     // Clear the failure only when this write covers the failed edit's keys
     // (the retry, or the user re-doing that edit). An unrelated write to the
     // same profile leaves the notice up: the failed changes are still not
@@ -382,8 +395,29 @@ export const useControllerProfileStore = create<ControllerProfileState>()((set, 
   retryProfileSaveFailure: async () => {
     const failure = get().profileSaveFailure
     if (!failure) return
+    const current = get().profiles.find((profile) => profile.id === failure.profileId)
+    const durable = lastDurableProfiles.get(failure.profileId)
+    if (!current) {
+      set({ profileSaveFailure: null })
+      return
+    }
+    // Re-apply only keys still sitting at their durable value: a key a newer
+    // optimistic edit owns is settled by that edit's own write, and retrying
+    // the older value would clobber the newer intent. Shrink the failure to
+    // the retried keys so a successful write clears it.
+    const retryChanges = Object.fromEntries(
+      Object.entries(failure.changes).filter(([key]) => {
+        const profileKey = key as keyof Omit<ControllerProfile, 'id'>
+        return !durable || Object.is(current[profileKey], durable[profileKey])
+      }),
+    ) as Partial<Omit<ControllerProfile, 'id'>>
+    if (Object.keys(retryChanges).length === 0) {
+      set({ profileSaveFailure: null })
+      return
+    }
+    set({ profileSaveFailure: { profileId: failure.profileId, changes: retryChanges } })
     // A still-failing write re-records profileSaveFailure; the notice stays up.
-    await get().updateProfile(failure.profileId, failure.changes).catch(() => {})
+    await get().updateProfile(failure.profileId, retryChanges).catch(() => {})
   },
 
   addInput: async (profileId) => {

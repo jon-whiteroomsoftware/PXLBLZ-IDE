@@ -797,14 +797,13 @@ function StudioApp() {
   }, [])
 
   // Warn before a reload/close exactly when unsaved editor work is at risk
-  // (#810): broken source that autosave will not persist, a clean edit whose
-  // write is failing, or a held navigation draft. Lives here rather than in
-  // Editor so a held draft stays protected after the Editor unmounts. Never
-  // fires during ordinary typing — the next tick covers that.
+  // (#810): broken source that autosave will not persist, or a clean edit
+  // whose write is failing. Lives here rather than in Editor so the guard
+  // survives Editor unmounts. Never fires during ordinary typing — the next
+  // tick covers that.
   useEffect(() => {
     const warn = (event: BeforeUnloadEvent) => {
-      if (activeStuckSaveStatus() !== null
-        || useEditorStore.getState().navigationSaveFailures.length > 0) event.preventDefault()
+      if (activeStuckSaveStatus() !== null) event.preventDefault()
     }
     window.addEventListener('beforeunload', warn)
     return () => window.removeEventListener('beforeunload', warn)

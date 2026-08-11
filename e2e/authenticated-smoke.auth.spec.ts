@@ -675,7 +675,7 @@ test.describe('silent save-failure feedback (#810)', () => {
     await expect(glyph).toHaveCount(0)
   })
 
-  test('a draft that fails to save during navigation is held with Retry (#810)', async ({ page }) => {
+  test('an edit that fails to save during navigation is reported as lost (#810)', async ({ page }) => {
     const patternA = {
       id: 'e2e-810-nav-a',
       name: 'Nav bench A',
@@ -693,9 +693,8 @@ test.describe('silent save-failure feedback (#810)', () => {
     const editor = page.locator('.monaco-editor').first()
     await expect(editor.locator('.view-lines')).toBeVisible()
 
-    let blockWrites = true
     await page.route('**/api/patterns/**', (route) => {
-      if (blockWrites && ['PATCH', 'PUT'].includes(route.request().method())) return route.abort()
+      if (['PATCH', 'PUT'].includes(route.request().method())) return route.abort()
       return route.continue()
     })
 
@@ -706,25 +705,22 @@ test.describe('silent save-failure feedback (#810)', () => {
     await expect(page.getByTestId('compile-status')).toHaveAttribute('data-status', 'good')
 
     // Navigate away before the draft can save: the seam flush fails after the
-    // buffer is replaced, so the draft is held with a visible notice.
+    // buffer is replaced, and the loss is reported instead of staying silent.
     await page.getByRole('treeitem', { name: patternB.name, exact: true }).click()
     const notice = page.getByTestId('navigation-save-failure')
     await expect(notice).toBeVisible(TICK)
     await expect(notice).toContainText(`Couldn't save "${patternA.name}" before switching.`)
+    // Nothing is retained, so there is no Retry — only Dismiss.
+    await expect(notice.getByRole('button', { name: 'Retry save' })).toHaveCount(0)
 
-    // Retry while still offline keeps the held draft.
-    await notice.getByRole('button', { name: 'Retry save' }).click()
-    await expect(notice).toBeVisible()
+    await notice.getByRole('button', { name: 'Dismiss save notice' }).click()
+    await expect(notice).toHaveCount(0)
 
-    // Once persistence recovers, Retry lands the draft on the record.
-    blockWrites = false
-    await notice.getByRole('button', { name: 'Retry save' }).click()
-    await expect(notice).not.toBeVisible()
-
+    // The record still holds the last durable source.
     const patterns = await page.context().request.get('/api/patterns')
     expect(patterns.ok(), `GET /api/patterns -> ${patterns.status()}`).toBe(true)
     const body = await patterns.json() as { patterns?: Array<{ id: string; src: string }> }
-    expect(body.patterns?.find((item) => item.id === patternA.id)?.src).toBe(editedSource)
+    expect(body.patterns?.find((item) => item.id === patternA.id)?.src).toBe(patternA.src)
   })
 
   test('map editor keeps an offline draft retrying instead of losing it (#810)', async ({ page }) => {

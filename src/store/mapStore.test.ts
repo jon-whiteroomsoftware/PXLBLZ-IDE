@@ -682,7 +682,7 @@ describe('persistMapSource (#810 navigation retry)', () => {
     expect(record.points).toEqual([[0, 0], [0.5, 0.5], [1, 0]])
   })
 
-  it('drops the stale bake when the retried source fails eval', async () => {
+  it('refuses an eval-failing draft, leaving the record untouched', async () => {
     const provider = memoryProvider()
     setPersonalContentProvider(provider)
     await useMapStore.getState().createNewMap()
@@ -690,12 +690,13 @@ describe('persistMapSource (#810 navigation retry)', () => {
     useMapStore.setState({ activePixelCount: 8 })
     await useMapStore.getState().bakeEditingMap()
     const id = useMapStore.getState().userMaps[0].id
+    const before = useMapStore.getState().userMaps.find((m) => m.id === id)!
 
-    await useMapStore.getState().persistMapSource(id, `function(n){ throw new Error('boom') }`, 8)
+    await expect(
+      useMapStore.getState().persistMapSource(id, `function(n){ throw new Error('boom') }`, 8),
+    ).rejects.toThrow(/boom/)
 
-    const record = useMapStore.getState().userMaps.find((m) => m.id === id)!
-    expect(record.source).toBe(`function(n){ throw new Error('boom') }`)
-    expect(record.points).toEqual([])
+    expect(useMapStore.getState().userMaps.find((m) => m.id === id)).toBe(before)
   })
 })
 
@@ -711,19 +712,4 @@ describe('persistMapSource guards (#810 review round 3)', () => {
     expect(useMapStore.getState().userMaps.find((m) => m.id === id)!.points).toHaveLength(12)
   })
 
-  it('resets the active layout when an eval failure clears the active map bake', async () => {
-    const provider = memoryProvider()
-    setPersonalContentProvider(provider)
-    await useMapStore.getState().createNewMap()
-    useEditorStore.getState().setSource(GRID_SRC)
-    useMapStore.setState({ activePixelCount: 8 })
-    await useMapStore.getState().bakeEditingMap()
-    const id = useMapStore.getState().userMaps[0].id
-    useMapStore.setState({ activeMapId: id })
-
-    await useMapStore.getState().persistMapSource(id, `function(n){ throw new Error('boom') }`, 8)
-
-    expect(useMapStore.getState().activeMapId).toBe(DEFAULT_MAP_ID)
-    // A non-active map with the same failure keeps the selection untouched.
-  })
 })

@@ -11,20 +11,14 @@ export type CompileStatus = 'good' | 'broken'
 // The flavor selects the Monaco language and which validator feeds the badge.
 export type EditorFlavor = 'pattern' | 'map' | 'mixin' | 'library'
 
-// A draft whose navigation-time flush failed after its editor was already
-// left (#810): the buffer is gone, so this holds the only copy for the Studio
-// notice's Retry. baseSrc is the record source the draft was typed over;
-// Retry drops the draft instead of writing once the record's source has moved
-// past it (metadata writes such as renames never discard a draft).
-export interface NavigationSaveDraft {
+// An edit that could not be saved during a buffer-replacing navigation
+// (#810): the flush failed after the buffer had already moved on, so the edit
+// is gone. This records only what is needed to say so — the Studio notice
+// reports the loss and offers Dismiss. Draft retention with Retry is #818.
+export interface NavigationSaveLoss {
   flavor: EditorFlavor
   id: string
   name: string
-  source: string
-  baseSrc: string
-  // For map drafts: the bake count in effect when the draft was captured, so
-  // Retry bakes the geometry the author saw.
-  mapBakeCount?: number
 }
 
 interface EditorState {
@@ -35,10 +29,9 @@ interface EditorState {
   // still owns the buffer, so a failure never leaks cant-save onto the next
   // record the user opens. Cleared by the first successful save.
   autosaveFailedEntity: { flavor: EditorFlavor; id: string } | null
-  // Held navigation drafts, at most one per record; a later failed flush for
-  // the same record supersedes its earlier draft. Empty while every
-  // navigation flush has landed.
-  navigationSaveFailures: NavigationSaveDraft[]
+  // Edits lost to failed navigation flushes, at most one entry per record,
+  // shown until dismissed. Empty while every navigation flush has landed.
+  navigationSaveLosses: NavigationSaveLoss[]
   editorFlavor: EditorFlavor
   source: string
   isReadOnly: boolean
@@ -72,7 +65,7 @@ interface EditorState {
   renderAdaptation: string | null
   setCompileStatus: (status: CompileStatus) => void
   setAutosaveFailedEntity: (entity: { flavor: EditorFlavor; id: string } | null) => void
-  setNavigationSaveFailures: (failures: NavigationSaveDraft[]) => void
+  setNavigationSaveLosses: (losses: NavigationSaveLoss[]) => void
   setEditorFlavor: (flavor: EditorFlavor) => void
   setSource: (source: string) => void
   setIsReadOnly: (value: boolean) => void
@@ -91,7 +84,7 @@ interface EditorState {
 export const editorInitialState = {
   compileStatus: 'good' as CompileStatus,
   autosaveFailedEntity: null as { flavor: EditorFlavor; id: string } | null,
-  navigationSaveFailures: [] as NavigationSaveDraft[],
+  navigationSaveLosses: [] as NavigationSaveLoss[],
   editorFlavor: 'pattern' as EditorFlavor,
   source: '',
   isReadOnly: true,
@@ -111,7 +104,7 @@ export const useEditorStore = create<EditorState>()((set) => ({
   ...editorInitialState,
   setCompileStatus: (compileStatus) => set({ compileStatus }),
   setAutosaveFailedEntity: (autosaveFailedEntity) => set({ autosaveFailedEntity }),
-  setNavigationSaveFailures: (navigationSaveFailures) => set({ navigationSaveFailures }),
+  setNavigationSaveLosses: (navigationSaveLosses) => set({ navigationSaveLosses }),
   setEditorFlavor: (editorFlavor) => set({ editorFlavor }),
   setSource: (source) => set({ source }),
   setIsReadOnly: (isReadOnly) => set({ isReadOnly }),

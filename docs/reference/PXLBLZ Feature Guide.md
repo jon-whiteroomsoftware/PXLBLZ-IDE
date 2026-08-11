@@ -113,11 +113,11 @@ the source has errors (only clean source is auto-saved — fixing the errors
 resumes saving), and red while a save is failing (offline or server error —
 the editor keeps retrying automatically and clears the glyph on the first
 success). The same glyph appears in the pattern, map, mixin, and library
-editors, and closing the tab in either state asks for confirmation. A draft
-whose save fails while switching views is held with an inline notice until it
-saves or is dismissed. One-shot edits outside the editors — Show fields and
-Controller profile changes — roll back if their save fails and report it with
-the same notice offering Retry.
+editors, and closing the tab in either state asks for confirmation. An edit
+that fails to save while switching views is reported with an inline notice
+naming the record, so nothing is lost silently. One-shot edits outside the
+editors — Show fields and Controller profile changes — roll back if their
+save fails and report it with the same notice offering Retry.
 
 Built-in Patterns open read-only; **Clone** creates an editable personal copy
 and snapshots the current preview settings. Every built-in starts with a

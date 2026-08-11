@@ -12,7 +12,7 @@ export function SaveFailureNotice({
   testId,
 }: {
   message: string
-  onRetry: () => void
+  onRetry?: () => void
   onDismiss: () => void
   testId: string
 }) {
@@ -24,19 +24,21 @@ export function SaveFailureNotice({
     >
       <CloudOff size={12} aria-hidden className="shrink-0 text-red-300/80" />
       <span className="min-w-0">{message}</span>
-      <button
-        type="button"
-        aria-label="Retry save"
-        onClick={onRetry}
-        className="ml-auto h-6 shrink-0 rounded border border-red-300/30 px-2 text-[11px] text-red-200/90 transition-colors hover:border-red-300/60 hover:text-red-100"
-      >
-        Retry
-      </button>
+      {onRetry && (
+        <button
+          type="button"
+          aria-label="Retry save"
+          onClick={onRetry}
+          className="ml-auto h-6 shrink-0 rounded border border-red-300/30 px-2 text-[11px] text-red-200/90 transition-colors hover:border-red-300/60 hover:text-red-100"
+        >
+          Retry
+        </button>
+      )}
       <button
         type="button"
         aria-label="Dismiss save notice"
         onClick={onDismiss}
-        className="grid size-5 shrink-0 place-items-center text-zinc-500 transition-colors hover:text-zinc-200"
+        className={`grid size-5 shrink-0 place-items-center text-zinc-500 transition-colors hover:text-zinc-200 ${onRetry ? '' : 'ml-auto'}`}
       >
         <X size={12} aria-hidden />
       </button>
