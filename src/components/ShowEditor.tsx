@@ -943,6 +943,7 @@ export function ShowEditor({
   const openShow = useShowStore((state) => state.openShow)
   const routerNavigate = useRouterStore((state) => state.navigate)
   const personalWorkspaceAuthenticated = useWorkspaceStore((state) => state.personalWorkspaceAuthenticated)
+  const [savingBuiltInCopy, setSavingBuiltInCopy] = useState(false)
   const persistShow = useShowStore((state) => state.updateShow)
   const showSaveFailure = useShowStore((state) => state.showSaveFailure)
   const dismissShowSaveFailure = useShowStore((state) => state.dismissShowSaveFailure)
@@ -2015,13 +2016,20 @@ export function ShowEditor({
           aria-label="Save a copy"
           title="Save this built-in (including session edits) as a personal Show"
           className="bg-zinc-900/60 text-[11px] text-zinc-400 hover:bg-zinc-800 hover:text-zinc-200"
+          disabled={savingBuiltInCopy}
           // activeShow carries the displayed projection, including transient
-          // built-in Pattern-slot selections; the copy keeps what is on screen.
-          onClick={() => void duplicateShow(showId, activeShow).then((copy) => {
-            if (!copy) return
-            void openShow(copy.id)
-            routerNavigate({ kind: 'studio', entity: { kind: 'shows', id: copy.id } })
-          })}
+          // built-in Pattern-slot selections; the copy keeps what is on
+          // screen. Disabled while pending: a second click would reuse the
+          // same name snapshot and race which copy opens.
+          onClick={() => {
+            if (savingBuiltInCopy) return
+            setSavingBuiltInCopy(true)
+            void duplicateShow(showId, activeShow).then((copy) => {
+              if (!copy) return
+              void openShow(copy.id)
+              routerNavigate({ kind: 'studio', entity: { kind: 'shows', id: copy.id } })
+            }).finally(() => setSavingBuiltInCopy(false))
+          }}
         >
           <Copy size={13} aria-hidden />
           <span className="show-header-action-label">Save a copy</span>
