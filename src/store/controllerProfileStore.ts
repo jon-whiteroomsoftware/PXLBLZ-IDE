@@ -175,6 +175,25 @@ function patchProfile(
   return { ...profile, ...changes, updatedAt: changes.updatedAt ?? Date.now() }
 }
 
+// Revert only the failed patch's keys, and only where the current value is
+// still that patch's optimistic value (patchProfile spreads the patch values
+// by reference). Keys a later queued edit already overwrote keep that newer
+// optimistic state, so a failed edit really reverts instead of surviving
+// locally as never-durable content (#810).
+function revertFailedPatch(
+  current: ControllerProfile,
+  previous: ControllerProfile,
+  patch: Partial<Omit<ControllerProfile, 'id'>>,
+): ControllerProfile {
+  let reverted: ControllerProfile = current
+  for (const key of Object.keys(patch) as Array<keyof Omit<ControllerProfile, 'id'>>) {
+    if (Object.is(reverted[key], patch[key])) {
+      reverted = { ...reverted, [key]: previous[key] }
+    }
+  }
+  return reverted
+}
+
 function sameInstalledMapSnapshot(
   left: InstalledMapSnapshot | undefined,
   right: InstalledMapSnapshot | undefined,
@@ -321,7 +340,7 @@ export const useControllerProfileStore = create<ControllerProfileState>()((set, 
     } catch (error) {
       set((s) => ({
         profiles: s.profiles.map((profile) =>
-          profile.id === id && profile === optimistic && previous ? previous : profile,
+          profile.id === id && previous ? revertFailedPatch(profile, previous, patch) : profile,
         ),
         // Merge into an existing failure for this profile: with queued edits,
         // an earlier rejection may have been unable to roll back past a later

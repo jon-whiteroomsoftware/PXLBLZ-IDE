@@ -233,11 +233,13 @@ describe('navigation save failure (#810 review P1)', () => {
     expect(useEditorStore.getState().navigationSaveFailures).toHaveLength(1)
   })
 
-  it('drops a held draft once its record has advanced past the held timestamp', async () => {
+  it('drops a held draft once the record has durably advanced past its base', async () => {
     const provider = memoryProvider([PATTERN])
+    const durableUpdate = provider.updatePattern
     let offline = true
-    provider.updatePattern = async () => {
+    provider.updatePattern = async (id, changes) => {
       if (offline) throw new Error('offline')
+      await durableUpdate(id, changes)
     }
     const update = vi.spyOn(provider, 'updatePattern')
     setPersonalContentProvider(provider)
@@ -246,12 +248,9 @@ describe('navigation save failure (#810 review P1)', () => {
     await settled()
     update.mockClear()
 
-    // A newer durable save (another tab, another device) supersedes the draft.
-    usePatternStore.setState((s) => ({
-      userPatterns: s.userPatterns.map((p) =>
-        p.id === PATTERN.id ? { ...p, src: 'newer content', updatedAt: 9999 } : p,
-      ),
-    }))
+    // A newer durable save (another tab, another device) supersedes the
+    // draft; the Retry's refresh sees it.
+    await durableUpdate(PATTERN.id, { src: 'newer content', updatedAt: 9999 })
     offline = false
     await retryNavigationSaveFailure('pattern', PATTERN.id)
 
@@ -631,6 +630,125 @@ describe('chained write re-basing and revalidation (#810 review round 4)', () =>
     useEditorStore.setState({ source: 'fresh edit for B', compileStatus: 'good', isReadOnly: false })
 
     expect(activeStuckSaveStatus()).toBeNull()
+  })
+})
+
+describe('reopen and retry coherence (#810 review round 5)', () => {
+  it('refreshes a reopened stale buffer when its pending save lands', async () => {
+    const provider = memoryProvider([PATTERN])
+    let releaseWrite!: () => void
+    const writeGate = new Promise<void>((resolve) => {
+      releaseWrite = resolve
+    })
+    const durableUpdate = provider.updatePattern
+    provider.updatePattern = async (id, changes) => {
+      await writeGate
+      await durableUpdate(id, changes)
+    }
+    setPersonalContentProvider(provider)
+    openDirtyPattern('pending draft')
+    flushPendingAutosave()
+
+    // Navigate away and reopen before the save settles: the buffer reloads
+    // the stale persisted source.
+    usePatternStore.getState().setActivePattern('pat-2')
+    usePatternStore.getState().setActivePattern(PATTERN.id)
+    useEditorStore.setState({ source: PATTERN.src })
+    releaseWrite()
+    await settled()
+
+    // The buffer follows the successful save; a tick now writes nothing back.
+    expect(useEditorStore.getState().source).toBe('pending draft')
+    expect(usePatternStore.getState().userPatterns[0].src).toBe('pending draft')
+  })
+
+  it('leaves a reopened buffer alone once the user typed into it', async () => {
+    const provider = memoryProvider([PATTERN])
+    let releaseWrite!: () => void
+    const writeGate = new Promise<void>((resolve) => {
+      releaseWrite = resolve
+    })
+    const durableUpdate = provider.updatePattern
+    provider.updatePattern = async (id, changes) => {
+      await writeGate
+      await durableUpdate(id, changes)
+    }
+    setPersonalContentProvider(provider)
+    openDirtyPattern('pending draft')
+    flushPendingAutosave()
+
+    usePatternStore.getState().setActivePattern('pat-2')
+    usePatternStore.getState().setActivePattern(PATTERN.id)
+    useEditorStore.setState({ source: 'typed after reopen' })
+    releaseWrite()
+    await settled()
+
+    expect(useEditorStore.getState().source).toBe('typed after reopen')
+  })
+
+  it('a queued Retry writes the newer draft that replaced the held entry', async () => {
+    const provider = memoryProvider([PATTERN])
+    let call = 0
+    let rejectFirst!: (cause: Error) => void
+    const firstGate = new Promise<void>((_resolve, reject) => {
+      rejectFirst = reject
+    })
+    const written: string[] = []
+    const durableUpdate = provider.updatePattern
+    provider.updatePattern = async (id, changes) => {
+      call += 1
+      if (call === 1) await firstGate
+      if (typeof changes.src === 'string') written.push(changes.src)
+      await durableUpdate(id, changes)
+    }
+    setPersonalContentProvider(provider)
+    useEditorStore.setState({
+      navigationSaveFailures: [{
+        flavor: 'pattern',
+        id: PATTERN.id,
+        name: PATTERN.name,
+        source: 'older held draft',
+        baseSrc: PATTERN.src,
+      }],
+    })
+    // A newer live save for the same record is in flight and will fail after
+    // navigation, replacing the held entry.
+    openDirtyPattern('newer failing draft')
+    flushPendingAutosave()
+    const retried = retryNavigationSaveFailure('pattern', PATTERN.id)
+    usePatternStore.getState().setActivePattern('pat-2')
+    rejectFirst(new Error('offline'))
+    await retried
+    await settled()
+
+    // The Retry re-read the held entry when it ran and wrote the newer draft.
+    expect(written).toEqual(['newer failing draft'])
+    expect(usePatternStore.getState().userPatterns[0].src).toBe('newer failing draft')
+    expect(useEditorStore.getState().navigationSaveFailures).toEqual([])
+  })
+
+  it('Retry refreshes from durable storage and drops a draft another tab superseded', async () => {
+    const provider = memoryProvider([PATTERN])
+    // Durable storage already holds newer content this tab has not loaded.
+    provider.listPatterns = async () => [{ ...PATTERN, src: 'newer from other tab', updatedAt: 5000 }]
+    const update = vi.spyOn(provider, 'updatePattern')
+    setPersonalContentProvider(provider)
+    useEditorStore.setState({
+      navigationSaveFailures: [{
+        flavor: 'pattern',
+        id: PATTERN.id,
+        name: PATTERN.name,
+        source: 'stale held draft',
+        baseSrc: PATTERN.src,
+      }],
+    })
+    usePatternStore.setState({ userPatterns: [PATTERN] })
+
+    await retryNavigationSaveFailure('pattern', PATTERN.id)
+
+    expect(update).not.toHaveBeenCalled()
+    expect(useEditorStore.getState().navigationSaveFailures).toEqual([])
+    expect(usePatternStore.getState().userPatterns[0].src).toBe('newer from other tab')
   })
 })
 

@@ -81,6 +81,14 @@ export function flushPendingAutosave(): void {
         dropHeldDraft(editorFlavor, attempt.id)
       }
       if (failedEntityMatches) editor.setAutosaveFailedEntity(null)
+      if (entityActive && baseSrcAtRun !== null && source !== baseSrcAtRun
+        && editor.source === baseSrcAtRun) {
+        // The record was reopened while this save was pending: the buffer
+        // shows the stale pre-save content this write just replaced. Refresh
+        // it to the saved draft so the next tick cannot write the stale
+        // buffer back over the successful save.
+        editor.setSource(source)
+      }
       return
     }
     if (!record || baseSrcAtRun === null || record.src !== baseSrcAtRun) {
@@ -119,24 +127,43 @@ export function flushPendingAutosave(): void {
 }
 
 // Re-attempts a held navigation draft against its record, through the same
-// per-record chain as the autosave writes. Supersession is revalidated when
-// the chained write actually executes — a newer save already in flight lands
-// first and the Retry then drops the draft instead of writing the older
-// source over it. A still-failing write keeps the notice up.
+// per-record chain as the autosave writes. The held draft and its
+// supersession are revalidated when the chained write actually executes — a
+// newer save already in flight lands first, and a newer failed draft that
+// replaced the held entry while this Retry queued is what gets written. The
+// record list is refreshed from durable storage before validating, so a
+// newer save from another tab supersedes the draft instead of being
+// overwritten; cross-client races beyond that read remain #802 territory
+// (server-side versioning), matching the Show retry (#792). A still-failing
+// write keeps the notice up.
 export async function retryNavigationSaveFailure(flavor: EditorFlavor, id: string): Promise<void> {
-  const failure = heldDraft(flavor, id)
-  if (!failure) return
+  if (!heldDraft(flavor, id)) return
+  let handled: NavigationSaveDraft | null = null
   try {
-    await chainWrite(`${flavor} ${id}`, () => {
-      const write = navigationSaveWrite(failure)
+    await chainWrite(`${flavor} ${id}`, async () => {
+      const current = heldDraft(flavor, id)
+      if (!current) return
+      // Offline the refresh fails quietly — the write itself fails anyway.
+      await refreshRecords(flavor).catch(() => {})
+      handled = current
+      const write = navigationSaveWrite(current)
       // Superseded (or deleted) by the time this write ran: drop, not write.
-      if (!write) return Promise.resolve()
-      return write()
+      if (!write) return
+      await write()
     })
-    dropHeldDraft(flavor, id)
+    // Drop only the entry this Retry actually handled; a draft held anew
+    // while the write settled stays up.
+    if (handled !== null && heldDraft(flavor, id) === handled) dropHeldDraft(flavor, id)
   } catch {
     // Keep the notice; the draft is still held.
   }
+}
+
+function refreshRecords(flavor: EditorFlavor): Promise<void> {
+  if (flavor === 'map') return useMapStore.getState().loadMaps()
+  if (flavor === 'mixin') return useMixinStore.getState().loadMixins()
+  if (flavor === 'library') return useLibraryStore.getState().loadLibraries()
+  return usePatternStore.getState().loadPatterns()
 }
 
 export function dismissNavigationSaveFailure(flavor: EditorFlavor, id: string): void {

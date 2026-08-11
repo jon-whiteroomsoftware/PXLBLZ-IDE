@@ -898,3 +898,45 @@ describe('concurrent profile failure merging (#810 review round 4)', () => {
     })
   })
 })
+
+describe('key-level profile rollback (#810 review round 5)', () => {
+  it('reverts a failed field while keeping a later queued edit optimistic', async () => {
+    const profile = defaultControllerProfile({ id: 'ctrl-1', name: 'Original', now: 1 })
+    const provider = memoryProvider([profile])
+    let rejectFirst!: (cause: Error) => void
+    const firstGate = new Promise<void>((_resolve, reject) => {
+      rejectFirst = reject
+    })
+    const durableUpdate = provider.updateControllerProfile
+    let call = 0
+    provider.updateControllerProfile = async (id, changes) => {
+      call += 1
+      if (call === 1) {
+        await firstGate
+        return
+      }
+      await durableUpdate(id, changes)
+    }
+    setPersonalContentProvider(provider)
+    await useControllerProfileStore.getState().loadProfiles()
+
+    const renamePending = useControllerProfileStore.getState()
+      .updateProfile('ctrl-1', { name: 'Failing rename' }).catch(() => {})
+    const togglePending = useControllerProfileStore.getState()
+      .updateProfile('ctrl-1', { keepPatternsUpToDate: true })
+    rejectFirst(new Error('save failed'))
+    await renamePending
+    await togglePending
+
+    // The failed rename really reverted; the successful toggle survived.
+    expect(useControllerProfileStore.getState().profiles[0]).toMatchObject({
+      name: 'Original',
+      keepPatternsUpToDate: true,
+    })
+    // The rename stays retryable.
+    expect(useControllerProfileStore.getState().profileSaveFailure).toMatchObject({
+      profileId: 'ctrl-1',
+      changes: { name: 'Failing rename' },
+    })
+  })
+})
