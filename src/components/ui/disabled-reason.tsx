@@ -62,7 +62,7 @@ export function DisabledReasonTip({ id, children, className = '' }: {
           hidden={!position}
           style={position ? { position: 'fixed', left: position.left, top: position.top, width: TIP_WIDTH } : undefined}
           className={position
-            ? `pointer-events-none z-50 rounded border border-amber-400/30 bg-zinc-950 px-2 py-1.5 text-left text-[9px] leading-3 text-amber-200 shadow-lg ${className}`
+            ? `pointer-events-none z-[90] rounded border border-amber-400/30 bg-zinc-950 px-2 py-1.5 text-left text-[9px] leading-3 text-amber-200 shadow-lg ${className}`
             : undefined}
         >
           {children}
