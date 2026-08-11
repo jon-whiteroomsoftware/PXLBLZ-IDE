@@ -1287,3 +1287,63 @@ describe('operation-owned rollback (#810 review round 11)', () => {
     expect(useControllerProfileStore.getState().profiles[0].name).toBe('Bench')
   })
 })
+
+describe('ownership across concurrent reloads (#810 review round 12)', () => {
+  it('a write that lands after a reload re-asserts its value locally', async () => {
+    const profile = defaultControllerProfile({ id: 'ctrl-1', name: 'Original', now: 1 })
+    const provider = memoryProvider([profile])
+    const durableUpdate = provider.updateControllerProfile
+    let releaseWrite!: () => void
+    const writeGate = new Promise<void>((resolve) => {
+      releaseWrite = resolve
+    })
+    provider.updateControllerProfile = async (id, changes) => {
+      await writeGate
+      await durableUpdate(id, changes)
+    }
+    setPersonalContentProvider(provider)
+    await useControllerProfileStore.getState().loadProfiles()
+
+    const pending = useControllerProfileStore.getState().updateProfile('ctrl-1', { name: 'Renamed' })
+    // A concurrent reload installs the pre-write durable snapshot.
+    await useControllerProfileStore.getState().loadProfiles()
+    expect(useControllerProfileStore.getState().profiles[0].name).toBe('Original')
+
+    releaseWrite()
+    await pending
+
+    // The landed write re-asserts its still-owned key over the stale snapshot.
+    expect(useControllerProfileStore.getState().profiles[0].name).toBe('Renamed')
+  })
+
+  it('a failure settling after a reload cannot revert a newer edit of the key', async () => {
+    const profile = defaultControllerProfile({ id: 'ctrl-1', name: 'Original', now: 1 })
+    const provider = memoryProvider([profile])
+    const durableUpdate = provider.updateControllerProfile
+    let rejectFirst!: (cause: Error) => void
+    const firstGate = new Promise<void>((_resolve, reject) => {
+      rejectFirst = reject
+    })
+    let call = 0
+    provider.updateControllerProfile = async (id, changes) => {
+      call += 1
+      if (call === 1) {
+        await firstGate
+        return
+      }
+      await durableUpdate(id, changes)
+    }
+    setPersonalContentProvider(provider)
+    await useControllerProfileStore.getState().loadProfiles()
+
+    const first = useControllerProfileStore.getState().updateProfile('ctrl-1', { name: 'First fail' }).catch(() => {})
+    // Reload mid-flight, then a newer edit takes the key.
+    await useControllerProfileStore.getState().loadProfiles()
+    const second = useControllerProfileStore.getState().updateProfile('ctrl-1', { name: 'Second wins' })
+    rejectFirst(new Error('save failed'))
+    await first
+    await second
+
+    expect(useControllerProfileStore.getState().profiles[0].name).toBe('Second wins')
+  })
+})

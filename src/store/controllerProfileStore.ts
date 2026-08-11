@@ -253,7 +253,9 @@ export const useControllerProfileStore = create<ControllerProfileState>()((set, 
       return inputs === profile.inputs ? profile : { ...profile, inputs }
     })
     lastDurableProfiles.clear()
-    profileKeyWriters.clear()
+    // Ownership is NOT cleared here: a pending write keeps its claim across a
+    // concurrent reload, so its settlement can still revert or re-assert its
+    // own keys against the freshly installed durable snapshot.
     for (const profile of normalized) lastDurableProfiles.set(profile.id, profile)
     set({
       profiles: normalized
@@ -362,14 +364,16 @@ export const useControllerProfileStore = create<ControllerProfileState>()((set, 
     const updatedAt = Date.now()
     const patch = { ...changes, updatedAt }
     const previous = get().profiles.find((profile) => profile.id === id)
-    const writers = keyWritersFor(id)
     const op = ++profileWriteSeq
     set((s) => ({
       profiles: s.profiles.map((profile) =>
         profile.id === id ? patchProfile(profile, patch) : profile,
       ),
     }))
-    for (const key of Object.keys(patch)) writers.set(key, op)
+    // The writer map is resolved at every use, never captured across awaits:
+    // profile removal swaps the map out, and a stale capture would let a
+    // detached claim revert another write's keys.
+    for (const key of Object.keys(patch)) keyWritersFor(id).set(key, op)
     const optimistic = get().profiles.find((profile) => profile.id === id)
     try {
       await persistPatch(id, patch)
@@ -380,7 +384,7 @@ export const useControllerProfileStore = create<ControllerProfileState>()((set, 
         return {
           profiles: s.profiles.map((profile) =>
             profile.id === id && durable
-              ? revertOwnedKeys(profile, durable, patch, writers, op)
+              ? revertOwnedKeys(profile, durable, patch, keyWritersFor(id), op)
               : profile,
           ),
           // Each operation's patch is kept separately so supersession and
@@ -395,10 +399,25 @@ export const useControllerProfileStore = create<ControllerProfileState>()((set, 
       throw error
     }
     lastDurableProfiles.set(id, patchProfile(lastDurableProfiles.get(id) ?? previous ?? optimistic!, patch))
-    // This operation's keys are settled durable; release the ones it still
-    // owns. Keys a later write overwrote stay owned by that write.
+    // Re-assert the keys this operation still owns, then release them: a
+    // concurrent loadProfiles can have installed a pre-write durable snapshot
+    // while the write was in flight, and ownership proves no newer edit holds
+    // these keys.
+    const writersAtSettle = keyWritersFor(id)
+    set((s) => ({
+      profiles: s.profiles.map((profile) => {
+        if (profile.id !== id) return profile
+        let asserted = profile
+        for (const key of Object.keys(patch) as Array<keyof Omit<ControllerProfile, 'id'>>) {
+          if (writersAtSettle.get(key) === op && !Object.is(asserted[key], patch[key])) {
+            asserted = { ...asserted, [key]: patch[key] }
+          }
+        }
+        return asserted
+      }),
+    }))
     for (const key of Object.keys(patch)) {
-      if (writers.get(key) === op) writers.delete(key)
+      if (writersAtSettle.get(key) === op) writersAtSettle.delete(key)
     }
     // A successful write supersedes exactly the failed patches it overlaps: a
     // composite patch (an input removal edits inputs AND patternBindings
