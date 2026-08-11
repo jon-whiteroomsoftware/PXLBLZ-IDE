@@ -186,21 +186,35 @@ function patchProfile(
   return { ...profile, ...changes, updatedAt: changes.updatedAt ?? Date.now() }
 }
 
-// Revert only the failed patch's keys, and only where the current value is
-// still that patch's optimistic value (patchProfile spreads the patch values
-// by reference); each reverts to its last durably persisted value. Keys a
-// later queued edit already overwrote keep that newer optimistic state, so a
-// failed edit really reverts instead of surviving locally as never-durable
-// content (#810).
-function revertFailedPatch(
+// Per-key operation ownership (#810): each optimistic write stamps its keys
+// with a monotonically increasing operation id. A failed write reverts only
+// the keys it still owns — a later queued edit that overwrote a key (even
+// with a value equal to the durable one) keeps its newer optimistic state.
+// Value equality cannot prove provenance; ownership can.
+let profileWriteSeq = 0
+const profileKeyWriters = new Map<string, Map<string, number>>()
+
+function keyWritersFor(profileId: string): Map<string, number> {
+  let writers = profileKeyWriters.get(profileId)
+  if (!writers) {
+    writers = new Map()
+    profileKeyWriters.set(profileId, writers)
+  }
+  return writers
+}
+
+function revertOwnedKeys(
   current: ControllerProfile,
   durable: ControllerProfile,
   patch: Partial<Omit<ControllerProfile, 'id'>>,
+  writers: Map<string, number>,
+  op: number,
 ): ControllerProfile {
   let reverted: ControllerProfile = current
   for (const key of Object.keys(patch) as Array<keyof Omit<ControllerProfile, 'id'>>) {
-    if (Object.is(reverted[key], patch[key])) {
+    if (writers.get(key) === op) {
       reverted = { ...reverted, [key]: durable[key] }
+      writers.delete(key)
     }
   }
   return reverted
@@ -239,6 +253,7 @@ export const useControllerProfileStore = create<ControllerProfileState>()((set, 
       return inputs === profile.inputs ? profile : { ...profile, inputs }
     })
     lastDurableProfiles.clear()
+    profileKeyWriters.clear()
     for (const profile of normalized) lastDurableProfiles.set(profile.id, profile)
     set({
       profiles: normalized
@@ -261,6 +276,7 @@ export const useControllerProfileStore = create<ControllerProfileState>()((set, 
     if (profile?.deviceId) autoCreateSuppressedDeviceIds.add(profile.deviceId)
     await getPersonalContentProvider().deleteControllerProfile(id)
     lastDurableProfiles.delete(id)
+    profileKeyWriters.delete(id)
     set((s) => ({ profiles: s.profiles.filter((profile) => profile.id !== id) }))
   },
 
@@ -346,11 +362,14 @@ export const useControllerProfileStore = create<ControllerProfileState>()((set, 
     const updatedAt = Date.now()
     const patch = { ...changes, updatedAt }
     const previous = get().profiles.find((profile) => profile.id === id)
+    const writers = keyWritersFor(id)
+    const op = ++profileWriteSeq
     set((s) => ({
       profiles: s.profiles.map((profile) =>
         profile.id === id ? patchProfile(profile, patch) : profile,
       ),
     }))
+    for (const key of Object.keys(patch)) writers.set(key, op)
     const optimistic = get().profiles.find((profile) => profile.id === id)
     try {
       await persistPatch(id, patch)
@@ -360,7 +379,9 @@ export const useControllerProfileStore = create<ControllerProfileState>()((set, 
         const existing = s.profileSaveFailures.find((failure) => failure.profileId === id)
         return {
           profiles: s.profiles.map((profile) =>
-            profile.id === id && durable ? revertFailedPatch(profile, durable, patch) : profile,
+            profile.id === id && durable
+              ? revertOwnedKeys(profile, durable, patch, writers, op)
+              : profile,
           ),
           // Each operation's patch is kept separately so supersession and
           // Retry can treat composite patches atomically without coupling
@@ -373,27 +394,12 @@ export const useControllerProfileStore = create<ControllerProfileState>()((set, 
       })
       throw error
     }
-    const durableBefore = lastDurableProfiles.get(id)
-    lastDurableProfiles.set(id, patchProfile(durableBefore ?? previous ?? optimistic!, patch))
-    // The landed write is authoritative for its keys, but only against the
-    // rollback that may have reverted them: a key still sitting at the
-    // pre-success durable value was rollback-restored (an earlier failure
-    // carrying the same value could not tell this write's optimistic state
-    // apart) and is repaired; a key holding any other value belongs to a
-    // newer optimistic write and is left to that write's own settlement.
-    set((s) => ({
-      profiles: s.profiles.map((profile) => {
-        if (profile.id !== id) return profile
-        let repaired = profile
-        for (const key of Object.keys(patch) as Array<keyof Omit<ControllerProfile, 'id'>>) {
-          if (!Object.is(repaired[key], patch[key])
-            && durableBefore && Object.is(repaired[key], durableBefore[key])) {
-            repaired = { ...repaired, [key]: patch[key] }
-          }
-        }
-        return repaired
-      }),
-    }))
+    lastDurableProfiles.set(id, patchProfile(lastDurableProfiles.get(id) ?? previous ?? optimistic!, patch))
+    // This operation's keys are settled durable; release the ones it still
+    // owns. Keys a later write overwrote stay owned by that write.
+    for (const key of Object.keys(patch)) {
+      if (writers.get(key) === op) writers.delete(key)
+    }
     // A successful write supersedes exactly the failed patches it overlaps: a
     // composite patch (an input removal edits inputs AND patternBindings
     // together) dies whole because it cannot be safely replayed piecemeal,

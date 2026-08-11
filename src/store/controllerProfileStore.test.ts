@@ -1226,3 +1226,64 @@ describe('landed-write repair scope (#810 review round 10)', () => {
     })
   })
 })
+
+describe('operation-owned rollback (#810 review round 11)', () => {
+  it('a newer edit back to the durable value survives an older write landing', async () => {
+    const profile = defaultControllerProfile({ id: 'ctrl-1', name: 'Original', now: 1 })
+    const provider = memoryProvider([profile])
+    const durableUpdate = provider.updateControllerProfile
+    let releaseFirst!: () => void
+    const firstGate = new Promise<void>((resolve) => {
+      releaseFirst = resolve
+    })
+    let call = 0
+    provider.updateControllerProfile = async (id, changes) => {
+      call += 1
+      if (call === 1) await firstGate
+      await durableUpdate(id, changes)
+    }
+    setPersonalContentProvider(provider)
+    await useControllerProfileStore.getState().loadProfiles()
+    expect(useControllerProfileStore.getState().profiles[0].keepPatternsUpToDate).toBe(false)
+
+    // A sets true (slow); B sets it back to durable false while A is pending.
+    // Neither A's landing nor any repair may resurrect true.
+    const first = useControllerProfileStore.getState().updateProfile('ctrl-1', { keepPatternsUpToDate: true })
+    const second = useControllerProfileStore.getState().updateProfile('ctrl-1', { keepPatternsUpToDate: false })
+    releaseFirst()
+    await first
+    await second
+
+    expect(useControllerProfileStore.getState().profiles[0].keepPatternsUpToDate).toBe(false)
+  })
+
+  it('a failed write does not revert a key a newer edit owns, even at equal values', async () => {
+    const profile = defaultControllerProfile({ id: 'ctrl-1', name: 'Original', now: 1 })
+    const provider = memoryProvider([profile])
+    const durableUpdate = provider.updateControllerProfile
+    let rejectFirst!: (cause: Error) => void
+    const firstGate = new Promise<void>((_resolve, reject) => {
+      rejectFirst = reject
+    })
+    let call = 0
+    provider.updateControllerProfile = async (id, changes) => {
+      call += 1
+      if (call === 1) {
+        await firstGate
+        return
+      }
+      await durableUpdate(id, changes)
+    }
+    setPersonalContentProvider(provider)
+    await useControllerProfileStore.getState().loadProfiles()
+
+    const first = useControllerProfileStore.getState().updateProfile('ctrl-1', { name: 'Bench' }).catch(() => {})
+    const second = useControllerProfileStore.getState().updateProfile('ctrl-1', { name: 'Bench' })
+    rejectFirst(new Error('save failed'))
+    await first
+    await second
+
+    // B owns the key; A's rollback must skip it and B's landing keeps it.
+    expect(useControllerProfileStore.getState().profiles[0].name).toBe('Bench')
+  })
+})
