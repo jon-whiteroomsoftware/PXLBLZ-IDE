@@ -559,10 +559,10 @@ test('saved Pattern freshness follows the full profile through a real managed ov
   await expect(page).toHaveURL(new RegExp(`/studio/patterns/${pattern.id}$`))
   const editedSource = 'export function render(index) { hsv(index / pixelCount, 1, wave(time(0.1))) }'
   const editor = page.locator('.monaco-editor').first()
-  const editorInput = editor.locator('textarea.inputarea')
   await expect(editor).toBeVisible()
-  await editor.click()
-  await expect(editorInput).toBeFocused()
+  await expect(editor.locator('.view-lines')).toBeVisible()
+  await editor.locator('.view-lines').click({ clickCount: 3 })
+  await expect(editor).toHaveClass(/focused/)
   const sourceSaved = page.waitForResponse((response) => {
     const request = response.request()
     if (request.method() !== 'PATCH') return false
@@ -570,8 +570,7 @@ test('saved Pattern freshness follows the full profile through a real managed ov
     const changes = request.postDataJSON() as { src?: string }
     return response.ok() && changes.src === editedSource
   })
-  await editorInput.press('ControlOrMeta+A')
-  await editorInput.pressSequentially(editedSource)
+  await page.keyboard.type(editedSource)
   await expect(editor.locator('.view-lines')).toHaveText(editedSource)
   await expect(page.getByTestId('compile-status')).toHaveAttribute('data-status', 'good')
   await sourceSaved
