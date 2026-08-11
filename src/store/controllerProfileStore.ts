@@ -323,7 +323,17 @@ export const useControllerProfileStore = create<ControllerProfileState>()((set, 
         profiles: s.profiles.map((profile) =>
           profile.id === id && profile === optimistic && previous ? previous : profile,
         ),
-        profileSaveFailure: { profileId: id, changes },
+        // Merge into an existing failure for this profile: with queued edits,
+        // an earlier rejection may have been unable to roll back past a later
+        // optimistic state, so Retry must re-apply every failed change
+        // together. A different profile's failure is replaced — its rollback
+        // already ran, so only its notice is superseded, never its data.
+        profileSaveFailure: {
+          profileId: id,
+          changes: s.profileSaveFailure?.profileId === id
+            ? { ...s.profileSaveFailure.changes, ...changes }
+            : changes,
+        },
       }))
       throw error
     }

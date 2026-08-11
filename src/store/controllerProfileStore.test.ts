@@ -865,3 +865,36 @@ describe('profile save-failure clearing scope (#810 review round 3)', () => {
     expect(useControllerProfileStore.getState().profileSaveFailure).toBeNull()
   })
 })
+
+describe('concurrent profile failure merging (#810 review round 4)', () => {
+  it('merges rapid failed edits into one retryable notice that re-applies both', async () => {
+    const profile = defaultControllerProfile({ id: 'ctrl-1', name: 'Original', now: 1 })
+    const provider = memoryProvider([profile])
+    const durableUpdate = provider.updateControllerProfile
+    let offline = true
+    provider.updateControllerProfile = async (id, changes) => {
+      if (offline) throw new Error('save failed')
+      await durableUpdate(id, changes)
+    }
+    setPersonalContentProvider(provider)
+    await useControllerProfileStore.getState().loadProfiles()
+
+    await Promise.allSettled([
+      useControllerProfileStore.getState().updateProfile('ctrl-1', { name: 'Renamed' }),
+      useControllerProfileStore.getState().updateProfile('ctrl-1', { keepPatternsUpToDate: true }),
+    ])
+
+    expect(useControllerProfileStore.getState().profileSaveFailure).toMatchObject({
+      profileId: 'ctrl-1',
+      changes: { name: 'Renamed', keepPatternsUpToDate: true },
+    })
+
+    offline = false
+    await useControllerProfileStore.getState().retryProfileSaveFailure()
+    expect(useControllerProfileStore.getState().profileSaveFailure).toBeNull()
+    expect(useControllerProfileStore.getState().profiles[0]).toMatchObject({
+      name: 'Renamed',
+      keepPatternsUpToDate: true,
+    })
+  })
+})

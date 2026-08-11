@@ -18,7 +18,7 @@ export function SaveStatusBadge() {
   // derivation below re-runs when any of them changes.
   useEditorStore((s) => s.source)
   useEditorStore((s) => s.compileStatus)
-  useEditorStore((s) => s.autosaveFailed)
+  useEditorStore((s) => s.autosaveFailedEntity)
   useEditorStore((s) => s.editorFlavor)
   useEditorStore((s) => s.isReadOnly)
   usePatternStore((s) => s.activePatternId)

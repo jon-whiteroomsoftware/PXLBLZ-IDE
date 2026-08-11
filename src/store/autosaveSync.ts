@@ -7,13 +7,14 @@
 // seam, and Retry — runs through a per-record chain, so two saves for one
 // record can never land out of order and the newest draft always wins.
 //
-// Outcomes: a failure while the buffer still holds the draft sets
-// editorStore.autosaveFailed (the glyph; the next tick retries), while a
-// failure after the buffer moved on holds the draft in
+// Outcomes: a failure while the buffer still holds the draft records the
+// entity in editorStore.autosaveFailedEntity (the glyph; the next tick
+// retries), while a failure after the buffer moved on holds the draft in
 // editorStore.navigationSaveFailures for the Studio notice's Retry — that
 // held entry is the only remaining copy of the draft. Supersession is judged
-// by record *source* (the base the draft was typed over), never by
-// updatedAt: metadata writes such as renames must not discard a draft.
+// by record *source* captured when the chained write actually starts (queued
+// writes re-base on whatever the previous write landed), never by updatedAt:
+// metadata writes such as renames must not discard a draft.
 
 import { useEditorStore, type EditorFlavor, type NavigationSaveDraft } from './editorStore'
 import { usePatternStore } from './patternStore'
@@ -22,7 +23,6 @@ import { useMixinStore } from './mixinStore'
 import { useLibraryStore } from './libraryStore'
 import { deriveStuckSaveStatus, type StuckSaveStatus } from '@/engine/saveStatus'
 
-let attemptSeq = 0
 // Identity of the newest scheduled write. Several seams can flush during one
 // navigation (close editor, then activate the next record); deduping on
 // flavor + record + source skips the identical repeat writes while the first
@@ -37,7 +37,6 @@ const writeChains = new Map<string, Promise<void>>()
 // Test-only: clears in-flight bookkeeping so one test's unsettled write
 // cannot queue-block another test's chains.
 export function __resetAutosaveSyncForTests(): void {
-  attemptSeq = 0
   pendingKey = null
   writeChains.clear()
 }
@@ -60,14 +59,18 @@ export function flushPendingAutosave(): void {
   if (!attempt) return
   const key = `${editorFlavor} ${attempt.id} ${source}`
   if (pendingKey === key) return
-  const seq = ++attemptSeq
   pendingKey = key
+  // The base this write lands on, read when the chained write actually
+  // starts: a queued write re-bases on whatever the previous write landed.
+  let baseSrcAtRun: string | null = null
   const settle = (failed: boolean) => {
     if (pendingKey === key) pendingKey = null
     const editor = useEditorStore.getState()
     const record = attempt.record()
     const entityActive = activeDurableEntity()?.id === attempt.id
       && editor.editorFlavor === editorFlavor
+    const failedEntityMatches = editor.autosaveFailedEntity?.flavor === editorFlavor
+      && editor.autosaveFailedEntity.id === attempt.id
     if (!failed) {
       // Drop a held draft for this record only when this save carried it, or
       // when the record's source moved past the draft's base (a newer edit
@@ -77,10 +80,10 @@ export function flushPendingAutosave(): void {
       if (held && (!record || held.source === source || record.src !== held.baseSrc)) {
         dropHeldDraft(editorFlavor, attempt.id)
       }
-      if (entityActive && seq === attemptSeq) editor.setAutosaveFailed(false)
+      if (failedEntityMatches) editor.setAutosaveFailedEntity(null)
       return
     }
-    if (!record || record.src !== attempt.baseSrc) {
+    if (!record || baseSrcAtRun === null || record.src !== baseSrcAtRun) {
       // The record's source advanced while this write was in flight (a newer
       // save landed) or the record was deleted: the newer durable content
       // supersedes this draft.
@@ -90,7 +93,7 @@ export function flushPendingAutosave(): void {
       // The editor still holds this draft — or newer edits of the same
       // record that supersede it. Either way the glyph reports the failure
       // and the next tick retries from the live buffer.
-      if (seq === attemptSeq) editor.setAutosaveFailed(true)
+      editor.setAutosaveFailedEntity({ flavor: editorFlavor, id: attempt.id })
       return
     }
     // The draft survives nowhere else: the buffer moved to another record, or
@@ -101,27 +104,35 @@ export function flushPendingAutosave(): void {
       id: attempt.id,
       name: record.name,
       source,
-      baseSrc: attempt.baseSrc,
+      baseSrc: baseSrcAtRun,
       ...(attempt.mapBakeCount !== undefined ? { mapBakeCount: attempt.mapBakeCount } : {}),
     })
   }
-  chainWrite(`${editorFlavor} ${attempt.id}`, attempt.run).then(() => settle(false), () => settle(true))
+  chainWrite(`${editorFlavor} ${attempt.id}`, () => {
+    const recordAtRun = attempt.record()
+    // Deleted while queued: nothing to write, and settling as success lets
+    // the held-draft bookkeeping clean itself up.
+    if (!recordAtRun) return Promise.resolve()
+    baseSrcAtRun = recordAtRun.src
+    return attempt.run()
+  }).then(() => settle(false), () => settle(true))
 }
 
 // Re-attempts a held navigation draft against its record, through the same
-// per-record chain as the autosave writes. A record whose source moved past
-// the draft's base supersedes it: the draft is dropped rather than written
-// over newer content. A still-failing write keeps the notice up.
+// per-record chain as the autosave writes. Supersession is revalidated when
+// the chained write actually executes — a newer save already in flight lands
+// first and the Retry then drops the draft instead of writing the older
+// source over it. A still-failing write keeps the notice up.
 export async function retryNavigationSaveFailure(flavor: EditorFlavor, id: string): Promise<void> {
   const failure = heldDraft(flavor, id)
   if (!failure) return
-  const write = navigationSaveWrite(failure)
-  if (!write) {
-    dropHeldDraft(flavor, id)
-    return
-  }
   try {
-    await chainWrite(`${flavor} ${id}`, write)
+    await chainWrite(`${flavor} ${id}`, () => {
+      const write = navigationSaveWrite(failure)
+      // Superseded (or deleted) by the time this write ran: drop, not write.
+      if (!write) return Promise.resolve()
+      return write()
+    })
     dropHeldDraft(flavor, id)
   } catch {
     // Keep the notice; the draft is still held.
@@ -205,14 +216,11 @@ function activeDurableEntity(): { id: string } | null {
 
 interface AutosaveAttempt {
   id: string
-  /** The record source this draft was typed over, captured when the attempt
-   * was created. A record whose source moves past it supersedes the draft. */
-  baseSrc: string
   /** For map attempts: the bake count in effect when the attempt was created,
    * so a late or retried persist bakes the geometry the author saw. */
   mapBakeCount?: number
   run: () => Promise<void>
-  /** Current name/src of the target record, read at settle time. */
+  /** Current name/src of the target record, read at run and settle time. */
   record: () => { name: string; src: string } | undefined
 }
 
@@ -224,22 +232,22 @@ function autosaveAttempt(flavor: EditorFlavor, source: string): AutosaveAttempt 
     const { editingMap, userMaps, activePixelCount } = useMapStore.getState()
     if (editingMap?.kind !== 'existing') return null
     const id = editingMap.id
-    const existing = userMaps.find((m) => m.id === id)
-    if (!existing) return null
+    if (!userMaps.some((m) => m.id === id)) return null
     const bakeCount = activePixelCount ?? DEFAULT_MAP_BAKE_COUNT
     return {
       id,
-      baseSrc: existing.source ?? '',
       mapBakeCount: bakeCount,
       run: () => {
-        // By the time a chained write runs, the map may no longer be open;
-        // bakeEditingMap reads live editor state, so it is only valid while
-        // this map still owns the buffer. Otherwise persist the captured
-        // draft directly at the captured count.
+        // bakeEditingMap reads the live editor buffer, so it is only valid
+        // while this map still owns the buffer AND the buffer still holds the
+        // captured source — a queued write must not persist whatever the user
+        // typed since (possibly broken) source. Otherwise persist the
+        // captured draft directly at the captured count.
         const { editingMap: current } = useMapStore.getState()
-        const stillOpen = current?.kind === 'existing' && current.id === id
-          && useEditorStore.getState().editorFlavor === 'map'
-        return stillOpen
+        const editor = useEditorStore.getState()
+        const liveMatches = current?.kind === 'existing' && current.id === id
+          && editor.editorFlavor === 'map' && editor.source === source
+        return liveMatches
           ? useMapStore.getState().bakeEditingMap()
           : useMapStore.getState().persistMapSource(id, source, bakeCount)
       },
@@ -253,11 +261,9 @@ function autosaveAttempt(flavor: EditorFlavor, source: string): AutosaveAttempt 
     const { editingMixin, userMixins, updateMixinSrc } = useMixinStore.getState()
     if (editingMixin?.kind !== 'existing') return null
     const id = editingMixin.id
-    const existing = userMixins.find((m) => m.id === id)
-    if (!existing) return null
+    if (!userMixins.some((m) => m.id === id)) return null
     return {
       id,
-      baseSrc: existing.src,
       run: () => updateMixinSrc(id, source),
       record: () => useMixinStore.getState().userMixins.find((m) => m.id === id),
     }
@@ -266,11 +272,9 @@ function autosaveAttempt(flavor: EditorFlavor, source: string): AutosaveAttempt 
     const { editingLibrary, userLibraries, updateLibrarySrc } = useLibraryStore.getState()
     if (editingLibrary?.kind !== 'existing') return null
     const id = editingLibrary.id
-    const existing = userLibraries.find((library) => library.id === id)
-    if (!existing) return null
+    if (!userLibraries.some((library) => library.id === id)) return null
     return {
       id,
-      baseSrc: existing.src,
       run: () => updateLibrarySrc(id, source),
       record: () => useLibraryStore.getState().userLibraries.find((library) => library.id === id),
     }
@@ -278,11 +282,9 @@ function autosaveAttempt(flavor: EditorFlavor, source: string): AutosaveAttempt 
   const { activePatternId, userPatterns, updatePatternSrc } = usePatternStore.getState()
   if (activePatternId === null) return null
   const id = activePatternId
-  const existing = userPatterns.find((p) => p.id === id)
-  if (!existing) return null
+  if (!userPatterns.some((p) => p.id === id)) return null
   return {
     id,
-    baseSrc: existing.src,
     run: () => updatePatternSrc(id, source),
     record: () => usePatternStore.getState().userPatterns.find((p) => p.id === id),
   }
@@ -321,12 +323,16 @@ export function activePersistedSource(): { source: string; updatedAt: number } |
 
 // Imperative read of the glyph state, shared by the SaveStatusBadge render and
 // the beforeunload guard. Null means silent — saved, or a clean dirty buffer
-// the next tick will save.
+// the next tick will save. A recorded failure counts only while its entity
+// still owns the buffer, so it never leaks onto the next record.
 export function activeStuckSaveStatus():
   | { status: StuckSaveStatus; lastSavedAt: number | null }
   | null {
-  const { source, compileStatus, autosaveFailed } = useEditorStore.getState()
+  const { source, compileStatus, autosaveFailedEntity, editorFlavor } = useEditorStore.getState()
   const persisted = activePersistedSource()
+  const autosaveFailed = autosaveFailedEntity !== null
+    && autosaveFailedEntity.flavor === editorFlavor
+    && autosaveFailedEntity.id === (activeDurableEntity()?.id ?? null)
   const status = deriveStuckSaveStatus({
     buffer: source,
     persisted: persisted?.source ?? null,

@@ -104,7 +104,7 @@ describe('flushPendingAutosave (#810)', () => {
     )
   })
 
-  it('records a failed attempt in autosaveFailed and clears it on the next success', async () => {
+  it('records a failed attempt against its entity and clears it on the next success', async () => {
     const provider = memoryProvider([PATTERN])
     let offline = true
     provider.updatePattern = async () => {
@@ -115,13 +115,13 @@ describe('flushPendingAutosave (#810)', () => {
 
     flushPendingAutosave()
     await settled()
-    expect(useEditorStore.getState().autosaveFailed).toBe(true)
+    expect(useEditorStore.getState().autosaveFailedEntity).toMatchObject({ flavor: 'pattern', id: PATTERN.id })
     expect(activeStuckSaveStatus()).toMatchObject({ status: 'cant-save' })
 
     offline = false
     flushPendingAutosave()
     await settled()
-    expect(useEditorStore.getState().autosaveFailed).toBe(false)
+    expect(useEditorStore.getState().autosaveFailedEntity).toBeNull()
   })
 
   it('does not attempt broken source', async () => {
@@ -202,7 +202,7 @@ describe('navigation save failure (#810 review P1)', () => {
 
     // The buffer moved on, so the failure is held for the notice rather than
     // flagged on the (new) active entity's glyph.
-    expect(useEditorStore.getState().autosaveFailed).toBe(false)
+    expect(activeStuckSaveStatus()).toBeNull()
     expect(useEditorStore.getState().navigationSaveFailures).toEqual([
       expect.objectContaining({
         flavor: 'pattern',
@@ -273,8 +273,12 @@ describe('navigation save failure (#810 review P1)', () => {
     setPersonalContentProvider(provider)
     openDirtyPattern('older draft S1')
     flushPendingAutosave()
+    // Let the chained write start (and capture its base) before the record
+    // moves: same-client saves are chain-ordered, so a mid-flight advance can
+    // only come from outside this client.
+    await settled()
 
-    // S2 lands durably (e.g. from a faster later write) and advances the record.
+    // S2 lands durably (e.g. from another tab) and advances the record.
     usePatternStore.setState((s) => ({
       userPatterns: s.userPatterns.map((p) =>
         p.id === PATTERN.id ? { ...p, src: 'newer durable S2', updatedAt: 2000 } : p,
@@ -322,7 +326,7 @@ describe('navigation save failure (#810 review P1)', () => {
     flushPendingAutosave()
     await settled()
 
-    expect(useEditorStore.getState().autosaveFailed).toBe(true)
+    expect(useEditorStore.getState().autosaveFailedEntity).toMatchObject({ id: PATTERN.id })
     expect(useEditorStore.getState().navigationSaveFailures).toEqual([])
   })
 
@@ -477,6 +481,156 @@ describe('held draft supersession and ordering (#810 review round 3)', () => {
 
     expect(written).toEqual(['slow older S1', 'newer S2'])
     expect(usePatternStore.getState().userPatterns[0].src).toBe('newer S2')
+  })
+})
+
+describe('chained write re-basing and revalidation (#810 review round 4)', () => {
+  it('holds the newest draft when a queued follow-up save fails after navigation', async () => {
+    // S1 (slow) succeeds; queued S2 then fails after the user navigated. S2
+    // re-based on S1 when it ran, so it must be held, not treated as
+    // superseded by S1's landing.
+    const provider = memoryProvider([PATTERN])
+    let releaseS1!: () => void
+    const s1Gate = new Promise<void>((resolve) => {
+      releaseS1 = resolve
+    })
+    let call = 0
+    const durableUpdate = provider.updatePattern
+    provider.updatePattern = async (id, changes) => {
+      call += 1
+      if (call === 1) {
+        await s1Gate
+        await durableUpdate(id, changes)
+        return
+      }
+      throw new Error('offline')
+    }
+    setPersonalContentProvider(provider)
+
+    openDirtyPattern('first save S1')
+    flushPendingAutosave()
+    useEditorStore.setState({ source: 'newest draft S2' })
+    usePatternStore.getState().setActivePattern('pat-2')
+    releaseS1()
+    await settled()
+
+    expect(usePatternStore.getState().userPatterns[0].src).toBe('first save S1')
+    expect(useEditorStore.getState().navigationSaveFailures).toEqual([
+      expect.objectContaining({
+        id: PATTERN.id,
+        source: 'newest draft S2',
+        baseSrc: 'first save S1',
+      }),
+    ])
+  })
+
+  it('a Retry queued behind a newer in-flight save drops instead of overwriting it', async () => {
+    const provider = memoryProvider([PATTERN])
+    let releaseNewer!: () => void
+    const newerGate = new Promise<void>((resolve) => {
+      releaseNewer = resolve
+    })
+    const written: string[] = []
+    let call = 0
+    const durableUpdate = provider.updatePattern
+    provider.updatePattern = async (id, changes) => {
+      call += 1
+      if (call === 1) await newerGate
+      if (typeof changes.src === 'string') written.push(changes.src)
+      await durableUpdate(id, changes)
+    }
+    setPersonalContentProvider(provider)
+    useEditorStore.setState({
+      navigationSaveFailures: [{
+        flavor: 'pattern',
+        id: PATTERN.id,
+        name: PATTERN.name,
+        source: 'old held draft',
+        baseSrc: PATTERN.src,
+      }],
+    })
+    openDirtyPattern('newer live edit')
+
+    flushPendingAutosave()
+    const retried = retryNavigationSaveFailure('pattern', PATTERN.id)
+    releaseNewer()
+    await retried
+    await settled()
+
+    // The newer save landed; the Retry revalidated at run time and dropped.
+    expect(written).toEqual(['newer live edit'])
+    expect(usePatternStore.getState().userPatterns[0].src).toBe('newer live edit')
+    expect(useEditorStore.getState().navigationSaveFailures).toEqual([])
+  })
+
+  it('a queued map save persists its captured source, never a later broken buffer', async () => {
+    const provider = memoryProvider([PATTERN])
+    const mapWrites: Array<string | undefined> = []
+    let releaseFirst!: () => void
+    const firstGate = new Promise<void>((resolve) => {
+      releaseFirst = resolve
+    })
+    let mapCall = 0
+    provider.updateMap = async (_id, changes) => {
+      mapCall += 1
+      if (mapCall === 1) await firstGate
+      mapWrites.push(typeof changes.source === 'string' ? changes.source : undefined)
+    }
+    setPersonalContentProvider(provider)
+    const mapRecord = {
+      id: 'map-1',
+      name: 'Bench map',
+      dim: 2 as const,
+      generator: 'custom' as const,
+      params: {},
+      source: '[[0,0],[1,0]]',
+      updatedAt: 100,
+    }
+    useMapStore.setState({
+      userMaps: [mapRecord],
+      editingMap: { kind: 'existing', id: mapRecord.id },
+      activePixelCount: 4,
+    })
+    useEditorStore.setState({
+      source: '[[0,0],[1,0],[1,1]]',
+      compileStatus: 'good',
+      editorFlavor: 'map',
+      isReadOnly: false,
+    })
+    flushPendingAutosave()
+
+    // A clean follow-up draft queues, then the user types broken source.
+    useEditorStore.setState({ source: '[[0,0],[0.5,0.5]]' })
+    flushPendingAutosave()
+    useEditorStore.setState({ source: 'not valid [', compileStatus: 'broken' })
+    releaseFirst()
+    await settled()
+
+    expect(mapWrites).toHaveLength(2)
+    expect(mapWrites[1]).toBe('[[0,0],[0.5,0.5]]')
+    expect(useMapStore.getState().userMaps[0].source).toBe('[[0,0],[0.5,0.5]]')
+  })
+
+  it('a failure on one record never leaks cant-save onto the next record', async () => {
+    const patternB: PatternRecord = { ...PATTERN, id: 'pat-b', name: 'Shine' }
+    const provider = memoryProvider([PATTERN, patternB])
+    provider.updatePattern = async () => {
+      throw new Error('offline')
+    }
+    setPersonalContentProvider(provider)
+    openDirtyPattern('failing draft A')
+    flushPendingAutosave()
+    await settled()
+    expect(activeStuckSaveStatus()).toMatchObject({ status: 'cant-save' })
+
+    // Open B and make a fresh clean edit: no B write has failed yet, so the
+    // glyph must stay silent until B's own attempt fails.
+    usePatternStore.setState({ userPatterns: [PATTERN, patternB] })
+    usePatternStore.getState().setActivePattern(patternB.id)
+    await settled()
+    useEditorStore.setState({ source: 'fresh edit for B', compileStatus: 'good', isReadOnly: false })
+
+    expect(activeStuckSaveStatus()).toBeNull()
   })
 })
 

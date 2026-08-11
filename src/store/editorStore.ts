@@ -29,11 +29,12 @@ export interface NavigationSaveDraft {
 
 interface EditorState {
   compileStatus: CompileStatus
-  // True while the most recent autosave attempt for the open buffer failed
-  // (offline, server error). Recorded by flushPendingAutosave (#810); read by
-  // the save-status glyph and the beforeunload guard. Cleared by the first
-  // successful save.
-  autosaveFailed: boolean
+  // The entity whose most recent autosave attempt failed (offline, server
+  // error), or null. Recorded by flushPendingAutosave (#810); the save-status
+  // glyph and beforeunload guard treat it as failing only while that entity
+  // still owns the buffer, so a failure never leaks cant-save onto the next
+  // record the user opens. Cleared by the first successful save.
+  autosaveFailedEntity: { flavor: EditorFlavor; id: string } | null
   // Held navigation drafts, at most one per record; a later failed flush for
   // the same record supersedes its earlier draft. Empty while every
   // navigation flush has landed.
@@ -70,7 +71,7 @@ interface EditorState {
   // Concise explanation when map and selected renderer dimensions differ.
   renderAdaptation: string | null
   setCompileStatus: (status: CompileStatus) => void
-  setAutosaveFailed: (failed: boolean) => void
+  setAutosaveFailedEntity: (entity: { flavor: EditorFlavor; id: string } | null) => void
   setNavigationSaveFailures: (failures: NavigationSaveDraft[]) => void
   setEditorFlavor: (flavor: EditorFlavor) => void
   setSource: (source: string) => void
@@ -89,7 +90,7 @@ interface EditorState {
 
 export const editorInitialState = {
   compileStatus: 'good' as CompileStatus,
-  autosaveFailed: false,
+  autosaveFailedEntity: null as { flavor: EditorFlavor; id: string } | null,
   navigationSaveFailures: [] as NavigationSaveDraft[],
   editorFlavor: 'pattern' as EditorFlavor,
   source: '',
@@ -109,7 +110,7 @@ export const editorInitialState = {
 export const useEditorStore = create<EditorState>()((set) => ({
   ...editorInitialState,
   setCompileStatus: (compileStatus) => set({ compileStatus }),
-  setAutosaveFailed: (autosaveFailed) => set({ autosaveFailed }),
+  setAutosaveFailedEntity: (autosaveFailedEntity) => set({ autosaveFailedEntity }),
   setNavigationSaveFailures: (navigationSaveFailures) => set({ navigationSaveFailures }),
   setEditorFlavor: (editorFlavor) => set({ editorFlavor }),
   setSource: (source) => set({ source }),
