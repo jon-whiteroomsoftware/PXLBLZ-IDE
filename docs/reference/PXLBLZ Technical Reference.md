@@ -340,7 +340,10 @@ compile/push operations, map access, saved-program reads.
 script → service worker → Controller), with base64 binary transport, an
 offscreen device-compiler context, keepalive, and bounded reconnect. The
 extension requests host permission per Controller IP — no blanket LAN access —
-and performs discovery through ElectroMage's HTTPS service.
+and performs discovery through ElectroMage's HTTPS service. Discovery reports a
+successful empty scan separately from helper, timeout, or service failures so
+the Controller entry surface can distinguish device settings from an
+unreachable discovery path.
 
 ## 15. Identity, connection state, and live panel
 

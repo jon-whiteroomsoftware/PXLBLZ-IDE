@@ -242,12 +242,12 @@ export class ExtensionControllerProvider implements ControllerProvider {
    *  it's a one-off reqId-keyed relay round-trip — but global (no `address`), since
    *  it's a LAN-wide cloud lookup. Only the helper can reach the endpoint (no CORS),
    *  so the page posts `discover` and waits for `discover-result`. Any failure or a
-   *  timeout resolves `[]` (never throws): discovery is best-effort and the UI falls
-   *  back to manual IP entry. The wire records are mapped to DiscoveredController
+   *  timeout rejects so the UI can distinguish an unreachable discovery path from a
+   *  successful empty scan while retaining manual IP entry. The wire records are mapped to DiscoveredController
    *  (`localIp` → `address`). */
   discover(): Promise<DiscoveredController[]> {
     const reqId = `discover-${this.discoverSeq++}`
-    return new Promise<DiscoveredController[]>((resolve) => {
+    return new Promise<DiscoveredController[]>((resolve, reject) => {
       let settled = false
       const finish = (value: DiscoveredController[]) => {
         if (settled) return
@@ -255,6 +255,13 @@ export class ExtensionControllerProvider implements ControllerProvider {
         unsubscribe()
         this._clearTimeout(timer)
         resolve(value)
+      }
+      const fail = (message: string) => {
+        if (settled) return
+        settled = true
+        unsubscribe()
+        this._clearTimeout(timer)
+        reject(new Error(message))
       }
       const unsubscribe = this.transport.subscribe((msg) => {
         if (
@@ -274,11 +281,14 @@ export class ExtensionControllerProvider implements ControllerProvider {
               })),
             )
           } else {
-            finish([])
+            fail(msg.error || 'Controller discovery failed')
           }
         }
       })
-      const timer = this._setTimeout(() => finish([]), this.discoverTimeoutMs)
+      const timer = this._setTimeout(
+        () => fail('Controller discovery timed out'),
+        this.discoverTimeoutMs,
+      )
       this.transport.post({ source: RELAY_SOURCE, dir: 'to-helper', type: 'discover', reqId })
     })
   }

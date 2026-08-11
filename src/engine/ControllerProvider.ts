@@ -145,8 +145,9 @@ export interface ControllerProvider {
   /** Discover Controllers on the LAN via the cloud discovery service (H14, issue
    *  #206) — a global, not per-Controller, lookup the helper performs (the endpoint
    *  isn't reachable from the page). Returns the candidates the user can connect to;
-   *  resolves `[]` on any failure (no helper, no devices, service down) so the UI
-   *  degrades to manual IP entry rather than erroring. UDP beacon discovery is not
+   *  resolves `[]` when the scan succeeds with no devices and rejects when the helper
+   *  or discovery service is unreachable, so the UI can distinguish those states while
+   *  retaining manual IP entry. UDP beacon discovery is not
    *  available to an MV3 extension, so cloud is the only path; coverage holes (AP
    *  mode, discovery disabled on the device) keep manual IP the universal fallback. */
   discover(): Promise<DiscoveredController[]>

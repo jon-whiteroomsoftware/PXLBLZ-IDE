@@ -323,6 +323,7 @@ export function ControllerBar({ reloadPage = () => window.location.reload() }: {
   const discover = useControllerStore((s) => s.discover)
   const discovered = useControllerStore((s) => s.discovered)
   const discovering = useControllerStore((s) => s.discovering)
+  const discoveryUnavailable = useControllerStore((s) => s.discoveryUnavailable)
   const addController = useControllerStore((s) => s.addController)
   const removeController = useControllerStore((s) => s.removeController)
   const setActive = useControllerStore((s) => s.setActive)
@@ -694,7 +695,9 @@ export function ControllerBar({ reloadPage = () => window.location.reload() }: {
                 )}
                 {!discovering && discovered.length === 0 && (
                   <p className="text-zinc-500" data-testid="controller-discover-empty">
-                    {hasPills
+                    {discoveryUnavailable
+                      ? 'Discovery is unreachable. Check this browser\'s network connection, then rescan or connect by IP.'
+                      : hasPills
                       ? 'No other Controllers found. They must have network discovery enabled.'
                       : 'No Controllers found yet. They must have network discovery enabled.'}
                   </p>

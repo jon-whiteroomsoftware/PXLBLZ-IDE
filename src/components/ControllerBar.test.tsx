@@ -966,6 +966,24 @@ describe('ControllerBar', () => {
     )
   })
 
+  it('explains an unreachable discovery service without blaming Controller settings (#815)', () => {
+    useControllerStore.setState({
+      extensionPresent: true,
+      detectExtension: async () => true,
+      discover: async () => {},
+      discovered: [],
+      discoveryUnavailable: true,
+    })
+    render(<ControllerBar />)
+
+    fireEvent.click(screen.getByTestId('controller-entry-button'))
+
+    const empty = screen.getByTestId('controller-discover-empty')
+    expect(empty).toHaveTextContent('Discovery is unreachable')
+    expect(empty).toHaveTextContent('network connection')
+    expect(empty).not.toHaveTextContent('network discovery enabled')
+  })
+
   it('the refresh affordance triggers a manual rescan', async () => {
     let calls = 0
     useControllerStore.setState({

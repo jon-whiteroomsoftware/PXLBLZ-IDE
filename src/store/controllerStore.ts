@@ -267,11 +267,12 @@ interface ControllerConnectionState {
   discovered: DiscoveredController[]
   /** True while a discovery sweep is in flight — drives the dropdown's spinner. */
   discovering: boolean
+  /** True when the latest sweep could not reach the helper or cloud discovery service. */
+  discoveryUnavailable: boolean
 
   /** Probe extension presence and record it (global). */
   detectExtension: () => Promise<boolean>
-  /** Run a cloud discovery sweep and record the candidates (#206). Best-effort:
-   *  a failure or no helper leaves `discovered` empty. */
+  /** Run a cloud discovery sweep and record the candidates (#206). */
   discover: () => Promise<void>
   /** Begin connecting to a Controller: born as a pending pill, made active immediately.
    *  Settles to live (nickname + mapDim read) or error. Re-adding an existing IP
@@ -394,6 +395,7 @@ export const controllerInitialState = {
   patternPushBlocked: false,
   discovered: [] as DiscoveredController[],
   discovering: false,
+  discoveryUnavailable: false,
 }
 
 // Live provider per Controller IP, plus each one's status unsubscribe. Kept
@@ -593,8 +595,14 @@ export const useControllerStore = create<ControllerConnectionState>()(
           // Re-entrancy guard: auto-on-open, the periodic tick, and the manual
           // refresh affordance can all fire — never let two sweeps overlap.
           if (get().discovering) return
-          set({ discovering: true })
-          const found = await discoverControllers().catch(() => [])
+          set({ discovering: true, discoveryUnavailable: false })
+          let found: DiscoveredController[]
+          try {
+            found = await discoverControllers()
+          } catch {
+            set({ discovered: [], discovering: false, discoveryUnavailable: true })
+            return
+          }
           // Drop active connection attempts and live Controllers from discovery.
           // Keep errored entries discoverable so the network list can be used as
           // the normal retry path after a failed connect. Match by stable device
@@ -604,6 +612,7 @@ export const useControllerStore = create<ControllerConnectionState>()(
           set({
             discovered: availableDiscoveredControllers(found, Object.values(connected)),
             discovering: false,
+            discoveryUnavailable: false,
           })
         },
 

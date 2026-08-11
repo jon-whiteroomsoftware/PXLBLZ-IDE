@@ -540,20 +540,20 @@ describe('ExtensionControllerProvider', () => {
       ])
     })
 
-    it('resolves [] when the helper reports a discovery failure', async () => {
+    it('rejects when the helper reports a discovery failure', async () => {
       const d = makeDeviceTransport({ discoverError: 'GET /discover -> 503' })
       const p = new ExtensionControllerProvider({ transport: d.transport })
-      await expect(p.discover()).resolves.toEqual([])
+      await expect(p.discover()).rejects.toThrow('GET /discover -> 503')
     })
 
-    it('resolves [] when the helper never answers (timeout)', async () => {
+    it('rejects when the helper never answers (timeout)', async () => {
       const d = makeDeviceTransport()
       const orig = d.transport.post
       d.transport.post = (m) => {
         if (m.type !== 'discover') orig(m)
       }
       const p = new ExtensionControllerProvider({ transport: d.transport, discoverTimeoutMs: 10 })
-      await expect(p.discover()).resolves.toEqual([])
+      await expect(p.discover()).rejects.toThrow('Controller discovery timed out')
     })
 
     it('discovers without needing a live connection (global lookup, no address)', async () => {

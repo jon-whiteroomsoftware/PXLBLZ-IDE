@@ -57,4 +57,14 @@ describe('libraryDocs (#350)', () => {
     expect(index.MyLib.paint.doc).toBe('Cloud helper')
     expect(index.shader).toBeUndefined()
   })
+
+  it('regenerates the starter hover wording for a renamed namespace (#815)', () => {
+    const index = buildLibraryDocIndex({
+      DawnLib: '// Helpers in this file are called as Lib1.name()\nfunction identity(v) { return v }',
+    })
+
+    expect(index.DawnLib.identity.doc).toBe(
+      'Helpers in this file are called as DawnLib.name()',
+    )
+  })
 })

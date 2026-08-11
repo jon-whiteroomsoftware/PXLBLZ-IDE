@@ -67,6 +67,8 @@ the keyboard.
 
 You can also drag a divider to resize the adjacent panes directly. Once you
 set a divider position, PXLBLZ remembers it for that Studio mode.
+To use the arrow shortcuts, press `Tab` until the divider receives keyboard
+focus; clicking or dragging a divider does not move keyboard focus to it.
 
 ### Personal-content tree
 

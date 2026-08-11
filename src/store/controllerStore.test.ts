@@ -2231,6 +2231,21 @@ describe('controllerStore (keyed)', () => {
   })
 
   describe('discover', () => {
+    it('distinguishes an unreachable discovery service from a successful empty scan (#815)', async () => {
+      setControllerProviderFactory((ip) => {
+        const p = new FakeProvider()
+        p.discover = () => Promise.reject(new Error('GET /discover -> 503'))
+        created.set(ip, p)
+        return p
+      })
+
+      await store().discover()
+
+      expect(store().discovered).toEqual([])
+      expect(store().discoveryUnavailable).toBe(true)
+      expect(store().discovering).toBe(false)
+    })
+
     it('keeps errored controllers discoverable so the user can retry from the network list', async () => {
       setControllerProviderFactory((ip) => {
         const p = new FakeProvider()

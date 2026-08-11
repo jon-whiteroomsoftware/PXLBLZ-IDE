@@ -35,6 +35,13 @@ function docsAbove(lines: string[], functionLineIndex: number): string {
   return commentLines.join(' ').trim()
 }
 
+function contextualizeLibraryDoc(namespace: string, doc: string): string {
+  return doc.replace(
+    new RegExp(`Helpers in this file are called as ${IDENTIFIER}\\.name\\(\\)`),
+    `Helpers in this file are called as ${namespace}.name()`,
+  )
+}
+
 function parseVarNames(line: string): string[] {
   const match = VAR_RE.exec(line.trim())
   if (!match) return []
@@ -71,7 +78,7 @@ export function parseLibraryApiReference(
     functions.push({
       name: fnMatch[1],
       params: splitParams(fnMatch[2]),
-      doc: docsAbove(lines, index),
+      doc: contextualizeLibraryDoc(namespace, docsAbove(lines, index)),
       inlineEligible: lines[index - 1]?.trim() === '// @inline',
     })
   }
