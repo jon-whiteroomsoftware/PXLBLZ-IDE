@@ -10,6 +10,7 @@ import { usePatternStore } from '@/store/patternStore'
 import { useMapStore } from '@/store/mapStore'
 import { useMixinStore } from '@/store/mixinStore'
 import { useLibraryStore } from '@/store/libraryStore'
+import { useRouterStore } from '@/store/routerStore'
 import { activeStuckSaveStatus } from '@/store/autosaveSync'
 import { stuckSaveStatusLabel } from '@/engine/saveStatus'
 
@@ -29,6 +30,7 @@ export function SaveStatusBadge() {
   useMixinStore((s) => s.userMixins)
   useLibraryStore((s) => s.editingLibrary)
   useLibraryStore((s) => s.userLibraries)
+  useRouterStore((s) => s.route)
 
   const stuck = activeStuckSaveStatus()
   if (!stuck) return null

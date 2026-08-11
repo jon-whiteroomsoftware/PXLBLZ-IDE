@@ -15,6 +15,7 @@
 // retention with Retry is deliberately out of scope here (#818).
 
 import { useEditorStore, type EditorFlavor } from './editorStore'
+import { useRouterStore } from './routerStore'
 import { usePatternStore } from './patternStore'
 import { useMapStore, DEFAULT_MAP_BAKE_COUNT } from './mapStore'
 import { useMixinStore } from './mixinStore'
@@ -124,10 +125,25 @@ export function dismissNavigationSaveLoss(flavor: EditorFlavor, id: string): voi
   )
 }
 
+// The center surface that would actually show this flavor's editor. Stale
+// selection state (an activePatternId survives navigating to a Show,
+// Controller, or Docs surface) must not count as ownership: nothing there
+// renders the glyph, so a failure has to become a loss notice instead.
+const EDITOR_SURFACE_FOR_FLAVOR: Record<EditorFlavor, string> = {
+  pattern: 'patterns',
+  map: 'maps',
+  mixin: 'mixins',
+  library: 'libraries',
+}
+
 // The durable entity the editor buffer belongs to right now, or null.
 function activeDurableEntity(): { id: string } | null {
   const { editorFlavor, isReadOnly } = useEditorStore.getState()
   if (isReadOnly) return null
+  const { route } = useRouterStore.getState()
+  if (route.kind !== 'studio') return null
+  const surface = route.entity?.kind ?? 'patterns'
+  if (surface !== EDITOR_SURFACE_FOR_FLAVOR[editorFlavor]) return null
   if (editorFlavor === 'map') {
     const { editingMap } = useMapStore.getState()
     return editingMap?.kind === 'existing' ? { id: editingMap.id } : null

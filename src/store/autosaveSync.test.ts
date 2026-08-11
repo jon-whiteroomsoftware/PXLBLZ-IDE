@@ -5,6 +5,7 @@ import { useEditorStore, editorInitialState } from './editorStore'
 import { useMapStore, mapInitialState } from './mapStore'
 import { useMixinStore, mixinInitialState } from './mixinStore'
 import { libraryInitialState, useLibraryStore } from './libraryStore'
+import { routerInitialState, useRouterStore } from './routerStore'
 import type { LibraryRecord, PatternRecord } from '@/engine/personalContentRecords'
 import {
   resetPersonalContentProvider,
@@ -70,6 +71,7 @@ async function settled(): Promise<void> {
 
 beforeEach(() => {
   __resetAutosaveSyncForTests()
+  useRouterStore.setState(routerInitialState)
   usePatternStore.setState(patternInitialState)
   useEditorStore.setState(editorInitialState)
   useMapStore.setState(mapInitialState)
@@ -392,6 +394,29 @@ describe('navigation flush outcomes (#810)', () => {
     expect(useMapStore.getState().userMaps[0].source).toBe('[[0,0],[1,0]]')
     expect(useEditorStore.getState().navigationSaveLosses).toEqual([
       { flavor: 'map', id: mapRecord.id, name: mapRecord.name },
+    ])
+  })
+})
+
+describe('non-editor surfaces (#810 review round 8)', () => {
+  it('a flush that fails after navigating to a Show surface reports a loss, not a hidden glyph', async () => {
+    const provider = memoryProvider([PATTERN])
+    provider.updatePattern = async () => {
+      throw new Error('offline')
+    }
+    setPersonalContentProvider(provider)
+    openDirtyPattern('draft before shows')
+    useRouterStore.setState({ route: { kind: 'studio', entity: { kind: 'patterns', id: PATTERN.id } } })
+
+    // Navigating to Shows leaves activePatternId set, but nothing on that
+    // surface renders the glyph — the failure must surface as a loss notice.
+    useRouterStore.setState({ route: { kind: 'studio', entity: { kind: 'shows', id: null } } })
+    flushPendingAutosave()
+    await settled()
+
+    expect(useEditorStore.getState().autosaveFailedEntity).toBeNull()
+    expect(useEditorStore.getState().navigationSaveLosses).toEqual([
+      { flavor: 'pattern', id: PATTERN.id, name: PATTERN.name },
     ])
   })
 })

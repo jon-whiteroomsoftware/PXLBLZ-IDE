@@ -54,14 +54,19 @@ interface ControllerProfileState {
     },
   ) => Promise<ControllerProfile | null>
   updateProfile: (id: string, changes: Partial<Omit<ControllerProfile, 'id'>>) => Promise<void>
-  // The most recent profile write that failed and rolled back (#810). Holds the
-  // rejected changes so the profile page's notice can offer a retry. Mirrors
-  // the Show editor's showSaveFailure (#792).
-  profileSaveFailure: { profileId: string; changes: Partial<Omit<ControllerProfile, 'id'>> } | null
-  dismissProfileSaveFailure: () => void
-  /** Re-applies the rolled-back changes; a still-failing write re-records the
-   * failure, so the notice stays up. */
-  retryProfileSaveFailure: () => Promise<void>
+  // Failed profile writes awaiting Retry (#810), one entry per profile, each
+  // keeping its operations' patches separate: a later successful write can
+  // supersede one failed operation without discarding another, and a failure
+  // on one profile never erases another profile's notice. Mirrors the Show
+  // editor's failure record (#792) at profile granularity.
+  profileSaveFailures: Array<{
+    profileId: string
+    patches: Array<Partial<Omit<ControllerProfile, 'id'>>>
+  }>
+  dismissProfileSaveFailure: (profileId: string) => void
+  /** Re-applies the profile's rolled-back patches together; a still-failing
+   * write re-records the failure, so the notice stays up. */
+  retryProfileSaveFailure: (profileId: string) => Promise<void>
   addInput: (profileId: string) => Promise<void>
   updateInput: (profileId: string, inputId: string, changes: Partial<ControllerInput>) => Promise<void>
   removeInput: (profileId: string, inputId: string) => Promise<void>
@@ -88,10 +93,10 @@ interface ControllerProfileState {
 export const controllerProfileInitialState = {
   profiles: [] as ControllerProfile[],
   profilesLoaded: false,
-  profileSaveFailure: null as {
+  profileSaveFailures: [] as Array<{
     profileId: string
-    changes: Partial<Omit<ControllerProfile, 'id'>>
-  } | null,
+    patches: Array<Partial<Omit<ControllerProfile, 'id'>>>
+  }>,
 }
 
 const autoCreateSuppressedDeviceIds = new Set<string>()
@@ -351,35 +356,41 @@ export const useControllerProfileStore = create<ControllerProfileState>()((set, 
       await persistPatch(id, patch)
     } catch (error) {
       const durable = lastDurableProfiles.get(id) ?? previous
-      set((s) => ({
-        profiles: s.profiles.map((profile) =>
-          profile.id === id && durable ? revertFailedPatch(profile, durable, patch) : profile,
-        ),
-        // Merge into an existing failure for this profile: with queued edits,
-        // Retry must re-apply every failed change together. A different
-        // profile's failure is replaced — its rollback already ran, so only
-        // its notice is superseded, never its data.
-        profileSaveFailure: {
-          profileId: id,
-          changes: s.profileSaveFailure?.profileId === id
-            ? { ...s.profileSaveFailure.changes, ...changes }
-            : changes,
-        },
-      }))
+      set((s) => {
+        const existing = s.profileSaveFailures.find((failure) => failure.profileId === id)
+        return {
+          profiles: s.profiles.map((profile) =>
+            profile.id === id && durable ? revertFailedPatch(profile, durable, patch) : profile,
+          ),
+          // Each operation's patch is kept separately so supersession and
+          // Retry can treat composite patches atomically without coupling
+          // independent failed edits to each other.
+          profileSaveFailures: [
+            ...s.profileSaveFailures.filter((failure) => failure.profileId !== id),
+            { profileId: id, patches: [...(existing?.patches ?? []), changes] },
+          ],
+        }
+      })
       throw error
     }
     lastDurableProfiles.set(id, patchProfile(lastDurableProfiles.get(id) ?? previous ?? optimistic!, patch))
-    // A successful write that touches any of the failed keys supersedes the
-    // whole failed intent: composite patches (an input removal edits inputs
-    // AND patternBindings together) cannot be safely replayed piecemeal, so
-    // Retry must never see a partially superseded failure. A write to
-    // entirely different keys leaves the failure up — those changes are
-    // still not durable.
+    // A successful write supersedes exactly the failed patches it overlaps: a
+    // composite patch (an input removal edits inputs AND patternBindings
+    // together) dies whole because it cannot be safely replayed piecemeal,
+    // while an independent failed edit to other keys stays retryable.
     set((s) => {
-      if (s.profileSaveFailure?.profileId !== id) return {}
-      const overlaps = Object.keys(s.profileSaveFailure.changes)
-        .some((failedKey) => failedKey in changes)
-      return overlaps ? { profileSaveFailure: null } : {}
+      const existing = s.profileSaveFailures.find((failure) => failure.profileId === id)
+      if (!existing) return {}
+      const remaining = existing.patches.filter(
+        (failedPatch) => !Object.keys(failedPatch).some((failedKey) => failedKey in changes),
+      )
+      if (remaining.length === existing.patches.length) return {}
+      return {
+        profileSaveFailures: [
+          ...s.profileSaveFailures.filter((failure) => failure.profileId !== id),
+          ...(remaining.length > 0 ? [{ profileId: id, patches: remaining }] : []),
+        ],
+      }
     })
     if (previous && optimistic) {
       const optInChanged = previous.keepPatternsUpToDate !== optimistic.keepPatternsUpToDate
@@ -392,34 +403,37 @@ export const useControllerProfileStore = create<ControllerProfileState>()((set, 
     }
   },
 
-  dismissProfileSaveFailure: () => set({ profileSaveFailure: null }),
+  dismissProfileSaveFailure: (profileId) => set((s) => ({
+    profileSaveFailures: s.profileSaveFailures.filter((failure) => failure.profileId !== profileId),
+  })),
 
-  retryProfileSaveFailure: async () => {
-    const failure = get().profileSaveFailure
+  retryProfileSaveFailure: async (profileId) => {
+    const failure = get().profileSaveFailures.find((entry) => entry.profileId === profileId)
     if (!failure) return
-    const current = get().profiles.find((profile) => profile.id === failure.profileId)
-    const durable = lastDurableProfiles.get(failure.profileId)
+    const drop = () => set((s) => ({
+      profileSaveFailures: s.profileSaveFailures.filter((entry) => entry.profileId !== profileId),
+    }))
+    const current = get().profiles.find((profile) => profile.id === profileId)
+    const durable = lastDurableProfiles.get(profileId)
     if (!current) {
-      set({ profileSaveFailure: null })
+      drop()
       return
     }
-    // Re-apply only keys still sitting at their durable value: a key a newer
-    // optimistic edit owns is settled by that edit's own write, and retrying
-    // the older value would clobber the newer intent. Shrink the failure to
-    // the retried keys so a successful write clears it.
+    // Re-apply the failed patches merged in order, but only keys still at
+    // their durable value: a key a newer optimistic edit owns is settled by
+    // that edit's own write, and retrying the older value would clobber the
+    // newer intent.
+    const merged = Object.assign({}, ...failure.patches) as Partial<Omit<ControllerProfile, 'id'>>
     const retryChanges = Object.fromEntries(
-      Object.entries(failure.changes).filter(([key]) => {
+      Object.entries(merged).filter(([key]) => {
         const profileKey = key as keyof Omit<ControllerProfile, 'id'>
         return !durable || Object.is(current[profileKey], durable[profileKey])
       }),
     ) as Partial<Omit<ControllerProfile, 'id'>>
-    if (Object.keys(retryChanges).length === 0) {
-      set({ profileSaveFailure: null })
-      return
-    }
-    set({ profileSaveFailure: { profileId: failure.profileId, changes: retryChanges } })
-    // A still-failing write re-records profileSaveFailure; the notice stays up.
-    await get().updateProfile(failure.profileId, retryChanges).catch(() => {})
+    drop()
+    if (Object.keys(retryChanges).length === 0) return
+    // A still-failing write re-records the failure; the notice stays up.
+    await get().updateProfile(profileId, retryChanges).catch(() => {})
   },
 
   addInput: async (profileId) => {

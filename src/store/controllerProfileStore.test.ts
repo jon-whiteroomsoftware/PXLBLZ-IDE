@@ -772,13 +772,12 @@ describe('profile save-failure notice state (#810)', () => {
     await expect(
       useControllerProfileStore.getState().updateProfile('ctrl-1', { name: 'Unsaved' }),
     ).rejects.toThrow('save failed')
-    expect(useControllerProfileStore.getState().profileSaveFailure).toEqual({
-      profileId: 'ctrl-1',
-      changes: { name: 'Unsaved' },
-    })
+    expect(useControllerProfileStore.getState().profileSaveFailures).toEqual([
+      { profileId: 'ctrl-1', patches: [{ name: 'Unsaved' }] },
+    ])
 
-    useControllerProfileStore.getState().dismissProfileSaveFailure()
-    expect(useControllerProfileStore.getState().profileSaveFailure).toBeNull()
+    useControllerProfileStore.getState().dismissProfileSaveFailure('ctrl-1')
+    expect(useControllerProfileStore.getState().profileSaveFailures).toEqual([])
   })
 
   it('retry re-applies the rolled-back change once persistence recovers', async () => {
@@ -793,10 +792,10 @@ describe('profile save-failure notice state (#810)', () => {
     await useControllerProfileStore.getState().updateProfile('ctrl-1', { name: 'Renamed' }).catch(() => {})
 
     provider.updateControllerProfile = durableUpdate
-    await useControllerProfileStore.getState().retryProfileSaveFailure()
+    await useControllerProfileStore.getState().retryProfileSaveFailure('ctrl-1')
 
     expect(useControllerProfileStore.getState().profiles[0].name).toBe('Renamed')
-    expect(useControllerProfileStore.getState().profileSaveFailure).toBeNull()
+    expect(useControllerProfileStore.getState().profileSaveFailures).toEqual([])
   })
 
   it('a retry that still fails keeps the notice without rejecting', async () => {
@@ -809,10 +808,10 @@ describe('profile save-failure notice state (#810)', () => {
     await useControllerProfileStore.getState().loadProfiles()
     await useControllerProfileStore.getState().updateProfile('ctrl-1', { name: 'Renamed' }).catch(() => {})
 
-    await useControllerProfileStore.getState().retryProfileSaveFailure()
+    await useControllerProfileStore.getState().retryProfileSaveFailure('ctrl-1')
 
     expect(useControllerProfileStore.getState().profiles[0].name).toBe('Original')
-    expect(useControllerProfileStore.getState().profileSaveFailure).toMatchObject({ profileId: 'ctrl-1' })
+    expect(useControllerProfileStore.getState().profileSaveFailures).toMatchObject([{ profileId: 'ctrl-1' }])
   })
 
   it('a later successful write to the profile clears a stale notice', async () => {
@@ -825,12 +824,12 @@ describe('profile save-failure notice state (#810)', () => {
     setPersonalContentProvider(provider)
     await useControllerProfileStore.getState().loadProfiles()
     await useControllerProfileStore.getState().updateProfile('ctrl-1', { name: 'Renamed' }).catch(() => {})
-    expect(useControllerProfileStore.getState().profileSaveFailure).not.toBeNull()
+    expect(useControllerProfileStore.getState().profileSaveFailures).toHaveLength(1)
 
     provider.updateControllerProfile = durableUpdate
     await useControllerProfileStore.getState().updateProfile('ctrl-1', { name: 'Road case' })
 
-    expect(useControllerProfileStore.getState().profileSaveFailure).toBeNull()
+    expect(useControllerProfileStore.getState().profileSaveFailures).toEqual([])
     expect(useControllerProfileStore.getState().profiles[0].name).toBe('Road case')
   })
 })
@@ -849,20 +848,19 @@ describe('profile save-failure clearing scope (#810 review round 3)', () => {
     await useControllerProfileStore.getState().loadProfiles()
 
     await useControllerProfileStore.getState().updateProfile('ctrl-1', { name: 'Unsaved' }).catch(() => {})
-    expect(useControllerProfileStore.getState().profileSaveFailure).not.toBeNull()
+    expect(useControllerProfileStore.getState().profileSaveFailures).toHaveLength(1)
 
     // A different, successful edit to the same profile: the rename is still
     // not durable, so its notice must survive.
     await useControllerProfileStore.getState().updateProfile('ctrl-1', { keepPatternsUpToDate: true })
-    expect(useControllerProfileStore.getState().profileSaveFailure).toMatchObject({
-      profileId: 'ctrl-1',
-      changes: { name: 'Unsaved' },
-    })
+    expect(useControllerProfileStore.getState().profileSaveFailures).toEqual([
+      { profileId: 'ctrl-1', patches: [{ name: 'Unsaved' }] },
+    ])
 
     // Re-doing the failed edit (manually or via Retry) clears it.
     failRenames = false
     await useControllerProfileStore.getState().updateProfile('ctrl-1', { name: 'Unsaved' })
-    expect(useControllerProfileStore.getState().profileSaveFailure).toBeNull()
+    expect(useControllerProfileStore.getState().profileSaveFailures).toEqual([])
   })
 })
 
@@ -884,14 +882,13 @@ describe('concurrent profile failure merging (#810 review round 4)', () => {
       useControllerProfileStore.getState().updateProfile('ctrl-1', { keepPatternsUpToDate: true }),
     ])
 
-    expect(useControllerProfileStore.getState().profileSaveFailure).toMatchObject({
-      profileId: 'ctrl-1',
-      changes: { name: 'Renamed', keepPatternsUpToDate: true },
-    })
+    expect(useControllerProfileStore.getState().profileSaveFailures).toEqual([
+      { profileId: 'ctrl-1', patches: [{ name: 'Renamed' }, { keepPatternsUpToDate: true }] },
+    ])
 
     offline = false
-    await useControllerProfileStore.getState().retryProfileSaveFailure()
-    expect(useControllerProfileStore.getState().profileSaveFailure).toBeNull()
+    await useControllerProfileStore.getState().retryProfileSaveFailure('ctrl-1')
+    expect(useControllerProfileStore.getState().profileSaveFailures).toEqual([])
     expect(useControllerProfileStore.getState().profiles[0]).toMatchObject({
       name: 'Renamed',
       keepPatternsUpToDate: true,
@@ -934,10 +931,9 @@ describe('key-level profile rollback (#810 review round 5)', () => {
       keepPatternsUpToDate: true,
     })
     // The rename stays retryable.
-    expect(useControllerProfileStore.getState().profileSaveFailure).toMatchObject({
-      profileId: 'ctrl-1',
-      changes: { name: 'Failing rename' },
-    })
+    expect(useControllerProfileStore.getState().profileSaveFailures).toEqual([
+      { profileId: 'ctrl-1', patches: [{ name: 'Failing rename' }] },
+    ])
   })
 })
 
@@ -962,15 +958,14 @@ describe('durable-baseline profile rollback (#810 review round 6)', () => {
     // Neither optimistic value may survive: both writes failed, so the field
     // shows the durable value while the notice retains the latest intent.
     expect(useControllerProfileStore.getState().profiles[0].name).toBe('Original')
-    expect(useControllerProfileStore.getState().profileSaveFailure).toMatchObject({
-      profileId: 'ctrl-1',
-      changes: { name: 'Second fail' },
-    })
+    expect(useControllerProfileStore.getState().profileSaveFailures).toEqual([
+      { profileId: 'ctrl-1', patches: [{ name: 'First fail' }, { name: 'Second fail' }] },
+    ])
 
     offline = false
-    await useControllerProfileStore.getState().retryProfileSaveFailure()
+    await useControllerProfileStore.getState().retryProfileSaveFailure('ctrl-1')
     expect(useControllerProfileStore.getState().profiles[0].name).toBe('Second fail')
-    expect(useControllerProfileStore.getState().profileSaveFailure).toBeNull()
+    expect(useControllerProfileStore.getState().profileSaveFailures).toEqual([])
   })
 
   it('Retry skips a field a newer pending edit owns instead of clobbering it', async () => {
@@ -994,13 +989,13 @@ describe('durable-baseline profile rollback (#810 review round 6)', () => {
     await useControllerProfileStore.getState().updateProfile('ctrl-1', { name: 'Old fail' }).catch(() => {})
     // A newer edit to the same field is pending when the user clicks Retry.
     const newerPending = useControllerProfileStore.getState().updateProfile('ctrl-1', { name: 'Newer intent' })
-    const retried = useControllerProfileStore.getState().retryProfileSaveFailure()
+    const retried = useControllerProfileStore.getState().retryProfileSaveFailure('ctrl-1')
     releaseNewer()
     await newerPending
     await retried
 
     expect(useControllerProfileStore.getState().profiles[0].name).toBe('Newer intent')
-    expect(useControllerProfileStore.getState().profileSaveFailure).toBeNull()
+    expect(useControllerProfileStore.getState().profileSaveFailures).toEqual([])
   })
 })
 
@@ -1022,7 +1017,7 @@ describe('failure clearing and baseline normalization (#810 review round 7)', ()
       inputs: [],
       patternBindings: [],
     }).catch(() => {})
-    expect(useControllerProfileStore.getState().profileSaveFailure).not.toBeNull()
+    expect(useControllerProfileStore.getState().profileSaveFailures).toHaveLength(1)
 
     // A later successful write touching one of those keys supersedes the
     // whole composite intent: replaying it piecemeal could destroy this edit.
@@ -1032,7 +1027,7 @@ describe('failure clearing and baseline normalization (#810 review round 7)', ()
         smoothing: 0.2, fallback: 0.5, invert: false,
       }],
     })
-    expect(useControllerProfileStore.getState().profileSaveFailure).toBeNull()
+    expect(useControllerProfileStore.getState().profileSaveFailures).toEqual([])
     expect(useControllerProfileStore.getState().profiles[0].inputs).toHaveLength(1)
   })
 
@@ -1059,5 +1054,55 @@ describe('failure clearing and baseline normalization (#810 review round 7)', ()
     expect(rolledBack).toHaveLength(1)
     expect(rolledBack[0]).not.toHaveProperty('role')
     offline = false
+  })
+})
+
+describe('independent failed edits (#810 review round 8)', () => {
+  it('redoing one failed edit keeps the other retryable', async () => {
+    const profile = defaultControllerProfile({ id: 'ctrl-1', name: 'Original', now: 1 })
+    const provider = memoryProvider([profile])
+    const durableUpdate = provider.updateControllerProfile
+    let offline = true
+    provider.updateControllerProfile = async (id, changes) => {
+      if (offline) throw new Error('save failed')
+      await durableUpdate(id, changes)
+    }
+    setPersonalContentProvider(provider)
+    await useControllerProfileStore.getState().loadProfiles()
+
+    await useControllerProfileStore.getState().updateProfile('ctrl-1', { name: 'Renamed' }).catch(() => {})
+    await useControllerProfileStore.getState().updateProfile('ctrl-1', { keepPatternsUpToDate: true }).catch(() => {})
+
+    // Connectivity returns; the user manually redoes only the rename. The
+    // toggle's failed edit must keep its notice and Retry path.
+    offline = false
+    await useControllerProfileStore.getState().updateProfile('ctrl-1', { name: 'Renamed' })
+    expect(useControllerProfileStore.getState().profileSaveFailures).toEqual([
+      { profileId: 'ctrl-1', patches: [{ keepPatternsUpToDate: true }] },
+    ])
+
+    await useControllerProfileStore.getState().retryProfileSaveFailure('ctrl-1')
+    expect(useControllerProfileStore.getState().profiles[0].keepPatternsUpToDate).toBe(true)
+    expect(useControllerProfileStore.getState().profileSaveFailures).toEqual([])
+  })
+
+  it('failures on different profiles keep independent notices', async () => {
+    const profileA = defaultControllerProfile({ id: 'ctrl-a', name: 'Alpha', now: 1 })
+    const profileB = defaultControllerProfile({ id: 'ctrl-b', name: 'Beta', now: 1 })
+    const provider = memoryProvider([profileA, profileB])
+    provider.updateControllerProfile = async () => {
+      throw new Error('save failed')
+    }
+    setPersonalContentProvider(provider)
+    await useControllerProfileStore.getState().loadProfiles()
+
+    await useControllerProfileStore.getState().updateProfile('ctrl-a', { name: 'Alpha 2' }).catch(() => {})
+    await useControllerProfileStore.getState().updateProfile('ctrl-b', { name: 'Beta 2' }).catch(() => {})
+
+    expect(useControllerProfileStore.getState().profileSaveFailures.map((f) => f.profileId).sort())
+      .toEqual(['ctrl-a', 'ctrl-b'])
+
+    useControllerProfileStore.getState().dismissProfileSaveFailure('ctrl-a')
+    expect(useControllerProfileStore.getState().profileSaveFailures).toMatchObject([{ profileId: 'ctrl-b' }])
   })
 })

@@ -1528,7 +1528,7 @@ function UseBlock({
 export function ControllerProfilePage({ profileId }: { profileId: string }) {
   const profiles = useControllerProfileStore((state) => state.profiles)
   const profilesLoaded = useControllerProfileStore((state) => state.profilesLoaded)
-  const profileSaveFailure = useControllerProfileStore((state) => state.profileSaveFailure)
+  const profileSaveFailures = useControllerProfileStore((state) => state.profileSaveFailures)
   const dismissProfileSaveFailure = useControllerProfileStore((state) => state.dismissProfileSaveFailure)
   const retryProfileSaveFailure = useControllerProfileStore((state) => state.retryProfileSaveFailure)
   const addInput = useControllerProfileStore((state) => state.addInput)
@@ -1629,12 +1629,12 @@ export function ControllerProfilePage({ profileId }: { profileId: string }) {
 
   return (
     <div data-testid="controller-profile-page" className="h-full overflow-y-auto bg-zinc-950 text-zinc-200">
-      {profileSaveFailure?.profileId === profile.id && (
+      {profileSaveFailures.some((failure) => failure.profileId === profile.id) && (
         <SaveFailureNotice
           testId="controller-profile-save-failure"
           message="Couldn't save this Controller change. The edit was reverted."
-          onRetry={() => void retryProfileSaveFailure()}
-          onDismiss={dismissProfileSaveFailure}
+          onRetry={() => void retryProfileSaveFailure(profile.id)}
+          onDismiss={() => dismissProfileSaveFailure(profile.id)}
         />
       )}
       <ProfileStatus
