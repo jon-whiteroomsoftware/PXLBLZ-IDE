@@ -1106,3 +1106,84 @@ describe('independent failed edits (#810 review round 8)', () => {
     expect(useControllerProfileStore.getState().profileSaveFailures).toMatchObject([{ profileId: 'ctrl-b' }])
   })
 })
+
+describe('write repair and composite retry atomicity (#810 review round 9)', () => {
+  it('a landed write re-asserts its keys after an identical-value rollback', async () => {
+    const profile = defaultControllerProfile({ id: 'ctrl-1', name: 'Original', now: 1 })
+    const provider = memoryProvider([profile])
+    const durableUpdate = provider.updateControllerProfile
+    let rejectFirst!: (cause: Error) => void
+    const firstGate = new Promise<void>((_resolve, reject) => {
+      rejectFirst = reject
+    })
+    let call = 0
+    provider.updateControllerProfile = async (id, changes) => {
+      call += 1
+      if (call === 1) {
+        await firstGate
+        return
+      }
+      await durableUpdate(id, changes)
+    }
+    setPersonalContentProvider(provider)
+    await useControllerProfileStore.getState().loadProfiles()
+
+    // Two queued writes assign the same value; the first fails, and its
+    // value-based rollback cannot tell the second's optimistic state apart.
+    const first = useControllerProfileStore.getState().updateProfile('ctrl-1', { name: 'Bench' }).catch(() => {})
+    const second = useControllerProfileStore.getState().updateProfile('ctrl-1', { name: 'Bench' })
+    rejectFirst(new Error('save failed'))
+    await first
+    await second
+
+    // The landed second write is authoritative: the local profile must show it.
+    expect(useControllerProfileStore.getState().profiles[0].name).toBe('Bench')
+  })
+
+  it('Retry drops a composite patch whole when a newer edit owns one of its keys', async () => {
+    const profile = {
+      ...defaultControllerProfile({ id: 'ctrl-1', name: 'Original', now: 1 }),
+      inputs: [{
+        id: 'pot0', name: 'Front pot', pin: 33, signal: 'analog' as const,
+        smoothing: 0.2, fallback: 0.5, invert: false,
+      }],
+    }
+    const provider = memoryProvider([profile])
+    const durableUpdate = provider.updateControllerProfile
+    let releaseNewer!: () => void
+    const newerGate = new Promise<void>((resolve) => {
+      releaseNewer = resolve
+    })
+    let call = 0
+    provider.updateControllerProfile = async (id, changes) => {
+      call += 1
+      if (call === 1) throw new Error('save failed')
+      if (call === 2) await newerGate
+      await durableUpdate(id, changes)
+    }
+    setPersonalContentProvider(provider)
+    await useControllerProfileStore.getState().loadProfiles()
+
+    // A composite removal (inputs + patternBindings) fails.
+    await useControllerProfileStore.getState().updateProfile('ctrl-1', {
+      inputs: [],
+      patternBindings: [],
+    }).catch(() => {})
+    // A newer pending edit owns patternBindings when the user clicks Retry.
+    const newerPending = useControllerProfileStore.getState().updateProfile('ctrl-1', {
+      patternBindings: [{
+        id: 'binding-1', patternId: 'pat-1', inputId: 'pot0',
+        target: { kind: 'call-exported-slider' as const, name: 'sliderSpeed' },
+      }],
+    })
+    const retried = useControllerProfileStore.getState().retryProfileSaveFailure('ctrl-1')
+    releaseNewer()
+    await newerPending
+    await retried
+
+    // The composite must not split: the input referenced by the new binding
+    // survives, and no partial write removed it.
+    expect(useControllerProfileStore.getState().profiles[0].inputs).toHaveLength(1)
+    expect(useControllerProfileStore.getState().profiles[0].patternBindings).toHaveLength(1)
+  })
+})

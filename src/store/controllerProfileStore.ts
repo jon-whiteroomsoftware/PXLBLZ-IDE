@@ -374,6 +374,21 @@ export const useControllerProfileStore = create<ControllerProfileState>()((set, 
       throw error
     }
     lastDurableProfiles.set(id, patchProfile(lastDurableProfiles.get(id) ?? previous ?? optimistic!, patch))
+    // The landed write is authoritative for its keys: an earlier failure's
+    // rollback can have reverted them locally when both writes carried the
+    // same value (key ownership is value-based), so re-assert them.
+    set((s) => ({
+      profiles: s.profiles.map((profile) => {
+        if (profile.id !== id) return profile
+        let repaired = profile
+        for (const key of Object.keys(patch) as Array<keyof Omit<ControllerProfile, 'id'>>) {
+          if (!Object.is(repaired[key], patch[key])) {
+            repaired = { ...repaired, [key]: patch[key] }
+          }
+        }
+        return repaired
+      }),
+    }))
     // A successful write supersedes exactly the failed patches it overlaps: a
     // composite patch (an input removal edits inputs AND patternBindings
     // together) dies whole because it cannot be safely replayed piecemeal,
@@ -419,17 +434,20 @@ export const useControllerProfileStore = create<ControllerProfileState>()((set, 
       drop()
       return
     }
-    // Re-apply the failed patches merged in order, but only keys still at
-    // their durable value: a key a newer optimistic edit owns is settled by
-    // that edit's own write, and retrying the older value would clobber the
-    // newer intent.
-    const merged = Object.assign({}, ...failure.patches) as Partial<Omit<ControllerProfile, 'id'>>
-    const retryChanges = Object.fromEntries(
-      Object.entries(merged).filter(([key]) => {
-        const profileKey = key as keyof Omit<ControllerProfile, 'id'>
-        return !durable || Object.is(current[profileKey], durable[profileKey])
-      }),
-    ) as Partial<Omit<ControllerProfile, 'id'>>
+    // Re-apply the failed patches merged in order, but a patch is retried
+    // only while EVERY one of its keys still sits at its durable value: a
+    // key a newer optimistic edit owns is settled by that edit's own write,
+    // and a composite patch (an input removal edits inputs AND
+    // patternBindings together) must never be split into a partial write
+    // that could persist dangling references.
+    const keyAtDurable = (key: string) => {
+      const profileKey = key as keyof Omit<ControllerProfile, 'id'>
+      return !durable || Object.is(current[profileKey], durable[profileKey])
+    }
+    const retryable = failure.patches.filter(
+      (failedPatch) => Object.keys(failedPatch).every(keyAtDurable),
+    )
+    const retryChanges = Object.assign({}, ...retryable) as Partial<Omit<ControllerProfile, 'id'>>
     drop()
     if (Object.keys(retryChanges).length === 0) return
     // A still-failing write re-records the failure; the notice stays up.

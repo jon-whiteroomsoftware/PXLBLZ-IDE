@@ -144,20 +144,29 @@ function activeDurableEntity(): { id: string } | null {
   if (route.kind !== 'studio') return null
   const surface = route.entity?.kind ?? 'patterns'
   if (surface !== EDITOR_SURFACE_FOR_FLAVOR[editorFlavor]) return null
+  // A concrete route id must also match the selected record: a missing-id
+  // route renders a not-found message on the same surface, where neither the
+  // glyph nor the editor exists to own the buffer.
+  const routeEntityId = route.entity?.id ?? null
+  const owned = (id: string | null): { id: string } | null => {
+    if (id === null) return null
+    if (routeEntityId !== null && routeEntityId !== id) return null
+    return { id }
+  }
   if (editorFlavor === 'map') {
     const { editingMap } = useMapStore.getState()
-    return editingMap?.kind === 'existing' ? { id: editingMap.id } : null
+    return owned(editingMap?.kind === 'existing' ? editingMap.id : null)
   }
   if (editorFlavor === 'mixin') {
     const { editingMixin } = useMixinStore.getState()
-    return editingMixin?.kind === 'existing' ? { id: editingMixin.id } : null
+    return owned(editingMixin?.kind === 'existing' ? editingMixin.id : null)
   }
   if (editorFlavor === 'library') {
     const { editingLibrary } = useLibraryStore.getState()
-    return editingLibrary?.kind === 'existing' ? { id: editingLibrary.id } : null
+    return owned(editingLibrary?.kind === 'existing' ? editingLibrary.id : null)
   }
   const { activePatternId } = usePatternStore.getState()
-  return activePatternId === null ? null : { id: activePatternId }
+  return owned(activePatternId)
 }
 
 interface AutosaveAttempt {

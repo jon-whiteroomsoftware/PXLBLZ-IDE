@@ -811,6 +811,10 @@ function StudioApp() {
 
   return (
     <div className="flex h-dvh flex-col bg-zinc-950 text-zinc-100 sm:h-screen">
+      {/* App-shell level (#810): a lost navigation save must stay visible on
+          every route — Docs, Gallery, API — not only inside the Studio
+          workspace branch. */}
+      <NavigationSaveFailureNotice />
       <header data-testid="top-bar" className="flex min-h-10 shrink-0 flex-wrap items-center gap-y-1 border-b border-seam bg-panel px-3 py-1 sm:h-10 sm:flex-nowrap sm:px-4 sm:py-0">
         <a
           href={import.meta.env.BASE_URL}
@@ -1153,7 +1157,6 @@ function StudioApp() {
             )}
             </PaneHeader>
           </div>
-          <NavigationSaveFailureNotice />
           <div className="flex-1 overflow-hidden">
             {activeControllerProfileId !== null ? (
               <ControllerProfilePage profileId={activeControllerProfileId} />

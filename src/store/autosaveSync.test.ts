@@ -421,6 +421,28 @@ describe('non-editor surfaces (#810 review round 8)', () => {
   })
 })
 
+describe('missing-route ownership (#810 review round 9)', () => {
+  it('a not-found route on the same surface does not own the old draft', async () => {
+    const provider = memoryProvider([PATTERN])
+    provider.updatePattern = async () => {
+      throw new Error('offline')
+    }
+    setPersonalContentProvider(provider)
+    openDirtyPattern('draft on missing route')
+    // The route points at a record that does not exist: the surface matches
+    // but a not-found message renders instead of the editor, so a failure
+    // must surface as a loss notice, not an invisible glyph flag.
+    useRouterStore.setState({ route: { kind: 'studio', entity: { kind: 'patterns', id: 'missing-id' } } })
+    flushPendingAutosave()
+    await settled()
+
+    expect(useEditorStore.getState().autosaveFailedEntity).toBeNull()
+    expect(useEditorStore.getState().navigationSaveLosses).toEqual([
+      { flavor: 'pattern', id: PATTERN.id, name: PATTERN.name },
+    ])
+  })
+})
+
 describe('library switch flush pairing (#810 review P1)', () => {
   const LIB_A: LibraryRecord = { id: 'lib-a', name: 'LibA', src: 'export function a() {}', updatedAt: 500 }
   const LIB_B: LibraryRecord = { id: 'lib-b', name: 'LibB', src: 'export function b() {}', updatedAt: 600 }
