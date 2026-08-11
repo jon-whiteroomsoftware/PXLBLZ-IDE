@@ -923,7 +923,7 @@ describe('routing (#308)', () => {
     expect(useEditorStore.getState().editorFlavor).toBe('mixin')
     expect(useEditorStore.getState().isReadOnly).toBe(true)
     expect(screen.getByTestId('editor-pane')).toHaveTextContent('pot-binding')
-    expect(screen.getByTestId('preview-pane')).toHaveTextContent('No Controller or Show bindings use this mixin yet')
+    expect(screen.getByTestId('preview-pane')).toHaveTextContent('Parameters are bound on the Controller that uses this mixin')
   })
 
   it('opens a personal mixin addressed by /studio/mixins/<id>', async () => {

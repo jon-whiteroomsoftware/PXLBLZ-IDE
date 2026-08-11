@@ -410,47 +410,43 @@ export function MapContextPane() {
           </>
         )}
 
-        <SectionTitle icon={<GitBranch size={12} aria-hidden />}>Used by</SectionTitle>
-        <div className="mt-1 space-y-1.5">
-          {controllerUsers.length === 0 ? (
-            <p className="text-[11px] leading-relaxed text-zinc-500">
-              {controllerProfiles.length === 0
-                ? 'No controller profiles yet.'
-                : 'No controller profiles have recorded this map.'}
-            </p>
-          ) : (
-            <div className="space-y-1">
-              {controllerUsers.slice(0, 5).map((profile) => (
-                <div key={profile.id} className="flex items-center gap-2 rounded border border-zinc-900 bg-zinc-950/50 px-2 py-1.5">
-                  <GitBranch size={11} aria-hidden className="text-zinc-600" />
-                  <span className="min-w-0 flex-1 truncate text-zinc-400">{profile.name}</span>
-                  <span className="text-[10px] text-structural">controller</span>
+        {/* Presence-only: an unused map says nothing here; the Controller
+            profile page is the canonical usage surface (#782). */}
+        {(controllerUsers.length > 0 || patternUsers.length > 0) && (
+          <>
+            <SectionTitle icon={<GitBranch size={12} aria-hidden />}>Used by</SectionTitle>
+            <div className="mt-1 space-y-1.5">
+              {controllerUsers.length > 0 && (
+                <div className="space-y-1">
+                  {controllerUsers.slice(0, 5).map((profile) => (
+                    <div key={profile.id} className="flex items-center gap-2 rounded border border-zinc-900 bg-zinc-950/50 px-2 py-1.5">
+                      <GitBranch size={11} aria-hidden className="text-zinc-600" />
+                      <span className="min-w-0 flex-1 truncate text-zinc-400">{profile.name}</span>
+                      <span className="text-[10px] text-structural">controller</span>
+                    </div>
+                  ))}
+                  {controllerUsers.length > 5 && (
+                    <div className="px-2 text-[10px] text-zinc-500">+{controllerUsers.length - 5} more controllers</div>
+                  )}
                 </div>
-              ))}
-              {controllerUsers.length > 5 && (
-                <div className="px-2 text-[10px] text-zinc-500">+{controllerUsers.length - 5} more controllers</div>
+              )}
+              {patternUsers.length > 0 && (
+                <div className="space-y-1">
+                  {patternUsers.slice(0, 5).map((pattern) => (
+                    <div key={pattern.name} className="flex items-center gap-2 rounded border border-zinc-900 bg-zinc-950/50 px-2 py-1.5">
+                      <Box size={11} aria-hidden className="text-zinc-600" />
+                      <span className="min-w-0 flex-1 truncate text-zinc-400">{pattern.name}</span>
+                      <span className="text-[10px] text-structural">pattern</span>
+                    </div>
+                  ))}
+                  {patternUsers.length > 5 && (
+                    <div className="px-2 text-[10px] text-zinc-500">+{patternUsers.length - 5} more patterns</div>
+                  )}
+                </div>
               )}
             </div>
-          )}
-          {patternUsers.length === 0 ? (
-            <p className="text-[11px] leading-relaxed text-zinc-500">
-              No saved patterns explicitly select this map.
-            </p>
-          ) : (
-            <div className="space-y-1">
-              {patternUsers.slice(0, 5).map((pattern) => (
-                <div key={pattern.name} className="flex items-center gap-2 rounded border border-zinc-900 bg-zinc-950/50 px-2 py-1.5">
-                  <Box size={11} aria-hidden className="text-zinc-600" />
-                  <span className="min-w-0 flex-1 truncate text-zinc-400">{pattern.name}</span>
-                  <span className="text-[10px] text-structural">pattern</span>
-                </div>
-              ))}
-              {patternUsers.length > 5 && (
-                <div className="px-2 text-[10px] text-zinc-500">+{patternUsers.length - 5} more patterns</div>
-              )}
-            </div>
-          )}
-        </div>
+          </>
+        )}
       </div>
     </div>
   )

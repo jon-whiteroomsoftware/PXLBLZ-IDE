@@ -58,7 +58,7 @@ describe('MapContextPane', () => {
     expect(screen.getByLabelText('Baked size: 4 pixels')).toHaveTextContent('Baked size · 4 px')
   })
 
-  it('states unused-map provenance without advisory cards', () => {
+  it('omits the Used by section for an unused map (#782)', () => {
     useMapStore.setState({
       editingMap: { kind: 'existing', id: CUSTOM_MAP.id },
       userMaps: [CUSTOM_MAP],
@@ -66,12 +66,9 @@ describe('MapContextPane', () => {
 
     render(<MapContextPane />)
 
-    for (const copy of [
-      screen.getByText('No controller profiles yet.'),
-      screen.getByText('No saved patterns explicitly select this map.'),
-    ]) {
-      expect(copy).not.toHaveClass('rounded', 'border', 'bg-zinc-950/50')
-    }
+    expect(screen.queryByText('Used by')).not.toBeInTheDocument()
+    expect(screen.queryByText('No controller profiles yet.')).not.toBeInTheDocument()
+    expect(screen.queryByText('No saved patterns explicitly select this map.')).not.toBeInTheDocument()
   })
 
   it('names Controller Profiles that recorded the open map identity (#803)', () => {

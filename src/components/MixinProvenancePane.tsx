@@ -1,21 +1,12 @@
 import { FileCode2 } from 'lucide-react'
 import { readMixinHeader, STOCK_MIXIN_ITEMS } from '@/engine/mixins'
-import { selectTransformArtifactInspection } from '@/engine/transformInspection'
-import { activePushKey, usePatternStore } from '@/store/patternStore'
-import { useControllerStore } from '@/store/controllerStore'
 import { useEditorStore } from '@/store/editorStore'
 import { useMixinStore } from '@/store/mixinStore'
-import { TransformInspectionPanel } from './TransformInspectionPanel'
 
 export function MixinProvenancePane() {
   const source = useEditorStore((s) => s.source)
   const editingMixin = useMixinStore((s) => s.editingMixin)
   const userMixins = useMixinStore((s) => s.userMixins)
-  const activeIp = useControllerStore((s) => s.activeIp)
-  const patternId = usePatternStore(activePushKey)
-  const artifact = useControllerStore((s) =>
-    selectTransformArtifactInspection(s.lastTransformArtifacts, activeIp, patternId),
-  )
   const openRecord =
     editingMixin?.kind === 'existing' ? userMixins.find((m) => m.id === editingMixin.id) : undefined
   const stockRecord =
@@ -55,25 +46,8 @@ export function MixinProvenancePane() {
           </div>
         </section>
 
-        <section className="mt-5">
-          <h3 className="font-mono text-[11px] uppercase tracking-wide text-zinc-500">Used by</h3>
-          <p className="mt-2 text-[11px] leading-relaxed text-zinc-500">
-            No Controller or Show bindings use this mixin yet.
-          </p>
-        </section>
-
-        <section className="mt-5">
-          <h3 className="font-mono text-[11px] uppercase tracking-wide text-zinc-500">Last transform summary</h3>
-          <div className="mt-2">
-            <TransformInspectionPanel
-              artifact={artifact}
-              empty="No generated artifact has been recorded for this mixin yet."
-            />
-          </div>
-        </section>
-
         <p className="mt-5 text-[11px] leading-relaxed text-structural">
-          Parameters are bound on the Controller or Show that uses this mixin; the source stays generic and portable.
+          Parameters are bound on the Controller that uses this mixin; the source stays generic and portable.
         </p>
       </div>
     </div>
