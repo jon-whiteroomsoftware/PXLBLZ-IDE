@@ -1,0 +1,68 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["batch", "harnessNotes", "results"],
+  "properties": {
+    "batch": { "type": "string" },
+    "harnessNotes": {
+      "type": "string",
+      "description": "Driver or environment reliability observations; empty when there are none."
+    },
+    "results": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "id",
+          "verdict",
+          "summary",
+          "steps",
+          "screenshots",
+          "docQuote",
+          "searchNotes",
+          "consoleErrors",
+          "observations"
+        ],
+        "properties": {
+          "id": { "type": "string" },
+          "verdict": {
+            "type": "string",
+            "enum": ["PASS", "BUG", "WALLED", "DRIFT", "LOST", "BLOCKED-ENV"]
+          },
+          "summary": {
+            "type": "string",
+            "description": "One or two sentences describing what happened."
+          },
+          "steps": {
+            "type": "array",
+            "items": { "type": "string" },
+            "description": "Replayable steps a human can follow."
+          },
+          "screenshots": {
+            "type": "array",
+            "items": { "type": "string" }
+          },
+          "docQuote": {
+            "type": "string",
+            "description": "For WALLED or DRIFT, the guide or on-screen sentence used; empty otherwise."
+          },
+          "searchNotes": {
+            "type": "string",
+            "description": "For LOST or an unreachable BUG, where the tester looked; empty otherwise."
+          },
+          "consoleErrors": {
+            "type": "array",
+            "items": { "type": "string" }
+          },
+          "observations": {
+            "type": "array",
+            "items": { "type": "string" },
+            "description": "Secondary findings, including awkward flows, near misses, and documentation nits."
+          }
+        }
+      }
+    }
+  }
+}

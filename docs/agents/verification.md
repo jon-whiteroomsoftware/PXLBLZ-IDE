@@ -360,6 +360,15 @@ e2e validation *before* landing, not the pushing agent:
   `X-E2E:` trailer once the suite has run. The advisory is a prompt to run
   the suite, not a substitute for it.
 
+### Goal-based manual campaigns
+
+Use the [manual test campaign playbook](manual-test-campaigns/playbook.md) for
+broad goal-based discovery, user-guide audits, hardware campaigns, or an
+independent docs-versus-product evaluation. The package preserves the #788 and
+#800 goal catalogs, tester protocol, verdict schema, reusable Playwright HTTP
+driver, and Codex batch runners. Manual campaign evidence characterizes a
+finding; a promoted automated test owns repeatable regression coverage.
+
 ### Workspace recovery contract
 
 The focused workspace-recovery gate combines store-level fault oracles with a
