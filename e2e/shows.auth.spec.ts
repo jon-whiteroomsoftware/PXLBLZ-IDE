@@ -1191,6 +1191,27 @@ test.describe('authenticated Show authoring', () => {
     })
   })
 
+  test('disabled Show controls explain themselves on hover and to assistive tech (#796)', async ({ page }) => {
+    await page.goto(showtimePath('studio/shows'))
+    await createInstallationShow(page)
+
+    // Clone with no usable selection stays focusable and carries its reason
+    // in the accessibility tree; hovering reveals the same explanation.
+    const clone = page.getByRole('button', { name: 'Clone selection' })
+    await expect(clone).toHaveAttribute('aria-disabled', 'true')
+    await expect(clone).toHaveAccessibleDescription('Select one simple Clip to Clone')
+    const reason = page.getByText('Select one simple Clip to Clone')
+    await expect(reason).not.toBeVisible()
+    await clone.hover()
+    await expect(reason).toBeVisible()
+
+    // The reason also appears on keyboard focus, not only for mouse users.
+    await page.mouse.move(0, 0)
+    await expect(reason).not.toBeVisible()
+    await clone.focus()
+    await expect(reason).toBeVisible()
+  })
+
   test('returns timeline focus after a discrete edit and supports keyboard preview, start, and five-second seek', async ({ page }) => {
     await page.goto(showtimePath('studio/shows'))
     await createInstallationShow(page)

@@ -2,6 +2,7 @@ import { Fragment, createContext, useCallback, useContext, useDeferredValue, use
 import { createPortal } from 'react-dom'
 import { Activity, BookOpen, ChevronDown, ChevronRight, Clock3, CloudOff, Code2, Copy, Download, Eye, Flag, Grid2X2, Info, Layers3, Lightbulb, ListChecks, Lock, Magnet, Map as MapIcon, Maximize2, Move, PanelLeft, Pause, Play, Plus, Redo2, Repeat2, RotateCcw, RotateCw, Route, Scissors, Settings2, SkipBack, SlidersHorizontal, Square, Sun, Trash2, Undo2, WandSparkles, X, Zap } from 'lucide-react'
 import { Button } from '@/components/ui/button'
+import { DisabledReasonTip } from '@/components/ui/disabled-reason'
 import { NumberField as UiNumberField, type NumberFieldProps as UiNumberFieldProps } from '@/components/ui/number-field'
 import { DraftTextField } from '@/components/ui/draft-text-field'
 import { TimeField as UiTimeField, type TimeFieldProps as UiTimeFieldProps } from '@/components/ui/time-field'
@@ -3082,6 +3083,7 @@ function ShowTimelineCommands({
   const splitReasonId = `show-split-reason-${show.id}`
   const [splitReasonOpen, setSplitReasonOpen] = useState(false)
   const groupReasonId = `show-group-reason-${show.id}`
+  const cloneReasonId = `show-clone-reason-${show.id}`
   const [groupReasonOpen, setGroupReasonOpen] = useState(false)
   const compositionOwner = selection.kind === 'clip'
     ? findTimelineClipOwner(composition, selection.clipId)
@@ -3192,20 +3194,27 @@ function ShowTimelineCommands({
           </span>
         )}
       </span>
-      <Button
-        size="xs"
-        variant="ghost"
-        aria-label="Clone selection"
-        title={cloneCapability.reason}
-        disabled={readOnly || !cloneCapability.enabled}
-        className={`px-1.5 text-[10px] ${showTimelineToolbarControlClass({
-          enabled: cloneEnabled,
-        })}`}
-        onClick={() => void cloneSelection()}
-      >
-        <Copy size={12} aria-hidden />
-        <span className="timeline-command-label timeline-command-label-secondary">Clone</span>
-      </Button>
+      <span className="group/reason relative inline-flex">
+        <Button
+          size="xs"
+          variant="ghost"
+          aria-label="Clone selection"
+          title={cloneCapability.enabled ? cloneCapability.reason : undefined}
+          disabled={readOnly}
+          aria-disabled={!cloneEnabled || undefined}
+          aria-describedby={!readOnly && !cloneCapability.enabled ? cloneReasonId : undefined}
+          className={`px-1.5 text-[10px] ${showTimelineToolbarControlClass({
+            enabled: cloneEnabled,
+          })}`}
+          onClick={() => void cloneSelection()}
+        >
+          <Copy size={12} aria-hidden />
+          <span className="timeline-command-label timeline-command-label-secondary">Clone</span>
+        </Button>
+        {!readOnly && !cloneCapability.enabled && (
+          <DisabledReasonTip id={cloneReasonId}>{cloneCapability.reason}</DisabledReasonTip>
+        )}
+      </span>
       <span className="relative inline-flex">
         <Button
           size="xs"
@@ -8055,17 +8064,23 @@ function CompositionClipInspector({
       )}
       icon={<Grid2X2 size={13} aria-hidden />}
       actions={onRemove ? (
-        <Button
-          size="icon-xs"
-          variant="ghost"
-          aria-label={`Delete clip ${value.patternName}`}
-          title={canRemove ? `Delete ${value.patternName}` : 'A Show must contain at least one Clip.'}
-          disabled={!canRemove}
-          className="text-zinc-500 hover:bg-red-950/30 hover:text-red-300"
-          onClick={onRemove}
-        >
-          <Trash2 size={12} aria-hidden />
-        </Button>
+        <span className="group/reason relative inline-flex">
+          <Button
+            size="icon-xs"
+            variant="ghost"
+            aria-label={`Delete clip ${value.patternName}`}
+            title={canRemove ? `Delete ${value.patternName}` : undefined}
+            aria-disabled={!canRemove || undefined}
+            aria-describedby={canRemove ? undefined : 'composition-clip-delete-reason'}
+            className="text-zinc-500 hover:bg-red-950/30 hover:text-red-300 aria-disabled:opacity-50"
+            onClick={() => { if (canRemove) onRemove() }}
+          >
+            <Trash2 size={12} aria-hidden />
+          </Button>
+          {!canRemove && (
+            <DisabledReasonTip id="composition-clip-delete-reason">A Show must contain at least one Clip.</DisabledReasonTip>
+          )}
+        </span>
       ) : undefined}
     >
       <ShowClipEntityDetail
@@ -8206,17 +8221,23 @@ function ClipInspector({
       )}
       icon={<Grid2X2 size={13} aria-hidden />}
       actions={(
-        <Button
-          size="icon-xs"
-          variant="ghost"
-          aria-label={`Delete clip ${cell.patternName}`}
-          title={canRemove ? `Delete ${cell.patternName}` : 'A Show must contain at least one Clip.'}
-          disabled={!canRemove}
-          className="text-zinc-500 hover:bg-red-950/30 hover:text-red-300"
-          onClick={onRemove}
-        >
-          <Trash2 size={12} aria-hidden />
-        </Button>
+        <span className="group/reason relative inline-flex">
+          <Button
+            size="icon-xs"
+            variant="ghost"
+            aria-label={`Delete clip ${cell.patternName}`}
+            title={canRemove ? `Delete ${cell.patternName}` : undefined}
+            aria-disabled={!canRemove || undefined}
+            aria-describedby={canRemove ? undefined : 'legacy-clip-delete-reason'}
+            className="text-zinc-500 hover:bg-red-950/30 hover:text-red-300 aria-disabled:opacity-50"
+            onClick={() => { if (canRemove) onRemove() }}
+          >
+            <Trash2 size={12} aria-hidden />
+          </Button>
+          {!canRemove && (
+            <DisabledReasonTip id="legacy-clip-delete-reason">A Show must contain at least one Clip.</DisabledReasonTip>
+          )}
+        </span>
       )}
     >
       {inspectorValue && (
@@ -9798,6 +9819,7 @@ function ZoneLayoutInspector({
                 ariaLabel={`${layout.name} ${zone.name} pixel ranges`}
                 value={formatShowRoutingRanges(layoutZone?.ranges ?? [])}
                 parse={parseShowRoutingRanges}
+                invalidDraftReason="Ranges look like 0-63, 128-191."
                 onApply={(ranges) => {
                   onUpdateRoutingLayout(layout.id, {
                     zones: layout.zones.map((candidate) => candidate.zoneId === zone.id
@@ -9861,16 +9883,22 @@ function ZoneInspector({
             onChange={(nominalPixelCount) => onUpdateZone({ nominalPixelCount })}
           />
         )}
-        <button
-          type="button"
-          aria-label={`Remove zone ${zone.name}`}
-          title={`Remove ${zone.name}`}
-          onClick={onRemoveZone}
-          disabled={show.zones.length <= 1}
-          className="flex h-7 w-7 items-center justify-center rounded border border-zinc-800 text-zinc-500 hover:border-red-900/70 hover:text-red-300 disabled:opacity-30 disabled:hover:border-zinc-800 disabled:hover:text-zinc-500"
-        >
-          <Trash2 size={13} />
-        </button>
+        <span className="group/reason relative inline-flex">
+          <button
+            type="button"
+            aria-label={`Remove zone ${zone.name}`}
+            title={show.zones.length > 1 ? `Remove ${zone.name}` : undefined}
+            onClick={() => { if (show.zones.length > 1) onRemoveZone() }}
+            aria-disabled={show.zones.length <= 1 || undefined}
+            aria-describedby={show.zones.length <= 1 ? `zone-remove-reason-${zone.id}` : undefined}
+            className="flex h-7 w-7 items-center justify-center rounded border border-zinc-800 text-zinc-500 hover:border-red-900/70 hover:text-red-300 aria-disabled:opacity-30 aria-disabled:hover:border-zinc-800 aria-disabled:hover:text-zinc-500"
+          >
+            <Trash2 size={13} />
+          </button>
+          {show.zones.length <= 1 && (
+            <DisabledReasonTip id={`zone-remove-reason-${zone.id}`}>A Show needs at least one Zone.</DisabledReasonTip>
+          )}
+        </span>
         <div className="text-[10px] uppercase tracking-wider md:col-span-3">
           {show.outputContract?.kind === 'portable-2d'
             ? <span className="text-zinc-400">logical - normalized position membership</span>

@@ -48,6 +48,36 @@ describe('DraftTextField', () => {
     expect(onApply).not.toHaveBeenCalled()
   })
 
+  it('explains a blocked Apply on hover targets and the a11y tree when a reason is given (#796)', async () => {
+    const user = userEvent.setup()
+    const onApply = vi.fn()
+    render(
+      <DraftTextField
+        ariaLabel="Pixel ranges"
+        value="0-63"
+        parse={(draft) => draft.includes('-') ? draft : null}
+        invalidDraftReason="Ranges look like 0-63, 128-191."
+        onApply={onApply}
+      />,
+    )
+    const input = screen.getByRole('textbox', { name: 'Pixel ranges' })
+
+    await user.click(input)
+    await user.clear(input)
+    await user.type(input, 'broken')
+
+    const apply = screen.getByRole('button', { name: 'Apply Pixel ranges' })
+    expect(apply).not.toBeDisabled()
+    expect(apply).toHaveAttribute('aria-disabled', 'true')
+    const reasonId = apply.getAttribute('aria-describedby')
+    expect(reasonId).toBeTruthy()
+    expect(document.getElementById(reasonId!)).toHaveTextContent('Ranges look like 0-63, 128-191.')
+
+    await user.click(apply)
+    expect(onApply).not.toHaveBeenCalled()
+    expect(input).toHaveValue('broken')
+  })
+
   it('cancels to the latest controlled text when it changes during a draft', async () => {
     const user = userEvent.setup()
     const onApply = vi.fn()

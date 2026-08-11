@@ -224,6 +224,46 @@ describe('ShowEditor (#318)', () => {
     expect(screen.queryByRole('alert')).not.toBeInTheDocument()
   })
 
+  it('exposes disabled-control explanations to hover targets and the a11y tree (#796)', async () => {
+    const user = userEvent.setup()
+    const twoClips = createDefaultShow('show-disabled-reasons', 'Disabled reasons', 1000)
+    const show = removeShowClip(twoClips, 'cell-2')
+    useShowStore.setState({ shows: [show], activeShowId: show.id, showsLoaded: true })
+    render(<ShowEditor showId={show.id} />)
+
+    const describedReason = (control: HTMLElement) => {
+      const id = control.getAttribute('aria-describedby')
+      expect(id).toBeTruthy()
+      return document.getElementById(id!)
+    }
+
+    // Clone without a usable selection stays focusable and explains itself.
+    const clone = screen.getByRole('button', { name: 'Clone selection' })
+    expect(clone).not.toBeDisabled()
+    expect(clone).toHaveAttribute('aria-disabled', 'true')
+    expect(describedReason(clone)).toHaveTextContent('Select one simple Clip to Clone')
+
+    // Deleting the final Clip explains the floor before it is pressed.
+    await user.click(screen.getAllByRole('button', { name: 'Select TestPattern1D' })[0])
+    const deleteClip = screen.getByRole('button', { name: 'Delete clip TestPattern1D' })
+    expect(deleteClip).not.toBeDisabled()
+    expect(deleteClip).toHaveAttribute('aria-disabled', 'true')
+    expect(describedReason(deleteClip)).toHaveTextContent('A Show must contain at least one Clip.')
+    await user.click(deleteClip)
+    expect(screen.getAllByRole('button', { name: 'Select TestPattern1D' }).length).toBeGreaterThan(0)
+
+    // Removing the last Zone explains the floor instead of a mute control.
+    await user.keyboard('{Escape}')
+    await user.click(screen.getByRole('button', { name: 'Open Zones' }))
+    await user.click(screen.getByRole('button', { name: 'Open zone main properties' }))
+    const removeZone = screen.getByRole('button', { name: 'Remove zone main' })
+    expect(removeZone).not.toBeDisabled()
+    expect(removeZone).toHaveAttribute('aria-disabled', 'true')
+    expect(describedReason(removeZone)).toHaveTextContent('A Show needs at least one Zone.')
+    await user.click(removeZone)
+    expect(useShowStore.getState().shows[0].zones).toHaveLength(1)
+  })
+
   it('identifies a selected boundary by Show time and incoming Pattern (#634)', () => {
     const show = createDefaultShow('show-boundary-identity', 'Boundary identity', 1000)
     useShowStore.setState({ shows: [show], activeShowId: show.id, showsLoaded: true })
@@ -4208,8 +4248,10 @@ describe('ShowEditor (#318)', () => {
     await user.click(screen.getByRole('button', { name: 'Select CometLoom' }))
 
     const remove = screen.getByRole('button', { name: 'Delete clip CometLoom' })
-    expect(remove).toBeDisabled()
-    expect(remove).toHaveAttribute('title', 'A Show must contain at least one Clip.')
+    expect(remove).not.toBeDisabled()
+    expect(remove).toHaveAttribute('aria-disabled', 'true')
+    expect(document.getElementById(remove.getAttribute('aria-describedby')!))
+      .toHaveTextContent('A Show must contain at least one Clip.')
 
     await user.keyboard('{Delete}')
 
@@ -4240,7 +4282,7 @@ describe('ShowEditor (#318)', () => {
     expect(firstProjectedPlacement).toBeDefined()
     await user.click(firstProjectedPlacement!)
 
-    expect(screen.getByRole('button', { name: 'Delete clip TestPattern1D' })).toBeDisabled()
+    expect(screen.getByRole('button', { name: 'Delete clip TestPattern1D' })).toHaveAttribute('aria-disabled', 'true')
     await user.keyboard('{Delete}')
 
     expect(screen.getByTestId('show-clip-delete-blocked')).toBeInTheDocument()
@@ -4267,7 +4309,7 @@ describe('ShowEditor (#318)', () => {
     expect(projectedPlacements).toHaveLength(2)
     await user.click(projectedPlacements[0])
 
-    expect(screen.getByRole('button', { name: 'Delete clip TestPattern1D' })).toBeDisabled()
+    expect(screen.getByRole('button', { name: 'Delete clip TestPattern1D' })).toHaveAttribute('aria-disabled', 'true')
     await user.keyboard('{Delete}')
 
     expect(screen.getByTestId('show-clip-delete-blocked')).toBeInTheDocument()

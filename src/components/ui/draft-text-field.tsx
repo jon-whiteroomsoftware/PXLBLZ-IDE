@@ -12,6 +12,8 @@ export interface DraftTextFieldProps<T = string> {
   ariaLabel: string
   value: string
   parse?: (draft: string) => T | null
+  /** Why an unparseable draft cannot apply (#796); exposed by the Apply action. */
+  invalidDraftReason?: string
   formatApplied?: (value: T, draft: string) => string
   sanitize?: (draft: string) => string
   onApply: (value: T) => boolean | void
@@ -27,6 +29,7 @@ export function DraftTextField<T = string>({
   ariaLabel,
   value,
   parse,
+  invalidDraftReason,
   formatApplied,
   sanitize,
   onApply,
@@ -115,6 +118,7 @@ export function DraftTextField<T = string>({
         <DraftFieldActions
           label={ariaLabel}
           canApply={parsed !== null}
+          cannotApplyReason={invalidDraftReason}
           onApply={apply}
           onCancel={cancel}
         />
