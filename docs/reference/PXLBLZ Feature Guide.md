@@ -311,16 +311,20 @@ that cannot change generated code never triggers a rewrite.
 ### Power
 
 The Controller estimates draw live from the duty cycle of the running
-Pattern. Choose the LED construction and enter the supply budget in amps or
-watts; one readout chain states the whole derivation — addresses, per-address
-assumption, full-white load, budget. **Override load** replaces the preset
-estimate with a measured or rated installation total.
+Pattern. Two gates come first: **Limit power** switches enforcement on or
+off, and a segmented control decides how the duty cap is set — **Fixed cap**
+or **From load and budget**. Only the chosen flow renders its fields, and
+switching enforcement off collapses the section to a one-line summary of the
+kept cap.
 
-The duty cap is the section's headline value: a switch enforces it, and one
-button moves between **Calculate from load and budget** and **Set a fixed
-cap**. The cap is independent of the power model and changes every generated
-Pattern. PXLBLZ does not pretend to be an ammeter or replace physical
-power-system design.
+Both flows share the full-white load: a **Construction estimate** (presets
+named by chipset — WS2812B/SK6812, WS2811, WS2815) or your own **Measured
+total** in amps or watts, with the supply voltage asked for only there. A
+fixed cap is set with a slider and states what it holds the installation to
+in watts and amps; the derived cap divides the supply budget by the
+full-white load, with one readout chain stating the whole derivation. The
+cap changes every generated Pattern. PXLBLZ does not pretend to be an
+ammeter or replace physical power-system design.
 
 Two built-in diagnostics help here: **AnalogWiggleFinder** identifies which
 analog pin a potentiometer is on (run it on the Controller and sweep the pot),

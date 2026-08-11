@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import type React from 'react'
 import { NumberField as UiNumberField } from '@/components/ui/number-field'
 import { DraftTextField } from '@/components/ui/draft-text-field'
@@ -28,11 +28,12 @@ import {
   findLedConstructionPreset,
   resolveControllerElectricalProfile,
   type ControllerElectricalProfile,
-  type ElectricalLoadSource,
   type ElectricalUnit,
   type LedConstructionPresetId,
 } from '@/engine/controllerElectricalProfile'
 import type { ControllerPowerEdit } from '@/engine/controllerPowerAuthoring'
+import { formatDutyCapPercent } from '@/engine/controllerPanelView'
+import { DeckSlider } from './DeckSlider'
 import { controllerForProfile } from '@/engine/controllerProfileConnection'
 import { selectTransformArtifactInspection } from '@/engine/transformInspection'
 import { useControllerStore, type ControllerEntry } from '@/store/controllerStore'
@@ -467,21 +468,112 @@ function milliampsPerAddress(presetId: LedConstructionPresetId): string | null {
   return `${milliamps} mA/addr @ ${preset.voltageVolts}V`
 }
 
-const LOAD_SOURCE_LABELS: Record<ElectricalLoadSource, string> = {
-  measured: 'measured',
-  'manufacturer-rated': 'manufacturer-rated',
-  custom: 'custom estimate',
+/** Converted quantities are stored exact; the field shows a rounded value so a
+ * unit flip never surfaces raw float noise like 8.333333333333334 (#786). */
+function roundForDisplay(value: number): number {
+  return Math.round(value * 100) / 100
 }
 
-/** The Power section carries the whole installation power policy: the model,
- * its one-line derivation chain, and the duty cap that enforces it. `power-cap`
- * lives here rather than in a separate transform list — it never touches an
- * input (#772).
- *
- * The cap and the power model are independent: a direct cap changes every
- * generated Pattern whether or not an installation load has ever been modelled,
- * so the enforcement switch and the duty value always render. Only the estimate
- * and the derived mode need a model. */
+const CONNECT_FOR_COUNT_REASON = 'Connect this Controller to supply its address count.'
+
+/** The section's shared either/or idiom (#786): every branching decision in the
+ * Power section — cap source, load source — renders as the same two-option
+ * segmented control instead of a label-flipping action button. */
+function SegmentedControl<T extends string>({
+  ariaLabel,
+  value,
+  options,
+  onSelect,
+}: {
+  ariaLabel: string
+  value: T
+  options: { value: T; label: string; disabled?: boolean; disabledReason?: string }[]
+  onSelect: (value: T) => void
+}) {
+  return (
+    <div
+      role="radiogroup"
+      aria-label={ariaLabel}
+      className="inline-flex overflow-hidden rounded-md border border-zinc-800"
+    >
+      {options.map((option, index) => (
+        <button
+          key={option.value}
+          type="button"
+          role="radio"
+          aria-checked={option.value === value}
+          disabled={option.disabled}
+          title={option.disabled ? option.disabledReason : undefined}
+          onClick={() => { if (option.value !== value) onSelect(option.value) }}
+          className={`px-3 py-1.5 font-mono text-[11px] tracking-wide transition-colors ${
+            index > 0 ? 'border-l border-zinc-800' : ''
+          } ${
+            option.value === value
+              ? 'bg-zinc-900 text-zinc-100 shadow-[inset_0_-2px_0_var(--color-live)]'
+              : option.disabled
+                ? 'cursor-not-allowed text-zinc-700'
+                : 'text-zinc-500 hover:text-zinc-300'
+          }`}
+        >
+          {option.label}
+        </button>
+      ))}
+    </div>
+  )
+}
+
+/** Amps/watts as a toggle glued to its value field. The unavailable unit states
+ * its reason in a title instead of sitting silently disabled (#786). */
+function UnitToggle({
+  value,
+  voltageKnown,
+  onChange,
+}: {
+  value: ElectricalUnit
+  voltageKnown: boolean
+  onChange: (unit: ElectricalUnit) => void
+}) {
+  return (
+    <div className="inline-flex shrink-0 overflow-hidden rounded border border-zinc-800">
+      {(['amps', 'watts'] as const).map((unit, index) => {
+        const disabled = !voltageKnown && unit !== value
+        return (
+          <button
+            key={unit}
+            type="button"
+            aria-label={unit}
+            aria-pressed={unit === value}
+            disabled={disabled}
+            title={disabled
+              ? 'Enter the supply voltage to convert between amps and watts'
+              : undefined}
+            onClick={() => { if (unit !== value) onChange(unit) }}
+            className={`px-1.5 py-0.5 font-mono text-[10px] ${
+              index > 0 ? 'border-l border-zinc-800' : ''
+            } ${
+              unit === value
+                ? 'bg-zinc-800 text-zinc-200'
+                : disabled
+                  ? 'cursor-not-allowed text-zinc-700'
+                  : 'text-zinc-500 hover:text-zinc-300'
+            }`}
+          >
+            {unit === 'amps' ? 'A' : 'W'}
+          </button>
+        )
+      })}
+    </div>
+  )
+}
+
+/** The Power section carries the whole installation power policy behind two
+ * upfront gates (#786): a plain-language "Limit power" switch, then a cap-source
+ * segment — Fixed cap or From load and budget. Only the chosen branch renders.
+ * Both branches share the full-white load block, so a fixed cap can still say
+ * what it holds the installation to, and est. draw telemetry always has a model.
+ * `power-cap` lives here rather than in a separate transform list — it never
+ * touches an input (#772). Off collapses to a summary: nothing renders
+ * dimmed-but-editable. */
 function PowerSection({
   profile,
   onEdit,
@@ -494,174 +586,317 @@ function PowerSection({
   const powerCap = profile.globalTransforms.find(
     (transform): transform is PowerCapTransform => transform.type === 'power-cap',
   )
-  const derivedDuty = electricalProfile
-    ? resolveControllerElectricalProfile(electricalProfile, { pixelCount }).maxDuty
+  const resolved = electricalProfile
+    ? resolveControllerElectricalProfile(electricalProfile, { pixelCount })
     : null
+  const derivedDuty = resolved?.maxDuty ?? null
   const capMode = powerCap?.mode ?? 'direct'
-  const displayedDuty = capMode === 'derived' && derivedDuty != null ? derivedDuty : powerCap?.maxDuty ?? 0
   const capEnabled = powerCap?.enabled ?? false
+  const fixedDuty = powerCap?.maxDuty ?? 0
+
+  // The slider commits through the profile store; a drag emits a burst of
+  // changes, so the draft value renders live and the edit lands debounced.
+  const [draftDuty, setDraftDuty] = useState<number | null>(null)
+  const commitTimerRef = useRef<number | null>(null)
+  useEffect(() => () => {
+    if (commitTimerRef.current != null) window.clearTimeout(commitTimerRef.current)
+  }, [])
+  const handleDutyChange = (maxDuty: number) => {
+    setDraftDuty(maxDuty)
+    if (commitTimerRef.current != null) window.clearTimeout(commitTimerRef.current)
+    commitTimerRef.current = window.setTimeout(() => {
+      commitTimerRef.current = null
+      onEdit({ type: 'set-cap-duty', maxDuty })
+      setDraftDuty(null)
+    }, 250)
+  }
+
+  const derivedUnavailableReason = !pixelCount
+    ? CONNECT_FOR_COUNT_REASON
+    : electricalProfile && derivedDuty == null
+      ? 'Enter the supply voltage so the budget and full-white load are comparable.'
+      : undefined
+
+  const summaryDuty = capMode === 'derived' ? derivedDuty : fixedDuty
+  const summaryLabel = summaryDuty != null
+    ? `${formatDutyCapPercent(summaryDuty)} ${capMode === 'derived' ? 'from the load and budget' : 'fixed cap'}`
+    : 'cap from the load and budget'
 
   return (
     <div>
-      {electricalProfile && (
-        <PowerModelFields
-          electricalProfile={electricalProfile}
-          pixelCount={pixelCount}
-          onEdit={onEdit}
+      <div className="mb-5 flex flex-wrap items-center gap-x-7 gap-y-3">
+        <Switch
+          ariaLabel="Limit power"
+          checked={capEnabled}
+          label={capEnabled ? 'limit power on' : 'limit power off'}
+          onChange={(enabled) => onEdit({ type: 'set-cap-enabled', enabled })}
         />
-      )}
+        {capEnabled && (
+          <SegmentedControl
+            ariaLabel="Duty cap source"
+            value={capMode === 'derived' ? 'derived' : 'fixed'}
+            options={[
+              { value: 'fixed', label: 'Fixed cap' },
+              {
+                value: 'derived',
+                label: 'From load and budget',
+                disabled: derivedUnavailableReason != null,
+                disabledReason: derivedUnavailableReason,
+              },
+            ]}
+            onSelect={(source) => {
+              if (source === 'fixed') {
+                onEdit({ type: 'set-cap-mode', mode: 'direct' })
+              } else {
+                if (!electricalProfile) onEdit({ type: 'configure-model' })
+                onEdit({ type: 'set-cap-mode', mode: 'derived' })
+              }
+            }}
+          />
+        )}
+      </div>
 
-      <div className="flex flex-wrap items-start gap-x-8 gap-y-4 border-t border-zinc-800/80 pt-4">
-        <div className={`min-w-[9.5rem] shrink-0 ${capEnabled ? '' : 'opacity-45'}`}>
-          <span className={`${microLabelClass} block`}>Duty cap</span>
-          {capMode === 'direct' && powerCap ? (
-            /* A typed cap keeps the same visual weight as a derived one. */
-            <div className="mt-0.5 max-w-[7rem]">
-              <PercentageField
-                ariaLabel="Power cap duty percent"
-                min={0}
-                max={1}
-                step={0.01}
-                value={powerCap.maxDuty}
-                onChange={(maxDuty) => onEdit({ type: 'set-cap-duty', maxDuty })}
-                sizeClassName="[&_input]:h-9 [&_input]:text-2xl [&_input]:font-medium [&_input]:tracking-tight [&_input]:text-live [&_span>span]:h-9"
-              />
-            </div>
-          ) : (
-            <span className="mt-0.5 block font-mono text-2xl font-medium leading-tight tracking-tight text-live">
-              {`${Math.round(displayedDuty * 100)}%`}
-            </span>
-          )}
-          <span className="mt-1.5 block text-xs text-zinc-500">
-            {capMode === 'derived' ? 'calculated from the load and budget' : 'a fixed cap you set'}
-          </span>
-        </div>
+      {!capEnabled ? (
+        <p className="text-xs text-zinc-500">
+          Power is not limited —{' '}
+          <span className="font-mono text-zinc-400">{summaryLabel}</span>{' '}
+          kept for when you switch it back on. Generated Patterns are unchanged.
+        </p>
+      ) : (
+        <>
+          <PowerLoadBlock
+            electricalProfile={electricalProfile}
+            pixelCount={pixelCount}
+            onEdit={onEdit}
+          />
 
-        <div className="min-w-0 flex-[1_1_22rem] pt-0.5">
-          {electricalProfile ? (
-            /* The derivation feeds the cap, so it dims with the cap it feeds. */
-            <div className={capEnabled ? '' : 'opacity-45'}>
-              <PowerModelDerivation
+          <div className="mt-4 border-t border-zinc-800/80 pt-4">
+            {capMode === 'derived' ? (
+              <PowerDerivedBranch
                 electricalProfile={electricalProfile}
                 pixelCount={pixelCount}
                 onEdit={onEdit}
               />
-            </div>
-          ) : (
-            /* Missing only the estimate; the cap beside it is unaffected. */
-            <div className="flex flex-wrap items-center gap-x-4 gap-y-2 text-xs text-zinc-500">
-              <span>No power model yet, so PXLBLZ cannot estimate the installation load.</span>
-              <SmallButton
-                label="Configure power model"
-                onClick={() => onEdit({ type: 'configure-model' })}
+            ) : (
+              <PowerFixedBranch
+                duty={draftDuty ?? fixedDuty}
+                resolved={resolved}
+                onDutyChange={handleDutyChange}
               />
-            </div>
-          )}
-        </div>
-
-        <div className="ml-auto flex w-full flex-wrap items-center justify-end gap-x-3 gap-y-2 pt-0.5">
-          <SmallButton
-            label={capMode === 'derived' ? 'Set a fixed cap' : 'Calculate from load and budget'}
-            disabled={capMode === 'direct' && derivedDuty == null}
-            onClick={() => (capMode === 'derived'
-              ? onEdit({ type: 'set-cap-mode', mode: 'direct' })
-              : onEdit({ type: 'set-cap-mode', mode: 'derived' }))}
-          />
-          <Switch
-            ariaLabel="Enforce the duty cap"
-            checked={capEnabled}
-            label={capEnabled ? 'on' : 'off'}
-            onChange={(enabled) => onEdit({ type: 'set-cap-enabled', enabled })}
-          />
-        </div>
-      </div>
+            )}
+          </div>
+        </>
+      )}
     </div>
   )
 }
 
-/** The installation power model itself: what is wired up and what feeds it. */
-function PowerModelFields({
+/** The shared full-white load half of the power equation (#786): a construction
+ * estimate or a measured installation total, selected with the section's segment
+ * idiom. Both cap branches read it — the derived branch for the cap itself, the
+ * fixed branch for its equivalence readout — and est. draw telemetry uses it
+ * whenever it exists. The Custom preset is gone from the picker: choosing a
+ * measured total IS the custom path. */
+function PowerLoadBlock({
   electricalProfile,
   pixelCount,
   onEdit,
 }: {
-  electricalProfile: ControllerElectricalProfile
+  electricalProfile: ControllerElectricalProfile | undefined
   pixelCount: number | undefined
   onEdit: (edit: ControllerPowerEdit) => void
 }) {
-  const resolved = resolveControllerElectricalProfile(electricalProfile, { pixelCount })
-  const presetOptions: SelectOption<LedConstructionPresetId>[] = [
-    ...LED_CONSTRUCTION_PRESETS.map((preset) => ({ value: preset.id, label: preset.label })),
-    {
-      value: 'custom',
-      label: pixelCount ? 'Custom / measured installation' : 'Custom / measured (needs address count)',
-      disabled: !pixelCount && electricalProfile.ledPresetId !== 'custom',
-    },
-  ]
+  const resolved = electricalProfile
+    ? resolveControllerElectricalProfile(electricalProfile, { pixelCount })
+    : null
+  const override = electricalProfile?.loadOverride
+  const measured = override != null
+  const voltageKnown = resolved?.voltageVolts != null
 
   return (
-    <div className="mb-7 flex flex-wrap items-end gap-x-8 gap-y-4">
-      <RuleField label="LED construction" className="max-w-[22rem] flex-[1_1_16rem]">
-        <SelectField
-          ariaLabel="LED construction preset"
-          value={electricalProfile.ledPresetId}
-          options={presetOptions}
-          onChange={(presetId) => onEdit({ type: 'set-led-preset', presetId })}
-        />
-      </RuleField>
-      <RuleField label="Supply budget" className="flex-[0_1_8rem]">
-        <NumberField
-          ariaLabel="Continuous LED supply budget"
-          min={0.01}
-          step={0.1}
-          value={electricalProfile.supplyBudget.value}
-          onChange={(value) => onEdit({ type: 'set-supply-value', value })}
-        />
-      </RuleField>
-      <RuleField label="Unit" className="flex-[0_1_7rem]">
-        <SelectField
-          ariaLabel="Continuous LED supply budget unit"
-          value={electricalProfile.supplyBudget.unit}
+    <div>
+      <div className="flex flex-wrap items-center gap-x-4 gap-y-2">
+        <FieldLabel>Full-white load</FieldLabel>
+        <SegmentedControl
+          ariaLabel="Full-white load source"
+          value={measured ? 'measured' : 'estimate'}
           options={[
+            { value: 'estimate', label: 'Construction estimate' },
             {
-              value: 'amps',
-              label: 'amps',
-              disabled: electricalProfile.supplyBudget.unit !== 'amps' && resolved.voltageVolts == null,
-            },
-            {
-              value: 'watts',
-              label: 'watts',
-              disabled: electricalProfile.supplyBudget.unit !== 'watts' && resolved.voltageVolts == null,
+              value: 'measured',
+              label: 'Measured total',
+              disabled: !pixelCount,
+              disabledReason: CONNECT_FOR_COUNT_REASON,
             },
           ]}
-          onChange={(unit: ElectricalUnit) => onEdit({ type: 'set-supply-unit', unit })}
+          onSelect={(source) => {
+            if (source === 'measured') {
+              if (!electricalProfile) onEdit({ type: 'configure-model' })
+              onEdit({ type: 'enable-load-override' })
+            } else if (electricalProfile?.ledPresetId === 'custom') {
+              // A legacy custom construction has no preset estimate to return
+              // to; returning to the estimate side picks the default preset.
+              onEdit({ type: 'set-led-preset', presetId: LED_CONSTRUCTION_PRESETS[0].id })
+            } else {
+              onEdit({ type: 'disable-load-override' })
+            }
+          }}
         />
-      </RuleField>
-      <RuleField label="Supply voltage" className="flex-[0_1_8rem]">
-        <NumberField
-          ariaLabel="Power supply voltage"
-          min={0.1}
-          step={0.1}
-          value={electricalProfile.voltageOverride ?? resolved.voltageVolts ?? undefined}
-          placeholder="Enter voltage"
-          onChange={(voltage) => onEdit({ type: 'set-voltage', voltage })}
-        />
-      </RuleField>
+      </div>
+
+      <div className="mt-3 flex flex-wrap items-end gap-x-7 gap-y-3">
+        {measured && override ? (
+          <>
+            <RuleField label="Full-white total" className="flex-[0_1_8rem]">
+              <div className="flex items-end gap-2">
+                <NumberField
+                  ariaLabel="Full-white installation total"
+                  min={0.01}
+                  step={0.1}
+                  value={roundForDisplay(override.fullWhite.value)}
+                  onChange={(value) => onEdit({ type: 'set-load-value', value })}
+                />
+                <UnitToggle
+                  value={override.fullWhite.unit}
+                  voltageKnown={voltageKnown}
+                  onChange={(unit) => onEdit({ type: 'set-load-unit', unit })}
+                />
+              </div>
+            </RuleField>
+            <RuleField label="Supply voltage" className="flex-[0_1_8rem]">
+              <NumberField
+                ariaLabel="Power supply voltage"
+                min={0.1}
+                step={0.1}
+                value={electricalProfile?.voltageOverride ?? resolved?.voltageVolts ?? undefined}
+                placeholder="Enter voltage"
+                onChange={(voltage) => onEdit({ type: 'set-voltage', voltage })}
+              />
+              <span className="text-[10px] text-zinc-600">converts amps ↔ watts</span>
+            </RuleField>
+          </>
+        ) : (
+          <RuleField label="LED construction" className="max-w-[24rem] flex-[1_1_16rem]">
+            <SelectField
+              ariaLabel="LED construction preset"
+              value={electricalProfile && electricalProfile.ledPresetId !== 'custom'
+                ? electricalProfile.ledPresetId
+                : ''}
+              options={[
+                ...(electricalProfile && electricalProfile.ledPresetId !== 'custom'
+                  ? []
+                  : [{ value: '', label: 'Choose LED construction…', disabled: true }]),
+                ...LED_CONSTRUCTION_PRESETS.map((preset) => ({
+                  value: preset.id as string,
+                  label: preset.label,
+                })),
+              ]}
+              onChange={(presetId) => {
+                if (presetId === '') return
+                if (!electricalProfile) onEdit({ type: 'configure-model' })
+                onEdit({ type: 'set-led-preset', presetId: presetId as LedConstructionPresetId })
+              }}
+            />
+          </RuleField>
+        )}
+      </div>
+
+      {resolved?.overrideStale && pixelCount && override && (
+        <div className="mt-3 flex flex-wrap items-center gap-x-3 gap-y-1.5 text-xs text-amber-300">
+          <span>
+            This total was recorded at {override.atPixelCount} addresses; the controller now reports {pixelCount}.
+          </span>
+          <SmallButton
+            label={`Confirm for ${pixelCount}`}
+            onClick={() => onEdit({ type: 'confirm-load-address-count' })}
+          />
+        </div>
+      )}
+
+      {!pixelCount && (
+        <p className="mt-3 text-xs text-amber-200/85">
+          {CONNECT_FOR_COUNT_REASON} PXLBLZ will not invent one.
+        </p>
+      )}
     </div>
   )
 }
 
-/** The one-line chain from addresses to budget, and the measured total that can
- * replace the preset estimate inside it. */
-function PowerModelDerivation({
+/** Fixed-cap branch (#786): a slider — drag it and the equivalence readout moves,
+ * which is what teaches what a duty cap means — plus the plain statement of what
+ * the cap holds the installation to in watts and amps. */
+function PowerFixedBranch({
+  duty,
+  resolved,
+  onDutyChange,
+}: {
+  duty: number
+  resolved: ReturnType<typeof resolveControllerElectricalProfile> | null
+  onDutyChange: (maxDuty: number) => void
+}) {
+  const fullWhite = formatQuantity(resolved?.fullWhiteWatts ?? null, 'W')
+    ?? formatQuantity(resolved?.fullWhiteAmps ?? null, 'A')
+  const heldWatts = resolved?.fullWhiteWatts != null ? duty * resolved.fullWhiteWatts : null
+  const heldAmps = resolved?.fullWhiteAmps != null ? duty * resolved.fullWhiteAmps : null
+  const held = [
+    formatQuantity(heldWatts, 'W'),
+    formatQuantity(heldAmps, 'A'),
+  ].filter((quantity): quantity is string => quantity != null)
+
+  return (
+    <div>
+      <div
+        className="max-w-[26rem] font-mono text-xs [&>label>span:first-child]:text-[9px] [&>label>span:first-child]:uppercase [&>label>span:first-child]:tracking-[0.14em] [&>label>span:first-child]:text-zinc-500"
+        onClick={stopFieldPropagation}
+        onPointerDown={stopFieldPropagation}
+        onKeyDown={stopFieldPropagation}
+      >
+        <DeckSlider
+          label="Duty cap"
+          ariaLabel="Power cap duty percent"
+          value={duty}
+          min={0}
+          max={1}
+          step={0.01}
+          presentation="percentage"
+          format={formatDutyCapPercent}
+          onChange={onDutyChange}
+        />
+      </div>
+      {fullWhite && held.length > 0 ? (
+        <div className="mt-2.5 flex flex-wrap items-center gap-x-2.5 gap-y-1 font-mono text-xs text-zinc-400">
+          <span>
+            {formatDutyCapPercent(duty)} of{' '}
+            <b className="font-medium text-zinc-200">{fullWhite}</b> full white
+          </span>
+          <span className="text-zinc-700">·</span>
+          <span>
+            holds the installation to about{' '}
+            <b className="font-medium text-zinc-200">{held.join(' / ')}</b>
+          </span>
+        </div>
+      ) : (
+        <p className="mt-2.5 text-xs text-zinc-500">
+          Choose the LED construction or enter a measured total to see what this cap
+          holds the installation to.
+        </p>
+      )}
+    </div>
+  )
+}
+
+/** Derived branch (#786): type the supply budget, read the duty cap the load
+ * and budget produce, with the one-line derivation chain underneath. */
+function PowerDerivedBranch({
   electricalProfile,
   pixelCount,
   onEdit,
 }: {
-  electricalProfile: ControllerElectricalProfile
+  electricalProfile: ControllerElectricalProfile | undefined
   pixelCount: number | undefined
   onEdit: (edit: ControllerPowerEdit) => void
 }) {
+  if (!electricalProfile) return null
   const resolved = resolveControllerElectricalProfile(electricalProfile, { pixelCount })
   const override = electricalProfile.loadOverride
 
@@ -680,7 +915,7 @@ function PowerModelDerivation({
       <b className="font-medium text-zinc-200">{fullWhite ?? 'unknown'}</b> full white
     </>,
   )
-  if (override) chain.push(LOAD_SOURCE_LABELS[override.source])
+  if (override) chain.push('measured total')
   const budget = formatQuantity(resolved.budgetWatts, 'W') ?? formatQuantity(resolved.budgetAmps, 'A')
   chain.push(
     <>
@@ -689,96 +924,50 @@ function PowerModelDerivation({
   )
 
   return (
-    <>
-      <div className="flex flex-wrap items-center gap-x-2.5 gap-y-1 font-mono text-xs text-zinc-400">
+    <div>
+      <div className="flex flex-wrap items-end gap-x-7 gap-y-3">
+        <RuleField label="Supply budget" className="flex-[0_1_10rem]">
+          <div className="flex items-end gap-2">
+            <NumberField
+              ariaLabel="Continuous LED supply budget"
+              min={0.01}
+              step={0.1}
+              value={roundForDisplay(electricalProfile.supplyBudget.value)}
+              onChange={(value) => onEdit({ type: 'set-supply-value', value })}
+            />
+            <UnitToggle
+              value={electricalProfile.supplyBudget.unit}
+              voltageKnown={resolved.voltageVolts != null}
+              onChange={(unit) => onEdit({ type: 'set-supply-unit', unit })}
+            />
+          </div>
+        </RuleField>
+        <div className="ml-auto text-right">
+          <FieldLabel>Duty cap</FieldLabel>
+          <span className="mt-0.5 block font-mono text-2xl font-medium leading-tight tracking-tight text-live">
+            {resolved.maxDuty != null ? formatDutyCapPercent(resolved.maxDuty) : '—'}
+          </span>
+        </div>
+      </div>
+
+      <div className="mt-3.5 flex flex-wrap items-center gap-x-2.5 gap-y-1 font-mono text-xs text-zinc-400">
         {chain.map((item, index) => (
           <span key={index} className="flex items-center gap-2.5">
             {index > 0 && <span className="text-zinc-700">·</span>}
             <span>{item}</span>
           </span>
         ))}
-        <span className="ml-1.5">
-          {override ? (
-            <SmallButton
-              label="Use estimate"
-              title="Return to the preset full-white estimate"
-              onClick={() => onEdit({ type: 'disable-load-override' })}
-              disabled={electricalProfile.ledPresetId === 'custom'}
-            />
-          ) : (
-            <SmallButton
-              label="Override load"
-              title="Replace the estimate with a measured or rated installation total"
-              onClick={() => onEdit({ type: 'enable-load-override' })}
-              disabled={!pixelCount}
-            />
-          )}
-        </span>
-      </div>
-
-      {override && (
-        <div className="mt-3.5 flex flex-wrap items-end gap-x-7 gap-y-3">
-          <RuleField label="Full-white total" className="flex-[0_1_8rem]">
-            <NumberField
-              ariaLabel="Full-white installation total"
-              min={0.01}
-              step={0.1}
-              value={override.fullWhite.value}
-              onChange={(value) => onEdit({ type: 'set-load-value', value })}
-            />
-          </RuleField>
-          <RuleField label="Unit" className="flex-[0_1_7rem]">
-            <SelectField
-              ariaLabel="Full-white installation total unit"
-              value={override.fullWhite.unit}
-              options={[
-                {
-                  value: 'amps',
-                  label: 'amps',
-                  disabled: override.fullWhite.unit !== 'amps' && resolved.voltageVolts == null,
-                },
-                {
-                  value: 'watts',
-                  label: 'watts',
-                  disabled: override.fullWhite.unit !== 'watts' && resolved.voltageVolts == null,
-                },
-              ]}
-              onChange={(unit: ElectricalUnit) => onEdit({ type: 'set-load-unit', unit })}
-            />
-          </RuleField>
-          <RuleField label="Source" className="flex-[0_1_10rem]">
-            <SelectField<ElectricalLoadSource>
-              ariaLabel="Full-white load source"
-              value={override.source}
-              options={[
-                { value: 'measured', label: 'measured' },
-                { value: 'manufacturer-rated', label: 'manufacturer-rated' },
-                { value: 'custom', label: 'custom estimate' },
-              ]}
-              onChange={(source) => onEdit({ type: 'set-load-source', source })}
-            />
-          </RuleField>
-        </div>
-      )}
-
-      {resolved.overrideStale && pixelCount && override && (
-        <div className="mt-3 flex flex-wrap items-center gap-x-3 gap-y-1.5 text-xs text-amber-300">
-          <span>
-            This total was recorded at {override.atPixelCount} addresses; the controller now reports {pixelCount}.
+        {resolved.maxDuty != null && (
+          <span className="flex items-center gap-2.5">
+            <span className="text-zinc-700">·</span>
+            <span>
+              → cap{' '}
+              <b className="font-medium text-zinc-200">{formatDutyCapPercent(resolved.maxDuty)}</b>
+            </span>
           </span>
-          <SmallButton
-            label={`Confirm for ${pixelCount}`}
-            onClick={() => onEdit({ type: 'confirm-load-address-count' })}
-          />
-        </div>
-      )}
-
-      {!pixelCount && (
-        <p className="mt-3 text-xs text-amber-200/85">
-          Connect this Controller to supply its address count. PXLBLZ will not invent one.
-        </p>
-      )}
-    </>
+        )}
+      </div>
+    </div>
   )
 }
 

@@ -42,7 +42,7 @@ export interface LedConstructionPreset {
 export const LED_CONSTRUCTION_PRESETS: readonly LedConstructionPreset[] = [
   {
     id: 'ws2812-5v-individual',
-    label: '5V individual RGB',
+    label: '5V individual RGB (WS2812B / SK6812)',
     physicalLedsPerAddress: 1,
     voltageVolts: 5,
     wattsPerAddress: 0.3,
@@ -50,7 +50,7 @@ export const LED_CONSTRUCTION_PRESETS: readonly LedConstructionPreset[] = [
   },
   {
     id: 'ws2811-12v-grouped',
-    label: '12V 3-LED segments',
+    label: '12V 3-LED segments (WS2811)',
     physicalLedsPerAddress: 3,
     voltageVolts: 12,
     wattsPerAddress: 0.72,
@@ -58,7 +58,7 @@ export const LED_CONSTRUCTION_PRESETS: readonly LedConstructionPreset[] = [
   },
   {
     id: 'ws2815-12v-individual',
-    label: '12V individual RGB, backup data',
+    label: '12V individual RGB, backup data (WS2815)',
     physicalLedsPerAddress: 1,
     voltageVolts: 12,
     wattsPerAddress: 0.432,

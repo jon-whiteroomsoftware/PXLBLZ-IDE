@@ -426,7 +426,10 @@ power cap wraps supported output calls, estimates duty, and scales against the
 exported `__px_powerLimit`. The power model selects an LED construction preset
 (each carrying an explicit conservative full-white assumption) and a supply
 budget in amps or watts; an optional override records a measured or rated
-full-white total and goes stale when the address count changes.
+full-white total and goes stale when the address count changes. Since #786
+the profile page offers no Custom construction entry — entering a measured
+total is the custom path — but the domain still reads legacy `custom`
+profiles, which render on the measured side.
 `controllerPowerAuthoring.ts` owns the pure authoring transition so unit
 conversion, cap modes, and provenance stay out of the React component. The cap
 setpoint is normalized output duty; a pure resolver makes equivalent A/W

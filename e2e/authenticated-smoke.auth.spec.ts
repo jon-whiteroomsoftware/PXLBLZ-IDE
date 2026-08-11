@@ -414,9 +414,9 @@ test('edits and persists a Controller input use across responsive and keyboard f
     () => profilePage.evaluate((node) => node.scrollWidth - node.clientWidth),
     'Controller Profile content should fit its center pane at 390px',
   ).toBeLessThanOrEqual(1)
-  const enforceDutyCap = page.getByRole('checkbox', { name: 'Enforce the duty cap' })
-  await enforceDutyCap.scrollIntoViewIfNeeded()
-  await expect(enforceDutyCap).toBeInViewport({ ratio: 1 })
+  const limitPower = page.getByRole('checkbox', { name: 'Limit power' })
+  await limitPower.scrollIntoViewIfNeeded()
+  await expect(limitPower).toBeInViewport({ ratio: 1 })
   const adjustFrontPot = page.getByRole('button', { name: 'Adjust Front pot' })
   await adjustFrontPot.scrollIntoViewIfNeeded()
   await expect(adjustFrontPot).toBeInViewport({ ratio: 1 })
@@ -526,7 +526,7 @@ test('saved Pattern freshness follows the full profile through a real managed ov
   await expect(page.getByRole('table', { name: 'Saved PXLBLZ Patterns' })).toBeVisible()
   await expect(page.getByText('CURRENT', { exact: true })).toBeVisible()
 
-  await page.getByRole('checkbox', { name: 'Enforce the duty cap' }).check()
+  await page.getByRole('checkbox', { name: 'Limit power' }).check()
   const pushAgain = page.getByText('PUSH AGAIN', { exact: true })
   await expect(pushAgain).toBeVisible()
   const badgeGeometry = await pushAgain.evaluate((badge) => {

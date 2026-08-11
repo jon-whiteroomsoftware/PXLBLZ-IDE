@@ -1,0 +1,678 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Power section — upfront gates mockup (#786)</title>
+<!--
+  PROTOTYPE / MOCKUP — throwaway, not production code.
+  Question: how should the Controller profile Power section expose its two
+  upfront decisions (enforce the cap or not; fixed cap vs calculated from the
+  load and budget) so each branch reveals only its own fields?
+  Three variants on this one page, switchable via ?variant= (A|B|C) or the
+  floating bar / arrow keys. Issue #786.
+-->
+<style>
+  :root {
+    --live: #fbbf24;
+    --bg: #09090b;
+    --panel: #101012;
+    --border: #27272a;
+    --border-soft: rgba(39,39,42,.8);
+    --t100: #f4f4f5;
+    --t200: #e4e4e7;
+    --t300: #d4d4d8;
+    --t400: #a1a1aa;
+    --t500: #71717a;
+    --t600: #52525b;
+    --amber-note: rgba(252,211,77,.85);
+    --mono: ui-monospace, "SF Mono", SFMono-Regular, Menlo, Consolas, monospace;
+    --sans: system-ui, -apple-system, "Segoe UI", sans-serif;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0; background: var(--bg); color: var(--t300);
+    font-family: var(--sans); font-size: 14px; line-height: 1.5;
+    padding: 32px 24px 120px;
+  }
+  .page { max-width: 720px; margin: 0 auto; }
+  h1 { font-size: 16px; font-family: var(--mono); color: var(--t100); margin: 0 0 4px; }
+  .subtitle { color: var(--t500); font-size: 12.5px; margin-bottom: 28px; }
+  .subtitle code { font-family: var(--mono); color: var(--t400); }
+
+  .frame {
+    background: var(--panel); border: 1px solid var(--border); border-radius: 8px;
+    padding: 24px 26px 22px; margin-bottom: 18px;
+  }
+  .variant-notes {
+    font-size: 12px; color: var(--t500); margin: 6px 2px 0; max-width: 700px;
+  }
+  .variant-notes b { color: var(--t400); font-weight: 600; }
+
+  .microlabel {
+    font-family: var(--mono); font-size: 10px; text-transform: uppercase;
+    letter-spacing: .12em; color: var(--t500); display: block;
+  }
+  .section-title {
+    font-family: var(--mono); font-size: 11px; letter-spacing: .16em;
+    text-transform: uppercase; color: var(--t400); margin-bottom: 6px;
+  }
+  .section-intro { color: var(--t500); font-size: 13px; margin: 0 0 18px; }
+
+  /* underlined fields, like the app */
+  .field { display: inline-flex; flex-direction: column; gap: 3px; vertical-align: top; }
+  .field input, .field select {
+    background: transparent; border: 0; border-bottom: 1px solid #3f3f46;
+    color: var(--t200); font-family: var(--mono); font-size: 14px;
+    padding: 2px 0 4px; outline: none; min-width: 0;
+  }
+  .field input:focus, .field select:focus { border-bottom-color: var(--live); }
+  .field select { appearance: none; padding-right: 14px;
+    background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='8' height='6'><path d='M0 0h8L4 6z' fill='%2371717a'/></svg>");
+    background-repeat: no-repeat; background-position: right 2px center; }
+  .hint { font-size: 11px; color: var(--t600); }
+
+  /* value + unit toggle glued together */
+  .qty { display: inline-flex; align-items: flex-end; gap: 8px; }
+  .unit-toggle { display: inline-flex; border: 1px solid var(--border); border-radius: 5px; overflow: hidden; margin-bottom: 3px; }
+  .unit-toggle button {
+    background: transparent; border: 0; color: var(--t500); font-family: var(--mono);
+    font-size: 10.5px; padding: 3px 7px; cursor: pointer;
+  }
+  .unit-toggle button.active { background: #27272a; color: var(--t200); }
+  .unit-toggle button:disabled { color: #3f3f46; cursor: not-allowed; }
+
+  /* switch, matching the app's little pill */
+  .switch { display: inline-flex; align-items: center; gap: 7px; cursor: pointer; user-select: none; }
+  .switch .track {
+    width: 26px; height: 14px; border-radius: 999px; background: #27272a; position: relative;
+    transition: background .15s;
+  }
+  .switch .track::after {
+    content: ""; position: absolute; left: 2px; top: 2px; width: 10px; height: 10px;
+    border-radius: 999px; background: var(--t500); transition: transform .15s, background .15s;
+  }
+  .switch.on .track { background: rgba(251,191,36,.25); }
+  .switch.on .track::after { transform: translateX(12px); background: var(--live); }
+  .switch .state {
+    font-family: var(--mono); font-size: 10px; text-transform: uppercase;
+    letter-spacing: .1em; color: var(--t500);
+  }
+  .switch.on .state { color: var(--live); }
+
+  /* segmented control — the shared "gate" idiom */
+  .segment { display: inline-flex; border: 1px solid var(--border); border-radius: 6px; overflow: hidden; }
+  .segment button {
+    background: transparent; border: 0; color: var(--t500); font-family: var(--mono);
+    font-size: 11.5px; padding: 6px 13px; cursor: pointer; letter-spacing: .02em;
+  }
+  .segment button + button { border-left: 1px solid var(--border); }
+  .segment button.active { background: #1f1f23; color: var(--t100); box-shadow: inset 0 -2px 0 var(--live); }
+  .segment button:hover:not(.active) { color: var(--t300); }
+
+  .duty-big {
+    font-family: var(--mono); font-size: 30px; font-weight: 500; letter-spacing: -.02em;
+    color: var(--live); line-height: 1.1;
+  }
+  .duty-big.muted { color: var(--t500); }
+  input.duty-input {
+    font-family: var(--mono); font-size: 30px; font-weight: 500; letter-spacing: -.02em;
+    color: var(--live); background: transparent; border: 0; border-bottom: 1px solid #3f3f46;
+    width: 4.2rem; padding: 0 0 2px; outline: none;
+  }
+  input.duty-input:focus { border-bottom-color: var(--live); }
+  .duty-unit { font-family: var(--mono); font-size: 15px; color: var(--t500); }
+  .caption { font-size: 12px; color: var(--t500); margin-top: 5px; }
+
+  .chain {
+    font-family: var(--mono); font-size: 12px; color: var(--t400);
+    display: flex; flex-wrap: wrap; gap: 4px 10px; align-items: center;
+  }
+  .chain b { color: var(--t200); font-weight: 600; }
+  .chain .dot { color: #3f3f46; }
+
+  .note { font-size: 12px; color: var(--t600); }
+  .note.amber { color: var(--amber-note); }
+
+  .row { display: flex; flex-wrap: wrap; gap: 16px 34px; align-items: flex-end; }
+  .divider { border-top: 1px solid var(--border-soft); margin: 18px 0; }
+
+  .smallbtn {
+    background: transparent; border: 1px solid var(--border); border-radius: 6px;
+    color: var(--t300); font-family: var(--mono); font-size: 11px; padding: 4px 11px; cursor: pointer;
+  }
+  .smallbtn:hover { border-color: #3f3f46; color: var(--t100); }
+
+  /* variant C cards */
+  .cards { display: flex; gap: 14px; }
+  .card {
+    flex: 1; border: 1px solid var(--border); border-radius: 8px; padding: 16px 16px 14px;
+    cursor: pointer; background: transparent; text-align: left; color: var(--t300);
+    font-family: var(--sans);
+  }
+  .card:hover { border-color: #52525b; }
+  .card h3 { margin: 0 0 6px; font-size: 13.5px; font-family: var(--mono); color: var(--t100); font-weight: 600; }
+  .card p { margin: 0; font-size: 12px; color: var(--t500); line-height: 1.45; }
+
+  .pill {
+    display: inline-flex; align-items: center; gap: 8px; font-family: var(--mono);
+    font-size: 11px; color: var(--t400); border: 1px solid var(--border);
+    border-radius: 999px; padding: 3px 11px;
+  }
+  .pill .change { color: var(--live); cursor: pointer; font-size: 10.5px; }
+
+  /* floating switcher */
+  .switcher {
+    position: fixed; bottom: 18px; left: 50%; transform: translateX(-50%);
+    display: flex; align-items: center; gap: 10px;
+    background: #18181b; border: 1px solid #3f3f46; border-radius: 999px;
+    padding: 7px 12px; box-shadow: 0 6px 24px rgba(0,0,0,.55); z-index: 50;
+  }
+  .switcher button {
+    background: transparent; border: 0; color: var(--t300); font-size: 15px;
+    cursor: pointer; padding: 2px 7px;
+  }
+  .switcher button:hover { color: #fff; }
+  .switcher .label { font-family: var(--mono); font-size: 11.5px; color: var(--t100); min-width: 220px; text-align: center; }
+</style>
+</head>
+<body>
+<div class="page">
+  <h1>Power section — upfront gates (#786)</h1>
+  <div class="subtitle">
+    Variants of the Controller profile Power section, switchable via
+    <code>?variant=</code> or the bar below (arrow keys work). All values are fake and
+    every control is clickable — the point is the reveal behaviour, not the numbers.
+    Shared moves across all three: the amps/watts select becomes a unit toggle glued to its
+    value, converted values are rounded, disabled things say why, and the
+    <i>Custom / measured installation</i> preset disappears — choosing a measured total
+    <i>is</i> the custom path.
+  </div>
+  <div id="mount"></div>
+</div>
+
+<div class="switcher">
+  <button id="prev" title="Previous variant">&#8592;</button>
+  <div class="label" id="switcher-label"></div>
+  <button id="next" title="Next variant">&#8594;</button>
+</div>
+
+<script>
+// ---------- shared demo math (fake, fixed numbers) ----------
+const PRESETS = {
+  'ws2812': { label: '5V individual RGB (WS2812B / SK6812)', volts: 5, wattsPerAddr: 0.3, assumption: '60 mA/addr @ 5V', ledsPerAddr: 1 },
+  'ws2811': { label: '12V 3-LED segments (WS2811)', volts: 12, wattsPerAddr: 0.72, assumption: '60 mA/addr @ 12V', ledsPerAddr: 3 },
+  'ws2815': { label: '12V individual RGB, backup data (WS2815)', volts: 12, wattsPerAddr: 0.432, assumption: '36 mA/addr @ 12V', ledsPerAddr: 1 },
+};
+const ADDR = 300;
+
+function demoModel(s) {
+  const preset = PRESETS[s.preset];
+  const volts = s.volts ?? preset.volts;
+  const fullWhiteW = s.load === 'measured'
+    ? (s.measuredUnit === 'watts' ? s.measuredValue : s.measuredValue * volts)
+    : preset.wattsPerAddr * ADDR;
+  const budgetW = s.budgetUnit === 'watts' ? s.budgetValue : s.budgetValue * volts;
+  const cap = Math.max(0, Math.min(1, budgetW / fullWhiteW));
+  return { preset, volts, fullWhiteW, budgetW, cap };
+}
+const fmtW = (w) => `${(Math.round(w * 10) / 10).toFixed(1)} W`;
+const fmtA = (a) => `${(Math.round(a * 10) / 10).toFixed(1)} A`;
+const pct = (x) => `${Math.round(x * 100)}%`;
+
+// per-variant state
+const state = {
+  A2: { on: true, mode: 'derived', load: 'estimate', preset: 'ws2812', budgetValue: 3, budgetUnit: 'amps', volts: null, measuredValue: 100, measuredUnit: 'watts', fixed: 25 },
+  A: { on: true, mode: 'derived', load: 'estimate', preset: 'ws2812', budgetValue: 3, budgetUnit: 'amps', volts: null, measuredValue: 100, measuredUnit: 'watts', fixed: 25 },
+  B: { on: true, mode: 'derived', load: 'estimate', preset: 'ws2812', budgetValue: 3, budgetUnit: 'amps', volts: null, measuredValue: 100, measuredUnit: 'watts', fixed: 25 },
+  C: { chosen: false, on: true, mode: 'derived', load: 'estimate', preset: 'ws2812', budgetValue: 3, budgetUnit: 'amps', volts: null, measuredValue: 100, measuredUnit: 'watts', fixed: 25 },
+};
+
+// ---------- tiny render helpers ----------
+function h(html) { const t = document.createElement('template'); t.innerHTML = html.trim(); return t.content; }
+
+function switchEl(on, label, cb) {
+  const el = h(`<span class="switch ${on ? 'on' : ''}" role="switch" aria-checked="${on}" tabindex="0">
+      <span class="track"></span><span class="state">${label} ${on ? 'on' : 'off'}</span></span>`).firstChild;
+  el.addEventListener('click', cb);
+  el.addEventListener('keydown', (e) => { if (e.key === ' ' || e.key === 'Enter') { e.preventDefault(); cb(); } });
+  return el;
+}
+
+function segmentEl(options, active, cb) {
+  const el = h(`<span class="segment"></span>`).firstChild;
+  for (const [key, label] of options) {
+    const b = h(`<button type="button" class="${key === active ? 'active' : ''}">${label}</button>`).firstChild;
+    b.addEventListener('click', () => cb(key));
+    el.appendChild(b);
+  }
+  return el;
+}
+
+function unitToggle(active, hasVolts, cb) {
+  const el = h(`<span class="unit-toggle"></span>`).firstChild;
+  for (const u of ['amps', 'watts']) {
+    const disabled = !hasVolts && u !== active;
+    const b = h(`<button type="button" class="${u === active ? 'active' : ''}" ${disabled ? 'disabled' : ''}
+      title="${disabled ? 'Enter the supply voltage to convert between amps and watts' : ''}">${u === 'amps' ? 'A' : 'W'}</button>`).firstChild;
+    if (!disabled) b.addEventListener('click', () => cb(u));
+    el.appendChild(b);
+  }
+  return el;
+}
+
+function numField(label, value, width, cb, placeholder) {
+  const el = h(`<span class="field"><span class="microlabel">${label}</span>
+    <input type="text" inputmode="decimal" style="width:${width}" value="${value ?? ''}" placeholder="${placeholder ?? ''}"></span>`).firstChild;
+  el.querySelector('input').addEventListener('change', (e) => cb(parseFloat(e.target.value)));
+  return el;
+}
+
+function chainEl(parts) {
+  const el = h(`<div class="chain"></div>`).firstChild;
+  parts.forEach((p, i) => {
+    if (i > 0) el.appendChild(h(`<span class="dot">&middot;</span>`).firstChild);
+    el.appendChild(h(`<span>${p}</span>`).firstChild);
+  });
+  return el;
+}
+
+// budget + voltage fields (shared inside the derived branch of every variant)
+function budgetFields(s, rerender) {
+  const wrap = h(`<div class="row"></div>`).firstChild;
+  const m = demoModel(s);
+  const qty = h(`<span class="qty"></span>`).firstChild;
+  qty.appendChild(numField('Supply budget', s.budgetValue, '4.5rem', (v) => { if (!isNaN(v)) { s.budgetValue = v; rerender(); } }));
+  qty.appendChild(unitToggle(s.budgetUnit, m.volts != null, (u) => {
+    // convert on switch, rounded for display like the real fix should
+    s.budgetValue = Math.round((u === 'watts' ? s.budgetValue * m.volts : s.budgetValue / m.volts) * 100) / 100;
+    s.budgetUnit = u; rerender();
+  }));
+  wrap.appendChild(qty);
+  const voltsField = h(`<span class="field"><span class="microlabel">Supply voltage</span>
+    <input type="text" inputmode="decimal" style="width:4rem" value="${s.volts ?? m.preset.volts}"></span>`).firstChild;
+  voltsField.appendChild(h(`<span class="hint">converts amps &harr; watts</span>`).firstChild);
+  voltsField.querySelector('input').addEventListener('change', (e) => {
+    const v = parseFloat(e.target.value); if (!isNaN(v) && v > 0) { s.volts = v; rerender(); }
+  });
+  wrap.appendChild(voltsField);
+  return wrap;
+}
+
+// load half of the derived branch: estimate | measured, gated by a segment
+function loadFields(s, rerender) {
+  const m = demoModel(s);
+  const wrap = h(`<div></div>`).firstChild;
+  const gate = h(`<div style="display:flex;align-items:center;gap:14px;margin-bottom:14px;"></div>`).firstChild;
+  gate.appendChild(h(`<span class="microlabel" style="margin:0;">Full-white load</span>`).firstChild);
+  gate.appendChild(segmentEl(
+    [['estimate', 'Construction estimate'], ['measured', 'Measured total']],
+    s.load, (k) => { s.load = k; rerender(); },
+  ));
+  wrap.appendChild(gate);
+
+  if (s.load === 'estimate') {
+    const row = h(`<div class="row"></div>`).firstChild;
+    const sel = h(`<span class="field"><span class="microlabel">LED construction</span>
+      <select>${Object.entries(PRESETS).map(([k, p]) =>
+        `<option value="${k}" ${k === s.preset ? 'selected' : ''}>${p.label}</option>`).join('')}</select></span>`).firstChild;
+    sel.querySelector('select').addEventListener('change', (e) => { s.preset = e.target.value; s.volts = null; rerender(); });
+    row.appendChild(sel);
+    wrap.appendChild(row);
+  } else {
+    const row = h(`<div class="row"></div>`).firstChild;
+    const qty = h(`<span class="qty"></span>`).firstChild;
+    qty.appendChild(numField('Full-white total', s.measuredValue, '4.5rem', (v) => { if (!isNaN(v)) { s.measuredValue = v; rerender(); } }));
+    qty.appendChild(unitToggle(s.measuredUnit, m.volts != null, (u) => {
+      s.measuredValue = Math.round((u === 'watts' ? s.measuredValue * m.volts : s.measuredValue / m.volts) * 100) / 100;
+      s.measuredUnit = u; rerender();
+    }));
+    row.appendChild(qty);
+    const src = h(`<span class="field"><span class="microlabel">Source</span>
+      <select><option>measured</option><option>manufacturer-rated</option><option>rough estimate</option></select></span>`).firstChild;
+    row.appendChild(src);
+    wrap.appendChild(row);
+  }
+  return wrap;
+}
+
+function derivationChain(s) {
+  const m = demoModel(s);
+  const parts = [`${ADDR} addr`];
+  if (s.load === 'estimate' && m.preset.ledsPerAddr > 1) parts.push(`${ADDR * m.preset.ledsPerAddr} LEDs`);
+  if (s.load === 'estimate') parts.push(m.preset.assumption);
+  parts.push(`<b>${fmtW(m.fullWhiteW)}</b> full white`);
+  if (s.load === 'measured') parts.push('measured');
+  parts.push(`<b>${fmtW(m.budgetW)}</b> budget`);
+  parts.push(`&rarr; cap <b>${pct(m.cap)}</b>`);
+  return chainEl(parts);
+}
+
+// ---------- Variant A2: revised gates row — one equation, two directions ----------
+// The load half (construction estimate | measured total) is shared context for
+// BOTH branches; the gate only decides which number you type. Fixed cap gets an
+// amps/watts equivalence readout; "From load and budget" derives the % as before.
+// Source select cut (provenance-only). Voltage appears only for a measured total.
+function loadFieldsA2(s, rerender) {
+  const m = demoModel(s);
+  const wrap = h(`<div></div>`).firstChild;
+  const gate = h(`<div style="display:flex;flex-wrap:wrap;align-items:center;gap:10px 14px;margin-bottom:14px;"></div>`).firstChild;
+  gate.appendChild(h(`<span class="microlabel" style="margin:0;">Full-white load</span>`).firstChild);
+  gate.appendChild(segmentEl(
+    [['estimate', 'Construction estimate'], ['measured', 'Measured total']],
+    s.load, (k) => { s.load = k; rerender(); },
+  ));
+  wrap.appendChild(gate);
+
+  const row = h(`<div class="row"></div>`).firstChild;
+  if (s.load === 'estimate') {
+    const sel = h(`<span class="field"><span class="microlabel">LED construction</span>
+      <select>${Object.entries(PRESETS).map(([k, p]) =>
+        `<option value="${k}" ${k === s.preset ? 'selected' : ''}>${p.label}</option>`).join('')}</select></span>`).firstChild;
+    sel.querySelector('select').addEventListener('change', (e) => { s.preset = e.target.value; s.volts = null; rerender(); });
+    row.appendChild(sel);
+  } else {
+    const qty = h(`<span class="qty"></span>`).firstChild;
+    qty.appendChild(numField('Full-white total', s.measuredValue, '4.5rem', (v) => { if (!isNaN(v)) { s.measuredValue = v; rerender(); } }));
+    qty.appendChild(unitToggle(s.measuredUnit, m.volts != null, (u) => {
+      s.measuredValue = Math.round((u === 'watts' ? s.measuredValue * m.volts : s.measuredValue / m.volts) * 100) / 100;
+      s.measuredUnit = u; rerender();
+    }));
+    row.appendChild(qty);
+    const voltsField = h(`<span class="field"><span class="microlabel">Supply voltage</span>
+      <input type="text" inputmode="decimal" style="width:4rem" value="${s.volts ?? m.preset.volts}"></span>`).firstChild;
+    voltsField.appendChild(h(`<span class="hint">converts amps &harr; watts</span>`).firstChild);
+    voltsField.querySelector('input').addEventListener('change', (e) => {
+      const v = parseFloat(e.target.value); if (!isNaN(v) && v > 0) { s.volts = v; rerender(); }
+    });
+    row.appendChild(voltsField);
+  }
+  wrap.appendChild(row);
+  return wrap;
+}
+
+function renderA2(root) {
+  const s = state.A2;
+  const rerender = () => renderA2(root);
+  root.replaceChildren();
+  const frame = h(`<div class="frame"></div>`).firstChild;
+  frame.appendChild(h(`<div class="section-title">Power</div>`).firstChild);
+  frame.appendChild(h(`<p class="section-intro">The Controller estimates draw live from the duty cycle of the running Pattern.</p>`).firstChild);
+
+  const gates = h(`<div style="display:flex;flex-wrap:wrap;align-items:center;gap:14px 26px;margin-bottom:20px;"></div>`).firstChild;
+  gates.appendChild(switchEl(s.on, 'Limit power', () => { s.on = !s.on; rerender(); }));
+  if (s.on) {
+    gates.appendChild(segmentEl(
+      [['fixed', 'Fixed cap'], ['derived', 'From load and budget']],
+      s.mode, (k) => { s.mode = k; rerender(); },
+    ));
+  }
+  frame.appendChild(gates);
+
+  if (!s.on) {
+    const m = demoModel(s);
+    const summary = s.mode === 'fixed' ? `${s.fixed}% fixed cap` : `${pct(m.cap)} from load and budget`;
+    frame.appendChild(h(`<div class="note">Power is not limited &mdash; <span style="color:var(--t400);font-family:var(--mono);">${summary}</span> kept for when you switch it back on. Generated Patterns are unchanged.</div>`).firstChild);
+    root.appendChild(frame);
+  } else {
+    const m = demoModel(s);
+    // shared load half
+    frame.appendChild(loadFieldsA2(s, rerender));
+    frame.appendChild(h(`<div class="divider"></div>`).firstChild);
+
+    if (s.mode === 'fixed') {
+      const duty = h(`<div>
+        <span class="microlabel">Duty cap</span>
+        <div style="display:flex;align-items:center;gap:16px;margin-top:8px;max-width:26rem;">
+          <input type="range" min="0" max="100" step="1" value="${s.fixed}" style="flex:1;accent-color:var(--live);">
+          <span class="duty-big" style="min-width:3.2rem;text-align:right;font-size:24px;">${s.fixed}%</span>
+        </div>
+        <div class="chain" style="margin-top:10px;">
+          <span class="js-cap-of">${s.fixed}% of <b>${fmtW(m.fullWhiteW)}</b> full white</span>
+          <span class="dot">&middot;</span>
+          <span class="js-cap-holds">&rarr; holds the installation to about <b>${fmtW(m.fullWhiteW * s.fixed / 100)}</b> / <b>${fmtA(m.fullWhiteW * s.fixed / 100 / m.volts)}</b></span>
+        </div></div>`).firstChild;
+      // update in place while dragging — a rerender would replace the slider mid-drag
+      duty.querySelector('input[type=range]').addEventListener('input', (e) => {
+        s.fixed = parseInt(e.target.value, 10);
+        const capW = m.fullWhiteW * s.fixed / 100;
+        duty.querySelector('.duty-big').textContent = `${s.fixed}%`;
+        duty.querySelector('.js-cap-of').innerHTML = `${s.fixed}% of <b>${fmtW(m.fullWhiteW)}</b> full white`;
+        duty.querySelector('.js-cap-holds').innerHTML = `&rarr; holds the installation to about <b>${fmtW(capW)}</b> / <b>${fmtA(capW / m.volts)}</b>`;
+      });
+      frame.appendChild(duty);
+    } else {
+      const row = h(`<div class="row"></div>`).firstChild;
+      const qty = h(`<span class="qty"></span>`).firstChild;
+      qty.appendChild(numField('Supply budget', s.budgetValue, '4.5rem', (v) => { if (!isNaN(v)) { s.budgetValue = v; rerender(); } }));
+      qty.appendChild(unitToggle(s.budgetUnit, m.volts != null, (u) => {
+        s.budgetValue = Math.round((u === 'watts' ? s.budgetValue * m.volts : s.budgetValue / m.volts) * 100) / 100;
+        s.budgetUnit = u; rerender();
+      }));
+      row.appendChild(qty);
+
+      const dutyCol = h(`<div style="margin-left:auto;text-align:right;"><span class="microlabel">Duty cap</span>
+        <div class="duty-big" style="margin-top:2px;">${pct(m.cap)}</div></div>`).firstChild;
+      row.appendChild(dutyCol);
+      frame.appendChild(row);
+      frame.appendChild(h(`<div style="height:14px"></div>`).firstChild);
+      frame.appendChild(derivationChain(s));
+    }
+    root.appendChild(frame);
+  }
+  root.appendChild(h(`<p class="variant-notes"><b>A2 &mdash; revised gates row.</b> One equation, two directions:
+    the full-white load (construction estimate or your measured total) is shared context for both branches,
+    and the gate only decides which number you type &mdash; the duty % (with an amps/watts readout of what it
+    holds the installation to) or the supply budget (deriving the %). Plain-language switch (&ldquo;limit
+    power&rdquo;), chipset names on the presets, physical LED count in the chain for 3-LED segments,
+    Source select cut (it never changed the math), voltage asked for only with a measured total.</p>`).firstChild);
+}
+
+// ---------- Variant A: gates row, branch reveal, off collapses ----------
+function renderA(root) {
+  const s = state.A;
+  const rerender = () => renderA(root);
+  root.replaceChildren();
+  const frame = h(`<div class="frame"></div>`).firstChild;
+  frame.appendChild(h(`<div class="section-title">Power</div>`).firstChild);
+  frame.appendChild(h(`<p class="section-intro">The Controller estimates draw live from the duty cycle of the running Pattern.</p>`).firstChild);
+
+  const gates = h(`<div style="display:flex;flex-wrap:wrap;align-items:center;gap:14px 26px;margin-bottom:20px;"></div>`).firstChild;
+  gates.appendChild(switchEl(s.on, 'Limit power', () => { s.on = !s.on; rerender(); }));
+  if (s.on) {
+    gates.appendChild(segmentEl(
+      [['fixed', 'Fixed cap'], ['derived', 'From load and budget']],
+      s.mode, (k) => { s.mode = k; rerender(); },
+    ));
+  }
+  frame.appendChild(gates);
+
+  if (!s.on) {
+    const m = demoModel(s);
+    const summary = s.mode === 'fixed' ? `${s.fixed}% fixed cap` : `${pct(m.cap)} from load and budget`;
+    frame.appendChild(h(`<div class="note">Cap kept but not enforced &mdash; <span style="color:var(--t400);font-family:var(--mono);">${summary}</span>. Generated Patterns are unchanged. Turn enforcement on to edit.</div>`).firstChild);
+  } else if (s.mode === 'fixed') {
+    const wrap = h(`<div></div>`).firstChild;
+    const duty = h(`<div><span class="microlabel">Duty cap</span>
+      <span style="display:inline-flex;align-items:baseline;gap:4px;margin-top:2px;">
+        <input class="duty-input" type="text" inputmode="decimal" value="${s.fixed}"><span class="duty-unit">%</span>
+      </span>
+      <div class="caption">a fixed cap you set</div></div>`).firstChild;
+    duty.querySelector('input').addEventListener('change', (e) => {
+      const v = parseFloat(e.target.value); if (!isNaN(v)) { s.fixed = Math.max(0, Math.min(100, v)); rerender(); }
+    });
+    wrap.appendChild(duty);
+    wrap.appendChild(h(`<div class="note" style="margin-top:14px;">No power model in this mode: live est. draw falls back to the generic 60 mA/addr assumption.</div>`).firstChild);
+    frame.appendChild(wrap);
+  } else {
+    const m = demoModel(s);
+    const duty = h(`<div style="margin-bottom:18px;"><span class="microlabel">Duty cap</span>
+      <div class="duty-big" style="margin-top:2px;">${pct(m.cap)}</div>
+      <div class="caption">calculated from the load and budget</div></div>`).firstChild;
+    frame.appendChild(duty);
+    frame.appendChild(loadFields(s, rerender));
+    frame.appendChild(h(`<div style="height:16px"></div>`).firstChild);
+    frame.appendChild(budgetFields(s, rerender));
+    frame.appendChild(h(`<div class="divider"></div>`).firstChild);
+    frame.appendChild(derivationChain(s));
+  }
+  root.appendChild(frame);
+  root.appendChild(h(`<p class="variant-notes"><b>A &mdash; gates row.</b> Both decisions sit on one row above everything;
+    the branch reveals below. Enforcement off collapses the whole section to a one-line summary
+    (nothing dimmed-but-editable). The cap-source segment hides too &mdash; off means off.</p>`).firstChild);
+}
+
+// ---------- Variant B: headline-first, gates beside the number ----------
+function renderB(root) {
+  const s = state.B;
+  const rerender = () => renderB(root);
+  root.replaceChildren();
+  const frame = h(`<div class="frame"></div>`).firstChild;
+  frame.appendChild(h(`<div class="section-title">Power</div>`).firstChild);
+  frame.appendChild(h(`<p class="section-intro">The Controller estimates draw live from the duty cycle of the running Pattern.</p>`).firstChild);
+
+  const m = demoModel(s);
+  const hero = h(`<div style="display:flex;flex-wrap:wrap;align-items:flex-start;gap:18px 40px;margin-bottom:4px;"></div>`).firstChild;
+
+  const dutyCol = h(`<div style="min-width:9rem;"></div>`).firstChild;
+  dutyCol.appendChild(h(`<span class="microlabel">Duty cap</span>`).firstChild);
+  if (s.mode === 'fixed') {
+    const inp = h(`<span style="display:inline-flex;align-items:baseline;gap:4px;margin-top:2px;">
+      <input class="duty-input" type="text" inputmode="decimal" value="${s.fixed}" ${s.on ? '' : 'disabled'}><span class="duty-unit">%</span></span>`).firstChild;
+    inp.querySelector('input').style.color = s.on ? '' : 'var(--t500)';
+    inp.querySelector('input').addEventListener('change', (e) => {
+      const v = parseFloat(e.target.value); if (!isNaN(v)) { s.fixed = Math.max(0, Math.min(100, v)); rerender(); }
+    });
+    dutyCol.appendChild(inp);
+  } else {
+    dutyCol.appendChild(h(`<div class="duty-big ${s.on ? '' : 'muted'}" style="margin-top:2px;">${pct(m.cap)}</div>`).firstChild);
+  }
+  dutyCol.appendChild(h(`<div class="caption">${s.on
+    ? (s.mode === 'fixed' ? 'a fixed cap you set' : 'calculated from the load and budget')
+    : 'not enforced &mdash; kept for when you turn it back on'}</div>`).firstChild);
+  hero.appendChild(dutyCol);
+
+  const gateCol = h(`<div style="display:flex;flex-direction:column;align-items:flex-start;gap:10px;padding-top:2px;"></div>`).firstChild;
+  gateCol.appendChild(switchEl(s.on, 'Enforce', () => { s.on = !s.on; rerender(); }));
+  if (s.on) {
+    gateCol.appendChild(segmentEl(
+      [['fixed', 'Fixed'], ['derived', 'From load and budget']],
+      s.mode, (k) => { s.mode = k; rerender(); },
+    ));
+  }
+  hero.appendChild(gateCol);
+  frame.appendChild(hero);
+
+  if (s.on && s.mode === 'derived') {
+    frame.appendChild(h(`<div class="divider"></div>`).firstChild);
+    frame.appendChild(loadFields(s, rerender));
+    frame.appendChild(h(`<div style="height:16px"></div>`).firstChild);
+    frame.appendChild(budgetFields(s, rerender));
+    frame.appendChild(h(`<div style="height:16px"></div>`).firstChild);
+    frame.appendChild(derivationChain(s));
+  } else if (s.on && s.mode === 'fixed') {
+    frame.appendChild(h(`<div class="note" style="margin-top:10px;">No power model in this mode: live est. draw falls back to the generic 60 mA/addr assumption.</div>`).firstChild);
+  }
+  root.appendChild(frame);
+  root.appendChild(h(`<p class="variant-notes"><b>B &mdash; headline-first.</b> Keeps today&rsquo;s anchor: the duty value
+    stays the biggest thing on screen, always visible, with both gates in a column beside it.
+    Off keeps the number visible but grey with an explicit &ldquo;not enforced&rdquo; caption
+    instead of 45% opacity over editable fields.</p>`).firstChild);
+}
+
+// ---------- Variant C: decide first (cards), then a compact configured view ----------
+function renderC(root) {
+  const s = state.C;
+  const rerender = () => renderC(root);
+  root.replaceChildren();
+  const frame = h(`<div class="frame"></div>`).firstChild;
+  frame.appendChild(h(`<div class="section-title">Power</div>`).firstChild);
+
+  if (!s.chosen) {
+    frame.appendChild(h(`<p class="section-intro">Cap how hard Patterns can drive the LEDs. Pick how the cap is decided:</p>`).firstChild);
+    const cards = h(`<div class="cards"></div>`).firstChild;
+    const fixed = h(`<button class="card"><h3>Set a fixed cap</h3>
+      <p>One number. No electrical model &mdash; you already know what duty the installation can take.</p></button>`).firstChild;
+    fixed.addEventListener('click', () => { s.chosen = true; s.mode = 'fixed'; rerender(); });
+    const derived = h(`<button class="card"><h3>Calculate from load and budget</h3>
+      <p>Describe the LEDs and the supply; PXLBLZ derives the duty cap and keeps it in step with the pixel count.</p></button>`).firstChild;
+    derived.addEventListener('click', () => { s.chosen = true; s.mode = 'derived'; rerender(); });
+    cards.appendChild(fixed); cards.appendChild(derived);
+    frame.appendChild(cards);
+    frame.appendChild(h(`<div class="note" style="margin-top:14px;">Nothing is enforced until you choose and switch it on.</div>`).firstChild);
+  } else {
+    const m = demoModel(s);
+    const head = h(`<div style="display:flex;flex-wrap:wrap;align-items:center;gap:12px 18px;margin-bottom:18px;"></div>`).firstChild;
+    const pill = h(`<span class="pill">${s.mode === 'fixed' ? 'fixed cap' : 'from load and budget'}
+      <span class="change" role="button" tabindex="0">change</span></span>`).firstChild;
+    pill.querySelector('.change').addEventListener('click', () => { s.chosen = false; rerender(); });
+    head.appendChild(pill);
+    head.appendChild(switchEl(s.on, 'Enforce', () => { s.on = !s.on; rerender(); }));
+    frame.appendChild(head);
+
+    if (s.mode === 'fixed') {
+      const duty = h(`<div><span class="microlabel">Duty cap</span>
+        <span style="display:inline-flex;align-items:baseline;gap:4px;margin-top:2px;">
+          <input class="duty-input" type="text" inputmode="decimal" value="${s.fixed}"><span class="duty-unit">%</span>
+        </span></div>`).firstChild;
+      duty.querySelector('input').addEventListener('change', (e) => {
+        const v = parseFloat(e.target.value); if (!isNaN(v)) { s.fixed = Math.max(0, Math.min(100, v)); rerender(); }
+      });
+      frame.appendChild(duty);
+    } else {
+      frame.appendChild(h(`<div style="margin-bottom:16px;"><span class="microlabel">Duty cap</span>
+        <div class="duty-big" style="margin-top:2px;">${pct(m.cap)}</div></div>`).firstChild);
+      frame.appendChild(loadFields(s, rerender));
+      frame.appendChild(h(`<div style="height:16px"></div>`).firstChild);
+      frame.appendChild(budgetFields(s, rerender));
+      frame.appendChild(h(`<div class="divider"></div>`).firstChild);
+      frame.appendChild(derivationChain(s));
+    }
+    if (!s.on) {
+      frame.appendChild(h(`<div class="note amber" style="margin-top:14px;">Not enforced &mdash; this cap is saved but generated Patterns ignore it.</div>`).firstChild);
+    }
+  }
+  root.appendChild(frame);
+  root.appendChild(h(`<p class="variant-notes"><b>C &mdash; decide first.</b> A first-run chooser makes the cap-source
+    decision literal: two cards, each naming its cost. After choosing, the section is compact and the
+    choice lives in a pill with a &ldquo;change&rdquo; escape hatch. Enforcement-off keeps fields editable
+    but says plainly that Patterns ignore the cap.</p>`).firstChild);
+}
+
+// ---------- switcher ----------
+const VARIANTS = {
+  A2: { name: 'Revised gates row', render: renderA2 },
+  A: { name: 'Gates row (original)', render: renderA },
+  B: { name: 'Headline-first', render: renderB },
+  C: { name: 'Decide first', render: renderC },
+};
+const KEYS = Object.keys(VARIANTS);
+const mount = document.getElementById('mount');
+
+function currentVariant() {
+  const v = new URLSearchParams(location.search).get('variant');
+  return KEYS.includes(v) ? v : 'A2';
+}
+function show(v) {
+  const url = new URL(location.href);
+  url.searchParams.set('variant', v);
+  history.replaceState(null, '', url);
+  VARIANTS[v].render(mount);
+  document.getElementById('switcher-label').textContent = `${v} — ${VARIANTS[v].name}`;
+}
+function cycle(delta) {
+  const i = (KEYS.indexOf(currentVariant()) + delta + KEYS.length) % KEYS.length;
+  show(KEYS[i]);
+}
+document.getElementById('prev').addEventListener('click', () => cycle(-1));
+document.getElementById('next').addEventListener('click', () => cycle(1));
+document.addEventListener('keydown', (e) => {
+  const t = e.target;
+  if (t && (t.tagName === 'INPUT' || t.tagName === 'TEXTAREA' || t.tagName === 'SELECT' || t.isContentEditable)) return;
+  if (e.key === 'ArrowLeft') cycle(-1);
+  if (e.key === 'ArrowRight') cycle(1);
+});
+show(currentVariant());
+</script>
+</body>
+</html>

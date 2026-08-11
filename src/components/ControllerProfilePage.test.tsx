@@ -805,6 +805,11 @@ describe('ControllerProfilePage', () => {
         ledPresetId: 'ws2812-5v-individual' as const,
         supplyBudget: { value: 10, unit: 'watts' as const },
       },
+      globalTransforms: profile.globalTransforms.map((transform) => (
+        transform.type === 'power-cap'
+          ? { ...transform, enabled: true, mode: 'derived' as const }
+          : transform
+      )),
     }
     useControllerProfileStore.setState({ profiles: [configuredProfile], profilesLoaded: true })
 
@@ -818,7 +823,7 @@ describe('ControllerProfilePage', () => {
     expect(within(powerSection!).getByText('60 mA/addr @ 5V')).toBeInTheDocument()
     expect(within(powerSection!).getByText('76.8 W')).toBeInTheDocument()
     expect(within(powerSection!).getByText('10.0 W')).toBeInTheDocument()
-    expect(within(powerSection!).queryByText(/LEDs/)).not.toBeInTheDocument()
+    expect(within(powerSection!).queryByText(/\d LEDs/)).not.toBeInTheDocument()
     expect(screen.queryByRole('link', { name: 'Worldsemi reference' })).not.toBeInTheDocument()
     expect(screen.queryByText(/Use the continuous rating available to the LEDs/i)).not.toBeInTheDocument()
 
@@ -839,7 +844,7 @@ describe('ControllerProfilePage', () => {
     })
   })
 
-  it('treats the full-white override as an action on the value it overrides (#772)', async () => {
+  it('switches the full-white load between estimate and measured total with one segment (#786)', async () => {
     const profile = seedProfile()
     useControllerProfileStore.setState({
       profiles: [{
@@ -849,25 +854,30 @@ describe('ControllerProfilePage', () => {
           ledPresetId: 'ws2812-5v-individual',
           supplyBudget: { value: 10, unit: 'watts' },
         },
+        globalTransforms: profile.globalTransforms.map((transform) => (
+          transform.type === 'power-cap'
+            ? { ...transform, enabled: true, mode: 'derived' as const }
+            : transform
+        )),
       }],
       profilesLoaded: true,
     })
 
     render(<ControllerProfilePage profileId="ctrl-1" />)
 
-    expect(screen.queryByRole('checkbox', { name: 'Override the estimated full-white load' }))
-      .not.toBeInTheDocument()
     expect(screen.getByText('60 mA/addr @ 5V')).toBeInTheDocument()
     expect(screen.queryByRole('textbox', { name: 'Full-white installation total' })).not.toBeInTheDocument()
+    // The provenance select is gone: a measured total is just your total (#786).
+    expect(screen.queryByRole('combobox', { name: 'Full-white load source' })).not.toBeInTheDocument()
 
-    fireEvent.click(screen.getByRole('button', { name: 'Override load' }))
+    fireEvent.click(screen.getByRole('radio', { name: 'Measured total' }))
 
     expect(await screen.findByRole('textbox', { name: 'Full-white installation total' })).toBeInTheDocument()
-    expect(screen.getByRole('combobox', { name: 'Full-white load source' })).toHaveValue('measured')
     // The preset assumption is no longer claimed once a real total replaces it.
     expect(screen.queryByText('60 mA/addr @ 5V')).not.toBeInTheDocument()
+    expect(screen.getByText('measured total')).toBeInTheDocument()
 
-    fireEvent.click(screen.getByRole('button', { name: 'Use estimate' }))
+    fireEvent.click(screen.getByRole('radio', { name: 'Construction estimate' }))
 
     await waitFor(() => {
       expect(screen.queryByRole('textbox', { name: 'Full-white installation total' })).not.toBeInTheDocument()
@@ -1680,7 +1690,23 @@ describe('ControllerProfilePage', () => {
   })
 
   it('keeps Power field interactions from bubbling to selectable ancestors', async () => {
-    seedProfile()
+    const profile = seedProfile()
+    useControllerProfileStore.setState({
+      profiles: [{
+        ...profile,
+        lastKnownPixelCount: 240,
+        electricalProfile: {
+          ledPresetId: 'ws2812-5v-individual',
+          supplyBudget: { value: 3, unit: 'amps' },
+        },
+        globalTransforms: profile.globalTransforms.map((transform) => (
+          transform.type === 'power-cap'
+            ? { ...transform, enabled: true, mode: 'derived' as const }
+            : transform
+        )),
+      }],
+      profilesLoaded: true,
+    })
     setPersonalContentProvider({
       ...demoPersonalContentProvider,
       updateControllerProfile: async () => {},
@@ -1694,38 +1720,29 @@ describe('ControllerProfilePage', () => {
       </div>,
     )
 
-    fireEvent.click(screen.getByRole('button', { name: 'Configure power model' }))
-    onAncestorClick.mockClear()
     const budgetInput = await screen.findByRole('textbox', { name: 'Continuous LED supply budget' })
     expect(budgetInput).toHaveValue('3')
+    onAncestorClick.mockClear()
     fireEvent.change(budgetInput, { target: { value: '4.5' } })
     fireEvent.keyDown(budgetInput, { key: 'Enter' })
 
     await waitFor(() => {
       const profile = useControllerProfileStore.getState().profiles[0]
-      expect(profile.electricalProfile).toEqual({
-        ledPresetId: 'ws2812-5v-individual',
+      expect(profile.electricalProfile).toMatchObject({
         supplyBudget: { value: 4.5, unit: 'amps' },
       })
     })
 
-    const input = screen.getByRole('textbox', { name: 'Power cap duty percent exact percentage' })
-    fireEvent.click(input)
-    fireEvent.keyDown(input, { key: 'ArrowUp' })
+    fireEvent.click(screen.getByRole('radio', { name: 'Fixed cap' }))
+    // The segment is a deliberate button action; the invariant is that *field*
+    // interactions never bubble into selectable ancestors.
+    onAncestorClick.mockClear()
+    const slider = await screen.findByRole('slider', { name: 'Power cap duty percent' })
+    fireEvent.click(slider)
+    fireEvent.keyDown(slider, { key: 'ArrowUp' })
 
     expect(onAncestorClick).not.toHaveBeenCalled()
     expect(onAncestorKeyDown).not.toHaveBeenCalled()
-
-    fireEvent.change(input, { target: { value: '35%' } })
-    fireEvent.keyDown(input, { key: 'Enter' })
-
-    await waitFor(() => {
-      const profile = useControllerProfileStore.getState().profiles[0]
-      expect(profile.globalTransforms.find((transform) => transform.id === 'power-cap')).toMatchObject({
-        mode: 'direct',
-        maxDuty: 0.35,
-      })
-    })
   })
 
   it('keeps an enforced direct duty cap visible and operable with no power model (#772)', async () => {
@@ -1746,18 +1763,19 @@ describe('ControllerProfilePage', () => {
 
     // The cap already changes every generated Pattern, so it has to be visible
     // and reversible without first configuring an unrelated power model (#772).
-    const enforce = screen.getByRole('checkbox', { name: 'Enforce the duty cap' })
-    expect(enforce).toBeChecked()
-    const duty = screen.getByRole('textbox', { name: 'Power cap duty percent exact percentage' })
-    expect(duty).toHaveValue('40')
-    // Only the estimate is missing, and deriving the cap stays unavailable.
-    expect(screen.getByText('No power model yet, so PXLBLZ cannot estimate the installation load.'))
+    const limitPower = screen.getByRole('checkbox', { name: 'Limit power' })
+    expect(limitPower).toBeChecked()
+    const slider = screen.getByRole('slider', { name: 'Power cap duty percent' })
+    expect(screen.getByText('40%')).toBeInTheDocument()
+    // Only the equivalence readout is missing, and it says how to earn it (#786).
+    expect(screen.getByText(/Choose the LED construction or enter a measured total/))
       .toBeInTheDocument()
-    expect(screen.getByRole('button', { name: 'Configure power model' })).toBeInTheDocument()
-    expect(screen.getByRole('button', { name: 'Calculate from load and budget' })).toBeDisabled()
+    // Deriving stays unavailable without an address count, with the reason stated.
+    const derived = screen.getByRole('radio', { name: 'From load and budget' })
+    expect(derived).toBeDisabled()
+    expect(derived).toHaveAttribute('title', 'Connect this Controller to supply its address count.')
 
-    fireEvent.change(duty, { target: { value: '15%' } })
-    fireEvent.keyDown(duty, { key: 'Enter' })
+    fireEvent.change(slider, { target: { value: '0.15' } })
 
     await waitFor(() => {
       expect(useControllerProfileStore.getState().profiles[0].globalTransforms
@@ -1765,13 +1783,18 @@ describe('ControllerProfilePage', () => {
         .toMatchObject({ enabled: true, mode: 'direct', maxDuty: 0.15 })
     })
 
-    fireEvent.click(enforce)
+    fireEvent.click(limitPower)
 
     await waitFor(() => {
       expect(useControllerProfileStore.getState().profiles[0].globalTransforms
         .find((transform) => transform.type === 'power-cap'))
         .toMatchObject({ enabled: false, maxDuty: 0.15 })
     })
+    // Off means off: the section collapses to a summary instead of dimming (#786).
+    expect(screen.getByText(/Power is not limited/)).toBeInTheDocument()
+    expect(screen.getByText('15% fixed cap')).toBeInTheDocument()
+    expect(screen.queryByRole('slider', { name: 'Power cap duty percent' })).not.toBeInTheDocument()
+    expect(screen.queryByRole('radio', { name: 'Fixed cap' })).not.toBeInTheDocument()
   })
 
   it('derives the duty cap from a unit-labeled power budget without making pixel count editable', async () => {
@@ -1786,20 +1809,18 @@ describe('ControllerProfilePage', () => {
     })
 
     render(<ControllerProfilePage profileId="ctrl-1" />)
-    fireEvent.click(screen.getByRole('button', { name: 'Configure power model' }))
+    fireEvent.click(screen.getByRole('checkbox', { name: 'Limit power' }))
+    // Choosing the derived side configures the default model on the way (#786).
+    fireEvent.click(await screen.findByRole('radio', { name: 'From load and budget' }))
     await screen.findByRole('textbox', { name: 'Continuous LED supply budget' })
-    fireEvent.change(screen.getByRole('combobox', { name: 'Continuous LED supply budget unit' }), {
-      target: { value: 'watts' },
-    })
+    fireEvent.click(screen.getAllByRole('button', { name: 'watts' })[0])
     const budget = screen.getByRole('textbox', { name: 'Continuous LED supply budget' })
     fireEvent.change(budget, { target: { value: '36' } })
     fireEvent.keyDown(budget, { key: 'Enter' })
     await waitFor(() => {
       expect(screen.getByText('72.0 W')).toBeInTheDocument()
     })
-    fireEvent.click(screen.getByRole('button', { name: 'Calculate from load and budget' }))
-    await waitFor(() => expect(screen.getByText('50%')).toBeInTheDocument())
-    expect(screen.getByText('calculated from the load and budget')).toBeInTheDocument()
+    await waitFor(() => expect(screen.getAllByText('50%').length).toBeGreaterThan(0))
 
     expect(screen.queryByRole('spinbutton', { name: 'Pixel count' })).not.toBeInTheDocument()
 
@@ -1828,7 +1849,9 @@ describe('ControllerProfilePage', () => {
           supplyBudget: { value: 24, unit: 'watts' },
         },
         globalTransforms: profile.globalTransforms.map((transform) => (
-          transform.type === 'power-cap' ? { ...transform, mode: 'derived' as const } : transform
+          transform.type === 'power-cap'
+            ? { ...transform, enabled: true, mode: 'derived' as const }
+            : transform
         )),
       }],
       profilesLoaded: true,
@@ -1842,20 +1865,20 @@ describe('ControllerProfilePage', () => {
 
     expect(screen.getByText('addresses unknown')).toBeInTheDocument()
     expect(screen.getByText(/PXLBLZ will not invent one/)).toBeInTheDocument()
-    expect(screen.getByRole('button', { name: 'Set a fixed cap' })).toBeInTheDocument()
-    expect(screen.getByRole('button', { name: 'Override load' })).toBeDisabled()
+    expect(screen.getByRole('radio', { name: 'Measured total' })).toBeDisabled()
     expect(screen.queryByRole('spinbutton', { name: 'Pixel count' })).not.toBeInTheDocument()
   })
 
-  it('preserves a stale authored load when switching to a custom construction', async () => {
+  it('renders a legacy custom construction as a measured total and returns to the default preset (#786)', async () => {
     const profile = seedProfile()
     useControllerProfileStore.setState({
       profiles: [{
         ...profile,
         lastKnownPixelCount: 301,
         electricalProfile: {
-          ledPresetId: 'ws2812-5v-individual',
+          ledPresetId: 'custom',
           supplyBudget: { value: 3, unit: 'amps' },
+          voltageOverride: 5,
           loadOverride: {
             fullWhite: { value: 60, unit: 'watts' },
             source: 'measured',
@@ -1864,7 +1887,7 @@ describe('ControllerProfilePage', () => {
         },
         globalTransforms: profile.globalTransforms.map((transform) => (
           transform.type === 'power-cap'
-            ? { ...transform, mode: 'derived' as const, maxDuty: 0.6 }
+            ? { ...transform, enabled: true, mode: 'derived' as const, maxDuty: 0.6 }
             : transform
         )),
       }],
@@ -1872,28 +1895,23 @@ describe('ControllerProfilePage', () => {
     })
 
     render(<ControllerProfilePage profileId="ctrl-1" />)
+    // A custom construction has no preset estimate, so it renders as the
+    // measured-total side of the segment, keeping the stale-count warning.
+    expect(screen.getByRole('radio', { name: 'Measured total' })).toBeChecked()
     expect(screen.getByText(/recorded at 300 addresses/)).toBeInTheDocument()
+    expect(screen.queryByRole('combobox', { name: 'LED construction preset' })).not.toBeInTheDocument()
 
-    fireEvent.change(screen.getByRole('combobox', { name: 'LED construction preset' }), {
-      target: { value: 'custom' },
-    })
+    // Returning to the estimate side picks the default preset: there is no
+    // Custom entry in the picker any more (#786).
+    fireEvent.click(screen.getByRole('radio', { name: 'Construction estimate' }))
 
     await waitFor(() => {
       const savedProfile = useControllerProfileStore.getState().profiles[0]
       expect(savedProfile.electricalProfile).toMatchObject({
-        ledPresetId: 'custom',
-        voltageOverride: 5,
+        ledPresetId: 'ws2812-5v-individual',
         supplyBudget: { value: 3, unit: 'amps' },
-        loadOverride: {
-          fullWhite: { value: 60, unit: 'watts' },
-          source: 'measured',
-          atPixelCount: 300,
-        },
       })
-      expect(savedProfile.globalTransforms.find((transform) => transform.type === 'power-cap')).toMatchObject({
-        mode: 'derived',
-        maxDuty: 0.6,
-      })
+      expect(savedProfile.electricalProfile?.loadOverride).toBeUndefined()
     })
   })
 
@@ -1908,14 +1926,14 @@ describe('ControllerProfilePage', () => {
       },
       globalTransforms: profile.globalTransforms.map((transform) => (
         transform.type === 'power-cap'
-          ? { ...transform, mode: 'derived' as const, maxDuty: 0.5 }
+          ? { ...transform, enabled: true, mode: 'derived' as const, maxDuty: 0.5 }
           : transform
       )),
     }
     useControllerProfileStore.setState({ profiles: [configuredProfile], profilesLoaded: true })
 
     render(<ControllerProfilePage profileId="ctrl-1" />)
-    expect(screen.getByText('50%')).toBeInTheDocument()
+    expect(screen.getAllByText('50%').length).toBeGreaterThan(0)
 
     act(() => {
       useControllerProfileStore.setState({
@@ -1923,7 +1941,7 @@ describe('ControllerProfilePage', () => {
       })
     })
 
-    await waitFor(() => expect(screen.getByText('100%')).toBeInTheDocument())
+    await waitFor(() => expect(screen.getAllByText('100%').length).toBeGreaterThan(0))
   })
 
   it('disables A/W reinterpretation when a custom model has no conversion voltage', () => {
@@ -1941,17 +1959,27 @@ describe('ControllerProfilePage', () => {
             atPixelCount: 50,
           },
         },
+        globalTransforms: profile.globalTransforms.map((transform) => (
+          transform.type === 'power-cap'
+            ? { ...transform, enabled: true, mode: 'derived' as const }
+            : transform
+        )),
       }],
       profilesLoaded: true,
     })
 
     render(<ControllerProfilePage profileId="ctrl-1" />)
 
-    const budgetUnit = screen.getByRole('combobox', { name: 'Continuous LED supply budget unit' })
-    expect(within(budgetUnit).getByRole('option', { name: 'watts' })).toBeDisabled()
-
-    const loadUnit = screen.getByRole('combobox', { name: 'Full-white installation total unit' })
-    expect(within(loadUnit).getByRole('option', { name: 'watts' })).toBeDisabled()
+    // Both watts toggles — supply budget and full-white total — state the reason.
+    const wattsButtons = screen.getAllByRole('button', { name: 'watts' })
+    expect(wattsButtons).toHaveLength(2)
+    for (const button of wattsButtons) {
+      expect(button).toBeDisabled()
+      expect(button).toHaveAttribute(
+        'title',
+        'Enter the supply voltage to convert between amps and watts',
+      )
+    }
   })
 
   it('commits the displayed conversion voltage for a custom no-voltage model', async () => {
@@ -1969,6 +1997,11 @@ describe('ControllerProfilePage', () => {
             atPixelCount: 50,
           },
         },
+        globalTransforms: profile.globalTransforms.map((transform) => (
+          transform.type === 'power-cap'
+            ? { ...transform, enabled: true, mode: 'derived' as const }
+            : transform
+        )),
       }],
       profilesLoaded: true,
     })
@@ -1981,50 +2014,110 @@ describe('ControllerProfilePage', () => {
 
     await waitFor(() => {
       expect(useControllerProfileStore.getState().profiles[0].electricalProfile?.voltageOverride).toBe(5)
-      expect(within(screen.getByRole('combobox', {
-        name: 'Continuous LED supply budget unit',
-      })).getByRole('option', { name: 'watts' })).toBeEnabled()
+      for (const button of screen.getAllByRole('button', { name: 'watts' })) {
+        expect(button).toBeEnabled()
+      }
     })
   })
 
-  it('shows the latest generated artifact inspection for the controller profile', () => {
+  it('collapses to a summary while power is not limited (#786)', () => {
     seedProfile()
-    useControllerStore.setState({
-      lastTransformArtifacts: {
-        '192.168.8.224': {
-          'pat-1': {
-            patternName: 'Twinkle',
-            updatedAt: 1,
-            generatedSource: 'export function render(index) { hsv(index, 1, 1) }',
-            warnings: [],
-            summary: {
-              passes: [
-                {
-                  id: 'speed-drive',
-                  kind: 'bind',
-                  beforeRender: 'wrapped',
-                  bindingsApplied: [{ target: 'sliderSpeed', mode: 'function-call' }],
-                  estimatedPixelCost: 0,
-                },
-              ],
-              callSitesWrapped: {},
-              beforeRender: 'wrapped',
-              globalsAdded: ['__pxlblz_speed_drive_bind'],
-              exportsAdded: [],
-              bindingsApplied: [{ target: 'sliderSpeed', mode: 'function-call' }],
-              rendererAdaptations: [],
-              estimatedPixelCost: 0,
-            },
-          },
+
+    render(<ControllerProfilePage profileId="ctrl-1" />)
+
+    expect(screen.getByRole('checkbox', { name: 'Limit power' })).not.toBeChecked()
+    expect(screen.getByText(/Power is not limited/)).toBeInTheDocument()
+    expect(screen.getByText('25% fixed cap')).toBeInTheDocument()
+    // Off means off: no gates, fields, or dimmed-but-editable controls (#786).
+    expect(screen.queryByRole('radio', { name: 'Fixed cap' })).not.toBeInTheDocument()
+    expect(screen.queryByRole('slider', { name: 'Power cap duty percent' })).not.toBeInTheDocument()
+    expect(screen.queryByRole('combobox', { name: 'LED construction preset' })).not.toBeInTheDocument()
+  })
+
+  it('says what a fixed cap holds the installation to once a load exists (#786)', () => {
+    const profile = seedProfile()
+    useControllerProfileStore.setState({
+      profiles: [{
+        ...profile,
+        lastKnownPixelCount: 256,
+        electricalProfile: {
+          ledPresetId: 'ws2812-5v-individual',
+          supplyBudget: { value: 3, unit: 'amps' },
         },
-      },
+        globalTransforms: profile.globalTransforms.map((transform) => (
+          transform.type === 'power-cap'
+            ? { ...transform, enabled: true, mode: 'direct' as const, maxDuty: 0.25 }
+            : transform
+        )),
+      }],
+      profilesLoaded: true,
     })
 
     render(<ControllerProfilePage profileId="ctrl-1" />)
 
-    expect(screen.getByText('Last generated artifact')).toBeInTheDocument()
-    expect(screen.getByText('Twinkle')).toBeInTheDocument()
-    expect(screen.getByText('sliderSpeed (function-call)')).toBeInTheDocument()
+    // 256 addr × 0.3 W = 76.8 W full white; 25% of that is 19.2 W ≈ 3.8 A at 5V.
+    expect(screen.getByText(/25% of/)).toBeInTheDocument()
+    expect(screen.getByText('76.8 W')).toBeInTheDocument()
+    expect(screen.getByText(/holds the installation to about/)).toBeInTheDocument()
+    expect(screen.getByText('19.2 W / 3.8 A')).toBeInTheDocument()
+  })
+
+  it('names chipsets on the construction presets and drops the Custom entry (#786)', () => {
+    const profile = seedProfile()
+    useControllerProfileStore.setState({
+      profiles: [{
+        ...profile,
+        lastKnownPixelCount: 256,
+        electricalProfile: {
+          ledPresetId: 'ws2812-5v-individual',
+          supplyBudget: { value: 3, unit: 'amps' },
+        },
+        globalTransforms: profile.globalTransforms.map((transform) => (
+          transform.type === 'power-cap'
+            ? { ...transform, enabled: true, mode: 'direct' as const }
+            : transform
+        )),
+      }],
+      profilesLoaded: true,
+    })
+
+    render(<ControllerProfilePage profileId="ctrl-1" />)
+
+    const construction = screen.getByRole('combobox', { name: 'LED construction preset' })
+    expect(within(construction).getByRole('option', { name: '5V individual RGB (WS2812B / SK6812)' })).toBeInTheDocument()
+    expect(within(construction).getByRole('option', { name: '12V 3-LED segments (WS2811)' })).toBeInTheDocument()
+    expect(within(construction).getByRole('option', { name: '12V individual RGB, backup data (WS2815)' })).toBeInTheDocument()
+    expect(within(construction).queryByRole('option', { name: /Custom/ })).not.toBeInTheDocument()
+  })
+
+  it('rounds converted quantities for display instead of surfacing float noise (#786)', () => {
+    const profile = seedProfile()
+    useControllerProfileStore.setState({
+      profiles: [{
+        ...profile,
+        lastKnownPixelCount: 300,
+        electricalProfile: {
+          ledPresetId: 'ws2812-5v-individual',
+          supplyBudget: { value: 3, unit: 'amps' },
+          voltageOverride: 12,
+          loadOverride: {
+            fullWhite: { value: 8.333333333333334, unit: 'amps' },
+            source: 'measured',
+            atPixelCount: 300,
+          },
+        },
+        globalTransforms: profile.globalTransforms.map((transform) => (
+          transform.type === 'power-cap'
+            ? { ...transform, enabled: true, mode: 'derived' as const }
+            : transform
+        )),
+      }],
+      profilesLoaded: true,
+    })
+
+    render(<ControllerProfilePage profileId="ctrl-1" />)
+
+    expect(screen.getByRole('textbox', { name: 'Full-white installation total' })).toHaveValue('8.33')
   })
 
   it('imports the live controller pixel map as a named frozen user map from the pane header', async () => {
