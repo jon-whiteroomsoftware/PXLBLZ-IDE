@@ -65,6 +65,8 @@ does not add a tab or silently apply that object to the running Pattern.
 
 Personal content lives in compact trees with folders, drag reordering, search
 that sees into collapsed branches, and a Trash that appears only when needed.
+Emptying the Trash is the one permanent deletion in the rail, so it always
+asks for confirmation — from the rail row or from inside the Trash itself.
 Built-in and stock catalogues sit below in fixed folders, including a
 **ZRanger1** folder of his published community Patterns. Built-in definitions
 never change; Built-in Shows alone accept session edits that Reset or reload
@@ -78,7 +80,9 @@ Studio requires sign-in with GitHub or Google; logins that share a verified
 email open the same workspace. Personal content lives in the signed-in cloud
 workspace. Signed out, the app is a non-durable demo — Gallery, built-ins,
 stock content, docs, preview, and live Controller connections all work, but
-saving personal content requires sign-in.
+saving personal content requires sign-in. A Show edit that cannot reach the
+workspace rolls back visibly: the editor posts a notice with Retry instead of
+failing silently.
 
 ## 3. Docs and API reference
 
@@ -367,7 +371,16 @@ contract:
   build, and unlocks physical zone ranges and Controller targeting.
 
 The contract stays visible in the timeline header. Show setup supports
-outputs through 2,000 pixels.
+outputs through 2,000 pixels; entries above that ceiling clamp to it during
+setup rather than blocking later. Stock maps scale to whatever count you set,
+while a map imported from your Controller carries its measured count and
+locks the field as **Fixed size**.
+
+Two shortcuts skip parts of this flow. With a Controller profile selected in
+the rail, **Add** also offers **New show from _profile_**, seeding an
+Installation Show directly from that profile's zones, map, and last-known
+pixel count. And an existing personal Show duplicates from its rail row menu
+(**Duplicate**), copying the whole Show under a fresh name.
 
 ## 13. The timeline
 
@@ -387,7 +400,7 @@ with a shared ruler, playhead, transport, and Navigator. The essentials:
   **Split** divides at the playhead, **Clone** duplicates in place. Each
   Clip's second row summarizes its authored controls, view changes, Effects,
   and animation as compact dot-separated values. Every commit is one undo
-  step (Cmd/Ctrl+Z).
+  step (Cmd/Ctrl+Z). Undo history is session-only: a reload clears it.
 - **Selection and detail.** Selecting a Clip, Group, Transition, Zone, or the
   Show opens a floating Entity Detail Panel with that entity's exact editable
   fields. Summary facts are shortcuts: select one to open the owning tab and
@@ -408,7 +421,8 @@ across its occupied Layers, with exact Start, base Layer, and X/Y offsets.
 in all of them, while each occurrence gets fresh Pattern runtime instances.
 Double-click to edit a Group in place with everything else dimmed; **Make
 Unique** breaks the link, **Ungroup** dissolves the container. Groups cannot
-nest.
+nest, and a Group must fit inside one Zone Layout interval — a marquee that
+crosses a Layout boundary cannot Group.
 
 ## 14. Clips: time, adaptation, and Effects
 
@@ -422,7 +436,9 @@ motion through the cut.
 Presentation belongs to the Clip: **Live** shows the running Pattern,
 **Freeze** holds the entry frame, **Strobe** re-captures at a cadence,
 **Blink** gates output without pausing Pattern time, and **Stutter**
-quantizes the shared clock so every linked Clip steps together.
+quantizes the shared clock so every linked Clip steps together. **Opacity**
+appears only on overlay-Layer Clips, where it scales that Layer's blend over
+the base; base-Layer Clips carry no Opacity control.
 
 Compatible 2D Clips expose a **Transform** group (position, rotation, scale)
 and an ordered **Effect stack** in the compiler's fixed stages: Transform,
@@ -477,8 +493,10 @@ the ruler with the Layout that owns it; selecting an interval opens its
 routing mode, shape parameters, and ranges. Duplicated intervals stay linked
 to their source until **Make Unique**, exactly like Groups. The boundary
 between intervals carries a selectable routing switch with destination,
-duration, easing, and direction; Moving and Soft Splits animate an owned
-position while every Pattern clock continues.
+duration, easing, and direction. Its destination list names Layouts by their
+own names, while the lane labels intervals by routing mode — both refer to
+the same Layouts. Moving and Soft Splits animate an owned position while
+every Pattern clock continues.
 
 The output contract determines what Zones mean:
 
@@ -499,9 +517,8 @@ transport owns time; Pattern-level speed and controls stay out of the Stage.
 
 The compile bar under the timeline reports creator-facing limits: delivered
 **Show source**, VM array words, and actionable warnings or blockers. The
-source figure expands into a byte-level inventory, and **Ways to slim this
-Show** lists only contributors that are both changeable and large enough to
-matter. The same bar enforces the support envelope — outputs above 2,000
+source figure expands into a byte-level inventory of contributors. The same
+bar enforces the support envelope — outputs above 2,000
 pixels, exhausted memory axes, or more than five simultaneous renderers per
 pixel block outbound actions with a named cause, while editing and preview
 continue.
@@ -524,7 +541,8 @@ currently the Coronal Mass Ejection PXLBLZ remix over ZRanger1's Pattern.
 
 Built-ins use the complete production editor. The first change creates a
 session-only draft with normal undo; **Reset** or reload restores the shipped
-definition. Reference Showcases offer **Try with Pattern** to swap your own
+definition. **Save a copy** keeps that work instead, saving the current draft
+as a personal Show. Reference Showcases offer **Try with Pattern** to swap your own
 Pattern through the same choreography.
 
 ---
