@@ -3,9 +3,9 @@ import { vi } from 'vitest'
 import { PixelCountPopover } from './PixelCountPopover'
 
 describe('PixelCountPopover', () => {
-  it('moves the resolution slider at fine gain while Shift is held (#814)', () => {
-    const steps = [100, 200, 300, 400, 500, 600, 700, 800, 900, 1000, 1100]
-    const onSelect = vi.fn()
+  const steps = [100, 200, 300, 400, 500, 600, 700, 800, 900, 1000, 1100]
+
+  function renderResolutionPopover(onSelect = vi.fn()) {
     render(
       <PixelCountPopover
         value={600}
@@ -25,6 +25,11 @@ describe('PixelCountPopover', () => {
       left: 0, right: 100, top: 0, bottom: 20, width: 100, height: 20,
       x: 0, y: 0, toJSON: () => ({}),
     })
+    return { onSelect, slider }
+  }
+
+  it('moves the resolution slider at fine gain while Shift is held (#814)', () => {
+    const { onSelect, slider } = renderResolutionPopover()
 
     fireEvent.pointerDown(slider, { pointerId: 14, clientX: 0, shiftKey: true })
     fireEvent.pointerMove(slider, { pointerId: 14, clientX: 50, shiftKey: true })
@@ -39,5 +44,50 @@ describe('PixelCountPopover', () => {
 
     fireEvent.pointerUp(slider, { pointerId: 14, clientX: 50, shiftKey: true })
     expect(screen.queryByText('Fine')).not.toBeInTheDocument()
+  })
+
+  it('ends a fine drag when Escape closes and unmounts the popover (#814 review)', () => {
+    const { onSelect, slider } = renderResolutionPopover()
+
+    fireEvent.pointerDown(slider, { pointerId: 15, clientX: 0, shiftKey: true })
+    fireEvent.keyDown(window, { key: 'Escape' })
+    expect(screen.queryByRole('slider', { name: 'Preview resolution' })).not.toBeInTheDocument()
+
+    fireEvent.click(screen.getByRole('button', { name: 'Edit pixel count' }))
+    const reopenedSlider = screen.getByRole('slider', { name: 'Preview resolution' })
+    onSelect.mockClear()
+
+    fireEvent.pointerMove(reopenedSlider, { pointerId: 15, clientX: 100 })
+    expect(onSelect).not.toHaveBeenCalled()
+
+    fireEvent.change(reopenedSlider, { target: { value: '6' } })
+    expect(onSelect).toHaveBeenLastCalledWith(700)
+  })
+
+  it('ends a fine drag when the resolution slider loses pointer capture (#814 review)', () => {
+    const { onSelect, slider } = renderResolutionPopover()
+
+    fireEvent.pointerDown(slider, { pointerId: 16, clientX: 0, shiftKey: true })
+    fireEvent.lostPointerCapture(slider, { pointerId: 16 })
+    onSelect.mockClear()
+
+    fireEvent.pointerMove(slider, { pointerId: 16, clientX: 100 })
+    expect(onSelect).not.toHaveBeenCalled()
+
+    fireEvent.change(slider, { target: { value: '6' } })
+    expect(onSelect).toHaveBeenLastCalledWith(700)
+  })
+
+  it('re-anchors fine adjustment from the latest coarse slider value (#814 review)', () => {
+    const { onSelect, slider } = renderResolutionPopover()
+
+    fireEvent.pointerDown(slider, { pointerId: 17, clientX: 0 })
+    fireEvent.change(slider, { target: { value: '8' } })
+    expect(onSelect).toHaveBeenLastCalledWith(900)
+
+    fireEvent.pointerMove(slider, { pointerId: 17, clientX: 80 })
+    fireEvent.pointerMove(slider, { pointerId: 17, clientX: 180, shiftKey: true })
+
+    expect(onSelect).toHaveBeenLastCalledWith(1000)
   })
 })

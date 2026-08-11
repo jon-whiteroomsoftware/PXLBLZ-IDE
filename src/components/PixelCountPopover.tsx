@@ -56,6 +56,8 @@ export function PixelCountPopover({
   const [resolutionFineActive, setResolutionFineActive] = useState(false)
   const parsed = parsePixelCountDraft(draft)
   const stepIndex = quickSelect ? resolutionStepIndex(quickSelect.steps, value) : null
+  const resolutionIndex = stepIndex ?? (quickSelect ? (quickSelect.steps.length - 1) / 2 : 0)
+  const resolutionIndexRef = useRef(resolutionIndex)
   const previous = quickSelect ? adjacentPreviewResolution(quickSelect.steps, value, -1) : null
   const next = quickSelect ? adjacentPreviewResolution(quickSelect.steps, value, 1) : null
   const dimensions = value != null && quickSelect ? quickSelect.dimensionsFor(value) : null
@@ -74,23 +76,25 @@ export function PixelCountPopover({
     setDraft(formatPixelCount(value))
   }
 
+  const finishResolutionDrag = useCallback(() => {
+    resolutionPointerRef.current = null
+    resolutionDragRef.current = null
+    resolutionFineEngagedRef.current = false
+    setResolutionFineActive(false)
+  }, [])
+
   const close = useCallback(() => {
+    finishResolutionDrag()
     setOpen(false)
     setDraft(formatPixelCount(value))
-  }, [value])
+  }, [finishResolutionDrag, value])
 
   function apply() {
     if (parsed == null) return
     onApply(parsed)
     setDraft(String(parsed))
+    finishResolutionDrag()
     setOpen(false)
-  }
-
-  function finishResolutionDrag() {
-    resolutionPointerRef.current = null
-    resolutionDragRef.current = null
-    resolutionFineEngagedRef.current = false
-    setResolutionFineActive(false)
   }
 
   useEffect(() => {
@@ -127,7 +131,10 @@ export function PixelCountPopover({
         aria-haspopup="dialog"
         aria-expanded={open}
         disabled={disabled || pending}
-        onClick={() => setOpen((o) => !o)}
+        onClick={() => {
+          finishResolutionDrag()
+          setOpen((o) => !o)
+        }}
         className="w-[42px] h-5 px-0.5 rounded border border-zinc-500 text-[11px] tabular-nums text-zinc-300 text-center bg-transparent hover:border-zinc-400 hover:text-amber-400/80 focus:outline-none focus:border-live disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
       >
         {pending ? '...' : value ?? '-'}
@@ -182,19 +189,22 @@ export function PixelCountPopover({
                     min={0}
                     max={quickSelect.steps.length - 1}
                     step={1}
-                    value={stepIndex ?? (quickSelect.steps.length - 1) / 2}
+                    value={resolutionIndex}
                     onChange={(event) => {
                       if (resolutionPointerRef.current !== null && resolutionFineEngagedRef.current) return
-                      quickSelect.onSelect(quickSelect.steps[Math.round(Number(event.target.value))])
+                      const index = Math.round(Number(event.target.value))
+                      resolutionIndexRef.current = index
+                      quickSelect.onSelect(quickSelect.steps[index])
                     }}
                     onPointerDown={(event) => {
+                      resolutionIndexRef.current = resolutionIndex
                       resolutionPointerRef.current = event.pointerId
                       resolutionFineEngagedRef.current = event.shiftKey
                       setResolutionFineActive(event.shiftKey)
                       resolutionWidthRef.current = Math.max(1, event.currentTarget.getBoundingClientRect().width)
                       resolutionDragRef.current = beginFineAdjust(
                         event.clientX,
-                        stepIndex ?? (quickSelect.steps.length - 1) / 2,
+                        resolutionIndex,
                       )
                       event.currentTarget.setPointerCapture?.(event.pointerId)
                     }}
@@ -207,7 +217,7 @@ export function PixelCountPopover({
                       if (!resolutionFineEngagedRef.current) {
                         resolutionDragRef.current = beginFineAdjust(
                           event.clientX,
-                          stepIndex ?? (quickSelect.steps.length - 1) / 2,
+                          resolutionIndexRef.current,
                         )
                         return
                       }
@@ -227,6 +237,10 @@ export function PixelCountPopover({
                       finishResolutionDrag()
                     }}
                     onPointerCancel={finishResolutionDrag}
+                    onLostPointerCapture={() => {
+                      if (resolutionPointerRef.current === null) return
+                      finishResolutionDrag()
+                    }}
                     data-fine-adjusting={resolutionFineActive ? 'true' : undefined}
                     title={resolutionFineActive ? 'Fine adjustment engaged' : 'Shift-drag for fine adjustment'}
                     className={`min-w-0 flex-1 ${resolutionFineActive ? 'ring-1 ring-amber-300/70' : ''} ${stepIndex == null ? 'deck-slider-unset' : 'accent-live'}`}
