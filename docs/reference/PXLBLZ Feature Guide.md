@@ -155,7 +155,9 @@ brightness — describe what the Pattern computes against. **PREVIEW** settings
 — renderer, playback speed, light size, diffusion, solidity — describe how the
 browser draws it. Most settings are remembered per Pattern. None of them ride
 along with **Send to Controller**, and preview brightness is no substitute for
-physical brightness planning.
+physical brightness planning. **Reset preview** clears those remembered preview
+setting overrides; exported Pattern controls remain live runtime controls and
+restart from the Pattern's own defaults when the Pattern reloads.
 
 ## 6. Maps and display geometry
 

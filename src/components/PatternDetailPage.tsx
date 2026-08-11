@@ -30,6 +30,10 @@ export function PatternDetailPage({
   usePatternStore((s) => s.activeDemoName)
   usePatternStore((s) => s.userPatterns)
   usePatternStore((s) => s.demoOverrides)
+  // Reset is intentionally settings-only: resetActiveSettings clears the
+  // settings-cascade override bag, while Pattern controls are live runtime state
+  // reinitialized when the Pattern reloads. Keep visibility aligned with the
+  // action's actual scope instead of treating a control change as resettable here.
   const showReset = hasActiveOverrides()
   const { hasEmbeddingChoice } = useEmbeddingSelectMeta()
   const [stageView, setStageView] = useState<'preview' | 'code'>('preview')

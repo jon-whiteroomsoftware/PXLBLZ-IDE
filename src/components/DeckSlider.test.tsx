@@ -47,4 +47,24 @@ describe('DeckSlider', () => {
     fireEvent.change(slider, { target: { value: '0.4' } })
     expect(onChange).toHaveBeenCalledWith(0.4)
   })
+
+  it('steps a curved slider by its real value when ArrowLeft is pressed (#813)', () => {
+    const onChange = vi.fn()
+    render(
+      <DeckSlider
+        label="brightness"
+        value={1}
+        min={0}
+        max={1}
+        step={0.01}
+        curve={2}
+        presentation="percentage"
+        onChange={onChange}
+      />,
+    )
+
+    fireEvent.keyDown(screen.getByLabelText('brightness'), { key: 'ArrowLeft' })
+
+    expect(onChange).toHaveBeenCalledWith(0.99)
+  })
 })

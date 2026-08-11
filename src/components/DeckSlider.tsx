@@ -65,6 +65,21 @@ export function DeckSlider({
       ? toPos(value)
       : value
   const handleChange = (raw: number) => onChange(curved ? fromPos(raw) : raw)
+  const handleKeyDown = (event: React.KeyboardEvent<HTMLInputElement>) => {
+    if (!curved) return
+    const direction = event.key === 'ArrowLeft' || event.key === 'ArrowDown'
+      ? -1
+      : event.key === 'ArrowRight' || event.key === 'ArrowUp'
+        ? 1
+        : 0
+    if (direction === 0) return
+    event.preventDefault()
+    // A curved input's native step is position-space (0.001), not caller value-
+    // space. Own arrow stepping so brightness changes by its declared real step.
+    const current = value ?? fromPos((sliderMin + sliderMax) / 2)
+    const next = Math.max(min, Math.min(max, Number((current + direction * step).toFixed(10))))
+    onChange(next)
+  }
   const formatValue = format ?? (
     presentation === 'percentage'
       ? (next: number) => formatPercentageValue(next, step)
@@ -87,6 +102,7 @@ export function DeckSlider({
           // not a disabled one. Stays enabled: dragging is how the user sets it.
           value={sliderValue}
           onChange={(e) => handleChange(Number(e.target.value))}
+          onKeyDown={handleKeyDown}
           className={`flex-1 min-w-0 ${indeterminate ? 'deck-slider-unset' : 'accent-live'}`}
         />
         <span
