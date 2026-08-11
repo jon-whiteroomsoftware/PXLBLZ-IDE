@@ -107,6 +107,16 @@ errors, and a Good/Broken status. Clean source reaches the preview after a
 short typing pause and auto-saves on a slower tick; broken source stays
 visible with markers while the last clean version keeps running.
 
+When edits cannot reach durable storage, the editor says so instead of staying
+silent. A small cloud glyph joins the header badges in two cases: amber while
+the source has errors (only clean source is auto-saved — fixing the errors
+resumes saving), and red while a save is failing (offline or server error —
+the editor keeps retrying automatically and clears the glyph on the first
+success). The same glyph appears in the pattern, map, mixin, and library
+editors, and closing the tab in either state asks for confirmation. One-shot
+edits outside the editors — Show fields and Controller profile changes — roll
+back if their save fails and report it with an inline notice offering Retry.
+
 Built-in Patterns open read-only; **Clone** creates an editable personal copy
 and snapshots the current preview settings. Every built-in starts with a
 source manifest — name, provenance, visual description, what each control

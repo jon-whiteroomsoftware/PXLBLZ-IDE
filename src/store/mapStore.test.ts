@@ -584,3 +584,81 @@ describe('canDeployMap', () => {
     expect(canDeployMap({ hasBakedPoints: true, mapDim: 2, nativeDim: 2, hasPreviewPattern: false })).toBe(false)
   })
 })
+
+describe('bake persistence failure feedback (#810)', () => {
+  const BROKEN_EVAL_SRC = `function(n){ throw new Error('boom') }`
+
+  async function seedBakedMap(provider: PersonalContentProvider): Promise<void> {
+    setPersonalContentProvider(provider)
+    await useMapStore.getState().createNewMap()
+    useEditorStore.getState().setSource(GRID_SRC)
+    useMapStore.setState({ activePixelCount: 8 })
+    await useMapStore.getState().bakeEditingMap()
+  }
+
+  it('a failed persist rejects and leaves the local record on the durable state', async () => {
+    const provider = memoryProvider()
+    await seedBakedMap(provider)
+    const durableUpdate = provider.updateMap
+
+    provider.updateMap = async () => {
+      throw new Error('offline')
+    }
+    useEditorStore.getState().setSource('[[0,0],[1,1]]')
+    await expect(useMapStore.getState().bakeEditingMap()).rejects.toThrow('offline')
+    // The record must stay on the durable bake so the tick's unchanged-source
+    // check keeps retrying and the save-status glyph sees the gap.
+    expect(useMapStore.getState().userMaps[0].source).toBe(GRID_SRC)
+    expect(useMapStore.getState().mapEvalError).toBeNull()
+
+    provider.updateMap = durableUpdate
+    await useMapStore.getState().bakeEditingMap()
+    expect(useMapStore.getState().userMaps[0].source).toBe('[[0,0],[1,1]]')
+  })
+
+  it('an eval error with a persisted source keeps its banner across unchanged ticks', async () => {
+    const provider = memoryProvider()
+    await seedBakedMap(provider)
+
+    useEditorStore.getState().setSource(BROKEN_EVAL_SRC)
+    await useMapStore.getState().bakeEditingMap()
+    expect(useMapStore.getState().mapEvalError).toMatch(/boom/)
+    expect(useMapStore.getState().userMaps[0].source).toBe(BROKEN_EVAL_SRC)
+
+    // The next tick sees buffer === record.source with prior points; the live
+    // eval error must not be cleared as stale.
+    await useMapStore.getState().bakeEditingMap()
+    expect(useMapStore.getState().mapEvalError).toMatch(/boom/)
+  })
+
+  it('a stale eval banner clears when the buffer returns to the durable source', async () => {
+    const provider = memoryProvider()
+    await seedBakedMap(provider)
+
+    provider.updateMap = async () => {
+      throw new Error('offline')
+    }
+    useEditorStore.getState().setSource(BROKEN_EVAL_SRC)
+    await expect(useMapStore.getState().bakeEditingMap()).rejects.toThrow('offline')
+    expect(useMapStore.getState().mapEvalError).toMatch(/boom/)
+    expect(useMapStore.getState().userMaps[0].source).toBe(GRID_SRC)
+
+    // Undo back to the durable source: the banner no longer describes the
+    // buffer, so the unchanged-source pass clears it even while offline.
+    useEditorStore.getState().setSource(GRID_SRC)
+    await useMapStore.getState().bakeEditingMap()
+    expect(useMapStore.getState().mapEvalError).toBeNull()
+  })
+
+  it('a failed createNewMap spawns no ghost record locally or in storage', async () => {
+    const provider = memoryProvider()
+    setPersonalContentProvider(provider)
+    provider.createMap = async () => {
+      throw new Error('offline')
+    }
+    await expect(useMapStore.getState().createNewMap()).rejects.toThrow('offline')
+    expect(useMapStore.getState().userMaps).toHaveLength(0)
+    expect(useMapStore.getState().editingMap).toBeNull()
+    expect(await provider.listMaps()).toHaveLength(0)
+  })
+})

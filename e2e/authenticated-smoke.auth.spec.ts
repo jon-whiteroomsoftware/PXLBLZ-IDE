@@ -585,3 +585,213 @@ test('saved Pattern freshness follows the full profile through a real managed ov
   await expect(page.getByText('PUSH AGAIN', { exact: true })).toBeVisible()
   await expect(page.getByText('CURRENT', { exact: true })).toHaveCount(0)
 })
+
+test.describe('silent save-failure feedback (#810)', () => {
+  // The simulated-offline write failures are the point of these tests; the
+  // aborted requests still log as browser console errors.
+  test.use({ allowedBrowserErrors: [/net::ERR_FAILED|Failed to fetch/] })
+
+  // The autosave tick runs every 4s; glyph assertions span at least one tick.
+  const TICK = { timeout: 15_000 }
+
+  test('pattern editor shows cant-save while offline and recovers on its own (#810)', async ({ page }) => {
+    const pattern = {
+      id: 'e2e-810-pattern',
+      name: 'Save feedback bench',
+      src: 'export function render(index) { hsv(index / pixelCount, 1, 1) }',
+      controls: {},
+      updatedAt: Date.now(),
+    }
+    const created = await page.context().request.post('/api/patterns', { data: pattern })
+    expect(created.ok(), `POST /api/patterns -> ${created.status()}`).toBe(true)
+
+    await page.goto(`studio/patterns/${pattern.id}`)
+    const editor = page.locator('.monaco-editor').first()
+    await expect(editor.locator('.view-lines')).toBeVisible()
+
+    let blockWrites = true
+    await page.route('**/api/patterns/**', (route) => {
+      if (blockWrites && ['PATCH', 'PUT'].includes(route.request().method())) return route.abort()
+      return route.continue()
+    })
+
+    const editedSource = 'export function render(index) { hsv(index / pixelCount, 1, wave(time(0.1))) }'
+    await editor.locator('.view-lines').click({ clickCount: 3 })
+    await expect(editor).toHaveClass(/focused/)
+    await page.keyboard.type(editedSource)
+    await expect(page.getByTestId('compile-status')).toHaveAttribute('data-status', 'good')
+
+    // The failed tick write turns the glyph on...
+    const glyph = page.getByTestId('save-status')
+    await expect(glyph).toHaveAttribute('data-state', 'cant-save', TICK)
+    await expect(glyph).toHaveAttribute('title', /Can't reach storage/)
+
+    // ...and the next successful tick clears it without any user action.
+    const sourceSaved = page.waitForResponse((response) => {
+      const request = response.request()
+      return request.method() === 'PATCH'
+        && new URL(response.url()).pathname.endsWith(`/api/patterns/${pattern.id}`)
+        && response.ok()
+    })
+    blockWrites = false
+    await sourceSaved
+    await expect(glyph).toHaveCount(0, TICK)
+
+    const patterns = await page.context().request.get('/api/patterns')
+    expect(patterns.ok(), `GET /api/patterns -> ${patterns.status()}`).toBe(true)
+    const body = await patterns.json() as { patterns?: Array<{ id: string; src: string }> }
+    expect(body.patterns?.find((item) => item.id === pattern.id)?.src).toBe(editedSource)
+  })
+
+  test('broken pattern source warns that edits are not saved (#810)', async ({ page }) => {
+    const pattern = {
+      id: 'e2e-810-broken',
+      name: 'Broken source bench',
+      src: 'export function render(index) { hsv(index / pixelCount, 1, 1) }',
+      controls: {},
+      updatedAt: Date.now(),
+    }
+    const created = await page.context().request.post('/api/patterns', { data: pattern })
+    expect(created.ok(), `POST /api/patterns -> ${created.status()}`).toBe(true)
+
+    await page.goto(`studio/patterns/${pattern.id}`)
+    const editor = page.locator('.monaco-editor').first()
+    await expect(editor.locator('.view-lines')).toBeVisible()
+    await editor.locator('.view-lines').click({ clickCount: 3 })
+    await expect(editor).toHaveClass(/focused/)
+
+    await page.keyboard.type('export function render(index) { var = 3 }')
+    await expect(page.getByTestId('compile-status')).toHaveAttribute('data-status', 'broken')
+
+    // Broken source pauses autosave by design; the glyph says so immediately.
+    const glyph = page.getByTestId('save-status')
+    await expect(glyph).toHaveAttribute('data-state', 'wont-save')
+    await expect(glyph).toHaveAttribute('title', /Changes not saved/)
+
+    // Fixing the source resumes autosave and returns the header to silence.
+    await editor.locator('.view-lines').click({ clickCount: 3 })
+    await page.keyboard.type('export function render(index) { hsv(1, 1, 1) }')
+    await expect(page.getByTestId('compile-status')).toHaveAttribute('data-status', 'good')
+    await expect(glyph).toHaveCount(0)
+  })
+
+  test('map editor keeps an offline draft retrying instead of losing it (#810)', async ({ page }) => {
+    const map = {
+      id: 'e2e-810-map',
+      name: 'Offline bench map',
+      dim: 2,
+      generator: 'custom',
+      params: {},
+      source: '[[0,0],[1,0],[1,1],[0,1]]',
+      updatedAt: Date.now(),
+    }
+    const created = await page.context().request.post('/api/maps', { data: map })
+    expect(created.ok(), `POST /api/maps -> ${created.status()}`).toBe(true)
+
+    await page.goto(`studio/maps/${map.id}`)
+    const editor = page.locator('.monaco-editor').first()
+    await expect(editor.locator('.view-lines')).toBeVisible()
+
+    let blockWrites = true
+    await page.route('**/api/maps/**', (route) => {
+      if (blockWrites && ['PATCH', 'PUT'].includes(route.request().method())) return route.abort()
+      return route.continue()
+    })
+
+    const editedSource = '[[0,0],[0.5,0.5],[1,1],[0,1]]'
+    await editor.locator('.view-lines').click({ clickCount: 3 })
+    await expect(editor).toHaveClass(/focused/)
+    // Clear the selection before typing: a leading bracket over a selection
+    // triggers Monaco auto-surround and wraps the old source instead of
+    // replacing it.
+    await page.keyboard.press('Backspace')
+    await page.keyboard.type(editedSource)
+    await expect(page.getByTestId('compile-status')).toHaveAttribute('data-status', 'good')
+
+    // The record must not pretend the draft is saved (#800 PR2): the glyph
+    // reports the failing write and the tick keeps retrying.
+    const glyph = page.getByTestId('save-status')
+    await expect(glyph).toHaveAttribute('data-state', 'cant-save', TICK)
+
+    const mapSaved = page.waitForResponse((response) => {
+      const request = response.request()
+      return request.method() === 'PATCH'
+        && new URL(response.url()).pathname.endsWith(`/api/maps/${map.id}`)
+        && response.ok()
+    })
+    blockWrites = false
+    await mapSaved
+    await expect(glyph).toHaveCount(0, TICK)
+
+    const maps = await page.context().request.get('/api/maps')
+    expect(maps.ok(), `GET /api/maps -> ${maps.status()}`).toBe(true)
+    const mapsBody = await maps.json() as { maps?: Array<{ id: string; source: string }> }
+    expect(mapsBody.maps?.find((item) => item.id === map.id)?.source).toBe(editedSource)
+  })
+
+  test('a failed Controller profile edit rolls back with a visible notice and Retry (#810)', async ({ page }) => {
+    const profile = {
+      id: 'e2e-810-controller',
+      name: 'Save notice bench',
+      deviceId: 'pixelblaze_pb32_3cd4ee549810',
+      lastKnownDeviceName: 'Save notice bench',
+      lastSeenIp: '192.168.8.225',
+      lastKnownPixelCount: 64,
+      board: { kind: 'pixelblaze-v3-standard', hardwareRevision: 3.5, firmwareVersion: '3.67' },
+      electricalProfile: null,
+      inputs: [],
+      globalTransforms: [
+        {
+          id: 'hardware-brightness',
+          type: 'hardware-brightness',
+          enabled: false,
+          mixinId: 'builtin:hardware-brightness',
+          inputId: '',
+          mode: 'multiply-output',
+        },
+        {
+          id: 'power-cap',
+          type: 'power-cap',
+          enabled: false,
+          mixinId: 'builtin:power-cap',
+          mode: 'direct',
+          maxDuty: 0.25,
+        },
+      ],
+      keepPatternsUpToDate: false,
+      patternBindings: [],
+      zones: [],
+      updatedAt: Date.now(),
+    }
+    const created = await page.context().request.post('/api/controllers', { data: profile })
+    expect(created.ok(), `POST /api/controllers -> ${created.status()}`).toBe(true)
+
+    await page.goto(`studio/controllers/${profile.id}`)
+    await expect(page.getByTestId('controller-profile-page')).toBeVisible()
+    const noInputs = page.getByText('No hardware inputs are wired to this Controller profile yet.')
+    await expect(noInputs).toBeVisible()
+
+    let blockWrites = true
+    await page.route('**/api/controllers/**', (route) => {
+      if (blockWrites && ['PATCH', 'PUT'].includes(route.request().method())) return route.abort()
+      return route.continue()
+    })
+
+    // The rollback keeps data integrity while the failure stops being silent.
+    await page.getByRole('button', { name: 'Add input' }).click()
+    const notice = page.getByTestId('controller-profile-save-failure')
+    await expect(notice).toBeVisible()
+    await expect(notice).toContainText("Couldn't save this Controller change. The edit was reverted.")
+    await expect(noInputs).toBeVisible()
+
+    // Retry while still offline keeps the notice up.
+    await notice.getByRole('button', { name: 'Retry save' }).click()
+    await expect(notice).toBeVisible()
+
+    // Once persistence recovers, Retry re-applies the reverted edit.
+    blockWrites = false
+    await notice.getByRole('button', { name: 'Retry save' }).click()
+    await expect(notice).not.toBeVisible()
+    await expect(noInputs).toHaveCount(0)
+  })
+})

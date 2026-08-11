@@ -13,6 +13,11 @@ export type EditorFlavor = 'pattern' | 'map' | 'mixin' | 'library'
 
 interface EditorState {
   compileStatus: CompileStatus
+  // True while the most recent autosave attempt for the open buffer failed
+  // (offline, server error). Recorded by flushPendingAutosave (#810); read by
+  // the save-status glyph and the beforeunload guard. Cleared by the first
+  // successful save.
+  autosaveFailed: boolean
   editorFlavor: EditorFlavor
   source: string
   isReadOnly: boolean
@@ -45,6 +50,7 @@ interface EditorState {
   // Concise explanation when map and selected renderer dimensions differ.
   renderAdaptation: string | null
   setCompileStatus: (status: CompileStatus) => void
+  setAutosaveFailed: (failed: boolean) => void
   setEditorFlavor: (flavor: EditorFlavor) => void
   setSource: (source: string) => void
   setIsReadOnly: (value: boolean) => void
@@ -62,6 +68,7 @@ interface EditorState {
 
 export const editorInitialState = {
   compileStatus: 'good' as CompileStatus,
+  autosaveFailed: false,
   editorFlavor: 'pattern' as EditorFlavor,
   source: '',
   isReadOnly: true,
@@ -80,6 +87,7 @@ export const editorInitialState = {
 export const useEditorStore = create<EditorState>()((set) => ({
   ...editorInitialState,
   setCompileStatus: (compileStatus) => set({ compileStatus }),
+  setAutosaveFailed: (autosaveFailed) => set({ autosaveFailed }),
   setEditorFlavor: (editorFlavor) => set({ editorFlavor }),
   setSource: (source) => set({ source }),
   setIsReadOnly: (isReadOnly) => set({ isReadOnly }),

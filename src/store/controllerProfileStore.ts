@@ -54,6 +54,14 @@ interface ControllerProfileState {
     },
   ) => Promise<ControllerProfile | null>
   updateProfile: (id: string, changes: Partial<Omit<ControllerProfile, 'id'>>) => Promise<void>
+  // The most recent profile write that failed and rolled back (#810). Holds the
+  // rejected changes so the profile page's notice can offer a retry. Mirrors
+  // the Show editor's showSaveFailure (#792).
+  profileSaveFailure: { profileId: string; changes: Partial<Omit<ControllerProfile, 'id'>> } | null
+  dismissProfileSaveFailure: () => void
+  /** Re-applies the rolled-back changes; a still-failing write re-records the
+   * failure, so the notice stays up. */
+  retryProfileSaveFailure: () => Promise<void>
   addInput: (profileId: string) => Promise<void>
   updateInput: (profileId: string, inputId: string, changes: Partial<ControllerInput>) => Promise<void>
   removeInput: (profileId: string, inputId: string) => Promise<void>
@@ -80,6 +88,10 @@ interface ControllerProfileState {
 export const controllerProfileInitialState = {
   profiles: [] as ControllerProfile[],
   profilesLoaded: false,
+  profileSaveFailure: null as {
+    profileId: string
+    changes: Partial<Omit<ControllerProfile, 'id'>>
+  } | null,
 }
 
 const autoCreateSuppressedDeviceIds = new Set<string>()
@@ -311,9 +323,11 @@ export const useControllerProfileStore = create<ControllerProfileState>()((set, 
         profiles: s.profiles.map((profile) =>
           profile.id === id && profile === optimistic && previous ? previous : profile,
         ),
+        profileSaveFailure: { profileId: id, changes },
       }))
       throw error
     }
+    set((s) => (s.profileSaveFailure?.profileId === id ? { profileSaveFailure: null } : {}))
     if (previous && optimistic) {
       const optInChanged = previous.keepPatternsUpToDate !== optimistic.keepPatternsUpToDate
       const generatedCodeChanged =
@@ -323,6 +337,15 @@ export const useControllerProfileStore = create<ControllerProfileState>()((set, 
         useControllerStore.getState().scheduleControllerReconciliation(id)
       }
     }
+  },
+
+  dismissProfileSaveFailure: () => set({ profileSaveFailure: null }),
+
+  retryProfileSaveFailure: async () => {
+    const failure = get().profileSaveFailure
+    if (!failure) return
+    // A still-failing write re-records profileSaveFailure; the notice stays up.
+    await get().updateProfile(failure.profileId, failure.changes).catch(() => {})
   },
 
   addInput: async (profileId) => {

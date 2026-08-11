@@ -10,6 +10,7 @@ import type { PatternRecord } from '@/engine/personalContentRecords'
 import type { Settings } from '@/engine/settings'
 import { extractPatternAuthors, normalizePatternAuthors } from '@/engine/patternAttribution'
 import { useEditorStore } from '@/store/editorStore'
+import { flushPendingAutosave } from '@/store/autosaveSync'
 
 export type { LastActive, PatternRecord }
 export { DEMO_OVERRIDES_KEY, LAST_ACTIVE_KEY }
@@ -80,15 +81,21 @@ export const patternInitialState = {
 export const usePatternStore = create<PatternState>()((set, get) => ({
   ...patternInitialState,
 
+  // Every activation setter flushes the pending autosave first (#810): these
+  // run at the top of each buffer-replacing open path, while the outgoing
+  // buffer and its owning record are still the editor's current state.
   setActivePattern: (id) => {
+    flushPendingAutosave()
     set({ activePatternId: id, activeLibraryName: null, activeDemoName: null })
     if (id !== null) getPersonalContentProvider().setLastActive({ type: 'pattern', id }).catch(() => {})
   },
   setActiveLibrary: (name) => {
+    flushPendingAutosave()
     set({ activeLibraryName: name, activePatternId: null, activeDemoName: null })
     if (name !== null) getPersonalContentProvider().setLastActive({ type: 'library', name }).catch(() => {})
   },
   setActiveDemo: (name) => {
+    flushPendingAutosave()
     set({ activeDemoName: name, activeLibraryName: null, activePatternId: null })
     if (name !== null) getPersonalContentProvider().setLastActive({ type: 'demo', name }).catch(() => {})
   },

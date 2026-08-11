@@ -12,6 +12,7 @@ import { newPersonalContentId } from '@/engine/personalContentMetadata'
 import { uniquePatternName } from '@/engine/patternName'
 import { useDocsStore } from './docsStore'
 import { useEditorStore } from './editorStore'
+import { flushPendingAutosave } from './autosaveSync'
 import { useMapStore } from './mapStore'
 import { usePatternStore } from './patternStore'
 
@@ -45,6 +46,7 @@ export const mixinInitialState = {
 }
 
 function enterMixinMode(source: string, readOnly = false): void {
+  flushPendingAutosave()
   useMapStore.setState({ editingMap: null, mapBaseline: '', mapEvalError: null })
   usePatternStore.getState().setActivePattern(null)
   useDocsStore.getState().closeDocs()
@@ -107,6 +109,7 @@ export const useMixinStore = create<MixinState>()((set, get) => ({
   },
 
   closeMixinEditor: () => {
+    flushPendingAutosave()
     set({ editingMixin: null, mixinBaseline: '' })
     useEditorStore.getState().setEditorFlavor('pattern')
   },

@@ -60,6 +60,7 @@ import {
 import { StatusDot, type StatusTone } from './StatusDot'
 import { TransformInspectionPanel } from './TransformInspectionPanel'
 import { sectionActionButtonClass } from './ControllerProfileHeaderActions'
+import { SaveFailureNotice } from '@/components/SaveFailureNotice'
 
 // Hierarchy on this page comes from whitespace, typography, and a section seam,
 // never from a box drawn around a row (#772). Fields are rule-under: transparent
@@ -1527,6 +1528,9 @@ function UseBlock({
 export function ControllerProfilePage({ profileId }: { profileId: string }) {
   const profiles = useControllerProfileStore((state) => state.profiles)
   const profilesLoaded = useControllerProfileStore((state) => state.profilesLoaded)
+  const profileSaveFailure = useControllerProfileStore((state) => state.profileSaveFailure)
+  const dismissProfileSaveFailure = useControllerProfileStore((state) => state.dismissProfileSaveFailure)
+  const retryProfileSaveFailure = useControllerProfileStore((state) => state.retryProfileSaveFailure)
   const addInput = useControllerProfileStore((state) => state.addInput)
   const updateInput = useControllerProfileStore((state) => state.updateInput)
   const removeInput = useControllerProfileStore((state) => state.removeInput)
@@ -1625,6 +1629,14 @@ export function ControllerProfilePage({ profileId }: { profileId: string }) {
 
   return (
     <div data-testid="controller-profile-page" className="h-full overflow-y-auto bg-zinc-950 text-zinc-200">
+      {profileSaveFailure?.profileId === profile.id && (
+        <SaveFailureNotice
+          testId="controller-profile-save-failure"
+          message="Couldn't save this Controller change. The edit was reverted."
+          onRetry={() => void retryProfileSaveFailure()}
+          onDismiss={dismissProfileSaveFailure}
+        />
+      )}
       <ProfileStatus
         profile={profile}
         controller={profileController}

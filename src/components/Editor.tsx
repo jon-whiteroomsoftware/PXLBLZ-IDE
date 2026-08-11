@@ -2,14 +2,12 @@ import type * as monacoType from 'monaco-editor'
 import { useEffect, useRef } from 'react'
 import { useEditorStore } from '@/store/editorStore'
 import { usePatternStore } from '@/store/patternStore'
-import { useMapStore } from '@/store/mapStore'
+import { flushPendingAutosave, activeStuckSaveStatus } from '@/store/autosaveSync'
 import { validateLibraryContent } from '@/engine/bundle'
 import { validateSource } from '@/engine/validate'
 import { parseMapSource } from '@/engine/maps'
 import { parseMixinHeader } from '@/engine/mixins'
 import { PixelblazeCodeEditor } from '@/components/PixelblazeCodeEditor'
-import { useMixinStore } from '@/store/mixinStore'
-import { useLibraryStore } from '@/store/libraryStore'
 
 const SYNC_TICK_MS = 4000
 const PREVIEW_DEBOUNCE_MS = 600
@@ -23,7 +21,6 @@ export function Editor() {
   const setPreviewSource = useEditorStore((s) => s.setPreviewSource)
   const compileStatus = useEditorStore((s) => s.compileStatus)
   const activePatternId = usePatternStore((s) => s.activePatternId)
-  const updatePatternSrc = usePatternStore((s) => s.updatePatternSrc)
 
   const editorRef = useRef<monacoType.editor.IStandaloneCodeEditor | null>(null)
   const monacoRef = useRef<typeof monacoType | null>(null)
@@ -36,27 +33,29 @@ export function Editor() {
   }, [source, compileStatus, activePatternId, editorFlavor])
 
   // Persistence tick: every SYNC_TICK_MS, auto-save the clean editor buffer to
-      // D1. For a pattern that's clean source → the pattern record. For an open
-  // map (flavor 'map'), a clean (parse-good) buffer is evaluated + baked into the
-  // map record (#143) — once per tick, never per keystroke (a runaway
-  // map loop would freeze the tab). Bake failures surface via the store.
+  // D1 through the shared autosave pass (#810) — once per tick, never per
+  // keystroke (a runaway map loop would freeze the tab). The same pass runs on
+  // unmount so leaving the Studio surface doesn't drop the last partial tick;
+  // the buffer-replacing open paths flush from their own seams. Bake and write
+  // failures surface via the stores and the save-status glyph.
   useEffect(() => {
-    const id = setInterval(() => {
-      const { source: s, compileStatus: status, activePatternId: pid, editorFlavor: flavor } = syncRef.current
-      if (status !== 'good' || s === '') return
-      if (flavor === 'map') void useMapStore.getState().bakeEditingMap()
-      else if (flavor === 'mixin') {
-        const editingMixin = useMixinStore.getState().editingMixin
-        if (editingMixin?.kind === 'existing') void useMixinStore.getState().updateMixinSrc(editingMixin.id, s)
-      }
-      else if (flavor === 'library') {
-        const editingLibrary = useLibraryStore.getState().editingLibrary
-        if (editingLibrary?.kind === 'existing') void useLibraryStore.getState().updateLibrarySrc(editingLibrary.id, s)
-      }
-      else if (pid) updatePatternSrc(pid, s)
-    }, SYNC_TICK_MS)
-    return () => clearInterval(id)
-  }, [updatePatternSrc])
+    const id = setInterval(flushPendingAutosave, SYNC_TICK_MS)
+    return () => {
+      clearInterval(id)
+      flushPendingAutosave()
+    }
+  }, [])
+
+  // Warn before a reload/close exactly when the glyph is showing (#810): broken
+  // source that autosave will not persist, or a clean edit whose write is
+  // failing. Never during ordinary typing — the next tick covers that.
+  useEffect(() => {
+    const warn = (event: BeforeUnloadEvent) => {
+      if (activeStuckSaveStatus() !== null) event.preventDefault()
+    }
+    window.addEventListener('beforeunload', warn)
+    return () => window.removeEventListener('beforeunload', warn)
+  }, [])
 
   const handleMount = (editor: monacoType.editor.IStandaloneCodeEditor, monaco: typeof monacoType) => {
     editorRef.current = editor

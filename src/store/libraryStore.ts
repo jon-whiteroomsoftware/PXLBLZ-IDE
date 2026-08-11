@@ -13,6 +13,7 @@ import type { LibraryRecord } from '@/engine/personalContentRecords'
 import { LIBRARIES } from '@/pixelblaze/libs'
 import { useDocsStore } from './docsStore'
 import { useEditorStore } from './editorStore'
+import { flushPendingAutosave } from './autosaveSync'
 import { useMapStore } from './mapStore'
 import { useMixinStore } from './mixinStore'
 import { usePatternStore } from './patternStore'
@@ -56,6 +57,7 @@ function providerMethod<K extends 'listLibraries' | 'createLibrary' | 'updateLib
 }
 
 function enterLibraryMode(source: string, name: string, readOnly = false): void {
+  flushPendingAutosave()
   useMapStore.setState({ editingMap: null, mapBaseline: '', mapEvalError: null })
   useMixinStore.setState({ editingMixin: null, mixinBaseline: '' })
   useDocsStore.getState().closeDocs()
@@ -140,6 +142,7 @@ export const useLibraryStore = create<LibraryState>()((set, get) => ({
   },
 
   closeLibraryEditor: () => {
+    flushPendingAutosave()
     set({ editingLibrary: null, libraryBaseline: '' })
     if (useEditorStore.getState().editorFlavor === 'library') {
       useEditorStore.getState().setEditorFlavor('pattern')

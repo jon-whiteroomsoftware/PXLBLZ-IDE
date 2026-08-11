@@ -2,6 +2,7 @@ import { useState } from 'react'
 import { Trash2 } from 'lucide-react'
 import { controlIcon } from '@/components/iconScale'
 import { CompileStatusBadge } from '@/components/CompileStatusBadge'
+import { SaveStatusBadge } from './SaveStatusBadge'
 import {
   AlertDialogRoot,
   AlertDialogContent,
@@ -56,6 +57,7 @@ export function MapModeHeader() {
       <span className="flex-1 min-w-0 flex items-center gap-1.5">
         <InlineEntityTitle name={name} noun="map" onRename={openRecord ? (nextName) => renameMap(openRecord.id, nextName) : undefined} takenNames={userMaps.filter((map) => map.id !== openRecord?.id).map((map) => map.name)} />
         <CompileStatusBadge />
+        <SaveStatusBadge />
         <span className="shrink-0 px-1.5 py-0.5 rounded text-[9px] font-medium tracking-wide uppercase text-zinc-400 border border-zinc-700 leading-none">
           map
         </span>

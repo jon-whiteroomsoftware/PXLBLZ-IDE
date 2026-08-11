@@ -1,6 +1,6 @@
 import { Fragment, createContext, useCallback, useContext, useDeferredValue, useEffect, useLayoutEffect, useMemo, useRef, useState, useSyncExternalStore, type CSSProperties, type MouseEvent as ReactMouseEvent, type PointerEvent as ReactPointerEvent, type ReactNode, type RefObject, type SetStateAction } from 'react'
 import { createPortal } from 'react-dom'
-import { Activity, BookOpen, ChevronDown, ChevronRight, Clock3, CloudOff, Code2, Copy, Download, Eye, Flag, Grid2X2, Info, Layers3, Lightbulb, ListChecks, Lock, Magnet, Map as MapIcon, Maximize2, Move, PanelLeft, Pause, Play, Plus, Redo2, Repeat2, RotateCcw, RotateCw, Route, Scissors, Settings2, SkipBack, SlidersHorizontal, Square, Sun, Trash2, Undo2, WandSparkles, X, Zap } from 'lucide-react'
+import { Activity, BookOpen, ChevronDown, ChevronRight, Clock3, Code2, Copy, Download, Eye, Flag, Grid2X2, Info, Layers3, Lightbulb, ListChecks, Lock, Magnet, Map as MapIcon, Maximize2, Move, PanelLeft, Pause, Play, Plus, Redo2, Repeat2, RotateCcw, RotateCw, Route, Scissors, Settings2, SkipBack, SlidersHorizontal, Square, Sun, Trash2, Undo2, WandSparkles, X, Zap } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { DisabledReasonTip } from '@/components/ui/disabled-reason'
 import { NumberField as UiNumberField, type NumberFieldProps as UiNumberFieldProps } from '@/components/ui/number-field'
@@ -303,6 +303,7 @@ import {
   showLayoutZoneIdAtTime,
   type ShowLayoutInterval,
 } from '@/engine/showLayoutIntervals'
+import { SaveFailureNotice } from '@/components/SaveFailureNotice'
 
 const field =
   'h-7 rounded border border-zinc-700 bg-zinc-900 px-2 text-xs text-zinc-200 outline-none focus:border-live/70'
@@ -2194,30 +2195,12 @@ export function ShowEditor({
         </div>
       )}
       {showSaveFailure?.showId === showId && (
-        <div
-          role="alert"
-          data-testid="show-save-failure"
-          className="flex shrink-0 items-center gap-2 border-b border-red-400/25 bg-red-400/[0.06] px-3 py-1.5 text-[11px] text-zinc-300"
-        >
-          <CloudOff size={12} aria-hidden className="shrink-0 text-red-300/80" />
-          <span className="min-w-0">Couldn't save this Show. The last edit was reverted.</span>
-          <button
-            type="button"
-            aria-label="Retry save"
-            onClick={() => void retryShowSaveFailure()}
-            className="ml-auto h-6 shrink-0 rounded border border-red-300/30 px-2 text-[11px] text-red-200/90 transition-colors hover:border-red-300/60 hover:text-red-100"
-          >
-            Retry
-          </button>
-          <button
-            type="button"
-            aria-label="Dismiss save notice"
-            onClick={dismissShowSaveFailure}
-            className="grid size-5 shrink-0 place-items-center text-zinc-500 transition-colors hover:text-zinc-200"
-          >
-            <X size={12} aria-hidden />
-          </button>
-        </div>
+        <SaveFailureNotice
+          testId="show-save-failure"
+          message="Couldn't save this Show. The last edit was reverted."
+          onRetry={() => void retryShowSaveFailure()}
+          onDismiss={dismissShowSaveFailure}
+        />
       )}
       <div data-testid="show-editor-scroll" className="scrollbar-hidden flex min-h-0 flex-1 flex-col overflow-auto">
         <div className="min-w-0 p-3">

@@ -94,6 +94,7 @@ import {
   defaultStudioPreviewWidth,
   resizeStudioLibraryWidth,
 } from '@/engine/studioChrome'
+import { SaveStatusBadge } from '@/components/SaveStatusBadge'
 
 function Splitter({
   onDrag,
@@ -1099,6 +1100,7 @@ function StudioApp() {
               )}
               <DimPills dims={exportedDims(source)} />
               {activePatternId !== null && <CompileStatusBadge />}
+              <SaveStatusBadge />
             </span>
             {hasPatternActions && (
               <PatternActionsMenu

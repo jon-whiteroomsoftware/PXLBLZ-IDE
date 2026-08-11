@@ -758,3 +758,79 @@ describe('controllerProfileStore', () => {
     expect(useControllerProfileStore.getState().profiles).toEqual([])
   })
 })
+
+describe('profile save-failure notice state (#810)', () => {
+  it('records the rejected changes for the notice and clears them on dismiss', async () => {
+    const profile = defaultControllerProfile({ id: 'ctrl-1', name: 'Original', now: 1 })
+    const provider = memoryProvider([profile])
+    provider.updateControllerProfile = async () => {
+      throw new Error('save failed')
+    }
+    setPersonalContentProvider(provider)
+    await useControllerProfileStore.getState().loadProfiles()
+
+    await expect(
+      useControllerProfileStore.getState().updateProfile('ctrl-1', { name: 'Unsaved' }),
+    ).rejects.toThrow('save failed')
+    expect(useControllerProfileStore.getState().profileSaveFailure).toEqual({
+      profileId: 'ctrl-1',
+      changes: { name: 'Unsaved' },
+    })
+
+    useControllerProfileStore.getState().dismissProfileSaveFailure()
+    expect(useControllerProfileStore.getState().profileSaveFailure).toBeNull()
+  })
+
+  it('retry re-applies the rolled-back change once persistence recovers', async () => {
+    const profile = defaultControllerProfile({ id: 'ctrl-1', name: 'Original', now: 1 })
+    const provider = memoryProvider([profile])
+    const durableUpdate = provider.updateControllerProfile
+    provider.updateControllerProfile = async () => {
+      throw new Error('save failed')
+    }
+    setPersonalContentProvider(provider)
+    await useControllerProfileStore.getState().loadProfiles()
+    await useControllerProfileStore.getState().updateProfile('ctrl-1', { name: 'Renamed' }).catch(() => {})
+
+    provider.updateControllerProfile = durableUpdate
+    await useControllerProfileStore.getState().retryProfileSaveFailure()
+
+    expect(useControllerProfileStore.getState().profiles[0].name).toBe('Renamed')
+    expect(useControllerProfileStore.getState().profileSaveFailure).toBeNull()
+  })
+
+  it('a retry that still fails keeps the notice without rejecting', async () => {
+    const profile = defaultControllerProfile({ id: 'ctrl-1', name: 'Original', now: 1 })
+    const provider = memoryProvider([profile])
+    provider.updateControllerProfile = async () => {
+      throw new Error('save failed')
+    }
+    setPersonalContentProvider(provider)
+    await useControllerProfileStore.getState().loadProfiles()
+    await useControllerProfileStore.getState().updateProfile('ctrl-1', { name: 'Renamed' }).catch(() => {})
+
+    await useControllerProfileStore.getState().retryProfileSaveFailure()
+
+    expect(useControllerProfileStore.getState().profiles[0].name).toBe('Original')
+    expect(useControllerProfileStore.getState().profileSaveFailure).toMatchObject({ profileId: 'ctrl-1' })
+  })
+
+  it('a later successful write to the profile clears a stale notice', async () => {
+    const profile = defaultControllerProfile({ id: 'ctrl-1', name: 'Original', now: 1 })
+    const provider = memoryProvider([profile])
+    const durableUpdate = provider.updateControllerProfile
+    provider.updateControllerProfile = async () => {
+      throw new Error('save failed')
+    }
+    setPersonalContentProvider(provider)
+    await useControllerProfileStore.getState().loadProfiles()
+    await useControllerProfileStore.getState().updateProfile('ctrl-1', { name: 'Renamed' }).catch(() => {})
+    expect(useControllerProfileStore.getState().profileSaveFailure).not.toBeNull()
+
+    provider.updateControllerProfile = durableUpdate
+    await useControllerProfileStore.getState().updateProfile('ctrl-1', { name: 'Road case' })
+
+    expect(useControllerProfileStore.getState().profileSaveFailure).toBeNull()
+    expect(useControllerProfileStore.getState().profiles[0].name).toBe('Road case')
+  })
+})

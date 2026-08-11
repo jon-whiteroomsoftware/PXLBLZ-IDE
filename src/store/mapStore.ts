@@ -21,6 +21,7 @@ import { SURFACES, type SurfaceId } from '@/engine/surfaces'
 import type { LayoutSource } from '@/engine/layout'
 import { uniquePatternName } from '@/engine/patternName'
 import { useEditorStore } from './editorStore'
+import { flushPendingAutosave } from './autosaveSync'
 import { usePatternStore } from './patternStore'
 import { useDocsStore } from './docsStore'
 
@@ -208,6 +209,10 @@ interface MapState {
   // returns bad coords when evaluated (#143). Null when the last bake succeeded.
   // Surfaced in the map header; disables map push until a clean bake exists.
   mapEvalError: string | null
+  // The exact source whose eval produced mapEvalError (#810). The tick's
+  // unchanged-source early return keeps the banner alive for this source but
+  // clears it when the buffer has moved back to a source that baked cleanly.
+  mapEvalFailedSource: string | null
   setActiveMap: (id: string) => void
   setActiveShape: (id: ShapeId) => void
   setActiveSurface: (id: SurfaceId) => void
@@ -267,6 +272,7 @@ export const mapInitialState = {
   editingMap: null as EditingMap,
   mapBaseline: '',
   mapEvalError: null as string | null,
+  mapEvalFailedSource: null as string | null,
 }
 
 // Resolve the active map id against stock maps first, then user maps, falling
@@ -307,6 +313,7 @@ export function openMapForPushState(
 // badge), and load the buffer. The compile badge re-derives from the source via
 // the Editor's parse pass; we seed 'good' so the badge doesn't flash stale.
 function enterMapMode(source: string, readOnly = false): void {
+  flushPendingAutosave()
   usePatternStore.getState().setActivePattern(null)
   useDocsStore.getState().closeDocs()
   const ed = useEditorStore.getState()
@@ -370,6 +377,7 @@ export const useMapStore = create<MapState>()((set, get) => ({
         editingMap: { kind: 'existing', id: record.id },
         mapBaseline: record.source,
         mapEvalError: null,
+        mapEvalFailedSource: null,
       })
       return
     }
@@ -383,6 +391,7 @@ export const useMapStore = create<MapState>()((set, get) => ({
       editingMap: { kind: 'existing', id: record.id },
       mapBaseline: readOnlySource,
       mapEvalError: null,
+      mapEvalFailedSource: null,
     })
   },
 
@@ -394,6 +403,7 @@ export const useMapStore = create<MapState>()((set, get) => ({
       editingMap: { kind: 'stock', id: spec.id },
       mapBaseline: spec.source,
       mapEvalError: null,
+      mapEvalFailedSource: null,
     })
   },
 
@@ -435,35 +445,47 @@ export const useMapStore = create<MapState>()((set, get) => ({
     const existing = get().userMaps.find((m) => m.id === id)
     if (typeof existing?.source !== 'string') return
     if (existing?.source === source && existing.points && existing.points.length > 0) {
-      set({ mapEvalError: null })
+      // Unchanged from the persisted record. Clear a stale eval banner unless
+      // this exact source is the one that failed eval — its persist succeeded,
+      // so the record matches the buffer while the error is still live.
+      if (get().mapEvalFailedSource !== source) set({ mapEvalError: null, mapEvalFailedSource: null })
       return
     }
     const updatedAt = Date.now()
+    let patch: Partial<MapRecord>
+    let evalError: string | null = null
     try {
       const baked = bakeMapSource(source, get().activePixelCount ?? DEFAULT_MAP_BAKE_COUNT)
       // gridDims explicitly cleared (set undefined) when the points are an
       // irregular cloud, so a prior lattice's dims don't linger on the record.
-      const patch = {
+      patch = {
         source,
         points: baked.points,
         dim: baked.dim,
         gridDims: baked.gridDims ?? undefined,
         updatedAt,
       }
-      await getPersonalContentProvider().updateMap(id, patch)
-      set((s) => ({
-        mapEvalError: null,
-        userMaps: s.userMaps.map((m) => (m.id === id ? { ...m, ...patch } : m)),
-      }))
     } catch (e) {
-      // Parses but fails to evaluate: keep the edits (persist source), keep any
+      // Parses but fails to evaluate: persist the edits (source only), keep any
       // prior good bake, and surface the error rather than crashing the preview.
-      await getPersonalContentProvider().updateMap(id, { source, updatedAt }).catch(() => {})
-      set((s) => ({
-        mapEvalError: (e as Error).message,
-        userMaps: s.userMaps.map((m) => (m.id === id ? { ...m, source, updatedAt } : m)),
-      }))
+      evalError = (e as Error).message
+      patch = { source, updatedAt }
     }
+    try {
+      await getPersonalContentProvider().updateMap(id, patch)
+    } catch (cause) {
+      // Persistence failed (offline, server error): surface any eval error, but
+      // do NOT advance the local record — the next tick's sameness check must
+      // keep retrying, and the save-status glyph reads the buffer/record gap
+      // (#810). Rejecting lets the autosave pass record the failure.
+      set({ mapEvalError: evalError, mapEvalFailedSource: evalError === null ? null : source })
+      throw cause
+    }
+    set((s) => ({
+      mapEvalError: evalError,
+      mapEvalFailedSource: evalError === null ? null : source,
+      userMaps: s.userMaps.map((m) => (m.id === id ? { ...m, ...patch } : m)),
+    }))
   },
 
   deployEditingMap: () => {
@@ -471,7 +493,8 @@ export const useMapStore = create<MapState>()((set, get) => ({
   },
 
   closeMapEditor: () => {
-    set({ editingMap: null, mapBaseline: '', mapEvalError: null })
+    flushPendingAutosave()
+    set({ editingMap: null, mapBaseline: '', mapEvalError: null, mapEvalFailedSource: null })
     useEditorStore.getState().setEditorFlavor('pattern')
   },
 

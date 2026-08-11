@@ -1,5 +1,6 @@
 import { Code2 } from 'lucide-react'
 import { CompileStatusBadge } from '@/components/CompileStatusBadge'
+import { SaveStatusBadge } from './SaveStatusBadge'
 import { useEditorStore } from '@/store/editorStore'
 import { useLibraryStore } from '@/store/libraryStore'
 import { usePatternStore } from '@/store/patternStore'
@@ -46,6 +47,7 @@ export function LibraryModeHeader() {
           sanitizeInput={sanitizeLibraryNameInput}
         />
         <CompileStatusBadge />
+        <SaveStatusBadge />
         <span className="shrink-0 px-1.5 py-0.5 rounded text-[9px] font-medium tracking-wide uppercase text-zinc-400 border border-zinc-700 leading-none">
           library
         </span>
