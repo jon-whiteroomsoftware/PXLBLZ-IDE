@@ -66,6 +66,9 @@ interface ShowState {
   showCreation: { previousShowId: string | null } | null
   showHistories: Record<string, ShowHistory>
   stockShowDrafts: Record<string, ShowRecord>
+  // The most recent persistence write that failed and rolled back (#792).
+  // Holds the rejected record so the notice can offer a retry.
+  showSaveFailure: { showId: string; record: ShowRecord } | null
   loadShows: () => Promise<void>
   createNewShow: (input: { name?: string; outputContract: ShowOutputContract }) => Promise<ShowRecord>
   createShowFromController: (profile: ControllerProfile) => Promise<ShowRecord>
@@ -135,6 +138,9 @@ interface ShowState {
   updateRoutingSwitch: (showId: string, afterSceneId: string, layoutId: string | null) => Promise<void>
   undoShow: (showId: string) => Promise<boolean>
   redoShow: (showId: string) => Promise<boolean>
+  dismissShowSaveFailure: () => void
+  /** Re-applies the rolled-back record; a still-failing write keeps the notice without rejecting. */
+  retryShowSaveFailure: () => Promise<void>
 }
 
 export interface ShowHistory {
@@ -153,6 +159,7 @@ export const showInitialState = {
   // Session-only working copies of built-in Shows. Never persisted: a reload
   // resets every built-in to its pristine catalogue definition.
   stockShowDrafts: {} as Record<string, ShowRecord>,
+  showSaveFailure: null as { showId: string; record: ShowRecord } | null,
 }
 
 export const useShowStore = create<ShowState>()((set, get) => ({
@@ -279,6 +286,7 @@ export const useShowStore = create<ShowState>()((set, get) => ({
     }))
     try {
       await persistShowRecord(normalizedNext)
+      if (get().showSaveFailure?.showId === id) set({ showSaveFailure: null })
     } catch (cause) {
       set((state) => {
         const current = state.shows.find((show) => show.id === id)
@@ -286,9 +294,22 @@ export const useShowStore = create<ShowState>()((set, get) => ({
         return {
           shows: replaceShowRecord(state.shows, previous),
           showHistories: { ...state.showHistories, [id]: previousHistory },
+          showSaveFailure: { showId: id, record: normalizedNext },
         }
       })
       throw cause
+    }
+  },
+
+  dismissShowSaveFailure: () => set({ showSaveFailure: null }),
+
+  retryShowSaveFailure: async () => {
+    const failure = get().showSaveFailure
+    if (!failure) return
+    try {
+      await get().updateShow(failure.showId, { ...failure.record, updatedAt: Date.now() })
+    } catch {
+      // The failed write re-recorded showSaveFailure; the notice stays up.
     }
   },
 
@@ -496,11 +517,13 @@ export const useShowStore = create<ShowState>()((set, get) => ({
     }))
     try {
       await persistShowRecord(next)
+      if (get().showSaveFailure?.showId === showId) set({ showSaveFailure: null })
       return true
     } catch (cause) {
       set((state) => ({
         shows: replaceShowRecord(state.shows, show),
         showHistories: { ...state.showHistories, [showId]: history },
+        showSaveFailure: { showId, record: next },
       }))
       throw cause
     }
@@ -529,11 +552,13 @@ export const useShowStore = create<ShowState>()((set, get) => ({
     }))
     try {
       await persistShowRecord(next)
+      if (get().showSaveFailure?.showId === showId) set({ showSaveFailure: null })
       return true
     } catch (cause) {
       set((state) => ({
         shows: replaceShowRecord(state.shows, show),
         showHistories: { ...state.showHistories, [showId]: history },
+        showSaveFailure: { showId, record: next },
       }))
       throw cause
     }

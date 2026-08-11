@@ -1141,6 +1141,56 @@ test.describe('authenticated Show authoring', () => {
     }).toBe(0)
   })
 
+  test.describe('offline Show saves (#792)', () => {
+    // The simulated-offline PATCH failures are the point of these tests; the
+    // aborted requests still log as browser console errors.
+    test.use({ allowedBrowserErrors: [/net::ERR_FAILED|Failed to fetch/] })
+
+    test('surfaces a notice with Retry when an offline Show save rolls back (#792)', async ({ page }) => {
+      await page.goto(showtimePath('studio/shows'))
+      await createInstallationShow(page)
+
+      let blockWrites = true
+      await page.route('**/api/shows/**', (route) => {
+        if (blockWrites && route.request().method() === 'PATCH') return route.abort()
+        return route.continue()
+      })
+
+      await selectClip(page, 'TestPattern1D')
+      const panel = page.getByRole('dialog', { name: 'Entity Detail Panel' })
+      const brightness = panel.getByRole('textbox', { name: /^Brightness exact/ })
+      await brightness.fill('75')
+      await brightness.press('Enter')
+
+      // The rollback keeps data integrity while the failure stops being silent.
+      const notice = page.getByTestId('show-save-failure')
+      await expect(notice).toBeVisible()
+      await expect(notice).toContainText("Couldn't save this Show. The last edit was reverted.")
+      await expect(brightness).toHaveValue('100')
+
+      // The floating panel can overlap the notice; dismiss it before Retry.
+      await page.keyboard.press('Escape')
+      await expect(panel).toHaveCount(0)
+
+      // Retry while still offline keeps the notice up.
+      await notice.getByRole('button', { name: 'Retry save' }).click()
+      await expect(notice).toBeVisible()
+
+      // Once persistence recovers, Retry re-applies the reverted edit.
+      blockWrites = false
+      await notice.getByRole('button', { name: 'Retry save' }).click()
+      await expect(notice).not.toBeVisible()
+      await waitForCurrentShow(page, (show) => show.composition?.scenes.some((scene) => (
+        scene.zones?.some((zone) => zone.main?.some((placement) => placement.view?.brightness === 0.75))
+      )) === true)
+
+      await page.reload()
+      await selectClip(page, 'TestPattern1D')
+      await expect(page.getByRole('dialog', { name: 'Entity Detail Panel' })
+        .getByRole('textbox', { name: /^Brightness exact/ })).toHaveValue('75')
+    })
+  })
+
   test('returns timeline focus after a discrete edit and supports keyboard preview, start, and five-second seek', async ({ page }) => {
     await page.goto(showtimePath('studio/shows'))
     await createInstallationShow(page)

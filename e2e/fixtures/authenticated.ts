@@ -5,9 +5,15 @@ import { authenticatedPlaywrightUser } from '../../scripts/authenticated-playwri
 
 type AuthenticatedFixtures = {
   authenticatedBoundary: void
+  /**
+   * Browser errors a test deliberately provokes (e.g. simulated-offline
+   * request failures, #792). Everything else still fails the boundary.
+   */
+  allowedBrowserErrors: RegExp[]
 }
 
 export const test = base.extend<AuthenticatedFixtures>({
+  allowedBrowserErrors: [[], { option: true }],
   storageState: async ({}, use, workerInfo) => {
     const devVarsFile = requiredEnvironment('PXLBLZ_DEV_VARS_FILE')
     const secret = process.env.SESSION_SECRET ?? readDevVarsFile(devVarsFile).SESSION_SECRET
@@ -31,12 +37,13 @@ export const test = base.extend<AuthenticatedFixtures>({
     })
   },
 
-  authenticatedBoundary: [async ({ page, request }, use) => {
+  authenticatedBoundary: [async ({ page, request, allowedBrowserErrors }, use) => {
     await removeSyntheticContent(request)
     const errors = watchSeriousErrors(page)
     await use()
     await removeSyntheticContent(request)
-    expect(errors, `Unexpected browser errors:\n${errors.join('\n')}`).toEqual([])
+    const unexpected = errors.filter((error) => !allowedBrowserErrors.some((allowed) => allowed.test(error)))
+    expect(unexpected, `Unexpected browser errors:\n${unexpected.join('\n')}`).toEqual([])
   }, { auto: true }],
 })
 

@@ -1,6 +1,6 @@
 import { Fragment, createContext, useCallback, useContext, useDeferredValue, useEffect, useLayoutEffect, useMemo, useRef, useState, useSyncExternalStore, type CSSProperties, type MouseEvent as ReactMouseEvent, type PointerEvent as ReactPointerEvent, type ReactNode, type RefObject, type SetStateAction } from 'react'
 import { createPortal } from 'react-dom'
-import { Activity, BookOpen, ChevronDown, ChevronRight, Clock3, Code2, Copy, Download, Eye, Flag, Grid2X2, Info, Layers3, Lightbulb, ListChecks, Lock, Magnet, Map as MapIcon, Maximize2, Move, PanelLeft, Pause, Play, Plus, Redo2, Repeat2, RotateCcw, RotateCw, Route, Scissors, Settings2, SkipBack, SlidersHorizontal, Square, Sun, Trash2, Undo2, WandSparkles, X, Zap } from 'lucide-react'
+import { Activity, BookOpen, ChevronDown, ChevronRight, Clock3, CloudOff, Code2, Copy, Download, Eye, Flag, Grid2X2, Info, Layers3, Lightbulb, ListChecks, Lock, Magnet, Map as MapIcon, Maximize2, Move, PanelLeft, Pause, Play, Plus, Redo2, Repeat2, RotateCcw, RotateCw, Route, Scissors, Settings2, SkipBack, SlidersHorizontal, Square, Sun, Trash2, Undo2, WandSparkles, X, Zap } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { NumberField as UiNumberField, type NumberFieldProps as UiNumberFieldProps } from '@/components/ui/number-field'
 import { DraftTextField } from '@/components/ui/draft-text-field'
@@ -931,6 +931,9 @@ export function ShowEditor({
   const hasStockDraft = stockShowDraft !== undefined
   const resetStockShowDraft = useShowStore((state) => state.resetStockShowDraft)
   const persistShow = useShowStore((state) => state.updateShow)
+  const showSaveFailure = useShowStore((state) => state.showSaveFailure)
+  const dismissShowSaveFailure = useShowStore((state) => state.dismissShowSaveFailure)
+  const retryShowSaveFailure = useShowStore((state) => state.retryShowSaveFailure)
   const updateBoundaryTransition = useShowStore((state) => state.updateBoundaryTransition)
   const removeBoundaryTransition = useShowStore((state) => state.removeBoundaryTransition)
   const removeClip = useShowStore((state) => state.removeClip)
@@ -1152,7 +1155,10 @@ export function ShowEditor({
         })
       }
     }
-    return persistShow(id, persisted)
+    // A failed write already rolled back and recorded showSaveFailure (#792);
+    // swallowing here keeps the editor's fire-and-forget call sites from
+    // surfacing the same failure again as an unhandled rejection.
+    return persistShow(id, persisted).catch(() => {})
   }, [editableShow, persistShow, builtInSlotGroups, selectedReferencePatterns, activeShow, setReferencePattern, showId, slotPatternNameFor])
   useShowTransportClock(activeShow, transportClockActive)
   const targetProfile = activeShow?.outputContract?.kind === 'portable-2d'
@@ -2079,6 +2085,32 @@ export function ShowEditor({
           ) : (
             <span>Read only - inspect, preview, export, or send this example.</span>
           )}
+        </div>
+      )}
+      {showSaveFailure?.showId === showId && (
+        <div
+          role="alert"
+          data-testid="show-save-failure"
+          className="flex shrink-0 items-center gap-2 border-b border-red-400/25 bg-red-400/[0.06] px-3 py-1.5 text-[11px] text-zinc-300"
+        >
+          <CloudOff size={12} aria-hidden className="shrink-0 text-red-300/80" />
+          <span className="min-w-0">Couldn't save this Show. The last edit was reverted.</span>
+          <button
+            type="button"
+            aria-label="Retry save"
+            onClick={() => void retryShowSaveFailure()}
+            className="ml-auto h-6 shrink-0 rounded border border-red-300/30 px-2 text-[11px] text-red-200/90 transition-colors hover:border-red-300/60 hover:text-red-100"
+          >
+            Retry
+          </button>
+          <button
+            type="button"
+            aria-label="Dismiss save notice"
+            onClick={dismissShowSaveFailure}
+            className="grid size-5 shrink-0 place-items-center text-zinc-500 transition-colors hover:text-zinc-200"
+          >
+            <X size={12} aria-hidden />
+          </button>
         </div>
       )}
       <div data-testid="show-editor-scroll" className="scrollbar-hidden flex min-h-0 flex-1 flex-col overflow-auto">

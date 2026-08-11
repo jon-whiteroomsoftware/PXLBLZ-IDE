@@ -164,6 +164,71 @@ describe('showStore (#318)', () => {
     expect(writes.map((write) => write.name)).toEqual(['First', 'Second'])
   })
 
+  it('records a save failure alongside the rollback and clears it on dismiss (#792)', async () => {
+    const show = createDefaultShow('show-save-notice', 'Save notice', 1)
+    const provider = memoryProvider([show])
+    provider.updateShow = async () => { throw new Error('offline') }
+    setPersonalContentProvider(provider)
+    useShowStore.setState({ shows: [show], activeShowId: show.id, showsLoaded: true })
+
+    await expect(useShowStore.getState().updateScene(show.id, 'scene-1', { name: 'Lost edit' })).rejects.toThrow('offline')
+
+    const failure = useShowStore.getState().showSaveFailure
+    expect(failure?.showId).toBe(show.id)
+    expect(failure?.record.scenes[0].name).toBe('Lost edit')
+    expect(useShowStore.getState().shows[0].scenes[0].name).toBe('Scene 1')
+
+    useShowStore.getState().dismissShowSaveFailure()
+    expect(useShowStore.getState().showSaveFailure).toBeNull()
+  })
+
+  it('retries the failed save once persistence recovers (#792)', async () => {
+    const show = createDefaultShow('show-save-retry', 'Save retry', 1)
+    const provider = memoryProvider([show])
+    const realUpdate = provider.updateShow
+    let offline = true
+    provider.updateShow = async (id, changes) => {
+      if (offline) throw new Error('offline')
+      await realUpdate(id, changes)
+    }
+    setPersonalContentProvider(provider)
+    useShowStore.setState({ shows: [show], activeShowId: show.id, showsLoaded: true })
+
+    await expect(useShowStore.getState().updateScene(show.id, 'scene-1', { name: 'Lost edit' })).rejects.toThrow('offline')
+
+    // A retry while still offline keeps the notice without rejecting the caller.
+    await useShowStore.getState().retryShowSaveFailure()
+    expect(useShowStore.getState().showSaveFailure?.showId).toBe(show.id)
+    expect(useShowStore.getState().shows[0].scenes[0].name).toBe('Scene 1')
+
+    offline = false
+    await useShowStore.getState().retryShowSaveFailure()
+    expect(useShowStore.getState().showSaveFailure).toBeNull()
+    expect(useShowStore.getState().shows[0].scenes[0].name).toBe('Lost edit')
+    const persisted = (await provider.listShows()).find((candidate) => candidate.id === show.id)
+    expect(persisted?.scenes[0].name).toBe('Lost edit')
+  })
+
+  it('clears a stale save failure when a later save succeeds (#792)', async () => {
+    const show = createDefaultShow('show-save-recovery', 'Save recovery', 1)
+    const provider = memoryProvider([show])
+    const realUpdate = provider.updateShow
+    let offline = true
+    provider.updateShow = async (id, changes) => {
+      if (offline) throw new Error('offline')
+      await realUpdate(id, changes)
+    }
+    setPersonalContentProvider(provider)
+    useShowStore.setState({ shows: [show], activeShowId: show.id, showsLoaded: true })
+
+    await expect(useShowStore.getState().updateScene(show.id, 'scene-1', { name: 'Lost edit' })).rejects.toThrow('offline')
+    expect(useShowStore.getState().showSaveFailure).not.toBeNull()
+
+    offline = false
+    await useShowStore.getState().updateScene(show.id, 'scene-1', { name: 'Kept edit' })
+    expect(useShowStore.getState().showSaveFailure).toBeNull()
+  })
+
   it('persists and reloads the optional Scene composition sidecar', async () => {
     const show = createDefaultShow('show-composition-persistence', 'Composition persistence', 1)
     const provider = memoryProvider([show])

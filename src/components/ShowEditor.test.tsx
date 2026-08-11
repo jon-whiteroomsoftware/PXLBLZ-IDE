@@ -197,6 +197,33 @@ describe('ShowEditor (#318)', () => {
     expect(within(timeline).queryByRole('button', { name: /Select zone/i })).not.toBeInTheDocument()
   })
 
+  it('surfaces a failed Show save with working Retry and Dismiss (#792)', async () => {
+    const user = userEvent.setup()
+    const show = createDefaultShow('show-save-failure', 'Save failure', 1000)
+    setPersonalContentProvider(memoryProvider([show]))
+    const failed = { ...show, scenes: [{ ...show.scenes[0], name: 'Lost edit' }], updatedAt: show.updatedAt + 1 }
+    useShowStore.setState({
+      shows: [show],
+      activeShowId: show.id,
+      showsLoaded: true,
+      showSaveFailure: { showId: show.id, record: failed },
+    })
+    render(<ShowEditor showId={show.id} />)
+
+    const alert = screen.getByRole('alert')
+    expect(alert).toHaveTextContent("Couldn't save this Show. The last edit was reverted.")
+
+    await user.click(within(alert).getByRole('button', { name: 'Retry save' }))
+    await waitFor(() => expect(useShowStore.getState().showSaveFailure).toBeNull())
+    expect(useShowStore.getState().shows[0].scenes[0].name).toBe('Lost edit')
+    expect(screen.queryByRole('alert')).not.toBeInTheDocument()
+
+    act(() => useShowStore.setState({ showSaveFailure: { showId: show.id, record: failed } }))
+    await user.click(within(screen.getByRole('alert')).getByRole('button', { name: 'Dismiss save notice' }))
+    expect(useShowStore.getState().showSaveFailure).toBeNull()
+    expect(screen.queryByRole('alert')).not.toBeInTheDocument()
+  })
+
   it('identifies a selected boundary by Show time and incoming Pattern (#634)', () => {
     const show = createDefaultShow('show-boundary-identity', 'Boundary identity', 1000)
     useShowStore.setState({ shows: [show], activeShowId: show.id, showsLoaded: true })
