@@ -3854,6 +3854,7 @@ function ShowTimelineWorkspace({
   }
   const updateCompositionClipMovePreview = (input: {
     clientX: number
+    altKey: boolean
     shiftKey: boolean
     element: HTMLElement
     layer: ShowUnifiedTimelineLayerProjection
@@ -3880,7 +3881,7 @@ function ShowTimelineWorkspace({
     const previousPreview = movePlanRef.current?.preview
     const releaseThresholdMs = viewport.durationMs / visibleWidthPx * 16
     const freshResolved = resolveClipMoveStart(candidateMs, clip.durationMs, {
-      altKey: false,
+      altKey: input.altKey,
       shiftKey: input.shiftKey,
       visibleWidthPx,
       totalMs,
@@ -3888,6 +3889,7 @@ function ShowTimelineWorkspace({
     const retainPreviousSnap = previousPreview?.clipId === clip.id
       && previousPreview.targetKey === input.targetKey
       && previousPreview.snapped
+      && !input.altKey
       && !freshResolved.snapped
       && Math.abs(rawStartMs - previousPreview.startMs) <= releaseThresholdMs
     const resolved = retainPreviousSnap
@@ -3948,6 +3950,45 @@ function ShowTimelineWorkspace({
       mode: draggedClip.mode,
     }
     setMovePreview(nextPreview)
+  }
+  const resetCompositionClipMove = () => {
+    activeMoveLayerRef.current = null
+    draggingCompositionClipRef.current = null
+    setDraggingCompositionClip(null)
+    movePlanRef.current = null
+    setMovePreview(null)
+    setDropTargetKey(null)
+    onDirectManipulationChange(false)
+  }
+  const commitCompositionClipMove = (targetKey: string) => {
+    const draggedClip = draggingCompositionClipRef.current
+    const activePlan = movePlanRef.current
+    if (!draggedClip
+      || activePlan?.preview.clipId !== draggedClip.clipId
+      || activePlan.preview.targetKey !== targetKey) {
+      resetCompositionClipMove()
+      return
+    }
+    const commit = activePlan.mode === 'duplicate'
+      ? onDuplicateCompositionClipAtTarget({
+          sourceComposition: activePlan.sourceComposition,
+          plannedComposition: activePlan.composition,
+        })
+      : onMoveCompositionClip({
+          owner: activePlan.owner,
+          target: activePlan.target,
+          sourceComposition: activePlan.sourceComposition,
+          plannedComposition: activePlan.composition,
+        })
+    void commit.then((changed) => {
+      if (!changed) return
+      const clipId = activePlan.mode === 'duplicate'
+        ? draggedClip.duplicatePlacementId!
+        : draggedClip.clipId
+      if (activePlan.mode === 'duplicate') onSelect({ kind: 'clip', clipId })
+      onReanchorDetails({ kind: 'clip', clipId })
+    }).catch(() => {}).finally(resetCompositionClipMove)
+    setDropTargetKey(null)
   }
   const propertyLanesByZone = useMemo(() => {
     const sceneAnimationLanes = projectGlobalShowScenePropertyLanes(displayShow)
@@ -5226,7 +5267,7 @@ function ShowTimelineWorkspace({
                   const candidateMs = Math.min(1, Math.max(0, (event.clientX - rect.left) / Math.max(1, rect.width))) * totalMs - draggedClip.grabOffsetMs
                   const clipDurationMs = clip?.durationMs ?? 0
                   const globalStartMs = resolveClipMoveStart(candidateMs, clipDurationMs, {
-                    altKey: false,
+                    altKey: event.altKey,
                     shiftKey: event.shiftKey,
                     visibleWidthPx: Math.max(1, scrollRef.current?.clientWidth ?? rect.width),
                     totalMs,
@@ -5306,7 +5347,9 @@ function ShowTimelineWorkspace({
                   gridRow: rowStart(rowIndex) + contentStartRow + routingLaneRows + layerIndex,
                 }}
                 data-show-layer-kind={layer.kind}
+                data-show-layer-id={layer.id}
                 data-show-layer-index={layer.layerIndex}
+                data-show-zone-id={row.zoneId}
                 data-drop-active={dropTargetKey === `composition:${layer.id}` ? 'true' : undefined}
                 onDoubleClick={(event) => {
                   if (readOnly || !timelineComposition || isolatedGroupOccurrenceId) return
@@ -5380,6 +5423,7 @@ function ShowTimelineWorkspace({
                   }
                   updateCompositionClipMovePreview({
                     clientX: event.clientX,
+                    altKey: event.altKey,
                     shiftKey: event.shiftKey,
                     element: event.currentTarget,
                     layer,
@@ -5406,48 +5450,9 @@ function ShowTimelineWorkspace({
                   }
                 }}
                 onDrop={(event) => {
-                  const draggedClip = draggingCompositionClipRef.current
-                  if (!draggedClip || readOnly) return
+                  if (!draggingCompositionClipRef.current || readOnly) return
                   event.preventDefault()
-                  const activePlan = movePlanRef.current
-                  const targetKey = `composition:${layer.id}`
-                  if (activePlan?.preview.clipId !== draggedClip.clipId || activePlan.preview.targetKey !== targetKey) {
-                    activeMoveLayerRef.current = null
-                    draggingCompositionClipRef.current = null
-                    setDraggingCompositionClip(null)
-                    movePlanRef.current = null
-                    setMovePreview(null)
-                    setDropTargetKey(null)
-                    onDirectManipulationChange(false)
-                    return
-                  }
-                  const commit = activePlan.mode === 'duplicate'
-                    ? onDuplicateCompositionClipAtTarget({
-                        sourceComposition: activePlan.sourceComposition,
-                        plannedComposition: activePlan.composition,
-                      })
-                    : onMoveCompositionClip({
-                        owner: activePlan.owner,
-                        target: activePlan.target,
-                        sourceComposition: activePlan.sourceComposition,
-                        plannedComposition: activePlan.composition,
-                      })
-                  void commit.then((changed) => {
-                    if (!changed) return
-                    const clipId = activePlan.mode === 'duplicate'
-                      ? draggedClip.duplicatePlacementId!
-                      : draggedClip.clipId
-                    if (activePlan.mode === 'duplicate') onSelect({ kind: 'clip', clipId })
-                    onReanchorDetails({ kind: 'clip', clipId })
-                  }).catch(() => {}).finally(() => {
-                    activeMoveLayerRef.current = null
-                    draggingCompositionClipRef.current = null
-                    setDraggingCompositionClip(null)
-                    movePlanRef.current = null
-                    setMovePreview(null)
-                    onDirectManipulationChange(false)
-                  })
-                  setDropTargetKey(null)
+                  commitCompositionClipMove(`composition:${layer.id}`)
                 }}
               >
                 <LayoutZoneIntervalOverlay
@@ -5541,6 +5546,38 @@ function ShowTimelineWorkspace({
                     ? `group-clip:${group!.id}:${groupPlacementId}`
                     : group ? `group:${group.id}` : `clip:${clip.id}`
                   const deleteBlocked = blockedDeleteFeedback?.selectionKey === clipSelectionKey
+                  const beginClipDrag = (clipElement: HTMLElement, clientX: number, altKey: boolean) => {
+                    const rect = clipElement.getBoundingClientRect()
+                    const fraction = Math.min(1, Math.max(0, (clientX - rect.left) / Math.max(1, rect.width)))
+                    const owner: ShowTimelineClipOwner = clip.kind === 'main'
+                      ? {
+                          kind: 'main',
+                          sceneId: clip.sceneId,
+                          zoneId: clip.zoneId,
+                          placementId: clip.id,
+                        }
+                      : {
+                          kind: 'overlay',
+                          sceneId: clip.sceneId,
+                          zoneId: clip.zoneId,
+                          layerId: clip.layerId!,
+                          placementId: clip.id,
+                        }
+                    const mode: 'move' | 'duplicate' = altKey ? 'duplicate' : 'move'
+                    const dragState = {
+                      clipId: clip.id,
+                      owner,
+                      grabOffsetMs: fraction * clip.durationMs,
+                      mode,
+                      duplicatePlacementId: altKey ? newPersonalContentId() : null,
+                      duplicateInstanceId: altKey ? newPersonalContentId() : null,
+                    }
+                    activeMoveLayerRef.current = null
+                    draggingCompositionClipRef.current = dragState
+                    setDraggingCompositionClip(dragState)
+                    onDirectManipulationChange(true)
+                    return dragState
+                  }
                   return (
                     <button
                       key={clip.id}
@@ -5553,37 +5590,71 @@ function ShowTimelineWorkspace({
                       data-show-composition-clip="true"
                       data-show-group-occurrence={group?.id}
                       draggable={!readOnly && !group}
+                      onPointerDown={(event) => {
+                        if (!event.shiftKey || event.button !== 0 || readOnly || group) return
+                        event.stopPropagation()
+                        const pointerId = event.pointerId
+                        const clipElement = event.currentTarget
+                        const startX = event.clientX
+                        const startY = event.clientY
+                        let fallbackStarted = false
+                        const finish = (pointer: PointerEvent, commit: boolean) => {
+                          if (pointer.pointerId !== pointerId) return
+                          window.removeEventListener('pointermove', move)
+                          window.removeEventListener('pointerup', up)
+                          window.removeEventListener('pointercancel', cancel)
+                          if (!fallbackStarted) return
+                          if (commit && activeMoveLayerRef.current) {
+                            commitCompositionClipMove(activeMoveLayerRef.current.targetKey)
+                          } else {
+                            resetCompositionClipMove()
+                          }
+                        }
+                        const move = (pointer: PointerEvent) => {
+                          if (pointer.pointerId !== pointerId) return
+                          if (!fallbackStarted) {
+                            if (Math.hypot(pointer.clientX - startX, pointer.clientY - startY) < 3) return
+                            pointer.preventDefault()
+                            fallbackStarted = true
+                            beginClipDrag(clipElement, startX, pointer.altKey)
+                            clipElement.setPointerCapture?.(pointerId)
+                          }
+                          const targetElement = document.elementFromPoint(pointer.clientX, pointer.clientY)
+                            ?.closest<HTMLElement>('[data-show-layer-id][data-show-zone-id]')
+                          const zone = unifiedCompositionTimeline?.zones.find((candidate) => (
+                            candidate.id === targetElement?.dataset.showZoneId
+                          ))
+                          const targetLayer = zone?.layers.find((candidate) => (
+                            candidate.id === targetElement?.dataset.showLayerId
+                          ))
+                          if (!targetElement || !zone || !targetLayer) return
+                          const targetKey = `composition:${targetLayer.id}`
+                          activeMoveLayerRef.current = {
+                            element: targetElement,
+                            layer: targetLayer,
+                            zoneId: zone.id,
+                            targetKey,
+                          }
+                          updateCompositionClipMovePreview({
+                            clientX: pointer.clientX,
+                            altKey: pointer.altKey,
+                            shiftKey: pointer.shiftKey,
+                            element: targetElement,
+                            layer: targetLayer,
+                            zoneId: zone.id,
+                            targetKey,
+                          })
+                        }
+                        const up = (pointer: PointerEvent) => finish(pointer, true)
+                        const cancel = (pointer: PointerEvent) => finish(pointer, false)
+                        window.addEventListener('pointermove', move)
+                        window.addEventListener('pointerup', up)
+                        window.addEventListener('pointercancel', cancel)
+                      }}
                       onDragStart={(event) => {
                         if (readOnly || group) return
                         event.stopPropagation()
-                        const rect = event.currentTarget.getBoundingClientRect()
-                        const fraction = Math.min(1, Math.max(0, (event.clientX - rect.left) / Math.max(1, rect.width)))
-                        const owner: ShowTimelineClipOwner = clip.kind === 'main'
-                          ? {
-                              kind: 'main',
-                              sceneId: clip.sceneId,
-                              zoneId: clip.zoneId,
-                              placementId: clip.id,
-                            }
-                          : {
-                              kind: 'overlay',
-                              sceneId: clip.sceneId,
-                              zoneId: clip.zoneId,
-                              layerId: clip.layerId!,
-                              placementId: clip.id,
-                            }
-                        const dragState = {
-                          clipId: clip.id,
-                          owner,
-                          grabOffsetMs: fraction * clip.durationMs,
-                          mode: event.altKey ? 'duplicate' as const : 'move' as const,
-                          duplicatePlacementId: event.altKey ? newPersonalContentId() : null,
-                          duplicateInstanceId: event.altKey ? newPersonalContentId() : null,
-                        }
-                        activeMoveLayerRef.current = null
-                        draggingCompositionClipRef.current = dragState
-                        setDraggingCompositionClip(dragState)
-                        onDirectManipulationChange(true)
+                        const dragState = beginClipDrag(event.currentTarget, event.clientX, event.altKey)
                         event.dataTransfer.effectAllowed = dragState.mode === 'duplicate' ? 'copy' : 'move'
                         event.dataTransfer.setData('application/x-pxlblz-show-placement', clip.id)
                       }}
@@ -5593,6 +5664,7 @@ function ShowTimelineWorkspace({
                         if (event.clientX === 0 && event.clientY === 0) return
                         updateCompositionClipMovePreview({
                           clientX: event.clientX,
+                          altKey: event.altKey,
                           shiftKey: event.shiftKey,
                           element: activeLayer.element,
                           layer: activeLayer.layer,
@@ -5601,15 +5673,7 @@ function ShowTimelineWorkspace({
                           dataTransfer: event.dataTransfer,
                         })
                       }}
-                      onDragEnd={() => {
-                        activeMoveLayerRef.current = null
-                        draggingCompositionClipRef.current = null
-                        setDraggingCompositionClip(null)
-                        movePlanRef.current = null
-                        setMovePreview(null)
-                        setDropTargetKey(null)
-                        onDirectManipulationChange(false)
-                      }}
+                      onDragEnd={resetCompositionClipMove}
                       onClick={(event) => {
                         if (suppressResizeClipClickRef.current === clip.id) {
                           suppressResizeClipClickRef.current = null

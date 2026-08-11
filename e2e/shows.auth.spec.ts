@@ -682,6 +682,94 @@ test.describe('authenticated Show authoring', () => {
     await expect(page.getByRole('button', { name: 'Select Option Copy Rings' })).toHaveCount(1)
   })
 
+  test('applies Clip drag snapping modifiers regardless of press order (#789)', async ({ page }) => {
+    const id = `playwright-drag-modifiers-${Date.now()}`
+    const show = {
+      ...legacyShowFixture(id, 'Drag modifier order', [{ start: 0, end: 59 }]),
+      outputContract: {
+        version: 1 as const,
+        kind: 'installation' as const,
+        outputMapId: null,
+        pixelCount: 60,
+        resolution: 'fixed' as const,
+      },
+      composition: {
+        version: 1,
+        patternInstances: [{
+          id: 'instance-modifier-source',
+          pattern: { kind: 'stock' as const, id: 'TestPattern1D' },
+          patternName: 'Modifier Order Rings',
+          time: { timeScale: 1, timeOffsetMs: 0 },
+        }],
+        scenes: [
+          {
+            sceneId: 'scene-1',
+            zones: [{
+              zoneId: 'zone-1',
+              main: [{
+                id: 'clip-modifier-source',
+                instanceId: 'instance-modifier-source',
+                startMs: 0,
+                durationMs: 5_000,
+                view: { mirror: false, phase: 0, brightness: 1 },
+              }],
+              overlays: [{ id: 'overlay-modifier-1', name: 'Layer 1', placements: [] }],
+            }],
+          },
+          {
+            sceneId: 'scene-2',
+            zones: [{
+              zoneId: 'zone-1',
+              main: [],
+              overlays: [{ id: 'overlay-modifier-2', name: 'Layer 1', placements: [] }],
+            }],
+          },
+        ],
+      },
+    }
+    const response = await page.context().request.post('/api/shows', { data: show })
+    expect(response.ok(), await response.text()).toBe(true)
+
+    await page.setViewportSize({ width: 1440, height: 900 })
+    await page.goto(showtimePath(`studio/shows/${id}`))
+    const source = page.getByRole('button', { name: 'Select Modifier Order Rings' })
+    const overlay = page.locator('[data-show-layer-kind="overlay"]').first()
+    const [sourceBounds, overlayBounds] = await Promise.all([
+      source.boundingBox(),
+      overlay.boundingBox(),
+    ])
+    expect(sourceBounds).not.toBeNull()
+    expect(overlayBounds).not.toBeNull()
+    const sourceCenter = {
+      x: sourceBounds!.x + sourceBounds!.width / 2,
+      y: sourceBounds!.y + sourceBounds!.height / 2,
+    }
+    const target = {
+      x: overlayBounds!.x + overlayBounds!.width * 0.2537,
+      y: overlayBounds!.y + overlayBounds!.height / 2,
+    }
+
+    await page.keyboard.down('Shift')
+    await page.mouse.move(sourceCenter.x, sourceCenter.y)
+    await page.mouse.down()
+    await page.mouse.move(target.x, target.y, { steps: 8 })
+    await expect(page.getByTestId('show-clip-move-preview-time')).toHaveText(/^\d+\.\ds$/)
+    await page.keyboard.press('Escape')
+    await page.mouse.up()
+    await page.keyboard.up('Shift')
+
+    await page.mouse.move(sourceCenter.x, sourceCenter.y)
+    await page.mouse.down()
+    await page.mouse.move(target.x, target.y, { steps: 8 })
+    await expect(page.getByTestId('show-clip-move-preview-time')).toHaveText(/^\d+s$/)
+    await page.keyboard.down('Alt')
+    await page.mouse.move(target.x + 1, target.y)
+    await expect(page.getByTestId('show-clip-move-preview-time')).toHaveText(/^\d+\.\d{2,3}s$/)
+    await page.keyboard.up('Alt')
+    await page.keyboard.press('Escape')
+    await page.mouse.up()
+  })
+
   // Split from one 58-line test covering anchoring, no-reflow, edit
   // persistence, Escape dismissal, owner switching, and narrow-width teardown.
   // getByLabel('Brightness') also matched the field's exact textbox, so the

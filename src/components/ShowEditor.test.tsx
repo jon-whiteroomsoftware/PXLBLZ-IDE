@@ -3055,6 +3055,87 @@ describe('ShowEditor (#318)', () => {
     expect(screen.getByRole('dialog', { name: 'Entity Detail Panel' })).toHaveAttribute('data-pinned', 'true')
   })
 
+  it('applies timeline drag modifiers from gesture start or during the drag (#789)', async () => {
+    const show = createDefaultShow('show-drag-modifiers', 'Drag modifiers', 1000)
+    const zoneId = show.zones[0].id
+    show.composition = {
+      version: 1,
+      patternInstances: [{
+        id: 'instance-drag-modifiers',
+        pattern: { ...show.cells[0].pattern },
+        patternName: 'Modifier Rings',
+        time: { timeScale: 1, timeOffsetMs: 0 },
+      }],
+      scenes: show.scenes.map((scene, index) => ({
+        sceneId: scene.id,
+        zones: [{
+          zoneId,
+          main: index === 0 ? [{
+            id: 'placement-drag-modifiers',
+            instanceId: 'instance-drag-modifiers',
+            startMs: 2_000,
+            durationMs: 4_000,
+            view: { mirror: false, phase: 0, brightness: 1 },
+          }] : [],
+          overlays: [],
+        }],
+      })),
+    }
+    setPersonalContentProvider(memoryProvider([show]))
+    useShowStore.setState({ shows: [show], activeShowId: show.id, showsLoaded: true })
+    useShowEditorSessionStore.setState({
+      snapEnabled: false,
+      markersVisible: false,
+      markerSnapEnabled: false,
+    })
+
+    render(<ShowEditor showId={show.id} />)
+    const clip = screen.getByRole('button', { name: 'Select Modifier Rings' })
+    const layer = document.querySelector<HTMLElement>('[data-show-layer-kind="main"]')!
+    Object.defineProperty(screen.getByTestId('show-timeline-scroll-region'), 'clientWidth', { value: 620 })
+    Object.defineProperty(clip, 'getBoundingClientRect', {
+      value: () => ({ left: 20, right: 60, top: 0, bottom: 40, width: 40, height: 40, x: 20, y: 0, toJSON: () => ({}) }),
+    })
+    Object.defineProperty(layer, 'getBoundingClientRect', {
+      value: () => ({ left: 0, right: 620, top: 0, bottom: 40, width: 620, height: 40, x: 0, y: 0, toJSON: () => ({}) }),
+    })
+    const dataTransfer = { setData: () => {}, effectAllowed: 'none', dropEffect: 'none' }
+    const dragEvent = (
+      type: string,
+      clientX: number,
+      modifiers: { altKey?: boolean; shiftKey?: boolean } = {},
+    ) => {
+      const event = new Event(type, { bubbles: true, cancelable: true })
+      Object.defineProperties(event, {
+        clientX: { value: clientX },
+        altKey: { value: modifiers.altKey ?? false },
+        shiftKey: { value: modifiers.shiftKey ?? false },
+        dataTransfer: { value: dataTransfer },
+      })
+      return event
+    }
+
+    const elementFromPoint = document.elementFromPoint
+    Object.defineProperty(document, 'elementFromPoint', { configurable: true, value: () => layer })
+    fireEvent.pointerDown(clip, { pointerId: 789, clientX: 20, clientY: 20, shiftKey: true })
+    fireEvent.pointerMove(window, { pointerId: 789, clientX: 123.37, clientY: 20, shiftKey: true })
+    expect(screen.getByTestId('show-clip-move-preview-time')).toHaveTextContent('12.3s')
+    fireEvent.pointerUp(window, { pointerId: 789, clientX: 123.37, clientY: 20, shiftKey: true })
+    await waitFor(() => {
+      expect(useShowStore.getState().shows[0].composition?.scenes[0].zones[0].main[0].startMs).toBe(12_300)
+    })
+    Object.defineProperty(document, 'elementFromPoint', { configurable: true, value: elementFromPoint })
+
+    fireEvent(clip, dragEvent('dragstart', 20))
+    fireEvent(layer, dragEvent('dragover', 123.37, { altKey: true }))
+    expect(screen.getByTestId('show-clip-move-preview-time')).toHaveTextContent('12.337s')
+    fireEvent(layer, dragEvent('drop', 123.37, { altKey: true }))
+    fireEvent(clip, dragEvent('dragend', 123.37, { altKey: true }))
+    await waitFor(() => {
+      expect(useShowStore.getState().shows[0].composition?.scenes[0].zones[0].main[0].startMs).toBe(12_337)
+    })
+  })
+
   it('latches Option-drag into an independent Clip duplicate after Option is released (#668)', async () => {
     const user = userEvent.setup()
     const show = createDefaultShow('show-option-drag-copy', 'Option drag copy', 1000)
@@ -3114,15 +3195,15 @@ describe('ShowEditor (#318)', () => {
     fireEvent(clip, dragEvent('dragstart', 20, true))
     expect(dataTransfer.effectAllowed).toBe('copy')
 
-    // The drop grid quantizes the duplicate onto a whole second (#667); the
-    // raw pointer time is 12,337ms.
+    // Option chooses duplicate mode at drag start and also suspends snapping
+    // for the gesture, so the raw pointer time remains 12,337ms (#789).
     fireEvent(layer, dragEvent('dragover', 123.37, true))
     expect(screen.getByTestId('show-clip-move-preview')).toHaveStyle({
-      left: `${12_000 / 62_000 * 100}%`,
+      left: `${12_337 / 62_000 * 100}%`,
     })
 
     // Copy mode is chosen when the drag begins. Releasing Option must not turn
-    // the gesture into a move or restore Option's former snap inversion.
+    // the gesture into a move; snapping follows the live modifier state.
     fireEvent(layer, dragEvent('dragover', 123.37, false))
     expect(screen.getByTestId('show-clip-move-preview')).toHaveAttribute('data-drag-mode', 'duplicate')
     expect(useShowStore.getState().shows[0].composition).toEqual(show.composition)
