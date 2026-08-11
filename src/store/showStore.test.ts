@@ -243,6 +243,36 @@ describe('showStore (#318)', () => {
     expect(useShowStore.getState().showSaveFailure).toBeNull()
   })
 
+  it('keeps valid undo history through re-hydration and a later failed save (#792)', async () => {
+    const show = createDefaultShow('show-rehydrated-history', 'Rehydrated', 1)
+    const provider = memoryProvider([show])
+    const realUpdate = provider.updateShow
+    let offline = false
+    provider.updateShow = async (id, changes) => {
+      if (offline) throw new Error('offline')
+      await realUpdate(id, changes)
+    }
+    setPersonalContentProvider(provider)
+    useShowStore.setState({ shows: [show], activeShowId: show.id, showsLoaded: true })
+    await useShowStore.getState().loadShows()
+
+    await useShowStore.getState().updateScene(show.id, 'scene-1', { name: 'Saved edit' })
+    // Navigating away and back re-hydrates from the provider mid-session.
+    await useShowStore.getState().loadShows()
+
+    offline = true
+    await useShowStore.getState().updateScene(show.id, 'scene-1', { name: 'Lost edit' })
+
+    // The rollback returns to the persisted edit and keeps its undo history.
+    expect(useShowStore.getState().shows[0].scenes[0].name).toBe('Saved edit')
+    const past = useShowStore.getState().showHistories[show.id]?.past ?? []
+    expect(past[past.length - 1]?.scenes[0].name).toBe('Scene 1')
+
+    offline = false
+    await expect(useShowStore.getState().undoShow(show.id)).resolves.toBe(true)
+    expect(useShowStore.getState().shows[0].scenes[0].name).toBe('Scene 1')
+  })
+
   it('records a save failure alongside the rollback and clears it on dismiss (#792)', async () => {
     const show = createDefaultShow('show-save-notice', 'Save notice', 1)
     const provider = memoryProvider([show])

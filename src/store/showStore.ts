@@ -190,9 +190,27 @@ export const useShowStore = create<ShowState>()((set, get) => ({
   loadShows: async () => {
     const shows = (await getPersonalContentProvider().listShows())
       .map(normalizeShowRecord)
+    // Mid-session re-hydration (Gallery -> Studio remount) must not discard
+    // history that still matches the durable record; only records the server
+    // reports as changed reset their histories (#792).
+    const staleHistoryIds = new Set<string>()
+    const nextBaselines: Array<[string, { record: ShowRecord; history: ShowHistory }]> = shows.map((show) => {
+      const existing = lastPersistedShowRecords.get(show.id)
+      if (existing && existing.record.updatedAt === show.updatedAt) {
+        return [show.id, { record: show, history: existing.history }]
+      }
+      staleHistoryIds.add(show.id)
+      return [show.id, { record: show, history: { past: [], future: [] } }]
+    })
     lastPersistedShowRecords.clear()
-    for (const show of shows) lastPersistedShowRecords.set(show.id, { record: show, history: { past: [], future: [] } })
-    set({ shows: shows.sort((a, b) => b.updatedAt - a.updatedAt), showsLoaded: true })
+    for (const [id, baseline] of nextBaselines) lastPersistedShowRecords.set(id, baseline)
+    set((state) => ({
+      shows: shows.sort((a, b) => b.updatedAt - a.updatedAt),
+      showsLoaded: true,
+      showHistories: Object.fromEntries(
+        Object.entries(state.showHistories).filter(([id]) => !staleHistoryIds.has(id)),
+      ),
+    }))
   },
 
   createNewShow: async (input) => {
