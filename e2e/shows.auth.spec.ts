@@ -734,39 +734,52 @@ test.describe('authenticated Show authoring', () => {
     await page.goto(showtimePath(`studio/shows/${id}`))
     const source = page.getByRole('button', { name: 'Select Modifier Order Rings' })
     const overlay = page.locator('[data-show-layer-kind="overlay"]').first()
-    const [sourceBounds, overlayBounds] = await Promise.all([
-      source.boundingBox(),
-      overlay.boundingBox(),
-    ])
-    expect(sourceBounds).not.toBeNull()
-    expect(overlayBounds).not.toBeNull()
-    const sourceCenter = {
-      x: sourceBounds!.x + sourceBounds!.width / 2,
-      y: sourceBounds!.y + sourceBounds!.height / 2,
-    }
-    const target = {
-      x: overlayBounds!.x + overlayBounds!.width * 0.2537,
-      y: overlayBounds!.y + overlayBounds!.height / 2,
+    const movePreview = page.getByTestId('show-clip-move-preview')
+    const movePreviewTime = page.getByTestId('show-clip-move-preview-time')
+    const beginDrag = async () => {
+      const [sourceBounds, overlayBounds] = await Promise.all([
+        source.boundingBox(),
+        overlay.boundingBox(),
+      ])
+      expect(sourceBounds).not.toBeNull()
+      expect(overlayBounds).not.toBeNull()
+      const sourceCenter = {
+        x: sourceBounds!.x + sourceBounds!.width / 2,
+        y: sourceBounds!.y + sourceBounds!.height / 2,
+      }
+      const target = {
+        x: overlayBounds!.x + overlayBounds!.width * 0.2537,
+        y: overlayBounds!.y + overlayBounds!.height / 2,
+      }
+      await page.mouse.move(sourceCenter.x, sourceCenter.y)
+      await page.mouse.down()
+      await page.mouse.move(sourceCenter.x + 6, sourceCenter.y, { steps: 2 })
+      await page.mouse.move(target.x, target.y, { steps: 8 })
+      await expect(movePreview).toBeVisible()
+      return target
     }
 
     await page.keyboard.down('Shift')
-    await page.mouse.move(sourceCenter.x, sourceCenter.y)
-    await page.mouse.down()
-    await page.mouse.move(target.x, target.y, { steps: 8 })
-    await expect(page.getByTestId('show-clip-move-preview-time')).toHaveText(/^\d+\.\ds$/)
-    await page.keyboard.press('Escape')
+    await beginDrag()
+    await expect(movePreviewTime).toHaveText(/^\d+\.\ds$/)
     await page.mouse.up()
     await page.keyboard.up('Shift')
+    await expect(movePreview).toHaveCount(0)
+    await waitForCurrentShow(page, (saved) => (
+      saved.composition?.scenes.some((scene) => scene.zones.some((zone) => (
+        zone.overlays.some((layer) => layer.placements.some((clip) => (
+          clip.id === 'clip-modifier-source' && clip.startMs % 100 === 0
+        )))
+      ))) ?? false
+    ))
 
-    await page.mouse.move(sourceCenter.x, sourceCenter.y)
-    await page.mouse.down()
-    await page.mouse.move(target.x, target.y, { steps: 8 })
-    await expect(page.getByTestId('show-clip-move-preview-time')).toHaveText(/^\d+s$/)
+    const target = await beginDrag()
+    await expect(movePreviewTime).toHaveText(/^\d+s$/)
     await page.keyboard.down('Alt')
     await page.mouse.move(target.x + 1, target.y)
-    await expect(page.getByTestId('show-clip-move-preview-time')).toHaveText(/^\d+\.\d{2,3}s$/)
+    await expect(movePreview).toBeVisible()
+    await expect(movePreviewTime).toHaveText(/^\d+\.\d{2,3}s$/)
     await page.keyboard.up('Alt')
-    await page.keyboard.press('Escape')
     await page.mouse.up()
   })
 
@@ -1624,7 +1637,8 @@ test.describe('authenticated Show authoring', () => {
     ))
     await page.setViewportSize({ width: 1440, height: 900 })
     await expect(page.getByRole('region', { name: 'Show timeline' }).getByText(`${selectedCount}px`)).toBeVisible()
-    await expect(page.getByText(`bound - ${selectedCount} px`)).toBeVisible()
+    await page.getByRole('button', { name: 'Open zone main properties' }).click()
+    await expect(page.getByRole('dialog', { name: 'Entity Detail Panel' }).getByText(`bound - ${selectedCount} px`)).toBeVisible()
     await expect(page.getByText(/missing/i).first()).toBeVisible()
 
     await page.reload()
