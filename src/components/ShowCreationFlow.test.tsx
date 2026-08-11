@@ -74,14 +74,14 @@ describe('ShowCreationFlow (#434)', () => {
     await user.click(screen.getByRole('button', { name: 'Create Installation Show' }))
 
     // A scaling map keeps the count editable and says how to lock it instead.
-    const hint = screen.getByText(/import your Controller's installed pixel map/)
+    const hint = screen.getByText(/Importing your Controller's own measured map/)
     expect(hint).toBeVisible()
     expect(screen.queryByText('Measured by the fixed map.')).not.toBeInTheDocument()
 
     // A measured map replaces the guidance with the locked explanation.
     await user.selectOptions(screen.getByLabelText('Output map'), 'measured')
     expect(screen.getByText('Measured by the fixed map.')).toBeVisible()
-    expect(screen.queryByText(/import your Controller's installed pixel map/)).not.toBeInTheDocument()
+    expect(screen.queryByText(/Importing your Controller's own measured map/)).not.toBeInTheDocument()
   })
 
   it('keeps the Portable flow free of the Installation lock guidance (#798)', async () => {
@@ -89,6 +89,6 @@ describe('ShowCreationFlow (#434)', () => {
     render(<ShowCreationFlow maps={maps} onCreate={vi.fn()} onCancel={vi.fn()} />)
 
     await user.click(screen.getByRole('button', { name: 'Create Portable Show' }))
-    expect(screen.queryByText(/installed pixel map/)).not.toBeInTheDocument()
+    expect(screen.queryByText(/measured map/)).not.toBeInTheDocument()
   })
 })
