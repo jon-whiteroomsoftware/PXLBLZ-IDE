@@ -23,6 +23,7 @@ import {
   setPushRecords,
 } from '@/engine/controllerMetadataStorage'
 import { controllerProfileArtifactSignature } from '@/engine/controllerProfilePassRecipe'
+import { artifactHash } from '@/engine/artifactStamp'
 import {
   controllerProfileInitialState,
   defaultControllerProfile,
@@ -1364,6 +1365,64 @@ describe('ControllerProfilePage', () => {
     useControllerStore.setState({ controllerReconciliations: {} })
     expect(await screen.findByText('CURRENT')).toBeInTheDocument()
     expect(readCount).toBe(2)
+  })
+
+  it('derives PUSH AGAIN after a saved Pattern source PATCH follows completed reconciliation (#804)', async () => {
+    const profile = seedProfile()
+    const originalSource = 'export function render(index) { hsv(index / pixelCount, 1, 1) }'
+    const editedSource = 'export function render(index) { hsv(index / pixelCount, 1, wave(time(0.1))) }'
+    const pattern: PatternRecord = {
+      id: 'pat-1',
+      name: 'Twinkle',
+      src: originalSource,
+      controls: {},
+      updatedAt: 1,
+    }
+    usePatternStore.setState({ userPatterns: [pattern] })
+    setPersonalContentProvider({
+      ...demoPersonalContentProvider,
+      updatePattern: async () => {},
+      updateControllerProfile: async () => {},
+    })
+    renderLiveProgramInventory(profile, {
+      storageId: 'saved-program-source-patch',
+      programs: [{ id: 'DEV1', name: pattern.name }],
+      bindings: { [pattern.id]: 'DEV1' },
+      pushRecords: {
+        [pattern.id]: {
+          transforms: [],
+          artifactHash: 'saved-artifact',
+          sourceHash: artifactHash(originalSource),
+          stampedAt: '2026-08-10T00:00:00.000Z',
+          name: pattern.name,
+          profileSignature: controllerProfileArtifactSignature(profile, pattern.id, { mapDim: 2 }),
+        },
+      },
+    })
+    expect(await screen.findByText('CURRENT')).toBeInTheDocument()
+
+    useControllerStore.setState({
+      controllerReconciliations: {
+        [profile.id]: {
+          phase: 'current',
+          managedCount: 1,
+          unmanagedCount: 0,
+          completedCount: 1,
+          programs: [{
+            programId: 'DEV1',
+            bindingKey: pattern.id,
+            name: pattern.name,
+            state: 'current',
+          }],
+        },
+      },
+    })
+    await act(async () => {
+      await usePatternStore.getState().updatePatternSrc(pattern.id, editedSource)
+    })
+
+    expect(await screen.findByText('PUSH AGAIN')).toBeInTheDocument()
+    expect(screen.queryByText('CURRENT')).not.toBeInTheDocument()
   })
 
   it('does not claim a saved Pattern needs another push while the installed map is unknown', async () => {

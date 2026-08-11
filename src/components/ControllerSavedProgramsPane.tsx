@@ -370,8 +370,12 @@ function SavedProgramsInventory({
     field: 'pattern',
     direction: 'ascending',
   })
+  // `current` is a completed reconciliation snapshot, not a live assertion.
+  // Let fresh source/profile comparison supersede it while work states remain visible.
   const statusByProgramId = Object.fromEntries(
-    (reconciliation?.programs ?? []).map((program) => [program.programId, program.state]),
+    (reconciliation?.programs ?? [])
+      .filter((program) => program.state !== 'current')
+      .map((program) => [program.programId, program.state]),
   ) as Partial<Record<string, ControllerSavedPatternStatus>>
   const presentedPrograms = sortControllerSavedPrograms(programs, sort, statusByProgramId)
   const showInventory = status === 'ready' || (status === 'loading' && hasSnapshot)
