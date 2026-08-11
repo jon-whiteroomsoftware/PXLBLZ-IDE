@@ -323,7 +323,7 @@ A **map** the user owns — listed in the personal **Maps** tree, openable in **
 _Avoid_: user map (fine in casual UI prose, but the canonical term is custom map).
 
 **Mixin**:
-A reusable Pixelblaze-dialect transformation source with structured header directives (`@param`, `@target`, `@wraps`) and a pass-kind badge (`inject`, `intercept`, or `bind`). Mixins stay generic: parameter values live in Controller or Show bindings, and generated call-site rewriting is surfaced through the **transform summary** rather than baked into the mixin record.
+A reusable Pixelblaze-dialect transformation source with structured header directives (`@param`, `@target`, `@wraps`) and a pass-kind badge (`inject`, `intercept`, or `bind`). Mixins stay generic: parameter values live in Controller bindings, and generated call-site rewriting is surfaced through the Controller profile's **transform summary** rather than baked into the mixin record.
 _Avoid_: saying a mixin carries per-controller values; those belong to the binding or pass recipe.
 
 **Stock mixin**:
@@ -331,7 +331,7 @@ A **Mixin** that ships with the IDE — revealable in the **Mixins** rail, opena
 _Avoid_: built-in mixin when contrasting provenance in the rail; say **stock mixin**.
 
 **Personal Mixin**:
-A user-owned **Mixin** stored in D1, listed in the personal **Mixins** tree, openable in **Mixin mode**, editable, renameable, and deletable. Its parameters stay generic in source and are bound where the Mixin is used (Controller or Show), never inside the Mixin record.
+A user-owned **Mixin** stored in D1, listed in the personal **Mixins** tree, openable in **Mixin mode**, editable, renameable, and deletable. Its parameters stay generic in source and are bound where the Mixin is used (a Controller profile), never inside the Mixin record.
 _Avoid_: implying a mixin carries per-controller parameter values; those belong to the binding.
 
 **Template** (stock-map):
@@ -351,7 +351,7 @@ One of the editor pane's flavors, beside editable-Pattern (with a compile-good/b
 _Avoid_: map editor (fine in prose, but the canonical term for the editor's state is map mode).
 
 **Mixin mode** (of the editor):
-The editor pane flavor for personal and stock **Mixins**. It shows Pixelblaze-dialect source, validates the structured Mixin header (`@param`, `@target`, `@wraps`) with the same good/broken badge surface, and leaves binding values unresolved until the Mixin is used. Stock Mixins are read-only with **Clone**; personal Mixins auto-save clean source on the editor sync tick and can be renamed or deleted from the rail/header. The right pane becomes a provenance surface: usage rows and the last transform summary when those exist, with honest empty states until the pass engine records them.
+The editor pane flavor for personal and stock **Mixins**. It shows Pixelblaze-dialect source, validates the structured Mixin header (`@param`, `@target`, `@wraps`) with the same good/broken badge surface, and leaves binding values unresolved until the Mixin is used. Stock Mixins are read-only with **Clone**; personal Mixins auto-save clean source on the editor sync tick and can be renamed or deleted from the rail/header. The right pane shows the parsed header facts: each directive's single-token value separated from its prose description, with malformed directives surfaced inline rather than silently dropped. Usage and generated transform artifacts live on the Controller profile page, not here.
 _Avoid_: implying opening a mixin applies it to the current pattern or Controller.
 
 **Library mode** (of the editor):

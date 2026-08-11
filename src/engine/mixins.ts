@@ -10,7 +10,9 @@ export interface MixinParam {
 export interface MixinHeader {
   params: MixinParam[]
   target: string
+  targetDescription: string
   wraps: string
+  wrapsDescription: string
 }
 
 export interface MixinParseError {
@@ -81,7 +83,13 @@ export function parseMixinHeader(source: string): MixinParseError[] {
       } else {
         wrapsLine = lineNumber
       }
+      return
     }
+    errors.push({
+      line: lineNumber,
+      column: line.indexOf(`@${tag}`),
+      message: `Unknown directive @${tag}; expected @param, @target, or @wraps`,
+    })
   })
 
   if (params.size === 0) errors.push({ line: 1, column: 0, message: 'Mixin header needs at least one @param' })
@@ -93,24 +101,29 @@ export function parseMixinHeader(source: string): MixinParseError[] {
 export function readMixinHeader(source: string): MixinHeader {
   const params: MixinParam[] = []
   let target = ''
+  let targetDescription = ''
   let wraps = ''
+  let wrapsDescription = ''
 
   for (const line of source.split(/\r?\n/)) {
     const match = /^\/\/\s*@(\w+)\b(.*)$/.exec(line.trim())
     if (!match) continue
     const [, tag, rawRest] = match
-    const rest = rawRest.trim()
+    // Every directive value is a single token; anything after it is prose
+    // description, never part of the value (#782).
+    const [value = '', ...description] = rawRest.trim().split(/\s+/)
     if (tag === 'param') {
-      const [name, ...description] = rest.split(/\s+/)
-      if (name) params.push({ name, description: description.join(' ') })
+      if (value) params.push({ name: value, description: description.join(' ') })
     } else if (tag === 'target') {
-      target = rest
+      target = value
+      targetDescription = description.join(' ')
     } else if (tag === 'wraps') {
-      wraps = rest
+      wraps = value
+      wrapsDescription = description.join(' ')
     }
   }
 
-  return { params, target, wraps }
+  return { params, target, targetDescription, wraps, wrapsDescription }
 }
 
 const POT_BINDING_SOURCE = `// Pot Binding - read an analog input once per frame and drive one

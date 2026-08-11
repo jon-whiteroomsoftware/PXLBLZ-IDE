@@ -23,6 +23,25 @@ describe('mixin source headers (#313)', () => {
     ])
   })
 
+  it('splits target and wraps into a value token and prose description (#782)', () => {
+    const header = readMixinHeader(stockMixinSpec('pot-binding')?.src ?? '')
+    expect(header.target).toBe('CONTROL')
+    expect(header.targetDescription).toBe('slider function or variable slot to drive')
+    expect(header.wraps).toBe('beforeRender')
+    expect(header.wrapsDescription).toBe('')
+    expect(header.params[0]).toEqual({ name: 'PIN', description: 'analog input pin number, e.g. 33 for IO33' })
+  })
+
+  it('flags unknown directives instead of silently ignoring them (#782)', () => {
+    const source = '// @parm PIN input\n// @taget CONTROL\n// @wraps beforeRender'
+    expect(parseMixinHeader(source)).toEqual([
+      { line: 1, column: 3, message: 'Unknown directive @parm; expected @param, @target, or @wraps' },
+      { line: 2, column: 3, message: 'Unknown directive @taget; expected @param, @target, or @wraps' },
+      { line: 1, column: 0, message: 'Mixin header needs at least one @param' },
+      { line: 1, column: 0, message: 'Mixin header needs @target' },
+    ])
+  })
+
   it('ships the initial stock mixin catalog as readable source', () => {
     expect(STOCK_MIXIN_SPECS.map((spec) => [spec.id, spec.kind])).toEqual([
       ['pot-binding', 'bind'],

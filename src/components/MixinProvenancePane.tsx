@@ -1,5 +1,5 @@
-import { FileCode2 } from 'lucide-react'
-import { readMixinHeader, STOCK_MIXIN_ITEMS } from '@/engine/mixins'
+import { AlertTriangle, FileCode2 } from 'lucide-react'
+import { parseMixinHeader, readMixinHeader, STOCK_MIXIN_ITEMS } from '@/engine/mixins'
 import { useEditorStore } from '@/store/editorStore'
 import { useMixinStore } from '@/store/mixinStore'
 
@@ -14,6 +14,7 @@ export function MixinProvenancePane() {
   const name = openRecord?.name ?? stockRecord?.name ?? 'Mixin'
   const kind = openRecord?.kind ?? stockRecord?.kind
   const header = readMixinHeader(source)
+  const headerErrors = parseMixinHeader(source)
 
   return (
     <div className="flex h-full flex-col border-l border-seam bg-panel/70">
@@ -29,27 +30,52 @@ export function MixinProvenancePane() {
         <section>
           <h3 className="font-mono text-[11px] uppercase tracking-wide text-zinc-500">Header</h3>
           <div className="mt-2 space-y-1.5 text-[11px] text-zinc-400">
-            <div className="flex gap-2">
-              <span className="w-12 shrink-0 text-zinc-500">target</span>
-              <span className="min-w-0 truncate text-zinc-300">{header.target || '-'}</span>
-            </div>
-            <div className="flex gap-2">
-              <span className="w-12 shrink-0 text-zinc-500">wraps</span>
-              <span className="min-w-0 truncate text-zinc-300">{header.wraps || '-'}</span>
-            </div>
-            <div className="flex gap-2">
-              <span className="w-12 shrink-0 text-zinc-500">params</span>
-              <span className="min-w-0 truncate text-zinc-300">
-                {header.params.length ? header.params.map((param) => param.name).join(', ') : '-'}
-              </span>
-            </div>
+            <DirectiveRow label="target" value={header.target} description={header.targetDescription} />
+            <DirectiveRow label="wraps" value={header.wraps} description={header.wrapsDescription} />
+            {header.params.length === 0 ? (
+              <DirectiveRow label="params" value="" description="" />
+            ) : (
+              header.params.map((param, index) => (
+                <DirectiveRow
+                  key={param.name}
+                  label={index === 0 ? 'params' : ''}
+                  value={param.name}
+                  description={param.description}
+                />
+              ))
+            )}
           </div>
+          {headerErrors.length > 0 && (
+            <ul className="mt-2 space-y-1">
+              {headerErrors.map((error) => (
+                <li
+                  key={`${error.line}:${error.column}:${error.message}`}
+                  className="flex gap-1.5 text-[11px] leading-relaxed text-amber-300"
+                >
+                  <AlertTriangle size={12} className="mt-0.5 shrink-0" aria-hidden />
+                  <span className="min-w-0">{error.message}</span>
+                </li>
+              ))}
+            </ul>
+          )}
         </section>
 
         <p className="mt-5 text-[11px] leading-relaxed text-structural">
           Parameters are bound on the Controller that uses this mixin; the source stays generic and portable.
         </p>
       </div>
+    </div>
+  )
+}
+
+function DirectiveRow({ label, value, description }: { label: string; value: string; description: string }) {
+  return (
+    <div className="flex gap-2">
+      <span className="w-12 shrink-0 text-zinc-500">{label}</span>
+      <span className="min-w-0 truncate" title={description ? `${value} - ${description}` : value}>
+        <span className="text-zinc-300">{value || '-'}</span>
+        {description && <span className="text-zinc-500"> {description}</span>}
+      </span>
     </div>
   )
 }
