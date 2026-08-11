@@ -41,6 +41,7 @@ import { useDocsStore } from '@/store/docsStore'
 import { useRouterStore } from '@/store/routerStore'
 import { openDemoPattern } from '@/store/openPattern'
 import { useWorkspaceStore } from '@/store/workspaceStore'
+import { seedActiveSettings } from '@/store/settingsCascade'
 import { useLibraryStore, type LibraryRecord } from '@/store/libraryStore'
 import { ActivityStrip, type RailMode } from '@/components/rail/ActivityStrip'
 import {
@@ -465,6 +466,10 @@ export function PatternList({
       if (cancelled) return
       await usePatternStore.getState().loadDemoOverrides()
       if (cancelled) return
+      // A deep-linked demo can already be active before its persisted override bag
+      // arrives. Its identity therefore does not change to retrigger Preview's
+      // open-time seed; apply the newly hydrated cascade explicitly (#805).
+      if (usePatternStore.getState().activeDemoName !== null) seedActiveSettings()
       await loadPatterns()
       if (cancelled) return
       if (session.authenticated) {

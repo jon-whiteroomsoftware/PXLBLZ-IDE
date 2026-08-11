@@ -21,6 +21,7 @@ import { entityOrganizationInitialState, useEntityOrganizationStore } from '@/st
 import { stampArtifact } from '@/engine/artifactStamp'
 import { createDefaultShow } from '@/engine/showModel'
 import type { LastActive } from '@/engine/personalContentProvider'
+import type { Settings } from '@/engine/settings'
 
 vi.mock('@/engine/authSession', () => ({
   getAuthSession: vi.fn(),
@@ -34,6 +35,7 @@ let mockLibraries: LibraryRecord[] = []
 let mockControllers: ControllerProfile[] = []
 let mockShows: ReturnType<typeof createDefaultShow>[] = []
 let mockLastActive: LastActive | undefined
+let mockDemoOverrides: Record<string, Partial<Settings>> | undefined
 let requests: Array<{ url: string; init?: RequestInit }> = []
 
 beforeEach(() => {
@@ -45,6 +47,7 @@ beforeEach(() => {
   mockControllers = []
   mockShows = []
   mockLastActive = undefined
+  mockDemoOverrides = undefined
   requests = []
   vi.mocked(getAuthSession).mockResolvedValue({
     authenticated: true,
@@ -105,6 +108,9 @@ beforeEach(() => {
     }
     if (String(url) === '/api/settings/lastActive' && init?.method === undefined) {
       return Response.json({ value: mockLastActive })
+    }
+    if (String(url) === '/api/settings/demoOverrides' && init?.method === undefined) {
+      return Response.json({ value: mockDemoOverrides })
     }
     if (String(url).startsWith('/api/settings/') && init?.method === undefined) {
       return Response.json({})
@@ -181,6 +187,24 @@ async function selectDimension(
 }
 
 describe('PatternList', () => {
+  it('restores persisted preview settings for an already-open built-in Pattern (#805)', async () => {
+    usePatternStore.setState({ activeDemoName: 'PerlinKaleidoscope2D' })
+    mockDemoOverrides = {
+      PerlinKaleidoscope2D: { mapId: 'cylinder', pixelCount: 777 },
+    }
+
+    render(<PatternList />)
+
+    await waitFor(() => {
+      expect(usePatternStore.getState().demoOverrides.PerlinKaleidoscope2D).toEqual({
+        mapId: 'cylinder',
+        pixelCount: 777,
+      })
+    })
+    expect(useMapStore.getState().activeMapId).toBe('cylinder')
+    expect(useMapStore.getState().activePixelCount).toBe(777)
+  })
+
   it('renders Patterns with one list header carrying create actions', async () => {
     const user = userEvent.setup()
     render(<PatternList />)
