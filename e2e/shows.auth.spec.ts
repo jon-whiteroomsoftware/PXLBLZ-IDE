@@ -1214,6 +1214,8 @@ test.describe('authenticated Show authoring', () => {
     await expect(reason).not.toBeVisible()
     await clone.focus()
     await expect(reason).toBeVisible()
+  })
+
   test('duplicates a Show from its rail row and forks a built-in with Save a copy (#794)', async ({ page }) => {
     await page.goto(showtimePath('studio/shows'))
     await createInstallationShow(page)

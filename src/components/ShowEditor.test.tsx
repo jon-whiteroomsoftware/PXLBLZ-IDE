@@ -31,6 +31,7 @@ import type { MapRecord, MixinRecord, PatternRecord, ShowCell, ShowRecord } from
 import { createInstallationShowOutputContract, createPortableShowOutputContract } from '@/engine/showOutputContract'
 import { showPreviewOverrideInitialState, useShowPreviewOverrideStore } from '@/store/showPreviewOverrideStore'
 import { showEditorSessionInitialState, useShowEditorSessionStore } from '@/store/showEditorSessionStore'
+import { useWorkspaceStore, workspaceInitialState } from '@/store/workspaceStore'
 import { STOCK_SHOWS } from '@/pixelblaze/stock/shows'
 import { createPropertySlotQualificationShow } from '@/engine/showPatternSlotTestFixture'
 
@@ -169,6 +170,7 @@ beforeEach(() => {
   useShowPreviewOverrideStore.setState(showPreviewOverrideInitialState)
   useShowEditorSessionStore.setState(showEditorSessionInitialState)
   useControllerStore.setState(controllerInitialState)
+  useWorkspaceStore.setState(workspaceInitialState)
   resetControllerProvider()
 })
 
@@ -4640,6 +4642,7 @@ describe('ShowEditor (#318)', () => {
     const stock = STOCK_SHOWS[0]
     setPersonalContentProvider(memoryProvider([]))
     useShowStore.setState({ shows: [], showsLoaded: true })
+    useWorkspaceStore.setState({ personalWorkspaceAuthenticated: true })
 
     render(<ShowEditor showId={stock.id} showOverride={stock.show} readOnly />)
 
@@ -4650,6 +4653,16 @@ describe('ShowEditor (#318)', () => {
     expect(copy.id).not.toBe(stock.id)
     expect(copy.name).toBe(`${stock.show.name} copy`)
     expect(useShowStore.getState().activeShowId).toBe(copy.id)
+  })
+
+  it('hides Save a copy for signed-out sessions that cannot save (#794)', () => {
+    const stock = STOCK_SHOWS[0]
+    setPersonalContentProvider(memoryProvider([]))
+    useShowStore.setState({ shows: [], showsLoaded: true })
+
+    render(<ShowEditor showId={stock.id} showOverride={stock.show} readOnly />)
+
+    expect(screen.queryByRole('button', { name: 'Save a copy' })).not.toBeInTheDocument()
   })
 
   it('authors stepped cadence through an exact rate field with a transient slider (#779)', async () => {

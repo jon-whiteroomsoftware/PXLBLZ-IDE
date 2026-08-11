@@ -268,6 +268,7 @@ import {
 import { usePatternStore } from '@/store/patternStore'
 import { useShowStore } from '@/store/showStore'
 import { useRouterStore } from '@/store/routerStore'
+import { useWorkspaceStore } from '@/store/workspaceStore'
 import { useShowPreviewOverrideStore } from '@/store/showPreviewOverrideStore'
 import { useShowEditorSessionStore } from '@/store/showEditorSessionStore'
 import { docExternalHref } from '@/docs/catalog'
@@ -941,6 +942,7 @@ export function ShowEditor({
   const duplicateShow = useShowStore((state) => state.duplicateShow)
   const openShow = useShowStore((state) => state.openShow)
   const routerNavigate = useRouterStore((state) => state.navigate)
+  const personalWorkspaceAuthenticated = useWorkspaceStore((state) => state.personalWorkspaceAuthenticated)
   const persistShow = useShowStore((state) => state.updateShow)
   const showSaveFailure = useShowStore((state) => state.showSaveFailure)
   const dismissShowSaveFailure = useShowStore((state) => state.dismissShowSaveFailure)
@@ -2006,7 +2008,7 @@ export function ShowEditor({
           <span className="show-header-action-label">Reset</span>
         </Button>
       )}
-      {stockShowById(showId) !== undefined && (
+      {stockShowById(showId) !== undefined && personalWorkspaceAuthenticated && (
         <Button
           size="xs"
           variant="ghost"
