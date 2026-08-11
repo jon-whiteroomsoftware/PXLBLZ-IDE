@@ -318,7 +318,7 @@ describe('demo smoke tests', () => {
     expect(source).not.toMatch(/\b(?:atan2|hypot|sqrt|sin|cos)\s*\(/)
   })
 
-  for (const file of ['PlasmaNebula.js', 'Caustics.js', 'KaleidoBloom.js', 'Kishimisu.js', 'PhantomStar.js', 'ShapeShifter.js', 'GlyphRain.js', 'Murmuration.js', 'Harmonograph.js', 'EventHorizon.js', 'ClockworkIris.js', 'SceneSplice.js']) {
+  for (const file of ['PlasmaNebula.js', 'Caustics.js', 'KaleidoBloom.js', 'Kishimisu.js', 'PhantomStar.js', 'ShapeShifter.js', 'GlyphRain.js', 'Murmuration.js', 'Harmonograph.js', 'EventHorizon.js', 'ClockworkIris.js', 'SceneSplice.js', 'LumaStripes.js', 'LumaRings.js', 'LumaPinwheel.js', 'LumaDots.js', 'LumaWeave.js', 'LumaSpiral.js']) {
     it(`${file} bundles, runs, lights pixels, and exposes sliders`, () => {
       let result!: ReturnType<typeof runDemo>
       expect(() => { result = runDemo(file) }).not.toThrow()

@@ -69,6 +69,15 @@ export const RECOMMENDED_SETTINGS: Record<string, Partial<Settings>> = {
   Stacker: { shapeId: 'line', pixelCount: 256, brightness: 0.9, lightSize: 0.72, diffusion: 0.4 },
   StandingWaveOrgan: { shapeId: 'line', pixelCount: 256, brightness: 0.9, lightSize: 0.72, diffusion: 0.55 },
 
+  // Luma family (#819): grayscale key-source ingredients. Presented on the
+  // plain flat plane so the grayscale field reads exactly as a Show will key it.
+  LumaStripes: { mapId: 'plane', surfaceId: 'flat', pixelCount: 1024, normalize: 'fill', brightness: 0.9, lightSize: 0.75, diffusion: 0.6 },
+  LumaRings: { mapId: 'plane', surfaceId: 'flat', pixelCount: 1024, normalize: 'fill', brightness: 0.9, lightSize: 0.75, diffusion: 0.6 },
+  LumaPinwheel: { mapId: 'plane', surfaceId: 'flat', pixelCount: 1024, normalize: 'fill', brightness: 0.9, lightSize: 0.75, diffusion: 0.6 },
+  LumaDots: { mapId: 'plane', surfaceId: 'flat', pixelCount: 1024, normalize: 'fill', brightness: 0.9, lightSize: 0.75, diffusion: 0.6 },
+  LumaWeave: { mapId: 'plane', surfaceId: 'flat', pixelCount: 1024, normalize: 'fill', brightness: 0.9, lightSize: 0.75, diffusion: 0.6 },
+  LumaSpiral: { mapId: 'plane', surfaceId: 'flat', pixelCount: 1024, normalize: 'fill', brightness: 0.9, lightSize: 0.75, diffusion: 0.6 },
+
   Caustics: { mapId: 'plane', surfaceId: 'flat', pixelCount: 1024, normalize: 'fill', brightness: 0.9, lightSize: 0.85, diffusion: 0.84 },
   AllLasersFire: { mapId: 'plane', surfaceId: 'flat', pixelCount: 1024, normalize: 'fill', brightness: 0.9, lightSize: 0.72, diffusion: 0.56 },
   BlueHolidayCandle2D: { mapId: 'plane', surfaceId: 'flat', pixelCount: 1024, normalize: 'contain', brightness: 0.9, lightSize: 0.74, diffusion: 0.62 },

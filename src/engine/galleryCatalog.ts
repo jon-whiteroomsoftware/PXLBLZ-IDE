@@ -113,6 +113,18 @@ export const RADIAL_DEMOS = [
 // crawls.
 export const LIVING_1D_DEMOS = ['PulseLoom', 'FireflyChoir', 'CometLoom', 'MetroLines', 'ImpactEngine', 'StandingWaveOrgan', 'EmberSpire', 'PendulumWave', 'RivalryRing']
 
+// The Luma family (#819): grayscale tiling key-source Patterns sharing one
+// control ontology. Show ingredients rather than finished pieces, so like
+// Test Patterns they live in the rail but never in the gallery.
+export const LUMA_DEMOS = [
+  'LumaStripes',
+  'LumaRings',
+  'LumaPinwheel',
+  'LumaDots',
+  'LumaWeave',
+  'LumaSpiral',
+]
+
 // Minimal patterns - one per render dimensionality - for visually verifying
 // 1D / 2D / 3D preview behavior.
 export const TEST_PATTERNS = [
@@ -133,6 +145,7 @@ const GROUPED_DEMOS = new Set([
   ...FPS_FRIENDLY_DEMOS,
   ...RADIAL_DEMOS,
   ...LIVING_1D_DEMOS,
+  ...LUMA_DEMOS,
   ...TEST_PATTERNS,
 ])
 
@@ -149,10 +162,15 @@ export const DEMO_SECTIONS: { label: string; names: string[] }[] = [
   { label: 'Radial', names: demoSectionNames(RADIAL_DEMOS) },
   { label: '3D', names: demoSectionNames(THREE_D_DEMOS) },
   { label: 'Living 1D', names: demoSectionNames(LIVING_1D_DEMOS) },
+  { label: 'Luma Sources', names: demoSectionNames(LUMA_DEMOS) },
   { label: 'Test Patterns', names: demoSectionNames(TEST_PATTERNS) },
 ]
 
-const GALLERY_SECTIONS = DEMO_SECTIONS.filter((section) => section.label !== 'Test Patterns')
+// Utility sections: present in the pattern rail, absent from the gallery.
+// These are ingredients and diagnostics, not finished pieces.
+const NON_GALLERY_SECTIONS = new Set(['Test Patterns', 'Luma Sources'])
+
+const GALLERY_SECTIONS = DEMO_SECTIONS.filter((section) => !NON_GALLERY_SECTIONS.has(section.label))
 
 export const GALLERY_CATEGORIES = [
   GALLERY_ALL_CATEGORY,
@@ -201,7 +219,7 @@ export const STOCK_PATTERNS: GalleryPattern[] = DEMO_NAMES.map((name) => {
 })
 
 export const GALLERY_PATTERNS = STOCK_PATTERNS.filter(
-  (pattern) => !pattern.sections.includes('Test Patterns'),
+  (pattern) => !pattern.sections.some((section) => NON_GALLERY_SECTIONS.has(section)),
 )
 
 export function galleryPatternBySlug(slug: string): GalleryPattern | undefined {
