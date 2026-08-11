@@ -96,6 +96,7 @@ import {
 } from '@/engine/studioChrome'
 import { SaveStatusBadge } from '@/components/SaveStatusBadge'
 import { NavigationSaveFailureNotice } from '@/components/NavigationSaveFailureNotice'
+import { activeStuckSaveStatus } from '@/store/autosaveSync'
 
 function Splitter({
   onDrag,
@@ -793,6 +794,20 @@ function StudioApp() {
     setStudioWelcomeAcknowledged(true)
     trackEvent('sign_in', { surface: 'studio_welcome', provider })
     window.location.assign(`/api/auth/login?provider=${provider}`)
+  }, [])
+
+  // Warn before a reload/close exactly when unsaved editor work is at risk
+  // (#810): broken source that autosave will not persist, a clean edit whose
+  // write is failing, or a held navigation draft. Lives here rather than in
+  // Editor so a held draft stays protected after the Editor unmounts. Never
+  // fires during ordinary typing — the next tick covers that.
+  useEffect(() => {
+    const warn = (event: BeforeUnloadEvent) => {
+      if (activeStuckSaveStatus() !== null
+        || useEditorStore.getState().navigationSaveFailures.length > 0) event.preventDefault()
+    }
+    window.addEventListener('beforeunload', warn)
+    return () => window.removeEventListener('beforeunload', warn)
   }, [])
 
   return (

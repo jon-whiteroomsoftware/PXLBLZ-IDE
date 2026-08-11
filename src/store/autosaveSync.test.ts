@@ -202,16 +202,19 @@ describe('navigation save failure (#810 review P1)', () => {
     // The buffer moved on, so the failure is held for the notice rather than
     // flagged on the (new) active entity's glyph.
     expect(useEditorStore.getState().autosaveFailed).toBe(false)
-    expect(useEditorStore.getState().navigationSaveFailure).toMatchObject({
-      flavor: 'pattern',
-      id: PATTERN.id,
-      name: PATTERN.name,
-      source: 'held draft source',
-    })
+    expect(useEditorStore.getState().navigationSaveFailures).toEqual([
+      expect.objectContaining({
+        flavor: 'pattern',
+        id: PATTERN.id,
+        name: PATTERN.name,
+        source: 'held draft source',
+        recordUpdatedAt: PATTERN.updatedAt,
+      }),
+    ])
 
     offline = false
-    await retryNavigationSaveFailure()
-    expect(useEditorStore.getState().navigationSaveFailure).toBeNull()
+    await retryNavigationSaveFailure('pattern', PATTERN.id)
+    expect(useEditorStore.getState().navigationSaveFailures).toEqual([])
     expect(usePatternStore.getState().userPatterns[0].src).toBe('held draft source')
   })
 
@@ -225,8 +228,8 @@ describe('navigation save failure (#810 review P1)', () => {
     usePatternStore.getState().setActivePattern('pat-2')
     await settled()
 
-    await retryNavigationSaveFailure()
-    expect(useEditorStore.getState().navigationSaveFailure).not.toBeNull()
+    await retryNavigationSaveFailure('pattern', PATTERN.id)
+    expect(useEditorStore.getState().navigationSaveFailures).toHaveLength(1)
   })
 
   it('drops a held draft once its record has advanced past the held timestamp', async () => {
@@ -249,31 +252,152 @@ describe('navigation save failure (#810 review P1)', () => {
       ),
     }))
     offline = false
-    await retryNavigationSaveFailure()
+    await retryNavigationSaveFailure('pattern', PATTERN.id)
 
     expect(update).not.toHaveBeenCalled()
-    expect(useEditorStore.getState().navigationSaveFailure).toBeNull()
+    expect(useEditorStore.getState().navigationSaveFailures).toEqual([])
     expect(usePatternStore.getState().userPatterns[0].src).toBe('newer content')
+  })
+
+  it('never holds a draft superseded while its write was in flight', async () => {
+    // S1 (older draft) is pending when a newer save S2 lands; S1 then fails
+    // after navigation. Its draft must not be held: Retry would offer to
+    // overwrite the newer durable content.
+    const provider = memoryProvider([PATTERN])
+    let rejectS1!: (cause: Error) => void
+    provider.updatePattern = async () =>
+      new Promise<void>((_resolve, reject) => {
+        rejectS1 = reject
+      })
+    setPersonalContentProvider(provider)
+    openDirtyPattern('older draft S1')
+    flushPendingAutosave()
+
+    // S2 lands durably (e.g. from a faster later write) and advances the record.
+    usePatternStore.setState((s) => ({
+      userPatterns: s.userPatterns.map((p) =>
+        p.id === PATTERN.id ? { ...p, src: 'newer durable S2', updatedAt: 2000 } : p,
+      ),
+    }))
+    usePatternStore.getState().setActivePattern('pat-2')
+    rejectS1(new Error('offline'))
+    await settled()
+
+    expect(useEditorStore.getState().navigationSaveFailures).toEqual([])
+    expect(usePatternStore.getState().userPatterns[0].src).toBe('newer durable S2')
+  })
+
+  it('holds the draft when its record was reopened clean before the failure settled', async () => {
+    // Edit A, switch away, reopen A (buffer reloads the stale persisted
+    // source), then the original write fails: the draft exists nowhere else.
+    const provider = memoryProvider([PATTERN])
+    let rejectWrite!: (cause: Error) => void
+    provider.updatePattern = async () =>
+      new Promise<void>((_resolve, reject) => {
+        rejectWrite = reject
+      })
+    setPersonalContentProvider(provider)
+    openDirtyPattern('reopened-lost draft')
+    flushPendingAutosave()
+
+    // Reopen A clean from the record before the write settles.
+    useEditorStore.setState({ source: PATTERN.src })
+    rejectWrite(new Error('offline'))
+    await settled()
+
+    expect(useEditorStore.getState().navigationSaveFailures).toEqual([
+      expect.objectContaining({ id: PATTERN.id, source: 'reopened-lost draft' }),
+    ])
+  })
+
+  it('keeps the glyph path when the active buffer still holds (or extends) the draft', async () => {
+    const provider = memoryProvider([PATTERN])
+    provider.updatePattern = async () => {
+      throw new Error('offline')
+    }
+    setPersonalContentProvider(provider)
+    openDirtyPattern('live draft')
+
+    flushPendingAutosave()
+    await settled()
+
+    expect(useEditorStore.getState().autosaveFailed).toBe(true)
+    expect(useEditorStore.getState().navigationSaveFailures).toEqual([])
+  })
+
+  it('holds independent drafts for different records at the same time', async () => {
+    const patternB: PatternRecord = { ...PATTERN, id: 'pat-b', name: 'Shine' }
+    const provider = memoryProvider([PATTERN, patternB])
+    let offline = true
+    const durableUpdate = provider.updatePattern
+    provider.updatePattern = async (id, changes) => {
+      if (offline) throw new Error('offline')
+      await durableUpdate(id, changes)
+    }
+    setPersonalContentProvider(provider)
+
+    openDirtyPattern('draft for A')
+    usePatternStore.setState({ userPatterns: [PATTERN, patternB] })
+    usePatternStore.getState().setActivePattern(patternB.id)
+    await settled()
+    useEditorStore.setState({ source: 'draft for B', compileStatus: 'good', isReadOnly: false })
+    usePatternStore.getState().setActivePattern('pat-elsewhere')
+    await settled()
+
+    const held = useEditorStore.getState().navigationSaveFailures
+    expect(held.map((draft) => draft.id).sort()).toEqual(['pat-b', PATTERN.id].sort())
+
+    // Retrying one draft leaves the other held.
+    offline = false
+    await retryNavigationSaveFailure('pattern', PATTERN.id)
+    expect(useEditorStore.getState().navigationSaveFailures.map((draft) => draft.id)).toEqual([patternB.id])
   })
 
   it('a flush that succeeds after navigation clears a stale held draft for that record', async () => {
     const provider = memoryProvider([PATTERN])
     setPersonalContentProvider(provider)
     useEditorStore.setState({
-      navigationSaveFailure: {
+      navigationSaveFailures: [{
         flavor: 'pattern',
         id: PATTERN.id,
         name: PATTERN.name,
         source: 'stale held copy',
         recordUpdatedAt: 1000,
-      },
+      }],
     })
     openDirtyPattern('edited source')
 
     flushPendingAutosave()
     await settled()
 
-    expect(useEditorStore.getState().navigationSaveFailure).toBeNull()
+    expect(useEditorStore.getState().navigationSaveFailures).toEqual([])
+  })
+
+  it('dedupes in-flight writes per record, not per source text', async () => {
+    const patternB: PatternRecord = { ...PATTERN, id: 'pat-b', name: 'Shine' }
+    const provider = memoryProvider([PATTERN, patternB])
+    let release!: () => void
+    const gate = new Promise<void>((resolve) => {
+      release = resolve
+    })
+    const update = vi.fn(async (_id: string) => {
+      await gate
+    })
+    provider.updatePattern = update
+    setPersonalContentProvider(provider)
+
+    // A's slow write is in flight when B flushes the identical source text:
+    // B's write must still be attempted.
+    openDirtyPattern('shared source text')
+    flushPendingAutosave()
+    usePatternStore.setState({ userPatterns: [PATTERN, patternB], activePatternId: patternB.id })
+    useEditorStore.setState({ source: 'shared source text' })
+    flushPendingAutosave()
+    release()
+    await settled()
+
+    expect(update).toHaveBeenCalledTimes(2)
+    expect(update.mock.calls.map((call) => call[0]).sort()).toEqual(['pat-b', PATTERN.id].sort())
   })
 })
 

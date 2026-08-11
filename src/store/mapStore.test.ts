@@ -662,3 +662,39 @@ describe('bake persistence failure feedback (#810)', () => {
     expect(await provider.listMaps()).toHaveLength(0)
   })
 })
+
+describe('persistMapSource (#810 navigation retry)', () => {
+  it('bakes the retried source so old geometry never survives under new source', async () => {
+    const provider = memoryProvider()
+    await (async () => {
+      setPersonalContentProvider(provider)
+      await useMapStore.getState().createNewMap()
+      useEditorStore.getState().setSource(GRID_SRC)
+      useMapStore.setState({ activePixelCount: 8 })
+      await useMapStore.getState().bakeEditingMap()
+    })()
+    const id = useMapStore.getState().userMaps[0].id
+
+    await useMapStore.getState().persistMapSource(id, '[[0,0],[1,1],[2,0]]')
+
+    const record = useMapStore.getState().userMaps.find((m) => m.id === id)!
+    expect(record.source).toBe('[[0,0],[1,1],[2,0]]')
+    expect(record.points).toEqual([[0, 0], [0.5, 0.5], [1, 0]])
+  })
+
+  it('drops the stale bake when the retried source fails eval', async () => {
+    const provider = memoryProvider()
+    setPersonalContentProvider(provider)
+    await useMapStore.getState().createNewMap()
+    useEditorStore.getState().setSource(GRID_SRC)
+    useMapStore.setState({ activePixelCount: 8 })
+    await useMapStore.getState().bakeEditingMap()
+    const id = useMapStore.getState().userMaps[0].id
+
+    await useMapStore.getState().persistMapSource(id, `function(n){ throw new Error('boom') }`)
+
+    const record = useMapStore.getState().userMaps.find((m) => m.id === id)!
+    expect(record.source).toBe(`function(n){ throw new Error('boom') }`)
+    expect(record.points).toEqual([])
+  })
+})

@@ -2,7 +2,7 @@ import type * as monacoType from 'monaco-editor'
 import { useEffect, useRef } from 'react'
 import { useEditorStore } from '@/store/editorStore'
 import { usePatternStore } from '@/store/patternStore'
-import { flushPendingAutosave, activeStuckSaveStatus } from '@/store/autosaveSync'
+import { flushPendingAutosave } from '@/store/autosaveSync'
 import { validateLibraryContent } from '@/engine/bundle'
 import { validateSource } from '@/engine/validate'
 import { parseMapSource } from '@/engine/maps'
@@ -44,19 +44,6 @@ export function Editor() {
       clearInterval(id)
       flushPendingAutosave()
     }
-  }, [])
-
-  // Warn before a reload/close exactly when unsaved work is at risk (#810):
-  // broken source that autosave will not persist, a clean edit whose write is
-  // failing, or a held navigation draft. Never during ordinary typing — the
-  // next tick covers that.
-  useEffect(() => {
-    const warn = (event: BeforeUnloadEvent) => {
-      if (activeStuckSaveStatus() !== null
-        || useEditorStore.getState().navigationSaveFailure !== null) event.preventDefault()
-    }
-    window.addEventListener('beforeunload', warn)
-    return () => window.removeEventListener('beforeunload', warn)
   }, [])
 
   const handleMount = (editor: monacoType.editor.IStandaloneCodeEditor, monaco: typeof monacoType) => {

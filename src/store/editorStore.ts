@@ -11,6 +11,19 @@ export type CompileStatus = 'good' | 'broken'
 // The flavor selects the Monaco language and which validator feeds the badge.
 export type EditorFlavor = 'pattern' | 'map' | 'mixin' | 'library'
 
+// A draft whose navigation-time flush failed after its editor was already
+// left (#810): the buffer is gone, so this holds the only copy for the Studio
+// notice's Retry. recordUpdatedAt is the record timestamp when the write was
+// attempted; Retry drops the draft instead of writing once the record has
+// advanced past it.
+export interface NavigationSaveDraft {
+  flavor: EditorFlavor
+  id: string
+  name: string
+  source: string
+  recordUpdatedAt: number
+}
+
 interface EditorState {
   compileStatus: CompileStatus
   // True while the most recent autosave attempt for the open buffer failed
@@ -18,19 +31,10 @@ interface EditorState {
   // the save-status glyph and the beforeunload guard. Cleared by the first
   // successful save.
   autosaveFailed: boolean
-  // A draft whose navigation-time flush failed after its editor was already
-  // left (#810): the buffer is gone, so this holds the only copy for the
-  // Studio notice's Retry. One slot — a later failed navigation flush
-  // supersedes an earlier one. Null while every navigation flush has landed.
-  navigationSaveFailure: {
-    flavor: EditorFlavor
-    id: string
-    name: string
-    source: string
-    // The record timestamp when the flush failed; Retry drops the draft
-    // instead of writing when the record has advanced past it.
-    recordUpdatedAt: number
-  } | null
+  // Held navigation drafts, at most one per record; a later failed flush for
+  // the same record supersedes its earlier draft. Empty while every
+  // navigation flush has landed.
+  navigationSaveFailures: NavigationSaveDraft[]
   editorFlavor: EditorFlavor
   source: string
   isReadOnly: boolean
@@ -64,7 +68,7 @@ interface EditorState {
   renderAdaptation: string | null
   setCompileStatus: (status: CompileStatus) => void
   setAutosaveFailed: (failed: boolean) => void
-  setNavigationSaveFailure: (failure: EditorState['navigationSaveFailure']) => void
+  setNavigationSaveFailures: (failures: NavigationSaveDraft[]) => void
   setEditorFlavor: (flavor: EditorFlavor) => void
   setSource: (source: string) => void
   setIsReadOnly: (value: boolean) => void
@@ -83,7 +87,7 @@ interface EditorState {
 export const editorInitialState = {
   compileStatus: 'good' as CompileStatus,
   autosaveFailed: false,
-  navigationSaveFailure: null as EditorState['navigationSaveFailure'],
+  navigationSaveFailures: [] as NavigationSaveDraft[],
   editorFlavor: 'pattern' as EditorFlavor,
   source: '',
   isReadOnly: true,
@@ -103,7 +107,7 @@ export const useEditorStore = create<EditorState>()((set) => ({
   ...editorInitialState,
   setCompileStatus: (compileStatus) => set({ compileStatus }),
   setAutosaveFailed: (autosaveFailed) => set({ autosaveFailed }),
-  setNavigationSaveFailure: (navigationSaveFailure) => set({ navigationSaveFailure }),
+  setNavigationSaveFailures: (navigationSaveFailures) => set({ navigationSaveFailures }),
   setEditorFlavor: (editorFlavor) => set({ editorFlavor }),
   setSource: (source) => set({ source }),
   setIsReadOnly: (isReadOnly) => set({ isReadOnly }),

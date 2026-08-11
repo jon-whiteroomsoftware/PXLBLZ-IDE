@@ -494,9 +494,25 @@ export const useMapStore = create<MapState>()((set, get) => ({
 
   persistMapSource: async (id, source) => {
     const updatedAt = Date.now()
-    await getPersonalContentProvider().updateMap(id, { source, updatedAt })
+    let patch: Partial<MapRecord>
+    try {
+      const baked = bakeMapSource(source, DEFAULT_MAP_BAKE_COUNT)
+      patch = {
+        source,
+        points: baked.points,
+        dim: baked.dim,
+        gridDims: baked.gridDims ?? undefined,
+        updatedAt,
+      }
+    } catch {
+      // Eval failure with no editor open to surface it: persist the source and
+      // drop the stale bake so old geometry never renders under new source.
+      // The next open re-bakes and surfaces the error.
+      patch = { source, points: [], updatedAt }
+    }
+    await getPersonalContentProvider().updateMap(id, patch)
     set((s) => ({
-      userMaps: s.userMaps.map((m) => (m.id === id ? { ...m, source, updatedAt } : m)),
+      userMaps: s.userMaps.map((m) => (m.id === id ? { ...m, ...patch } : m)),
     }))
   },
 
