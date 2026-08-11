@@ -1037,9 +1037,17 @@ describe('ShowEditor (#318)', () => {
     expect(intervals[1].layoutId).toBe(intervals[0].layoutId)
 
     const lane = screen.getByRole('group', { name: 'Zone Layouts lane' })
-    const second = within(lane).getAllByRole('button', { name: /Edit .* Zone Layout/ })
-      .find((cell) => cell.getAttribute('data-show-layout-interval') === intervals[1].id)
+    const laneCells = within(lane).getAllByRole('button', { name: /Edit .* Zone Layout/ })
+    const first = laneCells.find((cell) => cell.getAttribute('data-show-layout-interval') === intervals[0].id)
+    const second = laneCells.find((cell) => cell.getAttribute('data-show-layout-interval') === intervals[1].id)
+    expect(first).toBeDefined()
     expect(second).toBeDefined()
+
+    // Linked occurrences are distinct selections: moving from the first to
+    // the second re-targets the panel instead of toggling it closed.
+    expect(first!.getAttribute('data-show-selection-key'))
+      .not.toBe(second!.getAttribute('data-show-selection-key'))
+    await user.click(first!)
     await user.click(second!)
 
     // The interval's own detail panel now carries the unlink affordance that

@@ -371,7 +371,13 @@ function showSelectionKey(selection: ShowSelection): string {
   if (selection.kind === 'clip') return `clip:${selection.clipId}`
   if (selection.kind === 'transition') return `transition:${selection.transitionId}`
   if (selection.kind === 'zone') return `zone:${selection.zoneId}`
-  if (selection.kind === 'zone-layout') return `zone-layout:${selection.layoutId}`
+  if (selection.kind === 'zone-layout') {
+    // Linked duplicates share a layoutId; the interval keeps two occurrences
+    // from reading as the same selection (#795 review P2).
+    return selection.intervalId
+      ? `zone-layout:${selection.layoutId}:${selection.intervalId}`
+      : `zone-layout:${selection.layoutId}`
+  }
   if (selection.kind === 'group') return `group:${selection.occurrenceId}`
   if (selection.kind === 'group-clip') return `group-clip:${selection.occurrenceId}:${selection.placementId}`
   if (selection.kind === 'multi') return 'multi'
@@ -4920,7 +4926,7 @@ function ShowTimelineWorkspace({
                     {...(interval && isFirstSceneOfInterval && layoutIntervals.length > 1
                       ? { 'data-show-layout-interval': interval.id }
                       : {})}
-                    {...(interval ? { 'data-show-selection-key': `zone-layout:${interval.layoutId}` } : {})}
+                    {...(interval ? { 'data-show-selection-key': `zone-layout:${interval.layoutId}:${interval.id}` } : {})}
                     className="flex h-[18px] min-w-0 items-center justify-between gap-1 border-t border-zinc-900/80 px-1.5 font-mono text-[9px] text-zinc-300 outline-none hover:ring-1 hover:ring-inset hover:ring-live/50 focus-visible:ring-1 focus-visible:ring-inset focus-visible:ring-live/80"
                     style={{
                       gridColumn: 2 + sceneIndex * 2,
