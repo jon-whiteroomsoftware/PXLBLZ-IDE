@@ -34,7 +34,7 @@ export function PreflightWarningList({ warnings }: { warnings: PreflightWarning[
   return (
     <div className="mt-2 space-y-1.5 text-zinc-400">
       {warnings.map((w) => (
-        <p key={w.kind} className="flex items-start gap-1">
+        <p key={`${w.kind}:${w.message}`} className="flex items-start gap-1">
           <span>{w.message}</span>
           {w.detail && (
             <HelpHint label="More about this warning" width={260}>
