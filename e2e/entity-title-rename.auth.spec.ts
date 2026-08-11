@@ -59,8 +59,9 @@ test('authenticated Studio renames a Controller profile from its header and rail
     await page.getByRole('textbox', { name: 'Controller name' }).press('Enter')
     await expect(page.getByRole('button', { name: `Rename controller ${headerName}` })).toBeVisible()
 
+    await page.getByRole('treeitem', { name: headerName }).hover()
     await page.getByRole('button', { name: `More actions for ${headerName}` }).click()
-    await page.getByRole('button', { name: 'Rename' }).click()
+    await page.getByRole('button', { name: 'Rename', exact: true }).click()
     await page.getByRole('textbox', { name: 'Rename item' }).fill(railName)
     await page.getByRole('textbox', { name: 'Rename item' }).press('Enter')
 
