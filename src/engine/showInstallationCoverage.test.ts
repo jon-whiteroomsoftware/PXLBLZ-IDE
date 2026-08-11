@@ -1,4 +1,8 @@
-import { resolveShowZonePixelCount, validateInstallationCoverage } from './showInstallationCoverage'
+import {
+  installationPhysicalZones,
+  resolveShowZonePixelCount,
+  validateInstallationCoverage,
+} from './showInstallationCoverage'
 import { createDefaultShow } from './showModel'
 import { createInstallationShowOutputContract, createPortableShowOutputContract } from './showOutputContract'
 
@@ -75,5 +79,19 @@ describe('Installation physical-zone coverage (#435)', () => {
       source: 'nominal',
       pixelCount: 60,
     })
+  })
+
+  it('keeps cleared-range Zones in the Stage physical-zone projection (#790)', () => {
+    const show = installationShow()
+    show.zones.push({ id: 'zone-2', name: 'secondary', nominalPixelCount: 8, color: '#f97316' })
+    show.routingLayouts[0].zones = [
+      { zoneId: 'zone-1', ranges: [] },
+      { zoneId: 'zone-2', ranges: [{ start: 0, end: 7 }] },
+    ]
+
+    expect(installationPhysicalZones(show)).toEqual([
+      { id: 'layout-1:zone-1', name: 'main', ranges: [] },
+      { id: 'layout-1:zone-2', name: 'secondary', ranges: [{ start: 0, end: 7 }] },
+    ])
   })
 })
