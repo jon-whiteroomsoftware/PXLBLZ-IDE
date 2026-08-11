@@ -356,7 +356,7 @@ type ShowSelection =
   | { kind: 'clip'; clipId: string }
   | { kind: 'transition'; transitionId: string }
   | { kind: 'zone'; zoneId: string }
-  | { kind: 'zone-layout'; layoutId: string }
+  | { kind: 'zone-layout'; layoutId: string; intervalId?: string }
   | { kind: 'group'; occurrenceId: string }
   | { kind: 'group-clip'; occurrenceId: string; placementId: string }
   | { kind: 'multi'; groupSelection: ShowGroupSelection }
@@ -2699,6 +2699,17 @@ export function ShowEditor({
                   onAddRoutingLayout={(sourceLayoutId) => void addRoutingLayout(activeShow.id, sourceLayoutId)}
                   onUpdateRoutingLayout={(layoutId, changes) => void updateRoutingLayout(activeShow.id, layoutId, changes)}
                   onRemoveRoutingLayout={(layoutId) => void removeRoutingLayout(activeShow.id, layoutId)}
+                  onMakeLayoutIntervalUnique={(intervalId) => {
+                    if (!timelineComposition) return
+                    const basis = { ...activeShow, composition: timelineComposition }
+                    const next = makeShowLayoutIntervalUnique(basis, intervalId)
+                    if (next === basis) return
+                    updateShow(activeShow.id, next).then(() => {
+                      // Follow the selection onto the unlinked copy.
+                      const interval = projectShowLayoutIntervals(next).find((candidate) => candidate.id === intervalId)
+                      if (interval) selectTimeline({ kind: 'zone-layout', layoutId: interval.layoutId, intervalId })
+                    }).catch(() => {})
+                  }}
                   />
                 </InspectorReadOnlyContext.Provider>
               </div>
@@ -4552,7 +4563,7 @@ function ShowTimelineWorkspace({
                         // the popover unmounts the link in the same commit, and a
                         // detached anchor leaves the panel hidden (#629).
                         setLayoutActionsOpen(false)
-                        onSelect({ kind: 'zone-layout', layoutId: layoutActionInterval.layoutId }, addPopoverAnchor)
+                        onSelect({ kind: 'zone-layout', layoutId: layoutActionInterval.layoutId, intervalId: layoutActionInterval.id }, addPopoverAnchor)
                       }}
                     >
                       Edit {layoutKindLabel(layoutActionInterval.layoutId)}
@@ -4920,7 +4931,7 @@ function ShowTimelineWorkspace({
                     }}
                     onClick={(event) => {
                       event.stopPropagation()
-                      if (interval) onSelect({ kind: 'zone-layout', layoutId: interval.layoutId }, event.currentTarget)
+                      if (interval) onSelect({ kind: 'zone-layout', layoutId: interval.layoutId, intervalId: interval.id }, event.currentTarget)
                     }}
                   >
                     <span className="truncate">{isFirstSceneOfInterval ? label : ''}</span>
@@ -7596,6 +7607,7 @@ function ContextualInspector({
   onAddRoutingLayout,
   onUpdateRoutingLayout,
   onRemoveRoutingLayout,
+  onMakeLayoutIntervalUnique,
 }: {
   show: ShowRecord
   compositionShow: ShowRecord
@@ -7652,6 +7664,7 @@ function ContextualInspector({
   onAddRoutingLayout: (sourceLayoutId?: string) => void
   onUpdateRoutingLayout: (layoutId: string, changes: Partial<Omit<ShowRoutingLayout, 'id'>>) => void
   onRemoveRoutingLayout: (layoutId: string) => void
+  onMakeLayoutIntervalUnique: (intervalId: string) => void
 }) {
   const canRemoveClip = showRecordClipCount(show) > 1
   const compositionTimelineClips = compositionShow.composition
@@ -7846,9 +7859,11 @@ function ContextualInspector({
           show={show}
           layout={layout}
           intervals={projectShowLayoutIntervals(show)}
+          selectedIntervalId={selection.intervalId}
           onAddRoutingLayout={onAddRoutingLayout}
           onUpdateRoutingLayout={onUpdateRoutingLayout}
           onRemoveRoutingLayout={onRemoveRoutingLayout}
+          onMakeIntervalUnique={onMakeLayoutIntervalUnique}
         />
       )
     }
@@ -9568,19 +9583,28 @@ function ZoneLayoutInspector({
   show,
   layout,
   intervals,
+  selectedIntervalId,
   onAddRoutingLayout,
   onUpdateRoutingLayout,
   onRemoveRoutingLayout,
+  onMakeIntervalUnique,
 }: {
   show: ShowRecord
   layout: ShowRoutingLayout
   intervals: ShowLayoutInterval[]
+  selectedIntervalId?: string
   onAddRoutingLayout: (sourceLayoutId?: string) => void
   onUpdateRoutingLayout: (layoutId: string, changes: Partial<Omit<ShowRoutingLayout, 'id'>>) => void
   onRemoveRoutingLayout: (layoutId: string) => void
+  onMakeIntervalUnique?: (intervalId: string) => void
 }) {
   const portable = show.outputContract?.kind === 'portable-2d' ? show.outputContract : null
   const uses = intervals.filter((interval) => interval.layoutId === layout.id)
+  // The selected linked duplicate can unlink right here, matching Groups
+  // (#795); previously this lived only in the Add popover.
+  const selectedInterval = selectedIntervalId
+    ? uses.find((interval) => interval.id === selectedIntervalId)
+    : undefined
   return (
     <InspectorPanel family="Zone Layout" title={routingModeLabel(layout)} icon={<Route size={13} aria-hidden />}>
       <div className="flex items-center justify-end gap-2">
@@ -9609,6 +9633,18 @@ function ZoneLayoutInspector({
           ? 'Not on the timeline.'
           : `On the timeline ${formatShowTime(uses[0].startMs)}-${formatShowTime(uses[uses.length - 1].endMs)}${uses.length > 1 ? ` across ${uses.length} intervals` : ''}.`}
       </p>
+      {selectedInterval && uses.length > 1 && onMakeIntervalUnique && (
+        <div className="mt-2 flex items-center justify-between gap-2 border-t border-zinc-800/80 pt-2">
+          <span className="text-[10px] text-zinc-500">{uses.length} linked uses</span>
+          <Button
+            size="xs"
+            variant="ghost"
+            onClick={() => onMakeIntervalUnique(selectedInterval.id)}
+          >
+            <WandSparkles size={12} aria-hidden /> Make this Layout unique
+          </Button>
+        </div>
+      )}
       <label className="mt-2 block text-[9.5px] uppercase text-zinc-600">
         Routing mode
         <select

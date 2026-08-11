@@ -1024,6 +1024,35 @@ describe('ShowEditor (#318)', () => {
     })
   })
 
+  it('offers Make Unique from a linked Zone Layout interval detail panel (#795)', async () => {
+    const user = userEvent.setup()
+    const base = createDefaultShow('show-interval-make-unique', 'Interval make unique', 1000)
+    const show = appendShowLayoutInterval(base, { layoutId: 'layout-1', durationMs: 10_000 })
+    setPersonalContentProvider(memoryProvider([show]))
+    useShowStore.setState({ shows: [show], activeShowId: show.id, showsLoaded: true })
+    render(<ShowEditor showId={show.id} />)
+
+    const intervals = projectShowLayoutIntervals(show)
+    expect(intervals).toHaveLength(2)
+    expect(intervals[1].layoutId).toBe(intervals[0].layoutId)
+
+    const lane = screen.getByRole('group', { name: 'Zone Layouts lane' })
+    const second = within(lane).getAllByRole('button', { name: /Edit .* Zone Layout/ })
+      .find((cell) => cell.getAttribute('data-show-layout-interval') === intervals[1].id)
+    expect(second).toBeDefined()
+    await user.click(second!)
+
+    // The interval's own detail panel now carries the unlink affordance that
+    // previously lived only in the Add popover, matching Groups.
+    const panel = screen.getByRole('dialog', { name: 'Entity Detail Panel' })
+    expect(within(panel).getByText('2 linked uses')).toBeInTheDocument()
+    await user.click(within(panel).getByRole('button', { name: 'Make this Layout unique' }))
+
+    await waitFor(() => expect(useShowStore.getState().shows[0].routingLayouts).toHaveLength(2))
+    const after = projectShowLayoutIntervals(useShowStore.getState().shows[0])
+    expect(after[1].layoutId).not.toBe(after[0].layoutId)
+  })
+
   it('keeps Insert Time visible and explains when the playhead is inside a Transition (#584)', async () => {
     const user = userEvent.setup()
     const show = createDefaultShow('show-insert-time-reason', 'Insert reason', 1000)
