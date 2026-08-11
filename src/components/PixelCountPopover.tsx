@@ -210,11 +210,15 @@ export function PixelCountPopover({
                     }}
                     onPointerMove={(event) => {
                       if (resolutionPointerRef.current !== event.pointerId) return
+                      const wasEngaged = resolutionFineEngagedRef.current
                       if (event.shiftKey) resolutionFineEngagedRef.current = true
                       setResolutionFineActive(event.shiftKey)
                       const drag = resolutionDragRef.current
                       if (drag === null) return
-                      if (!resolutionFineEngagedRef.current) {
+                      if (!resolutionFineEngagedRef.current || !wasEngaged) {
+                        // Re-anchor from the live index: the native thumb jump and its
+                        // change event land after pointerdown, so the down-time anchor
+                        // is stale by the first move (and by the fine transition).
                         resolutionDragRef.current = beginFineAdjust(
                           event.clientX,
                           resolutionIndexRef.current,
@@ -237,8 +241,9 @@ export function PixelCountPopover({
                       finishResolutionDrag()
                     }}
                     onPointerCancel={finishResolutionDrag}
-                    onLostPointerCapture={() => {
+                    onLostPointerCapture={(event) => {
                       if (resolutionPointerRef.current === null) return
+                      if (event.pointerId !== resolutionPointerRef.current) return
                       finishResolutionDrag()
                     }}
                     data-fine-adjusting={resolutionFineActive ? 'true' : undefined}

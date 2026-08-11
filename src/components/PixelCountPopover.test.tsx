@@ -78,6 +78,30 @@ describe('PixelCountPopover', () => {
     expect(onSelect).toHaveBeenLastCalledWith(700)
   })
 
+  it('does not snap back when Shift engages immediately after a native thumb jump (#814 review)', () => {
+    const { onSelect, slider } = renderResolutionPopover()
+
+    fireEvent.pointerDown(slider, { pointerId: 18, clientX: 40 })
+    fireEvent.change(slider, { target: { value: '8' } })
+    expect(onSelect).toHaveBeenLastCalledWith(900)
+
+    fireEvent.pointerMove(slider, { pointerId: 18, clientX: 42, shiftKey: true })
+    expect(onSelect).toHaveBeenLastCalledWith(900)
+  })
+
+  it('ignores lost capture from a superseded pointer (#814 review)', () => {
+    const { onSelect, slider } = renderResolutionPopover()
+
+    fireEvent.pointerDown(slider, { pointerId: 19, clientX: 0, shiftKey: true })
+    fireEvent.pointerDown(slider, { pointerId: 20, clientX: 50, shiftKey: true })
+    fireEvent.lostPointerCapture(slider, { pointerId: 19 })
+    onSelect.mockClear()
+
+    fireEvent.pointerMove(slider, { pointerId: 20, clientX: 150, shiftKey: true })
+    fireEvent.pointerMove(slider, { pointerId: 20, clientX: 250, shiftKey: true })
+    expect(onSelect).toHaveBeenCalled()
+  })
+
   it('re-anchors fine adjustment from the latest coarse slider value (#814 review)', () => {
     const { onSelect, slider } = renderResolutionPopover()
 
@@ -87,6 +111,7 @@ describe('PixelCountPopover', () => {
 
     fireEvent.pointerMove(slider, { pointerId: 17, clientX: 80 })
     fireEvent.pointerMove(slider, { pointerId: 17, clientX: 180, shiftKey: true })
+    fireEvent.pointerMove(slider, { pointerId: 17, clientX: 280, shiftKey: true })
 
     expect(onSelect).toHaveBeenLastCalledWith(1000)
   })
