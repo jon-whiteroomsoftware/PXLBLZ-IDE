@@ -1347,3 +1347,32 @@ describe('ownership across concurrent reloads (#810 review round 12)', () => {
     expect(useControllerProfileStore.getState().profiles[0].name).toBe('Second wins')
   })
 })
+
+describe('stale reload snapshots (#810 review round 13)', () => {
+  it('a reload requested before a write settled is discarded, not installed', async () => {
+    const profile = defaultControllerProfile({ id: 'ctrl-1', name: 'Original', now: 1 })
+    const provider = memoryProvider([profile])
+    const durableList = provider.listControllerProfiles
+    let releaseLoad!: () => void
+    const loadGate = new Promise<void>((resolve) => {
+      releaseLoad = resolve
+    })
+    setPersonalContentProvider(provider)
+    await useControllerProfileStore.getState().loadProfiles()
+
+    // A slow reload captures the pre-write snapshot...
+    provider.listControllerProfiles = async () => {
+      const snapshot = await durableList()
+      await loadGate
+      return snapshot
+    }
+    const staleReload = useControllerProfileStore.getState().loadProfiles()
+    // ...then a write persists and settles while that response is in flight.
+    await useControllerProfileStore.getState().updateProfile('ctrl-1', { name: 'Renamed' })
+    releaseLoad()
+    await staleReload
+
+    // The stale snapshot must not roll the settled write back.
+    expect(useControllerProfileStore.getState().profiles[0].name).toBe('Renamed')
+  })
+})

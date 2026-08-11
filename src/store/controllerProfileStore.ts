@@ -194,6 +194,12 @@ function patchProfile(
 let profileWriteSeq = 0
 const profileKeyWriters = new Map<string, Map<string, number>>()
 
+// Bumped whenever a durable profile mutation settles (#810). A loadProfiles
+// snapshot requested before the latest settlement is stale — installing it
+// would replace successfully persisted content with pre-write state — so it
+// is discarded; the next refresh reads the current truth.
+let profileSettleGeneration = 0
+
 function keyWritersFor(profileId: string): Map<string, number> {
   let writers = profileKeyWriters.get(profileId)
   if (!writers) {
@@ -247,7 +253,9 @@ export const useControllerProfileStore = create<ControllerProfileState>()((set, 
   ...controllerProfileInitialState,
 
   loadProfiles: async () => {
+    const generationAtRequest = profileSettleGeneration
     const profiles = await getPersonalContentProvider().listControllerProfiles()
+    if (profileSettleGeneration !== generationAtRequest) return
     const normalized = profiles.map((profile) => {
       const inputs = normalizeControllerInputs(profile.inputs)
       return inputs === profile.inputs ? profile : { ...profile, inputs }
@@ -267,6 +275,7 @@ export const useControllerProfileStore = create<ControllerProfileState>()((set, 
   createProfile: async (seed = {}) => {
     const profile = defaultControllerProfile(seed)
     await getPersonalContentProvider().createControllerProfile(profile)
+    profileSettleGeneration += 1
     lastDurableProfiles.set(profile.id, profile)
     trackEntityCreated('controller_profile', { has_device_id: Boolean(profile.deviceId) })
     set((s) => ({ profiles: [profile, ...s.profiles], profilesLoaded: true }))
@@ -277,6 +286,7 @@ export const useControllerProfileStore = create<ControllerProfileState>()((set, 
     const profile = get().profiles.find((item) => item.id === id)
     if (profile?.deviceId) autoCreateSuppressedDeviceIds.add(profile.deviceId)
     await getPersonalContentProvider().deleteControllerProfile(id)
+    profileSettleGeneration += 1
     lastDurableProfiles.delete(id)
     profileKeyWriters.delete(id)
     set((s) => ({ profiles: s.profiles.filter((profile) => profile.id !== id) }))
@@ -345,6 +355,7 @@ export const useControllerProfileStore = create<ControllerProfileState>()((set, 
         }),
       }
       await getPersonalContentProvider().createControllerProfile(profile)
+      profileSettleGeneration += 1
       lastDurableProfiles.set(profile.id, profile)
       trackEntityCreated('controller_profile', { has_device_id: true })
       set((s) => ({ profiles: [profile, ...s.profiles], profilesLoaded: true }))
@@ -398,6 +409,7 @@ export const useControllerProfileStore = create<ControllerProfileState>()((set, 
       })
       throw error
     }
+    profileSettleGeneration += 1
     lastDurableProfiles.set(id, patchProfile(lastDurableProfiles.get(id) ?? previous ?? optimistic!, patch))
     // Re-assert the keys this operation still owns, then release them: a
     // concurrent loadProfiles can have installed a pre-write durable snapshot
