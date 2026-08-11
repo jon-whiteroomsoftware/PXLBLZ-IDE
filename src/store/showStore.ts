@@ -67,13 +67,16 @@ const lastPersistedShowRecords = new Map<string, { record: ShowRecord; history: 
 // Advance the durable baseline for a completed write, but never past a newer
 // record another client persisted while this response was in flight (#792).
 // An equal timestamp means loadShows observed this same write and reset its
-// history; the richer history from the write wins.
+// history; the just-persisted record with its richer history wins.
+//
+// Ordering rests on client-stamped updatedAt because the API has no
+// server-side revision (#802): within one client timestamps are monotonic and
+// this is exact; across clients with skewed clocks a completed write can be
+// mis-ordered. Single-client offline recovery - the #792 scope - is unaffected.
 function advanceDurableBaseline(id: string, record: ShowRecord, history: ShowHistory): void {
   const baseline = lastPersistedShowRecords.get(id)
-  if (!baseline || baseline.record.updatedAt < record.updatedAt) {
+  if (!baseline || baseline.record.updatedAt <= record.updatedAt) {
     lastPersistedShowRecords.set(id, { record, history })
-  } else if (baseline.record.updatedAt === record.updatedAt) {
-    lastPersistedShowRecords.set(id, { record: baseline.record, history })
   }
 }
 
