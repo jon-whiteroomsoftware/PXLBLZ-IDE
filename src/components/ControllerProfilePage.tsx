@@ -604,12 +604,16 @@ function PowerSection({
   const commitTimerRef = useRef<number | null>(null)
   const pendingDutyRef = useRef<number | null>(null)
   const onEditRef = useRef(onEdit)
-  onEditRef.current = onEdit
-  useEffect(() => () => {
-    if (commitTimerRef.current != null) {
-      window.clearTimeout(commitTimerRef.current)
-      if (pendingDutyRef.current != null) {
-        onEditRef.current({ type: 'set-cap-duty', maxDuty: pendingDutyRef.current })
+  useEffect(() => {
+    onEditRef.current = onEdit
+  }, [onEdit])
+  useEffect(() => {
+    return () => {
+      if (commitTimerRef.current != null) {
+        window.clearTimeout(commitTimerRef.current)
+        if (pendingDutyRef.current != null) {
+          onEditRef.current({ type: 'set-cap-duty', maxDuty: pendingDutyRef.current })
+        }
       }
     }
   }, [])
