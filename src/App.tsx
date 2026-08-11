@@ -95,6 +95,7 @@ import {
   resizeStudioLibraryWidth,
 } from '@/engine/studioChrome'
 import { SaveStatusBadge } from '@/components/SaveStatusBadge'
+import { NavigationSaveFailureNotice } from '@/components/NavigationSaveFailureNotice'
 
 function Splitter({
   onDrag,
@@ -1138,6 +1139,7 @@ function StudioApp() {
             )}
             </PaneHeader>
           </div>
+          <NavigationSaveFailureNotice />
           <div className="flex-1 overflow-hidden">
             {activeControllerProfileId !== null ? (
               <ControllerProfilePage profileId={activeControllerProfileId} />

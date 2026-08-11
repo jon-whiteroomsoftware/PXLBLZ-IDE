@@ -1,11 +1,11 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest'
-import { flushPendingAutosave, activeStuckSaveStatus } from './autosaveSync'
+import { flushPendingAutosave, activeStuckSaveStatus, retryNavigationSaveFailure } from './autosaveSync'
 import { usePatternStore, patternInitialState } from './patternStore'
 import { useEditorStore, editorInitialState } from './editorStore'
 import { useMapStore, mapInitialState } from './mapStore'
 import { useMixinStore, mixinInitialState } from './mixinStore'
 import { libraryInitialState, useLibraryStore } from './libraryStore'
-import type { PatternRecord } from '@/engine/personalContentRecords'
+import type { LibraryRecord, PatternRecord } from '@/engine/personalContentRecords'
 import {
   resetPersonalContentProvider,
   setPersonalContentProvider,
@@ -36,6 +36,10 @@ function memoryProvider(seed: PatternRecord[] = []): PersonalContentProvider {
     createMixin: async () => {},
     updateMixin: async () => {},
     deleteMixin: async () => {},
+    listLibraries: async () => [],
+    createLibrary: async () => {},
+    updateLibrary: async () => {},
+    deleteLibrary: async () => {},
     listShows: async () => [],
     createShow: async () => {},
     updateShow: async () => {},
@@ -177,5 +181,124 @@ describe('flushPendingAutosave (#810)', () => {
     setPersonalContentProvider(memoryProvider([PATTERN]))
     openDirtyPattern('edited source')
     expect(activeStuckSaveStatus()).toBeNull()
+  })
+})
+
+describe('navigation save failure (#810 review P1)', () => {
+  it('holds a draft whose navigation flush fails, then retries it on demand', async () => {
+    const provider = memoryProvider([PATTERN])
+    let offline = true
+    const durableUpdate = provider.updatePattern
+    provider.updatePattern = async (id, changes) => {
+      if (offline) throw new Error('offline')
+      await durableUpdate(id, changes)
+    }
+    setPersonalContentProvider(provider)
+    openDirtyPattern('held draft source')
+
+    usePatternStore.getState().setActivePattern('pat-2')
+    await settled()
+
+    // The buffer moved on, so the failure is held for the notice rather than
+    // flagged on the (new) active entity's glyph.
+    expect(useEditorStore.getState().autosaveFailed).toBe(false)
+    expect(useEditorStore.getState().navigationSaveFailure).toMatchObject({
+      flavor: 'pattern',
+      id: PATTERN.id,
+      name: PATTERN.name,
+      source: 'held draft source',
+    })
+
+    offline = false
+    await retryNavigationSaveFailure()
+    expect(useEditorStore.getState().navigationSaveFailure).toBeNull()
+    expect(usePatternStore.getState().userPatterns[0].src).toBe('held draft source')
+  })
+
+  it('a still-failing retry keeps the held draft', async () => {
+    const provider = memoryProvider([PATTERN])
+    provider.updatePattern = async () => {
+      throw new Error('offline')
+    }
+    setPersonalContentProvider(provider)
+    openDirtyPattern('held draft source')
+    usePatternStore.getState().setActivePattern('pat-2')
+    await settled()
+
+    await retryNavigationSaveFailure()
+    expect(useEditorStore.getState().navigationSaveFailure).not.toBeNull()
+  })
+
+  it('drops a held draft once its record has advanced past the held timestamp', async () => {
+    const provider = memoryProvider([PATTERN])
+    let offline = true
+    provider.updatePattern = async () => {
+      if (offline) throw new Error('offline')
+    }
+    const update = vi.spyOn(provider, 'updatePattern')
+    setPersonalContentProvider(provider)
+    openDirtyPattern('held draft source')
+    usePatternStore.getState().setActivePattern('pat-2')
+    await settled()
+    update.mockClear()
+
+    // A newer durable save (another tab, another device) supersedes the draft.
+    usePatternStore.setState((s) => ({
+      userPatterns: s.userPatterns.map((p) =>
+        p.id === PATTERN.id ? { ...p, src: 'newer content', updatedAt: 9999 } : p,
+      ),
+    }))
+    offline = false
+    await retryNavigationSaveFailure()
+
+    expect(update).not.toHaveBeenCalled()
+    expect(useEditorStore.getState().navigationSaveFailure).toBeNull()
+    expect(usePatternStore.getState().userPatterns[0].src).toBe('newer content')
+  })
+
+  it('a flush that succeeds after navigation clears a stale held draft for that record', async () => {
+    const provider = memoryProvider([PATTERN])
+    setPersonalContentProvider(provider)
+    useEditorStore.setState({
+      navigationSaveFailure: {
+        flavor: 'pattern',
+        id: PATTERN.id,
+        name: PATTERN.name,
+        source: 'stale held copy',
+        recordUpdatedAt: 1000,
+      },
+    })
+    openDirtyPattern('edited source')
+
+    flushPendingAutosave()
+    await settled()
+
+    expect(useEditorStore.getState().navigationSaveFailure).toBeNull()
+  })
+})
+
+describe('library switch flush pairing (#810 review P1)', () => {
+  const LIB_A: LibraryRecord = { id: 'lib-a', name: 'LibA', src: 'export function a() {}', updatedAt: 500 }
+  const LIB_B: LibraryRecord = { id: 'lib-b', name: 'LibB', src: 'export function b() {}', updatedAt: 600 }
+
+  it('flushes the outgoing buffer under the outgoing library id, never the destination', async () => {
+    const provider = memoryProvider()
+    const written: Array<{ id: string; src?: string }> = []
+    provider.updateLibrary = async (id, changes) => {
+      written.push({ id, src: changes.src })
+    }
+    setPersonalContentProvider(provider)
+    useLibraryStore.setState({ userLibraries: [LIB_A, LIB_B], editingLibrary: { kind: 'existing', id: LIB_A.id } })
+    useEditorStore.setState({
+      source: 'export function a() { edited() }',
+      compileStatus: 'good',
+      editorFlavor: 'library',
+      isReadOnly: false,
+    })
+
+    useLibraryStore.getState().openExistingLibrary(LIB_B)
+    await settled()
+
+    expect(written).toEqual([{ id: LIB_A.id, src: 'export function a() { edited() }' }])
   })
 })

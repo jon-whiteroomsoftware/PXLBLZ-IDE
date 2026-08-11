@@ -46,12 +46,14 @@ export function Editor() {
     }
   }, [])
 
-  // Warn before a reload/close exactly when the glyph is showing (#810): broken
-  // source that autosave will not persist, or a clean edit whose write is
-  // failing. Never during ordinary typing — the next tick covers that.
+  // Warn before a reload/close exactly when unsaved work is at risk (#810):
+  // broken source that autosave will not persist, a clean edit whose write is
+  // failing, or a held navigation draft. Never during ordinary typing — the
+  // next tick covers that.
   useEffect(() => {
     const warn = (event: BeforeUnloadEvent) => {
-      if (activeStuckSaveStatus() !== null) event.preventDefault()
+      if (activeStuckSaveStatus() !== null
+        || useEditorStore.getState().navigationSaveFailure !== null) event.preventDefault()
     }
     window.addEventListener('beforeunload', warn)
     return () => window.removeEventListener('beforeunload', warn)

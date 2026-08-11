@@ -105,21 +105,23 @@ export const useLibraryStore = create<LibraryState>()((set, get) => ({
   },
 
   openExistingLibrary: (record) => {
+    // Enter library mode first: its flush must pair the outgoing buffer with
+    // the outgoing selection, so editingLibrary changes only afterwards (#810).
+    enterLibraryMode(record.src, record.name)
     set({
       editingLibrary: { kind: 'existing', id: record.id },
       libraryBaseline: record.src,
     })
-    enterLibraryMode(record.src, record.name)
   },
 
   openStockLibrary: (name) => {
     const src = LIBRARIES[name]
     if (!src) return
+    enterLibraryMode(src, name, true)
     set({
       editingLibrary: { kind: 'stock', id: name },
       libraryBaseline: src,
     })
-    enterLibraryMode(src, name, true)
   },
 
   cloneStockLibrary: async (stockName) => {

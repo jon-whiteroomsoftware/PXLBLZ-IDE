@@ -238,6 +238,10 @@ interface MapState {
   // tick when the parse badge is green. An eval failure persists source only,
   // records mapEvalError, and leaves any prior bake intact — never crashes.
   bakeEditingMap: () => Promise<void>
+  // Source-only durable write for a map that is no longer open in the editor,
+  // used by the navigation-save Retry (#810). No eval/bake — the next open
+  // bakes. Rejects on persistence failure without touching the local record.
+  persistMapSource: (id: string, source: string) => Promise<void>
   // Legacy map-to-preview action. Kept as an inert compatibility no-op; assigning
   // a map to a pattern now happens only through the preview Map control.
   deployEditingMap: () => void
@@ -485,6 +489,14 @@ export const useMapStore = create<MapState>()((set, get) => ({
       mapEvalError: evalError,
       mapEvalFailedSource: evalError === null ? null : source,
       userMaps: s.userMaps.map((m) => (m.id === id ? { ...m, ...patch } : m)),
+    }))
+  },
+
+  persistMapSource: async (id, source) => {
+    const updatedAt = Date.now()
+    await getPersonalContentProvider().updateMap(id, { source, updatedAt })
+    set((s) => ({
+      userMaps: s.userMaps.map((m) => (m.id === id ? { ...m, source, updatedAt } : m)),
     }))
   },
 

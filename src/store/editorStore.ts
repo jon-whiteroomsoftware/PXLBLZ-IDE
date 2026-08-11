@@ -18,6 +18,19 @@ interface EditorState {
   // the save-status glyph and the beforeunload guard. Cleared by the first
   // successful save.
   autosaveFailed: boolean
+  // A draft whose navigation-time flush failed after its editor was already
+  // left (#810): the buffer is gone, so this holds the only copy for the
+  // Studio notice's Retry. One slot — a later failed navigation flush
+  // supersedes an earlier one. Null while every navigation flush has landed.
+  navigationSaveFailure: {
+    flavor: EditorFlavor
+    id: string
+    name: string
+    source: string
+    // The record timestamp when the flush failed; Retry drops the draft
+    // instead of writing when the record has advanced past it.
+    recordUpdatedAt: number
+  } | null
   editorFlavor: EditorFlavor
   source: string
   isReadOnly: boolean
@@ -51,6 +64,7 @@ interface EditorState {
   renderAdaptation: string | null
   setCompileStatus: (status: CompileStatus) => void
   setAutosaveFailed: (failed: boolean) => void
+  setNavigationSaveFailure: (failure: EditorState['navigationSaveFailure']) => void
   setEditorFlavor: (flavor: EditorFlavor) => void
   setSource: (source: string) => void
   setIsReadOnly: (value: boolean) => void
@@ -69,6 +83,7 @@ interface EditorState {
 export const editorInitialState = {
   compileStatus: 'good' as CompileStatus,
   autosaveFailed: false,
+  navigationSaveFailure: null as EditorState['navigationSaveFailure'],
   editorFlavor: 'pattern' as EditorFlavor,
   source: '',
   isReadOnly: true,
@@ -88,6 +103,7 @@ export const useEditorStore = create<EditorState>()((set) => ({
   ...editorInitialState,
   setCompileStatus: (compileStatus) => set({ compileStatus }),
   setAutosaveFailed: (autosaveFailed) => set({ autosaveFailed }),
+  setNavigationSaveFailure: (navigationSaveFailure) => set({ navigationSaveFailure }),
   setEditorFlavor: (editorFlavor) => set({ editorFlavor }),
   setSource: (source) => set({ source }),
   setIsReadOnly: (isReadOnly) => set({ isReadOnly }),
