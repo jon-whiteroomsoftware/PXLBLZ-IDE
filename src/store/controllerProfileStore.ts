@@ -373,16 +373,21 @@ export const useControllerProfileStore = create<ControllerProfileState>()((set, 
       })
       throw error
     }
-    lastDurableProfiles.set(id, patchProfile(lastDurableProfiles.get(id) ?? previous ?? optimistic!, patch))
-    // The landed write is authoritative for its keys: an earlier failure's
-    // rollback can have reverted them locally when both writes carried the
-    // same value (key ownership is value-based), so re-assert them.
+    const durableBefore = lastDurableProfiles.get(id)
+    lastDurableProfiles.set(id, patchProfile(durableBefore ?? previous ?? optimistic!, patch))
+    // The landed write is authoritative for its keys, but only against the
+    // rollback that may have reverted them: a key still sitting at the
+    // pre-success durable value was rollback-restored (an earlier failure
+    // carrying the same value could not tell this write's optimistic state
+    // apart) and is repaired; a key holding any other value belongs to a
+    // newer optimistic write and is left to that write's own settlement.
     set((s) => ({
       profiles: s.profiles.map((profile) => {
         if (profile.id !== id) return profile
         let repaired = profile
         for (const key of Object.keys(patch) as Array<keyof Omit<ControllerProfile, 'id'>>) {
-          if (!Object.is(repaired[key], patch[key])) {
+          if (!Object.is(repaired[key], patch[key])
+            && durableBefore && Object.is(repaired[key], durableBefore[key])) {
             repaired = { ...repaired, [key]: patch[key] }
           }
         }

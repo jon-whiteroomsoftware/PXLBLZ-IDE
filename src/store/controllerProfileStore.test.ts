@@ -1187,3 +1187,42 @@ describe('write repair and composite retry atomicity (#810 review round 9)', () 
     expect(useControllerProfileStore.getState().profiles[0].patternBindings).toHaveLength(1)
   })
 })
+
+describe('landed-write repair scope (#810 review round 10)', () => {
+  it('a landed write never clobbers a newer optimistic edit of the same key', async () => {
+    const profile = {
+      ...defaultControllerProfile({ id: 'ctrl-1', name: 'Original', now: 1 }),
+      inputs: [{
+        id: 'pot0', name: 'Front pot', pin: 33, signal: 'analog' as const,
+        smoothing: 0.2, fallback: 0.5, invert: false,
+      }],
+    }
+    const provider = memoryProvider([profile])
+    const durableUpdate = provider.updateControllerProfile
+    let releaseFirst!: () => void
+    const firstGate = new Promise<void>((resolve) => {
+      releaseFirst = resolve
+    })
+    let call = 0
+    provider.updateControllerProfile = async (id, changes) => {
+      call += 1
+      if (call === 1) await firstGate
+      await durableUpdate(id, changes)
+    }
+    setPersonalContentProvider(provider)
+    await useControllerProfileStore.getState().loadProfiles()
+
+    // A (smoothing) is slow; B (fallback) edits while A is pending. When A
+    // lands, its repair must not replace B's optimistic inputs array.
+    const first = useControllerProfileStore.getState().updateInput('ctrl-1', 'pot0', { smoothing: 0.4 })
+    const second = useControllerProfileStore.getState().updateInput('ctrl-1', 'pot0', { fallback: 0.9 })
+    releaseFirst()
+    await first
+    await second
+
+    expect(useControllerProfileStore.getState().profiles[0].inputs[0]).toMatchObject({
+      smoothing: 0.4,
+      fallback: 0.9,
+    })
+  })
+})
