@@ -229,8 +229,10 @@ describe('showStore (#318)', () => {
     await expect(second).rejects.toThrow('offline')
 
     // Neither optimistic record was ever durable; the store returns to the
-    // last persisted state, not to the unpersisted intermediate.
+    // last persisted state, not to the unpersisted intermediate, and the undo
+    // history cannot replay a record that was never saved.
     expect(useShowStore.getState().shows[0].name).toBe('Chained base')
+    expect(useShowStore.getState().showHistories[show.id]?.past ?? []).toHaveLength(0)
     expect(useShowStore.getState().showSaveFailure?.record.name).toBe('Second')
 
     // Records are whole snapshots: retrying the recorded record recovers
