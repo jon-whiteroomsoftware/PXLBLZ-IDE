@@ -209,6 +209,38 @@ describe('showStore (#318)', () => {
     expect(persisted?.name).toBe('Second')
   })
 
+  it('rolls consecutive failed writes back to the last persisted record (#792)', async () => {
+    const show = createDefaultShow('show-chained-failure', 'Chained base', 1)
+    const provider = memoryProvider([show])
+    const realUpdate = provider.updateShow
+    let offline = true
+    provider.updateShow = async (id, changes) => {
+      if (offline) throw new Error('offline')
+      await realUpdate(id, changes)
+    }
+    setPersonalContentProvider(provider)
+    useShowStore.setState({ shows: [show], activeShowId: show.id, showsLoaded: true })
+    await useShowStore.getState().loadShows()
+
+    const first = useShowStore.getState().updateShow(show.id, { ...show, name: 'First', updatedAt: 2 })
+    const second = useShowStore.getState().updateShow(show.id, { ...show, name: 'Second', updatedAt: 3 })
+
+    await expect(first).resolves.toBeUndefined()
+    await expect(second).rejects.toThrow('offline')
+
+    // Neither optimistic record was ever durable; the store returns to the
+    // last persisted state, not to the unpersisted intermediate.
+    expect(useShowStore.getState().shows[0].name).toBe('Chained base')
+    expect(useShowStore.getState().showSaveFailure?.record.name).toBe('Second')
+
+    // Records are whole snapshots: retrying the recorded record recovers
+    // the full intended state once persistence returns.
+    offline = false
+    await useShowStore.getState().retryShowSaveFailure()
+    expect(useShowStore.getState().shows[0].name).toBe('Second')
+    expect(useShowStore.getState().showSaveFailure).toBeNull()
+  })
+
   it('records a save failure alongside the rollback and clears it on dismiss (#792)', async () => {
     const show = createDefaultShow('show-save-notice', 'Save notice', 1)
     const provider = memoryProvider([show])

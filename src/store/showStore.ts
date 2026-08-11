@@ -58,6 +58,9 @@ import { normalizeShowComposition } from '@/engine/showCompositionModel'
 import { stockShowById } from '@/pixelblaze/stock/shows'
 
 const showPersistenceQueues = new Map<string, Promise<void>>()
+// The last record each Show is known to hold durably (#792): rollback after a
+// failed write restores this, never an unpersisted optimistic intermediate.
+const lastPersistedShowRecords = new Map<string, ShowRecord>()
 
 interface ShowState {
   shows: ShowRecord[]
@@ -185,6 +188,8 @@ export const useShowStore = create<ShowState>()((set, get) => ({
   loadShows: async () => {
     const shows = (await getPersonalContentProvider().listShows())
       .map(normalizeShowRecord)
+    lastPersistedShowRecords.clear()
+    for (const show of shows) lastPersistedShowRecords.set(show.id, show)
     set({ shows: shows.sort((a, b) => b.updatedAt - a.updatedAt), showsLoaded: true })
   },
 
@@ -235,6 +240,7 @@ export const useShowStore = create<ShowState>()((set, get) => ({
 
   addShow: async (record) => {
     await getPersonalContentProvider().createShow(record)
+    lastPersistedShowRecords.set(record.id, normalizeShowRecord(record))
     trackEntityCreated('show')
     set((state) => ({ shows: [record, ...state.shows], showsLoaded: true }))
   },
@@ -248,6 +254,7 @@ export const useShowStore = create<ShowState>()((set, get) => ({
 
   removeShow: async (id) => {
     await getPersonalContentProvider().deleteShow(id)
+    lastPersistedShowRecords.delete(id)
     const { activeShowId, shows } = get()
     const remaining = shows.filter((show) => show.id !== id)
     set({
@@ -303,6 +310,7 @@ export const useShowStore = create<ShowState>()((set, get) => ({
     }))
     try {
       await persistShowRecord(normalizedNext)
+      lastPersistedShowRecords.set(id, normalizedNext)
       if (get().showSaveFailure?.showId === id) set({ showSaveFailure: null })
     } catch (cause) {
       // A newer optimistic record already superseded this write; its own
@@ -314,7 +322,7 @@ export const useShowStore = create<ShowState>()((set, get) => ({
         if (current !== normalizedNext) return state
         rolledBack = true
         return {
-          shows: replaceShowRecord(state.shows, previous),
+          shows: replaceShowRecord(state.shows, lastPersistedShowRecords.get(id) ?? previous),
           showHistories: { ...state.showHistories, [id]: previousHistory },
           showSaveFailure: { showId: id, record: normalizedNext },
         }
@@ -535,11 +543,12 @@ export const useShowStore = create<ShowState>()((set, get) => ({
     }))
     try {
       await persistShowRecord(next)
+      lastPersistedShowRecords.set(showId, next)
       if (get().showSaveFailure?.showId === showId) set({ showSaveFailure: null })
       return true
     } catch {
       set((state) => ({
-        shows: replaceShowRecord(state.shows, show),
+        shows: replaceShowRecord(state.shows, lastPersistedShowRecords.get(showId) ?? show),
         showHistories: { ...state.showHistories, [showId]: history },
         showSaveFailure: { showId, record: next },
       }))
@@ -570,11 +579,12 @@ export const useShowStore = create<ShowState>()((set, get) => ({
     }))
     try {
       await persistShowRecord(next)
+      lastPersistedShowRecords.set(showId, next)
       if (get().showSaveFailure?.showId === showId) set({ showSaveFailure: null })
       return true
     } catch {
       set((state) => ({
-        shows: replaceShowRecord(state.shows, show),
+        shows: replaceShowRecord(state.shows, lastPersistedShowRecords.get(showId) ?? show),
         showHistories: { ...state.showHistories, [showId]: history },
         showSaveFailure: { showId, record: next },
       }))
