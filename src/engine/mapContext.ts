@@ -154,6 +154,14 @@ export function explicitPatternMapUsers<T extends { settings?: { mapId?: string 
   return patterns.filter((pattern) => pattern.settings?.mapId === mapId)
 }
 
+export function controllerProfileMapUsers<
+  T extends { mapFingerprints?: Array<{ mapId: string }>; name: string },
+>(profiles: T[], mapId: string): T[] {
+  return profiles.filter((profile) =>
+    profile.mapFingerprints?.some((fingerprint) => fingerprint.mapId === mapId),
+  )
+}
+
 export function labelStyle(label: WireLabel, width: number, height: number): { left: string; top: string } {
   return {
     left: `${clamp01(label.x / Math.max(1, width)) * 100}%`,

@@ -56,6 +56,7 @@ import { useEditorStore } from '@/store/editorStore'
 import { useLibraryStore } from '@/store/libraryStore'
 import { STOCK_MAPS, useMapStore, openMapForPushState } from '@/store/mapStore'
 import { useControllerPanelStore } from '@/store/controllerPanelStore'
+import { useControllerProfileStore } from '@/store/controllerProfileStore'
 import { getPersonalContentProvider } from '@/engine/personalContentProvider'
 import { waitForControllerProfileWrites } from '@/engine/controllerProfileWriteQueue'
 import {
@@ -1550,14 +1551,17 @@ export const useControllerStore = create<ControllerConnectionState>()(
             const points = resolveMapPushPoints(map.source, map.points, config?.pixelCount ?? null)
             await getControllerProvider().setPixelMap(points)
             const pushedFingerprint = mapDataHash(encodeMapData(points))
-            const profiles = await getPersonalContentProvider().listControllerProfiles().catch(() => [])
+            const profileStore = useControllerProfileStore.getState()
+            const profiles = profileStore.profilesLoaded
+              ? profileStore.profiles
+              : await getPersonalContentProvider().listControllerProfiles().catch(() => [])
             const activeController = get().controllers[controllerId]
             const profile = activeController
               ? findProfileForLiveController(profiles, activeController)
               : null
             if (profile) {
               const pushedAt = Date.now()
-              await getPersonalContentProvider().updateControllerProfile(profile.id, {
+              await profileStore.updateProfile(profile.id, {
                 mapFingerprints: withMapFingerprintRecord(profile.mapFingerprints, {
                   hash: pushedFingerprint,
                   mapId: map.id,
@@ -1565,7 +1569,6 @@ export const useControllerStore = create<ControllerConnectionState>()(
                   devicePixelCount: points.length,
                   pushedAt,
                 }),
-                updatedAt: pushedAt,
               }).catch(() => {})
             }
             await get().refreshInstalledMap(controllerId, {

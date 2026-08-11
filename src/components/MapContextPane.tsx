@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { Box, GitBranch, Lock, Map as MapIcon, SlidersHorizontal } from 'lucide-react'
 import {
+  controllerProfileMapUsers,
   explicitPatternMapUsers,
   labelStyle,
   mapFacts,
@@ -212,6 +213,10 @@ export function MapContextPane() {
     () => (context ? explicitPatternMapUsers(userPatterns, context.id) : []),
     [context, userPatterns],
   )
+  const controllerUsers = useMemo(
+    () => (context ? controllerProfileMapUsers(controllerProfiles, context.id) : []),
+    [context, controllerProfiles],
+  )
   const diagnosticGeometry = useMemo(() => {
     if (!geometry) return null
     return prepareMapDiagnosticGeometry({
@@ -407,14 +412,25 @@ export function MapContextPane() {
 
         <SectionTitle icon={<GitBranch size={12} aria-hidden />}>Used by</SectionTitle>
         <div className="mt-1 space-y-1.5">
-          {controllerProfiles.length === 0 ? (
+          {controllerUsers.length === 0 ? (
             <p className="text-[11px] leading-relaxed text-zinc-500">
-              No controller profiles yet.
+              {controllerProfiles.length === 0
+                ? 'No controller profiles yet.'
+                : 'No controller profiles have recorded this map.'}
             </p>
           ) : (
-            <p className="text-[11px] leading-relaxed text-zinc-500">
-              Controller profiles do not record map identity yet.
-            </p>
+            <div className="space-y-1">
+              {controllerUsers.slice(0, 5).map((profile) => (
+                <div key={profile.id} className="flex items-center gap-2 rounded border border-zinc-900 bg-zinc-950/50 px-2 py-1.5">
+                  <GitBranch size={11} aria-hidden className="text-zinc-600" />
+                  <span className="min-w-0 flex-1 truncate text-zinc-400">{profile.name}</span>
+                  <span className="text-[10px] text-structural">controller</span>
+                </div>
+              ))}
+              {controllerUsers.length > 5 && (
+                <div className="px-2 text-[10px] text-zinc-500">+{controllerUsers.length - 5} more controllers</div>
+              )}
+            </div>
           )}
           {patternUsers.length === 0 ? (
             <p className="text-[11px] leading-relaxed text-zinc-500">

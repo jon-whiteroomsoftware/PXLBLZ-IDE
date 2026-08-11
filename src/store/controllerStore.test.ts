@@ -2169,6 +2169,41 @@ describe('controllerStore (keyed)', () => {
       })
     })
 
+    it('round-trips a pushed map fingerprint into the live Controller Profile (#803)', async () => {
+      let persistedProfile = defaultControllerProfile({
+        id: 'ctrl-1',
+        ip: '10.0.0.5',
+        now: 1,
+      })
+      setPersonalContentProvider({
+        ...demoPersonalContentProvider,
+        id: 'map-fingerprint-round-trip-test',
+        listControllerProfiles: async () => [persistedProfile],
+        updateControllerProfile: async (id, changes) => {
+          if (id === persistedProfile.id) persistedProfile = { ...persistedProfile, ...changes }
+        },
+      })
+      useControllerProfileStore.setState({
+        profiles: [persistedProfile],
+        profilesLoaded: true,
+      })
+      await armMap(2)
+
+      await store().pushActiveMap()
+
+      const observation = store().controllers['10.0.0.5'].installedMap
+      const liveProfile = useControllerProfileStore.getState().profiles[0]
+      expect(observation).toMatchObject({ status: 'present' })
+      expect(liveProfile.mapFingerprints).toEqual([{
+        hash: observation?.status === 'present' ? observation.fingerprint : '',
+        mapId: MAP.id,
+        mapName: MAP.name,
+        devicePixelCount: 2,
+        pushedAt: expect.any(Number),
+      }])
+      expect(persistedProfile.mapFingerprints).toEqual(liveProfile.mapFingerprints)
+    })
+
     it('cancelPush dismisses the map dialog without writing', async () => {
       await armMap(2)
       await store().requestMapPush()

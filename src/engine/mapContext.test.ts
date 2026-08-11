@@ -1,4 +1,5 @@
 import {
+  controllerProfileMapUsers,
   explicitPatternMapUsers,
   labelStyle,
   mapFacts,
@@ -45,6 +46,16 @@ describe('map context wiring helpers', () => {
       { name: 'Plane user', settings: { mapId: 'plane' } },
     ], 'cube')
     expect(users.map((pattern) => pattern.name)).toEqual(['Cube user'])
+  })
+
+  it('finds Controller Profiles with a fingerprint record for the map (#803)', () => {
+    const users = controllerProfileMapUsers([
+      { name: 'Road case', mapFingerprints: [{ mapId: 'panel' }, { mapId: 'panel' }] },
+      { name: 'Desk', mapFingerprints: [{ mapId: 'plane' }] },
+      { name: 'Unmapped' },
+    ], 'panel')
+
+    expect(users.map((profile) => profile.name)).toEqual(['Road case'])
   })
 
   it('clamps label styles to the canvas box', () => {

@@ -74,6 +74,39 @@ describe('MapContextPane', () => {
     }
   })
 
+  it('names Controller Profiles that recorded the open map identity (#803)', () => {
+    useMapStore.setState({
+      editingMap: { kind: 'existing', id: CUSTOM_MAP.id },
+      userMaps: [CUSTOM_MAP],
+    })
+    useControllerProfileStore.setState({
+      profiles: [{
+        id: 'ctrl-1',
+        name: 'Road case',
+        board: { kind: 'pixelblaze-v3-standard' },
+        inputs: [],
+        globalTransforms: [],
+        keepPatternsUpToDate: false,
+        patternBindings: [],
+        zones: [],
+        mapFingerprints: [{
+          hash: '9a0c9e7f',
+          mapId: CUSTOM_MAP.id,
+          mapName: CUSTOM_MAP.name,
+          devicePixelCount: 4,
+          pushedAt: 1,
+        }],
+        updatedAt: 1,
+      }],
+      profilesLoaded: true,
+    })
+
+    render(<MapContextPane />)
+
+    expect(screen.getByText('Road case')).toBeInTheDocument()
+    expect(screen.queryByText('Controller profiles do not record map identity yet.')).not.toBeInTheDocument()
+  })
+
   it('holds the last successful custom map bake when eval fails', async () => {
     useMapStore.setState({
       editingMap: { kind: 'existing', id: CUSTOM_MAP.id },
