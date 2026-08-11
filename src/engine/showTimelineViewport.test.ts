@@ -214,6 +214,25 @@ describe('Show timeline viewport (#420)', () => {
     })).toEqual({ startMs: 12_000, magnetized: false })
   })
 
+  it('preserves a butted neighbour boundary when excluding the dragged Clip edges (#789)', () => {
+    const options = {
+      durationMs: 2_000,
+      totalMs: 12_000,
+      visibleDurationMs: 12_000,
+      visibleWidthPx: 1_200,
+      structuralTimesMs: [0, 5_337, 5_337, 7_337, 12_000],
+      excludedStructuralTimesMs: [5_337, 7_337],
+      altKey: false,
+      shiftKey: false,
+    }
+    const movedOffBoundary = resolveShowTimelineClipDragPlacement(7_000, options)
+
+    expect(resolveShowTimelineClipDragPlacement(5_380, {
+      ...options,
+      previousPlacement: movedOffBoundary,
+    })).toEqual({ startMs: 5_337, magnetized: true })
+  })
+
   it('can snap to explicit boundaries without enabling the time grid', () => {
     expect(snapShowTimelineTime(5_930, {
       visibleDurationMs: 60_000,

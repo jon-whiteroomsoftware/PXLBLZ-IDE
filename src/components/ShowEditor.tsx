@@ -3796,7 +3796,7 @@ function ShowTimelineWorkspace({
   const markerTimesMs = markersVisible
     ? (timelineComposition?.markers ?? []).map((marker) => marker.timeMs)
     : []
-  const structuralTimesWithoutMarkersMs = [...new Set([
+  const structuralTimesWithoutMarkersContributionsMs = [
     0,
     timeline.durationMs,
     ...timeline.scenes.flatMap((scene) => [scene.startMs, scene.endMs]),
@@ -3806,7 +3806,8 @@ function ShowTimelineWorkspace({
     ...(unifiedCompositionTimeline?.zones.flatMap((zone) => (
       zone.layers.flatMap((layer) => layer.clips.flatMap((clip) => [clip.startMs, clip.endMs]))
     )) ?? []),
-  ])]
+  ]
+  const structuralTimesWithoutMarkersMs = [...new Set(structuralTimesWithoutMarkersContributionsMs)]
   const structuralTimesMs = [...new Set([
     ...structuralTimesWithoutMarkersMs,
     ...markerTimesMs,
@@ -3814,7 +3815,7 @@ function ShowTimelineWorkspace({
   const clipMarkerSnapEnabled = markersVisible
   const clipDragStructuralTimesMs = () => [
     positionMsRef.current,
-    ...(snapEnabled ? structuralTimesWithoutMarkersMs : []),
+    ...(snapEnabled ? structuralTimesWithoutMarkersContributionsMs : []),
     ...(clipMarkerSnapEnabled ? markerTimesMs : []),
   ]
   // Timeline drops are quantized by default: whole seconds, or tenths while

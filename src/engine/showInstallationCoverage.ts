@@ -52,11 +52,16 @@ export function installationPhysicalZones(
   if (show.outputContract?.kind !== 'installation') return undefined
   const layout = show.routingLayouts.find((candidate) => candidate.id === layoutId)
   if (!layout || layout.logical) return undefined
-  return show.zones.map((zone) => ({
-    id: `${layout.id}:${zone.id}`,
-    name: zone.name,
-    ranges: (layout.zones.find((entry) => entry.zoneId === zone.id)?.ranges ?? []).map((range) => ({ ...range })),
-  }))
+  return show.zones.flatMap((zone) => {
+    const ranges = layout.zones.find((entry) => entry.zoneId === zone.id)?.ranges ?? []
+    return ranges.length > 0
+      ? [{
+          id: `${layout.id}:${zone.id}`,
+          name: zone.name,
+          ranges: ranges.map((range) => ({ ...range })),
+        }]
+      : []
+  })
 }
 
 export function resolveShowZonePixelCount(

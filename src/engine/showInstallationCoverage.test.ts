@@ -1,4 +1,4 @@
-import { validateInstallationCoverage } from './showInstallationCoverage'
+import { resolveShowZonePixelCount, validateInstallationCoverage } from './showInstallationCoverage'
 import { createDefaultShow } from './showModel'
 import { createInstallationShowOutputContract, createPortableShowOutputContract } from './showOutputContract'
 
@@ -65,5 +65,15 @@ describe('Installation physical-zone coverage (#435)', () => {
       referencePixelCount: 60,
     })
     expect(validateInstallationCoverage(portable)).toBeNull()
+  })
+
+  it('presents a Zone with cleared physical ranges at its nominal pixel count (#790)', () => {
+    const show = installationShow()
+    show.routingLayouts[0].zones = [{ zoneId: 'zone-1', ranges: [] }]
+
+    expect(resolveShowZonePixelCount(show, 'zone-1')).toEqual({
+      source: 'nominal',
+      pixelCount: 60,
+    })
   })
 })

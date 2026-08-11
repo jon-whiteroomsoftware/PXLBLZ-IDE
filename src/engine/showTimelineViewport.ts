@@ -237,14 +237,19 @@ export function resolveShowTimelineClipDragPlacement(
   const totalMs = Math.max(0, options.totalMs)
   const maxStartMs = Math.max(0, totalMs - durationMs)
   const rawStartMs = clamp(candidateStartMs, 0, maxStartMs)
-  const excludedStructuralTimesMs = new Set(options.excludedStructuralTimesMs ?? [])
+  const excludedStructuralTimeCounts = new Map<number, number>()
+  for (const timeMs of options.excludedStructuralTimesMs ?? []) {
+    excludedStructuralTimeCounts.set(timeMs, (excludedStructuralTimeCounts.get(timeMs) ?? 0) + 1)
+  }
   const structuralTimesMs = options.altKey
     ? []
-    : options.structuralTimesMs.filter((timeMs) => (
-        timeMs >= 0
-        && timeMs <= totalMs
-        && !excludedStructuralTimesMs.has(timeMs)
-      ))
+    : options.structuralTimesMs.filter((timeMs) => {
+        if (timeMs < 0 || timeMs > totalMs) return false
+        const excludedCount = excludedStructuralTimeCounts.get(timeMs) ?? 0
+        if (excludedCount === 0) return true
+        excludedStructuralTimeCounts.set(timeMs, excludedCount - 1)
+        return false
+      })
   const snapBoundary = (candidateMs: number, minTimeMs: number, maxTimeMs: number) => (
     snapShowTimelineTime(candidateMs, {
       visibleDurationMs: options.visibleDurationMs,
