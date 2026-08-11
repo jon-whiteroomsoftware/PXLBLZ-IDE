@@ -1,4 +1,4 @@
-import { useRef, useState, type RefObject } from 'react'
+import { useMemo, useRef, useState, type RefObject } from 'react'
 import type { DimLens } from '@/engine/dimLens'
 import type { GalleryPattern } from '@/engine/galleryCatalog'
 import { stockPatternOrganization } from '@/engine/stockEntityOrganization'
@@ -70,7 +70,11 @@ export function PatternsRailSection({
   onPersonalOrganizationChange: (organization: EntityOrganizationV1) => void
   onCollapse?: () => void
 }) {
-  const [builtInOrganization, setBuiltInOrganization] = useState(() => stockPatternOrganization(visibleStockPatterns))
+  const [collapsedBuiltInFolderIds, setCollapsedBuiltInFolderIds] = useState<string[]>([])
+  const builtInOrganization = useMemo(() => ({
+    ...stockPatternOrganization(visibleStockPatterns),
+    collapsedFolderIds: collapsedBuiltInFolderIds,
+  }), [collapsedBuiltInFolderIds, visibleStockPatterns])
   const personalTreeRef = useRef<EntityOrganizationTreeHandle>(null)
   return (
     <>
@@ -164,7 +168,7 @@ export function PatternsRailSection({
               sectionLabel="Built-in Patterns"
               onSelect={onOpenStockPattern}
               onRenameEntity={() => undefined}
-              onOrganizationChange={setBuiltInOrganization}
+              onOrganizationChange={(organization) => setCollapsedBuiltInFolderIds(organization.collapsedFolderIds)}
             />
           )
         )}

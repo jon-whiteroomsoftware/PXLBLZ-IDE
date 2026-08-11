@@ -675,6 +675,20 @@ describe('PatternList', () => {
     expect(screen.getByRole('button', { name: 'Dimension filter' })).toHaveTextContent('1D')
   })
 
+  it('rebuilds the built-in Pattern tree when the lens changes after a rail-mode round trip (#809)', async () => {
+    const user = userEvent.setup()
+    render(<PatternList />)
+
+    await selectDimension(user, '1D')
+    await switchToMaps(user)
+    await user.click(screen.getByRole('radio', { name: 'Patterns' }))
+    expect(screen.queryByText('AuroraSphere')).not.toBeInTheDocument()
+
+    await selectDimension(user, 'All')
+
+    expect(screen.getByText('AuroraSphere')).toBeInTheDocument()
+  })
+
   it('filters the Maps rail to true 1D maps', async () => {
     mockMaps = [
       CUSTOM_MAP,
