@@ -273,6 +273,33 @@ describe('showStore (#318)', () => {
     expect(useShowStore.getState().shows[0].scenes[0].name).toBe('Scene 1')
   })
 
+  it('keeps undo history when loadShows races an in-flight successful save (#792)', async () => {
+    const show = createDefaultShow('show-race-history', 'Race base', 1)
+    const provider = memoryProvider([show])
+    const realUpdate = provider.updateShow
+    let releaseWrite!: () => void
+    const writeGate = new Promise<void>((resolve) => { releaseWrite = resolve })
+    provider.updateShow = async (id, changes) => {
+      await realUpdate(id, changes)
+      // Durable before the promise resolves, like a response in flight.
+      await writeGate
+    }
+    setPersonalContentProvider(provider)
+    useShowStore.setState({ shows: [show], activeShowId: show.id, showsLoaded: true })
+
+    const edit = useShowStore.getState().updateScene(show.id, 'scene-1', { name: 'Saved edit' })
+    await Promise.resolve()
+    await Promise.resolve()
+    await useShowStore.getState().loadShows()
+    releaseWrite()
+    await edit
+
+    const past = useShowStore.getState().showHistories[show.id]?.past ?? []
+    expect(past[past.length - 1]?.scenes[0].name).toBe('Scene 1')
+    await expect(useShowStore.getState().undoShow(show.id)).resolves.toBe(true)
+    expect(useShowStore.getState().shows[0].scenes[0].name).toBe('Scene 1')
+  })
+
   it('records a save failure alongside the rollback and clears it on dismiss (#792)', async () => {
     const show = createDefaultShow('show-save-notice', 'Save notice', 1)
     const provider = memoryProvider([show])

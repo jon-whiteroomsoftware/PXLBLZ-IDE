@@ -332,7 +332,14 @@ export const useShowStore = create<ShowState>()((set, get) => ({
     try {
       await persistShowRecord(normalizedNext)
       lastPersistedShowRecords.set(id, { record: normalizedNext, history: optimisticHistory })
-      if (get().showSaveFailure?.showId === id) set({ showSaveFailure: null })
+      set((state) => ({
+        ...(state.showSaveFailure?.showId === id ? { showSaveFailure: null } : {}),
+        // A loadShows that raced this write saw the durable record before the
+        // promise resolved and cleared its history as stale; restore the pair.
+        ...(state.showHistories[id] === undefined
+          ? { showHistories: { ...state.showHistories, [id]: optimisticHistory } }
+          : {}),
+      }))
     } catch (cause) {
       // A newer optimistic record already superseded this write; its own
       // persistence outcome is authoritative, so nothing rolls back and the
@@ -566,7 +573,12 @@ export const useShowStore = create<ShowState>()((set, get) => ({
     try {
       await persistShowRecord(next)
       lastPersistedShowRecords.set(showId, { record: next, history: nextHistory })
-      if (get().showSaveFailure?.showId === showId) set({ showSaveFailure: null })
+      set((state) => ({
+        ...(state.showSaveFailure?.showId === showId ? { showSaveFailure: null } : {}),
+        ...(state.showHistories[showId] === undefined
+          ? { showHistories: { ...state.showHistories, [showId]: nextHistory } }
+          : {}),
+      }))
       return true
     } catch {
       set((state) => {
@@ -605,7 +617,12 @@ export const useShowStore = create<ShowState>()((set, get) => ({
     try {
       await persistShowRecord(next)
       lastPersistedShowRecords.set(showId, { record: next, history: nextHistory })
-      if (get().showSaveFailure?.showId === showId) set({ showSaveFailure: null })
+      set((state) => ({
+        ...(state.showSaveFailure?.showId === showId ? { showSaveFailure: null } : {}),
+        ...(state.showHistories[showId] === undefined
+          ? { showHistories: { ...state.showHistories, [showId]: nextHistory } }
+          : {}),
+      }))
       return true
     } catch {
       set((state) => {
