@@ -421,3 +421,73 @@ describe('library switch flush pairing (#810 review P1)', () => {
     expect(written).toEqual([{ id: LIB_A.id, src: 'export function a() { edited() }' }])
   })
 })
+
+describe('empty-buffer and reopen coherence (#810 review round 7)', () => {
+  it('an emptied buffer shows wont-save and is never written', async () => {
+    const provider = memoryProvider([PATTERN])
+    const update = vi.spyOn(provider, 'updatePattern')
+    setPersonalContentProvider(provider)
+    openDirtyPattern('')
+
+    expect(activeStuckSaveStatus()).toMatchObject({ status: 'wont-save' })
+    flushPendingAutosave()
+    usePatternStore.getState().setActivePattern('pat-2')
+    await settled()
+
+    expect(update).not.toHaveBeenCalled()
+    expect(usePatternStore.getState().userPatterns[0].src).toBe(PATTERN.src)
+  })
+
+  it('refreshes an untouched reopened buffer when its pending save lands', async () => {
+    const provider = memoryProvider([PATTERN])
+    let releaseWrite!: () => void
+    const writeGate = new Promise<void>((resolve) => {
+      releaseWrite = resolve
+    })
+    const durableUpdate = provider.updatePattern
+    provider.updatePattern = async (id, changes) => {
+      await writeGate
+      await durableUpdate(id, changes)
+    }
+    setPersonalContentProvider(provider)
+    openDirtyPattern('pending draft')
+    flushPendingAutosave()
+
+    // Navigate away and reopen before the save settles: the open path reloads
+    // the stale persisted source (setSource, so bufferEdited stays false).
+    usePatternStore.getState().setActivePattern('pat-2')
+    usePatternStore.getState().setActivePattern(PATTERN.id)
+    useEditorStore.getState().setSource(PATTERN.src)
+    releaseWrite()
+    await settled()
+
+    // The buffer follows the successful save; a tick now writes nothing back.
+    expect(useEditorStore.getState().source).toBe('pending draft')
+    expect(usePatternStore.getState().userPatterns[0].src).toBe('pending draft')
+  })
+
+  it('never touches a reopened buffer the user has typed into', async () => {
+    const provider = memoryProvider([PATTERN])
+    let releaseWrite!: () => void
+    const writeGate = new Promise<void>((resolve) => {
+      releaseWrite = resolve
+    })
+    const durableUpdate = provider.updatePattern
+    provider.updatePattern = async (id, changes) => {
+      await writeGate
+      await durableUpdate(id, changes)
+    }
+    setPersonalContentProvider(provider)
+    openDirtyPattern('pending draft')
+    flushPendingAutosave()
+
+    usePatternStore.getState().setActivePattern('pat-2')
+    usePatternStore.getState().setActivePattern(PATTERN.id)
+    // The user deliberately re-authors the old content in the editor.
+    useEditorStore.getState().setEditedSource(PATTERN.src)
+    releaseWrite()
+    await settled()
+
+    expect(useEditorStore.getState().source).toBe(PATTERN.src)
+  })
+})

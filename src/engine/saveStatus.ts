@@ -24,7 +24,10 @@ export function deriveStuckSaveStatus(input: {
 }): StuckSaveStatus | null {
   if (input.persisted === null) return null
   if (input.buffer === input.persisted) return null
-  if (input.compileBroken) return 'wont-save'
+  // Autosave deliberately never persists an empty buffer (the guard also
+  // protects records from pre-hydration boot races), so an emptied editor is
+  // stuck the same way broken source is.
+  if (input.compileBroken || input.buffer === '') return 'wont-save'
   if (input.autosaveFailed) return 'cant-save'
   return null
 }
@@ -47,7 +50,7 @@ export function stuckSaveStatusLabel(
   lastSavedAt: number | null,
 ): string {
   const base = status === 'wont-save'
-    ? 'Changes not saved — the source has errors, and only clean source is autosaved. Fix the errors to resume saving.'
+    ? 'Changes not saved — only clean, non-empty source is autosaved. Fix the errors or restore content to resume saving.'
     : "Can't reach storage — retrying automatically. Your latest edits are only in this tab until a save succeeds."
   return lastSavedAt === null ? base : `${base} ${lastSavedPhrase(lastSavedAt)}`
 }

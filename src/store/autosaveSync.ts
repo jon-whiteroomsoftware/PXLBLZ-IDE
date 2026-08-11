@@ -71,6 +71,17 @@ export function flushPendingAutosave(): void {
       && editor.autosaveFailedEntity.id === attempt.id
     if (!failed) {
       if (failedEntityMatches) editor.setAutosaveFailedEntity(null)
+      if (entityActive && baseSrcAtRun !== null && source !== baseSrcAtRun
+        && editor.source === baseSrcAtRun && !editor.bufferEdited) {
+        // The record was reopened while this save was pending, so the buffer
+        // reloaded the stale pre-save content and the user has not touched it:
+        // refresh it to the saved draft so the next tick cannot write the
+        // stale content back over the successful save. A buffer the user has
+        // typed into — including deliberately restoring the old content — is
+        // never touched; their visible intent wins.
+        editor.setSource(source)
+        editor.setPreviewSource(source)
+      }
       return
     }
     if (!record || baseSrcAtRun === null || record.src !== baseSrcAtRun) {

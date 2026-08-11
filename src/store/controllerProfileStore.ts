@@ -229,14 +229,14 @@ export const useControllerProfileStore = create<ControllerProfileState>()((set, 
 
   loadProfiles: async () => {
     const profiles = await getPersonalContentProvider().listControllerProfiles()
+    const normalized = profiles.map((profile) => {
+      const inputs = normalizeControllerInputs(profile.inputs)
+      return inputs === profile.inputs ? profile : { ...profile, inputs }
+    })
     lastDurableProfiles.clear()
-    for (const profile of profiles) lastDurableProfiles.set(profile.id, profile)
+    for (const profile of normalized) lastDurableProfiles.set(profile.id, profile)
     set({
-      profiles: profiles
-        .map((profile) => {
-          const inputs = normalizeControllerInputs(profile.inputs)
-          return inputs === profile.inputs ? profile : { ...profile, inputs }
-        })
+      profiles: normalized
         .sort((a, b) => b.updatedAt - a.updatedAt),
       profilesLoaded: true,
     })
@@ -369,16 +369,18 @@ export const useControllerProfileStore = create<ControllerProfileState>()((set, 
       throw error
     }
     lastDurableProfiles.set(id, patchProfile(lastDurableProfiles.get(id) ?? previous ?? optimistic!, patch))
-    // Clear the failure only when this write covers the failed edit's keys
-    // (the retry, or the user re-doing that edit). An unrelated write to the
-    // same profile leaves the notice up: the failed changes are still not
-    // durable.
-    set((s) => (
-      s.profileSaveFailure?.profileId === id
-        && Object.keys(s.profileSaveFailure.changes).every((changedKey) => changedKey in changes)
-        ? { profileSaveFailure: null }
-        : {}
-    ))
+    // A successful write that touches any of the failed keys supersedes the
+    // whole failed intent: composite patches (an input removal edits inputs
+    // AND patternBindings together) cannot be safely replayed piecemeal, so
+    // Retry must never see a partially superseded failure. A write to
+    // entirely different keys leaves the failure up — those changes are
+    // still not durable.
+    set((s) => {
+      if (s.profileSaveFailure?.profileId !== id) return {}
+      const overlaps = Object.keys(s.profileSaveFailure.changes)
+        .some((failedKey) => failedKey in changes)
+      return overlaps ? { profileSaveFailure: null } : {}
+    })
     if (previous && optimistic) {
       const optInChanged = previous.keepPatternsUpToDate !== optimistic.keepPatternsUpToDate
       const generatedCodeChanged =

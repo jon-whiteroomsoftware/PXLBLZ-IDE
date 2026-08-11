@@ -34,6 +34,11 @@ interface EditorState {
   navigationSaveLosses: NavigationSaveLoss[]
   editorFlavor: EditorFlavor
   source: string
+  // True once the user has typed into the current buffer; false while the
+  // buffer still holds exactly what an open/load path put there (#810). Lets
+  // a settling save distinguish a stale reopened buffer (safe to refresh)
+  // from content the user deliberately authored (never touched).
+  bufferEdited: boolean
   isReadOnly: boolean
   previewSource: string
   previewPatternName: string
@@ -68,6 +73,9 @@ interface EditorState {
   setNavigationSaveLosses: (losses: NavigationSaveLoss[]) => void
   setEditorFlavor: (flavor: EditorFlavor) => void
   setSource: (source: string) => void
+  /** The editor change handler's setter: same as setSource but marks the
+   * buffer as user-edited. */
+  setEditedSource: (source: string) => void
   setIsReadOnly: (value: boolean) => void
   setPreviewSource: (src: string) => void
   setPreviewPatternName: (name: string) => void
@@ -87,6 +95,7 @@ export const editorInitialState = {
   navigationSaveLosses: [] as NavigationSaveLoss[],
   editorFlavor: 'pattern' as EditorFlavor,
   source: '',
+  bufferEdited: false,
   isReadOnly: true,
   previewSource: '',
   previewPatternName: '',
@@ -106,7 +115,8 @@ export const useEditorStore = create<EditorState>()((set) => ({
   setAutosaveFailedEntity: (autosaveFailedEntity) => set({ autosaveFailedEntity }),
   setNavigationSaveLosses: (navigationSaveLosses) => set({ navigationSaveLosses }),
   setEditorFlavor: (editorFlavor) => set({ editorFlavor }),
-  setSource: (source) => set({ source }),
+  setSource: (source) => set({ source, bufferEdited: false }),
+  setEditedSource: (source) => set({ source, bufferEdited: true }),
   setIsReadOnly: (isReadOnly) => set({ isReadOnly }),
   setPreviewSource: (previewSource) => set({ previewSource }),
   setPreviewPatternName: (previewPatternName) => set({ previewPatternName }),

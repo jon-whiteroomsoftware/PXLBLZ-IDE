@@ -26,6 +26,12 @@ describe('deriveStuckSaveStatus (#810)', () => {
     })).toBe('wont-save')
   })
 
+  it('reports wont-save for an emptied buffer, which autosave never persists', () => {
+    expect(deriveStuckSaveStatus({
+      buffer: '', persisted: 'old', compileBroken: false, autosaveFailed: false,
+    })).toBe('wont-save')
+  })
+
   it('reports cant-save for a dirty clean buffer whose write is failing', () => {
     expect(deriveStuckSaveStatus({
       buffer: 'new', persisted: 'old', compileBroken: false, autosaveFailed: true,

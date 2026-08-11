@@ -16,7 +16,7 @@ export function Editor() {
   const source = useEditorStore((s) => s.source)
   const isReadOnly = useEditorStore((s) => s.isReadOnly)
   const editorFlavor = useEditorStore((s) => s.editorFlavor)
-  const setSource = useEditorStore((s) => s.setSource)
+  const setEditedSource = useEditorStore((s) => s.setEditedSource)
   const setCompileStatus = useEditorStore((s) => s.setCompileStatus)
   const setPreviewSource = useEditorStore((s) => s.setPreviewSource)
   const compileStatus = useEditorStore((s) => s.compileStatus)
@@ -52,7 +52,7 @@ export function Editor() {
   }
 
   const handleChange = (value: string) => {
-    setSource(value)
+    setEditedSource(value)
     if (previewDebounceRef.current) clearTimeout(previewDebounceRef.current)
     previewDebounceRef.current = setTimeout(() => {
       const { compileStatus: status, activePatternId: pid } = syncRef.current

@@ -1003,3 +1003,61 @@ describe('durable-baseline profile rollback (#810 review round 6)', () => {
     expect(useControllerProfileStore.getState().profileSaveFailure).toBeNull()
   })
 })
+
+describe('failure clearing and baseline normalization (#810 review round 7)', () => {
+  it('a successful write touching any failed key clears the whole failure', async () => {
+    const profile = defaultControllerProfile({ id: 'ctrl-1', name: 'Original', now: 1 })
+    const provider = memoryProvider([profile])
+    const durableUpdate = provider.updateControllerProfile
+    const failComposite = true
+    provider.updateControllerProfile = async (id, changes) => {
+      if (failComposite && 'patternBindings' in changes) throw new Error('save failed')
+      await durableUpdate(id, changes)
+    }
+    setPersonalContentProvider(provider)
+    await useControllerProfileStore.getState().loadProfiles()
+
+    // A composite edit (inputs + patternBindings together) fails.
+    await useControllerProfileStore.getState().updateProfile('ctrl-1', {
+      inputs: [],
+      patternBindings: [],
+    }).catch(() => {})
+    expect(useControllerProfileStore.getState().profileSaveFailure).not.toBeNull()
+
+    // A later successful write touching one of those keys supersedes the
+    // whole composite intent: replaying it piecemeal could destroy this edit.
+    await useControllerProfileStore.getState().updateProfile('ctrl-1', {
+      inputs: [{
+        id: 'input-new', name: 'New input', pin: 33, signal: 'analog',
+        smoothing: 0.2, fallback: 0.5, invert: false,
+      }],
+    })
+    expect(useControllerProfileStore.getState().profileSaveFailure).toBeNull()
+    expect(useControllerProfileStore.getState().profiles[0].inputs).toHaveLength(1)
+  })
+
+  it('rollback restores normalized durable inputs, not raw provider records', async () => {
+    const profile = defaultControllerProfile({ id: 'ctrl-1', name: 'Original', now: 1 })
+    const legacyInputs = [{
+      id: 'pot0', name: 'Front pot', pin: 33, signal: 'analog',
+      smoothing: 0.2, fallback: 0.5, invert: false, role: 'retired-field',
+    }] as unknown as ControllerProfile['inputs']
+    const provider = memoryProvider([{ ...profile, inputs: legacyInputs }])
+    const durableUpdate = provider.updateControllerProfile
+    let offline = true
+    provider.updateControllerProfile = async (id, changes) => {
+      if (offline) throw new Error('save failed')
+      await durableUpdate(id, changes)
+    }
+    setPersonalContentProvider(provider)
+    await useControllerProfileStore.getState().loadProfiles()
+    expect(useControllerProfileStore.getState().profiles[0].inputs[0]).not.toHaveProperty('role')
+
+    await useControllerProfileStore.getState().updateProfile('ctrl-1', { inputs: [] }).catch(() => {})
+
+    const rolledBack = useControllerProfileStore.getState().profiles[0].inputs
+    expect(rolledBack).toHaveLength(1)
+    expect(rolledBack[0]).not.toHaveProperty('role')
+    offline = false
+  })
+})
