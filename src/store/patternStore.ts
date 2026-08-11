@@ -9,6 +9,7 @@ import {
 import type { PatternRecord } from '@/engine/personalContentRecords'
 import type { Settings } from '@/engine/settings'
 import { extractPatternAuthors, normalizePatternAuthors } from '@/engine/patternAttribution'
+import { useEditorStore } from '@/store/editorStore'
 
 export type { LastActive, PatternRecord }
 export { DEMO_OVERRIDES_KEY, LAST_ACTIVE_KEY }
@@ -119,6 +120,7 @@ export const usePatternStore = create<PatternState>()((set, get) => ({
         p.id === id ? { ...p, name, updatedAt } : p,
       ),
     }))
+    if (get().activePatternId === id) useEditorStore.getState().setPreviewPatternName(name)
   },
 
   removePattern: async (id) => {

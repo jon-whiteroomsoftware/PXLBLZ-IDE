@@ -8,6 +8,7 @@ import {
   type PersonalContentProvider,
 } from '@/engine/personalContentProvider'
 import type { Settings } from '@/engine/settings'
+import { editorInitialState, useEditorStore } from './editorStore'
 
 function memoryProvider(): PersonalContentProvider {
   const patterns = new Map<string, PatternRecord>()
@@ -71,6 +72,7 @@ beforeEach(() => {
   resetPersonalContentProvider()
   setPersonalContentProvider(memoryProvider())
   usePatternStore.setState(patternInitialState)
+  useEditorStore.setState(editorInitialState)
 })
 
 describe('activePushKey', () => {
@@ -113,6 +115,22 @@ describe('patternStore', () => {
     usePatternStore.getState().setActiveLibrary('sdf')
     usePatternStore.getState().setActivePattern('abc-123')
     expect(usePatternStore.getState().activeLibraryName).toBeNull()
+  })
+
+  it('keeps the active artifact name in sync when a Pattern is renamed (#804)', async () => {
+    const pattern = {
+      id: 'pat-1',
+      name: 'Untitled Pattern',
+      src: 'export function render(index) { hsv(index, 1, 1) }',
+      controls: {},
+      updatedAt: 1,
+    }
+    usePatternStore.setState({ userPatterns: [pattern], activePatternId: pattern.id })
+    useEditorStore.setState({ previewPatternName: pattern.name })
+
+    await usePatternStore.getState().renamePattern(pattern.id, 'Freshness spiral')
+
+    expect(useEditorStore.getState().previewPatternName).toBe('Freshness spiral')
   })
 
   it('setActiveLibrary clears activePatternId', () => {

@@ -447,6 +447,7 @@ describe('pushPattern — save mode (persist: true)', () => {
       persist: true,
       name: 'Rainbow',
       source: 'export function render(index){ hsv(0,1,1) }',
+      sourceHash: 'studio-source-hash',
       transforms: ['hardware-brightness', 'power-cap'],
     })
 
@@ -459,6 +460,7 @@ describe('pushPattern — save mode (persist: true)', () => {
         'pat-1': {
           transforms: banner.transforms,
           artifactHash: banner.hash,
+          sourceHash: 'studio-source-hash',
           stampedAt: banner.stamped,
           name: 'Rainbow',
         },

@@ -5,6 +5,9 @@ export interface ControllerPushRecord {
   /** Generated-code profile signature used for the saved artifact. Missing on
    * legacy records, which makes the artifact eligible for one reconciliation. */
   profileSignature?: string
+  /** Hash of the canonical Studio source before Controller-specific transforms.
+   * Missing on legacy records, which retain profile-only freshness semantics. */
+  sourceHash?: string
   artifactHash: string
   stampedAt: string
   name: string

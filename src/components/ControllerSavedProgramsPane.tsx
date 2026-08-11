@@ -31,6 +31,7 @@ import {
   type ControllerSavedProgramRow,
   type ControllerSavedProgramsView,
 } from '@/engine/controllerSavedPrograms'
+import { artifactHash } from '@/engine/artifactStamp'
 import {
   createSavedProgramPatternRecord,
   decideSavedProgramImport,
@@ -623,11 +624,13 @@ export function ControllerSavedProgramsPane({ profile }: { profile: ControllerPr
         bindingKey: pattern.id,
         routeId: pattern.id,
         name: pattern.name,
+        sourceHash: artifactHash(pattern.src),
       })),
       ...Object.keys(DEMOS).map((name) => ({
         bindingKey: `demo:${name}`,
         routeId: name,
         name,
+        sourceHash: artifactHash(DEMOS[name]),
       })),
       ...STOCK_SHOWS.flatMap((item) => {
         const show = stockShowDrafts[item.id] ?? item.show

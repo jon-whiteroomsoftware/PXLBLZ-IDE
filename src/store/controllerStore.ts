@@ -31,7 +31,7 @@ import { availableDiscoveredControllers } from '@/engine/controllerDiscovery'
 import type { ControllerPhase } from '@/engine/controllerPillView'
 import { pushPattern } from '@/engine/pushPattern'
 import { queueControllerDeviceWrite } from '@/engine/controllerDeviceWriteQueue'
-import type { ArtifactStampMeta } from '@/engine/artifactStamp'
+import { artifactHash, type ArtifactStampMeta } from '@/engine/artifactStamp'
 import {
   getControllerBindings,
   setControllerBindings,
@@ -1192,6 +1192,9 @@ export const useControllerStore = create<ControllerConnectionState>()(
                 controllerId: live.ip,
                 patternId: job.bindingKey,
                 source: bundled.code,
+                ...(job.bindingKey.startsWith('show:')
+                  ? {}
+                  : { sourceHash: artifactHash(job.source) }),
                 name: job.name,
                 persist: true,
                 activateOnSave: activate,
@@ -1677,6 +1680,7 @@ export const useControllerStore = create<ControllerConnectionState>()(
               controllerId,
               patternId,
               source: code,
+              sourceHash: artifactHash(previewSource),
               name: previewPatternName,
               persist,
               previewImage,

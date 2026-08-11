@@ -102,6 +102,8 @@ export interface PushPatternDeps {
   transforms?: string[]
   /** Generated-code Controller profile signature stored with the push record. */
   profileSignature?: string
+  /** Hash of the canonical Studio source before Controller-specific transforms. */
+  sourceHash?: string
   /** Override the saved artifact's provenance. Shows pass their canonical Show stamp;
    * ordinary Pattern sends omit this and retain the historical Pattern stamp. */
   artifactStamp?: ArtifactStampMeta
@@ -252,6 +254,7 @@ export async function pushPattern(deps: PushPatternDeps): Promise<PushPatternRes
   await deps.savePushRecords(withPushRecord(pushRecords, deps.controllerId, deps.patternId, {
     transforms: stamp.transforms,
     ...(deps.profileSignature ? { profileSignature: deps.profileSignature } : {}),
+    ...(deps.sourceHash ? { sourceHash: deps.sourceHash } : {}),
     artifactHash: stamp.hash,
     stampedAt: stamp.stamped,
     name: deps.name ?? '',

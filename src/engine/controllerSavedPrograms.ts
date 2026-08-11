@@ -24,11 +24,15 @@ export const CONTROLLER_SAVED_PATTERN_STATUS_LABELS: Record<ControllerSavedPatte
 export function describeProfileFreshness(
   pushRecord: ControllerPushRecord | undefined,
   currentProfileSignature: string | null,
+  currentSourceHash?: string,
 ): ControllerSavedPatternFreshness {
   if (!pushRecord?.profileSignature || currentProfileSignature === null) return 'unmanaged'
   const stored = readStoredArtifactSignature(pushRecord.profileSignature)
   if (stored.kind !== 'recognized') return 'unmanaged'
-  return stored.normalized === currentProfileSignature ? 'current' : 'stale'
+  if (stored.normalized !== currentProfileSignature) return 'stale'
+  if (pushRecord.sourceHash === undefined) return 'current'
+  if (currentSourceHash === undefined) return 'unmanaged'
+  return pushRecord.sourceHash === currentSourceHash ? 'current' : 'stale'
 }
 
 export interface StudioPatternIdentity {
@@ -37,6 +41,8 @@ export interface StudioPatternIdentity {
   /** The id used by the Studio patterns route: record id or demo name. */
   routeId: string
   name: string
+  /** Hash of the current canonical Studio source, when this entity can be regenerated. */
+  sourceHash?: string
 }
 
 export interface ControllerSavedProgramRow {
@@ -171,6 +177,7 @@ export function describeControllerSavedPrograms(input: {
         input.profileSignatureReady === false
           ? null
           : controllerProfileArtifactSignature(input.profile, bindingKey, { mapDim: input.mapDim }),
+        studioPattern?.sourceHash,
       ),
       ...(pushRecord?.showOutputContract ? { showOutputContract: pushRecord.showOutputContract } : {}),
     })

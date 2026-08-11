@@ -12,13 +12,14 @@ function signature(bindingKey: string, mapDim: 1 | 2 | 3 | null = 2) {
   return controllerProfileArtifactSignature(profile, bindingKey, { mapDim })
 }
 
-function pushRecord(transforms: string[], profileSignature?: string) {
+function pushRecord(transforms: string[], profileSignature?: string, sourceHash?: string) {
   return {
     transforms,
     artifactHash: 'hash',
     stampedAt: '2026-07-09T00:00:00.000Z',
     name: 'Saved pattern',
     ...(profileSignature === undefined ? {} : { profileSignature }),
+    ...(sourceHash === undefined ? {} : { sourceHash }),
   }
 }
 
@@ -35,6 +36,19 @@ describe('describeProfileFreshness', () => {
       pushRecord([], signature('pat-1', 2)),
       signature('pat-1', 3),
     )).toBe('stale')
+  })
+
+  it('marks a saved Pattern stale when its Studio source changed (#804)', () => {
+    expect(describeProfileFreshness(
+      pushRecord([], signature('pat-1'), 'saved-source'),
+      signature('pat-1'),
+      'edited-source',
+    )).toBe('stale')
+    expect(describeProfileFreshness(
+      pushRecord([], signature('pat-1'), 'saved-source'),
+      signature('pat-1'),
+      'saved-source',
+    )).toBe('current')
   })
 
   it('does not claim freshness without a recognized durable signature', () => {

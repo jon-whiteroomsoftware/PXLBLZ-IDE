@@ -1,6 +1,7 @@
 import { expect, showtimePath, test } from './fixtures/authenticated'
 import { installFakeControllerHelper } from './fixtures/fakeControllerHelper'
 import { controllerProfileArtifactSignature } from '../src/engine/controllerProfilePassRecipe'
+import { artifactHash } from '../src/engine/artifactStamp'
 import type { ControllerProfile } from '../src/engine/controllerProfile'
 
 test('gates functional Show access behind the showtime query parameter', async ({ page }) => {
@@ -488,6 +489,7 @@ test('saved Pattern freshness follows the full profile through a real managed ov
         [bindingKey]: {
           transforms: [],
           artifactHash: 'before-profile-edit',
+          sourceHash: artifactHash(pattern.src),
           stampedAt: '2026-08-08T00:00:00.000Z',
           name: pattern.name,
           profileSignature: initialSignature,
@@ -552,4 +554,24 @@ test('saved Pattern freshness follows the full profile through a real managed ov
   }).toBe(enabledSignature)
   await expect(page.getByText('CURRENT', { exact: true })).toBeVisible()
   await expect(page.getByText('PUSH AGAIN', { exact: true })).toHaveCount(0)
+
+  await page.getByRole('button', { name: pattern.name, exact: true }).click()
+  await expect(page).toHaveURL(new RegExp(`/studio/patterns/${pattern.id}$`))
+  const editedSource = 'export function render(index) { hsv(index / pixelCount, 1, wave(time(0.1))) }'
+  const editor = page.locator('.monaco-editor').first()
+  await expect(editor).toBeVisible()
+  await editor.click()
+  await page.keyboard.press('ControlOrMeta+A')
+  await page.keyboard.insertText(editedSource)
+  await expect.poll(async () => {
+    const response = await page.context().request.get('/api/patterns')
+    if (!response.ok()) return null
+    const body = await response.json() as { patterns?: Array<{ id: string; src: string }> }
+    return body.patterns?.find((item) => item.id === pattern.id)?.src ?? null
+  }).toBe(editedSource)
+
+  await controllerPill.click()
+  await page.getByRole('link', { name: `Open ${profile.name} profile` }).click()
+  await expect(page.getByText('PUSH AGAIN', { exact: true })).toBeVisible()
+  await expect(page.getByText('CURRENT', { exact: true })).toHaveCount(0)
 })
