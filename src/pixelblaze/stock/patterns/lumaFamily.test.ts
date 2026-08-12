@@ -9,6 +9,7 @@ import {
   LUMA_DEMOS,
 } from '@/engine/galleryCatalog'
 import { loadPattern } from '@/engine/loadPattern'
+import { discoverAutomatablePatternControls } from '@/engine/showPatternControls'
 import { createFxShim, createShim, planeShimConfig } from '@/engine/shim'
 import { LIBRARIES } from '@/pixelblaze/libs'
 
@@ -103,6 +104,20 @@ describe('Luma family shared ontology (#819)', () => {
   })
 })
 
+describe('Luma family Show control discovery (#819)', () => {
+  it('attaches the seconds presentation for stock ids so Shows render exact seconds', () => {
+    const src = readFileSync(join(here, 'LumaStripes.js'), 'utf8')
+    const controls = discoverAutomatablePatternControls(src, {}, 'LumaStripes')
+    const loop = controls.find((control) => control.exportName === 'sliderLoopInterval')
+    expect(loop?.secondsPresentation).toEqual({ scale: 10, minSeconds: 0.1 })
+    // Without a stock id (user patterns) the control stays a plain percentage.
+    const anonymous = discoverAutomatablePatternControls(src, {})
+    expect(
+      anonymous.find((control) => control.exportName === 'sliderLoopInterval')?.secondsPresentation,
+    ).toBeUndefined()
+  })
+})
+
 describe('Luma family output contract (#819)', () => {
   it.each(FAMILY)('%s renders full-range grayscale at defaults', (name) => {
     const { advance, frame } = makeHarness(name)
@@ -172,6 +187,24 @@ describe('Luma family motion contract (#819)', () => {
     }
     advance(1185)
     expect(frame()).not.toEqual(before)
+  })
+
+  it.each(FAMILY)('%s preserves phase when Loop Interval changes', (name) => {
+    const { handle, enc, advance, frame } = makeHarness(name)
+    advance(0)
+    advance(700) // run forward to mid-loop (0.35 of the default 2 s)
+    handle.controls.sliderDirection(enc(0.5))
+    advance(0)
+    const held = frame()
+    // With the clock held mid-loop, a tempo change must not move the image:
+    // the clock rescales to the new loop length instead of keeping raw
+    // elapsed milliseconds.
+    handle.controls.sliderLoopInterval(enc(0.8))
+    advance(0)
+    expect(frame(), `${name} slower`).toEqual(held)
+    handle.controls.sliderLoopInterval(enc(0.05))
+    advance(0)
+    expect(frame(), `${name} faster`).toEqual(held)
   })
 
   it('LumaStripes travels from the compass origin: Angle 0 moves crests down-screen', () => {

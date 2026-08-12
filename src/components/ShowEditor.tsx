@@ -1391,7 +1391,7 @@ export function ShowEditor({
       ? userPatterns.find((pattern) => pattern.id === cell.pattern.id)?.controls ?? {}
       : {}
     try {
-      return [cell.id, discoverAutomatablePatternControls(sourceForShowCell(cell, userPatterns), saved)]
+      return [cell.id, discoverAutomatablePatternControls(sourceForShowCell(cell, userPatterns), saved, cell.pattern.kind === 'stock' ? cell.pattern.id : undefined)]
     } catch {
       return [cell.id, []]
     }
@@ -1477,7 +1477,7 @@ export function ShowEditor({
       ]
     : []).map((instance) => {
     try {
-      return [instance.id, discoverAutomatablePatternControls(sourceForShowPatternRef(instance.pattern, userPatterns), {})]
+      return [instance.id, discoverAutomatablePatternControls(sourceForShowPatternRef(instance.pattern, userPatterns), {}, instance.pattern.kind === 'stock' ? instance.pattern.id : undefined)]
     } catch {
       return [instance.id, []]
     }
@@ -8234,7 +8234,7 @@ function CompositionClipInspector({
   }
   return (
     <ShowPropertyAnimationProvider
-      options={buildShowPropertyAnimationOptions(value)}
+      options={buildShowPropertyAnimationOptions(value, patternControls)}
       tracks={propertyAnimationContext.tracks}
       trackIssues={propertyAnimationContext.trackIssues}
       storageDurationMs={propertyAnimationContext.storageDurationMs}

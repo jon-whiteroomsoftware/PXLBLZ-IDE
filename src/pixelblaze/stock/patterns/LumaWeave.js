@@ -52,6 +52,7 @@ export function toggleInvert(v) { invert = v }
 
 var phase = 0
 var clockMs = 0
+var lastLoopMs = 2000
 var pitch = 0.5
 var hx = 0, hy = -1
 
@@ -63,6 +64,13 @@ export function beforeRender(delta) {
   // entry through the curated seconds presentation.
   var loopMs = 10000 * loopInterval
   if (loopMs < 100) loopMs = 100
+  if (loopMs != lastLoopMs) {
+    // A tempo change preserves phase: rescale the clock to the new loop
+    // length instead of keeping raw elapsed milliseconds, so automating
+    // Loop Interval from a Show never jumps or warps the image.
+    clockMs = clockMs / lastLoopMs * loopMs
+    lastLoopMs = loopMs
+  }
   var dir = direction < 1 / 3 ? -1 : direction < 2 / 3 ? 0 : 1
   clockMs = mod(clockMs + dir * delta + loopMs, loopMs)
   phase = clockMs / loopMs

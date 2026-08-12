@@ -711,16 +711,36 @@ export const ShowClipEntityDetail = forwardRef<ShowClipEntityDetailHandle, ShowC
                           </th>
                           <td
                             className="truncate whitespace-nowrap py-0.5 pr-3 font-mono text-[8px] text-zinc-600"
-                            title={`${control.exportName} · Studio default ${formatPercentageValue(control.defaultValue)}`}
+                            title={control.secondsPresentation
+                              ? `${control.exportName} · Studio default ${(control.defaultValue * control.secondsPresentation.scale).toFixed(2)}s`
+                              : `${control.exportName} · Studio default ${formatPercentageValue(control.defaultValue)}`}
                           >
-                            {control.exportName} · 0–100%
+                            {control.exportName} · {control.secondsPresentation ? 'seconds' : '0–100%'}
                           </td>
                           <td
                             data-show-clip-summary-target={`control:${control.exportName}`}
                             tabIndex={-1}
                             className="whitespace-nowrap py-0.5 [&_input]:!border-0"
                           >
-                            {enabled ? (
+                            {enabled ? (control.secondsPresentation ? (
+                              <TimeField
+                                label={`${control.label} target`}
+                                hideLabel
+                                value={target * control.secondsPresentation.scale}
+                                min={control.secondsPresentation.minSeconds}
+                                max={control.secondsPresentation.scale}
+                                step={0.001}
+                                compact
+                                disabled={readOnly}
+                                onPreview={(next) => onPreviewPatch?.({
+                                  simulation: { controlTargets: withControlTarget(controlTargets, control.exportName, next / control.secondsPresentation!.scale) },
+                                })}
+                                onPreviewEnd={onPreviewEnd}
+                                onChange={(next) => onPatch({
+                                  simulation: { controlTargets: withControlTarget(controlTargets, control.exportName, next / control.secondsPresentation!.scale) },
+                                })}
+                              />
+                            ) : (
                               <PercentageField
                                 label={`${control.label} target`}
                                 hideLabel
@@ -738,7 +758,7 @@ export const ShowClipEntityDetail = forwardRef<ShowClipEntityDetailHandle, ShowC
                                   simulation: { controlTargets: withControlTarget(controlTargets, control.exportName, next) },
                                 })}
                               />
-                            ) : <span aria-hidden className="text-zinc-700">—</span>}
+                            )) : <span aria-hidden className="text-zinc-700">—</span>}
                           </td>
                           <td className="py-0.5 pl-1">
                             {enabled && value.instanceId && (

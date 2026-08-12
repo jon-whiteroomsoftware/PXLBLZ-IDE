@@ -637,6 +637,23 @@ function AnimationValueField({
   onChange: (value: number) => void
 }) {
   const label = `${option.label} animation ${edge}`
+  if (option.secondsPresentation) {
+    const { scale, minSeconds } = option.secondsPresentation
+    return (
+      <TimeField
+        label={label}
+        ariaLabel={label}
+        hideLabel
+        value={value * scale}
+        min={minSeconds}
+        max={scale}
+        step={0.001}
+        compact
+        variant="inspector"
+        onChange={(seconds) => onChange(seconds / scale)}
+      />
+    )
+  }
   if (option.presentation === 'percentage') {
     return (
       <PercentageField

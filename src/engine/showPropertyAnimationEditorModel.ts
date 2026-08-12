@@ -9,6 +9,8 @@ import type {
   ShowPropertyAnimationTrack,
   ShowRecord,
 } from './personalContentRecords'
+import type { AutomatablePatternControl } from './showPatternControls'
+import type { ControlSecondsPresentation } from '@/pixelblaze/controlDescriptions'
 import type { ShowClipInspectorValue } from './showClipInspectorModel'
 import type { ShowGroupClipOwner } from './showGroupClipInspectorModel'
 import { projectShowTimeline } from './showModel'
@@ -33,6 +35,10 @@ export interface ShowPropertyAnimationOption {
   max: number
   step: number
   presentation: ShowPropertyAnimationValuePresentation
+  // Curated for stock pattern controls whose raw 0..1 value encodes seconds
+  // linearly (value * scale); the editor renders an exact seconds field and
+  // formats overview values in seconds (#819).
+  secondsPresentation?: ControlSecondsPresentation
 }
 
 export type ShowPropertyAnimationChange =
@@ -100,6 +106,7 @@ const ORPHAN_CODES = new Set<ShowPropertyAnimationValidationCode>([
 
 export function buildShowPropertyAnimationOptions(
   value: ShowClipInspectorValue,
+  patternControls: readonly AutomatablePatternControl[] = [],
 ): ShowPropertyAnimationOption[] {
   if (!value.placementId || !value.instanceId) return []
   const option = (
@@ -132,17 +139,21 @@ export function buildShowPropertyAnimationOptions(
       0.01,
       'multiplier',
     ),
-    ...Object.entries(value.simulation.controlTargets ?? {}).map(([exportName, current]) => (
-      option(
-        exportName,
-        { kind: 'instance-control', instanceId, exportName },
-        current,
-        0,
-        1,
-        0.01,
-        'percentage',
-      )
-    )),
+    ...Object.entries(value.simulation.controlTargets ?? {}).map(([exportName, current]) => {
+      const meta = patternControls.find((control) => control.exportName === exportName)
+      return {
+        ...option(
+          exportName,
+          { kind: 'instance-control', instanceId, exportName },
+          current,
+          0,
+          1,
+          0.01,
+          'percentage',
+        ),
+        ...(meta?.secondsPresentation ? { secondsPresentation: meta.secondsPresentation } : {}),
+      }
+    }),
     ...(value.local?.opacity !== undefined
       ? [option(
           'Opacity',
@@ -512,6 +523,7 @@ function fieldLocation(target: ShowPropertyAnimationTarget): ShowPropertyAnimati
 function formatOverviewValue(option: ShowPropertyAnimationOption | undefined, value: number | undefined): string {
   if (value === undefined) return '—'
   const rounded = (candidate: number) => Number(candidate.toFixed(3)).toString()
+  if (option?.secondsPresentation) return `${rounded(value * option.secondsPresentation.scale)}s`
   if (option?.presentation === 'percentage') return `${rounded(value * 100)}%`
   if (option?.presentation === 'multiplier') return `${rounded(value)}x`
   if (option?.presentation === 'degrees') return `${rounded(value * 360)}°`
