@@ -597,9 +597,10 @@ describe('routing (#308)', () => {
     render(<App />)
 
     const editorPane = screen.getByTestId('editor-pane')
-    expect(within(editorPane).getByRole('combobox', { name: 'Pattern 1' })).toHaveValue('Murmuration')
-    expect(within(editorPane).getByRole('combobox', { name: 'Pattern 2' })).toHaveValue('IQPalettes')
-    const selector = within(editorPane).getByRole('combobox', { name: 'Pattern 3' })
+    // The Murmuration backdrop is doctrine-fixed and offers no swap box
+    // since slot declarations began scoping the surface (#822).
+    expect(within(editorPane).getByRole('combobox', { name: 'Pattern 1' })).toHaveValue('IQPalettes')
+    const selector = within(editorPane).getByRole('combobox', { name: 'Pattern 2' })
     expect(selector).toHaveValue('MetaballGarden')
     await user.click(selector)
     await user.click(screen.getByRole('option', { name: 'Caustics' }))

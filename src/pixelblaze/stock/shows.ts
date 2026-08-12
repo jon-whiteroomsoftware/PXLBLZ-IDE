@@ -2396,7 +2396,9 @@ function apertureShapesReference(): StockShow {
       summary: 'Geometric silhouettes at one frame, then the Ring across Hard, Soft, and Stable Dither.',
       patternSlots: {
         cellIds: variants.map((variant) => cellId(variant.id, 'zone-1')),
-        instanceIds: ['rose'],
+        // Declarations scope the generated swap surface (#822): both the
+        // garden subject and the rose are intended swappable here.
+        instanceIds: ['garden', 'rose'],
       },
       examples: variants.map((variant) => ({
         id: `example-${variant.id}`,
@@ -2543,10 +2545,14 @@ function transitionReferenceShow(input: {
     })),
   }
   const reference: ShowReferenceGuide = {
-    summary: 'Each boundary compares two content Patterns over a third quiet moving backdrop; the arrow names which side is incoming, and every source is swappable.',
+    summary: 'Each boundary compares two content Patterns over a third quiet moving backdrop; the arrow names which side is incoming, and both content sides are swappable.',
     patternSlots: {
       cellIds: scenes.filter((_, index) => index % 2 === 1).map((item) => cellId(item.id, 'zone-1')),
-      instanceIds: [contentInstanceId(1)],
+      // Declarations scope the generated swap surface (#822). Both content
+      // sides are swappable; the quiet backdrop is deliberately fixed (the
+      // placement doctrine keeps it out of instanceIds), which also removes
+      // its previously-offered swap box.
+      instanceIds: [contentInstanceId(0), contentInstanceId(1)],
     },
     examples: input.specs.map((spec, index) => ({
       id: spec.id,
@@ -3242,8 +3248,17 @@ function catalogue(input: CatalogueInput): StockShow {
     transitions, stageMapId: input.output.mapId, outputContract,
     ...(input.composition ? { composition: input.composition } : {}), updatedAt: UPDATED_AT,
   }
+  // The reference's declared patternSlots scope the swap surface: generated
+  // groups that touch none of the declared cells or instances are dropped,
+  // so a showcase can expose one representative slot instead of one box per
+  // unique Pattern (#822 - seven boxes crowded the Luma Sources header).
+  const declaredSlots = input.reference?.patternSlots
   const patternSlots = input.reference
-    ? showcasePatternSlotsInFirstAppearance(show)
+    ? showcasePatternSlotsInFirstAppearance(show).filter((group) => (
+        !declaredSlots
+        || group.instanceIds.some((id) => declaredSlots.instanceIds.includes(id))
+        || group.cellIds.some((id) => declaredSlots.cellIds.includes(id))
+      ))
     : input.patternSlots?.map((instanceIds) => ({ cellIds: [], instanceIds }))
   const number = input.level ? String(input.level + input.order) : undefined
   const note: StockShowNote = {

@@ -750,8 +750,9 @@ describe('stock Show curriculum (#363)', () => {
       'MetaballGarden',
       'CompassRose',
     ])
+    // Declarations scope the swap surface (#822): the Murmuration backdrop
+    // is doctrine-fixed and no longer offers a swap box.
     expect(slotPatternNames('stock-show-reference-blend-fade-transitions')).toEqual([
-      'Murmuration',
       'IQPalettes',
       'MetaballGarden',
     ])
