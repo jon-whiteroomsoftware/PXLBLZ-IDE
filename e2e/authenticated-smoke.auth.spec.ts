@@ -728,14 +728,25 @@ test.describe('silent save-failure feedback (#810)', () => {
     await page.goto(`studio/patterns/${pattern.id}`)
     const editor = page.locator('.monaco-editor').first()
     await expect(editor.locator('.view-lines')).toBeVisible()
+
+    // Seed a same-document Forward target without unmounting Monaco: the
+    // button-driven Gallery path is covered below and in App tests, while this
+    // setup isolates popstate from Monaco's expected cancellation on remount.
+    await page.evaluate(() => {
+      const appBase = window.location.pathname.split('/studio/')[0]
+      window.history.pushState(null, '', `${appBase}/gallery`)
+    })
+    await page.goBack()
+    await expect(page).toHaveURL(new RegExp(`/studio/patterns/${pattern.id}$`))
+    await expect(editor.locator('.view-lines')).toBeVisible()
+
     await editor.locator('.view-lines').click({ clickCount: 3 })
     await expect(editor).toHaveClass(/focused/)
     await page.keyboard.type(brokenSource)
     await expect(page.getByTestId('compile-status')).toHaveAttribute('data-status', 'broken')
 
     const studioUrl = new RegExp(`/studio/patterns/${pattern.id}$`)
-    const gallery = page.getByRole('button', { name: 'Gallery' })
-    await gallery.click()
+    await page.goForward()
 
     let dialog = page.getByRole('alertdialog', { name: 'Discard broken source?' })
     await expect(dialog).toContainText(pattern.name)
@@ -753,7 +764,7 @@ test.describe('silent save-failure feedback (#810)', () => {
     await expect(page.getByRole('button', { name: `Rename pattern ${pattern.name}` })).toBeVisible()
     await expect(editor.locator('.view-lines')).toContainText('var = 3')
 
-    await gallery.click()
+    await page.goBack()
     dialog = page.getByRole('alertdialog', { name: 'Discard broken source?' })
     const discard = dialog.getByRole('button', { name: 'Discard and continue' })
     await discard.focus()
@@ -765,6 +776,13 @@ test.describe('silent save-failure feedback (#810)', () => {
     expect(patterns.ok(), `GET /api/patterns -> ${patterns.status()}`).toBe(true)
     const body = await patterns.json() as { patterns?: Array<{ id: string; src: string }> }
     expect(body.patterns?.find((item) => item.id === pattern.id)?.src).toBe(pattern.src)
+
+    // The bounced Studio entry remains the Forward destination. Returning to
+    // the same active record must show durable source, not resurrect the draft.
+    await page.goForward()
+    await expect(page).toHaveURL(studioUrl)
+    await expect(editor.locator('.view-lines')).toContainText('hsv(index / pixelCount, 1, 1)')
+    await expect(editor.locator('.view-lines')).not.toContainText('var = 3')
   })
 
   test('an edit that fails to save during navigation is reported as lost (#810)', async ({ page }) => {

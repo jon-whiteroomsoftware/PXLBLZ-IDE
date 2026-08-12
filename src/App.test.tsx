@@ -1301,6 +1301,13 @@ describe('routing (#308)', () => {
     await waitFor(() => expect(window.location.pathname).toBe('/gallery'))
     expect(screen.getByTestId('gallery-page')).toHaveTextContent('Pattern Gallery')
     expect(usePatternStore.getState().userPatterns[0]?.src).toBe(pattern.src)
+    expect(useEditorStore.getState()).toMatchObject({
+      source: pattern.src,
+      previewSource: pattern.src,
+      previewPatternName: pattern.name,
+      compileStatus: 'good',
+      bufferEdited: false,
+    })
   })
 
   it('sends signed-out Gallery visitors to the Studio welcome page without rendering Studio first', async () => {

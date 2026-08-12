@@ -21,6 +21,11 @@ interface PendingNavigationPreflight {
   draft: NavigationPreflightDraft
 }
 
+interface BrokenDraft {
+  draft: NavigationPreflightDraft
+  durableSource: string
+}
+
 interface NavigationPreflightState {
   pending: PendingNavigationPreflight | null
 }
@@ -35,8 +40,7 @@ export const useNavigationPreflightStore = create<NavigationPreflightState>()(()
 
 type BufferReplacement = () => unknown
 
-let pendingReplacement: BufferReplacement | null = null
-let approvedDepth = 0
+let pendingReplacement: { replacement: BufferReplacement; broken: BrokenDraft } | null = null
 
 function routeOwns(route: Route, flavor: EditorFlavor, id: string): boolean {
   if (route.kind !== 'studio') return false
@@ -51,7 +55,7 @@ function routeOwns(route: Route, flavor: EditorFlavor, id: string): boolean {
   return route.entity?.id === null || route.entity?.id === undefined || route.entity.id === id
 }
 
-function activeBrokenDraft(): NavigationPreflightDraft | null {
+function activeBrokenDraft(): BrokenDraft | null {
   const editor = useEditorStore.getState()
   if (editor.isReadOnly || editor.compileStatus !== 'broken') return null
 
@@ -60,10 +64,13 @@ function activeBrokenDraft(): NavigationPreflightDraft | null {
     flavor: EditorFlavor,
     id: string | null,
     record: { name: string; source: string } | undefined,
-  ): NavigationPreflightDraft | null => {
+  ): BrokenDraft | null => {
     if (id === null || !record || record.source === editor.source) return null
     if (!routeOwns(route, flavor, id)) return null
-    return { flavor, id, name: record.name }
+    return {
+      draft: { flavor, id, name: record.name },
+      durableSource: record.source,
+    }
   }
 
   if (editor.editorFlavor === 'map') {
@@ -93,25 +100,23 @@ function activeBrokenDraft(): NavigationPreflightDraft | null {
   )
 }
 
-function runApproved(replacement: BufferReplacement): void {
-  approvedDepth += 1
-  let result: unknown
-  try {
-    result = replacement()
-  } catch (error) {
-    approvedDepth = Math.max(0, approvedDepth - 1)
-    throw error
-  }
+function runReplacement(replacement: BufferReplacement): void {
+  const result = replacement()
   if (result instanceof Promise) {
-    const finish = () => {
-      approvedDepth = Math.max(0, approvedDepth - 1)
-    }
-    // The replacement interface is intentionally fire-and-forget. Attach both
-    // branches so a failed operation restores the guard without manufacturing
-    // an unhandled rejection from Promise.prototype.finally().
-    void result.then(finish, finish)
-  } else {
-    approvedDepth = Math.max(0, approvedDepth - 1)
+    // The replacement interface is intentionally fire-and-forget. Operation
+    // surfaces report their own errors; consume a bare rejection here so the
+    // preflight itself never manufactures an unhandled Promise.
+    void result.then(undefined, () => {})
+  }
+}
+
+function restoreDurableBuffer(broken: BrokenDraft): void {
+  const editor = useEditorStore.getState()
+  editor.setSource(broken.durableSource)
+  editor.setCompileStatus('good')
+  if (broken.draft.flavor === 'pattern') {
+    editor.setPreviewSource(broken.durableSource)
+    editor.setPreviewPatternName(broken.draft.name)
   }
 }
 
@@ -120,19 +125,16 @@ function runApproved(replacement: BufferReplacement): void {
  * is at risk. Otherwise it retains the first requested transition until the
  * app-shell confirmation resolves it.
  */
-export function requestBufferReplacement(replacement: BufferReplacement): void {
-  if (approvedDepth > 0) {
-    runApproved(replacement)
-    return
+export function requestBufferReplacement(replacement: BufferReplacement): boolean {
+  if (pendingReplacement !== null) return false
+  const broken = activeBrokenDraft()
+  if (broken === null) {
+    runReplacement(replacement)
+    return true
   }
-  if (pendingReplacement !== null) return
-  const draft = activeBrokenDraft()
-  if (draft === null) {
-    runApproved(replacement)
-    return
-  }
-  pendingReplacement = replacement
-  useNavigationPreflightStore.setState({ pending: { draft } })
+  pendingReplacement = { replacement, broken }
+  useNavigationPreflightStore.setState({ pending: { draft: broken.draft } })
+  return false
 }
 
 export function installNavigationPreflight(): () => void {
@@ -145,16 +147,19 @@ export function cancelNavigationPreflight(): void {
 }
 
 export function continueNavigationPreflight(): void {
-  const replacement = pendingReplacement
-  if (replacement === null) return
+  const pending = pendingReplacement
+  if (pending === null) return
   pendingReplacement = null
   useNavigationPreflightStore.setState({ pending: null })
-  runApproved(replacement)
+  // Confirmation means the broken draft is gone before any synchronous or
+  // asynchronous continuation begins. Nested route work is then naturally
+  // safe and no global approval leaks across an awaited operation.
+  restoreDurableBuffer(pending.broken)
+  runReplacement(pending.replacement)
 }
 
 export function __resetNavigationPreflightForTests(): void {
   pendingReplacement = null
-  approvedDepth = 0
   __resetRouterNavigationPreflightForTests()
   useNavigationPreflightStore.setState(navigationPreflightInitialState)
 }

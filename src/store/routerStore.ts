@@ -24,10 +24,16 @@ interface RouterState {
   syncFromLocation: () => void
 }
 
-type RouterNavigationPreflight = (transition: () => void) => void
+type RouterNavigationPreflight = (transition: () => void) => boolean
 
-const immediateNavigation: RouterNavigationPreflight = (transition) => transition()
+const immediateNavigation: RouterNavigationPreflight = (transition) => {
+  transition()
+  return true
+}
 let navigationPreflight: RouterNavigationPreflight = immediateNavigation
+let lastAppliedLocation: string | null = null
+let lastAppliedHistoryState: unknown = null
+let approvedHistoryLocation: string | null = null
 
 export function setRouterNavigationPreflight(
   next: RouterNavigationPreflight,
@@ -41,6 +47,9 @@ export function setRouterNavigationPreflight(
 
 export function __resetRouterNavigationPreflightForTests(): void {
   navigationPreflight = immediateNavigation
+  lastAppliedLocation = null
+  lastAppliedHistoryState = null
+  approvedHistoryLocation = null
 }
 
 export const routerInitialState = {
@@ -50,6 +59,10 @@ export const routerInitialState = {
 
 function base(): string {
   return import.meta.env.BASE_URL
+}
+
+function browserLocation(): string {
+  return window.location.pathname + window.location.search + window.location.hash
 }
 
 export const useRouterStore = create<RouterState>()((set, get) => ({
@@ -75,32 +88,80 @@ export const useRouterStore = create<RouterState>()((set, get) => ({
       ) {
         set({ route, featureAccess })
       }
+      if (typeof window !== 'undefined') {
+        lastAppliedLocation = browserLocation()
+        lastAppliedHistoryState = window.history.state
+      }
     })
   },
 
   syncFromLocation: () => {
     if (typeof window === 'undefined') return
-    // Legacy v1 links (and in-doc cross-links) use the #/docs/<id> hash route;
-    // normalize them onto the path route without adding a history entry.
+    const requestedLocation = browserLocation()
     const legacyDocId = legacyDocsHashId(window.location.hash)
-    if (legacyDocId !== null) {
-      const route: Route = { kind: 'docs', docId: legacyDocId }
-      const featureAccess = featureAccessFromSearch(window.location.search)
-      window.history.replaceState(null, '', routePath(route, base()) + window.location.search)
-      set({ route, featureAccess })
+    const parsedRoute: Route = legacyDocId === null
+      ? parseRoute(window.location.pathname, base())
+      : { kind: 'docs', docId: legacyDocId }
+    const featureAccess = featureAccessFromSearch(window.location.search)
+    const route = legacyDocId === null
+      ? gateRouteForFeatureAccess(parsedRoute, featureAccess)
+      : parsedRoute
+    const applyRouteState = () => {
+      if (
+        !routesEqual(get().route, route) ||
+        get().featureAccess.shows !== featureAccess.shows
+      ) {
+        set({ route, featureAccess })
+      }
+    }
+    const applyLocation = () => {
+      // Legacy v1 links (and in-doc cross-links) use the #/docs/<id> hash route;
+      // normalize them onto the path route without adding a history entry.
+      if (legacyDocId !== null) {
+        window.history.replaceState(null, '', routePath(route, base()) + window.location.search)
+        applyRouteState()
+        lastAppliedLocation = browserLocation()
+        lastAppliedHistoryState = window.history.state
+        return
+      }
+      if (!routesEqual(parsedRoute, route)) {
+        window.history.replaceState(null, '', routePath(route, base()) + window.location.search)
+      }
+      applyRouteState()
+      lastAppliedLocation = browserLocation()
+      lastAppliedHistoryState = window.history.state
+    }
+
+    if (approvedHistoryLocation === requestedLocation) {
+      approvedHistoryLocation = null
+      applyLocation()
       return
     }
-    const parsedRoute = parseRoute(window.location.pathname, base())
-    const featureAccess = featureAccessFromSearch(window.location.search)
-    const route = gateRouteForFeatureAccess(parsedRoute, featureAccess)
-    if (!routesEqual(parsedRoute, route)) {
-      window.history.replaceState(null, '', routePath(route, base()) + window.location.search)
-    }
-    if (
-      !routesEqual(get().route, route) ||
-      get().featureAccess.shows !== featureAccess.shows
-    ) {
-      set({ route, featureAccess })
+
+    let deferred = false
+    const applied = navigationPreflight(() => {
+      if (!deferred) {
+        applyLocation()
+        return
+      }
+      // A popstate has already moved the browser onto the requested history
+      // entry. The blocked path pushed the last applied URL back on top; replay
+      // the target only after confirmation, then consume that one pop exactly.
+      // Apply route state in the confirmation event so a departing Editor
+      // unmounts in the same React batch as durable-source restoration instead
+      // of beginning Monaco work that the asynchronous pop would cancel.
+      applyRouteState()
+      approvedHistoryLocation = requestedLocation
+      window.history.back()
+    })
+    if (!applied) {
+      deferred = true
+      const fallback = routePath(get().route, base()) + window.location.search
+      window.history.pushState(
+        lastAppliedHistoryState,
+        '',
+        lastAppliedLocation ?? fallback,
+      )
     }
   },
 }))

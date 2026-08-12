@@ -1,3 +1,5 @@
+// @vitest-environment jsdom
+
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { editorInitialState, useEditorStore, type EditorFlavor } from './editorStore'
 import { libraryInitialState, useLibraryStore } from './libraryStore'
@@ -197,6 +199,12 @@ describe('broken-buffer navigation preflight (#831)', () => {
     const updatePatternSrc = vi.fn(async () => {})
     usePatternStore.setState({ updatePatternSrc })
     const transition = vi.fn(() => {
+      expect(useEditorStore.getState()).toMatchObject({
+        source: RECORD.persisted,
+        previewSource: RECORD.persisted,
+        compileStatus: 'good',
+        bufferEdited: false,
+      })
       usePatternStore.getState().setActivePattern('next-pattern')
       useEditorStore.getState().setSource('next source')
     })
@@ -223,7 +231,7 @@ describe('broken-buffer navigation preflight (#831)', () => {
     expect(repeated).not.toHaveBeenCalled()
   })
 
-  it('keeps an approved async transition approved through nested route work', async () => {
+  it('restores durable source before async work so nested navigation needs no long-lived approval', async () => {
     seedOwner(ownerCases[0])
     let release!: () => void
     const gate = new Promise<void>((resolve) => {
@@ -237,6 +245,12 @@ describe('broken-buffer navigation preflight (#831)', () => {
     requestBufferReplacement(transition)
     continueNavigationPreflight()
 
+    expect(useEditorStore.getState()).toMatchObject({
+      source: RECORD.persisted,
+      compileStatus: 'good',
+      bufferEdited: false,
+    })
+
     release()
     await gate
     await vi.waitFor(() => expect(nested).toHaveBeenCalledOnce())
@@ -245,7 +259,31 @@ describe('broken-buffer navigation preflight (#831)', () => {
     expect(useNavigationPreflightStore.getState().pending).toBeNull()
   })
 
-  it('restores the guard after an approved async transition rejects', async () => {
+  it('guards a new broken edit while an earlier confirmed async operation is still pending', async () => {
+    seedOwner(ownerCases[0])
+    let release!: () => void
+    const gate = new Promise<void>((resolve) => {
+      release = resolve
+    })
+    requestBufferReplacement(async () => gate)
+    continueNavigationPreflight()
+    useEditorStore.setState({
+      source: 'another broken edit(',
+      compileStatus: 'broken',
+      bufferEdited: true,
+    })
+    const unrelated = vi.fn()
+
+    requestBufferReplacement(unrelated)
+
+    expect(unrelated).not.toHaveBeenCalled()
+    expect(useNavigationPreflightStore.getState().pending?.draft.name).toBe(RECORD.name)
+    cancelNavigationPreflight()
+    release()
+    await gate
+  })
+
+  it('consumes an async rejection without weakening the next broken-source guard', async () => {
     seedOwner(ownerCases[0])
     requestBufferReplacement(async () => {
       throw new Error('create failed')
@@ -253,6 +291,11 @@ describe('broken-buffer navigation preflight (#831)', () => {
     continueNavigationPreflight()
     await Promise.resolve()
 
+    useEditorStore.setState({
+      source: 'broken again(',
+      compileStatus: 'broken',
+      bufferEdited: true,
+    })
     requestBufferReplacement(vi.fn())
 
     expect(useNavigationPreflightStore.getState().pending?.draft.name).toBe(RECORD.name)
@@ -272,6 +315,64 @@ describe('broken-buffer navigation preflight (#831)', () => {
 
     continueNavigationPreflight()
     expect(useRouterStore.getState().route).toEqual({ kind: 'gallery' })
+    expect(useEditorStore.getState()).toMatchObject({
+      source: RECORD.persisted,
+      previewSource: RECORD.persisted,
+      compileStatus: 'good',
+      bufferEdited: false,
+    })
+    removeGuard()
+  })
+
+  it.each(ownerCases)('route-only Continue clears the $flavor buffer back to durable source', (owner) => {
+    seedOwner(owner)
+    requestBufferReplacement(() => {
+      useRouterStore.setState({ route: { kind: 'gallery' } })
+    })
+
+    continueNavigationPreflight()
+
+    expect(useEditorStore.getState()).toMatchObject({
+      source: RECORD.persisted,
+      compileStatus: 'good',
+      bufferEdited: false,
+    })
+    expect(owner.durableSource()).toBe(RECORD.persisted)
+  })
+
+  it('bounces browser history until Back navigation is cancelled or confirmed', () => {
+    window.history.replaceState({ origin: 'studio' }, '', `/studio/patterns/${RECORD.id}`)
+    useRouterStore.getState().syncFromLocation()
+    seedOwner(ownerCases[0])
+    const removeGuard = installNavigationPreflight()
+    const back = vi.spyOn(window.history, 'back').mockImplementation(() => {})
+
+    window.history.pushState({ origin: 'gallery' }, '', '/gallery')
+    useRouterStore.getState().syncFromLocation()
+
+    expect(window.location.pathname).toBe(`/studio/patterns/${RECORD.id}`)
+    expect(useRouterStore.getState().route).toEqual({
+      kind: 'studio',
+      entity: { kind: 'patterns', id: RECORD.id },
+    })
+    expect(useNavigationPreflightStore.getState().pending?.draft.name).toBe(RECORD.name)
+
+    cancelNavigationPreflight()
+    expect(back).not.toHaveBeenCalled()
+    expect(window.location.pathname).toBe(`/studio/patterns/${RECORD.id}`)
+
+    window.history.pushState({ origin: 'gallery' }, '', '/gallery')
+    useRouterStore.getState().syncFromLocation()
+    continueNavigationPreflight()
+    expect(back).toHaveBeenCalledOnce()
+
+    // Simulate the popstate caused by replaying the approved history entry.
+    window.history.replaceState({ origin: 'gallery' }, '', '/gallery')
+    useRouterStore.getState().syncFromLocation()
+    expect(useRouterStore.getState().route).toEqual({ kind: 'gallery' })
+    expect(useEditorStore.getState().source).toBe(RECORD.persisted)
+
+    back.mockRestore()
     removeGuard()
   })
 })
