@@ -446,14 +446,15 @@ animates the waves' own Angle, Width, and Spacing under a held key.
 
 The seven Luma Patterns are grayscale key sources: Stripes, Chevron, Rings,
 Pinwheel, Dots, Weave, and Spiral, each an endlessly tiling field with one
-shared control set. This reference gives each member one beat - first bare,
-then brought alive by a single animated property chosen for that member's
-character: Stripes morphs its Lean from sine swell to sawtooth comet,
-Chevron breathes its Fold, Rings pours through its Spacing, Pinwheel glides
-off-center, Dots wheels its lattice, Weave boils its pace, and Spiral zooms
-its winding. Every animation rides an ordinary Property track; the
-Compositing and Key Effects reference next door shows what keying these
-fields unlocks.
+shared control set. This reference runs eight beats - Stripes appears twice,
+once as bars and once configured as sine waves - each bare first, then
+brought alive by a single animated property chosen for that beat's
+character: Stripes fattens its Width, Sine Waves tips its Lean into breaking
+sawtooths, Chevron breathes its Fold, Rings pours through its Spacing,
+Pinwheel glides off-center, Dots wheels its lattice, Weave boils its pace,
+and Spiral zooms its winding. Every animation rides an ordinary Property
+track; the Compositing and Key Effects reference next door shows what
+keying these fields unlocks.
 
 ### Blend and Fade Transition reference
 
