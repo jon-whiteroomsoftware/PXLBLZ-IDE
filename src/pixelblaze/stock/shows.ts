@@ -148,7 +148,7 @@ export const STOCK_SHOWS: StockShow[] = [
   learn201(), learn202(), learn203(), learn204(), learn205(), learn206(), learn207(),
   learn301(), learn302(), learn303(),
   effectShowcase('transform'), effectShowcase('distortion'),
-  effectShowcase('color-adjustment'), compositingKeyShowcase(),
+  effectShowcase('color-adjustment'), compositingKeyShowcase(), lumaSourcesShowcase(),
   blendAndFadeTransitionReference(), wipeTransitionReference(), dissolveTransitionReference(),
   shapeRevealGeometricReference(), shapeRevealFigureReference(), slideTransitionReference(), zoomSpinTransitionReference(),
   propertyAnimationReference(), easingReference(), apertureShapesReference(), apertureIconsReference(),
@@ -1686,7 +1686,7 @@ function zoneLayoutShowcase(kind: ZoneLayoutShowcaseKind): StockShow {
     splits: {
       id: 'stock-show-showcase-zone-layouts-splits',
       title: 'Zone Layouts: Splits & Checker',
-      order: 16,
+      order: 17,
       voiceCount: 2,
       purpose: 'Four ways to hand one Stage to two voices: the full surface, a hard moving split, the same boundary feathered soft, and a 4 x 4 checker. The two Patterns never change - the Layout is the only variable.',
       notice: 'Every boundary is an atomic routing switch, never a visual Transition: pixels are re-dealt in one step while both Pattern clocks run straight through. The soft split is the one Layout without hard ownership - inside its feather band, both neighbours render and blend.',
@@ -1713,7 +1713,7 @@ function zoneLayoutShowcase(kind: ZoneLayoutShowcaseKind): StockShow {
     bands: {
       id: 'stock-show-showcase-zone-layouts-stripes-grid',
       title: 'Zone Layouts: Stripes & Grid',
-      order: 17,
+      order: 18,
       voiceCount: 4,
       purpose: 'One surface dealt to four voices: equal stripes, then a 2 x 2 grid. A green garden, warm embers, blue water, and dark glyph rain never change - only the geometry that routes them does.',
       notice: 'Both boundaries are atomic routing switches: the surface becomes bands, and the bands become cells, in one step each, while all four Pattern clocks run straight through. The dark rain voice is deliberate negative space - its quiet band and cell are what keep the partitions legible.',
@@ -1734,7 +1734,7 @@ function zoneLayoutShowcase(kind: ZoneLayoutShowcaseKind): StockShow {
     radial: {
       id: 'stock-show-showcase-zone-layouts-radial',
       title: 'Zone Layouts: Radial',
-      order: 18,
+      order: 19,
       voiceCount: 2,
       purpose: 'The radial half of the vocabulary: rings, a wave, and a pinwheel route the same two voices from the center out. The bullseye reads Garden-Ember-Garden because rings cycle through the Zones in order.',
       notice: 'The entry into the rings is the one switch in this family that sweeps, so you can watch the geometry travel; the wave and pinwheel switches are atomic. Neither Pattern ever restarts: a Layout switch changes where pixels go, never Pattern state.',
@@ -1938,7 +1938,7 @@ function redlineInstallation(): StockShow {
     track: 'installation',
     collection: 'showcases',
     level: null,
-    order: 19,
+    order: 20,
     purpose: 'A sixty-second club-installation score turns one hero panel and four target arrays into a single rhythmic machine.',
     notice: 'One renderer owns each pixel. Shared target instances and cheap transforms create difference; black space, red pressure, white impact, sparse cyan ornaments, and one cyan takeover create the arc.',
     prompts: ['Solo the four target Zones and compare their shared clock.', 'Jump between First drop, Vacuum, and Peak to compare one canvas with five instruments.'],
@@ -1986,7 +1986,7 @@ function blendAndFadeTransitionReference(): StockShow {
     { id: 'fade-white', label: 'Fade through white', familyId: 'fade', variantId: 'through-color', presetId: 'white', holdSeconds: 2, transitionSeconds: 2 },
   ]
   return transitionReferenceShow({
-    id: 'stock-show-reference-blend-fade-transitions', title: 'Blend and Fade Transitions', order: 5,
+    id: 'stock-show-reference-blend-fade-transitions', title: 'Blend and Fade Transitions', order: 6,
     purpose: 'The junction vocabulary everyone starts with: a bare Cut, one slow Crossfade to study, and the two through-color Fades.',
     notice: 'The Crossfade is the exemplar and takes its time; the Fades pass more quickly because their character is the color they pass through.',
     prompts: ['Stretch the Crossfade and watch the two worlds coexist.', 'Change the Fade color from black to a deep blue in the inspector.'],
@@ -2009,7 +2009,7 @@ function wipeTransitionReference(): StockShow {
     { id: 'grid', label: 'Grid', familyId: 'wipe', variantId: 'grid', ...quick },
   ]
   return transitionReferenceShow({
-    id: 'stock-show-reference-wipe-transitions', title: 'Wipes', order: 6,
+    id: 'stock-show-reference-wipe-transitions', title: 'Wipes', order: 7,
     purpose: 'One eastward Linear Wipe slow enough to study its edge, then quick cuts through the other cardinal directions and every patterned Wipe.',
     notice: 'After the exemplar, each sibling changes exactly one idea - direction, split, doors, blinds, clock, checker, grid - at quick-cut tempo. Diagonals and center-in modes stay as inspector edits.',
     prompts: ['Compare hard, dithered, and blended edges on the exemplar Wipe.', 'Stretch any quick cut back into a slow study.'],
@@ -2026,7 +2026,7 @@ function dissolveTransitionReference(): StockShow {
     { id: 'dissolve-soft', label: 'Soft-threshold dissolve', familyId: 'dissolve', variantId: 'soft-threshold', ...quick },
   ]
   return transitionReferenceShow({
-    id: 'stock-show-reference-dissolve-transitions', title: 'Dissolves', order: 7,
+    id: 'stock-show-reference-dissolve-transitions', title: 'Dissolves', order: 8,
     purpose: 'Four ways to take one picture apart and assemble the next: per-pixel, in blocks, along coherent noise, and through a soft threshold.',
     notice: 'The pixel dissolve is the slow exemplar; the other three differ only in the structure of what crumbles.',
     prompts: ['Change the block dissolve grid in the inspector.', 'Compare coherent-noise with soft-threshold at the same duration.'],
@@ -2062,7 +2062,7 @@ function shapeRevealGeometricReference(): StockShow {
     ]),
   ]
   return transitionReferenceShow({
-    id: 'stock-show-reference-shape-reveal-transitions', title: 'Shape Reveals: Geometric', order: 8,
+    id: 'stock-show-reference-shape-reveal-transitions', title: 'Shape Reveals: Geometric', order: 9,
     purpose: 'One slow Circle reveal to study, then quick cuts through the geometric silhouettes while the Pattern pair, center, scale, and edge hold steady.',
     notice: 'Circle appears in both reveal modes at study tempo; the remaining silhouettes alternate modes at quick-cut tempo so shape stays the only question. The figure silhouettes have their own reference.',
     prompts: ['Stretch any silhouette back to study tempo.', 'Move the center away from 0.5, 0.5 and compare asymmetric shapes.'],
@@ -2079,7 +2079,7 @@ function shapeRevealFigureReference(): StockShow {
     ]),
   ]
   return transitionReferenceShow({
-    id: 'stock-show-reference-shape-reveal-figures', title: 'Shape Reveals: Figures', order: 9,
+    id: 'stock-show-reference-shape-reveal-figures', title: 'Shape Reveals: Figures', order: 10,
     purpose: 'The figurative silhouettes - heart, star, crescent, polygon, cloud, and the three cats - with one slow Heart to study and the rest as quick cuts.',
     notice: 'Same construction as the geometric reference: the pair, center, scale, and edge never move, so the silhouette is the only question.',
     prompts: ['Stretch a cat silhouette to study tempo and watch its edge.', 'Swap the reveal mode on the Bastet silhouette.'],
@@ -2098,7 +2098,7 @@ function slideTransitionReference(): StockShow {
     { id: 'cover-north', label: 'Cover north', familyId: 'motion', variantId: 'cover', changes: { direction: 0.75 }, ...quick },
   ]
   return transitionReferenceShow({
-    id: 'stock-show-reference-slide-transitions', title: 'Slide Transitions', order: 10,
+    id: 'stock-show-reference-slide-transitions', title: 'Slide Transitions', order: 11,
     purpose: 'Cover, Reveal, and Push are the three ways one picture slides over, out from under, or alongside another: one slow Cover, then the family and its directions as quick cuts.',
     notice: 'Cover moves the incoming picture, Reveal moves the outgoing one, Push moves both. After the three-way comparison the directions run at quick-cut tempo; diagonals stay continuous in the inspector.',
     prompts: ['Change a quick Cover to a diagonal direction.', 'Switch Addressing from Clip to Wrap and compare moving edges.'],
@@ -2118,7 +2118,7 @@ function zoomSpinTransitionReference(): StockShow {
     { id: 'zoom-spin-cw', label: 'Zoom and spin clockwise', familyId: 'motion', variantId: 'zoom-in', presetId: 'zoom-spin-clockwise', ...quick },
   ]
   return transitionReferenceShow({
-    id: 'stock-show-reference-zoom-spin-transitions', title: 'Zoom and Spin Transitions', order: 11,
+    id: 'stock-show-reference-zoom-spin-transitions', title: 'Zoom and Spin Transitions', order: 12,
     purpose: 'Scaling and spinning arrivals: Content grow at study tempo, then its siblings and the zoom and spin presets as quick cuts.',
     notice: 'Content transitions scale the picture inside its frame; Zoom transitions scale the frame itself; the spin presets differ only in rotation.',
     prompts: ['Compare Content grow with Zoom in at the same duration.', 'Stack zoom-and-spin against plain spin at study tempo.'],
@@ -2275,7 +2275,7 @@ function propertyAnimationReference(): StockShow {
     }),
   }
   return catalogue({
-    id, title: 'Property Animation', track: 'portable', collection: 'showcases', level: null, order: 12,
+    id, title: 'Property Animation', track: 'portable', collection: 'showcases', level: null, order: 13,
     purpose: 'Nine examples show where values can change over time: Pattern state, placement view, Clip Transform, the Viewport aperture, layering, Effect parameters, routing, and sample remapping. The right Zone runs the same Pattern unanimated, so the animated value is the only difference between the columns.',
     notice: "The first seven examples use Clip-owned sparklines - including a Clip Transform pan and a Soft-edged aperture breathing - while Split position and Repeat scale use boundary-owned Property transitions. The unanimated twin is the control: whatever the columns don't share is the property at work.",
     prompts: ['Open each Clip and compare the highlighted sparkline owner.', 'Change one midpoint value while leaving its endpoints fixed.'],
@@ -2317,7 +2317,7 @@ function easingReference(): StockShow {
     holdSeconds: 2,
   }))
   return transitionReferenceShow({
-    id: 'stock-show-reference-easing', title: 'Easing', order: 13,
+    id: 'stock-show-reference-easing', title: 'Easing', order: 14,
     purpose: 'One eastward Linear Wipe holds its Patterns, endpoints, direction, and duration constant while every easing curve changes the timing.',
     notice: 'This isolates easing from Transition geometry. Identical durations are deliberate - easing is when progress happens - and the live header names the current curve and draws its progression.',
     prompts: ['Compare quadratic in with quadratic out.', 'Watch where Steps and Hold curves spend their time.'],
@@ -2382,7 +2382,7 @@ function apertureShapesReference(): StockShow {
     durationMs: variants.reduce((sum, variant) => sum + variant.seconds, 0) * 1_000,
   }
   return catalogue({
-    id, title: 'Aperture Shapes: Geometric', track: 'portable', collection: 'showcases', level: null, order: 14,
+    id, title: 'Aperture Shapes: Geometric', track: 'portable', collection: 'showcases', level: null, order: 15,
     purpose: 'Every geometric Clip Viewport silhouette over one held frame, then one silhouette across its three edge treatments. Shaped silhouettes keep their Soft default - smooth is almost always what you want. The subject, bed, frame, and clocks never change, so each passage has exactly one attributable variable. The icon and signature silhouettes, rotation, and the Cut-out mode have their own reference.',
     notice: 'The first seven passages change only the silhouette at its Soft default, the wide-radius passage shows corner radius is shape rather than edge, and the last three hold the Ring while only its edge treatment changes - Soft, then the deliberate Hard cut, then Stable Dither.',
     prompts: ['Swap the subject Pattern and watch every silhouette keep its geometry.', 'Open any passage and drag the corner radius, arm width, sides, or edge softness - the reference values are starting points, not limits.'],
@@ -2459,7 +2459,7 @@ function apertureIconsReference(): StockShow {
     durationMs: variants.reduce((sum, variant) => sum + variant.seconds, 0) * 1_000,
   }
   return catalogue({
-    id, title: 'Aperture Icons & Signature', track: 'portable', collection: 'showcases', level: null, order: 15,
+    id, title: 'Aperture Icons & Signature', track: 'portable', collection: 'showcases', level: null, order: 16,
     purpose: 'The icon and signature silhouettes - Heart, Star, Crescent, Cloud, and the three cats - over the same held frame as the geometric reference, then rotation and the Cut-out mode. Shaped silhouettes keep their Soft default, and the subject, bed, frame, and clocks never change, so each passage has exactly one attributable variable.',
     notice: 'The first seven passages change only the silhouette at its Soft default. The last two hold a silhouette and change one control: rotation turns the star while the frame stays axis-aligned, and Cut out inverts the cloud so the silhouette becomes the hole.',
     prompts: ['Drag the rotation on the turned star - the frame never moves, only the silhouette.', "Flip any passage's Mode between Admit inside and Cut out - both sides share one boundary and one feather."],
@@ -2876,6 +2876,139 @@ function compositingKeyShowcase(): StockShow {
       patternSlots: { cellIds: scenes.map((item) => cellId(item.id, 'zone-1')), instanceIds: ['composite-rings', 'composite-fire', 'composite-waves'] },
       examples: scenes.map((item, index) => ({
         id: `composite-${index + 1}`,
+        label: item.name,
+        detail: rows[index].detail,
+        anchor: { kind: 'scene', sceneId: item.id },
+      })),
+    },
+  })
+}
+
+
+// The Luma family (#819) as an inventory with pace (#822): one beat per
+// member, bare for the first half, then a single animated property chosen
+// for that member's character. Family controls are favored over generic
+// clip transforms - Lean, Fold, Spacing, and pace are what make these
+// Patterns different - and every animation is an ordinary Property track.
+function lumaSourcesShowcase(): StockShow {
+  const id = 'stock-show-showcase-luma-sources'
+  const zones = logicalZones(['Main'], 2_000)
+  type LumaTrackSpec =
+    | { kind: 'control'; exportName: string; keyframes: Array<[number, number]> }
+    | { kind: 'transform'; property: keyof ShowClipTransform; keyframes: Array<[number, number]> }
+    | { kind: 'time-scale'; keyframes: Array<[number, number]> }
+  interface LumaRow {
+    name: string
+    pattern: string
+    detail: string
+    // Base pace; a time-scale track replaces this while active, so a beat
+    // that ramps pace must start its ramp at the base value to keep the
+    // bare half genuinely bare.
+    timeScale?: number
+    tracks: LumaTrackSpec[]
+  }
+  // Each beat: 2 s bare, then the animation takes the second 2 s.
+  const rows: LumaRow[] = [
+    {
+      name: 'Stripes', pattern: 'LumaStripes',
+      detail: 'Lean morphs the bands from sine swells into hard sawtooth comets.',
+      tracks: [{ kind: 'control', exportName: 'sliderLean', keyframes: [[2, 0.5], [4, 1]] }],
+    },
+    {
+      name: 'Chevron', pattern: 'LumaChevron',
+      detail: 'Fold breathes from fine herringbone to broad chevrons.',
+      tracks: [{ kind: 'control', exportName: 'sliderFold', keyframes: [[2, 0.25], [4, 0.9]] }],
+    },
+    {
+      name: 'Rings', pattern: 'LumaRings',
+      detail: 'Spacing pours the rings tighter, then relaxes them wide.',
+      tracks: [{ kind: 'control', exportName: 'sliderSpacing', keyframes: [[2, 0.5], [3, 0.2], [4, 0.6]] }],
+    },
+    {
+      name: 'Pinwheel', pattern: 'LumaPinwheel',
+      detail: 'The hub glides off-center while the spokes keep turning.',
+      tracks: [{ kind: 'transform', property: 'positionX', keyframes: [[2, 0], [4, 0.35]] }],
+    },
+    {
+      name: 'Dots', pattern: 'LumaDots',
+      detail: 'The marching lattice slowly wheels a quarter turn.',
+      tracks: [{ kind: 'transform', property: 'rotation', keyframes: [[2, 0], [4, 0.25]] }],
+    },
+    {
+      name: 'Weave', pattern: 'LumaWeave',
+      detail: 'Pace ramps the interference shimmer from languid to boiling.',
+      timeScale: 0.6,
+      tracks: [{ kind: 'time-scale', keyframes: [[2, 0.6], [4, 2.5]] }],
+    },
+    {
+      name: 'Spiral', pattern: 'LumaSpiral',
+      detail: 'A slow zoom into the winding closes the set.',
+      tracks: [
+        { kind: 'transform', property: 'scaleX', keyframes: [[2, 1], [4, 1.9]] },
+        { kind: 'transform', property: 'scaleY', keyframes: [[2, 1], [4, 1.9]] },
+      ],
+    },
+  ]
+  const scenes = rows.map((row, index) => scene(
+    `luma-${index + 1}`,
+    row.name,
+    4,
+    [clip('zone-1', row.pattern, row.timeScale ?? 1, undefined, 0.9)],
+  ))
+  const instanceId = (row: LumaRow) => `luma-${row.pattern}`
+  const composition: ShowCompositionV1 = {
+    version: 1,
+    // An instance-control Property track requires the control to be
+    // authored on the instance; seed each animated control at its bare-half
+    // value.
+    patternInstances: rows.map((row) => {
+      const controlTargets = Object.fromEntries(row.tracks.flatMap((spec) => (
+        spec.kind === 'control' ? [[spec.exportName, spec.keyframes[0][1]]] : []
+      )))
+      return instance(instanceId(row), row.pattern, row.timeScale ?? 1, Object.keys(controlTargets).length ? controlTargets : undefined)
+    }),
+    scenes: scenes.map((item, index) => {
+      const row = rows[index]
+      const placementId = `luma-clip-${index + 1}`
+      const tracks = row.tracks.map((spec, trackIndex) => ({
+        id: `track-luma-${index + 1}-${trackIndex}`,
+        target: spec.kind === 'control'
+          ? { kind: 'instance-control' as const, instanceId: instanceId(row), exportName: spec.exportName }
+          : spec.kind === 'transform'
+            ? { kind: 'placement-transform' as const, placementId, property: spec.property }
+            : { kind: 'instance-time-scale' as const, instanceId: instanceId(row) },
+        keyframes: spec.keyframes.map(([seconds, value], keyframeIndex) => (
+          keyframe(`kf-${index + 1}-${trackIndex}-${keyframeIndex}`, seconds, value)
+        )),
+      }))
+      return {
+        sceneId: item.id,
+        propertyTracks: tracks,
+        zones: [{
+          zoneId: 'zone-1',
+          overlays: [],
+          main: [placement(placementId, instanceId(row), 0, item.durationMs / 1_000)],
+        }],
+      }
+    }),
+    durationMs: rows.length * 4_000,
+  }
+  return catalogue({
+    id, title: 'Luma Sources', track: 'portable', collection: 'showcases', level: null, order: 5,
+    purpose: 'The seven Luma Patterns are grayscale key sources with one shared control set. Each gets one beat: bare first, then a single animated property chosen for its character - the family controls are ordinary animatable properties.',
+    notice: 'Stripes morphs Lean into sawtooth comets, Chevron breathes Fold, Rings pours Spacing, Pinwheel glides off-center, Dots wheels its lattice, Weave boils its pace, and Spiral zooms its winding. Grayscale throughout: keying them is the Compositing and Key reference\u2019s job.',
+    prompts: ['Drag any beat\u2019s animated control yourself and feel the same range.', 'Add a Luma Key over any beat and watch the field become a matte.'],
+    guideHeading: 'luma-sources',
+    defaultOpen: true,
+    output: portableOutput(), zones, layouts: [singleLayout(zones)],
+    scenes,
+    transitions: cutBoundaries(scenes),
+    composition,
+    reference: {
+      summary: 'Seven grayscale key sources, one beat each: bare, then brought alive by one animated property.',
+      patternSlots: { cellIds: scenes.map((item) => cellId(item.id, 'zone-1')), instanceIds: rows.map((row) => instanceId(row)) },
+      examples: scenes.map((item, index) => ({
+        id: `luma-${index + 1}`,
         label: item.name,
         detail: rows[index].detail,
         anchor: { kind: 'scene', sceneId: item.id },

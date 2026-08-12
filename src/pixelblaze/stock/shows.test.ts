@@ -30,7 +30,7 @@ import { STOCK_SHOWS, stockShowById } from './shows'
 
 describe('stock Show curriculum (#363)', () => {
   it('ships the stable Learn 100, Learn 200, Learn 300, and showcase catalogue', () => {
-    expect(STOCK_SHOWS).toHaveLength(37)
+    expect(STOCK_SHOWS).toHaveLength(38)
     expect(new Set(STOCK_SHOWS.map((item) => item.id)).size).toBe(STOCK_SHOWS.length)
     expect(STOCK_SHOWS.map((item) => [item.name, item.collection, item.level, item.order])).toEqual([
       ['100 Getting Around', 'learn', 100, 0],
@@ -54,21 +54,22 @@ describe('stock Show curriculum (#363)', () => {
       ['Distortion Effects', 'showcases', null, 2],
       ['Color Adjustment Effects', 'showcases', null, 3],
       ['Compositing and Key Effects', 'showcases', null, 4],
-      ['Blend and Fade Transitions', 'showcases', null, 5],
-      ['Wipes', 'showcases', null, 6],
-      ['Dissolves', 'showcases', null, 7],
-      ['Shape Reveals: Geometric', 'showcases', null, 8],
-      ['Shape Reveals: Figures', 'showcases', null, 9],
-      ['Slide Transitions', 'showcases', null, 10],
-      ['Zoom and Spin Transitions', 'showcases', null, 11],
-      ['Property Animation', 'showcases', null, 12],
-      ['Easing', 'showcases', null, 13],
-      ['Aperture Shapes: Geometric', 'showcases', null, 14],
-      ['Aperture Icons & Signature', 'showcases', null, 15],
-      ['Zone Layouts: Splits & Checker', 'showcases', null, 16],
-      ['Zone Layouts: Stripes & Grid', 'showcases', null, 17],
-      ['Zone Layouts: Radial', 'showcases', null, 18],
-      ['Redline Installation', 'showcases', null, 19],
+      ['Luma Sources', 'showcases', null, 5],
+      ['Blend and Fade Transitions', 'showcases', null, 6],
+      ['Wipes', 'showcases', null, 7],
+      ['Dissolves', 'showcases', null, 8],
+      ['Shape Reveals: Geometric', 'showcases', null, 9],
+      ['Shape Reveals: Figures', 'showcases', null, 10],
+      ['Slide Transitions', 'showcases', null, 11],
+      ['Zoom and Spin Transitions', 'showcases', null, 12],
+      ['Property Animation', 'showcases', null, 13],
+      ['Easing', 'showcases', null, 14],
+      ['Aperture Shapes: Geometric', 'showcases', null, 15],
+      ['Aperture Icons & Signature', 'showcases', null, 16],
+      ['Zone Layouts: Splits & Checker', 'showcases', null, 17],
+      ['Zone Layouts: Stripes & Grid', 'showcases', null, 18],
+      ['Zone Layouts: Radial', 'showcases', null, 19],
+      ['Redline Installation', 'showcases', null, 20],
       ['Coronal Mass Ejection PXLBLZ remix', 'remixes', null, 1],
     ])
     expect(STOCK_SHOWS.every((item) => item.show.id === item.id)).toBe(true)

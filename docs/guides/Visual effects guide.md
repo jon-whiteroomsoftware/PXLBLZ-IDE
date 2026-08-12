@@ -433,11 +433,27 @@ something to reveal.
 ### Compositing and Key Effects
 
 Opacity, Luma Key, Chroma Key, and Vignette decide which of a Clip's pixels
-reach the mix, so this reference runs a warm bed underneath a green subject
-for its whole duration. Opacity thins the entire Clip evenly; Luma Key removes
-pixels by darkness so the blobs float alone; Chroma Key removes the garden's
-green so the bed shows through the blob bodies; Vignette closes the frame
-toward the edges without touching the center.
+reach the mix, so this reference runs a warm bed underneath keyed subjects
+for its whole duration. Each Effect rides the subject that shows it best:
+grayscale Luma Rings carry the two opacities (Layer opacity thins toward the
+bed; an animated fade dissolves the rings into it) and Luma Key, where the
+matte is the image itself; DoomFire carries Chroma Key, its orange body
+carving out while the black field and bright cores stay; the Vignette closes
+the whole frame - bed and keyed waves together - toward black; and the ender
+animates the waves' own Angle, Width, and Spacing under a held key.
+
+### Luma Sources
+
+The seven Luma Patterns are grayscale key sources: Stripes, Chevron, Rings,
+Pinwheel, Dots, Weave, and Spiral, each an endlessly tiling field with one
+shared control set. This reference gives each member one beat - first bare,
+then brought alive by a single animated property chosen for that member's
+character: Stripes morphs its Lean from sine swell to sawtooth comet,
+Chevron breathes its Fold, Rings pours through its Spacing, Pinwheel glides
+off-center, Dots wheels its lattice, Weave boils its pace, and Spiral zooms
+its winding. Every animation rides an ordinary Property track; the
+Compositing and Key Effects reference next door shows what keying these
+fields unlocks.
 
 ### Blend and Fade Transition reference
 

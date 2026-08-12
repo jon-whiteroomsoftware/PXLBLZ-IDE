@@ -51,7 +51,7 @@ describe('Show render-target residual-headroom census (#514)', () => {
     // Installations retired; 302 now scores the Redline stage at the full
     // 2,000-pixel contract, so it joins the census and clears it, while the
     // 1,000-pixel Proscenium 301 sits outside the render-target question).
-    expect(report.summary.savedShowCount).toBe(36)
+    expect(report.summary.savedShowCount).toBe(37)
     expect(report.summary.savedShowRejections).toHaveLength(0)
     expect(report.summary.savedShowRejections.every((entry) => !entry.failsSolelyBecauseOfReservation)).toBe(true)
   })
