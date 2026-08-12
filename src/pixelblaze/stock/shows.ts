@@ -2744,7 +2744,10 @@ function compositingKeyShowcase(): StockShow {
     // The ender shows what makes Luma sources special: their own controls
     // animate like any other property. The waves' Angle sweeps a full turn
     // while the key holds (Jon direction, round 4).
-    { name: 'Animated Angle', detail: "The waves' own Angle sweeps a full turn while the key holds - Luma controls animate like any property.", seconds: 3.5, subject: 'waves', effects: [WAVES_LUMA_KEY], angleTrack: true },
+    // Slow half-turn sweep with a gentle two-cycle pulse on Width and
+    // Spacing (Jon, round 5): the bands breathe while they wheel, riding
+    // the family's phase-continuity contract (#819).
+    { name: 'Animated Angle', detail: "The waves' own Angle, Width, and Spacing animate under a held key - Luma controls are ordinary properties.", seconds: 5, subject: 'waves', effects: [WAVES_LUMA_KEY], angleTrack: true },
   ]
   const subjectPattern = { rings: 'LumaRings', fire: 'DoomFireV20_2D', waves: 'LumaStripes' } as const
   const subjectInstanceId = { rings: 'composite-rings', fire: 'composite-fire', waves: 'composite-waves' } as const
@@ -2783,18 +2786,50 @@ function compositingKeyShowcase(): StockShow {
       return {
         sceneId: item.id,
         ...(row.angleTrack ? {
-          propertyTracks: [{
-            id: `track-angle-${index + 1}`,
-            target: {
-              kind: 'instance-control' as const,
-              instanceId: 'composite-waves',
-              exportName: 'sliderAngle',
+          propertyTracks: [
+            {
+              id: `track-angle-${index + 1}`,
+              target: {
+                kind: 'instance-control' as const,
+                instanceId: 'composite-waves',
+                exportName: 'sliderAngle',
+              },
+              keyframes: [
+                keyframe(`angle-start-${index + 1}`, 0, 0, LINEAR),
+                keyframe(`angle-turn-${index + 1}`, item.durationMs / 1_000, 0.5, LINEAR),
+              ],
             },
-            keyframes: [
-              keyframe(`angle-start-${index + 1}`, 0, 0, LINEAR),
-              keyframe(`angle-turn-${index + 1}`, item.durationMs / 1_000, 1, LINEAR),
-            ],
-          }],
+            {
+              id: `track-spacing-${index + 1}`,
+              target: {
+                kind: 'instance-control' as const,
+                instanceId: 'composite-waves',
+                exportName: 'sliderSpacing',
+              },
+              keyframes: [
+                keyframe(`spacing-a-${index + 1}`, 0, 0.3),
+                keyframe(`spacing-b-${index + 1}`, 1.25, 0.55),
+                keyframe(`spacing-c-${index + 1}`, 2.5, 0.3),
+                keyframe(`spacing-d-${index + 1}`, 3.75, 0.55),
+                keyframe(`spacing-e-${index + 1}`, 5, 0.3),
+              ],
+            },
+            {
+              id: `track-width-${index + 1}`,
+              target: {
+                kind: 'instance-control' as const,
+                instanceId: 'composite-waves',
+                exportName: 'sliderWidth',
+              },
+              keyframes: [
+                keyframe(`width-a-${index + 1}`, 0, 0.5),
+                keyframe(`width-b-${index + 1}`, 1.25, 0.68),
+                keyframe(`width-c-${index + 1}`, 2.5, 0.5),
+                keyframe(`width-d-${index + 1}`, 3.75, 0.68),
+                keyframe(`width-e-${index + 1}`, 5, 0.5),
+              ],
+            },
+          ],
         } : {}),
         ...(row.fadeTrack ? {
           propertyTracks: [{
