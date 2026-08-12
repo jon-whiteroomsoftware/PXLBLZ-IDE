@@ -60,3 +60,27 @@ describe('ControlsPanel help hint', () => {
     expect(screen.getByRole('slider', { name: /speed/i })).toBeInTheDocument()
   })
 })
+
+describe('ControlsPanel curated seconds sliders (#819)', () => {
+  it('renders an exact seconds field and stores typed values as raw / scale', async () => {
+    const user = userEvent.setup()
+    useEditorStore.getState().setControls([
+      {
+        exportName: 'sliderLoopInterval',
+        kind: 'slider',
+        label: 'Loop Interval',
+        secondsPresentation: { scale: 10, minSeconds: 0.1 },
+      },
+    ])
+    useControlStore.setState({ controlValues: { sliderLoopInterval: 0.2 } })
+    render(<ControlsPanel />)
+
+    // The raw 0.2 presents as 2 s, and typing an exact value writes back the
+    // scaled raw slider value (2.37 s -> 0.237).
+    const field = screen.getByRole('textbox', { name: /loop interval/i })
+    expect(field).toHaveValue('2')
+    await user.clear(field)
+    await user.type(field, '2.37{Enter}')
+    expect(useControlStore.getState().controlValues.sliderLoopInterval).toBeCloseTo(0.237, 6)
+  })
+})

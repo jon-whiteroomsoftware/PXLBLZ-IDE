@@ -43,7 +43,10 @@ Luma Dots, Luma Weave, and Luma Spiral — that are Show ingredients rather
 than finished pieces. Every member tiles endlessly, loops exactly (one loop advances one
 period, so a Show can lock the cycle to a beat), and shares one control set:
 Loop Interval, Direction, Spacing, Width, Feather, Lean, and Invert, plus
-Angle on the members with a travel heading. Width, Feather, and Lean together
+Angle on the members with a travel heading and Fold on Luma Chevron. Loop
+Interval is entered exactly, in seconds ("2.37" means 2.37 s); the raw
+Pixelblaze slider value underneath is seconds divided by 10, so the control
+stays legible on a real controller. Width, Feather, and Lean together
 span the whole waveform space — hard bars, sine swells, and sawtooth ramps are
 slider positions, not separate Patterns. Their pure grayscale output is built
 for Luma and Chroma keying, tinting, and layered composition from a Show.

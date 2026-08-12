@@ -213,7 +213,7 @@ export const CONTROL_DESCRIPTIONS: Record<string, Record<string, string>> = {
     sliderReflections: 'Number of kaleidoscopic reflection segments.',
   },
   LumaStripes: {
-    sliderLoopInterval: 'Exact cycle length, 0.25 to 8 seconds — one loop advances exactly one band.',
+    sliderLoopInterval: 'Exact cycle length in seconds, up to 10 — type a precise value like 2.37; one loop advances exactly one band.',
     sliderDirection: 'Left third reverses, middle holds still, right third travels forward.',
     sliderSpacing: 'Distance from one band to the next.',
     sliderWidth: 'Lit fraction of each band cycle — thin lines to fat bars.',
@@ -223,7 +223,7 @@ export const CONTROL_DESCRIPTIONS: Record<string, Record<string, string>> = {
     toggleInvert: 'Swaps figure and ground — bright bands on black, or dark bands on white.',
   },
   LumaChevron: {
-    sliderLoopInterval: 'Exact cycle length, 0.25 to 8 seconds — one loop advances exactly one band.',
+    sliderLoopInterval: 'Exact cycle length in seconds, up to 10 — type a precise value like 2.37; one loop advances exactly one band.',
     sliderDirection: 'Left third reverses, middle holds still, right third travels forward.',
     sliderSpacing: 'Distance from one chevron band to the next.',
     sliderWidth: 'Lit fraction of each band cycle — thin zigzag lines to fat chevrons.',
@@ -234,7 +234,7 @@ export const CONTROL_DESCRIPTIONS: Record<string, Record<string, string>> = {
     toggleInvert: 'Swaps figure and ground — bright chevrons on black, or dark chevrons on white.',
   },
   LumaRings: {
-    sliderLoopInterval: 'Exact cycle length, 0.25 to 8 seconds — one loop advances exactly one ring.',
+    sliderLoopInterval: 'Exact cycle length in seconds, up to 10 — type a precise value like 2.37; one loop advances exactly one ring.',
     sliderDirection: 'Left third travels inward, middle holds still, right third travels outward.',
     sliderSpacing: 'Distance from one ring to the next.',
     sliderWidth: 'Lit fraction of each ring cycle — thin circles to fat hoops.',
@@ -243,7 +243,7 @@ export const CONTROL_DESCRIPTIONS: Record<string, Record<string, string>> = {
     toggleInvert: 'Swaps figure and ground — bright rings on black, or dark rings on white.',
   },
   LumaPinwheel: {
-    sliderLoopInterval: 'Exact cycle length, 0.25 to 8 seconds — one loop advances exactly one spoke.',
+    sliderLoopInterval: 'Exact cycle length in seconds, up to 10 — type a precise value like 2.37; one loop advances exactly one spoke.',
     sliderDirection: 'Left third turns clockwise, middle holds still, right third counterclockwise.',
     sliderSpacing: 'Spoke density — steps through whole spoke counts from 1 to 12.',
     sliderWidth: 'Lit fraction of each spoke cycle — thin rays to fat wedges.',
@@ -252,7 +252,7 @@ export const CONTROL_DESCRIPTIONS: Record<string, Record<string, string>> = {
     toggleInvert: 'Swaps figure and ground — bright spokes on black, or dark spokes on white.',
   },
   LumaDots: {
-    sliderLoopInterval: 'Exact cycle length, 0.25 to 8 seconds — one loop advances exactly one cell.',
+    sliderLoopInterval: 'Exact cycle length in seconds, up to 10 — type a precise value like 2.37; one loop advances exactly one cell.',
     sliderDirection: 'Left third reverses, middle holds still, right third travels forward.',
     sliderSpacing: 'Distance from one dot to the next.',
     sliderWidth: 'Dot size — the lit fraction of each lattice cell.',
@@ -262,7 +262,7 @@ export const CONTROL_DESCRIPTIONS: Record<string, Record<string, string>> = {
     toggleInvert: 'Swaps figure and ground — bright dots on black, or dark holes in white.',
   },
   LumaWeave: {
-    sliderLoopInterval: 'Exact cycle length, 0.25 to 8 seconds — each wave set advances one period per loop.',
+    sliderLoopInterval: 'Exact cycle length in seconds, up to 10 — type a precise value like 2.37; each wave set advances one period per loop.',
     sliderDirection: 'Left third reverses, middle holds still, right third travels forward.',
     sliderSpacing: 'Distance between waves — the cross set runs slightly detuned to keep the moire alive.',
     sliderWidth: 'Lit fraction of each wave cycle.',
@@ -272,7 +272,7 @@ export const CONTROL_DESCRIPTIONS: Record<string, Record<string, string>> = {
     toggleInvert: 'Swaps figure and ground across the whole interference field.',
   },
   LumaSpiral: {
-    sliderLoopInterval: 'Exact cycle length, 0.25 to 8 seconds — one loop advances exactly one winding.',
+    sliderLoopInterval: 'Exact cycle length in seconds, up to 10 — type a precise value like 2.37; one loop advances exactly one winding.',
     sliderDirection: 'Left third spirals inward-clockwise, middle holds still, right third outward-counterclockwise.',
     sliderSpacing: 'Distance from one winding to the next.',
     sliderWidth: 'Lit fraction of each winding cycle — a thin thread to a fat ribbon.',
@@ -545,17 +545,41 @@ export const CONTROL_DESCRIPTIONS: Record<string, Record<string, string>> = {
   },
 }
 
-// Return a copy of `controls` with `description` filled in from the curated
-// table for `demoName`. Pure and total: an unknown/null demo, or a control with
-// no curated entry, is returned unchanged (UI falls back to the label).
+// Sliders whose raw 0..1 value encodes seconds linearly (value * scale). The
+// Luma family's Loop Interval (#819) keeps the raw slider legible on hardware
+// (seconds / 10, so 20% = 2 s) while the IDE offers exact typed entry.
+export interface ControlSecondsPresentation {
+  scale: number
+  minSeconds: number
+}
+
+const LUMA_LOOP_SECONDS: ControlSecondsPresentation = { scale: 10, minSeconds: 0.1 }
+
+export const CONTROL_SECONDS_PRESENTATIONS: Record<string, Record<string, ControlSecondsPresentation>> =
+  Object.fromEntries(
+    ['LumaStripes', 'LumaChevron', 'LumaRings', 'LumaPinwheel', 'LumaDots', 'LumaWeave', 'LumaSpiral']
+      .map((name) => [name, { sliderLoopInterval: LUMA_LOOP_SECONDS }]),
+  )
+
+// Return a copy of `controls` with `description` (and any curated seconds
+// presentation) filled in from the curated tables for `demoName`. Pure and
+// total: an unknown/null demo, or a control with no curated entry, is
+// returned unchanged (UI falls back to the label).
 export function withControlDescriptions(
   demoName: string | null | undefined,
   controls: Controls,
 ): Controls {
   const table = demoName ? CONTROL_DESCRIPTIONS[demoName] : undefined
-  if (!table) return controls
+  const seconds = demoName ? CONTROL_SECONDS_PRESENTATIONS[demoName] : undefined
+  if (!table && !seconds) return controls
   return controls.map((c) => {
-    const description = table[c.exportName]
-    return description ? { ...c, description } : c
+    const description = table?.[c.exportName]
+    const secondsPresentation = seconds?.[c.exportName]
+    if (!description && !secondsPresentation) return c
+    return {
+      ...c,
+      ...(description ? { description } : {}),
+      ...(secondsPresentation ? { secondsPresentation } : {}),
+    }
   })
 }

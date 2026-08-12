@@ -22,6 +22,10 @@ export interface PatternMetadata {
     // (issue #190); bundle() never sets it, so user/imported patterns fall back
     // to the humanized label.
     description?: string
+    // Curated presentation for sliders whose raw 0..1 value encodes seconds
+    // linearly (value * scale). Attached at the demo-loading layer like
+    // description (#819); the UI offers an exact seconds field for these.
+    secondsPresentation?: { scale: number; minSeconds: number }
     // For pickers only: the top-level vars backing each arg (h,s,v or r,g,b),
     // in arg order. Lets the UI seed the swatch from the pattern's init values.
     pickerVars?: string[]

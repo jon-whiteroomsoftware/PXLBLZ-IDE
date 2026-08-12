@@ -5,7 +5,8 @@
 // ingredient for Luma and Chroma keying rather than a finished piece: tint,
 // scale, rotate, and layer it from a Show.
 // Runs on: 2D maps; designed for panels and mapped surfaces.
-// Controls: Loop Interval — Exact cycle length from 0.25 to 8 seconds; one
+// Controls: Loop Interval — Exact cycle length in seconds, up to 10 (the raw
+//           slider value is seconds divided by 10); one
 //           loop advances exactly one band;
 //           Direction — Reverse, hold, or forward travel;
 //           Spacing — Band-to-band distance;
@@ -26,7 +27,7 @@
 // for seamless BPM-locked playback. Output is pure grayscale across the full
 // 0..1 range so key Target, Tolerance, and Softness have the whole domain.
 
-export var loopInterval = 0.48
+export var loopInterval = 0.2
 export var direction = 1
 export var spacing = 0.5
 export var width = 0.4
@@ -53,7 +54,10 @@ export function beforeRender(delta) {
   // Exact loop: accumulate whole milliseconds and derive phase with one
   // division, so 16.16 Precise mode carries no per-frame rate bias and the
   // clock wraps exactly at the loop length.
-  var loopMs = 250 + 7750 * loopInterval * loopInterval
+  // The raw slider is seconds / 10 (20% = 2 s); the IDE offers exact typed
+  // entry through the curated seconds presentation.
+  var loopMs = 10000 * loopInterval
+  if (loopMs < 100) loopMs = 100
   var dir = direction < 1 / 3 ? -1 : direction < 2 / 3 ? 0 : 1
   clockMs = mod(clockMs + dir * delta + loopMs, loopMs)
   phase = clockMs / loopMs

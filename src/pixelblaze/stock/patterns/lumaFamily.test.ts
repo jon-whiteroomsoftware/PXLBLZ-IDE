@@ -141,10 +141,10 @@ describe('Luma family motion contract (#819)', () => {
   for (const mode of ['fast', 'fidelity'] as const) {
     it.each(FAMILY)(`%s closes its loop exactly in ${mode} mode`, (name) => {
       const { handle, enc, advance, frame } = makeHarness(name, mode)
-      // sliderLoopInterval maps v -> 250 + 7750 * v * v ms; v = 0.6 gives
-      // 3040 ms, which divides into whole-millisecond steps.
+      // sliderLoopInterval maps linearly: raw value * 10 = seconds, so 0.6 is
+      // 6000 ms, which divides into whole-millisecond steps.
       handle.controls.sliderLoopInterval(enc(0.6))
-      const loopMs = 250 + 7750 * 0.6 * 0.6
+      const loopMs = 10000 * 0.6
       advance(0)
       advance(50)
       const before = frame()
@@ -156,6 +156,23 @@ describe('Luma family motion contract (#819)', () => {
       }
     })
   }
+
+  it('Loop Interval maps the raw slider to seconds / 10 for exact typed entry', () => {
+    // The IDE seconds field writes typed seconds back as seconds / 10; the
+    // contract that makes "2.37" mean 2.37 s is this linear mapping.
+    const { handle, enc, advance, frame } = makeHarness('LumaStripes')
+    handle.controls.sliderLoopInterval(enc(0.237))
+    advance(0)
+    advance(33)
+    const before = frame()
+    for (let i = 0; i < 30; i++) advance(2370 / 30)
+    const closed = frame()
+    for (let i = 0; i < before.length; i++) {
+      expect(closed[i], `pixel ${i}`).toBeCloseTo(before[i], 4)
+    }
+    advance(1185)
+    expect(frame()).not.toEqual(before)
+  })
 
   it('LumaStripes travels from the compass origin: Angle 0 moves crests down-screen', () => {
     const { handle, enc, advance, shim } = makeHarness('LumaStripes')
@@ -171,9 +188,9 @@ describe('Luma family motion contract (#819)', () => {
     const pitch = 0.05 + 0.5 * 0.75
     const y0 = 0.5 + pitch * (0.5 - 1)
     expect(sample(y0)).toBeGreaterThan(0.99)
-    // Advance a quarter loop: with Angle 0 (from the top) the crest must move
-    // DOWN-screen, i.e. toward larger sample y.
-    advance(760)
+    // Advance a quarter loop (0.6 -> 6 s): with Angle 0 (from the top) the
+    // crest must move DOWN-screen, i.e. toward larger sample y.
+    advance(1500)
     const y1 = y0 + pitch * 0.25
     expect(sample(y1)).toBeGreaterThan(0.99)
     expect(sample(y0)).toBeLessThan(0.9)
@@ -201,7 +218,7 @@ describe('Luma family motion contract (#819)', () => {
       return bestAngle
     }
     const a0 = ringMax()
-    advance(760) // quarter loop = 1/4 spoke period
+    advance(1500) // quarter loop (0.6 -> 6 s) = 1/4 spoke period
     const a1 = ringMax()
     // Screen y grows downward, so counterclockwise on screen means the
     // brightest spoke's atan2 angle DECREASES (mod one spoke period of 60deg).

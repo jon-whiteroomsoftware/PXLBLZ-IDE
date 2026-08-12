@@ -2,6 +2,7 @@ import { useState } from 'react'
 import { useEditorStore } from '@/store/editorStore'
 import { useControlStore, type ControlValue } from '@/store/controlStore'
 import { DeckSlider } from '@/components/DeckSlider'
+import { TimeField } from '@/components/ui/time-field'
 import { HelpHint } from '@/components/HelpHint'
 import { DeckDisclosureHeader } from '@/components/Deck'
 
@@ -73,6 +74,23 @@ export function ControlsPanel() {
   const renderSlider = (c: (typeof controls)[number]) => {
     const raw = controlValues[c.exportName]
     const value = typeof raw === 'number' ? raw : 0.5
+    if (c.secondsPresentation) {
+      // Curated seconds sliders (raw value * scale = seconds) get an exact
+      // typed field: "2.37" means 2.37 s, stored back as the raw 0..1 value.
+      const { scale, minSeconds } = c.secondsPresentation
+      return (
+        <TimeField
+          key={c.exportName}
+          label={c.label.toLowerCase()}
+          value={value * scale}
+          min={minSeconds}
+          max={scale}
+          step={0.001}
+          compact
+          onChange={(seconds) => setControlValue(c.exportName, seconds / scale)}
+        />
+      )
+    }
     return (
       <DeckSlider
         key={c.exportName}
