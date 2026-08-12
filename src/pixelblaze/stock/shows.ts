@@ -2714,13 +2714,21 @@ function effectShowcase(kind: ShowcaseKind): StockShow {
 // grayscale subject the luma matte IS the image. Chroma Key rides DoomFire,
 // whose orange body carves out while its black field and yellow cores stay.
 // Vignette closes the frame over luma-keyed marching waves so the bed stays
-// present. The finale stacks crisp keyed rings over keyed waves over the
-// bed - the documented N + U1 + U2 three-layer content-key stack.
+// present, and the waves' own controls animate under a held key. The finale
+// stacks thin keyed rings over keyed waves over the bed - the documented
+// N + U1 + U2 three-layer content-key stack.
+//
+// Every luma key targets true black (#833): tolerance clears only the black
+// field and softness turns the source's own gray ramp into gradient
+// opacity. The earlier mid-gray thresholds (tolerance 0.45/0.35) behaved as
+// hard keep-the-white mattes and left a gray fringe wherever an antialiased
+// edge crossed the cut, which is why the stack finale was dropped in #821;
+// on black the same stack blends seamlessly.
 function compositingKeyShowcase(): StockShow {
   const id = 'stock-show-showcase-compositing-key-effects'
   const zones = logicalZones(['Main'], 2_000)
-  const RINGS_LUMA_KEY: ShowClipEffect = { id: 'luma-key', kind: 'luma-key', target: 0, tolerance: 0.45, softness: 0.08 }
-  const WAVES_LUMA_KEY: ShowClipEffect = { id: 'luma-key', kind: 'luma-key', target: 0, tolerance: 0.35, softness: 0.15 }
+  const RINGS_LUMA_KEY: ShowClipEffect = { id: 'luma-key', kind: 'luma-key', target: 0, tolerance: 0.05, softness: 0.35 }
+  const WAVES_LUMA_KEY: ShowClipEffect = { id: 'luma-key', kind: 'luma-key', target: 0, tolerance: 0.05, softness: 0.4 }
   // DoomFire's orange body is the chroma target; its black field stays
   // opaque and its yellow-white cores survive, so the carve-out reads as
   // fire with the bed burning through it.
@@ -2730,12 +2738,13 @@ function compositingKeyShowcase(): StockShow {
     name: string
     detail: string
     seconds: number
-    subject: 'rings' | 'fire' | 'waves'
+    subject: 'rings' | 'ringsCrisp' | 'fire' | 'waves'
     effects: ShowClipEffect[]
     bedEffects?: ShowClipEffect[]
     placementOpacity?: number
     fadeTrack?: boolean
     angleTrack?: boolean
+    finale?: boolean
   }
   const rows: CompositeRow[] = [
     { name: 'Reference', detail: 'Grayscale rings fully opaque; the bed is invisible beneath them.', seconds: 3, subject: 'rings', effects: [] },
@@ -2747,7 +2756,7 @@ function compositingKeyShowcase(): StockShow {
     // does not return" legible (Jon review round 3).
     { name: 'Layer Opacity', detail: 'The Layer thins over what is beneath: the warm bed glows through everywhere.', seconds: 3, subject: 'rings', effects: [], placementOpacity: 0.34 },
     { name: 'Animated Opacity', detail: 'The Layer opacity rides a Property track from full to nothing: the rings dissolve into the bed.', seconds: 3, subject: 'rings', effects: [], fadeTrack: true },
-    { name: 'Luma Key', detail: 'Dark pixels vanish: the white rings float alone over the bed.', seconds: 3.5, subject: 'rings', effects: [RINGS_LUMA_KEY] },
+    { name: 'Luma Key', detail: 'The key targets black: the ring gaps vanish and every gray edge becomes gradient opacity over the bed.', seconds: 3.5, subject: 'rings', effects: [RINGS_LUMA_KEY] },
     { name: 'Chroma Key', detail: 'Orange vanishes: the flame bodies carve out and the bed burns through them.', seconds: 3.5, subject: 'fire', effects: [FIRE_CHROMA_KEY] },
     { name: 'Vignette', detail: 'The frame closes to black at the edges while keyed waves march over the bed.', seconds: 3, subject: 'waves', effects: [WAVES_LUMA_KEY, VIGNETTE], bedEffects: [{ ...VIGNETTE, id: 'vignette-bed' }] },
     // The ender shows what makes Luma sources special: their own controls
@@ -2757,10 +2766,13 @@ function compositingKeyShowcase(): StockShow {
     // Spacing (Jon, round 5): the bands breathe while they wheel, riding
     // the family's phase-continuity contract (#819).
     { name: 'Animated Angle', detail: "The waves' own Angle, Width, and Spacing animate under a held key - Luma controls are ordinary properties.", seconds: 5, subject: 'waves', effects: [WAVES_LUMA_KEY], angleTrack: true },
+    // The stack finale returns (#833): with every key on black the three
+    // layers blend as gradient opacity instead of fringing.
+    { name: 'Layered', detail: 'Luma on Luma: thin keyed rings over keyed sine waves over the bed - every key on black.', seconds: 3.5, subject: 'ringsCrisp', effects: [RINGS_LUMA_KEY], finale: true },
   ]
-  const subjectPattern = { rings: 'LumaRings', fire: 'DoomFireV20_2D', waves: 'LumaStripes' } as const
-  const subjectInstanceId = { rings: 'composite-rings', fire: 'composite-fire', waves: 'composite-waves' } as const
-  const subjectTimeScale = { rings: 1, fire: 1, waves: 1 } as const
+  const subjectPattern = { rings: 'LumaRings', ringsCrisp: 'LumaRings', fire: 'DoomFireV20_2D', waves: 'LumaStripes' } as const
+  const subjectInstanceId = { rings: 'composite-rings', ringsCrisp: 'composite-rings-crisp', fire: 'composite-fire', waves: 'composite-waves' } as const
+  const subjectTimeScale = { rings: 1, ringsCrisp: 1, fire: 1, waves: 1 } as const
   const scenes = rows.map((row, index) => scene(
     `composite-${index + 1}`,
     row.name,
@@ -2772,6 +2784,12 @@ function compositingKeyShowcase(): StockShow {
     patternInstances: [
       instance('composite-bed', 'IQPalettes', 0.2),
       instance('composite-rings', 'LumaRings', 1),
+      // The finale's own rings: narrow Width keeps them thin so the waves
+      // read between them; full-scale Feather keeps the ring profile a long
+      // gray ramp, which is what the black key turns into gradient opacity.
+      // A near-binary source (the old crisp Feather 0.2 tuning) leaves the
+      // key nothing to ramp on and reverts to a hard cutout (Jon, #833).
+      instance('composite-rings-crisp', 'LumaRings', 1, { sliderFeather: 0.6, sliderWidth: 0.3 }),
       // Full pace and tall flames: the fire enters on a cut and must be
       // roaring, not smoldering, by mid-beat.
       instance('composite-fire', 'DoomFireV20_2D', 1, { sliderFlameHeight: 0.85, sliderSpeed: 0.7 }),
@@ -2792,6 +2810,19 @@ function compositingKeyShowcase(): StockShow {
           ...(row.effects.length ? { effects: row.effects } : {}),
         }],
       }
+      // The finale keeps the rings Subject on top and slides the keyed
+      // waves between it and the bed; overlays list top-most first.
+      const middleLayer = row.finale
+        ? [{
+            id: `layer-middle-${index + 1}`,
+            name: 'Keyed waves',
+            placements: [{
+              ...placement(`middle-${index + 1}`, 'composite-waves', 0, item.durationMs / 1_000),
+              opacity: 1,
+              effects: [WAVES_LUMA_KEY],
+            }],
+          }]
+        : []
       return {
         sceneId: item.id,
         ...(row.angleTrack ? {
@@ -2863,7 +2894,7 @@ function compositingKeyShowcase(): StockShow {
             // full-bright at the edges through the keyed troughs.
             ...(row.bedEffects ? { effects: row.bedEffects } : {}),
           }],
-          overlays: [subjectLayer],
+          overlays: [subjectLayer, ...middleLayer],
         }],
       }
     }),
@@ -2872,7 +2903,7 @@ function compositingKeyShowcase(): StockShow {
   return catalogue({
     id, title: 'Compositing and Key Effects', track: 'portable', collection: 'showcases', level: null, order: 4,
     purpose: "Opacity, Luma Key, Chroma Key, and Vignette decide which of a Clip's pixels reach the mix, so they only mean something over a lower Layer. A warm bed runs underneath the whole reference; every pixel these Effects remove shows the bed instead.",
-    notice: "Each Effect rides the subject that shows it best: grayscale Luma Rings for the opacity pair and Luma Key - the matte is the image - DoomFire for Chroma Key, and luma-keyed marching waves under the closing Vignette. The ender animates the waves' own Angle, Width, and Spacing under a held key: Luma controls are ordinary animatable properties.",
+    notice: "Each Effect rides the subject that shows it best: grayscale Luma Rings for the opacity pair and Luma Key - the matte is the image - DoomFire for Chroma Key, and luma-keyed marching waves under the closing Vignette. Every key targets black, so gray edges blend as gradient opacity. The waves' own Angle, Width, and Spacing animate under a held key, then the finale stacks thin keyed rings over keyed waves over the bed: Luma on Luma.",
     prompts: ['Raise the Luma Key tolerance until only the brightest ring cores survive.', 'Point the Chroma Key at the fire\u2019s yellow instead and watch the cores vanish.'],
     guideHeading: 'compositing-and-key-effects',
     defaultOpen: true,
@@ -2881,8 +2912,8 @@ function compositingKeyShowcase(): StockShow {
     transitions: cutBoundaries(scenes),
     composition,
     reference: {
-      summary: 'A constant warm bed under keyed subjects; each Effect decides which subject pixels reach the mix, ending with the waves\u2019 own controls animating under a held key.',
-      patternSlots: { cellIds: scenes.map((item) => cellId(item.id, 'zone-1')), instanceIds: ['composite-rings', 'composite-fire', 'composite-waves'] },
+      summary: 'A constant warm bed under keyed subjects; each Effect decides which subject pixels reach the mix, ending with thin keyed rings over keyed waves over the bed - every key on black.',
+      patternSlots: { cellIds: scenes.map((item) => cellId(item.id, 'zone-1')), instanceIds: ['composite-rings', 'composite-rings-crisp', 'composite-fire', 'composite-waves'] },
       examples: scenes.map((item, index) => ({
         id: `composite-${index + 1}`,
         label: item.name,

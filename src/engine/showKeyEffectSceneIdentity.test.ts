@@ -61,16 +61,17 @@ describe('key effects stay scene-local in shared member stages (#820)', () => {
     expect(compiled.error).toBeNull()
     const artifact = compiled.artifact!
 
-    // Rebuilt beats (#821): Reference 0-3s, Layer Opacity 3-6s, Opacity
-    // Effect 6-9s, Luma Key 9-12.5s, Chroma Key 12.5-16s, Vignette 16-19s,
-    // Layered 19-22.5s.
+    // Rebuilt beats (#821), stack finale restored on black keys (#833):
+    // Reference 0-3s, Layer Opacity 3-6s, Animated Opacity 6-9s, Luma Key
+    // 9-12.5s, Chroma Key 12.5-16s, Vignette 16-19s, Animated Angle 19-24s,
+    // Layered 24-27.5s.
     const reference = sceneStats(1_500, artifact)
     const opacity = sceneStats(4_500, artifact)
     const opacityEffect = sceneStats(7_500, artifact)
     const lumaKey = sceneStats(10_750, artifact)
     const chromaKey = sceneStats(15_600, artifact)
     const vignette = sceneStats(17_500, artifact)
-    const layered = sceneStats(20_750, artifact)
+    const layered = sceneStats(25_750, artifact)
 
     // Reference: grayscale Luma Rings fully opaque - the frame is overwhelmingly
     // achromatic (white rings on black), not the colored bed.
@@ -117,6 +118,14 @@ describe('key effects stay scene-local in shared member stages (#820)', () => {
     const angleLate = sceneStats(21_400, artifact)
     expect(angleEarly.checksum).not.toBe(angleLate.checksum)
     expect(angleEarly.grayish).toBeLessThan(200)
+
+    // Layered finale (#833): crisp keyed rings over keyed waves over the
+    // bed, every key on black. The gray subject stack must dominate the
+    // frame while the warm bed still burns through the blended troughs
+    // (measured 185 grayish / 71 off-gray at the sample instant).
+    expect(layered.grayish).toBeGreaterThan(140)
+    expect(layered.grayish).toBeLessThan(240)
+    expect(layered.meanRed).toBeGreaterThan(0.3)
 
     // Every beat must produce a distinct composite; the #820 bug collapsed
     // three beats into one identical dispatch block.

@@ -94,13 +94,16 @@ describe('Restart-instance global-liveness census (#536)', () => {
     // the stop verdict is unchanged. Recensused for the Quadrille remix
     // (#832): its two held instances add +82 member globals with no new
     // reclaimable set; the reclaim percent stays 0 and the stop verdict is
-    // unchanged.
+    // unchanged. Recensused for the restored Compositing stack finale
+    // (#833): the crisp-rings instance rejoins the corpus (+28 member
+    // globals at this frozen vintage) with no new reclaimable set; the
+    // reclaim percent stays 0 and the stop verdict is unchanged.
     expect(report.summary).toMatchObject({
-      representativeMemberGlobals: 3_441,
+      representativeMemberGlobals: 3_469,
       representativeReclaimedGlobals: 206,
     })
     expect(report.decision.representativeReclaimPercent).toBe(0)
-    expect(report.decision.weightedRepresentativeReclaimPercent).toBeCloseTo(0.05986632, 8)
+    expect(report.decision.weightedRepresentativeReclaimPercent).toBeCloseTo(0.05938311, 8)
     expect(report.decision.ceilingRescues).toEqual([])
     expect(report.decision.proceedWithEmission).toBe(false)
     expect(report.decision.proceedWithEmission).toBe(
