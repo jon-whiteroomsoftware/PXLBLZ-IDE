@@ -3,6 +3,7 @@ import type {
   ShowCell,
   ShowClipEffect,
   ShowClipTransform,
+  ShowClipViewport,
   ShowCompositionV1,
   ShowPropertyAnimationTarget,
   ShowPropertyAnimationTrack,
@@ -158,6 +159,7 @@ export const STOCK_SHOWS: StockShow[] = [
   redlineInstallation(),
   remixCoronalMassEjection(),
   quadrilleRemix(),
+  overtureRemix(),
 ]
 
 export function stockShowById(id: string | null | undefined): StockShow | undefined {
@@ -3553,6 +3555,281 @@ function quadrilleRemix(): StockShow {
     guideLabel: 'Read property animation',
     defaultOpen: true,
     output: portableOutput(), zones, layouts, scenes: quadrilleScenes, transitions, composition,
+  })
+}
+
+// Overture (#840): the Proscenium stage performs its own opening night at
+// 128 BPM. The governing law is that light only travels the architecture's
+// paths - around the arch band, up the columns, out of the apex - and every
+// mechanism is the cheap end of the ladder. THREE shared grayscale instances
+// carry the whole hour: two LumaMarquee chases (the gold house chase and the
+// lone cyan surge) and one LumaRings, whose soft wide rings play velvet
+// stage body, apex bloom, and the closing ghost lamp purely through
+// placement windows, tints, and scale. Colors are placement color-map
+// tints, chase reversal is the placement mirror (an index mirror on the
+// Zone's wiring walk), the doubled marquee is one instance twice at
+// opposite phase, and per-column choreography addresses the Columns Zone's
+// local raster halves (column A on top, column B below) with hard Viewport
+// frames. Zero property tracks. The eight musical phrases live inside four
+// compiled scenes - unrolled emission prices every scene-zone arm, so
+// phrase changes that only reschedule ownership use scene-local placement
+// windows instead of new scenes - and every boundary is an on-beat Cut
+// except the bought curtain wipe into Curtain up.
+function overtureRemix(): StockShow {
+  const id = 'stock-show-remix-overture'
+  // 128 BPM: bar 1.875 s, four-bar phrase 7.5 s, eight phrases = 60 s.
+  const BAR = 1.875
+  const zones = physicalZones(['Stage', 'Arch', 'Columns'], [250, 250, 500])
+  const layouts = [physicalLayout('layout-stage', 'Proscenium stage', zones, [
+    [[250, 499]], [[500, 749]], [[0, 249], [750, 999]],
+  ])]
+  // Palette roles as color-map tints over grayscale sources: marquee gold
+  // carries identity, velvet warms the stage interior, white appears only at
+  // the peak, and the cyan surge intrudes exactly once.
+  const tint = (tintId: string, highlight: [number, number, number], shadow: [number, number, number] = [0, 0, 0]): ShowClipEffect => ({
+    id: tintId, kind: 'color-map', amount: 1,
+    shadowR: shadow[0], shadowG: shadow[1], shadowB: shadow[2],
+    highlightR: highlight[0], highlightG: highlight[1], highlightB: highlight[2],
+  })
+  const GOLD = tint('tint-gold', [1, 0.72, 0.22])
+  const GOLD_DIM = tint('tint-gold-dim', [0.55, 0.38, 0.1])
+  const VELVET = tint('tint-velvet', [0.62, 0.1, 0.16], [0.05, 0, 0.02])
+  const CYAN = tint('tint-cyan', [0.25, 0.95, 1])
+  // The peak's hot red: brighter than the velvet body, still the same
+  // family. White never appears - it read as an unearned voice (#840).
+  const SCARLET = tint('tint-scarlet', [1, 0.26, 0.16])
+  const GHOST = tint('tint-ghost', [1, 0.88, 0.6])
+  const BLOOM_KEY: ShowClipEffect = { id: 'bloom-key', kind: 'chroma-key', color: '#000000', tolerance: 0.08, softness: 0.1 }
+  // The Columns Zone's local raster stacks column A above column B, so hard
+  // half-frame Viewports address one column each.
+  const COLUMN_A: ShowClipViewport = { enabled: true, x: 0, y: 0, width: 1, height: 0.5, edge: 'hard' }
+  const COLUMN_B: ShowClipViewport = { enabled: true, x: 0, y: 0.5, width: 1, height: 0.5, edge: 'hard' }
+  // The ghost lamp: a small soft window at center stage over the shared
+  // rings, so the last light left in the theater visibly breathes.
+  const LAMP: ShowClipViewport = { enabled: true, x: 0.36, y: 0.33, width: 0.28, height: 0.34, aperture: 'ellipse', edge: 'soft', feather: 0.1 }
+  type PlacementExtras = {
+    mirror?: boolean; phase?: number; brightness?: number
+    viewport?: ShowClipViewport
+    transform?: Partial<ShowClipTransform>
+    effects?: ShowClipEffect[]
+    startBars?: number; durationBars?: number
+  }
+  const put = (placementId: string, instanceId: string, extras: PlacementExtras = {}) => {
+    // Bar fractions of 1.875 s can land off the whole-millisecond grid the
+    // record validator requires. Round both endpoints, then take the
+    // difference, so a rounded window can never overhang the scene end.
+    const startMs = Math.round((extras.startBars ?? 0) * BAR * 1_000)
+    const endMs = Math.round(((extras.startBars ?? 0) + (extras.durationBars ?? 4)) * BAR * 1_000)
+    return {
+      id: placementId, instanceId, startMs, durationMs: endMs - startMs,
+      view: { mirror: extras.mirror ?? false, phase: extras.phase ?? 0, brightness: extras.brightness ?? 1 },
+      ...(extras.viewport ? { viewport: extras.viewport } : {}),
+      ...(extras.transform
+        ? { transform: { positionX: 0, positionY: 0, rotation: 0, scaleX: 1, scaleY: 1, ...extras.transform } }
+        : {}),
+      ...(extras.effects ? { effects: extras.effects } : {}),
+    }
+  }
+  const layer = (name: string, ...placements: Array<ReturnType<typeof put>>) => ({
+    id: `layer-${placements[0].id}`, name, placements: placements.map((entry) => ({ ...entry, opacity: 1 })),
+  })
+  // Four compiled scenes: 8 + 8 + 2 + 8 bars. Jon's live-review pacing cut
+  // (#840) halved the original twelve-bar opening: the arch solo holds two
+  // bars, the columns slam in for two, and the countermotion block takes the
+  // back four, so every change lands harder and the complementary colors
+  // arrive inside the first phrase pair.
+  const sceneIds = ['the-circuits', 'curtain-up', 'the-surge', 'the-house'] as const
+  const sceneNames = ['The circuits', 'Curtain up', 'The surge', 'The house']
+  const SCENE_BARS = [8, 8, 2, 8]
+  const featured = ['LumaMarquee', 'LumaRings', 'LumaMarquee', 'LumaRings']
+  const featuredZone = ['zone-2', 'zone-1', 'zone-3', 'zone-1']
+  const overtureScenes: SceneSpec[] = sceneIds.map((sceneId, index) => scene(
+    sceneId, sceneNames[index], SCENE_BARS[index] * BAR,
+    [clip(featuredZone[index], featured[index], 1)],
+  ))
+  const composition: ShowCompositionV1 = {
+    version: 1,
+    patternInstances: [
+      // One bulb-pitch step per bar; four bulbs around any run. Spacing is
+      // tuned so the pitch is exactly 0.25: at every bar boundary the chase
+      // phase is zero and the bulb set sits symmetric about the run's
+      // midpoint, so a placement mirror swap on the bar line reverses the
+      // chase with no visible jump (#840, Jon's smooth-reversal note).
+      instance('marquee', 'LumaMarquee', 1, {
+        sliderLoopInterval: 0.1875, sliderDirection: 1, sliderSpacing: 0.2347,
+        sliderWidth: 0.3, sliderFeather: 0.18, sliderLean: 0.5,
+      }),
+      // The one intruder: a lone comet that crosses a whole run in two bars.
+      instance('surge', 'LumaMarquee', 1, {
+        sliderLoopInterval: 0.375, sliderDirection: 1, sliderSpacing: 1,
+        sliderWidth: 0.1, sliderFeather: 0.3, sliderLean: 0.9,
+      }),
+      // Soft wide rings, one breath per bar: the velvet body, the apex
+      // bloom, and the ghost lamp are all windows onto this one surface.
+      instance('rings', 'LumaRings', 1, {
+        sliderLoopInterval: 0.1875, sliderDirection: 1, sliderSpacing: 0.55,
+        sliderWidth: 0.45, sliderFeather: 0.8, sliderLean: 0.5,
+      }),
+    ],
+    scenes: [
+      {
+        // Phrases 1-2, all in red and gold (the first cyan waits for the
+        // arch blip past 19 s). Ignition: one gold chase circles the dark
+        // arch for two bars. Entrance: the columns slam in wearing the
+        // curtain's velvet - the wiring's own canon, A then B. Countermotion
+        // at bar 4: the colors trade places (arch to velvet, columns to
+        // gold) and the arch reverses; at bar 6 the columns smoothly reverse
+        // too - the mirror swap lands on a bar line where the symmetric
+        // bulb lattice makes the reversal seamless - while the velvet glows
+        // behind the opening as anticipation.
+        sceneId: sceneIds[0],
+        zones: [
+          {
+            zoneId: 'zone-1', overlays: [],
+            main: [put('stage-anticipation', 'rings', { startBars: 4, durationBars: 4, brightness: 0.35, effects: [VELVET] })],
+          },
+          {
+            zoneId: 'zone-2', overlays: [],
+            main: [
+              put('arch-ignition', 'marquee', { durationBars: 4, effects: [GOLD] }),
+              put('arch-reversed', 'marquee', { startBars: 4, durationBars: 4, mirror: true, effects: [VELVET] }),
+            ],
+          },
+          {
+            zoneId: 'zone-3', overlays: [],
+            main: [
+              put('cols-canon', 'marquee', { startBars: 2, durationBars: 2, effects: [VELVET] }),
+              put('cols-forward', 'marquee', { startBars: 4, durationBars: 2, effects: [GOLD] }),
+              put('cols-reversed', 'marquee', { startBars: 6, durationBars: 2, mirror: true, effects: [GOLD] }),
+            ],
+          },
+        ],
+      },
+      {
+        // Phrases 4-5, entered through the bought curtain wipe. Curtain up:
+        // the stage ignites - velvet at full depth with a gold bloom keyed
+        // over it - while the marquee doubles its bulbs with a phase-offset
+        // twin. One world: the bloom lifts to the apex and the same live
+        // rings pour out of it across arch and stage together.
+        sceneId: sceneIds[1],
+        zones: [
+          {
+            zoneId: 'zone-1',
+            overlays: [layer(
+              // The bloom arrives WITH one-world on the existing bar-4 edge:
+              // the curtain phrase is pure velvet, then the apex pours.
+              'Bloom',
+              put('bloom-apex', 'rings', { startBars: 4, durationBars: 4, transform: { positionY: -0.55, scaleX: 1.6, scaleY: 1.6 }, effects: [BLOOM_KEY, GOLD] }),
+            )],
+            main: [put('stage-velvet', 'rings', { durationBars: 8, brightness: 0.8, effects: [VELVET] })],
+          },
+          {
+            zoneId: 'zone-2', overlays: [],
+            main: [
+              put('arch-steady', 'marquee', { durationBars: 3.25, effects: [GOLD] }),
+              // The blip: one flash of the intruder at the end of the gold
+              // hold - the surge's only warning shot. It ends on the bar-4
+              // edge the one-world rings already own, so the whole event
+              // costs a single new time-edge in the unrolled score (#840).
+              put('arch-blip', 'marquee', { startBars: 3.25, durationBars: 0.75, effects: [CYAN] }),
+              put('arch-oneworld', 'rings', { startBars: 4, durationBars: 4, transform: { positionY: -0.5, scaleX: 1.6, scaleY: 1.6 }, effects: [GOLD] }),
+            ],
+          },
+          {
+            zoneId: 'zone-3', overlays: [],
+            main: [
+              put('cols-hold', 'marquee', { durationBars: 4, effects: [GOLD_DIM] }),
+              // The columns turn ember red for the whole one-world passage,
+              // entering on the existing bar-4 edge for free.
+              put('cols-ember', 'marquee', { startBars: 4, durationBars: 4, effects: [VELVET] }),
+            ],
+          },
+        ],
+      },
+      {
+        // Phrase 6. The cut from full voice IS the short: the theater goes
+        // black and one cyan bolt runs the wiring walk end to end - up
+        // column A, across the stage, over the arch, down column B. (The
+        // two warm bars this scene once opened with duplicated the
+        // one-world tail for +9 KB; the harder drop reads better, #840.)
+        sceneId: sceneIds[2],
+        zones: [
+          {
+            zoneId: 'zone-1', overlays: [],
+            main: [put('surge-stage-bolt', 'surge', { startBars: 0.5, durationBars: 0.5, effects: [CYAN] })],
+          },
+          {
+            zoneId: 'zone-2', overlays: [],
+            main: [put('surge-arch-bolt', 'surge', { startBars: 1, durationBars: 0.5, effects: [CYAN] })],
+          },
+          {
+            zoneId: 'zone-3',
+            overlays: [layer('Bolt out', put('surge-colB-bolt', 'surge', { startBars: 1.5, durationBars: 0.5, viewport: COLUMN_B, effects: [CYAN] }))],
+            main: [put('surge-colA-bolt', 'surge', { durationBars: 0.5, viewport: COLUMN_A, effects: [CYAN] })],
+          },
+        ],
+      },
+      {
+        // Phrases 7-8. Full house: every surface at full voice - doubled
+        // marquee breaking white, the counter-scrolling twins, the bloom
+        // over the velvet. Ghost light: one last full bar, then the theater
+        // goes dark except a single warm lamp breathing at center stage,
+        // and the loop hands it back to the circuit test.
+        sceneId: sceneIds[3],
+        zones: [
+          {
+            zoneId: 'zone-1',
+            overlays: [layer('Bloom', put('house-bloom', 'rings', { durationBars: 5, effects: [BLOOM_KEY, SCARLET] }))],
+            main: [
+              put('house-velvet', 'rings', { durationBars: 5, effects: [VELVET] }),
+              put('ghost-lamp', 'rings', { startBars: 5, durationBars: 3, viewport: LAMP, effects: [GHOST] }),
+            ],
+          },
+          {
+            // The peak burns scarlet, not white: white never earned a voice
+            // in this palette (#840 live review).
+            zoneId: 'zone-2', overlays: [],
+            main: [put('house-arch', 'marquee', { durationBars: 5, effects: [SCARLET] })],
+          },
+          {
+            zoneId: 'zone-3', overlays: [],
+            main: [put('house-cols', 'marquee', { durationBars: 5, mirror: true, effects: [GOLD] })],
+          },
+        ],
+      },
+    ],
+    durationMs: 26 * BAR * 1_000,
+  }
+  // Every boundary is an on-beat Cut - including the curtain, which lands as
+  // a snap to full light. A 900 ms curtain wipe measured +33 KB of unrolled
+  // boundary emission on this routed stage (#840), a third of the whole
+  // budget, so the transition luxury goes back on the shelf: the cut IS the
+  // reveal.
+  const transitions: ShowBoundaryTransition[] = cutBoundaries(overtureScenes)
+  return catalogue({
+    id, title: 'Overture', track: 'installation', collection: 'remixes', level: null, order: 3,
+    noteLabel: 'Remixes',
+    purpose: 'The building is the performer. Three grayscale Luma instances play a 1,000-LED proscenium at '
+      + '128 BPM, and every light event travels the architecture\'s own paths: the marquee chases the arch '
+      + 'band\'s wiring, the columns climb as the walk\'s built-in canon, blooms pour out of the apex, and '
+      + 'one cyan surge runs the whole installer\'s walk before the house comes up and the ghost light ends '
+      + 'the night.',
+    notice: 'Every color is a placement tint over grayscale sources, every reversal is a placement mirror '
+      + 'on the Zone\'s wiring walk, and the doubled marquee is one instance twice at opposite phase. One '
+      + 'rings surface plays velvet body, apex bloom, and the closing ghost lamp through nothing but '
+      + 'placement windows and scale. The per-column choreography addresses the Columns Zone\'s local '
+      + 'raster - column A is its top half, column B its bottom - through hard Viewport frames. No property '
+      + 'tracks anywhere: the score only schedules ownership, and the patterns carry all the motion on '
+      + 'exact bar-locked loops.',
+    prompts: [
+      'Watch the surge phrase: the bolt crosses column A, the stage, the arch, and column B in the exact order the installer wired them.',
+      'Open any marquee placement: the same instance serves the arch, both columns, and its own phase-offset twin.',
+    ],
+    guideHeading: 'installation-output-and-physical-ranges',
+    guideLabel: 'Read installation mapping',
+    defaultOpen: true,
+    output: { kind: 'installation', mapId: 'proscenium-stage-2d', pixelCount: 1_000 },
+    zones, layouts, scenes: overtureScenes, transitions, composition,
   })
 }
 

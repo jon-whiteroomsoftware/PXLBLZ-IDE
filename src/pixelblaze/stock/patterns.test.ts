@@ -9,6 +9,9 @@ import { DEMO_AUTHORS, DEMOS, RECOMMENDED_SETTINGS } from './patterns'
 
 const INTENTIONAL_LOW_DENSITY = new Set([
   'AnalogWiggleFinder',
+  // The Luma family's wiring-order member presents on a 256-pixel strip: the
+  // chase is index-order geometry, so a panel presentation would misread it.
+  'LumaMarquee',
   'Bouncer3D',
   'CyclicCellularAutomata2D',
   'DoomFire',

@@ -9,7 +9,7 @@ describe('Restart-instance global-liveness census (#536)', () => {
     // additions, again with the showcase repartition (fifteen recast
     // references replacing nine), and again with the Zone Layouts showcase
     // trio (#700), and again with the CME remix (#704).
-    expect(report.summary.savedShowCount).toBe(39)
+    expect(report.summary.savedShowCount).toBe(40)
     expect(report.cases.some((entry) => entry.kind === 'five-pattern-acceptance')).toBe(true)
     expect(report.summary.compileFailures).toEqual([])
   })
@@ -98,12 +98,15 @@ describe('Restart-instance global-liveness census (#536)', () => {
     // (#833): the crisp-rings instance rejoins the corpus (+28 member
     // globals at this frozen vintage) with no new reclaimable set; the
     // reclaim percent stays 0 and the stop verdict is unchanged.
+    // Recensused for Overture (#840): its three held instances add +183
+    // member globals with no new reclaimable set; the reclaim percent stays
+    // 0, the weighted figure dilutes, and the stop verdict is unchanged.
     expect(report.summary).toMatchObject({
-      representativeMemberGlobals: 3_469,
+      representativeMemberGlobals: 3_652,
       representativeReclaimedGlobals: 206,
     })
     expect(report.decision.representativeReclaimPercent).toBe(0)
-    expect(report.decision.weightedRepresentativeReclaimPercent).toBeCloseTo(0.05938311, 8)
+    expect(report.decision.weightedRepresentativeReclaimPercent).toBeCloseTo(0.05640745, 8)
     expect(report.decision.ceilingRescues).toEqual([])
     expect(report.decision.proceedWithEmission).toBe(false)
     expect(report.decision.proceedWithEmission).toBe(

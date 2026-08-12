@@ -27,6 +27,7 @@ const FAMILY = [
   'LumaDots',
   'LumaWeave',
   'LumaSpiral',
+  'LumaMarquee',
 ] as const
 
 // Shared ontology: identical exported control names wherever a control appears.

@@ -10,9 +10,11 @@ describe('Show render-target residual-headroom census (#514)', () => {
     // Recensused with the seven Luma key-source Patterns (#819): all seven
     // are array-free scalar fields and fit the residual budget, so every
     // summary count moves by exactly +7 and the rejection list is unchanged.
-    expect(report.summary.stockPatternCount).toBe(101)
-    expect(report.summary.stockPatternsWithNoMemberArrays).toBe(61)
-    expect(report.summary.stockPatternsFittingResidualBudget).toBe(96)
+    // LumaMarquee (#840) joins the family the same way: array-free, fits the
+    // residual budget, +1 to each summary count.
+    expect(report.summary.stockPatternCount).toBe(102)
+    expect(report.summary.stockPatternsWithNoMemberArrays).toBe(62)
+    expect(report.summary.stockPatternsFittingResidualBudget).toBe(97)
     expect(report.summary.stockPatternRejections).toHaveLength(5)
     expect(report.summary.stockPatternRejections.map((entry) => entry.id)).toEqual([
       'pattern:AuroraSphere',

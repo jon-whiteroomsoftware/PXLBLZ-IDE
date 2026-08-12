@@ -78,6 +78,9 @@ export const RECOMMENDED_SETTINGS: Record<string, Partial<Settings>> = {
   LumaDots: { mapId: 'plane', surfaceId: 'flat', pixelCount: 1024, normalize: 'fill', brightness: 0.9, lightSize: 0.75, diffusion: 0.6 },
   LumaWeave: { mapId: 'plane', surfaceId: 'flat', pixelCount: 1024, normalize: 'fill', brightness: 0.9, lightSize: 0.75, diffusion: 0.6 },
   LumaSpiral: { mapId: 'plane', surfaceId: 'flat', pixelCount: 1024, normalize: 'fill', brightness: 0.9, lightSize: 0.75, diffusion: 0.6 },
+  // Marquee is the family's wiring-order member: the chase follows index
+  // order, so the honest standalone presentation is a strip, not a panel.
+  LumaMarquee: { shapeId: 'line', pixelCount: 256, brightness: 0.9, lightSize: 0.75, diffusion: 0.6 },
 
   Caustics: { mapId: 'plane', surfaceId: 'flat', pixelCount: 1024, normalize: 'fill', brightness: 0.9, lightSize: 0.85, diffusion: 0.84 },
   AllLasersFire: { mapId: 'plane', surfaceId: 'flat', pixelCount: 1024, normalize: 'fill', brightness: 0.9, lightSize: 0.72, diffusion: 0.56 },

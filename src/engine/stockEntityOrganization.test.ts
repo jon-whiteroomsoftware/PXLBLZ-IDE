@@ -87,6 +87,7 @@ describe('built-in entity organization', () => {
       { kind: 'folder', name: 'Remixes', children: [
         { kind: 'entity', entityId: 'stock-show-remix-coronal-mass-ejection' },
         { kind: 'entity', entityId: 'stock-show-remix-quadrille' },
+        { kind: 'entity', entityId: 'stock-show-remix-overture' },
       ] },
     ])
     expect(new Set(collectEntityIds(organization.nodes)).size).toBe(STOCK_SHOWS.length)

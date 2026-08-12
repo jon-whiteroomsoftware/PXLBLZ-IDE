@@ -37,10 +37,11 @@ Controller is connected, and **Open in Studio**.
 
 Diagnostic Patterns in the **Test Patterns** folder remain available in Studio
 but are excluded from the public Gallery, including its directories and detail
-routes. The **Luma Sources** folder works the same way: seven grayscale
+routes. The **Luma Sources** folder works the same way: eight grayscale
 key-source Patterns — Luma Stripes, Luma Chevron, Luma Rings, Luma Pinwheel,
-Luma Dots, Luma Weave, and Luma Spiral — that are Show ingredients rather
-than finished pieces. Every member tiles endlessly, loops exactly (one loop advances one
+Luma Dots, Luma Weave, Luma Spiral, and Luma Marquee, whose chase follows the
+strip's wiring order — that are Show ingredients rather than finished
+pieces. Every member tiles endlessly, loops exactly (one loop advances one
 period, so a Show can lock the cycle to a beat), and shares one control set:
 Loop Interval, Direction, Spacing, Width, Feather, Lean, and Invert, plus
 Angle on the members with a travel heading and Fold on Luma Chevron. Loop
@@ -598,10 +599,12 @@ holds numbered lessons that add one idea at a time. **Showcases** holds
 reference catalogues for Effects, Transitions, Property animation, and easing,
 plus finished scores such as the 2,000-pixel, five-surface **Redline
 Installation**. **Remixes** holds finished pieces over community Patterns:
-the Coronal Mass Ejection PXLBLZ remix over ZRanger1's Pattern, and
-Quadrille, a four-quarter build that holds ZRanger1's Line Dancer 2D inside
-its full-field bloom by choreography alone and keys its lace on black over
-Wavy Bands.
+the Coronal Mass Ejection PXLBLZ remix over ZRanger1's Pattern; Quadrille, a
+four-quarter build that holds ZRanger1's Line Dancer 2D inside its full-field
+bloom by choreography alone and keys its lace on black over Wavy Bands; and
+Overture, a 128 BPM opening night for the Proscenium arch stage where three
+grayscale Luma instances chase the wiring, bloom from the apex, survive one
+cyan surge along the installer's walk, and end the night on a ghost light.
 
 Built-ins use the complete production editor. The first change creates a
 session-only draft with normal undo; **Reset** or reload restores the shipped

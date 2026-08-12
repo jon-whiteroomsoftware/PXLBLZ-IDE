@@ -38,11 +38,12 @@ describe('issue #540 Pattern field/shading census', () => {
     // denominator remains below its 10% threshold.
     // Recensused with the seven Luma key-source Patterns (#819): cheap
     // periodic crest fields, none a credible expensive-scalar candidate, so
-    // the candidate list holds at 7 over a 104-Pattern denominator and the
+    // the candidate list holds at 7 over a 105-Pattern denominator (#840
+    // adds LumaMarquee, a flat grayscale field with no shading) and the
     // stop verdict is unchanged.
     expect(issue540Report.summary).toMatchObject({
-      patternCount: 104,
-      reviewedCount: 104,
+      patternCount: 105,
+      reviewedCount: 105,
       credibleCandidateCount: 7,
       unreviewedIds: [],
       invalidClassificationIds: [],
