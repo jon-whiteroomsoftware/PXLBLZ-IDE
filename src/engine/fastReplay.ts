@@ -3,7 +3,7 @@ import { loadPattern, nativeDimension, type PatternMetadata } from './loadPatter
 import type { MapPoint } from './maps/types'
 import { createRenderLoop } from './renderLoop'
 import { selectRenderCompatibility } from './renderCompatibility'
-import { createFxShim, createShim } from './shim'
+import { createFxShim, createShim, type ShimSnapshot } from './shim'
 import { createVirtualClock } from './virtualClock'
 import { emitFixedPoint } from './fxEmit'
 
@@ -37,8 +37,18 @@ export interface FastReplayResult {
   exports: Record<string, unknown>
 }
 
+export interface FastReplaySnapshot {
+  elapsedMs: number
+  simulatedFrames: number
+  frame: Float64Array<ArrayBufferLike>
+  patternVars: Record<string, unknown>
+  shim: ShimSnapshot
+}
+
 export interface FastReplayRuntime {
   getElapsedMs: () => number
+  snapshot: () => FastReplaySnapshot
+  restore: (snapshot: FastReplaySnapshot) => void
   renderCurrentFrame: () => FastReplayResult
   advanceLive: (deltaMs: number) => FastReplayResult
   advanceTo: (targetMs: number, advance: FastReplayAdvanceOptions) => FastReplayResult
@@ -56,6 +66,63 @@ function replayTargetEpsilonMs(stepMs: number): number {
 
 function replayTargetReached(elapsedMs: number, targetMs: number, stepMs: number): boolean {
   return targetMs - elapsedMs <= replayTargetEpsilonMs(stepMs)
+}
+
+function clonePatternValue(value: unknown): unknown {
+  if (Array.isArray(value)) return value.map(clonePatternValue)
+  if (value && typeof value === 'object') {
+    return Object.fromEntries(Object.entries(value).map(([key, item]) => [key, clonePatternValue(item)]))
+  }
+  return value
+}
+
+function patternFunctionKey(fn: (...args: never[]) => unknown): string {
+  return `${fn.name}\0${Function.prototype.toString.call(fn)}`
+}
+
+function collectPatternFunctions(
+  value: unknown,
+  functions: Map<string, (...args: never[]) => unknown>,
+  seen: Set<object>,
+): void {
+  if (typeof value === 'function') {
+    functions.set(patternFunctionKey(value as (...args: never[]) => unknown), value as (...args: never[]) => unknown)
+    return
+  }
+  if (!value || typeof value !== 'object' || seen.has(value)) return
+  seen.add(value)
+  for (const item of Array.isArray(value) ? value : Object.values(value)) {
+    collectPatternFunctions(item, functions, seen)
+  }
+}
+
+function restorePatternValue(
+  value: unknown,
+  functions: ReadonlyMap<string, (...args: never[]) => unknown>,
+): unknown {
+  if (typeof value === 'function') {
+    const localFunction = functions.get(patternFunctionKey(value as (...args: never[]) => unknown))
+    if (!localFunction) throw new Error(`Fast replay snapshot function "${value.name}" is unavailable in this runtime.`)
+    return localFunction
+  }
+  return clonePatternValue(value)
+}
+
+function restorePatternArray(
+  target: unknown[],
+  source: readonly unknown[],
+  functions: ReadonlyMap<string, (...args: never[]) => unknown>,
+): void {
+  target.length = source.length
+  for (let index = 0; index < source.length; index += 1) {
+    const sourceValue = source[index]
+    const targetValue = target[index]
+    if (Array.isArray(sourceValue) && Array.isArray(targetValue)) {
+      restorePatternArray(targetValue, sourceValue, functions)
+    } else {
+      target[index] = restorePatternValue(sourceValue, functions)
+    }
+  }
 }
 
 export function prepareFastReplay(
@@ -121,6 +188,48 @@ export function createFastReplayRuntime(
 
   return {
     getElapsedMs: () => clock.getTime(),
+    snapshot(): FastReplaySnapshot {
+      return {
+        elapsedMs: clock.getTime(),
+        simulatedFrames,
+        frame: frame.slice(),
+        patternVars: Object.fromEntries(
+          Object.entries(handle.getExports()).map(([name, value]) => [name, clonePatternValue(value)]),
+        ),
+        shim: shim.snapshot(),
+      }
+    },
+    restore(snapshot: FastReplaySnapshot): void {
+      if (snapshot.frame.length !== frame.length) {
+        throw new Error('Fast replay snapshot frame size does not match this runtime.')
+      }
+      const currentPatternVars = handle.getExports()
+      const localFunctions = new Map<string, (...args: never[]) => unknown>()
+      const seenFunctionContainers = new Set<object>()
+      collectPatternFunctions(currentPatternVars, localFunctions, seenFunctionContainers)
+      collectPatternFunctions(handle.beforeRender, localFunctions, seenFunctionContainers)
+      collectPatternFunctions(handle.render, localFunctions, seenFunctionContainers)
+      collectPatternFunctions(handle.render2D, localFunctions, seenFunctionContainers)
+      collectPatternFunctions(handle.render3D, localFunctions, seenFunctionContainers)
+      collectPatternFunctions(handle.controls, localFunctions, seenFunctionContainers)
+      collectPatternFunctions(handle.getPatternFunctions(), localFunctions, seenFunctionContainers)
+      for (const [name, snapshotValue] of Object.entries(snapshot.patternVars)) {
+        const currentValue = currentPatternVars[name]
+        if (snapshotValue === undefined && currentValue === undefined) continue
+        if (Array.isArray(snapshotValue)) {
+          if (!Array.isArray(currentValue)) {
+            throw new Error(`Fast replay snapshot array "${name}" is unavailable in this runtime.`)
+          }
+          restorePatternArray(currentValue, snapshotValue, localFunctions)
+        } else if (!handle.setPatternVar(name, restorePatternValue(snapshotValue, localFunctions))) {
+          throw new Error(`Fast replay snapshot variable "${name}" is unavailable in this runtime.`)
+        }
+      }
+      shim.restore(snapshot.shim)
+      clock.setTime(snapshot.elapsedMs)
+      simulatedFrames = snapshot.simulatedFrames
+      frame.set(snapshot.frame)
+    },
     renderCurrentFrame(): FastReplayResult {
       loop.tick(0)
       simulatedFrames += 1

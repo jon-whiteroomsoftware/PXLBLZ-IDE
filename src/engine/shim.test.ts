@@ -490,6 +490,53 @@ describe('random replay seed', () => {
   })
 })
 
+describe('shim state snapshots', () => {
+  it('restores random generators, transforms, palette, perlin wrap, and captured color', () => {
+    const shim = createShim({ ...planeConfig(8, 8), getVirtualTime: () => 0, randomSeed: 841 })
+    const random = shim.builtins.random as (max?: number) => number
+    const prng = shim.builtins.prng as (max?: number) => number
+    const prngSeed = shim.builtins.prngSeed as (seed: number) => number
+    const translate = shim.builtins.translate as (x: number, y: number) => void
+    const setPalette = shim.builtins.setPalette as (palette: number[]) => void
+    const paint = shim.builtins.paint as (position: number) => void
+    const setPerlinWrap = shim.builtins.setPerlinWrap as (x: number, y: number, z: number) => void
+    const perlin = shim.builtins.perlin as (x: number, y: number, z: number, seed?: number) => number
+
+    prngSeed(123)
+    random()
+    prng()
+    translate(0.2, 0.3)
+    setPalette([0, 1, 0, 0, 1, 0, 0, 1])
+    setPerlinWrap(5, 7, 9)
+    ;(shim.builtins.rgb as (r: number, g: number, b: number) => void)(0.1, 0.2, 0.3)
+    const snapshot = shim.snapshot()
+
+    const expectedRandom = random()
+    const expectedPrng = prng()
+    const expectedPoint = shim.transformPoint(0.4, 0.5, 0)
+    const expectedPerlin = perlin(4.25, 6.5, 8.75)
+    const expectedCaptured = shim.capturedPixel()
+    paint(0.5)
+    const expectedPaint = shim.capturedPixel()
+
+    random()
+    prng()
+    translate(4, 5)
+    setPalette([0, 0, 1, 0, 1, 1, 0, 0])
+    setPerlinWrap(2, 2, 2)
+    ;(shim.builtins.rgb as (r: number, g: number, b: number) => void)(1, 1, 1)
+    shim.restore(snapshot)
+
+    expect(random()).toBe(expectedRandom)
+    expect(prng()).toBe(expectedPrng)
+    expect(shim.transformPoint(0.4, 0.5, 0)).toEqual(expectedPoint)
+    expect(perlin(4.25, 6.5, 8.75)).toBe(expectedPerlin)
+    expect(shim.capturedPixel()).toEqual(expectedCaptured)
+    paint(0.5)
+    expect(shim.capturedPixel()).toEqual(expectedPaint)
+  })
+})
+
 interface PbArray extends Array<number> {
   sum(): number
   mutate(fn: (v: number, i: number, a: number[]) => number): PbArray

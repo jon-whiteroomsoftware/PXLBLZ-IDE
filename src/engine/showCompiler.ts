@@ -1,4 +1,4 @@
-import type { BundleMetadata } from './bundle'
+import { inspectPatternMetadata, type BundleMetadata } from './bundle'
 import {
   controllerZonePixelCount,
   findControllerZoneByName,
@@ -2780,6 +2780,7 @@ export function compileShow(
     sum + (group.memberIds.length - 1) * 6
   ), 0)
   const metadata = buildMetadata(members, compiledOutputDimension, trailsSelected)
+  metadata.patternFunctions = inspectPatternMetadata(code).patternFunctions
   if (needsInstalledMapZ) {
     metadata.renderFns.hasRender3D = true
   }

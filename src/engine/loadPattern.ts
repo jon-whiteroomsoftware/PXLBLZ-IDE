@@ -10,6 +10,9 @@ export interface RenderFns {
 export interface PatternMetadata {
   exportedVars: string[]
   patternVars: string[]  // all top-level var declarations, exported or not
+  /** Runtime function declarations used to remap stateless function values
+   * when replay state moves between evaluated copies of the same artifact. */
+  patternFunctions?: string[]
   // Optional runtime identifier for each stable watcher key. Generated Shows
   // use this to compact delivered symbols without changing introspection names.
   patternVarBindings?: Record<string, string>
@@ -46,6 +49,7 @@ export interface PatternHandle {
   render2D: (index: number, x: number, y: number) => void
   render3D: (index: number, x: number, y: number, z: number) => void
   getExports: () => Record<string, unknown>
+  getPatternFunctions: () => Record<string, (...args: never[]) => unknown>
   /** Browser-runtime seam for metadata-owned state; never emitted to Pixelblaze. */
   setPatternVar: (name: string, value: unknown) => boolean
   controls: Record<string, (...args: number[]) => void>
@@ -89,6 +93,10 @@ function buildEpilogue(metadata: PatternMetadata): string {
     .map(c => `${JSON.stringify(c.exportName)}:(typeof ${c.exportName}==='function'?${c.exportName}:function(){})`)
     .join(',')
 
+  const patternFunctionEntries = (metadata.patternFunctions ?? [])
+    .map(name => `${JSON.stringify(name)}:(typeof ${name}==='function'?${name}:undefined)`)
+    .join(',')
+
   const setPatternVarCases = metadata.patternVars
     .map((name) => {
       const runtimeName = metadata.patternVarBindings?.[name] ?? name
@@ -104,6 +112,7 @@ function buildEpilogue(metadata: PatternMetadata): string {
     '  render2D:typeof render2D==="function"?render2D:function(index,x,y){},',
     '  render3D:typeof render3D==="function"?render3D:function(index,x,y,z){},',
     `  getExports:function(){return{${getExportsEntries}};},`,
+    `  getPatternFunctions:function(){return{${patternFunctionEntries}};},`,
     `  setPatternVar:function(name,value){switch(name){${setPatternVarCases}default:return false;}},`,
     `  controls:{${controlsEntries}},`,
     '};',

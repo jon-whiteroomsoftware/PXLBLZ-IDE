@@ -34,4 +34,12 @@ describe('virtualClock', () => {
     clock.advance(30)
     expect(clock.getTime()).toBe(30)
   })
+
+  it('restores an earlier virtual time and continues from it', () => {
+    const clock = createVirtualClock()
+    clock.advance(200)
+    clock.setTime(75)
+    clock.advance(25)
+    expect(clock.getTime()).toBe(100)
+  })
 })

@@ -25,6 +25,8 @@ export interface ShimConfig {
 
 export interface ShimContext {
   builtins: Record<string, unknown>
+  snapshot: () => ShimSnapshot
+  restore: (snapshot: ShimSnapshot) => void
   capturedPixel: () => [number, number, number]
   writeCapturedPixel: (target: Float32Array | Float64Array, offset: number) => void
   resetCapturedPixel: () => void
@@ -39,6 +41,18 @@ export interface ShimContext {
   // as they do on hardware (the transformed coords are handed to the pattern).
   transformPoint: (x: number, y: number, z: number) => [number, number, number]
   transformPointInto: (target: Float64Array, offset: number, x: number, y: number, z: number) => void
+}
+
+export interface ShimSnapshot {
+  randomState: number
+  prngState: number
+  transform: number[]
+  palette: number[]
+  perlinWrap: [number, number, number]
+  capturedPixel: [number, number, number]
+  frequencyData: number[]
+  accelerometer: number[]
+  analogInputs: number[]
 }
 
 // Reveal-2D convenience: build the spatial section of a ShimConfig from a
@@ -63,6 +77,11 @@ export function createShim(config: ShimConfig): ShimContext {
     ? Math.floor(Math.random() * 4294967296) >>> 0
     : config.randomSeed >>> 0
   let prngState = 0
+
+  const restoreArray = (target: number[], source: readonly number[]): void => {
+    target.length = source.length
+    for (let index = 0; index < source.length; index += 1) target[index] = source[index]
+  }
 
   function nextRandom01(): number {
     randomState = (randomState + 0x6D2B79F5) >>> 0
@@ -378,6 +397,28 @@ export function createShim(config: ShimConfig): ShimContext {
 
   return {
     builtins,
+    snapshot: () => ({
+      randomState,
+      prngState,
+      transform: ctm.slice(),
+      palette: palette.slice(),
+      perlinWrap: [perlinWrapX, perlinWrapY, perlinWrapZ],
+      capturedPixel: [captR, captG, captB],
+      frequencyData: (builtins.frequencyData as number[]).slice(),
+      accelerometer: (builtins.accelerometer as number[]).slice(),
+      analogInputs: (builtins.analogInputs as number[]).slice(),
+    }),
+    restore: (snapshot) => {
+      randomState = snapshot.randomState >>> 0
+      prngState = snapshot.prngState >>> 0
+      ctm = snapshot.transform.slice()
+      restoreArray(palette, snapshot.palette)
+      ;[perlinWrapX, perlinWrapY, perlinWrapZ] = snapshot.perlinWrap
+      ;[captR, captG, captB] = snapshot.capturedPixel
+      restoreArray(builtins.frequencyData as number[], snapshot.frequencyData)
+      restoreArray(builtins.accelerometer as number[], snapshot.accelerometer)
+      restoreArray(builtins.analogInputs as number[], snapshot.analogInputs)
+    },
     capturedPixel,
     writeCapturedPixel,
     resetCapturedPixel,
@@ -402,6 +443,8 @@ export function createFxShim(config: ShimConfig): ShimContext {
   const floatShim = createShim(config)
   const {
     builtins: floatBuiltins,
+    snapshot,
+    restore,
     capturedPixel,
     writeCapturedPixel,
     resetCapturedPixel,
@@ -498,6 +541,8 @@ export function createFxShim(config: ShimConfig): ShimContext {
 
   return {
     builtins: fxBuiltins,
+    snapshot,
+    restore,
     capturedPixel,
     writeCapturedPixel,
     resetCapturedPixel,

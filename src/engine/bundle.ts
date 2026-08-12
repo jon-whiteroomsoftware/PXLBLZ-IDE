@@ -112,6 +112,7 @@ const SKIP_VAR_NAMES = new Set([...['beforeRender', 'render2D', 'render', 'rende
 function extractMetadata(ast: unknown): BundleMetadata {
   const exportedVars: string[] = []
   const patternVars: string[] = []
+  const patternFunctions: string[] = []
   const controls: PatternMetadata['controls'] = []
   const renderFns: RenderFns = {
     hasBeforeRender: false,
@@ -126,6 +127,10 @@ function extractMetadata(ast: unknown): BundleMetadata {
       seen.add(name)
       patternVars.push(name)
     }
+  }
+
+  function addFunction(name: string): void {
+    if (!patternFunctions.includes(name)) patternFunctions.push(name)
   }
 
   const topLevel = (ast as { body: Record<string, unknown>[] }).body ?? []
@@ -151,6 +156,7 @@ function extractMetadata(ast: unknown): BundleMetadata {
       if (decl['type'] === 'FunctionDeclaration') {
         const name = (decl['id'] as Record<string, unknown>)?.['name'] as string
         if (!name) continue
+        addFunction(name)
         markRenderFn(name, renderFns)
         for (const prefix of CONTROL_PREFIXES) {
           if (name.startsWith(prefix) && name.length > prefix.length) {
@@ -177,11 +183,12 @@ function extractMetadata(ast: unknown): BundleMetadata {
     // Non-exported function declarations (render fns don't need to be exported)
     if (n['type'] === 'FunctionDeclaration') {
       const name = (n['id'] as Record<string, unknown>)?.['name'] as string
+      if (name) addFunction(name)
       if (name && RENDER_FN_NAMES.has(name)) markRenderFn(name, renderFns)
     }
   }
 
-  return { exportedVars, patternVars, controls, renderFns }
+  return { exportedVars, patternVars, patternFunctions, controls, renderFns }
 }
 
 /** Metadata-only inspection; does not resolve libraries or execute Pattern source. */
@@ -818,6 +825,7 @@ export function bundle(
   }
 
   const code = preamble + rewriteSource(patternSrc, patternRewrites)
+  metadata.patternFunctions = extractMetadata(parseModule(code)).patternFunctions
   return {
     code,
     fxCode: emitFixedPoint(code),

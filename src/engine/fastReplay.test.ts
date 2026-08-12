@@ -38,11 +38,306 @@ export function render(index) {
 }
 `
 
+const SNAPSHOT_STATE_PATTERN = `
+var frameNumber = 0
+var seeded = 0
+var samples = array(3)
+var nested = [[0, 0], [0, 0]]
+function firstChannel() { return samples[0] }
+function secondChannel() { return samples[1] }
+var channels = [firstChannel, secondChannel]
+export function beforeRender(delta) {
+  if (!seeded) {
+    prngSeed(841)
+    seeded = 1
+  }
+  frameNumber = frameNumber + 1
+  samples[0] = random(1)
+  samples[1] = prng(1)
+  samples[2] = samples[0] + samples[1]
+  nested[frameNumber % 2][0] = samples[0]
+  nested[frameNumber % 2][1] = samples[1]
+  var swap = channels[0]
+  channels[0] = channels[1]
+  channels[1] = swap
+}
+export function render(index) {
+  rgb(channels[0](), channels[1](), samples[2] / 2)
+}
+`
+
+const SNAPSHOT_SHIM_PATTERN = `
+var initialized = 0
+var phase = 0
+var palette = [0, 1, 0, 0, 1, 0, 0, 1]
+export function beforeRender(delta) {
+  if (!initialized) {
+    prngSeed(404)
+    setPerlinWrap(5, 7, 9)
+    setPalette(palette)
+    translate(0.1, 0.2)
+    initialized = 1
+  }
+  phase = phase + random(0.1) + prng(0.1)
+  rotate(0.01)
+}
+export function render2D(index, x, y) {
+  paint(perlin(x + phase, y, 0, 3))
+}
+`
+
+const SNAPSHOT_FUNCTION_PATTERN = `
+var frameNumber = 0
+function red() { return 1 }
+function green() { return 0.25 }
+var selected = red
+export function beforeRender(delta) {
+  frameNumber = frameNumber + 1
+  if (frameNumber == 2) selected = green
+}
+export function render(index) { rgb(selected(), frameNumber / 10, 0) }
+`
+
 function lineMap(pixelCount: number) {
   return Array.from({ length: pixelCount }, () => ({ sample: [] as number[] }))
 }
 
 describe('Fast replay reconstruction', () => {
+  it('restores complete replay state into the originating runtime', () => {
+    const prepared = prepareFastReplay(SNAPSHOT_STATE_PATTERN, {})
+    const runtime = createFastReplayRuntime(prepared, {
+      mapPoints: lineMap(4),
+      randomSeed: 841,
+    })
+    const atSnapshot = runtime.advanceTo(40, { stepMs: 10 })
+    const samples = atSnapshot.exports.samples as number[]
+    const nested = atSnapshot.exports.nested as number[][]
+    const nestedRow = nested[0]
+    const snapshot = runtime.snapshot()
+    const uninterrupted = runtime.advanceTo(100, { stepMs: 10 })
+
+    runtime.advanceTo(140, { stepMs: 10 })
+    runtime.restore(snapshot)
+    const restored = runtime.advanceTo(40, { stepMs: 10 })
+    const replayed = runtime.advanceTo(100, { stepMs: 10 })
+
+    expect(restored.elapsedMs).toBe(atSnapshot.elapsedMs)
+    expect(restored.simulatedFrames).toBe(atSnapshot.simulatedFrames)
+    expect(restored.checksum).toBe(atSnapshot.checksum)
+    expect(restored.exports.samples).toBe(samples)
+    expect(restored.exports.samples).toEqual(atSnapshot.exports.samples)
+    expect(restored.exports.nested).toBe(nested)
+    expect((restored.exports.nested as number[][])[0]).toBe(nestedRow)
+    expect(replayed.checksum).toBe(uninterrupted.checksum)
+    expect(replayed.exports).toEqual(uninterrupted.exports)
+    expect(replayed.simulatedFrames).toBe(uninterrupted.simulatedFrames)
+  })
+
+  it.each(['fast', 'fidelity'] as const)(
+    'restores function-valued arrays into a fresh %s runtime without retaining the source runtime',
+    (fidelity) => {
+      const prepared = prepareFastReplay(SNAPSHOT_STATE_PATTERN, {})
+      const options = {
+        mapPoints: lineMap(4),
+        randomSeed: 841,
+        fidelity,
+      }
+      const source = createFastReplayRuntime(prepared, options)
+      source.advanceTo(40, { stepMs: 10 })
+      const snapshot = source.snapshot()
+      source.advanceTo(140, { stepMs: 10 })
+
+      const restoredRuntime = createFastReplayRuntime(prepared, options)
+      restoredRuntime.restore(snapshot)
+      const restored = restoredRuntime.advanceTo(100, { stepMs: 10 })
+      const uninterrupted = createFastReplayRuntime(prepared, options).advanceTo(100, { stepMs: 10 })
+
+      expect(restored.checksum).toBe(uninterrupted.checksum)
+      expect(restored.exports.frameNumber).toBe(uninterrupted.exports.frameNumber)
+      expect(restored.exports.samples).toEqual(uninterrupted.exports.samples)
+      expect(restored.simulatedFrames).toBe(uninterrupted.simulatedFrames)
+    },
+  )
+
+  it('maps a function-valued variable to an otherwise unreachable helper in a fresh runtime', () => {
+    const prepared = prepareFastReplay(SNAPSHOT_FUNCTION_PATTERN, {})
+    const options = { mapPoints: lineMap(1), randomSeed: 841 }
+    const source = createFastReplayRuntime(prepared, options)
+    source.advanceTo(20, { stepMs: 10 })
+    const snapshot = source.snapshot()
+    source.advanceTo(50, { stepMs: 10 })
+
+    const restoredRuntime = createFastReplayRuntime(prepared, options)
+    restoredRuntime.restore(snapshot)
+    const restored = restoredRuntime.advanceTo(40, { stepMs: 10 })
+    const uninterrupted = createFastReplayRuntime(prepared, options).advanceTo(40, { stepMs: 10 })
+
+    expect(restored.checksum).toBe(uninterrupted.checksum)
+    expect(restored.exports.frameNumber).toBe(uninterrupted.exports.frameNumber)
+  })
+
+  it.each(['fast', 'fidelity'] as const)(
+    'restores shim state into a fresh %s runtime',
+    (fidelity) => {
+      const prepared = prepareFastReplay(SNAPSHOT_SHIM_PATTERN, {})
+      const options = {
+        mapPoints: Array.from({ length: 9 }, (_, index) => ({
+          sample: [(index % 3) / 2, Math.floor(index / 3) / 2],
+        })),
+        randomSeed: 404,
+        fidelity,
+      }
+      const source = createFastReplayRuntime(prepared, options)
+      source.advanceTo(30, { stepMs: 10 })
+      const snapshot = source.snapshot()
+      source.advanceTo(120, { stepMs: 10 })
+
+      const restoredRuntime = createFastReplayRuntime(prepared, options)
+      restoredRuntime.restore(snapshot)
+      const restored = restoredRuntime.advanceTo(90, { stepMs: 10 })
+      const uninterrupted = createFastReplayRuntime(prepared, options).advanceTo(90, { stepMs: 10 })
+
+      expect(restored.checksum).toBe(uninterrupted.checksum)
+      expect(restored.exports).toEqual(uninterrupted.exports)
+    },
+  )
+
+  it('keeps a held snapshot immutable while replay continues', () => {
+    const runtime = createFastReplayRuntime(prepareFastReplay(SNAPSHOT_STATE_PATTERN, {}), {
+      mapPoints: lineMap(4),
+      randomSeed: 841,
+    })
+    runtime.advanceTo(40, { stepMs: 10 })
+    const snapshot = runtime.snapshot()
+    const heldFrame = Array.from(snapshot.frame)
+    const heldSamples = [...snapshot.patternVars.samples as number[]]
+    const heldNested = (snapshot.patternVars.nested as number[][]).map(row => [...row])
+    const heldTransform = [...snapshot.shim.transform]
+    const heldPalette = [...snapshot.shim.palette]
+
+    runtime.advanceTo(140, { stepMs: 10 })
+    const laterSnapshot = runtime.snapshot()
+
+    expect(Array.from(snapshot.frame)).toEqual(heldFrame)
+    expect(snapshot.patternVars.samples).toEqual(heldSamples)
+    expect(snapshot.patternVars.nested).toEqual(heldNested)
+    expect(snapshot.shim.transform).toEqual(heldTransform)
+    expect(snapshot.shim.palette).toEqual(heldPalette)
+    expect(snapshot.frame).not.toBe(laterSnapshot.frame)
+    expect(snapshot.patternVars.samples).not.toBe(laterSnapshot.patternVars.samples)
+    expect((snapshot.patternVars.nested as number[][])[0]).not.toBe(
+      (laterSnapshot.patternVars.nested as number[][])[0],
+    )
+    expect(snapshot.shim.transform).not.toBe(laterSnapshot.shim.transform)
+  })
+
+  it('does not retain snapshot arrays after restore', () => {
+    const prepared = prepareFastReplay(SNAPSHOT_STATE_PATTERN, {})
+    const options = { mapPoints: lineMap(4), randomSeed: 841 }
+    const source = createFastReplayRuntime(prepared, options)
+    source.advanceTo(40, { stepMs: 10 })
+    const snapshot = source.snapshot()
+    const restoredRuntime = createFastReplayRuntime(prepared, options)
+    restoredRuntime.restore(snapshot)
+    const restoredBeforeMutation = restoredRuntime.snapshot()
+
+    snapshot.frame.fill(1)
+    ;(snapshot.patternVars.samples as number[]).fill(1)
+    ;(snapshot.patternVars.nested as number[][])[0].fill(1)
+    snapshot.shim.transform.fill(1)
+    snapshot.shim.palette.push(1)
+
+    const restoredAfterMutation = restoredRuntime.snapshot()
+    expect(restoredAfterMutation.frame).toEqual(restoredBeforeMutation.frame)
+    expect(restoredAfterMutation.patternVars.samples).toEqual(restoredBeforeMutation.patternVars.samples)
+    expect(restoredAfterMutation.patternVars.nested).toEqual(restoredBeforeMutation.patternVars.nested)
+    expect(restoredAfterMutation.shim.transform).toEqual(restoredBeforeMutation.shim.transform)
+    expect(restoredAfterMutation.shim.palette).toEqual(restoredBeforeMutation.shim.palette)
+  })
+
+  it.each(['fast', 'fidelity'] as const)(
+    'restores a %s clear-at-target temporal feedback trajectory',
+    (fidelity) => {
+      const bundled = prepareFastReplay(TEMPORAL_FEEDBACK_PATTERN, {})
+      const prepared = {
+        ...bundled,
+        metadata: {
+          ...bundled.metadata,
+          temporalFeedback: { previewSeekModeVar: '__feedback_seek' },
+        },
+      }
+      const options = { mapPoints: lineMap(1), randomSeed: 537, fidelity }
+      const advanceHeadless = { stepMs: 10, temporalFeedbackSeek: 'clear-at-target' as const, presentTargetFrame: false }
+      const advancePresented = { stepMs: 10, temporalFeedbackSeek: 'clear-at-target' as const }
+      const uninterruptedRuntime = createFastReplayRuntime(prepared, options)
+      uninterruptedRuntime.advanceTo(20, advanceHeadless)
+      const uninterrupted = uninterruptedRuntime.advanceTo(50, advancePresented)
+
+      const source = createFastReplayRuntime(prepared, options)
+      source.advanceTo(20, advanceHeadless)
+      const snapshot = source.snapshot()
+      source.advanceTo(80, advancePresented)
+      const restoredRuntime = createFastReplayRuntime(prepared, options)
+      restoredRuntime.restore(snapshot)
+      const restored = restoredRuntime.advanceTo(50, advancePresented)
+
+      expect(restored.checksum).toBe(uninterrupted.checksum)
+      expect(restored.exports).toEqual(uninterrupted.exports)
+      expect(restored.simulatedFrames).toBe(uninterrupted.simulatedFrames)
+    },
+  )
+
+  it('restores an array-heavy Show across a shared Pattern-slot owner boundary', () => {
+    const memberSource = `
+var initialPixels = pixelCount
+var phase = 0
+export function beforeRender(delta) { phase = phase + delta / 1000 }
+export function render(index) { hsv(phase + index / pixelCount, 1, initialPixels / pixelCount) }
+`
+    const zones = [{ id: 'all', name: 'All', ranges: [{ start: 0, end: 7 }] }]
+    const artifact = compileShow({
+      masterPixelCount: 8,
+      loopDurationMs: 1_200,
+      clips: [{ id: 'first', source: memberSource }, { id: 'second', source: memberSource }],
+      zones,
+      routingLayouts: [{ id: 'default', name: 'Default', zones }],
+      routedSceneSequence: {
+        scenes: [
+          {
+            holdMs: 600,
+            placements: [{ placementId: 'first-placement', zoneName: 'All', clipId: 'first' }],
+            transitionOut: { kind: 'cut', durationMs: 0 },
+          },
+          {
+            holdMs: 600,
+            placements: [{ placementId: 'second-placement', zoneName: 'All', clipId: 'second' }],
+          },
+        ],
+      },
+    }, {}, { patternSlotSharing: 'force' })
+    expect(artifact.summary.specializations.patternSlots?.selected).toBe(true)
+    const prepared = {
+      code: artifact.code,
+      fxCode: artifact.fxCode,
+      metadata: artifact.metadata,
+      dimension: 1 as const,
+    }
+    const options = { mapPoints: lineMap(8), randomSeed: 841 }
+    const source = createFastReplayRuntime(prepared, options)
+    source.advanceTo(400, { stepMs: 100 })
+    const snapshot = source.snapshot()
+    source.advanceTo(1_200, { stepMs: 100 })
+
+    const restoredRuntime = createFastReplayRuntime(prepared, options)
+    restoredRuntime.restore(snapshot)
+    const restored = restoredRuntime.advanceTo(1_000, { stepMs: 100 })
+    const uninterrupted = createFastReplayRuntime(prepared, options).advanceTo(1_000, { stepMs: 100 })
+
+    expect(restored.checksum).toBe(uninterrupted.checksum)
+    expect(restored.exports).toEqual(uninterrupted.exports)
+    expect(restored.simulatedFrames).toBe(uninterrupted.simulatedFrames)
+  })
+
   it('rebuilds the same final frame from the same source, target, and random seed', () => {
     const prepared = prepareFastReplay(RANDOM_PATTERN, {})
     const replay = () => createFastReplayRuntime(prepared, {

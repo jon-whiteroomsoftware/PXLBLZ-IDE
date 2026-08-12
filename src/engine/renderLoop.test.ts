@@ -13,7 +13,7 @@ function planeCfg(rows: number, cols: number) {
 }
 
 function makeMockClock(): VirtualClock {
-  return { advance: vi.fn(), getTime: vi.fn(() => 0), reset: vi.fn() }
+  return { advance: vi.fn(), getTime: vi.fn(() => 0), setTime: vi.fn(), reset: vi.fn() }
 }
 
 function makeMockHandle(): PatternHandle {
@@ -23,6 +23,7 @@ function makeMockHandle(): PatternHandle {
     render2D: vi.fn(),
     render3D: vi.fn(),
     getExports: vi.fn(() => ({})),
+    getPatternFunctions: vi.fn(() => ({})),
     setPatternVar: vi.fn(() => false),
     controls: {},
   }
@@ -32,6 +33,18 @@ function makeMockShim(): ShimContext {
   const transformPoint = vi.fn((x: number, y: number, z: number) => [x, y, z] as [number, number, number])
   return {
     builtins: {},
+    snapshot: vi.fn(() => ({
+      randomState: 0,
+      prngState: 0,
+      transform: [1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1],
+      palette: [],
+      perlinWrap: [256, 256, 256] as [number, number, number],
+      capturedPixel: [0, 0, 0] as [number, number, number],
+      frequencyData: new Array(32).fill(0),
+      accelerometer: [0, 0, 0, 0],
+      analogInputs: [0, 0, 0, 0],
+    })),
+    restore: vi.fn(),
     capturedPixel: vi.fn(() => [0, 0, 0] as [number, number, number]),
     writeCapturedPixel: vi.fn((target: Float32Array | Float64Array, offset: number) => {
       target[offset] = 0
