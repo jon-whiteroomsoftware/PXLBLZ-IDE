@@ -144,7 +144,7 @@ Major Zustand stores, one line each:
 | `entityOrganizationStore` | Folders, order, Trash for all six kinds |
 | `studioOperationStore` | Rail/editor one-shot failure notices and exact Retry intent |
 | `showTransportStore` | Ephemeral playhead, loop duration, seek identity |
-| `editorStore` | Source, last clean preview source, validation, flavor |
+| `editorStore` | Authored source, last published preview source, preview availability, validation, flavor |
 | `previewStore` | Playback, visual settings, telemetry, watched vars |
 | `controlStore` | Current Pattern control values |
 | `cameraStore` | Ephemeral orbit, 3D magnification, Pole density |
@@ -161,6 +161,19 @@ baking a map. Broken code stays visible with markers while the last clean
 preview keeps running. Four source flavors — Pattern, Map, Mixin, Library —
 each pair their own validation with their own right pane. Stock content opens
 read-only and clones into personal records.
+
+Pattern persistence separates authored text from executable preview source.
+`navigationPreflightStore` captures a dirty personal Pattern before any
+buffer-replacing transition and queues its exact source through the same
+per-record chain as ordinary autosave. The departure write accepts valid,
+broken, and empty source. Its transition runs only after the captured source is
+both durable and still current; failure leaves route, selection, editor, and
+preview untouched, while a newer in-flight edit cancels the captured
+transition. `openPatternRecord` validates saved source before preview
+publication. Broken or empty records restore their exact editor text, clear
+`previewSource`, and set an explicit unavailable reason so `Preview` covers
+stale canvas pixels until `Editor` publishes repaired source. Map, Mixin, and
+Library broken-source navigation retains explicit discard confirmation.
 
 ---
 
@@ -549,6 +562,9 @@ record's Scenes, Zones, boundary Transitions, and routing layouts remain the
 compiler substrate. `showModel.ts` owns creation, normalization, projection,
 split, and mutation; `showStore` persists through `/api/shows` with per-Show
 write queues, optimistic updates, and in-memory undo/redo snapshot stacks.
+Shows therefore do not use the Pattern source-departure rule: they persist
+structured choreography and derive their generated Pattern artifact at compile
+and delivery boundaries.
 
 ![Show authoring model: direct timeline entities and routing pass through an internal compatibility representation, then compile into one scheduled Pixelblaze Pattern](../images/show-model-runtime.svg)
 

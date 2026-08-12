@@ -2,6 +2,7 @@ import { create } from 'zustand'
 import type { PatternMetadata } from '@/engine/loadPattern'
 
 export type CompileStatus = 'good' | 'broken'
+export type PreviewUnavailableReason = 'broken-source' | 'empty-source'
 
 // Which flavor of content the editor surface holds (#151). 'pattern' covers the
 // existing pattern/demo flavors (Pixelblaze dialect, dialect-validated);
@@ -11,10 +12,9 @@ export type CompileStatus = 'good' | 'broken'
 // The flavor selects the Monaco language and which validator feeds the badge.
 export type EditorFlavor = 'pattern' | 'map' | 'mixin' | 'library'
 
-// An edit that could not be saved during a buffer-replacing navigation
-// (#810): the flush failed after the buffer had already moved on, so the edit
-// is gone. This records only what is needed to say so — the Studio notice
-// reports the loss and offers Dismiss. Draft retention with Retry is #818.
+// An edit that could not be saved after a legacy buffer replacement (#810).
+// Pattern navigation now persists exact source before replacement (#818), but
+// direct store seams and the other editor flavors can still reach this notice.
 export interface NavigationSaveLoss {
   flavor: EditorFlavor
   id: string
@@ -41,6 +41,11 @@ interface EditorState {
   bufferEdited: boolean
   isReadOnly: boolean
   previewSource: string
+  // A personal Pattern may durably hold broken or empty authored source. When
+  // that record is opened, the editor restores the exact text but the preview
+  // must cover any pixels left by the previously open Pattern until this source
+  // becomes valid again (#818).
+  previewUnavailableReason: PreviewUnavailableReason | null
   previewPatternName: string
   patternVars: string[]
   controls: PatternMetadata['controls']
@@ -78,6 +83,7 @@ interface EditorState {
   setEditedSource: (source: string) => void
   setIsReadOnly: (value: boolean) => void
   setPreviewSource: (src: string) => void
+  setPreviewUnavailable: (reason: PreviewUnavailableReason) => void
   setPreviewPatternName: (name: string) => void
   setPatternVars: (vars: string[]) => void
   setControls: (controls: PatternMetadata['controls']) => void
@@ -98,6 +104,7 @@ export const editorInitialState = {
   bufferEdited: false,
   isReadOnly: true,
   previewSource: '',
+  previewUnavailableReason: null as PreviewUnavailableReason | null,
   previewPatternName: '',
   patternVars: [] as string[],
   controls: [] as PatternMetadata['controls'],
@@ -118,7 +125,14 @@ export const useEditorStore = create<EditorState>()((set) => ({
   setSource: (source) => set({ source, bufferEdited: false }),
   setEditedSource: (source) => set({ source, bufferEdited: true }),
   setIsReadOnly: (isReadOnly) => set({ isReadOnly }),
-  setPreviewSource: (previewSource) => set({ previewSource }),
+  // Publishing valid source is the only operation that clears an unavailable
+  // state. This also lets the ordinary live-edit debounce resume the preview
+  // automatically as soon as a repaired Pattern validates.
+  setPreviewSource: (previewSource) => set({ previewSource, previewUnavailableReason: null }),
+  setPreviewUnavailable: (previewUnavailableReason) => set({
+    previewSource: '',
+    previewUnavailableReason,
+  }),
   setPreviewPatternName: (previewPatternName) => set({ previewPatternName }),
   setPatternVars: (patternVars) => set({ patternVars }),
   setControls: (controls) => set({ controls }),

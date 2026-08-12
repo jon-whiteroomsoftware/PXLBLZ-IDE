@@ -25,9 +25,8 @@ import type { Settings } from '@/engine/settings'
 import { studioOperationInitialState, useStudioOperationStore } from '@/store/studioOperationStore'
 import {
   __resetNavigationPreflightForTests,
-  continueNavigationPreflight,
-  useNavigationPreflightStore,
 } from '@/store/navigationPreflightStore'
+import { __resetAutosaveSyncForTests } from '@/store/autosaveSync'
 
 vi.mock('@/engine/authSession', () => ({
   getAuthSession: vi.fn(),
@@ -49,6 +48,7 @@ let blockedWrite: { path: string; method: string } | null = null
 
 beforeEach(() => {
   __resetNavigationPreflightForTests()
+  __resetAutosaveSyncForTests()
   vi.clearAllMocks()
   window.sessionStorage.clear()
   mockMaps = []
@@ -203,7 +203,7 @@ async function selectDimension(
 }
 
 describe('PatternList', () => {
-  it('preflights before opening another Pattern replaces a broken buffer (#831)', async () => {
+  it('persists exact broken source before opening another Pattern (#818)', async () => {
     const first = { ...SEED_PATTERN, id: 'first', name: 'First Pattern', src: '// first' }
     const second = { ...SEED_PATTERN, id: 'second', name: 'Second Pattern', src: '// second' }
     const user = userEvent.setup()
@@ -229,25 +229,20 @@ describe('PatternList', () => {
 
     await user.click(await screen.findByText(second.name))
 
-    expect(useNavigationPreflightStore.getState().pending?.draft.name).toBe(first.name)
-    expect(usePatternStore.getState().activePatternId).toBe(first.id)
+    await waitFor(() => expect(usePatternStore.getState().activePatternId).toBe(second.id))
+    const departure = requests.find(({ url, init }) => (
+      url === `/api/patterns/${first.id}` && init?.method === 'PATCH'
+    ))
+    expect(departure).toBeDefined()
+    expect(JSON.parse(String(departure?.init?.body))).toMatchObject({ src: 'broken(' })
+    expect(usePatternStore.getState().userPatterns.find((pattern) => pattern.id === first.id)?.src).toBe('broken(')
     expect(useEditorStore.getState()).toMatchObject({
-      editorFlavor: 'pattern',
-      source: 'broken(',
-      previewSource: first.src,
+      source: second.src,
+      previewSource: second.src,
     })
-    expect(useRouterStore.getState().route).toEqual({
-      kind: 'studio',
-      entity: { kind: 'patterns', id: first.id },
-    })
-
-    continueNavigationPreflight()
-
-    expect(usePatternStore.getState().activePatternId).toBe(second.id)
-    expect(useEditorStore.getState()).toMatchObject({ source: second.src, previewSource: second.src })
   })
 
-  it('preflights before New Pattern creates or replaces anything (#831)', async () => {
+  it('persists exact broken source before creating and opening a new Pattern (#818)', async () => {
     const user = userEvent.setup()
     render(<PatternList />)
     await screen.findByText('Seed Pattern')
@@ -269,20 +264,20 @@ describe('PatternList', () => {
     await user.click(screen.getByRole('button', { name: 'Add pattern' }))
     await user.click(screen.getByRole('button', { name: 'New pattern' }))
 
-    expect(useNavigationPreflightStore.getState().pending?.draft.name).toBe(SEED_PATTERN.name)
-    expect(requests.filter(({ url, init }) => url === '/api/patterns' && init?.method === 'POST')).toHaveLength(postsBefore)
-    expect(usePatternStore.getState().activePatternId).toBe(SEED_PATTERN.id)
-    expect(useEditorStore.getState().source).toBe('broken(')
-
-    continueNavigationPreflight()
-
     await waitFor(() => expect(
       requests.filter(({ url, init }) => url === '/api/patterns' && init?.method === 'POST'),
     ).toHaveLength(postsBefore + 1))
+    const departureIndex = requests.findIndex(({ url, init }) => (
+      url === `/api/patterns/${SEED_PATTERN.id}` && init?.method === 'PATCH'
+    ))
+    const createIndex = requests.findIndex(({ url, init }) => url === '/api/patterns' && init?.method === 'POST')
+    expect(departureIndex).toBeGreaterThanOrEqual(0)
+    expect(departureIndex).toBeLessThan(createIndex)
+    expect(JSON.parse(String(requests[departureIndex]?.init?.body))).toMatchObject({ src: 'broken(' })
     expect(await screen.findByText('Untitled Pattern')).toBeInTheDocument()
   })
 
-  it('preflights again before an async New Pattern completion replaces a newer broken edit (#831)', async () => {
+  it('persists a newer broken edit before an async create completion replaces it (#818)', async () => {
     const user = userEvent.setup()
     let releasePersistence!: () => void
     const persistence = new Promise<void>((resolve) => {
@@ -311,32 +306,27 @@ describe('PatternList', () => {
 
     await user.click(screen.getByRole('button', { name: 'Add pattern' }))
     await user.click(screen.getByRole('button', { name: 'New pattern' }))
-    continueNavigationPreflight()
     await waitFor(() => expect(addPattern).toHaveBeenCalledOnce())
 
-    useEditorStore.setState({
-      source: 'newer broken edit(',
-      compileStatus: 'broken',
-      bufferEdited: true,
+    act(() => {
+      useEditorStore.setState({
+        source: 'newer broken edit(',
+        compileStatus: 'broken',
+        bufferEdited: true,
+      })
     })
     await act(async () => {
       releasePersistence()
       await persistence
     })
 
-    await waitFor(() => {
-      expect(useNavigationPreflightStore.getState().pending?.draft.name).toBe(SEED_PATTERN.name)
-    })
-    expect(usePatternStore.getState().activePatternId).toBe(SEED_PATTERN.id)
-    expect(useEditorStore.getState().source).toBe('newer broken edit(')
-
     const createdRecord = addPattern.mock.calls[0]![0]
-    continueNavigationPreflight()
     await waitFor(() => expect(usePatternStore.getState().activePatternId).toBe(createdRecord.id))
+    expect(usePatternStore.getState().userPatterns.find((pattern) => pattern.id === SEED_PATTERN.id)?.src).toBe('newer broken edit(')
     expect(useEditorStore.getState().source).toBe(createdRecord.src)
   })
 
-  it('preflights a retry completion before it replaces an edit made during persistence (#831)', async () => {
+  it('persists an edit made during retry before the completion replaces it (#818)', async () => {
     const user = userEvent.setup()
     let releaseRetry!: () => void
     const retryPersistence = new Promise<void>((resolve) => {
@@ -370,25 +360,21 @@ describe('PatternList', () => {
     await user.click(within(notice).getByRole('button', { name: 'Retry create pattern' }))
     await waitFor(() => expect(addPattern).toHaveBeenCalledTimes(2))
 
-    useEditorStore.setState({
-      source: 'broken while retry waits(',
-      compileStatus: 'broken',
-      bufferEdited: true,
+    act(() => {
+      useEditorStore.setState({
+        source: 'broken while retry waits(',
+        compileStatus: 'broken',
+        bufferEdited: true,
+      })
     })
     await act(async () => {
       releaseRetry()
       await retryPersistence
     })
 
-    await waitFor(() => {
-      expect(useNavigationPreflightStore.getState().pending?.draft.name).toBe(SEED_PATTERN.name)
-    })
-    expect(usePatternStore.getState().activePatternId).toBe(SEED_PATTERN.id)
-    expect(useEditorStore.getState().source).toBe('broken while retry waits(')
-
     const createdRecord = addPattern.mock.calls[0]![0]
-    continueNavigationPreflight()
     await waitFor(() => expect(usePatternStore.getState().activePatternId).toBe(createdRecord.id))
+    expect(usePatternStore.getState().userPatterns.find((pattern) => pattern.id === SEED_PATTERN.id)?.src).toBe('broken while retry waits(')
   })
 
   it('restores persisted preview settings for an already-open built-in Pattern (#805)', async () => {

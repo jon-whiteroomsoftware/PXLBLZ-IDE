@@ -105,4 +105,28 @@ describe('Pattern editor recovery', () => {
     expect(updatePattern).toHaveBeenCalledWith('pattern-recovery', expect.objectContaining({ src: REPAIRED }))
     expect(usePatternStore.getState().userPatterns[0].src).toBe(REPAIRED)
   })
+
+  it('restarts an unavailable saved preview after the source is repaired', async () => {
+    const updatePattern = vi.fn<PersonalContentProvider['updatePattern']>(async () => {})
+    setPersonalContentProvider(provider(updatePattern))
+    usePatternStore.setState((state) => ({
+      userPatterns: state.userPatterns.map((pattern) => ({ ...pattern, src: BROKEN })),
+    }))
+    useEditorStore.setState({
+      source: BROKEN,
+      previewSource: '',
+      previewUnavailableReason: 'broken-source',
+      compileStatus: 'broken',
+    })
+    render(<Editor />)
+
+    fireEvent.change(screen.getByRole('textbox', { name: 'Pattern source' }), { target: { value: REPAIRED } })
+    expect(useEditorStore.getState().compileStatus).toBe('good')
+
+    await act(async () => { vi.advanceTimersByTime(600) })
+    expect(useEditorStore.getState()).toMatchObject({
+      previewSource: REPAIRED,
+      previewUnavailableReason: null,
+    })
+  })
 })

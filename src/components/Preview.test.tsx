@@ -4,11 +4,13 @@ import { Preview } from './Preview'
 import { usePreviewStore, previewInitialState } from '@/store/previewStore'
 import { useMapStore, mapInitialState } from '@/store/mapStore'
 import { useEditorStore, editorInitialState } from '@/store/editorStore'
+import { patternInitialState, usePatternStore } from '@/store/patternStore'
 
 beforeEach(() => {
   usePreviewStore.setState(previewInitialState)
   useMapStore.setState(mapInitialState)
   useEditorStore.setState(editorInitialState)
+  usePatternStore.setState(patternInitialState)
 })
 
 describe('Preview (smoke)', () => {
@@ -42,5 +44,40 @@ describe('Preview (smoke)', () => {
     } finally {
       window.history.pushState({}, '', previousUrl)
     }
+  })
+
+  it('covers stale pixels when a saved broken Pattern is open', () => {
+    usePatternStore.setState({ activePatternId: 'pattern-a' })
+    useEditorStore.setState({
+      source: 'export function render(index) {',
+      previewSource: '',
+      previewUnavailableReason: 'broken-source',
+      compileStatus: 'broken',
+      editorFlavor: 'pattern',
+      isReadOnly: false,
+    })
+
+    const { getByTestId } = render(<Preview showDeck={false} />)
+
+    expect(getByTestId('preview-unavailable')).toHaveTextContent('Preview unavailable')
+    expect(getByTestId('preview-unavailable')).toHaveTextContent('Fix the source errors to restart it.')
+    expect(getByTestId('preview-unavailable')).toHaveAttribute('role', 'status')
+  })
+
+  it('quietly identifies a last-working preview during a broken live edit', () => {
+    usePatternStore.setState({ activePatternId: 'pattern-a' })
+    useEditorStore.setState({
+      source: 'export function render(index) {',
+      previewSource: 'export function render(index) {}',
+      previewUnavailableReason: null,
+      compileStatus: 'broken',
+      editorFlavor: 'pattern',
+      isReadOnly: false,
+    })
+
+    const { getByTestId, queryByTestId } = render(<Preview showDeck={false} />)
+
+    expect(getByTestId('preview-last-working')).toHaveTextContent('Last working preview')
+    expect(queryByTestId('preview-unavailable')).not.toBeInTheDocument()
   })
 })

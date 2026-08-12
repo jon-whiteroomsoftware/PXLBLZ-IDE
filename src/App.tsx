@@ -327,7 +327,6 @@ function StudioApp() {
   const userPatterns = usePatternStore((s) => s.userPatterns)
   const addPattern = usePatternStore((s) => s.addPattern)
   const renamePattern = usePatternStore((s) => s.renamePattern)
-  const setActivePattern = usePatternStore((s) => s.setActivePattern)
   const removePattern = usePatternStore((s) => s.removePattern)
   const editorOperationFailure = useStudioOperationStore((s) => s.failures.editor)
   const executeStudioOperation = useStudioOperationStore((s) => s.execute)
@@ -337,10 +336,7 @@ function StudioApp() {
   const source = useEditorStore((s) => s.source)
   const compileStatus = useEditorStore((s) => s.compileStatus)
   const editorFlavor = useEditorStore((s) => s.editorFlavor)
-  const setSource = useEditorStore((s) => s.setSource)
-  const setIsReadOnly = useEditorStore((s) => s.setIsReadOnly)
-  const setPreviewSource = useEditorStore((s) => s.setPreviewSource)
-  const setPreviewPatternName = useEditorStore((s) => s.setPreviewPatternName)
+  const bufferEdited = useEditorStore((s) => s.bufferEdited)
   const activeDocId = useDocsStore((s) => s.activeDocId)
   const syncDocsFromRoute = useDocsStore((s) => s.syncFromRoute)
   const activeDoc = getUserDoc(activeDocId)
@@ -589,16 +585,16 @@ function StudioApp() {
     void autoConnectController()
   }, [autoConnectController, detectExtension])
 
-  // If source becomes empty while a pattern is active (e.g. after a store hot-reload),
-  // restore it from the pattern record so the editor doesn't go blank.
+  // If source becomes empty without an authored edit while a non-empty Pattern
+  // is active (for example after store hot reload), reopen its durable record.
+  // An authored empty buffer and a durably empty Pattern are both intentional
+  // states under #818 and must never be silently replaced.
   useEffect(() => {
-    if (source !== '' || !activePatternId) return
+    if (source !== '' || bufferEdited || !activePatternId) return
     const p = userPatterns.find((p) => p.id === activePatternId)
-    if (!p) return
-    setSource(p.src)
-    setPreviewSource(p.src)
-    setIsReadOnly(false)
-  }, [source, activePatternId, userPatterns, setSource, setPreviewSource, setIsReadOnly])
+    if (!p || p.src === '') return
+    openPatternRecord(p)
+  }, [source, bufferEdited, activePatternId, userPatterns])
 
   const handleForkDemo = useCallback(async () => {
     if (!activeDemoName || !personalWorkspaceAuthenticated) return
@@ -623,15 +619,11 @@ function StudioApp() {
       entityName: activeDemoName,
       run: async () => {
         await addPattern(record)
-        setActivePattern(id)
-        setSource(record.src)
-        setIsReadOnly(false)
-        setPreviewSource(record.src)
-        setPreviewPatternName(record.name)
+        openPatternRecord(record)
         trackEvent('catalog_clone', { source: 'stock_pattern', pattern: activeDemoName })
       },
     })
-  }, [activeDemoName, personalWorkspaceAuthenticated, source, userPatterns, addPattern, setActivePattern, setSource, setIsReadOnly, setPreviewSource, setPreviewPatternName, executeStudioOperation])
+  }, [activeDemoName, personalWorkspaceAuthenticated, source, userPatterns, addPattern, executeStudioOperation])
 
   const [copied, setCopied] = useState(false)
   const [deletePatternOpen, setDeletePatternOpen] = useState(false)

@@ -38,12 +38,13 @@ describe('deriveStuckSaveStatus (#810)', () => {
     })).toBe('cant-save')
   })
 
-  it('prefers wont-save when the source is broken and the write is also failing', () => {
-    // Autosave would not attempt broken source, so the actionable signal is
-    // the source errors, not the connection.
+  it('prefers cant-save after a broken-source departure write reaches storage and fails', () => {
+    // Ordinary autosave still skips broken source. autosaveFailed proves the
+    // explicit departure write was attempted, so storage is now the actionable
+    // reason navigation remains blocked.
     expect(deriveStuckSaveStatus({
       buffer: 'new', persisted: 'old', compileBroken: true, autosaveFailed: true,
-    })).toBe('wont-save')
+    })).toBe('cant-save')
   })
 })
 

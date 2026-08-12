@@ -24,11 +24,14 @@ export function deriveStuckSaveStatus(input: {
 }): StuckSaveStatus | null {
   if (input.persisted === null) return null
   if (input.buffer === input.persisted) return null
+  // A recorded failure means a write was actually attempted. This includes
+  // the explicit Pattern departure seam, which persists broken or empty
+  // authored source even though the periodic autosave pass does not.
+  if (input.autosaveFailed) return 'cant-save'
   // Autosave deliberately never persists an empty buffer (the guard also
   // protects records from pre-hydration boot races), so an emptied editor is
   // stuck the same way broken source is.
   if (input.compileBroken || input.buffer === '') return 'wont-save'
-  if (input.autosaveFailed) return 'cant-save'
   return null
 }
 

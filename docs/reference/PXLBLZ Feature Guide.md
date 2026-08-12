@@ -125,7 +125,8 @@ The center editor is Monaco — the engine behind VS Code — configured for the
 Pixelblaze language: completion, signatures, hover documentation, inline
 errors, and a Good/Broken status. Clean source reaches the preview after a
 short typing pause and auto-saves on a slower tick; broken source stays
-visible with markers while the last clean version keeps running.
+visible with markers while the last clean version keeps running. The preview
+labels that image as the last working version.
 
 When edits cannot reach durable storage, the editor says so instead of staying
 silent. A small cloud glyph joins the header badges in two cases: amber while
@@ -133,16 +134,25 @@ the source has errors (only clean source is auto-saved — fixing the errors
 resumes saving), and red while a save is failing (offline or server error —
 the editor keeps retrying automatically and clears the glyph on the first
 success). The same glyph appears in the pattern, map, mixin, and library
-editors, and closing the tab in either state asks for confirmation. An edit
-with source errors cannot auto-save: before an in-app action replaces that
-Pattern, map, mixin, or library buffer, Studio names the record and asks whether
-to discard the broken source. **Cancel** preserves the route, selection, source,
-and preview; **Discard and continue** completes the requested action once while
-leaving the last durable source unchanged. Separately, an edit that fails to
-save while switching views is reported with an inline notice naming the record,
-so nothing is lost silently. One-shot edits outside the editors use a nearby
-notice with action-specific Retry and Dismiss controls; they never navigate to
-a record whose create, Clone, or delete failed.
+editors, and closing the tab in either state asks for confirmation.
+
+A personal Pattern's source is durable authored text, even when it is broken
+or empty. Normal autosave remains clean-only while the Pattern is open. Before
+an in-app action replaces a dirty Pattern buffer, Studio saves its exact source
+and leaves only after that write succeeds. A failed write keeps the same route,
+selection, editor text, and last working preview in place; the next navigation
+request retries. Reopening a saved broken or empty Pattern restores the exact
+text and covers the canvas with **Preview unavailable** until a valid edit can
+run. Maps, Mixins, and Libraries retain the discard confirmation for broken
+source because their saved forms have different contracts. Shows are also
+unchanged: they save structured choreography and compile it into a Pattern
+artifact rather than persisting the source editor buffer.
+
+Separately, a legacy save that fails after another editor flavor has already
+switched views is reported with an inline notice naming the record. One-shot
+edits outside the editors use a nearby notice with action-specific Retry and
+Dismiss controls; they never navigate to a record whose create, Clone, or
+delete failed.
 
 Built-in Patterns open read-only; **Clone** creates an editable personal copy
 and snapshots the current preview settings. Every built-in starts with a

@@ -1,5 +1,11 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest'
-import { __resetAutosaveSyncForTests, flushPendingAutosave, activeStuckSaveStatus, dismissNavigationSaveLoss } from './autosaveSync'
+import {
+  __resetAutosaveSyncForTests,
+  activeStuckSaveStatus,
+  dismissNavigationSaveLoss,
+  flushPendingAutosave,
+  persistPatternSourceForNavigation,
+} from './autosaveSync'
 import { usePatternStore, patternInitialState } from './patternStore'
 import { useEditorStore, editorInitialState } from './editorStore'
 import { useMapStore, mapInitialState } from './mapStore'
@@ -286,6 +292,35 @@ describe('navigation flush outcomes (#810)', () => {
 
     expect(written).toEqual(['slow older S1', 'newer S2'])
     expect(usePatternStore.getState().userPatterns[0].src).toBe('newer S2')
+  })
+
+  it('queues exact broken departure source behind an older clean autosave', async () => {
+    const provider = memoryProvider([PATTERN])
+    let releaseFirst!: () => void
+    const firstGate = new Promise<void>((resolve) => {
+      releaseFirst = resolve
+    })
+    const written: string[] = []
+    let call = 0
+    const durableUpdate = provider.updatePattern
+    provider.updatePattern = async (id, changes) => {
+      call += 1
+      if (call === 1) await firstGate
+      if (typeof changes.src === 'string') written.push(changes.src)
+      await durableUpdate(id, changes)
+    }
+    setPersonalContentProvider(provider)
+    openDirtyPattern('older valid autosave')
+
+    flushPendingAutosave()
+    const departure = persistPatternSourceForNavigation(PATTERN.id, 'broken(')
+    expect(written).toEqual([])
+
+    releaseFirst()
+    await departure
+
+    expect(written).toEqual(['older valid autosave', 'broken('])
+    expect(usePatternStore.getState().userPatterns[0].src).toBe('broken(')
   })
 
   it('dedupes in-flight writes per record, not per source text', async () => {

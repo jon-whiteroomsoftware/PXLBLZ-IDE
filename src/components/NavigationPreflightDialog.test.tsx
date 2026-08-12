@@ -3,28 +3,30 @@ import { render, screen } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { NavigationPreflightDialog } from './NavigationPreflightDialog'
 import { editorInitialState, useEditorStore } from '@/store/editorStore'
-import { patternInitialState, usePatternStore } from '@/store/patternStore'
+import { mapInitialState, useMapStore } from '@/store/mapStore'
 import { routerInitialState, useRouterStore } from '@/store/routerStore'
 import {
   __resetNavigationPreflightForTests,
   requestBufferReplacement,
 } from '@/store/navigationPreflightStore'
 
-const PATTERN = {
-  id: 'pattern-1',
+const MAP = {
+  id: 'map-1',
   name: 'Broken aurora',
-  src: 'export function render(index) {}',
-  controls: {},
+  dim: 2 as const,
+  generator: 'custom' as const,
+  params: {},
+  source: '[[0, 0], [1, 1]]',
   updatedAt: 100,
 }
 
-function openBrokenPattern(): void {
-  usePatternStore.setState({ userPatterns: [PATTERN], activePatternId: PATTERN.id })
+function openBrokenMap(): void {
+  useMapStore.setState({ userMaps: [MAP], editingMap: { kind: 'existing', id: MAP.id } })
   useRouterStore.setState({
-    route: { kind: 'studio', entity: { kind: 'patterns', id: PATTERN.id } },
+    route: { kind: 'studio', entity: { kind: 'maps', id: MAP.id } },
   })
   useEditorStore.setState({
-    editorFlavor: 'pattern',
+    editorFlavor: 'map',
     source: 'broken(',
     compileStatus: 'broken',
     isReadOnly: false,
@@ -36,8 +38,8 @@ beforeEach(() => {
   __resetNavigationPreflightForTests()
   useRouterStore.setState(routerInitialState)
   useEditorStore.setState(editorInitialState)
-  usePatternStore.setState(patternInitialState)
-  openBrokenPattern()
+  useMapStore.setState(mapInitialState)
+  openBrokenMap()
 })
 
 describe('NavigationPreflightDialog (#831)', () => {

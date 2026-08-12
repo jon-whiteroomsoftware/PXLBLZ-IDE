@@ -82,7 +82,12 @@ export function Preview({
   const lightSize = usePreviewStore((s) => s.lightSize)
   const diffusion = usePreviewStore((s) => s.diffusion)
   const fidelity = usePreviewStore((s) => s.fidelity)
+  const editorSource = useEditorStore((s) => s.source)
+  const editorFlavor = useEditorStore((s) => s.editorFlavor)
+  const compileStatus = useEditorStore((s) => s.compileStatus)
+  const isEditorReadOnly = useEditorStore((s) => s.isReadOnly)
   const previewSource = useEditorStore((s) => s.previewSource)
+  const previewUnavailableReason = useEditorStore((s) => s.previewUnavailableReason)
   const displayDim = useEditorStore((s) => s.displayDim)
   const controlValues = useControlStore((s) => s.controlValues)
   const activePatternId = usePatternStore((s) => s.activePatternId)
@@ -118,6 +123,15 @@ export function Preview({
     lightSize: number
   } | null>(null)
   const [runtimeError, setRuntimeError] = useState<string | null>(null)
+  const showsLastWorkingPreview = (
+    previewUnavailableReason === null
+    && editorFlavor === 'pattern'
+    && !isEditorReadOnly
+    && activePatternId !== null
+    && previewSource !== ''
+    && editorSource !== previewSource
+    && (compileStatus === 'broken' || editorSource === '')
+  )
 
   // Track the container width so the renderer fits the canvas to the pane. Also
   // directly re-fits the renderer on each observation to avoid waiting for the
@@ -621,6 +635,33 @@ export function Preview({
                 <span className="text-red-400 text-sm font-mono break-words">
                   {runtimeError}
                 </span>
+              </div>
+            </div>
+          )}
+          {showsLastWorkingPreview && (
+            <div
+              role="status"
+              data-testid="preview-last-working"
+              className="absolute left-2 bottom-2 z-10 rounded border border-amber-400/30 bg-zinc-950/85 px-2 py-1 text-[10px] font-mono uppercase tracking-[0.12em] text-amber-300/80 pointer-events-none"
+              title="The current source has errors. The preview is showing the last working version."
+            >
+              Last working preview
+            </div>
+          )}
+          {previewUnavailableReason !== null && (
+            <div
+              role="status"
+              aria-live="polite"
+              data-testid="preview-unavailable"
+              className="absolute inset-0 z-20 flex items-center justify-center bg-zinc-950 p-6 pointer-events-none"
+            >
+              <div className="max-w-xs text-center font-mono">
+                <div className="text-sm font-medium text-amber-300">Preview unavailable</div>
+                <div className="mt-2 text-xs leading-5 text-zinc-400">
+                  {previewUnavailableReason === 'empty-source'
+                    ? 'Add valid Pattern source to start it.'
+                    : 'Fix the source errors to restart it.'}
+                </div>
               </div>
             </div>
           )}

@@ -50,7 +50,7 @@ import { useEntityOrganizationStore } from '@/store/entityOrganizationStore'
 import { useDocsStore } from '@/store/docsStore'
 import { useRouterStore } from '@/store/routerStore'
 import { requestBufferReplacement } from '@/store/navigationPreflightStore'
-import { openDemoPattern } from '@/store/openPattern'
+import { openDemoPattern, openPatternRecord } from '@/store/openPattern'
 import { useWorkspaceStore } from '@/store/workspaceStore'
 import { seedActiveSettings } from '@/store/settingsCascade'
 import { useLibraryStore, type LibraryRecord } from '@/store/libraryStore'
@@ -84,17 +84,11 @@ export function PatternList({
   collapsed?: boolean
   onCollapsedChange?: (collapsed: boolean) => void
 }) {
-  const setSource = useEditorStore((s) => s.setSource)
-  const setEditorFlavor = useEditorStore((s) => s.setEditorFlavor)
-  const setIsReadOnly = useEditorStore((s) => s.setIsReadOnly)
-  const setPreviewSource = useEditorStore((s) => s.setPreviewSource)
-  const setPreviewPatternName = useEditorStore((s) => s.setPreviewPatternName)
   const closeDocs = useDocsStore((s) => s.closeDocs)
   const activePatternId = usePatternStore((s) => s.activePatternId)
   const activeLibraryName = usePatternStore((s) => s.activeLibraryName)
   const activeDemoName = usePatternStore((s) => s.activeDemoName)
   const userPatterns = usePatternStore((s) => s.userPatterns)
-  const setActivePattern = usePatternStore((s) => s.setActivePattern)
   const loadPatterns = usePatternStore((s) => s.loadPatterns)
   const renamePattern = usePatternStore((s) => s.renamePattern)
   const removePattern = usePatternStore((s) => s.removePattern)
@@ -266,15 +260,7 @@ export function PatternList({
         requestBufferReplacement(() => {
           if (mapResolution.status === 'resolved') useMapStore.getState().setActiveMap(mapResolution.mapId)
           else if (mapResolution.message) showImportNotice(mapResolution.message)
-          useMapStore.getState().closeMapEditor()
-          useMixinStore.getState().closeMixinEditor()
-          useDocsStore.getState().closeDocs()
-          setActivePattern(id)
-          setEditorFlavor('pattern')
-          setSource(record.src)
-          setPreviewSource(record.src)
-          setPreviewPatternName(record.name)
-          setIsReadOnly(false)
+          openPatternRecord(record)
         })
       })
     }
@@ -543,48 +529,21 @@ export function PatternList({
       const route = useRouterStore.getState().route
       if (route.kind === 'studio' && route.entity !== null && route.entity.id !== null) return
       const last = await getPersonalContentProvider().getLastActive().catch(() => undefined)
-      const { userPatterns, setActivePattern, setActiveLibrary, setActiveDemo } = usePatternStore.getState()
+      const { userPatterns, setActiveLibrary } = usePatternStore.getState()
       const { userLibraries, openExistingLibrary } = useLibraryStore.getState()
       const { shows, openShow } = useShowStore.getState()
-      const { setSource, setEditorFlavor, setIsReadOnly, setPreviewSource, setPreviewPatternName } = useEditorStore.getState()
+      const { setSource, setIsReadOnly } = useEditorStore.getState()
       const lastShowIsGated = last?.type === 'show'
         && !useRouterStore.getState().featureAccess.shows
       if (!last || lastShowIsGated) {
-        if (lastShowIsGated) {
-          usePatternStore.setState({
-            activeDemoName: DEFAULT_DEMO_NAME,
-            activeLibraryName: null,
-            activePatternId: null,
-          })
-        } else {
-          setActiveDemo(DEFAULT_DEMO_NAME)
-        }
-        setEditorFlavor('pattern')
-        setSource(DEMOS[DEFAULT_DEMO_NAME])
-        setPreviewSource(DEMOS[DEFAULT_DEMO_NAME])
-        setPreviewPatternName(DEFAULT_DEMO_NAME)
-        setIsReadOnly(true)
+        openDemoPattern(DEFAULT_DEMO_NAME, { rememberLastActive: !lastShowIsGated })
         return
       }
       if (last.type === 'pattern') {
         const p = userPatterns.find((p) => p.id === last.id)
-        if (p) {
-          setActivePattern(p.id)
-          setEditorFlavor('pattern')
-          setSource(p.src)
-          setPreviewSource(p.src)
-          setPreviewPatternName(p.name)
-          setIsReadOnly(false)
-        }
+        if (p) openPatternRecord(p)
       } else if (last.type === 'demo') {
-        if (DEMOS[last.name]) {
-          setActiveDemo(last.name)
-          setEditorFlavor('pattern')
-          setSource(DEMOS[last.name])
-          setPreviewSource(DEMOS[last.name])
-          setPreviewPatternName(last.name)
-          setIsReadOnly(true)
-        }
+        if (DEMOS[last.name]) openDemoPattern(last.name)
       } else if (last.type === 'library') {
         const record = userLibraries.find((library) => library.name === last.name)
         if (record) openExistingLibrary(record)
@@ -606,16 +565,7 @@ export function PatternList({
 
   function openUserPattern(pattern: PatternRecord) {
     requestBufferReplacement(() => {
-      closeMapEditor()
-      closeMixinEditor()
-      closeLibraryEditor()
-      closeDocs()
-      setActivePattern(pattern.id)
-      setEditorFlavor('pattern')
-      setSource(pattern.src)
-      setPreviewSource(pattern.src)
-      setPreviewPatternName(pattern.name)
-      setIsReadOnly(false)
+      openPatternRecord(pattern)
     })
   }
 
@@ -641,15 +591,7 @@ export function PatternList({
       run: async () => {
         await addPattern(record)
         requestBufferReplacement(() => {
-          closeMapEditor()
-          closeMixinEditor()
-          closeDocs()
-          setActivePattern(id)
-          setEditorFlavor('pattern')
-          setSource(record.src)
-          setPreviewSource(record.src)
-          setPreviewPatternName(record.name)
-          setIsReadOnly(false)
+          openPatternRecord(record)
         })
       },
     }))

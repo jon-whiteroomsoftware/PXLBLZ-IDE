@@ -713,7 +713,7 @@ test.describe('silent save-failure feedback (#810)', () => {
     await expect(glyph).toHaveCount(0)
   })
 
-  test('broken Pattern source requires keyboard confirmation before in-app navigation (#831)', async ({ page }) => {
+  test('broken Pattern source persists on navigation and reopens without stale pixels (#818)', async ({ page }) => {
     const pattern = {
       id: 'e2e-831-broken-navigation',
       name: 'Broken navigation bench',
@@ -748,44 +748,23 @@ test.describe('silent save-failure feedback (#810)', () => {
     const studioUrl = new RegExp(`/studio/patterns/${pattern.id}$`)
     await page.goForward()
 
-    let dialog = page.getByRole('alertdialog', { name: 'Discard broken source?' })
-    await expect(dialog).toContainText(pattern.name)
-    await expect(dialog).toContainText('cannot be saved')
-    await expect(page).toHaveURL(studioUrl)
-    // Radix correctly hides the background from the accessibility tree while
-    // modal, so inspect the underlying title element without a role query.
-    await expect(page.locator(`[aria-label="Rename pattern ${pattern.name}"]`)).toHaveCount(1)
-    await expect(editor.locator('.view-lines')).toContainText('var = 3')
-
-    // Cancel owns initial focus, so Enter proves the non-destructive keyboard path.
-    await page.keyboard.press('Enter')
-    await expect(dialog).toHaveCount(0)
-    await expect(page).toHaveURL(studioUrl)
-    await expect(page.getByRole('button', { name: `Rename pattern ${pattern.name}` })).toBeVisible()
-    await expect(editor.locator('.view-lines')).toContainText('var = 3')
-
-    await page.goBack()
-    dialog = page.getByRole('alertdialog', { name: 'Discard broken source?' })
-    const discard = dialog.getByRole('button', { name: 'Discard and continue' })
-    await discard.focus()
-    await page.keyboard.press('Enter')
-
     await expect(page).toHaveURL(/\/gallery$/)
+    await expect(page.getByRole('alertdialog', { name: 'Discard broken source?' })).toHaveCount(0)
     await expect(page.getByTestId('gallery-page')).toBeVisible()
     const patterns = await page.context().request.get('/api/patterns')
     expect(patterns.ok(), `GET /api/patterns -> ${patterns.status()}`).toBe(true)
     const body = await patterns.json() as { patterns?: Array<{ id: string; src: string }> }
-    expect(body.patterns?.find((item) => item.id === pattern.id)?.src).toBe(pattern.src)
+    expect(body.patterns?.find((item) => item.id === pattern.id)?.src).toBe(brokenSource)
 
-    // The bounced Studio entry remains the Forward destination. Returning to
-    // the same active record must show durable source, not resurrect the draft.
-    await page.goForward()
+    // A fresh open restores the exact authored text, but the prior Pattern's
+    // canvas is covered until this source becomes valid again.
+    await page.goto(`studio/patterns/${pattern.id}`)
     await expect(page).toHaveURL(studioUrl)
-    await expect(editor.locator('.view-lines')).toContainText('hsv(index / pixelCount, 1, 1)')
-    await expect(editor.locator('.view-lines')).not.toContainText('var = 3')
+    await expect(editor.locator('.view-lines')).toContainText('var = 3')
+    await expect(page.getByTestId('preview-unavailable')).toContainText('Fix the source errors to restart it.')
   })
 
-  test('an edit that fails to save during navigation is reported as lost (#810)', async ({ page }) => {
+  test('a failed Pattern departure save keeps the edit open and retries on navigation (#818)', async ({ page }) => {
     const patternA = {
       id: 'e2e-810-nav-a',
       name: 'Nav bench A',
@@ -803,8 +782,9 @@ test.describe('silent save-failure feedback (#810)', () => {
     const editor = page.locator('.monaco-editor').first()
     await expect(editor.locator('.view-lines')).toBeVisible()
 
+    let blockWrites = true
     await page.route('**/api/patterns/**', (route) => {
-      if (['PATCH', 'PUT'].includes(route.request().method())) return route.abort()
+      if (blockWrites && ['PATCH', 'PUT'].includes(route.request().method())) return route.abort()
       return route.continue()
     })
 
@@ -814,23 +794,22 @@ test.describe('silent save-failure feedback (#810)', () => {
     await page.keyboard.type(editedSource)
     await expect(page.getByTestId('compile-status')).toHaveAttribute('data-status', 'good')
 
-    // Navigate away before the draft can save: the seam flush fails after the
-    // buffer is replaced, and the loss is reported instead of staying silent.
+    // A failed departure write leaves the complete Pattern A state in place.
     await page.getByRole('treeitem', { name: patternB.name, exact: true }).click()
-    const notice = page.getByTestId('navigation-save-failure')
-    await expect(notice).toBeVisible(TICK)
-    await expect(notice).toContainText(`Couldn't save "${patternA.name}" before switching.`)
-    // Nothing is retained, so there is no Retry — only Dismiss.
-    await expect(notice.getByRole('button', { name: 'Retry save' })).toHaveCount(0)
+    await expect(page).toHaveURL(new RegExp(`/studio/patterns/${patternA.id}$`))
+    await expect(editor.locator('.view-lines')).toContainText('wave(time(0.2))')
+    await expect(page.getByTestId('navigation-save-failure')).toHaveCount(0)
+    await expect(page.getByTestId('save-status')).toHaveAttribute('data-state', 'cant-save', TICK)
 
-    await notice.getByRole('button', { name: 'Dismiss save notice' }).click()
-    await expect(notice).toHaveCount(0)
-
-    // The record still holds the last durable source.
+    // A later navigation request is the retry. It saves the same exact source
+    // first, then allows Pattern B to replace the editor.
+    blockWrites = false
+    await page.getByRole('treeitem', { name: patternB.name, exact: true }).click()
+    await expect(page).toHaveURL(new RegExp(`/studio/patterns/${patternB.id}$`))
     const patterns = await page.context().request.get('/api/patterns')
     expect(patterns.ok(), `GET /api/patterns -> ${patterns.status()}`).toBe(true)
     const body = await patterns.json() as { patterns?: Array<{ id: string; src: string }> }
-    expect(body.patterns?.find((item) => item.id === patternA.id)?.src).toBe(patternA.src)
+    expect(body.patterns?.find((item) => item.id === patternA.id)?.src).toBe(editedSource)
   })
 
   test('map editor keeps an offline draft retrying instead of losing it (#810)', async ({ page }) => {

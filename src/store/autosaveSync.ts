@@ -7,12 +7,11 @@
 // seam — runs through a per-record chain, so two saves for one record can
 // never land out of order and the newest content always wins.
 //
-// Outcomes: a failure while the buffer still holds the draft records the
-// entity in editorStore.autosaveFailedEntity (the glyph; the next tick
-// retries), while a failure after the buffer moved on records the loss in
-// editorStore.navigationSaveLosses — the Studio notice reports which edit
-// could not be saved. Nothing is retained or retried for a lost edit; draft
-// retention with Retry is deliberately out of scope here (#818).
+// Outcomes: Pattern buffer-replacing navigation first uses the explicit #818
+// departure seam below, so broken/empty authored text either lands before the
+// transition or remains open on failure. The legacy flush failure paths still
+// report a live-buffer failure on the glyph or a post-replacement loss notice;
+// they remain relevant to direct store seams and the other editor flavors.
 
 import { useEditorStore, type EditorFlavor } from './editorStore'
 import { useRouterStore } from './routerStore'
@@ -49,6 +48,20 @@ function chainWrite(chainKey: string, run: () => Promise<void>): Promise<void> {
   }
   next.then(prune, prune)
   return next
+}
+
+/**
+ * Persists the exact personal Pattern buffer captured by a buffer-replacing
+ * navigation. Unlike the periodic autosave pass, this seam deliberately
+ * accepts broken and empty authored source. It shares the Pattern's ordinary
+ * write chain so an in-flight clean autosave can never land out of order.
+ */
+export function persistPatternSourceForNavigation(id: string, source: string): Promise<void> {
+  return chainWrite(`pattern ${id}`, async () => {
+    const pattern = usePatternStore.getState().userPatterns.find((record) => record.id === id)
+    if (!pattern) throw new Error('Pattern no longer exists')
+    await usePatternStore.getState().updatePatternSrc(id, source)
+  })
 }
 
 export function flushPendingAutosave(): void {
