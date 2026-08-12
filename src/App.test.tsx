@@ -630,9 +630,10 @@ describe('routing (#308)', () => {
     expect(usePreviewStore.getState().isRunning).toBe(false)
     input.remove()
 
-    const treeItem = screen.getAllByRole('treeitem').find((item) => item.textContent?.includes('TestPattern1D'))
-    expect(treeItem).toBeDefined()
-    fireEvent.keyDown(treeItem!, { code: 'Space', key: ' ' })
+    // Built-in Pattern folders start collapsed (#829), so exercise the global
+    // shortcut from a visible tree item without depending on a hidden leaf.
+    const visibleTreeItem = screen.getAllByRole('treeitem')[0]!
+    fireEvent.keyDown(visibleTreeItem, { code: 'Space', key: ' ' })
     expect(usePreviewStore.getState().isRunning).toBe(true)
   })
 
