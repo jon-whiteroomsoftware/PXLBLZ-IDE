@@ -311,12 +311,15 @@ describe('PatternList', () => {
       await user.click(screen.getByRole('button', { name: 'Move to Trash' }))
     }
     blockedWrite = { path: '/api/patterns/trash-b', method: 'DELETE' }
+    await user.click(screen.getByRole('button', { name: 'Open Trash (2 items)' }))
+    expect(screen.getByRole('button', { name: 'Back to Patterns' })).toBeVisible()
     await user.click(screen.getByRole('button', { name: 'Empty Trash' }))
     const dialog = screen.getByRole('alertdialog', { name: 'Empty Trash?' })
     await user.click(within(dialog).getByRole('button', { name: 'Empty Trash' }))
 
     const notice = await screen.findByRole('alert')
     expect(notice).toHaveTextContent('Could not empty Pattern Trash. 1 item was deleted; 1 item remains.')
+    expect(screen.getByRole('button', { name: 'Back to Patterns' })).toBeVisible()
     expect(usePatternStore.getState().userPatterns.map((pattern) => pattern.id)).toEqual(['trash-b'])
     expect(useEntityOrganizationStore.getState().organizations.patterns.trash).toEqual([
       {
@@ -333,6 +336,7 @@ describe('PatternList', () => {
     await waitFor(() => expect(usePatternStore.getState().userPatterns).toEqual([]))
     expect(useEntityOrganizationStore.getState().organizations.patterns.trash).toEqual([])
     expect(screen.queryByRole('alert')).not.toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'Back to Patterns' })).not.toBeInTheDocument()
   })
 
   it.each([

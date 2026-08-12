@@ -146,6 +146,7 @@ export const useLibraryStore = create<LibraryState>()((set, get) => ({
   closeLibraryEditor: () => {
     flushPendingAutosave()
     set({ editingLibrary: null, libraryBaseline: '' })
+    usePatternStore.setState({ activeLibraryName: null })
     if (useEditorStore.getState().editorFlavor === 'library') {
       useEditorStore.getState().setEditorFlavor('pattern')
     }

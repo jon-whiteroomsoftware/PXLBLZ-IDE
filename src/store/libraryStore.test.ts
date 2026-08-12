@@ -126,6 +126,18 @@ describe('libraryStore (#347)', () => {
     }))
   })
 
+  it('clears the active namespace when permanently deleting the open Library', async () => {
+    setPersonalContentProvider(memoryProvider([CUSTOM_LIBRARY]))
+    await useLibraryStore.getState().loadLibraries()
+    useLibraryStore.getState().openExistingLibrary(CUSTOM_LIBRARY)
+
+    await useLibraryStore.getState().removeLibrary(CUSTOM_LIBRARY.id)
+
+    expect(useLibraryStore.getState().userLibraries).toEqual([])
+    expect(useLibraryStore.getState().editingLibrary).toBeNull()
+    expect(usePatternStore.getState().activeLibraryName).toBeNull()
+  })
+
   it('updates source for an open custom library', async () => {
     await useLibraryStore.getState().addLibrary(CUSTOM_LIBRARY)
     useLibraryStore.getState().openExistingLibrary(CUSTOM_LIBRARY)

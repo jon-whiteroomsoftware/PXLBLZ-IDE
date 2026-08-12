@@ -101,12 +101,16 @@ export const EntityOrganizationTree = forwardRef<EntityOrganizationTreeHandle, E
   const [menuKey, setMenuKey] = useState<EntityOrganizationNodeKey | null>(null)
   const [draggedKey, setDraggedKey] = useState<EntityOrganizationNodeKey | null>(null)
   const [dropTarget, setDropTarget] = useState<DropTarget | null>(null)
-  const [trashOpen, setTrashOpen] = useState(false)
+  const [trashViewKeys, setTrashViewKeys] = useState<ReadonlySet<EntityOrganizationNodeKey> | null>(null)
   const [emptyingTrash, setEmptyingTrash] = useState(false)
   const [confirmEmptyTrashOpen, setConfirmEmptyTrashOpen] = useState(false)
   const [moveKey, setMoveKey] = useState<EntityOrganizationNodeKey | null>(null)
   const treeRef = useRef<HTMLUListElement>(null)
   const itemsById = useMemo(() => new Map(items.map((item) => [item.id, item])), [items])
+
+  const trashOpen = trashViewKeys !== null && organization.trash.some((entry) => (
+    trashViewKeys.has(entityOrganizationNodeKey(entry.node))
+  ))
   const trimmedQuery = query.trim()
   const treeLabel = sectionLabel ?? `${editable ? '' : 'Built-in '}${noun[0].toUpperCase()}${noun.slice(1)}s`
   const overflowWidthClass = allowHorizontalOverflow ? 'min-w-full' : ''
@@ -168,7 +172,7 @@ export const EntityOrganizationTree = forwardRef<EntityOrganizationTreeHandle, E
         completed = true
       }
       if (completed === false) return
-      setTrashOpen(false)
+      setTrashViewKeys(null)
     } finally {
       setEmptyingTrash(false)
     }
@@ -220,7 +224,7 @@ export const EntityOrganizationTree = forwardRef<EntityOrganizationTreeHandle, E
     return (
       <>
         <div className="border-b border-zinc-800 px-2 py-1.5">
-          <button type="button" onClick={() => setTrashOpen(false)} className="flex items-center gap-1 text-[10px] text-zinc-500 hover:text-zinc-200">
+          <button type="button" onClick={() => setTrashViewKeys(null)} className="flex items-center gap-1 text-[10px] text-zinc-500 hover:text-zinc-200">
             <ChevronRight size={11} className="rotate-180" /> Back to {treeLabel}
           </button>
         </div>
@@ -302,7 +306,10 @@ export const EntityOrganizationTree = forwardRef<EntityOrganizationTreeHandle, E
             onReorder={reorder}
             onMove={setMoveKey}
             onDuplicateEntity={onDuplicateEntity}
-            onTrash={(key) => change(trashEntityOrganizationNode(organization, key))}
+            onTrash={(key) => {
+              setTrashViewKeys(null)
+              change(trashEntityOrganizationNode(organization, key))
+            }}
             onDragStart={setDraggedKey}
             onDragOver={(target) => setDropTarget(target)}
             onDrop={handleDrop}
@@ -314,7 +321,7 @@ export const EntityOrganizationTree = forwardRef<EntityOrganizationTreeHandle, E
         <div className="group relative my-1 flex min-h-[20px] items-center">
           <button
             type="button"
-            onClick={() => setTrashOpen(true)}
+            onClick={() => setTrashViewKeys(new Set(organization.trash.map((entry) => entityOrganizationNodeKey(entry.node))))}
             aria-label={`Open Trash (${organization.trash.length} ${organization.trash.length === 1 ? 'item' : 'items'})`}
             className={`flex min-h-[20px] w-full items-center gap-1 px-[6px] py-px text-left text-zinc-500 hover:bg-zinc-900/60 hover:text-zinc-300 ${IDE_MICROTYPE.entity.sizeClassName}`}
           >
