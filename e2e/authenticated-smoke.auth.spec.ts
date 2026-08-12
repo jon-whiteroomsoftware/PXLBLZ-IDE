@@ -184,6 +184,7 @@ test('Studio authoring keeps the rail and editor reachable at 390px (#622)', asy
   await expect(page.getByRole('button', { name: 'Show properties' })).toBeInViewport()
 
   // The Learn number is composed from catalogue level and order at runtime.
+  await page.getByRole('treeitem', { name: /^100/ }).click()
   await page.getByRole('treeitem', { name: /Clips, Cuts, and Blank Time$/ }).click()
   await expect.poll(
     () => page.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth),
