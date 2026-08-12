@@ -84,6 +84,43 @@ test('shared Studio chrome remains legible, dense, and reachable across routes (
     .toBe(46)
 })
 
+test('empty Controllers workspace leads through extension setup and Connect (#811)', async ({ page }) => {
+  await page.goto('studio/controllers')
+
+  const emptyState = page.getByTestId('controller-profiles-empty-state')
+  await expect(emptyState.getByRole('heading', { name: 'Connect your Controllers.' })).toBeVisible()
+  await expect(emptyState.getByRole('link', { name: 'Install Chrome extension' })).toHaveAttribute(
+    'href',
+    'https://chromewebstore.google.com/detail/pxlblz-ide-controller-hel/hjdkmngopeofakdbjfkaomcmgkcidoeg',
+  )
+  await expect(emptyState).toContainText("approve Chrome's install and Controller access prompts")
+
+  for (const viewport of [{ width: 1440, height: 900 }, { width: 430, height: 780 }]) {
+    await page.setViewportSize(viewport)
+    await expect.poll(
+      () => page.evaluate(() => document.documentElement.scrollWidth),
+      `Controllers empty state at ${viewport.width}px should not create horizontal overflow`,
+    ).toBeLessThanOrEqual(viewport.width + 1)
+    await expect(emptyState.getByRole('link', { name: 'Install Chrome extension' })).toBeVisible()
+  }
+
+  await installFakeControllerHelper(page, {
+    programs: [],
+    activeProgramId: 'none',
+    deviceName: 'Bench',
+    boardType: 'standard',
+    mac: 'AA:BB:CC:DD:EE:FF',
+    pixelCount: 64,
+  })
+  await page.reload()
+
+  await expect(emptyState.getByRole('heading', {
+    name: 'Connect a Controller to create its profile.',
+  })).toBeVisible()
+  await emptyState.getByRole('button', { name: 'Connect a Controller' }).click()
+  await expect(page.getByRole('textbox', { name: 'Controller IP address' })).toBeVisible()
+})
+
 test('keeps the Shows header inside the center editor pane (#758)', async ({ page }) => {
   await page.setViewportSize({ width: 1440, height: 900 })
   await page.goto(showtimePath('studio/shows/stock-show-101-clips-cuts-blank-time'))

@@ -29,6 +29,7 @@ import { PatternDetailPage } from '@/components/PatternDetailPage'
 import { ControllerProfilePage } from '@/components/ControllerProfilePage'
 import { ControllerProfileHeaderActions } from '@/components/ControllerProfileHeaderActions'
 import { ControllerSavedProgramsPane } from '@/components/ControllerSavedProgramsPane'
+import { ControllerProfilesEmptyState } from '@/components/ControllerProfilesEmptyState'
 import { ShowEditor } from '@/components/ShowEditor'
 import { ShowEditorOverhaulPrototype } from '@/components/ShowEditorOverhaulPrototype'
 import { ShowStagePreview } from '@/components/ShowStagePreview'
@@ -675,6 +676,10 @@ function StudioApp() {
     route.kind === 'studio' && route.entity?.kind === 'controllers' ? route.entity.id : null
   const activeControllerProfile =
     activeControllerProfileId ? controllerProfiles.find((profile) => profile.id === activeControllerProfileId) : undefined
+  const controllerProfilesEmpty = studioEntityKind === 'controllers'
+    && activeControllerProfileId === null
+    && controllerProfilesLoaded
+    && controllerProfiles.length === 0
   const routedStockShow = route.kind === 'studio' && route.entity?.kind === 'shows'
     ? stockShowById(route.entity.id)
     : undefined
@@ -1160,6 +1165,8 @@ function StudioApp() {
           <div className="flex-1 overflow-hidden">
             {activeControllerProfileId !== null ? (
               <ControllerProfilePage profileId={activeControllerProfileId} />
+            ) : controllerProfilesEmpty ? (
+              <ControllerProfilesEmptyState />
             ) : studioEntityKind === 'controllers' ? (
               <StudioPaneMessage
                 icon={<Cpu size={18} aria-hidden />}
@@ -1227,24 +1234,26 @@ function StudioApp() {
             )}
           </div>
         </main>
-        <Splitter
-          label="Resize preview pane"
-          valueNow={rightWidth}
-          valueMin={STUDIO_PREVIEW_MIN_WIDTH}
-          onDrag={handleRightDrag}
-          className={studioEntityKind === 'shows'
-            ? 'studio-preview-splitter max-[980px]:hidden'
-            : 'studio-preview-splitter'}
-        />
-        {/* The preview is an output/instrument surface (#150): no header strip — the
-            canvas sits flush at the top and all controls live in the deck below it. */}
-        <aside
-          data-testid="preview-pane"
-          className={studioEntityKind === 'shows'
-            ? 'studio-preview-pane flex min-h-0 shrink-0 flex-col max-[980px]:hidden'
-            : 'studio-preview-pane flex min-h-0 shrink-0 flex-col'}
-          style={{ width: rightWidth, minWidth: STUDIO_PREVIEW_MIN_WIDTH }}
-        >
+        {!controllerProfilesEmpty && (
+          <>
+            <Splitter
+              label="Resize preview pane"
+              valueNow={rightWidth}
+              valueMin={STUDIO_PREVIEW_MIN_WIDTH}
+              onDrag={handleRightDrag}
+              className={studioEntityKind === 'shows'
+                ? 'studio-preview-splitter max-[980px]:hidden'
+                : 'studio-preview-splitter'}
+            />
+            {/* The preview is an output/instrument surface (#150): no header strip — the
+                canvas sits flush at the top and all controls live in the deck below it. */}
+            <aside
+              data-testid="preview-pane"
+              className={studioEntityKind === 'shows'
+                ? 'studio-preview-pane flex min-h-0 shrink-0 flex-col max-[980px]:hidden'
+                : 'studio-preview-pane flex min-h-0 shrink-0 flex-col'}
+              style={{ width: rightWidth, minWidth: STUDIO_PREVIEW_MIN_WIDTH }}
+            >
           {editorFlavor === 'mixin' ? (
             <MixinProvenancePane />
           ) : editorFlavor === 'map' || studioEntityKind === 'maps' ? (
@@ -1271,7 +1280,9 @@ function StudioApp() {
           ) : (
             <Preview />
           )}
-        </aside>
+            </aside>
+          </>
+        )}
         </div>
       </div>
       )}

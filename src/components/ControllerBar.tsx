@@ -29,6 +29,7 @@ import { ControllerActionRow } from './ControllerActionRow'
 import { onControllerEntryRequested } from './controllerEntryEvents'
 import type { DiscoveredController } from '@/engine/ControllerProvider'
 import { routePath } from '@/engine/routes'
+import { CONTROLLER_HELPER_STORE_URL } from '@/engine/controllerHelper'
 
 // The consolidated top-right Controller surface (#210). Supersedes the always-on
 // header IP input (ControllerConnect) and the standalone status dot
@@ -52,9 +53,6 @@ const PILL_TONE: Record<ControllerStatusTone, StatusTone> = {
   live: 'ok',
   error: 'error',
 }
-
-const CONTROLLER_HELPER_STORE_URL =
-  'https://chromewebstore.google.com/detail/pxlblz-ide-controller-hel/hjdkmngopeofakdbjfkaomcmgkcidoeg'
 
 function ControllerPillButton({
   ip,

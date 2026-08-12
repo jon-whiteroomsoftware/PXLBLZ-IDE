@@ -1083,6 +1083,51 @@ describe('routing (#308)', () => {
     expect(screen.getByTestId('editor-pane')).not.toHaveTextContent('Saved programs')
   })
 
+  it('guides an empty Controllers workspace through Chrome extension setup (#811)', () => {
+    window.history.replaceState(null, '', '/studio/controllers')
+    seedSignedInWorkspace()
+    useControllerProfileStore.setState({ profiles: [], profilesLoaded: true })
+    useControllerStore.setState({
+      extensionPresent: false,
+      detectExtension: async () => false,
+    })
+
+    render(<App />)
+
+    const emptyState = screen.getByTestId('controller-profiles-empty-state')
+    expect(within(emptyState).getByRole('heading', { name: 'Connect your Controllers.' })).toBeInTheDocument()
+    expect(emptyState).toHaveTextContent(
+      "PXLBLZ uses a Chrome extension to reach Controllers on your local network. Install it once, approve Chrome's install and Controller access prompts, then connect.",
+    )
+    expect(within(emptyState).getByRole('link', { name: 'Install Chrome extension' })).toHaveAttribute(
+      'href',
+      'https://chromewebstore.google.com/detail/pxlblz-ide-controller-hel/hjdkmngopeofakdbjfkaomcmgkcidoeg',
+    )
+    expect(screen.queryByTestId('preview-pane')).not.toBeInTheDocument()
+  })
+
+  it('opens the existing Connect flow from an extension-ready empty Controllers workspace (#811)', async () => {
+    const user = userEvent.setup()
+    window.history.replaceState(null, '', '/studio/controllers')
+    seedSignedInWorkspace()
+    useControllerProfileStore.setState({ profiles: [], profilesLoaded: true })
+    useControllerStore.setState({
+      extensionPresent: true,
+      detectExtension: async () => true,
+    })
+
+    render(<App />)
+
+    const emptyState = screen.getByTestId('controller-profiles-empty-state')
+    expect(within(emptyState).getByRole('heading', {
+      name: 'Connect a Controller to create its profile.',
+    })).toBeInTheDocument()
+
+    await user.click(within(emptyState).getByRole('button', { name: 'Connect a Controller' }))
+
+    expect(await screen.findByTestId('controller-ip-input')).toBeInTheDocument()
+  })
+
   it('shows a graceful message for unknown paths', () => {
     window.history.replaceState(null, '', '/bogus')
     render(<App />)
