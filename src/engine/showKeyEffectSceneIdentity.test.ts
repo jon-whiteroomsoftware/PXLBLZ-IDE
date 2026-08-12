@@ -23,6 +23,7 @@ interface FrameStats {
   meanRed: number
   greenDominant: number
   grayish: number
+  dark: number
   cornerMean: number
   centerMean: number
   checksum: string
@@ -45,6 +46,7 @@ function sceneStats(timeMs: number, artifact: NonNullable<ReturnType<typeof comp
     meanRed: pixels.reduce((sum, [r]) => sum + r, 0) / pixels.length,
     greenDominant: pixels.filter(([r, g, b]) => g > r * 1.3 && g > b * 1.3 && g > 0.08).length,
     grayish: pixels.filter(([r, g, b]) => Math.abs(r - g) < 0.02 && Math.abs(g - b) < 0.02).length,
+    dark: pixels.filter(([r, g, b]) => r + g + b < 0.1).length,
     cornerMean,
     centerMean,
     checksum: result.checksum,
@@ -66,7 +68,7 @@ describe('key effects stay scene-local in shared member stages (#820)', () => {
     const opacity = sceneStats(4_500, artifact)
     const opacityEffect = sceneStats(7_500, artifact)
     const lumaKey = sceneStats(10_750, artifact)
-    const chromaKey = sceneStats(14_250, artifact)
+    const chromaKey = sceneStats(15_600, artifact)
     const vignette = sceneStats(17_500, artifact)
     const layered = sceneStats(20_750, artifact)
 
@@ -77,22 +79,26 @@ describe('key effects stay scene-local in shared member stages (#820)', () => {
     // Opacity: the warm bed glows through everywhere, so color floods in.
     expect(opacity.grayish).toBeLessThan(reference.grayish - 60)
 
-    // Opacity Effect: fades toward black, not toward the bed - the frame
-    // stays achromatic and dims.
-    expect(opacityEffect.grayish).toBeGreaterThan(200)
-    expect(opacityEffect.centerMean).toBeLessThan(reference.centerMean * 0.75)
+    // Opacity Effect: an animated fade-out toward black. Early in the beat
+    // the rings are near-full; late they are nearly gone - and the frame
+    // stays achromatic throughout (the bed does not return).
+    const fadeEarly = sceneStats(6_900, artifact)
+    const fadeLate = sceneStats(8_700, artifact)
+    expect(fadeEarly.grayish).toBeGreaterThan(200)
+    expect(fadeLate.grayish).toBeGreaterThan(200)
+    expect(fadeLate.centerMean).toBeLessThan(fadeEarly.centerMean * 0.5)
 
     // Luma Key: dark ring gaps vanish and the colored bed shows through
     // them, so the frame loses its all-achromatic character.
     expect(lumaKey.grayish).toBeLessThan(reference.grayish - 60)
 
-    // Chroma Key: the garden's green bodies punch out, but the garden must
-    // remain VISIBLE - a matte wide enough to swallow its black field makes
-    // the whole layer vanish into the bed (Jon caught exactly that). Green
-    // rim pixels below the solo garden's ~250 prove removal; a nonzero rim
-    // proves presence.
-    expect(chromaKey.greenDominant).toBeLessThan(80)
-    expect(chromaKey.greenDominant).toBeGreaterThan(5)
+    // Chroma Key: DoomFire's orange body carves out over the bed. The fire
+    // layer must remain VISIBLE - its black field stays opaque (a matte wide
+    // enough to swallow the field makes the whole layer vanish into the
+    // bed; Jon caught exactly that failure on the garden). Substantial dark
+    // pixels prove the field covers the bed; warm mean proves fire and bed.
+    expect(chromaKey.dark).toBeGreaterThan(60)
+    expect(chromaKey.meanRed).toBeGreaterThan(0.15)
 
     // Vignette: the frame closes hard on the marching waves. Averaging
     // corner and center luminance across four spread samples washes out the
@@ -100,7 +106,10 @@ describe('key effects stay scene-local in shared member stages (#820)', () => {
     const vignetteSamples = [16_300, 17_050, 17_800, 18_550].map((timeMs) => sceneStats(timeMs, artifact))
     const meanCorner = vignetteSamples.reduce((sum, stats) => sum + stats.cornerMean, 0) / vignetteSamples.length
     const meanCenter = vignetteSamples.reduce((sum, stats) => sum + stats.centerMean, 0) / vignetteSamples.length
-    expect(meanCorner).toBeLessThan(meanCenter * 0.35)
+    // The waves are also luma-keyed here, so bed troughs bleed through at
+    // the corners; the vignette eats the wave crests, which still leaves
+    // corners well below the center.
+    expect(meanCorner).toBeLessThan(meanCenter * 0.5)
 
     // Every beat must produce a distinct composite; the #820 bug collapsed
     // three beats into one identical dispatch block.
