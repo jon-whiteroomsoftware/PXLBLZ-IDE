@@ -1385,6 +1385,34 @@ test.describe('authenticated Show authoring', () => {
     await expect(page.getByRole('button', { name: 'Go to Show start' })).toHaveAttribute('title', 'Go to Show start (A)')
   })
 
+  test('keeps paused Show frames at preview brightness after scrubbing and rewind (#826)', async ({ page }) => {
+    await page.setViewportSize({ width: 1440, height: 900 })
+    await page.goto(showtimePath('studio/shows/stock-show-remix-coronal-mass-ejection?capture'))
+
+    const toolbar = page.getByTestId('show-timeline-toolbar')
+    await toolbar.getByRole('button', { name: 'Play Show preview' }).click()
+    await expect.poll(async () => Number(
+      await page.getByRole('slider', { name: 'Show playhead' }).inputValue(),
+    )).toBeGreaterThan(250)
+
+    const runningFrame = await showStageCanvasStats(page)
+    await toolbar.getByRole('button', { name: 'Pause Show preview' }).click()
+    await expect(page.getByText(/show paused ·/i)).toBeVisible()
+    expect((await showStageCanvasStats(page)).maxChannel).toBeGreaterThan(200)
+
+    const playhead = page.getByRole('slider', { name: 'Show playhead' })
+    await playhead.press('ArrowRight')
+    await expect.poll(async () => (await showStageCanvasStats(page)).checksum).not.toBe(runningFrame.checksum)
+    const scrubbedFrame = await showStageCanvasStats(page)
+    expect(scrubbedFrame.maxChannel).toBeGreaterThan(200)
+
+    await toolbar.getByRole('button', { name: 'Go to Show start' }).click()
+    await expect(playhead).toHaveValue('0')
+    await expect.poll(async () => (await showStageCanvasStats(page)).checksum).not.toBe(scrubbedFrame.checksum)
+    const startFrame = await showStageCanvasStats(page)
+    expect(startFrame.maxChannel).toBeGreaterThan(200)
+  })
+
   test('keeps Clip Transform values after a reload', async ({ page }) => {
     await page.goto(showtimePath('studio/shows'))
     await createInstallationShow(page)
@@ -2401,6 +2429,27 @@ async function waitForCurrentShow(page: Page, predicate: (show: PersistedShow) =
     const show = shows.find((candidate) => candidate.id === id)
     return show ? predicate(show) : false
   }).toBe(true)
+}
+
+async function showStageCanvasStats(page: Page): Promise<{ checksum: number; maxChannel: number }> {
+  const canvas = page.getByTestId('preview-pane').locator('canvas')
+  await expect(canvas).toBeVisible()
+  return canvas.evaluate((element) => {
+    const target = element as HTMLCanvasElement
+    const gl = target.getContext('webgl')
+    if (!gl) throw new Error('Show Stage WebGL context is unavailable')
+    const pixels = new Uint8Array(target.width * target.height * 4)
+    gl.readPixels(0, 0, target.width, target.height, gl.RGBA, gl.UNSIGNED_BYTE, pixels)
+    let checksum = 2166136261
+    let maxChannel = 0
+    for (let index = 0; index < pixels.length; index += 4) {
+      maxChannel = Math.max(maxChannel, pixels[index], pixels[index + 1], pixels[index + 2])
+      checksum = Math.imul(checksum ^ pixels[index], 16777619)
+      checksum = Math.imul(checksum ^ pixels[index + 1], 16777619)
+      checksum = Math.imul(checksum ^ pixels[index + 2], 16777619)
+    }
+    return { checksum: checksum >>> 0, maxChannel }
+  })
 }
 
 function rectanglesOverlap(

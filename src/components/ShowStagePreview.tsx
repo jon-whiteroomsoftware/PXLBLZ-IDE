@@ -339,7 +339,7 @@ export function ShowStagePreview({
     renderer.paint(
       maskedFrame,
       usePreviewStore.getState().brightness,
-      !usePreviewStore.getState().isRunning,
+      false,
     )
     const paintEnded = performance.now()
     return {
