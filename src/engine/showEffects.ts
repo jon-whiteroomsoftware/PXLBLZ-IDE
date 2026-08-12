@@ -41,17 +41,20 @@ export function normalizeShowClipEffects(effects: readonly ShowClipEffect[] | nu
       id, kind: 'threshold' as const,
       threshold: clamp(effect.threshold, 0, 1, 0.5), amount: clamp(effect.amount, 0, 1, 0),
     }]
+    // The compiler's key-identity sentinel (tolerance -1: this key removes
+    // nothing, #820/#821) must survive normalization so every downstream
+    // emission and evaluation path sees it; authored values stay in [0, 1].
     if (effect.kind === 'luma-key') return [{
       id, kind: 'luma-key' as const,
       target: clamp(effect.target, 0, 1, 0),
-      tolerance: clamp(effect.tolerance, 0, 1, 0.05),
-      softness: clamp(effect.softness, 0, 1, 0.05),
+      tolerance: effect.tolerance <= -1 ? -1 : clamp(effect.tolerance, 0, 1, 0.05),
+      softness: effect.tolerance <= -1 ? 0 : clamp(effect.softness, 0, 1, 0.05),
     }]
     if (effect.kind === 'chroma-key') return [{
       id, kind: 'chroma-key' as const,
       color: typeof effect.color === 'string' ? normalizeShowTransitionColor(effect.color) : '#00ff00',
-      tolerance: clamp(effect.tolerance, 0, 1, 0.05),
-      softness: clamp(effect.softness, 0, 1, 0.05),
+      tolerance: effect.tolerance <= -1 ? -1 : clamp(effect.tolerance, 0, 1, 0.05),
+      softness: effect.tolerance <= -1 ? 0 : clamp(effect.softness, 0, 1, 0.05),
     }]
     if (effect.kind === 'posterize') return [{
       id, kind: 'posterize' as const,
@@ -331,7 +334,9 @@ function featheredKeyOpacity(distance: number, tolerance: number, softness: numb
 }
 
 function featheredSquaredKeyOpacity(distanceSquared: number, tolerance: number, softness: number): number {
-  const inner = tolerance * tolerance
+  // Signed square: the key-identity sentinel (tolerance -1) must yield a
+  // negative inner threshold so it removes nothing (#820/#821).
+  const inner = tolerance * Math.abs(tolerance)
   if (softness <= 0) return distanceSquared <= inner ? 0 : 1
   const outer = Math.min(1, tolerance + softness)
   const outerSquared = outer * outer

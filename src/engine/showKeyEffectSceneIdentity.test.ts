@@ -22,6 +22,9 @@ const MAP_POINTS = Array.from({ length: 256 }, (_, index) => ({
 interface FrameStats {
   meanRed: number
   greenDominant: number
+  grayish: number
+  cornerMean: number
+  centerMean: number
   checksum: string
 }
 
@@ -34,9 +37,16 @@ function sceneStats(timeMs: number, artifact: NonNullable<ReturnType<typeof comp
   }, { mapPoints: MAP_POINTS, randomSeed: 7, fidelity: 'fast' })
   const result = runtime.advanceTo(timeMs, { stepMs: 50 })
   const pixels = result.pixels
+  const luma = ([r, g, b]: number[]) => 0.2126 * r + 0.7152 * g + 0.0722 * b
+  const at = (col: number, row: number) => pixels[row * 16 + col]
+  const cornerMean = [at(0, 0), at(15, 0), at(0, 15), at(15, 15)].reduce((sum, p) => sum + luma(p), 0) / 4
+  const centerMean = [at(7, 7), at(8, 7), at(7, 8), at(8, 8)].reduce((sum, p) => sum + luma(p), 0) / 4
   return {
     meanRed: pixels.reduce((sum, [r]) => sum + r, 0) / pixels.length,
     greenDominant: pixels.filter(([r, g, b]) => g > r * 1.3 && g > b * 1.3 && g > 0.08).length,
+    grayish: pixels.filter(([r, g, b]) => Math.abs(r - g) < 0.02 && Math.abs(g - b) < 0.02).length,
+    cornerMean,
+    centerMean,
     checksum: result.checksum,
   }
 }
@@ -44,35 +54,52 @@ function sceneStats(timeMs: number, artifact: NonNullable<ReturnType<typeof comp
 describe('key effects stay scene-local in shared member stages (#820)', () => {
   const fixture = STOCK_SHOWS.find((candidate) => candidate.id === 'stock-show-showcase-compositing-key-effects')!
 
-  it('compiles the Compositing and Key Effects showcase with a visible subject', () => {
+  it('compiles the Compositing and Key Effects showcase with every beat distinct', () => {
     const compiled = compileShowForArtifact(fixture.show, [], undefined, {}, { stageDimension: 2 })
     expect(compiled.error).toBeNull()
     const artifact = compiled.artifact!
 
-    // Scene midpoints: Reference 0-3s, Opacity 3-7s, Luma Key 7-10s,
-    // Chroma Key 10-13s, Vignette 13-16s.
+    // Rebuilt beats (#821): Reference 0-3s, Layer Opacity 3-6s, Opacity
+    // Effect 6-9s, Luma Key 9-12.5s, Chroma Key 12.5-16s, Vignette 16-19s,
+    // Layered 19-22.5s.
     const reference = sceneStats(1_500, artifact)
-    const opacity = sceneStats(5_000, artifact)
-    const lumaKey = sceneStats(8_500, artifact)
-    const chromaKey = sceneStats(11_500, artifact)
-    const vignette = sceneStats(14_500, artifact)
+    const opacity = sceneStats(4_500, artifact)
+    const opacityEffect = sceneStats(7_500, artifact)
+    const lumaKey = sceneStats(10_750, artifact)
+    const chromaKey = sceneStats(14_250, artifact)
+    const vignette = sceneStats(17_500, artifact)
+    const layered = sceneStats(20_750, artifact)
 
-    // Reference: the garden is fully opaque over the bed. Its green blobs
-    // must dominate the frame (solo it measures ~250/256; keyed to nothing
-    // it measured 24 - the bed's own greens).
-    expect(reference.greenDominant).toBeGreaterThan(100)
+    // Reference: grayscale Luma Rings fully opaque - the frame is overwhelmingly
+    // achromatic (white rings on black), not the colored bed.
+    expect(reference.grayish).toBeGreaterThan(200)
 
-    // Luma Key: dark subject pixels vanish and the warm bed glows through,
-    // so the frame warms up relative to Reference.
-    expect(lumaKey.meanRed).toBeGreaterThan(reference.meanRed + 0.02)
+    // Opacity: the warm bed glows through everywhere, so color floods in.
+    expect(opacity.grayish).toBeLessThan(reference.grayish - 60)
 
-    // Chroma Key: green vanishes; far fewer green-dominant pixels remain
-    // than the Reference shows.
-    expect(chromaKey.greenDominant).toBeLessThan(reference.greenDominant / 2)
+    // Opacity Effect: fades toward black, not toward the bed - the frame
+    // stays achromatic and dims.
+    expect(opacityEffect.grayish).toBeGreaterThan(200)
+    expect(opacityEffect.centerMean).toBeLessThan(reference.centerMean * 0.75)
 
-    // Every scene must produce a distinct composite: the bug collapsed
-    // Reference, Luma Key, and Chroma Key into one identical dispatch block.
-    const checksums = [reference, opacity, lumaKey, chromaKey, vignette].map((stats) => stats.checksum)
+    // Luma Key: dark ring gaps vanish and the colored bed shows through
+    // them, so the frame loses its all-achromatic character.
+    expect(lumaKey.grayish).toBeLessThan(reference.grayish - 60)
+
+    // Chroma Key: the garden's green bodies punch out; almost no
+    // green-dominant pixels survive.
+    expect(chromaKey.greenDominant).toBeLessThan(30)
+
+    // Vignette: edges close down. The rings loop exactly 2 s, so sampling
+    // the Reference and Vignette scenes at the same loop phase compares the
+    // identical ring image with and without the vignette; corners must dim.
+    const referenceMatched = sceneStats(2_326, artifact)
+    const vignetteMatched = sceneStats(18_326, artifact)
+    expect(vignetteMatched.cornerMean).toBeLessThan(referenceMatched.cornerMean * 0.6 + 0.01)
+
+    // Every beat must produce a distinct composite; the #820 bug collapsed
+    // three beats into one identical dispatch block.
+    const checksums = [reference, opacity, opacityEffect, lumaKey, chromaKey, vignette, layered].map((stats) => stats.checksum)
     expect(new Set(checksums).size).toBe(checksums.length)
   })
 })

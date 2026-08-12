@@ -81,13 +81,17 @@ describe('Restart-instance global-liveness census (#536)', () => {
     // IceFloes2D: the new members carry eight fewer globals at this frozen
     // vintage, all three lessons still Continue every member, so the
     // reclaimable Restart set stays fixed and the weighted figure rises a
-    // hair with the smaller corpus).
+    // hair with the smaller corpus). Recensused with the #821 Compositing
+    // and Key Effects rebuild: Luma Rings joins the showcase corpus (+23
+    // member globals at this frozen vintage); every member still Continues,
+    // the reclaimable Restart set stays fixed, and the stop verdict is
+    // unchanged.
     expect(report.summary).toMatchObject({
-      representativeMemberGlobals: 3_024,
+      representativeMemberGlobals: 3_047,
       representativeReclaimedGlobals: 186,
     })
     expect(report.decision.representativeReclaimPercent).toBe(0)
-    expect(report.decision.weightedRepresentativeReclaimPercent).toBeCloseTo(0.06150794, 8)
+    expect(report.decision.weightedRepresentativeReclaimPercent).toBeCloseTo(0.06104365, 8)
     expect(report.decision.ceilingRescues).toEqual([])
     expect(report.decision.proceedWithEmission).toBe(false)
     expect(report.decision.proceedWithEmission).toBe(

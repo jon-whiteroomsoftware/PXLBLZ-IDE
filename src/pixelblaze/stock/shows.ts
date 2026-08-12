@@ -2694,61 +2694,102 @@ function effectShowcase(kind: ShowcaseKind): StockShow {
   })
 }
 
-// Compositing and key Effects only mean something over a lower Layer, so
-// this reference is built differently from its siblings: a dim warm
-// IQPalettes bed runs underneath while green MetaballGarden carries each
-// Effect. The garden was cast by measurement for exactly this job - bright
-// green blobs on darkness give Luma Key a clean background to remove and
-// Chroma Key a saturated signature color to punch out, and the warm bed
-// (the pair's measured opposite) makes every removed pixel unmistakable.
+// Compositing and key Effects only mean something over a lower Layer, and
+// each one is only unmistakable on the subject that shows it at maximum
+// contrast (#821). A dim warm IQPalettes bed runs underneath throughout.
+// Grayscale Luma Rings (#819) carry Opacity, Luma Key, and Vignette - on a
+// grayscale subject the luma matte IS the image, so keyed pixels read as
+// punched holes, not a subtle tint. The chroma beat switches subject to the
+// measured green MetaballGarden, whose saturated signature color is what a
+// chroma key removes. The finale stacks all three: bed, chroma-keyed garden,
+// luma-keyed rings - the documented N + U1 + U2 three-layer content-key
+// stack, shown rather than described.
 function compositingKeyShowcase(): StockShow {
   const id = 'stock-show-showcase-compositing-key-effects'
   const zones = logicalZones(['Main'], 2_000)
-  const rows: Array<[string, string, ShowClipEffect[], number]> = [
-    ['Reference', 'The garden fully opaque; the bed is invisible beneath it.', [], 3],
-    ['Opacity', 'The whole Clip becomes translucent and the bed glows through everywhere.', [{ id: 'opacity', kind: 'opacity', opacity: 0.45 }], 4],
-    ['Luma Key', 'Dark pixels vanish: the blobs float alone over the bed.', [{ id: 'luma-key', kind: 'luma-key', target: 0, tolerance: 0.32, softness: 0.18 }], 3],
-    ['Chroma Key', 'Green vanishes: the blob bodies punch out and the bed shows through them.', [{ id: 'chroma-key', kind: 'chroma-key', color: '#22c55e', tolerance: 0.3, softness: 0.2 }], 3],
-    ['Vignette', 'The frame darkens toward the edges while the center stays untouched.', [{ id: 'vignette', kind: 'vignette', amount: 1, radius: 0.42, softness: 0.4, centerX: 0.5, centerY: 0.5, aspect: 1 }], 3],
+  const RINGS_LUMA_KEY: ShowClipEffect = { id: 'luma-key', kind: 'luma-key', target: 0, tolerance: 0.35, softness: 0.15 }
+  const GARDEN_CHROMA_KEY: ShowClipEffect = { id: 'chroma-key', kind: 'chroma-key', color: '#22c55e', tolerance: 0.3, softness: 0.2 }
+  interface CompositeRow {
+    name: string
+    detail: string
+    seconds: number
+    subject: 'rings' | 'garden'
+    effects: ShowClipEffect[]
+    placementOpacity?: number
+    finale?: boolean
+  }
+  const rows: CompositeRow[] = [
+    { name: 'Reference', detail: 'Grayscale rings fully opaque; the bed is invisible beneath them.', seconds: 3, subject: 'rings', effects: [] },
+    // Two opacities, taught side by side: placement opacity is the
+    // source-over weight (the bed genuinely glows through), while the
+    // Opacity Effect fades the captured source toward black - the bed does
+    // not return. Adjacent beats make the difference unmistakable.
+    { name: 'Layer Opacity', detail: 'The Layer thins over what is beneath: the warm bed glows through everywhere.', seconds: 3, subject: 'rings', effects: [], placementOpacity: 0.45 },
+    { name: 'Opacity', detail: 'The Opacity Effect fades the Clip toward black instead - the bed does not return.', seconds: 3, subject: 'rings', effects: [{ id: 'opacity', kind: 'opacity', opacity: 0.45 }] },
+    { name: 'Luma Key', detail: 'Dark pixels vanish: the white rings float alone over the bed.', seconds: 3.5, subject: 'rings', effects: [RINGS_LUMA_KEY] },
+    { name: 'Chroma Key', detail: 'Green vanishes: the blob bodies punch out and the bed shows through them.', seconds: 3.5, subject: 'garden', effects: [GARDEN_CHROMA_KEY] },
+    { name: 'Vignette', detail: 'The frame darkens toward the edges while the center rings stay untouched.', seconds: 3, subject: 'rings', effects: [{ id: 'vignette', kind: 'vignette', amount: 1, radius: 0.42, softness: 0.4, centerX: 0.5, centerY: 0.5, aspect: 1 }] },
+    { name: 'Layered', detail: 'All three at once: keyed rings over the keyed garden over the bed.', seconds: 3.5, subject: 'rings', effects: [RINGS_LUMA_KEY], finale: true },
   ]
-  const scenes = rows.map(([name, , , seconds], index) => scene(
+  const subjectPattern = { rings: 'LumaRings', garden: 'MetaballGarden' } as const
+  const subjectInstanceId = { rings: 'composite-rings', garden: 'composite-subject' } as const
+  const subjectTimeScale = { rings: 1, garden: 0.35 } as const
+  const scenes = rows.map((row, index) => scene(
     `composite-${index + 1}`,
-    name,
-    seconds,
-    [clip('zone-1', 'MetaballGarden', 0.35, undefined, 0.9)],
+    row.name,
+    row.seconds,
+    [clip('zone-1', subjectPattern[row.subject], subjectTimeScale[row.subject], undefined, 0.9)],
   ))
   const composition: ShowCompositionV1 = {
     version: 1,
     patternInstances: [
       instance('composite-bed', 'IQPalettes', 0.2),
+      instance('composite-rings', 'LumaRings', 1),
       instance('composite-subject', 'MetaballGarden', 0.35),
     ],
-    scenes: scenes.map((item, index) => ({
-      sceneId: item.id,
-      zones: [{
-        zoneId: 'zone-1',
-        main: [{
-          ...placement(`bed-${index + 1}`, 'composite-bed', 0, item.durationMs / 1_000),
-          view: { mirror: false, phase: 0, brightness: 0.4 },
+    scenes: scenes.map((item, index) => {
+      const row = rows[index]
+      const subjectLayer = {
+        id: `layer-subject-${index + 1}`,
+        name: 'Subject',
+        placements: [{
+          ...placement(`subject-${index + 1}`, subjectInstanceId[row.subject], 0, item.durationMs / 1_000),
+          opacity: row.placementOpacity ?? 1,
+          ...(row.effects.length ? { effects: row.effects } : {}),
         }],
-        overlays: [{
-          id: `layer-subject-${index + 1}`,
-          name: 'Subject',
-          placements: [{
-            ...placement(`subject-${index + 1}`, 'composite-subject', 0, item.durationMs / 1_000),
-            opacity: 1,
-            ...(rows[index][2].length ? { effects: rows[index][2] } : {}),
+      }
+      // The finale keeps the rings Subject on top and slides the chroma-keyed
+      // garden between it and the bed; overlays list top-most first.
+      const middleLayer = row.finale
+        ? [{
+            id: `layer-middle-${index + 1}`,
+            name: 'Keyed garden',
+            placements: [{
+              ...placement(`middle-${index + 1}`, 'composite-subject', 0, item.durationMs / 1_000),
+              opacity: 1,
+              effects: [GARDEN_CHROMA_KEY],
+            }],
+          }]
+        : []
+      return {
+        sceneId: item.id,
+        zones: [{
+          zoneId: 'zone-1',
+          main: [{
+            ...placement(`bed-${index + 1}`, 'composite-bed', 0, item.durationMs / 1_000),
+            view: { mirror: false, phase: 0, brightness: 0.4 },
           }],
+          overlays: [subjectLayer, ...middleLayer],
         }],
-      }],
-    })),
-    durationMs: rows.reduce((sum, [, , , seconds]) => sum + seconds, 0) * 1_000,
+      }
+    }),
+    durationMs: rows.reduce((sum, row) => sum + row.seconds, 0) * 1_000,
   }
   return catalogue({
     id, title: 'Compositing and Key Effects', track: 'portable', collection: 'showcases', level: null, order: 4,
     purpose: "Opacity, Luma Key, Chroma Key, and Vignette decide which of a Clip's pixels reach the mix, so they only mean something over a lower Layer. A warm bed runs underneath the whole reference; every pixel these Effects remove shows the bed instead.",
-    notice: "Opacity is the slow exemplar - the whole Clip thins evenly. The keys remove pixels selectively: Luma Key by darkness, Chroma Key by the garden's green. Vignette closes the frame without touching the center.",
-    prompts: ['Raise the Luma Key tolerance until only the brightest blob cores survive.', 'Point the Chroma Key at a different color and watch the wrong pixels vanish.'],
+    notice: "Each Effect rides the subject that shows it best: grayscale Luma Rings for Opacity, Luma Key, and Vignette - the matte is the image - and the green garden for Chroma Key. The finale stacks keyed rings over the keyed garden over the bed: a three-layer content-key composite.",
+    prompts: ['Raise the Luma Key tolerance until only the brightest ring cores survive.', 'Point the Chroma Key at a different color and watch the wrong pixels vanish.'],
     guideHeading: 'compositing-and-key-effects',
     defaultOpen: true,
     output: portableOutput(), zones, layouts: [singleLayout(zones)],
@@ -2756,12 +2797,12 @@ function compositingKeyShowcase(): StockShow {
     transitions: cutBoundaries(scenes),
     composition,
     reference: {
-      summary: 'A constant warm bed under a green subject; each Effect decides which subject pixels reach the mix.',
-      patternSlots: { cellIds: scenes.map((item) => cellId(item.id, 'zone-1')), instanceIds: ['composite-subject'] },
+      summary: 'A constant warm bed under keyed subjects; each Effect decides which subject pixels reach the mix, ending in a three-layer stack.',
+      patternSlots: { cellIds: scenes.map((item) => cellId(item.id, 'zone-1')), instanceIds: ['composite-rings', 'composite-subject'] },
       examples: scenes.map((item, index) => ({
         id: `composite-${index + 1}`,
         label: item.name,
-        detail: rows[index][1],
+        detail: rows[index].detail,
         anchor: { kind: 'scene', sceneId: item.id },
       })),
     },

@@ -7997,12 +7997,14 @@ function emitSceneControlTargets(member: CompiledMember, targets: Record<string,
 function emitSceneEffectTargets(member: CompiledMember, effects: ShowClipEffect[] | undefined): string {
   if (!effects || !member.animatedEffects || member.staticPlanEffects) return ''
   const authored = normalizeShowClipEffects(effects)
-  const canonicalTransformIds = new Set<string>(Object.values(SHOW_CLIP_TRANSFORM_EFFECT_IDS))
-  const resolved = member.effects.flatMap((template) => {
-    const match = authored.find((effect) => effect.id === template.id && effect.kind === template.kind)
-    if (match) return [match]
-    return canonicalTransformIds.has(template.id) ? [identityShowEffect(template)] : []
-  })
+  // Every union template must be assigned every scene: parameter variables
+  // are shared across scenes, so a skipped assignment leaks the declaration
+  // value on the first pass and the previous scene's value after the Show
+  // loops. Scenes without an effect assign its identity (#821).
+  const resolved = member.effects.map((template) => (
+    authored.find((effect) => effect.id === template.id && effect.kind === template.kind)
+      ?? identityShowEffect(template)
+  ))
   return resolved.flatMap((effect) => (
     showEffectParameterNames(effect).map((parameter) => (
       `\n    ${effectParameterVariable(member, effect.id, parameter)} = ${effectParameterValue(effect, parameter)}`
