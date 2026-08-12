@@ -217,8 +217,8 @@ export function showEffectsAreIdentity(effects: readonly ShowClipEffect[] | unde
     || (effect.kind === 'contrast' && effect.contrast !== 1)
     || (effect.kind === 'invert' && effect.amount !== 0)
     || (effect.kind === 'threshold' && effect.amount !== 0)
-    || effect.kind === 'luma-key'
-    || effect.kind === 'chroma-key'
+    || (effect.kind === 'luma-key' && !(effect.tolerance <= -1 && effect.softness <= 0))
+    || (effect.kind === 'chroma-key' && !(effect.tolerance <= -1 && effect.softness <= 0))
     || (effect.kind === 'posterize' && effect.amount !== 0)
     || (effect.kind === 'vignette' && effect.amount !== 0)
     || (effect.kind === 'color-map' && effect.amount !== 0)

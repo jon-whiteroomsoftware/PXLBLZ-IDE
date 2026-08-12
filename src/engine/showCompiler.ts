@@ -7782,6 +7782,10 @@ function staticPlanEffectAssignmentsFromResolved(
 
 function identityShowEffect(effect: ShowClipEffect): ShowClipEffect {
   if (effect.kind === 'opacity') return { ...effect, opacity: 1 }
+  // A key's identity removes nothing: tolerance -1 puts every distance above
+  // the threshold. The chroma emission derives its inner threshold with a
+  // signed square so the negative identity survives squaring (#820).
+  if (effect.kind === 'luma-key' || effect.kind === 'chroma-key') return { ...effect, tolerance: -1, softness: 0 }
   if (effect.kind === 'brightness') return { ...effect, brightness: 1 }
   if (effect.kind === 'hue' || effect.kind === 'rotate') return { ...effect, turns: 0 }
   if (effect.kind === 'saturation') return { ...effect, saturation: 1 }
@@ -9672,7 +9676,7 @@ function colorCoefficientDefs(member: CompiledMember): ColorCoefficientDef[] {
       const tolerance = value(effect, 'tolerance')
       const softness = value(effect, 'softness')
       defs.push(
-        { name: `${name}_inner2`, expression: `${tolerance} * ${tolerance}` },
+        { name: `${name}_inner2`, expression: `${tolerance} * abs(${tolerance})` },
         { name: `${name}_outer`, expression: `min(1, ${tolerance} + ${softness})` },
         { name: `${name}_denominator`, expression: `max(0.000001, ${name}_outer * ${name}_outer - ${name}_inner2)` },
       )
@@ -9857,7 +9861,7 @@ function emitMemberOutputEffectLines(
         `  var ${name}_db = ${b} - ${targetB}`,
         `  var ${name}_distance2 = (${name}_dr * ${name}_dr + ${name}_dg * ${name}_dg + ${name}_db * ${name}_db) / 3`,
         ...(hoisted ? [] : [
-          `  var ${name}_inner2 = ${tolerance} * ${tolerance}`,
+          `  var ${name}_inner2 = ${tolerance} * abs(${tolerance})`,
           `  var ${name}_outer = min(1, ${tolerance} + ${softness})`,
         ]),
         `  var ${name}_matte = ${softness} <= 0 ? (${name}_distance2 > ${name}_inner2) : clamp((${name}_distance2 - ${name}_inner2) / ${hoisted ? `${name}_denominator` : `max(0.000001, ${name}_outer * ${name}_outer - ${name}_inner2)`}, 0, 1)`,
