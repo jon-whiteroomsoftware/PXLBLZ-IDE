@@ -23,7 +23,6 @@ interface PendingNavigationPreflight {
 
 interface BrokenDraft {
   draft: NavigationPreflightDraft
-  durableSource: string
 }
 
 interface NavigationPreflightState {
@@ -69,7 +68,6 @@ function activeBrokenDraft(): BrokenDraft | null {
     if (!routeOwns(route, flavor, id)) return null
     return {
       draft: { flavor, id, name: record.name },
-      durableSource: record.source,
     }
   }
 
@@ -110,13 +108,33 @@ function runReplacement(replacement: BufferReplacement): void {
   }
 }
 
+function currentDurableBuffer(draft: NavigationPreflightDraft): { name: string; source: string } | null {
+  if (draft.flavor === 'map') {
+    const record = useMapStore.getState().userMaps.find((map) => map.id === draft.id)
+    return record ? { name: record.name, source: record.source ?? '' } : null
+  }
+  if (draft.flavor === 'mixin') {
+    const record = useMixinStore.getState().userMixins.find((mixin) => mixin.id === draft.id)
+    return record ? { name: record.name, source: record.src } : null
+  }
+  if (draft.flavor === 'library') {
+    const record = useLibraryStore.getState().userLibraries.find((library) => library.id === draft.id)
+    return record ? { name: record.name, source: record.src } : null
+  }
+  const record = usePatternStore.getState().userPatterns.find((pattern) => pattern.id === draft.id)
+  return record ? { name: record.name, source: record.src } : null
+}
+
 function restoreDurableBuffer(broken: BrokenDraft): void {
+  // Resolve at confirmation time: an autosave that finishes while the dialog
+  // is open is newer than the snapshot that originally triggered the prompt.
+  const durable = currentDurableBuffer(broken.draft)
   const editor = useEditorStore.getState()
-  editor.setSource(broken.durableSource)
+  editor.setSource(durable?.source ?? '')
   editor.setCompileStatus('good')
   if (broken.draft.flavor === 'pattern') {
-    editor.setPreviewSource(broken.durableSource)
-    editor.setPreviewPatternName(broken.draft.name)
+    editor.setPreviewSource(durable?.source ?? '')
+    editor.setPreviewPatternName(durable?.name ?? broken.draft.name)
   }
 }
 

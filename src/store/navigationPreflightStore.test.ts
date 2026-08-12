@@ -27,6 +27,7 @@ type OwnerCase = {
   kind: 'patterns' | 'maps' | 'mixins' | 'libraries'
   seed: (includeRecord?: boolean) => void
   durableSource: () => string | undefined
+  replaceDurableSource: (source: string) => void
 }
 
 const ownerCases: OwnerCase[] = [
@@ -44,6 +45,11 @@ const ownerCases: OwnerCase[] = [
       }] : [],
     }),
     durableSource: () => usePatternStore.getState().userPatterns[0]?.src,
+    replaceDurableSource: (source) => usePatternStore.setState((state) => ({
+      userPatterns: state.userPatterns.map((pattern) => (
+        pattern.id === RECORD.id ? { ...pattern, src: source } : pattern
+      )),
+    })),
   },
   {
     flavor: 'map',
@@ -61,6 +67,11 @@ const ownerCases: OwnerCase[] = [
       }] : [],
     }),
     durableSource: () => useMapStore.getState().userMaps[0]?.source,
+    replaceDurableSource: (source) => useMapStore.setState((state) => ({
+      userMaps: state.userMaps.map((map) => (
+        map.id === RECORD.id ? { ...map, source } : map
+      )),
+    })),
   },
   {
     flavor: 'mixin',
@@ -76,6 +87,11 @@ const ownerCases: OwnerCase[] = [
       }] : [],
     }),
     durableSource: () => useMixinStore.getState().userMixins[0]?.src,
+    replaceDurableSource: (source) => useMixinStore.setState((state) => ({
+      userMixins: state.userMixins.map((mixin) => (
+        mixin.id === RECORD.id ? { ...mixin, src: source } : mixin
+      )),
+    })),
   },
   {
     flavor: 'library',
@@ -90,6 +106,11 @@ const ownerCases: OwnerCase[] = [
       }] : [],
     }),
     durableSource: () => useLibraryStore.getState().userLibraries[0]?.src,
+    replaceDurableSource: (source) => useLibraryStore.setState((state) => ({
+      userLibraries: state.userLibraries.map((library) => (
+        library.id === RECORD.id ? { ...library, src: source } : library
+      )),
+    })),
   },
 ]
 
@@ -216,6 +237,26 @@ describe('broken-buffer navigation preflight (#831)', () => {
     expect(transition).toHaveBeenCalledOnce()
     expect(updatePatternSrc).not.toHaveBeenCalled()
     expect(useNavigationPreflightStore.getState().pending).toBeNull()
+  })
+
+  it.each(ownerCases)('Continue restores the latest durable $flavor source, not the dialog snapshot', (owner) => {
+    const latestDurable = `${RECORD.persisted}\n// autosave completed while the dialog was open`
+    seedOwner(owner)
+    const transition = vi.fn()
+    requestBufferReplacement(transition)
+
+    owner.replaceDurableSource(latestDurable)
+    continueNavigationPreflight()
+
+    expect(transition).toHaveBeenCalledOnce()
+    expect(useEditorStore.getState()).toMatchObject({
+      source: latestDurable,
+      compileStatus: 'good',
+      bufferEdited: false,
+    })
+    if (owner.flavor === 'pattern') {
+      expect(useEditorStore.getState().previewSource).toBe(latestDurable)
+    }
   })
 
   it('keeps the original transition when another request arrives while confirmation is open', () => {

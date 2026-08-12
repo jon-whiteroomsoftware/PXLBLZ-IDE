@@ -1,9 +1,9 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest'
-import { render, screen, waitFor, within } from '@testing-library/react'
+import { act, render, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { PatternList } from './PatternList'
 import { useEditorStore, editorInitialState } from '@/store/editorStore'
-import { usePatternStore, patternInitialState } from '@/store/patternStore'
+import { usePatternStore, patternInitialState, type PatternRecord } from '@/store/patternStore'
 import { useMapStore, mapInitialState, type MapRecord } from '@/store/mapStore'
 import { useMixinStore, mixinInitialState, type MixinRecord } from '@/store/mixinStore'
 import { useLibraryStore, libraryInitialState, type LibraryRecord } from '@/store/libraryStore'
@@ -34,6 +34,7 @@ vi.mock('@/engine/authSession', () => ({
 }))
 
 const SEED_PATTERN = { id: 'seed-1', name: 'Seed Pattern', src: '// seed', controls: {}, updatedAt: 0 }
+const realAddPattern = usePatternStore.getState().addPattern
 
 let mockMaps: MapRecord[] = []
 let mockPatterns = [SEED_PATTERN]
@@ -132,7 +133,7 @@ beforeEach(() => {
     return Response.json({ ok: true })
   }))
   useEditorStore.setState(editorInitialState)
-  usePatternStore.setState(patternInitialState)
+  usePatternStore.setState({ ...patternInitialState, addPattern: realAddPattern })
   useMapStore.setState(mapInitialState)
   useMixinStore.setState(mixinInitialState)
   useLibraryStore.setState(libraryInitialState)
@@ -279,6 +280,115 @@ describe('PatternList', () => {
       requests.filter(({ url, init }) => url === '/api/patterns' && init?.method === 'POST'),
     ).toHaveLength(postsBefore + 1))
     expect(await screen.findByText('Untitled Pattern')).toBeInTheDocument()
+  })
+
+  it('preflights again before an async New Pattern completion replaces a newer broken edit (#831)', async () => {
+    const user = userEvent.setup()
+    let releasePersistence!: () => void
+    const persistence = new Promise<void>((resolve) => {
+      releasePersistence = resolve
+    })
+    const addPattern = vi.fn(async (record: PatternRecord) => {
+      await persistence
+      usePatternStore.setState((state) => ({ userPatterns: [record, ...state.userPatterns] }))
+    })
+    usePatternStore.setState({ addPattern })
+    render(<PatternList />)
+    await screen.findByText('Seed Pattern')
+    usePatternStore.setState({ activePatternId: SEED_PATTERN.id, addPattern })
+    useRouterStore.setState({
+      route: { kind: 'studio', entity: { kind: 'patterns', id: SEED_PATTERN.id } },
+    })
+    useEditorStore.setState({
+      editorFlavor: 'pattern',
+      source: 'first broken edit(',
+      compileStatus: 'broken',
+      isReadOnly: false,
+      bufferEdited: true,
+      previewSource: SEED_PATTERN.src,
+      previewPatternName: SEED_PATTERN.name,
+    })
+
+    await user.click(screen.getByRole('button', { name: 'Add pattern' }))
+    await user.click(screen.getByRole('button', { name: 'New pattern' }))
+    continueNavigationPreflight()
+    await waitFor(() => expect(addPattern).toHaveBeenCalledOnce())
+
+    useEditorStore.setState({
+      source: 'newer broken edit(',
+      compileStatus: 'broken',
+      bufferEdited: true,
+    })
+    await act(async () => {
+      releasePersistence()
+      await persistence
+    })
+
+    await waitFor(() => {
+      expect(useNavigationPreflightStore.getState().pending?.draft.name).toBe(SEED_PATTERN.name)
+    })
+    expect(usePatternStore.getState().activePatternId).toBe(SEED_PATTERN.id)
+    expect(useEditorStore.getState().source).toBe('newer broken edit(')
+
+    const createdRecord = addPattern.mock.calls[0]![0]
+    continueNavigationPreflight()
+    await waitFor(() => expect(usePatternStore.getState().activePatternId).toBe(createdRecord.id))
+    expect(useEditorStore.getState().source).toBe(createdRecord.src)
+  })
+
+  it('preflights a retry completion before it replaces an edit made during persistence (#831)', async () => {
+    const user = userEvent.setup()
+    let releaseRetry!: () => void
+    const retryPersistence = new Promise<void>((resolve) => {
+      releaseRetry = resolve
+    })
+    const addPattern = vi.fn(async (record: PatternRecord) => {
+      if (addPattern.mock.calls.length === 1) throw new Error('offline')
+      await retryPersistence
+      usePatternStore.setState((state) => ({ userPatterns: [record, ...state.userPatterns] }))
+    })
+    usePatternStore.setState({ addPattern })
+    render(<PatternList />)
+    await screen.findByText('Seed Pattern')
+    usePatternStore.setState({ activePatternId: SEED_PATTERN.id, addPattern })
+    useRouterStore.setState({
+      route: { kind: 'studio', entity: { kind: 'patterns', id: SEED_PATTERN.id } },
+    })
+    useEditorStore.setState({
+      editorFlavor: 'pattern',
+      source: SEED_PATTERN.src,
+      compileStatus: 'good',
+      isReadOnly: false,
+      bufferEdited: false,
+      previewSource: SEED_PATTERN.src,
+      previewPatternName: SEED_PATTERN.name,
+    })
+
+    await user.click(screen.getByRole('button', { name: 'Add pattern' }))
+    await user.click(screen.getByRole('button', { name: 'New pattern' }))
+    const notice = await screen.findByRole('alert')
+    await user.click(within(notice).getByRole('button', { name: 'Retry create pattern' }))
+    await waitFor(() => expect(addPattern).toHaveBeenCalledTimes(2))
+
+    useEditorStore.setState({
+      source: 'broken while retry waits(',
+      compileStatus: 'broken',
+      bufferEdited: true,
+    })
+    await act(async () => {
+      releaseRetry()
+      await retryPersistence
+    })
+
+    await waitFor(() => {
+      expect(useNavigationPreflightStore.getState().pending?.draft.name).toBe(SEED_PATTERN.name)
+    })
+    expect(usePatternStore.getState().activePatternId).toBe(SEED_PATTERN.id)
+    expect(useEditorStore.getState().source).toBe('broken while retry waits(')
+
+    const createdRecord = addPattern.mock.calls[0]![0]
+    continueNavigationPreflight()
+    await waitFor(() => expect(usePatternStore.getState().activePatternId).toBe(createdRecord.id))
   })
 
   it('restores persisted preview settings for an already-open built-in Pattern (#805)', async () => {

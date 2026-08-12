@@ -263,17 +263,19 @@ export function PatternList({
       }
       requestBufferReplacement(async () => {
         await addPattern(record)
-        if (mapResolution.status === 'resolved') useMapStore.getState().setActiveMap(mapResolution.mapId)
-        else if (mapResolution.message) showImportNotice(mapResolution.message)
-        useMapStore.getState().closeMapEditor()
-        useMixinStore.getState().closeMixinEditor()
-        useDocsStore.getState().closeDocs()
-        setActivePattern(id)
-        setEditorFlavor('pattern')
-        setSource(record.src)
-        setPreviewSource(record.src)
-        setPreviewPatternName(record.name)
-        setIsReadOnly(false)
+        requestBufferReplacement(() => {
+          if (mapResolution.status === 'resolved') useMapStore.getState().setActiveMap(mapResolution.mapId)
+          else if (mapResolution.message) showImportNotice(mapResolution.message)
+          useMapStore.getState().closeMapEditor()
+          useMixinStore.getState().closeMixinEditor()
+          useDocsStore.getState().closeDocs()
+          setActivePattern(id)
+          setEditorFlavor('pattern')
+          setSource(record.src)
+          setPreviewSource(record.src)
+          setPreviewPatternName(record.name)
+          setIsReadOnly(false)
+        })
       })
     }
     reader.readAsText(file)
@@ -638,15 +640,17 @@ export function PatternList({
       entityName: name,
       run: async () => {
         await addPattern(record)
-        closeMapEditor()
-        closeMixinEditor()
-        closeDocs()
-        setActivePattern(id)
-        setEditorFlavor('pattern')
-        setSource(record.src)
-        setPreviewSource(record.src)
-        setPreviewPatternName(record.name)
-        setIsReadOnly(false)
+        requestBufferReplacement(() => {
+          closeMapEditor()
+          closeMixinEditor()
+          closeDocs()
+          setActivePattern(id)
+          setEditorFlavor('pattern')
+          setSource(record.src)
+          setPreviewSource(record.src)
+          setPreviewPatternName(record.name)
+          setIsReadOnly(false)
+        })
       },
     }))
   }
@@ -690,10 +694,12 @@ export function PatternList({
       entityName: record.name,
       run: async () => {
         await addMap(record)
-        closeMixinEditor()
-        closeLibraryEditor()
-        openExistingMap(record)
-        navigate({ kind: 'studio', entity: { kind: 'maps', id: record.id } })
+        requestBufferReplacement(() => {
+          closeMixinEditor()
+          closeLibraryEditor()
+          openExistingMap(record)
+          navigate({ kind: 'studio', entity: { kind: 'maps', id: record.id } })
+        })
       },
     }))
   }
@@ -713,10 +719,12 @@ export function PatternList({
       entityName: record.name,
       run: async () => {
         await addMixin(record)
-        closeMapEditor()
-        closeLibraryEditor()
-        openExistingMixin(record)
-        navigate({ kind: 'studio', entity: { kind: 'mixins', id: record.id } })
+        requestBufferReplacement(() => {
+          closeMapEditor()
+          closeLibraryEditor()
+          openExistingMixin(record)
+          navigate({ kind: 'studio', entity: { kind: 'mixins', id: record.id } })
+        })
       },
     }))
   }
@@ -773,10 +781,12 @@ export function PatternList({
       entityName: library.name,
       run: async () => {
         await addLibrary(library)
-        closeMapEditor()
-        closeMixinEditor()
-        openExistingLibrary(library)
-        navigate({ kind: 'studio', entity: { kind: 'libraries', id: library.id } })
+        requestBufferReplacement(() => {
+          closeMapEditor()
+          closeMixinEditor()
+          openExistingLibrary(library)
+          navigate({ kind: 'studio', entity: { kind: 'libraries', id: library.id } })
+        })
       },
     }))
   }
