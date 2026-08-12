@@ -593,13 +593,26 @@
   }
 }
 
-@container (max-width: 640px) {
+/* The Show title is the durable identity in this row. Quiet output metadata
+   leaves first; action copy then folds behind the controls' existing icons,
+   accessible names, and tooltips before the title has to truncate. */
+@container (max-width: 980px) {
+  .show-output-summary {
+    display: none;
+  }
+}
+
+@container (max-width: 900px) {
   .show-pane-header {
     display: flex;
     height: calc(1.75rem + 1px);
     min-height: calc(1.75rem + 1px);
     align-items: center;
     padding-block: 0;
+  }
+
+  .show-header-identity {
+    min-width: min(9rem, 55%);
   }
 
   .show-header-title {
@@ -612,7 +625,7 @@
   }
 
   .show-header-actions {
-    flex: 1 1 0%;
+    flex: 0 1 auto;
     gap: 4px;
   }
 
@@ -623,7 +636,6 @@
 }
 
 @container (max-width: 520px) {
-  .show-output-summary,
   .show-deployment-action-label {
     display: none;
   }

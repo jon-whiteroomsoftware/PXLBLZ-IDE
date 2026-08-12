@@ -416,6 +416,129 @@ test.describe('authenticated Show authoring', () => {
     await expect(addLabel).toHaveCSS('display', 'block')
   })
 
+  test('Show header preserves its title before compacting lower-priority controls (#836)', async ({ page }) => {
+    await page.setViewportSize({ width: 1900, height: 900 })
+    await page.goto(showtimePath('studio/shows/stock-show-301-installation-mapping'))
+
+    const header = page.locator('.show-pane-header')
+    const previewSplitter = page.getByRole('separator', { name: 'Resize preview pane' })
+    const outputSummary = page.getByTitle('Show output summary')
+    const guide = page.getByRole('button', { name: 'Collapse 301 Installation Mapping guide' })
+    const compactableActions = [
+      guide,
+      page.getByRole('button', { name: 'Reset built-in Show' }),
+      page.getByRole('button', { name: 'Save a copy' }),
+      page.getByRole('button', { name: 'Show properties' }),
+      page.getByRole('button', { name: 'View code' }),
+      page.getByRole('button', { name: 'Export Show as .epe' }),
+    ]
+
+    await expect(outputSummary).toBeVisible()
+    for (const action of compactableActions) {
+      await expect(action).toBeVisible()
+      await expect.poll(async () => (await action.innerText()).trim()).not.toBe('')
+    }
+
+    // Constrain the authoring pane itself: viewport width is not the responsive
+    // boundary because the rail and Stage have independently resizable widths.
+    // Quiet output metadata leaves before any action loses its label.
+    for (let step = 0; step < 20; step += 1) {
+      if (await header.evaluate((element) => element.clientWidth <= 950)) break
+      await previewSplitter.press('Shift+ArrowLeft')
+    }
+    const metadataCompactWidth = await header.evaluate((element) => element.clientWidth)
+    expect(metadataCompactWidth).toBeGreaterThan(900)
+    expect(metadataCompactWidth).toBeLessThanOrEqual(950)
+    await expect(outputSummary).toBeHidden()
+    for (const action of compactableActions) {
+      await expect.poll(async () => (await action.innerText()).trim()).not.toBe('')
+    }
+
+    // Action copy then folds behind the controls' accessible icon buttons while
+    // the Show title retains useful room.
+    for (let step = 0; step < 20; step += 1) {
+      if (await header.evaluate((element) => element.clientWidth <= 700)) break
+      await previewSplitter.press('Shift+ArrowLeft')
+    }
+    const constrainedWidth = await header.evaluate((element) => element.clientWidth)
+    expect(constrainedWidth).toBeGreaterThan(640)
+    expect(constrainedWidth).toBeLessThanOrEqual(700)
+
+    await expect(outputSummary).toBeHidden()
+    for (const action of compactableActions) {
+      await expect(action).toBeVisible()
+      await expect.poll(async () => (await action.innerText()).trim()).toBe('')
+    }
+
+    const constrainedGeometry = await header.evaluate((element) => {
+      const title = element.querySelector<HTMLElement>('.show-header-title')
+      const actions = element.querySelector<HTMLElement>('.show-header-actions')
+      const buttons = Array.from(element.querySelectorAll<HTMLElement>('button'))
+        .filter((button) => getComputedStyle(button).display !== 'none')
+        .map((button) => button.getBoundingClientRect())
+      const buttonOverlaps = buttons.flatMap((first, firstIndex) => (
+        buttons.slice(firstIndex + 1).filter((second) => (
+          first.right > second.left && second.right > first.left
+          && first.bottom > second.top && second.bottom > first.top
+        )).map(() => firstIndex)
+      ))
+      const titleBounds = title?.getBoundingClientRect()
+      const actionsBounds = actions?.getBoundingClientRect()
+      return {
+        horizontalOverflow: element.scrollWidth - element.clientWidth,
+        titleWidth: titleBounds?.width ?? 0,
+        titleActionsGap: titleBounds && actionsBounds ? actionsBounds.left - titleBounds.right : -1,
+        buttonOverlaps,
+      }
+    })
+    expect(constrainedGeometry.horizontalOverflow).toBeLessThanOrEqual(1)
+    expect(constrainedGeometry.titleWidth).toBeGreaterThan(160)
+    expect(constrainedGeometry.titleActionsGap).toBeGreaterThanOrEqual(0)
+    expect(constrainedGeometry.buttonOverlaps).toEqual([])
+
+    for (let step = 0; step < 20; step += 1) {
+      if (await header.evaluate((element) => element.clientWidth >= 1050)) break
+      await previewSplitter.press('Shift+ArrowRight')
+    }
+    await expect(outputSummary).toBeVisible()
+    for (const action of compactableActions) {
+      await expect.poll(async () => (await action.innerText()).trim()).not.toBe('')
+    }
+  })
+
+  test('Show header keeps its title and icon actions reachable at phone width (#836)', async ({ page }) => {
+    await page.setViewportSize({ width: 390, height: 800 })
+    await page.goto(showtimePath('studio/shows/stock-show-301-installation-mapping'))
+
+    const header = page.locator('.show-pane-header')
+    const geometry = await header.evaluate((element) => {
+      const title = element.querySelector<HTMLElement>('.show-header-title')
+      const actions = element.querySelector<HTMLElement>('.show-header-actions')
+      const guide = element.querySelector<HTMLElement>('.show-note-trigger')
+      const titleBounds = title?.getBoundingClientRect()
+      const guideBounds = guide?.getBoundingClientRect()
+      const actionsBounds = actions?.getBoundingClientRect()
+      return {
+        horizontalOverflow: element.scrollWidth - element.clientWidth,
+        titleWidth: titleBounds?.width ?? 0,
+        titleActionsGap: titleBounds && actionsBounds ? actionsBounds.left - titleBounds.right : -1,
+        guideActionsGap: guideBounds && actionsBounds ? actionsBounds.left - guideBounds.right : -1,
+        actionsClientWidth: actions?.clientWidth ?? 0,
+        actionsScrollWidth: actions?.scrollWidth ?? 0,
+      }
+    })
+
+    expect(geometry.horizontalOverflow).toBeLessThanOrEqual(1)
+    expect(geometry.titleWidth).toBeGreaterThan(100)
+    expect(geometry.titleActionsGap).toBeGreaterThanOrEqual(0)
+    expect(geometry.guideActionsGap).toBeGreaterThanOrEqual(0)
+    expect(geometry.actionsClientWidth).toBeGreaterThan(0)
+    expect(geometry.actionsScrollWidth).toBeGreaterThan(geometry.actionsClientWidth)
+
+    await page.getByRole('button', { name: 'Show properties' }).click()
+    await expect(page.getByRole('dialog', { name: 'Entity Detail Panel' })).toBeVisible()
+  })
+
   test('toolbar groups stay separated and contained when space runs out', async ({ page }) => {
     await page.setViewportSize({ width: 600, height: 900 })
     await page.goto(showtimePath('studio/shows'))

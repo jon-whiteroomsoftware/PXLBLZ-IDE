@@ -586,7 +586,7 @@ function ShowNoteTrigger({ note, open, onToggle }: {
       onClick={onToggle}
     >
       <BookOpen size={11} aria-hidden />
-      {note.number ? 'Lesson' : 'Guide'}
+      <span className="show-header-action-label">{note.number ? 'Lesson' : 'Guide'}</span>
     </button>
   )
 }
