@@ -131,18 +131,9 @@ export function ColorField({
         className={`${hideLabel ? '' : 'mt-1'} ${fieldHeight} flex min-w-0 overflow-hidden rounded border border-zinc-700 ${fieldBackground} focus-within:border-cyan-400/60 disabled:opacity-60`}
         onBlur={(event) => {
           if (event.currentTarget.contains(event.relatedTarget as Node | null)) return
-          // A picker-previewed selection commits on blur: the native picker
-          // panel is not inside this element, so an outside click used to
-          // revert the user's chosen color (#827). Typed hex drafts keep the
-          // #751 cancel-on-blur contract, and Escape still cancels both.
-          if (pickerPreviewActiveRef.current) {
-            const parsed = parseColorValue(draft)
-            if (parsed && parsed !== committedValueRef.current) {
-              commitExact(parsed)
-              endPickerPreview()
-              return
-            }
-          }
+          // The picker input's own blur handler owns the #827 commit (it
+          // runs first); by the time this bubbling handler fires, a
+          // committed draft is already clean and this revert is a no-op.
           revert(true)
         }}
       >
@@ -165,7 +156,20 @@ export function ColorField({
           }}
           onInput={previewPicker}
           onBlur={() => {
-            if (!pickerCommittedRef.current && draft !== canonicalValue) revert(true)
+            if (pickerCommittedRef.current) return
+            // Commit a picker-previewed selection: the native panel sits
+            // outside this element, so focus loss used to discard the chosen
+            // color (#827). This input handler runs before the container's
+            // bubbling blur, so the decision must live here.
+            if (pickerPreviewActiveRef.current) {
+              const parsed = parseColorValue(draft)
+              if (parsed && parsed !== committedValueRef.current) {
+                commitExact(parsed)
+                endPickerPreview()
+                return
+              }
+            }
+            if (draft !== canonicalValue) revert(true)
           }}
           onKeyDown={onPickerKeyDown}
           className="-ml-8 w-8 shrink-0 cursor-pointer opacity-0 disabled:cursor-default"

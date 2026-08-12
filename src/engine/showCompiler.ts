@@ -7996,7 +7996,9 @@ function emitSceneControlTargets(member: CompiledMember, targets: Record<string,
 
 function emitSceneEffectTargets(member: CompiledMember, effects: ShowClipEffect[] | undefined): string {
   if (!effects || !member.animatedEffects || member.staticPlanEffects) return ''
-  const authored = normalizeShowClipEffects(effects)
+  // Callers pass resolved template lists that may carry the compiler's
+  // key-identity sentinel; vouch for its provenance here (#821).
+  const authored = normalizeShowClipEffects(effects, { preserveKeyIdentitySentinel: true })
   // Every union template must be assigned every scene: parameter variables
   // are shared across scenes, so a skipped assignment leaks the declaration
   // value on the first pass and the previous scene's value after the Show

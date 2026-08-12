@@ -117,9 +117,9 @@ describe('ColorField picker commit on blur (#827)', () => {
     const picker = document.querySelector('input[type="color"]') as HTMLInputElement
     // The native panel drives `input` events while the user picks.
     fireEvent.input(picker, { target: { value: '#ff8800' } })
-    // Clicking outside the field blurs the container with no related target
-    // inside it; the previewed selection must commit, not revert.
-    fireEvent.blur(picker.closest('span[class*="flex"]') ?? picker)
+    // Clicking outside blurs the picker input FIRST (before the container's
+    // bubbling handler); the previewed selection must commit, not revert.
+    fireEvent.blur(picker)
     expect(onChange).toHaveBeenCalledWith('#ff8800')
   })
 })

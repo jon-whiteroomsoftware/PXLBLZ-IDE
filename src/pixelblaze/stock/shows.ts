@@ -2863,7 +2863,7 @@ function compositingKeyShowcase(): StockShow {
   return catalogue({
     id, title: 'Compositing and Key Effects', track: 'portable', collection: 'showcases', level: null, order: 4,
     purpose: "Opacity, Luma Key, Chroma Key, and Vignette decide which of a Clip's pixels reach the mix, so they only mean something over a lower Layer. A warm bed runs underneath the whole reference; every pixel these Effects remove shows the bed instead.",
-    notice: "Each Effect rides the subject that shows it best: grayscale Luma Rings for the opacity pair and Luma Key - the matte is the image - DoomFire for Chroma Key, and luma-keyed marching waves under the closing Vignette. The ender animates the waves' own Angle a full turn under a held key: Luma controls are ordinary animatable properties.",
+    notice: "Each Effect rides the subject that shows it best: grayscale Luma Rings for the opacity pair and Luma Key - the matte is the image - DoomFire for Chroma Key, and luma-keyed marching waves under the closing Vignette. The ender animates the waves' own Angle, Width, and Spacing under a held key: Luma controls are ordinary animatable properties.",
     prompts: ['Raise the Luma Key tolerance until only the brightest ring cores survive.', 'Point the Chroma Key at the fire\u2019s yellow instead and watch the cores vanish.'],
     guideHeading: 'compositing-and-key-effects',
     defaultOpen: true,
@@ -2872,7 +2872,7 @@ function compositingKeyShowcase(): StockShow {
     transitions: cutBoundaries(scenes),
     composition,
     reference: {
-      summary: 'A constant warm bed under keyed subjects; each Effect decides which subject pixels reach the mix, ending in a three-layer stack.',
+      summary: 'A constant warm bed under keyed subjects; each Effect decides which subject pixels reach the mix, ending with the waves\u2019 own controls animating under a held key.',
       patternSlots: { cellIds: scenes.map((item) => cellId(item.id, 'zone-1')), instanceIds: ['composite-rings', 'composite-fire', 'composite-waves'] },
       examples: scenes.map((item, index) => ({
         id: `composite-${index + 1}`,

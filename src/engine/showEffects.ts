@@ -22,7 +22,10 @@ export type ShowRgb = [number, number, number]
 
 const IDENTITY: ShowAffineMatrix = { a: 1, b: 0, c: 0, d: 1, tx: 0, ty: 0 }
 
-export function normalizeShowClipEffects(effects: readonly ShowClipEffect[] | null | undefined): ShowClipEffect[] {
+export function normalizeShowClipEffects(
+  effects: readonly ShowClipEffect[] | null | undefined,
+  options?: { preserveKeyIdentitySentinel?: boolean },
+): ShowClipEffect[] {
   const ids = new Set<string>()
   return (effects ?? []).flatMap((effect, index): ShowClipEffect[] => {
     if (!effect || typeof effect !== 'object') return []
@@ -41,21 +44,34 @@ export function normalizeShowClipEffects(effects: readonly ShowClipEffect[] | nu
       id, kind: 'threshold' as const,
       threshold: clamp(effect.threshold, 0, 1, 0.5), amount: clamp(effect.amount, 0, 1, 0),
     }]
-    // The compiler's key-identity sentinel (tolerance -1: this key removes
-    // nothing, #820/#821) must survive normalization so every downstream
-    // emission and evaluation path sees it; authored values stay in [0, 1].
-    if (effect.kind === 'luma-key') return [{
-      id, kind: 'luma-key' as const,
-      target: clamp(effect.target, 0, 1, 0),
-      tolerance: effect.tolerance <= -1 ? -1 : clamp(effect.tolerance, 0, 1, 0.05),
-      softness: effect.tolerance <= -1 ? 0 : clamp(effect.softness, 0, 1, 0.05),
-    }]
-    if (effect.kind === 'chroma-key') return [{
-      id, kind: 'chroma-key' as const,
-      color: typeof effect.color === 'string' ? normalizeShowTransitionColor(effect.color) : '#00ff00',
-      tolerance: effect.tolerance <= -1 ? -1 : clamp(effect.tolerance, 0, 1, 0.05),
-      softness: effect.tolerance <= -1 ? 0 : clamp(effect.softness, 0, 1, 0.05),
-    }]
+    // The compiler's key-identity sentinel (exactly tolerance -1, softness
+    // 0: this key removes nothing, #820/#821) survives normalization ONLY
+    // when the caller vouches for compiler provenance. Authored and
+    // imported values always clamp to the documented [0, 1], so malformed
+    // data can never silently disable a key.
+    const keyIdentity = (candidate: { tolerance: number; softness: number }) => (
+      Boolean(options?.preserveKeyIdentitySentinel)
+      && candidate.tolerance === -1
+      && candidate.softness === 0
+    )
+    if (effect.kind === 'luma-key') {
+      const identity = keyIdentity(effect)
+      return [{
+        id, kind: 'luma-key' as const,
+        target: clamp(effect.target, 0, 1, 0),
+        tolerance: identity ? -1 : clamp(effect.tolerance, 0, 1, 0.05),
+        softness: identity ? 0 : clamp(effect.softness, 0, 1, 0.05),
+      }]
+    }
+    if (effect.kind === 'chroma-key') {
+      const identity = keyIdentity(effect)
+      return [{
+        id, kind: 'chroma-key' as const,
+        color: typeof effect.color === 'string' ? normalizeShowTransitionColor(effect.color) : '#00ff00',
+        tolerance: identity ? -1 : clamp(effect.tolerance, 0, 1, 0.05),
+        softness: identity ? 0 : clamp(effect.softness, 0, 1, 0.05),
+      }]
+    }
     if (effect.kind === 'posterize') return [{
       id, kind: 'posterize' as const,
       levels: Math.round(clamp(effect.levels, 2, 32, 8)), amount: clamp(effect.amount, 0, 1, 0),
