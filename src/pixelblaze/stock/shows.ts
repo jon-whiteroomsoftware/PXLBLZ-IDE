@@ -107,6 +107,8 @@ type CatalogueInput = {
   guideHeading: string
   guideDocumentId?: StockShowNote['guide']['documentId']
   guideLabel?: string
+  /** Note rail label; defaults to `Learn <level>` or `Showcases`. */
+  noteLabel?: string
   defaultOpen?: boolean
   zonesOpenByDefault?: boolean
   // Ordered Try with Pattern slot groups (timeline order): each inner array
@@ -155,6 +157,7 @@ export const STOCK_SHOWS: StockShow[] = [
   zoneLayoutShowcase('splits'), zoneLayoutShowcase('bands'), zoneLayoutShowcase('radial'),
   redlineInstallation(),
   remixCoronalMassEjection(),
+  quadrilleRemix(),
 ]
 
 export function stockShowById(id: string | null | undefined): StockShow | undefined {
@@ -3224,6 +3227,298 @@ function remixCoronalMassEjection(): StockShow {
   }
 }
 
+// Quadrille (#832): a slow four-quarter build for two held instances. Wavy
+// Bands is the substrate voice; Line Dancer 2D is held inside its full-field
+// bloom by choreography alone. The dancer's look rides an internal swell,
+// zoom = wave(time(0.075)) - one full cycle every 4.9152 s of member time.
+// The musical clock is 75 BPM: bar 3.2 s, scene phrase 6.4 s (two bars; Jon
+// halved the original four-bar phrase to move the build twice as fast while
+// leaving every pattern clock untouched). At the shared EDGE rate the
+// dancer covers exactly HALF a swell per phrase, so phrases alternate
+// bloom-entry and lace-entry - an A/B pair - and the shaped clock holds the
+// full bloom on the dancer's entrance phrase.
+//
+// The four quarters are Viewport frames in ONE Zone, not routed Zones: a
+// quarter-frame Viewport plus a half-scale Transform squeezes the full
+// pattern into its quarter. Routing switches price every (Layout, routed
+// Zone) slot across all unrolled scenes - the routed draft compiled to
+// 170 KB against the 68 KB activation ceiling. Unrolled emission also prices
+// every placement arm and every track expression, so the show spends its
+// placements deliberately: the mirrored mandala is four arms only while it
+// IS the beat, and from the lace onward the ground is one full-frame
+// placement. Pose algebra (probed, exact): mirror and rotation compose
+// upstream of position, so the NE reflection is mirror + the NW position,
+// and the two south reflections take rotation 0.5 + the SE position.
+//
+// The lace key is a chroma key on black, not a luma key: the dancer's
+// saturated blues sit near zero Rec.709 luma even when fully lit, and only
+// RGB distance from black separates lit color from true gaps.
+function quadrilleRemix(): StockShow {
+  const id = 'stock-show-remix-quadrille'
+  const zones = logicalZones(['Stage'], PORTABLE_REFERENCE_PIXELS)
+  const layouts = [singleLayout(zones)]
+  const PHRASE = 6.4
+  // Phrase-fraction seconds are binary-inexact; keyframes must land on whole ms.
+  const kf = (id: string, seconds: number, value: number, easing: ShowStructuredEasing = SINE_IN_OUT) => (
+    { id, timeMs: Math.round(seconds * 1_000), value, easing }
+  )
+  const DWELL = 0.16
+  // Half a swell per phrase at a constant rate; every clock's boundary value.
+  const EDGE = 0.384
+  // Solves 4.4(EDGE+DWELL)/2 + 0.3(DWELL+T) + 0.3(T+EDGE) + 0.8xEDGE
+  // = 2.4576 for the shaped clock's whip peak: a long decelerating glide
+  // into the bloom, one whip, and the shared edge tail.
+  const TURNAROUND = 1.3173
+  const LACE_KEY: ShowClipEffect = { id: 'lace-key', kind: 'chroma-key', color: '#000000', tolerance: 0.06, softness: 0.06 }
+  const HUE_TILT: ShowClipEffect = { id: 'hue-tilt', kind: 'hue', turns: 0.35 }
+  type Quadrant = 'nw' | 'ne' | 'sw' | 'se'
+  const FRAMES: Record<Quadrant, { x: number; y: number }> = {
+    nw: { x: 0, y: 0 }, ne: { x: 0.5, y: 0 }, sw: { x: 0, y: 0.5 }, se: { x: 0.5, y: 0.5 },
+  }
+  // The mandala poses: every quarter reflects its neighbours across the
+  // center seams, so four echoes of one live frame read as a folded image.
+  const POSES: Record<Quadrant, { mirror: boolean; rotation: number; positionX: number; positionY: number }> = {
+    nw: { mirror: false, rotation: 0, positionX: -0.25, positionY: -0.25 },
+    ne: { mirror: true, rotation: 0, positionX: -0.25, positionY: -0.25 },
+    sw: { mirror: true, rotation: 0.5, positionX: 0.25, positionY: 0.25 },
+    se: { mirror: false, rotation: 0.5, positionX: 0.25, positionY: 0.25 },
+  }
+  interface QuadrantOptions { rotationDelta?: number; effects?: ShowClipEffect[] }
+  const quadrant = (placementId: string, instanceId: string, q: Quadrant, options: QuadrantOptions = {}) => {
+    const pose = POSES[q]
+    return {
+      ...placement(placementId, instanceId, 0, PHRASE),
+      view: { mirror: pose.mirror, phase: 0, brightness: 1 },
+      transform: {
+        positionX: pose.positionX, positionY: pose.positionY,
+        rotation: pose.rotation + (options.rotationDelta ?? 0),
+        scaleX: 0.5, scaleY: 0.5,
+      },
+      viewport: { enabled: true, x: FRAMES[q].x, y: FRAMES[q].y, width: 0.5, height: 0.5, edge: 'hard' as const },
+      ...(options.effects ? { effects: options.effects } : {}),
+    }
+  }
+  const fullBands = (placementId: string, options: { rotation?: number; effects?: ShowClipEffect[] } = {}) => ({
+    ...placement(placementId, 'bands', 0, PHRASE),
+    ...(options.rotation ? { transform: { positionX: 0, positionY: 0, rotation: options.rotation, scaleX: 1, scaleY: 1 } } : {}),
+    ...(options.effects ? { effects: options.effects } : {}),
+  })
+  const layer = (placementEntry: ReturnType<typeof quadrant> | (ReturnType<typeof placement> & { effects?: ShowClipEffect[] })) => ({
+    id: `layer-${placementEntry.id}`, name: 'Quarter', placements: [{ ...placementEntry, opacity: 1 }],
+  })
+  // The dancer's shaped clock for its entrance: glide from the shared edge
+  // rate into the slow dwell that holds the bloom, whip through the swell's
+  // structured half, and return to the edge rate before the crossfade
+  // window. Every clock in the show meets its boundaries at EDGE, so
+  // whichever transition arm owns a fade, the dancer runs 0.384x through it
+  // and the per-phrase half-swell integral survives every boundary.
+  // Symmetric easings preserve the ramp integrals.
+  const dancerClock = (sceneId: string) => ({
+    id: `clock-${sceneId}`,
+    target: { kind: 'instance-time-scale' as const, instanceId: 'dancer' },
+    keyframes: [
+      kf(`clock-${sceneId}-a`, 0, EDGE, LINEAR),
+      kf(`clock-${sceneId}-b`, 4.4, DWELL, SINE_IN_OUT),
+      kf(`clock-${sceneId}-c`, 5, TURNAROUND, SINE_IN_OUT),
+      kf(`clock-${sceneId}-d`, 5.6, EDGE, LINEAR),
+    ],
+  })
+  // Laced scenes run the swell continuously at EDGE: the lace breathes
+  // through each phrase over the bands while phase closure stays exact.
+  // Unrolled emission restates instance tracks in every arm, so these
+  // two-keyframe holds also collapse what shaped ternary chains would cost.
+  const constantClock = (sceneId: string, holdSeconds: number) => ({
+    id: `clock-${sceneId}`,
+    target: { kind: 'instance-time-scale' as const, instanceId: 'dancer' },
+    keyframes: [
+      kf(`clock-${sceneId}-a`, 0, EDGE, LINEAR),
+      kf(`clock-${sceneId}-b`, holdSeconds, EDGE, LINEAR),
+    ],
+  })
+  const holdTrack = (trackId: string, exportName: string, value: number, endSeconds: number) => ({
+    id: trackId,
+    target: { kind: 'instance-control' as const, instanceId: 'dancer', exportName },
+    keyframes: [kf(`${trackId}-a`, 0, value, LINEAR), kf(`${trackId}-b`, endSeconds, value, LINEAR)],
+  })
+  const turnTrack = (trackId: string, placementId: string, startSeconds: number, from: number) => ({
+    id: trackId,
+    target: { kind: 'placement-transform' as const, placementId, property: 'rotation' as const },
+    keyframes: [
+      kf(`${trackId}-a`, startSeconds, from, LINEAR),
+      kf(`${trackId}-b`, startSeconds + 1.4, from + 0.25, LINEAR),
+    ],
+  })
+  const quadrilleSceneIds = ['first-light', 'four-mirrors', 'the-dancer-enters', 'lace-and-turns', 'all-four-dance', 'rejoined'] as const
+  const quadrilleSceneNames = ['First light', 'Four mirrors', 'The dancer enters', 'Lace and turns', 'All four dance', 'Rejoined']
+  const featured = ['WavyBands', 'WavyBands', 'LineDancer2D', 'LineDancer2D', 'LineDancer2D', 'LineDancer2D']
+  // Crossfades EXTEND the compiled timeline: a scene holds its full duration
+  // and the fade is appended after it. Scenes that fade out therefore hold
+  // 5.6 s so hold + fade lands each boundary exactly on the 6.4 s phrase
+  // grid. Lace and turns and All four dance are double phrases; the finale
+  // holds one full phrase and ends the loop on its shimmer.
+  const HOLDS = [PHRASE, 5.6, 5.6, 12, 12, PHRASE]
+  const quadrilleScenes: SceneSpec[] = quadrilleSceneIds.map((sceneId, index) => scene(
+    sceneId, quadrilleSceneNames[index], HOLDS[index],
+    [clip('zone-1', featured[index], featured[index] === 'WavyBands' ? 0.6 : DWELL)],
+  ))
+  const composition: ShowCompositionV1 = {
+    version: 1,
+    patternInstances: [
+      instance('bands', 'WavyBands', 0.6),
+      {
+        ...instance('dancer', 'LineDancer2D', EDGE, { sliderSpeed: 1, sliderTwist: 0.66, sliderReflections: 0 }),
+        // wave() rises from zero, so the bloom (zoom near 0) sits at member
+        // time 0 mod the 4.9152 s swell. The seek centers the entrance
+        // phrase's dwell on the swell's zero, less the measured member time
+        // the entrance fade advances the clock before the scene's local
+        // zero. Calibrated against the rendered bloom window (#832).
+        time: { timeScale: EDGE, timeOffsetMs: 3_752 },
+      },
+    ],
+    scenes: [
+      {
+        sceneId: quadrilleSceneIds[0],
+        zones: [{ zoneId: 'zone-1', overlays: [], main: [fullBands(`bands-${quadrilleSceneIds[0]}`)] }],
+      },
+      {
+        sceneId: quadrilleSceneIds[1],
+        zones: [{
+          zoneId: 'zone-1',
+          overlays: (['ne', 'sw', 'se'] as const).map((q) => layer(quadrant(`bands-${quadrilleSceneIds[1]}-${q}`, 'bands', q))),
+          main: [quadrant(`bands-${quadrilleSceneIds[1]}-nw`, 'bands', 'nw')],
+        }],
+      },
+      {
+        sceneId: quadrilleSceneIds[2],
+        propertyTracks: [dancerClock(quadrilleSceneIds[2])],
+        zones: [{
+          zoneId: 'zone-1',
+          overlays: [
+            layer(quadrant(`dancer-${quadrilleSceneIds[2]}-ne`, 'dancer', 'ne')),
+            layer(quadrant(`dancer-${quadrilleSceneIds[2]}-sw`, 'dancer', 'sw')),
+            layer(quadrant(`bands-${quadrilleSceneIds[2]}-se`, 'bands', 'se')),
+          ],
+          main: [quadrant(`bands-${quadrilleSceneIds[2]}-nw`, 'bands', 'nw')],
+        }],
+      },
+      {
+        // Double phrase. First: the dancers put on their lace and the
+        // mirrored ground unfolds into one continuous field. Second: a wave
+        // of turns - the whole ground wheels a slow quarter while each lace
+        // quarter takes its own.
+        sceneId: quadrilleSceneIds[3],
+        propertyTracks: [
+          constantClock(quadrilleSceneIds[3], 12),
+          {
+            id: 'turn-ground',
+            target: { kind: 'placement-transform' as const, placementId: `bands-${quadrilleSceneIds[3]}`, property: 'rotation' as const },
+            keyframes: [kf('turn-ground-a', 6.4, 0, LINEAR), kf('turn-ground-b', 12, 0.25, LINEAR)],
+          },
+          turnTrack('turn-ne', `lace-${quadrilleSceneIds[3]}-ne`, 8, 0),
+          turnTrack('turn-sw', `lace-${quadrilleSceneIds[3]}-sw`, 9.6, 0.5),
+        ],
+        zones: [{
+          zoneId: 'zone-1',
+          overlays: [
+            layer(quadrant(`lace-${quadrilleSceneIds[3]}-ne`, 'dancer', 'ne', { effects: [LACE_KEY] })),
+            layer(quadrant(`lace-${quadrilleSceneIds[3]}-sw`, 'dancer', 'sw', { effects: [LACE_KEY] })),
+          ],
+          main: [fullBands(`bands-${quadrilleSceneIds[3]}`)],
+        }],
+      },
+      {
+        // Double phrase. The four quarters all wear lace now; the dancer's
+        // reflections climb a fold per bar through the first phrase,
+        // snapping on the bar line, and the five-fold dance holds through
+        // the second. The twist deepens smoothly underneath.
+        sceneId: quadrilleSceneIds[4],
+        propertyTracks: [
+          constantClock(quadrilleSceneIds[4], 12),
+          {
+            id: 'reflection-steps',
+            target: { kind: 'instance-control' as const, instanceId: 'dancer', exportName: 'sliderReflections' },
+            keyframes: [
+              kf('refl-a', 0, 0, LINEAR), kf('refl-b', 3.15, 0, LINEAR),
+              kf('refl-c', 3.2, 0.35, LINEAR), kf('refl-d', 6.35, 0.35, LINEAR),
+              kf('refl-e', 6.4, 0.7, LINEAR),
+            ],
+          },
+          {
+            id: 'twist-deepen',
+            target: { kind: 'instance-control' as const, instanceId: 'dancer', exportName: 'sliderTwist' },
+            keyframes: [kf('twist-a', 0, 0.66, LINEAR), kf('twist-b', 5.6, 0.85, LINEAR)],
+          },
+        ],
+        zones: [{
+          zoneId: 'zone-1',
+          overlays: [
+            layer(quadrant(`lace-${quadrilleSceneIds[4]}-nw`, 'dancer', 'nw', { rotationDelta: 0.25, effects: [LACE_KEY] })),
+            layer(quadrant(`lace-${quadrilleSceneIds[4]}-ne`, 'dancer', 'ne', { rotationDelta: 0.25, effects: [LACE_KEY] })),
+            layer(quadrant(`lace-${quadrilleSceneIds[4]}-sw`, 'dancer', 'sw', { rotationDelta: 0.25, effects: [LACE_KEY] })),
+            layer(quadrant(`lace-${quadrilleSceneIds[4]}-se`, 'dancer', 'se', { rotationDelta: 0.25, effects: [LACE_KEY] })),
+          ],
+          main: [fullBands(`bands-${quadrilleSceneIds[4]}`, { rotation: 0.25, effects: [HUE_TILT] })],
+        }],
+      },
+      {
+        // The quarters rejoin: one full-surface laced bloom over the turned
+        // ground, ending the loop on the shimmer.
+        sceneId: quadrilleSceneIds[5],
+        propertyTracks: [
+          constantClock(quadrilleSceneIds[5], PHRASE),
+          holdTrack('reflection-final', 'sliderReflections', 0.7, PHRASE),
+          holdTrack('twist-final', 'sliderTwist', 0.85, PHRASE),
+        ],
+        zones: [{
+          zoneId: 'zone-1',
+          overlays: [layer({ ...placement(`lace-${quadrilleSceneIds[5]}`, 'dancer', 0, PHRASE), effects: [LACE_KEY] })],
+          main: [fullBands(`bands-${quadrilleSceneIds[5]}`, { rotation: 0.25 })],
+        }],
+      },
+    ],
+    durationMs: 8 * PHRASE * 1_000,
+  }
+  // Placements span exactly their scene's hold; the appended fades render
+  // from the segment machinery, not from placement windows.
+  composition.scenes.forEach((sceneEntry, index) => {
+    const holdMs = Math.round(HOLDS[index] * 1_000)
+    for (const zoneEntry of sceneEntry.zones) {
+      for (const main of zoneEntry.main) main.durationMs = holdMs
+      for (const layerEntry of zoneEntry.overlays) {
+        for (const overlay of layerEntry.placements) overlay.durationMs = holdMs
+      }
+    }
+  })
+  // The first fold lands ON the beat: solo to mirrors is an atomic cut of
+  // the same live frame, so nothing visually jumps but the geometry. Later
+  // boundaries fade, and each fade-out scene holds 5.6 s; the folding cut
+  // means First light holds the full phrase.
+  const transitions: ShowBoundaryTransition[] = quadrilleSceneIds.slice(0, -1).map((sceneId, index) => (
+    index === 0 ? boundary(sceneId, 'cut', 0, LINEAR) : boundary(sceneId, 'crossfade', 800, SINE_IN_OUT)
+  ))
+  return catalogue({
+    id, title: 'Quadrille', track: 'portable', collection: 'remixes', level: null, order: 2,
+    noteLabel: 'Remixes',
+    purpose: 'Two Patterns, four quarters, eight phrases at 75 BPM. ZRanger1\'s Wavy Bands is the substrate; '
+      + 'Line Dancer 2D rides one internal swell, held in its full-field bloom for its entrance and breathing '
+      + 'in and out of its lace thereafter. The stage folds into mirrored quarters, the dancers claim theirs, '
+      + 'put on lace, turn, and the quarters finally rejoin - every one an echo of the same two live instances.',
+    notice: 'Line Dancer\'s changing looks ride one internal swell. A shaped time track holds its entrance '
+      + 'inside the bloom, and every phrase advances the swell by exactly half a cycle, so the phrases pair '
+      + 'A/B - bloom-led, then lace-led - all the way to the loop. The loop is choreography, not an edit to '
+      + 'the Pattern. Never more than two Pattern instances play: each quarter is a Viewport-framed placement '
+      + 'of one of them, and the lace is a chroma key on black over the bands beneath.',
+    prompts: [
+      'Scrub toward any phrase boundary: the lace shimmer is the dancer\'s own filigree, and each fade crosses it at the shared edge rate.',
+      'Open the artifact inventory: two Patterns, one machine each, serve every quarter on the stage.',
+    ],
+    guideHeading: 'property-animation',
+    guideLabel: 'Read property animation',
+    defaultOpen: true,
+    output: portableOutput(), zones, layouts, scenes: quadrilleScenes, transitions, composition,
+  })
+}
+
 function catalogue(input: CatalogueInput): StockShow {
   const name = input.level ? `${input.level + input.order} ${input.title}` : input.title
   const transitions = input.transitions ?? []
@@ -3262,7 +3557,7 @@ function catalogue(input: CatalogueInput): StockShow {
     : input.patternSlots?.map((instanceIds) => ({ cellIds: [], instanceIds }))
   const number = input.level ? String(input.level + input.order) : undefined
   const note: StockShowNote = {
-    label: input.level ? `Learn ${input.level}` : 'Showcases',
+    label: input.noteLabel ?? (input.level ? `Learn ${input.level}` : 'Showcases'),
     ...(number ? { number } : {}), title: input.title, purpose: input.purpose, notice: input.notice,
     prompts: input.prompts,
     guide: {

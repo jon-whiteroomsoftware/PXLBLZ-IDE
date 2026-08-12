@@ -582,8 +582,11 @@ The Shows rail ships learning material beneath your personal Shows. **Learn**
 holds numbered lessons that add one idea at a time. **Showcases** holds
 reference catalogues for Effects, Transitions, Property animation, and easing,
 plus finished scores such as the 2,000-pixel, five-surface **Redline
-Installation**. **Remixes** holds finished pieces over community Patterns,
-currently the Coronal Mass Ejection PXLBLZ remix over ZRanger1's Pattern.
+Installation**. **Remixes** holds finished pieces over community Patterns:
+the Coronal Mass Ejection PXLBLZ remix over ZRanger1's Pattern, and
+Quadrille, a four-quarter build that holds ZRanger1's Line Dancer 2D inside
+its full-field bloom by choreography alone and keys its lace on black over
+Wavy Bands.
 
 Built-ins use the complete production editor. The first change creates a
 session-only draft with normal undo; **Reset** or reload restores the shipped

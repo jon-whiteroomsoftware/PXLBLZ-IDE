@@ -30,7 +30,7 @@ import { STOCK_SHOWS, stockShowById } from './shows'
 
 describe('stock Show curriculum (#363)', () => {
   it('ships the stable Learn 100, Learn 200, Learn 300, and showcase catalogue', () => {
-    expect(STOCK_SHOWS).toHaveLength(38)
+    expect(STOCK_SHOWS).toHaveLength(39)
     expect(new Set(STOCK_SHOWS.map((item) => item.id)).size).toBe(STOCK_SHOWS.length)
     expect(STOCK_SHOWS.map((item) => [item.name, item.collection, item.level, item.order])).toEqual([
       ['100 Getting Around', 'learn', 100, 0],
@@ -71,6 +71,7 @@ describe('stock Show curriculum (#363)', () => {
       ['Zone Layouts: Radial', 'showcases', null, 19],
       ['Redline Installation', 'showcases', null, 20],
       ['Coronal Mass Ejection PXLBLZ remix', 'remixes', null, 1],
+      ['Quadrille', 'remixes', null, 2],
     ])
     expect(STOCK_SHOWS.every((item) => item.show.id === item.id)).toBe(true)
     expect(STOCK_SHOWS.every((item) => !/\bscenes?\b/i.test([

@@ -9,7 +9,7 @@ describe('Restart-instance global-liveness census (#536)', () => {
     // additions, again with the showcase repartition (fifteen recast
     // references replacing nine), and again with the Zone Layouts showcase
     // trio (#700), and again with the CME remix (#704).
-    expect(report.summary.savedShowCount).toBe(38)
+    expect(report.summary.savedShowCount).toBe(39)
     expect(report.cases.some((entry) => entry.kind === 'five-pattern-acceptance')).toBe(true)
     expect(report.summary.compileFailures).toEqual([])
   })
@@ -91,13 +91,16 @@ describe('Restart-instance global-liveness census (#536)', () => {
     // seven family members join as instances, plus a second Stripes
     // instance for the Sine Waves beat (+250 member globals, +16
     // reclaimable at this frozen vintage); the reclaim percent stays 0 and
-    // the stop verdict is unchanged.
+    // the stop verdict is unchanged. Recensused for the Quadrille remix
+    // (#832): its two held instances add +82 member globals with no new
+    // reclaimable set; the reclaim percent stays 0 and the stop verdict is
+    // unchanged.
     expect(report.summary).toMatchObject({
-      representativeMemberGlobals: 3_359,
+      representativeMemberGlobals: 3_441,
       representativeReclaimedGlobals: 206,
     })
     expect(report.decision.representativeReclaimPercent).toBe(0)
-    expect(report.decision.weightedRepresentativeReclaimPercent).toBeCloseTo(0.06132778, 8)
+    expect(report.decision.weightedRepresentativeReclaimPercent).toBeCloseTo(0.05986632, 8)
     expect(report.decision.ceilingRescues).toEqual([])
     expect(report.decision.proceedWithEmission).toBe(false)
     expect(report.decision.proceedWithEmission).toBe(
