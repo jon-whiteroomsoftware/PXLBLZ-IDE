@@ -201,6 +201,15 @@ export function showEffectOrderBaseInstanceId(clipId: string): string {
 }
 
 export function showEffectsAreIdentity(effects: readonly ShowClipEffect[] | undefined): boolean {
+  // The key-identity sentinel (tolerance -1, softness 0, #820) must be read
+  // before normalization clamps tolerance into [0, 1].
+  const identityKeyIds = new Set((effects ?? []).flatMap((effect) => (
+    (effect.kind === 'luma-key' || effect.kind === 'chroma-key')
+      && effect.tolerance <= -1
+      && effect.softness <= 0
+      ? [effect.id]
+      : []
+  )))
   const normalized = normalizeShowClipEffects(effects)
   const hasAffine = normalized.some((effect) => (
     (effect.kind === 'translate' && (effect.x !== 0 || effect.y !== 0))
@@ -217,8 +226,8 @@ export function showEffectsAreIdentity(effects: readonly ShowClipEffect[] | unde
     || (effect.kind === 'contrast' && effect.contrast !== 1)
     || (effect.kind === 'invert' && effect.amount !== 0)
     || (effect.kind === 'threshold' && effect.amount !== 0)
-    || (effect.kind === 'luma-key' && !(effect.tolerance <= -1 && effect.softness <= 0))
-    || (effect.kind === 'chroma-key' && !(effect.tolerance <= -1 && effect.softness <= 0))
+    || (effect.kind === 'luma-key' && !identityKeyIds.has(effect.id))
+    || (effect.kind === 'chroma-key' && !identityKeyIds.has(effect.id))
     || (effect.kind === 'posterize' && effect.amount !== 0)
     || (effect.kind === 'vignette' && effect.amount !== 0)
     || (effect.kind === 'color-map' && effect.amount !== 0)

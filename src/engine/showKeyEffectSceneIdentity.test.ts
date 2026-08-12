@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest'
 import { STOCK_SHOWS } from '../pixelblaze/stock/shows'
 import { createFastReplayRuntime } from './fastReplay'
 import { nativeDimension } from './loadPattern'
+import { showEffectsAreIdentity } from './showEffects'
 import { compileShowForArtifact } from './showPreviewArtifact'
 
 // #820: a member whose effect union includes luma/chroma keys must not be
@@ -73,5 +74,20 @@ describe('key effects stay scene-local in shared member stages (#820)', () => {
     // Reference, Luma Key, and Chroma Key into one identical dispatch block.
     const checksums = [reference, opacity, lumaKey, chromaKey, vignette].map((stats) => stats.checksum)
     expect(new Set(checksums).size).toBe(checksums.length)
+  })
+})
+
+describe('identity-valued keys classify as identity (#820)', () => {
+  it('recognizes the sentinel before normalization clamps it', () => {
+    expect(showEffectsAreIdentity([
+      { id: 'k1', kind: 'luma-key', target: 0, tolerance: -1, softness: 0 },
+      { id: 'k2', kind: 'chroma-key', color: '#22c55e', tolerance: -1, softness: 0 },
+    ])).toBe(true)
+    expect(showEffectsAreIdentity([
+      { id: 'k1', kind: 'luma-key', target: 0, tolerance: 0.32, softness: 0.18 },
+    ])).toBe(false)
+    expect(showEffectsAreIdentity([
+      { id: 'k2', kind: 'chroma-key', color: '#22c55e', tolerance: 0.3, softness: 0.2 },
+    ])).toBe(false)
   })
 })
