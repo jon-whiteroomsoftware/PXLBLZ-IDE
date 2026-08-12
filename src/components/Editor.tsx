@@ -54,11 +54,30 @@ export function Editor() {
   const handleChange = (value: string) => {
     setEditedSource(value)
     if (previewDebounceRef.current) clearTimeout(previewDebounceRef.current)
+    const scheduledPatternId = syncRef.current.activePatternId
+    const scheduledFlavor = syncRef.current.editorFlavor
     previewDebounceRef.current = setTimeout(() => {
-      const { compileStatus: status, activePatternId: pid } = syncRef.current
-      if (status === 'good' && pid) setPreviewSource(value)
+      const current = syncRef.current
+      // A debounce belongs to the exact Pattern edit that scheduled it. The
+      // editor stays mounted across Pattern switches, so an identity-free
+      // callback could otherwise publish A's source after B opened and clear
+      // B's broken/empty preview-unavailable state (#818 review).
+      if (
+        scheduledFlavor === 'pattern'
+        && current.editorFlavor === 'pattern'
+        && current.activePatternId === scheduledPatternId
+        && current.source === value
+        && current.compileStatus === 'good'
+        && current.activePatternId !== null
+      ) {
+        setPreviewSource(value)
+      }
     }, PREVIEW_DEBOUNCE_MS)
   }
+
+  useEffect(() => () => {
+    if (previewDebounceRef.current) clearTimeout(previewDebounceRef.current)
+  }, [])
 
   useEffect(() => {
     const editor = editorRef.current

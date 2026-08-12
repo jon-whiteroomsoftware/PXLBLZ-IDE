@@ -4,6 +4,7 @@ import { Editor } from './Editor'
 import { resetPersonalContentProvider, setPersonalContentProvider, type PersonalContentProvider } from '@/engine/personalContentProvider'
 import { editorInitialState, useEditorStore } from '@/store/editorStore'
 import { patternInitialState, usePatternStore } from '@/store/patternStore'
+import { openPatternRecord } from '@/store/openPattern'
 
 vi.mock('@/components/PixelblazeCodeEditor', () => ({
   PixelblazeCodeEditor: ({
@@ -127,6 +128,33 @@ describe('Pattern editor recovery', () => {
     expect(useEditorStore.getState()).toMatchObject({
       previewSource: REPAIRED,
       previewUnavailableReason: null,
+    })
+  })
+
+  it('never publishes Pattern A debounce source after empty Pattern B opens', async () => {
+    const updatePattern = vi.fn<PersonalContentProvider['updatePattern']>(async () => {})
+    setPersonalContentProvider(provider(updatePattern))
+    const emptyPattern = {
+      id: 'pattern-empty',
+      name: 'Empty Pattern',
+      src: '',
+      controls: {},
+      updatedAt: 2,
+    }
+    usePatternStore.setState((state) => ({
+      userPatterns: [...state.userPatterns, emptyPattern],
+    }))
+    render(<Editor />)
+
+    fireEvent.change(screen.getByRole('textbox', { name: 'Pattern source' }), { target: { value: REPAIRED } })
+    expect(useEditorStore.getState().compileStatus).toBe('good')
+    act(() => openPatternRecord(emptyPattern))
+
+    await act(async () => { vi.advanceTimersByTime(600) })
+    expect(useEditorStore.getState()).toMatchObject({
+      source: '',
+      previewSource: '',
+      previewUnavailableReason: 'empty-source',
     })
   })
 })

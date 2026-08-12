@@ -713,55 +713,63 @@ test.describe('silent save-failure feedback (#810)', () => {
     await expect(glyph).toHaveCount(0)
   })
 
-  test('broken Pattern source persists on navigation and reopens without stale pixels (#818)', async ({ page }) => {
-    const pattern = {
-      id: 'e2e-831-broken-navigation',
-      name: 'Broken navigation bench',
-      src: 'export function render(index) { hsv(index / pixelCount, 1, 1) }',
-      controls: {},
-      updatedAt: Date.now(),
-    }
-    const brokenSource = 'export function render(index) { var = 3 }'
-    const created = await page.context().request.post('/api/patterns', { data: pattern })
-    expect(created.ok(), `POST /api/patterns -> ${created.status()}`).toBe(true)
+  test.describe('Pattern departure persistence (#818)', () => {
+    // Monaco can reject an in-flight model request with this exact error when
+    // the Pattern editor unmounts. The navigation is the behavior under test.
+    test.use({ allowedBrowserErrors: [/^pageerror: Canceled$/] })
 
-    await page.goto(`studio/patterns/${pattern.id}`)
-    const editor = page.locator('.monaco-editor').first()
-    await expect(editor.locator('.view-lines')).toBeVisible()
+    test('broken Pattern source persists on navigation and reopens without stale pixels (#818)', async ({ page }) => {
+      const pattern = {
+        id: 'e2e-831-broken-navigation',
+        name: 'Broken navigation bench',
+        src: 'export function render(index) { hsv(index / pixelCount, 1, 1) }',
+        controls: {},
+        updatedAt: Date.now(),
+      }
+      const brokenSource = 'export function render(index) { var = 3 }'
+      const created = await page.context().request.post('/api/patterns', { data: pattern })
+      expect(created.ok(), `POST /api/patterns -> ${created.status()}`).toBe(true)
 
-    // Seed a same-document Forward target without unmounting Monaco: the
-    // button-driven Gallery path is covered below and in App tests, while this
-    // setup isolates popstate from Monaco's expected cancellation on remount.
-    await page.evaluate(() => {
-      const appBase = window.location.pathname.split('/studio/')[0]
-      window.history.pushState(null, '', `${appBase}/gallery`)
+      await page.goto(`studio/patterns/${pattern.id}`)
+      const editor = page.locator('.monaco-editor').first()
+      await expect(editor.locator('.view-lines')).toBeVisible()
+
+      // Seed a same-document Forward target without unmounting Monaco: the
+      // button-driven Gallery path is covered below and in App tests, while this
+      // setup isolates popstate from Monaco's expected cancellation on remount.
+      await page.evaluate(() => {
+        const appBase = window.location.pathname.split('/studio/')[0]
+        window.history.pushState(null, '', `${appBase}/gallery`)
+      })
+      await page.goBack()
+      await expect(page).toHaveURL(new RegExp(`/studio/patterns/${pattern.id}$`))
+      await expect(editor.locator('.view-lines')).toBeVisible()
+
+      await editor.locator('.view-lines').click({ clickCount: 3 })
+      await expect(editor).toHaveClass(/focused/)
+      await page.keyboard.type(brokenSource)
+      await expect(page.getByTestId('compile-status')).toHaveAttribute('data-status', 'broken')
+
+      const studioUrl = new RegExp(`/studio/patterns/${pattern.id}$`)
+      await page.goForward()
+
+      await expect(page).toHaveURL(/\/gallery$/)
+      await expect(page.getByRole('alertdialog', { name: 'Discard broken source?' })).toHaveCount(0)
+      await expect(page.getByTestId('gallery-page')).toBeVisible()
+      const patterns = await page.context().request.get('/api/patterns')
+      expect(patterns.ok(), `GET /api/patterns -> ${patterns.status()}`).toBe(true)
+      const body = await patterns.json() as { patterns?: Array<{ id: string; src: string }> }
+      expect(body.patterns?.find((item) => item.id === pattern.id)?.src).toBe(brokenSource)
+
+      // Opening the durable record again restores the exact authored text, but
+      // the prior Pattern's canvas is covered until this source becomes valid.
+      // Keep this same-document so Monaco's expected hard-reload cancellation
+      // does not obscure the product behavior under test.
+      await page.goBack()
+      await expect(page).toHaveURL(studioUrl)
+      await expect(editor.locator('.view-lines')).toContainText('var = 3')
+      await expect(page.getByTestId('preview-unavailable')).toContainText('Fix the source errors to restart it.')
     })
-    await page.goBack()
-    await expect(page).toHaveURL(new RegExp(`/studio/patterns/${pattern.id}$`))
-    await expect(editor.locator('.view-lines')).toBeVisible()
-
-    await editor.locator('.view-lines').click({ clickCount: 3 })
-    await expect(editor).toHaveClass(/focused/)
-    await page.keyboard.type(brokenSource)
-    await expect(page.getByTestId('compile-status')).toHaveAttribute('data-status', 'broken')
-
-    const studioUrl = new RegExp(`/studio/patterns/${pattern.id}$`)
-    await page.goForward()
-
-    await expect(page).toHaveURL(/\/gallery$/)
-    await expect(page.getByRole('alertdialog', { name: 'Discard broken source?' })).toHaveCount(0)
-    await expect(page.getByTestId('gallery-page')).toBeVisible()
-    const patterns = await page.context().request.get('/api/patterns')
-    expect(patterns.ok(), `GET /api/patterns -> ${patterns.status()}`).toBe(true)
-    const body = await patterns.json() as { patterns?: Array<{ id: string; src: string }> }
-    expect(body.patterns?.find((item) => item.id === pattern.id)?.src).toBe(brokenSource)
-
-    // A fresh open restores the exact authored text, but the prior Pattern's
-    // canvas is covered until this source becomes valid again.
-    await page.goto(`studio/patterns/${pattern.id}`)
-    await expect(page).toHaveURL(studioUrl)
-    await expect(editor.locator('.view-lines')).toContainText('var = 3')
-    await expect(page.getByTestId('preview-unavailable')).toContainText('Fix the source errors to restart it.')
   })
 
   test('a failed Pattern departure save keeps the edit open and retries on navigation (#818)', async ({ page }) => {
@@ -781,6 +789,10 @@ test.describe('silent save-failure feedback (#810)', () => {
     await page.goto(`studio/patterns/${patternA.id}`)
     const editor = page.locator('.monaco-editor').first()
     await expect(editor.locator('.view-lines')).toBeVisible()
+    const patternBRow = page
+      .getByRole('tree', { name: 'Patterns', exact: true })
+      .getByRole('treeitem')
+      .filter({ hasText: patternB.name })
 
     let blockWrites = true
     await page.route('**/api/patterns/**', (route) => {
@@ -795,7 +807,7 @@ test.describe('silent save-failure feedback (#810)', () => {
     await expect(page.getByTestId('compile-status')).toHaveAttribute('data-status', 'good')
 
     // A failed departure write leaves the complete Pattern A state in place.
-    await page.getByRole('treeitem', { name: patternB.name, exact: true }).click()
+    await patternBRow.click()
     await expect(page).toHaveURL(new RegExp(`/studio/patterns/${patternA.id}$`))
     await expect(editor.locator('.view-lines')).toContainText('wave(time(0.2))')
     await expect(page.getByTestId('navigation-save-failure')).toHaveCount(0)
@@ -804,7 +816,7 @@ test.describe('silent save-failure feedback (#810)', () => {
     // A later navigation request is the retry. It saves the same exact source
     // first, then allows Pattern B to replace the editor.
     blockWrites = false
-    await page.getByRole('treeitem', { name: patternB.name, exact: true }).click()
+    await patternBRow.click()
     await expect(page).toHaveURL(new RegExp(`/studio/patterns/${patternB.id}$`))
     const patterns = await page.context().request.get('/api/patterns')
     expect(patterns.ok(), `GET /api/patterns -> ${patterns.status()}`).toBe(true)
