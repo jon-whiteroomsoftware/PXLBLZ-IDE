@@ -109,3 +109,17 @@ describe('ColorField', () => {
     expect(screen.getByLabelText('Highlight Color picker')).toBeDisabled()
   })
 })
+
+describe('ColorField picker commit on blur (#827)', () => {
+  it('commits a picker-previewed color when focus leaves the field', () => {
+    const onChange = vi.fn()
+    render(<ColorField label="Key color" value="#22c55e" onChange={onChange} />)
+    const picker = document.querySelector('input[type="color"]') as HTMLInputElement
+    // The native panel drives `input` events while the user picks.
+    fireEvent.input(picker, { target: { value: '#ff8800' } })
+    // Clicking outside the field blurs the container with no related target
+    // inside it; the previewed selection must commit, not revert.
+    fireEvent.blur(picker.closest('span[class*="flex"]') ?? picker)
+    expect(onChange).toHaveBeenCalledWith('#ff8800')
+  })
+})

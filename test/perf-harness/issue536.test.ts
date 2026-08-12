@@ -82,17 +82,18 @@ describe('Restart-instance global-liveness census (#536)', () => {
     // vintage, all three lessons still Continue every member, so the
     // reclaimable Restart set stays fixed and the weighted figure rises a
     // hair with the smaller corpus). Recensused with the #821 Compositing
-    // and Key Effects rebuild (rounds 1-3): Luma Rings (twice), Luma
-    // Stripes, and DoomFireV20_2D join the showcase corpus while the garden
-    // leaves (+91 member globals net at this frozen vintage); every member
-    // still Continues, the reclaimable Restart set stays fixed, and the
-    // stop verdict is unchanged.
+    // and Key Effects rebuild (rounds 1-4): Luma Rings, Luma Stripes, and
+    // DoomFireV20_2D join the showcase corpus while the garden and the
+    // short-lived crisp-rings instance leave (net +85 member globals at
+    // this frozen vintage); the reclaimable set moves +4 with the reworked
+    // scene schedule. The reclaim percent stays 0 and the stop verdict is
+    // unchanged.
     expect(report.summary).toMatchObject({
-      representativeMemberGlobals: 3_115,
-      representativeReclaimedGlobals: 186,
+      representativeMemberGlobals: 3_109,
+      representativeReclaimedGlobals: 190,
     })
     expect(report.decision.representativeReclaimPercent).toBe(0)
-    expect(report.decision.weightedRepresentativeReclaimPercent).toBeCloseTo(0.05971108, 8)
+    expect(report.decision.weightedRepresentativeReclaimPercent).toBeCloseTo(0.06111290, 8)
     expect(report.decision.ceilingRescues).toEqual([])
     expect(report.decision.proceedWithEmission).toBe(false)
     expect(report.decision.proceedWithEmission).toBe(

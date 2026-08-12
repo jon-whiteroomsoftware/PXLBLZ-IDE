@@ -131,7 +131,19 @@ export function ColorField({
         className={`${hideLabel ? '' : 'mt-1'} ${fieldHeight} flex min-w-0 overflow-hidden rounded border border-zinc-700 ${fieldBackground} focus-within:border-cyan-400/60 disabled:opacity-60`}
         onBlur={(event) => {
           if (event.currentTarget.contains(event.relatedTarget as Node | null)) return
-          revert()
+          // A picker-previewed selection commits on blur: the native picker
+          // panel is not inside this element, so an outside click used to
+          // revert the user's chosen color (#827). Typed hex drafts keep the
+          // #751 cancel-on-blur contract, and Escape still cancels both.
+          if (pickerPreviewActiveRef.current) {
+            const parsed = parseColorValue(draft)
+            if (parsed && parsed !== committedValueRef.current) {
+              commitExact(parsed)
+              endPickerPreview()
+              return
+            }
+          }
+          revert(true)
         }}
       >
         <span

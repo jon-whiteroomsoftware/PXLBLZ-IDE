@@ -79,14 +79,13 @@ describe('key effects stay scene-local in shared member stages (#820)', () => {
     // Opacity: the warm bed glows through everywhere, so color floods in.
     expect(opacity.grayish).toBeLessThan(reference.grayish - 60)
 
-    // Opacity Effect: an animated fade-out toward black. Early in the beat
-    // the rings are near-full; late they are nearly gone - and the frame
-    // stays achromatic throughout (the bed does not return).
+    // Animated Opacity: the rings dissolve INTO the bed via a placement
+    // opacity ramp. Early in the beat the frame is ring-gray; late, the
+    // bed's color has taken over.
     const fadeEarly = sceneStats(6_900, artifact)
     const fadeLate = sceneStats(8_700, artifact)
-    expect(fadeEarly.grayish).toBeGreaterThan(200)
-    expect(fadeLate.grayish).toBeGreaterThan(200)
-    expect(fadeLate.centerMean).toBeLessThan(fadeEarly.centerMean * 0.5)
+    expect(fadeEarly.grayish).toBeGreaterThan(180)
+    expect(fadeLate.grayish).toBeLessThan(120)
 
     // Luma Key: dark ring gaps vanish and the colored bed shows through
     // them, so the frame loses its all-achromatic character.
@@ -110,6 +109,14 @@ describe('key effects stay scene-local in shared member stages (#820)', () => {
     // the corners; the vignette eats the wave crests, which still leaves
     // corners well below the center.
     expect(meanCorner).toBeLessThan(meanCenter * 0.5)
+
+    // The Animated Angle ender sweeps the waves' own Angle control a full
+    // turn under a held key: two instants in the beat must differ (the
+    // orientation moved) and the bed must remain present (colored pixels).
+    const angleEarly = sceneStats(19_700, artifact)
+    const angleLate = sceneStats(21_400, artifact)
+    expect(angleEarly.checksum).not.toBe(angleLate.checksum)
+    expect(angleEarly.grayish).toBeLessThan(200)
 
     // Every beat must produce a distinct composite; the #820 bug collapsed
     // three beats into one identical dispatch block.
