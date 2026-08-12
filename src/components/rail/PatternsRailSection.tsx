@@ -1,6 +1,6 @@
 import { useMemo, useRef, useState, type RefObject } from 'react'
 import type { DimLens } from '@/engine/dimLens'
-import type { GalleryPattern } from '@/engine/galleryCatalog'
+import { STOCK_PATTERNS, type GalleryPattern } from '@/engine/galleryCatalog'
 import { stockPatternOrganization } from '@/engine/stockEntityOrganization'
 import type { EntityOrganizationV1 } from '@/engine/entityOrganization'
 import type { PatternRecord } from '@/store/patternStore'
@@ -71,7 +71,7 @@ export function PatternsRailSection({
   onCollapse?: () => void
 }) {
   const [collapsedBuiltInFolderIds, setCollapsedBuiltInFolderIds] = useState<string[]>(
-    () => stockPatternOrganization(visibleStockPatterns).collapsedFolderIds,
+    () => stockPatternOrganization(STOCK_PATTERNS).collapsedFolderIds,
   )
   const builtInOrganization = useMemo(() => ({
     ...stockPatternOrganization(visibleStockPatterns),

@@ -692,7 +692,7 @@ describe('PatternList', () => {
     expect(screen.getByRole('button', { name: 'Dimension filter' })).toHaveTextContent('1D')
   })
 
-  it('rebuilds the built-in Pattern tree when the lens changes after a rail-mode round trip (#809)', async () => {
+  it('rebuilds the built-in Pattern tree with new categories collapsed after a rail-mode round trip (#809, #829)', async () => {
     const user = userEvent.setup()
     render(<PatternList />)
 
@@ -703,6 +703,12 @@ describe('PatternList', () => {
 
     await selectDimension(user, 'All')
 
+    const builtInTree = screen.getByRole('tree', { name: 'Built-in Patterns' })
+    const threeDFolder = within(builtInTree).getByRole('treeitem', { name: /^3D/ })
+    expect(threeDFolder).toHaveAttribute('aria-expanded', 'false')
+    expect(within(builtInTree).queryByText('AuroraSphere')).not.toBeInTheDocument()
+
+    await user.click(threeDFolder)
     expect(screen.getByText('AuroraSphere')).toBeInTheDocument()
   })
 
