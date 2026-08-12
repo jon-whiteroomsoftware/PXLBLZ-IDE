@@ -25,8 +25,8 @@ export interface ShimConfig {
 
 export interface ShimContext {
   builtins: Record<string, unknown>
-  snapshot: () => ShimSnapshot
-  restore: (snapshot: ShimSnapshot) => void
+  snapshot: (cloneArray?: ShimSnapshotArrayCloner) => ShimSnapshot
+  restore: (snapshot: ShimSnapshot, restoreArray?: ShimSnapshotArrayRestorer) => void
   capturedPixel: () => [number, number, number]
   writeCapturedPixel: (target: Float32Array | Float64Array, offset: number) => void
   resetCapturedPixel: () => void
@@ -42,6 +42,9 @@ export interface ShimContext {
   transformPoint: (x: number, y: number, z: number) => [number, number, number]
   transformPointInto: (target: Float64Array, offset: number, x: number, y: number, z: number) => void
 }
+
+export type ShimSnapshotArrayCloner = (source: number[]) => number[]
+export type ShimSnapshotArrayRestorer = (source: readonly number[], target: number[]) => number[]
 
 export interface ShimSnapshot {
   randomState: number
@@ -78,9 +81,10 @@ export function createShim(config: ShimConfig): ShimContext {
     : config.randomSeed >>> 0
   let prngState = 0
 
-  const restoreArray = (target: number[], source: readonly number[]): void => {
+  const restoreArrayInPlace = (source: readonly number[], target: number[]): number[] => {
     target.length = source.length
     for (let index = 0; index < source.length; index += 1) target[index] = source[index]
+    return target
   }
 
   function nextRandom01(): number {
@@ -397,27 +401,27 @@ export function createShim(config: ShimConfig): ShimContext {
 
   return {
     builtins,
-    snapshot: () => ({
+    snapshot: (cloneArray = (source) => source.slice()) => ({
       randomState,
       prngState,
-      transform: ctm.slice(),
-      palette: palette.slice(),
+      transform: cloneArray(ctm),
+      palette: cloneArray(palette),
       perlinWrap: [perlinWrapX, perlinWrapY, perlinWrapZ],
       capturedPixel: [captR, captG, captB],
-      frequencyData: (builtins.frequencyData as number[]).slice(),
-      accelerometer: (builtins.accelerometer as number[]).slice(),
-      analogInputs: (builtins.analogInputs as number[]).slice(),
+      frequencyData: cloneArray(builtins.frequencyData as number[]),
+      accelerometer: cloneArray(builtins.accelerometer as number[]),
+      analogInputs: cloneArray(builtins.analogInputs as number[]),
     }),
-    restore: (snapshot) => {
+    restore: (snapshot, restoreArray = restoreArrayInPlace) => {
       randomState = snapshot.randomState >>> 0
       prngState = snapshot.prngState >>> 0
-      ctm = snapshot.transform.slice()
-      restoreArray(palette, snapshot.palette)
+      ctm = restoreArray(snapshot.transform, ctm)
+      palette = restoreArray(snapshot.palette, palette)
       ;[perlinWrapX, perlinWrapY, perlinWrapZ] = snapshot.perlinWrap
       ;[captR, captG, captB] = snapshot.capturedPixel
-      restoreArray(builtins.frequencyData as number[], snapshot.frequencyData)
-      restoreArray(builtins.accelerometer as number[], snapshot.accelerometer)
-      restoreArray(builtins.analogInputs as number[], snapshot.analogInputs)
+      builtins.frequencyData = restoreArray(snapshot.frequencyData, builtins.frequencyData as number[])
+      builtins.accelerometer = restoreArray(snapshot.accelerometer, builtins.accelerometer as number[])
+      builtins.analogInputs = restoreArray(snapshot.analogInputs, builtins.analogInputs as number[])
     },
     capturedPixel,
     writeCapturedPixel,

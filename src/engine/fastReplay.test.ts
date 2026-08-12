@@ -103,6 +103,130 @@ function lineMap(pixelCount: number) {
 }
 
 describe('Fast replay reconstruction', () => {
+  it('preserves array aliases between Pattern globals in a fresh runtime', () => {
+    const prepared = prepareFastReplay(`
+var initialized = 0
+var a = array(1)
+var b = array(1)
+export function beforeRender(delta) {
+  if (!initialized) {
+    b = a
+    initialized = 1
+  }
+  a[0] = a[0] + 1
+}
+export function render(index) { rgb(b[0] / 10, 0, 0) }
+`, {})
+    const options = { mapPoints: lineMap(1), randomSeed: 841 }
+    const source = createFastReplayRuntime(prepared, options)
+    source.advanceTo(10, { stepMs: 10 })
+    const snapshot = source.snapshot()
+    const uninterrupted = source.advanceTo(30, { stepMs: 10 })
+
+    const restoredRuntime = createFastReplayRuntime(prepared, options)
+    restoredRuntime.restore(snapshot)
+    const restored = restoredRuntime.advanceTo(30, { stepMs: 10 })
+
+    expect(restored.exports.a).toBe(restored.exports.b)
+    expect(restored.checksum).toBe(uninterrupted.checksum)
+  })
+
+  it.each(['fast', 'fidelity'] as const)(
+    'materializes restored nested arrays with Pixelblaze semantics in %s mode',
+    (fidelity) => {
+      const prepared = prepareFastReplay(`
+var initialized = 0
+var outer = array(1)
+var total = 0
+export function beforeRender(delta) {
+  if (!initialized) {
+    outer[0] = array(2)
+    outer[0][0] = 0.2
+    outer[0][1] = 0.3
+    initialized = 1
+  } else {
+    outer[0][1.9] = outer[0][1.9] + 0.1
+    total = outer[0].sum()
+  }
+}
+export function render(index) { rgb(total, 0, 0) }
+`, {})
+      const options = { mapPoints: lineMap(1), randomSeed: 841, fidelity }
+      const source = createFastReplayRuntime(prepared, options)
+      source.advanceTo(10, { stepMs: 10 })
+      const snapshot = source.snapshot()
+      const uninterrupted = source.advanceTo(20, { stepMs: 10 })
+
+      const restoredRuntime = createFastReplayRuntime(prepared, options)
+      restoredRuntime.restore(snapshot)
+      const restored = restoredRuntime.advanceTo(20, { stepMs: 10 })
+
+      expect(restored.exports.total).toBe(uninterrupted.exports.total)
+      expect(restored.checksum).toBe(uninterrupted.checksum)
+    },
+  )
+
+  it('restores distinct Precise-mode builtin functions by registry name', () => {
+    const prepared = prepareFastReplay(`
+var functions = [sin, cos]
+var value = 0
+export function beforeRender(delta) {
+  value = functions[0](0) + functions[1](0)
+}
+export function render(index) { rgb(value, 0, 0) }
+`, {})
+    const options = { mapPoints: lineMap(1), randomSeed: 841, fidelity: 'fidelity' as const }
+    const source = createFastReplayRuntime(prepared, options)
+    source.advanceTo(10, { stepMs: 10 })
+    const snapshot = source.snapshot()
+    const uninterrupted = source.advanceTo(20, { stepMs: 10 })
+
+    const restoredRuntime = createFastReplayRuntime(prepared, options)
+    restoredRuntime.restore(snapshot)
+    const restored = restoredRuntime.advanceTo(20, { stepMs: 10 })
+
+    expect(restored.exports.value).toBe(uninterrupted.exports.value)
+    expect(restored.checksum).toBe(uninterrupted.checksum)
+  })
+
+  it('rejects ambiguous fallback function identities instead of silently remapping them', () => {
+    const runtime = createFastReplayRuntime(prepareFastReplay(`
+var functions = [(value) => value + 1, (value) => value + 1]
+export function render(index) { rgb(functions[index](0), 0, 0) }
+`, {}), { mapPoints: lineMap(1), randomSeed: 841 })
+
+    expect(() => runtime.snapshot()).toThrow(/ambiguous fallback function/i)
+  })
+
+  it('restores the retained setPalette reference across the Pattern and shim boundary', () => {
+    const prepared = prepareFastReplay(`
+var initialized = 0
+var palette = [0, 1, 0, 0, 1, 0, 0, 1]
+export function beforeRender(delta) {
+  if (!initialized) {
+    setPalette(palette)
+    initialized = 1
+  } else {
+    palette[1] = 0
+    palette[2] = 1
+  }
+}
+export function render(index) { paint(0) }
+`, {})
+    const options = { mapPoints: lineMap(1), randomSeed: 841 }
+    const source = createFastReplayRuntime(prepared, options)
+    source.advanceTo(10, { stepMs: 10 })
+    const snapshot = source.snapshot()
+    const uninterrupted = source.advanceTo(20, { stepMs: 10 })
+
+    const restoredRuntime = createFastReplayRuntime(prepared, options)
+    restoredRuntime.restore(snapshot)
+    const restored = restoredRuntime.advanceTo(20, { stepMs: 10 })
+
+    expect(restored.exports.palette).toEqual(uninterrupted.exports.palette)
+    expect(restored.checksum).toBe(uninterrupted.checksum)
+  })
+
   it('restores complete replay state into the originating runtime', () => {
     const prepared = prepareFastReplay(SNAPSHOT_STATE_PATTERN, {})
     const runtime = createFastReplayRuntime(prepared, {

@@ -68,61 +68,177 @@ function replayTargetReached(elapsedMs: number, targetMs: number, stepMs: number
   return targetMs - elapsedMs <= replayTargetEpsilonMs(stepMs)
 }
 
-function clonePatternValue(value: unknown): unknown {
-  if (Array.isArray(value)) return value.map(clonePatternValue)
+type RuntimeFunction = (...args: never[]) => unknown
+type NamedFunctionRegistry = 'pattern' | 'builtin' | 'control'
+
+interface SnapshotFunctionToken {
+  __fastReplayFunction: {
+    registry: NamedFunctionRegistry | 'fallback'
+    name: string
+    source?: string
+  }
+}
+
+interface FunctionRegistry {
+  byFunction: Map<RuntimeFunction, SnapshotFunctionToken>
+  byToken: Map<string, RuntimeFunction>
+}
+
+interface SnapshotCloneContext {
+  cloned: Map<object, unknown>
+  functionTokens: Map<RuntimeFunction, SnapshotFunctionToken>
+  namedFunctions: ReadonlyMap<RuntimeFunction, SnapshotFunctionToken>
+  fallbackFunctions: Map<string, RuntimeFunction>
+}
+
+function functionTokenKey(registry: NamedFunctionRegistry, name: string): string {
+  return `${registry}\0${name}`
+}
+
+function fallbackFunctionKey(fn: RuntimeFunction): string {
+  return `${fn.name}\0${Function.prototype.toString.call(fn)}`
+}
+
+function registerFallbackFunction(functions: Map<string, RuntimeFunction>, fn: RuntimeFunction): string {
+  const key = fallbackFunctionKey(fn)
+  const existing = functions.get(key)
+  if (existing && existing !== fn) {
+    throw new Error(`Fast replay snapshot has an ambiguous fallback function identity for "${fn.name}".`)
+  }
+  functions.set(key, fn)
+  return key
+}
+
+function createFunctionRegistry(
+  patternFunctions: Record<string, RuntimeFunction>,
+  builtins: Record<string, unknown>,
+  controls: Record<string, (...args: number[]) => void>,
+): FunctionRegistry {
+  const byFunction = new Map<RuntimeFunction, SnapshotFunctionToken>()
+  const byToken = new Map<string, RuntimeFunction>()
+  const add = (registry: NamedFunctionRegistry, values: Record<string, unknown>): void => {
+    for (const [name, value] of Object.entries(values)) {
+      if (typeof value !== 'function') continue
+      const fn = value as RuntimeFunction
+      const token: SnapshotFunctionToken = { __fastReplayFunction: { registry, name } }
+      byToken.set(functionTokenKey(registry, name), fn)
+      if (!byFunction.has(fn)) byFunction.set(fn, token)
+    }
+  }
+  add('pattern', patternFunctions)
+  add('builtin', builtins)
+  add('control', controls)
+  return { byFunction, byToken }
+}
+
+function isSnapshotFunctionToken(value: unknown): value is SnapshotFunctionToken {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) return false
+  const token = (value as Partial<SnapshotFunctionToken>).__fastReplayFunction
+  return Boolean(token && typeof token.registry === 'string' && typeof token.name === 'string')
+}
+
+function clonePatternValue(value: unknown, context: SnapshotCloneContext): unknown {
+  if (typeof value === 'function') {
+    const fn = value as RuntimeFunction
+    const existing = context.functionTokens.get(fn)
+    if (existing) return existing
+    const named = context.namedFunctions.get(fn)
+    const token = named ?? {
+      __fastReplayFunction: {
+        registry: 'fallback' as const,
+        name: fn.name,
+        source: Function.prototype.toString.call(fn),
+      },
+    }
+    if (!named) registerFallbackFunction(context.fallbackFunctions, fn)
+    context.functionTokens.set(fn, token)
+    return token
+  }
+  if (!value || typeof value !== 'object') return value
+  const existing = context.cloned.get(value)
+  if (existing !== undefined) return existing
+  if (Array.isArray(value)) {
+    const copy: unknown[] = []
+    context.cloned.set(value, copy)
+    for (const item of value) copy.push(clonePatternValue(item, context))
+    return copy
+  }
   if (value && typeof value === 'object') {
-    return Object.fromEntries(Object.entries(value).map(([key, item]) => [key, clonePatternValue(item)]))
+    const copy: Record<string, unknown> = {}
+    context.cloned.set(value, copy)
+    for (const [key, item] of Object.entries(value)) copy[key] = clonePatternValue(item, context)
+    return copy
   }
   return value
 }
 
-function patternFunctionKey(fn: (...args: never[]) => unknown): string {
-  return `${fn.name}\0${Function.prototype.toString.call(fn)}`
-}
-
-function collectPatternFunctions(
+function collectFallbackFunctions(
   value: unknown,
-  functions: Map<string, (...args: never[]) => unknown>,
+  namedFunctions: ReadonlyMap<RuntimeFunction, SnapshotFunctionToken>,
+  functions: Map<string, RuntimeFunction>,
   seen: Set<object>,
 ): void {
   if (typeof value === 'function') {
-    functions.set(patternFunctionKey(value as (...args: never[]) => unknown), value as (...args: never[]) => unknown)
+    const fn = value as RuntimeFunction
+    if (!namedFunctions.has(fn)) registerFallbackFunction(functions, fn)
     return
   }
   if (!value || typeof value !== 'object' || seen.has(value)) return
   seen.add(value)
   for (const item of Array.isArray(value) ? value : Object.values(value)) {
-    collectPatternFunctions(item, functions, seen)
+    collectFallbackFunctions(item, namedFunctions, functions, seen)
   }
+}
+
+function resolveSnapshotFunction(
+  token: SnapshotFunctionToken,
+  namedFunctions: ReadonlyMap<string, RuntimeFunction>,
+  fallbackFunctions: ReadonlyMap<string, RuntimeFunction>,
+): RuntimeFunction {
+  const descriptor = token.__fastReplayFunction
+  const fn = descriptor.registry === 'fallback'
+    ? fallbackFunctions.get(`${descriptor.name}\0${descriptor.source ?? ''}`)
+    : namedFunctions.get(functionTokenKey(descriptor.registry, descriptor.name))
+  if (!fn) throw new Error(`Fast replay snapshot function "${descriptor.name}" is unavailable in this runtime.`)
+  return fn
 }
 
 function restorePatternValue(
   value: unknown,
-  functions: ReadonlyMap<string, (...args: never[]) => unknown>,
+  namedFunctions: ReadonlyMap<string, RuntimeFunction>,
+  fallbackFunctions: ReadonlyMap<string, RuntimeFunction>,
+  restored: Map<object, unknown>,
+  createArray: (length: number) => unknown[],
+  target?: unknown,
 ): unknown {
-  if (typeof value === 'function') {
-    const localFunction = functions.get(patternFunctionKey(value as (...args: never[]) => unknown))
-    if (!localFunction) throw new Error(`Fast replay snapshot function "${value.name}" is unavailable in this runtime.`)
-    return localFunction
-  }
-  return clonePatternValue(value)
-}
-
-function restorePatternArray(
-  target: unknown[],
-  source: readonly unknown[],
-  functions: ReadonlyMap<string, (...args: never[]) => unknown>,
-): void {
-  target.length = source.length
-  for (let index = 0; index < source.length; index += 1) {
-    const sourceValue = source[index]
-    const targetValue = target[index]
-    if (Array.isArray(sourceValue) && Array.isArray(targetValue)) {
-      restorePatternArray(targetValue, sourceValue, functions)
-    } else {
-      target[index] = restorePatternValue(sourceValue, functions)
+  if (isSnapshotFunctionToken(value)) return resolveSnapshotFunction(value, namedFunctions, fallbackFunctions)
+  if (!value || typeof value !== 'object') return value
+  const existing = restored.get(value)
+  if (existing !== undefined) return existing
+  if (Array.isArray(value)) {
+    const targetArray = Array.isArray(target) ? target : createArray(value.length)
+    restored.set(value, targetArray)
+    targetArray.length = value.length
+    for (let index = 0; index < value.length; index += 1) {
+      targetArray[index] = restorePatternValue(
+        value[index], namedFunctions, fallbackFunctions, restored, createArray, targetArray[index],
+      )
     }
+    return targetArray
   }
+  const targetObject = target && typeof target === 'object' && !Array.isArray(target)
+    ? target as Record<string, unknown>
+    : {}
+  restored.set(value, targetObject)
+  for (const key of Object.keys(targetObject)) {
+    if (!(key in value)) delete targetObject[key]
+  }
+  for (const [key, item] of Object.entries(value)) {
+    targetObject[key] = restorePatternValue(
+      item, namedFunctions, fallbackFunctions, restored, createArray, targetObject[key],
+    )
+  }
+  return targetObject
 }
 
 export function prepareFastReplay(
@@ -189,14 +305,21 @@ export function createFastReplayRuntime(
   return {
     getElapsedMs: () => clock.getTime(),
     snapshot(): FastReplaySnapshot {
+      const functionRegistry = createFunctionRegistry(handle.getPatternFunctions(), shim.builtins, handle.controls)
+      const cloneContext: SnapshotCloneContext = {
+        cloned: new Map<object, unknown>(),
+        functionTokens: new Map<RuntimeFunction, SnapshotFunctionToken>(),
+        namedFunctions: functionRegistry.byFunction,
+        fallbackFunctions: new Map<string, RuntimeFunction>(),
+      }
       return {
         elapsedMs: clock.getTime(),
         simulatedFrames,
         frame: frame.slice(),
         patternVars: Object.fromEntries(
-          Object.entries(handle.getExports()).map(([name, value]) => [name, clonePatternValue(value)]),
+          Object.entries(handle.getExports()).map(([name, value]) => [name, clonePatternValue(value, cloneContext)]),
         ),
-        shim: shim.snapshot(),
+        shim: shim.snapshot((source) => clonePatternValue(source, cloneContext) as number[]),
       }
     },
     restore(snapshot: FastReplaySnapshot): void {
@@ -204,28 +327,41 @@ export function createFastReplayRuntime(
         throw new Error('Fast replay snapshot frame size does not match this runtime.')
       }
       const currentPatternVars = handle.getExports()
-      const localFunctions = new Map<string, (...args: never[]) => unknown>()
+      const functionRegistry = createFunctionRegistry(handle.getPatternFunctions(), shim.builtins, handle.controls)
+      const fallbackFunctions = new Map<string, RuntimeFunction>()
       const seenFunctionContainers = new Set<object>()
-      collectPatternFunctions(currentPatternVars, localFunctions, seenFunctionContainers)
-      collectPatternFunctions(handle.beforeRender, localFunctions, seenFunctionContainers)
-      collectPatternFunctions(handle.render, localFunctions, seenFunctionContainers)
-      collectPatternFunctions(handle.render2D, localFunctions, seenFunctionContainers)
-      collectPatternFunctions(handle.render3D, localFunctions, seenFunctionContainers)
-      collectPatternFunctions(handle.controls, localFunctions, seenFunctionContainers)
-      collectPatternFunctions(handle.getPatternFunctions(), localFunctions, seenFunctionContainers)
+      collectFallbackFunctions(currentPatternVars, functionRegistry.byFunction, fallbackFunctions, seenFunctionContainers)
+      const restored = new Map<object, unknown>()
+      const createArray = (length: number): unknown[] => {
+        const arrayBuiltin = shim.getBuiltin('array') as (length: number) => unknown[]
+        return arrayBuiltin(shim.encodeScalar(length))
+      }
       for (const [name, snapshotValue] of Object.entries(snapshot.patternVars)) {
         const currentValue = currentPatternVars[name]
         if (snapshotValue === undefined && currentValue === undefined) continue
-        if (Array.isArray(snapshotValue)) {
-          if (!Array.isArray(currentValue)) {
-            throw new Error(`Fast replay snapshot array "${name}" is unavailable in this runtime.`)
-          }
-          restorePatternArray(currentValue, snapshotValue, localFunctions)
-        } else if (!handle.setPatternVar(name, restorePatternValue(snapshotValue, localFunctions))) {
+        const restoredValue = restorePatternValue(
+          snapshotValue,
+          functionRegistry.byToken,
+          fallbackFunctions,
+          restored,
+          createArray,
+          currentValue,
+        )
+        if (!handle.setPatternVar(name, restoredValue)) {
           throw new Error(`Fast replay snapshot variable "${name}" is unavailable in this runtime.`)
         }
       }
-      shim.restore(snapshot.shim)
+      shim.restore(
+        snapshot.shim,
+        (source, target) => restorePatternValue(
+          source,
+          functionRegistry.byToken,
+          fallbackFunctions,
+          restored,
+          createArray,
+          target,
+        ) as number[],
+      )
       clock.setTime(snapshot.elapsedMs)
       simulatedFrames = snapshot.simulatedFrames
       frame.set(snapshot.frame)
