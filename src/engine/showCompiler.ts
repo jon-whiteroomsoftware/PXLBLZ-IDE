@@ -7717,7 +7717,7 @@ function emitRoutedPlacementEffectTargets(
   ))
   const hasAffine = member.effects.some((effect) => ['translate', 'rotate', 'scale', 'shear'].includes(effect.kind))
   if (member.staticPlanEffects) return staticPlanEffectAssignmentsFromResolved(member, resolved, hasAffine)
-  const assignments = emitSceneEffectTargets(member, resolved).trim()
+  const assignments = emitSceneEffectTargets(member, resolved, true).trim()
   const animationAssignments = localTimeExpression
     ? placementTracks.flatMap((track): string[] => {
         if (track.target.kind === 'placement-transform') {
@@ -7994,11 +7994,16 @@ function emitSceneControlTargets(member: CompiledMember, targets: Record<string,
   }).join('')
 }
 
-function emitSceneEffectTargets(member: CompiledMember, effects: ShowClipEffect[] | undefined): string {
+function emitSceneEffectTargets(
+  member: CompiledMember,
+  effects: ShowClipEffect[] | undefined,
+  // True ONLY when `effects` is a compiler-resolved template list that may
+  // legitimately carry the key-identity sentinel; authored callers must
+  // leave it false so a raw -1/0 clamps like any malformed value (#821).
+  trustKeyIdentitySentinel = false,
+): string {
   if (!effects || !member.animatedEffects || member.staticPlanEffects) return ''
-  // Callers pass resolved template lists that may carry the compiler's
-  // key-identity sentinel; vouch for its provenance here (#821).
-  const authored = normalizeShowClipEffects(effects, { preserveKeyIdentitySentinel: true })
+  const authored = normalizeShowClipEffects(effects, { preserveKeyIdentitySentinel: trustKeyIdentitySentinel })
   // Every union template must be assigned every scene: parameter variables
   // are shared across scenes, so a skipped assignment leaks the declaration
   // value on the first pass and the previous scene's value after the Show

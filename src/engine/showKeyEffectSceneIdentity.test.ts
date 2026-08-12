@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest'
 import { STOCK_SHOWS } from '../pixelblaze/stock/shows'
 import { createFastReplayRuntime } from './fastReplay'
 import { nativeDimension } from './loadPattern'
-import { showEffectsAreIdentity } from './showEffects'
+import { normalizeShowClipEffects, showEffectsAreIdentity } from './showEffects'
 import { compileShowForArtifact } from './showPreviewArtifact'
 
 // #820: a member whose effect union includes luma/chroma keys must not be
@@ -122,6 +122,16 @@ describe('key effects stay scene-local in shared member stages (#820)', () => {
     // three beats into one identical dispatch block.
     const checksums = [reference, opacity, opacityEffect, lumaKey, chromaKey, vignette, layered].map((stats) => stats.checksum)
     expect(new Set(checksums).size).toBe(checksums.length)
+  })
+})
+
+describe('key-identity sentinel provenance (#821)', () => {
+  it('clamps a raw -1/0 by default and preserves it only under the compiler flag', () => {
+    const raw = [{ id: 'k', kind: 'luma-key' as const, target: 0, tolerance: -1, softness: 0 }]
+    const authored = normalizeShowClipEffects(raw)[0]
+    expect(authored.kind === 'luma-key' && authored.tolerance).toBe(0)
+    const resolved = normalizeShowClipEffects(raw, { preserveKeyIdentitySentinel: true })[0]
+    expect(resolved.kind === 'luma-key' && resolved.tolerance).toBe(-1)
   })
 })
 
