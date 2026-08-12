@@ -151,7 +151,11 @@ export function buildShowPropertyAnimationOptions(
           0.01,
           'percentage',
         ),
-        ...(meta?.secondsPresentation ? { secondsPresentation: meta.secondsPresentation } : {}),
+        // Seconds options carry the raw step matching the seconds field's
+        // 0.001 s precision so keyframe insertion quantizes losslessly.
+        ...(meta?.secondsPresentation
+          ? { secondsPresentation: meta.secondsPresentation, step: 0.001 / meta.secondsPresentation.scale }
+          : {}),
       }
     }),
     ...(value.local?.opacity !== undefined
@@ -523,7 +527,12 @@ function fieldLocation(target: ShowPropertyAnimationTarget): ShowPropertyAnimati
 function formatOverviewValue(option: ShowPropertyAnimationOption | undefined, value: number | undefined): string {
   if (value === undefined) return '—'
   const rounded = (candidate: number) => Number(candidate.toFixed(3)).toString()
-  if (option?.secondsPresentation) return `${rounded(value * option.secondsPresentation.scale)}s`
+  if (option?.secondsPresentation) {
+    // The Luma runtime floors the loop at minSeconds; report what actually
+    // plays so overview, editor, and playback agree on legacy raw-zero values.
+    const { scale, minSeconds } = option.secondsPresentation
+    return `${rounded(Math.max(minSeconds, value * scale))}s`
+  }
   if (option?.presentation === 'percentage') return `${rounded(value * 100)}%`
   if (option?.presentation === 'multiplier') return `${rounded(value)}x`
   if (option?.presentation === 'degrees') return `${rounded(value * 360)}°`

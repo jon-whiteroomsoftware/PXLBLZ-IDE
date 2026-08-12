@@ -7,6 +7,8 @@ import type {
 } from './personalContentRecords'
 import type { ShowClipInspectorValue } from './showClipInspectorModel'
 import { createDefaultShow } from './showModel'
+import { propertyTargetKey } from './showPropertyAnimation'
+import { projectShowPropertyAnimationOverview, type ShowPropertyAnimationOption } from './showPropertyAnimationEditorModel'
 import {
   applyShowGroupPropertyAnimationChange,
   projectShowPropertyAnimationEditorContext,
@@ -580,5 +582,59 @@ describe('Add-keyframe odd-duration snapping (#363)', () => {
     const insertion = showPropertyKeyframeInsertion(track, { min: 2, max: 16, step: 1 })
     expect(insertion?.value).toBe(9)
     expect(Number.isInteger(insertion?.value)).toBe(true)
+  })
+})
+
+describe('Seconds-presented pattern controls (#819)', () => {
+  const target = { kind: 'instance-control', instanceId: 'i', exportName: 'sliderLoopInterval' } as const
+  const secondsOption: ShowPropertyAnimationOption = {
+    key: propertyTargetKey(target),
+    label: 'sliderLoopInterval',
+    target,
+    value: 0.237,
+    min: 0,
+    max: 1,
+    step: 0.001 / 10,
+    presentation: 'percentage',
+    secondsPresentation: { scale: 10, minSeconds: 0.1 },
+  }
+
+  it('inserts a lossless keyframe on a constant seconds hold', () => {
+    // 2.37 s stores as raw 0.237. The percentage grid (step 0.01) would
+    // quantize the midpoint to 0.24 and reject it; the seconds grid keeps the
+    // exact value representable.
+    const track: ShowPropertyAnimationTrack = {
+      id: 'track',
+      target,
+      keyframes: [
+        { id: 'a', timeMs: 0, value: 0.237, easing: { curve: 'linear' } },
+        { id: 'b', timeMs: 8_000, value: 0.237, easing: { curve: 'linear' } },
+      ],
+    }
+    const insertion = showPropertyKeyframeInsertion(track, secondsOption)
+    expect(insertion?.timeMs).toBe(4_000)
+    expect(insertion?.value).toBeCloseTo(0.237, 9)
+  })
+
+  it('formats overview values as the seconds that actually play', () => {
+    // Legacy raw-zero targets are valid records; the Luma runtime floors the
+    // loop at minSeconds, so the overview reports 0.1s, not 0s.
+    const rows = projectShowPropertyAnimationOverview(
+      {
+        tracks: [{
+          id: 'track',
+          target,
+          keyframes: [
+            { id: 'a', timeMs: 0, value: 0, easing: { curve: 'linear' } },
+            { id: 'b', timeMs: 4_000, value: 0.237, easing: { curve: 'linear' } },
+          ],
+        }],
+        trackIssues: {},
+        showTimeOffsetMs: 0,
+        instanceUseCount: 1,
+      },
+      [secondsOption],
+    )
+    expect(rows[0]?.valueRange).toBe('0.1s → 2.37s')
   })
 })
