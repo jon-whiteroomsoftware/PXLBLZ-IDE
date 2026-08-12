@@ -88,15 +88,16 @@ describe('Restart-instance global-liveness census (#536)', () => {
     // this frozen vintage); the reclaimable set moves +4 with the reworked
     // scene schedule. The reclaim percent stays 0 and the stop verdict is
     // unchanged. Recensused for the Luma Sources showcase (#822): all
-    // seven family members join as instances (+222 member globals, +16
+    // seven family members join as instances, plus a second Stripes
+    // instance for the Sine Waves beat (+250 member globals, +16
     // reclaimable at this frozen vintage); the reclaim percent stays 0 and
     // the stop verdict is unchanged.
     expect(report.summary).toMatchObject({
-      representativeMemberGlobals: 3_331,
+      representativeMemberGlobals: 3_359,
       representativeReclaimedGlobals: 206,
     })
     expect(report.decision.representativeReclaimPercent).toBe(0)
-    expect(report.decision.weightedRepresentativeReclaimPercent).toBeCloseTo(0.06184329, 8)
+    expect(report.decision.weightedRepresentativeReclaimPercent).toBeCloseTo(0.06132778, 8)
     expect(report.decision.ceilingRescues).toEqual([])
     expect(report.decision.proceedWithEmission).toBe(false)
     expect(report.decision.proceedWithEmission).toBe(

@@ -2905,13 +2905,21 @@ function lumaSourcesShowcase(): StockShow {
     // that ramps pace must start its ramp at the base value to keep the
     // bare half genuinely bare.
     timeScale?: number
+    // Non-animated authored controls that shape the beat's bare look.
+    controls?: Record<string, number>
     tracks: LumaTrackSpec[]
   }
   // Each beat: 2 s bare, then the animation takes the second 2 s.
   const rows: LumaRow[] = [
     {
       name: 'Stripes', pattern: 'LumaStripes',
-      detail: 'Lean morphs the bands from sine swells into hard sawtooth comets.',
+      detail: 'Width fattens the bands from thin lines into broad bars.',
+      tracks: [{ kind: 'control', exportName: 'sliderWidth', keyframes: [[2, 0.4], [4, 0.85]] }],
+    },
+    {
+      name: 'Sine Waves', pattern: 'LumaStripes',
+      detail: 'Lean tips the smooth swells into breaking sawtooth waves.',
+      controls: { sliderFeather: 1, sliderSpacing: 0.35 },
       tracks: [{ kind: 'control', exportName: 'sliderLean', keyframes: [[2, 0.5], [4, 1]] }],
     },
     {
@@ -2955,16 +2963,19 @@ function lumaSourcesShowcase(): StockShow {
     4,
     [clip('zone-1', row.pattern, row.timeScale ?? 1, undefined, 0.9)],
   ))
-  const instanceId = (row: LumaRow) => `luma-${row.pattern}`
+  const instanceId = (row: LumaRow) => `luma-${row.name.replace(/[^A-Za-z0-9]+/g, '')}`
   const composition: ShowCompositionV1 = {
     version: 1,
     // An instance-control Property track requires the control to be
     // authored on the instance; seed each animated control at its bare-half
     // value.
     patternInstances: rows.map((row) => {
-      const controlTargets = Object.fromEntries(row.tracks.flatMap((spec) => (
-        spec.kind === 'control' ? [[spec.exportName, spec.keyframes[0][1]]] : []
-      )))
+      const controlTargets = {
+        ...(row.controls ?? {}),
+        ...Object.fromEntries(row.tracks.flatMap((spec) => (
+          spec.kind === 'control' ? [[spec.exportName, spec.keyframes[0][1]]] : []
+        ))),
+      }
       return instance(instanceId(row), row.pattern, row.timeScale ?? 1, Object.keys(controlTargets).length ? controlTargets : undefined)
     }),
     scenes: scenes.map((item, index) => {
@@ -2996,7 +3007,7 @@ function lumaSourcesShowcase(): StockShow {
   return catalogue({
     id, title: 'Luma Sources', track: 'portable', collection: 'showcases', level: null, order: 5,
     purpose: 'The seven Luma Patterns are grayscale key sources with one shared control set. Each gets one beat: bare first, then a single animated property chosen for its character - the family controls are ordinary animatable properties.',
-    notice: 'Stripes morphs Lean into sawtooth comets, Chevron breathes Fold, Rings pours Spacing, Pinwheel glides off-center, Dots wheels its lattice, Weave boils its pace, and Spiral zooms its winding. Grayscale throughout: keying them is the Compositing and Key reference\u2019s job.',
+    notice: 'Stripes fattens Width, Sine Waves tips Lean into breaking sawtooths, Chevron breathes Fold, Rings pours Spacing, Pinwheel glides off-center, Dots wheels its lattice, Weave boils its pace, and Spiral zooms its winding. Grayscale throughout: keying them is the Compositing and Key reference\u2019s job.',
     prompts: ['Drag any beat\u2019s animated control yourself and feel the same range.', 'Add a Luma Key over any beat and watch the field become a matte.'],
     guideHeading: 'luma-sources',
     defaultOpen: true,
@@ -3006,7 +3017,15 @@ function lumaSourcesShowcase(): StockShow {
     composition,
     reference: {
       summary: 'Seven grayscale key sources, one beat each: bare, then brought alive by one animated property.',
-      patternSlots: { cellIds: scenes.map((item) => cellId(item.id, 'zone-1')), instanceIds: rows.map((row) => instanceId(row)) },
+      // One representative swap slot instead of one per member: swapping
+      // family members defeats an inventory, and seven boxes crowd the
+      // reference header (Jon review). The Pinwheel beat hosts it because
+      // its glide is a clip-transform track, which any replacement pattern
+      // supports (#828 tracks the control-track swap failure).
+      patternSlots: {
+        cellIds: [cellId(scenes[rows.findIndex((row) => row.name === 'Pinwheel')].id, 'zone-1')],
+        instanceIds: [instanceId(rows.find((row) => row.name === 'Pinwheel')!)],
+      },
       examples: scenes.map((item, index) => ({
         id: `luma-${index + 1}`,
         label: item.name,

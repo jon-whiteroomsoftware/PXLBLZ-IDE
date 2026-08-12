@@ -34,7 +34,7 @@ describe('Luma Sources showcase animation contract (#822)', () => {
     const bare = compileShowForArtifact(bareShow, [], undefined, {}, { stageDimension: 2 })
     expect(bare.error).toBeNull()
 
-    for (let index = 0; index < 7; index++) {
+    for (let index = 0; index < 8; index++) {
       const start = index * 4_000
       // 1.5 s in: still inside the bare half - identical to the trackless clone.
       expect(
