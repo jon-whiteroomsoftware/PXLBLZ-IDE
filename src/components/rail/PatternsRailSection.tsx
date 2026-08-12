@@ -70,7 +70,9 @@ export function PatternsRailSection({
   onPersonalOrganizationChange: (organization: EntityOrganizationV1) => void
   onCollapse?: () => void
 }) {
-  const [collapsedBuiltInFolderIds, setCollapsedBuiltInFolderIds] = useState<string[]>([])
+  const [collapsedBuiltInFolderIds, setCollapsedBuiltInFolderIds] = useState<string[]>(
+    () => stockPatternOrganization(visibleStockPatterns).collapsedFolderIds,
+  )
   const builtInOrganization = useMemo(() => ({
     ...stockPatternOrganization(visibleStockPatterns),
     collapsedFolderIds: collapsedBuiltInFolderIds,

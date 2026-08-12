@@ -20,6 +20,13 @@ describe('built-in entity organization', () => {
     expect(folderNames).toEqual(DEMO_SECTIONS.map((section) => section.label).filter((label) => folderNames.includes(label)))
   })
 
+  it('starts every built-in Pattern folder collapsed', () => {
+    const organization = stockPatternOrganization(STOCK_PATTERNS)
+    const folderIds = organization.nodes.flatMap((node) => node.kind === 'folder' ? [node.id] : [])
+
+    expect(organization.collapsedFolderIds).toEqual(folderIds)
+  })
+
   it('keeps the popularity-ranked ZRanger1 collection together', () => {
     const organization = stockPatternOrganization(STOCK_PATTERNS)
     const folder = organization.nodes.find((node) => node.kind === 'folder' && node.name === 'ZRanger1')
@@ -82,6 +89,24 @@ describe('built-in entity organization', () => {
       ] },
     ])
     expect(new Set(collectEntityIds(organization.nodes)).size).toBe(STOCK_SHOWS.length)
+  })
+
+  it('starts built-in Show leaf folders collapsed while collection folders stay open', () => {
+    const organization = stockShowOrganization(STOCK_SHOWS)
+
+    expect(organization.collapsedFolderIds).toEqual([
+      'stock-show-learn-100',
+      'stock-show-learn-200',
+      'stock-show-learn-300',
+      'stock-show-showcases-effects',
+      'stock-show-showcases-transitions',
+      'stock-show-showcases-placement',
+      'stock-show-showcases-zones',
+      'stock-show-showcases-installations',
+      'stock-show-remixes',
+    ])
+    expect(organization.collapsedFolderIds).not.toContain('stock-show-learn')
+    expect(organization.collapsedFolderIds).not.toContain('stock-show-showcases')
   })
 
   it('omits a Learn level folder that has no lessons', () => {

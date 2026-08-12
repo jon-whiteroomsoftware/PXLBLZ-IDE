@@ -15,7 +15,12 @@ export function stockPatternOrganization(patterns: readonly GalleryPattern[]): E
       .sort((left, right) => sectionOrder(label, left.name) - sectionOrder(label, right.name))
       .map((pattern) => ({ kind: 'entity', entityId: pattern.name })),
   }))
-  return normalizeEntityOrganization({ version: 1, nodes, trash: [], collapsedFolderIds: [] }, patterns.map((pattern) => pattern.name))
+  return normalizeEntityOrganization({
+    version: 1,
+    nodes,
+    trash: [],
+    collapsedFolderIds: nodes.flatMap((node) => node.kind === 'folder' ? [node.id] : []),
+  }, patterns.map((pattern) => pattern.name))
 }
 
 function sectionOrder(label: string, patternName: string): number {
@@ -61,7 +66,16 @@ export function stockShowOrganization(shows: readonly StockShow[]): EntityOrgani
     { kind: 'folder', id: 'stock-show-showcases', name: 'Showcases', children: showcases },
     { kind: 'folder', id: 'stock-show-remixes', name: 'Remixes', children: remixes },
   ]
-  return normalizeEntityOrganization({ version: 1, nodes, trash: [], collapsedFolderIds: [] }, shows.map((show) => show.id))
+  return normalizeEntityOrganization({
+    version: 1,
+    nodes,
+    trash: [],
+    collapsedFolderIds: [
+      ...learnLevels.map((level) => `stock-show-learn-${level}`),
+      ...showcaseGroups.map((group) => `stock-show-showcases-${group.id}`),
+      'stock-show-remixes',
+    ],
+  }, shows.map((show) => show.id))
 }
 
 function slug(value: string): string {

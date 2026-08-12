@@ -218,11 +218,13 @@ describe('PatternList', () => {
   })
 
   it('lets long Pattern tree names establish horizontal overflow (#662)', async () => {
+    const user = userEvent.setup()
     render(<PatternList />)
 
     const scroller = await screen.findByTestId('pattern-list-scroll')
     expect(scroller).toHaveClass('overflow-x-auto')
     expect(await screen.findByRole('tree', { name: 'Patterns' })).toHaveClass('min-w-full')
+    await user.click(screen.getByRole('treeitem', { name: /^FPS Heavyweights/ }))
     expect(await screen.findByText('RedlineMachinePortable')).toHaveClass('whitespace-nowrap')
   })
 
@@ -356,6 +358,12 @@ describe('PatternList', () => {
     render(<PatternList />)
 
     expect(await screen.findByRole('button', { name: 'Built-in Patterns' })).toHaveAttribute('aria-expanded', 'true')
+    const builtInTree = screen.getByRole('tree', { name: 'Built-in Patterns' })
+    const threeDFolder = within(builtInTree).getByRole('treeitem', { name: /^3D/ })
+    expect(threeDFolder).toHaveAttribute('aria-expanded', 'false')
+    expect(within(builtInTree).queryByText('AuroraSphere')).not.toBeInTheDocument()
+
+    await user.click(threeDFolder)
     await user.click(screen.getByText('AuroraSphere'))
 
     expect(window.location.pathname).toBe('/studio/patterns/AuroraSphere')
@@ -480,10 +488,15 @@ describe('PatternList', () => {
     await user.click(screen.getByRole('radio', { name: 'Shows' }))
     expect(await screen.findByRole('button', { name: 'Built-in Shows' })).toHaveAttribute('aria-expanded', 'true')
     const builtInTree = screen.getByRole('tree', { name: 'Built-in Shows' })
-    expect(within(builtInTree).getByRole('treeitem', { name: /Learn/ })).toBeInTheDocument()
-    expect(within(builtInTree).getByRole('treeitem', { name: /Showcases/ })).toBeInTheDocument()
-    expect(within(builtInTree).getByRole('treeitem', { name: /Installations/ })).toBeInTheDocument()
+    expect(within(builtInTree).getByRole('treeitem', { name: /^Learn/ })).toHaveAttribute('aria-expanded', 'true')
+    expect(within(builtInTree).getByRole('treeitem', { name: /^Showcases/ })).toHaveAttribute('aria-expanded', 'true')
+    expect(within(builtInTree).getByRole('treeitem', { name: /^Installations/ })).toHaveAttribute('aria-expanded', 'false')
+    expect(within(builtInTree).getByRole('treeitem', { name: /^Remixes/ })).toHaveAttribute('aria-expanded', 'false')
+    const level100Folder = within(builtInTree).getByRole('treeitem', { name: /^100/ })
+    expect(level100Folder).toHaveAttribute('aria-expanded', 'false')
+    expect(within(builtInTree).queryByText('101 Clips, Cuts, and Blank Time')).not.toBeInTheDocument()
 
+    await user.click(level100Folder)
     await user.click(screen.getByText('101 Clips, Cuts, and Blank Time'))
 
     expect(window.location.pathname).toBe('/studio/shows/stock-show-101-clips-cuts-blank-time')
