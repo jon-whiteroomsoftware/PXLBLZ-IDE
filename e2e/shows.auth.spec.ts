@@ -1,4 +1,5 @@
 import { expect, showtimePath, test } from './fixtures/authenticated'
+import { installFakeControllerHelper } from './fixtures/fakeControllerHelper'
 import type { Locator, Page } from '@playwright/test'
 
 test.describe('authenticated Show authoring', () => {
@@ -417,8 +418,21 @@ test.describe('authenticated Show authoring', () => {
   })
 
   test('Show header preserves its title before compacting lower-priority controls (#836)', async ({ page }) => {
+    await installFakeControllerHelper(page, {
+      programs: [],
+      activeProgramId: 'none',
+      deviceName: 'Header bench',
+      boardType: 'standard',
+      mac: 'AA:BB:CC:DD:EE:36',
+      pixelCount: 64,
+    })
     await page.setViewportSize({ width: 1900, height: 900 })
     await page.goto(showtimePath('studio/shows/stock-show-301-installation-mapping'))
+
+    await page.getByRole('button', { name: 'Connect a Controller' }).click()
+    await page.getByRole('textbox', { name: 'Controller IP address' }).fill('192.168.8.236')
+    await page.getByTestId('controller-go').click()
+    await expect(page.getByTestId('controller-pill')).toHaveAttribute('data-phase', 'live')
 
     const header = page.locator('.show-pane-header')
     const previewSplitter = page.getByRole('separator', { name: 'Resize preview pane' })
@@ -431,6 +445,8 @@ test.describe('authenticated Show authoring', () => {
       page.getByRole('button', { name: 'Show properties' }),
       page.getByRole('button', { name: 'View code' }),
       page.getByRole('button', { name: 'Export Show as .epe' }),
+      page.getByTestId('run-on-controller'),
+      page.getByTestId('save-to-controller'),
     ]
 
     await expect(outputSummary).toBeVisible()

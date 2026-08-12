@@ -620,6 +620,7 @@
   }
 
   .show-header-action-label,
+  .show-deployment-action-label,
   .show-deployment-identity-copy {
     display: none;
   }
@@ -632,12 +633,6 @@
   .show-header-actions button,
   .show-header-actions [data-testid='controller-deployment-identity'] {
     padding-inline: 6px;
-  }
-}
-
-@container (max-width: 520px) {
-  .show-deployment-action-label {
-    display: none;
   }
 }
 
