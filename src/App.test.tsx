@@ -1251,6 +1251,58 @@ describe('routing (#308)', () => {
     expect(screen.getByTestId('gallery-page')).toHaveTextContent('Pattern Gallery')
   })
 
+  it('keeps broken Pattern source in place on Cancel and discards it on keyboard confirmation (#831)', async () => {
+    const user = userEvent.setup()
+    const pattern: PatternRecord = {
+      id: 'broken-navigation-pattern',
+      name: 'Broken navigation bench',
+      src: 'export function render(index) { hsv(index / pixelCount, 1, 1) }',
+      controls: {},
+      updatedAt: 1,
+    }
+    const brokenSource = 'export function render(index) { var = 3 }'
+    window.history.replaceState(null, '', `/studio/patterns/${pattern.id}`)
+    seedSignedInWorkspace()
+    usePatternStore.setState({ userPatterns: [pattern], patternsLoaded: true })
+    render(<App />)
+    await waitFor(() => expect(usePatternStore.getState().activePatternId).toBe(pattern.id))
+    act(() => useEditorStore.setState({
+      source: brokenSource,
+      bufferEdited: true,
+      compileStatus: 'broken',
+      previewSource: pattern.src,
+      previewPatternName: pattern.name,
+      isReadOnly: false,
+    }))
+
+    await user.click(within(screen.getByTestId('top-bar')).getByRole('button', { name: 'Gallery' }))
+
+    let dialog = screen.getByRole('alertdialog', { name: 'Discard broken source?' })
+    expect(dialog).toHaveTextContent(pattern.name)
+    expect(window.location.pathname).toBe(`/studio/patterns/${pattern.id}`)
+    expect(usePatternStore.getState().activePatternId).toBe(pattern.id)
+    expect(useEditorStore.getState()).toMatchObject({
+      source: brokenSource,
+      previewSource: pattern.src,
+      previewPatternName: pattern.name,
+    })
+    expect(usePatternStore.getState().userPatterns[0]?.src).toBe(pattern.src)
+
+    await user.keyboard('{Enter}')
+    expect(screen.queryByRole('alertdialog', { name: 'Discard broken source?' })).not.toBeInTheDocument()
+    expect(window.location.pathname).toBe(`/studio/patterns/${pattern.id}`)
+    expect(useEditorStore.getState().source).toBe(brokenSource)
+
+    await user.click(within(screen.getByTestId('top-bar')).getByRole('button', { name: 'Gallery' }))
+    dialog = screen.getByRole('alertdialog', { name: 'Discard broken source?' })
+    within(dialog).getByRole('button', { name: 'Discard and continue' }).focus()
+    await user.keyboard('{Enter}')
+
+    await waitFor(() => expect(window.location.pathname).toBe('/gallery'))
+    expect(screen.getByTestId('gallery-page')).toHaveTextContent('Pattern Gallery')
+    expect(usePatternStore.getState().userPatterns[0]?.src).toBe(pattern.src)
+  })
+
   it('sends signed-out Gallery visitors to the Studio welcome page without rendering Studio first', async () => {
     window.history.replaceState(null, '', '/gallery')
     useWorkspaceStore.setState({

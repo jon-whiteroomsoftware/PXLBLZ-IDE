@@ -23,6 +23,11 @@ import { createDefaultShow } from '@/engine/showModel'
 import type { LastActive } from '@/engine/personalContentProvider'
 import type { Settings } from '@/engine/settings'
 import { studioOperationInitialState, useStudioOperationStore } from '@/store/studioOperationStore'
+import {
+  __resetNavigationPreflightForTests,
+  continueNavigationPreflight,
+  useNavigationPreflightStore,
+} from '@/store/navigationPreflightStore'
 
 vi.mock('@/engine/authSession', () => ({
   getAuthSession: vi.fn(),
@@ -42,6 +47,7 @@ let requests: Array<{ url: string; init?: RequestInit }> = []
 let blockedWrite: { path: string; method: string } | null = null
 
 beforeEach(() => {
+  __resetNavigationPreflightForTests()
   vi.clearAllMocks()
   window.sessionStorage.clear()
   mockMaps = []
@@ -196,6 +202,85 @@ async function selectDimension(
 }
 
 describe('PatternList', () => {
+  it('preflights before opening another Pattern replaces a broken buffer (#831)', async () => {
+    const first = { ...SEED_PATTERN, id: 'first', name: 'First Pattern', src: '// first' }
+    const second = { ...SEED_PATTERN, id: 'second', name: 'Second Pattern', src: '// second' }
+    const user = userEvent.setup()
+    render(<PatternList />)
+    await screen.findByText('Seed Pattern')
+    usePatternStore.setState({
+      userPatterns: [first, second],
+      patternsLoaded: true,
+      activePatternId: first.id,
+    })
+    useRouterStore.setState({
+      route: { kind: 'studio', entity: { kind: 'patterns', id: first.id } },
+    })
+    useEditorStore.setState({
+      editorFlavor: 'pattern',
+      source: 'broken(',
+      compileStatus: 'broken',
+      isReadOnly: false,
+      bufferEdited: true,
+      previewSource: first.src,
+      previewPatternName: first.name,
+    })
+
+    await user.click(await screen.findByText(second.name))
+
+    expect(useNavigationPreflightStore.getState().pending?.draft.name).toBe(first.name)
+    expect(usePatternStore.getState().activePatternId).toBe(first.id)
+    expect(useEditorStore.getState()).toMatchObject({
+      editorFlavor: 'pattern',
+      source: 'broken(',
+      previewSource: first.src,
+    })
+    expect(useRouterStore.getState().route).toEqual({
+      kind: 'studio',
+      entity: { kind: 'patterns', id: first.id },
+    })
+
+    continueNavigationPreflight()
+
+    expect(usePatternStore.getState().activePatternId).toBe(second.id)
+    expect(useEditorStore.getState()).toMatchObject({ source: second.src, previewSource: second.src })
+  })
+
+  it('preflights before New Pattern creates or replaces anything (#831)', async () => {
+    const user = userEvent.setup()
+    render(<PatternList />)
+    await screen.findByText('Seed Pattern')
+    usePatternStore.setState({ activePatternId: SEED_PATTERN.id })
+    useRouterStore.setState({
+      route: { kind: 'studio', entity: { kind: 'patterns', id: SEED_PATTERN.id } },
+    })
+    useEditorStore.setState({
+      editorFlavor: 'pattern',
+      source: 'broken(',
+      compileStatus: 'broken',
+      isReadOnly: false,
+      bufferEdited: true,
+      previewSource: SEED_PATTERN.src,
+      previewPatternName: SEED_PATTERN.name,
+    })
+    const postsBefore = requests.filter(({ url, init }) => url === '/api/patterns' && init?.method === 'POST').length
+
+    await user.click(screen.getByRole('button', { name: 'Add pattern' }))
+    await user.click(screen.getByRole('button', { name: 'New pattern' }))
+
+    expect(useNavigationPreflightStore.getState().pending?.draft.name).toBe(SEED_PATTERN.name)
+    expect(requests.filter(({ url, init }) => url === '/api/patterns' && init?.method === 'POST')).toHaveLength(postsBefore)
+    expect(usePatternStore.getState().activePatternId).toBe(SEED_PATTERN.id)
+    expect(useEditorStore.getState().source).toBe('broken(')
+
+    continueNavigationPreflight()
+
+    await waitFor(() => expect(
+      requests.filter(({ url, init }) => url === '/api/patterns' && init?.method === 'POST'),
+    ).toHaveLength(postsBefore + 1))
+    expect(await screen.findByText('Untitled Pattern')).toBeInTheDocument()
+  })
+
   it('restores persisted preview settings for an already-open built-in Pattern (#805)', async () => {
     usePatternStore.setState({ activeDemoName: 'PerlinKaleidoscope2D' })
     mockDemoOverrides = {

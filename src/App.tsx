@@ -97,6 +97,7 @@ import {
 } from '@/engine/studioChrome'
 import { SaveStatusBadge } from '@/components/SaveStatusBadge'
 import { NavigationSaveFailureNotice } from '@/components/NavigationSaveFailureNotice'
+import { NavigationPreflightDialog } from '@/components/NavigationPreflightDialog'
 import { activeStuckSaveStatus } from '@/store/autosaveSync'
 import { SaveFailureNotice } from '@/components/SaveFailureNotice'
 import {
@@ -847,6 +848,7 @@ function StudioApp() {
           every route — Docs, Gallery, API — not only inside the Studio
           workspace branch. */}
       <NavigationSaveFailureNotice />
+      <NavigationPreflightDialog />
       <header data-testid="top-bar" className="flex min-h-10 shrink-0 flex-wrap items-center gap-y-1 border-b border-seam bg-panel px-3 py-1 sm:h-10 sm:flex-nowrap sm:px-4 sm:py-0">
         <a
           href={import.meta.env.BASE_URL}

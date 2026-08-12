@@ -49,6 +49,7 @@ import { useShowStore, type ShowRecord } from '@/store/showStore'
 import { useEntityOrganizationStore } from '@/store/entityOrganizationStore'
 import { useDocsStore } from '@/store/docsStore'
 import { useRouterStore } from '@/store/routerStore'
+import { requestBufferReplacement } from '@/store/navigationPreflightStore'
 import { openDemoPattern } from '@/store/openPattern'
 import { useWorkspaceStore } from '@/store/workspaceStore'
 import { seedActiveSettings } from '@/store/settingsCascade'
@@ -260,18 +261,20 @@ export function PatternList({
         ...(mapResolution.status === 'resolved' ? { settings: { mapId: mapResolution.mapId } } : {}),
         updatedAt: Date.now(),
       }
-      await addPattern(record)
-      if (mapResolution.status === 'resolved') useMapStore.getState().setActiveMap(mapResolution.mapId)
-      else if (mapResolution.message) showImportNotice(mapResolution.message)
-      useMapStore.getState().closeMapEditor()
-      useMixinStore.getState().closeMixinEditor()
-      useDocsStore.getState().closeDocs()
-      setActivePattern(id)
-      setEditorFlavor('pattern')
-      setSource(record.src)
-      setPreviewSource(record.src)
-      setPreviewPatternName(record.name)
-      setIsReadOnly(false)
+      requestBufferReplacement(async () => {
+        await addPattern(record)
+        if (mapResolution.status === 'resolved') useMapStore.getState().setActiveMap(mapResolution.mapId)
+        else if (mapResolution.message) showImportNotice(mapResolution.message)
+        useMapStore.getState().closeMapEditor()
+        useMixinStore.getState().closeMixinEditor()
+        useDocsStore.getState().closeDocs()
+        setActivePattern(id)
+        setEditorFlavor('pattern')
+        setSource(record.src)
+        setPreviewSource(record.src)
+        setPreviewPatternName(record.name)
+        setIsReadOnly(false)
+      })
     }
     reader.readAsText(file)
   }
@@ -344,41 +347,43 @@ export function PatternList({
   const setQuery = (next: string) => setQueries((q) => ({ ...q, [railMode]: next }))
 
   function handleRailModeChange(next: RailMode) {
-    closeDocs()
-    if (next !== 'maps') closeMapEditor()
-    if (next !== 'mixins') closeMixinEditor()
-    if (next !== 'libraries') closeLibraryEditor()
-    if (next === 'libraries') {
-      const last = lastEntityByModeRef.current.libraries
-      const id = last && (LIBRARIES[last] || userLibraries.some((library) => library.id === last)) ? last : null
+    requestBufferReplacement(() => {
+      closeDocs()
+      if (next !== 'maps') closeMapEditor()
+      if (next !== 'mixins') closeMixinEditor()
+      if (next !== 'libraries') closeLibraryEditor()
+      if (next === 'libraries') {
+        const last = lastEntityByModeRef.current.libraries
+        const id = last && (LIBRARIES[last] || userLibraries.some((library) => library.id === last)) ? last : null
+        navigate({ kind: 'studio', entity: { kind: next, id } })
+        return
+      }
+      if (next === 'shows') {
+        const last = lastEntityByModeRef.current.shows
+        const id = userShows.some((show) => show.id === last) || STOCK_SHOWS.some((show) => show.id === last)
+          ? last
+          : (userShows[0]?.id ?? null)
+        navigate({ kind: 'studio', entity: { kind: next, id } })
+        return
+      }
+      if (next === 'controllers') {
+        const last = lastEntityByModeRef.current.controllers
+        const id = controllerProfiles.some((profile) => profile.id === last)
+          ? last
+          : (controllerProfiles[0]?.id ?? null)
+        navigate({ kind: 'studio', entity: { kind: next, id } })
+        return
+      }
+      const last = lastEntityByModeRef.current[next]
+      const id = next === 'patterns'
+        ? (userPatterns.some((p) => p.id === last) || STOCK_PATTERNS.some((p) => p.name === last) ? last : null)
+        : next === 'maps'
+          ? (userMaps.some((m) => m.id === last) || STOCK_MAP_ITEMS.some((m) => m.id === last) ? last : null)
+        : next === 'mixins'
+          ? (userMixins.some((m) => m.id === last) || STOCK_MIXIN_ITEMS.some((m) => m.id === last) ? last : null)
+        : null
       navigate({ kind: 'studio', entity: { kind: next, id } })
-      return
-    }
-    if (next === 'shows') {
-      const last = lastEntityByModeRef.current.shows
-      const id = userShows.some((show) => show.id === last) || STOCK_SHOWS.some((show) => show.id === last)
-        ? last
-        : (userShows[0]?.id ?? null)
-      navigate({ kind: 'studio', entity: { kind: next, id } })
-      return
-    }
-    if (next === 'controllers') {
-      const last = lastEntityByModeRef.current.controllers
-      const id = controllerProfiles.some((profile) => profile.id === last)
-        ? last
-        : (controllerProfiles[0]?.id ?? null)
-      navigate({ kind: 'studio', entity: { kind: next, id } })
-      return
-    }
-    const last = lastEntityByModeRef.current[next]
-    const id = next === 'patterns'
-      ? (userPatterns.some((p) => p.id === last) || STOCK_PATTERNS.some((p) => p.name === last) ? last : null)
-      : next === 'maps'
-        ? (userMaps.some((m) => m.id === last) || STOCK_MAP_ITEMS.some((m) => m.id === last) ? last : null)
-      : next === 'mixins'
-        ? (userMixins.some((m) => m.id === last) || STOCK_MIXIN_ITEMS.some((m) => m.id === last) ? last : null)
-      : null
-    navigate({ kind: 'studio', entity: { kind: next, id } })
+    })
   }
 
   function updateScrollMetrics() {
@@ -598,21 +603,25 @@ export function PatternList({
   }, [loadControllerProfiles, loadLibraries, loadOrganization, loadPatterns, loadShows, setGlobalWorkspaceAuthenticated])
 
   function openUserPattern(pattern: PatternRecord) {
-    closeMapEditor()
-    closeMixinEditor()
-    closeLibraryEditor()
-    closeDocs()
-    setActivePattern(pattern.id)
-    setEditorFlavor('pattern')
-    setSource(pattern.src)
-    setPreviewSource(pattern.src)
-    setPreviewPatternName(pattern.name)
-    setIsReadOnly(false)
+    requestBufferReplacement(() => {
+      closeMapEditor()
+      closeMixinEditor()
+      closeLibraryEditor()
+      closeDocs()
+      setActivePattern(pattern.id)
+      setEditorFlavor('pattern')
+      setSource(pattern.src)
+      setPreviewSource(pattern.src)
+      setPreviewPatternName(pattern.name)
+      setIsReadOnly(false)
+    })
   }
 
   function openStockPatternRoute(name: string) {
-    openDemoPattern(name)
-    navigate({ kind: 'studio', entity: { kind: 'patterns', id: name } })
+    requestBufferReplacement(() => {
+      openDemoPattern(name)
+      navigate({ kind: 'studio', entity: { kind: 'patterns', id: name } })
+    })
   }
 
   // Create a fresh "Untitled Pattern" and open it. Lives next to Patterns
@@ -622,7 +631,7 @@ export function PatternList({
     const id = newPersonalContentId()
     const name = uniquePatternName('Untitled Pattern', userPatterns.map((p) => p.name))
     const record: PatternRecord = { id, name, src: NEW_PATTERN_SRC, controls: {}, updatedAt: Date.now() }
-    void executeStudioOperation({
+    requestBufferReplacement(() => executeStudioOperation({
       surface: 'rail',
       action: 'create',
       entityKind: 'pattern',
@@ -639,25 +648,29 @@ export function PatternList({
         setPreviewPatternName(record.name)
         setIsReadOnly(false)
       },
-    })
+    }))
   }
 
   // Open a custom map in editor map mode (#151): loads its source, flips the
   // editor to the JS map flavor, and drives the bare-geometry preview.
   function openUserMap(map: MapRecord) {
-    closeDocs()
-    closeMixinEditor()
-    closeLibraryEditor()
-    openExistingMap(map)
-    navigate({ kind: 'studio', entity: { kind: 'maps', id: map.id } })
+    requestBufferReplacement(() => {
+      closeDocs()
+      closeMixinEditor()
+      closeLibraryEditor()
+      openExistingMap(map)
+      navigate({ kind: 'studio', entity: { kind: 'maps', id: map.id } })
+    })
   }
 
   function openStockMapRoute(id: string) {
-    closeDocs()
-    closeMixinEditor()
-    closeLibraryEditor()
-    openStockMap(id)
-    navigate({ kind: 'studio', entity: { kind: 'maps', id } })
+    requestBufferReplacement(() => {
+      closeDocs()
+      closeMixinEditor()
+      closeLibraryEditor()
+      openStockMap(id)
+      navigate({ kind: 'studio', entity: { kind: 'maps', id } })
+    })
   }
 
   function handleCreateMap() {
@@ -670,7 +683,7 @@ export function PatternList({
       source: MAP_SKELETON,
       updatedAt: Date.now(),
     }
-    void executeStudioOperation({
+    requestBufferReplacement(() => executeStudioOperation({
       surface: 'rail',
       action: 'create',
       entityKind: 'map',
@@ -682,7 +695,7 @@ export function PatternList({
         openExistingMap(record)
         navigate({ kind: 'studio', entity: { kind: 'maps', id: record.id } })
       },
-    })
+    }))
   }
 
   function handleCreateMixin() {
@@ -693,7 +706,7 @@ export function PatternList({
       src: MIXIN_SKELETON,
       updatedAt: Date.now(),
     }
-    void executeStudioOperation({
+    requestBufferReplacement(() => executeStudioOperation({
       surface: 'rail',
       action: 'create',
       entityKind: 'mixin',
@@ -705,32 +718,40 @@ export function PatternList({
         openExistingMixin(record)
         navigate({ kind: 'studio', entity: { kind: 'mixins', id: record.id } })
       },
-    })
+    }))
   }
 
   function openUserMixin(mixin: MixinRecord) {
-    closeDocs()
-    closeLibraryEditor()
-    openExistingMixin(mixin)
-    navigate({ kind: 'studio', entity: { kind: 'mixins', id: mixin.id } })
+    requestBufferReplacement(() => {
+      closeDocs()
+      closeLibraryEditor()
+      openExistingMixin(mixin)
+      navigate({ kind: 'studio', entity: { kind: 'mixins', id: mixin.id } })
+    })
   }
 
   function openStockMixinRoute(id: string) {
-    closeDocs()
-    closeLibraryEditor()
-    openStockMixin(id)
-    navigate({ kind: 'studio', entity: { kind: 'mixins', id } })
+    requestBufferReplacement(() => {
+      closeDocs()
+      closeLibraryEditor()
+      openStockMixin(id)
+      navigate({ kind: 'studio', entity: { kind: 'mixins', id } })
+    })
   }
 
   function openStockLibraryRoute(name: string) {
-    openStockLibrary(name)
-    navigate({ kind: 'studio', entity: { kind: 'libraries', id: name } })
+    requestBufferReplacement(() => {
+      openStockLibrary(name)
+      navigate({ kind: 'studio', entity: { kind: 'libraries', id: name } })
+    })
   }
 
   function openUserLibrary(library: LibraryRecord) {
-    closeDocs()
-    openExistingLibrary(library)
-    navigate({ kind: 'studio', entity: { kind: 'libraries', id: library.id } })
+    requestBufferReplacement(() => {
+      closeDocs()
+      openExistingLibrary(library)
+      navigate({ kind: 'studio', entity: { kind: 'libraries', id: library.id } })
+    })
   }
 
   function handleCreateLibrary() {
@@ -745,7 +766,7 @@ export function PatternList({
       src: LIBRARY_SKELETON.replace(/Lib1/g, name),
       updatedAt: Date.now(),
     }
-    void executeStudioOperation({
+    requestBufferReplacement(() => executeStudioOperation({
       surface: 'rail',
       action: 'create',
       entityKind: 'library',
@@ -757,7 +778,7 @@ export function PatternList({
         openExistingLibrary(library)
         navigate({ kind: 'studio', entity: { kind: 'libraries', id: library.id } })
       },
-    })
+    }))
   }
 
   function handleRenamePattern(patternId: string, name: string) {
@@ -805,29 +826,35 @@ export function PatternList({
   }
 
   function openControllerProfile(profileId: string) {
-    closeMapEditor()
-    closeMixinEditor()
-    closeLibraryEditor()
-    closeDocs()
-    navigate({ kind: 'studio', entity: { kind: 'controllers', id: profileId } })
+    requestBufferReplacement(() => {
+      closeMapEditor()
+      closeMixinEditor()
+      closeLibraryEditor()
+      closeDocs()
+      navigate({ kind: 'studio', entity: { kind: 'controllers', id: profileId } })
+    })
   }
 
   function handleCreateShow() {
-    closeMapEditor()
-    closeMixinEditor()
-    closeLibraryEditor()
-    closeDocs()
-    beginShowCreation()
+    requestBufferReplacement(() => {
+      closeMapEditor()
+      closeMixinEditor()
+      closeLibraryEditor()
+      closeDocs()
+      beginShowCreation()
+    })
   }
 
-  async function handleCreateShowFromController() {
+  function handleCreateShowFromController() {
     if (!showSeedProfile) return
-    closeMapEditor()
-    closeMixinEditor()
-    closeLibraryEditor()
-    closeDocs()
-    const show = await createShowFromController(showSeedProfile)
-    navigate({ kind: 'studio', entity: { kind: 'shows', id: show.id } })
+    requestBufferReplacement(async () => {
+      closeMapEditor()
+      closeMixinEditor()
+      closeLibraryEditor()
+      closeDocs()
+      const show = await createShowFromController(showSeedProfile)
+      navigate({ kind: 'studio', entity: { kind: 'shows', id: show.id } })
+    })
   }
 
   async function handleDuplicateShow(id: string) {
@@ -836,21 +863,25 @@ export function PatternList({
   }
 
   function openUserShow(show: ShowRecord) {
-    closeMapEditor()
-    closeMixinEditor()
-    closeLibraryEditor()
-    closeDocs()
-    openShow(show.id)
-    navigate({ kind: 'studio', entity: { kind: 'shows', id: show.id } })
+    requestBufferReplacement(() => {
+      closeMapEditor()
+      closeMixinEditor()
+      closeLibraryEditor()
+      closeDocs()
+      openShow(show.id)
+      navigate({ kind: 'studio', entity: { kind: 'shows', id: show.id } })
+    })
   }
 
   function openStockShowRoute(item: StockShow) {
-    closeMapEditor()
-    closeMixinEditor()
-    closeLibraryEditor()
-    closeDocs()
-    void openShow(null)
-    navigate({ kind: 'studio', entity: { kind: 'shows', id: item.id } })
+    requestBufferReplacement(() => {
+      closeMapEditor()
+      closeMixinEditor()
+      closeLibraryEditor()
+      closeDocs()
+      void openShow(null)
+      navigate({ kind: 'studio', entity: { kind: 'shows', id: item.id } })
+    })
   }
 
   async function handleRemoveControllerProfile(profileId: string) {

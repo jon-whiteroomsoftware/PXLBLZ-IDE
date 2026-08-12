@@ -134,10 +134,15 @@ resumes saving), and red while a save is failing (offline or server error —
 the editor keeps retrying automatically and clears the glyph on the first
 success). The same glyph appears in the pattern, map, mixin, and library
 editors, and closing the tab in either state asks for confirmation. An edit
-that fails to save while switching views is reported with an inline notice
-naming the record, so nothing is lost silently. One-shot edits outside the
-editors use a nearby notice with action-specific Retry and Dismiss controls;
-they never navigate to a record whose create, Clone, or delete failed.
+with source errors cannot auto-save: before an in-app action replaces that
+Pattern, map, mixin, or library buffer, Studio names the record and asks whether
+to discard the broken source. **Cancel** preserves the route, selection, source,
+and preview; **Discard and continue** completes the requested action once while
+leaving the last durable source unchanged. Separately, an edit that fails to
+save while switching views is reported with an inline notice naming the record,
+so nothing is lost silently. One-shot edits outside the editors use a nearby
+notice with action-specific Retry and Dismiss controls; they never navigate to
+a record whose create, Clone, or delete failed.
 
 Built-in Patterns open read-only; **Clone** creates an editable personal copy
 and snapshots the current preview settings. Every built-in starts with a

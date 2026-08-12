@@ -713,6 +713,60 @@ test.describe('silent save-failure feedback (#810)', () => {
     await expect(glyph).toHaveCount(0)
   })
 
+  test('broken Pattern source requires keyboard confirmation before in-app navigation (#831)', async ({ page }) => {
+    const pattern = {
+      id: 'e2e-831-broken-navigation',
+      name: 'Broken navigation bench',
+      src: 'export function render(index) { hsv(index / pixelCount, 1, 1) }',
+      controls: {},
+      updatedAt: Date.now(),
+    }
+    const brokenSource = 'export function render(index) { var = 3 }'
+    const created = await page.context().request.post('/api/patterns', { data: pattern })
+    expect(created.ok(), `POST /api/patterns -> ${created.status()}`).toBe(true)
+
+    await page.goto(`studio/patterns/${pattern.id}`)
+    const editor = page.locator('.monaco-editor').first()
+    await expect(editor.locator('.view-lines')).toBeVisible()
+    await editor.locator('.view-lines').click({ clickCount: 3 })
+    await expect(editor).toHaveClass(/focused/)
+    await page.keyboard.type(brokenSource)
+    await expect(page.getByTestId('compile-status')).toHaveAttribute('data-status', 'broken')
+
+    const studioUrl = new RegExp(`/studio/patterns/${pattern.id}$`)
+    const gallery = page.getByRole('button', { name: 'Gallery' })
+    await gallery.click()
+
+    let dialog = page.getByRole('alertdialog', { name: 'Discard broken source?' })
+    await expect(dialog).toContainText(pattern.name)
+    await expect(dialog).toContainText('cannot be saved')
+    await expect(page).toHaveURL(studioUrl)
+    // Radix correctly hides the background from the accessibility tree while
+    // modal, so inspect the underlying title element without a role query.
+    await expect(page.locator(`[aria-label="Rename pattern ${pattern.name}"]`)).toHaveCount(1)
+    await expect(editor.locator('.view-lines')).toContainText('var = 3')
+
+    // Cancel owns initial focus, so Enter proves the non-destructive keyboard path.
+    await page.keyboard.press('Enter')
+    await expect(dialog).toHaveCount(0)
+    await expect(page).toHaveURL(studioUrl)
+    await expect(page.getByRole('button', { name: `Rename pattern ${pattern.name}` })).toBeVisible()
+    await expect(editor.locator('.view-lines')).toContainText('var = 3')
+
+    await gallery.click()
+    dialog = page.getByRole('alertdialog', { name: 'Discard broken source?' })
+    const discard = dialog.getByRole('button', { name: 'Discard and continue' })
+    await discard.focus()
+    await page.keyboard.press('Enter')
+
+    await expect(page).toHaveURL(/\/gallery$/)
+    await expect(page.getByTestId('gallery-page')).toBeVisible()
+    const patterns = await page.context().request.get('/api/patterns')
+    expect(patterns.ok(), `GET /api/patterns -> ${patterns.status()}`).toBe(true)
+    const body = await patterns.json() as { patterns?: Array<{ id: string; src: string }> }
+    expect(body.patterns?.find((item) => item.id === pattern.id)?.src).toBe(pattern.src)
+  })
+
   test('an edit that fails to save during navigation is reported as lost (#810)', async ({ page }) => {
     const patternA = {
       id: 'e2e-810-nav-a',

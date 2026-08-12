@@ -24,6 +24,25 @@ interface RouterState {
   syncFromLocation: () => void
 }
 
+type RouterNavigationPreflight = (transition: () => void) => void
+
+const immediateNavigation: RouterNavigationPreflight = (transition) => transition()
+let navigationPreflight: RouterNavigationPreflight = immediateNavigation
+
+export function setRouterNavigationPreflight(
+  next: RouterNavigationPreflight,
+): () => void {
+  const previous = navigationPreflight
+  navigationPreflight = next
+  return () => {
+    if (navigationPreflight === next) navigationPreflight = previous
+  }
+}
+
+export function __resetRouterNavigationPreflightForTests(): void {
+  navigationPreflight = immediateNavigation
+}
+
 export const routerInitialState = {
   route: { kind: 'studio', entity: null } as Route,
   featureAccess: { shows: false },
@@ -37,24 +56,26 @@ export const useRouterStore = create<RouterState>()((set, get) => ({
   ...routerInitialState,
 
   navigate: (requestedRoute, opts) => {
-    const featureAccess = typeof window !== 'undefined'
-      ? featureAccessFromSearch(window.location.search)
-      : get().featureAccess
-    const route = gateRouteForFeatureAccess(requestedRoute, featureAccess)
-    if (typeof window !== 'undefined') {
-      const path = routePath(route, base()) + window.location.search
-      const current = window.location.pathname + window.location.search
-      if (path !== current) {
-        if (opts?.replace) window.history.replaceState(opts.historyState ?? null, '', path)
-        else window.history.pushState(opts?.historyState ?? null, '', path)
+    navigationPreflight(() => {
+      const featureAccess = typeof window !== 'undefined'
+        ? featureAccessFromSearch(window.location.search)
+        : get().featureAccess
+      const route = gateRouteForFeatureAccess(requestedRoute, featureAccess)
+      if (typeof window !== 'undefined') {
+        const path = routePath(route, base()) + window.location.search
+        const current = window.location.pathname + window.location.search
+        if (path !== current) {
+          if (opts?.replace) window.history.replaceState(opts.historyState ?? null, '', path)
+          else window.history.pushState(opts?.historyState ?? null, '', path)
+        }
       }
-    }
-    if (
-      !routesEqual(get().route, route) ||
-      get().featureAccess.shows !== featureAccess.shows
-    ) {
-      set({ route, featureAccess })
-    }
+      if (
+        !routesEqual(get().route, route) ||
+        get().featureAccess.shows !== featureAccess.shows
+      ) {
+        set({ route, featureAccess })
+      }
+    })
   },
 
   syncFromLocation: () => {
