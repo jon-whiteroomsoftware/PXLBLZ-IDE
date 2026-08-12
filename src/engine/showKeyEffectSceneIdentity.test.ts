@@ -86,16 +86,21 @@ describe('key effects stay scene-local in shared member stages (#820)', () => {
     // them, so the frame loses its all-achromatic character.
     expect(lumaKey.grayish).toBeLessThan(reference.grayish - 60)
 
-    // Chroma Key: the garden's green bodies punch out; almost no
-    // green-dominant pixels survive.
-    expect(chromaKey.greenDominant).toBeLessThan(30)
+    // Chroma Key: the garden's green bodies punch out, but the garden must
+    // remain VISIBLE - a matte wide enough to swallow its black field makes
+    // the whole layer vanish into the bed (Jon caught exactly that). Green
+    // rim pixels below the solo garden's ~250 prove removal; a nonzero rim
+    // proves presence.
+    expect(chromaKey.greenDominant).toBeLessThan(80)
+    expect(chromaKey.greenDominant).toBeGreaterThan(5)
 
-    // Vignette: edges close down. The rings loop exactly 2 s, so sampling
-    // the Reference and Vignette scenes at the same loop phase compares the
-    // identical ring image with and without the vignette; corners must dim.
-    const referenceMatched = sceneStats(2_326, artifact)
-    const vignetteMatched = sceneStats(18_326, artifact)
-    expect(vignetteMatched.cornerMean).toBeLessThan(referenceMatched.cornerMean * 0.6 + 0.01)
+    // Vignette: the frame closes hard on the marching waves. Averaging
+    // corner and center luminance across four spread samples washes out the
+    // wave phase; corners must sit far below the center.
+    const vignetteSamples = [16_300, 17_050, 17_800, 18_550].map((timeMs) => sceneStats(timeMs, artifact))
+    const meanCorner = vignetteSamples.reduce((sum, stats) => sum + stats.cornerMean, 0) / vignetteSamples.length
+    const meanCenter = vignetteSamples.reduce((sum, stats) => sum + stats.centerMean, 0) / vignetteSamples.length
+    expect(meanCorner).toBeLessThan(meanCenter * 0.35)
 
     // Every beat must produce a distinct composite; the #820 bug collapsed
     // three beats into one identical dispatch block.

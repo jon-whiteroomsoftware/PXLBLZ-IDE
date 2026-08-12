@@ -2707,11 +2707,15 @@ function effectShowcase(kind: ShowcaseKind): StockShow {
 function compositingKeyShowcase(): StockShow {
   const id = 'stock-show-showcase-compositing-key-effects'
   const zones = logicalZones(['Main'], 2_000)
-  const RINGS_LUMA_KEY: ShowClipEffect = { id: 'luma-key', kind: 'luma-key', target: 0, tolerance: 0.35, softness: 0.15 }
+  // Steep matte kills the gray feather-zone halo around keyed rings
+  // (Jon review round 2): higher tolerance, tighter softness.
+  const RINGS_LUMA_KEY: ShowClipEffect = { id: 'luma-key', kind: 'luma-key', target: 0, tolerance: 0.45, softness: 0.08 }
   const WAVES_LUMA_KEY: ShowClipEffect = { id: 'luma-key', kind: 'luma-key', target: 0, tolerance: 0.35, softness: 0.15 }
-  // Wide, soft matte: the punch-out must read at a glance, leaving a bright
-  // rim around each hole rather than a faint fringe (Jon review, 2026-08-11).
-  const GARDEN_CHROMA_KEY: ShowClipEffect = { id: 'chroma-key', kind: 'chroma-key', color: '#22c55e', tolerance: 0.4, softness: 0.3 }
+  // Tight matte: the garden's black field sits only 0.25 squared-distance
+  // from green, so a wide soft matte swallows the background too and the
+  // whole layer vanishes. Tolerance 0.3 keeps black fully opaque while the
+  // green bodies punch out (Jon review rounds 1-2, 2026-08-11).
+  const GARDEN_CHROMA_KEY: ShowClipEffect = { id: 'chroma-key', kind: 'chroma-key', color: '#22c55e', tolerance: 0.3, softness: 0.15 }
   interface CompositeRow {
     name: string
     detail: string
@@ -2733,7 +2737,7 @@ function compositingKeyShowcase(): StockShow {
     { name: 'Chroma Key', detail: 'Green vanishes: the blob bodies punch out clean and the warm bed swims through the holes.', seconds: 3.5, subject: 'garden', effects: [GARDEN_CHROMA_KEY] },
     // Vignette rides straight geometry: a round mask over round rings read
     // as nothing; over marching sine waves the closing frame is unmissable.
-    { name: 'Vignette', detail: 'The frame darkens toward the edges while the marching waves stay bright in the center.', seconds: 3, subject: 'waves', effects: [{ id: 'vignette', kind: 'vignette', amount: 1, radius: 0.42, softness: 0.4, centerX: 0.5, centerY: 0.5, aspect: 1 }] },
+    { name: 'Vignette', detail: 'The frame darkens toward the edges while the marching waves stay bright in the center.', seconds: 3, subject: 'waves', effects: [{ id: 'vignette', kind: 'vignette', amount: 1, radius: 0.3, softness: 0.25, centerX: 0.5, centerY: 0.5, aspect: 1 }] },
     { name: 'Layered', detail: 'Luma on Luma: keyed rings over keyed sine waves over the bed.', seconds: 3.5, subject: 'rings', effects: [RINGS_LUMA_KEY], finale: true },
   ]
   const subjectPattern = { rings: 'LumaRings', garden: 'MetaballGarden', waves: 'LumaStripes' } as const
