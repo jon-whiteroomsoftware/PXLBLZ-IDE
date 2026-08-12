@@ -98,6 +98,12 @@ import {
 import { SaveStatusBadge } from '@/components/SaveStatusBadge'
 import { NavigationSaveFailureNotice } from '@/components/NavigationSaveFailureNotice'
 import { activeStuckSaveStatus } from '@/store/autosaveSync'
+import { SaveFailureNotice } from '@/components/SaveFailureNotice'
+import {
+  studioOperationDismissLabel,
+  studioOperationRetryLabel,
+  useStudioOperationStore,
+} from '@/store/studioOperationStore'
 
 function Splitter({
   onDrag,
@@ -322,6 +328,10 @@ function StudioApp() {
   const renamePattern = usePatternStore((s) => s.renamePattern)
   const setActivePattern = usePatternStore((s) => s.setActivePattern)
   const removePattern = usePatternStore((s) => s.removePattern)
+  const editorOperationFailure = useStudioOperationStore((s) => s.failures.editor)
+  const executeStudioOperation = useStudioOperationStore((s) => s.execute)
+  const retryStudioOperation = useStudioOperationStore((s) => s.retry)
+  const dismissStudioOperation = useStudioOperationStore((s) => s.dismiss)
   const personalWorkspaceAuthenticated = useWorkspaceStore((s) => s.personalWorkspaceAuthenticated)
   const source = useEditorStore((s) => s.source)
   const compileStatus = useEditorStore((s) => s.compileStatus)
@@ -605,14 +615,22 @@ function StudioApp() {
       settings,
       updatedAt: Date.now(),
     }
-    await addPattern(record)
-    setActivePattern(id)
-    setSource(record.src)
-    setIsReadOnly(false)
-    setPreviewSource(record.src)
-    setPreviewPatternName(record.name)
-    trackEvent('catalog_clone', { source: 'stock_pattern', pattern: activeDemoName })
-  }, [activeDemoName, personalWorkspaceAuthenticated, source, userPatterns, addPattern, setActivePattern, setSource, setIsReadOnly, setPreviewSource, setPreviewPatternName])
+    await executeStudioOperation({
+      surface: 'editor',
+      action: 'clone',
+      entityKind: 'pattern',
+      entityName: activeDemoName,
+      run: async () => {
+        await addPattern(record)
+        setActivePattern(id)
+        setSource(record.src)
+        setIsReadOnly(false)
+        setPreviewSource(record.src)
+        setPreviewPatternName(record.name)
+        trackEvent('catalog_clone', { source: 'stock_pattern', pattern: activeDemoName })
+      },
+    })
+  }, [activeDemoName, personalWorkspaceAuthenticated, source, userPatterns, addPattern, setActivePattern, setSource, setIsReadOnly, setPreviewSource, setPreviewPatternName, executeStudioOperation])
 
   const [copied, setCopied] = useState(false)
   const [deletePatternOpen, setDeletePatternOpen] = useState(false)
@@ -705,12 +723,21 @@ function StudioApp() {
   const handleDeletePattern = useCallback(async () => {
     if (!activePatternId) return
     const deletedId = activePatternId
-    await removePattern(deletedId)
-    if (route.kind === 'studio' && route.entity?.kind === 'patterns' && route.entity.id === deletedId) {
-      navigate({ kind: 'studio', entity: { kind: 'patterns', id: null } })
-    }
+    const deletedName = activePattern?.name ?? 'Pattern'
     setDeletePatternOpen(false)
-  }, [activePatternId, navigate, removePattern, route])
+    await executeStudioOperation({
+      surface: 'editor',
+      action: 'delete',
+      entityKind: 'pattern',
+      entityName: deletedName,
+      run: async () => {
+        await removePattern(deletedId)
+        if (route.kind === 'studio' && route.entity?.kind === 'patterns' && route.entity.id === deletedId) {
+          navigate({ kind: 'studio', entity: { kind: 'patterns', id: null } })
+        }
+      },
+    })
+  }, [activePattern?.name, activePatternId, executeStudioOperation, navigate, removePattern, route])
 
   const handleLeftDrag = useCallback((dx: number) => {
     setLeftWidth((w) => resizeStudioLibraryWidth(w, dx))
@@ -1161,6 +1188,16 @@ function StudioApp() {
               </>
             )}
             </PaneHeader>
+            {editorOperationFailure && (
+              <SaveFailureNotice
+                message={editorOperationFailure.message}
+                onRetry={() => void retryStudioOperation('editor')}
+                onDismiss={() => dismissStudioOperation('editor')}
+                retryLabel={studioOperationRetryLabel(editorOperationFailure)}
+                dismissLabel={studioOperationDismissLabel(editorOperationFailure)}
+                testId="studio-editor-operation-failure"
+              />
+            )}
           </div>
           <div className="flex-1 overflow-hidden">
             {activeControllerProfileId !== null ? (

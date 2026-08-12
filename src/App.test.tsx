@@ -33,6 +33,7 @@ import { showEditorSessionInitialState, useShowEditorSessionStore } from '@/stor
 import { entityOrganizationInitialState, useEntityOrganizationStore } from '@/store/entityOrganizationStore'
 import { STOCK_SHOWS } from '@/pixelblaze/stock/shows'
 import { openDemoPattern } from '@/store/openPattern'
+import { studioOperationInitialState, useStudioOperationStore } from '@/store/studioOperationStore'
 
 const authSessionMock = vi.hoisted(() => ({
   getAuthSession: vi.fn(),
@@ -76,6 +77,7 @@ beforeEach(() => {
   useShowTransportStore.setState(showTransportInitialState)
   useShowEditorSessionStore.setState(showEditorSessionInitialState)
   useEntityOrganizationStore.setState(entityOrganizationInitialState)
+  useStudioOperationStore.setState(studioOperationInitialState)
 })
 
 afterEach(() => {
@@ -1387,6 +1389,70 @@ describe('routing (#308)', () => {
 
     expect(editorPane.queryByRole('menuitem', { name: 'View in Gallery' })).not.toBeInTheDocument()
     expect(editorPane.getByRole('menuitem', { name: 'Clone into Patterns' })).toBeInTheDocument()
+  })
+
+  it('reports, dismisses, and retries a failed stock Pattern Clone without opening a ghost record', async () => {
+    window.history.replaceState(null, '', '/studio/patterns/TestPattern1D')
+    seedSignedInWorkspace()
+    openDemoPattern('TestPattern1D')
+    const addPattern = vi.fn()
+      .mockRejectedValueOnce(new Error('offline'))
+      .mockRejectedValueOnce(new Error('still offline'))
+      .mockResolvedValue(undefined)
+    usePatternStore.setState({ addPattern })
+    const user = userEvent.setup()
+    render(<App />)
+    const editorPane = within(screen.getByTestId('editor-pane'))
+
+    await user.click(editorPane.getByRole('button', { name: 'Pattern actions' }))
+    await user.click(editorPane.getByRole('menuitem', { name: 'Clone into Patterns' }))
+
+    let notice = await editorPane.findByRole('alert')
+    expect(notice).toHaveTextContent('Could not clone pattern "TestPattern1D".')
+    expect(usePatternStore.getState().activePatternId).toBeNull()
+    const attemptedRecord = addPattern.mock.calls[0]?.[0] as PatternRecord
+    await user.click(within(notice).getByRole('button', { name: 'Dismiss clone pattern notice' }))
+    expect(editorPane.queryByRole('alert')).not.toBeInTheDocument()
+
+    await user.click(editorPane.getByRole('button', { name: 'Pattern actions' }))
+    await user.click(editorPane.getByRole('menuitem', { name: 'Clone into Patterns' }))
+    notice = await editorPane.findByRole('alert')
+    await user.click(within(notice).getByRole('button', { name: 'Retry clone pattern' }))
+
+    expect(addPattern).toHaveBeenCalledTimes(3)
+    expect((addPattern.mock.calls[1]?.[0] as PatternRecord).id).not.toBe(attemptedRecord.id)
+    expect(addPattern.mock.calls[2]?.[0]).toBe(addPattern.mock.calls[1]?.[0])
+    expect(editorPane.queryByRole('alert')).not.toBeInTheDocument()
+  })
+
+  it('reports and retries a failed permanent Pattern Delete without navigating early', async () => {
+    const pattern: PatternRecord = { id: 'delete-me', name: 'Delete Me', src: 'export function render(index) {}', controls: {}, updatedAt: 1 }
+    window.history.replaceState(null, '', `/studio/patterns/${pattern.id}`)
+    seedSignedInWorkspace()
+    const removePattern = vi.fn().mockRejectedValueOnce(new Error('offline')).mockResolvedValue(undefined)
+    usePatternStore.setState({ userPatterns: [pattern], patternsLoaded: true, activePatternId: pattern.id, removePattern })
+    useEditorStore.setState({ source: pattern.src, previewSource: pattern.src, isReadOnly: false })
+    const user = userEvent.setup()
+    render(<App />)
+    const editorPane = within(screen.getByTestId('editor-pane'))
+
+    await user.click(editorPane.getByRole('button', { name: 'Pattern actions' }))
+    await user.click(editorPane.getByRole('menuitem', { name: 'Delete pattern' }))
+    const dialog = screen.getByRole('alertdialog', { name: 'Delete pattern?' })
+    await user.click(within(dialog).getByRole('button', { name: 'Delete' }))
+
+    const notice = await editorPane.findByRole('alert')
+    expect(notice).toHaveTextContent('Could not delete pattern "Delete Me".')
+    expect(window.location.pathname).toBe(`/studio/patterns/${pattern.id}`)
+    expect(usePatternStore.getState().activePatternId).toBe(pattern.id)
+
+    await user.click(within(notice).getByRole('button', { name: 'Retry delete pattern' }))
+
+    expect(removePattern).toHaveBeenCalledTimes(2)
+    expect(removePattern).toHaveBeenNthCalledWith(1, pattern.id)
+    expect(removePattern).toHaveBeenNthCalledWith(2, pattern.id)
+    await waitFor(() => expect(window.location.pathname).toBe('/studio/patterns'))
+    expect(editorPane.queryByRole('alert')).not.toBeInTheDocument()
   })
 
   it('does not show an empty actions menu for a signed-out Test Pattern (#785)', async () => {

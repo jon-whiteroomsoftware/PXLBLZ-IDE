@@ -17,6 +17,8 @@ import { useWorkspaceStore } from '@/store/workspaceStore'
 import { SendMapToController } from '@/components/SendMapToController'
 import { useRouterStore } from '@/store/routerStore'
 import { InlineEntityTitle } from '@/components/InlineEntityTitle'
+import { newPersonalContentId } from '@/engine/personalContentMetadata'
+import { useStudioOperationStore } from '@/store/studioOperationStore'
 
 // The editor header strip in map mode (#151/#268): source identity, parse-only
 // compile badge, and document actions. Stock maps are read-only but cloneable and
@@ -30,6 +32,7 @@ export function MapModeHeader() {
   const mapEvalError = useMapStore((s) => s.mapEvalError)
   const navigate = useRouterStore((s) => s.navigate)
   const personalWorkspaceAuthenticated = useWorkspaceStore((s) => s.personalWorkspaceAuthenticated)
+  const executeStudioOperation = useStudioOperationStore((s) => s.execute)
   const [deleteOpen, setDeleteOpen] = useState(false)
 
   const openRecord =
@@ -42,14 +45,32 @@ export function MapModeHeader() {
 
   async function confirmDelete() {
     if (!openRecord) return
-    await removeMap(openRecord.id)
-    navigate({ kind: 'studio', entity: { kind: 'maps', id: null } })
     setDeleteOpen(false)
+    const { id, name: recordName } = openRecord
+    await executeStudioOperation({
+      surface: 'editor',
+      action: 'delete',
+      entityKind: 'map',
+      entityName: recordName,
+      run: async () => {
+        await removeMap(id)
+        navigate({ kind: 'studio', entity: { kind: 'maps', id: null } })
+      },
+    })
   }
 
   async function handleCloneStockMap(id: string) {
-    const recordId = await cloneStockMap(id)
-    if (recordId) navigate({ kind: 'studio', entity: { kind: 'maps', id: recordId } })
+    const recordId = newPersonalContentId()
+    await executeStudioOperation({
+      surface: 'editor',
+      action: 'clone',
+      entityKind: 'map',
+      entityName: name,
+      run: async () => {
+        const clonedId = await cloneStockMap(id, recordId)
+        if (clonedId) navigate({ kind: 'studio', entity: { kind: 'maps', id: clonedId } })
+      },
+    })
   }
 
   return (

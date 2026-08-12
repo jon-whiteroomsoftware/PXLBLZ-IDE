@@ -121,7 +121,16 @@ Entity organization (folders, order, Trash, collapsed state) lives in six
 allowlisted Settings sidecars, one per entity kind, holding only stable record
 ids. `entityOrganizationStore` applies changes optimistically, serializes
 writes per kind, and rolls back a failed latest write. Empty Trash deletes the
-referenced resources before atomically clearing their Trash entries.
+referenced resources before atomically clearing their Trash entries. If a
+resource deletion fails after earlier deletions succeeded, the collection and
+sidecar reconcile immediately: only undeleted records remain in Trash, and a
+retry targets that remainder.
+
+`studioOperationStore` owns failures for one-shot personal-content operations
+on two independent launching surfaces, rail and editor. Its captured operation
+closures keep create/Clone IDs, rename targets, delete IDs, and Empty Trash
+remainders stable across Retry. A newer operation or Dismiss supersedes older
+in-flight results, so a late rejection cannot replace current feedback.
 
 ## 4. Application state and editor modes
 
@@ -133,6 +142,7 @@ Major Zustand stores, one line each:
 | `workspaceStore` | Authentication resolution |
 | `patternStore` / `mapStore` / `mixinStore` / `libraryStore` / `showStore` | Personal collections and editing state |
 | `entityOrganizationStore` | Folders, order, Trash for all six kinds |
+| `studioOperationStore` | Rail/editor one-shot failure notices and exact Retry intent |
 | `showTransportStore` | Ephemeral playhead, loop duration, seek identity |
 | `editorStore` | Source, last clean preview source, validation, flavor |
 | `previewStore` | Playback, visual settings, telemetry, watched vars |

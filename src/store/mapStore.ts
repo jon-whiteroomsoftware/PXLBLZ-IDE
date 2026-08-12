@@ -228,7 +228,7 @@ interface MapState {
   // Open editor map mode on a stock map's read-only source.
   openStockMap: (id: string) => void
   // Clone a stock map into an editable custom map under Maps.
-  cloneStockMap: (id: string) => Promise<string | null>
+  cloneStockMap: (id: string, recordId?: string) => Promise<string | null>
   // Legacy helper: replace the editor buffer with a template's verbatim source and
   // reset the dirty-guard baseline to it.
   loadMapTemplate: (source: string) => void
@@ -413,10 +413,10 @@ export const useMapStore = create<MapState>()((set, get) => ({
     })
   },
 
-  cloneStockMap: async (id) => {
+  cloneStockMap: async (id, requestedRecordId) => {
     const spec = stockMapSpec(id)
     if (!spec) return null
-    const recordId = newPersonalContentId()
+    const recordId = requestedRecordId ?? newPersonalContentId()
     const name = uniquePatternName(`${spec.name} copy`, get().userMaps.map((m) => m.name))
     const updatedAt = Date.now()
     const baked = bakeMapSource(spec.source, get().activePixelCount ?? DEFAULT_MAP_BAKE_COUNT)

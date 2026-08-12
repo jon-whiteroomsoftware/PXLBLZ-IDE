@@ -76,7 +76,7 @@ interface EntityOrganizationTreeProps {
   onRenameEntity: (entityId: string, name: string) => void
   /** Offers Duplicate on entity rows (#794); folders never duplicate. */
   onDuplicateEntity?: (entityId: string) => void
-  onEmptyTrash?: (entityIds: string[]) => void | Promise<void>
+  onEmptyTrash?: (entityIds: string[]) => void | boolean | Promise<void | boolean>
   onOrganizationChange: (organization: EntityOrganizationV1) => void
 }
 
@@ -160,8 +160,14 @@ export const EntityOrganizationTree = forwardRef<EntityOrganizationTreeHandle, E
     if (emptyingTrash) return
     setEmptyingTrash(true)
     try {
-      if (onEmptyTrash) await onEmptyTrash(collectTrashedEntityOrganizationIds(organization))
-      else change(emptyEntityOrganizationTrash(organization))
+      let completed: void | boolean
+      if (onEmptyTrash) {
+        completed = await onEmptyTrash(collectTrashedEntityOrganizationIds(organization))
+      } else {
+        change(emptyEntityOrganizationTrash(organization))
+        completed = true
+      }
+      if (completed === false) return
       setTrashOpen(false)
     } finally {
       setEmptyingTrash(false)

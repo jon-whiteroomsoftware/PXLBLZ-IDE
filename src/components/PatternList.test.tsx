@@ -22,6 +22,7 @@ import { stampArtifact } from '@/engine/artifactStamp'
 import { createDefaultShow } from '@/engine/showModel'
 import type { LastActive } from '@/engine/personalContentProvider'
 import type { Settings } from '@/engine/settings'
+import { studioOperationInitialState, useStudioOperationStore } from '@/store/studioOperationStore'
 
 vi.mock('@/engine/authSession', () => ({
   getAuthSession: vi.fn(),
@@ -30,6 +31,7 @@ vi.mock('@/engine/authSession', () => ({
 const SEED_PATTERN = { id: 'seed-1', name: 'Seed Pattern', src: '// seed', controls: {}, updatedAt: 0 }
 
 let mockMaps: MapRecord[] = []
+let mockPatterns = [SEED_PATTERN]
 let mockMixins: MixinRecord[] = []
 let mockLibraries: LibraryRecord[] = []
 let mockControllers: ControllerProfile[] = []
@@ -37,11 +39,13 @@ let mockShows: ReturnType<typeof createDefaultShow>[] = []
 let mockLastActive: LastActive | undefined
 let mockDemoOverrides: Record<string, Partial<Settings>> | undefined
 let requests: Array<{ url: string; init?: RequestInit }> = []
+let blockedWrite: { path: string; method: string } | null = null
 
 beforeEach(() => {
   vi.clearAllMocks()
   window.sessionStorage.clear()
   mockMaps = []
+  mockPatterns = [SEED_PATTERN]
   mockMixins = []
   mockLibraries = []
   mockControllers = []
@@ -49,6 +53,7 @@ beforeEach(() => {
   mockLastActive = undefined
   mockDemoOverrides = undefined
   requests = []
+  blockedWrite = null
   vi.mocked(getAuthSession).mockResolvedValue({
     authenticated: true,
     user: {
@@ -72,8 +77,11 @@ beforeEach(() => {
   })
   vi.stubGlobal('fetch', vi.fn(async (url, init) => {
     requests.push({ url: String(url), init })
+    if (blockedWrite?.path === String(url) && blockedWrite.method === init?.method) {
+      return Response.json({ error: 'offline' }, { status: 503 })
+    }
     if (String(url) === '/api/patterns' && init?.method === undefined) {
-      return Response.json({ patterns: [SEED_PATTERN] })
+      return Response.json({ patterns: mockPatterns })
     }
     if (String(url) === '/api/maps' && init?.method === undefined) {
       return Response.json({ maps: mockMaps })
@@ -127,6 +135,7 @@ beforeEach(() => {
   useEntityOrganizationStore.setState(entityOrganizationInitialState)
   useWorkspaceStore.setState(workspaceInitialState)
   useRouterStore.setState(routerInitialState)
+  useStudioOperationStore.setState(studioOperationInitialState)
   window.history.replaceState(null, '', '/studio')
 })
 
@@ -237,6 +246,146 @@ describe('PatternList', () => {
 
     expect(await screen.findByText('Untitled Pattern')).toBeInTheDocument()
     expect(usePatternStore.getState().activePatternId).not.toBeNull()
+  })
+
+  it.each([
+    {
+      entityKind: 'pattern', mode: 'Patterns', addButton: 'Add pattern', createButton: 'New pattern',
+      path: '/api/patterns', createdName: 'Untitled Pattern', records: () => usePatternStore.getState().userPatterns,
+    },
+    {
+      entityKind: 'map', mode: 'Maps', addButton: 'Add map', createButton: 'New map',
+      path: '/api/maps', createdName: 'Untitled Map', records: () => useMapStore.getState().userMaps,
+    },
+    {
+      entityKind: 'mixin', mode: 'Mixins', addButton: 'Add mixin', createButton: 'New mixin',
+      path: '/api/mixins', createdName: 'Untitled Mixin', records: () => useMixinStore.getState().userMixins,
+    },
+    {
+      entityKind: 'library', mode: 'Libraries', addButton: 'Add library', createButton: 'New library',
+      path: '/api/libraries', createdName: 'Lib1', records: () => useLibraryStore.getState().userLibraries,
+    },
+  ] as const)('reports a failed $entityKind create in the rail and retries exactly one record', async ({
+    entityKind,
+    mode,
+    addButton,
+    createButton,
+    path,
+    createdName,
+    records,
+  }) => {
+    const user = userEvent.setup()
+    render(<PatternList />)
+    await screen.findByText('Seed Pattern')
+    if (mode !== 'Patterns') await user.click(screen.getByRole('radio', { name: mode }))
+    const beforePath = window.location.pathname
+    const beforeCount = records().length
+    blockedWrite = { path, method: 'POST' }
+
+    await user.click(await screen.findByRole('button', { name: addButton }))
+    await user.click(await screen.findByRole('button', { name: createButton }))
+
+    const notice = await screen.findByRole('alert')
+    expect(notice).toHaveTextContent(`Could not create ${entityKind} "${createdName}".`)
+    expect(records()).toHaveLength(beforeCount)
+    expect(window.location.pathname).toBe(beforePath)
+
+    blockedWrite = null
+    await user.click(within(notice).getByRole('button', { name: `Retry create ${entityKind}` }))
+
+    await waitFor(() => expect(records().filter((record) => record.name === createdName)).toHaveLength(1))
+    expect(screen.queryByRole('alert')).not.toBeInTheDocument()
+  })
+
+  it('reconciles a partially failed Pattern Empty Trash and retries only the retained item', async () => {
+    mockPatterns = [
+      { id: 'trash-a', name: 'Trash A', src: '// a', controls: {}, updatedAt: 2 },
+      { id: 'trash-b', name: 'Trash B', src: '// b', controls: {}, updatedAt: 1 },
+    ]
+    const user = userEvent.setup()
+    render(<PatternList />)
+    await screen.findByText('Trash A')
+
+    for (const name of ['Trash A', 'Trash B']) {
+      await user.click(screen.getByRole('button', { name: `More actions for ${name}` }))
+      await user.click(screen.getByRole('button', { name: 'Move to Trash' }))
+    }
+    blockedWrite = { path: '/api/patterns/trash-b', method: 'DELETE' }
+    await user.click(screen.getByRole('button', { name: 'Empty Trash' }))
+    const dialog = screen.getByRole('alertdialog', { name: 'Empty Trash?' })
+    await user.click(within(dialog).getByRole('button', { name: 'Empty Trash' }))
+
+    const notice = await screen.findByRole('alert')
+    expect(notice).toHaveTextContent('Could not empty Pattern Trash. 1 item was deleted; 1 item remains.')
+    expect(usePatternStore.getState().userPatterns.map((pattern) => pattern.id)).toEqual(['trash-b'])
+    expect(useEntityOrganizationStore.getState().organizations.patterns.trash).toEqual([
+      {
+        node: { kind: 'entity', entityId: 'trash-b' },
+        parentFolderId: null,
+        index: 0,
+        collapsedFolderIds: [],
+      },
+    ])
+
+    blockedWrite = null
+    await user.click(within(notice).getByRole('button', { name: 'Retry empty Pattern Trash' }))
+
+    await waitFor(() => expect(usePatternStore.getState().userPatterns).toEqual([]))
+    expect(useEntityOrganizationStore.getState().organizations.patterns.trash).toEqual([])
+    expect(screen.queryByRole('alert')).not.toBeInTheDocument()
+  })
+
+  it.each([
+    {
+      entityKind: 'pattern', mode: 'Patterns', id: 'seed-1', oldName: 'Seed Pattern', nextName: 'Renamed Pattern',
+      path: '/api/patterns/seed-1', seed: () => {}, records: () => usePatternStore.getState().userPatterns,
+    },
+    {
+      entityKind: 'map', mode: 'Maps', id: 'm1', oldName: 'My Tree', nextName: 'Renamed Map',
+      path: '/api/maps/m1', seed: () => { mockMaps = [CUSTOM_MAP] }, records: () => useMapStore.getState().userMaps,
+    },
+    {
+      entityKind: 'mixin', mode: 'Mixins', id: 'mx1', oldName: 'tazii-crown-mask', nextName: 'Renamed Mixin',
+      path: '/api/mixins/mx1', seed: () => { mockMixins = [CUSTOM_MIXIN] }, records: () => useMixinStore.getState().userMixins,
+    },
+    {
+      entityKind: 'library', mode: 'Libraries', id: 'lib-rename', oldName: 'RenameLib', nextName: 'RenamedLib',
+      path: '/api/libraries/lib-rename',
+      seed: () => { mockLibraries = [{ id: 'lib-rename', name: 'RenameLib', src: 'function value(v) { return v }', updatedAt: 1 }] },
+      records: () => useLibraryStore.getState().userLibraries,
+    },
+  ] as const)('preserves a rejected $entityKind rail rename and retries the requested name', async ({
+    entityKind,
+    mode,
+    id,
+    oldName,
+    nextName,
+    path,
+    seed,
+    records,
+  }) => {
+    seed()
+    const user = userEvent.setup()
+    render(<PatternList />)
+    await screen.findByText('Seed Pattern')
+    if (mode !== 'Patterns') await user.click(screen.getByRole('radio', { name: mode }))
+    await screen.findByText(oldName)
+    blockedWrite = { path, method: 'PATCH' }
+
+    await user.click(screen.getByRole('button', { name: `More actions for ${oldName}` }))
+    await user.click(screen.getByRole('button', { name: 'Rename' }))
+    await user.clear(screen.getByRole('textbox', { name: 'Rename item' }))
+    await user.type(screen.getByRole('textbox', { name: 'Rename item' }), `${nextName}{Enter}`)
+
+    const notice = await screen.findByRole('alert')
+    expect(notice).toHaveTextContent(`Could not rename ${entityKind} "${oldName}".`)
+    expect(records().find((record) => record.id === id)?.name).toBe(oldName)
+
+    blockedWrite = null
+    await user.click(within(notice).getByRole('button', { name: `Retry rename ${entityKind}` }))
+
+    await waitFor(() => expect(records().find((record) => record.id === id)?.name).toBe(nextName))
+    expect(screen.queryByRole('alert')).not.toBeInTheDocument()
   })
 
   it('creates a Pattern folder from the header menu and starts inline naming', async () => {

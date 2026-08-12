@@ -29,7 +29,7 @@ interface MixinState {
   createNewMixin: () => Promise<void>
   openExistingMixin: (record: MixinRecord) => void
   openStockMixin: (id: string) => void
-  cloneStockMixin: (id: string) => Promise<string | null>
+  cloneStockMixin: (id: string, recordId?: string) => Promise<string | null>
   closeMixinEditor: () => void
   loadMixins: () => Promise<void>
   addMixin: (record: MixinRecord) => Promise<void>
@@ -92,10 +92,10 @@ export const useMixinStore = create<MixinState>()((set, get) => ({
     })
   },
 
-  cloneStockMixin: async (id) => {
+  cloneStockMixin: async (id, requestedRecordId) => {
     const spec = stockMixinSpec(id)
     if (!spec) return null
-    const recordId = newPersonalContentId()
+    const recordId = requestedRecordId ?? newPersonalContentId()
     const record: MixinRecord = {
       id: recordId,
       name: uniquePatternName(`${spec.name} copy`, get().userMixins.map((m) => m.name)),

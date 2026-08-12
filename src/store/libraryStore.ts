@@ -32,7 +32,7 @@ interface LibraryState {
   addLibrary: (record: LibraryRecord) => Promise<void>
   openExistingLibrary: (record: LibraryRecord) => void
   openStockLibrary: (name: string) => void
-  cloneStockLibrary: (name: string) => Promise<string | null>
+  cloneStockLibrary: (name: string, recordId?: string) => Promise<string | null>
   closeLibraryEditor: () => void
   renameLibrary: (id: string, name: string) => Promise<void>
   removeLibrary: (id: string) => Promise<void>
@@ -124,7 +124,7 @@ export const useLibraryStore = create<LibraryState>()((set, get) => ({
     })
   },
 
-  cloneStockLibrary: async (stockName) => {
+  cloneStockLibrary: async (stockName, requestedRecordId) => {
     const src = LIBRARIES[stockName]
     if (!src) return null
     const name = nextLibraryCloneName(stockName, {
@@ -133,7 +133,7 @@ export const useLibraryStore = create<LibraryState>()((set, get) => ({
       builtinNames: builtinNamespaceNames(),
     })
     const record: LibraryRecord = {
-      id: newPersonalContentId(),
+      id: requestedRecordId ?? newPersonalContentId(),
       name,
       src,
       updatedAt: Date.now(),

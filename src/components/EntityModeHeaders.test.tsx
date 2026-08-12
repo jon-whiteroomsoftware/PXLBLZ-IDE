@@ -1,5 +1,5 @@
-import { beforeEach, describe, expect, it, vi } from 'vitest'
-import { render, screen } from '@testing-library/react'
+import { beforeEach, describe, expect, it, vi, type Mock } from 'vitest'
+import { act, render, screen, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { MapModeHeader } from './MapModeHeader'
 import { MixinModeHeader } from './MixinModeHeader'
@@ -9,6 +9,9 @@ import { mixinInitialState, useMixinStore, type MixinRecord } from '@/store/mixi
 import { libraryInitialState, useLibraryStore, type LibraryRecord } from '@/store/libraryStore'
 import { patternInitialState, usePatternStore } from '@/store/patternStore'
 import { editorInitialState, useEditorStore } from '@/store/editorStore'
+import { routerInitialState, useRouterStore } from '@/store/routerStore'
+import { workspaceInitialState, useWorkspaceStore } from '@/store/workspaceStore'
+import { studioOperationInitialState, useStudioOperationStore } from '@/store/studioOperationStore'
 
 const map: MapRecord = {
   id: 'map-1', name: 'Aurora Map', dim: 2, generator: 'custom', params: {}, points: [[0, 0]], updatedAt: 1,
@@ -20,12 +23,18 @@ const library: LibraryRecord = {
   id: 'library-1', name: 'AuroraLib', src: 'function aurora() {}', updatedAt: 1,
 }
 
+type CloneOperation = (id: string, recordId?: string) => Promise<string | null>
+type RemoveOperation = (id: string) => Promise<void>
+
 beforeEach(() => {
   useMapStore.setState(mapInitialState)
   useMixinStore.setState(mixinInitialState)
   useLibraryStore.setState(libraryInitialState)
   usePatternStore.setState(patternInitialState)
   useEditorStore.setState(editorInitialState)
+  useRouterStore.setState(routerInitialState)
+  useWorkspaceStore.setState(workspaceInitialState)
+  useStudioOperationStore.setState(studioOperationInitialState)
 })
 
 describe('entity mode headers', () => {
@@ -91,5 +100,89 @@ describe('entity mode headers', () => {
     useEditorStore.setState({ isReadOnly: true })
     rerender(<LibraryModeHeader />)
     expect(screen.queryByRole('button', { name: /Rename library/ })).not.toBeInTheDocument()
+  })
+
+  it.each([
+    {
+      entityKind: 'map',
+      setup: (clone: Mock<CloneOperation>) => useMapStore.setState({ editingMap: { kind: 'stock', id: 'plane' }, cloneStockMap: clone }),
+      renderHeader: () => <MapModeHeader />,
+    },
+    {
+      entityKind: 'mixin',
+      setup: (clone: Mock<CloneOperation>) => useMixinStore.setState({ editingMixin: { kind: 'stock', id: 'input-bind' }, cloneStockMixin: clone }),
+      renderHeader: () => <MixinModeHeader />,
+    },
+    {
+      entityKind: 'library',
+      setup: (clone: Mock<CloneOperation>) => {
+        useLibraryStore.setState({ editingLibrary: { kind: 'stock', id: 'Color' }, cloneStockLibrary: clone })
+        usePatternStore.setState({ activeLibraryName: 'Color' })
+        useEditorStore.setState({ isReadOnly: true })
+      },
+      renderHeader: () => <LibraryModeHeader />,
+    },
+  ])('reports a failed stock $entityKind Clone and retries the fixed intent', async ({ entityKind, setup, renderHeader }) => {
+    const clone = vi.fn<CloneOperation>().mockRejectedValueOnce(new Error('offline')).mockResolvedValue('clone-id')
+    useWorkspaceStore.setState({ personalWorkspaceAuthenticated: true, personalWorkspaceResolved: true })
+    setup(clone)
+    const user = userEvent.setup()
+    render(renderHeader())
+
+    await user.click(screen.getByRole('button', { name: 'Clone' }))
+
+    expect(useStudioOperationStore.getState().failures.editor).toEqual(expect.objectContaining({
+      action: 'clone',
+      entityKind,
+      entityName: expect.any(String),
+      message: expect.stringMatching(new RegExp(`^Could not clone ${entityKind} ".+"\\.$`)),
+    }))
+    expect(clone).toHaveBeenCalledTimes(1)
+    const retryId = clone.mock.calls[0]?.[1]
+    expect(retryId).toEqual(expect.any(String))
+
+    await act(() => useStudioOperationStore.getState().retry('editor'))
+
+    expect(clone).toHaveBeenCalledTimes(2)
+    expect(clone.mock.calls[1]?.[1]).toBe(retryId)
+    expect(useStudioOperationStore.getState().failures.editor).toBeNull()
+  })
+
+  it.each([
+    {
+      entityKind: 'map', name: map.name,
+      setup: (remove: Mock<RemoveOperation>) => useMapStore.setState({ userMaps: [map], editingMap: { kind: 'existing', id: map.id }, removeMap: remove }),
+      renderHeader: () => <MapModeHeader />,
+    },
+    {
+      entityKind: 'mixin', name: mixin.name,
+      setup: (remove: Mock<RemoveOperation>) => useMixinStore.setState({ userMixins: [mixin], editingMixin: { kind: 'existing', id: mixin.id }, removeMixin: remove }),
+      renderHeader: () => <MixinModeHeader />,
+    },
+    {
+      entityKind: 'library', name: library.name,
+      setup: (remove: Mock<RemoveOperation>) => {
+        useLibraryStore.setState({ userLibraries: [library], editingLibrary: { kind: 'existing', id: library.id }, removeLibrary: remove })
+        usePatternStore.setState({ activeLibraryName: library.name })
+      },
+      renderHeader: () => <LibraryModeHeader />,
+    },
+  ])('reports a failed permanent $entityKind Delete and retries the same record', async ({ entityKind, name, setup, renderHeader }) => {
+    const remove = vi.fn<RemoveOperation>().mockRejectedValueOnce(new Error('offline')).mockResolvedValue(undefined)
+    setup(remove)
+    const user = userEvent.setup()
+    render(renderHeader())
+
+    await user.click(screen.getByRole('button', { name: 'Delete' }))
+    const dialog = screen.getByRole('alertdialog', { name: `Delete ${entityKind}?` })
+    await user.click(within(dialog).getByRole('button', { name: 'Delete' }))
+
+    expect(useStudioOperationStore.getState().failures.editor?.message).toBe(`Could not delete ${entityKind} "${name}".`)
+    expect(remove).toHaveBeenCalledWith(entityKind === 'map' ? map.id : entityKind === 'mixin' ? mixin.id : library.id)
+
+    await act(() => useStudioOperationStore.getState().retry('editor'))
+
+    expect(remove).toHaveBeenCalledTimes(2)
+    expect(useStudioOperationStore.getState().failures.editor).toBeNull()
   })
 })

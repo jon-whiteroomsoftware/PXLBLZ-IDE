@@ -16,6 +16,8 @@ import { STOCK_MIXIN_ITEMS, useMixinStore } from '@/store/mixinStore'
 import { useRouterStore } from '@/store/routerStore'
 import { useWorkspaceStore } from '@/store/workspaceStore'
 import { InlineEntityTitle } from '@/components/InlineEntityTitle'
+import { newPersonalContentId } from '@/engine/personalContentMetadata'
+import { useStudioOperationStore } from '@/store/studioOperationStore'
 
 export function MixinModeHeader() {
   const editingMixin = useMixinStore((s) => s.editingMixin)
@@ -25,6 +27,7 @@ export function MixinModeHeader() {
   const removeMixin = useMixinStore((s) => s.removeMixin)
   const navigate = useRouterStore((s) => s.navigate)
   const personalWorkspaceAuthenticated = useWorkspaceStore((s) => s.personalWorkspaceAuthenticated)
+  const executeStudioOperation = useStudioOperationStore((s) => s.execute)
   const [deleteOpen, setDeleteOpen] = useState(false)
 
   const openRecord =
@@ -37,14 +40,32 @@ export function MixinModeHeader() {
 
   async function confirmDelete() {
     if (!openRecord) return
-    await removeMixin(openRecord.id)
-    navigate({ kind: 'studio', entity: { kind: 'mixins', id: null } })
     setDeleteOpen(false)
+    const { id, name: recordName } = openRecord
+    await executeStudioOperation({
+      surface: 'editor',
+      action: 'delete',
+      entityKind: 'mixin',
+      entityName: recordName,
+      run: async () => {
+        await removeMixin(id)
+        navigate({ kind: 'studio', entity: { kind: 'mixins', id: null } })
+      },
+    })
   }
 
   async function handleCloneStockMixin(id: string) {
-    const recordId = await cloneStockMixin(id)
-    if (recordId) navigate({ kind: 'studio', entity: { kind: 'mixins', id: recordId } })
+    const recordId = newPersonalContentId()
+    await executeStudioOperation({
+      surface: 'editor',
+      action: 'clone',
+      entityKind: 'mixin',
+      entityName: name,
+      run: async () => {
+        const clonedId = await cloneStockMixin(id, recordId)
+        if (clonedId) navigate({ kind: 'studio', entity: { kind: 'mixins', id: clonedId } })
+      },
+    })
   }
 
   return (

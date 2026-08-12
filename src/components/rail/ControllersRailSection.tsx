@@ -37,7 +37,7 @@ export function ControllersRailSection({
   onRenameControllerProfile: (profileId: string, name: string) => void
   personalOrganization: EntityOrganizationV1
   onPersonalOrganizationChange: (organization: EntityOrganizationV1) => void
-  onEmptyTrash: (entityIds: string[]) => void | Promise<void>
+  onEmptyTrash: (entityIds: string[]) => void | boolean | Promise<void | boolean>
   onCollapse?: () => void
 }) {
   const personalTreeRef = useRef<EntityOrganizationTreeHandle>(null)

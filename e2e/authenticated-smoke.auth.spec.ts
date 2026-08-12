@@ -880,3 +880,102 @@ test.describe('silent save-failure feedback (#810)', () => {
     await expect(noInputs).toHaveCount(0)
   })
 })
+
+test.describe('one-shot Studio operation failure feedback (#830)', () => {
+  test.use({ allowedBrowserErrors: [/net::ERR_FAILED|Failed to fetch/] })
+
+  test('a failed stock Pattern Clone stays on the stock record and retries the captured clone', async ({ page }) => {
+    let blockClone = true
+    await page.route('**/api/patterns', (route) => {
+      if (blockClone && route.request().method() === 'POST') return route.abort()
+      return route.continue()
+    })
+    await page.goto('studio/patterns/TestPattern1D')
+    await expect(page.getByText('TestPattern1D', { exact: true }).first()).toBeVisible()
+
+    await page.getByRole('button', { name: 'Pattern actions' }).click()
+    await page.getByRole('menuitem', { name: 'Clone into Patterns' }).click()
+
+    const notice = page.getByTestId('studio-editor-operation-failure')
+    await expect(notice).toContainText('Could not clone pattern "TestPattern1D".')
+    await expect(page).toHaveURL(/\/studio\/patterns\/TestPattern1D$/)
+
+    blockClone = false
+    await notice.getByRole('button', { name: 'Retry clone pattern' }).click()
+
+    await expect(notice).toHaveCount(0)
+    await expect(page).toHaveURL(/\/studio\/patterns\/[a-z0-9-]+$/)
+    await expect(page.getByRole('button', { name: 'Rename pattern TestPattern1D' })).toBeVisible()
+  })
+
+  test('a failed rail rename preserves the durable name and retries the requested name', async ({ page, request }) => {
+    const pattern = {
+      id: 'e2e-830-rename',
+      name: 'Durable Rename Bench',
+      src: 'export function render(index) { hsv(index / pixelCount, 1, 1) }',
+      controls: {},
+      updatedAt: Date.now(),
+    }
+    const created = await request.post('/api/patterns', { data: pattern })
+    expect(created.ok(), `POST /api/patterns -> ${created.status()}`).toBe(true)
+    let blockRename = true
+    await page.route(`**/api/patterns/${pattern.id}`, (route) => {
+      if (blockRename && route.request().method() === 'PATCH') return route.abort()
+      return route.continue()
+    })
+    await page.goto(`studio/patterns/${pattern.id}`)
+
+    await page.getByRole('treeitem', { name: pattern.name, exact: true }).hover()
+    await page.getByRole('button', { name: `More actions for ${pattern.name}` }).click()
+    await page.getByRole('button', { name: 'Rename', exact: true }).click()
+    await page.getByRole('textbox', { name: 'Rename item' }).fill('Requested Rename Bench')
+    await page.getByRole('textbox', { name: 'Rename item' }).press('Enter')
+
+    const notice = page.getByTestId('studio-rail-operation-failure')
+    await expect(notice).toContainText(`Could not rename pattern "${pattern.name}".`)
+    await expect(page.getByRole('treeitem', { name: pattern.name, exact: true })).toBeVisible()
+    await expect(page.getByRole('treeitem', { name: 'Requested Rename Bench', exact: true })).toHaveCount(0)
+
+    blockRename = false
+    await notice.getByRole('button', { name: 'Retry rename pattern' }).click()
+
+    await expect(notice).toHaveCount(0)
+    await expect(page.getByRole('treeitem', { name: 'Requested Rename Bench', exact: true })).toBeVisible()
+  })
+
+  test('a failed permanent Pattern Delete keeps the record open until Retry succeeds', async ({ page, request }) => {
+    const pattern = {
+      id: 'e2e-830-delete',
+      name: 'Durable Delete Bench',
+      src: 'export function render(index) { hsv(index / pixelCount, 1, 1) }',
+      controls: {},
+      updatedAt: Date.now(),
+    }
+    const created = await request.post('/api/patterns', { data: pattern })
+    expect(created.ok(), `POST /api/patterns -> ${created.status()}`).toBe(true)
+    let blockDelete = true
+    await page.route(`**/api/patterns/${pattern.id}`, (route) => {
+      if (blockDelete && route.request().method() === 'DELETE') return route.abort()
+      return route.continue()
+    })
+    await page.goto(`studio/patterns/${pattern.id}`)
+
+    await page.getByRole('button', { name: 'Pattern actions' }).click()
+    await page.getByRole('menuitem', { name: 'Delete pattern' }).click()
+    await page.getByRole('button', { name: 'Delete', exact: true }).click()
+
+    const notice = page.getByTestId('studio-editor-operation-failure')
+    await expect(notice).toContainText(`Could not delete pattern "${pattern.name}".`)
+    await expect(page).toHaveURL(new RegExp(`/studio/patterns/${pattern.id}$`))
+    await expect(page.getByRole('button', { name: `Rename pattern ${pattern.name}` })).toBeVisible()
+
+    blockDelete = false
+    await notice.getByRole('button', { name: 'Retry delete pattern' }).click()
+
+    await expect(notice).toHaveCount(0)
+    await expect(page).toHaveURL(/\/studio\/patterns$/)
+    const patterns = await request.get('/api/patterns')
+    const body = await patterns.json() as { patterns: Array<{ id: string }> }
+    expect(body.patterns.some((candidate) => candidate.id === pattern.id)).toBe(false)
+  })
+})

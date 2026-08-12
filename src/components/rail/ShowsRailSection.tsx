@@ -57,7 +57,7 @@ export function ShowsRailSection({
   onToggleStockShows: () => void
   onRenameShow: (id: string, name: string) => void
   onDuplicateShow: (id: string) => void
-  onEmptyTrash: (entityIds: string[]) => void | Promise<void>
+  onEmptyTrash: (entityIds: string[]) => void | boolean | Promise<void | boolean>
   onQueryChange: (query: string) => void
   personalOrganization: EntityOrganizationV1
   onPersonalOrganizationChange: (organization: EntityOrganizationV1) => void

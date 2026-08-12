@@ -3,6 +3,13 @@ import { LIBRARIES } from '@/pixelblaze/libs'
 import { DEMOS } from '@/pixelblaze/stock/patterns'
 import { uniquePatternName } from '@/engine/patternName'
 import { NEW_PATTERN_SRC } from '@/pixelblaze/newPattern'
+import { MAP_SKELETON } from '@/engine/maps'
+import { MIXIN_SKELETON } from '@/engine/mixins'
+import {
+  LIBRARY_SKELETON,
+  builtinNamespaceNames,
+  nextLibraryName,
+} from '@/engine/libraries'
 import { parseEpe } from '@/engine/epeImport'
 import { extractPatternAuthors } from '@/engine/patternAttribution'
 import { resolveArtifactPreferredMap } from '@/engine/artifactMapCompatibility'
@@ -20,7 +27,10 @@ import {
 import { getAuthSession } from '@/engine/authSession'
 import { newPersonalContentId } from '@/engine/personalContentMetadata'
 import { ensureWorkspaceStarters } from '@/engine/workspaceStarters'
-import { emptyEntityOrganizationTrash } from '@/engine/entityOrganization'
+import {
+  emptyEntityOrganizationTrash,
+  type EntityOrganizationKind,
+} from '@/engine/entityOrganization'
 import { useEditorStore } from '@/store/editorStore'
 import { usePatternStore, type PatternRecord } from '@/store/patternStore'
 import { useMapStore, STOCK_MAP_ITEMS, type MapRecord } from '@/store/mapStore'
@@ -43,6 +53,13 @@ import { openDemoPattern } from '@/store/openPattern'
 import { useWorkspaceStore } from '@/store/workspaceStore'
 import { seedActiveSettings } from '@/store/settingsCascade'
 import { useLibraryStore, type LibraryRecord } from '@/store/libraryStore'
+import {
+  studioOperationDismissLabel,
+  studioOperationRetryLabel,
+  useStudioOperationStore,
+  type StudioOperationEntityKind,
+} from '@/store/studioOperationStore'
+import { SaveFailureNotice } from '@/components/SaveFailureNotice'
 import { ActivityStrip, type RailMode } from '@/components/rail/ActivityStrip'
 import {
   railScrollMetrics,
@@ -86,13 +103,13 @@ export function PatternList({
   const renameMap = useMapStore((s) => s.renameMap)
   const removeMap = useMapStore((s) => s.removeMap)
   const editingMap = useMapStore((s) => s.editingMap)
-  const createNewMap = useMapStore((s) => s.createNewMap)
+  const addMap = useMapStore((s) => s.addMap)
   const openExistingMap = useMapStore((s) => s.openExistingMap)
   const openStockMap = useMapStore((s) => s.openStockMap)
   const closeMapEditor = useMapStore((s) => s.closeMapEditor)
   const userMixins = useMixinStore((s) => s.userMixins)
   const editingMixin = useMixinStore((s) => s.editingMixin)
-  const createNewMixin = useMixinStore((s) => s.createNewMixin)
+  const addMixin = useMixinStore((s) => s.addMixin)
   const openExistingMixin = useMixinStore((s) => s.openExistingMixin)
   const openStockMixin = useMixinStore((s) => s.openStockMixin)
   const closeMixinEditor = useMixinStore((s) => s.closeMixinEditor)
@@ -101,7 +118,7 @@ export function PatternList({
   const userLibraries = useLibraryStore((s) => s.userLibraries)
   const editingLibrary = useLibraryStore((s) => s.editingLibrary)
   const loadLibraries = useLibraryStore((s) => s.loadLibraries)
-  const createNewLibrary = useLibraryStore((s) => s.createNewLibrary)
+  const addLibrary = useLibraryStore((s) => s.addLibrary)
   const openExistingLibrary = useLibraryStore((s) => s.openExistingLibrary)
   const openStockLibrary = useLibraryStore((s) => s.openStockLibrary)
   const closeLibraryEditor = useLibraryStore((s) => s.closeLibraryEditor)
@@ -146,6 +163,10 @@ export function PatternList({
   const showSeedProfile = controllerProfiles.find((profile) => (
     profile.zones.length > 0 && profileMatchesLive(profile, liveControllers)
   )) ?? controllerProfiles.find((profile) => profile.zones.length > 0)
+  const railOperationFailure = useStudioOperationStore((s) => s.failures.rail)
+  const executeStudioOperation = useStudioOperationStore((s) => s.execute)
+  const retryStudioOperation = useStudioOperationStore((s) => s.retry)
+  const dismissStudioOperation = useStudioOperationStore((s) => s.dismiss)
 
   // Open-from-disk (.epe import) lives next to "New pattern" (#141): both create
   // a pattern, so they sit together on the Patterns header.
@@ -596,21 +617,29 @@ export function PatternList({
 
   // Create a fresh "Untitled Pattern" and open it. Lives next to Patterns
   // (#141) so a new pattern is created right by its list.
-  async function handleCreatePattern() {
+  function handleCreatePattern() {
     if (!personalWorkspaceAuthenticated) return
-    closeMapEditor()
-    closeMixinEditor()
-    closeDocs()
     const id = newPersonalContentId()
     const name = uniquePatternName('Untitled Pattern', userPatterns.map((p) => p.name))
     const record: PatternRecord = { id, name, src: NEW_PATTERN_SRC, controls: {}, updatedAt: Date.now() }
-    await addPattern(record)
-    setActivePattern(id)
-    setEditorFlavor('pattern')
-    setSource(record.src)
-    setPreviewSource(record.src)
-    setPreviewPatternName(record.name)
-    setIsReadOnly(false)
+    void executeStudioOperation({
+      surface: 'rail',
+      action: 'create',
+      entityKind: 'pattern',
+      entityName: name,
+      run: async () => {
+        await addPattern(record)
+        closeMapEditor()
+        closeMixinEditor()
+        closeDocs()
+        setActivePattern(id)
+        setEditorFlavor('pattern')
+        setSource(record.src)
+        setPreviewSource(record.src)
+        setPreviewPatternName(record.name)
+        setIsReadOnly(false)
+      },
+    })
   }
 
   // Open a custom map in editor map mode (#151): loads its source, flips the
@@ -631,20 +660,52 @@ export function PatternList({
     navigate({ kind: 'studio', entity: { kind: 'maps', id } })
   }
 
-  async function handleCreateMap() {
-    closeMixinEditor()
-    closeLibraryEditor()
-    await createNewMap()
-    const editing = useMapStore.getState().editingMap
-    if (editing?.kind === 'existing') navigate({ kind: 'studio', entity: { kind: 'maps', id: editing.id } })
+  function handleCreateMap() {
+    const record: MapRecord = {
+      id: newPersonalContentId(),
+      name: uniquePatternName('Untitled Map', userMaps.map((map) => map.name)),
+      dim: 2,
+      generator: 'custom',
+      params: {},
+      source: MAP_SKELETON,
+      updatedAt: Date.now(),
+    }
+    void executeStudioOperation({
+      surface: 'rail',
+      action: 'create',
+      entityKind: 'map',
+      entityName: record.name,
+      run: async () => {
+        await addMap(record)
+        closeMixinEditor()
+        closeLibraryEditor()
+        openExistingMap(record)
+        navigate({ kind: 'studio', entity: { kind: 'maps', id: record.id } })
+      },
+    })
   }
 
-  async function handleCreateMixin() {
-    closeMapEditor()
-    closeLibraryEditor()
-    await createNewMixin()
-    const editing = useMixinStore.getState().editingMixin
-    if (editing?.kind === 'existing') navigate({ kind: 'studio', entity: { kind: 'mixins', id: editing.id } })
+  function handleCreateMixin() {
+    const record: MixinRecord = {
+      id: newPersonalContentId(),
+      name: uniquePatternName('Untitled Mixin', userMixins.map((mixin) => mixin.name)),
+      kind: 'bind',
+      src: MIXIN_SKELETON,
+      updatedAt: Date.now(),
+    }
+    void executeStudioOperation({
+      surface: 'rail',
+      action: 'create',
+      entityKind: 'mixin',
+      entityName: record.name,
+      run: async () => {
+        await addMixin(record)
+        closeMapEditor()
+        closeLibraryEditor()
+        openExistingMixin(record)
+        navigate({ kind: 'studio', entity: { kind: 'mixins', id: record.id } })
+      },
+    })
   }
 
   function openUserMixin(mixin: MixinRecord) {
@@ -672,15 +733,75 @@ export function PatternList({
     navigate({ kind: 'studio', entity: { kind: 'libraries', id: library.id } })
   }
 
-  async function handleCreateLibrary() {
-    closeMapEditor()
-    closeMixinEditor()
-    const library = await createNewLibrary()
-    navigate({ kind: 'studio', entity: { kind: 'libraries', id: library.id } })
+  function handleCreateLibrary() {
+    const name = nextLibraryName({
+      stockNames: Object.keys(LIBRARIES),
+      userNames: userLibraries.map((library) => library.name),
+      builtinNames: builtinNamespaceNames(),
+    })
+    const library: LibraryRecord = {
+      id: newPersonalContentId(),
+      name,
+      src: LIBRARY_SKELETON.replace(/Lib1/g, name),
+      updatedAt: Date.now(),
+    }
+    void executeStudioOperation({
+      surface: 'rail',
+      action: 'create',
+      entityKind: 'library',
+      entityName: library.name,
+      run: async () => {
+        await addLibrary(library)
+        closeMapEditor()
+        closeMixinEditor()
+        openExistingLibrary(library)
+        navigate({ kind: 'studio', entity: { kind: 'libraries', id: library.id } })
+      },
+    })
   }
 
-  async function handleRenameLibrary(libraryId: string, name: string) {
-    await renameLibrary(libraryId, name)
+  function handleRenamePattern(patternId: string, name: string) {
+    const currentName = userPatterns.find((pattern) => pattern.id === patternId)?.name ?? name
+    void executeStudioOperation({
+      surface: 'rail',
+      action: 'rename',
+      entityKind: 'pattern',
+      entityName: currentName,
+      run: () => renamePattern(patternId, name),
+    })
+  }
+
+  function handleRenameMap(mapId: string, name: string) {
+    const currentName = userMaps.find((map) => map.id === mapId)?.name ?? name
+    void executeStudioOperation({
+      surface: 'rail',
+      action: 'rename',
+      entityKind: 'map',
+      entityName: currentName,
+      run: () => renameMap(mapId, name),
+    })
+  }
+
+  function handleRenameMixin(mixinId: string, name: string) {
+    const currentName = userMixins.find((mixin) => mixin.id === mixinId)?.name ?? name
+    void executeStudioOperation({
+      surface: 'rail',
+      action: 'rename',
+      entityKind: 'mixin',
+      entityName: currentName,
+      run: () => renameMixin(mixinId, name),
+    })
+  }
+
+  function handleRenameLibrary(libraryId: string, name: string) {
+    const currentName = userLibraries.find((library) => library.id === libraryId)?.name ?? name
+    void executeStudioOperation({
+      surface: 'rail',
+      action: 'rename',
+      entityKind: 'library',
+      entityName: currentName,
+      run: () => renameLibrary(libraryId, name),
+    })
   }
 
   function openControllerProfile(profileId: string) {
@@ -739,13 +860,64 @@ export function PatternList({
     }
   }
 
-  async function handleRemovePatterns(patternIds: string[]) {
-    for (const patternId of patternIds) await removePattern(patternId)
-    await mutateOrganization(
-      'patterns',
-      usePatternStore.getState().userPatterns.map((pattern) => pattern.id),
-      emptyEntityOrganizationTrash,
-    )
+  function emptyTrashFailureMessage(
+    label: string,
+    entityIds: readonly string[],
+    currentIds: () => readonly string[],
+  ): string {
+    const current = new Set(currentIds())
+    const remaining = entityIds.filter((id) => current.has(id)).length
+    const completed = entityIds.length - remaining
+    if (remaining === 0) {
+      const deleted = completed === 1 ? '1 item was deleted' : `${completed} items were deleted`
+      return `Could not empty ${label} Trash. ${deleted}, but Trash could not be cleared.`
+    }
+    const retained = remaining === 1 ? '1 item remains' : `${remaining} items remain`
+    if (completed === 0) return `Could not empty ${label} Trash. ${retained}.`
+    const deleted = completed === 1 ? '1 item was deleted' : `${completed} items were deleted`
+    return `Could not empty ${label} Trash. ${deleted}; ${retained}.`
+  }
+
+  function runEmptyTrash(input: {
+    organizationKind: EntityOrganizationKind
+    entityKind: StudioOperationEntityKind
+    label: string
+    entityIds: string[]
+    currentIds: () => string[]
+    remove: (id: string) => Promise<void>
+  }): Promise<boolean> {
+    const requestedIds = [...input.entityIds]
+    const remainingIds = () => {
+      const current = new Set(input.currentIds())
+      return requestedIds.filter((id) => current.has(id))
+    }
+    return executeStudioOperation({
+      surface: 'rail',
+      action: 'empty-trash',
+      entityKind: input.entityKind,
+      entityName: `${input.label} Trash`,
+      failureMessage: () => emptyTrashFailureMessage(input.label, requestedIds, input.currentIds),
+      run: async () => {
+        try {
+          for (const id of remainingIds()) await input.remove(id)
+        } catch (cause) {
+          await mutateOrganization(input.organizationKind, input.currentIds(), (organization) => organization)
+          throw cause
+        }
+        await mutateOrganization(input.organizationKind, input.currentIds(), emptyEntityOrganizationTrash)
+      },
+    })
+  }
+
+  function handleRemovePatterns(patternIds: string[]) {
+    return runEmptyTrash({
+      organizationKind: 'patterns',
+      entityKind: 'pattern',
+      label: 'Pattern',
+      entityIds: patternIds,
+      currentIds: () => usePatternStore.getState().userPatterns.map((pattern) => pattern.id),
+      remove: removePattern,
+    })
   }
 
   async function handleRemoveShows(showIds: string[]) {
@@ -769,31 +941,37 @@ export function PatternList({
     )
   }
 
-  async function handleRemoveMaps(mapIds: string[]) {
-    for (const mapId of mapIds) await handleRemoveMap(mapId)
-    await mutateOrganization(
-      'maps',
-      useMapStore.getState().userMaps.map((map) => map.id),
-      emptyEntityOrganizationTrash,
-    )
+  function handleRemoveMaps(mapIds: string[]) {
+    return runEmptyTrash({
+      organizationKind: 'maps',
+      entityKind: 'map',
+      label: 'Map',
+      entityIds: mapIds,
+      currentIds: () => useMapStore.getState().userMaps.map((map) => map.id),
+      remove: handleRemoveMap,
+    })
   }
 
-  async function handleRemoveMixins(mixinIds: string[]) {
-    for (const mixinId of mixinIds) await handleRemoveMixin(mixinId)
-    await mutateOrganization(
-      'mixins',
-      useMixinStore.getState().userMixins.map((mixin) => mixin.id),
-      emptyEntityOrganizationTrash,
-    )
+  function handleRemoveMixins(mixinIds: string[]) {
+    return runEmptyTrash({
+      organizationKind: 'mixins',
+      entityKind: 'mixin',
+      label: 'Mixin',
+      entityIds: mixinIds,
+      currentIds: () => useMixinStore.getState().userMixins.map((mixin) => mixin.id),
+      remove: handleRemoveMixin,
+    })
   }
 
-  async function handleRemoveLibraries(libraryIds: string[]) {
-    for (const libraryId of libraryIds) await handleRemoveLibrary(libraryId)
-    await mutateOrganization(
-      'libraries',
-      useLibraryStore.getState().userLibraries.map((library) => library.id),
-      emptyEntityOrganizationTrash,
-    )
+  function handleRemoveLibraries(libraryIds: string[]) {
+    return runEmptyTrash({
+      organizationKind: 'libraries',
+      entityKind: 'library',
+      label: 'Library',
+      entityIds: libraryIds,
+      currentIds: () => useLibraryStore.getState().userLibraries.map((library) => library.id),
+      remove: handleRemoveLibrary,
+    })
   }
 
   async function handleRemoveMap(mapId: string) {
@@ -875,7 +1053,7 @@ export function PatternList({
             onToggleStockPatterns={() => setShowStockPatterns((visible) => !visible)}
             onOpenUserPattern={openUserPattern}
             onOpenStockPattern={openStockPatternRoute}
-            onRenamePattern={renamePattern}
+            onRenamePattern={handleRenamePattern}
             onEmptyTrash={handleRemovePatterns}
             personalOrganization={patternOrganization}
             onPersonalOrganizationChange={(organization) => void mutateOrganization(
@@ -904,7 +1082,7 @@ export function PatternList({
             onToggleStockMaps={() => setShowStockMaps((visible) => !visible)}
             onOpenUserMap={openUserMap}
             onOpenStockMap={openStockMapRoute}
-            onRenameMap={renameMap}
+            onRenameMap={handleRenameMap}
             personalOrganization={mapOrganization}
             onPersonalOrganizationChange={(organization) => void mutateOrganization(
               'maps',
@@ -930,7 +1108,7 @@ export function PatternList({
             onToggleStockLibraries={() => setShowStockLibraries((visible) => !visible)}
             onOpenUserLibrary={openUserLibrary}
             onOpenStockLibrary={openStockLibraryRoute}
-            onRenameLibrary={(libraryId, name) => void handleRenameLibrary(libraryId, name)}
+            onRenameLibrary={handleRenameLibrary}
             personalOrganization={libraryOrganization}
             onPersonalOrganizationChange={(organization) => void mutateOrganization(
               'libraries',
@@ -976,7 +1154,7 @@ export function PatternList({
             onToggleStockMixins={() => setShowStockMixins((visible) => !visible)}
             onOpenUserMixin={openUserMixin}
             onOpenStockMixin={openStockMixinRoute}
-            onRenameMixin={renameMixin}
+            onRenameMixin={handleRenameMixin}
             personalOrganization={mixinOrganization}
             onPersonalOrganizationChange={(organization) => void mutateOrganization(
               'mixins',
@@ -1015,6 +1193,17 @@ export function PatternList({
               userShows.map((show) => show.id),
               () => organization,
             )}
+          />
+        )}
+        {railOperationFailure && (
+          <SaveFailureNotice
+            message={railOperationFailure.message}
+            onRetry={() => void retryStudioOperation('rail')}
+            onDismiss={() => dismissStudioOperation('rail')}
+            retryLabel={studioOperationRetryLabel(railOperationFailure)}
+            dismissLabel={studioOperationDismissLabel(railOperationFailure)}
+            compact
+            testId="studio-rail-operation-failure"
           />
         )}
       </div>

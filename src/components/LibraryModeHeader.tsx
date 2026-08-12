@@ -1,4 +1,6 @@
-import { Code2 } from 'lucide-react'
+import { useState } from 'react'
+import { Code2, Trash2 } from 'lucide-react'
+import { controlIcon } from '@/components/iconScale'
 import { CompileStatusBadge } from '@/components/CompileStatusBadge'
 import { SaveStatusBadge } from './SaveStatusBadge'
 import { useEditorStore } from '@/store/editorStore'
@@ -8,6 +10,17 @@ import { useRouterStore } from '@/store/routerStore'
 import { useWorkspaceStore } from '@/store/workspaceStore'
 import { sanitizeLibraryNameInput } from '@/engine/libraries'
 import { InlineEntityTitle } from '@/components/InlineEntityTitle'
+import { newPersonalContentId } from '@/engine/personalContentMetadata'
+import { useStudioOperationStore } from '@/store/studioOperationStore'
+import {
+  AlertDialogRoot,
+  AlertDialogContent,
+  AlertDialogTitle,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogCancel,
+  AlertDialogAction,
+} from '@/components/ui/alert-dialog'
 
 export function LibraryModeHeader() {
   const activeLibraryName = usePatternStore((s) => s.activeLibraryName)
@@ -16,23 +29,51 @@ export function LibraryModeHeader() {
   const userLibraries = useLibraryStore((s) => s.userLibraries)
   const cloneStockLibrary = useLibraryStore((s) => s.cloneStockLibrary)
   const renameLibrary = useLibraryStore((s) => s.renameLibrary)
+  const removeLibrary = useLibraryStore((s) => s.removeLibrary)
   const validateLibraryNamespace = useLibraryStore((s) => s.validateLibraryNamespace)
   const navigate = useRouterStore((s) => s.navigate)
   const personalWorkspaceAuthenticated = useWorkspaceStore((s) => s.personalWorkspaceAuthenticated)
+  const executeStudioOperation = useStudioOperationStore((s) => s.execute)
+  const [deleteOpen, setDeleteOpen] = useState(false)
   const name = activeLibraryName ?? 'Library'
   const openRecord = editingLibrary?.kind === 'existing'
     ? userLibraries.find((library) => library.id === editingLibrary.id)
     : undefined
 
   async function handleCloneStockLibrary(id: string) {
-    const recordId = await cloneStockLibrary(id)
-    if (recordId) navigate({ kind: 'studio', entity: { kind: 'libraries', id: recordId } })
+    const recordId = newPersonalContentId()
+    await executeStudioOperation({
+      surface: 'editor',
+      action: 'clone',
+      entityKind: 'library',
+      entityName: name,
+      run: async () => {
+        const clonedId = await cloneStockLibrary(id, recordId)
+        if (clonedId) navigate({ kind: 'studio', entity: { kind: 'libraries', id: clonedId } })
+      },
+    })
   }
 
   async function handleRenameLibrary(nextName: string): Promise<boolean> {
     if (!openRecord) return false
     await renameLibrary(openRecord.id, nextName)
     return true
+  }
+
+  async function confirmDelete() {
+    if (!openRecord) return
+    setDeleteOpen(false)
+    const { id, name: recordName } = openRecord
+    await executeStudioOperation({
+      surface: 'editor',
+      action: 'delete',
+      entityKind: 'library',
+      entityName: recordName,
+      run: async () => {
+        await removeLibrary(id)
+        navigate({ kind: 'studio', entity: { kind: 'libraries', id: null } })
+      },
+    })
   }
 
   return (
@@ -67,6 +108,30 @@ export function LibraryModeHeader() {
           Clone
         </button>
       )}
+      {openRecord && (
+        <button
+          type="button"
+          onClick={() => setDeleteOpen(true)}
+          className="shrink-0 h-6 px-2 rounded border border-zinc-800 text-[11px] text-zinc-500 hover:border-red-900/80 hover:text-red-300 transition-colors flex items-center gap-1"
+          title="Delete library"
+        >
+          <Trash2 {...controlIcon} aria-hidden />
+          Delete
+        </button>
+      )}
+
+      <AlertDialogRoot open={deleteOpen} onOpenChange={setDeleteOpen}>
+        <AlertDialogContent>
+          <AlertDialogTitle>Delete library?</AlertDialogTitle>
+          <AlertDialogDescription>
+            "{name}" will be permanently deleted and cannot be recovered.
+          </AlertDialogDescription>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction onClick={() => void confirmDelete()}>Delete</AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialogRoot>
     </>
   )
 }

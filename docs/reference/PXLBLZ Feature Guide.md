@@ -92,9 +92,17 @@ Studio requires sign-in with GitHub or Google; logins that share a verified
 email open the same workspace. Personal content lives in the signed-in cloud
 workspace. Signed out, the app is a non-durable demo — Gallery, built-ins,
 stock content, docs, preview, and live Controller connections all work, but
-saving personal content requires sign-in. A Show edit that cannot reach the
-workspace rolls back visibly: the editor posts a notice with Retry instead of
-failing silently.
+saving personal content requires sign-in.
+
+A personal-content operation that cannot reach the workspace fails visibly.
+New and Clone actions, rail renames, and permanent editor-header deletes for
+Patterns, Maps, Mixins, and Libraries leave the last durable list and route in
+place and post a notice on the surface that launched the action. **Retry**
+replays that exact operation once; **Dismiss** clears only the notice. If
+**Empty Trash** stops partway through, Studio removes the records already
+deleted, keeps only the failed records in Trash, and retries those records.
+Show edits and Controller profile changes use the same visible rollback and
+Retry contract.
 
 ## 3. Docs and API reference
 
@@ -128,8 +136,8 @@ success). The same glyph appears in the pattern, map, mixin, and library
 editors, and closing the tab in either state asks for confirmation. An edit
 that fails to save while switching views is reported with an inline notice
 naming the record, so nothing is lost silently. One-shot edits outside the
-editors — Show fields and Controller profile changes — roll back if their
-save fails and report it with the same notice offering Retry.
+editors use a nearby notice with action-specific Retry and Dismiss controls;
+they never navigate to a record whose create, Clone, or delete failed.
 
 Built-in Patterns open read-only; **Clone** creates an editable personal copy
 and snapshots the current preview settings. Every built-in starts with a
