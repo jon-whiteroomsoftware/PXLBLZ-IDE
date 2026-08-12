@@ -20,13 +20,15 @@ describe('Map diagnostic viewport', () => {
 
     expect(square).toMatchObject({ width: 460, height: 460 })
     expect(wide).toMatchObject({ width: 460, height: 230 })
+    // 2D maps draw +y downward — min y at the top — matching the show
+    // preview's projection and the stock sources' authoring convention.
     expect(square.points.map(({ x, y }) => [x, y])).toEqual([
-      [23, 437],
-      [437, 23],
+      [23, 23],
+      [437, 437],
     ])
     expect(wide.points.map(({ x, y }) => [x, y])).toEqual([
-      [23, 218.5],
-      [437, 11.5],
+      [23, 11.5],
+      [437, 218.5],
     ])
   })
 
@@ -39,8 +41,8 @@ describe('Map diagnostic viewport', () => {
 
     expect(viewport).toMatchObject({ width: 400, height: 500 })
     expect(viewport.points.map(({ x, y }) => [x, y])).toEqual([
-      [193.75, 475],
-      [206.25, 25],
+      [193.75, 25],
+      [206.25, 475],
     ])
   })
 

@@ -1,67 +1,156 @@
-// Four-surface proscenium installation: a dance-floor hero panel framed by a
-// proscenium arch, flanked by two full-height towers. Proportions are
-// deliberately exaggerated (fat lintel, wide towers) so the lit surfaces fill
-// the preview window instead of reading at architectural scale. Index order
-// follows the installer's walk across the stage: left tower, floor, arch
-// (left leg up, across the lintel, right leg down), right tower. At 1,000
-// pixels the index contract is 200 + 400 + 200 + 200, and the arch walks
-// like its wiring: left leg deck-to-lintel, lintel left to right, right leg
-// lintel-to-deck.
+// Proscenium arch installation (#835): a tall pointed arch band framing a
+// stage field, flanked by two mirrored tapered columns that lean gently
+// toward the opening. Proportions are deliberately exaggerated - the arch
+// apex clears the column tops by half a stage height - so the silhouette
+// reads as scenery in the preview window instead of at architectural scale.
+// y grows downward (apex y=0, deck y=3), the convention every app surface
+// renders. Index order follows the installer's walk: left column (deck rows
+// climbing), stage (deck rows climbing), arch (three strands outer to inner,
+// each walking left leg up, over the apex, right leg down), right column.
+// At 1,000 pixels the index contract is an even 250 + 250 + 250 + 250.
 function (pixelCount) {
   var count = Math.max(1, Math.floor(pixelCount) || 1)
-  var towerCount = Math.round(count * 0.2)
-  var archCount = Math.round(count * 0.2)
-  var floorCount = count - 2 * towerCount - archCount
+  var columnCount = Math.floor(count / 4)
+  var archCount = Math.floor(count / 4)
+  var stageCount = count - 2 * columnCount - archCount
   var coords = []
 
-  // Row-major grid over a rectangle. Every row spans the full panel width and
-  // row populations differ by at most one, so no panel ends in a ragged
-  // partial row — a stray short row would read as the exact coverage fault
-  // the 300-series lessons teach learners to diagnose.
-  function panel(n, x0, y0, width, height, bottomUp) {
-    if (n < 1) return
-    var ideal = Math.max(1, Math.min(n, Math.round(Math.sqrt(n * height / width))))
-    // Prefer an exact row divisor near the ideal so the canonical counts
-    // produce perfectly regular lattices instead of alternating row widths.
-    var rows = ideal
-    for (var candidate = 0; candidate <= Math.ceil(ideal * 0.35); candidate++) {
-      if (ideal - candidate >= 1 && n % (ideal - candidate) === 0) { rows = ideal - candidate; break }
-      if (ideal + candidate <= n && n % (ideal + candidate) === 0) { rows = ideal + candidate; break }
-    }
+  // Stage frame (y down: apex 0, deck 3; silhouette 5.1 x 3.0, ~1.7:1).
+  var DECK = 3.0
+  var CENTER = 2.55
+  var SPRING = 2.425          // springing line both arch arcs rise from
+  var OUTER_R = 2.8           // outer arc radius (equilateral: radius = span)
+  var INNER_R = 2.5           // inner arc radius (band 0.3 thick)
+  var LEFT_SPRING = 1.15      // outer left springing x
+  var RIGHT_SPRING = 3.95     // outer right springing x
+  var STAGE_GAP = 0.12        // clearance between the band and the stage field
+
+  // Split n across weighted bins exactly (largest remainder).
+  function apportion(n, weights) {
+    var total = 0
+    for (var i = 0; i < weights.length; i++) total += weights[i]
+    var counts = []
+    var remainders = []
     var placed = 0
-    for (var row = 0; row < rows; row++) {
-      var rowCount = Math.round((row + 1) * n / rows) - placed
-      var rowIndex = bottomUp ? rows - 1 - row : row
-      for (var column = 0; column < rowCount; column++) {
+    for (var j = 0; j < weights.length; j++) {
+      var share = total > 0 ? n * weights[j] / total : n / weights.length
+      var base = Math.floor(share)
+      counts.push(base)
+      remainders.push({ index: j, frac: share - base })
+      placed += base
+    }
+    remainders.sort(function (a, b) { return b.frac - a.frac || a.index - b.index })
+    for (var k = 0; k < n - placed; k++) counts[remainders[k % remainders.length].index]++
+    return counts
+  }
+
+  // Fill horizontal rows exactly: rows are {y, x0, x1}, pixels apportioned by
+  // row width and centred within each row so no region ends in a ragged edge.
+  function fillRows(n, rows) {
+    if (n < 1 || rows.length === 0) return
+    var counts = apportion(n, rows.map(function (row) { return Math.max(row.x1 - row.x0, 0.001) }))
+    for (var i = 0; i < rows.length; i++) {
+      var rowCount = counts[i]
+      for (var j = 0; j < rowCount; j++) {
         coords.push([
-          x0 + (rowCount > 1 ? width * column / (rowCount - 1) : width / 2),
-          y0 + (rows > 1 ? height * rowIndex / (rows - 1) : height / 2),
+          rows[i].x0 + (rows[i].x1 - rows[i].x0) * (rowCount > 1 ? j / (rowCount - 1) : 0.5),
+          rows[i].y,
         ])
       }
-      placed += rowCount
     }
   }
 
-  // y grows downward on the drawn stage: the lintel sits at y=0, the deck at
-  // y=3. Overall silhouette is 5.1 x 3.0 (~1.7:1, the Redline stage's fill).
-  panel(towerCount, 0, 0, 0.6, 3.0)
+  // A tapered column as deck-to-top rows (wired climbing from the deck). The
+  // top is narrower than the base and its centre leans toward the opening.
+  function column(n, baseX0, baseX1, topX0, topX1, topY) {
+    if (n < 1) return
+    var height = DECK - topY
+    var meanWidth = ((baseX1 - baseX0) + (topX1 - topX0)) / 2
+    var rowCount = Math.max(1, Math.round(Math.sqrt(n * height / meanWidth)))
+    var rows = []
+    for (var row = 0; row < rowCount; row++) {
+      var t = rowCount > 1 ? row / (rowCount - 1) : 0.5
+      rows.push({
+        y: DECK - 0.05 - (height - 0.1) * t,
+        x0: baseX0 + (topX0 - baseX0) * t,
+        x1: baseX1 + (topX1 - baseX1) * t,
+      })
+    }
+    fillRows(n, rows)
+  }
 
-  panel(floorCount, 1.3, 0.75, 2.5, 2.25)
+  // Half-width of the stage field at height y: the inner arch arcs pulled in
+  // by the stage gap. Below the springing line the sides are the leg faces.
+  function stageHalfWidth(y) {
+    var radius = INNER_R - STAGE_GAP
+    var dy = Math.max(0, SPRING - y)
+    var reach = radius * radius - dy * dy
+    if (reach <= 0) return 0
+    return Math.sqrt(reach) - (RIGHT_SPRING - CENTER)
+  }
 
-  // The arch is three panels in walk order — left leg climbing from the
-  // deck, lintel crossing left to right, right leg descending back to the
-  // deck — with pixels split by segment area.
-  var legHeight = 2.35
-  var legArea = 0.3 * legHeight
-  var lintelArea = 3.5 * 0.55
-  var leftLegCount = Math.round(archCount * legArea / (2 * legArea + lintelArea))
-  var rightLegCount = leftLegCount
-  var lintelCount = archCount - leftLegCount - rightLegCount
-  panel(leftLegCount, 0.8, 0.65, 0.3, legHeight, true)
-  panel(lintelCount, 0.8, 0, 3.5, 0.55)
-  panel(rightLegCount, 4.0, 0.65, 0.3, legHeight)
+  // One arch strand at radius r: leg up, arc to the apex, mirrored arc and
+  // leg down. Points ride the centreline at even spacing along the path.
+  function archStrand(n, r) {
+    if (n < 1) return
+    var legLength = DECK - SPRING
+    var apexAngle = Math.acos((RIGHT_SPRING - CENTER) / r)
+    var arcLength = r * apexAngle
+    var total = 2 * legLength + 2 * arcLength
+    for (var i = 0; i < n; i++) {
+      var s = total * (i + 0.5) / n
+      var x, y
+      if (s < legLength) {
+        x = RIGHT_SPRING - r
+        y = DECK - s
+      } else if (s < legLength + arcLength) {
+        var phi = (s - legLength) / r
+        x = RIGHT_SPRING - r * Math.cos(phi)
+        y = SPRING - r * Math.sin(phi)
+      } else if (s < legLength + 2 * arcLength) {
+        var backPhi = (legLength + 2 * arcLength - s) / r
+        x = LEFT_SPRING + r * Math.cos(backPhi)
+        y = SPRING - r * Math.sin(backPhi)
+      } else {
+        x = LEFT_SPRING + r
+        y = DECK - (total - s)
+      }
+      coords.push([x, y])
+    }
+  }
 
-  panel(towerCount, 4.5, 0, 0.6, 3.0)
+  // 1. Left column: exaggerated wedge, top leaning toward the arch.
+  column(columnCount, 0, 0.75, 0.31, 0.73, 0.55)
+
+  // 2. Stage field: deck rows climbing into the pointed opening.
+  if (stageCount >= 1) {
+    var stageTop = 0.62
+    var stageBottom = DECK - 0.08
+    var stageHeight = stageBottom - stageTop
+    var stageRowCount = Math.max(1, Math.round(Math.sqrt(stageCount * stageHeight / (2 * stageHalfWidth(SPRING)))))
+    var stageRows = []
+    for (var stageRow = 0; stageRow < stageRowCount; stageRow++) {
+      var stageT = stageRowCount > 1 ? stageRow / (stageRowCount - 1) : 0.5
+      var stageY = stageBottom - stageHeight * stageT
+      var half = stageHalfWidth(stageY)
+      stageRows.push({ y: stageY, x0: CENTER - half, x1: CENTER + half })
+    }
+    fillRows(stageCount, stageRows)
+  }
+
+  // 3. Arch band: three strands outer to inner, one below 24 pixels so a
+  //    degenerate count still walks a clean single line.
+  if (archCount >= 24) {
+    var strandCounts = apportion(archCount, [OUTER_R, (OUTER_R + INNER_R) / 2, INNER_R])
+    archStrand(strandCounts[0], OUTER_R)
+    archStrand(strandCounts[1], (OUTER_R + INNER_R) / 2)
+    archStrand(strandCounts[2], INNER_R)
+  } else {
+    archStrand(archCount, (OUTER_R + INNER_R) / 2)
+  }
+
+  // 4. Right column: the left column mirrored about the stage centre.
+  column(columnCount, 4.35, 5.1, 4.37, 4.79, 0.55)
 
   return coords
 }

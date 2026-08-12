@@ -218,15 +218,14 @@ describe('source regeneration', () => {
     expect(targetCenters[2][1]).toBeLessThan(targetCenters[3][1])
   })
 
-  it('builds the 1,000-pixel Proscenium stage as a walk: left tower, floor, arch, right tower', () => {
+  it('builds the 1,000-pixel Proscenium stage as a walk: left column, stage, arch, right column', () => {
     const points = mapById('proscenium-stage-2d').resolve(1_000)
-    const leftTower = points.slice(0, 200)
-    const floor = points.slice(200, 600)
-    const arch = points.slice(600, 800)
-    const rightTower = points.slice(800, 1_000)
+    const leftColumn = points.slice(0, 250)
+    const stage = points.slice(250, 500)
+    const arch = points.slice(500, 750)
+    const rightColumn = points.slice(750, 1_000)
 
     expect(points).toHaveLength(1_000)
-    expect(floor).toHaveLength(400)
     expect(points.every((point) => point.sample.length === 2 && point.pos?.length === 2)).toBe(true)
 
     const bounds = (group: typeof points) => ({
@@ -235,33 +234,48 @@ describe('source regeneration', () => {
       minY: Math.min(...group.map((point) => point.pos![1])),
       maxY: Math.max(...group.map((point) => point.pos![1])),
     })
-    const floorBounds = bounds(floor)
+    const stageBounds = bounds(stage)
     const archBounds = bounds(arch)
-    const leftBounds = bounds(leftTower)
-    const rightBounds = bounds(rightTower)
+    const leftBounds = bounds(leftColumn)
+    const rightBounds = bounds(rightColumn)
+    const all = bounds(points)
 
-    // The towers flank everything; the arch frames the floor from above (+y
-    // renders downward) and on both sides; nothing overlaps its neighbour.
+    // The columns flank the arch; the arch band frames the stage field on
+    // both sides and from above (+y renders downward); nothing overlaps.
     expect(leftBounds.maxX).toBeLessThan(archBounds.minX)
     expect(rightBounds.minX).toBeGreaterThan(archBounds.maxX)
-    expect(archBounds.minX).toBeLessThan(floorBounds.minX)
-    expect(archBounds.maxX).toBeGreaterThan(floorBounds.maxX)
-    expect(archBounds.minY).toBeLessThan(floorBounds.minY)
+    expect(archBounds.minX).toBeLessThan(stageBounds.minX)
+    expect(archBounds.maxX).toBeGreaterThan(stageBounds.maxX)
+    expect(archBounds.minY).toBeLessThan(stageBounds.minY)
 
-    // The arch walks like its wiring: the left leg climbs from the deck to
-    // the lintel (+y renders downward, so y decreases along its indices),
-    // the lintel crosses left to right, and the right leg descends back.
-    const leftLeg = arch.slice(0, 42)
-    const rightLeg = arch.slice(arch.length - 42)
-    const lintel = arch.slice(42, arch.length - 42)
-    expect(leftLeg[0].pos![1]).toBeGreaterThan(leftLeg[leftLeg.length - 1].pos![1])
-    expect(rightLeg[0].pos![1]).toBeLessThan(rightLeg[rightLeg.length - 1].pos![1])
-    expect(lintel[0].pos![0]).toBeLessThan(lintel[lintel.length - 1].pos![0])
+    // The arch is pointed: its apex sits at the top centre of the silhouette,
+    // well above the column tops.
+    const apex = arch.reduce((lowest, point) => (point.pos![1] < lowest.pos![1] ? point : lowest))
+    expect(apex.pos![1]).toBeLessThan(0.1 * (all.maxY - all.minY) + all.minY)
+    expect(Math.abs(apex.pos![0] - (all.minX + all.maxX) / 2)).toBeLessThan(0.2)
+    expect(apex.pos![1]).toBeLessThan(leftBounds.minY)
+    expect(apex.pos![1]).toBeLessThan(rightBounds.minY)
 
-    // The towers run the stage's full height, and the whole silhouette keeps
-    // the wide preview-filling aspect the Redline stage established (~1.7:1).
-    const all = bounds(points)
-    expect(leftBounds.maxY - leftBounds.minY).toBeCloseTo(all.maxY - all.minY, 1)
+    // The arch walks like its wiring: each strand starts at the deck on the
+    // left, climbs the leg (+y renders downward, so y decreases), crosses the
+    // apex, and returns to the deck on the right.
+    expect(arch[0].pos![1]).toBeGreaterThan(archBounds.maxY - 0.2)
+    expect(arch[0].pos![0]).toBeLessThan((all.minX + all.maxX) / 2)
+    expect(arch[arch.length - 1].pos![1]).toBeGreaterThan(archBounds.maxY - 0.2)
+    expect(arch[arch.length - 1].pos![0]).toBeGreaterThan((all.minX + all.maxX) / 2)
+    for (let i = 1; i < 5; i++) {
+      expect(arch[i].pos![1]).toBeLessThan(arch[i - 1].pos![1])
+    }
+
+    // Columns and stage wire from the deck upward, and the columns run tall
+    // enough to flank most of the stage height.
+    expect(leftColumn[0].pos![1]).toBeGreaterThan(leftColumn[leftColumn.length - 1].pos![1])
+    expect(rightColumn[0].pos![1]).toBeGreaterThan(rightColumn[rightColumn.length - 1].pos![1])
+    expect(stage[0].pos![1]).toBeGreaterThan(stage[stage.length - 1].pos![1])
+    expect(leftBounds.maxY - leftBounds.minY).toBeGreaterThan((stageBounds.maxY - stageBounds.minY) * 0.9)
+
+    // The whole silhouette keeps the wide preview-filling aspect the Redline
+    // stage established (~1.7:1).
     const aspect = (all.maxX - all.minX) / (all.maxY - all.minY)
     expect(aspect).toBeGreaterThan(1.55)
     expect(aspect).toBeLessThan(1.85)

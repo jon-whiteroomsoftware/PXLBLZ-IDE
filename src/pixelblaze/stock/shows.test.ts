@@ -351,6 +351,13 @@ describe('stock Show curriculum (#363)', () => {
           definition.patternInstances.map((instance) => instance.time.timeScale)
         )),
       ])
+      if (item.id === 'stock-show-301-installation-mapping') {
+        // 301 runs each voice at a hand-tuned speed from live review on the
+        // rebuilt arch geometry (#835): the calm casting reads as a still
+        // image on the big stage at the shared lesson clock.
+        expect([...scales].sort(), `${item.name} time scales`).toEqual([1.08, 1.8, 2.84])
+        continue
+      }
       expect(scales.size, `${item.name} time scales: ${[...scales].join(', ')}`).toBe(1)
     }
   })
@@ -1719,7 +1726,12 @@ describe('stock Show curriculum (#363)', () => {
     for (const item of STOCK_SHOWS.filter((candidate) => candidate.collection === 'learn')) {
       for (const cell of item.show.cells) {
         expect(cell.adaptations.timeScale, `${item.name}: ${cell.patternName}`).toBeGreaterThan(0)
-        expect(cell.adaptations.timeScale, `${item.name}: ${cell.patternName}`).toBeLessThanOrEqual(0.7)
+        // 301's physical stage is exempt from the 0.7 legibility pin: its
+        // halfway trade stays legible because the ranges never move, and the
+        // hand-tuned speeds (#835) keep the calm casting visibly alive. The
+        // instance clamp still bounds it.
+        const ceiling = item.id === 'stock-show-301-installation-mapping' ? 4 : 0.7
+        expect(cell.adaptations.timeScale, `${item.name}: ${cell.patternName}`).toBeLessThanOrEqual(ceiling)
       }
     }
   })
@@ -1745,13 +1757,13 @@ describe('stock Show curriculum (#363)', () => {
     }
   })
 
-  it('routes 301 surfaces by the wiring walk and trades floor and towers at the halfway Cut', () => {
+  it('routes 301 surfaces by the wiring walk and trades stage and columns at the halfway Cut', () => {
     const item = stockShowById('stock-show-301-installation-mapping')!
     expect(item.show.routingLayouts).toHaveLength(1)
     expect(item.show.routingLayouts[0].zones).toEqual([
-      { zoneId: 'zone-1', ranges: [{ start: 200, end: 599 }] },
-      { zoneId: 'zone-2', ranges: [{ start: 600, end: 799 }] },
-      { zoneId: 'zone-3', ranges: [{ start: 0, end: 199 }, { start: 800, end: 999 }] },
+      { zoneId: 'zone-1', ranges: [{ start: 250, end: 499 }] },
+      { zoneId: 'zone-2', ranges: [{ start: 500, end: 749 }] },
+      { zoneId: 'zone-3', ranges: [{ start: 0, end: 249 }, { start: 750, end: 999 }] },
     ])
     expect(validateInstallationCoverage(item.show)).toMatchObject({ valid: true })
 
@@ -1767,9 +1779,9 @@ describe('stock Show curriculum (#363)', () => {
       randomSeed: 363,
     })
     const handle = loadPattern(compiled.artifact!.code, compiled.artifact!.metadata, shim.builtins)
-    // Both towers belong to one Zone, so a sample from each end of the index
-    // space (left tower, right tower) must carry the same voice.
-    const groups = { floor: [250, 400, 550], arch: [620, 700, 780], towers: [50, 150, 850, 950] }
+    // Both columns belong to one Zone, so a sample from each end of the index
+    // space (left column, right column) must carry the same voice.
+    const groups = { floor: [300, 400, 480], arch: [520, 620, 730], towers: [50, 150, 800, 950] }
     const frameAt = (deltaMs: number) => {
       virtualTime += deltaMs
       handle.beforeRender(deltaMs)

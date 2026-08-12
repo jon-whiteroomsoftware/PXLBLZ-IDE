@@ -340,10 +340,10 @@ routing layout must assign every output index exactly once, including when one
 named Zone owns several non-contiguous ranges.
 
 **301 Installation Mapping** stages this contract on the Proscenium stage:
-1,000 LEDs wired in the installer's walk order - left tower, dance floor,
-arch, right tower. Each surface is a named Zone whose ranges restate that
-walk, which is why the Towers Zone owns two non-contiguous ranges at opposite
-ends of the index space: one physical role, two stretches of wire. The map
+1,000 LEDs wired in the installer's walk order - left column, stage field,
+arch band, right column. Each surface is a named Zone whose ranges restate
+that walk, which is why the Columns Zone owns two non-contiguous ranges at
+opposite ends of the index space: one physical role, two stretches of wire. The map
 selector edits the same fact spatially: selecting a Zone's pixels and editing
 its ranges are one operation. When coverage breaks, the diagnostics name the
 exact failure - missing pixels are a gap, doubly owned pixels are an overlap,

@@ -1213,10 +1213,10 @@ function learn206(): StockShow {
 }
 
 // 301 moves the curriculum onto physical output. The Proscenium stage is the
-// installation: 1,000 LEDs walked in wiring order - left tower 0-199, dance
-// floor 200-599, arch 600-799, right tower 800-999 - so the Towers Zone owns
-// two non-contiguous ranges at opposite ends of the index space, the several-
-// ranges case made physical. Casting was probed on this geometry at the
+// installation: 1,000 LEDs walked in wiring order - left column 0-249, stage
+// field 250-499, arch band 500-749, right column 750-999 - so the Columns
+// Zone owns two non-contiguous ranges at opposite ends of the index space,
+// the several-ranges case made physical. Casting was probed on this geometry at the
 // lesson clock (#705): MetaballGarden, IQPalettes, and CompassRose are three
 // calm fields from three hue families - green 134°, warm 31°, blue 236° -
 // each unmistakably alive (0.19-0.39 mean luminance, flux ≤ 0.021 per
@@ -1225,30 +1225,36 @@ function learn206(): StockShow {
 // (ShapeShifter 0.07, Harmonograph 0.07) were rejected; PlasmaNebula scored
 // well standalone but compiles to black through the Show pipeline (#708),
 // so the blue voice is the show-proven CompassRose. The halfway trade
-// mirrors 105 exactly: floor and towers swap Patterns in one Cut while the
-// arch holds and the ranges never move.
+// mirrors 105 exactly: stage and columns swap Patterns in one Cut while the
+// arch holds and the ranges never move. Unlike the portable lessons, these
+// three fields run above the lesson clock: at 0.32 the calm casting reads as
+// a still image on the big stage, so each voice carries a hand-tuned speed
+// from live review on the rebuilt arch geometry (#835).
 function learn301(): StockShow {
   const id = 'stock-show-301-installation-mapping'
-  const zones = physicalZones(['Dance floor', 'Arch', 'Towers'], [400, 200, 400])
+  const GARDEN_TIME_SCALE = 1.8
+  const PALETTES_TIME_SCALE = 2.84
+  const ROSE_TIME_SCALE = 1.08
+  const zones = physicalZones(['Stage', 'Arch', 'Columns'], [250, 250, 500])
   const scenes: SceneSpec[] = [
     scene('stage', 'One stage', 14, [
-      clip('zone-1', 'MetaballGarden', LESSON_TIME_SCALE),
-      clip('zone-2', 'IQPalettes', LESSON_TIME_SCALE),
-      clip('zone-3', 'CompassRose', LESSON_TIME_SCALE),
+      clip('zone-1', 'MetaballGarden', GARDEN_TIME_SCALE),
+      clip('zone-2', 'IQPalettes', PALETTES_TIME_SCALE),
+      clip('zone-3', 'CompassRose', ROSE_TIME_SCALE),
     ]),
   ]
   const composition: ShowCompositionV1 = {
     version: 1,
     patternInstances: [
-      instance('garden', 'MetaballGarden', LESSON_TIME_SCALE),
-      instance('palettes', 'IQPalettes', LESSON_TIME_SCALE),
-      instance('rose', 'CompassRose', LESSON_TIME_SCALE),
+      instance('garden', 'MetaballGarden', GARDEN_TIME_SCALE),
+      instance('palettes', 'IQPalettes', PALETTES_TIME_SCALE),
+      instance('rose', 'CompassRose', ROSE_TIME_SCALE),
     ],
     scenes: [{
       sceneId: 'stage',
       zones: [
         {
-          // The Cut lands at the same instant on floor and towers, so the
+          // The Cut lands at the same instant on stage and columns, so the
           // Patterns trade surfaces in one move while the ranges never change.
           zoneId: 'zone-1',
           overlays: [],
@@ -1271,14 +1277,14 @@ function learn301(): StockShow {
   return catalogue({
     id, title: 'Installation Mapping', track: 'installation', collection: 'learn', level: 300, order: 1,
     purpose: 'An Installation Show gives up portability on purpose. It promises one exact output - this proscenium stage, 1,000 measured LEDs - and in exchange each named Zone owns real pixels: a physical range over the map instead of a share of an abstract surface. Together the ranges must cover the output exactly once.',
-    notice: "The ranges restate the installer's walk: left tower first, then the dance floor, the arch, and the right tower last. That walk is why the Towers Zone owns two ranges at opposite ends of the index space - 0-199 and 800-999 - one physical role, two stretches of wire. At the halfway junction the floor and the towers trade Patterns while the arch holds; the ranges themselves never move.",
-    prompts: ['Open the Towers Zone in the map selector: one Zone, two separate ranges, and selecting its pixels spatially edits the same fact as the numbers.', 'Now break it on purpose - remove a few pixels from one tower and watch the coverage diagnostic count the gap. Repair it, or use Reset to restore the pristine lesson.'],
+    notice: "The ranges restate the installer's walk: left column first, then the stage field, the arch band over the apex, and the right column last. That walk is why the Columns Zone owns two ranges at opposite ends of the index space - 0-249 and 750-999 - one physical role, two stretches of wire. At the halfway junction the stage and the columns trade Patterns while the arch holds; the ranges themselves never move.",
+    prompts: ['Open the Columns Zone in the map selector: one Zone, two separate ranges, and selecting its pixels spatially edits the same fact as the numbers.', 'Now break it on purpose - remove a few pixels from one column and watch the coverage diagnostic count the gap. Repair it, or use Reset to restore the pristine lesson.'],
     guideHeading: 'installation-output-and-physical-ranges',
     patternSlots: [['garden'], ['palettes'], ['rose']],
     output: { kind: 'installation', mapId: 'proscenium-stage-2d', pixelCount: 1_000 },
     zones,
     layouts: [physicalLayout('layout-stage', 'Proscenium stage', zones, [
-      [[200, 599]], [[600, 799]], [[0, 199], [800, 999]],
+      [[250, 499]], [[500, 749]], [[0, 249], [750, 999]],
     ])],
     scenes,
     composition,

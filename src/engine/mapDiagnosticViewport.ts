@@ -187,12 +187,15 @@ function project2D(
       left,
       left + plotWidth,
     ),
+    // +y draws downward (min y at the top), matching the show preview's
+    // `projectPosInBounds`, the zone spatial selector, and the y-down
+    // convention every stock 2D source is authored in.
     y: projectAxis(
       position[1],
       geometry.bounds2D.minY,
       geometry.bounds2D.maxY,
-      top + plotHeight,
       top,
+      top + plotHeight,
     ),
     depth: 0,
   }))
