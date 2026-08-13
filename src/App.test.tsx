@@ -281,7 +281,6 @@ describe('routing (#308)', () => {
     inputs: [],
     globalTransforms: [],
     patternBindings: [],
-    zones: [],
     updatedAt: 1,
   }
   const mapRecord: MapRecord = {

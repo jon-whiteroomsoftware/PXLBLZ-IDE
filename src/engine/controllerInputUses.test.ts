@@ -42,7 +42,6 @@ function profileWith(changes: Partial<ControllerProfile> = {}): ControllerProfil
     ],
     globalTransforms: [brightnessTransform(), powerCap],
     patternBindings: [],
-    zones: [],
     updatedAt: 1,
     ...changes,
   }

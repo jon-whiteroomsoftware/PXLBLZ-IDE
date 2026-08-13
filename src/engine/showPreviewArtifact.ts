@@ -13,7 +13,6 @@ import { LIBRARIES } from '@/pixelblaze/libs'
 import { SHOW_MAX_OUTPUT_PIXELS } from './showVmResourceLedger'
 import { extractPatternAuthors, normalizePatternAuthors, PXLBLZ_AUTHOR, type ShowArtifactAttribution, type ShowPatternAttribution } from './patternAttribution'
 import { projectShowGroupRuntimePatternInstances } from './showGroupModel'
-import { buildShowStripControllerZones } from './zonePreview'
 
 export interface CompiledShowState {
   artifact: GeneratedShowArtifact | null
@@ -33,17 +32,17 @@ interface ShowCompilationOptions extends ShowCompileOptions {
 const SHOW_PREVIEW_COMPILE_CACHE_LIMIT = 8
 const showPreviewCompileCache = new Map<string, CompiledShowState>()
 
+/** The zones a Show compiles over come from the Show itself: an Installation
+ * physical Zone Layout supplies ranges, and every other contract routes
+ * logically or nominally. Controller profiles stopped carrying zones in #775;
+ * the recipe builder already shadowed any caller-provided zones with
+ * Show-owned data for every loadable contract (see the #775 shadowing
+ * fixtures in showPreviewArtifact.test.ts), so this collapse changes no
+ * compiled artifact. */
 export function resolveShowCompilationControllerZones(
   show: ShowRecord,
-  hasStageMap: boolean,
-  targetProfileZones?: ControllerZone[],
 ): ControllerZone[] | undefined {
   return installationPhysicalZones(show)
-    ?? (show.outputContract?.kind === 'portable-2d'
-      ? undefined
-      : hasStageMap
-        ? targetProfileZones
-        : buildShowStripControllerZones(show.zones, targetProfileZones))
 }
 
 export function compileShowForPreview(

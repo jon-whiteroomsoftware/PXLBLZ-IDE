@@ -65,7 +65,6 @@ export function legacySignatureProfile(): ControllerProfile {
       inputId: 'pot0',
       target: { kind: 'call-exported-slider', name: 'sliderSpeed' },
     }],
-    zones: [],
     updatedAt: 1,
   }
 }

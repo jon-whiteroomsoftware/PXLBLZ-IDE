@@ -213,7 +213,6 @@ describe('personal content provider seam', () => {
       inputs: [],
       globalTransforms: [],
       patternBindings: [],
-      zones: [],
       updatedAt: 1,
     })).rejects.toThrow('Sign in required')
   })

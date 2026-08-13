@@ -67,50 +67,6 @@ describe('previewStore', () => {
     expect(usePreviewStore.getState().watchValues).toEqual({ delta: 16.7, t: 0.42 })
   })
 
-  it('stores transient zone preview strips and solo selection', () => {
-    usePreviewStore.getState().setZonePreviewStrips([
-      {
-        id: 'arch-left',
-        name: 'Arch left',
-        color: '#38bdf8',
-        pixelCount: 2,
-        samples: [
-          [1, 0, 0],
-          [0, 1, 0],
-        ],
-      },
-    ])
-    usePreviewStore.getState().setZoneSoloId('arch-left')
-
-    expect(usePreviewStore.getState().zonePreviewStrips).toHaveLength(1)
-    expect(usePreviewStore.getState().zoneSoloId).toBe('arch-left')
-  })
-
-  it('clears a solo selection when the zone disappears', () => {
-    const store = usePreviewStore.getState()
-    store.setZonePreviewStrips([
-      {
-        id: 'arch-left',
-        name: 'Arch left',
-        color: '#38bdf8',
-        pixelCount: 1,
-        samples: [[1, 0, 0]],
-      },
-    ])
-    store.setZoneSoloId('arch-left')
-
-    usePreviewStore.getState().setZonePreviewStrips([
-      {
-        id: 'arch-right',
-        name: 'Arch right',
-        color: '#f97316',
-        pixelCount: 1,
-        samples: [[0, 1, 0]],
-      },
-    ])
-
-    expect(usePreviewStore.getState().zoneSoloId).toBeNull()
-  })
 })
 
 describe('mergePersistedPreview', () => {

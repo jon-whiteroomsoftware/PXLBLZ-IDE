@@ -155,9 +155,11 @@ export function PatternList({
     ? route.entity.id
     : null
   const createShowFromController = useShowStore((s) => s.createShowFromController)
+  // Any profile can seed a new Show: since #775 the action wires target
+  // identity, Stage map, and pixel count — zones are carved inside the Show.
   const showSeedProfile = controllerProfiles.find((profile) => (
-    profile.zones.length > 0 && profileMatchesLive(profile, liveControllers)
-  )) ?? controllerProfiles.find((profile) => profile.zones.length > 0)
+    profileMatchesLive(profile, liveControllers)
+  )) ?? controllerProfiles[0]
   const railOperationFailure = useStudioOperationStore((s) => s.failures.rail)
   const executeStudioOperation = useStudioOperationStore((s) => s.execute)
   const retryStudioOperation = useStudioOperationStore((s) => s.retry)

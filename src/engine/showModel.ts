@@ -56,9 +56,7 @@ import {
   type ShowClipTransformProperty,
 } from './showClipTransform'
 import {
-  controllerZonePixelCount,
   controllerProfileDisplayName,
-  normalizeControllerZones,
   type ControllerProfile,
   type ControllerZone,
 } from './controllerProfile'
@@ -239,6 +237,9 @@ export function createShowWithOutputContract(
   }
 }
 
+/** A Show created from a Controller wires target identity, the imported Stage
+ * map, and the contract pixel count — never zones. Since #775 zones are carved
+ * inside the Installation Show itself, so every new Show starts single-zone. */
 export function createDefaultShowFromController(
   id: string,
   name: string,
@@ -247,27 +248,7 @@ export function createDefaultShowFromController(
   updatedAt = Date.now(),
 ): ShowRecord {
   const base = createDefaultShow(id, name, updatedAt)
-  const controllerZones = normalizeControllerZones(controller.zones)
-  if (controllerZones.length === 0) {
-    return { ...base, targetControllerProfileId: controller.id, stageMapId }
-  }
-
-  const zones: ShowZone[] = controllerZones.map((zone, index) => ({
-    id: `zone-${index + 1}`,
-    name: zone.name,
-    nominalPixelCount: controllerZonePixelCount(zone),
-    color: ZONE_COLORS[index % ZONE_COLORS.length],
-  }))
-
-  return {
-    ...base,
-    zones,
-    cells: createCellsForZones(base.scenes, zones),
-    routingLayouts: [routingLayoutFromControllerZones('layout-1', 'Default', zones, controllerZones)],
-    targetControllerProfileId: controller.id,
-    stageMapId,
-    updatedAt,
-  }
+  return { ...base, targetControllerProfileId: controller.id, stageMapId }
 }
 
 export function importedStageMapIdForController(
@@ -3035,22 +3016,6 @@ function routingLayoutFromZones(id: string, name: string, zones: ShowZone[]): Sh
   }
 }
 
-function routingLayoutFromControllerZones(
-  id: string,
-  name: string,
-  showZones: ShowZone[],
-  controllerZones: ControllerZone[],
-): ShowRoutingLayout {
-  return {
-    id,
-    name,
-    zones: showZones.map((zone, index) => ({
-      zoneId: zone.id,
-      ranges: (controllerZones[index]?.ranges ?? []).map((range) => ({ ...range })),
-    })),
-  }
-}
-
 function routingLayoutControllerZones(showZones: ShowZone[], layout: ShowRoutingLayout): ControllerZone[] {
   return showZones.map((zone) => ({
     id: `${layout.id}:${zone.id}`,
@@ -3153,12 +3118,6 @@ function logicalRoutingRecipe(
     twist: logical.twist,
     rotation: logical.rotation ?? 0,
   }
-}
-
-function createCellsForZones(scenes: ShowScene[], zones: ShowZone[]): ShowCell[] {
-  return zones.flatMap((zone, zoneIndex) =>
-    scenes.map((scene, sceneIndex) => defaultCell(`cell-${zoneIndex * scenes.length + sceneIndex + 1}`, zone.id, scene.id, sceneIndex)),
-  )
 }
 
 function cellCoveringScene(show: ShowRecord, zoneId: string, sceneIndex: number): ShowCell | undefined {

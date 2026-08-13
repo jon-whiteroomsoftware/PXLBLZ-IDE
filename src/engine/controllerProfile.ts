@@ -156,6 +156,10 @@ export function patternBindingOverridesHardwareBrightness(
   )
 }
 
+/** Inclusive pixel-index ranges. Since #775 zones are Show vocabulary only:
+ * an Installation Show's Zone Layout owns its ranges, and nothing zone-shaped
+ * persists on the Controller profile. The types stay here because the Show
+ * engine and compiler exchange them. */
 export interface ControllerZoneRange {
   start: number
   end: number
@@ -173,13 +177,6 @@ export interface ControllerMapFingerprint {
   mapName: string
   devicePixelCount: number
   pushedAt: number
-}
-
-interface LegacyControllerZone {
-  id: string
-  name: string
-  start: number
-  end: number
 }
 
 export interface ControllerProfile {
@@ -211,7 +208,6 @@ export interface ControllerProfile {
    * Missing on legacy records and therefore treated as false. */
   keepPatternsUpToDate?: boolean
   patternBindings: PatternBinding[]
-  zones: ControllerZone[]
   updatedAt: number
 }
 
@@ -242,24 +238,15 @@ export function analogPinsForBoard(board: ControllerBoardProfile): number[] {
   return [33, 34, 35, 36, 39]
 }
 
-export function normalizeControllerZone(zone: ControllerZone | LegacyControllerZone): ControllerZone {
-  if ('ranges' in zone) {
-    return {
-      id: zone.id,
-      name: zone.name,
-      ranges: zone.ranges.map((range) => ({ start: range.start, end: range.end })),
-    }
-  }
+export function normalizeControllerZone(zone: ControllerZone): ControllerZone {
   return {
     id: zone.id,
     name: zone.name,
-    ranges: [{ start: zone.start, end: zone.end }],
+    ranges: zone.ranges.map((range) => ({ start: range.start, end: range.end })),
   }
 }
 
-export function normalizeControllerZones(
-  zones: Array<ControllerZone | LegacyControllerZone>,
-): ControllerZone[] {
+export function normalizeControllerZones(zones: ControllerZone[]): ControllerZone[] {
   return zones.map(normalizeControllerZone)
 }
 
@@ -278,48 +265,6 @@ export function findControllerZoneByName(
   return zones.find((zone) => normalizeZoneName(zone.name) === normalizedName)
 }
 
-export interface ParseControllerZoneRangesOk {
-  ok: true
-  ranges: ControllerZoneRange[]
-}
-
-export interface ParseControllerZoneRangesFail {
-  ok: false
-  message: string
-}
-
-export type ParseControllerZoneRangesResult =
-  | ParseControllerZoneRangesOk
-  | ParseControllerZoneRangesFail
-
-export function parseControllerZoneRanges(text: string): ParseControllerZoneRangesResult {
-  const parts = text
-    .split(/[,;\n]|(?:\s+[·•]\s+)/)
-    .map((part) => part.trim())
-    .filter(Boolean)
-  if (parts.length === 0) {
-    return { ok: false, message: 'Enter at least one pixel range.' }
-  }
-
-  const ranges: ControllerZoneRange[] = []
-  for (const part of parts) {
-    const match = part.match(/^(\d+)(?:\s*(?:-|–|—|\.\.)\s*(\d+))?$/)
-    if (!match) {
-      return { ok: false, message: `Range "${part}" must look like 0-63.` }
-    }
-    const start = Number(match[1])
-    const end = Number(match[2] ?? match[1])
-    ranges.push({ start, end })
-  }
-  return { ok: true, ranges }
-}
-
-export function formatControllerZoneRanges(zone: ControllerZone): string {
-  return normalizeControllerZone(zone).ranges
-    .map((range) => (range.start === range.end ? String(range.start) : `${range.start}-${range.end}`))
-    .join(', ')
-}
-
 export function validateControllerProfile(
   profile: ControllerProfile,
 ): ControllerProfileValidationResult {
@@ -330,8 +275,6 @@ export function validateControllerProfile(
   collectDuplicateIds(profile.inputs, 'input', errors)
   collectDuplicateIds(profile.globalTransforms, 'global transform', errors)
   collectDuplicateIds(profile.patternBindings, 'pattern binding', errors)
-  const zones = normalizeControllerZones(profile.zones)
-  collectDuplicateIds(zones, 'zone', errors)
 
   for (const input of profile.inputs) {
     inputIds.add(input.id)
@@ -437,44 +380,6 @@ export function validateControllerProfile(
         errors.push({
           path: `patternBindings.${binding.id}.target.quantize`,
           message: `Pattern binding "${binding.id}" quantize must be greater than 0.`,
-        })
-      }
-    }
-  }
-
-  collectDuplicateZoneNames(zones, errors)
-
-  for (const zone of zones) {
-    if (zone.name.trim() === '') {
-      errors.push({
-        path: `zones.${zone.id}.name`,
-        message: `Zone "${zone.id}" needs a name.`,
-      })
-    }
-    if (zone.ranges.length === 0) {
-      errors.push({
-        path: `zones.${zone.id}.ranges`,
-        message: `Zone "${zone.name}" needs at least one pixel range.`,
-      })
-    }
-    for (const [rangeIndex, range] of zone.ranges.entries()) {
-      if (!Number.isInteger(range.start) || !Number.isInteger(range.end)) {
-        errors.push({
-          path: `zones.${zone.id}.ranges.${rangeIndex}`,
-          message: `Zone "${zone.name}" range ${rangeIndex + 1} must use whole-number pixel indices.`,
-        })
-        continue
-      }
-      if (range.start < 0 || range.end < 0) {
-        errors.push({
-          path: `zones.${zone.id}.ranges.${rangeIndex}`,
-          message: `Zone "${zone.name}" range ${rangeIndex + 1} cannot use negative pixel indices.`,
-        })
-      }
-      if (range.start > range.end) {
-        errors.push({
-          path: `zones.${zone.id}.ranges.${rangeIndex}`,
-          message: `Zone "${zone.name}" range ${rangeIndex + 1} start must be less than or equal to end.`,
         })
       }
     }
@@ -588,24 +493,6 @@ function collectDuplicateIds(
       })
     }
     seen.add(record.id)
-  }
-}
-
-function collectDuplicateZoneNames(
-  zones: ControllerZone[],
-  errors: ControllerProfileValidationIssue[],
-): void {
-  const seen = new Set<string>()
-  for (const zone of zones) {
-    const name = normalizeZoneName(zone.name)
-    if (!name) continue
-    if (seen.has(name)) {
-      errors.push({
-        path: `zones.${zone.id}.name`,
-        message: `Zone name "${zone.name}" is duplicated.`,
-      })
-    }
-    seen.add(name)
   }
 }
 

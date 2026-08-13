@@ -13,7 +13,6 @@ function profile(id: string, deviceId: string | undefined, updatedAt: number): C
     inputs: [],
     globalTransforms: [],
     patternBindings: [],
-    zones: [],
     updatedAt,
   }
 }

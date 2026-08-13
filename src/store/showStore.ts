@@ -51,7 +51,7 @@ import type {
   ShowTransitionKind,
   ShowZone,
 } from '@/engine/personalContentRecords'
-import { controllerZonePixelCount, type ControllerProfile } from '@/engine/controllerProfile'
+import { type ControllerProfile } from '@/engine/controllerProfile'
 import { newPersonalContentId } from '@/engine/personalContentMetadata'
 import { uniquePatternName } from '@/engine/patternName'
 import { useMapStore } from '@/store/mapStore'
@@ -262,8 +262,7 @@ export const useShowStore = create<ShowState>()((set, get) => ({
     const id = newPersonalContentId()
     const name = uniquePatternName(`${profile.name} Show`, get().shows.map((show) => show.name))
     const stageMapId = importedStageMapIdForController(profile, useMapStore.getState().userMaps)
-    const pixelCount = profile.lastKnownPixelCount
-      ?? (profile.zones.reduce((sum, zone) => sum + controllerZonePixelCount(zone), 0) || 60)
+    const pixelCount = profile.lastKnownPixelCount ?? 60
     const show = {
       ...createDefaultShowFromController(id, name, profile, stageMapId),
       outputContract: createInstallationShowOutputContract({ outputMapId: stageMapId, pixelCount }),

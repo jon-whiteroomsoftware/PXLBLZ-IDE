@@ -70,7 +70,6 @@ describe('showModel (#318)', () => {
       inputs: [],
       globalTransforms: [],
       patternBindings: [],
-      zones: [],
       updatedAt: 2,
     }, [{
       id: 'map-before-rename',
@@ -2227,6 +2226,8 @@ describe('showModel (#318)', () => {
       ['entry', 20],
     ])
 
+    // #775: a Controller-seeded Show starts single-zone; zones are carved
+    // inside the Installation Show, never copied from the profile.
     const seeded = createDefaultShowFromController('show-2', 'Controller Show', {
       id: 'controller-1',
       name: 'North Arch',
@@ -2234,26 +2235,15 @@ describe('showModel (#318)', () => {
       inputs: [],
       globalTransforms: [],
       patternBindings: [],
-      zones: [
-        { id: 'left', name: 'arch-left', ranges: [{ start: 0, end: 119 }] },
-        {
-          id: 'right',
-          name: 'arch-right',
-          ranges: [
-            { start: 120, end: 179 },
-            { start: 220, end: 279 },
-          ],
-        },
-      ],
       updatedAt: 1,
-    })
+    }, 'map-1')
 
     expect(seeded.targetControllerProfileId).toBe('controller-1')
+    expect(seeded.stageMapId).toBe('map-1')
     expect(seeded.zones.map((zone) => [zone.name, zone.nominalPixelCount])).toEqual([
-      ['arch-left', 120],
-      ['arch-right', 120],
+      ['main', 60],
     ])
-    expect(seeded.cells.filter((cell) => cell.sceneId === 'scene-1')).toHaveLength(2)
+    expect(seeded.cells.filter((cell) => cell.sceneId === 'scene-1')).toHaveLength(1)
   })
 
   it('emits a spanned zone cell as one-canvas route targets', () => {

@@ -245,12 +245,7 @@ import {
   showTransitionChangesForPresentation,
 } from '@/engine/showTransitionAuthoring'
 import { buildShowToolkitPresentationCatalogue } from '@/engine/showVisualToolkitPresentation'
-import {
-  controllerZonePixelCount,
-  findControllerZoneByName,
-  type ControllerProfile,
-  type ControllerZone,
-} from '@/engine/controllerProfile'
+import { type ControllerProfile } from '@/engine/controllerProfile'
 import { STOCK_PATTERNS } from '@/engine/galleryCatalog'
 import { useControllerStore } from '@/store/controllerStore'
 import { useControllerProfileStore } from '@/store/controllerProfileStore'
@@ -1347,10 +1342,8 @@ export function ShowEditor({
           : null
     : null
   const compilationControllerZones = useMemo(
-    () => activeShow
-      ? resolveShowCompilationControllerZones(activeShow, Boolean(savedStageMap), targetProfile?.zones)
-      : undefined,
-    [activeShow, savedStageMap, targetProfile?.zones],
+    () => activeShow ? resolveShowCompilationControllerZones(activeShow) : undefined,
+    [activeShow],
   )
   const artifactCompilationInput = useMemo(() => activeShow ? {
     show: activeShow,
@@ -1698,11 +1691,7 @@ export function ShowEditor({
     const currentCompiled = compileShowForArtifact(
       currentShow,
       currentPatterns,
-      resolveShowCompilationControllerZones(
-        currentShow,
-        Boolean(currentStageMap),
-        currentTargetProfile?.zones,
-      ),
+      resolveShowCompilationControllerZones(currentShow),
       {},
       {
         stageDimension: currentStageMap?.dim,
@@ -2547,7 +2536,6 @@ export function ShowEditor({
                   patternControlsByInstanceId={patternControlsByInstanceId}
                   compiledOutputEffects={compiled.artifact?.summary.outputEffects}
                   controllerProfiles={controllerProfiles}
-                  targetProfile={targetProfile}
                   userMaps={userMaps}
                   spatialSelectionUnavailableReason={spatialSelectionUnavailableReason}
                   onOpenSpatialSelection={(zoneId) => {
@@ -7701,7 +7689,6 @@ function ContextualInspector({
   patternControlsByInstanceId,
   compiledOutputEffects,
   controllerProfiles,
-  targetProfile,
   userMaps,
   spatialSelectionUnavailableReason,
   onOpenSpatialSelection,
@@ -7754,7 +7741,6 @@ function ContextualInspector({
   patternControlsByInstanceId: Record<string, AutomatablePatternControl[]>
   compiledOutputEffects?: import('@/engine/showCompiler').ShowCompileSummary['outputEffects']
   controllerProfiles: ControllerProfile[]
-  targetProfile?: ControllerProfile
   userMaps: MapRecord[]
   spatialSelectionUnavailableReason: string | null
   onOpenSpatialSelection: (zoneId: string) => void
@@ -7971,8 +7957,6 @@ function ContextualInspector({
         <ZoneInspector
           show={show}
           zone={zone}
-          targetName={targetProfile?.name}
-          targetZones={targetProfile?.zones ?? []}
           spatialSelectionUnavailableReason={spatialSelectionUnavailableReason}
           onOpenSpatialSelection={() => onOpenSpatialSelection(zone.id)}
           onUpdateZone={(changes) => onUpdateZone(zone.id, changes)}
@@ -8004,7 +7988,6 @@ function ContextualInspector({
     <ShowSetupInspector
       show={show}
       controllerProfiles={controllerProfiles}
-      targetProfile={targetProfile}
       userMaps={userMaps}
       onUpdateTargetProfile={onUpdateTargetProfile}
       onUpdatePortableReference={onUpdatePortableReference}
@@ -9517,7 +9500,6 @@ function logicalRoutingDescription(layout: ShowRoutingLayout, show: ShowRecord):
 function ShowSetupInspector({
   show,
   controllerProfiles,
-  targetProfile,
   userMaps,
   onUpdateTargetProfile,
   onUpdatePortableReference,
@@ -9526,7 +9508,6 @@ function ShowSetupInspector({
 }: {
   show: ShowRecord
   controllerProfiles: ControllerProfile[]
-  targetProfile?: ControllerProfile
   userMaps: MapRecord[]
   onUpdateTargetProfile: (targetControllerProfileId: string) => void
   onUpdatePortableReference: (referenceMapId: string | null, referencePixelCount: number) => void
@@ -9656,7 +9637,7 @@ function ShowSetupInspector({
       <p className="mt-3 text-[10px] text-zinc-500">
         {portable
           ? 'Portable routing uses normalized Stage positions at runtime.'
-          : `Using ${targetProfile?.name ?? 'nominal zones'} for compile estimates.`}
+          : 'Using saved physical ranges, or nominal zone sizes until they are set, for compile estimates.'}
         {' '}Zones are authored in the Zone Map on the Timeline; each Layout interval owns its Zone Layout there.
       </p>
       <div className="mt-4 border-t border-zinc-800 pt-3">
@@ -10010,8 +9991,6 @@ function ZoneLayoutInspector({
 function ZoneInspector({
   show,
   zone,
-  targetName,
-  targetZones,
   spatialSelectionUnavailableReason,
   onOpenSpatialSelection,
   onUpdateZone,
@@ -10019,15 +9998,13 @@ function ZoneInspector({
 }: {
   show: ShowRecord
   zone: ShowRecord['zones'][number]
-  targetName?: string
-  targetZones: ControllerZone[]
   spatialSelectionUnavailableReason: string | null
   onOpenSpatialSelection: () => void
   onUpdateZone: (changes: Partial<ShowRecord['zones'][number]>) => void
   onRemoveZone: () => void
 }) {
   return (
-    <InspectorPanel family="Zone" title={`${zone.name}${targetName ? ` · ${targetName}` : ''}`} icon={<MapIcon size={13} aria-hidden />}>
+    <InspectorPanel family="Zone" title={zone.name} icon={<MapIcon size={13} aria-hidden />}>
       <div className="grid gap-2 rounded border border-zinc-800 bg-zinc-950/55 p-2 md:grid-cols-[minmax(140px,1fr)_96px_36px]">
         <label className="flex min-w-0 items-center gap-2">
           <span className="h-2 w-2 shrink-0 rounded-full" style={{ backgroundColor: zone.color ?? '#38bdf8' }} />
@@ -10069,7 +10046,7 @@ function ZoneInspector({
         <div className="text-[10px] uppercase tracking-wider md:col-span-3">
           {show.outputContract?.kind === 'portable-2d'
             ? <span className="text-zinc-400">logical - normalized position membership</span>
-            : <ZoneBindingStatus show={show} zone={zone} targetZones={targetZones} />}
+            : <ZoneBindingStatus show={show} zone={zone} />}
         </div>
         {show.outputContract?.kind === 'installation' && (
           <div className="flex flex-wrap items-center gap-2 md:col-span-3">
@@ -10093,24 +10070,15 @@ function ZoneInspector({
 function ZoneBindingStatus({
   show,
   zone,
-  targetZones,
 }: {
   show: ShowRecord
   zone: ShowRecord['zones'][number]
-  targetZones: ControllerZone[]
 }) {
   const authored = resolveShowZonePixelCount(show, zone.id)
   if (authored?.source === 'physical') {
-    return <span className="text-green-400">bound - {authored.pixelCount} px</span>
+    return <span className="text-green-400">physical - {authored.pixelCount} px</span>
   }
-  const bound = findControllerZoneByName(targetZones, zone.name)
-  if (!targetZones.length) {
-    return <span className="text-zinc-500">nominal - {zone.nominalPixelCount} px</span>
-  }
-  if (!bound) {
-    return <span className="text-amber-300">unbound - nominal {zone.nominalPixelCount} px</span>
-  }
-  return <span className="text-green-400">bound - {controllerZonePixelCount(bound)} px</span>
+  return <span className="text-zinc-500">nominal - {zone.nominalPixelCount} px</span>
 }
 
 function CompileBar({
@@ -10448,8 +10416,4 @@ function formatControlValue(value: number): string {
 function formatBytes(bytes: number): string {
   if (bytes < 1024) return `${bytes} B`
   return `${(bytes / 1024).toFixed(1)} KB`
-}
-
-export function targetZonePixelTotal(zones: ControllerZone[] | undefined): number {
-  return zones?.reduce((sum, zone) => sum + controllerZonePixelCount(zone), 0) ?? 0
 }

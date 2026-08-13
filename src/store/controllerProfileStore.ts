@@ -26,7 +26,6 @@ import {
   type ControllerInput,
   type ControllerInputSignal,
   type ControllerProfile,
-  type ControllerZone,
   type GlobalTransform,
   type PatternBinding,
 } from '@/engine/controllerProfile'
@@ -70,9 +69,6 @@ interface ControllerProfileState {
   addInput: (profileId: string) => Promise<void>
   updateInput: (profileId: string, inputId: string, changes: Partial<ControllerInput>) => Promise<void>
   removeInput: (profileId: string, inputId: string) => Promise<void>
-  addZone: (profileId: string) => Promise<void>
-  updateZone: (profileId: string, zoneId: string, changes: Partial<ControllerZone>) => Promise<void>
-  removeZone: (profileId: string, zoneId: string) => Promise<void>
   toggleGlobalTransform: (profileId: string, transformId: string, enabled: boolean) => Promise<void>
   /** Point the profile's single hardware-brightness transform at an input, or
    * disable it with `null`. One transform per profile makes this exclusive. */
@@ -155,7 +151,6 @@ export function defaultControllerProfile(seed: {
     ],
     keepPatternsUpToDate: false,
     patternBindings: [],
-    zones: [],
     updatedAt,
   }
 }
@@ -528,31 +523,6 @@ export const useControllerProfileStore = create<ControllerProfileState>()((set, 
     await get().updateProfile(profileId, {
       inputs: profile.inputs.filter((input) => input.id !== inputId),
       patternBindings: profile.patternBindings.filter((binding) => binding.inputId !== inputId),
-    })
-  },
-
-  addZone: async (profileId) => {
-    const profile = get().profiles.find((p) => p.id === profileId)
-    if (!profile) return
-    const id = nextId('zone', profile.zones)
-    await get().updateProfile(profileId, {
-      zones: [...profile.zones, { id, name: `Zone ${profile.zones.length + 1}`, ranges: [{ start: 0, end: 0 }] }],
-    })
-  },
-
-  updateZone: async (profileId, zoneId, changes) => {
-    const profile = get().profiles.find((p) => p.id === profileId)
-    if (!profile) return
-    await get().updateProfile(profileId, {
-      zones: profile.zones.map((zone) => (zone.id === zoneId ? { ...zone, ...changes } : zone)),
-    })
-  },
-
-  removeZone: async (profileId, zoneId) => {
-    const profile = get().profiles.find((p) => p.id === profileId)
-    if (!profile) return
-    await get().updateProfile(profileId, {
-      zones: profile.zones.filter((zone) => zone.id !== zoneId),
     })
   },
 

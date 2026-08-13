@@ -73,7 +73,7 @@ import {
 } from '@/engine/controllerReconciliation'
 import { DEMOS } from '@/pixelblaze/stock/patterns'
 import { useShowStore } from '@/store/showStore'
-import { compileShowForArtifact } from '@/engine/showPreviewArtifact'
+import { compileShowForArtifact, resolveShowCompilationControllerZones } from '@/engine/showPreviewArtifact'
 import { buildShowEpeExport } from '@/engine/showEpeExport'
 import { prepareShowControllerArtifact } from '@/engine/showControllerArtifact'
 import {
@@ -1000,7 +1000,7 @@ export const useControllerStore = create<ControllerConnectionState>()(
             const compiled = compileShowForArtifact(
               show,
               patternState.userPatterns,
-              profile.zones,
+              resolveShowCompilationControllerZones(show),
               Object.fromEntries(libraryState.userLibraries.map((library) => [library.name, library.src])),
               {
                 stageDimension: stageMap?.dim,

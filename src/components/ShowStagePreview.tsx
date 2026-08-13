@@ -227,10 +227,8 @@ export function ShowStagePreview({
         : 'Preview layout'
 
   const compilationControllerZones = useMemo(
-    () => show
-      ? resolveShowCompilationControllerZones(show, Boolean(selectedStageMap), targetProfile?.zones)
-      : undefined,
-    [selectedStageMap, show, targetProfile?.zones],
+    () => show ? resolveShowCompilationControllerZones(show) : undefined,
+    [show],
   )
   const compiled = useMemo(
     () =>
@@ -245,7 +243,7 @@ export function ShowStagePreview({
   const layout = useMemo((): StageLayout | null => {
     if (!show) return null
     if (!selectedStageMap) {
-      const strips = buildShowStripsLayout(show.zones, { controllerZones: targetProfile?.zones })
+      const strips = buildShowStripsLayout(show.zones)
       return {
         kind: 'strips',
         mapPoints: strips.mapPoints,
@@ -283,7 +281,7 @@ export function ShowStagePreview({
           splitPosition: show.scenes[0]?.routingTargets?.splitPosition ?? 0.5,
         })
       : buildShowStageProjection(show.zones, mapPoints.length, {
-          controllerZones: savedPhysicalZones ?? targetProfile?.zones,
+          controllerZones: savedPhysicalZones,
         })
 
     if (map.dim === 3) {
@@ -313,7 +311,7 @@ export function ShowStagePreview({
       label: map.name,
       note: logical ? showLogicalAspectAdvisory(mapPoints, logical) : null,
     }
-  }, [danglingStageMap, savedPhysicalZones, selectedStageMap, show, targetProfile?.lastKnownPixelCount, targetProfile?.zones, userMaps])
+  }, [danglingStageMap, savedPhysicalZones, selectedStageMap, show, targetProfile?.lastKnownPixelCount, userMaps])
   const effectiveSoloZoneId =
     layout?.projection.zones.some((zone) => zone.id === soloZoneId) ? soloZoneId : null
   const diagnosticRects = useMemo(() => layout?.draw.kind === '2d'

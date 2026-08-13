@@ -27,20 +27,12 @@ import { layoutSource as buildLayoutSource } from '@/store/mapStore'
 import { resolveLayout } from '@/engine/layout'
 import { resolvePole, type ShapeId } from '@/engine/shapes'
 import { OrbitControls } from '@/components/OrbitControls'
-import { ZonePreviewStrips } from '@/components/ZonePreviewStrips'
 import { LIBRARIES } from '@/pixelblaze/libs'
 import { useLibraryStore } from '@/store/libraryStore'
 import { withControlDescriptions } from '@/pixelblaze/controlDescriptions'
 import { snapshotWatchValue } from '@/engine/watchValue'
 import { captureEnabled, createPreviewCapture } from '@/dev/previewCapture'
 import { runCaptureSequence, type CaptureSequenceOptions } from '@/dev/captureSequence'
-import { useControllerStore } from '@/store/controllerStore'
-import { useControllerProfileStore } from '@/store/controllerProfileStore'
-import {
-  buildZonePreviewStrips,
-  filterPixelsForSolo,
-  selectControllerPreviewZones,
-} from '@/engine/zonePreview'
 
 // Square 3D viewport size (CSS px): fill the available pane edge-to-edge (the
 // smaller of its two sides), so the 3D canvas is exactly as tall as a square 2D
@@ -101,17 +93,6 @@ export function Preview({
   const activeNormalizeMode = useMapStore((s) => s.activeNormalizeMode)
   const userLibraries = useLibraryStore((s) => s.userLibraries)
   const libraries = useMemo(() => compileLibraries(LIBRARIES, userLibraries), [userLibraries])
-  const controllerProfiles = useControllerProfileStore((s) => s.profiles)
-  const activeControllerIp = useControllerStore((s) => s.activeIp)
-  const liveControllers = useControllerStore((s) => s.controllers)
-  const activeZones = useMemo(
-    () =>
-      selectControllerPreviewZones(controllerProfiles, {
-        activeIp: activeControllerIp,
-        controllers: liveControllers,
-      }),
-    [controllerProfiles, activeControllerIp, liveControllers],
-  )
   const handleRef = useRef<ReturnType<typeof loadPattern> | null>(null)
   const shimRef = useRef<ShimContext | null>(null)
   // The 2D viewport the renderer fits within: the pane width, the height left
@@ -362,20 +343,7 @@ export function Preview({
         renderer.setCamera(view.camera)
         renderer.setZoom(view.zoom)
       }
-      let displayPixels = pixels
-      if (activeZones.length > 0) {
-        usePreviewStore.getState().setZonePreviewStrips(
-          buildZonePreviewStrips(pixels, activeZones, { maxSamples: 96 }),
-        )
-        displayPixels = filterPixelsForSolo(
-          pixels,
-          activeZones,
-          usePreviewStore.getState().zoneSoloId,
-        )
-      } else if (usePreviewStore.getState().zonePreviewStrips.length > 0) {
-        usePreviewStore.getState().setZonePreviewStrips([])
-      }
-      renderer.paint(displayPixels, brightness, dimmed)
+      renderer.paint(pixels, brightness, dimmed)
       // Dev capture: fulfil any pending request with the frame just drawn.
       captureRef.current.afterPaint(canvasRef.current)
     }
@@ -415,7 +383,7 @@ export function Preview({
     if (usePreviewStore.getState().isRunning) loop.start()
 
     return () => loop.stop()
-  }, [previewSource, viewport, fidelity, libraries, activeMapId, activeShapeId, activeSurfaceId, previewPixelCount, pixelCountCap, activeNormalizeMode, activeDemoName, activeZones])
+  }, [previewSource, viewport, fidelity, libraries, activeMapId, activeShapeId, activeSurfaceId, previewPixelCount, pixelCountCap, activeNormalizeMode, activeDemoName])
 
   // Seed the live working state from the resolved settings cascade on open:
   // one pass that composes per-pattern override → recommended (demos) → global-sticky
@@ -669,7 +637,6 @@ export function Preview({
       </div>
       {showDeck && (
         <div data-testid="preview-controls-region" className="min-h-[180px] flex-1 overflow-clip">
-          <ZonePreviewStrips />
           <PreviewDeck />
         </div>
       )}

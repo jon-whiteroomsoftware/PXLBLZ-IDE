@@ -55,7 +55,7 @@ const personalStorageUsageSql = `
           + COALESCE(LENGTH(last_known_device_name), 0) + COALESCE(LENGTH(last_seen_ip), 0)
           + COALESCE(LENGTH(map_fingerprints_json), 0) + LENGTH(board_json) + LENGTH(inputs_json)
           + LENGTH(global_transforms_json) + COALESCE(LENGTH(electrical_profile_json), 0)
-          + LENGTH(pattern_bindings_json) + LENGTH(zones_json)), 0) AS content_bytes
+          + LENGTH(pattern_bindings_json)), 0) AS content_bytes
       FROM controller_profiles WHERE user_id = ?
     ),
     settings AS (

@@ -3,10 +3,7 @@ import {
   controllerZonePixelCount,
   controllerProfileRecordIssues,
   controllerProfileValidationErrors,
-  formatControllerZoneRanges,
   normalizeControllerInputs,
-  normalizeControllerZone,
-  parseControllerZoneRanges,
   validateControllerProfile,
   type ControllerProfile,
 } from './controllerProfile'
@@ -86,17 +83,6 @@ const baseProfile: ControllerProfile = {
       },
     },
   ],
-  zones: [
-    { id: 'arch-left', name: 'Arch left', ranges: [{ start: 0, end: 239 }] },
-    {
-      id: 'top-band',
-      name: 'Top band',
-      ranges: [
-        { start: 0, end: 3 },
-        { start: 28, end: 31 },
-      ],
-    },
-  ],
   updatedAt: 100,
 }
 
@@ -111,7 +97,7 @@ describe('ControllerProfile display name', () => {
 })
 
 describe('ControllerProfile validation', () => {
-  it('accepts a durable controller profile with inputs, transforms, bindings, and zones', () => {
+  it('accepts a durable controller profile with inputs, transforms, and bindings', () => {
     expect(validateControllerProfile(baseProfile)).toEqual({ ok: true, errors: [] })
   })
 
@@ -213,36 +199,15 @@ describe('ControllerProfile validation', () => {
     ])
   })
 
-  it('parses and formats named zones as lists of pixel-index ranges', () => {
-    const parsed = parseControllerZoneRanges('0-3, 28-31 · 64')
-
-    expect(parsed).toEqual({
-      ok: true,
+  it('sums a Show-side zone pixel count across discontiguous ranges (#775)', () => {
+    expect(controllerZonePixelCount({
+      id: 'top-band',
+      name: 'Top band',
       ranges: [
         { start: 0, end: 3 },
         { start: 28, end: 31 },
-        { start: 64, end: 64 },
       ],
-    })
-    expect(formatControllerZoneRanges({
-      id: 'top-band',
-      name: 'Top band',
-      ranges: parsed.ok ? parsed.ranges : [],
-    })).toBe('0-3, 28-31, 64')
-    expect(controllerZonePixelCount(baseProfile.zones[1])).toBe(8)
-  })
-
-  it('normalizes legacy single-range zones from existing stored profiles', () => {
-    expect(normalizeControllerZone({
-      id: 'legacy',
-      name: 'Legacy',
-      start: 10,
-      end: 12,
-    })).toEqual({
-      id: 'legacy',
-      name: 'Legacy',
-      ranges: [{ start: 10, end: 12 }],
-    })
+    })).toBe(8)
   })
 
   it('drops the retired role annotation when reading stored inputs (#772)', () => {
@@ -343,10 +308,6 @@ describe('ControllerProfile validation', () => {
         { ...baseProfile.inputs[0], smoothing: 1.5 },
         { ...baseProfile.inputs[1], id: 'pot0' },
       ],
-      zones: [
-        { id: 'bad-zone', name: 'Bad zone', ranges: [{ start: 10, end: 5 }] },
-        { id: 'dup-zone', name: 'Bad zone', ranges: [] },
-      ],
       patternBindings: [
         {
           ...baseProfile.patternBindings[1],
@@ -361,9 +322,6 @@ describe('ControllerProfile validation', () => {
       'Input id "pot0" is duplicated.',
       'Input "pot0" smoothing must be between 0 and 1.',
       'Pattern binding "p1-pot0-plain" assignment min must be less than max.',
-      'Zone name "Bad zone" is duplicated.',
-      'Zone "Bad zone" range 1 start must be less than or equal to end.',
-      'Zone "Bad zone" needs at least one pixel range.',
     ])
   })
 })

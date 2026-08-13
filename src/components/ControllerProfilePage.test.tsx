@@ -438,23 +438,18 @@ describe('ControllerProfilePage', () => {
     expect(screen.queryByRole('combobox', { name: 'Hardware brightness input' })).not.toBeInTheDocument()
   })
 
-  it('removes the Zones editor from the Controller profile page (#772, follow-up #775)', () => {
+  it('mentions zones nowhere on the Controller profile page (#775)', () => {
     const profile = seedProfile()
     useControllerProfileStore.setState({
-      profiles: [{
-        ...profile,
-        lastKnownPixelCount: 256,
-        zones: [{ id: 'quad-1', name: 'quad-1', ranges: [{ start: 0, end: 63 }] }],
-      }],
+      profiles: [{ ...profile, lastKnownPixelCount: 256 }],
       profilesLoaded: true,
     })
 
     render(<ControllerProfilePage profileId="ctrl-1" />)
 
+    // Zones retired outright in #775: no editor, no heading, no pointer text.
     expect(screen.queryByRole('heading', { name: 'Zones' })).not.toBeInTheDocument()
-    expect(screen.queryByRole('textbox', { name: 'quad-1 zone ranges' })).not.toBeInTheDocument()
-    // The field itself stays persisted for Show compilation.
-    expect(useControllerProfileStore.getState().profiles[0].zones).toHaveLength(1)
+    expect(screen.queryByText(/zone/i)).not.toBeInTheDocument()
   })
 
   it('shows no role control anywhere on the redesigned page (#772)', () => {

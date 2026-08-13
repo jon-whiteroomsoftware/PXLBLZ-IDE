@@ -2,7 +2,6 @@ import {
   controllerZonePixelCount,
   findControllerZoneByName,
   normalizeControllerZones,
-  type ControllerProfile,
   type ControllerZone,
   type ControllerZoneRange,
 } from '@/engine/controllerProfile'
@@ -33,17 +32,6 @@ export interface ShowStageProjection {
   zones: ShowStageZone[]
   pixelZoneIds: Array<string | null>
   unstagedPixelCount: number
-}
-
-interface PreviewControllerEntry {
-  ip: string
-  deviceId?: string | null
-  phase: string
-}
-
-export interface ControllerPreviewZoneSource {
-  activeIp: string | null
-  controllers: Record<string, PreviewControllerEntry>
 }
 
 interface BuildZonePreviewOptions {
@@ -160,17 +148,6 @@ function buildProjectionFromRows(
     pixelZoneIds,
     unstagedPixelCount: pixelZoneIds.filter((zoneId) => zoneId === null).length,
   }
-}
-
-export function buildShowStripControllerZones(
-  zones: ShowZone[],
-  controllerZones?: ControllerZone[],
-): ControllerZone[] {
-  return stripRangesForShowZones(zones, controllerZones).map(({ zone, ranges }) => ({
-    id: zone.id,
-    name: zone.name,
-    ranges,
-  }))
 }
 
 function collectZonePixels(pixels: PixelColor[], zone: ControllerZone): PixelColor[] {
@@ -397,52 +374,3 @@ export function applyShowStageMaskPacked(
   return output
 }
 
-export function filterPixelsForSolo(
-  pixels: PixelColor[],
-  zones: ControllerZone[],
-  soloZoneId: string | null,
-): PixelColor[] {
-  if (!soloZoneId) return pixels
-  const zone = zones.find((candidate) => candidate.id === soloZoneId)
-  if (!zone) return pixels
-
-  const soloIndexes = new Set<number>()
-  for (const range of zone.ranges) {
-    const normalized = normalizeRange(range, pixels.length)
-    if (!normalized) continue
-    for (let index = normalized.start; index <= normalized.end; index += 1) {
-      soloIndexes.add(index)
-    }
-  }
-
-  return pixels.map((pixel, index) => (soloIndexes.has(index) ? pixel : BLACK))
-}
-
-export function selectControllerPreviewZones(
-  profiles: ControllerProfile[],
-  source: ControllerPreviewZoneSource,
-): ControllerZone[] {
-  const zonedProfiles = profiles.filter((profile) => profile.zones.length > 0)
-  const active = source.activeIp ? source.controllers[source.activeIp] : undefined
-
-  if (active) {
-    if (active.deviceId) {
-      const byDeviceId = zonedProfiles.find((profile) => profile.deviceId === active.deviceId)
-      if (byDeviceId) return normalizeControllerZones(byDeviceId.zones)
-    }
-
-    const byIp = zonedProfiles.find((profile) => profile.lastSeenIp === active.ip)
-    if (byIp) return normalizeControllerZones(byIp.zones)
-  }
-
-  const liveDeviceIds = Object.values(source.controllers)
-    .filter((entry) => entry.phase === 'live' && entry.deviceId)
-    .map((entry) => entry.deviceId)
-  if (liveDeviceIds.length === 1) {
-    const byOnlyLiveDevice = zonedProfiles.find((profile) => profile.deviceId === liveDeviceIds[0])
-    if (byOnlyLiveDevice) return normalizeControllerZones(byOnlyLiveDevice.zones)
-  }
-
-  if (zonedProfiles.length === 1) return normalizeControllerZones(zonedProfiles[0].zones)
-  return []
-}

@@ -32,6 +32,9 @@ const installedMapObservationMigrationPath = path.resolve(
 const removeControllerOutputProfileMigrationPath = path.resolve(
   'migrations/0025_remove_controller_output_profile.sql',
 )
+const removeControllerProfileZonesMigrationPath = path.resolve(
+  'migrations/0026_remove_controller_profile_zones.sql',
+)
 
 describe('D1 personal storage migration', () => {
   it('creates the storage buckets needed for the Cloudflare personal-storage foundation', () => {
@@ -233,5 +236,12 @@ describe('D1 personal storage migration', () => {
     expect(sql).toContain('ALTER TABLE controller_profiles DROP COLUMN output_profile')
     expect(sql).toContain('ALTER TABLE controller_profiles DROP COLUMN output_profile_note')
     expect(sql).toContain("VALUES ('schema_version', '25', unixepoch())")
+  })
+
+  it('retires Controller profile zones (#775)', () => {
+    const sql = fs.readFileSync(removeControllerProfileZonesMigrationPath, 'utf8')
+
+    expect(sql).toContain('ALTER TABLE controller_profiles DROP COLUMN zones_json')
+    expect(sql).toContain("VALUES ('schema_version', '26', unixepoch())")
   })
 })

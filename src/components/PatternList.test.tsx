@@ -177,7 +177,6 @@ const CONTROLLER_PROFILE: ControllerProfile = {
   inputs: [],
   globalTransforms: [],
   patternBindings: [],
-  zones: [],
   updatedAt: 1000,
 }
 

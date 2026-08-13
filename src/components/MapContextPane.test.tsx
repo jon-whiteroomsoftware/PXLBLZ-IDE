@@ -85,7 +85,6 @@ describe('MapContextPane', () => {
         globalTransforms: [],
         keepPatternsUpToDate: false,
         patternBindings: [],
-        zones: [],
         mapFingerprints: [{
           hash: '9a0c9e7f',
           mapId: CUSTOM_MAP.id,

@@ -453,9 +453,14 @@ A profile is durable hardware intent for one physical Controller, keyed by
 device id, created from observed hardware. It holds board facts (including the
 last firmware-update observation), typed inputs, the two global transforms
 (hardware brightness, power cap), an optional installation power model,
-per-Pattern bindings, named zones (persisted and compiled into Shows, no
-longer edited on this page — #775), map fingerprints, and the last
-present/absent installed-map snapshot for offline display. Edits update
+per-Pattern bindings, map fingerprints, and the last present/absent
+installed-map snapshot for offline display. Profiles carry no zones: #775
+retired `ControllerProfile.zones` and dropped the `zones_json` column
+(migration 0026) after establishing that profile ranges never reached any
+loadable Show's compiled artifact — every installation-contract recipe
+shadows caller-provided zones with the Show's own Zone Layout data. Zones are
+authored inside each Installation Show; "New show from profile" seeds a
+single-zone Show sized from `lastKnownPixelCount`. Edits update
 Zustand optimistically, serialize writes per profile, roll back failures, and
 expose a drain barrier that Pattern push waits on.
 

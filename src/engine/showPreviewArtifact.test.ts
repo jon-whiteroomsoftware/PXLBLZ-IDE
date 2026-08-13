@@ -56,23 +56,89 @@ describe('compileShowForPreview temporal adaptations (#379)', () => {
     expect(adapted.artifact).not.toBe(initial.artifact)
   })
 
-  it('uses the saved Installation routing ranges as the shared compilation zones', () => {
-    const show = createShowWithOutputContract(
-      'show-shared-installation-zones',
-      'Shared Installation zones',
-      createInstallationShowOutputContract({ outputMapId: 'plane', pixelCount: 8 }),
-    )
-    show.routingLayouts[0].zones[0].ranges = [{ start: 0, end: 7 }]
+  // #775: the resolution ladder collapsed to the Show's own physical Zone
+  // Layout. One case per former branch.
+  describe('resolveShowCompilationControllerZones (#775)', () => {
+    it('installation + physical layout resolves the saved routing ranges', () => {
+      const show = createShowWithOutputContract(
+        'show-shared-installation-zones',
+        'Shared Installation zones',
+        createInstallationShowOutputContract({ outputMapId: 'plane', pixelCount: 8 }),
+      )
+      show.routingLayouts[0].zones[0].ranges = [{ start: 0, end: 7 }]
 
-    expect(resolveShowCompilationControllerZones(show, true, [{
-      id: 'controller-zone',
-      name: 'Controller Zone',
-      ranges: [{ start: 0, end: 99 }],
-    }])).toEqual([{
-      id: `${show.routingLayouts[0].id}:${show.zones[0].id}`,
-      name: show.zones[0].name,
-      ranges: [{ start: 0, end: 7 }],
-    }])
+      expect(resolveShowCompilationControllerZones(show)).toEqual([{
+        id: `${show.routingLayouts[0].id}:${show.zones[0].id}`,
+        name: show.zones[0].name,
+        ranges: [{ start: 0, end: 7 }],
+      }])
+    })
+
+    it('installation + logical layout resolves no zones', () => {
+      const show = createShowWithOutputContract(
+        'show-logical-resolve',
+        'Logical resolve',
+        createInstallationShowOutputContract({ outputMapId: 'plane', pixelCount: 8 }),
+      )
+      show.routingLayouts[0].logical = { kind: 'single', zoneIds: [show.zones[0].id] }
+
+      expect(resolveShowCompilationControllerZones(show)).toBeUndefined()
+    })
+
+    it('portable-2d resolves no zones', () => {
+      const show = createShowWithOutputContract(
+        'show-portable-resolve',
+        'Portable resolve',
+        createPortableShowOutputContract({ referenceMapId: 'plane', referencePixelCount: 64 }),
+      )
+
+      expect(resolveShowCompilationControllerZones(show)).toBeUndefined()
+    })
+  })
+
+  // #775: Controller-profile zone ranges never reach a loadable Show's
+  // compiled artifact. Every installation-contract recipe shadows the
+  // caller-provided controllerZones with the Show's own layout data, so the
+  // profile-zone retirement is a no-op for compiled output. These fixtures are
+  // the mechanical proof: they must hold both before and after the removal.
+  describe('caller-provided controller zones cannot change installation artifacts (#775)', () => {
+    const legacyProfileZones = [
+      { id: 'legacy-a', name: 'main', ranges: [{ start: 0, end: 99 }] },
+      { id: 'legacy-b', name: 'spire', ranges: [{ start: 100, end: 149 }] },
+    ]
+
+    it('physical Zone Layout: identical artifact with and without profile zones', () => {
+      const show = createShowWithOutputContract(
+        'show-775-physical',
+        'Physical shadowing',
+        createInstallationShowOutputContract({ outputMapId: 'plane', pixelCount: 8 }),
+      )
+      show.routingLayouts[0].zones[0].ranges = [{ start: 0, end: 7 }]
+
+      const bare = compileShowForPreview(structuredClone(show), [], undefined, {})
+      const withProfileZones = compileShowForPreview(structuredClone(show), [], legacyProfileZones, {})
+
+      expect(bare.error).toBeNull()
+      expect(withProfileZones.artifact?.code).toBe(bare.artifact?.code)
+    })
+
+    it('logical Zone Layout: identical artifact with and without profile zones', () => {
+      const show = createShowWithOutputContract(
+        'show-775-logical',
+        'Logical shadowing',
+        createInstallationShowOutputContract({ outputMapId: 'plane', pixelCount: 8 }),
+      )
+      show.stageMapId = 'plane'
+      show.routingLayouts[0].logical = { kind: 'single', zoneIds: [show.zones[0].id] }
+
+      const bare = compileShowForPreview(structuredClone(show), [], undefined, {}, { stageDimension: 2 })
+      const withProfileZones = compileShowForPreview(
+        structuredClone(show), [], legacyProfileZones, {}, { stageDimension: 2 },
+      )
+
+      expect(bare.error).toBeNull()
+      expect(withProfileZones.artifact?.code).toBe(bare.artifact?.code)
+    })
   })
 
   it('uses the same ordered overlay compositor for preview and artifact output (#489)', () => {

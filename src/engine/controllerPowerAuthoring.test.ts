@@ -29,7 +29,6 @@ function profileFixture(): ControllerProfile {
       },
     ],
     patternBindings: [],
-    zones: [],
     updatedAt: 1,
   }
 }

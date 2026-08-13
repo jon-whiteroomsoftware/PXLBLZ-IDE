@@ -6990,7 +6990,6 @@ describe('ShowEditor (#318)', () => {
         inputs: [],
         globalTransforms: [],
         patternBindings: [],
-        zones: [],
         updatedAt: 1,
       }],
     })
@@ -7042,7 +7041,6 @@ describe('ShowEditor (#318)', () => {
         inputs: [],
         globalTransforms: [],
         patternBindings: [],
-        zones: [],
         updatedAt: 1,
       }],
     })
@@ -7333,7 +7331,6 @@ describe('ShowEditor (#318)', () => {
         inputs: [],
         globalTransforms: [],
         patternBindings: [],
-        zones: [{ id: 'controller-accent', name: 'accent', ranges: [{ start: 0, end: 59 }] }],
         updatedAt: 1,
       }],
     })
@@ -7343,7 +7340,7 @@ describe('ShowEditor (#318)', () => {
     await user.click(within(timeline).getByRole('button', { name: 'Open Zones' }))
     expect(within(timeline).getByText('56px')).toBeInTheDocument()
     await user.click(within(timeline).getByRole('button', { name: 'Open zone main properties' }))
-    expect(screen.getByText('bound - 56 px')).toBeInTheDocument()
+    expect(screen.getByText('physical - 56 px')).toBeInTheDocument()
 
     view.unmount()
     useShowStore.setState({ ...showInitialState, shows: [structuredClone(show)], activeShowId: show.id, showsLoaded: true })
@@ -7400,7 +7397,6 @@ describe('ShowEditor (#318)', () => {
         inputs: [],
         globalTransforms: [],
         patternBindings: [],
-        zones: [],
         updatedAt: 1,
       }],
     })

@@ -1192,18 +1192,15 @@ describe('showStore (#318)', () => {
       inputs: [],
       globalTransforms: [],
       patternBindings: [],
-      zones: [
-        { id: 'left', name: 'arch-left', ranges: [{ start: 0, end: 119 }] },
-        { id: 'right', name: 'arch-right', ranges: [{ start: 120, end: 239 }] },
-      ],
+      lastKnownPixelCount: 240,
       updatedAt: 1,
     })
 
+    // #775: no zone seeding — the Show starts single-zone and sizes its
+    // installation contract from the Controller's last known pixel count.
     expect(seeded.targetControllerProfileId).toBe('controller-1')
-    expect(seeded.zones.map((zone) => [zone.name, zone.nominalPixelCount])).toEqual([
-      ['arch-left', 120],
-      ['arch-right', 120],
-    ])
+    expect(seeded.zones.map((zone) => zone.name)).toEqual(['main'])
+    expect(seeded.outputContract).toMatchObject({ kind: 'installation', pixelCount: 240 })
     expect(useShowStore.getState().activeShowId).toBeNull()
   })
 
@@ -1256,11 +1253,12 @@ describe('showStore (#318)', () => {
       inputs: [],
       globalTransforms: [],
       patternBindings: [],
-      zones: [{ id: 'left', name: 'arch-left', ranges: [{ start: 0, end: 1 }] }],
       updatedAt: 1,
     })
 
     expect(seeded.stageMapId).toBe('map-new')
+    // #775: without a last known pixel count the contract falls back to 60.
+    expect(seeded.outputContract).toMatchObject({ kind: 'installation', pixelCount: 60 })
 
     await useShowStore.getState().updateStageMap(seeded.id, null)
     expect(useShowStore.getState().shows[0].stageMapId).toBeNull()

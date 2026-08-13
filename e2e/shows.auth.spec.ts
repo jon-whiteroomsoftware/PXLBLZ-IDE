@@ -1841,7 +1841,7 @@ test.describe('authenticated Show authoring', () => {
     await page.setViewportSize({ width: 1440, height: 900 })
     await expect(page.getByRole('region', { name: 'Show timeline' }).getByText(`${selectedCount}px`)).toBeVisible()
     await page.getByRole('button', { name: 'Open zone main properties' }).click()
-    await expect(page.getByRole('dialog', { name: 'Entity Detail Panel' }).getByText(`bound - ${selectedCount} px`)).toBeVisible()
+    await expect(page.getByRole('dialog', { name: 'Entity Detail Panel' }).getByText(`physical - ${selectedCount} px`)).toBeVisible()
     await expect(page.getByText(/missing/i).first()).toBeVisible()
 
     await page.reload()
@@ -1849,7 +1849,7 @@ test.describe('authenticated Show authoring', () => {
     if (await reopenZonesRail.count() > 0) await reopenZonesRail.click()
     await expect(page.getByRole('region', { name: 'Show timeline' }).getByText(`${selectedCount}px`)).toBeVisible()
     await page.getByRole('button', { name: 'Open zone main properties' }).click()
-    await expect(page.getByText(`bound - ${selectedCount} px`)).toBeVisible()
+    await expect(page.getByText(`physical - ${selectedCount} px`)).toBeVisible()
   })
 
   test('persists invalid Installation coverage and unblocks artifacts after repair', async ({ page }) => {

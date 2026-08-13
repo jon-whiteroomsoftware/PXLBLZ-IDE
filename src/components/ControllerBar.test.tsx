@@ -89,7 +89,6 @@ function profile(
     inputs: [],
     globalTransforms: [],
     patternBindings: [],
-    zones: [],
     updatedAt,
   }
 }

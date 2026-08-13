@@ -442,8 +442,9 @@ locks the field as **Fixed size**.
 
 Two shortcuts skip parts of this flow. With a Controller profile selected in
 the rail, **Add** also offers **New show from _profile_**, seeding an
-Installation Show directly from that profile's zones, map, and last-known
-pixel count. And an existing personal Show duplicates from its rail row menu
+Installation Show that targets that Controller with its imported map and
+last-known pixel count. The Show starts with one zone; carve more inside the
+Show whenever the build calls for them. And an existing personal Show duplicates from its rail row menu
 (**Duplicate**), copying the whole Show under a fresh name.
 
 ## 13. The timeline
