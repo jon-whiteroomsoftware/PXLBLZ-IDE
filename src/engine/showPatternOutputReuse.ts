@@ -584,6 +584,7 @@ function assignmentRootName(node: AstNode | null | undefined): string | null {
 
 function assignmentMemberWriteTargets(node: AstNode | null | undefined): AstNode[] {
   if (!node) return []
+  if (node.type === 'ChainExpression') return assignmentMemberWriteTargets(node.expression)
   if (node.type === 'MemberExpression') return [node]
   if (node.type === 'RestElement') return assignmentMemberWriteTargets(node.argument)
   if (node.type === 'AssignmentPattern') return assignmentMemberWriteTargets(node.left)

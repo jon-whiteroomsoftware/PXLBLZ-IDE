@@ -277,6 +277,20 @@ export function render2D(index, x, y) { tick(state, index); rgb(state[0], y, 0) 
     })
   })
 
+  it('fails closed when an optional-chain delete mutates through a parameter alias (#834)', () => {
+    const source = `
+var state = [1]
+function tick(a, index) { delete a?.[index] }
+export function render2D(index, x, y) { tick(state, index); rgb(state[0], y, 0) }
+`
+
+    expect(analyzeShowPatternCoverageRenderState(source, 'render2D')).toEqual({
+      state: 'unknown',
+      mutatedBindings: [],
+      unknownCalls: ['<parameter-member-write:tick.a>'],
+    })
+  })
+
   it.each([
     [
       'an accumulator in a helper',
