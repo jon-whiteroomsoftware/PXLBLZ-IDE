@@ -15,6 +15,7 @@ import {
   updateShowTransition,
 } from '@/engine/showModel'
 import { usePatternStore, patternInitialState } from '@/store/patternStore'
+import { libraryInitialState, useLibraryStore } from '@/store/libraryStore'
 import { controllerProfileInitialState, useControllerProfileStore } from '@/store/controllerProfileStore'
 import { previewInitialState, usePreviewStore } from '@/store/previewStore'
 import { showTransportInitialState, useShowTransportStore } from '@/store/showTransportStore'
@@ -170,6 +171,7 @@ beforeEach(() => {
   resetPersonalContentProvider()
   useShowStore.setState(showInitialState)
   usePatternStore.setState(patternInitialState)
+  useLibraryStore.setState(libraryInitialState)
   useControllerProfileStore.setState(controllerProfileInitialState)
   usePreviewStore.setState(previewInitialState)
   useShowTransportStore.setState(showTransportInitialState)
@@ -183,6 +185,45 @@ beforeEach(() => {
 afterEach(() => resetControllerProvider())
 
 describe('ShowEditor (#318)', () => {
+  it('reassigns a Clip to a personal Pattern that imports a personal Library (#828)', async () => {
+    const user = userEvent.setup()
+    const show = createDefaultShow('show-personal-library-pattern', 'Personal Library Pattern', 1000)
+    const pattern: PatternRecord = {
+      id: 'personal-library-pattern',
+      name: 'Library Glow',
+      src: `
+export function sliderGlow(value) {}
+export function render(index) { rgb(MyMath.glow(index), 0, 0) }
+`,
+      controls: {},
+      updatedAt: 1,
+    }
+    useShowStore.setState({ shows: [show], activeShowId: show.id, showsLoaded: true })
+    usePatternStore.setState({ userPatterns: [pattern], patternsLoaded: true })
+    useLibraryStore.setState({
+      userLibraries: [{
+        id: 'personal-math-library',
+        name: 'MyMath',
+        src: 'function glow(value) { return value }',
+        updatedAt: 1,
+      }],
+      librariesLoaded: true,
+    })
+    setPersonalContentProvider(memoryProvider([show]))
+
+    render(<ShowEditor showId={show.id} />)
+    await user.click(screen.getByRole('button', { name: 'Select TestPattern1D' }))
+    const source = screen.getByRole('combobox', { name: 'Source pattern' })
+    await user.click(source)
+    await user.type(source, pattern.name)
+    await user.click(screen.getByRole('option', { name: pattern.name }))
+
+    await waitFor(() => {
+      expect(useShowStore.getState().shows[0].composition?.patternInstances)
+        .toContainEqual(expect.objectContaining({ pattern: { kind: 'user', id: pattern.id } }))
+    })
+  })
+
   it('publishes the selected Clip as the Stage diagnostic focus (#791)', async () => {
     const user = userEvent.setup()
     const show = createDefaultShow('show-clip-diagnostic-focus', 'Clip diagnostic focus', 1000)

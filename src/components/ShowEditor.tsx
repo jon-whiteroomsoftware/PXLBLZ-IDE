@@ -248,6 +248,7 @@ import { buildShowToolkitPresentationCatalogue } from '@/engine/showVisualToolki
 import { type ControllerProfile } from '@/engine/controllerProfile'
 import { STOCK_PATTERNS } from '@/engine/galleryCatalog'
 import { LIBRARIES } from '@/pixelblaze/libs'
+import { compileLibraries } from '@/engine/libraries'
 import { useControllerStore } from '@/store/controllerStore'
 import { useControllerProfileStore } from '@/store/controllerProfileStore'
 import { resolveMap, STOCK_MAPS, useMapStore } from '@/store/mapStore'
@@ -265,6 +266,7 @@ import {
   useShowTransportStore,
 } from '@/store/showTransportStore'
 import { usePatternStore } from '@/store/patternStore'
+import { useLibraryStore } from '@/store/libraryStore'
 import { useShowStore } from '@/store/showStore'
 import { useRouterStore } from '@/store/routerStore'
 import { useWorkspaceStore } from '@/store/workspaceStore'
@@ -971,9 +973,11 @@ export function ShowEditor({
   const updateRoutingLayout = useShowStore((state) => state.updateRoutingLayout)
   const removeRoutingLayout = useShowStore((state) => state.removeRoutingLayout)
   const userPatterns = usePatternStore((state) => state.userPatterns)
+  const userLibraries = useLibraryStore((state) => state.userLibraries)
+  const compileLibrarySet = useMemo(() => compileLibraries(LIBRARIES, userLibraries), [userLibraries])
   const exportedSliderNamesFor = useCallback((ref: ShowPatternRef) => (
-    bundledPatternSliderNames(sourceForShowPatternRef(ref, userPatterns), LIBRARIES)
-  ), [userPatterns])
+    bundledPatternSliderNames(sourceForShowPatternRef(ref, userPatterns), compileLibrarySet)
+  ), [compileLibrarySet, userPatterns])
   const userMaps = useMapStore((state) => state.userMaps)
   const controllerProfiles = useControllerProfileStore((state) => state.profiles)
   const activeIp = useControllerStore((state) => state.activeIp)
@@ -1692,12 +1696,13 @@ export function ShowEditor({
     const showState = useShowStore.getState()
     const resolvedShow = showState.resolveEditableShow(showId)
     const currentPatterns = usePatternStore.getState().userPatterns
+    const currentLibrarySet = compileLibraries(LIBRARIES, useLibraryStore.getState().userLibraries)
     let currentShow = resolvedShow ?? activeShow
     const referencePatterns = useShowEditorSessionStore.getState().referencePatternsByShowId[showId]
     if (currentShow && referencePatterns && builtInSlotGroups) {
       currentShow = applyShowPatternSlotSelections(currentShow, builtInSlotGroups, referencePatterns, (ref) => (
         ref.kind === 'stock' ? ref.id : currentPatterns.find((pattern) => pattern.id === ref.id)?.name
-      ), (ref) => bundledPatternSliderNames(sourceForShowPatternRef(ref, currentPatterns), LIBRARIES))
+      ), (ref) => bundledPatternSliderNames(sourceForShowPatternRef(ref, currentPatterns), currentLibrarySet))
     }
     if (!currentShow) return null
 
