@@ -5205,6 +5205,60 @@ export function render(index) { rgb(MyMath.glow(index), 0, 0) }
     expect(useShowEditorSessionStore.getState().referencePatternsByShowId[stock.id]).toBeUndefined()
   })
 
+  it('confirms only Try with Pattern swaps that remove a control animation (#828)', async () => {
+    const user = userEvent.setup()
+    const stock = STOCK_SHOWS.find((candidate) => candidate.id === 'stock-show-reference-property-animation')!
+
+    render(<ShowEditor
+      showId={stock.id}
+      showOverride={stock.show}
+      builtInContext={{
+        track: stock.track,
+        lesson: stock.lesson,
+        description: stock.description,
+        note: stock.note,
+        patternSlots: stock.patternSlots,
+        reference: stock.reference,
+      }}
+    />)
+
+    const guide = screen.getByRole('region', { name: 'Property Animation guide' })
+    const picker = within(guide).getByRole('combobox', { name: 'Try with Pattern' })
+    const choose = async (patternName: string) => {
+      await user.click(picker)
+      await user.click(screen.getByRole('option', { name: patternName }))
+    }
+
+    await choose('TestPattern2D')
+    let dialog = screen.getByRole('alertdialog', { name: 'Use TestPattern2D?' })
+    expect(within(dialog).getByText(
+      "TestPattern2D doesn't have the Speed control. The Speed animation will be removed.",
+    )).toBeInTheDocument()
+    expect(useShowEditorSessionStore.getState().referencePatternsByShowId[stock.id]).toBeUndefined()
+
+    await user.keyboard('{Escape}')
+    expect(screen.queryByRole('alertdialog', { name: 'Use TestPattern2D?' })).not.toBeInTheDocument()
+    expect(useShowEditorSessionStore.getState().referencePatternsByShowId[stock.id]).toBeUndefined()
+
+    await choose('TestPattern2D')
+    dialog = screen.getByRole('alertdialog', { name: 'Use TestPattern2D?' })
+    await user.click(within(dialog).getByRole('button', { name: 'Cancel' }))
+    expect(useShowEditorSessionStore.getState().referencePatternsByShowId[stock.id]).toBeUndefined()
+
+    await choose('Caustics')
+    expect(screen.queryByRole('alertdialog')).not.toBeInTheDocument()
+    expect(useShowEditorSessionStore.getState().referencePatternsByShowId[stock.id]).toEqual({
+      0: { kind: 'stock', id: 'Caustics' },
+    })
+
+    await choose('TestPattern2D')
+    dialog = screen.getByRole('alertdialog', { name: 'Use TestPattern2D?' })
+    await user.click(within(dialog).getByRole('button', { name: 'Use TestPattern2D' }))
+    expect(useShowEditorSessionStore.getState().referencePatternsByShowId[stock.id]).toEqual({
+      0: { kind: 'stock', id: 'TestPattern2D' },
+    })
+  }, 20_000)
+
   it('restores untouched grouped slot instances when one member is reassigned (#63 review P2)', async () => {
     const user = userEvent.setup()
     const stock = STOCK_SHOWS.find((candidate) => candidate.id === 'stock-show-303-compile-simplify-deliver')!

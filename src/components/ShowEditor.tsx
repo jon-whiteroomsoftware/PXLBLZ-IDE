@@ -239,6 +239,7 @@ import {
   applyShowPatternSlotSelections,
   currentShowReferenceExample,
   restoreShowReferencePatternSlots,
+  showPatternSlotRemovedControlNames,
   type ShowPatternSlotGroup,
   type ShowReferenceGuide,
 } from '@/engine/showReferenceShow'
@@ -648,6 +649,28 @@ function ShowPatternSlotPicker({
   )
 }
 
+function patternControlDisplayName(exportName: string): string {
+  const words = exportName
+    .replace(/^slider/, '')
+    .replace(/[-_]+/g, ' ')
+    .replace(/([a-z0-9])([A-Z])/g, '$1 $2')
+    .trim()
+  return words ? words[0].toUpperCase() + words.slice(1) : exportName
+}
+
+function formatControlNameList(names: readonly string[], conjunction: 'and' | 'or'): string {
+  if (names.length <= 1) return names[0] ?? ''
+  if (names.length === 2) return `${names[0]} ${conjunction} ${names[1]}`
+  return `${names.slice(0, -1).join(', ')}, ${conjunction} ${names[names.length - 1]}`
+}
+
+interface PendingPatternSlotSelection {
+  slotIndex: number
+  pattern: ShowPatternRef
+  patternName: string
+  removedControlNames: string[]
+}
+
 function ShowNoteDisclosure({
   note,
   show,
@@ -1004,6 +1027,7 @@ export function ShowEditor({
   const pendingDeliveryRef = useRef<ShowDeliverySnapshot | null>(null)
   const [preparingSave, setPreparingSave] = useState(false)
   const [compositionClipPendingDelete, setCompositionClipPendingDelete] = useState<ShowTimelineClipOwner | null>(null)
+  const [pendingPatternSlotSelection, setPendingPatternSlotSelection] = useState<PendingPatternSlotSelection | null>(null)
   const [blockedDeleteFeedback, setBlockedDeleteFeedback] = useState<BlockedDeleteFeedback | null>(null)
   const blockedDeleteFeedbackSequenceRef = useRef(0)
   const [spatialZoneSelection, setSpatialZoneSelection] = useState<{ zoneId: string; layoutId: string } | null>(null)
@@ -1081,6 +1105,7 @@ export function ShowEditor({
     setTransitionPaletteId(null)
     setLayerTransitionTarget(null)
     setCompositionClipPendingDelete(null)
+    setPendingPatternSlotSelection(null)
     setBlockedDeleteFeedback(null)
     setIsolatedGroupOccurrenceId(null)
     pendingDeliveryRef.current = null
@@ -1134,6 +1159,26 @@ export function ShowEditor({
         )
       : editableShow
   ), [editableShow, builtInSlotGroups, selectedReferencePatterns, slotPatternNameFor, exportedSliderNamesFor])
+  const requestPatternSlotSelection = useCallback((slotIndex: number, pattern: ShowPatternRef) => {
+    const group = builtInSlotGroups?.[slotIndex]
+    const patternName = slotPatternNameFor(pattern)
+    if (!activeShow || !group || !patternName) return
+    const removedControlNames = showPatternSlotRemovedControlNames(
+      activeShow,
+      group,
+      exportedSliderNamesFor(pattern),
+    )
+    if (removedControlNames.length === 0) {
+      setReferencePattern(showId, slotIndex, pattern)
+      return
+    }
+    setPendingPatternSlotSelection({
+      slotIndex,
+      pattern,
+      patternName,
+      removedControlNames: removedControlNames.map(patternControlDisplayName),
+    })
+  }, [activeShow, builtInSlotGroups, exportedSliderNamesFor, setReferencePattern, showId, slotPatternNameFor])
   const updateShow = useCallback((id: string, next: ShowRecord) => {
     let persisted = next
     if (editableShow && builtInSlotGroups && selectedReferencePatterns) {
@@ -2208,10 +2253,45 @@ export function ShowEditor({
           patternSlots={builtInSlotGroups}
           patternOptions={referencePatternOptions}
           selections={selectedReferencePatterns}
-          onSelectPattern={(slotIndex, pattern) => setReferencePattern(showId, slotIndex, pattern)}
+          onSelectPattern={requestPatternSlotSelection}
           onCollapse={() => setShowNoteOpen(showId, false)}
         />
       )}
+      <AlertDialogRoot
+        open={pendingPatternSlotSelection !== null}
+        onOpenChange={(open) => { if (!open) setPendingPatternSlotSelection(null) }}
+      >
+        <AlertDialogContent>
+          <AlertDialogTitle>Use {pendingPatternSlotSelection?.patternName}?</AlertDialogTitle>
+          <AlertDialogDescription>
+            {pendingPatternSlotSelection && (() => {
+              const names = pendingPatternSlotSelection.removedControlNames
+              const missing = formatControlNameList(names, 'or')
+              const removed = formatControlNameList(names, 'and')
+              return names.length === 1
+                ? `${pendingPatternSlotSelection.patternName} doesn't have the ${missing} control. The ${removed} animation will be removed.`
+                : `${pendingPatternSlotSelection.patternName} doesn't have the ${missing} controls. The ${removed} animations will be removed.`
+            })()}
+          </AlertDialogDescription>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={() => {
+                if (pendingPatternSlotSelection) {
+                  setReferencePattern(
+                    showId,
+                    pendingPatternSlotSelection.slotIndex,
+                    pendingPatternSlotSelection.pattern,
+                  )
+                }
+                setPendingPatternSlotSelection(null)
+              }}
+            >
+              Use {pendingPatternSlotSelection?.patternName}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialogRoot>
       {readOnly && !builtInContext?.note && (
         <div className="flex shrink-0 items-start gap-2 border-b border-amber-300/15 bg-amber-300/[0.035] px-3 py-1.5 text-[10px] text-zinc-500">
           <Lock size={12} aria-hidden className="text-amber-300/70" />

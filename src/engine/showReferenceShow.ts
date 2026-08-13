@@ -36,6 +36,30 @@ export interface ShowPatternSlotGroup {
   instanceIds: readonly string[]
 }
 
+/** Returns the distinct instance-control animations a slot swap cannot keep. */
+export function showPatternSlotRemovedControlNames(
+  show: ShowRecord,
+  group: ShowPatternSlotGroup,
+  exportedSliderNames: ReadonlySet<string>,
+): string[] {
+  if (!show.composition) return []
+  const propertyTracks = show.composition.scenes.flatMap((scene) => scene.propertyTracks ?? [])
+  const removed = new Set<string>()
+  for (const instanceId of group.instanceIds) {
+    const instance = show.composition.patternInstances.find((candidate) => candidate.id === instanceId)
+    const partition = partitionShowPatternControls(
+      instanceId,
+      instance?.controlTargets,
+      propertyTracks,
+      exportedSliderNames,
+    )
+    for (const track of partition.removedPropertyTracks ?? []) {
+      if (track.target.kind === 'instance-control') removed.add(track.target.exportName)
+    }
+  }
+  return [...removed]
+}
+
 /**
  * Applies the user's per-slot Try with Pattern selections in slot order. Each
  * group swaps as one unit; slots without a selection keep the authored cast.

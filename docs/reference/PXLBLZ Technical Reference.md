@@ -647,7 +647,13 @@ an in-memory draft with normal undo; Reset or reload restores the fixture; no
 built-in mutation touches D1. Reference Showcases group Pattern sources into
 slots for **Try with Pattern**; selections project through the same
 replacement path Learn lessons use and never mutate stock or personal
-records.
+records. Pattern replacement keeps control targets and instance-control
+Property tracks when the incoming Pattern exports the same public slider, and
+removes only controls the new Pattern cannot express. The lesson and Showcase
+picker checks its complete slot before applying a selection: when the swap
+would remove a control animation, a confirmation names the Pattern and affected
+controls; swaps that remove no animation apply immediately. Clip and Group
+inspector replacements use the same selective rule without prompting.
 
 **Boundary events and easing.** `ShowRecord.transitions` is the only persisted
 owner of visual and routing boundary events; a zero-duration Cut is the

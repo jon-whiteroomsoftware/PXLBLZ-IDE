@@ -624,7 +624,9 @@ session-only draft with normal undo; **Reset** or reload restores the shipped
 definition. The header's three-dot **Show actions** menu holds **View code**,
 **Clone**, and **Download .epe**; **Clone** keeps the current built-in draft as a
 personal Show. Reference Showcases offer **Try with Pattern** to swap your own
-Pattern through the same choreography.
+Pattern through the same choreography. If the replacement lacks a control that
+the lesson animates, Studio names the animation and asks before removing it;
+compatible control animation carries across without interruption.
 
 ---
 

@@ -3,6 +3,42 @@ import { installFakeControllerHelper } from './fixtures/fakeControllerHelper'
 import type { Locator, Page } from '@playwright/test'
 
 test.describe('authenticated Show authoring', () => {
+  test('confirms a lesson Pattern swap that removes a control animation (#828)', async ({ page }) => {
+    await page.setViewportSize({ width: 1440, height: 900 })
+    await page.goto(showtimePath('studio/shows/stock-show-reference-property-animation'))
+
+    const guide = page.getByRole('region', { name: 'Property Animation guide' })
+    const picker = guide.getByRole('combobox', { name: 'Try with Pattern' })
+    const chooseTestPattern = async () => {
+      await picker.click()
+      await picker.fill('TestPattern2D')
+      await page.getByRole('option', { name: 'TestPattern2D' }).click()
+    }
+
+    await expect(picker).toHaveValue('CompassRose')
+    await chooseTestPattern()
+    let dialog = page.getByRole('alertdialog', { name: 'Use TestPattern2D?' })
+    await expect(dialog).toContainText(
+      "TestPattern2D doesn't have the Speed control. The Speed animation will be removed.",
+    )
+
+    await dialog.getByRole('button', { name: 'Cancel' }).click()
+    await expect(dialog).toBeHidden()
+    await expect(picker).toHaveValue('CompassRose')
+
+    await chooseTestPattern()
+    dialog = page.getByRole('alertdialog', { name: 'Use TestPattern2D?' })
+    await dialog.getByRole('button', { name: 'Use TestPattern2D' }).click()
+    await expect(dialog).toBeHidden()
+    await expect(picker).toHaveValue('TestPattern2D')
+
+    await page.getByRole('button', { name: 'Show actions' }).click()
+    const viewCode = page.getByRole('menuitem', { name: 'View code' })
+    await expect(viewCode).toBeEnabled()
+    await viewCode.click()
+    await expect(page.getByText('Generated pattern - Property Animation')).toBeVisible()
+  })
+
   test('keeps built-in Show Reset aligned with session-only edits (#363, #619)', async ({ page }) => {
     const showWrites: string[] = []
     page.on('request', (request) => {

@@ -3229,8 +3229,7 @@ function lumaSourcesShowcase(): StockShow {
       // One representative swap slot instead of one per member: swapping
       // family members defeats an inventory, and seven boxes crowd the
       // reference header (Jon review). The Pinwheel beat hosts it because
-      // its glide is a clip-transform track, which any replacement pattern
-      // supports (#828 tracks the control-track swap failure).
+      // its Pattern-agnostic glide gives every replacement an authored move.
       patternSlots: {
         cellIds: [cellId(scenes[rows.findIndex((row) => row.name === 'Pinwheel')].id, 'zone-1')],
         instanceIds: [instanceId(rows.find((row) => row.name === 'Pinwheel')!)],
