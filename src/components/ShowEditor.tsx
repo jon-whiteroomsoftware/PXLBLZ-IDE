@@ -3412,7 +3412,14 @@ function ShowActionsMenu({
     disabled: !exported || exporting,
     onSelect: exportShow,
   })
-  return <ActionsMenu label="Show actions" items={items} portaled />
+  return (
+    <ActionsMenu
+      label="Show actions"
+      items={items}
+      portaled
+      escapeLayerRank={SHOW_ESCAPE_LAYER_RANK.headerPopover}
+    />
+  )
 }
 
 function useShowExportAction(

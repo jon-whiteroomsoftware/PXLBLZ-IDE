@@ -13,6 +13,8 @@
  */
 
 export const SHOW_ESCAPE_LAYER_RANK = {
+  /** Header menus that may coexist with an open editor surface. */
+  headerPopover: 40,
   /** Entity Detail panel, Group isolation exit, and active-selection clearing. */
   editorSurfaces: 30,
   /** Toolbar and rail popovers: Zone Map, Add menu, Add Clip. */

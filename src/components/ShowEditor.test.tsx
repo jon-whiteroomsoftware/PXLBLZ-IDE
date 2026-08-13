@@ -4771,6 +4771,39 @@ describe('ShowEditor (#318)', () => {
     expect(screen.queryByRole('menuitem', { name: 'Clone' })).not.toBeInTheDocument()
   })
 
+  it('keeps portaled Show actions keyboard reachable and peels them before editor state', async () => {
+    const user = userEvent.setup()
+    const show = createDefaultShow('show-actions-keyboard', 'Show actions keyboard', 1000)
+    setPersonalContentProvider(memoryProvider([show]))
+    useShowStore.setState({ shows: [show], activeShowId: show.id, showsLoaded: true })
+
+    render(<ShowEditor showId={show.id} />)
+    await user.click(screen.getByRole('button', { name: 'Select TestPattern1D' }))
+    const detailPanel = screen.getByRole('dialog', { name: 'Entity Detail Panel' })
+    expect(detailPanel).toBeInTheDocument()
+
+    const trigger = screen.getByRole('button', { name: 'Show actions' })
+    trigger.focus()
+    await user.keyboard('{Enter}')
+    const viewCode = screen.getByRole('menuitem', { name: 'View code' })
+    const download = screen.getByRole('menuitem', { name: 'Download .epe' })
+    expect(viewCode).toHaveFocus()
+
+    await user.keyboard('{ArrowDown}')
+    expect(download).toHaveFocus()
+    await user.keyboard('{ArrowDown}')
+    expect(viewCode).toHaveFocus()
+    await user.keyboard('{End}')
+    expect(download).toHaveFocus()
+    await user.keyboard('{Home}')
+    expect(viewCode).toHaveFocus()
+
+    await user.keyboard('{Escape}')
+    expect(screen.queryByRole('menu', { name: 'Show actions' })).not.toBeInTheDocument()
+    expect(trigger).toHaveFocus()
+    expect(detailPanel).toBeInTheDocument()
+  })
+
   it('authors stepped cadence through an exact rate field with a transient slider (#779)', async () => {
     const user = userEvent.setup()
     const stock = STOCK_SHOWS.find((candidate) => candidate.id === 'stock-show-204-presentation-modes')!

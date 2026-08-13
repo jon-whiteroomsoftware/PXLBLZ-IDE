@@ -1,7 +1,8 @@
-import { useEffect, useRef, useState, type ReactNode } from 'react'
+import { useEffect, useLayoutEffect, useRef, useState, type ReactNode } from 'react'
 import { createPortal } from 'react-dom'
 import { EllipsisVertical } from 'lucide-react'
 import { useAnchoredOverlayPosition } from '@/components/useAnchoredOverlayPosition'
+import { registerShowEscapeLayer } from '@/engine/showEscapeLayers'
 
 export type ActionsMenuItem = {
   label: string
@@ -18,17 +19,20 @@ export function ActionsMenu({
   density = 'compact',
   side = 'below',
   portaled = false,
+  escapeLayerRank,
 }: {
   label: string
   items: readonly ActionsMenuItem[]
   density?: 'compact' | 'regular'
   side?: 'above' | 'below'
   portaled?: boolean
+  escapeLayerRank?: number
 }) {
   const [open, setOpen] = useState(false)
   const rootRef = useRef<HTMLDivElement>(null)
   const triggerRef = useRef<HTMLButtonElement>(null)
   const menuRef = useRef<HTMLDivElement>(null)
+  const openingFocusRef = useRef<'first' | 'last'>('first')
   const triggerHeight = density === 'regular' ? 'h-8 w-9' : 'h-6 w-7'
   const menuOffset = side === 'above'
     ? density === 'regular' ? 'bottom-9' : 'bottom-7'
@@ -47,17 +51,36 @@ export function ActionsMenu({
         && !menuRef.current?.contains(event.target as Node)
       ) setOpen(false)
     }
-    const onKey = (event: KeyboardEvent) => {
-      if (event.key !== 'Escape') return
-      setOpen(false)
-      triggerRef.current?.focus()
-    }
     window.addEventListener('mousedown', onDown)
-    window.addEventListener('keydown', onKey)
     return () => {
       window.removeEventListener('mousedown', onDown)
-      window.removeEventListener('keydown', onKey)
     }
+  }, [open])
+
+  useEffect(() => {
+    if (!open) return
+    const closeFromEscape = () => {
+      setOpen(false)
+      triggerRef.current?.focus()
+      return true
+    }
+    if (escapeLayerRank !== undefined) {
+      return registerShowEscapeLayer({ rank: escapeLayerRank, onEscape: closeFromEscape })
+    }
+    const onKey = (event: KeyboardEvent) => {
+      if (event.key !== 'Escape') return
+      event.preventDefault()
+      closeFromEscape()
+    }
+    window.addEventListener('keydown', onKey)
+    return () => window.removeEventListener('keydown', onKey)
+  }, [escapeLayerRank, open])
+
+  useLayoutEffect(() => {
+    if (!open) return
+    const enabledItems = menuRef.current?.querySelectorAll<HTMLButtonElement>('[role="menuitem"]:not(:disabled)')
+    if (!enabledItems?.length) return
+    enabledItems[openingFocusRef.current === 'last' ? enabledItems.length - 1 : 0]?.focus()
   }, [open])
 
   const itemClass =
@@ -67,8 +90,24 @@ export function ActionsMenu({
     <div
       ref={menuRef}
       role="menu"
+      aria-label={label}
       style={portaled ? menuStyle : undefined}
       className={`${portaled ? '' : `absolute left-0 ${menuOffset}`} z-50 w-52 overflow-hidden rounded-lg border border-zinc-700 bg-zinc-900 py-1 shadow-2xl`}
+      onKeyDown={(event) => {
+        if (!['ArrowDown', 'ArrowUp', 'Home', 'End'].includes(event.key)) return
+        const enabledItems = [...event.currentTarget.querySelectorAll<HTMLButtonElement>('[role="menuitem"]:not(:disabled)')]
+        if (enabledItems.length === 0) return
+        event.preventDefault()
+        const currentIndex = enabledItems.indexOf(document.activeElement as HTMLButtonElement)
+        const nextIndex = event.key === 'Home'
+          ? 0
+          : event.key === 'End'
+            ? enabledItems.length - 1
+            : event.key === 'ArrowDown'
+              ? (currentIndex + 1 + enabledItems.length) % enabledItems.length
+              : (currentIndex - 1 + enabledItems.length) % enabledItems.length
+        enabledItems[nextIndex]?.focus()
+      }}
     >
       {items.map((item) => (
         <button
@@ -98,7 +137,16 @@ export function ActionsMenu({
         aria-haspopup="menu"
         aria-expanded={open}
         title={label}
-        onClick={() => setOpen((value) => !value)}
+        onClick={() => {
+          openingFocusRef.current = 'first'
+          setOpen((value) => !value)
+        }}
+        onKeyDown={(event) => {
+          if (event.key !== 'ArrowDown' && event.key !== 'ArrowUp') return
+          event.preventDefault()
+          openingFocusRef.current = event.key === 'ArrowUp' ? 'last' : 'first'
+          setOpen(true)
+        }}
         className={`inline-flex items-center justify-center rounded-md border border-zinc-800 bg-zinc-900/70 text-zinc-400 transition-colors hover:bg-zinc-800 hover:text-zinc-100 focus:outline-none focus-visible:ring-1 focus-visible:ring-zinc-500 ${triggerHeight}`}
       >
         <EllipsisVertical size={15} aria-hidden />
