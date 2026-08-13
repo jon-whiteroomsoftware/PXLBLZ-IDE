@@ -238,6 +238,24 @@ describe('getExports', () => {
     expect('hidden' in handle.getExports()).toBe(false)
   })
 
+  it('restores runtime vars whose names collide with generated setter parameters', () => {
+    const code = `
+      var value = 1;
+      var name = 2;
+    `
+    const handle = loadPattern(
+      code,
+      { ...meta([]), patternVars: [], exportedVars: [], runtimeVars: ['value', 'name'] },
+      minimalBuiltins,
+    )
+
+    expect(handle.setRuntimeVar('value', 41)).toBe(true)
+    expect(handle.setRuntimeVar('name', 42)).toBe(true)
+    expect(handle.getRuntimeState().value).toBe(41)
+    expect(handle.getRuntimeState().name).toBe(42)
+    expect(handle.setPatternFunction('value', (() => 0) as never)).toBe(false)
+  })
+
   it('resolves compacted runtime bindings when mutating a preview var', () => {
     const handle = loadPattern(
       'var a = 0;',

@@ -89,7 +89,27 @@ export function loadPattern(
   return factory(...paramValues) as PatternHandle
 }
 
+// Setter parameters live in the same scope chain as Pattern identifiers, so a
+// Pattern global literally named `name` or `value` would be shadowed and the
+// generated assignment would silently target the parameter. Derive parameter
+// names guaranteed absent from every identifier the epilogue can reference.
+function epilogueParamNames(metadata: PatternMetadata): { nameParam: string; valueParam: string } {
+  const taken = new Set<string>([
+    ...metadata.patternVars,
+    ...(metadata.runtimeVars ?? []),
+    ...(metadata.patternFunctions ?? []),
+    ...Object.values(metadata.patternVarBindings ?? {}),
+  ])
+  const pick = (base: string): string => {
+    let candidate = base
+    while (taken.has(candidate)) candidate = `${candidate}_`
+    return candidate
+  }
+  return { nameParam: pick('name'), valueParam: pick('value') }
+}
+
 function buildEpilogue(metadata: PatternMetadata): string {
+  const { nameParam, valueParam } = epilogueParamNames(metadata)
   // Authored Pattern state remains the watcher/control-default surface.
   const getExportsEntries = metadata.patternVars
     .map((v) => {
@@ -123,20 +143,20 @@ function buildEpilogue(metadata: PatternMetadata): string {
     .join(',')
 
   const setPatternFunctionCases = (metadata.patternFunctions ?? [])
-    .map(name => `case ${JSON.stringify(name)}:if(typeof ${name}==='function'){${name}=value;return true;}return false;`)
+    .map(name => `case ${JSON.stringify(name)}:if(typeof ${name}==='function'){${name}=${valueParam};return true;}return false;`)
     .join('')
 
   const setPatternVarCases = metadata.patternVars
     .map((name) => {
       const runtimeName = metadata.patternVarBindings?.[name] ?? name
-      return `case ${JSON.stringify(name)}:if(typeof ${runtimeName}!=='undefined'){${runtimeName}=value;return true;}return false;`
+      return `case ${JSON.stringify(name)}:if(typeof ${runtimeName}!=='undefined'){${runtimeName}=${valueParam};return true;}return false;`
     })
     .join('')
 
   const setRuntimeVarCases = [...runtimeStateVars]
     .map(([name, { runtimeName, declared }]) => declared
-      ? `case ${JSON.stringify(name)}:${runtimeName}=value;return true;`
-      : `case ${JSON.stringify(name)}:if(typeof ${runtimeName}!=='undefined'){${runtimeName}=value;return true;}return false;`)
+      ? `case ${JSON.stringify(name)}:${runtimeName}=${valueParam};return true;`
+      : `case ${JSON.stringify(name)}:if(typeof ${runtimeName}!=='undefined'){${runtimeName}=${valueParam};return true;}return false;`)
     .join('')
 
   return [
@@ -149,9 +169,9 @@ function buildEpilogue(metadata: PatternMetadata): string {
     `  getExports:function(){return{${getExportsEntries}};},`,
     `  getRuntimeState:function(){return{${getRuntimeStateEntries}};},`,
     `  getPatternFunctions:function(){return{${patternFunctionEntries}};},`,
-    `  setPatternFunction:function(name,value){switch(name){${setPatternFunctionCases}default:return false;}},`,
-    `  setPatternVar:function(name,value){switch(name){${setPatternVarCases}default:return false;}},`,
-    `  setRuntimeVar:function(name,value){switch(name){${setRuntimeVarCases}default:return false;}},`,
+    `  setPatternFunction:function(${nameParam},${valueParam}){switch(${nameParam}){${setPatternFunctionCases}default:return false;}},`,
+    `  setPatternVar:function(${nameParam},${valueParam}){switch(${nameParam}){${setPatternVarCases}default:return false;}},`,
+    `  setRuntimeVar:function(${nameParam},${valueParam}){switch(${nameParam}){${setRuntimeVarCases}default:return false;}},`,
     `  controls:{${controlsEntries}},`,
     '};',
   ].join('\n')
