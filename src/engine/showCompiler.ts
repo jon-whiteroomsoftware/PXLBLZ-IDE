@@ -142,6 +142,7 @@ import {
   type ShowRenderTargetLifetime,
 } from './showRenderTargetPlanner'
 import {
+  analyzeShowPatternCoverageRenderState,
   analyzeShowPatternRenderState,
   estimateShowPatternRenderOperations,
   groupCompatibleShowPatternOutputs,
@@ -2796,6 +2797,21 @@ export function compileShow(
   metadata.patternFunctions = inspectPatternMetadata(code).patternFunctions
   if (needsInstalledMapZ) {
     metadata.renderFns.hasRender3D = true
+  }
+  const replayRenderFunctions = [
+    ['render', metadata.renderFns.hasRender],
+    ['render2D', metadata.renderFns.hasRender2D],
+    ['render3D', metadata.renderFns.hasRender3D],
+  ] as const satisfies ReadonlyArray<readonly [ShowPatternOutputRenderFunction, boolean]>
+  const replayRenderAnalyses = replayRenderFunctions
+    .filter(([, available]) => available)
+    .map(([renderFunction]) => [renderFunction, analyzeShowPatternCoverageRenderState(expandedCode, renderFunction)] as const)
+  const targetOverwrittenBindings = deterministicReplayTargetOverwrittenBindings(members)
+  if (replayRenderAnalyses.length > 0 && replayRenderAnalyses.every(([, analysis]) => (
+    analysis.unknownCalls.length === 0
+    && analysis.mutatedBindings.every((binding) => targetOverwrittenBindings.has(binding))
+  ))) {
+    metadata.deterministicReplay = { intermediateRender: 'state-pure' }
   }
   const patternVarBindings = Object.fromEntries(metadata.patternVars.flatMap((name) => {
     const runtimeName = compacted.names.get(name)
@@ -10985,6 +11001,30 @@ function buildMetadata(
       hasRender3D: false,
     },
   }
+}
+
+/** Per-placement Effect bindings are compiler-owned render scratch when the
+ * binding planner deliberately keeps them in the per-pixel arm. The target
+ * traversal rewrites them before any observable output or final snapshot. */
+function deterministicReplayTargetOverwrittenBindings(members: CompiledMember[]): Set<string> {
+  const bindings = new Set<string>()
+  for (const member of members) {
+    if (member.binding?.colorCoefficientHoisting !== false) continue
+    for (const effect of member.effects) {
+      for (const parameter of showEffectParameterNames(effect)) {
+        bindings.add(effectParameterVariable(member, effect.id, parameter))
+      }
+    }
+    if (member.effects.some((effect) => (
+      effect.kind === 'translate' || effect.kind === 'rotate'
+      || effect.kind === 'scale' || effect.kind === 'shear'
+    ))) {
+      for (const suffix of ['ma', 'mb', 'mc', 'md', 'mtx', 'mty']) {
+        bindings.add(`${member.prefix}_fx_${suffix}`)
+      }
+    }
+  }
+  return bindings
 }
 
 

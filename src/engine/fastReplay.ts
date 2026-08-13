@@ -31,6 +31,7 @@ export interface FastReplayResult {
   checksum: string
   elapsedMs: number
   simulatedFrames: number
+  /** Pixel renderer invocations since runtime creation or the latest restore. */
   outerRendererCalls: number
   frame: Float64Array
   pixels: [number, number, number][]
@@ -359,6 +360,7 @@ export function createFastReplayRuntime(
   const renderCompatibility = selectRenderCompatibility(prepared.dimension, prepared.metadata.renderFns)
   let frame: Float64Array<ArrayBufferLike> = new Float64Array(pixelCount * 3)
   let simulatedFrames = 0
+  let outerRendererCalls = 0
   const loop = createRenderLoop({
     handle,
     shim,
@@ -382,7 +384,7 @@ export function createFastReplayRuntime(
       get checksum() { return checksumFrame(resultFrame) },
       elapsedMs: clock.getTime(),
       simulatedFrames,
-      outerRendererCalls: simulatedFrames * pixelCount,
+      outerRendererCalls,
       frame: resultFrame,
       get pixels() { return unpackFrame(resultFrame) },
       get exports() { return handle.getExports() },
@@ -494,11 +496,13 @@ export function createFastReplayRuntime(
       )
       clock.setTime(snapshot.elapsedMs)
       simulatedFrames = snapshot.simulatedFrames
+      outerRendererCalls = 0
       frame.set(snapshot.frame)
     },
     renderCurrentFrame(): FastReplayResult {
       loop.tick(0)
       simulatedFrames += 1
+      outerRendererCalls += pixelCount
       return currentResult(true)
     },
     advanceLive(deltaMs: number): FastReplayResult {
@@ -507,6 +511,7 @@ export function createFastReplayRuntime(
       }
       loop.tick(deltaMs)
       simulatedFrames += 1
+      outerRendererCalls += pixelCount
       return currentResult(false)
     },
     advanceTo(targetMs: number, advance: FastReplayAdvanceOptions): FastReplayResult {
@@ -519,6 +524,8 @@ export function createFastReplayRuntime(
       const previewSeekModeVar = prepared.metadata.temporalFeedback?.previewSeekModeVar
       const clearsTemporalFeedback = advance.temporalFeedbackSeek === 'clear-at-target' && Boolean(previewSeekModeVar)
       const presentsTargetFrame = advance.presentTargetFrame !== false
+      const skipsIntermediateRender = prepared.metadata.deterministicReplay?.intermediateRender === 'state-pure'
+        && !prepared.metadata.temporalFeedback
       if (clearsTemporalFeedback && !handle.setPatternVar(previewSeekModeVar!, 1)) {
         throw new Error(`Fast replay temporal seek variable "${previewSeekModeVar}" is unavailable.`)
       }
@@ -529,8 +536,12 @@ export function createFastReplayRuntime(
         if (finalStep && presentsTargetFrame) {
           if (clearsTemporalFeedback) handle.setPatternVar(previewSeekModeVar!, 0)
           loop.tick(remainingMs)
+          outerRendererCalls += pixelCount
+        } else if (skipsIntermediateRender) {
+          loop.tickBeforeRenderOnly(Math.min(remainingMs, advance.stepMs))
         } else {
           loop.tickHeadless(Math.min(remainingMs, advance.stepMs))
+          outerRendererCalls += pixelCount
         }
         simulatedFrames += 1
       }

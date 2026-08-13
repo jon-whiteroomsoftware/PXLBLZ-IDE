@@ -829,6 +829,138 @@ export function render(index) { hsv(phase + index / pixelCount, 1, initialPixels
     expect(result.exports.renderCalls).toBe(20)
   })
 
+  it.each(['fast', 'fidelity'] as const)(
+    'skips only intermediate renderer traversals for a compiler-proven %s Show (#847)',
+    (fidelity) => {
+      const artifact = compileShow({
+        masterPixelCount: 4,
+        clips: [{
+          id: 'safe',
+          source: `
+var phase = 0
+export function beforeRender(delta) { phase = phase + delta / 1000 }
+export function render(index) { rgb(phase, index / pixelCount, 0) }
+`,
+        }],
+      }, {})
+      expect(artifact.metadata.deterministicReplay).toEqual({ intermediateRender: 'state-pure' })
+      const fullRenderMetadata = structuredClone(artifact.metadata)
+      delete fullRenderMetadata.deterministicReplay
+      const options = { mapPoints: lineMap(4), randomSeed: 847, fidelity }
+      const optimizedRuntime = createFastReplayRuntime({
+        code: artifact.code,
+        fxCode: artifact.fxCode,
+        metadata: artifact.metadata,
+        dimension: 1,
+      }, options)
+      const fullRenderRuntime = createFastReplayRuntime({
+        code: artifact.code,
+        fxCode: artifact.fxCode,
+        metadata: fullRenderMetadata,
+        dimension: 1,
+      }, options)
+
+      const optimized = optimizedRuntime.advanceTo(50, { stepMs: 10 })
+      const fullRender = fullRenderRuntime.advanceTo(50, { stepMs: 10 })
+
+      expect(optimized.simulatedFrames).toBe(5)
+      expect(optimized.outerRendererCalls).toBe(4)
+      expect(fullRender.outerRendererCalls).toBe(20)
+      expect(optimized.checksum).toBe(fullRender.checksum)
+      expect(optimizedRuntime.snapshot()).toEqual(fullRenderRuntime.snapshot())
+    },
+  )
+
+  it.each([
+    {
+      label: '2D',
+      dimension: 2 as const,
+      source: 'export function render2D(index, x, y) { rgb(x, y, index / pixelCount) }',
+      mapPoints: [
+        { sample: [0, 0] }, { sample: [1, 0] },
+        { sample: [0, 1] }, { sample: [1, 1] },
+      ],
+    },
+    {
+      label: '3D-adapted',
+      dimension: 3 as const,
+      source: `
+rotateY(PI / 4)
+export function render2D(index, x, y) { rgb(x, y, index / pixelCount) }
+`,
+      mapPoints: [
+        { sample: [0, 0, 0] }, { sample: [1, 0, 0] },
+        { sample: [0, 1, 1] }, { sample: [1, 1, 1] },
+      ],
+    },
+  ])('preserves complete $label target state while skipping intermediate traversals (#847)', ({
+    dimension,
+    source,
+    mapPoints,
+  }) => {
+    const artifact = compileShow({ masterPixelCount: 4, clips: [{ id: 'safe', source }] }, {})
+    expect(artifact.metadata.deterministicReplay).toEqual({ intermediateRender: 'state-pure' })
+    const fullRenderMetadata = structuredClone(artifact.metadata)
+    delete fullRenderMetadata.deterministicReplay
+    for (const fidelity of ['fast', 'fidelity'] as const) {
+      const options = { mapPoints, randomSeed: 847, fidelity }
+      const optimizedRuntime = createFastReplayRuntime({
+        code: artifact.code,
+        fxCode: artifact.fxCode,
+        metadata: artifact.metadata,
+        dimension,
+      }, options)
+      const fullRenderRuntime = createFastReplayRuntime({
+        code: artifact.code,
+        fxCode: artifact.fxCode,
+        metadata: fullRenderMetadata,
+        dimension,
+      }, options)
+
+      const optimized = optimizedRuntime.advanceTo(50, { stepMs: 10 })
+      const fullRender = fullRenderRuntime.advanceTo(50, { stepMs: 10 })
+
+      expect(optimized.outerRendererCalls).toBe(4)
+      expect(fullRender.outerRendererCalls).toBe(20)
+      expect(optimized.checksum).toBe(fullRender.checksum)
+      expect(optimizedRuntime.snapshot()).toEqual(fullRenderRuntime.snapshot())
+    }
+  })
+
+  it.each([
+    ['scalar mutation', 'var calls = 0\nexport function render(index) { calls += 1; rgb(calls, 0, 0) }'],
+    ['array mutation', 'var values = [0]\nexport function render(index) { values[0] += 1; rgb(values[0], 0, 0) }'],
+    ['aliased array mutation', 'var values = [0]\nvar alias = values\nexport function render(index) { alias[0] += 1; rgb(alias[0], 0, 0) }'],
+    ['dynamic call', 'var emitters = [rgb]\nexport function render(index) { emitters[0](index, 0, 0) }'],
+  ])('keeps full deterministic replay for unproved %s (#847)', (_label, source) => {
+    const artifact = compileShow({ masterPixelCount: 4, clips: [{ id: 'unsafe', source }] }, {})
+
+    expect(artifact.metadata.deterministicReplay).toBeUndefined()
+    const result = createFastReplayRuntime({
+      code: artifact.code,
+      fxCode: artifact.fxCode,
+      metadata: artifact.metadata,
+      dimension: 1,
+    }, { mapPoints: lineMap(4), randomSeed: 847 }).advanceTo(50, { stepMs: 10 })
+    expect(result.outerRendererCalls).toBe(20)
+  })
+
+  it('always traverses pixels during live playback for a replay-safe artifact (#847)', () => {
+    const artifact = compileShow({
+      masterPixelCount: 4,
+      clips: [{ id: 'safe', source: 'export function render(index) { rgb(index / pixelCount, 0, 0) }' }],
+    }, {})
+    const runtime = createFastReplayRuntime({
+      code: artifact.code,
+      fxCode: artifact.fxCode,
+      metadata: artifact.metadata,
+      dimension: 1,
+    }, { mapPoints: lineMap(4), randomSeed: 847 })
+
+    expect(runtime.advanceLive(16).outerRendererCalls).toBe(4)
+    expect(runtime.advanceLive(16).outerRendererCalls).toBe(8)
+  })
+
   it('clears temporal feedback at a seek target, then resumes continuous live history (#537)', () => {
     const bundled = prepareFastReplay(TEMPORAL_FEEDBACK_PATTERN, {})
     const prepared = {
@@ -1009,6 +1141,38 @@ export function render(index) { hsv(phase + index / pixelCount, 1, initialPixels
     expect(result).toBeNull()
     expect(yields).toBe(1)
     expect(runtime.getElapsedMs()).toBe(30)
+  })
+
+  it('keeps state-pure replay cooperative while omitting intermediate traversals (#847)', async () => {
+    const artifact = compileShow({
+      masterPixelCount: 4,
+      clips: [{
+        id: 'safe',
+        source: `
+var phase = 0
+export function beforeRender(delta) { phase += delta / 1000 }
+export function render(index) { rgb(phase, index / pixelCount, 0) }
+`,
+      }],
+    }, {})
+    const runtime = createFastReplayRuntime({
+      code: artifact.code,
+      fxCode: artifact.fxCode,
+      metadata: artifact.metadata,
+      dimension: 1,
+    }, { mapPoints: lineMap(4), randomSeed: 847 })
+    let yields = 0
+
+    const result = await advanceFastReplayCooperatively(runtime, 50, {
+      stepMs: 10,
+      chunkMs: 20,
+      isCurrent: () => true,
+      yieldControl: async () => { yields += 1 },
+    })
+
+    expect(yields).toBe(2)
+    expect(result?.simulatedFrames).toBe(5)
+    expect(result?.outerRendererCalls).toBe(4)
   })
 
   it('keeps temporal feedback suppressed across cooperative chunk boundaries (#537)', async () => {

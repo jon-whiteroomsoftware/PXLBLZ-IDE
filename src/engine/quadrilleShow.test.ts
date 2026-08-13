@@ -92,6 +92,14 @@ describe('Quadrille remix show (#832)', () => {
     expect(frameAt(artifact, 9_600).checksum).toBe(frameAt(artifact, 9_600).checksum)
   })
 
+  it('proves the generated render path is state-pure for deterministic replay (#847)', () => {
+    const compiled = compileShowForArtifact(fixture!.show, [], undefined, {}, { stageDimension: 2 })
+
+    expect(compiled.artifact!.metadata).toMatchObject({
+      deterministicReplay: { intermediateRender: 'state-pure' },
+    })
+  })
+
   it('mirrors the same live Wavy Bands frame across the center seam once the quarters condense', () => {
     const compiled = compileShowForArtifact(fixture!.show, [], undefined, {}, { stageDimension: 2 })
     const { pixels } = frameAt(compiled.artifact!, SCENE_STARTS[1] + 3_200)

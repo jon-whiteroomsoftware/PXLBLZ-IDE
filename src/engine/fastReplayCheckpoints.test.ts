@@ -2,6 +2,7 @@ import {
   advanceFastReplayCooperatively,
   createFastReplayRuntime,
   prepareFastReplay,
+  type PreparedFastReplay,
   type FastReplayRuntime,
 } from './fastReplay'
 import {
@@ -171,6 +172,54 @@ describe('Fast replay checkpoint reconstruction (#842)', () => {
     expect(warmBackward?.result.checksum).toBe(expectedBackward.checksum)
     expect(warmForward?.result.checksum).toBe(expectedForward.checksum)
   })
+
+  it.each(['fast', 'fidelity'] as const)(
+    'preserves complete %s state across state-pure cold, warm-forward, and warm-backward seeks (#847)',
+    async (fidelity) => {
+      const bundled = prepareFastReplay(STATEFUL_PATTERN, {})
+      const prepared = {
+        ...bundled,
+        metadata: {
+          ...bundled.metadata,
+          deterministicReplay: { intermediateRender: 'state-pure' as const },
+        },
+      }
+      const fullRenderMetadata: PreparedFastReplay['metadata'] = structuredClone(prepared.metadata)
+      delete fullRenderMetadata.deterministicReplay
+      const runtimeOptions = { mapPoints: lineMap(4), randomSeed: 847, fidelity }
+      const createRuntime = () => createFastReplayRuntime(prepared, runtimeOptions)
+      const fullRenderAt = (targetMs: number) => {
+        const runtime = createFastReplayRuntime({ ...prepared, metadata: fullRenderMetadata }, runtimeOptions)
+        runtime.renderCurrentFrame()
+        runtime.advanceTo(targetMs, advance)
+        return runtime
+      }
+      const store = new FastReplayCheckpointStore<string>()
+
+      const cold = await reconstructFastReplayWithCheckpoints({
+        key: 'state-pure', store, createRuntime, targetMs: 6_500, advance,
+        isCurrent: () => true, yieldControl: async () => undefined,
+      })
+      const coldSnapshot = cold!.runtime.snapshot()
+      const warmBackward = await reconstructFastReplayWithCheckpoints({
+        key: 'state-pure', store, createRuntime, existingRuntime: cold!.runtime,
+        targetMs: 3_500, advance, isCurrent: () => true, yieldControl: async () => undefined,
+      })
+      const warmBackwardSnapshot = warmBackward!.runtime.snapshot()
+      const warmForward = await reconstructFastReplayWithCheckpoints({
+        key: 'state-pure', store, createRuntime, existingRuntime: warmBackward!.runtime,
+        targetMs: 5_500, advance, isCurrent: () => true, yieldControl: async () => undefined,
+      })
+      const warmForwardSnapshot = warmForward!.runtime.snapshot()
+
+      expect(coldSnapshot).toEqual(fullRenderAt(6_500).snapshot())
+      expect(warmBackwardSnapshot).toEqual(fullRenderAt(3_500).snapshot())
+      expect(warmForwardSnapshot).toEqual(fullRenderAt(5_500).snapshot())
+      expect(cold?.result.outerRendererCalls).toBe(8)
+      expect(warmBackward?.result.outerRendererCalls).toBe(4)
+      expect(warmForward?.result.outerRendererCalls).toBe(4)
+    },
+  )
 
   it('remains checksum-identical after the trajectory checkpoints are evicted', async () => {
     const { createRuntime } = replayFixture()

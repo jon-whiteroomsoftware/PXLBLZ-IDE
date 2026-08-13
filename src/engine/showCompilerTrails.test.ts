@@ -29,6 +29,7 @@ describe('Show output Trails Effect (#537)', () => {
     expect(artifact.metadata.temporalFeedback).toEqual({
       previewSeekModeVar: '__pxlblz_show_trails_preview_seek',
     })
+    expect(artifact.metadata.deterministicReplay).toBeUndefined()
     expect(artifact.summary.outputEffects).toEqual([expect.objectContaining({
       id: 'trails',
       kind: 'trails',

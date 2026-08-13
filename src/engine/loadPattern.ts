@@ -42,6 +42,11 @@ export interface PatternMetadata {
   temporalFeedback?: {
     previewSeekModeVar: string
   }
+  /** Compiler proof that deterministic replay may omit intermediate renderer
+   * traversals while preserving complete runtime state. Absence is unsafe. */
+  deterministicReplay?: {
+    intermediateRender: 'state-pure'
+  }
 }
 
 export interface PatternHandle {
