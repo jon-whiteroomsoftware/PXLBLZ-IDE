@@ -604,20 +604,22 @@ Pattern first; the intermediary is never saved.
 
 The Shows rail ships learning material beneath your personal Shows. **Learn**
 holds numbered lessons that add one idea at a time. **Showcases** holds
-reference catalogues for Effects, Transitions, Property animation, and easing,
-plus finished scores such as the 2,000-pixel, five-surface **Redline
-Installation**. **Remixes** holds finished pieces over community Patterns:
-the Coronal Mass Ejection PXLBLZ remix over ZRanger1's Pattern; Quadrille, a
-four-quarter build that holds ZRanger1's Line Dancer 2D inside its full-field
-bloom by choreography alone and keys its lace on black over Wavy Bands; and
-Overture, a 128 BPM opening night for the Proscenium arch stage where three
-grayscale Luma instances chase the wiring, bloom from the apex, survive one
-cyan surge along the installer's walk, and end the night on a ghost light.
+reference catalogues for Effects, Transitions, Property animation, and easing.
+**Portable Shows** holds finished pieces for standard square maps: the Coronal
+Mass Ejection PXLBLZ remix over ZRanger1's Pattern, and Quadrille, a four-quarter
+build that holds ZRanger1's Line Dancer 2D inside its full-field bloom by
+choreography alone and keys its lace on black over Wavy Bands. **Installations**
+holds map-specific scores: the 2,000-pixel, five-surface **Redline Installation**
+and **Overture Installation**, a 128 BPM opening night for the Proscenium arch
+stage where three grayscale Luma instances chase the wiring, bloom from the
+apex, survive one cyan surge along the installer's walk, and end the night on a
+ghost light.
 
 Built-ins use the complete production editor. The first change creates a
 session-only draft with normal undo; **Reset** or reload restores the shipped
-definition. **Save a copy** keeps that work instead, saving the current draft
-as a personal Show. Reference Showcases offer **Try with Pattern** to swap your own
+definition. The header's three-dot **Show actions** menu holds **View code**,
+**Clone**, and **Download .epe**; **Clone** keeps the current built-in draft as a
+personal Show. Reference Showcases offer **Try with Pattern** to swap your own
 Pattern through the same choreography.
 
 ---

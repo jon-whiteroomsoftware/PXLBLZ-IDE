@@ -42,13 +42,14 @@ function columnsOf(pixels: number[][]): number[][] {
   return [...pixels.slice(0, 250), ...pixels.slice(750)]
 }
 
-describe('Overture remix show (#840)', () => {
+describe('Overture Installation show (#840)', () => {
   const fixture = STOCK_SHOWS.find((candidate) => candidate.id === 'stock-show-remix-overture')
 
-  it('is catalogued as the third remix: three instances, one physical layout, four scenes, 48.75 s', () => {
+  it('is catalogued as the second installation: three instances, one physical layout, four scenes, 48.75 s', () => {
     expect(fixture).toBeDefined()
-    expect(fixture!.collection).toBe('remixes')
-    expect(fixture!.order).toBe(3)
+    expect(fixture!.name).toBe('Overture Installation')
+    expect(fixture!.collection).toBe('installations')
+    expect(fixture!.order).toBe(2)
     const show = fixture!.show
     expect(show.composition!.patternInstances).toHaveLength(3)
     expect(new Set(show.composition!.patternInstances.map((entry) => entry.patternName)))

@@ -70,10 +70,10 @@ describe('stock Show curriculum (#363)', () => {
       ['Zone Layouts: Splits & Checker', 'showcases', null, 17],
       ['Zone Layouts: Stripes & Grid', 'showcases', null, 18],
       ['Zone Layouts: Radial', 'showcases', null, 19],
-      ['Redline Installation', 'showcases', null, 20],
-      ['Coronal Mass Ejection PXLBLZ remix', 'remixes', null, 1],
-      ['Quadrille', 'remixes', null, 2],
-      ['Overture', 'remixes', null, 3],
+      ['Redline Installation', 'installations', null, 1],
+      ['Coronal Mass Ejection PXLBLZ remix', 'portable-shows', null, 1],
+      ['Quadrille', 'portable-shows', null, 2],
+      ['Overture Installation', 'installations', null, 2],
     ])
     expect(STOCK_SHOWS.every((item) => item.show.id === item.id)).toBe(true)
     expect(STOCK_SHOWS.every((item) => !/\bscenes?\b/i.test([
@@ -1738,7 +1738,7 @@ describe('stock Show curriculum (#363)', () => {
     expect(compiled.artifact?.summary.worstInstantRenderersPerPixel).toBe(1)
   })
 
-  // The Remixes collection ships finished pieces scored over community
+  // The Portable Shows collection ships finished pieces scored over community
   // Patterns. The CME remix is the teaser gesture from
   // scripts/promo/cme-teaser.ts, promoted to a built-in (#704).
   describe('Coronal Mass Ejection remix (#704)', () => {
@@ -1747,7 +1747,7 @@ describe('stock Show curriculum (#363)', () => {
     it('ships the teaser gesture: one held CME instance over a 40s deterministic loop', () => {
       const item = remix()
       expect(item.track).toBe('portable')
-      expect(item.note.label).toBe('Remixes')
+      expect(item.note.label).toBe('Portable Shows')
       expect([item.note.purpose, item.note.notice].join(' ')).toContain('ZRanger1')
       const show = item.show
       expect(show.name).toBe('Coronal Mass Ejection PXLBLZ remix')

@@ -90,12 +90,13 @@ reaches persisted records.
 Registry-touching changes also move the perf-harness ledgers, which are **not** in
 the pre-commit focused set. Run them before requesting review of any such range.
 
-## Remixes and community Patterns
+## Portable Shows, Installations, and community Patterns
 
-The stock Show catalogue has a third top-level collection, **Remixes**, holding
-finished pieces scored over community Patterns. The first entry is the Coronal
-Mass Ejection remix, ported from `scripts/promo/cme-teaser.ts`, whose Pattern
-ships as stock `CoronalMassEjection` credited to ZRanger1.
+The stock Show catalogue separates finished pieces by output contract.
+**Portable Shows** holds Shows for standard square maps; **Installations** holds
+Shows bound to a specific stock map. The first Portable Show is the Coronal Mass
+Ejection remix, ported from `scripts/promo/cme-teaser.ts`, whose Pattern ships as
+stock `CoronalMassEjection` credited to ZRanger1.
 
 **ZRanger1 has granted blanket permission** (2026-08-05) to ship their Pattern
 code, in their words a "take this code and use it to make cool things" licence.
@@ -103,10 +104,11 @@ Shipping ZRanger1 Patterns as stock or remix content is therefore cleared
 outright — credit them in the established shape; no further per-Pattern
 permission is needed.
 
-A new remix follows that same shape: a stock Pattern with its manifest and
-structured credit, the builder ported through engine operations rather than
-hand-written JSON, a note crediting the author, and census re-pins per the
-catalogue interlock above.
+A new finished Show follows that same shape: a stock Pattern with its manifest
+and structured credit, the builder ported through engine operations rather than
+hand-written JSON, a note crediting the author, the collection matching its
+portable or installation output contract, and census re-pins per the catalogue
+interlock above.
 
 ## Probing and measurement
 

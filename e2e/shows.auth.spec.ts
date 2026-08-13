@@ -458,35 +458,42 @@ test.describe('authenticated Show authoring', () => {
     const previewSplitter = page.getByRole('separator', { name: 'Resize preview pane' })
     const outputSummary = page.getByTitle('Show output summary')
     const guide = page.getByRole('button', { name: 'Collapse 301 Installation Mapping guide' })
-    const compactableActions = [
-      guide,
+    const commonActions = [
       page.getByRole('button', { name: 'Reset built-in Show' }),
-      page.getByRole('button', { name: 'Save a copy' }),
       page.getByRole('button', { name: 'Show properties' }),
-      page.getByRole('button', { name: 'View code' }),
-      page.getByRole('button', { name: 'Export Show as .epe' }),
       page.getByTestId('run-on-controller'),
       page.getByTestId('save-to-controller'),
     ]
+    const showActions = page.getByRole('button', { name: 'Show actions' })
 
     await expect(outputSummary).toBeVisible()
-    for (const action of compactableActions) {
+    await expect(guide).toBeVisible()
+    await expect.poll(async () => (await guide.innerText()).trim()).toBe('')
+    await expect(showActions).toBeVisible()
+    await expect.poll(async () => (await showActions.innerText()).trim()).toBe('')
+    for (const action of commonActions) {
       await expect(action).toBeVisible()
       await expect.poll(async () => (await action.innerText()).trim()).not.toBe('')
     }
+    await showActions.click()
+    await expect(page.getByRole('menuitem', { name: 'View code' })).toBeVisible()
+    await expect(page.getByRole('menuitem', { name: 'Clone' })).toBeVisible()
+    await expect(page.getByRole('menuitem', { name: 'Download .epe' })).toBeVisible()
+    await showActions.click()
 
     // Constrain the authoring pane itself: viewport width is not the responsive
     // boundary because the rail and Stage have independently resizable widths.
-    // Quiet output metadata leaves before any action loses its label.
+    // Quiet output metadata now survives the ordinary desktop squeeze, then
+    // leaves shortly before common actions lose their labels.
     for (let step = 0; step < 20; step += 1) {
-      if (await header.evaluate((element) => element.clientWidth <= 950)) break
+      if (await header.evaluate((element) => element.clientWidth <= 800)) break
       await previewSplitter.press('Shift+ArrowLeft')
     }
     const metadataCompactWidth = await header.evaluate((element) => element.clientWidth)
-    expect(metadataCompactWidth).toBeGreaterThan(900)
-    expect(metadataCompactWidth).toBeLessThanOrEqual(950)
+    expect(metadataCompactWidth).toBeGreaterThan(760)
+    expect(metadataCompactWidth).toBeLessThanOrEqual(800)
     await expect(outputSummary).toBeHidden()
-    for (const action of compactableActions) {
+    for (const action of commonActions) {
       await expect.poll(async () => (await action.innerText()).trim()).not.toBe('')
     }
 
@@ -501,7 +508,7 @@ test.describe('authenticated Show authoring', () => {
     expect(constrainedWidth).toBeLessThanOrEqual(700)
 
     await expect(outputSummary).toBeHidden()
-    for (const action of compactableActions) {
+    for (const action of commonActions) {
       await expect(action).toBeVisible()
       await expect.poll(async () => (await action.innerText()).trim()).toBe('')
     }
@@ -533,11 +540,11 @@ test.describe('authenticated Show authoring', () => {
     expect(constrainedGeometry.buttonOverlaps).toEqual([])
 
     for (let step = 0; step < 20; step += 1) {
-      if (await header.evaluate((element) => element.clientWidth >= 1050)) break
+      if (await header.evaluate((element) => element.clientWidth >= 900)) break
       await previewSplitter.press('Shift+ArrowRight')
     }
     await expect(outputSummary).toBeVisible()
-    for (const action of compactableActions) {
+    for (const action of commonActions) {
       await expect.poll(async () => (await action.innerText()).trim()).not.toBe('')
     }
   })
@@ -1280,7 +1287,7 @@ test.describe('authenticated Show authoring', () => {
     await page.getByRole('button', { name: 'Create Show' }).click()
 
     await expect(page).toHaveURL(/\/studio\/shows\/[a-z0-9-]+\?showtime$/)
-    await expect(page.getByTitle('Show output summary')).toContainText('Portable 2D')
+    await expect(page.getByTitle('Show output summary')).toContainText('Portable')
     await waitForCurrentShow(page, (show) => (
       show.outputContract?.kind === 'portable-2d'
       && show.outputContract.referencePixelCount === 1024
@@ -1288,7 +1295,7 @@ test.describe('authenticated Show authoring', () => {
     ))
 
     await page.reload()
-    await expect(page.getByTitle('Show output summary')).toContainText('Portable 2D')
+    await expect(page.getByTitle('Show output summary')).toContainText('Portable')
     await page.getByRole('button', { name: 'Show properties' }).click()
     await expect(page.getByText('Portable · Resolution-independent 2D')).toBeVisible()
     await expect(page.getByText('Compatible 2D mapped surfaces at variable resolution.')).toBeVisible()
@@ -1329,7 +1336,11 @@ test.describe('authenticated Show authoring', () => {
     await expect(page.getByRole('dialog', { name: 'Entity Detail Panel' })).toHaveCount(0)
     await openZoneLayout(page, 'Default')
     await expect(page.getByLabel('Default routing mode')).toHaveValue('grid-2x2')
-    await expect(page.getByRole('button', { name: 'View code' }).first()).toBeEnabled()
+    // The layout Detail panel intentionally overlays the header at this width.
+    // Dismiss it before reaching for the Show actions menu.
+    await page.keyboard.press('Escape')
+    await expect(page.getByRole('dialog', { name: 'Entity Detail Panel' })).toHaveCount(0)
+    await expect(await getShowAction(page, 'View code')).toBeEnabled()
     await expect(page.getByText(/preserves about a 2.0:1 aspect/i)).toBeVisible()
 
     await page.setViewportSize({ width: 720, height: 900 })
@@ -1481,7 +1492,7 @@ test.describe('authenticated Show authoring', () => {
     await expect(reason).toBeVisible()
   })
 
-  test('duplicates a Show from its rail row and forks a built-in with Save a copy (#794)', async ({ page }) => {
+  test('duplicates a Show from its rail row and clones a built-in from Show actions (#794)', async ({ page }) => {
     await page.goto(showtimePath('studio/shows'))
     await createInstallationShow(page)
     const sourceId = new URL(page.url()).pathname.split('/').at(-1)
@@ -1496,9 +1507,9 @@ test.describe('authenticated Show authoring', () => {
     expect(shows).toHaveLength(2)
     expect(shows.map((show) => show.name).sort()).toEqual(['Untitled Show', 'Untitled Show copy'])
 
-    // A built-in forks through Save a copy, keeping the work as personal.
+    // A built-in forks through Clone, keeping the work as personal.
     await page.goto(showtimePath('studio/shows/stock-show-101-clips-cuts-blank-time'))
-    await page.getByRole('button', { name: 'Save a copy' }).click()
+    await (await getShowAction(page, 'Clone')).click()
     await expect.poll(async () => (
       ((await (await page.context().request.get('/api/shows')).json()) as { shows: PersistedShow[] }).shows.length
     )).toBe(3)
@@ -1850,8 +1861,11 @@ test.describe('authenticated Show authoring', () => {
     await ranges.fill('0-199')
     await ranges.press('Enter')
     await expect(page.getByText(/Default assigns 200 of 256 pixels \(56 missing\)/i).first()).toBeVisible()
-    await expect(page.getByRole('button', { name: 'View code' })).toBeDisabled()
-    await expect(page.getByRole('button', { name: 'Export Show as .epe' })).toBeDisabled()
+    // The layout Detail panel intentionally overlays the header actions.
+    await page.keyboard.press('Escape')
+    await expect(page.getByRole('dialog', { name: 'Entity Detail Panel' })).toHaveCount(0)
+    await expect(await getShowAction(page, 'View code')).toBeDisabled()
+    await expect(await getShowAction(page, 'Download .epe')).toBeDisabled()
 
     await page.reload()
     await openZoneLayout(page, 'Default')
@@ -1867,8 +1881,10 @@ test.describe('authenticated Show authoring', () => {
     await expect(page.getByRole('dialog', { name: 'Entity Detail Panel' })).toHaveCount(0)
     await page.getByRole('button', { name: 'Show properties' }).click()
     await expect(page.getByText(/Default assigns 256 of 256 pixels exactly once/i)).toBeVisible()
-    await expect(page.getByRole('button', { name: 'View code' }).first()).toBeEnabled()
-    await expect(page.getByRole('button', { name: 'Export Show as .epe' })).toBeEnabled()
+    await page.keyboard.press('Escape')
+    await expect(page.getByRole('dialog', { name: 'Entity Detail Panel' })).toHaveCount(0)
+    await expect(await getShowAction(page, 'View code')).toBeEnabled()
+    await expect(await getShowAction(page, 'Download .epe')).toBeEnabled()
     await waitForCurrentShow(page, (show) => (
       show.outputContract?.kind === 'installation'
       && show.outputContract.pixelCount === 256
@@ -2034,7 +2050,7 @@ test.describe('authenticated Show authoring', () => {
     await expect(page.getByLabel('Routing transfer direction')).toHaveValue('reverse')
     await page.keyboard.press('Escape')
     await expect(page.getByRole('dialog', { name: 'Entity Detail Panel' })).toHaveCount(0)
-    await page.getByRole('button', { name: 'View code' }).first().click()
+    await (await getShowAction(page, 'View code')).click()
     await expect(page.getByText('Generated pattern - Untitled Show')).toBeVisible()
   })
 
@@ -2092,11 +2108,11 @@ test.describe('authenticated Show authoring', () => {
     await expect(page.getByLabel('Split position duration seconds exact time')).toHaveValue('1.2')
     await expect(page.getByLabel('Split position easing')).toHaveValue('ease-in-out')
     // Close the transition Detail panel before reaching for the header: its
-    // anchored placement can cover the View code button and intercept the
+    // anchored placement can cover the Show actions trigger and intercept the
     // click (#683).
     await page.keyboard.press('Escape')
     await expect(page.getByRole('dialog', { name: 'Entity Detail Panel' })).toHaveCount(0)
-    await page.getByRole('button', { name: 'View code' }).click()
+    await (await getShowAction(page, 'View code')).click()
     await expect(page.getByText('Generated pattern - Untitled Show')).toBeVisible()
     await page.getByRole('button', { name: 'Back to show' }).click()
 
@@ -2565,6 +2581,12 @@ async function openZoneLayout(page: Page, layoutName: string): Promise<void> {
   await page.getByRole('menuitem', { name: 'Zone Layout' }).click()
   void layoutName
   await page.getByRole('button', { name: "Open this interval's Zone Layout" }).click()
+}
+
+async function getShowAction(page: Page, name: 'View code' | 'Clone' | 'Download .epe'): Promise<Locator> {
+  const trigger = page.getByRole('button', { name: 'Show actions' })
+  if (await trigger.getAttribute('aria-expanded') !== 'true') await trigger.click()
+  return page.getByRole('menuitem', { name })
 }
 
 async function createInstallationShow(page: Page): Promise<void> {

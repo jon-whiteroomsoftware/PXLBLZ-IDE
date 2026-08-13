@@ -365,11 +365,14 @@ describe('routing (#308)', () => {
 
     const editorPane = screen.getByTestId('editor-pane')
     expect(within(editorPane).getAllByText('Simplest possible show').length).toBeGreaterThan(0)
-    expect(within(editorPane).getByTitle('Show output summary')).toHaveTextContent('Portable 2D')
+    expect(within(editorPane).getByTitle('Show output summary')).toHaveTextContent('Portable')
     expect(within(editorPane).getByTitle('Show output summary')).not.toHaveTextContent(/scene/i)
     expect(within(editorPane).getByRole('button', { name: 'Show properties' }).querySelector('.show-header-action-label')).toHaveTextContent('Properties')
-    expect(within(editorPane).getByRole('button', { name: 'View code' }).querySelector('.show-header-action-label')).toHaveTextContent('View code')
-    expect(within(editorPane).getByRole('button', { name: 'Export Show as .epe' }).querySelector('.show-header-action-label')).toHaveTextContent('.epe')
+    expect(within(editorPane).queryByRole('menuitem', { name: 'View code' })).not.toBeInTheDocument()
+    await user.click(within(editorPane).getByRole('button', { name: 'Show actions' }))
+    expect(screen.getByRole('menuitem', { name: 'View code' })).toBeInTheDocument()
+    expect(screen.getByRole('menuitem', { name: 'Download .epe' })).toBeInTheDocument()
+    expect(screen.queryByRole('menuitem', { name: 'Clone' })).not.toBeInTheDocument()
     expect(within(editorPane).queryByText('View generated pattern')).not.toBeInTheDocument()
 
     await user.click(within(editorPane).getAllByRole('button', { name: /Select TestPattern1D/i })[0])
@@ -465,7 +468,8 @@ describe('routing (#308)', () => {
     expect(useShowTransportStore.getState().positionMs).toBeGreaterThan(positionBeforeClose)
 
     const positionBeforeCode = useShowTransportStore.getState().positionMs
-    await user.click(screen.getByRole('button', { name: 'View code' }))
+    await user.click(screen.getByRole('button', { name: 'Show actions' }))
+    await user.click(screen.getByRole('menuitem', { name: 'View code' }))
     await waitFor(() => expect(screen.getByRole('button', { name: 'Back to show' })).toBeInTheDocument())
     await waitFor(() => expect(callbacks.size).toBeGreaterThan(0))
     runFrame(200)

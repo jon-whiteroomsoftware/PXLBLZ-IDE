@@ -1104,7 +1104,7 @@ function StudioApp() {
                       {activeShow.outputContract?.kind === 'installation'
                         ? 'Installation'
                         : activeShow.outputContract?.kind === 'portable-2d'
-                          ? 'Portable 2D'
+                          ? 'Portable'
                           : 'Legacy output'}
                     </span>
                   )}

@@ -49,7 +49,6 @@ export function stockShowOrganization(shows: readonly StockShow[]): EntityOrgani
     { id: 'transitions', name: 'Transitions & animation', matches: (show: StockShow) => show.collection === 'showcases' && show.track === 'portable' && !show.name.includes('Effects') && !show.name.includes('Aperture') && !show.name.includes('Zone') },
     { id: 'placement', name: 'Placement', matches: (show: StockShow) => show.collection === 'showcases' && show.track === 'portable' && show.name.includes('Aperture') },
     { id: 'zones', name: 'Zones', matches: (show: StockShow) => show.collection === 'showcases' && show.track === 'portable' && show.name.includes('Zone') },
-    { id: 'installations', name: 'Installations', matches: (show: StockShow) => show.collection === 'showcases' && show.track === 'installation' },
   ]
   const showcases = showcaseGroups.map((group): EntityOrganizationNode => ({
     kind: 'folder',
@@ -57,14 +56,15 @@ export function stockShowOrganization(shows: readonly StockShow[]): EntityOrgani
     name: group.name,
     children: shows.filter(group.matches).sort((left, right) => left.order - right.order).map((show) => ({ kind: 'entity', entityId: show.id })),
   }))
-  const remixes = shows
-    .filter((show) => show.collection === 'remixes')
+  const collectionEntities = (collection: StockShow['collection']): EntityOrganizationNode[] => shows
+    .filter((show) => show.collection === collection)
     .sort((left, right) => left.order - right.order)
-    .map((show): EntityOrganizationNode => ({ kind: 'entity', entityId: show.id }))
+    .map((show) => ({ kind: 'entity', entityId: show.id }))
   const nodes: EntityOrganizationNode[] = [
     { kind: 'folder', id: 'stock-show-learn', name: 'Learn', children: learn },
     { kind: 'folder', id: 'stock-show-showcases', name: 'Showcases', children: showcases },
-    { kind: 'folder', id: 'stock-show-remixes', name: 'Remixes', children: remixes },
+    { kind: 'folder', id: 'stock-show-portable-shows', name: 'Portable Shows', children: collectionEntities('portable-shows') },
+    { kind: 'folder', id: 'stock-show-installations', name: 'Installations', children: collectionEntities('installations') },
   ]
   return normalizeEntityOrganization({
     version: 1,
@@ -73,7 +73,6 @@ export function stockShowOrganization(shows: readonly StockShow[]): EntityOrgani
     collapsedFolderIds: [
       ...learnLevels.map((level) => `stock-show-learn-${level}`),
       ...showcaseGroups.map((group) => `stock-show-showcases-${group.id}`),
-      'stock-show-remixes',
     ],
   }, shows.map((show) => show.id))
 }

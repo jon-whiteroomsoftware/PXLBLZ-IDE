@@ -49,12 +49,12 @@ function darkFraction(pixels: number[][]): number {
   return pixels.filter(([r, g, b]) => r + g + b < 0.1).length / pixels.length
 }
 
-describe('Quadrille remix show (#832)', () => {
+describe('Quadrille portable show (#832)', () => {
   const fixture = STOCK_SHOWS.find((candidate) => candidate.id === 'stock-show-remix-quadrille')
 
-  it('is catalogued as the second remix with two instances, one layout, eight phrases', () => {
+  it('is catalogued as the second portable Show with two instances, one layout, eight phrases', () => {
     expect(fixture).toBeDefined()
-    expect(fixture!.collection).toBe('remixes')
+    expect(fixture!.collection).toBe('portable-shows')
     expect(fixture!.order).toBe(2)
     const composition = fixture!.show.composition!
     expect(composition.patternInstances).toHaveLength(2)

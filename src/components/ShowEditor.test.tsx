@@ -68,6 +68,12 @@ function changeCommittedNumber(label: string, value: string): void {
   fireEvent.keyDown(input, { key: 'Enter' })
 }
 
+function getShowAction(name: 'View code' | 'Clone' | 'Download .epe') {
+  const trigger = screen.getByRole('button', { name: 'Show actions' })
+  if (trigger.getAttribute('aria-expanded') !== 'true') fireEvent.click(trigger)
+  return screen.getByRole('menuitem', { name })
+}
+
 function createTransitionMenuShow(
   id: string,
   clips: Array<{ id: string; name: string; startMs: number; durationMs: number }>,
@@ -4736,7 +4742,7 @@ describe('ShowEditor (#318)', () => {
     expect(useShowStore.getState().shows).toEqual([])
   })
 
-  it('saves a built-in Show copy into the personal workspace and opens it (#794)', async () => {
+  it('clones a built-in Show into the personal workspace and opens it (#794)', async () => {
     const user = userEvent.setup()
     const stock = STOCK_SHOWS[0]
     setPersonalContentProvider(memoryProvider([]))
@@ -4745,7 +4751,7 @@ describe('ShowEditor (#318)', () => {
 
     render(<ShowEditor showId={stock.id} showOverride={stock.show} readOnly />)
 
-    await user.click(screen.getByRole('button', { name: 'Save a copy' }))
+    await user.click(getShowAction('Clone'))
 
     await waitFor(() => expect(useShowStore.getState().shows).toHaveLength(1))
     const copy = useShowStore.getState().shows[0]
@@ -4754,14 +4760,15 @@ describe('ShowEditor (#318)', () => {
     expect(useShowStore.getState().activeShowId).toBe(copy.id)
   })
 
-  it('hides Save a copy for signed-out sessions that cannot save (#794)', () => {
+  it('hides Clone from signed-out sessions that cannot save (#794)', () => {
     const stock = STOCK_SHOWS[0]
     setPersonalContentProvider(memoryProvider([]))
     useShowStore.setState({ shows: [], showsLoaded: true })
 
     render(<ShowEditor showId={stock.id} showOverride={stock.show} readOnly />)
 
-    expect(screen.queryByRole('button', { name: 'Save a copy' })).not.toBeInTheDocument()
+    fireEvent.click(screen.getByRole('button', { name: 'Show actions' }))
+    expect(screen.queryByRole('menuitem', { name: 'Clone' })).not.toBeInTheDocument()
   })
 
   it('authors stepped cadence through an exact rate field with a transient slider (#779)', async () => {
@@ -4990,11 +4997,11 @@ describe('ShowEditor (#318)', () => {
     expect(screen.queryByRole('region', { name: '101 Clips and Crossfade guide' })).not.toBeInTheDocument()
     expect(useShowEditorSessionStore.getState().showNoteOpenById[stock.id]).toBe(false)
 
-    // The trigger reads as a labeled chip, not an icon-only button (#63):
-    // numbered lessons say "Lesson" without repeating the number in the label.
+    // The teal treatment carries the guide identity without spending permanent
+    // header width on copy; its full accessible name remains specific.
     const trigger = screen.getByRole('button', { name: 'Open 101 Clips and Crossfade guide' })
-    expect(within(trigger).getByText('Lesson')).toBeInTheDocument()
-    expect(within(trigger).queryByText('101 Guide')).not.toBeInTheDocument()
+    expect(trigger.querySelector('svg')).toBeInTheDocument()
+    expect(trigger.textContent).toBe('')
     await user.click(trigger)
     expect(screen.getByRole('region', { name: '101 Clips and Crossfade guide' })).toBeInTheDocument()
   })
@@ -6861,7 +6868,7 @@ describe('ShowEditor (#318)', () => {
     })
 
     const view = render(<ShowEditor showId={firstShow.id} />)
-    await user.click(screen.getByRole('button', { name: 'View code' }))
+    await user.click(getShowAction('View code'))
     expect(screen.getByText('Generated pattern - Generated first')).toBeInTheDocument()
 
     view.rerender(<ShowEditor showId={secondShow.id} />)
@@ -6882,7 +6889,7 @@ describe('ShowEditor (#318)', () => {
 
     try {
       render(<ShowEditor showId={show.id} />)
-      await user.click(screen.getByRole('button', { name: 'View code' }))
+      await user.click(getShowAction('View code'))
       expect(screen.getByText('Generated pattern - Inspected snapshot')).toBeInTheDocument()
 
       act(() => useShowStore.setState({
@@ -7036,8 +7043,8 @@ describe('ShowEditor (#318)', () => {
     render(<ShowEditor showId={show.id} />)
 
     expect(screen.queryByText(/Unknown library namespace "SDF"/i)).not.toBeInTheDocument()
-    expect(screen.getByRole('button', { name: 'View code' })).toBeEnabled()
-    expect(screen.getByRole('button', { name: 'Export Show as .epe' })).toBeEnabled()
+    expect(getShowAction('View code')).toBeEnabled()
+    expect(getShowAction('Download .epe')).toBeEnabled()
     const compileBar = screen.getByTestId('show-compile-bar')
     expect(compileBar).toHaveTextContent('Show source')
     expect(compileBar).toHaveTextContent(/VM [\d,]+\/10,240 words/)
@@ -7112,8 +7119,8 @@ describe('ShowEditor (#318)', () => {
     expect(screen.getByTestId('show-compile-bar')).toHaveTextContent(
       'Output blocked: Delivered UTF-8 source meets or exceeds the source-size proxy',
     )
-    expect(screen.getByRole('button', { name: 'Export Show as .epe' })).toBeDisabled()
-    const viewCode = screen.getByRole('button', { name: 'View code' })
+    expect(getShowAction('Download .epe')).toBeDisabled()
+    const viewCode = getShowAction('View code')
     expect(viewCode).toBeEnabled()
     await user.click(viewCode)
     expect(screen.getByText(/Generated pattern -/)).toBeInTheDocument()
@@ -7246,8 +7253,8 @@ describe('ShowEditor (#318)', () => {
 
     await user.click(screen.getByRole('button', { name: 'Show properties' }))
     expect(screen.getAllByText(/assigns 6 of 8 pixels \(2 missing\)/i)).toHaveLength(2)
-    expect(screen.getByRole('button', { name: 'View code' })).toBeDisabled()
-    expect(screen.getByRole('button', { name: 'Export Show as .epe' })).toBeDisabled()
+    expect(getShowAction('View code')).toBeDisabled()
+    expect(getShowAction('Download .epe')).toBeDisabled()
 
     await openZoneLayout(user, 'Default')
     expect(screen.getByLabelText('Default main pixel ranges')).toHaveValue('0-5')
@@ -7257,8 +7264,8 @@ describe('ShowEditor (#318)', () => {
     await user.click(screen.getByRole('button', { name: 'Apply Default main pixel ranges' }))
 
     await waitFor(() => {
-      expect(screen.getByRole('button', { name: 'View code' })).toBeEnabled()
-      expect(screen.getByRole('button', { name: 'Export Show as .epe' })).toBeEnabled()
+      expect(getShowAction('View code')).toBeEnabled()
+      expect(getShowAction('Download .epe')).toBeEnabled()
     })
     await user.click(screen.getByRole('button', { name: 'Show properties' }))
     expect(screen.getByText(/Default assigns 8 of 8 pixels exactly once/i)).toBeInTheDocument()
@@ -7319,8 +7326,8 @@ describe('ShowEditor (#318)', () => {
     render(<ShowEditor showId={show.id} />)
 
     expect(screen.getByRole('button', { name: 'Show properties' })).toBeEnabled()
-    expect(screen.getByRole('button', { name: 'View code' })).toBeDisabled()
-    expect(screen.getByRole('button', { name: 'Export Show as .epe' })).toBeDisabled()
+    expect(getShowAction('View code')).toBeDisabled()
+    expect(getShowAction('Download .epe')).toBeDisabled()
     const compileBar = screen.getByTestId('show-compile-bar')
     expect(compileBar).toHaveTextContent(
       'Show output contract requests 2,001 pixels; compiled Shows support at most 2,000.',
@@ -7368,8 +7375,8 @@ describe('ShowEditor (#318)', () => {
 
     render(<ShowEditor showId={show.id} />)
 
-    expect(screen.getByRole('button', { name: 'View code' })).toBeDisabled()
-    expect(screen.getByRole('button', { name: 'Export Show as .epe' })).toBeDisabled()
+    expect(getShowAction('View code')).toBeDisabled()
+    expect(getShowAction('Download .epe')).toBeDisabled()
     expect(screen.getByTestId('show-compile-bar')).toHaveTextContent(
       'Target Controller reports 2,001 pixels; compiled Shows support at most 2,000.',
     )

@@ -72,7 +72,7 @@ describe('built-in entity organization', () => {
     ])
   })
 
-  it('organizes built-in Shows into Learn and Showcases subtrees', () => {
+  it('organizes built-in Shows into learning, showcase, portable, and installation collections', () => {
     const organization = stockShowOrganization(STOCK_SHOWS)
 
     expect(organization.nodes).toMatchObject([
@@ -82,18 +82,20 @@ describe('built-in entity organization', () => {
         { kind: 'folder', name: 'Transitions & animation' },
         { kind: 'folder', name: 'Placement' },
         { kind: 'folder', name: 'Zones' },
-        { kind: 'folder', name: 'Installations' },
       ] },
-      { kind: 'folder', name: 'Remixes', children: [
+      { kind: 'folder', name: 'Portable Shows', children: [
         { kind: 'entity', entityId: 'stock-show-remix-coronal-mass-ejection' },
         { kind: 'entity', entityId: 'stock-show-remix-quadrille' },
+      ] },
+      { kind: 'folder', name: 'Installations', children: [
+        { kind: 'entity', entityId: 'stock-show-showcase-redline-installation' },
         { kind: 'entity', entityId: 'stock-show-remix-overture' },
       ] },
     ])
     expect(new Set(collectEntityIds(organization.nodes)).size).toBe(STOCK_SHOWS.length)
   })
 
-  it('starts built-in Show leaf folders collapsed while collection folders stay open', () => {
+  it('starts every top-level built-in Show folder open and only nested grouping folders collapsed', () => {
     const organization = stockShowOrganization(STOCK_SHOWS)
 
     expect(organization.collapsedFolderIds).toEqual([
@@ -104,11 +106,15 @@ describe('built-in entity organization', () => {
       'stock-show-showcases-transitions',
       'stock-show-showcases-placement',
       'stock-show-showcases-zones',
-      'stock-show-showcases-installations',
-      'stock-show-remixes',
     ])
-    expect(organization.collapsedFolderIds).not.toContain('stock-show-learn')
-    expect(organization.collapsedFolderIds).not.toContain('stock-show-showcases')
+    const topLevelFolderIds = organization.nodes.flatMap((node) => node.kind === 'folder' ? [node.id] : [])
+    expect(topLevelFolderIds).toEqual([
+      'stock-show-learn',
+      'stock-show-showcases',
+      'stock-show-portable-shows',
+      'stock-show-installations',
+    ])
+    expect(organization.collapsedFolderIds.filter((folderId) => topLevelFolderIds.includes(folderId))).toEqual([])
   })
 
   it('omits a Learn level folder that has no lessons', () => {
@@ -120,7 +126,12 @@ describe('built-in entity organization', () => {
 
     expect(learn).toMatchObject({ children: [{ name: '100' }] })
     expect(stockShowOrganization(STOCK_SHOWS.filter((show) => show.collection !== 'learn')).nodes)
-      .toMatchObject([{ kind: 'folder', name: 'Learn', children: [] }, { kind: 'folder', name: 'Showcases' }, { kind: 'folder', name: 'Remixes' }])
+      .toMatchObject([
+        { kind: 'folder', name: 'Learn', children: [] },
+        { kind: 'folder', name: 'Showcases' },
+        { kind: 'folder', name: 'Portable Shows' },
+        { kind: 'folder', name: 'Installations' },
+      ])
   })
 })
 

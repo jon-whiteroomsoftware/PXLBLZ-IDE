@@ -593,16 +593,17 @@
   }
 }
 
-/* The Show title is the durable identity in this row. Quiet output metadata
-   leaves first; action copy then folds behind the controls' existing icons,
-   accessible names, and tooltips before the title has to truncate. */
-@container (max-width: 980px) {
+/* The Show title is the durable identity in this row. Secondary output actions
+   live in the same overflow treatment as Patterns, so the read-only output
+   identity can remain through ordinary desktop compaction. It still leaves
+   before common action copy folds behind accessible icon buttons. */
+@container (max-width: 820px) {
   .show-output-summary {
     display: none;
   }
 }
 
-@container (max-width: 900px) {
+@container (max-width: 760px) {
   .show-pane-header {
     display: flex;
     height: calc(1.75rem + 1px);

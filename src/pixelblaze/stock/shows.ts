@@ -44,7 +44,14 @@ import {
 } from '@/engine/showOutputContract'
 
 export type StockShowTrack = 'portable' | 'installation'
-export type StockShowCollection = 'learn' | 'showcases' | 'remixes'
+export type StockShowCollection = 'learn' | 'showcases' | 'portable-shows' | 'installations'
+
+const STOCK_SHOW_COLLECTION_LABELS: Record<StockShowCollection, string> = {
+  learn: 'Learn',
+  showcases: 'Showcases',
+  'portable-shows': 'Portable Shows',
+  installations: 'Installations',
+}
 
 export interface StockShowNote {
   label: string
@@ -111,7 +118,7 @@ type CatalogueInput = {
   guideHeading: string
   guideDocumentId?: StockShowNote['guide']['documentId']
   guideLabel?: string
-  /** Note rail label; defaults to `Learn <level>` or `Showcases`. */
+  /** Note rail label; defaults to the catalogue collection label. */
   noteLabel?: string
   defaultOpen?: boolean
   zonesOpenByDefault?: boolean
@@ -2016,9 +2023,9 @@ function redlineInstallation(): StockShow {
     id,
     title: 'Redline Installation',
     track: 'installation',
-    collection: 'showcases',
+    collection: 'installations',
     level: null,
-    order: 20,
+    order: 1,
     purpose: 'A sixty-second club-installation score turns one hero panel and four target arrays into a single rhythmic machine.',
     notice: 'One renderer owns each pixel. Shared target instances and cheap transforms create difference; black space, red pressure, white impact, sparse cyan ornaments, and one cyan takeover create the arc.',
     prompts: ['Solo the four target Zones and compare their shared clock.', 'Jump between First drop, Vacuum, and Peak to compare one canvas with five instruments.'],
@@ -3239,9 +3246,9 @@ function lumaSourcesShowcase(): StockShow {
 }
 
 
-// --- Remixes -----------------------------------------------------------------
-// Finished pieces scored over community Patterns, shipped beside Learn and
-// Showcases. The CME remix is the v2 teaser gesture, ported from
+// --- Portable Shows and Installations ----------------------------------------
+// Finished pieces shipped beside Learn and Showcases, grouped by output
+// contract. The CME remix is the v2 teaser gesture, ported from
 // scripts/promo/cme-teaser.ts (#704): the flat record and every Property track
 // are rebuilt through the same engine operations the script used, so the
 // shipped Show matches the published teaser exactly.
@@ -3394,14 +3401,14 @@ function remixCoronalMassEjection(): StockShow {
   composition = normalizeShowComposition(flat, composition)
   const show: ShowRecord = { ...flat, composition, updatedAt: UPDATED_AT }
   const note: StockShowNote = {
-    label: 'Remixes',
+    label: 'Portable Shows',
     title: 'Coronal Mass Ejection',
     purpose: 'One Pattern, one 40-second gesture. ZRanger1\'s Coronal Mass Ejection opens at half speed; '
       + 'rotation eases in, speed and spin accelerate together into a crescendo of on-beat brightness pulses, '
       + 'then everything winds down to a dead stop, holds two beats, and fades to black.',
     notice: 'The Pattern is ZRanger1\'s Coronal Mass Ejection 2D, shipped as-is. Every motion beyond its own '
       + 'animation is choreography: speed, rotation, scale, and brightness Property tracks over one held Clip. '
-      + 'Remixes are finished pieces rather than lessons, so read the tracks like a score.',
+      + 'Portable Shows are finished pieces rather than lessons, so read the tracks like a score.',
     prompts: [
       'Scrub the crescendo between the 24s and 28s markers: each brightness pulse lands on a beat, and the valleys deepen as the spin accelerates.',
       'Drag the speed track\'s final keyframe up from zero and the dead stop becomes a slow-motion ending.',
@@ -3415,7 +3422,7 @@ function remixCoronalMassEjection(): StockShow {
   }
   return {
     id, legacySourceIds: ['teaser-cme-01'], name,
-    track: 'portable', collection: 'remixes', level: null, order: 1,
+    track: 'portable', collection: 'portable-shows', level: null, order: 1,
     lesson: note.title, description: note.purpose, note, show,
   }
 }
@@ -3708,8 +3715,7 @@ function quadrilleRemix(): StockShow {
       : boundary(sceneId, 'crossfade', 800, SINE_IN_OUT, { crossfadePolicy: 'live-live' })
   ))
   return catalogue({
-    id, title: 'Quadrille', track: 'portable', collection: 'remixes', level: null, order: 2,
-    noteLabel: 'Remixes',
+    id, title: 'Quadrille', track: 'portable', collection: 'portable-shows', level: null, order: 2,
     purpose: 'Two Patterns, four quarters, eight phrases at 75 BPM. ZRanger1\'s Wavy Bands is the substrate; '
       + 'Line Dancer 2D rides one internal swell, held in its full-field bloom for its entrance and breathing '
       + 'in and out of its lace thereafter. The stage folds into mirrored quarters, the dancers claim theirs, '
@@ -3986,8 +3992,7 @@ function overtureRemix(): StockShow {
   // reveal.
   const transitions: ShowBoundaryTransition[] = cutBoundaries(overtureScenes)
   return normalizedCatalogue({
-    id, title: 'Overture', track: 'installation', collection: 'remixes', level: null, order: 3,
-    noteLabel: 'Remixes',
+    id, title: 'Overture Installation', track: 'installation', collection: 'installations', level: null, order: 2,
     purpose: 'The building is the performer. Three grayscale Luma instances play a 1,000-LED proscenium at '
       + '128 BPM, and every light event travels the architecture\'s own paths: the marquee chases the arch '
       + 'band\'s wiring, the columns climb as the walk\'s built-in canon, blooms pour out of the apex, and '
@@ -4062,7 +4067,7 @@ function catalogue(input: CatalogueInput): StockShow {
     : input.patternSlots?.map((instanceIds) => ({ cellIds: [], instanceIds }))
   const number = input.level ? String(input.level + input.order) : undefined
   const note: StockShowNote = {
-    label: input.noteLabel ?? (input.level ? `Learn ${input.level}` : 'Showcases'),
+    label: input.noteLabel ?? (input.level ? `Learn ${input.level}` : STOCK_SHOW_COLLECTION_LABELS[input.collection]),
     ...(number ? { number } : {}), title: input.title, purpose: input.purpose, notice: input.notice,
     prompts: input.prompts,
     guide: {

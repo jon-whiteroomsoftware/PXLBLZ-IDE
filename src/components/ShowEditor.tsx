@@ -1,7 +1,9 @@
 import { Fragment, createContext, useCallback, useContext, useDeferredValue, useEffect, useLayoutEffect, useMemo, useRef, useState, useSyncExternalStore, type CSSProperties, type MouseEvent as ReactMouseEvent, type PointerEvent as ReactPointerEvent, type ReactNode, type RefObject, type SetStateAction } from 'react'
 import { createPortal } from 'react-dom'
-import { Activity, BookOpen, ChevronDown, ChevronRight, Clock3, Code2, Copy, Download, Eye, Flag, Grid2X2, Info, Layers3, Lightbulb, ListChecks, Lock, Magnet, Map as MapIcon, Maximize2, Move, PanelLeft, Pause, Play, Plus, Redo2, Repeat2, RotateCcw, RotateCw, Route, Scissors, Settings2, SkipBack, SlidersHorizontal, Square, Sun, Trash2, Undo2, WandSparkles, X, Zap } from 'lucide-react'
+import { Activity, BookOpen, ChevronDown, ChevronRight, Clock3, Code2, Copy, CopyPlus, Download, Eye, Flag, Grid2X2, Info, Layers3, Lightbulb, ListChecks, Lock, Magnet, Map as MapIcon, Maximize2, Move, PanelLeft, Pause, Play, Plus, Redo2, Repeat2, RotateCcw, RotateCw, Route, Scissors, Settings2, SkipBack, SlidersHorizontal, Square, Sun, Trash2, Undo2, WandSparkles, X, Zap } from 'lucide-react'
 import { Button } from '@/components/ui/button'
+import { ActionsMenu, type ActionsMenuItem } from '@/components/ActionsMenu'
+import { controlIcon } from '@/components/iconScale'
 import { DisabledReasonTip } from '@/components/ui/disabled-reason'
 import { NumberField as UiNumberField, type NumberFieldProps as UiNumberFieldProps } from '@/components/ui/number-field'
 import { DraftTextField } from '@/components/ui/draft-text-field'
@@ -580,13 +582,12 @@ function ShowNoteTrigger({ note, open, onToggle }: {
       aria-label={`${actionLabel} ${numberLabel}${note.title} guide`}
       aria-expanded={open}
       title={`${actionLabel} ${numberLabel}${note.title} guide`}
-      className={`show-note-trigger inline-flex h-5 shrink-0 items-center gap-1 rounded border px-1.5 text-[10px] uppercase tracking-wide focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-cyan-200 ${open
+      className={`show-note-trigger inline-flex h-5 w-6 shrink-0 items-center justify-center rounded border p-0 text-[10px] uppercase tracking-wide focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-cyan-200 ${open
         ? 'border-cyan-200/50 bg-cyan-400/15 text-cyan-100 hover:bg-cyan-400/25'
         : 'border-cyan-200/30 bg-cyan-400/[0.07] text-cyan-100/80 hover:border-cyan-200/50 hover:bg-cyan-400/15 hover:text-cyan-100'}`}
       onClick={onToggle}
     >
       <BookOpen size={11} aria-hidden />
-      <span className="show-header-action-label">{note.number ? 'Lesson' : 'Guide'}</span>
     </button>
   )
 }
@@ -1840,7 +1841,7 @@ export function ShowEditor({
     const generatedExport = generatedSnapshot.canonicalExport
     // The generated-code view exists so a blocked Show stays inspectable; its
     // export affordance stays gated by the same delivered-pressure rule as
-    // the editor-level Export button (#63 review follow-up).
+    // the editor-level Download .epe menu item (#63 review follow-up).
     const generatedPressure = assessShowCompilePressure({
       deliveredSourceBytes: deliveredShowSourceBytes(generatedExport.source),
       budgetBytes: generatedSnapshot.artifact.summary.measuredDeviceBudgetBytes,
@@ -2022,6 +2023,18 @@ export function ShowEditor({
     />
   ) : null
 
+  const cloneBuiltInShow = stockShowById(showId) !== undefined && personalWorkspaceAuthenticated
+    ? () => {
+        if (savingBuiltInCopy) return
+        setSavingBuiltInCopy(true)
+        void duplicateShow(showId, activeShow).then((copy) => {
+          if (!copy) return
+          void openShow(copy.id)
+          routerNavigate({ kind: 'studio', entity: { kind: 'shows', id: copy.id } })
+        }).finally(() => setSavingBuiltInCopy(false))
+      }
+    : undefined
+
   const headerActions = (
     <>
       {onOpenStagePreview && (
@@ -2058,32 +2071,6 @@ export function ShowEditor({
           <span className="show-header-action-label">Reset</span>
         </Button>
       )}
-      {stockShowById(showId) !== undefined && personalWorkspaceAuthenticated && (
-        <Button
-          size="xs"
-          variant="ghost"
-          aria-label="Save a copy"
-          title="Save this built-in (including session edits) as a personal Show"
-          className="bg-zinc-900/60 text-[11px] text-zinc-400 hover:bg-zinc-800 hover:text-zinc-200"
-          disabled={savingBuiltInCopy}
-          // activeShow carries the displayed projection, including transient
-          // built-in Pattern-slot selections; the copy keeps what is on
-          // screen. Disabled while pending: a second click would reuse the
-          // same name snapshot and race which copy opens.
-          onClick={() => {
-            if (savingBuiltInCopy) return
-            setSavingBuiltInCopy(true)
-            void duplicateShow(showId, activeShow).then((copy) => {
-              if (!copy) return
-              void openShow(copy.id)
-              routerNavigate({ kind: 'studio', entity: { kind: 'shows', id: copy.id } })
-            }).finally(() => setSavingBuiltInCopy(false))
-          }}
-        >
-          <Copy size={13} aria-hidden />
-          <span className="show-header-action-label">Save a copy</span>
-        </Button>
-      )}
       <Button
         size="xs"
         variant="ghost"
@@ -2099,22 +2086,17 @@ export function ShowEditor({
         <Settings2 size={13} aria-hidden />
         <span className="show-header-action-label">Properties</span>
       </Button>
-      <Button
-        size="xs"
-        variant="ghost"
-        aria-label="View code"
-        title="View final generated code"
-        className="bg-zinc-900/60 text-[11px] text-zinc-500 hover:bg-zinc-800 hover:text-zinc-300 disabled:opacity-40"
-        disabled={!compiled.artifact || Boolean(compiled.artifactBlocker)}
-        onClick={() => {
+      <ShowActionsMenu
+        viewCodeDisabled={!compiled.artifact || Boolean(compiled.artifactBlocker)}
+        onViewCode={() => {
           const snapshot = buildCurrentCompilationSnapshot()
           if (snapshot) setGeneratedSnapshot(snapshot)
         }}
-      >
-        <Code2 size={13} aria-hidden />
-        <span className="show-header-action-label">View code</span>
-      </Button>
-      <ExportShowButton exported={showExport} buildExport={buildDownloadExport} />
+        onClone={cloneBuiltInShow}
+        cloneDisabled={savingBuiltInCopy}
+        exported={showExport}
+        buildExport={buildDownloadExport}
+      />
       <PushConfirmPopover
         open={pendingSendMode !== null && pendingDelivery !== null}
         onCancel={() => {
@@ -3375,8 +3357,7 @@ function ExportShowButton({
   exported: ShowEpeExport | null
   buildExport: () => Promise<ShowEpeExport | null>
 }) {
-  const [exporting, setExporting] = useState(false)
-  const [error, setError] = useState<string | null>(null)
+  const { exporting, error, exportShow } = useShowExportAction(exported, buildExport)
   return (
     <Button
       size="xs"
@@ -3385,26 +3366,7 @@ function ExportShowButton({
       title={error ?? 'Export Show as .epe'}
       disabled={!exported || exporting}
       className="bg-zinc-900/60 text-[11px] text-zinc-500 hover:bg-zinc-800 hover:text-zinc-300 disabled:opacity-40"
-      onClick={() => {
-        setExporting(true)
-        setError(null)
-        void buildExport().then((ready) => {
-          if (!ready) return
-          const url = URL.createObjectURL(new Blob([ready.text], { type: 'application/json' }))
-          const anchor = document.createElement('a')
-          anchor.href = url
-          anchor.download = ready.filename
-          anchor.style.display = 'none'
-          document.body.appendChild(anchor)
-          anchor.click()
-          window.setTimeout(() => {
-            anchor.remove()
-            URL.revokeObjectURL(url)
-          }, 0)
-        }).catch((cause) => {
-          setError(cause instanceof Error ? cause.message : 'Export failed')
-        }).finally(() => setExporting(false))
-      }}
+      onClick={exportShow}
     >
       {exporting ? <RotateCw size={13} className="animate-spin" aria-hidden /> : <Download size={13} aria-hidden />}
       <span className="show-header-action-label">
@@ -3412,6 +3374,75 @@ function ExportShowButton({
       </span>
     </Button>
   )
+}
+
+function ShowActionsMenu({
+  viewCodeDisabled,
+  onViewCode,
+  onClone,
+  cloneDisabled = false,
+  exported,
+  buildExport,
+}: {
+  viewCodeDisabled: boolean
+  onViewCode: () => void
+  onClone?: () => void
+  cloneDisabled?: boolean
+  exported: ShowEpeExport | null
+  buildExport: () => Promise<ShowEpeExport | null>
+}) {
+  const { exporting, error, exportShow } = useShowExportAction(exported, buildExport)
+  const items: ActionsMenuItem[] = [{
+    label: 'View code',
+    icon: <Code2 {...controlIcon} className="text-zinc-500" aria-hidden />,
+    disabled: viewCodeDisabled,
+    onSelect: onViewCode,
+  }]
+  if (onClone) items.push({
+    label: cloneDisabled ? 'Cloning' : 'Clone',
+    icon: <CopyPlus {...controlIcon} className="text-zinc-500" aria-hidden />,
+    disabled: cloneDisabled,
+    onSelect: onClone,
+  })
+  items.push({
+    label: exporting ? 'Preparing' : error ? 'Export failed' : 'Download .epe',
+    icon: exporting
+      ? <RotateCw {...controlIcon} className="animate-spin text-zinc-500" aria-hidden />
+      : <Download {...controlIcon} className="text-zinc-500" aria-hidden />,
+    disabled: !exported || exporting,
+    onSelect: exportShow,
+  })
+  return <ActionsMenu label="Show actions" items={items} portaled />
+}
+
+function useShowExportAction(
+  exported: ShowEpeExport | null,
+  buildExport: () => Promise<ShowEpeExport | null>,
+) {
+  const [exporting, setExporting] = useState(false)
+  const [error, setError] = useState<string | null>(null)
+  const exportShow = () => {
+    if (!exported || exporting) return
+    setExporting(true)
+    setError(null)
+    void buildExport().then((ready) => {
+      if (!ready) return
+      const url = URL.createObjectURL(new Blob([ready.text], { type: 'application/json' }))
+      const anchor = document.createElement('a')
+      anchor.href = url
+      anchor.download = ready.filename
+      anchor.style.display = 'none'
+      document.body.appendChild(anchor)
+      anchor.click()
+      window.setTimeout(() => {
+        anchor.remove()
+        URL.revokeObjectURL(url)
+      }, 0)
+    }).catch((cause) => {
+      setError(cause instanceof Error ? cause.message : 'Export failed')
+    }).finally(() => setExporting(false))
+  }
+  return { exporting, error, exportShow }
 }
 
 function ShowTimelineWorkspace({
