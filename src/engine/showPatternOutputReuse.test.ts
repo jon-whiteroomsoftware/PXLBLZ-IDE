@@ -317,6 +317,20 @@ export function render(index) { emit(index) }
     })
   })
 
+  it('fails closed when a block-level declaration replaces a reachable renderer helper (#847)', () => {
+    const source = `
+var calls = 0
+function emit(index) { rgb(0, 0, 0) }
+if (1) { function emit(index) { calls += 1; rgb(calls, 0, 0) } }
+export function render(index) { emit(index) }
+`
+
+    expect(analyzeShowPatternCoverageRenderState(source, 'render')).toMatchObject({
+      state: 'unknown',
+      unknownCalls: ['<function-rebind:emit>'],
+    })
+  })
+
   it('fails closed when a helper deletes through a parameter alias (#834)', () => {
     const source = `
 var state = [1]

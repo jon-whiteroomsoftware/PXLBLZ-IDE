@@ -345,6 +345,10 @@ export function analyzeShowPatternDeterministicReplayState(
   const scratchBindings = new Set<string>()
   const unknownCalls = new Set<string>()
   walkAst(ast, (node) => {
+    if (node.type === 'FunctionDeclaration' && node.id?.name) {
+      const original = userFunctions.get(node.id.name)
+      if (original && original !== node) unknownCalls.add(`<function-rebind:${node.id.name}>`)
+    }
     for (const name of assignedBindingNames(node)) {
       if (userFunctions.has(name)) unknownCalls.add(`<function-rebind:${name}>`)
     }
