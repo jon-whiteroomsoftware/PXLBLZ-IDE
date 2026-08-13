@@ -92,6 +92,14 @@ Preserve these invariants:
   P3 advisory when a gate-covered surface changes without one.
 - Keep dependent work stacked until its reviewed base lands. The coordinating
   agent owns approval, landing, issue updates, and worktree cleanup.
+- Land early, land often. P2/P3-only review findings are advisory, non-terminal
+  coverage: land the reviewed tip on that receipt immediately and carry each
+  corrective as a new small candidate cut from the landed main. Do not grow an
+  unlanded chain through repeated corrective rounds - every time main moves,
+  the whole chain rebases and re-reviews, and fresh full-range reviews can
+  reopen closed findings. Hold a candidate unlanded only for P0/P1 findings.
+  The clean-receipt tail the push gate requires belongs to publication;
+  satisfy it with a short corrective candidate on main, not a long chain.
 - Work done in a worktree is not complete until its verified commit is reachable
   from the shared local `main`. If local landing must wait, report it as awaiting
   landing; do not leave finished work only on an isolated branch.
