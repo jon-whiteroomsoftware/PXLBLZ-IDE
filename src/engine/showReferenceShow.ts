@@ -199,6 +199,7 @@ export function restoreShowReferencePatternSlots(
       // reassignment elsewhere must keep it forfeited (#823 review).
       ...(authored.composition?.executionModel !== undefined
         && edited.composition.executionModel === undefined
+        && edited.composition.patternInstances.length === authoredInstances.size
         && edited.composition.patternInstances.every((instance) => {
           const authoredInstance = authoredInstances.get(instance.id)
           const restoredToAuthored = instanceIds.has(instance.id) && authoredInstance

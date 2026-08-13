@@ -2822,6 +2822,28 @@ function sceneToGridColumn(index: number): number {
 // and the editors expose min 0 - the old floor here was a vestige of the
 // pre-compiler scene-strip editor (#318) that silently rewrote authored
 // sub-second fades (#823).
+/**
+ * Forfeits the deterministic-loop stamp whenever an edit changes the cast -
+ * top-level or group Pattern instances. The exact-reset proof (#823 wrap
+ * census) binds to the authored cast, so any source change, addition, or
+ * removal invalidates it regardless of which authoring op made it. Applied
+ * centrally at the store's update choke point.
+ */
+export function forfeitShowExecutionModelOnCastChange(previous: ShowRecord, next: ShowRecord): ShowRecord {
+  if (next.composition?.executionModel === undefined) return next
+  // First materialization carries no prior claim to invalidate: stamping a
+  // freshly materialized composition is a deliberate authoring act (#586).
+  if (!previous.composition) return next
+  const castOf = (record: ShowRecord) => JSON.stringify([
+    record.composition?.patternInstances.map((instance) => [instance.id, instance.pattern.kind, instance.pattern.id]) ?? null,
+    record.composition?.groupDefinitions?.map((definition) => (
+      definition.patternInstances.map((instance) => [instance.id, instance.pattern.kind, instance.pattern.id])
+    )) ?? null,
+  ])
+  if (castOf(previous) === castOf(next)) return next
+  return { ...next, composition: { ...next.composition, executionModel: undefined } }
+}
+
 function clampTransitionDuration(durationMs: number): number {
   return Math.max(0, Math.round(durationMs))
 }

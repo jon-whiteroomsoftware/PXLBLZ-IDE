@@ -2281,7 +2281,7 @@ function propertyAnimationReference(): StockShow {
     if (sceneId === 'overlay-opacity') return [track('track-overlay-opacity', { kind: 'placement-opacity', placementId: 'placement-overlay-opacity-overlay' }, [0, 0.85, 0])]
     if (sceneId === 'effect-parameter') return [track('track-effect-parameter', {
       kind: 'placement-effect', placementId, effectId: 'translate-demo', effectKind: 'translate', parameterId: 'translateX',
-    }, [-0.35, 0.35, -0.35])]
+    }, [0, -0.35, 0])]
     return []
   }
   // Phase is the one placement-view target left to the inspector: the #514
@@ -2332,7 +2332,7 @@ function propertyAnimationReference(): StockShow {
       const mainA = {
         ...placement(`placement-${sceneId}-a`, columnInstanceIds(sceneId).subject, 0, 5),
         ...(sceneId === 'effect-parameter'
-          ? { effects: [{ id: 'translate-demo', kind: 'translate' as const, x: -0.35, y: 0 }] }
+          ? { effects: [{ id: 'translate-demo', kind: 'translate' as const, x: 0, y: 0 }] }
           : {}),
         // Soft on purpose: the aperture animates, and animated apertures are
         // never hard-edged (smooth-by-default doctrine).
