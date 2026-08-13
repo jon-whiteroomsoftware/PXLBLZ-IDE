@@ -24,7 +24,8 @@ act as users; API setup is allowed for prerequisites only.
 - GA8 Run/Pause preview on detail page; Reset appears only after changing a control. Section 1.
 - GA9 Detail page Pattern controls (slider/color) affect the live preview. Sections 1, 5.
 - GA10 Open in Studio from detail: signed-out lands on the welcome gate; signed-in opens the demo in Studio. Sections 1, 2.
-- GA11 ! "Studio opens soon / invite-only" banner: is it shown even when signed in? Compare against its claim. Section 1.
+- GA11 Historical launch-gate check: the "Studio opens soon / invite-only"
+  banner tested by this campaign was retired for release 1.9 in #825.
 - GA12 3D Pattern detail: orbit drag, zoom slider, Reset view. Section 5.
 
 ## PL. Pattern lifecycle and rail (16)

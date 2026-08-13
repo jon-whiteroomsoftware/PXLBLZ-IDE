@@ -8,10 +8,9 @@ passed its human release gate.
 
 The stable v1 release remains pinned by tag and maintenance branch. Mainline
 documentation describes the v2 development line. `README.md` now describes the
-v2 product as the public entry point; publishing it to the default branch and
-clearing the invite-only Studio access gate remain one owner-controlled
-release action, and the README carries an explicit invite-only caveat until
-that gate clears.
+v2 product as the public entry point, and Studio admits every valid GitHub or
+Google identity. Publishing the release and completing post-deploy OAuth checks
+remain owner-controlled release actions.
 
 ## Product position
 

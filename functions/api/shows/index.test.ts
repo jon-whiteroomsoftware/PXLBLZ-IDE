@@ -25,15 +25,13 @@ describe('Shows API output-contract validation (#653)', () => {
     )
     let wrote = false
     const db = {
-      prepare(sql: string) {
+      prepare(_sql: string) {
         return {
           bind() {
             return this
           },
           async first<T>() {
-            return (sql.includes('app_metadata')
-              ? { value: 'legacy' }
-              : { entity_count: 0, content_bytes: 0 }) as T
+            return { entity_count: 0, content_bytes: 0 } as T
           },
           async all<T>() {
             return { results: [] as T[] }

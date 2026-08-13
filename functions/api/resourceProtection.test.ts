@@ -53,8 +53,6 @@ describe('personal-storage API protection (#407)', () => {
             return this
           },
           async first<T>() {
-            if (sql.includes('app_metadata')) return { value: 'legacy' } as T
-            if (sql.includes('beta_access')) return { count: 0 } as T
             expect(sql).toContain('personal_patterns')
             return { entity_count: MAX_PERSONAL_ENTITY_ROWS, content_bytes: 0 } as T
           },
@@ -97,15 +95,7 @@ describe('personal-storage API protection (#407)', () => {
       headers: { cookie: original.headers.get('cookie')! },
     })
     const db = {
-      prepare(sql: string) {
-        if (sql.includes('app_metadata')) {
-          return {
-            bind() { return this },
-            async first<T>() { return { value: 'legacy' } as T },
-            async all<T>() { return { results: [] as T[] } },
-            async run() { return { success: true } },
-          }
-        }
+      prepare() {
         throw new Error('D1 should not be queried for an unknown key')
       },
     }

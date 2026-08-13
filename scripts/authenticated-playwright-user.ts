@@ -29,22 +29,10 @@ export function authenticatedPlaywrightSeedSql(
       '${user.displayName}', NULL, ${now}, ${now}
     ) ON CONFLICT(id) DO UPDATE SET
       display_name = excluded.display_name,
-      updated_at = excluded.updated_at;
-    INSERT INTO beta_access (email, label, enabled, user_id, created_at, updated_at)
-    VALUES (
-      '${user.githubLogin}@local.invalid', '${user.displayName}', 1,
-      '${user.userId}', ${now}, ${now}
-    ) ON CONFLICT(email) DO UPDATE SET
-      label = excluded.label,
-      enabled = 1,
-      user_id = excluded.user_id,
       updated_at = excluded.updated_at;`
   }).join('\n')
   const owner = authenticatedPlaywrightUser(0)
   return `${users}
-    INSERT INTO app_metadata (key, value, updated_at)
-    VALUES ('beta_access_mode', 'd1', ${now})
-    ON CONFLICT(key) DO UPDATE SET value = excluded.value, updated_at = excluded.updated_at;
     INSERT INTO personal_patterns (user_id, id, name, src, controls_json, created_at, updated_at)
     VALUES ('${owner.userId}', '${authenticatedPlaywrightProbeId}', 'Local D1 ownership probe', 'export function render(index) { }', '{}', ${now}, ${now})
     ON CONFLICT(user_id, id) DO UPDATE SET updated_at = excluded.updated_at;`

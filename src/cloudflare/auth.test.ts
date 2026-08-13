@@ -6,8 +6,6 @@ import {
   createSessionCookie,
   createSessionToken,
   fetchGitHubPrimaryEmail,
-  isGoogleUserAllowed,
-  isGitHubUserAllowed,
   parseCookieHeader,
   readSessionToken,
   sessionCookieName,
@@ -56,31 +54,6 @@ describe('Cloudflare GitHub auth helpers', () => {
     expect(appRedirectUrlForRequest(request, 'http://localhost:5174/PXLBLZ-IDE/').toString()).toBe(
       'http://localhost:5174/PXLBLZ-IDE/',
     )
-  })
-
-  it('allows all GitHub users when no owner allow-list is configured', () => {
-    expect(isGitHubUserAllowed({ id: 123, login: 'octocat' }, {})).toBe(true)
-  })
-
-  it('matches GitHub owner allow-lists by login or numeric id', () => {
-    expect(isGitHubUserAllowed({ id: 123, login: 'octocat' }, { logins: 'voidstar,octocat' })).toBe(true)
-    expect(isGitHubUserAllowed({ id: 123, login: 'octocat' }, { ids: '456,123' })).toBe(true)
-    expect(isGitHubUserAllowed({ id: 123, login: 'octocat' }, { logins: 'someone', ids: '456' })).toBe(false)
-  })
-
-  it('matches Google owner allow-lists by provider id or verified email', () => {
-    expect(isGoogleUserAllowed(
-      { sub: 'google-123', email: 'octocat@example.test', email_verified: true },
-      { emails: 'someone@example.test,octocat@example.test' },
-    )).toBe(true)
-    expect(isGoogleUserAllowed(
-      { sub: 'google-123', email: 'octocat@example.test', email_verified: false },
-      { emails: 'octocat@example.test' },
-    )).toBe(false)
-    expect(isGoogleUserAllowed(
-      { sub: 'google-123', email: null, email_verified: false },
-      { ids: 'google-123' },
-    )).toBe(true)
   })
 
   it('reads the primary GitHub email when GitHub exposes verified email addresses', async () => {

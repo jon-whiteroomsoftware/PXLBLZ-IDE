@@ -47,12 +47,6 @@ export interface SessionPayload extends SessionUser {
   exp: number
 }
 
-export interface OwnerAllowList {
-  logins?: string
-  ids?: string
-  emails?: string
-}
-
 export function buildGitHubAuthorizeUrl(input: {
   clientId: string
   redirectUri: string
@@ -107,22 +101,6 @@ export function randomToken(bytes = 32): string {
 export async function pkceChallenge(verifier: string): Promise<string> {
   const digest = await crypto.subtle.digest('SHA-256', encoder.encode(verifier))
   return base64UrlEncode(new Uint8Array(digest))
-}
-
-export function isGitHubUserAllowed(user: Pick<GitHubUser, 'id' | 'login'>, allowList: OwnerAllowList): boolean {
-  const logins = parseList(allowList.logins).map((login) => login.toLowerCase())
-  const ids = parseList(allowList.ids)
-  if (logins.length === 0 && ids.length === 0) return true
-  return logins.includes(user.login.toLowerCase()) || ids.includes(String(user.id))
-}
-
-export function isGoogleUserAllowed(user: Pick<GoogleUser, 'sub' | 'email' | 'email_verified'>, allowList: OwnerAllowList): boolean {
-  const ids = parseList(allowList.ids)
-  const emails = parseList(allowList.emails).map((email) => email.toLowerCase())
-  if (ids.length === 0 && emails.length === 0) return true
-  if (ids.includes(user.sub)) return true
-  if (user.email_verified && user.email && emails.includes(user.email.toLowerCase())) return true
-  return false
 }
 
 export async function exchangeGitHubCode(input: {
@@ -335,13 +313,6 @@ export function sessionUserFromGoogle(user: GoogleUser): SessionUser {
 
 export function isSecureRequest(request: Request): boolean {
   return new URL(request.url).protocol === 'https:'
-}
-
-function parseList(raw: string | undefined): string[] {
-  return (raw ?? '')
-    .split(',')
-    .map((value) => value.trim())
-    .filter(Boolean)
 }
 
 async function sign(value: string, secret: string): Promise<string> {

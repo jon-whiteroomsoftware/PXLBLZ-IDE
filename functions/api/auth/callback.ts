@@ -6,8 +6,6 @@ import {
   fetchGoogleUser,
   fetchGitHubPrimaryEmail,
   fetchGitHubUser,
-  isGoogleUserAllowed,
-  isGitHubUserAllowed,
   isSecureRequest,
   oauthModeCookieName,
   oauthProviderCookieName,
@@ -22,14 +20,6 @@ import {
   type OAuthProvider,
 } from '../../../src/cloudflare/auth'
 import {
-  claimMatchingBetaAccess,
-  resolveBetaOAuthAdmission,
-} from '../../../src/cloudflare/betaAccess'
-import {
-  createD1BetaAccessStore,
-} from '../../../src/cloudflare/d1BetaAccess'
-import {
-  findOAuthIdentityUserId,
   upsertGitHubUser,
   upsertGoogleUser,
   type D1DatabaseWritableLike,
@@ -41,13 +31,9 @@ interface PagesFunctionContext {
     GITHUB_CLIENT_ID?: string
     GITHUB_CLIENT_SECRET?: string
     GITHUB_OAUTH_REDIRECT_URI?: string
-    GITHUB_ALLOWED_LOGINS?: string
-    GITHUB_ALLOWED_IDS?: string
     GOOGLE_CLIENT_ID?: string
     GOOGLE_CLIENT_SECRET?: string
     GOOGLE_OAUTH_REDIRECT_URI?: string
-    GOOGLE_ALLOWED_EMAILS?: string
-    GOOGLE_ALLOWED_IDS?: string
     SESSION_SECRET?: string
     APP_REDIRECT_URL?: string
     PXLBLZ_DB?: D1DatabaseWritableLike
@@ -65,25 +51,29 @@ export async function onRequestGet(context: PagesFunctionContext): Promise<Respo
   const provider = oauthProviderFromCookie(cookies[oauthProviderCookieName])
   const mode = oauthModeFromCookie(cookies[oauthModeCookieName])
 
-  if (error) return redirectWithAuthResult(redirectToApp, 'error', secure)
+  if (error) return redirectWithAuthResult(redirectToApp, 'error', provider)
   if (!context.env.SESSION_SECRET || !providerConfigured(provider, context.env)) {
-    return redirectWithAuthResult(redirectToApp, 'not-configured', secure)
+    return redirectWithAuthResult(redirectToApp, 'not-configured', provider)
   }
-  if (!context.env.PXLBLZ_DB) return redirectWithAuthResult(redirectToApp, 'no-database', secure)
+  if (!context.env.PXLBLZ_DB) return redirectWithAuthResult(redirectToApp, 'no-database', provider)
   if (!code || !state || state !== cookies[oauthStateCookieName] || !cookies[oauthVerifierCookieName]) {
-    return redirectWithAuthResult(redirectToApp, 'invalid-state', secure)
+    return redirectWithAuthResult(redirectToApp, 'invalid-state', provider)
   }
 
   try {
     const linkSession = mode === 'link'
       ? await readSessionToken(cookies[sessionCookieName], context.env.SESSION_SECRET)
       : null
-    if (mode === 'link' && !linkSession) return redirectWithAuthResult(redirectToApp, 'invalid-link', secure)
+    if (mode === 'link' && !linkSession) {
+      return redirectWithAuthResult(redirectToApp, 'invalid-link', provider)
+    }
 
     const user = provider === 'google'
       ? await resolveGoogleUser(context, code, cookies[oauthVerifierCookieName], linkSession?.userId)
       : await resolveGitHubUser(context, code, cookies[oauthVerifierCookieName], linkSession?.userId)
     const sessionCookie = await createSessionCookie(user, context.env.SESSION_SECRET, { secure })
+    redirectToApp.searchParams.set('auth', 'success')
+    redirectToApp.searchParams.set('auth_provider', provider)
 
     return new Response(null, {
       status: 302,
@@ -96,13 +86,18 @@ export async function onRequestGet(context: PagesFunctionContext): Promise<Respo
         ['Set-Cookie', clearCookie(oauthModeCookieName)],
       ],
     })
-  } catch (caught) {
-    return redirectWithAuthResult(redirectToApp, caught instanceof AuthCallbackError ? caught.result : 'error', secure)
+  } catch {
+    return redirectWithAuthResult(redirectToApp, 'error', provider)
   }
 }
 
-function redirectWithAuthResult(url: URL, result: string, _secure: boolean): Response {
+function redirectWithAuthResult(
+  url: URL,
+  result: string,
+  provider: OAuthProvider,
+): Response {
   url.searchParams.set('auth', result)
+  url.searchParams.set('auth_provider', provider)
   return new Response(null, {
     status: 302,
     headers: [
@@ -134,32 +129,12 @@ async function resolveGitHubUser(
     ? { ...githubUser, email: primaryEmail.email, email_verified: primaryEmail.verified }
     : githubUser
 
-  const store = createD1BetaAccessStore(context.env.PXLBLZ_DB!)
-  const existingUserId = linkUserId ?? await findOAuthIdentityUserId(
-    context.env.PXLBLZ_DB!,
-    'github',
-    String(githubUser.id),
-  )
-  const admission = await resolveBetaOAuthAdmission(store, {
-    verifiedEmail: primaryEmail?.verified ? primaryEmail.email : null,
-    existingUserId,
-  })
-  const legacyAllowed = isGitHubUserAllowed(githubUserWithEmail, {
-    logins: context.env.GITHUB_ALLOWED_LOGINS,
-    ids: context.env.GITHUB_ALLOWED_IDS,
-  })
-  if (admission.decision === 'denied' || (admission.decision === 'legacy' && !legacyAllowed)) {
-    throw new AuthCallbackError('not-allowed')
-  }
-
-  const user = await upsertGitHubUser(
+  return upsertGitHubUser(
     context.env.PXLBLZ_DB!,
     githubUserWithEmail,
     Math.floor(Date.now() / 1000),
-    admission.userId ?? undefined,
+    linkUserId,
   )
-  await claimMatchingBetaAccess(store, primaryEmail?.verified ? primaryEmail.email : null, user.userId)
-  return user
 }
 
 async function resolveGoogleUser(
@@ -177,30 +152,12 @@ async function resolveGoogleUser(
   })
   const googleUser = await fetchGoogleUser(accessToken)
 
-  const store = createD1BetaAccessStore(context.env.PXLBLZ_DB!)
-  const existingUserId = linkUserId ?? await findOAuthIdentityUserId(
-    context.env.PXLBLZ_DB!,
-    'google',
-    googleUser.sub,
-  )
-  const verifiedEmail = googleUser.email_verified === true ? googleUser.email ?? null : null
-  const admission = await resolveBetaOAuthAdmission(store, { verifiedEmail, existingUserId })
-  const legacyAllowed = isGoogleUserAllowed(googleUser, {
-    emails: context.env.GOOGLE_ALLOWED_EMAILS,
-    ids: context.env.GOOGLE_ALLOWED_IDS,
-  })
-  if (admission.decision === 'denied' || (admission.decision === 'legacy' && !legacyAllowed)) {
-    throw new AuthCallbackError('not-allowed')
-  }
-
-  const user = await upsertGoogleUser(
+  return upsertGoogleUser(
     context.env.PXLBLZ_DB!,
     googleUser,
     Math.floor(Date.now() / 1000),
-    admission.userId ?? undefined,
+    linkUserId,
   )
-  await claimMatchingBetaAccess(store, verifiedEmail, user.userId)
-  return user
 }
 
 function oauthProviderFromCookie(value: string | undefined): OAuthProvider {
@@ -214,10 +171,4 @@ function oauthModeFromCookie(value: string | undefined): OAuthMode {
 function providerConfigured(provider: OAuthProvider, env: PagesFunctionContext['env']): boolean {
   if (provider === 'google') return Boolean(env.GOOGLE_CLIENT_ID && env.GOOGLE_CLIENT_SECRET)
   return Boolean(env.GITHUB_CLIENT_ID && env.GITHUB_CLIENT_SECRET)
-}
-
-class AuthCallbackError extends Error {
-  constructor(readonly result: string) {
-    super(result)
-  }
 }

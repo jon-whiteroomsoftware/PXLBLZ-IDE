@@ -76,10 +76,11 @@ mutation; `App.tsx` performs the route/store join after collections resolve.
 Studio routes wait for `/api/me`. GitHub and Google identities attach to one
 stable user row; a verified matching email auto-links at sign-in. The API keeps
 explicit link/disconnect endpoints but the app exposes no linking UI (#701).
-OAuth failures redirect with `?auth=<code>`, mapped to a dismissible notice by
-`src/engine/authResult.ts`. During the private beta, D1 `beta_access` rows gate
-OAuth admission and every authenticated request; disabling an entry revokes an
-existing session. Gmail spellings canonicalize at the beta-access boundary.
+Any valid GitHub or Google identity may create or enter a Studio account. OAuth
+callbacks redirect with privacy-safe result and provider markers: success is
+recorded quietly, while failures map to a dismissible notice through
+`src/engine/authResult.ts`. Every personal-resource route still requires a
+valid session and scopes D1 reads and writes to the stable user id.
 
 **Gallery runtime.** `galleryCatalog.ts` owns the complete built-in
 `STOCK_PATTERNS` catalogue, its public `GALLERY_PATTERNS` subset and directory
@@ -93,7 +94,8 @@ presentation per Pattern. The `ZRanger1` section keeps its published popularity
 order; other sections are alphabetical.
 
 **Analytics** flow through a typed seam; local development and tests send
-nothing.
+nothing. OAuth intent and callback outcome events use only the provider,
+outcome, and coarse failure code, never account or profile data.
 
 ## 3. Personal content and persistence
 

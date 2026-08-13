@@ -56,7 +56,12 @@ import { routePath, routesEqual, type Route } from '@/engine/routes'
 import { trackEvent, trackPageView } from '@/analytics'
 import { controllerProfileDisplayName } from '@/engine/controllerProfile'
 import { decideStudioAccess, studioWelcomeAcknowledgedKey } from '@/engine/studioAccess'
-import { readAuthResultNotice, stripAuthResultParam, type AuthResultNotice } from '@/engine/authResult'
+import {
+  readAuthResultEvent,
+  readAuthResultNotice,
+  stripAuthResultParam,
+  type AuthResultNotice,
+} from '@/engine/authResult'
 import { useWorkspaceStore } from '@/store/workspaceStore'
 import { forkSettingsSnapshot } from '@/store/settingsCascade'
 import { bundle } from '@/engine/bundle'
@@ -379,14 +384,20 @@ function StudioApp() {
       return false
     }
   })
-  // OAuth callbacks land back here with `?auth=<code>` on failure (#701).
+  // OAuth callbacks land back here with a privacy-safe result marker (#825).
   const [authNotice, setAuthNotice] = useState<AuthResultNotice | null>(() =>
     readAuthResultNotice(window.location.search),
   )
-  const initialAuthNoticeRef = useRef(authNotice)
+  const initialAuthResultRef = useRef(readAuthResultEvent(window.location.search))
   useEffect(() => {
-    const notice = initialAuthNoticeRef.current
-    if (notice) trackEvent('auth_result', { outcome: 'failure', code: notice.code })
+    const result = initialAuthResultRef.current
+    if (result) {
+      trackEvent('auth_result', {
+        outcome: result.outcome,
+        code: result.code,
+        ...(result.provider ? { provider: result.provider } : {}),
+      })
+    }
     const cleaned = stripAuthResultParam(window.location.href)
     if (cleaned !== window.location.href) window.history.replaceState(window.history.state, '', cleaned)
   }, [])

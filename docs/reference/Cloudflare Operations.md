@@ -28,9 +28,6 @@ Secrets and operator-specific values are managed in Cloudflare Pages:
 - `GOOGLE_CLIENT_ID`
 - `GOOGLE_CLIENT_SECRET`
 - `SESSION_SECRET`
-- `GITHUB_ALLOWED_LOGINS`, `GITHUB_ALLOWED_IDS`, `GOOGLE_ALLOWED_EMAILS`, and
-  `GOOGLE_ALLOWED_IDS` only as the transition gate before D1 beta access is
-  activated
 - `GITHUB_OAUTH_REDIRECT_URI` only when overriding the default callback URL
 - `GOOGLE_OAUTH_REDIRECT_URI` only when overriding the default callback URL
 - `VITE_GA_MEASUREMENT_ID` as a Pages build variable, not a secret, when
@@ -41,33 +38,13 @@ GitHub OAuth must allow the `read:user user:email` scopes so the callback can
 store a verified primary email when GitHub exposes one. Google OAuth must allow
 `openid email profile`.
 
-## Beta Access
-
-The temporary beta gate is stored in D1 and managed through one npm command:
-
-```bash
-npm run beta-access -- list --remote
-npm run beta-access -- add friend@example.com --label "Friend" --remote
-npm run beta-access -- disable friend@example.com --remote
-npm run beta-access -- remove friend@example.com --remote
-```
-
-Omit `--remote` to operate on the local D1. Production mutations print the
-exact target and change, require typing `yes`, and read the row back after the
-write. Automation may supply `--yes`; interactive use should keep the
-confirmation. Repeating an already-satisfied command is a verified no-op.
-
-Migration 20 starts in `legacy` mode with no implicitly granted users. The
-first `add` changes `beta_access_mode` to `d1` permanently; removing the final
-row does not reactivate the environment allowlists. In D1 mode, OAuth requires
-an active entry matching a provider-verified email or an already-linked active
-user. Personal Gmail identities canonicalize `@googlemail.com` to `@gmail.com`
-at every beta-access boundary; other domains remain exact after case and
-whitespace normalization. Migration 22 rewrites any stored legacy spelling and
-fails on a conflicting duplicate instead of choosing a user binding silently.
-`disable` preserves the audit row while revoking access; `remove` deletes it.
-Both take effect on the next authenticated API request, including requests made
-with an existing session cookie.
+Studio account admission is public. A valid GitHub or Google OAuth callback
+creates or enters the provider identity's stable workspace; no allowlist or D1
+access row participates in admission or later API requests. Historical
+`beta_access` tables remain in the migration history so deployed databases can
+upgrade monotonically, but the runtime does not read them. Remove obsolete
+`GITHUB_ALLOWED_*` and `GOOGLE_ALLOWED_*` values from Pages configuration when
+convenient; they have no effect.
 
 ## Analytics
 
@@ -86,7 +63,9 @@ automatic page views disabled and sends:
   `pattern_created`, `map_created`, `mixin_created`, `library_created`,
   `show_created`, and
   `controller_profile_created`;
-- `sign_in` when the app sends the user into the OAuth flow.
+- `sign_in` when the app sends the user into the OAuth flow; and
+- `auth_result` when the callback returns, with success/failure outcome,
+  provider, and a coarse failure code when applicable.
 
 View these in Google Analytics under **Reports → Engagement → Pages and screens**
 for page views, and **Reports → Engagement → Events** or **Admin → Events** for
@@ -160,33 +139,38 @@ runtimes. The commands require `SESSION_SECRET` in the main checkout's
 
 After deploy, open the Pages URL and smoke-test:
 
-1. Visit `/api/d1/health`; expect `{"ok":true,"schemaVersion":"21"}` for the
+1. Visit `/api/d1/health`; expect `{"ok":true,"schemaVersion":"25"}` for the
    current migration set. This is the latest value written to `schema_meta`, not
    a count of migration files.
 2. Visit `/api/me`; signed out should report `{ "authenticated": false }`.
-3. Click **Sign in**, complete GitHub OAuth, and confirm `/api/me` reports the
-   GitHub user and one connected identity.
-4. Sign in with a Google account whose verified email matches the GitHub
-   identity and confirm `/api/me` reports both identities on the same
+3. In a fresh browser session, complete GitHub OAuth with an identity that has
+   never used Studio. Confirm `/api/me` reports the GitHub user and one
+   connected identity.
+4. Repeat with a new Google identity and confirm it receives a durable
+   workspace without prior operator action.
+5. Sign in with a Google account whose verified email matches an existing
+   GitHub identity and confirm `/api/me` reports both identities on the same
    `user.id`. Identity linking is automatic by verified email; the account
    menu exposes no linking UI (#701). `GET /api/auth/login?provider=<p>&mode=link`
    remains available for a signed-in session when a manual link is needed.
-5. In a fresh session, sign in with a Google account whose verified email already
-   belongs to a verified identity and confirm personal content stays under the
-   existing `user.id`.
-6. `POST /api/auth/disconnect?provider=<p>` removes one login; confirm the
+6. In a fresh session, sign in through either linked provider and confirm
+   personal content stays under the existing `user.id`.
+7. Force or observe one provider callback failure and confirm Analytics records
+   `sign_in` attempts plus `auth_result` successes and failures by provider,
+   without account identifiers or profile data.
+8. `POST /api/auth/disconnect?provider=<p>` removes one login; confirm the
    final remaining login cannot be removed. This endpoint has no UI surface.
-7. Create, edit, reload, and delete a personal pattern.
-8. Create, edit, reload, and delete a custom map.
-9. Create, edit, reload, and delete a personal Mixin.
-10. Create, edit, reload, rename, and delete a personal Library.
-11. Create, edit, reload, and delete one Installation Show and one Portable
+9. Create, edit, reload, and delete a personal pattern.
+10. Create, edit, reload, and delete a custom map.
+11. Create, edit, reload, and delete a personal Mixin.
+12. Create, edit, reload, rename, and delete a personal Library.
+13. Create, edit, reload, and delete one Installation Show and one Portable
     Show; confirm each retains its output contract after reload.
-12. Connect a Controller when hardware is available and confirm a stable-id
+14. Connect a Controller when hardware is available and confirm a stable-id
    connection creates or refreshes a Controller profile.
-13. Select a personal pattern, reload, and confirm last-active restore.
-14. Change a demo preview control, reload, and confirm the override survives.
-15. Push or fake controller metadata when hardware is available, then confirm
+15. Select a personal pattern, reload, and confirm last-active restore.
+16. Change a demo preview control, reload, and confirm the override survives.
+17. Push or fake controller metadata when hardware is available, then confirm
    `/api/controller-metadata/controller-bindings` and
    `/api/controller-metadata/controller-program-labels` retain values for the
    signed-in session.

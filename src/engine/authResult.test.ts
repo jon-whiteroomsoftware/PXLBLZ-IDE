@@ -1,19 +1,24 @@
 import { describe, expect, it } from 'vitest'
-import { readAuthResultNotice, stripAuthResultParam } from './authResult'
+import {
+  readAuthResultEvent,
+  readAuthResultNotice,
+  stripAuthResultParam,
+} from './authResult'
 
 describe('readAuthResultNotice', () => {
+  it('turns a successful provider callback into a quiet analytics result', () => {
+    expect(readAuthResultEvent('?auth=success&auth_provider=github')).toEqual({
+      outcome: 'success',
+      code: 'success',
+      provider: 'github',
+    })
+    expect(readAuthResultNotice('?auth=success&auth_provider=github')).toBeNull()
+  })
+
   it('returns null when the auth param is absent or empty', () => {
     expect(readAuthResultNotice('')).toBeNull()
     expect(readAuthResultNotice('?foo=bar')).toBeNull()
     expect(readAuthResultNotice('?auth=')).toBeNull()
-  })
-
-  it('maps the invite-gate denial to an access message', () => {
-    const notice = readAuthResultNotice('?auth=not-allowed')
-    expect(notice).not.toBeNull()
-    expect(notice!.code).toBe('not-allowed')
-    expect(notice!.title).toMatch(/access/i)
-    expect(notice!.detail).toMatch(/invite/i)
   })
 
   it('maps transient flow failures to a retry message', () => {
@@ -55,7 +60,9 @@ describe('stripAuthResultParam', () => {
   })
 
   it('drops the trailing ? when auth was the only param', () => {
-    expect(stripAuthResultParam('https://x.test/app/?auth=not-allowed')).toBe('https://x.test/app/')
+    expect(stripAuthResultParam('https://x.test/app/?auth=success&auth_provider=google')).toBe(
+      'https://x.test/app/',
+    )
   })
 
   it('returns the url unchanged when no auth param exists', () => {

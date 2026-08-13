@@ -720,16 +720,30 @@ describe('routing (#308)', () => {
   })
 
   describe('auth result notices (#701)', () => {
-    it('surfaces an OAuth denial as a dismissible notice and strips the param from the URL', async () => {
-      window.history.replaceState(null, '', '/?auth=not-allowed')
+    it('records a successful OAuth callback quietly and strips its result params', () => {
+      window.history.replaceState(null, '', '/?auth=success&auth_provider=github')
+      render(<App />)
+
+      expect(screen.queryByTestId('auth-result-notice')).not.toBeInTheDocument()
+      expect(window.location.search).toBe('')
+      expect(analyticsMock.trackEvent).toHaveBeenCalledWith('auth_result', {
+        outcome: 'success',
+        code: 'success',
+        provider: 'github',
+      })
+    })
+
+    it('surfaces an OAuth provider failure and records its provider without identity data', async () => {
+      window.history.replaceState(null, '', '/?auth=error&auth_provider=google')
       render(<App />)
 
       const notice = screen.getByTestId('auth-result-notice')
-      expect(notice).toHaveTextContent(/invite list/i)
+      expect(notice).toHaveTextContent(/try again/i)
       expect(window.location.search).toBe('')
       expect(analyticsMock.trackEvent).toHaveBeenCalledWith('auth_result', {
         outcome: 'failure',
-        code: 'not-allowed',
+        code: 'error',
+        provider: 'google',
       })
 
       await userEvent.click(within(notice).getByRole('button', { name: /dismiss/i }))

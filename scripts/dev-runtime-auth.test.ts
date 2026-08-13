@@ -52,14 +52,11 @@ describe('local runtime authentication', () => {
     })
   })
 
-  it('admits every managed local identity when D1 beta access is authoritative', () => {
+  it('seeds every managed local identity without retired beta access state', () => {
     const sql = localIdentitySeedSql(manifest)
 
-    expect(sql).toContain('INSERT INTO beta_access')
-    expect(sql).toContain("'local-dev@local.invalid'")
     expect(sql).toContain("'github:local-dev'")
-    expect(sql).toContain("'local-agent-32@local.invalid'")
     expect(sql).toContain("'github:local-agent-32'")
-    expect(sql).not.toContain("'beta_access_mode', 'd1'")
+    expect(sql).not.toContain('beta_access')
   })
 })
