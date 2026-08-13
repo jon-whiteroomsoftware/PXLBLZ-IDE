@@ -25,6 +25,9 @@ const INLINEABLE_SDF_FUNCTIONS = [
 ] as const
 
 const inlinedSdfCall = new RegExp(`\\bSDF\\.inline\\.(${INLINEABLE_SDF_FUNCTIONS.join('|')})\\(`, 'g')
+const inlineableSdfRuntimeFunctions = new Set(
+  INLINEABLE_SDF_FUNCTIONS.map((fnName) => `_SDF_${fnName}`),
+)
 
 function ordinarySdfCallSites(source: string): { source: string; callSites: number } {
   let callSites = 0
@@ -44,20 +47,37 @@ describe('Library call-site inlining measurements (#549)', () => {
       if (ordinarySource.callSites === 0) return []
       const ordinary = bundle(ordinarySource.source, LIBRARIES)
       const inlined = bundle(source, LIBRARIES)
+      const {
+        patternFunctions: ordinaryRuntimeFunctions = [],
+        ...ordinaryNonFunctionMetadata
+      } = ordinary.metadata
+      const {
+        patternFunctions: inlinedRuntimeFunctions = [],
+        ...inlinedNonFunctionMetadata
+      } = inlined.metadata
       return [{
         name,
         callSites: ordinarySource.callSites,
         ordinaryBytes: ordinary.code.length,
         inlineBytes: inlined.code.length,
         byteDelta: inlined.code.length - ordinary.code.length,
-        metadataMatches: JSON.stringify(inlined.metadata) === JSON.stringify(ordinary.metadata),
+        nonFunctionMetadataMatches:
+          JSON.stringify(inlinedNonFunctionMetadata) === JSON.stringify(ordinaryNonFunctionMetadata),
+        unexpectedAddedFunctions: inlinedRuntimeFunctions.filter(
+          (fnName) => !ordinaryRuntimeFunctions.includes(fnName),
+        ),
+        unexpectedRemovedFunctions: ordinaryRuntimeFunctions.filter(
+          (fnName) => !inlinedRuntimeFunctions.includes(fnName) && !inlineableSdfRuntimeFunctions.has(fnName),
+        ),
         ordinarySource: ordinarySource.source,
         inlineSource: source,
       }]
     })
 
     expect(candidates.length).toBeGreaterThan(0)
-    expect(candidates.every((measurement) => measurement.metadataMatches)).toBe(true)
+    expect(candidates.every((measurement) => measurement.nonFunctionMetadataMatches)).toBe(true)
+    expect(candidates.every((measurement) => measurement.unexpectedAddedFunctions.length === 0)).toBe(true)
+    expect(candidates.every((measurement) => measurement.unexpectedRemovedFunctions.length === 0)).toBe(true)
     expect(candidates.every((measurement) => measurement.callSites > 0)).toBe(true)
 
     for (const candidate of candidates) {
