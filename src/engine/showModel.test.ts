@@ -4,7 +4,6 @@ import {
   duplicateShowScene,
   cloneShowCellAfter,
   addShowZone,
-  createDefaultShowFromController,
   createDefaultShow,
   createShowWithOutputContract,
   extendShowCell,
@@ -2226,24 +2225,6 @@ describe('showModel (#318)', () => {
       ['entry', 20],
     ])
 
-    // #775: a Controller-seeded Show starts single-zone; zones are carved
-    // inside the Installation Show, never copied from the profile.
-    const seeded = createDefaultShowFromController('show-2', 'Controller Show', {
-      id: 'controller-1',
-      name: 'North Arch',
-      board: { kind: 'pixelblaze-v3-standard' },
-      inputs: [],
-      globalTransforms: [],
-      patternBindings: [],
-      updatedAt: 1,
-    }, 'map-1')
-
-    expect(seeded.targetControllerProfileId).toBe('controller-1')
-    expect(seeded.stageMapId).toBe('map-1')
-    expect(seeded.zones.map((zone) => [zone.name, zone.nominalPixelCount])).toEqual([
-      ['main', 60],
-    ])
-    expect(seeded.cells.filter((cell) => cell.sceneId === 'scene-1')).toHaveLength(1)
   })
 
   it('emits a spanned zone cell as one-canvas route targets', () => {

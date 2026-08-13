@@ -2,6 +2,7 @@ import { showInitialState, useShowStore } from './showStore'
 import { mapInitialState, useMapStore } from './mapStore'
 import { STOCK_SHOWS, stockShowById } from '@/pixelblaze/stock/shows'
 import { createDefaultShow } from '@/engine/showModel'
+import { validateInstallationCoverage } from '@/engine/showInstallationCoverage'
 import { validateShowComposition } from '@/engine/showCompositionModel'
 import {
   moveShowClipAtGlobalTime,
@@ -1197,10 +1198,16 @@ describe('showStore (#318)', () => {
     })
 
     // #775: no zone seeding — the Show starts single-zone and sizes its
-    // installation contract from the Controller's last known pixel count.
+    // installation contract from the Controller's last known pixel count. The
+    // zone and its Default layout must cover the complete output, so the Show
+    // compiles without manual range repair (review P2).
     expect(seeded.targetControllerProfileId).toBe('controller-1')
-    expect(seeded.zones.map((zone) => zone.name)).toEqual(['main'])
+    expect(seeded.zones.map((zone) => [zone.name, zone.nominalPixelCount])).toEqual([['main', 240]])
     expect(seeded.outputContract).toMatchObject({ kind: 'installation', pixelCount: 240 })
+    expect(seeded.routingLayouts[0].zones).toEqual([
+      { zoneId: seeded.zones[0].id, ranges: [{ start: 0, end: 239 }] },
+    ])
+    expect(validateInstallationCoverage(seeded)).toMatchObject({ valid: true, pixelCount: 240 })
     expect(useShowStore.getState().activeShowId).toBeNull()
   })
 

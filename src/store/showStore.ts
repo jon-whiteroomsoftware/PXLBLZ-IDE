@@ -4,7 +4,6 @@ import {
   addShowRoutingLayout,
   addShowScene,
   addShowZone,
-  createDefaultShowFromController,
   createShowWithOutputContract,
   cloneShowCellAfter,
   duplicateShowScene,
@@ -263,9 +262,16 @@ export const useShowStore = create<ShowState>()((set, get) => ({
     const name = uniquePatternName(`${profile.name} Show`, get().shows.map((show) => show.name))
     const stageMapId = importedStageMapIdForController(profile, useMapStore.getState().userMaps)
     const pixelCount = profile.lastKnownPixelCount ?? 60
+    // The single seeded zone and its Default layout must cover the contract's
+    // complete output, so the Show compiles without manual range repair (#775
+    // review P2). createShowWithOutputContract sizes both from the contract.
     const show = {
-      ...createDefaultShowFromController(id, name, profile, stageMapId),
-      outputContract: createInstallationShowOutputContract({ outputMapId: stageMapId, pixelCount }),
+      ...createShowWithOutputContract(
+        id,
+        name,
+        createInstallationShowOutputContract({ outputMapId: stageMapId, pixelCount }),
+      ),
+      targetControllerProfileId: profile.id,
     }
     await get().addShow(show)
     return show

@@ -237,20 +237,6 @@ export function createShowWithOutputContract(
   }
 }
 
-/** A Show created from a Controller wires target identity, the imported Stage
- * map, and the contract pixel count — never zones. Since #775 zones are carved
- * inside the Installation Show itself, so every new Show starts single-zone. */
-export function createDefaultShowFromController(
-  id: string,
-  name: string,
-  controller: ControllerProfile,
-  stageMapId: string | null = null,
-  updatedAt = Date.now(),
-): ShowRecord {
-  const base = createDefaultShow(id, name, updatedAt)
-  return { ...base, targetControllerProfileId: controller.id, stageMapId }
-}
-
 export function importedStageMapIdForController(
   controller: ControllerProfile,
   maps: MapRecord[],
