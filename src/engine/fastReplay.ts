@@ -60,6 +60,8 @@ export interface CooperativeFastReplayOptions extends FastReplayAdvanceOptions {
   isCurrent: () => boolean
   yieldControl?: () => Promise<void>
   checkpointing?: CooperativeFastReplayCheckpointing
+  /** Capture a scheduled checkpoint that falls exactly on the replay target. */
+  captureTargetCheckpoint?: boolean
 }
 
 export interface CooperativeFastReplayCheckpointing {
@@ -549,14 +551,19 @@ export async function advanceFastReplayCooperatively(
   const yieldControl = options.yieldControl ?? (() => new Promise<void>((resolve) => setTimeout(resolve, 0)))
   let result: FastReplayResult | null = null
   let nextCheckpointMs = options.checkpointing?.nextCaptureAt(runtime.getElapsedMs()) ?? null
+  const targetEpsilonMs = replayTargetEpsilonMs(options.stepMs)
 
   while (
     runtime.getElapsedMs() < targetMs
     && (result === null || !replayTargetReached(runtime.getElapsedMs(), targetMs, options.stepMs))
   ) {
     if (!options.isCurrent()) return null
+    const checkpointFallsBeforeTarget = nextCheckpointMs !== null
+      && nextCheckpointMs < targetMs - targetEpsilonMs
+    const checkpointFallsOnTarget = nextCheckpointMs !== null
+      && Math.abs(nextCheckpointMs - targetMs) <= targetEpsilonMs
     const checkpointTargetMs = nextCheckpointMs !== null
-      && !replayTargetReached(nextCheckpointMs, targetMs, options.stepMs)
+      && (checkpointFallsBeforeTarget || (options.captureTargetCheckpoint && checkpointFallsOnTarget))
       ? replayIntermediateTarget(
           runtime.getElapsedMs(),
           nextCheckpointMs,
@@ -580,7 +587,8 @@ export async function advanceFastReplayCooperatively(
     result = runtime.advanceTo(chunkTargetMs, {
       stepMs: options.stepMs,
       temporalFeedbackSeek: options.temporalFeedbackSeek,
-      presentTargetFrame: replayTargetReached(chunkTargetMs, targetMs, options.stepMs),
+      presentTargetFrame: options.presentTargetFrame !== false
+        && replayTargetReached(chunkTargetMs, targetMs, options.stepMs),
     })
     if (checkpointTargetMs !== Number.POSITIVE_INFINITY
       && replayTargetReached(runtime.getElapsedMs(), checkpointTargetMs, options.stepMs)) {

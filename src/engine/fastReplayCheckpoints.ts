@@ -208,10 +208,70 @@ export interface FastReplayCheckpointReconstruction {
   restoredFromMs: number | null
 }
 
+export interface FastReplayCheckpointPrewarmOptions<Key> {
+  key: Key
+  store: FastReplayCheckpointStore<Key>
+  createRuntime: () => FastReplayRuntime
+  durationMs: number
+  advance: FastReplayAdvanceOptions & { chunkMs: number }
+  isCurrent: () => boolean
+  yieldControl?: () => Promise<void>
+}
+
+export interface FastReplayCheckpointPrewarmResult {
+  status: 'covered' | 'populated'
+  resumedFromMs: number | null
+}
+
 class FastReplayCheckpointCaptureError extends Error {
   constructor(readonly cause: unknown) {
     super('Fast replay checkpoint capture failed.')
   }
+}
+
+export async function prewarmFastReplayCheckpoints<Key>(
+  options: FastReplayCheckpointPrewarmOptions<Key>,
+): Promise<FastReplayCheckpointPrewarmResult | null> {
+  if (!Number.isFinite(options.durationMs) || options.durationMs < 0) {
+    throw new Error('Fast replay pre-warm duration must be a non-negative finite duration.')
+  }
+  if (!options.isCurrent()) return null
+
+  const epsilon = Math.max(1e-9, options.advance.stepMs * 1e-9)
+  const firstUncoveredMs = options.store.nextCaptureAt(options.key, 0)
+  if (firstUncoveredMs > options.durationMs + epsilon) {
+    return {
+      status: 'covered',
+      resumedFromMs: options.store.nearestAtOrBefore(options.key, options.durationMs)?.elapsedMs ?? 0,
+    }
+  }
+
+  const checkpoint = options.store.nearestAtOrBefore(options.key, firstUncoveredMs - epsilon)
+  const runtime = options.createRuntime()
+  if (checkpoint) {
+    try {
+      runtime.restore(checkpoint.snapshot)
+    } catch {
+      options.store.remove(checkpoint)
+      return prewarmFastReplayCheckpoints(options)
+    }
+  } else {
+    // Match cold seek initialization exactly. The result remains private to
+    // this runtime and is never painted or attached to the live transport.
+    runtime.renderCurrentFrame()
+  }
+  if (!options.isCurrent()) return null
+
+  const result = await advanceFastReplayCooperatively(runtime, options.durationMs, {
+    ...options.advance,
+    presentTargetFrame: false,
+    captureTargetCheckpoint: true,
+    isCurrent: options.isCurrent,
+    yieldControl: options.yieldControl,
+    checkpointing: options.store.cooperativeHooks(options.key),
+  })
+  if (!result || !options.isCurrent()) return null
+  return { status: 'populated', resumedFromMs: checkpoint?.elapsedMs ?? null }
 }
 
 async function replayFromCurrent(

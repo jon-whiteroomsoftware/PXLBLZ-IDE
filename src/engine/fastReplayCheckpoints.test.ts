@@ -7,6 +7,7 @@ import {
 import {
   createFastReplayCheckpointKey,
   FastReplayCheckpointStore,
+  prewarmFastReplayCheckpoints,
   reconstructFastReplayWithCheckpoints,
 } from './fastReplayCheckpoints'
 
@@ -259,5 +260,168 @@ describe('Fast replay checkpoint reconstruction (#842)', () => {
     expect(restoreFailure?.restoredFromMs).toBeNull()
     expect(restoreFailure?.result.checksum).toBe(expected.checksum)
     expect(restoreStore.nearestAtOrBefore('restore-failure', 3_500)).toBeNull()
+  })
+})
+
+describe('Fast replay checkpoint pre-warm (#843)', () => {
+  const advance = {
+    stepMs: 100,
+    chunkMs: 750,
+    temporalFeedbackSeek: 'clear-at-target' as const,
+  }
+
+  it('populates the complete loop headlessly and skips work once coverage is complete', async () => {
+    const { createRuntime: createFixtureRuntime } = replayFixture()
+    const store = new FastReplayCheckpointStore<string>()
+    const presentedTargets: boolean[] = []
+    let creations = 0
+    const createRuntime = () => {
+      creations += 1
+      const runtime = createFixtureRuntime()
+      const advanceTo = runtime.advanceTo.bind(runtime)
+      runtime.advanceTo = (targetMs, options) => {
+        presentedTargets.push(options.presentTargetFrame !== false)
+        return advanceTo(targetMs, options)
+      }
+      return runtime
+    }
+
+    const populated = await prewarmFastReplayCheckpoints({
+      key: 'trajectory',
+      store,
+      createRuntime,
+      durationMs: 6_000,
+      advance,
+      isCurrent: () => true,
+      yieldControl: async () => undefined,
+    })
+    const covered = await prewarmFastReplayCheckpoints({
+      key: 'trajectory',
+      store,
+      createRuntime,
+      durationMs: 6_000,
+      advance,
+      isCurrent: () => true,
+      yieldControl: async () => undefined,
+    })
+
+    expect(populated).toEqual({ status: 'populated', resumedFromMs: null })
+    expect(covered).toEqual({ status: 'covered', resumedFromMs: 6_000 })
+    expect(store.checkpointTimes('trajectory')).toEqual([2_000, 4_000, 6_000])
+    expect(creations).toBe(1)
+    expect(presentedTargets.length).toBeGreaterThan(0)
+    expect(presentedTargets).toEqual(presentedTargets.map(() => false))
+  })
+
+  it('resumes at the latest checkpoint before the first uncovered interval', async () => {
+    const { createRuntime } = replayFixture()
+    const store = new FastReplayCheckpointStore<string>()
+    const source = createRuntime()
+    source.advanceTo(2_000, advance)
+    store.capture('trajectory', source.snapshot())
+    source.advanceTo(4_000, advance)
+    store.capture('trajectory', source.snapshot())
+    let resumedRuntime: FastReplayRuntime | null = null
+
+    const result = await prewarmFastReplayCheckpoints({
+      key: 'trajectory',
+      store,
+      createRuntime: () => {
+        resumedRuntime = createRuntime()
+        return resumedRuntime
+      },
+      durationMs: 6_500,
+      advance,
+      isCurrent: () => true,
+      yieldControl: async () => undefined,
+    })
+
+    expect(result).toEqual({ status: 'populated', resumedFromMs: 4_000 })
+    expect(store.checkpointTimes('trajectory')).toEqual([2_000, 4_000, 6_000])
+    expect(resumedRuntime!.getElapsedMs()).toBe(6_500)
+  })
+
+  it('keeps completed checkpoints coherent when a new artifact supersedes the pass', async () => {
+    const { createRuntime, coldSeek } = replayFixture()
+    const store = new FastReplayCheckpointStore<string>()
+    let current = true
+
+    const result = await prewarmFastReplayCheckpoints({
+      key: 'old-artifact',
+      store,
+      createRuntime,
+      durationMs: 6_500,
+      advance: { ...advance, chunkMs: 2_000 },
+      isCurrent: () => current,
+      yieldControl: async () => { current = false },
+    })
+
+    expect(result).toBeNull()
+    expect(store.checkpointTimes('old-artifact')).toEqual([2_000])
+    const resumed = await reconstructFastReplayWithCheckpoints({
+      key: 'old-artifact', store, createRuntime, targetMs: 3_500, advance,
+      isCurrent: () => true, yieldControl: async () => undefined,
+    })
+    expect(resumed?.restoredFromMs).toBe(2_000)
+    expect(resumed?.result.checksum).toBe(coldSeek(3_500, advance).checksum)
+  })
+
+  it('does no work after the preview closes', async () => {
+    const { createRuntime: createFixtureRuntime } = replayFixture()
+    const store = new FastReplayCheckpointStore<string>()
+    let creations = 0
+
+    const result = await prewarmFastReplayCheckpoints({
+      key: 'closed-preview',
+      store,
+      createRuntime: () => {
+        creations += 1
+        return createFixtureRuntime()
+      },
+      durationMs: 6_500,
+      advance,
+      isCurrent: () => false,
+      yieldControl: async () => undefined,
+    })
+
+    expect(result).toBeNull()
+    expect(creations).toBe(0)
+    expect(store.checkpointTimes('closed-preview')).toEqual([])
+  })
+
+  it('yields priority to a concurrent seek without sharing its private runtime', async () => {
+    const { createRuntime, coldSeek } = replayFixture()
+    const store = new FastReplayCheckpointStore<string>()
+    let prewarmCurrent = true
+    let releasePrewarm!: () => void
+    let reportYield!: () => void
+    const yielded = new Promise<void>((resolve) => { reportYield = resolve })
+    const released = new Promise<void>((resolve) => { releasePrewarm = resolve })
+
+    const prewarm = prewarmFastReplayCheckpoints({
+      key: 'trajectory',
+      store,
+      createRuntime,
+      durationMs: 6_500,
+      advance: { ...advance, chunkMs: 2_000 },
+      isCurrent: () => prewarmCurrent,
+      yieldControl: async () => {
+        reportYield()
+        await released
+      },
+    })
+    await yielded
+    prewarmCurrent = false
+
+    const seek = await reconstructFastReplayWithCheckpoints({
+      key: 'trajectory', store, createRuntime, targetMs: 3_500, advance,
+      isCurrent: () => true, yieldControl: async () => undefined,
+    })
+    releasePrewarm()
+
+    expect(await prewarm).toBeNull()
+    expect(seek?.runtime).toBeDefined()
+    expect(seek?.restoredFromMs).toBe(2_000)
+    expect(seek?.result.checksum).toBe(coldSeek(3_500, advance).checksum)
   })
 })

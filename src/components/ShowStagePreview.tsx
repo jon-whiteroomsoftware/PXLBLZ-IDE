@@ -15,6 +15,7 @@ import {
 import {
   createFastReplayCheckpointKey,
   FastReplayCheckpointStore,
+  prewarmFastReplayCheckpoints,
   reconstructFastReplayWithCheckpoints,
 } from '@/engine/fastReplayCheckpoints'
 import { createRenderer } from '@/engine/renderer'
@@ -75,7 +76,18 @@ interface StageLayout {
 
 const SHOW_REPLAY_STEP_MS = 1000 / 60
 const SHOW_REPLAY_CHUNK_MS = 250
+const SHOW_REPLAY_PREWARM_SETTLE_MS = 400
 const SHOW_TEMPORAL_FEEDBACK_SEEK = 'clear-at-target' as const
+
+function yieldForShowReplayPrewarm(): Promise<void> {
+  return new Promise((resolve) => {
+    if (typeof window.requestIdleCallback === 'function') {
+      window.requestIdleCallback(() => resolve(), { timeout: 100 })
+      return
+    }
+    window.setTimeout(resolve, 16)
+  })
+}
 
 function cube3DCanvasPx(containerWidth: number): number {
   return Math.max(220, Math.floor(containerWidth))
@@ -130,6 +142,7 @@ export function ShowStagePreview({
   const fpsWindowStartRef = useRef<number | null>(null)
   const fpsFramesRef = useRef(0)
   const runtimeGenerationRef = useRef(0)
+  const prewarmGenerationRef = useRef(0)
   const rendererRef = useRef<ReturnType<typeof createRenderer> | null>(null)
   const performanceProbeRef = useRef<ShowStagePerformanceProbe | null>(null)
   const performanceOutputRef = useRef<HTMLOutputElement>(null)
@@ -332,6 +345,102 @@ export function ShowStagePreview({
         })
       : null
   ), [compiled.artifact, fidelity, layout, replayRandomSeed])
+
+  useEffect(() => {
+    if (
+      isRunning
+      || seekStatus !== 'idle'
+      || seekRequest
+      || !compiled.artifact
+      || !layout
+      || !replayCheckpointKey
+      || durationMs <= 0
+    ) return
+
+    const artifact = compiled.artifact
+    const generation = ++prewarmGenerationRef.current
+    let disposed = false
+    let started = false
+    let settled = false
+    let cancellationRecorded = false
+    let probe: ShowStagePerformanceProbe | null = null
+    const isCurrent = () => (
+      !disposed
+      && prewarmGenerationRef.current === generation
+      && !usePreviewStore.getState().isRunning
+      && useShowTransportStore.getState().seekStatus === 'idle'
+      && useShowTransportStore.getState().seekRequest === null
+    )
+    const timer = window.setTimeout(() => {
+      void yieldForShowReplayPrewarm().then(() => {
+        if (
+          !isCurrent()
+          || !replayRef.current
+          || replayKeyRef.current !== replayCheckpointKey
+        ) return
+        started = true
+        probe = performanceProbeRef.current
+        probe?.recordCheckpointPrewarmStart()
+        void prewarmFastReplayCheckpoints({
+          key: replayCheckpointKey,
+          store: checkpointStoreRef.current!,
+          createRuntime: () => createFastReplayRuntime({
+            code: artifact.code,
+            fxCode: artifact.fxCode,
+            metadata: artifact.metadata,
+            dimension: layout.sampleDimension ?? (artifact.metadata.renderFns?.hasRender2D ? 2 : 1),
+          }, {
+            mapPoints: layout.mapPoints,
+            randomSeed: replayRandomSeed,
+            fidelity,
+          }),
+          durationMs,
+          advance: {
+            stepMs: SHOW_REPLAY_STEP_MS,
+            chunkMs: SHOW_REPLAY_CHUNK_MS,
+            temporalFeedbackSeek: SHOW_TEMPORAL_FEEDBACK_SEEK,
+          },
+          isCurrent,
+          yieldControl: yieldForShowReplayPrewarm,
+        }).then((result) => {
+          if (!result || !isCurrent()) {
+            if (!cancellationRecorded) {
+              cancellationRecorded = true
+              probe?.recordCheckpointPrewarmCancellation()
+            }
+            return
+          }
+          settled = true
+          probe?.recordCheckpointPrewarmComplete()
+        }).catch(() => {
+          if (cancellationRecorded) return
+          settled = true
+          probe?.recordCheckpointPrewarmFailure()
+        })
+      })
+    }, SHOW_REPLAY_PREWARM_SETTLE_MS)
+
+    return () => {
+      disposed = true
+      prewarmGenerationRef.current += 1
+      window.clearTimeout(timer)
+      if (started && !settled && !cancellationRecorded) {
+        cancellationRecorded = true
+        probe?.recordCheckpointPrewarmCancellation()
+      }
+    }
+  }, [
+    compiled.artifact,
+    durationMs,
+    fidelity,
+    isRunning,
+    layout,
+    replayCheckpointKey,
+    replayRandomSeed,
+    runtimeRevision,
+    seekRequest,
+    seekStatus,
+  ])
 
   useEffect(() => {
     if (!import.meta.env.DEV || !layout) return

@@ -14,6 +14,7 @@ import { showTransportInitialState, useShowTransportStore } from '@/store/showTr
 import { showEditorSessionInitialState, useShowEditorSessionStore } from '@/store/showEditorSessionStore'
 import { stockShowById } from '@/pixelblaze/stock/shows'
 import * as fastReplay from '@/engine/fastReplay'
+import * as fastReplayCheckpoints from '@/engine/fastReplayCheckpoints'
 
 function memoryProvider(seedShows: ShowRecord[] = []): PersonalContentProvider {
   const patterns = new Map<string, PatternRecord>()
@@ -281,6 +282,105 @@ describe('ShowStagePreview (#339)', () => {
       expect(useShowTransportStore.getState().positionMs).toBe(3_500)
     } finally {
       createRuntime.mockRestore()
+    }
+  })
+
+  it('starts checkpoint pre-warm only after the paused preview settles and cancels it on close', async () => {
+    vi.useFakeTimers()
+    const prewarm = vi.spyOn(fastReplayCheckpoints, 'prewarmFastReplayCheckpoints')
+      .mockResolvedValue({ status: 'populated', resumedFromMs: null })
+    try {
+      const show = createDefaultShow('show-prewarm-idle', 'Pre-warm idle', 1000)
+      useShowStore.setState({ shows: [show], activeShowId: show.id, showsLoaded: true })
+
+      const view = render(<ShowStagePreview showId={show.id} />)
+      expect(prewarm).not.toHaveBeenCalled()
+
+      act(() => vi.advanceTimersByTime(399))
+      expect(prewarm).not.toHaveBeenCalled()
+      act(() => vi.advanceTimersByTime(1))
+      expect(prewarm).not.toHaveBeenCalled()
+      act(() => vi.advanceTimersByTime(15))
+      expect(prewarm).not.toHaveBeenCalled()
+      await act(async () => {
+        vi.advanceTimersByTime(1)
+        await Promise.resolve()
+      })
+      expect(prewarm).toHaveBeenCalledTimes(1)
+      const isCurrent = prewarm.mock.calls[0]![0].isCurrent
+      expect(isCurrent()).toBe(true)
+
+      view.unmount()
+      expect(isCurrent()).toBe(false)
+    } finally {
+      prewarm.mockRestore()
+      vi.useRealTimers()
+    }
+  })
+
+  it('cancels an active pre-warm on edit and restarts after the new artifact settles', async () => {
+    vi.useFakeTimers()
+    const prewarm = vi.spyOn(fastReplayCheckpoints, 'prewarmFastReplayCheckpoints')
+      .mockResolvedValue({ status: 'populated', resumedFromMs: null })
+    try {
+      const show = createDefaultShow('show-prewarm-edit', 'Pre-warm edit', 1000)
+      const edited = structuredClone(show)
+      edited.cells[0] = {
+        ...edited.cells[0],
+        pattern: { kind: 'stock', id: 'ZippyZaps' },
+        patternName: 'ZippyZaps',
+      }
+
+      const view = render(<ShowStagePreview showId={show.id} showOverride={show} />)
+      await act(async () => {
+        vi.advanceTimersByTime(416)
+        await Promise.resolve()
+      })
+      expect(prewarm).toHaveBeenCalledTimes(1)
+      const first = prewarm.mock.calls[0]![0]
+      expect(first.isCurrent()).toBe(true)
+
+      view.rerender(<ShowStagePreview showId={show.id} showOverride={edited} />)
+      expect(first.isCurrent()).toBe(false)
+      expect(prewarm).toHaveBeenCalledTimes(1)
+      act(() => vi.advanceTimersByTime(399))
+      expect(prewarm).toHaveBeenCalledTimes(1)
+      act(() => vi.advanceTimersByTime(1))
+      expect(prewarm).toHaveBeenCalledTimes(1)
+      await act(async () => {
+        vi.advanceTimersByTime(16)
+        await Promise.resolve()
+      })
+      expect(prewarm).toHaveBeenCalledTimes(2)
+      expect(prewarm.mock.calls[1]![0].key).not.toBe(first.key)
+    } finally {
+      prewarm.mockRestore()
+      vi.useRealTimers()
+    }
+  })
+
+  it('does not pre-warm checkpoints while Show playback is running', async () => {
+    vi.useFakeTimers()
+    const prewarm = vi.spyOn(fastReplayCheckpoints, 'prewarmFastReplayCheckpoints')
+      .mockResolvedValue({ status: 'populated', resumedFromMs: null })
+    try {
+      const show = createDefaultShow('show-prewarm-playback', 'Pre-warm playback', 1000)
+      useShowStore.setState({ shows: [show], activeShowId: show.id, showsLoaded: true })
+      usePreviewStore.setState({ ...previewInitialState, isRunning: true })
+
+      render(<ShowStagePreview showId={show.id} />)
+      act(() => vi.advanceTimersByTime(2_000))
+      expect(prewarm).not.toHaveBeenCalled()
+
+      act(() => usePreviewStore.getState().setRunning(false))
+      await act(async () => {
+        vi.advanceTimersByTime(416)
+        await Promise.resolve()
+      })
+      expect(prewarm).toHaveBeenCalledTimes(1)
+    } finally {
+      prewarm.mockRestore()
+      vi.useRealTimers()
     }
   })
 

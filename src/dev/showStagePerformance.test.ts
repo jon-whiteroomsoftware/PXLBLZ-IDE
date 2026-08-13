@@ -6,6 +6,10 @@ describe('show Stage performance probe', () => {
     const probe = createShowStagePerformanceProbe(4_000)
     probe.recordRuntimeInitialization()
     probe.recordResize()
+    probe.recordCheckpointPrewarmStart()
+    probe.recordCheckpointPrewarmComplete()
+    probe.recordCheckpointPrewarmStart()
+    probe.recordCheckpointPrewarmCancellation()
     probe.beginPresentedFrame(100)
     probe.beginPresentedFrame(116)
     probe.beginPresentedFrame(136)
@@ -29,6 +33,13 @@ describe('show Stage performance probe', () => {
       presentedFrames: 2,
       runtimeInitializations: 1,
       resizeEvents: 1,
+      checkpointPrewarm: {
+        starts: 2,
+        completions: 1,
+        cancellations: 1,
+        failures: 0,
+        status: 'cancelled',
+      },
       simulatedTicksPerPresentedFrame: 1,
       frameIntervalMs: { samples: 2, median: 20, p95: 20, max: 20 },
       patternEvaluationMs: { samples: 2, median: 4, p95: 4, max: 4 },

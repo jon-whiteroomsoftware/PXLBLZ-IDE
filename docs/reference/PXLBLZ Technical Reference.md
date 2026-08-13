@@ -296,6 +296,17 @@ real-delta `advanceLive` frames never do. A snapshot or restore failure discards
 the affected optimization and retries the seek cold rather than presenting a
 possibly corrupted frame.
 
+While the Stage is paused, a stable compiled artifact starts one background
+pre-warm pass after a short edit-settle delay. The pass creates a private runtime
+and deterministically replays one complete Show loop in 250 ms virtual-time
+chunks, returning to idle priority between chunks. It writes checkpoints only:
+it never paints a frame, publishes its runtime, or moves the transport. Existing
+coverage resumes from the checkpoint before the first missing interval, and a
+fully covered loop creates no runtime. An artifact or layout change, a real seek,
+playback, or closing the preview invalidates the pass; completed checkpoints
+remain coherent and a paused replacement artifact starts a new pass after edits
+settle.
+
 ## 10. WebGL, camera, and preview settings
 
 `renderer.ts` draws all pixels as WebGL points (2D additive; 3D depth-tested
@@ -971,15 +982,19 @@ representation and its costs.
 
 ## 24. Deterministic seek replay
 
-A seek builds a fresh Fast runtime with the Show-owned seed, renders time
-zero, and advances at 60 fixed steps per second; intermediate ticks execute
-all state mutation without painting. Replay advances 250 ms of Show time per
-cooperative chunk and yields; newer seeks supersede older work; the rebuilt
-runtime becomes the live runtime. There is no checkpoint cache, downsampling,
-or worker — completed-stack measurements support this as the simplest
-adequate architecture (archived replay reports). Determinism covers the seed,
-cadence, initial values, and scheduled automation; wall-clock, network, and
-sensor history are outside the guarantee.
+A cold seek builds a fresh Fast runtime with the Show-owned seed, renders time
+zero, and advances at 60 fixed steps per second; a warm seek restores the nearest
+compatible checkpoint before advancing the residual interval. Intermediate
+ticks execute all state mutation without painting. Replay advances 250 ms of
+Show time per cooperative chunk and yields; newer seeks supersede older work,
+and only the completed reconstruction becomes the live runtime.
+
+The paused Stage pre-warms the same checkpoint store with the same deterministic
+replay contract. Its runtime remains private, its chunks run at idle priority,
+and transport activity cancels it before the seek or live playback proceeds.
+The implementation uses cooperative main-thread replay rather than a worker.
+Determinism covers the seed, cadence, initial values, and scheduled automation;
+wall-clock, network, and sensor history are outside the guarantee.
 
 ## 25. Show delivery and export
 

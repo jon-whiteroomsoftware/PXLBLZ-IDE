@@ -3,6 +3,13 @@ export interface ShowStagePerformanceSummary {
   presentedFrames: number
   runtimeInitializations: number
   resizeEvents: number
+  checkpointPrewarm: {
+    starts: number
+    completions: number
+    cancellations: number
+    failures: number
+    status: 'idle' | 'running' | 'complete' | 'cancelled' | 'failed'
+  }
   simulatedTicksPerPresentedFrame: number
   frameIntervalMs: SampleSummary
   patternEvaluationMs: SampleSummary
@@ -30,6 +37,10 @@ export interface ShowStagePerformanceProbe {
   }) => void
   recordRuntimeInitialization: () => void
   recordResize: () => void
+  recordCheckpointPrewarmStart: () => void
+  recordCheckpointPrewarmComplete: () => void
+  recordCheckpointPrewarmCancellation: () => void
+  recordCheckpointPrewarmFailure: () => void
   snapshot: () => ShowStagePerformanceSummary
 }
 
@@ -65,6 +76,11 @@ export function createShowStagePerformanceProbe(pixelCount: number): ShowStagePe
   let simulatedTicks = 0
   let runtimeInitializations = 0
   let resizeEvents = 0
+  let checkpointPrewarmStarts = 0
+  let checkpointPrewarmCompletions = 0
+  let checkpointPrewarmCancellations = 0
+  let checkpointPrewarmFailures = 0
+  let checkpointPrewarmStatus: ShowStagePerformanceSummary['checkpointPrewarm']['status'] = 'idle'
 
   return {
     beginPresentedFrame(timestampMs) {
@@ -85,12 +101,35 @@ export function createShowStagePerformanceProbe(pixelCount: number): ShowStagePe
     recordResize() {
       resizeEvents += 1
     },
+    recordCheckpointPrewarmStart() {
+      checkpointPrewarmStarts += 1
+      checkpointPrewarmStatus = 'running'
+    },
+    recordCheckpointPrewarmComplete() {
+      checkpointPrewarmCompletions += 1
+      checkpointPrewarmStatus = 'complete'
+    },
+    recordCheckpointPrewarmCancellation() {
+      checkpointPrewarmCancellations += 1
+      checkpointPrewarmStatus = 'cancelled'
+    },
+    recordCheckpointPrewarmFailure() {
+      checkpointPrewarmFailures += 1
+      checkpointPrewarmStatus = 'failed'
+    },
     snapshot() {
       return {
         pixelCount,
         presentedFrames,
         runtimeInitializations,
         resizeEvents,
+        checkpointPrewarm: {
+          starts: checkpointPrewarmStarts,
+          completions: checkpointPrewarmCompletions,
+          cancellations: checkpointPrewarmCancellations,
+          failures: checkpointPrewarmFailures,
+          status: checkpointPrewarmStatus,
+        },
         simulatedTicksPerPresentedFrame: presentedFrames > 0 ? simulatedTicks / presentedFrames : 0,
         frameIntervalMs: summarize(frameIntervals),
         patternEvaluationMs: summarize(patternEvaluations),
