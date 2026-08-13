@@ -391,11 +391,15 @@ export const useMapStore = create<MapState>()((set, get) => ({
   },
 
   openExistingMap: (record) => {
-    if (typeof record.source === 'string') {
-      enterMapMode(record.source)
+    // D1 normalization omits empty source. Only explicit Controller-import
+    // provenance makes a source-less map frozen; other source-less records open
+    // as an empty editable draft so their persisted fallback can be repaired.
+    if (typeof record.source === 'string' || !record.importMetadata) {
+      const source = record.source ?? ''
+      enterMapMode(source)
       set({
         editingMap: { kind: 'existing', id: record.id },
-        mapBaseline: record.source,
+        mapBaseline: source,
         mapEvalError: null,
         mapEvalFailedSource: null,
       })
@@ -463,7 +467,7 @@ export const useMapStore = create<MapState>()((set, get) => ({
     const id = editingMap.id
     const source = useEditorStore.getState().source
     const existing = get().userMaps.find((m) => m.id === id)
-    if (typeof existing?.source !== 'string') return
+    if (!existing || (typeof existing.source !== 'string' && existing.importMetadata)) return
     if (existing?.source === source && existing.points && existing.points.length > 0) {
       // Unchanged from the persisted record. Clear a stale eval banner unless
       // this exact source is the one that failed eval — its persist succeeded,

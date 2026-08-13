@@ -69,7 +69,7 @@ export function isDegenerateFallbackBake(
   if (typeof record.source === 'string' && parseMapSource(record.source).length === 0) return false
 
   const points = record.points
-  if (!points || points.length < 2) return false
+  if (!points || points.length === 0) return false
   if (
     record.gridDims?.cols !== points.length
     || record.gridDims.rows !== 1
@@ -81,7 +81,7 @@ export function isDegenerateFallbackBake(
     point.length === 2
     && Number.isFinite(point[0])
     && Number.isFinite(point[1])
-    && Math.abs(point[0] - index / denominator) <= FALLBACK_BAKE_EPSILON
+    && Math.abs(point[0] - (denominator === 0 ? 0 : index / denominator)) <= FALLBACK_BAKE_EPSILON
     && Math.abs(point[1]) <= FALLBACK_BAKE_EPSILON
   ))
 }

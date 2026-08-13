@@ -89,6 +89,7 @@ export function PreviewDeck({ showPrimaryBand = true }: { showPrimaryBand?: bool
   return (
     <div className="font-mono pl-3">
       {showPrimaryBand && <PrimaryBand />}
+      {!showPrimaryBand && <ActiveMapBakeStatus standalone />}
       <SecondaryBand />
       <ControlsPanel />
       <Variables />
@@ -96,7 +97,7 @@ export function PreviewDeck({ showPrimaryBand = true }: { showPrimaryBand?: bool
   )
 }
 
-function ActiveMapBakeStatus() {
+function ActiveMapBakeStatus({ standalone = false }: { standalone?: boolean }) {
   const warning = useMapStore(activeMapBakeWarning)
   if (!warning) return null
   return (
@@ -105,9 +106,12 @@ function ActiveMapBakeStatus() {
       data-testid="map-bake-status"
       data-state="needs-repair"
       title={warning}
-      className="inline-flex shrink-0 items-center text-amber-400/90"
+      className={standalone
+        ? 'flex w-fit shrink-0 items-center gap-1 py-1 text-[10px] text-amber-400/90'
+        : 'inline-flex shrink-0 items-center text-amber-400/90'}
     >
       <TriangleAlert size={14} aria-hidden />
+      {standalone && <span aria-hidden>Map needs repair</span>}
       <span className="sr-only">{warning}</span>
     </span>
   )

@@ -208,6 +208,13 @@ describe('activeMapBakeWarning (#817)', () => {
     })).toContain('needs repair')
   })
 
+  it('flags the one-pixel form of the same fallback bake', () => {
+    expect(activeMapBakeWarning({
+      activeMapId: fallbackBake.id,
+      userMaps: [{ ...fallbackBake, points: [[0, 0]], gridDims: { cols: 1, rows: 1 } }],
+    })).toContain('needs repair')
+  })
+
   it.each([
     ['stock map', { activeMapId: DEFAULT_MAP_ID, userMaps: [fallbackBake] }],
     ['valid authored line', {
@@ -413,8 +420,34 @@ describe('editor map mode (#151)', () => {
     expect(useEditorStore.getState().editorFlavor).toBe('map')
   })
 
+  it('opens an API-normalized empty-source map for repair and saves replacement source', async () => {
+    const omittedSource: MapRecord = { ...CUSTOM_MAP, source: undefined }
+    await useMapStore.getState().addMap(omittedSource)
+
+    useMapStore.getState().openExistingMap(omittedSource)
+    expect(useMapStore.getState().editingMap).toEqual({ kind: 'existing', id: 'cm1' })
+    expect(useMapStore.getState().mapBaseline).toBe('')
+    expect(useEditorStore.getState().source).toBe('')
+    expect(useEditorStore.getState().isReadOnly).toBe(false)
+
+    useEditorStore.getState().setSource('[[0,0],[1,1]]')
+    await useMapStore.getState().bakeEditingMap()
+    expect(useMapStore.getState().userMaps[0].source).toBe('[[0,0],[1,1]]')
+    expect(useMapStore.getState().userMaps[0].points).toEqual([[0, 0], [1, 1]])
+  })
+
   it('openExistingMap opens a frozen no-source custom map read-only', () => {
-    const noSource: MapRecord = { ...CUSTOM_MAP, source: undefined }
+    const noSource: MapRecord = {
+      ...CUSTOM_MAP,
+      source: undefined,
+      importMetadata: {
+        kind: 'controller',
+        controllerName: 'Bench',
+        pixelCount: 2,
+        importedAt: 1,
+        normalization: 'device-fill-normalized',
+      },
+    }
     useMapStore.getState().openExistingMap(noSource)
     expect(useMapStore.getState().editingMap).toEqual({ kind: 'existing', id: 'cm1' })
     expect(useEditorStore.getState().editorFlavor).toBe('map')
@@ -423,7 +456,17 @@ describe('editor map mode (#151)', () => {
   })
 
   it('bakeEditingMap leaves frozen no-source imports untouched', async () => {
-    const noSource: MapRecord = { ...CUSTOM_MAP, source: undefined }
+    const noSource: MapRecord = {
+      ...CUSTOM_MAP,
+      source: undefined,
+      importMetadata: {
+        kind: 'controller',
+        controllerName: 'Bench',
+        pixelCount: 2,
+        importedAt: 1,
+        normalization: 'device-fill-normalized',
+      },
+    }
     useMapStore.setState({ userMaps: [noSource], editingMap: { kind: 'existing', id: 'cm1' } })
     useEditorStore.setState({ source: '[[0,0],[0.5,0.5]]', editorFlavor: 'map', isReadOnly: true })
     await useMapStore.getState().bakeEditingMap()
