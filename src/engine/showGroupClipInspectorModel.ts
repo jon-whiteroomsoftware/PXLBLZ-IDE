@@ -98,9 +98,18 @@ export function updateShowGroupClipInspector(
     return updateDefinition(definition, resolved.placement.id, resolved.instance.id, normalizedPatch)
   })
   if (!definitions) return show
+  // A changed Group source forfeits the deterministic-loop stamp: the
+  // exact-reset proof (#823 wrap census) binds to the whole authored cast,
+  // group members included.
+  const sourceChanged = Boolean(patch.pattern
+    && patternKey(patch.pattern.ref) !== patternKey(resolved.instance.pattern))
   return {
     ...show,
-    composition: { ...show.composition, groupDefinitions: definitions },
+    composition: {
+      ...show.composition,
+      ...(sourceChanged ? { executionModel: undefined } : {}),
+      groupDefinitions: definitions,
+    },
     updatedAt: Math.max(Date.now(), show.updatedAt + 1),
   }
 }

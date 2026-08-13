@@ -557,9 +557,13 @@ export function addShowClipAtGlobalTimeExtendingShow(
     : { ...show, composition }
   const nextComposition = addShowClipAtGlobalTime(basis, basis.composition!, input)
   if (nextComposition === basis.composition) return show
+  // A new member changes the cast, and the deterministic-loop proof (#823
+  // wrap census) binds to the authored cast - forfeit the stamp when the
+  // add introduced a Pattern instance that was not already present.
+  const castGrew = nextComposition.patternInstances.length > basis.composition!.patternInstances.length
   return {
     ...basis,
-    composition: nextComposition,
+    composition: castGrew ? { ...nextComposition, executionModel: undefined } : nextComposition,
     updatedAt: Math.max(Date.now(), show.updatedAt + 1),
   }
 }

@@ -207,6 +207,11 @@ export function restoreShowReferencePatternSlots(
             && effective.pattern.kind === authoredInstance.pattern.kind
             && effective.pattern.id === authoredInstance.pattern.id
         })
+        && JSON.stringify(edited.composition.groupDefinitions?.map((definition) => (
+          definition.patternInstances.map((instance) => [instance.id, instance.pattern.kind, instance.pattern.id])
+        )) ?? null) === JSON.stringify(authored.composition.groupDefinitions?.map((definition) => (
+          definition.patternInstances.map((instance) => [instance.id, instance.pattern.kind, instance.pattern.id])
+        )) ?? null)
         ? { executionModel: authored.composition.executionModel }
         : {}),
       patternInstances: edited.composition.patternInstances.map((instance) => {
