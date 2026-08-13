@@ -262,6 +262,28 @@ describe('ShowStagePreview (#339)', () => {
     expect(screen.getByText(/show paused · Fast/i)).toBeInTheDocument()
   })
 
+  it('restores a crossed seek region into the existing runtime without recompiling (#842)', async () => {
+    const show = createDefaultShow('show-checkpoint-seek', 'Checkpoint seek', 1000)
+    useShowStore.setState({ shows: [show], activeShowId: show.id, showsLoaded: true })
+    const createRuntime = vi.spyOn(fastReplay, 'createFastReplayRuntime')
+
+    try {
+      render(<ShowStagePreview showId={show.id} />)
+      expect(createRuntime).toHaveBeenCalledTimes(1)
+
+      act(() => useShowTransportStore.getState().requestSeek(show.id, 4_500))
+      await waitFor(() => expect(useShowTransportStore.getState().seekStatus).toBe('idle'))
+      expect(createRuntime).toHaveBeenCalledTimes(2)
+
+      act(() => useShowTransportStore.getState().requestSeek(show.id, 3_500))
+      await waitFor(() => expect(useShowTransportStore.getState().seekStatus).toBe('idle'))
+      expect(createRuntime).toHaveBeenCalledTimes(2)
+      expect(useShowTransportStore.getState().positionMs).toBe(3_500)
+    } finally {
+      createRuntime.mockRestore()
+    }
+  })
+
   it('shows the saved Stage as read-only output context (#434)', () => {
     const show = createDefaultShow('show-1', 'Opening wash', 1000)
     show.stageMapId = 'map-1'

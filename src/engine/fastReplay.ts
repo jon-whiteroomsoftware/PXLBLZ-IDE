@@ -59,6 +59,12 @@ export interface CooperativeFastReplayOptions extends FastReplayAdvanceOptions {
   chunkMs: number
   isCurrent: () => boolean
   yieldControl?: () => Promise<void>
+  checkpointing?: CooperativeFastReplayCheckpointing
+}
+
+export interface CooperativeFastReplayCheckpointing {
+  nextCaptureAt: (elapsedMs: number) => number | null
+  capture: (runtime: FastReplayRuntime) => void
 }
 
 function replayTargetEpsilonMs(stepMs: number): number {
@@ -67,6 +73,20 @@ function replayTargetEpsilonMs(stepMs: number): number {
 
 function replayTargetReached(elapsedMs: number, targetMs: number, stepMs: number): boolean {
   return targetMs - elapsedMs <= replayTargetEpsilonMs(stepMs)
+}
+
+function replayIntermediateTarget(
+  elapsedMs: number,
+  desiredTargetMs: number,
+  stepMs: number,
+  direction: 'at-or-before' | 'at-or-after',
+): number {
+  const stepCount = (desiredTargetMs - elapsedMs) / stepMs
+  const epsilon = replayTargetEpsilonMs(stepMs) / stepMs
+  const alignedSteps = direction === 'at-or-before'
+    ? Math.max(1, Math.floor(stepCount + epsilon))
+    : Math.max(1, Math.ceil(stepCount - epsilon))
+  return elapsedMs + alignedSteps * stepMs
 }
 
 type RuntimeFunction = (...args: never[]) => unknown
@@ -528,18 +548,45 @@ export async function advanceFastReplayCooperatively(
   }
   const yieldControl = options.yieldControl ?? (() => new Promise<void>((resolve) => setTimeout(resolve, 0)))
   let result: FastReplayResult | null = null
+  let nextCheckpointMs = options.checkpointing?.nextCaptureAt(runtime.getElapsedMs()) ?? null
 
   while (
     runtime.getElapsedMs() < targetMs
     && (result === null || !replayTargetReached(runtime.getElapsedMs(), targetMs, options.stepMs))
   ) {
     if (!options.isCurrent()) return null
-    const chunkTargetMs = Math.min(targetMs, runtime.getElapsedMs() + options.chunkMs)
+    const checkpointTargetMs = nextCheckpointMs !== null
+      && !replayTargetReached(nextCheckpointMs, targetMs, options.stepMs)
+      ? replayIntermediateTarget(
+          runtime.getElapsedMs(),
+          nextCheckpointMs,
+          options.stepMs,
+          'at-or-after',
+        )
+      : Number.POSITIVE_INFINITY
+    if (checkpointTargetMs <= runtime.getElapsedMs()) {
+      throw new Error('Fast replay checkpoint target must be later than the current runtime time.')
+    }
+    const chunkTargetMs = Math.min(
+      targetMs,
+      replayIntermediateTarget(
+        runtime.getElapsedMs(),
+        runtime.getElapsedMs() + options.chunkMs,
+        options.stepMs,
+        'at-or-before',
+      ),
+      checkpointTargetMs,
+    )
     result = runtime.advanceTo(chunkTargetMs, {
       stepMs: options.stepMs,
       temporalFeedbackSeek: options.temporalFeedbackSeek,
       presentTargetFrame: replayTargetReached(chunkTargetMs, targetMs, options.stepMs),
     })
+    if (checkpointTargetMs !== Number.POSITIVE_INFINITY
+      && replayTargetReached(runtime.getElapsedMs(), checkpointTargetMs, options.stepMs)) {
+      options.checkpointing!.capture(runtime)
+      nextCheckpointMs = options.checkpointing!.nextCaptureAt(runtime.getElapsedMs())
+    }
     if (!replayTargetReached(runtime.getElapsedMs(), targetMs, options.stepMs)) {
       await yieldControl()
       if (!options.isCurrent()) return null

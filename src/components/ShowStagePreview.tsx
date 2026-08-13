@@ -8,11 +8,15 @@ import { usePreviewStore } from '@/store/previewStore'
 import { useCameraStore } from '@/store/cameraStore'
 import { compileShowForPreview, resolveShowCompilationControllerZones } from '@/engine/showPreviewArtifact'
 import {
-  advanceFastReplayCooperatively,
   createFastReplayRuntime,
   type FastReplayResult,
   type FastReplayRuntime,
 } from '@/engine/fastReplay'
+import {
+  createFastReplayCheckpointKey,
+  FastReplayCheckpointStore,
+  reconstructFastReplayWithCheckpoints,
+} from '@/engine/fastReplayCheckpoints'
 import { createRenderer } from '@/engine/renderer'
 import { applyNormalizeMode, type MapPoint, type PixelMap } from '@/engine/maps'
 import { advanceAutoOrbit } from '@/engine/camera'
@@ -69,6 +73,10 @@ interface StageLayout {
   note: string | null
 }
 
+const SHOW_REPLAY_STEP_MS = 1000 / 60
+const SHOW_REPLAY_CHUNK_MS = 250
+const SHOW_TEMPORAL_FEEDBACK_SEEK = 'clear-at-target' as const
+
 function cube3DCanvasPx(containerWidth: number): number {
   return Math.max(220, Math.floor(containerWidth))
 }
@@ -112,6 +120,11 @@ export function ShowStagePreview({
   const canvasRef = useRef<HTMLCanvasElement>(null)
   const containerRef = useRef<HTMLDivElement>(null)
   const replayRef = useRef<FastReplayRuntime | null>(null)
+  const replayKeyRef = useRef<string | null>(null)
+  const checkpointStoreRef = useRef<FastReplayCheckpointStore<string> | null>(null)
+  if (checkpointStoreRef.current === null) {
+    checkpointStoreRef.current = new FastReplayCheckpointStore<string>()
+  }
   const playbackRafRef = useRef<number | null>(null)
   const playbackLastRef = useRef<number | null>(null)
   const fpsWindowStartRef = useRef<number | null>(null)
@@ -151,6 +164,7 @@ export function ShowStagePreview({
   const effectiveSoloZoneIdRef = useRef<string | null>(null)
   const [runtimeError, setRuntimeError] = useState<string | null>(null)
   const [badgedSeekRequestId, setBadgedSeekRequestId] = useState<number | null>(null)
+  const [runtimeRevision, setRuntimeRevision] = useState(0)
 
   useEffect(() => {
     viewportWidthRef.current = viewportWidth
@@ -305,6 +319,19 @@ export function ShowStagePreview({
     () => layout ? createShowStageMaskPlan(layout.projection, layout.mapPoints.length) : null,
     [layout],
   )
+  const replayRandomSeed = useMemo(() => stableShowSeed(showId), [showId])
+  const replayCheckpointKey = useMemo(() => (
+    compiled.artifact && layout
+      ? createFastReplayCheckpointKey({
+          artifactIdentity: compiled.artifact,
+          mapPointsIdentity: layout.mapPoints,
+          randomSeed: replayRandomSeed,
+          fidelity,
+          stepMs: SHOW_REPLAY_STEP_MS,
+          temporalFeedbackSeek: SHOW_TEMPORAL_FEEDBACK_SEEK,
+        })
+      : null
+  ), [compiled.artifact, fidelity, layout, replayRandomSeed])
 
   useEffect(() => {
     if (!import.meta.env.DEV || !layout) return
@@ -368,6 +395,7 @@ export function ShowStagePreview({
   useEffect(() => {
     const canvas = canvasRef.current
     if (!canvas || !layout || !compiled.artifact) return
+    const artifact = compiled.artifact
     runtimeGenerationRef.current += 1
     if (playbackRafRef.current !== null) cancelAnimationFrame(playbackRafRef.current)
     playbackRafRef.current = null
@@ -393,43 +421,75 @@ export function ShowStagePreview({
     }
     renderer.setDiffusion(diffusionRef.current)
 
+    const generation = runtimeGenerationRef.current
+    let disposed = false
+    const isCurrent = () => !disposed && runtimeGenerationRef.current === generation
+    const createRuntime = () => createFastReplayRuntime({
+        code: artifact.code,
+        fxCode: artifact.fxCode,
+        metadata: artifact.metadata,
+        dimension: layout.sampleDimension ?? (artifact.metadata.renderFns?.hasRender2D ? 2 : 1),
+      }, {
+        mapPoints: layout.mapPoints,
+        randomSeed: replayRandomSeed,
+        fidelity,
+      })
+    const acceptRuntime = (runtime: FastReplayRuntime, result: FastReplayResult) => {
+      if (!isCurrent()) return
+      replayRef.current = runtime
+      replayKeyRef.current = replayCheckpointKey
+      performanceProbeRef.current?.recordRuntimeInitialization()
+      liveSimulatedFramesRef.current = result.simulatedFrames
+      paintFastFrame(result)
+    }
+
     try {
       const transport = useShowTransportStore.getState()
       transport.openShow(showId, durationMs)
-      const runtime = createFastReplayRuntime({
-        code: compiled.artifact.code,
-        fxCode: compiled.artifact.fxCode,
-        metadata: compiled.artifact.metadata,
-        dimension: layout.sampleDimension ?? (compiled.artifact.metadata.renderFns?.hasRender2D ? 2 : 1),
-      }, {
-        mapPoints: layout.mapPoints,
-        randomSeed: stableShowSeed(showId),
-        fidelity,
-      })
-      performanceProbeRef.current?.recordRuntimeInitialization()
-      let result = runtime.renderCurrentFrame()
       const positionMs = useShowTransportStore.getState().positionMs
-      if (positionMs > 0) {
-        result = runtime.advanceTo(positionMs, {
-          stepMs: 1000 / 60,
-          temporalFeedbackSeek: 'clear-at-target',
-        })
+      if (positionMs === 0) {
+        const runtime = createRuntime()
+        acceptRuntime(runtime, runtime.renderCurrentFrame())
+      } else {
+        const initialize = async () => {
+          try {
+            const reconstruction = await reconstructFastReplayWithCheckpoints({
+              key: replayCheckpointKey!,
+              store: checkpointStoreRef.current!,
+              createRuntime,
+              targetMs: positionMs,
+              advance: {
+                stepMs: SHOW_REPLAY_STEP_MS,
+                chunkMs: SHOW_REPLAY_CHUNK_MS,
+                temporalFeedbackSeek: SHOW_TEMPORAL_FEEDBACK_SEEK,
+              },
+              isCurrent,
+            })
+            if (!reconstruction || !isCurrent()) return
+            acceptRuntime(reconstruction.runtime, reconstruction.result)
+            setRuntimeRevision((revision) => revision + 1)
+          } catch (error) {
+            if (isCurrent()) {
+              setRuntimeError(error instanceof Error ? error.message : 'Show preview failed')
+            }
+          }
+        }
+        void initialize()
       }
-      replayRef.current = runtime
-      liveSimulatedFramesRef.current = result.simulatedFrames
-      paintFastFrame(result)
     } catch (error) {
       const message = error instanceof Error ? error.message : 'Show preview failed'
       queueMicrotask(() => setRuntimeError(message))
     }
 
     return () => {
+      disposed = true
       runtimeGenerationRef.current += 1
       if (playbackRafRef.current !== null) cancelAnimationFrame(playbackRafRef.current)
       playbackRafRef.current = null
       replayRef.current = null
+      replayKeyRef.current = null
     }
-  }, [compiled.artifact, durationMs, fidelity, layout, paintFastFrame, showId])
+  }, [compiled.artifact, durationMs, fidelity, layout, paintFastFrame, replayCheckpointKey, replayRandomSeed, showId])
 
   useEffect(() => {
     const renderer = rendererRef.current
@@ -530,10 +590,10 @@ export function ShowStagePreview({
       playbackRafRef.current = null
       usePreviewStore.getState().setFps(null)
     }
-  }, [durationMs, isRunning, paintFastFrame, seekStatus, showId])
+  }, [durationMs, isRunning, paintFastFrame, runtimeRevision, seekStatus, showId])
 
   useEffect(() => {
-    if (!seekRequest || !layout || !compiled.artifact) return
+    if (!seekRequest || !layout || !compiled.artifact || !replayCheckpointKey) return
     if (playbackRafRef.current !== null) cancelAnimationFrame(playbackRafRef.current)
     playbackRafRef.current = null
     const generation = ++runtimeGenerationRef.current
@@ -546,30 +606,37 @@ export function ShowStagePreview({
 
     const rebuild = async () => {
       try {
-        const runtime = createFastReplayRuntime({
+        const existingRuntime = replayKeyRef.current === replayCheckpointKey ? replayRef.current : null
+        const reconstruction = await reconstructFastReplayWithCheckpoints({
+          key: replayCheckpointKey,
+          store: checkpointStoreRef.current!,
+          existingRuntime,
+          createRuntime: () => createFastReplayRuntime({
           code: compiled.artifact!.code,
           fxCode: compiled.artifact!.fxCode,
           metadata: compiled.artifact!.metadata,
           dimension: layout.sampleDimension ?? (compiled.artifact!.metadata.renderFns?.hasRender2D ? 2 : 1),
-        }, {
-          mapPoints: layout.mapPoints,
-          randomSeed: stableShowSeed(showId),
-          fidelity,
+          }, {
+            mapPoints: layout.mapPoints,
+            randomSeed: replayRandomSeed,
+            fidelity,
+          }),
+          targetMs: seekRequest.targetMs,
+          advance: {
+            stepMs: SHOW_REPLAY_STEP_MS,
+            chunkMs: SHOW_REPLAY_CHUNK_MS,
+            temporalFeedbackSeek: SHOW_TEMPORAL_FEEDBACK_SEEK,
+          },
+          isCurrent,
         })
-        let result: FastReplayResult | null = runtime.renderCurrentFrame()
-        if (seekRequest.targetMs > 0) {
-          result = await advanceFastReplayCooperatively(runtime, seekRequest.targetMs, {
-            stepMs: 1000 / 60,
-            chunkMs: 250,
-            temporalFeedbackSeek: 'clear-at-target',
-            isCurrent,
-          })
+        if (!reconstruction || !isCurrent()) return
+        replayRef.current = reconstruction.runtime
+        replayKeyRef.current = replayCheckpointKey
+        if (reconstruction.runtime !== existingRuntime) {
+          performanceProbeRef.current?.recordRuntimeInitialization()
         }
-        if (!result || !isCurrent()) return
-        replayRef.current = runtime
-        performanceProbeRef.current?.recordRuntimeInitialization()
-        liveSimulatedFramesRef.current = result.simulatedFrames
-        paintFastFrame(result)
+        liveSimulatedFramesRef.current = reconstruction.result.simulatedFrames
+        paintFastFrame(reconstruction.result)
         useShowTransportStore.getState().completeSeek(seekRequest.id, seekRequest.targetMs)
       } catch (error) {
         if (isCurrent()) {
@@ -583,7 +650,7 @@ export function ShowStagePreview({
       disposed = true
       runtimeGenerationRef.current += 1
     }
-  }, [compiled.artifact, fidelity, layout, paintFastFrame, seekRequest, showId])
+  }, [compiled.artifact, fidelity, layout, paintFastFrame, replayCheckpointKey, replayRandomSeed, seekRequest])
 
   useEffect(() => {
     if (!layout || layout.draw.kind !== '3d') return

@@ -282,6 +282,20 @@ keeps a packed `Float64Array` hot path. Generated Show metadata may name one
 compiler-owned temporal-feedback seek variable, set through a narrowly scoped
 preview-only `setPatternVar()` seam during clear-at-target replay.
 
+Deterministic seek replay checkpoints the complete fast-replay runtime state at
+roughly two-second virtual-time intervals. A seek restores the nearest usable
+checkpoint at or before its target into the existing compatible runtime, then
+replays only the residual fixed steps. Cold seeks still reconstruct from Show
+start and populate every checkpoint interval they cross. The checkpoint key is
+exactly the generated-artifact identity, Stage map-point identity, random seed,
+Fast/Precise fidelity, fixed step, and temporal-feedback seek mode; a Show edit
+produces a new artifact identity and therefore a cache miss without partial
+invalidation. Snapshot size can widen the interval, and a bounded oldest-first
+policy limits retained entries. Only deterministic replay captures checkpoints;
+real-delta `advanceLive` frames never do. A snapshot or restore failure discards
+the affected optimization and retries the seek cold rather than presenting a
+possibly corrupted frame.
+
 ## 10. WebGL, camera, and preview settings
 
 `renderer.ts` draws all pixels as WebGL points (2D additive; 3D depth-tested
