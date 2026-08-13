@@ -35,6 +35,7 @@ import {
   projectFlatShowToCompositionV1WithCellOrigins,
 } from '@/engine/showCompositionModel'
 import { addShowPropertyKeyframe, addShowPropertyTrack } from '@/engine/showPropertyAnimation'
+import { DEFAULT_SHOW_CLIP_CORNER_RADIUS } from '@/engine/showClipViewport'
 import { DEMOS } from './patterns'
 import { buildShowToolkitPresentationCatalogue } from '@/engine/showVisualToolkitPresentation'
 import {
@@ -280,7 +281,8 @@ function learn102(): StockShow {
   ]
   const composition: ShowCompositionV1 = normalizeShowComposition({ scenes, zones }, {
     version: 1,
-    executionModel: 'deterministic-loop',
+    // deterministic-loop withheld (#823): member state drifts at the Show
+    // End wrap (measured); upgrade path is engine state snapshot/restore (#841).
     patternInstances: [
       instance('iris', 'ClockworkIris', LESSON_TIME_SCALE),
       instance('horizon', 'EventHorizon', LESSON_TIME_SCALE),
@@ -723,7 +725,8 @@ function learn201(): StockShow {
   ]
   const composition: ShowCompositionV1 = {
     version: 1,
-    executionModel: 'deterministic-loop',
+    // deterministic-loop withheld (#823): member state drifts at the Show
+    // End wrap (measured); upgrade path is engine state snapshot/restore (#841).
     patternInstances: [
       instance('flies', 'TimeFlies2D', LESSON_TIME_SCALE),
       instance('water', 'Caustics', LESSON_TIME_SCALE),
@@ -791,7 +794,8 @@ function learn202(): StockShow {
   const frame = { enabled: true, width: 0.5, height: 0.5, edge: 'soft' as const }
   const composition: ShowCompositionV1 = {
     version: 1,
-    executionModel: 'deterministic-loop',
+    // deterministic-loop withheld (#823): member state drifts at the Show
+    // End wrap (measured); upgrade path is engine state snapshot/restore (#841).
     patternInstances: [
       instance('curve', 'Harmonograph', LESSON_TIME_SCALE),
       instance('garden', 'MetaballGarden', LESSON_TIME_SCALE),
@@ -970,7 +974,8 @@ function learn203(): StockShow {
   ]
   const composition: ShowCompositionV1 = {
     version: 1,
-    executionModel: 'deterministic-loop',
+    // deterministic-loop withheld (#823): member state drifts at the Show
+    // End wrap (measured); upgrade path is engine state snapshot/restore (#841).
     patternInstances: [
       instance('palette-fresh', 'IQPalettes', LESSON_TIME_SCALE),
       instance('palette-shared', 'IQPalettes', LESSON_TIME_SCALE),
@@ -1030,7 +1035,8 @@ function learn204(): StockShow {
   ]
   const composition: ShowCompositionV1 = {
     version: 1,
-    executionModel: 'deterministic-loop',
+    // deterministic-loop withheld (#823): member state drifts at the Show
+    // End wrap (measured); upgrade path is engine state snapshot/restore (#841).
     patternInstances: [
       instance('palette', 'IQPalettes', LESSON_TIME_SCALE),
       {
@@ -1271,7 +1277,8 @@ function learn301(): StockShow {
   ]
   const composition: ShowCompositionV1 = {
     version: 1,
-    executionModel: 'deterministic-loop',
+    // deterministic-loop withheld (#823): member state drifts at the Show
+    // End wrap (measured); upgrade path is engine state snapshot/restore (#841).
     patternInstances: [
       instance('garden', 'MetaballGarden', GARDEN_TIME_SCALE),
       instance('palettes', 'IQPalettes', PALETTES_TIME_SCALE),
@@ -1448,7 +1455,8 @@ function learn302(): StockShow {
   })
   const composition: ShowCompositionV1 = {
     version: 1,
-    executionModel: 'deterministic-loop',
+    // deterministic-loop withheld (#823): member state drifts at the Show
+    // End wrap (measured); upgrade path is engine state snapshot/restore (#841).
     patternInstances: [
       // The only instance in the Show: one clock, one machine, five surfaces.
       instance('pendulum', 'Harmonograph', SOLO_TIME_SCALE),
@@ -2197,19 +2205,27 @@ function propertyAnimationReference(): StockShow {
     { repeatScale: sceneId === 'repeat-scale' ? 4 : 1 },
   ))
   const transitions = cutBoundaries(scenes).map((item) => {
-    // Cuts, not crossfades: both columns run the same shared instances on
-    // both sides of these boundaries, so a blend would mix two identical
-    // frames - invisible, but paid for in blend machinery the #514 ceiling
-    // has no room for. The eased property tween is the smoothness here.
+    // These two junctions teach boundary-owned Property transitions, and a
+    // Cut cannot own one (#418 strips it silently - which is how this
+    // showcase shipped with two dead tweens, #823). The carrier is a
+    // live-live Crossfade between identical shared instances: visually
+    // neutral, so the eased property tween stays the only demonstrated
+    // change. The carrier must run the full 1,800 ms - normalization caps a
+    // descriptor's duration at its boundary's - but stays linear, since
+    // blending identical frames makes the carrier's own easing invisible;
+    // a sine carrier measured 3.3 KB heavier and 197 bytes over the #514
+    // activation ceiling, and the linear one clears it with ~3 KB headroom.
     if (item.afterSceneId === 'effect-parameter') {
-      return boundary('effect-parameter', 'cut', 0, LINEAR, {
+      return boundary('effect-parameter', 'crossfade', 1_800, LINEAR, {
+        crossfadePolicy: 'live-live',
         propertyTransitions: {
           routing: { splitPosition: { from: 0.25, durationMs: 1_800, easing: SINE_IN_OUT } },
         },
       })
     }
     if (item.afterSceneId === 'split-position') {
-      return boundary('split-position', 'cut', 0, LINEAR, {
+      return boundary('split-position', 'crossfade', 1_800, LINEAR, {
+        crossfadePolicy: 'live-live',
         propertyTransitions: {
           sample: { repeatScale: { from: 1, durationMs: 1_800, easing: SINE_IN_OUT } },
         },
@@ -2391,8 +2407,11 @@ function apertureShapesReference(): StockShow {
     { id: 'rectangle', label: 'Rectangle', seconds: 3, detail: 'The plain frame, feathered Soft; the Hard cut appears later as the deliberate exception.', viewport: { ...frame, edge: 'soft' as const } },
     { id: 'ellipse', label: 'Ellipse', seconds: 5, detail: 'The inscribed oval at its Soft default; corners of the frame fall away.', viewport: { ...frame, aperture: 'ellipse' as const } },
     { id: 'diamond', label: 'Diamond', seconds: 2, detail: 'The inscribed diamond at its Soft default; edges run corner to corner.', viewport: { ...frame, aperture: 'diamond' as const } },
-    { id: 'rounded-box', label: 'Rounded box', seconds: 2, detail: 'The frame with its corners rounded at the default radius.', viewport: { ...frame, aperture: 'rounded-box' as const, cornerRadius: 0.12 } },
-    { id: 'rounded-box-wide', label: 'Rounded box, wide radius', seconds: 2, detail: 'The same box at a wide corner radius: radius is a shape parameter, not an edge treatment.', viewport: { ...frame, aperture: 'rounded-box' as const, cornerRadius: 0.3 } },
+    // The baseline tracks the engine default so the detail text stays true;
+    // the wide sibling stays a clear contrast (#823 - the record used to pin
+    // 0.12 under a "default radius" label while the default was 0.25).
+    { id: 'rounded-box', label: 'Rounded box', seconds: 2, detail: 'The frame with its corners rounded at the default radius.', viewport: { ...frame, aperture: 'rounded-box' as const, cornerRadius: DEFAULT_SHOW_CLIP_CORNER_RADIUS } },
+    { id: 'rounded-box-wide', label: 'Rounded box, wide radius', seconds: 2, detail: 'The same box at a wide corner radius: radius is a shape parameter, not an edge treatment.', viewport: { ...frame, aperture: 'rounded-box' as const, cornerRadius: 0.45 } },
     { id: 'cross', label: 'Cross', seconds: 2, detail: 'The inscribed cross at its Soft default; arm width is its shape parameter.', viewport: { ...frame, aperture: 'cross' as const } },
     { id: 'polygon', label: 'Regular polygon', seconds: 2, detail: 'The inscribed hexagon at its Soft default; Sides is its shape parameter.', viewport: { ...frame, aperture: 'polygon' as const } },
     { id: 'ring-soft', label: 'Ring, Soft edge', seconds: 4, detail: 'An annulus at its Soft default: the bed shows through the center, which no box can do.', viewport: { ...frame, aperture: 'ring' as const, edge: 'soft' as const } },
@@ -3508,8 +3527,11 @@ function quadrilleRemix(): StockShow {
   // Crossfades EXTEND the compiled timeline: a scene holds its full duration
   // and the fade is appended after it. Scenes that fade out therefore hold
   // 5.6 s so hold + fade lands each boundary exactly on the 6.4 s phrase
-  // grid. Lace and turns and All four dance are double phrases; the finale
-  // holds one full phrase and ends the loop on its shimmer.
+  // grid. The 800 ms fade is one beat at 75 BPM and is legal: the old
+  // 1,000 ms normalization floor was a #318 vestige that silently clamped
+  // these fades and de-phased the grid until #823 removed it. Lace and
+  // turns and All four dance are double phrases; the finale holds one full
+  // phrase and ends the loop on its shimmer.
   const HOLDS = [PHRASE, 5.6, 5.6, 12, 12, PHRASE]
   const quadrilleScenes: SceneSpec[] = quadrilleSceneIds.map((sceneId, index) => scene(
     sceneId, quadrilleSceneNames[index], HOLDS[index],
@@ -3517,6 +3539,8 @@ function quadrilleRemix(): StockShow {
   ))
   const composition: ShowCompositionV1 = {
     version: 1,
+    // deterministic-loop withheld (#823): member state drifts at the Show
+    // End wrap (measured); upgrade path is engine state snapshot/restore (#841).
     patternInstances: [
       instance('bands', 'WavyBands', 0.6),
       {
@@ -3525,8 +3549,12 @@ function quadrilleRemix(): StockShow {
         // time 0 mod the 4.9152 s swell. The seek centers the entrance
         // phrase's dwell on the swell's zero, less the measured member time
         // the entrance fade advances the clock before the scene's local
-        // zero. Calibrated against the rendered bloom window (#832).
-        time: { timeScale: EDGE, timeOffsetMs: 3_752 },
+        // zero. Calibrated against the rendered bloom window (#832) under
+        // the old 1,000 ms fade clamp; +77 ms re-lands the same swell phase
+        // now that the authored 800 ms fades compile true (#823):
+        // the entry advances 200 ms earlier, so member time drops
+        // 0.2 x 0.384 = 76.8 ms.
+        time: { timeScale: EDGE, timeOffsetMs: 3_829 },
       },
     ],
     scenes: [
@@ -3648,7 +3676,9 @@ function quadrilleRemix(): StockShow {
   // boundaries fade, and each fade-out scene holds 5.6 s; the folding cut
   // means First light holds the full phrase.
   const transitions: ShowBoundaryTransition[] = quadrilleSceneIds.slice(0, -1).map((sceneId, index) => (
-    index === 0 ? boundary(sceneId, 'cut', 0, LINEAR) : boundary(sceneId, 'crossfade', 800, SINE_IN_OUT)
+    index === 0
+      ? boundary(sceneId, 'cut', 0, LINEAR)
+      : boundary(sceneId, 'crossfade', 800, SINE_IN_OUT, { crossfadePolicy: 'live-live' })
   ))
   return catalogue({
     id, title: 'Quadrille', track: 'portable', collection: 'remixes', level: null, order: 2,

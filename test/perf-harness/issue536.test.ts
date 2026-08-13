@@ -105,14 +105,16 @@ describe('Restart-instance global-liveness census (#536)', () => {
     // returns to Caustics (exact deterministic-loop reset) and the
     // Transform showcase re-expresses its glides on placement-effect
     // tracks (net +22 member globals at this frozen vintage) with no new
-    // reclaimable set; the reclaim percent stays 0, the weighted figure
-    // dilutes, and the stop verdict is unchanged.
+    // reclaimable set. The #823 broken-show repairs (Property Animation's
+    // live-live carrier crossfades, Quadrille's legal fades) then move the
+    // figure by -1 at this vintage. The reclaim percent stays 0, the
+    // weighted figure dilutes, and the stop verdict is unchanged.
     expect(report.summary).toMatchObject({
-      representativeMemberGlobals: 3_674,
+      representativeMemberGlobals: 3_673,
       representativeReclaimedGlobals: 206,
     })
     expect(report.decision.representativeReclaimPercent).toBe(0)
-    expect(report.decision.weightedRepresentativeReclaimPercent).toBeCloseTo(0.05606968, 8)
+    expect(report.decision.weightedRepresentativeReclaimPercent).toBeCloseTo(0.05608494, 8)
     expect(report.decision.ceilingRescues).toEqual([])
     expect(report.decision.proceedWithEmission).toBe(false)
     expect(report.decision.proceedWithEmission).toBe(

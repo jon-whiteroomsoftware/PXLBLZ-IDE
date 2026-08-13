@@ -12,12 +12,13 @@ import { validateShowComposition } from '@/engine/showCompositionModel'
 import { validateShowLogicalRouting } from '@/engine/showLogicalRouting'
 import { materializeShowGroupOccurrences } from '@/engine/showGroupModel'
 import { createInstallationCompositionFixture } from '@/engine/showInstallationTestFixture'
-import { projectShowTimeline } from '@/engine/showModel'
+import { normalizeShowTransitionState, projectShowTimeline } from '@/engine/showModel'
 import { SHOW_EASING_OPTIONS, showEasingOptionId } from '@/engine/showEasing'
 import { SHOW_VISUAL_TOOLKIT_REGISTRY } from '@/engine/showVisualToolkit'
 import { applyShowColorEffects, sameShowEffectStructure, type ShowRgb } from '@/engine/showEffects'
 import { showClipEffectStage } from '@/engine/showEffectAuthoring'
 import { applyShowPatternSlotSelections, restoreShowReferencePatternSlots } from '@/engine/showReferenceShow'
+import { DEFAULT_SHOW_CLIP_CORNER_RADIUS } from '@/engine/showClipViewport'
 import {
   buildDeliveredShowSourceInventory,
   buildShowArtifactInventoryModel,
@@ -774,6 +775,92 @@ describe('stock Show curriculum (#363)', () => {
       'IQPalettes',
       'MetaballGarden',
     ])
+  })
+
+  it('demonstrates the Rounded box aperture at the true default radius (#823)', () => {
+    // The passage's detail text claims "the default radius", so the record
+    // must track the engine default rather than pin a stale value; the wide
+    // sibling has to stay a clear contrast, not a near-tie.
+    const item = stockShowById('stock-show-reference-aperture-shapes')!
+    const rounded = (item.show.composition?.scenes ?? []).flatMap((scene) => scene.zones.flatMap((zone) => (
+      [...zone.main, ...zone.overlays.flatMap((layer) => layer.placements)]
+        .filter((placement) => placement.viewport?.aperture === 'rounded-box')
+    )))
+    expect(rounded).toHaveLength(2)
+    const [base, wide] = rounded
+    expect(base.viewport!.cornerRadius).toBe(DEFAULT_SHOW_CLIP_CORNER_RADIUS)
+    expect(wide.viewport!.cornerRadius).toBeGreaterThanOrEqual(DEFAULT_SHOW_CLIP_CORNER_RADIUS + 0.15)
+  })
+
+  it('holds the Quadrille phrase grid under the legal fade floor (#823)', () => {
+    // The score is eight 6.4 s phrases at 75 BPM. Fades EXTEND the compiled
+    // timeline, so every fade-out scene holds phrase-minus-fade and each
+    // boundary lands on the grid. The 800 ms fade (one beat) is authored
+    // intent: the old 1,000 ms normalization floor silently clamped it and
+    // de-phased every later boundary until #823 removed the floor - the
+    // normalization assertion below is the regression guard.
+    const item = stockShowById('stock-show-remix-quadrille')!
+    const PHRASE_MS = 6_400
+    expect(item.show.composition!.durationMs).toBe(51_200)
+    // deterministic-loop stays withheld: the wrap census measured member
+    // state drift at Show End, so the stamp waits on engine snapshot
+    // support (#841). The loop remains phrase-exact choreography.
+    expect(item.show.composition!.executionModel).toBeUndefined()
+    const fades = item.show.transitions.filter((transition) => transition.kind === 'crossfade')
+    expect(fades).toHaveLength(4)
+    for (const fade of fades) {
+      expect(fade.durationMs).toBe(800)
+      expect(fade.crossfadePolicy).toBe('live-live')
+    }
+    const renormalized = normalizeShowTransitionState(item.show)
+    expect(renormalized.transitions.filter((transition) => transition.kind === 'crossfade')
+      .every((transition) => transition.durationMs === 800)).toBe(true)
+    // Cumulative scene boundaries (hold + appended fade) stay on the grid,
+    // and the whole loop is exactly eight phrases.
+    const fadeBySceneId = new Map(item.show.transitions.map((transition) => [transition.afterSceneId, transition]))
+    let cursorMs = 0
+    for (const scene of item.show.scenes) {
+      cursorMs += scene.durationMs + (fadeBySceneId.get(scene.id)?.durationMs ?? 0)
+      expect(cursorMs % PHRASE_MS, `${scene.name} boundary sits on the phrase grid`).toBe(0)
+    }
+    expect(cursorMs).toBe(51_200)
+    // The dancer's shaped entrance clock still integrates to exactly half a
+    // swell per phrase: hold integral plus the fade tail at the edge rate.
+    // Symmetric easings preserve trapezoid integrals.
+    const entrance = item.show.composition!.scenes
+      .find((scene) => scene.sceneId === 'the-dancer-enters')!
+    const clock = (entrance.propertyTracks ?? []).find((track) => track.target.kind === 'instance-time-scale')!
+    const frames = clock.keyframes
+    let integral = 0
+    for (let index = 1; index < frames.length; index += 1) {
+      integral += (frames[index].timeMs - frames[index - 1].timeMs) / 1_000
+        * (frames[index].value + frames[index - 1].value) / 2
+    }
+    const EDGE = 0.384
+    const fadeMs = fadeBySceneId.get('the-dancer-enters')!.durationMs
+    // TURNAROUND is authored to four decimals, so closure is exact to ~2e-5.
+    expect(integral + (fadeMs / 1_000) * EDGE).toBeCloseTo(EDGE * (PHRASE_MS / 1_000), 4)
+  })
+
+  it('keeps the Property Animation boundary-owned transitions live through normalization (#823)', () => {
+    // The note promises nine changing values and names the last two as
+    // boundary-owned Property transitions. Cuts cannot own Property
+    // transitions (#418), so these two boundaries must be positive-duration
+    // records or the normalizer silently reduces the promised 1.8 s ramps
+    // to instantaneous steps - which is exactly how the showcase shipped.
+    const item = stockShowById('stock-show-reference-property-animation')!
+    const normalized = normalizeShowTransitionState(item.show)
+    const byId = new Map(normalized.transitions.map((transition) => [transition.id, transition]))
+    const split = byId.get('transition-effect-parameter')!
+    const repeat = byId.get('transition-split-position')!
+    for (const transition of [split, repeat]) {
+      expect(transition.kind).not.toBe('cut')
+      expect(transition.durationMs).toBeGreaterThan(0)
+    }
+    expect(split.propertyTransitions?.routing?.splitPosition)
+      .toMatchObject({ from: 0.25, durationMs: 1_800 })
+    expect(repeat.propertyTransitions?.sample?.repeatScale)
+      .toMatchObject({ from: 1, durationMs: 1_800 })
   })
 
   it('keeps the Property Animation artifact valid after its controlled Pattern is recast (#714 review P1)', () => {

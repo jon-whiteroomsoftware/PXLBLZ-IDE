@@ -63,5 +63,14 @@ export function createPropertySlotQualificationShow(): ShowRecord {
   // boundary the #546 exchange was measured under, which predates that
   // opt-in.
   delete composition.executionModel
+  // The shipping reference now carries two live-live Crossfade boundaries so
+  // its boundary-owned Property transitions actually run (#823). The #546
+  // exchange was measured under the earlier all-Cut boundary shape, where
+  // arms never overlap and machines interleave; preserve that subject here.
+  show.transitions = (show.transitions ?? []).map((transition) => (
+    transition.kind === 'crossfade'
+      ? { id: transition.id, afterSceneId: transition.afterSceneId, kind: 'cut' as const, durationMs: 0, easing: transition.easing }
+      : transition
+  ))
   return show
 }

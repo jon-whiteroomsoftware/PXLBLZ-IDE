@@ -1362,7 +1362,7 @@ function normalizeBoundaryTransition(transition: ShowBoundaryTransition): ShowBo
       ? 0
       : kind === 'routing' && transition.durationMs <= 0
         ? 0
-        : clampDuration(transition.durationMs),
+        : clampTransitionDuration(transition.durationMs),
     easing: normalizePersistedShowEasing(transition.easing),
     ...(kind === 'cut' || kind === 'routing' ? {} : normalizePropertyTransitions(transition)),
   }
@@ -1463,7 +1463,7 @@ function normalizePropertyTransitions(transition: ShowBoundaryTransition): Pick<
     if (!source) return undefined
     return {
       fromByCellId: Object.fromEntries(Object.entries(source.fromByCellId ?? {}).map(([cellId, value]) => [cellId, clamp(value)])),
-      durationMs: Math.min(clampPropertyDuration(source.durationMs ?? transition.durationMs), clampDuration(transition.durationMs)),
+      durationMs: Math.min(clampPropertyDuration(source.durationMs ?? transition.durationMs), clampTransitionDuration(transition.durationMs)),
       easing: normalizeEasing(source.easing ?? transition.easing),
     }
   }
@@ -1472,7 +1472,7 @@ function normalizePropertyTransitions(transition: ShowBoundaryTransition): Pick<
   const controls = Object.fromEntries(Object.entries(transition.propertyTransitions?.controls ?? {}).map(([exportName, source]) => {
     const normalized = {
       fromByCellId: Object.fromEntries(Object.entries(source.fromByCellId ?? {}).map(([cellId, value]) => [cellId, clamp01(value)])),
-      durationMs: Math.min(clampPropertyDuration(source.durationMs ?? transition.durationMs), clampDuration(transition.durationMs)),
+      durationMs: Math.min(clampPropertyDuration(source.durationMs ?? transition.durationMs), clampTransitionDuration(transition.durationMs)),
       easing: normalizeEasing(source.easing ?? transition.easing),
     }
     return [exportName, normalized]
@@ -1489,7 +1489,7 @@ function normalizePropertyTransitions(transition: ShowBoundaryTransition): Pick<
       fromByCellId: Object.fromEntries(Object.entries(source.fromByCellId ?? {}).map(([cellId, value]) => (
         [cellId, clampRange(value, min, max)]
       ))),
-      durationMs: Math.min(clampPropertyDuration(source.durationMs ?? transition.durationMs), clampDuration(transition.durationMs)),
+      durationMs: Math.min(clampPropertyDuration(source.durationMs ?? transition.durationMs), clampTransitionDuration(transition.durationMs)),
       easing: normalizeEasing(source.easing ?? transition.easing),
     }]]
   }))
@@ -1499,7 +1499,7 @@ function normalizePropertyTransitions(transition: ShowBoundaryTransition): Pick<
         from: clamp01(splitPositionSource.from),
         durationMs: Math.min(
           clampPropertyDuration(splitPositionSource.durationMs ?? transition.durationMs),
-          clampDuration(transition.durationMs),
+          clampTransitionDuration(transition.durationMs),
         ),
         easing: normalizeEasing(splitPositionSource.easing ?? transition.easing),
     }
@@ -1510,7 +1510,7 @@ function normalizePropertyTransitions(transition: ShowBoundaryTransition): Pick<
         from: clampShowRepeatScale(repeatScaleSource.from),
         durationMs: Math.min(
           clampPropertyDuration(repeatScaleSource.durationMs ?? transition.durationMs),
-          clampDuration(transition.durationMs),
+          clampTransitionDuration(transition.durationMs),
         ),
         easing: normalizeEasing(repeatScaleSource.easing ?? transition.easing),
       }
@@ -1524,7 +1524,7 @@ function normalizePropertyTransitions(transition: ShowBoundaryTransition): Pick<
         ))),
         durationMs: Math.min(
           clampPropertyDuration(source.durationMs ?? transition.durationMs),
-          clampDuration(transition.durationMs),
+          clampTransitionDuration(transition.durationMs),
         ),
         easing: normalizeEasing(source.easing ?? transition.easing),
       }]]
@@ -1817,7 +1817,7 @@ export function updateShowTransition(
         id: current?.id ?? `transition-${sceneId}`,
         afterSceneId: sceneId,
         kind,
-        durationMs: clampDuration(durationMs),
+        durationMs: clampTransitionDuration(durationMs),
         easing: current?.easing ?? { curve: 'linear' },
         feather: clamp01(feather),
         centerX: clamp01(portal.centerX ?? currentPortal?.centerX ?? 0.5),
@@ -1842,7 +1842,7 @@ export function updateShowTransition(
         id: current?.id ?? `transition-${sceneId}`,
         afterSceneId: sceneId,
         kind,
-        durationMs: kind === 'cut' ? 0 : clampDuration(durationMs),
+        durationMs: kind === 'cut' ? 0 : clampTransitionDuration(durationMs),
         easing: current?.easing ?? { curve: 'linear' },
         ...(kind === 'crossfade'
           ? {
@@ -2797,6 +2797,15 @@ function sceneIndex(show: ShowRecord, sceneId: string): number {
 
 function sceneToGridColumn(index: number): number {
   return 2 + index * 2
+}
+
+// Scene durations keep a 1,000 ms floor; transition durations do not. The
+// authoring contract has declared transition durationMs min 0 since #443,
+// and the editors expose min 0 - the old floor here was a vestige of the
+// pre-compiler scene-strip editor (#318) that silently rewrote authored
+// sub-second fades (#823).
+function clampTransitionDuration(durationMs: number): number {
+  return Math.max(0, Math.round(durationMs))
 }
 
 function clampDuration(durationMs: number): number {
