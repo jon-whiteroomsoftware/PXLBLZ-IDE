@@ -611,6 +611,7 @@ export async function advanceFastReplayCooperatively(
     result = runtime.advanceTo(chunkTargetMs, {
       stepMs: options.stepMs,
       temporalFeedbackSeek: options.temporalFeedbackSeek,
+      forceFullIntermediateRender: options.forceFullIntermediateRender,
       presentTargetFrame: options.presentTargetFrame !== false
         && replayTargetReached(chunkTargetMs, targetMs, options.stepMs),
     })

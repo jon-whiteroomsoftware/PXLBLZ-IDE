@@ -268,6 +268,36 @@ export function render2D(index, x, y) { tick(state); rgb(state[0], y, 0) }
     })
   })
 
+  it.each([
+    ['function expression', 'function () { phase += lastPixel }'],
+    ['arrow function', '() => { phase += lastPixel }'],
+  ])('fails closed for a %s helper reached from beforeRender when proving renderer scratch (#847)', (_label, helper) => {
+    const source = `
+var phase = 0
+var lastPixel = 0
+var observe = ${helper}
+export function beforeRender(delta) { observe() }
+export function render(index) { lastPixel = index; rgb(phase, 0, 0) }
+`
+
+    expect(analyzeShowPatternCoverageRenderState(source, 'render')).toMatchObject({
+      state: 'unknown',
+      unknownCalls: ['<external-call:observe>'],
+    })
+  })
+
+  it('fails closed for scalar writes in destructuring assignment targets (#847)', () => {
+    const source = `
+var calls = 0
+export function render(index) { [calls] = [calls + 1]; rgb(calls, 0, 0) }
+`
+
+    expect(analyzeShowPatternCoverageRenderState(source, 'render')).toMatchObject({
+      state: 'unknown',
+      unknownCalls: ['<destructuring-assignment:render>'],
+    })
+  })
+
   it('fails closed when a helper deletes through a parameter alias (#834)', () => {
     const source = `
 var state = [1]

@@ -927,6 +927,14 @@ export function render2D(index, x, y) { rgb(x, y, index / pixelCount) }
     ['scalar mutation', 'var calls = 0\nexport function render(index) { calls += 1; rgb(calls, 0, 0) }'],
     ['array mutation', 'var values = [0]\nexport function render(index) { values[0] += 1; rgb(values[0], 0, 0) }'],
     ['aliased array mutation', 'var values = [0]\nvar alias = values\nexport function render(index) { alias[0] += 1; rgb(alias[0], 0, 0) }'],
+    ['destructuring mutation', 'var calls = 0\nexport function render(index) { [calls] = [calls + 1]; rgb(calls, 0, 0) }'],
+    ['function-valued external observer', `
+var phase = 0
+var lastPixel = 0
+var observe = function () { phase += lastPixel }
+export function beforeRender(delta) { observe() }
+export function render(index) { lastPixel = index; rgb(phase, 0, 0) }
+`],
     ['dynamic call', 'var emitters = [rgb]\nexport function render(index) { emitters[0](index, 0, 0) }'],
   ])('keeps full deterministic replay for unproved %s (#847)', (_label, source) => {
     const artifact = compileShow({ masterPixelCount: 4, clips: [{ id: 'unsafe', source }] }, {})
@@ -1229,6 +1237,32 @@ export function render(index) { rgb(phase, index / pixelCount, 0) }
     expect(yields).toBe(2)
     expect(result?.simulatedFrames).toBe(5)
     expect(result?.outerRendererCalls).toBe(4)
+  })
+
+  it('forwards forced-full traversal through cooperative replay (#847)', async () => {
+    const artifact = compileShow({
+      masterPixelCount: 4,
+      clips: [{
+        id: 'safe',
+        source: 'export function render(index) { rgb(index / pixelCount, 0, 0) }',
+      }],
+    }, {})
+    const runtime = createFastReplayRuntime({
+      code: artifact.code,
+      fxCode: artifact.fxCode,
+      metadata: artifact.metadata,
+      dimension: 1,
+    }, { mapPoints: lineMap(4), randomSeed: 847 })
+
+    const result = await advanceFastReplayCooperatively(runtime, 50, {
+      stepMs: 10,
+      chunkMs: 20,
+      forceFullIntermediateRender: true,
+      isCurrent: () => true,
+      yieldControl: async () => undefined,
+    })
+
+    expect(result?.outerRendererCalls).toBe(20)
   })
 
   it('keeps temporal feedback suppressed across cooperative chunk boundaries (#537)', async () => {

@@ -305,6 +305,7 @@ export function analyzeShowPatternDeterministicReplayState(
     statement.type === 'ExportNamedDeclaration' ? statement.declaration : statement
   )).filter(Boolean)
   const userFunctions = new Map<string, AstNode>()
+  const topLevelBindings = new Set<string>()
   const exportedBindings = new Set<string>()
   for (const statement of ast.body as AstNode[]) {
     const declaration = statement.type === 'ExportNamedDeclaration' ? statement.declaration : statement
@@ -314,6 +315,11 @@ export function analyzeShowPatternDeterministicReplayState(
     } else if (declaration?.type === 'VariableDeclaration' && statement.type === 'ExportNamedDeclaration') {
       for (const variable of declaration.declarations as AstNode[]) {
         for (const name of astBindingNames(variable.id)) exportedBindings.add(name)
+      }
+    }
+    if (declaration?.type === 'VariableDeclaration') {
+      for (const variable of declaration.declarations as AstNode[]) {
+        for (const name of astBindingNames(variable.id)) topLevelBindings.add(name)
       }
     }
   }
@@ -367,6 +373,10 @@ export function analyzeShowPatternDeterministicReplayState(
     walkAst(fn.body, (node) => {
       if (node.type === 'AssignmentExpression' || node.type === 'UpdateExpression') {
         const target = node.type === 'AssignmentExpression' ? node.left : node.argument
+        if ((target?.type === 'ArrayPattern' || target?.type === 'ObjectPattern')
+          && assignmentMemberWriteTargets(target).length === 0) {
+          unknownCalls.add(`<destructuring-assignment:${name}>`)
+        }
         const root = assignmentRootName(target)
         recordMemberWrites(target)
         if (root && !locals.has(root)) scratchBindings.add(root)
@@ -395,9 +405,17 @@ export function analyzeShowPatternDeterministicReplayState(
     const fn = userFunctions.get(name)
     if (!fn) return
     externallyReachable.add(name)
+    const locals = localBindingsByFunction.get(name)!
     walkAst(fn.body, (node) => {
-      if (node.type === 'CallExpression' && node.callee?.type === 'Identifier') {
-        collectExternal(node.callee.name)
+      if (node.type !== 'CallExpression') return
+      if (node.callee?.type !== 'Identifier') {
+        unknownCalls.add(`<external-dynamic-call:${name}>`)
+        return
+      }
+      const callee = node.callee.name as string
+      if (userFunctions.has(callee)) collectExternal(callee)
+      else if (topLevelBindings.has(callee) || locals.has(callee)) {
+        unknownCalls.add(`<external-call:${callee}>`)
       }
     })
   }
