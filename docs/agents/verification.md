@@ -229,6 +229,24 @@ ports and D1 persistence through the managed runtime registry, seed before
 server startup, and release their state after the run. See
 [`dev-runtime.md`](dev-runtime.md) for the shared-versus-isolated contract.
 
+### Visual Effects Guide screenshots
+
+Run `npm run docs:screenshots:visual-effects` to refresh the two committed
+screenshots used by `docs/guides/Visual effects guide.md`. The command starts
+the isolated authenticated Playwright harness, opens the built-in Redline
+Installation Show at a 1280 x 720 viewport, pauses and seeks to 16.9 seconds,
+then captures the overview and the RedlineMachine Entity Detail Panel. It
+overwrites these exact assets:
+
+- `docs/screenshots/show-visual-toolkit-overview.png`
+- `docs/screenshots/show-visual-toolkit-entity-detail.png`
+
+The capture spec checks the current Show-editor landmarks before writing each
+file, then verifies the PNG signature and 1280 x 720 dimensions. Inspect both
+image diffs before committing them; the command proves repeatable production
+and current UI structure, while the guide's editorial sign-off remains a human
+review.
+
 ### Public suite targeting (#746)
 
 The public suite is candidate-aware for the same reason the authenticated
