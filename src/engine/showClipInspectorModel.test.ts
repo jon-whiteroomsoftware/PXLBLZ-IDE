@@ -619,8 +619,12 @@ describe('shared Clip inspector owner model (#498)', () => {
     expect(validateShowComposition(updated, updated.composition!)).toEqual([])
   })
 
-  it('prunes only control Property tracks cleared by a Pattern change (#607)', () => {
+  it('keeps only replacement-Pattern controls and their Property tracks (#828)', () => {
     const show = fixture()
+    show.composition!.patternInstances.find((instance) => instance.id === 'instance-overlay')!.controlTargets = {
+      sliderSpeed: 0.4,
+      sliderOrphaned: 0.6,
+    }
     const scene = show.composition!.scenes[0]
     scene.propertyTracks = [
       {
@@ -629,6 +633,14 @@ describe('shared Clip inspector owner model (#498)', () => {
         keyframes: [
           { id: 'control-speed-start', timeMs: 0, value: 0.2, easing: { curve: 'linear' } },
           { id: 'control-speed-end', timeMs: 1_000, value: 0.8, easing: { curve: 'linear' } },
+        ],
+      },
+      {
+        id: 'track-control-orphaned',
+        target: { kind: 'instance-control', instanceId: 'instance-overlay', exportName: 'sliderOrphaned' },
+        keyframes: [
+          { id: 'control-orphaned-start', timeMs: 0, value: 0.1, easing: { curve: 'linear' } },
+          { id: 'control-orphaned-end', timeMs: 1_000, value: 0.9, easing: { curve: 'linear' } },
         ],
       },
       {
@@ -645,10 +657,13 @@ describe('shared Clip inspector owner model (#498)', () => {
 
     const updated = updateShowClipInspector(show, overlayOwner(show), {
       pattern: { ref: { kind: 'stock', id: 'Caustics' }, name: 'Caustics' },
-    })
+    }, new Set(['sliderSpeed']))
 
     expect(show).toEqual(original)
-    expect(updated.composition!.scenes[0].propertyTracks?.map((track) => track.id)).toEqual(['track-brightness'])
+    expect(updated.composition!.patternInstances.find((instance) => instance.id === 'instance-overlay')?.controlTargets)
+      .toEqual({ sliderSpeed: 0.4 })
+    expect(updated.composition!.scenes[0].propertyTracks?.map((track) => track.id))
+      .toEqual(['track-control-speed', 'track-brightness'])
     expect(validateShowComposition(updated, updated.composition!)).toEqual([])
   })
 

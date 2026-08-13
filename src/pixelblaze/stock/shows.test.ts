@@ -6,6 +6,8 @@ import { createPortableShowOutputContract } from '@/engine/showOutputContract'
 import { compileShowForArtifact, sourceForShowCell } from '@/engine/showPreviewArtifact'
 import { validatePortableShowCompatibility } from '@/engine/showPortableCompatibility'
 import { loadPattern, nativeDimension } from '@/engine/loadPattern'
+import { LIBRARIES } from '@/pixelblaze/libs'
+import { bundledPatternSliderNames } from '@/engine/showPatternControls'
 import { createFastReplayRuntime } from '@/engine/fastReplay'
 import { createShim } from '@/engine/shim'
 import { validateShowComposition } from '@/engine/showCompositionModel'
@@ -863,19 +865,27 @@ describe('stock Show curriculum (#363)', () => {
       .toMatchObject({ from: 1, durationMs: 1_800 })
   })
 
-  it('keeps the Property Animation artifact valid after its controlled Pattern is recast (#714 review P1)', () => {
+  it('compiles a Property Animation slot swap after removing orphaned controls (#828)', () => {
     const item = STOCK_SHOWS.find((candidate) => candidate.id === 'stock-show-reference-property-animation')!
     const group = item.patternSlots![0]
     const projection = {
-      pattern: { kind: 'stock' as const, id: 'Caustics' },
-      patternName: 'Caustics',
+      pattern: { kind: 'stock' as const, id: 'TestPattern2D' },
+      patternName: 'TestPattern2D',
       ...group,
     }
+    expect(bundledPatternSliderNames(DEMOS.TestPattern2D, LIBRARIES)).toEqual(new Set())
+    const controlledTrack = item.show.composition?.scenes.flatMap((scene) => scene.propertyTracks ?? [])
+      .find((track) => track.id === 'track-pattern-control')
+    if (!controlledTrack || controlledTrack.target.kind !== 'instance-control') {
+      throw new Error('Expected instance-control track')
+    }
+    expect(group.instanceIds).toContain(controlledTrack.target.instanceId)
     const projected = applyShowPatternSlotSelections(
       item.show,
       item.patternSlots!,
       { 0: projection.pattern },
       (pattern) => pattern.id,
+      (pattern) => bundledPatternSliderNames(DEMOS[pattern.id], LIBRARIES),
     )
 
     const projectedControlTracks = projected.composition?.scenes.flatMap((scene) => (
@@ -903,6 +913,36 @@ describe('stock Show curriculum (#363)', () => {
       item.show.composition?.scenes.flatMap((scene) => scene.propertyTracks ?? [])
         .find((track) => track.id === 'track-pattern-control'),
     )
+  })
+
+  it('compiles a Property Animation slot swap while keeping a shared control animation (#828)', () => {
+    const item = STOCK_SHOWS.find((candidate) => candidate.id === 'stock-show-reference-property-animation')!
+    const pattern = { kind: 'stock' as const, id: 'Caustics' }
+    const authoredTrack = item.show.composition?.scenes.flatMap((scene) => scene.propertyTracks ?? [])
+      .find((track) => track.id === 'track-pattern-control')
+    if (!authoredTrack || authoredTrack.target.kind !== 'instance-control') {
+      throw new Error('Expected instance-control track')
+    }
+    const authoredInstanceId = authoredTrack.target.instanceId
+    const authoredTargets = item.show.composition?.patternInstances
+      .find((instance) => instance.id === authoredInstanceId)?.controlTargets
+
+    const projected = applyShowPatternSlotSelections(
+      item.show,
+      item.patternSlots!,
+      { 0: pattern },
+      (ref) => ref.id,
+      (ref) => bundledPatternSliderNames(DEMOS[ref.id], LIBRARIES),
+    )
+
+    expect(projected.composition?.scenes.flatMap((scene) => scene.propertyTracks ?? [])
+      .find((track) => track.id === 'track-pattern-control')).toEqual(authoredTrack)
+    expect(projected.composition?.patternInstances
+      .find((instance) => instance.id === authoredInstanceId)?.controlTargets)
+      .toEqual(authoredTargets)
+    const compiled = compileShowForArtifact(projected, [], undefined, {}, { stageDimension: 2 })
+    expect(compiled.error).toBeNull()
+    expect(compiled.artifact).not.toBeNull()
   })
 
   it('opens the Zone rail by default only where Zones are the first-visit subject', () => {

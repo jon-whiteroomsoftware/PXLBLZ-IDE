@@ -14,6 +14,7 @@ import type {
 } from './personalContentRecords'
 
 const SOURCE = `
+export function sliderSpeed(value) {}
 export function sliderOther(value) {}
 export function render(index) { rgb(1, 0, 0) }
 `
@@ -139,13 +140,16 @@ describe('Show Group Clip inspector model', () => {
     expect(updated.composition?.groupOccurrences).toHaveLength(2)
   })
 
-  it('removes only the edited Pattern instance control tracks whose authored control disappears (#628)', () => {
+  it('keeps only replacement-Pattern controls and tracks in a shared Group definition (#828)', () => {
     const show = fixture()
     const definition = show.composition!.groupDefinitions![0]
-    definition.patternInstances[0].controlTargets = { sliderSpeed: 0.5 }
+    definition.patternInstances[0].controlTargets = { sliderSpeed: 0.5, sliderOrphaned: 0.7 }
     definition.propertyTracks = [
       propertyTrack('track-control-speed', {
         kind: 'instance-control', instanceId: 'inside-instance', exportName: 'sliderSpeed',
+      }),
+      propertyTrack('track-control-orphaned', {
+        kind: 'instance-control', instanceId: 'inside-instance', exportName: 'sliderOrphaned',
       }),
       propertyTrack('track-brightness', {
         kind: 'placement-view', placementId: 'inside-clip', property: 'brightness',
@@ -159,11 +163,13 @@ describe('Show Group Clip inspector model', () => {
       placementId: 'inside-clip',
     }, {
       pattern: { ref: { kind: 'stock', id: 'Caustics' }, name: 'Caustics' },
-    })
+    }, new Set(['sliderSpeed']))
 
     expect(show).toEqual(original)
+    expect(updated.composition?.groupDefinitions?.[0].patternInstances[0].controlTargets)
+      .toEqual({ sliderSpeed: 0.5 })
     expect(updated.composition?.groupDefinitions?.[0].propertyTracks?.map((track) => track.id))
-      .toEqual(['track-brightness'])
+      .toEqual(['track-control-speed', 'track-brightness'])
     expect(updated.composition?.groupOccurrences?.map((occurrence) => occurrence.definitionId))
       .toEqual(['phrase', 'phrase'])
     expectValidAndCompilable(updated)

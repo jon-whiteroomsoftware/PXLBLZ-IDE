@@ -16,6 +16,7 @@ import {
   updateShowCellEffects,
   updateShowCellPattern,
 } from './showModel'
+import { partitionShowPatternControls } from './showPatternControlPartition'
 import {
   moveShowConnectedClipAtGlobalTime,
   resizeShowConnectedClipAtGlobalTime,
@@ -180,8 +181,9 @@ export function updateShowClipInspector(
   show: ShowRecord,
   owner: ShowClipInspectorOwner,
   patch: ShowClipInspectorPatch,
+  exportedSliderNames: ReadonlySet<string> = new Set(),
 ): ShowRecord {
-  if (owner.kind === 'global') return updateGlobalClip(show, owner.cellId, patch)
+  if (owner.kind === 'global') return updateGlobalClip(show, owner.cellId, patch, exportedSliderNames)
   const resolved = resolveCompositionOwner(show.composition, owner)
   if (!show.composition || !resolved) return show
   if (validateShowComposition(show, show.composition).some((issue) => issue.code === 'invalid-logical-clip')) {
@@ -189,6 +191,17 @@ export function updateShowClipInspector(
   }
   let composition = show.composition
   const originalPatternKey = patternKey(resolved.instance.pattern)
+  const changesPattern = Boolean(
+    patch.pattern && patternKey(patch.pattern.ref) !== originalPatternKey,
+  )
+  const preservedControlTargets = changesPattern
+    ? partitionShowPatternControls(
+        resolved.instance.id,
+        resolved.instance.controlTargets,
+        undefined,
+        exportedSliderNames,
+      ).keptControlTargets
+    : resolved.instance.controlTargets
   if (patch.pattern || patch.simulation || patch.evaluationPolicy) {
     composition = mapPatternInstance(composition, resolved.instance.id, (instance) => ({
       ...instance,
@@ -201,14 +214,16 @@ export function updateShowClipInspector(
       time: normalizeSimulationTime({ ...instance.time, ...patch.simulation }),
       ...resolveControlTargets(
         patch.simulation,
-        patch.pattern && patternKey(patch.pattern.ref) !== originalPatternKey
-          ? undefined
-          : instance.controlTargets,
+        changesPattern ? preservedControlTargets : instance.controlTargets,
       ),
     }))
   }
   if (patch.pattern || (patch.simulation && Object.prototype.hasOwnProperty.call(patch.simulation, 'controlTargets'))) {
-    composition = pruneRemovedControlPropertyTracks(composition, resolved.instance.id)
+    const allowedControlNames = changesPattern
+      ? exportedSliderNames
+      : new Set(Object.keys(composition.patternInstances
+          .find((instance) => instance.id === resolved.instance.id)?.controlTargets ?? {}))
+    composition = pruneRemovedControlPropertyTracks(composition, resolved.instance.id, allowedControlNames)
   }
   if (patch.view || patch.transform || patch.viewport || patch.effects || patch.presentation || patch.blink !== undefined) {
     composition = mapPlacement(composition, owner, (placement) => ({
@@ -308,10 +323,22 @@ function projectGlobalClip(cell: ShowCell, owner: Extract<ShowClipInspectorOwner
   }
 }
 
-function updateGlobalClip(show: ShowRecord, cellId: string, patch: ShowClipInspectorPatch): ShowRecord {
+function updateGlobalClip(
+  show: ShowRecord,
+  cellId: string,
+  patch: ShowClipInspectorPatch,
+  exportedSliderNames: ReadonlySet<string>,
+): ShowRecord {
   if (!show.cells.some((cell) => cell.id === cellId)) return show
   let next = show
-  if (patch.pattern) next = updateShowCellPattern(next, cellId, { pattern: patch.pattern.ref, patternName: patch.pattern.name })
+  if (patch.pattern) {
+    next = updateShowCellPattern(
+      next,
+      cellId,
+      { pattern: patch.pattern.ref, patternName: patch.pattern.name },
+      exportedSliderNames,
+    )
+  }
   if (patch.evaluationPolicy) {
     next = {
       ...next,
@@ -510,17 +537,17 @@ function pruneRemovedEffectPropertyTracks(
 function pruneRemovedControlPropertyTracks(
   composition: ShowCompositionV1,
   instanceId: string,
+  allowedControlNames: ReadonlySet<string>,
 ): ShowCompositionV1 {
-  const controlTargets = composition.patternInstances
-    .find((instance) => instance.id === instanceId)?.controlTargets
   return {
     ...composition,
     scenes: composition.scenes.map((scene) => {
-      const propertyTracks = scene.propertyTracks?.filter((track) => {
-        const target = track.target
-        if (target.kind !== 'instance-control' || target.instanceId !== instanceId) return true
-        return Object.prototype.hasOwnProperty.call(controlTargets ?? {}, target.exportName)
-      })
+      const propertyTracks = partitionShowPatternControls(
+        instanceId,
+        undefined,
+        scene.propertyTracks,
+        allowedControlNames,
+      ).keptPropertyTracks
       return {
         ...scene,
         ...(propertyTracks?.length ? { propertyTracks } : { propertyTracks: undefined }),

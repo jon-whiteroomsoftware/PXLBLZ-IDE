@@ -1,4 +1,4 @@
-import { inspectPatternMetadata } from './bundle'
+import { bundle, inspectPatternMetadata } from './bundle'
 import { CONTROL_SECONDS_PRESENTATIONS, type ControlSecondsPresentation } from '@/pixelblaze/controlDescriptions'
 
 export interface AutomatablePatternControl {
@@ -11,6 +11,15 @@ export interface AutomatablePatternControl {
   // linearly (value * scale); Show surfaces render an exact seconds field so
   // typed values mean seconds, not percent (#819).
   secondsPresentation?: ControlSecondsPresentation
+}
+
+export function bundledPatternSliderNames(
+  source: string,
+  libraries: Record<string, string>,
+): ReadonlySet<string> {
+  return new Set(bundle(source, libraries).metadata.controls
+    .filter((control) => control.kind === 'slider')
+    .map((control) => control.exportName))
 }
 
 export function discoverAutomatablePatternControls(

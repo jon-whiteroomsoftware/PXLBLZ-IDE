@@ -9,9 +9,9 @@ import {
 } from './showReferenceShow'
 
 describe('Show reference Pattern projection (#506)', () => {
-  it('replaces only the configured flat cells without mutating the authored Show', () => {
+  it('replaces only configured flat cells and keeps their shared controls', () => {
     const authored = createDefaultShow('show-1', 'Reference Show', 100)
-    authored.cells[0].controlTargets = { speed: 0.5 }
+    authored.cells[0].controlTargets = { sliderShared: 0.5, sliderOrphaned: 0.8 }
     const original = structuredClone(authored)
 
     const projected = applyShowReferencePattern(authored, {
@@ -19,14 +19,14 @@ describe('Show reference Pattern projection (#506)', () => {
       patternName: 'Compass Rose',
       cellIds: [authored.cells[0].id],
       instanceIds: [],
-    })
+    }, new Set(['sliderShared']))
 
     expect(projected).not.toBe(authored)
     expect(projected.cells[0]).toMatchObject({
       pattern: { kind: 'stock', id: 'CompassRose' },
       patternName: 'Compass Rose',
     })
-    expect(projected.cells[0].controlTargets).toBeUndefined()
+    expect(projected.cells[0].controlTargets).toEqual({ sliderShared: 0.5 })
     expect(projected.cells[1]).toEqual(authored.cells[1])
     expect(authored).toEqual(original)
   })

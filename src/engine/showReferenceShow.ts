@@ -1,5 +1,6 @@
 import type { ShowPatternRef, ShowRecord, ShowTransitionEasing } from './personalContentRecords'
 import { projectShowTimeline } from './showModel'
+import { partitionShowPatternControls } from './showPatternControlPartition'
 
 export interface ShowReferencePatternProjection {
   pattern: ShowPatternRef
@@ -44,6 +45,7 @@ export function applyShowPatternSlotSelections(
   slotGroups: readonly ShowPatternSlotGroup[],
   selections: Readonly<Record<number, ShowPatternRef>>,
   patternNameFor: (ref: ShowPatternRef) => string | undefined,
+  exportedSliderNamesFor: (ref: ShowPatternRef) => ReadonlySet<string>,
 ): ShowRecord {
   return slotGroups.reduce((current, group, index) => {
     const pattern = selections[index]
@@ -55,17 +57,16 @@ export function applyShowPatternSlotSelections(
       patternName,
       cellIds: group.cellIds,
       instanceIds: group.instanceIds,
-    })
+    }, exportedSliderNamesFor(pattern))
   }, show)
 }
 
-/**
- * Builds a session-only reference artifact. Replacing a Pattern also discards
- * authored control targets because export names belong to the previous source.
- */
+/** Builds a session-only reference artifact, retaining control state whose
+ * export names remain public sliders on the projected Pattern. */
 export function applyShowReferencePattern(
   show: ShowRecord,
   projection: ShowReferencePatternProjection,
+  exportedSliderNames: ReadonlySet<string> = new Set(),
 ): ShowRecord {
   const resolvedProjection = extendShowReferencePatternProjection(show, projection)
   const cellIds = new Set(resolvedProjection.cellIds)
@@ -76,14 +77,20 @@ export function applyShowReferencePattern(
       ...cell,
       pattern: resolvedProjection.pattern,
       patternName: resolvedProjection.patternName,
-      controlTargets: undefined,
+      controlTargets: partitionShowPatternControls(
+        cell.id,
+        cell.controlTargets,
+        undefined,
+        exportedSliderNames,
+      ).keptControlTargets,
     } : cell),
     composition: show.composition ? {
       ...show.composition,
       // A swapped source also forfeits the deterministic-loop stamp: the
       // exact-reset proof (#823 wrap census) belongs to the authored cast,
       // and a projected Pattern may hold state the loop reset cannot
-      // reconstruct. Same doctrine as discarding control targets above.
+      // reconstruct. Control compatibility does not prove runtime-state
+      // compatibility, so selective control preservation does not keep it.
       ...(show.composition.executionModel !== undefined
         && show.composition.patternInstances.some((instance) => (
           instanceIds.has(instance.id)
@@ -96,14 +103,24 @@ export function applyShowReferencePattern(
         ...instance,
         pattern: resolvedProjection.pattern,
         patternName: resolvedProjection.patternName,
-        controlTargets: undefined,
+        controlTargets: partitionShowPatternControls(
+          instance.id,
+          instance.controlTargets,
+          undefined,
+          exportedSliderNames,
+        ).keptControlTargets,
       } : instance),
       scenes: show.composition.scenes.map((scene) => {
-        const propertyTracks = scene.propertyTracks?.filter((track) => !(
-          track.target.kind === 'instance-control'
-          && instanceIds.has(track.target.instanceId)
-        ))
-        return propertyTracks && propertyTracks.length !== scene.propertyTracks?.length
+        const propertyTracks = [...instanceIds].reduce(
+          (tracks, instanceId) => partitionShowPatternControls(
+            instanceId,
+            undefined,
+            tracks,
+            exportedSliderNames,
+          ).keptPropertyTracks,
+          scene.propertyTracks,
+        )
+        return propertyTracks?.length !== scene.propertyTracks?.length
           ? { ...scene, propertyTracks }
           : scene
       }),

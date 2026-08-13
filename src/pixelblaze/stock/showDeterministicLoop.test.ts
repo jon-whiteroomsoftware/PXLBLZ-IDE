@@ -7,6 +7,9 @@ import { nativeDimension } from '@/engine/loadPattern'
 import { projectShowTimeline } from '@/engine/showModel'
 import { SOURCE_STOCK_MAPS } from './maps/stockCatalogue'
 import { STOCK_SHOWS } from './shows'
+import { DEMOS } from './patterns'
+import { LIBRARIES } from '@/pixelblaze/libs'
+import { bundledPatternSliderNames } from '@/engine/showPatternControls'
 
 // The deterministic-loop execution contract claims that every member returns
 // to its authored initial state at Show End, and the seek/checkpoint work
@@ -84,6 +87,7 @@ describe('stock deterministic-loop census (#823)', () => {
         item.patternSlots!,
         { 0: { kind: 'stock', id: 'IceFloes2D' } },
         (ref) => ref.id,
+        (ref) => bundledPatternSliderNames(DEMOS[ref.id], LIBRARIES),
       )
       expect(projected.composition?.executionModel, item.name).toBeUndefined()
     }
@@ -103,6 +107,7 @@ describe('stock deterministic-loop census (#823)', () => {
     // Restoring the authored cast after a transient projection restores it.
     const projected = applyShowPatternSlotSelections(
       item.show, item.patternSlots!, { 0: { kind: 'stock', id: 'IceFloes2D' } }, (ref) => ref.id,
+      (ref) => bundledPatternSliderNames(DEMOS[ref.id], LIBRARIES),
     )
     const restored = restoreShowReferencePatternSlots(projected, item.show, {
       pattern: { kind: 'stock', id: 'IceFloes2D' },

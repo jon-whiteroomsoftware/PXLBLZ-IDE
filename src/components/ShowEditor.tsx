@@ -92,7 +92,7 @@ import {
 import { resolveShowZonePixelCount, validateInstallationCoverage } from '@/engine/showInstallationCoverage'
 import { updateShowPhysicalZoneSelection } from '@/engine/showSpatialSelection'
 import { createPortableShowOutputContract } from '@/engine/showOutputContract'
-import { discoverAutomatablePatternControls, type AutomatablePatternControl } from '@/engine/showPatternControls'
+import { bundledPatternSliderNames, discoverAutomatablePatternControls, type AutomatablePatternControl } from '@/engine/showPatternControls'
 import {
   projectCompositionShowClipSummary,
   projectGlobalShowClipSummary,
@@ -247,6 +247,7 @@ import {
 import { buildShowToolkitPresentationCatalogue } from '@/engine/showVisualToolkitPresentation'
 import { type ControllerProfile } from '@/engine/controllerProfile'
 import { STOCK_PATTERNS } from '@/engine/galleryCatalog'
+import { LIBRARIES } from '@/pixelblaze/libs'
 import { useControllerStore } from '@/store/controllerStore'
 import { useControllerProfileStore } from '@/store/controllerProfileStore'
 import { resolveMap, STOCK_MAPS, useMapStore } from '@/store/mapStore'
@@ -283,6 +284,7 @@ import type {
   ShowLayerTransition,
   ShowRecord,
   ShowOutputEffect,
+  ShowPatternRef,
   ShowRoutingLayout,
   ShowAutomatableProperty,
 } from '@/engine/personalContentRecords'
@@ -969,6 +971,9 @@ export function ShowEditor({
   const updateRoutingLayout = useShowStore((state) => state.updateRoutingLayout)
   const removeRoutingLayout = useShowStore((state) => state.removeRoutingLayout)
   const userPatterns = usePatternStore((state) => state.userPatterns)
+  const exportedSliderNamesFor = useCallback((ref: ShowPatternRef) => (
+    bundledPatternSliderNames(sourceForShowPatternRef(ref, userPatterns), LIBRARIES)
+  ), [userPatterns])
   const userMaps = useMapStore((state) => state.userMaps)
   const controllerProfiles = useControllerProfileStore((state) => state.profiles)
   const activeIp = useControllerStore((state) => state.activeIp)
@@ -1112,9 +1117,15 @@ export function ShowEditor({
   ), [userPatterns])
   const activeShow = useMemo(() => (
     editableShow && builtInSlotGroups && selectedReferencePatterns
-      ? applyShowPatternSlotSelections(editableShow, builtInSlotGroups, selectedReferencePatterns, slotPatternNameFor)
+      ? applyShowPatternSlotSelections(
+          editableShow,
+          builtInSlotGroups,
+          selectedReferencePatterns,
+          slotPatternNameFor,
+          exportedSliderNamesFor,
+        )
       : editableShow
-  ), [editableShow, builtInSlotGroups, selectedReferencePatterns, slotPatternNameFor])
+  ), [editableShow, builtInSlotGroups, selectedReferencePatterns, slotPatternNameFor, exportedSliderNamesFor])
   const updateShow = useCallback((id: string, next: ShowRecord) => {
     let persisted = next
     if (editableShow && builtInSlotGroups && selectedReferencePatterns) {
@@ -1541,23 +1552,43 @@ export function ShowEditor({
     : []
   const commitClipInspectorPatch = (owner: ShowClipInspectorOwner, patch: ShowClipInspectorPatch) => {
     if (!activeShow || !inspectorShow) return false
-    const next = updateShowClipInspector(inspectorShow, owner, patch)
+    const next = updateShowClipInspector(
+      inspectorShow,
+      owner,
+      patch,
+      patch.pattern ? exportedSliderNamesFor(patch.pattern.ref) : undefined,
+    )
     return next !== inspectorShow ? Promise.resolve(updateShow(activeShow.id, next)) : false
   }
   const commitGroupClipInspectorPatch = (owner: ShowGroupClipOwner, patch: ShowClipInspectorPatch) => {
     if (!activeShow) return false
-    const next = updateShowGroupClipInspector(activeShow, owner, patch)
+    const next = updateShowGroupClipInspector(
+      activeShow,
+      owner,
+      patch,
+      patch.pattern ? exportedSliderNamesFor(patch.pattern.ref) : undefined,
+    )
     if (next === activeShow || !next.composition || validateShowGroups(next, next.composition).length > 0) return false
     return Promise.resolve(updateShow(activeShow.id, next))
   }
   const previewClipInspectorPatch = (owner: ShowClipInspectorOwner, patch: ShowClipInspectorPatch) => {
     if (!inspectorShow) return
-    const next = updateShowClipInspector(inspectorShow, owner, patch)
+    const next = updateShowClipInspector(
+      inspectorShow,
+      owner,
+      patch,
+      patch.pattern ? exportedSliderNamesFor(patch.pattern.ref) : undefined,
+    )
     if (next !== inspectorShow) useShowPreviewOverrideStore.getState().preview(next)
   }
   const previewGroupClipInspectorPatch = (owner: ShowGroupClipOwner, patch: ShowClipInspectorPatch) => {
     if (!activeShow) return
-    const next = updateShowGroupClipInspector(activeShow, owner, patch)
+    const next = updateShowGroupClipInspector(
+      activeShow,
+      owner,
+      patch,
+      patch.pattern ? exportedSliderNamesFor(patch.pattern.ref) : undefined,
+    )
     if (next !== activeShow && next.composition && validateShowGroups(next, next.composition).length === 0) {
       useShowPreviewOverrideStore.getState().preview(next)
     }
@@ -1666,7 +1697,7 @@ export function ShowEditor({
     if (currentShow && referencePatterns && builtInSlotGroups) {
       currentShow = applyShowPatternSlotSelections(currentShow, builtInSlotGroups, referencePatterns, (ref) => (
         ref.kind === 'stock' ? ref.id : currentPatterns.find((pattern) => pattern.id === ref.id)?.name
-      ))
+      ), (ref) => bundledPatternSliderNames(sourceForShowPatternRef(ref, currentPatterns), LIBRARIES))
     }
     if (!currentShow) return null
 

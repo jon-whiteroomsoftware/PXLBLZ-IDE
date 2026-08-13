@@ -1723,7 +1723,7 @@ describe('ShowEditor (#318)', () => {
     })
   })
 
-  it('reconciles Group Property tracks after Pattern and Effect edits in Clip Detail (#628)', async () => {
+  it('preserves compatible Group controls while reconciling Pattern and Effect edits (#828)', async () => {
     const user = userEvent.setup()
     const show = createDefaultShow('show-group-property-reconciliation', 'Group Property reconciliation', 1000)
     const zoneId = show.zones[0].id
@@ -1807,7 +1807,9 @@ describe('ShowEditor (#318)', () => {
     await waitFor(() => {
       const current = useShowStore.getState().shows[0]
       expect(current.composition?.groupDefinitions?.[0].propertyTracks?.map((track) => track.id))
-        .toEqual(['track-effect-x'])
+        .toEqual(['track-control-speed', 'track-effect-x'])
+      expect(current.composition?.groupDefinitions?.[0].patternInstances[0].controlTargets)
+        .toEqual({ sliderSpeed: 0.5 })
       expect(validateShowComposition(current, current.composition!)).toEqual([])
     })
 
@@ -1816,7 +1818,8 @@ describe('ShowEditor (#318)', () => {
     await user.click(screen.getByRole('menuitem', { name: 'Remove Translate Effect' }))
     await waitFor(() => {
       const current = useShowStore.getState().shows[0]
-      expect(current.composition?.groupDefinitions?.[0].propertyTracks).toBeUndefined()
+      expect(current.composition?.groupDefinitions?.[0].propertyTracks?.map((track) => track.id))
+        .toEqual(['track-control-speed'])
       expect(validateShowComposition(current, current.composition!)).toEqual([])
     })
     await user.click(within(panel).getByRole('tab', { name: /^Pattern/ }))

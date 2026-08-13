@@ -15,6 +15,7 @@ import { normalizeShowClipEffects } from './showEffects'
 import { compactShowClipTransform, normalizeShowClipTransform } from './showClipTransform'
 import { compactShowClipViewport, normalizeShowClipViewport } from './showClipViewport'
 import { projectShowTimeline } from './showModel'
+import { partitionShowPatternControls } from './showPatternControlPartition'
 
 export interface ShowGroupClipOwner {
   occurrenceId: string
@@ -78,6 +79,7 @@ export function updateShowGroupClipInspector(
   show: ShowRecord,
   owner: ShowGroupClipOwner,
   patch: ShowClipInspectorPatch,
+  exportedSliderNames: ReadonlySet<string> = new Set(),
 ): ShowRecord {
   const resolved = resolveGroupClip(show, owner)
   if (!show.composition || !resolved) return show
@@ -95,7 +97,13 @@ export function updateShowGroupClipInspector(
   if (!validLocalPatch(normalizedPatch)) return show
   const definitions = show.composition.groupDefinitions?.map((definition) => {
     if (definition.id !== resolved.definition.id) return definition
-    return updateDefinition(definition, resolved.placement.id, resolved.instance.id, normalizedPatch)
+    return updateDefinition(
+      definition,
+      resolved.placement.id,
+      resolved.instance.id,
+      normalizedPatch,
+      exportedSliderNames,
+    )
   })
   if (!definitions) return show
   // A changed Group source forfeits the deterministic-loop stamp: the
@@ -129,9 +137,13 @@ function updateDefinition(
   placementId: string,
   instanceId: string,
   patch: ShowClipInspectorPatch,
+  exportedSliderNames: ReadonlySet<string>,
 ): ShowGroupDefinition {
+  const originalInstance = definition.patternInstances.find((instance) => instance.id === instanceId)
+  const changesPattern = Boolean(originalInstance && patch.pattern
+    && patternKey(patch.pattern.ref) !== patternKey(originalInstance.pattern))
   const patternInstances = definition.patternInstances.map((instance) => instance.id === instanceId
-    ? updateInstance(instance, patch)
+    ? updateInstance(instance, patch, changesPattern ? exportedSliderNames : undefined)
     : instance)
   const placements = definition.placements.map((placement) => placement.id === placementId
     ? updatePlacement(placement, patch)
@@ -139,11 +151,15 @@ function updateDefinition(
   let propertyTracks = definition.propertyTracks
   if (patch.pattern || (patch.simulation && Object.prototype.hasOwnProperty.call(patch.simulation, 'controlTargets'))) {
     const controlTargets = patternInstances.find((instance) => instance.id === instanceId)?.controlTargets
-    propertyTracks = propertyTracks?.filter((track) => {
-      const target = track.target
-      if (target.kind !== 'instance-control' || target.instanceId !== instanceId) return true
-      return Object.prototype.hasOwnProperty.call(controlTargets ?? {}, target.exportName)
-    })
+    const allowedControlNames = changesPattern
+      ? exportedSliderNames
+      : new Set(Object.keys(controlTargets ?? {}))
+    propertyTracks = partitionShowPatternControls(
+      instanceId,
+      undefined,
+      propertyTracks,
+      allowedControlNames,
+    ).keptPropertyTracks
   }
   if (patch.effects) {
     const effects = placements.find((placement) => placement.id === placementId)?.effects
@@ -163,7 +179,11 @@ function updateDefinition(
   }
 }
 
-function updateInstance(instance: ShowPatternInstance, patch: ShowClipInspectorPatch): ShowPatternInstance {
+function updateInstance(
+  instance: ShowPatternInstance,
+  patch: ShowClipInspectorPatch,
+  exportedSliderNames?: ReadonlySet<string>,
+): ShowPatternInstance {
   if (!patch.pattern && !patch.simulation && !patch.evaluationPolicy) return instance
   const time = patch.simulation ? normalizeSimulationTime({ ...instance.time, ...patch.simulation }) : instance.time
   let controlTargets = instance.controlTargets
@@ -172,8 +192,13 @@ function updateInstance(instance: ShowPatternInstance, patch: ShowClipInspectorP
       ? Object.fromEntries(Object.entries(patch.simulation.controlTargets).map(([key, value]) => [key, clamp(value, 0, 1)]))
       : {}
     controlTargets = Object.keys(next).length > 0 ? next : undefined
-  } else if (patch.pattern && patternKey(patch.pattern.ref) !== patternKey(instance.pattern)) {
-    controlTargets = undefined
+  } else if (exportedSliderNames) {
+    controlTargets = partitionShowPatternControls(
+      instance.id,
+      instance.controlTargets,
+      undefined,
+      exportedSliderNames,
+    ).keptControlTargets
   }
   return {
     ...instance,

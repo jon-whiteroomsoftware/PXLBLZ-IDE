@@ -84,6 +84,8 @@ import type { AuthProvider } from '@/engine/authSession'
 import { DEMOS } from '@/pixelblaze/stock/patterns'
 import { stockShowById } from '@/pixelblaze/stock/shows'
 import { applyShowPatternSlotSelections } from '@/engine/showReferenceShow'
+import { sourceForShowPatternRef } from '@/engine/showPreviewArtifact'
+import { bundledPatternSliderNames } from '@/engine/showPatternControls'
 import { useShowEditorSessionStore } from '@/store/showEditorSessionStore'
 import { InlineEntityTitle } from '@/components/InlineEntityTitle'
 import { usePreviewStore } from '@/store/previewStore'
@@ -720,8 +722,8 @@ function StudioApp() {
     if (!base || !slotGroups || !selectedReferencePatterns) return base
     return applyShowPatternSlotSelections(base, slotGroups, selectedReferencePatterns, (ref) => (
       ref.kind === 'stock' ? ref.id : userPatterns.find((pattern) => pattern.id === ref.id)?.name
-    ))
-  }, [routedStockShow, routedStockShowDraft, selectedReferencePatterns, userPatterns])
+    ), (ref) => bundledPatternSliderNames(sourceForShowPatternRef(ref, userPatterns), compileLibrarySet))
+  }, [compileLibrarySet, routedStockShow, routedStockShowDraft, selectedReferencePatterns, userPatterns])
   const activeShow = routedStockShowOverride ?? (activeShowId ? shows.find((show) => show.id === activeShowId) : undefined)
 
   const handleDeletePattern = useCallback(async () => {

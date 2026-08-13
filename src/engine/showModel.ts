@@ -55,6 +55,7 @@ import {
   showClipTransformEffectTarget,
   type ShowClipTransformProperty,
 } from './showClipTransform'
+import { partitionShowPatternControls } from './showPatternControlPartition'
 import {
   controllerProfileDisplayName,
   type ControllerProfile,
@@ -1101,13 +1102,17 @@ export function updateShowCellPattern(
   show: ShowRecord,
   cellId: string,
   patch: Pick<ShowCell, 'pattern' | 'patternName'>,
+  exportedSliderNames: ReadonlySet<string> = new Set(),
 ): ShowRecord {
   return {
     ...show,
     cells: show.cells.map((cell) => {
       if (cell.id !== cellId) return cell
       const changesPattern = cell.pattern.kind !== patch.pattern.kind || cell.pattern.id !== patch.pattern.id
-      return { ...cell, ...patch, ...(changesPattern ? { controlTargets: undefined } : {}) }
+      const controlTargets = changesPattern
+        ? partitionShowPatternControls(cell.id, cell.controlTargets, undefined, exportedSliderNames).keptControlTargets
+        : cell.controlTargets
+      return { ...cell, ...patch, controlTargets }
     }),
     updatedAt: Date.now(),
   }

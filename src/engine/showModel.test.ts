@@ -313,16 +313,18 @@ describe('showModel (#318)', () => {
     })
   })
 
-  it('clears developer-slider targets when a clip changes Pattern (#63)', () => {
+  it('keeps only developer-slider targets exported by a replacement Pattern (#828)', () => {
     const base = createDefaultShow('show-63-controls', 'Pattern controls', 1)
-    const withTarget = updateShowCellControlTarget(base, 'cell-1', 'sliderTwist', 0.75)
+    const withSharedTarget = updateShowCellControlTarget(base, 'cell-1', 'sliderShared', 0.25)
+    const withTargets = updateShowCellControlTarget(withSharedTarget, 'cell-1', 'sliderOrphaned', 0.75)
 
-    const changed = updateShowCellPattern(withTarget, 'cell-1', {
+    const changed = updateShowCellPattern(withTargets, 'cell-1', {
       pattern: { kind: 'stock', id: 'LineBouncer2D' },
       patternName: 'Line Bouncer 2D',
-    })
+    }, new Set(['sliderShared']))
 
-    expect(changed.cells[0].controlTargets).toBeUndefined()
+    expect(changed.cells[0].controlTargets).toEqual({ sliderShared: 0.25 })
+    expect(withTargets.cells[0].controlTargets).toEqual({ sliderShared: 0.25, sliderOrphaned: 0.75 })
   })
 
   it('treats every slot beneath a spanning clip as occupied (#430)', () => {
