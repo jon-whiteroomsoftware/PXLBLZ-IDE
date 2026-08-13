@@ -266,6 +266,18 @@ describe('getExports', () => {
     expect(handle.setPatternVar('feedbackSeek', 1)).toBe(true)
     expect(handle.getExports().feedbackSeek).toBe(1)
   })
+
+  it('restores a declared compacted runtime binding whose value is undefined (#847)', () => {
+    const handle = loadPattern(
+      'var a;',
+      { ...meta(['scratch']), patternVarBindings: { scratch: 'a' } },
+      minimalBuiltins,
+    )
+
+    expect(handle.getRuntimeState().scratch).toBeUndefined()
+    expect(handle.setRuntimeVar('scratch', 0)).toBe(true)
+    expect(handle.getRuntimeState().scratch).toBe(0)
+  })
 })
 
 // ── controls ──────────────────────────────────────────────────────────────────

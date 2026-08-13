@@ -142,7 +142,7 @@ import {
   type ShowRenderTargetLifetime,
 } from './showRenderTargetPlanner'
 import {
-  analyzeShowPatternCoverageRenderState,
+  analyzeShowPatternDeterministicReplayState,
   analyzeShowPatternRenderState,
   estimateShowPatternRenderOperations,
   groupCompatibleShowPatternOutputs,
@@ -2798,6 +2798,11 @@ export function compileShow(
   if (needsInstalledMapZ) {
     metadata.renderFns.hasRender3D = true
   }
+  const patternVarBindings = Object.fromEntries(metadata.patternVars.flatMap((name) => {
+    const runtimeName = compacted.names.get(name)
+    return runtimeName ? [[name, runtimeName]] : []
+  }))
+  if (Object.keys(patternVarBindings).length > 0) metadata.patternVarBindings = patternVarBindings
   const replayRenderFunctions = [
     ['render', metadata.renderFns.hasRender],
     ['render2D', metadata.renderFns.hasRender2D],
@@ -2805,19 +2810,23 @@ export function compileShow(
   ] as const satisfies ReadonlyArray<readonly [ShowPatternOutputRenderFunction, boolean]>
   const replayRenderAnalyses = replayRenderFunctions
     .filter(([, available]) => available)
-    .map(([renderFunction]) => [renderFunction, analyzeShowPatternCoverageRenderState(expandedCode, renderFunction)] as const)
+    .map(([renderFunction]) => [renderFunction, analyzeShowPatternDeterministicReplayState(expandedCode, renderFunction)] as const)
   const targetOverwrittenBindings = deterministicReplayTargetOverwrittenBindings(members)
+  const replayPersistentBindings = new Set(metadata.patternVars)
+  const normalizedBindings = [...new Set(replayRenderAnalyses.flatMap(([, analysis]) => (
+    analysis.writtenBindings.filter((binding) => replayPersistentBindings.has(binding))
+  )))].sort()
   if (replayRenderAnalyses.length > 0 && replayRenderAnalyses.every(([, analysis]) => (
     analysis.unknownCalls.length === 0
-    && analysis.mutatedBindings.every((binding) => targetOverwrittenBindings.has(binding))
-  ))) {
-    metadata.deterministicReplay = { intermediateRender: 'state-pure' }
+    && analysis.mutatedBindings.every((binding) => (
+      targetOverwrittenBindings.has(binding) && !replayPersistentBindings.has(binding)
+    ))
+  )) && normalizedBindings.every((binding) => patternVarBindings[binding] !== undefined)) {
+    metadata.deterministicReplay = {
+      intermediateRender: 'state-pure',
+      normalizedBindings,
+    }
   }
-  const patternVarBindings = Object.fromEntries(metadata.patternVars.flatMap((name) => {
-    const runtimeName = compacted.names.get(name)
-    return runtimeName ? [[name, runtimeName]] : []
-  }))
-  if (Object.keys(patternVarBindings).length > 0) metadata.patternVarBindings = patternVarBindings
   const sourceBytesBeforeMerge = members.reduce((sum, member) => sum + member.sourceBytes, 0)
   const expandedArtifactBytes = byteLength(expandedCode)
   const artifactBytes = byteLength(code)

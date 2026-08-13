@@ -1,5 +1,6 @@
 import {
   analyzeShowPatternCoverageRenderState,
+  analyzeShowPatternDeterministicReplayState,
   analyzeShowPatternRenderState,
   compareShowPatternOutputConsumers,
   groupCompatibleShowPatternOutputs,
@@ -134,6 +135,10 @@ export function render2D(index, x, y) {
       state: 'pure',
       mutatedBindings: [],
       unknownCalls: [],
+    })
+    expect(analyzeShowPatternDeterministicReplayState(source, 'render2D')).toMatchObject({
+      state: 'pure',
+      writtenBindings: ['outX', 'outY'],
     })
   })
 

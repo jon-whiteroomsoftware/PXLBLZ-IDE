@@ -843,9 +843,7 @@ export function render(index) { rgb(phase, index / pixelCount, 0) }
 `,
         }],
       }, {})
-      expect(artifact.metadata.deterministicReplay).toEqual({ intermediateRender: 'state-pure' })
-      const fullRenderMetadata = structuredClone(artifact.metadata)
-      delete fullRenderMetadata.deterministicReplay
+      expect(artifact.metadata.deterministicReplay).toMatchObject({ intermediateRender: 'state-pure' })
       const options = { mapPoints: lineMap(4), randomSeed: 847, fidelity }
       const optimizedRuntime = createFastReplayRuntime({
         code: artifact.code,
@@ -856,12 +854,12 @@ export function render(index) { rgb(phase, index / pixelCount, 0) }
       const fullRenderRuntime = createFastReplayRuntime({
         code: artifact.code,
         fxCode: artifact.fxCode,
-        metadata: fullRenderMetadata,
+        metadata: artifact.metadata,
         dimension: 1,
       }, options)
 
       const optimized = optimizedRuntime.advanceTo(50, { stepMs: 10 })
-      const fullRender = fullRenderRuntime.advanceTo(50, { stepMs: 10 })
+      const fullRender = fullRenderRuntime.advanceTo(50, { stepMs: 10, forceFullIntermediateRender: true })
 
       expect(optimized.simulatedFrames).toBe(5)
       expect(optimized.outerRendererCalls).toBe(4)
@@ -899,9 +897,7 @@ export function render2D(index, x, y) { rgb(x, y, index / pixelCount) }
     mapPoints,
   }) => {
     const artifact = compileShow({ masterPixelCount: 4, clips: [{ id: 'safe', source }] }, {})
-    expect(artifact.metadata.deterministicReplay).toEqual({ intermediateRender: 'state-pure' })
-    const fullRenderMetadata = structuredClone(artifact.metadata)
-    delete fullRenderMetadata.deterministicReplay
+    expect(artifact.metadata.deterministicReplay).toMatchObject({ intermediateRender: 'state-pure' })
     for (const fidelity of ['fast', 'fidelity'] as const) {
       const options = { mapPoints, randomSeed: 847, fidelity }
       const optimizedRuntime = createFastReplayRuntime({
@@ -913,12 +909,12 @@ export function render2D(index, x, y) { rgb(x, y, index / pixelCount) }
       const fullRenderRuntime = createFastReplayRuntime({
         code: artifact.code,
         fxCode: artifact.fxCode,
-        metadata: fullRenderMetadata,
+        metadata: artifact.metadata,
         dimension,
       }, options)
 
       const optimized = optimizedRuntime.advanceTo(50, { stepMs: 10 })
-      const fullRender = fullRenderRuntime.advanceTo(50, { stepMs: 10 })
+      const fullRender = fullRenderRuntime.advanceTo(50, { stepMs: 10, forceFullIntermediateRender: true })
 
       expect(optimized.outerRendererCalls).toBe(4)
       expect(fullRender.outerRendererCalls).toBe(20)
@@ -943,6 +939,66 @@ export function render2D(index, x, y) { rgb(x, y, index / pixelCount) }
       dimension: 1,
     }, { mapPoints: lineMap(4), randomSeed: 847 }).advanceTo(50, { stepMs: 10 })
     expect(result.outerRendererCalls).toBe(20)
+  })
+
+  it('normalizes target-local renderer state when its member is inactive at the target (#847)', () => {
+    const artifact = compileShow({
+      masterPixelCount: 2,
+      clips: [
+        {
+          id: 'from',
+          source: `
+var phase = 0
+var out = 0
+export function beforeRender(delta) { phase += delta / 1000 }
+export function render(index) { out = phase + index; rgb(out, 0, 0) }
+`,
+        },
+        { id: 'to', source: 'export function render(index) { rgb(0, index, 0) }' },
+      ],
+      cut: { startMs: 1_000 },
+    }, {})
+
+    expect(artifact.metadata.deterministicReplay).toMatchObject({
+      intermediateRender: 'state-pure',
+      normalizedBindings: expect.arrayContaining(['__pxlblz_show_c0_out']),
+    })
+    const prepared = {
+      code: artifact.code,
+      fxCode: artifact.fxCode,
+      metadata: artifact.metadata,
+      dimension: 1 as const,
+    }
+    const options = { mapPoints: lineMap(2), randomSeed: 847 }
+    const optimizedRuntime = createFastReplayRuntime(prepared, options)
+    const fullRenderRuntime = createFastReplayRuntime(prepared, options)
+
+    const optimizedCheckpoint = optimizedRuntime.advanceTo(500, { stepMs: 100, presentTargetFrame: false })
+    const fullRenderCheckpoint = fullRenderRuntime.advanceTo(500, {
+      stepMs: 100,
+      presentTargetFrame: false,
+      forceFullIntermediateRender: true,
+    })
+
+    expect(optimizedCheckpoint.outerRendererCalls).toBe(0)
+    expect(fullRenderCheckpoint.outerRendererCalls).toBe(10)
+    expect(optimizedCheckpoint.exports).toEqual(fullRenderCheckpoint.exports)
+    expect(optimizedRuntime.snapshot()).toEqual(fullRenderRuntime.snapshot())
+
+    const optimized = optimizedRuntime.advanceTo(1_500, { stepMs: 100 })
+    const fullRender = fullRenderRuntime.advanceTo(1_500, { stepMs: 100, forceFullIntermediateRender: true })
+
+    expect(optimized.outerRendererCalls).toBe(2)
+    expect(fullRender.outerRendererCalls).toBe(30)
+    expect(optimized.checksum).toBe(fullRender.checksum)
+    expect(optimized.exports).toEqual(fullRender.exports)
+    expect(optimizedRuntime.snapshot()).toEqual(fullRenderRuntime.snapshot())
+
+    const optimizedLive = optimizedRuntime.advanceLive(100)
+    const fullRenderLive = fullRenderRuntime.advanceLive(100)
+    expect(optimizedLive.checksum).toBe(fullRenderLive.checksum)
+    expect(optimizedLive.exports).toEqual(fullRenderLive.exports)
+    expect(optimizedRuntime.snapshot()).toEqual(fullRenderRuntime.snapshot())
   })
 
   it('always traverses pixels during live playback for a replay-safe artifact (#847)', () => {

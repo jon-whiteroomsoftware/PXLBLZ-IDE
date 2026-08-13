@@ -46,6 +46,12 @@ export interface ShowPatternRenderStateAnalysis {
   unknownCalls: string[]
 }
 
+export interface ShowPatternDeterministicReplayStateAnalysis extends ShowPatternRenderStateAnalysis {
+  /** Every non-local binding written by the reachable renderer call graph,
+   * including scratch whose reads are dominated by an assignment. */
+  writtenBindings: string[]
+}
+
 export interface ShowPatternOutputReuseGroup {
   key: string
   producerId: string
@@ -278,11 +284,22 @@ export function analyzeShowPatternCoverageRenderState(
   source: string,
   renderFunction: ShowPatternOutputRenderFunction,
 ): ShowPatternRenderStateAnalysis {
+  const { writtenBindings: _writtenBindings, ...analysis } = analyzeShowPatternDeterministicReplayState(
+    source,
+    renderFunction,
+  )
+  return analysis
+}
+
+export function analyzeShowPatternDeterministicReplayState(
+  source: string,
+  renderFunction: ShowPatternOutputRenderFunction,
+): ShowPatternDeterministicReplayStateAnalysis {
   let ast: AstNode
   try {
     ast = acorn.parse(source, { ecmaVersion: 2020, sourceType: 'module' }) as unknown as AstNode
   } catch {
-    return { state: 'unknown', mutatedBindings: [], unknownCalls: ['<parse>'] }
+    return { state: 'unknown', mutatedBindings: [], unknownCalls: ['<parse>'], writtenBindings: [] }
   }
   const statements = (ast.body as AstNode[]).map((statement) => (
     statement.type === 'ExportNamedDeclaration' ? statement.declaration : statement
@@ -308,7 +325,7 @@ export function analyzeShowPatternCoverageRenderState(
     }
   }
   if (!userFunctions.has(renderFunction)) {
-    return { state: 'unknown', mutatedBindings: [], unknownCalls: [`<missing:${renderFunction}>`] }
+    return { state: 'unknown', mutatedBindings: [], unknownCalls: [`<missing:${renderFunction}>`], writtenBindings: [] }
   }
 
   const localBindingsByFunction = new Map<string, Set<string>>()
@@ -547,6 +564,7 @@ export function analyzeShowPatternCoverageRenderState(
     state: mutated.length > 0 ? 'render-mutating' : unknown.length > 0 ? 'unknown' : 'pure',
     mutatedBindings: mutated,
     unknownCalls: unknown,
+    writtenBindings: [...scratchBindings].sort(),
   }
 }
 

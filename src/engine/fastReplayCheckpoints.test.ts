@@ -2,7 +2,6 @@ import {
   advanceFastReplayCooperatively,
   createFastReplayRuntime,
   prepareFastReplay,
-  type PreparedFastReplay,
   type FastReplayRuntime,
 } from './fastReplay'
 import {
@@ -181,17 +180,15 @@ describe('Fast replay checkpoint reconstruction (#842)', () => {
         ...bundled,
         metadata: {
           ...bundled.metadata,
-          deterministicReplay: { intermediateRender: 'state-pure' as const },
+          deterministicReplay: { intermediateRender: 'state-pure' as const, normalizedBindings: [] },
         },
       }
-      const fullRenderMetadata: PreparedFastReplay['metadata'] = structuredClone(prepared.metadata)
-      delete fullRenderMetadata.deterministicReplay
       const runtimeOptions = { mapPoints: lineMap(4), randomSeed: 847, fidelity }
       const createRuntime = () => createFastReplayRuntime(prepared, runtimeOptions)
       const fullRenderAt = (targetMs: number) => {
-        const runtime = createFastReplayRuntime({ ...prepared, metadata: fullRenderMetadata }, runtimeOptions)
+        const runtime = createFastReplayRuntime(prepared, runtimeOptions)
         runtime.renderCurrentFrame()
-        runtime.advanceTo(targetMs, advance)
+        runtime.advanceTo(targetMs, { ...advance, forceFullIntermediateRender: true })
         return runtime
       }
       const store = new FastReplayCheckpointStore<string>()

@@ -310,13 +310,17 @@ settle.
 Generated Shows may carry a deterministic-replay capability when the compiler
 proves every emitted renderer path target-state-pure. The proof follows the
 selected renderer and its helpers after routing and Effects have been emitted.
-It admits only renderer-local values and enumerated compiler scratch that the
-target traversal overwrites; authored scalar writes, array or alias writes,
-dynamic calls, render-target history, and temporal feedback fail closed. A
-capable replay advances the virtual clock and `beforeRender` on every fixed
-step, skips pixel traversal on intermediate steps, and renders the requested
-target frame normally. Live playback and artifacts without the capability keep
-the full renderer path.
+Renderer-local scalar scratch is admissible only when every semantic read is
+dominated by an assignment and no `beforeRender` or external helper observes
+its history. The capability records snapshot-visible scratch and normalizes it
+after every deterministic step, including full-render verification steps; an
+inactive member therefore cannot retain a different last-render value at a
+checkpoint or target. Accumulators, array or alias writes, dynamic calls,
+render-target history, and temporal feedback fail closed. A capable replay
+advances the virtual clock and `beforeRender` on every fixed step, skips pixel
+traversal on intermediate steps, and renders the requested target frame
+normally. Live playback and artifacts without the capability keep the full
+renderer path.
 
 ## 10. WebGL, camera, and preview settings
 
@@ -1013,11 +1017,13 @@ zero, and advances at 60 fixed steps per second; a warm seek restores the neares
 compatible checkpoint before advancing the residual interval. Checkpointing
 limits the residual interval's step count; the generated artifact capability
 separately removes per-pixel work from those intermediate steps when renderer
-state is proven target-local. Every step still advances `beforeRender`, and the
-target always receives a complete renderer traversal. Unproved artifacts run
-every renderer on every step. Replay advances 250 ms of Show time per
-cooperative chunk and yields; newer seeks supersede older work, and only the
-completed reconstruction becomes the live runtime.
+state is proven target-local. Every step still advances `beforeRender` and
+normalizes any compiler-listed renderer scratch after the step; this keeps
+checkpoint and final runtime snapshots identical when a member is inactive at
+the target. The target always receives a complete renderer traversal. Unproved
+artifacts run every renderer on every step. Replay advances 250 ms of Show time
+per cooperative chunk and yields; newer seeks supersede older work, and only
+the completed reconstruction becomes the live runtime.
 
 The paused Stage pre-warms the same checkpoint store with the same deterministic
 replay contract. Its runtime remains private, its chunks run at idle priority,

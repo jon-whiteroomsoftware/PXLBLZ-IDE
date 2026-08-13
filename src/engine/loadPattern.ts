@@ -46,6 +46,8 @@ export interface PatternMetadata {
    * traversals while preserving complete runtime state. Absence is unsafe. */
   deterministicReplay?: {
     intermediateRender: 'state-pure'
+    /** Snapshot-visible renderer scratch normalized after each replay step. */
+    normalizedBindings: string[]
   }
 }
 
@@ -128,7 +130,9 @@ function buildEpilogue(metadata: PatternMetadata): string {
   // setter can restore an uninitialized declaration without a typeof guard.
   const runtimeStateVars = new Map(metadata.patternVars.map((name) => [name, {
     runtimeName: metadata.patternVarBindings?.[name] ?? name,
-    declared: false,
+    // Compiler bindings come from the parsed, compacted top-level artifact.
+    // They remain assignable even while their current value is undefined.
+    declared: metadata.patternVarBindings?.[name] !== undefined,
   }]))
   for (const name of metadata.runtimeVars ?? []) {
     runtimeStateVars.set(name, { runtimeName: name, declared: true })

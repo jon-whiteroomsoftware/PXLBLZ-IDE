@@ -23,6 +23,9 @@ export interface FastReplayRuntimeOptions {
 export interface FastReplayAdvanceOptions {
   stepMs: number
   temporalFeedbackSeek?: 'exact' | 'clear-at-target'
+  /** Run every intermediate renderer while retaining the capability's state
+   * normalization contract. Used by full-versus-skipped verification. */
+  forceFullIntermediateRender?: boolean
   /** Cooperative replay keeps intermediate chunk boundaries headless. */
   presentTargetFrame?: boolean
 }
@@ -391,6 +394,14 @@ export function createFastReplayRuntime(
     }
   }
 
+  const normalizeDeterministicReplayState = () => {
+    for (const binding of prepared.metadata.deterministicReplay?.normalizedBindings ?? []) {
+      if (!handle.setRuntimeVar(binding, 0)) {
+        throw new Error(`Fast replay normalization variable "${binding}" is unavailable.`)
+      }
+    }
+  }
+
   return {
     getElapsedMs: () => clock.getTime(),
     snapshot(): FastReplaySnapshot {
@@ -526,6 +537,7 @@ export function createFastReplayRuntime(
       const presentsTargetFrame = advance.presentTargetFrame !== false
       const skipsIntermediateRender = prepared.metadata.deterministicReplay?.intermediateRender === 'state-pure'
         && !prepared.metadata.temporalFeedback
+        && !advance.forceFullIntermediateRender
       if (clearsTemporalFeedback && !handle.setPatternVar(previewSeekModeVar!, 1)) {
         throw new Error(`Fast replay temporal seek variable "${previewSeekModeVar}" is unavailable.`)
       }
@@ -543,6 +555,7 @@ export function createFastReplayRuntime(
           loop.tickHeadless(Math.min(remainingMs, advance.stepMs))
           outerRendererCalls += pixelCount
         }
+        normalizeDeterministicReplayState()
         simulatedFrames += 1
       }
       if (clearsTemporalFeedback && presentsTargetFrame) handle.setPatternVar(previewSeekModeVar!, 0)
