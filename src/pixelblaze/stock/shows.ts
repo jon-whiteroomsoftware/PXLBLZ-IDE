@@ -3311,8 +3311,15 @@ function quadrilleRemix(): StockShow {
   const LACE_KEY: ShowClipEffect = { id: 'lace-key', kind: 'chroma-key', color: '#000000', tolerance: 0.06, softness: 0.06 }
   const HUE_TILT: ShowClipEffect = { id: 'hue-tilt', kind: 'hue', turns: 0.35 }
   type Quadrant = 'nw' | 'ne' | 'sw' | 'se'
-  const FRAMES: Record<Quadrant, { x: number; y: number }> = {
-    nw: { x: 0, y: 0 }, ne: { x: 0.5, y: 0 }, sw: { x: 0, y: 0.5 }, se: { x: 0.5, y: 0.5 },
+  // Hard rectangle predicates include both endpoints. End the low halves one
+  // 16.16 quantum before 0.5 so every Controller coordinate belongs to
+  // exactly one quarter while the high halves still begin at 0.5.
+  const LOWER_HALF = 0.5 - (1 / 65_536)
+  const FRAMES: Record<Quadrant, { x: number; y: number; width: number; height: number }> = {
+    nw: { x: 0, y: 0, width: LOWER_HALF, height: LOWER_HALF },
+    ne: { x: 0.5, y: 0, width: 0.5, height: LOWER_HALF },
+    sw: { x: 0, y: 0.5, width: LOWER_HALF, height: 0.5 },
+    se: { x: 0.5, y: 0.5, width: 0.5, height: 0.5 },
   }
   // The mandala poses: every quarter reflects its neighbours across the
   // center seams, so four echoes of one live frame read as a folded image.
@@ -3333,7 +3340,7 @@ function quadrilleRemix(): StockShow {
         rotation: pose.rotation + (options.rotationDelta ?? 0),
         scaleX: 0.5, scaleY: 0.5,
       },
-      viewport: { enabled: true, x: FRAMES[q].x, y: FRAMES[q].y, width: 0.5, height: 0.5, edge: 'hard' as const },
+      viewport: { enabled: true, ...FRAMES[q], edge: 'hard' as const },
       ...(options.effects ? { effects: options.effects } : {}),
     }
   }

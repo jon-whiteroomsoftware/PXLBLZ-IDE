@@ -68,7 +68,27 @@ describe('Quadrille remix show (#832)', () => {
   it('compiles, and renders deterministically', () => {
     const compiled = compileShowForArtifact(fixture!.show, [], undefined, {}, { stageDimension: 2 })
     expect(compiled.error).toBeNull()
+    expect(compiled.artifactBlocker).toBeUndefined()
     const artifact = compiled.artifact!
+    expect(artifact.summary).toMatchObject({
+      steadyStateRenderersPerPixel: 2,
+      worstInstantRenderersPerPixel: 4,
+      cost: { cpu: { patternEvaluations: { formula: 'S * N', samplesPerPixel: 4 } } },
+    })
+    const coverage = artifact.summary.specializations.viewportCoverage?.stacks ?? []
+    expect(coverage.filter((decision) => decision.status === 'selected')).toHaveLength(4)
+    expect(coverage).toEqual(expect.arrayContaining([
+      expect.objectContaining({
+        framedPlacementCount: 4,
+        hasSharedGround: false,
+        maxPatternEvaluationsPerPixel: 1,
+      }),
+      expect.objectContaining({
+        framedPlacementCount: 4,
+        hasSharedGround: true,
+        maxPatternEvaluationsPerPixel: 2,
+      }),
+    ]))
     expect(frameAt(artifact, 9_600).checksum).toBe(frameAt(artifact, 9_600).checksum)
   })
 

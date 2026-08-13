@@ -614,6 +614,12 @@ export interface ShowCompileSummary {
         edge: 'hard' | 'soft' | 'dither'
         status: 'selected' | 'rejected'
         reason: string
+        /** #834: framed placements sharing the selector. */
+        framedPlacementCount?: number
+        /** #834: whether every selected frame composites over one shared lower layer. */
+        hasSharedGround?: boolean
+        /** Exact maximum number of member render calls emitted for one pixel. */
+        maxPatternEvaluationsPerPixel?: number
       }>
     } | null
     capture: Array<{
@@ -907,6 +913,9 @@ export interface CompiledMember {
   exactSpecializations: boolean
   outputGuarantees: ShowRendererOutputGuarantees
   renderState: Record<ShowPatternOutputRenderFunction, ShowPatternOutputRenderState>
+  /** #834: render state under the per-invocation scratch-write proof used
+   * only by disjoint Viewport coverage selection. */
+  coverageRenderState: Record<ShowPatternOutputRenderFunction, ShowPatternOutputRenderState>
   needsMirrorMapping: boolean
   needsBrightnessScale: boolean
   frameInvariantUpdateName: string | null
@@ -2953,7 +2962,12 @@ export function compileShow(
         : 'none'
   const evaluationSummary = describeEvaluationPolicy(members)
   const effectCost = describeEffectCost(members, expandedRecipe)
-  const rendererPressure = showRendererPressure(expandedRecipe, transitionCost)
+  const rendererPressure = showRendererPressure(
+    expandedRecipe,
+    transitionCost,
+    members,
+    routedOutputDimension,
+  )
   const patternEvaluationOverride = showPatternEvaluationOverride(transitionCost, rendererPressure)
   const warnings = expandedRecipe.routedSceneSequence
     ? []
@@ -6778,11 +6792,13 @@ function describeViewportCoverageSpecialization(
     }))
     return [...groupRoutedPlacementsByZone(placements)].flatMap(([zoneName, stack]) => {
       if (stack.length < 2 || !stack.some((placement) => placement.viewport?.enabled)) return []
+      const analysis = outputDimension === 2
+        ? analyzeViewportCoverageStack(stack, outputDimension, scene.propertyTracks)
+        : { reason: 'stack-depth' as const, plan: null }
       // Content-key selection owns keyed stacks; report them under contentKeys.
-      if (routedContentKeyStackReason(stack, outputDimension, scene.propertyTracks) === 'selected') return []
-      const reason = outputDimension === 2
-        ? routedViewportCoverageStackReason(stack, outputDimension, scene.propertyTracks)
-        : 'stack-depth'
+      if (analysis.plan?.kind !== 'disjoint-frames'
+        && routedContentKeyStackReason(stack, outputDimension, scene.propertyTracks) === 'selected') return []
+      const reason = analysis.reason
       const top = stack[stack.length - 1]
       return [{
         sceneIndex,
@@ -6791,6 +6807,13 @@ function describeViewportCoverageSpecialization(
         edge: showClipViewportEffectiveEdge(normalizeShowClipViewport(top.viewport)),
         status: reason === 'selected' ? 'selected' as const : 'rejected' as const,
         reason,
+        ...(analysis.plan
+          ? {
+              framedPlacementCount: analysis.plan.frames.length,
+              hasSharedGround: analysis.plan.ground !== null,
+              maxPatternEvaluationsPerPixel: analysis.plan.maxPatternEvaluationsPerPixel,
+            }
+          : {}),
       }]
     })
   }) ?? []
@@ -6814,6 +6837,10 @@ function describeContentKeySpecialization(
     }))
     return [...groupRoutedPlacementsByZone(placements)].flatMap(([zoneName, stack]) => {
       if (stack.length < 2 || !stack.some(routedPlacementHasContentKey)) return []
+      if (outputDimension === 2
+        && analyzeViewportCoverageStack(stack, outputDimension, scene.propertyTracks).plan?.kind === 'disjoint-frames') {
+        return []
+      }
       const reason = routedContentKeyStackReason(stack, outputDimension, scene.propertyTracks)
       return [{
         sceneIndex,
@@ -6887,6 +6914,20 @@ function routedPlacementRenderState(
     hasRender3D: member.hasRender3D,
   })
   return compatibility.renderer ? member.renderState[compatibility.renderer] : 'unknown'
+}
+
+function routedPlacementCoverageRenderState(
+  placement: ResolvedRoutedScenePlacement,
+  outputDimension: ShowOutputDimension,
+): ShowPatternOutputRenderState {
+  const member = placement.member
+  const compatibility = selectRenderCompatibility(outputDimension, {
+    hasBeforeRender: member.hasBeforeRender,
+    hasRender: member.hasRender,
+    hasRender2D: member.hasRender2D,
+    hasRender3D: member.hasRender3D,
+  })
+  return compatibility.renderer ? member.coverageRenderState[compatibility.renderer] : 'unknown'
 }
 
 function routedContentKeyStackReason(
@@ -7165,6 +7206,19 @@ function emitRoutedPlacementStackCapture(
   viewportCoordinates?: { x: string; y: string; index: string },
 ): string {
   const endpointOptimizationActive = routedStackHasEndpointOptimization(placements, propertyTracks)
+  const viewportCoverage = viewportCoordinates
+    ? analyzeViewportCoverageStack(placements, outputDimension, propertyTracks)
+    : null
+  if (viewportCoverage?.plan?.kind === 'disjoint-frames') {
+    return emitDisjointViewportCoverageStack(
+      viewportCoverage.plan,
+      capture,
+      target,
+      propertyTracks,
+      localTimeExpression,
+      viewportCoordinates!,
+    )
+  }
   const contentKeySelection = routedContentKeyStackReason(placements, outputDimension, propertyTracks)
   if (contentKeySelection === 'selected' && placements.length === 2) {
     return emitTwoLayerContentKeyStack(
@@ -7186,8 +7240,7 @@ function emitRoutedPlacementStackCapture(
       viewportCoordinates,
     )
   }
-  if (viewportCoordinates
-    && routedViewportCoverageStackReason(placements, outputDimension, propertyTracks) === 'selected') {
+  if (viewportCoverage?.plan?.kind === 'single-frame') {
     return emitViewportCoverageStack(
       placements,
       capture,
@@ -7296,6 +7349,72 @@ function emitRoutedPlacementStackCapture(
   ].join('\n')
 }
 
+/**
+ * #834: one shared lower layer plus a top-down selector over statically
+ * disjoint hard Viewport frames. The proof plan guarantees that at most one
+ * frame branch can contribute, so every pixel evaluates one framed placement
+ * at most. Reversing the authored frame order preserves authored priority.
+ */
+function emitDisjointViewportCoverageStack(
+  plan: ViewportCoveragePlan,
+  capture: (placement: ResolvedRoutedScenePlacement) => string,
+  target: string,
+  propertyTracks: ShowPropertyAnimationTrack[] | undefined,
+  localTimeExpression: string | undefined,
+  viewportCoordinates: { x: string; y: string; index: string },
+): string {
+  const lines = [
+    `var ${target}_r = 0`,
+    `var ${target}_g = 0`,
+    `var ${target}_b = 0`,
+  ]
+  if (plan.ground) {
+    const ground = plan.ground
+    const rendered = emitRoutedPlacementCapture(
+      ground,
+      capture(ground),
+      propertyTracks,
+      localTimeExpression,
+      viewportCoordinates,
+    )
+    const alpha = memberHasContentKey(ground.member)
+      ? `(${rendered.opacity}) * ${ground.member.prefix}_alpha`
+      : rendered.opacity
+    lines.push(
+      ...rendered.lines,
+      `${target}_r = ${ground.member.prefix}_r * (${alpha})`,
+      `${target}_g = ${ground.member.prefix}_g * (${alpha})`,
+      `${target}_b = ${ground.member.prefix}_b * (${alpha})`,
+    )
+  }
+  ;[...plan.frames].reverse().forEach((frame, index) => {
+    const rendered = emitRoutedPlacementCapture(
+      frame,
+      capture(frame),
+      propertyTracks,
+      localTimeExpression,
+      undefined,
+    )
+    const alpha = memberHasContentKey(frame.member)
+      ? `(${rendered.opacity}) * ${frame.member.prefix}_alpha`
+      : rendered.opacity
+    const predicate = showClipViewportHardPredicateExpression(
+      frame.viewport,
+      viewportCoordinates.x,
+      viewportCoordinates.y,
+    )
+    lines.push(
+      `${index === 0 ? 'if' : 'else if'} ${predicate} {`,
+      ...rendered.lines.map((line) => `  ${line}`),
+      `  ${target}_r = ${frame.member.prefix}_r * (${alpha}) + ${target}_r * (1 - (${alpha}))`,
+      `  ${target}_g = ${frame.member.prefix}_g * (${alpha}) + ${target}_g * (1 - (${alpha}))`,
+      `  ${target}_b = ${frame.member.prefix}_b * (${alpha}) + ${target}_b * (1 - (${alpha}))`,
+      '}',
+    )
+  })
+  return lines.join('\n')
+}
+
 function emitTwoLayerContentKeyStack(
   placements: ResolvedRoutedScenePlacement[],
   capture: (placement: ResolvedRoutedScenePlacement) => string,
@@ -7340,17 +7459,121 @@ type ViewportCoverageReason =
   | 'render-state-unknown-layer'
   | 'presentation-capture'
   | 'evaluation-policy'
+  | 'multiple-ground-layers'
+  | 'ground-not-lowest'
+  | 'frame-edge-not-hard'
+  | 'frame-shape-not-rectangle'
+  | 'animated-frame'
+  | 'inverted-frame'
+  | 'rotated-frame'
+  | 'overlapping-frames'
   | 'disabled'
 
+interface ViewportCoveragePlan {
+  kind: 'single-frame' | 'disjoint-frames'
+  ground: ResolvedRoutedScenePlacement | null
+  frames: ResolvedRoutedScenePlacement[]
+  maxPatternEvaluationsPerPixel: number
+}
+
+interface ViewportCoverageAnalysis {
+  reason: ViewportCoverageReason
+  plan: ViewportCoveragePlan | null
+}
+
 /**
- * Coverage-directed selection keyed on the top placement's Clip Viewport
- * (#590). The aperture is an analytic coverage predicate: where the opaque
- * top is inside, the lower layer is invisible; outside, the top contributes
- * nothing. Eligibility therefore requires an opaque, live, render-pure,
- * unkeyed top and a live, render-pure lower, so skipping either evaluation
- * cannot change observable state or the composed RGB.
+ * Builds the shared eligibility and cost plan for coverage-directed Viewport
+ * emission. The legacy plan selects an opaque top frame over one lower layer;
+ * #834 also selects one of N static, disjoint Hard frames plus an optional
+ * shared ground without skipping observable renderer state.
  */
-function routedViewportCoverageStackReason(
+function analyzeViewportCoverageStack(
+  stack: ResolvedRoutedScenePlacement[],
+  outputDimension: ShowOutputDimension,
+  propertyTracks?: ShowPropertyAnimationTrack[],
+): ViewportCoverageAnalysis {
+  const frames = stack.filter((placement) => placement.viewport?.enabled)
+  const singleFrameReason = singleFrameViewportCoverageReason(stack, outputDimension, propertyTracks)
+  if (frames.length < 2 && singleFrameReason === 'selected') {
+    const top = stack[1]
+    const edge = showClipViewportEffectiveEdge(normalizeShowClipViewport(top.viewport))
+    return {
+      reason: 'selected',
+      plan: {
+        kind: 'single-frame',
+        ground: stack[0],
+        frames: [top],
+        maxPatternEvaluationsPerPixel: edge === 'soft' ? 2 : 1,
+      },
+    }
+  }
+
+  if (frames.length < 2) return { reason: singleFrameReason, plan: null }
+  if (stack.some((placement) => !placement.member.coverageDirectedComposition)) {
+    return { reason: 'disabled', plan: null }
+  }
+  const groundLayers = stack.filter((placement) => !placement.viewport?.enabled)
+  if (groundLayers.length > 1) return { reason: 'multiple-ground-layers', plan: null }
+  if (groundLayers.length === 1 && stack[0] !== groundLayers[0]) {
+    return { reason: 'ground-not-lowest', plan: null }
+  }
+  for (const placement of stack) {
+    const state = routedPlacementCoverageRenderState(placement, outputDimension)
+    if (state === 'render-mutating') return { reason: 'render-mutating-layer', plan: null }
+    if (state !== 'pure') return { reason: 'render-state-unknown-layer', plan: null }
+    if (placement.presentation && placement.presentation.mode !== 'live') {
+      return { reason: 'presentation-capture', plan: null }
+    }
+    if (placement.member.evaluationPolicy !== 'live') return { reason: 'evaluation-policy', plan: null }
+  }
+  for (const frame of frames) {
+    const viewport = normalizeShowClipViewport(frame.viewport)
+    if (showClipViewportEffectiveEdge(viewport) !== 'hard') {
+      return { reason: 'frame-edge-not-hard', plan: null }
+    }
+    if (viewport.aperture !== undefined) {
+      return { reason: 'frame-shape-not-rectangle', plan: null }
+    }
+    if ((propertyTracks ?? []).some((track) => (
+      track.target.kind === 'placement-viewport' && track.target.placementId === frame.placementId
+    ))) {
+      return { reason: 'animated-frame', plan: null }
+    }
+    if (viewport.invert) return { reason: 'inverted-frame', plan: null }
+    if (viewport.rotation) return { reason: 'rotated-frame', plan: null }
+  }
+  for (let leftIndex = 0; leftIndex < frames.length; leftIndex += 1) {
+    const left = normalizeShowClipViewport(frames[leftIndex].viewport)
+    for (let rightIndex = leftIndex + 1; rightIndex < frames.length; rightIndex += 1) {
+      const right = normalizeShowClipViewport(frames[rightIndex].viewport)
+      // Hard rectangle predicates include both endpoints. Frames whose
+      // numeric bounds merely touch therefore overlap on that shared edge
+      // and cannot be represented by a one-branch selector.
+      const separated = viewportBoundsSeparated(left.x + left.width, right.x)
+        || viewportBoundsSeparated(right.x + right.width, left.x)
+        || viewportBoundsSeparated(left.y + left.height, right.y)
+        || viewportBoundsSeparated(right.y + right.height, left.y)
+      if (!separated) return { reason: 'overlapping-frames', plan: null }
+    }
+  }
+  const ground = groundLayers[0] ?? null
+  return {
+    reason: 'selected',
+    plan: {
+      kind: 'disjoint-frames',
+      ground,
+      frames,
+      maxPatternEvaluationsPerPixel: ground ? 2 : 1,
+    },
+  }
+}
+
+function viewportBoundsSeparated(maximum: number, minimum: number): boolean {
+  return maximum < minimum
+    && Math.round(maximum * 65_536) < Math.round(minimum * 65_536)
+}
+
+function singleFrameViewportCoverageReason(
   stack: ResolvedRoutedScenePlacement[],
   outputDimension: ShowOutputDimension,
   propertyTracks?: ShowPropertyAnimationTrack[],
@@ -10893,17 +11116,26 @@ function describeEffectCost(
 function showRendererPressure(
   recipe: ShowRecipe,
   transitionCost: ShowCompileSummary['transitionCost'],
+  members: CompiledMember[],
+  outputDimension: ShowOutputDimension,
 ): { steady: number; worst: number } {
   const softSplitFactor = recipe.routingLayouts?.some((layout) => (
     layout.logical?.kind === 'soft-split' && layout.logical.feather > 0
   )) ? 2 : 1
   if (recipe.routedSceneSequence) {
-    const sceneDepths = recipe.routedSceneSequence.scenes.map((scene) => {
-      const depthByZone = new Map<string, number>()
-      for (const placement of scene.placements) {
-        depthByZone.set(placement.zoneName, (depthByZone.get(placement.zoneName) ?? 0) + 1)
-      }
-      return Math.max(1, ...depthByZone.values())
+    const memberById = new Map(members.map((member) => [member.id, member]))
+    const sceneDepths = recipe.routedSceneSequence.scenes.map((scene, sceneIndex) => {
+      const placements = scene.placements.map((placement, placementIndex) => ({
+        ...placement,
+        member: memberById.get(placement.clipId)!,
+        consumerId: patternOutputConsumerId(sceneIndex, placementIndex),
+      }))
+      const evaluations = [...groupRoutedPlacementsByZone(placements)].map(([, stack]) => {
+        if (outputDimension !== 2) return stack.length
+        const plan = analyzeViewportCoverageStack(stack, outputDimension, scene.propertyTracks).plan
+        return plan?.maxPatternEvaluationsPerPixel ?? stack.length
+      })
+      return Math.max(1, ...evaluations)
     })
     const holdDepth = Math.max(1, ...sceneDepths)
     const transitionDepth = recipe.routedSceneSequence.scenes.slice(0, -1).reduce((worst, scene, index) => {

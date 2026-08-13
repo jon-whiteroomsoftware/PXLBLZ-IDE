@@ -7132,4 +7132,407 @@ describe('coverage-directed Viewport evaluation (#590, #679)', () => {
     const artifact = compileShow(coverageRecipe({ ...frame, edge: 'hard' }, overrides) as never, {})
     expect(coverageStatus(artifact)).toMatchObject({ status: 'rejected', reason })
   })
+
+  it('selects one of N disjoint keyed frames over a shared ground and credits the emitted cost (#834)', () => {
+    const lowerHalf = 0.5 - (1 / 65_536)
+    const quarterFrames = [
+      { x: 0, y: 0, width: lowerHalf, height: lowerHalf },
+      { x: 0.5, y: 0, width: 0.5, height: lowerHalf },
+      { x: 0, y: 0.5, width: lowerHalf, height: 0.5 },
+      { x: 0.5, y: 0.5, width: 0.5, height: 0.5 },
+    ]
+    const placements = [
+      { placementId: 'ground', zoneName: 'main', clipId: 'ground', stackOrder: 0 },
+      ...quarterFrames.map(({ x, y, width, height }, index) => ({
+        placementId: `quarter-${index}`,
+        zoneName: 'main',
+        clipId: 'quarter',
+        stackOrder: index + 1,
+        viewport: { enabled: true, x, y, width, height, edge: 'hard' as const },
+      })),
+    ]
+    const recipe = {
+      masterPixelCount: 16,
+      clips: [
+        { id: 'ground', source: 'export function render2D(index, x, y) { rgb(0.2, 0.1, 0.05) }' },
+        {
+          id: 'quarter',
+          source: 'export function render2D(index, x, y) { if (x < 0.2) rgb(0, 0, 0); else rgb(x, y, 1 - x) }',
+          effects: [{ id: 'black-key', kind: 'chroma-key' as const, color: '#000000', tolerance: 0.01, softness: 0.02 }],
+        },
+      ],
+      zones,
+      routingLayouts: [{ id: 'default', name: 'Default', zones }],
+      routedSceneSequence: {
+        scenes: [
+          { holdMs: 1_000, placements, transitionOut: { kind: 'crossfade' as const, durationMs: 200 } },
+          { holdMs: 1_000, placements },
+        ],
+      },
+      loopDurationMs: 2_200,
+    }
+    const optimized = compileShow(recipe, {})
+    const fallback = compileShow(recipe, {}, { coverageDirectedComposition: false })
+    const decision = optimized.summary.specializations.viewportCoverage?.stacks[0]
+
+    expect(decision).toMatchObject({
+      status: 'selected',
+      reason: 'selected',
+      framedPlacementCount: 4,
+      hasSharedGround: true,
+      maxPatternEvaluationsPerPixel: 2,
+    })
+    expect(optimized.summary).toMatchObject({
+      steadyStateRenderersPerPixel: 2,
+      worstInstantRenderersPerPixel: 4,
+      cost: { cpu: { patternEvaluations: { formula: 'S * N', samplesPerPixel: 4 } } },
+    })
+    expect(optimized.expandedCode).toContain('else if ((__pxlblz_show_scene_zone_0_x)')
+    expect(fallback.expandedCode).not.toContain('else if ((__pxlblz_show_scene_zone_0_x)')
+
+    const sample = (artifact: ReturnType<typeof compileShow>) => {
+      const { handle, pixel } = loadShow(artifact.code, artifact.metadata, 16)
+      handle.beforeRender(100)
+      return [0.1, 0.4, 0.6, 0.9].flatMap((y) => (
+        [0.1, 0.4, 0.6, 0.9].map((x, index) => {
+          handle.render2D(index, x, y)
+          return pixel()
+        })
+      ))
+    }
+    expect(sample(optimized)).toEqual(sample(fallback))
+  })
+
+  it('classifies two framed placements as a groundless disjoint-frame plan (#834)', () => {
+    const placements = [
+      {
+        placementId: 'left-frame',
+        zoneName: 'main',
+        clipId: 'left',
+        stackOrder: 0,
+        viewport: {
+          enabled: true, x: 0, y: 0, width: 0.5 - (1 / 65_536), height: 1, edge: 'hard' as const,
+        },
+      },
+      {
+        placementId: 'right-frame',
+        zoneName: 'main',
+        clipId: 'right',
+        stackOrder: 1,
+        viewport: { enabled: true, x: 0.5, y: 0, width: 0.5, height: 1, edge: 'hard' as const },
+      },
+    ]
+    const artifact = compileShow({
+      masterPixelCount: 25,
+      clips: [
+        { id: 'left', source: 'export function render2D(index, x, y) { rgb(1, x, y) }' },
+        { id: 'right', source: 'export function render2D(index, x, y) { rgb(x, 1, y) }' },
+      ],
+      zones,
+      routingLayouts: [{ id: 'default', name: 'Default', zones }],
+      routedSceneSequence: {
+        scenes: [
+          { holdMs: 1_000, placements, transitionOut: { kind: 'cut' as const, durationMs: 0 } },
+          { holdMs: 1_000, placements },
+        ],
+      },
+      loopDurationMs: 2_000,
+    }, {})
+
+    expect(artifact.summary.specializations.viewportCoverage?.stacks[0]).toMatchObject({
+      status: 'selected',
+      reason: 'selected',
+      framedPlacementCount: 2,
+      hasSharedGround: false,
+      maxPatternEvaluationsPerPixel: 1,
+    })
+    expect(artifact.summary).toMatchObject({
+      steadyStateRenderersPerPixel: 1,
+      worstInstantRenderersPerPixel: 1,
+    })
+    const { handle, pixel } = loadShow(artifact.code, artifact.metadata, 25)
+    handle.beforeRender(100)
+    handle.render2D(12, 0.5, 0.25)
+    expect(pixel()).toEqual([0.5, 1, 0.5])
+  })
+
+  const compileNFramePartition = (options: {
+    source?: string
+    viewports?: ReadonlyArray<Record<string, unknown>>
+    groundStackOrders?: readonly number[]
+    frameStackOrders?: readonly number[]
+    framePresentation?: Record<string, unknown>
+    evaluationPolicy?: 'live' | 'freeze-at-entry'
+    propertyTracks?: readonly unknown[]
+  }) => {
+    const viewports = options.viewports ?? [
+      { enabled: true, x: 0, y: 0, width: 0.4, height: 1, edge: 'hard' },
+      { enabled: true, x: 0.6, y: 0, width: 0.4, height: 1, edge: 'hard' },
+    ]
+    const groundStackOrders = options.groundStackOrders ?? []
+    const frameStackOrders = options.frameStackOrders
+      ?? viewports.map((_, index) => groundStackOrders.length + index)
+    const groundClips = groundStackOrders.map((_, index) => ({
+      id: `ground-${index}`,
+      source: 'export function render2D(index, x, y) { rgb(0.1, 0.1, 0.1) }',
+    }))
+    const placements = [
+      ...groundStackOrders.map((stackOrder, index) => ({
+        placementId: `ground-${index}`,
+        zoneName: 'main',
+        clipId: `ground-${index}`,
+        stackOrder,
+      })),
+      ...viewports.map((viewport, index) => ({
+        placementId: `frame-${index}`,
+        zoneName: 'main',
+        clipId: 'frame',
+        stackOrder: frameStackOrders[index],
+        viewport,
+        ...(options.framePresentation && index === 0
+          ? { presentation: options.framePresentation }
+          : {}),
+      })),
+    ]
+    return compileShow({
+      masterPixelCount: 25,
+      clips: [
+        {
+          id: 'frame',
+          source: options.source ?? 'export function render2D(index, x, y) { rgb(x, y, 1) }',
+          ...(options.evaluationPolicy ? { evaluationPolicy: options.evaluationPolicy } : {}),
+        },
+        ...groundClips,
+        { id: 'idle', source: 'export function render2D(index, x, y) { rgb(0, 0, 0) }' },
+      ],
+      zones,
+      routingLayouts: [{ id: 'default', name: 'Default', zones }],
+      routedSceneSequence: {
+        scenes: [
+          {
+            holdMs: 1_000,
+            placements,
+            ...(options.propertyTracks ? { propertyTracks: options.propertyTracks } : {}),
+            transitionOut: { kind: 'cut' as const, durationMs: 0 },
+          },
+          { holdMs: 1_000, placements: [{ placementId: 'idle', zoneName: 'main', clipId: 'idle' }] },
+        ],
+      },
+      loopDurationMs: 2_000,
+    } as never, {})
+  }
+
+  it.each([
+    [
+      'multiple ground layers',
+      { groundStackOrders: [0, 1], frameStackOrders: [2, 3] },
+      'multiple-ground-layers',
+    ],
+    [
+      'a ground above a frame',
+      { groundStackOrders: [1], frameStackOrders: [0, 2] },
+      'ground-not-lowest',
+    ],
+    [
+      'unknown render state',
+      { source: 'export function render2D(index, x, y) { customNoise(x, y); rgb(x, y, 1) }' },
+      'render-state-unknown-layer',
+    ],
+    [
+      'captured presentation',
+      { framePresentation: { mode: 'freeze' } },
+      'presentation-capture',
+    ],
+    [
+      'non-live evaluation',
+      { evaluationPolicy: 'freeze-at-entry' },
+      'evaluation-policy',
+    ],
+    [
+      'an animated frame',
+      {
+        propertyTracks: [{
+          id: 'frame-width',
+          target: { kind: 'placement-viewport', placementId: 'frame-0', property: 'width' },
+          keyframes: [
+            { id: 'a', timeMs: 0, value: 0.4, easing: { curve: 'linear' } },
+            { id: 'b', timeMs: 1_000, value: 0.3, easing: { curve: 'linear' } },
+          ],
+        }],
+      },
+      'animated-frame',
+    ],
+    [
+      'an inverted frame',
+      {
+        viewports: [
+          { enabled: true, x: 0, y: 0, width: 0.4, height: 1, edge: 'hard', invert: true },
+          { enabled: true, x: 0.6, y: 0, width: 0.4, height: 1, edge: 'hard' },
+        ],
+      },
+      'inverted-frame',
+    ],
+    [
+      'a shaped hard aperture',
+      {
+        viewports: [
+          { enabled: true, x: 0, y: 0, width: 0.4, height: 1, edge: 'hard', aperture: 'ellipse' },
+          { enabled: true, x: 0.6, y: 0, width: 0.4, height: 1, edge: 'hard' },
+        ],
+      },
+      'frame-shape-not-rectangle',
+    ],
+    [
+      'a rotated frame',
+      {
+        viewports: [
+          { enabled: true, x: 0, y: 0, width: 0.4, height: 1, edge: 'hard', rotation: 0.1 },
+          { enabled: true, x: 0.6, y: 0, width: 0.4, height: 1, edge: 'hard' },
+        ],
+      },
+      'rotated-frame',
+    ],
+    [
+      'frames whose inclusive hard boundaries touch',
+      {
+        viewports: [
+          { enabled: true, x: 0, y: 0, width: 0.5, height: 1, edge: 'hard' },
+          { enabled: true, x: 0.5, y: 0, width: 0.5, height: 1, edge: 'hard' },
+        ],
+      },
+      'overlapping-frames',
+    ],
+    [
+      'frames whose float gap collapses under 16.16 quantization',
+      {
+        viewports: [
+          { enabled: true, x: 0, y: 0, width: 0.5 - (0.25 / 65_536), height: 1, edge: 'hard' },
+          { enabled: true, x: 0.5, y: 0, width: 0.5, height: 1, edge: 'hard' },
+        ],
+      },
+      'overlapping-frames',
+    ],
+  ] as const)('rejects N-frame selection for %s (#834)', (_name, options, reason) => {
+    expect(coverageStatus(compileNFramePartition(options))).toMatchObject({
+      status: 'rejected',
+      reason,
+    })
+  })
+
+  it('accepts explicit Live presentation on disjoint frames (#834)', () => {
+    expect(coverageStatus(compileNFramePartition({ framePresentation: { mode: 'live' } }))).toMatchObject({
+      status: 'selected',
+      reason: 'selected',
+    })
+  })
+
+  it('ignores Viewport animation owned by a placement in another Zone stack (#834)', () => {
+    const splitZones = [
+      { id: 'main', name: 'main', ranges: [{ start: 0, end: 11 }] },
+      { id: 'other', name: 'other', ranges: [{ start: 12, end: 24 }] },
+    ]
+    const artifact = compileShow({
+      masterPixelCount: 25,
+      clips: [{ id: 'frame', source: 'export function render2D(index, x, y) { rgb(x, y, 1) }' }],
+      zones: splitZones,
+      routingLayouts: [{ id: 'default', name: 'Default', zones: splitZones }],
+      routedSceneSequence: {
+        scenes: [{
+          holdMs: 1_000,
+          placements: [
+            {
+              placementId: 'main-left', zoneName: 'main', clipId: 'frame', stackOrder: 0,
+              viewport: { enabled: true, x: 0, y: 0, width: 0.4, height: 1, edge: 'hard' },
+            },
+            {
+              placementId: 'main-right', zoneName: 'main', clipId: 'frame', stackOrder: 1,
+              viewport: { enabled: true, x: 0.6, y: 0, width: 0.4, height: 1, edge: 'hard' },
+            },
+            {
+              placementId: 'other-frame', zoneName: 'other', clipId: 'frame', stackOrder: 0,
+              viewport: { enabled: true, x: 0, y: 0, width: 1, height: 1, edge: 'hard' },
+            },
+          ],
+          propertyTracks: [{
+            id: 'other-width',
+            target: { kind: 'placement-viewport', placementId: 'other-frame', property: 'width' },
+            keyframes: [
+              { id: 'a', timeMs: 0, value: 1, easing: { curve: 'linear' } },
+              { id: 'b', timeMs: 1_000, value: 0.8, easing: { curve: 'linear' } },
+            ],
+          }],
+          transitionOut: { kind: 'cut' as const, durationMs: 0 },
+        }, {
+          holdMs: 1_000,
+          placements: [{ placementId: 'other-frame', zoneName: 'other', clipId: 'frame' }],
+        }],
+      },
+      loopDurationMs: 2_000,
+    } as never, {})
+
+    expect(artifact.summary.specializations.viewportCoverage?.stacks).toEqual(expect.arrayContaining([
+      expect.objectContaining({
+        zoneName: 'main',
+        status: 'selected',
+        reason: 'selected',
+        framedPlacementCount: 2,
+      }),
+    ]))
+  })
+
+  it.each([
+    [
+      'overlapping frames',
+      'export function render2D(index, x, y) { rgb(x, y, 1) }',
+      [
+        { enabled: true, x: 0, y: 0, width: 0.6, height: 1, edge: 'hard' as const },
+        { enabled: true, x: 0.5, y: 0, width: 0.5, height: 1, edge: 'hard' as const },
+      ],
+      'overlapping-frames',
+    ],
+    [
+      'a non-hard frame',
+      'export function render2D(index, x, y) { rgb(x, y, 1) }',
+      [
+        { enabled: true, x: 0, y: 0, width: 0.5, height: 1, edge: 'soft' as const },
+        { enabled: true, x: 0.5, y: 0, width: 0.5, height: 1, edge: 'hard' as const },
+      ],
+      'frame-edge-not-hard',
+    ],
+    [
+      'render-mutating repeated instance',
+      'var calls = 0\nexport function render2D(index, x, y) { calls = calls + 1; rgb(x, y, 1) }',
+      [
+        { enabled: true, x: 0, y: 0, width: 0.5, height: 1, edge: 'hard' as const },
+        { enabled: true, x: 0.5, y: 0, width: 0.5, height: 1, edge: 'hard' as const },
+      ],
+      'render-mutating-layer',
+    ],
+  ])('rejects N-frame selection for %s (#834)', (_name, source, viewports, reason) => {
+    const placements = viewports.map((viewport, index) => ({
+      placementId: `frame-${index}`,
+      zoneName: 'main',
+      clipId: 'frame',
+      stackOrder: index,
+      viewport,
+    }))
+    const artifact = compileShow({
+      masterPixelCount: 25,
+      clips: [{ id: 'frame', source }],
+      zones,
+      routingLayouts: [{ id: 'default', name: 'Default', zones }],
+      routedSceneSequence: {
+        scenes: [
+          { holdMs: 1_000, placements, transitionOut: { kind: 'cut', durationMs: 0 } },
+          { holdMs: 1_000, placements },
+        ],
+      },
+      loopDurationMs: 2_000,
+    }, {})
+
+    expect(artifact.summary.specializations.viewportCoverage?.stacks[0]).toMatchObject({
+      status: 'rejected',
+      reason,
+    })
+  })
 })

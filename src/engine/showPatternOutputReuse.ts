@@ -207,6 +207,8 @@ const PURE_RUNTIME_CALLS = new Set([
   'sin', 'sqrt', 'square', 'tan', 'time', 'triangle', 'wave',
 ])
 
+const COVERAGE_PURE_RUNTIME_CALLS = new Set([...PURE_RUNTIME_CALLS, 'perlin'])
+
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 type AstNode = Record<string, any>
 
@@ -265,6 +267,274 @@ export function analyzeShowPatternRenderState(
   }
 }
 
+/**
+ * Coverage-directed evaluation may skip repeated calls to one renderer, so
+ * it needs a narrower proof than output reuse: non-exported scratch globals
+ * are admissible only when every read is dominated by a write in the same
+ * render invocation. This recognizes Pixelblaze's common out-var helper
+ * idiom without treating accumulators or opaque calls as pure (#834).
+ */
+export function analyzeShowPatternCoverageRenderState(
+  source: string,
+  renderFunction: ShowPatternOutputRenderFunction,
+): ShowPatternRenderStateAnalysis {
+  let ast: AstNode
+  try {
+    ast = acorn.parse(source, { ecmaVersion: 2020, sourceType: 'module' }) as unknown as AstNode
+  } catch {
+    return { state: 'unknown', mutatedBindings: [], unknownCalls: ['<parse>'] }
+  }
+  const statements = (ast.body as AstNode[]).map((statement) => (
+    statement.type === 'ExportNamedDeclaration' ? statement.declaration : statement
+  )).filter(Boolean)
+  const userFunctions = new Map<string, AstNode>()
+  const exportedBindings = new Set<string>()
+  for (const statement of ast.body as AstNode[]) {
+    const declaration = statement.type === 'ExportNamedDeclaration' ? statement.declaration : statement
+    if (declaration?.type === 'FunctionDeclaration' && declaration.id?.name) {
+      userFunctions.set(declaration.id.name, declaration)
+      if (statement.type === 'ExportNamedDeclaration') exportedBindings.add(declaration.id.name)
+    } else if (declaration?.type === 'VariableDeclaration' && statement.type === 'ExportNamedDeclaration') {
+      for (const variable of declaration.declarations as AstNode[]) {
+        for (const name of astBindingNames(variable.id)) exportedBindings.add(name)
+      }
+    }
+  }
+  // Include non-exported function declarations gathered from the normalized
+  // statement list as well.
+  for (const statement of statements) {
+    if (statement.type === 'FunctionDeclaration' && statement.id?.name) {
+      userFunctions.set(statement.id.name, statement)
+    }
+  }
+  if (!userFunctions.has(renderFunction)) {
+    return { state: 'unknown', mutatedBindings: [], unknownCalls: [`<missing:${renderFunction}>`] }
+  }
+
+  const localBindingsByFunction = new Map<string, Set<string>>()
+  for (const [name, fn] of userFunctions) {
+    const locals = new Set<string>((fn.params as AstNode[]).flatMap(astBindingNames))
+    collectLocalDeclarations(fn.body, locals)
+    localBindingsByFunction.set(name, locals)
+  }
+
+  const reachable = new Set<string>()
+  const scratchBindings = new Set<string>()
+  const unknownCalls = new Set<string>()
+  const collect = (name: string, stack: Set<string>) => {
+    if (reachable.has(name)) return
+    if (stack.has(name)) {
+      unknownCalls.add(name)
+      return
+    }
+    const fn = userFunctions.get(name)
+    if (!fn) return
+    reachable.add(name)
+    const nextStack = new Set(stack).add(name)
+    const locals = localBindingsByFunction.get(name)!
+    walkAst(fn.body, (node) => {
+      if (node.type === 'AssignmentExpression' || node.type === 'UpdateExpression') {
+        const target = node.type === 'AssignmentExpression' ? node.left : node.argument
+        const root = assignmentRootName(target)
+        if (root && !locals.has(root)) scratchBindings.add(root)
+      }
+      if (node.type !== 'CallExpression') return
+      if (node.callee?.type !== 'Identifier') {
+        unknownCalls.add('<dynamic-call>')
+        return
+      }
+      const callee = node.callee.name as string
+      if (userFunctions.has(callee)) collect(callee, nextStack)
+      else if (!COVERAGE_PURE_RUNTIME_CALLS.has(callee)) unknownCalls.add(callee)
+    })
+  }
+  collect(renderFunction, new Set())
+
+  const unsafeBindings = new Set<string>(
+    [...scratchBindings].filter((name) => exportedBindings.has(name)),
+  )
+  const externallyReachable = new Set<string>()
+  const collectExternal = (name: string) => {
+    if (externallyReachable.has(name)) return
+    const fn = userFunctions.get(name)
+    if (!fn) return
+    externallyReachable.add(name)
+    walkAst(fn.body, (node) => {
+      if (node.type === 'CallExpression' && node.callee?.type === 'Identifier') {
+        collectExternal(node.callee.name)
+      }
+    })
+  }
+  for (const name of exportedBindings) {
+    const alternateRenderer = name === 'render' || name === 'render2D' || name === 'render3D'
+    if (!alternateRenderer && userFunctions.has(name)) collectExternal(name)
+  }
+  if (userFunctions.has('beforeRender')) collectExternal('beforeRender')
+  for (const name of externallyReachable) {
+    const reads = new Set<string>()
+    collectAstReadIdentifiers(userFunctions.get(name)!.body, reads)
+    const locals = localBindingsByFunction.get(name)!
+    for (const scratch of scratchBindings) {
+      if (reads.has(scratch) && !locals.has(scratch)) unsafeBindings.add(scratch)
+    }
+  }
+  interface FlowState { assigned: Set<string>; active: Set<string>; fallsThrough: boolean }
+  interface FlowContext { exits: Set<string>[] }
+  const flowFunction = (name: string, state: FlowState): FlowState => {
+    if (state.active.has(name)) {
+      unknownCalls.add(name)
+      return state
+    }
+    const fn = userFunctions.get(name)
+    if (!fn) return state
+    const context: FlowContext = { exits: [] }
+    const completed = flowStatement(fn.body, {
+      assigned: new Set(state.assigned),
+      active: new Set(state.active).add(name),
+      fallsThrough: true,
+    }, name, context)
+    if (completed.fallsThrough) context.exits.push(completed.assigned)
+    const assigned = context.exits.length === 0
+      ? new Set(state.assigned)
+      : context.exits.reduce(intersectSets)
+    return { assigned, active: state.active, fallsThrough: true }
+  }
+  const readIdentifier = (name: string, state: FlowState) => {
+    if (scratchBindings.has(name) && !state.assigned.has(name)) unsafeBindings.add(name)
+  }
+  const flowExpression = (node: AstNode | null | undefined, state: FlowState, owner: string): FlowState => {
+    if (!node) return state
+    if (node.type === 'Identifier') {
+      readIdentifier(node.name, state)
+      return state
+    }
+    if (node.type === 'AssignmentExpression') {
+      const root = assignmentRootName(node.left)
+      if (node.operator !== '=') flowExpression(node.left, state, owner)
+      else if (node.left?.type === 'MemberExpression') {
+        flowExpression(node.left.object, state, owner)
+        if (node.left.computed) flowExpression(node.left.property, state, owner)
+      }
+      flowExpression(node.right, state, owner)
+      if (root && scratchBindings.has(root)) state.assigned.add(root)
+      return state
+    }
+    if (node.type === 'UpdateExpression') {
+      flowExpression(node.argument, state, owner)
+      const root = assignmentRootName(node.argument)
+      if (root && scratchBindings.has(root)) state.assigned.add(root)
+      return state
+    }
+    if (node.type === 'CallExpression') {
+      if (node.callee?.type !== 'Identifier') flowExpression(node.callee, state, owner)
+      for (const argument of node.arguments ?? []) flowExpression(argument, state, owner)
+      if (node.callee?.type === 'Identifier' && userFunctions.has(node.callee.name)) {
+        const nested = flowFunction(node.callee.name, state)
+        state.assigned = nested.assigned
+      }
+      return state
+    }
+    if (node.type === 'ConditionalExpression' || node.type === 'LogicalExpression') {
+      flowExpression(node.test ?? node.left, state, owner)
+      const left = flowExpression(node.consequent ?? node.right, {
+        assigned: new Set(state.assigned), active: new Set(state.active), fallsThrough: true,
+      }, owner)
+      const right = node.alternate
+        ? flowExpression(node.alternate, {
+            assigned: new Set(state.assigned), active: new Set(state.active), fallsThrough: true,
+          }, owner)
+        : state
+      state.assigned = intersectSets(left.assigned, right.assigned)
+      return state
+    }
+    for (const [key, value] of Object.entries(node)) {
+      if (key === 'type' || key === 'start' || key === 'end' || key === 'loc') continue
+      if (Array.isArray(value)) {
+        for (const item of value) {
+          if (item && typeof item === 'object') flowExpression(item as AstNode, state, owner)
+        }
+      } else if (value && typeof value === 'object') {
+        flowExpression(value as AstNode, state, owner)
+      }
+    }
+    return state
+  }
+  const flowStatement = (
+    node: AstNode | null | undefined,
+    state: FlowState,
+    owner: string,
+    context: FlowContext,
+  ): FlowState => {
+    if (!node) return state
+    if (node.type === 'BlockStatement') {
+      let current = state
+      for (const statement of node.body as AstNode[]) {
+        if (!current.fallsThrough) break
+        current = flowStatement(statement, current, owner, context)
+      }
+      return current
+    }
+    if (node.type === 'ExpressionStatement') return flowExpression(node.expression, state, owner)
+    if (node.type === 'VariableDeclaration') {
+      for (const declaration of node.declarations as AstNode[]) flowExpression(declaration.init, state, owner)
+      return state
+    }
+    if (node.type === 'IfStatement') {
+      flowExpression(node.test, state, owner)
+      const consequent = flowStatement(node.consequent, {
+        assigned: new Set(state.assigned), active: new Set(state.active), fallsThrough: true,
+      }, owner, context)
+      const alternate = node.alternate
+        ? flowStatement(node.alternate, {
+            assigned: new Set(state.assigned), active: new Set(state.active), fallsThrough: true,
+          }, owner, context)
+        : { assigned: new Set(state.assigned), active: new Set(state.active), fallsThrough: true }
+      state.fallsThrough = consequent.fallsThrough || alternate.fallsThrough
+      if (consequent.fallsThrough && alternate.fallsThrough) {
+        state.assigned = intersectSets(consequent.assigned, alternate.assigned)
+      } else if (consequent.fallsThrough) {
+        state.assigned = consequent.assigned
+      } else if (alternate.fallsThrough) {
+        state.assigned = alternate.assigned
+      }
+      return state
+    }
+    if (node.type === 'ReturnStatement') {
+      flowExpression(node.argument, state, owner)
+      context.exits.push(new Set(state.assigned))
+      state.fallsThrough = false
+      return state
+    }
+    if (node.type === 'ForStatement' || node.type === 'WhileStatement' || node.type === 'DoWhileStatement') {
+      flowExpression(node.init, state, owner)
+      flowExpression(node.test, state, owner)
+      const loop = flowStatement(node.body, {
+        assigned: new Set(state.assigned), active: new Set(state.active), fallsThrough: true,
+      }, owner, context)
+      flowExpression(node.update, loop, owner)
+      return state
+    }
+    if (node.type === 'EmptyStatement') return state
+    if (node.type.endsWith('Statement') || node.type.endsWith('Declaration')) {
+      unknownCalls.add(`<control-flow:${node.type}>`)
+      return state
+    }
+    return flowExpression(node, state, owner)
+  }
+  flowFunction(renderFunction, { assigned: new Set(), active: new Set(), fallsThrough: true })
+  const mutated = [...unsafeBindings].sort()
+  const unknown = [...unknownCalls].sort()
+  return {
+    state: mutated.length > 0 ? 'render-mutating' : unknown.length > 0 ? 'unknown' : 'pure',
+    mutatedBindings: mutated,
+    unknownCalls: unknown,
+  }
+}
+
+function intersectSets(left: Set<string>, right: Set<string>): Set<string> {
+  return new Set([...left].filter((value) => right.has(value)))
+}
+
 function collectLocalDeclarations(node: AstNode, locals: Set<string>): void {
   walkAst(node, (candidate) => {
     if (candidate.type !== 'VariableDeclaration') return
@@ -291,6 +561,51 @@ function assignmentRootName(node: AstNode | null | undefined): string | null {
   if (node.type === 'Identifier') return node.name
   if (node.type === 'MemberExpression') return assignmentRootName(node.object)
   return null
+}
+
+function collectAstReadIdentifiers(node: unknown, reads: Set<string>): void {
+  if (!node || typeof node !== 'object') return
+  if (Array.isArray(node)) {
+    for (const item of node) collectAstReadIdentifiers(item, reads)
+    return
+  }
+  const astNode = node as AstNode
+  if (astNode.type === 'Identifier') {
+    reads.add(astNode.name)
+    return
+  }
+  if (astNode.type === 'AssignmentExpression') {
+    if (astNode.operator !== '=') collectAstReadIdentifiers(astNode.left, reads)
+    else if (astNode.left?.type === 'MemberExpression') {
+      collectAstReadIdentifiers(astNode.left.object, reads)
+      if (astNode.left.computed) collectAstReadIdentifiers(astNode.left.property, reads)
+    }
+    collectAstReadIdentifiers(astNode.right, reads)
+    return
+  }
+  if (astNode.type === 'UpdateExpression') {
+    collectAstReadIdentifiers(astNode.argument, reads)
+    return
+  }
+  if (astNode.type === 'VariableDeclarator') {
+    collectAstReadIdentifiers(astNode.init, reads)
+    return
+  }
+  if (astNode.type === 'MemberExpression') {
+    collectAstReadIdentifiers(astNode.object, reads)
+    if (astNode.computed) collectAstReadIdentifiers(astNode.property, reads)
+    return
+  }
+  if (astNode.type === 'Property') {
+    if (astNode.computed) collectAstReadIdentifiers(astNode.key, reads)
+    collectAstReadIdentifiers(astNode.value, reads)
+    return
+  }
+  for (const [key, value] of Object.entries(astNode)) {
+    if (key === 'type' || key === 'id' || key === 'params'
+      || key === 'label' || key === 'start' || key === 'end' || key === 'loc') continue
+    collectAstReadIdentifiers(value, reads)
+  }
 }
 
 function walkAst(node: unknown, visit: (node: AstNode) => void): void {

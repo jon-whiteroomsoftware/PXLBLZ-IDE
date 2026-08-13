@@ -1,4 +1,5 @@
 import {
+  analyzeShowPatternCoverageRenderState,
   analyzeShowPatternRenderState,
   compareShowPatternOutputConsumers,
   groupCompatibleShowPatternOutputs,
@@ -100,6 +101,217 @@ export function render(index) { rgb(color(index), 0, 0) }
       state: 'unknown',
       mutatedBindings: [],
       unknownCalls: ['color'],
+    })
+  })
+
+  it('keeps output reuse conservative while admitting deterministic coverage scratch state (#834)', () => {
+    const source = `
+var outX, outY
+function sampleField(x, y) {
+  outX = x + perlin(x, y, 0, 1)
+  outY = y
+}
+export function render2D(index, x, y) {
+  sampleField(x, y)
+  rgb(outX, outY, 0)
+}
+`
+
+    expect(analyzeShowPatternRenderState(source, 'render2D')).toEqual({
+      state: 'unknown',
+      mutatedBindings: [],
+      unknownCalls: ['sampleField'],
+    })
+    expect(analyzeShowPatternRenderState(
+      'export function render2D(index, x, y) { rgb(perlin(x, y, 0, 1), 0, 0) }',
+      'render2D',
+    )).toEqual({
+      state: 'unknown',
+      mutatedBindings: [],
+      unknownCalls: ['perlin'],
+    })
+    expect(analyzeShowPatternCoverageRenderState(source, 'render2D')).toEqual({
+      state: 'pure',
+      mutatedBindings: [],
+      unknownCalls: [],
+    })
+  })
+
+  it('admits scratch initialized on both sides of a render-local branch (#834)', () => {
+    const source = `
+var outX
+function sample(x) {
+  if (x > 0.5) outX = x
+  else outX = 1 - x
+}
+export function render2D(index, x, y) { sample(x); rgb(outX, y, 0) }
+`
+
+    expect(analyzeShowPatternCoverageRenderState(source, 'render2D')).toEqual({
+      state: 'pure',
+      mutatedBindings: [],
+      unknownCalls: [],
+    })
+  })
+
+  it('rejects renderer scratch observed by beforeRender (#834)', () => {
+    const source = `
+var lastX, level
+export function beforeRender() { level = lastX }
+export function render2D(index, x, y) { lastX = x; rgb(level, 0, 0) }
+`
+
+    expect(analyzeShowPatternCoverageRenderState(source, 'render2D')).toEqual({
+      state: 'render-mutating',
+      mutatedBindings: ['lastX'],
+      unknownCalls: [],
+    })
+  })
+
+  it('rejects renderer scratch observed by non-exported beforeRender (#834)', () => {
+    const source = `
+var lastX, level
+function beforeRender() { level = lastX }
+export function render2D(index, x, y) { lastX = x; rgb(level, 0, 0) }
+`
+
+    expect(analyzeShowPatternCoverageRenderState(source, 'render2D')).toEqual({
+      state: 'render-mutating',
+      mutatedBindings: ['lastX'],
+      unknownCalls: [],
+    })
+  })
+
+  it('fails closed for unmodeled switch control flow (#834)', () => {
+    const source = `
+var outX
+function sample(x) { switch (x > 0.5) { case 1: outX = x } }
+export function render2D(index, x, y) { sample(x); rgb(outX, y, 0) }
+`
+
+    const analysis = analyzeShowPatternCoverageRenderState(source, 'render2D')
+    expect(analysis.state).not.toBe('pure')
+    expect(analysis.unknownCalls).toEqual(['<control-flow:SwitchStatement>'])
+  })
+
+  it.each([
+    [
+      'an accumulator in a helper',
+      `
+var calls = 0
+function paint() { calls = calls + 1 }
+export function render2D(index, x, y) { paint(); rgb(calls, x, y) }
+`,
+      ['calls'],
+    ],
+    [
+      'an exported binding mutated by a helper',
+      `
+export var phase = 0
+function paint(x) { phase = x }
+export function render2D(index, x, y) { paint(x); rgb(phase, y, 0) }
+`,
+      ['phase'],
+    ],
+  ])('rejects coverage skipping for %s (#834)', (_name, source, mutatedBindings) => {
+    expect(analyzeShowPatternCoverageRenderState(source, 'render2D')).toEqual({
+      state: 'render-mutating',
+      mutatedBindings,
+      unknownCalls: [],
+    })
+  })
+
+  it.each([
+    [
+      'compound assignment',
+      `
+var calls = 0
+function paint() { calls += 1 }
+export function render2D(index, x, y) { paint(); rgb(calls, x, y) }
+`,
+      'calls',
+    ],
+    [
+      'a conditionally assigned out-var',
+      `
+var outX
+function sample(x) { if (x > 0.5) outX = x }
+export function render2D(index, x, y) { sample(x); rgb(outX, y, 0) }
+`,
+      'outX',
+    ],
+    [
+      'an out-var assigned only after an early return',
+      `
+var outX
+function sample(x) { if (x < 0.5) return; outX = x }
+export function render2D(index, x, y) { sample(x); rgb(outX, y, 0) }
+`,
+      'outX',
+    ],
+    [
+      'a member write that reads its scratch container',
+      `
+var out = [0]
+function sample(x) { out[0] = x }
+export function render2D(index, x, y) { sample(x); rgb(out[0], y, 0) }
+`,
+      'out',
+    ],
+  ])('rejects coverage skipping when scratch safety depends on %s (#834)', (_name, source, binding) => {
+    expect(analyzeShowPatternCoverageRenderState(source, 'render2D')).toMatchObject({
+      state: 'render-mutating',
+      mutatedBindings: [binding],
+    })
+  })
+
+  it('keeps an opaque runtime call unknown for coverage skipping (#834)', () => {
+    const source = `
+export function render2D(index, x, y) {
+  customNoise(x, y)
+  rgb(x, y, 0)
+}
+`
+
+    expect(analyzeShowPatternCoverageRenderState(source, 'render2D')).toEqual({
+      state: 'unknown',
+      mutatedBindings: [],
+      unknownCalls: ['customNoise'],
+    })
+  })
+
+  it('keeps a dynamic call unknown for coverage skipping (#834)', () => {
+    const source = `
+var helpers = [wave]
+export function render2D(index, x, y) {
+  helpers[0](x)
+  rgb(x, y, 0)
+}
+`
+
+    expect(analyzeShowPatternCoverageRenderState(source, 'render2D')).toEqual({
+      state: 'unknown',
+      mutatedBindings: [],
+      unknownCalls: ['<dynamic-call>'],
+    })
+  })
+
+  it('sorts coverage-state diagnostics deterministically (#834)', () => {
+    const source = `
+var zed = 0, alpha = 0
+export function render2D(index, x, y) {
+  zed = zed + 1
+  alpha = alpha + 1
+  zNoise(x)
+  aNoise(y)
+  rgb(x, y, 0)
+}
+`
+
+    expect(analyzeShowPatternCoverageRenderState(source, 'render2D')).toEqual({
+      state: 'render-mutating',
+      mutatedBindings: ['alpha', 'zed'],
+      unknownCalls: ['aNoise', 'zNoise'],
     })
   })
 

@@ -15,7 +15,10 @@ import {
 } from './showFrameInvariantHoisting'
 import { analyzeShowPatternMemberReset } from './showPatternMemberReset'
 import { analyzeShowRendererOutputGuaranteesAst } from './showCaptureSpecialization'
-import { analyzeShowPatternRenderState } from './showPatternOutputReuse'
+import {
+  analyzeShowPatternCoverageRenderState,
+  analyzeShowPatternRenderState,
+} from './showPatternOutputReuse'
 import { normalizeShowClipEffects } from './showEffects'
 import { showClipTransformEffects } from './showClipTransform'
 import { SHOW_ARTIFACT_BUDGET_BYTES } from './showVmResourceLedger'
@@ -263,6 +266,11 @@ export function compileMember(
       render: analyzeShowPatternRenderState(memberSource, 'render').state,
       render2D: analyzeShowPatternRenderState(memberSource, 'render2D').state,
       render3D: analyzeShowPatternRenderState(memberSource, 'render3D').state,
+    },
+    coverageRenderState: {
+      render: analyzeShowPatternCoverageRenderState(memberSource, 'render').state,
+      render2D: analyzeShowPatternCoverageRenderState(memberSource, 'render2D').state,
+      render3D: analyzeShowPatternCoverageRenderState(memberSource, 'render3D').state,
     },
     needsMirrorMapping,
     needsBrightnessScale,

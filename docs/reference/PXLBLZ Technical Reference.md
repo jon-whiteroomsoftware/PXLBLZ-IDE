@@ -756,11 +756,20 @@ shape parameters are never animatable, so their constants always fold.
 cross-checked sample-for-sample against the float64 preview metric.
 `showClipPlacementPad.ts` is the framework-free gesture boundary — pointer
 coordinates normalize through the rendered SVG bounds, so resizing the surface
-cannot change stored results. Coverage-directed Viewport evaluation
-(#590/#679) replaces the post-capture multiply for an eligible two-layer
-stack, selecting one Pattern per pixel under a Hard aperture and evaluating
-both only inside a Soft band; every ineligible case falls back with a named
-reason in `specializations.viewportCoverage`.
+cannot change stored results. Coverage-directed Viewport evaluation replaces
+the post-capture multiply when skipped renderer calls cannot change observable
+state. The original two-layer path (#590/#679) selects one Pattern per pixel
+under a Hard aperture and evaluates both only inside a Soft band. The N-frame
+path (#834) selects one of any number of static, axis-aligned, pairwise-disjoint
+rectangular Hard frames, including keyed or repeated pure Pattern members, and
+may also evaluate one shared lower ground. Emission, specialization metadata,
+and renderer-pressure accounting consume the same coverage plan, so selected
+stacks report their actual one-frame-plus-optional-ground evaluation bound.
+Hard rectangle predicates include both endpoints, so numeric bounds must remain
+strictly separated after 16.16 constant quantization; stock half-frame tiling
+assigns the seam at that Controller coordinate quantum. Every ineligible case
+keeps the ordinary stack and records a named reason in
+`specializations.viewportCoverage`.
 
 **Effects and Transition authoring.** `showEffectAuthoring.ts` adapts the
 registry vocabulary to typed authoring actions (Mirror patches the placement
