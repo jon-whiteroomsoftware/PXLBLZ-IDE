@@ -11171,7 +11171,7 @@ function showRendererPressure(
     }, 1)
     const controllerSteady = Math.max(1, ...activeMemberIds.map((ids) => ids.size))
     const controllerTransition = recipe.routedSceneSequence.scenes.slice(0, -1).reduce((worst, scene, index) => {
-      if (!scene.transitionOut || scene.transitionOut.kind === 'cut' || scene.transitionOut.kind === 'fade-color') {
+      if (!scene.transitionOut || scene.transitionOut.kind === 'cut') {
         return worst
       }
       const scopeZoneName = scene.transitionOut.scopeZoneName
@@ -11180,6 +11180,16 @@ function showRendererPressure(
           .filter((placement) => placement.zoneName === scopeZoneName)
           .map((placement) => placement.clipId)
         : activeMemberIds[index]
+      if (scene.transitionOut.kind === 'fade-color') {
+        if (!scopeZoneName) return worst
+        const incomingOutsideScope = recipe.routedSceneSequence!.scenes[index + 1].placements
+          .filter((placement) => placement.zoneName !== scopeZoneName)
+          .map((placement) => placement.clipId)
+        return Math.max(worst, new Set([
+          ...outgoingIds,
+          ...incomingOutsideScope,
+        ]).size)
+      }
       return Math.max(worst, new Set([
         ...outgoingIds,
         ...activeMemberIds[index + 1],
@@ -11206,16 +11216,44 @@ function showRendererPressure(
     }, 1)
     return { steady: 1, worst, controllerSteady: 1, controllerWorst: controllerTransition }
   }
-  const resolvedRouteMemberCounts = routingLayouts
-    ? routingLayouts.map((layout) => new Set(layout.routes.map((route) => route.member.id)).size)
+  const routingLayoutMemberIds = routingLayouts?.map((layout) => (
+    new Set(layout.routes.map((route) => route.member.id))
+  ))
+  const layoutIndexById = routingLayouts
+    ? new Map(routingLayouts.map((layout, index) => [layout.id, index]))
+    : null
+  const orderedRoutingSwitches = [...(recipe.routingSwitches ?? [])].sort((a, b) => a.atMs - b.atMs)
+  const selectedRoutingLayoutIndices = layoutIndexById
+    ? new Set([0, ...orderedRoutingSwitches.map((routingSwitch) => (
+        layoutIndexById.get(routingSwitch.layoutId) ?? 0
+      ))])
+    : null
+  const resolvedRouteMemberCounts = routingLayoutMemberIds && selectedRoutingLayoutIndices
+    ? [...selectedRoutingLayoutIndices].map((index) => routingLayoutMemberIds[index]?.size ?? 0)
     : directRoutes
       ? [new Set(directRoutes.map((route) => route.member.id)).size]
       : []
-  const staticRoutedMemberCount = Math.max(1, ...resolvedRouteMemberCounts)
+  const staticRoutedMemberCount = routingLayoutMemberIds || directRoutes
+    ? Math.max(0, ...resolvedRouteMemberCounts)
+    : 1
+  let progressiveRoutingPeak = staticRoutedMemberCount
+  if (routingLayoutMemberIds && layoutIndexById) {
+    let sourceLayoutIndex = 0
+    for (const routingSwitch of orderedRoutingSwitches) {
+      const destinationLayoutIndex = layoutIndexById.get(routingSwitch.layoutId) ?? 0
+      if ((routingSwitch.durationMs ?? 0) > 0) {
+        progressiveRoutingPeak = Math.max(progressiveRoutingPeak, new Set([
+          ...(routingLayoutMemberIds[sourceLayoutIndex] ?? []),
+          ...(routingLayoutMemberIds[destinationLayoutIndex] ?? []),
+        ]).size)
+      }
+      sourceLayoutIndex = destinationLayoutIndex
+    }
+  }
   const controllerWorst = recipe.crossfade
     || (recipe.routeTransition && recipe.routeTransition.kind !== 'fade-color')
-    ? Math.max(staticRoutedMemberCount, members.length)
-    : staticRoutedMemberCount
+    ? Math.max(progressiveRoutingPeak, members.length)
+    : progressiveRoutingPeak
   return {
     steady: 1,
     worst,

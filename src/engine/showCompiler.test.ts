@@ -3537,6 +3537,50 @@ export function render(index) { renders = renders + 1; rgb(${r}, ${g}, ${b}) }
     expect(pixel()).toEqual([1, 1, 0])
   })
 
+  it('counts scoped Fade through color machines across affected and unaffected Zones (#839)', () => {
+    const zones = [
+      { id: 'left', name: 'Left', ranges: [{ start: 0, end: 1 }] },
+      { id: 'right', name: 'Right', ranges: [{ start: 2, end: 3 }] },
+    ]
+    const artifact = compileShow({
+      clips: ['a', 'b', 'c', 'd', 'e'].map((id) => ({
+        id,
+        source: `export function render(index) { rgb(${id === 'a' ? 1 : 0}, ${id === 'b' ? 1 : 0}, ${id === 'c' ? 1 : 0}) }`,
+      })),
+      zones,
+      routingLayouts: [{ id: 'split', name: 'Split', zones }],
+      routedSceneSequence: {
+        scenes: [{
+          holdMs: 1_000,
+          placements: [
+            { zoneName: 'Left', clipId: 'a', stackOrder: 0 },
+            { zoneName: 'Left', clipId: 'b', stackOrder: 1, opacity: 0.5 },
+            { zoneName: 'Right', clipId: 'a' },
+          ],
+          transitionOut: {
+            kind: 'fade-color',
+            durationMs: 1_000,
+            color: '#000000',
+            scopeZoneName: 'Left',
+          },
+        }, {
+          holdMs: 1_000,
+          placements: [
+            { zoneName: 'Left', clipId: 'c' },
+            { zoneName: 'Right', clipId: 'd', stackOrder: 0 },
+            { zoneName: 'Right', clipId: 'e', stackOrder: 1, opacity: 0.5 },
+          ],
+        }],
+      },
+      loopDurationMs: 3_000,
+    }, {})
+
+    expect(artifact.summary).toMatchObject({
+      steadyStateRenderersPerController: 3,
+      worstInstantRenderersPerController: 4,
+    })
+  })
+
   it('animates a moving split through one routed renderer per pixel (#405)', () => {
     const zones = [
       { id: 'left', name: 'left', ranges: [{ start: 0, end: 3 }] },
@@ -3715,6 +3759,64 @@ export function render(index) { renders = renders + 1; rgb(${r}, ${g}, ${b}) }
     expect(handle.getExports()).toMatchObject({
       __pxlblz_show_c0_ticks: 2,
       __pxlblz_show_c1_ticks: 2,
+    })
+  })
+
+  it('counts the union of resolved layout machines during a progressive routing transfer (#839)', () => {
+    const artifact = compileShow({
+      clips: [
+        { id: 'red', zone: 'red-zone', source: 'export function render(index) { rgb(1, 0, 0) }' },
+        { id: 'blue', zone: 'blue-zone', source: 'export function render(index) { rgb(0, 0, 1) }' },
+      ],
+      zones: [
+        { id: 'red', name: 'red-zone', ranges: [{ start: 0, end: 3 }] },
+        { id: 'blue', name: 'blue-zone', ranges: [{ start: 0, end: 3 }] },
+      ],
+      routingLayouts: [
+        { id: 'red-only', name: 'Red only', zones: [
+          { id: 'red', name: 'red-zone', ranges: [{ start: 0, end: 3 }] },
+        ] },
+        { id: 'blue-only', name: 'Blue only', zones: [
+          { id: 'blue', name: 'blue-zone', ranges: [{ start: 0, end: 3 }] },
+        ] },
+      ],
+      routingSwitches: [{ atMs: 1_000, layoutId: 'blue-only', durationMs: 1_000 }],
+      loopDurationMs: 3_000,
+    }, {})
+
+    expect(artifact.summary).toMatchObject({
+      steadyStateRenderersPerController: 1,
+      worstInstantRenderersPerController: 2,
+      steadyStateRenderersPerPixel: 1,
+      worstInstantRenderersPerPixel: 1,
+    })
+  })
+
+  it('excludes defined Zone Layouts that the Show never selects (#839)', () => {
+    const artifact = compileShow({
+      clips: [
+        { id: 'red', zone: 'red-zone', source: 'export function render(index) { rgb(1, 0, 0) }' },
+        { id: 'blue', zone: 'blue-zone', source: 'export function render(index) { rgb(0, 0, 1) }' },
+      ],
+      zones: [
+        { id: 'red', name: 'red-zone', ranges: [{ start: 0, end: 3 }] },
+        { id: 'blue', name: 'blue-zone', ranges: [{ start: 0, end: 3 }] },
+      ],
+      routingLayouts: [
+        { id: 'red-only', name: 'Red only', zones: [
+          { id: 'red', name: 'red-zone', ranges: [{ start: 0, end: 3 }] },
+        ] },
+        { id: 'unused', name: 'Unused', zones: [
+          { id: 'red', name: 'red-zone', ranges: [{ start: 0, end: 1 }] },
+          { id: 'blue', name: 'blue-zone', ranges: [{ start: 2, end: 3 }] },
+        ] },
+      ],
+      loopDurationMs: 3_000,
+    }, {})
+
+    expect(artifact.summary).toMatchObject({
+      steadyStateRenderersPerController: 1,
+      worstInstantRenderersPerController: 1,
     })
   })
 
