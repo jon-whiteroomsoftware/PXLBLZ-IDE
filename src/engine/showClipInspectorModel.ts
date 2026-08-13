@@ -428,11 +428,21 @@ function mapPatternInstance(
   instanceId: string,
   update: (instance: ShowPatternInstance) => ShowPatternInstance,
 ): ShowCompositionV1 {
+  const before = composition.patternInstances.find((instance) => instance.id === instanceId)
+  const patternInstances = composition.patternInstances.map((instance) => (
+    instance.id === instanceId ? update(instance) : instance
+  ))
+  const after = patternInstances.find((instance) => instance.id === instanceId)
+  // A changed source forfeits the deterministic-loop stamp: the exact-reset
+  // proof (#823 wrap census) binds to the authored cast, and the replacement
+  // Pattern may hold state the loop reset cannot reconstruct. Every editor
+  // source change (Clip and Group inspectors alike) funnels through here.
+  const sourceChanged = Boolean(before && after
+    && (before.pattern.kind !== after.pattern.kind || before.pattern.id !== after.pattern.id))
   return {
     ...composition,
-    patternInstances: composition.patternInstances.map((instance) => (
-      instance.id === instanceId ? update(instance) : instance
-    )),
+    ...(sourceChanged ? { executionModel: undefined } : {}),
+    patternInstances,
   }
 }
 

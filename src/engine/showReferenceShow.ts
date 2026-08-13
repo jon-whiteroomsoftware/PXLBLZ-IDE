@@ -194,11 +194,19 @@ export function restoreShowReferencePatternSlots(
     composition: edited.composition ? {
       ...edited.composition,
       // Restoring the authored cast also restores its deterministic-loop
-      // stamp: the transient projection forfeited it (the swapped source was
-      // unproven), and the authored composition is the proof's subject
-      // (#823 review P2).
+      // stamp - but only when EVERY source once again matches the authored
+      // cast: the stamp binds to the whole cast, and a permanent
+      // reassignment elsewhere must keep it forfeited (#823 review).
       ...(authored.composition?.executionModel !== undefined
         && edited.composition.executionModel === undefined
+        && edited.composition.patternInstances.every((instance) => {
+          const authoredInstance = authoredInstances.get(instance.id)
+          const restoredToAuthored = instanceIds.has(instance.id) && authoredInstance
+          const effective = restoredToAuthored ? authoredInstance : instance
+          return authoredInstance !== undefined
+            && effective.pattern.kind === authoredInstance.pattern.kind
+            && effective.pattern.id === authoredInstance.pattern.id
+        })
         ? { executionModel: authored.composition.executionModel }
         : {}),
       patternInstances: edited.composition.patternInstances.map((instance) => {
