@@ -521,7 +521,9 @@ Run/Save dirty signatures
 cover source, code-affecting profile configuration, and installed map
 dimension. Run-mode cleanliness also pairs the transient program id with the
 panel's live `activeProgramId`, so an external Pattern switch re-arms Run
-without a source edit.
+without a source edit. Run/Save outcomes also carry artifact identity and mode;
+the owning Pattern or Show presents a failure until Dismiss, while unrelated
+Controller operations cannot borrow that alert.
 
 **Run** pushes transient bytecode under a fresh id — no Saved Patterns entry,
 binding, banner, or push record. **Save** stamps source, encodes a PBP (name,

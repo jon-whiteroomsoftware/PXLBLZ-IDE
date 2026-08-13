@@ -1141,6 +1141,12 @@ describe('controllerStore (keyed)', () => {
       const pushedId = provider.pushed[0].opts.id
       expect(store().pushing).toBe(false)
       expect(store().pushResult).toEqual({ ok: true, created: true })
+      expect(store().artifactPushResult).toEqual({
+        ok: true,
+        created: true,
+        artifactId: 'pat-1',
+        mode: 'run',
+      })
       // The pushed source is remembered (dirty gate) so a re-push is a no-op.
       expect(store().lastPushedSource['10.0.0.5']['pat-1']).toBe(PATTERN_SRC)
       expect(store().lastRunProgramId['10.0.0.5']['pat-1']).toBe(pushedId)
@@ -1185,6 +1191,12 @@ describe('controllerStore (keyed)', () => {
       expect(store().pushResult).toEqual({
         ok: false,
         message: 'Controller target activation failed: socket gone during activation',
+      })
+      expect(store().artifactPushResult).toEqual({
+        ok: false,
+        message: 'Controller target activation failed: socket gone during activation',
+        artifactId: 'pat-1',
+        mode: 'run',
       })
       expect(store().rendererPausedByPxlblz).toEqual({ '10.0.0.5': true })
       expect(store().rendererStates['10.0.0.5']).toEqual({
@@ -1392,6 +1404,12 @@ describe('controllerStore (keyed)', () => {
       expect(created.get('10.0.0.5')!.compiledSources).toHaveLength(1)
       expect(created.get('10.0.0.5')!.compiledSources[0]).toContain('__px_cappedHsv')
       expect(store().pushResult).toEqual({ ok: true, created: true })
+      expect(store().artifactPushResult).toEqual({
+        ok: true,
+        created: true,
+        artifactId: 'show:show-1',
+        mode: 'run',
+      })
     })
 
     it('surfaces a generated Show compile failure without pushing (#429)', async () => {
@@ -1409,6 +1427,12 @@ describe('controllerStore (keyed)', () => {
 
       expect(created.get('10.0.0.5')!.pushed).toHaveLength(0)
       expect(store().pushResult).toEqual({ ok: false, message: 'Show compile failed on device' })
+      expect(store().artifactPushResult).toEqual({
+        ok: false,
+        message: 'Show compile failed on device',
+        artifactId: 'show:show-1',
+        mode: 'run',
+      })
     })
 
     it('retains Resume recovery when generated-artifact activation fails (#737)', async () => {

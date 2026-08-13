@@ -54,7 +54,10 @@ import { PushConfirmPopover } from '@/components/PushConfirmPopover'
 import { describeSendToController, isAlreadyPushed, type SendMode } from '@/engine/sendToController'
 import { useControllerPanelStore } from '@/store/controllerPanelStore'
 import { prepareShowControllerArtifact } from '@/engine/showControllerArtifact'
-import { controllerProfileArtifactSignature } from '@/engine/controllerProfilePassRecipe'
+import {
+  controllerProfileArtifactSignature,
+  findProfileForLiveController,
+} from '@/engine/controllerProfilePassRecipe'
 import { prepareControllerArtifactDelivery } from '@/engine/controllerArtifactDelivery'
 import { assessShowCompilePressure } from '@/engine/showCompilePressure'
 import type { ArtifactMapClass } from '@/engine/artifactStamp'
@@ -984,7 +987,7 @@ export function ShowEditor({
   const activeIp = useControllerStore((state) => state.activeIp)
   const activeController = useControllerStore((state) => (state.activeIp ? state.controllers[state.activeIp] : undefined))
   const controllerPushing = useControllerStore((state) => state.pushing)
-  const controllerPushResult = useControllerStore((state) => state.pushResult)
+  const controllerArtifactPushResult = useControllerStore((state) => state.artifactPushResult)
   const lastPushedSource = useControllerStore((state) => state.lastPushedSource)
   const lastRunProgramId = useControllerStore((state) => state.lastRunProgramId)
   const lastSavedSource = useControllerStore((state) => state.lastSavedSource)
@@ -992,7 +995,7 @@ export function ShowEditor({
   const lastSavedProfileSignature = useControllerStore((state) => state.lastSavedProfileSignature)
   const activeProgramId = useControllerPanelStore((state) => state.activeProgramId)
   const pushGeneratedArtifact = useControllerStore((state) => state.pushGeneratedArtifact)
-  const clearPushResult = useControllerStore((state) => state.clearPushResult)
+  const clearArtifactPushResult = useControllerStore((state) => state.clearArtifactPushResult)
   const [selection, setSelection] = useState<ShowSelection>({ kind: 'show' })
   const [isolatedGroupOccurrenceId, setIsolatedGroupOccurrenceId] = useState<string | null>(null)
   const [generatedSnapshot, setGeneratedSnapshot] = useState<ShowCompilationSnapshot | null>(null)
@@ -1213,11 +1216,9 @@ export function ShowEditor({
     : activeShow?.targetControllerProfileId
     ? controllerProfiles.find((profile) => profile.id === activeShow.targetControllerProfileId)
     : controllerProfiles[0]
-  const activeControllerProfile = controllerProfiles.find((profile) => (
-    activeController?.deviceId
-      ? profile.deviceId === activeController.deviceId
-      : Boolean(activeIp && profile.lastSeenIp === activeIp)
-  )) ?? targetProfile
+  const activeControllerProfile = activeController
+    ? findProfileForLiveController(controllerProfiles, activeController) ?? undefined
+    : targetProfile
 
   const requestDeleteSelection = useCallback((
     targetSelection: ShowSelection,
@@ -1644,7 +1645,10 @@ export function ShowEditor({
     }
   }, [activeShow, compiled.artifact, inspectableShowExport])
   const activeControllerMapDim = activeController?.mapDim ?? null
-  const showArtifactId = `show:${activeShow.id}`
+  const showArtifactId = `show:${showId}`
+  const showControllerPushResult = controllerArtifactPushResult?.artifactId === showArtifactId
+    ? controllerArtifactPushResult
+    : null
   const activeControllerFirmware = activeController?.firmwareVersion
   const activeInstalledMap = activeController?.phase === 'live'
     ? activeController.installedMap
@@ -1713,7 +1717,7 @@ export function ShowEditor({
   const compileBarPushResult = preparedControllerArtifact.error
     && preparedControllerArtifact.error !== compiled.artifactBlocker
     ? preparedControllerArtifact.error
-    : controllerPushResult?.ok
+    : showControllerPushResult?.ok
       ? 'Sent to Controller'
       : null
 
@@ -1741,11 +1745,9 @@ export function ShowEditor({
       : currentShow.targetControllerProfileId
         ? currentProfiles.find((profile) => profile.id === currentShow.targetControllerProfileId)
         : currentProfiles[0]
-    const currentActiveProfile = currentProfiles.find((profile) => (
-      currentController?.deviceId
-        ? profile.deviceId === currentController.deviceId
-        : Boolean(currentActiveIp && profile.lastSeenIp === currentActiveIp)
-    )) ?? currentTargetProfile
+    const currentActiveProfile = currentController
+      ? findProfileForLiveController(currentProfiles, currentController) ?? undefined
+      : currentTargetProfile
     const currentStageMap = currentShow.stageMapId
       ? [...STOCK_MAPS, ...currentMaps].find((map) => map.id === currentShow.stageMapId)
       : undefined
@@ -1789,11 +1791,9 @@ export function ShowEditor({
       : compilation.show.targetControllerProfileId
         ? currentProfiles.find((profile) => profile.id === compilation.show.targetControllerProfileId)
         : currentProfiles[0]
-    const currentActiveProfile = currentProfiles.find((profile) => (
-      currentController?.deviceId
-        ? profile.deviceId === currentController.deviceId
-        : Boolean(currentActiveIp && profile.lastSeenIp === currentActiveIp)
-    )) ?? currentTargetProfile
+    const currentActiveProfile = currentController
+      ? findProfileForLiveController(currentProfiles, currentController) ?? undefined
+      : currentTargetProfile
     const currentExport = compilation.canonicalExport
     try {
       const prepared = prepareShowControllerArtifact(
@@ -1829,10 +1829,10 @@ export function ShowEditor({
   }
 
   useEffect(() => {
-    if (!controllerPushResult) return
-    const timeout = window.setTimeout(clearPushResult, 3500)
+    if (!showControllerPushResult?.ok) return
+    const timeout = window.setTimeout(clearArtifactPushResult, 3500)
     return () => window.clearTimeout(timeout)
-  }, [clearPushResult, controllerPushResult])
+  }, [clearArtifactPushResult, showControllerPushResult])
   const buildDownloadExport = async (): Promise<ShowEpeExport | null> => {
     const compilation = buildCurrentCompilationSnapshot()
     if (!compilation) return null
@@ -2162,7 +2162,7 @@ export function ShowEditor({
             saveGate={saveGate}
             activeMode={showSendMode}
             pushing={controllerPushing || preparingSave}
-            pushResult={controllerPushResult}
+            pushResult={showControllerPushResult}
             density="compact"
             onConnect={requestControllerEntryOpen}
             onRun={() => requestShowSend('run')}
@@ -2233,13 +2233,13 @@ export function ShowEditor({
           onDismiss={dismissShowSaveFailure}
         />
       )}
-      {controllerPushResult && !controllerPushResult.ok && (
+      {showControllerPushResult && !showControllerPushResult.ok && (
         <SaveFailureNotice
           kind="action"
           testId="show-push-failure"
-          message={`${showSendMode === 'save' ? 'Save' : 'Run'} failed: ${controllerPushResult.message}`}
-          onDismiss={clearPushResult}
-          dismissLabel={`Dismiss ${showSendMode === 'save' ? 'Save' : 'Run'} failure`}
+          message={`${showControllerPushResult.mode === 'save' ? 'Save' : 'Run'} failed: ${showControllerPushResult.message}`}
+          onDismiss={clearArtifactPushResult}
+          dismissLabel={`Dismiss ${showControllerPushResult.mode === 'save' ? 'Save' : 'Run'} failure`}
         />
       )}
       <div data-testid="show-editor-scroll" className="scrollbar-hidden flex min-h-0 flex-1 flex-col overflow-auto">

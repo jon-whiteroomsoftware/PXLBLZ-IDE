@@ -233,6 +233,12 @@ export function render(index) { rgb(MyMath.glow(index), 0, 0) }
     expect(screen.getByText(`Generated pattern - ${show.name}`)).toBeInTheDocument()
   })
 
+  it('renders the missing-Show fallback for an unknown route (#849)', () => {
+    render(<ShowEditor showId="missing-show" />)
+
+    expect(screen.getByText('Show not found')).toBeInTheDocument()
+  })
+
   it('publishes the selected Clip as the Stage diagnostic focus (#791)', async () => {
     const user = userEvent.setup()
     const show = createDefaultShow('show-clip-diagnostic-focus', 'Clip diagnostic focus', 1000)
@@ -6838,6 +6844,39 @@ export function render(index) { rgb(MyMath.glow(index), 0, 0) }
     expect(screen.getByLabelText(/^Controller source .* advisory\.$/i)).toBeInTheDocument()
   })
 
+  it('does not measure an unmatched Installation target profile against the live Controller (#849)', () => {
+    const show = createShowWithOutputContract(
+      'show-profile-mismatch',
+      'Targeted Show',
+      createInstallationShowOutputContract({ outputMapId: 'plane', pixelCount: 8 }),
+      1000,
+    )
+    show.targetControllerProfileId = 'profile-target'
+    const profile = defaultControllerProfile({ id: 'profile-target', name: 'Target PB', now: 1 })
+    profile.globalTransforms = profile.globalTransforms.map((transform) => (
+      transform.type === 'power-cap' ? { ...transform, enabled: true, maxDuty: 0.25 } : transform
+    ))
+    useShowStore.setState({ shows: [show], activeShowId: show.id, showsLoaded: true })
+    useControllerProfileStore.setState({ profilesLoaded: true, profiles: [profile] })
+    useControllerStore.setState({
+      controllers: {
+        '10.0.0.9': {
+          ip: '10.0.0.9',
+          nickname: 'Other PB',
+          phase: 'live',
+          mapDim: 1,
+          firmwareVersion: '3.67',
+        },
+      },
+      activeIp: '10.0.0.9',
+    })
+    setControllerProvider(new ConnectedControllerProvider())
+
+    render(<ShowEditor showId={show.id} />)
+
+    expect(screen.getByTestId('show-compile-bar')).not.toHaveTextContent('Controller transforms')
+  })
+
   it('compiles the current Pattern source when Run follows an urgent Show dependency update (#593)', async () => {
     const show = createDefaultShow('show-send-current', 'Current source', 1000)
     show.cells[0] = {
@@ -7180,7 +7219,12 @@ export function render(index) { rgb(MyMath.glow(index), 0, 0) }
     const show = createDefaultShow('show-push-failure', 'Push failure', 1000)
     useShowStore.setState({ shows: [show], activeShowId: show.id, showsLoaded: true })
     useControllerStore.setState({
-      pushResult: { ok: false, message: 'Controller compiler: pattern is too large' },
+      artifactPushResult: {
+        ok: false,
+        message: 'Controller compiler: pattern is too large',
+        artifactId: 'show:show-push-failure',
+        mode: 'save',
+      },
       saveArmed: false,
     })
 
@@ -7188,8 +7232,48 @@ export function render(index) { rgb(MyMath.glow(index), 0, 0) }
 
     const alert = screen.getByRole('alert')
     expect(alert).toBeVisible()
-    expect(alert).toHaveTextContent('Run failed: Controller compiler: pattern is too large')
-    expect(screen.getByRole('button', { name: 'Dismiss Run failure' })).toBeInTheDocument()
+    expect(alert).toHaveTextContent('Save failed: Controller compiler: pattern is too large')
+    expect(screen.getByRole('button', { name: 'Dismiss Save failure' })).toBeInTheDocument()
+  })
+
+  it('does not attribute another Show failure to the open Show (#849)', () => {
+    const show = createDefaultShow('show-current', 'Current Show', 1000)
+    useShowStore.setState({ shows: [show], activeShowId: show.id, showsLoaded: true })
+    useControllerStore.setState({
+      artifactPushResult: {
+        ok: false,
+        message: 'Show A failed',
+        artifactId: 'show:show-a',
+        mode: 'run',
+      },
+    })
+
+    render(<ShowEditor showId={show.id} />)
+
+    expect(screen.queryByRole('alert')).not.toBeInTheDocument()
+  })
+
+  it('keeps a Show push failure visible until dismissal (#849)', () => {
+    vi.useFakeTimers()
+    try {
+      const show = createDefaultShow('show-persistent-failure', 'Persistent failure', 1000)
+      useShowStore.setState({ shows: [show], activeShowId: show.id, showsLoaded: true })
+      useControllerStore.setState({
+        artifactPushResult: {
+          ok: false,
+          message: 'activation timed out',
+          artifactId: 'show:show-persistent-failure',
+          mode: 'run',
+        },
+      })
+
+      render(<ShowEditor showId={show.id} />)
+      act(() => vi.advanceTimersByTime(4_000))
+
+      expect(screen.getByRole('alert')).toHaveTextContent('Run failed: activation timed out')
+    } finally {
+      vi.useRealTimers()
+    }
   })
 
   it('reports an exact proportional Show source inventory from keyboard-equivalent focus (#545, #756)', () => {

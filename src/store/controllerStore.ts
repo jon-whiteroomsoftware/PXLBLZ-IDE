@@ -85,6 +85,7 @@ import {
   artifactTransformIds,
   prepareControllerArtifactDelivery,
 } from '@/engine/controllerArtifactDelivery'
+import type { SendMode } from '@/engine/sendToController'
 
 // Keyed connection orchestration for the live Controller surface (#210).
 //
@@ -204,6 +205,9 @@ interface ControllerConnectionState {
   pushing: boolean
   /** Last push outcome, surfaced transiently on the Send button. `null` = idle. */
   pushResult: PushResult | null
+  /** Run/Save outcome with enough identity for the owning Pattern or Show to
+   * present it without borrowing another Controller operation's result. */
+  artifactPushResult: ArtifactPushResult | null
   /** The pattern source last successfully pushed, keyed controllerId → patternId.
    *  Drives the run-mode dirty gate together with the active program identity. Not
    *  persisted — a fresh session re-enables a push (the device may have changed). */
@@ -341,6 +345,8 @@ interface ControllerConnectionState {
   setSaveArmed: (armed: boolean) => void
   /** Clear the transient push result (e.g. after the toast/badge times out). */
   clearPushResult: () => void
+  /** Dismiss the visible, artifact-scoped Run/Save outcome. */
+  clearArtifactPushResult: () => void
   /** Reconcile installed PXLBLZ-managed artifacts for one opted-in Controller profile. */
   reconcileControllerProfile: (profileId: string) => Promise<void>
   /** Debounced entry point used after profile edits and reconnect. */
@@ -362,6 +368,11 @@ export type PushResult =
   | { ok: true; created: boolean }
   | { ok: false; message: string }
 
+export type ArtifactPushResult = PushResult & {
+  artifactId: string
+  mode: SendMode
+}
+
 export const controllerInitialState = {
   extensionPresent: false,
   controllers: {} as Record<string, ControllerEntry>,
@@ -374,6 +385,7 @@ export const controllerInitialState = {
   lastKnownControllerIps: {} as Record<string, string>,
   pushing: false,
   pushResult: null as PushResult | null,
+  artifactPushResult: null as ArtifactPushResult | null,
   lastPushedSource: {} as Record<string, Record<string, string>>,
   lastRunProgramId: {} as Record<string, Record<string, string>>,
   lastSavedSource: {} as Record<string, Record<string, string>>,
@@ -916,6 +928,8 @@ export const useControllerStore = create<ControllerConnectionState>()(
 
         clearPushResult: () => set({ pushResult: null }),
 
+        clearArtifactPushResult: () => set({ artifactPushResult: null }),
+
         scheduleControllerReconciliation: (profileId) => {
           const existing = reconciliationTimers.get(profileId)
           if (existing) clearTimeout(existing)
@@ -1239,7 +1253,8 @@ export const useControllerStore = create<ControllerConnectionState>()(
           const controllerId = get().activeIp
           if (!controllerId || artifact.source.length === 0) return
 
-          set({ pushing: true, pushResult: null })
+          const mode: SendMode = artifact.persist ? 'save' : 'run'
+          set({ pushing: true, pushResult: null, artifactPushResult: null })
           invalidateRendererState(controllerId)
           retainRendererResumeRecovery(controllerId)
           try {
@@ -1339,9 +1354,16 @@ export const useControllerStore = create<ControllerConnectionState>()(
             const profileRecordKey = artifact.persist
               ? 'lastSavedProfileSignature'
               : 'lastPushedProfileSignature'
+            const result: ArtifactPushResult = {
+              ok: true,
+              created,
+              artifactId: artifact.artifactId,
+              mode,
+            }
             set((state) => ({
               pushing: false,
               pushResult: { ok: true, created },
+              artifactPushResult: result,
               [recordKey]: {
                 ...state[recordKey],
                 [controllerId]: {
@@ -1370,7 +1392,16 @@ export const useControllerStore = create<ControllerConnectionState>()(
             }))
           } catch (error) {
             const message = error instanceof Error ? error.message : String(error)
-            set({ pushing: false, pushResult: { ok: false, message } })
+            set({
+              pushing: false,
+              pushResult: { ok: false, message },
+              artifactPushResult: {
+                ok: false,
+                message,
+                artifactId: artifact.artifactId,
+                mode,
+              },
+            })
           }
         },
 
@@ -1438,6 +1469,8 @@ export const useControllerStore = create<ControllerConnectionState>()(
         confirmPatternPushWithMap: async () => {
           const remedy = get().patternMapRemedy
           const controllerId = get().activeIp
+          const patternId = activePushKey(usePatternStore.getState())
+          const mode: SendMode = get().saveArmed ? 'save' : 'run'
           set({
             preflight: null,
             mapPushRemedyCount: null,
@@ -1451,7 +1484,7 @@ export const useControllerStore = create<ControllerConnectionState>()(
           }
           // Install the recommended map first (count, then map). A failure aborts before
           // the pattern push — surfaced through the same pushResult the button reads.
-          set({ pushing: true, pushResult: null })
+          set({ pushing: true, pushResult: null, artifactPushResult: null })
           try {
             const expectedFingerprint = await installStockMap(remedy)
             if (controllerId) {
@@ -1459,7 +1492,20 @@ export const useControllerStore = create<ControllerConnectionState>()(
             }
           } catch (err) {
             const message = err instanceof Error ? err.message : String(err)
-            set({ pushing: false, pushResult: { ok: false, message } })
+            set({
+              pushing: false,
+              pushResult: { ok: false, message },
+              ...(patternId
+                ? {
+                    artifactPushResult: {
+                      ok: false as const,
+                      message,
+                      artifactId: patternId,
+                      mode,
+                    },
+                  }
+                : {}),
+            })
             return
           }
           await get().pushActivePattern()
@@ -1612,8 +1658,9 @@ export const useControllerStore = create<ControllerConnectionState>()(
           // run-only push. Captured up front so the post-push dirty-gate record lands
           // in the matching map (run vs save are tracked separately).
           const persist = get().saveArmed
+          const mode: SendMode = persist ? 'save' : 'run'
 
-          set({ pushing: true, pushResult: null })
+          set({ pushing: true, pushResult: null, artifactPushResult: null })
           invalidateRendererState(controllerId)
           retainRendererResumeRecovery(controllerId)
           try {
@@ -1727,9 +1774,16 @@ export const useControllerStore = create<ControllerConnectionState>()(
             const profileRecordKey = persist
               ? 'lastSavedProfileSignature'
               : 'lastPushedProfileSignature'
+            const result: ArtifactPushResult = {
+              ok: true,
+              created,
+              artifactId: patternId,
+              mode,
+            }
             set((s) => ({
               pushing: false,
               pushResult: { ok: true, created },
+              artifactPushResult: result,
               [recordKey]: {
                 ...s[recordKey],
                 [controllerId]: { ...s[recordKey][controllerId], [patternId]: previewSource },
@@ -1767,7 +1821,16 @@ export const useControllerStore = create<ControllerConnectionState>()(
             }))
           } catch (err) {
             const message = err instanceof Error ? err.message : String(err)
-            set({ pushing: false, pushResult: { ok: false, message } })
+            set({
+              pushing: false,
+              pushResult: { ok: false, message },
+              artifactPushResult: {
+                ok: false,
+                message,
+                artifactId: patternId,
+                mode,
+              },
+            })
           }
         },
       }

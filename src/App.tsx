@@ -107,6 +107,7 @@ import { NavigationSaveFailureNotice } from '@/components/NavigationSaveFailureN
 import { NavigationPreflightDialog } from '@/components/NavigationPreflightDialog'
 import { activeStuckSaveStatus } from '@/store/autosaveSync'
 import { SaveFailureNotice } from '@/components/SaveFailureNotice'
+import { PatternPushFailureNotice } from '@/components/PatternPushFailureNotice'
 import {
   studioOperationDismissLabel,
   studioOperationRetryLabel,
@@ -1205,6 +1206,7 @@ function StudioApp() {
                 testId="studio-editor-operation-failure"
               />
             )}
+            <PatternPushFailureNotice />
           </div>
           <div className="flex-1 overflow-hidden">
             {activeControllerProfileId !== null ? (
