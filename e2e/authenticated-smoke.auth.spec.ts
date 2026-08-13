@@ -49,6 +49,10 @@ test('authenticated Studio creates, renames, and reloads a persisted Show', asyn
 })
 
 test('shared Studio chrome remains legible, dense, and reachable across routes (#479)', async ({ page }) => {
+  // This scenario performs eleven full authenticated navigations through the
+  // shared Wrangler process. Preserve the complete route/viewport contract
+  // while allowing its cumulative work to finish under full-suite contention.
+  test.setTimeout(60_000)
   const routes = [
     { path: 'studio/patterns/IridescentFibers', activity: 'Patterns', heading: 'Patterns' },
     { path: 'studio/maps/plane', activity: 'Maps', heading: 'Maps' },
