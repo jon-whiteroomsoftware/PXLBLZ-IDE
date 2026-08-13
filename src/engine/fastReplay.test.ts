@@ -1,4 +1,5 @@
 import { advanceFastReplayCooperatively, createFastReplayRuntime, prepareFastReplay } from './fastReplay'
+import { fx } from './fixedpoint'
 import { compileShow } from './showCompiler'
 
 const RANDOM_PATTERN = `
@@ -160,6 +161,79 @@ export function render(index) { rgb(a[0] / 10, b[0] / 10, 0) }
     expect(restored.checksum).toBe(uninterrupted.checksum)
   })
 
+  it('preserves a plain array kind when aliased-at-init globals are distinct at snapshot', () => {
+    const prepared = prepareFastReplay(`
+var initialized = 0
+var a = array(1)
+var b = a
+export var base = 0
+export var fractional = 0
+export function beforeRender(delta) {
+  if (!initialized) {
+    b = [0]
+    initialized = 1
+  } else {
+    b[0.9] = 0.8
+    base = b[0]
+    fractional = b[0.9]
+  }
+}
+export function render(index) { rgb(base, fractional, 0) }
+`, {})
+    const options = { mapPoints: lineMap(1), randomSeed: 841 }
+    const source = createFastReplayRuntime(prepared, options)
+    source.advanceTo(10, { stepMs: 10 })
+    const snapshot = source.snapshot()
+    const uninterrupted = source.advanceTo(20, { stepMs: 10 })
+
+    const restoredRuntime = createFastReplayRuntime(prepared, options)
+    restoredRuntime.restore(snapshot)
+    const restored = restoredRuntime.advanceTo(20, { stepMs: 10 })
+
+    expect(restored.exports.a).not.toBe(restored.exports.b)
+    expect(restored.exports.base).toBe(0)
+    expect(restored.exports.fractional).toBeCloseTo(0.8)
+    expect(restored.checksum).toBe(uninterrupted.checksum)
+  })
+
+  it.each(['fast', 'fidelity'] as const)(
+    'pins the frequencyData array captured by the Pattern factory in %s mode',
+    (fidelity) => {
+      const prepared = prepareFastReplay(`
+var initialized = 0
+var sensorView = frequencyData
+var independent = frequencyData
+var observed = 0
+export function beforeRender(delta) {
+  if (!initialized) {
+    independent = [0.2]
+    initialized = 1
+  } else {
+    observed = frequencyData[0] + independent[0]
+    independent[0] = independent[0] + 0.1
+  }
+}
+export function render(index) { rgb(observed, independent[0], 0) }
+`, {})
+      const options = { mapPoints: lineMap(1), randomSeed: 841, fidelity }
+      const source = createFastReplayRuntime(prepared, options)
+      const sourceAtSnapshot = source.advanceTo(10, { stepMs: 10 })
+      const snapshot = source.snapshot()
+      ;(sourceAtSnapshot.exports.sensorView as number[])[0] = fidelity === 'fidelity' ? fx.fromFloat(0.6) : 0.6
+      const uninterrupted = source.advanceTo(20, { stepMs: 10 })
+
+      const restoredRuntime = createFastReplayRuntime(prepared, options)
+      restoredRuntime.restore(snapshot)
+      const restoredAtSnapshot = restoredRuntime.advanceTo(10, { stepMs: 10 })
+      expect(restoredAtSnapshot.exports.sensorView).not.toBe(restoredAtSnapshot.exports.independent)
+      ;(restoredAtSnapshot.exports.sensorView as number[])[0] = fidelity === 'fidelity' ? fx.fromFloat(0.6) : 0.6
+      const restored = restoredRuntime.advanceTo(20, { stepMs: 10 })
+
+      expect(restored.checksum).toBe(uninterrupted.checksum)
+      expect(restored.exports).toEqual(uninterrupted.exports)
+    },
+  )
+
   it.each(['fast', 'fidelity'] as const)(
     'materializes restored nested arrays with Pixelblaze semantics in %s mode',
     (fidelity) => {
@@ -277,6 +351,32 @@ export function render(index) { rgb(functions[index](0), 0, 0) }
     expect(() => runtime.snapshot()).toThrow(/ambiguous fallback function/i)
   })
 
+  it('restores a re-created source-identical non-capturing arrow', () => {
+    const prepared = prepareFastReplay(`
+var frameNumber = 0
+var selected = (value) => value + 0.25
+var value = 0
+export function beforeRender(delta) {
+  frameNumber = frameNumber + 1
+  if (frameNumber == 1) selected = (value) => value + 0.25
+  value = selected(frameNumber / 10)
+}
+export function render(index) { rgb(value, 0, 0) }
+`, {})
+    const options = { mapPoints: lineMap(1), randomSeed: 841 }
+    const source = createFastReplayRuntime(prepared, options)
+    source.advanceTo(10, { stepMs: 10 })
+    const snapshot = source.snapshot()
+    const uninterrupted = source.advanceTo(20, { stepMs: 10 })
+
+    const restoredRuntime = createFastReplayRuntime(prepared, options)
+    restoredRuntime.restore(snapshot)
+    const restored = restoredRuntime.advanceTo(20, { stepMs: 10 })
+
+    expect(restored.exports.value).toBe(uninterrupted.exports.value)
+    expect(restored.checksum).toBe(uninterrupted.checksum)
+  })
+
   it('restores the retained setPalette reference across the Pattern and shim boundary', () => {
     const prepared = prepareFastReplay(`
 var initialized = 0
@@ -313,24 +413,23 @@ export function render(index) { paint(0) }
       randomSeed: 841,
     })
     const atSnapshot = runtime.advanceTo(40, { stepMs: 10 })
-    const samples = atSnapshot.exports.samples as number[]
-    const nested = atSnapshot.exports.nested as number[][]
-    const nestedRow = nested[0]
+    const samplesAtSnapshot = [...atSnapshot.exports.samples as number[]]
+    const nestedAtSnapshot = (atSnapshot.exports.nested as number[][]).map(row => [...row])
     const snapshot = runtime.snapshot()
     const uninterrupted = runtime.advanceTo(100, { stepMs: 10 })
 
     runtime.advanceTo(140, { stepMs: 10 })
     runtime.restore(snapshot)
     const restored = runtime.advanceTo(40, { stepMs: 10 })
+    const restoredSamples = [...restored.exports.samples as number[]]
+    const restoredNested = (restored.exports.nested as number[][]).map(row => [...row])
     const replayed = runtime.advanceTo(100, { stepMs: 10 })
 
     expect(restored.elapsedMs).toBe(atSnapshot.elapsedMs)
     expect(restored.simulatedFrames).toBe(atSnapshot.simulatedFrames)
     expect(restored.checksum).toBe(atSnapshot.checksum)
-    expect(restored.exports.samples).toBe(samples)
-    expect(restored.exports.samples).toEqual(atSnapshot.exports.samples)
-    expect(restored.exports.nested).toBe(nested)
-    expect((restored.exports.nested as number[][])[0]).toBe(nestedRow)
+    expect(restoredSamples).toEqual(samplesAtSnapshot)
+    expect(restoredNested).toEqual(nestedAtSnapshot)
     expect(replayed.checksum).toBe(uninterrupted.checksum)
     expect(replayed.exports).toEqual(uninterrupted.exports)
     expect(replayed.simulatedFrames).toBe(uninterrupted.simulatedFrames)

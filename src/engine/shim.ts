@@ -27,6 +27,7 @@ export interface ShimContext {
   builtins: Record<string, unknown>
   snapshot: (cloneArray?: ShimSnapshotArrayCloner) => ShimSnapshot
   restore: (snapshot: ShimSnapshot, restoreArray?: ShimSnapshotArrayRestorer) => void
+  isPatternArray: (value: unknown) => value is number[]
   capturedPixel: () => [number, number, number]
   writeCapturedPixel: (target: Float32Array | Float64Array, offset: number) => void
   resetCapturedPixel: () => void
@@ -41,6 +42,12 @@ export interface ShimContext {
   // as they do on hardware (the transformed coords are handed to the pattern).
   transformPoint: (x: number, y: number, z: number) => [number, number, number]
   transformPointInto: (target: Float64Array, offset: number, x: number, y: number, z: number) => void
+}
+
+const patternArrays = new WeakSet<object>()
+
+function isPatternArray(value: unknown): value is number[] {
+  return Boolean(value && typeof value === 'object' && patternArrays.has(value))
 }
 
 export type ShimSnapshotArrayCloner = (source: number[]) => number[]
@@ -423,6 +430,7 @@ export function createShim(config: ShimConfig): ShimContext {
       builtins.accelerometer = restoreArray(snapshot.accelerometer, builtins.accelerometer as number[])
       builtins.analogInputs = restoreArray(snapshot.analogInputs, builtins.analogInputs as number[])
     },
+    isPatternArray,
     capturedPixel,
     writeCapturedPixel,
     resetCapturedPixel,
@@ -547,6 +555,7 @@ export function createFxShim(config: ShimConfig): ShimContext {
     builtins: fxBuiltins,
     snapshot,
     restore,
+    isPatternArray,
     capturedPixel,
     writeCapturedPixel,
     resetCapturedPixel,
@@ -587,7 +596,7 @@ function pbArray(
   decodeIndex: (raw: number) => number = (i) => i,
 ): number[] {
   const raw: number[] = new Array(Math.floor(n)).fill(0)
-  return new Proxy(raw, {
+  const proxy = new Proxy(raw, {
     get(target, prop, receiver) {
       if (typeof prop === 'string') {
         const i = Number(prop)
@@ -612,6 +621,8 @@ function pbArray(
       return Reflect.set(target, prop, value, receiver)
     },
   })
+  patternArrays.add(proxy)
+  return proxy
 }
 
 function hsvToRgb(h: number, s: number, v: number): [number, number, number] {

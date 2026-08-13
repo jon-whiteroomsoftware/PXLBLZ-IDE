@@ -91,6 +91,21 @@ interface SnapshotCloneContext {
   functionTokens: Map<RuntimeFunction, SnapshotFunctionToken>
   namedFunctions: ReadonlyMap<RuntimeFunction, SnapshotFunctionToken>
   fallbackFunctions: Map<string, RuntimeFunction>
+  isPatternArray: (value: unknown) => value is number[]
+}
+
+type SnapshotArrayKind = 'pattern' | 'plain'
+const snapshotArrayKind = Symbol('fastReplayArrayKind')
+type SnapshotArray = unknown[] & { [snapshotArrayKind]: SnapshotArrayKind }
+const pinnedShimArrayBuiltins = ['frequencyData', 'accelerometer', 'analogInputs'] as const
+
+function tagSnapshotArray(array: unknown[], kind: SnapshotArrayKind): SnapshotArray {
+  Object.defineProperty(array, snapshotArrayKind, { value: kind })
+  return array as SnapshotArray
+}
+
+function getSnapshotArrayKind(array: unknown[]): SnapshotArrayKind {
+  return (array as Partial<SnapshotArray>)[snapshotArrayKind] ?? 'plain'
 }
 
 function functionTokenKey(registry: NamedFunctionRegistry, name: string): string {
@@ -172,9 +187,11 @@ function clonePatternValue(value: unknown, context: SnapshotCloneContext): unkno
   const existing = context.cloned.get(value)
   if (existing !== undefined) return existing
   if (Array.isArray(value)) {
-    const copy: unknown[] = []
+    const copy = tagSnapshotArray([], context.isPatternArray(value) ? 'pattern' : 'plain')
     context.cloned.set(value, copy)
-    for (const item of value) copy.push(clonePatternValue(item, context))
+    copy.length = value.length
+    const target = copy as unknown as Record<string, unknown>
+    for (const [key, item] of Object.entries(value)) target[key] = clonePatternValue(item, context)
     return copy
   }
   if (value && typeof value === 'object') {
@@ -211,6 +228,8 @@ function resolveSnapshotFunction(
 ): RuntimeFunction {
   const descriptor = token.__fastReplayFunction
   if (descriptor.registry === 'fallback') {
+    // Pixelblaze has no closures (#838), so fallback identity deliberately
+    // covers only source-identical non-capturing functions re-created at runtime.
     const fallback = fallbackFunctions.get(`${descriptor.name}\0${descriptor.source ?? ''}`)
     if (fallback) return fallback
   } else if (descriptor.registry !== 'pattern') {
@@ -240,42 +259,48 @@ function restorePatternValue(
   functionRegistry: FunctionRegistry,
   fallbackFunctions: ReadonlyMap<string, RuntimeFunction>,
   restored: Map<object, unknown>,
-  claimedTargets: Set<object>,
   createArray: (length: number) => unknown[],
-  target?: unknown,
 ): unknown {
   if (isSnapshotFunctionToken(value)) return resolveSnapshotFunction(value, functionRegistry, fallbackFunctions)
   if (!value || typeof value !== 'object') return value
   const existing = restored.get(value)
   if (existing !== undefined) return existing
   if (Array.isArray(value)) {
-    const targetArray = Array.isArray(target) && !claimedTargets.has(target)
-      ? target
-      : createArray(value.length)
+    const targetArray = getSnapshotArrayKind(value) === 'pattern'
+      ? createArray(value.length)
+      : new Array<unknown>(value.length)
     restored.set(value, targetArray)
-    claimedTargets.add(targetArray)
-    targetArray.length = value.length
-    for (let index = 0; index < value.length; index += 1) {
-      targetArray[index] = restorePatternValue(
-        value[index], functionRegistry, fallbackFunctions, restored, claimedTargets, createArray, targetArray[index],
-      )
-    }
+    restoreSnapshotArrayInto(value, targetArray, functionRegistry, fallbackFunctions, restored, createArray)
     return targetArray
   }
-  const targetObject = target && typeof target === 'object' && !Array.isArray(target) && !claimedTargets.has(target)
-    ? target as Record<string, unknown>
-    : {}
+  const targetObject: Record<string, unknown> = {}
   restored.set(value, targetObject)
-  claimedTargets.add(targetObject)
-  for (const key of Object.keys(targetObject)) {
-    if (!(key in value)) delete targetObject[key]
-  }
   for (const [key, item] of Object.entries(value)) {
     targetObject[key] = restorePatternValue(
-      item, functionRegistry, fallbackFunctions, restored, claimedTargets, createArray, targetObject[key],
+      item, functionRegistry, fallbackFunctions, restored, createArray,
     )
   }
   return targetObject
+}
+
+function restoreSnapshotArrayInto(
+  source: unknown[],
+  targetArray: unknown[],
+  functionRegistry: FunctionRegistry,
+  fallbackFunctions: ReadonlyMap<string, RuntimeFunction>,
+  restored: Map<object, unknown>,
+  createArray: (length: number) => unknown[],
+): void {
+  targetArray.length = source.length
+  const target = targetArray as unknown as Record<string, unknown>
+  for (const key of Object.keys(targetArray)) {
+    if (!(key in source)) delete target[key]
+  }
+  for (const [key, item] of Object.entries(source)) {
+    target[key] = restorePatternValue(
+      item, functionRegistry, fallbackFunctions, restored, createArray,
+    )
+  }
 }
 
 export function prepareFastReplay(
@@ -348,6 +373,7 @@ export function createFastReplayRuntime(
         functionTokens: new Map<RuntimeFunction, SnapshotFunctionToken>(),
         namedFunctions: functionRegistry.byFunction,
         fallbackFunctions: new Map<string, RuntimeFunction>(),
+        isPatternArray: shim.isPatternArray,
       }
       return {
         elapsedMs: clock.getTime(),
@@ -372,10 +398,28 @@ export function createFastReplayRuntime(
       const seenFunctionContainers = new Set<object>()
       collectFallbackFunctions(currentPatternVars, functionRegistry.byFunction, fallbackFunctions, seenFunctionContainers)
       const restored = new Map<object, unknown>()
-      const claimedTargets = new Set<object>()
       const createArray = (length: number): unknown[] => {
         const arrayBuiltin = shim.getBuiltin('array') as (length: number) => unknown[]
         return arrayBuiltin(shim.encodeScalar(length))
+      }
+      const pinnedArrays = pinnedShimArrayBuiltins.map((name) => {
+        const source = snapshot.shim[name]
+        const target = shim.getBuiltin(name)
+        if (!Array.isArray(target)) {
+          throw new Error(`Fast replay shim array "${name}" is unavailable in this runtime.`)
+        }
+        restored.set(source, target)
+        return { source, target }
+      })
+      for (const { source, target } of pinnedArrays) {
+        restoreSnapshotArrayInto(
+          source,
+          target,
+          functionRegistry,
+          fallbackFunctions,
+          restored,
+          createArray,
+        )
       }
       for (const [name, snapshotValue] of Object.entries(snapshot.patternFunctionBindings)) {
         const restoredValue = restorePatternValue(
@@ -383,7 +427,6 @@ export function createFastReplayRuntime(
           functionRegistry,
           fallbackFunctions,
           restored,
-          claimedTargets,
           createArray,
         )
         if (typeof restoredValue !== 'function' || !handle.setPatternFunction(name, restoredValue as RuntimeFunction)) {
@@ -391,16 +434,13 @@ export function createFastReplayRuntime(
         }
       }
       for (const [name, snapshotValue] of Object.entries(snapshot.patternVars)) {
-        const currentValue = currentPatternVars[name]
-        if (snapshotValue === undefined && currentValue === undefined) continue
+        if (snapshotValue === undefined && currentPatternVars[name] === undefined) continue
         const restoredValue = restorePatternValue(
           snapshotValue,
           functionRegistry,
           fallbackFunctions,
           restored,
-          claimedTargets,
           createArray,
-          currentValue,
         )
         if (!handle.setPatternVar(name, restoredValue)) {
           throw new Error(`Fast replay snapshot variable "${name}" is unavailable in this runtime.`)
@@ -408,14 +448,12 @@ export function createFastReplayRuntime(
       }
       shim.restore(
         snapshot.shim,
-        (source, target) => restorePatternValue(
+        (source) => restorePatternValue(
           source,
           functionRegistry,
           fallbackFunctions,
           restored,
-          claimedTargets,
           createArray,
-          target,
         ) as number[],
       )
       clock.setTime(snapshot.elapsedMs)
