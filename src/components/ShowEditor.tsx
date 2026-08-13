@@ -1363,6 +1363,7 @@ export function ShowEditor({
   const artifactCompilationInput = useMemo(() => activeShow ? {
     show: activeShow,
     userPatterns,
+    libraries: compileLibrarySet,
     controllerZones: compilationControllerZones,
     stageDimension,
     targetPixelCount: activeShow.outputContract?.kind === 'portable-2d'
@@ -1372,6 +1373,7 @@ export function ShowEditor({
     activeControllerProfile?.lastKnownPixelCount,
     activeShow,
     compilationControllerZones,
+    compileLibrarySet,
     stageDimension,
     userPatterns,
   ])
@@ -1386,7 +1388,7 @@ export function ShowEditor({
           effectiveArtifactCompilationInput.show,
           effectiveArtifactCompilationInput.userPatterns,
           effectiveArtifactCompilationInput.controllerZones,
-          {},
+          effectiveArtifactCompilationInput.libraries,
           {
             stageDimension: effectiveArtifactCompilationInput.stageDimension,
             targetPixelCount: effectiveArtifactCompilationInput.targetPixelCount,
@@ -1728,7 +1730,7 @@ export function ShowEditor({
       currentShow,
       currentPatterns,
       resolveShowCompilationControllerZones(currentShow),
-      {},
+      currentLibrarySet,
       {
         stageDimension: currentStageMap?.dim,
         targetPixelCount: currentShow.outputContract?.kind === 'portable-2d'

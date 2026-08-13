@@ -222,6 +222,11 @@ export function render(index) { rgb(MyMath.glow(index), 0, 0) }
       expect(useShowStore.getState().shows[0].composition?.patternInstances)
         .toContainEqual(expect.objectContaining({ pattern: { kind: 'user', id: pattern.id } }))
     })
+
+    const viewCode = getShowAction('View code')
+    await waitFor(() => expect(viewCode).toBeEnabled())
+    await user.click(viewCode)
+    expect(screen.getByText(`Generated pattern - ${show.name}`)).toBeInTheDocument()
   })
 
   it('publishes the selected Clip as the Stage diagnostic focus (#791)', async () => {
