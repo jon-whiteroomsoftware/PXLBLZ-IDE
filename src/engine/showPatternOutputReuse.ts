@@ -333,23 +333,29 @@ export function analyzeShowPatternCoverageRenderState(
     const nextStack = new Set(stack).add(name)
     const locals = localBindingsByFunction.get(name)!
     const parameters = new Set<string>((fn.params as AstNode[]).flatMap(astBindingNames))
+    const recordMemberWrites = (target: AstNode | null | undefined) => {
+      for (const memberTarget of assignmentMemberWriteTargets(target)) {
+        const memberRoot = assignmentRootName(memberTarget)
+        if (memberRoot && parameters.has(memberRoot)) {
+          unknownCalls.add(`<parameter-member-write:${name}.${memberRoot}>`)
+        } else if (memberRoot && locals.has(memberRoot)) {
+          unknownCalls.add(`<local-member-write:${name}.${memberRoot}>`)
+        } else if (memberRoot) {
+          unknownCalls.add(`<persistent-member-write:${name}.${memberRoot}>`)
+        } else {
+          unknownCalls.add(`<dynamic-member-write:${name}>`)
+        }
+      }
+    }
     walkAst(fn.body, (node) => {
       if (node.type === 'AssignmentExpression' || node.type === 'UpdateExpression') {
         const target = node.type === 'AssignmentExpression' ? node.left : node.argument
         const root = assignmentRootName(target)
-        for (const memberTarget of assignmentMemberWriteTargets(target)) {
-          const memberRoot = assignmentRootName(memberTarget)
-          if (memberRoot && parameters.has(memberRoot)) {
-            unknownCalls.add(`<parameter-member-write:${name}.${memberRoot}>`)
-          } else if (memberRoot && locals.has(memberRoot)) {
-            unknownCalls.add(`<local-member-write:${name}.${memberRoot}>`)
-          } else if (memberRoot) {
-            unknownCalls.add(`<persistent-member-write:${name}.${memberRoot}>`)
-          } else {
-            unknownCalls.add(`<dynamic-member-write:${name}>`)
-          }
-        }
+        recordMemberWrites(target)
         if (root && !locals.has(root)) scratchBindings.add(root)
+      }
+      if (node.type === 'UnaryExpression' && node.operator === 'delete') {
+        recordMemberWrites(node.argument)
       }
       if (node.type !== 'CallExpression') return
       if (node.callee?.type !== 'Identifier') {
