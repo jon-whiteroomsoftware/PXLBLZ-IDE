@@ -113,8 +113,9 @@ export function beforeRender(delta) { value = Counter.next() }
 export function render(index) { rgb(value / 4, 0, 0) }
 `, {
         Counter: `
-var count = 0
+var count
 function next() {
+  if (!count) count = 0
   count = count + 1
   return count
 }
@@ -133,6 +134,8 @@ function next() {
       expect(prepared.metadata.patternVars).toEqual(['value'])
       expect(prepared.metadata.runtimeVars).toEqual(['count', 'value'])
       expect(restored.checksum).toBe(uninterrupted.checksum)
+      expect(restored.exports).toEqual(uninterrupted.exports)
+      expect('count' in restored.exports).toBe(false)
     },
   )
 
@@ -600,8 +603,8 @@ export function render(index) { paint(0) }
     runtime.advanceTo(40, { stepMs: 10 })
     const snapshot = runtime.snapshot()
     const heldFrame = Array.from(snapshot.frame)
-    const heldSamples = [...snapshot.patternVars.samples as number[]]
-    const heldNested = (snapshot.patternVars.nested as number[][]).map(row => [...row])
+    const heldSamples = [...snapshot.runtimeState.samples as number[]]
+    const heldNested = (snapshot.runtimeState.nested as number[][]).map(row => [...row])
     const heldTransform = [...snapshot.shim.transform]
     const heldPalette = [...snapshot.shim.palette]
 
@@ -609,14 +612,14 @@ export function render(index) { paint(0) }
     const laterSnapshot = runtime.snapshot()
 
     expect(Array.from(snapshot.frame)).toEqual(heldFrame)
-    expect(snapshot.patternVars.samples).toEqual(heldSamples)
-    expect(snapshot.patternVars.nested).toEqual(heldNested)
+    expect(snapshot.runtimeState.samples).toEqual(heldSamples)
+    expect(snapshot.runtimeState.nested).toEqual(heldNested)
     expect(snapshot.shim.transform).toEqual(heldTransform)
     expect(snapshot.shim.palette).toEqual(heldPalette)
     expect(snapshot.frame).not.toBe(laterSnapshot.frame)
-    expect(snapshot.patternVars.samples).not.toBe(laterSnapshot.patternVars.samples)
-    expect((snapshot.patternVars.nested as number[][])[0]).not.toBe(
-      (laterSnapshot.patternVars.nested as number[][])[0],
+    expect(snapshot.runtimeState.samples).not.toBe(laterSnapshot.runtimeState.samples)
+    expect((snapshot.runtimeState.nested as number[][])[0]).not.toBe(
+      (laterSnapshot.runtimeState.nested as number[][])[0],
     )
     expect(snapshot.shim.transform).not.toBe(laterSnapshot.shim.transform)
   })
@@ -632,15 +635,15 @@ export function render(index) { paint(0) }
     const restoredBeforeMutation = restoredRuntime.snapshot()
 
     snapshot.frame.fill(1)
-    ;(snapshot.patternVars.samples as number[]).fill(1)
-    ;(snapshot.patternVars.nested as number[][])[0].fill(1)
+    ;(snapshot.runtimeState.samples as number[]).fill(1)
+    ;(snapshot.runtimeState.nested as number[][])[0].fill(1)
     snapshot.shim.transform.fill(1)
     snapshot.shim.palette.push(1)
 
     const restoredAfterMutation = restoredRuntime.snapshot()
     expect(restoredAfterMutation.frame).toEqual(restoredBeforeMutation.frame)
-    expect(restoredAfterMutation.patternVars.samples).toEqual(restoredBeforeMutation.patternVars.samples)
-    expect(restoredAfterMutation.patternVars.nested).toEqual(restoredBeforeMutation.patternVars.nested)
+    expect(restoredAfterMutation.runtimeState.samples).toEqual(restoredBeforeMutation.runtimeState.samples)
+    expect(restoredAfterMutation.runtimeState.nested).toEqual(restoredBeforeMutation.runtimeState.nested)
     expect(restoredAfterMutation.shim.transform).toEqual(restoredBeforeMutation.shim.transform)
     expect(restoredAfterMutation.shim.palette).toEqual(restoredBeforeMutation.shim.palette)
   })

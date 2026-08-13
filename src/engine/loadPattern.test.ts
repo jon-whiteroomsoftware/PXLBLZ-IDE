@@ -206,6 +206,25 @@ describe('getExports', () => {
     expect('hidden' in exports).toBe(false)
   })
 
+  it('does not expose a private library var that shares a control stem', () => {
+    const { code, metadata } = bundle(`
+      export var brightness = 0
+      export function sliderSpeed(value) { brightness = value }
+      export function render(index) { rgb(Meter.current(), 0, 0) }
+    `, {
+      Meter: `
+        var speed = 0.75
+        function current() { return speed }
+      `,
+    })
+    const handle = loadPattern(code, metadata, minimalBuiltins)
+
+    expect(handle.getExports()).toEqual({ brightness: 0 })
+    expect('speed' in handle.getExports()).toBe(false)
+    expect(handle.setPatternVar('speed', 0.25)).toBe(false)
+    expect(handle.getRuntimeState()).toEqual({ speed: 0.75, brightness: 0 })
+  })
+
   it('mutates only metadata-listed runtime vars through the preview handle', () => {
     const code = `
       var feedbackSeek = 0;

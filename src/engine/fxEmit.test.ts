@@ -17,6 +17,12 @@ describe('emitFixedPoint: literals', () => {
   it('converts a fractional literal to raw', () => {
     expect(emitFixedPoint('var x = 0.5')).toBe('var x = 32768;')
   })
+
+  it('preserves initialized and uninitialized top-level declaration names', () => {
+    expect(emitFixedPoint('var initialized = 1, uninitialized')).toBe(
+      'var initialized = 65536, uninitialized;',
+    )
+  })
 })
 
 describe('emitFixedPoint: arithmetic', () => {

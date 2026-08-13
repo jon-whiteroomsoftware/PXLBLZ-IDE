@@ -52,11 +52,15 @@ export interface PatternHandle {
   render2D: (index: number, x: number, y: number) => void
   render3D: (index: number, x: number, y: number, z: number) => void
   getExports: () => Record<string, unknown>
+  /** Browser-runtime seam for complete replay state; never emitted to Pixelblaze. */
+  getRuntimeState: () => Record<string, unknown>
   getPatternFunctions: () => Record<string, (...args: never[]) => unknown>
   /** Browser-runtime seam for mutable function declarations; never emitted to Pixelblaze. */
   setPatternFunction: (name: string, value: (...args: never[]) => unknown) => boolean
-  /** Browser-runtime seam for metadata-owned state; never emitted to Pixelblaze. */
+  /** Browser-runtime seam for authored Pattern state; never emitted to Pixelblaze. */
   setPatternVar: (name: string, value: unknown) => boolean
+  /** Browser-runtime seam for complete replay state; never emitted to Pixelblaze. */
+  setRuntimeVar: (name: string, value: unknown) => boolean
   controls: Record<string, (...args: number[]) => void>
 }
 
@@ -86,14 +90,28 @@ export function loadPattern(
 }
 
 function buildEpilogue(metadata: PatternMetadata): string {
-  // Runtime state includes bundled library globals, while the watcher separately
-  // reads metadata.patternVars and stays scoped to authored Pattern variables.
-  const runtimeVars = [...new Set([...metadata.patternVars, ...(metadata.runtimeVars ?? [])])]
-  const getExportsEntries = runtimeVars
+  // Authored Pattern state remains the watcher/control-default surface.
+  const getExportsEntries = metadata.patternVars
     .map((v) => {
       const runtimeName = metadata.patternVarBindings?.[v] ?? v
       return `${JSON.stringify(v)}:(typeof ${runtimeName}!=='undefined'?${runtimeName}:undefined)`
     })
+    .join(',')
+
+  // Replay additionally captures globals parsed from the final bundled artifact.
+  // A runtimeVars entry is a declared identifier in both emitted variants, so its
+  // setter can restore an uninitialized declaration without a typeof guard.
+  const runtimeStateVars = new Map(metadata.patternVars.map((name) => [name, {
+    runtimeName: metadata.patternVarBindings?.[name] ?? name,
+    declared: false,
+  }]))
+  for (const name of metadata.runtimeVars ?? []) {
+    runtimeStateVars.set(name, { runtimeName: name, declared: true })
+  }
+  const getRuntimeStateEntries = [...runtimeStateVars]
+    .map(([name, { runtimeName, declared }]) => (
+      `${JSON.stringify(name)}:${declared ? runtimeName : `(typeof ${runtimeName}!=='undefined'?${runtimeName}:undefined)`}`
+    ))
     .join(',')
 
   const controlsEntries = metadata.controls
@@ -108,11 +126,17 @@ function buildEpilogue(metadata: PatternMetadata): string {
     .map(name => `case ${JSON.stringify(name)}:if(typeof ${name}==='function'){${name}=value;return true;}return false;`)
     .join('')
 
-  const setPatternVarCases = runtimeVars
+  const setPatternVarCases = metadata.patternVars
     .map((name) => {
       const runtimeName = metadata.patternVarBindings?.[name] ?? name
       return `case ${JSON.stringify(name)}:if(typeof ${runtimeName}!=='undefined'){${runtimeName}=value;return true;}return false;`
     })
+    .join('')
+
+  const setRuntimeVarCases = [...runtimeStateVars]
+    .map(([name, { runtimeName, declared }]) => declared
+      ? `case ${JSON.stringify(name)}:${runtimeName}=value;return true;`
+      : `case ${JSON.stringify(name)}:if(typeof ${runtimeName}!=='undefined'){${runtimeName}=value;return true;}return false;`)
     .join('')
 
   return [
@@ -123,9 +147,11 @@ function buildEpilogue(metadata: PatternMetadata): string {
     '  render2D:typeof render2D==="function"?render2D:function(index,x,y){},',
     '  render3D:typeof render3D==="function"?render3D:function(index,x,y,z){},',
     `  getExports:function(){return{${getExportsEntries}};},`,
+    `  getRuntimeState:function(){return{${getRuntimeStateEntries}};},`,
     `  getPatternFunctions:function(){return{${patternFunctionEntries}};},`,
     `  setPatternFunction:function(name,value){switch(name){${setPatternFunctionCases}default:return false;}},`,
     `  setPatternVar:function(name,value){switch(name){${setPatternVarCases}default:return false;}},`,
+    `  setRuntimeVar:function(name,value){switch(name){${setRuntimeVarCases}default:return false;}},`,
     `  controls:{${controlsEntries}},`,
     '};',
   ].join('\n')

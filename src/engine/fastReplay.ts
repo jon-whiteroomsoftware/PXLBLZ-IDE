@@ -42,7 +42,7 @@ export interface FastReplaySnapshot {
   simulatedFrames: number
   frame: Float64Array<ArrayBufferLike>
   patternFunctionBindings: Record<string, unknown>
-  patternVars: Record<string, unknown>
+  runtimeState: Record<string, unknown>
   shim: ShimSnapshot
 }
 
@@ -385,8 +385,9 @@ export function createFastReplayRuntime(
           Object.entries(handle.getPatternFunctions())
             .map(([name, value]) => [name, clonePatternValue(value, cloneContext)]),
         ),
-        patternVars: Object.fromEntries(
-          Object.entries(handle.getExports()).map(([name, value]) => [name, clonePatternValue(value, cloneContext)]),
+        runtimeState: Object.fromEntries(
+          Object.entries(handle.getRuntimeState())
+            .map(([name, value]) => [name, clonePatternValue(value, cloneContext)]),
         ),
         shim: shim.snapshot((source) => clonePatternValue(source, cloneContext) as number[]),
       }
@@ -395,10 +396,15 @@ export function createFastReplayRuntime(
       if (snapshot.frame.length !== frame.length) {
         throw new Error('Fast replay snapshot frame size does not match this runtime.')
       }
-      const currentPatternVars = handle.getExports()
+      const currentRuntimeState = handle.getRuntimeState()
       const fallbackFunctions = new Map<string, RuntimeFunction>()
       const seenFunctionContainers = new Set<object>()
-      collectFallbackFunctions(currentPatternVars, functionRegistry.byFunction, fallbackFunctions, seenFunctionContainers)
+      collectFallbackFunctions(
+        currentRuntimeState,
+        functionRegistry.byFunction,
+        fallbackFunctions,
+        seenFunctionContainers,
+      )
       collectFallbackFunctions(
         handle.getPatternFunctions(),
         functionRegistry.byFunction,
@@ -441,8 +447,8 @@ export function createFastReplayRuntime(
           throw new Error(`Fast replay snapshot Pattern function "${name}" is unavailable in this runtime.`)
         }
       }
-      for (const [name, snapshotValue] of Object.entries(snapshot.patternVars)) {
-        if (snapshotValue === undefined && currentPatternVars[name] === undefined) continue
+      for (const [name, snapshotValue] of Object.entries(snapshot.runtimeState)) {
+        if (snapshotValue === undefined && currentRuntimeState[name] === undefined) continue
         const restoredValue = restorePatternValue(
           snapshotValue,
           functionRegistry,
@@ -450,7 +456,7 @@ export function createFastReplayRuntime(
           restored,
           createArray,
         )
-        if (!handle.setPatternVar(name, restoredValue)) {
+        if (!handle.setRuntimeVar(name, restoredValue)) {
           throw new Error(`Fast replay snapshot variable "${name}" is unavailable in this runtime.`)
         }
       }
