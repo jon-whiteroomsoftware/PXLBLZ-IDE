@@ -3427,7 +3427,7 @@ export function compileShow(
   // past the activation ceiling, retry once with the shared conversion chain
   // and keep the smaller build if it clears the blocker.
   const overByteBudget = (candidate: ShowVmResourceLedger) => (
-    candidate.blockers.some((blocker) => blocker.kind === 'artifact-byte-budget')
+    candidate.remainingArtifactBytes < 0
   )
   if ((options.hsvCaptureChainSpecialization ?? true)
     && summary.specializations.hsvCaptureChain?.policy === 'per-member'

@@ -19,6 +19,7 @@ interface Props {
   structure: {
     transitionCount: number
   }
+  delivery?: { totalBytes: number; transformBytes: number }
 }
 
 const CATEGORY_COLOR: Record<DeliveredShowSourceInventoryCategory, string> = {
@@ -50,13 +51,15 @@ function rowMeta(row: ShowArtifactInventoryRow, transitionCount: number): string
   return ''
 }
 
-export function ShowArtifactInventoryPopover({ inventory, model, vmWords, renderers, structure }: Props) {
+export function ShowArtifactInventoryPopover({ inventory, model, vmWords, renderers, structure, delivery }: Props) {
   const triggerRef = useRef<HTMLButtonElement>(null)
   const panelRef = useRef<HTMLDivElement>(null)
   const suppressFocusRevealRef = useRef(false)
   const [open, setOpen] = useState(false)
   const [pinned, setPinned] = useState(false)
   const [position, setPosition] = useState<CSSProperties>({ left: 8, bottom: 38 })
+  const deliveredBytes = delivery?.totalBytes ?? inventory.totalBytes
+  const transformBytes = Math.max(0, delivery?.transformBytes ?? 0)
 
   function reveal() {
     setOpen(true)
@@ -143,6 +146,13 @@ export function ShowArtifactInventoryPopover({ inventory, model, vmWords, render
             title={`${row.label}: ${formatBytes(row.bytes)} (${formatPercent(row.percentage)})`}
           />
         ))}
+        {transformBytes > 0 && (
+          <span
+            className="h-full min-w-px shrink-0 border-r border-black/20 bg-rose-400"
+            style={{ width: `${transformBytes / model.budgetBytes * 100}%` }}
+            title={`Controller transforms: ${formatBytes(transformBytes)}`}
+          />
+        )}
       </div>
 
       <div className="mt-2 divide-y divide-zinc-800/80 border-y border-zinc-800/80">
@@ -160,13 +170,20 @@ export function ShowArtifactInventoryPopover({ inventory, model, vmWords, render
             </div>
           )
         })}
+        {transformBytes > 0 && (
+          <div className="flex items-center gap-2 py-1.5">
+            <span className="h-2 w-2 shrink-0 rounded-[2px] bg-rose-400" aria-hidden />
+            <span className="truncate text-zinc-200">Controller transforms</span>
+            <span className="ml-auto shrink-0 tabular-nums text-zinc-200">+{formatBytes(transformBytes)}</span>
+          </div>
+        )}
       </div>
 
       <div className="mt-2 grid grid-cols-3 gap-px overflow-hidden rounded-sm bg-zinc-800 ring-1 ring-zinc-800">
         <ResourceAxis
-          label="Delivered source"
-          value={`${formatBytes(inventory.totalBytes)} / ${formatBytes(model.budgetBytes)}`}
-          detail={`${formatPercent(inventory.totalBytes / model.budgetBytes)} of budget`}
+          label={delivery ? 'Controller source' : 'Delivered source'}
+          value={`${formatBytes(deliveredBytes)} / ${formatBytes(model.budgetBytes)}`}
+          detail={`${formatPercent(deliveredBytes / model.budgetBytes)} advisory`}
         />
         <ResourceAxis label="VM words" value={`${vmWords.used.toLocaleString('en-US')} / ${vmWords.budget.toLocaleString('en-US')}`} detail={`${vmWords.remaining.toLocaleString('en-US')} free`} />
         <ResourceAxis
@@ -198,7 +215,7 @@ export function ShowArtifactInventoryPopover({ inventory, model, vmWords, render
       <button
         ref={triggerRef}
         type="button"
-        aria-label={`Show source inventory, ${formatBytes(inventory.totalBytes)} of ${formatBytes(model.budgetBytes)} source budget`}
+        aria-label={`Show source inventory, ${formatBytes(deliveredBytes)} / ${formatBytes(model.budgetBytes)} advisory`}
         aria-expanded={open}
         aria-haspopup="dialog"
         className="inline-flex items-center gap-1 rounded-sm px-1 py-0.5 font-semibold tabular-nums text-zinc-300 outline-none transition-colors hover:bg-amber-400/10 hover:text-amber-200 focus-visible:bg-amber-400/10 focus-visible:text-amber-200 focus-visible:ring-1 focus-visible:ring-amber-400/60"
@@ -211,7 +228,7 @@ export function ShowArtifactInventoryPopover({ inventory, model, vmWords, render
           else setOpen(false)
         }}
       >
-        {formatBytes(inventory.totalBytes)} / {formatBytes(model.budgetBytes)}
+        {formatBytes(deliveredBytes)} / {formatBytes(model.budgetBytes)}
         <ChevronUp size={11} aria-hidden />
       </button>
       {panel}

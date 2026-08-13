@@ -41,7 +41,7 @@ import {
   setPushRecords,
 } from '@/engine/controllerMetadataStorage'
 import { withProgramLabel } from '@/engine/controllerBinding'
-import { bundleWithPasses, type PassSummary, type TransformSummary } from '@/engine/passEngine'
+import { bundleWithPasses, type TransformSummary } from '@/engine/passEngine'
 import { planHardwareRenderer } from '@/engine/renderCompatibility'
 import { compileLibraries } from '@/engine/libraries'
 import {
@@ -81,15 +81,10 @@ import {
   type ShowCompilePressureInput,
 } from '@/engine/showCompilePressure'
 import { deliveredShowSourceBytes } from '@/engine/showSourceInventory'
-
-function artifactTransformIds(passes: Array<Pick<PassSummary, 'id' | 'kind'>>): string[] {
-  const ids = new Set<string>()
-  for (const pass of passes) {
-    if (pass.id.endsWith('-sample')) continue
-    ids.add(pass.id.endsWith('-drive') ? pass.id.slice(0, -'-drive'.length) : pass.id)
-  }
-  return [...ids]
-}
+import {
+  artifactTransformIds,
+  prepareControllerArtifactDelivery,
+} from '@/engine/controllerArtifactDelivery'
 
 // Keyed connection orchestration for the live Controller surface (#210).
 //
@@ -1259,21 +1254,22 @@ export const useControllerStore = create<ControllerConnectionState>()(
               artifact.artifactId,
               { mapDim: activeController?.mapDim ?? null },
             )
-            const recipe = controllerProfilePassRecipe(profile, artifact.source, artifact.artifactId)
+            const extraPasses = []
             if (activeController?.mapDim && artifact.artifactStamp.kind !== 'show') {
-              recipe.push({
+              extraPasses.push({
                 id: 'renderer-adapter',
-                kind: 'renderer-adapter',
+                kind: 'renderer-adapter' as const,
                 mapDim: activeController.mapDim,
               })
             }
-            const bundled = recipe.length > 0
-              ? bundleWithPasses(
-                  artifact.source,
-                  compileLibraries(LIBRARIES, useLibraryStore.getState().userLibraries),
-                  recipe,
-                )
-              : null
+            const delivery = prepareControllerArtifactDelivery({
+              source: artifact.source,
+              profile,
+              artifactId: artifact.artifactId,
+              libraries: compileLibraries(LIBRARIES, useLibraryStore.getState().userLibraries),
+              extraPasses,
+            })
+            const bundled = delivery.bundled
             if (bundled && activeController?.mapDim) {
               const hardwarePlan = planHardwareRenderer(
                 activeController.mapDim,
@@ -1288,7 +1284,7 @@ export const useControllerStore = create<ControllerConnectionState>()(
               (warning) => warning.code === 'renderer-adapter-name-collision',
             )
             if (adapterCollision) throw new Error(adapterCollision.message)
-            const source = bundled?.code ?? artifact.source
+            const source = delivery.source
             const pressure = assessShowCompilePressure({
               deliveredSourceBytes: deliveredShowSourceBytes(source),
               ...artifact.compilePressure,
@@ -1296,7 +1292,7 @@ export const useControllerStore = create<ControllerConnectionState>()(
             if (pressure.status === 'blocked') {
               throw new Error(pressure.blocks.join(' '))
             }
-            const transforms = bundled ? artifactTransformIds(bundled.summary.passes) : []
+            const transforms = delivery.transformIds
             const artifactStamp = {
               ...artifact.artifactStamp,
               transforms: [...new Set([

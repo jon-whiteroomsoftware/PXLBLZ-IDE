@@ -28,3 +28,37 @@ export function presentShowDiagnostic(message: string): string {
     .replace(SCENES_TERM, '$1Show intervals')
     .replace(SCENE_TERM, '$1Show interval')
 }
+
+/** Keep the persistent bottom tray scannable; full diagnostics remain in titles. */
+export function presentShowTrayDiagnostic(message: string): string {
+  const presented = presentShowDiagnostic(message)
+  let match = presented.match(/^Routing layout "([^"]+)" leaves ([\d,]+) of [\d,]+ physical pixels unassigned;/)
+  if (match) return `Layout "${match[1]}": ${match[2]} pixels render black.`
+
+  match = presented.match(/^Routing layout "([^"]+)" assigns overlapping pixels /)
+  if (match) return `Layout "${match[1]}": overlapping Clips; first wins.`
+
+  match = presented.match(/^Freeze at entry for clip "([^"]+)" fell back to Live/)
+  if (match) return `Freeze "${match[1]}" fell back to Live.`
+
+  match = presented.match(/^Refresh for clip "([^"]+)" fell back to Live/)
+  if (match) return `Refresh "${match[1]}" fell back to Live.`
+
+  match = presented.match(/^Rolling Refresh for clip "([^"]+)" fell back to Live/)
+  if (match) return `Rolling Refresh "${match[1]}" fell back to Live.`
+
+  match = presented.match(/^Whole Show arrays require ([\d,]+) VM words, [\d,]+ over the ([\d,]+)-word budget\./)
+  if (match) return `VM arrays: ${match[1]} / ${match[2]} words.`
+
+  match = presented.match(/^Whole Show code declares ([\d,]+) persistent globals, [\d,]+ over the ([\d,]+)-global limit\./)
+  if (match) return `Globals: ${match[1]} / ${match[2]}.`
+
+  match = presented.match(/^Show output contract requests ([\d,]+) pixels; compiled Shows support at most ([\d,]+)\./)
+  if (match) return `Output: ${match[1]} px exceeds ${match[2]} px.`
+
+  if (presented.startsWith('Trails output Effect was disabled')) return 'Trails fell back to Live.'
+  if (presented.startsWith('Snapshot/live crossfade fell back')) return 'Snapshot crossfade fell back to Live.'
+  if (presented.startsWith('Snapshot/live cache ')) return 'Snapshot crossfade fell back to Live.'
+
+  return presented
+}

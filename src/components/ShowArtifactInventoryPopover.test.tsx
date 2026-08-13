@@ -23,7 +23,7 @@ const model: ShowArtifactInventoryModel = {
   slimmingTips: [],
 }
 
-function renderPopover() {
+function renderPopover(delivery?: { totalBytes: number; transformBytes: number }) {
   render(
     <ShowArtifactInventoryPopover
       inventory={inventory}
@@ -34,11 +34,25 @@ function renderPopover() {
         perPixel: { steady: 1, worst: 2 },
       }}
       structure={{ transitionCount: 0 }}
+      delivery={delivery}
     />,
   )
 }
 
 describe('ShowArtifactInventoryPopover', () => {
+  it('includes active Controller transforms in the advisory total (#849)', () => {
+    renderPopover({ totalBytes: 1_100, transformBytes: 700 })
+
+    const trigger = screen.getByRole('button', { name: /show source inventory/i })
+    expect(trigger).toHaveTextContent('1.07 KB / 1000 B')
+    fireEvent.focus(trigger)
+    const dialog = screen.getByRole('dialog', { name: 'Show source inventory' })
+    expect(dialog).toHaveTextContent('Controller transforms')
+    expect(dialog).toHaveTextContent('+700 B')
+    expect(dialog).toHaveTextContent('Controller source')
+    expect(dialog).toHaveTextContent('110.0% advisory')
+  })
+
   it('opens and closes through focus, hover, pinning, and Escape (#545, #756)', async () => {
     renderPopover()
     const trigger = screen.getByRole('button', { name: /show source inventory/i })

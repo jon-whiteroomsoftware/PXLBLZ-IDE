@@ -15,7 +15,7 @@ import { formatDomainNumber } from '@/engine/domainNumberPresentation'
 import { resolveLinearNumberPresentation } from '@/engine/linearNumberPresentation'
 import { formatPercentageValue } from '@/engine/percentageValue'
 import { formatShowTime, showBoundaryClipIdentity } from '@/engine/showClipIdentity'
-import { presentShowDiagnostic } from '@/engine/showDiagnosticPresentation'
+import { presentShowDiagnostic, presentShowTrayDiagnostic } from '@/engine/showDiagnosticPresentation'
 import { SHOW_ESCAPE_LAYER_RANK, registerShowEscapeLayer } from '@/engine/showEscapeLayers'
 import {
   AlertDialogAction,
@@ -55,6 +55,7 @@ import { describeSendToController, isAlreadyPushed, type SendMode } from '@/engi
 import { useControllerPanelStore } from '@/store/controllerPanelStore'
 import { prepareShowControllerArtifact } from '@/engine/showControllerArtifact'
 import { controllerProfileArtifactSignature } from '@/engine/controllerProfilePassRecipe'
+import { prepareControllerArtifactDelivery } from '@/engine/controllerArtifactDelivery'
 import { assessShowCompilePressure } from '@/engine/showCompilePressure'
 import type { ArtifactMapClass } from '@/engine/artifactStamp'
 import { trackEvent } from '@/analytics'
@@ -1643,6 +1644,7 @@ export function ShowEditor({
     }
   }, [activeShow, compiled.artifact, inspectableShowExport])
   const activeControllerMapDim = activeController?.mapDim ?? null
+  const showArtifactId = `show:${activeShow.id}`
   const activeControllerFirmware = activeController?.firmwareVersion
   const activeInstalledMap = activeController?.phase === 'live'
     ? activeController.installedMap
@@ -1687,11 +1689,32 @@ export function ShowEditor({
       }
     }
   }, [activeControllerFirmware, activeControllerMapDim, compilePressure, compiled.artifact, compiled.artifactBlocker, controllerCompatibilityContext, showExport])
+  const measuredControllerDelivery = useMemo(() => {
+    if (!activeController || !preparedControllerArtifact.value) return null
+    try {
+      return prepareControllerArtifactDelivery({
+        source: preparedControllerArtifact.value.source,
+        profile: activeControllerProfile,
+        artifactId: showArtifactId,
+      })
+    } catch {
+      return null
+    }
+  }, [activeController, activeControllerProfile, preparedControllerArtifact.value, showArtifactId])
+  const compileBarControllerDelivery = measuredControllerDelivery && artifactInventory
+    ? {
+        totalBytes: deliveredShowSourceBytes(measuredControllerDelivery.source),
+        transformBytes: Math.max(
+          0,
+          deliveredShowSourceBytes(measuredControllerDelivery.source) - artifactInventory.inventory.totalBytes,
+        ),
+      }
+    : null
   const compileBarPushResult = preparedControllerArtifact.error
     && preparedControllerArtifact.error !== compiled.artifactBlocker
     ? preparedControllerArtifact.error
-    : controllerPushResult
-      ? controllerPushResult.ok ? 'Sent to Controller' : controllerPushResult.message
+    : controllerPushResult?.ok
+      ? 'Sent to Controller'
       : null
 
   const buildCurrentCompilationSnapshot = (): ShowCompilationSnapshot | null => {
@@ -1907,7 +1930,6 @@ export function ShowEditor({
     )
   }
 
-  const showArtifactId = `show:${activeShow.id}`
   const pendingDelivery = (
     pendingDeliveryRef.current?.show.id === showId
     && pendingDeliveryRef.current.controllerIp === activeIp
@@ -2209,6 +2231,15 @@ export function ShowEditor({
           message="Couldn't save this Show. The last edit was reverted."
           onRetry={() => void retryShowSaveFailure()}
           onDismiss={dismissShowSaveFailure}
+        />
+      )}
+      {controllerPushResult && !controllerPushResult.ok && (
+        <SaveFailureNotice
+          kind="action"
+          testId="show-push-failure"
+          message={`${showSendMode === 'save' ? 'Save' : 'Run'} failed: ${controllerPushResult.message}`}
+          onDismiss={clearPushResult}
+          dismissLabel={`Dismiss ${showSendMode === 'save' ? 'Save' : 'Run'} failure`}
         />
       )}
       <div data-testid="show-editor-scroll" className="scrollbar-hidden flex min-h-0 flex-1 flex-col overflow-auto">
@@ -2948,6 +2979,7 @@ export function ShowEditor({
       <CompileBar
         compiled={compiled}
         artifactInventory={artifactInventory}
+        controllerDelivery={compileBarControllerDelivery}
         pushResult={compileBarPushResult}
       />
     </div>
@@ -10122,6 +10154,7 @@ function ZoneBindingStatus({
 function CompileBar({
   compiled,
   artifactInventory,
+  controllerDelivery,
   pushResult,
 }: {
   compiled: CompiledShowState
@@ -10129,6 +10162,7 @@ function CompileBar({
     inventory: DeliveredShowSourceInventory
     model: ShowArtifactInventoryModel
   } | null
+  controllerDelivery?: { totalBytes: number; transformBytes: number } | null
   pushResult: string | null
 }) {
   if (compiled.error) {
@@ -10140,10 +10174,13 @@ function CompileBar({
     )
   }
   const summary = compiled.artifact?.summary
-  // Gauge, strips, and gating all share one numerator: delivered bytes
-  // (generated source plus the stamped delivery header) — what actually
-  // ships — against the same source budget (#63).
-  const deliveredBytes = artifactInventory?.inventory.totalBytes ?? summary?.artifactBytes ?? 0
+  // Gauge and inventory share one numerator: the source offered to the
+  // Controller compiler. The scale is advisory; real resource gates remain
+  // separate (#63, #849).
+  const deliveredBytes = controllerDelivery?.totalBytes
+    ?? artifactInventory?.inventory.totalBytes
+    ?? summary?.artifactBytes
+    ?? 0
   const deliveredRatio = summary ? deliveredBytes / summary.measuredDeviceBudgetBytes : 0
   const pressure = summary ? assessShowCompilePressure({
     deliveredSourceBytes: deliveredBytes,
@@ -10164,14 +10201,14 @@ function CompileBar({
       <span
         className="h-2 w-28 overflow-hidden rounded-sm bg-zinc-800"
         aria-label={summary
-          ? `Show source ${formatBytes(deliveredBytes)} of the ${formatBytes(summary.measuredDeviceBudgetBytes)} source budget. The budget is a source-size proxy, not remaining Controller capacity.`
+          ? `${controllerDelivery ? 'Controller' : 'Show'} source ${formatBytes(deliveredBytes)} / ${formatBytes(summary.measuredDeviceBudgetBytes)} advisory.`
           : undefined}
         title={summary
-          ? `Show source ${formatBytes(deliveredBytes)} of the ${formatBytes(summary.measuredDeviceBudgetBytes)} source budget. The budget is a source-size proxy, not remaining Controller capacity.`
+          ? `${controllerDelivery ? 'Controller' : 'Show'} source ${formatBytes(deliveredBytes)} / ${formatBytes(summary.measuredDeviceBudgetBytes)} advisory.`
           : undefined}
       >
         <span
-          className={`block h-full ${sourcePressure?.status === 'blocked' ? 'bg-red-500' : sourcePressure?.status === 'warning' ? 'bg-amber-400' : 'bg-live'}`}
+          className={`block h-full ${sourcePressure?.sourceStatus === 'over' ? 'bg-red-500' : sourcePressure?.sourceStatus === 'warning' ? 'bg-amber-400' : 'bg-live'}`}
           style={{ width: `${Math.min(100, deliveredRatio * 100)}%` }}
         />
       </span>
@@ -10197,19 +10234,31 @@ function CompileBar({
           structure={{
             transitionCount: summary.transitionCount,
           }}
+          delivery={controllerDelivery ?? undefined}
         />
       ) : (
         <b className="text-zinc-300">-</b>
+      )}
+      {controllerDelivery && controllerDelivery.transformBytes > 0 && (
+        <span className="text-zinc-300">Controller transforms +{formatBytes(controllerDelivery.transformBytes)}</span>
       )}
       {summary?.resources && (
         <span className={summary.resources.remainingWords < 0 ? 'text-red-300' : 'text-zinc-300'}>
           VM {summary.resources.totalWords.toLocaleString('en-US')}/{summary.resources.vmWordBudget.toLocaleString('en-US')} words
         </span>
       )}
-      {compiled.artifactBlocker && <span className="text-red-300">Output blocked: {compiled.artifactBlocker}</span>}
+      {compiled.artifactBlocker && (
+        <span className="text-red-300" title={presentShowDiagnostic(compiled.artifactBlocker)}>
+          Output blocked: {presentShowTrayDiagnostic(compiled.artifactBlocker)}
+        </span>
+      )}
       {pressure?.blocks.map((block) => <span key={block} className="text-red-300">Output blocked: {block}</span>)}
       {pressure?.warnings.map((warning) => <span key={warning} className="text-amber-300">{warning}</span>)}
-      {summary?.warnings.map((warning) => <span key={warning} className="text-amber-300">{presentShowDiagnostic(warning)}</span>)}
+      {summary?.warnings.map((warning) => (
+        <span key={warning} className="text-amber-300" title={presentShowDiagnostic(warning)}>
+          {presentShowTrayDiagnostic(warning)}
+        </span>
+      ))}
       {pushResult && <span className="text-zinc-300">{pushResult}</span>}
       </div>
     </div>

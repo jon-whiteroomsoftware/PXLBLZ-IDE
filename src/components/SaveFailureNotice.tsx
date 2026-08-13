@@ -3,7 +3,7 @@
 // has already rolled the edit back; this surface reports it and offers Retry
 // (re-apply the reverted edit) and Dismiss. Rendering is conditional at the
 // call site — mount it only while the store holds a failure.
-import { CloudOff, X } from 'lucide-react'
+import { CloudOff, TriangleAlert, X } from 'lucide-react'
 
 export function SaveFailureNotice({
   message,
@@ -12,6 +12,7 @@ export function SaveFailureNotice({
   retryLabel = 'Retry save',
   dismissLabel = 'Dismiss save notice',
   compact = false,
+  kind = 'save',
   testId,
 }: {
   message: string
@@ -20,8 +21,10 @@ export function SaveFailureNotice({
   retryLabel?: string
   dismissLabel?: string
   compact?: boolean
+  kind?: 'save' | 'action'
   testId: string
 }) {
+  const NoticeIcon = kind === 'action' ? TriangleAlert : CloudOff
   return (
     <div
       role="alert"
@@ -29,7 +32,7 @@ export function SaveFailureNotice({
       className={`relative flex shrink-0 border-b border-red-400/25 bg-red-400/[0.06] py-1.5 text-[11px] text-zinc-300 ${compact ? 'flex-col items-stretch gap-1.5 px-2' : 'items-center gap-2 px-3'}`}
     >
       <span className={`flex min-w-0 gap-2 ${compact ? 'items-start pr-4' : 'flex-1 items-center'}`}>
-        <CloudOff size={12} aria-hidden className="shrink-0 text-red-300/80" />
+        <NoticeIcon size={12} aria-hidden className="shrink-0 text-red-300/80" />
         <span className="min-w-0 break-words">{message}</span>
       </span>
       {onRetry && (

@@ -151,22 +151,9 @@ export function buildShowVmResourceLedger(input: ShowVmResourceLedgerInput): Sho
       message: `Whole Show code declares ${persistentGlobals.toLocaleString('en-US')} persistent globals, ${(-remainingGlobals).toLocaleString('en-US')} over the ${PIXELBLAZE_MAX_PERSISTENT_GLOBALS.toLocaleString('en-US')}-global limit. Reduce Pattern instances or consolidate persistent state.`,
     })
   }
-  if (remainingArtifactBytes < 0) {
-    const overage = -remainingArtifactBytes
-    blockers.push({
-      kind: 'artifact-byte-budget',
-      owner: 'Whole Show',
-      message: `Generated UTF-8 source alone, before the delivery header, is ${overage.toLocaleString('en-US')} ${overage === 1 ? 'byte' : 'bytes'} over the source-size proxy derived from the observed ${SHOW_ARTIFACT_BUDGET_BYTES.toLocaleString('en-US')}-byte compiled-bytecode activation ceiling. Reduce Pattern instances, Effects, routing, or generated specialization.`,
-    })
-  }
-  if (remainingArtifactBytes >= 0 && estimatedArtifactBytecodeBytes > SHOW_ARTIFACT_BUDGET_BYTES) {
-    const overage = estimatedArtifactBytecodeBytes - SHOW_ARTIFACT_BUDGET_BYTES
-    blockers.push({
-      kind: 'bytecode-byte-budget',
-      owner: 'Whole Show',
-      message: `Dense per-element table initialization compiles to an estimated ${estimatedArtifactBytecodeBytes.toLocaleString('en-US')} bytecode bytes, ${overage.toLocaleString('en-US')} over the measured ${SHOW_ARTIFACT_BUDGET_BYTES.toLocaleString('en-US')}-byte activation ceiling, even though the source itself fits (each table assignment compiles to ${MEASURED_ELEMENT_ASSIGNMENT_BYTECODE_BYTES} bytes, #715). Replace per-element assignments with array literals or reduce baked data.`,
-    })
-  }
+  // Source bytes and the bytecode estimate remain planning measurements. The
+  // Controller compiler is authoritative for bytecode fit (#849), so neither
+  // proxy becomes an outbound blocker.
 
   return {
     pixelCount,

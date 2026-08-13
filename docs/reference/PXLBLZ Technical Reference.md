@@ -513,8 +513,11 @@ design.
 ## 17. Pattern push, PBP storage, and Saved Patterns
 
 Before every push the store waits for profile writes, compiles libraries,
-resolves the profile, derives passes and any renderer adapter, checks
-firmware, and invokes the Controller's compiler. Run/Save dirty signatures
+resolves the profile, derives one Controller delivery artifact from active
+profile passes plus any renderer adapter, checks firmware, and invokes the
+Controller's compiler. The same derivation supplies Show capacity reporting;
+there is no fixed transform reserve for profiles that do not use one.
+Run/Save dirty signatures
 cover source, code-affecting profile configuration, and installed map
 dimension. Run-mode cleanliness also pairs the transient program id with the
 panel's live `activeProgramId`, so an external Pattern switch re-arms Run
@@ -859,16 +862,21 @@ machine-readable cost on five axes: Pattern evaluations (literal formulas —
 warnings. `showVmResourceLedger.ts` models the 10,240-word array pool (plus
 the separate 256-global limit) and groups words by owner; a bytecode-axis
 estimate (#716) reprices the two constructs the source proxy mispredicts. The
-delivered-source gauge in `showCompilePressure.ts` warns at 80% and blocks at
-100% of the source-size proxy against the observed 68,384-byte activation
-ceiling — a proxy, not a capacity measurement — and blocks at five
-simultaneous renderers per pixel (the unvalidated side of the four-renderer
-release fixture). Blocked output stays previewable.
+delivered-source gauge in `showCompilePressure.ts` uses the observed
+68,384-byte bytecode activation ceiling as an advisory source scale. It changes
+color at 80% and 100%, but source bytes never block delivery: source and
+compiled bytecode diverge too much for that proxy to decide fit. The Controller
+compiler is authoritative. The pressure gate still blocks at five simultaneous
+renderers per pixel (the unvalidated side of the four-renderer release fixture).
+Blocked output stays previewable.
 
 **Source inventory.** The compiler attaches an exact contiguous UTF-8
 inventory to every generated Show — ranges by category and member,
 reconciling to `artifactBytes` — which `ShowArtifactInventoryPopover` renders
-against the same budget scale as the compile bar. The compile summary keeps two
+against the same budget scale as the compile bar. With a selected Controller,
+the popover keeps that canonical inventory and adds the exact byte delta from
+active profile transforms; its total matches the artifact offered to the
+Controller compiler. The compile summary keeps two
 renderer scopes distinct: `steadyStateRenderersPerController` and
 `worstInstantRenderersPerController` count distinct compiled Pattern machines
 active across all Zones, while the existing per-pixel fields measure the

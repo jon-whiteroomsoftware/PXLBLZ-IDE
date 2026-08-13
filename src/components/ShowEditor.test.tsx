@@ -16,7 +16,11 @@ import {
 } from '@/engine/showModel'
 import { usePatternStore, patternInitialState } from '@/store/patternStore'
 import { libraryInitialState, useLibraryStore } from '@/store/libraryStore'
-import { controllerProfileInitialState, useControllerProfileStore } from '@/store/controllerProfileStore'
+import {
+  controllerProfileInitialState,
+  defaultControllerProfile,
+  useControllerProfileStore,
+} from '@/store/controllerProfileStore'
 import { previewInitialState, usePreviewStore } from '@/store/previewStore'
 import { showTransportInitialState, useShowTransportStore } from '@/store/showTransportStore'
 import { controllerInitialState, useControllerStore } from '@/store/controllerStore'
@@ -6801,6 +6805,39 @@ export function render(index) { rgb(MyMath.glow(index), 0, 0) }
     }))
   })
 
+  it('adds active Controller transforms to the Show source advisory (#849)', () => {
+    const show = createDefaultShow('show-profile-cost', 'Powered Show', 1000)
+    const profile = defaultControllerProfile({
+      id: 'profile-live',
+      name: 'Bench PB',
+      ip: '10.0.0.5',
+      now: 1,
+    })
+    profile.globalTransforms = profile.globalTransforms.map((transform) => (
+      transform.type === 'power-cap' ? { ...transform, enabled: true, maxDuty: 0.25 } : transform
+    ))
+    useShowStore.setState({ shows: [show], activeShowId: show.id, showsLoaded: true })
+    useControllerProfileStore.setState({ profilesLoaded: true, profiles: [profile] })
+    useControllerStore.setState({
+      controllers: {
+        '10.0.0.5': {
+          ip: '10.0.0.5',
+          nickname: 'Bench PB',
+          phase: 'live',
+          mapDim: 1,
+          firmwareVersion: '3.67',
+        },
+      },
+      activeIp: '10.0.0.5',
+    })
+    setControllerProvider(new ConnectedControllerProvider())
+
+    render(<ShowEditor showId={show.id} />)
+
+    expect(screen.getByTestId('show-compile-bar')).toHaveTextContent(/Controller transforms \+[\d.]+ KB/)
+    expect(screen.getByLabelText(/^Controller source .* advisory\.$/i)).toBeInTheDocument()
+  })
+
   it('compiles the current Pattern source when Run follows an urgent Show dependency update (#593)', async () => {
     const show = createDefaultShow('show-send-current', 'Current source', 1000)
     show.cells[0] = {
@@ -7139,6 +7176,22 @@ export function render(index) { rgb(MyMath.glow(index), 0, 0) }
     expect(compileBar).not.toHaveTextContent(/arena|free|render target:|cache plan:|crossfade:|est\. \d+ fps|steady state|worst instant:/i)
   })
 
+  it('surfaces a Controller rejection as a visible alert without hover (#849)', () => {
+    const show = createDefaultShow('show-push-failure', 'Push failure', 1000)
+    useShowStore.setState({ shows: [show], activeShowId: show.id, showsLoaded: true })
+    useControllerStore.setState({
+      pushResult: { ok: false, message: 'Controller compiler: pattern is too large' },
+      saveArmed: false,
+    })
+
+    render(<ShowEditor showId={show.id} />)
+
+    const alert = screen.getByRole('alert')
+    expect(alert).toBeVisible()
+    expect(alert).toHaveTextContent('Run failed: Controller compiler: pattern is too large')
+    expect(screen.getByRole('button', { name: 'Dismiss Run failure' })).toBeInTheDocument()
+  })
+
   it('reports an exact proportional Show source inventory from keyboard-equivalent focus (#545, #756)', () => {
     const property = STOCK_SHOWS.find((candidate) => candidate.id === 'stock-show-reference-property-animation')!
 
@@ -7148,21 +7201,16 @@ export function render(index) { rgb(MyMath.glow(index), 0, 0) }
     expect(compileBar).toHaveTextContent(/[\d.]+ KB \/ 29\.3 KB/)
     // The gauge reports the same delivered total as the inventory trigger,
     // not the smaller generated-only count (#63 review follow-up).
-    expect(screen.getByLabelText(/The budget is a source-size proxy/i)).toHaveAccessibleName(
-      /Show source [\d.]+ KB of the 29\.3 KB source budget/,
-    )
-    expect(screen.getByLabelText(/The budget is a source-size proxy/i)).toHaveAccessibleName(
-      /not remaining Controller capacity/i,
+    const sourceGauge = screen.getByLabelText(/^Show source .* advisory\.$/i)
+    expect(sourceGauge).toHaveAccessibleName(
+      /Show source [\d.]+ KB \/ 29\.3 KB advisory/,
     )
     // Pressure, gauge color, and label share the delivered numerator (#63):
-    // a label past 100% of the budget always reads as blocked, never as an
-    // under-budget green/amber bar. The compiler's generated-only ledger
-    // backstop stays quiet here — generated source alone is under budget.
-    expect(compileBar).toHaveTextContent(
-      'Output blocked: Delivered UTF-8 source meets or exceeds the source-size proxy',
-    )
+    // an over-budget advisory remains visibly red without becoming a local
+    // delivery block. The Controller compiler makes the final decision.
+    expect(compileBar).not.toHaveTextContent(/Delivered UTF-8 source|source-size proxy/)
     expect(compileBar).not.toHaveTextContent('Generated UTF-8 source alone')
-    expect(screen.getByLabelText(/The budget is a source-size proxy/i).firstElementChild).toHaveClass('bg-red-500')
+    expect(sourceGauge.firstElementChild).toHaveClass('bg-red-500')
 
     const trigger = screen.getByRole('button', { name: /show source inventory/i })
     expect(screen.queryByRole('dialog', { name: 'Show source inventory' })).not.toBeInTheDocument()
@@ -7202,19 +7250,15 @@ export function render(index) { rgb(MyMath.glow(index), 0, 0) }
 
     render(<ShowEditor showId={blockedShow.id} />)
 
-    // Delivered source exceeds the budget, so output is blocked - but blocked
-    // output must remain previewable and inspectable (View code).
-    expect(screen.getByTestId('show-compile-bar')).toHaveTextContent(
-      'Output blocked: Delivered UTF-8 source meets or exceeds the source-size proxy',
-    )
-    expect(getShowAction('Download .epe')).toBeDisabled()
+    // Source size is advisory. The Show remains previewable, inspectable, and
+    // exportable so the Controller compiler can make the real fit decision.
+    expect(screen.getByTestId('show-compile-bar')).not.toHaveTextContent(/Output blocked: Delivered UTF-8 source/)
+    expect(getShowAction('Download .epe')).toBeEnabled()
     const viewCode = getShowAction('View code')
     expect(viewCode).toBeEnabled()
     await user.click(viewCode)
     expect(screen.getByText(/Generated pattern -/)).toBeInTheDocument()
-    // Inspectable, but not exportable: the generated-code view's export
-    // button obeys the same delivered-pressure gate as the editor's.
-    expect(screen.getByRole('button', { name: 'Export Show as .epe' })).toBeDisabled()
+    expect(screen.getByRole('button', { name: 'Export Show as .epe' })).toBeEnabled()
   })
 
   it('keeps table-driven score bytes as a single-line category row (#545, #63)', async () => {
@@ -7257,10 +7301,10 @@ export function render(index) { rgb(MyMath.glow(index), 0, 0) }
     useShowStore.setState({ shows: [installation.show], activeShowId: installation.show.id, showsLoaded: true })
     render(<ShowEditor showId={installation.show.id} />)
 
-    expect(screen.getByText('Worst instant evaluates 4 simultaneous Pattern sources per pixel.')).toBeInTheDocument()
+    expect(screen.getByText('Peak: 4 Patterns per pixel.')).toBeInTheDocument()
     expect(screen.queryByText(/worst instant:/i)).not.toBeInTheDocument()
     expect(screen.queryByText(/steady state/i)).not.toBeInTheDocument()
-    expect(screen.getByLabelText(/The budget is a source-size proxy/i).firstElementChild).toHaveClass('bg-live')
+    expect(screen.getByLabelText(/^Show source .* advisory\.$/i).firstElementChild).toHaveClass('bg-live')
   })
 
   it('discloses the output contract in Show properties without a Stage mutation control (#434)', async () => {
@@ -7416,10 +7460,11 @@ export function render(index) { rgb(MyMath.glow(index), 0, 0) }
     expect(getShowAction('View code')).toBeDisabled()
     expect(getShowAction('Download .epe')).toBeDisabled()
     const compileBar = screen.getByTestId('show-compile-bar')
-    expect(compileBar).toHaveTextContent(
-      'Show output contract requests 2,001 pixels; compiled Shows support at most 2,000.',
+    expect(compileBar).toHaveTextContent('Output blocked: Output: 2,001 px exceeds 2,000 px.')
+    expect(screen.getByText('Output blocked: Output: 2,001 px exceeds 2,000 px.')).toHaveAttribute(
+      'title',
+      expect.stringContaining('Show output contract requests 2,001 pixels; compiled Shows support at most 2,000.'),
     )
-    expect(compileBar.textContent?.match(/Show output contract requests/g)).toHaveLength(1)
   })
 
   it('blocks Portable artifacts when the active Controller exceeds the supported output envelope (#514)', () => {

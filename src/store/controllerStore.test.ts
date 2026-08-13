@@ -1353,7 +1353,7 @@ describe('controllerStore (keyed)', () => {
       )
     })
 
-    it('blocks a generated Show when profile transforms push delivered source over budget (#777)', async () => {
+    it('lets the Controller compile a generated Show when profile transforms cross the source proxy (#849)', async () => {
       await store().addController({
         id: 'pixelblaze_pb32_show',
         address: '10.0.0.5',
@@ -1389,11 +1389,9 @@ describe('controllerStore (keyed)', () => {
         artifactStamp: { kind: 'show', id: 'show-1', name: 'Opening Night', transforms: ['show'] },
       })
 
-      expect(created.get('10.0.0.5')!.compiledSources).toEqual([])
-      expect(store().pushResult).toMatchObject({
-        ok: false,
-        message: expect.stringContaining('source-size proxy'),
-      })
+      expect(created.get('10.0.0.5')!.compiledSources).toHaveLength(1)
+      expect(created.get('10.0.0.5')!.compiledSources[0]).toContain('__px_cappedHsv')
+      expect(store().pushResult).toEqual({ ok: true, created: true })
     })
 
     it('surfaces a generated Show compile failure without pushing (#429)', async () => {

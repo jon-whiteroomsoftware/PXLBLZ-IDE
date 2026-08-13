@@ -142,11 +142,7 @@ export function render(index) { var pixelLocal = helper(); rgb(one, two, three +
     expect(ledger.blockers.map((blocker) => blocker.kind)).toEqual([
       'vm-word-budget',
       'persistent-global-limit',
-      'artifact-byte-budget',
     ])
-    expect(ledger.blockers[2].message).toContain(
-      'Generated UTF-8 source alone, before the delivery header, is 1 byte over the source-size proxy derived from the observed 68,384-byte compiled-bytecode activation ceiling.',
-    )
   })
 
   it('classifies compiler-owned arrays without double-counting isolated member arrays', () => {
@@ -208,7 +204,7 @@ describe('bytecode-axis artifact estimate (#716)', () => {
     expect(estimateShowBytecodeBytes(source)).toBe(byteLength(source))
   })
 
-  it('blocks a dense-assignment artifact whose bytecode estimate exceeds the budget its source fits', () => {
+  it('reports a dense-assignment estimate without treating it as the Controller compiler', () => {
     const assignments = Array.from({ length: 4_500 }, (_, i) => `q[${i}] = ${(i % 90) + 10}`).join('\n')
     const artifactSource = `var q = array(4500)\n${assignments}\nexport function render(index) { rgb(0, 0, 0) }\n`
     const artifactBytes = byteLength(artifactSource)
@@ -220,10 +216,7 @@ describe('bytecode-axis artifact estimate (#716)', () => {
       artifactSource,
     })
     expect(ledger.estimatedArtifactBytecodeBytes).toBeGreaterThan(SHOW_ARTIFACT_BUDGET_BYTES)
-    const blocker = ledger.blockers.find((entry) => entry.kind === 'bytecode-byte-budget')
-    expect(blocker).toBeTruthy()
-    expect(blocker!.message).toContain('bytecode')
-    expect(ledger.blockers.some((entry) => entry.kind === 'artifact-byte-budget')).toBe(false)
+    expect(ledger.blockers).toEqual([])
   })
 
   it('keeps the estimate at the source byte count when no artifact source is provided', () => {

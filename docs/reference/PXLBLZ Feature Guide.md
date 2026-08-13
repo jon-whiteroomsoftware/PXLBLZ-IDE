@@ -376,8 +376,8 @@ total** in amps or watts, with the supply voltage asked for only there. A
 fixed cap is set with a slider and states what it holds the installation to
 in watts and amps; the derived cap divides the supply budget by the
 full-white load, with one readout chain stating the whole derivation. The
-cap changes every generated Pattern. PXLBLZ does not pretend to be an
-ammeter or replace physical power-system design.
+cap changes every Pattern or Show sent through that Controller profile. PXLBLZ
+does not pretend to be an ammeter or replace physical power-system design.
 
 Two built-in diagnostics help here: **AnalogWiggleFinder** identifies which
 analog pin a potentiometer is on (run it on the Controller and sweep the pot),
@@ -389,7 +389,8 @@ wrapped, or bound.
 **Run** and **Save** compile with the Controller's own compiler. Run loads
 transient bytecode; Save writes a durable saved Pattern and activates it. The
 two have independent dirty state: a clean Run does not pretend the Pattern was
-saved.
+saved. A failed compile, transfer, or activation appears as a visible alert;
+the action button is not the only place that carries the reason.
 
 The profile's right pane splits the live Controller inventory into **Saved
 PXLBLZ Patterns** and **Other Patterns**. Saved rows link back to their
@@ -581,15 +582,17 @@ transport owns time; Pattern-level speed and controls stay out of the Stage.
 ## 17. Compile, cost, and export
 
 The compile bar under the timeline reports creator-facing limits: delivered
-**Show source**, VM array words, and actionable warnings or blockers. The
-source figure expands into a byte-level inventory of contributors; when the
-inventory finds actionable savings — an oversized contributor, or a Pattern
-compiled into more than one machine — it adds a **Ways to slim this Show**
-section, and stays silent when there is nothing actionable. Its renderer axis
-leads with the peak number of distinct Pattern machines active across the whole
-Controller, then reports steady and peak renderer depth per pixel separately.
-The same
-bar enforces the support envelope — outputs above 2,000
+**Show source**, VM array words, and short warnings or blockers. When a
+Controller is active, source includes that profile's active transforms and the
+bar names their added bytes. The 68,384-byte source scale is advisory: source
+size predicts pressure, but only the Controller compiler can decide bytecode
+fit. The source figure expands into a byte-level inventory of contributors;
+when the inventory finds actionable savings — an oversized contributor, or a
+Pattern compiled into more than one machine — it adds a **Ways to slim this
+Show** section, and stays silent when there is nothing actionable. Its renderer
+axis leads with the peak number of distinct Pattern machines active across the
+whole Controller, then reports steady and peak renderer depth per pixel
+separately. The same bar enforces the support envelope — outputs above 2,000
 pixels, exhausted memory axes, or more than five simultaneous renderers per
 pixel block outbound actions with a named cause, while editing and preview
 continue.

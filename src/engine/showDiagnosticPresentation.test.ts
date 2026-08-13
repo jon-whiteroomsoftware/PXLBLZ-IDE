@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { presentShowDiagnostic } from './showDiagnosticPresentation'
+import { presentShowDiagnostic, presentShowTrayDiagnostic } from './showDiagnosticPresentation'
 
 describe('Show diagnostic presentation (#634)', () => {
   it('preserves a diagnostic already written in the user model', () => {
@@ -63,5 +63,32 @@ describe('Show diagnostic presentation (#634)', () => {
     )).toBe(
       'Freeze at entry for clip "rings" fell back to Live because this release requires one static, unkeyed Clip on a single Zone for its full interval.',
     )
+  })
+})
+
+describe('Show tray diagnostic presentation (#849)', () => {
+  it.each([
+    [
+      'Trails output Effect was disabled (arena-unavailable): VM budget is exhausted.',
+      'Trails fell back to Live.',
+    ],
+    [
+      'Freeze at entry for clip "rings@scene-1" fell back to Live because this first release requires one static, unkeyed placement on a single-zone routed Scene.',
+      'Freeze "rings" fell back to Live.',
+    ],
+    [
+      'Routing layout "wings" leaves 12 of 240 physical pixels unassigned; those pixels render black.',
+      'Layout "wings": 12 pixels render black.',
+    ],
+    [
+      'Routing layout "wings" assigns overlapping pixels to clips "left" and "right"; the first route wins.',
+      'Layout "wings": overlapping Clips; first wins.',
+    ],
+    [
+      'Whole Show arrays require 10,500 VM words, 260 over the 10,240-word budget. Reduce output pixels.',
+      'VM arrays: 10,500 / 10,240 words.',
+    ],
+  ])('compresses %s', (message, phrase) => {
+    expect(presentShowTrayDiagnostic(message)).toBe(phrase)
   })
 })
