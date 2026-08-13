@@ -208,6 +208,61 @@ export function render2D(index, x, y) { tick(state); rgb(state[0], y, 0) }
     })
   })
 
+  it('fails closed when a helper re-aliases an array parameter before mutation (#834)', () => {
+    const source = `
+var state = [0]
+function tick(a) { var b = a; b[0] += 1 }
+export function render2D(index, x, y) { tick(state); rgb(state[0], y, 0) }
+`
+
+    expect(analyzeShowPatternCoverageRenderState(source, 'render2D')).toEqual({
+      state: 'unknown',
+      mutatedBindings: [],
+      unknownCalls: ['<local-member-write:tick.b>'],
+    })
+  })
+
+  it('fails closed when a member-write root is dynamic (#834)', () => {
+    const source = `
+var state = [0]
+function current() { return state }
+export function render2D(index, x, y) { current()[0] += 1; rgb(state[0], y, 0) }
+`
+
+    expect(analyzeShowPatternCoverageRenderState(source, 'render2D')).toEqual({
+      state: 'unknown',
+      mutatedBindings: [],
+      unknownCalls: ['<dynamic-member-write:render2D>'],
+    })
+  })
+
+  it('fails closed when a top-level alias hides persistent member mutation (#834)', () => {
+    const source = `
+var state = [0], alias
+function tick(a) { alias = a; alias[0] += 1 }
+export function render2D(index, x, y) { tick(state); rgb(state[0], y, 0) }
+`
+
+    expect(analyzeShowPatternCoverageRenderState(source, 'render2D')).toMatchObject({
+      state: 'unknown',
+      unknownCalls: ['<persistent-member-write:tick.alias>'],
+    })
+  })
+
+  it('fails closed for member writes nested in destructuring targets (#834)', () => {
+    const source = `
+var state = [0]
+function tick(a) { var b = a; [b[0]] = [1] }
+export function render2D(index, x, y) { tick(state); rgb(state[0], y, 0) }
+`
+
+    expect(analyzeShowPatternCoverageRenderState(source, 'render2D')).toEqual({
+      state: 'unknown',
+      mutatedBindings: [],
+      unknownCalls: ['<local-member-write:tick.b>'],
+    })
+  })
+
   it.each([
     [
       'an accumulator in a helper',

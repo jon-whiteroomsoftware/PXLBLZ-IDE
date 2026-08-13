@@ -337,8 +337,17 @@ export function analyzeShowPatternCoverageRenderState(
       if (node.type === 'AssignmentExpression' || node.type === 'UpdateExpression') {
         const target = node.type === 'AssignmentExpression' ? node.left : node.argument
         const root = assignmentRootName(target)
-        if (target?.type === 'MemberExpression' && root && parameters.has(root)) {
-          unknownCalls.add(`<parameter-member-write:${name}.${root}>`)
+        for (const memberTarget of assignmentMemberWriteTargets(target)) {
+          const memberRoot = assignmentRootName(memberTarget)
+          if (memberRoot && parameters.has(memberRoot)) {
+            unknownCalls.add(`<parameter-member-write:${name}.${memberRoot}>`)
+          } else if (memberRoot && locals.has(memberRoot)) {
+            unknownCalls.add(`<local-member-write:${name}.${memberRoot}>`)
+          } else if (memberRoot) {
+            unknownCalls.add(`<persistent-member-write:${name}.${memberRoot}>`)
+          } else {
+            unknownCalls.add(`<dynamic-member-write:${name}>`)
+          }
         }
         if (root && !locals.has(root)) scratchBindings.add(root)
       }
@@ -565,6 +574,24 @@ function assignmentRootName(node: AstNode | null | undefined): string | null {
   if (node.type === 'Identifier') return node.name
   if (node.type === 'MemberExpression') return assignmentRootName(node.object)
   return null
+}
+
+function assignmentMemberWriteTargets(node: AstNode | null | undefined): AstNode[] {
+  if (!node) return []
+  if (node.type === 'MemberExpression') return [node]
+  if (node.type === 'RestElement') return assignmentMemberWriteTargets(node.argument)
+  if (node.type === 'AssignmentPattern') return assignmentMemberWriteTargets(node.left)
+  if (node.type === 'ArrayPattern') {
+    return (node.elements as AstNode[]).flatMap(assignmentMemberWriteTargets)
+  }
+  if (node.type === 'ObjectPattern') {
+    return (node.properties as AstNode[]).flatMap((property) => (
+      property.type === 'RestElement'
+        ? assignmentMemberWriteTargets(property.argument)
+        : assignmentMemberWriteTargets(property.value)
+    ))
+  }
+  return []
 }
 
 function collectAstReadIdentifiers(node: unknown, reads: Set<string>): void {
