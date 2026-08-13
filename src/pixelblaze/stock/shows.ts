@@ -21,11 +21,13 @@ import { replaceShowBoundaryTransition } from '@/engine/showTransitionAuthoring'
 import {
   createShowWithOutputContract,
   extendShowCell,
+  normalizeShowTransitionState,
   removeShowBoundaryTransition,
   removeShowClip,
   updateShowBoundaryTransition,
   updateShowCellAdaptations,
   updateShowCellPattern,
+  updateShowRoutingSwitch,
   updateShowScene,
 } from '@/engine/showModel'
 import {
@@ -180,8 +182,9 @@ function learn100(): StockShow {
   const scenes: SceneSpec[] = [
     scene('tour', 'Tour', 16, [clip('zone-1', 'RibbonLoom', LESSON_TIME_SCALE)]),
   ]
-  const composition: ShowCompositionV1 = {
+  const composition: ShowCompositionV1 = normalizeShowComposition({ scenes, zones }, {
     version: 1,
+    executionModel: 'deterministic-loop',
     patternInstances: [
       instance('ribbons', 'RibbonLoom', LESSON_TIME_SCALE),
       instance('garden', 'MetaballGarden', LESSON_TIME_SCALE),
@@ -205,7 +208,7 @@ function learn100(): StockShow {
       }],
     }],
     durationMs: 16_000,
-  }
+  })
   return catalogue({
     id, title: 'Getting Around', track: 'portable', collection: 'learn', level: 100, order: 0,
     purpose: 'This first Show exists to get you familiar with the basics, simplest first.\n'
@@ -232,8 +235,9 @@ function learn101(): StockShow {
   const scenes: SceneSpec[] = [
     scene('timeline', 'Timeline', 16, [clip('zone-1', 'RibbonLoom', LESSON_TIME_SCALE)]),
   ]
-  const composition: ShowCompositionV1 = {
+  const composition: ShowCompositionV1 = normalizeShowComposition({ scenes, zones }, {
     version: 1,
+    executionModel: 'deterministic-loop',
     patternInstances: [
       instance('ribbons', 'RibbonLoom', LESSON_TIME_SCALE),
       instance('garden', 'MetaballGarden', LESSON_TIME_SCALE),
@@ -253,7 +257,7 @@ function learn101(): StockShow {
       }],
     }],
     durationMs: 16_000,
-  }
+  })
   return catalogue({
     id, title: 'Clips, Cuts, and Blank Time', track: 'portable', collection: 'learn', level: 100, order: 1,
     purpose: 'A Clip occupies a span of Show time on a Layer. Where two Clips touch, the junction between them is a Cut; where none is scheduled, the Show renders black.',
@@ -274,8 +278,9 @@ function learn102(): StockShow {
   const scenes: SceneSpec[] = [
     scene('passages', 'Passages', 16.5, [clip('zone-1', 'ClockworkIris', LESSON_TIME_SCALE)]),
   ]
-  const composition: ShowCompositionV1 = {
+  const composition: ShowCompositionV1 = normalizeShowComposition({ scenes, zones }, {
     version: 1,
+    executionModel: 'deterministic-loop',
     patternInstances: [
       instance('iris', 'ClockworkIris', LESSON_TIME_SCALE),
       instance('horizon', 'EventHorizon', LESSON_TIME_SCALE),
@@ -312,16 +317,16 @@ function learn102(): StockShow {
     transitions: [
       {
         id: 'transition-iris-horizon', fromPlacementId: 'clip-iris', toPlacementId: 'clip-horizon',
-        kind: 'crossfade', durationMs: 2_000, easing: SINE_IN_OUT,
+        kind: 'crossfade', durationMs: 2_000, easing: SINE_IN_OUT, crossfadePolicy: 'live-live',
       },
       {
         id: 'transition-horizon-mandala', fromPlacementId: 'clip-horizon', toPlacementId: 'clip-mandala',
         kind: 'wipe', durationMs: 1_500, easing: CUBIC_IN_OUT,
-        direction: 0, feather: 0.08, edgePolicy: 'dither',
+        wipeVariant: 'linear', direction: 0, feather: 0.08, edgePolicy: 'dither',
       },
     ],
     durationMs: 16_500,
-  }
+  })
   return catalogue({
     id, title: 'Transitions and Values', track: 'portable', collection: 'learn', level: 100, order: 2,
     purpose: 'A Transition is its own entity at the junction between two Clips. It owns how the picture changes; the destination Clip still owns the final value.',
@@ -350,8 +355,9 @@ function learn103(): StockShow {
   const scenes: SceneSpec[] = [
     scene('poses', 'Poses', 15, [clip('zone-1', 'CompassRose', LESSON_TIME_SCALE)]),
   ]
-  const composition: ShowCompositionV1 = {
+  const composition: ShowCompositionV1 = normalizeShowComposition({ scenes, zones }, {
     version: 1,
+    executionModel: 'deterministic-loop',
     patternInstances: [instance('rose', 'CompassRose', LESSON_TIME_SCALE)],
     scenes: [{
       sceneId: 'poses',
@@ -366,7 +372,7 @@ function learn103(): StockShow {
       }],
     }],
     durationMs: 15_000,
-  }
+  })
   return catalogue({
     id, title: 'Clip Transform', track: 'portable', collection: 'learn', level: 100, order: 3,
     purpose: 'A Clip can be moved, turned, resized, or flipped on the Stage. The Pattern inside it keeps playing exactly as before; only where its picture lands changes, and no second copy of the Pattern is started.',
@@ -419,8 +425,9 @@ function learn104(): StockShow {
   const scenes: SceneSpec[] = [
     scene('stacks', 'Stacks', 16, [clip('zone-1', 'MetaballGarden', LESSON_TIME_SCALE)]),
   ]
-  const composition: ShowCompositionV1 = {
+  const composition: ShowCompositionV1 = normalizeShowComposition({ scenes, zones }, {
     version: 1,
+    executionModel: 'deterministic-loop',
     patternInstances: [instance('garden', 'MetaballGarden', LESSON_TIME_SCALE)],
     scenes: [{
       sceneId: 'stacks',
@@ -434,7 +441,7 @@ function learn104(): StockShow {
       }],
     }],
     durationMs: 16_000,
-  }
+  })
   return catalogue({
     id, title: 'Effects and Ordering', track: 'portable', collection: 'learn', level: 100, order: 4,
     purpose: 'An Effect changes the picture a Clip has already drawn, without editing the Pattern. A Clip holds its Effects as a list, and each one works on the result of the one above it, so the same two Effects in a different order do not give the same picture.',
@@ -458,33 +465,32 @@ function learn104(): StockShow {
 // vanishing (rings 2 would strand it with no pixels). 206 goes deeper on
 // restating Layouts across a longer arc and contrasts swept with atomic
 // switching; the Zone Layouts showcase holds the full geometry vocabulary.
-// The water voice is ZRanger1's IceFloes2D (#727): probed against the weave
-// on the 44x44 plane at the lesson clock it separates as cleanly as the
-// Caustics it replaced (split-side luminance 0.205 vs 0.209, boundary hue
-// contrast 83 degrees, flux 0.097 vs 0.096) and its drifting floes give the
-// re-routed geometry visible blocks to deal into rings and arms.
+// The water voice is Caustics: unlike the nested random arrays in IceFloes2D,
+// its state can be reconstructed exactly at Show End while its moving field
+// keeps each re-routed geometry legible.
 function learn105(): StockShow {
   const id = 'stock-show-105-portable-zones'
   const zones = logicalZones(['Weave', 'Water'], PORTABLE_REFERENCE_PIXELS)
   const scenes: SceneSpec[] = [
     scene('split', 'Split', 8, [
       clip('zone-1', 'RibbonLoom', LESSON_TIME_SCALE),
-      clip('zone-2', 'IceFloes2D', LESSON_TIME_SCALE),
+      clip('zone-2', 'Caustics', LESSON_TIME_SCALE),
     ], { splitPosition: 0.5 }),
     scene('rings', 'Rings', 6, [
       clip('zone-1', 'RibbonLoom', LESSON_TIME_SCALE),
-      clip('zone-2', 'IceFloes2D', LESSON_TIME_SCALE),
+      clip('zone-2', 'Caustics', LESSON_TIME_SCALE),
     ]),
     scene('pinwheel', 'Pinwheel', 6, [
       clip('zone-1', 'RibbonLoom', LESSON_TIME_SCALE),
-      clip('zone-2', 'IceFloes2D', LESSON_TIME_SCALE),
+      clip('zone-2', 'Caustics', LESSON_TIME_SCALE),
     ]),
   ]
-  const composition: ShowCompositionV1 = {
+  const composition: ShowCompositionV1 = normalizeShowComposition({ scenes, zones }, {
     version: 1,
+    executionModel: 'deterministic-loop',
     patternInstances: [
       instance('ribbons', 'RibbonLoom', LESSON_TIME_SCALE),
-      instance('water', 'IceFloes2D', LESSON_TIME_SCALE),
+      instance('water', 'Caustics', LESSON_TIME_SCALE),
     ],
     scenes: [
       {
@@ -513,13 +519,21 @@ function learn105(): StockShow {
       },
     ],
     durationMs: 20_000,
-  }
+  })
   const transitions: ShowBoundaryTransition[] = [
     // Both switches travel: each new geometry sweeps over the previous one,
     // so geometry visibly changes while both Patterns keep playing.
     {
+      id: 'transition-split', afterSceneId: 'split', kind: 'cut', durationMs: 0,
+      easing: LINEAR,
+    },
+    {
       id: 'routing-split-rings', afterSceneId: 'split', kind: 'routing', durationMs: 1_500,
       easing: SINE_IN_OUT, layoutId: 'layout-rings', routingDirection: 'forward',
+    },
+    {
+      id: 'transition-rings', afterSceneId: 'rings', kind: 'cut', durationMs: 0,
+      easing: LINEAR,
     },
     {
       id: 'routing-rings-pinwheel', afterSceneId: 'rings', kind: 'routing', durationMs: 1_500,
@@ -563,8 +577,9 @@ function learn106(): StockShow {
       clip('zone-2', 'MetaballGarden', LESSON_TIME_SCALE),
     ]),
   ]
-  const composition: ShowCompositionV1 = {
+  const composition: ShowCompositionV1 = normalizeShowComposition({ scenes, zones }, {
     version: 1,
+    executionModel: 'deterministic-loop',
     patternInstances: [
       instance('bloom', 'TopographicBloom', LESSON_TIME_SCALE),
       instance('mandala', 'SignalMandala', LESSON_TIME_SCALE),
@@ -650,7 +665,7 @@ function learn106(): StockShow {
     transitions: [
       {
         id: 'transition-sky-bloom-mandala', fromPlacementId: 'clip-sky-bloom', toPlacementId: 'clip-sky-mandala',
-        kind: 'crossfade', durationMs: 3_000, easing: SINE_IN_OUT,
+        kind: 'crossfade', durationMs: 3_000, easing: SINE_IN_OUT, crossfadePolicy: 'live-live',
       },
       {
         // Both Sky Patterns are radial, so a circle opening from the center
@@ -658,7 +673,7 @@ function learn106(): StockShow {
         id: 'transition-sky-mandala-reprise', fromPlacementId: 'clip-sky-mandala', toPlacementId: 'clip-sky-reprise',
         kind: 'portal', durationMs: 3_000, easing: SINE_IN_OUT,
         shape: 'circle', revealMode: 'grow-incoming',
-        centerX: 0.5, centerY: 0.5, featherPolicy: 'blend', feather: 0.12,
+        centerX: 0.5, centerY: 0.5, scale: 1, edgePolicy: 'blend', feather: 0.12,
       },
       {
         // The Ground returns to the same Pattern, so a blend would show nothing:
@@ -666,11 +681,11 @@ function learn106(): StockShow {
         // reassembles it, which is visible where a blend would not be.
         id: 'transition-ground-garden-return', fromPlacementId: 'clip-ground-garden', toPlacementId: 'clip-ground-return',
         kind: 'dither', durationMs: 2_500, easing: CUBIC_IN_OUT,
-        dissolveVariant: 'coherent-noise', seed: 106,
+        dissolveVariant: 'coherent-noise', seed: 106, scale: 6, edgePolicy: 'hard',
       },
     ],
     durationMs: 30_000,
-  }
+  })
   return catalogue({
     id, title: 'Built from Basics', track: 'portable', collection: 'learn', level: 100, order: 6,
     purpose: 'Everything in this Show came from the five lessons before it: Clips, Transitions, value curves, a Clip Transform, one Effect, and two Zones. What is new is that the pieces are timed against each other, so the Sky and the Ground arrive and leave as one gesture rather than two. Every junction here is a Transition rather than a Cut, which is the one deliberate departure from 101.',
@@ -708,9 +723,10 @@ function learn201(): StockShow {
   ]
   const composition: ShowCompositionV1 = {
     version: 1,
+    executionModel: 'deterministic-loop',
     patternInstances: [
-      instance('water', 'Caustics', LESSON_TIME_SCALE),
       instance('flies', 'TimeFlies2D', LESSON_TIME_SCALE),
+      instance('water', 'Caustics', LESSON_TIME_SCALE),
     ],
     scenes: [{
       sceneId: 'layers',
@@ -775,21 +791,22 @@ function learn202(): StockShow {
   const frame = { enabled: true, width: 0.5, height: 0.5, edge: 'soft' as const }
   const composition: ShowCompositionV1 = {
     version: 1,
+    executionModel: 'deterministic-loop',
     patternInstances: [
-      instance('garden', 'MetaballGarden', LESSON_TIME_SCALE),
       instance('curve', 'Harmonograph', LESSON_TIME_SCALE),
+      instance('garden', 'MetaballGarden', LESSON_TIME_SCALE),
     ],
     scenes: [{
       sceneId: 'viewport',
       propertyTracks: [
         {
-          // The crop animates in: the frame shrinks from the full Stage to
-          // half size while x and y stay pinned at zero.
-          id: 'track-frame-width',
-          target: { kind: 'placement-viewport', placementId: 'clip-frame', property: 'width' },
+          // Then the opposite: the frame holds the center while Content pans
+          // underneath it. Starting from neutral keeps the junction seamless.
+          id: 'track-content-pan',
+          target: { kind: 'placement-transform', placementId: 'clip-content-pan', property: 'positionX' },
           keyframes: [
-            keyframe('width-full', 4, 1, SINE_IN_OUT),
-            keyframe('width-half', 5.5, 0.5),
+            keyframe('pan-start', 12.5, 0, SINE_IN_OUT),
+            keyframe('pan-east', 15.5, 0.3),
           ],
         },
         {
@@ -819,13 +836,13 @@ function learn202(): StockShow {
           ],
         },
         {
-          // Then the opposite: the frame holds the center while Content pans
-          // underneath it. Starting from neutral keeps the junction seamless.
-          id: 'track-content-pan',
-          target: { kind: 'placement-transform', placementId: 'clip-content-pan', property: 'positionX' },
+          // The crop animates in: the frame shrinks from the full Stage to
+          // half size while x and y stay pinned at zero.
+          id: 'track-frame-width',
+          target: { kind: 'placement-viewport', placementId: 'clip-frame', property: 'width' },
           keyframes: [
-            keyframe('pan-start', 12.5, 0, SINE_IN_OUT),
-            keyframe('pan-east', 15.5, 0.3),
+            keyframe('width-full', 4, 1, SINE_IN_OUT),
+            keyframe('width-half', 5.5, 0.5),
           ],
         },
       ],
@@ -889,6 +906,7 @@ function learn207(): StockShow {
   const frame = { enabled: true, x: 0.25, y: 0.25, width: 0.5, height: 0.5 }
   const composition: ShowCompositionV1 = {
     version: 1,
+    executionModel: 'deterministic-loop',
     patternInstances: [
       instance('garden', 'MetaballGarden', LESSON_TIME_SCALE),
       instance('rose', 'CompassRose', LESSON_TIME_SCALE),
@@ -952,9 +970,10 @@ function learn203(): StockShow {
   ]
   const composition: ShowCompositionV1 = {
     version: 1,
+    executionModel: 'deterministic-loop',
     patternInstances: [
-      instance('palette-shared', 'IQPalettes', LESSON_TIME_SCALE),
       instance('palette-fresh', 'IQPalettes', LESSON_TIME_SCALE),
+      instance('palette-shared', 'IQPalettes', LESSON_TIME_SCALE),
     ],
     scenes: [{
       sceneId: 'lifecycle',
@@ -1011,6 +1030,7 @@ function learn204(): StockShow {
   ]
   const composition: ShowCompositionV1 = {
     version: 1,
+    executionModel: 'deterministic-loop',
     patternInstances: [
       instance('palette', 'IQPalettes', LESSON_TIME_SCALE),
       {
@@ -1060,6 +1080,7 @@ function learn205(): StockShow {
   ]
   const composition: ShowCompositionV1 = {
     version: 1,
+    executionModel: 'deterministic-loop',
     patternInstances: [instance('loom', 'RibbonLoom', LESSON_TIME_SCALE)],
     scenes: [{
       sceneId: 'reuse',
@@ -1084,14 +1105,14 @@ function learn205(): StockShow {
       ],
       propertyTracks: [
         {
-          id: 'track-pulse-lead',
-          target: { kind: 'placement-opacity', placementId: 'pulse-lead' },
-          keyframes: [keyframe('lead-in', 0, 0), keyframe('lead-peak', 1.5, 0.9), keyframe('lead-out', 4, 0)],
-        },
-        {
           id: 'track-pulse-echo',
           target: { kind: 'placement-opacity', placementId: 'pulse-echo' },
           keyframes: [keyframe('echo-in', 1, 0), keyframe('echo-peak', 2.5, 0.55), keyframe('echo-out', 4, 0)],
+        },
+        {
+          id: 'track-pulse-lead',
+          target: { kind: 'placement-opacity', placementId: 'pulse-lead' },
+          keyframes: [keyframe('lead-in', 0, 0), keyframe('lead-peak', 1.5, 0.9), keyframe('lead-out', 4, 0)],
         },
       ],
     }],
@@ -1157,6 +1178,7 @@ function learn206(): StockShow {
   ]
   const composition: ShowCompositionV1 = {
     version: 1,
+    executionModel: 'deterministic-loop',
     patternInstances: [
       instance('loom', 'RibbonLoom', LESSON_TIME_SCALE),
       instance('water', 'IceFloes2D', LESSON_TIME_SCALE),
@@ -1187,12 +1209,14 @@ function learn206(): StockShow {
     durationMs: 17_000,
   }
   const transitions: ShowBoundaryTransition[] = [
+    { id: 'transition-full', afterSceneId: 'full', kind: 'cut', durationMs: 0, easing: LINEAR },
     // The first restatement travels: the split sweeps in across the Stage,
     // which is Layout motion owned by the routing boundary itself.
     {
       id: 'routing-full-split', afterSceneId: 'full', kind: 'routing', durationMs: 1_500,
       easing: SINE_IN_OUT, layoutId: 'layout-split', routingDirection: 'forward',
     },
+    { id: 'transition-split', afterSceneId: 'split', kind: 'cut', durationMs: 0, easing: LINEAR },
     // The second restatement is atomic: zero duration, one step, so the two
     // boundary styles can be compared inside one Show.
     { id: 'routing-split-rings', afterSceneId: 'split', kind: 'routing', durationMs: 0, easing: LINEAR, layoutId: 'layout-rings' },
@@ -1247,6 +1271,7 @@ function learn301(): StockShow {
   ]
   const composition: ShowCompositionV1 = {
     version: 1,
+    executionModel: 'deterministic-loop',
     patternInstances: [
       instance('garden', 'MetaballGarden', GARDEN_TIME_SCALE),
       instance('palettes', 'IQPalettes', PALETTES_TIME_SCALE),
@@ -1276,7 +1301,7 @@ function learn301(): StockShow {
     }],
     durationMs: 14_000,
   }
-  return catalogue({
+  return normalizedCatalogue({
     id, title: 'Installation Mapping', track: 'installation', collection: 'learn', level: 300, order: 1,
     purpose: 'An Installation Show gives up portability on purpose. It promises one exact output - this proscenium stage, 1,000 measured LEDs - and in exchange each named Zone owns real pixels: a physical range over the map instead of a share of an abstract surface. Together the ranges must cover the output exactly once.',
     notice: "The ranges restate the installer's walk: left column first, then the stage field, the arch band over the apex, and the right column last. That walk is why the Columns Zone owns two ranges at opposite ends of the index space - 0-249 and 750-999 - one physical role, two stretches of wire. At the halfway junction the stage and the columns trade Patterns while the arch holds; the ranges themselves never move.",
@@ -1423,6 +1448,7 @@ function learn302(): StockShow {
   })
   const composition: ShowCompositionV1 = {
     version: 1,
+    executionModel: 'deterministic-loop',
     patternInstances: [
       // The only instance in the Show: one clock, one machine, five surfaces.
       instance('pendulum', 'Harmonograph', SOLO_TIME_SCALE),
@@ -1562,7 +1588,7 @@ function learn302(): StockShow {
     ],
     durationMs: 20_000,
   }
-  return catalogue({
+  return normalizedCatalogue({
     id, title: 'Installation Composition', track: 'installation', collection: 'learn', level: 300, order: 2,
     purpose: 'This Show spends its entire variety budget on one Pattern instance: a single Harmonograph render drives all five surfaces of the Redline stage. Geometry deals the first difference - the same frame lands as a panel in the middle and four radial blooms around it - and every further voice costs only a per-Clip adaptation or Effect: a hue phase, a shifted window, a mirror, a posterize, a timed invert.',
     notice: "Halfway through the first passage the satellites split into a four-hue family - gold, warm yellow, azure, blue-violet, a split-complementary scheme built on the render's own base color - by placement phase alone: the compiled artifact adds one number inside the shared hsv call, the cheapest voice in the toolkit. From then on the colors never sit still: at each change beat the four hues glide to new corners by a different rule - a clockwise rotation, a diagonal swap, a rotation back - each glide starting a beat after its neighbour, while shifted windows, a mirrored pair, a posterized pair, and two invert pulses stack onto the same single machine.",
@@ -1600,6 +1626,7 @@ function learn303(): StockShow {
   ]
   const composition: ShowCompositionV1 = {
     version: 1,
+    executionModel: 'deterministic-loop',
     patternInstances: [
       instance('loom', 'RibbonLoom', LESSON_TIME_SCALE),
       instance('garden', 'MetaballGarden', LESSON_TIME_SCALE),
@@ -1632,7 +1659,7 @@ function learn303(): StockShow {
     }],
     durationMs: 16_000,
   }
-  return catalogue({
+  return normalizedCatalogue({
     id, title: 'Compile, Simplify, and Deliver', track: 'portable', collection: 'learn', level: 300, order: 3,
     purpose: 'A Show stays editable choreography, but it ships as one ordinary Pixelblaze Pattern. The artifact inventory breaks down what that generated Pattern spends on each Pattern, Effect, and score structure, and its slimming tips name the costs you can actually act on.',
     notice: "The weave echo near the end is an independent RibbonLoom instance - and the inventory shows the compiler reusing one physical machine for both instances rather than shipping a duplicate copy. What the echo really costs is its overlay structure, about six kilobytes of render plans and score data. Independence is also why it restarts the opening weave from its first frame.",
@@ -1783,6 +1810,7 @@ function zoneLayoutShowcase(kind: ZoneLayoutShowcaseKind): StockShow {
   ))
   const composition: ShowCompositionV1 = {
     version: 1,
+    executionModel: 'deterministic-loop',
     patternInstances: voices.map((voice, index) => instance(voice, voicePatterns[index], LESSON_TIME_SCALE)),
     scenes: config.passages.map((passage) => ({
       sceneId: passage.id,
@@ -1799,17 +1827,7 @@ function zoneLayoutShowcase(kind: ZoneLayoutShowcaseKind): StockShow {
     })),
     durationMs: config.passages.reduce((sum, passage) => sum + passage.seconds, 0) * 1_000,
   }
-  const transitions: ShowBoundaryTransition[] = config.passages.slice(0, -1).map((passage, index) => {
-    const destination = config.passages[index + 1]
-    const sweepMs = destination.sweepMs ?? 0
-    return {
-      id: `routing-${passage.id}-${destination.id}`, afterSceneId: passage.id, kind: 'routing',
-      durationMs: sweepMs, easing: sweepMs > 0 ? SINE_IN_OUT : LINEAR,
-      layoutId: `layout-${destination.id}`,
-      ...(sweepMs > 0 ? { routingDirection: 'forward' as const } : {}),
-    }
-  })
-  return catalogue({
+  const stock = catalogue({
     id: config.id, title: config.title, track: 'portable', collection: 'showcases', level: null, order: config.order,
     purpose: config.purpose, notice: config.notice, prompts: config.prompts,
     guideHeading: 'zone-layouts-reference',
@@ -1820,7 +1838,7 @@ function zoneLayoutShowcase(kind: ZoneLayoutShowcaseKind): StockShow {
     layouts: config.passages.map((passage) => ({
       id: `layout-${passage.id}`, name: passage.label, zones: [], logical: passage.logical(zoneIds),
     })),
-    scenes, transitions, composition,
+    scenes, composition,
     reference: {
       summary: config.summary,
       patternSlots: {
@@ -1835,6 +1853,23 @@ function zoneLayoutShowcase(kind: ZoneLayoutShowcaseKind): StockShow {
       })),
     },
   })
+  let show = normalizeShowTransitionState(stock.show)
+  config.passages.slice(0, -1).forEach((passage, index) => {
+    show = updateShowRoutingSwitch(show, passage.id, `layout-${config.passages[index + 1].id}`)
+  })
+  if (kind === 'radial') {
+    show = updateShowBoundaryTransition(show, 'routing-full', {
+      durationMs: config.passages[1].sweepMs,
+      easing: SINE_IN_OUT,
+      routingDirection: 'forward',
+    })
+  }
+  show = {
+    ...show,
+    composition: normalizeShowComposition(show, composition),
+    updatedAt: UPDATED_AT,
+  }
+  return { ...stock, show }
 }
 
 function redlineInstallation(): StockShow {
@@ -1914,6 +1949,7 @@ function redlineInstallation(): StockShow {
   }
   const composition: ShowCompositionV1 = {
     version: 1,
+    executionModel: 'deterministic-loop',
     patternInstances,
     scenes: phrases.map((phrase, phraseIndex) => ({
       sceneId: phrase.id,
@@ -1941,9 +1977,10 @@ function redlineInstallation(): StockShow {
         }
       }),
     })),
+    durationMs: 60_000,
   }
 
-  return catalogue({
+  return normalizedCatalogue({
     id,
     title: 'Redline Installation',
     track: 'installation',
@@ -2687,24 +2724,95 @@ function effectShowcase(kind: ShowcaseKind): StockShow {
   const scenes = config.rows.map(([name, effects, seconds], index) => scene(
     `effect-${index + 1}`,
     name,
-    seconds,
+    seconds + (kind === 'transform' && index > 0 && index < 5 ? 1 : 0),
     [clip('zone-1', config.source, 0.35, undefined, 0.90, effects.length ? effects : undefined)],
   ))
-  const transitions = kind === 'transform'
-    ? scenes.slice(0, -1).map((item, index) => (
-        index < 4
-          ? effectTweenBoundary(item, scenes[index + 1], config.rows[index][1], config.rows[index + 1][1])
-          : boundary(item.id, 'cut', 0, LINEAR)
-      ))
-    : cutBoundaries(scenes)
+  let composition: ShowCompositionV1 | undefined
+  if (kind === 'transform') {
+    const affineInstanceId = 'instance-transform-effects'
+    const wrapInstanceId = 'instance-wrap-effect'
+    const affinePlacementId = 'clip-affine-effects'
+    const placementId = (index: number) => (
+      index === 0
+        ? affinePlacementId
+        : index < 5
+          ? `${affinePlacementId}--span-effect-${index + 1}`
+          : 'clip-wrap-effect'
+    )
+    composition = {
+      version: 1,
+      executionModel: 'deterministic-loop',
+      patternInstances: [
+        instance(affineInstanceId, config.source, 0.35),
+        instance(wrapInstanceId, config.source, 0.35),
+      ],
+      scenes: scenes.map((item, index) => ({
+        sceneId: item.id,
+        zones: [{
+          zoneId: 'zone-1',
+          overlays: [],
+          main: [{
+            ...placement(placementId(index), index < 5 ? affineInstanceId : wrapInstanceId, 0, item.durationMs / 1_000),
+            ...(index > 0 && index < 5 ? { logicalClipId: affinePlacementId } : {}),
+            view: { mirror: false, phase: 0, brightness: 0.9 },
+            effects: (index < 5 ? config.rows[0][1] : config.rows[index][1]).map((effect) => ({ ...effect })),
+          }],
+        }],
+      })),
+      durationMs: scenes.reduce((sum, item) => sum + item.durationMs, 0),
+    }
+    for (let index = 1; index < 5; index += 1) {
+      const fromEffects = config.rows[index - 1][1]
+      const toEffects = config.rows[index][1]
+      for (const [effectIndex, toEffect] of toEffects.entries()) {
+        const fromEffect = fromEffects[effectIndex]
+        if (!fromEffect || fromEffect.id !== toEffect.id || fromEffect.kind !== toEffect.kind) continue
+        for (const parameter of showEffectParameterNames(toEffect)) {
+          const parameterId = parameter === 'x'
+            ? toEffect.kind === 'translate' ? 'translateX' : toEffect.kind === 'scale' ? 'scaleX' : 'shearX'
+            : parameter === 'y'
+              ? toEffect.kind === 'translate' ? 'translateY' : toEffect.kind === 'scale' ? 'scaleY' : 'shearY'
+              : parameter
+          const from = showEffectNumericValue(fromEffect, parameter)
+          const to = showEffectNumericValue(toEffect, parameter)
+          if (from === to) continue
+          const trackId = `track-effect-${index + 1}-${toEffect.id}-${parameterId}`
+          const next = addShowPropertyTrack({ scenes }, composition, scenes[index].id, {
+            id: trackId,
+            target: {
+              kind: 'placement-effect',
+              placementId: placementId(index),
+              effectId: toEffect.id,
+              effectKind: toEffect.kind,
+              parameterId,
+            },
+            keyframes: [
+              { id: `${trackId}-start`, timeMs: 0, value: from, easing: SINE_IN_OUT },
+              { id: `${trackId}-end`, timeMs: 1_000, value: to, easing: LINEAR },
+            ],
+          })
+          if (next === composition) throw new Error(`Transform Effect track rejected: ${trackId}`)
+          composition = next
+        }
+      }
+    }
+    composition = normalizeShowComposition({ scenes, zones }, composition)
+  }
   return catalogue({
     id: config.id, title: config.title, track: 'portable', collection: 'showcases', level: null, order: config.order,
     purpose: config.purpose, notice: config.notice, prompts: config.prompts, guideHeading: config.heading,
     defaultOpen: true, output: portableOutput(), zones, layouts: [singleLayout(zones)], scenes,
-    transitions,
+    transitions: cutBoundaries(scenes),
+    ...(composition ? { composition } : {}),
     reference: {
       summary: 'One Pattern stays constant while each Effect in this family changes the rendered result.',
-      patternSlots: { cellIds: scenes.map((item) => cellId(item.id, 'zone-1')), instanceIds: [] },
+      // Composition-backed effect showcases (#823) swap their instances with
+      // the same slot: the declared scope must name them or the legacy
+      // reference fallback swaps cells only and the timeline never relabels.
+      patternSlots: {
+        cellIds: scenes.map((item) => cellId(item.id, 'zone-1')),
+        instanceIds: composition ? composition.patternInstances.map((instance) => instance.id) : [],
+      },
       examples: scenes.map((item, index) => ({
         id: `${kind}-${index + 1}`,
         label: item.name,
@@ -3656,6 +3764,7 @@ function overtureRemix(): StockShow {
   ))
   const composition: ShowCompositionV1 = {
     version: 1,
+    executionModel: 'deterministic-loop',
     patternInstances: [
       // One bulb-pitch step per bar; four bulbs around any run. Spacing is
       // tuned so the pitch is exactly 0.25: at every bar boundary the chase
@@ -3816,7 +3925,7 @@ function overtureRemix(): StockShow {
   // budget, so the transition luxury goes back on the shelf: the cut IS the
   // reveal.
   const transitions: ShowBoundaryTransition[] = cutBoundaries(overtureScenes)
-  return catalogue({
+  return normalizedCatalogue({
     id, title: 'Overture', track: 'installation', collection: 'remixes', level: null, order: 3,
     noteLabel: 'Remixes',
     purpose: 'The building is the performer. Three grayscale Luma instances play a 1,000-LED proscenium at '
@@ -3841,6 +3950,18 @@ function overtureRemix(): StockShow {
     output: { kind: 'installation', mapId: 'proscenium-stage-2d', pixelCount: 1_000 },
     zones, layouts, scenes: overtureScenes, transitions, composition,
   })
+}
+
+function normalizedCatalogue(input: CatalogueInput): StockShow {
+  const stock = catalogue(input)
+  if (!stock.show.composition) return stock
+  return {
+    ...stock,
+    show: {
+      ...stock.show,
+      composition: normalizeShowComposition(stock.show, stock.show.composition),
+    },
+  }
 }
 
 function catalogue(input: CatalogueInput): StockShow {
@@ -3972,32 +4093,6 @@ function clip(zoneId: string, pattern: string, timeScale: number, controls?: Rec
 
 function boundary(afterSceneId: string, kind: Exclude<ShowBoundaryTransition['kind'], 'routing'>, durationMs: number, easing: ShowStructuredEasing, extra: Partial<ShowBoundaryTransition> = {}): ShowBoundaryTransition {
   return { id: `transition-${afterSceneId}`, afterSceneId, kind, durationMs, easing, ...extra }
-}
-
-function effectTweenBoundary(
-  source: SceneSpec,
-  destination: SceneSpec,
-  fromEffects: ShowClipEffect[],
-  toEffects: ShowClipEffect[],
-): ShowBoundaryTransition {
-  const destinationCellId = cellId(destination.id, destination.clips[0].zoneId)
-  const effects = Object.fromEntries(toEffects.flatMap((toEffect, index) => {
-    const fromEffect = fromEffects[index]
-    if (!fromEffect || fromEffect.id !== toEffect.id || fromEffect.kind !== toEffect.kind) return []
-    const parameters = Object.fromEntries(showEffectParameterNames(toEffect).flatMap((parameter) => {
-      const from = showEffectNumericValue(fromEffect, parameter)
-      const to = showEffectNumericValue(toEffect, parameter)
-      return from === to ? [] : [[parameter, {
-        fromByCellId: { [destinationCellId]: from },
-        durationMs: 1_000,
-        easing: SINE_IN_OUT,
-      }]]
-    }))
-    return Object.keys(parameters).length > 0 ? [[toEffect.id, parameters]] : []
-  }))
-  return boundary(source.id, 'crossfade', 1_000, SINE_IN_OUT, {
-    propertyTransitions: { effects },
-  })
 }
 
 function cutBoundaries(scenes: SceneSpec[]): ShowBoundaryTransition[] {

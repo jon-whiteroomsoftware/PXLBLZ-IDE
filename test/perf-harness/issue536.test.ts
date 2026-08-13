@@ -101,12 +101,18 @@ describe('Restart-instance global-liveness census (#536)', () => {
     // Recensused for Overture (#840): its three held instances add +183
     // member globals with no new reclaimable set; the reclaim percent stays
     // 0, the weighted figure dilutes, and the stop verdict is unchanged.
+    // Recensused for the #823 recompilation sweep: 105's water voice
+    // returns to Caustics (exact deterministic-loop reset) and the
+    // Transform showcase re-expresses its glides on placement-effect
+    // tracks (net +22 member globals at this frozen vintage) with no new
+    // reclaimable set; the reclaim percent stays 0, the weighted figure
+    // dilutes, and the stop verdict is unchanged.
     expect(report.summary).toMatchObject({
-      representativeMemberGlobals: 3_652,
+      representativeMemberGlobals: 3_674,
       representativeReclaimedGlobals: 206,
     })
     expect(report.decision.representativeReclaimPercent).toBe(0)
-    expect(report.decision.weightedRepresentativeReclaimPercent).toBeCloseTo(0.05640745, 8)
+    expect(report.decision.weightedRepresentativeReclaimPercent).toBeCloseTo(0.05606968, 8)
     expect(report.decision.ceilingRescues).toEqual([])
     expect(report.decision.proceedWithEmission).toBe(false)
     expect(report.decision.proceedWithEmission).toBe(

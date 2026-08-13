@@ -587,7 +587,7 @@ describe('stock Show curriculum (#363)', () => {
     const instances = item.show.composition!.patternInstances
 
     expect(instances.map((instance) => instance.patternName))
-      .toEqual(['ClockworkIris', 'EventHorizon', 'SignalMandala'])
+      .toEqual(['EventHorizon', 'ClockworkIris', 'SignalMandala'])
     const kinds = (item.show.composition!.transitions ?? []).map((transition) => transition.kind)
     expect(new Set(kinds).size, 'two distinct Transition families').toBe(2)
     expect(kinds).toContain('crossfade')
@@ -668,17 +668,26 @@ describe('stock Show curriculum (#363)', () => {
     const item = stockShowById('stock-show-105-portable-zones')!
     const composition = item.show.composition!
 
-    // Water voice recast to ZRanger1's IceFloes2D (#727): split separation
-    // re-proven by probe (83-degree boundary hue contrast at matched
-    // luminance, flux 0.097 vs the replaced Caustics 0.096).
+    // Water voice restored to Caustics (#823): the deterministic-loop
+    // contract needs member state that reconstructs exactly at Show End,
+    // which IceFloes2D's nested random arrays cannot provide. The #727
+    // IceFloes2D measurements (flux 0.097 vs Caustics 0.096) show the
+    // split separation survives the restoration.
     expect(composition.patternInstances.map((instance) => instance.patternName))
-      .toEqual(['RibbonLoom', 'IceFloes2D'])
+      .toEqual(['RibbonLoom', 'Caustics'])
     // Three Layouts that render very differently, each reached by a swept
-    // routing boundary.
+    // routing boundary. The zero-duration Cuts are the materialized
+    // canonical boundary records (#823), not a visual treatment.
     expect(item.show.routingLayouts.map((layout) => layout.logical?.kind)).toEqual(['split', 'rings', 'pinwheel'])
     expect(item.show.transitions.map((transition) => [transition.kind, transition.durationMs, transition.layoutId]))
-      .toEqual([['routing', 1_500, 'layout-rings'], ['routing', 1_500, 'layout-pinwheel']])
-    expect(item.show.transitions.every((transition) => transition.routingDirection === 'forward')).toBe(true)
+      .toEqual([
+        ['cut', 0, undefined],
+        ['routing', 1_500, 'layout-rings'],
+        ['cut', 0, undefined],
+        ['routing', 1_500, 'layout-pinwheel'],
+      ])
+    expect(item.show.transitions.filter((transition) => transition.kind === 'routing')
+      .every((transition) => transition.routingDirection === 'forward')).toBe(true)
 
     // The rings count exceeds the Zone count: the cycle deals rings modulo
     // Zone order, so the bullseye reads Weave-Water-Weave and the note's
@@ -826,8 +835,9 @@ describe('stock Show curriculum (#363)', () => {
 
     // Every junction is a different Transition family. The capstone's job is to
     // show that a Crossfade is one option among several, not the only one.
+    // (Canonical record order, not junction order, since #823.)
     expect((composition.transitions ?? []).map((transition) => transition.kind))
-      .toEqual(['crossfade', 'portal', 'dither'])
+      .toEqual(['dither', 'crossfade', 'portal'])
     expect(placements.filter((placement) => placement.effects?.length).length).toBe(1)
     expect(placements.filter((placement) => placement.transform !== undefined).length).toBe(1)
     expect(placements.every((placement) => placement.viewport === undefined)).toBe(true)
@@ -871,14 +881,14 @@ describe('stock Show curriculum (#363)', () => {
     const tracks = composition.scenes[0].propertyTracks ?? []
     const releases = tracks.filter((track) => track.id.endsWith('-release'))
 
-    expect(releases.map((track) => track.id)).toEqual(['track-sky-release', 'track-ground-release'])
+    expect(releases.map((track) => track.id)).toEqual(['track-ground-release', 'track-sky-release'])
     for (const track of releases) {
       expect(track.keyframes.map((frame) => [frame.timeMs, frame.value]), track.id)
         .toEqual([[24_000, 1], [28_000, 0], [30_000, 0]])
     }
     // Each release owns the closing Clip of its own Zone.
     expect(releases.map((track) => (track.target as { placementId: string }).placementId))
-      .toEqual(['clip-sky-reprise', 'clip-ground-return'])
+      .toEqual(['clip-ground-return', 'clip-sky-reprise'])
     for (const zone of composition.scenes[0].zones) {
       const ordered = [...zone.main].sort((a, b) => a.startMs - b.startMs)
       const last = ordered[ordered.length - 1]
@@ -980,25 +990,29 @@ describe('stock Show curriculum (#363)', () => {
     expect(new Set(subjects.map((placementItem) => placementItem.instanceId)).size).toBe(1)
 
     const tracks = composition.scenes[0].propertyTracks ?? []
+    // Canonical track order since #823: the Content pan leads, then the four
+    // viewport ramps.
     expect(tracks.map((track) => track.target.kind)).toEqual([
-      'placement-viewport', 'placement-viewport',
-      'placement-viewport', 'placement-viewport',
       'placement-transform',
+      'placement-viewport', 'placement-viewport',
+      'placement-viewport', 'placement-viewport',
     ])
     // The crop animates in: width and height shrink from the full Stage.
-    expect(tracks[0].target).toMatchObject({ placementId: 'clip-frame', property: 'width' })
+    // (Canonical order is by track id: content-pan, frame-height,
+    // frame-move-x, frame-move-y, frame-width.)
+    expect(tracks[0].target).toMatchObject({ placementId: 'clip-content-pan', property: 'positionX' })
     expect(tracks[1].target).toMatchObject({ placementId: 'clip-frame', property: 'height' })
     expect(tracks[2].target).toMatchObject({ placementId: 'clip-frame-move', property: 'x' })
     expect(tracks[3].target).toMatchObject({ placementId: 'clip-frame-move', property: 'y' })
-    expect(tracks[4].target).toMatchObject({ placementId: 'clip-content-pan', property: 'positionX' })
+    expect(tracks[4].target).toMatchObject({ placementId: 'clip-frame', property: 'width' })
     // Every animation starts from the value the previous Clip established -
     // full-Stage frame, corner position, neutral Content - so each junction
     // is seamless.
-    expect(tracks[0].keyframes[0].value).toBe(1)
+    expect(tracks[0].keyframes[0].value).toBe(0)
     expect(tracks[1].keyframes[0].value).toBe(1)
     expect(tracks[2].keyframes[0].value).toBe(0)
     expect(tracks[3].keyframes[0].value).toBe(0)
-    expect(tracks[4].keyframes[0].value).toBe(0)
+    expect(tracks[4].keyframes[0].value).toBe(1)
   })
 
   // Heavy lesson replay; loaded machines have pushed it past the 5s default
@@ -1151,14 +1165,18 @@ describe('stock Show curriculum (#363)', () => {
     expect(item.show.zones.map((zone) => zone.name)).toEqual(['Weave', 'Water'])
     expect(item.show.routingLayouts.map((layout) => [layout.name, layout.logical?.kind]))
       .toEqual([['Full Surface', 'single'], ['Moving Split', 'split'], ['Rings', 'rings']])
-    // One swept restatement, one atomic one - and no visual Transition
-    // anywhere, so topology change stays distinct from blending.
+    // One swept restatement, one atomic one - and no blending Transition
+    // anywhere, so topology change stays distinct from blending. The
+    // zero-duration Cuts are the materialized canonical boundary records
+    // (#823), not a visual treatment.
     expect(item.show.transitions.map((transition) => [transition.kind, transition.durationMs, transition.layoutId]))
       .toEqual([
+        ['cut', 0, undefined],
         ['routing', 1_500, 'layout-split'],
+        ['cut', 0, undefined],
         ['routing', 0, 'layout-rings'],
       ])
-    expect(item.show.transitions[0].routingDirection).toBe('forward')
+    expect(item.show.transitions[1].routingDirection).toBe('forward')
 
     // The loom instance continues through every interval; the water joins at
     // the split and stays. Neither ever restarts at a Layout boundary.
@@ -1413,9 +1431,15 @@ describe('stock Show curriculum (#363)', () => {
       // its clock keeps running and the first partition reveals mid-motion
       // state rather than a restart (review P2); and a Zone never changes
       // instance. Every boundary therefore re-deals geometry without
-      // touching Pattern state.
-      expect(item.show.transitions, item.name).toHaveLength(item.show.scenes.length - 1)
-      expect(item.show.transitions.every((transition) => transition.kind === 'routing'), item.name).toBe(true)
+      // touching Pattern state. Each boundary also carries a materialized
+      // zero-duration Cut record (#823) - the canonical default, not a
+      // visual treatment.
+      const routingSwitches = item.show.transitions.filter((transition) => transition.kind === 'routing')
+      const boundaryCuts = item.show.transitions.filter((transition) => transition.kind === 'cut')
+      expect(routingSwitches, item.name).toHaveLength(item.show.scenes.length - 1)
+      expect(boundaryCuts, item.name).toHaveLength(item.show.scenes.length - 1)
+      expect(boundaryCuts.every((transition) => transition.durationMs === 0), item.name).toBe(true)
+      expect(item.show.transitions, item.name).toHaveLength(routingSwitches.length + boundaryCuts.length)
       const composition = item.show.composition!
       const zoneIds = item.show.zones.map((zone) => zone.id)
       const instancesByZone = new Map<string, Set<string>>()
@@ -1450,12 +1474,13 @@ describe('stock Show curriculum (#363)', () => {
     expect(sweeps[0].routingDirection).toBe('forward')
 
     // Shared casting: the hero pair opens every sibling, and only the
-    // four-voice sibling extends it.
+    // four-voice sibling extends it. (Canonical instance order since #823:
+    // ember, garden, rain, tide.)
     expect(trio.map((item) => item.show.composition!.patternInstances.map((instance) => instance.patternName)))
       .toEqual([
-        ['MetaballGarden', 'IQPalettes'],
-        ['MetaballGarden', 'IQPalettes', 'Caustics', 'GlyphRain'],
-        ['MetaballGarden', 'IQPalettes'],
+        ['IQPalettes', 'MetaballGarden'],
+        ['IQPalettes', 'MetaballGarden', 'GlyphRain', 'Caustics'],
+        ['IQPalettes', 'MetaballGarden'],
       ])
   })
 
@@ -1601,15 +1626,28 @@ describe('stock Show curriculum (#363)', () => {
       ['affine-rotate', 'rotate'],
       ['affine-shear', 'shear'],
     ])
-    expect(affineTransitions.every((transition) => (
-      transition.durationMs === 1_000
-      && showEasingOptionId(transition.easing) === 'sine-in-out'
-      && Object.keys(transition.propertyTransitions?.effects ?? {}).length > 0
+    // The glides live on destination-span placement-effect Property tracks
+    // (#823): each junction is an explicit Cut and the affine parameters
+    // ramp, eased, over the first second of the arriving span.
+    expect(affineTransitions.every((transition) => transition.kind === 'cut')).toBe(true)
+    const affineScenes = item.show.composition!.scenes.slice(1, 5)
+    expect(affineScenes.every((scene) => (scene.propertyTracks ?? [])
+      .some((track) => track.target.kind === 'placement-effect'))).toBe(true)
+    const affineTracks = item.show.composition!.scenes.flatMap((scene) => (scene.propertyTracks ?? [])
+      .filter((track) => track.target.kind === 'placement-effect'))
+    expect(affineTracks.every((track) => (
+      track.keyframes[0].timeMs === 0
+      && track.keyframes[track.keyframes.length - 1].timeMs === 1_000
+      && track.keyframes.every((frame) => frame.easing !== undefined)
     ))).toBe(true)
 
     const compiled = compileShowForArtifact(item.show, [], undefined, {}, { stageDimension: 2 })
     expect(compiled.artifact?.summary.cost.cpu.patternEvaluations).toMatchObject({ formula: 'N', basePerPixel: 1 })
-    expect(compiled.artifact?.summary.cost.cpu.effects.animatedParametersPerFrame).toBeGreaterThan(0)
+    // The cost ledger's animatedParametersPerFrame counts transition-driven
+    // parameter animation only, so the track-driven glides read 0 there
+    // (#823); the affine stack itself still prices per frame, and track
+    // liveness is proven by differential replay during the re-pin.
+    expect(compiled.artifact?.summary.cost.cpu.effects.affineOperationsPerFrame).toBe(4)
     expect(compiled.artifact?.summary.worstInstantRenderersPerPixel).toBe(1)
   })
 
