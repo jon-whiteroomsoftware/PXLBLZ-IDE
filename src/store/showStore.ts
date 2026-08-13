@@ -35,6 +35,7 @@ import {
   updateShowTransition,
   showCellAtSlot,
   forfeitShowExecutionModelOnCastChange,
+  reconcileShowExecutionModelOnCastReturn,
 } from '@/engine/showModel'
 import { getPersonalContentProvider } from '@/engine/personalContentProvider'
 import type {
@@ -360,7 +361,7 @@ export const useShowStore = create<ShowState>()((set, get) => ({
     if (stockShowById(id)) {
       const previousRecord = get().resolveEditableShow(id)
       if (!previousRecord || next === previousRecord) return
-      next = forfeitShowExecutionModelOnCastChange(previousRecord, next)
+      next = reconcileShowExecutionModelOnCastReturn(previousRecord, forfeitShowExecutionModelOnCastChange(previousRecord, next))
       const previous = normalizeShowRecord(previousRecord)
       const previousHistory = get().showHistories[id] ?? { past: [], future: [] }
       set((state) => ({
@@ -374,7 +375,7 @@ export const useShowStore = create<ShowState>()((set, get) => ({
     }
     const previousRecord = get().shows.find((show) => show.id === id)
     if (!previousRecord || next === previousRecord) return
-    next = forfeitShowExecutionModelOnCastChange(previousRecord, next)
+    next = reconcileShowExecutionModelOnCastReturn(previousRecord, forfeitShowExecutionModelOnCastChange(previousRecord, next))
     const previous = normalizeShowRecord(previousRecord)
     const normalizedNext = normalizeShowRecord(next)
     const previousHistory = get().showHistories[id] ?? { past: [], future: [] }

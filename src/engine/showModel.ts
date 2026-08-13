@@ -1357,7 +1357,8 @@ function normalizeBoundaryTransition(transition: ShowBoundaryTransition): ShowBo
   // positive durations for non-Cut kinds, and deleting a visual Transition
   // already persists as a cut record. Normalizing the kind keeps the
   // floor-free duration model (#823) compilable end to end.
-  const kind = transition.kind !== 'cut' && transition.kind !== 'routing' && transition.durationMs <= 0
+  const kind = transition.kind !== 'cut' && transition.kind !== 'routing'
+    && clampTransitionDuration(transition.durationMs) <= 0
     ? 'cut'
     : transition.kind
   const base: ShowBoundaryTransition = {
@@ -2848,6 +2849,32 @@ export function forfeitShowExecutionModelOnCastChange(previous: ShowRecord, next
   ])
   if (castOf(previous) === castOf(next)) return next
   return { ...next, composition: { ...next.composition, executionModel: undefined } }
+}
+
+/**
+ * The inverse guard: an update whose cast still equals the previous record's
+ * cast keeps the previous deterministic-loop stamp, even when intermediate
+ * transient state (a Try-with projection unwound through Clip Detail rather
+ * than the slot picker) dropped it. Cast-equality is the same fingerprint the
+ * forfeiture uses, so the pair is idempotent and symmetric (#823 review).
+ */
+export function reconcileShowExecutionModelOnCastReturn(previous: ShowRecord, next: ShowRecord): ShowRecord {
+  if (!previous.composition?.executionModel || !next.composition) return next
+  if (next.composition.executionModel !== undefined) return next
+  if (castFingerprint(previous) !== castFingerprint(next)) return next
+  return { ...next, composition: { ...next.composition, executionModel: previous.composition.executionModel } }
+}
+
+function castFingerprint(record: ShowRecord): string {
+  return JSON.stringify([
+    record.composition?.patternInstances.map((instance) => [instance.id, instance.pattern.kind, instance.pattern.id]) ?? null,
+    record.composition?.groupDefinitions?.map((definition) => (
+      definition.patternInstances.map((instance) => [instance.id, instance.pattern.kind, instance.pattern.id])
+    )) ?? null,
+    record.composition?.groupOccurrences?.map((occurrence) => (
+      [occurrence.id, occurrence.definitionId]
+    )) ?? null,
+  ])
 }
 
 function clampTransitionDuration(durationMs: number): number {
