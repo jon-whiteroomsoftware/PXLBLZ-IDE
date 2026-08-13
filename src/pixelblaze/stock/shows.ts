@@ -185,7 +185,10 @@ function learn100(): StockShow {
   ]
   const composition: ShowCompositionV1 = normalizeShowComposition({ scenes, zones }, {
     version: 1,
-    executionModel: 'deterministic-loop',
+    // deterministic-loop withheld (#823): the full-scene wrap census could not
+    // prove exact Show End reset for this record (member state drift, or a
+    // transition-extended timeline the census cannot phase-lock); upgrade
+    // path is engine state snapshot/restore (#841).
     patternInstances: [
       instance('ribbons', 'RibbonLoom', LESSON_TIME_SCALE),
       instance('garden', 'MetaballGarden', LESSON_TIME_SCALE),
@@ -238,7 +241,10 @@ function learn101(): StockShow {
   ]
   const composition: ShowCompositionV1 = normalizeShowComposition({ scenes, zones }, {
     version: 1,
-    executionModel: 'deterministic-loop',
+    // deterministic-loop withheld (#823): the full-scene wrap census could not
+    // prove exact Show End reset for this record (member state drift, or a
+    // transition-extended timeline the census cannot phase-lock); upgrade
+    // path is engine state snapshot/restore (#841).
     patternInstances: [
       instance('ribbons', 'RibbonLoom', LESSON_TIME_SCALE),
       instance('garden', 'MetaballGarden', LESSON_TIME_SCALE),
@@ -429,7 +435,10 @@ function learn104(): StockShow {
   ]
   const composition: ShowCompositionV1 = normalizeShowComposition({ scenes, zones }, {
     version: 1,
-    executionModel: 'deterministic-loop',
+    // deterministic-loop withheld (#823): the full-scene wrap census could not
+    // prove exact Show End reset for this record (member state drift, or a
+    // transition-extended timeline the census cannot phase-lock); upgrade
+    // path is engine state snapshot/restore (#841).
     patternInstances: [instance('garden', 'MetaballGarden', LESSON_TIME_SCALE)],
     scenes: [{
       sceneId: 'stacks',
@@ -581,7 +590,10 @@ function learn106(): StockShow {
   ]
   const composition: ShowCompositionV1 = normalizeShowComposition({ scenes, zones }, {
     version: 1,
-    executionModel: 'deterministic-loop',
+    // deterministic-loop withheld (#823): the full-scene wrap census could not
+    // prove exact Show End reset for this record (member state drift, or a
+    // transition-extended timeline the census cannot phase-lock); upgrade
+    // path is engine state snapshot/restore (#841).
     patternInstances: [
       instance('bloom', 'TopographicBloom', LESSON_TIME_SCALE),
       instance('mandala', 'SignalMandala', LESSON_TIME_SCALE),
@@ -1184,7 +1196,10 @@ function learn206(): StockShow {
   ]
   const composition: ShowCompositionV1 = {
     version: 1,
-    executionModel: 'deterministic-loop',
+    // deterministic-loop withheld (#823): the full-scene wrap census could not
+    // prove exact Show End reset for this record (member state drift, or a
+    // transition-extended timeline the census cannot phase-lock); upgrade
+    // path is engine state snapshot/restore (#841).
     patternInstances: [
       instance('loom', 'RibbonLoom', LESSON_TIME_SCALE),
       instance('water', 'IceFloes2D', LESSON_TIME_SCALE),
@@ -1634,7 +1649,10 @@ function learn303(): StockShow {
   ]
   const composition: ShowCompositionV1 = {
     version: 1,
-    executionModel: 'deterministic-loop',
+    // deterministic-loop withheld (#823): the full-scene wrap census could not
+    // prove exact Show End reset for this record (member state drift, or a
+    // transition-extended timeline the census cannot phase-lock); upgrade
+    // path is engine state snapshot/restore (#841).
     patternInstances: [
       instance('loom', 'RibbonLoom', LESSON_TIME_SCALE),
       instance('garden', 'MetaballGarden', LESSON_TIME_SCALE),
@@ -1818,7 +1836,10 @@ function zoneLayoutShowcase(kind: ZoneLayoutShowcaseKind): StockShow {
   ))
   const composition: ShowCompositionV1 = {
     version: 1,
-    executionModel: 'deterministic-loop',
+    // deterministic-loop withheld (#823): the full-scene wrap census could not
+    // prove exact Show End reset for this record (member state drift, or a
+    // transition-extended timeline the census cannot phase-lock); upgrade
+    // path is engine state snapshot/restore (#841).
     patternInstances: voices.map((voice, index) => instance(voice, voicePatterns[index], LESSON_TIME_SCALE)),
     scenes: config.passages.map((passage) => ({
       sceneId: passage.id,
@@ -1957,7 +1978,10 @@ function redlineInstallation(): StockShow {
   }
   const composition: ShowCompositionV1 = {
     version: 1,
-    executionModel: 'deterministic-loop',
+    // deterministic-loop withheld (#823): the full-scene wrap census could not
+    // prove exact Show End reset for this record (member state drift, or a
+    // transition-extended timeline the census cannot phase-lock); upgrade
+    // path is engine state snapshot/restore (#841).
     patternInstances,
     scenes: phrases.map((phrase, phraseIndex) => ({
       sceneId: phrase.id,
@@ -2299,7 +2323,10 @@ function propertyAnimationReference(): StockShow {
     // different Pattern time within their passage - that divergence is the
     // demonstration - so on wrap they must reset rather than resume, or the
     // twins re-enter already out of phase on every loop after the first.
-    executionModel: 'deterministic-loop',
+    // deterministic-loop withheld (#823): the full-scene wrap census could not
+    // prove exact Show End reset for this record (member state drift, or a
+    // transition-extended timeline the census cannot phase-lock); upgrade
+    // path is engine state snapshot/restore (#841).
     patternInstances,
     scenes: properties.map(([sceneId]) => {
       const mainA = {
@@ -3794,7 +3821,10 @@ function overtureRemix(): StockShow {
   ))
   const composition: ShowCompositionV1 = {
     version: 1,
-    executionModel: 'deterministic-loop',
+    // deterministic-loop withheld (#823): the full-scene wrap census could not
+    // prove exact Show End reset for this record (member state drift, or a
+    // transition-extended timeline the census cannot phase-lock); upgrade
+    // path is engine state snapshot/restore (#841).
     patternInstances: [
       // One bulb-pitch step per bar; four bulbs around any run. Spacing is
       // tuned so the pitch is exactly 0.25: at every bar boundary the chase

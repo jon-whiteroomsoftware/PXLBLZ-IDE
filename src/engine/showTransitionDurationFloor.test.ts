@@ -29,9 +29,15 @@ describe('transition duration floor (#823)', () => {
     }
   })
 
-  it('clamps only negatives and keeps zero-duration records intact', () => {
-    expect(normalizeShowTransitionState(showWith(0)).transitions[0].durationMs).toBe(0)
-    expect(normalizeShowTransitionState(showWith(-50)).transitions[0].durationMs).toBe(0)
+  it('normalizes zero-duration visual transitions into compilable Cuts', () => {
+    // The compiler requires positive durations for non-Cut kinds, and a
+    // deleted visual Transition already persists as a cut record, so zero
+    // means Cut rather than an uncompilable crossfade (#823 review P1).
+    for (const durationMs of [0, -50]) {
+      const normalized = normalizeShowTransitionState(showWith(durationMs)).transitions[0]
+      expect(normalized.kind, `${durationMs}ms`).toBe('cut')
+      expect(normalized.durationMs, `${durationMs}ms`).toBe(0)
+    }
   })
 
   it('caps boundary-owned property descriptors at the real transition duration', () => {

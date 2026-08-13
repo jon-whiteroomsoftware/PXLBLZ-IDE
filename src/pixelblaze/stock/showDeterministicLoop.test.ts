@@ -42,10 +42,23 @@ describe('stock deterministic-loop census (#823)', () => {
         ?? projectShowTimeline(item.show).durationMs
       expect(durationMs, `${item.name} has a measurable duration`).toBeGreaterThan(0)
 
-      const sampleTimesMs = [250, 1_000, 2_500]
+      // Sample early and mid in EVERY scene of the loop, not just its first
+      // seconds: a voice whose state drifted but only becomes visible or
+      // routed in a later passage (GlyphRain in 100, IceFloes2D in 206, the
+      // Zone Layout showcases' later partitions) is invisible to an opening
+      // sample - the first census shipped with exactly that blind spot
+      // (#823 review P1).
+      let cursorMs = 0
+      const sampleTimesMs: number[] = []
+      for (const scene of item.show.scenes) {
+        sampleTimesMs.push(Math.min(cursorMs + 400, durationMs - 100))
+        sampleTimesMs.push(Math.min(cursorMs + Math.floor(scene.durationMs / 2), durationMs - 100))
+        cursorMs += scene.durationMs
+      }
+      const orderedSamples = [...new Set(sampleTimesMs)].sort((left, right) => left - right)
       const loopOne = runtimeFor()
       const loopTwo = runtimeFor()
-      for (const timeMs of sampleTimesMs) {
+      for (const timeMs of orderedSamples) {
         const first = loopOne.advanceTo(timeMs, { stepMs: 50 }).checksum
         const second = loopTwo.advanceTo(durationMs + timeMs, { stepMs: 50 }).checksum
         expect(second, `${item.name} at ${timeMs}ms wraps exactly`).toBe(first)

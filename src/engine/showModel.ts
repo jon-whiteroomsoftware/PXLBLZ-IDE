@@ -1353,7 +1353,13 @@ export function showRoutingTransitionAfter(
 }
 
 function normalizeBoundaryTransition(transition: ShowBoundaryTransition): ShowBoundaryTransition {
-  const kind = transition.kind
+  // A zero-duration visual transition IS a Cut: the compiler requires
+  // positive durations for non-Cut kinds, and deleting a visual Transition
+  // already persists as a cut record. Normalizing the kind keeps the
+  // floor-free duration model (#823) compilable end to end.
+  const kind = transition.kind !== 'cut' && transition.kind !== 'routing' && transition.durationMs <= 0
+    ? 'cut'
+    : transition.kind
   const base: ShowBoundaryTransition = {
     id: transition.id || `${kind === 'routing' ? 'routing' : 'transition'}-${transition.afterSceneId}`,
     afterSceneId: transition.afterSceneId,
@@ -2352,21 +2358,30 @@ function showRecordToStaticRoutedRecipe(
   const splitPosition = splitLayout
     ? {
         initial: clamp01(normalized.scenes[0]?.routingTargets?.splitPosition ?? 0.5),
-        ramps: normalized.scenes.slice(0, -1).map((scene, sceneIndex) => {
-          const target = clamp01(normalized.scenes[sceneIndex + 1]?.routingTargets?.splitPosition ?? 0.5)
-          const boundary = normalized.transitions?.find((transition) => (
-            transition.afterSceneId === scene.id && transition.kind !== 'routing'
-          ))
-          const descriptor = boundary?.propertyTransitions?.routing?.splitPosition
-          return {
-            atMs: normalized.scenes.slice(0, sceneIndex + 1)
-              .reduce((sum, candidate) => sum + Math.max(0, candidate.durationMs), 0),
-            from: clamp01(descriptor?.from ?? scene.routingTargets?.splitPosition ?? 0.5),
-            to: target,
-            durationMs: descriptor?.durationMs ?? 0,
-            easing: descriptor?.easing ?? { curve: 'linear' },
-          }
-        }),
+        // Ramp anchors accumulate visual-transition extensions exactly like
+        // the routing switches: a positive-duration boundary extends the
+        // compiled timeline, and a ramp anchored at bare hold sums fires
+        // early by every preceding extension (#823 review P1).
+        ramps: (() => {
+          let rampCursorMs = 0
+          return normalized.scenes.slice(0, -1).map((scene, sceneIndex) => {
+            rampCursorMs += Math.max(0, scene.durationMs)
+            const target = clamp01(normalized.scenes[sceneIndex + 1]?.routingTargets?.splitPosition ?? 0.5)
+            const boundary = normalized.transitions?.find((transition) => (
+              transition.afterSceneId === scene.id && transition.kind !== 'routing'
+            ))
+            const descriptor = boundary?.propertyTransitions?.routing?.splitPosition
+            const ramp = {
+              atMs: rampCursorMs,
+              from: clamp01(descriptor?.from ?? scene.routingTargets?.splitPosition ?? 0.5),
+              to: target,
+              durationMs: descriptor?.durationMs ?? 0,
+              easing: descriptor?.easing ?? { curve: 'linear' },
+            }
+            rampCursorMs += Math.max(0, showVisualTransitionAfter(normalized, scene.id)?.durationMs ?? 0)
+            return ramp
+          })
+        })(),
       }
     : undefined
   const installationZones = installationContract && normalized.routingLayouts[0]
@@ -2403,7 +2418,7 @@ function showRecordToStaticRoutedRecipe(
     masterPixelCount: installationContract?.pixelCount,
     routingSwitches: routingLayouts ? activeSwitches : undefined,
     routingPropertyRamps: splitPosition ? { splitPosition } : undefined,
-    samplePropertyRamps: showSamplePropertyRamps(normalized, false),
+    samplePropertyRamps: showSamplePropertyRamps(normalized, true),
     loopDurationMs: routingLayouts ? loopDurationMs : undefined,
   }
 }
@@ -2460,21 +2475,30 @@ function showRecordToRoutedSceneSequenceRecipe(
   const splitPosition = splitLayout
     ? {
         initial: clamp01(normalized.scenes[0]?.routingTargets?.splitPosition ?? 0.5),
-        ramps: normalized.scenes.slice(0, -1).map((scene, sceneIndex) => {
-          const target = clamp01(normalized.scenes[sceneIndex + 1]?.routingTargets?.splitPosition ?? 0.5)
-          const boundary = normalized.transitions?.find((transition) => (
-            transition.afterSceneId === scene.id && transition.kind !== 'routing'
-          ))
-          const descriptor = boundary?.propertyTransitions?.routing?.splitPosition
-          return {
-            atMs: normalized.scenes.slice(0, sceneIndex + 1)
-              .reduce((sum, candidate) => sum + Math.max(0, candidate.durationMs), 0),
-            from: clamp01(descriptor?.from ?? scene.routingTargets?.splitPosition ?? 0.5),
-            to: target,
-            durationMs: descriptor?.durationMs ?? 0,
-            easing: descriptor?.easing ?? { curve: 'linear' },
-          }
-        }),
+        // Ramp anchors accumulate visual-transition extensions exactly like
+        // the routing switches: a positive-duration boundary extends the
+        // compiled timeline, and a ramp anchored at bare hold sums fires
+        // early by every preceding extension (#823 review P1).
+        ramps: (() => {
+          let rampCursorMs = 0
+          return normalized.scenes.slice(0, -1).map((scene, sceneIndex) => {
+            rampCursorMs += Math.max(0, scene.durationMs)
+            const target = clamp01(normalized.scenes[sceneIndex + 1]?.routingTargets?.splitPosition ?? 0.5)
+            const boundary = normalized.transitions?.find((transition) => (
+              transition.afterSceneId === scene.id && transition.kind !== 'routing'
+            ))
+            const descriptor = boundary?.propertyTransitions?.routing?.splitPosition
+            const ramp = {
+              atMs: rampCursorMs,
+              from: clamp01(descriptor?.from ?? scene.routingTargets?.splitPosition ?? 0.5),
+              to: target,
+              durationMs: descriptor?.durationMs ?? 0,
+              easing: descriptor?.easing ?? { curve: 'linear' },
+            }
+            rampCursorMs += Math.max(0, showVisualTransitionAfter(normalized, scene.id)?.durationMs ?? 0)
+            return ramp
+          })
+        })(),
       }
     : undefined
   const installationZones = installationContract && normalized.routingLayouts[0]
@@ -2645,7 +2669,7 @@ function showRecordToRoutedSceneSequenceRecipe(
     masterPixelCount: installationContract?.pixelCount,
     routingSwitches: routingLayouts ? activeSwitches : undefined,
     routingPropertyRamps: splitPosition ? { splitPosition } : undefined,
-    samplePropertyRamps: showSamplePropertyRamps(normalized, false),
+    samplePropertyRamps: showSamplePropertyRamps(normalized, true),
     loopDurationMs: routingLayouts ? loopDurationMs : undefined,
   }
 }
