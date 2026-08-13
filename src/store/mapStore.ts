@@ -12,6 +12,7 @@ import {
   STOCK_MAP_SPECS,
   MAP_SKELETON,
   bakeMapSource,
+  isDegenerateFallbackBake,
   type GridDims,
   type PixelMap,
   type NormalizeMode,
@@ -288,6 +289,19 @@ export function selectActiveMap(state: Pick<MapState, 'activeMapId' | 'userMaps'
   if (stock) return stock
   const user = state.userMaps.find((m) => m.id === state.activeMapId)
   return user ? mapFromRecord(user) : STOCK_MAPS[0]
+}
+
+// The preview keeps rendering an already-persisted fallback bake so the user can
+// diagnose and repair the map, but it must never present that geometry as a
+// successful authored bake (#817). Stock identity wins just as it does in
+// selectActiveMap, preventing a colliding personal id from leaking a warning.
+export function activeMapBakeWarning(
+  state: Pick<MapState, 'activeMapId' | 'userMaps'>,
+): string | null {
+  if (STOCK_MAPS.some((map) => map.id === state.activeMapId)) return null
+  const record = state.userMaps.find((map) => map.id === state.activeMapId)
+  if (!record || !isDegenerateFallbackBake(record)) return null
+  return `Map "${record.name}" needs repair - Preview is showing a degenerate fallback bake because its saved source is empty or broken. Open the map and restore valid source to bake it again.`
 }
 
 export function openMapForPushState(

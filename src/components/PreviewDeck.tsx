@@ -1,9 +1,14 @@
 import { useEffect } from 'react'
-import { Lock, Play, Pause, RotateCcw } from 'lucide-react'
+import { Lock, Play, Pause, RotateCcw, TriangleAlert } from 'lucide-react'
 import { controlIcon } from '@/components/iconScale'
 import { usePreviewStore, MIN_LIGHT_SIZE, MAX_LIGHT_SIZE } from '@/store/previewStore'
 import { useEditorStore } from '@/store/editorStore'
-import { useMapStore, defaultPixelCountForDim, resolveMap } from '@/store/mapStore'
+import {
+  useMapStore,
+  activeMapBakeWarning,
+  defaultPixelCountForDim,
+  resolveMap,
+} from '@/store/mapStore'
 import { usePatternStore } from '@/store/patternStore'
 import {
   writeCascadedOverride,
@@ -91,6 +96,23 @@ export function PreviewDeck({ showPrimaryBand = true }: { showPrimaryBand?: bool
   )
 }
 
+function ActiveMapBakeStatus() {
+  const warning = useMapStore(activeMapBakeWarning)
+  if (!warning) return null
+  return (
+    <span
+      role="status"
+      data-testid="map-bake-status"
+      data-state="needs-repair"
+      title={warning}
+      className="inline-flex shrink-0 items-center text-amber-400/90"
+    >
+      <TriangleAlert size={14} aria-hidden />
+      <span className="sr-only">{warning}</span>
+    </span>
+  )
+}
+
 function PrimaryBand() {
   const isRunning = usePreviewStore((s) => s.isRunning)
   const toggle = usePreviewStore((s) => s.toggle)
@@ -132,6 +154,7 @@ function PrimaryBand() {
           {previewPatternName || '—'}
         </span>
         <DimPills dims={exportedDims(previewSource)} />
+        <ActiveMapBakeStatus />
       </div>
       {showReset && (
         <button

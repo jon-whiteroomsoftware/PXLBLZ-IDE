@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeEach } from 'vitest'
-import { fireEvent, render, screen, waitFor } from '@testing-library/react'
+import { act, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { PreviewDeck } from './PreviewDeck'
 import { usePreviewStore, previewInitialState } from '@/store/previewStore'
 import { useMapStore, mapInitialState } from '@/store/mapStore'
@@ -39,6 +39,33 @@ describe('PreviewDeck (smoke)', () => {
 
     const play = screen.getByRole('button', { name: 'Run' })
     expect(play.querySelector('.lucide-play')).toBeInTheDocument()
+  })
+
+  it('signals a selected degenerate fallback bake until a healthy map replaces it (#817)', () => {
+    useEditorStore.setState({ nativeDim: 2, previewPatternName: 'Demo' })
+    useMapStore.setState({
+      activeMapId: 'fallback-fossil',
+      userMaps: [{
+        id: 'fallback-fossil',
+        name: 'Fallback fossil',
+        dim: 2,
+        generator: 'custom',
+        params: {},
+        points: [[0, 0], [1 / 3, 0], [2 / 3, 0], [1, 0]],
+        gridDims: { cols: 4, rows: 1 },
+        source: 'function(pixelCount) {',
+        updatedAt: 1,
+      }],
+    })
+
+    render(<PreviewDeck />)
+
+    const status = screen.getByRole('status', { name: /Map "Fallback fossil" needs repair/ })
+    expect(status).toHaveAttribute('data-state', 'needs-repair')
+    expect(status.getAttribute('title')).toMatch(/degenerate fallback bake/)
+
+    act(() => useMapStore.getState().setActiveMap('plane'))
+    expect(screen.queryByTestId('map-bake-status')).not.toBeInTheDocument()
   })
 
   it('renders the deck sections inline (no dialog over the canvas)', () => {

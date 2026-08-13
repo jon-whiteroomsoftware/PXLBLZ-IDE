@@ -35,6 +35,7 @@ export {
 export {
   MAP_SKELETON,
   parseMapSource,
+  isDegenerateFallbackBake,
   isMapOpenable,
   isPristineToBaseline,
   mapTemplates,

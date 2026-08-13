@@ -149,6 +149,11 @@ source because their saved forms have different contracts. Shows are also
 unchanged: they save structured choreography and compile it into a Pattern
 artifact rather than persisting the source editor buffer.
 
+When a saved custom map contains the default straight-line fallback because
+its source is empty or broken, Preview keeps the geometry visible for diagnosis
+and marks it with an amber repair warning instead of presenting it as a
+successful bake.
+
 Separately, a legacy save that fails after another editor flavor has already
 switched views is reported with an inline notice naming the record. One-shot
 edits outside the editors use a nearby notice with action-specific Retry and

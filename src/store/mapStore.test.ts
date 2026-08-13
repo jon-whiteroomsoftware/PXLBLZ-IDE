@@ -3,6 +3,7 @@ import {
   useMapStore,
   mapInitialState,
   selectActiveMap,
+  activeMapBakeWarning,
   mapFromRecord,
   layoutSource,
   isMapWrappable,
@@ -168,6 +169,74 @@ describe('selectActiveMap', () => {
   it('falls back to the default plane for an unknown active id', () => {
     const map = selectActiveMap({ activeMapId: 'ghost', userMaps: [] })
     expect(map.id).toBe(STOCK_MAPS[0].id)
+  })
+})
+
+describe('activeMapBakeWarning (#817)', () => {
+  const fallbackBake: MapRecord = {
+    id: 'fallback-fossil',
+    name: 'Fallback fossil',
+    dim: 2,
+    generator: 'custom',
+    params: {},
+    points: [[0, 0], [1 / 3, 0], [2 / 3, 0], [1, 0]],
+    gridDims: { cols: 4, rows: 1 },
+    source: '',
+    updatedAt: 1,
+  }
+
+  it('flags the active persisted fallback line when its authored source is unusable', () => {
+    const state = { activeMapId: fallbackBake.id, userMaps: [fallbackBake] }
+
+    expect(activeMapBakeWarning(state)).toBe(
+      'Map "Fallback fossil" needs repair - Preview is showing a degenerate fallback bake because its saved source is empty or broken. Open the map and restore valid source to bake it again.',
+    )
+    expect(state).toEqual({ activeMapId: fallbackBake.id, userMaps: [fallbackBake] })
+  })
+
+  it('flags the same fossil after the API normalizes an empty source to absent', () => {
+    expect(activeMapBakeWarning({
+      activeMapId: fallbackBake.id,
+      userMaps: [{ ...fallbackBake, source: undefined }],
+    })).toContain('needs repair')
+  })
+
+  it('treats whitespace-only authored source as empty', () => {
+    expect(activeMapBakeWarning({
+      activeMapId: fallbackBake.id,
+      userMaps: [{ ...fallbackBake, source: '  \n  ' }],
+    })).toContain('needs repair')
+  })
+
+  it.each([
+    ['stock map', { activeMapId: DEFAULT_MAP_ID, userMaps: [fallbackBake] }],
+    ['valid authored line', {
+      activeMapId: fallbackBake.id,
+      userMaps: [{
+        ...fallbackBake,
+        source: 'function(n){ var points=[]; for(var i=0;i<n;i++) points.push([i,0]); return points }',
+      }],
+    }],
+    ['frozen import with no source', {
+      activeMapId: fallbackBake.id,
+      userMaps: [{
+        ...fallbackBake,
+        source: undefined,
+        importMetadata: {
+          kind: 'controller' as const,
+          controllerName: 'Bench',
+          pixelCount: 4,
+          importedAt: 1,
+          normalization: 'device-fill-normalized' as const,
+        },
+      }],
+    }],
+    ['non-fallback persisted geometry', {
+      activeMapId: fallbackBake.id,
+      userMaps: [{ ...fallbackBake, points: [[0, 0], [1, 1]], gridDims: undefined }],
+    }],
+  ])('does not flag a %s', (_case, state) => {
+    expect(activeMapBakeWarning(state)).toBeNull()
   })
 })
 

@@ -51,6 +51,41 @@ export function parseMapSource(source: string): ParseError[] {
   }
 }
 
+const FALLBACK_BAKE_EPSILON = 1e-9
+
+// Historical fresh-map races could persist the default skeleton's normalized
+// N x 1 line after the authored source had already become empty or syntactically
+// broken (#817). Identify that exact fossil without evaluating arbitrary map
+// JavaScript during catalogue selection: map source is allowed to run ordinary
+// JS and can hang the tab, so this check must stay structural and parse-only.
+export function isDegenerateFallbackBake(
+  record: Pick<MapRecord, 'dim' | 'generator' | 'points' | 'source' | 'gridDims' | 'importMetadata'>,
+): boolean {
+  if (record.generator !== 'custom' || record.dim !== 2) return false
+  // The API omits an empty source from its normalized response, while a frozen
+  // Controller import intentionally has no source and carries explicit
+  // provenance. Only the former is an unusable authored-source signal.
+  if (record.importMetadata) return false
+  if (typeof record.source === 'string' && parseMapSource(record.source).length === 0) return false
+
+  const points = record.points
+  if (!points || points.length < 2) return false
+  if (
+    record.gridDims?.cols !== points.length
+    || record.gridDims.rows !== 1
+    || record.gridDims.depth !== undefined
+  ) return false
+
+  const denominator = points.length - 1
+  return points.every((point, index) => (
+    point.length === 2
+    && Number.isFinite(point[0])
+    && Number.isFinite(point[1])
+    && Math.abs(point[0] - index / denominator) <= FALLBACK_BAKE_EPSILON
+    && Math.abs(point[1]) <= FALLBACK_BAKE_EPSILON
+  ))
+}
+
 // Acorn appends " (line:col)" to its messages; drop it — the position is carried
 // structurally. Mirrors validate.ts's stripAcornSuffix.
 function stripAcornSuffix(message: string): string {

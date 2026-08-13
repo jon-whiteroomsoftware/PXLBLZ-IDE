@@ -628,6 +628,39 @@ test('saved Pattern freshness follows the full profile through a real managed ov
   await expect(page.getByText('CURRENT', { exact: true })).toHaveCount(0)
 })
 
+test('selecting a persisted degenerate fallback map signals that its bake needs repair (#817)', async ({ page }) => {
+  const map = {
+    id: 'e2e-817-degenerate-map',
+    name: 'Broken fallback map',
+    dim: 2,
+    generator: 'custom',
+    params: {},
+    points: [[0, 0], [1 / 3, 0], [2 / 3, 0], [1, 0]],
+    gridDims: { cols: 4, rows: 1 },
+    source: '',
+    updatedAt: Date.now(),
+  }
+  const created = await page.context().request.post('/api/maps', { data: map })
+  expect(created.ok(), `POST /api/maps -> ${created.status()}`).toBe(true)
+
+  await page.goto('studio/patterns/IridescentFibers')
+  const mapSelect = page.getByRole('button', { name: 'Map', exact: true })
+  await expect(mapSelect).toBeVisible()
+  await expect(page.getByTestId('map-bake-status')).toHaveCount(0)
+
+  await mapSelect.click()
+  await page.getByRole('option', { name: map.name, exact: true }).click()
+
+  await expect(mapSelect).toContainText(map.name)
+  const warning = page.getByRole('status', { name: /Map "Broken fallback map" needs repair/ })
+  await expect(warning).toHaveAttribute('data-state', 'needs-repair')
+  await expect(warning).toHaveAttribute('title', /degenerate fallback bake/)
+
+  await mapSelect.click()
+  await page.getByRole('option', { name: 'Square', exact: true }).click()
+  await expect(warning).toHaveCount(0)
+})
+
 test.describe('silent save-failure feedback (#810)', () => {
   // The simulated-offline write failures are the point of these tests; the
   // aborted requests still log as browser console errors.
