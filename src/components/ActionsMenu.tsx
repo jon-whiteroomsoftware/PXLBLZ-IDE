@@ -65,7 +65,11 @@ export function ActionsMenu({
       return true
     }
     if (escapeLayerRank !== undefined) {
-      return registerShowEscapeLayer({ rank: escapeLayerRank, onEscape: closeFromEscape })
+      return registerShowEscapeLayer({
+        rank: escapeLayerRank,
+        allowWhenDetailOwned: true,
+        onEscape: closeFromEscape,
+      })
     }
     const onKey = (event: KeyboardEvent) => {
       if (event.key !== 'Escape') return

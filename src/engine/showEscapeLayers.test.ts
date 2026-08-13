@@ -113,6 +113,29 @@ describe('registerShowEscapeLayer', () => {
     }
   })
 
+  it('lets an explicit top layer claim Escape above a detail-owned surface', () => {
+    const owned = document.createElement('div')
+    owned.setAttribute('data-show-detail-owned-portal', 'true')
+    document.body.appendChild(owned)
+    const calls: string[] = []
+    const release = registerShowEscapeLayer({
+      rank: SHOW_ESCAPE_LAYER_RANK.headerPopover,
+      allowWhenDetailOwned: true,
+      onEscape: () => (calls.push('header'), true),
+    })
+    const underlying = () => calls.push('detail')
+    document.addEventListener('keydown', underlying)
+    try {
+      const event = pressEscape()
+      expect(calls).toEqual(['header'])
+      expect(event.defaultPrevented).toBe(true)
+    } finally {
+      document.removeEventListener('keydown', underlying)
+      release()
+      owned.remove()
+    }
+  })
+
   it('ignores non-Escape keys', () => {
     const calls: string[] = []
     withLayers([

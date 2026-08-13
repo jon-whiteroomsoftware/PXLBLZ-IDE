@@ -23,6 +23,12 @@ export const SHOW_ESCAPE_LAYER_RANK = {
 
 export interface ShowEscapeLayer {
   rank: number
+  /**
+   * Claim Escape even while a legacy detail-owned surface is present. The
+   * consuming layer also blocks that press from reaching the surface's own
+   * document listener, preserving one-layer-per-Escape behavior.
+   */
+  allowWhenDetailOwned?: boolean
   /** Return true to consume the press; lower layers then stay untouched. */
   onEscape: (event: KeyboardEvent) => boolean
 }
@@ -42,13 +48,15 @@ let installed = false
 
 const dispatchEscape = (event: KeyboardEvent) => {
   if (event.key !== 'Escape') return
-  if (document.querySelector(DETAIL_OWNED_SELECTOR)) return
+  const detailOwned = Boolean(document.querySelector(DETAIL_OWNED_SELECTOR))
   const ordered = [...registered].sort(
     (a, b) => b.layer.rank - a.layer.rank || b.seq - a.seq,
   )
   for (const entry of ordered) {
+    if (detailOwned && !entry.layer.allowWhenDetailOwned) continue
     if (!entry.layer.onEscape(event)) continue
     event.preventDefault()
+    if (detailOwned) event.stopImmediatePropagation()
     return
   }
 }
