@@ -2839,6 +2839,12 @@ export function forfeitShowExecutionModelOnCastChange(previous: ShowRecord, next
     record.composition?.groupDefinitions?.map((definition) => (
       definition.patternInstances.map((instance) => [instance.id, instance.pattern.kind, instance.pattern.id])
     )) ?? null,
+    // Each Group occurrence materializes its own runtime instances, so the
+    // occurrence roster is part of the effective cast: duplicating or
+    // deleting one changes what the wrap census proved.
+    record.composition?.groupOccurrences?.map((occurrence) => (
+      [occurrence.id, occurrence.definitionId]
+    )) ?? null,
   ])
   if (castOf(previous) === castOf(next)) return next
   return { ...next, composition: { ...next.composition, executionModel: undefined } }
