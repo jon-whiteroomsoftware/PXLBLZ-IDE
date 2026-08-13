@@ -3471,6 +3471,10 @@ export function render(index) { renders = renders + 1; rgb(${r}, ${g}, ${b}) }
       },
       loopDurationMs: 3_000,
     }, {})
+    expect(artifact.summary).toMatchObject({
+      steadyStateRenderersPerController: 2,
+      worstInstantRenderersPerController: 3,
+    })
     const { handle, pixel } = loadShow(artifact.code, artifact.metadata, 2)
 
     handle.beforeRender(1_500)
@@ -5062,6 +5066,10 @@ export function render2D(index, x, y) { rgb(x, y, ticks) }
     expect(artifact.summary.warnings).toEqual([
       'Clip "missing-clip" references missing zone "doorframe".',
     ])
+    expect(artifact.summary).toMatchObject({
+      steadyStateRenderersPerController: 1,
+      worstInstantRenderersPerController: 1,
+    })
 
     const { handle, pixel } = loadShow(artifact.code, artifact.metadata, 8)
     handle.beforeRender(16)

@@ -2971,6 +2971,8 @@ export function compileShow(
     transitionCost,
     members,
     routedOutputDimension,
+    route?.routes ?? null,
+    routingLayouts,
   )
   const patternEvaluationOverride = showPatternEvaluationOverride(transitionCost, rendererPressure)
   const warnings = expandedRecipe.routedSceneSequence
@@ -11124,6 +11126,8 @@ function showRendererPressure(
   transitionCost: ShowCompileSummary['transitionCost'],
   members: CompiledMember[],
   outputDimension: ShowOutputDimension,
+  directRoutes: ResolvedRoute[] | null,
+  routingLayouts: ResolvedRoutingLayout[] | null,
 ): { steady: number; worst: number; controllerSteady: number; controllerWorst: number } {
   const softSplitFactor = recipe.routingLayouts?.some((layout) => (
     layout.logical?.kind === 'soft-split' && layout.logical.feather > 0
@@ -11170,8 +11174,14 @@ function showRendererPressure(
       if (!scene.transitionOut || scene.transitionOut.kind === 'cut' || scene.transitionOut.kind === 'fade-color') {
         return worst
       }
+      const scopeZoneName = scene.transitionOut.scopeZoneName
+      const outgoingIds = scopeZoneName
+        ? scene.placements
+          .filter((placement) => placement.zoneName === scopeZoneName)
+          .map((placement) => placement.clipId)
+        : activeMemberIds[index]
       return Math.max(worst, new Set([
-        ...activeMemberIds[index],
+        ...outgoingIds,
         ...activeMemberIds[index + 1],
       ]).size)
     }, 1)
@@ -11196,10 +11206,14 @@ function showRendererPressure(
     }, 1)
     return { steady: 1, worst, controllerSteady: 1, controllerWorst: controllerTransition }
   }
-  const staticRoutedMemberCount = recipe.clips.some((clip) => routeTargets(clip).length > 0)
-    ? Math.max(1, members.length)
-    : 1
-  const controllerWorst = recipe.crossfade || recipe.routeTransition
+  const resolvedRouteMemberCounts = routingLayouts
+    ? routingLayouts.map((layout) => new Set(layout.routes.map((route) => route.member.id)).size)
+    : directRoutes
+      ? [new Set(directRoutes.map((route) => route.member.id)).size]
+      : []
+  const staticRoutedMemberCount = Math.max(1, ...resolvedRouteMemberCounts)
+  const controllerWorst = recipe.crossfade
+    || (recipe.routeTransition && recipe.routeTransition.kind !== 'fade-color')
     ? Math.max(staticRoutedMemberCount, members.length)
     : staticRoutedMemberCount
   return {
