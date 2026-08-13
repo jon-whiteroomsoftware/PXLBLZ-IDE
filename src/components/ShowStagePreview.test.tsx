@@ -100,7 +100,8 @@ describe('ShowStagePreview (#339)', () => {
     expect(resolveShowStagePreviewInput(deferred.id, resolved, deferred)).toBe(resolved)
   })
 
-  it('resizes the Stage incrementally without rebuilding Pattern runtime state (#508)', async () => {
+  it('repaints once after a paused Stage resize settles without rebuilding or advancing runtime state (#508, #837)', () => {
+    vi.useFakeTimers()
     let resize: ResizeObserverCallback | null = null
     vi.stubGlobal('ResizeObserver', class {
       constructor(callback: ResizeObserverCallback) { resize = callback }
@@ -115,13 +116,27 @@ describe('ShowStagePreview (#339)', () => {
 
       render(<ShowStagePreview showId={show.id} />)
       expect(createRuntime).toHaveBeenCalledTimes(1)
+      const runtime = createRuntime.mock.results[0]!.value
+      const initialElapsedMs = runtime.getElapsedMs()
+      const advanceTo = vi.spyOn(runtime, 'advanceTo')
 
+      act(() => resize?.([{ contentRect: { width: 700 } } as ResizeObserverEntry], {} as ResizeObserver))
+      act(() => vi.advanceTimersByTime(50))
       act(() => resize?.([{ contentRect: { width: 800 } } as ResizeObserverEntry], {} as ResizeObserver))
+      act(() => vi.advanceTimersByTime(99))
 
-      await waitFor(() => expect(createRuntime).toHaveBeenCalledTimes(1))
+      expect(advanceTo).not.toHaveBeenCalled()
+
+      act(() => vi.advanceTimersByTime(1))
+
+      expect(advanceTo).toHaveBeenCalledOnce()
+      expect(advanceTo).toHaveBeenCalledWith(initialElapsedMs, { stepMs: 1000 / 60 })
+      expect(runtime.getElapsedMs()).toBe(initialElapsedMs)
+      expect(createRuntime).toHaveBeenCalledTimes(1)
     } finally {
       createRuntime.mockRestore()
       vi.unstubAllGlobals()
+      vi.useRealTimers()
     }
   })
 

@@ -77,6 +77,7 @@ interface StageLayout {
 const SHOW_REPLAY_STEP_MS = 1000 / 60
 const SHOW_REPLAY_CHUNK_MS = 250
 const SHOW_REPLAY_PREWARM_SETTLE_MS = 400
+const SHOW_STAGE_RESIZE_REPAINT_SETTLE_MS = 100
 const SHOW_TEMPORAL_FEEDBACK_SEEK = 'clear-at-target' as const
 
 function yieldForShowReplayPrewarm(): Promise<void> {
@@ -609,7 +610,13 @@ export function ShowStagePreview({
       renderer.resize2D({ containerWidth: viewportWidth, lightSize })
     }
     performanceProbeRef.current?.recordResize()
-  }, [layout, lightSize, viewportWidth])
+    const repaintTimer = window.setTimeout(() => {
+      const runtime = replayRef.current
+      if (!runtime || usePreviewStore.getState().isRunning) return
+      paintFastFrame(runtime.advanceTo(runtime.getElapsedMs(), { stepMs: SHOW_REPLAY_STEP_MS }))
+    }, SHOW_STAGE_RESIZE_REPAINT_SETTLE_MS)
+    return () => window.clearTimeout(repaintTimer)
+  }, [layout, lightSize, paintFastFrame, viewportWidth])
 
   useEffect(() => {
     const renderer = rendererRef.current
