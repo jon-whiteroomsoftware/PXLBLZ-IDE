@@ -462,8 +462,11 @@ describe('bundle — transitive dependencies', () => {
 // ── metadata with libraries ──────────────────────────────────────────────────
 
 describe('bundle — metadata extraction with library code', () => {
-  it('extracts exportedVars even when library functions are also present', () => {
-    const lib = `function circle(x, y, r) { return sqrt(x*x+y*y) - r }`
+  it('keeps watcher vars authored while exposing final bundled vars to the runtime', () => {
+    const lib = `
+var radiusScale = 1
+function circle(x, y, r) { return sqrt(x*x+y*y) - r * radiusScale }
+`
     const src = [
       `export var hue = 0`,
       `export function render2D(i, x, y) { sdf.circle(x, y, 0.3) }`,
@@ -471,6 +474,7 @@ describe('bundle — metadata extraction with library code', () => {
     const { metadata } = bundle(src, { sdf: lib })
     expect(metadata.exportedVars).toEqual(['hue'])
     expect(metadata.patternVars).toEqual(['hue'])
+    expect(metadata.runtimeVars).toEqual(['radiusScale', 'hue'])
     expect(metadata.renderFns.hasRender2D).toBe(true)
   })
 })

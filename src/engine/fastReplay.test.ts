@@ -104,6 +104,38 @@ function lineMap(pixelCount: number) {
 }
 
 describe('Fast replay reconstruction', () => {
+  it.each(['fast', 'fidelity'] as const)(
+    'restores mutable library globals into a fresh %s runtime without exposing them as Pattern watcher vars',
+    (fidelity) => {
+      const prepared = prepareFastReplay(`
+var value = 0
+export function beforeRender(delta) { value = Counter.next() }
+export function render(index) { rgb(value / 4, 0, 0) }
+`, {
+        Counter: `
+var count = 0
+function next() {
+  count = count + 1
+  return count
+}
+`,
+      })
+      const options = { mapPoints: lineMap(1), randomSeed: 841, fidelity }
+      const source = createFastReplayRuntime(prepared, options)
+      source.advanceTo(10, { stepMs: 10 })
+      const snapshot = source.snapshot()
+      const uninterrupted = source.advanceTo(20, { stepMs: 10 })
+
+      const restoredRuntime = createFastReplayRuntime(prepared, options)
+      restoredRuntime.restore(snapshot)
+      const restored = restoredRuntime.advanceTo(20, { stepMs: 10 })
+
+      expect(prepared.metadata.patternVars).toEqual(['value'])
+      expect(prepared.metadata.runtimeVars).toEqual(['count', 'value'])
+      expect(restored.checksum).toBe(uninterrupted.checksum)
+    },
+  )
+
   it('preserves array aliases between Pattern globals in a fresh runtime', () => {
     const prepared = prepareFastReplay(`
 var initialized = 0
@@ -318,6 +350,37 @@ export function render(index) { rgb(red(), frameNumber / 10, 0) }
 
     expect(restored.checksum).toBe(uninterrupted.checksum)
   })
+
+  it.each(['fast', 'fidelity'] as const)(
+    'restores a declaration binding reassigned to a fallback arrow in the same and fresh %s runtimes',
+    (fidelity) => {
+      const prepared = prepareFastReplay(`
+var frameNumber = 0
+function selected(value) { return value }
+export function beforeRender(delta) {
+  frameNumber = frameNumber + 1
+  if (frameNumber == 1) selected = (value) => value + 0.5
+}
+export function render(index) { rgb(selected(frameNumber / 10), 0, 0) }
+`, {})
+      const options = { mapPoints: lineMap(1), randomSeed: 841, fidelity }
+      const source = createFastReplayRuntime(prepared, options)
+      source.advanceTo(10, { stepMs: 10 })
+      const snapshot = source.snapshot()
+      const uninterrupted = source.advanceTo(20, { stepMs: 10 })
+
+      source.restore(snapshot)
+      const sameRuntime = source.advanceTo(20, { stepMs: 10 })
+
+      const freshRuntime = createFastReplayRuntime(prepared, options)
+      freshRuntime.advanceTo(10, { stepMs: 10 })
+      freshRuntime.restore(snapshot)
+      const freshRestored = freshRuntime.advanceTo(20, { stepMs: 10 })
+
+      expect(sameRuntime.checksum).toBe(uninterrupted.checksum)
+      expect(freshRestored.checksum).toBe(uninterrupted.checksum)
+    },
+  )
 
   it('restores distinct Precise-mode builtin functions by registry name', () => {
     const prepared = prepareFastReplay(`

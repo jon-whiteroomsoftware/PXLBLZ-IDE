@@ -399,6 +399,12 @@ export function createFastReplayRuntime(
       const fallbackFunctions = new Map<string, RuntimeFunction>()
       const seenFunctionContainers = new Set<object>()
       collectFallbackFunctions(currentPatternVars, functionRegistry.byFunction, fallbackFunctions, seenFunctionContainers)
+      collectFallbackFunctions(
+        handle.getPatternFunctions(),
+        functionRegistry.byFunction,
+        fallbackFunctions,
+        seenFunctionContainers,
+      )
       const restored = new Map<object, unknown>()
       const createArray = (length: number): unknown[] => {
         const arrayBuiltin = shim.getBuiltin('array') as (length: number) => unknown[]

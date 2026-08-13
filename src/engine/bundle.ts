@@ -825,7 +825,9 @@ export function bundle(
   }
 
   const code = preamble + rewriteSource(patternSrc, patternRewrites)
-  metadata.patternFunctions = extractMetadata(parseModule(code)).patternFunctions
+  const runtimeMetadata = extractMetadata(parseModule(code))
+  metadata.patternFunctions = runtimeMetadata.patternFunctions
+  metadata.runtimeVars = runtimeMetadata.patternVars
   return {
     code,
     fxCode: emitFixedPoint(code),

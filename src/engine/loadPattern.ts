@@ -10,6 +10,9 @@ export interface RenderFns {
 export interface PatternMetadata {
   exportedVars: string[]
   patternVars: string[]  // all top-level var declarations, exported or not
+  /** Final bundled runtime vars used for state capture, including library globals.
+   * The watcher remains intentionally scoped to authored patternVars. */
+  runtimeVars?: string[]
   /** Runtime function declarations used to remap stateless function values
    * when replay state moves between evaluated copies of the same artifact. */
   patternFunctions?: string[]
@@ -83,8 +86,10 @@ export function loadPattern(
 }
 
 function buildEpilogue(metadata: PatternMetadata): string {
-  // getExports reads all top-level vars so the watcher can inspect any of them
-  const getExportsEntries = metadata.patternVars
+  // Runtime state includes bundled library globals, while the watcher separately
+  // reads metadata.patternVars and stays scoped to authored Pattern variables.
+  const runtimeVars = [...new Set([...metadata.patternVars, ...(metadata.runtimeVars ?? [])])]
+  const getExportsEntries = runtimeVars
     .map((v) => {
       const runtimeName = metadata.patternVarBindings?.[v] ?? v
       return `${JSON.stringify(v)}:(typeof ${runtimeName}!=='undefined'?${runtimeName}:undefined)`
@@ -103,7 +108,7 @@ function buildEpilogue(metadata: PatternMetadata): string {
     .map(name => `case ${JSON.stringify(name)}:if(typeof ${name}==='function'){${name}=value;return true;}return false;`)
     .join('')
 
-  const setPatternVarCases = metadata.patternVars
+  const setPatternVarCases = runtimeVars
     .map((name) => {
       const runtimeName = metadata.patternVarBindings?.[name] ?? name
       return `case ${JSON.stringify(name)}:if(typeof ${runtimeName}!=='undefined'){${runtimeName}=value;return true;}return false;`
