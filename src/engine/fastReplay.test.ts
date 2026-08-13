@@ -131,6 +131,35 @@ export function render(index) { rgb(b[0] / 10, 0, 0) }
     expect(restored.checksum).toBe(uninterrupted.checksum)
   })
 
+  it('preserves distinct Pattern arrays when a fresh runtime initializes them as aliases', () => {
+    const prepared = prepareFastReplay(`
+var initialized = 0
+var a = array(1)
+var b = a
+export function beforeRender(delta) {
+  if (!initialized) {
+    b = array(1)
+    initialized = 1
+  }
+  a[0] = a[0] + 1
+  b[0] = b[0] + 2
+}
+export function render(index) { rgb(a[0] / 10, b[0] / 10, 0) }
+`, {})
+    const options = { mapPoints: lineMap(1), randomSeed: 841 }
+    const source = createFastReplayRuntime(prepared, options)
+    source.advanceTo(10, { stepMs: 10 })
+    const snapshot = source.snapshot()
+    const uninterrupted = source.advanceTo(20, { stepMs: 10 })
+
+    const restoredRuntime = createFastReplayRuntime(prepared, options)
+    restoredRuntime.restore(snapshot)
+    const restored = restoredRuntime.advanceTo(20, { stepMs: 10 })
+
+    expect(restored.exports.a).not.toBe(restored.exports.b)
+    expect(restored.checksum).toBe(uninterrupted.checksum)
+  })
+
   it.each(['fast', 'fidelity'] as const)(
     'materializes restored nested arrays with Pixelblaze semantics in %s mode',
     (fidelity) => {
@@ -165,6 +194,37 @@ export function render(index) { rgb(total, 0, 0) }
       expect(restored.checksum).toBe(uninterrupted.checksum)
     },
   )
+
+  it('restores reassigned Pattern functions by implementation identity', () => {
+    const prepared = prepareFastReplay(`
+var frameNumber = 0
+var value = 0
+function red() { return 1 }
+function green() { return 0.25 }
+var selected = red
+export function beforeRender(delta) {
+  frameNumber = frameNumber + 1
+  if (frameNumber == 1) {
+    red = green
+    selected = red
+  }
+  value = selected()
+}
+export function render(index) { rgb(value, 0, 0) }
+`, {})
+    const options = { mapPoints: lineMap(1), randomSeed: 841 }
+    const source = createFastReplayRuntime(prepared, options)
+    source.advanceTo(10, { stepMs: 10 })
+    const snapshot = source.snapshot()
+    const uninterrupted = source.advanceTo(20, { stepMs: 10 })
+
+    const restoredRuntime = createFastReplayRuntime(prepared, options)
+    restoredRuntime.restore(snapshot)
+    const restored = restoredRuntime.advanceTo(20, { stepMs: 10 })
+
+    expect(restored.exports.value).toBe(uninterrupted.exports.value)
+    expect(restored.checksum).toBe(uninterrupted.checksum)
+  })
 
   it('restores distinct Precise-mode builtin functions by registry name', () => {
     const prepared = prepareFastReplay(`

@@ -82,6 +82,7 @@ interface SnapshotFunctionToken {
 interface FunctionRegistry {
   byFunction: Map<RuntimeFunction, SnapshotFunctionToken>
   byToken: Map<string, RuntimeFunction>
+  patternByName: Map<string, RuntimeFunction>
 }
 
 interface SnapshotCloneContext {
@@ -95,8 +96,12 @@ function functionTokenKey(registry: NamedFunctionRegistry, name: string): string
   return `${registry}\0${name}`
 }
 
+function runtimeFunctionSource(fn: RuntimeFunction): string {
+  return Function.prototype.toString.call(fn)
+}
+
 function fallbackFunctionKey(fn: RuntimeFunction): string {
-  return `${fn.name}\0${Function.prototype.toString.call(fn)}`
+  return `${fn.name}\0${runtimeFunctionSource(fn)}`
 }
 
 function registerFallbackFunction(functions: Map<string, RuntimeFunction>, fn: RuntimeFunction): string {
@@ -116,19 +121,27 @@ function createFunctionRegistry(
 ): FunctionRegistry {
   const byFunction = new Map<RuntimeFunction, SnapshotFunctionToken>()
   const byToken = new Map<string, RuntimeFunction>()
+  const patternByName = new Map<string, RuntimeFunction>()
   const add = (registry: NamedFunctionRegistry, values: Record<string, unknown>): void => {
     for (const [name, value] of Object.entries(values)) {
       if (typeof value !== 'function') continue
       const fn = value as RuntimeFunction
-      const token: SnapshotFunctionToken = { __fastReplayFunction: { registry, name } }
+      const token: SnapshotFunctionToken = {
+        __fastReplayFunction: {
+          registry,
+          name,
+          ...(registry === 'pattern' ? { source: runtimeFunctionSource(fn) } : {}),
+        },
+      }
       byToken.set(functionTokenKey(registry, name), fn)
+      if (registry === 'pattern') patternByName.set(name, fn)
       if (!byFunction.has(fn)) byFunction.set(fn, token)
     }
   }
-  add('pattern', patternFunctions)
   add('builtin', builtins)
   add('control', controls)
-  return { byFunction, byToken }
+  add('pattern', patternFunctions)
+  return { byFunction, byToken, patternByName }
 }
 
 function isSnapshotFunctionToken(value: unknown): value is SnapshotFunctionToken {
@@ -147,7 +160,7 @@ function clonePatternValue(value: unknown, context: SnapshotCloneContext): unkno
       __fastReplayFunction: {
         registry: 'fallback' as const,
         name: fn.name,
-        source: Function.prototype.toString.call(fn),
+        source: runtimeFunctionSource(fn),
       },
     }
     if (!named) registerFallbackFunction(context.fallbackFunctions, fn)
@@ -192,50 +205,73 @@ function collectFallbackFunctions(
 
 function resolveSnapshotFunction(
   token: SnapshotFunctionToken,
-  namedFunctions: ReadonlyMap<string, RuntimeFunction>,
+  functionRegistry: FunctionRegistry,
   fallbackFunctions: ReadonlyMap<string, RuntimeFunction>,
 ): RuntimeFunction {
   const descriptor = token.__fastReplayFunction
-  const fn = descriptor.registry === 'fallback'
-    ? fallbackFunctions.get(`${descriptor.name}\0${descriptor.source ?? ''}`)
-    : namedFunctions.get(functionTokenKey(descriptor.registry, descriptor.name))
-  if (!fn) throw new Error(`Fast replay snapshot function "${descriptor.name}" is unavailable in this runtime.`)
-  return fn
+  if (descriptor.registry === 'fallback') {
+    const fallback = fallbackFunctions.get(`${descriptor.name}\0${descriptor.source ?? ''}`)
+    if (fallback) return fallback
+  } else if (descriptor.registry !== 'pattern') {
+    const named = functionRegistry.byToken.get(functionTokenKey(descriptor.registry, descriptor.name))
+    if (named) return named
+  } else if (descriptor.source) {
+    const named = functionRegistry.patternByName.get(descriptor.name)
+    if (named && runtimeFunctionSource(named) === descriptor.source) return named
+
+    const candidates = new Set<RuntimeFunction>()
+    for (const candidate of functionRegistry.patternByName.values()) {
+      if (runtimeFunctionSource(candidate) === descriptor.source) candidates.add(candidate)
+    }
+    for (const candidate of fallbackFunctions.values()) {
+      if (runtimeFunctionSource(candidate) === descriptor.source) candidates.add(candidate)
+    }
+    if (candidates.size === 1) return candidates.values().next().value as RuntimeFunction
+    if (candidates.size > 1) {
+      throw new Error(`Fast replay snapshot has an ambiguous Pattern function identity for "${descriptor.name}".`)
+    }
+  }
+  throw new Error(`Fast replay snapshot function "${descriptor.name}" is unavailable in this runtime.`)
 }
 
 function restorePatternValue(
   value: unknown,
-  namedFunctions: ReadonlyMap<string, RuntimeFunction>,
+  functionRegistry: FunctionRegistry,
   fallbackFunctions: ReadonlyMap<string, RuntimeFunction>,
   restored: Map<object, unknown>,
+  claimedTargets: Set<object>,
   createArray: (length: number) => unknown[],
   target?: unknown,
 ): unknown {
-  if (isSnapshotFunctionToken(value)) return resolveSnapshotFunction(value, namedFunctions, fallbackFunctions)
+  if (isSnapshotFunctionToken(value)) return resolveSnapshotFunction(value, functionRegistry, fallbackFunctions)
   if (!value || typeof value !== 'object') return value
   const existing = restored.get(value)
   if (existing !== undefined) return existing
   if (Array.isArray(value)) {
-    const targetArray = Array.isArray(target) ? target : createArray(value.length)
+    const targetArray = Array.isArray(target) && !claimedTargets.has(target)
+      ? target
+      : createArray(value.length)
     restored.set(value, targetArray)
+    claimedTargets.add(targetArray)
     targetArray.length = value.length
     for (let index = 0; index < value.length; index += 1) {
       targetArray[index] = restorePatternValue(
-        value[index], namedFunctions, fallbackFunctions, restored, createArray, targetArray[index],
+        value[index], functionRegistry, fallbackFunctions, restored, claimedTargets, createArray, targetArray[index],
       )
     }
     return targetArray
   }
-  const targetObject = target && typeof target === 'object' && !Array.isArray(target)
+  const targetObject = target && typeof target === 'object' && !Array.isArray(target) && !claimedTargets.has(target)
     ? target as Record<string, unknown>
     : {}
   restored.set(value, targetObject)
+  claimedTargets.add(targetObject)
   for (const key of Object.keys(targetObject)) {
     if (!(key in value)) delete targetObject[key]
   }
   for (const [key, item] of Object.entries(value)) {
     targetObject[key] = restorePatternValue(
-      item, namedFunctions, fallbackFunctions, restored, createArray, targetObject[key],
+      item, functionRegistry, fallbackFunctions, restored, claimedTargets, createArray, targetObject[key],
     )
   }
   return targetObject
@@ -332,6 +368,7 @@ export function createFastReplayRuntime(
       const seenFunctionContainers = new Set<object>()
       collectFallbackFunctions(currentPatternVars, functionRegistry.byFunction, fallbackFunctions, seenFunctionContainers)
       const restored = new Map<object, unknown>()
+      const claimedTargets = new Set<object>()
       const createArray = (length: number): unknown[] => {
         const arrayBuiltin = shim.getBuiltin('array') as (length: number) => unknown[]
         return arrayBuiltin(shim.encodeScalar(length))
@@ -341,9 +378,10 @@ export function createFastReplayRuntime(
         if (snapshotValue === undefined && currentValue === undefined) continue
         const restoredValue = restorePatternValue(
           snapshotValue,
-          functionRegistry.byToken,
+          functionRegistry,
           fallbackFunctions,
           restored,
+          claimedTargets,
           createArray,
           currentValue,
         )
@@ -355,9 +393,10 @@ export function createFastReplayRuntime(
         snapshot.shim,
         (source, target) => restorePatternValue(
           source,
-          functionRegistry.byToken,
+          functionRegistry,
           fallbackFunctions,
           restored,
+          claimedTargets,
           createArray,
           target,
         ) as number[],
