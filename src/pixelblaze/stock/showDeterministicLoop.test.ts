@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest'
+import { applyShowPatternSlotSelections } from '@/engine/showReferenceShow'
 import { compileShowForArtifact } from '@/engine/showPreviewArtifact'
 import { createFastReplayRuntime } from '@/engine/fastReplay'
 import { nativeDimension } from '@/engine/loadPattern'
@@ -63,6 +64,27 @@ describe('stock deterministic-loop census (#823)', () => {
         const second = loopTwo.advanceTo(durationMs + timeMs, { stepMs: 50 }).checksum
         expect(second, `${item.name} at ${timeMs}ms wraps exactly`).toBe(first)
       }
+    }
+  })
+
+  it('forfeits the stamp when Try with Pattern swaps in an unproven source (#823 review P1)', () => {
+    // The wrap census proves the AUTHORED cast; a slot projection can swap
+    // in a Pattern whose state the loop reset cannot reconstruct (105's
+    // water slot accepts IceFloes2D, the exact voice the census removed).
+    const stamped = STOCK_SHOWS.filter((item) => (
+      item.show.composition?.executionModel === 'deterministic-loop'
+      && (item.patternSlots?.length ?? 0) > 0
+      && item.patternSlots!.some((group) => group.instanceIds.length > 0)
+    ))
+    expect(stamped.length).toBeGreaterThan(0)
+    for (const item of stamped) {
+      const projected = applyShowPatternSlotSelections(
+        item.show,
+        item.patternSlots!,
+        { 0: { kind: 'stock', id: 'IceFloes2D' } },
+        (ref) => ref.id,
+      )
+      expect(projected.composition?.executionModel, item.name).toBeUndefined()
     }
   })
 })

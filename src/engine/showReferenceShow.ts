@@ -80,6 +80,18 @@ export function applyShowReferencePattern(
     } : cell),
     composition: show.composition ? {
       ...show.composition,
+      // A swapped source also forfeits the deterministic-loop stamp: the
+      // exact-reset proof (#823 wrap census) belongs to the authored cast,
+      // and a projected Pattern may hold state the loop reset cannot
+      // reconstruct. Same doctrine as discarding control targets above.
+      ...(show.composition.executionModel !== undefined
+        && show.composition.patternInstances.some((instance) => (
+          instanceIds.has(instance.id)
+          && (instance.pattern.kind !== resolvedProjection.pattern.kind
+            || instance.pattern.id !== resolvedProjection.pattern.id)
+        ))
+        ? { executionModel: undefined }
+        : {}),
       patternInstances: show.composition.patternInstances.map((instance) => instanceIds.has(instance.id) ? {
         ...instance,
         pattern: resolvedProjection.pattern,
