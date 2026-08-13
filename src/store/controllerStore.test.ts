@@ -1403,7 +1403,7 @@ describe('controllerStore (keyed)', () => {
 
       expect(created.get('10.0.0.5')!.compiledSources).toHaveLength(1)
       expect(created.get('10.0.0.5')!.compiledSources[0]).toContain('__px_cappedHsv')
-      expect(store().pushResult).toEqual({ ok: true, created: true })
+      expect(store().pushResult).toBeNull()
       expect(store().artifactPushResult).toEqual({
         ok: true,
         created: true,
@@ -1426,7 +1426,7 @@ describe('controllerStore (keyed)', () => {
       })
 
       expect(created.get('10.0.0.5')!.pushed).toHaveLength(0)
-      expect(store().pushResult).toEqual({ ok: false, message: 'Show compile failed on device' })
+      expect(store().pushResult).toBeNull()
       expect(store().artifactPushResult).toEqual({
         ok: false,
         message: 'Show compile failed on device',

@@ -6844,6 +6844,51 @@ export function render(index) { rgb(MyMath.glow(index), 0, 0) }
     expect(screen.getByLabelText(/^Controller source .* advisory\.$/i)).toBeInTheDocument()
   })
 
+  it('keeps active Controller transforms in the source advisory when renderer pressure blocks delivery (#849)', () => {
+    const [, fixture] = buildShowCompositionFreezeCases()
+    const show = structuredClone(fixture.show)
+    for (const scene of show.composition.scenes) {
+      for (const zone of scene.zones) {
+        const sourceLayer = zone.overlays[0]
+        zone.overlays.push({
+          ...structuredClone(sourceLayer),
+          id: `${sourceLayer.id}-extra`,
+          placements: sourceLayer.placements.map((placement) => ({
+            ...placement,
+            id: `${placement.id}-extra`,
+          })),
+        })
+      }
+    }
+    const profile = defaultControllerProfile({
+      id: 'profile-live',
+      name: 'Bench PB',
+      ip: '10.0.0.5',
+      now: 1,
+    })
+    profile.globalTransforms = profile.globalTransforms.map((transform) => (
+      transform.type === 'power-cap' ? { ...transform, enabled: true, maxDuty: 0.25 } : transform
+    ))
+    useShowStore.setState({ shows: [show], activeShowId: show.id, showsLoaded: true })
+    usePatternStore.setState({ userPatterns: fixture.patterns, patternsLoaded: true })
+    useControllerProfileStore.setState({ profilesLoaded: true, profiles: [profile] })
+    useControllerStore.setState({
+      controllers: {
+        '10.0.0.5': {
+          ip: '10.0.0.5', nickname: 'Bench PB', phase: 'live', mapDim: 2, firmwareVersion: '3.67',
+        },
+      },
+      activeIp: '10.0.0.5',
+    })
+    setControllerProvider(new ConnectedControllerProvider())
+
+    render(<ShowEditor showId={show.id} />)
+
+    expect(screen.getByText(/Output blocked: Peak: [5-9] Patterns per pixel \(limit 4\)\./)).toBeInTheDocument()
+    expect(screen.getByTestId('show-compile-bar')).toHaveTextContent(/Controller transforms \+[\d.]+ KB/)
+    expect(screen.getByLabelText(/^Controller source .* advisory\.$/i)).toBeInTheDocument()
+  })
+
   it('does not measure an unmatched Installation target profile against the live Controller (#849)', () => {
     const show = createShowWithOutputContract(
       'show-profile-mismatch',

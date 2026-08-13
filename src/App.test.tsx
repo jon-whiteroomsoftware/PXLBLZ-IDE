@@ -881,6 +881,35 @@ describe('routing (#308)', () => {
     expect(screen.getByTestId('editor-pane')).toHaveTextContent('read-only')
   })
 
+  it('does not show a stale Pattern push failure on a Show route (#849)', async () => {
+    const show = createDefaultShow('show-stale-pattern-failure', 'Show route', 1)
+    enableShowtime(`/studio/shows/${show.id}`)
+    seedSignedInWorkspace()
+    usePatternStore.setState({
+      userPatterns: [record],
+      patternsLoaded: true,
+      activePatternId: record.id,
+    })
+    useShowStore.setState({ shows: [show], showsLoaded: true, activeShowId: show.id })
+    useControllerStore.setState({
+      artifactPushResult: {
+        ok: false,
+        message: 'Pattern compile failed',
+        artifactId: record.id,
+        mode: 'run',
+      },
+    })
+
+    render(<App />)
+
+    await waitFor(() => expect(useRouterStore.getState().route).toMatchObject({
+      kind: 'studio',
+      entity: { kind: 'shows', id: show.id },
+    }))
+    expect(usePatternStore.getState().activePatternId).toBe(record.id)
+    await waitFor(() => expect(screen.queryByTestId('pattern-push-failure')).not.toBeInTheDocument())
+  })
+
   it('opens a personal map addressed by /studio/maps/<id>', async () => {
     window.history.replaceState(null, '', '/studio/maps/map-1')
     useWorkspaceStore.setState({

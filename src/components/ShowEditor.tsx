@@ -1661,13 +1661,10 @@ export function ShowEditor({
     if (compiled.artifactBlocker) {
       return { value: null, error: compiled.artifactBlocker }
     }
-    if (compilePressure?.status === 'blocked') {
-      return { value: null, error: compilePressure.blocks.join(' ') }
-    }
-    if (!showExport) return { value: null, error: null }
+    if (!inspectableShowExport) return { value: null, error: null }
     try {
       const prepared = prepareShowControllerArtifact(
-        showExport.source,
+        inspectableShowExport.source,
         activeControllerMapDim,
         activeControllerFirmware,
         controllerCompatibilityContext,
@@ -1692,7 +1689,7 @@ export function ShowEditor({
         error: error instanceof Error ? error.message : 'Could not prepare Show for Controller',
       }
     }
-  }, [activeControllerFirmware, activeControllerMapDim, compilePressure, compiled.artifact, compiled.artifactBlocker, controllerCompatibilityContext, showExport])
+  }, [activeControllerFirmware, activeControllerMapDim, compiled.artifact, compiled.artifactBlocker, controllerCompatibilityContext, inspectableShowExport])
   const measuredControllerDelivery = useMemo(() => {
     if (!activeController || !preparedControllerArtifact.value) return null
     try {

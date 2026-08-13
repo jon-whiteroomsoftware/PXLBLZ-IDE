@@ -1362,7 +1362,7 @@ export const useControllerStore = create<ControllerConnectionState>()(
             }
             set((state) => ({
               pushing: false,
-              pushResult: { ok: true, created },
+              pushResult: null,
               artifactPushResult: result,
               [recordKey]: {
                 ...state[recordKey],
@@ -1394,7 +1394,7 @@ export const useControllerStore = create<ControllerConnectionState>()(
             const message = error instanceof Error ? error.message : String(error)
             set({
               pushing: false,
-              pushResult: { ok: false, message },
+              pushResult: null,
               artifactPushResult: {
                 ok: false,
                 message,

@@ -1206,7 +1206,7 @@ function StudioApp() {
                 testId="studio-editor-operation-failure"
               />
             )}
-            <PatternPushFailureNotice />
+            {rightPaneKind === 'patterns' && <PatternPushFailureNotice />}
           </div>
           <div className="flex-1 overflow-hidden">
             {activeControllerProfileId !== null ? (
