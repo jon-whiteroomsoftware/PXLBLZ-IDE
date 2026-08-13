@@ -3567,10 +3567,10 @@ function quadrilleRemix(): StockShow {
 // stage body, apex bloom, and the closing ghost lamp purely through
 // placement windows, tints, and scale. Colors are placement color-map
 // tints, chase reversal is the placement mirror (an index mirror on the
-// Zone's wiring walk), the doubled marquee is one instance twice at
-// opposite phase, and per-column choreography addresses the Columns Zone's
-// local raster halves (column A on top, column B below) with hard Viewport
-// frames. Zero property tracks. The eight musical phrases live inside four
+// Zone's wiring walk, swapped on bar lines where the symmetric bulb
+// lattice makes it seamless), and the surge bolts address the Columns
+// Zone's local raster halves (column A on top, column B below) with hard
+// Viewport frames. Zero property tracks. The eight musical phrases live inside four
 // compiled scenes - unrolled emission prices every scene-zone arm, so
 // phrase changes that only reschedule ownership use scene-local placement
 // windows instead of new scenes - and every boundary is an on-beat Cut
@@ -3732,7 +3732,9 @@ function overtureRemix(): StockShow {
               // edge the one-world rings already own, so the whole event
               // costs a single new time-edge in the unrolled score (#840).
               put('arch-blip', 'marquee', { startBars: 3.25, durationBars: 0.75, effects: [CYAN] }),
-              put('arch-oneworld', 'rings', { startBars: 4, durationBars: 4, transform: { positionY: -0.5, scaleX: 1.6, scaleY: 1.6 }, effects: [GOLD] }),
+              // The red chase takes one-world; the gold apex rings - the
+              // arch's best look - are saved for the finale (#840 review).
+              put('arch-redchase', 'marquee', { startBars: 4, durationBars: 4, effects: [SCARLET] }),
             ],
           },
           {
@@ -3786,10 +3788,11 @@ function overtureRemix(): StockShow {
             ],
           },
           {
-            // The peak burns scarlet, not white: white never earned a voice
-            // in this palette (#840 live review).
+            // The finale arch wears the gold apex rings - the arch's best
+            // look, saved for last - while the stage burns scarlet beneath.
+            // White never earned a voice in this palette (#840 live review).
             zoneId: 'zone-2', overlays: [],
-            main: [put('house-arch', 'marquee', { durationBars: 5, effects: [SCARLET] })],
+            main: [put('house-arch', 'rings', { durationBars: 5, transform: { positionY: -0.5, scaleX: 1.6, scaleY: 1.6 }, effects: [GOLD] })],
           },
           {
             zoneId: 'zone-3', overlays: [],
@@ -3814,16 +3817,16 @@ function overtureRemix(): StockShow {
       + 'band\'s wiring, the columns climb as the walk\'s built-in canon, blooms pour out of the apex, and '
       + 'one cyan surge runs the whole installer\'s walk before the house comes up and the ghost light ends '
       + 'the night.',
-    notice: 'Every color is a placement tint over grayscale sources, every reversal is a placement mirror '
-      + 'on the Zone\'s wiring walk, and the doubled marquee is one instance twice at opposite phase. One '
-      + 'rings surface plays velvet body, apex bloom, and the closing ghost lamp through nothing but '
-      + 'placement windows and scale. The per-column choreography addresses the Columns Zone\'s local '
+    notice: 'Every color is a placement tint over grayscale sources, and every reversal is a placement '
+      + 'mirror on the Zone\'s wiring walk, landing on bar lines where the symmetric bulb lattice makes '
+      + 'the swap seamless. One rings surface plays velvet body, apex bloom, and the closing ghost lamp '
+      + 'through nothing but placement windows and scale. The per-column choreography addresses the Columns Zone\'s local '
       + 'raster - column A is its top half, column B its bottom - through hard Viewport frames. No property '
       + 'tracks anywhere: the score only schedules ownership, and the patterns carry all the motion on '
       + 'exact bar-locked loops.',
     prompts: [
       'Watch the surge phrase: the bolt crosses column A, the stage, the arch, and column B in the exact order the installer wired them.',
-      'Open any marquee placement: the same instance serves the arch, both columns, and its own phase-offset twin.',
+      'Open any marquee placement: one instance serves the arch and both columns, in both colors and both directions of travel.',
     ],
     guideHeading: 'installation-output-and-physical-ranges',
     guideLabel: 'Read installation mapping',

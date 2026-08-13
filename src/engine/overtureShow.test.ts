@@ -188,10 +188,13 @@ describe('Overture remix show (#840)', () => {
       // The intruder left: no cyan-dominant pixels anywhere.
       const lit = pixels.filter(([r, g, b]) => r + g + b > 0.1)
       expect(lit.filter(([r, , b]) => b > r * 1.5)).toHaveLength(0)
-      // The peak burns scarlet, never white: the arch reads red-dominant
-      // and no lit pixel is near-neutral bright.
+      // The finale saves the arch's best look for last: gold apex rings
+      // over a scarlet stage, and never white - no lit pixel is
+      // near-neutral bright.
       const archLit = slice(pixels, ARCH).filter(([r, g, b]) => r + g + b > 0.1)
-      expect(archLit.every(([r, g]) => r > g * 1.5)).toBe(true)
+      expect(archLit.every(([r, , b]) => r > b)).toBe(true)
+      const stageLit = slice(pixels, STAGE).filter(([r, g, b]) => r + g + b > 0.1)
+      expect(stageLit.filter(([r, g]) => r > g * 1.5).length / stageLit.length).toBeGreaterThan(0.5)
       expect(lit.filter(([r, g, b]) => r > 0.85 && g > 0.85 && b > 0.8)).toHaveLength(0)
     })
 

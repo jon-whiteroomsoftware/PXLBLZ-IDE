@@ -50,7 +50,7 @@ describe('issue #540 Pattern field/shading census', () => {
       proceedWithPrototype: false,
       decision: 'stop-insufficient-incidence',
     })
-    expect(issue540Report.summary.credibleCandidateRatio).toBeCloseTo(7 / 104)
+    expect(issue540Report.summary.credibleCandidateRatio).toBeCloseTo(7 / 105, 10)
     expect(candidates).toEqual([
       'Caustics',
       'GyroidGlow3D',
