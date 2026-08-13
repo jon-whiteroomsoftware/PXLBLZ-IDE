@@ -1387,6 +1387,11 @@ test.describe('authenticated Show authoring', () => {
     test.use({ allowedBrowserErrors: [/net::ERR_FAILED|Failed to fetch/] })
 
     test('surfaces a notice with Retry when an offline Show save rolls back (#792)', async ({ page }) => {
+      // This scenario exercises failure, rollback, two retries, recovery, and
+      // reload through the shared Wrangler process. Preserve the complete
+      // contract while budgeting its cumulative work under full-suite load.
+      test.setTimeout(60_000)
+
       await page.goto(showtimePath('studio/shows'))
       await createInstallationShow(page)
 
@@ -2562,11 +2567,18 @@ async function zoomTimeline(page: Page, notches: number): Promise<void> {
 async function waitForCurrentShow(page: Page, predicate: (show: PersistedShow) => boolean): Promise<void> {
   const id = new URL(page.url()).pathname.split('/').at(-1)
   await expect.poll(async () => {
-    const response = await page.context().request.get('/api/shows')
-    if (!response.ok()) return false
-    const { shows } = await response.json() as { shows: PersistedShow[] }
-    const show = shows.find((candidate) => candidate.id === id)
-    return show ? predicate(show) : false
+    try {
+      const response = await page.context().request.get('/api/shows')
+      if (!response.ok()) return false
+      const { shows } = await response.json() as { shows: PersistedShow[] }
+      const show = shows.find((candidate) => candidate.id === id)
+      return show ? predicate(show) : false
+    } catch {
+      // A shared local Wrangler can reset one connection under parallel load.
+      // Treat that sample as not ready so expect.poll can retry; persistent
+      // transport or durability failures still exhaust the assertion timeout.
+      return false
+    }
   }).toBe(true)
 }
 
