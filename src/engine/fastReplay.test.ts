@@ -351,6 +351,31 @@ export function render(index) { rgb(functions[index](0), 0, 0) }
     expect(() => runtime.snapshot()).toThrow(/ambiguous fallback function/i)
   })
 
+  it('restores fallback functions stored on non-index array properties', () => {
+    const prepared = prepareFastReplay(`
+var functions = [0]
+functions[0.9] = (input) => input + 0.5
+functions.label = (input) => input + 0.125
+var value = 0
+export function beforeRender(delta) {
+  value = functions[0.9](0.25) + functions.label(0.25)
+}
+export function render(index) { rgb(value, 0, 0) }
+`, {})
+    const options = { mapPoints: lineMap(1), randomSeed: 841 }
+    const source = createFastReplayRuntime(prepared, options)
+    source.advanceTo(10, { stepMs: 10 })
+    const snapshot = source.snapshot()
+    const uninterrupted = source.advanceTo(20, { stepMs: 10 })
+
+    const restoredRuntime = createFastReplayRuntime(prepared, options)
+    restoredRuntime.restore(snapshot)
+    const restored = restoredRuntime.advanceTo(20, { stepMs: 10 })
+
+    expect(restored.exports.value).toBe(uninterrupted.exports.value)
+    expect(restored.checksum).toBe(uninterrupted.checksum)
+  })
+
   it('restores a re-created source-identical non-capturing arrow', () => {
     const prepared = prepareFastReplay(`
 var frameNumber = 0

@@ -216,7 +216,9 @@ function collectFallbackFunctions(
   }
   if (!value || typeof value !== 'object' || seen.has(value)) return
   seen.add(value)
-  for (const item of Array.isArray(value) ? value : Object.values(value)) {
+  // Snapshot cloning preserves every enumerable property, including non-index
+  // array keys, so fallback collection must traverse the same surface.
+  for (const item of Object.values(value)) {
     collectFallbackFunctions(item, namedFunctions, functions, seen)
   }
 }

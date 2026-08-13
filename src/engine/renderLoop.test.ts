@@ -46,7 +46,7 @@ function makeMockShim(): ShimContext {
       analogInputs: [0, 0, 0, 0],
     })),
     restore: vi.fn(),
-    isPatternArray: vi.fn((_value: unknown): _value is number[] => false),
+    isPatternArray: ((_value: unknown) => false) as ShimContext['isPatternArray'],
     capturedPixel: vi.fn(() => [0, 0, 0] as [number, number, number]),
     writeCapturedPixel: vi.fn((target: Float32Array | Float64Array, offset: number) => {
       target[offset] = 0
