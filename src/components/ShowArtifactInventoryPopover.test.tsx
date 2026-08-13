@@ -29,7 +29,10 @@ function renderPopover() {
       inventory={inventory}
       model={model}
       vmWords={{ used: 100, budget: 1_000, remaining: 900 }}
-      renderers={{ steady: 1, worst: 2 }}
+      renderers={{
+        controller: { steady: 3, worst: 4 },
+        perPixel: { steady: 1, worst: 2 },
+      }}
       structure={{ transitionCount: 0 }}
     />,
   )
@@ -42,6 +45,9 @@ describe('ShowArtifactInventoryPopover', () => {
 
     fireEvent.focus(trigger)
     const focusedInventory = screen.getByRole('dialog', { name: 'Show source inventory' })
+    expect(focusedInventory).toHaveTextContent('Controller renderers')
+    expect(focusedInventory).toHaveTextContent('4 peak active')
+    expect(focusedInventory).toHaveTextContent('Per pixel: 1 steady / 2 peak')
     expect(trigger).toHaveAttribute('aria-expanded', 'true')
     fireEvent.keyDown(focusedInventory, { key: 'Escape' })
     await waitFor(() => expect(screen.queryByRole('dialog', { name: 'Show source inventory' })).not.toBeInTheDocument())

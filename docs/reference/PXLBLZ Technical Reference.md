@@ -845,8 +845,14 @@ release fixture). Blocked output stays previewable.
 **Source inventory.** The compiler attaches an exact contiguous UTF-8
 inventory to every generated Show — ranges by category and member,
 reconciling to `artifactBytes` — which `ShowArtifactInventoryPopover` renders
-against the same budget scale as the compile bar. Repair hints appear only
-for contributors that are changeable and large enough to matter.
+against the same budget scale as the compile bar. The compile summary keeps two
+renderer scopes distinct: `steadyStateRenderersPerController` and
+`worstInstantRenderersPerController` count distinct compiled Pattern machines
+active across all Zones, while the existing per-pixel fields measure the
+maximum evaluation depth traversed by one pixel. The inventory leads with the
+controller-wide peak and shows per-pixel depth as secondary context. Repair
+hints appear only for contributors that are changeable and large enough to
+matter.
 
 **Render-target arena and planner.** Every production artifact reserves three
 RGB planes at the output extent (6,012 words at 2,000 pixels) — exactly three

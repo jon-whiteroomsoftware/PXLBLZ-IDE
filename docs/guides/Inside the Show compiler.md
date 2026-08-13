@@ -331,11 +331,12 @@ The creator-facing consequences are inspectable per Show. The compile bar under
 the timeline reports delivered source, VM words, and support-envelope warnings.
 Hovering the **Show source** figure opens an exact byte-level inventory of the
 generated artifact — which Patterns, plans, and score tables own which bytes —
-plus steady and worst renderer depth, with **Ways to slim this Show** ranking
+plus the peak number of active Pattern machines across the Controller and the
+separate steady/peak renderer depth per pixel. **Ways to slim this Show** ranks
 the levers you actually control. Arena assignments, cache choices, and rejected
-specializations stay out of the persistent authoring UI. **View code** shows the
-whole generated Pattern, because the best answer to "what did the compiler do?"
-is the code it wrote.
+specializations stay out of the persistent authoring UI. **View code** shows
+the whole generated Pattern, because the best answer to "what did the compiler
+do?" is the code it wrote.
 
 For the measured evidence behind every number here, see
 [Show Rendering Optimization Results](../reference/Show%20Rendering%20Optimization%20Results.md).

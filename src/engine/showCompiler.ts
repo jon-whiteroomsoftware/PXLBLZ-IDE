@@ -546,6 +546,10 @@ export interface ShowCompileSummary {
   expectedActiveFraction: number | null
   temporalPolicy: 'continuous' | 'stepped-clock' | 'mixed'
   timeOffsetPolicy: 'none' | 'per-clip'
+  /** Distinct compiled Pattern machines active across the whole Controller. */
+  steadyStateRenderersPerController: number
+  /** Peak distinct compiled Pattern machines active across the whole Controller. */
+  worstInstantRenderersPerController: number
   steadyStateRenderersPerPixel: number
   worstInstantRenderersPerPixel: number
   routingRepresentation: 'none' | 'range-branches' | 'packed-pixels' | 'generated-formula' | 'coordinate-predicates'
@@ -3192,6 +3196,8 @@ export function compileShow(
     expectedActiveFraction: evaluationSummary.expectedActiveFraction,
     temporalPolicy: describeTemporalPolicy(members),
     timeOffsetPolicy: members.some((member) => member.adaptation.timeOffsetMs !== 0) ? 'per-clip' : 'none',
+    steadyStateRenderersPerController: rendererPressure.controllerSteady,
+    worstInstantRenderersPerController: rendererPressure.controllerWorst,
     steadyStateRenderersPerPixel: rendererPressure.steady,
     worstInstantRenderersPerPixel: rendererPressure.worst,
     routingRepresentation,
@@ -11118,12 +11124,15 @@ function showRendererPressure(
   transitionCost: ShowCompileSummary['transitionCost'],
   members: CompiledMember[],
   outputDimension: ShowOutputDimension,
-): { steady: number; worst: number } {
+): { steady: number; worst: number; controllerSteady: number; controllerWorst: number } {
   const softSplitFactor = recipe.routingLayouts?.some((layout) => (
     layout.logical?.kind === 'soft-split' && layout.logical.feather > 0
   )) ? 2 : 1
   if (recipe.routedSceneSequence) {
     const memberById = new Map(members.map((member) => [member.id, member]))
+    const activeMemberIds = recipe.routedSceneSequence.scenes.map((scene) => (
+      new Set(scene.placements.map((placement) => placement.clipId))
+    ))
     const sceneDepths = recipe.routedSceneSequence.scenes.map((scene, sceneIndex) => {
       const placements = scene.placements.map((placement, placementIndex) => ({
         ...placement,
@@ -11156,10 +11165,49 @@ function showRendererPressure(
         ? sceneDepths[index] + sceneDepths[index + 1]
         : Math.max(sceneDepths[index], sceneDepths[index + 1]))
     }, 1)
-    return { steady: holdDepth, worst: Math.max(holdDepth, transitionDepth) * softSplitFactor }
+    const controllerSteady = Math.max(1, ...activeMemberIds.map((ids) => ids.size))
+    const controllerTransition = recipe.routedSceneSequence.scenes.slice(0, -1).reduce((worst, scene, index) => {
+      if (!scene.transitionOut || scene.transitionOut.kind === 'cut' || scene.transitionOut.kind === 'fade-color') {
+        return worst
+      }
+      return Math.max(worst, new Set([
+        ...activeMemberIds[index],
+        ...activeMemberIds[index + 1],
+      ]).size)
+    }, 1)
+    return {
+      steady: holdDepth,
+      worst: Math.max(holdDepth, transitionDepth) * softSplitFactor,
+      controllerSteady,
+      controllerWorst: Math.max(controllerSteady, controllerTransition),
+    }
   }
   const worst = transitionCost === 'renderer-window' || transitionCost === 'bounded-renderer-window' ? 2 : 1
-  return { steady: 1, worst }
+  if (recipe.sceneSequence) {
+    const activeMemberIds = recipe.sceneSequence.scenes.map((scene) => new Set([scene.clipId]))
+    const controllerTransition = recipe.sceneSequence.scenes.slice(0, -1).reduce((peak, scene, index) => {
+      if (!scene.transitionOut || scene.transitionOut.kind === 'cut' || scene.transitionOut.kind === 'fade-color') {
+        return peak
+      }
+      return Math.max(peak, new Set([
+        ...activeMemberIds[index],
+        ...activeMemberIds[index + 1],
+      ]).size)
+    }, 1)
+    return { steady: 1, worst, controllerSteady: 1, controllerWorst: controllerTransition }
+  }
+  const staticRoutedMemberCount = recipe.clips.some((clip) => routeTargets(clip).length > 0)
+    ? Math.max(1, members.length)
+    : 1
+  const controllerWorst = recipe.crossfade || recipe.routeTransition
+    ? Math.max(staticRoutedMemberCount, members.length)
+    : staticRoutedMemberCount
+  return {
+    steady: 1,
+    worst,
+    controllerSteady: staticRoutedMemberCount,
+    controllerWorst,
+  }
 }
 
 function showPatternEvaluationOverride(

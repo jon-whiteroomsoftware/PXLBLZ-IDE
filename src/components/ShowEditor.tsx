@@ -10141,8 +10141,14 @@ function CompileBar({
             remaining: summary.resources.remainingWords,
           }}
           renderers={{
-            steady: summary.steadyStateRenderersPerPixel,
-            worst: summary.worstInstantRenderersPerPixel,
+            controller: {
+              steady: summary.steadyStateRenderersPerController,
+              worst: summary.worstInstantRenderersPerController,
+            },
+            perPixel: {
+              steady: summary.steadyStateRenderersPerPixel,
+              worst: summary.worstInstantRenderersPerPixel,
+            },
           }}
           structure={{
             transitionCount: summary.transitionCount,

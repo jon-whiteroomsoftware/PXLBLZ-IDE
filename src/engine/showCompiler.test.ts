@@ -2799,6 +2799,55 @@ export function render2D(index, x, y) { rgb(${channel === 'r' ? 1 : 0}, ${channe
     })
   })
 
+  it.each([
+    ['hard Wipe', { kind: 'wipe', durationMs: 1_000 } as const, 1],
+    ['Crossfade', { kind: 'crossfade', durationMs: 1_000 } as const, 2],
+  ])('counts controller-wide renderer concurrency across Zones during %s (#839)', (
+    _name,
+    transitionOut,
+    worstInstantRenderersPerPixel,
+  ) => {
+    const zones = [
+      { id: 'left', name: 'left', ranges: [{ start: 0, end: 1 }] },
+      { id: 'right', name: 'right', ranges: [{ start: 2, end: 3 }] },
+    ]
+    const artifact = compileShow({
+      clips: ['red', 'blue', 'green', 'white'].map((id) => ({
+        id,
+        source: `export function render2D(index, x, y) { rgb(x, y, ${id === 'white' ? 1 : 0}) }`,
+      })),
+      zones,
+      routingLayouts: [{ id: 'default', name: 'Default', zones }],
+      routedSceneSequence: {
+        scenes: [
+          {
+            holdMs: 1_000,
+            placements: [
+              { zoneName: 'left', clipId: 'red' },
+              { zoneName: 'right', clipId: 'blue' },
+            ],
+            transitionOut,
+          },
+          {
+            holdMs: 1_000,
+            placements: [
+              { zoneName: 'left', clipId: 'green' },
+              { zoneName: 'right', clipId: 'white' },
+            ],
+          },
+        ],
+      },
+      loopDurationMs: 3_000,
+    }, {})
+
+    expect(artifact.summary).toMatchObject({
+      steadyStateRenderersPerController: 2,
+      worstInstantRenderersPerController: 4,
+      steadyStateRenderersPerPixel: 1,
+      worstInstantRenderersPerPixel,
+    })
+  })
+
   it('keeps an unchanged routed Layer visually stable while the Layer below crossfades (#583)', () => {
     const zones = [{ id: 'main', name: 'main', ranges: [{ start: 0, end: 3 }] }]
     const artifact = compileShow({

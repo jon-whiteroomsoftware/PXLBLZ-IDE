@@ -163,9 +163,10 @@ edge.
 Effects can still add scalar, trigonometric, square-root, or address work around
 that one Pattern evaluation. The current UI does not itemize those per-Effect
 operations. The Add Effect palette exposes broad cost policies while you choose;
-the Show source inventory summarizes steady and worst renderer depth, while the
-compile bar keeps source size, VM words, and compatibility warnings visible for
-the finished artifact.
+the Show source inventory leads with peak active Pattern machines across the
+whole Controller and separately summarizes steady and peak renderer depth per
+pixel. The compile bar keeps source size, VM words, and compatibility warnings
+visible for the finished artifact.
 
 ## Built-in Show companion
 

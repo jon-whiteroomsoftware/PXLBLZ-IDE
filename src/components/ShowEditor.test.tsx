@@ -7136,6 +7136,19 @@ describe('ShowEditor (#318)', () => {
     expect(inventory).not.toHaveTextContent('interned stacks')
   })
 
+  it('leads with peak controller-wide renderers while retaining per-pixel depth (#839)', async () => {
+    const user = userEvent.setup()
+    const installation = STOCK_SHOWS.find((candidate) => candidate.id === 'stock-show-301-installation-mapping')!
+
+    render(<ShowEditor showId={installation.id} showOverride={installation.show} readOnly />)
+    await user.click(screen.getByRole('button', { name: /show source inventory/i }))
+
+    const inventory = screen.getByRole('dialog', { name: 'Show source inventory' })
+    expect(inventory).toHaveTextContent('Controller renderers')
+    expect(inventory).toHaveTextContent('3 peak active')
+    expect(inventory).toHaveTextContent('Per pixel: 1 steady / 1 peak')
+  })
+
   it('surfaces actionable renderer pressure without tinting the source gauge (#63, #492, #499)', () => {
     const [portable, installation] = buildShowCompositionFreezeCases()
     usePatternStore.setState({ userPatterns: portable.patterns })

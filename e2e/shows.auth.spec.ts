@@ -417,6 +417,26 @@ test.describe('authenticated Show authoring', () => {
     await expect(addLabel).toHaveCSS('display', 'block')
   })
 
+  test('shows peak controller-wide renderers ahead of per-pixel depth (#839)', async ({ page }) => {
+    await page.setViewportSize({ width: 1440, height: 900 })
+    await page.goto(showtimePath('studio/shows/stock-show-301-installation-mapping'))
+
+    await page.getByRole('button', { name: /Show source inventory/ }).click()
+    const inventory = page.getByRole('dialog', { name: 'Show source inventory' })
+    await expect(inventory).toContainText('Controller renderers')
+    await expect(inventory).toContainText('3 peak active')
+    await expect(inventory).toContainText('Per pixel: 1 steady / 1 peak')
+
+    await page.setViewportSize({ width: 390, height: 800 })
+    await expect(inventory).toBeVisible()
+    const bounds = await inventory.boundingBox()
+    expect(bounds).not.toBeNull()
+    expect(bounds!.x).toBeGreaterThanOrEqual(0)
+    expect(bounds!.x + bounds!.width).toBeLessThanOrEqual(390)
+    expect(bounds!.y).toBeGreaterThanOrEqual(0)
+    expect(bounds!.y + bounds!.height).toBeLessThanOrEqual(800)
+  })
+
   test('Show header preserves its title before compacting lower-priority controls (#836)', async ({ page }) => {
     await installFakeControllerHelper(page, {
       programs: [],

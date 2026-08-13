@@ -12,7 +12,10 @@ interface Props {
   inventory: DeliveredShowSourceInventory
   model: ShowArtifactInventoryModel
   vmWords: { used: number; budget: number; remaining: number }
-  renderers: { steady: number; worst: number }
+  renderers: {
+    controller: { steady: number; worst: number }
+    perPixel: { steady: number; worst: number }
+  }
   structure: {
     transitionCount: number
   }
@@ -166,7 +169,11 @@ export function ShowArtifactInventoryPopover({ inventory, model, vmWords, render
           detail={`${formatPercent(inventory.totalBytes / model.budgetBytes)} of budget`}
         />
         <ResourceAxis label="VM words" value={`${vmWords.used.toLocaleString('en-US')} / ${vmWords.budget.toLocaleString('en-US')}`} detail={`${vmWords.remaining.toLocaleString('en-US')} free`} />
-        <ResourceAxis label="Runtime renderers" value={`${renderers.steady} steady`} detail={`${renderers.worst} worst`} />
+        <ResourceAxis
+          label="Controller renderers"
+          value={`${renderers.controller.worst} peak active`}
+          detail={`Per pixel: ${renderers.perPixel.steady} steady / ${renderers.perPixel.worst} peak`}
+        />
       </div>
 
       {model.slimmingTips.length > 0 && (

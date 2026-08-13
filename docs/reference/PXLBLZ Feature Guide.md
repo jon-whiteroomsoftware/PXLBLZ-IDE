@@ -579,7 +579,10 @@ The compile bar under the timeline reports creator-facing limits: delivered
 source figure expands into a byte-level inventory of contributors; when the
 inventory finds actionable savings — an oversized contributor, or a Pattern
 compiled into more than one machine — it adds a **Ways to slim this Show**
-section, and stays silent when there is nothing actionable. The same
+section, and stays silent when there is nothing actionable. Its renderer axis
+leads with the peak number of distinct Pattern machines active across the whole
+Controller, then reports steady and peak renderer depth per pixel separately.
+The same
 bar enforces the support envelope — outputs above 2,000
 pixels, exhausted memory axes, or more than five simultaneous renderers per
 pixel block outbound actions with a named cause, while editing and preview

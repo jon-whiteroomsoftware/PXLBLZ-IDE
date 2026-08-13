@@ -1770,6 +1770,12 @@ describe('stock Show curriculum (#363)', () => {
 
     const compiled = compileShowForArtifact(item.show, [], undefined, {}, { stageDimension: 2 })
     expect(compiled.error).toBeNull()
+    expect(compiled.artifact!.summary).toMatchObject({
+      steadyStateRenderersPerController: 3,
+      worstInstantRenderersPerController: 3,
+      steadyStateRenderersPerPixel: 1,
+      worstInstantRenderersPerPixel: 1,
+    })
     const mapPoints = SOURCE_STOCK_MAPS.find((map) => map.id === 'proscenium-stage-2d')!.resolve(1_000)
     let virtualTime = 0
     const shim = createShim({
@@ -1904,6 +1910,12 @@ describe('stock Show curriculum (#363)', () => {
 
     const compiled = compileShowForArtifact(item.show, [], undefined, {}, { stageDimension: 2 })
     expect(compiled.error).toBeNull()
+    expect(compiled.artifact!.summary).toMatchObject({
+      steadyStateRenderersPerController: 1,
+      worstInstantRenderersPerController: 1,
+      steadyStateRenderersPerPixel: 1,
+      worstInstantRenderersPerPixel: 1,
+    })
     const mapPoints = SOURCE_STOCK_MAPS.find((map) => map.id === 'redline-stage-2d')!.resolve(2_000)
     let virtualTime = 0
     const shim = createShim({
