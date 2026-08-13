@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest'
-import { applyShowPatternSlotSelections } from '@/engine/showReferenceShow'
+import { applyShowPatternSlotSelections, restoreShowReferencePatternSlots } from '@/engine/showReferenceShow'
+import { replaceShowPatternInstance } from '@/engine/showCompositionModel'
 import { compileShowForArtifact } from '@/engine/showPreviewArtifact'
 import { createFastReplayRuntime } from '@/engine/fastReplay'
 import { nativeDimension } from '@/engine/loadPattern'
@@ -86,5 +87,28 @@ describe('stock deterministic-loop census (#823)', () => {
       )
       expect(projected.composition?.executionModel, item.name).toBeUndefined()
     }
+  })
+
+  it('forfeits the stamp on permanent reassignment and restores it on unwind (#823 review)', () => {
+    const item = STOCK_SHOWS.find((entry) => (
+      entry.show.composition?.executionModel === 'deterministic-loop'
+      && entry.patternSlots?.some((group) => group.instanceIds.length > 0)
+    ))!
+    const instanceId = item.patternSlots!.find((group) => group.instanceIds.length > 0)!.instanceIds[0]
+    // Permanent Clip Detail-style reassignment forfeits the cast-bound proof.
+    const replaced = replaceShowPatternInstance(
+      item.show.composition!, instanceId, { pattern: { kind: 'stock', id: 'IceFloes2D' }, patternName: 'IceFloes2D' },
+    )
+    expect(replaced.executionModel).toBeUndefined()
+    // Restoring the authored cast after a transient projection restores it.
+    const projected = applyShowPatternSlotSelections(
+      item.show, item.patternSlots!, { 0: { kind: 'stock', id: 'IceFloes2D' } }, (ref) => ref.id,
+    )
+    const restored = restoreShowReferencePatternSlots(projected, item.show, {
+      pattern: { kind: 'stock', id: 'IceFloes2D' },
+      patternName: 'IceFloes2D',
+      ...item.patternSlots![0],
+    })
+    expect(restored.composition?.executionModel).toBe('deterministic-loop')
   })
 })

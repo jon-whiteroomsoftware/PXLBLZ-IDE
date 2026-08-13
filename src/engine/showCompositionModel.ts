@@ -765,9 +765,16 @@ export function replaceShowPatternInstance(
   instanceId: string,
   replacement: Pick<ShowPatternInstance, 'pattern' | 'patternName'>,
 ): ShowCompositionV1 {
-  if (!composition.patternInstances.some((instance) => instance.id === instanceId)) return composition
+  const current = composition.patternInstances.find((instance) => instance.id === instanceId)
+  if (!current) return composition
+  const sourceChanged = current.pattern.kind !== replacement.pattern.kind
+    || current.pattern.id !== replacement.pattern.id
   return {
     ...cloneJson(composition),
+    // A changed source forfeits the deterministic-loop stamp: the exact-reset
+    // proof (#823 wrap census) belongs to the authored cast, and the new
+    // Pattern may hold state the loop reset cannot reconstruct.
+    ...(sourceChanged ? { executionModel: undefined } : {}),
     patternInstances: composition.patternInstances.map((instance) => instance.id === instanceId
       ? { ...cloneJson(instance), pattern: { ...replacement.pattern }, patternName: replacement.patternName }
       : cloneJson(instance)),

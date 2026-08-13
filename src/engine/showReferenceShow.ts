@@ -193,6 +193,14 @@ export function restoreShowReferencePatternSlots(
     }),
     composition: edited.composition ? {
       ...edited.composition,
+      // Restoring the authored cast also restores its deterministic-loop
+      // stamp: the transient projection forfeited it (the swapped source was
+      // unproven), and the authored composition is the proof's subject
+      // (#823 review P2).
+      ...(authored.composition?.executionModel !== undefined
+        && edited.composition.executionModel === undefined
+        ? { executionModel: authored.composition.executionModel }
+        : {}),
       patternInstances: edited.composition.patternInstances.map((instance) => {
         const sourceCellId = resolvedProjection.instanceSourceCellIdById?.[instance.id]
         const source = instanceIds.has(instance.id)
