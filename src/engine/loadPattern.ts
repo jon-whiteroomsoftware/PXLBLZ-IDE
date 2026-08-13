@@ -50,6 +50,8 @@ export interface PatternHandle {
   render3D: (index: number, x: number, y: number, z: number) => void
   getExports: () => Record<string, unknown>
   getPatternFunctions: () => Record<string, (...args: never[]) => unknown>
+  /** Browser-runtime seam for mutable function declarations; never emitted to Pixelblaze. */
+  setPatternFunction: (name: string, value: (...args: never[]) => unknown) => boolean
   /** Browser-runtime seam for metadata-owned state; never emitted to Pixelblaze. */
   setPatternVar: (name: string, value: unknown) => boolean
   controls: Record<string, (...args: number[]) => void>
@@ -97,6 +99,10 @@ function buildEpilogue(metadata: PatternMetadata): string {
     .map(name => `${JSON.stringify(name)}:(typeof ${name}==='function'?${name}:undefined)`)
     .join(',')
 
+  const setPatternFunctionCases = (metadata.patternFunctions ?? [])
+    .map(name => `case ${JSON.stringify(name)}:if(typeof ${name}==='function'){${name}=value;return true;}return false;`)
+    .join('')
+
   const setPatternVarCases = metadata.patternVars
     .map((name) => {
       const runtimeName = metadata.patternVarBindings?.[name] ?? name
@@ -113,6 +119,7 @@ function buildEpilogue(metadata: PatternMetadata): string {
     '  render3D:typeof render3D==="function"?render3D:function(index,x,y,z){},',
     `  getExports:function(){return{${getExportsEntries}};},`,
     `  getPatternFunctions:function(){return{${patternFunctionEntries}};},`,
+    `  setPatternFunction:function(name,value){switch(name){${setPatternFunctionCases}default:return false;}},`,
     `  setPatternVar:function(name,value){switch(name){${setPatternVarCases}default:return false;}},`,
     `  controls:{${controlsEntries}},`,
     '};',

@@ -195,22 +195,16 @@ export function render(index) { rgb(total, 0, 0) }
     },
   )
 
-  it('restores reassigned Pattern functions by implementation identity', () => {
+  it('restores a reassigned Pattern function used through its declaration binding', () => {
     const prepared = prepareFastReplay(`
 var frameNumber = 0
-var value = 0
 function red() { return 1 }
 function green() { return 0.25 }
-var selected = red
 export function beforeRender(delta) {
   frameNumber = frameNumber + 1
-  if (frameNumber == 1) {
-    red = green
-    selected = red
-  }
-  value = selected()
+  if (frameNumber == 1) red = green
 }
-export function render(index) { rgb(value, 0, 0) }
+export function render(index) { rgb(red(), frameNumber / 10, 0) }
 `, {})
     const options = { mapPoints: lineMap(1), randomSeed: 841 }
     const source = createFastReplayRuntime(prepared, options)
@@ -222,7 +216,32 @@ export function render(index) { rgb(value, 0, 0) }
     restoredRuntime.restore(snapshot)
     const restored = restoredRuntime.advanceTo(20, { stepMs: 10 })
 
-    expect(restored.exports.value).toBe(uninterrupted.exports.value)
+    expect(restored.checksum).toBe(uninterrupted.checksum)
+  })
+
+  it('restores an original Pattern function binding after both runtimes reassign it', () => {
+    const prepared = prepareFastReplay(`
+var frameNumber = 0
+function red() { return 1 }
+function green() { return 0.25 }
+export function beforeRender(delta) {
+  frameNumber = frameNumber + 1
+  if (frameNumber == 3) red = green
+}
+export function render(index) { rgb(red(), frameNumber / 10, 0) }
+`, {})
+    const options = { mapPoints: lineMap(1), randomSeed: 841 }
+    const source = createFastReplayRuntime(prepared, options)
+    source.advanceTo(10, { stepMs: 10 })
+    const snapshot = source.snapshot()
+    const uninterrupted = source.advanceTo(20, { stepMs: 10 })
+    source.advanceTo(40, { stepMs: 10 })
+
+    const restoredRuntime = createFastReplayRuntime(prepared, options)
+    restoredRuntime.advanceTo(40, { stepMs: 10 })
+    restoredRuntime.restore(snapshot)
+    const restored = restoredRuntime.advanceTo(20, { stepMs: 10 })
+
     expect(restored.checksum).toBe(uninterrupted.checksum)
   })
 

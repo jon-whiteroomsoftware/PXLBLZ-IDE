@@ -41,6 +41,7 @@ export interface FastReplaySnapshot {
   elapsedMs: number
   simulatedFrames: number
   frame: Float64Array<ArrayBufferLike>
+  patternFunctionBindings: Record<string, unknown>
   patternVars: Record<string, unknown>
   shim: ShimSnapshot
 }
@@ -305,6 +306,7 @@ export function createFastReplayRuntime(
     prepared.metadata,
     shim.builtins,
   )
+  const functionRegistry = createFunctionRegistry(handle.getPatternFunctions(), shim.builtins, handle.controls)
   const renderCompatibility = selectRenderCompatibility(prepared.dimension, prepared.metadata.renderFns)
   let frame: Float64Array<ArrayBufferLike> = new Float64Array(pixelCount * 3)
   let simulatedFrames = 0
@@ -341,7 +343,6 @@ export function createFastReplayRuntime(
   return {
     getElapsedMs: () => clock.getTime(),
     snapshot(): FastReplaySnapshot {
-      const functionRegistry = createFunctionRegistry(handle.getPatternFunctions(), shim.builtins, handle.controls)
       const cloneContext: SnapshotCloneContext = {
         cloned: new Map<object, unknown>(),
         functionTokens: new Map<RuntimeFunction, SnapshotFunctionToken>(),
@@ -352,6 +353,10 @@ export function createFastReplayRuntime(
         elapsedMs: clock.getTime(),
         simulatedFrames,
         frame: frame.slice(),
+        patternFunctionBindings: Object.fromEntries(
+          Object.entries(handle.getPatternFunctions())
+            .map(([name, value]) => [name, clonePatternValue(value, cloneContext)]),
+        ),
         patternVars: Object.fromEntries(
           Object.entries(handle.getExports()).map(([name, value]) => [name, clonePatternValue(value, cloneContext)]),
         ),
@@ -363,7 +368,6 @@ export function createFastReplayRuntime(
         throw new Error('Fast replay snapshot frame size does not match this runtime.')
       }
       const currentPatternVars = handle.getExports()
-      const functionRegistry = createFunctionRegistry(handle.getPatternFunctions(), shim.builtins, handle.controls)
       const fallbackFunctions = new Map<string, RuntimeFunction>()
       const seenFunctionContainers = new Set<object>()
       collectFallbackFunctions(currentPatternVars, functionRegistry.byFunction, fallbackFunctions, seenFunctionContainers)
@@ -372,6 +376,19 @@ export function createFastReplayRuntime(
       const createArray = (length: number): unknown[] => {
         const arrayBuiltin = shim.getBuiltin('array') as (length: number) => unknown[]
         return arrayBuiltin(shim.encodeScalar(length))
+      }
+      for (const [name, snapshotValue] of Object.entries(snapshot.patternFunctionBindings)) {
+        const restoredValue = restorePatternValue(
+          snapshotValue,
+          functionRegistry,
+          fallbackFunctions,
+          restored,
+          claimedTargets,
+          createArray,
+        )
+        if (typeof restoredValue !== 'function' || !handle.setPatternFunction(name, restoredValue as RuntimeFunction)) {
+          throw new Error(`Fast replay snapshot Pattern function "${name}" is unavailable in this runtime.`)
+        }
       }
       for (const [name, snapshotValue] of Object.entries(snapshot.patternVars)) {
         const currentValue = currentPatternVars[name]
