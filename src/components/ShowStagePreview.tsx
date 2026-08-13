@@ -607,6 +607,14 @@ export function ShowStagePreview({
     const rebuild = async () => {
       try {
         const existingRuntime = replayKeyRef.current === replayCheckpointKey ? replayRef.current : null
+        // Reconstruction restores into existingRuntime in place. Detach it for
+        // the duration so no other effect (Zone solo, brightness) can tick a
+        // partially restored runtime; a failed or superseded rebuild stays
+        // detached and the next rebuild replaces it.
+        if (existingRuntime) {
+          replayRef.current = null
+          replayKeyRef.current = null
+        }
         const reconstruction = await reconstructFastReplayWithCheckpoints({
           key: replayCheckpointKey,
           store: checkpointStoreRef.current!,

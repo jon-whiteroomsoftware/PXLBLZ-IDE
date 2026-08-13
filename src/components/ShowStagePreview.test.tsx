@@ -284,6 +284,40 @@ describe('ShowStagePreview (#339)', () => {
     }
   })
 
+  it('detaches the runtime while a warm seek reconstructs it (#842 P2)', async () => {
+    const show = createDefaultShow('show-detached-seek', 'Detached seek', 1000)
+    useShowStore.setState({ shows: [show], activeShowId: show.id, showsLoaded: true })
+    const strayTicks: unknown[][] = []
+    const original = fastReplay.createFastReplayRuntime
+    const spy = vi.spyOn(fastReplay, 'createFastReplayRuntime').mockImplementation((prepared, options) => {
+      const runtime = original(prepared, options)
+      const realAdvanceTo = runtime.advanceTo.bind(runtime)
+      runtime.advanceTo = (targetMs, advance) => {
+        if (useShowTransportStore.getState().seekStatus === 'rebuilding' && !advance.temporalFeedbackSeek) {
+          strayTicks.push([targetMs, advance])
+        }
+        return realAdvanceTo(targetMs, advance)
+      }
+      return runtime
+    })
+
+    try {
+      render(<ShowStagePreview showId={show.id} />)
+      act(() => useShowTransportStore.getState().requestSeek(show.id, 4_500))
+      await waitFor(() => expect(useShowTransportStore.getState().seekStatus).toBe('idle'))
+
+      act(() => useShowTransportStore.getState().requestSeek(show.id, 30_000))
+      await waitFor(() => expect(useShowTransportStore.getState().seekStatus).toBe('rebuilding'))
+      act(() => usePreviewStore.getState().setBrightness(0.5))
+      await waitFor(() => expect(useShowTransportStore.getState().seekStatus).toBe('idle'), { timeout: 20_000 })
+
+      expect(strayTicks).toEqual([])
+      expect(useShowTransportStore.getState().positionMs).toBe(30_000)
+    } finally {
+      spy.mockRestore()
+    }
+  }, 30_000)
+
   it('shows the saved Stage as read-only output context (#434)', () => {
     const show = createDefaultShow('show-1', 'Opening wash', 1000)
     show.stageMapId = 'map-1'
