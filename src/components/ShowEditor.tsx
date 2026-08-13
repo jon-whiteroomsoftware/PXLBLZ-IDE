@@ -1954,16 +1954,23 @@ export function ShowEditor({
     lastRunProgramId: activeIp ? lastRunProgramId[activeIp]?.[showArtifactId] : undefined,
     activeProgramId,
   })
-  const runGate = describeSendToController({
-    status: controllerStatus,
-    compileStatus: preparedControllerArtifact.value ? 'good' : 'broken',
-    alreadyPushed: alreadySent('run'),
-  })
-  const saveGate = describeSendToController({
-    status: controllerStatus,
-    compileStatus: preparedControllerArtifact.value ? 'good' : 'broken',
-    alreadyPushed: alreadySent('save'),
-  })
+  const deliveryBlocker = compilePressure?.status === 'blocked'
+    ? compilePressure.blocks.join(' ')
+    : null
+  const runGate = deliveryBlocker
+    ? { enabled: false, reason: deliveryBlocker }
+    : describeSendToController({
+        status: controllerStatus,
+        compileStatus: preparedControllerArtifact.value ? 'good' : 'broken',
+        alreadyPushed: alreadySent('run'),
+      })
+  const saveGate = deliveryBlocker
+    ? { enabled: false, reason: deliveryBlocker }
+    : describeSendToController({
+        status: controllerStatus,
+        compileStatus: preparedControllerArtifact.value ? 'good' : 'broken',
+        alreadyPushed: alreadySent('save'),
+      })
   const controllerName = activeController ? activeController.nickname || activeIp : null
 
   async function sendShow(mode: SendMode, requestedDelivery?: ShowDeliverySnapshot | null) {

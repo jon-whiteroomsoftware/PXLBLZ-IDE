@@ -6887,6 +6887,11 @@ export function render(index) { rgb(MyMath.glow(index), 0, 0) }
     expect(screen.getByText(/Output blocked: Peak: [5-9] Patterns per pixel \(limit 4\)\./)).toBeInTheDocument()
     expect(screen.getByTestId('show-compile-bar')).toHaveTextContent(/Controller transforms \+[\d.]+ KB/)
     expect(screen.getByLabelText(/^Controller source .* advisory\.$/i)).toBeInTheDocument()
+    const blockedReason = 'Peak: 6 Patterns per pixel (limit 4).'
+    expect(screen.getByRole('button', { name: 'Run on Bench PB' })).toBeDisabled()
+    expect(screen.getByRole('button', { name: 'Run on Bench PB' })).toHaveAttribute('title', blockedReason)
+    expect(screen.getByRole('button', { name: 'Save to Bench PB' })).toBeDisabled()
+    expect(screen.getByRole('button', { name: 'Save to Bench PB' })).toHaveAttribute('title', blockedReason)
   })
 
   it('does not measure an unmatched Installation target profile against the live Controller (#849)', () => {
