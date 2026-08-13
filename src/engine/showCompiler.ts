@@ -11239,13 +11239,28 @@ function showRendererPressure(
   let progressiveRoutingPeak = staticRoutedMemberCount
   if (routingLayoutMemberIds && layoutIndexById) {
     let sourceLayoutIndex = 0
+    let latestProgressiveTransfer: { sourceLayoutIndex: number; endMs: number } | null = null
+    const countLayoutUnion = (fromIndex: number, toIndex: number) => new Set([
+      ...(routingLayoutMemberIds[fromIndex] ?? []),
+      ...(routingLayoutMemberIds[toIndex] ?? []),
+    ]).size
     for (const routingSwitch of orderedRoutingSwitches) {
       const destinationLayoutIndex = layoutIndexById.get(routingSwitch.layoutId) ?? 0
-      if ((routingSwitch.durationMs ?? 0) > 0) {
-        progressiveRoutingPeak = Math.max(progressiveRoutingPeak, new Set([
-          ...(routingLayoutMemberIds[sourceLayoutIndex] ?? []),
-          ...(routingLayoutMemberIds[destinationLayoutIndex] ?? []),
-        ]).size)
+      const durationMs = routingSwitch.durationMs ?? 0
+      if (durationMs > 0) {
+        progressiveRoutingPeak = Math.max(
+          progressiveRoutingPeak,
+          countLayoutUnion(sourceLayoutIndex, destinationLayoutIndex),
+        )
+        latestProgressiveTransfer = {
+          sourceLayoutIndex,
+          endMs: routingSwitch.atMs + durationMs,
+        }
+      } else if (latestProgressiveTransfer && routingSwitch.atMs < latestProgressiveTransfer.endMs) {
+        progressiveRoutingPeak = Math.max(
+          progressiveRoutingPeak,
+          countLayoutUnion(latestProgressiveTransfer.sourceLayoutIndex, destinationLayoutIndex),
+        )
       }
       sourceLayoutIndex = destinationLayoutIndex
     }

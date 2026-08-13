@@ -3792,6 +3792,62 @@ export function render(index) { renders = renders + 1; rgb(${r}, ${g}, ${b}) }
     })
   })
 
+  it('retains the progressive source when an overlapping instant switch replaces its destination (#839)', () => {
+    const source = (r: number, g: number, b: number) => `
+export var renders = 0
+export function render(index) { renders = renders + 1; rgb(${r}, ${g}, ${b}) }
+`
+    const artifact = compileShow({
+      masterPixelCount: 3,
+      clips: [
+        { id: 'a', zone: 'a-zone', source: source(1, 0, 0) },
+        { id: 'b', zone: 'b-zone', source: source(0, 1, 0) },
+        { id: 'c', zone: 'c-zone', source: source(0, 0, 1) },
+      ],
+      zones: [
+        { id: 'a', name: 'a-zone', ranges: [{ start: 2, end: 2 }] },
+        { id: 'b', name: 'b-zone', ranges: [{ start: 0, end: 1 }] },
+        { id: 'c', name: 'c-zone', ranges: [{ start: 1, end: 2 }] },
+      ],
+      routingLayouts: [
+        { id: 'a-before', name: 'A before', zones: [
+          { id: 'a-before', name: 'a-zone', ranges: [{ start: 2, end: 2 }] },
+          { id: 'b-before', name: 'b-zone', ranges: [{ start: 0, end: 1 }] },
+        ] },
+        { id: 'a-after', name: 'A after', zones: [
+          { id: 'a-after', name: 'a-zone', ranges: [{ start: 2, end: 2 }] },
+          { id: 'b-after', name: 'b-zone', ranges: [{ start: 0, end: 1 }] },
+        ] },
+        { id: 'bc', name: 'B and C', zones: [
+          { id: 'b', name: 'b-zone', ranges: [{ start: 0, end: 0 }] },
+          { id: 'c', name: 'c-zone', ranges: [{ start: 1, end: 2 }] },
+        ] },
+      ],
+      routingSwitches: [
+        { atMs: 1_000, layoutId: 'a-after', durationMs: 1_000 },
+        { atMs: 1_500, layoutId: 'bc' },
+      ],
+      loopDurationMs: 3_000,
+    }, {})
+
+    expect(artifact.summary).toMatchObject({
+      steadyStateRenderersPerController: 2,
+      worstInstantRenderersPerController: 3,
+      worstInstantRenderersPerPixel: 1,
+    })
+
+    const { handle } = loadShow(artifact.code, artifact.metadata, 3)
+    handle.beforeRender(1_600)
+    handle.render(0)
+    handle.render(1)
+    handle.render(2)
+    expect(handle.getExports()).toMatchObject({
+      __pxlblz_show_c0_renders: 1,
+      __pxlblz_show_c1_renders: 1,
+      __pxlblz_show_c2_renders: 1,
+    })
+  })
+
   it('excludes defined Zone Layouts that the Show never selects (#839)', () => {
     const artifact = compileShow({
       clips: [
