@@ -317,7 +317,8 @@ after every deterministic step, including full-render verification steps; an
 inactive member therefore cannot retain a different last-render value at a
 checkpoint or target. Accumulators, array or alias writes, dynamic calls,
 destructuring assignment targets, function-valued helpers on an external
-observer path, render-target history, and temporal feedback fail closed. A capable replay
+observer path, mutable function declaration bindings, render-target history,
+and temporal feedback fail closed. A capable replay
 advances the virtual clock and `beforeRender` on every fixed step, skips pixel
 traversal on intermediate steps, and renders the requested target frame
 normally. Live playback and artifacts without the capability keep the full

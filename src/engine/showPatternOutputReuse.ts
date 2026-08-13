@@ -344,6 +344,11 @@ export function analyzeShowPatternDeterministicReplayState(
   const reachable = new Set<string>()
   const scratchBindings = new Set<string>()
   const unknownCalls = new Set<string>()
+  walkAst(ast, (node) => {
+    for (const name of assignedBindingNames(node)) {
+      if (userFunctions.has(name)) unknownCalls.add(`<function-rebind:${name}>`)
+    }
+  })
   const collect = (name: string, stack: Set<string>) => {
     if (reachable.has(name)) return
     if (stack.has(name)) {
@@ -608,6 +613,19 @@ function astBindingNames(node: AstNode | null | undefined): string[] {
   if (node.type === 'ObjectPattern') return (node.properties as AstNode[]).flatMap((property) => (
     property.type === 'RestElement' ? astBindingNames(property.argument) : astBindingNames(property.value)
   ))
+  return []
+}
+
+function assignedBindingNames(node: AstNode): string[] {
+  if (node.type === 'AssignmentExpression') return astBindingNames(node.left)
+  if (node.type === 'UpdateExpression') return astBindingNames(node.argument)
+  if (node.type === 'VariableDeclarator' && node.init) return astBindingNames(node.id)
+  if (node.type === 'ForInStatement' || node.type === 'ForOfStatement') {
+    if (node.left?.type === 'VariableDeclaration') {
+      return (node.left.declarations as AstNode[]).flatMap((declaration) => astBindingNames(declaration.id))
+    }
+    return astBindingNames(node.left)
+  }
   return []
 }
 

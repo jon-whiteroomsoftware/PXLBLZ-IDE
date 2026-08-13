@@ -298,6 +298,25 @@ export function render(index) { [calls] = [calls + 1]; rgb(calls, 0, 0) }
     })
   })
 
+  it.each([
+    ['beforeRender assignment', 'export function beforeRender(delta) { emit = stateful }'],
+    ['top-level assignment', 'emit = stateful'],
+    ['for-of assignment', 'export function beforeRender(delta) { for (emit of [stateful]) {} }'],
+  ])('fails closed for a reachable renderer helper changed by %s (#847)', (_label, rebind) => {
+    const source = `
+var calls = 0
+function emit(index) { rgb(0, 0, 0) }
+function stateful(index) { calls += 1; rgb(calls, 0, 0) }
+${rebind}
+export function render(index) { emit(index) }
+`
+
+    expect(analyzeShowPatternCoverageRenderState(source, 'render')).toMatchObject({
+      state: 'unknown',
+      unknownCalls: ['<function-rebind:emit>'],
+    })
+  })
+
   it('fails closed when a helper deletes through a parameter alias (#834)', () => {
     const source = `
 var state = [1]
