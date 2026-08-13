@@ -194,6 +194,20 @@ export function render2D(index, x, y) { sample(x); rgb(outX, y, 0) }
     expect(analysis.unknownCalls).toEqual(['<control-flow:SwitchStatement>'])
   })
 
+  it('fails closed when a helper mutates through an array parameter alias (#834)', () => {
+    const source = `
+var state = [0]
+function tick(a) { a[0] += 1 }
+export function render2D(index, x, y) { tick(state); rgb(state[0], y, 0) }
+`
+
+    expect(analyzeShowPatternCoverageRenderState(source, 'render2D')).toEqual({
+      state: 'unknown',
+      mutatedBindings: [],
+      unknownCalls: ['<parameter-member-write:tick.a>'],
+    })
+  })
+
   it.each([
     [
       'an accumulator in a helper',

@@ -332,10 +332,14 @@ export function analyzeShowPatternCoverageRenderState(
     reachable.add(name)
     const nextStack = new Set(stack).add(name)
     const locals = localBindingsByFunction.get(name)!
+    const parameters = new Set<string>((fn.params as AstNode[]).flatMap(astBindingNames))
     walkAst(fn.body, (node) => {
       if (node.type === 'AssignmentExpression' || node.type === 'UpdateExpression') {
         const target = node.type === 'AssignmentExpression' ? node.left : node.argument
         const root = assignmentRootName(target)
+        if (target?.type === 'MemberExpression' && root && parameters.has(root)) {
+          unknownCalls.add(`<parameter-member-write:${name}.${root}>`)
+        }
         if (root && !locals.has(root)) scratchBindings.add(root)
       }
       if (node.type !== 'CallExpression') return
