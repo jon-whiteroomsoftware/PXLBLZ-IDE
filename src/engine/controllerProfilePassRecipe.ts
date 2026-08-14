@@ -276,9 +276,12 @@ export function controllerProfilePassRecipe(
           {
             id: 'hardware-brightness',
             kind: 'intercept',
-            target: 'hsv',
+            target: ['hsv', 'rgb'],
             source: hwBrightnessMixin.src,
-            wrapperName: '__px_hardwareBrightness',
+            wrapperName: {
+              hsv: '__px_hardwareBrightness',
+              rgb: '__px_hardwareBrightnessRgb',
+            },
             params: {
               BRIGHTNESS: brightnessName,
             },

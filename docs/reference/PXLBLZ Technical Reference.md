@@ -494,9 +494,10 @@ connection-bound bindings read; its read key combines live IP, the
 connection's `liveEpoch`, and program-list content, so a reconnect cannot pass
 off the previous connection's answer as current.
 
-**Power model.** Hardware brightness samples its input once per frame; the
-power cap wraps supported output calls, estimates duty, and scales against the
-exported `__px_powerLimit`. The power model selects an LED construction preset
+**Power model.** Hardware brightness samples its input once per frame and scales
+both `hsv()` and `rgb()` output sinks; the power cap wraps supported output
+calls, estimates duty, and scales against the exported `__px_powerLimit`. The
+power model selects an LED construction preset
 (each carrying an explicit conservative full-white assumption) and a supply
 budget in amps or watts; an optional override records a measured or rated
 full-white total and goes stale when the address count changes. Since #786

@@ -204,8 +204,11 @@ describe('controller profile pass recipe', () => {
     expect(recipe[1]).toMatchObject({
       id: 'hardware-brightness',
       kind: 'intercept',
-      target: 'hsv',
-      wrapperName: '__px_hardwareBrightness',
+      target: ['hsv', 'rgb'],
+      wrapperName: {
+        hsv: '__px_hardwareBrightness',
+        rgb: '__px_hardwareBrightnessRgb',
+      },
       params: { BRIGHTNESS: 'hardwareBrightnessValue' },
     })
   })

@@ -336,9 +336,10 @@ analog input.)
 An input's card shows its `IOxx` pin, one line of physical facts, and one row
 per effective use:
 
-- **Brightness** samples the input each frame and scales supported output
-  calls — separate from the Controller's native brightness, which remains the
-  final physical safety control. Its row states its own scope: `every
+- **Brightness** samples the input each frame and scales every supported
+  `hsv()` and `rgb()` output call — separate from the Controller's native
+  brightness, which remains the final physical safety control. Its row states
+  its own scope: `every
   Pattern`, or `every Pattern except Caustics` when a Pattern use on the same
   input takes precedence.
 - **A Pattern use** routes the input to an exported slider, function, or

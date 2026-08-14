@@ -146,15 +146,19 @@ export function beforeRender(delta) {
 }
 `
 
-const HARDWARE_BRIGHTNESS_SOURCE = `// Hardware Brightness - multiply every hsv() value by a binding-supplied
+const HARDWARE_BRIGHTNESS_SOURCE = `// Hardware Brightness - multiply every hsv()/rgb() output by a binding-supplied
 // hardware brightness scalar without changing the authored pattern source.
 //
 // @param BRIGHTNESS 0..1 controller-level brightness scalar
-// @target hsv
-// @wraps hsv-call
+// @target hsv,rgb
+// @wraps output-call
 
 function __px_hardwareBrightness(h, s, v) {
   hsv(h, s, v * BRIGHTNESS)
+}
+
+function __px_hardwareBrightnessRgb(r, g, b) {
+  rgb(r * BRIGHTNESS, g * BRIGHTNESS, b * BRIGHTNESS)
 }
 `
 
