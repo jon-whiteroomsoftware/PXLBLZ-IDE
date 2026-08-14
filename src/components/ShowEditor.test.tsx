@@ -7205,6 +7205,59 @@ export function render(index) { rgb(MyMath.glow(index), 0, 0) }
       await confirmedSave
 
       expect(pushGeneratedArtifact).not.toHaveBeenCalled()
+      expect(useControllerStore.getState().artifactPushResult).toEqual({
+        ok: false,
+        message: 'Show changed before delivery; try again',
+        artifactId: 'show:show-save-stale-preview',
+        mode: 'save',
+      })
+    } finally {
+      previewJpeg.mockRestore()
+    }
+  })
+
+  it('reports a confirmed Save whose Controller session changes during preview generation (#851)', async () => {
+    const user = userEvent.setup()
+    let show = createDefaultShow('show-save-session-preview', 'Session preview Save', 1000)
+    show = { ...show, stageMapId: 'plane' }
+    show = updateShowTransition(show, show.scenes[0].id, 'portal', 2000, 0.1)
+    let resolvePreview!: (image: Uint8Array) => void
+    const previewJpeg = vi.spyOn(previewThumbnailJpeg, 'buildPreviewJpeg')
+      .mockReturnValue(new Promise((resolve) => { resolvePreview = resolve }))
+    const pushGeneratedArtifact = vi.fn().mockResolvedValue(undefined)
+    useShowStore.setState({ shows: [show], activeShowId: show.id, showsLoaded: true })
+    useControllerStore.setState({
+      controllers: {
+        '10.0.0.5': {
+          ip: '10.0.0.5', nickname: 'Bench PB', phase: 'live', liveEpoch: 1, mapDim: 1, firmwareVersion: '3.67',
+        },
+      },
+      activeIp: '10.0.0.5',
+      pushGeneratedArtifact,
+    })
+    setControllerProvider(new ConnectedControllerProvider())
+
+    try {
+      render(<ShowEditor showId={show.id} />)
+      await user.click(screen.getByRole('button', { name: 'Save to Bench PB' }))
+      const confirmedSave = user.click(screen.getByRole('button', { name: 'Send anyway' }))
+      await waitFor(() => expect(previewJpeg).toHaveBeenCalledTimes(1))
+      act(() => useControllerStore.setState((state) => ({
+        controllers: {
+          ...state.controllers,
+          '10.0.0.5': { ...state.controllers['10.0.0.5'], liveEpoch: 2 },
+        },
+      })))
+      resolvePreview(new Uint8Array([1, 2, 3]))
+      await confirmedSave
+
+      expect(pushGeneratedArtifact).not.toHaveBeenCalled()
+      expect(useControllerStore.getState().artifactPushResult).toEqual({
+        ok: false,
+        message: 'Controller session changed before Show delivery',
+        artifactId: 'show:show-save-session-preview',
+        mode: 'save',
+      })
     } finally {
       previewJpeg.mockRestore()
     }

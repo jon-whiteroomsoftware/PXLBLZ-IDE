@@ -352,6 +352,9 @@ interface ControllerConnectionState {
   clearPushResult: () => void
   /** Dismiss the visible, artifact-scoped Run/Save outcome. */
   clearArtifactPushResult: () => void
+  /** Publish a generated-artifact failure discovered before the shared push
+   * pipeline starts (for example, an async preview outliving its Show/session). */
+  reportArtifactPushFailure: (result: ArtifactPushResult & { ok: false }) => void
   /** Reconcile installed PXLBLZ-managed artifacts for one opted-in Controller profile. */
   reconcileControllerProfile: (profileId: string) => Promise<void>
   /** Debounced entry point used after profile edits and reconnect. */
@@ -951,6 +954,8 @@ export const useControllerStore = create<ControllerConnectionState>()(
         clearPushResult: () => set({ pushResult: null }),
 
         clearArtifactPushResult: () => set({ artifactPushResult: null }),
+
+        reportArtifactPushFailure: (result) => set({ artifactPushResult: result }),
 
         scheduleControllerReconciliation: (profileId) => {
           const existing = reconciliationTimers.get(profileId)

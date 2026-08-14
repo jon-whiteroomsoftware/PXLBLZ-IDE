@@ -1078,7 +1078,8 @@ snapshot builds, and any confirmation bound to the previous snapshot closes.
 The click path consumes the ready snapshot and never recompiles the Show. A
 confirmation revalidates that exact committed snapshot immediately before
 delivery and again after asynchronous Save-preview generation; a dependency
-change retires the action without submitting stale source.
+change retires the action without submitting stale source and publishes an
+artifact-scoped failure instead of silently consuming the confirmation.
 During rebuilding, the Controller identity and action labels remain fixed while
 the disabled Run and Save icons become same-size spinners. The snapshot's stable
 Controller identity and live connection epoch travel through profile draining,

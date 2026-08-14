@@ -1023,6 +1023,7 @@ export function ShowEditor({
   const activeProgramId = useControllerPanelStore((state) => state.activeProgramId)
   const pushGeneratedArtifact = useControllerStore((state) => state.pushGeneratedArtifact)
   const clearArtifactPushResult = useControllerStore((state) => state.clearArtifactPushResult)
+  const reportArtifactPushFailure = useControllerStore((state) => state.reportArtifactPushFailure)
   const [selection, setSelection] = useState<ShowSelection>({ kind: 'show' })
   const [isolatedGroupOccurrenceId, setIsolatedGroupOccurrenceId] = useState<string | null>(null)
   const [generatedSnapshot, setGeneratedSnapshot] = useState<ShowCompilationSnapshot | null>(null)
@@ -2046,17 +2047,37 @@ export function ShowEditor({
       })
   const controllerName = activeController ? activeController.nickname || activeIp : null
 
-  function deliveryIsCurrent(delivery: ShowDeliverySnapshot | null): delivery is ShowDeliverySnapshot {
-    return Boolean(
-      delivery
-      && delivery === preparedDeliverySnapshotRef.current
-      && delivery.show.id === showId
-      && delivery.controllerIp === useControllerStore.getState().activeIp,
-    )
+  function deliveryInvalidationMessage(delivery: ShowDeliverySnapshot): string | null {
+    const controllerState = useControllerStore.getState()
+    const deliveryController = delivery.controllerIp
+      ? controllerState.controllers[delivery.controllerIp]
+      : undefined
+    if (
+      delivery.controllerIp !== controllerState.activeIp
+      || deliveryController?.phase !== 'live'
+      || (deliveryController.liveEpoch ?? 0) !== delivery.controllerSession.liveEpoch
+    ) return 'Controller session changed before Show delivery'
+    if (
+      delivery !== preparedDeliverySnapshotRef.current
+      || delivery.show.id !== showId
+    ) return 'Show changed before delivery; try again'
+    return null
+  }
+
+  function rejectInvalidDelivery(mode: SendMode, delivery: ShowDeliverySnapshot): boolean {
+    const message = deliveryInvalidationMessage(delivery)
+    if (!message) return false
+    reportArtifactPushFailure({
+      ok: false,
+      message,
+      artifactId: `show:${delivery.show.id}`,
+      mode,
+    })
+    return true
   }
 
   async function sendShow(mode: SendMode, delivery: ShowDeliverySnapshot | null) {
-    if (!deliveryIsCurrent(delivery)) {
+    if (!delivery || rejectInvalidDelivery(mode, delivery)) {
       pendingDeliveryRef.current = null
       setPendingSendMode(null)
       return
@@ -2071,7 +2092,7 @@ export function ShowEditor({
       const previewImage = mode === 'save'
         ? (await buildPreviewJpeg(delivery.artifact).catch(() => null)) ?? undefined
         : undefined
-      if (!deliveryIsCurrent(delivery)) return
+      if (rejectInvalidDelivery(mode, delivery)) return
       trackEvent('send_to_controller', {
         mode,
         pattern_key: deliveryArtifactId,
