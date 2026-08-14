@@ -86,6 +86,7 @@ class FakeProvider extends NullControllerProvider {
   firmwareUpdateChecks = 0
   rendererCommands: boolean[] = []
   rendererCommandError: Error | null = null
+  connectionGeneration = 0
 
   detectHelper(): Promise<boolean> {
     return Promise.resolve(true)
@@ -97,7 +98,7 @@ class FakeProvider extends NullControllerProvider {
     this.subs.add(listener)
     return () => this.subs.delete(listener)
   }
-  private emit(status: ControllerStatus) {
+  emit(status: ControllerStatus) {
     this.status = status
     this.subs.forEach((l) => l(status))
   }
@@ -119,6 +120,7 @@ class FakeProvider extends NullControllerProvider {
     const deviceId = target.deviceId ?? this.deviceId
     this.emit({
       kind: 'connected',
+      connectionGeneration: ++this.connectionGeneration,
       controller: {
         id: deviceId ?? target.address,
         address: target.address,
@@ -977,6 +979,26 @@ describe('controllerStore (keyed)', () => {
     // every reader keyed to it would re-read on every observation.
     await store().refreshInstalledMap('10.0.0.5')
     expect(store().controllers['10.0.0.5'].liveEpoch).toBe(third)
+
+    // Repeating the same provider generation while live is only another
+    // observation of the current connection.
+    const provider = created.get('10.0.0.5')!
+    const connected = provider.getStatus()
+    if (connected.kind !== 'connected') throw new Error('Expected connected fixture')
+    provider.emit({ ...connected, connectionGeneration: provider.connectionGeneration })
+    expect(store().controllers['10.0.0.5'].liveEpoch).toBe(third)
+
+    // A provider can then complete that obsolete generation after a replacement
+    // has started. Its stale live observation gets an epoch because of the
+    // pending gap; the replacement generation must mint another one even though
+    // the stale completion already left the entry looking live (#851).
+    provider.emit({ kind: 'connecting', target: { address: '10.0.0.5' } })
+    provider.emit({ ...connected, connectionGeneration: provider.connectionGeneration })
+    const staleCompletionEpoch = store().controllers['10.0.0.5'].liveEpoch!
+    expect(staleCompletionEpoch).toBeGreaterThan(third)
+    provider.emit({ ...connected, connectionGeneration: ++provider.connectionGeneration })
+    const replacementEpoch = store().controllers['10.0.0.5'].liveEpoch!
+    expect(replacementEpoch).toBeGreaterThan(staleCompletionEpoch)
 
     // Connecting re-asserts `live` more than once — the status subscription and
     // the post-getConfig patch both do — and that is one connection, not two.

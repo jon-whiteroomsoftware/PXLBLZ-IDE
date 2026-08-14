@@ -148,6 +148,10 @@ export class ExtensionControllerProvider implements ControllerProvider {
   private programSeq = 0
   private discoverSeq = 0
   private identitySeq = 0
+  /** Monotonic transport generation. Minted when a websocket opens, before
+   * identity recovery, so even a late completion from a dead socket remains
+   * distinguishable from the replacement connection that follows it. */
+  private connectionGeneration = 0
   private readonly _setTimeout: (fn: () => void, ms: number) => unknown
   private readonly _clearTimeout: (h: unknown) => void
 
@@ -357,10 +361,12 @@ export class ExtensionControllerProvider implements ControllerProvider {
       // fatal initial connect (error pill) or a reconnect attempt (stay connecting).
       throw e
     }
+    const connectionGeneration = ++this.connectionGeneration
     this.expectConnected = true
     const deviceId = await this.recoverDeviceId(target, conn)
     this.setStatus({
       kind: 'connected',
+      connectionGeneration,
       controller: {
         id: deviceId ?? target.address,
         address: target.address,

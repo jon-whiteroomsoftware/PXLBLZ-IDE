@@ -76,7 +76,14 @@ export type ControllerStatus =
   | { kind: 'no-extension' }
   | { kind: 'extension-present' }
   | { kind: 'connecting'; target: ControllerTarget; authorizationNeededIp?: string }
-  | { kind: 'connected'; controller: ConnectedController }
+  | {
+      kind: 'connected'
+      controller: ConnectedController
+      /** Provider-local generation of the live transport connection. Backends
+       * that can reconnect in place supply this so consumers can distinguish a
+       * metadata refresh from a replacement socket. */
+      connectionGeneration?: number
+    }
   | { kind: 'error'; message: string }
 
 /** True when a live-status snapshot still names the prepared Controller.

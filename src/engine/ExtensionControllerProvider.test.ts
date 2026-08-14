@@ -281,6 +281,7 @@ describe('ExtensionControllerProvider', () => {
     await p.connect(TARGET)
     expect(p.getStatus()).toEqual({
       kind: 'connected',
+      connectionGeneration: 1,
       controller: { id: TARGET.address, address: TARGET.address, deviceId: null },
     })
     expect(seen.map((s) => s.kind)).toContain('connecting')
@@ -295,6 +296,7 @@ describe('ExtensionControllerProvider', () => {
     })
     expect(p.getStatus()).toEqual({
       kind: 'connected',
+      connectionGeneration: 1,
       controller: {
         id: 'pixelblaze_pb32_known',
         address: TARGET.address,
@@ -315,6 +317,7 @@ describe('ExtensionControllerProvider', () => {
 
     expect(p.getStatus()).toEqual({
       kind: 'connected',
+      connectionGeneration: 1,
       controller: {
         id: 'pixelblaze_pb32_3cd4ee549434',
         address: TARGET.address,
@@ -335,6 +338,7 @@ describe('ExtensionControllerProvider', () => {
 
     expect(p.getStatus()).toEqual({
       kind: 'connected',
+      connectionGeneration: 1,
       controller: {
         id: 'pixelblaze_pb32_from_discovery',
         address: TARGET.address,
@@ -351,6 +355,7 @@ describe('ExtensionControllerProvider', () => {
 
     expect(p.getStatus()).toEqual({
       kind: 'connected',
+      connectionGeneration: 1,
       controller: { id: TARGET.address, address: TARGET.address, deviceId: null },
     })
   })
@@ -799,7 +804,12 @@ describe('ExtensionControllerProvider', () => {
       }
       const p = new ExtensionControllerProvider(opts)
       await p.connect(TARGET)
-      expect(p.getStatus().kind).toBe('connected')
+      const firstStatus = p.getStatus()
+      expect(firstStatus.kind).toBe('connected')
+      const firstConnectionGeneration = firstStatus.kind === 'connected'
+        ? firstStatus.connectionGeneration
+        : undefined
+      expect(firstConnectionGeneration).toBe(1)
 
       d.dropSocket()
       await new Promise((r) => queueMicrotask(() => r(null)))
@@ -808,6 +818,10 @@ describe('ExtensionControllerProvider', () => {
       flushTimers() // fire the scheduled reconnect
       await new Promise((r) => setTimeout(r, 0))
       expect(p.getStatus().kind).toBe('connected')
+      expect(p.getStatus()).toMatchObject({
+        kind: 'connected',
+        connectionGeneration: 2,
+      })
     })
 
     it('forgets the active bytecode footprint after reconnecting', async () => {

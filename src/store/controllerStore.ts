@@ -130,6 +130,9 @@ export interface ControllerEntry {
    *  entry distinguishes one session from the next (#772). Session-scoped and
    *  not persisted, like the entry itself. */
   liveEpoch?: number
+  /** Provider-local transport generation used to recognize a replacement
+   * connection even when an obsolete completion briefly reports `live` first. */
+  providerConnectionGeneration?: number
   /** Last error message when `phase === 'error'`. */
   error?: string
   /** Non-null while Chrome is waiting for the helper popup's per-IP grant (#235). */
@@ -448,6 +451,9 @@ function phaseFromStatus(status: ControllerStatus): Partial<ControllerEntry> | n
     case 'connected':
       return {
         phase: 'live',
+        ...(status.connectionGeneration != null
+          ? { providerConnectionGeneration: status.connectionGeneration }
+          : {}),
         deviceId: status.controller.deviceId,
         error: undefined,
         authorizationNeededIp: null,
@@ -550,7 +556,11 @@ export const useControllerStore = create<ControllerConnectionState>()(
         set((s) => {
           const existing = s.controllers[ip]
           if (!existing) return s
-          const arrivingLive = patch.phase === 'live' && existing.phase !== 'live'
+          const providerGenerationChanged = patch.phase === 'live'
+            && patch.providerConnectionGeneration != null
+            && patch.providerConnectionGeneration !== existing.providerConnectionGeneration
+          const arrivingLive = patch.phase === 'live'
+            && (existing.phase !== 'live' || providerGenerationChanged)
           const next = arrivingLive
             ? { ...existing, ...patch, liveEpoch: ++liveEpochCounter }
             : { ...existing, ...patch }
