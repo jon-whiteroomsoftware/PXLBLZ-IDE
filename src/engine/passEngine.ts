@@ -657,7 +657,7 @@ function walkWithScope(node: Node, scope: Scope | null, visitor: (n: Node, scope
   ) {
     const fnScope: Scope = { names: new Set(), parent: activeScope }
     for (const param of (node.params as Node[]) ?? []) {
-      if (param.type === 'Identifier') fnScope.names.add(param.name)
+      collectBindingNames(param, fnScope.names)
     }
     for (const param of (node.params as Node[]) ?? []) {
       walkWithScope(param, fnScope, visitor)
@@ -675,6 +675,33 @@ function walkWithScope(node: Node, scope: Scope | null, visitor: (n: Node, scope
       for (const item of val) walkWithScope(item as Node, activeScope, visitor)
     } else if (val && typeof val === 'object') {
       walkWithScope(val as Node, activeScope, visitor)
+    }
+  }
+}
+
+function collectBindingNames(node: Node | null | undefined, names: Set<string>): void {
+  if (!node) return
+  if (node.type === 'Identifier') {
+    names.add(node.name)
+    return
+  }
+  if (node.type === 'AssignmentPattern') {
+    collectBindingNames(node.left, names)
+    return
+  }
+  if (node.type === 'RestElement') {
+    collectBindingNames(node.argument, names)
+    return
+  }
+  if (node.type === 'ArrayPattern') {
+    for (const element of (node.elements as Array<Node | null>) ?? []) {
+      collectBindingNames(element, names)
+    }
+    return
+  }
+  if (node.type === 'ObjectPattern') {
+    for (const property of (node.properties as Node[]) ?? []) {
+      collectBindingNames(property.type === 'Property' ? property.value : property.argument, names)
     }
   }
 }

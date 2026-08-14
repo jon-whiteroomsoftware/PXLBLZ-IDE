@@ -262,6 +262,9 @@ describe('pass engine - intercept passes', () => {
     ['function declaration', `function callSink(rgb) { rgb(0.8, 0.4, 0.2) }`],
     ['function expression', `var callSink = function(rgb) { rgb(0.8, 0.4, 0.2) }`],
     ['arrow function', `var callSink = (rgb) => rgb(0.8, 0.4, 0.2)`],
+    ['object destructuring', `function callSink({ rgb }) { rgb(0.8, 0.4, 0.2) }`],
+    ['array destructuring', `function callSink([rgb]) { rgb(0.8, 0.4, 0.2) }`],
+    ['rest parameter', `function callSink(...rgb) { rgb(0.8, 0.4, 0.2) }`],
   ])('does not rewrite an output name shadowed by a %s parameter (#850)', (_kind, localFunction) => {
     const source = [
       localFunction,
@@ -304,6 +307,45 @@ describe('pass engine - intercept passes', () => {
     }])
 
     expect(result.code).toContain('__pxlblz_dim_rgb_rgb(0.8, 0.4, 0.2)')
+    expect(result.summary.callSitesWrapped).toEqual({ rgb: 1 })
+    expect(result.warnings).toEqual([])
+  })
+
+  it.each([
+    [
+      'function declaration',
+      `function sample(rgb = customSink, value = rgb(0.8, 0.4, 0.2)) { return value }`,
+    ],
+    [
+      'function expression',
+      `var sample = function(rgb = customSink, value = rgb(0.8, 0.4, 0.2)) { return value }`,
+    ],
+    [
+      'arrow function',
+      `var sample = (rgb = customSink, value = rgb(0.8, 0.4, 0.2)) => value`,
+    ],
+  ])('does not rewrite a default-parameter call through a shadowed output binding in a %s (#850)', (
+    _kind,
+    localFunction,
+  ) => {
+    const source = [
+      localFunction,
+      `export function render(index) {`,
+      `  sample()`,
+      `  rgb(0.6, 0.3, 0.1)`,
+      `}`,
+    ].join('\n')
+
+    const result = bundleWithPasses(source, {}, [{
+      id: 'dim-rgb',
+      kind: 'intercept',
+      target: 'rgb',
+      source: `function dimRgb(r, g, b) { rgb(r * 0.5, g * 0.5, b * 0.5) }`,
+      wrapperName: 'dimRgb',
+    }])
+
+    expect(result.code).toContain('value = rgb(0.8, 0.4, 0.2)')
+    expect(result.code).toContain('__pxlblz_dim_rgb_rgb(0.6, 0.3, 0.1)')
     expect(result.summary.callSitesWrapped).toEqual({ rgb: 1 })
     expect(result.warnings).toEqual([])
   })
