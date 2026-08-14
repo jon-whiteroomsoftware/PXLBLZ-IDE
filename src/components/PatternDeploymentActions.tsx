@@ -10,7 +10,7 @@ type PatternDeploymentActionsProps = {
   runGate: SendGate
   saveGate: SendGate
   activeMode: SendMode
-  preparingLabel?: string
+  preparing?: boolean
   pushing: boolean
   pushResult: PushResult | null
   density?: 'compact' | 'regular'
@@ -27,7 +27,7 @@ export function PatternDeploymentActions({
   runGate,
   saveGate,
   activeMode,
-  preparingLabel,
+  preparing = false,
   pushing,
   pushResult,
   density = 'regular',
@@ -38,13 +38,15 @@ export function PatternDeploymentActions({
   onSave,
 }: PatternDeploymentActionsProps) {
   const target = controllerName?.trim() || 'Controller'
-  const preparing = Boolean(preparingLabel)
   const working = preparing || pushing || !!pushResult?.ok
   const heightClass = density === 'compact' ? 'h-6 text-[10px]' : 'h-8 text-[11px]'
   const actionPadding = density === 'compact' ? 'px-2' : 'px-2.5'
   const identityWidth = density === 'compact' ? 'max-w-36' : 'max-w-44'
 
   const actionIcon = (mode: SendMode) => {
+    if (preparing) {
+      return <RotateCw {...controlIcon} className="animate-spin text-amber-400" aria-hidden />
+    }
     if (pushing && activeMode === mode) {
       return <RotateCw {...controlIcon} className="animate-spin text-amber-400" aria-hidden />
     }
@@ -62,7 +64,6 @@ export function PatternDeploymentActions({
 
   const actionTitle = (mode: SendMode, gate: SendGate) => {
     if (!gate.enabled) return gate.reason
-    if (preparingLabel) return preparingLabel
     if (pushResult && !pushResult.ok && activeMode === mode) return pushResult.message
     if (working) return 'Sending...'
     return mode === 'save' ? `Save to ${target}` : `Run on ${target}`
@@ -78,21 +79,17 @@ export function PatternDeploymentActions({
       >
         <span
           data-testid="controller-deployment-identity"
-          aria-label={preparingLabel ?? (connected ? `Controller ${target}` : 'Controller not connected')}
-          title={preparingLabel ?? (connected ? target : 'Not connected')}
+          aria-label={connected ? `Controller ${target}` : 'Controller not connected'}
+          title={connected ? target : 'Not connected'}
           className="flex min-w-0 flex-1 items-center gap-2 text-zinc-500"
         >
-          {preparing ? (
-            <RotateCw {...controlIcon} className="shrink-0 animate-spin text-amber-400" aria-hidden />
-          ) : (
-            <span
-              data-testid="controller-status-dot"
-              aria-hidden
-              className={`size-1.5 shrink-0 rounded-full ${connected ? 'bg-emerald-500' : 'bg-amber-500'}`}
-            />
-          )}
-          <span className={`truncate ${preparing ? 'text-amber-300' : connected ? 'text-zinc-300' : 'text-zinc-500'}`}>
-            {preparingLabel ?? (connected ? target : 'Not connected')}
+          <span
+            data-testid="controller-status-dot"
+            aria-hidden
+            className={`size-1.5 shrink-0 rounded-full ${connected ? 'bg-emerald-500' : 'bg-amber-500'}`}
+          />
+          <span className={`truncate ${connected ? 'text-zinc-300' : 'text-zinc-500'}`}>
+            {connected ? target : 'Not connected'}
           </span>
         </span>
         {connected ? (
@@ -138,17 +135,15 @@ export function PatternDeploymentActions({
     >
       <span
         data-testid="controller-deployment-identity"
-        aria-label={preparingLabel ?? (connected ? `Controller ${target}` : 'Controller not connected')}
-        title={preparingLabel ?? (connected ? target : 'Not connected')}
+        aria-label={connected ? `Controller ${target}` : 'Controller not connected'}
+        title={connected ? target : 'Not connected'}
         className={`flex min-w-0 flex-1 items-center gap-1.5 border-r border-zinc-800 px-2 text-zinc-500 ${identityWidth}`}
       >
         <span className="shrink-0" aria-hidden>
-          {preparing
-            ? <RotateCw {...controlIcon} className="animate-spin text-amber-400" />
-            : connected ? <ChipGlyph /> : <ConnectGlyph />}
+          {connected ? <ChipGlyph /> : <ConnectGlyph />}
         </span>
-        <span className={`show-deployment-identity-copy truncate ${preparing ? 'text-amber-300' : connected ? 'text-zinc-300' : 'text-zinc-500'}`}>
-          {preparingLabel ?? (connected ? target : 'Not connected')}
+        <span className={`show-deployment-identity-copy truncate ${connected ? 'text-zinc-300' : 'text-zinc-500'}`}>
+          {connected ? target : 'Not connected'}
         </span>
       </span>
 

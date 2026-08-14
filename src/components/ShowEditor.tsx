@@ -43,7 +43,7 @@ import { ShowLayerTransitionEditor } from '@/components/ShowLayerTransitionEdito
 import { ShowTransitionXrayPictogram } from '@/components/ShowTransitionXrayPictogram'
 import { ShowArtifactInventoryPopover } from '@/components/ShowArtifactInventoryPopover'
 import { getControllerProvider } from '@/engine/controllerProviderRegistry'
-import type { ControllerStatus } from '@/engine/ControllerProvider'
+import type { ConnectedControllerIdentity } from '@/engine/ControllerProvider'
 import { makeProgramId } from '@/engine/bytecodePush'
 import { PatternDeploymentActions } from '@/components/PatternDeploymentActions'
 import { PatternCombobox, type PatternComboboxOption } from '@/components/PatternCombobox'
@@ -887,7 +887,7 @@ function ShowReferenceInstrument({
 interface ShowDeliverySnapshot {
   show: ShowRecord
   controllerIp: string | null
-  controllerStatus: ControllerStatus
+  controller: ConnectedControllerIdentity
   artifact: NonNullable<CompiledShowState['artifact']>
   prepared: ReturnType<typeof prepareShowControllerArtifact>
 }
@@ -1138,6 +1138,17 @@ export function ShowEditor({
     (onChange) => controllerProvider.subscribe(onChange),
     () => controllerProvider.getStatus(),
   )
+  const connectedControllerId = controllerStatus.kind === 'connected'
+    ? controllerStatus.controller.id
+    : null
+  const connectedControllerAddress = controllerStatus.kind === 'connected'
+    ? controllerStatus.controller.address
+    : null
+  const deliveryController = useMemo<ConnectedControllerIdentity | null>(() => (
+    connectedControllerId && connectedControllerAddress
+      ? { id: connectedControllerId, address: connectedControllerAddress }
+      : null
+  ), [connectedControllerAddress, connectedControllerId])
 
   const canonicalStockShow = builtInContext ? stockShowById(showId)?.show : undefined
   const editableShow = stockShowDraft ?? savedShow ?? canonicalStockShow ?? showOverride ?? null
@@ -1747,6 +1758,7 @@ export function ShowEditor({
   const preparedDeliverySnapshot = useMemo<ShowDeliverySnapshot | null>(() => {
     if (
       !artifactCompilationReady
+      || !deliveryController
       || !compiledShow
       || !compiled.artifact
       || compiled.artifactBlocker
@@ -1756,7 +1768,7 @@ export function ShowEditor({
     return {
       show: compiledShow,
       controllerIp: activeIp,
-      controllerStatus,
+      controller: deliveryController,
       artifact: compiled.artifact,
       prepared: preparedControllerArtifact.value,
     }
@@ -1767,7 +1779,7 @@ export function ShowEditor({
     compiled.artifactBlocker,
     compiledShow,
     compilePressure?.status,
-    controllerStatus,
+    deliveryController,
     preparedControllerArtifact.value,
   ])
   useEffect(() => {
@@ -2025,8 +2037,6 @@ export function ShowEditor({
       !delivery
       || delivery.show.id !== showId
       || delivery.controllerIp !== useControllerStore.getState().activeIp
-      || delivery.controllerStatus.kind !== 'connected'
-      || delivery.controllerStatus !== controllerProvider.getStatus()
     ) {
       pendingDeliveryRef.current = null
       setPendingSendMode(null)
@@ -2058,7 +2068,7 @@ export function ShowEditor({
           worstInstantRenderersPerPixel: delivery.artifact.summary.worstInstantRenderersPerPixel,
         },
         artifactStamp: prepared.artifactStamp,
-        expectedControllerStatus: delivery.controllerStatus,
+        expectedController: delivery.controller,
         previewImage,
       })
     } finally {
@@ -2214,7 +2224,7 @@ export function ShowEditor({
             runGate={runGate}
             saveGate={saveGate}
             activeMode={showSendMode}
-            preparingLabel={!artifactCompilationReady ? 'Rebuilding Show...' : undefined}
+            preparing={!artifactCompilationReady}
             pushing={controllerPushing || preparingSave}
             pushResult={showControllerPushResult}
             density="compact"

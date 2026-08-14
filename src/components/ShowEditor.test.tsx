@@ -6864,14 +6864,14 @@ export function render(index) { rgb(MyMath.glow(index), 0, 0) }
       name: 'Opening Night',
       persist: false,
       artifactStamp: expect.objectContaining({ kind: 'show', id: 'show-send' }),
-      expectedControllerStatus: provider.getStatus(),
+      expectedController: { id: 'ctrl-live', address: '10.0.0.5' },
     }))
 
     await user.click(screen.getByRole('button', { name: 'Save to Bench PB' }))
     expect(pushGeneratedArtifact).toHaveBeenLastCalledWith(expect.objectContaining({
       artifactId: 'show:show-send',
       persist: true,
-      expectedControllerStatus: provider.getStatus(),
+      expectedController: { id: 'ctrl-live', address: '10.0.0.5' },
     }))
   })
 
@@ -7041,7 +7041,12 @@ export function render(index) { rgb(MyMath.glow(index), 0, 0) }
     expect(run).toHaveAttribute('title', 'Rebuilding Show...')
     expect(save).toBeDisabled()
     expect(save).toHaveAttribute('title', 'Rebuilding Show...')
-    expect(screen.getByTestId('controller-deployment-identity')).toHaveTextContent('Rebuilding Show...')
+    expect(screen.getByTestId('controller-deployment-identity')).toHaveTextContent('Bench PB')
+    expect(screen.getByTestId('controller-deployment-identity')).not.toHaveTextContent('Rebuilding Show...')
+    expect(within(run).getByText('Run')).toBeInTheDocument()
+    expect(within(save).getByText('Save')).toBeInTheDocument()
+    expect(run.querySelector('svg')).toHaveClass('animate-spin')
+    expect(save.querySelector('svg')).toHaveClass('animate-spin')
     expect(pushGeneratedArtifact).not.toHaveBeenCalled()
 
     await waitFor(() => expect(run).toBeEnabled())
@@ -7049,7 +7054,10 @@ export function render(index) { rgb(MyMath.glow(index), 0, 0) }
     await user.click(run)
 
     expect(pushGeneratedArtifact).toHaveBeenCalledTimes(1)
-    expect(pushGeneratedArtifact.mock.calls[0][0].expectedControllerStatus).toBe(provider.getStatus())
+    expect(pushGeneratedArtifact.mock.calls[0][0].expectedController).toEqual({
+      id: 'ctrl-live',
+      address: '10.0.0.5',
+    })
     const source = pushGeneratedArtifact.mock.calls[0][0].source as string
     expect(source).toContain('0.7654321')
     expect(source).not.toContain('0.1234567')
@@ -7083,7 +7091,7 @@ export function render(index) { rgb(MyMath.glow(index), 0, 0) }
     await waitFor(() => expect(pushGeneratedArtifact).toHaveBeenCalledWith(expect.objectContaining({
       source: expect.stringContaining('export function render(index, x)'),
       artifactStamp: expect.objectContaining({ transforms: expect.arrayContaining(['renderer-adapter']) }),
-      expectedControllerStatus: provider.getStatus(),
+      expectedController: { id: 'ctrl-live', address: '10.0.0.5' },
     })))
   })
 
@@ -7174,6 +7182,41 @@ export function render(index) { rgb(MyMath.glow(index), 0, 0) }
     expect(screen.getByTestId('controller-deployment-identity')).toHaveTextContent('Not connected')
     expect(screen.getByRole('button', { name: 'Connect' })).toBeInTheDocument()
     expect(pushGeneratedArtifact).not.toHaveBeenCalled()
+  })
+
+  it('keeps a pending send confirmation through a same-Controller status refresh (#851)', async () => {
+    const user = userEvent.setup()
+    let show = createDefaultShow('show-session-refresh', 'Keep Controller confirmation', 1000)
+    show = { ...show, stageMapId: 'plane' }
+    show = updateShowTransition(show, show.scenes[0].id, 'portal', 2000, 0.1)
+    const pushGeneratedArtifact = vi.fn().mockResolvedValue(undefined)
+    const provider = new ConnectedControllerProvider()
+    useShowStore.setState({ shows: [show], activeShowId: show.id, showsLoaded: true })
+    useControllerStore.setState({
+      controllers: {
+        '10.0.0.5': {
+          ip: '10.0.0.5', nickname: 'Bench PB', phase: 'live', mapDim: 1, firmwareVersion: '3.67',
+        },
+      },
+      activeIp: '10.0.0.5',
+      pushGeneratedArtifact,
+    })
+    setControllerProvider(provider)
+
+    render(<ShowEditor showId={show.id} />)
+    await user.click(screen.getByRole('button', { name: 'Run on Bench PB' }))
+    expect(screen.getByTestId('show-preflight-dialog')).toBeInTheDocument()
+
+    const status = provider.getStatus()
+    if (status.kind !== 'connected') throw new Error('Expected a connected Controller fixture')
+    act(() => provider.setStatus({
+      kind: 'connected',
+      controller: { ...status.controller },
+    }))
+
+    expect(screen.getByTestId('show-preflight-dialog')).toBeInTheDocument()
+    await user.click(screen.getByRole('button', { name: 'Send anyway' }))
+    expect(pushGeneratedArtifact).toHaveBeenCalledTimes(1)
   })
 
   it('keeps deployment disabled with the Show compilation failure after rebuilding (#851)', async () => {

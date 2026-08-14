@@ -1307,6 +1307,9 @@ describe('controllerStore (keyed)', () => {
       await store().addController('10.0.0.5')
       const provider = created.get('10.0.0.5')!
       const expectedControllerStatus = getControllerProvider().getStatus()
+      if (expectedControllerStatus.kind !== 'connected') {
+        throw new Error('Expected a connected Controller fixture')
+      }
       provider.compile = async (source: string) => {
         provider.compiledSources.push(source)
         await provider.disconnect()
@@ -1333,7 +1336,10 @@ describe('controllerStore (keyed)', () => {
           transforms: ['show'],
           stampedAt: '2026-08-13T18:00:00.000Z',
         },
-        expectedControllerStatus,
+        expectedController: {
+          id: expectedControllerStatus.controller.id,
+          address: expectedControllerStatus.controller.address,
+        },
       })
 
       expect(provider.pushed).toHaveLength(0)
@@ -1344,6 +1350,56 @@ describe('controllerStore (keyed)', () => {
         artifactId: 'show:show-session-race',
         mode: 'run',
       })
+    })
+
+    it('continues a generated Show when status refreshes for the same Controller (#851)', async () => {
+      await store().addController('10.0.0.5')
+      const provider = created.get('10.0.0.5')!
+      const expectedControllerStatus = getControllerProvider().getStatus()
+      if (expectedControllerStatus.kind !== 'connected') {
+        throw new Error('Expected a connected Controller fixture')
+      }
+      provider.compile = async (source: string) => {
+        provider.compiledSources.push(source)
+        provider.status = {
+          kind: 'connected',
+          controller: { ...expectedControllerStatus.controller },
+        }
+        return provider.compileResult
+      }
+      const source = stampArtifact(PATTERN_SRC, {
+        kind: 'show',
+        id: 'show-session-refresh',
+        name: 'Session Refresh',
+        transforms: ['show'],
+        stampedAt: '2026-08-13T18:00:00.000Z',
+      })
+
+      await store().pushGeneratedArtifact({
+        artifactId: 'show:show-session-refresh',
+        source,
+        name: 'Session Refresh',
+        persist: false,
+        compilePressure: GENERATED_ARTIFACT_PRESSURE,
+        artifactStamp: {
+          kind: 'show',
+          id: 'show-session-refresh',
+          name: 'Session Refresh',
+          transforms: ['show'],
+          stampedAt: '2026-08-13T18:00:00.000Z',
+        },
+        expectedController: {
+          id: expectedControllerStatus.controller.id,
+          address: expectedControllerStatus.controller.address,
+        },
+      })
+
+      expect(provider.pushed).toHaveLength(1)
+      expect(store().artifactPushResult).toEqual(expect.objectContaining({
+        ok: true,
+        artifactId: 'show:show-session-refresh',
+        mode: 'run',
+      }))
     })
 
     it('applies active profile transforms before signing a generated Show (#777)', async () => {

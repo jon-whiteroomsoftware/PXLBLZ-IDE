@@ -10,6 +10,8 @@ import {
 import {
   ControllerPermissionDeniedError,
   NullControllerProvider,
+  statusMatchesConnectedController,
+  type ConnectedControllerIdentity,
   type ControllerProvider,
   type ControllerStatus,
   type ControllerTarget,
@@ -361,9 +363,9 @@ export interface GeneratedArtifactPush {
   compilePressure: Omit<ShowCompilePressureInput, 'deliveredSourceBytes'>
   artifactStamp: ArtifactStampMeta
   previewImage?: Uint8Array
-  /** Exact live session that authorized this prepared artifact. Shows supply it;
-   * session-agnostic generated callers may omit it. */
-  expectedControllerStatus?: ControllerStatus
+  /** Connected Controller identity that authorized this prepared artifact. Shows
+   * supply it; session-agnostic generated callers may omit it. */
+  expectedController?: ConnectedControllerIdentity
 }
 
 /** The outcome of a single Send-to-Controller push, surfaced on the button. */
@@ -1322,12 +1324,13 @@ export const useControllerStore = create<ControllerConnectionState>()(
               controllerId,
               () => {
                 const provider = getControllerProvider()
-                const assertDeviceSession = artifact.expectedControllerStatus
+                const expectedController = artifact.expectedController
+                const assertDeviceSession = expectedController
                   ? () => {
                       if (
-                        artifact.expectedControllerStatus?.kind !== 'connected'
+                        get().activeIp !== controllerId
                         || getControllerProvider() !== provider
-                        || provider.getStatus() !== artifact.expectedControllerStatus
+                        || !statusMatchesConnectedController(expectedController, provider.getStatus())
                       ) {
                         throw new Error('Controller session changed before Show delivery')
                       }

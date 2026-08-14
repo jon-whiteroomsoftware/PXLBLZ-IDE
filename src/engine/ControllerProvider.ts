@@ -46,6 +46,9 @@ export interface ConnectedController {
   firmwareVersion?: string
 }
 
+/** Stable target identity retained by a prepared Controller action. */
+export type ConnectedControllerIdentity = Pick<ConnectedController, 'id' | 'address'>
+
 /** A Controller surfaced by auto-discovery (H14, issue #206) but not (yet)
  *  connected. `address` is the LAN IP a subsequent `connect()` targets; `id` is the
  *  device's stable cloud id (a good de-dupe / binding key); `name`/`version` are the
@@ -75,6 +78,18 @@ export type ControllerStatus =
   | { kind: 'connecting'; target: ControllerTarget; authorizationNeededIp?: string }
   | { kind: 'connected'; controller: ConnectedController }
   | { kind: 'error'; message: string }
+
+/** True when a live-status snapshot still names the prepared Controller.
+ * Providers replace status objects during reconnect and metadata refresh, so
+ * object identity is not a session boundary. */
+export function statusMatchesConnectedController(
+  expected: ConnectedControllerIdentity,
+  current: ControllerStatus,
+): boolean {
+  return current.kind === 'connected'
+    && expected.id === current.controller.id
+    && expected.address === current.controller.address
+}
 
 /** Thrown by `connect()` when the user declines the helper's per-IP host-permission
  *  prompt (#229). It is a *user choice*, not a failure to surface as an error pill —

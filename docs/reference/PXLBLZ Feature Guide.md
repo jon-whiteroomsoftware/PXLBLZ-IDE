@@ -601,11 +601,13 @@ continue.
 Outbound paths mirror ordinary Patterns: **View code**, **Run**, **Save**, and
 **Export `.epe`** with provenance and a compatibility contract that import
 recovers. After a Show or one of its Pattern or Library dependencies changes,
-Run and Save temporarily disable and report **Rebuilding Show...** until the
-new Controller artifact is ready. A pending compatibility confirmation closes
-if that prepared artifact changes, so confirming can never send an older Show.
-Compilation or preparation failures keep both actions disabled with the named
-cause. Sending never changes the Controller's shared map or pixel count.
+Run and Save temporarily disable until the new Controller artifact is ready.
+Each action replaces its own icon with a same-size amber spinner while keeping
+the Controller name and button labels fixed, so rebuilding never moves the
+action bar. A pending compatibility confirmation closes if that prepared
+artifact changes, so confirming can never send an older Show. Compilation or
+preparation failures keep both actions disabled with the named cause. Sending
+never changes the Controller's shared map or pixel count.
 When replacing one very large resident program with another could exceed
 transient memory, PXLBLZ automatically routes through a brief black run-only
 Pattern first; the intermediary is never saved.
