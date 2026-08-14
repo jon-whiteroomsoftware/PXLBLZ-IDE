@@ -48,12 +48,12 @@ Angle on the members with a travel heading and Fold on Luma Chevron. Loop
 Interval is entered exactly, in seconds ("2.37" means 2.37 s); the raw
 Pixelblaze slider value underneath is seconds divided by 10, so the control
 stays legible on a real controller. Width, Feather, and Lean together
-span the whole waveform space — hard bars, sine swells, and sawtooth ramps are
+span the whole waveform space: hard bars, sine swells, and sawtooth ramps are
 slider positions, not separate Patterns. Their pure grayscale output is built
 for Luma and Chroma keying, tinting, and layered composition from a Show.
 
-Each built-in Pattern carries one recommended presentation — map, LED count,
-light size, diffusion — so it displays consistently everywhere. Built-in slugs
+Each built-in Pattern carries one recommended presentation (map, LED count,
+light size, diffusion) so it displays consistently everywhere. Built-in slugs
 are public; personal Patterns do not have public detail pages yet.
 
 ## 2. Studio
@@ -71,7 +71,7 @@ entity kinds, each with stable routes:
 | Libraries | Reusable Pattern functions and shared state |
 
 Studio has three panes: the rail opens and creates things, the center pane
-edits source or a Show timeline, and the right pane supplies context — Pattern
+edits source or a Show timeline, and the right pane supplies context: Pattern
 preview, map wiring check, library API reference, saved Controller programs,
 or the Show Stage. Opening a map or library changes the editor context; it
 does not add a tab or silently apply that object to the running Pattern.
@@ -79,7 +79,7 @@ does not add a tab or silently apply that object to the running Pattern.
 Personal content lives in compact trees with folders, drag reordering, search
 that sees into collapsed branches, and a Trash that appears only when needed.
 Emptying the Trash is the one permanent deletion in the rail, so it always
-asks for confirmation — from the rail row or from inside the Trash itself.
+asks for confirmation, from the rail row or from inside the Trash itself.
 Built-in and stock catalogues sit below in fixed folders, including a
 **ZRanger1** folder of his published community Patterns. Built-in definitions
 never change; Built-in Shows alone accept session edits that Reset or reload
@@ -91,7 +91,7 @@ preview playback anywhere outside a text field.
 
 Studio requires sign-in with GitHub or Google; logins that share a verified
 email open the same workspace. Personal content lives in the signed-in cloud
-workspace. Signed out, the app is a non-durable demo — Gallery, built-ins,
+workspace. Signed out, the app is a non-durable demo: Gallery, built-ins,
 stock content, docs, preview, and live Controller connections all work, but
 saving personal content requires sign-in.
 
@@ -122,7 +122,7 @@ the geometry it renders across.
 
 ## 4. The editor
 
-The center editor is Monaco — the engine behind VS Code — configured for the
+The center editor is Monaco (the engine behind VS Code) configured for the
 Pixelblaze language: completion, signatures, hover documentation, inline
 errors, and a Good/Broken status. Clean source reaches the preview after a
 short typing pause and auto-saves on a slower tick; broken source stays
@@ -131,8 +131,8 @@ labels that image as the last working version.
 
 When edits cannot reach durable storage, the editor says so instead of staying
 silent. A small cloud glyph joins the header badges in two cases: amber while
-the source has errors (only clean source is auto-saved — fixing the errors
-resumes saving), and red while a save is failing (offline or server error —
+the source has errors (only clean source is auto-saved; fixing the errors
+resumes saving), and red while a save is failing (offline or server error;
 the editor keeps retrying automatically and clears the glyph on the first
 success). The same glyph appears in the pattern, map, mixin, and library
 editors, and closing the tab in either state asks for confirmation.
@@ -162,8 +162,8 @@ delete failed.
 
 Built-in Patterns open read-only; **Clone** creates an editable personal copy
 and snapshots the current preview settings. Every built-in starts with a
-source manifest — name, provenance, visual description, what each control
-changes — and the header travels with clones.
+source manifest (name, provenance, visual description, what each control
+changes) and the header travels with clones.
 
 Exported functions create the standard Pixelblaze controls: `sliderName(v)`,
 `toggleName(v)`, `hsvPickerName(h, s, v)`, `rgbPickerName(r, g, b)`. Every
@@ -189,7 +189,7 @@ multi-cycle value — animating `0` to `720°` still spins twice.
 ## 5. Preview
 
 The preview executes the transpiled Pattern in the browser and draws its
-pixels as a WebGL point field — 1D, 2D, and 3D, with orbiting, depth, and
+pixels as a WebGL point field: 1D, 2D, and 3D, with orbiting, depth, and
 glow. Interactive 3D views share one tool rail: pause/resume auto-orbit, reset
 view, and 0.5x–2x magnification, with wheel zoom in coarse steps.
 
@@ -203,33 +203,35 @@ float64. The preview therefore offers two renderers:
   firmware clone.
 
 The preview deck separates settings by whether hardware could carry them.
-**PIXELBLAZE** settings — map, modeled pixel count, Fill/Contain fit,
-brightness — describe what the Pattern computes against. **PREVIEW** settings
-— renderer, playback speed, light size, diffusion, solidity — describe how the
+**PIXELBLAZE** settings (map, modeled pixel count, Fill/Contain fit,
+brightness) describe what the Pattern computes against. **PREVIEW** settings
+(renderer, playback speed, light size, diffusion, solidity) describe how the
 browser draws it. Most settings are remembered per Pattern. None of them ride
 along with **Send to Controller**, and preview brightness is no substitute for
 physical brightness planning. **Reset preview** clears those remembered preview
 setting overrides; exported Pattern controls remain live runtime controls and
 restart from the Pattern's own defaults when the Pattern reloads.
 
+![Preview state stays in the browser; only explicit Run, Save, and Send map actions reach the Controller](../images/preview-deck-boundary.svg)
+
 ## 6. Maps and display geometry
 
 A Pixelblaze map is an ordered coordinate set: array position is the LED
-index, the value is what the Pattern samples. PXLBLZ keeps two ideas separate
-— **sample**, the coordinate delivered to the Pattern, and **position**, where
-the preview draws that LED. That is why a 1D map can display as a Line, Ring,
-or Pole without changing what the Pattern computes.
+index, the value is what the Pattern samples. PXLBLZ keeps two ideas
+separate: **sample**, the coordinate delivered to the Pattern, and
+**position**, where the preview draws that LED. That is why a 1D map can
+display as a Line, Ring, or Pole without changing what the Pattern computes.
 
 Every Pattern may try every map dimension. Exact-dimensional choices appear
 under **Recommended**; the rest stay available, with missing trailing
 coordinates centered at `0.5` and extra coordinates dropped. Generated
-geometry is catalogued by physical family — Paths, Surfaces, Shells, Volumes,
-Custom/imported — and each family exposes only the coordinate views it can
+geometry is catalogued by physical family (Paths, Surfaces, Shells, Volumes,
+Custom/imported) and each family exposes only the coordinate views it can
 honestly own.
 
 Stock maps are real, self-contained Mapper JavaScript: inspect them read-only,
 preview with them, send them to a Controller, or clone them. **New Map** opens
-plain JavaScript — a literal coordinate array or a `function(pixelCount)`
+plain JavaScript: a literal coordinate array or a `function(pixelCount)`
 returning one. The map context pane is a wiring check, not a Pattern preview:
 it colors points in wire order, preserves physical aspect, uses a see-through
 draw so depth cannot hide points, and reports bounds, dimensions, and
@@ -241,6 +243,8 @@ than duplicated.
 **Fill** stretches each axis independently to `0..1`. Both are real Mapper
 behaviors. The built-in **MapAlignmentDiagnostic** Pattern checks any map with
 red X, green Y, and blue Z bands. For map theory, read **Understanding Maps**.
+
+![Fill vs Contain: aspect-preserving vs per-axis stretch](../images/fill-vs-contain.svg)
 
 ## 7. Libraries and mixins
 
@@ -277,6 +281,8 @@ generic; Controller-specific pins and limits belong to Controller profiles
 PXLBLZ works fully without hardware. With a Controller there are three layers:
 a live connection, a durable per-device profile, and explicit send actions.
 Nothing crosses to hardware as a side effect.
+
+![The browser authors and observes; the Pixelblaze Controller stores and runs](../images/device-browser-boundary.svg)
 
 ## 9. Connecting a Controller
 
@@ -328,7 +334,7 @@ name; the separate last-known device-name fact records that same observation.
 ### Inputs and their effective uses
 
 The input is the unit of the interface. Each entry is one physical control
-wired to the board — a potentiometer or a button — and owns both its physical
+wired to the board (a potentiometer or a button) and owns both its physical
 definition and the complete list of everything it drives. (A linear 10k pot
 across 3.3V and GND is the standard part — never feed 5V into a Pixelblaze
 analog input.)
@@ -337,7 +343,7 @@ An input's card shows its `IOxx` pin, one line of physical facts, and one row
 per effective use:
 
 - **Brightness** samples the input each frame and scales every supported
-  `hsv()` and `rgb()` output call — separate from the Controller's native
+  `hsv()` and `rgb()` output call, separate from the Controller's native
   brightness, which remains the final physical safety control. Its row states
   its own scope: `every
   Pattern`, or `every Pattern except Caustics` when a Pattern use on the same
@@ -353,7 +359,7 @@ hardware-brightness transform, so assignment is exclusive by construction.
 What the page shows is what the next push will generate.
 
 Validation reports on the input that owns the problem, with a one-click
-correction where one exists — hardware brightness on a digital input, for
+correction where one exists: hardware brightness on a digital input, for
 example, offers **Switch this input to analog** or a move to a free analog
 pin. An invalid Pattern use is marked blocked with a **Fix** that opens its
 binding fields.
@@ -372,7 +378,7 @@ switching enforcement off collapses the section to a one-line summary of the
 kept cap.
 
 Both flows share the full-white load: a **Construction estimate** (presets
-named by chipset — WS2812B/SK6812, WS2811, WS2815) or your own **Measured
+named by chipset: WS2812B/SK6812, WS2811, WS2815) or your own **Measured
 total** in amps or watts, with the supply voltage asked for only there. A
 fixed cap is set with a slider and states what it holds the installation to
 in watts and amps; the derived cap divides the supply budget by the
@@ -395,7 +401,7 @@ the action button is not the only place that carries the reason.
 
 The profile's right pane splits the live Controller inventory into **Saved
 PXLBLZ Patterns** and **Other Patterns**. Saved rows link back to their
-source, including Show outputs; Other rows stay visible and untouched - never
+source, including Show outputs; Other rows stay visible and untouched: never
 modified, renamed, or deleted.
 
 Saved PXLBLZ Patterns is the only profile surface that claims whether a saved
@@ -417,8 +423,8 @@ re-bakes function maps for the Controller's pixel count and flags mismatches.
 
 # Part 4 — Shows
 
-A Show composes existing Patterns into time-based choreography — Clips on
-Layers, Layers inside Zones, Transitions between connected Clips — and
+A Show composes existing Patterns into time-based choreography (Clips on
+Layers, Layers inside Zones, Transitions between connected Clips) and
 compiles all of it into **one ordinary Pixelblaze Pattern**. The source
 Patterns stay reusable; the Show owns timing, routing, adaptation, and one
 permanent output contract. Deep treatments live in the
@@ -436,6 +442,8 @@ contract:
 - **Installation** fixes one pixel count and output map for a known physical
   build, and unlocks physical zone ranges and Controller targeting.
 
+![Portable Shows adapt to any compatible mapped surface; Installation Shows fix one pixel count, one output map, and physical zone ranges](../images/show-output-contract.svg)
+
 The contract stays visible in the timeline header. Show setup supports
 outputs through 2,000 pixels; entries above that ceiling clamp to it during
 setup rather than blocking later. Stock maps scale to whatever count you set,
@@ -452,7 +460,11 @@ Show whenever the build calls for them. And an existing personal Show duplicates
 ## 13. The timeline
 
 The editor is one proportional timeline of Pattern Clips on explicit Layers,
-with a shared ruler, playhead, transport, and Navigator. The essentials:
+with a shared ruler, playhead, transport, and Navigator.
+
+![The timeline: Clips on Layers inside Zones, a Transition junction between connected Clips, a property band, the Layouts lane, and an exact playhead](../images/show-timeline-anatomy.svg)
+
+The essentials:
 
 - **Transport.** Space plays and pauses, A rewinds, 1/2/3 select playback
   speed, arrows seek five seconds. Click or drag the ruler to seek. Scrubbing
@@ -484,11 +496,11 @@ states use the same amber accent as timeline selection.
 
 Drag a marquee across Clips and **Group** them: one selectable occurrence
 across its occupied Layers, with exact Start, base Layer, and X/Y offsets.
-**Duplicate** creates linked occurrences sharing one definition — edits appear
+**Duplicate** creates linked occurrences sharing one definition: edits appear
 in all of them, while each occurrence gets fresh Pattern runtime instances.
 Double-click to edit a Group in place with everything else dimmed; **Make
 Unique** breaks the link, **Ungroup** dissolves the container. Groups cannot
-nest, and a Group must fit inside one Zone Layout interval — a marquee that
+nest, and a Group must fit inside one Zone Layout interval; a marquee that
 crosses a Layout boundary cannot Group.
 
 ## 14. Clips: time, adaptation, and Effects
@@ -511,11 +523,11 @@ Compatible 2D Clips expose a **Transform** group (position, rotation, scale)
 and an ordered **Effect stack** in the compiler's fixed stages: Transform,
 Distort, Address, Color & output. The **Place** tab pairs a square manipulation
 pad with exact X, Y, Width, Height, and Rotation fields, editing either the
-**Content** rectangle or an optional **Aperture** — a shaped mask chosen from
+**Content** rectangle or an optional **Aperture**: a shaped mask chosen from
 the same silhouette catalogue the Shape-reveal Transitions use, with Soft,
 Hard, or Dither edges.
 
-**Effects > Add** opens a searchable registry grouped by stage — transforms,
+**Effects > Add** opens a searchable registry grouped by stage: transforms,
 distortions, address policies, and Color & output Effects including Luma key,
 Chroma key, and Vignette. A focused row expands with its summary, cost notes,
 and presets. Show-wide output Effects such as **Trails** live in Show
@@ -531,8 +543,8 @@ wins on hardware: **Freeze at entry** replays one captured frame, and
 A Transition is a visible, selectable junction between two connected Clips on
 one Layer. A searchable registry covers Blend, Fade, Wipe, Dissolve, Shape
 reveal, and Motion families; hovering previews on the Stage without saving.
-Each variant's detail panel exposes only its legal fields — duration, easing,
-geometry, edge policy — and **Reset to cut** returns to a zero-duration
+Each variant's detail panel exposes only its legal fields (duration, easing,
+geometry, edge policy) and **Reset to cut** returns to a zero-duration
 boundary. Transition cost is explicit: wipes route each pixel to one member,
 crossfades disclose their snapshot-versus-live policy, feathered reveals
 evaluate both Patterns only inside the band.
@@ -543,8 +555,8 @@ Brightness, Clip Transform, exported sliders, and routing split position all
 animate the same way and appear as named sparklines beneath their Zones.
 Select a Clip and use the diamond beside any animatable parameter: hollow
 creates a two-point ramp, filled violet reopens the existing one. The Clip
-summary's **Animations — N** opens an overview of every track — endpoint
-values, time range, owning tab — and is the single place to remove one.
+summary's **Animations — N** opens an overview of every track (endpoint
+values, time range, owning tab) and is the single place to remove one.
 Tracks with more than two keyframes stay intact and read-only; the overview
 never rewrites them.
 
@@ -561,19 +573,19 @@ routing mode, shape parameters, and ranges. Duplicated intervals stay linked
 to their source until **Make Unique**, exactly like Groups. The boundary
 between intervals carries a selectable routing switch with destination,
 duration, easing, and direction. Its destination list names Layouts by their
-own names, while the lane labels intervals by routing mode — both refer to
+own names, while the lane labels intervals by routing mode; both refer to
 the same Layouts. Moving and Soft Splits animate an owned position while
 every Pattern clock continues.
 
 The output contract determines what Zones mean:
 
 - An **Installation** Zone Layout assigns zones to physical pixel ranges, with
-  spatial selection on the saved output map and exact coverage validation —
+  spatial selection on the saved output map and exact coverage validation:
   overlap, gaps, and out-of-range indexes block artifact output with an
   actionable explanation.
 - A **Portable** Zone Layout pairs ordered logical zones with a normalized
-  routing mode — Full surface, Stripes, Grid, Checker, Rings, Pinwheel, Wave,
-  or an animatable Split — derived from runtime coordinates, so the same rule
+  routing mode (Full surface, Stripes, Grid, Checker, Rings, Pinwheel, Wave,
+  or an animatable Split) derived from runtime coordinates, so the same rule
   holds on any compatible surface.
 
 The right pane is the read-only **Stage**: the Show rendered over its output
@@ -588,12 +600,12 @@ Controller is active, source includes that profile's active transforms and the
 bar names their added bytes. The 68,384-byte source scale is advisory: source
 size predicts pressure, but only the Controller compiler can decide bytecode
 fit. The source figure expands into a byte-level inventory of contributors;
-when the inventory finds actionable savings — an oversized contributor, or a
-Pattern compiled into more than one machine — it adds a **Ways to slim this
+when the inventory finds actionable savings (an oversized contributor, or a
+Pattern compiled into more than one machine) it adds a **Ways to slim this
 Show** section, and stays silent when there is nothing actionable. Its renderer
 axis leads with the peak number of distinct Pattern machines active across the
 whole Controller, then reports steady and peak renderer depth per pixel
-separately. The same bar enforces the support envelope — outputs above 2,000
+separately. The same bar enforces the support envelope: outputs above 2,000
 pixels, exhausted memory axes, or more than five simultaneous renderers per
 pixel block outbound actions with a named cause, while editing and preview
 continue.

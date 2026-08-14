@@ -16,9 +16,12 @@ import fillVsContainUrl from '../../docs/images/fill-vs-contain.svg?url'
 import frameTimeBudgetUrl from '../../docs/images/frame-time-budget.svg?url'
 import layoutPipelineUrl from '../../docs/images/layout-pipeline.svg?url'
 import mapPipelineUrl from '../../docs/images/map-pipeline.svg?url'
+import previewDeckBoundaryUrl from '../../docs/images/preview-deck-boundary.svg?url'
 import renderTargetRolesUrl from '../../docs/images/render-target-roles.svg?url'
 import showModelRuntimeUrl from '../../docs/images/show-model-runtime.svg?url'
+import showOutputContractUrl from '../../docs/images/show-output-contract.svg?url'
 import showPipelineUrl from '../../docs/images/show-pipeline.svg?url'
+import showTimelineAnatomyUrl from '../../docs/images/show-timeline-anatomy.svg?url'
 import systemMapUrl from '../../docs/images/system-map.svg?url'
 import transitionCostClassesUrl from '../../docs/images/transition-cost-classes.svg?url'
 import wholeFrameModelUrl from '../../docs/images/whole-frame-model.svg?url'
@@ -56,9 +59,12 @@ const sharedAssets = {
   '../images/frame-time-budget.svg': frameTimeBudgetUrl,
   '../images/layout-pipeline.svg': layoutPipelineUrl,
   '../images/map-pipeline.svg': mapPipelineUrl,
+  '../images/preview-deck-boundary.svg': previewDeckBoundaryUrl,
   '../images/render-target-roles.svg': renderTargetRolesUrl,
   '../images/show-model-runtime.svg': showModelRuntimeUrl,
+  '../images/show-output-contract.svg': showOutputContractUrl,
   '../images/show-pipeline.svg': showPipelineUrl,
+  '../images/show-timeline-anatomy.svg': showTimelineAnatomyUrl,
   '../images/system-map.svg': systemMapUrl,
   '../images/transition-cost-classes.svg': transitionCostClassesUrl,
   '../images/whole-frame-model.svg': wholeFrameModelUrl,

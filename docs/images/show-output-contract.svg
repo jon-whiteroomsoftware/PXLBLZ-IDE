@@ -1,0 +1,77 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 720 300" font-family="'IBM Plex Mono','SF Mono',ui-monospace,Menlo,monospace">
+  <defs>
+    <marker id="soc-arr" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+      <path d="M0,0 L10,5 L0,10 z" fill="#97a1ac"/>
+    </marker>
+  </defs>
+  <rect width="720" height="300" fill="#14171c"/>
+
+  <text x="40" y="34" font-size="13" fill="#dde3ea">New Show: a permanent output contract</text>
+
+  <!-- Portable -->
+  <rect x="40" y="52" width="310" height="184" fill="#191e24" stroke="#59626d" stroke-width="1.5"/>
+  <text x="56" y="74" font-size="11" font-weight="bold" fill="#dde3ea">PORTABLE</text>
+  <text x="334" y="74" text-anchor="end" font-size="8" fill="#97a1ac">LED-resolution independent</text>
+
+  <rect x="160" y="86" width="70" height="22" fill="#1d232b" stroke="#5c92c7" stroke-width="1.2"/>
+  <text x="195" y="101" text-anchor="middle" font-size="9" fill="#dde3ea">Show</text>
+
+  <line x1="175" y1="108" x2="105" y2="136" stroke="#97a1ac" stroke-width="1" marker-end="url(#soc-arr)"/>
+  <line x1="195" y1="108" x2="195" y2="150" stroke="#97a1ac" stroke-width="1" marker-end="url(#soc-arr)"/>
+  <line x1="215" y1="108" x2="285" y2="136" stroke="#97a1ac" stroke-width="1" marker-end="url(#soc-arr)"/>
+
+  <!-- square 5x5 -->
+  <g fill="#9dbede">
+    <circle cx="70" cy="150" r="3"/><circle cx="84" cy="150" r="3"/><circle cx="98" cy="150" r="3"/><circle cx="112" cy="150" r="3"/><circle cx="126" cy="150" r="3"/>
+    <circle cx="70" cy="164" r="3"/><circle cx="84" cy="164" r="3"/><circle cx="98" cy="164" r="3"/><circle cx="112" cy="164" r="3"/><circle cx="126" cy="164" r="3"/>
+    <circle cx="70" cy="178" r="3"/><circle cx="84" cy="178" r="3"/><circle cx="98" cy="178" r="3"/><circle cx="112" cy="178" r="3"/><circle cx="126" cy="178" r="3"/>
+    <circle cx="70" cy="192" r="3"/><circle cx="84" cy="192" r="3"/><circle cx="98" cy="192" r="3"/><circle cx="112" cy="192" r="3"/><circle cx="126" cy="192" r="3"/>
+  </g>
+  <!-- wide 8x2 -->
+  <g fill="#9dbede">
+    <circle cx="153" cy="164" r="3"/><circle cx="167" cy="164" r="3"/><circle cx="181" cy="164" r="3"/><circle cx="195" cy="164" r="3"/><circle cx="209" cy="164" r="3"/><circle cx="223" cy="164" r="3"/><circle cx="237" cy="164" r="3"/><circle cx="251" cy="164" r="3"/>
+    <circle cx="153" cy="178" r="3"/><circle cx="167" cy="178" r="3"/><circle cx="181" cy="178" r="3"/><circle cx="195" cy="178" r="3"/><circle cx="209" cy="178" r="3"/><circle cx="223" cy="178" r="3"/><circle cx="237" cy="178" r="3"/><circle cx="251" cy="178" r="3"/>
+  </g>
+  <!-- tall 3x5 -->
+  <g fill="#9dbede">
+    <circle cx="286" cy="150" r="3"/><circle cx="300" cy="150" r="3"/><circle cx="314" cy="150" r="3"/>
+    <circle cx="286" cy="164" r="3"/><circle cx="300" cy="164" r="3"/><circle cx="314" cy="164" r="3"/>
+    <circle cx="286" cy="178" r="3"/><circle cx="300" cy="178" r="3"/><circle cx="314" cy="178" r="3"/>
+    <circle cx="286" cy="192" r="3"/><circle cx="300" cy="192" r="3"/><circle cx="314" cy="192" r="3"/>
+    <circle cx="286" cy="206" r="3"/><circle cx="300" cy="206" r="3"/><circle cx="314" cy="206" r="3"/>
+  </g>
+  <text x="195" y="226" text-anchor="middle" font-size="9" fill="#97a1ac">any compatible 2D mapped surface</text>
+
+  <!-- Installation -->
+  <rect x="370" y="52" width="310" height="184" fill="#191e24" stroke="#59626d" stroke-width="1.5"/>
+  <text x="386" y="74" font-size="11" font-weight="bold" fill="#dde3ea">INSTALLATION</text>
+  <text x="664" y="74" text-anchor="end" font-size="8" fill="#97a1ac">one pixel count, one output map</text>
+
+  <rect x="490" y="86" width="70" height="22" fill="#1d232b" stroke="#5c92c7" stroke-width="1.2"/>
+  <text x="525" y="101" text-anchor="middle" font-size="9" fill="#dde3ea">Show</text>
+  <line x1="525" y1="108" x2="525" y2="132" stroke="#97a1ac" stroke-width="1" marker-end="url(#soc-arr)"/>
+
+  <!-- one fixed build, zone-colored ranges -->
+  <g fill="#5c92c7">
+    <circle cx="410" cy="146" r="3"/><circle cx="426" cy="146" r="3"/><circle cx="442" cy="146" r="3"/><circle cx="458" cy="146" r="3"/>
+    <circle cx="410" cy="162" r="3"/><circle cx="426" cy="162" r="3"/><circle cx="442" cy="162" r="3"/><circle cx="458" cy="162" r="3"/>
+    <circle cx="410" cy="178" r="3"/><circle cx="426" cy="178" r="3"/><circle cx="442" cy="178" r="3"/><circle cx="458" cy="178" r="3"/>
+    <circle cx="410" cy="194" r="3"/><circle cx="426" cy="194" r="3"/><circle cx="442" cy="194" r="3"/><circle cx="458" cy="194" r="3"/>
+  </g>
+  <g fill="#6d7681">
+    <circle cx="474" cy="146" r="3"/><circle cx="490" cy="146" r="3"/><circle cx="506" cy="146" r="3"/><circle cx="522" cy="146" r="3"/><circle cx="538" cy="146" r="3"/><circle cx="554" cy="146" r="3"/><circle cx="570" cy="146" r="3"/>
+    <circle cx="474" cy="162" r="3"/><circle cx="490" cy="162" r="3"/><circle cx="506" cy="162" r="3"/><circle cx="522" cy="162" r="3"/><circle cx="538" cy="162" r="3"/><circle cx="554" cy="162" r="3"/><circle cx="570" cy="162" r="3"/>
+    <circle cx="474" cy="178" r="3"/><circle cx="490" cy="178" r="3"/><circle cx="506" cy="178" r="3"/><circle cx="522" cy="178" r="3"/><circle cx="538" cy="178" r="3"/><circle cx="554" cy="178" r="3"/><circle cx="570" cy="178" r="3"/>
+    <circle cx="474" cy="194" r="3"/><circle cx="490" cy="194" r="3"/><circle cx="506" cy="194" r="3"/><circle cx="522" cy="194" r="3"/><circle cx="538" cy="194" r="3"/><circle cx="554" cy="194" r="3"/><circle cx="570" cy="194" r="3"/>
+  </g>
+  <g fill="#9dbede">
+    <circle cx="586" cy="146" r="3"/><circle cx="602" cy="146" r="3"/><circle cx="618" cy="146" r="3"/><circle cx="634" cy="146" r="3"/>
+    <circle cx="586" cy="162" r="3"/><circle cx="602" cy="162" r="3"/><circle cx="618" cy="162" r="3"/><circle cx="634" cy="162" r="3"/>
+    <circle cx="586" cy="178" r="3"/><circle cx="602" cy="178" r="3"/><circle cx="618" cy="178" r="3"/><circle cx="634" cy="178" r="3"/>
+    <circle cx="586" cy="194" r="3"/><circle cx="602" cy="194" r="3"/><circle cx="618" cy="194" r="3"/><circle cx="634" cy="194" r="3"/>
+  </g>
+  <text x="525" y="226" text-anchor="middle" font-size="9" fill="#97a1ac">physical zone ranges + Controller targeting</text>
+
+  <text x="40" y="266" font-size="11" fill="#dde3ea">the contract is chosen at New Show, stays visible in the timeline header, and decides</text>
+  <text x="40" y="282" font-size="11" fill="#dde3ea">what Zones mean; Show setup supports outputs through 2,000 pixels</text>
+</svg>

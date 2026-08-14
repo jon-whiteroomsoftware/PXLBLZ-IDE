@@ -2,7 +2,7 @@
 
 A living guide to making patterns fast on Pixelblaze's serial, fixed-point
 hardware, with measured numbers for our firmware (3.67) rather than folklore. It
-covers general patterns and, with extra attention, GLSL/ShaderToy ports — the
+covers general patterns and, with extra attention, GLSL/ShaderToy ports: the
 patterns that most often blow the budget.
 
 Pixelblaze evaluates pixels one at a time on a single core, so a frame costs
@@ -29,21 +29,21 @@ consequences dominate everything below:
    ```
 
    On a 16×16 grid the per-pixel multiplier is 256; on 32×32 it's 1024. A loop
-   inside `render` multiplies by the pixel count — a 95-step raymarch on a 32×32
+   inside `render` multiplies by the pixel count: a 95-step raymarch on a 32×32
    grid is ~97,000 iterations per frame.
 
-2. **The two render functions have wildly different leverage.**
+2. **The two render functions have wildly different multipliers.**
 
    | function | runs | put here |
    |---|---|---|
-   | `beforeRender(delta)` | **once per frame** | anything identical for every pixel — time accumulation, frame-global trig, palette setup |
+   | `beforeRender(delta)` | **once per frame** | anything identical for every pixel: time accumulation, frame-global trig, palette setup |
    | `render*` | **once per pixel** | only work that genuinely depends on the pixel's position |
 
    Moving one `sin()` from `render2D` to `beforeRender` on a 32×32 grid removes
-   1023 evaluations per frame. This is the single highest-leverage move in the
+   1023 evaluations per frame. This is the single biggest win in the
    toolbox.
 
-> **Fixed-point, not float.** On hardware *everything* is 16.16 fixed-point —
+> **Fixed-point, not float.** On hardware *everything* is 16.16 fixed-point;
 > there is no float mode on the device. The preview's Fast renderer is a dev-loop
 > convenience and does not reflect device cost; do final checks in Precise. See
 > the Technical Reference §8.
@@ -62,18 +62,18 @@ results from **+49.7%** to **+0.0%**. The pattern that predicts the payoff:
   trig being recomputed per pixel *is* most of the frame; lifting it nearly halves
   frame time.
 - **Heavy-frame demos barely move.** Against 5–9 `perlinFbm` calls or a long
-  raymarch, the same hoist is a rounding error. Only the **quality knobs** —
-  octave counts, march steps, iteration counts — are levers big enough to matter,
+  raymarch, the same hoist is a rounding error. Only the **quality knobs**
+  (octave counts, march steps, iteration counts) are levers big enough to matter,
   and those change the image (§3).
 - **The firmware FPS cap hides wins.** The device caps around **~124.5 FPS** on
   our panel; a rate-capped frame can't report a saving. Read the ms/frame floor,
   not a capped 0%.
 - **A 10% body cut is not a 10% frame win.** The frame also pays fixed overhead
-  (walking the map, driving LEDs, housekeeping) that no pattern edit touches —
+  (walking the map, driving LEDs, housekeeping) that no pattern edit touches:
   measured on Kishimisu, the arithmetic body was only ~44% of the frame. Model the
   whole frame before predicting an FPS number.
 
-## 3. The toolbox, in order of leverage
+## 3. The toolbox, in order of payoff
 
 Reach for these in order; each is detailed with its care-points in the catalogue
 (§9).
@@ -83,7 +83,7 @@ Reach for these in order; each is detailed with its care-points in the catalogue
    the hoisted work is a real slice of an uncapped frame (§2).
 2. **Table loop-index-only work.** When an inner loop's expression depends on the
    loop index (and maybe time) but not the pixel, compute it once into a small
-   array — at module scope if constant, in `beforeRender` if time-dependent. The
+   array: at module scope if constant, in `beforeRender` if time-dependent. The
    big win for "N-iteration loop per pixel" ports.
 3. **Memoize position-only transcendentals.** A pure function of pixel position
    (`exp(-len)`) can be cached in a `pixelCount` array, filled lazily, read
@@ -92,7 +92,7 @@ Reach for these in order; each is detailed with its care-points in the catalogue
 4. **Choose cheaper built-ins and reduce ops.** Use the cost table (§4):
    `hypot` over hand-rolled lengths, `triangle`/`square` over `sin` when any
    periodic shape will do, strength-reduce `pow`, multiply by reciprocals.
-5. **Cut iterations — the quality knobs.** Raymarch steps, noise octaves, fold
+5. **Cut iterations: the quality knobs.** Raymarch steps, noise octaves, fold
    counts. These are the only levers that move a heavy port materially, and they
    **change the image**: they need drift measurement plus a human eye (§5).
 
@@ -130,7 +130,7 @@ proven:
   quantifies how much before hardware time is spent.
 - **[hardware-wisdom]** — only the device can confirm it, because it trades one
   built-in for another of different hardware cost. The emulator runs every
-  built-in as a native `Math.*` call, so it is blind to these — and sometimes
+  built-in as a native `Math.*` call, so it is blind to these, and sometimes
   reads them *backwards* (§7, §10).
 
 The workflow that follows from the tags: use the **checksum** to prove an edit
@@ -143,7 +143,7 @@ candidates; they don't approve them. Tools and commands: §7.
 
 Everything above applies; GLSL ports add these:
 
-- **The GPU idioms that were free are now the expensive ones** — per-pixel
+- **The GPU idioms that were free are now the expensive ones**: per-pixel
   octave/raymarch loops, transcendental-heavy inner steps, frame-global values
   recomputed per fragment because the GPU didn't care.
 - **Use the integer hash, not the magic-constant hash.**
@@ -151,7 +151,7 @@ Everything above applies; GLSL ports add these:
   and expensive. `Shader.hash21`/`hash11` are integer multiply/add — cheaper and
   bit-identical preview↔hardware.
 - **Iterate in Fast, ship in Precise.** The Precise renderer is measurably slower
-  *in the dev loop* (an emulator tax, not a device cost — ~7× on Kishimisu at
+  *in the dev loop* (an emulator tax, not a device cost; ~7× on Kishimisu at
   64×32). Iterate on Fast; do final correctness in Precise and final perf on
   hardware.
 
@@ -180,7 +180,7 @@ to an integer exactly as it would in plain JavaScript.
 
 ## 7. Benchmarking tools
 
-The whole optimization loop runs from a script on the laptop — something we
+The whole optimization loop runs from a script on the laptop, something we
 haven't seen elsewhere in the Pixelblaze ecosystem. One command bundles a
 pattern and runs it under the preview's software renderer in either fidelity
 mode, or compiles it with the device's own compiler and pushes it to a real
@@ -199,7 +199,7 @@ controller, then reads the numbers back. Four tools cover the loop:
    headless, pushes it to the controller, and samples the FPS the firmware
    reports. *Answers: did the frame actually get faster?*
 
-There is also a zeroth tool — the device's own FPS counter and a comment key.
+There is also a zeroth tool: the device's own FPS counter and a comment key.
 Each answers a different question; use the cheapest one that can answer the
 question in front of you.
 
@@ -207,7 +207,7 @@ question in front of you.
 
 Still the fastest way to find a hot spot: watch the editor's **FPS counter**,
 **comment out** a suspected block, see if FPS jumps, bisect. Time sections with
-`delta` via an `export var`. Measures the real device, so it's always truthful —
+`delta` via an `export var`. Measures the real device, so it's always truthful;
 it just can't say *why* a built-in is expensive.
 
 ### b. Emulator benchmark (`npm run bench`, `test/perf-harness/`)
@@ -220,22 +220,22 @@ npm run bench -- Kishimisu                      # both modes, time + checksum
 npm run bench -- Kishimisu --frames 120 --grid 64x32
 ```
 
-The **checksum is the guard rail**: re-run after an edit and compare per mode —
-identical checksum means byte-for-byte identical output, so any frame-time delta
+The **checksum is the guard rail**: re-run after an edit and compare per mode.
+Identical checksum means byte-for-byte identical output, so any frame-time delta
 is a pure speed change; a drift means the edit was not output-preserving.
 
 - **Good for:** comparing two versions of a pattern, proving an edit
   output-preserving, seeing the Precise-renderer iteration tax.
 - **Cannot tell you:** the relative cost of individual built-ins. The emulator
   runs every math built-in as a native `Math.*` call in both shims, so it measures
-  **op/call count, not hardware per-function cost** — and even gets orderings
+  **op/call count, not hardware per-function cost**, and even gets orderings
   wrong (`wave()` is *slower* than `sin()` there; on hardware they're equal).
   This is the [bench-verifiable] / [hardware-wisdom] boundary.
 
 ### c. Visual drift tool (`npm run drift`, `test/perf-harness/`)
 
-The checksum is deliberately binary. For lossy optimizations — the JPEG-shaped
-trade where a pattern looks almost the same but runs much faster — the drift tool
+The checksum is deliberately binary. For lossy optimizations (the JPEG-shaped
+trade where a pattern looks almost the same but runs much faster) the drift tool
 compares two sources over the same deterministic frame window:
 
 ```bash
@@ -284,7 +284,7 @@ can't see. Needs a physical device; out of the pre-commit gate.
 Measured on real hardware, **firmware 3.67**, relative to a single multiply
 (`mul` ≡ 1.0×). Source of record:
 [`test/perf-harness/costs.md`](../../test/perf-harness/costs.md), regenerated by
-`npm run profile`. Use the relative column — it's robust to grid size and FPS
+`npm run profile`. Use the relative column; it holds across grid size and FPS
 target.
 
 | built-in | group | ×mul | built-in | group | ×mul |
@@ -314,7 +314,7 @@ target.
 
 ### Factor frame-global work into `beforeRender` [bench-verifiable]
 
-The highest-leverage move (§1). Anything identical across pixels — `t`
+The biggest win in the toolbox (§1). Anything identical across pixels — `t`
 accumulation, `sin(t)`/`cos(t)` for a rotation angle, palette coefficients,
 constants derived from sliders — computes once per frame there instead of once
 per pixel. The emulator bench shows the call-count drop directly.
@@ -331,7 +331,7 @@ model (§2) and the scoreboard (§11) for where the same move buys ~0%.
 A generalisation for patterns with an **inner loop** in `render`. If an
 inner-loop expression depends only on the **loop index** (and maybe time), never
 the pixel, compute it once into a small array and read it in the loop. The
-highest-leverage move for "N-iteration loop per pixel" ports (layered rings,
+big win for "N-iteration loop per pixel" ports (layered rings,
 octave sums, kaleidoscope folds). Two flavours:
 
 - **Index-only constants → module scope.** `cos(i)`, `i*k` — filled once in a
@@ -347,7 +347,7 @@ octave sums, kaleidoscope folds). Two flavours:
 > untouched: `gv * animT[i] * colT[i]`. Same values, same order, bit-identical.
 > (See the NeonSquircles case study.)
 
-> **The emulator can't see this win — and reads it backwards.** The bench runs
+> **The emulator can't see this win, and reads it backwards.** The bench runs
 > every built-in as native `Math.*` but reaches array elements through a heavier
 > path, so swapping per-pixel `sin`/`cos` for array reads makes the *emulator*
 > slower even as the *device* gets much faster. Trust the checksum and
@@ -356,7 +356,7 @@ octave sums, kaleidoscope folds). Two flavours:
 ### Two hoisting traps that drift the Precise checksum [bench-verifiable]
 
 An output-preserving hoist must mirror the original's exact operation grouping,
-or the Precise bench checksum moves while Fast holds — which hides the problem
+or the Precise bench checksum moves while Fast holds, which hides the problem
 until hardware. Both traps below were hit in NeonSquircles and again in Caustics.
 
 **Negate the product, not the operand.** In 16.16, `-(c * 0.5)` is not
@@ -366,7 +366,7 @@ an original that subtracts `cos(x) * 0.5`, precompute `-(cos(x) * 0.5)`.
 
 **Re-associating multiplies drifts; re-associating adds is exact.** Fixed-point
 multiply is not associative, so `(x * SCALE) * 1.3` differs from
-`x * (SCALE * 1.3)` — do not fold a scale constant into another constant.
+`x * (SCALE * 1.3)`; do not fold a scale constant into another constant.
 Fixed-point addition is a plain integer add, exact and associative, so folding
 `a + A + B` into `a + (A + B)` **is** output-preserving. Likewise keep the
 per-pixel accumulate's multiply order: table the operands rather than folding
@@ -385,12 +385,12 @@ module array, filled once, read thereafter. `exp`/`pow`/`asin` of a fixed
 call stops happening, so the op count *and* the device cost drop, and the
 checksum holds.
 
-The clean, bit-identical way to fill it is **lazy** — compute on each index's
-first visit (with a sentinel for "unfilled") — because that uses the exact
+The clean, bit-identical way to fill it is **lazy**: compute on each index's
+first visit (with a sentinel for "unfilled"), because that uses the exact
 per-pixel coordinates `render2D` receives. Prefilling via `mapPixels` risks a
 coordinate-normalisation mismatch and a checksum drift.
 
-> **Memory cost — weigh it deliberately.** Arrays are the only dynamically
+> **Memory cost: weigh it deliberately.** Arrays are the only dynamically
 > allocated type and **cannot be freed**, so a `pixelCount` cache is permanent,
 > leaks the old one on any grid-change reallocation, and scales with LED count.
 > Fine at a 256-px panel (~1 KB); a liability on a multi-thousand-LED install.
@@ -416,17 +416,17 @@ drift tool and your eyes judge the image.
 - Hoist common subexpressions out of inner loops.
 - Replace `pow(x, k)` for small integer `k` with repeated multiplies
   (`pow(x,2)→x*x`; 8.5× → ~`k-1` muls), and `pow(x, 0.5)` with `sqrt(x)`. Not
-  output-preserving — `pow` routes through `exp`/`log`, so the result differs by
+  output-preserving: `pow` routes through `exp`/`log`, so the result differs by
   a fixed-point ULP (the Fast checksum usually survives; Precise drifts). A
-  blessed sub-perceptual change, not a free one — and weigh it against the whole
+  blessed sub-perceptual change, not a free one; weigh it against the whole
   frame: on a voronoi-bound frame, cutting two `pow`s buys ~nothing (see the
   Caustics case study).
 - Multiply by a reciprocal once instead of dividing repeatedly (`div` 1.9× vs
-  `mul` 1.0×) — minding the 16.16 overflow cliff on the reciprocal's magnitude.
+  `mul` 1.0×), minding the 16.16 overflow cliff on the reciprocal's magnitude.
 
 ### Choose cheaper built-ins [hardware-wisdom]
 
-Use the cost table (§8) — the emulator can't see these:
+Use the cost table (§8); the emulator can't see these:
 
 - `exp`/`pow` (8–12×) are the most expensive scalars; approximate or hoist.
 - `hypot` (3.6×) over hand-rolled `sqrt(x*x+y*y)` (6.6×).
@@ -460,24 +460,24 @@ only on index+time (20-entry `beforeRender` tables). ~100 trig calls per pixel
 became table reads; hardware went **2.46 → 3.08 FPS**. Both checksums held,
 but only after the two fixed-point care points in §9's note: negate the
 *product*, not the operand, and table the operands rather than their product
-so the multiply order is untouched. The emulator read the change *backwards* —
-table reads made the bench ~15× slower while the device sped up 25% — so the
+so the multiply order is untouched. The emulator read the change *backwards*
+(table reads made the bench ~15× slower while the device sped up 25%), so the
 checksum and `devbench` are the verdict; the bench stopwatch is noise here.
 
 ### Kishimisu — a full measured pass (+8.4%)
 
 One change at a time, re-benching after each, gating on the per-mode checksum.
-The emulator's frame time stayed flat at every step — that's the lesson, not a
+The emulator's frame time stayed flat at every step; that's the lesson, not a
 failure: the ops removed (`mul`/`div`/`floor`) are near-free as native JS, so
 the bench's job in a pass like this is the checksum guard, not the stopwatch.
 Pricing the per-pixel body against the cost table (§8) found where the time
 actually goes: the per-octave palette `cos` and the glow `pow` can't hoist
 (their arguments carry per-pixel values), but the time-invariant `exp(-len0)`
-could be memoized into a lazily-filled `pixelCount` array — bit-identical,
+could be memoized into a lazily-filled `pixelCount` array: bit-identical,
 +2.5% alone, with the permanent-array memory trade documented in-code. One
 step swapped a per-octave divide for a precomputed reciprocal: a real speedup
 that shifts the Precise checksum by a fixed-point ULP. It shipped with the
-drift verified sub-perceptual and written down — the template for consciously
+drift verified sub-perceptual and written down, the template for consciously
 accepting divergence. Final hardware: **+4.6%** against a ~10% arithmetic-body
 estimate; back-solving the gap puts the body at ~44% of the frame, the rest
 being map-walking, LED driving, and housekeeping no pattern edit touches.
@@ -486,16 +486,16 @@ Model the whole frame.
 ### Caustics and PhantomStar — when hoisting runs out of road
 
 Caustics is voronoi-bound: ~18 cell-hashes per pixel own the frame. The clean
-hoist — five time-only trig terms plus slider scalars — was bit-identical and
+hoist (five time-only trig terms plus slider scalars) was bit-identical and
 bought **+1.7%**, exactly what the whole-frame model predicts. Strength-reducing
 its two `pow(·,3)` to `v*v*v` measured *no* gain past the hoist and drifted the
 Precise checksum, so it was reverted: a divergence you can't see and can't
-measure is not a win. PhantomStar is the extreme case — a ~95-step raymarch
+measure is not a win. PhantomStar is the extreme case: a ~95-step raymarch
 with a 5-iteration fold per step, running at ~0.24 FPS. Its big hoist (the
 time-only rotation matrices) was already in the shipped demo; a further pass
 moving stray scalars off the hot paths was correct, free, and **+0.1%**, inside
 measurement noise. The expensive work is a function of ray position and
-per-step distance — structurally unhoistable. The only levers that move frames
+per-step distance: structurally unhoistable. The only levers that move frames
 like these are the quality knobs (march steps, fold iterations, voronoi
 layers), and those change the image, so they live on the far side of the
 checksum.
@@ -508,10 +508,10 @@ plausible ones, and let a human eye make the final call. The keepers: a local
 rational `fastTanh` in ZippyZaps' hot loop (drift p95 ≤ 1/255, **+22.1%**);
 4→3 warp octaves in the noise-bound PlasmaNebula and NebulaSphere (**+10–11%**,
 nebula structure preserved); a local polynomial glow curve replacing `pow` in
-Kishimisu and ShaderShowcase (**+3–4%** — kept pattern-local, an artistic
+Kishimisu and ShaderShowcase (**+3–4%**, kept pattern-local, an artistic
 substitute rather than a general `pow` replacement); and `hypot` over
 hand-rolled lengths in the `SDF`/`Coord` libraries (**+7.2%**, tiny Precise
-drift — a library change because it improves every caller without changing the
+drift; a library change because it improves every caller without changing the
 contract). Two plausible candidates died on the bench: FireflyChoir's
 phase-trig tables drifted heavily *and slowed hardware* (−9.5%), and a
 PhantomStar rotation table was checksum-identical at **+0.0%**. Table reads
@@ -543,7 +543,7 @@ noise-bound or rate-capped frames — §2 and the case studies (§10) explain bo
 | AuroraSphere | the great-ring normal vector derives from time alone yet cost ~5 trig per pixel; computed once per frame, plus `hypot3` for the hand-rolled 3D length | 9.81 → 10.50 | +7.0% |
 | AuroraSphere | normalized sphere coordinates and latitude are fixed per pixel once the map is calibrated; cached lazily per index, removing a per-pixel `hypot3`, `asin`, and divides | 10.57 → 11.29 | +6.8% |
 
-\* *already at the firmware's ~124.5 FPS ceiling — the CPU work is still removed
+\* *already at the firmware's ~124.5 FPS ceiling: the CPU work is still removed
 (it helps at larger pixel counts), but a rate-capped frame can't show it.*
 
 \*\* *measured on a flat bundled benchmark artifact to isolate the library helper
@@ -551,7 +551,7 @@ change (`SDF`/`Coord`) from other demo edits.*
 
 **Read the spread, not the average.** The same kind of move bought +49.7% on a
 cheap frame and, off the bottom of this table, ~0% on voronoi-bound Caustics
-and rate-capped EasedSweep — §2's whole-frame dilution in action. The spread is
+and rate-capped EasedSweep: §2's whole-frame dilution in action. The spread is
 the whole story.
 
 ---

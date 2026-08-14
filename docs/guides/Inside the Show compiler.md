@@ -43,7 +43,7 @@ the source inventory and compiler model.
 There's also a limit no compiler pass can touch: the wire. WS281x-family LEDs
 receive data at a fixed 800 kHz, which works out to roughly 30 microseconds
 per pixel. At 2,000 pixels on a single native serial output, just **shipping**
-a finished frame takes 60.4 ms — a hard ceiling of about 16.6 FPS if the
+a finished frame takes 60.4 ms: a hard ceiling of about 16.6 FPS if the
 Controller computed everything else instantly. Output Expanders and clocked
 LED families move that floor, which is why Controller profiles carry a
 declared output profile and why every FPS number in our evidence names one.
@@ -58,7 +58,7 @@ That chart is the frame-time attribution for Redline, our heaviest reference
 Show, before the optimization program: 336 ms per frame, of which 60 ms is the
 wire, 143 ms is Show machinery (routing, transitions, composition), and 134 ms
 is the member Patterns doing their own rendering. It's the map the whole
-optimization program worked from — you can't decide what to attack until you
+optimization program worked from: you can't decide what to attack until you
 know where the time goes.
 
 ## From timeline to one Pattern
@@ -67,12 +67,12 @@ The pipeline runs in the browser every time you edit a Show:
 
 ![The Show pipeline: saved choreography lowers through routing, scheduling, and specialization into one Pixelblaze Pattern](../images/show-pipeline.svg)
 
-1. **Lowering.** The saved Show — Scenes, Zone Layouts, clips, boundaries,
-   property curves — becomes a compile recipe: which Pattern instances exist,
+1. **Lowering.** The saved Show (Scenes, Zone Layouts, clips, boundaries,
+   property curves) becomes a compile recipe: which Pattern instances exist,
    which Scenes activate them, and what every boundary does.
 2. **Member isolation.** Each Pattern instance is renamed so its variables and
    functions can't collide with any other member or with the Show's own
-   machinery. Your Patterns are combined verbatim, not rewritten — a member
+   machinery. Your Patterns are combined verbatim, not rewritten: a member
    still reads like the Pattern you authored.
 3. **Routing.** Every output pixel gets an owner. Installation Shows route by
    physical index ranges; Portable Shows route by normalized Stage position,
@@ -84,7 +84,7 @@ The pipeline runs in the browser every time you edit a Show:
 4. **Scheduling.** A generated `beforeRender` advances the Show clock, works
    out the active Scene and boundary, updates property ramps and Effect
    parameters once per frame, and advances each active Pattern instance
-   exactly once — even when several placements show the same instance.
+   exactly once, even when several placements show the same instance.
 5. **Specialization.** The compiler then removes every piece of work it can
    **prove** unnecessary. This is where most of this document lives.
 
@@ -95,7 +95,7 @@ editor. Nothing about it requires PXLBLZ to exist afterward.
 ## The three-plane render target
 
 One early decision shapes everything else. Every generated Show reserves
-exactly three full-output arrays — think of them as three grayscale
+exactly three full-output arrays: think of them as three grayscale
 photographic plates the size of your installation. Together they can hold one
 complete RGB frame, or two coordinates per pixel, or one scalar value per
 pixel with room to spare. At 2,000 pixels that reservation is 6,012 of the
@@ -131,13 +131,13 @@ bit-identical in both preview modes, verified frame by frame. These are on
 for every Show, always.
 
 The core moves will be familiar if you've read the Optimization Guide,
-because they're the same moves a careful Pattern author makes by hand — the
+because they're the same moves a careful Pattern author makes by hand; the
 compiler just applies them with proofs instead of intuition:
 
 - **Prove it, then hoist it.** Any expression the compiler can prove is
   pure and identical for every pixel moves out of the per-pixel path and
   runs once per frame. That includes subtrees like `wave(time(.05))` buried
-  inside an `hsv()` call — a shape that's everywhere in community Patterns.
+  inside an `hsv()` call, a shape that's everywhere in community Patterns.
 - **Stop testing what can't happen.** When physical zone ranges provably
   cover the output exactly once, routing becomes an ordered short-circuit
   where the last branch doesn't even need a test.
@@ -145,7 +145,7 @@ compiler just applies them with proofs instead of intuition:
   provably writes a color. Identity mirrors, identity brightness multiplies,
   and neutral Effects vanish when the Show proves they can't vary.
 - **Inline tiny helpers.** A one-line pure helper function gets substituted
-  into its call sites — a function call costs 2–3 microseconds on this VM,
+  into its call sites: a function call costs 2–3 microseconds on this VM,
   which is real money when it happens per pixel.
 
 Together, the first wave of these took the Redline reference from 2.36 to
@@ -153,7 +153,7 @@ Together, the first wave of these took the Redline reference from 2.36 to
 
 The second wave got more surgical, guided by microbenchmarks of what the VM
 actually charges for things. The star finding: the generated HSV→RGB
-conversion used for captured output costs about 35 µs per pixel — around
+conversion used for captured output costs about 35 µs per pixel, around
 44 multiplies' worth. So when a steady Scene's captured output has no
 consumer, the compiler now lets the member paint the LED directly through
 native `hsv()` and skips the whole capture round trip: **+69% FPS** on
@@ -169,12 +169,12 @@ a pixel, so the best optimization is not asking.**
 
 - **Pattern-output reuse (+91.7%).** Five equal-size zones all showing the
   same Pattern instance don't need five renders. The compiler proves the
-  placements are genuinely identical — same instance, same clock, same
+  placements are genuinely identical (same instance, same clock, same
   controls, same local coordinates, a renderer that provably doesn't mutate
-  state — renders one zone's worth of pixels into the arena, and replays the
+  state), renders one zone's worth of pixels into the arena, and replays the
   RGB for the other four. 400 evaluations instead of 2,000.
 - **Scalar fields (+44.1%).** A Dissolve's coherent-noise geometry doesn't
-  change during the transition — only the threshold sweeping through it does.
+  change during the transition; only the threshold sweeping through it does.
   So the noise field is computed once into one plane, and every later frame
   reads one value per pixel while progress and edge policy stay live. The
   static Vignette matte works the same way (+26.6%), and it costs zero
@@ -183,12 +183,12 @@ a pixel, so the best optimization is not asking.**
   Pattern underneath it is mostly invisible. The compiler renders the top
   layer first, derives its alpha, and evaluates the layer below only where
   holes and feather actually expose it. Cost becomes `N + U` where `U` is the
-  uncovered set — and with three layers it stops as soon as accumulated
+  uncovered set, and with three layers it stops as soon as accumulated
   coverage reaches one, which measured **+122%** on a fully-covered stack.
 
 Each of these is exact: the compiler proves compatibility rather than
-guessing, and anything it can't prove — a stateful renderer, mismatched
-clocks, an animated parameter — quietly keeps independent rendering and says
+guessing, and anything it can't prove (a stateful renderer, mismatched
+clocks, an animated parameter) quietly keeps independent rendering and says
 why in the compile report.
 
 ## The honest approximations
@@ -197,7 +197,7 @@ A third family deliberately changes the visual contract, so these are
 authored policies you choose, never silent substitutions.
 
 - **Snapshot/live Crossfade (+76.7%).** A true crossfade evaluates both
-  Scenes for its whole duration — the only place a Show pays `2N` per pixel.
+  Scenes for its whole duration: the only place a Show pays `2N` per pixel.
   The snapshot policy captures the outgoing composite on the boundary's
   first frame, then blends that frozen image against the live incoming
   Scene. The outgoing Pattern visibly stops moving during the fade; that's
@@ -215,13 +215,13 @@ authored policies you choose, never silent substitutions.
 **Trails** belongs in this section with the sign flipped: it's a visual
 affordance that **costs** a measured 35–37% FPS on native serial output,
 because feedback means reading and writing the previous frame per pixel. It
-adds zero memory — it borrows the same three planes — and we disclose the
+adds zero memory (it borrows the same three planes) and we disclose the
 cost rather than pretending an effect that touches every pixel twice is free.
 
 ## Phase is the cheapest voice; crossfades are the expensive one
 
 Placement `phase` is a **hue rotation, not a time offset**. It compiles inside
-the member's sink — `emitMemberHsvSink` in `showCompiler.ts` — to `h` plus the
+the member's sink (`emitMemberHsvSink` in `showCompiler.ts`) to `h` plus the
 member's `_adapt_phase` global, so it costs one add per pixel. That makes it the
 cheapest way to give a zone its own visual identity. It is property-animatable
 through a placement-view track on `phase`, with keyframe times in whole
@@ -237,7 +237,7 @@ crossfade boundary costs roughly 20 device-budget points: the same Show landed a
 it as score data instead of as compiled crossfade machinery.
 
 Two related facts fall out of the same measurements. Effects are stateless per
-frame — there are no trails or persistence in the toolkit — so structural variety
+frame (there are no trails or persistence in the toolkit) so structural variety
 comes from the distort family re-rendering a shared instance rather than from
 accumulation. And `paint()`/`setPalette()` members lower through their own
 palette sinks, so placement phase does **not** affect them; that is
@@ -247,34 +247,34 @@ firmware-faithful, because paint is an RGB lookup rather than an HSV emission.
 
 Some optimizations never show up in an FPS counter but decide whether a Show
 fits on the Controller at all. Long choreography used to emit code per
-boundary — twenty transitions meant twenty copies of nearly identical
+boundary: twenty transitions meant twenty copies of nearly identical
 machinery, and our three long reference Shows were 110–180 KB of source that
 wouldn't reliably activate at high pixel counts.
 
 The fix is the oldest idea in computing: separate data from machinery. The
-**table-driven Show score** stores choreography as five words per boundary —
-outgoing stack, incoming stack, transition kernel, easing, duration — and
+**table-driven Show score** stores choreography as five words per boundary
+(outgoing stack, incoming stack, transition kernel, easing, duration) and
 emits each unique Pattern instance, Scene stack, and kernel exactly once. The
 scheduler reads the score; the pixel renderer dispatches over a handful of
 interned kernels regardless of how many Scenes the timeline holds. Source
 fell 75–86% on the qualified references, Controller bytecode fell 67–79%,
 and one artifact that previously failed to activate at 1,000+ pixels now
 loads in a fraction of the time. Measured frame rate: unchanged. That's the
-point — it's the same machinery, selected by data instead of duplicated by
+point: it's the same machinery, selected by data instead of duplicated by
 time.
 
 The same shape repeats at smaller scales: compatible Motion transitions share
 generated kernels (source −37.5%), repeated animated Effects share one
 parameterized update body, and Restart-only Pattern members whose lifetimes
-can't overlap share one physical "machine" with compiler-owned state banks —
+can't overlap share one physical "machine" with compiler-owned state banks:
 17 logical members packed into 8, a fifth of the artifact gone, with every
 member's identity, clock, and controls kept strictly separate.
 
 ## What didn't work
 
-We keep the negatives on the record deliberately — they're load-bearing.
-Every one of these looked plausible, most looked **obviously good** in an
-operation-count model, and the hardware disagreed.
+We keep the negatives on the record deliberately; they do as much work as
+the wins. Every one of these looked plausible, most looked **obviously good**
+in an operation-count model, and the hardware disagreed.
 
 - **Caching transformed coordinates (−6.4%).** The poster child. Static
   routed Scenes recompute the same transformed X/Y every frame — so cache
@@ -289,7 +289,7 @@ operation-count model, and the hardware disagreed.
 - **Fixed-point bit tricks (invalid).** The classic `floor`/`frac`-as-mask
   identities assume bitwise ops see raw 16.16 bits. On firmware 3.67 the
   bitwise operators integer-coerce their operands first, so the identities
-  are simply wrong — and `floor` already prices below a multiply anyway.
+  are simply wrong, and `floor` already prices below a multiply anyway.
 - **Strength-reducing zone math (wrong and pointless).** Modulo turned out
   to be as cheap as a multiply, and replacing division by reciprocal
   multiplication in coordinate decode accumulates row-scale error that's
@@ -310,7 +310,7 @@ boundary, not a style preference.
 The program's working rules, in the order they earn their keep:
 
 1. Remove dead work before you cache anything.
-2. Count renderer evaluations before counting arithmetic — one skipped
+2. Count renderer evaluations before counting arithmetic: one skipped
    `render2D` call outweighs a hundred saved multiplies.
 3. Cache expensive stable **producers** (noise fields, rendered output), not
    cheap coordinate math.
@@ -330,7 +330,7 @@ The program's working rules, in the order they earn their keep:
 The creator-facing consequences are inspectable per Show. The compile bar under
 the timeline reports delivered source, VM words, and support-envelope warnings.
 Hovering the **Show source** figure opens an exact byte-level inventory of the
-generated artifact — which Patterns, plans, and score tables own which bytes —
+generated artifact (which Patterns, plans, and score tables own which bytes)
 plus the peak number of active Pattern machines across the Controller and the
 separate steady/peak renderer depth per pixel. **Ways to slim this Show** ranks
 the levers you actually control. Arena assignments, cache choices, and rejected
@@ -340,8 +340,8 @@ do?" is the code it wrote.
 
 For the measured evidence behind every number here, see
 [Show Rendering Optimization Results](../reference/Show%20Rendering%20Optimization%20Results.md).
-For the engineering contracts — planner semantics, compatibility proofs,
-representation rules — the
+For the engineering contracts (planner semantics, compatibility proofs,
+representation rules) the
 [Technical Reference](../reference/PXLBLZ%20Technical%20Reference.md) is the
 authority. And for making your own Patterns fast before the Show compiler
 ever sees them, start with
