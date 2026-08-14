@@ -1,8 +1,27 @@
 import { expect, showtimePath, test } from './fixtures/authenticated'
+import type { Locator, Page } from '@playwright/test'
 import { installFakeControllerHelper } from './fixtures/fakeControllerHelper'
 import { controllerProfileArtifactSignature } from '../src/engine/controllerProfilePassRecipe'
 import { artifactHash } from '../src/engine/artifactStamp'
 import type { ControllerProfile } from '../src/engine/controllerProfile'
+
+/** Replace the complete Monaco model through its public keyboard surface. */
+async function replaceEditorSource(page: Page, editor: Locator, source: string): Promise<void> {
+  const input = editor.getByRole('textbox', { name: 'Editor content' })
+  const viewLines = editor.locator('.view-lines')
+  await viewLines.click()
+  await expect(editor).toHaveClass(/focused/)
+  await expect(input).toBeFocused()
+  // Playwright's Chromium keyboard surface uses Control+A for Monaco's
+  // select-all command even when the runner host is macOS.
+  await input.press('Control+KeyA')
+  // Typing an opening bracket over a selection can auto-surround the old
+  // source. Delete first so every caller starts from an empty model.
+  await input.press('Backspace')
+  await expect(viewLines).toHaveText('')
+  await page.keyboard.type(source)
+  await expect(viewLines).toHaveText(source)
+}
 
 test('gates functional Show access behind the showtime query parameter', async ({ page }) => {
   await page.goto('studio')
@@ -603,8 +622,6 @@ test('saved Pattern freshness follows the full profile through a real managed ov
   const editor = page.locator('.monaco-editor').first()
   await expect(editor).toBeVisible()
   await expect(editor.locator('.view-lines')).toBeVisible()
-  await editor.locator('.view-lines').click({ clickCount: 3 })
-  await expect(editor).toHaveClass(/focused/)
   const sourceSaved = page.waitForResponse((response) => {
     const request = response.request()
     if (request.method() !== 'PATCH') return false
@@ -612,8 +629,7 @@ test('saved Pattern freshness follows the full profile through a real managed ov
     const changes = request.postDataJSON() as { src?: string }
     return response.ok() && changes.src === editedSource
   })
-  await page.keyboard.type(editedSource)
-  await expect(editor.locator('.view-lines')).toHaveText(editedSource)
+  await replaceEditorSource(page, editor, editedSource)
   await expect(page.getByTestId('compile-status')).toHaveAttribute('data-status', 'good')
   await sourceSaved
 
@@ -691,9 +707,7 @@ test.describe('silent save-failure feedback (#810)', () => {
     })
 
     const editedSource = 'export function render(index) { hsv(index / pixelCount, 1, wave(time(0.1))) }'
-    await editor.locator('.view-lines').click({ clickCount: 3 })
-    await expect(editor).toHaveClass(/focused/)
-    await page.keyboard.type(editedSource)
+    await replaceEditorSource(page, editor, editedSource)
     await expect(page.getByTestId('compile-status')).toHaveAttribute('data-status', 'good')
 
     // The failed tick write turns the glyph on...
@@ -732,10 +746,7 @@ test.describe('silent save-failure feedback (#810)', () => {
     await page.goto(`studio/patterns/${pattern.id}`)
     const editor = page.locator('.monaco-editor').first()
     await expect(editor.locator('.view-lines')).toBeVisible()
-    await editor.locator('.view-lines').click({ clickCount: 3 })
-    await expect(editor).toHaveClass(/focused/)
-
-    await page.keyboard.type('export function render(index) { var = 3 }')
+    await replaceEditorSource(page, editor, 'export function render(index) { var = 3 }')
     await expect(page.getByTestId('compile-status')).toHaveAttribute('data-status', 'broken')
 
     // Broken source pauses autosave by design; the glyph says so immediately.
@@ -744,8 +755,7 @@ test.describe('silent save-failure feedback (#810)', () => {
     await expect(glyph).toHaveAttribute('title', /Changes not saved/)
 
     // Fixing the source resumes autosave and returns the header to silence.
-    await editor.locator('.view-lines').click({ clickCount: 3 })
-    await page.keyboard.type('export function render(index) { hsv(1, 1, 1) }')
+    await replaceEditorSource(page, editor, 'export function render(index) { hsv(1, 1, 1) }')
     await expect(page.getByTestId('compile-status')).toHaveAttribute('data-status', 'good')
     await expect(glyph).toHaveCount(0)
   })
@@ -782,9 +792,7 @@ test.describe('silent save-failure feedback (#810)', () => {
       await expect(page).toHaveURL(new RegExp(`/studio/patterns/${pattern.id}$`))
       await expect(editor.locator('.view-lines')).toBeVisible()
 
-      await editor.locator('.view-lines').click({ clickCount: 3 })
-      await expect(editor).toHaveClass(/focused/)
-      await page.keyboard.type(brokenSource)
+      await replaceEditorSource(page, editor, brokenSource)
       await expect(page.getByTestId('compile-status')).toHaveAttribute('data-status', 'broken')
 
       const studioUrl = new RegExp(`/studio/patterns/${pattern.id}$`)
@@ -838,9 +846,7 @@ test.describe('silent save-failure feedback (#810)', () => {
     })
 
     const editedSource = 'export function render(index) { hsv(index / pixelCount, 1, wave(time(0.2))) }'
-    await editor.locator('.view-lines').click({ clickCount: 3 })
-    await expect(editor).toHaveClass(/focused/)
-    await page.keyboard.type(editedSource)
+    await replaceEditorSource(page, editor, editedSource)
     await expect(page.getByTestId('compile-status')).toHaveAttribute('data-status', 'good')
 
     // A failed departure write leaves the complete Pattern A state in place.
@@ -885,13 +891,7 @@ test.describe('silent save-failure feedback (#810)', () => {
     })
 
     const editedSource = '[[0,0],[0.5,0.5],[1,1],[0,1]]'
-    await editor.locator('.view-lines').click({ clickCount: 3 })
-    await expect(editor).toHaveClass(/focused/)
-    // Clear the selection before typing: a leading bracket over a selection
-    // triggers Monaco auto-surround and wraps the old source instead of
-    // replacing it.
-    await page.keyboard.press('Backspace')
-    await page.keyboard.type(editedSource)
+    await replaceEditorSource(page, editor, editedSource)
     await expect(page.getByTestId('compile-status')).toHaveAttribute('data-status', 'good')
 
     // The record must not pretend the draft is saved (#800 PR2): the glyph
