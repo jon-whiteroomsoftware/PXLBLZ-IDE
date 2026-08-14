@@ -285,6 +285,29 @@ describe('pass engine - intercept passes', () => {
     expect(result.warnings).toEqual([])
   })
 
+  it.each([
+    ['function declaration', `function sample(value = rgb(0.8, 0.4, 0.2)) { return value }`],
+    ['function expression', `var sample = function(value = rgb(0.8, 0.4, 0.2)) { return value }`],
+    ['arrow function', `var sample = (value = rgb(0.8, 0.4, 0.2)) => value`],
+  ])('rewrites an unshadowed output call in a %s parameter initializer (#850)', (_kind, localFunction) => {
+    const source = [
+      localFunction,
+      `export function render(index) { sample() }`,
+    ].join('\n')
+
+    const result = bundleWithPasses(source, {}, [{
+      id: 'dim-rgb',
+      kind: 'intercept',
+      target: 'rgb',
+      source: `function dimRgb(r, g, b) { rgb(r * 0.5, g * 0.5, b * 0.5) }`,
+      wrapperName: 'dimRgb',
+    }])
+
+    expect(result.code).toContain('__pxlblz_dim_rgb_rgb(0.8, 0.4, 0.2)')
+    expect(result.summary.callSitesWrapped).toEqual({ rgb: 1 })
+    expect(result.warnings).toEqual([])
+  })
+
   it('can wire the stock power-measure source as a measurement-only hsv intercept', () => {
     const powerMeasure = stockMixinSpec('power-measure')
     expect(powerMeasure).toBeDefined()

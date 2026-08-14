@@ -659,6 +659,9 @@ function walkWithScope(node: Node, scope: Scope | null, visitor: (n: Node, scope
     for (const param of (node.params as Node[]) ?? []) {
       if (param.type === 'Identifier') fnScope.names.add(param.name)
     }
+    for (const param of (node.params as Node[]) ?? []) {
+      walkWithScope(param, fnScope, visitor)
+    }
     for (const statement of (node.body?.body as Node[]) ?? []) {
       collectDeclarationNames(statement, fnScope.names)
     }
