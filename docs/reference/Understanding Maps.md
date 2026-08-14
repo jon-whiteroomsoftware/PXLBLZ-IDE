@@ -128,11 +128,17 @@ must reproduce it rather than paper over it.
 
 There's a sharper, *push-time* sibling: **a map written to a device must contain
 exactly `pixelCount` coordinates, or the device will not apply it.** Saving a
-count-mismatched map appears to succeed but produces no visible change — the map
-is dropped, not partially applied — and the reference client refuses to even parse
+count-mismatched map appears to succeed but produces no visible change (the map
+is dropped, not partially applied), and the reference client refuses to even parse
 such a map on read-back. A tool that pushes maps must either generate exactly
 `pixelCount` points or set the device's pixel count to match; the two are
 inseparable.
+
+PXLBLZ works with both rules rather than around them: the live panel flags a
+map/pixel-count disagreement with an amber `256≠300` chip, **Import map** reads
+the installed coordinates back from a Controller, and a byte-identical known
+map is recognized by name instead of duplicated. The round trip means you can
+always see which map an installation actually runs.
 
 ## 7. Dimensionality
 

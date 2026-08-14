@@ -65,8 +65,8 @@ Studio uses GitHub or Google sign-in; logins that share a verified email open
 the same workspace. Your content is stored in the cloud, not the browser.
 Signed out, the whole app is a demo: Gallery, docs, preview, and live
 Controllers all work, but nothing personal can be saved. If a save or delete
-ever fails to reach the workspace, Studio says so where you did it, retrying
-automatically or offering **Retry**; it never silently drops work.
+ever fails to reach the workspace, Studio tells you where you did it instead
+of failing silently.
 
 ## 3. Docs and API reference
 
