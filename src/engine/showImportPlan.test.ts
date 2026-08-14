@@ -154,6 +154,50 @@ describe('Show import planning', () => {
     }])
   })
 
+  it('copies a same-id Map when authored source differs despite an unchanged baked point snapshot', () => {
+    const show = createDefaultShow('show-source', 'Rebaked Show', 20)
+    show.stageMapId = 'map-shared'
+    show.outputContract = {
+      version: 1,
+      kind: 'installation',
+      outputMapId: 'map-shared',
+      pixelCount: 2,
+      resolution: 'fixed',
+    }
+    const bundledMap = {
+      ...map('map-shared', 'Warehouse Grid', [[0, 0], [1, 1]]),
+      source: 'export function map(i) { return [i, i] }',
+    }
+    const bundle: ShowFileBundleV1 = {
+      version: 1,
+      show,
+      patterns: [],
+      maps: [bundledMap],
+      provenance: {
+        appVersion: '1.0.0',
+        exportedAt: '2026-08-14T12:00:00.000Z',
+        originalShowId: show.id,
+      },
+    }
+    const ids = ['show-imported', 'map-copy']
+
+    const plan = planShowImport(bundle, {
+      patterns: [],
+      maps: [{
+        ...bundledMap,
+        source: 'export function map(i) { return [1 - i, i] }',
+      }],
+      showNames: [],
+    }, {
+      createId: () => ids.shift()!,
+    })
+
+    expect(plan.maps.copied).toEqual([expect.objectContaining({
+      id: 'map-shared',
+      targetId: 'map-copy',
+    })])
+  })
+
   it.each([
     { label: 'adds', existing: [] as MapRecord[], bucket: 'added' as const },
     { label: 'reuses', existing: [map('map-shared', 'Existing name', [[0, 0], [1, 1]])], bucket: 'reused' as const },

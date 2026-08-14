@@ -91,6 +91,31 @@ describe('Show file bundle export', () => {
     })
   })
 
+  it.each(['sceneId', 'zoneId', 'sceneSpan', 'adaptations'] as const)(
+    'rejects a flat cell missing %s before planning can persist it',
+    async (field) => {
+      const show = createDefaultShow('show-invalid-cell', 'Invalid Cell', 100)
+      const malformedCell = { ...show.cells[0] } as Record<string, unknown>
+      delete malformedCell[field]
+      const bytes = new TextEncoder().encode(JSON.stringify({
+        version: 1,
+        show: { ...show, cells: [malformedCell] },
+        patterns: [],
+        maps: [],
+        provenance: {
+          appVersion: '1.0.0',
+          exportedAt: '2026-08-14T12:00:00.000Z',
+          originalShowId: show.id,
+        },
+      }))
+
+      await expect(parseShowFileBundle(bytes)).rejects.toMatchObject({
+        code: 'invalid_file',
+        message: expect.stringContaining('cell'),
+      })
+    },
+  )
+
   it('accepts the inspectable raw-JSON form', async () => {
     const show = createDefaultShow('show-json', 'Raw JSON', 100)
     const { bundle } = buildShowFileBundle(show, { patterns: [], maps: [] }, {

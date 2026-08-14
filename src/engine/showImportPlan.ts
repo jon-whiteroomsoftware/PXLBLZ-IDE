@@ -285,12 +285,12 @@ function referencedMapIds(show: ShowRecord): string[] {
 }
 
 function mapContentFingerprint(map: MapRecord): string {
-  if (map.points && map.points.length > 0) return `points:${mapFingerprintForPoints(map.points)}`
-  return `record:${artifactHash(JSON.stringify({
+  return artifactHash(JSON.stringify({
     dim: map.dim,
     generator: map.generator,
-    params: map.params,
+    params: Object.fromEntries(Object.entries(map.params).sort(([a], [b]) => a.localeCompare(b))),
     source: map.source ?? null,
-    gridDims: map.gridDims ?? null,
-  }))}`
+    gridDims: map.gridDims ? { cols: map.gridDims.cols, rows: map.gridDims.rows } : null,
+    points: map.points && map.points.length > 0 ? mapFingerprintForPoints(map.points) : null,
+  }))
 }

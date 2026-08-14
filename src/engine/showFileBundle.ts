@@ -198,11 +198,13 @@ function normalizeParsedShow(value: unknown): ShowRecord {
     || !Number.isFinite(value.updatedAt)
     || !isShowSceneArray(value.scenes)
     || !isShowZoneArray(value.zones)
-    || !Array.isArray(value.cells)
     || !Array.isArray(value.routingLayouts)
     || !Array.isArray(value.transitions)
   ) {
     invalid('This Show file has an invalid Show record.')
+  }
+  if (!isShowCellArray(value.cells)) {
+    invalid('This Show file has an invalid flat Show cell list.')
   }
   try {
     const show = normalizeShowEntryState(normalizeShowTransitionState(normalizeShowRoutingState({
@@ -296,6 +298,55 @@ function isShowZoneArray(value: unknown): value is ShowRecord['zones'] {
       && (zone.color === undefined || typeof zone.color === 'string')
       && (zone.icon === undefined || typeof zone.icon === 'string')
     ))
+}
+
+function isShowCellArray(value: unknown): value is ShowRecord['cells'] {
+  return Array.isArray(value)
+    && value.every((cell) => (
+      isRecord(cell)
+      && isNonEmptyString(cell.id)
+      && isNonEmptyString(cell.zoneId)
+      && isNonEmptyString(cell.sceneId)
+      && Number.isInteger(cell.sceneSpan)
+      && Number(cell.sceneSpan) > 0
+      && (
+        cell.zoneSpan === undefined
+        || Number.isInteger(cell.zoneSpan) && Number(cell.zoneSpan) > 0
+      )
+      && (cell.zoneMode === undefined || cell.zoneMode === 'span' || cell.zoneMode === 'repeat')
+      && isShowPatternRef(cell.pattern)
+      && typeof cell.patternName === 'string'
+      && isShowCellAdaptations(cell.adaptations)
+    ))
+}
+
+function isShowPatternRef(value: unknown): boolean {
+  return isRecord(value)
+    && (value.kind === 'user' || value.kind === 'stock')
+    && isNonEmptyString(value.id)
+}
+
+function isShowCellAdaptations(value: unknown): boolean {
+  return isRecord(value)
+    && typeof value.mirror === 'boolean'
+    && Number.isFinite(value.phase)
+    && Number.isFinite(value.brightness)
+    && Number.isFinite(value.timeScale)
+    && (value.timeOffsetMs === undefined || Number.isFinite(value.timeOffsetMs))
+    && (
+      value.lightShutter === undefined
+      || (
+        isRecord(value.lightShutter)
+        && Number.isFinite(value.lightShutter.rateHz)
+        && Number.isFinite(value.lightShutter.duty)
+        && Number.isFinite(value.lightShutter.phase)
+        && (value.lightShutter.clockBehavior === 'continue' || value.lightShutter.clockBehavior === 'freeze')
+      )
+    )
+    && (
+      value.steppedClock === undefined
+      || isRecord(value.steppedClock) && Number.isFinite(value.steppedClock.stepMs)
+    )
 }
 
 function isNonEmptyString(value: unknown): value is string {
