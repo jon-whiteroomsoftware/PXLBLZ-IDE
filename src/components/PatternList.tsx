@@ -73,7 +73,10 @@ import { MixinsRailSection } from '@/components/rail/MixinsRailSection'
 import { LibrariesRailSection } from '@/components/rail/LibrariesRailSection'
 import { ControllersRailSection } from '@/components/rail/ControllersRailSection'
 import { ShowsRailSection } from '@/components/rail/ShowsRailSection'
+import { ShowImportPlanDialog, type ShowImportDialogState } from '@/components/ShowImportPlanDialog'
 import { STOCK_SHOWS, type StockShow } from '@/pixelblaze/stock/shows'
+import { parseShowFileBundle } from '@/engine/showFileBundle'
+import { applyShowImportPlan, planShowImport, ShowImportPlanError } from '@/engine/showImportPlan'
 
 const DEFAULT_DEMO_NAME = 'IridescentFibers'
 
@@ -132,6 +135,7 @@ export function PatternList({
   const renameShow = useShowStore((s) => s.renameShow)
   const removeShow = useShowStore((s) => s.removeShow)
   const duplicateShow = useShowStore((s) => s.duplicateShow)
+  const addImportedShow = useShowStore((s) => s.addImportedShow)
   const patternOrganization = useEntityOrganizationStore((s) => s.organizations.patterns)
   const showOrganization = useEntityOrganizationStore((s) => s.organizations.shows)
   const mapOrganization = useEntityOrganizationStore((s) => s.organizations.maps)
@@ -168,8 +172,11 @@ export function PatternList({
   // Open-from-disk (.epe import) lives next to "New pattern" (#141): both create
   // a pattern, so they sit together on the Patterns header.
   const fileInputRef = useRef<HTMLInputElement>(null)
+  const showFileInputRef = useRef<HTMLInputElement>(null)
   const [importError, setImportError] = useState<string | null>(null)
   const [importNotice, setImportNotice] = useState<string | null>(null)
+  const [showImportDialog, setShowImportDialog] = useState<ShowImportDialogState | null>(null)
+  const [showImportBusy, setShowImportBusy] = useState(false)
   const [showStockShows, setShowStockShows] = useState(true)
   const importErrorTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const importNoticeTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
@@ -267,6 +274,61 @@ export function PatternList({
       })
     }
     reader.readAsText(file)
+  }
+
+  function handleShowFileChange(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0]
+    if (!file) return
+    e.target.value = ''
+    void file.arrayBuffer().then(async (buffer) => {
+      const bundle = await parseShowFileBundle(new Uint8Array(buffer))
+      const plan = planShowImport(bundle, {
+        patterns: usePatternStore.getState().userPatterns,
+        maps: useMapStore.getState().userMaps,
+        showNames: useShowStore.getState().shows.map((show) => show.name),
+      })
+      setShowImportDialog({ kind: 'plan', plan })
+    }).catch((cause) => {
+      setShowImportDialog({
+        kind: 'error',
+        message: cause instanceof Error ? cause.message : 'This is not a valid Show file.',
+        ...(cause instanceof ShowImportPlanError && cause.entityId ? { entityId: cause.entityId } : {}),
+      })
+    })
+  }
+
+  async function confirmShowImport() {
+    if (showImportDialog?.kind !== 'plan' || showImportBusy) return
+    setShowImportBusy(true)
+    const createdPatterns: string[] = []
+    const createdMaps: string[] = []
+    let createdShow = false
+    try {
+      const applied = applyShowImportPlan(showImportDialog.plan)
+      for (const pattern of applied.newPatterns) {
+        await addPattern(pattern)
+        createdPatterns.push(pattern.id)
+      }
+      for (const map of applied.newMaps) {
+        await addMap(map)
+        createdMaps.push(map.id)
+      }
+      await addImportedShow(applied.show)
+      createdShow = true
+      setShowImportDialog(null)
+      openUserShow(applied.show)
+    } catch (cause) {
+      const plannedShowId = showImportDialog.plan.show.id
+      if (createdShow) await useShowStore.getState().removeShow(plannedShowId).catch(() => {})
+      for (const id of createdMaps.reverse()) await useMapStore.getState().removeMap(id).catch(() => {})
+      for (const id of createdPatterns.reverse()) await usePatternStore.getState().removePattern(id).catch(() => {})
+      setShowImportDialog({
+        kind: 'error',
+        message: cause instanceof Error ? cause.message : 'The Show could not be imported.',
+      })
+    } finally {
+      setShowImportBusy(false)
+    }
   }
 
   const railMode: RailMode =
@@ -1007,6 +1069,14 @@ export function PatternList({
         className="hidden"
         onChange={handleFileChange}
       />
+      <input
+        ref={showFileInputRef}
+        type="file"
+        accept=".pxlshow,application/gzip,application/json"
+        className="hidden"
+        data-testid="show-file-input"
+        onChange={handleShowFileChange}
+      />
       <ActivityStrip
         mode={railMode}
         onModeChange={handleRailModeChange}
@@ -1164,6 +1234,7 @@ export function PatternList({
             scrollMetrics={scrollMetrics}
             onScroll={updateScrollMetrics}
             onCreateShow={handleCreateShow}
+            onImportShow={() => showFileInputRef.current?.click()}
             onCreateShowFromController={() => void handleCreateShowFromController()}
             onOpenShow={openUserShow}
             onOpenStockShow={openStockShowRoute}
@@ -1189,6 +1260,14 @@ export function PatternList({
             dismissLabel={studioOperationDismissLabel(railOperationFailure)}
             compact
             testId="studio-rail-operation-failure"
+          />
+        )}
+        {showImportDialog && (
+          <ShowImportPlanDialog
+            state={showImportDialog}
+            busy={showImportBusy}
+            onCancel={() => setShowImportDialog(null)}
+            onConfirm={() => void confirmShowImport()}
           />
         )}
       </div>

@@ -1,6 +1,7 @@
 import { expect, showtimePath, test } from './fixtures/authenticated'
 import { installFakeControllerHelper } from './fixtures/fakeControllerHelper'
 import type { Locator, Page } from '@playwright/test'
+import { readFile } from 'node:fs/promises'
 
 test.describe('authenticated Show authoring', () => {
   test('confirms a lesson Pattern swap that removes a control animation (#828)', async ({ page }) => {
@@ -1400,6 +1401,64 @@ test.describe('authenticated Show authoring', () => {
     await expect(page.getByRole('region', { name: 'Show timeline' })).toBeVisible()
   })
 
+  test('round-trips an authored Show file without writing before confirmation (#853)', async ({ page }) => {
+    await page.goto(showtimePath('studio/shows'))
+    await createInstallationShow(page)
+    const originalShowId = new URL(page.url()).pathname.split('/').at(-1)!
+    const before = await personalContentCounts(page)
+
+    const downloadPromise = page.waitForEvent('download')
+    await (await getShowAction(page, 'Export Show file…')).click()
+    const download = await downloadPromise
+    expect(download.suggestedFilename()).toBe('untitled-show.pxlshow')
+    const downloadPath = await download.path()
+    expect(downloadPath).not.toBeNull()
+    const bundle = await readFile(downloadPath!)
+
+    const chooseBundle = async () => {
+      await page.getByRole('button', { name: 'Add show' }).click()
+      await page.getByRole('button', { name: 'Import Show file…' }).click()
+      await page.getByTestId('show-file-input').setInputFiles({
+        name: download.suggestedFilename(),
+        mimeType: 'application/gzip',
+        buffer: bundle,
+      })
+      return page.getByRole('alertdialog', { name: 'Import “Untitled Show”' })
+    }
+
+    let dialog = await chooseBundle()
+    await expect(dialog).toContainText('Untitled Show (2)')
+    await expect(dialog.getByRole('img', { name: 'Already in your library' })).toBeVisible()
+    await expect(dialog).toContainText('TestPattern1D')
+    await expect(dialog).toContainText('CometLoom')
+    await expect(dialog.getByText('Maps')).toHaveCount(0)
+    await dialog.getByRole('button', { name: 'Cancel' }).click()
+    await expect(dialog).toBeHidden()
+    expect(await personalContentCounts(page)).toEqual(before)
+
+    dialog = await chooseBundle()
+    await dialog.getByRole('button', { name: 'Import Show' }).click()
+    await expect(dialog).toBeHidden()
+    await expect.poll(async () => (await listShows(page)).length).toBe(before.shows + 1)
+
+    const shows = await listShows(page)
+    const original = shows.find((show) => show.id === originalShowId)!
+    const imported = shows.find((show) => show.id !== originalShowId)!
+    expect(imported.id).not.toBe(original.id)
+    expect(imported.name).toBe('Untitled Show (2)')
+    expect(imported.importMetadata).toMatchObject({
+      kind: 'show-file',
+      originalShowId,
+    })
+    expect(showChoreography(imported)).toEqual(showChoreography(original))
+    expect(await personalContentCounts(page)).toEqual({
+      shows: before.shows + 1,
+      patterns: before.patterns,
+      maps: before.maps,
+    })
+    await expect(page).toHaveURL(new RegExp(`/studio/shows/${imported.id}\\?showtime$`))
+  })
+
   test('Cancel and workspace Escape leave no Show record', async ({ page }) => {
     await page.goto(showtimePath('studio/shows'))
     await page.getByRole('button', { name: 'Add show' }).click()
@@ -2451,6 +2510,11 @@ test.describe('authenticated Show authoring', () => {
 
 type PersistedShow = {
   id: string
+  name: string
+  importMetadata?: {
+    kind: 'show-file'
+    originalShowId: string
+  }
   composition?: {
     version: number
     patternInstances?: Array<{
@@ -2619,7 +2683,10 @@ async function openZoneLayout(page: Page, layoutName: string): Promise<void> {
   await page.getByRole('button', { name: "Open this interval's Zone Layout" }).click()
 }
 
-async function getShowAction(page: Page, name: 'View code' | 'Clone' | 'Download .epe'): Promise<Locator> {
+async function getShowAction(
+  page: Page,
+  name: 'View code' | 'Clone' | 'Download .epe' | 'Export Show file…',
+): Promise<Locator> {
   const trigger = page.getByRole('button', { name: 'Show actions' })
   if (await trigger.getAttribute('aria-expanded') !== 'true') await trigger.click()
   return page.getByRole('menuitem', { name })
@@ -2631,6 +2698,38 @@ async function createInstallationShow(page: Page): Promise<void> {
   await page.getByRole('button', { name: 'Create Installation Show' }).click()
   await page.getByRole('button', { name: 'Create Show' }).click()
   await expect(page).toHaveURL(/\/studio\/shows\/[a-z0-9-]+\?showtime$/)
+}
+
+async function listShows(page: Page): Promise<PersistedShow[]> {
+  const response = await page.context().request.get('/api/shows')
+  expect(response.ok()).toBe(true)
+  return ((await response.json()) as { shows: PersistedShow[] }).shows
+}
+
+async function personalContentCounts(page: Page): Promise<{ shows: number; patterns: number; maps: number }> {
+  const [shows, patternsResponse, mapsResponse] = await Promise.all([
+    listShows(page),
+    page.context().request.get('/api/patterns'),
+    page.context().request.get('/api/maps'),
+  ])
+  expect(patternsResponse.ok()).toBe(true)
+  expect(mapsResponse.ok()).toBe(true)
+  const patterns = (await patternsResponse.json()) as { patterns: unknown[] }
+  const maps = (await mapsResponse.json()) as { maps: unknown[] }
+  return { shows: shows.length, patterns: patterns.patterns.length, maps: maps.maps.length }
+}
+
+function showChoreography(show: PersistedShow) {
+  return {
+    composition: show.composition,
+    outputContract: show.outputContract,
+    scenes: show.scenes,
+    cells: show.cells,
+    transitions: show.transitions,
+    routingLayouts: show.routingLayouts,
+    routingSwitches: show.routingSwitches,
+    outputEffects: show.outputEffects,
+  }
 }
 
 // The 'Timeline zoom' slider was retired with the 2.0 timeline; zoom is now

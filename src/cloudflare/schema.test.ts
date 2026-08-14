@@ -35,6 +35,7 @@ const removeControllerOutputProfileMigrationPath = path.resolve(
 const removeControllerProfileZonesMigrationPath = path.resolve(
   'migrations/0026_remove_controller_profile_zones.sql',
 )
+const showImportMetadataMigrationPath = path.resolve('migrations/0027_show_import_metadata.sql')
 
 describe('D1 personal storage migration', () => {
   it('creates the storage buckets needed for the Cloudflare personal-storage foundation', () => {
@@ -179,6 +180,14 @@ describe('D1 personal storage migration', () => {
 
     expect(sql).toContain('ALTER TABLE personal_shows ADD COLUMN output_effects_json TEXT')
     expect(sql).toContain("VALUES ('schema_version', '17', unixepoch())")
+    expect(sql).not.toContain('CREATE TABLE')
+  })
+
+  it('adds durable Show-file import provenance as one serialized sidecar (#853)', () => {
+    const sql = fs.readFileSync(showImportMetadataMigrationPath, 'utf8')
+
+    expect(sql).toContain('ALTER TABLE personal_shows ADD COLUMN import_metadata_json TEXT')
+    expect(sql).toContain("VALUES ('schema_version', '27', unixepoch())")
     expect(sql).not.toContain('CREATE TABLE')
   })
 

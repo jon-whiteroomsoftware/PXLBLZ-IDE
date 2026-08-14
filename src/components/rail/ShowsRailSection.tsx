@@ -27,6 +27,7 @@ export function ShowsRailSection({
   scrollMetrics,
   onScroll,
   onCreateShow,
+  onImportShow,
   onCreateShowFromController,
   onOpenShow,
   onOpenStockShow,
@@ -51,6 +52,7 @@ export function ShowsRailSection({
   scrollMetrics: ScrollMetrics
   onScroll: () => void
   onCreateShow: () => void
+  onImportShow: () => void
   onCreateShowFromController: () => void
   onOpenShow: (show: ShowRecord) => void
   onOpenStockShow: (show: StockShow) => void
@@ -78,6 +80,7 @@ export function ShowsRailSection({
                 title="Add show"
                 items={[
                   { label: 'New show', onSelect: onCreateShow },
+                  { label: 'Import Show file…', onSelect: onImportShow },
                   { label: 'New folder', onSelect: () => personalTreeRef.current?.createFolder() },
                   ...(showSeedProfileName
                     ? [{ label: `New show from ${showSeedProfileName}`, onSelect: onCreateShowFromController }]

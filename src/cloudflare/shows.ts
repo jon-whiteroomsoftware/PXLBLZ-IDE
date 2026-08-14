@@ -30,6 +30,7 @@ export interface D1ShowRow {
   composition_json?: string | null
   output_effects_json?: string | null
   output_contract_json?: string | null
+  import_metadata_json?: string | null
   target_controller_profile_id: string | null
   stage_map_id: string | null
   updated_at: number
@@ -55,6 +56,7 @@ export function showRecordFromRow(row: D1ShowRow): ShowRecord {
   const outputEffects = row.output_effects_json
     ? normalizeShowOutputEffects(parseJson(row.output_effects_json, []))
     : []
+  const importMetadata = normalizeShowImportMetadata(parseJson(row.import_metadata_json ?? 'null', null))
   const show = normalizeShowTransitionState(normalizeShowRoutingState({
     id: row.id,
     name: row.name,
@@ -67,6 +69,7 @@ export function showRecordFromRow(row: D1ShowRow): ShowRecord {
     stageMapId: row.stage_map_id ?? null,
     outputContract,
     ...(outputEffects.length > 0 ? { outputEffects } : {}),
+    ...(importMetadata ? { importMetadata } : {}),
     updatedAt: row.updated_at,
   }))
   const composition = row.composition_json
@@ -79,7 +82,8 @@ export async function listD1Shows(db: D1DatabaseShowsLike, userId: string): Prom
   const { results } = await db
     .prepare(`
       SELECT id, name, scenes_json, zones_json, cells_json, routing_layouts_json, transitions_json,
-             composition_json, output_effects_json, target_controller_profile_id, stage_map_id, output_contract_json, updated_at
+             composition_json, output_effects_json, target_controller_profile_id, stage_map_id, output_contract_json,
+             import_metadata_json, updated_at
       FROM personal_shows
       WHERE user_id = ?
       ORDER BY updated_at DESC
@@ -123,9 +127,10 @@ export async function createD1Show(
     .prepare(`
       INSERT INTO personal_shows (
         user_id, id, name, scenes_json, zones_json, cells_json, routing_layouts_json, transitions_json,
-        composition_json, output_effects_json, target_controller_profile_id, stage_map_id, output_contract_json, created_at, updated_at
+        composition_json, output_effects_json, target_controller_profile_id, stage_map_id, output_contract_json, created_at, updated_at,
+        import_metadata_json
       )
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     `)
     .bind(
       userId,
@@ -143,6 +148,7 @@ export async function createD1Show(
       JSON.stringify(outputContract),
       now,
       record.updatedAt,
+      record.importMetadata ? JSON.stringify(record.importMetadata) : null,
     )
     .run()
 }
@@ -171,6 +177,7 @@ export async function updateD1Show(
   addAssignment(assignments, values, 'stage_map_id', changes.stageMapId)
   addAssignment(assignments, values, 'output_contract_json', outputContract, true)
   addAssignment(assignments, values, 'updated_at', changes.updatedAt)
+  addAssignment(assignments, values, 'import_metadata_json', changes.importMetadata, true)
   if (assignments.length === 0) return
 
   await db
@@ -336,6 +343,25 @@ function isRecord(value: unknown): value is Record<string, unknown> {
 
 function isNonEmptyString(value: unknown): value is string {
   return typeof value === 'string' && value.length > 0
+}
+
+function normalizeShowImportMetadata(value: unknown): ShowRecord['importMetadata'] | undefined {
+  if (!isRecord(value)) return undefined
+  if (
+    value.kind !== 'show-file'
+    || !isNonEmptyString(value.originalShowId)
+    || !isNonEmptyString(value.appVersion)
+    || !isNonEmptyString(value.exportedAt)
+    || Number.isNaN(Date.parse(value.exportedAt))
+    || !Number.isFinite(value.importedAt)
+  ) return undefined
+  return {
+    kind: 'show-file',
+    originalShowId: value.originalShowId,
+    appVersion: value.appVersion,
+    exportedAt: value.exportedAt,
+    importedAt: Number(value.importedAt),
+  }
 }
 
 function unsupportedCompositionError(): PersonalStorageGuardError {

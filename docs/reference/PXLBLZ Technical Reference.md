@@ -622,6 +622,19 @@ Shows therefore do not use the Pattern source-departure rule: they persist
 structured choreography and derive their generated Pattern artifact at compile
 and delivery boundaries.
 
+**Authored Show files.** `showFileBundle.ts` owns the versioned `.pxlshow`
+boundary. Version 1 is gzip-compressed JSON containing one complete
+`ShowRecord`, reachable user `PatternRecord`s, referenced non-stock
+`MapRecord`s, and export provenance. `showImportPlan.ts` parses that snapshot
+against the receiving library before any write: stock IDs must exist locally;
+same-ID dependencies with matching content are reused; absent dependencies keep
+their IDs; and divergent dependencies receive fresh IDs and Show-tied names.
+Application rewrites flat cells, composition instances, Group-definition
+instances, Stage maps, and output-contract maps together, then normalizes and
+validates the complete Show. The imported Show always receives a fresh ID and
+persists its original Show ID, app version, export time, and import time in
+`importMetadata`; D1 stores that sidecar in `personal_shows.import_metadata_json`.
+
 ![Show authoring model: direct timeline entities and routing pass through an internal compatibility representation, then compile into one scheduled Pixelblaze Pattern](../images/show-model-runtime.svg)
 
 Key ownership rules of the substrate: a scene owns duration and Show-wide
@@ -1058,6 +1071,12 @@ Determinism covers the seed, cadence, initial values, and scheduled automation;
 wall-clock, network, and sensor history are outside the guarantee.
 
 ## 25. Show delivery and export
+
+Shows have two intentionally different outbound artifacts. A `.pxlshow` is an
+editable authoring snapshot for another PXLBLZ library; it preserves structured
+choreography and embeds reachable personal dependencies. An `.epe` is the
+compiled hardware artifact described below. It contains generated Pixelblaze
+source and compatibility facts, not an editable Show model.
 
 `showEpeExport.ts` packages the exact generated source with a program id, a
 preview JPEG, a readable Show-global Clip schedule, Transition/routing facts,

@@ -1,0 +1,307 @@
+import { STOCK_MAP_SPECS } from './maps'
+import type { MapRecord, PatternRecord, ShowRecord } from './personalContentRecords'
+import { epeFilenameStem } from './showEpeExport'
+import { buildShowArtifactAttribution } from './showPreviewArtifact'
+import {
+  normalizeShowComposition,
+  validateShowComposition,
+  validateShowCompositionTimelineMetadata,
+} from './showCompositionModel'
+import {
+  normalizeShowEntryState,
+  normalizeShowRoutingState,
+  normalizeShowTransitionState,
+} from './showModel'
+import { requireShowOutputContract } from './showOutputContract'
+import { normalizeShowOutputEffects } from './showPreviousRgbFeedback'
+
+export interface ShowFileBundleV1 {
+  version: 1
+  show: ShowRecord
+  patterns: PatternRecord[]
+  maps: MapRecord[]
+  provenance: {
+    appVersion: string
+    exportedAt: string
+    originalShowId: string
+  }
+}
+
+export interface ShowFileBundleLibrary {
+  patterns: readonly PatternRecord[]
+  maps: readonly MapRecord[]
+}
+
+export interface BuildShowFileBundleOptions {
+  appVersion: string
+  exportedAt?: Date | string
+}
+
+export type ShowFileBundleErrorCode =
+  | 'missing_user_pattern'
+  | 'missing_custom_map'
+  | 'invalid_file'
+  | 'unsupported_version'
+
+export class ShowFileBundleError extends Error {
+  constructor(
+    readonly code: ShowFileBundleErrorCode,
+    message: string,
+  ) {
+    super(message)
+    this.name = 'ShowFileBundleError'
+  }
+}
+
+export function buildShowFileBundle(
+  show: ShowRecord,
+  library: ShowFileBundleLibrary,
+  options: BuildShowFileBundleOptions,
+): { filename: string; bundle: ShowFileBundleV1 } {
+  const patternById = new Map(library.patterns.map((pattern) => [pattern.id, pattern]))
+  const patterns = buildShowArtifactAttribution(show, library.patterns).patterns.flatMap((reference) => {
+    if (reference.kind !== 'user') return []
+    const pattern = patternById.get(reference.id)
+    if (!pattern) {
+      throw new ShowFileBundleError(
+        'missing_user_pattern',
+        `Show "${show.name}" references user Pattern "${reference.id}", which is not in the library.`,
+      )
+    }
+    return [clone(pattern)]
+  })
+
+  const stockMapIds = new Set(STOCK_MAP_SPECS.map((map) => map.id))
+  const mapById = new Map(library.maps.map((map) => [map.id, map]))
+  const mapIds = referencedMapIds(show)
+  const maps = mapIds.flatMap((id) => {
+    if (stockMapIds.has(id)) return []
+    const map = mapById.get(id)
+    if (!map) {
+      throw new ShowFileBundleError(
+        'missing_custom_map',
+        `Show "${show.name}" references custom Map "${id}", which is not in the library.`,
+      )
+    }
+    return [clone(map)]
+  })
+
+  const exportedAt = options.exportedAt instanceof Date
+    ? options.exportedAt.toISOString()
+    : options.exportedAt ?? new Date().toISOString()
+  return {
+    filename: `${epeFilenameStem(show.name.trim() || 'Untitled Show')}.pxlshow`,
+    bundle: {
+      version: 1,
+      show: clone(show),
+      patterns,
+      maps,
+      provenance: {
+        appVersion: options.appVersion,
+        exportedAt,
+        originalShowId: show.id,
+      },
+    },
+  }
+}
+
+export async function serializeShowFileBundle(bundle: ShowFileBundleV1): Promise<Uint8Array> {
+  const input = new Blob([JSON.stringify(bundle)]).stream()
+  const compressed = input.pipeThrough(new CompressionStream('gzip'))
+  return new Uint8Array(await new Response(compressed).arrayBuffer())
+}
+
+export async function parseShowFileBundle(bytes: Uint8Array): Promise<ShowFileBundleV1> {
+  let payload = bytes
+  if (bytes[0] === 0x1f && bytes[1] === 0x8b) {
+    try {
+      const input = new Blob([Uint8Array.from(bytes)]).stream()
+      const decompressed = input.pipeThrough(new DecompressionStream('gzip'))
+      payload = new Uint8Array(await new Response(decompressed).arrayBuffer())
+    } catch {
+      throw new ShowFileBundleError('invalid_file', 'This Show file is truncated or corrupt.')
+    }
+  }
+
+  let parsed: unknown
+  try {
+    parsed = JSON.parse(new TextDecoder().decode(payload))
+  } catch {
+    throw new ShowFileBundleError('invalid_file', 'This is not a valid Show file.')
+  }
+  if (!isRecord(parsed) || !Number.isInteger(parsed.version)) {
+    throw new ShowFileBundleError('invalid_file', 'This Show file is missing a format version.')
+  }
+  if (parsed.version !== 1) {
+    throw new ShowFileBundleError(
+      'unsupported_version',
+      `This Show file uses format version ${String(parsed.version)}. Update PXLBLZ to import it.`,
+    )
+  }
+  return validateParsedBundle(parsed)
+}
+
+function referencedMapIds(show: ShowRecord): string[] {
+  const ids = new Set<string>()
+  if (show.stageMapId) ids.add(show.stageMapId)
+  const contractMapId = show.outputContract.kind === 'installation'
+    ? show.outputContract.outputMapId
+    : show.outputContract.referenceMapId
+  if (contractMapId) ids.add(contractMapId)
+  return [...ids]
+}
+
+function clone<T>(value: T): T {
+  return structuredClone(value)
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return Boolean(value) && typeof value === 'object' && !Array.isArray(value)
+}
+
+function validateParsedBundle(value: Record<string, unknown>): ShowFileBundleV1 {
+  const show = normalizeParsedShow(value.show)
+  if (!Array.isArray(value.patterns) || !value.patterns.every(isPatternRecord)) {
+    invalid('This Show file has an invalid embedded Pattern list.')
+  }
+  if (!Array.isArray(value.maps) || !value.maps.every(isMapRecord)) {
+    invalid('This Show file has an invalid embedded Map list.')
+  }
+  const provenance = value.provenance
+  if (
+    !isRecord(provenance)
+    || !isNonEmptyString(provenance.appVersion)
+    || !isNonEmptyString(provenance.exportedAt)
+    || !isNonEmptyString(provenance.originalShowId)
+    || Number.isNaN(Date.parse(provenance.exportedAt))
+  ) {
+    invalid('This Show file has invalid export provenance.')
+  }
+  return {
+    version: 1,
+    show,
+    patterns: clone(value.patterns),
+    maps: clone(value.maps),
+    provenance: {
+      appVersion: provenance.appVersion,
+      exportedAt: provenance.exportedAt,
+      originalShowId: provenance.originalShowId,
+    },
+  }
+}
+
+function normalizeParsedShow(value: unknown): ShowRecord {
+  if (!isRecord(value)) invalid('This Show file is missing a valid Show record.')
+  if (
+    !isNonEmptyString(value.id)
+    || typeof value.name !== 'string'
+    || !Number.isFinite(value.updatedAt)
+    || !isShowSceneArray(value.scenes)
+    || !isShowZoneArray(value.zones)
+    || !Array.isArray(value.cells)
+    || !Array.isArray(value.routingLayouts)
+    || !Array.isArray(value.transitions)
+  ) {
+    invalid('This Show file has an invalid Show record.')
+  }
+  try {
+    const show = normalizeShowEntryState(normalizeShowTransitionState(normalizeShowRoutingState({
+      ...clone(value),
+      outputContract: requireShowOutputContract(value.outputContract, value.id),
+      ...(Array.isArray(value.outputEffects)
+        ? { outputEffects: normalizeShowOutputEffects(value.outputEffects) }
+        : {}),
+    } as unknown as ShowRecord)))
+    if (value.composition === undefined || value.composition === null) {
+      const { composition: _composition, ...flat } = show
+      return flat
+    }
+    if (!isCompositionV1Envelope(value.composition)) invalid('This Show file has an invalid version-1 Show composition.')
+    if (validateShowCompositionTimelineMetadata(value.composition).length > 0) {
+      invalid('This Show file has invalid Show timeline metadata.')
+    }
+    const composition = normalizeShowComposition(show, value.composition)
+    if (validateShowComposition(show, composition).length > 0) {
+      invalid('This Show file has an invalid Show composition.')
+    }
+    return { ...show, composition }
+  } catch (cause) {
+    if (cause instanceof ShowFileBundleError) throw cause
+    invalid('This Show file has an invalid Show record.')
+  }
+}
+
+function isPatternRecord(value: unknown): value is PatternRecord {
+  if (!isRecord(value)) return false
+  return isNonEmptyString(value.id)
+    && typeof value.name === 'string'
+    && typeof value.src === 'string'
+    && isRecord(value.controls)
+    && Object.values(value.controls).every((control) => (
+      typeof control === 'number' && Number.isFinite(control)
+      || Array.isArray(control) && control.every((item) => typeof item === 'number' && Number.isFinite(item))
+    ))
+    && (value.authors === undefined || Array.isArray(value.authors) && value.authors.every((author) => typeof author === 'string'))
+    && Number.isFinite(value.updatedAt)
+}
+
+function isMapRecord(value: unknown): value is MapRecord {
+  if (!isRecord(value)) return false
+  return isNonEmptyString(value.id)
+    && typeof value.name === 'string'
+    && (value.dim === 1 || value.dim === 2 || value.dim === 3)
+    && isNonEmptyString(value.generator)
+    && isRecord(value.params)
+    && Object.values(value.params).every((parameter) => typeof parameter === 'number' && Number.isFinite(parameter))
+    && (value.source === undefined || typeof value.source === 'string')
+    && (value.points === undefined || isMapPoints(value.points))
+    && Number.isFinite(value.updatedAt)
+}
+
+function isMapPoints(value: unknown): value is number[][] {
+  return Array.isArray(value)
+    && value.every((point) => Array.isArray(point) && point.every((coordinate) => (
+      typeof coordinate === 'number' && Number.isFinite(coordinate)
+    )))
+}
+
+function isCompositionV1Envelope(value: unknown): value is NonNullable<ShowRecord['composition']> {
+  return isRecord(value)
+    && value.version === 1
+    && Array.isArray(value.patternInstances)
+    && Array.isArray(value.scenes)
+}
+
+function isShowSceneArray(value: unknown): value is ShowRecord['scenes'] {
+  return Array.isArray(value)
+    && value.length > 0
+    && value.every((scene) => (
+      isRecord(scene)
+      && isNonEmptyString(scene.id)
+      && typeof scene.name === 'string'
+      && Number.isInteger(scene.durationMs)
+      && Number(scene.durationMs) > 0
+    ))
+}
+
+function isShowZoneArray(value: unknown): value is ShowRecord['zones'] {
+  return Array.isArray(value)
+    && value.length > 0
+    && value.every((zone) => (
+      isRecord(zone)
+      && isNonEmptyString(zone.id)
+      && typeof zone.name === 'string'
+      && Number.isInteger(zone.nominalPixelCount)
+      && Number(zone.nominalPixelCount) > 0
+      && (zone.color === undefined || typeof zone.color === 'string')
+      && (zone.icon === undefined || typeof zone.icon === 'string')
+    ))
+}
+
+function isNonEmptyString(value: unknown): value is string {
+  return typeof value === 'string' && value.length > 0
+}
+
+function invalid(message: string): never {
+  throw new ShowFileBundleError('invalid_file', message)
+}

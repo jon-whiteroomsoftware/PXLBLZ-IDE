@@ -101,6 +101,7 @@ interface ShowState {
   cancelShowCreation: () => void
   openShow: (id: string | null) => Promise<void>
   addShow: (record: ShowRecord) => Promise<void>
+  addImportedShow: (record: ShowRecord) => Promise<void>
   renameShow: (id: string, name: string) => Promise<void>
   removeShow: (id: string) => Promise<void>
   /**
@@ -308,6 +309,10 @@ export const useShowStore = create<ShowState>()((set, get) => ({
     lastPersistedShowRecords.set(record.id, { record: normalizeShowRecord(record), history: { past: [], future: [] } })
     trackEntityCreated('show')
     set((state) => ({ shows: [record, ...state.shows], showsLoaded: true }))
+  },
+
+  addImportedShow: async (record) => {
+    await get().addShow(record)
   },
 
   renameShow: async (id, name) => {
@@ -733,6 +738,7 @@ function showPersistenceChanges(next: ShowRecord): Partial<Omit<ShowRecord, 'id'
     targetControllerProfileId: next.targetControllerProfileId,
     stageMapId: next.stageMapId ?? null,
     outputContract: next.outputContract,
+    importMetadata: next.importMetadata,
     updatedAt: next.updatedAt,
   }
 }

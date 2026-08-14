@@ -10,7 +10,7 @@ test('EPE import preserves source and discloses a missing preferred custom map',
   ].join('\n')
 
   await page.goto('studio/patterns')
-  await page.locator('input[type="file"]').setInputFiles({
+  await page.locator('input[type="file"][accept=".epe"]').setInputFiles({
     name: 'installation-show.epe',
     mimeType: 'application/json',
     buffer: Buffer.from(JSON.stringify({ name: 'Installation Show', sources: { main: source } })),

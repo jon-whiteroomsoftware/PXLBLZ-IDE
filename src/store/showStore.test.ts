@@ -108,6 +108,26 @@ beforeEach(() => {
 })
 
 describe('showStore (#318)', () => {
+  it('adds an imported Show through the normal durable creation path', async () => {
+    const provider = memoryProvider()
+    setPersonalContentProvider(provider)
+    const record: ShowRecord = {
+      ...createDefaultShow('show-imported', 'Imported Show', 100),
+      importMetadata: {
+        kind: 'show-file',
+        originalShowId: 'show-original',
+        appVersion: '1.0.0',
+        exportedAt: '2026-08-14T12:00:00.000Z',
+        importedAt: 100,
+      },
+    }
+
+    await useShowStore.getState().addImportedShow(record)
+
+    expect(useShowStore.getState().shows).toEqual([record])
+    await expect(provider.listShows()).resolves.toEqual([record])
+  })
+
   it('groups each Show edit as one session transaction with undo and redo (#470)', async () => {
     const show = createDefaultShow('show-history', 'History', 1)
     setPersonalContentProvider(memoryProvider([show]))

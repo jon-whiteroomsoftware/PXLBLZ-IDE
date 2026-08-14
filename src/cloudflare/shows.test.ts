@@ -133,6 +133,38 @@ describe('D1 show persistence (#318)', () => {
     expect(calls[0].values).toContain(null)
   })
 
+  it('round-trips Show-file import provenance through its D1 sidecar', async () => {
+    const { db, calls } = fakeDb()
+    const importMetadata = {
+      kind: 'show-file' as const,
+      originalShowId: 'show-original',
+      appVersion: '1.0.0',
+      exportedAt: '2026-08-14T12:00:00.000Z',
+      importedAt: 456,
+    }
+    const show = { ...createDefaultShow('show-imported', 'Imported', 456), importMetadata }
+
+    await createD1Show(db, 'github:123', show, 100)
+
+    expect(calls[0].sql).toContain('import_metadata_json')
+    expect(calls[0].values).toContain(JSON.stringify(importMetadata))
+    expect(showRecordFromRow({
+      id: show.id,
+      name: show.name,
+      scenes_json: JSON.stringify(show.scenes),
+      zones_json: JSON.stringify(show.zones),
+      cells_json: JSON.stringify(show.cells),
+      routing_layouts_json: JSON.stringify(show.routingLayouts),
+      transitions_json: JSON.stringify(show.transitions),
+      composition_json: null,
+      import_metadata_json: JSON.stringify(importMetadata),
+      target_controller_profile_id: null,
+      stage_map_id: null,
+      output_contract_json: JSON.stringify(show.outputContract),
+      updated_at: show.updatedAt,
+    })).toMatchObject({ importMetadata })
+  })
+
   it('rejects a contract-less Show before a D1 create write', async () => {
     const { db, calls } = fakeDb()
     const { outputContract: _outputContract, ...show } = createDefaultShow(

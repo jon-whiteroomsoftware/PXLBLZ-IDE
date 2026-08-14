@@ -191,9 +191,13 @@ export default defineConfig(({ mode }) => {
   const port = Number(env.VITE_PORT ?? 5174)
 
   const testProjects = createVitestTestProjects()
+  const appVersion = JSON.parse(fs.readFileSync(path.resolve(__dirname, 'package.json'), 'utf8')).version as string
 
   return {
     base,
+    define: {
+      __PXLBLZ_APP_VERSION__: JSON.stringify(appVersion),
+    },
     plugins: [
       redirectBaseTrailingSlash(base),
       captureSink(),

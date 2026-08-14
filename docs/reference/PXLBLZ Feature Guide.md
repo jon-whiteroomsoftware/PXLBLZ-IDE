@@ -612,6 +612,22 @@ When replacing one very large resident program with another could exceed
 transient memory, PXLBLZ automatically routes through a brief black run-only
 Pattern first; the intermediary is never saved.
 
+**Export Show file…** serves a different job: it shares the authored Show so
+another PXLBLZ library can continue editing it. The `.pxlshow` file contains
+the complete choreography, every user Pattern the Show reaches (including
+Patterns inside Groups), and any custom output Map. Built-in Patterns and Maps
+stay as references because the receiving PXLBLZ already owns them.
+
+Use **Add show > Import Show file…** to inspect one before importing. The
+confirmation groups the Show, Patterns, and custom Maps into dependencies that
+are already present, dependencies that will be added, and same-ID dependencies
+that differ from your copy. A differing dependency is kept under a new,
+Show-tied name and every Show reference is redirected to it. Cancel writes
+nothing. Confirm always creates a new Show with a fresh ID and a deduplicated
+name, then opens it; the source library and the exported file remain unchanged.
+Files from a newer unsupported format or files with missing dependencies fail
+with the offending identifier rather than creating a partial Show.
+
 ## 18. Built-in Shows to learn from
 
 The Shows rail ships learning material beneath your personal Shows. **Learn**

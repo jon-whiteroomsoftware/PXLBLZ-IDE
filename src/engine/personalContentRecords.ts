@@ -626,5 +626,13 @@ export interface ShowRecord {
   composition?: ShowCompositionV1 | null
   /** Ordered full-Show output Effects, after clip composition and Transitions. */
   outputEffects?: ShowOutputEffect[]
+  /** Durable provenance for a Show created from a portable authored bundle. */
+  importMetadata?: {
+    kind: 'show-file'
+    originalShowId: string
+    appVersion: string
+    exportedAt: string
+    importedAt: number
+  }
   updatedAt: number
 }

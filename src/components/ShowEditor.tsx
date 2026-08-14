@@ -222,6 +222,7 @@ import {
   updateShowTimelineMarker,
 } from '@/engine/showTimelineAuthoring'
 import { buildShowEpeExport, type ShowEpeExport } from '@/engine/showEpeExport'
+import { buildShowFileBundle, serializeShowFileBundle } from '@/engine/showFileBundle'
 import {
   buildDeliveredShowSourceInventory,
   buildShowArtifactInventoryModel,
@@ -1916,6 +1917,17 @@ export function ShowEditor({
     )
   }
 
+  const exportAuthoredShowFile = async () => {
+    const { filename, bundle } = buildShowFileBundle(activeShow, {
+      patterns: userPatterns,
+      maps: userMaps,
+    }, {
+      appVersion: __PXLBLZ_APP_VERSION__,
+    })
+    const bytes = await serializeShowFileBundle(bundle)
+    downloadBrowserFile(filename, Uint8Array.from(bytes), 'application/gzip')
+  }
+
   if (spatialZoneSelection && activeShow.outputContract?.kind === 'installation' && savedStageMap?.dim === 2) {
     const zone = activeShow.zones.find((candidate) => candidate.id === spatialZoneSelection.zoneId)
     const map = resolveMap(savedStageMap.id, userMaps)
@@ -2248,6 +2260,7 @@ export function ShowEditor({
         cloneDisabled={savingBuiltInCopy}
         exported={showExport}
         buildExport={buildDownloadExport}
+        onExportShowFile={exportAuthoredShowFile}
       />
       <PushConfirmPopover
         open={pendingSendMode !== null && pendingDelivery !== null}
@@ -3580,6 +3593,7 @@ function ShowActionsMenu({
   cloneDisabled = false,
   exported,
   buildExport,
+  onExportShowFile,
 }: {
   viewCodeDisabled: boolean
   onViewCode: () => void
@@ -3587,8 +3601,11 @@ function ShowActionsMenu({
   cloneDisabled?: boolean
   exported: ShowEpeExport | null
   buildExport: () => Promise<ShowEpeExport | null>
+  onExportShowFile: () => Promise<void>
 }) {
   const { exporting, error, exportShow } = useShowExportAction(exported, buildExport)
+  const [exportingShowFile, setExportingShowFile] = useState(false)
+  const [showFileError, setShowFileError] = useState(false)
   const items: ActionsMenuItem[] = [{
     label: 'View code',
     icon: <Code2 {...controlIcon} className="text-zinc-500" aria-hidden />,
@@ -3608,6 +3625,24 @@ function ShowActionsMenu({
       : <Download {...controlIcon} className="text-zinc-500" aria-hidden />,
     disabled: !exported || exporting,
     onSelect: exportShow,
+  })
+  items.push({
+    label: exportingShowFile
+      ? 'Exporting Show file'
+      : showFileError
+        ? 'Show file export failed'
+        : 'Export Show file…',
+    icon: exportingShowFile
+      ? <RotateCw {...controlIcon} className="animate-spin text-zinc-500" aria-hidden />
+      : <Download {...controlIcon} className="text-zinc-500" aria-hidden />,
+    disabled: exportingShowFile,
+    onSelect: () => {
+      setExportingShowFile(true)
+      setShowFileError(false)
+      void onExportShowFile()
+        .catch(() => setShowFileError(true))
+        .finally(() => setExportingShowFile(false))
+    },
   })
   return (
     <ActionsMenu
@@ -3647,6 +3682,20 @@ function useShowExportAction(
     }).finally(() => setExporting(false))
   }
   return { exporting, error, exportShow }
+}
+
+function downloadBrowserFile(filename: string, body: BlobPart, type: string): void {
+  const url = URL.createObjectURL(new Blob([body], { type }))
+  const anchor = document.createElement('a')
+  anchor.href = url
+  anchor.download = filename
+  anchor.style.display = 'none'
+  document.body.appendChild(anchor)
+  anchor.click()
+  window.setTimeout(() => {
+    anchor.remove()
+    URL.revokeObjectURL(url)
+  }, 0)
 }
 
 function ShowTimelineWorkspace({

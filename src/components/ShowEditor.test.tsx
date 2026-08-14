@@ -73,7 +73,7 @@ function changeCommittedNumber(label: string, value: string): void {
   fireEvent.keyDown(input, { key: 'Enter' })
 }
 
-function getShowAction(name: 'View code' | 'Clone' | 'Download .epe') {
+function getShowAction(name: 'View code' | 'Clone' | 'Download .epe' | 'Export Show file…') {
   const trigger = screen.getByRole('button', { name: 'Show actions' })
   if (trigger.getAttribute('aria-expanded') !== 'true') fireEvent.click(trigger)
   return screen.getByRole('menuitem', { name })
@@ -4857,14 +4857,17 @@ export function render(index) { rgb(MyMath.glow(index), 0, 0) }
       await user.keyboard('{Enter}')
       const viewCode = screen.getByRole('menuitem', { name: 'View code' })
       const download = screen.getByRole('menuitem', { name: 'Download .epe' })
+      const exportShowFile = screen.getByRole('menuitem', { name: 'Export Show file…' })
       expect(viewCode).toHaveFocus()
 
       await user.keyboard('{ArrowDown}')
       expect(download).toHaveFocus()
       await user.keyboard('{ArrowDown}')
+      expect(exportShowFile).toHaveFocus()
+      await user.keyboard('{ArrowDown}')
       expect(viewCode).toHaveFocus()
       await user.keyboard('{End}')
-      expect(download).toHaveFocus()
+      expect(exportShowFile).toHaveFocus()
       await user.keyboard('{Home}')
       expect(viewCode).toHaveFocus()
 
