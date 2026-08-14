@@ -43,6 +43,7 @@ import { ShowLayerTransitionEditor } from '@/components/ShowLayerTransitionEdito
 import { ShowTransitionXrayPictogram } from '@/components/ShowTransitionXrayPictogram'
 import { ShowArtifactInventoryPopover } from '@/components/ShowArtifactInventoryPopover'
 import { getControllerProvider } from '@/engine/controllerProviderRegistry'
+import type { ControllerStatus } from '@/engine/ControllerProvider'
 import { makeProgramId } from '@/engine/bytecodePush'
 import { PatternDeploymentActions } from '@/components/PatternDeploymentActions'
 import { PatternCombobox, type PatternComboboxOption } from '@/components/PatternCombobox'
@@ -886,6 +887,7 @@ function ShowReferenceInstrument({
 interface ShowDeliverySnapshot {
   show: ShowRecord
   controllerIp: string | null
+  controllerStatus: ControllerStatus
   artifact: NonNullable<CompiledShowState['artifact']>
   prepared: ReturnType<typeof prepareShowControllerArtifact>
 }
@@ -1754,6 +1756,7 @@ export function ShowEditor({
     return {
       show: compiledShow,
       controllerIp: activeIp,
+      controllerStatus,
       artifact: compiled.artifact,
       prepared: preparedControllerArtifact.value,
     }
@@ -1764,6 +1767,7 @@ export function ShowEditor({
     compiled.artifactBlocker,
     compiledShow,
     compilePressure?.status,
+    controllerStatus,
     preparedControllerArtifact.value,
   ])
   useEffect(() => {
@@ -2021,6 +2025,8 @@ export function ShowEditor({
       !delivery
       || delivery.show.id !== showId
       || delivery.controllerIp !== useControllerStore.getState().activeIp
+      || delivery.controllerStatus.kind !== 'connected'
+      || delivery.controllerStatus !== controllerProvider.getStatus()
     ) {
       pendingDeliveryRef.current = null
       setPendingSendMode(null)

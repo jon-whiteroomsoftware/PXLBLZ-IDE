@@ -61,10 +61,10 @@ export function PatternDeploymentActions({
   )
 
   const actionTitle = (mode: SendMode, gate: SendGate) => {
+    if (!gate.enabled) return gate.reason
     if (preparingLabel) return preparingLabel
     if (pushResult && !pushResult.ok && activeMode === mode) return pushResult.message
     if (working) return 'Sending...'
-    if (!gate.enabled) return gate.reason
     return mode === 'save' ? `Save to ${target}` : `Run on ${target}`
   }
 

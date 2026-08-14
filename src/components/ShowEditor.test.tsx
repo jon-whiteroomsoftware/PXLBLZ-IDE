@@ -157,17 +157,24 @@ function memoryProvider(seedShows: ShowRecord[] = []): PersonalContentProvider {
 }
 
 class ConnectedControllerProvider extends NullControllerProvider {
-  private readonly connectedStatus: ControllerStatus = {
+  private status: ControllerStatus = {
     kind: 'connected',
     controller: { id: 'ctrl-live', address: '10.0.0.5', deviceId: null, name: 'Bench PB' },
   }
+  private readonly statusListeners = new Set<(status: ControllerStatus) => void>()
 
   getStatus(): ControllerStatus {
-    return this.connectedStatus
+    return this.status
   }
 
-  subscribe(): () => void {
-    return () => {}
+  subscribe(listener: (status: ControllerStatus) => void): () => void {
+    this.statusListeners.add(listener)
+    return () => this.statusListeners.delete(listener)
+  }
+
+  setStatus(status: ControllerStatus) {
+    this.status = status
+    for (const listener of this.statusListeners) listener(status)
   }
 }
 
@@ -7131,6 +7138,37 @@ export function render(index) { rgb(MyMath.glow(index), 0, 0) }
     expect(source).not.toContain('0.1234567')
   })
 
+  it('retires a pending send confirmation when the Controller session changes (#851)', async () => {
+    const user = userEvent.setup()
+    let show = createDefaultShow('show-session-retire', 'Retire Controller session', 1000)
+    show = { ...show, stageMapId: 'plane' }
+    show = updateShowTransition(show, show.scenes[0].id, 'portal', 2000, 0.1)
+    const pushGeneratedArtifact = vi.fn().mockResolvedValue(undefined)
+    const provider = new ConnectedControllerProvider()
+    useShowStore.setState({ shows: [show], activeShowId: show.id, showsLoaded: true })
+    useControllerStore.setState({
+      controllers: {
+        '10.0.0.5': {
+          ip: '10.0.0.5', nickname: 'Bench PB', phase: 'live', mapDim: 1, firmwareVersion: '3.67',
+        },
+      },
+      activeIp: '10.0.0.5',
+      pushGeneratedArtifact,
+    })
+    setControllerProvider(provider)
+
+    render(<ShowEditor showId={show.id} />)
+    await user.click(screen.getByRole('button', { name: 'Run on Bench PB' }))
+    expect(screen.getByTestId('show-preflight-dialog')).toBeInTheDocument()
+
+    act(() => provider.setStatus({ kind: 'extension-present' }))
+
+    expect(screen.queryByTestId('show-preflight-dialog')).not.toBeInTheDocument()
+    expect(screen.getByTestId('controller-deployment-identity')).toHaveTextContent('Not connected')
+    expect(screen.getByRole('button', { name: 'Connect' })).toBeInTheDocument()
+    expect(pushGeneratedArtifact).not.toHaveBeenCalled()
+  })
+
   it('keeps deployment disabled with the Show compilation failure after rebuilding (#851)', async () => {
     const show = createDefaultShow('show-send-failure', 'Failed rebuild', 1000)
     show.cells[0] = {
@@ -7159,6 +7197,12 @@ export function render(index) { rgb(MyMath.glow(index), 0, 0) }
         },
       },
       activeIp: '10.0.0.5',
+      artifactPushResult: {
+        ok: false,
+        message: 'Earlier transport failure',
+        artifactId: 'show:show-send-failure',
+        mode: 'run',
+      },
     })
     setControllerProvider(new ConnectedControllerProvider())
 
@@ -7171,6 +7215,7 @@ export function render(index) { rgb(MyMath.glow(index), 0, 0) }
     await waitFor(() => expect(run).toHaveAttribute('title', expect.not.stringContaining('Rebuilding Show')))
     expect(run).toBeDisabled()
     expect(run).not.toHaveAttribute('title', "Fix the pattern's errors before sending")
+    expect(run).not.toHaveAttribute('title', 'Earlier transport failure')
     expect(run.getAttribute('title')).toBeTruthy()
   })
 
