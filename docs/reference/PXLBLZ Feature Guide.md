@@ -65,8 +65,8 @@ Studio uses GitHub or Google sign-in; logins that share a verified email open
 the same workspace. Your content is stored in the cloud, not the browser.
 Signed out, the whole app is a demo: Gallery, docs, preview, and live
 Controllers all work, but nothing personal can be saved. If a save or delete
-ever fails to reach the workspace, Studio says so where you did it and offers
-**Retry**; it never silently drops work.
+ever fails to reach the workspace, Studio says so where you did it, retrying
+automatically or offering **Retry**; it never silently drops work.
 
 ## 3. Docs and API reference
 
@@ -122,8 +122,8 @@ The settings deck is split by what hardware could carry. **PIXELBLAZE**
 settings (map, modeled pixel count, Fill/Contain fit, brightness) describe
 what the Pattern computes against; **PREVIEW** settings (renderer, playback
 speed, light size, diffusion, solidity) are purely how the browser draws it.
-Both are remembered per Pattern, and neither rides along when you send to a
-Controller.
+Most settings are remembered per Pattern, and none of them ride along when
+you send to a Controller.
 
 ![Preview state stays in the browser; only explicit Run, Save, and Send map actions reach the Controller](../images/preview-deck-boundary.svg)
 
