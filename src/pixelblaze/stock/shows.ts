@@ -970,7 +970,7 @@ function learn207(): StockShow {
   }
   return catalogue({
     id, title: 'Aperture Shapes and Edges', track: 'portable', collection: 'learn', level: 200, order: 7,
-    purpose: 'The aperture from 202 has a shape of its own. The Clip Viewport picks a silhouette from a catalogue - Geometric shapes like the Ellipse, Diamond, and Ring, Icons like the Heart, Star, and Cloud, and the Signature cats - and every silhouette has an edge: Soft feathering by default, with Hard and Stable Dither as deliberate alternatives. A silhouette can rotate inside its axis-aligned frame, and its Mode can flip from admitting the inside to cutting it out. Shape and edge belong to the Clip, separate from Content and from Effects.',
+    purpose: 'The aperture from 202 has a shape of its own: the Clip Viewport picks a silhouette from a catalogue of geometric shapes, icons, and the Signature cats. Every silhouette has an edge - Soft by default, Hard and Stable Dither as deliberate choices - and can rotate inside its axis-aligned frame or flip its Mode to cut the silhouette out.',
     notice: 'Nothing moves in this lesson: the frame stays put and only the silhouette changes, Clip by Clip - Rectangle, Ellipse, Star, then Ring. Every edge is the Soft default until the last Clip, which cuts the same Ring with a Hard edge. The Ring makes the comparison easy: the lower Layer shows through its open center, and hardening the edge shows exactly what the feather was smoothing.',
     prompts: ['Rotate the Star, then flip its Mode to Cut out - the frame stays axis-aligned while the silhouette turns, and Cut out removes exactly the pixels Admit was showing.', 'On the last Clip, switch the Hard edge back to Soft, then try Stable Dither: it trades the smooth ramp for a per-pixel speckle that never shimmers.'],
     guideHeading: 'aperture-shapes-and-edges',
@@ -1333,7 +1333,7 @@ function learn301(): StockShow {
   return normalizedCatalogue({
     id, title: 'Installation Mapping', track: 'installation', collection: 'learn', level: 300, order: 1,
     purpose: 'An Installation Show gives up portability on purpose. It promises one exact output - this proscenium stage, 1,000 measured LEDs - and in exchange each named Zone owns real pixels: a physical range over the map instead of a share of an abstract surface. Together the ranges must cover the output exactly once.',
-    notice: "The ranges restate the installer's walk: left column first, then the stage field, the arch band over the apex, and the right column last. That walk is why the Columns Zone owns two ranges at opposite ends of the index space - 0-249 and 750-999 - one physical role, two stretches of wire. At the halfway junction the stage and the columns trade Patterns while the arch holds; the ranges themselves never move.",
+    notice: 'The ranges restate the installer\'s walk: left column, stage field, arch band, right column. That walk is why the Columns Zone owns two ranges at opposite ends of the index space - one physical role, two stretches of wire. At the halfway junction the stage and the columns trade Patterns; the ranges themselves never move.',
     prompts: ['Open the Columns Zone in the map selector: one Zone, two separate ranges, and selecting its pixels spatially edits the same fact as the numbers.', 'Now break it on purpose - remove a few pixels from one column and watch the coverage diagnostic count the gap. Repair it, or use Reset to restore the pristine lesson.'],
     guideHeading: 'installation-output-and-physical-ranges',
     patternSlots: [['garden'], ['palettes'], ['rose']],
@@ -1621,7 +1621,7 @@ function learn302(): StockShow {
   return normalizedCatalogue({
     id, title: 'Installation Composition', track: 'installation', collection: 'learn', level: 300, order: 2,
     purpose: 'This Show spends its entire variety budget on one Pattern instance: a single Harmonograph render drives all five surfaces of the Redline stage. Geometry deals the first difference - the same frame lands as a panel in the middle and four radial blooms around it - and every further voice costs only a per-Clip adaptation or Effect: a hue phase, a shifted window, a mirror, a posterize, a timed invert.',
-    notice: "Halfway through the first passage the satellites split into a four-hue family - gold, warm yellow, azure, blue-violet, a split-complementary scheme built on the render's own base color - by placement phase alone: the compiled artifact adds one number inside the shared hsv call, the cheapest voice in the toolkit. From then on the colors never sit still: at each change beat the four hues glide to new corners by a different rule - a clockwise rotation, a diagonal swap, a rotation back - each glide starting a beat after its neighbour, while shifted windows, a mirrored pair, a posterized pair, and two invert pulses stack onto the same single machine.",
+    notice: 'The satellites split into a four-hue family by placement phase alone - the compiled artifact adds one number inside the shared hsv call. Each change beat then glides the hues to new corners by a different rule, while shifted windows, a mirrored pair, a posterized pair, and two invert pulses stack onto the same single machine.',
     prompts: ['Drag one satellite window\'s Translate X and watch its quarter-frame slide while the other three hold - four windows into one render.', 'Open the artifact inventory: five surfaces, a dozen Effects, one Harmonograph machine. That single-machine line is the whole lesson.'],
     guideHeading: 'composing-a-fixed-installation',
     patternSlots: [['pendulum']],
@@ -1695,7 +1695,7 @@ function learn303(): StockShow {
   return normalizedCatalogue({
     id, title: 'Compile, Simplify, and Deliver', track: 'portable', collection: 'learn', level: 300, order: 3,
     purpose: 'A Show stays editable choreography, but it ships as one ordinary Pixelblaze Pattern. The artifact inventory breaks down what that generated Pattern spends on each Pattern, Effect, and score structure, and its slimming tips name the costs you can actually act on.',
-    notice: "The weave echo near the end is an independent RibbonLoom instance - and the inventory shows the compiler reusing one physical machine for both instances rather than shipping a duplicate copy. What the echo really costs is its overlay structure, about six kilobytes of render plans and score data. Independence is also why it restarts the opening weave from its first frame.",
+    notice: 'The weave echo near the end is an independent RibbonLoom instance, and the inventory shows the compiler reusing one physical machine for both instances. What the echo really costs is its overlay structure - about six kilobytes of render plans and score data - and independence is why it restarts the weave from its first frame.',
     prompts: ["Open the artifact inventory: RibbonLoom lists one physical machine for two logical instances, and the render-plan row is what the echo's Layer actually costs. Delete the echo Clip and watch the total fall.", 'Undo the deletion, then export the EPE or open the generated code: everything on the timeline ships inside that one ordinary Pattern.'],
     guideHeading: 'compile-simplify-and-deliver',
     patternSlots: [['loom', 'loom-echo'], ['garden']],
@@ -2484,7 +2484,7 @@ function apertureShapesReference(): StockShow {
   }
   return catalogue({
     id, title: 'Aperture Shapes: Geometric', track: 'portable', collection: 'showcases', level: null, order: 15,
-    purpose: 'Every geometric Clip Viewport silhouette over one held frame, then one silhouette across its three edge treatments. Shaped silhouettes keep their Soft default - smooth is almost always what you want. The subject, bed, frame, and clocks never change, so each passage has exactly one attributable variable. The icon and signature silhouettes, rotation, and the Cut-out mode have their own reference.',
+    purpose: 'Every geometric Clip Viewport silhouette over one held frame, then one silhouette across its three edge treatments. The subject, bed, frame, and clocks never change, so each passage has exactly one attributable variable. Icons, the Signature cats, rotation, and Cut-out mode have their own reference.',
     notice: 'The first seven passages change only the silhouette at its Soft default, the wide-radius passage shows corner radius is shape rather than edge, and the last three hold the Ring while only its edge treatment changes - Soft, then the deliberate Hard cut, then Stable Dither.',
     prompts: ['Swap the subject Pattern and watch every silhouette keep its geometry.', 'Open any passage and drag the corner radius, arm width, sides, or edge softness - the reference values are starting points, not limits.'],
     guideHeading: 'aperture-shapes-reference',
@@ -2563,7 +2563,7 @@ function apertureIconsReference(): StockShow {
   }
   return catalogue({
     id, title: 'Aperture Icons & Signature', track: 'portable', collection: 'showcases', level: null, order: 16,
-    purpose: 'The icon and signature silhouettes - Heart, Star, Crescent, Cloud, and the three cats - over the same held frame as the geometric reference, then rotation and the Cut-out mode. Shaped silhouettes keep their Soft default, and the subject, bed, frame, and clocks never change, so each passage has exactly one attributable variable.',
+    purpose: 'The icon and signature silhouettes - Heart, Star, Crescent, Cloud, and the three cats - over the same held frame as the geometric reference, then rotation and the Cut-out mode. Each passage still changes exactly one thing.',
     notice: 'The first seven passages change only the silhouette at its Soft default. The last two hold a silhouette and change one control: rotation turns the star while the frame stays axis-aligned, and Cut out inverts the cloud so the silhouette becomes the hole.',
     prompts: ['Drag the rotation on the turned star - the frame never moves, only the silhouette.', "Flip any passage's Mode between Admit inside and Cut out - both sides share one boundary and one feather."],
     guideHeading: 'aperture-icons-and-signature-reference',
@@ -3072,8 +3072,8 @@ function compositingKeyShowcase(): StockShow {
   return catalogue({
     id, title: 'Compositing and Key Effects', track: 'portable', collection: 'showcases', level: null, order: 4,
     purpose: "Opacity, Luma Key, Chroma Key, and Vignette decide which of a Clip's pixels reach the mix, so they only mean something over a lower Layer. A warm bed runs underneath the whole reference; every pixel these Effects remove shows the bed instead.",
-    notice: "Each Effect rides the subject that shows it best: grayscale Luma Rings for the opacity pair and Luma Key - the matte is the image - DoomFire for Chroma Key, and luma-keyed marching waves under the closing Vignette. Every key targets black, so gray edges blend as gradient opacity. The waves' own Angle, Width, and Spacing animate under a held key, then the finale stacks thin keyed rings over keyed waves over the bed: Luma on Luma.",
-    prompts: ['Raise the Luma Key tolerance until only the brightest ring cores survive.', 'Point the Chroma Key at the fire\u2019s yellow instead and watch the cores vanish.'],
+    notice: 'Each Effect rides the subject that shows it best: grayscale Luma Rings for the opacities and Luma Key - the matte is the image - DoomFire for Chroma Key, and the closing Vignette over keyed waves. Every key targets black, so gray edges blend as gradient opacity.',
+    prompts: ['Raise the Luma Key tolerance until only the brightest ring cores survive.', 'Point the Chroma Key at the fire\'s yellow instead and watch the cores vanish.'],
     guideHeading: 'compositing-and-key-effects',
     defaultOpen: true,
     output: portableOutput(), zones, layouts: [singleLayout(zones)],
@@ -3216,8 +3216,8 @@ function lumaSourcesShowcase(): StockShow {
   return catalogue({
     id, title: 'Luma Sources', track: 'portable', collection: 'showcases', level: null, order: 5,
     purpose: 'The seven Luma Patterns are grayscale key sources with one shared control set. Each gets one beat: bare first, then a single animated property chosen for its character - the family controls are ordinary animatable properties.',
-    notice: 'Stripes fattens Width, Sine Waves tips Lean into breaking sawtooths, Chevron breathes Fold, Rings pours Spacing, Pinwheel glides off-center, Dots wheels its lattice, Weave boils its pace, and Spiral zooms its winding. Grayscale throughout: keying them is the Compositing and Key reference\u2019s job.',
-    prompts: ['Drag any beat\u2019s animated control yourself and feel the same range.', 'Add a Luma Key over any beat and watch the field become a matte.'],
+    notice: 'Stripes fattens Width, Sine Waves tips Lean into breaking sawtooths, Chevron breathes Fold, Rings pours Spacing, Pinwheel glides off-center, Dots wheels its lattice, Weave boils its pace, and Spiral zooms its winding. Grayscale throughout: keying them is the Compositing and Key reference\'s job.',
+    prompts: ['Drag any beat\'s animated control yourself and feel the same range.', 'Add a Luma Key over any beat and watch the field become a matte.'],
     guideHeading: 'luma-sources',
     defaultOpen: true,
     output: portableOutput(), zones, layouts: [singleLayout(zones)],
@@ -3402,9 +3402,7 @@ function remixCoronalMassEjection(): StockShow {
   const note: StockShowNote = {
     label: 'Portable Shows',
     title: 'Coronal Mass Ejection',
-    purpose: 'One Pattern, one 40-second gesture. ZRanger1\'s Coronal Mass Ejection opens at half speed; '
-      + 'rotation eases in, speed and spin accelerate together into a crescendo of on-beat brightness pulses, '
-      + 'then everything winds down to a dead stop, holds two beats, and fades to black.',
+    purpose: 'One Pattern, one 40-second gesture. ZRanger1\'s Coronal Mass Ejection opens at half speed; rotation and spin accelerate together into on-beat brightness pulses, then everything winds down to a dead stop and fades to black.',
     notice: 'The Pattern is ZRanger1\'s Coronal Mass Ejection 2D, shipped as-is. Every motion beyond its own '
       + 'animation is choreography: speed, rotation, scale, and brightness Property tracks over one held Clip. '
       + 'Portable Shows are finished pieces rather than lessons, so read the tracks like a score.',
@@ -3715,15 +3713,8 @@ function quadrilleRemix(): StockShow {
   ))
   return catalogue({
     id, title: 'Quadrille', track: 'portable', collection: 'portable-shows', level: null, order: 2,
-    purpose: 'Two Patterns, four quarters, eight phrases at 75 BPM. ZRanger1\'s Wavy Bands is the substrate; '
-      + 'Line Dancer 2D rides one internal swell, held in its full-field bloom for its entrance and breathing '
-      + 'in and out of its lace thereafter. The stage folds into mirrored quarters, the dancers claim theirs, '
-      + 'put on lace, turn, and the quarters finally rejoin - every one an echo of the same two live instances.',
-    notice: 'Line Dancer\'s changing looks ride one internal swell. A shaped time track holds its entrance '
-      + 'inside the bloom, and every phrase advances the swell by exactly half a cycle, so the phrases pair '
-      + 'A/B - bloom-led, then lace-led - all the way to the loop. The loop is choreography, not an edit to '
-      + 'the Pattern. Never more than two Pattern instances play: each quarter is a Viewport-framed placement '
-      + 'of one of them, and the lace is a chroma key on black over the bands beneath.',
+    purpose: 'Two Patterns, four quarters, eight phrases at 75 BPM. ZRanger1\'s Wavy Bands is the substrate; Line Dancer 2D rides one internal swell, breathing in and out of its lace. The stage folds into mirrored quarters and finally rejoins - every quarter an echo of the same two live instances.',
+    notice: 'Line Dancer\'s looks ride one internal swell, and every phrase advances it by exactly half a cycle, so the phrases pair bloom-led and lace-led. Never more than two Pattern instances play: each quarter is a Viewport-framed placement, and the lace is a chroma key on black over the bands.',
     prompts: [
       'Scrub toward any phrase boundary: the lace shimmer is the dancer\'s own filigree, and each fade crosses it at the shared edge rate.',
       'Open the artifact inventory: two Patterns, one machine each, serve every quarter on the stage.',
@@ -3992,18 +3983,8 @@ function overtureRemix(): StockShow {
   const transitions: ShowBoundaryTransition[] = cutBoundaries(overtureScenes)
   return normalizedCatalogue({
     id, title: 'Overture Installation', track: 'installation', collection: 'installations', level: null, order: 2,
-    purpose: 'The building is the performer. Three grayscale Luma instances play a 1,000-LED proscenium at '
-      + '128 BPM, and every light event travels the architecture\'s own paths: the marquee chases the arch '
-      + 'band\'s wiring, the columns climb as the walk\'s built-in canon, blooms pour out of the apex, and '
-      + 'one cyan surge runs the whole installer\'s walk before the house comes up and the ghost light ends '
-      + 'the night.',
-    notice: 'Every color is a placement tint over grayscale sources, and every reversal is a placement '
-      + 'mirror on the Zone\'s wiring walk, landing on bar lines where the symmetric bulb lattice makes '
-      + 'the swap seamless. One rings surface plays velvet body, apex bloom, and the closing ghost lamp '
-      + 'through nothing but placement windows and scale. The per-column choreography addresses the Columns Zone\'s local '
-      + 'raster - column A is its top half, column B its bottom - through hard Viewport frames. No property '
-      + 'tracks anywhere: the score only schedules ownership, and the patterns carry all the motion on '
-      + 'exact bar-locked loops.',
+    purpose: 'Three grayscale Luma instances play a 1,000-LED proscenium at 128 BPM, and every light event travels the architecture\'s own paths: the marquee chases the arch wiring, the columns climb in canon, blooms pour from the apex, and one cyan surge runs the installer\'s walk before the ghost light ends the night.',
+    notice: 'Every color is a placement tint over grayscale sources, and every reversal is a placement mirror on the Zone\'s wiring walk, landing on bar lines. One rings surface plays velvet body, apex bloom, and the closing ghost lamp through placement windows alone. No property tracks anywhere: the score only schedules ownership, and the Patterns carry the motion on bar-locked loops.',
     prompts: [
       'Watch the surge phrase: the bolt crosses column A, the stage, the arch, and column B in the exact order the installer wired them.',
       'Open any marquee placement: one instance serves the arch and both columns, in both colors and both directions of travel.',
