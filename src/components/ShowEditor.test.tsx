@@ -6981,7 +6981,8 @@ export function render(index) { rgb(MyMath.glow(index), 0, 0) }
     expect(screen.getByTestId('show-compile-bar')).not.toHaveTextContent('Controller transforms')
   })
 
-  it('compiles the current Pattern source when Run follows an urgent Show dependency update (#593)', async () => {
+  it('disables deployment while rebuilding an updated Show dependency, then sends the current source (#593, #851)', async () => {
+    const user = userEvent.setup()
     const show = createDefaultShow('show-send-current', 'Current source', 1000)
     show.cells[0] = {
       ...show.cells[0],
@@ -7020,12 +7021,23 @@ export function render(index) { rgb(MyMath.glow(index), 0, 0) }
 
     render(<ShowEditor showId={show.id} />)
     const run = screen.getByRole('button', { name: 'Run on Bench PB' })
+    const save = screen.getByRole('button', { name: 'Save to Bench PB' })
     act(() => {
       usePatternStore.setState({ userPatterns: [newPattern] })
-      fireEvent.click(run)
     })
 
-    await waitFor(() => expect(pushGeneratedArtifact).toHaveBeenCalled())
+    expect(run).toBeDisabled()
+    expect(run).toHaveAttribute('title', 'Rebuilding Show...')
+    expect(save).toBeDisabled()
+    expect(save).toHaveAttribute('title', 'Rebuilding Show...')
+    expect(screen.getByTestId('controller-deployment-identity')).toHaveTextContent('Rebuilding Show...')
+    expect(pushGeneratedArtifact).not.toHaveBeenCalled()
+
+    await waitFor(() => expect(run).toBeEnabled())
+    expect(save).toBeEnabled()
+    await user.click(run)
+
+    expect(pushGeneratedArtifact).toHaveBeenCalledTimes(1)
     const source = pushGeneratedArtifact.mock.calls[0][0].source as string
     expect(source).toContain('0.7654321')
     expect(source).not.toContain('0.1234567')
@@ -7059,6 +7071,107 @@ export function render(index) { rgb(MyMath.glow(index), 0, 0) }
       source: expect.stringContaining('export function render(index, x)'),
       artifactStamp: expect.objectContaining({ transforms: expect.arrayContaining(['renderer-adapter']) }),
     })))
+  })
+
+  it('retires a pending send confirmation when its prepared Show dependency changes (#851)', async () => {
+    const user = userEvent.setup()
+    let show = createDefaultShow('show-send-retire', 'Retire stale confirmation', 1000)
+    show = { ...show, stageMapId: 'plane' }
+    show = updateShowTransition(show, show.scenes[0].id, 'portal', 2000, 0.1)
+    show.cells[0] = {
+      ...show.cells[0],
+      pattern: { kind: 'user', id: 'live-pattern' },
+      patternName: 'Live Pattern',
+    }
+    const oldPattern: PatternRecord = {
+      id: 'live-pattern',
+      name: 'Live Pattern',
+      src: 'export function render(index) { rgb(0.1234567, 0, 0) }',
+      controls: {},
+      updatedAt: 1,
+    }
+    const newPattern: PatternRecord = {
+      ...oldPattern,
+      src: 'export function render(index) { rgb(0.7654321, 0, 0) }',
+      updatedAt: 2,
+    }
+    const pushGeneratedArtifact = vi.fn().mockResolvedValue(undefined)
+    useShowStore.setState({ shows: [show], activeShowId: show.id, showsLoaded: true })
+    usePatternStore.setState({ userPatterns: [oldPattern], patternsLoaded: true })
+    useControllerStore.setState({
+      controllers: {
+        '10.0.0.5': {
+          ip: '10.0.0.5', nickname: 'Bench PB', phase: 'live', mapDim: 1, firmwareVersion: '3.67',
+        },
+      },
+      activeIp: '10.0.0.5',
+      pushGeneratedArtifact,
+    })
+    setControllerProvider(new ConnectedControllerProvider())
+
+    render(<ShowEditor showId={show.id} />)
+    const run = screen.getByRole('button', { name: 'Run on Bench PB' })
+    await user.click(run)
+    expect(screen.getByTestId('show-preflight-dialog')).toBeInTheDocument()
+
+    act(() => usePatternStore.setState({ userPatterns: [newPattern] }))
+
+    expect(screen.queryByTestId('show-preflight-dialog')).not.toBeInTheDocument()
+    expect(run).toBeDisabled()
+    expect(run).toHaveAttribute('title', 'Rebuilding Show...')
+    expect(pushGeneratedArtifact).not.toHaveBeenCalled()
+
+    await waitFor(() => expect(run).toBeEnabled())
+    await user.click(run)
+    await user.click(screen.getByRole('button', { name: 'Send anyway' }))
+
+    expect(pushGeneratedArtifact).toHaveBeenCalledTimes(1)
+    const source = pushGeneratedArtifact.mock.calls[0][0].source as string
+    expect(source).toContain('0.7654321')
+    expect(source).not.toContain('0.1234567')
+  })
+
+  it('keeps deployment disabled with the Show compilation failure after rebuilding (#851)', async () => {
+    const show = createDefaultShow('show-send-failure', 'Failed rebuild', 1000)
+    show.cells[0] = {
+      ...show.cells[0],
+      pattern: { kind: 'user', id: 'broken-pattern' },
+      patternName: 'Broken Pattern',
+    }
+    const validPattern: PatternRecord = {
+      id: 'broken-pattern',
+      name: 'Broken Pattern',
+      src: 'export function render(index) { rgb(0.25, 0, 0) }',
+      controls: {},
+      updatedAt: 1,
+    }
+    const brokenPattern: PatternRecord = {
+      ...validPattern,
+      src: 'export function render(index) { rgb(',
+      updatedAt: 2,
+    }
+    useShowStore.setState({ shows: [show], activeShowId: show.id, showsLoaded: true })
+    usePatternStore.setState({ userPatterns: [validPattern], patternsLoaded: true })
+    useControllerStore.setState({
+      controllers: {
+        '10.0.0.5': {
+          ip: '10.0.0.5', nickname: 'Bench PB', phase: 'live', mapDim: 1, firmwareVersion: '3.67',
+        },
+      },
+      activeIp: '10.0.0.5',
+    })
+    setControllerProvider(new ConnectedControllerProvider())
+
+    render(<ShowEditor showId={show.id} />)
+    const run = screen.getByRole('button', { name: 'Run on Bench PB' })
+    act(() => usePatternStore.setState({ userPatterns: [brokenPattern] }))
+
+    expect(run).toBeDisabled()
+    expect(run).toHaveAttribute('title', 'Rebuilding Show...')
+    await waitFor(() => expect(run).toHaveAttribute('title', expect.not.stringContaining('Rebuilding Show')))
+    expect(run).toBeDisabled()
+    expect(run).not.toHaveAttribute('title', "Fix the pattern's errors before sending")
+    expect(run.getAttribute('title')).toBeTruthy()
   })
 
   it('dismisses pending Controller delivery when navigating to another Show (#593)', async () => {

@@ -1,4 +1,4 @@
-import { Fragment, createContext, useCallback, useContext, useDeferredValue, useEffect, useLayoutEffect, useMemo, useRef, useState, useSyncExternalStore, type CSSProperties, type MouseEvent as ReactMouseEvent, type PointerEvent as ReactPointerEvent, type ReactNode, type RefObject, type SetStateAction } from 'react'
+import { Fragment, createContext, useCallback, useContext, useEffect, useLayoutEffect, useMemo, useRef, useState, useSyncExternalStore, type CSSProperties, type MouseEvent as ReactMouseEvent, type PointerEvent as ReactPointerEvent, type ReactNode, type RefObject, type SetStateAction } from 'react'
 import { createPortal } from 'react-dom'
 import { Activity, BookOpen, ChevronDown, ChevronRight, Clock3, Code2, Copy, CopyPlus, Download, Eye, Flag, Grid2X2, Info, Layers3, Lightbulb, ListChecks, Lock, Magnet, Map as MapIcon, Maximize2, Move, PanelLeft, Pause, Play, Plus, Redo2, Repeat2, RotateCcw, RotateCw, Route, Scissors, Settings2, SkipBack, SlidersHorizontal, Square, Sun, Trash2, Undo2, WandSparkles, X, Zap } from 'lucide-react'
 import { Button } from '@/components/ui/button'
@@ -1424,11 +1424,18 @@ export function ShowEditor({
     stageDimension,
     userPatterns,
   ])
-  const deferredArtifactCompilationInput = useDeferredValue(artifactCompilationInput)
+  const [deferredArtifactCompilationInput, setDeferredArtifactCompilationInput] = useState(artifactCompilationInput)
+  useEffect(() => {
+    if (deferredArtifactCompilationInput === artifactCompilationInput) return
+    const timeout = window.setTimeout(() => setDeferredArtifactCompilationInput(artifactCompilationInput), 0)
+    return () => window.clearTimeout(timeout)
+  }, [artifactCompilationInput, deferredArtifactCompilationInput])
+  const artifactCompilationReady = artifactCompilationInput === deferredArtifactCompilationInput
   const effectiveArtifactCompilationInput =
     deferredArtifactCompilationInput?.show.id === showId
       ? deferredArtifactCompilationInput
-      : artifactCompilationInput
+      : null
+  const compiledShow = effectiveArtifactCompilationInput?.show ?? null
   const compiled = useMemo(
     () => effectiveArtifactCompilationInput
       ? compileShowForArtifact(
@@ -1650,14 +1657,14 @@ export function ShowEditor({
     if (activeShow) useShowPreviewOverrideStore.getState().clear(activeShow.id)
   }
   const inspectableShowExport = useMemo(
-    () => activeShow && compiled.artifact
-      ? buildShowEpeExport(activeShow, compiled.artifact.code, {
-          stampedAt: new Date(activeShow.updatedAt),
+    () => compiledShow && compiled.artifact
+      ? buildShowEpeExport(compiledShow, compiled.artifact.code, {
+          stampedAt: new Date(compiledShow.updatedAt),
           userMaps,
           attribution: compiled.artifact.attribution,
         })
       : null,
-    [activeShow, compiled.artifact, userMaps],
+    [compiledShow, compiled.artifact, userMaps],
   )
   // The pressure numerator is the delivered total (generated source plus
   // delivery header) — the same bytes the gauge and inventory report (#63).
@@ -1674,7 +1681,7 @@ export function ShowEditor({
     ? inspectableShowExport
     : null
   const artifactInventory = useMemo(() => {
-    if (!activeShow || !compiled.artifact || !inspectableShowExport) return null
+    if (!compiledShow || !compiled.artifact || !inspectableShowExport) return null
     const inventory = buildDeliveredShowSourceInventory(
       compiled.artifact.summary.sourceInventory,
       compiled.artifact.code,
@@ -1683,12 +1690,12 @@ export function ShowEditor({
     return {
       inventory,
       model: buildShowArtifactInventoryModel(inventory, {
-        patterns: describeShowArtifactPatterns(activeShow, inventory),
+        patterns: describeShowArtifactPatterns(compiledShow, inventory),
         budgetBytes: compiled.artifact.summary.measuredDeviceBudgetBytes,
         zoneLayoutCount: compiled.artifact.summary.routedZoneLayoutCount,
       }),
     }
-  }, [activeShow, compiled.artifact, inspectableShowExport])
+  }, [compiledShow, compiled.artifact, inspectableShowExport])
   const activeControllerMapDim = activeController?.mapDim ?? null
   const showArtifactId = `show:${showId}`
   const showControllerPushResult = controllerArtifactPushResult?.artifactId === showArtifactId
@@ -1735,6 +1742,36 @@ export function ShowEditor({
       }
     }
   }, [activeControllerFirmware, activeControllerMapDim, compiled.artifact, compiled.artifactBlocker, controllerCompatibilityContext, inspectableShowExport])
+  const preparedDeliverySnapshot = useMemo<ShowDeliverySnapshot | null>(() => {
+    if (
+      !artifactCompilationReady
+      || !compiledShow
+      || !compiled.artifact
+      || compiled.artifactBlocker
+      || compilePressure?.status === 'blocked'
+      || !preparedControllerArtifact.value
+    ) return null
+    return {
+      show: compiledShow,
+      controllerIp: activeIp,
+      artifact: compiled.artifact,
+      prepared: preparedControllerArtifact.value,
+    }
+  }, [
+    activeIp,
+    artifactCompilationReady,
+    compiled.artifact,
+    compiled.artifactBlocker,
+    compiledShow,
+    compilePressure?.status,
+    preparedControllerArtifact.value,
+  ])
+  useEffect(() => {
+    const pendingDelivery = pendingDeliveryRef.current
+    if (!pendingDelivery || pendingDelivery === preparedDeliverySnapshot) return
+    pendingDeliveryRef.current = null
+    setPendingSendMode(null)
+  }, [preparedDeliverySnapshot])
   const measuredControllerDelivery = useMemo(() => {
     if (!activeController || !preparedControllerArtifact.value) return null
     try {
@@ -1818,55 +1855,6 @@ export function ShowEditor({
       userMaps: currentMaps,
       artifact: currentCompiled.artifact,
       canonicalExport,
-    }
-  }
-
-  const buildCurrentDeliverySnapshot = (): ShowDeliverySnapshot | null => {
-    const compilation = buildCurrentCompilationSnapshot()
-    if (!compilation) return null
-    const currentProfiles = useControllerProfileStore.getState().profiles
-    const controllerState = useControllerStore.getState()
-    const currentActiveIp = controllerState.activeIp
-    const currentController = currentActiveIp ? controllerState.controllers[currentActiveIp] : undefined
-    const currentTargetProfile = compilation.show.outputContract?.kind === 'portable-2d'
-      ? undefined
-      : compilation.show.targetControllerProfileId
-        ? currentProfiles.find((profile) => profile.id === compilation.show.targetControllerProfileId)
-        : currentProfiles[0]
-    const currentActiveProfile = currentController
-      ? findProfileForLiveController(currentProfiles, currentController) ?? undefined
-      : currentTargetProfile
-    const currentExport = compilation.canonicalExport
-    try {
-      const prepared = prepareShowControllerArtifact(
-        currentExport.source,
-        currentController?.mapDim ?? null,
-        currentController?.firmwareVersion,
-        buildControllerCompatibilityContext(
-          currentActiveProfile,
-          compilation.userMaps,
-          currentController?.phase === 'live'
-            ? currentController.installedMap
-            : currentActiveProfile?.lastKnownInstalledMap,
-        ),
-      )
-      // Gate delivery on what the Controller actually receives: preparation
-      // can append a renderer adapter, so the prepared source is measured,
-      // not the canonical export (#63 review follow-up).
-      const pressure = assessShowCompilePressure({
-        deliveredSourceBytes: deliveredShowSourceBytes(prepared.source),
-        budgetBytes: compilation.artifact.summary.measuredDeviceBudgetBytes,
-        worstInstantRenderersPerPixel: compilation.artifact.summary.worstInstantRenderersPerPixel,
-      })
-      if (pressure.status === 'blocked') return null
-      return {
-        show: compilation.show,
-        controllerIp: currentActiveIp,
-        artifact: compilation.artifact,
-        prepared,
-      }
-    } catch {
-      return null
     }
   }
 
@@ -1999,9 +1987,19 @@ export function ShowEditor({
     lastRunProgramId: activeIp ? lastRunProgramId[activeIp]?.[showArtifactId] : undefined,
     activeProgramId,
   })
-  const deliveryBlocker = compilePressure?.status === 'blocked'
-    ? compilePressure.blocks.join(' ')
-    : null
+  const deliveryBlocker = !artifactCompilationReady
+    ? 'Rebuilding Show...'
+    : compiled.error
+      ? presentShowDiagnostic(compiled.error)
+      : compiled.artifactBlocker
+        ? presentShowDiagnostic(compiled.artifactBlocker)
+        : compilePressure?.status === 'blocked'
+          ? compilePressure.blocks.join(' ')
+          : preparedControllerArtifact.error
+            ? preparedControllerArtifact.error
+            : preparedDeliverySnapshot
+              ? null
+              : 'Show is not ready to send'
   const runGate = deliveryBlocker
     ? { enabled: false, reason: deliveryBlocker }
     : describeSendToController({
@@ -2018,8 +2016,7 @@ export function ShowEditor({
       })
   const controllerName = activeController ? activeController.nickname || activeIp : null
 
-  async function sendShow(mode: SendMode, requestedDelivery?: ShowDeliverySnapshot | null) {
-    const delivery = requestedDelivery ?? buildCurrentDeliverySnapshot()
+  async function sendShow(mode: SendMode, delivery: ShowDeliverySnapshot | null) {
     if (
       !delivery
       || delivery.show.id !== showId
@@ -2063,7 +2060,7 @@ export function ShowEditor({
   }
 
   function requestShowSend(mode: SendMode) {
-    const delivery = buildCurrentDeliverySnapshot()
+    const delivery = preparedDeliverySnapshot
     if (!delivery) return
     setShowSendMode(mode)
     if (delivery.prepared.warnings.length > 0) {
@@ -2210,6 +2207,7 @@ export function ShowEditor({
             runGate={runGate}
             saveGate={saveGate}
             activeMode={showSendMode}
+            preparingLabel={!artifactCompilationReady ? 'Rebuilding Show...' : undefined}
             pushing={controllerPushing || preparingSave}
             pushResult={showControllerPushResult}
             density="compact"

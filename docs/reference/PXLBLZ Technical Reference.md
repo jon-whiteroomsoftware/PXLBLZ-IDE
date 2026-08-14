@@ -1070,7 +1070,14 @@ the optional record.
 
 The Show editor sends stamped source through the shared `pushPattern`
 transport under identity `show:<show-id>`, inheriting the drain policy for
-large replacements (§17). `showControllerArtifact.ts` is the only
+large replacements (§17). `ShowEditor` prepares an identity-bearing delivery
+snapshot from the settled Show compilation and active Controller context before
+enabling Run or Save. A Show, Pattern, Library, map, profile, or Controller
+change invalidates that snapshot; Run and Save remain disabled while the next
+snapshot builds, and any confirmation bound to the previous snapshot closes.
+The click path consumes the ready snapshot and never recompiles the Show.
+Compilation and preparation failures remain delivery blockers with their
+diagnostic reason. `showControllerArtifact.ts` is the only
 device-derivation seam: it compares generated capabilities with the installed
 map and firmware, appends a renderer adapter when required (restamped with
 `renderer-adapter` provenance), blocks known-unsupported firmware and
