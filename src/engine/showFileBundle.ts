@@ -206,6 +206,9 @@ function normalizeParsedShow(value: unknown): ShowRecord {
   if (!isShowCellArray(value.cells)) {
     invalid('This Show file has an invalid flat Show cell list.')
   }
+  if (!showCellsReferenceExistingOwners(value.cells, value.scenes, value.zones)) {
+    invalid('This Show file has an invalid flat Show cell list.')
+  }
   try {
     const show = normalizeShowEntryState(normalizeShowTransitionState(normalizeShowRoutingState({
       ...clone(value),
@@ -256,15 +259,19 @@ function isMapRecord(value: unknown): value is MapRecord {
     && isRecord(value.params)
     && Object.values(value.params).every((parameter) => typeof parameter === 'number' && Number.isFinite(parameter))
     && (value.source === undefined || typeof value.source === 'string')
-    && (value.points === undefined || isMapPoints(value.points))
+    && (value.generator !== 'custom' || value.points !== undefined)
+    && (value.points === undefined || isMapPoints(value.points, value.dim))
     && Number.isFinite(value.updatedAt)
 }
 
-function isMapPoints(value: unknown): value is number[][] {
+function isMapPoints(value: unknown, dim: 1 | 2 | 3): value is number[][] {
   return Array.isArray(value)
-    && value.every((point) => Array.isArray(point) && point.every((coordinate) => (
-      typeof coordinate === 'number' && Number.isFinite(coordinate)
-    )))
+    && value.length > 0
+    && value.every((point) => (
+      Array.isArray(point)
+      && point.length === dim
+      && point.every((coordinate) => typeof coordinate === 'number' && Number.isFinite(coordinate))
+    ))
 }
 
 function isCompositionV1Envelope(value: unknown): value is NonNullable<ShowRecord['composition']> {
@@ -331,6 +338,16 @@ function isShowCellArray(value: unknown): value is ShowRecord['cells'] {
       && (cell.viewport === undefined || isShowCellViewport(cell.viewport))
       && (cell.effects === undefined || isShowCellEffects(cell.effects))
     ))
+}
+
+function showCellsReferenceExistingOwners(
+  cells: ShowRecord['cells'],
+  scenes: ShowRecord['scenes'],
+  zones: ShowRecord['zones'],
+): boolean {
+  const sceneIds = new Set(scenes.map((scene) => scene.id))
+  const zoneIds = new Set(zones.map((zone) => zone.id))
+  return cells.every((cell) => sceneIds.has(cell.sceneId) && zoneIds.has(cell.zoneId))
 }
 
 function isShowPatternRef(value: unknown): boolean {

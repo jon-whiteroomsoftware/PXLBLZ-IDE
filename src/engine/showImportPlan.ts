@@ -90,7 +90,7 @@ export function planShowImport(
   const patterns: ShowImportPlan['patterns'] = { builtIn: [], reused: [], added: [], copied: [] }
   for (const reference of buildShowArtifactAttribution(bundle.show, bundle.patterns).patterns) {
     if (reference.kind === 'stock') {
-      if (DEMOS[reference.id] === undefined) {
+      if (!Object.prototype.hasOwnProperty.call(DEMOS, reference.id)) {
         throw new ShowImportPlanError(
           'unknown_stock_pattern',
           `Show "${bundle.show.name}" needs the built-in Pattern "${reference.id}", which this version of PXLBLZ does not include. Update PXLBLZ or re-export from a matching version.`,

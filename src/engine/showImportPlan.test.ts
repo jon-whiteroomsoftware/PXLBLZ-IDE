@@ -343,4 +343,32 @@ describe('Show import planning', () => {
       message: expect.stringContaining('AuroraCascade'),
     }))
   })
+
+  it.each(['constructor', 'toString'])(
+    'rejects inherited Object property %s as an unknown built-in Pattern',
+    (patternId) => {
+      const show = createDefaultShow('show-source', 'Prototype Show', 20)
+      show.cells[0] = {
+        ...show.cells[0],
+        pattern: { kind: 'stock', id: patternId },
+        patternName: 'Prototype Pattern',
+      }
+      const bundle: ShowFileBundleV1 = {
+        version: 1,
+        show,
+        patterns: [],
+        maps: [],
+        provenance: {
+          appVersion: '1.0.0',
+          exportedAt: '2026-08-14T12:00:00.000Z',
+          originalShowId: show.id,
+        },
+      }
+
+      expect(() => planShowImport(bundle, { patterns: [], maps: [], showNames: [] })).toThrow(expect.objectContaining({
+        code: 'unknown_stock_pattern',
+        entityId: patternId,
+      }))
+    },
+  )
 })

@@ -91,6 +91,49 @@ describe('Show file bundle export', () => {
     })
   })
 
+  it.each([
+    ['missing points', 2, undefined],
+    ['empty points', 2, []],
+    ['zero-coordinate points', 2, [[]]],
+    ['mixed coordinate arity', 2, [[0, 0], [1]]],
+    ['dimension mismatch', 3, [[0, 0]]],
+  ] as const)('rejects a custom Map with %s', async (_label, dim, points) => {
+    const show = createDefaultShow('show-invalid-map', 'Invalid Map', 100)
+    show.stageMapId = 'map-invalid'
+    show.outputContract = {
+      version: 1,
+      kind: 'installation',
+      outputMapId: 'map-invalid',
+      pixelCount: 2,
+      resolution: 'fixed',
+    }
+    const malformedMap = {
+      id: 'map-invalid',
+      name: 'Invalid Map',
+      dim,
+      generator: 'custom',
+      params: {},
+      ...(points === undefined ? {} : { points }),
+      updatedAt: 10,
+    }
+    const bytes = new TextEncoder().encode(JSON.stringify({
+      version: 1,
+      show,
+      patterns: [],
+      maps: [malformedMap],
+      provenance: {
+        appVersion: '1.0.0',
+        exportedAt: '2026-08-14T12:00:00.000Z',
+        originalShowId: show.id,
+      },
+    }))
+
+    await expect(parseShowFileBundle(bytes)).rejects.toMatchObject({
+      code: 'invalid_file',
+      message: expect.stringContaining('Map list'),
+    })
+  })
+
   it.each(['sceneId', 'zoneId', 'sceneSpan', 'adaptations'] as const)(
     'rejects a flat cell missing %s before planning can persist it',
     async (field) => {
@@ -115,6 +158,32 @@ describe('Show file bundle export', () => {
       })
     },
   )
+
+  it.each([
+    ['sceneId', 'missing-scene'],
+    ['zoneId', 'missing-zone'],
+  ] as const)('rejects a flat cell whose %s does not name an owner in the Show', async (field, missingId) => {
+    const show = createDefaultShow('show-dangling-cell', 'Dangling Cell', 100)
+    const bytes = new TextEncoder().encode(JSON.stringify({
+      version: 1,
+      show: {
+        ...show,
+        cells: [{ ...show.cells[0], [field]: missingId }],
+      },
+      patterns: [],
+      maps: [],
+      provenance: {
+        appVersion: '1.0.0',
+        exportedAt: '2026-08-14T12:00:00.000Z',
+        originalShowId: show.id,
+      },
+    }))
+
+    await expect(parseShowFileBundle(bytes)).rejects.toMatchObject({
+      code: 'invalid_file',
+      message: expect.stringContaining('cell'),
+    })
+  })
 
   it.each([
     ['restartOnEntry', 'false'],
