@@ -12,15 +12,20 @@ async function replaceEditorSource(page: Page, editor: Locator, source: string):
   // textContent preserves the one-line model text without layout-only wraps;
   // Monaco renders ordinary spaces as NBSPs inside view-lines.
   const renderedSource = async () => (await viewLines.textContent() ?? '').replaceAll('\u00a0', ' ')
-  await viewLines.click()
-  await expect(editor).toHaveClass(/focused/)
-  await expect(input).toBeFocused()
-  // Playwright's Chromium keyboard surface uses Control+A for Monaco's
-  // select-all command even when the runner host is macOS.
-  await input.press('Control+KeyA')
-  // Typing an opening bracket over a selection can auto-surround the old
-  // source. Delete first so every caller starts from an empty model.
-  await input.press('Backspace')
+
+  for (let attempt = 0; attempt < 3; attempt += 1) {
+    await viewLines.click()
+    await expect(editor).toHaveClass(/focused/)
+    await expect(input).toBeFocused()
+    // Playwright's Chromium keyboard surface uses Control+A for Monaco's
+    // select-all command even when the runner host is macOS.
+    await input.press('Control+KeyA')
+    // Typing an opening bracket over a selection can auto-surround the old
+    // source. Delete first so every caller starts from an empty model.
+    await input.press('Backspace')
+    if (await renderedSource() === '') break
+  }
+
   await expect.poll(renderedSource).toBe('')
   await page.keyboard.type(source)
   await expect.poll(renderedSource).toBe(source)
@@ -794,6 +799,18 @@ test.describe('silent save-failure feedback (#810)', () => {
       await page.goBack()
       await expect(page).toHaveURL(new RegExp(`/studio/patterns/${pattern.id}$`))
       await expect(editor.locator('.view-lines')).toBeVisible()
+
+      // Reproduce the publication-only race deterministically: Monaco can
+      // lose the first select-all keydown even after its textarea has focus.
+      await editor.getByRole('textbox', { name: 'Editor content' }).evaluate((input) => {
+        const swallowFirstSelectAll = (event: KeyboardEvent) => {
+          if (!event.ctrlKey || event.code !== 'KeyA') return
+          event.preventDefault()
+          event.stopImmediatePropagation()
+          input.removeEventListener('keydown', swallowFirstSelectAll, true)
+        }
+        input.addEventListener('keydown', swallowFirstSelectAll, true)
+      })
 
       await replaceEditorSource(page, editor, brokenSource)
       await expect(page.getByTestId('compile-status')).toHaveAttribute('data-status', 'broken')
