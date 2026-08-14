@@ -436,7 +436,7 @@ function isShowCellEffects(value: unknown): boolean {
   return Array.isArray(value) && value.every((effect) => {
     if (!isRecord(effect) || !isNonEmptyString(effect.id) || typeof effect.kind !== 'string') return false
     const numberFields = SHOW_EFFECT_NUMBER_FIELDS[effect.kind]
-    if (!numberFields || !numberFields.every((key) => Number.isFinite(effect[key]))) return false
+    if (!Array.isArray(numberFields) || !numberFields.every((key) => Number.isFinite(effect[key]))) return false
     return effect.kind !== 'chroma-key' || typeof effect.color === 'string'
   })
 }

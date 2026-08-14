@@ -125,6 +125,7 @@ describe('Show file bundle export', () => {
     ['transform', { positionX: 0, positionY: 0, rotation: 0, scaleX: 1, scaleY: 'wide' }],
     ['viewport', { enabled: 'yes', x: 0, y: 0, width: 1, height: 1 }],
     ['effects', [{ id: 'fx-1', kind: 'brightness', brightness: 'high' }]],
+    ['effects', [{ id: 'fx-prototype', kind: 'constructor' }]],
   ])('rejects invalid optional flat-cell %s state', async (field, invalidValue) => {
     const show = createDefaultShow('show-invalid-optional-cell', 'Invalid Optional Cell', 100)
     const malformedCell = { ...show.cells[0], [field]: invalidValue }
