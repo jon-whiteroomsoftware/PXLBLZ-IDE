@@ -147,6 +147,35 @@ describe('Show file bundle export', () => {
     })
   })
 
+  it('rejects an Effect kind inherited from a polluted Object prototype', async () => {
+    const inheritedKind = 'issue853InheritedEffect'
+    Object.defineProperty(Object.prototype, inheritedKind, { value: [], configurable: true })
+    try {
+      const show = createDefaultShow('show-inherited-effect', 'Inherited Effect', 100)
+      const bytes = new TextEncoder().encode(JSON.stringify({
+        version: 1,
+        show: {
+          ...show,
+          cells: [{ ...show.cells[0], effects: [{ id: 'fx-inherited', kind: inheritedKind }] }],
+        },
+        patterns: [],
+        maps: [],
+        provenance: {
+          appVersion: '1.0.0',
+          exportedAt: '2026-08-14T12:00:00.000Z',
+          originalShowId: show.id,
+        },
+      }))
+
+      await expect(parseShowFileBundle(bytes)).rejects.toMatchObject({
+        code: 'invalid_file',
+        message: expect.stringContaining('cell'),
+      })
+    } finally {
+      Reflect.deleteProperty(Object.prototype, inheritedKind)
+    }
+  })
+
   it('accepts the inspectable raw-JSON form', async () => {
     const show = createDefaultShow('show-json', 'Raw JSON', 100)
     const { bundle } = buildShowFileBundle(show, { patterns: [], maps: [] }, {
