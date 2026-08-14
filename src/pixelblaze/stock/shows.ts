@@ -3984,7 +3984,7 @@ function overtureRemix(): StockShow {
   return normalizedCatalogue({
     id, title: 'Overture Installation', track: 'installation', collection: 'installations', level: null, order: 2,
     purpose: 'Three grayscale Luma instances play a 1,000-LED proscenium at 128 BPM, and every light event travels the architecture\'s own paths: the marquee chases the arch wiring, the columns climb in canon, blooms pour from the apex, and one cyan surge runs the installer\'s walk before the ghost light ends the night.',
-    notice: 'Every color is a placement tint over grayscale sources, and every reversal is a placement mirror on the Zone\'s wiring walk, landing on bar lines. One rings surface plays velvet body, apex bloom, and the closing ghost lamp through placement windows alone. No property tracks anywhere: the score only schedules ownership, and the Patterns carry the motion on bar-locked loops.',
+    notice: 'Every color is a placement tint over grayscale sources, and every reversal is a placement mirror on the Zone\'s wiring walk, landing on bar lines. One rings surface plays velvet body, apex bloom, and the closing ghost lamp through placement, scale, and Effects alone. No property tracks anywhere: the score only schedules ownership, and the Patterns carry the motion on bar-locked loops.',
     prompts: [
       'Watch the surge phrase: the bolt crosses column A, the stage, the arch, and column B in the exact order the installer wired them.',
       'Open any marquee placement: one instance serves the arch and both columns, in both colors and both directions of travel.',
