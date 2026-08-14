@@ -198,6 +198,53 @@ describe('Show import planning', () => {
     })])
   })
 
+  it('copies a same-id 3D Map when only its authored grid depth differs', () => {
+    const show = createDefaultShow('show-source', 'Volumetric Show', 20)
+    show.stageMapId = 'map-volume'
+    show.outputContract = {
+      version: 1,
+      kind: 'installation',
+      outputMapId: 'map-volume',
+      pixelCount: 2,
+      resolution: 'fixed',
+    }
+    const bundledMap: MapRecord = {
+      id: 'map-volume',
+      name: 'Volume',
+      dim: 3,
+      generator: 'custom',
+      params: {},
+      points: [[0, 0, 0], [1, 1, 1]],
+      gridDims: { cols: 1, rows: 1, depth: 2 },
+      updatedAt: 10,
+    }
+    const bundle: ShowFileBundleV1 = {
+      version: 1,
+      show,
+      patterns: [],
+      maps: [bundledMap],
+      provenance: {
+        appVersion: '1.0.0',
+        exportedAt: '2026-08-14T12:00:00.000Z',
+        originalShowId: show.id,
+      },
+    }
+    const ids = ['show-imported', 'map-copy']
+
+    const plan = planShowImport(bundle, {
+      patterns: [],
+      maps: [{ ...bundledMap, gridDims: { cols: 1, rows: 1, depth: 3 } }],
+      showNames: [],
+    }, {
+      createId: () => ids.shift()!,
+    })
+
+    expect(plan.maps.copied).toEqual([expect.objectContaining({
+      id: 'map-volume',
+      targetId: 'map-copy',
+    })])
+  })
+
   it.each([
     { label: 'adds', existing: [] as MapRecord[], bucket: 'added' as const },
     { label: 'reuses', existing: [map('map-shared', 'Existing name', [[0, 0], [1, 1]])], bucket: 'reused' as const },

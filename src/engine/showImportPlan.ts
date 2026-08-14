@@ -290,7 +290,9 @@ function mapContentFingerprint(map: MapRecord): string {
     generator: map.generator,
     params: Object.fromEntries(Object.entries(map.params).sort(([a], [b]) => a.localeCompare(b))),
     source: map.source ?? null,
-    gridDims: map.gridDims ? { cols: map.gridDims.cols, rows: map.gridDims.rows } : null,
+    gridDims: map.gridDims
+      ? { cols: map.gridDims.cols, rows: map.gridDims.rows, depth: map.gridDims.depth ?? null }
+      : null,
     points: map.points && map.points.length > 0 ? mapFingerprintForPoints(map.points) : null,
   }))
 }

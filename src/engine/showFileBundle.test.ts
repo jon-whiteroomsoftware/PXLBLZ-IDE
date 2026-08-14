@@ -116,6 +116,36 @@ describe('Show file bundle export', () => {
     },
   )
 
+  it.each([
+    ['restartOnEntry', 'false'],
+    ['evaluationPolicy', 'sometimes'],
+    ['presentation', { mode: 'strobe', cadenceMs: 'fast' }],
+    ['blink', { rateHz: 2, duty: 'half', phase: 0 }],
+    ['controlTargets', { sliderSpeed: 'fast' }],
+    ['transform', { positionX: 0, positionY: 0, rotation: 0, scaleX: 1, scaleY: 'wide' }],
+    ['viewport', { enabled: 'yes', x: 0, y: 0, width: 1, height: 1 }],
+    ['effects', [{ id: 'fx-1', kind: 'brightness', brightness: 'high' }]],
+  ])('rejects invalid optional flat-cell %s state', async (field, invalidValue) => {
+    const show = createDefaultShow('show-invalid-optional-cell', 'Invalid Optional Cell', 100)
+    const malformedCell = { ...show.cells[0], [field]: invalidValue }
+    const bytes = new TextEncoder().encode(JSON.stringify({
+      version: 1,
+      show: { ...show, cells: [malformedCell] },
+      patterns: [],
+      maps: [],
+      provenance: {
+        appVersion: '1.0.0',
+        exportedAt: '2026-08-14T12:00:00.000Z',
+        originalShowId: show.id,
+      },
+    }))
+
+    await expect(parseShowFileBundle(bytes)).rejects.toMatchObject({
+      code: 'invalid_file',
+      message: expect.stringContaining('cell'),
+    })
+  })
+
   it('accepts the inspectable raw-JSON form', async () => {
     const show = createDefaultShow('show-json', 'Raw JSON', 100)
     const { bundle } = buildShowFileBundle(show, { patterns: [], maps: [] }, {

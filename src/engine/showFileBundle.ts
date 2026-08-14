@@ -317,6 +317,19 @@ function isShowCellArray(value: unknown): value is ShowRecord['cells'] {
       && isShowPatternRef(cell.pattern)
       && typeof cell.patternName === 'string'
       && isShowCellAdaptations(cell.adaptations)
+      && (cell.restartOnEntry === undefined || typeof cell.restartOnEntry === 'boolean')
+      && (
+        cell.evaluationPolicy === undefined
+        || cell.evaluationPolicy === 'live'
+        || cell.evaluationPolicy === 'freeze-at-entry'
+        || cell.evaluationPolicy === 'rolling-refresh'
+      )
+      && (cell.presentation === undefined || isShowCellPresentation(cell.presentation))
+      && (cell.blink === undefined || isShowCellBlink(cell.blink))
+      && (cell.controlTargets === undefined || isFiniteNumberRecord(cell.controlTargets))
+      && (cell.transform === undefined || isShowCellTransform(cell.transform))
+      && (cell.viewport === undefined || isShowCellViewport(cell.viewport))
+      && (cell.effects === undefined || isShowCellEffects(cell.effects))
     ))
 }
 
@@ -347,6 +360,85 @@ function isShowCellAdaptations(value: unknown): boolean {
       value.steppedClock === undefined
       || isRecord(value.steppedClock) && Number.isFinite(value.steppedClock.stepMs)
     )
+}
+
+function isShowCellPresentation(value: unknown): boolean {
+  if (!isRecord(value)) return false
+  return value.mode === 'live'
+    || value.mode === 'freeze'
+    || value.mode === 'strobe' && Number.isFinite(value.cadenceMs)
+}
+
+function isShowCellBlink(value: unknown): boolean {
+  return isRecord(value)
+    && Number.isFinite(value.rateHz)
+    && Number.isFinite(value.duty)
+    && Number.isFinite(value.phase)
+}
+
+function isFiniteNumberRecord(value: unknown): boolean {
+  return isRecord(value)
+    && Object.values(value).every((item) => typeof item === 'number' && Number.isFinite(item))
+}
+
+function isShowCellTransform(value: unknown): boolean {
+  return isRecord(value)
+    && ['positionX', 'positionY', 'rotation', 'scaleX', 'scaleY']
+      .every((key) => Number.isFinite(value[key]))
+}
+
+const SHOW_VIEWPORT_APERTURES = new Set([
+  'rectangle', 'ellipse', 'diamond', 'ring', 'rounded-box', 'cross', 'heart',
+  'star', 'crescent', 'polygon', 'cloud', 'cat-head', 'cat-side-profile', 'bastet',
+])
+const SHOW_VIEWPORT_EDGES = new Set(['hard', 'soft', 'dither'])
+const SHOW_VIEWPORT_NUMERIC_FIELDS = [
+  'feather', 'rotation', 'ringWidth', 'cornerRadius', 'crossWidth', 'starPoints',
+  'starInner', 'crescentOffset', 'polygonSides',
+]
+
+function isShowCellViewport(value: unknown): boolean {
+  return isRecord(value)
+    && typeof value.enabled === 'boolean'
+    && ['x', 'y', 'width', 'height'].every((key) => Number.isFinite(value[key]))
+    && (value.aperture === undefined || typeof value.aperture === 'string' && SHOW_VIEWPORT_APERTURES.has(value.aperture))
+    && (value.edge === undefined || typeof value.edge === 'string' && SHOW_VIEWPORT_EDGES.has(value.edge))
+    && SHOW_VIEWPORT_NUMERIC_FIELDS.every((key) => value[key] === undefined || Number.isFinite(value[key]))
+    && (value.invert === undefined || typeof value.invert === 'boolean')
+}
+
+const SHOW_EFFECT_NUMBER_FIELDS: Record<string, string[]> = {
+  opacity: ['opacity'],
+  brightness: ['brightness'],
+  hue: ['turns'],
+  saturation: ['saturation'],
+  contrast: ['contrast'],
+  invert: ['amount'],
+  threshold: ['threshold', 'amount'],
+  'luma-key': ['target', 'tolerance', 'softness'],
+  'chroma-key': ['tolerance', 'softness'],
+  posterize: ['levels', 'amount'],
+  vignette: ['amount', 'radius', 'softness', 'centerX', 'centerY', 'aspect'],
+  'color-map': ['amount', 'shadowR', 'shadowG', 'shadowB', 'highlightR', 'highlightG', 'highlightB'],
+  translate: ['x', 'y'],
+  rotate: ['turns'],
+  scale: ['x', 'y'],
+  shear: ['x', 'y'],
+  ripple: ['amount', 'frequency', 'phase', 'centerX', 'centerY'],
+  swirl: ['amount', 'radius', 'centerX', 'centerY'],
+  bulge: ['amount', 'radius', 'centerX', 'centerY'],
+  pixelate: ['amount', 'columns', 'rows'],
+  kaleidoscope: ['amount', 'segments', 'rotation', 'centerX', 'centerY'],
+  wrap: [],
+}
+
+function isShowCellEffects(value: unknown): boolean {
+  return Array.isArray(value) && value.every((effect) => {
+    if (!isRecord(effect) || !isNonEmptyString(effect.id) || typeof effect.kind !== 'string') return false
+    const numberFields = SHOW_EFFECT_NUMBER_FIELDS[effect.kind]
+    if (!numberFields || !numberFields.every((key) => Number.isFinite(effect[key]))) return false
+    return effect.kind !== 'chroma-key' || typeof effect.color === 'string'
+  })
 }
 
 function isNonEmptyString(value: unknown): value is string {
