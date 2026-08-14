@@ -69,7 +69,7 @@ Select a boundary in the **Transitions** lane and choose **Change**. Search
 covers the Blend, Fade, Wipe, Dissolve, Shape reveal, and Motion families,
 and hovering a candidate seeks the real Stage to that boundary so you preview
 it with the actual outgoing and incoming Patterns. Clicking applies defaults;
-presets like **Quick** or **Through black** write ordinary editable
+presets like **Quick** or **Black** write ordinary editable
 parameters. The panel then exposes only that variant's legal fields:
 
 - **Duration**: how long the boundary occupies Show time.
