@@ -1085,10 +1085,11 @@ A status-object or metadata refresh inside that connection remains valid. Once
 delivery begins, a disconnect, reconnect, or different Controller aborts through
 the visible action-failure surface before any write.
 The extension provider numbers each websocket generation when it opens, before
-device-identity recovery. The Controller store advances `liveEpoch` when a
-provider generation changes as well as when the entry enters `live`; therefore a
-late `connected` completion from a dead socket cannot make its replacement reuse
-the prepared Show's session epoch.
+device-identity recovery. A superseded open waits for the current connection and
+never publishes its recovered identity, regardless of which recovery finishes
+first. The Controller store also advances `liveEpoch` when a provider generation
+changes as well as when the entry enters `live`; therefore a replacement socket
+cannot reuse the prepared Show's session epoch.
 Compilation and preparation failures remain delivery blockers with their
 diagnostic reason. `showControllerArtifact.ts` is the only
 device-derivation seam: it compares generated capabilities with the installed

@@ -324,7 +324,7 @@ export class ExtensionControllerProvider implements ControllerProvider {
       // The initial connect is fatal: surface it as an error pill. (A reconnect
       // attempt's failure, by contrast, stays `connecting` — the loop owns that
       // status and only goes `error` when it exhausts its attempts.)
-      if (e instanceof ControllerPermissionDeniedError) throw e
+      if (e instanceof ControllerPermissionDeniedError || this.intentionalClose) throw e
       const message = e instanceof Error ? e.message : 'Connection failed'
       this.setStatus({ kind: 'error', message })
       throw e
@@ -364,6 +364,20 @@ export class ExtensionControllerProvider implements ControllerProvider {
     const connectionGeneration = ++this.connectionGeneration
     this.expectConnected = true
     const deviceId = await this.recoverDeviceId(target, conn)
+    if (
+      this.conn !== conn
+      || !conn.isConnected
+      || !this.expectConnected
+      || connectionGeneration !== this.connectionGeneration
+    ) {
+      // Identity recovery is slower than opening the websocket. A dead socket's
+      // recovery can therefore finish after its replacement has opened—or even
+      // after that replacement has published `connected`. Never regress status
+      // to the obsolete socket. The original connect() still waits for the
+      // current attempt, so store bootstrap cannot mistake `connecting` for live.
+      await this.waitForCurrentConnection(target)
+      return
+    }
     this.setStatus({
       kind: 'connected',
       connectionGeneration,
@@ -374,6 +388,40 @@ export class ExtensionControllerProvider implements ControllerProvider {
         ...(target.name ? { name: target.name } : {}),
         ...(target.firmwareVersion ? { firmwareVersion: target.firmwareVersion } : {}),
       },
+    })
+  }
+
+  /** Settle a superseded open only when the provider's current attempt settles.
+   * This preserves connect()'s contract without allowing an obsolete identity
+   * recovery to publish status for a replacement socket. */
+  private waitForCurrentConnection(target: ControllerTarget): Promise<void> {
+    const settled = (status: ControllerStatus): Promise<void> | null => {
+      if (
+        status.kind === 'connected'
+        && status.controller.address === target.address
+      ) return Promise.resolve()
+      if (this.permissionBlocked) {
+        return Promise.reject(new ControllerPermissionDeniedError(target.address))
+      }
+      if (status.kind === 'error') return Promise.reject(new Error(status.message))
+      if (
+        this.intentionalClose
+        || status.kind === 'extension-present'
+        || status.kind === 'no-extension'
+      ) return Promise.reject(new Error('Controller connection attempt was cancelled'))
+      return null
+    }
+
+    const current = settled(this.status)
+    if (current) return current
+
+    return new Promise<void>((resolve, reject) => {
+      const unsubscribe = this.subscribe((status) => {
+        const result = settled(status)
+        if (!result) return
+        unsubscribe()
+        void result.then(resolve, reject)
+      })
     })
   }
 

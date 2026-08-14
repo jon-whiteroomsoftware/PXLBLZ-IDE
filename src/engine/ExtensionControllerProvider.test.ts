@@ -65,6 +65,9 @@ function makeDeviceTransport(
     wifiStatus?: { status?: number; ip?: string; ssid?: string; mac?: string }
     /** When set, the fake helper fails `/wifistatus` with this error. */
     wifiStatusError?: string
+    /** Hold `/wifistatus` replies so reconnect identity recovery can be completed
+     * out of order. */
+    deferWifiStatus?: boolean
   } = {},
 ) {
   const detectAck = opts.detectAck ?? true
@@ -84,6 +87,7 @@ function makeDeviceTransport(
   // connect to an unreachable host that stalls for a long time. Only the connect
   // timeout can move past it.
   let hangConnect = false
+  const pendingWifiStatusReplies: Array<() => void> = []
 
   const emit = (m: RelayMessage) => queueMicrotask(() => listeners.forEach((l) => l(m)))
   const reply = (connId: string, obj: object) => {
@@ -151,10 +155,16 @@ function makeDeviceTransport(
           }
           return
         case 'get-wifi-status':
-          if (opts.wifiStatusError) {
-            emit({ source: RELAY_SOURCE, dir: 'from-helper', type: 'wifi-status', reqId: msg.reqId, ok: false, error: opts.wifiStatusError })
-          } else {
-            emit({ source: RELAY_SOURCE, dir: 'from-helper', type: 'wifi-status', reqId: msg.reqId, ok: true, status: opts.wifiStatus ?? {} })
+          {
+            const replyWifiStatus = () => {
+              if (opts.wifiStatusError) {
+                emit({ source: RELAY_SOURCE, dir: 'from-helper', type: 'wifi-status', reqId: msg.reqId, ok: false, error: opts.wifiStatusError })
+              } else {
+                emit({ source: RELAY_SOURCE, dir: 'from-helper', type: 'wifi-status', reqId: msg.reqId, ok: true, status: opts.wifiStatus ?? {} })
+              }
+            }
+            if (opts.deferWifiStatus) pendingWifiStatusReplies.push(replyWifiStatus)
+            else replyWifiStatus()
           }
           return
         case 'discover':
@@ -236,6 +246,9 @@ function makeDeviceTransport(
     unhang: () => {
       hangConnect = false
     },
+    flushNextWifiStatus: () => pendingWifiStatusReplies.shift()?.(),
+    flushLatestWifiStatus: () => pendingWifiStatusReplies.pop()?.(),
+    pendingWifiStatusCount: () => pendingWifiStatusReplies.length,
   }
 }
 
@@ -822,6 +835,68 @@ describe('ExtensionControllerProvider', () => {
         kind: 'connected',
         connectionGeneration: 2,
       })
+    })
+
+    it('does not publish stale identity recovery after its replacement connects (#851)', async () => {
+      const d = makeDeviceTransport({
+        settings: { boardType: 'pb32' },
+        wifiStatus: { mac: '34:94:54:EE:D4:3C' },
+        deferWifiStatus: true,
+      })
+      const p = new ExtensionControllerProvider({
+        transport: d.transport,
+        reconnectDelayMs: 0,
+      })
+
+      const initialConnect = p.connect(TARGET)
+      await new Promise((resolve) => setTimeout(resolve, 0))
+      expect(d.pendingWifiStatusCount()).toBe(1)
+      d.dropSocket()
+      await new Promise((resolve) => setTimeout(resolve, 5))
+      expect(d.pendingWifiStatusCount()).toBe(2)
+
+      // Finish generation 2 first, then allow the obsolete generation 1
+      // recovery to complete. Provider status must never regress to generation 1.
+      d.flushLatestWifiStatus()
+      await new Promise((resolve) => setTimeout(resolve, 0))
+      expect(p.getStatus()).toMatchObject({ kind: 'connected', connectionGeneration: 2 })
+      d.flushNextWifiStatus()
+      await initialConnect
+      expect(p.getStatus()).toMatchObject({ kind: 'connected', connectionGeneration: 2 })
+    })
+
+    it('keeps the original connect pending when stale recovery finishes first (#851)', async () => {
+      const d = makeDeviceTransport({
+        settings: { boardType: 'pb32' },
+        wifiStatus: { mac: '34:94:54:EE:D4:3C' },
+        deferWifiStatus: true,
+      })
+      const p = new ExtensionControllerProvider({
+        transport: d.transport,
+        reconnectDelayMs: 0,
+      })
+
+      let initialSettled = false
+      const initialConnect = p.connect(TARGET)
+      void initialConnect.then(
+        () => { initialSettled = true },
+        () => { initialSettled = true },
+      )
+      await new Promise((resolve) => setTimeout(resolve, 0))
+      d.dropSocket()
+      await new Promise((resolve) => setTimeout(resolve, 5))
+      expect(d.pendingWifiStatusCount()).toBe(2)
+
+      // Generation 1 finishes while generation 2 is still recovering. It must
+      // neither publish connected nor let the user-facing connect() resolve.
+      d.flushNextWifiStatus()
+      await new Promise((resolve) => setTimeout(resolve, 0))
+      expect(p.getStatus().kind).toBe('connecting')
+      expect(initialSettled).toBe(false)
+
+      d.flushNextWifiStatus()
+      await initialConnect
+      expect(p.getStatus()).toMatchObject({ kind: 'connected', connectionGeneration: 2 })
     })
 
     it('forgets the active bytecode footprint after reconnecting', async () => {
