@@ -258,6 +258,33 @@ describe('pass engine - intercept passes', () => {
     ])
   })
 
+  it.each([
+    ['function declaration', `function callSink(rgb) { rgb(0.8, 0.4, 0.2) }`],
+    ['function expression', `var callSink = function(rgb) { rgb(0.8, 0.4, 0.2) }`],
+    ['arrow function', `var callSink = (rgb) => rgb(0.8, 0.4, 0.2)`],
+  ])('does not rewrite an output name shadowed by a %s parameter (#850)', (_kind, localFunction) => {
+    const source = [
+      localFunction,
+      `export function render(index) {`,
+      `  callSink(customSink)`,
+      `  rgb(0.6, 0.3, 0.1)`,
+      `}`,
+    ].join('\n')
+
+    const result = bundleWithPasses(source, {}, [{
+      id: 'dim-rgb',
+      kind: 'intercept',
+      target: 'rgb',
+      source: `function dimRgb(r, g, b) { rgb(r * 0.5, g * 0.5, b * 0.5) }`,
+      wrapperName: 'dimRgb',
+    }])
+
+    expect(result.code).toContain('rgb(0.8, 0.4, 0.2)')
+    expect(result.code).toContain('__pxlblz_dim_rgb_rgb(0.6, 0.3, 0.1)')
+    expect(result.summary.callSitesWrapped).toEqual({ rgb: 1 })
+    expect(result.warnings).toEqual([])
+  })
+
   it('can wire the stock power-measure source as a measurement-only hsv intercept', () => {
     const powerMeasure = stockMixinSpec('power-measure')
     expect(powerMeasure).toBeDefined()

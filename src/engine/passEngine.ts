@@ -650,7 +650,11 @@ function walkWithScope(node: Node, scope: Scope | null, visitor: (n: Node, scope
   const activeScope = scope ?? { names: new Set(), parent: null }
   visitor(node, activeScope)
 
-  if (node.type === 'FunctionDeclaration' || node.type === 'FunctionExpression') {
+  if (
+    node.type === 'FunctionDeclaration' ||
+    node.type === 'FunctionExpression' ||
+    node.type === 'ArrowFunctionExpression'
+  ) {
     const fnScope: Scope = { names: new Set(), parent: activeScope }
     for (const param of (node.params as Node[]) ?? []) {
       if (param.type === 'Identifier') fnScope.names.add(param.name)
