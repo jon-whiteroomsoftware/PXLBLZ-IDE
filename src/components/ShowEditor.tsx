@@ -2058,6 +2058,7 @@ export function ShowEditor({
           worstInstantRenderersPerPixel: delivery.artifact.summary.worstInstantRenderersPerPixel,
         },
         artifactStamp: prepared.artifactStamp,
+        expectedControllerStatus: delivery.controllerStatus,
         previewImage,
       })
     } finally {

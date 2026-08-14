@@ -6853,7 +6853,8 @@ export function render(index) { rgb(MyMath.glow(index), 0, 0) }
       activeIp: '10.0.0.5',
       pushGeneratedArtifact,
     })
-    setControllerProvider(new ConnectedControllerProvider())
+    const provider = new ConnectedControllerProvider()
+    setControllerProvider(provider)
 
     render(<ShowEditor showId={show.id} />)
 
@@ -6863,12 +6864,14 @@ export function render(index) { rgb(MyMath.glow(index), 0, 0) }
       name: 'Opening Night',
       persist: false,
       artifactStamp: expect.objectContaining({ kind: 'show', id: 'show-send' }),
+      expectedControllerStatus: provider.getStatus(),
     }))
 
     await user.click(screen.getByRole('button', { name: 'Save to Bench PB' }))
     expect(pushGeneratedArtifact).toHaveBeenLastCalledWith(expect.objectContaining({
       artifactId: 'show:show-send',
       persist: true,
+      expectedControllerStatus: provider.getStatus(),
     }))
   })
 
@@ -7024,7 +7027,8 @@ export function render(index) { rgb(MyMath.glow(index), 0, 0) }
       activeIp: '10.0.0.5',
       pushGeneratedArtifact,
     })
-    setControllerProvider(new ConnectedControllerProvider())
+    const provider = new ConnectedControllerProvider()
+    setControllerProvider(provider)
 
     render(<ShowEditor showId={show.id} />)
     const run = screen.getByRole('button', { name: 'Run on Bench PB' })
@@ -7045,6 +7049,7 @@ export function render(index) { rgb(MyMath.glow(index), 0, 0) }
     await user.click(run)
 
     expect(pushGeneratedArtifact).toHaveBeenCalledTimes(1)
+    expect(pushGeneratedArtifact.mock.calls[0][0].expectedControllerStatus).toBe(provider.getStatus())
     const source = pushGeneratedArtifact.mock.calls[0][0].source as string
     expect(source).toContain('0.7654321')
     expect(source).not.toContain('0.1234567')
@@ -7066,7 +7071,8 @@ export function render(index) { rgb(MyMath.glow(index), 0, 0) }
       activeIp: '10.0.0.5',
       pushGeneratedArtifact,
     })
-    setControllerProvider(new ConnectedControllerProvider())
+    const provider = new ConnectedControllerProvider()
+    setControllerProvider(provider)
 
     render(<ShowEditor showId={show.id} />)
     await user.click(screen.getByRole('button', { name: 'Run on Bench PB' }))
@@ -7077,6 +7083,7 @@ export function render(index) { rgb(MyMath.glow(index), 0, 0) }
     await waitFor(() => expect(pushGeneratedArtifact).toHaveBeenCalledWith(expect.objectContaining({
       source: expect.stringContaining('export function render(index, x)'),
       artifactStamp: expect.objectContaining({ transforms: expect.arrayContaining(['renderer-adapter']) }),
+      expectedControllerStatus: provider.getStatus(),
     })))
   })
 

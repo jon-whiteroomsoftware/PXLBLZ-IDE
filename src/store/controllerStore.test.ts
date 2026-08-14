@@ -1303,6 +1303,49 @@ describe('controllerStore (keyed)', () => {
         ))
     })
 
+    it('aborts a generated Show when its Controller session changes during device compilation (#851)', async () => {
+      await store().addController('10.0.0.5')
+      const provider = created.get('10.0.0.5')!
+      const expectedControllerStatus = getControllerProvider().getStatus()
+      provider.compile = async (source: string) => {
+        provider.compiledSources.push(source)
+        await provider.disconnect()
+        return provider.compileResult
+      }
+      const source = stampArtifact(PATTERN_SRC, {
+        kind: 'show',
+        id: 'show-session-race',
+        name: 'Session Race',
+        transforms: ['show'],
+        stampedAt: '2026-08-13T18:00:00.000Z',
+      })
+
+      await store().pushGeneratedArtifact({
+        artifactId: 'show:show-session-race',
+        source,
+        name: 'Session Race',
+        persist: false,
+        compilePressure: GENERATED_ARTIFACT_PRESSURE,
+        artifactStamp: {
+          kind: 'show',
+          id: 'show-session-race',
+          name: 'Session Race',
+          transforms: ['show'],
+          stampedAt: '2026-08-13T18:00:00.000Z',
+        },
+        expectedControllerStatus,
+      })
+
+      expect(provider.pushed).toHaveLength(0)
+      expect(provider.saved).toHaveLength(0)
+      expect(store().artifactPushResult).toEqual({
+        ok: false,
+        message: 'Controller session changed before Show delivery',
+        artifactId: 'show:show-session-race',
+        mode: 'run',
+      })
+    })
+
     it('applies active profile transforms before signing a generated Show (#777)', async () => {
       await store().addController({
         id: 'pixelblaze_pb32_show',

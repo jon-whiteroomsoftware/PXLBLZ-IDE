@@ -109,6 +109,10 @@ export interface PushPatternDeps {
   artifactStamp?: ArtifactStampMeta
   /** Injectable artifact stamp time for deterministic tests. Defaults to now. */
   stampedAt?: Date | string
+  /** Revalidate a caller-owned Controller session immediately before every device
+   * mutation. Reads and compilation may await; a stale session must never cross
+   * the final write boundary. */
+  assertDeviceSession?: () => void
 }
 
 export interface PushPatternResult {
@@ -130,6 +134,7 @@ async function drainBeforeUnsafeActivation(
   if (!bytecodeHeaderReconciles(drainBytecode)) {
     throw new Error('Compiled drain bytecode failed its header sanity check; not pushing')
   }
+  deps.assertDeviceSession?.()
   try {
     await deps.provider.pushBytecode(drainBytecode, {
       id: (deps.mintDrainId ?? makeProgramId)(),
@@ -146,6 +151,7 @@ async function activateTarget(
   bytecode: Uint8Array,
   opts: { id: string; name: string },
 ): Promise<void> {
+  deps.assertDeviceSession?.()
   try {
     await deps.provider.pushBytecode(bytecode, opts)
   } catch (error) {
@@ -217,6 +223,7 @@ export async function pushPattern(deps: PushPatternDeps): Promise<PushPatternRes
   if (deps.activateOnSave !== false) {
     await drainBeforeUnsafeActivation(deps, bytecode.length)
   }
+  deps.assertDeviceSession?.()
   await deps.provider.saveProgram(blob, { id: programId })
 
   // Once persistence succeeds, this id owns the saved artifact even if the

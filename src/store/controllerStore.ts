@@ -361,6 +361,9 @@ export interface GeneratedArtifactPush {
   compilePressure: Omit<ShowCompilePressureInput, 'deliveredSourceBytes'>
   artifactStamp: ArtifactStampMeta
   previewImage?: Uint8Array
+  /** Exact live session that authorized this prepared artifact. Shows supply it;
+   * session-agnostic generated callers may omit it. */
+  expectedControllerStatus?: ControllerStatus
 }
 
 /** The outcome of a single Send-to-Controller push, surfaced on the button. */
@@ -1317,23 +1320,38 @@ export const useControllerStore = create<ControllerConnectionState>()(
             }
             const { created, programId } = await queueControllerDeviceWrite(
               controllerId,
-              () => pushPattern({
-              provider: getControllerProvider(),
-              controllerId,
-              patternId: artifact.artifactId,
-              source,
-              name: artifact.name,
-              persist: artifact.persist,
-              previewImage: artifact.previewImage,
-              artifactStamp,
-              profileSignature,
-              transforms: artifactStamp.transforms,
-              stampedAt: artifact.artifactStamp.stampedAt,
-              loadBindings: getControllerBindings,
-              saveBindings: setControllerBindings,
-              loadPushRecords: getPushRecords,
-              savePushRecords: setPushRecords,
-              }),
+              () => {
+                const provider = getControllerProvider()
+                const assertDeviceSession = artifact.expectedControllerStatus
+                  ? () => {
+                      if (
+                        artifact.expectedControllerStatus?.kind !== 'connected'
+                        || getControllerProvider() !== provider
+                        || provider.getStatus() !== artifact.expectedControllerStatus
+                      ) {
+                        throw new Error('Controller session changed before Show delivery')
+                      }
+                    }
+                  : undefined
+                return pushPattern({
+                  provider,
+                  controllerId,
+                  patternId: artifact.artifactId,
+                  source,
+                  name: artifact.name,
+                  persist: artifact.persist,
+                  previewImage: artifact.previewImage,
+                  artifactStamp,
+                  profileSignature,
+                  transforms: artifactStamp.transforms,
+                  stampedAt: artifact.artifactStamp.stampedAt,
+                  loadBindings: getControllerBindings,
+                  saveBindings: setControllerBindings,
+                  loadPushRecords: getPushRecords,
+                  savePushRecords: setPushRecords,
+                  ...(assertDeviceSession ? { assertDeviceSession } : {}),
+                })
+              },
             )
             assumeRendererPlaying(controllerId)
             useControllerPanelStore.getState().noteProgramActivated(programId)

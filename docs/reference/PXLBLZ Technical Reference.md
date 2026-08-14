@@ -1076,6 +1076,10 @@ enabling Run or Save. A Show, Pattern, Library, map, profile, or Controller
 change invalidates that snapshot; Run and Save remain disabled while the next
 snapshot builds, and any confirmation bound to the previous snapshot closes.
 The click path consumes the ready snapshot and never recompiles the Show.
+The snapshot's exact live Controller session travels through profile draining,
+preview generation, and device compilation; `pushPattern` revalidates it
+immediately before every queued Controller mutation, so an intervening
+disconnect or reconnect aborts without writing to the new session.
 Compilation and preparation failures remain delivery blockers with their
 diagnostic reason. `showControllerArtifact.ts` is the only
 device-derivation seam: it compares generated capabilities with the installed

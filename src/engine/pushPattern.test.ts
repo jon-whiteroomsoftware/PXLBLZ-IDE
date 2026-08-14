@@ -88,6 +88,26 @@ describe('Controller replacement overlap policy (#547)', () => {
 })
 
 describe('pushPattern — run-only (default)', () => {
+  it('revalidates the device session after compilation before any device write (#851)', async () => {
+    let sessionCurrent = true
+    const provider = makeProvider({
+      compile: vi.fn().mockImplementation(async () => {
+        sessionCurrent = false
+        return goodBytecode()
+      }),
+    })
+    const { deps } = makeDeps({
+      provider,
+      assertDeviceSession: () => {
+        if (!sessionCurrent) throw new Error('Controller session changed before Show delivery')
+      },
+    })
+
+    await expect(pushPattern(deps)).rejects.toThrow('Controller session changed before Show delivery')
+    expect(provider.pushBytecode).not.toHaveBeenCalled()
+    expect(provider.saveProgram).not.toHaveBeenCalled()
+  })
+
   it('mints a throwaway id and loads + runs via pushBytecode, never touching the binding', async () => {
     const loadPushRecords = vi.fn().mockResolvedValue({})
     const savePushRecords = vi.fn().mockResolvedValue(undefined)
